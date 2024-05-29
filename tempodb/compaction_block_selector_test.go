@@ -58,7 +58,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					EndTime: now,
 				},
 			},
-			expectedHash: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 		},
 		{
 			name: "choose smallest two",
@@ -92,7 +92,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					EndTime:      now,
 				},
 			},
-			expectedHash: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 		},
 		{
 			name: "different windows",
@@ -124,7 +124,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					EndTime: now,
 				},
 			},
-			expectedHash: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
@@ -135,7 +135,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					EndTime: now.Add(-timeWindow),
 				},
 			},
-			expectedHash2: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Add(-timeWindow).Unix()),
+			expectedHash2: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Add(-timeWindow).Unix(), 0),
 		},
 		{
 			name: "different sizes",
@@ -174,7 +174,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					TotalObjects: 3,
 				},
 			},
-			expectedHash: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
@@ -187,7 +187,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					TotalObjects: 15,
 				},
 			},
-			expectedHash2: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedHash2: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 		},
 		{
 			name: "different compaction lvls",
@@ -221,7 +221,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					EndTime: now,
 				},
 			},
-			expectedHash: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
@@ -234,7 +234,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					CompactionLevel: 1,
 				},
 			},
-			expectedHash2: fmt.Sprintf("%v-%v-%v", tenantID, 1, now.Unix()),
+			expectedHash2: fmt.Sprintf("%v-%v-%v-%v", tenantID, 1, now.Unix(), 0),
 		},
 		{
 			name: "active time window vs not",
@@ -273,7 +273,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					EndTime: now,
 				},
 			},
-			expectedHash: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
@@ -286,7 +286,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					CompactionLevel: 1,
 				},
 			},
-			expectedHash2: fmt.Sprintf("%v-%v", tenantID, now.Add(-activeWindowDuration-time.Minute).Unix()),
+			expectedHash2: fmt.Sprintf("%v-%v-%v", tenantID, now.Add(-activeWindowDuration-time.Minute).Unix(), 0),
 		},
 		{
 			name: "choose lowest compaction level",
@@ -328,7 +328,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					EndTime: now,
 				},
 			},
-			expectedHash: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
@@ -339,7 +339,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					EndTime: now.Add(-timeWindow),
 				},
 			},
-			expectedHash2: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Add(-timeWindow).Unix()),
+			expectedHash2: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Add(-timeWindow).Unix(), 0),
 		},
 		{
 			name: "doesn't choose across time windows",
@@ -428,7 +428,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					EndTime:      now,
 				},
 			},
-			expectedHash:   fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedHash:   fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 			expectedSecond: nil,
 			expectedHash2:  "",
 		},
@@ -464,7 +464,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					EndTime: now,
 				},
 			},
-			expectedHash:   fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedHash:   fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 			expectedSecond: nil,
 			expectedHash2:  "",
 		},
@@ -516,7 +516,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					TotalObjects: 3,
 				},
 			},
-			expectedHash: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000004"),
@@ -529,7 +529,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					TotalObjects: 5,
 				},
 			},
-			expectedHash2: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedHash2: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 		},
 		{
 			name: "honors minimum block count",
@@ -593,7 +593,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					CompactionLevel: 1,
 				},
 			},
-			expectedHash:   fmt.Sprintf("%v-%v-%v", tenantID, 1, now.Unix()),
+			expectedHash:   fmt.Sprintf("%v-%v-%v-%v", tenantID, 1, now.Unix(), 0),
 			expectedSecond: nil,
 			expectedHash2:  "",
 		},
@@ -639,7 +639,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
-					Version: "vParquet",
+					Version: "vParquet3",
 				},
 			},
 			expected:       nil,
@@ -658,7 +658,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
-					Version: "vParquet",
+					Version: "vParquet3",
 				},
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
@@ -668,7 +668,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime: now,
-					Version: "vParquet",
+					Version: "vParquet3",
 				},
 			},
 			expected: []*backend.BlockMeta{
@@ -683,20 +683,20 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					Version: "v2",
 				},
 			},
-			expectedHash: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
-					Version: "vParquet",
+					Version: "vParquet3",
 				},
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime: now,
-					Version: "vParquet",
+					Version: "vParquet3",
 				},
 			},
-			expectedHash2: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedHash2: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 		},
 		{
 			name: "blocks with different dedicated columns are not selected together",
@@ -746,7 +746,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					},
 				},
 			},
-			expectedHash: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 			expectedSecond: []*backend.BlockMeta{
 				{
 					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
@@ -763,7 +763,58 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 					},
 				},
 			},
-			expectedHash2: fmt.Sprintf("%v-%v-%v", tenantID, 0, now.Unix()),
+			expectedHash2: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
+		},
+		{
+			name: "blocks are grouped by replication factor",
+			blocklist: []*backend.BlockMeta{
+				{
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime:           now,
+					ReplicationFactor: 1,
+				},
+				{
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime:           now,
+					ReplicationFactor: 3,
+				},
+				{
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					EndTime:           now,
+					ReplicationFactor: 1,
+				},
+				{
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime:           now,
+					ReplicationFactor: 3,
+				},
+			},
+			expected: []*backend.BlockMeta{
+				{
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					EndTime:           now,
+					ReplicationFactor: 1,
+				},
+				{
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					EndTime:           now,
+					ReplicationFactor: 1,
+				},
+			},
+			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 1),
+			expectedSecond: []*backend.BlockMeta{
+				{
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					EndTime:           now,
+					ReplicationFactor: 3,
+				},
+				{
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+					EndTime:           now,
+					ReplicationFactor: 3,
+				},
+			},
+			expectedHash2: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 3),
 		},
 	}
 

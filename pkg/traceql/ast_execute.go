@@ -86,7 +86,6 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 		}
 
 		var relFn func(s Span, l, r []Span) []Span
-		var falseForAll bool
 
 		switch o.Op {
 		case OpSpansetAnd:
@@ -98,47 +97,53 @@ func (o SpansetOperation) evaluate(input []*Spanset) (output []*Spanset, err err
 			if len(lhs) > 0 || len(rhs) > 0 {
 				output = addSpanset(input[i], uniqueSpans(lhs, rhs), output)
 			}
-
 		// relationship operators all set relFn which is used by below code
 		// to perform the operation
-		case OpSpansetNotDescendant:
-			falseForAll = true
+		case OpSpansetNotDescendant: // !>>
 			fallthrough
-		case OpSpansetDescendant:
+		case OpSpansetNotAncestor: // !<<
+			fallthrough
+		case OpSpansetAncestor: // <<
+			fallthrough
+		case OpSpansetDescendant: // >>
+			fallthrough
+		case OpSpansetUnionAncestor: // &<<
+			fallthrough
+		case OpSpansetUnionDescendant: // &>>
+			falseForAll := o.Op == OpSpansetNotDescendant || o.Op == OpSpansetNotAncestor
+			invert := o.Op == OpSpansetAncestor || o.Op == OpSpansetNotAncestor || o.Op == OpSpansetUnionAncestor
+			union := o.Op == OpSpansetUnionAncestor || o.Op == OpSpansetUnionDescendant
 			relFn = func(s Span, l, r []Span) []Span {
-				return s.DescendantOf(l, r, falseForAll, false, o.matchingSpansBuffer)
+				return s.DescendantOf(l, r, falseForAll, invert, union, o.matchingSpansBuffer)
 			}
 
-		case OpSpansetNotAncestor:
-			falseForAll = true
+		case OpSpansetNotChild: // !>
 			fallthrough
-		case OpSpansetAncestor:
+		case OpSpansetChild: // >
+			fallthrough
+		case OpSpansetNotParent: // !<
+			fallthrough
+		case OpSpansetParent: // <
+			fallthrough
+		case OpSpansetUnionParent: // &<
+			fallthrough
+		case OpSpansetUnionChild: // &>
+			falseForAll := o.Op == OpSpansetNotParent || o.Op == OpSpansetNotChild
+			invert := o.Op == OpSpansetParent || o.Op == OpSpansetNotParent || o.Op == OpSpansetUnionParent
+			union := o.Op == OpSpansetUnionParent || o.Op == OpSpansetUnionChild
 			relFn = func(s Span, l, r []Span) []Span {
-				return s.DescendantOf(l, r, falseForAll, true, o.matchingSpansBuffer)
+				return s.ChildOf(l, r, falseForAll, invert, union, o.matchingSpansBuffer)
 			}
 
-		case OpSpansetNotChild:
-			falseForAll = true
+		case OpSpansetNotSibling: // !~
 			fallthrough
-		case OpSpansetChild:
-			relFn = func(s Span, l, r []Span) []Span {
-				return s.ChildOf(l, r, falseForAll, false, o.matchingSpansBuffer)
-			}
-
-		case OpSpansetNotParent:
-			falseForAll = true
+		case OpSpansetSibling: // ~
 			fallthrough
-		case OpSpansetParent:
+		case OpSpansetUnionSibling: // &~
+			falseForAll := o.Op == OpSpansetNotSibling
+			union := o.Op == OpSpansetUnionSibling
 			relFn = func(s Span, l, r []Span) []Span {
-				return s.ChildOf(l, r, falseForAll, true, o.matchingSpansBuffer)
-			}
-
-		case OpSpansetNotSibling:
-			falseForAll = true
-			fallthrough
-		case OpSpansetSibling:
-			relFn = func(s Span, l, r []Span) []Span {
-				return s.SiblingOf(l, r, falseForAll, o.matchingSpansBuffer)
+				return s.SiblingOf(l, r, falseForAll, union, o.matchingSpansBuffer)
 			}
 
 		default:

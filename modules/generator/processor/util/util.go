@@ -1,22 +1,23 @@
 package util
 
 import (
+	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
+
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
-	semconv "go.opentelemetry.io/collector/semconv/v1.9.0"
 )
 
 func FindServiceName(attributes []*v1_common.KeyValue) (string, bool) {
-	return FindAttributeValue(semconv.AttributeServiceName, attributes)
+	return FindAttributeValue(string(semconv.ServiceNameKey), attributes)
 }
 
 func FindServiceNamespace(attributes []*v1_common.KeyValue) (string, bool) {
-	return FindAttributeValue(semconv.AttributeServiceNamespace, attributes)
+	return FindAttributeValue(string(semconv.ServiceNamespaceKey), attributes)
 }
 
 func FindInstanceID(attributes []*v1_common.KeyValue) (string, bool) {
-	return FindAttributeValue(semconv.AttributeServiceInstanceID, attributes)
+	return FindAttributeValue(string(semconv.ServiceInstanceIDKey), attributes)
 }
 
 func FindAttributeValue(key string, attributes ...[]*v1_common.KeyValue) (string, bool) {

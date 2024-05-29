@@ -42,7 +42,7 @@ type walBlock struct {
 	once     sync.Once
 }
 
-func createWALBlock(id uuid.UUID, tenantID, filepath string, e backend.Encoding, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error) {
+func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (common.WALBlock, error) {
 	if strings.ContainsRune(dataEncoding, ':') || strings.ContainsRune(dataEncoding, '+') ||
 		len([]rune(dataEncoding)) > maxDataEncodingLength {
 		return nil, fmt.Errorf("dataEncoding %s is invalid", dataEncoding)
@@ -54,7 +54,7 @@ func createWALBlock(id uuid.UUID, tenantID, filepath string, e backend.Encoding,
 	}
 
 	h := &walBlock{
-		meta:           backend.NewBlockMeta(tenantID, id, VersionString, e, dataEncoding),
+		meta:           backend.NewBlockMeta(meta.TenantID, meta.BlockID, meta.Version, meta.Encoding, dataEncoding),
 		filepath:       filepath,
 		ingestionSlack: ingestionSlack,
 		encoder:        enc,
@@ -68,7 +68,7 @@ func createWALBlock(id uuid.UUID, tenantID, filepath string, e backend.Encoding,
 	}
 	h.appendFile = f
 
-	dataWriter, err := NewDataWriter(f, e)
+	dataWriter, err := NewDataWriter(f, meta.Encoding)
 	if err != nil {
 		return nil, err
 	}
@@ -306,7 +306,7 @@ func (a *walBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.Sear
 }
 
 // FetchTagValues implements traceql.Searcher
-func (a *walBlock) FetchTagValues(context.Context, traceql.AutocompleteRequest, traceql.AutocompleteCallback, common.SearchOptions) error {
+func (a *walBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 

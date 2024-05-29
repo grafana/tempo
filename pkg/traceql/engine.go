@@ -144,8 +144,8 @@ func (e *Engine) ExecuteTagValues(
 	ctx context.Context,
 	tag Attribute,
 	query string,
-	cb AutocompleteCallback,
-	fetcher AutocompleteFetcher,
+	cb FetchTagValuesCallback,
+	fetcher TagValuesFetcher,
 ) error {
 	ctx, span := tracer.Start(ctx, "traceql.Engine.ExecuteTagValues")
 	defer span.End()
@@ -194,7 +194,7 @@ func (e *Engine) createFetchSpansRequest(searchReq *tempopb.SearchRequest, pipel
 	return req
 }
 
-func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) AutocompleteRequest {
+func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) FetchTagValuesRequest {
 	req := FetchSpansRequest{
 		Conditions:    nil,
 		AllConditions: true,
@@ -204,7 +204,7 @@ func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) Aut
 	//  and breaks optimizations in block_autocomplete.go.
 	//  We only want the attribute we're searching for in the conditions.
 	if pipeline.String() == "{ true }" {
-		return AutocompleteRequest{
+		return FetchTagValuesRequest{
 			Conditions: []Condition{{Attribute: tag, Op: OpNone}},
 			TagName:    tag,
 		}
@@ -223,7 +223,7 @@ func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) Aut
 		Op:        OpNone,
 	})
 
-	autocompleteReq := AutocompleteRequest{
+	autocompleteReq := FetchTagValuesRequest{
 		Conditions: req.Conditions,
 		TagName:    tag,
 	}
@@ -238,7 +238,15 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 		RootTraceName:     spanset.RootSpanName,
 		StartTimeUnixNano: spanset.StartTimeUnixNanos,
 		DurationMs:        uint32(spanset.DurationNanos / 1_000_000),
+		ServiceStats:      make(map[string]*tempopb.ServiceStats, len(spanset.ServiceStats)),
 		SpanSet:           &tempopb.SpanSet{},
+	}
+
+	for service, stats := range spanset.ServiceStats {
+		metadata.ServiceStats[service] = &tempopb.ServiceStats{
+			SpanCount:  stats.SpanCount,
+			ErrorCount: stats.ErrorCount,
+		}
 	}
 
 	for _, span := range spanset.Spans {
@@ -260,7 +268,10 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 				attribute.Intrinsic == IntrinsicDuration ||
 				attribute.Intrinsic == IntrinsicTraceDuration ||
 				attribute.Intrinsic == IntrinsicTraceRootService ||
-				attribute.Intrinsic == IntrinsicTraceRootSpan {
+				attribute.Intrinsic == IntrinsicTraceRootSpan ||
+				attribute.Intrinsic == IntrinsicTraceID ||
+				attribute.Intrinsic == IntrinsicSpanID ||
+				attribute.Intrinsic == IntrinsicEventName {
 				continue
 			}
 
@@ -362,5 +373,20 @@ func (s Static) AsAnyValue() *common_v1.AnyValue {
 		Value: &common_v1.AnyValue_StringValue{
 			StringValue: fmt.Sprintf("error formatting val: static has unexpected type %v", s.Type),
 		},
+	}
+}
+
+func StaticFromAnyValue(a *common_v1.AnyValue) Static {
+	switch v := a.Value.(type) {
+	case *common_v1.AnyValue_StringValue:
+		return NewStaticString(v.StringValue)
+	case *common_v1.AnyValue_IntValue:
+		return NewStaticInt(int(v.IntValue))
+	case *common_v1.AnyValue_BoolValue:
+		return NewStaticBool(v.BoolValue)
+	case *common_v1.AnyValue_DoubleValue:
+		return NewStaticFloat(v.DoubleValue)
+	default:
+		return NewStaticNil()
 	}
 }

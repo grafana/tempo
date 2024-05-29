@@ -33,7 +33,7 @@ The processor uses the [OpenTelemetry semantic conventions](https://github.com/o
 It currently supports the following requests:
 - A direct request between two services where the outgoing and the incoming span must have [`span.kind`](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind), `client`, and `server`, respectively.
 - A request across a messaging system where the outgoing and the incoming span must have `span.kind`, `producer`, and `consumer` respectively.
-- A database request; in this case the processor looks for spans containing attributes `span.kind`=`client` as well as `db.name`.
+- A database request; in this case the processor looks for spans containing attributes `span.kind`=`client` as well as one of `db.name` or `db.system`.  See below for how the name of the node is determined for a database request.
 
 Every span that can be paired up to form a request is kept in an in-memory store, until its corresponding pair span is received or the maximum waiting time has passed.
 When either of these conditions are reached, the request is recorded and removed from the local store.
@@ -56,18 +56,23 @@ Virtual nodes can be detected in two different ways:
    - The default peer attributes are `peer.service`, `db.name` and `db.system`.
    - The order of the attributes is important, as the first one that is present will be used as the virtual node name.
 
+A database node is identified by the span having at least `db.name` or `db.system` attribute.
+
+The name of a database node is determined using the following span attributes in order of precedence: `peer.service`, `server.address`, `network.peer.address:network.peer.port`, `db.name`.
+
 ### Metrics
 
 The following metrics are exported:
 
-| Metric                                      | Type      | Labels                          | Description                                                  |
-|---------------------------------------------|-----------|---------------------------------|--------------------------------------------------------------|
-| traces_service_graph_request_total          | Counter   | client, server, connection_type | Total count of requests between two nodes                    |
-| traces_service_graph_request_failed_total   | Counter   | client, server, connection_type | Total count of failed requests between two nodes             |
-| traces_service_graph_request_server_seconds | Histogram | client, server, connection_type | Time for a request between two nodes as seen from the server |
-| traces_service_graph_request_client_seconds | Histogram | client, server, connection_type | Time for a request between two nodes as seen from the client |
-| traces_service_graph_unpaired_spans_total   | Counter   | client, server, connection_type | Total count of unpaired spans                                |
-| traces_service_graph_dropped_spans_total    | Counter   | client, server, connection_type | Total count of dropped spans                                 |
+| Metric                                                | Type      | Labels                          | Description                                                                                                |
+| ----------------------------------------------------- | --------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| traces_service_graph_request_total                    | Counter   | client, server, connection_type | Total count of requests between two nodes                                                                  |
+| traces_service_graph_request_failed_total             | Counter   | client, server, connection_type | Total count of failed requests between two nodes                                                           |
+| traces_service_graph_request_server_seconds           | Histogram | client, server, connection_type | Time for a request between two nodes as seen from the server                                               |
+| traces_service_graph_request_client_seconds           | Histogram | client, server, connection_type | Time for a request between two nodes as seen from the client                                               |
+| traces_service_graph_request_messaging_system_seconds | Histogram | client, server, connection_type | (Off by default) Time between publisher and consumer for services communicating through a messaging system |
+| traces_service_graph_unpaired_spans_total             | Counter   | client, server, connection_type | Total count of unpaired spans                                                                              |
+| traces_service_graph_dropped_spans_total              | Counter   | client, server, connection_type | Total count of dropped spans                                                                               |
 
 Duration is measured both from the client and the server sides.
 

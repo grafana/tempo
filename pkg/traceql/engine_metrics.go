@@ -7,14 +7,19 @@ import (
 	"fmt"
 	"hash"
 	"hash/fnv"
+	"math"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/prometheus/prometheus/model/labels"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
 )
+
+const internalLabelBucket = "__bucket"
 
 func DefaultQueryRangeStep(start, end uint64) uint64 {
 	delta := time.Duration(end - start)
@@ -60,9 +65,37 @@ func IntervalOf(ts, start, end, step uint64) int {
 	return int((ts - start) / step)
 }
 
+// IntervalOfMs is the same as IntervalOf except the input timestamp is in unix milliseconds.
+func IntervalOfMs(tsmills int64, start, end, step uint64) int {
+	ts := uint64(time.Duration(tsmills) * time.Millisecond)
+	return IntervalOf(ts, start, end, step)
+}
+
 type Label struct {
 	Name  string
 	Value Static
+}
+
+type Labels []Label
+
+// String returns the prometheus-formatted version of the labels. Which is downcasting
+// the typed TraceQL values to strings, with some special casing.
+func (ls Labels) String() string {
+	promLabels := labels.NewBuilder(nil)
+	for _, l := range ls {
+		var promValue string
+		switch {
+		case l.Value.Type == TypeNil:
+			promValue = "<nil>"
+		case l.Value.Type == TypeString && l.Value.S == "":
+			promValue = "<empty>"
+		default:
+			promValue = l.Value.EncodeToString(false)
+		}
+		promLabels.Set(l.Name, promValue)
+	}
+
+	return promLabels.Labels().String()
 }
 
 type TimeSeries struct {
@@ -73,6 +106,42 @@ type TimeSeries struct {
 // SeriesSet is a set of unique timeseries. They are mapped by the "Prometheus"-style
 // text description: {x="a",y="b"} for convenience.
 type SeriesSet map[string]TimeSeries
+
+func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeries {
+	resp := make([]*tempopb.TimeSeries, 0, len(set))
+
+	for promLabels, s := range set {
+		labels := make([]commonv1proto.KeyValue, 0, len(s.Labels))
+		for _, label := range s.Labels {
+			labels = append(labels,
+				commonv1proto.KeyValue{
+					Key:   label.Name,
+					Value: label.Value.AsAnyValue(),
+				},
+			)
+		}
+
+		intervals := IntervalCount(req.Start, req.End, req.Step)
+		samples := make([]tempopb.Sample, 0, intervals)
+		for i, value := range s.Values {
+			ts := TimestampOf(uint64(i), req.Start, req.Step)
+			samples = append(samples, tempopb.Sample{
+				TimestampMs: time.Unix(0, int64(ts)).UnixMilli(),
+				Value:       value,
+			})
+		}
+
+		ss := &tempopb.TimeSeries{
+			PromLabels: promLabels,
+			Labels:     labels,
+			Samples:    samples,
+		}
+
+		resp = append(resp, ss)
+	}
+
+	return resp
+}
 
 // VectorAggregator turns a vector of spans into a single numeric scalar
 type VectorAggregator interface {
@@ -176,9 +245,11 @@ type FastValues [maxGroupBys]Static
 // GroupingAggregator groups spans into series based on attribute values.
 type GroupingAggregator struct {
 	// Config
-	by        []Attribute   // Original attributes: .foo
-	byLookups [][]Attribute // Lookups: span.foo resource.foo
-	innerAgg  func() RangeAggregator
+	by          []Attribute               // Original attributes: .foo
+	byLookups   [][]Attribute             // Lookups: span.foo resource.foo
+	byFunc      func(Span) (Static, bool) // Dynamic label calculated by a callback
+	byFuncLabel string                    // Name of the dynamic label
+	innerAgg    func() RangeAggregator
 
 	// Data
 	series map[FastValues]RangeAggregator
@@ -187,8 +258,8 @@ type GroupingAggregator struct {
 
 var _ SpanAggregator = (*GroupingAggregator)(nil)
 
-func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by []Attribute) SpanAggregator {
-	if len(by) == 0 {
+func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by []Attribute, byFunc func(Span) (Static, bool), byFuncLabel string) SpanAggregator {
+	if len(by) == 0 && byFunc == nil {
 		return &UngroupedAggregator{
 			name:     aggName,
 			innerAgg: innerAgg(),
@@ -210,10 +281,12 @@ func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by [
 	}
 
 	return &GroupingAggregator{
-		series:    map[FastValues]RangeAggregator{},
-		by:        by,
-		byLookups: lookups,
-		innerAgg:  innerAgg,
+		series:      map[FastValues]RangeAggregator{},
+		by:          by,
+		byFunc:      byFunc,
+		byFuncLabel: byFuncLabel,
+		byLookups:   lookups,
+		innerAgg:    innerAgg,
 	}
 }
 
@@ -222,8 +295,20 @@ func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by [
 func (g *GroupingAggregator) Observe(span Span) {
 	// Get grouping values
 	// Reuse same buffer
+	// There is no need to reset, the number of group-by attributes
+	// is fixed after creation.
 	for i, lookups := range g.byLookups {
 		g.buf[i] = lookup(lookups, span)
+	}
+
+	// If dynamic label exists calculate and append it
+	if g.byFunc != nil {
+		v, ok := g.byFunc(span)
+		if !ok {
+			// Totally drop this span
+			return
+		}
+		g.buf[len(g.byLookups)] = v
 	}
 
 	agg, ok := g.series[g.buf]
@@ -264,30 +349,24 @@ func (g *GroupingAggregator) Observe(span Span) {
 //
 //	Ex: rate() by (x,y,z) and all nil yields:
 //	{x="nil"}
-func (g *GroupingAggregator) labelsFor(vals FastValues) ([]Label, string) {
-	tempoLabels := make([]Label, 0, len(g.by))
-	for i, v := range vals {
-		if v.Type == TypeNil {
+func (g *GroupingAggregator) labelsFor(vals FastValues) (Labels, string) {
+	labels := make(Labels, 0, len(g.by)+1)
+	for i := range g.by {
+		if vals[i].Type == TypeNil {
 			continue
 		}
-		tempoLabels = append(tempoLabels, Label{g.by[i].String(), v})
+		labels = append(labels, Label{g.by[i].String(), vals[i]})
+	}
+	if g.byFunc != nil {
+		labels = append(labels, Label{g.byFuncLabel, vals[len(g.by)]})
 	}
 
-	// Prometheus-style version for convenience
-	promLabels := labels.NewBuilder(nil)
-	for _, l := range tempoLabels {
-		promValue := l.Value.EncodeToString(false)
-		if promValue == "" {
-			promValue = "<empty>"
-		}
-		promLabels.Set(l.Name, promValue)
-	}
-	// When all nil then force one.
-	if promLabels.Labels().IsEmpty() {
-		promLabels.Set(g.by[0].String(), "<nil>")
+	if len(labels) == 0 {
+		// When all nil then force one
+		labels = append(labels, Label{g.by[0].String(), NewStaticNil()})
 	}
 
-	return tempoLabels, promLabels.Labels().String()
+	return labels, labels.String()
 }
 
 func (g *GroupingAggregator) Series() SeriesSet {
@@ -331,6 +410,36 @@ func (u *UngroupedAggregator) Series() SeriesSet {
 	}
 }
 
+func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, mode AggregateMode) (*MetricsFrontendEvaluator, error) {
+	if req.Start <= 0 {
+		return nil, fmt.Errorf("start required")
+	}
+	if req.End <= 0 {
+		return nil, fmt.Errorf("end required")
+	}
+	if req.End <= req.Start {
+		return nil, fmt.Errorf("end must be greater than start")
+	}
+	if req.Step <= 0 {
+		return nil, fmt.Errorf("step required")
+	}
+
+	_, _, metricsPipeline, _, err := e.Compile(req.Query)
+	if err != nil {
+		return nil, fmt.Errorf("compiling query: %w", err)
+	}
+
+	if metricsPipeline == nil {
+		return nil, fmt.Errorf("not a metrics query")
+	}
+
+	metricsPipeline.init(req, mode)
+
+	return &MetricsFrontendEvaluator{
+		metricsPipeline: metricsPipeline,
+	}, nil
+}
+
 // CompileMetricsQueryRange returns an evalulator that can be reused across multiple data sources.
 // Dedupe spans parameter is an indicator of whether to expect duplicates in the datasource. For
 // example if the datasource is replication factor=1 or only a single block then we know there
@@ -363,7 +472,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	}
 
 	// This initializes all step buffers, counters, etc
-	metricsPipeline.init(req)
+	metricsPipeline.init(req, AggregateModeRaw)
 
 	me := &MetricsEvalulator{
 		storageReq:        storageReq,
@@ -415,25 +524,42 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	me.start = req.Start
 	me.end = req.End
 
-	optimize(storageReq)
-
-	// Setup second pass callback.  Only as needed.
-	if len(storageReq.SecondPassConditions) > 0 {
-		storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
-			// The traceql engine isn't thread-safe.
-			// But parallelization is required for good metrics performance.
-			// So we do external locking here.
-			me.mtx.Lock()
-			defer me.mtx.Unlock()
-			return eval([]*Spanset{s})
-		}
+	// Setup second pass callback.  It might be optimized away
+	storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
+		// The traceql engine isn't thread-safe.
+		// But parallelization is required for good metrics performance.
+		// So we do external locking here.
+		me.mtx.Lock()
+		defer me.mtx.Unlock()
+		return eval([]*Spanset{s})
 	}
+
+	optimize(storageReq)
 
 	return me, nil
 }
 
 // optimize numerous things within the request that is specific to metrics.
 func optimize(req *FetchSpansRequest) {
+	if !req.AllConditions {
+		return
+	}
+
+	// There is an issue where multiple conditions &&'ed on the same
+	// attribute can look like AllConditions==true, but are implemented
+	// in the storage layer like ||'ed and require the second pass callback (engine).
+	// TODO(mdisibio) - This would be a big performance improvement if we can fix the storage layer
+	// Example:
+	//   { span.http.status_code >= 500 && span.http.status_code < 600 } | rate() by (span.http.status_code)
+	exists := make(map[Attribute]struct{}, len(req.Conditions))
+	for _, c := range req.Conditions {
+		if _, ok := exists[c.Attribute]; ok {
+			// Don't optimize
+			return
+		}
+		exists[c.Attribute] = struct{}{}
+	}
+
 	// Special optimization for queries like:
 	//  {} | rate()
 	//  {} | rate() by (rootName)
@@ -442,7 +568,7 @@ func optimize(req *FetchSpansRequest) {
 	// move them to the first pass and increase performance. It avoids the second pass/bridge
 	// layer and doesn't alter the correctness of the query.
 	// This can't be done for plain attributes or in all cases.
-	if req.AllConditions && len(req.SecondPassConditions) > 0 {
+	if len(req.SecondPassConditions) > 0 {
 		secondLayerAlwaysPresent := true
 		for _, cond := range req.SecondPassConditions {
 			if cond.Attribute.Intrinsic != IntrinsicNone {
@@ -461,6 +587,7 @@ func optimize(req *FetchSpansRequest) {
 		if secondLayerAlwaysPresent {
 			// Move all to first pass
 			req.Conditions = append(req.Conditions, req.SecondPassConditions...)
+			req.SecondPass = nil
 			req.SecondPassConditions = nil
 		}
 	}
@@ -588,8 +715,8 @@ func (e *MetricsEvalulator) Metrics() (uint64, uint64, uint64) {
 	return e.bytes, e.spansTotal, e.spansDeduped
 }
 
-func (e *MetricsEvalulator) Results() (SeriesSet, error) {
-	return e.metricsPipeline.result(), nil
+func (e *MetricsEvalulator) Results() SeriesSet {
+	return e.metricsPipeline.result()
 }
 
 // SpanDeduper2 is EXTREMELY LAZY. It attempts to dedupe spans for metrics
@@ -624,7 +751,15 @@ func (d *SpanDeduper2) Skip(tid []byte, startTime uint64) bool {
 	d.h.Write(d.buf)
 
 	v := d.h.Sum32()
-	m := d.m[tid[len(tid)-1]]
+
+	// Use last byte of the trace to choose the submap.
+	// Empty ID uses submap 0.
+	mapIdx := byte(0)
+	if len(tid) > 0 {
+		mapIdx = tid[len(tid)-1]
+	}
+
+	m := d.m[mapIdx]
 
 	if _, ok := m[v]; ok {
 		return true
@@ -633,3 +768,281 @@ func (d *SpanDeduper2) Skip(tid []byte, startTime uint64) bool {
 	m[v] = struct{}{}
 	return false
 }
+
+// MetricsFrontendEvaluator pipes the sharded job results back into the engine for the rest
+// of the pipeline.  i.e. This evaluator is for the query-frontend.
+type MetricsFrontendEvaluator struct {
+	metricsPipeline metricsFirstStageElement
+}
+
+func (m *MetricsFrontendEvaluator) ObserveSeries(in []*tempopb.TimeSeries) {
+	m.metricsPipeline.observeSeries(in)
+}
+
+func (m *MetricsFrontendEvaluator) Results() SeriesSet {
+	return m.metricsPipeline.result()
+}
+
+type SeriesAggregator interface {
+	Combine([]*tempopb.TimeSeries)
+	Results() SeriesSet
+}
+
+type SimpleAdditionAggregator struct {
+	ss               SeriesSet
+	len              int
+	start, end, step uint64
+}
+
+func NewSimpleAdditionCombiner(req *tempopb.QueryRangeRequest) *SimpleAdditionAggregator {
+	return &SimpleAdditionAggregator{
+		ss:    make(SeriesSet),
+		len:   IntervalCount(req.Start, req.End, req.Step),
+		start: req.Start,
+		end:   req.End,
+		step:  req.Step,
+	}
+}
+
+func (b *SimpleAdditionAggregator) Combine(in []*tempopb.TimeSeries) {
+	for _, ts := range in {
+		existing, ok := b.ss[ts.PromLabels]
+		if !ok {
+			// Convert proto labels to traceql labels
+			labels := make(Labels, 0, len(ts.Labels))
+			for _, l := range ts.Labels {
+				labels = append(labels, Label{
+					Name:  l.Key,
+					Value: StaticFromAnyValue(l.Value),
+				})
+			}
+
+			existing = TimeSeries{
+				Labels: labels,
+				Values: make([]float64, b.len),
+			}
+			b.ss[ts.PromLabels] = existing
+		}
+
+		for _, sample := range ts.Samples {
+			j := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
+			if j >= 0 && j < len(existing.Values) {
+				existing.Values[j] += sample.Value
+			}
+		}
+	}
+}
+
+func (b *SimpleAdditionAggregator) Results() SeriesSet {
+	return b.ss
+}
+
+type HistogramBucket struct {
+	Max   float64
+	Count int
+}
+
+type Histogram struct {
+	Buckets []HistogramBucket
+}
+
+func (h *Histogram) Record(bucket float64, count int) {
+	for i := range h.Buckets {
+		if h.Buckets[i].Max == bucket {
+			h.Buckets[i].Count += count
+			return
+		}
+	}
+
+	h.Buckets = append(h.Buckets, HistogramBucket{
+		Max:   bucket,
+		Count: count,
+	})
+}
+
+type histSeries struct {
+	labels Labels
+	hist   []Histogram
+}
+
+type HistogramAggregator struct {
+	ss               map[string]histSeries
+	qs               []float64
+	len              int
+	start, end, step uint64
+}
+
+func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64) *HistogramAggregator {
+	return &HistogramAggregator{
+		qs:    qs,
+		ss:    make(map[string]histSeries),
+		len:   IntervalCount(req.Start, req.End, req.Step),
+		start: req.Start,
+		end:   req.End,
+		step:  req.Step,
+	}
+}
+
+func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
+	// var min, max time.Time
+
+	for _, ts := range in {
+		// Convert proto labels to traceql labels
+		// while at the same time stripping the bucket label
+		withoutBucket := make(Labels, 0, len(ts.Labels))
+		var bucket Static
+		for _, l := range ts.Labels {
+			if l.Key == internalLabelBucket {
+				// bucket = int(l.Value.GetIntValue())
+				bucket = StaticFromAnyValue(l.Value)
+				continue
+			}
+			withoutBucket = append(withoutBucket, Label{
+				Name:  l.Key,
+				Value: StaticFromAnyValue(l.Value),
+			})
+		}
+
+		if bucket.Type == TypeNil {
+			// Bad __bucket label?
+			continue
+		}
+
+		withoutBucketStr := withoutBucket.String()
+
+		existing, ok := h.ss[withoutBucketStr]
+		if !ok {
+			existing = histSeries{
+				labels: withoutBucket,
+				hist:   make([]Histogram, h.len),
+			}
+			h.ss[withoutBucketStr] = existing
+		}
+
+		b := bucket.asFloat()
+
+		for _, sample := range ts.Samples {
+			if sample.Value == 0 {
+				continue
+			}
+			j := IntervalOfMs(sample.TimestampMs, h.start, h.end, h.step)
+			if j >= 0 && j < len(existing.hist) {
+				existing.hist[j].Record(b, int(sample.Value))
+			}
+		}
+	}
+}
+
+func (h *HistogramAggregator) Results() SeriesSet {
+	results := make(SeriesSet, len(h.ss)*len(h.qs))
+
+	for _, in := range h.ss {
+		// For each input series, we create a new series for each quantile.
+		for _, q := range h.qs {
+			// Append label for the quantile
+			labels := append((Labels)(nil), in.labels...)
+			labels = append(labels, Label{"p", NewStaticFloat(q)})
+			s := labels.String()
+
+			ts := TimeSeries{
+				Labels: labels,
+				Values: make([]float64, len(in.hist)),
+			}
+			for i := range in.hist {
+
+				buckets := in.hist[i].Buckets
+				sort.Slice(buckets, func(i, j int) bool {
+					return buckets[i].Max < buckets[j].Max
+				})
+
+				ts.Values[i] = Log2Quantile(q, buckets)
+			}
+			results[s] = ts
+		}
+	}
+	return results
+}
+
+// Log2Bucketize rounds the given value to the next powers-of-two bucket.
+func Log2Bucketize(v uint64) float64 {
+	if v < 2 {
+		return -1
+	}
+
+	return math.Pow(2, math.Ceil(math.Log2(float64(v))))
+}
+
+// Log2Quantile returns the quantile given bucket labeled with float ranges and counts. Uses
+// exponential power-of-two interpolation between buckets as needed.
+func Log2Quantile(p float64, buckets []HistogramBucket) float64 {
+	if math.IsNaN(p) ||
+		p < 0 ||
+		p > 1 ||
+		len(buckets) == 0 {
+		return 0
+	}
+
+	totalCount := 0
+	for _, b := range buckets {
+		totalCount += b.Count
+	}
+
+	if totalCount == 0 {
+		return 0
+	}
+
+	// Maximum amount of samples to include. We round up to better handle
+	// percentiles on low sample counts (<100).
+	maxSamples := int(math.Ceil(p * float64(totalCount)))
+
+	if maxSamples == 0 {
+		// We have to read at least one sample.
+		maxSamples = 1
+	}
+
+	// Find the bucket where the percentile falls in.
+	var total, bucket int
+	for i, b := range buckets {
+		// Next bucket
+		bucket = i
+
+		// If we can't fully consume the samples in this bucket
+		// then we are done.
+		if total+b.Count > maxSamples {
+			break
+		}
+
+		// Consume all samples in this bucket
+		total += b.Count
+
+		// p100 or happen to read the exact number of samples.
+		// Quantile is the max range for the bucket. No reason
+		// to enter interpolation below.
+		if total == maxSamples {
+			return b.Max
+		}
+	}
+
+	// Fraction to interpolate between buckets, sample-count wise.
+	// 0.5 means halfway
+	interp := float64(maxSamples-total) / float64(buckets[bucket].Count)
+
+	// Exponential interpolation between buckets
+	// The current bucket represents the maximum value
+	max := math.Log2(buckets[bucket].Max)
+	var min float64
+	if bucket > 0 {
+		// Prior bucket represents the min
+		min = math.Log2(buckets[bucket-1].Max)
+	} else {
+		// There is no prior bucket, assume powers of 2
+		min = max - 1
+	}
+	mid := math.Pow(2, min+(max-min)*interp)
+	return mid
+}
+
+var (
+	_ SeriesAggregator = (*SimpleAdditionAggregator)(nil)
+	_ SeriesAggregator = (*HistogramAggregator)(nil)
+)

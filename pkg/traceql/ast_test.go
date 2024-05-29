@@ -359,10 +359,25 @@ func newMockSpan(id []byte) *mockSpan {
 	}
 }
 
+func (m *mockSpan) WithStartTime(nanos uint64) *mockSpan {
+	m.startTimeUnixNanos = nanos
+	return m
+}
+
+func (m *mockSpan) WithDuration(nanos uint64) *mockSpan {
+	m.durationNanos = nanos
+	return m
+}
+
 func (m *mockSpan) WithNestedSetInfo(parentid, left, right int) *mockSpan {
 	m.parentID = parentid
 	m.left = left
 	m.right = right
+	return m
+}
+
+func (m *mockSpan) WithSpanString(key string, value string) *mockSpan {
+	m.attributes[NewScopedAttribute(AttributeScopeSpan, false, key)] = NewStaticString(value)
 	return m
 }
 
@@ -404,7 +419,7 @@ func (m *mockSpan) DurationNanos() uint64 {
 	return m.durationNanos
 }
 
-func (m *mockSpan) DescendantOf(lhs []Span, rhs []Span, falseForAll bool, invert bool, _ []Span) []Span {
+func (m *mockSpan) DescendantOf(lhs []Span, rhs []Span, falseForAll bool, invert bool, _ bool, _ []Span) []Span {
 	return loop(lhs, rhs, falseForAll, invert, descendantOf)
 }
 
@@ -412,7 +427,7 @@ func descendantOf(s1 Span, s2 Span) bool {
 	return s2.(*mockSpan).left > s1.(*mockSpan).left && s2.(*mockSpan).left < s1.(*mockSpan).right
 }
 
-func (m *mockSpan) SiblingOf(lhs []Span, rhs []Span, falseForAll bool, _ []Span) []Span {
+func (m *mockSpan) SiblingOf(lhs []Span, rhs []Span, falseForAll bool, _ bool, _ []Span) []Span {
 	return loop(lhs, rhs, falseForAll, false, siblingOf)
 }
 
@@ -420,7 +435,7 @@ func siblingOf(s1 Span, s2 Span) bool {
 	return s1.(*mockSpan).parentID == s2.(*mockSpan).parentID
 }
 
-func (m *mockSpan) ChildOf(lhs []Span, rhs []Span, falseForAll bool, invert bool, _ []Span) []Span {
+func (m *mockSpan) ChildOf(lhs []Span, rhs []Span, falseForAll bool, invert bool, _ bool, _ []Span) []Span {
 	return loop(lhs, rhs, falseForAll, invert, childOf)
 }
 

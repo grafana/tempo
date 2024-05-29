@@ -20,6 +20,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/modules/generator/storage"
+	objStorage "github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
@@ -55,6 +56,8 @@ type Generator struct {
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
 
+	store objStorage.Store
+
 	// When set to true, the generator will refuse incoming pushes
 	// and will flush any remaining metrics.
 	readOnly atomic.Bool
@@ -64,7 +67,7 @@ type Generator struct {
 }
 
 // New makes a new Generator.
-func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Registerer, logger log.Logger) (*Generator, error) {
+func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Registerer, store objStorage.Store, logger log.Logger) (*Generator, error) {
 	if cfg.Storage.Path == "" {
 		return nil, ErrUnconfigured
 	}
@@ -79,6 +82,8 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 		overrides: overrides,
 
 		instances: map[string]*instance{},
+
+		store: store,
 
 		reg:    reg,
 		logger: logger,
@@ -267,20 +272,20 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 
 		tracesWAL, err = tempodb_wal.New(&tracesWALCfg)
 		if err != nil {
-			wal.Close()
+			_ = wal.Close()
 			return nil, err
 		}
 	}
 
-	inst, err := newInstance(g.cfg, id, g.overrides, wal, reg, g.logger, tracesWAL)
+	inst, err := newInstance(g.cfg, id, g.overrides, wal, reg, g.logger, tracesWAL, g.store)
 	if err != nil {
-		wal.Close()
+		_ = wal.Close()
 		return nil, err
 	}
 
 	err = g.reg.Register(reg)
 	if err != nil {
-		wal.Close()
+		inst.shutdown()
 		return nil, err
 	}
 

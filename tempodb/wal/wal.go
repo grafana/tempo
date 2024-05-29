@@ -8,12 +8,10 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 )
 
 const (
@@ -37,10 +35,6 @@ type Config struct {
 }
 
 func ValidateConfig(c *Config) error {
-	if c.Version == vparquet.VersionString {
-		return fmt.Errorf("this version of vParquet has been deprecated, please use vParquet2 or higher")
-	}
-
 	if _, err := encoding.FromVersion(c.Version); err != nil {
 		return fmt.Errorf("failed to validate block version %s: %w", c.Version, err)
 	}
@@ -158,28 +152,12 @@ func (w *WAL) RescanBlocks(additionalStartSlack time.Duration, log log.Logger) (
 	return blocks, nil
 }
 
-func (w *WAL) NewBlock(id uuid.UUID, tenantID, dataEncoding string) (common.WALBlock, error) {
-	return w.NewBlockWithDedicatedColumns(id, tenantID, dataEncoding, nil)
-}
-
-// TODO(mapno): NewBlock and NewBlockWithDedicatedColumns should be consolidated into a single method
-//  They're currently separate because the dedicated columns feature is vParquet3-only,
-//  and we prefer to avoid leaking vParquet3-specific code where possible.
-//  There are a couple of ways to do this:
-//  1. Add a dedicatedColumns parameter to NewBlock, and have it default to nil.
-//  2. Have encoding-specific config be part of the encoding itself
-//  3. Pass the meta file path to the WAL constructor
-
-func (w *WAL) NewBlockWithDedicatedColumns(id uuid.UUID, tenantID, dataEncoding string, dedicatedColumns backend.DedicatedColumns) (common.WALBlock, error) {
-	return w.newBlock(id, tenantID, dataEncoding, w.c.Version, dedicatedColumns)
-}
-
-func (w *WAL) newBlock(id uuid.UUID, tenantID string, dataEncoding string, blockVersion string, dedicatedColumns backend.DedicatedColumns) (common.WALBlock, error) {
-	v, err := encoding.FromVersion(blockVersion)
+func (w *WAL) NewBlock(meta *backend.BlockMeta, dataEncoding string) (common.WALBlock, error) {
+	v, err := encoding.FromVersion(w.c.Version)
 	if err != nil {
 		return nil, err
 	}
-	return v.CreateWALBlock(id, tenantID, w.c.Filepath, w.c.Encoding, dataEncoding, w.c.IngestionSlack, dedicatedColumns)
+	return v.CreateWALBlock(meta, w.c.Filepath, dataEncoding, w.c.IngestionSlack)
 }
 
 func (w *WAL) GetFilepath() string {

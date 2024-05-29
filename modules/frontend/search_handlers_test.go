@@ -333,6 +333,7 @@ func TestSearchLimitHonored(t *testing.T) {
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
 				Interval:              time.Second,
 			},
+			SLO: testSLOcfg,
 		},
 	}, nil)
 
@@ -491,6 +492,7 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					Interval:              time.Second,
 				},
+				SLO: testSLOcfg,
 			},
 		}, nil)
 
@@ -535,6 +537,7 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					Interval:              time.Second,
 				},
+				SLO: testSLOcfg,
 			},
 		}, nil)
 
@@ -659,7 +662,9 @@ func cacheResponsesEqual(t *testing.T, cacheResponse *tempopb.SearchResponse, pi
 
 // frontendWithSettings returns a new frontend with the given settings. any nil options
 // are given "happy path" defaults
-func frontendWithSettings(t *testing.T, next http.RoundTripper, rdr tempodb.Reader, cfg *Config, cacheProvider cache.Provider) *QueryFrontend {
+func frontendWithSettings(t *testing.T, next http.RoundTripper, rdr tempodb.Reader, cfg *Config, cacheProvider cache.Provider,
+	opts ...func(*Config),
+) *QueryFrontend {
 	if next == nil {
 		next = &mockRoundTripper{
 			responseFn: func() proto.Message {
@@ -717,8 +722,13 @@ func frontendWithSettings(t *testing.T, next http.RoundTripper, rdr tempodb.Read
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
 					Interval:              1 * time.Second,
 				},
+				SLO: testSLOcfg,
 			},
 		}
+	}
+
+	for _, o := range opts {
+		o(cfg)
 	}
 
 	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)

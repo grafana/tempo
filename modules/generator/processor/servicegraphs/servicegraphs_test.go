@@ -14,10 +14,24 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
+
+// NOTE: This is a way to know if the contents of the semconv package have changed.
+// Since we rely on the key contents in the span attributes, we want to know if
+// there is ever a change to the ones we rely on.  This is not a complete test,
+// but just a quick way to know about changes upstream.
+func TestSemconvKeys(t *testing.T) {
+	require.Equal(t, string(semconv.DBNameKey), "db.name")
+	require.Equal(t, string(semconv.DBSystemKey), "db.system")
+	require.Equal(t, string(semconv.PeerServiceKey), "peer.service")
+	require.Equal(t, string(semconv.NetworkPeerAddressKey), "network.peer.address")
+	require.Equal(t, string(semconv.NetworkPeerPortKey), "network.peer.port")
+	require.Equal(t, string(semconv.ServerAddressKey), "server.address")
+}
 
 func TestServiceGraphs(t *testing.T) {
 	testRegistry := registry.NewTestRegistry()
@@ -27,6 +41,7 @@ func TestServiceGraphs(t *testing.T) {
 
 	cfg.HistogramBuckets = []float64{0.04}
 	cfg.Dimensions = []string{"beast", "god"}
+	cfg.EnableMessagingSystemLatencyHistogram = true
 
 	p := New(cfg, "test", testRegistry, log.NewNopLogger())
 	defer p.Shutdown(context.Background())
@@ -98,6 +113,11 @@ func TestServiceGraphs(t *testing.T) {
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(requesterToRecorderLabels, math.Inf(1))))
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_server_seconds_count`, requesterToRecorderLabels))
 	assert.InDelta(t, 0.000693, testRegistry.Query(`traces_service_graph_request_server_seconds_sum`, requesterToRecorderLabels), 0.001)
+
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_messaging_system_seconds_bucket`, withLe(requesterToRecorderLabels, 0.04)))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_messaging_system_seconds_bucket`, withLe(requesterToRecorderLabels, math.Inf(1))))
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_messaging_system_seconds_count`, requesterToRecorderLabels))
+	assert.Equal(t, 0.0098816, testRegistry.Query(`traces_service_graph_request_messaging_system_seconds_sum`, requesterToRecorderLabels))
 }
 
 func TestServiceGraphs_prefixDimensions(t *testing.T) {
@@ -130,6 +150,36 @@ func TestServiceGraphs_prefixDimensions(t *testing.T) {
 
 	// counters
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, requesterToServerLabels))
+}
+
+func TestServiceGraphs_MessagingSystemLatencyHistogram(t *testing.T) {
+	testRegistry := registry.NewTestRegistry()
+
+	cfg := Config{}
+	cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+	cfg.HistogramBuckets = []float64{0.04}
+	cfg.Dimensions = []string{"beast", "god"}
+	cfg.EnableMessagingSystemLatencyHistogram = true
+
+	p := New(cfg, "test", testRegistry, log.NewNopLogger())
+	defer p.Shutdown(context.Background())
+
+	request, err := loadTestData("testdata/trace-with-queue-database.json")
+	require.NoError(t, err)
+
+	p.PushSpans(context.Background(), request)
+
+	requesterToRecorderLabels := labels.FromMap(map[string]string{
+		"client":          "mythical-requester",
+		"server":          "mythical-recorder",
+		"connection_type": "messaging_system",
+		"beast":           "",
+		"god":             "",
+	})
+
+	// counters
+	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_messaging_system_seconds_count`, requesterToRecorderLabels))
 }
 
 func TestServiceGraphs_failedRequests(t *testing.T) {
@@ -260,6 +310,129 @@ func TestServiceGraphs_virtualNodesExtraLabelsForUninstrumentedServices(t *testi
 
 	assert.Equal(t, 1.0, testRegistry.Query(`traces_service_graph_request_total`, clientToVirtualPeerLabels))
 	assert.Equal(t, 0.0, testRegistry.Query(`traces_service_graph_request_failed_total`, clientToVirtualPeerLabels))
+}
+
+func TestServiceGraphs_databaseVirtualNodes(t *testing.T) {
+	cases := []struct {
+		name           string
+		fixturePath    string
+		databaseLabels labels.Labels
+		total          float64
+		errors         float64
+	}{
+		{
+			name:        "virtualNodesWithoutDatabase",
+			fixturePath: "testdata/trace-with-virtual-nodes.json",
+			databaseLabels: labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "mythical-database",
+				"connection_type": "database",
+			}),
+			total:  0.0,
+			errors: 0.0,
+		},
+		{
+			name:        "withoutDatabaseName",
+			fixturePath: "testdata/trace-without-database-name.json",
+			databaseLabels: labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "mythical-database",
+				"connection_type": "database",
+			}),
+			total:  1.0,
+			errors: 0.0,
+		},
+		{
+			name:        "semconv118",
+			fixturePath: "testdata/trace-with-queue-database.json",
+			databaseLabels: labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "postgres",
+				"connection_type": "database",
+			}),
+			total:  1.0,
+			errors: 0.0,
+		},
+		{
+			name:        "semconv125",
+			fixturePath: "testdata/trace-with-queue-database2.json",
+			databaseLabels: labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "mythical-database",
+				"connection_type": "database",
+			}),
+			total:  1.0,
+			errors: 0.0,
+		},
+		{
+			name:        "semconv125PeerService",
+			fixturePath: "testdata/trace-with-queue-database3.json",
+			databaseLabels: labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "mythical-database",
+				"connection_type": "database",
+			}),
+			total:  1.0,
+			errors: 0.0,
+		},
+		{
+			name:        "semconv125NetworkPeerWithPort",
+			fixturePath: "testdata/trace-with-queue-database4.json",
+			databaseLabels: labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "mythical-database:5432",
+				"connection_type": "database",
+			}),
+			total:  1.0,
+			errors: 0.0,
+		},
+		{
+			name:        "semconv125NetworkPeerWithoutPort",
+			fixturePath: "testdata/trace-with-queue-database5.json",
+			databaseLabels: labels.FromMap(map[string]string{
+				"client":          "mythical-server",
+				"server":          "mythical-database",
+				"connection_type": "database",
+			}),
+			total:  1.0,
+			errors: 0.0,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			testRegistry := registry.NewTestRegistry()
+
+			cfg := Config{}
+			cfg.RegisterFlagsAndApplyDefaults("", nil)
+
+			cfg.HistogramBuckets = []float64{0.04}
+			cfg.EnableMessagingSystemLatencyHistogram = true
+
+			p := New(cfg, "test", testRegistry, log.NewNopLogger())
+			defer p.Shutdown(context.Background())
+
+			request, err := loadTestData(tc.fixturePath)
+			require.NoError(t, err)
+
+			p.PushSpans(context.Background(), request)
+
+			// counters
+			assert.Equal(t, tc.total, testRegistry.Query(`traces_service_graph_request_total`, tc.databaseLabels))
+			assert.Equal(t, tc.errors, testRegistry.Query(`traces_service_graph_request_failed_total`, tc.databaseLabels))
+
+			// histograms
+			assert.Equal(t, tc.total, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(tc.databaseLabels, 0.04)))
+			assert.Equal(t, tc.total, testRegistry.Query(`traces_service_graph_request_client_seconds_bucket`, withLe(tc.databaseLabels, math.Inf(1))))
+			assert.Equal(t, tc.total, testRegistry.Query(`traces_service_graph_request_client_seconds_count`, tc.databaseLabels))
+			// assert.InDelta(t, 0.023, testRegistry.Query(`traces_service_graph_request_client_seconds_sum`, tc.databaseLabels), 0.001)
+
+			assert.Equal(t, tc.total, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(tc.databaseLabels, 0.04)))
+			assert.Equal(t, tc.total, testRegistry.Query(`traces_service_graph_request_server_seconds_bucket`, withLe(tc.databaseLabels, math.Inf(1))))
+			assert.Equal(t, tc.total, testRegistry.Query(`traces_service_graph_request_server_seconds_count`, tc.databaseLabels))
+			// assert.InDelta(t, 0.023, testRegistry.Query(`traces_service_graph_request_server_seconds_sum`, tc.databaseLabels), 0.001)
+		})
+	}
 }
 
 func TestServiceGraphs_prefixDimensionsAndEnableExtraLabels(t *testing.T) {

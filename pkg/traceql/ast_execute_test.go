@@ -510,6 +510,16 @@ func TestSpansetOperationEvaluate(t *testing.T) {
 			},
 			[]*Spanset{},
 		},
+		{ // tests that parent operators do not modify the spanset
+			"{ } &< { } &< { } &< { }",
+			[]*Spanset{
+				{Spans: []Span{
+					newMockSpan([]byte{1}).WithAttrBool("parent1", true).WithNestedSetInfo(1, 2, 3),
+					newMockSpan([]byte{1}).WithAttrBool("parent2", true).WithNestedSetInfo(1, 4, 5),
+				}},
+			},
+			[]*Spanset{},
+		},
 	}
 
 	for _, tc := range testCases {

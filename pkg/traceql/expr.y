@@ -93,18 +93,18 @@ import (
                         NIL TRUE FALSE STATUS_ERROR STATUS_OK STATUS_UNSET
                         KIND_UNSPECIFIED KIND_INTERNAL KIND_SERVER KIND_CLIENT KIND_PRODUCER KIND_CONSUMER
                         IDURATION CHILDCOUNT NAME STATUS STATUS_MESSAGE PARENT KIND ROOTNAME ROOTSERVICENAME 
-                        ROOTSERVICE TRACEDURATION NESTEDSETLEFT NESTEDSETRIGHT NESTEDSETPARENT
-                        PARENT_DOT RESOURCE_DOT SPAN_DOT TRACE_COLON SPAN_COLON
+                        ROOTSERVICE TRACEDURATION NESTEDSETLEFT NESTEDSETRIGHT NESTEDSETPARENT ID
+                        PARENT_DOT RESOURCE_DOT SPAN_DOT TRACE_COLON SPAN_COLON EVENT_COLON
                         COUNT AVG MAX MIN SUM
                         BY COALESCE SELECT
                         END_ATTRIBUTE
-                        RATE COUNT_OVER_TIME QUANTILE_OVER_TIME
+                        RATE COUNT_OVER_TIME QUANTILE_OVER_TIME HISTOGRAM_OVER_TIME
                         WITH
 
 // Operators are listed with increasing precedence.
 %left <binOp> PIPE
 %left <binOp> AND OR
-%left <binOp> EQ NEQ LT LTE GT GTE NRE RE DESC ANCE SIBL NOT_CHILD NOT_PARENT NOT_DESC NOT_ANCE
+%left <binOp> EQ NEQ LT LTE GT GTE NRE RE DESC ANCE SIBL NOT_CHILD NOT_PARENT NOT_DESC NOT_ANCE UNION_CHILD UNION_PARENT UNION_DESC UNION_ANCE UNION_SIBL
 %left <binOp> ADD SUB
 %left <binOp> NOT
 %left <binOp> MUL DIV MOD
@@ -139,6 +139,11 @@ spansetPipelineExpression: // shares the same operators as spansetExpression. sp
   | spansetPipelineExpression NOT_DESC   spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetNotDescendant, $1, $3) }
   | spansetPipelineExpression NOT_ANCE   spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetNotAncestor, $1, $3) }
   | spansetPipelineExpression NRE        spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetNotSibling, $1, $3) }
+  | spansetPipelineExpression UNION_CHILD  spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetUnionChild, $1, $3) }
+  | spansetPipelineExpression UNION_PARENT spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetUnionParent, $1, $3) }
+  | spansetPipelineExpression UNION_DESC   spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetUnionDescendant, $1, $3) }
+  | spansetPipelineExpression UNION_ANCE   spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetUnionAncestor, $1, $3) }
+  | spansetPipelineExpression UNION_SIBL   spansetPipelineExpression  { $$ = newSpansetOperation(OpSpansetUnionSibling, $1, $3) }
   | wrappedSpansetPipeline                                       { $$ = $1 }
   ;
 
@@ -203,6 +208,12 @@ spansetExpression: // shares the same operators as scalarPipelineExpression. spl
   | spansetExpression NRE        spansetExpression  { $$ = newSpansetOperation(OpSpansetNotSibling, $1, $3) }
   | spansetExpression NOT_ANCE   spansetExpression  { $$ = newSpansetOperation(OpSpansetNotAncestor, $1, $3) }
   | spansetExpression NOT_DESC   spansetExpression  { $$ = newSpansetOperation(OpSpansetNotDescendant, $1, $3) }
+
+  | spansetExpression UNION_CHILD  spansetExpression  { $$ = newSpansetOperation(OpSpansetUnionChild, $1, $3) }
+  | spansetExpression UNION_PARENT spansetExpression  { $$ = newSpansetOperation(OpSpansetUnionParent, $1, $3) }
+  | spansetExpression UNION_SIBL   spansetExpression  { $$ = newSpansetOperation(OpSpansetUnionSibling, $1, $3) }
+  | spansetExpression UNION_ANCE   spansetExpression  { $$ = newSpansetOperation(OpSpansetUnionAncestor, $1, $3) }
+  | spansetExpression UNION_DESC   spansetExpression  { $$ = newSpansetOperation(OpSpansetUnionDescendant, $1, $3) }
 
   | spansetFilter                                { $$ = $1 } 
   ;
@@ -281,12 +292,14 @@ aggregate:
 // Metrics
 // **********************
 metricsAggregation:
-      RATE            OPEN_PARENS CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateRate, nil) }
-    | RATE            OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateRate, $6) }
-    | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateCountOverTime, nil) }
-    | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregate(metricsAggregateCountOverTime, $6) }
-    | QUANTILE_OVER_TIME OPEN_PARENS attribute COMMA numericList CLOSE_PARENS { $$ = newMetricsAggregateQuantileOverTime($3, $5, nil) }
+      RATE            OPEN_PARENS CLOSE_PARENS                                                                          { $$ = newMetricsAggregate(metricsAggregateRate, nil) }
+    | RATE            OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS                                { $$ = newMetricsAggregate(metricsAggregateRate, $6) }
+    | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS                                                                          { $$ = newMetricsAggregate(metricsAggregateCountOverTime, nil) }
+    | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS                                { $$ = newMetricsAggregate(metricsAggregateCountOverTime, $6) }
+    | QUANTILE_OVER_TIME OPEN_PARENS attribute COMMA numericList CLOSE_PARENS                                           { $$ = newMetricsAggregateQuantileOverTime($3, $5, nil) }
     | QUANTILE_OVER_TIME OPEN_PARENS attribute COMMA numericList CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregateQuantileOverTime($3, $5, $9) }
+    | HISTOGRAM_OVER_TIME OPEN_PARENS attribute CLOSE_PARENS                                                            { $$ = newMetricsAggregateHistogramOverTime($3, nil) }
+    | HISTOGRAM_OVER_TIME OPEN_PARENS attribute CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS                  { $$ = newMetricsAggregateHistogramOverTime($3, $7) }
   ;
 
 // **********************
@@ -380,12 +393,16 @@ scopedIntrinsicField:
     TRACE_COLON IDURATION        { $$ = NewIntrinsic(IntrinsicTraceDuration)       }
   | TRACE_COLON ROOTNAME         { $$ = NewIntrinsic(IntrinsicTraceRootSpan)       }
   | TRACE_COLON ROOTSERVICE      { $$ = NewIntrinsic(IntrinsicTraceRootService)    }
+  | TRACE_COLON ID               { $$ = NewIntrinsic(IntrinsicTraceID)             }
 //  span:
   | SPAN_COLON IDURATION         { $$ = NewIntrinsic(IntrinsicDuration)            }
   | SPAN_COLON NAME              { $$ = NewIntrinsic(IntrinsicName)                }
   | SPAN_COLON KIND              { $$ = NewIntrinsic(IntrinsicKind)                }
   | SPAN_COLON STATUS            { $$ = NewIntrinsic(IntrinsicStatus)              }
   | SPAN_COLON STATUS_MESSAGE    { $$ = NewIntrinsic(IntrinsicStatusMessage)       }
+  | SPAN_COLON ID                { $$ = NewIntrinsic(IntrinsicSpanID)              }
+// event:
+  | EVENT_COLON NAME 	         { $$ = NewIntrinsic(IntrinsicEventName)                }
 
 attributeField:
     DOT IDENTIFIER END_ATTRIBUTE                      { $$ = NewAttribute($2)                                      }

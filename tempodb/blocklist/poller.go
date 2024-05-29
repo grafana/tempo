@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"path"
 	"sort"
 	"strconv"
 	"sync"
@@ -77,12 +78,14 @@ var (
 
 // Config is used to configure the poller
 type PollerConfig struct {
-	PollConcurrency           uint
-	PollFallback              bool
-	TenantIndexBuilders       int
-	StaleTenantIndex          time.Duration
-	PollJitterMs              int
-	TolerateConsecutiveErrors int
+	PollConcurrency            uint
+	PollFallback               bool
+	TenantIndexBuilders        int
+	StaleTenantIndex           time.Duration
+	PollJitterMs               int
+	TolerateConsecutiveErrors  int
+	EmptyTenantDeletionAge     time.Duration
+	EmptyTenantDeletionEnabled bool
 }
 
 // JobSharder is used to determine if a particular job is owned by this process
@@ -232,7 +235,7 @@ func (p *Poller) pollTenantAndCreateIndex(
 	metricTenantIndexBuilder.WithLabelValues(tenantID).Set(1)
 	blocklist, compactedBlocklist, err := p.pollTenantBlocks(derivedCtx, tenantID, previous)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to poll tenant blocks: %w", err)
 	}
 
 	// everything is happy, write this tenant index
@@ -242,6 +245,14 @@ func (p *Poller) pollTenantAndCreateIndex(
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()
 		level.Error(p.logger).Log("msg", "failed to write tenant index", "tenant", tenantID, "err", err)
 	}
+
+	if len(blocklist) == 0 && len(compactedBlocklist) == 0 {
+		err := p.deleteTenant(ctx, tenantID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to delete tenant: %w", err)
+		}
+	}
+
 	metricTenantIndexAgeSeconds.WithLabelValues(tenantID).Set(0)
 
 	return blocklist, compactedBlocklist, nil
@@ -452,6 +463,62 @@ func (p *Poller) tenantIndexPollError(idx *backend.TenantIndex, err error) error
 
 	if p.cfg.StaleTenantIndex != 0 && time.Since(idx.CreatedAt) > p.cfg.StaleTenantIndex {
 		return fmt.Errorf("tenant index created at %s is stale", idx.CreatedAt)
+	}
+
+	return nil
+}
+
+// deleteTenant will delete all of a tenant's objects if there is not a tenant index present.
+func (p *Poller) deleteTenant(ctx context.Context, tenantID string) error {
+	// If we have not enabled empty tenant deletion, do nothing.
+	if !p.cfg.EmptyTenantDeletionEnabled {
+		return nil
+	}
+
+	level.Info(p.logger).Log("msg", "deleting tenant", "tenant", tenantID)
+
+	if p.cfg.EmptyTenantDeletionAge == 0 {
+		return fmt.Errorf("empty tenant deletion age must be greater than 0")
+	}
+
+	var (
+		foundObjects  []string
+		recentObjects int
+	)
+	err := p.reader.Find(ctx, backend.KeyPath{tenantID}, func(opts backend.FindMatch) {
+		level.Info(p.logger).Log("msg", "checking object for deletion", "object", opts.Key, "modified", opts.Modified)
+
+		if time.Since(opts.Modified) > p.cfg.EmptyTenantDeletionAge {
+			foundObjects = append(foundObjects, opts.Key)
+		} else {
+			recentObjects++
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	// do nothing if there are recent objects for this tenant.
+	if recentObjects > 0 {
+		return nil
+	}
+
+	// do nothing if the tenant index has appeared.
+	_, err = p.reader.TenantIndex(ctx, tenantID)
+	// If we have any error other than that which indicates that the tenant index
+	// call was made successfully, and that it does not exist, do nothing.  Only
+	// proceed if we know that the index does not exist.
+	if !errors.Is(err, backend.ErrDoesNotExist) {
+		return nil
+	}
+
+	for _, object := range foundObjects {
+		dir, name := path.Split(object)
+		level.Info(p.logger).Log("msg", "deleting", "tenant", tenantID, "object", object)
+		err = p.writer.Delete(ctx, name, backend.KeyPath{dir})
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

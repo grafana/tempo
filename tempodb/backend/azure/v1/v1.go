@@ -230,6 +230,44 @@ func (rw *V1) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uui
 	return blockIDs, compactedBlockIDs, nil
 }
 
+// Find implements backend.Reader
+func (rw *V1) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) (err error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+
+	marker := blob.Marker{}
+	prefix := path.Join(keypath...)
+
+	if len(prefix) > 0 {
+		prefix = prefix + dir
+	}
+
+	for {
+		res, err := rw.containerURL.ListBlobsFlatSegment(ctx, marker, blob.ListBlobsSegmentOptions{
+			Prefix:  prefix,
+			Details: blob.BlobListingDetails{},
+		})
+		if err != nil {
+			return fmt.Errorf("iterating objects: %w", err)
+		}
+		marker = res.NextMarker
+
+		for _, blob := range res.Segment.BlobItems {
+			opts := backend.FindMatch{
+				Key:      blob.Name,
+				Modified: blob.Properties.LastModified,
+			}
+			f(opts)
+		}
+
+		// Continue iterating if we are not done.
+		if !marker.NotDone() {
+			break
+		}
+	}
+
+	return
+}
+
 // Read implements backend.Reader
 func (rw *V1) Read(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) (io.ReadCloser, int64, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)

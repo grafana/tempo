@@ -17,8 +17,9 @@ type Element interface {
 type metricsFirstStageElement interface {
 	Element
 	extractConditions(request *FetchSpansRequest)
-	init(*tempopb.QueryRangeRequest)
-	observe(Span) // TODO - batching?
+	init(req *tempopb.QueryRangeRequest, mode AggregateMode)
+	observe(Span)                        // TODO - batching?
+	observeSeries([]*tempopb.TimeSeries) // Re-entrant metrics on the query-frontend.  Using proto version for efficiency
 	result() SeriesSet
 }
 
@@ -186,7 +187,7 @@ type ScalarOperation struct {
 	RHS ScalarExpression
 }
 
-func newScalarOperation(op Operator, lhs ScalarExpression, rhs ScalarExpression) ScalarOperation {
+func newScalarOperation(op Operator, lhs, rhs ScalarExpression) ScalarOperation {
 	return ScalarOperation{
 		Op:  op,
 		LHS: lhs,
@@ -264,15 +265,15 @@ type SpansetOperation struct {
 
 func (o SpansetOperation) extractConditions(request *FetchSpansRequest) {
 	switch o.Op {
-	case OpSpansetDescendant, OpSpansetAncestor, OpSpansetNotDescendant, OpSpansetNotAncestor:
+	case OpSpansetDescendant, OpSpansetAncestor, OpSpansetNotDescendant, OpSpansetNotAncestor, OpSpansetUnionDescendant, OpSpansetUnionAncestor:
 		request.Conditions = append(request.Conditions, Condition{
 			Attribute: NewIntrinsic(IntrinsicStructuralDescendant),
 		})
-	case OpSpansetChild, OpSpansetParent, OpSpansetNotChild, OpSpansetNotParent:
+	case OpSpansetChild, OpSpansetParent, OpSpansetNotChild, OpSpansetNotParent, OpSpansetUnionChild, OpSpansetUnionParent:
 		request.Conditions = append(request.Conditions, Condition{
 			Attribute: NewIntrinsic(IntrinsicStructuralChild),
 		})
-	case OpSpansetSibling, OpSpansetNotSibling:
+	case OpSpansetSibling, OpSpansetNotSibling, OpSpansetUnionSibling:
 		request.Conditions = append(request.Conditions, Condition{
 			Attribute: NewIntrinsic(IntrinsicStructuralSibling),
 		})
@@ -284,7 +285,7 @@ func (o SpansetOperation) extractConditions(request *FetchSpansRequest) {
 	request.AllConditions = false
 }
 
-func newSpansetOperation(op Operator, lhs SpansetExpression, rhs SpansetExpression) SpansetOperation {
+func newSpansetOperation(op Operator, lhs, rhs SpansetExpression) SpansetOperation {
 	return SpansetOperation{
 		Op:  op,
 		LHS: lhs,
@@ -361,7 +362,7 @@ type ScalarFilter struct {
 	rhs ScalarExpression
 }
 
-func newScalarFilter(op Operator, lhs ScalarExpression, rhs ScalarExpression) ScalarFilter {
+func newScalarFilter(op Operator, lhs, rhs ScalarExpression) ScalarFilter {
 	return ScalarFilter{
 		op:  op,
 		lhs: lhs,
@@ -401,7 +402,7 @@ type BinaryOperation struct {
 	compiledExpression *regexp.Regexp
 }
 
-func newBinaryOperation(op Operator, lhs FieldExpression, rhs FieldExpression) *BinaryOperation {
+func newBinaryOperation(op Operator, lhs, rhs FieldExpression) *BinaryOperation {
 	return &BinaryOperation{
 		Op:  op,
 		LHS: lhs,
@@ -694,6 +695,8 @@ func (a Attribute) impliedType() StaticType {
 		return TypeString
 	case IntrinsicKind:
 		return TypeKind
+	case IntrinsicEventName:
+		return TypeString
 	case IntrinsicParent:
 		return TypeNil
 	case IntrinsicTraceDuration:
@@ -708,6 +711,10 @@ func (a Attribute) impliedType() StaticType {
 		return TypeInt
 	case IntrinsicNestedSetParent:
 		return TypeInt
+	case IntrinsicTraceID:
+		return TypeString
+	case IntrinsicSpanID:
+		return TypeString
 	}
 
 	return TypeAttribute
@@ -756,13 +763,15 @@ var (
 // MetricsAggregate is a placeholder in the AST for a metrics aggregation
 // pipeline element. It has a superset of the properties of them all, and
 // builds them later via init() so that appropriate buffers can be allocated
-// for the query time range and step.
+// for the query time range and step, and different implementations for
+// shardable and unshardable pipelines.
 type MetricsAggregate struct {
-	op     MetricsAggregateOp
-	by     []Attribute
-	attr   Attribute
-	floats []float64
-	agg    SpanAggregator
+	op        MetricsAggregateOp
+	by        []Attribute
+	attr      Attribute
+	floats    []float64
+	agg       SpanAggregator
+	seriesAgg SeriesAggregator
 }
 
 func newMetricsAggregate(agg MetricsAggregateOp, by []Attribute) *MetricsAggregate {
@@ -781,10 +790,24 @@ func newMetricsAggregateQuantileOverTime(attr Attribute, qs []float64, by []Attr
 	}
 }
 
+func newMetricsAggregateHistogramOverTime(attr Attribute, by []Attribute) *MetricsAggregate {
+	return &MetricsAggregate{
+		op:   metricsAggregateHistogramOverTime,
+		by:   by,
+		attr: attr,
+	}
+}
+
 func (a *MetricsAggregate) extractConditions(request *FetchSpansRequest) {
 	switch a.op {
 	case metricsAggregateRate, metricsAggregateCountOverTime:
 		// No extra conditions, start time is already enough
+	case metricsAggregateQuantileOverTime, metricsAggregateHistogramOverTime:
+		if !request.HasAttribute(a.attr) {
+			request.SecondPassConditions = append(request.SecondPassConditions, Condition{
+				Attribute: a.attr,
+			})
+		}
 	}
 
 	for _, b := range a.by {
@@ -796,33 +819,167 @@ func (a *MetricsAggregate) extractConditions(request *FetchSpansRequest) {
 	}
 }
 
-func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest) {
+func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
+	switch mode {
+	case AggregateModeSum:
+		a.initSum(q)
+		return
+
+	case AggregateModeFinal:
+		a.initFinal(q)
+		return
+	}
+
+	// Raw mode:
+
 	var innerAgg func() VectorAggregator
+	var byFunc func(Span) (Static, bool)
+	var byFuncLabel string
 
 	switch a.op {
 	case metricsAggregateCountOverTime:
 		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
+
 	case metricsAggregateRate:
 		innerAgg = func() VectorAggregator { return NewRateAggregator(1.0 / time.Duration(q.Step).Seconds()) }
+
+	case metricsAggregateHistogramOverTime:
+		// Histograms are implemented as count_over_time() by(2^log2(attr)) for now
+		// This is very similar to quantile_over_time except the bucket values are the true
+		// underlying value in scale, i.e. a duration of 500ms will be in __bucket==0.512s
+		// The difference is that quantile_over_time has to calculate the final quantiles
+		// so in that case the log2 bucket number is more useful.  We can clean it up later
+		// when updating quantiles to be smarter and more customizable range of buckets.
+		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
+		byFuncLabel = internalLabelBucket
+		switch a.attr {
+		case IntrinsicDurationAttribute:
+			// Optimal implementation for duration attribute
+			byFunc = func(s Span) (Static, bool) {
+				d := s.DurationNanos()
+				if d < 2 {
+					return Static{}, false
+				}
+				// Bucket is log2(nanos) converted to float seconds
+				return NewStaticFloat(Log2Bucketize(d) / float64(time.Second)), true
+			}
+		default:
+			// Basic implementation for all other attributes
+			byFunc = func(s Span) (Static, bool) {
+				v, ok := s.AttributeFor(a.attr)
+				if !ok {
+					return Static{}, false
+				}
+
+				// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
+				// Because of the range of floats, we need a native histogram approach.
+				if v.Type != TypeInt {
+					return Static{}, false
+				}
+
+				if v.N < 2 {
+					return Static{}, false
+				}
+				// Bucket is the value rounded up to the nearest power of 2
+				return NewStaticFloat(Log2Bucketize(uint64(v.N))), true
+			}
+		}
+
+	case metricsAggregateQuantileOverTime:
+		// Quantiles are implemented as count_over_time() by(log2(attr)) for now
+		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
+		byFuncLabel = internalLabelBucket
+		switch a.attr {
+		case IntrinsicDurationAttribute:
+			// Optimal implementation for duration attribute
+			byFunc = func(s Span) (Static, bool) {
+				d := s.DurationNanos()
+				if d < 2 {
+					return Static{}, false
+				}
+				// Bucket is in seconds
+				return NewStaticFloat(Log2Bucketize(d) / float64(time.Second)), true
+			}
+		default:
+			// Basic implementation for all other attributes
+			byFunc = func(s Span) (Static, bool) {
+				v, ok := s.AttributeFor(a.attr)
+				if !ok {
+					return Static{}, false
+				}
+
+				// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
+				// Because of the range of floats, we need a native histogram approach.
+				if v.Type != TypeInt {
+					return Static{}, false
+				}
+
+				if v.N < 2 {
+					return Static{}, false
+				}
+				return NewStaticFloat(Log2Bucketize(uint64(v.N))), true
+			}
+		}
 	}
 
 	a.agg = NewGroupingAggregator(a.op.String(), func() RangeAggregator {
 		return NewStepAggregator(q.Start, q.End, q.Step, innerAgg)
-	}, a.by)
+	}, a.by, byFunc, byFuncLabel)
+}
+
+func (a *MetricsAggregate) initSum(q *tempopb.QueryRangeRequest) {
+	// Currently all metrics are summed by job to produce
+	// intermediate results. This will change when adding min/max/topk/etc
+	a.seriesAgg = NewSimpleAdditionCombiner(q)
+}
+
+func (a *MetricsAggregate) initFinal(q *tempopb.QueryRangeRequest) {
+	switch a.op {
+	case metricsAggregateQuantileOverTime:
+		a.seriesAgg = NewHistogramAggregator(q, a.floats)
+	default:
+		// These are simple additions by series
+		a.seriesAgg = NewSimpleAdditionCombiner(q)
+	}
 }
 
 func (a *MetricsAggregate) observe(span Span) {
 	a.agg.Observe(span)
 }
 
+func (a *MetricsAggregate) observeSeries(ss []*tempopb.TimeSeries) {
+	a.seriesAgg.Combine(ss)
+}
+
 func (a *MetricsAggregate) result() SeriesSet {
-	return a.agg.Series()
+	if a.agg != nil {
+		return a.agg.Series()
+	}
+
+	// In the frontend-version the results come from
+	// the job-level aggregator
+	return a.seriesAgg.Results()
 }
 
 func (a *MetricsAggregate) validate() error {
 	switch a.op {
 	case metricsAggregateCountOverTime:
 	case metricsAggregateRate:
+	case metricsAggregateHistogramOverTime:
+		if len(a.by) >= maxGroupBys {
+			// We reserve a spot for the bucket so quantile has 1 less group by
+			return newUnsupportedError(fmt.Sprintf("metrics group by %v values", len(a.by)))
+		}
+	case metricsAggregateQuantileOverTime:
+		if len(a.by) >= maxGroupBys {
+			// We reserve a spot for the bucket so quantile has 1 less group by
+			return newUnsupportedError(fmt.Sprintf("metrics group by %v values", len(a.by)))
+		}
+		for _, q := range a.floats {
+			if q < 0 || q > 1 {
+				return fmt.Errorf("quantile must be between 0 and 1: %v", q)
+			}
+		}
 	default:
 		return newUnsupportedError(fmt.Sprintf("metrics aggregate operation (%v)", a.op))
 	}

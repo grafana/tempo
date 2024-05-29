@@ -32,7 +32,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -105,6 +104,7 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 		require.NotNil(t, actual, "search request: %v", req)
 		actual.SpanSet = nil // todo: add the matching spansets to wantmeta
 		actual.SpanSets = nil
+		actual.ServiceStats = nil
 		require.Equal(t, wantMeta, actual, "search request: %v", req)
 	}
 
@@ -275,6 +275,7 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 		require.NotNil(t, actual, "search request: %v", req)
 		actual.SpanSet = nil // todo: add the matching spansets to wantmeta
 		actual.SpanSets = nil
+		actual.ServiceStats = nil
 		require.Equal(t, wantMeta, actual, "search request: %v", req)
 	}
 
@@ -468,6 +469,7 @@ func groupTraceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceS
 		// so set it to nil here and just test the slice using the testcases above
 		for _, tr := range res.Traces {
 			tr.SpanSet = nil
+			tr.ServiceStats = nil
 		}
 
 		require.NotNil(t, res, "search request: %v", tc)
@@ -653,6 +655,134 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			},
 		},
 		{
+			req: &tempopb.SearchRequest{Query: "{ .parent } &>> { .child }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+								{
+									SpanID:            "0000000000040506",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     2000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+							},
+							Matched: 2,
+						},
+					},
+				},
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ .child } &<< { .parent }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+								{
+									SpanID:            "0000000000040506",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     2000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+							},
+							Matched: 2,
+						},
+					},
+				},
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ .parent } &> { .child }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+								{
+									SpanID:            "0000000000040506",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     2000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+							},
+							Matched: 2,
+						},
+					},
+				},
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ .child } &< { .parent }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+								{
+									SpanID:            "0000000000040506",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     2000000000,
+									Name:              "",
+									Attributes: []*v1_common.KeyValue{
+										{Key: "parent", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+							},
+							Matched: 2,
+						},
+					},
+				},
+			},
+		},
+		{
 			req: &tempopb.SearchRequest{Query: "{  } !~ {  }"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
@@ -739,6 +869,36 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 			},
 		},
 		{
+			req: &tempopb.SearchRequest{Query: "{ .child } &~ { .child2 }"},
+			expected: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Spans: []*tempopb.Span{
+								{
+									SpanID:            "0000000000010203",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Attributes: []*v1_common.KeyValue{
+										{Key: "child", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+								{
+									SpanID:            "0000000000070809",
+									StartTimeUnixNano: 1000000000000,
+									DurationNanos:     1000000000,
+									Attributes: []*v1_common.KeyValue{
+										{Key: "child2", Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_BoolValue{BoolValue: true}}},
+									},
+								},
+							},
+							Matched: 2,
+						},
+					},
+				},
+			},
+		},
+		{
 			req: &tempopb.SearchRequest{Query: "{ .parent } >> {}"},
 			expected: []*tempopb.TraceSearchMetadata{
 				{
@@ -778,6 +938,16 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 		{Query: "{ .child } !< { .parent }"},
 		{Query: "{ .parent } !> { .child }"},
 		{Query: "{ .child } !~ { .child2 }"},
+		{Query: "{ .child } &>> { .parent }"},
+		{Query: "{ .child } &> { .parent }"},
+		{Query: "{ .child } &~ { .parent }"},
+		{Query: "{ .child } &~ { .child }"},
+		{Query: "{ .broken} &>> {}"},
+		{Query: "{ .broken} &> {}"},
+		{Query: "{ .broken} &~ {}"},
+		{Query: "{} &>> {.broken}"},
+		{Query: "{} &> {.broken}"},
+		{Query: "{} &~ {.broken}"},
 	}
 
 	for _, tc := range searchesThatMatch {
@@ -805,6 +975,7 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 		// so set it to nil here and just test the slice using the testcases above
 		for _, tr := range res.Traces {
 			tr.SpanSet = nil
+			tr.ServiceStats = nil
 		}
 
 		require.NotNil(t, res, "search request: %v", tc)
@@ -827,8 +998,7 @@ func traceQLStructural(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSe
 
 func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader, _ common.BackendBlock) {
 	// nested set queries only supported in 3 or greater
-	if meta.Version == vparquet.VersionString ||
-		meta.Version == vparquet2.VersionString {
+	if meta.Version == vparquet2.VersionString {
 		return
 	}
 
@@ -1008,6 +1178,7 @@ func nestedSet(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMeta
 		// so set it to nil here and just test the slice using the testcases above
 		for _, tr := range res.Traces {
 			tr.SpanSet = nil
+			tr.ServiceStats = nil
 
 			for _, ss := range tr.SpanSets {
 				for _, span := range ss.Spans {
@@ -1082,6 +1253,7 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 		// so set it to nil here and just test the slice using the testcases above
 		for _, tr := range res.Traces {
 			tr.SpanSet = nil
+			tr.ServiceStats = nil
 		}
 
 		// make sure every spanset returned has the attribute we searched for
@@ -1203,7 +1375,7 @@ func autoComplete(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			fetcher := traceql.NewAutocompleteFetcherWrapper(func(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback) error {
+			fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
 				return bb.FetchTagValues(ctx, req, cb, common.DefaultSearchOptions())
 			})
 
@@ -1266,11 +1438,15 @@ func conditionsForAttributes(atts []*v1_common.KeyValue, scope string) ([]string
 		case *v1_common.AnyValue_StringValue:
 			trueConditions = append(trueConditions, fmt.Sprintf("%s.%v=`%v`", scope, a.Key, v.StringValue))
 			trueConditions = append(trueConditions, fmt.Sprintf(".%v=`%v`", a.Key, v.StringValue))
+			trueConditions = append(trueConditions, fmt.Sprintf("%s.%v!=`%v`", scope, a.Key, test.RandomString()))
+			trueConditions = append(trueConditions, fmt.Sprintf(".%v!=`%v`", a.Key, test.RandomString()))
 			falseConditions = append(falseConditions, fmt.Sprintf("%s.%v=`%v`", scope, a.Key, test.RandomString()))
 			falseConditions = append(falseConditions, fmt.Sprintf(".%v=`%v`", a.Key, test.RandomString()))
 		case *v1_common.AnyValue_BoolValue:
 			trueConditions = append(trueConditions, fmt.Sprintf("%s.%v=%t", scope, a.Key, v.BoolValue))
 			trueConditions = append(trueConditions, fmt.Sprintf(".%v=%t", a.Key, v.BoolValue))
+			trueConditions = append(trueConditions, fmt.Sprintf("%s.%v!=%t", scope, a.Key, !v.BoolValue))
+			trueConditions = append(trueConditions, fmt.Sprintf(".%v!=%t", a.Key, !v.BoolValue))
 			// tough to add an always false condition here
 		case *v1_common.AnyValue_IntValue:
 			trueConditions = append(trueConditions, fmt.Sprintf("%s.%v=%d", scope, a.Key, v.IntValue))
@@ -1355,7 +1531,9 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 
 	// Write to wal
 	wal := w.WAL()
-	head, err := wal.NewBlockWithDedicatedColumns(uuid.New(), testTenantID, model.CurrentEncoding, dc)
+
+	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID, DedicatedColumns: dc}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
@@ -1383,10 +1561,10 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	// Complete block
 	block, err := w.CompleteBlock(context.Background(), head)
 	require.NoError(t, err)
-	meta := block.BlockMeta()
+	blockMeta := block.BlockMeta()
 
 	for _, r := range runners {
-		r(t, wantTr, wantMeta, searchesThatMatch, searchesThatDontMatch, meta, rw, block)
+		r(t, wantTr, wantMeta, searchesThatMatch, searchesThatDontMatch, blockMeta, rw, block)
 	}
 
 	// todo: do some compaction and then call runner again
@@ -1780,7 +1958,8 @@ func TestWALBlockGetMetrics(t *testing.T) {
 	r.EnablePolling(ctx, &mockJobSharder{})
 
 	wal := w.WAL()
-	head, err := wal.NewBlock(uuid.New(), testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 
 	// Write to wal
@@ -1838,7 +2017,8 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 
 	wal := w.WAL()
 
-	head, err := wal.NewBlock(blockID, testTenantID, model.CurrentEncoding)
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -1930,7 +2110,7 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	assert.Equal(t, expected, tagValues.TagValues)
 
 	valueCollector := util.NewDistinctValueCollector[tempopb.TagValue](0, func(value tempopb.TagValue) int { return 0 })
-	f := traceql.NewAutocompleteFetcherWrapper(func(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback) error {
+	f := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
 		return r.FetchTagValues(ctx, block.BlockMeta(), req, cb, common.DefaultSearchOptions())
 	})
 

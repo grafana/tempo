@@ -16,6 +16,10 @@ cleanInstall() {
         adduser --system --shell /bin/false "tempo"
     fi
 
+    # Create and assign permissions for default storage
+    mkdir -m 0700 /var/tempo
+    chown tempo /var/tempo
+
     # rhel/centos7 cannot use ExecStartPre=+ to specify the pre start should be run as root
     # even if you want your service to run as non root.
     if [ "${systemd_version}" -lt 231 ]; then

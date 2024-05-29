@@ -149,11 +149,12 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		if currentBlock == nil {
 			// Start with a copy and then customize
 			newMeta := &backend.BlockMeta{
-				BlockID:          uuid.New(),
-				TenantID:         inputs[0].TenantID,
-				CompactionLevel:  nextCompactionLevel,
-				TotalObjects:     recordsPerBlock, // Just an estimate
-				DedicatedColumns: inputs[0].DedicatedColumns,
+				BlockID:           uuid.New(),
+				TenantID:          inputs[0].TenantID,
+				CompactionLevel:   nextCompactionLevel,
+				TotalObjects:      recordsPerBlock, // Just an estimate
+				ReplicationFactor: inputs[0].ReplicationFactor,
+				DedicatedColumns:  inputs[0].DedicatedColumns,
 			}
 
 			currentBlock = newStreamingBlock(ctx, &c.opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriter)

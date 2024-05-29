@@ -116,8 +116,9 @@ func TestSLOHook(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{"tenant"})
 			sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{"tenant"})
+			throughputVec := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "throughput"}, []string{"tenant"})
 
-			hook := sloHook(allCounter, sloCounter, tc.cfg)
+			hook := sloHook(allCounter, sloCounter, throughputVec, tc.cfg)
 
 			resp := &http.Response{
 				StatusCode: tc.httpStatusCode,

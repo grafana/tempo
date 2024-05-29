@@ -247,7 +247,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, maxTraceSizeBytes int
 	for _, rg := range pf.RowGroups()[0:rowGroup] {
 		rowMatch += rg.NumRows()
 	}
-	rowMatch += res.RowNumber[0]
+	rowMatch += int64(res.RowNumber[0])
 
 	// seek to row and read
 	r := parquet.NewGenericReader[*Trace](pf)
@@ -272,7 +272,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, maxTraceSizeBytes int
 	}
 
 	// convert to proto trace and return
-	return parquetTraceToTempopbTrace(meta, tr), nil
+	return ParquetTraceToTempopbTrace(meta, tr), nil
 }
 
 // binarySearch that finds exact matching entry. Returns non-zero index when found, or -1 when not found

@@ -123,7 +123,15 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 
 	copyCfg.ServiceGraphs.EnableClientServerPrefix = o.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID)
 
+	copyCfg.ServiceGraphs.EnableMessagingSystemLatencyHistogram = o.MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID)
+
 	copyCfg.ServiceGraphs.EnableVirtualNodeLabel = o.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID)
+
+	copySubprocessors := make(map[spanmetrics.Subprocessor]bool)
+	for sp, enabled := range cfg.SpanMetrics.Subprocessors {
+		copySubprocessors[sp] = enabled
+	}
+	copyCfg.SpanMetrics.Subprocessors = copySubprocessors
 
 	return copyCfg, nil
 }

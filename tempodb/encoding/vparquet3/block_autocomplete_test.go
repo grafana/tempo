@@ -273,7 +273,7 @@ func TestFetchTagValues(t *testing.T) {
 			require.NoError(t, err)
 
 			// Build autocomplete request
-			autocompleteReq := traceql.AutocompleteRequest{
+			autocompleteReq := traceql.FetchTagValuesRequest{
 				Conditions: req.Conditions,
 				TagName:    tag,
 			}
@@ -309,15 +309,11 @@ func BenchmarkFetchTagValues(b *testing.B) {
 		query string
 	}{
 		{
-			tag:   "span.http.url",
-			query: "{}",
+			tag:   "span.http.url", // well known column
+			query: `{resource.namespace="tempo-ops"}`,
 		},
 		{
-			tag:   "resource.namespace",
-			query: `{}`,
-		},
-		{
-			tag:   "span.http.url",
+			tag:   "span.component", // normal column
 			query: `{resource.namespace="tempo-ops"}`,
 		},
 		{
@@ -333,11 +329,11 @@ func BenchmarkFetchTagValues(b *testing.B) {
 	ctx := context.TODO()
 	tenantID := "1"
 	// blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
-	blockID := uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
+	blockID := uuid.MustParse("00145f38-6058-4e57-b1ba-334db8edce23")
 
 	r, _, _, err := local.New(&local.Config{
 		// Path: path.Join("/Users/marty/src/tmp/"),
-		Path: path.Join("/Users/mapno/workspace/testblock"),
+		Path: path.Join("/Users/joe/testblock"),
 	})
 	require.NoError(b, err)
 
@@ -357,7 +353,13 @@ func BenchmarkFetchTagValues(b *testing.B) {
 			tag, err := traceql.ParseIdentifier(tc.tag)
 			require.NoError(b, err)
 
-			autocompleteReq := traceql.AutocompleteRequest{
+			// FetchTagValues expects the tag to be in the conditions with OpNone otherwise it will
+			// fall back to the old tag search
+			req.Conditions = append(req.Conditions, traceql.Condition{
+				Attribute: tag,
+			})
+
+			autocompleteReq := traceql.FetchTagValuesRequest{
 				Conditions: req.Conditions,
 				TagName:    tag,
 			}
@@ -365,7 +367,6 @@ func BenchmarkFetchTagValues(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				err := block.FetchTagValues(ctx, autocompleteReq, traceql.MakeCollectTagValueFunc(distinctValues.Collect), opts)
-				// err := block.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(distinctValues.Collect), opts)
 				require.NoError(b, err)
 			}
 		})

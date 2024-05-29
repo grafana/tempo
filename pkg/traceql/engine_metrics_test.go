@@ -290,3 +290,252 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 		})
 	}
 }
+
+func TestQuantileOverTime(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(1 * time.Second),
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | quantile_over_time(duration, 0, 0.5, 1) by (span.foo)",
+	}
+
+	var (
+		e      = NewEngine()
+		_128ns = 0.000000128
+		_256ns = 0.000000256
+		_512ns = 0.000000512
+	)
+
+	// A variety of spans across times, durations, and series. All durations are powers of 2 for simplicity
+	in := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(128),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(512),
+
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
+	}
+
+	// Output series with quantiles per foo
+	// Prom labels are sorted alphabetically, traceql labels maintain original order.
+	out := SeriesSet{
+		`{p="0", span.foo="bar"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "span.foo", Value: NewStaticString("bar")},
+				{Name: "p", Value: NewStaticFloat(0)},
+			},
+			Values: []float64{
+				_128ns,
+				percentileHelper(0, _256ns, _256ns, _256ns, _256ns),
+				0,
+			},
+		},
+		`{p="0.5", span.foo="bar"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "span.foo", Value: NewStaticString("bar")},
+				{Name: "p", Value: NewStaticFloat(0.5)},
+			},
+			Values: []float64{
+				_256ns,
+				percentileHelper(0.5, _256ns, _256ns, _256ns, _256ns),
+				0,
+			},
+		},
+		`{p="1", span.foo="bar"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "span.foo", Value: NewStaticString("bar")},
+				{Name: "p", Value: NewStaticFloat(1)},
+			},
+			Values: []float64{_512ns, _256ns, 0},
+		},
+		`{p="0", span.foo="baz"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "span.foo", Value: NewStaticString("baz")},
+				{Name: "p", Value: NewStaticFloat(0)},
+			},
+			Values: []float64{
+				0, 0,
+				percentileHelper(0, _512ns, _512ns, _512ns),
+			},
+		},
+		`{p="0.5", span.foo="baz"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "span.foo", Value: NewStaticString("baz")},
+				{Name: "p", Value: NewStaticFloat(0.5)},
+			},
+			Values: []float64{
+				0, 0,
+				percentileHelper(0.5, _512ns, _512ns, _512ns),
+			},
+		},
+		`{p="1", span.foo="baz"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "span.foo", Value: NewStaticString("baz")},
+				{Name: "p", Value: NewStaticFloat(1)},
+			},
+			Values: []float64{0, 0, _512ns},
+		},
+	}
+
+	// 3 layers of processing matches:  query-frontend -> queriers -> generators -> blocks
+	layer1, err := e.CompileMetricsQueryRange(req, false, 0, false)
+	require.NoError(t, err)
+
+	layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
+	require.NoError(t, err)
+
+	layer3, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
+	require.NoError(t, err)
+
+	// Pass spans to layer 1
+	for _, s := range in {
+		layer1.metricsPipeline.observe(s)
+	}
+
+	// Pass layer 1 to layer 2
+	// These are partial counts over time by bucket
+	res := layer1.Results()
+	layer2.metricsPipeline.observeSeries(res.ToProto(req))
+
+	// Pass layer 2 to layer 3
+	// These are summed counts over time by bucket
+	res = layer2.Results()
+	layer3.ObserveSeries(res.ToProto(req))
+
+	// Layer 3 final results
+	// The quantiles
+	final := layer3.Results()
+	require.Equal(t, out, final)
+}
+
+func percentileHelper(q float64, values ...float64) float64 {
+	h := Histogram{}
+	for _, v := range values {
+		h.Record(v, 1)
+	}
+	return Log2Quantile(q, h.Buckets)
+}
+
+func TestHistogramOverTime(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(1 * time.Second),
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | histogram_over_time(duration) by (span.foo)",
+	}
+
+	var (
+		e      = NewEngine()
+		_128ns = NewStaticFloat(0.000000128)
+		_256ns = NewStaticFloat(0.000000256)
+		_512ns = NewStaticFloat(0.000000512)
+	)
+
+	// A variety of spans across times, durations, and series. All durations are powers of 2 for simplicity
+	in := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(128),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(512),
+
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(256),
+
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
+	}
+
+	// Output series with buckets per foo
+	// Prom labels are sorted alphabetically, traceql labels maintain original order.
+	out := SeriesSet{
+		`{` + internalLabelBucket + `="` + _128ns.EncodeToString(true) + `", span.foo="bar"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "span.foo", Value: NewStaticString("bar")},
+				{Name: internalLabelBucket, Value: _128ns},
+			},
+			Values: []float64{1, 0, 0},
+		},
+		`{` + internalLabelBucket + `="` + _256ns.EncodeToString(true) + `", span.foo="bar"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "span.foo", Value: NewStaticString("bar")},
+				{Name: internalLabelBucket, Value: _256ns},
+			},
+			Values: []float64{1, 4, 0},
+		},
+		`{` + internalLabelBucket + `="` + _512ns.EncodeToString(true) + `", span.foo="bar"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "span.foo", Value: NewStaticString("bar")},
+				{Name: internalLabelBucket, Value: _512ns},
+			},
+			Values: []float64{1, 0, 0},
+		},
+		`{` + internalLabelBucket + `="` + _512ns.EncodeToString(true) + `", span.foo="baz"}`: TimeSeries{
+			Labels: []Label{
+				{Name: "span.foo", Value: NewStaticString("baz")},
+				{Name: internalLabelBucket, Value: _512ns},
+			},
+			Values: []float64{0, 0, 3},
+		},
+	}
+
+	// 3 layers of processing matches:  query-frontend -> queriers -> generators -> blocks
+	layer1, err := e.CompileMetricsQueryRange(req, false, 0, false)
+	require.NoError(t, err)
+
+	layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
+	require.NoError(t, err)
+
+	layer3, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
+	require.NoError(t, err)
+
+	// Pass spans to layer 1
+	for _, s := range in {
+		layer1.metricsPipeline.observe(s)
+	}
+
+	// Pass layer 1 to layer 2
+	// These are partial counts over time by bucket
+	res := layer1.Results()
+	layer2.metricsPipeline.observeSeries(res.ToProto(req))
+
+	// Pass layer 2 to layer 3
+	// These are summed counts over time by bucket
+	res = layer2.Results()
+	layer3.ObserveSeries(res.ToProto(req))
+
+	// Layer 3 final results
+	// The quantiles
+	final := layer3.Results()
+	require.Equal(t, out, final)
+}
+
+func TestSpanDeduper(t *testing.T) {
+	d := NewSpanDeduper2()
+
+	in := []struct {
+		tid []byte
+		ts  uint64
+	}{
+		{nil, 0},
+		{[]byte{1}, 1},
+		{[]byte{1, 1}, 1},
+		{[]byte{1, 2}, 2},
+	}
+
+	for _, tc := range in {
+		// First call is always false
+		require.False(t, d.Skip(tc.tid, tc.ts))
+
+		// Second call is always true
+		require.True(t, d.Skip(tc.tid, tc.ts))
+	}
+	d.Skip(nil, 0)
+}
