@@ -312,44 +312,33 @@ func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Reques
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagValuesHandler")
 	defer span.Finish()
 
+	var resp *tempopb.SearchTagValuesV2Response
+	var err error
+
 	if !isSearchBlock {
-		req, err := api.ParseSearchTagValuesRequestV2(r)
+		var req *tempopb.SearchTagValuesRequest
+		req, err = api.ParseSearchTagValuesRequestV2(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-
-		resp, err := q.SearchTagValuesV2(ctx, req)
-		if err != nil {
-			handleError(w, err)
-			return
-		}
-
-		marshaller := &jsonpb.Marshaler{}
-		err = marshaller.Marshal(w, resp)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		resp, err = q.SearchTagValuesV2(ctx, req)
 	} else {
-		req, err := api.ParseSearchTagValuesBlockRequestV2(r)
+		var req *tempopb.SearchTagValuesBlockRequest
+		req, err = api.ParseSearchTagValuesBlockRequestV2(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		resp, err := q.SearchTagValuesBlocksV2(ctx, req)
-		if err != nil {
-			handleError(w, err)
-			return
-		}
-		marshaller := &jsonpb.Marshaler{}
-		err = marshaller.Marshal(w, resp)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		resp, err = q.SearchTagValuesBlocksV2(ctx, req)
 	}
-	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+
+	writeFormattedContentForRequest(w, r, resp)
 }
 
 func (q *Querier) SpanMetricsSummaryHandler(w http.ResponseWriter, r *http.Request) {
@@ -481,4 +470,31 @@ func handleError(w http.ResponseWriter, err error) {
 	}
 
 	http.Error(w, err.Error(), http.StatusInternalServerError)
+}
+
+func writeFormattedContentForRequest(w http.ResponseWriter, req *http.Request, m proto.Message) {
+	switch req.Header.Get(api.HeaderAccept) {
+	case api.HeaderAcceptProtobuf:
+		b, err := proto.Marshal(m)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		_, err = w.Write(b)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set(api.HeaderContentType, api.HeaderAcceptProtobuf)
+	default:
+		marshaller := &jsonpb.Marshaler{}
+		err := marshaller.Marshal(w, m)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+	}
 }
