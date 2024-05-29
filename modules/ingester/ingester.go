@@ -308,7 +308,7 @@ func (i *Ingester) getOrCreateInstance(instanceID string) (*instance, error) {
 	inst, ok = i.instances[instanceID]
 	if !ok {
 		var err error
-		inst, err = newInstance(instanceID, i.limiter, i.overrides, i.store, i.local, i.cfg.AutocompleteFilteringEnabled, i.cfg.DedicatedColumns)
+		inst, err = newInstance(instanceID, i.limiter, i.overrides, i.store, i.local, i.cfg.DedicatedColumns)
 		if err != nil {
 			return nil, err
 		}

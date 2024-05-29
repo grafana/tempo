@@ -247,7 +247,6 @@ func (t *App) initDistributor() (services.Service, error) {
 
 func (t *App) initIngester() (services.Service, error) {
 	t.cfg.Ingester.LifecyclerConfig.ListenPort = t.cfg.Server.GRPCListenPort
-	t.cfg.Ingester.AutocompleteFilteringEnabled = t.cfg.AutocompleteFilteringEnabled
 	t.cfg.Ingester.DedicatedColumns = t.cfg.StorageConfig.Trace.Block.DedicatedColumns
 	ingester, err := ingester.New(t.cfg.Ingester, t.store, t.Overrides, prometheus.DefaultRegisterer)
 	if err != nil {
@@ -313,8 +312,6 @@ func (t *App) initQuerier() (services.Service, error) {
 	if ring := t.readRings[ringSecondaryIngester]; ring != nil {
 		ingesterRings = append(ingesterRings, ring)
 	}
-
-	t.cfg.Querier.AutocompleteFilteringEnabled = t.cfg.AutocompleteFilteringEnabled
 
 	querier, err := querier.New(
 		t.cfg.Querier,
