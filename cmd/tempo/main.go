@@ -17,11 +17,12 @@ import (
 	"github.com/grafana/dskit/spanprofiler"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
+	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/common/version"
+	"go.opentelemetry.io/contrib/exporters/autoexport"
 	"go.opentelemetry.io/otel"
 	oc_bridge "go.opentelemetry.io/otel/bridge/opencensus"
 	ot_bridge "go.opentelemetry.io/otel/bridge/opentracing"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
@@ -48,7 +49,7 @@ func init() {
 	version.Version = Version
 	version.Branch = Branch
 	version.Revision = Revision
-	prometheus.MustRegister(version.NewCollector(appName))
+	prometheus.MustRegister(versioncollector.NewCollector(appName))
 
 	// Register the gogocodec as early as possible.
 	encoding.RegisterCodec(gogocodec.NewCodec())
@@ -87,13 +88,15 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Init tracer
-	shutdownTracer, err := installOpenTelemetryTracer(config)
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "error initialising tracer", "err", err)
-		os.Exit(1)
+	// Init tracer if OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is set
+	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" || os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != "" {
+		shutdownTracer, err := installOpenTelemetryTracer(config)
+		if err != nil {
+			level.Error(log.Logger).Log("msg", "error initialising tracer", "err", err)
+			os.Exit(1)
+		}
+		defer shutdownTracer()
 	}
-	defer shutdownTracer()
 
 	if *mutexProfileFraction > 0 {
 		runtime.SetMutexProfileFraction(*mutexProfileFraction)
@@ -218,10 +221,7 @@ func loadConfig() (*app.Config, bool, error) {
 func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 	level.Info(log.Logger).Log("msg", "initialising OpenTelemetry tracer")
 
-	// for now, migrate OpenTracing Jaeger environment variables
-	migrateJaegerEnvironmentVariables()
-
-	exp, err := otlptracehttp.New(context.Background(), otlptracehttp.WithInsecure())
+	exp, err := autoexport.NewSpanExporter(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create OTLP exporter: %w", err)
 	}
@@ -271,32 +271,6 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 	oc_bridge.InstallTraceBridge(oc_bridge.WithTracerProvider(tp))
 
 	return shutdown, nil
-}
-
-func migrateJaegerEnvironmentVariables() {
-	// jaeger-tracing-go: https://github.com/jaegertracing/jaeger-client-go#environment-variables
-	// opentelemetry-go: https://github.com/open-telemetry/opentelemetry-go/tree/main/exporters/jaeger#environment-variables
-	jaegerToOtel := map[string]string{
-		"JAEGER_AGENT_HOST": "OTEL_EXPORTER_JAEGER_AGENT_HOST",
-		"JAEGER_AGENT_PORT": "OTEL_EXPORTER_JAEGER_AGENT_PORT",
-		"JAEGER_ENDPOINT":   "OTEL_EXPORTER_JAEGER_ENDPOINT",
-		"JAEGER_USER":       "OTEL_EXPORTER_JAEGER_USER",
-		"JAEGER_PASSWORD":   "OTEL_EXPORTER_JAEGER_PASSWORD",
-		"JAEGER_TAGS":       "OTEL_RESOURCE_ATTRIBUTES",
-	}
-	for jaegerKey, otelKey := range jaegerToOtel {
-		value, jaegerOk := os.LookupEnv(jaegerKey)
-		_, otelOk := os.LookupEnv(otelKey)
-
-		if jaegerOk && !otelOk {
-			level.Warn(log.Logger).Log("msg", "migrating Jaeger environment variable, consider using native OpenTelemetry variables", "jaeger", jaegerKey, "otel", otelKey)
-			_ = os.Setenv(otelKey, value)
-		}
-	}
-
-	if _, ok := os.LookupEnv("JAEGER_SAMPLER_TYPE"); ok {
-		level.Warn(log.Logger).Log("msg", "JAEGER_SAMPLER_TYPE is not supported with the OpenTelemetry tracer, no sampling will be performed")
-	}
 }
 
 type otelErrorHandlerFunc func(error)

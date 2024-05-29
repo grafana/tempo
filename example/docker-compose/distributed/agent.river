@@ -9,13 +9,8 @@ otelcol.processor.batch "batch" {
   }
 }
 
-otelcol.receiver.jaeger "traces" {
-  protocols {
-    grpc {}
-    thrift_http {}
-    thrift_binary {}
-    thrift_compact {}
-  }
+otelcol.receiver.otlp "traces" {
+  http {}
 
   output {
     traces  = [otelcol.processor.batch.batch.input]
