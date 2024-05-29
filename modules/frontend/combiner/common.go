@@ -72,10 +72,6 @@ func (c *genericCombiner[T]) AddResponse(r PipelineResponse) error {
 	partial := c.new() // instantiating directly requires additional type constraints. this seemed cleaner: https://stackoverflow.com/questions/69573113/how-can-i-instantiate-a-non-nil-pointer-of-type-argument-with-generic-go
 
 	switch res.Header.Get(api.HeaderContentType) {
-	case api.HeaderAcceptJSON:
-		if err := jsonpb.Unmarshal(res.Body, partial); err != nil {
-			return fmt.Errorf("error unmarshalling response body: %w", err)
-		}
 	case api.HeaderAcceptProtobuf:
 		b, err := io.ReadAll(res.Body)
 		if err != nil {
@@ -83,6 +79,11 @@ func (c *genericCombiner[T]) AddResponse(r PipelineResponse) error {
 		}
 		if err := proto.Unmarshal(b, partial); err != nil {
 			return fmt.Errorf("error unmarshalling proto response body: %w", err)
+		}
+	default:
+		// Assume json
+		if err := jsonpb.Unmarshal(res.Body, partial); err != nil {
+			return fmt.Errorf("error unmarshalling response body: %w", err)
 		}
 	}
 
