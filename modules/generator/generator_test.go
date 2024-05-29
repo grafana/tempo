@@ -55,7 +55,7 @@ overrides:
 	generatorConfig.Storage.Path = t.TempDir()
 	generatorConfig.Ring.KVStore.Store = "inmemory"
 	generatorConfig.Processor.SpanMetrics.RegisterFlagsAndApplyDefaults("", nil)
-	g, err := New(generatorConfig, o, prometheus.NewRegistry(), newTestLogger(t))
+	g, err := New(generatorConfig, o, prometheus.NewRegistry(), nil, newTestLogger(t))
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(context.Background(), g))
 

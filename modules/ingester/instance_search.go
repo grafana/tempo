@@ -157,7 +157,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			continue
 		}
 		wg.Add(1)
-		go func(b *localBlock) {
+		go func(b *LocalBlock) {
 			defer wg.Done()
 			search(b.BlockMeta().BlockID, b, "completeBlock")
 		}(b)
@@ -448,7 +448,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	// completed blocks
 	for _, b := range i.completeBlocks {
 		wg.Add(1)
-		go func(b *localBlock) {
+		go func(b *LocalBlock) {
 			span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTagValuesV2.completedBlock")
 			defer span.Finish()
 			defer wg.Done()

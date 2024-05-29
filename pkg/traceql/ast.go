@@ -187,7 +187,7 @@ type ScalarOperation struct {
 	RHS ScalarExpression
 }
 
-func newScalarOperation(op Operator, lhs ScalarExpression, rhs ScalarExpression) ScalarOperation {
+func newScalarOperation(op Operator, lhs, rhs ScalarExpression) ScalarOperation {
 	return ScalarOperation{
 		Op:  op,
 		LHS: lhs,
@@ -285,7 +285,7 @@ func (o SpansetOperation) extractConditions(request *FetchSpansRequest) {
 	request.AllConditions = false
 }
 
-func newSpansetOperation(op Operator, lhs SpansetExpression, rhs SpansetExpression) SpansetOperation {
+func newSpansetOperation(op Operator, lhs, rhs SpansetExpression) SpansetOperation {
 	return SpansetOperation{
 		Op:  op,
 		LHS: lhs,
@@ -362,7 +362,7 @@ type ScalarFilter struct {
 	rhs ScalarExpression
 }
 
-func newScalarFilter(op Operator, lhs ScalarExpression, rhs ScalarExpression) ScalarFilter {
+func newScalarFilter(op Operator, lhs, rhs ScalarExpression) ScalarFilter {
 	return ScalarFilter{
 		op:  op,
 		lhs: lhs,
@@ -402,7 +402,7 @@ type BinaryOperation struct {
 	compiledExpression *regexp.Regexp
 }
 
-func newBinaryOperation(op Operator, lhs FieldExpression, rhs FieldExpression) *BinaryOperation {
+func newBinaryOperation(op Operator, lhs, rhs FieldExpression) *BinaryOperation {
 	return &BinaryOperation{
 		Op:  op,
 		LHS: lhs,
@@ -695,6 +695,8 @@ func (a Attribute) impliedType() StaticType {
 		return TypeString
 	case IntrinsicKind:
 		return TypeKind
+	case IntrinsicEventName:
+		return TypeString
 	case IntrinsicParent:
 		return TypeNil
 	case IntrinsicTraceDuration:
