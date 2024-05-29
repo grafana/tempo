@@ -300,7 +300,6 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 
 func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 	i, _ := defaultInstance(t)
-	i.autocompleteFilteringEnabled = true
 
 	// add dummy search data
 	var (
