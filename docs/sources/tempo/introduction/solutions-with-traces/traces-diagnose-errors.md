@@ -4,57 +4,27 @@ keywords:
   - Grafana
   - traces
   - tracing
-title: Use traces for application insights and issue triage
-menuTitle: Application insights and issue triage
+title: Diagnose errors with traces
+menuTitle: Diagnose errors with traces
 weight: 120
 ---
 
-# Use traces for application insights and issue triage
+# Diagnose errors with traces
 
 Traces are especially powerful when:
 
-* Investigating application insights and performance including bottlenecks and latency
-* Triaging issues using traces to diagnose issues and reduce MTTR
+* Identify cause of bottlenecks using application insights and performance
+* Diagnose 500 errors and reduce MTTR
 
 Each use case provides real-world examples, including the background of the use case and how tracing highlighted and helped resolve any issues.
-
-## Focus on application insights and performance
-
-Handy Site Corp, a fake website company, runs an ecommerce application that includes user authentication, a product catalog, order management, payment processing, and other services.
-
-Handy Site’s engineers have been tasked with establishing some service level objectives (SLOs) around latency to measure the latency customers experience with the checkout service.
-To do this, they can leverage the metrics generated from their span data.
-
-They need to establish realistic targets based on previous history of normal operation modes.
-This data helps them identify degradation of service over time. In addition, they want to be alerted when significant deviations occur.
-
-After evaluating options, they decide to use [span metrics](https://grafana.com/docs/tempo/latest/metrics-generator/span_metrics/) as a service level indicator (SLI) to measure SLO compliance.
-Tempo can generate metrics using the [metrics-generator component](https://grafana.com/docs/tempo/latest/metrics-generator/).
-These metrics are created based on spans from incoming traces and demonstrate immediate usefulness with respect to application flow and overview.
-This includes rate, error, and duration (RED) metrics.
-
-Span metrics can provide in-depth monitoring of your system. The generated metrics will show application-level insight into your monitoring, as far as tracing gets propagated through your applications.
-
-Span metrics lower the entry barrier for using exemplars.
-An [exemplar](https://grafana.com/docs/grafana/latest/basics/exemplars/) is a specific trace representative of measurement taken in a given time interval.
-Since traces and metrics co-exist in the metrics-generator, exemplars can be automatically added, providing additional value to these metrics.
-
-In this case, Handy Site wants to monitor latency.
-They can leverage the`traces_spanmetrics_latency` metric with the corresponding labels, such as `service name = checkoutservice`.
-For example, if there are specific spans of interest such as release versions, per-service endpoints, and others, you can create and use those metrics as extra dimensions for correlations.
-
-With all of this in place, Handy Site used the data generated with metrics-generator in [Grafana SLO](https://grafana.com/docs/grafana-cloud/alerting-and-irm/slo/) to establish an [SLI](https://grafana.com/docs/grafana-cloud/alerting-and-irm/slo/create/).
-They can now be alerted to degradations in service quality that directly impacts their end user experience.
-
-SCREENSHOT
-
-## Focus on triage: Finding the root cause
 
 Handy Site’s operations team receives several alerts on errors for monitored endpoints in their services. Using their Grafana dashboards, they notice that there are several issues. The dashboard provides the percentages of errors:
 
 SCREENSHOT
 
-More than 5% of the requests from users are resulting in an error across several endpoints, which causes a degradation in performance and useability. It’s imperative for the operations team at Handy Site to quickly troubleshoot the issue.
+More than 5% of the requests from users are resulting in an error across several endpoints, which causes a degradation in performance and usability. It’s imperative for the operations team at Handy Site to quickly troubleshoot the issue.
+
+## Use TraceQL to query data
 
 Tempo has a traces-first query language, [TraceQL](https://grafana.com/docs/tempo/latest/traceql/), that provides a unique toolset for selecting and searching tracing data. TraceQL can match traces based on span and resource attributes, timing, and duration and provides basic aggregate functions.
 
