@@ -4,12 +4,12 @@ keywords:
   - Grafana
   - traces
   - tracing
-title: Use tracing data to understand your services
+title: Use traces to find solutions
 menuTitle: Solutions with traces
 weight: 120
 ---
 
-# Use tracing data to understand your services
+# Use traces to find solutions
 
 Tracing is best used for analyzing the performance of your system, identifying bottlenecks, monitoring latency, and providing a complete picture of how requests are processed.
 
@@ -19,4 +19,4 @@ Tracing is best used for analyzing the performance of your system, identifying b
 * Seamless telemetry correlation Event history correlated to logs and metrics: Using tracing in conjunction with logs and metrics can help give you a comprehensive view of events overtime during incident response and postmortems by showing relationships between services and dependencies.
 * Business policy adherence ensures that services are correctly isolated using generated metrics and generated service graphs.
 
-{{< youtube 0tlp7QCPu0k >}}
+{{< youtube id="0tlp7QCPu0k" >}}
