@@ -33,7 +33,7 @@ To enable TraceQL metrics, refer to [Configure TraceQL metrics](https://grafana.
 
 ## Functions
 
-TraceQL supports include `rate`, `quantile_over_time`, and `histogram_over_time` functions.
+TraceQL supports include `rate`, `count_over_time`, `quantile_over_time`, and `histogram_over_time` functions.
 These functions can be added as an operator at the end of any TraceQL query.
 
 `rate`
@@ -60,7 +60,7 @@ Combined with the `by()` operator, this can be even more powerful.
 ```
 
 This example still rates the erroring spans in the service `foo` but the metrics have been broken
-down by HTTP endpoint. This might let you determine that `/api/sad` had a higher rate of erroring
+down by HTTP route. This might let you determine that `/api/sad` had a higher rate of erroring
 spans than `/api/happy`, for example.
 
 ### The `quantile_over_time` and `histogram_over_time` functions
