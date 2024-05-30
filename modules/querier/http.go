@@ -481,20 +481,20 @@ func writeFormattedContentForRequest(w http.ResponseWriter, req *http.Request, m
 			return
 		}
 
+		w.Header().Set(api.HeaderContentType, api.HeaderAcceptProtobuf)
 		_, err = w.Write(b)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		w.Header().Set(api.HeaderContentType, api.HeaderAcceptProtobuf)
 	default:
-		marshaller := &jsonpb.Marshaler{}
-		err := marshaller.Marshal(w, m)
+		w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+		err := new(jsonpb.Marshaler).Marshal(w, m)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+
 	}
 }
