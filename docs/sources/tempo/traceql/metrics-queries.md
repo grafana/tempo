@@ -40,7 +40,7 @@ These functions can be added as an operator at the end of any TraceQL query.
 : calculates the number of matching spans per second
   
 `count_over_time`
-: counts the entries for each log stream within the given range
+: counts the number of matching spans per time interval (see the `step` API parameter)
  
 `quantile_over_time`
 : the quantile of the values in the specified interval
