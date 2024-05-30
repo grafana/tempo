@@ -1756,9 +1756,6 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	}
 
 	minCount := 0
-	/*if requireAtLeastOneMatch {
-		minCount = 1
-	}*/
 	if allConditions {
 		// The final number of expected attributes
 		distinct := map[string]struct{}{}
@@ -1777,15 +1774,6 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 		required = append(required, iters...)
 		iters = nil
 	}
-
-	// This is an optimization for cases when only resource conditions are
-	// present and we require at least one of them to match.  Wrap
-	// up the individual conditions with a union and move it into the
-	// required list.
-	/*if requireAtLeastOneMatch && len(iters) > 0 {
-		required = append(required, unionIfNeeded(DefinitionLevelResourceSpans, iters, nil))
-		iters = nil
-	}*/
 
 	// Put span iterator last so it is only read when
 	// the resource conditions are met.
