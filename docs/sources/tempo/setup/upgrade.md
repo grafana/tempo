@@ -51,7 +51,7 @@ The original vParquet format [has been removed](https://github.com/grafana/tempo
 Direct upgrades from Tempo 2.1 to Tempo 2.5 are not possible.
 You will need to upgrade to an intermediate version and wait for the old vParquet blocks to fall out of retention before upgrading to 2.5. [PR 3663](https://github.com/grafana/tempo/pull/3663)]
 
-vParquet(1) won't be recognized as a valid encoding and can't read any remaining vParquet blocks.
+vParquet(1) won't be recognized as a valid encoding and any remaining vParquet(1) blocks will not be readable.
 
 Installations running with historical defaults should not require any changes as the default has been migrated for several releases.
 Installations with storage settings pinned to vParquet must run a previous release configured for vParquet2 or higher until all existing vParquet(1) blocks have expired and been deleted from the backend, or else will encounter read errors after upgrading to this release.
