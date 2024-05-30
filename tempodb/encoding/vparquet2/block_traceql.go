@@ -1255,31 +1255,22 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	// matched upstream to a resource.
 	// TODO - After introducing AllConditions it seems like some of this logic overlaps.
 	//        Determine if it can be generalized or simplified.
-	var (
-		// If there are only span conditions, then don't return a span upstream
-		// unless it matches at least 1 span-level condition.
-		spanRequireAtLeastOneMatch = len(spanConditions) > 0 && len(resourceConditions) == 0 && len(traceConditions) == 0
 
-		// If there are only resource conditions, then don't return a resource upstream
-		// unless it matches at least 1 resource-level condition.
-		batchRequireAtLeastOneMatch = len(spanConditions) == 0 && len(resourceConditions) > 0 && len(traceConditions) == 0
-
-		// Don't return the final spanset upstream unless it matched at least 1 condition
-		// anywhere, except in the case of the empty query: {}
-		batchRequireAtLeastOneMatchOverall = len(conds) > 0 && len(traceConditions) == 0 && len(traceConditions) == 0
-	)
+	// Don't return the final spanset upstream unless it matched at least 1 condition
+	// anywhere, except in the case of the empty query: {}
+	batchRequireAtLeastOneMatchOverall := len(conds) > 0 && len(traceConditions) == 0 && len(traceConditions) == 0
 
 	// Optimization for queries like {resource.x... && span.y ...}
 	// Requires no mingled scopes like .foo=x, which could be satisfied
 	// one either resource or span.
 	allConditions = allConditions && !mingledConditions
 
-	spanIter, err := createSpanIterator(makeIter, primaryIter, spanConditions, spanRequireAtLeastOneMatch, allConditions)
+	spanIter, err := createSpanIterator(makeIter, primaryIter, spanConditions, allConditions)
 	if err != nil {
 		return nil, fmt.Errorf("creating span iterator: %w", err)
 	}
 
-	resourceIter, err := createResourceIterator(makeIter, spanIter, resourceConditions, batchRequireAtLeastOneMatch, batchRequireAtLeastOneMatchOverall, allConditions)
+	resourceIter, err := createResourceIterator(makeIter, spanIter, resourceConditions, batchRequireAtLeastOneMatchOverall, allConditions)
 	if err != nil {
 		return nil, fmt.Errorf("creating resource iterator: %w", err)
 	}
@@ -1289,7 +1280,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
 // one span each.  Spans are returned that match any of the given conditions.
-func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatch, allConditions bool) (parquetquery.Iterator, error) {
+func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, allConditions bool) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
@@ -1432,9 +1423,6 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 	}
 
 	minCount := 0
-	if requireAtLeastOneMatch {
-		minCount = 1
-	}
 	if allConditions {
 		// The final number of expected attributes.
 		distinct := map[string]struct{}{}
@@ -1451,16 +1439,6 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 	// We simply move all iterators into the required list.
 	if allConditions {
 		required = append(required, iters...)
-		iters = nil
-	}
-
-	// This is an optimization for cases when allConditions is false, and
-	// only span conditions are present, and we require at least one of them to match.
-	// Wrap up the individual conditions with a union and move it into the required list.
-	// This skips over static columns like ID that are omnipresent. This is also only
-	// possible when there isn't a duration filter because it's computed from start/end.
-	if requireAtLeastOneMatch && len(iters) > 0 {
-		required = append(required, unionIfNeeded(DefinitionLevelResourceSpansILSSpan, iters, nil))
 		iters = nil
 	}
 
@@ -1484,7 +1462,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 // createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
 // one batch each. It builds on top of the span iterator, and turns the groups of spans and resource-level values into
 // spansets.  Spansets are returned that match any of the given conditions.
-func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatch, requireAtLeastOneMatchOverall, allConditions bool) (parquetquery.Iterator, error) {
+func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatchOverall, allConditions bool) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
@@ -1535,9 +1513,6 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	}
 
 	minCount := 0
-	if requireAtLeastOneMatch {
-		minCount = 1
-	}
 	if allConditions {
 		// The final number of expected attributes
 		distinct := map[string]struct{}{}
@@ -1554,15 +1529,6 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	// We simply move all iterators into the required list.
 	if allConditions {
 		required = append(required, iters...)
-		iters = nil
-	}
-
-	// This is an optimization for cases when only resource conditions are
-	// present and we require at least one of them to match.  Wrap
-	// up the individual conditions with a union and move it into the
-	// required list.
-	if requireAtLeastOneMatch && len(iters) > 0 {
-		required = append(required, unionIfNeeded(DefinitionLevelResourceSpans, iters, nil))
 		iters = nil
 	}
 
