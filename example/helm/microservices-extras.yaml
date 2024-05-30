@@ -40,6 +40,6 @@ spec:
       - env:
         - name: ENDPOINT
           value: tempo-distributor:4317
-        image: ghcr.io/grafana/xk6-client-tracing:v0.0.2
+        image: ghcr.io/grafana/xk6-client-tracing:v0.0.5
         imagePullPolicy: IfNotPresent
         name: xk6-tracing
