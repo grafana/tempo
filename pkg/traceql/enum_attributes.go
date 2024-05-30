@@ -9,6 +9,7 @@ const (
 	AttributeScopeResource
 	AttributeScopeSpan
 	AttributeScopeEvent
+	AttributeScopeLink
 	AttributeScopeUnknown
 
 	none     = "none"
@@ -29,6 +30,8 @@ func (s AttributeScope) String() string {
 		return "resource"
 	case AttributeScopeEvent:
 		return "event"
+	case AttributeScopeLink:
+		return "link"
 	}
 
 	return fmt.Sprintf("att(%d).", s)
@@ -42,6 +45,8 @@ func AttributeScopeFromString(s string) AttributeScope {
 		return AttributeScopeResource
 	case "event":
 		return AttributeScopeEvent
+	case "link":
+		return AttributeScopeLink
 	case "":
 		fallthrough
 	case none:
@@ -68,6 +73,8 @@ const (
 	IntrinsicNestedSetRight
 	IntrinsicNestedSetParent
 	IntrinsicEventName
+	IntrinsicLinkSpanID
+	IntrinsicLinkTraceID
 
 	// not yet implemented in traceql but will be
 	IntrinsicParent
@@ -128,6 +135,10 @@ func (i Intrinsic) String() string {
 		return "childCount"
 	case IntrinsicEventName:
 		return "event:name"
+	case IntrinsicLinkSpanID:
+		return "link:spanID"
+	case IntrinsicLinkTraceID:
+		return "link:traceID"
 	case IntrinsicParent:
 		return "parent"
 	case IntrinsicTraceRootService:
@@ -173,6 +184,10 @@ func intrinsicFromString(s string) Intrinsic {
 		return IntrinsicChildCount
 	case "event:name":
 		return IntrinsicEventName
+	case "link:spanID":
+		return IntrinsicLinkSpanID
+	case "link:traceID":
+		return IntrinsicLinkTraceID
 	case "parent":
 		return IntrinsicParent
 	case "rootServiceName":
