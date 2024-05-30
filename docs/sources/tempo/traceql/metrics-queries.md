@@ -37,7 +37,16 @@ TraceQL supports include `rate`, `count_over_time`, `quantile_over_time`, and `h
 These functions can be added as an operator at the end of any TraceQL query.
 
 `rate`
-  : Provides the percentage of
+: calculates the number of matching spans per second
+  
+`count_over_time`
+: counts the entries for each log stream within the given range
+ 
+`quantile_over_time`
+: the quantile of the values in the specified interval
+  
+`histogram_over_time`
+: evaluate frequency distribution over time. Example: `histogram_over_time(duration) by (span.foo)`
 
 ## The `rate` function
 
