@@ -51,8 +51,6 @@ The original vParquet format [has been removed](https://github.com/grafana/tempo
 Direct upgrades from Tempo 2.1 to Tempo 2.5 are not possible.
 You will need to upgrade to an intermediate version and wait for the old vParquet blocks to fall out of retention before upgrading to 2.5. [PR 3663](https://github.com/grafana/tempo/pull/3663)]
 
-In the last release, vParquet (the first version) was deprecated and blocked from writes.
-The original block format is removed entirely in Tempo 2.5.
 vParquet(1) won't be recognized as a valid encoding and can't read any remaining vParquet blocks.
 
 Installations running with historical defaults should not require any changes as the default has been migrated for several releases.
@@ -60,7 +58,7 @@ Installations with storage settings pinned to vParquet must run a previous relea
 
 ### Experimental vParquet4 block format
 
-The vParquet4 block format is required for using links, events, and arrays and improves query performance relative to previous formats. vParquet4 will be the default block format in the next release. [[PR 3368](https://github.com/grafana/tempo/pull/3368)]
+The vParquet4 block format is required for querying links, events, and arrays and improves query performance relative to previous formats. vParquet4 will be the default block format in the next release. [[PR 3368](https://github.com/grafana/tempo/pull/3368)]
 
 While you can use vParquet4, keep in mind that it's experimental.
 If you choose to use vParquet4 and then opt to revert to vParquet3, any vParquet4 blocks would not be readable by vParquet3.
