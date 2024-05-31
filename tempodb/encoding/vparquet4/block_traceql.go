@@ -882,6 +882,12 @@ const (
 	columnPathEventName          = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Name"
 	columnPathLinkTraceID        = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.TraceID"
 	columnPathLinkSpanID         = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.SpanID"
+	columnPathEventAttrKey       = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Key"
+	columnPathEventAttrString    = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Value.list.element"
+	columnPathEventAttrInt       = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueInt.list.element"
+	columnPathEventAttrDouble    = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueDouble.list.element"
+	columnPathEventAttrBool      = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueBool.list.element"
+
 
 	otherEntrySpansetKey = "spanset"
 	otherEntrySpanKey    = "span"
@@ -1573,6 +1579,7 @@ func createEventIterator(makeIter makeIterFn, conditions []traceql.Condition) (p
 				return nil, err
 			}
 			eventIters = append(eventIters, makeIter(columnPathEventName, pred, columnPathEventName))
+			continue
 		}
 	}
 
