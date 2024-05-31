@@ -263,9 +263,8 @@ func (t *App) initIngester() (services.Service, error) {
 }
 
 func (t *App) initGenerator() (services.Service, error) {
-	if t.cfg.Target == MetricsGenerator &&
-		t.cfg.StorageConfig.Trace.Backend != "" &&
-		t.cfg.Generator.Processor.LocalBlocks.FlushToStorage {
+	if t.cfg.Generator.Processor.LocalBlocks.FlushToStorage &&
+		t.store == nil {
 		return nil, fmt.Errorf("generator.processor.local-blocks.flush-to-storage is enabled but no storage backend is configured")
 	}
 
