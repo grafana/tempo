@@ -6,14 +6,7 @@
 * [ENHANCEMENT] Improve use of OTEL semantic conventions on the service graph [#3711](https://github.com/grafana/tempo/pull/3711) (@zalegrala)
 * [ENHANCEMENT] Performance improvement for `rate() by ()` queries [#3719](https://github.com/grafana/tempo/pull/3719) (@mapno)
 
-## v2.5.0-rc.1
-
-* [CHANGE] Update Alpine image version to 3.20 [#3710](https://github.com/grafana/tempo/pull/3710) (@joe-elliott)
-* [ENHANCEMENT] TraceQL - Add support for trace:id and span:id [#3670](https://github.com/grafana/tempo/pull/3670) (@ie-pham)
-* [ENHANCEMENT] Add toggle to inject the tenant ID to generated metrics [#3638](https://github.com/grafana/tempo/pull/3638) (@kvrhdn)
-* [BUGFIX] Fix TraceQL queries involving non boolean operations between statics and attributes. [#3698](https://github.com/grafana/tempo/pull/3698) (@joe-elliott)
-
-## v2.5.0-rc.0
+## v2.5.0
 
 * [CHANGE] Align metrics query time ranges to the step parameter [#3490](https://github.com/grafana/tempo/pull/3490) (@mdisibio)
 * [CHANGE] Change the UID and GID of the `tempo` user to avoid root [#2265](https://github.com/grafana/tempo/pull/2265) (@zalegrala)
@@ -35,6 +28,7 @@
 * [CHANGE] Update debian and rpm packages to grant required permissions to default storage path after installation [#3657](https://github.com/grafana/tempo/pull/3657) (@mdisibio)
 * [CHANGE] Delete any remaining objects for empty tenants after a configurable duration, requires config enable [#3611](https://github.com/grafana/tempo/pull/3611) (@zalegrala)
 * [CHANGE] Add golangci to the tools image and update `lint` make target [#3610](https://github.com/grafana/tempo/pull/3610) (@zalegrala)
+* [CHANGE] Update Alpine image version to 3.20 [#3710](https://github.com/grafana/tempo/pull/3710) (@joe-elliott)
 * [FEATURE] Add TLS support for Memcached Client [#3585](https://github.com/grafana/tempo/pull/3585) (@sonisr)
 * [FEATURE] TraceQL metrics queries: add quantile_over_time [#3605](https://github.com/grafana/tempo/pull/3605) [#3633](https://github.com/grafana/tempo/pull/3633) (@mdisibio) 
 * [FEATURE] TraceQL metrics queries: add histogram_over_time [#3644](https://github.com/grafana/tempo/pull/3644) (@mdisibio)
@@ -62,6 +56,8 @@
 * [ENHANCEMENT] TraceQL - Add support for scoped intrinsics using `:` [#3629](https://github.com/grafana/tempo/pull/3629) (@ie-pham)
   available scoped intrinsics: trace:duration, trace:rootName, trace:rootService, span:duration, span:kind, span:name, span:status, span:statusMessage
 * [ENHANCEMENT] Performance improvements on TraceQL and tag value search. [#3650](https://github.com/grafana/tempo/pull/3650),[#3667](https://github.com/grafana/tempo/pull/3667) (@joe-elliott)
+* [ENHANCEMENT] TraceQL - Add support for trace:id and span:id [#3670](https://github.com/grafana/tempo/pull/3670) (@ie-pham)
+* [ENHANCEMENT] Add toggle to inject the tenant ID to generated metrics [#3638](https://github.com/grafana/tempo/pull/3638) (@kvrhdn)
 * [BUGFIX] Fix handling of regex matchers in autocomplete endpoints [#3641](https://github.com/grafana/tempo/pull/3641) (@sd2k)
 * [BUGFIX] Update golang.org/x/net package to 0.24.0 to fix CVE-2023-45288 [#3613](https://github.com/grafana/tempo/pull/3613) (@pavolloffay)
 * [BUGFIX] Fix metrics query results when filtering and rating on the same attribute [#3428](https://github.com/grafana/tempo/issues/3428) (@mdisibio)
@@ -78,6 +74,7 @@
 * [BUGFIX] Fix span-metrics' subprocessors bug that applied wrong configs when running multiple tenants. [#3612](https://github.com/grafana/tempo/pull/3612) (@mapno)
 * [BUGFIX] Fix panic in query-frontend when combining results [#3683](https://github.com/grafana/tempo/pull/3683) (@mapno)
 * [BUGFIX] Fix panic in metrics-generator when starting with a partial completed block [#3704](https://github.com/grafana/tempo/pull/3704) (@zalegrala)
+* [BUGFIX] Fix TraceQL queries involving non boolean operations between statics and attributes. [#3698](https://github.com/grafana/tempo/pull/3698) (@joe-elliott)
 
 ## v2.4.2
 
