@@ -12,11 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/prometheus/model/labels"
-
 	"github.com/grafana/tempo/pkg/tempopb"
 	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/prometheus/prometheus/model/labels"
 )
 
 const internalLabelBucket = "__bucket"
@@ -238,12 +237,19 @@ const maxGroupBys = 5 // TODO - This isn't ideal but see comment below.
 // FastValues is an array of attribute values (static values) that can be used
 // as a map key.  This offers good performance and works with native Go maps and
 // has no chance for collisions (whereas a hash32 has a non-zero chance of
-// collisions).  However it means we have to arbitrarily set an upper limit on
+// collisions).  However, it means we have to arbitrarily set an upper limit on
 // the maximum number of values.
-type FastValues [maxGroupBys]Static
+
+type (
+	FastValues1 [1]Static
+	FastValues2 [2]Static
+	FastValues3 [3]Static
+	FastValues4 [4]Static
+	FastValues5 [5]Static
+)
 
 // GroupingAggregator groups spans into series based on attribute values.
-type GroupingAggregator struct {
+type GroupingAggregator[FV FastValues1 | FastValues2 | FastValues3 | FastValues4 | FastValues5] struct {
 	// Config
 	by          []Attribute               // Original attributes: .foo
 	byLookups   [][]Attribute             // Lookups: span.foo resource.foo
@@ -252,11 +258,13 @@ type GroupingAggregator struct {
 	innerAgg    func() RangeAggregator
 
 	// Data
-	series map[FastValues]RangeAggregator
-	buf    FastValues
+	series     map[FV]RangeAggregator
+	lastSeries RangeAggregator
+	buf        FV
+	lastBuf    FV
 }
 
-var _ SpanAggregator = (*GroupingAggregator)(nil)
+var _ SpanAggregator = (*GroupingAggregator[FastValues5])(nil)
 
 func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by []Attribute, byFunc func(Span) (Static, bool), byFuncLabel string) SpanAggregator {
 	if len(by) == 0 && byFunc == nil {
@@ -280,8 +288,30 @@ func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by [
 		}
 	}
 
-	return &GroupingAggregator{
-		series:      map[FastValues]RangeAggregator{},
+	aggNum := len(lookups)
+	if byFunc != nil {
+		aggNum++
+	}
+
+	switch aggNum {
+	case 1:
+		return newGroupingAggregator[FastValues1](innerAgg, by, byFunc, byFuncLabel, lookups)
+	case 2:
+		return newGroupingAggregator[FastValues2](innerAgg, by, byFunc, byFuncLabel, lookups)
+	case 3:
+		return newGroupingAggregator[FastValues3](innerAgg, by, byFunc, byFuncLabel, lookups)
+	case 4:
+		return newGroupingAggregator[FastValues4](innerAgg, by, byFunc, byFuncLabel, lookups)
+	case 5:
+		return newGroupingAggregator[FastValues5](innerAgg, by, byFunc, byFuncLabel, lookups)
+	default:
+		panic("unsupported number of group-bys")
+	}
+}
+
+func newGroupingAggregator[FV FastValues1 | FastValues2 | FastValues3 | FastValues4 | FastValues5](innerAgg func() RangeAggregator, by []Attribute, byFunc func(Span) (Static, bool), byFuncLabel string, lookups [][]Attribute) SpanAggregator {
+	return &GroupingAggregator[FV]{
+		series:      map[FV]RangeAggregator{},
 		by:          by,
 		byFunc:      byFunc,
 		byFuncLabel: byFuncLabel,
@@ -292,7 +322,7 @@ func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by [
 
 // Observe the span by looking up its group-by attributes, mapping to the series,
 // and passing to the inner aggregate.  This is a critical hot path.
-func (g *GroupingAggregator) Observe(span Span) {
+func (g *GroupingAggregator[FV]) Observe(span Span) {
 	// Get grouping values
 	// Reuse same buffer
 	// There is no need to reset, the number of group-by attributes
@@ -311,12 +341,19 @@ func (g *GroupingAggregator) Observe(span Span) {
 		g.buf[len(g.byLookups)] = v
 	}
 
+	if g.lastSeries != nil && g.lastBuf == g.buf {
+		g.lastSeries.Observe(span)
+		return
+	}
+
 	agg, ok := g.series[g.buf]
 	if !ok {
 		agg = g.innerAgg()
 		g.series[g.buf] = agg
 	}
 
+	g.lastBuf = g.buf
+	g.lastSeries = agg
 	agg.Observe(span)
 }
 
@@ -349,7 +386,7 @@ func (g *GroupingAggregator) Observe(span Span) {
 //
 //	Ex: rate() by (x,y,z) and all nil yields:
 //	{x="nil"}
-func (g *GroupingAggregator) labelsFor(vals FastValues) (Labels, string) {
+func (g *GroupingAggregator[FV]) labelsFor(vals FV) (Labels, string) {
 	labels := make(Labels, 0, len(g.by)+1)
 	for i := range g.by {
 		if vals[i].Type == TypeNil {
@@ -369,7 +406,7 @@ func (g *GroupingAggregator) labelsFor(vals FastValues) (Labels, string) {
 	return labels, labels.String()
 }
 
-func (g *GroupingAggregator) Series() SeriesSet {
+func (g *GroupingAggregator[FV]) Series() SeriesSet {
 	ss := SeriesSet{}
 
 	for vals, agg := range g.series {
