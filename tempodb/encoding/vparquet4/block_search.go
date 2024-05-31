@@ -9,8 +9,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/parquet-go/parquet-go"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -82,27 +83,27 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	// cached reader
 	cachedReaderAt := newCachedReaderAt(backendReaderAt, readBufferSize, int64(b.meta.Size), b.meta.FooterSize) // most reads to the backend are going to be readbuffersize so use it as our "page cache" size
 
-	span, _ := opentracing.StartSpanFromContext(ctx, "parquet.OpenFile")
-	defer span.Finish()
+	_, span := tracer.Start(ctx, "parquet.OpenFile")
+	defer span.End()
 	pf, err := parquet.OpenFile(cachedReaderAt, int64(b.meta.Size), o...)
 
 	return pf, backendReaderAt, err
 }
 
 func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (_ *tempopb.SearchResponse, err error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.Search",
-		opentracing.Tags{
-			"blockID":   b.meta.BlockID,
-			"tenantID":  b.meta.TenantID,
-			"blockSize": b.meta.Size,
-		})
-	defer span.Finish()
+	derivedCtx, span := tracer.Start(ctx, "parquet.backendBlock.Search",
+		trace.WithAttributes(
+			attribute.String("blockID", b.meta.BlockID.String()),
+			attribute.String("tenantID", b.meta.TenantID),
+			attribute.Int64("blockSize", int64(b.meta.Size)),
+		))
+	defer span.End()
 
 	pf, rr, err := b.openForSearch(derivedCtx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
-	defer func() { span.SetTag("inspectedBytes", rr.BytesRead()) }()
+	defer func() { span.SetAttributes(attribute.Int64("inspectedBytes", int64(rr.BytesRead()))) }()
 
 	// Get list of row groups to inspect. Ideally we use predicate pushdown
 	// here to keep only row groups that can potentially satisfy the request

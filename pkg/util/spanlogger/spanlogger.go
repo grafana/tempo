@@ -2,12 +2,15 @@ package spanlogger
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	opentracing "github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/ext"
-	otlog "github.com/opentracing/opentracing-go/log"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/grafana/dskit/tenant"
 	util_log "github.com/grafana/tempo/pkg/util/log"
@@ -19,12 +22,16 @@ const (
 	TenantIDTagName = "tenant_ids"
 )
 
-var loggerCtxKey = &loggerCtxMarker{}
+var (
+	tracer          = otel.Tracer("")
+	defaultNoopSpan = noop.Span{}
+	loggerCtxKey    = &loggerCtxMarker{}
+)
 
 // SpanLogger unifies tracing and logging, to reduce repetition.
 type SpanLogger struct {
 	log.Logger
-	opentracing.Span
+	trace.Span
 }
 
 // New makes a new SpanLogger, where logs will be sent to the global logger.
@@ -36,9 +43,9 @@ func New(ctx context.Context, method string, kvps ...interface{}) (*SpanLogger, 
 // to. The provided context will have the logger attached to it and can be
 // retrieved with FromContext or FromContextWithFallback.
 func NewWithLogger(ctx context.Context, l log.Logger, method string, kvps ...interface{}) (*SpanLogger, context.Context) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, method)
+	ctx, span := tracer.Start(ctx, method)
 	if ids, _ := tenant.TenantIDs(ctx); len(ids) > 0 {
-		span.SetTag(TenantIDTagName, ids)
+		span.SetAttributes(attribute.StringSlice(TenantIDTagName, ids))
 	}
 	logger := &SpanLogger{
 		Logger: log.With(util_log.WithContext(ctx, l), "method", method),
@@ -69,7 +76,7 @@ func FromContextWithFallback(ctx context.Context, fallback log.Logger) *SpanLogg
 	if !ok {
 		logger = fallback
 	}
-	sp := opentracing.SpanFromContext(ctx)
+	sp := trace.SpanFromContext(ctx)
 	if sp == nil {
 		sp = defaultNoopSpan
 	}
@@ -83,11 +90,20 @@ func FromContextWithFallback(ctx context.Context, fallback log.Logger) *SpanLogg
 // also puts the on the spans.
 func (s *SpanLogger) Log(kvps ...interface{}) error {
 	s.Logger.Log(kvps...)
-	fields, err := otlog.InterleavedKVToFields(kvps...)
-	if err != nil {
-		return err
+
+	for i := 0; i*2 < len(kvps); i++ {
+		key, ok := kvps[i*2].(string)
+		if !ok {
+			return fmt.Errorf("non-string key (pair #%d): %T", i, kvps[i*2])
+		}
+
+		switch t := kvps[i*2+1].(type) {
+		case bool:
+			s.Span.SetAttributes(attribute.Bool(key, t))
+		case string:
+			s.Span.SetAttributes(attribute.String(key, t))
+		}
 	}
-	s.Span.LogFields(fields...)
 	return nil
 }
 
@@ -96,7 +112,8 @@ func (s *SpanLogger) Error(err error) error {
 	if err == nil {
 		return nil
 	}
-	ext.Error.Set(s.Span, true)
-	s.Span.LogFields(otlog.Error(err))
+
+	s.Span.SetStatus(codes.Error, "")
+	s.Span.RecordError(err)
 	return err
 }

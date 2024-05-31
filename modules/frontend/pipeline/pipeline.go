@@ -4,7 +4,10 @@ import (
 	"net/http"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
+	"go.opentelemetry.io/otel"
 )
+
+var tracer = otel.Tracer("frontend/pipeline")
 
 //
 // Async Pipeline

@@ -6,12 +6,14 @@ import (
 	"fmt"
 
 	"github.com/grafana/tempo/pkg/sort"
+	"go.opentelemetry.io/otel"
 
 	"github.com/cespare/xxhash"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/opentracing/opentracing-go"
 )
+
+var tracer = otel.Tracer("tempodb/encoding/v2")
 
 type indexReader struct {
 	r        backend.ContextReader
@@ -86,8 +88,8 @@ func (r *indexReader) Find(ctx context.Context, id common.ID) (*Record, int, err
 	// with a linear distribution of trace ids we can actually do much better than a normal
 	// binary search.  unfortunately there are edge cases which make this perform far worse.
 	// for instance consider a set of trace ids what with 90% 64 bit ids and 10% 128 bit ids.
-	span, ctx := opentracing.StartSpanFromContext(ctx, "indexReader.Find")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "indexReader.Find")
+	defer span.End()
 
 	i, err := sort.SearchWithErrors(r.totalRecords, func(i int) (bool, error) {
 		record, err := r.At(ctx, i)

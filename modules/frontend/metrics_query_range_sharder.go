@@ -11,7 +11,6 @@ import (
 	"github.com/go-kit/log" //nolint:all deprecated
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/dskit/user"
-	"github.com/opentracing/opentracing-go"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
@@ -55,8 +54,8 @@ func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg
 }
 
 func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
-	span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.QueryRangeSharder")
-	defer span.Finish()
+	ctx, span := tracer.Start(r.Context(), "frontend.QueryRangeSharder")
+	defer span.End()
 
 	var (
 		err error

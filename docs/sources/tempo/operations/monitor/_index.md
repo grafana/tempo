@@ -31,19 +31,13 @@ Tempo emits logs in the `key=value` ([logfmt](https://brandur.org/logfmt)) forma
 
 ### Traces
 
-Tempo uses the [Jaeger Golang SDK](https://github.com/jaegertracing/jaeger-client-go) for tracing instrumentation.
+Tempo uses the [OpenTelemetry SDK](https://github.com/open-telemetry/opentelemetry-go) for tracing instrumentation.
 The complete read path and some parts of the write path of Tempo are instrumented for tracing.
 
-You can configure the tracer [using environment variables](https://github.com/jaegertracing/jaeger-client-go#environment-variables).
-To enable tracing, set one of the following: `JAEGER_AGENT_HOST` and `JAEGER_AGENT_PORT`, or `JAEGER_ENDPOINT`.
+You can configure the tracer [using environment variables](https://opentelemetry.io/docs/languages/sdk-configuration/otlp-exporter/).
+To enable tracing, set one of the following: `OTEL_EXPORTER_OTLP_ENDPOINT` or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`.
 
-The Jaeger client uses remote sampling by default, if the management server is not available no traces are sent.
-To always send traces (no sampling), set the following environment variables:
-
-```
-JAEGER_SAMPLER_TYPE=const
-JAEGER_SAMPLER_PARAM=1
-```
+The OpenTelemetry SDK uses OTLP/HTTP by default, which can be configured with `OTEL_EXPORTER_OTLP_PROTOCOL`.
 
 ## Polling
 

@@ -13,6 +13,10 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
@@ -22,7 +26,6 @@ import (
 	"github.com/go-kit/log/level"
 	minio "github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-	"github.com/opentracing/opentracing-go"
 
 	"github.com/grafana/tempo/pkg/blockboundary"
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -37,6 +40,8 @@ type readerWriter struct {
 	core       *minio.Core
 	hedgedCore *minio.Core
 }
+
+var tracer = otel.Tracer("tempodb/backend/s3")
 
 var (
 	_ backend.RawReader             = (*readerWriter)(nil)
@@ -138,10 +143,10 @@ func getPutObjectOptions(rw *readerWriter) minio.PutObjectOptions {
 
 // Write implements backend.Writer
 func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, size int64, _ *backend.CacheInfo) error {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "s3.Write")
-	defer span.Finish()
+	derivedCtx, span := tracer.Start(ctx, "s3.Write")
+	defer span.End()
 
-	span.SetTag("object", name)
+	span.SetAttributes(attribute.String("object", name))
 
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	objName := backend.ObjectFileName(keypath, name)
@@ -157,7 +162,7 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 		putObjectOptions,
 	)
 	if err != nil {
-		span.SetTag("error", true)
+		span.SetStatus(codes.Error, "error writing object to s3 backend")
 		return fmt.Errorf("error writing object to s3 backend, object %s: %w", objName, err)
 	}
 	level.Debug(rw.logger).Log("msg", "object uploaded to s3", "objectName", objName, "size", info.Size)
@@ -167,10 +172,10 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 
 // AppendObject implements backend.Writer
 func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend.KeyPath, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "s3.Append", opentracing.Tags{
-		"len": len(buffer),
-	})
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "s3.Append", trace.WithAttributes(
+		attribute.Int("len", len(buffer)),
+	))
+	defer span.End()
 
 	var a appendTracker
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
@@ -285,8 +290,8 @@ func (rw *readerWriter) ListBlocks(
 	ctx context.Context,
 	tenant string,
 ) ([]uuid.UUID, []uuid.UUID, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "readerWriter.ListBlocks")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "readerWriter.ListBlocks")
+	defer span.End()
 
 	blockIDs := make([]uuid.UUID, 0, 1000)
 	compactedBlockIDs := make([]uuid.UUID, 0, 1000)
@@ -434,8 +439,8 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 
 // Read implements backend.Reader
 func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) (io.ReadCloser, int64, error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "s3.Read")
-	defer span.Finish()
+	derivedCtx, span := tracer.Start(ctx, "s3.Read")
+	defer span.End()
 
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	b, err := rw.readAll(derivedCtx, backend.ObjectFileName(keypath, name))
@@ -448,11 +453,11 @@ func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.K
 
 // ReadRange implements backend.Reader
 func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, _ *backend.CacheInfo) error {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "s3.ReadRange", opentracing.Tags{
-		"len":    len(buffer),
-		"offset": offset,
-	})
-	defer span.Finish()
+	derivedCtx, span := tracer.Start(ctx, "s3.ReadRange", trace.WithAttributes(
+		attribute.Int("len", len(buffer)),
+		attribute.Int64("offset", int64(offset)),
+	))
+	defer span.End()
 
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	return readError(rw.readRange(derivedCtx, backend.ObjectFileName(keypath, name), int64(offset), buffer))
@@ -509,8 +514,8 @@ func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypat
 }
 
 func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, backend.Version, error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "s3.ReadVersioned")
-	defer span.Finish()
+	derivedCtx, span := tracer.Start(ctx, "s3.ReadVersioned")
+	defer span.End()
 
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 	b, objectInfo, err := rw.readAllWithObjInfo(derivedCtx, backend.ObjectFileName(keypath, name))

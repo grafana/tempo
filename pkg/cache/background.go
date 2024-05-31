@@ -5,10 +5,10 @@ import (
 	"flag"
 	"sync"
 
-	opentracing "github.com/opentracing/opentracing-go"
-	otlog "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // BackgroundConfig is config for a Background Cache.
@@ -97,9 +97,9 @@ func (c *backgroundCache) Store(ctx context.Context, keys []string, bufs [][]byt
 			c.queueLength.Add(float64(num))
 		default:
 			c.droppedWriteBack.Add(float64(num))
-			sp := opentracing.SpanFromContext(ctx)
+			sp := trace.SpanFromContext(ctx)
 			if sp != nil {
-				sp.LogFields(otlog.Int("dropped", num))
+				sp.AddEvent("dropped", trace.WithAttributes(attribute.Int("dropped", num)))
 			}
 			return // queue is full; give up
 		}

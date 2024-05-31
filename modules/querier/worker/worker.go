@@ -15,10 +15,13 @@ import (
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 
 	"github.com/grafana/tempo/pkg/util"
 )
+
+var tracer = otel.Tracer("querier/worker")
 
 type Config struct {
 	FrontendAddress string        `yaml:"frontend_address"`

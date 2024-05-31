@@ -17,7 +17,9 @@ import (
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/tempodb"
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
@@ -33,6 +35,8 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 )
+
+var tracer = otel.Tracer("generator/processor/localblocks")
 
 const timeBuffer = 5 * time.Minute
 
@@ -569,11 +573,11 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 
 			m := b.BlockMeta()
 
-			span, ctx := opentracing.StartSpanFromContext(ctx, "Processor.QueryRange.Block", opentracing.Tags{
-				"block":     m.BlockID,
-				"blockSize": m.Size,
-			})
-			defer span.Finish()
+			ctx, span := tracer.Start(ctx, "Processor.QueryRange.Block", trace.WithAttributes(
+				attribute.String("block", m.BlockID.String()),
+				attribute.Int64("blockSize", int64(m.Size)),
+			))
+			defer span.End()
 
 			// TODO - caching
 			f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {

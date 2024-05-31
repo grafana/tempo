@@ -11,9 +11,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/user"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/ext"
-	ot_log "github.com/opentracing/opentracing-go/log"
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/api"
@@ -202,7 +200,7 @@ func writeLimits(w http.ResponseWriter, limits *client.Limits, version backend.V
 }
 
 func (a *UserConfigOverridesAPI) logRequest(ctx context.Context, handler string, r *http.Request) (context.Context, func(*error)) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, handler)
+	ctx, span := tracer.Start(ctx, handler)
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	level.Info(a.logger).Log("traceID", traceID, "method", r.Method, "url", r.URL.RequestURI(), "user-agent", r.UserAgent())
@@ -211,11 +209,11 @@ func (a *UserConfigOverridesAPI) logRequest(ctx context.Context, handler string,
 		err := *errPtr
 
 		if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
-			span.LogFields(ot_log.Error(err))
-			ext.Error.Set(span, true)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "")
 			level.Error(a.logger).Log("traceID", traceID, "method", r.Method, "url", r.URL.RequestURI(), "user-agent", r.UserAgent(), "err", err)
 		}
 
-		span.Finish()
+		span.End()
 	}
 }

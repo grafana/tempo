@@ -58,6 +58,9 @@ type ReadRing interface {
 	// InstancesCount returns the number of instances in the ring.
 	InstancesCount() int
 
+	// InstancesWithTokensCount returns the number of instances in the ring that have tokens.
+	InstancesWithTokensCount() int
+
 	// ShuffleShard returns a subring for the provided identifier (eg. a tenant ID)
 	// and size (number of instances).
 	ShuffleShard(identifier string, size int) ReadRing
@@ -81,6 +84,9 @@ type ReadRing interface {
 
 	// InstancesInZoneCount returns the number of instances in the ring that are registered in given zone.
 	InstancesInZoneCount(zone string) int
+
+	// InstancesWithTokensInZoneCount returns the number of instances in the ring that are registered in given zone and have tokens.
+	InstancesWithTokensInZoneCount(zone string) int
 
 	// ZonesCount returns the number of zones for which there's at least 1 instance registered in the ring.
 	ZonesCount() int
@@ -190,8 +196,14 @@ type Ring struct {
 	// to be sorted alphabetically.
 	ringZones []string
 
+	// Number of registered instances with tokens.
+	instancesWithTokensCount int
+
 	// Number of registered instances per zone.
 	instancesCountPerZone map[string]int
+
+	// Nubmber of registered instances with tokens per zone.
+	instancesWithTokensCountPerZone map[string]int
 
 	// Cache of shuffle-sharded subrings per identifier. Invalidated when topology changes.
 	// If set to nil, no caching is done (used by tests, and subrings).
@@ -342,7 +354,9 @@ func (r *Ring) updateRingState(ringDesc *Desc) {
 	ringInstanceByToken := ringDesc.getTokensInfo()
 	ringZones := getZones(ringTokensByZone)
 	oldestRegisteredTimestamp := ringDesc.getOldestRegisteredTimestamp()
+	instancesWithTokensCount := ringDesc.instancesWithTokensCount()
 	instancesCountPerZone := ringDesc.instancesCountPerZone()
+	instancesWithTokensCountPerZone := ringDesc.instancesWithTokensCountPerZone()
 
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
@@ -351,7 +365,9 @@ func (r *Ring) updateRingState(ringDesc *Desc) {
 	r.ringTokensByZone = ringTokensByZone
 	r.ringInstanceByToken = ringInstanceByToken
 	r.ringZones = ringZones
+	r.instancesWithTokensCount = instancesWithTokensCount
 	r.instancesCountPerZone = instancesCountPerZone
+	r.instancesWithTokensCountPerZone = instancesWithTokensCountPerZone
 	r.oldestRegisteredTimestamp = oldestRegisteredTimestamp
 	r.lastTopologyChange = now
 
@@ -808,13 +824,15 @@ func (r *Ring) shuffleShard(identifier string, size int, lookbackPeriod time.Dur
 	shardTokens := mergeTokenGroups(shardTokensByZone)
 
 	return &Ring{
-		cfg:                   r.cfg,
-		strategy:              r.strategy,
-		ringDesc:              shardDesc,
-		ringTokens:            shardTokens,
-		ringTokensByZone:      shardTokensByZone,
-		ringZones:             getZones(shardTokensByZone),
-		instancesCountPerZone: shardDesc.instancesCountPerZone(),
+		cfg:                             r.cfg,
+		strategy:                        r.strategy,
+		ringDesc:                        shardDesc,
+		ringTokens:                      shardTokens,
+		ringTokensByZone:                shardTokensByZone,
+		ringZones:                       getZones(shardTokensByZone),
+		instancesWithTokensCount:        shardDesc.instancesWithTokensCount(),
+		instancesCountPerZone:           shardDesc.instancesCountPerZone(),
+		instancesWithTokensCountPerZone: shardDesc.instancesWithTokensCountPerZone(),
 
 		oldestRegisteredTimestamp: shardDesc.getOldestRegisteredTimestamp(),
 
@@ -1091,12 +1109,36 @@ func (r *Ring) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	newRingPageHandler(r, r.cfg.HeartbeatTimeout).handle(w, req)
 }
 
+// InstancesCount returns the number of instances in the ring.
+func (r *Ring) InstancesCount() int {
+	r.mtx.RLock()
+	c := len(r.ringDesc.Ingesters)
+	r.mtx.RUnlock()
+	return c
+}
+
+// InstancesWithTokensCount returns the number of instances in the ring that have tokens.
+func (r *Ring) InstancesWithTokensCount() int {
+	r.mtx.RLock()
+	defer r.mtx.RUnlock()
+
+	return r.instancesWithTokensCount
+}
+
 // InstancesInZoneCount returns the number of instances in the ring that are registered in given zone.
 func (r *Ring) InstancesInZoneCount(zone string) int {
 	r.mtx.RLock()
 	defer r.mtx.RUnlock()
 
 	return r.instancesCountPerZone[zone]
+}
+
+// InstancesWithTokensInZoneCount returns the number of instances in the ring that are registered in given zone and have tokens.
+func (r *Ring) InstancesWithTokensInZoneCount(zone string) int {
+	r.mtx.RLock()
+	defer r.mtx.RUnlock()
+
+	return r.instancesWithTokensCountPerZone[zone]
 }
 
 func (r *Ring) ZonesCount() int {

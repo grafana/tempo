@@ -14,9 +14,9 @@ import (
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/tempo/pkg/util/httpgrpcutil"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -162,15 +162,10 @@ func (fp *frontendProcessor) runRequests(ctx context.Context, requests []*httpgr
 }
 
 func (fp *frontendProcessor) runRequest(ctx context.Context, request *httpgrpc.HTTPRequest) *httpgrpc.HTTPResponse {
-	tracer := opentracing.GlobalTracer()
-	// Ignore errors here. If we cannot get parent span, we just don't create new one.
-	parentSpanContext, _ := httpgrpcutil.GetParentSpanForRequest(tracer, request)
-	if parentSpanContext != nil {
-		queueSpan, spanCtx := opentracing.StartSpanFromContextWithTracer(ctx, tracer, "querier_processor_runRequest", opentracing.ChildOf(parentSpanContext))
-		defer queueSpan.Finish()
-
-		ctx = spanCtx
-	}
+	carrier := (*httpgrpcutil.HttpgrpcHeadersCarrier)(request)
+	ctx = otel.GetTextMapPropagator().Extract(ctx, carrier)
+	ctx, queueSpan := tracer.Start(ctx, "querier_processor_runRequest")
+	defer queueSpan.End()
 
 	response, err := fp.handler.Handle(ctx, request)
 	if err != nil {

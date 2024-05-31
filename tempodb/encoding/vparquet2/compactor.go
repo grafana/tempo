@@ -13,7 +13,6 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
-	"github.com/opentracing/opentracing-go"
 	"github.com/parquet-go/parquet-go"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -56,8 +55,8 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		block := newBackendBlock(blockMeta, r)
 
-		span, derivedCtx := opentracing.StartSpanFromContext(ctx, "vparquet.compactor.iterator")
-		defer span.Finish()
+		derivedCtx, span := tracer.Start(ctx, "vparquet.compactor.iterator")
+		defer span.End()
 
 		iter, err := block.rawIter(derivedCtx, pool)
 		if err != nil {
@@ -213,8 +212,8 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 }
 
 func (c *Compactor) appendBlock(ctx context.Context, block *streamingBlock, l log.Logger) error {
-	span, _ := opentracing.StartSpanFromContext(ctx, "vparquet.compactor.appendBlock")
-	defer span.Finish()
+	_, span := tracer.Start(ctx, "vparquet.compactor.appendBlock")
+	defer span.End()
 
 	var (
 		objs            = block.CurrentBufferedObjects()
@@ -241,8 +240,8 @@ func (c *Compactor) appendBlock(ctx context.Context, block *streamingBlock, l lo
 }
 
 func (c *Compactor) finishBlock(ctx context.Context, block *streamingBlock, l log.Logger) error {
-	span, _ := opentracing.StartSpanFromContext(ctx, "vparquet.compactor.finishBlock")
-	defer span.Finish()
+	_, span := tracer.Start(ctx, "vparquet.compactor.finishBlock")
+	defer span.End()
 
 	bytesFlushed, err := block.Complete()
 	if err != nil {

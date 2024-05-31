@@ -17,12 +17,12 @@ import (
 	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/util/strutil"
 	"github.com/segmentio/fasthash/fnv1a"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
@@ -107,6 +107,8 @@ var (
 		Help:      "The current number of metrics-generator clients.",
 	})
 )
+
+var tracer = otel.Tracer("distributor")
 
 // rebatchedTrace is used to more cleanly pass the set of data
 type rebatchedTrace struct {
@@ -307,8 +309,8 @@ func (d *Distributor) extractBasicInfo(ctx context.Context, traces ptrace.Traces
 
 // PushTraces pushes a batch of traces
 func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*tempopb.PushResponse, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "distributor.PushTraces")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "distributor.PushTraces")
+	defer span.End()
 
 	userID, spanCount, size, err := d.extractBasicInfo(ctx, traces)
 	if err != nil {

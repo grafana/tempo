@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/flagext"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -15,7 +17,6 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/tenant"
 	"github.com/grafana/tempo/pkg/util/httpgrpcutil"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -24,6 +25,8 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/validation"
 )
+
+var tracer = otel.Tracer("frontend/v1")
 
 // Config for a Frontend.
 type Config struct {
@@ -71,7 +74,7 @@ type Frontend struct {
 
 type request struct {
 	enqueueTime time.Time
-	queueSpan   opentracing.Span
+	queueSpan   trace.Span
 	originalCtx context.Context
 
 	request  *httpgrpc.HTTPRequest
@@ -164,14 +167,8 @@ func (f *Frontend) cleanupInactiveUserMetrics(user string) {
 // RoundTripGRPC round trips a proto (instead of a HTTP request).
 func (f *Frontend) RoundTripGRPC(ctx context.Context, req *httpgrpc.HTTPRequest) (*httpgrpc.HTTPResponse, error) {
 	// Propagate trace context in gRPC too - this will be ignored if using HTTP.
-	tracer, span := opentracing.GlobalTracer(), opentracing.SpanFromContext(ctx)
-	if tracer != nil && span != nil {
-		carrier := (*httpgrpcutil.HttpgrpcHeadersCarrier)(req)
-		err := tracer.Inject(span.Context(), opentracing.HTTPHeaders, carrier)
-		if err != nil {
-			return nil, err
-		}
-	}
+	carrier := (*httpgrpcutil.HttpgrpcHeadersCarrier)(req)
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
 
 	request := request{
 		request:     req,
@@ -230,7 +227,7 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 			req := reqWrapper.(*request)
 
 			f.queueDuration.Observe(time.Since(req.enqueueTime).Seconds())
-			req.queueSpan.Finish()
+			req.queueSpan.End()
 
 			// only add if not expired
 			if req.originalCtx.Err() != nil {
@@ -366,7 +363,7 @@ func (f *Frontend) queueRequest(ctx context.Context, req *request) error {
 
 	now := time.Now()
 	req.enqueueTime = now
-	req.queueSpan, _ = opentracing.StartSpanFromContext(ctx, "queued")
+	_, req.queueSpan = tracer.Start(ctx, "queued")
 
 	// aggregate the max queriers limit in the case of a multi tenant query
 	maxQueriers := validation.SmallestPositiveNonZeroIntPerTenant(tenantIDs, f.limits.MaxQueriersPerUser)

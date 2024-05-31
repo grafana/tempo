@@ -17,13 +17,13 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/grafana/pyroscope-go/godeltaprof/http/pprof" // anonymous import to get godelatprof handlers registered
-
 	gokit_log "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gorilla/mux"
+	_ "github.com/grafana/pyroscope-go/godeltaprof/http/pprof" // anonymous import to get godelatprof handlers registered
 	otgrpc "github.com/opentracing-contrib/go-grpc"
 	"github.com/opentracing/opentracing-go"
+	"github.com/pires/go-proxyproto"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/config"
@@ -31,6 +31,7 @@ import (
 	"golang.org/x/net/netutil"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/experimental"
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/grafana/dskit/httpgrpc"
@@ -79,14 +80,15 @@ type Config struct {
 	// for details. A generally useful value is 1.1.
 	MetricsNativeHistogramFactor float64 `yaml:"-"`
 
-	HTTPListenNetwork string `yaml:"http_listen_network"`
-	HTTPListenAddress string `yaml:"http_listen_address"`
-	HTTPListenPort    int    `yaml:"http_listen_port"`
-	HTTPConnLimit     int    `yaml:"http_listen_conn_limit"`
-	GRPCListenNetwork string `yaml:"grpc_listen_network"`
-	GRPCListenAddress string `yaml:"grpc_listen_address"`
-	GRPCListenPort    int    `yaml:"grpc_listen_port"`
-	GRPCConnLimit     int    `yaml:"grpc_listen_conn_limit"`
+	HTTPListenNetwork    string `yaml:"http_listen_network"`
+	HTTPListenAddress    string `yaml:"http_listen_address"`
+	HTTPListenPort       int    `yaml:"http_listen_port"`
+	HTTPConnLimit        int    `yaml:"http_listen_conn_limit"`
+	GRPCListenNetwork    string `yaml:"grpc_listen_network"`
+	GRPCListenAddress    string `yaml:"grpc_listen_address"`
+	GRPCListenPort       int    `yaml:"grpc_listen_port"`
+	GRPCConnLimit        int    `yaml:"grpc_listen_conn_limit"`
+	ProxyProtocolEnabled bool   `yaml:"proxy_protocol_enabled"`
 
 	CipherSuites  string    `yaml:"tls_cipher_suites"`
 	MinVersion    string    `yaml:"tls_min_version"`
@@ -98,6 +100,8 @@ type Config struct {
 	ReportHTTP4XXCodesInInstrumentationLabel bool `yaml:"-"`
 	ExcludeRequestInLog                      bool `yaml:"-"`
 	DisableRequestSuccessLog                 bool `yaml:"-"`
+
+	PerTenantDurationInstrumentation middleware.PerTenantCallback `yaml:"-"`
 
 	ServerGracefulShutdownTimeout time.Duration `yaml:"graceful_shutdown_timeout"`
 	HTTPServerReadTimeout         time.Duration `yaml:"http_server_read_timeout"`
@@ -125,6 +129,8 @@ type Config struct {
 	GRPCServerMinTimeBetweenPings      time.Duration `yaml:"grpc_server_min_time_between_pings"`
 	GRPCServerPingWithoutStreamAllowed bool          `yaml:"grpc_server_ping_without_stream_allowed"`
 	GRPCServerNumWorkers               int           `yaml:"grpc_server_num_workers"`
+	GRPCServerStatsTrackingEnabled     bool          `yaml:"grpc_server_stats_tracking_enabled"`
+	GRPCServerRecvBufferPoolsEnabled   bool          `yaml:"grpc_server_recv_buffer_pools_enabled"`
 
 	LogFormat                    string           `yaml:"log_format"`
 	LogLevel                     log.Level        `yaml:"log_level"`
@@ -190,6 +196,8 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 	f.DurationVar(&cfg.GRPCServerTimeout, "server.grpc.keepalive.timeout", time.Second*20, "After having pinged for keepalive check, the duration after which an idle connection should be closed, Default: 20s")
 	f.DurationVar(&cfg.GRPCServerMinTimeBetweenPings, "server.grpc.keepalive.min-time-between-pings", 5*time.Minute, "Minimum amount of time a client should wait before sending a keepalive ping. If client sends keepalive ping more often, server will send GOAWAY and close the connection.")
 	f.BoolVar(&cfg.GRPCServerPingWithoutStreamAllowed, "server.grpc.keepalive.ping-without-stream-allowed", false, "If true, server allows keepalive pings even when there are no active streams(RPCs). If false, and client sends ping when there are no active streams, server will send GOAWAY and close the connection.")
+	f.BoolVar(&cfg.GRPCServerStatsTrackingEnabled, "server.grpc.stats-tracking-enabled", true, "If true, the request_message_bytes, response_message_bytes, and inflight_requests metrics will be tracked. Enabling this option prevents the use of memory pools for parsing gRPC request bodies and may lead to more memory allocations.")
+	f.BoolVar(&cfg.GRPCServerRecvBufferPoolsEnabled, "server.grpc.recv-buffer-pools-enabled", false, "If true, gGPC's buffer pools will be used to handle incoming requests. Enabling this feature can reduce memory allocation, but also requires disabling GRPC server stats tracking by setting `server.grpc.stats-tracking-enabled=false`. This is an experimental gRPC feature, so it might be removed in a future version of the gRPC library.")
 	f.IntVar(&cfg.GRPCServerNumWorkers, "server.grpc.num-workers", 0, "If non-zero, configures the amount of GRPC server workers used to serve the requests.")
 	f.StringVar(&cfg.PathPrefix, "server.path-prefix", "", "Base path to serve all API routes from (e.g. /v1/)")
 	f.StringVar(&cfg.LogFormat, "log.format", log.LogfmtFormat, "Output log messages in the given format. Valid formats: [logfmt, json]")
@@ -201,6 +209,7 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 	f.BoolVar(&cfg.LogRequestHeaders, "server.log-request-headers", false, "Optionally log request headers.")
 	f.StringVar(&cfg.LogRequestExcludeHeadersList, "server.log-request-headers-exclude-list", "", "Comma separated list of headers to exclude from loggin. Only used if server.log-request-headers is true.")
 	f.BoolVar(&cfg.LogRequestAtInfoLevel, "server.log-request-at-info-level-enabled", false, "Optionally log requests at info level instead of debug level. Applies to request headers as well if server.log-request-headers is enabled.")
+	f.BoolVar(&cfg.ProxyProtocolEnabled, "server.proxy-protocol-enabled", false, "Enables PROXY protocol.")
 }
 
 func (cfg *Config) registererOrDefault() prometheus.Registerer {
@@ -286,6 +295,11 @@ func newServer(cfg Config, metrics *Metrics) (*Server, error) {
 		grpcListener = netutil.LimitListener(grpcListener, cfg.GRPCConnLimit)
 	}
 
+	if cfg.ProxyProtocolEnabled {
+		httpListener = newProxyProtocolListener(httpListener, cfg.HTTPServerReadHeaderTimeout)
+		grpcListener = newProxyProtocolListener(grpcListener, cfg.HTTPServerReadHeaderTimeout)
+	}
+
 	cipherSuites, err := stringToCipherSuites(cfg.CipherSuites)
 	if err != nil {
 		return nil, err
@@ -359,22 +373,29 @@ func newServer(cfg Config, metrics *Metrics) (*Server, error) {
 		WithRequest:              !cfg.ExcludeRequestInLog,
 		DisableRequestSuccessLog: cfg.DisableRequestSuccessLog,
 	}
-	var reportGRPCStatusesOptions []middleware.InstrumentationOption
+	var grpcInstrumentationOptions []middleware.InstrumentationOption
 	if cfg.ReportGRPCCodesInInstrumentationLabel {
-		reportGRPCStatusesOptions = []middleware.InstrumentationOption{middleware.ReportGRPCStatusOption}
+		grpcInstrumentationOptions = append(grpcInstrumentationOptions, middleware.ReportGRPCStatusOption)
+	}
+	if cfg.PerTenantDurationInstrumentation != nil {
+		grpcInstrumentationOptions = append(grpcInstrumentationOptions,
+			middleware.WithPerTenantInstrumentation(
+				metrics.PerTenantRequestDuration,
+				cfg.PerTenantDurationInstrumentation,
+			))
 	}
 	grpcMiddleware := []grpc.UnaryServerInterceptor{
 		serverLog.UnaryServerInterceptor,
 		otgrpc.OpenTracingServerInterceptor(opentracing.GlobalTracer()),
 		middleware.HTTPGRPCTracingInterceptor(router), // This must appear after the OpenTracingServerInterceptor.
-		middleware.UnaryServerInstrumentInterceptor(metrics.RequestDuration, reportGRPCStatusesOptions...),
+		middleware.UnaryServerInstrumentInterceptor(metrics.RequestDuration, grpcInstrumentationOptions...),
 	}
 	grpcMiddleware = append(grpcMiddleware, cfg.GRPCMiddleware...)
 
 	grpcStreamMiddleware := []grpc.StreamServerInterceptor{
 		serverLog.StreamServerInterceptor,
 		otgrpc.OpenTracingStreamServerInterceptor(opentracing.GlobalTracer()),
-		middleware.StreamServerInstrumentInterceptor(metrics.RequestDuration, reportGRPCStatusesOptions...),
+		middleware.StreamServerInstrumentInterceptor(metrics.RequestDuration, grpcInstrumentationOptions...),
 	}
 	grpcStreamMiddleware = append(grpcStreamMiddleware, cfg.GRPCStreamMiddleware...)
 
@@ -407,13 +428,22 @@ func newServer(cfg Config, metrics *Metrics) (*Server, error) {
 		grpcOptions = append(grpcOptions, grpc.InTapHandle(grpcServerLimit.TapHandle), grpc.StatsHandler(grpcServerLimit))
 	}
 
-	grpcOptions = append(grpcOptions,
-		grpc.StatsHandler(middleware.NewStatsHandler(
-			metrics.ReceivedMessageSize,
-			metrics.SentMessageSize,
-			metrics.InflightRequests,
-		)),
-	)
+	if cfg.GRPCServerStatsTrackingEnabled {
+		grpcOptions = append(grpcOptions,
+			grpc.StatsHandler(middleware.NewStatsHandler(
+				metrics.ReceivedMessageSize,
+				metrics.SentMessageSize,
+				metrics.InflightRequests,
+			)),
+		)
+	}
+
+	if cfg.GRPCServerRecvBufferPoolsEnabled {
+		if cfg.GRPCServerStatsTrackingEnabled {
+			return nil, fmt.Errorf("grpc_server_stats_tracking_enabled must be set to false if grpc_server_recv_buffer_pools_enabled is true")
+		}
+		grpcOptions = append(grpcOptions, experimental.RecvBufferPool(grpc.NewSharedBufferPool()))
+	}
 
 	grpcOptions = append(grpcOptions, cfg.GRPCOptions...)
 	if grpcTLSConfig != nil {
@@ -493,11 +523,13 @@ func BuildHTTPMiddleware(cfg Config, router *mux.Router, metrics *Metrics, logge
 		},
 		defaultLogMiddleware,
 		middleware.Instrument{
-			RouteMatcher:     router,
-			Duration:         metrics.RequestDuration,
-			RequestBodySize:  metrics.ReceivedMessageSize,
-			ResponseBodySize: metrics.SentMessageSize,
-			InflightRequests: metrics.InflightRequests,
+			RouteMatcher:      router,
+			Duration:          metrics.RequestDuration,
+			PerTenantDuration: metrics.PerTenantRequestDuration,
+			PerTenantCallback: cfg.PerTenantDurationInstrumentation,
+			RequestBodySize:   metrics.ReceivedMessageSize,
+			ResponseBodySize:  metrics.SentMessageSize,
+			InflightRequests:  metrics.InflightRequests,
 		},
 	}
 	var httpMiddleware []middleware.Interface
@@ -591,4 +623,14 @@ func (s *Server) Shutdown() {
 
 	_ = s.HTTPServer.Shutdown(ctx)
 	s.GRPC.GracefulStop()
+}
+
+func newProxyProtocolListener(httpListener net.Listener, readHeaderTimeout time.Duration) net.Listener {
+	// Wraps the listener with a proxy protocol listener.
+	// NOTE: go-proxyproto supports non-PROXY, PROXY v1 and PROXY v2 protocols via the same listener.
+	// Therefore, enabling this feature does not break existing setups.
+	return &proxyproto.Listener{
+		Listener:          httpListener,
+		ReadHeaderTimeout: readHeaderTimeout,
+	}
 }
