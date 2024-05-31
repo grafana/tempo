@@ -68,7 +68,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[combin
 		return pipeline.NewBadRequest(err), nil
 	}
 
-	expr, err := traceql.Parse(req.Query)
+	expr, _, _, _, err := traceql.NewEngine().Compile(req.Query)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}

@@ -13,6 +13,10 @@ import (
 	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
+	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	"github.com/grafana/tempo/modules/cache/memcached"
 	"github.com/grafana/tempo/modules/cache/redis"
 	"github.com/grafana/tempo/pkg/cache"
@@ -30,9 +34,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/opentracing/opentracing-go"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const (
@@ -83,7 +84,7 @@ type Reader interface {
 	SearchTagValuesV2(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error)
 
 	Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error)
-	FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback, opts common.SearchOptions) error
+	FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, opts common.SearchOptions) error
 
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
@@ -434,7 +435,7 @@ func (rw *readerWriter) Fetch(ctx context.Context, meta *backend.BlockMeta, req 
 	return block.Fetch(ctx, req, opts)
 }
 
-func (rw *readerWriter) FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback, opts common.SearchOptions) error {
+func (rw *readerWriter) FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, opts common.SearchOptions) error {
 	block, err := encoding.OpenBlock(meta, rw.r)
 	if err != nil {
 		return err
@@ -501,15 +502,21 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 		rw.cfg.BlocklistPollTenantIndexBuilders = DefaultTenantIndexBuilders
 	}
 
+	if rw.cfg.EmptyTenantDeletionAge <= 0 {
+		rw.cfg.EmptyTenantDeletionAge = DefaultEmptyTenantDeletionAge
+	}
+
 	level.Info(rw.logger).Log("msg", "polling enabled", "interval", rw.cfg.BlocklistPoll, "blocklist_concurrency", rw.cfg.BlocklistPollConcurrency)
 
 	blocklistPoller := blocklist.NewPoller(&blocklist.PollerConfig{
-		PollConcurrency:           rw.cfg.BlocklistPollConcurrency,
-		PollFallback:              rw.cfg.BlocklistPollFallback,
-		TenantIndexBuilders:       rw.cfg.BlocklistPollTenantIndexBuilders,
-		StaleTenantIndex:          rw.cfg.BlocklistPollStaleTenantIndex,
-		PollJitterMs:              rw.cfg.BlocklistPollJitterMs,
-		TolerateConsecutiveErrors: rw.cfg.BlocklistPollTolerateConsecutiveErrors,
+		PollConcurrency:            rw.cfg.BlocklistPollConcurrency,
+		PollFallback:               rw.cfg.BlocklistPollFallback,
+		TenantIndexBuilders:        rw.cfg.BlocklistPollTenantIndexBuilders,
+		StaleTenantIndex:           rw.cfg.BlocklistPollStaleTenantIndex,
+		PollJitterMs:               rw.cfg.BlocklistPollJitterMs,
+		TolerateConsecutiveErrors:  rw.cfg.BlocklistPollTolerateConsecutiveErrors,
+		EmptyTenantDeletionAge:     rw.cfg.EmptyTenantDeletionAge,
+		EmptyTenantDeletionEnabled: rw.cfg.EmptyTenantDeletionEnabled,
 	}, sharder, rw.r, rw.c, rw.w, rw.logger)
 
 	rw.blocklistPoller = blocklistPoller

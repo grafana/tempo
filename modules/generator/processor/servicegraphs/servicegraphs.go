@@ -15,7 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/util/strutil"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.18.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
@@ -46,11 +46,14 @@ var (
 )
 
 const (
-	metricRequestTotal         = "traces_service_graph_request_total"
-	metricRequestFailedTotal   = "traces_service_graph_request_failed_total"
-	metricRequestServerSeconds = "traces_service_graph_request_server_seconds"
-	metricRequestClientSeconds = "traces_service_graph_request_client_seconds"
+	metricRequestTotal                  = "traces_service_graph_request_total"
+	metricRequestFailedTotal            = "traces_service_graph_request_failed_total"
+	metricRequestServerSeconds          = "traces_service_graph_request_server_seconds"
+	metricRequestClientSeconds          = "traces_service_graph_request_client_seconds"
+	metricRequestMessagingSystemSeconds = "traces_service_graph_request_messaging_system_seconds"
 )
+
+const virtualNodeLabel = "virtual_node"
 
 var defaultPeerAttributes = []attribute.Key{
 	semconv.PeerServiceKey, semconv.DBNameKey, semconv.DBSystemKey,
@@ -73,10 +76,11 @@ type Processor struct {
 
 	closeCh chan struct{}
 
-	serviceGraphRequestTotal                  registry.Counter
-	serviceGraphRequestFailedTotal            registry.Counter
-	serviceGraphRequestServerSecondsHistogram registry.Histogram
-	serviceGraphRequestClientSecondsHistogram registry.Histogram
+	serviceGraphRequestTotal                           registry.Counter
+	serviceGraphRequestFailedTotal                     registry.Counter
+	serviceGraphRequestServerSecondsHistogram          registry.Histogram
+	serviceGraphRequestClientSecondsHistogram          registry.Histogram
+	serviceGraphRequestMessagingSystemSecondsHistogram registry.Histogram
 
 	metricDroppedSpans prometheus.Counter
 	metricTotalEdges   prometheus.Counter
@@ -86,8 +90,20 @@ type Processor struct {
 
 func New(cfg Config, tenant string, registry registry.Registry, logger log.Logger) gen.Processor {
 	labels := []string{"client", "server", "connection_type"}
+
+	if cfg.EnableVirtualNodeLabel {
+		cfg.Dimensions = append(cfg.Dimensions, virtualNodeLabel)
+	}
+
 	for _, d := range cfg.Dimensions {
 		if cfg.EnableClientServerPrefix {
+			if cfg.EnableVirtualNodeLabel {
+				// leave the extra label for this feature as-is
+				if d == virtualNodeLabel {
+					labels = append(labels, strutil.SanitizeLabelName(d))
+					continue
+				}
+			}
 			labels = append(labels, strutil.SanitizeLabelName("client_"+d), strutil.SanitizeLabelName("server_"+d))
 		} else {
 			labels = append(labels, strutil.SanitizeLabelName(d))
@@ -100,10 +116,11 @@ func New(cfg Config, tenant string, registry registry.Registry, logger log.Logge
 		labels:   labels,
 		closeCh:  make(chan struct{}, 1),
 
-		serviceGraphRequestTotal:                  registry.NewCounter(metricRequestTotal),
-		serviceGraphRequestFailedTotal:            registry.NewCounter(metricRequestFailedTotal),
-		serviceGraphRequestServerSecondsHistogram: registry.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets),
-		serviceGraphRequestClientSecondsHistogram: registry.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets),
+		serviceGraphRequestTotal:                           registry.NewCounter(metricRequestTotal),
+		serviceGraphRequestFailedTotal:                     registry.NewCounter(metricRequestFailedTotal),
+		serviceGraphRequestServerSecondsHistogram:          registry.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets),
+		serviceGraphRequestClientSecondsHistogram:          registry.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets),
+		serviceGraphRequestMessagingSystemSecondsHistogram: registry.NewHistogram(metricRequestMessagingSystemSeconds, cfg.HistogramBuckets),
 
 		metricDroppedSpans: metricDroppedSpans.WithLabelValues(tenant),
 		metricTotalEdges:   metricTotalEdges.WithLabelValues(tenant),
@@ -178,18 +195,12 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						e.ConnectionType = connectionType
 						e.ClientService = svcName
 						e.ClientLatencySec = spanDurationSec(span)
+						e.ClientEndTimeUnixNano = span.EndTimeUnixNano
 						e.Failed = e.Failed || p.spanFailed(span)
 						p.upsertDimensions("client_", e.Dimensions, rs.Resource.Attributes, span.Attributes)
 						e.SpanMultiplier = spanMultiplier
 						p.upsertPeerNode(e, span.Attributes)
-
-						// A database request will only have one span, we don't wait for the server
-						// span but just copy details from the client span
-						if dbName, ok := processor_util.FindAttributeValue("db.name", rs.Resource.Attributes, span.Attributes); ok {
-							e.ConnectionType = store.Database
-							e.ServerService = dbName
-							e.ServerLatencySec = spanDurationSec(span)
-						}
+						p.upsertDatabaseRequest(e, rs.Resource.Attributes, span)
 					})
 
 				case v1_trace.Span_SPAN_KIND_CONSUMER:
@@ -203,6 +214,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						e.ConnectionType = connectionType
 						e.ServerService = svcName
 						e.ServerLatencySec = spanDurationSec(span)
+						e.ServerStartTimeUnixNano = span.StartTimeUnixNano
 						e.Failed = e.Failed || p.spanFailed(span)
 						p.upsertDimensions("server_", e.Dimensions, rs.Resource.Attributes, span.Attributes)
 						e.SpanMultiplier = spanMultiplier
@@ -261,6 +273,73 @@ func (p *Processor) upsertPeerNode(e *store.Edge, spanAttr []*v1_common.KeyValue
 	}
 }
 
+// upsertDatabaseRequest handles the logic of adding a database edge on the
+// graph.  If we have a db.name or db.system attribute, we assume this is a
+// database request.  The name of the edge is determined by the following
+// order:
+//
+//	if we have a peer.service, use it as the database ServerService
+//	if we have a server.address, use it as the database ServerService
+//	if we have a network.peer.address, use it as the database ServerService.  Include :port if network.peer.port is present
+//	if we have a db.name, use it as the database ServerService, which is the backwards-compatible behavior
+func (p *Processor) upsertDatabaseRequest(e *store.Edge, resourceAttr []*v1_common.KeyValue, span *v1_trace.Span) {
+	var (
+		isDatabase bool
+
+		// The fallback database name
+		dbName string
+	)
+
+	// Check for db.name first.  The dbName is set initially to maintain backwards compatbility.
+	if name, ok := processor_util.FindAttributeValue(string(semconv.DBNameKey), resourceAttr, span.Attributes); ok {
+		dbName = name
+		isDatabase = true
+	}
+
+	// Check for db.system only if we don't have db.name above
+	if !isDatabase {
+		if _, ok := processor_util.FindAttributeValue(string(semconv.DBSystemKey), resourceAttr, span.Attributes); ok {
+			isDatabase = true
+		}
+	}
+
+	// If neither db.system nor db.name are present, we can't determine if this is a database request
+	if !isDatabase {
+		return
+	}
+	e.ConnectionType = store.Database
+	e.ServerLatencySec = spanDurationSec(span)
+
+	// Set the service name by order of precedence
+
+	// Check for peer.service
+	if name, ok := processor_util.FindAttributeValue(string(semconv.PeerServiceKey), resourceAttr, span.Attributes); ok {
+		e.ServerService = name
+		return
+	}
+
+	// Check for server.address
+	if name, ok := processor_util.FindAttributeValue(string(semconv.ServerAddressKey), resourceAttr, span.Attributes); ok {
+		e.ServerService = name
+		return
+	}
+
+	// Check for network.peer.address and network.peer.port.  Use port if it is present.
+	if host, ok := processor_util.FindAttributeValue(string(semconv.NetworkPeerAddressKey), resourceAttr, span.Attributes); ok {
+		if port, ok := processor_util.FindAttributeValue(string(semconv.NetworkPeerPortKey), resourceAttr, span.Attributes); ok {
+			e.ServerService = fmt.Sprintf("%s:%s", host, port)
+			return
+		}
+		e.ServerService = host
+		return
+	}
+
+	// Fallback to db.name
+	if dbName != "" {
+		e.ServerService = dbName
+	}
+}
+
 func (p *Processor) Shutdown(_ context.Context) {
 	close(p.closeCh)
 }
@@ -271,13 +350,22 @@ func (p *Processor) onComplete(e *store.Edge) {
 
 	for _, dimension := range p.Cfg.Dimensions {
 		if p.Cfg.EnableClientServerPrefix {
+			if p.Cfg.EnableVirtualNodeLabel {
+				// leave the extra label for this feature as-is
+				if dimension == virtualNodeLabel {
+					labelValues = append(labelValues, e.Dimensions[dimension])
+					continue
+				}
+			}
 			labelValues = append(labelValues, e.Dimensions["client_"+dimension], e.Dimensions["server_"+dimension])
 		} else {
 			labelValues = append(labelValues, e.Dimensions[dimension])
 		}
 	}
 
-	registryLabelValues := p.registry.NewLabelValueCombo(p.labels, labelValues)
+	labels := append([]string{}, p.labels...)
+
+	registryLabelValues := p.registry.NewLabelValueCombo(labels, labelValues)
 
 	p.serviceGraphRequestTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
 	if e.Failed {
@@ -286,6 +374,15 @@ func (p *Processor) onComplete(e *store.Edge) {
 
 	p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID, e.SpanMultiplier)
 	p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID, e.SpanMultiplier)
+
+	if p.Cfg.EnableMessagingSystemLatencyHistogram && e.ConnectionType == store.MessagingSystem {
+		messagingSystemLatencySec := unixNanosDiffSec(e.ClientEndTimeUnixNano, e.ServerStartTimeUnixNano)
+		if messagingSystemLatencySec == 0 {
+			level.Warn(p.logger).Log("msg", "producerSpanEndTime must be smaller than consumerSpanStartTime. maybe the peers clocks are not synced", "messagingSystemLatencySec", messagingSystemLatencySec, "traceID", e.TraceID)
+		} else {
+			p.serviceGraphRequestMessagingSystemSecondsHistogram.ObserveWithExemplar(registryLabelValues, messagingSystemLatencySec, e.TraceID, e.SpanMultiplier)
+		}
+	}
 }
 
 func (p *Processor) onExpire(e *store.Edge) {
@@ -301,12 +398,22 @@ func (p *Processor) onExpire(e *store.Edge) {
 		// We check if the span we have is the root span, and if so, we set the client service to "user".
 		if _, parentSpan := parseKey(e.Key()); len(parentSpan) == 0 {
 			e.ClientService = "user"
+
+			if p.Cfg.EnableVirtualNodeLabel {
+				e.Dimensions[virtualNodeLabel] = "client"
+			}
+
 			p.onComplete(e)
 		}
 	} else if len(e.ServerService) == 0 && len(e.PeerNode) > 0 {
 		// If client span does not have its matching server span, but has a peer attribute present,
 		// we make the assumption that a call was made to an external service, for which Tempo won't receive spans.
 		e.ServerService = e.PeerNode
+
+		if p.Cfg.EnableVirtualNodeLabel {
+			e.Dimensions[virtualNodeLabel] = "server"
+		}
+
 		p.onComplete(e)
 	}
 }
@@ -315,8 +422,17 @@ func (p *Processor) spanFailed(span *v1_trace.Span) bool {
 	return span.GetStatus().GetCode() == v1_trace.Status_STATUS_CODE_ERROR
 }
 
+func unixNanosDiffSec(unixNanoStart uint64, unixNanoEnd uint64) float64 {
+	if unixNanoStart > unixNanoEnd {
+		// To prevent underflow, return 0.
+		return 0
+	}
+	// Safe subtraction.
+	return float64(unixNanoEnd-unixNanoStart) / float64(time.Second)
+}
+
 func spanDurationSec(span *v1_trace.Span) float64 {
-	return float64(span.EndTimeUnixNano-span.StartTimeUnixNano) / float64(time.Second.Nanoseconds())
+	return unixNanosDiffSec(span.StartTimeUnixNano, span.EndTimeUnixNano)
 }
 
 func buildKey(k1, k2 string) string {

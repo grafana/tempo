@@ -51,6 +51,17 @@ valid:
   - '{ duration > 1s }'
   - '{ 1 < 1h }'
   - '{ 1 <= 1.1 }'
+  # scoped intrinsics
+  - '{ trace:duration > 2s }'
+  - '{ trace:rootName = "a" }'
+  - '{ trace:rootService = "a" }'
+  - '{ trace:id = "aasdf4ergf" }'
+  - '{ span:duration > 2s }'
+  - '{ span:status = error }'
+  - '{ span:kind = client }'
+  - '{ span:statusMessage = "status message" }'
+  - '{ span:id = "61626364656667" }'
+  - '{ event:name = "exception" }'
   # binary operations
   - '{ 1 + 1 = 2 }'
   - '{ 1 - 1 = 2 }'
@@ -79,6 +90,11 @@ valid:
   - '{ true } !~ { true }'
   - '{ true } !>> { true }'
   - '{ true } !<< { true }'
+  - '{ true } &> { true }'
+  - '{ true } &< { true }'
+  - '{ true } &~ { true }'
+  - '{ true } &>> { true }'
+  - '{ true } &<< { true }'
   - '({ true } | count() > 1 | { false }) >> ({ true } | count() > 1 | { false })'
   - '({ true } | count() > 1 | { false }) > ({ true } | count() > 1 | { false })'
   - '({ true } | count() > 1 | { false }) ~ ({ true } | count() > 1 | { false })'
@@ -117,6 +133,10 @@ valid:
   - '{ true } | by(name) | count() > 2'
   - '{ true } | by(.field) | avg(.b) = 2'
   - '{ true } | by(3 * .field - 2) | max(duration) < 1s'
+  # metrics
+  - '{} | rate()'
+  - '{} | count_over_time() by (name) with(sample=0.1)'
+  - '{} | quantile_over_time(duration, 0, 0.9, 1) by (span.http.path)'
   # undocumented - nested set
   - '{ nestedSetLeft > 3 }'
   - '{ } >> { kind = server } | select(nestedSetLeft, nestedSetRight, nestedSetParent)'
@@ -179,6 +199,14 @@ parse_fails:
   - '(by(namespace) | count()) > 2 * 2' # scalar expressions are currently not allowed in scalar pipelines
   - '(by(namespace) | count()) * 2 > 2'
   - '2 < (by(namespace) | count())'     # static value needs to be on the RHS to remove conflicts with scalar expressions
+  # mismatched scoped intrinsics
+  - '{ trace:status = error }'
+  - '{ trace:kind = server }'
+  - '{ trace:name = "a" }'
+  - '{ trace:rootServiceName = "a" }' # should be trace:rootService only 
+  - '{ span:rootName = "bar" }'
+  # to be added in the future
+  - '{ scope:version = "v3.34" }'
 
 # validate_fails parse correctly and return an error **besides unsupported** when calling .validate()
 validate_fails:
@@ -288,3 +316,4 @@ unsupported:
 
 # parsed and the ast is dumped to stdout. this is a debugging tool
 dump:
+- '{ trace:id = "3485734785643"}'

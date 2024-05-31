@@ -7,6 +7,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/require"
 )
@@ -56,6 +57,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceID):          traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID)),
+							traceql.NewIntrinsic(traceql.IntrinsicSpanID):           traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID)),
 						},
 					},
 					&span{
@@ -67,6 +70,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceID):          traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID)),
+							traceql.NewIntrinsic(traceql.IntrinsicSpanID):           traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].SpanID)),
 						},
 					},
 				),
@@ -97,6 +102,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):                 traceql.NewStaticDuration(100 * time.Millisecond),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService):              traceql.NewStaticString("RootService"),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):                 traceql.NewStaticString("RootSpan"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceID):                       traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID)),
+							traceql.NewIntrinsic(traceql.IntrinsicSpanID):                        traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID)),
 						},
 					},
 				),
@@ -128,6 +135,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceID):          traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID)),
+							traceql.NewIntrinsic(traceql.IntrinsicSpanID):           traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID)),
 						},
 					},
 				),
@@ -157,6 +166,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceID):          traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID)),
+							traceql.NewIntrinsic(traceql.IntrinsicSpanID):           traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID)),
 						},
 					},
 				),
@@ -192,6 +203,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceID):          traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID)),
+							traceql.NewIntrinsic(traceql.IntrinsicSpanID):           traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID)),
 						},
 					},
 				),
@@ -228,6 +241,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceID):          traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID)),
+							traceql.NewIntrinsic(traceql.IntrinsicSpanID):           traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].SpanID)),
 						},
 					},
 				),
@@ -252,6 +267,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceID):          traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID)),
+							traceql.NewIntrinsic(traceql.IntrinsicSpanID):           traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID)),
 						},
 					},
 					&span{
@@ -263,6 +280,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceID):          traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID)),
+							traceql.NewIntrinsic(traceql.IntrinsicSpanID):           traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].SpanID)),
 						},
 					},
 				),
@@ -287,6 +306,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceID):          traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID)),
+							traceql.NewIntrinsic(traceql.IntrinsicSpanID):           traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID)),
 						},
 					},
 					&span{
@@ -298,6 +319,73 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
 							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceID):          traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID)),
+							traceql.NewIntrinsic(traceql.IntrinsicSpanID):           traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].SpanID)),
+						},
+					},
+				),
+			),
+		},
+		{
+			// Intrinsic span id filter for first span only
+			makeReq(parse(t, `{ span:id = "`+util.SpanIDToHexString(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID)+`" }`)),
+			makeSpansets(
+				makeSpanset(
+					wantTr.TraceID,
+					wantTr.RootSpanName,
+					wantTr.RootServiceName,
+					wantTr.StartTimeUnixNano,
+					wantTr.DurationNano,
+					&span{
+						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID,
+						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartTimeUnixNano,
+						durationNanos:      wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].DurationNano,
+						attributes: map[traceql.Attribute]traceql.Static{
+							traceql.NewIntrinsic(traceql.IntrinsicDuration):         traceql.NewStaticDuration(100 * time.Second),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceID):          traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID)),
+							traceql.NewIntrinsic(traceql.IntrinsicSpanID):           traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID)),
+						},
+					},
+				),
+			),
+		},
+		{
+			// Intrinsic trace id with no filtering
+			makeReq(traceql.Condition{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceID)}),
+			makeSpansets(
+				makeSpanset(
+					wantTr.TraceID,
+					wantTr.RootSpanName,
+					wantTr.RootServiceName,
+					wantTr.StartTimeUnixNano,
+					wantTr.DurationNano,
+					&span{
+						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID,
+						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartTimeUnixNano,
+						durationNanos:      wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].DurationNano,
+						attributes: map[traceql.Attribute]traceql.Static{
+							traceql.NewIntrinsic(traceql.IntrinsicDuration):         traceql.NewStaticDuration(100 * time.Second),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceID):          traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID)),
+							traceql.NewIntrinsic(traceql.IntrinsicSpanID):           traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID)),
+						},
+					},
+					&span{
+						id:                 wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].SpanID,
+						startTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartTimeUnixNano,
+						durationNanos:      wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].DurationNano,
+						attributes: map[traceql.Attribute]traceql.Static{
+							traceql.NewIntrinsic(traceql.IntrinsicDuration):         traceql.NewStaticDuration(0 * time.Second),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceDuration):    traceql.NewStaticDuration(100 * time.Millisecond),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootService): traceql.NewStaticString("RootService"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan):    traceql.NewStaticString("RootSpan"),
+							traceql.NewIntrinsic(traceql.IntrinsicTraceID):          traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID)),
+							traceql.NewIntrinsic(traceql.IntrinsicSpanID):           traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].SpanID)),
 						},
 					},
 				),

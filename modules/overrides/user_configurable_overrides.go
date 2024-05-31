@@ -259,6 +259,13 @@ func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraph
 	return o.Interface.MetricsGeneratorProcessorServiceGraphsEnableClientServerPrefix(userID)
 }
 
+func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) bool {
+	if enableVirtualNodeLabel, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetEnableVirtualNodeLabel(); ok {
+		return enableVirtualNodeLabel
+	}
+	return o.Interface.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID)
+}
+
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessorServiceGraphsPeerAttributes(userID string) []string {
 	if peerAttributes, ok := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessor().GetServiceGraphs().GetPeerAttributes(); ok {
 		return peerAttributes

@@ -26,7 +26,7 @@ type Searcher interface {
 	SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb TagCallbackV2, opts SearchOptions) error
 
 	Fetch(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansResponse, error)
-	FetchTagValues(context.Context, traceql.AutocompleteRequest, traceql.AutocompleteCallback, SearchOptions) error
+	FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, SearchOptions) error
 }
 
 type SearchOptions struct {

@@ -157,7 +157,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			continue
 		}
 		wg.Add(1)
-		go func(b *localBlock) {
+		go func(b *LocalBlock) {
 			defer wg.Done()
 			search(b.BlockMeta().BlockID, b, "completeBlock")
 		}(b)
@@ -398,37 +398,26 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 	query := traceql.ExtractMatchers(req.Query)
 
-	var searchBlock func(context.Context, common.Searcher) error
-	if !i.autocompleteFilteringEnabled || traceql.IsEmptyQuery(query) {
-		// If filtering is disabled or query is empty,
-		// we can use the more efficient SearchTagValuesV2 method.
-		searchBlock = func(ctx context.Context, s common.Searcher) error {
-			if anyErr.Load() != nil {
-				return nil // Early exit if any error has occurred
-			}
+	searchBlock := func(ctx context.Context, s common.Searcher) error {
+		if anyErr.Load() != nil {
+			return nil // Early exit if any error has occurred
+		}
 
-			if maxBlocks > 0 && inspectedBlocks.Inc() > maxBlocks {
-				return nil
-			}
+		if maxBlocks > 0 && inspectedBlocks.Inc() > maxBlocks {
+			return nil
+		}
 
+		// if the query is empty or autocomplete filtering is disabled, use the old search
+		if !i.autocompleteFilteringEnabled || traceql.IsEmptyQuery(query) {
 			return s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(valueCollector.Collect), common.DefaultSearchOptions())
 		}
-	} else {
-		searchBlock = func(ctx context.Context, s common.Searcher) error {
-			if anyErr.Load() != nil {
-				return nil // Early exit if any error has occurred
-			}
 
-			if maxBlocks > 0 && inspectedBlocks.Inc() > maxBlocks {
-				return nil
-			}
+		// otherwise use the filtered search
+		fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
+			return s.FetchTagValues(ctx, req, cb, common.DefaultSearchOptions())
+		})
 
-			fetcher := traceql.NewAutocompleteFetcherWrapper(func(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback) error {
-				return s.FetchTagValues(ctx, req, cb, common.DefaultSearchOptions())
-			})
-
-			return engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
-		}
+		return engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
 	}
 
 	// head block
@@ -459,7 +448,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	// completed blocks
 	for _, b := range i.completeBlocks {
 		wg.Add(1)
-		go func(b *localBlock) {
+		go func(b *LocalBlock) {
 			span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTagValuesV2.completedBlock")
 			defer span.Finish()
 			defer wg.Done()

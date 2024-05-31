@@ -207,12 +207,17 @@ func (o *BinaryOperation) validate() error {
 		OpSpansetParent,
 		OpSpansetDescendant,
 		OpSpansetAncestor,
+		OpSpansetSibling,
 		OpSpansetNotChild,
 		OpSpansetNotParent,
 		OpSpansetNotSibling,
 		OpSpansetNotAncestor,
 		OpSpansetNotDescendant,
-		OpSpansetSibling:
+		OpSpansetUnionChild,
+		OpSpansetUnionParent,
+		OpSpansetUnionSibling,
+		OpSpansetUnionAncestor,
+		OpSpansetUnionDescendant:
 		return newUnsupportedError(fmt.Sprintf("binary operation (%v)", o.Op))
 	}
 
@@ -253,5 +258,9 @@ func (a Attribute) validate() error {
 		return newUnsupportedError(fmt.Sprintf("intrinsic (%v)", a.Intrinsic))
 	}
 
+	return nil
+}
+
+func (h *Hints) validate() error {
 	return nil
 }

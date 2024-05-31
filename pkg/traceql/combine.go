@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/grafana/tempo/pkg/tempopb"
-	"golang.org/x/exp/maps"
 )
 
 type MetadataCombiner struct {
@@ -75,6 +74,22 @@ func combineSearchResults(existing *tempopb.TraceSearchMetadata, incoming *tempo
 		existing.DurationMs = incoming.DurationMs
 	}
 
+	// Combine service stats
+	// It's possible to find multiple trace fragments that satisfy a TraceQL result,
+	// therefore we use max() to merge the ServiceStats.
+	for service, incomingStats := range incoming.ServiceStats {
+		existingStats, ok := existing.ServiceStats[service]
+		if !ok {
+			existingStats = &tempopb.ServiceStats{}
+			if existing.ServiceStats == nil {
+				existing.ServiceStats = make(map[string]*tempopb.ServiceStats)
+			}
+			existing.ServiceStats[service] = existingStats
+		}
+		existingStats.SpanCount = max(existingStats.SpanCount, incomingStats.SpanCount)
+		existingStats.ErrorCount = max(existingStats.ErrorCount, incomingStats.ErrorCount)
+	}
+
 	// make a map of existing Spansets
 	existingSS := make(map[string]*tempopb.SpanSet)
 	for _, ss := range existing.SpanSets {
@@ -127,8 +142,22 @@ func spansetID(ss *tempopb.SpanSet) string {
 }
 
 type QueryRangeCombiner struct {
-	ts      map[string]*tempopb.TimeSeries
+	req     *tempopb.QueryRangeRequest
+	eval    *MetricsFrontendEvaluator
 	metrics *tempopb.SearchMetrics
+}
+
+func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode) (*QueryRangeCombiner, error) {
+	eval, err := NewEngine().CompileMetricsQueryRangeNonRaw(req, mode)
+	if err != nil {
+		return nil, err
+	}
+
+	return &QueryRangeCombiner{
+		req:     req,
+		eval:    eval,
+		metrics: &tempopb.SearchMetrics{},
+	}, nil
 }
 
 func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
@@ -136,24 +165,8 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 		return
 	}
 
-	if q.ts == nil {
-		q.ts = make(map[string]*tempopb.TimeSeries, len(resp.Series))
-	}
-
-	for _, series := range resp.Series {
-
-		existing, ok := q.ts[series.PromLabels]
-		if !ok {
-			q.ts[series.PromLabels] = series
-			continue
-		}
-
-		q.combine(series, existing)
-	}
-
-	if q.metrics == nil {
-		q.metrics = &tempopb.SearchMetrics{}
-	}
+	// Here is where the job results are reentered into the pipeline
+	q.eval.ObserveSeries(resp.Series)
 
 	if resp.Metrics != nil {
 		q.metrics.TotalJobs += resp.Metrics.TotalJobs
@@ -166,26 +179,9 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 	}
 }
 
-func (QueryRangeCombiner) combine(in *tempopb.TimeSeries, out *tempopb.TimeSeries) {
-outer:
-	for _, sample := range in.Samples {
-		for i, existing := range out.Samples {
-			if sample.TimestampMs == existing.TimestampMs {
-				out.Samples[i].Value += sample.Value
-				continue outer
-			}
-		}
-
-		out.Samples = append(out.Samples, sample)
-	}
-}
-
 func (q *QueryRangeCombiner) Response() *tempopb.QueryRangeResponse {
-	if q.metrics == nil {
-		q.metrics = &tempopb.SearchMetrics{}
-	}
 	return &tempopb.QueryRangeResponse{
-		Series:  maps.Values(q.ts),
+		Series:  q.eval.Results().ToProto(q.req),
 		Metrics: q.metrics,
 	}
 }

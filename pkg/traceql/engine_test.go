@@ -35,6 +35,12 @@ func TestEngine_Execute(t *testing.T) {
 					TraceID:         []byte{1},
 					RootSpanName:    "HTTP GET",
 					RootServiceName: "my-service",
+					ServiceStats: map[string]ServiceStats{
+						"my-service": {
+							SpanCount:  6,
+							ErrorCount: 0,
+						},
+					},
 					Spans: []Span{
 						&mockSpan{
 							id: []byte{1},
@@ -167,8 +173,14 @@ func TestEngine_Execute(t *testing.T) {
 			TraceID:         "1",
 			RootServiceName: "my-service",
 			RootTraceName:   "HTTP GET",
-			SpanSet:         expectedSpanset,
-			SpanSets:        []*tempopb.SpanSet{expectedSpanset},
+			ServiceStats: map[string]*tempopb.ServiceStats{
+				"my-service": {
+					SpanCount:  6,
+					ErrorCount: 0,
+				},
+			},
+			SpanSet:  expectedSpanset,
+			SpanSets: []*tempopb.SpanSet{expectedSpanset},
 		},
 	}
 
@@ -205,6 +217,12 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 		RootSpanName:       "HTTP GET",
 		StartTimeUnixNanos: 1000,
 		DurationNanos:      uint64(time.Second.Nanoseconds()),
+		ServiceStats: map[string]ServiceStats{
+			"service1": {
+				SpanCount:  2,
+				ErrorCount: 1,
+			},
+		},
 		Spans: []Span{
 			&mockSpan{
 				id:                 spanID1,
@@ -321,8 +339,14 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 		RootTraceName:     "HTTP GET",
 		StartTimeUnixNano: 1000,
 		DurationMs:        uint32(time.Second.Milliseconds()),
-		SpanSet:           expectedSpanset,
-		SpanSets:          []*tempopb.SpanSet{expectedSpanset},
+		ServiceStats: map[string]*tempopb.ServiceStats{
+			"service1": {
+				SpanCount:  2,
+				ErrorCount: 1,
+			},
+		},
+		SpanSet:  expectedSpanset,
+		SpanSets: []*tempopb.SpanSet{expectedSpanset},
 	}
 
 	// Ensure attributes are sorted to avoid a flaky test
@@ -333,14 +357,14 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 	assert.Equal(t, expectedTraceSearchMetadata, traceSearchMetadata)
 }
 
-var _ AutocompleteFetcher = (*MockAutocompleteFetcher)(nil)
+var _ TagValuesFetcher = (*MockAutocompleteFetcher)(nil)
 
 type MockAutocompleteFetcher struct {
 	query    string
 	iterator SpansetIterator
 }
 
-func (m *MockAutocompleteFetcher) Fetch(ctx context.Context, req AutocompleteRequest, cb AutocompleteCallback) error {
+func (m *MockAutocompleteFetcher) Fetch(ctx context.Context, req FetchTagValuesRequest, cb FetchTagValuesCallback) error {
 	rootExpr, err := Parse(m.query)
 	if err != nil {
 		return err
@@ -522,7 +546,7 @@ func TestExecuteTagValues(t *testing.T) {
 	now := time.Now()
 	e := Engine{}
 
-	mockSpansetFetcher := func(query string) AutocompleteFetcher {
+	mockSpansetFetcher := func(query string) TagValuesFetcher {
 		return &MockAutocompleteFetcher{
 			query: query,
 			iterator: &MockSpanSetIterator{

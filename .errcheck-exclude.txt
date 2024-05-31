@@ -1,4 +1,0 @@
-// the following functions will be excluded from errcheck
-// https://github.com/kisielk/errcheck#excluding-functions
-(github.com/go-kit/kit/log.Logger).Log
-(github.com/go-kit/log.Logger).Log

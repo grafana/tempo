@@ -46,7 +46,7 @@ storage:
   trace:
     backend: s3                        # backend configuration to use
     wal:
-      path: /var/tempo/wal             # where to store the the wal locally
+      path: /var/tempo/wal             # where to store the wal locally
     s3:
       bucket: tempo                    # how to store data in s3
       endpoint: minio:9000

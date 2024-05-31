@@ -17,7 +17,6 @@ import (
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/stoewer/parquet-cli/pkg/inspect"
 
-	"github.com/grafana/tempo/tempodb/encoding/vparquet"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 
@@ -27,20 +26,6 @@ import (
 )
 
 var (
-	vparquetSpanAttrs = []string{
-		vparquet.FieldSpanAttrVal,
-		// TODO: Dedicated columns only support 'string' values.  We need to add support for other types
-		// vparquet.FieldSpanAttrValInt,
-		// vparquet.FieldSpanAttrValDouble,
-		// vparquet.FieldSpanAttrValBool,
-	}
-	vparquetResourceAttrs = []string{
-		vparquet.FieldResourceAttrVal,
-		// TODO: Dedicated columns only support 'string' values.  We need to add support for other types
-		// vparquet.FieldResourceAttrValInt,
-		// vparquet.FieldResourceAttrValDouble,
-		// vparquet.FieldResourceAttrValBool,
-	}
 	vparquet2SpanAttrs = []string{
 		vparquet2.FieldSpanAttrVal,
 	}
@@ -57,8 +42,6 @@ var (
 
 func spanPathsForVersion(v string) (string, []string) {
 	switch v {
-	case vparquet.VersionString:
-		return vparquet.FieldSpanAttrKey, vparquetSpanAttrs
 	case vparquet2.VersionString:
 		return vparquet2.FieldSpanAttrKey, vparquet2SpanAttrs
 	case vparquet3.VersionString:
@@ -69,8 +52,6 @@ func spanPathsForVersion(v string) (string, []string) {
 
 func resourcePathsForVersion(v string) (string, []string) {
 	switch v {
-	case vparquet.VersionString:
-		return vparquet.FieldResourceAttrKey, vparquetResourceAttrs
 	case vparquet2.VersionString:
 		return vparquet2.FieldResourceAttrKey, vparquet2ResourceAttrs
 	case vparquet3.VersionString:
@@ -138,8 +119,6 @@ func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minS
 
 	var reader io.ReaderAt
 	switch meta.Version {
-	case vparquet.VersionString:
-		reader = vparquet.NewBackendReaderAt(context.Background(), r, vparquet.DataFileName, meta)
 	case vparquet2.VersionString:
 		reader = vparquet2.NewBackendReaderAt(context.Background(), r, vparquet2.DataFileName, meta)
 	case vparquet3.VersionString:

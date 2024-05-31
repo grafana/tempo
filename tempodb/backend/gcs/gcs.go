@@ -308,6 +308,39 @@ func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.U
 	return blockIDs, compactedBlockIDs, nil
 }
 
+// Find implements backend.Reader
+func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f backend.FindFunc) (err error) {
+	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
+	prefix := path.Join(keypath...)
+	if len(prefix) > 0 {
+		prefix = prefix + "/"
+	}
+
+	iter := rw.bucket.Objects(ctx, &storage.Query{
+		Delimiter: "",
+		Prefix:    prefix,
+		Versions:  false,
+	})
+
+	for {
+		attrs, iterErr := iter.Next()
+		if errors.Is(iterErr, iterator.Done) {
+			break
+		}
+		if iterErr != nil {
+			return fmt.Errorf("iterating objects: %w", err)
+		}
+
+		opts := backend.FindMatch{
+			Key:      attrs.Name,
+			Modified: attrs.Updated,
+		}
+		f(opts)
+	}
+
+	return
+}
+
 // Read implements backend.Reader
 func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) (io.ReadCloser, int64, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
