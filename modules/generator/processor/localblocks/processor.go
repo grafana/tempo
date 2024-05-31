@@ -652,6 +652,7 @@ func (p *Processor) deleteOldBlocks() (err error) {
 		}
 
 		if flushedTime.Add(p.Cfg.CompleteBlockTimeout).Before(time.Now()) {
+			level.Info(p.logger).Log("msg", "deleting complete block", "block", id.String())
 			err = p.wal.LocalBackend().ClearBlock(id, p.tenant)
 			if err != nil {
 				return err
