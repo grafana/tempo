@@ -1610,7 +1610,7 @@ func createLinkIterator(makeIter makeIterFn, conditions []traceql.Condition) (pa
 		return nil, nil
 	}
 
-	return parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpanLink, linkIters, &linkCollector{}, parquetquery.WithPool(pqEventPool)), nil
+	return parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpanLink, linkIters, &linkCollector{}, parquetquery.WithPool(pqLinkPool)), nil
 }
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
