@@ -39,13 +39,13 @@ type QueryRangeSharderConfig struct {
 	MaxDuration           time.Duration `yaml:"max_duration"`
 	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
 	Interval              time.Duration `yaml:"interval,omitempty"`
-	QueryGeneratorBlocks  bool          `yaml:"query_generator_blocks,omitempty"`
+	RF1ReadPath           bool          `yaml:"rf1_read_path,omitempty"`
 }
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search
 func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	var replicationFactor uint32
-	if cfg.QueryGeneratorBlocks {
+	if cfg.RF1ReadPath {
 		replicationFactor = 1
 	}
 	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
@@ -122,7 +122,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[combin
 		totalJobs, totalBlocks uint32
 		totalBlockBytes        uint64
 	)
-	if s.cfg.QueryGeneratorBlocks {
+	if s.cfg.RF1ReadPath {
 		totalJobs, totalBlocks, totalBlockBytes = s.backendRequests(ctx, tenantID, r, *req, now, samplingRate, targetBytesPerRequest, interval, reqCh)
 	} else {
 		totalJobs, totalBlocks, totalBlockBytes = s.shardedBackendRequests(ctx, tenantID, r, *req, now, samplingRate, targetBytesPerRequest, interval, reqCh, nil)
@@ -437,15 +437,6 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 	}
 
 	searchReq.QueryMode = querier.QueryModeRecent
-
-	if s.replicationFactor == backend.DefaultReplicationFactor {
-		// No sharding on the generators (unnecessary), but we do apply sampling
-		// rates.  In this case we execute a single arbitrary shard. Choosing
-		// the last shard works. The first shard should be avoided because it is
-		// weighted slightly off due to int63/128 sharding boundaries.
-		searchReq.ShardID = uint32(1.0 / samplingRate)
-		searchReq.ShardCount = uint32(1.0 / samplingRate)
-	}
 
 	return s.toUpstreamRequest(parent.Context(), searchReq, parent, tenantID)
 }

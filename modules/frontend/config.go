@@ -85,7 +85,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 			ConcurrentRequests:    defaultConcurrentRequests,
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			Interval:              5 * time.Minute,
-			QueryGeneratorBlocks:  false,
+			RF1ReadPath:           false,
 		},
 		SLO: slo,
 	}

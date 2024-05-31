@@ -25,7 +25,7 @@ func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest
 		return q.queryRangeRecent(ctx, req)
 	}
 
-	if req.ShardCount == 0 { // RF1 search
+	if req.BlockID != "" { // RF1 search
 		return q.queryBlock(ctx, req)
 	}
 
@@ -124,7 +124,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 		return q.store.Fetch(ctx, meta, req, opts)
 	})
-	err = eval.Do(ctx, f, 0, 0)
+	err = eval.Do(ctx, f, uint64(meta.StartTime.UnixNano()), uint64(meta.EndTime.UnixNano()))
 	if err != nil {
 		return nil, err
 	}
