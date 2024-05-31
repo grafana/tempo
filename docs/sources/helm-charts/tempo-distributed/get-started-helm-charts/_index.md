@@ -32,7 +32,9 @@ If you are using Helm to install Grafana Enterprise Traces (GET), then you will 
 These instructions are common across any flavor of Kubernetes. They also assume that you know how to install, configure, and operate a Kubernetes cluster.
 It also assumes that you have an understanding of what the `kubectl` command does.
 
-> **CAUTION**: This procedure is primarily aimed at local or development setups.
+{{< admonition type="warning" >}}
+This procedure is primarily aimed at local or development setups.
+{{< /admonition >}}
 
 ### Hardware requirements
 
@@ -40,10 +42,12 @@ It also assumes that you have an understanding of what the `kubectl` command doe
 
 ### Software requirements
 
-- Kubernetes 1.20 or later (see [Kubernetes installation documentation](https://kubernetes.io/docs/setup/))
+- Kubernetes 1.20 or later (refer to [Kubernetes installation documentation](https://kubernetes.io/docs/setup/))
 - The `kubectl` command for your version of Kubernetes
-- Helm 3 or later (see [Helm installation documentation](https://helm.sh/docs/intro/install/))
+- Helm 3 or later (refer to [Helm installation documentation](https://helm.sh/docs/intro/install/))
 - GET only: [An enterprise license](/docs/enterprise-traces/latest/setup/#obtain-a-get-license)
+
+### Additional requirements
 
 Verify that you have:
 
@@ -53,7 +57,9 @@ Verify that you have:
 - DNS service works in the Kubernetes cluster (refer to the [Debugging DNS resolution](https://kubernetes.io/docs/tasks/administer-cluster/dns-debugging-resolution/) in the Kubernetes documentation)
 - Optional: An ingress controller is set up in the Kubernetes cluster, for example [ingress-nginx](https://kubernetes.github.io/ingress-nginx/)
 
-> **NOTE**: If you want to access Tempo from outside of the Kubernetes cluster, you may need an ingress. Ingress-related procedures are marked as optional.
+{{< admonition type="note" >}}
+If you want to access Tempo from outside of the Kubernetes cluster, you may need an ingress. Ingress-related procedures are marked as optional.
+{{M< /admonition >}}
 
 <!-- This section should be verified before being made visible. Itâ€™s from Mimir and might need to be updated for Tempo.
 
@@ -85,23 +91,25 @@ For more details, see the Kubernetes documentation about [Creating a new namespa
    helm repo update
    ```
 
-   {{% admonition type="note" %}} The Helm chart at https://grafana.github.io/helm-charts is a publication of the source code at grafana/tempo.
-   {{% /admonition %}}
+   {{< admonition type="note" >}} The Helm chart at https://grafana.github.io/helm-charts is a publication of the source code at `grafana/tempo`.
+   {{< /admonition >}}
 
 ## Set Helm chart values
 
-The Helm Chart for Tempo includes a file called "values.yaml", containing default configuration options. In our case, you will create a local file called "custom.yaml" in a working directory - this is detailed in the set of steps below.
+The Helm Chart for Tempo includes a file called "values.yaml", containing default configuration options.
+In this case, you create a local file called `custom.yaml` in a working directory.
+This is detailed in the set of steps below.
 
-After creating the file, you will have the option to make changes in that file as needed for your deployment environment.
+After creating the file, you have the option to make changes in that file as needed for your deployment environment.
 
-When you use Helm to deploy the chart, you will specify that Helm will use your custom.yaml instead of values.yaml.
+When you use Helm to deploy the chart, you can specify that Helm uses your `custom.yaml` instead of `values.yaml`.
 The `custom.yaml` file sets the storage and traces options, enables the gateway, and sets the cluster to main.
 The `traces` configure the distributor's receiver protocols.
 
 To customize your Helm chart values:
 
 1. Create a `custom.yaml` file in your working directory.
-1. From the examples below, copy and paste either the Tempo Helm chart values or the Grafana Enterprise Traces Helm chart values into your file.
+1. From the examples below, copy and paste either the Tempo Helm chart values or the Grafana Enterprise Traces (GET) Helm chart values into your file.
 1. Save your `custom.yaml` file.
 1. For simple deployments, leave the `storage` and `minio` sections as they are; MinIO will be deployed for you by the Helm chart and Tempo will use it to store traces (and other information if you are running GET). Further down this page, you will find instructions for customizing your trace storage configuration options, if the provided defaults are not what you are looking to test.
 1. Set your traces values to configure the receivers on the Tempo distributor. (More detail on this is further down on this page.)
@@ -151,7 +159,7 @@ traces:
 ### Grafana Enterprise Traces helm chart values
 
 The values in the example below provide configuration values for GET.
-These values include an additional `admin` bucket, the `gateway` has been disabled, the `enterpriseGateway` has been enabled, and a license has been specified.
+These values include an additional `admin` bucket, disables the `gateway`, enables the `enterpriseGateway`, and specifies a license.
 
 ```yaml
 ---
@@ -162,7 +170,7 @@ multitenancyEnabled: true
 enterprise:
   enabled: true
   image:
-    tag: v2.1.0
+    tag: v2.4.1
 enterpriseGateway:
   enabled: true
 gateway:
@@ -222,9 +230,9 @@ license:
 If you are using GET, you need to configure a license, by adding the license to the `custom.yaml` file or by using a secret that contains the license.
 Only one of these options should be used.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 The [Set up GET instructions](/docs/enterprise-traces/latest/setup/#obtain-a-get-license) explain how to obtain a license.
-{{% /admonition %}}
+{{< /admonition >}}
 
 Using the first option, you can specify the license text in the `custom.yaml` values file created above, in the `license:` section.
 
@@ -234,7 +242,7 @@ license:
     LICENSEGOESHERE
 ```
 
-If you do not with to specific the license in the `custom.yaml` file, you can use a secret that contains the license content that is referenced.
+If you don't wish to specify the license in the `custom.yaml` file, you can reference a secret that contains the license content.
 
 1. Create the secret.
 
@@ -251,21 +259,23 @@ If you do not with to specific the license in the `custom.yaml` file, you can us
 
 ### Set your storage option
 
-Before you run the Helm chart, you need to configure where trace data will be stored.
+Before you run the Helm chart, you need to configure where to store trace data.
 
 The `storage` block defined in the `values.yaml` file is used to configure the storage that Tempo uses for trace storage.
 
 The procedure below configures MinIO as the local storage option managed by the Helm chart.
 However, you can use a other storage provides. Refer to the Optional storage section below.
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 
-The MinIO installation that is included with this Helm chart is for demonstration purposes only, and is configured for a maximum storage size of 5GiB. This MinIO installation is not suitable for production environments and should only be used for example purposes. Performant, Enterprise-grade object storage should always be used in production
+The MinIO installation included with this Helm chart is for demonstration purposes only, and is configured for a maximum storage size of 5GiB.
+This MinIO installation isn't suitable for production environments and should only be used for example purposes. Performant, Enterprise-grade object storage should always be used in production.
 
-{{% /admonition %}}
+{{< /admonition >}}
 
-The Helm chart values provided include the basic MinIO set up values. If you need to customize them, the steps below walk you through which sections to update.
-If you do not need to change the values, you can skip this section.
+The Helm chart values provided include the basic MinIO set up values.
+If you need to customize them, the steps below walk you through which sections to update.
+If you don't need to change the values, you can skip this section.
 
 1. Optional: Update the configuration options in `custom.yaml` for your configuration.
 
@@ -312,7 +322,8 @@ Persistent storage is enabled in the Kubernetes cluster, which has a default sto
 
 This Helm chart guide defaults to using MinIO as a simple solution to get you started. However, you can use a storage bucket like Amazon S3, Azure Blob Storage, or Google Cloud Platform.
 
-Each storage provider has a different configuration stanza, which are detailed in Tempo's documentation. You will need to update your configuration based upon you storage provider.
+Each storage provider has a different configuration stanza, which are detailed in Tempo's documentation.
+You need to update your configuration based upon you storage provider.
 Refer to the [`storage` configuration block]({{< relref "/docs/tempo/latest/configuration#storage" >}}) for information on storage options.
 
 To use other storage options, set `minio.enabled: false` in the `values.yaml` file:
@@ -361,30 +372,31 @@ traces:
 
 ### Optional: Add custom configurations
 
-There are many configuration options available in the tempo-distribute Helm chart.
-This procedure only covers the bare minimumn required to launch GET or Tempo in a basic deployment.
+There are many configuration options available in the `tempo-distributed` Helm chart.
+This procedure only covers the bare minimum required to launch GET or Tempo in a basic deployment.
 
 You can add values to your `custom.yaml` file to set custom configuration options that override the defaults present in the Helm chart.
 The [tempo-distributed Helm chart's README](https://github.com/grafana/helm-charts/blob/main/charts/tempo-distributed/README.md) contains a list of available options.
-The `values.yaml` files provides the defaults for the helm chart.
+The `values.yaml` files provides the defaults for the Helm chart.
 
-To see all of the configurable parameters for the `tempo-distributed` Helm chart, use the following command:
+Use the following command to see all of the configurable parameters for the `tempo-distributed` Helm chart:
 
 ```bash
 helm show values grafana/tempo-distributed
 ```
 
-The configuration sections are added to the `custom.yaml` file. This file is included when you install or upgrade the Helm chart.
+The configuration sections are added to the `custom.yaml` file.
+Include this file when you install or upgrade the Helm chart.
 
 #### Optional: Configure an ingress
 
 An ingress lets you externally access a Kubernetes cluster.
 Replace `<ingress-host>` with a suitable hostname that DNS can resolve to the external IP address of the Kubernetes cluster.
-For more information, see [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/).
+For more information, refer to [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/).
 
-{{% admonition type="note" %}}
-On Linux systems, and if it is not possible for you set up local DNS resolution, you can use the `--add-host=<ingress-host>:<kubernetes-cluster-external-address>` command-line flag to define the `<ingress-host>` local address for the docker commands in the examples that follow.
-{{% /admonition %}}
+{{< admonition type="note" >}}
+On Linux systems, and if it's not possible for you set up local DNS resolution, you can use the `--add-host=<ingress-host>:<kubernetes-cluster-external-address>` command-line flag to define the `<ingress-host>` local address for the docker commands in the examples that follow.
+{{< /admonition >}}
 
 1. Open your `custom.yaml` or create a YAML file of Helm values called `custom.yaml`.
 1. Add the following configuration to the file:
@@ -410,11 +422,13 @@ Use the following command to install Tempo using the configuration options youâ€
 helm -n tempo-test install tempo grafana/tempo-distributed -f custom.yaml
 ```
 
-> **NOTE**: The output of the command contains the write and read URLs necessary for the following steps.
+{{< admonition type="note" >}}
+The output of the command contains the write and read URLs necessary for the following steps.
+{{< /amonition >}}
 
 If the installation is successful, the output will be similar to this:
 
-```yaml
+```bash
 >  helm -n tempo-test install tempo grafana/tempo-distributed -f custom.yaml
 
 W0210 15:02:09.901064    8613 warnings.go:70] spec.template.spec.topologySpreadConstraints[0].topologyKey: failure-domain.beta.kubernetes.io/zone is deprecated since v1.17; use "topology.kubernetes.io/zone" instead
@@ -423,7 +437,7 @@ W0210 15:02:09.906932    8613 warnings.go:70] spec.template.spec.topologySpreadC
 W0210 15:02:09.929946    8613 warnings.go:70] spec.template.spec.topologySpreadConstraints[0].topologyKey: failure-domain.beta.kubernetes.io/zone is deprecated since v1.17; use "topology.kubernetes.io/zone" instead
 W0210 15:02:09.930379    8613 warnings.go:70] spec.template.spec.topologySpreadConstraints[0].topologyKey: failure-domain.beta.kubernetes.io/zone is deprecated since v1.17; use "topology.kubernetes.io/zone" instead
 NAME: tempo
-LAST DEPLOYED: Fri Feb 10 15:02:08 2023
+LAST DEPLOYED: Fri May 31 15:02:08 2023
 NAMESPACE: tempo-test
 STATUS: deployed
 REVISION: 1
@@ -431,8 +445,8 @@ TEST SUITE: None
 NOTES:
 ***********************************************************************
  Welcome to Grafana Tempo
- Chart version: 1.0.1
- Tempo version: 2.2.0
+ Chart version: 1.10.1
+ Tempo version: 2.5.0
 ***********************************************************************
 
 Installed components:
@@ -444,7 +458,9 @@ Installed components:
 * memcached
 ```
 
-> **NOTE**: If you update your `values.yaml` or `custom.yaml`, run the same helm install command and replace `install` with `upgrade`.
+{{< admonition type="note" >}}
+If you update your `values.yaml` or `custom.yaml`, run the same helm install command and replace `install` with `upgrade`.
+{{< /admonition >}}
 
 Check the statuses of the Tempo pods:
 
@@ -454,7 +470,7 @@ kubectl -n tempo-test get pods
 
 The results look similar to this:
 
-```
+```bash
 NAME                                    READY   STATUS    RESTARTS   AGE
 tempo-compactor-86cd974cf-8qrk2         1/1     Running   0          22h
 tempo-distributor-bbf4889db-v8l8r       1/1     Running   0          22h
@@ -488,25 +504,28 @@ tempo-query-frontend-6d6566cbf7-pcwg6       1/1     Running     0             86
 tempo-tokengen-job-58jhs                    0/1     Completed   0             86m
 ```
 
-Note that the `tempo-tokengen-job` has emitted a log message containing the initial admin token.
+Note that the `tempo-tokengen-job` has emitted a log message containing the initial `admin` token.
 
 Retrieve the token with this command:
 
-```
+```bash
 kubectl get pods | awk '/.*-tokengen-job-.*/ {print $1}' | xargs -I {} kubectl logs {} | awk '/Token:\s+/ {print $2}'
 ```
 
 To get the logs for the `tokengen` pod, you can use:
 
-```
+```bash
 kubectl logs tempo-tokengen-job-58jhs
 ```
 
-## Next step
+## Test your installation
 
-The next step is to test your Tempo installation by sending trace data to Grafana. You can use the [Set up a test application for a Tempo cluster]({{< relref "/docs/tempo/latest/setup/set-up-test-app" >}}) document for step-by-step instructions.
+The next step is to test your Tempo installation by sending trace data to Grafana.
+You can use the [Set up a test application for a Tempo cluster]({{< relref "/docs/tempo/latest/setup/set-up-test-app" >}}) document for step-by-step instructions.
 
-If you already have Grafana available, you can add a Tempo data source using the URL fitting to your environment. For example:
+If you already have Grafana available, you can add a Tempo data source using the URL fitting to your environment.
+For example:
 `http://tempo-query-frontend.trace-test.svc.cluster.local:3100`
 
-Enterprise users may wish to [install the Enterprise Traces plugin](/docs/enterprise-traces/latest/setup/setup-get-plugin-grafana/) in their Grafana Enterprise instance to allow configuration of tenants, tokens, and access policies. Once a user, and access policy have been created using the plugin, a datasource can be configured to point at `http://tempo-enterprise-gateway.tempo-test.svc.cluster.local:3100`.
+Enterprise users may wish to [install the Enterprise Traces plugin](/docs/enterprise-traces/latest/setup/setup-get-plugin-grafana/) in their Grafana Enterprise instance to allow configuration of tenants, tokens, and access policies.
+After creating a user and access policy using the plugin, you can configure a data source to point at `http://tempo-enterprise-gateway.tempo-test.svc.cluster.local:3100`.
