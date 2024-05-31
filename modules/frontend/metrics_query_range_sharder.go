@@ -367,10 +367,10 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				continue
 			}
 
-			subR = api.BuildQueryRangeRequest(subR, &tempopb.QueryRangeRequest{
+			queryRangeReq := &tempopb.QueryRangeRequest{
 				Query: searchReq.Query,
-				Start: searchReq.Start,
-				End:   searchReq.End,
+				Start: max(searchReq.Start, uint64(m.StartTime.UnixNano())),
+				End:   min(searchReq.End, uint64(m.EndTime.UnixNano())),
 				Step:  searchReq.Step,
 				// ShardID:    uint32, // No sharding with RF=1
 				// ShardCount: uint32, // No sharding with RF=1
@@ -384,7 +384,11 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				Size_:            m.Size,
 				FooterSize:       m.FooterSize,
 				DedicatedColumns: dc,
-			})
+			}
+			alignTimeRange(queryRangeReq)
+			queryRangeReq.End += queryRangeReq.Step
+
+			subR = api.BuildQueryRangeRequest(subR, queryRangeReq)
 
 			prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query())
 			// TODO: Handle sampling rate
