@@ -87,6 +87,7 @@ var tokens = map[string]int{
 	"event:":              EVENT_COLON,
 	"link:":               LINK_COLON,
 	"event.":              EVENT_DOT,
+	"link.":               LINK_DOT,
 	"count":               COUNT,
 	"avg":                 AVG,
 	"max":                 MAX,
@@ -215,7 +216,8 @@ func (l *lexer) Lex(lval *yySymType) int {
 		multiTok == TRACE_COLON ||
 		multiTok == EVENT_COLON ||
 		multiTok == LINK_COLON ||
-		multiTok == EVENT_DOT {
+		multiTok == EVENT_DOT ||
+		multiTok == LINK_DOT {
 
 		l.currentScope = multiTok
 	}
@@ -406,5 +408,6 @@ func startsAttribute(tok int) bool {
 		tok == RESOURCE_DOT ||
 		tok == SPAN_DOT ||
 		tok == PARENT_DOT ||
-		tok == EVENT_DOT
+		tok == EVENT_DOT ||
+		tok == LINK_DOT
 }

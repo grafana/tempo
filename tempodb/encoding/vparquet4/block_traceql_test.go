@@ -155,6 +155,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		// Links
 		{"link:spanID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:spanID = "1234567890abcdef"}`)},
 		{"link:traceID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:traceID = "1234567890abcdef1234567890abcdef"}`)},
+		{"link.opentracing.ref_type", traceql.MustExtractFetchSpansRequestWithMetadata(`{link.opentracing.ref_type = "child-of"}`)},
 		// Basic data types and operations
 		{".float = 456.78", traceql.MustExtractFetchSpansRequestWithMetadata(`{.float = 456.78}`)},             // Float ==
 		{".float != 456.79", traceql.MustExtractFetchSpansRequestWithMetadata(`{.float != 456.79}`)},           // Float !=
@@ -418,7 +419,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 			TraceState:             "state",
 			DroppedAttributesCount: 3,
 			Attrs: []Attribute{
-				attr("link-attr-key-1", "link-value-1"),
+				attr("opentracing.ref_type", "child-of"),
 			},
 		},
 	}

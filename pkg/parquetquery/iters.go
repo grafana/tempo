@@ -10,8 +10,11 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/go-kit/log/level"
+
 	"github.com/grafana/tempo/pkg/parquetquery/intern"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/opentracing/opentracing-go"
 	pq "github.com/parquet-go/parquet-go"
 )
@@ -87,6 +90,10 @@ func EqualRowNumber(upToDefinitionLevel int, a, b RowNumber) bool {
 
 func truncateRowNumberSlow(definitionLevelToKeep int, t RowNumber) RowNumber {
 	n := EmptyRowNumber()
+	if definitionLevelToKeep > MaxDefinitionLevel {
+		level.Error(log.Logger).Log("msg", "definition level out of bound: should be [0:7] but got %d", definitionLevelToKeep)
+		return n
+	}
 	for i := 0; i <= definitionLevelToKeep; i++ {
 		n[i] = t[i]
 	}

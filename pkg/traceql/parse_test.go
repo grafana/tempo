@@ -1021,6 +1021,7 @@ func TestAttributes(t *testing.T) {
 		{in: "resource.foo.bar.baz", expected: NewScopedAttribute(AttributeScopeResource, false, "foo.bar.baz")},
 		{in: "span.foo.bar", expected: NewScopedAttribute(AttributeScopeSpan, false, "foo.bar")},
 		{in: "event.foo.bar", expected: NewScopedAttribute(AttributeScopeEvent, false, "foo.bar")},
+		{in: "link.foo.bar", expected: NewScopedAttribute(AttributeScopeLink, false, "foo.bar")},
 		{in: "parent.resource.foo", expected: NewScopedAttribute(AttributeScopeResource, true, "foo")},
 		{in: "parent.span.foo", expected: NewScopedAttribute(AttributeScopeSpan, true, "foo")},
 		{in: "parent.resource.foo.bar.baz", expected: NewScopedAttribute(AttributeScopeResource, true, "foo.bar.baz")},
