@@ -1458,7 +1458,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 
 	// Don't return the final spanset upstream unless it matched at least 1 condition
 	// anywhere, except in the case of the empty query: {}
-	batchRequireAtLeastOneMatchOverall := len(conds) > 0 && len(traceConditions) == 0 && len(traceConditions) == 0
+	batchRequireAtLeastOneMatchOverall := len(conds) > 0 && len(traceConditions) == 0
 
 	// Optimization for queries like {resource.x... && span.y ...}
 	// Requires no mingled scopes like .foo=x, which could be satisfied
