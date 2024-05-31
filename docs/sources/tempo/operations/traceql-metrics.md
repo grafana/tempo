@@ -10,7 +10,7 @@ keywords:
   - TraceQL metrics
 ---
 
-# Configure TraceQL metrics
+# Configure TraceQL metrics 
 
 {{< docs/experimental product="TraceQL metrics" >}}
 
