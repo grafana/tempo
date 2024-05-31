@@ -92,7 +92,6 @@ func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
 			continue
 		}
 		atts[st.a] = st.s
-
 	}
 	return atts
 }
