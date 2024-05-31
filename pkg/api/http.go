@@ -353,12 +353,52 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 	req.Step = uint64(step.Nanoseconds())
 
 	shardCount, _ := extractQueryParam(r, urlParamShardCount)
-	if of, err := strconv.Atoi(shardCount); err == nil {
-		req.ShardCount = uint32(of)
+	if shardCount, err := strconv.Atoi(shardCount); err == nil {
+		req.ShardCount = uint32(shardCount)
 	}
 	shard, _ := extractQueryParam(r, urlParamShard)
 	if shard, err := strconv.Atoi(shard); err == nil {
 		req.ShardID = uint32(shard)
+	}
+
+	// New RF1 params
+	blockID, _ := extractQueryParam(r, urlParamBlockID)
+	if blockID, err := uuid.Parse(blockID); err == nil {
+		req.BlockID = blockID.String()
+	}
+
+	startPage, _ := extractQueryParam(r, urlParamStartPage)
+	if startPage, err := strconv.Atoi(startPage); err == nil {
+		req.StartPage = uint32(startPage)
+	}
+
+	pagesToSearch, _ := extractQueryParam(r, urlParamPagesToSearch)
+	if of, err := strconv.Atoi(pagesToSearch); err == nil {
+		req.PagesToSearch = uint32(of)
+	}
+
+	version, _ := extractQueryParam(r, urlParamVersion)
+	req.Version = version
+
+	encoding, _ := extractQueryParam(r, urlParamEncoding)
+	req.Encoding = encoding
+
+	size, _ := extractQueryParam(r, urlParamSize)
+	if size, err := strconv.Atoi(size); err == nil {
+		req.Size_ = uint64(size)
+	}
+
+	footerSize, _ := extractQueryParam(r, urlParamFooterSize)
+	if footerSize, err := strconv.Atoi(footerSize); err == nil {
+		req.FooterSize = uint32(footerSize)
+	}
+
+	dedicatedColumns, _ := extractQueryParam(r, urlParamDedicatedColumns)
+	if len(dedicatedColumns) > 0 {
+		err := json.Unmarshal([]byte(dedicatedColumns), &req.DedicatedColumns)
+		if err != nil {
+			return nil, httpgrpc.Errorf(http.StatusBadRequest, fmt.Errorf("failed to parse dedicated columns: %w", err).Error())
+		}
 	}
 
 	return req, nil
@@ -382,10 +422,23 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 	q.Set(urlParamShard, strconv.FormatUint(uint64(searchReq.ShardID), 10))
 	q.Set(urlParamShardCount, strconv.FormatUint(uint64(searchReq.ShardCount), 10))
 	q.Set(QueryModeKey, searchReq.QueryMode)
+	// New RF1 params
+	q.Set(urlParamBlockID, searchReq.BlockID)
+	q.Set(urlParamStartPage, strconv.Itoa(int(searchReq.StartPage)))
+	q.Set(urlParamPagesToSearch, strconv.Itoa(int(searchReq.PagesToSearch)))
+	q.Set(urlParamVersion, searchReq.Version)
+	q.Set(urlParamEncoding, searchReq.Encoding)
+	q.Set(urlParamSize, strconv.Itoa(int(searchReq.Size_)))
+	q.Set(urlParamFooterSize, strconv.Itoa(int(searchReq.FooterSize)))
+	if len(searchReq.DedicatedColumns) > 0 {
+		columnsJSON, _ := json.Marshal(searchReq.DedicatedColumns)
+		q.Set(urlParamDedicatedColumns, string(columnsJSON))
+	}
 
 	if len(searchReq.Query) > 0 {
 		q.Set(urlParamQuery, searchReq.Query)
 	}
+
 	req.URL.RawQuery = q.Encode()
 
 	return req
