@@ -634,20 +634,7 @@ func (p *Processor) deleteOldBlocks() (err error) {
 	}
 
 	for id, b := range p.completeBlocks {
-		if p.Cfg.FlushToStorage {
-			flushedTime := b.FlushedTime()
-			if flushedTime.IsZero() {
-				continue
-			}
-
-			if flushedTime.Add(p.Cfg.CompleteBlockTimeout).Before(time.Now()) {
-				err = p.wal.LocalBackend().ClearBlock(id, p.tenant)
-				if err != nil {
-					return err
-				}
-				delete(p.completeBlocks, id)
-			}
-		} else {
+		if !p.Cfg.FlushToStorage {
 			if b.BlockMeta().EndTime.Before(before) {
 				level.Info(p.logger).Log("msg", "deleting complete block", "block", id.String())
 				err = p.wal.LocalBackend().ClearBlock(id, p.tenant)
@@ -656,6 +643,20 @@ func (p *Processor) deleteOldBlocks() (err error) {
 				}
 				delete(p.completeBlocks, id)
 			}
+			continue
+		}
+
+		flushedTime := b.FlushedTime()
+		if flushedTime.IsZero() {
+			continue
+		}
+
+		if flushedTime.Add(p.Cfg.CompleteBlockTimeout).Before(time.Now()) {
+			err = p.wal.LocalBackend().ClearBlock(id, p.tenant)
+			if err != nil {
+				return err
+			}
+			delete(p.completeBlocks, id)
 		}
 	}
 
@@ -828,7 +829,7 @@ func (p *Processor) reloadBlocks() error {
 		}
 
 		if clearBlock {
-			level.Info(p.logger).Log("msg", "clearing block", "block", id.String())
+			level.Info(p.logger).Log("msg", "clearing block", "block", id.String(), "err", err)
 			// Partially written block, delete and continue
 			err = l.ClearBlock(id, t)
 			if err != nil {
@@ -851,7 +852,7 @@ func (p *Processor) reloadBlocks() error {
 		p.completeBlocks[id] = lb
 
 		if p.Cfg.FlushToStorage && lb.FlushedTime().IsZero() {
-			level.Info(p.logger).Log("msg", "reloading block for flushing", "block", id.String())
+			level.Info(p.logger).Log("msg", "queueing reloaded block for flushing", "block", id.String())
 			if _, err := p.flushqueue.Enqueue(newFlushOp(id)); err != nil {
 				_ = level.Error(p.logger).Log("msg", "local blocks processor failed to enqueue block for flushing during replay", "err", err)
 			}
