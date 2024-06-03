@@ -39,7 +39,7 @@ func (r httpCollector) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	err = addNextAsync(ctx, r.consumers, resps, r.combiner, nil)
+	err = consumeAndCombineResponses(ctx, r.consumers, resps, r.combiner, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (r httpCollector) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r.combiner.HTTPFinal()
 }
 
-func addNextAsync(ctx context.Context, consumers int, resps Responses[combiner.PipelineResponse], c combiner.Combiner, callback func() error) error {
+func consumeAndCombineResponses(ctx context.Context, consumers int, resps Responses[combiner.PipelineResponse], c combiner.Combiner, callback func() error) error {
 	respChan := make(chan combiner.PipelineResponse)
 	overallErr := atomic.Error{}
 	wg := sync.WaitGroup{}
