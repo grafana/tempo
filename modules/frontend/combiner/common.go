@@ -49,23 +49,33 @@ func (c *genericCombiner[T]) AddResponse(r PipelineResponse) error {
 	// todo: reevaluate this. should the caller owner the lifecycle of the http.response body?
 	defer func() { _ = res.Body.Close() }()
 
-	if c.ShouldQuit() {
-		return nil
-	}
-
-	if res.StatusCode != http.StatusOK {
+	// test shouldQuit and set response all under the same lock. this prevents race conditions where
+	// two responses can make it pass shouldQuit() with different results.
+	shouldQuitAndSetResponse := func() (bool, error) {
 		c.mu.Lock()
 		defer c.mu.Unlock()
 
-		bytesMsg, err := io.ReadAll(res.Body)
-		if err != nil {
-			return fmt.Errorf("error reading response body: %w", err)
+		if c.shouldQuit() {
+			return true, nil
 		}
-		c.httpRespBody = string(bytesMsg)
-		c.httpStatusCode = res.StatusCode
-		// don't return error. the error path is reserved for unexpected errors.
-		// http pipeline errors should be returned through the final response. (Complete/TypedComplete/TypedDiff)
-		return nil
+
+		if res.StatusCode != http.StatusOK {
+			bytesMsg, err := io.ReadAll(res.Body)
+			if err != nil {
+				return true, fmt.Errorf("error reading response body: %w", err)
+			}
+			c.httpRespBody = string(bytesMsg)
+			c.httpStatusCode = res.StatusCode
+			// don't return error. the error path is reserved for unexpected errors.
+			// http pipeline errors should be returned through the final response. (Complete/TypedComplete/TypedDiff)
+			return true, nil
+		}
+
+		return false, nil
+	}
+
+	if quit, err := shouldQuitAndSetResponse(); quit {
+		return err
 	}
 
 	partial := c.new() // instantiating directly requires additional type constraints. this seemed cleaner: https://stackoverflow.com/questions/69573113/how-can-i-instantiate-a-non-nil-pointer-of-type-argument-with-generic-go
