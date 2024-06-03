@@ -30,35 +30,34 @@ type Searcher interface {
 }
 
 type SearchOptions struct {
-	ChunkSizeBytes     uint32 // Buffer size to read from backend storage.
-	StartPage          int    // Controls searching only a subset of the block. Which page to begin searching at.
-	TotalPages         int    // Controls searching only a subset of the block. How many pages to search.
-	MaxBytes           int    // Max allowable trace size in bytes. Traces exceeding this are not searched.
-	PrefetchTraceCount int    // How many traces to prefetch async.
-	ReadBufferCount    int
-	ReadBufferSize     int
+	ChunkSizeBytes         uint32 // Buffer size to read from backend storage.
+	StartPage              int    // Controls searching only a subset of the block. Which page to begin searching at.
+	TotalPages             int    // Controls searching only a subset of the block. How many pages to search.
+	MaxBytes               int    // Max allowable trace size in bytes. Traces exceeding this are not searched.
+	PrefetchTraceCount     int    // How many traces to prefetch async.
+	ReadBufferCount        int
+	ReadBufferSize         int
+	BlockReplicationFactor int // Only blocks with this replication factor will be searched. Set to 1 to search generator blocks (RF=1).
 }
 
-// DefaultSearchOptions() is used in a lot of places such as local ingester searches. It is important
+// DefaultSearchOptions is used in a lot of places such as local ingester searches. It is important
 // in these cases to set a reasonable read buffer size and count to prevent constant tiny readranges
 // against the local backend.
 // TODO: Note that there is another method of creating "default search options" that looks like this:
 // tempodb.SearchConfig{}.ApplyToOptions(&searchOpts). we should consolidate these.
 func DefaultSearchOptions() SearchOptions {
 	return SearchOptions{
-		ReadBufferCount: 32,
-		ReadBufferSize:  1024 * 1024,
-		ChunkSizeBytes:  4 * 1024 * 1024,
+		ReadBufferCount:        32,
+		ReadBufferSize:         1024 * 1024,
+		ChunkSizeBytes:         4 * 1024 * 1024,
+		BlockReplicationFactor: backend.DefaultReplicationFactor,
 	}
 }
 
 func DefaultSearchOptionsWithMaxBytes(maxBytes int) SearchOptions {
-	return SearchOptions{
-		ReadBufferCount: 32,
-		ReadBufferSize:  1024 * 1024,
-		ChunkSizeBytes:  4 * 1024 * 1024,
-		MaxBytes:        maxBytes,
-	}
+	opts := DefaultSearchOptions()
+	opts.MaxBytes = maxBytes
+	return opts
 }
 
 type Compactor interface {
