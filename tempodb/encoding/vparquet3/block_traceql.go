@@ -806,6 +806,7 @@ const (
 	intrinsicScopeTrace = -1
 	intrinsicScopeSpan  = -2
 	intrinsicScopeEvent = -3
+	intrinsicScopeLink  = -4
 )
 
 // todo: scope is the only field used here. either remove the other fields or use them.
@@ -834,8 +835,11 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicTraceID:          {intrinsicScopeTrace, traceql.TypeString, columnPathTraceID},
 	traceql.IntrinsicTraceStartTime:   {intrinsicScopeTrace, traceql.TypeDuration, columnPathStartTimeUnixNano},
 
-	traceql.IntrinsicEventName:    {intrinsicScopeEvent, traceql.TypeNil, ""}, // Not used in vparquet3, this entry is only used to assign default scope.
-	traceql.IntrinsicServiceStats: {intrinsicScopeTrace, traceql.TypeNil, ""}, // Not used in vparquet3, this entry is only used to assign default scope.
+	// Not used in vparquet2, the following entries are only used to assign the default scope
+	traceql.IntrinsicEventName:    {intrinsicScopeEvent, traceql.TypeNil, ""},
+	traceql.IntrinsicLinkTraceID:  {intrinsicScopeLink, traceql.TypeNil, ""},
+	traceql.IntrinsicLinkSpanID:   {intrinsicScopeLink, traceql.TypeNil, ""},
+	traceql.IntrinsicServiceStats: {intrinsicScopeTrace, traceql.TypeNil, ""},
 }
 
 // Lookup table of all well-known attributes with dedicated columns
@@ -922,10 +926,13 @@ func checkConditions(conditions []traceql.Condition) error {
 		}
 
 		// Check for conditions that are not supported in vParquet3
-		if cond.Attribute.Intrinsic == traceql.IntrinsicEventName {
+		if cond.Attribute.Intrinsic == traceql.IntrinsicEventName ||
+			cond.Attribute.Intrinsic == traceql.IntrinsicLinkTraceID ||
+			cond.Attribute.Intrinsic == traceql.IntrinsicLinkSpanID {
+
 			return fmt.Errorf("intrinsic '%s' not supported in vParquet3: %w", cond.Attribute.Intrinsic, common.ErrUnsupported)
 		}
-		if cond.Attribute.Scope == traceql.AttributeScopeEvent {
+		if cond.Attribute.Scope == traceql.AttributeScopeEvent || cond.Attribute.Scope == traceql.AttributeScopeLink {
 			return fmt.Errorf("scope '%s' not supported in vParquet3: %w", cond.Attribute.Scope, common.ErrUnsupported)
 		}
 

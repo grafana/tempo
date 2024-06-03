@@ -32,6 +32,7 @@ var (
 	pqTracePool   = parquetquery.NewResultPool(1)
 	pqAttrPool    = parquetquery.NewResultPool(1)
 	pqEventPool   = parquetquery.NewResultPool(1)
+	pqLinkPool    = parquetquery.NewResultPool(1)
 )
 
 type attrVal struct {
@@ -45,6 +46,7 @@ type span struct {
 	resourceAttrs []attrVal
 	traceAttrs    []attrVal
 	eventAttrs    []attrVal
+	linkAttrs     []attrVal
 
 	id                 []byte
 	startTimeUnixNanos uint64
@@ -60,7 +62,7 @@ type span struct {
 }
 
 func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
-	atts := make(map[traceql.Attribute]traceql.Static, len(s.spanAttrs)+len(s.resourceAttrs)+len(s.traceAttrs)+len(s.eventAttrs))
+	atts := make(map[traceql.Attribute]traceql.Static, len(s.spanAttrs)+len(s.resourceAttrs)+len(s.traceAttrs)+len(s.eventAttrs)+len(s.linkAttrs))
 	for _, st := range s.traceAttrs {
 		if st.s.Type == traceql.TypeNil {
 			continue
@@ -80,6 +82,12 @@ func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
 		atts[st.a] = st.s
 	}
 	for _, st := range s.eventAttrs {
+		if st.s.Type == traceql.TypeNil {
+			continue
+		}
+		atts[st.a] = st.s
+	}
+	for _, st := range s.linkAttrs {
 		if st.s.Type == traceql.TypeNil {
 			continue
 		}
@@ -154,6 +162,12 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 		}
 		return traceql.Static{}, false
 	}
+	if a.Scope == traceql.AttributeScopeLink {
+		if attr := find(a, s.linkAttrs); attr != nil {
+			return *attr, true
+		}
+		return traceql.Static{}, false
+	}
 
 	if a.Intrinsic != traceql.IntrinsicNone {
 		if a.Intrinsic == traceql.IntrinsicNestedSetLeft {
@@ -166,7 +180,7 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 			return traceql.Static{Type: traceql.TypeInt, N: int(s.nestedSetParent)}, true
 		}
 
-		// intrinsics are always on the span, trace, or event ... for now
+		// intrinsics are always on the span, trace, event, or link ... for now
 		if attr := find(a, s.spanAttrs); attr != nil {
 			return *attr, true
 		}
@@ -178,9 +192,13 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 		if attr := find(a, s.eventAttrs); attr != nil {
 			return *attr, true
 		}
+
+		if attr := find(a, s.linkAttrs); attr != nil {
+			return *attr, true
+		}
 	}
 
-	// name search in span, resource, and event to give precedence to span
+	// name search in span, resource, link, and event to give precedence to span
 	// we don't need to do a name search at the trace level b/c it is intrinsics only
 	if attr := findName(a.Name, s.spanAttrs); attr != nil {
 		return *attr, true
@@ -191,6 +209,10 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 	}
 
 	if attr := findName(a.Name, s.eventAttrs); attr != nil {
+		return *attr, true
+	}
+
+	if attr := findName(a.Name, s.linkAttrs); attr != nil {
 		return *attr, true
 	}
 
@@ -673,6 +695,10 @@ func (s *span) setEventAttrs(attrs []attrVal) {
 	s.eventAttrs = append(s.eventAttrs, attrs...)
 }
 
+func (s *span) setLinkAttrs(attrs []attrVal) {
+	s.linkAttrs = append(s.linkAttrs, attrs...)
+}
+
 // attributesMatched counts all attributes in the map as well as metadata fields like start/end/id
 func (s *span) attributesMatched() int {
 	count := 0
@@ -693,6 +719,11 @@ func (s *span) attributesMatched() int {
 		}
 	}
 	for _, st := range s.eventAttrs {
+		if st.s.Type != traceql.TypeNil {
+			count++
+		}
+	}
+	for _, st := range s.linkAttrs {
 		if st.s.Type != traceql.TypeNil {
 			count++
 		}
@@ -741,6 +772,7 @@ func putSpan(s *span) {
 	s.resourceAttrs = s.resourceAttrs[:0]
 	s.traceAttrs = s.traceAttrs[:0]
 	s.eventAttrs = s.eventAttrs[:0]
+	s.linkAttrs = s.linkAttrs[:0]
 
 	spanPool.Put(s)
 }
@@ -836,15 +868,19 @@ const (
 	columnPathSpanNestedSetRight = "rs.list.element.ss.list.element.Spans.list.element.NestedSetRight"
 	columnPathSpanParentID       = "rs.list.element.ss.list.element.Spans.list.element.ParentID"
 	columnPathEventName          = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Name"
+	columnPathLinkTraceID        = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.TraceID"
+	columnPathLinkSpanID         = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.SpanID"
 
 	otherEntrySpansetKey = "spanset"
 	otherEntrySpanKey    = "span"
 	otherEntryEventKey   = "event"
+	otherEntryLinkKey    = "link"
 
 	// a fake intrinsic scope at the trace lvl
 	intrinsicScopeTrace = -1
 	intrinsicScopeSpan  = -2
 	intrinsicScopeEvent = -3
+	intrinsicScopeLink  = -4
 )
 
 // todo: scope is the only field used here. either remove the other fields or use them.
@@ -873,7 +909,9 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicTraceID:          {intrinsicScopeTrace, traceql.TypeString, columnPathTraceID},
 	traceql.IntrinsicTraceStartTime:   {intrinsicScopeTrace, traceql.TypeDuration, columnPathStartTimeUnixNano},
 
-	traceql.IntrinsicEventName: {intrinsicScopeEvent, traceql.TypeString, columnPathEventName},
+	traceql.IntrinsicEventName:   {intrinsicScopeEvent, traceql.TypeString, columnPathEventName},
+	traceql.IntrinsicLinkTraceID: {intrinsicScopeLink, traceql.TypeString, columnPathLinkTraceID},
+	traceql.IntrinsicLinkSpanID:  {intrinsicScopeLink, traceql.TypeString, columnPathLinkSpanID},
 
 	traceql.IntrinsicServiceStats: {intrinsicScopeTrace, traceql.TypeNil, ""}, // Not a real column, this entry is only used to assign default scope.
 }
@@ -1393,8 +1431,19 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 	return newSpansetIterator(newRebatchIterator(iter)), nil
 }
 
-// categorizeConditions conditions into span, resource, and trace level.
-func categorizeConditions(conditions []traceql.Condition) (mingled bool, spanConditions, resourceConditions, traceConditions, eventConditions []traceql.Condition, err error) {
+type categorizedConditions struct {
+	span     []traceql.Condition
+	resource []traceql.Condition
+	trace    []traceql.Condition
+	event    []traceql.Condition
+	link     []traceql.Condition
+}
+
+// categorizeConditions categorizes conditions by scope
+func categorizeConditions(conditions []traceql.Condition) (*categorizedConditions, bool, error) {
+	var mingled bool
+	var categorizedCond categorizedConditions
+
 	for _, cond := range conditions {
 		// If no-scoped intrinsic then assign default scope
 		scope := cond.Attribute.Scope
@@ -1408,38 +1457,36 @@ func categorizeConditions(conditions []traceql.Condition) (mingled bool, spanCon
 
 		case traceql.AttributeScopeNone:
 			mingled = true
-			spanConditions = append(spanConditions, cond)
-			resourceConditions = append(resourceConditions, cond)
-			continue
+			categorizedCond.span = append(categorizedCond.span, cond)
+			categorizedCond.resource = append(categorizedCond.resource, cond)
 
 		case traceql.AttributeScopeSpan, intrinsicScopeSpan:
-			spanConditions = append(spanConditions, cond)
-			continue
+			categorizedCond.span = append(categorizedCond.span, cond)
 
 		case traceql.AttributeScopeResource:
-			resourceConditions = append(resourceConditions, cond)
-			continue
+			categorizedCond.resource = append(categorizedCond.resource, cond)
 
 		case traceql.AttributeScopeEvent, intrinsicScopeEvent:
-			eventConditions = append(eventConditions, cond)
-			continue
+			categorizedCond.event = append(categorizedCond.event, cond)
+
+		case traceql.AttributeScopeLink, intrinsicScopeLink:
+			categorizedCond.link = append(categorizedCond.link, cond)
 
 		case intrinsicScopeTrace:
-			traceConditions = append(traceConditions, cond)
-			continue
+			categorizedCond.trace = append(categorizedCond.trace, cond)
 
 		default:
-			return false, nil, nil, nil, nil, fmt.Errorf("unsupported traceql scope: %s", cond.Attribute)
+			return nil, false, fmt.Errorf("unsupported traceql scope: %s", cond.Attribute)
 		}
 	}
-	return mingled, spanConditions, resourceConditions, traceConditions, eventConditions, nil
+	return &categorizedCond, mingled, nil
 }
 
-func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conds []traceql.Condition, allConditions bool, start, end uint64,
+func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, start, end uint64,
 	shardID, shardCount uint32, rgs []parquet.RowGroup, pf *parquet.File, dc backend.DedicatedColumns,
 ) (parquetquery.Iterator, error) {
-	// categorizeConditions conditions into span-level or resource-level
-	mingledConditions, spanConditions, resourceConditions, traceConditions, eventConditions, err := categorizeConditions(conds)
+	// categorize conditions by scope
+	catConditions, mingledConditions, err := categorizeConditions(conditions)
 	if err != nil {
 		return nil, err
 	}
@@ -1458,34 +1505,50 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 
 	// Don't return the final spanset upstream unless it matched at least 1 condition
 	// anywhere, except in the case of the empty query: {}
-	batchRequireAtLeastOneMatchOverall := len(conds) > 0 && len(traceConditions) == 0
+	batchRequireAtLeastOneMatchOverall := len(conditions) > 0 && len(catConditions.trace) == 0
 
 	// Optimization for queries like {resource.x... && span.y ...}
 	// Requires no mingled scopes like .foo=x, which could be satisfied
 	// one either resource or span.
 	allConditions = allConditions && !mingledConditions
 
-	eventIter, err := createEventIterator(makeIter, primaryIter, eventConditions)
+	innerIterators := make([]parquetquery.Iterator, 0, 3)
+	if primaryIter != nil {
+		innerIterators = append(innerIterators, primaryIter)
+	}
+
+	eventIter, err := createEventIterator(makeIter, catConditions.event)
 	if err != nil {
 		return nil, fmt.Errorf("creating event iterator: %w", err)
 	}
+	if eventIter != nil {
+		innerIterators = append(innerIterators, eventIter)
+	}
 
-	spanIter, err := createSpanIterator(makeIter, eventIter, spanConditions, allConditions, dc)
+	linkIter, err := createLinkIterator(makeIter, catConditions.link)
+	if err != nil {
+		return nil, fmt.Errorf("creating link iterator: %w", err)
+	}
+	if linkIter != nil {
+		innerIterators = append(innerIterators, linkIter)
+	}
+
+	spanIter, err := createSpanIterator(makeIter, innerIterators, catConditions.span, allConditions, dc)
 	if err != nil {
 		return nil, fmt.Errorf("creating span iterator: %w", err)
 	}
 
-	resourceIter, err := createResourceIterator(makeIter, spanIter, resourceConditions, batchRequireAtLeastOneMatchOverall, allConditions, dc)
+	resourceIter, err := createResourceIterator(makeIter, spanIter, catConditions.resource, batchRequireAtLeastOneMatchOverall, allConditions, dc)
 	if err != nil {
 		return nil, fmt.Errorf("creating resource iterator: %w", err)
 	}
 
-	return createTraceIterator(makeIter, resourceIter, traceConditions, start, end, shardID, shardCount, allConditions)
+	return createTraceIterator(makeIter, resourceIter, catConditions.trace, start, end, shardID, shardCount, allConditions)
 }
 
-func createEventIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition) (parquetquery.Iterator, error) {
+func createEventIterator(makeIter makeIterFn, conditions []traceql.Condition) (parquetquery.Iterator, error) {
 	if len(conditions) == 0 {
-		return primaryIter, nil
+		return nil, nil
 	}
 
 	eventIters := make([]parquetquery.Iterator, 0, len(conditions))
@@ -1501,16 +1564,48 @@ func createEventIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator,
 		}
 	}
 
-	if primaryIter != nil {
-		eventIters = append(eventIters, primaryIter)
+	if len(eventIters) == 0 {
+		return nil, nil
 	}
 
 	return parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpanEvent, eventIters, &eventCollector{}, parquetquery.WithPool(pqEventPool)), nil
 }
 
+func createLinkIterator(makeIter makeIterFn, conditions []traceql.Condition) (parquetquery.Iterator, error) {
+	if len(conditions) == 0 {
+		return nil, nil
+	}
+
+	linkIters := make([]parquetquery.Iterator, 0, len(conditions))
+
+	for _, cond := range conditions {
+		switch cond.Attribute.Intrinsic {
+		case traceql.IntrinsicLinkTraceID:
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
+			if err != nil {
+				return nil, err
+			}
+			linkIters = append(linkIters, makeIter(columnPathLinkTraceID, pred, columnPathLinkTraceID))
+
+		case traceql.IntrinsicLinkSpanID:
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
+			if err != nil {
+				return nil, err
+			}
+			linkIters = append(linkIters, makeIter(columnPathLinkSpanID, pred, columnPathLinkSpanID))
+		}
+	}
+
+	if len(linkIters) == 0 {
+		return nil, nil
+	}
+
+	return parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpanLink, linkIters, &linkCollector{}, parquetquery.WithPool(pqLinkPool)), nil
+}
+
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
 // one span each.  Spans are returned that match any of the given conditions.
-func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, dedicatedColumns backend.DedicatedColumns) (parquetquery.Iterator, error) {
+func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, dedicatedColumns backend.DedicatedColumns) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs          = map[string]string{}
 		columnPredicates        = map[string][]parquetquery.Predicate{}
@@ -1714,8 +1809,8 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 	}
 
 	var required []parquetquery.Iterator
-	if primaryIter != nil {
-		required = []parquetquery.Iterator{primaryIter}
+	if len(innerIterators) != 0 {
+		required = innerIterators
 	}
 
 	minCount := 0
@@ -2262,6 +2357,9 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case *event:
 			sp.setEventAttrs(v.attrs)
 			putEvent(v)
+		case *link:
+			sp.setLinkAttrs(v.attrs)
+			putLink(v)
 		}
 	}
 
@@ -2625,16 +2723,16 @@ var eventPool = sync.Pool{
 	},
 }
 
-func putEvent(s *event) {
-	s.attrs = s.attrs[:0]
-	eventPool.Put(s)
+func putEvent(e *event) {
+	e.attrs = e.attrs[:0]
+	eventPool.Put(e)
 }
 
 func getEvent() *event {
 	return eventPool.Get().(*event)
 }
 
-// attributeCollector receives rows from the event columns and joins them together into
+// eventCollector receives rows from the event columns and joins them together into
 // map[key]value entries with the right type.
 type eventCollector struct{}
 
@@ -2672,6 +2770,72 @@ func (c *eventCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	res.Reset()
 	res.AppendOtherValue(otherEntryEventKey, ev)
+
+	return true
+}
+
+type link struct {
+	attrs []attrVal
+}
+
+var linkPool = sync.Pool{
+	New: func() interface{} {
+		return &link{}
+	},
+}
+
+func putLink(l *link) {
+	l.attrs = l.attrs[:0]
+	linkPool.Put(l)
+}
+
+func getLink() *link {
+	return linkPool.Get().(*link)
+}
+
+// linkCollector receives rows from the link columns and joins them together into
+// map[key]value entries with the right type.
+type linkCollector struct{}
+
+var _ parquetquery.GroupPredicate = (*linkCollector)(nil)
+
+func (c *linkCollector) String() string {
+	return "linkCollector{}"
+}
+
+func (c *linkCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
+	var l *link
+
+	// look for existing link first
+	for _, e := range res.OtherEntries {
+		if v, ok := e.Value.(*link); ok {
+			l = v
+			break
+		}
+	}
+
+	// if not found create a new one
+	if l == nil {
+		l = getLink()
+	}
+
+	for _, e := range res.Entries {
+		switch e.Key {
+		case columnPathLinkTraceID:
+			l.attrs = append(l.attrs, attrVal{
+				a: traceql.NewIntrinsic(traceql.IntrinsicLinkTraceID),
+				s: traceql.NewStaticString(util.TraceIDToHexString(e.Value.Bytes())),
+			})
+		case columnPathLinkSpanID:
+			l.attrs = append(l.attrs, attrVal{
+				a: traceql.NewIntrinsic(traceql.IntrinsicLinkSpanID),
+				s: traceql.NewStaticString(util.SpanIDToHexString(e.Value.Bytes())),
+			})
+		}
+	}
+
+	res.Reset()
+	res.AppendOtherValue(otherEntryLinkKey, l)
 
 	return true
 }
