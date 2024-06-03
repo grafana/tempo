@@ -422,28 +422,28 @@ metrics_generator:
             # Search configuration
             search: <Search config>
 
-            # How often to run flush checks (??)
+            # How often to run the flush loop to cut idle traces and blocks
             [flush_check_period: <duration> | default = 10s]
 
-            # After this idle period, a trace is closed. (??)
+            # A trace is considered complete after this period of inactivity (no new spans recieved)
             [trace_idle_period: <duration> | default = 10s]
 
-            # Maximum (???) (lifespan for any given block?)
+            # Maximum duration which the head block can be appended to, before cutting it.
             [max_block_duration: <duration> | default = 1m]
 
-            # Maximum block size before it is closed (?)
+            # Maximum size of the head block, before cutting it
             [max_block_bytes: <uint64> | default = 500000000]
 
-            # Maximum (???)
+            # Duration to keep blocks in the ingester after they have been flushed
             [complete_block_timeout: <duration> | default = 1h]
 
-            # (Unused?)
-            # Max number of "live" traces
+            # Maximum amount of live traces
+            # If this value is exceeded, traces will be dropped with reason: `live_traces_exceeded`
+            # A value of 0 disables this limit.
             [max_live_traces: <uint64>]
 
             # Whether server spans should be filtered in or not.
-            # true means keep the server kinds (???)
-            # false means drop the server kinds (???)
+            # If enabled, only parent spans or spans with the SpanKind of `server` will be retained 
             [filter_server_spans: <bool> | default = true]
 
             # Number of blocks that are allowed to be processed concurently
