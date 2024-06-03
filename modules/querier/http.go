@@ -409,22 +409,7 @@ func (q *Querier) QueryRangeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		m := jsonpb.Marshaler{}
-		jsBytes, funcErr := m.MarshalToString(resp)
-		if funcErr != nil {
-			errHandler(ctx, span, funcErr)
-			http.Error(w, funcErr.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		_, funcErr = w.Write([]byte(jsBytes))
-		if funcErr != nil {
-			errHandler(ctx, span, funcErr)
-			http.Error(w, funcErr.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+		writeFormattedContentForRequest(w, r, resp)
 	}()
 
 	req, err := api.ParseQueryRangeRequest(r)
