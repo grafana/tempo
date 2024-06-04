@@ -109,6 +109,37 @@ func TestGenericCombiner(t *testing.T) {
 	require.Equal(t, expected, int(actual.ErrorCount))
 }
 
+func TestGenericCombinerHoldsErrors(t *testing.T) {
+	// slam a combiner with successful responses and just one error. confirm that the error is returned
+	combiner := newTestCombiner()
+	wg := sync.WaitGroup{}
+
+	for j := 0; j < 10; j++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			for i := 0; i < 10000; i++ {
+				err := combiner.AddResponse(newTestResponse(t))
+				require.NoError(t, err)
+			}
+		}()
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		time.Sleep(time.Millisecond)
+		err := combiner.AddResponse(newFailedTestResponse())
+		require.NoError(t, err)
+	}()
+
+	wg.Wait()
+	resp, err := combiner.HTTPFinal()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+}
+
 func TestGenericCombinerDoesntRace(t *testing.T) {
 	combiner := newTestCombiner()
 	end := make(chan struct{})
