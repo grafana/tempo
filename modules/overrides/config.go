@@ -127,16 +127,17 @@ func (h *RemoteWriteHeaders) toStringStringMap() map[string]string {
 }
 
 type MetricsGeneratorOverrides struct {
-	RingSize           int                 `yaml:"ring_size,omitempty" json:"ring_size,omitempty"`
-	Processors         listtomap.ListToMap `yaml:"processors,omitempty" json:"processors,omitempty"`
-	MaxActiveSeries    uint32              `yaml:"max_active_series,omitempty" json:"max_active_series,omitempty"`
-	CollectionInterval time.Duration       `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
-	DisableCollection  bool                `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
-	TraceIDLabelName   string              `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
-	RemoteWriteHeaders RemoteWriteHeaders  `yaml:"remote_write_headers,omitempty" json:"remote_write_headers,omitempty"`
+	RingSize                 int                 `yaml:"ring_size,omitempty" json:"ring_size,omitempty"`
+	Processors               listtomap.ListToMap `yaml:"processors,omitempty" json:"processors,omitempty"`
+	MaxActiveSeries          uint32              `yaml:"max_active_series,omitempty" json:"max_active_series,omitempty"`
+	CollectionInterval       time.Duration       `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
+	DisableCollection        bool                `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
+	GenerateNativeHistograms bool                `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
+	TraceIDLabelName         string              `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
 
-	Forwarder ForwarderOverrides `yaml:"forwarder,omitempty" json:"forwarder,omitempty"`
+	RemoteWriteHeaders RemoteWriteHeaders `yaml:"remote_write_headers,omitempty" json:"remote_write_headers,omitempty"`
 
+	Forwarder      ForwarderOverrides `yaml:"forwarder,omitempty" json:"forwarder,omitempty"`
 	Processor      ProcessorOverrides `yaml:"processor,omitempty" json:"processor,omitempty"`
 	IngestionSlack time.Duration      `yaml:"ingestion_time_range_slack" json:"ingestion_time_range_slack"`
 }

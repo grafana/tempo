@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/storage"
 )
 
 // TestRegistry is a simple implementation of Registry intended for tests. It is not concurrent-safe.
@@ -147,6 +148,7 @@ type testHistogram struct {
 }
 
 var _ Histogram = (*testHistogram)(nil)
+var _ metric = (*testHistogram)(nil)
 
 func (t *testHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, _ string, multiplier float64) {
 	lbls := make(labels.Labels, len(labelValueCombo.labels.names))
@@ -166,8 +168,20 @@ func (t *testHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, va
 	t.registry.addToMetric(t.nameBucket, withLe(lbls, math.Inf(1)), 1*multiplier)
 }
 
+func (t *testHistogram) name() string {
+	panic("implement me")
+}
+
 func withLe(lbls labels.Labels, le float64) labels.Labels {
 	lb := labels.NewBuilder(lbls)
 	lb.Set(labels.BucketLabel, formatFloat(le))
 	return lb.Labels()
+}
+
+func (t *testHistogram) collectMetrics(_ storage.Appender, _ int64, _ map[string]string) (activeSeries int, err error) {
+	panic("implement me")
+}
+
+func (t *testHistogram) removeStaleSeries(int64) {
+	panic("implement me")
 }

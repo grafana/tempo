@@ -17,6 +17,8 @@ type Counter interface {
 // Histogram
 // https://prometheus.io/docs/concepts/metric_types/#histogram
 type Histogram interface {
+	metric
+
 	// ObserveWithExemplar observes a datapoint with the given values. traceID will be added as exemplar.
 	ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64)
 }
