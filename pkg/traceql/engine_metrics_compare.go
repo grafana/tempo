@@ -27,6 +27,28 @@ var (
 	internalLabelErrorTooManyValues = Label{Name: internalLabelError, Value: NewStaticString(internalErrorTooManyValues)}
 )
 
+type MetricsCompare struct {
+	f                   *SpansetFilter
+	qstart, qend, qstep uint64
+	len                 int
+	start, end          int
+	topN                int
+	baselines           map[Attribute]map[Static][]float64
+	selections          map[Attribute]map[Static][]float64
+	baselineTotals      map[Attribute][]float64
+	selectionTotals     map[Attribute][]float64
+	seriesAgg           SeriesAggregator
+}
+
+func newMetricsCompare(f *SpansetFilter, topN, start, end int) *MetricsCompare {
+	return &MetricsCompare{
+		f:     f,
+		topN:  topN,
+		start: start,
+		end:   end,
+	}
+}
+
 func (a *MetricsCompare) extractConditions(request *FetchSpansRequest) {
 	request.SecondPassSelectAll = true
 	if !request.HasAttribute(IntrinsicSpanStartTimeAttribute) {
@@ -39,10 +61,14 @@ func (a *MetricsCompare) extractConditions(request *FetchSpansRequest) {
 func (a *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
 	switch mode {
 	case AggregateModeRaw:
-		a.baselines = make(map[Attribute]map[Static]int)
-		a.selections = make(map[Attribute]map[Static]int)
-		a.baselineTotals = make(map[Attribute]int)
-		a.selectionTotals = make(map[Attribute]int)
+		a.qstart = q.Start
+		a.qend = q.End
+		a.qstep = q.Step
+		a.len = IntervalCount(q.Start, q.End, q.Step)
+		a.baselines = make(map[Attribute]map[Static][]float64)
+		a.selections = make(map[Attribute]map[Static][]float64)
+		a.baselineTotals = make(map[Attribute][]float64)
+		a.selectionTotals = make(map[Attribute][]float64)
 
 	case AggregateModeSum:
 		a.seriesAgg = NewSimpleAdditionCombiner(q)
@@ -55,11 +81,20 @@ func (a *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) 
 }
 
 func (c *MetricsCompare) observe(span Span) {
+	// For performance, MetricsCompare doesn't use the Range/StepAggregator abstractions.
+	// This lets us:
+	// * Include the same attribute value in multiple series. This doesn't fit within
+	//   the existing by() grouping or even the potential byeach() (which was in this branch and then deleted)
+	// * Avoid reading the span start time twice, once for the selection window filter, and
+	//   then again instead of StepAggregator.
+	// TODO - It would be nice to use those abstractions, area for future improvement
+	st := span.StartTimeUnixNanos()
+	i := IntervalOf(st, c.qstart, c.qend, c.qstep)
+
 	// Determine if this span is inside the selection
 	isSelection := StaticFalse
 	if c.start > 0 && c.end > 0 {
 		// Timestamp filtering
-		st := span.StartTimeUnixNanos()
 		if st >= uint64(c.start) && st < uint64(c.end) {
 			isSelection, _ = c.f.Expression.execute(span)
 		}
@@ -70,7 +105,7 @@ func (c *MetricsCompare) observe(span Span) {
 
 	// Choose destination buffers
 	dest := c.baselines
-	destTotals := c.selectionTotals
+	destTotals := c.baselineTotals
 	if isSelection == StaticTrue {
 		dest = c.selections
 		destTotals = c.selectionTotals
@@ -86,13 +121,27 @@ func (c *MetricsCompare) observe(span Span) {
 			return
 		}
 
-		counts, ok := dest[a]
+		values, ok := dest[a]
 		if !ok {
-			counts = make(map[Static]int)
-			dest[a] = counts
+			values = make(map[Static][]float64, c.len)
+			dest[a] = values
 		}
-		counts[v]++
-		destTotals[a]++
+
+		counts, ok := values[v]
+		if !ok {
+			counts = make([]float64, c.len)
+			values[v] = counts
+		}
+		counts[i]++
+
+		// TODO - It's probably faster to aggregate these at the end
+		// instead of incrementing in the hotpath twice
+		totals, ok := destTotals[a]
+		if !ok {
+			totals = make([]float64, c.len)
+			destTotals[a] = totals
+		}
+		totals[i]++
 	})
 }
 
@@ -112,19 +161,19 @@ func (c *MetricsCompare) result() SeriesSet {
 		erred = make(map[Attribute]struct{})
 	)
 
-	add := func(ls Labels, count int) {
+	add := func(ls Labels, counts []float64) {
 		ss[ls.String()] = TimeSeries{
 			Labels: ls,
-			Values: []float64{0, float64(count)},
+			Values: counts,
 		}
 	}
 
-	addValues := func(prefix Label, data map[Attribute]map[Static]int) {
+	addValues := func(prefix Label, data map[Attribute]map[Static][]float64) {
 		for a, values := range data {
 			// Compute topN values for this attribute
 			top.reset()
-			for v, count := range values {
-				top.addOne(v, float64(count))
+			for v, counts := range values {
+				top.add(v, counts)
 			}
 
 			top.get(c.topN, func(v Static) {
@@ -148,15 +197,15 @@ func (c *MetricsCompare) result() SeriesSet {
 		add(Labels{
 			internalLabelErrorTooManyValues,
 			{Name: a.String()},
-		}, 0)
+		}, nil)
 	}
 
-	addTotals := func(prefix Label, data map[Attribute]int) {
-		for a, count := range data {
+	addTotals := func(prefix Label, data map[Attribute][]float64) {
+		for a, counts := range data {
 			add(Labels{
 				prefix,
 				{Name: a.String()},
-			}, count)
+			}, counts)
 		}
 	}
 
@@ -193,27 +242,6 @@ func (a *MetricsCompare) String() string {
 	return "compare(" + a.f.String() + "}"
 }
 
-type MetricsCompare struct {
-	f               *SpansetFilter
-	start, end, len int
-	topN            int
-	baselines       map[Attribute]map[Static]int
-	selections      map[Attribute]map[Static]int
-	baselineTotals  map[Attribute]int
-	selectionTotals map[Attribute]int
-	// aggFn           func() RangeAggregator
-	seriesAgg SeriesAggregator
-}
-
-func newMetricsCompare(f *SpansetFilter, topN, start, end int) *MetricsCompare {
-	return &MetricsCompare{
-		f:     f,
-		topN:  topN,
-		start: start,
-		end:   end,
-	}
-}
-
 var _ metricsFirstStageElement = (*MetricsCompare)(nil)
 
 // BaselineAggregate is a special series combiner for the compare() function.
@@ -226,21 +254,23 @@ type BaselineAggregator struct {
 	start, end, step uint64
 	baseline         map[string]map[Static]TimeSeries
 	selection        map[string]map[Static]TimeSeries
-	totals           map[string]TimeSeries
+	baselineTotals   map[string]map[Static]TimeSeries
+	selectionTotals  map[string]map[Static]TimeSeries
 	maxed            map[string]struct{}
 }
 
 func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int) *BaselineAggregator {
 	return &BaselineAggregator{
-		baseline:  make(map[string]map[Static]TimeSeries),
-		selection: make(map[string]map[Static]TimeSeries),
-		totals:    make(map[string]TimeSeries),
-		maxed:     make(map[string]struct{}),
-		len:       IntervalCount(req.Start, req.End, req.Step),
-		start:     req.Start,
-		end:       req.End,
-		step:      req.Step,
-		topN:      topN,
+		baseline:        make(map[string]map[Static]TimeSeries),
+		selection:       make(map[string]map[Static]TimeSeries),
+		baselineTotals:  make(map[string]map[Static]TimeSeries),
+		selectionTotals: make(map[string]map[Static]TimeSeries),
+		maxed:           make(map[string]struct{}),
+		len:             IntervalCount(req.Start, req.End, req.Step),
+		start:           req.Start,
+		end:             req.End,
+		step:            req.Step,
+		topN:            topN,
 	}
 }
 
@@ -284,37 +314,9 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 		case internalMetaTypeSelection:
 			dest = b.selection
 		case internalMetaTypeBaselineTotal:
-			ts, ok := b.totals[a]
-			if !ok {
-				ts = TimeSeries{
-					Labels: LabelsFromProto(s.Labels),
-					Values: make([]float64, b.len),
-				}
-				b.totals[a] = ts
-			}
-			for _, sample := range s.Samples {
-				j := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
-				if j >= 0 && j < len(ts.Values) {
-					ts.Values[j] += sample.Value
-				}
-			}
-			continue
+			dest = b.baselineTotals
 		case internalMetaTypeSelectionTotal:
-			ts, ok := b.totals[a]
-			if !ok {
-				ts = TimeSeries{
-					Labels: LabelsFromProto(s.Labels),
-					Values: make([]float64, b.len),
-				}
-				b.totals[a] = ts
-			}
-			for _, sample := range s.Samples {
-				j := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
-				if j >= 0 && j < len(ts.Values) {
-					ts.Values[j] += sample.Value
-				}
-			}
-			continue
+			dest = b.selectionTotals
 		default:
 			// Unknown type, ignore
 			continue
@@ -329,9 +331,6 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 		val, ok := attr[v]
 		if !ok {
 			val = TimeSeries{
-				Labels: Labels{
-					{Name: a, Value: v},
-				},
 				Values: make([]float64, b.len),
 			}
 			attr[v] = val
@@ -383,15 +382,12 @@ func (b *BaselineAggregator) Results() SeriesSet {
 
 	do(b.baseline, internalLabelTypeBaseline)
 	do(b.selection, internalLabelTypeSelection)
+	do(b.baselineTotals, internalLabelTypeBaselineTotal)
+	do(b.selectionTotals, internalLabelTypeSelectionTotal)
 
 	// Add series for every attribute that exceeded max value.
 	for a := range b.maxed {
 		addSeries(internalLabelErrorTooManyValues, a, NewStaticNil(), nil)
-	}
-
-	// Add series for every total
-	for str, ts := range b.totals {
-		output[str] = ts
 	}
 
 	return output
@@ -416,13 +412,6 @@ func (t *topN[T]) add(key T, values []float64) {
 		key   T
 		total float64
 	}{key, sum})
-}
-
-func (t *topN[T]) addOne(key T, value float64) {
-	t.entries = append(t.entries, struct {
-		key   T
-		total float64
-	}{key, value})
 }
 
 // get the top N values. Given as a callback to avoid allocating.
