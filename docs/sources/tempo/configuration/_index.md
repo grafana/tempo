@@ -433,6 +433,11 @@ query_frontend:
     # (default: 2)
     [max_retries: <int>]
 
+    # The number of goroutines dedicated to consuming, unmarshalling and recombining responses per request. This
+    # same parameter is used for all endpoints. 
+    # (default: 10)
+    [response_consumers: <int>]
+
     # Maximum number of outstanding requests per tenant per frontend; requests beyond this error with HTTP 429.
     # (default: 2000)
     [max_outstanding_per_tenant: <int>]

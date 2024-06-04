@@ -47,8 +47,9 @@ func NewSearchTagValuesV2(limitBytes int) Combiner {
 	d := util.NewDistinctValueCollector(limitBytes, func(tv tempopb.TagValue) int { return len(tv.Type) + len(tv.Value) })
 
 	return &genericCombiner[*tempopb.SearchTagValuesV2Response]{
-		current: &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{}},
-		new:     func() *tempopb.SearchTagValuesV2Response { return &tempopb.SearchTagValuesV2Response{} },
+		httpStatusCode: 200,
+		current:        &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{}},
+		new:            func() *tempopb.SearchTagValuesV2Response { return &tempopb.SearchTagValuesV2Response{} },
 		combine: func(partial, final *tempopb.SearchTagValuesV2Response, _ PipelineResponse) error {
 			for _, v := range partial.TagValues {
 				d.Collect(*v)
