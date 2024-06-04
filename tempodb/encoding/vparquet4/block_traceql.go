@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
+	"github.com/parquet-go/parquet-go"
 	"io"
 	"math"
 	"reflect"
@@ -12,9 +14,6 @@ import (
 	"sync"
 	"time"
 	"unsafe"
-
-	"github.com/opentracing/opentracing-go"
-	"github.com/parquet-go/parquet-go"
 
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/parquetquery"
@@ -888,7 +887,6 @@ const (
 	columnPathEventAttrDouble    = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueDouble.list.element"
 	columnPathEventAttrBool      = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueBool.list.element"
 
-
 	otherEntrySpansetKey = "spanset"
 	otherEntrySpanKey    = "span"
 	otherEntryEventKey   = "event"
@@ -1535,7 +1533,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		innerIterators = append(innerIterators, primaryIter)
 	}
 
-	eventIter, err := createEventIterator(makeIter, catConditions.event)
+	eventIter, err := createEventIterator(makeIter, primaryIter, catConditions.event, allConditions)
 	if err != nil {
 		return nil, fmt.Errorf("creating event iterator: %w", err)
 	}
@@ -1564,12 +1562,13 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	return createTraceIterator(makeIter, resourceIter, catConditions.trace, start, end, shardID, shardCount, allConditions, selectAll)
 }
 
-func createEventIterator(makeIter makeIterFn, conditions []traceql.Condition) (parquetquery.Iterator, error) {
+func createEventIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, allConditions bool) (parquetquery.Iterator, error) {
 	if len(conditions) == 0 {
 		return nil, nil
 	}
 
 	eventIters := make([]parquetquery.Iterator, 0, len(conditions))
+	var genericConditions []traceql.Condition
 
 	for _, cond := range conditions {
 		switch cond.Attribute.Intrinsic {
@@ -1581,13 +1580,69 @@ func createEventIterator(makeIter makeIterFn, conditions []traceql.Condition) (p
 			eventIters = append(eventIters, makeIter(columnPathEventName, pred, columnPathEventName))
 			continue
 		}
+		genericConditions = append(genericConditions, cond)
 	}
 
 	if len(eventIters) == 0 {
 		return nil, nil
 	}
 
-	return parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpanEvent, eventIters, &eventCollector{}, parquetquery.WithPool(pqEventPool)), nil
+	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanEventAttrs,
+		columnPathEventAttrKey, columnPathEventAttrString, columnPathEventAttrInt, columnPathEventAttrDouble, columnPathEventAttrBool, allConditions)
+	if err != nil {
+		return nil, fmt.Errorf("creating span attribute iterator: %w", err)
+	}
+
+	if attrIter != nil {
+		eventIters = append(eventIters, attrIter)
+	}
+
+	var required []parquetquery.Iterator
+	if primaryIter != nil {
+		required = []parquetquery.Iterator{primaryIter}
+	}
+
+	minCount := 0
+
+	if allConditions {
+		// The final number of expected attributes.
+		distinct := map[string]struct{}{}
+		for _, cond := range conditions {
+			distinct[cond.Attribute.Name] = struct{}{}
+		}
+		minCount = len(distinct)
+	}
+
+	eventCol := &eventCollector{
+		minAttributes: minCount,
+	}
+
+	// This is an optimization for when all of the span conditions must be met.
+	// We simply move all iterators into the required list.
+	if allConditions {
+		required = append(required, eventIters...)
+		eventIters = nil
+	}
+
+	// This is an optimization for cases when allConditions is false, and
+	// only span conditions are present, and we require at least one of them to match.
+	// Wrap up the individual conditions with a union and move it into the required list.
+	// This skips over static columns like ID that are omnipresent. This is also only
+	// possible when there isn't a duration filter because it's computed from start/end.
+
+	// if there are no direct conditions imposed on the span/span attributes level we are purposefully going to request the "Kind" column
+	//  b/c it is extremely cheap to retrieve. retrieving matching spans in this case will allow aggregates such as "count" to be computed
+	//  how do we know to pull duration for things like | avg(duration) > 1s? look at avg(span.http.status_code) it pushes a column request down here
+	//  the entire engine is built around spans. we have to return at least one entry for every span to the layers above for things to work
+	// TODO: note that if the query is { kind = client } the fetch layer will actually create two iterators over the kind column. this is evidence
+	//  this spaniterator code could be tightened up
+	// Also note that this breaks optimizations related to requireAtLeastOneMatch and requireAtLeastOneMatchOverall b/c it will add a kind attribute
+	//  to the span attributes map in spanCollector
+	if len(required) == 0 {
+		required = []parquetquery.Iterator{makeIter(columnPathEventName, nil, "")}
+	}
+
+	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpanEvent, required, eventIters, eventCol, parquetquery.WithPool(pqEventPool))
 }
 
 func createLinkIterator(makeIter makeIterFn, conditions []traceql.Condition) (parquetquery.Iterator, error) {
@@ -2340,6 +2395,7 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 	for _, cond := range conditions {
 
 		attrKeys = append(attrKeys, cond.Attribute.Name)
+		fmt.Printf("createAttributeIterator: condition name: %s\n", cond.Attribute.Name)
 
 		if cond.Op == traceql.OpNone {
 			// This means we have to scan all values, we don't know what type
@@ -2354,6 +2410,7 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		switch cond.Operands[0].Type {
 
 		case traceql.TypeString:
+			fmt.Println("createAttributeIterator: condition type: string")
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
@@ -2404,6 +2461,7 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		// if all conditions must be true we can use a simple join iterator to test the values one column at a time.
 		// len(valueIters) must be 1 to handle queries like `{ span.foo = "x" && span.bar > 1}`
 		if allConditions && len(valueIters) == 1 {
+			fmt.Println("createAttributeIterator: all conditions true")
 			iters := append([]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")}, valueIters...)
 			return parquetquery.NewJoinIterator(definitionLevel,
 				iters,
@@ -2437,6 +2495,7 @@ func (c *spanCollector) String() string {
 }
 
 func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
+	fmt.Println("spanCollector: KeepGroup")
 	var sp *span
 	// look for existing span first. this occurs on the second pass
 	for _, e := range res.OtherEntries {
@@ -2558,6 +2617,7 @@ func (c *batchCollector) String() string {
 // the span-level iterators.  It updates the spans in-place in the OtherEntries slice.
 // Creation of the spanset is delayed until the traceCollector.
 func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
+	fmt.Println("batch collector keep group")
 	// First pass over spans and attributes from the AttributeCollector
 	spans := res.OtherEntries[:0]
 	c.resAttrs = c.resAttrs[:0]
@@ -2756,6 +2816,7 @@ func (c *attributeCollector) String() string {
 func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	var key string
 	var val traceql.Static
+	fmt.Println("attributeCollector: KeepGroup")
 
 	for _, e := range res.Entries {
 		// Ignore nulls, this leaves val as the remaining found value,
@@ -2806,7 +2867,9 @@ func getEvent() *event {
 
 // eventCollector receives rows from the event columns and joins them together into
 // map[key]value entries with the right type.
-type eventCollector struct{}
+type eventCollector struct{
+	minAttributes                 int
+}
 
 var _ parquetquery.GroupPredicate = (*eventCollector)(nil)
 
@@ -2815,6 +2878,7 @@ func (c *eventCollector) String() string {
 }
 
 func (c *eventCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
+	fmt.Println("eventCollector: KeepGroup")
 	var ev *event
 
 	// look for existing event first
@@ -2830,6 +2894,16 @@ func (c *eventCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		ev = getEvent()
 	}
 
+	// extract from attribute collector
+	for _, e := range res.OtherEntries {
+		if v, ok := e.Value.(traceql.Static); ok {
+			ev.attrs = append(ev.attrs, attrVal{
+				a: newEventAttr(e.Key),
+				s: v,
+			})
+		}
+	}
+
 	for _, e := range res.Entries {
 		switch e.Key {
 		case columnPathEventName:
@@ -2840,7 +2914,17 @@ func (c *eventCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
-	res.Reset()
+	if c.minAttributes > 0 {
+		fmt.Println("min attributes", c.minAttributes)
+		fmt.Println("len(ev.attrs)", len(ev.attrs))
+		if len(ev.attrs) < c.minAttributes {
+			putEvent(ev)
+			return false
+		}
+	}
+
+	res.Entries = res.Entries[:0]
+	res.OtherEntries = res.OtherEntries[:0]
 	res.AppendOtherValue(otherEntryEventKey, ev)
 
 	return true
@@ -2918,6 +3002,10 @@ func newSpanAttr(name string) traceql.Attribute {
 
 func newResAttr(name string) traceql.Attribute {
 	return traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, name)
+}
+
+func newEventAttr(name string) traceql.Attribute {
+	return traceql.NewScopedAttribute(traceql.AttributeScopeEvent, false, name)
 }
 
 func unionIfNeeded(definitionLevel int, iters []parquetquery.Iterator, pred parquetquery.GroupPredicate) parquetquery.Iterator {
