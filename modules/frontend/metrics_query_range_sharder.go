@@ -389,6 +389,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 			queryRangeReq.End += queryRangeReq.Step
 
 			subR = api.BuildQueryRangeRequest(subR, queryRangeReq)
+			subR.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
 
 			prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query())
 			// TODO: Handle sampling rate
@@ -438,7 +439,10 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 
 	searchReq.QueryMode = querier.QueryModeRecent
 
-	return s.toUpstreamRequest(parent.Context(), searchReq, parent, tenantID)
+	req := s.toUpstreamRequest(parent.Context(), searchReq, parent, tenantID)
+	req.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
+
+	return req
 }
 
 func (s *queryRangeSharder) toUpstreamRequest(ctx context.Context, req tempopb.QueryRangeRequest, parent *http.Request, tenantID string) *http.Request {
