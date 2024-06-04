@@ -99,6 +99,11 @@ func (c *genericCombiner[T]) AddResponse(r PipelineResponse) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// test again for should quit. it's possible that another response came in while we were unmarshalling that would make us quit.
+	if c.shouldQuit() {
+		return nil
+	}
+
 	c.httpStatusCode = res.StatusCode
 	if err := c.combine(partial, c.current, r); err != nil {
 		c.httpRespBody = internalErrorMsg
