@@ -6,10 +6,12 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/prometheus/model/exemplar"
 	promhistogram "github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type nativeHistogram struct {
@@ -98,9 +100,9 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 		promHistogram: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Name: h.name(),
 			// TODO support help text
-			//Help:        "",
+			Help: "Native histogram for metric " + h.name(),
 			// TODO we can set these to also emit a classic histogram
-			// Buckets: nil,
+			Buckets: nil,
 			// TODO check if these values are sensible and break them out
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  100,
@@ -196,6 +198,24 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		if err != nil {
 			return activeSeries, err
 		}
+
+		if len(encodedHistogram.Exemplars) > 0 {
+			for _, encodedExemplar := range encodedHistogram.Exemplars {
+
+				e := exemplar.Exemplar{
+					Labels: convertLabelPairToLabels(encodedExemplar.Label),
+					Value:  encodedExemplar.GetValue(),
+					Ts:     convertTimestampToMs(encodedExemplar.GetTimestamp()),
+					HasTs:  true,
+				}
+
+				_, err = appender.AppendExemplar(0, lb.Labels(), e)
+				if err != nil {
+					return activeSeries, err
+				}
+			}
+		}
+
 	}
 
 	return
@@ -215,4 +235,22 @@ func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 func (h *nativeHistogram) activeSeriesPerHistogramSerie() uint32 {
 	// TODO can we estimate this?
 	return 1
+}
+
+func convertLabelPairToLabels(lbps []*dto.LabelPair) labels.Labels {
+	lbs := make([]labels.Label, len(lbps))
+	for i, lbp := range lbps {
+		lbs[i] = labels.Label{
+			Name:  lbp.GetName(),
+			Value: lbp.GetValue(),
+		}
+	}
+	return lbs
+}
+
+func convertTimestampToMs(ts *timestamppb.Timestamp) int64 {
+	if ts == nil {
+		return 0
+	}
+	return ts.GetSeconds()*1000 + int64(ts.GetNanos()/1_000_000)
 }
