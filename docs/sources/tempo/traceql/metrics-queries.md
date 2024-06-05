@@ -77,7 +77,7 @@ spans than `/api/happy`, for example.
 The `quantile_over_time()` and `histogram_over_time()` functions let you aggregate numerical values, such as the all important span duration. Notice that you can specify multiple quantiles in the same query.
 
 ```
-{ name = "GET /:endpoint" } | quantile_over_time(duration, .99, .9, .5)`
+{ name = "GET /:endpoint" } | quantile_over_time(duration, .99, .9, .5)
 ```
 
 You can group by any span or resource attribute.
