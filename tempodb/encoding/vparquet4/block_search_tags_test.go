@@ -21,7 +21,7 @@ func TestBackendBlockSearchTags(t *testing.T) {
 
 	testVals := func(scope traceql.AttributeScope, attrs map[string]string) {
 		foundAttrs := map[string]struct{}{}
-		cb := func(s string) {
+		cb := func(s string, _ traceql.AttributeScope) {
 			foundAttrs[s] = struct{}{}
 		}
 
@@ -198,7 +198,7 @@ func BenchmarkBackendBlockSearchTags(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		err := block.SearchTags(ctx, traceql.AttributeScopeNone, d.Collect, opts)
+		err := block.SearchTags(ctx, traceql.AttributeScopeNone, func(s string, _ traceql.AttributeScope) { d.Collect(s) }, opts)
 		require.NoError(b, err)
 	}
 }

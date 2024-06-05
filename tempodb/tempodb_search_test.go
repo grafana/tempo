@@ -2037,12 +2037,16 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	block, err := w.CompleteBlock(context.Background(), head)
 	require.NoError(t, err)
 
-	tags, err := r.SearchTags(context.Background(), block.BlockMeta(), "", common.DefaultSearchOptions())
+	resp, err := r.SearchTags(context.Background(), block.BlockMeta(), "", common.DefaultSearchOptions())
 	require.NoError(t, err)
 	expectedTags := []string{"stringTag", "intTag", "service.name", "other"}
+	var actualTags []string
+	for _, scopeTags := range resp.Scopes {
+		actualTags = append(actualTags, scopeTags.Tags...)
+	}
 	sort.Strings(expectedTags)
-	sort.Strings(tags.TagNames)
-	assert.Equal(t, expectedTags, tags.TagNames)
+	sort.Strings(actualTags)
+	assert.Equal(t, expectedTags, actualTags)
 
 	values, err := r.SearchTagValues(context.Background(), block.BlockMeta(), "service.name", common.DefaultSearchOptions())
 	require.NoError(t, err)

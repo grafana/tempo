@@ -827,6 +827,7 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 
 func (q *Querier) internalTagsSearchBlock(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsResponse, error) {
 	// check if it's the special intrinsic scope
+	// todo: note that we are passing this up for every block search. we could add it in the frontend instead
 	if req.SearchReq.Scope == api.ParamScopeIntrinsic {
 		return &tempopb.SearchTagsResponse{
 			TagNames: search.GetVirtualIntrinsicValues(),

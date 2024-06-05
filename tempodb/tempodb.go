@@ -79,7 +79,7 @@ type IterateObjectCallback func(id common.ID, obj []byte) bool
 type Reader interface {
 	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64, opts common.SearchOptions) ([]*tempopb.Trace, []error, error)
 	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error)
-	SearchTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsResponse, error)
+	SearchTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsV2Response, error)
 	SearchTagValues(ctx context.Context, meta *backend.BlockMeta, tag string, opts common.SearchOptions) ([]string, error)
 	SearchTagValuesV2(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error)
 
@@ -363,7 +363,7 @@ func (rw *readerWriter) Search(ctx context.Context, meta *backend.BlockMeta, req
 	return block.Search(ctx, req, opts)
 }
 
-func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsResponse, error) {
+func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsV2Response, error) {
 	attributeScope := traceql.AttributeScopeFromString(scope)
 
 	if attributeScope == traceql.AttributeScopeUnknown {
@@ -375,13 +375,31 @@ func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta,
 		return nil, err
 	}
 
-	dv := util.NewDistinctStringCollector(0)
-	rw.cfg.Search.ApplyToOptions(&opts)
-	err = block.SearchTags(ctx, attributeScope, dv.Collect, opts)
+	collectors := map[string]*util.DistinctStringCollector{}
 
-	return &tempopb.SearchTagsResponse{
-		TagNames: dv.Strings(),
-	}, err
+	rw.cfg.Search.ApplyToOptions(&opts)
+	err = block.SearchTags(ctx, attributeScope, func(s string, scope traceql.AttributeScope) {
+		collector, ok := collectors[scope.String()]
+		if !ok {
+			collector = util.NewDistinctStringCollector(0)
+			collectors[scope.String()] = collector
+		}
+		collector.Collect(s)
+	}, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// build response
+	resp := &tempopb.SearchTagsV2Response{}
+	for scope, collector := range collectors {
+		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
+			Name: scope,
+			Tags: collector.Strings(),
+		})
+	}
+
+	return resp, nil
 }
 
 func (rw *readerWriter) SearchTagValues(ctx context.Context, meta *backend.BlockMeta, tag string, opts common.SearchOptions) ([]string, error) {
