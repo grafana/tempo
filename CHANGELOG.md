@@ -1,4 +1,5 @@
 ## main / unreleased
+* [CHANGE] Bump Jaeger query docker image to 1.57.0 [#3652](https://github.com/grafana/tempo/issues/3652) (@iblancasa)
 
 * [FEATURE] TraceQL support for link scope and link:traceID and link:spanID [#3741](https://github.com/grafana/tempo/pull/3741) (@stoewer)
 * [FEATURE] TraceQL support for event scope and event:name intrinsic [#3708](https://github.com/grafana/tempo/pull/3708) (@stoewer)
