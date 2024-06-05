@@ -22,6 +22,7 @@ type Config struct {
 	TraceByID                 TraceByIDConfig `yaml:"trace_by_id"`
 	Metrics                   MetricsConfig   `yaml:"metrics"`
 	MultiTenantQueriesEnabled bool            `yaml:"multi_tenant_queries_enabled"`
+	ResponseConsumers         int             `yaml:"response_consumers"`
 
 	// the maximum time limit that tempo will work on an api request. this includes both
 	// grpc and http requests and applies to all "api" frontend query endpoints such as
@@ -61,6 +62,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.Config.MaxOutstandingPerTenant = 2000
 	cfg.Config.MaxBatchSize = 5
 	cfg.MaxRetries = 2
+	cfg.ResponseConsumers = 10
 	cfg.Search = SearchConfig{
 		Sharder: SearchSharderConfig{
 			QueryBackendAfter:     15 * time.Minute,
@@ -85,6 +87,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 			ConcurrentRequests:    defaultConcurrentRequests,
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			Interval:              5 * time.Minute,
+			RF1ReadPath:           false,
 		},
 		SLO: slo,
 	}

@@ -17,6 +17,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -62,6 +63,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 
 	b := makeBackendBlockWithTraces(t, traces)
 	ctx := context.Background()
+	traceIDText := util.TraceIDToHexString(wantTraceID)
 
 	searchesThatMatch := []traceql.FetchSpansRequest{
 		{}, // Empty request
@@ -92,6 +94,8 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelStatus + ` = 2}`),
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{` + "statusMessage" + ` = "STATUS_CODE_ERROR"}`),
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelKind + ` = client }`),
+		traceql.MustExtractFetchSpansRequestWithMetadata(`{ trace:id = "` + traceIDText + `" }`),
+
 		// Resource well-known attributes
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelServiceName + ` = "spanservicename"}`), // Overridden at span
 		traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelCluster + ` = "cluster"}`),

@@ -367,6 +367,15 @@ message QueryRangeRequest {
   uint32 shardID = 5;
   uint32 shardCount = 6;
   string queryMode = 7;
+  // New RF1 fields
+  string blockID = 8;
+  uint32 startPage = 9;
+  uint32 pagesToSearch = 10;
+  string version = 11;
+  string encoding = 12;
+  uint64 size = 13; // total size of data file
+  uint32 footerSize = 14; // size of file footer (parquet)
+  repeated DedicatedColumn dedicatedColumns = 15;
 }
 
 message QueryRangeResponse {

@@ -243,6 +243,24 @@ func (p {{ $structName }}) KeepValue(v pq.Value) bool {
 				},
 			},
 		},
+		{
+			Name:           "Byte",
+			Type:           "[]byte",
+			ParquetFunc:    "ByteArray()",
+			FormatModifier: "%s",
+			Ops: []op{
+				{
+					Op:          "Equal",
+					CompareCond: `bytes.Equal(bytes.TrimLeft(vv, "\x00"), p.value)`,
+					RangeCond:   "", // benchmarks are generally better w/o a range condition? "bytes.Compare(p.value, min) >= 0 && bytes.Compare(p.value, max) <= 0",
+				},
+				{
+					Op:          "NotEqual",
+					CompareCond: `!bytes.Equal(bytes.TrimLeft(vv, "\x00"), p.value)`,
+					RangeCond:   "!bytes.Equal(min, p.value) || !bytes.Equal(p.value, max)",
+				},
+			},
+		},
 	}
 
 	funcMap := template.FuncMap{

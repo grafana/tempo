@@ -1,33 +1,28 @@
 ## main / unreleased
 
-* [ENHANCEMENT] Remove hardcoded delay in distributor shutdown [#3687](https://github.com/grafana/tempo/pull/3687) (@chodges15)
-* [ENHANCEMENT] Tempo CLI - add percentage support for query blocks #3697 [#3697](https://github.com/grafana/tempo/pull/3697) (@edgarkz)
-* [ENHANCEMENT] Update OTLP and add attributes to instrumentation scope in vParquet4 [#3649](https://github.com/grafana/tempo/pull/3649) (@stoewer)
-  **Breaking Change** The update to OTLP 1.3.0 removes the deprecated `InstrumentationLibrary`
-  and `InstrumentationLibrarySpan` from the OTLP receivers
-* [BUGFIX] Fix handling of regex matchers in autocomplete endpoints [#3641](https://github.com/grafana/tempo/pull/3641) (@sd2k)
-* [ENHANCEMENT] Surface new labels for uninstrumented services and systems [#3543](https://github.com/grafana/tempo/pull/3543) (@t00mas)
-* [FEATURE] Add TLS support for Memcached Client [#3585](https://github.com/grafana/tempo/pull/3585) (@sonisr)
-* [FEATURE] TraceQL metrics queries: add quantile_over_time [#3605](https://github.com/grafana/tempo/pull/3605) [#3633](https://github.com/grafana/tempo/pull/3633) (@mdisibio) 
-* [FEATURE] TraceQL metrics queries: add histogram_over_time [#3644](https://github.com/grafana/tempo/pull/3644) (@mdisibio)
-* [ENHANCEMENT] Add querier metrics for requests executed [#3524](https://github.com/grafana/tempo/pull/3524) (@electron0zero)
-* [FEATURE] Added gRPC streaming endpoints for Tempo APIs.
-  * Added gRPC streaming endpoints for all tag queries. [#3460](https://github.com/grafana/tempo/pull/3460) (@joe-elliott)
-  * Added gRPC streaming endpoints for metrics. [#3584](https://github.com/grafana/tempo/pull/3584) (@joe-elliott)
-  * Reduced memory consumption in the frontend for large traces. [#3522](https://github.com/grafana/tempo/pull/3522) (@joe-elliott)
-  * **Breaking Change** Remove trace by id hedging from the frontend. [#3522](https://github.com/grafana/tempo/pull/3522) (@joe-elliott)
-  * **Breaking Change** Dropped meta-tag for tenant from trace by id multitenant. [#3522](https://github.com/grafana/tempo/pull/3522) (@joe-elliott)
-* [FEATURE] New block encoding vParquet4 with support for links, events, and arrays [#3368](https://github.com/grafana/tempo/pull/3368) (@stoewer @ie-pham @andreasgerstmayr)
+* [FEATURE] TraceQL support for link scope and link:traceID and link:spanID [#3741](https://github.com/grafana/tempo/pull/3741) (@stoewer)
+* [FEATURE] TraceQL support for event scope and event:name intrinsic [#3708](https://github.com/grafana/tempo/pull/3708) (@stoewer)
+* [FEATURE] Flush and query RF1 blocks for TraceQL metric queries [#3628](https://github.com/grafana/tempo/pull/3628) [#3691](https://github.com/grafana/tempo/pull/3691) [#3723](https://github.com/grafana/tempo/pull/3723) (@mapno)
+* [ENHANCEMENT] Tag value lookup use protobuf internally for improved latency [#3731](https://github.com/grafana/tempo/pull/3731) (@mdisibio)
+* [ENHANCEMENT] TraceQL metrics queries use protobuf internally for improved latency [#3745](https://github.com/grafana/tempo/pull/3745) (@mdisibio)
+* [ENHANCEMENT] Improve use of OTEL semantic conventions on the service graph [#3711](https://github.com/grafana/tempo/pull/3711) (@zalegrala)
+* [ENHANCEMENT] Performance improvement for `rate() by ()` queries [#3719](https://github.com/grafana/tempo/pull/3719) (@mapno)
+* [ENHANCEMENT] Use multiple goroutines to unmarshal responses in parallel in the query frontend. [#3713](https://github.com/grafana/tempo/pull/3713) (@joe-elliott)
+* [BUGFIX] Fix metrics queries when grouping by attributes that may not exist [#3734](https://github.com/grafana/tempo/pull/3734) (@mdisibio)
+* [BUGFIX] max_global_traces_per_user: take into account ingestion.tenant_shard_size when converting to local limit [#3618](https://github.com/grafana/tempo/pull/3618) (@kvrhdn)
+
+## v2.5.0
+
 * [CHANGE] Align metrics query time ranges to the step parameter [#3490](https://github.com/grafana/tempo/pull/3490) (@mdisibio)
 * [CHANGE] Change the UID and GID of the `tempo` user to avoid root [#2265](https://github.com/grafana/tempo/pull/2265) (@zalegrala)
-  **BREAKING CHANGE** Ownership of /var/tempo is changing.  Historyically this
-  has been owned by root:root, and with this change it will now be owned by
+  **BREAKING CHANGE** Ownership of /var/tempo is changing.  Historically, this
+  has been owned by root:root. With this change, it will now be owned by
   tempo:tempo with the UID/GID of 10001.  The `ingester` and
   `metrics-generator` statefulsets may need to be `chown`'d in order to start
   properly.  A jsonnet example of an init container is included with the PR.
-  This impacts impacts all users of the `grafana/tempo` Docker image.
+  This impacts all users of the `grafana/tempo` Docker image.
 * [CHANGE] Remove vParquet encoding [#3663](https://github.com/grafana/tempo/pull/3663) (@mdisibio)
-  **BREAKING CHANGE** In the last release vParquet (the first version) was deprecated and blocked from writes. Now it is 
+  **BREAKING CHANGE** In the last release vParquet (the first version) was deprecated and blocked from writes. Now, it's 
   removed entirely.  It will no longer be recognized as a valid encoding and cannot read any remaining vParquet blocks. Installations
   running with historical defaults should not require any changes as the default has been migrated for several releases. Installations
   with storage settings pinned to vParquet must run a previous release configured for vParquet2 or higher until all existing vParquet (1) blocks
@@ -36,9 +31,27 @@
 * [CHANGE] Clean Metrics Generator's Prometheus wal before creating instance [#3548](https://github.com/grafana/tempo/pull/3548) (@ie-pham)
 * [CHANGE] Update docker examples for permissions, deprecations, and clean-up [#3603](https://github.com/grafana/tempo/pull/3603) (@zalegrala)
 * [CHANGE] Update debian and rpm packages to grant required permissions to default storage path after installation [#3657](https://github.com/grafana/tempo/pull/3657) (@mdisibio)
-* [FEATURE] Add messaging-system latency histogram to service-graph [#3453](https://github.com/grafana/tempo/pull/3453) (@adirmatzkin)
 * [CHANGE] Delete any remaining objects for empty tenants after a configurable duration, requires config enable [#3611](https://github.com/grafana/tempo/pull/3611) (@zalegrala)
 * [CHANGE] Add golangci to the tools image and update `lint` make target [#3610](https://github.com/grafana/tempo/pull/3610) (@zalegrala)
+* [CHANGE] Update Alpine image version to 3.20 [#3710](https://github.com/grafana/tempo/pull/3710) (@joe-elliott)
+* [FEATURE] Add TLS support for Memcached Client [#3585](https://github.com/grafana/tempo/pull/3585) (@sonisr)
+* [FEATURE] TraceQL metrics queries: add quantile_over_time [#3605](https://github.com/grafana/tempo/pull/3605) [#3633](https://github.com/grafana/tempo/pull/3633) (@mdisibio) 
+* [FEATURE] TraceQL metrics queries: add histogram_over_time [#3644](https://github.com/grafana/tempo/pull/3644) (@mdisibio)
+* [FEATURE] Added gRPC streaming endpoints for Tempo APIs.
+  * Added gRPC streaming endpoints for all tag queries. [#3460](https://github.com/grafana/tempo/pull/3460) (@joe-elliott)
+  * Added gRPC streaming endpoints for metrics. [#3584](https://github.com/grafana/tempo/pull/3584) (@joe-elliott)
+  * Reduced memory consumption in the frontend for large traces. [#3522](https://github.com/grafana/tempo/pull/3522) (@joe-elliott)
+  * **Breaking Change** Remove trace by id hedging from the frontend. [#3522](https://github.com/grafana/tempo/pull/3522) (@joe-elliott)
+  * **Breaking Change** Dropped meta-tag for tenant from trace by id multitenant. [#3522](https://github.com/grafana/tempo/pull/3522) (@joe-elliott)
+* [FEATURE] New block encoding vParquet4 with support for links, events, and arrays [#3368](https://github.com/grafana/tempo/pull/3368) (@stoewer @ie-pham @andreasgerstmayr)
+* [ENHANCEMENT] Remove hardcoded delay in distributor shutdown [#3687](https://github.com/grafana/tempo/pull/3687) (@chodges15)
+* [ENHANCEMENT] Tempo CLI - add percentage support for query blocks #3697 [#3697](https://github.com/grafana/tempo/pull/3697) (@edgarkz)
+* [ENHANCEMENT] Update OTLP and add attributes to instrumentation scope in vParquet4 [#3649](https://github.com/grafana/tempo/pull/3649) (@stoewer)
+  **Breaking Change** The update to OTLP 1.3.0 removes the deprecated `InstrumentationLibrary`
+  and `InstrumentationLibrarySpan` from the OTLP receivers
+* [ENHANCEMENT] Surface new labels for uninstrumented services and systems [#3543](https://github.com/grafana/tempo/pull/3543) (@t00mas)
+* [ENHANCEMENT] Add querier metrics for requests executed [#3524](https://github.com/grafana/tempo/pull/3524) (@electron0zero)
+* [ENHANCEMENT] Add messaging-system latency histogram to service-graph [#3453](https://github.com/grafana/tempo/pull/3453) (@adirmatzkin)
 * [ENHANCEMENT] Add string interning to TraceQL queries [#3411](https://github.com/grafana/tempo/pull/3411) (@mapno)
 * [ENHANCEMENT] Add new (unsafe) query hints for metrics queries [#3396](https://github.com/grafana/tempo/pull/3396) (@mdisibio)
 * [ENHANCEMENT] Add nestedSetLeft/Right/Parent instrinsics to TraceQL. [#3497](https://github.com/grafana/tempo/pull/3497) (@joe-elliott)
@@ -48,11 +61,14 @@
 * [ENHANCEMENT] TraceQL - Add support for scoped intrinsics using `:` [#3629](https://github.com/grafana/tempo/pull/3629) (@ie-pham)
   available scoped intrinsics: trace:duration, trace:rootName, trace:rootService, span:duration, span:kind, span:name, span:status, span:statusMessage
 * [ENHANCEMENT] Performance improvements on TraceQL and tag value search. [#3650](https://github.com/grafana/tempo/pull/3650),[#3667](https://github.com/grafana/tempo/pull/3667) (@joe-elliott)
+* [ENHANCEMENT] TraceQL - Add support for trace:id and span:id [#3670](https://github.com/grafana/tempo/pull/3670) (@ie-pham)
+* [ENHANCEMENT] Add toggle to inject the tenant ID to generated metrics [#3638](https://github.com/grafana/tempo/pull/3638) (@kvrhdn)
+* [BUGFIX] Fix handling of regex matchers in autocomplete endpoints [#3641](https://github.com/grafana/tempo/pull/3641) (@sd2k)
 * [BUGFIX] Update golang.org/x/net package to 0.24.0 to fix CVE-2023-45288 [#3613](https://github.com/grafana/tempo/pull/3613) (@pavolloffay)
 * [BUGFIX] Fix metrics query results when filtering and rating on the same attribute [#3428](https://github.com/grafana/tempo/issues/3428) (@mdisibio)
 * [BUGFIX] Fix metrics query results when series contain empty strings or nil values [#3429](https://github.com/grafana/tempo/issues/3429) (@mdisibio)
 * [BUGFIX] Fix metrics query duration check, add per-tenant override for max metrics query duration [#3479](https://github.com/grafana/tempo/issues/3479) (@mdisibio)
-* [BUGFIX] Fix metrics query panic "index out of range [-1]" when a trace has zero-length ID [](https://github.com/grafana/tempo/pull/3668) (@mdisibio)
+* [BUGFIX] Fix metrics query panic "index out of range [-1]" when a trace has zero-length ID [#3668](https://github.com/grafana/tempo/pull/3668) (@mdisibio)
 * [BUGFIX] Return unfiltered results when a bad TraceQL query is provided in autocomplete. [#3426](https://github.com/grafana/tempo/pull/3426) (@mapno)
 * [BUGFIX] Add support for dashes, quotes and spaces in attribute names in autocomplete [#3458](https://github.com/grafana/tempo/pull/3458) (@mapno)
 * [BUGFIX] Correctly handle 429s in GRPC search streaming. [#3469](https://github.com/grafana/tempo/pull/3469) (@joe-ellitot)
@@ -62,6 +78,8 @@
 * [BUGFIX] Correctly parse traceql queries with > 1024 character attribute names or static values. [#3571](https://github.com/grafana/tempo/issues/3571) (@joe-elliott)
 * [BUGFIX] Fix span-metrics' subprocessors bug that applied wrong configs when running multiple tenants. [#3612](https://github.com/grafana/tempo/pull/3612) (@mapno)
 * [BUGFIX] Fix panic in query-frontend when combining results [#3683](https://github.com/grafana/tempo/pull/3683) (@mapno)
+* [BUGFIX] Fix panic in metrics-generator when starting with a partial completed block [#3704](https://github.com/grafana/tempo/pull/3704) (@zalegrala)
+* [BUGFIX] Fix TraceQL queries involving non boolean operations between statics and attributes. [#3698](https://github.com/grafana/tempo/pull/3698) (@joe-elliott)
 
 ## v2.4.2
 

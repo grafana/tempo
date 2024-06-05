@@ -440,7 +440,7 @@ func TestIncludeBlock(t *testing.T) {
 			e, err := tc.blockEnd.MarshalBinary()
 			require.NoError(t, err)
 
-			assert.Equal(t, tc.expected, includeBlock(tc.meta, tc.searchID, s, e, tc.start, tc.end))
+			assert.Equal(t, tc.expected, includeBlock(tc.meta, tc.searchID, s, e, tc.start, tc.end, 0))
 		})
 	}
 }
@@ -517,7 +517,7 @@ func TestIncludeCompactedBlock(t *testing.T) {
 			e, err := tc.blockEnd.MarshalBinary()
 			require.NoError(t, err)
 
-			assert.Equal(t, tc.expected, includeCompactedBlock(tc.meta, tc.searchID, s, e, blocklistPoll, tc.start, tc.end))
+			assert.Equal(t, tc.expected, includeCompactedBlock(tc.meta, tc.searchID, s, e, blocklistPoll, tc.start, tc.end, 0))
 		})
 	}
 }

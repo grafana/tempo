@@ -375,7 +375,13 @@ func TestQueryRateLimits(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = resp.Recv()
+	// loop until we get io.EOF or an error
+	for {
+		_, err = resp.Recv()
+		if err != nil {
+			break
+		}
+	}
 	require.ErrorContains(t, err, "job queue full")
 	require.ErrorContains(t, err, "code = ResourceExhausted")
 }

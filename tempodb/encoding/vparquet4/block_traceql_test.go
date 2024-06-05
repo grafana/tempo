@@ -19,6 +19,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/pkg/util/traceidboundary"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -68,6 +69,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 
 	b := makeBackendBlockWithTraces(t, traces)
 	ctx := context.Background()
+	traceIDText := util.TraceIDToHexString(wantTraceID)
 
 	searchesThatMatch := []struct {
 		name string
@@ -106,6 +108,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		{"Intrinsic: status = 2", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelStatus + ` = 2}`)},
 		{"Intrinsic: statusMessage = STATUS_CODE_ERROR", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + "statusMessage" + ` = "STATUS_CODE_ERROR"}`)},
 		{"Intrinsic: kind = client", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelKind + ` = client }`)},
+		{"Intrinsic: trace:id", traceql.MustExtractFetchSpansRequestWithMetadata(`{ trace:id = "` + traceIDText + `" }`)},
 		// Resource well-known attributes
 		{".service.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelServiceName + ` = "spanservicename"}`)}, // Overridden at span},
 		{".cluster", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelCluster + ` = "cluster"}`)},
@@ -143,6 +146,11 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		// Span dedicated attributes
 		{"span.dedicated.span.2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = "dedicated-span-attr-value-2"}`)},
 		{"span.dedicated.span.4", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 = "dedicated-span-attr-value-4"}`)},
+		// Events
+		{"event:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:name = "e1"}`)},
+		// Links
+		{"link:spanID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:spanID = "1234567890abcdef"}`)},
+		{"link:traceID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:traceID = "1234567890abcdef1234567890abcdef"}`)},
 		// Basic data types and operations
 		{".float = 456.78", traceql.MustExtractFetchSpansRequestWithMetadata(`{.float = 456.78}`)},             // Float ==
 		{".float != 456.79", traceql.MustExtractFetchSpansRequestWithMetadata(`{.float != 456.79}`)},           // Float !=
@@ -267,6 +275,9 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		{"Intrinsic: statusMessage", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + "statusMessage" + ` = "abc"}`)},
 		{"Intrinsic: name", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + ` = "nothello"}`)},
 		{"Intrinsic: kind", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelKind + ` = producer }`)},
+		{"Intrinsic: event:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:name = "x2"}`)},
+		{"Intrinsic: link:spanID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:spanID = "ffffffffffffffff"}`)},
+		{"Intrinsic: link:traceID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:traceID = "ffffffffffffffffffffffffffffffff"}`)},
 		{"Well-known attribute: service.name not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelServiceName + ` = "notmyservice"}`)},
 		{"Well-known attribute: http.status_code not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelHTTPStatusCode + ` = 200}`)},
 		{"Well-known attribute: http.status_code not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelHTTPStatusCode + ` > 600}`)},
@@ -393,10 +404,13 @@ func parse(t *testing.T, q string) traceql.Condition {
 }
 
 func fullyPopulatedTestTrace(id common.ID) *Trace {
+	linkTraceID, _ := util.HexStringToTraceID("1234567890abcdef1234567890abcdef")
+	linkSpanID, _ := util.HexStringToSpanID("1234567890abcdef")
+
 	links := []Link{
 		{
-			TraceID:                []byte{0x01},
-			SpanID:                 []byte{0x02},
+			TraceID:                linkTraceID,
+			SpanID:                 linkSpanID,
 			TraceState:             "state",
 			DroppedAttributesCount: 3,
 			Attrs: []Attribute{

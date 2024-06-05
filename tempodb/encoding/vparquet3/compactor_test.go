@@ -49,7 +49,7 @@ func benchmarkCompactor(b *testing.B, traceCount, batchCount, spanCount int) {
 		RowGroupSizeBytes:   20_000_000,
 	}
 
-	meta := createTestBlock(b, ctx, cfg, r, w, traceCount, batchCount, spanCount, nil)
+	meta := createTestBlock(b, ctx, cfg, r, w, traceCount, batchCount, spanCount, 0, nil)
 
 	inputs := []*backend.BlockMeta{meta}
 
@@ -86,7 +86,7 @@ func BenchmarkCompactorDupes(b *testing.B) {
 	}
 
 	// 1M span traces
-	meta := createTestBlock(b, ctx, cfg, r, w, 10, 1000, 1000, nil)
+	meta := createTestBlock(b, ctx, cfg, r, w, 10, 1000, 1000, 1, nil)
 	inputs := []*backend.BlockMeta{meta, meta}
 
 	b.ResetTimer()
@@ -110,12 +110,13 @@ func BenchmarkCompactorDupes(b *testing.B) {
 // Trace IDs are guaranteed to be monotonically increasing so that
 // the block will be iterated in order.
 // nolint: revive
-func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig, r backend.Reader, w backend.Writer, traceCount, batchCount, spanCount int, dc backend.DedicatedColumns) *backend.BlockMeta {
+func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig, r backend.Reader, w backend.Writer, traceCount, batchCount, spanCount, replicationFactor int, dc backend.DedicatedColumns) *backend.BlockMeta {
 	inMeta := &backend.BlockMeta{
-		TenantID:         tenantID,
-		BlockID:          uuid.New(),
-		TotalObjects:     traceCount,
-		DedicatedColumns: dc,
+		TenantID:          tenantID,
+		BlockID:           uuid.New(),
+		TotalObjects:      traceCount,
+		ReplicationFactor: uint32(replicationFactor),
+		DedicatedColumns:  dc,
 	}
 
 	sb := newStreamingBlock(ctx, cfg, inMeta, r, w, tempo_io.NewBufferedWriter)
@@ -201,8 +202,8 @@ func TestCompact(t *testing.T) {
 		{Scope: "span", Name: "dedicated.span.1", Type: "string"},
 	}
 
-	meta1 := createTestBlock(t, context.Background(), &blockConfig, r, w, 10, 10, 10, dedicatedColumns)
-	meta2 := createTestBlock(t, context.Background(), &blockConfig, r, w, 10, 10, 10, dedicatedColumns)
+	meta1 := createTestBlock(t, context.Background(), &blockConfig, r, w, 10, 10, 10, 1, dedicatedColumns)
+	meta2 := createTestBlock(t, context.Background(), &blockConfig, r, w, 10, 10, 10, 1, dedicatedColumns)
 
 	inputs := []*backend.BlockMeta{meta1, meta2}
 
@@ -210,5 +211,6 @@ func TestCompact(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, newMeta, 1)
 	require.Equal(t, 20, newMeta[0].TotalObjects)
+	require.Equal(t, uint32(1), newMeta[0].ReplicationFactor)
 	require.Equal(t, dedicatedColumns, newMeta[0].DedicatedColumns)
 }

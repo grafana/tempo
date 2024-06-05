@@ -360,6 +360,33 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		}
 	}
 
+	// if both sides are integers then do integer math, otherwise we can drop to the
+	// catch all below
+	if lhsT == TypeInt && rhsT == TypeInt {
+		switch o.Op {
+		case OpAdd:
+			return NewStaticInt(lhs.N + rhs.N), nil
+		case OpSub:
+			return NewStaticInt(lhs.N - rhs.N), nil
+		case OpDiv:
+			return NewStaticInt(lhs.N / rhs.N), nil
+		case OpMod:
+			return NewStaticInt(lhs.N % rhs.N), nil
+		case OpMult:
+			return NewStaticInt(lhs.N * rhs.N), nil
+		case OpGreater:
+			return NewStaticBool(lhs.N > rhs.N), nil
+		case OpGreaterEqual:
+			return NewStaticBool(lhs.N >= rhs.N), nil
+		case OpLess:
+			return NewStaticBool(lhs.N < rhs.N), nil
+		case OpLessEqual:
+			return NewStaticBool(lhs.N <= rhs.N), nil
+		case OpPower:
+			return NewStaticInt(intPow(rhs.N, lhs.N)), nil
+		}
+	}
+
 	switch o.Op {
 	case OpAdd:
 		return NewStaticFloat(lhs.asFloat() + rhs.asFloat()), nil
@@ -528,4 +555,12 @@ func uniqueSpans(ss1 []*Spanset, ss2 []*Spanset) []Span {
 	}
 
 	return output
+}
+
+func intPow(m, n int) int {
+	result := 1
+	for i := 0; i < n; i++ {
+		result *= m
+	}
+	return result
 }
