@@ -1,11 +1,11 @@
 ---
-description: "Terminology for traces"
+description: "Glossary for traces"
 keywords:
   - Grafana
   - traces
   - tracing
-title: Terminology
-weight: 120
+title: Glossary
+weight: 500
 ---
 
 # Terminology

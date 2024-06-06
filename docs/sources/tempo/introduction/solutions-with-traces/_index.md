@@ -6,7 +6,7 @@ keywords:
   - tracing
 title: Use traces to find solutions
 menuTitle: Solutions with traces
-weight: 120
+weight: 300
 ---
 
 # Use traces to find solutions
@@ -19,4 +19,9 @@ Tracing is best used for analyzing the performance of your system, identifying b
 * Seamless telemetry correlation Event history correlated to logs and metrics: Using tracing in conjunction with logs and metrics can help give you a comprehensive view of events overtime during incident response and postmortems by showing relationships between services and dependencies.
 * Business policy adherence ensures that services are correctly isolated using generated metrics and generated service graphs.
 
-{{< youtube id="0tlp7QCPu0k" >}}
+Traces are especially powerful when:
+
+* Identifying cause of bottlenecks using application insights and performance
+* Diagnosing errors and reducing MTTR
+
+Each use case provides real-world examples, including the background of the use case and how tracing highlighted and helped resolve any issues.

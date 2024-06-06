@@ -6,23 +6,24 @@ keywords:
   - tracing
 title: Diagnose errors with traces
 menuTitle: Diagnose errors with traces
-weight: 120
+weight: 400
 ---
 
 # Diagnose errors with traces
 
-Traces are especially powerful when:
+Traces allow you to quickly diagnose errors in your application, ensuring that you can perform Root Cause Analysis (RCA) on request failures.
+Trace visualizations help you determine the spans in which errors occur, along with the context behind those errors, leading to a lower mean time to repair (MTTR).
 
-* Identify cause of bottlenecks using application insights and performance
-* Diagnose 500 errors and reduce MTTR
+## Meet Handy Site Corp
 
-Each use case provides real-world examples, including the background of the use case and how tracing highlighted and helped resolve any issues.
+Handy Site Corp, a fake website company, runs an ecommerce application that includes user authentication, a product catalog, order management, payment processing, and other services.
 
-Handy Site’s operations team receives several alerts on errors for monitored endpoints in their services. Using their Grafana dashboards, they notice that there are several issues. The dashboard provides the percentages of errors:
+Handy Site’s operations team receives several alerts for their error SLO for monitored endpoints in their services. Using their Grafana dashboards, they notice that there are several issues. The dashboard provides the percentages of errors:
 
-SCREENSHOT
+![Dashboard showing errors in services](/media/docs/tempo/intro/traces-error-SLO.png)
 
-More than 5% of the requests from users are resulting in an error across several endpoints, which causes a degradation in performance and usability. It’s imperative for the operations team at Handy Site to quickly troubleshoot the issue.
+More than 5% of the requests from users are resulting in an error across several endpoints, such as `/beholder`, `/owlbear`, and `/illithid`, which causes a degradation in performance and usability.
+It’s imperative for the operations team at Handy Site to quickly troubleshoot the issue.
 
 ## Use TraceQL to query data
 
@@ -30,9 +31,10 @@ Tempo has a traces-first query language, [TraceQL](https://grafana.com/docs/temp
 
 Handy Site’s services and applications are instrumented for tracing, so they can use TraceQL as a debugging tool. Using three TraceQL queries, the team identifies and validates the root cause of the issue.
 
-The top-level service, `mythical-requester`, calls other services and deals with requests and responses from their users.
+### Find HTTP errors
 
-Using Grafana Explore, the operations team starts with a simple TraceQL query to find all traces from this top-level service, where an HTTP response being sent back to a user is 400 or above, such as ‘Forbidden’, ‘Not found’, and other responses that do not return data the user expected.
+The top-level service, `mythical-requester`, calls other services and deals with requests and responses from their users.
+Using Grafana Explore, the operations team starts with a simple TraceQL query to find all traces from this top-level service, where an HTTP response being sent back to a user is 400 or above, such as `Forbidden`, `Not found`, and other responses that don't return data the user expected.
 
 ```traceql
 { resource.service.name = "mythical-requester" && span.http.status_code >= 400 } | select(span.http.target)
@@ -40,42 +42,42 @@ Using Grafana Explore, the operations team starts with a simple TraceQL query to
 
 The `select` statement in this query includes an additionally returned field for each matching trace span, namely the value of the `http.target` attribute, the endpoints for the SaaS service.
 
-SCREENSHOT
+![Query results showing http.target attribute](/media/docs/tempo/intro/traceql-http-target-handy-site.png)
 
-By expanding out the returned services, the operations team examines the HTTP status codes associated with the matching spans.
-They see that there is a 404 error, a `Not Found` on the `/debug/pprof/block` endpoint, which is interesting because that’s the endpoint for a profiler to scrape data from.
-This won’t be an issue with application endpoints serving users, but they note that the profiler won’t be receiving data from the service and should be looked at later.
+### Pinpoint the error
 
-The immediate concern is the errors returning an HTTP 500 status code, which are internal server errors.
+The immediate concern is the errors returning an `HTTP 500` status code, which are internal server errors.
 Something is occurring in the application, which in turn prevents valid responses to their users’ requests.
 This affects the operation team’s SLO error budget, and affects profitability overall for Handy Site.
 
-The team decides to use structural operators to follow an error chain from the mythical-requester service to any descendant spans that also have an error status.
-Descendant span can be any span that is descended from the parent span, such as a child or a further child at any depth.
+The team decides to use structural operators to follow an error chain from the `mythical-requester` service to any descendant spans that also have an error status.
+Descendant spans can be any span that's descended from the parent span, such as a child or a further child at any depth.
 Using this query, the team can pinpoint the downstream service that might be causing the issue.
 
 ```traceql
 { resource.service.name = "mythical-requester" && span.http.status_code = 500 } >> { status = error }
 ```
 
-SCREENSHOT
-
+![TraceQL results showing expanded span](/media/docs/tempo/intro/traceql-error-insert-handy-site.png)
 
 Expanding the erroring span found in the `mythical-server` service shows the team that there is a problem with the data being inserted into the database.
 Specifically, that the service is passing a null value for a column in a database table where null values are invalid.
 
-SCREENSHOT
+![Error span for INSERT](/media/docs/tempo/intro/traceql-insert-postgres-handy-site.png)
 
-After identifying the specific cause of the internal server error, the team rewrites the TraceQL query to focus on the database statement `INSERT`.
+### Verify root cause
+
+After identifying the specific cause of this internal server error,
+the team decides to find out if there are any other errors in operations other than `INSERT`s.
 Their updated query uses a negated regular expression to find any matches where the database statement either doesn’t exist, or doesn’t start with an `INSERT` clause.
 This should expose any other issues causing an internal server error.
 
 ```traceql
-{ resource.service.name = "mythical-requester" && span.http.status_code = 500 } >> { status = error && span.db.statement !~ "INSERT.*"}
+{ resource.service.name = "mythical-requester" && span.http.status_code = 500 } >> { status = error && span.db.statement !~ "INSERT.*" }
 ```
-
-SCREENSHOT
 
 This query yields no results, meaning that the root cause of the issues the operations team are seeing is clearly the erroring database insertion call.
 At this point, they can swap out the underlying service for a known working version, or deploy a fix to ensure that null data being passed to the service is rejected appropriately.
-Requests will now be responded to quickly and the issue will be resolved.
+Requests can be responded to quickly and the issue can be resolved.
+
+![Empty query results](/media/docs/tempo/intro/traceql-no-results-handy-site.png)
