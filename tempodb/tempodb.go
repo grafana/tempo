@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/collector"
 
 	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -375,16 +375,16 @@ func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta,
 		return nil, err
 	}
 
-	collectors := map[string]*util.DistinctStringCollector{} // jpe - scoped collector
+	collectors := map[string]*collector.DistinctString{} // jpe - scoped collector
 
 	rw.cfg.Search.ApplyToOptions(&opts)
 	err = block.SearchTags(ctx, attributeScope, func(s string, scope traceql.AttributeScope) {
-		collector, ok := collectors[scope.String()]
+		col, ok := collectors[scope.String()]
 		if !ok {
-			collector = util.NewDistinctStringCollector(0)
-			collectors[scope.String()] = collector
+			col = collector.NewDistinctString(0)
+			collectors[scope.String()] = col
 		}
-		collector.Collect(s)
+		col.Collect(s)
 	}, opts)
 	if err != nil {
 		return nil, err
@@ -408,7 +408,7 @@ func (rw *readerWriter) SearchTagValues(ctx context.Context, meta *backend.Block
 		return nil, err
 	}
 
-	dv := util.NewDistinctStringCollector(0)
+	dv := collector.NewDistinctString(0)
 	rw.cfg.Search.ApplyToOptions(&opts)
 	err = block.SearchTagValues(ctx, tag, dv.Collect, opts)
 
@@ -426,7 +426,7 @@ func (rw *readerWriter) SearchTagValuesV2(ctx context.Context, meta *backend.Blo
 		return nil, err
 	}
 
-	dv := util.NewDistinctValueCollector[tempopb.TagValue](0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	dv := collector.NewDistinctValue[tempopb.TagValue](0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 	rw.cfg.Search.ApplyToOptions(&opts)
 	err = block.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(dv.Collect), opts)
 	if err != nil {

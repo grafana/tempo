@@ -1,4 +1,4 @@
-package util
+package collector
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestDistinctStringCollector(t *testing.T) {
-	d := NewDistinctStringCollector(10)
+	d := NewDistinctString(10)
 
 	d.Collect("123")
 	d.Collect("4567")
@@ -19,7 +19,7 @@ func TestDistinctStringCollector(t *testing.T) {
 }
 
 func TestDistinctStringCollectorDiff(t *testing.T) {
-	d := NewDistinctStringCollector(0)
+	d := NewDistinctString(0)
 
 	d.Collect("123")
 	d.Collect("4567")

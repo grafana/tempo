@@ -14,10 +14,10 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
+	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -180,7 +180,7 @@ func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.Searc
 		return nil, err
 	}
 
-	distinctValues := util.NewDistinctStringCollector(0) // search tags v2 enforces the limit
+	distinctValues := collector.NewDistinctString(0) // search tags v2 enforces the limit
 
 	// flatten v2 response
 	for _, s := range v2Response.Scopes {
@@ -228,7 +228,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.Sea
 	}
 
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
-	collectors := map[traceql.AttributeScope]*util.DistinctStringCollector{}
+	collectors := map[traceql.AttributeScope]*collector.DistinctString{}
 
 	searchBlock := func(ctx context.Context, s common.Searcher, spanName string) error {
 		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTags."+spanName)
@@ -243,7 +243,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.Sea
 		err = s.SearchTags(ctx, attributeScope, func(t string, scope traceql.AttributeScope) {
 			dv, ok := collectors[scope]
 			if !ok {
-				dv = util.NewDistinctStringCollector(limit)
+				dv = collector.NewDistinctString(limit)
 				collectors[scope] = dv
 			}
 			dv.Collect(t)
@@ -309,14 +309,14 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	}
 
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := util.NewDistinctStringCollector(limit)
+	distinctValues := collector.NewDistinctString(limit)
 
 	var inspectedBlocks, maxBlocks int
 	if limit := i.limiter.limits.MaxBlocksPerTagValuesQuery(userID); limit > 0 {
 		maxBlocks = limit
 	}
 
-	search := func(s common.Searcher, dv *util.DistinctStringCollector) error {
+	search := func(s common.Searcher, dv *collector.DistinctString) error {
 		if maxBlocks > 0 && inspectedBlocks >= maxBlocks {
 			return nil
 		}
@@ -377,7 +377,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	defer span.Finish()
 
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
-	valueCollector := util.NewDistinctValueCollector[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	valueCollector := collector.NewDistinctValue[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 
 	engine := traceql.NewEngine()
 

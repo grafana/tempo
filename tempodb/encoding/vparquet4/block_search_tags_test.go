@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -66,9 +66,10 @@ func TestBackendBlockSearchTagValues(t *testing.T) {
 	ctx := context.Background()
 	for tag, val := range attrs {
 		wasCalled := false
-		cb := func(s string) {
+		cb := func(s string) bool {
 			wasCalled = true
 			assert.Equal(t, val, s, tag)
+			return true
 		}
 
 		err := block.SearchTagValues(ctx, tag, cb, common.DefaultSearchOptions())
@@ -193,7 +194,7 @@ func BenchmarkBackendBlockSearchTags(b *testing.B) {
 
 	block := newBackendBlock(meta, rr)
 	opts := common.DefaultSearchOptions()
-	d := util.NewDistinctStringCollector(1_000_000)
+	d := collector.NewDistinctString(1_000_000)
 
 	b.ResetTimer()
 
@@ -227,7 +228,7 @@ func BenchmarkBackendBlockSearchTagValues(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
-			d := util.NewDistinctStringCollector(1_000_000)
+			d := collector.NewDistinctString(1_000_000)
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				err := block.SearchTagValues(ctx, tc, d.Collect, opts)

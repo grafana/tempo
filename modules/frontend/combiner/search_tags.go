@@ -1,8 +1,8 @@
 package combiner
 
 import (
+	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 )
 
 var (
@@ -11,7 +11,7 @@ var (
 )
 
 func NewSearchTags(limitBytes int) Combiner {
-	d := util.NewDistinctStringCollector(limitBytes)
+	d := collector.NewDistinctString(limitBytes)
 
 	return &genericCombiner[*tempopb.SearchTagsResponse]{
 		httpStatusCode: 200,
@@ -43,7 +43,7 @@ func NewTypedSearchTags(limitBytes int) GRPCCombiner[*tempopb.SearchTagsResponse
 
 func NewSearchTagsV2(limitBytes int) Combiner {
 	// Distinct collector map to collect scopes and scope values
-	distinctValues := map[string]*util.DistinctStringCollector{}
+	distinctValues := map[string]*collector.DistinctString{}
 
 	return &genericCombiner[*tempopb.SearchTagsV2Response]{
 		httpStatusCode: 200,
@@ -53,7 +53,7 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 			for _, res := range partial.GetScopes() {
 				dvc := distinctValues[res.Name]
 				if dvc == nil {
-					dvc = util.NewDistinctStringCollector(limitBytes)
+					dvc = collector.NewDistinctString(limitBytes)
 					distinctValues[res.Name] = dvc
 				}
 				for _, tag := range res.Tags {

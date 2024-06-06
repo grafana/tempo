@@ -30,6 +30,7 @@ import (
 	"github.com/grafana/tempo/modules/querier/worker"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -483,7 +484,7 @@ func (q *Querier) SearchTagsBlocks(ctx context.Context, req *tempopb.SearchTagsB
 		return nil, err
 	}
 
-	distinctValues := util.NewDistinctStringCollector(0)
+	distinctValues := collector.NewDistinctString(0)
 
 	// flatten v2 response
 	for _, s := range v2Response.Scopes {
@@ -521,7 +522,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 	}
 
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := util.NewDistinctStringCollector(limit)
+	distinctValues := collector.NewDistinctString(limit)
 
 	lookupResults, err := q.forIngesterRings(ctx, userID, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
 		return client.SearchTags(ctx, req)
@@ -561,13 +562,13 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 	}
 
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := map[string]*util.DistinctStringCollector{}
+	distinctValues := map[string]*collector.DistinctString{}
 
-	for _, resp := range lookupResults {
+	for _, resp := range lookupResults { // jpe scoped collector
 		for _, res := range resp.response.(*tempopb.SearchTagsV2Response).Scopes {
 			dvc := distinctValues[res.Name]
 			if dvc == nil {
-				dvc = util.NewDistinctStringCollector(limit)
+				dvc = collector.NewDistinctString(limit)
 				distinctValues[res.Name] = dvc
 			}
 
@@ -601,7 +602,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	}
 
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := util.NewDistinctStringCollector(limit)
+	distinctValues := collector.NewDistinctString(limit)
 
 	// Virtual tags values. Get these first.
 	for _, v := range search.GetVirtualTagValues(req.TagName) {
@@ -638,7 +639,7 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 	}
 
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := util.NewDistinctValueCollector(limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	distinctValues := collector.NewDistinctValue(limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 
 	// Virtual tags values. Get these first.
 	virtualVals := search.GetVirtualTagValuesV2(req.TagName)
@@ -762,7 +763,7 @@ func (q *Querier) SpanMetricsSummary(
 	return resp, nil
 }
 
-func valuesToV2Response(distinctValues *util.DistinctValueCollector[tempopb.TagValue]) *tempopb.SearchTagValuesV2Response {
+func valuesToV2Response(distinctValues *collector.DistinctValue[tempopb.TagValue]) *tempopb.SearchTagValuesV2Response { // jpe this exists?
 	resp := &tempopb.SearchTagValuesV2Response{}
 	for _, v := range distinctValues.Values() {
 		v2 := v
@@ -1012,7 +1013,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		return q.store.FetchTagValues(ctx, meta, req, cb, common.DefaultSearchOptions())
 	})
 
-	valueCollector := util.NewDistinctValueCollector(q.limits.MaxBytesPerTagValuesQuery(tenantID), func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	valueCollector := collector.NewDistinctValue(q.limits.MaxBytesPerTagValuesQuery(tenantID), func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 	err = q.engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
 	if err != nil {
 		return nil, err

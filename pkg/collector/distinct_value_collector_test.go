@@ -1,4 +1,4 @@
-package util
+package collector
 
 import (
 	"sort"
@@ -8,7 +8,7 @@ import (
 )
 
 func TestDistinctValueCollectorDiff(t *testing.T) {
-	d := NewDistinctValueCollector[string](0, func(s string) int { return len(s) })
+	d := NewDistinctValue[string](0, func(s string) int { return len(s) })
 
 	d.Collect("123")
 	d.Collect("4567")

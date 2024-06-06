@@ -16,7 +16,7 @@ type Finder interface {
 }
 
 type TagsCallback func(t string, scope traceql.AttributeScope)
-type TagValuesCallback func(t string)
+type TagValuesCallback func(t string) bool
 type TagValuesCallbackV2 func(traceql.Static) (stop bool)
 
 type Searcher interface {
