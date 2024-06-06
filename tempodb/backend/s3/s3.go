@@ -20,7 +20,6 @@ import (
 	"github.com/cristalhq/hedgedhttp"
 	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/minio/minio-go/v7"
 	minio "github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/opentracing/opentracing-go"
@@ -639,7 +638,7 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	// add instrumentation
 	transport := instrumentation.NewTransport(customTransport)
 	var stats *hedgedhttp.Stats
-
+	var clnt *minio.Core
 	if hedge && cfg.HedgeRequestsAt != 0 {
 		transport, stats, err = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, cfg.HedgeRequestsUpTo, transport)
 		if err != nil {
@@ -661,15 +660,11 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		opts.BucketLookup = minio.BucketLookupType(cfg.BucketLookupType)
 	}
 
-	clnt = minio.NewCore(cfg.Endpoint, opts)
+	clnt, err = minio.NewCore(cfg.Endpoint, opts)
 
-	if cfg.UseDualStack {
-		clnt.SetS3EnableDualstack(true)
-	} else {
-		clnt.SetS3EnableDualstack(false)
-	}
+	clnt.SetS3EnableDualstack(cfg.UseDualStack)
 
-	return clnt
+	return clnt, err
 }
 
 func readError(err error) error {
