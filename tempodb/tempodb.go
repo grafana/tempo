@@ -375,7 +375,7 @@ func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta,
 		return nil, err
 	}
 
-	collectors := map[string]*util.DistinctStringCollector{}
+	collectors := map[string]*util.DistinctStringCollector{} // jpe - scoped collector
 
 	rw.cfg.Search.ApplyToOptions(&opts)
 	err = block.SearchTags(ctx, attributeScope, func(s string, scope traceql.AttributeScope) {

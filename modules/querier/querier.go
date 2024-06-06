@@ -20,7 +20,6 @@ import (
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"go.uber.org/atomic"
 	"go.uber.org/multierr"
 	"golang.org/x/sync/semaphore"
 
@@ -479,7 +478,28 @@ func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) 
 }
 
 func (q *Querier) SearchTagsBlocks(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsResponse, error) {
-	return q.internalTagsSearchBlock(ctx, req)
+	v2Response, err := q.internalTagsSearchBlockV2(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	distinctValues := util.NewDistinctStringCollector(0)
+
+	// flatten v2 response
+	for _, s := range v2Response.Scopes {
+		// SearchTags does not include intrinsics on an empty scope, but v2 does.
+		if req.SearchReq.Scope == "" && s.Name == api.ParamScopeIntrinsic {
+			continue
+		}
+
+		for _, t := range s.Tags {
+			distinctValues.Collect(t)
+		}
+	}
+
+	return &tempopb.SearchTagsResponse{
+		TagNames: distinctValues.Strings(),
+	}, nil
 }
 
 func (q *Querier) SearchTagValuesBlocks(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (*tempopb.SearchTagValuesResponse, error) {
@@ -825,12 +845,17 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 	return q.store.Search(ctx, meta, req.SearchReq, opts)
 }
 
-func (q *Querier) internalTagsSearchBlock(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsResponse, error) {
+func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsV2Response, error) {
 	// check if it's the special intrinsic scope
-	// todo: note that we are passing this up for every block search. we could add it in the frontend instead
+	// note that every block search passes the same values up. this could be handled in the frontend and be far more efficient
 	if req.SearchReq.Scope == api.ParamScopeIntrinsic {
-		return &tempopb.SearchTagsResponse{
-			TagNames: search.GetVirtualIntrinsicValues(),
+		return &tempopb.SearchTagsV2Response{
+			Scopes: []*tempopb.SearchTagsV2Scope{
+				{
+					Name: api.ParamScopeIntrinsic,
+					Tags: search.GetVirtualIntrinsicValues(),
+				},
+			},
 		}, nil
 	}
 
@@ -871,59 +896,20 @@ func (q *Querier) internalTagsSearchBlock(ctx context.Context, req *tempopb.Sear
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	return q.store.SearchTags(ctx, meta, req.SearchReq.Scope, opts)
-}
-
-func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsV2Response, error) {
-	scopes := []string{req.SearchReq.Scope}
-
-	if req.SearchReq.Scope == "" {
-		// start with intrinsic scope and all traceql attribute scopes
-		atts := traceql.AllAttributeScopes()
-		scopes = make([]string, 0, len(atts)+1) // +1 for intrinsic
-		scopes = append(scopes, api.ParamScopeIntrinsic)
-		for _, att := range atts {
-			scopes = append(scopes, att.String())
-		}
-	}
-
-	resps := make([]*tempopb.SearchTagsResponse, len(scopes))
-
-	overallError := atomic.NewError(nil)
-	wg := sync.WaitGroup{}
-	for idx := range scopes {
-		resps[idx] = &tempopb.SearchTagsResponse{}
-
-		wg.Add(1)
-		go func(scope string, ret **tempopb.SearchTagsResponse) {
-			defer wg.Done()
-			newReq := *req
-			newReq.SearchReq.Scope = scope
-			resp, err := q.SearchTagsBlocks(ctx, &newReq)
-			if err != nil {
-				overallError.Store(fmt.Errorf("error searching tags: %s: %w", scope, err))
-				return
-			}
-
-			*ret = resp
-		}(scopes[idx], &resps[idx])
-	}
-	wg.Wait()
-
-	err := overallError.Load()
+	resp, err := q.store.SearchTags(ctx, meta, req.SearchReq.Scope, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	// build response
-	resp := &tempopb.SearchTagsV2Response{}
-	for idx := range resps {
+	// add intrinsic tags if scope is none
+	if req.SearchReq.Scope == "" {
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
-			Name: scopes[idx],
-			Tags: resps[idx].TagNames,
+			Name: api.ParamScopeIntrinsic,
+			Tags: search.GetVirtualIntrinsicValues(),
 		})
 	}
-	return resp, err
+
+	return resp, nil
 }
 
 func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (*tempopb.SearchTagValuesResponse, error) {
