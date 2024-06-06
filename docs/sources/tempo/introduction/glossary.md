@@ -8,7 +8,7 @@ title: Glossary
 weight: 500
 ---
 
-# Terminology
+# Glossary
 
 The following terms are often used when discussing traces.
 
