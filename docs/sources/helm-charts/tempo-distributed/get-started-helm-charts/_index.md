@@ -61,7 +61,7 @@ Verify that you have:
 {{< admonition type="note" >}}
 If you want to access Tempo from outside of the Kubernetes cluster, you may need an ingress.
 Ingress-related procedures are optional.
-{{M< /admonition >}}
+{{< /admonition >}}
 
 <!-- This section should be verified before being made visible. It’s from Mimir and might need to be updated for Tempo.
 
