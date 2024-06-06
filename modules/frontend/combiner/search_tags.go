@@ -43,7 +43,7 @@ func NewTypedSearchTags(limitBytes int) GRPCCombiner[*tempopb.SearchTagsResponse
 
 func NewSearchTagsV2(limitBytes int) Combiner {
 	// Distinct collector map to collect scopes and scope values
-	distinctValues := map[string]*collector.DistinctString{} // jpe - scoped collector
+	distinctValues := collector.NewScopedDistinctString(limitBytes)
 
 	return &genericCombiner[*tempopb.SearchTagsV2Response]{
 		httpStatusCode: 200,
@@ -51,48 +51,35 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 		current:        &tempopb.SearchTagsV2Response{Scopes: make([]*tempopb.SearchTagsV2Scope, 0)},
 		combine: func(partial, final *tempopb.SearchTagsV2Response, _ PipelineResponse) error {
 			for _, res := range partial.GetScopes() {
-				dvc := distinctValues[res.Name]
-				if dvc == nil {
-					dvc = collector.NewDistinctString(limitBytes)
-					distinctValues[res.Name] = dvc
-				}
 				for _, tag := range res.Tags {
-					dvc.Collect(tag)
+					distinctValues.Collect(res.Name, tag)
 				}
 			}
 			return nil
 		},
 		finalize: func(final *tempopb.SearchTagsV2Response) (*tempopb.SearchTagsV2Response, error) {
-			final.Scopes = make([]*tempopb.SearchTagsV2Scope, 0, len(distinctValues))
+			collected := distinctValues.Strings()
+			final.Scopes = make([]*tempopb.SearchTagsV2Scope, 0, len(collected))
 
-			for scope, dvc := range distinctValues {
+			for scope, vals := range collected {
 				final.Scopes = append(final.Scopes, &tempopb.SearchTagsV2Scope{
 					Name: scope,
-					Tags: dvc.Strings(),
+					Tags: vals,
 				})
 			}
 			return final, nil
 		},
 		quit: func(_ *tempopb.SearchTagsV2Response) bool {
-			for _, dvc := range distinctValues {
-				if dvc.Exceeded() {
-					return true
-				}
-			}
-			return false
+			return distinctValues.Exceeded()
 		},
 		diff: func(response *tempopb.SearchTagsV2Response) (*tempopb.SearchTagsV2Response, error) {
-			response.Scopes = make([]*tempopb.SearchTagsV2Scope, 0, len(distinctValues))
+			collected := distinctValues.Diff()
+			response.Scopes = make([]*tempopb.SearchTagsV2Scope, 0, len(collected))
 
-			for scope, dvc := range distinctValues {
-				diff := dvc.Diff()
-				if len(diff) == 0 {
-					continue
-				}
-
+			for scope, vals := range collected {
 				response.Scopes = append(response.Scopes, &tempopb.SearchTagsV2Scope{
 					Name: scope,
-					Tags: diff,
+					Tags: vals,
 				})
 			}
 

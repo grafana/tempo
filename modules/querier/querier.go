@@ -562,33 +562,28 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 	}
 
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := map[string]*collector.DistinctString{}
+	distinctValues := collector.NewScopedDistinctString(limit)
 
-	for _, resp := range lookupResults { // jpe scoped collector
+	for _, resp := range lookupResults {
 		for _, res := range resp.response.(*tempopb.SearchTagsV2Response).Scopes {
-			dvc := distinctValues[res.Name]
-			if dvc == nil {
-				dvc = collector.NewDistinctString(limit)
-				distinctValues[res.Name] = dvc
-			}
-
 			for _, tag := range res.Tags {
-				dvc.Collect(tag)
+				distinctValues.Collect(res.Name, tag)
 			}
 		}
 	}
 
-	for scope, dvc := range distinctValues {
-		if dvc.Exceeded() {
-			level.Warn(log.Logger).Log("msg", "size of tags in instance exceeded limit, reduce cardinality or size of tags", "userID", userID, "limit", limit, "scope", scope, "total", dvc.TotalDataSize())
-		}
+	if distinctValues.Exceeded() {
+		level.Warn(log.Logger).Log("msg", "size of tags in instance exceeded limit, reduce cardinality or size of tags", "userID", userID, "limit", limit)
 	}
 
-	resp := &tempopb.SearchTagsV2Response{}
-	for scope, dvc := range distinctValues {
+	collected := distinctValues.Strings()
+	resp := &tempopb.SearchTagsV2Response{
+		Scopes: make([]*tempopb.SearchTagsV2Scope, 0, len(collected)),
+	}
+	for scope, vals := range collected {
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
 			Name: scope,
-			Tags: dvc.Strings(),
+			Tags: vals,
 		})
 	}
 
@@ -763,7 +758,7 @@ func (q *Querier) SpanMetricsSummary(
 	return resp, nil
 }
 
-func valuesToV2Response(distinctValues *collector.DistinctValue[tempopb.TagValue]) *tempopb.SearchTagValuesV2Response { // jpe this exists?
+func valuesToV2Response(distinctValues *collector.DistinctValue[tempopb.TagValue]) *tempopb.SearchTagValuesV2Response {
 	resp := &tempopb.SearchTagValuesV2Response{}
 	for _, v := range distinctValues.Values() {
 		v2 := v

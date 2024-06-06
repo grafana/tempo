@@ -228,7 +228,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.Sea
 	}
 
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
-	collectors := map[traceql.AttributeScope]*collector.DistinctString{}
+	distinctValues := collector.NewScopedDistinctString(limit)
 
 	searchBlock := func(ctx context.Context, s common.Searcher, spanName string) error {
 		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTags."+spanName)
@@ -237,18 +237,12 @@ func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.Sea
 		if s == nil {
 			return nil
 		}
-		// if dv.Exceeded() { jpe - restore with scoped collector
-		// 	return nil
-		// }
+		if distinctValues.Exceeded() {
+			return nil
+		}
 		err = s.SearchTags(ctx, attributeScope, func(t string, scope traceql.AttributeScope) {
-			dv, ok := collectors[scope]
-			if !ok {
-				dv = collector.NewDistinctString(limit)
-				collectors[scope] = dv
-			}
-			dv.Collect(t)
-
-		}, common.DefaultSearchOptions()) // jpe - add scoped collector?
+			distinctValues.Collect(scope.String(), t)
+		}, common.DefaultSearchOptions())
 		if err != nil && !errors.Is(err, common.ErrUnsupported) {
 			return fmt.Errorf("unexpected error searching tags: %w", err)
 		}
@@ -279,15 +273,18 @@ func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.Sea
 		}
 	}
 
-	// if distinctValues.Exceeded() { // jpe - restore with scoped collector
-	// 	level.Warn(log.Logger).Log("msg", "size of tags in instance exceeded limit, reduce cardinality or size of tags", "userID", userID, "limit", limit, "total", distinctValues.TotalDataSize())
-	// }
+	if distinctValues.Exceeded() {
+		level.Warn(log.Logger).Log("msg", "size of tags in instance exceeded limit, reduce cardinality or size of tags", "userID", userID, "limit", limit)
+	}
 
-	resp := &tempopb.SearchTagsV2Response{}
-	for scope, collector := range collectors {
+	collected := distinctValues.Strings()
+	resp := &tempopb.SearchTagsV2Response{
+		Scopes: make([]*tempopb.SearchTagsV2Scope, 0, len(collected)+1), // +1 for intrinsic below
+	}
+	for scope, vals := range collected {
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
-			Name: scope.String(),
-			Tags: collector.Strings(),
+			Name: scope,
+			Tags: vals,
 		})
 	}
 

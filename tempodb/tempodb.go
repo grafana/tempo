@@ -375,27 +375,25 @@ func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta,
 		return nil, err
 	}
 
-	collectors := map[string]*collector.DistinctString{} // jpe - scoped collector
+	distinctValues := collector.NewScopedDistinctString(0) // todo: propagate limit?
 
 	rw.cfg.Search.ApplyToOptions(&opts)
 	err = block.SearchTags(ctx, attributeScope, func(s string, scope traceql.AttributeScope) {
-		col, ok := collectors[scope.String()]
-		if !ok {
-			col = collector.NewDistinctString(0)
-			collectors[scope.String()] = col
-		}
-		col.Collect(s)
+		distinctValues.Collect(scope.String(), s)
 	}, opts)
 	if err != nil {
 		return nil, err
 	}
 
 	// build response
-	resp := &tempopb.SearchTagsV2Response{}
-	for scope, collector := range collectors {
+	collected := distinctValues.Strings()
+	resp := &tempopb.SearchTagsV2Response{
+		Scopes: make([]*tempopb.SearchTagsV2Scope, 0, len(collected)),
+	}
+	for scope, vals := range collected {
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
 			Name: scope,
-			Tags: collector.Strings(),
+			Tags: vals,
 		})
 	}
 
