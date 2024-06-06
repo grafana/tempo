@@ -91,8 +91,6 @@ type Client struct {
 	// default to Auto.
 	lookup BucketLookupType
 
-	mode UseDualStack
-
 	// Factory for MD5 hash functions.
 	md5Hasher    func() md5simd.Hasher
 	sha256Hasher func() md5simd.Hasher
@@ -110,7 +108,6 @@ type Options struct {
 	Trace        *httptrace.ClientTrace
 	Region       string
 	BucketLookup BucketLookupType
-	UseDualStack UseDualStack
 
 	// Allows setting a custom region lookup based on URL pattern
 	// not all URL patterns are covered by this library so if you

@@ -661,9 +661,15 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		opts.BucketLookup = minio.BucketLookupType(cfg.BucketLookupType)
 	}
 
-	opts.UseDualStack = cfg.UseDualStack
+	clnt = minio.NewCore(cfg.Endpoint, opts)
 
-	return minio.NewCore(cfg.Endpoint, opts)
+	if cfg.UseDualStack {
+		clnt.SetS3EnableDualstack(true)
+	} else {
+		clnt.SetS3EnableDualstack(false)
+	}
+
+	return clnt
 }
 
 func readError(err error) error {
