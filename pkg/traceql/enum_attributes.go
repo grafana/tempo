@@ -89,6 +89,13 @@ const (
 
 	IntrinsicTraceID
 	IntrinsicSpanID
+	IntrinsicSpanStatus
+	IntrinsicSpanStatusMessage
+	IntrinsicSpanDuration
+	IntrinsicSpanName
+	IntrinsicSpanKind
+	IntrinsicTraceRootName
+	IntrinsicTraceRootServiceName
 
 	// not yet implemented in traceql and may never be. these exist so that we can retrieve
 	// these fields from the fetch layer
@@ -151,6 +158,20 @@ func (i Intrinsic) String() string {
 		return "trace:id"
 	case IntrinsicTraceStartTime:
 		return "traceStartTime"
+	case IntrinsicSpanStatus:
+		return "span:status"
+	case IntrinsicSpanStatusMessage:
+		return "span:statusMessage"
+	case IntrinsicSpanDuration:
+		return "span:duration"
+	case IntrinsicSpanName:
+		return "span:name"
+	case IntrinsicSpanKind:
+		return "span:kind"
+	case IntrinsicTraceRootName:
+		return "trace:rootName"
+	case IntrinsicTraceRootServiceName:
+		return "trace:rootServiceName"
 	case IntrinsicSpanID:
 		return "span:id"
 	// below is unimplemented
