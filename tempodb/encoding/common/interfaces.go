@@ -15,9 +15,11 @@ type Finder interface {
 	FindTraceByID(ctx context.Context, id ID, opts SearchOptions) (*tempopb.Trace, error)
 }
 
-type TagsCallback func(t string, scope traceql.AttributeScope)
-type TagValuesCallback func(t string) bool
-type TagValuesCallbackV2 func(traceql.Static) (stop bool)
+type (
+	TagsCallback        func(t string, scope traceql.AttributeScope)
+	TagValuesCallback   func(t string) bool
+	TagValuesCallbackV2 func(traceql.Static) (stop bool)
+)
 
 type Searcher interface {
 	Search(ctx context.Context, req *tempopb.SearchRequest, opts SearchOptions) (*tempopb.SearchResponse, error)
