@@ -1380,7 +1380,7 @@ func autoComplete(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata
 				return bb.FetchTagValues(ctx, req, cb, common.DefaultSearchOptions())
 			})
 
-			valueCollector := collector.NewDistinctValue[tempopb.TagValue](0, func(v tempopb.TagValue) int { return 0 })
+			valueCollector := collector.NewDistinctValue[tempopb.TagValue](0, func(_ tempopb.TagValue) int { return 0 })
 			err := e.ExecuteTagValues(ctx, tc.tag, tc.query, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
 			if errors.Is(err, common.ErrUnsupported) {
 				return
@@ -2114,7 +2114,7 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	})
 	assert.Equal(t, expected, tagValues.TagValues)
 
-	valueCollector := collector.NewDistinctValue[tempopb.TagValue](0, func(value tempopb.TagValue) int { return 0 })
+	valueCollector := collector.NewDistinctValue[tempopb.TagValue](0, func(_ tempopb.TagValue) int { return 0 })
 	f := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
 		return r.FetchTagValues(ctx, block.BlockMeta(), req, cb, common.DefaultSearchOptions())
 	})
