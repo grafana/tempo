@@ -7,9 +7,10 @@ type ScopedDistinctString struct {
 	exceeded bool
 }
 
-func NewScoped(sz int) *ScopedDistinctString {
+func NewScopedDistinctString(sz int) *ScopedDistinctString {
 	return &ScopedDistinctString{
-		cols: map[string]*DistinctString{},
+		cols:   map[string]*DistinctString{},
+		maxLen: sz,
 	}
 }
 
@@ -23,7 +24,7 @@ func (d *ScopedDistinctString) Collect(scope string, val string) {
 
 	// get or create collector
 	col, ok := d.cols[scope]
-	if ok {
+	if !ok {
 		col = NewDistinctString(0)
 		d.cols[scope] = col
 	}

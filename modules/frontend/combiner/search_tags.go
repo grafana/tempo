@@ -43,7 +43,7 @@ func NewTypedSearchTags(limitBytes int) GRPCCombiner[*tempopb.SearchTagsResponse
 
 func NewSearchTagsV2(limitBytes int) Combiner {
 	// Distinct collector map to collect scopes and scope values
-	distinctValues := map[string]*collector.DistinctString{}
+	distinctValues := map[string]*collector.DistinctString{} // jpe - scoped collector
 
 	return &genericCombiner[*tempopb.SearchTagsV2Response]{
 		httpStatusCode: 200,
