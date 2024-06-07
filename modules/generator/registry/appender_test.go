@@ -10,6 +10,7 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/metadata"
 	"github.com/prometheus/prometheus/storage"
+	prometheus_storage "github.com/prometheus/prometheus/storage"
 )
 
 type noopAppender struct{}
@@ -38,6 +39,10 @@ func (n noopAppender) Commit() error { return nil }
 func (n noopAppender) Rollback() error { return nil }
 
 func (n noopAppender) UpdateMetadata(storage.SeriesRef, labels.Labels, metadata.Metadata) (storage.SeriesRef, error) {
+	return 0, nil
+}
+
+func (n noopAppender) AppendCTZeroSample(ref prometheus_storage.SeriesRef, l labels.Labels, t, ct int64) (prometheus_storage.SeriesRef, error) {
 	return 0, nil
 }
 
@@ -116,5 +121,9 @@ func (c *capturingAppender) Rollback() error {
 }
 
 func (c *capturingAppender) UpdateMetadata(storage.SeriesRef, labels.Labels, metadata.Metadata) (storage.SeriesRef, error) {
+	return 0, nil
+}
+
+func (c *capturingAppender) AppendCTZeroSample(ref prometheus_storage.SeriesRef, l labels.Labels, t, ct int64) (prometheus_storage.SeriesRef, error) {
 	return 0, nil
 }

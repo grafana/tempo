@@ -147,8 +147,10 @@ type testHistogram struct {
 	registry   *TestRegistry
 }
 
-var _ Histogram = (*testHistogram)(nil)
-var _ metric = (*testHistogram)(nil)
+var (
+	_ Histogram = (*testHistogram)(nil)
+	_ metric    = (*testHistogram)(nil)
+)
 
 func (t *testHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, _ string, multiplier float64) {
 	lbls := make(labels.Labels, len(labelValueCombo.labels.names))

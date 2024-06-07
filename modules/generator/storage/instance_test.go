@@ -203,7 +203,7 @@ func TestInstance_remoteWriteHeaders(t *testing.T) {
 
 	headers := map[string]string{user.OrgIDHeaderName: "my-other-tenant"}
 
-	instance, err := New(&cfg, &mockOverrides{headers}, "test-tenant", &noopRegisterer{}, logger)
+	instance, err := New(&cfg, &mockOverrides{headers, false}, "test-tenant", &noopRegisterer{}, logger)
 	require.NoError(t, err)
 
 	// Refuse requests - the WAL should buffer data until requests succeed
@@ -361,11 +361,16 @@ func waitUntil(timeout time.Duration, f func() bool) error {
 var _ Overrides = (*mockOverrides)(nil)
 
 type mockOverrides struct {
-	headers map[string]string
+	headers          map[string]string
+	nativeHistograms bool
 }
 
 func (m *mockOverrides) MetricsGeneratorRemoteWriteHeaders(string) map[string]string {
 	return m.headers
+}
+
+func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(string) bool {
+	return m.nativeHistograms
 }
 
 var _ prometheus.Registerer = (*noopRegisterer)(nil)

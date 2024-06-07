@@ -22,13 +22,15 @@ type nativeHistogram struct {
 	//  Downside: you need to list labels at creation time while our interfaces only pass labels at observe time, this
 	//  will requires a bigger refactor, maybe something for a second pass?
 	//  Might break processors that have variable amount of labels...
-	//promHistogram prometheus.HistogramVec
+	//  promHistogram prometheus.HistogramVec
 
 	seriesMtx sync.Mutex
 	series    map[uint64]*nativeHistogramSeries
 
 	onAddSerie    func(count uint32) bool
 	onRemoveSerie func(count uint32)
+
+	buckets []float64
 
 	traceIDLabelName string
 }
@@ -45,7 +47,7 @@ var (
 	_ metric    = (*nativeHistogram)(nil)
 )
 
-func newNativeHistogram(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string) *nativeHistogram {
+func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string) *nativeHistogram {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -65,6 +67,7 @@ func newNativeHistogram(name string, onAddSeries func(uint32) bool, onRemoveSeri
 		onAddSerie:       onAddSeries,
 		onRemoveSerie:    onRemoveSeries,
 		traceIDLabelName: traceIDLabelName,
+		buckets:          buckets,
 	}
 }
 
@@ -85,11 +88,6 @@ func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, 
 	}
 
 	newSeries := h.newSeries(labelValueCombo, value, traceID, multiplier)
-	s, ok = h.series[hash]
-	if ok {
-		h.updateSeries(s, value, traceID, multiplier)
-		return
-	}
 	h.series[hash] = newSeries
 }
 
@@ -98,11 +96,9 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 		// TODO move these labels in HistogramOpts.ConstLabels?
 		labels: labelValueCombo.getLabelPair(),
 		promHistogram: prometheus.NewHistogram(prometheus.HistogramOpts{
-			Name: h.name(),
-			// TODO support help text
-			Help: "Native histogram for metric " + h.name(),
-			// TODO we can set these to also emit a classic histogram
-			Buckets: nil,
+			Name:    h.name(),
+			Help:    "Native histogram for metric " + h.name(),
+			Buckets: h.buckets,
 			// TODO check if these values are sensible and break them out
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  100,
@@ -138,6 +134,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 	}
 	lbls := make(labels.Labels, 1+len(externalLabels)+labelsCount)
 	lb := labels.NewBuilder(lbls)
+	activeSeries = len(h.series)
 
 	lb.Set(labels.MetricName, h.metricName)
 
@@ -164,7 +161,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		encodedHistogram := encodedMetric.GetHistogram()
 
 		// Decode to Prometheus representation
-		h := promhistogram.Histogram{
+		hist := promhistogram.Histogram{
 			Schema:        encodedHistogram.GetSchema(),
 			Count:         encodedHistogram.GetSampleCount(),
 			Sum:           encodedHistogram.GetSampleSum(),
@@ -172,29 +169,27 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 			ZeroCount:     encodedHistogram.GetZeroCount(),
 		}
 		if len(encodedHistogram.PositiveSpan) > 0 {
-			h.PositiveSpans = make([]promhistogram.Span, len(encodedHistogram.PositiveSpan))
+			hist.PositiveSpans = make([]promhistogram.Span, len(encodedHistogram.PositiveSpan))
 			for i, span := range encodedHistogram.PositiveSpan {
-				h.PositiveSpans[i] = promhistogram.Span{
+				hist.PositiveSpans[i] = promhistogram.Span{
 					Offset: span.GetOffset(),
 					Length: span.GetLength(),
 				}
 			}
 		}
-		h.PositiveBuckets = encodedHistogram.PositiveDelta
+		hist.PositiveBuckets = encodedHistogram.PositiveDelta
 		if len(encodedHistogram.NegativeSpan) > 0 {
-			h.NegativeSpans = make([]promhistogram.Span, len(encodedHistogram.NegativeSpan))
+			hist.NegativeSpans = make([]promhistogram.Span, len(encodedHistogram.NegativeSpan))
 			for i, span := range encodedHistogram.NegativeSpan {
-				h.NegativeSpans[i] = promhistogram.Span{
+				hist.NegativeSpans[i] = promhistogram.Span{
 					Offset: span.GetOffset(),
 					Length: span.GetLength(),
 				}
 			}
 		}
-		h.NegativeBuckets = encodedHistogram.NegativeDelta
+		hist.NegativeBuckets = encodedHistogram.NegativeDelta
 
-		// TODO update activeSeries
-
-		_, err = appender.AppendHistogram(0, lb.Labels(), timeMs, &h, nil)
+		_, err = appender.AppendHistogram(0, lb.Labels(), timeMs, &hist, nil)
 		if err != nil {
 			return activeSeries, err
 		}
