@@ -14,7 +14,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback, opts common.SearchOptions) error {
+func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, opts common.SearchOptions) error {
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return errors.Wrap(err, "conditions invalid")
@@ -62,7 +62,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 }
 
 // autocompleteIter creates an iterator that will collect values for a given attribute/tag.
-func autocompleteIter(ctx context.Context, req traceql.AutocompleteRequest, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
+func autocompleteIter(ctx context.Context, req traceql.FetchTagValuesRequest, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
 	iter, err := createDistinctIterator(ctx, req.Conditions, req.TagName, pf, opts, dc)
 	if err != nil {
 		return nil, fmt.Errorf("error creating iterator: %w", err)

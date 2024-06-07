@@ -682,13 +682,13 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ c
 	}, nil
 }
 
-func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback, opts common.SearchOptions) error {
+func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, opts common.SearchOptions) error {
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return fmt.Errorf("conditions invalid: %w", err)
 	}
 
-	mingledConditions, _, _, _, err := categorizeConditions(req.Conditions)
+	_, mingledConditions, err := categorizeConditions(req.Conditions)
 	if err != nil {
 		return err
 	}

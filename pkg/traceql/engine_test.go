@@ -357,14 +357,14 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 	assert.Equal(t, expectedTraceSearchMetadata, traceSearchMetadata)
 }
 
-var _ AutocompleteFetcher = (*MockAutocompleteFetcher)(nil)
+var _ TagValuesFetcher = (*MockAutocompleteFetcher)(nil)
 
 type MockAutocompleteFetcher struct {
 	query    string
 	iterator SpansetIterator
 }
 
-func (m *MockAutocompleteFetcher) Fetch(ctx context.Context, req AutocompleteRequest, cb AutocompleteCallback) error {
+func (m *MockAutocompleteFetcher) Fetch(ctx context.Context, req FetchTagValuesRequest, cb FetchTagValuesCallback) error {
 	rootExpr, err := Parse(m.query)
 	if err != nil {
 		return err
@@ -546,7 +546,7 @@ func TestExecuteTagValues(t *testing.T) {
 	now := time.Now()
 	e := Engine{}
 
-	mockSpansetFetcher := func(query string) AutocompleteFetcher {
+	mockSpansetFetcher := func(query string) TagValuesFetcher {
 		return &MockAutocompleteFetcher{
 			query: query,
 			iterator: &MockSpanSetIterator{

@@ -135,10 +135,10 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 	traces := newTraceIDHandler(cfg, o, tracePipeline, logger)
 	search := newSearchHTTPHandler(cfg, searchPipeline, logger)
-	searchTags := newTagHTTPHandler(searchTagsPipeline, o, combiner.NewSearchTags, logger)
-	searchTagsV2 := newTagHTTPHandler(searchTagsPipeline, o, combiner.NewSearchTagsV2, logger)
-	searchTagValues := newTagHTTPHandler(searchTagValuesPipeline, o, combiner.NewSearchTagValues, logger)
-	searchTagValuesV2 := newTagHTTPHandler(searchTagValuesPipeline, o, combiner.NewSearchTagValuesV2, logger)
+	searchTags := newTagHTTPHandler(cfg, searchTagsPipeline, o, combiner.NewSearchTags, logger)
+	searchTagsV2 := newTagHTTPHandler(cfg, searchTagsPipeline, o, combiner.NewSearchTagsV2, logger)
+	searchTagValues := newTagHTTPHandler(cfg, searchTagValuesPipeline, o, combiner.NewSearchTagValues, logger)
+	searchTagValuesV2 := newTagHTTPHandler(cfg, searchTagValuesPipeline, o, combiner.NewSearchTagValuesV2, logger)
 	metrics := newMetricsSummaryHandler(metricsPipeline, logger)
 	queryrange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger)
 
@@ -155,10 +155,10 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 		// grpc/streaming
 		streamingSearch:      newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
-		streamingTags:        newTagStreamingGRPCHandler(searchTagsPipeline, apiPrefix, o, logger),
-		streamingTagsV2:      newTagV2StreamingGRPCHandler(searchTagsPipeline, apiPrefix, o, logger),
-		streamingTagValues:   newTagValuesStreamingGRPCHandler(searchTagValuesPipeline, apiPrefix, o, logger),
-		streamingTagValuesV2: newTagValuesV2StreamingGRPCHandler(searchTagValuesPipeline, apiPrefix, o, logger),
+		streamingTags:        newTagStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
+		streamingTagsV2:      newTagV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
+		streamingTagValues:   newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger),
+		streamingTagValuesV2: newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger),
 		streamingQueryRange:  newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger),
 
 		cacheProvider: cacheProvider,

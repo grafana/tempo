@@ -1,0 +1,1656 @@
+{
+  "batches": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-requester"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.4.0"
+            }
+          },
+          {
+            "key": "ip",
+            "value": {
+              "stringValue": "1.2.3.4"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "mythical-requester"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "1gZXnld4dYc=",
+              "name": "requester",
+              "kind": "SPAN_KIND_CLIENT",
+              "startTimeUnixNano": "1658320854877522688",
+              "endTimeUnixNano": "1658320854923357184",
+              "attributes": [
+                {
+                  "key": "beast",
+                  "value": {
+                    "stringValue": "manticore"
+                  }
+                },
+                {
+                  "key": "god",
+                  "value": {
+                    "stringValue": "ares"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-requester"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.4.0"
+            }
+          },
+          {
+            "key": "ip",
+            "value": {
+              "stringValue": "1.2.3.4"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "@opentelemetry/instrumentation-net",
+            "version": "0.27.1"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "U/Mym4Y9qV0=",
+              "parentSpanId": "1gZXnld4dYc=",
+              "name": "tcp.connect",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1658320854877839616",
+              "endTimeUnixNano": "1658320854878545408",
+              "attributes": [
+                {
+                  "key": "net.transport",
+                  "value": {
+                    "stringValue": "ip_tcp"
+                  }
+                },
+                {
+                  "key": "net.peer.name",
+                  "value": {
+                    "stringValue": "mythical-server"
+                  }
+                },
+                {
+                  "key": "net.peer.port",
+                  "value": {
+                    "stringValue": "4000"
+                  }
+                },
+                {
+                  "key": "net.peer.ip",
+                  "value": {
+                    "stringValue": "172.22.0.7"
+                  }
+                },
+                {
+                  "key": "net.host.ip",
+                  "value": {
+                    "stringValue": "172.22.0.11"
+                  }
+                },
+                {
+                  "key": "net.host.port",
+                  "value": {
+                    "intValue": "46950"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-server"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.4.0"
+            }
+          },
+          {
+            "key": "ip",
+            "value": {
+              "stringValue": "1.2.3.5"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "@opentelemetry/instrumentation-http",
+            "version": "0.27.0"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "mZKWiJfzyEY=",
+              "parentSpanId": "1gZXnld4dYc=",
+              "name": "GET /:endpoint",
+              "kind": "SPAN_KIND_SERVER",
+              "startTimeUnixNano": "1658320854878927360",
+              "endTimeUnixNano": "1658320854908913408",
+              "attributes": [
+                {
+                  "key": "http.url",
+                  "value": {
+                    "stringValue": "http://mythical-server:4000/manticore"
+                  }
+                },
+                {
+                  "key": "http.host",
+                  "value": {
+                    "stringValue": "mythical-server:4000"
+                  }
+                },
+                {
+                  "key": "net.host.name",
+                  "value": {
+                    "stringValue": "mythical-server"
+                  }
+                },
+                {
+                  "key": "http.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.target",
+                  "value": {
+                    "stringValue": "/manticore"
+                  }
+                },
+                {
+                  "key": "http.flavor",
+                  "value": {
+                    "stringValue": "1.1"
+                  }
+                },
+                {
+                  "key": "net.transport",
+                  "value": {
+                    "stringValue": "ip_tcp"
+                  }
+                },
+                {
+                  "key": "god",
+                  "value": {
+                    "stringValue": "zeus"
+                  }
+                },
+                {
+                  "key": "beast",
+                  "value": {
+                    "stringValue": "manticore"
+                  }
+                },
+                {
+                  "key": "span.kind",
+                  "value": {
+                    "intValue": "2"
+                  }
+                },
+                {
+                  "key": "net.host.ip",
+                  "value": {
+                    "stringValue": "::ffff:172.22.0.7"
+                  }
+                },
+                {
+                  "key": "net.host.port",
+                  "value": {
+                    "intValue": "4000"
+                  }
+                },
+                {
+                  "key": "net.peer.ip",
+                  "value": {
+                    "stringValue": "::ffff:172.22.0.11"
+                  }
+                },
+                {
+                  "key": "net.peer.port",
+                  "value": {
+                    "intValue": "46950"
+                  }
+                },
+                {
+                  "key": "http.status_code",
+                  "value": {
+                    "intValue": "200"
+                  }
+                },
+                {
+                  "key": "http.status_text",
+                  "value": {
+                    "stringValue": "OK"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/:endpoint"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-server"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.4.0"
+            }
+          },
+          {
+            "key": "ip",
+            "value": {
+              "stringValue": "1.2.3.5"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "@opentelemetry/instrumentation-express",
+            "version": "0.28.0"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "A38EGjeny0Y=",
+              "parentSpanId": "mZKWiJfzyEY=",
+              "name": "middleware - query",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1658320854879122688",
+              "endTimeUnixNano": "1658320854879143680",
+              "attributes": [
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/"
+                  }
+                },
+                {
+                  "key": "express.name",
+                  "value": {
+                    "stringValue": "query"
+                  }
+                },
+                {
+                  "key": "express.type",
+                  "value": {
+                    "stringValue": "middleware"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-server"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.4.0"
+            }
+          },
+          {
+            "key": "ip",
+            "value": {
+              "stringValue": "1.2.3.5"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "@opentelemetry/instrumentation-express",
+            "version": "0.28.0"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "7eLzskA9GzQ=",
+              "parentSpanId": "mZKWiJfzyEY=",
+              "name": "middleware - expressInit",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1658320854879322624",
+              "endTimeUnixNano": "1658320854879355136",
+              "attributes": [
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/"
+                  }
+                },
+                {
+                  "key": "express.name",
+                  "value": {
+                    "stringValue": "expressInit"
+                  }
+                },
+                {
+                  "key": "express.type",
+                  "value": {
+                    "stringValue": "middleware"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-server"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.4.0"
+            }
+          },
+          {
+            "key": "ip",
+            "value": {
+              "stringValue": "1.2.3.5"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "@opentelemetry/instrumentation-express",
+            "version": "0.28.0"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "I+ErHCWWzIw=",
+              "parentSpanId": "mZKWiJfzyEY=",
+              "name": "middleware - jsonParser",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1658320854879422208",
+              "endTimeUnixNano": "1658320854879444480",
+              "attributes": [
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/"
+                  }
+                },
+                {
+                  "key": "express.name",
+                  "value": {
+                    "stringValue": "jsonParser"
+                  }
+                },
+                {
+                  "key": "express.type",
+                  "value": {
+                    "stringValue": "middleware"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-server"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.4.0"
+            }
+          },
+          {
+            "key": "ip",
+            "value": {
+              "stringValue": "1.2.3.5"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "@opentelemetry/instrumentation-express",
+            "version": "0.28.0"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "w4/Ni3Fq4S4=",
+              "parentSpanId": "mZKWiJfzyEY=",
+              "name": "request handler - /:endpoint",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1658320854879524608",
+              "endTimeUnixNano": "1658320854879526400",
+              "attributes": [
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/:endpoint"
+                  }
+                },
+                {
+                  "key": "express.name",
+                  "value": {
+                    "stringValue": "/:endpoint"
+                  }
+                },
+                {
+                  "key": "express.type",
+                  "value": {
+                    "stringValue": "request_handler"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-server"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.4.0"
+            }
+          },
+          {
+            "key": "ip",
+            "value": {
+              "stringValue": "1.2.3.5"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "@opentelemetry/instrumentation-pg",
+            "version": "0.28.0"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "JT4hL+I0IWw=",
+              "parentSpanId": "mZKWiJfzyEY=",
+              "name": "pg.query:SELECT",
+              "kind": "SPAN_KIND_CLIENT",
+              "startTimeUnixNano": "1658320854879610624",
+              "endTimeUnixNano": "1658320854903392000",
+              "attributes": [
+                {
+                  "key": "db.name",
+                  "value": {
+                    "stringValue": "postgres"
+                  }
+                },
+                {
+                  "key": "db.system",
+                  "value": {
+                    "stringValue": "postgresql"
+                  }
+                },
+                {
+                  "key": "db.connection_string",
+                  "value": {
+                    "stringValue": "jdbc:postgresql://mythical-database:5432/postgres"
+                  }
+                },
+                {
+                  "key": "network.peer.address",
+                  "value": {
+                    "stringValue": "mythical-database"
+                  }
+                },
+                {
+                  "key": "db.user",
+                  "value": {
+                    "stringValue": "postgres"
+                  }
+                },
+                {
+                  "key": "db.statement",
+                  "value": {
+                    "stringValue": "SELECT name from manticore"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-server"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.4.0"
+            }
+          },
+          {
+            "key": "ip",
+            "value": {
+              "stringValue": "1.2.3.5"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "@opentelemetry/instrumentation-http",
+            "version": "0.27.0"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "Iq8HyyCGMcA=",
+              "parentSpanId": "mZKWiJfzyEY=",
+              "name": "HTTP POST",
+              "kind": "SPAN_KIND_CLIENT",
+              "startTimeUnixNano": "1658320854909347584",
+              "endTimeUnixNano": "1658320854913202688",
+              "attributes": [
+                {
+                  "key": "http.url",
+                  "value": {
+                    "stringValue": "http://loki:3100/loki/api/v1/push"
+                  }
+                },
+                {
+                  "key": "http.method",
+                  "value": {
+                    "stringValue": "POST"
+                  }
+                },
+                {
+                  "key": "http.target",
+                  "value": {
+                    "stringValue": "/loki/api/v1/push"
+                  }
+                },
+                {
+                  "key": "net.peer.name",
+                  "value": {
+                    "stringValue": "loki"
+                  }
+                },
+                {
+                  "key": "net.peer.ip",
+                  "value": {
+                    "stringValue": "172.22.0.6"
+                  }
+                },
+                {
+                  "key": "net.peer.port",
+                  "value": {
+                    "intValue": "3100"
+                  }
+                },
+                {
+                  "key": "http.host",
+                  "value": {
+                    "stringValue": "loki:3100"
+                  }
+                },
+                {
+                  "key": "http.status_code",
+                  "value": {
+                    "intValue": "204"
+                  }
+                },
+                {
+                  "key": "http.status_text",
+                  "value": {
+                    "stringValue": "NO CONTENT"
+                  }
+                },
+                {
+                  "key": "http.flavor",
+                  "value": {
+                    "stringValue": "1.1"
+                  }
+                },
+                {
+                  "key": "net.transport",
+                  "value": {
+                    "stringValue": "ip_tcp"
+                  }
+                }
+              ],
+              "status": {
+                "code": "STATUS_CODE_OK"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-server"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.4.0"
+            }
+          },
+          {
+            "key": "ip",
+            "value": {
+              "stringValue": "1.2.3.5"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "@opentelemetry/instrumentation-net",
+            "version": "0.27.1"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "5xenytYWGCM=",
+              "parentSpanId": "Iq8HyyCGMcA=",
+              "name": "tcp.connect",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1658320854909465856",
+              "endTimeUnixNano": "1658320854911322112",
+              "attributes": [
+                {
+                  "key": "net.transport",
+                  "value": {
+                    "stringValue": "ip_tcp"
+                  }
+                },
+                {
+                  "key": "net.peer.name",
+                  "value": {
+                    "stringValue": "loki"
+                  }
+                },
+                {
+                  "key": "net.peer.port",
+                  "value": {
+                    "stringValue": "3100"
+                  }
+                },
+                {
+                  "key": "net.peer.ip",
+                  "value": {
+                    "stringValue": "172.22.0.6"
+                  }
+                },
+                {
+                  "key": "net.host.ip",
+                  "value": {
+                    "stringValue": "172.22.0.7"
+                  }
+                },
+                {
+                  "key": "net.host.port",
+                  "value": {
+                    "intValue": "51090"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-server"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.4.0"
+            }
+          },
+          {
+            "key": "ip",
+            "value": {
+              "stringValue": "1.2.3.5"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "@opentelemetry/instrumentation-dns",
+            "version": "0.27.1"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "G1lOVPULKHA=",
+              "parentSpanId": "Iq8HyyCGMcA=",
+              "name": "dns.lookup",
+              "kind": "SPAN_KIND_CLIENT",
+              "startTimeUnixNano": "1658320854909490688",
+              "endTimeUnixNano": "1658320854910292992",
+              "attributes": [
+                {
+                  "key": "peer.ipv4",
+                  "value": {
+                    "stringValue": "172.22.0.6"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-requester"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.4.0"
+            }
+          },
+          {
+            "key": "ip",
+            "value": {
+              "stringValue": "1.2.3.4"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "mythical-requester"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "oMg46pqD9yY=",
+              "parentSpanId": "1gZXnld4dYc=",
+              "name": "publish_to_queue",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1658320854915519232",
+              "endTimeUnixNano": "1658320854916681216",
+              "status": {
+                "code": "STATUS_CODE_OK"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-requester"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.4.0"
+            }
+          },
+          {
+            "key": "ip",
+            "value": {
+              "stringValue": "1.2.3.4"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "@opentelemetry/instrumentation-amqplib",
+            "version": "0.28.0"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "CbyBh8ln9LQ=",
+              "parentSpanId": "oMg46pqD9yY=",
+              "name": "<default> -> messages send",
+              "kind": "SPAN_KIND_PRODUCER",
+              "startTimeUnixNano": "1658320854915559936",
+              "endTimeUnixNano": "1658320854915628800",
+              "attributes": [
+                {
+                  "key": "messaging.protocol_version",
+                  "value": {
+                    "stringValue": "0.9.1"
+                  }
+                },
+                {
+                  "key": "messaging.url",
+                  "value": {
+                    "stringValue": "amqp://mythical-queue"
+                  }
+                },
+                {
+                  "key": "messaging.protocol",
+                  "value": {
+                    "stringValue": "AMQP"
+                  }
+                },
+                {
+                  "key": "net.peer.name",
+                  "value": {
+                    "stringValue": "mythical-queue"
+                  }
+                },
+                {
+                  "key": "net.peer.port",
+                  "value": {
+                    "intValue": "5672"
+                  }
+                },
+                {
+                  "key": "messaging.system",
+                  "value": {
+                    "stringValue": "rabbitmq"
+                  }
+                },
+                {
+                  "key": "messaging.destination",
+                  "value": {
+                    "stringValue": ""
+                  }
+                },
+                {
+                  "key": "messaging.destination_kind",
+                  "value": {
+                    "stringValue": "topic"
+                  }
+                },
+                {
+                  "key": "messaging.rabbitmq.routing_key",
+                  "value": {
+                    "stringValue": "messages"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-requester"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.4.0"
+            }
+          },
+          {
+            "key": "ip",
+            "value": {
+              "stringValue": "1.2.3.4"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "mythical-requester"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "HZ43ugub274=",
+              "parentSpanId": "1gZXnld4dYc=",
+              "name": "log_to_loki",
+              "kind": "SPAN_KIND_CLIENT",
+              "startTimeUnixNano": "1658320854916730624",
+              "endTimeUnixNano": "1658320854930536704",
+              "status": {
+                "code": "STATUS_CODE_OK"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-requester"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.4.0"
+            }
+          },
+          {
+            "key": "ip",
+            "value": {
+              "stringValue": "1.2.3.4"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "mythical-requester"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "ByBJTXxe2aI=",
+              "parentSpanId": "1gZXnld4dYc=",
+              "name": "log_to_loki",
+              "kind": "SPAN_KIND_CLIENT",
+              "startTimeUnixNano": "1658320854923263232",
+              "endTimeUnixNano": "1658320854929491200",
+              "status": {
+                "code": "STATUS_CODE_OK"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-requester"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.4.0"
+            }
+          },
+          {
+            "key": "ip",
+            "value": {
+              "stringValue": "1.2.3.4"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "@opentelemetry/instrumentation-net",
+            "version": "0.27.1"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "ivrh44gllP0=",
+              "parentSpanId": "1gZXnld4dYc=",
+              "name": "tcp.connect",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1658320854923789312",
+              "endTimeUnixNano": "1658320854925569280",
+              "attributes": [
+                {
+                  "key": "net.transport",
+                  "value": {
+                    "stringValue": "ip_tcp"
+                  }
+                },
+                {
+                  "key": "net.peer.name",
+                  "value": {
+                    "stringValue": "loki"
+                  }
+                },
+                {
+                  "key": "net.peer.port",
+                  "value": {
+                    "stringValue": "3100"
+                  }
+                },
+                {
+                  "key": "net.peer.ip",
+                  "value": {
+                    "stringValue": "172.22.0.6"
+                  }
+                },
+                {
+                  "key": "net.host.ip",
+                  "value": {
+                    "stringValue": "172.22.0.11"
+                  }
+                },
+                {
+                  "key": "net.host.port",
+                  "value": {
+                    "intValue": "41594"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-requester"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.4.0"
+            }
+          },
+          {
+            "key": "ip",
+            "value": {
+              "stringValue": "1.2.3.4"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "@opentelemetry/instrumentation-net",
+            "version": "0.27.1"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "o/mJQtsdDeE=",
+              "parentSpanId": "1gZXnld4dYc=",
+              "name": "tcp.connect",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1658320854924354560",
+              "endTimeUnixNano": "1658320854925760768",
+              "attributes": [
+                {
+                  "key": "net.transport",
+                  "value": {
+                    "stringValue": "ip_tcp"
+                  }
+                },
+                {
+                  "key": "net.peer.name",
+                  "value": {
+                    "stringValue": "loki"
+                  }
+                },
+                {
+                  "key": "net.peer.port",
+                  "value": {
+                    "stringValue": "3100"
+                  }
+                },
+                {
+                  "key": "net.peer.ip",
+                  "value": {
+                    "stringValue": "172.22.0.6"
+                  }
+                },
+                {
+                  "key": "net.host.ip",
+                  "value": {
+                    "stringValue": "172.22.0.11"
+                  }
+                },
+                {
+                  "key": "net.host.port",
+                  "value": {
+                    "intValue": "41596"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.4.0"
+            }
+          },
+          {
+            "key": "ip",
+            "value": {
+              "stringValue": "1.2.3.5"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "@opentelemetry/instrumentation-amqplib",
+            "version": "0.28.0"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "qMP7VjNGIK8=",
+              "parentSpanId": "CbyBh8ln9LQ=",
+              "name": "messages process",
+              "kind": "SPAN_KIND_CONSUMER",
+              "startTimeUnixNano": "1658320854925510400",
+              "endTimeUnixNano": "1658320854926209792",
+              "attributes": [
+                {
+                  "key": "messaging.protocol_version",
+                  "value": {
+                    "stringValue": "0.9.1"
+                  }
+                },
+                {
+                  "key": "messaging.url",
+                  "value": {
+                    "stringValue": "amqp://mythical-queue"
+                  }
+                },
+                {
+                  "key": "messaging.protocol",
+                  "value": {
+                    "stringValue": "AMQP"
+                  }
+                },
+                {
+                  "key": "net.peer.name",
+                  "value": {
+                    "stringValue": "mythical-queue"
+                  }
+                },
+                {
+                  "key": "net.peer.port",
+                  "value": {
+                    "intValue": "5672"
+                  }
+                },
+                {
+                  "key": "messaging.system",
+                  "value": {
+                    "stringValue": "rabbitmq"
+                  }
+                },
+                {
+                  "key": "messaging.destination",
+                  "value": {
+                    "stringValue": ""
+                  }
+                },
+                {
+                  "key": "messaging.destination_kind",
+                  "value": {
+                    "stringValue": "topic"
+                  }
+                },
+                {
+                  "key": "messaging.rabbitmq.routing_key",
+                  "value": {
+                    "stringValue": "messages"
+                  }
+                },
+                {
+                  "key": "messaging.operation",
+                  "value": {
+                    "stringValue": "process"
+                  }
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "mythical-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "nodejs"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.4.0"
+            }
+          },
+          {
+            "key": "ip",
+            "value": {
+              "stringValue": "1.2.3.5"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "mythical-recorder"
+          },
+          "spans": [
+            {
+              "traceId": "QpC1h3qZMN55u0KDZTmOzA==",
+              "spanId": "j9WiKB5PGKw=",
+              "parentSpanId": "qMP7VjNGIK8=",
+              "name": "process_message",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1658320854925532928",
+              "endTimeUnixNano": "1658320854963292160",
+              "status": {}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

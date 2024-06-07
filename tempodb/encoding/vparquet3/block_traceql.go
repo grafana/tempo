@@ -1,6 +1,7 @@
 package vparquet3
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -816,6 +817,8 @@ const (
 	// a fake intrinsic scope at the trace lvl
 	intrinsicScopeTrace = -1
 	intrinsicScopeSpan  = -2
+	intrinsicScopeEvent = -3
+	intrinsicScopeLink  = -4
 )
 
 // todo: scope is the only field used here. either remove the other fields or use them.
@@ -841,10 +844,14 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicTraceRootService: {intrinsicScopeTrace, traceql.TypeString, columnPathRootServiceName},
 	traceql.IntrinsicTraceRootSpan:    {intrinsicScopeTrace, traceql.TypeString, columnPathRootSpanName},
 	traceql.IntrinsicTraceDuration:    {intrinsicScopeTrace, traceql.TypeDuration, columnPathDurationNanos},
-	traceql.IntrinsicTraceID:          {intrinsicScopeTrace, traceql.TypeDuration, columnPathTraceID},
+	traceql.IntrinsicTraceID:          {intrinsicScopeTrace, traceql.TypeString, columnPathTraceID},
 	traceql.IntrinsicTraceStartTime:   {intrinsicScopeTrace, traceql.TypeDuration, columnPathStartTimeUnixNano},
 
-	traceql.IntrinsicServiceStats: {intrinsicScopeTrace, traceql.TypeNil, ""}, // Not used in vparquet3, this entry is only used to assign default scope.
+	// Not used in vparquet2, the following entries are only used to assign the default scope
+	traceql.IntrinsicEventName:    {intrinsicScopeEvent, traceql.TypeNil, ""},
+	traceql.IntrinsicLinkTraceID:  {intrinsicScopeLink, traceql.TypeNil, ""},
+	traceql.IntrinsicLinkSpanID:   {intrinsicScopeLink, traceql.TypeNil, ""},
+	traceql.IntrinsicServiceStats: {intrinsicScopeTrace, traceql.TypeNil, ""},
 }
 
 // Lookup table of all well-known attributes with dedicated columns
@@ -928,6 +935,17 @@ func checkConditions(conditions []traceql.Condition) error {
 
 		default:
 			return fmt.Errorf("unknown operation. condition: %+v", cond)
+		}
+
+		// Check for conditions that are not supported in vParquet3
+		if cond.Attribute.Intrinsic == traceql.IntrinsicEventName ||
+			cond.Attribute.Intrinsic == traceql.IntrinsicLinkTraceID ||
+			cond.Attribute.Intrinsic == traceql.IntrinsicLinkSpanID {
+
+			return fmt.Errorf("intrinsic '%s' not supported in vParquet3: %w", cond.Attribute.Intrinsic, common.ErrUnsupported)
+		}
+		if cond.Attribute.Scope == traceql.AttributeScopeEvent || cond.Attribute.Scope == traceql.AttributeScopeLink {
+			return fmt.Errorf("scope '%s' not supported in vParquet3: %w", cond.Attribute.Scope, common.ErrUnsupported)
 		}
 
 		// Verify all operands are of the same type
@@ -1407,31 +1425,22 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	// matched upstream to a resource.
 	// TODO - After introducing AllConditions it seems like some of this logic overlaps.
 	//        Determine if it can be generalized or simplified.
-	var (
-		// If there are only span conditions, then don't return a span upstream
-		// unless it matches at least 1 span-level condition.
-		spanRequireAtLeastOneMatch = len(spanConditions) > 0 && len(resourceConditions) == 0 && len(traceConditions) == 0
 
-		// If there are only resource conditions, then don't return a resource upstream
-		// unless it matches at least 1 resource-level condition.
-		batchRequireAtLeastOneMatch = len(spanConditions) == 0 && len(resourceConditions) > 0 && len(traceConditions) == 0
-
-		// Don't return the final spanset upstream unless it matched at least 1 condition
-		// anywhere, except in the case of the empty query: {}
-		batchRequireAtLeastOneMatchOverall = len(conds) > 0 && len(traceConditions) == 0 && len(traceConditions) == 0
-	)
+	// Don't return the final spanset upstream unless it matched at least 1 condition
+	// anywhere, except in the case of the empty query: {}
+	batchRequireAtLeastOneMatchOverall := len(conds) > 0 && len(traceConditions) == 0
 
 	// Optimization for queries like {resource.x... && span.y ...}
 	// Requires no mingled scopes like .foo=x, which could be satisfied
 	// one either resource or span.
 	allConditions = allConditions && !mingledConditions
 
-	spanIter, err := createSpanIterator(makeIter, primaryIter, spanConditions, spanRequireAtLeastOneMatch, allConditions, dc, selectAll)
+	spanIter, err := createSpanIterator(makeIter, primaryIter, spanConditions, allConditions, dc, selectAll)
 	if err != nil {
 		return nil, fmt.Errorf("creating span iterator: %w", err)
 	}
 
-	resourceIter, err := createResourceIterator(makeIter, spanIter, resourceConditions, batchRequireAtLeastOneMatch, batchRequireAtLeastOneMatchOverall, allConditions, dc, selectAll)
+	resourceIter, err := createResourceIterator(makeIter, spanIter, resourceConditions, batchRequireAtLeastOneMatchOverall, allConditions, dc, selectAll)
 	if err != nil {
 		return nil, fmt.Errorf("creating resource iterator: %w", err)
 	}
@@ -1441,7 +1450,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
 // one span each.  Spans are returned that match any of the given conditions.
-func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatch, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool) (parquetquery.Iterator, error) {
+func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs          = map[string]string{}
 		columnPredicates        = map[string][]parquetquery.Predicate{}
@@ -1481,7 +1490,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicSpanID:
-			pred, err := createStringPredicate(cond.Op, cond.Operands)
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
 			if err != nil {
 				return nil, err
 			}
@@ -1687,9 +1696,6 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 	}
 
 	minCount := 0
-	if requireAtLeastOneMatch {
-		minCount = 1
-	}
 	if allConditions {
 		// The final number of expected attributes.
 		distinct := map[string]struct{}{}
@@ -1713,16 +1719,6 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		iters = nil
 	}
 
-	// This is an optimization for cases when allConditions is false, and
-	// only span conditions are present, and we require at least one of them to match.
-	// Wrap up the individual conditions with a union and move it into the required list.
-	// This skips over static columns like ID that are omnipresent. This is also only
-	// possible when there isn't a duration filter because it's computed from start/end.
-	if requireAtLeastOneMatch && len(iters) > 0 {
-		required = append(required, unionIfNeeded(DefinitionLevelResourceSpansILSSpan, iters, nil))
-		iters = nil
-	}
-
 	// if there are no direct conditions imposed on the span/span attributes level we are purposefully going to request the "Kind" column
 	//  b/c it is extremely cheap to retrieve. retrieving matching spans in this case will allow aggregates such as "count" to be computed
 	//  how do we know to pull duration for things like | avg(duration) > 1s? look at avg(span.http.status_code) it pushes a column request down here
@@ -1743,7 +1739,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 // createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
 // one batch each. It builds on top of the span iterator, and turns the groups of spans and resource-level values into
 // spansets. Spansets are returned that match any of the given conditions.
-func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatch, requireAtLeastOneMatchOverall, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool) (parquetquery.Iterator, error) {
+func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatchOverall, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
@@ -1833,9 +1829,6 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	}
 
 	minCount := 0
-	if requireAtLeastOneMatch {
-		minCount = 1
-	}
 	if allConditions {
 		// The final number of expected attributes
 		distinct := map[string]struct{}{}
@@ -1852,15 +1845,6 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	// We simply move all iterators into the required list.
 	if allConditions {
 		required = append(required, iters...)
-		iters = nil
-	}
-
-	// This is an optimization for cases when only resource conditions are
-	// present and we require at least one of them to match.  Wrap
-	// up the individual conditions with a union and move it into the
-	// required list.
-	if requireAtLeastOneMatch && len(iters) > 0 {
-		required = append(required, unionIfNeeded(DefinitionLevelResourceSpans, iters, nil))
 		iters = nil
 	}
 
@@ -1885,7 +1869,14 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 	for _, cond := range conds {
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicTraceID:
-			traceIters = append(traceIters, makeIter(columnPathTraceID, NewTraceIDShardingPredicate(shardID, shardCount), columnPathTraceID))
+			var pred parquetquery.Predicate
+			if allConditions {
+				pred, err = createBytesPredicate(cond.Op, cond.Operands, false)
+				if err != nil {
+					return nil, err
+				}
+			}
+			traceIters = append(traceIters, makeIter(columnPathTraceID, pred, columnPathTraceID))
 		case traceql.IntrinsicTraceDuration:
 			var pred parquetquery.Predicate
 			if allConditions {
@@ -2012,6 +2003,41 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 		return parquetquery.NewStringLessEqualPredicate([]byte(s)), nil
 	default:
 		return nil, fmt.Errorf("operand not supported for strings: %+v", op)
+	}
+}
+
+func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan bool) (parquetquery.Predicate, error) {
+	if op == traceql.OpNone {
+		return nil, nil
+	}
+
+	for _, op := range operands {
+		if op.Type != traceql.TypeString {
+			return nil, fmt.Errorf("operand is not string: %+v", op)
+		}
+	}
+
+	s := operands[0].S
+
+	var id []byte
+	id, err := util.HexStringToTraceID(s)
+	if isSpan {
+		id, err = util.HexStringToSpanID(s)
+	}
+
+	if err != nil {
+		return nil, nil
+	}
+
+	id = bytes.TrimLeft(id, "\x00")
+
+	switch op {
+	case traceql.OpEqual:
+		return parquetquery.NewByteEqualPredicate(id), nil
+	case traceql.OpNotEqual:
+		return parquetquery.NewByteNotEqualPredicate(id), nil
+	default:
+		return nil, fmt.Errorf("operand not supported for IDs: %+v", op)
 	}
 }
 
@@ -2256,6 +2282,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		switch kv.Key {
 		case columnPathSpanID:
 			sp.id = kv.Value.ByteArray()
+			sp.addSpanAttr(traceql.IntrinsicSpanIDAttribute, traceql.NewStaticString(util.SpanIDToHexString(kv.Value.ByteArray())))
 		case columnPathSpanStartTime:
 			sp.startTimeUnixNanos = kv.Value.Uint64()
 		case columnPathSpanDuration:
@@ -2467,6 +2494,7 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		switch e.Key {
 		case columnPathTraceID:
 			finalSpanset.TraceID = e.Value.ByteArray()
+			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceIDAttribute, traceql.NewStaticString(util.TraceIDToHexString(e.Value.ByteArray()))})
 		case columnPathStartTimeUnixNano:
 			finalSpanset.StartTimeUnixNanos = e.Value.Uint64()
 		case columnPathDurationNanos:

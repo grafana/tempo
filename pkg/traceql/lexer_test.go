@@ -76,12 +76,19 @@ func TestLexerScopedIntrinsic(t *testing.T) {
 		{`trace:duration`, []int{TRACE_COLON, IDURATION}},
 		{`trace:rootName`, []int{TRACE_COLON, ROOTNAME}},
 		{`trace:rootService`, []int{TRACE_COLON, ROOTSERVICE}},
-		// // span scoped intrinsics
+		{`trace:id`, []int{TRACE_COLON, ID}},
+		// span scoped intrinsics
 		{`span:duration`, []int{SPAN_COLON, IDURATION}},
 		{`span:name`, []int{SPAN_COLON, NAME}},
 		{`span:kind`, []int{SPAN_COLON, KIND}},
 		{`span:status`, []int{SPAN_COLON, STATUS}},
 		{`span:statusMessage`, []int{SPAN_COLON, STATUS_MESSAGE}},
+		{`span:id`, []int{SPAN_COLON, ID}},
+		// event scoped intrinsics
+		{`event:name`, []int{EVENT_COLON, NAME}},
+		// link scoped intrinsics
+		{`link:traceID`, []int{LINK_COLON, TRACE_ID}},
+		{`link:spanID`, []int{LINK_COLON, SPAN_ID}},
 	}))
 }
 

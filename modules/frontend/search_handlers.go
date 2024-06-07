@@ -51,7 +51,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 
 		var finalResponse *tempopb.SearchResponse
 		c := combiner.NewTypedSearch(int(limit))
-		collector := pipeline.NewGRPCCollector[*tempopb.SearchResponse](next, c, func(sr *tempopb.SearchResponse) error {
+		collector := pipeline.NewGRPCCollector[*tempopb.SearchResponse](next, cfg.ResponseConsumers, c, func(sr *tempopb.SearchResponse) error {
 			finalResponse = sr // sadly we can't srv.Send directly into the collector. we need bytesProcessed for the SLO calculations
 			return srv.Send(sr)
 		})
@@ -65,7 +65,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 			bytesProcessed = finalResponse.Metrics.InspectedBytes
 		}
 		postSLOHook(nil, tenant, bytesProcessed, duration, err)
-		logResult(logger, tenant, duration.Seconds(), req, finalResponse, err)
+		logResult(logger, tenant, duration.Seconds(), req, finalResponse, nil, err)
 		return err
 	}
 }
@@ -104,7 +104,7 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 
 		// build and use roundtripper
 		combiner := combiner.NewTypedSearch(int(limit))
-		rt := pipeline.NewHTTPCollector(next, combiner)
+		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, combiner)
 
 		resp, err := rt.RoundTrip(req)
 
@@ -117,7 +117,7 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
-		logResult(logger, tenant, duration.Seconds(), searchReq, searchResp, err)
+		logResult(logger, tenant, duration.Seconds(), searchReq, searchResp, resp, err)
 		return resp, err
 	})
 }
@@ -135,12 +135,18 @@ func adjustLimit(limit, defaultLimit, maxLimit uint32) (uint32, error) {
 	return limit, nil
 }
 
-func logResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.SearchRequest, resp *tempopb.SearchResponse, err error) {
+func logResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.SearchRequest, resp *tempopb.SearchResponse, httpResp *http.Response, err error) {
+	statusCode := -1
+	if httpResp != nil {
+		statusCode = httpResp.StatusCode
+	}
+
 	if resp == nil {
 		level.Info(logger).Log(
 			"msg", "search results - no resp",
 			"tenant", tenantID,
 			"duration_seconds", durationSeconds,
+			"status_code", statusCode,
 			"error", err)
 
 		return
@@ -153,6 +159,7 @@ func logResult(logger log.Logger, tenantID string, durationSeconds float64, req 
 			"query", req.Query,
 			"range_seconds", req.End-req.Start,
 			"duration_seconds", durationSeconds,
+			"status_code", statusCode,
 			"error", err)
 		return
 	}
@@ -171,6 +178,7 @@ func logResult(logger log.Logger, tenantID string, durationSeconds float64, req 
 		"inspected_bytes", resp.Metrics.InspectedBytes,
 		"inspected_traces", resp.Metrics.InspectedTraces,
 		"inspected_spans", resp.Metrics.InspectedSpans,
+		"status_code", statusCode,
 		"error", err)
 }
 

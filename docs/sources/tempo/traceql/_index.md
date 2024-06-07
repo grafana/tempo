@@ -84,9 +84,11 @@ The following table shows the current available scoped intrinsic fields:
 | `span:duration`         | duration    | end - start time of the span                                    | `{ span:duration > 100ms }`            |
 | `span:name`             | string      | operation or span name                                          | `{ span:name = "HTTP POST" }`          |
 | `span:kind`             | kind enum   | kind: server, client, producer, consumer, internal, unspecified | `{ span:kind = server }`               |
+| `span:id`               | strig       | span id using hex string                                        | `{ span:id = "0000000000000001" }`     |
 | `trace:duration`        | duration    | max(end) - min(start) time of the spans in the trace            | `{ trace:duration > 100ms }`           |
 | `trace:rootName`        | string      | if it exists the name of the root span in the trace             | `{ trace:rootName = "HTTP GET" }`      |
 | `trace:rootServiceName` | string      | if it exists the service name of the root span in the trace     | `{ trace:rootServiceName = "gateway" }`|
+| `trace:id`              | string      | trace id using hex string                                       | `{ trace:id = "1234567890abcdef" }`    |
 
 {{< admonition type="note" >}}
 `traceDuration`, `rootName`, and `rootServiceName` are trace-level intrinsics and will be the same for all spans in the same trace. Additionally,

@@ -284,6 +284,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		span.LogFields(ot_log.String("timeEnd", fmt.Sprint(timeEnd)))
 
 		opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
+		opts.BlockReplicationFactor = backend.DefaultReplicationFactor
 		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req.TraceID, req.BlockStart, req.BlockEnd, timeStart, timeEnd, opts)
 		if err != nil {
 			retErr := fmt.Errorf("error querying store in Querier.FindTraceByID: %w", err)
@@ -1020,7 +1021,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		return nil, err
 	}
 
-	fetcher := traceql.NewAutocompleteFetcherWrapper(func(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback) error {
+	fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
 		return q.store.FetchTagValues(ctx, meta, req, cb, common.DefaultSearchOptions())
 	})
 

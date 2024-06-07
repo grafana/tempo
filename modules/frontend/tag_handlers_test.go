@@ -339,90 +339,92 @@ func TestSearchTagValuesV2FailurePropagatesFromQueriers(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		// queriers will return one errr
-		f := frontendWithSettings(t, &mockRoundTripper{
-			statusCode:    tc.querierCode,
-			statusMessage: tc.querierMessage,
-			err:           tc.querierErr,
-			responseFn: func() proto.Message {
-				return &tempopb.SearchTagsResponse{}
-			},
-		}, nil, &Config{
-			MultiTenantQueriesEnabled: true,
-			MaxRetries:                0, // disable retries or it will try twice and get success. the querier response is designed to fail exactly once
-			TraceByID: TraceByIDConfig{
-				QueryShards: minQueryShards,
-				SLO:         testSLOcfg,
-			},
-			Search: SearchConfig{
-				Sharder: SearchSharderConfig{
-					ConcurrentRequests:    defaultConcurrentRequests,
-					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		t.Run(tc.name, func(t *testing.T) {
+			// queriers will return one err
+			f := frontendWithSettings(t, &mockRoundTripper{
+				statusCode:    tc.querierCode,
+				statusMessage: tc.querierMessage,
+				err:           tc.querierErr,
+				responseFn: func() proto.Message {
+					return &tempopb.SearchTagsResponse{}
 				},
-				SLO: testSLOcfg,
-			},
-			Metrics: MetricsConfig{
-				Sharder: QueryRangeSharderConfig{
-					ConcurrentRequests:    defaultConcurrentRequests,
-					TargetBytesPerRequest: defaultTargetBytesPerRequest,
-					Interval:              1 * time.Second,
+			}, nil, &Config{
+				MultiTenantQueriesEnabled: true,
+				MaxRetries:                0, // disable retries or it will try twice and get success. the querier response is designed to fail exactly once
+				TraceByID: TraceByIDConfig{
+					QueryShards: minQueryShards,
+					SLO:         testSLOcfg,
 				},
-				SLO: testSLOcfg,
-			},
-		}, nil)
-
-		httpReq := httptest.NewRequest("GET", "/api/v2/search/tags?start=1&end=10000", nil)
-		httpResp := httptest.NewRecorder()
-
-		ctx := user.InjectOrgID(httpReq.Context(), "foo")
-		httpReq = httpReq.WithContext(ctx)
-
-		f.SearchHandler.ServeHTTP(httpResp, httpReq)
-		require.Equal(t, tc.expectedMessage, httpResp.Body.String())
-		require.Equal(t, tc.expectedCode, httpResp.Code)
-
-		// have to recreate the frontend to reset the querier response
-		f = frontendWithSettings(t, &mockRoundTripper{
-			statusCode:    tc.querierCode,
-			statusMessage: tc.querierMessage,
-			err:           tc.querierErr,
-			responseFn: func() proto.Message {
-				return &tempopb.SearchResponse{
-					Traces:  []*tempopb.TraceSearchMetadata{},
-					Metrics: &tempopb.SearchMetrics{},
-				}
-			},
-		}, nil, &Config{
-			MultiTenantQueriesEnabled: true,
-			MaxRetries:                0, // disable retries or it will try twice and get success
-			TraceByID: TraceByIDConfig{
-				QueryShards: minQueryShards,
-				SLO:         testSLOcfg,
-			},
-			Search: SearchConfig{
-				Sharder: SearchSharderConfig{
-					ConcurrentRequests:    defaultConcurrentRequests,
-					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				Search: SearchConfig{
+					Sharder: SearchSharderConfig{
+						ConcurrentRequests:    defaultConcurrentRequests,
+						TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					},
+					SLO: testSLOcfg,
 				},
-				SLO: testSLOcfg,
-			},
-			Metrics: MetricsConfig{
-				Sharder: QueryRangeSharderConfig{
-					ConcurrentRequests:    defaultConcurrentRequests,
-					TargetBytesPerRequest: defaultTargetBytesPerRequest,
-					Interval:              1 * time.Second,
+				Metrics: MetricsConfig{
+					Sharder: QueryRangeSharderConfig{
+						ConcurrentRequests:    defaultConcurrentRequests,
+						TargetBytesPerRequest: defaultTargetBytesPerRequest,
+						Interval:              1 * time.Second,
+					},
+					SLO: testSLOcfg,
 				},
-				SLO: testSLOcfg,
-			},
-		}, nil)
+			}, nil)
 
-		// grpc
-		srv := newMockStreamingServer[*tempopb.SearchTagValuesV2Response]("bar", nil)
-		grpcReq := &tempopb.SearchTagValuesRequest{
-			TagName: "foo",
-		}
-		err := f.streamingTagValuesV2(grpcReq, srv)
-		require.Equal(t, tc.expectedErr, err)
+			httpReq := httptest.NewRequest("GET", "/api/v2/search/tags?start=1&end=10000", nil)
+			httpResp := httptest.NewRecorder()
+
+			ctx := user.InjectOrgID(httpReq.Context(), "foo")
+			httpReq = httpReq.WithContext(ctx)
+
+			f.SearchHandler.ServeHTTP(httpResp, httpReq)
+			require.Equal(t, tc.expectedMessage, httpResp.Body.String())
+			require.Equal(t, tc.expectedCode, httpResp.Code)
+
+			// have to recreate the frontend to reset the querier response
+			f = frontendWithSettings(t, &mockRoundTripper{
+				statusCode:    tc.querierCode,
+				statusMessage: tc.querierMessage,
+				err:           tc.querierErr,
+				responseFn: func() proto.Message {
+					return &tempopb.SearchResponse{
+						Traces:  []*tempopb.TraceSearchMetadata{},
+						Metrics: &tempopb.SearchMetrics{},
+					}
+				},
+			}, nil, &Config{
+				MultiTenantQueriesEnabled: true,
+				MaxRetries:                0, // disable retries or it will try twice and get success
+				TraceByID: TraceByIDConfig{
+					QueryShards: minQueryShards,
+					SLO:         testSLOcfg,
+				},
+				Search: SearchConfig{
+					Sharder: SearchSharderConfig{
+						ConcurrentRequests:    defaultConcurrentRequests,
+						TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					},
+					SLO: testSLOcfg,
+				},
+				Metrics: MetricsConfig{
+					Sharder: QueryRangeSharderConfig{
+						ConcurrentRequests:    defaultConcurrentRequests,
+						TargetBytesPerRequest: defaultTargetBytesPerRequest,
+						Interval:              1 * time.Second,
+					},
+					SLO: testSLOcfg,
+				},
+			}, nil)
+
+			// grpc
+			srv := newMockStreamingServer[*tempopb.SearchTagValuesV2Response]("bar", nil)
+			grpcReq := &tempopb.SearchTagValuesRequest{
+				TagName: "foo",
+			}
+			err := f.streamingTagValuesV2(grpcReq, srv)
+			require.Equal(t, tc.expectedErr, err)
+		})
 	}
 }
 

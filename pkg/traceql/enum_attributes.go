@@ -8,6 +8,8 @@ const (
 	AttributeScopeNone AttributeScope = iota
 	AttributeScopeResource
 	AttributeScopeSpan
+	AttributeScopeEvent
+	AttributeScopeLink
 	AttributeScopeUnknown
 
 	none     = "none"
@@ -26,6 +28,10 @@ func (s AttributeScope) String() string {
 		return "span"
 	case AttributeScopeResource:
 		return "resource"
+	case AttributeScopeEvent:
+		return "event"
+	case AttributeScopeLink:
+		return "link"
 	}
 
 	return fmt.Sprintf("att(%d).", s)
@@ -37,6 +43,10 @@ func AttributeScopeFromString(s string) AttributeScope {
 		return AttributeScopeSpan
 	case "resource":
 		return AttributeScopeResource
+	case "event":
+		return AttributeScopeEvent
+	case "link":
+		return AttributeScopeLink
 	case "":
 		fallthrough
 	case none:
@@ -62,6 +72,9 @@ const (
 	IntrinsicNestedSetLeft
 	IntrinsicNestedSetRight
 	IntrinsicNestedSetParent
+	IntrinsicEventName
+	IntrinsicLinkSpanID
+	IntrinsicLinkTraceID
 
 	// not yet implemented in traceql but will be
 	IntrinsicParent
@@ -74,11 +87,13 @@ const (
 	IntrinsicStructuralSibling
 	IntrinsicStructuralChild
 
+	IntrinsicTraceID
+	IntrinsicSpanID
+
 	// not yet implemented in traceql and may never be. these exist so that we can retrieve
 	// these fields from the fetch layer
-	IntrinsicTraceID
+
 	IntrinsicTraceStartTime
-	IntrinsicSpanID
 	IntrinsicSpanStartTime
 
 	IntrinsicServiceStats
@@ -90,6 +105,7 @@ var (
 	IntrinsicStatusAttribute           = NewIntrinsic(IntrinsicStatus)
 	IntrinsicStatusMessageAttribute    = NewIntrinsic(IntrinsicStatusMessage)
 	IntrinsicKindAttribute             = NewIntrinsic(IntrinsicKind)
+	IntrinsicSpanIDAttribute           = NewIntrinsic(IntrinsicSpanID)
 	IntrinsicChildCountAttribute       = NewIntrinsic(IntrinsicChildCount)
 	IntrinsicTraceIDAttribute          = NewIntrinsic(IntrinsicTraceID)
 	IntrinsicTraceRootServiceAttribute = NewIntrinsic(IntrinsicTraceRootService)
@@ -117,7 +133,12 @@ func (i Intrinsic) String() string {
 		return "kind"
 	case IntrinsicChildCount:
 		return "childCount"
-	// below is unimplemented
+	case IntrinsicEventName:
+		return "event:name"
+	case IntrinsicLinkSpanID:
+		return "link:spanID"
+	case IntrinsicLinkTraceID:
+		return "link:traceID"
 	case IntrinsicParent:
 		return "parent"
 	case IntrinsicTraceRootService:
@@ -127,11 +148,12 @@ func (i Intrinsic) String() string {
 	case IntrinsicTraceDuration:
 		return "traceDuration"
 	case IntrinsicTraceID:
-		return "traceID"
+		return "trace:id"
 	case IntrinsicTraceStartTime:
 		return "traceStartTime"
 	case IntrinsicSpanID:
-		return "spanID"
+		return "span:id"
+	// below is unimplemented
 	case IntrinsicSpanStartTime:
 		return "spanStartTime"
 	case IntrinsicNestedSetLeft:
@@ -160,7 +182,12 @@ func intrinsicFromString(s string) Intrinsic {
 		return IntrinsicKind
 	case "childCount":
 		return IntrinsicChildCount
-	// unimplemented
+	case "event:name":
+		return IntrinsicEventName
+	case "link:spanID":
+		return IntrinsicLinkSpanID
+	case "link:traceID":
+		return IntrinsicLinkTraceID
 	case "parent":
 		return IntrinsicParent
 	case "rootServiceName":
@@ -169,12 +196,13 @@ func intrinsicFromString(s string) Intrinsic {
 		return IntrinsicTraceRootSpan
 	case "traceDuration":
 		return IntrinsicTraceDuration
-	case "traceID":
+	case "trace:id":
 		return IntrinsicTraceID
 	case "traceStartTime":
 		return IntrinsicTraceStartTime
-	case "spanID":
+	case "span:id":
 		return IntrinsicSpanID
+	// unimplemented
 	case "spanStartTime":
 		return IntrinsicSpanStartTime
 	case "nestedSetLeft":

@@ -14,13 +14,13 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.AutocompleteRequest, cb traceql.AutocompleteCallback, opts common.SearchOptions) error {
+func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, opts common.SearchOptions) error {
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return errors.Wrap(err, "conditions invalid")
 	}
 
-	mingledConditions, _, _, _, err := categorizeConditions(req.Conditions)
+	_, mingledConditions, err := categorizeConditions(req.Conditions)
 	if err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.Autocompl
 }
 
 // autocompleteIter creates an iterator that will collect values for a given attribute/tag.
-func autocompleteIter(ctx context.Context, req traceql.AutocompleteRequest, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
+func autocompleteIter(ctx context.Context, req traceql.FetchTagValuesRequest, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
 	iter, err := createDistinctIterator(ctx, req.Conditions, req.TagName, pf, opts, dc)
 	if err != nil {
 		return nil, fmt.Errorf("error creating iterator: %w", err)
@@ -79,8 +79,8 @@ func createDistinctIterator(
 	opts common.SearchOptions,
 	dc backend.DedicatedColumns,
 ) (parquetquery.Iterator, error) {
-	// categorizeConditions conditions into span-level or resource-level
-	_, spanConditions, resourceConditions, traceConditions, err := categorizeConditions(conds)
+	// categorize conditions by scope
+	catConditions, _, err := categorizeConditions(conds)
 	if err != nil {
 		return nil, err
 	}
@@ -90,22 +90,22 @@ func createDistinctIterator(
 
 	var currentIter parquetquery.Iterator
 
-	if len(spanConditions) > 0 {
-		currentIter, err = createDistinctSpanIterator(makeIter, tag, currentIter, spanConditions, dc)
+	if len(catConditions.span) > 0 {
+		currentIter, err = createDistinctSpanIterator(makeIter, tag, currentIter, catConditions.span, dc)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating span iterator")
 		}
 	}
 
-	if len(resourceConditions) > 0 {
-		currentIter, err = createDistinctResourceIterator(makeIter, tag, currentIter, resourceConditions, dc)
+	if len(catConditions.resource) > 0 {
+		currentIter, err = createDistinctResourceIterator(makeIter, tag, currentIter, catConditions.resource, dc)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating resource iterator")
 		}
 	}
 
-	if len(traceConditions) > 0 {
-		currentIter, err = createDistinctTraceIterator(makeIter, currentIter, traceConditions)
+	if len(catConditions.trace) > 0 {
+		currentIter, err = createDistinctTraceIterator(makeIter, currentIter, catConditions.trace)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating trace iterator")
 		}
@@ -133,7 +133,7 @@ func createDistinctSpanIterator(
 
 	// TODO: Potentially problematic when wanted attribute is also part of a condition
 	//     e.g. { span.foo =~ ".*" && span.foo = }
-	addSelectAs := func(attr traceql.Attribute, columnPath string, selectAs string) {
+	addSelectAs := func(attr traceql.Attribute, columnPath, selectAs string) {
 		if attr == tag {
 			columnSelectAs[columnPath] = selectAs
 		} else {
@@ -432,7 +432,7 @@ func createDistinctResourceIterator(
 		columnPredicates[columnPath] = append(columnPredicates[columnPath], p)
 	}
 
-	addSelectAs := func(attr traceql.Attribute, columnPath string, selectAs string) {
+	addSelectAs := func(attr traceql.Attribute, columnPath, selectAs string) {
 		if attr == tag {
 			columnSelectAs[columnPath] = selectAs
 		} else {
