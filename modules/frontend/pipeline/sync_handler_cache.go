@@ -52,6 +52,8 @@ func (c cachingWare) RoundTrip(req *http.Request) (*http.Response, error) {
 			// TODO - Cache should capture all of the relevant parts of the
 			// original response including both content-type and content-length headers, possibly more.
 			// But upgrading the cache format requires migration/detection of previous format either way.
+			// It's tempting to use https://pkg.go.dev/net/http#DetectContentType but it doesn't detect
+			// json or proto.
 			if body[0] == '{' {
 				resp.Header.Add(api.HeaderContentType, api.HeaderAcceptJSON)
 			} else {
