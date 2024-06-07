@@ -623,6 +623,10 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		return nil, fmt.Errorf("create minio.DefaultTransport: %w", err)
 	}
 
+	/* minio sets MaxIdleConns to 100 but we should also increase per host to 100 */
+	customTransport.MaxIdleConnsPerHost = 100
+	customTransport.MaxIdleConns = 100
+
 	tlsConfig, err := cfg.GetTLSConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create TLS config: %w", err)
