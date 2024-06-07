@@ -1686,7 +1686,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 	}
 
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
-		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool, allConditions)
+		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool, allConditions, selectAll)
 	if err != nil {
 		return nil, fmt.Errorf("creating span attribute iterator: %w", err)
 	}
@@ -1841,7 +1841,7 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	}
 
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceAttrs,
-		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool, allConditions)
+		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool, allConditions, selectAll)
 	if err != nil {
 		return nil, fmt.Errorf("creating span attribute iterator: %w", err)
 	}
@@ -2133,7 +2133,7 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition,
 	definitionLevel int,
 	keyPath, strPath, intPath, floatPath, boolPath string,
-	allConditions bool,
+	allConditions bool, selectAll bool,
 ) (parquetquery.Iterator, error) {
 	var (
 		attrKeys        = []string{}
@@ -2186,6 +2186,19 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 			}
 			boolPreds = append(boolPreds, pred)
 		}
+	}
+
+	if selectAll {
+		return parquetquery.NewLeftJoinIterator(definitionLevel,
+			[]parquetquery.Iterator{makeIter(keyPath, nil, "key")},
+			[]parquetquery.Iterator{
+				makeIter(strPath, nil, "string"),
+				makeIter(intPath, nil, "int"),
+				makeIter(floatPath, nil, "float"),
+				makeIter(boolPath, nil, "bool"),
+			},
+			&attributeCollector{},
+			parquetquery.WithPool(pqAttrPool))
 	}
 
 	var valueIters []parquetquery.Iterator
