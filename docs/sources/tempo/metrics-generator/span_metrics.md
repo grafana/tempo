@@ -42,7 +42,7 @@ To enable service graphs in Tempo/GET, enable the metrics generator and add an o
 The span metrics processor works by inspecting every received span and computing the total count and the duration of spans for every unique combination of dimensions.
 Dimensions can be the service name, the operation, the span kind, the status code and any attribute present in the span.
 
-This processor is designed with the goal to mirror the implementation from the OpenTelemetry Collector of the [processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/spanmetricsprocessor) with the same name.
+This processor mirrored the implementation from the OpenTelemetry Collector of the processor with the same name. This processor has since been [deprecated](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/processor/spanmetricsprocessor/v0.95.0/processor/spanmetricsprocessor/README.md) and replaced with the [span metric connector](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/processor/spanmetricsprocessor/v0.95.0/connector/spanmetricsconnector/README.md).
 
 {{< admonition type="note" >}}
 To learn more about cardinality and how to perform a dry run of the metrics generator, see the [Cardinality documentation]({{< relref "./cardinality" >}}).
