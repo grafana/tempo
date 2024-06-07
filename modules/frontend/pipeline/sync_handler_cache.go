@@ -10,6 +10,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/cache"
 )
 
@@ -39,11 +40,24 @@ func (c cachingWare) RoundTrip(req *http.Request) (*http.Response, error) {
 	if ok && len(key) > 0 {
 		body := c.cache.fetchBytes(key)
 		if len(body) > 0 {
-			return &http.Response{
+			resp := &http.Response{
+				Header:     http.Header{},
 				StatusCode: http.StatusOK,
 				Status:     http.StatusText(http.StatusOK),
 				Body:       io.NopCloser(bytes.NewBuffer(body)),
-			}, nil
+			}
+
+			// We aren't capturing the original content type in the cache, just the raw bytes.
+			// Detect it and readd it, so the upstream code can parse the body.
+			// TODO - Cache should capture all of the relevant parts of the
+			// original response including both content-type and content-length headers, possibly more.
+			// But upgrading the cache format requires migration/detection of previous format either way.
+			if body[0] == '{' {
+				resp.Header.Add(api.HeaderContentType, api.HeaderAcceptJSON)
+			} else {
+				resp.Header.Add(api.HeaderContentType, api.HeaderAcceptProtobuf)
+			}
+			return resp, nil
 		}
 	}
 
