@@ -18,7 +18,7 @@ The two main causes of missing traces are:
 
 The first step is to check whether the application spans are actually reaching Tempo.
 
-Add the following flag to the distributor container - [`distributor.log-received-spans.enabled`](https://github.com/grafana/tempo/blob/57da4f3fd5d2966e13a39d27dbed4342af6a857a/modules/distributor/config.go#L55).
+Add the following flag to the distributor container - [`distributor.log_received_spans.enabled`](https://github.com/grafana/tempo/blob/57da4f3fd5d2966e13a39d27dbed4342af6a857a/modules/distributor/config.go#L55).
 
 This flag enables debug logging of all the traces received by the distributor. These logs can help check if Tempo is receiving any traces at all.
 
