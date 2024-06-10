@@ -14,7 +14,7 @@ weight: 120
 # Introduction
 
 A trace represents the whole journey of a request or an action as it moves through all the nodes of a distributed system, especially containerized applications or microservices architectures.
-Traces let you profile and observe systems, making it easy to discover bottlenecks and interconnection issues.
+This makes them the ideal observability signal for discovering bottlenecks and interconnection issues.
 
 Traces are composed of one or more spans.
 A span is a unit of work within a trace that has a start time relative to the beginning of the trace, a duration and an operation name for the unit of work.
@@ -30,16 +30,16 @@ For that reason, issues can arise on retrieval of the trace data if traces are e
 
 ## Example of traces
 
-Firstly, a user on your website enters their email address into a form to sign up for your mailing list. They click **Enter**. This initial transaction has a trace ID that's subsequently associated with every interaction in the chain of processes within a system.
+Firstly, a user on your website enters their email address into a form to sign up for your mailing list. They click **Enter**. This initial transaction has a trace ID that's subsequently associated with every interaction in the chain of processes within the system.
 
 Next, the user's email address is data that flows through your system.
-In a cloud computing world, it's possible that clicking that one button causes data to touch multiple nodes across your cluster of microservices.
+In a cloud computing world, it's possible that clicking that one button triggers many downstream processes on various microservices operating across many different nodes in your compute infrastructure. 
 
-As a result, the email address might be sent to a verification algorithm sitting in a microservice that exists solely for that purpose. If it passes the check, the information is stored in a database.
+As a result, the email address might be sent to a microservice responsible for verification. If the email passes this check, it is then stored in a database.
 
-Along the way, an anonymization node strips personally identifying data from the address and sends metadata collected to a marketing qualifying algorithm to determine whether the request was sent from a targeted part of the internet.
+Along the way, an anonymization microservice strips personally identifying data from the address and adds additional metadata before sending it along to a marketing qualifying microservice which determines whether the request was sent from a targeted part of the internet.
 
-Services respond and data flows back from each, sometimes triggering new events across the system. Along the way, logs are written in various nodes with a time stamp showing when the info passed through.
+Services respond and data flows back from each, sometimes triggering new events across the system. Along the way, logs are written to the nodes on which those services run with a time stamp showing when the info passed through.
 
 Finally, the request and response activity ends and a record of that request is sent to Grafana or Grafana Cloud.
 
