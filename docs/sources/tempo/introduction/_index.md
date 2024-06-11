@@ -41,7 +41,7 @@ Along the way, an anonymization microservice strips personally identifying data 
 
 Services respond and data flows back from each, sometimes triggering new events across the system. Along the way, logs are written to the nodes on which those services run with a time stamp showing when the info passed through.
 
-Finally, the request and response activity ends and a record of that request is sent to Grafana or Grafana Cloud.
+Finally, the request and response activity ends. No other spans are added to that TraceID.
 
 ## Traces and trace IDs
 
