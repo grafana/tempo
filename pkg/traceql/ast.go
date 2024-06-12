@@ -581,28 +581,28 @@ func (s Static) compare(other *Static) int {
 	return 0
 }
 
-func (s *Static) sumInto(other Static) {
+func (s Static) Add(o *Static) *Static {
 	switch s.Type {
 	case TypeInt:
-		s.N += other.N
+		s.N += o.N
 	case TypeFloat:
-		s.F += other.F
+		s.F += o.F
 	case TypeDuration:
-		s.D += other.D
+		s.D += o.D
 	}
+	return &s
 }
 
-func (s Static) divideBy(f float64) Static {
+func (s Static) Divide(f float64) *Static {
 	switch s.Type {
 	case TypeInt:
-		return NewStaticFloat(float64(s.N) / f) // there's no integer division in traceql
+		s = NewStaticFloat(float64(s.N) / f) // there's no integer division in traceql
 	case TypeFloat:
-		return NewStaticFloat(s.F / f)
+		s.F /= f
 	case TypeDuration:
-		return NewStaticDuration(s.D / time.Duration(f))
+		s.D /= time.Duration(f)
 	}
-
-	return s
+	return &s
 }
 
 func (s Static) asFloat() float64 {

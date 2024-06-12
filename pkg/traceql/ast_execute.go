@@ -256,13 +256,13 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				if sum == nil {
 					sum = &val
 				} else {
-					sum.sumInto(val)
+					sum = sum.Add(&val)
 				}
 				count++
 			}
-
+			sum = sum.Divide(float64(count))
 			cpy := ss.clone()
-			cpy.Scalar = sum.divideBy(float64(count))
+			cpy.Scalar = *sum
 			cpy.AddAttribute(a.String(), cpy.Scalar)
 			output = append(output, cpy)
 
@@ -308,7 +308,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				if sum == nil {
 					sum = &val
 				} else {
-					sum.sumInto(val)
+					sum = sum.Add(&val)
 				}
 			}
 			cpy := ss.clone()
