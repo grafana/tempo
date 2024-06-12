@@ -2,9 +2,11 @@ package traceql
 
 import (
 	"fmt"
+	"hash/crc32"
 	"math"
 	"regexp"
 	"time"
+	"unsafe"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -136,13 +138,13 @@ func (p Pipeline) evaluate(input []*Spanset) (result []*Spanset, err error) {
 type GroupOperation struct {
 	Expression FieldExpression
 
-	groupBuffer map[Static]*Spanset
+	groupBuffer map[StaticHashCode]*Spanset
 }
 
 func newGroupOperation(e FieldExpression) GroupOperation {
 	return GroupOperation{
 		Expression:  e,
-		groupBuffer: make(map[Static]*Spanset),
+		groupBuffer: make(map[StaticHashCode]*Spanset),
 	}
 }
 
@@ -475,6 +477,11 @@ func (o UnaryOperation) referencesSpan() bool {
 // **********************
 // Statics
 // **********************
+type StaticHashCode struct {
+	Type StaticType
+	Hash uint64
+}
+
 type Static struct {
 	Type   StaticType
 	N      int
@@ -616,6 +623,30 @@ func (s Static) asFloat() float64 {
 	default:
 		return math.NaN()
 	}
+}
+
+func (s Static) HashCode() StaticHashCode {
+	code := StaticHashCode{Type: s.Type}
+	switch s.Type {
+	case TypeInt:
+		code.Hash = uint64(s.N)
+	case TypeFloat:
+		code.Hash = math.Float64bits(s.F)
+	case TypeString:
+		b := unsafe.Slice(unsafe.StringData(s.S), len(s.S))
+		code.Hash = uint64(crc32.ChecksumIEEE(b))
+	case TypeBoolean:
+		if s.B {
+			code.Hash = 1
+		}
+	case TypeDuration:
+		code.Hash = uint64(s.D)
+	case TypeStatus:
+		code.Hash = uint64(s.Status)
+	case TypeKind:
+		code.Hash = uint64(s.Kind)
+	}
+	return code
 }
 
 func NewStaticInt(n int) Static {
