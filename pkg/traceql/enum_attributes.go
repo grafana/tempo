@@ -89,13 +89,13 @@ const (
 
 	IntrinsicTraceID
 	IntrinsicSpanID
-	IntrinsicSpanStatus
-	IntrinsicSpanStatusMessage
-	IntrinsicSpanDuration
-	IntrinsicSpanName
-	IntrinsicSpanKind
-	IntrinsicTraceRootName
-	IntrinsicTraceRootServiceName
+	ScopedIntrinsicSpanStatus
+	ScopedIntrinsicSpanStatusMessage
+	ScopedIntrinsicSpanDuration
+	ScopedIntrinsicSpanName
+	ScopedIntrinsicSpanKind
+	ScopedIntrinsicTraceRootName
+	ScopedIntrinsicTraceRootServiceName
 
 	// not yet implemented in traceql and may never be. these exist so that we can retrieve
 	// these fields from the fetch layer
@@ -158,19 +158,19 @@ func (i Intrinsic) String() string {
 		return "trace:id"
 	case IntrinsicTraceStartTime:
 		return "traceStartTime"
-	case IntrinsicSpanStatus:
+	case ScopedIntrinsicSpanStatus:
 		return "span:status"
-	case IntrinsicSpanStatusMessage:
+	case ScopedIntrinsicSpanStatusMessage:
 		return "span:statusMessage"
-	case IntrinsicSpanDuration:
+	case ScopedIntrinsicSpanDuration:
 		return "span:duration"
-	case IntrinsicSpanName:
+	case ScopedIntrinsicSpanName:
 		return "span:name"
-	case IntrinsicSpanKind:
+	case ScopedIntrinsicSpanKind:
 		return "span:kind"
-	case IntrinsicTraceRootName:
+	case ScopedIntrinsicTraceRootName:
 		return "trace:rootName"
-	case IntrinsicTraceRootServiceName:
+	case ScopedIntrinsicTraceRootServiceName:
 		return "trace:rootServiceName"
 	case IntrinsicSpanID:
 		return "span:id"
@@ -223,6 +223,20 @@ func intrinsicFromString(s string) Intrinsic {
 		return IntrinsicTraceStartTime
 	case "span:id":
 		return IntrinsicSpanID
+	case "span:status":
+		return ScopedIntrinsicSpanStatus
+	case "span:statusMessage":
+		return ScopedIntrinsicSpanStatusMessage
+	case "span:duration":
+		return ScopedIntrinsicSpanDuration
+	case "span:name":
+		return ScopedIntrinsicSpanName
+	case "span:kind":
+		return ScopedIntrinsicSpanKind
+	case "trace:rootName":
+		return ScopedIntrinsicTraceRootName
+	case "trace:rootServiceName":
+		return ScopedIntrinsicTraceRootServiceName
 	// unimplemented
 	case "spanStartTime":
 		return IntrinsicSpanStartTime
