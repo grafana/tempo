@@ -1583,10 +1583,6 @@ func createEventIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator,
 		genericConditions = append(genericConditions, cond)
 	}
 
-	if len(eventIters) == 0 {
-		return nil, nil
-	}
-
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanEventAttrs,
 		columnPathEventAttrKey, columnPathEventAttrString, columnPathEventAttrInt, columnPathEventAttrDouble, columnPathEventAttrBool, allConditions)
 	if err != nil {
@@ -1642,6 +1638,10 @@ func createEventIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator,
 		required = []parquetquery.Iterator{makeIter(columnPathEventName, nil, "")}
 	}
 
+	if len(eventIters) == 0 && len(required) == 0 {
+		return nil, nil
+	}
+	
 	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpanEvent, required, eventIters, eventCol, parquetquery.WithPool(pqEventPool))
 }
 
@@ -2395,7 +2395,6 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 	for _, cond := range conditions {
 
 		attrKeys = append(attrKeys, cond.Attribute.Name)
-		fmt.Printf("createAttributeIterator: condition name: %s\n", cond.Attribute.Name)
 
 		if cond.Op == traceql.OpNone {
 			// This means we have to scan all values, we don't know what type
@@ -2410,7 +2409,6 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		switch cond.Operands[0].Type {
 
 		case traceql.TypeString:
-			fmt.Println("createAttributeIterator: condition type: string")
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
@@ -2461,7 +2459,6 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		// if all conditions must be true we can use a simple join iterator to test the values one column at a time.
 		// len(valueIters) must be 1 to handle queries like `{ span.foo = "x" && span.bar > 1}`
 		if allConditions && len(valueIters) == 1 {
-			fmt.Println("createAttributeIterator: all conditions true")
 			iters := append([]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")}, valueIters...)
 			return parquetquery.NewJoinIterator(definitionLevel,
 				iters,
@@ -2495,7 +2492,6 @@ func (c *spanCollector) String() string {
 }
 
 func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
-	fmt.Println("spanCollector: KeepGroup")
 	var sp *span
 	// look for existing span first. this occurs on the second pass
 	for _, e := range res.OtherEntries {
@@ -2617,7 +2613,6 @@ func (c *batchCollector) String() string {
 // the span-level iterators.  It updates the spans in-place in the OtherEntries slice.
 // Creation of the spanset is delayed until the traceCollector.
 func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
-	fmt.Println("batch collector keep group")
 	// First pass over spans and attributes from the AttributeCollector
 	spans := res.OtherEntries[:0]
 	c.resAttrs = c.resAttrs[:0]
@@ -2816,7 +2811,6 @@ func (c *attributeCollector) String() string {
 func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	var key string
 	var val traceql.Static
-	fmt.Println("attributeCollector: KeepGroup")
 
 	for _, e := range res.Entries {
 		// Ignore nulls, this leaves val as the remaining found value,
@@ -2878,7 +2872,6 @@ func (c *eventCollector) String() string {
 }
 
 func (c *eventCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
-	fmt.Println("eventCollector: KeepGroup")
 	var ev *event
 
 	// look for existing event first
@@ -2915,8 +2908,6 @@ func (c *eventCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	}
 
 	if c.minAttributes > 0 {
-		fmt.Println("min attributes", c.minAttributes)
-		fmt.Println("len(ev.attrs)", len(ev.attrs))
 		if len(ev.attrs) < c.minAttributes {
 			putEvent(ev)
 			return false
