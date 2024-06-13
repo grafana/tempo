@@ -1641,7 +1641,7 @@ func createEventIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator,
 	if len(eventIters) == 0 && len(required) == 0 {
 		return nil, nil
 	}
-	
+
 	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpanEvent, required, eventIters, eventCol, parquetquery.WithPool(pqEventPool))
 }
 
@@ -2861,8 +2861,8 @@ func getEvent() *event {
 
 // eventCollector receives rows from the event columns and joins them together into
 // map[key]value entries with the right type.
-type eventCollector struct{
-	minAttributes                 int
+type eventCollector struct {
+	minAttributes int
 }
 
 var _ parquetquery.GroupPredicate = (*eventCollector)(nil)
