@@ -84,10 +84,15 @@ func (ls Labels) String() string {
 	for _, l := range ls {
 		var promValue string
 		switch {
-		case l.Value.Type == TypeNil:
+		case l.Value.impliedType() == TypeNil:
 			promValue = "<nil>"
-		case l.Value.Type == TypeString && l.Value.S == "":
-			promValue = "<empty>"
+		case l.Value.impliedType() == TypeString:
+			s := l.Value.EncodeToString(false)
+			if s != "" {
+				promValue = s
+			} else {
+				promValue = "<empty>"
+			}
 		default:
 			promValue = l.Value.EncodeToString(false)
 		}
@@ -420,7 +425,7 @@ func (g *GroupingAggregator[F, S]) Observe(span Span) {
 func (g *GroupingAggregator[F, S]) labelsFor(vals S) (Labels, string) {
 	labels := make(Labels, 0, len(g.by)+1)
 	for i := range g.by {
-		if vals[i].Type == TypeNil {
+		if vals[i].impliedType() == TypeNil {
 			continue
 		}
 		labels = append(labels, Label{g.by[i].String(), vals[i]})
@@ -431,7 +436,7 @@ func (g *GroupingAggregator[F, S]) labelsFor(vals S) (Labels, string) {
 
 	if len(labels) == 0 {
 		// When all nil then force one
-		labels = append(labels, Label{g.by[0].String(), NewStaticNil()})
+		labels = append(labels, Label{g.by[0].String(), StaticNil})
 	}
 
 	return labels, labels.String()
@@ -672,7 +677,7 @@ func lookup(needles []Attribute, haystack Span) Static {
 		}
 	}
 
-	return Static{}
+	return StaticNil
 }
 
 type MetricsEvalulator struct {
@@ -975,7 +980,7 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			})
 		}
 
-		if bucket.Type == TypeNil {
+		if bucket == nil || bucket.impliedType() == TypeNil {
 			// Bad __bucket label?
 			continue
 		}

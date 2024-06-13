@@ -41,41 +41,45 @@ func newHints(h []*Hint) *Hints {
 	return &Hints{h}
 }
 
-func (h *Hints) GetFloat(k string, allowUnsafe bool) (v float64, ok bool) {
+func (h *Hints) GetFloat(k string, allowUnsafe bool) (float64, bool) {
 	if v, ok := h.Get(k, TypeFloat, allowUnsafe); ok {
-		return v.F, ok
+		f := v.(StaticFloat)
+		return f.val, ok
 	}
 
 	// If float not found, then try integer.
 	if v, ok := h.Get(k, TypeInt, allowUnsafe); ok {
-		return float64(v.N), ok
+		return v.asFloat(), ok
 	}
 
-	return
+	return 0, false
 }
 
-func (h *Hints) GetInt(k string, allowUnsafe bool) (v int, ok bool) {
+func (h *Hints) GetInt(k string, allowUnsafe bool) (int, bool) {
 	if v, ok := h.Get(k, TypeInt, allowUnsafe); ok {
-		return v.N, ok
+		n := v.(StaticInt)
+		return n.val, ok
 	}
 
-	return
+	return 0, false
 }
 
-func (h *Hints) GetDuration(k string, allowUnsafe bool) (v time.Duration, ok bool) {
+func (h *Hints) GetDuration(k string, allowUnsafe bool) (time.Duration, bool) {
 	if v, ok := h.Get(k, TypeDuration, allowUnsafe); ok {
-		return v.D, ok
+		d := v.(StaticDuration)
+		return d.val, ok
 	}
 
-	return
+	return 0, false
 }
 
-func (h *Hints) GetBool(k string, allowUnsafe bool) (v, ok bool) {
+func (h *Hints) GetBool(k string, allowUnsafe bool) (bool, bool) {
 	if v, ok := h.Get(k, TypeBoolean, allowUnsafe); ok {
-		return v.B, ok
+		b := v.(StaticBool)
+		return b.val, ok
 	}
 
-	return
+	return false, false
 }
 
 func (h *Hints) Get(k string, t StaticType, allowUnsafe bool) (v Static, ok bool) {
@@ -88,7 +92,7 @@ func (h *Hints) Get(k string, t StaticType, allowUnsafe bool) (v Static, ok bool
 	}
 
 	for _, hh := range h.Hints {
-		if hh.Name == k && hh.Value.Type == t {
+		if hh.Name == k && hh.Value.impliedType() == t {
 			return hh.Value, true
 		}
 	}

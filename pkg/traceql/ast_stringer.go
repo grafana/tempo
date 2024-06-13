@@ -1,7 +1,6 @@
 package traceql
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 )
@@ -76,34 +75,71 @@ func (o UnaryOperation) String() string {
 	return unaryOp(o.Op, o.Expression)
 }
 
-func (n Static) String() string {
-	return n.EncodeToString(true)
+func (s staticNil) String() string {
+	return "nil"
 }
 
-func (n Static) EncodeToString(quotes bool) string {
-	switch n.Type {
-	case TypeInt:
-		return strconv.Itoa(n.N)
-	case TypeFloat:
-		return strconv.FormatFloat(n.F, 'g', -1, 64)
-	case TypeString:
-		if quotes {
-			return "`" + n.S + "`"
-		}
-		return n.S
-	case TypeBoolean:
-		return strconv.FormatBool(n.B)
-	case TypeNil:
-		return "nil"
-	case TypeDuration:
-		return n.D.String()
-	case TypeStatus:
-		return n.Status.String()
-	case TypeKind:
-		return n.Kind.String()
-	}
+func (s staticNil) EncodeToString(_ bool) string {
+	return s.String()
+}
 
-	return fmt.Sprintf("static(%d)", n.Type)
+func (s StaticInt) String() string {
+	return strconv.Itoa(s.val)
+}
+
+func (s StaticInt) EncodeToString(_ bool) string {
+	return s.String()
+}
+
+func (s StaticFloat) String() string {
+	return strconv.FormatFloat(s.val, 'g', -1, 64)
+}
+
+func (s StaticFloat) EncodeToString(_ bool) string {
+	return s.String()
+}
+
+func (s StaticString) String() string {
+	return s.EncodeToString(true)
+}
+
+func (s StaticString) EncodeToString(quotes bool) string {
+	if quotes {
+		return "`" + s.val + "`"
+	}
+	return s.val
+}
+
+func (s StaticBool) String() string {
+	return strconv.FormatBool(s.val)
+}
+
+func (s StaticBool) EncodeToString(_ bool) string {
+	return s.String()
+}
+
+func (s StaticDuration) String() string {
+	return s.val.String()
+}
+
+func (s StaticDuration) EncodeToString(_ bool) string {
+	return s.String()
+}
+
+func (s StaticStatus) String() string {
+	return s.val.String()
+}
+
+func (s StaticStatus) EncodeToString(_ bool) string {
+	return s.String()
+}
+
+func (s StaticKind) String() string {
+	return s.val.String()
+}
+
+func (s StaticKind) EncodeToString(_ bool) string {
+	return s.String()
 }
 
 func (a Attribute) String() string {

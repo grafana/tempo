@@ -868,7 +868,7 @@ func TestSpansetFilterStatics(t *testing.T) {
 		{in: "{ statusMessage }", expected: NewIntrinsic(IntrinsicStatusMessage)},
 		{in: "{ 4321 }", expected: NewStaticInt(4321)},
 		{in: "{ 1.234 }", expected: NewStaticFloat(1.234)},
-		{in: "{ nil }", expected: NewStaticNil()},
+		{in: "{ nil }", expected: StaticNil},
 		{in: "{ 3h }", expected: NewStaticDuration(3 * time.Hour)},
 		{in: "{ 1.5m }", expected: NewStaticDuration(1*time.Minute + 30*time.Second)},
 		{in: "{ error }", expected: NewStaticStatus(StatusError)},
@@ -924,8 +924,8 @@ func TestSpansetFilterOperators(t *testing.T) {
 		{in: "{ .a = true }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticBool(true)), alsoTestWithoutSpace: true},
 
 		// existence
-		{in: "{ .a != nil }", expected: newBinaryOperation(OpNotEqual, NewAttribute("a"), NewStaticNil()), alsoTestWithoutSpace: true},
-		{in: "{ .a = nil }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticNil()), alsoTestWithoutSpace: true},
+		{in: "{ .a != nil }", expected: newBinaryOperation(OpNotEqual, NewAttribute("a"), StaticNil), alsoTestWithoutSpace: true},
+		{in: "{ .a = nil }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), StaticNil), alsoTestWithoutSpace: true},
 	}
 
 	test := func(q string, expected FieldExpression) {

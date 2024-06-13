@@ -4,30 +4,30 @@ import "github.com/grafana/tempo/pkg/tempopb"
 
 func MakeCollectTagValueFunc(collect func(tempopb.TagValue) bool) func(v Static) bool {
 	return func(v Static) bool {
-		tv := tempopb.TagValue{}
+		var tv tempopb.TagValue
 
-		switch v.Type {
-		case TypeString:
+		switch v := v.(type) {
+		case StaticString:
 			tv.Type = "string"
-			tv.Value = v.S // avoid formatting
+			tv.Value = v.val // avoid formatting
 
-		case TypeBoolean:
+		case StaticBool:
 			tv.Type = "bool"
 			tv.Value = v.String()
 
-		case TypeInt:
+		case StaticInt:
 			tv.Type = "int"
 			tv.Value = v.String()
 
-		case TypeFloat:
+		case StaticFloat:
 			tv.Type = "float"
 			tv.Value = v.String()
 
-		case TypeDuration:
+		case StaticDuration:
 			tv.Type = duration
 			tv.Value = v.String()
 
-		case TypeStatus:
+		case StaticStatus:
 			tv.Type = "keyword"
 			tv.Value = v.String()
 		}

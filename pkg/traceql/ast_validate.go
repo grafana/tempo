@@ -241,11 +241,7 @@ func (o UnaryOperation) validate() error {
 	return nil
 }
 
-func (n Static) validate() error {
-	// if n.Type == TypeNil {
-	// 	return newUnsupportedError("nil")
-	// }
-
+func (s StaticBase) validate() error {
 	return nil
 }
 

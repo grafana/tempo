@@ -3,7 +3,6 @@ package traceql
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"time"
 
@@ -261,7 +260,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 		atts := span.AllAttributes()
 
 		if name, ok := atts[NewIntrinsic(IntrinsicName)]; ok {
-			tempopbSpan.Name = name.S
+			tempopbSpan.Name = name.EncodeToString(false)
 		}
 
 		for attribute, static := range atts {
@@ -302,7 +301,9 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 	// add attributes
 	for _, att := range spanset.Attributes {
 		if att.Name == attributeMatched {
-			metadata.SpanSet.Matched = uint32(att.Val.N)
+			if n, ok := att.Val.(StaticInt); ok {
+				metadata.SpanSet.Matched = uint32(n.val)
+			}
 			continue
 		}
 
@@ -321,61 +322,64 @@ func unixSecToNano(ts uint32) uint64 {
 	return uint64(ts) * uint64(time.Second/time.Nanosecond)
 }
 
-func (s Static) AsAnyValue() *common_v1.AnyValue {
-	switch s.Type {
-	case TypeInt:
-		return &common_v1.AnyValue{
-			Value: &common_v1.AnyValue_IntValue{
-				IntValue: int64(s.N),
-			},
-		}
-	case TypeString:
-		return &common_v1.AnyValue{
-			Value: &common_v1.AnyValue_StringValue{
-				StringValue: s.S,
-			},
-		}
-	case TypeFloat:
-		return &common_v1.AnyValue{
-			Value: &common_v1.AnyValue_DoubleValue{
-				DoubleValue: s.F,
-			},
-		}
-	case TypeBoolean:
-		return &common_v1.AnyValue{
-			Value: &common_v1.AnyValue_BoolValue{
-				BoolValue: s.B,
-			},
-		}
-	case TypeDuration:
-		return &common_v1.AnyValue{
-			Value: &common_v1.AnyValue_StringValue{
-				StringValue: s.D.String(),
-			},
-		}
-	case TypeStatus:
-		return &common_v1.AnyValue{
-			Value: &common_v1.AnyValue_StringValue{
-				StringValue: s.Status.String(),
-			},
-		}
-	case TypeNil:
-		return &common_v1.AnyValue{
-			Value: &common_v1.AnyValue_StringValue{
-				StringValue: "nil",
-			},
-		}
-	case TypeKind:
-		return &common_v1.AnyValue{
-			Value: &common_v1.AnyValue_StringValue{
-				StringValue: s.Kind.String(),
-			},
-		}
-	}
+var anyValueNil = common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "nil"}}
 
+func (staticNil) AsAnyValue() *common_v1.AnyValue {
+	return &anyValueNil
+}
+
+func (s StaticInt) AsAnyValue() *common_v1.AnyValue {
+	return &common_v1.AnyValue{
+		Value: &common_v1.AnyValue_IntValue{
+			IntValue: int64(s.val),
+		},
+	}
+}
+
+func (s StaticString) AsAnyValue() *common_v1.AnyValue {
 	return &common_v1.AnyValue{
 		Value: &common_v1.AnyValue_StringValue{
-			StringValue: fmt.Sprintf("error formatting val: static has unexpected type %v", s.Type),
+			StringValue: s.val,
+		},
+	}
+}
+
+func (s StaticFloat) AsAnyValue() *common_v1.AnyValue {
+	return &common_v1.AnyValue{
+		Value: &common_v1.AnyValue_DoubleValue{
+			DoubleValue: s.val,
+		},
+	}
+}
+
+func (s StaticBool) AsAnyValue() *common_v1.AnyValue {
+	return &common_v1.AnyValue{
+		Value: &common_v1.AnyValue_BoolValue{
+			BoolValue: s.val,
+		},
+	}
+}
+
+func (s StaticDuration) AsAnyValue() *common_v1.AnyValue {
+	return &common_v1.AnyValue{
+		Value: &common_v1.AnyValue_StringValue{
+			StringValue: s.val.String(),
+		},
+	}
+}
+
+func (s StaticStatus) AsAnyValue() *common_v1.AnyValue {
+	return &common_v1.AnyValue{
+		Value: &common_v1.AnyValue_StringValue{
+			StringValue: s.val.String(),
+		},
+	}
+}
+
+func (s StaticKind) AsAnyValue() *common_v1.AnyValue {
+	return &common_v1.AnyValue{
+		Value: &common_v1.AnyValue_StringValue{
+			StringValue: s.val.String(),
 		},
 	}
 }
@@ -391,6 +395,6 @@ func StaticFromAnyValue(a *common_v1.AnyValue) Static {
 	case *common_v1.AnyValue_DoubleValue:
 		return NewStaticFloat(v.DoubleValue)
 	default:
-		return NewStaticNil()
+		return StaticNil
 	}
 }

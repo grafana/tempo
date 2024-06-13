@@ -245,7 +245,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 			output = append(output, cpy)
 
 		case aggregateAvg:
-			var sum *Static
+			var sum Static
 			count := 0
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
@@ -254,65 +254,67 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				}
 
 				if sum == nil {
-					sum = &val
+					sum = val
 				} else {
-					sum = sum.add(&val)
+					sum = sum.add(val)
 				}
 				count++
 			}
-			sum = sum.divide(float64(count))
+			if sum != nil {
+				sum = sum.divide(float64(count))
+			}
 			cpy := ss.clone()
-			cpy.Scalar = *sum
+			cpy.Scalar = sum
 			cpy.AddAttribute(a.String(), cpy.Scalar)
 			output = append(output, cpy)
 
 		case aggregateMax:
-			var max *Static
+			var max Static
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
 				if err != nil {
 					return nil, err
 				}
-				if max == nil || val.compare(max) == 1 {
-					max = &val
+				if max == nil || val.compare(max) > 0 {
+					max = val
 				}
 			}
 			cpy := ss.clone()
-			cpy.Scalar = *max
+			cpy.Scalar = max
 			cpy.AddAttribute(a.String(), cpy.Scalar)
 			output = append(output, cpy)
 
 		case aggregateMin:
-			var min *Static
+			var min Static
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
 				if err != nil {
 					return nil, err
 				}
-				if min == nil || val.compare(min) == -1 {
-					min = &val
+				if min == nil || val.compare(min) < 0 {
+					min = val
 				}
 			}
 			cpy := ss.clone()
-			cpy.Scalar = *min
+			cpy.Scalar = min
 			cpy.AddAttribute(a.String(), cpy.Scalar)
 			output = append(output, cpy)
 
 		case aggregateSum:
-			var sum *Static
+			var sum Static
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
 				if err != nil {
 					return nil, err
 				}
 				if sum == nil {
-					sum = &val
+					sum = val
 				} else {
-					sum = sum.add(&val)
+					sum = sum.add(val)
 				}
 			}
 			cpy := ss.clone()
-			cpy.Scalar = *sum
+			cpy.Scalar = sum
 			cpy.AddAttribute(a.String(), cpy.Scalar)
 			output = append(output, cpy)
 
@@ -327,12 +329,12 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 func (o *BinaryOperation) execute(span Span) (Static, error) {
 	lhs, err := o.LHS.execute(span)
 	if err != nil {
-		return NewStaticNil(), err
+		return StaticNil, err
 	}
 
 	rhs, err := o.RHS.execute(span)
 	if err != nil {
-		return NewStaticNil(), err
+		return StaticNil, err
 	}
 
 	// Ensure the resolved types are still valid
@@ -347,43 +349,76 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	}
 
 	if lhsT == TypeString && rhsT == TypeString {
+		lStr, _ := lhs.(StaticString)
+		rStr, _ := rhs.(StaticString)
+		// TODO consider using Static.compare() for all >, >=, <, <= operators
 		switch o.Op {
 		case OpGreater:
-			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) > 0), nil
+			return NewStaticBool(strings.Compare(lStr.val, rStr.val) > 0), nil
 		case OpGreaterEqual:
-			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) >= 0), nil
+			return NewStaticBool(strings.Compare(lStr.val, rStr.val) >= 0), nil
 		case OpLess:
-			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) < 0), nil
+			return NewStaticBool(strings.Compare(lStr.val, rStr.val) < 0), nil
 		case OpLessEqual:
-			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) <= 0), nil
-		default:
+			return NewStaticBool(strings.Compare(lStr.val, rStr.val) <= 0), nil
+		case OpRegex:
+			if o.compiledExpression == nil {
+				o.compiledExpression, err = regexp.Compile(rStr.val)
+				if err != nil {
+					return StaticNil, err
+				}
+			}
+			matched := o.compiledExpression.MatchString(lStr.val)
+			return NewStaticBool(matched), err
+		case OpNotRegex:
+			if o.compiledExpression == nil {
+				o.compiledExpression, err = regexp.Compile(rStr.val)
+				if err != nil {
+					return StaticNil, err
+				}
+			}
+			matched := o.compiledExpression.MatchString(lStr.val)
+			return NewStaticBool(!matched), err
 		}
 	}
 
 	// if both sides are integers then do integer math, otherwise we can drop to the
 	// catch all below
 	if lhsT == TypeInt && rhsT == TypeInt {
+		lInt, _ := lhs.(StaticInt)
+		rInt, _ := rhs.(StaticInt)
 		switch o.Op {
 		case OpAdd:
-			return NewStaticInt(lhs.N + rhs.N), nil
+			return NewStaticInt(lInt.val + rInt.val), nil
 		case OpSub:
-			return NewStaticInt(lhs.N - rhs.N), nil
+			return NewStaticInt(lInt.val - rInt.val), nil
 		case OpDiv:
-			return NewStaticInt(lhs.N / rhs.N), nil
+			return NewStaticInt(lInt.val / rInt.val), nil
 		case OpMod:
-			return NewStaticInt(lhs.N % rhs.N), nil
+			return NewStaticInt(lInt.val % rInt.val), nil
 		case OpMult:
-			return NewStaticInt(lhs.N * rhs.N), nil
+			return NewStaticInt(lInt.val * rInt.val), nil
 		case OpGreater:
-			return NewStaticBool(lhs.N > rhs.N), nil
+			return NewStaticBool(lInt.val > rInt.val), nil
 		case OpGreaterEqual:
-			return NewStaticBool(lhs.N >= rhs.N), nil
+			return NewStaticBool(lInt.val >= rInt.val), nil
 		case OpLess:
-			return NewStaticBool(lhs.N < rhs.N), nil
+			return NewStaticBool(lInt.val < rInt.val), nil
 		case OpLessEqual:
-			return NewStaticBool(lhs.N <= rhs.N), nil
+			return NewStaticBool(lInt.val <= rInt.val), nil
 		case OpPower:
-			return NewStaticInt(intPow(rhs.N, lhs.N)), nil
+			return NewStaticInt(intPow(rInt.val, lInt.val)), nil
+		}
+	}
+
+	if lhsT == TypeBoolean && rhsT == TypeBoolean {
+		lBool, _ := lhs.(StaticBool)
+		rBool, _ := rhs.(StaticBool)
+		switch o.Op {
+		case OpAnd:
+			return NewStaticBool(lBool.val && rBool.val), nil
+		case OpOr:
+			return NewStaticBool(lBool.val || rBool.val), nil
 		}
 	}
 
@@ -412,30 +447,8 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		return NewStaticBool(lhs.equals(rhs)), nil
 	case OpNotEqual:
 		return NewStaticBool(!lhs.equals(rhs)), nil
-	case OpRegex:
-		if o.compiledExpression == nil {
-			o.compiledExpression, err = regexp.Compile(rhs.S)
-			if err != nil {
-				return NewStaticNil(), err
-			}
-		}
-		matched := o.compiledExpression.MatchString(lhs.S)
-		return NewStaticBool(matched), err
-	case OpNotRegex:
-		if o.compiledExpression == nil {
-			o.compiledExpression, err = regexp.Compile(rhs.S)
-			if err != nil {
-				return NewStaticNil(), err
-			}
-		}
-		matched := o.compiledExpression.MatchString(lhs.S)
-		return NewStaticBool(!matched), err
-	case OpAnd:
-		return NewStaticBool(lhs.B && rhs.B), nil
-	case OpOr:
-		return NewStaticBool(lhs.B || rhs.B), nil
 	default:
-		return NewStaticNil(), errors.New("unexpected operator " + o.Op.String())
+		return StaticNil, errors.New("unexpected operator " + o.Op.String())
 	}
 }
 
@@ -451,6 +464,17 @@ func binOp(op Operator, lhs, rhs Static) (bool, error) {
 		return false, nil
 	}
 
+	if lhsT == TypeBoolean && rhsT == TypeBoolean {
+		lBool, _ := lhs.(StaticBool)
+		rBool, _ := rhs.(StaticBool)
+		switch op {
+		case OpAnd:
+			return lBool.val && rBool.val, nil
+		case OpOr:
+			return lBool.val || rBool.val, nil
+		}
+	}
+
 	switch op {
 	case OpGreater:
 		return lhs.asFloat() > rhs.asFloat(), nil
@@ -464,10 +488,6 @@ func binOp(op Operator, lhs, rhs Static) (bool, error) {
 		return lhs.equals(rhs), nil
 	case OpNotEqual:
 		return !lhs.equals(rhs), nil
-	case OpAnd:
-		return lhs.B && rhs.B, nil
-	case OpOr:
-		return lhs.B || rhs.B, nil
 	}
 
 	return false, errors.New("unexpected operator " + op.String())
@@ -476,33 +496,61 @@ func binOp(op Operator, lhs, rhs Static) (bool, error) {
 func (o UnaryOperation) execute(span Span) (Static, error) {
 	static, err := o.Expression.execute(span)
 	if err != nil {
-		return NewStaticNil(), err
+		return StaticNil, err
 	}
 
 	if o.Op == OpNot {
-		if static.Type != TypeBoolean {
-			return NewStaticNil(), fmt.Errorf("expression (%v) expected a boolean, but got %v", o, static.Type)
+		b, ok := static.(StaticBool)
+		if !ok {
+			return StaticNil, fmt.Errorf("expression (%v) expected a boolean, but got %v", o, static.impliedType())
 		}
-		return NewStaticBool(!static.B), nil
+		return NewStaticBool(!b.val), nil
 	}
 	if o.Op == OpSub {
-		if !static.Type.isNumeric() {
-			return NewStaticNil(), fmt.Errorf("expression (%v) expected a numeric, but got %v", o, static.Type)
-		}
-		switch static.Type {
-		case TypeInt:
-			return NewStaticInt(-1 * static.N), nil
-		case TypeFloat:
-			return NewStaticFloat(-1 * static.F), nil
-		case TypeDuration:
-			return NewStaticDuration(-1 * static.D), nil
+		switch n := static.(type) {
+		case StaticInt:
+			return NewStaticInt(-1 * n.val), nil
+		case StaticDuration:
+			return NewStaticDuration(-1 * n.val), nil
+		case StaticFloat:
+			return NewStaticFloat(-1 * n.val), nil
+		default:
+			return StaticNil, fmt.Errorf("expression (%v) expected a numeric, but got %v", o, static.impliedType())
 		}
 	}
 
-	return NewStaticNil(), errors.New("UnaryOperation has Op different from Not and Sub")
+	return StaticNil, errors.New("UnaryOperation has Op different from Not and Sub")
 }
 
-func (s Static) execute(Span) (Static, error) {
+func (s staticNil) execute(_ Span) (Static, error) {
+	return s, nil
+}
+
+func (s StaticInt) execute(_ Span) (Static, error) {
+	return s, nil
+}
+
+func (s StaticFloat) execute(_ Span) (Static, error) {
+	return s, nil
+}
+
+func (s StaticString) execute(_ Span) (Static, error) {
+	return s, nil
+}
+
+func (s StaticBool) execute(_ Span) (Static, error) {
+	return s, nil
+}
+
+func (s StaticDuration) execute(_ Span) (Static, error) {
+	return s, nil
+}
+
+func (s StaticStatus) execute(_ Span) (Static, error) {
+	return s, nil
+}
+
+func (s StaticKind) execute(_ Span) (Static, error) {
 	return s, nil
 }
 
@@ -512,7 +560,7 @@ func (a Attribute) execute(span Span) (Static, error) {
 		return static, nil
 	}
 
-	return NewStaticNil(), nil
+	return StaticNil, nil
 }
 
 func uniqueSpans(ss1 []*Spanset, ss2 []*Spanset) []Span {
