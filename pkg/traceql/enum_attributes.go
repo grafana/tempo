@@ -96,7 +96,7 @@ const (
 	ScopedIntrinsicSpanKind
 	ScopedIntrinsicTraceRootName
 	ScopedIntrinsicTraceRootServiceName
-
+	ScopedIntrinsicTraceDuration
 	// not yet implemented in traceql and may never be. these exist so that we can retrieve
 	// these fields from the fetch layer
 
@@ -172,6 +172,8 @@ func (i Intrinsic) String() string {
 		return "trace:rootName"
 	case ScopedIntrinsicTraceRootServiceName:
 		return "trace:rootServiceName"
+	case ScopedIntrinsicTraceDuration:
+		return "trace:traceDuration"
 	case IntrinsicSpanID:
 		return "span:id"
 	// below is unimplemented
@@ -237,6 +239,8 @@ func intrinsicFromString(s string) Intrinsic {
 		return ScopedIntrinsicTraceRootName
 	case "trace:rootServiceName":
 		return ScopedIntrinsicTraceRootServiceName
+	case "trace:traceDuration":
+		return ScopedIntrinsicTraceDuration
 	// unimplemented
 	case "spanStartTime":
 		return IntrinsicSpanStartTime

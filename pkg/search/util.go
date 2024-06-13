@@ -71,6 +71,7 @@ func GetVirtualIntrinsicValues() []string {
 		traceql.ScopedIntrinsicSpanKind.String(),
 		traceql.ScopedIntrinsicTraceRootName.String(),
 		traceql.ScopedIntrinsicTraceRootServiceName.String(),
+		traceql.ScopedIntrinsicTraceDuration.String(),
 		/* these are technically intrinsics that can be requested, but they are not generally of interest to a user
 		   typing a query. for simplicity and clarity we are leaving them out of autocomplete
 			IntrinsicNestedSetLeft
