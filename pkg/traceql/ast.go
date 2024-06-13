@@ -507,7 +507,7 @@ func (s Static) impliedType() StaticType {
 	return s.Type
 }
 
-func (s Static) Equals(other Static) bool {
+func (s Static) equals(other Static) bool {
 	// if they are different number types. compare them as floats. however, if they are the same type just fall through to
 	// a normal comparison which should be more efficient
 	differentNumberTypes := (s.Type == TypeInt || s.Type == TypeFloat || s.Type == TypeDuration) &&
@@ -588,7 +588,7 @@ func (s Static) compare(other *Static) int {
 	return 0
 }
 
-func (s Static) Add(o *Static) *Static {
+func (s Static) add(o *Static) *Static {
 	switch s.Type {
 	case TypeInt:
 		s.N += o.N
@@ -600,7 +600,7 @@ func (s Static) Add(o *Static) *Static {
 	return &s
 }
 
-func (s Static) Divide(f float64) *Static {
+func (s Static) divide(f float64) *Static {
 	switch s.Type {
 	case TypeInt:
 		s = NewStaticFloat(float64(s.N) / f) // there's no integer division in traceql
@@ -625,7 +625,7 @@ func (s Static) asFloat() float64 {
 	}
 }
 
-func (s Static) HashCode() StaticHashCode {
+func (s Static) hashCode() StaticHashCode {
 	code := StaticHashCode{Type: s.Type}
 	switch s.Type {
 	case TypeInt:

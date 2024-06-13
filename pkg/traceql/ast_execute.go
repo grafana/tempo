@@ -30,14 +30,14 @@ func (g GroupOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
 			}
 
 			// Check if the result already has a group in the map
-			group, ok := groups[result.HashCode()]
+			group, ok := groups[result.hashCode()]
 			if !ok {
 				// If not, create a new group and add it to the map
 				group = &Spanset{}
 				// copy all existing attributes forward
 				group.Attributes = append(group.Attributes, spanset.Attributes...)
 				group.AddAttribute(g.String(), result)
-				groups[result.HashCode()] = group
+				groups[result.hashCode()] = group
 			}
 
 			// Add the current spanset to the group
@@ -256,11 +256,11 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				if sum == nil {
 					sum = &val
 				} else {
-					sum = sum.Add(&val)
+					sum = sum.add(&val)
 				}
 				count++
 			}
-			sum = sum.Divide(float64(count))
+			sum = sum.divide(float64(count))
 			cpy := ss.clone()
 			cpy.Scalar = *sum
 			cpy.AddAttribute(a.String(), cpy.Scalar)
@@ -308,7 +308,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				if sum == nil {
 					sum = &val
 				} else {
-					sum = sum.Add(&val)
+					sum = sum.add(&val)
 				}
 			}
 			cpy := ss.clone()
@@ -409,9 +409,9 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	case OpPower:
 		return NewStaticFloat(math.Pow(lhs.asFloat(), rhs.asFloat())), nil
 	case OpEqual:
-		return NewStaticBool(lhs.Equals(rhs)), nil
+		return NewStaticBool(lhs.equals(rhs)), nil
 	case OpNotEqual:
-		return NewStaticBool(!lhs.Equals(rhs)), nil
+		return NewStaticBool(!lhs.equals(rhs)), nil
 	case OpRegex:
 		if o.compiledExpression == nil {
 			o.compiledExpression, err = regexp.Compile(rhs.S)
@@ -461,9 +461,9 @@ func binOp(op Operator, lhs, rhs Static) (bool, error) {
 	case OpLessEqual:
 		return lhs.asFloat() <= rhs.asFloat(), nil
 	case OpEqual:
-		return lhs.Equals(rhs), nil
+		return lhs.equals(rhs), nil
 	case OpNotEqual:
-		return !lhs.Equals(rhs), nil
+		return !lhs.equals(rhs), nil
 	case OpAnd:
 		return lhs.B && rhs.B, nil
 	case OpOr:

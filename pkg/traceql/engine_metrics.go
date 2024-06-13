@@ -357,7 +357,7 @@ func (g *GroupingAggregator[F, S]) Observe(span Span) {
 	for i, lookups := range g.byLookups {
 		val := lookup(lookups, span)
 		g.buf.vals[i] = val
-		g.buf.fast[i] = val.HashCode()
+		g.buf.fast[i] = val.hashCode()
 	}
 
 	// If dynamic label exists calculate and append it
@@ -368,7 +368,7 @@ func (g *GroupingAggregator[F, S]) Observe(span Span) {
 			return
 		}
 		g.buf.vals[len(g.byLookups)] = v
-		g.buf.fast[len(g.byLookups)] = v.HashCode()
+		g.buf.fast[len(g.byLookups)] = v.hashCode()
 	}
 
 	if g.lastSeries.agg != nil && g.lastBuf.fast == g.buf.fast {

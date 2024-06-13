@@ -40,14 +40,14 @@ func TestStatic_Equals(t *testing.T) {
 	}
 	for _, tt := range areEqual {
 		t.Run(fmt.Sprintf("%v == %v", tt.lhs, tt.rhs), func(t *testing.T) {
-			assert.True(t, tt.lhs.Equals(tt.rhs))
-			assert.True(t, tt.rhs.Equals(tt.lhs))
+			assert.True(t, tt.lhs.equals(tt.rhs))
+			assert.True(t, tt.rhs.equals(tt.lhs))
 		})
 	}
 	for _, tt := range areNotEqual {
 		t.Run(fmt.Sprintf("%v != %v", tt.lhs, tt.rhs), func(t *testing.T) {
-			assert.False(t, tt.lhs.Equals(tt.rhs))
-			assert.False(t, tt.rhs.Equals(tt.lhs))
+			assert.False(t, tt.lhs.equals(tt.rhs))
+			assert.False(t, tt.rhs.equals(tt.lhs))
 		})
 	}
 }
