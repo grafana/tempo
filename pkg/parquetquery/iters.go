@@ -30,14 +30,14 @@ import (
 //	    D      0,  1,  0
 //	  E        0,  2, -1
 //
-// Currently supports 7 levels of nesting which should be enough for anybody. :)
-type RowNumber [7]int32
+// Currently supports 6 levels of nesting which should be enough for anybody. :)
+type RowNumber [6]int32
 
-const MaxDefinitionLevel = 6
+const MaxDefinitionLevel = 5
 
 // EmptyRowNumber creates an empty invalid row number.
 func EmptyRowNumber() RowNumber {
-	return RowNumber{-1, -1, -1, -1, -1, -1, -1}
+	return RowNumber{-1, -1, -1, -1, -1, -1}
 }
 
 // MaxRowNumber is a helper that represents the maximum(-ish) representable value.
@@ -80,8 +80,7 @@ func EqualRowNumber(upToDefinitionLevel int, a, b RowNumber) bool {
 		(a[2] == b[2] || upToDefinitionLevel < 2) &&
 		(a[3] == b[3] || upToDefinitionLevel < 3) &&
 		(a[4] == b[4] || upToDefinitionLevel < 4) &&
-		(a[5] == b[5] || upToDefinitionLevel < 5) &&
-		(a[6] == b[6] || upToDefinitionLevel < 6)
+		(a[5] == b[5] || upToDefinitionLevel < 5)
 }
 
 func TruncateRowNumber(definitionLevelToKeep int, t RowNumber) RowNumber {
@@ -113,6 +112,9 @@ func (t *RowNumber) Valid() bool {
 // null   | 0 | 1 | {  1,  0, -1, -1 }
 func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 	t[repetitionLevel]++
+	if definitionLevel == 6 {
+		definitionLevel = 5
+	}
 
 	// the following is nextSlow() unrolled
 	switch repetitionLevel {
@@ -124,49 +126,36 @@ func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 			t[3] = -1
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 1:
 			t[1] = 0
 			t[2] = -1
 			t[3] = -1
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 2:
 			t[1] = 0
 			t[2] = 0
 			t[3] = -1
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 3:
 			t[1] = 0
 			t[2] = 0
 			t[3] = 0
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 4:
 			t[1] = 0
 			t[2] = 0
 			t[3] = 0
 			t[4] = 0
 			t[5] = -1
-			t[6] = -1
 		case 5:
 			t[1] = 0
 			t[2] = 0
 			t[3] = 0
 			t[4] = 0
 			t[5] = 0
-			t[6] = -1
-		case 6:
-			t[1] = 0
-			t[2] = 0
-			t[3] = 0
-			t[4] = 0
-			t[5] = 0
-			t[6] = 0
 		}
 	case 1:
 		switch definitionLevel {
@@ -176,43 +165,31 @@ func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 			t[3] = -1
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 1:
 			t[2] = -1
 			t[3] = -1
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 2:
 			t[2] = 0
 			t[3] = -1
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 3:
 			t[2] = 0
 			t[3] = 0
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 4:
 			t[2] = 0
 			t[3] = 0
 			t[4] = 0
 			t[5] = -1
-			t[6] = -1
 		case 5:
 			t[2] = 0
 			t[3] = 0
 			t[4] = 0
 			t[5] = 0
-			t[6] = -1
-		case 6:
-			t[2] = 0
-			t[3] = 0
-			t[4] = 0
-			t[5] = 0
-			t[6] = 0
 		}
 	case 2:
 		switch definitionLevel {
@@ -222,38 +199,27 @@ func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 			t[3] = -1
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 1:
 			t[2] = -1
 			t[3] = -1
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 2:
 			t[3] = -1
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 3:
 			t[3] = 0
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 4:
 			t[3] = 0
 			t[4] = 0
 			t[5] = -1
-			t[6] = -1
 		case 5:
 			t[3] = 0
 			t[4] = 0
 			t[5] = 0
-			t[6] = -1
-		case 6:
-			t[3] = 0
-			t[4] = 0
-			t[5] = 0
-			t[6] = 0
 		}
 	case 3:
 		switch definitionLevel {
@@ -263,34 +229,24 @@ func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 			t[3] = -1
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 1:
 			t[2] = -1
 			t[3] = -1
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 2:
 			t[3] = -1
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 3:
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 4:
 			t[4] = 0
 			t[5] = -1
-			t[6] = -1
 		case 5:
 			t[4] = 0
 			t[5] = 0
-			t[6] = -1
-		case 6:
-			t[4] = 0
-			t[5] = 0
-			t[6] = 0
 		}
 	case 4:
 		switch definitionLevel {
@@ -300,31 +256,22 @@ func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 			t[3] = -1
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 1:
 			t[2] = -1
 			t[3] = -1
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 2:
 			t[3] = -1
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 3:
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 4:
 			t[5] = -1
-			t[6] = -1
 		case 5:
 			t[5] = 0
-			t[6] = -1
-		case 6:
-			t[5] = 0
-			t[6] = 0
 		}
 	case 5:
 		switch definitionLevel {
@@ -334,29 +281,20 @@ func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 			t[3] = -1
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 1:
 			t[2] = -1
 			t[3] = -1
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 2:
 			t[3] = -1
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 3:
 			t[4] = -1
 			t[5] = -1
-			t[6] = -1
 		case 4:
 			t[5] = -1
-			t[6] = -1
-		case 5:
-			t[6] = -1
-		case 6:
-			t[6] = 0
 		}
 	}
 }

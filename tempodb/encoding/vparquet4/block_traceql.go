@@ -5,8 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/opentracing/opentracing-go"
-	"github.com/parquet-go/parquet-go"
 	"io"
 	"math"
 	"reflect"
@@ -14,6 +12,9 @@ import (
 	"sync"
 	"time"
 	"unsafe"
+
+	"github.com/opentracing/opentracing-go"
+	"github.com/parquet-go/parquet-go"
 
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/parquetquery"
