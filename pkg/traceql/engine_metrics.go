@@ -436,7 +436,7 @@ func (g *GroupingAggregator[F, S]) labelsFor(vals S) (Labels, string) {
 
 	if len(labels) == 0 {
 		// When all nil then force one
-		labels = append(labels, Label{g.by[0].String(), StaticNil})
+		labels = append(labels, Label{g.by[0].String(), NewStaticNil()})
 	}
 
 	return labels, labels.String()
@@ -677,7 +677,7 @@ func lookup(needles []Attribute, haystack Span) Static {
 		}
 	}
 
-	return StaticNil
+	return NewStaticNil()
 }
 
 type MetricsEvalulator struct {

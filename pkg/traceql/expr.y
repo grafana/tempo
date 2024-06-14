@@ -357,7 +357,7 @@ static:
   | FLOAT            { $$ = NewStaticFloat($1)            }
   | TRUE             { $$ = NewStaticBool(true)           }
   | FALSE            { $$ = NewStaticBool(false)          }
-  | NIL              { $$ = StaticNil                }
+  | NIL              { $$ = NewStaticNil()                }
   | DURATION         { $$ = NewStaticDuration($1)         }
   | STATUS_OK        { $$ = NewStaticStatus(StatusOk)     }
   | STATUS_ERROR     { $$ = NewStaticStatus(StatusError)  }

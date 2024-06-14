@@ -324,7 +324,7 @@ func unixSecToNano(ts uint32) uint64 {
 
 var anyValueNil = common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "nil"}}
 
-func (staticNil) AsAnyValue() *common_v1.AnyValue {
+func (StaticNil) AsAnyValue() *common_v1.AnyValue {
 	return &anyValueNil
 }
 
@@ -395,6 +395,6 @@ func StaticFromAnyValue(a *common_v1.AnyValue) Static {
 	case *common_v1.AnyValue_DoubleValue:
 		return NewStaticFloat(v.DoubleValue)
 	default:
-		return StaticNil
+		return NewStaticNil()
 	}
 }

@@ -509,41 +509,43 @@ func (StaticBase) __fieldExpression() {}
 
 func (StaticBase) __scalarExpression() {}
 
-// staticNil a nil representation of a static value
-type staticNil struct {
+// StaticNil a nil representation of a static value
+type StaticNil struct {
 	StaticBase
 }
 
-// StaticNil is a singleton instance of for a Static representing nil
-// TODO consider removing StaticNil entirely and just use Static(nil)
-var StaticNil Static = staticNil{}
+var staticNil Static = StaticNil{}
 
-func (staticNil) impliedType() StaticType {
+func NewStaticNil() Static {
+	return staticNil
+}
+
+func (StaticNil) impliedType() StaticType {
 	return TypeNil
 }
 
-func (staticNil) equals(o Static) bool {
-	_, ok := o.(staticNil)
+func (StaticNil) equals(o Static) bool {
+	_, ok := o.(StaticNil)
 	return ok
 }
 
-func (staticNil) compare(o Static) int {
-	_, ok := o.(staticNil)
+func (StaticNil) compare(o Static) int {
+	_, ok := o.(StaticNil)
 	if !ok {
 		return cmp.Compare(TypeNil, o.impliedType())
 	}
 	return 0
 }
 
-func (staticNil) add(_ Static) Static {
-	return StaticNil
+func (StaticNil) add(_ Static) Static {
+	return NewStaticNil()
 }
 
-func (staticNil) divide(_ float64) Static {
-	return StaticNil
+func (StaticNil) divide(_ float64) Static {
+	return NewStaticNil()
 }
 
-func (staticNil) hashCode() StaticHashCode {
+func (StaticNil) hashCode() StaticHashCode {
 	return StaticHashCode{Type: TypeNil}
 }
 
@@ -1134,7 +1136,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 			byFunc = func(s Span) (Static, bool) {
 				d := s.DurationNanos()
 				if d < 2 {
-					return StaticNil, false
+					return NewStaticNil(), false
 				}
 				// Bucket is log2(nanos) converted to float seconds
 				return NewStaticFloat(Log2Bucketize(d) / float64(time.Second)), true
@@ -1144,14 +1146,14 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 			byFunc = func(s Span) (Static, bool) {
 				v, ok := s.AttributeFor(a.attr)
 				if !ok {
-					return StaticNil, false
+					return NewStaticNil(), false
 				}
 
 				// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
 				// Because of the range of floats, we need a native histogram approach.
 				n, ok := v.(StaticInt)
 				if !ok || n.val < 2 {
-					return StaticNil, false
+					return NewStaticNil(), false
 				}
 
 				// Bucket is the value rounded up to the nearest power of 2
@@ -1169,7 +1171,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 			byFunc = func(s Span) (Static, bool) {
 				d := s.DurationNanos()
 				if d < 2 {
-					return StaticNil, false
+					return NewStaticNil(), false
 				}
 				// Bucket is in seconds
 				return NewStaticFloat(Log2Bucketize(d) / float64(time.Second)), true
@@ -1179,14 +1181,14 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 			byFunc = func(s Span) (Static, bool) {
 				v, ok := s.AttributeFor(a.attr)
 				if !ok {
-					return StaticNil, false
+					return NewStaticNil(), false
 				}
 
 				// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
 				// Because of the range of floats, we need a native histogram approach.
 				n, ok := v.(StaticInt)
 				if !ok || n.val < 2 {
-					return StaticNil, false
+					return NewStaticNil(), false
 				}
 
 				return NewStaticFloat(Log2Bucketize(uint64(n.val))), true

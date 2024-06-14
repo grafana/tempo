@@ -75,11 +75,11 @@ func (o UnaryOperation) String() string {
 	return unaryOp(o.Op, o.Expression)
 }
 
-func (s staticNil) String() string {
+func (s StaticNil) String() string {
 	return "nil"
 }
 
-func (s staticNil) EncodeToString(_ bool) string {
+func (s StaticNil) EncodeToString(_ bool) string {
 	return s.String()
 }
 

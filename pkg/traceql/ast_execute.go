@@ -329,12 +329,12 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 func (o *BinaryOperation) execute(span Span) (Static, error) {
 	lhs, err := o.LHS.execute(span)
 	if err != nil {
-		return StaticNil, err
+		return NewStaticNil(), err
 	}
 
 	rhs, err := o.RHS.execute(span)
 	if err != nil {
-		return StaticNil, err
+		return NewStaticNil(), err
 	}
 
 	// Ensure the resolved types are still valid
@@ -365,7 +365,7 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 			if o.compiledExpression == nil {
 				o.compiledExpression, err = regexp.Compile(rStr.val)
 				if err != nil {
-					return StaticNil, err
+					return NewStaticNil(), err
 				}
 			}
 			matched := o.compiledExpression.MatchString(lStr.val)
@@ -374,7 +374,7 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 			if o.compiledExpression == nil {
 				o.compiledExpression, err = regexp.Compile(rStr.val)
 				if err != nil {
-					return StaticNil, err
+					return NewStaticNil(), err
 				}
 			}
 			matched := o.compiledExpression.MatchString(lStr.val)
@@ -448,7 +448,7 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	case OpNotEqual:
 		return NewStaticBool(!lhs.equals(rhs)), nil
 	default:
-		return StaticNil, errors.New("unexpected operator " + o.Op.String())
+		return NewStaticNil(), errors.New("unexpected operator " + o.Op.String())
 	}
 }
 
@@ -496,13 +496,13 @@ func binOp(op Operator, lhs, rhs Static) (bool, error) {
 func (o UnaryOperation) execute(span Span) (Static, error) {
 	static, err := o.Expression.execute(span)
 	if err != nil {
-		return StaticNil, err
+		return NewStaticNil(), err
 	}
 
 	if o.Op == OpNot {
 		b, ok := static.(StaticBool)
 		if !ok {
-			return StaticNil, fmt.Errorf("expression (%v) expected a boolean, but got %v", o, static.impliedType())
+			return NewStaticNil(), fmt.Errorf("expression (%v) expected a boolean, but got %v", o, static.impliedType())
 		}
 		return NewStaticBool(!b.val), nil
 	}
@@ -515,14 +515,14 @@ func (o UnaryOperation) execute(span Span) (Static, error) {
 		case StaticFloat:
 			return NewStaticFloat(-1 * n.val), nil
 		default:
-			return StaticNil, fmt.Errorf("expression (%v) expected a numeric, but got %v", o, static.impliedType())
+			return NewStaticNil(), fmt.Errorf("expression (%v) expected a numeric, but got %v", o, static.impliedType())
 		}
 	}
 
-	return StaticNil, errors.New("UnaryOperation has Op different from Not and Sub")
+	return NewStaticNil(), errors.New("UnaryOperation has Op different from Not and Sub")
 }
 
-func (s staticNil) execute(_ Span) (Static, error) {
+func (s StaticNil) execute(_ Span) (Static, error) {
 	return s, nil
 }
 
@@ -560,7 +560,7 @@ func (a Attribute) execute(span Span) (Static, error) {
 		return static, nil
 	}
 
-	return StaticNil, nil
+	return NewStaticNil(), nil
 }
 
 func uniqueSpans(ss1 []*Spanset, ss2 []*Spanset) []Span {

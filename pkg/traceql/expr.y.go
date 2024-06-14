@@ -1761,7 +1761,7 @@ yydefault:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:360
 		{
-			yyVAL.static = StaticNil
+			yyVAL.static = NewStaticNil()
 		}
 	case 147:
 		yyDollar = yyS[yypt-1 : yypt+1]
