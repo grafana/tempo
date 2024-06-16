@@ -10,7 +10,13 @@ type traceQueryFilterWare struct {
 	filters []*regexp.Regexp
 }
 
-func NewTraceQueryFilterWare(denyList []*regexp.Regexp) Middleware {
+func NewTraceQueryFilterWare(next http.RoundTripper) http.RoundTripper {
+	return &traceQueryFilterWare{
+		next: next,
+	}
+}
+
+func NewTraceQueryFilterWareWithDenyList(denyList []*regexp.Regexp) Middleware {
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return traceQueryFilterWare{
 			next:    next,
