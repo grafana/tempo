@@ -49,7 +49,7 @@ func newMetricsCompare(f *SpansetFilter, topN, start, end int) *MetricsCompare {
 	}
 }
 
-func (a *MetricsCompare) extractConditions(request *FetchSpansRequest) {
+func (m *MetricsCompare) extractConditions(request *FetchSpansRequest) {
 	request.SecondPassSelectAll = true
 	if !request.HasAttribute(IntrinsicSpanStartTimeAttribute) {
 		request.SecondPassConditions = append(request.SecondPassConditions, Condition{Attribute: IntrinsicSpanStartTimeAttribute})
@@ -58,29 +58,29 @@ func (a *MetricsCompare) extractConditions(request *FetchSpansRequest) {
 	// because we're already selecting all.
 }
 
-func (a *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
+func (m *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
 	switch mode {
 	case AggregateModeRaw:
-		a.qstart = q.Start
-		a.qend = q.End
-		a.qstep = q.Step
-		a.len = IntervalCount(q.Start, q.End, q.Step)
-		a.baselines = make(map[Attribute]map[Static][]float64)
-		a.selections = make(map[Attribute]map[Static][]float64)
-		a.baselineTotals = make(map[Attribute][]float64)
-		a.selectionTotals = make(map[Attribute][]float64)
+		m.qstart = q.Start
+		m.qend = q.End
+		m.qstep = q.Step
+		m.len = IntervalCount(q.Start, q.End, q.Step)
+		m.baselines = make(map[Attribute]map[Static][]float64)
+		m.selections = make(map[Attribute]map[Static][]float64)
+		m.baselineTotals = make(map[Attribute][]float64)
+		m.selectionTotals = make(map[Attribute][]float64)
 
 	case AggregateModeSum:
-		a.seriesAgg = NewSimpleAdditionCombiner(q)
+		m.seriesAgg = NewSimpleAdditionCombiner(q)
 		return
 
 	case AggregateModeFinal:
-		a.seriesAgg = NewBaselineAggregator(q, a.topN)
+		m.seriesAgg = NewBaselineAggregator(q, m.topN)
 		return
 	}
 }
 
-func (c *MetricsCompare) observe(span Span) {
+func (m *MetricsCompare) observe(span Span) {
 	// For performance, MetricsCompare doesn't use the Range/StepAggregator abstractions.
 	// This lets us:
 	// * Include the same attribute value in multiple series. This doesn't fit within
@@ -89,26 +89,26 @@ func (c *MetricsCompare) observe(span Span) {
 	//   then again instead of StepAggregator.
 	// TODO - It would be nice to use those abstractions, area for future improvement
 	st := span.StartTimeUnixNanos()
-	i := IntervalOf(st, c.qstart, c.qend, c.qstep)
+	i := IntervalOf(st, m.qstart, m.qend, m.qstep)
 
 	// Determine if this span is inside the selection
 	isSelection := StaticFalse
-	if c.start > 0 && c.end > 0 {
+	if m.start > 0 && m.end > 0 {
 		// Timestamp filtering
-		if st >= uint64(c.start) && st < uint64(c.end) {
-			isSelection, _ = c.f.Expression.execute(span)
+		if st >= uint64(m.start) && st < uint64(m.end) {
+			isSelection, _ = m.f.Expression.execute(span)
 		}
 	} else {
 		// No timestamp filtering
-		isSelection, _ = c.f.Expression.execute(span)
+		isSelection, _ = m.f.Expression.execute(span)
 	}
 
 	// Choose destination buffers
-	dest := c.baselines
-	destTotals := c.baselineTotals
+	dest := m.baselines
+	destTotals := m.baselineTotals
 	if isSelection == StaticTrue {
-		dest = c.selections
-		destTotals = c.selectionTotals
+		dest = m.selections
+		destTotals = m.selectionTotals
 	}
 
 	// Increment values for all attributes of this span
@@ -123,13 +123,13 @@ func (c *MetricsCompare) observe(span Span) {
 
 		values, ok := dest[a]
 		if !ok {
-			values = make(map[Static][]float64, c.len)
+			values = make(map[Static][]float64, m.len)
 			dest[a] = values
 		}
 
 		counts, ok := values[v]
 		if !ok {
-			counts = make([]float64, c.len)
+			counts = make([]float64, m.len)
 			values[v] = counts
 		}
 		counts[i]++
@@ -138,21 +138,21 @@ func (c *MetricsCompare) observe(span Span) {
 		// instead of incrementing in the hotpath twice
 		totals, ok := destTotals[a]
 		if !ok {
-			totals = make([]float64, c.len)
+			totals = make([]float64, m.len)
 			destTotals[a] = totals
 		}
 		totals[i]++
 	})
 }
 
-func (a *MetricsCompare) observeSeries(ss []*tempopb.TimeSeries) {
-	a.seriesAgg.Combine(ss)
+func (m *MetricsCompare) observeSeries(ss []*tempopb.TimeSeries) {
+	m.seriesAgg.Combine(ss)
 }
 
-func (c *MetricsCompare) result() SeriesSet {
+func (m *MetricsCompare) result() SeriesSet {
 	// In the other modes return these results
-	if c.seriesAgg != nil {
-		return c.seriesAgg.Results()
+	if m.seriesAgg != nil {
+		return m.seriesAgg.Results()
 	}
 
 	var (
@@ -176,21 +176,21 @@ func (c *MetricsCompare) result() SeriesSet {
 				top.add(v, counts)
 			}
 
-			top.get(c.topN, func(v Static) {
+			top.get(m.topN, func(v Static) {
 				add(Labels{
 					prefix,
 					{Name: a.String(), Value: v},
 				}, values[v])
 			})
 
-			if len(values) > c.topN {
+			if len(values) > m.topN {
 				erred[a] = struct{}{}
 			}
 		}
 	}
 
-	addValues(internalLabelTypeBaseline, c.baselines)
-	addValues(internalLabelTypeSelection, c.selections)
+	addValues(internalLabelTypeBaseline, m.baselines)
+	addValues(internalLabelTypeSelection, m.selections)
 
 	// Add errors for attributes that hit the limit in either area
 	for a := range erred {
@@ -209,37 +209,37 @@ func (c *MetricsCompare) result() SeriesSet {
 		}
 	}
 
-	addTotals(internalLabelTypeBaselineTotal, c.baselineTotals)
-	addTotals(internalLabelTypeSelectionTotal, c.selectionTotals)
+	addTotals(internalLabelTypeBaselineTotal, m.baselineTotals)
+	addTotals(internalLabelTypeSelectionTotal, m.selectionTotals)
 
 	return ss
 }
 
-func (a *MetricsCompare) validate() error {
-	err := a.f.validate()
+func (m *MetricsCompare) validate() error {
+	err := m.f.validate()
 	if err != nil {
 		return err
 	}
 
-	if a.topN <= 0 {
+	if m.topN <= 0 {
 		return fmt.Errorf("compare() top number of values must be integer greater than 0")
 	}
 
-	if a.start == 0 && a.end == 0 {
+	if m.start == 0 && m.end == 0 {
 		return nil
 	}
 
-	if a.start <= 0 || a.end <= 0 {
+	if m.start <= 0 || m.end <= 0 {
 		return fmt.Errorf("compare() timestamps must be positive integer unix nanoseconds")
 	}
-	if a.end <= a.start {
+	if m.end <= m.start {
 		return fmt.Errorf("compare() end timestamp must be greater than start timestamp")
 	}
 	return nil
 }
 
-func (a *MetricsCompare) String() string {
-	return "compare(" + a.f.String() + "}"
+func (m *MetricsCompare) String() string {
+	return "compare(" + m.f.String() + "}"
 }
 
 var _ metricsFirstStageElement = (*MetricsCompare)(nil)
