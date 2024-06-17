@@ -29,8 +29,6 @@ func NewTraceQueryFilterWareWithDenyList(denyList []string) Middleware {
 		}
 	}
 
-	filter[0], _ = regexp.Compile("start")
-
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
 		return traceQueryFilterWare{
 			next:    next,
@@ -53,6 +51,16 @@ func (c traceQueryFilterWare) RoundTrip(req *http.Request) (*http.Response, erro
 	if err != nil {
 		return resp, err
 	}
+
+	qry := u.Query
+
+	if len(qry) == 0 {
+		return resp, nil
+	}
+
+	//Not sure this is a good idea / the best way to do this
+	//Also probably not necessary
+
 	match := make(chan bool, len(c.filters))
 	wg := sync.WaitGroup{}
 	for range c.filters {
@@ -68,7 +76,7 @@ func (c traceQueryFilterWare) RoundTrip(req *http.Request) (*http.Response, erro
 			}
 		}
 		match <- false
-	}(u.Query)
+	}(qry)
 
 	go func() {
 		wg.Wait()
