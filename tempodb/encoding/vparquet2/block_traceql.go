@@ -533,7 +533,7 @@ func nestedSetManyManyLoop(lhs []traceql.Span, rhs []traceql.Span, isValid func(
 func (s *span) attributesMatched() int {
 	count := 0
 	for _, v := range s.attributes {
-		if v.Type != traceql.TypeNil {
+		if v.Type() != traceql.TypeNil {
 			count++
 		}
 	}
@@ -607,7 +607,7 @@ func putSpanset(ss *traceql.Spanset) {
 	ss.DurationNanos = 0
 	ss.RootServiceName = ""
 	ss.RootSpanName = ""
-	ss.Scalar = traceql.Static{}
+	ss.Scalar = traceql.NewStaticNil()
 	ss.StartTimeUnixNanos = 0
 	ss.TraceID = nil
 	ss.Spans = ss.Spans[:0]
@@ -812,7 +812,7 @@ func checkConditions(conditions []traceql.Condition) error {
 
 func operandType(operands traceql.Operands) traceql.StaticType {
 	if len(operands) > 0 {
-		return operands[0].Type
+		return operands[0].Type()
 	}
 	return traceql.TypeNil
 }
@@ -1632,7 +1632,7 @@ func createPredicate(op traceql.Operator, operands traceql.Operands) (parquetque
 		return nil, nil
 	}
 
-	switch operands[0].Type {
+	switch operands[0].Type() {
 	case traceql.TypeString:
 		return createStringPredicate(op, operands)
 	case traceql.TypeInt:
@@ -1651,31 +1651,28 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 		return nil, nil
 	}
 
-	for _, op := range operands {
-		if op.Type != traceql.TypeString {
-			return nil, fmt.Errorf("operand is not string: %+v", op)
-		}
+	s, ok := operands[0].(traceql.StaticString)
+	if !ok {
+		return nil, fmt.Errorf("operand is not string: %+v", operands[0])
 	}
-
-	s := operands[0].S
 
 	switch op {
 	case traceql.OpEqual:
-		return parquetquery.NewStringEqualPredicate([]byte(s)), nil
+		return parquetquery.NewStringEqualPredicate([]byte(s.Str)), nil
 	case traceql.OpNotEqual:
-		return parquetquery.NewStringNotEqualPredicate([]byte(s)), nil
+		return parquetquery.NewStringNotEqualPredicate([]byte(s.Str)), nil
 	case traceql.OpRegex:
-		return parquetquery.NewRegexInPredicate([]string{s})
+		return parquetquery.NewRegexInPredicate([]string{s.Str})
 	case traceql.OpNotRegex:
-		return parquetquery.NewRegexNotInPredicate([]string{s})
+		return parquetquery.NewRegexNotInPredicate([]string{s.Str})
 	case traceql.OpGreater:
-		return parquetquery.NewStringGreaterPredicate([]byte(s)), nil
+		return parquetquery.NewStringGreaterPredicate([]byte(s.Str)), nil
 	case traceql.OpGreaterEqual:
-		return parquetquery.NewStringGreaterEqualPredicate([]byte(s)), nil
+		return parquetquery.NewStringGreaterEqualPredicate([]byte(s.Str)), nil
 	case traceql.OpLess:
-		return parquetquery.NewStringLessPredicate([]byte(s)), nil
+		return parquetquery.NewStringLessPredicate([]byte(s.Str)), nil
 	case traceql.OpLessEqual:
-		return parquetquery.NewStringLessEqualPredicate([]byte(s)), nil
+		return parquetquery.NewStringLessEqualPredicate([]byte(s.Str)), nil
 	default:
 		return nil, fmt.Errorf("operand not supported for strings: %+v", op)
 	}
@@ -1686,18 +1683,15 @@ func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan
 		return nil, nil
 	}
 
-	for _, op := range operands {
-		if op.Type != traceql.TypeString {
-			return nil, fmt.Errorf("operand is not string: %+v", op)
-		}
+	s, ok := operands[0].(traceql.StaticString)
+	if !ok {
+		return nil, fmt.Errorf("operand is not string: %+v", operands[0])
 	}
 
-	s := operands[0].S
-
 	var id []byte
-	id, err := util.HexStringToTraceID(s)
+	id, err := util.HexStringToTraceID(s.Str)
 	if isSpan {
-		id, err = util.HexStringToSpanID(s)
+		id, err = util.HexStringToSpanID(s.Str)
 	}
 
 	id = bytes.TrimLeft(id, "\x00")
@@ -1722,15 +1716,15 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquet
 	}
 
 	var i int64
-	switch operands[0].Type {
-	case traceql.TypeInt:
-		i = int64(operands[0].N)
-	case traceql.TypeDuration:
-		i = operands[0].D.Nanoseconds()
-	case traceql.TypeStatus:
-		i = int64(StatusCodeMapping[operands[0].Status.String()])
-	case traceql.TypeKind:
-		i = int64(KindMapping[operands[0].Kind.String()])
+	switch o := operands[0].(type) {
+	case traceql.StaticInt:
+		i = int64(o.Int)
+	case traceql.StaticDuration:
+		i = o.Duration.Nanoseconds()
+	case traceql.StaticStatus:
+		i = int64(StatusCodeMapping[o.Status.String()])
+	case traceql.StaticKind:
+		i = int64(KindMapping[o.Kind.String()])
 	default:
 		return nil, fmt.Errorf("operand is not int, duration, status or kind: %+v", operands[0])
 	}
@@ -1759,25 +1753,24 @@ func createFloatPredicate(op traceql.Operator, operands traceql.Operands) (parqu
 	}
 
 	// Ensure operand is float
-	if operands[0].Type != traceql.TypeFloat {
+	f, ok := operands[0].(traceql.StaticFloat)
+	if !ok {
 		return nil, fmt.Errorf("operand is not float: %+v", operands[0])
 	}
 
-	i := operands[0].F
-
 	switch op {
 	case traceql.OpEqual:
-		return parquetquery.NewFloatEqualPredicate(i), nil
+		return parquetquery.NewFloatEqualPredicate(f.Float), nil
 	case traceql.OpNotEqual:
-		return parquetquery.NewFloatNotEqualPredicate(i), nil
+		return parquetquery.NewFloatNotEqualPredicate(f.Float), nil
 	case traceql.OpGreater:
-		return parquetquery.NewFloatGreaterPredicate(i), nil
+		return parquetquery.NewFloatGreaterPredicate(f.Float), nil
 	case traceql.OpGreaterEqual:
-		return parquetquery.NewFloatGreaterEqualPredicate(i), nil
+		return parquetquery.NewFloatGreaterEqualPredicate(f.Float), nil
 	case traceql.OpLess:
-		return parquetquery.NewFloatLessPredicate(i), nil
+		return parquetquery.NewFloatLessPredicate(f.Float), nil
 	case traceql.OpLessEqual:
-		return parquetquery.NewFloatLessEqualPredicate(i), nil
+		return parquetquery.NewFloatLessEqualPredicate(f.Float), nil
 	default:
 		return nil, fmt.Errorf("operand not supported for floats: %+v", op)
 	}
@@ -1789,15 +1782,16 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 	}
 
 	// Ensure operand is bool
-	if operands[0].Type != traceql.TypeBoolean {
+	b, ok := operands[0].(traceql.StaticBool)
+	if !ok {
 		return nil, fmt.Errorf("operand is not bool: %+v", operands[0])
 	}
 
 	switch op {
 	case traceql.OpEqual:
-		return parquetquery.NewBoolEqualPredicate(operands[0].B), nil
+		return parquetquery.NewBoolEqualPredicate(b.Bool), nil
 	case traceql.OpNotEqual:
-		return parquetquery.NewBoolNotEqualPredicate(operands[0].B), nil
+		return parquetquery.NewBoolNotEqualPredicate(b.Bool), nil
 	default:
 		return nil, fmt.Errorf("operand not supported for booleans: %+v", op)
 	}
@@ -1829,7 +1823,7 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 			continue
 		}
 
-		switch cond.Operands[0].Type {
+		switch cond.Operands[0].Type() {
 
 		case traceql.TypeString:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
@@ -2095,7 +2089,7 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 		// Remove unmatched attributes
 		for k, v := range span.attributes {
-			if v.Type == traceql.TypeNil {
+			if v.Type() == traceql.TypeNil {
 				delete(span.attributes, k)
 			}
 		}
