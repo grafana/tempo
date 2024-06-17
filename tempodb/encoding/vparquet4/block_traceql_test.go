@@ -601,6 +601,223 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 	}
 }
 
+/*
+// TODO(mdisibio) We need this test but it's blocked until we add support for fetching
+// array attributes.  Hard to do even in a partial state.  Leaving commented out
+// and will come back to it.
+func TestBackendBlockSelectAll(t *testing.T) {
+	var (
+		ctx             = context.Background()
+		numTraces       = 1 // 250
+		traces          = make([]*Trace, 0, numTraces)
+		wantTraceIdx    = 0 // rand.Intn(numTraces)
+		wantTraceID     = test.ValidTraceID(nil)
+		wantTraceIDText = util.TraceIDToHexString(wantTraceID)
+		wantTrace       = fullyPopulatedTestTrace(wantTraceID)
+		dc              = test.MakeDedicatedColumns()
+		dcm             = dedicatedColumnsToColumnMapping(dc)
+	)
+
+	for i := 0; i < numTraces; i++ {
+		if i == wantTraceIdx {
+			traces = append(traces, wantTrace)
+			continue
+		}
+
+		id := test.ValidTraceID(nil)
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+	}
+
+	b := makeBackendBlockWithTraces(t, traces)
+
+	// TODO - Put traceID in the query and simplify
+	_, _, _, req, err := traceql.NewEngine().Compile("{}")
+	require.NoError(t, err)
+	req.Conditions = append(req.Conditions, traceql.Condition{
+		Attribute: traceql.IntrinsicTraceIDAttribute,
+		Op:        traceql.OpEqual,
+		Operands:  traceql.Operands{traceql.NewStaticString(wantTraceIDText)},
+	})
+	req.SecondPass = func(inSS *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{inSS}, nil }
+	req.SecondPassSelectAll = true
+
+	resp, err := b.Fetch(ctx, *req, common.DefaultSearchOptions())
+	require.NoError(t, err)
+	defer resp.Results.Close()
+
+	// This is a dump of all spans in the fully-populated test trace
+	wantSS := flattenForSelectAll(wantTrace, dcm)
+
+	for {
+		ss, err := resp.Results.Next(ctx)
+		require.NoError(t, err)
+		if ss == nil {
+			break
+		}
+
+		if !bytes.Equal(ss.TraceID, wantTraceID) {
+			continue
+		}
+
+		// Cleanup found data for comparison
+		// equal will fail on the rownum mismatches. this is an internal detail to the
+		// fetch layer. just wipe them out here
+		ss.ReleaseFn = nil
+		ss.ServiceStats = nil
+		for _, sp := range ss.Spans {
+			s := sp.(*span)
+			s.cbSpanset = nil
+			s.cbSpansetFinal = false
+			s.rowNum = parquetquery.RowNumber{}
+			sortAttrs(s.traceAttrs)
+			sortAttrs(s.resourceAttrs)
+			sortAttrs(s.spanAttrs)
+		}
+
+		require.Equal(t, wantSS, ss)
+	}
+}
+
+func sortAttrs(attrs []attrVal) {
+	sort.SliceStable(attrs, func(i, j int) bool {
+		return attrs[i].a.String() < attrs[j].a.String()
+	})
+}
+
+func flattenAttrsForSelectAll(input []Attribute, dest []attrVal) {
+}
+
+func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset {
+	var traceAttrs []attrVal
+	newSS := &traceql.Spanset{
+		RootServiceName: tr.RootServiceName,
+		RootSpanName:    tr.RootSpanName,
+		TraceID:         tr.TraceID,
+	}
+	traceAttrs = append(traceAttrs, attrVal{traceql.IntrinsicTraceRootServiceAttribute, traceql.NewStaticString(tr.RootServiceName)})
+	traceAttrs = append(traceAttrs, attrVal{traceql.IntrinsicTraceRootSpanAttribute, traceql.NewStaticString(tr.RootSpanName)})
+	sortAttrs(traceAttrs)
+
+	for _, rs := range tr.ResourceSpans {
+		var rsAttrs []attrVal
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelServiceName), traceql.NewStaticString(rs.Resource.ServiceName)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelCluster), traceql.NewStaticString(*rs.Resource.Cluster)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelNamespace), traceql.NewStaticString(*rs.Resource.Namespace)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelPod), traceql.NewStaticString(*rs.Resource.Pod)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelContainer), traceql.NewStaticString(*rs.Resource.Container)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sClusterName), traceql.NewStaticString(*rs.Resource.K8sClusterName)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sNamespaceName), traceql.NewStaticString(*rs.Resource.K8sNamespaceName)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sPodName), traceql.NewStaticString(*rs.Resource.K8sPodName)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sContainerName), traceql.NewStaticString(*rs.Resource.K8sContainerName)})
+
+		for _, a := range parquetToProtoAttrs(rs.Resource.Attrs) {
+			if arr := a.Value.GetArrayValue(); arr != nil {
+				for _, v := range arr.Values {
+					rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, a.Key), traceql.StaticFromAnyValue(v)})
+				}
+				continue
+			}
+			rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, a.Key), traceql.StaticFromAnyValue(a.Value)})
+		}
+
+		dcm.forEach(func(attr string, column dedicatedColumn) {
+			if strings.Contains(column.ColumnPath, "Resource") {
+				v := column.readValue(&rs.Resource.DedicatedAttributes)
+				if v == nil {
+					return
+				}
+				a := traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, attr)
+				s := traceql.StaticFromAnyValue(v)
+				rsAttrs = append(rsAttrs, attrVal{a, s})
+			}
+		})
+
+		sortAttrs(rsAttrs)
+
+		for _, ss := range rs.ScopeSpans {
+			for _, s := range ss.Spans {
+
+				newS := &span{}
+				// newS.id = s.SpanID  SpanID isn't implied by SelecTall
+				newS.startTimeUnixNanos = s.StartTimeUnixNano
+				newS.durationNanos = s.DurationNano
+				newS.setTraceAttrs(traceAttrs)
+				newS.setResourceAttrs(rsAttrs)
+				newS.addSpanAttr(traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(s.DurationNano)))
+				var kind traceql.Kind
+				switch s.Kind {
+				case int(v1.Span_SPAN_KIND_UNSPECIFIED):
+					kind = traceql.KindUnspecified
+				case int(v1.Span_SPAN_KIND_INTERNAL):
+					kind = traceql.KindInternal
+				case int(v1.Span_SPAN_KIND_SERVER):
+					kind = traceql.KindServer
+				case int(v1.Span_SPAN_KIND_CLIENT):
+					kind = traceql.KindClient
+				case int(v1.Span_SPAN_KIND_PRODUCER):
+					kind = traceql.KindProducer
+				case int(v1.Span_SPAN_KIND_CONSUMER):
+					kind = traceql.KindConsumer
+				default:
+					kind = traceql.Kind(s.Kind)
+				}
+				newS.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(s.StatusMessage))
+				newS.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(kind))
+				newS.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(s.Name))
+
+				var status traceql.Status
+				switch s.StatusCode {
+				case int(v1.Status_STATUS_CODE_UNSET):
+					status = traceql.StatusUnset
+				case int(v1.Status_STATUS_CODE_OK):
+					status = traceql.StatusOk
+				case int(v1.Status_STATUS_CODE_ERROR):
+					status = traceql.StatusError
+				default:
+					status = traceql.Status(s.StatusCode)
+				}
+				newS.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(traceql.Status(status)))
+				if s.HttpStatusCode != nil {
+					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPStatusCode), traceql.NewStaticInt(int(*s.HttpStatusCode)))
+				}
+				if s.HttpMethod != nil {
+					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPMethod), traceql.NewStaticString(*s.HttpMethod))
+				}
+				if s.HttpUrl != nil {
+					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPUrl), traceql.NewStaticString(*s.HttpUrl))
+				}
+
+				dcm.forEach(func(attr string, column dedicatedColumn) {
+					if strings.Contains(column.ColumnPath, "Span") {
+						v := column.readValue(&s.DedicatedAttributes)
+						if v == nil {
+							return
+						}
+						a := traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, attr)
+						s := traceql.StaticFromAnyValue(v)
+						newS.addSpanAttr(a, s)
+					}
+				})
+
+				for _, a := range parquetToProtoAttrs(s.Attrs) {
+					if arr := a.Value.GetArrayValue(); arr != nil {
+						for _, v := range arr.Values {
+							newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, a.Key), traceql.StaticFromAnyValue(v))
+						}
+						continue
+					}
+					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, a.Key), traceql.StaticFromAnyValue(a.Value))
+				}
+
+				sortAttrs(newS.spanAttrs)
+				newSS.Spans = append(newSS.Spans, newS)
+			}
+		}
+	}
+	return newSS
+}*/
+
 func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	testCases := []struct {
 		name  string
