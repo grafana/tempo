@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/tempodb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/exp/maps"
@@ -75,6 +76,7 @@ type instance struct {
 	wal      storage.Storage
 
 	traceWAL *wal.WAL
+	writer   tempodb.Writer
 
 	// processorsMtx protects the processors map, not the processors itself
 	processorsMtx sync.RWMutex
@@ -88,7 +90,7 @@ type instance struct {
 	logger log.Logger
 }
 
-func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, reg prometheus.Registerer, logger log.Logger, traceWAL *wal.WAL) (*instance, error) {
+func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, reg prometheus.Registerer, logger log.Logger, traceWAL *wal.WAL, writer tempodb.Writer) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
 
 	i := &instance{
@@ -99,6 +101,7 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 		registry: registry.New(&cfg.Registry, overrides, instanceID, wal, logger),
 		wal:      wal,
 		traceWAL: traceWAL,
+		writer:   writer,
 
 		processors: make(map[string]processor.Processor),
 
@@ -296,7 +299,7 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 	case servicegraphs.Name:
 		newProcessor = servicegraphs.New(cfg.ServiceGraphs, i.instanceID, i.registry, i.logger)
 	case localblocks.Name:
-		p, err := localblocks.New(cfg.LocalBlocks, i.instanceID, i.traceWAL, i.overrides)
+		p, err := localblocks.New(cfg.LocalBlocks, i.instanceID, i.traceWAL, i.writer, i.overrides)
 		if err != nil {
 			return err
 		}

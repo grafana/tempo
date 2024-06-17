@@ -271,7 +271,11 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 				attribute.Intrinsic == IntrinsicTraceRootService ||
 				attribute.Intrinsic == IntrinsicTraceRootSpan ||
 				attribute.Intrinsic == IntrinsicTraceID ||
-				attribute.Intrinsic == IntrinsicSpanID {
+				attribute.Intrinsic == IntrinsicSpanID ||
+				attribute.Intrinsic == IntrinsicEventName ||
+				attribute.Intrinsic == IntrinsicLinkTraceID ||
+				attribute.Intrinsic == IntrinsicLinkSpanID {
+
 				continue
 			}
 

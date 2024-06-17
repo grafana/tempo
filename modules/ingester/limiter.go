@@ -54,7 +54,7 @@ func (l *Limiter) maxTracesPerUser(userID string) int {
 	// We can assume that traces are evenly distributed across ingesters
 	// so we do convert the global limit into a local limit
 	globalLimit := l.limits.MaxGlobalTracesPerUser(userID)
-	localLimit = l.minNonZero(localLimit, l.convertGlobalToLocalLimit(globalLimit))
+	localLimit = l.minNonZero(localLimit, l.convertGlobalToLocalLimit(userID, globalLimit))
 
 	// If both the local and global limits are disabled, we just
 	// use the largest int value
@@ -65,7 +65,7 @@ func (l *Limiter) maxTracesPerUser(userID string) int {
 	return localLimit
 }
 
-func (l *Limiter) convertGlobalToLocalLimit(globalLimit int) int {
+func (l *Limiter) convertGlobalToLocalLimit(userID string, globalLimit int) int {
 	if globalLimit == 0 {
 		return 0
 	}
@@ -74,7 +74,9 @@ func (l *Limiter) convertGlobalToLocalLimit(globalLimit int) int {
 	// topology changes) and we prefer to always be in favor of the tenant,
 	// we can use a per-ingester limit equal to:
 	// (global limit / number of ingesters) * replication factor
-	numIngesters := l.ring.HealthyInstancesCount()
+	ingestionShardSize := l.limits.IngestionTenantShardSize(userID)
+	totalIngesters := l.ring.HealthyInstancesCount()
+	numIngesters := l.minNonZero(ingestionShardSize, totalIngesters)
 
 	// May happen because the number of ingesters is asynchronously updated.
 	// If happens, we just temporarily ignore the global limit.

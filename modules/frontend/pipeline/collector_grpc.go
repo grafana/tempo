@@ -11,17 +11,19 @@ import (
 )
 
 type GRPCCollector[T combiner.TResponse] struct {
-	next     AsyncRoundTripper[combiner.PipelineResponse]
-	combiner combiner.GRPCCombiner[T]
+	next      AsyncRoundTripper[combiner.PipelineResponse]
+	combiner  combiner.GRPCCombiner[T]
+	consumers int
 
 	send func(T) error
 }
 
-func NewGRPCCollector[T combiner.TResponse](next AsyncRoundTripper[combiner.PipelineResponse], combiner combiner.GRPCCombiner[T], send func(T) error) *GRPCCollector[T] {
+func NewGRPCCollector[T combiner.TResponse](next AsyncRoundTripper[combiner.PipelineResponse], consumers int, combiner combiner.GRPCCombiner[T], send func(T) error) *GRPCCollector[T] {
 	return &GRPCCollector[T]{
-		next:     next,
-		combiner: combiner,
-		send:     send,
+		next:      next,
+		combiner:  combiner,
+		consumers: consumers,
+		send:      send,
 	}
 }
 
@@ -37,36 +39,9 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 		return grpcError(err)
 	}
 
-	// stores any error that occurs during the streaming
-	//  the wg protects the store from concurrent writes/reads
-	var overallErr error
 	lastUpdate := time.Now()
 
-	for {
-		resp, done, err := resps.Next(ctx)
-		if err != nil {
-			overallErr = err
-			break
-		}
-
-		if resp != nil {
-			err = c.combiner.AddResponse(resp)
-			if err != nil {
-				overallErr = err
-				break
-			}
-		}
-
-		// limit reached or http errors
-		if c.combiner.ShouldQuit() {
-			break
-		}
-
-		// pipeline exhausted
-		if done {
-			break
-		}
-
+	err = consumeAndCombineResponses(ctx, c.consumers, resps, c.combiner, func() error {
 		// check if we should send an update
 		if time.Since(lastUpdate) > 500*time.Millisecond {
 			lastUpdate = time.Now()
@@ -74,20 +49,18 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 			// send a diff only during streaming
 			resp, err := c.combiner.GRPCDiff()
 			if err != nil {
-				overallErr = err
-				break
+				return err
 			}
 			err = c.send(resp)
 			if err != nil {
-				overallErr = err
-				break
+				return err
 			}
 		}
-	}
 
-	// if we have an error then no need to send a final message
-	if overallErr != nil {
-		return grpcError(overallErr)
+		return nil
+	})
+	if err != nil {
+		return grpcError(err)
 	}
 
 	// send a final, complete response
@@ -112,16 +85,3 @@ func grpcError(err error) error {
 
 	return status.Error(codes.Internal, err.Error())
 }
-
-// func contextDone(ctx context.Context) (bool, error) {
-// 	select {
-// 	case <-ctx.Done():
-// 		err := ctx.Err()
-// 		if err != nil && !errors.Is(err, context.Canceled) {
-// 			return true, err
-// 		}
-// 		return true, nil
-// 	default:
-// 		return false, nil
-// 	}
-// }

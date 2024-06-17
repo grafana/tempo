@@ -52,6 +52,8 @@ const (
 	DefinitionLevelResourceAttrs             = 2
 	DefinitionLevelResourceSpansILSSpan      = 3
 	DefinitionLevelResourceSpansILSSpanAttrs = 4
+	DefinitionLevelResourceSpansILSSpanEvent = 4
+	DefinitionLevelResourceSpansILSSpanLink  = 4
 
 	FieldResourceAttrKey       = "rs.list.element.Resource.Attrs.list.element.Key"
 	FieldResourceAttrVal       = "rs.list.element.Resource.Attrs.list.element.Value.list.element"

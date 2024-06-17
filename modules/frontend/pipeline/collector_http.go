@@ -3,13 +3,16 @@ package pipeline
 import (
 	"context"
 	"net/http"
+	"sync"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
+	"go.uber.org/atomic"
 )
 
 type httpCollector struct {
-	next     AsyncRoundTripper[combiner.PipelineResponse]
-	combiner combiner.Combiner
+	next      AsyncRoundTripper[combiner.PipelineResponse]
+	combiner  combiner.Combiner
+	consumers int
 }
 
 // todo: long term this should return an http.Handler instead of a RoundTripper? that way it can completely
@@ -17,10 +20,11 @@ type httpCollector struct {
 //  to be
 
 // NewHTTPCollector returns a new http collector
-func NewHTTPCollector(next AsyncRoundTripper[combiner.PipelineResponse], combiner combiner.Combiner) http.RoundTripper {
+func NewHTTPCollector(next AsyncRoundTripper[combiner.PipelineResponse], consumers int, combiner combiner.Combiner) http.RoundTripper {
 	return httpCollector{
-		next:     next,
-		combiner: combiner,
+		next:      next,
+		combiner:  combiner,
+		consumers: consumers,
 	}
 }
 
@@ -35,29 +39,79 @@ func (r httpCollector) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
+	err = consumeAndCombineResponses(ctx, r.consumers, resps, r.combiner, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.combiner.HTTPFinal()
+}
+
+func consumeAndCombineResponses(ctx context.Context, consumers int, resps Responses[combiner.PipelineResponse], c combiner.Combiner, callback func() error) error {
+	respChan := make(chan combiner.PipelineResponse)
+	overallErr := atomic.Error{}
+	wg := sync.WaitGroup{}
+
+	setErr := func(err error) {
+		overallErr.CompareAndSwap(nil, err)
+	}
+
+	if consumers <= 0 {
+		consumers = 10
+	}
+
+	for i := 0; i < consumers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for resp := range respChan {
+				err := c.AddResponse(resp)
+				if err != nil {
+					setErr(err)
+				}
+			}
+		}()
+	}
+
 	for {
+		if ctx.Err() != nil {
+			setErr(ctx.Err())
+			break
+		}
+
 		resp, done, err := resps.Next(ctx)
 		if err != nil {
-			return nil, err
+			setErr(err)
+			break
 		}
 
 		if resp != nil {
-			err := r.combiner.AddResponse(resp)
-			if err != nil {
-				return nil, err
-			}
+			respChan <- resp
 		}
 
-		if r.combiner.ShouldQuit() {
+		if overallErr.Load() != nil {
+			break
+		}
+
+		if c.ShouldQuit() {
 			break
 		}
 
 		if done {
 			break
 		}
+
+		if callback != nil {
+			err = callback()
+			if err != nil {
+				setErr(err)
+				break
+			}
+		}
 	}
 
-	resp, err := r.combiner.HTTPFinal()
+	close(respChan)
+	wg.Wait()
 
-	return resp, err
+	return overallErr.Load()
 }
