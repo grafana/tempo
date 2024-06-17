@@ -32,7 +32,7 @@ type pipelineElement interface {
 }
 
 type typedExpression interface {
-	impliedType() StaticType
+	Type() StaticType
 }
 
 type RootExpr struct {
@@ -94,7 +94,7 @@ func (p Pipeline) addItem(i pipelineElement) Pipeline {
 	return p
 }
 
-func (p Pipeline) impliedType() StaticType {
+func (p Pipeline) Type() StaticType {
 	if len(p.Elements) == 0 {
 		return TypeSpanset
 	}
@@ -102,7 +102,7 @@ func (p Pipeline) impliedType() StaticType {
 	finalItem := p.Elements[len(p.Elements)-1]
 	aggregate, ok := finalItem.(Aggregate)
 	if ok {
-		return aggregate.impliedType()
+		return aggregate.Type()
 	}
 
 	return TypeSpanset
@@ -200,19 +200,19 @@ func newScalarOperation(op Operator, lhs, rhs ScalarExpression) ScalarOperation 
 // nolint: revive
 func (ScalarOperation) __scalarExpression() {}
 
-func (o ScalarOperation) impliedType() StaticType {
+func (o ScalarOperation) Type() StaticType {
 	if o.Op.isBoolean() {
 		return TypeBoolean
 	}
 
 	// remaining operators will be based on the operands
 	// opAdd, opSub, opDiv, opMod, opMult
-	t := o.LHS.impliedType()
+	t := o.LHS.Type()
 	if t != TypeAttribute {
 		return t
 	}
 
-	return o.RHS.impliedType()
+	return o.RHS.Type()
 }
 
 func (o ScalarOperation) extractConditions(request *FetchSpansRequest) {
@@ -236,12 +236,12 @@ func newAggregate(agg AggregateOp, e FieldExpression) Aggregate {
 // nolint: revive
 func (Aggregate) __scalarExpression() {}
 
-func (a Aggregate) impliedType() StaticType {
+func (a Aggregate) Type() StaticType {
 	if a.op == aggregateCount || a.e == nil {
 		return TypeInt
 	}
 
-	return a.e.impliedType()
+	return a.e.Type()
 }
 
 func (a Aggregate) extractConditions(request *FetchSpansRequest) {
@@ -420,19 +420,19 @@ func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
 // nolint: revive
 func (BinaryOperation) __fieldExpression() {}
 
-func (o *BinaryOperation) impliedType() StaticType {
+func (o *BinaryOperation) Type() StaticType {
 	if o.Op.isBoolean() {
 		return TypeBoolean
 	}
 
 	// remaining operators will be based on the operands
 	// opAdd, opSub, opDiv, opMod, opMult
-	t := o.LHS.impliedType()
+	t := o.LHS.Type()
 	if t != TypeAttribute {
 		return t
 	}
 
-	return o.RHS.impliedType()
+	return o.RHS.Type()
 }
 
 func (o *BinaryOperation) referencesSpan() bool {
@@ -462,9 +462,9 @@ func newUnaryOperation(op Operator, e FieldExpression) FieldExpression {
 // nolint: revive
 func (UnaryOperation) __fieldExpression() {}
 
-func (o UnaryOperation) impliedType() StaticType {
+func (o UnaryOperation) Type() StaticType {
 	// both operators (opPower and opNot) will just be based on the operand type
-	return o.Expression.impliedType()
+	return o.Expression.Type()
 }
 
 func (o UnaryOperation) referencesSpan() bool {
@@ -520,7 +520,7 @@ func NewStaticNil() Static {
 	return staticNil
 }
 
-func (StaticNil) impliedType() StaticType {
+func (StaticNil) Type() StaticType {
 	return TypeNil
 }
 
@@ -532,7 +532,7 @@ func (StaticNil) equals(o Static) bool {
 func (StaticNil) compare(o Static) int {
 	_, ok := o.(StaticNil)
 	if !ok {
-		return cmp.Compare(TypeNil, o.impliedType())
+		return cmp.Compare(TypeNil, o.Type())
 	}
 	return 0
 }
@@ -561,7 +561,7 @@ func NewStaticInt(n int) StaticInt {
 	return StaticInt{val: n}
 }
 
-func (s StaticInt) impliedType() StaticType {
+func (s StaticInt) Type() StaticType {
 	return TypeInt
 }
 
@@ -591,7 +591,7 @@ func (s StaticInt) compare(o Static) int {
 	case StaticStatus:
 		return cmp.Compare(s.val, int(o.val))
 	default:
-		return cmp.Compare(TypeInt, o.impliedType())
+		return cmp.Compare(TypeInt, o.Type())
 	}
 }
 
@@ -627,7 +627,7 @@ func NewStaticFloat(f float64) StaticFloat {
 	return StaticFloat{val: f}
 }
 
-func (s StaticFloat) impliedType() StaticType {
+func (s StaticFloat) Type() StaticType {
 	return TypeFloat
 }
 
@@ -653,7 +653,7 @@ func (s StaticFloat) compare(o Static) int {
 	case StaticDuration:
 		return cmp.Compare(s.val, float64(o.val))
 	default:
-		return cmp.Compare(TypeFloat, o.impliedType())
+		return cmp.Compare(TypeFloat, o.Type())
 	}
 }
 
@@ -690,7 +690,7 @@ func NewStaticString(s string) StaticString {
 	return StaticString{val: s}
 }
 
-func (s StaticString) impliedType() StaticType {
+func (s StaticString) Type() StaticType {
 	return TypeString
 }
 
@@ -705,7 +705,7 @@ func (s StaticString) equals(o Static) bool {
 func (s StaticString) compare(o Static) int {
 	v, ok := o.(StaticString)
 	if !ok {
-		return cmp.Compare(TypeString, o.impliedType())
+		return cmp.Compare(TypeString, o.Type())
 	}
 	return cmp.Compare(s.val, v.val)
 }
@@ -734,7 +734,7 @@ func NewStaticBool(b bool) StaticBool {
 	return StaticBool{val: b}
 }
 
-func (s StaticBool) impliedType() StaticType {
+func (s StaticBool) Type() StaticType {
 	return TypeBoolean
 }
 
@@ -749,7 +749,7 @@ func (s StaticBool) equals(o Static) bool {
 func (s StaticBool) compare(o Static) int {
 	v, ok := o.(StaticBool)
 	if !ok {
-		return cmp.Compare(TypeBoolean, o.impliedType())
+		return cmp.Compare(TypeBoolean, o.Type())
 	}
 	if s.val && !v.val {
 		return 1
@@ -786,7 +786,7 @@ func NewStaticDuration(d time.Duration) StaticDuration {
 	return StaticDuration{val: d}
 }
 
-func (s StaticDuration) impliedType() StaticType {
+func (s StaticDuration) Type() StaticType {
 	return TypeDuration
 }
 
@@ -812,7 +812,7 @@ func (s StaticDuration) compare(o Static) int {
 	case StaticFloat:
 		return cmp.Compare(float64(s.val), o.val)
 	default:
-		return cmp.Compare(TypeDuration, o.impliedType())
+		return cmp.Compare(TypeDuration, o.Type())
 	}
 }
 
@@ -849,7 +849,7 @@ func NewStaticStatus(s Status) StaticStatus {
 	return StaticStatus{val: s}
 }
 
-func (s StaticStatus) impliedType() StaticType {
+func (s StaticStatus) Type() StaticType {
 	return TypeStatus
 }
 
@@ -871,7 +871,7 @@ func (s StaticStatus) compare(o Static) int {
 	case StaticInt:
 		return cmp.Compare(s.val, Status(o.val))
 	default:
-		return cmp.Compare(TypeStatus, o.impliedType())
+		return cmp.Compare(TypeStatus, o.Type())
 	}
 }
 
@@ -899,7 +899,7 @@ func NewStaticKind(k Kind) StaticKind {
 	return StaticKind{val: k}
 }
 
-func (s StaticKind) impliedType() StaticType {
+func (s StaticKind) Type() StaticType {
 	return TypeKind
 }
 
@@ -914,7 +914,7 @@ func (s StaticKind) equals(o Static) bool {
 func (s StaticKind) compare(o Static) int {
 	v, ok := o.(StaticKind)
 	if !ok {
-		return cmp.Compare(TypeKind, o.impliedType())
+		return cmp.Compare(TypeKind, o.Type())
 	}
 	return cmp.Compare(s.val, v.val)
 }
@@ -955,7 +955,7 @@ func NewAttribute(att string) Attribute {
 // nolint: revive
 func (Attribute) __fieldExpression() {}
 
-func (a Attribute) impliedType() StaticType {
+func (a Attribute) Type() StaticType {
 	switch a.Intrinsic {
 	case IntrinsicDuration:
 		return TypeDuration

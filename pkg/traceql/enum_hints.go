@@ -92,7 +92,7 @@ func (h *Hints) Get(k string, t StaticType, allowUnsafe bool) (v Static, ok bool
 	}
 
 	for _, hh := range h.Hints {
-		if hh.Name == k && hh.Value.impliedType() == t {
+		if hh.Name == k && hh.Value.Type() == t {
 			return hh.Value, true
 		}
 	}

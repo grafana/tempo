@@ -338,8 +338,8 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	}
 
 	// Ensure the resolved types are still valid
-	lhsT := lhs.impliedType()
-	rhsT := rhs.impliedType()
+	lhsT := lhs.Type()
+	rhsT := rhs.Type()
 	if !lhsT.isMatchingOperand(rhsT) {
 		return NewStaticBool(false), nil
 	}
@@ -454,8 +454,8 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 
 // why does this and the above exist?
 func binOp(op Operator, lhs, rhs Static) (bool, error) {
-	lhsT := lhs.impliedType()
-	rhsT := rhs.impliedType()
+	lhsT := lhs.Type()
+	rhsT := rhs.Type()
 	if !lhsT.isMatchingOperand(rhsT) {
 		return false, nil
 	}
@@ -502,7 +502,7 @@ func (o UnaryOperation) execute(span Span) (Static, error) {
 	if o.Op == OpNot {
 		b, ok := static.(StaticBool)
 		if !ok {
-			return NewStaticNil(), fmt.Errorf("expression (%v) expected a boolean, but got %v", o, static.impliedType())
+			return NewStaticNil(), fmt.Errorf("expression (%v) expected a boolean, but got %v", o, static.Type())
 		}
 		return NewStaticBool(!b.val), nil
 	}
@@ -515,7 +515,7 @@ func (o UnaryOperation) execute(span Span) (Static, error) {
 		case StaticFloat:
 			return NewStaticFloat(-1 * n.val), nil
 		default:
-			return NewStaticNil(), fmt.Errorf("expression (%v) expected a numeric, but got %v", o, static.impliedType())
+			return NewStaticNil(), fmt.Errorf("expression (%v) expected a numeric, but got %v", o, static.Type())
 		}
 	}
 

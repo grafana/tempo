@@ -44,7 +44,7 @@ func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 	case Attribute:
 		switch rhs := o.RHS.(type) {
 		case Static:
-			if (rhs.impliedType() == TypeNil && o.Op == OpNotEqual) || !o.Op.isBoolean() { // the fetch layer can't build predicates on operators that are not boolean
+			if (rhs.Type() == TypeNil && o.Op == OpNotEqual) || !o.Op.isBoolean() { // the fetch layer can't build predicates on operators that are not boolean
 				request.appendCondition(Condition{
 					Attribute: lhs,
 					Op:        OpNone,
@@ -84,7 +84,7 @@ func (o *BinaryOperation) extractConditions(request *FetchSpansRequest) {
 			// 2 statics, don't need to send any conditions
 			return
 		case Attribute:
-			if (lhs.impliedType() == TypeNil && o.Op == OpNotEqual) || !o.Op.isBoolean() { // the fetch layer can't build predicates on operators that are not boolean
+			if (lhs.Type() == TypeNil && o.Op == OpNotEqual) || !o.Op.isBoolean() { // the fetch layer can't build predicates on operators that are not boolean
 				request.appendCondition(Condition{
 					Attribute: rhs,
 					Op:        OpNone,

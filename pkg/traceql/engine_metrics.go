@@ -84,9 +84,9 @@ func (ls Labels) String() string {
 	for _, l := range ls {
 		var promValue string
 		switch {
-		case l.Value.impliedType() == TypeNil:
+		case l.Value.Type() == TypeNil:
 			promValue = "<nil>"
-		case l.Value.impliedType() == TypeString:
+		case l.Value.Type() == TypeString:
 			s := l.Value.EncodeToString(false)
 			if s != "" {
 				promValue = s
@@ -425,7 +425,7 @@ func (g *GroupingAggregator[F, S]) Observe(span Span) {
 func (g *GroupingAggregator[F, S]) labelsFor(vals S) (Labels, string) {
 	labels := make(Labels, 0, len(g.by)+1)
 	for i := range g.by {
-		if vals[i].impliedType() == TypeNil {
+		if vals[i].Type() == TypeNil {
 			continue
 		}
 		labels = append(labels, Label{g.by[i].String(), vals[i]})
@@ -980,7 +980,7 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			})
 		}
 
-		if bucket == nil || bucket.impliedType() == TypeNil {
+		if bucket == nil || bucket.Type() == TypeNil {
 			// Bad __bucket label?
 			continue
 		}

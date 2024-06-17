@@ -72,8 +72,8 @@ func (o ScalarOperation) validate() error {
 		return err
 	}
 
-	lhsT := o.LHS.impliedType()
-	rhsT := o.RHS.impliedType()
+	lhsT := o.LHS.Type()
+	rhsT := o.RHS.Type()
 	if !lhsT.isMatchingOperand(rhsT) {
 		return fmt.Errorf("binary operations must operate on the same type: %s", o.String())
 	}
@@ -95,7 +95,7 @@ func (a Aggregate) validate() error {
 	}
 
 	// aggregate field expressions require a type of a number or attribute
-	t := a.e.impliedType()
+	t := a.e.Type()
 	if t != TypeAttribute && !t.isNumeric() {
 		return fmt.Errorf("aggregate field expressions must resolve to a number type: %s", a.String())
 	}
@@ -126,7 +126,7 @@ func (f SpansetFilter) validate() error {
 		return err
 	}
 
-	t := f.Expression.impliedType()
+	t := f.Expression.Type()
 	if t != TypeAttribute && t != TypeBoolean {
 		return fmt.Errorf("span filter field expressions must resolve to a boolean: %s", f.String())
 	}
@@ -142,8 +142,8 @@ func (f ScalarFilter) validate() error {
 		return err
 	}
 
-	lhsT := f.lhs.impliedType()
-	rhsT := f.rhs.impliedType()
+	lhsT := f.lhs.Type()
+	rhsT := f.rhs.Type()
 	if !lhsT.isMatchingOperand(rhsT) {
 		return fmt.Errorf("binary operations must operate on the same type: %s", f.String())
 	}
@@ -176,8 +176,8 @@ func (o *BinaryOperation) validate() error {
 		return err
 	}
 
-	lhsT := o.LHS.impliedType()
-	rhsT := o.RHS.impliedType()
+	lhsT := o.LHS.Type()
+	rhsT := o.RHS.Type()
 
 	if !lhsT.isMatchingOperand(rhsT) {
 		return fmt.Errorf("binary operations must operate on the same type: %s", o.String())
@@ -229,7 +229,7 @@ func (o UnaryOperation) validate() error {
 		return err
 	}
 
-	t := o.Expression.impliedType()
+	t := o.Expression.Type()
 	if t == TypeAttribute {
 		return nil
 	}
