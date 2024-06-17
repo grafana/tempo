@@ -98,7 +98,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 			multiTenantMiddleware(cfg, logger),
 			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, logger),
 		},
-		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, queryFilterWare},
 		next)
 
 	searchTagsPipeline := pipeline.Build(
@@ -114,7 +114,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequest, logger),
 		},
-		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, queryFilterWare},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
 
 	// metrics summary
@@ -131,7 +131,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 			multiTenantMiddleware(cfg, logger),
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, logger),
 		},
-		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, queryFilterWare},
 		next)
 
 	traces := newTraceIDHandler(cfg, o, tracePipeline, logger)

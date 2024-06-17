@@ -1,8 +1,11 @@
 package pipeline
 
 import (
+	"github.com/grafana/tempo/pkg/api"
+	"io"
 	"net/http"
 	"regexp"
+	"strings"
 	"sync"
 )
 
@@ -46,7 +49,10 @@ func (c traceQueryFilterWare) RoundTrip(req *http.Request) (*http.Response, erro
 		return resp, nil
 	}
 	//need wait group
-	u := req.URL.RawQuery
+	u, err := api.ParseSearchRequest(req)
+	if err != nil {
+		return resp, err
+	}
 	match := make(chan bool, len(c.filters))
 	wg := sync.WaitGroup{}
 	for range c.filters {
@@ -62,7 +68,7 @@ func (c traceQueryFilterWare) RoundTrip(req *http.Request) (*http.Response, erro
 			}
 		}
 		match <- false
-	}(u)
+	}(u.Query)
 
 	go func() {
 		wg.Wait()
@@ -70,9 +76,13 @@ func (c traceQueryFilterWare) RoundTrip(req *http.Request) (*http.Response, erro
 	}()
 
 	if <-match {
-		resp.StatusCode = http.StatusBadRequest
-		resp.Status = http.StatusText(http.StatusBadRequest)
-		//Anything in the body? An error message?
+
+		return &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Status:     http.StatusText(http.StatusBadRequest),
+			Body:       io.NopCloser(strings.NewReader("Query is temporarily blocked by your administrator.")),
+		}, nil
+
 	}
 	return resp, nil
 }
