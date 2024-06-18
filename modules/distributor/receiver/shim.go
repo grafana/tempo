@@ -191,12 +191,10 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		receivers = append(receivers, k)
 	}
 
-	// Creates a config provider with the given config map.
-	// The provider will be used to retrieve the actual config for the pipeline (although we only need the receivers).
-	pro, err := otelcol.NewConfigProvider(otelcol.ConfigProviderSettings{
-		ResolverSettings: confmap.ResolverSettings{
-			URIs: []string{"mock:/"},
-			Providers: map[string]confmap.Provider{"mock": &mapProvider{raw: map[string]interface{}{
+	// Define a factory function to create the mock provider
+	mockProviderFactory := confmap.NewProviderFactory(func(settings confmap.ProviderSettings) confmap.Provider {
+		return &mapProvider{
+			raw: map[string]interface{}{
 				"receivers": receiverCfg,
 				"exporters": map[string]interface{}{
 					"nop": map[string]interface{}{},
@@ -209,7 +207,19 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 						},
 					},
 				},
-			}}},
+			},
+		}
+	})
+
+	// Creates a config provider with the given config map.
+	// The provider will be used to retrieve the actual config for the pipeline (although we only need the receivers).
+	pro, err := otelcol.NewConfigProvider(otelcol.ConfigProviderSettings{
+		ResolverSettings: confmap.ResolverSettings{
+			URIs: []string{"mock:/"},
+			ProviderFactories: []confmap.ProviderFactory{
+				mockProviderFactory,
+			},
+			DefaultScheme: "mock",
 		},
 	})
 	if err != nil {

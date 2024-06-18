@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/dskit/tracing"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
+	ver "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/common/version"
 	"go.opentelemetry.io/otel"
 	oc_bridge "go.opentelemetry.io/otel/bridge/opencensus"
@@ -49,7 +50,7 @@ func init() {
 	version.Version = Version
 	version.Branch = Branch
 	version.Revision = Revision
-	prometheus.MustRegister(version.NewCollector(appName))
+	prometheus.MustRegister(ver.NewCollector(appName))
 
 	// Register the gogocodec as early as possible.
 	encoding.RegisterCodec(gogocodec.NewCodec())

@@ -14,7 +14,7 @@ import (
 	"golang.org/x/text/transform"
 )
 
-// NewBasicConfig creates a new Encoding config
+// NewEncodingConfig creates a new Encoding config
 func NewEncodingConfig() EncodingConfig {
 	return EncodingConfig{
 		Encoding: "utf-8",
