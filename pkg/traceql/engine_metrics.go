@@ -341,7 +341,6 @@ func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by [
 }
 
 func newGroupingAggregator[F FastStatic, S StaticVals](innerAgg func() RangeAggregator, by []Attribute, byFunc func(Span) (Static, bool), byFuncLabel string, lookups [][]Attribute) SpanAggregator {
-
 	return &GroupingAggregator[F, S]{
 		series:      map[F]aggregatorWitValues[S]{},
 		by:          by,

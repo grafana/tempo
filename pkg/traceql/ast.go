@@ -3,12 +3,13 @@ package traceql
 import (
 	"cmp"
 	"fmt"
-	"github.com/grafana/tempo/pkg/tempopb"
-	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"hash/crc32"
 	"math"
 	"regexp"
 	"time"
+
+	"github.com/grafana/tempo/pkg/tempopb"
+	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 )
 
 type Element interface {
@@ -505,8 +506,10 @@ func (StaticBase) referencesSpan() bool {
 	return false
 }
 
+// nolint: revive
 func (StaticBase) __fieldExpression() {}
 
+// nolint: revive
 func (StaticBase) __scalarExpression() {}
 
 // StaticNil a nil representation of a static value
