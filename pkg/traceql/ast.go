@@ -684,7 +684,8 @@ func (s StaticFloat) HashCode() StaticHashCode {
 // StaticString represents a Static implementation based on string
 type StaticString struct {
 	StaticBase
-	Str string
+	Str      string
+	hashCode StaticHashCode
 }
 
 var _ Static = StaticString{}
@@ -722,7 +723,11 @@ func (s StaticString) divide(_ float64) Static {
 }
 
 func (s StaticString) HashCode() StaticHashCode {
-	return StaticHashCode{Type: TypeString, Hash: uint64(crc32.ChecksumIEEE([]byte(s.Str)))}
+	if s.hashCode.Type == TypeNil {
+		hash := crc32.ChecksumIEEE([]byte(s.Str))
+		s.hashCode = StaticHashCode{Type: TypeString, Hash: uint64(hash)}
+	}
+	return s.hashCode
 }
 
 // StaticBool represents a Static implementation based on bool
