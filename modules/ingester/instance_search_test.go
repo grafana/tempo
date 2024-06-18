@@ -378,7 +378,9 @@ func TestInstanceSearchTagsSpecialCases(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(
 		t,
-		[]string{"duration", "kind", "name", "rootName", "rootServiceName", "span:duration", "span:kind", "span:name", "span:status", "span:statusMessage", "status", "statusMessage", "trace:rootName", "trace:rootServiceName", "trace:traceDuration", "traceDuration"},
+		[]string{"duration", "event:name", "kind", "name", "rootName", "rootServiceName", 
+		"span:duration", "span:kind", "span:name", "span:status", "span:statusMessage", "status", "statusMessage", 
+		"trace:rootName", "trace:rootService", "trace:duration", "traceDuration"},
 		resp.TagNames,
 	)
 }
