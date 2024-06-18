@@ -873,8 +873,8 @@ storage:
             # enable to use path-style requests.
             [forcepathstyle: <bool>]
 
-            # optional.
-            # enable to use dualstack endpoint for DNS resolution. 
+            # Optional.
+            # Enable to use dualstack endpoint for DNS resolution. 
             # Check out the (S3 documentation on dualstack endpoints)[https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html]
             [enable_dual_stack: <bool>]
 
