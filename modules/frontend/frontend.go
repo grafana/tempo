@@ -83,6 +83,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()
 	traceIDStatusCodeWare := pipeline.NewStatusCodeAdjustWareWithAllowedCode(http.StatusNotFound)
+	queryFilterWare := pipeline.NewTraceQueryFilterWareWithDenyList(cfg.Search.FilterPatterns)
 
 	tracePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -97,7 +98,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 			multiTenantMiddleware(cfg, logger),
 			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, logger),
 		},
-		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, queryFilterWare},
 		next)
 
 	searchTagsPipeline := pipeline.Build(
@@ -130,7 +131,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 			multiTenantMiddleware(cfg, logger),
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, logger),
 		},
-		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, queryFilterWare},
 		next)
 
 	traces := newTraceIDHandler(cfg, o, tracePipeline, logger)
