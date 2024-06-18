@@ -588,7 +588,11 @@ func getSpan() *span {
 	return spanPool.Get().(*span)
 }
 
-var spansetPool = sync.Pool{}
+var spansetPool = sync.Pool{
+	New: func() interface{} {
+		return &traceql.Spanset{Scalar: traceql.NewStaticNil()}
+	},
+}
 
 func getSpanset() *traceql.Spanset {
 	ss := spansetPool.Get()
