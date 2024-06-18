@@ -876,7 +876,7 @@ storage:
             # optional.
             # enable to use dualstack endpoint for DNS resolution. 
             # Check out the (S3 documentation on dualstack endpoints)[https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html]
-            [enabledualstack: <bool>]
+            [enable_dual_stack: <bool>]
 
             # Optional. Default is 0
             # Example: "bucket_lookup_type: 0"
