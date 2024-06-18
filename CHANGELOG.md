@@ -11,6 +11,7 @@
 * [ENHANCEMENT] Use multiple goroutines to unmarshal responses in parallel in the query frontend. [#3713](https://github.com/grafana/tempo/pull/3713) (@joe-elliott)
 * [BUGFIX] Fix metrics queries when grouping by attributes that may not exist [#3734](https://github.com/grafana/tempo/pull/3734) (@mdisibio)
 * [BUGFIX] max_global_traces_per_user: take into account ingestion.tenant_shard_size when converting to local limit [#3618](https://github.com/grafana/tempo/pull/3618) (@kvrhdn)
+* [BUGFIX] Fix http connection reuse on GCP and AWS by reading io.EOF through the http body. [#3760](https://github.com/grafana/tempo/pull/3760) (@bmteller)
 
 ## v2.5.0
 
