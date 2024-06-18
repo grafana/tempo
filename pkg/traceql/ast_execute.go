@@ -30,14 +30,14 @@ func (g GroupOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
 			}
 
 			// Check if the result already has a group in the map
-			group, ok := groups[result.hashCode()]
+			group, ok := groups[result.HashCode()]
 			if !ok {
 				// If not, create a new group and add it to the map
 				group = &Spanset{}
 				// copy all existing attributes forward
 				group.Attributes = append(group.Attributes, spanset.Attributes...)
 				group.AddAttribute(g.String(), result)
-				groups[result.hashCode()] = group
+				groups[result.HashCode()] = group
 			}
 
 			// Add the current spanset to the group

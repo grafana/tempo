@@ -482,12 +482,12 @@ type Static interface {
 
 	AsAnyValue() *common_v1.AnyValue
 	EncodeToString(quotes bool) string
+	HashCode() StaticHashCode
 	equals(o Static) bool
 	compare(o Static) int
 	asFloat() float64
 	add(o Static) Static
 	divide(f float64) Static
-	hashCode() StaticHashCode
 }
 
 type StaticHashCode struct {
@@ -548,7 +548,7 @@ func (StaticNil) divide(_ float64) Static {
 	return NewStaticNil()
 }
 
-func (StaticNil) hashCode() StaticHashCode {
+func (StaticNil) HashCode() StaticHashCode {
 	return StaticHashCode{Type: TypeNil}
 }
 
@@ -614,7 +614,7 @@ func (s StaticInt) asFloat() float64 {
 	return float64(s.Int)
 }
 
-func (s StaticInt) hashCode() StaticHashCode {
+func (s StaticInt) HashCode() StaticHashCode {
 	return StaticHashCode{Type: TypeInt, Hash: uint64(s.Int)}
 }
 
@@ -677,7 +677,7 @@ func (s StaticFloat) divide(f float64) Static {
 	return s
 }
 
-func (s StaticFloat) hashCode() StaticHashCode {
+func (s StaticFloat) HashCode() StaticHashCode {
 	return StaticHashCode{Type: TypeFloat, Hash: math.Float64bits(s.Float)}
 }
 
@@ -721,7 +721,7 @@ func (s StaticString) divide(_ float64) Static {
 	return s
 }
 
-func (s StaticString) hashCode() StaticHashCode {
+func (s StaticString) HashCode() StaticHashCode {
 	return StaticHashCode{Type: TypeString, Hash: uint64(crc32.ChecksumIEEE([]byte(s.Str)))}
 }
 
@@ -770,7 +770,7 @@ func (s StaticBool) divide(_ float64) Static {
 	return s
 }
 
-func (s StaticBool) hashCode() StaticHashCode {
+func (s StaticBool) HashCode() StaticHashCode {
 	if s.Bool {
 		return StaticHashCode{Type: TypeBoolean, Hash: 1}
 	}
@@ -836,7 +836,7 @@ func (s StaticDuration) divide(f float64) Static {
 	return NewStaticDuration(d)
 }
 
-func (s StaticDuration) hashCode() StaticHashCode {
+func (s StaticDuration) HashCode() StaticHashCode {
 	return StaticHashCode{Type: TypeDuration, Hash: uint64(s.Duration)}
 }
 
@@ -886,7 +886,7 @@ func (s StaticStatus) divide(_ float64) Static {
 	return s
 }
 
-func (s StaticStatus) hashCode() StaticHashCode {
+func (s StaticStatus) HashCode() StaticHashCode {
 	return StaticHashCode{Type: TypeStatus, Hash: uint64(s.Status)}
 }
 
@@ -930,7 +930,7 @@ func (s StaticKind) divide(_ float64) Static {
 	return s
 }
 
-func (s StaticKind) hashCode() StaticHashCode {
+func (s StaticKind) HashCode() StaticHashCode {
 	return StaticHashCode{Type: TypeKind, Hash: uint64(s.Kind)}
 }
 
