@@ -1079,17 +1079,26 @@ func protoToMetricSeries(proto []*tempopb.KeyValue) traceqlmetrics.MetricSeries 
 }
 
 func protoToTraceQLStatic(proto *tempopb.KeyValue) traceqlmetrics.KeyValue {
-	return traceqlmetrics.KeyValue{
-		Key: proto.Key,
-		Value: traceql.Static{
-			Type:   traceql.StaticType(proto.Value.Type),
-			N:      int(proto.Value.N),
-			F:      proto.Value.F,
-			S:      proto.Value.S,
-			B:      proto.Value.B,
-			D:      time.Duration(proto.Value.D),
-			Status: traceql.Status(proto.Value.Status),
-			Kind:   traceql.Kind(proto.Value.Kind),
-		},
+	var val traceql.Static
+
+	switch t := traceql.StaticType(proto.Value.Type); t {
+	case traceql.TypeInt:
+		val = traceql.NewStaticInt(int(proto.Value.N))
+	case traceql.TypeFloat:
+		val = traceql.NewStaticFloat(proto.Value.F)
+	case traceql.TypeString:
+		val = traceql.NewStaticString(proto.Value.S)
+	case traceql.TypeBoolean:
+		val = traceql.NewStaticBool(proto.Value.B)
+	case traceql.TypeDuration:
+		val = traceql.NewStaticDuration(time.Duration(proto.Value.D))
+	case traceql.TypeStatus:
+		val = traceql.NewStaticStatus(traceql.Status(proto.Value.Status))
+	case traceql.TypeKind:
+		val = traceql.NewStaticKind(traceql.Kind(proto.Value.Kind))
+	default:
+		val = traceql.NewStaticNil()
 	}
+
+	return traceqlmetrics.KeyValue{Key: proto.Key, Value: val}
 }

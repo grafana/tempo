@@ -887,19 +887,26 @@ func metricSeriesToProto(series traceqlmetrics.MetricSeries) []*tempopb.KeyValue
 	for _, kv := range series {
 		if kv.Key != "" {
 			static := kv.Value
-			r = append(r, &tempopb.KeyValue{
-				Key: kv.Key,
-				Value: &tempopb.TraceQLStatic{
-					Type:   int32(static.Type),
-					N:      int64(static.N),
-					F:      static.F,
-					S:      static.S,
-					B:      static.B,
-					D:      uint64(static.D),
-					Status: int32(static.Status),
-					Kind:   int32(static.Kind),
-				},
-			})
+			val := tempopb.TraceQLStatic{Type: int32(static.Type())}
+
+			switch static := static.(type) {
+			case traceql.StaticInt:
+				val.N = int64(static.Int)
+			case traceql.StaticFloat:
+				val.F = static.Float
+			case traceql.StaticString:
+				val.S = static.Str
+			case traceql.StaticBool:
+				val.B = static.Bool
+			case traceql.StaticDuration:
+				val.D = uint64(static.Duration)
+			case traceql.StaticStatus:
+				val.Status = int32(static.Status)
+			case traceql.StaticKind:
+				val.Kind = int32(static.Kind)
+			}
+
+			r = append(r, &tempopb.KeyValue{Key: kv.Key, Value: &val})
 		}
 	}
 	return r
