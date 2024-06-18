@@ -112,10 +112,10 @@ func (pep *pathExpressionParser) parsePath(path ottl.Path[TransformContext]) (ot
 
 func accessCache() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.getCache(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if m, ok := val.(pcommon.Map); ok {
 				m.CopyTo(tCtx.getCache())
 			}

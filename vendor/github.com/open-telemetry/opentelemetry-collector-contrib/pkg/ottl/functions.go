@@ -283,8 +283,8 @@ func (p *Parser[K]) buildArgs(ed editor, argsVal reflect.Value) error {
 			switch {
 			case arg.Value.Enum != nil:
 				name = string(*arg.Value.Enum)
-			case arg.Value.FunctionName != nil:
-				name = *arg.Value.FunctionName
+			case arg.FunctionName != nil:
+				name = *arg.FunctionName
 			default:
 				return fmt.Errorf("invalid function name given")
 			}

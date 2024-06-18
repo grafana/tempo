@@ -12,7 +12,7 @@ import (
 )
 
 func uuid[K any]() (ottl.ExprFunc[K], error) {
-	return func(ctx context.Context, tCtx K) (any, error) {
+	return func(_ context.Context, _ K) (any, error) {
 		u := guuid.New()
 		return u.String(), nil
 	}, nil

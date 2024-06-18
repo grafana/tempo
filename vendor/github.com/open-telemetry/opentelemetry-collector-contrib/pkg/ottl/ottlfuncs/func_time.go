@@ -12,8 +12,9 @@ import (
 )
 
 type TimeArguments[K any] struct {
-	Time   ottl.StringGetter[K]
-	Format string
+	Time     ottl.StringGetter[K]
+	Format   string
+	Location ottl.Optional[string]
 }
 
 func NewTimeFactory[K any]() ottl.Factory[K] {
@@ -26,14 +27,20 @@ func createTimeFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ot
 		return nil, fmt.Errorf("TimeFactory args must be of type *TimeArguments[K]")
 	}
 
-	return Time(args.Time, args.Format)
+	return Time(args.Time, args.Format, args.Location)
 }
 
-func Time[K any](inputTime ottl.StringGetter[K], format string) (ottl.ExprFunc[K], error) {
+func Time[K any](inputTime ottl.StringGetter[K], format string, location ottl.Optional[string]) (ottl.ExprFunc[K], error) {
 	if format == "" {
 		return nil, fmt.Errorf("format cannot be nil")
 	}
-	loc, err := timeutils.GetLocation(nil, &format)
+	var defaultLocation *string
+	if !location.IsEmpty() {
+		l := location.Get()
+		defaultLocation = &l
+	}
+
+	loc, err := timeutils.GetLocation(defaultLocation, &format)
 	if err != nil {
 		return nil, err
 	}

@@ -218,8 +218,9 @@ type converter struct {
 }
 
 type argument struct {
-	Name  string `parser:"(@(Lowercase(Uppercase | Lowercase)*) Equal)?"`
-	Value value  `parser:"@@"`
+	Name         string  `parser:"(@(Lowercase(Uppercase | Lowercase)*) Equal)?"`
+	Value        value   `parser:"( @@"`
+	FunctionName *string `parser:"| @(Uppercase(Uppercase | Lowercase)*) )"`
 }
 
 func (a *argument) checkForCustomError() error {
@@ -236,7 +237,6 @@ type value struct {
 	String         *string          `parser:"| @String"`
 	Bool           *boolean         `parser:"| @Boolean"`
 	Enum           *enumSymbol      `parser:"| @Uppercase (?! Lowercase)"`
-	FunctionName   *string          `parser:"| @(Uppercase(Uppercase | Lowercase)*)"`
 	List           *list            `parser:"| @@)"`
 }
 

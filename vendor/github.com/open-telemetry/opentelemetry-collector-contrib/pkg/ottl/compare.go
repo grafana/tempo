@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"time"
 
-	"go.uber.org/zap"
 	"golang.org/x/exp/constraints"
 )
 
@@ -17,9 +16,7 @@ import (
 
 // invalidComparison returns false for everything except ne (where it returns true to indicate that the
 // objects were definitely not equivalent).
-// It also gives us an opportunity to log something.
-func (p *Parser[K]) invalidComparison(msg string, op compareOp) bool {
-	p.telemetrySettings.Logger.Debug(msg, zap.Any("op", op))
+func (p *Parser[K]) invalidComparison(op compareOp) bool {
 	return op == ne
 }
 
@@ -87,7 +84,7 @@ func (p *Parser[K]) compareBool(a bool, b any, op compareOp) bool {
 	case bool:
 		return compareBools(a, v, op)
 	default:
-		return p.invalidComparison("bool to non-bool", op)
+		return p.invalidComparison(op)
 	}
 }
 
@@ -96,7 +93,7 @@ func (p *Parser[K]) compareString(a string, b any, op compareOp) bool {
 	case string:
 		return comparePrimitives(a, v, op)
 	default:
-		return p.invalidComparison("string to non-string", op)
+		return p.invalidComparison(op)
 	}
 }
 
@@ -110,7 +107,7 @@ func (p *Parser[K]) compareByte(a []byte, b any, op compareOp) bool {
 		}
 		return compareBytes(a, v, op)
 	default:
-		return p.invalidComparison("Bytes to non-Bytes", op)
+		return p.invalidComparison(op)
 	}
 }
 
@@ -121,7 +118,7 @@ func (p *Parser[K]) compareInt64(a int64, b any, op compareOp) bool {
 	case float64:
 		return comparePrimitives(float64(a), v, op)
 	default:
-		return p.invalidComparison("int to non-numeric value", op)
+		return p.invalidComparison(op)
 	}
 }
 
@@ -132,7 +129,7 @@ func (p *Parser[K]) compareFloat64(a float64, b any, op compareOp) bool {
 	case float64:
 		return comparePrimitives(a, v, op)
 	default:
-		return p.invalidComparison("float to non-numeric value", op)
+		return p.invalidComparison(op)
 	}
 }
 
@@ -143,7 +140,7 @@ func (p *Parser[K]) compareDuration(a time.Duration, b any, op compareOp) bool {
 		vnsecs := v.Nanoseconds()
 		return comparePrimitives(ansecs, vnsecs, op)
 	default:
-		return p.invalidComparison("cannot compare invalid duration", op)
+		return p.invalidComparison(op)
 	}
 }
 
@@ -164,10 +161,10 @@ func (p *Parser[K]) compareTime(a time.Time, b any, op compareOp) bool {
 		case gt:
 			return a.After(v)
 		default:
-			return p.invalidComparison("invalid comparison operator", op)
+			return p.invalidComparison(op)
 		}
 	default:
-		return p.invalidComparison("time to non-time value", op)
+		return p.invalidComparison(op)
 	}
 }
 
@@ -211,7 +208,7 @@ func (p *Parser[K]) compare(a any, b any, op compareOp) bool {
 		case ne:
 			return a != b
 		default:
-			return p.invalidComparison("unsupported type for inequality on left", op)
+			return p.invalidComparison(op)
 		}
 	}
 }

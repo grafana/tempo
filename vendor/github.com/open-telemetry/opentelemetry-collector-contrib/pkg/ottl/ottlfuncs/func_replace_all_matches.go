@@ -74,7 +74,7 @@ func replaceAllMatches[K any](target ottl.PMapGetter[K], pattern string, replace
 				return nil, err
 			}
 		}
-		val.Range(func(key string, value pcommon.Value) bool {
+		val.Range(func(_ string, value pcommon.Value) bool {
 			if glob.Match(value.Str()) {
 				value.SetStr(replacementVal)
 			}

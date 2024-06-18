@@ -159,10 +159,10 @@ func (pep *pathExpressionParser) parsePath(path ottl.Path[TransformContext]) (ot
 }
 func accessCache() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.getCache(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if m, ok := val.(pcommon.Map); ok {
 				m.CopyTo(tCtx.getCache())
 			}
@@ -184,10 +184,10 @@ func accessCacheKey(key []ottl.Key[TransformContext]) ottl.StandardGetSetter[Tra
 
 func accessSpanEventTimeUnixNano() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.GetSpanEvent().Timestamp().AsTime().UnixNano(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if newTimestamp, ok := val.(int64); ok {
 				tCtx.GetSpanEvent().SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTimestamp)))
 			}
@@ -198,10 +198,10 @@ func accessSpanEventTimeUnixNano() ottl.StandardGetSetter[TransformContext] {
 
 func accessSpanEventTime() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.GetSpanEvent().Timestamp().AsTime(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if newTimestamp, ok := val.(time.Time); ok {
 				tCtx.GetSpanEvent().SetTimestamp(pcommon.NewTimestampFromTime(newTimestamp))
 			}
@@ -212,10 +212,10 @@ func accessSpanEventTime() ottl.StandardGetSetter[TransformContext] {
 
 func accessSpanEventName() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.GetSpanEvent().Name(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if newName, ok := val.(string); ok {
 				tCtx.GetSpanEvent().SetName(newName)
 			}
@@ -226,10 +226,10 @@ func accessSpanEventName() ottl.StandardGetSetter[TransformContext] {
 
 func accessSpanEventAttributes() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.GetSpanEvent().Attributes(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if attrs, ok := val.(pcommon.Map); ok {
 				attrs.CopyTo(tCtx.GetSpanEvent().Attributes())
 			}
@@ -251,10 +251,10 @@ func accessSpanEventAttributesKey(key []ottl.Key[TransformContext]) ottl.Standar
 
 func accessSpanEventDroppedAttributeCount() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return int64(tCtx.GetSpanEvent().DroppedAttributesCount()), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if newCount, ok := val.(int64); ok {
 				tCtx.GetSpanEvent().SetDroppedAttributesCount(uint32(newCount))
 			}
