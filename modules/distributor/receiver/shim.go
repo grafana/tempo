@@ -192,7 +192,7 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 	}
 
 	// Define a factory function to create the mock provider
-	mockProviderFactory := confmap.NewProviderFactory(func(settings confmap.ProviderSettings) confmap.Provider {
+	mockProviderFactory := confmap.NewProviderFactory(func(confmap.ProviderSettings) confmap.Provider {
 		return &mapProvider{
 			raw: map[string]interface{}{
 				"receivers": receiverCfg,
