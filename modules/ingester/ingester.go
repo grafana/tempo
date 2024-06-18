@@ -27,6 +27,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/model/v1"
 	v2 "github.com/grafana/tempo/pkg/model/v2"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -263,7 +264,7 @@ func (i *Ingester) PushBytesV2(ctx context.Context, req *tempopb.PushBytesReques
 func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (res *tempopb.TraceByIDResponse, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			level.Error(log.Logger).Log("msg", "recover in FindTraceByID", "stack", r, string(debug.Stack()))
+			level.Error(log.Logger).Log("msg", "recover in FindTraceByID", "id", util.TraceIDToHexString(req.TraceID), "stack", r, string(debug.Stack()))
 			err = errors.New("recovered in FindTraceByID")
 		}
 	}()

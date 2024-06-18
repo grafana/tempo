@@ -14,7 +14,7 @@ import (
 func (i *Ingester) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (res *tempopb.SearchResponse, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			level.Error(log.Logger).Log("msg", "recover in SearchRecent", "stack", r, string(debug.Stack()))
+			level.Error(log.Logger).Log("msg", "recover in SearchRecent", "query", req.Query, "stack", r, string(debug.Stack()))
 			err = errors.New("recovered in SearchRecent")
 		}
 	}()
@@ -114,7 +114,7 @@ func (i *Ingester) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 func (i *Ingester) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (res *tempopb.SearchTagValuesV2Response, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			level.Error(log.Logger).Log("msg", "recover in SearchTagValuesV2", "stack", r, string(debug.Stack()))
+			level.Error(log.Logger).Log("msg", "recover in SearchTagValuesV2", "tag", req.TagName, "query", req.Query, "stack", r, string(debug.Stack()))
 			err = errors.New("recovered in SearchTagValuesV2")
 		}
 	}()
