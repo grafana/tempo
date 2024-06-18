@@ -608,10 +608,9 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 		}
 	}
 
-	var empty traceql.Static
-	if val != empty {
+	if val == nil {
 		if _, ok := d.sentVals[val]; !ok {
-			result.AppendOtherValue("", val)
+			result.AppendOtherValue("", traceql.NewStaticNil())
 			d.sentVals[val] = struct{}{}
 		}
 	}

@@ -2474,6 +2474,10 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
+	if val == nil {
+		val = traceql.NewStaticNil()
+	}
+
 	res.Entries = res.Entries[:0]
 	res.OtherEntries = res.OtherEntries[:0]
 	res.AppendOtherValue(key, val)
