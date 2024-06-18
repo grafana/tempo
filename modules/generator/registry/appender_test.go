@@ -10,7 +10,6 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/metadata"
 	"github.com/prometheus/prometheus/storage"
-	prometheus_storage "github.com/prometheus/prometheus/storage"
 )
 
 type noopAppender struct{}
@@ -42,7 +41,7 @@ func (n noopAppender) UpdateMetadata(storage.SeriesRef, labels.Labels, metadata.
 	return 0, nil
 }
 
-func (n noopAppender) AppendCTZeroSample(ref prometheus_storage.SeriesRef, l labels.Labels, t, ct int64) (prometheus_storage.SeriesRef, error) {
+func (n noopAppender) AppendCTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64) (storage.SeriesRef, error) {
 	return 0, nil
 }
 
@@ -124,6 +123,6 @@ func (c *capturingAppender) UpdateMetadata(storage.SeriesRef, labels.Labels, met
 	return 0, nil
 }
 
-func (c *capturingAppender) AppendCTZeroSample(ref prometheus_storage.SeriesRef, l labels.Labels, t, ct int64) (prometheus_storage.SeriesRef, error) {
+func (c *capturingAppender) AppendCTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64) (storage.SeriesRef, error) {
 	return 0, nil
 }

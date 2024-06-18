@@ -316,7 +316,7 @@ func (m *mockOverrides) MetricsGeneratorDisableCollection(string) bool {
 	return m.disableCollection
 }
 
-func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(userID string) bool {
+func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(_ string) bool {
 	return false
 }
 
