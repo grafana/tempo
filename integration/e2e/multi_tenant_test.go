@@ -10,6 +10,7 @@ import (
 
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/e2e"
+	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
@@ -222,9 +223,9 @@ func assertRequestCountMetric(t *testing.T, s *e2e.HTTPService, route string, re
 
 // getAttrsAndSpanNames returns trace attrs and span names
 func getAttrsAndSpanNames(trace *tempopb.Trace) traceStringsMap {
-	rAttrsKeys := tempoUtil.NewDistinctStringCollector(0)
-	rAttrsValues := tempoUtil.NewDistinctStringCollector(0)
-	spanNames := tempoUtil.NewDistinctStringCollector(0)
+	rAttrsKeys := collector.NewDistinctString(0)
+	rAttrsValues := collector.NewDistinctString(0)
+	spanNames := collector.NewDistinctString(0)
 
 	for _, b := range trace.Batches {
 		for _, ss := range b.ScopeSpans {
