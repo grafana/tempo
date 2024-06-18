@@ -84,7 +84,7 @@ func (s StaticNil) EncodeToString(_ bool) string {
 }
 
 func (s StaticInt) String() string {
-	return strconv.Itoa(s.val)
+	return strconv.Itoa(s.Int)
 }
 
 func (s StaticInt) EncodeToString(_ bool) string {
@@ -92,7 +92,7 @@ func (s StaticInt) EncodeToString(_ bool) string {
 }
 
 func (s StaticFloat) String() string {
-	return strconv.FormatFloat(s.val, 'g', -1, 64)
+	return strconv.FormatFloat(s.Float, 'g', -1, 64)
 }
 
 func (s StaticFloat) EncodeToString(_ bool) string {
@@ -105,13 +105,13 @@ func (s StaticString) String() string {
 
 func (s StaticString) EncodeToString(quotes bool) string {
 	if quotes {
-		return "`" + s.val + "`"
+		return "`" + s.Str + "`"
 	}
-	return s.val
+	return s.Str
 }
 
 func (s StaticBool) String() string {
-	return strconv.FormatBool(s.val)
+	return strconv.FormatBool(s.Bool)
 }
 
 func (s StaticBool) EncodeToString(_ bool) string {
@@ -119,7 +119,7 @@ func (s StaticBool) EncodeToString(_ bool) string {
 }
 
 func (s StaticDuration) String() string {
-	return s.val.String()
+	return s.Duration.String()
 }
 
 func (s StaticDuration) EncodeToString(_ bool) string {
@@ -127,7 +127,7 @@ func (s StaticDuration) EncodeToString(_ bool) string {
 }
 
 func (s StaticStatus) String() string {
-	return s.val.String()
+	return s.Status.String()
 }
 
 func (s StaticStatus) EncodeToString(_ bool) string {
@@ -135,7 +135,7 @@ func (s StaticStatus) EncodeToString(_ bool) string {
 }
 
 func (s StaticKind) String() string {
-	return s.val.String()
+	return s.Kind.String()
 }
 
 func (s StaticKind) EncodeToString(_ bool) string {

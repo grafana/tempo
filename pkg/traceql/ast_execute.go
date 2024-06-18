@@ -354,30 +354,30 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		// TODO consider using Static.compare() for all >, >=, <, <= operators
 		switch o.Op {
 		case OpGreater:
-			return NewStaticBool(strings.Compare(lStr.val, rStr.val) > 0), nil
+			return NewStaticBool(strings.Compare(lStr.Str, rStr.Str) > 0), nil
 		case OpGreaterEqual:
-			return NewStaticBool(strings.Compare(lStr.val, rStr.val) >= 0), nil
+			return NewStaticBool(strings.Compare(lStr.Str, rStr.Str) >= 0), nil
 		case OpLess:
-			return NewStaticBool(strings.Compare(lStr.val, rStr.val) < 0), nil
+			return NewStaticBool(strings.Compare(lStr.Str, rStr.Str) < 0), nil
 		case OpLessEqual:
-			return NewStaticBool(strings.Compare(lStr.val, rStr.val) <= 0), nil
+			return NewStaticBool(strings.Compare(lStr.Str, rStr.Str) <= 0), nil
 		case OpRegex:
 			if o.compiledExpression == nil {
-				o.compiledExpression, err = regexp.Compile(rStr.val)
+				o.compiledExpression, err = regexp.Compile(rStr.Str)
 				if err != nil {
 					return NewStaticNil(), err
 				}
 			}
-			matched := o.compiledExpression.MatchString(lStr.val)
+			matched := o.compiledExpression.MatchString(lStr.Str)
 			return NewStaticBool(matched), err
 		case OpNotRegex:
 			if o.compiledExpression == nil {
-				o.compiledExpression, err = regexp.Compile(rStr.val)
+				o.compiledExpression, err = regexp.Compile(rStr.Str)
 				if err != nil {
 					return NewStaticNil(), err
 				}
 			}
-			matched := o.compiledExpression.MatchString(lStr.val)
+			matched := o.compiledExpression.MatchString(lStr.Str)
 			return NewStaticBool(!matched), err
 		}
 	}
@@ -389,25 +389,25 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		rInt, _ := rhs.(StaticInt)
 		switch o.Op {
 		case OpAdd:
-			return NewStaticInt(lInt.val + rInt.val), nil
+			return NewStaticInt(lInt.Int + rInt.Int), nil
 		case OpSub:
-			return NewStaticInt(lInt.val - rInt.val), nil
+			return NewStaticInt(lInt.Int - rInt.Int), nil
 		case OpDiv:
-			return NewStaticInt(lInt.val / rInt.val), nil
+			return NewStaticInt(lInt.Int / rInt.Int), nil
 		case OpMod:
-			return NewStaticInt(lInt.val % rInt.val), nil
+			return NewStaticInt(lInt.Int % rInt.Int), nil
 		case OpMult:
-			return NewStaticInt(lInt.val * rInt.val), nil
+			return NewStaticInt(lInt.Int * rInt.Int), nil
 		case OpGreater:
-			return NewStaticBool(lInt.val > rInt.val), nil
+			return NewStaticBool(lInt.Int > rInt.Int), nil
 		case OpGreaterEqual:
-			return NewStaticBool(lInt.val >= rInt.val), nil
+			return NewStaticBool(lInt.Int >= rInt.Int), nil
 		case OpLess:
-			return NewStaticBool(lInt.val < rInt.val), nil
+			return NewStaticBool(lInt.Int < rInt.Int), nil
 		case OpLessEqual:
-			return NewStaticBool(lInt.val <= rInt.val), nil
+			return NewStaticBool(lInt.Int <= rInt.Int), nil
 		case OpPower:
-			return NewStaticInt(intPow(rInt.val, lInt.val)), nil
+			return NewStaticInt(intPow(rInt.Int, lInt.Int)), nil
 		}
 	}
 
@@ -416,9 +416,9 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		rBool, _ := rhs.(StaticBool)
 		switch o.Op {
 		case OpAnd:
-			return NewStaticBool(lBool.val && rBool.val), nil
+			return NewStaticBool(lBool.Bool && rBool.Bool), nil
 		case OpOr:
-			return NewStaticBool(lBool.val || rBool.val), nil
+			return NewStaticBool(lBool.Bool || rBool.Bool), nil
 		}
 	}
 
@@ -469,9 +469,9 @@ func binOp(op Operator, lhs, rhs Static) (bool, error) {
 		rBool, _ := rhs.(StaticBool)
 		switch op {
 		case OpAnd:
-			return lBool.val && rBool.val, nil
+			return lBool.Bool && rBool.Bool, nil
 		case OpOr:
-			return lBool.val || rBool.val, nil
+			return lBool.Bool || rBool.Bool, nil
 		}
 	}
 
@@ -504,16 +504,16 @@ func (o UnaryOperation) execute(span Span) (Static, error) {
 		if !ok {
 			return NewStaticNil(), fmt.Errorf("expression (%v) expected a boolean, but got %v", o, static.Type())
 		}
-		return NewStaticBool(!b.val), nil
+		return NewStaticBool(!b.Bool), nil
 	}
 	if o.Op == OpSub {
 		switch n := static.(type) {
 		case StaticInt:
-			return NewStaticInt(-1 * n.val), nil
+			return NewStaticInt(-1 * n.Int), nil
 		case StaticDuration:
-			return NewStaticDuration(-1 * n.val), nil
+			return NewStaticDuration(-1 * n.Duration), nil
 		case StaticFloat:
-			return NewStaticFloat(-1 * n.val), nil
+			return NewStaticFloat(-1 * n.Float), nil
 		default:
 			return NewStaticNil(), fmt.Errorf("expression (%v) expected a numeric, but got %v", o, static.Type())
 		}

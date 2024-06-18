@@ -329,7 +329,7 @@ func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
 			}
 
 			boolResult, ok := result.(StaticBool)
-			if !ok || !boolResult.val {
+			if !ok || !boolResult.Bool {
 				continue
 			}
 
@@ -552,13 +552,13 @@ func (StaticNil) hashCode() StaticHashCode {
 // StaticInt represents a Static implementation based on int
 type StaticInt struct {
 	StaticBase
-	val int
+	Int int
 }
 
 var _ Static = StaticInt{}
 
 func NewStaticInt(n int) StaticInt {
-	return StaticInt{val: n}
+	return StaticInt{Int: n}
 }
 
 func (s StaticInt) Type() StaticType {
@@ -568,13 +568,13 @@ func (s StaticInt) Type() StaticType {
 func (s StaticInt) equals(o Static) bool {
 	switch o := o.(type) {
 	case StaticInt:
-		return s.val == o.val
+		return s.Int == o.Int
 	case StaticDuration:
-		return s.val == int(o.val)
+		return s.Int == int(o.Duration)
 	case StaticFloat:
-		return float64(s.val) == o.val
+		return float64(s.Int) == o.Float
 	case StaticStatus:
-		return s.val == int(o.val)
+		return s.Int == int(o.Status)
 	default:
 		return false
 	}
@@ -583,13 +583,13 @@ func (s StaticInt) equals(o Static) bool {
 func (s StaticInt) compare(o Static) int {
 	switch o := o.(type) {
 	case StaticInt:
-		return cmp.Compare(s.val, o.val)
+		return cmp.Compare(s.Int, o.Int)
 	case StaticDuration:
-		return cmp.Compare(s.val, int(o.val))
+		return cmp.Compare(s.Int, int(o.Duration))
 	case StaticFloat:
-		return cmp.Compare(float64(s.val), o.val)
+		return cmp.Compare(float64(s.Int), o.Float)
 	case StaticStatus:
-		return cmp.Compare(s.val, int(o.val))
+		return cmp.Compare(s.Int, int(o.Status))
 	default:
 		return cmp.Compare(TypeInt, o.Type())
 	}
@@ -598,33 +598,33 @@ func (s StaticInt) compare(o Static) int {
 func (s StaticInt) add(o Static) Static {
 	n, ok := o.(StaticInt)
 	if ok {
-		s.val += n.val
+		s.Int += n.Int
 	}
 	return s
 }
 
 func (s StaticInt) divide(f float64) Static {
-	return NewStaticFloat(float64(s.val) / f)
+	return NewStaticFloat(float64(s.Int) / f)
 }
 
 func (s StaticInt) asFloat() float64 {
-	return float64(s.val)
+	return float64(s.Int)
 }
 
 func (s StaticInt) hashCode() StaticHashCode {
-	return StaticHashCode{Type: TypeInt, Hash: uint64(s.val)}
+	return StaticHashCode{Type: TypeInt, Hash: uint64(s.Int)}
 }
 
 // StaticFloat represents a Static implementation based on float64
 type StaticFloat struct {
 	StaticBase
-	val float64
+	Float float64
 }
 
 var _ Static = StaticFloat{}
 
 func NewStaticFloat(f float64) StaticFloat {
-	return StaticFloat{val: f}
+	return StaticFloat{Float: f}
 }
 
 func (s StaticFloat) Type() StaticType {
@@ -634,11 +634,11 @@ func (s StaticFloat) Type() StaticType {
 func (s StaticFloat) equals(o Static) bool {
 	switch o := o.(type) {
 	case StaticFloat:
-		return s.val == o.val
+		return s.Float == o.Float
 	case StaticInt:
-		return s.val == float64(o.val)
+		return s.Float == float64(o.Int)
 	case StaticDuration:
-		return s.val == float64(o.val)
+		return s.Float == float64(o.Duration)
 	default:
 		return false
 	}
@@ -647,47 +647,47 @@ func (s StaticFloat) equals(o Static) bool {
 func (s StaticFloat) compare(o Static) int {
 	switch o := o.(type) {
 	case StaticFloat:
-		return cmp.Compare(s.val, o.val)
+		return cmp.Compare(s.Float, o.Float)
 	case StaticInt:
-		return cmp.Compare(s.val, float64(o.val))
+		return cmp.Compare(s.Float, float64(o.Int))
 	case StaticDuration:
-		return cmp.Compare(s.val, float64(o.val))
+		return cmp.Compare(s.Float, float64(o.Duration))
 	default:
 		return cmp.Compare(TypeFloat, o.Type())
 	}
 }
 
 func (s StaticFloat) asFloat() float64 {
-	return s.val
+	return s.Float
 }
 
 func (s StaticFloat) add(o Static) Static {
 	n, ok := o.(StaticFloat)
 	if ok {
-		s.val += n.val
+		s.Float += n.Float
 	}
 	return s
 }
 
 func (s StaticFloat) divide(f float64) Static {
-	s.val /= f
+	s.Float /= f
 	return s
 }
 
 func (s StaticFloat) hashCode() StaticHashCode {
-	return StaticHashCode{Type: TypeFloat, Hash: math.Float64bits(s.val)}
+	return StaticHashCode{Type: TypeFloat, Hash: math.Float64bits(s.Float)}
 }
 
 // StaticString represents a Static implementation based on string
 type StaticString struct {
 	StaticBase
-	val string
+	Str string
 }
 
 var _ Static = StaticString{}
 
 func NewStaticString(s string) StaticString {
-	return StaticString{val: s}
+	return StaticString{Str: s}
 }
 
 func (s StaticString) Type() StaticType {
@@ -699,7 +699,7 @@ func (s StaticString) equals(o Static) bool {
 	if !ok {
 		return false
 	}
-	return s.val == v.val
+	return s.Str == v.Str
 }
 
 func (s StaticString) compare(o Static) int {
@@ -707,7 +707,7 @@ func (s StaticString) compare(o Static) int {
 	if !ok {
 		return cmp.Compare(TypeString, o.Type())
 	}
-	return cmp.Compare(s.val, v.val)
+	return cmp.Compare(s.Str, v.Str)
 }
 
 func (s StaticString) add(_ Static) Static {
@@ -719,19 +719,19 @@ func (s StaticString) divide(_ float64) Static {
 }
 
 func (s StaticString) hashCode() StaticHashCode {
-	return StaticHashCode{Type: TypeString, Hash: uint64(crc32.ChecksumIEEE([]byte(s.val)))}
+	return StaticHashCode{Type: TypeString, Hash: uint64(crc32.ChecksumIEEE([]byte(s.Str)))}
 }
 
 // StaticBool represents a Static implementation based on bool
 type StaticBool struct {
 	StaticBase
-	val bool
+	Bool bool
 }
 
 var _ Static = StaticBool{}
 
 func NewStaticBool(b bool) StaticBool {
-	return StaticBool{val: b}
+	return StaticBool{Bool: b}
 }
 
 func (s StaticBool) Type() StaticType {
@@ -743,7 +743,7 @@ func (s StaticBool) equals(o Static) bool {
 	if !ok {
 		return false
 	}
-	return s.val == v.val
+	return s.Bool == v.Bool
 }
 
 func (s StaticBool) compare(o Static) int {
@@ -751,9 +751,9 @@ func (s StaticBool) compare(o Static) int {
 	if !ok {
 		return cmp.Compare(TypeBoolean, o.Type())
 	}
-	if s.val && !v.val {
+	if s.Bool && !v.Bool {
 		return 1
-	} else if !s.val && v.val {
+	} else if !s.Bool && v.Bool {
 		return -1
 	}
 	return 0
@@ -768,7 +768,7 @@ func (s StaticBool) divide(_ float64) Static {
 }
 
 func (s StaticBool) hashCode() StaticHashCode {
-	if s.val {
+	if s.Bool {
 		return StaticHashCode{Type: TypeBoolean, Hash: 1}
 	}
 	return StaticHashCode{Type: TypeBoolean, Hash: 0}
@@ -777,13 +777,13 @@ func (s StaticBool) hashCode() StaticHashCode {
 // StaticDuration represents a Static implementation based on time.Duration
 type StaticDuration struct {
 	StaticBase
-	val time.Duration
+	Duration time.Duration
 }
 
 var _ Static = StaticDuration{}
 
 func NewStaticDuration(d time.Duration) StaticDuration {
-	return StaticDuration{val: d}
+	return StaticDuration{Duration: d}
 }
 
 func (s StaticDuration) Type() StaticType {
@@ -793,11 +793,11 @@ func (s StaticDuration) Type() StaticType {
 func (s StaticDuration) equals(o Static) bool {
 	switch o := o.(type) {
 	case StaticDuration:
-		return s.val == o.val
+		return s.Duration == o.Duration
 	case StaticInt:
-		return int(s.val) == o.val
+		return int(s.Duration) == o.Int
 	case StaticFloat:
-		return float64(s.val) == o.val
+		return float64(s.Duration) == o.Float
 	default:
 		return false
 	}
@@ -806,47 +806,47 @@ func (s StaticDuration) equals(o Static) bool {
 func (s StaticDuration) compare(o Static) int {
 	switch o := o.(type) {
 	case StaticDuration:
-		return cmp.Compare(s.val, o.val)
+		return cmp.Compare(s.Duration, o.Duration)
 	case StaticInt:
-		return cmp.Compare(int(s.val), o.val)
+		return cmp.Compare(int(s.Duration), o.Int)
 	case StaticFloat:
-		return cmp.Compare(float64(s.val), o.val)
+		return cmp.Compare(float64(s.Duration), o.Float)
 	default:
 		return cmp.Compare(TypeDuration, o.Type())
 	}
 }
 
 func (s StaticDuration) asFloat() float64 {
-	return float64(s.val)
+	return float64(s.Duration)
 }
 
 func (s StaticDuration) add(o Static) Static {
 	d, ok := o.(StaticDuration)
 	if ok {
-		s.val += d.val
+		s.Duration += d.Duration
 	}
 	return s
 }
 
 func (s StaticDuration) divide(f float64) Static {
-	d := time.Duration(float64(s.val) / f)
+	d := time.Duration(float64(s.Duration) / f)
 	return NewStaticDuration(d)
 }
 
 func (s StaticDuration) hashCode() StaticHashCode {
-	return StaticHashCode{Type: TypeDuration, Hash: uint64(s.val)}
+	return StaticHashCode{Type: TypeDuration, Hash: uint64(s.Duration)}
 }
 
 // StaticStatus represents a Static implementation based on Status
 type StaticStatus struct {
 	StaticBase
-	val Status
+	Status Status
 }
 
 var _ Static = StaticStatus{}
 
 func NewStaticStatus(s Status) StaticStatus {
-	return StaticStatus{val: s}
+	return StaticStatus{Status: s}
 }
 
 func (s StaticStatus) Type() StaticType {
@@ -856,9 +856,9 @@ func (s StaticStatus) Type() StaticType {
 func (s StaticStatus) equals(o Static) bool {
 	switch o := o.(type) {
 	case StaticStatus:
-		return s.val == o.val
+		return s.Status == o.Status
 	case StaticInt:
-		return s.val == Status(o.val)
+		return s.Status == Status(o.Int)
 	default:
 		return false
 	}
@@ -867,9 +867,9 @@ func (s StaticStatus) equals(o Static) bool {
 func (s StaticStatus) compare(o Static) int {
 	switch o := o.(type) {
 	case StaticStatus:
-		return cmp.Compare(s.val, o.val)
+		return cmp.Compare(s.Status, o.Status)
 	case StaticInt:
-		return cmp.Compare(s.val, Status(o.val))
+		return cmp.Compare(s.Status, Status(o.Int))
 	default:
 		return cmp.Compare(TypeStatus, o.Type())
 	}
@@ -884,19 +884,19 @@ func (s StaticStatus) divide(_ float64) Static {
 }
 
 func (s StaticStatus) hashCode() StaticHashCode {
-	return StaticHashCode{Type: TypeStatus, Hash: uint64(s.val)}
+	return StaticHashCode{Type: TypeStatus, Hash: uint64(s.Status)}
 }
 
 // StaticKind represents a Static implementation based on Kind
 type StaticKind struct {
 	StaticBase
-	val Kind
+	Kind Kind
 }
 
 var _ Static = StaticKind{}
 
 func NewStaticKind(k Kind) StaticKind {
-	return StaticKind{val: k}
+	return StaticKind{Kind: k}
 }
 
 func (s StaticKind) Type() StaticType {
@@ -908,7 +908,7 @@ func (s StaticKind) equals(o Static) bool {
 	if !ok {
 		return false
 	}
-	return s.val == v.val
+	return s.Kind == v.Kind
 }
 
 func (s StaticKind) compare(o Static) int {
@@ -916,7 +916,7 @@ func (s StaticKind) compare(o Static) int {
 	if !ok {
 		return cmp.Compare(TypeKind, o.Type())
 	}
-	return cmp.Compare(s.val, v.val)
+	return cmp.Compare(s.Kind, v.Kind)
 }
 
 func (s StaticKind) add(_ Static) Static {
@@ -928,7 +928,7 @@ func (s StaticKind) divide(_ float64) Static {
 }
 
 func (s StaticKind) hashCode() StaticHashCode {
-	return StaticHashCode{Type: TypeKind, Hash: uint64(s.val)}
+	return StaticHashCode{Type: TypeKind, Hash: uint64(s.Kind)}
 }
 
 // **********************
@@ -1152,12 +1152,12 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 				// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
 				// Because of the range of floats, we need a native histogram approach.
 				n, ok := v.(StaticInt)
-				if !ok || n.val < 2 {
+				if !ok || n.Int < 2 {
 					return NewStaticNil(), false
 				}
 
 				// Bucket is the value rounded up to the nearest power of 2
-				return NewStaticFloat(Log2Bucketize(uint64(n.val))), true
+				return NewStaticFloat(Log2Bucketize(uint64(n.Int))), true
 			}
 		}
 
@@ -1187,11 +1187,11 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 				// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
 				// Because of the range of floats, we need a native histogram approach.
 				n, ok := v.(StaticInt)
-				if !ok || n.val < 2 {
+				if !ok || n.Int < 2 {
 					return NewStaticNil(), false
 				}
 
-				return NewStaticFloat(Log2Bucketize(uint64(n.val))), true
+				return NewStaticFloat(Log2Bucketize(uint64(n.Int))), true
 			}
 		}
 	}

@@ -302,7 +302,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 	for _, att := range spanset.Attributes {
 		if att.Name == attributeMatched {
 			if n, ok := att.Val.(StaticInt); ok {
-				metadata.SpanSet.Matched = uint32(n.val)
+				metadata.SpanSet.Matched = uint32(n.Int)
 			}
 			continue
 		}
@@ -331,7 +331,7 @@ func (StaticNil) AsAnyValue() *common_v1.AnyValue {
 func (s StaticInt) AsAnyValue() *common_v1.AnyValue {
 	return &common_v1.AnyValue{
 		Value: &common_v1.AnyValue_IntValue{
-			IntValue: int64(s.val),
+			IntValue: int64(s.Int),
 		},
 	}
 }
@@ -339,7 +339,7 @@ func (s StaticInt) AsAnyValue() *common_v1.AnyValue {
 func (s StaticString) AsAnyValue() *common_v1.AnyValue {
 	return &common_v1.AnyValue{
 		Value: &common_v1.AnyValue_StringValue{
-			StringValue: s.val,
+			StringValue: s.Str,
 		},
 	}
 }
@@ -347,7 +347,7 @@ func (s StaticString) AsAnyValue() *common_v1.AnyValue {
 func (s StaticFloat) AsAnyValue() *common_v1.AnyValue {
 	return &common_v1.AnyValue{
 		Value: &common_v1.AnyValue_DoubleValue{
-			DoubleValue: s.val,
+			DoubleValue: s.Float,
 		},
 	}
 }
@@ -355,7 +355,7 @@ func (s StaticFloat) AsAnyValue() *common_v1.AnyValue {
 func (s StaticBool) AsAnyValue() *common_v1.AnyValue {
 	return &common_v1.AnyValue{
 		Value: &common_v1.AnyValue_BoolValue{
-			BoolValue: s.val,
+			BoolValue: s.Bool,
 		},
 	}
 }
@@ -363,7 +363,7 @@ func (s StaticBool) AsAnyValue() *common_v1.AnyValue {
 func (s StaticDuration) AsAnyValue() *common_v1.AnyValue {
 	return &common_v1.AnyValue{
 		Value: &common_v1.AnyValue_StringValue{
-			StringValue: s.val.String(),
+			StringValue: s.Duration.String(),
 		},
 	}
 }
@@ -371,7 +371,7 @@ func (s StaticDuration) AsAnyValue() *common_v1.AnyValue {
 func (s StaticStatus) AsAnyValue() *common_v1.AnyValue {
 	return &common_v1.AnyValue{
 		Value: &common_v1.AnyValue_StringValue{
-			StringValue: s.val.String(),
+			StringValue: s.Status.String(),
 		},
 	}
 }
@@ -379,7 +379,7 @@ func (s StaticStatus) AsAnyValue() *common_v1.AnyValue {
 func (s StaticKind) AsAnyValue() *common_v1.AnyValue {
 	return &common_v1.AnyValue{
 		Value: &common_v1.AnyValue_StringValue{
-			StringValue: s.val.String(),
+			StringValue: s.Kind.String(),
 		},
 	}
 }

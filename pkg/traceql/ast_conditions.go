@@ -13,7 +13,7 @@ func (f SpansetFilter) extractConditions(request *FetchSpansRequest) {
 	// For empty spansets { } ensure there is something that matches all spans.
 	// Use start time which would have been selected as part of the second pass
 	// metadata, and is still fairly efficient to pull back.
-	if sb, ok := f.Expression.(StaticBool); ok && sb.val {
+	if sb, ok := f.Expression.(StaticBool); ok && sb.Bool {
 		for _, c := range request.Conditions {
 			if c.Attribute.Intrinsic != IntrinsicNone && c.Op == OpNone {
 				// A different match-all intrinsic is already present.

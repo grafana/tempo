@@ -44,7 +44,7 @@ func newHints(h []*Hint) *Hints {
 func (h *Hints) GetFloat(k string, allowUnsafe bool) (float64, bool) {
 	if v, ok := h.Get(k, TypeFloat, allowUnsafe); ok {
 		f := v.(StaticFloat)
-		return f.val, ok
+		return f.Float, ok
 	}
 
 	// If float not found, then try integer.
@@ -58,7 +58,7 @@ func (h *Hints) GetFloat(k string, allowUnsafe bool) (float64, bool) {
 func (h *Hints) GetInt(k string, allowUnsafe bool) (int, bool) {
 	if v, ok := h.Get(k, TypeInt, allowUnsafe); ok {
 		n := v.(StaticInt)
-		return n.val, ok
+		return n.Int, ok
 	}
 
 	return 0, false
@@ -67,7 +67,7 @@ func (h *Hints) GetInt(k string, allowUnsafe bool) (int, bool) {
 func (h *Hints) GetDuration(k string, allowUnsafe bool) (time.Duration, bool) {
 	if v, ok := h.Get(k, TypeDuration, allowUnsafe); ok {
 		d := v.(StaticDuration)
-		return d.val, ok
+		return d.Duration, ok
 	}
 
 	return 0, false
@@ -76,7 +76,7 @@ func (h *Hints) GetDuration(k string, allowUnsafe bool) (time.Duration, bool) {
 func (h *Hints) GetBool(k string, allowUnsafe bool) (bool, bool) {
 	if v, ok := h.Get(k, TypeBoolean, allowUnsafe); ok {
 		b := v.(StaticBool)
-		return b.val, ok
+		return b.Bool, ok
 	}
 
 	return false, false
