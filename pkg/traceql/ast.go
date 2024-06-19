@@ -3,7 +3,6 @@ package traceql
 import (
 	"cmp"
 	"fmt"
-	"hash/crc32"
 	"math"
 	"regexp"
 	"time"
@@ -493,6 +492,7 @@ type Static interface {
 type StaticHashCode struct {
 	Type StaticType
 	Hash uint64
+	Str  string
 }
 
 // StaticBase partially implements Static and is meant to be embedded in other static types
@@ -684,8 +684,7 @@ func (s StaticFloat) HashCode() StaticHashCode {
 // StaticString represents a Static implementation based on string
 type StaticString struct {
 	StaticBase
-	Str      string
-	hashCode StaticHashCode
+	Str string
 }
 
 var _ Static = StaticString{}
@@ -723,11 +722,7 @@ func (s StaticString) divide(_ float64) Static {
 }
 
 func (s StaticString) HashCode() StaticHashCode {
-	if s.hashCode.Type == TypeNil {
-		hash := crc32.ChecksumIEEE([]byte(s.Str))
-		s.hashCode = StaticHashCode{Type: TypeString, Hash: uint64(hash)}
-	}
-	return s.hashCode
+	return StaticHashCode{Type: TypeString, Str: s.Str}
 }
 
 // StaticBool represents a Static implementation based on bool
