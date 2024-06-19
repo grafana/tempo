@@ -134,7 +134,8 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 	}
 	lbls := make(labels.Labels, 1+len(externalLabels)+labelsCount)
 	lb := labels.NewBuilder(lbls)
-	activeSeries = len(h.series)
+	//activeSeries = len(h.series)
+	activeSeries = 0
 
 	lb.Set(labels.MetricName, h.metricName)
 
@@ -145,12 +146,12 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 
 	for _, s := range h.series {
 
-		// set series-specific labels
+		// Set series-specific labels
 		for i, name := range s.labels.names {
 			lb.Set(name, s.labels.values[i])
 		}
 
-		// Append native histogram
+		// Extract histogram
 		encodedMetric := &dto.Metric{}
 
 		// Encode to protobuf representation
@@ -159,6 +160,65 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 			return activeSeries, err
 		}
 		encodedHistogram := encodedMetric.GetHistogram()
+
+		// *** Classic histogram
+
+		// sum
+		lb.Set(labels.MetricName, h.metricName+"_sum")
+		_, err = appender.Append(0, lb.Labels(), timeMs, encodedHistogram.GetSampleSum())
+		if err != nil {
+			return activeSeries, err
+		}
+		activeSeries += 1
+
+		// count
+		lb.Set(labels.MetricName, h.metricName+"_count")
+		_, err = appender.Append(0, lb.Labels(), timeMs, encodedHistogram.GetSampleCountFloat())
+		if err != nil {
+			return activeSeries, err
+		}
+		activeSeries += 1
+
+		// bucket
+		lb.Set(labels.MetricName, h.metricName+"_bucket")
+
+		for _, bucket := range encodedHistogram.Bucket {
+			// add "le" label
+			lb.Set(labels.BucketLabel, formatFloat(bucket.GetUpperBound()))
+
+			ref, err := appender.Append(0, lb.Labels(), timeMs, bucket.GetCumulativeCountFloat())
+			if err != nil {
+				return activeSeries, err
+			}
+			activeSeries += 1
+
+			ex := bucket.Exemplar
+			if ex != nil {
+				// TODO are we appending the same exemplar twice?
+				_, err = appender.AppendExemplar(ref, lb.Labels(), exemplar.Exemplar{
+					Labels: convertLabelPairToLabels(ex.GetLabel()),
+					Value:  ex.GetValue(),
+					Ts:     timeMs,
+				})
+				if err != nil {
+					return activeSeries, err
+				}
+			}
+		}
+
+		// Add +Inf bucket
+		lb.Set(labels.BucketLabel, "+Inf")
+
+		_, err = appender.Append(0, lb.Labels(), timeMs, encodedHistogram.GetSampleSum())
+		if err != nil {
+			return activeSeries, err
+		}
+		activeSeries += 1
+
+		// drop "le" label again
+		lb.Del(labels.BucketLabel)
+
+		// *** Native histogram
 
 		// Decode to Prometheus representation
 		hist := promhistogram.Histogram{
@@ -189,21 +249,24 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		}
 		hist.NegativeBuckets = encodedHistogram.NegativeDelta
 
+		lb.Set(labels.MetricName, h.metricName)
 		_, err = appender.AppendHistogram(0, lb.Labels(), timeMs, &hist, nil)
 		if err != nil {
 			return activeSeries, err
 		}
+		// TODO impact on active series from appending a histogram?
+		activeSeries += 0
 
 		if len(encodedHistogram.Exemplars) > 0 {
 			for _, encodedExemplar := range encodedHistogram.Exemplars {
 
+				// TODO are we appending the same exemplar twice?
 				e := exemplar.Exemplar{
 					Labels: convertLabelPairToLabels(encodedExemplar.Label),
 					Value:  encodedExemplar.GetValue(),
 					Ts:     convertTimestampToMs(encodedExemplar.GetTimestamp()),
 					HasTs:  true,
 				}
-
 				_, err = appender.AppendExemplar(0, lb.Labels(), e)
 				if err != nil {
 					return activeSeries, err

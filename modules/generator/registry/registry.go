@@ -150,6 +150,7 @@ func (r *ManagedRegistry) NewCounter(name string) Counter {
 func (r *ManagedRegistry) NewHistogram(name string, buckets []float64) (h Histogram) {
 	traceIDLabelName := r.overrides.MetricsGenerationTraceIDLabelName(r.tenant)
 
+	// Temporary switch: use the old implementation when native histograms are disabled, eventually the new implementation can handle all cases
 	if !r.overrides.MetricsGeneratorGenerateNativeHistograms(r.tenant) {
 		h = newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName)
 	} else {
