@@ -76,6 +76,8 @@ var tokens = map[string]int{
 	"nestedSetRight":      NESTEDSETRIGHT,
 	"nestedSetParent":     NESTEDSETPARENT,
 	"id":                  ID,
+	"traceID":             TRACE_ID,
+	"spanID":              SPAN_ID,
 	"parent":              PARENT,
 	"parent.":             PARENT_DOT,
 	"resource.":           RESOURCE_DOT,
@@ -83,6 +85,7 @@ var tokens = map[string]int{
 	"trace:":              TRACE_COLON,
 	"span:":               SPAN_COLON,
 	"event:":              EVENT_COLON,
+	"link:":               LINK_COLON,
 	"count":               COUNT,
 	"avg":                 AVG,
 	"max":                 MAX,
@@ -208,7 +211,8 @@ func (l *lexer) Lex(lval *yySymType) int {
 		multiTok == RESOURCE_DOT ||
 		multiTok == SPAN_COLON ||
 		multiTok == TRACE_COLON ||
-		multiTok == EVENT_COLON {
+		multiTok == EVENT_COLON ||
+		multiTok == LINK_COLON {
 
 		l.currentScope = multiTok
 	}

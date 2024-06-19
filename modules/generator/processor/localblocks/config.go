@@ -23,6 +23,7 @@ type Config struct {
 	CompleteBlockTimeout time.Duration         `yaml:"complete_block_timeout"`
 	MaxLiveTraces        uint64                `yaml:"max_live_traces"`
 	FilterServerSpans    bool                  `yaml:"filter_server_spans"`
+	FlushToStorage       bool                  `yaml:"flush_to_storage"`
 	Metrics              MetricsConfig         `yaml:",inline"`
 }
 

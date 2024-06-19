@@ -1,11 +1,11 @@
-package util
+package collector
 
 import (
 	"sort"
 	"strings"
 )
 
-type DistinctStringCollector struct {
+type DistinctString struct {
 	values   map[string]struct{}
 	new      map[string]struct{}
 	maxLen   int
@@ -13,21 +13,21 @@ type DistinctStringCollector struct {
 	totalLen int
 }
 
-// NewDistinctStringCollector with the given maximum data size. This is calculated
+// NewDistinctString with the given maximum data size. This is calculated
 // as the total length of the recorded strings. For ease of use, maximum=0
 // is interpreted as unlimited.
-func NewDistinctStringCollector(maxDataSize int) *DistinctStringCollector {
-	return &DistinctStringCollector{
+func NewDistinctString(maxDataSize int) *DistinctString {
+	return &DistinctString{
 		values: make(map[string]struct{}),
 		new:    make(map[string]struct{}),
 		maxLen: maxDataSize,
 	}
 }
 
-func (d *DistinctStringCollector) Collect(s string) {
+func (d *DistinctString) Collect(s string) bool {
 	if _, ok := d.values[s]; ok {
 		// Already present
-		return
+		return false
 	}
 
 	// New entry
@@ -36,7 +36,7 @@ func (d *DistinctStringCollector) Collect(s string) {
 	// Can it fit?
 	if d.maxLen > 0 && d.currLen+len(s) > d.maxLen {
 		// No
-		return
+		return false
 	}
 
 	// Clone instead of referencing original
@@ -45,10 +45,12 @@ func (d *DistinctStringCollector) Collect(s string) {
 	d.new[s] = struct{}{}
 	d.values[s] = struct{}{}
 	d.currLen += len(s)
+
+	return true
 }
 
 // Strings returns the final list of distinct values collected and sorted.
-func (d *DistinctStringCollector) Strings() []string {
+func (d *DistinctString) Strings() []string {
 	ss := make([]string, 0, len(d.values))
 
 	for k := range d.values {
@@ -60,17 +62,17 @@ func (d *DistinctStringCollector) Strings() []string {
 }
 
 // Exceeded indicates if some values were lost because the maximum size limit was met.
-func (d *DistinctStringCollector) Exceeded() bool {
+func (d *DistinctString) Exceeded() bool {
 	return d.totalLen > d.currLen
 }
 
 // TotalDataSize is the total size of all distinct strings encountered.
-func (d *DistinctStringCollector) TotalDataSize() int {
+func (d *DistinctString) TotalDataSize() int {
 	return d.totalLen
 }
 
 // Diff returns all new strings collected since the last time diff was called
-func (d *DistinctStringCollector) Diff() []string {
+func (d *DistinctString) Diff() []string {
 	ss := make([]string, 0, len(d.new))
 
 	for k := range d.new {

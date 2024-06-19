@@ -1,8 +1,8 @@
 package combiner
 
 import (
+	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 )
 
 var (
@@ -12,7 +12,7 @@ var (
 
 func NewSearchTagValues(limitBytes int) Combiner {
 	// Distinct collector with no limit
-	d := util.NewDistinctStringCollector(limitBytes)
+	d := collector.NewDistinctString(limitBytes)
 
 	return &genericCombiner[*tempopb.SearchTagValuesResponse]{
 		httpStatusCode: 200,
@@ -44,11 +44,12 @@ func NewTypedSearchTagValues(limitBytes int) GRPCCombiner[*tempopb.SearchTagValu
 
 func NewSearchTagValuesV2(limitBytes int) Combiner {
 	// Distinct collector with no limit
-	d := util.NewDistinctValueCollector(limitBytes, func(tv tempopb.TagValue) int { return len(tv.Type) + len(tv.Value) })
+	d := collector.NewDistinctValue(limitBytes, func(tv tempopb.TagValue) int { return len(tv.Type) + len(tv.Value) })
 
 	return &genericCombiner[*tempopb.SearchTagValuesV2Response]{
-		current: &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{}},
-		new:     func() *tempopb.SearchTagValuesV2Response { return &tempopb.SearchTagValuesV2Response{} },
+		httpStatusCode: 200,
+		current:        &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{}},
+		new:            func() *tempopb.SearchTagValuesV2Response { return &tempopb.SearchTagValuesV2Response{} },
 		combine: func(partial, final *tempopb.SearchTagValuesV2Response, _ PipelineResponse) error {
 			for _, v := range partial.TagValues {
 				d.Collect(*v)

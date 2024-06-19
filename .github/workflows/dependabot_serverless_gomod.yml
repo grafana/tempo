@@ -17,10 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
     steps:
-      - name: Set up Go 1.21
+      - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version: 1.21.x
+          go-version: 1.22.x
 
       - name: Check out code
         uses: actions/checkout@v4

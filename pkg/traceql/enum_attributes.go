@@ -9,6 +9,7 @@ const (
 	AttributeScopeResource
 	AttributeScopeSpan
 	AttributeScopeEvent
+	AttributeScopeLink
 	AttributeScopeUnknown
 
 	none     = "none"
@@ -29,6 +30,8 @@ func (s AttributeScope) String() string {
 		return "resource"
 	case AttributeScopeEvent:
 		return "event"
+	case AttributeScopeLink:
+		return "link"
 	}
 
 	return fmt.Sprintf("att(%d).", s)
@@ -42,6 +45,8 @@ func AttributeScopeFromString(s string) AttributeScope {
 		return AttributeScopeResource
 	case "event":
 		return AttributeScopeEvent
+	case "link":
+		return AttributeScopeLink
 	case "":
 		fallthrough
 	case none:
@@ -68,6 +73,8 @@ const (
 	IntrinsicNestedSetRight
 	IntrinsicNestedSetParent
 	IntrinsicEventName
+	IntrinsicLinkSpanID
+	IntrinsicLinkTraceID
 
 	// not yet implemented in traceql but will be
 	IntrinsicParent
@@ -82,7 +89,14 @@ const (
 
 	IntrinsicTraceID
 	IntrinsicSpanID
-
+	ScopedIntrinsicSpanStatus
+	ScopedIntrinsicSpanStatusMessage
+	ScopedIntrinsicSpanDuration
+	ScopedIntrinsicSpanName
+	ScopedIntrinsicSpanKind
+	ScopedIntrinsicTraceRootName
+	ScopedIntrinsicTraceRootServiceName
+	ScopedIntrinsicTraceDuration
 	// not yet implemented in traceql and may never be. these exist so that we can retrieve
 	// these fields from the fetch layer
 
@@ -128,6 +142,10 @@ func (i Intrinsic) String() string {
 		return "childCount"
 	case IntrinsicEventName:
 		return "event:name"
+	case IntrinsicLinkSpanID:
+		return "link:spanID"
+	case IntrinsicLinkTraceID:
+		return "link:traceID"
 	case IntrinsicParent:
 		return "parent"
 	case IntrinsicTraceRootService:
@@ -140,6 +158,22 @@ func (i Intrinsic) String() string {
 		return "trace:id"
 	case IntrinsicTraceStartTime:
 		return "traceStartTime"
+	case ScopedIntrinsicSpanStatus:
+		return "span:status"
+	case ScopedIntrinsicSpanStatusMessage:
+		return "span:statusMessage"
+	case ScopedIntrinsicSpanDuration:
+		return "span:duration"
+	case ScopedIntrinsicSpanName:
+		return "span:name"
+	case ScopedIntrinsicSpanKind:
+		return "span:kind"
+	case ScopedIntrinsicTraceRootName:
+		return "trace:rootName"
+	case ScopedIntrinsicTraceRootServiceName:
+		return "trace:rootServiceName"
+	case ScopedIntrinsicTraceDuration:
+		return "trace:traceDuration"
 	case IntrinsicSpanID:
 		return "span:id"
 	// below is unimplemented
@@ -173,6 +207,10 @@ func intrinsicFromString(s string) Intrinsic {
 		return IntrinsicChildCount
 	case "event:name":
 		return IntrinsicEventName
+	case "link:spanID":
+		return IntrinsicLinkSpanID
+	case "link:traceID":
+		return IntrinsicLinkTraceID
 	case "parent":
 		return IntrinsicParent
 	case "rootServiceName":
@@ -187,6 +225,22 @@ func intrinsicFromString(s string) Intrinsic {
 		return IntrinsicTraceStartTime
 	case "span:id":
 		return IntrinsicSpanID
+	case "span:status":
+		return ScopedIntrinsicSpanStatus
+	case "span:statusMessage":
+		return ScopedIntrinsicSpanStatusMessage
+	case "span:duration":
+		return ScopedIntrinsicSpanDuration
+	case "span:name":
+		return ScopedIntrinsicSpanName
+	case "span:kind":
+		return ScopedIntrinsicSpanKind
+	case "trace:rootName":
+		return ScopedIntrinsicTraceRootName
+	case "trace:rootServiceName":
+		return ScopedIntrinsicTraceRootServiceName
+	case "trace:traceDuration":
+		return ScopedIntrinsicTraceDuration
 	// unimplemented
 	case "spanStartTime":
 		return IntrinsicSpanStartTime

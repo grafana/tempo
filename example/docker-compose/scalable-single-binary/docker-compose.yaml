@@ -59,7 +59,7 @@ services:
       - ./prometheus.yaml:/etc/prometheus.yaml
 
   grafana:
-    image: grafana/grafana:10.4.2
+    image: grafana/grafana:11.0.0
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:
@@ -83,7 +83,7 @@ services:
       - 9001:9001
 
   k6-tracing:
-    image: ghcr.io/grafana/xk6-client-tracing:v0.0.2
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.5
     environment:
       - ENDPOINT=tempo1:4317
     restart: always
