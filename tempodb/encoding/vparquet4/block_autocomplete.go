@@ -572,13 +572,13 @@ var _ parquetquery.GroupPredicate = (*distinctAttrCollector)(nil)
 type distinctAttrCollector struct {
 	scope traceql.AttributeScope
 
-	sentVals map[traceql.StaticHashCode]struct{}
+	sentVals map[traceql.StaticMapKey]struct{}
 }
 
 func newDistinctAttrCollector(scope traceql.AttributeScope) *distinctAttrCollector {
 	return &distinctAttrCollector{
 		scope:    scope,
-		sentVals: make(map[traceql.StaticHashCode]struct{}),
+		sentVals: make(map[traceql.StaticMapKey]struct{}),
 	}
 }
 
@@ -609,9 +609,9 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 	}
 
 	if val != nil {
-		if _, ok := d.sentVals[val.HashCode()]; !ok {
+		if _, ok := d.sentVals[val.MapKey()]; !ok {
 			result.AppendOtherValue("", val)
-			d.sentVals[val.HashCode()] = struct{}{}
+			d.sentVals[val.MapKey()] = struct{}{}
 		}
 	}
 
@@ -629,13 +629,13 @@ var _ parquetquery.GroupPredicate = (*distinctValueCollector)(nil)
 
 type distinctValueCollector struct {
 	mapToStatic func(entry) traceql.Static
-	sentVals    map[traceql.StaticHashCode]struct{}
+	sentVals    map[traceql.StaticMapKey]struct{}
 }
 
 func newDistinctValueCollector(mapToStatic func(entry) traceql.Static) *distinctValueCollector {
 	return &distinctValueCollector{
 		mapToStatic: mapToStatic,
-		sentVals:    make(map[traceql.StaticHashCode]struct{}),
+		sentVals:    make(map[traceql.StaticMapKey]struct{}),
 	}
 }
 
@@ -648,9 +648,9 @@ func (d distinctValueCollector) KeepGroup(result *parquetquery.IteratorResult) b
 		}
 		static := d.mapToStatic(e)
 
-		if _, ok := d.sentVals[static.HashCode()]; !ok {
+		if _, ok := d.sentVals[static.MapKey()]; !ok {
 			result.AppendOtherValue("", static)
-			d.sentVals[static.HashCode()] = struct{}{}
+			d.sentVals[static.MapKey()] = struct{}{}
 		}
 	}
 	result.Entries = result.Entries[:0]

@@ -246,11 +246,11 @@ const maxGroupBys = 5 // TODO - This isn't ideal but see comment below.
 // the maximum number of values.
 
 type (
-	FastStatic1 [1]StaticHashCode
-	FastStatic2 [2]StaticHashCode
-	FastStatic3 [3]StaticHashCode
-	FastStatic4 [4]StaticHashCode
-	FastStatic5 [5]StaticHashCode
+	FastStatic1 [1]StaticMapKey
+	FastStatic2 [2]StaticMapKey
+	FastStatic3 [3]StaticMapKey
+	FastStatic4 [4]StaticMapKey
+	FastStatic5 [5]StaticMapKey
 )
 
 type FastStatic interface {
@@ -361,7 +361,7 @@ func (g *GroupingAggregator[F, S]) Observe(span Span) {
 	for i, lookups := range g.byLookups {
 		val := lookup(lookups, span)
 		g.buf.vals[i] = val
-		g.buf.fast[i] = val.HashCode()
+		g.buf.fast[i] = val.MapKey()
 	}
 
 	// If dynamic label exists calculate and append it
@@ -372,7 +372,7 @@ func (g *GroupingAggregator[F, S]) Observe(span Span) {
 			return
 		}
 		g.buf.vals[len(g.byLookups)] = v
-		g.buf.fast[len(g.byLookups)] = v.HashCode()
+		g.buf.fast[len(g.byLookups)] = v.MapKey()
 	}
 
 	if g.lastSeries.agg != nil && g.lastBuf.fast == g.buf.fast {

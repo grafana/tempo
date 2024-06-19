@@ -138,13 +138,13 @@ func (p Pipeline) evaluate(input []*Spanset) (result []*Spanset, err error) {
 type GroupOperation struct {
 	Expression FieldExpression
 
-	groupBuffer map[StaticHashCode]*Spanset
+	groupBuffer map[StaticMapKey]*Spanset
 }
 
 func newGroupOperation(e FieldExpression) GroupOperation {
 	return GroupOperation{
 		Expression:  e,
-		groupBuffer: make(map[StaticHashCode]*Spanset),
+		groupBuffer: make(map[StaticMapKey]*Spanset),
 	}
 }
 
@@ -481,7 +481,7 @@ type Static interface {
 
 	AsAnyValue() *common_v1.AnyValue
 	EncodeToString(quotes bool) string
-	HashCode() StaticHashCode
+	MapKey() StaticMapKey
 	equals(o Static) bool
 	compare(o Static) int
 	asFloat() float64
@@ -489,9 +489,10 @@ type Static interface {
 	divide(f float64) Static
 }
 
-type StaticHashCode struct {
+// StaticMapKey is a comparable key that corresponds to a given Static value.
+type StaticMapKey struct {
 	Type StaticType
-	Hash uint64
+	Code uint64
 	Str  string
 }
 
@@ -548,8 +549,8 @@ func (StaticNil) divide(_ float64) Static {
 	return NewStaticNil()
 }
 
-func (StaticNil) HashCode() StaticHashCode {
-	return StaticHashCode{Type: TypeNil}
+func (StaticNil) MapKey() StaticMapKey {
+	return StaticMapKey{Type: TypeNil}
 }
 
 // StaticInt represents a Static implementation based on int
@@ -614,8 +615,8 @@ func (s StaticInt) asFloat() float64 {
 	return float64(s.Int)
 }
 
-func (s StaticInt) HashCode() StaticHashCode {
-	return StaticHashCode{Type: TypeInt, Hash: uint64(s.Int)}
+func (s StaticInt) MapKey() StaticMapKey {
+	return StaticMapKey{Type: TypeInt, Code: uint64(s.Int)}
 }
 
 // StaticFloat represents a Static implementation based on float64
@@ -677,8 +678,8 @@ func (s StaticFloat) divide(f float64) Static {
 	return s
 }
 
-func (s StaticFloat) HashCode() StaticHashCode {
-	return StaticHashCode{Type: TypeFloat, Hash: math.Float64bits(s.Float)}
+func (s StaticFloat) MapKey() StaticMapKey {
+	return StaticMapKey{Type: TypeFloat, Code: math.Float64bits(s.Float)}
 }
 
 // StaticString represents a Static implementation based on string
@@ -721,8 +722,8 @@ func (s StaticString) divide(_ float64) Static {
 	return s
 }
 
-func (s StaticString) HashCode() StaticHashCode {
-	return StaticHashCode{Type: TypeString, Str: s.Str}
+func (s StaticString) MapKey() StaticMapKey {
+	return StaticMapKey{Type: TypeString, Str: s.Str}
 }
 
 // StaticBool represents a Static implementation based on bool
@@ -770,11 +771,11 @@ func (s StaticBool) divide(_ float64) Static {
 	return s
 }
 
-func (s StaticBool) HashCode() StaticHashCode {
+func (s StaticBool) MapKey() StaticMapKey {
 	if s.Bool {
-		return StaticHashCode{Type: TypeBoolean, Hash: 1}
+		return StaticMapKey{Type: TypeBoolean, Code: 1}
 	}
-	return StaticHashCode{Type: TypeBoolean, Hash: 0}
+	return StaticMapKey{Type: TypeBoolean, Code: 0}
 }
 
 // StaticDuration represents a Static implementation based on time.Duration
@@ -836,8 +837,8 @@ func (s StaticDuration) divide(f float64) Static {
 	return NewStaticDuration(d)
 }
 
-func (s StaticDuration) HashCode() StaticHashCode {
-	return StaticHashCode{Type: TypeDuration, Hash: uint64(s.Duration)}
+func (s StaticDuration) MapKey() StaticMapKey {
+	return StaticMapKey{Type: TypeDuration, Code: uint64(s.Duration)}
 }
 
 // StaticStatus represents a Static implementation based on Status
@@ -886,8 +887,8 @@ func (s StaticStatus) divide(_ float64) Static {
 	return s
 }
 
-func (s StaticStatus) HashCode() StaticHashCode {
-	return StaticHashCode{Type: TypeStatus, Hash: uint64(s.Status)}
+func (s StaticStatus) MapKey() StaticMapKey {
+	return StaticMapKey{Type: TypeStatus, Code: uint64(s.Status)}
 }
 
 // StaticKind represents a Static implementation based on Kind
@@ -930,8 +931,8 @@ func (s StaticKind) divide(_ float64) Static {
 	return s
 }
 
-func (s StaticKind) HashCode() StaticHashCode {
-	return StaticHashCode{Type: TypeKind, Hash: uint64(s.Kind)}
+func (s StaticKind) MapKey() StaticMapKey {
+	return StaticMapKey{Type: TypeKind, Code: uint64(s.Kind)}
 }
 
 // **********************
