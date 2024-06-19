@@ -86,19 +86,19 @@ func newReceiver(config *Config, nextConsumer consumer.Traces, settings receiver
 }
 
 // Start spins up the receiver's HTTP server and makes the receiver start its processing.
-func (zr *zipkinReceiver) Start(_ context.Context, host component.Host) error {
+func (zr *zipkinReceiver) Start(ctx context.Context, host component.Host) error {
 	if host == nil {
 		return errors.New("nil host")
 	}
 
 	var err error
-	zr.server, err = zr.config.ServerConfig.ToServer(host, zr.settings.TelemetrySettings, zr)
+	zr.server, err = zr.config.ServerConfig.ToServer(ctx, host, zr.settings.TelemetrySettings, zr)
 	if err != nil {
 		return err
 	}
 
 	var listener net.Listener
-	listener, err = zr.config.ServerConfig.ToListener()
+	listener, err = zr.config.ServerConfig.ToListener(ctx)
 	if err != nil {
 		return err
 	}

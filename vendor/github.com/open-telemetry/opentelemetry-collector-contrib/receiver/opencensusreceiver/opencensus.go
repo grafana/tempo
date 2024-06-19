@@ -81,7 +81,7 @@ func newOpenCensusReceiver(
 // it also enables the metrics receiver too.
 func (ocr *ocReceiver) Start(ctx context.Context, host component.Host) error {
 	var err error
-	ocr.serverGRPC, err = ocr.grpcServerSettings.ToServerContext(ctx, host, ocr.settings.TelemetrySettings)
+	ocr.serverGRPC, err = ocr.grpcServerSettings.ToServer(ctx, host, ocr.settings.TelemetrySettings)
 	if err != nil {
 		return err
 	}
@@ -162,7 +162,7 @@ func (ocr *ocReceiver) Start(ctx context.Context, host component.Host) error {
 
 	startWG.Wait()
 
-	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock()}
+	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 	if err := agenttracepb.RegisterTraceServiceHandlerFromEndpoint(c, ocr.gatewayMux, endpoint, opts); err != nil {
 		return err
 	}
@@ -173,7 +173,7 @@ func (ocr *ocReceiver) Start(ctx context.Context, host component.Host) error {
 
 	if ocr.serverGRPC == nil {
 		var err error
-		ocr.serverGRPC, err = ocr.grpcServerSettings.ToServerContext(context.Background(), host, ocr.settings.TelemetrySettings)
+		ocr.serverGRPC, err = ocr.grpcServerSettings.ToServer(context.Background(), host, ocr.settings.TelemetrySettings)
 		if err != nil {
 			return err
 		}
