@@ -12,7 +12,7 @@ TOOL_DIR     ?= tools
 TOOL_CONFIG  ?= $(TOOL_DIR)/tools.go
 
 TOOLS_IMAGE ?= grafana/tempo-ci-tools
-TOOLS_IMAGE_TAG ?= main-d8c69d4
+TOOLS_IMAGE_TAG ?= main-5e4eafd
 
 GOTOOLS ?= $(shell cd $(TOOL_DIR) && go list -e -f '{{ .Imports }}' -tags tools |tr -d '[]')
 
@@ -49,3 +49,7 @@ tools-update:
 	@cd $(TOOL_DIR) && $(VENDOR_CMD)
 
 .PHONY: tools tools-update tools-outdated
+
+.PHONY: tools-update-mod
+tools-update-mod:
+	@cd $(TOOL_DIR) && $(VENDOR_CMD)
