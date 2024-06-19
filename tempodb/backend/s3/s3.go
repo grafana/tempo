@@ -638,7 +638,6 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	// add instrumentation
 	transport := instrumentation.NewTransport(customTransport)
 	var stats *hedgedhttp.Stats
-
 	if hedge && cfg.HedgeRequestsAt != 0 {
 		transport, stats, err = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, cfg.HedgeRequestsUpTo, transport)
 		if err != nil {
@@ -660,7 +659,13 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		opts.BucketLookup = minio.BucketLookupType(cfg.BucketLookupType)
 	}
 
-	return minio.NewCore(cfg.Endpoint, opts)
+	core, err := minio.NewCore(cfg.Endpoint, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create minio client: %w", err)
+	}
+
+	core.SetS3EnableDualstack(cfg.UseDualStack)
+	return core, err
 }
 
 func readError(err error) error {
