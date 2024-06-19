@@ -1,6 +1,6 @@
 module github.com/grafana/tempo
 
-go 1.22.0
+go 1.22.4
 
 require (
 	cloud.google.com/go/storage v1.36.0
@@ -352,5 +352,3 @@ replace (
 // - https://github.com/hashicorp/memberlist/pull/260
 // - https://github.com/grafana/memberlist/pull/3
 replace github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-0.20220708130638-bd88e10a3d91
-
-replace golang.org/x/net => golang.org/x/net v0.24.0

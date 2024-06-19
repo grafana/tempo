@@ -1,6 +1,6 @@
 module github.com/grafana/tempo/tools
 
-go 1.22.0
+go 1.22.4
 
 require (
 	github.com/golangci/golangci-lint v1.57.2
