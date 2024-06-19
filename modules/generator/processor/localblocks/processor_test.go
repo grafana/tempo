@@ -336,15 +336,15 @@ func (m *mockBlock) Search(context.Context, *tempopb.SearchRequest, common.Searc
 	return nil, nil
 }
 
-func (m *mockBlock) SearchTags(context.Context, traceql.AttributeScope, common.TagCallback, common.SearchOptions) error {
+func (m *mockBlock) SearchTags(context.Context, traceql.AttributeScope, common.TagsCallback, common.SearchOptions) error {
 	return nil
 }
 
-func (m *mockBlock) SearchTagValues(context.Context, string, common.TagCallback, common.SearchOptions) error {
+func (m *mockBlock) SearchTagValues(context.Context, string, common.TagValuesCallback, common.SearchOptions) error {
 	return nil
 }
 
-func (m *mockBlock) SearchTagValuesV2(context.Context, traceql.Attribute, common.TagCallbackV2, common.SearchOptions) error {
+func (m *mockBlock) SearchTagValuesV2(context.Context, traceql.Attribute, common.TagValuesCallbackV2, common.SearchOptions) error {
 	return nil
 }
 

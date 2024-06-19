@@ -288,16 +288,16 @@ func (a *walBlock) Search(context.Context, *tempopb.SearchRequest, common.Search
 }
 
 // Search implements common.Searcher
-func (a *walBlock) SearchTags(context.Context, traceql.AttributeScope, common.TagCallback, common.SearchOptions) error {
+func (a *walBlock) SearchTags(context.Context, traceql.AttributeScope, common.TagsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
 // SearchTagValues implements common.Searcher
-func (a *walBlock) SearchTagValues(context.Context, string, common.TagCallback, common.SearchOptions) error {
+func (a *walBlock) SearchTagValues(context.Context, string, common.TagValuesCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
-func (a *walBlock) SearchTagValuesV2(context.Context, traceql.Attribute, common.TagCallbackV2, common.SearchOptions) error {
+func (a *walBlock) SearchTagValuesV2(context.Context, traceql.Attribute, common.TagValuesCallbackV2, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 

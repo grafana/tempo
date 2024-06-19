@@ -167,6 +167,7 @@ func TestCredentials(t *testing.T) {
 				AccessKeyID:     defaultAccessKey,
 				SecretAccessKey: defaultSecretKey,
 				SignerType:      credentials.SignatureV4,
+				Expiration:      timeNow().Add(time.Hour),
 			},
 			imds:   true,
 			mocked: true,
@@ -665,7 +666,7 @@ func metadataMockedHandler(t *testing.T) http.HandlerFunc {
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.String() == "/" {
 			err := r.ParseForm()
 			require.NoError(t, err)
@@ -723,8 +724,8 @@ func metadataMockedHandler(t *testing.T) http.HandlerFunc {
 			}
 		} else if r.URL.String() == "/latest/meta-data/iam/security-credentials/role-name" {
 			creds := ec2RoleCredRespBody{
-				LastUpdated:     time.Now(),
-				Expiration:      time.Now().Add(1 * time.Hour),
+				LastUpdated:     timeNow(),
+				Expiration:      timeNow().Add(1 * time.Hour),
 				AccessKeyID:     defaultAccessKey,
 				SecretAccessKey: defaultSecretKey,
 				Type:            "AWS-HMAC",
@@ -734,5 +735,7 @@ func metadataMockedHandler(t *testing.T) http.HandlerFunc {
 			err := json.NewEncoder(w).Encode(creds)
 			require.NoError(t, err)
 		}
-	})
+	}
 }
+
+func timeNow() time.Time { return time.Date(2024, 5, 12, 16, 21, 24, 42, time.UTC) }

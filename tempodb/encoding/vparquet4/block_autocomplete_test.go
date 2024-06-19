@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -265,7 +265,7 @@ func TestFetchTagValues(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("tag: %s, query: %s", tc.tag, tc.query), func(t *testing.T) {
-			distinctValues := util.NewDistinctValueCollector[tempopb.TagValue](1_000_000, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+			distinctValues := collector.NewDistinctValue[tempopb.TagValue](1_000_000, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 			req, err := traceql.ExtractFetchSpansRequest(tc.query)
 			require.NoError(t, err)
 
@@ -346,7 +346,7 @@ func BenchmarkFetchTagValues(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(fmt.Sprintf("tag: %s, query: %s", tc.tag, tc.query), func(b *testing.B) {
-			distinctValues := util.NewDistinctValueCollector[tempopb.TagValue](1_000_000, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+			distinctValues := collector.NewDistinctValue[tempopb.TagValue](1_000_000, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 			req, err := traceql.ExtractFetchSpansRequest(tc.query)
 			require.NoError(b, err)
 
