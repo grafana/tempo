@@ -286,6 +286,7 @@ update-mod:
 	go mod vendor
 	go mod tidy -e
 	$(MAKE) -C cmd/tempo-serverless update-mod
+	$(MAKE) -C tools update-mod
 
 
 ### Release (intended to be used in the .github/workflows/release.yml)
