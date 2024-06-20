@@ -605,22 +605,20 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 	}
 }
 
-// TODO(mdisibio) We need this test but it's blocked until we add support for fetching
-// array attributes.  Hard to do even in a partial state.  Leaving commented out
-// and will come back to it.
 func TestBackendBlockSelectAll(t *testing.T) {
 	var (
 		ctx          = context.Background()
-		numTraces    = 1 // 250
+		numTraces    = 250
 		traces       = make([]*Trace, 0, numTraces)
-		wantTraceIdx = 0 // rand.Intn(numTraces)
+		wantTraceIdx = rand.Intn(numTraces)
 		wantTraceID  = test.ValidTraceID(nil)
-		// wantTraceIDText = util.TraceIDToHexString(wantTraceID)
-		wantTrace = fullyPopulatedTestTrace(wantTraceID)
-		dc        = test.MakeDedicatedColumns()
-		dcm       = dedicatedColumnsToColumnMapping(dc)
+		wantTrace    = fullyPopulatedTestTrace(wantTraceID)
+		dc           = test.MakeDedicatedColumns()
+		dcm          = dedicatedColumnsToColumnMapping(dc)
 	)
 
+	// TODO - This strips unsupported attributes types for now. Revisit when
+	// add support for arrays/kvlists in the fetch layer.
 	trimForSelectAll(wantTrace)
 
 	for i := 0; i < numTraces; i++ {
