@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -210,6 +210,9 @@ func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loc
 		err = p.queryRangeCacheSet(ctx, m, name, &tempopb.QueryRangeResponse{
 			Series: results,
 		})
+		if err != nil {
+			return nil, fmt.Errorf("writing local query cache: %w", err)
+		}
 	}
 
 	return results, nil
