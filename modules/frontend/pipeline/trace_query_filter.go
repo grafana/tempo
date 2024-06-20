@@ -1,7 +1,6 @@
 package pipeline
 
 import (
-	"github.com/grafana/tempo/pkg/api"
 	"io"
 	"net/http"
 	"regexp"
@@ -12,6 +11,7 @@ import (
 type traceQueryFilterWare struct {
 	next    http.RoundTripper
 	filters []*regexp.Regexp
+	parseFn func(r *http.Request) string
 }
 
 func NewTraceQueryFilterWare(next http.RoundTripper) http.RoundTripper {
@@ -20,7 +20,7 @@ func NewTraceQueryFilterWare(next http.RoundTripper) http.RoundTripper {
 	}
 }
 
-func NewTraceQueryFilterWareWithDenyList(denyList []string) Middleware {
+func NewTraceQueryFilterWareWithDenyList(denyList []string, parseFunc func(r *http.Request) string) Middleware {
 	filter := make([]*regexp.Regexp, len(denyList)+1)
 	for i := range denyList {
 		exp, err := regexp.Compile(denyList[i])
@@ -33,33 +33,21 @@ func NewTraceQueryFilterWareWithDenyList(denyList []string) Middleware {
 		return traceQueryFilterWare{
 			next:    next,
 			filters: filter,
+			parseFn: parseFunc,
 		}
 	})
 }
 
 func (c traceQueryFilterWare) RoundTrip(req *http.Request) (*http.Response, error) {
-	resp, err := c.next.RoundTrip(req)
-	if err != nil {
-		return resp, err
-	}
-	//Better way to do this?
-	if len(c.filters) == 0 {
-		return resp, nil
-	}
-	//need wait group
-	u, err := api.ParseSearchRequest(req)
-	if err != nil {
-		return resp, err
+	if c.filters == nil || len(c.filters) == 0 {
+		return c.next.RoundTrip(req)
 	}
 
-	qry := u.Query
+	query := c.parseFn(req)
 
-	if len(qry) == 0 {
-		return resp, nil
+	if len(query) == 0 {
+		return c.next.RoundTrip(req)
 	}
-
-	//Not sure this is a good idea / the best way to do this
-	//Also probably not necessary
 
 	match := make(chan bool, len(c.filters))
 	wg := sync.WaitGroup{}
@@ -76,7 +64,7 @@ func (c traceQueryFilterWare) RoundTrip(req *http.Request) (*http.Response, erro
 			}
 		}
 		match <- false
-	}(qry)
+	}(query)
 
 	go func() {
 		wg.Wait()
@@ -92,5 +80,5 @@ func (c traceQueryFilterWare) RoundTrip(req *http.Request) (*http.Response, erro
 		}, nil
 
 	}
-	return resp, nil
+	return c.next.RoundTrip(req)
 }

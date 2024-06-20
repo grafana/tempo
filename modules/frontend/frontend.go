@@ -83,7 +83,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()
 	traceIDStatusCodeWare := pipeline.NewStatusCodeAdjustWareWithAllowedCode(http.StatusNotFound)
-	queryFilterWare := pipeline.NewTraceQueryFilterWareWithDenyList(cfg.Search.FilterPatterns)
+	queryFilterWare := pipeline.NewTraceQueryFilterWareWithDenyList(cfg.Search.BlockedQueries)
 
 	tracePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{

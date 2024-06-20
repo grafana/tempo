@@ -35,7 +35,7 @@ type SearchConfig struct {
 	Timeout        time.Duration       `yaml:"timeout,omitempty"`
 	Sharder        SearchSharderConfig `yaml:",inline"`
 	SLO            SLOConfig           `yaml:",inline"`
-	FilterPatterns []string            `yaml:"filter_patterns,omitempty"`
+	BlockedQueries []string            `yaml:"blocked-queries_patterns,omitempty"`
 }
 
 type TraceByIDConfig struct {
@@ -45,8 +45,9 @@ type TraceByIDConfig struct {
 }
 
 type MetricsConfig struct {
-	Sharder QueryRangeSharderConfig `yaml:",inline"`
-	SLO     SLOConfig               `yaml:",inline"`
+	Sharder        QueryRangeSharderConfig `yaml:",inline"`
+	SLO            SLOConfig               `yaml:",inline"`
+	BlockedQueries []string                `yaml:"blocked_queries,omitempty"`
 }
 
 type SLOConfig struct {
