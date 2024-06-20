@@ -544,5 +544,4 @@ func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
 	hash = fnv1a.AddUint64(hash, req.Step)
 
 	return hash
-
 }
