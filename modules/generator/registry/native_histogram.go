@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"math"
 	"sync"
 	"time"
 
@@ -113,10 +114,12 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 }
 
 func (h *nativeHistogram) updateSeries(s *nativeHistogramSeries, value float64, traceID string, multiplier float64) {
-	s.promHistogram.(prometheus.ExemplarObserver).ObserveWithExemplar(
-		value*multiplier,
-		map[string]string{h.traceIDLabelName: traceID},
-	)
+	for i := 0.0; i < multiplier; i++ {
+		s.promHistogram.(prometheus.ExemplarObserver).ObserveWithExemplar(
+			value,
+			map[string]string{h.traceIDLabelName: traceID},
+		)
+	}
 	s.lastUpdated.Store(time.Now().UnixMilli())
 }
 
@@ -134,7 +137,6 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 	}
 	lbls := make(labels.Labels, 1+len(externalLabels)+labelsCount)
 	lb := labels.NewBuilder(lbls)
-	//activeSeries = len(h.series)
 	activeSeries = 0
 
 	lb.Set(labels.MetricName, h.metricName)
@@ -173,7 +175,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 
 		// count
 		lb.Set(labels.MetricName, h.metricName+"_count")
-		_, err = appender.Append(0, lb.Labels(), timeMs, encodedHistogram.GetSampleCountFloat())
+		_, err = appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(encodedHistogram.GetSampleCountFloat(), encodedHistogram.GetSampleCount()))
 		if err != nil {
 			return activeSeries, err
 		}
@@ -182,11 +184,19 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		// bucket
 		lb.Set(labels.MetricName, h.metricName+"_bucket")
 
+		// the Prometheus histogram will sometimes add the +Inf bucket, it depends on whether there is an exemplar
+		// for that bucket or not. To avoid adding it twice, keep track of it with this boolean.
+		infBucketWasAdded := false
+
 		for _, bucket := range encodedHistogram.Bucket {
 			// add "le" label
 			lb.Set(labels.BucketLabel, formatFloat(bucket.GetUpperBound()))
 
-			ref, err := appender.Append(0, lb.Labels(), timeMs, bucket.GetCumulativeCountFloat())
+			if bucket.GetUpperBound() == math.Inf(1) {
+				infBucketWasAdded = true
+			}
+
+			ref, err := appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(bucket.GetCumulativeCountFloat(), bucket.GetCumulativeCount()))
 			if err != nil {
 				return activeSeries, err
 			}
@@ -206,14 +216,16 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 			}
 		}
 
-		// Add +Inf bucket
-		lb.Set(labels.BucketLabel, "+Inf")
+		if !infBucketWasAdded {
+			// Add +Inf bucket
+			lb.Set(labels.BucketLabel, "+Inf")
 
-		_, err = appender.Append(0, lb.Labels(), timeMs, encodedHistogram.GetSampleSum())
-		if err != nil {
-			return activeSeries, err
+			_, err = appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(encodedHistogram.GetSampleCountFloat(), encodedHistogram.GetSampleCount()))
+			if err != nil {
+				return activeSeries, err
+			}
+			activeSeries += 1
 		}
-		activeSeries += 1
 
 		// drop "le" label again
 		lb.Del(labels.BucketLabel)
@@ -311,4 +323,12 @@ func convertTimestampToMs(ts *timestamppb.Timestamp) int64 {
 		return 0
 	}
 	return ts.GetSeconds()*1000 + int64(ts.GetNanos()/1_000_000)
+}
+
+// getIfGreaterThenZeroOr returns v1 is if it's greater than zero, otherwise it returns v2.
+func getIfGreaterThenZeroOr(v1 float64, v2 uint64) float64 {
+	if v1 > 0 {
+		return v1
+	}
+	return float64(v2)
 }
