@@ -1,6 +1,8 @@
 package pipeline
 
 import (
+	"fmt"
+	"github.com/grafana/tempo/pkg/api"
 	"io"
 	"net/http"
 	"regexp"
@@ -21,11 +23,11 @@ func NewTraceQueryFilterWare(next http.RoundTripper) http.RoundTripper {
 }
 
 func NewTraceQueryFilterWareWithDenyList(denyList []string, parseFunc func(r *http.Request) string) Middleware {
-	filter := make([]*regexp.Regexp, len(denyList)+1)
+	var filter []*regexp.Regexp
 	for i := range denyList {
 		exp, err := regexp.Compile(denyList[i])
 		if err == nil {
-			filter[i] = exp
+			filter = append(filter, exp)
 		}
 	}
 
@@ -45,7 +47,7 @@ func (c traceQueryFilterWare) RoundTrip(req *http.Request) (*http.Response, erro
 
 	query := c.parseFn(req)
 
-	if len(query) == 0 {
+	if len(query) == 0 || query == "" {
 		return c.next.RoundTrip(req)
 	}
 
@@ -81,4 +83,23 @@ func (c traceQueryFilterWare) RoundTrip(req *http.Request) (*http.Response, erro
 
 	}
 	return c.next.RoundTrip(req)
+}
+
+func ParseSearchRequestQuery(req *http.Request) string {
+
+	//query, _ := api.ParseSearchTagValuesRequestV2(req)
+
+	//query, _ := api.ParseSearchRequest(req)
+
+	query := req.URL.String()
+
+	fmt.Printf("Parsed Query: %v\n", query)
+
+	//return query.GetQuery()
+	return query
+}
+
+func ParseMetricRangeRequestQuery(req *http.Request) string {
+	query, _ := api.ParseSpanMetricsRequest(req)
+	return query.GetQuery()
 }
