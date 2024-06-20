@@ -25,7 +25,7 @@ jobs:
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22.x
+          go-version: '>=1.22.4'
 
       - name: Check out code
         uses: actions/checkout@v4
@@ -48,7 +48,7 @@ jobs:
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22.x
+          go-version: '>=1.22.4'
 
       - name: Check out code
         uses: actions/checkout@v4
@@ -63,7 +63,7 @@ jobs:
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22.x
+          go-version: '>=1.22.4'
 
       - name: Check out code
         uses: actions/checkout@v4
@@ -78,7 +78,7 @@ jobs:
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22.x
+          go-version: '>=1.22.4'
 
       - name: Check out code
         uses: actions/checkout@v4
@@ -93,7 +93,7 @@ jobs:
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22.x
+          go-version: '>=1.22.4'
 
       - name: Check out code
         uses: actions/checkout@v4
@@ -108,7 +108,7 @@ jobs:
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22.x
+          go-version: '>=1.22.4'
 
       - name: Check out code
         uses: actions/checkout@v4
@@ -126,7 +126,7 @@ jobs:
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22.x
+          go-version: '>=1.22.4'
 
       - name: Check out code
         uses: actions/checkout@v4
@@ -141,7 +141,7 @@ jobs:
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22.x
+          go-version: '>=1.22.4'
 
       - name: Check out code
         uses: actions/checkout@v4
@@ -165,7 +165,7 @@ jobs:
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22.x
+          go-version: '>=1.22.4'
 
       - name: Check out code
         uses: actions/checkout@v4
@@ -180,7 +180,7 @@ jobs:
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22.x
+          go-version: '>=1.22.4'
 
       - name: Check out code
         uses: actions/checkout@v4
@@ -200,7 +200,7 @@ jobs:
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22.x
+          go-version: '>=1.22.4'
 
       - name: Check out code
         uses: actions/checkout@v4
