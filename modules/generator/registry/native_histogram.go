@@ -224,7 +224,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 			if err != nil {
 				return activeSeries, err
 			}
-			activeSeries += 1
+			activeSeries++
 		}
 
 		// drop "le" label again
