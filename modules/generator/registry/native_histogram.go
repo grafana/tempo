@@ -171,7 +171,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		if err != nil {
 			return activeSeries, err
 		}
-		activeSeries += 1
+		activeSeries++
 
 		// count
 		lb.Set(labels.MetricName, h.metricName+"_count")
@@ -179,7 +179,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		if err != nil {
 			return activeSeries, err
 		}
-		activeSeries += 1
+		activeSeries++
 
 		// bucket
 		lb.Set(labels.MetricName, h.metricName+"_bucket")
@@ -200,7 +200,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 			if err != nil {
 				return activeSeries, err
 			}
-			activeSeries += 1
+			activeSeries++
 
 			ex := bucket.Exemplar
 			if ex != nil {
