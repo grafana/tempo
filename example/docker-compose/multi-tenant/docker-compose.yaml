@@ -31,7 +31,7 @@ services:
       - init
 
   k6-tracing:
-    image: ghcr.io/grafana/xk6-client-tracing:latest
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.5
     environment:
       - ENDPOINT=tempo:4317
       - TEMPO_X_SCOPE_ORGID=test
@@ -40,7 +40,7 @@ services:
       - tempo
 
   k6-tracing-2:
-    image: ghcr.io/grafana/xk6-client-tracing:latest
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.5
     environment:
       - ENDPOINT=tempo:4317
       - TEMPO_X_SCOPE_ORGID=test2
@@ -49,7 +49,7 @@ services:
       - tempo
 
   grafana:
-    image: grafana/grafana:10.4.2
+    image: grafana/grafana:11.0.0
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:

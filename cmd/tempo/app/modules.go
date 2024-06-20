@@ -53,6 +53,7 @@ const (
 	Server         string = "server"
 	InternalServer string = "internal-server"
 	Store          string = "store"
+	OptionalStore  string = "optional-store"
 	MemberlistKV   string = "memberlist-kv"
 	UsageReport    string = "usage-report"
 	Overrides      string = "overrides"
@@ -262,8 +263,13 @@ func (t *App) initIngester() (services.Service, error) {
 }
 
 func (t *App) initGenerator() (services.Service, error) {
+	if t.cfg.Generator.Processor.LocalBlocks.FlushToStorage &&
+		t.store == nil {
+		return nil, fmt.Errorf("generator.processor.local-blocks.flush-to-storage is enabled but no storage backend is configured")
+	}
+
 	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
-	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, log.Logger)
+	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.store, log.Logger)
 	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
 		level.Warn(log.Logger).Log("msg", "metrics-generator is not configured.", "err", err)
 		return services.NewIdleService(nil, nil), nil
@@ -436,6 +442,16 @@ func (t *App) initCompactor() (services.Service, error) {
 	return t.compactor, nil
 }
 
+func (t *App) initOptionalStore() (services.Service, error) {
+	// Used by the local-blocs processor to flush RF1 blocks to storage.
+	// Only initialize if it's configured.
+	if t.cfg.StorageConfig.Trace.Backend == "" {
+		return services.NewIdleService(nil, nil), nil
+	}
+
+	return t.initStore()
+}
+
 func (t *App) initStore() (services.Service, error) {
 	store, err := tempo_storage.NewStore(t.cfg.StorageConfig, t.cacheProvider, log.Logger)
 	if err != nil {
@@ -534,6 +550,7 @@ func (t *App) setupModuleManager() error {
 	const Common = "common"
 
 	mm.RegisterModule(Store, t.initStore, modules.UserInvisibleModule)
+	mm.RegisterModule(OptionalStore, t.initOptionalStore, modules.UserInvisibleModule)
 	mm.RegisterModule(Server, t.initServer, modules.UserInvisibleModule)
 	mm.RegisterModule(InternalServer, t.initInternalServer, modules.UserInvisibleModule)
 	mm.RegisterModule(MemberlistKV, t.initMemberlistKV, modules.UserInvisibleModule)
@@ -576,7 +593,7 @@ func (t *App) setupModuleManager() error {
 		QueryFrontend:    {Common, Store, OverridesAPI},
 		Distributor:      {Common, IngesterRing, MetricsGeneratorRing},
 		Ingester:         {Common, Store, MemberlistKV},
-		MetricsGenerator: {Common, MemberlistKV},
+		MetricsGenerator: {Common, OptionalStore, MemberlistKV},
 		Querier:          {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
 		Compactor:        {Common, Store, MemberlistKV},
 		// composite targets

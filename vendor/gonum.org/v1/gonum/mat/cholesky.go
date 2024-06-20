@@ -81,18 +81,12 @@ func (c *Cholesky) updateCond(norm float64) {
 
 // Dims returns the dimensions of the matrix.
 func (ch *Cholesky) Dims() (r, c int) {
-	if !ch.valid() {
-		panic(badCholesky)
-	}
-	r, c = ch.chol.Dims()
-	return r, c
+	n := ch.SymmetricDim()
+	return n, n
 }
 
 // At returns the element at row i, column j.
 func (c *Cholesky) At(i, j int) float64 {
-	if !c.valid() {
-		panic(badCholesky)
-	}
 	n := c.SymmetricDim()
 	if uint(i) >= uint(n) {
 		panic(ErrRowAccess)
@@ -116,8 +110,11 @@ func (c *Cholesky) T() Matrix {
 // SymmetricDim implements the Symmetric interface and returns the number of rows
 // in the matrix (this is also the number of columns).
 func (c *Cholesky) SymmetricDim() int {
-	r, _ := c.chol.Dims()
-	return r
+	if c.chol == nil {
+		return 0
+	}
+	n, _ := c.chol.Triangle()
+	return n
 }
 
 // Cond returns the condition number of the factorized matrix.
@@ -310,10 +307,15 @@ func (c *Cholesky) SolveVecTo(dst *VecDense, b Vector) error {
 	}
 }
 
-// RawU returns the Triangular matrix used to store the Cholesky decomposition of
-// the original matrix A. The returned matrix should not be modified. If it is
-// modified, the decomposition is invalid and should not be used.
+// RawU returns the Triangular matrix used to store the Cholesky factorization
+// of the original matrix A. If the returned matrix is modified, the
+// factorization is invalid and should not be used.
+//
+// If Factorize has not been called, RawU will return nil.
 func (c *Cholesky) RawU() Triangular {
+	if !c.valid() {
+		return nil
+	}
 	return c.chol
 }
 
@@ -845,19 +847,13 @@ func (ch *BandCholesky) Reset() {
 
 // Dims returns the dimensions of the matrix.
 func (ch *BandCholesky) Dims() (r, c int) {
-	if !ch.valid() {
-		panic(badCholesky)
-	}
-	r, c = ch.chol.Dims()
-	return r, c
+	n := ch.SymmetricDim()
+	return n, n
 }
 
 // At returns the element at row i, column j.
 func (ch *BandCholesky) At(i, j int) float64 {
-	if !ch.valid() {
-		panic(badCholesky)
-	}
-	n, k, _ := ch.chol.TriBand()
+	n, k := ch.SymBand()
 	if uint(i) >= uint(n) {
 		panic(ErrRowAccess)
 	}
@@ -891,6 +887,9 @@ func (ch *BandCholesky) TBand() Banded {
 // SymmetricDim implements the Symmetric interface and returns the number of rows
 // in the matrix (this is also the number of columns).
 func (ch *BandCholesky) SymmetricDim() int {
+	if ch.chol == nil {
+		return 0
+	}
 	n, _ := ch.chol.Triangle()
 	return n
 }
@@ -945,13 +944,13 @@ func (ch *BandCholesky) valid() bool {
 //
 // The factorization has the form
 //
-//	A = P * Uᵀ * U * Pᵀ
+//	Pᵀ * A * P = Uᵀ * U
 //
 // where U is an upper triangular matrix and P is a permutation matrix.
 //
-// Cholesky methods may only be called on a receiver that has been successfully
-// initialized by a call to Factorize. SolveTo and SolveVecTo methods may only
-// called if Factorize has returned true.
+// Cholesky methods may only be called on a receiver that has been initialized
+// by a call to Factorize. SolveTo and SolveVecTo methods may only called if
+// Factorize has returned true.
 //
 // If the matrix A is certainly positive definite, then the unpivoted Cholesky
 // could be more efficient, especially for smaller matrices.
@@ -985,6 +984,10 @@ func (c *PivotedCholesky) Factorize(a Symmetric, tol float64) (ok bool) {
 		iwork := getInts(n, false)
 		defer putInts(iwork)
 		c.cond = 1 / lapack64.Pocon(sym, aNorm, work, iwork)
+	} else {
+		for i := c.rank; i < n; i++ {
+			zero(sym.Data[i*sym.Stride+i : i*sym.Stride+n])
+		}
 	}
 	for i, p := range c.piv {
 		c.pivTrans[p] = i
@@ -1010,18 +1013,12 @@ func (c *PivotedCholesky) reset(n int) {
 
 // Dims returns the dimensions of the matrix A.
 func (ch *PivotedCholesky) Dims() (r, c int) {
-	if ch.chol == nil {
-		panic(badCholesky)
-	}
-	r, c = ch.chol.Dims()
-	return r, c
+	n := ch.SymmetricDim()
+	return n, n
 }
 
 // At returns the element of A at row i, column j.
 func (c *PivotedCholesky) At(i, j int) float64 {
-	if c.chol == nil {
-		panic(badCholesky)
-	}
 	n := c.SymmetricDim()
 	if uint(i) >= uint(n) {
 		panic(ErrRowAccess)
@@ -1049,9 +1046,9 @@ func (c *PivotedCholesky) T() Matrix {
 // rows (or columns) in the matrix .
 func (c *PivotedCholesky) SymmetricDim() int {
 	if c.chol == nil {
-		panic(badCholesky)
+		return 0
 	}
-	n, _ := c.chol.Dims()
+	n, _ := c.chol.Triangle()
 	return n
 }
 
@@ -1065,10 +1062,74 @@ func (c *PivotedCholesky) Rank() int {
 
 // Cond returns the condition number of the factorized matrix.
 func (c *PivotedCholesky) Cond() float64 {
-	if !c.ok {
+	if c.chol == nil {
 		panic(badCholesky)
 	}
 	return c.cond
+}
+
+// RawU returns the Triangular matrix used to store the Cholesky factorization
+// of the original matrix A. If the returned matrix is modified, the
+// factorization is invalid and should not be used.
+//
+// If Factorized returned false, the rows of U from Rank to n will contain zeros
+// and so U will be upper trapezoidal.
+//
+// If Factorize has not been called, RawU will return nil.
+func (c *PivotedCholesky) RawU() Triangular {
+	if c.chol == nil {
+		return nil
+	}
+	return c.chol
+}
+
+// UTo stores the n×n upper triangular matrix U from the Cholesky factorization
+//
+//	Pᵀ * A * P = Uᵀ * U.
+//
+// into dst. If dst is empty, it is resized to be an n×n upper triangular
+// matrix. When dst is non-empty, UTo panics if dst is not n×n or not Upper.
+//
+// If Factorized returned false, the rows of U from Rank to n will contain zeros
+// and so U will be upper trapezoidal.
+func (c *PivotedCholesky) UTo(dst *TriDense) {
+	if c.chol == nil {
+		panic(badCholesky)
+	}
+	n := c.chol.mat.N
+	if dst.IsEmpty() {
+		dst.ReuseAsTri(n, Upper)
+	} else {
+		n2, kind := dst.Triangle()
+		if n != n2 {
+			panic(ErrShape)
+		}
+		if kind != Upper {
+			panic(ErrTriangle)
+		}
+	}
+	dst.Copy(c.chol)
+}
+
+// ColumnPivots returns the column permutation p that represents the permutation
+// matrix P from the Cholesky factorization
+//
+//	Pᵀ * A * P = Uᵀ * U
+//
+// such that the nonzero entries are P[p[k],k] = 1.
+func (c *PivotedCholesky) ColumnPivots(dst []int) []int {
+	if c.chol == nil {
+		panic(badCholesky)
+	}
+	n := c.chol.mat.N
+	if dst == nil {
+		dst = make([]int, n)
+	}
+	if len(dst) != n {
+		panic(badSliceLength)
+	}
+	copy(dst, c.piv)
+	return dst
 }
 
 // SolveTo finds the matrix X that solves A * X = B where A is represented by

@@ -374,7 +374,7 @@ func (jr *jReceiver) startCollector(ctx context.Context, host component.Host) er
 	}
 
 	if jr.config.HTTPServerConfig.Endpoint != "" {
-		cln, err := jr.config.HTTPServerConfig.ToListener()
+		cln, err := jr.config.HTTPServerConfig.ToListener(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to bind to Collector address %q: %w",
 				jr.config.HTTPServerConfig.Endpoint, err)
@@ -382,7 +382,7 @@ func (jr *jReceiver) startCollector(ctx context.Context, host component.Host) er
 
 		nr := mux.NewRouter()
 		nr.HandleFunc("/api/traces", jr.HandleThriftHTTPBatch).Methods(http.MethodPost)
-		jr.collectorServer, err = jr.config.HTTPServerConfig.ToServer(host, jr.settings.TelemetrySettings, nr)
+		jr.collectorServer, err = jr.config.HTTPServerConfig.ToServer(ctx, host, jr.settings.TelemetrySettings, nr)
 		if err != nil {
 			return err
 		}
@@ -398,7 +398,7 @@ func (jr *jReceiver) startCollector(ctx context.Context, host component.Host) er
 
 	if jr.config.GRPCServerConfig.NetAddr.Endpoint != "" {
 		var err error
-		jr.grpc, err = jr.config.GRPCServerConfig.ToServerContext(ctx, host, jr.settings.TelemetrySettings)
+		jr.grpc, err = jr.config.GRPCServerConfig.ToServer(ctx, host, jr.settings.TelemetrySettings)
 		if err != nil {
 			return fmt.Errorf("failed to build the options for the Jaeger gRPC Collector: %w", err)
 		}

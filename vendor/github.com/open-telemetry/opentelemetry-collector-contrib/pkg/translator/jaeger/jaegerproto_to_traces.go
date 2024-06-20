@@ -4,7 +4,6 @@
 package jaeger // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 
 import (
-	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"hash/fnv"
@@ -240,7 +239,7 @@ func jTagsToInternalAttributes(tags []model.KeyValue, dest pcommon.Map) {
 		case model.ValueType_FLOAT64:
 			dest.PutDouble(tag.Key, tag.GetVFloat64())
 		case model.ValueType_BINARY:
-			dest.PutStr(tag.Key, base64.StdEncoding.EncodeToString(tag.GetVBinary()))
+			dest.PutEmptyBytes(tag.Key).FromRaw(tag.GetVBinary())
 		default:
 			dest.PutStr(tag.Key, fmt.Sprintf("<Unknown Jaeger TagType %q>", tag.GetVType()))
 		}

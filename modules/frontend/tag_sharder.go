@@ -299,6 +299,7 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 				errFn(err)
 				return
 			}
+			subR.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
 			prepareRequestForQueriers(subR, tenantID, parent.URL.Path, subR.URL.Query())
 
 			key := cacheKey(keyPrefix, tenantID, hash, int64(searchReq.start()), int64(searchReq.end()), m, startPage, pages)
@@ -356,7 +357,7 @@ func (s searchTagSharder) buildIngesterRequest(ctx context.Context, tenantID str
 	if err != nil {
 		return nil, err
 	}
-
+	subR.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
 	prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query())
 	return subR, nil
 }

@@ -20,7 +20,6 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/pkg/util/traceidboundary"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -70,7 +69,6 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 
 	b := makeBackendBlockWithTraces(t, traces)
 	ctx := context.Background()
-	traceIDText := util.TraceIDToHexString(wantTraceID)
 
 	searchesThatMatch := []struct {
 		name string
@@ -109,7 +107,6 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		{"Intrinsic: status = 2", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelStatus + ` = 2}`)},
 		{"Intrinsic: statusMessage = STATUS_CODE_ERROR", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + "statusMessage" + ` = "STATUS_CODE_ERROR"}`)},
 		{"Intrinsic: kind = client", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelKind + ` = client }`)},
-		{"Intrinsic: trace:id", traceql.MustExtractFetchSpansRequestWithMetadata(`{ trace:id = "` + traceIDText + `" }`)},
 		// Resource well-known attributes
 		{".service.name", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelServiceName + ` = "spanservicename"}`)}, // Overridden at span},
 		{".cluster", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelCluster + ` = "cluster"}`)},
@@ -597,12 +594,12 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	ctx := context.TODO()
 	tenantID := "1"
 	// blockID := uuid.MustParse("00000c2f-8133-4a60-a62a-7748bd146938")
-	// blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-	blockID := uuid.MustParse("00145f38-6058-4e57-b1ba-334db8edce23")
+	blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+	// blockID := uuid.MustParse("00145f38-6058-4e57-b1ba-334db8edce23")
 
 	r, _, _, err := local.New(&local.Config{
-		Path: path.Join("/Users/joe/testblock/"),
-		// Path: path.Join("/Users/marty/src/tmp"),
+		// Path: path.Join("/Users/joe/testblock/"),
+		Path: path.Join("/Users/marty/src/tmp"),
 		//		Path: path.Join("/Users/mapno/workspace/testblock"),
 	})
 	require.NoError(b, err)
@@ -703,6 +700,8 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{} | rate() by (name)",
 		"{} | rate() by (resource.service.name)",
 		"{} | rate() by (span.http.url)", // High cardinality attribute
+		"{} | rate() by (span.foo)",      // Nonexistent, all spans will be in the nil series
+		"{} | rate() by (resource.foo)",  // Nonexistent, all spans will be in the nil series
 		"{resource.service.name=`loki-ingester`} | rate()",
 		"{status=error} | rate()",
 	}
@@ -712,17 +711,16 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		e        = traceql.NewEngine()
 		opts     = common.DefaultSearchOptions()
 		tenantID = "1"
-		// blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+		blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
 		// blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
-		blockID = uuid.MustParse("00145f38-6058-4e57-b1ba-334db8edce23")
-		path    = "/Users/joe/testblock/"
+		// blockID = uuid.MustParse("00145f38-6058-4e57-b1ba-334db8edce23")
+		// path    = "/Users/joe/testblock/"
 		// path = "/Users/mapno/workspace/testblock"
+		path = "/Users/marty/src/tmp"
 	)
 
 	r, _, _, err := local.New(&local.Config{
 		Path: path,
-		// Path: path.Join("/Users/marty/src/tmp"),
-		//		Path: path.Join("/Users/mapno/workspace/testblock"),
 	})
 	require.NoError(b, err)
 
@@ -741,7 +739,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
-			for _, minutes := range []int{5, 7} {
+			for _, minutes := range []int{3} {
 				b.Run(strconv.Itoa(minutes), func(b *testing.B) {
 					st := meta.StartTime
 					end := st.Add(time.Duration(minutes) * time.Minute)

@@ -61,6 +61,9 @@ valid:
   - '{ span:kind = client }'
   - '{ span:statusMessage = "status message" }'
   - '{ span:id = "61626364656667" }'
+  - '{ event:name = "exception" }'
+  - '{ link:traceID = "f1f1f1f1f1f1ff1f1f1f1f1f1f1f1f1" }'
+  - '{ link:spanID = "f1f1f1f1f1f1f1f1" }'
   # binary operations
   - '{ 1 + 1 = 2 }'
   - '{ 1 - 1 = 2 }'
@@ -205,7 +208,6 @@ parse_fails:
   - '{ trace:rootServiceName = "a" }' # should be trace:rootService only 
   - '{ span:rootName = "bar" }'
   # to be added in the future
-  - '{ event:name = "foo" }'
   - '{ scope:version = "v3.34" }'
 
 # validate_fails parse correctly and return an error **besides unsupported** when calling .validate()

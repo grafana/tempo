@@ -31,7 +31,7 @@ services:
       - init
 
   k6-tracing:
-    image: ghcr.io/grafana/xk6-client-tracing:v0.0.2
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.5
     environment:
       - ENDPOINT=tempo:4317
     restart: always
@@ -50,7 +50,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:10.4.2
+    image: grafana/grafana:11.0.0
     volumes:
       - ../shared/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:

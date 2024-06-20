@@ -35,10 +35,10 @@ func Test_instance_concurrency(t *testing.T) {
 		servicegraphs.Name: {},
 	}
 
-	instance1, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, prometheus.DefaultRegisterer, log.NewNopLogger(), nil)
+	instance1, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, prometheus.DefaultRegisterer, log.NewNopLogger(), nil, nil)
 	assert.NoError(t, err)
 
-	instance2, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, prometheus.DefaultRegisterer, log.NewNopLogger(), nil)
+	instance2, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, prometheus.DefaultRegisterer, log.NewNopLogger(), nil, nil)
 	assert.NoError(t, err)
 
 	end := make(chan struct{})
@@ -89,7 +89,7 @@ func Test_instance_updateProcessors(t *testing.T) {
 	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
 	overrides := mockOverrides{}
 
-	instance, err := newInstance(&cfg, "test", &overrides, &noopStorage{}, prometheus.DefaultRegisterer, logger, nil)
+	instance, err := newInstance(&cfg, "test", &overrides, &noopStorage{}, prometheus.DefaultRegisterer, logger, nil, nil)
 	assert.NoError(t, err)
 
 	// stop the update goroutine
@@ -293,7 +293,7 @@ func Test_instanceQueryRangeTraceQLToProto(t *testing.T) {
 	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
 	overrides := mockOverrides{}
 
-	instance, err := newInstance(&cfg, "test", &overrides, &noopStorage{}, prometheus.DefaultRegisterer, logger, nil)
+	instance, err := newInstance(&cfg, "test", &overrides, &noopStorage{}, prometheus.DefaultRegisterer, logger, nil, nil)
 	assert.NoError(t, err)
 
 	req := &tempopb.QueryRangeRequest{

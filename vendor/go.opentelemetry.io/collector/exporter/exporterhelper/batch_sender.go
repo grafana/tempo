@@ -18,8 +18,8 @@ import (
 
 // batchSender is a component that places requests into batches before passing them to the downstream senders.
 // Batches are sent out with any of the following conditions:
-// - batch size reaches cfg.SendBatchSize
-// - cfg.Timeout is elapsed since the timestamp when the previous batch was sent out.
+// - batch size reaches cfg.MinSizeItems
+// - cfg.FlushTimeout is elapsed since the timestamp when the previous batch was sent out.
 // - concurrencyLimit is reached.
 type batchSender struct {
 	baseRequestSender
@@ -27,7 +27,7 @@ type batchSender struct {
 	mergeFunc      exporterbatcher.BatchMergeFunc[Request]
 	mergeSplitFunc exporterbatcher.BatchMergeSplitFunc[Request]
 
-	// concurrencyLimit is the maximum number of goroutines that can be created by the batcher.
+	// concurrencyLimit is the maximum number of goroutines that can be blocked by the batcher.
 	// If this number is reached and all the goroutines are busy, the batch will be sent right away.
 	// Populated from the number of queue consumers if queue is enabled.
 	concurrencyLimit uint64
@@ -40,19 +40,24 @@ type batchSender struct {
 
 	logger *zap.Logger
 
-	shutdownCh chan struct{}
-	stopped    *atomic.Bool
+	shutdownCh         chan struct{}
+	shutdownCompleteCh chan struct{}
+	stopped            *atomic.Bool
 }
 
 // newBatchSender returns a new batch consumer component.
-func newBatchSender(cfg exporterbatcher.Config, set exporter.CreateSettings) *batchSender {
+func newBatchSender(cfg exporterbatcher.Config, set exporter.CreateSettings,
+	mf exporterbatcher.BatchMergeFunc[Request], msf exporterbatcher.BatchMergeSplitFunc[Request]) *batchSender {
 	bs := &batchSender{
-		activeBatch:  newEmptyBatch(),
-		cfg:          cfg,
-		logger:       set.Logger,
-		shutdownCh:   make(chan struct{}),
-		stopped:      &atomic.Bool{},
-		resetTimerCh: make(chan struct{}),
+		activeBatch:        newEmptyBatch(),
+		cfg:                cfg,
+		logger:             set.Logger,
+		mergeFunc:          mf,
+		mergeSplitFunc:     msf,
+		shutdownCh:         make(chan struct{}),
+		shutdownCompleteCh: make(chan struct{}),
+		stopped:            &atomic.Bool{},
+		resetTimerCh:       make(chan struct{}),
 	}
 	return bs
 }
@@ -63,14 +68,19 @@ func (bs *batchSender) Start(_ context.Context, _ component.Host) error {
 		for {
 			select {
 			case <-bs.shutdownCh:
-				bs.mu.Lock()
-				if bs.activeBatch.request != nil {
-					bs.exportActiveBatch()
+				// There is a minimal chance that another request is added after the shutdown signal.
+				// This loop will handle that case.
+				for bs.activeRequests.Load() > 0 {
+					bs.mu.Lock()
+					if bs.activeBatch.request != nil {
+						bs.exportActiveBatch()
+					}
+					bs.mu.Unlock()
 				}
-				bs.mu.Unlock()
 				if !timer.Stop() {
 					<-timer.C
 				}
+				close(bs.shutdownCompleteCh)
 				return
 			case <-timer.C:
 				bs.mu.Lock()
@@ -115,6 +125,12 @@ func (bs *batchSender) exportActiveBatch() {
 	bs.activeBatch = newEmptyBatch()
 }
 
+func (bs *batchSender) resetTimer() {
+	if !bs.stopped.Load() {
+		bs.resetTimerCh <- struct{}{}
+	}
+}
+
 // isActiveBatchReady returns true if the active batch is ready to be exported.
 // The batch is ready if it has reached the minimum size or the concurrency limit is reached.
 // Caller must hold the lock.
@@ -151,7 +167,7 @@ func (bs *batchSender) sendMergeSplitBatch(ctx context.Context, req Request) err
 		batch := bs.activeBatch
 		if bs.isActiveBatchReady() || len(reqs) > 1 {
 			bs.exportActiveBatch()
-			bs.resetTimerCh <- struct{}{}
+			bs.resetTimer()
 		}
 		bs.mu.Unlock()
 		<-batch.done
@@ -191,7 +207,7 @@ func (bs *batchSender) sendMergeBatch(ctx context.Context, req Request) error {
 	batch := bs.activeBatch
 	if bs.isActiveBatchReady() {
 		bs.exportActiveBatch()
-		bs.resetTimerCh <- struct{}{}
+		bs.resetTimer()
 	}
 	bs.mu.Unlock()
 	<-batch.done
@@ -212,9 +228,6 @@ func (bs *batchSender) updateActiveBatch(ctx context.Context, req Request) {
 func (bs *batchSender) Shutdown(context.Context) error {
 	bs.stopped.Store(true)
 	close(bs.shutdownCh)
-	// Wait for the active requests to finish.
-	for bs.activeRequests.Load() > 0 {
-		time.Sleep(10 * time.Millisecond)
-	}
+	<-bs.shutdownCompleteCh
 	return nil
 }

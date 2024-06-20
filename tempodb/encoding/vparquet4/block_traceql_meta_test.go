@@ -508,6 +508,105 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 				),
 			),
 		},
+		{
+			"Intrinsic event name lookup",
+			makeReq(
+				parse(t, `{event:name = "e1"}`), //
+			),
+			makeSpansets(
+				makeSpanset(
+					wantTr.TraceID,
+					wantTr.RootSpanName,
+					wantTr.RootServiceName,
+					wantTr.StartTimeUnixNano,
+					wantTr.DurationNano,
+					&span{
+						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID,
+						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartTimeUnixNano,
+						durationNanos:      wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].DurationNano,
+						spanAttrs: []attrVal{
+							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(100 * time.Second)},
+							{traceql.NewIntrinsic(traceql.IntrinsicSpanID), traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID))},
+						},
+						traceAttrs: []attrVal{
+							{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.NewStaticString("RootService")},
+							{traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan), traceql.NewStaticString("RootSpan")},
+							{traceql.NewIntrinsic(traceql.IntrinsicTraceDuration), traceql.NewStaticDuration(100 * time.Millisecond)},
+							{traceql.NewIntrinsic(traceql.IntrinsicTraceID), traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID))},
+						},
+						eventAttrs: []attrVal{
+							{traceql.NewIntrinsic(traceql.IntrinsicEventName), traceql.NewStaticString("e1")},
+						},
+					},
+				),
+			),
+		},
+		{
+			"Intrinsic link trace ID lookup",
+			makeReq(
+				parse(t, `{link:traceID = "1234567890abcdef1234567890abcdef"}`), //
+			),
+			makeSpansets(
+				makeSpanset(
+					wantTr.TraceID,
+					wantTr.RootSpanName,
+					wantTr.RootServiceName,
+					wantTr.StartTimeUnixNano,
+					wantTr.DurationNano,
+					&span{
+						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID,
+						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartTimeUnixNano,
+						durationNanos:      wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].DurationNano,
+						spanAttrs: []attrVal{
+							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(100 * time.Second)},
+							{traceql.NewIntrinsic(traceql.IntrinsicSpanID), traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID))},
+						},
+						traceAttrs: []attrVal{
+							{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.NewStaticString("RootService")},
+							{traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan), traceql.NewStaticString("RootSpan")},
+							{traceql.NewIntrinsic(traceql.IntrinsicTraceDuration), traceql.NewStaticDuration(100 * time.Millisecond)},
+							{traceql.NewIntrinsic(traceql.IntrinsicTraceID), traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID))},
+						},
+						linkAttrs: []attrVal{
+							{traceql.NewIntrinsic(traceql.IntrinsicLinkTraceID), traceql.NewStaticString("1234567890abcdef1234567890abcdef")},
+						},
+					},
+				),
+			),
+		},
+		{
+			"Intrinsic link span ID lookup",
+			makeReq(
+				parse(t, `{link:spanID = "1234567890abcdef"}`), //
+			),
+			makeSpansets(
+				makeSpanset(
+					wantTr.TraceID,
+					wantTr.RootSpanName,
+					wantTr.RootServiceName,
+					wantTr.StartTimeUnixNano,
+					wantTr.DurationNano,
+					&span{
+						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID,
+						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartTimeUnixNano,
+						durationNanos:      wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].DurationNano,
+						spanAttrs: []attrVal{
+							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(100 * time.Second)},
+							{traceql.NewIntrinsic(traceql.IntrinsicSpanID), traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID))},
+						},
+						traceAttrs: []attrVal{
+							{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.NewStaticString("RootService")},
+							{traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan), traceql.NewStaticString("RootSpan")},
+							{traceql.NewIntrinsic(traceql.IntrinsicTraceDuration), traceql.NewStaticDuration(100 * time.Millisecond)},
+							{traceql.NewIntrinsic(traceql.IntrinsicTraceID), traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID))},
+						},
+						linkAttrs: []attrVal{
+							{traceql.NewIntrinsic(traceql.IntrinsicLinkSpanID), traceql.NewStaticString("1234567890abcdef")},
+						},
+					},
+				),
+			),
+		},
 	}
 
 	for _, tc := range testCases {

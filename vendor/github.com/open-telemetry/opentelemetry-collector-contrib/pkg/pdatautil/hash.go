@@ -82,7 +82,7 @@ func (hw *hashWriter) writeMapHash(m pcommon.Map) {
 	// on the first call due to it being cleared of any added keys at then end of the function.
 	nextIndex := len(hw.keysBuf)
 
-	m.Range(func(k string, v pcommon.Value) bool {
+	m.Range(func(k string, _ pcommon.Value) bool {
 		hw.keysBuf = append(hw.keysBuf, k)
 		return true
 	})

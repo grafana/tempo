@@ -30,7 +30,7 @@ tools-docker:
 
 tools-image:
 	@echo "=== [ tools-image     ]: Running tools in docker..."
-	@docker pull ${TOOLS_IMAGE}
+	@docker pull $(TOOLS_IMAGE):$(TOOLS_IMAGE_TAG)
 
 tools:
 	@echo "=== [ tools            ]: Installing tools required by the project..."
