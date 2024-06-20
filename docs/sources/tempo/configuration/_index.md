@@ -300,7 +300,7 @@ metrics_generator:
         [prefix: <string> | default = "collectors/"]
 
       # Period at which to heartbeat the instance
-      # 0 disables heartbeat alltogether
+      # 0 disables heartbeat altogether
       [heartbeat_period: <duration> | default = 5s]
 
       # The heartbeat timeout, after which, the instance is skipped. 
@@ -489,7 +489,7 @@ metrics_generator:
 
         # Configuration for the Prometheus Agent WAL
         # https://github.com/prometheus/prometheus/blob/v2.51.2/tsdb/agent/db.go#L62-L84
-        wal: <prometeus agent WAL config>
+        wal: <prometheus agent WAL config>
 
         # How long to wait when flushing samples on shutdown
         [remote_write_flush_deadline: <duration> | default = 1m]
@@ -674,7 +674,7 @@ querier:
     # Lookback period to include ingesters that were part of the shuffle sharded subring.
     [shuffle_sharding_ingesters_lookback_period: <duration> | default = 1hr]
 
-    # The query frontend sents sharded requests to ingesters and querier (/api/traces/<id>)
+    # The query frontend sends sharded requests to ingesters and querier (/api/traces/<id>)
     # By default, all healthy ingesters are queried for the trace id.
     # When true the querier will hash the trace id in the same way that distributors do and then
     # only query those ingesters who own the trace id hash as determined by the ring.
@@ -691,7 +691,7 @@ querier:
 
         # A list of external endpoints that the querier will use to offload backend search requests. They must
         # take and return the same value as /api/search endpoint on the querier. This is intended to be
-        # used with serverless technologies for massive parrallelization of the search path.
+        # used with serverless technologies for massive parallelization of the search path.
         # The default value of "" disables this feature.
         [external_endpoints: <list of strings> | default = <empty list>]
 
@@ -720,7 +720,7 @@ querier:
         google_cloud_run:
             # A list of external endpoints that the querier will use to offload backend search requests. They must
             # take and return the same value as /api/search endpoint on the querier. This is intended to be
-            # used with serverless technologies for massive parrallelization of the search path.
+            # used with serverless technologies for massive parallelization of the search path.
             # The default value of "" disables this feature.
             [external_endpoints: <list of strings> | default = <empty list>]
 
@@ -1043,7 +1043,7 @@ storage:
             # Optional. Default is 0 (disabled)
             # Example: "hedge_requests_at: 500ms"
             # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
-            # be set to p99 of Axure Blog Storage requests to reduce long tail latency. This setting is most impactful when
+            # be set to p99 of Azure Block Storage requests to reduce long tail latency. This setting is most impactful when
             # used with queriers and has minimal to no impact on other pieces.
             [hedge_requests_at: <duration>]
 
@@ -1135,7 +1135,7 @@ storage:
             # total number of workers pulling jobs from the queue
             [max_workers: <int> | default = 30]
 
-            # length of job queue. imporatant for querier as it queues a job for every block it has to search
+            # length of job queue. important for querier as it queues a job for every block it has to search
             [queue_depth: <int> | default = 10000 ]
 
         # configuration block for the Write Ahead Log (WAL)
@@ -1291,7 +1291,7 @@ Span filter config block
 
 #### Filter policy
 ```yaml
-# Exclude filters (postive matching)
+# Exclude filters (positive matching)
 [include: <policy match>]
 
 # Exclude filters (negative matching)
@@ -1343,7 +1343,7 @@ The kvstore configuration block
 # What prefix to use for keys
 [prefix: <string> | default = "ring."]
 
-# Store spesific configs
+# Store specific configs
 consul:
   [host: <string> | default = "localhost:8500"]
   [acl_token: <secret string> | default = "" ]
@@ -1682,7 +1682,7 @@ overrides:
   [per_tenant_override_config: <string> | default = ""]
 
   # How frequent tenant-specific overrides are read from the configuration file.
-  [per_tenant_override_period: <druation> | default = 10s]
+  [per_tenant_override_period: <duration> | default = 10s]
 
   # User-configurable overrides configuration
   user_configurable_overrides:
