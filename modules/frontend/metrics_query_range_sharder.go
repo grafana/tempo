@@ -367,10 +367,12 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				continue
 			}
 
+			start, end := traceql.TrimToOverlap(searchReq.Start, searchReq.End, searchReq.Step, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
+
 			queryRangeReq := &tempopb.QueryRangeRequest{
 				Query: searchReq.Query,
-				Start: max(searchReq.Start, uint64(m.StartTime.UnixNano())),
-				End:   min(searchReq.End, uint64(m.EndTime.UnixNano())),
+				Start: start,
+				End:   end,
 				Step:  searchReq.Step,
 				// ShardID:    uint32, // No sharding with RF=1
 				// ShardCount: uint32, // No sharding with RF=1
@@ -385,8 +387,6 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				FooterSize:       m.FooterSize,
 				DedicatedColumns: dc,
 			}
-			alignTimeRange(queryRangeReq)
-			queryRangeReq.End += queryRangeReq.Step
 
 			subR = api.BuildQueryRangeRequest(subR, queryRangeReq)
 			subR.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)

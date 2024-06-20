@@ -170,23 +170,15 @@ func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loc
 	})
 	defer span.Finish()
 
-	fmt.Println("Before:", m.BlockID, time.Unix(0, int64(req.Start)), time.Unix(0, int64(req.End)))
-	fmt.Println("Block:", m.BlockID, m.StartTime, m.EndTime)
-
 	// Trim and align the request for this block. I.e. if the request is "Last Hour" we don't want to
 	// cache the response for that, we want only the few minutes time range for this block. This has
 	// size savings but the main thing is that the response is reuseable for any overlapping query.
-	// TODO - This buffer time is needed to close gaps between block meta time and actual
-	// span contents
-	blockStart := m.StartTime.Add(-time.Minute)
-	blockEnd := m.EndTime.Add(time.Minute)
+	req.Start, req.End = traceql.TrimToOverlap(req.Start, req.End, req.Step, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
 
-	req.Start = max(uint64(blockStart.UnixNano()), req.Start)
-	req.End = min(uint64(blockEnd.UnixNano()), req.End)
-	req.Start = (req.Start / req.Step) * req.Step
-	req.End = (req.End/req.Step)*req.Step + req.Step
-
-	fmt.Println("After:", m.BlockID, time.Unix(0, int64(req.Start)), time.Unix(0, int64(req.End)))
+	if req.Start >= req.End {
+		// After alignment there is no overlap or something else isn't right
+		return nil, nil
+	}
 
 	cached, name, err := p.queryRangeCacheGet(ctx, m, req)
 	if err != nil {

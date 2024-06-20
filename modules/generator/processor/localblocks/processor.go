@@ -612,9 +612,26 @@ func (p *Processor) writeHeadBlock(id common.ID, tr *tempopb.Trace) error {
 		}
 	}
 
-	now := uint32(time.Now().Unix())
+	// Get trace timestamp bounds
+	var start, end uint64
+	for _, b := range tr.Batches {
+		for _, ss := range b.ScopeSpans {
+			for _, s := range ss.Spans {
+				if start == 0 || s.StartTimeUnixNano < start {
+					start = s.StartTimeUnixNano
+				}
+				if s.EndTimeUnixNano > end {
+					end = s.EndTimeUnixNano
+				}
+			}
+		}
+	}
 
-	err := p.headBlock.AppendTrace(id, tr, now, now)
+	// Convert from unix nanos to unix seconds
+	startSeconds := uint32(start / uint64(time.Second))
+	endSeconds := uint32(end / uint64(time.Second))
+
+	err := p.headBlock.AppendTrace(id, tr, startSeconds, endSeconds)
 	if err != nil {
 		return err
 	}
