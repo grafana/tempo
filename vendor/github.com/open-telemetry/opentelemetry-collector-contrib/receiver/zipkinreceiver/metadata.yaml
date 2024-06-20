@@ -8,12 +8,5 @@ status:
   distributions:
   - core
   - contrib
-  - aws
-  - grafana
-  - observiq
-  - redhat
-  - splunk
-  - sumo
-  - liatrio
   codeowners:
-    active: [MovieStoreGuy, astencel-sumo, crobert-1]
+    active: [MovieStoreGuy, andrzej-stencel, crobert-1]

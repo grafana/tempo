@@ -13,6 +13,9 @@ import (
 )
 
 // NewCommand constructs a new cobra.Command using the given CollectorSettings.
+// Any URIs specified in CollectorSettings.ConfigProviderSettings.ResolverSettings.URIs
+// are considered defaults and will be overwritten by config flags passed as
+// command-line arguments to the executable.
 func NewCommand(set CollectorSettings) *cobra.Command {
 	flagSet := flags(featuregate.GlobalRegistry())
 	rootCmd := &cobra.Command{
@@ -20,7 +23,12 @@ func NewCommand(set CollectorSettings) *cobra.Command {
 		Version:      set.BuildInfo.Version,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			col, err := newCollectorWithFlags(set, flagSet)
+			err := updateSettingsUsingFlags(&set, flagSet)
+			if err != nil {
+				return err
+			}
+
+			col, err := NewCollector(set)
 			if err != nil {
 				return err
 			}
@@ -33,18 +41,22 @@ func NewCommand(set CollectorSettings) *cobra.Command {
 	return rootCmd
 }
 
-func newCollectorWithFlags(set CollectorSettings, flags *flag.FlagSet) (*Collector, error) {
-	if set.ConfigProvider == nil {
-		configFlags := getConfigFlag(flags)
-		if len(configFlags) == 0 {
-			return nil, errors.New("at least one config flag must be provided")
-		}
+// Puts command line flags from flags into the CollectorSettings, to be used during config resolution.
+func updateSettingsUsingFlags(set *CollectorSettings, flags *flag.FlagSet) error {
+	resolverSet := &set.ConfigProviderSettings.ResolverSettings
+	configFlags := getConfigFlag(flags)
 
-		var err error
-		set.ConfigProvider, err = NewConfigProvider(newDefaultConfigProviderSettings(configFlags))
-		if err != nil {
-			return nil, err
-		}
+	if len(configFlags) > 0 {
+		resolverSet.URIs = configFlags
 	}
-	return NewCollector(set)
+	if len(resolverSet.URIs) == 0 {
+		return errors.New("at least one config flag must be provided")
+	}
+	// Provide a default set of providers and converters if none have been specified.
+	// TODO: Remove this after CollectorSettings.ConfigProvider is removed and instead
+	// do it in the builder.
+	if len(resolverSet.ProviderFactories) == 0 && len(resolverSet.ConverterFactories) == 0 {
+		set.ConfigProviderSettings = newDefaultConfigProviderSettings(resolverSet.URIs)
+	}
+	return nil
 }
