@@ -2094,11 +2094,10 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 			if entry.scope != intrinsicScopeTrace {
 				continue
 			}
-			// These intrinsics aren't included in select all because I say so.
+			// These intrinsics aren't included in select all because they are not
+			// useful for filtering or grouping.
 			switch intrins {
-			case traceql.IntrinsicTraceDuration,
-				traceql.IntrinsicTraceID,
-				traceql.IntrinsicTraceStartTime,
+			case traceql.IntrinsicTraceStartTime,
 				traceql.IntrinsicServiceStats:
 				continue
 			}
@@ -2311,6 +2310,19 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 	keyPath, strPath, intPath, floatPath, boolPath string,
 	allConditions bool, selectAll bool,
 ) (parquetquery.Iterator, error) {
+	if selectAll {
+		return parquetquery.NewLeftJoinIterator(definitionLevel,
+			[]parquetquery.Iterator{makeIter(keyPath, nil, "key")},
+			[]parquetquery.Iterator{
+				makeIter(strPath, nil, "string"),
+				makeIter(intPath, nil, "int"),
+				makeIter(floatPath, nil, "float"),
+				makeIter(boolPath, nil, "bool"),
+			},
+			&attributeCollector{},
+			parquetquery.WithPool(pqAttrPool))
+	}
+
 	var (
 		attrKeys        = []string{}
 		attrStringPreds = []parquetquery.Predicate{}
@@ -2362,19 +2374,6 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 			}
 			boolPreds = append(boolPreds, pred)
 		}
-	}
-
-	if selectAll {
-		return parquetquery.NewLeftJoinIterator(definitionLevel,
-			[]parquetquery.Iterator{makeIter(keyPath, nil, "key")},
-			[]parquetquery.Iterator{
-				makeIter(strPath, nil, "string"),
-				makeIter(intPath, nil, "int"),
-				makeIter(floatPath, nil, "float"),
-				makeIter(boolPath, nil, "bool"),
-			},
-			&attributeCollector{},
-			parquetquery.WithPool(pqAttrPool))
 	}
 
 	var valueIters []parquetquery.Iterator

@@ -113,11 +113,18 @@ func (m *MetricsCompare) observe(span Span) {
 
 	// Increment values for all attributes of this span
 	span.AllAttributesFunc(func(a Attribute, v Static) {
+		// We don't group by attributes of these types because the
+		// cardinality isn't useful.
+		switch v.Type {
+		case TypeDuration:
+			return
+		}
+
 		// These attributes get pulled back by select all but we never
-		// group by them because I say so.
-		// TODO - can we check type instead?
+		// group by them because the cardinality isn't useful.
 		switch a {
-		case IntrinsicSpanStartTimeAttribute, IntrinsicDurationAttribute:
+		case IntrinsicSpanStartTimeAttribute,
+			IntrinsicTraceIDAttribute:
 			return
 		}
 
@@ -244,7 +251,7 @@ func (m *MetricsCompare) String() string {
 
 var _ metricsFirstStageElement = (*MetricsCompare)(nil)
 
-// BaselineAggregate is a special series combiner for the compare() function.
+// BaselineAggregator is a special series combiner for the compare() function.
 // It resplits job-level results into baseline and selection buffers, and if
 // an attribute reached max cardinality at the job-level, it will be marked
 // as such at the query-level.

@@ -1918,9 +1918,7 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 			}
 			// These intrinsics aren't included in select all because I say so.
 			switch intrins {
-			case traceql.IntrinsicTraceDuration,
-				traceql.IntrinsicTraceID,
-				traceql.IntrinsicTraceStartTime,
+			case traceql.IntrinsicTraceStartTime,
 				traceql.IntrinsicServiceStats:
 				continue
 			}
