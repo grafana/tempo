@@ -2039,56 +2039,6 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 
 	var err error
 
-	// add conditional iterators first. this way if someone searches for { traceDuration > 1s && span.foo = "bar"} the query will
-	// be sped up by searching for traceDuration first. note that we can only set the predicates if all conditions is true.
-	// otherwise we just pass the info up to the engine to make a choice
-	for _, cond := range conds {
-		switch cond.Attribute.Intrinsic {
-		case traceql.IntrinsicTraceID:
-			var pred parquetquery.Predicate
-			if allConditions {
-				pred, err = createBytesPredicate(cond.Op, cond.Operands, false)
-				if err != nil {
-					return nil, err
-				}
-			}
-			traceIters = append(traceIters, makeIter(columnPathTraceID, pred, columnPathTraceID))
-		case traceql.IntrinsicTraceDuration:
-			var pred parquetquery.Predicate
-			if allConditions {
-				pred, err = createIntPredicate(cond.Op, cond.Operands)
-				if err != nil {
-					return nil, err
-				}
-			}
-			traceIters = append(traceIters, makeIter(columnPathDurationNanos, pred, columnPathDurationNanos))
-		case traceql.IntrinsicTraceStartTime:
-			if start == 0 && end == 0 {
-				traceIters = append(traceIters, makeIter(columnPathStartTimeUnixNano, nil, columnPathStartTimeUnixNano))
-			}
-		case traceql.IntrinsicTraceRootSpan:
-			var pred parquetquery.Predicate
-			if allConditions {
-				pred, err = createStringPredicate(cond.Op, cond.Operands)
-				if err != nil {
-					return nil, err
-				}
-			}
-			traceIters = append(traceIters, makeIter(columnPathRootSpanName, pred, columnPathRootSpanName))
-		case traceql.IntrinsicTraceRootService:
-			var pred parquetquery.Predicate
-			if allConditions {
-				pred, err = createStringPredicate(cond.Op, cond.Operands)
-				if err != nil {
-					return nil, err
-				}
-			}
-			traceIters = append(traceIters, makeIter(columnPathRootServiceName, pred, columnPathRootServiceName))
-		case traceql.IntrinsicServiceStats:
-			traceIters = append(traceIters, createServiceStatsIterator(makeIter))
-		}
-	}
-
 	if selectAll {
 		for intrins, entry := range intrinsicColumnLookups {
 			if entry.scope != intrinsicScopeTrace {
@@ -2102,6 +2052,56 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 				continue
 			}
 			traceIters = append(traceIters, makeIter(entry.columnPath, nil, entry.columnPath))
+		}
+	} else {
+		// add conditional iterators first. this way if someone searches for { traceDuration > 1s && span.foo = "bar"} the query will
+		// be sped up by searching for traceDuration first. note that we can only set the predicates if all conditions is true.
+		// otherwise we just pass the info up to the engine to make a choice
+		for _, cond := range conds {
+			switch cond.Attribute.Intrinsic {
+			case traceql.IntrinsicTraceID:
+				var pred parquetquery.Predicate
+				if allConditions {
+					pred, err = createBytesPredicate(cond.Op, cond.Operands, false)
+					if err != nil {
+						return nil, err
+					}
+				}
+				traceIters = append(traceIters, makeIter(columnPathTraceID, pred, columnPathTraceID))
+			case traceql.IntrinsicTraceDuration:
+				var pred parquetquery.Predicate
+				if allConditions {
+					pred, err = createIntPredicate(cond.Op, cond.Operands)
+					if err != nil {
+						return nil, err
+					}
+				}
+				traceIters = append(traceIters, makeIter(columnPathDurationNanos, pred, columnPathDurationNanos))
+			case traceql.IntrinsicTraceStartTime:
+				if start == 0 && end == 0 {
+					traceIters = append(traceIters, makeIter(columnPathStartTimeUnixNano, nil, columnPathStartTimeUnixNano))
+				}
+			case traceql.IntrinsicTraceRootSpan:
+				var pred parquetquery.Predicate
+				if allConditions {
+					pred, err = createStringPredicate(cond.Op, cond.Operands)
+					if err != nil {
+						return nil, err
+					}
+				}
+				traceIters = append(traceIters, makeIter(columnPathRootSpanName, pred, columnPathRootSpanName))
+			case traceql.IntrinsicTraceRootService:
+				var pred parquetquery.Predicate
+				if allConditions {
+					pred, err = createStringPredicate(cond.Op, cond.Operands)
+					if err != nil {
+						return nil, err
+					}
+				}
+				traceIters = append(traceIters, makeIter(columnPathRootServiceName, pred, columnPathRootServiceName))
+			case traceql.IntrinsicServiceStats:
+				traceIters = append(traceIters, createServiceStatsIterator(makeIter))
+			}
 		}
 	}
 
@@ -2475,41 +2475,11 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case columnPathSpanName:
 			sp.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
 		case columnPathSpanStatusCode:
-			// Map OTLP status code back to TraceQL enum.
-			// For other values, use the raw integer.
-			var status traceql.Status
-			switch kv.Value.Uint64() {
-			case uint64(v1.Status_STATUS_CODE_UNSET):
-				status = traceql.StatusUnset
-			case uint64(v1.Status_STATUS_CODE_OK):
-				status = traceql.StatusOk
-			case uint64(v1.Status_STATUS_CODE_ERROR):
-				status = traceql.StatusError
-			default:
-				status = traceql.Status(kv.Value.Uint64())
-			}
-			sp.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(status))
+			sp.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(otlpStatusToTraceqlStatus(kv.Value.Uint64())))
 		case columnPathSpanStatusMessage:
 			sp.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
 		case columnPathSpanKind:
-			var kind traceql.Kind
-			switch kv.Value.Uint64() {
-			case uint64(v1.Span_SPAN_KIND_UNSPECIFIED):
-				kind = traceql.KindUnspecified
-			case uint64(v1.Span_SPAN_KIND_INTERNAL):
-				kind = traceql.KindInternal
-			case uint64(v1.Span_SPAN_KIND_SERVER):
-				kind = traceql.KindServer
-			case uint64(v1.Span_SPAN_KIND_CLIENT):
-				kind = traceql.KindClient
-			case uint64(v1.Span_SPAN_KIND_PRODUCER):
-				kind = traceql.KindProducer
-			case uint64(v1.Span_SPAN_KIND_CONSUMER):
-				kind = traceql.KindConsumer
-			default:
-				kind = traceql.Kind(kv.Value.Uint64())
-			}
-			sp.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(kind))
+			sp.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(otlpKindToTraceqlKind(kv.Value.Uint64())))
 		case columnPathSpanParentID:
 			sp.nestedSetParent = kv.Value.Int32()
 			if c.nestedSetParentExplicit {
@@ -3036,4 +3006,38 @@ func (b *backendBlock) rowGroupsForShard(ctx context.Context, pf *parquet.File, 
 	span.SetTag("matchedRowGroups", len(matches))
 
 	return matches, nil
+}
+
+func otlpStatusToTraceqlStatus(v uint64) traceql.Status {
+	// Map OTLP status code back to TraceQL enum.
+	// For other values, use the raw integer.
+	switch v {
+	case uint64(v1.Status_STATUS_CODE_UNSET):
+		return traceql.StatusUnset
+	case uint64(v1.Status_STATUS_CODE_OK):
+		return traceql.StatusOk
+	case uint64(v1.Status_STATUS_CODE_ERROR):
+		return traceql.StatusError
+	default:
+		return traceql.Status(v)
+	}
+}
+
+func otlpKindToTraceqlKind(v uint64) traceql.Kind {
+	switch v {
+	case uint64(v1.Span_SPAN_KIND_UNSPECIFIED):
+		return traceql.KindUnspecified
+	case uint64(v1.Span_SPAN_KIND_INTERNAL):
+		return traceql.KindInternal
+	case uint64(v1.Span_SPAN_KIND_SERVER):
+		return traceql.KindServer
+	case uint64(v1.Span_SPAN_KIND_CLIENT):
+		return traceql.KindClient
+	case uint64(v1.Span_SPAN_KIND_PRODUCER):
+		return traceql.KindProducer
+	case uint64(v1.Span_SPAN_KIND_CONSUMER):
+		return traceql.KindConsumer
+	default:
+		return traceql.Kind(v)
+	}
 }

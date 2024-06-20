@@ -8,13 +8,16 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -424,6 +427,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 
 	return &Trace{
 		TraceID:           test.ValidTraceID(id),
+		TraceIDText:       util.TraceIDToHexString(id),
 		StartTimeUnixNano: uint64(1000 * time.Second),
 		EndTimeUnixNano:   uint64(2000 * time.Second),
 		DurationNano:      uint64((100 * time.Millisecond).Nanoseconds()),
@@ -601,22 +605,23 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 	}
 }
 
-/*
 // TODO(mdisibio) We need this test but it's blocked until we add support for fetching
 // array attributes.  Hard to do even in a partial state.  Leaving commented out
 // and will come back to it.
 func TestBackendBlockSelectAll(t *testing.T) {
 	var (
-		ctx             = context.Background()
-		numTraces       = 1 // 250
-		traces          = make([]*Trace, 0, numTraces)
-		wantTraceIdx    = 0 // rand.Intn(numTraces)
-		wantTraceID     = test.ValidTraceID(nil)
-		wantTraceIDText = util.TraceIDToHexString(wantTraceID)
-		wantTrace       = fullyPopulatedTestTrace(wantTraceID)
-		dc              = test.MakeDedicatedColumns()
-		dcm             = dedicatedColumnsToColumnMapping(dc)
+		ctx          = context.Background()
+		numTraces    = 1 // 250
+		traces       = make([]*Trace, 0, numTraces)
+		wantTraceIdx = 0 // rand.Intn(numTraces)
+		wantTraceID  = test.ValidTraceID(nil)
+		// wantTraceIDText = util.TraceIDToHexString(wantTraceID)
+		wantTrace = fullyPopulatedTestTrace(wantTraceID)
+		dc        = test.MakeDedicatedColumns()
+		dcm       = dedicatedColumnsToColumnMapping(dc)
 	)
+
+	trimForSelectAll(wantTrace)
 
 	for i := 0; i < numTraces; i++ {
 		if i == wantTraceIdx {
@@ -631,14 +636,8 @@ func TestBackendBlockSelectAll(t *testing.T) {
 
 	b := makeBackendBlockWithTraces(t, traces)
 
-	// TODO - Put traceID in the query and simplify
 	_, _, _, req, err := traceql.NewEngine().Compile("{}")
 	require.NoError(t, err)
-	req.Conditions = append(req.Conditions, traceql.Condition{
-		Attribute: traceql.IntrinsicTraceIDAttribute,
-		Op:        traceql.OpEqual,
-		Operands:  traceql.Operands{traceql.NewStaticString(wantTraceIDText)},
-	})
 	req.SecondPass = func(inSS *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{inSS}, nil }
 	req.SecondPassSelectAll = true
 
@@ -650,12 +649,12 @@ func TestBackendBlockSelectAll(t *testing.T) {
 	wantSS := flattenForSelectAll(wantTrace, dcm)
 
 	for {
+		// Seek to our desired trace
 		ss, err := resp.Results.Next(ctx)
 		require.NoError(t, err)
 		if ss == nil {
 			break
 		}
-
 		if !bytes.Equal(ss.TraceID, wantTraceID) {
 			continue
 		}
@@ -670,6 +669,7 @@ func TestBackendBlockSelectAll(t *testing.T) {
 			s.cbSpanset = nil
 			s.cbSpansetFinal = false
 			s.rowNum = parquetquery.RowNumber{}
+			s.startTimeUnixNanos = 0 // selectall doesn't imply start time
 			sortAttrs(s.traceAttrs)
 			sortAttrs(s.resourceAttrs)
 			sortAttrs(s.spanAttrs)
@@ -681,11 +681,36 @@ func TestBackendBlockSelectAll(t *testing.T) {
 
 func sortAttrs(attrs []attrVal) {
 	sort.SliceStable(attrs, func(i, j int) bool {
-		return attrs[i].a.String() < attrs[j].a.String()
+		is := attrs[i].a.String()
+		js := attrs[j].a.String()
+		if is == js {
+			// Compare by value
+			return attrs[i].s.String() < attrs[j].s.String()
+		}
+		return is < js
 	})
 }
 
-func flattenAttrsForSelectAll(input []Attribute, dest []attrVal) {
+func trimArrayAttrs(in []Attribute) []Attribute {
+	out := []Attribute{}
+	for _, a := range in {
+		if a.IsArray || a.ValueUnsupported != nil {
+			continue
+		}
+		out = append(out, a)
+	}
+	return out
+}
+
+func trimForSelectAll(tr *Trace) {
+	for i, rs := range tr.ResourceSpans {
+		tr.ResourceSpans[i].Resource.Attrs = trimArrayAttrs(rs.Resource.Attrs)
+		for j, ss := range rs.ScopeSpans {
+			for k, s := range ss.Spans {
+				tr.ResourceSpans[i].ScopeSpans[j].Spans[k].Attrs = trimArrayAttrs(s.Attrs)
+			}
+		}
+	}
 }
 
 func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset {
@@ -694,7 +719,10 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 		RootServiceName: tr.RootServiceName,
 		RootSpanName:    tr.RootSpanName,
 		TraceID:         tr.TraceID,
+		DurationNanos:   tr.DurationNano,
 	}
+	traceAttrs = append(traceAttrs, attrVal{traceql.IntrinsicTraceIDAttribute, traceql.NewStaticString(tr.TraceIDText)})
+	traceAttrs = append(traceAttrs, attrVal{traceql.IntrinsicTraceDurationAttribute, traceql.NewStaticDuration(time.Duration(tr.DurationNano))})
 	traceAttrs = append(traceAttrs, attrVal{traceql.IntrinsicTraceRootServiceAttribute, traceql.NewStaticString(tr.RootServiceName)})
 	traceAttrs = append(traceAttrs, attrVal{traceql.IntrinsicTraceRootSpanAttribute, traceql.NewStaticString(tr.RootSpanName)})
 	sortAttrs(traceAttrs)
@@ -739,45 +767,16 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 			for _, s := range ss.Spans {
 
 				newS := &span{}
-				// newS.id = s.SpanID  SpanID isn't implied by SelecTall
-				newS.startTimeUnixNanos = s.StartTimeUnixNano
+				// newS.id = s.SpanID  SpanID isn't implied by SelectAll
+				// newS.startTimeUnixNanos = s.StartTimeUnixNano Span StartTime isn't implied by selectAll
 				newS.durationNanos = s.DurationNano
 				newS.setTraceAttrs(traceAttrs)
 				newS.setResourceAttrs(rsAttrs)
 				newS.addSpanAttr(traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(s.DurationNano)))
-				var kind traceql.Kind
-				switch s.Kind {
-				case int(v1.Span_SPAN_KIND_UNSPECIFIED):
-					kind = traceql.KindUnspecified
-				case int(v1.Span_SPAN_KIND_INTERNAL):
-					kind = traceql.KindInternal
-				case int(v1.Span_SPAN_KIND_SERVER):
-					kind = traceql.KindServer
-				case int(v1.Span_SPAN_KIND_CLIENT):
-					kind = traceql.KindClient
-				case int(v1.Span_SPAN_KIND_PRODUCER):
-					kind = traceql.KindProducer
-				case int(v1.Span_SPAN_KIND_CONSUMER):
-					kind = traceql.KindConsumer
-				default:
-					kind = traceql.Kind(s.Kind)
-				}
-				newS.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(s.StatusMessage))
-				newS.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(kind))
+				newS.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(otlpKindToTraceqlKind(uint64(s.Kind))))
 				newS.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(s.Name))
-
-				var status traceql.Status
-				switch s.StatusCode {
-				case int(v1.Status_STATUS_CODE_UNSET):
-					status = traceql.StatusUnset
-				case int(v1.Status_STATUS_CODE_OK):
-					status = traceql.StatusOk
-				case int(v1.Status_STATUS_CODE_ERROR):
-					status = traceql.StatusError
-				default:
-					status = traceql.Status(s.StatusCode)
-				}
-				newS.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(traceql.Status(status)))
+				newS.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(otlpStatusToTraceqlStatus(uint64(s.StatusCode))))
+				newS.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(s.StatusMessage))
 				if s.HttpStatusCode != nil {
 					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPStatusCode), traceql.NewStaticInt(int(*s.HttpStatusCode)))
 				}
@@ -816,7 +815,7 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 		}
 	}
 	return newSS
-}*/
+}
 
 func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	testCases := []struct {
