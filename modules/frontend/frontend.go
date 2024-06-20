@@ -83,7 +83,8 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()
 	traceIDStatusCodeWare := pipeline.NewStatusCodeAdjustWareWithAllowedCode(http.StatusNotFound)
-	queryFilterWare := pipeline.NewTraceQueryFilterWareWithDenyList(cfg.Search.BlockedQueries)
+	searchQueryFilterWare := pipeline.NewTraceQueryFilterWareWithDenyList(cfg.Search.BlockedQueries, pipeline.ParseSearchRequestQuery)
+	metricQueryFilterWate := pipeline.NewTraceQueryFilterWareWithDenyList(cfg.Metrics.BlockedQueries, pipeline.ParseMetricRangeRequestQuery)
 
 	tracePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -98,7 +99,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 			multiTenantMiddleware(cfg, logger),
 			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, logger),
 		},
-		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, queryFilterWare},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, searchQueryFilterWare},
 		next)
 
 	searchTagsPipeline := pipeline.Build(
@@ -122,7 +123,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			multiTenantUnsupportedMiddleware(cfg, logger),
 		},
-		[]pipeline.Middleware{statusCodeWare, retryWare},
+		[]pipeline.Middleware{statusCodeWare, retryWare, metricQueryFilterWate},
 		next)
 
 	// traceql metrics
@@ -131,7 +132,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 			multiTenantMiddleware(cfg, logger),
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, logger),
 		},
-		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, queryFilterWare},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare, searchQueryFilterWare},
 		next)
 
 	traces := newTraceIDHandler(cfg, o, tracePipeline, logger)
