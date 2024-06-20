@@ -19,7 +19,7 @@ This makes them the ideal observability signal for discovering bottlenecks and i
 Traces are composed of one or more spans.
 A span is a unit of work within a trace that has a start time relative to the beginning of the trace, a duration and an operation name for the unit of work.
 It usually has a reference to a parent span (unless it's the first span, the root span, in a trace).
-It frequently includes key/value attributes that are relevant to the span itself, for example the HTTP method used by the span, as well as other metadata such as the service name, sub-span events, or links to other spans.
+It frequently includes key/value attributes that are relevant to the span itself, for example the HTTP method used in the request, as well as other metadata such as the service name, sub-span events, or links to other spans.
 
 By definition, traces are never complete. You can always push a new batch of spans, even if days have passed since the last one.
 When receiving a query requesting a stored trace, tracing backends like Tempo find all the spans for that specific trace and collate them into a returned result.
