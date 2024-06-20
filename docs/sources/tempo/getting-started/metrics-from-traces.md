@@ -49,4 +49,4 @@ You can try it out by enabling the `traceToMetrics` feature toggle in your Grafa
 
 For example, you can use span attributes to metric labels by using the `$__tags` keyword to convert span attributes to metrics labels.
 
-For more information, refer to the [trace to metric configuration](/docs/grafana/latest/datasources/tempo/#trace-to-metrics) documentation.
+For more information, refer to the [Trace to metric configuration](/docs/grafana/latest/datasources/tempo/#trace-to-metrics) documentation.
