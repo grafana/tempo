@@ -8,9 +8,5 @@ status:
   distributions:
   - core
   - contrib
-  - grafana
-  - observiq
-  - redhat
-  - sumo
   codeowners:
     active: [open-telemetry/collector-approvers]

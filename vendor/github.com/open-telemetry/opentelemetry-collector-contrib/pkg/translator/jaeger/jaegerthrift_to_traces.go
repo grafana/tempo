@@ -4,7 +4,6 @@
 package jaeger // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 
 import (
-	"encoding/base64"
 	"fmt"
 	"reflect"
 
@@ -150,7 +149,7 @@ func jThriftTagsToInternalAttributes(tags []*jaeger.Tag, dest pcommon.Map) {
 		case jaeger.TagType_DOUBLE:
 			dest.PutDouble(tag.Key, tag.GetVDouble())
 		case jaeger.TagType_BINARY:
-			dest.PutStr(tag.Key, base64.StdEncoding.EncodeToString(tag.GetVBinary()))
+			dest.PutEmptyBytes(tag.Key).FromRaw(tag.GetVBinary())
 		default:
 			dest.PutStr(tag.Key, fmt.Sprintf("<Unknown Jaeger TagType %q>", tag.GetVType()))
 		}

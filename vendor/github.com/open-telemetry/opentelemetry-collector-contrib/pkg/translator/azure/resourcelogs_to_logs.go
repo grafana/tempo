@@ -86,17 +86,17 @@ func (r ResourceLogsUnmarshaler) UnmarshalLogs(buf []byte) (plog.Logs, error) {
 		return l, err
 	}
 
-	var resourceIds []string
+	var resourceIDs []string
 	azureResourceLogs := make(map[string][]azureLogRecord)
 	for _, azureLog := range azureLogs.Records {
 		azureResourceLogs[azureLog.ResourceID] = append(azureResourceLogs[azureLog.ResourceID], azureLog)
-		keyExists := slices.Contains(resourceIds, azureLog.ResourceID)
+		keyExists := slices.Contains(resourceIDs, azureLog.ResourceID)
 		if !keyExists {
-			resourceIds = append(resourceIds, azureLog.ResourceID)
+			resourceIDs = append(resourceIDs, azureLog.ResourceID)
 		}
 	}
 
-	for _, resourceID := range resourceIds {
+	for _, resourceID := range resourceIDs {
 		logs := azureResourceLogs[resourceID]
 		resourceLogs := l.ResourceLogs().AppendEmpty()
 		resourceLogs.Resource().Attributes().PutStr(azureResourceID, resourceID)

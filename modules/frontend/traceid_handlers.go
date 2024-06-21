@@ -66,7 +66,7 @@ func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRou
 			"path", req.URL.Path)
 
 		combiner := combiner.NewTraceByID(o.MaxBytesPerTrace(tenant), marshallingFormat)
-		rt := pipeline.NewHTTPCollector(next, combiner)
+		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, combiner)
 
 		start := time.Now()
 		resp, err := rt.RoundTrip(req)

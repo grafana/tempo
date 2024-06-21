@@ -428,6 +428,11 @@ query_frontend:
     # (default: 2)
     [max_retries: <int>]
 
+    # The number of goroutines dedicated to consuming, unmarshalling and recombining responses per request. This
+    # same parameter is used for all endpoints. 
+    # (default: 10)
+    [response_consumers: <int>]
+
     # Maximum number of outstanding requests per tenant per frontend; requests beyond this error with HTTP 429.
     # (default: 2000)
     [max_outstanding_per_tenant: <int>]
@@ -548,6 +553,9 @@ query_frontend:
         # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         [throughput_bytes_slo: <float> | default = 0 ]
+
+        # If set to true, TraceQL metric queries will use RF1 blocks built and flushed by the metrics-generator.
+        [rf1_read_path: <bool> | default = false]
 ```
 
 ## Querier
@@ -870,6 +878,11 @@ storage:
             # optional.
             # enable to use path-style requests.
             [forcepathstyle: <bool>]
+
+            # Optional.
+            # Enable to use dualstack endpoint for DNS resolution. 
+            # Check out the (S3 documentation on dualstack endpoints)[https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html]
+            [enable_dual_stack: <bool>]
 
             # Optional. Default is 0
             # Example: "bucket_lookup_type: 0"

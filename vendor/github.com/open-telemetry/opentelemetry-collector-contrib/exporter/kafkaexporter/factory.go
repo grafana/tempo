@@ -38,6 +38,8 @@ const (
 	defaultCompression = "none"
 	// default from sarama.NewConfig()
 	defaultFluxMaxMessages = 0
+	// partitioning metrics by resource attributes is disabled by default
+	defaultPartitionMetricsByResourceAttributesEnabled = false
 )
 
 // FactoryOption applies changes to kafkaExporterFactory.
@@ -97,8 +99,9 @@ func createDefaultConfig() component.Config {
 		Brokers:         []string{defaultBroker},
 		ClientID:        defaultClientID,
 		// using an empty topic to track when it has not been set by user, default is based on traces or metrics.
-		Topic:    "",
-		Encoding: defaultEncoding,
+		Topic:                                "",
+		Encoding:                             defaultEncoding,
+		PartitionMetricsByResourceAttributes: defaultPartitionMetricsByResourceAttributesEnabled,
 		Metadata: Metadata{
 			Full: defaultMetadataFull,
 			Retry: MetadataRetry{

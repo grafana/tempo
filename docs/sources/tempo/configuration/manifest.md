@@ -73,6 +73,7 @@ server:
     log_format: logfmt
     log_level: info
     log_source_ips_enabled: false
+    log_source_ips_full: false
     log_source_ips_header: ""
     log_source_ips_regex: ""
     log_request_headers: false
@@ -128,6 +129,7 @@ internal_server:
     log_format: logfmt
     log_level: info
     log_source_ips_enabled: false
+    log_source_ips_full: false
     log_source_ips_header: ""
     log_source_ips_regex: ""
     log_request_headers: false
@@ -253,6 +255,9 @@ querier:
         external_endpoints: []
     trace_by_id:
         query_timeout: 10s
+    metrics:
+        concurrent_blocks: 2
+        time_overlap_cutoff: 0.2
     max_concurrent_queries: 20
     frontend_worker:
         frontend_address: 127.0.0.1:9095
@@ -284,11 +289,14 @@ querier:
             connect_timeout: 0s
             connect_backoff_base_delay: 0s
             connect_backoff_max_delay: 0s
+    shuffle_sharding_ingesters_enabled: false
+    shuffle_sharding_ingesters_lookback_period: 1h0m0s
     query_relevant_ingesters: false
 query_frontend:
     max_outstanding_per_tenant: 2000
     querier_forget_delay: 0s
     max_batch_size: 5
+    log_query_request_headers: ""
     max_retries: 2
     search:
         concurrent_jobs: 1000
@@ -298,13 +306,14 @@ query_frontend:
         max_duration: 168h0m0s
         query_backend_after: 15m0s
         query_ingesters_until: 30m0s
+        ingester_shards: 1
     trace_by_id:
         query_shards: 50
     metrics:
         concurrent_jobs: 1000
         target_bytes_per_job: 104857600
-        max_duration: 0s
-        query_backend_after: 1h0m0s
+        max_duration: 3h0m0s
+        query_backend_after: 30m0s
         interval: 5m0s
     multi_tenant_queries_enabled: true
 compactor:
@@ -409,7 +418,6 @@ ingester:
         min_ready_duration: 15s
         interface_names:
             - en0
-            - bridge100
         enable_inet6: false
         final_sleep: 0s
         tokens_file_path: ""
@@ -491,6 +499,7 @@ metrics_generator:
                 - db.name
                 - db.system
             span_multiplier_key: ""
+            enable_virtual_node_label: false
         span_metrics:
             histogram_buckets:
                 - 0.002
@@ -549,8 +558,10 @@ metrics_generator:
             max_block_bytes: 500000000
             complete_block_timeout: 1h0m0s
             max_live_traces: 0
-            concurrent_blocks: 10
             filter_server_spans: true
+            flush_to_storage: false
+            concurrent_blocks: 10
+            time_overlap_cutoff: 0.2
     registry:
         collection_interval: 15s
         stale_duration: 15m0s
@@ -619,6 +630,8 @@ storage:
         blocklist_poll_stale_tenant_index: 0s
         blocklist_poll_jitter_ms: 0
         blocklist_poll_tolerate_consecutive_errors: 1
+        empty_tenant_deletion_enabled: false
+        empty_tenant_deletion_age: 0s
         backend: local
         local:
             path: /var/tempo/traces
@@ -654,6 +667,7 @@ storage:
             hedge_requests_up_to: 2
             signature_v2: false
             forcepathstyle: false
+            enable_dual_stack: false
             bucket_lookup_type: 0
             tags: {}
             storage_class: ""
@@ -735,6 +749,7 @@ overrides:
                 hedge_requests_up_to: 2
                 signature_v2: false
                 forcepathstyle: false
+                enable_dual_stack: false
                 bucket_lookup_type: 0
                 tags: {}
                 storage_class: ""

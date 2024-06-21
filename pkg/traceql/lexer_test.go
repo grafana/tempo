@@ -86,6 +86,9 @@ func TestLexerScopedIntrinsic(t *testing.T) {
 		{`span:id`, []int{SPAN_COLON, ID}},
 		// event scoped intrinsics
 		{`event:name`, []int{EVENT_COLON, NAME}},
+		// link scoped intrinsics
+		{`link:traceID`, []int{LINK_COLON, TRACE_ID}},
+		{`link:spanID`, []int{LINK_COLON, SPAN_ID}},
 	}))
 }
 

@@ -966,6 +966,36 @@ func TestAttributeNameErrors(t *testing.T) {
 	}
 }
 
+// TestBinaryAndUnaryOperationsCollapseToStatics tests code in the newBinaryOperation and newUnaryOperation functions
+// that attempts to simplify combinations of static values where possible.
+func TestBinaryAndUnaryOperationsCollapseToStatics(t *testing.T) {
+	tests := []struct {
+		in       string
+		expected FieldExpression
+	}{
+		{in: "{ duration > 1 + 2}", expected: newBinaryOperation(OpGreater, NewIntrinsic(IntrinsicDuration), NewStaticInt(3))},
+		{in: "{ -1 }", expected: NewStaticInt(-1)},
+		{in: "{ 1 + 1 > 1 }", expected: NewStaticBool(true)},
+		{in: "{ `foo` = `bar` }", expected: NewStaticBool(false)},
+		{in: "{ 1 = 1. }", expected: NewStaticBool(true)}, // this is an interesting case, it returns true even though { span.foo = 1 } would be false if span.foo had the float value 1.0
+		{in: "{ .1 + 1 }", expected: NewStaticFloat(1.1)},
+		{in: "{ 1 * -1 = -1 }", expected: NewStaticBool(true)},
+		{in: "{ .foo * -1. = -1 }", expected: newBinaryOperation(OpEqual, newBinaryOperation(OpMult, NewAttribute("foo"), NewStaticFloat(-1)), NewStaticInt(-1))},
+	}
+
+	test := func(t *testing.T, q string, expected FieldExpression) {
+		actual, err := Parse(q)
+		require.NoError(t, err, q)
+		require.Equal(t, newRootExpr(newPipeline(newSpansetFilter(expected))), actual, q)
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			test(t, tc.in, tc.expected)
+		})
+	}
+}
+
 func TestAttributes(t *testing.T) {
 	tests := []struct {
 		in       string
@@ -1182,6 +1212,8 @@ func TestScopedIntrinsics(t *testing.T) {
 		{in: "span:statusMessage", expected: IntrinsicStatusMessage},
 		{in: "span:id", expected: IntrinsicSpanID},
 		{in: "event:name", expected: IntrinsicEventName},
+		{in: "link:traceID", expected: IntrinsicLinkTraceID},
+		{in: "link:spanID", expected: IntrinsicLinkSpanID},
 		{in: ":duration", shouldError: true},
 		{in: ":statusMessage", shouldError: true},
 		{in: "trace:name", shouldError: true},
