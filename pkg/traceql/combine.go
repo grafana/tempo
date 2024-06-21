@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	"github.com/segmentio/fasthash/fnv1a"
 )
 
 type MetadataCombiner struct {
@@ -141,22 +143,35 @@ func spansetID(ss *tempopb.SpanSet) string {
 	return id
 }
 
+type tsRange struct {
+	minTS, maxTS int64
+}
+
 type QueryRangeCombiner struct {
 	req     *tempopb.QueryRangeRequest
 	eval    *MetricsFrontendEvaluator
 	metrics *tempopb.SearchMetrics
+
+	// used to track which series were updated since the previous diff
+	seriesUpdated map[uint64]tsRange
 }
 
-func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode) (*QueryRangeCombiner, error) {
+func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode, trackDiffs bool) (*QueryRangeCombiner, error) {
 	eval, err := NewEngine().CompileMetricsQueryRangeNonRaw(req, mode)
 	if err != nil {
 		return nil, err
 	}
 
+	var seriesUpdated map[uint64]tsRange
+	if trackDiffs {
+		seriesUpdated = map[uint64]tsRange{}
+	}
+
 	return &QueryRangeCombiner{
-		req:     req,
-		eval:    eval,
-		metrics: &tempopb.SearchMetrics{},
+		req:           req,
+		eval:          eval,
+		metrics:       &tempopb.SearchMetrics{},
+		seriesUpdated: seriesUpdated,
 	}, nil
 }
 
@@ -164,6 +179,9 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 	if resp == nil {
 		return
 	}
+
+	// mark min/max for all series
+	q.markUpdatedRanges(resp)
 
 	// Here is where the job results are reentered into the pipeline
 	q.eval.ObserveSeries(resp.Series)
@@ -184,4 +202,69 @@ func (q *QueryRangeCombiner) Response() *tempopb.QueryRangeResponse {
 		Series:  q.eval.Results().ToProto(q.req),
 		Metrics: q.metrics,
 	}
+}
+
+func (q *QueryRangeCombiner) Diff() *tempopb.QueryRangeResponse {
+	seriesRangeFn := func(labels []v1.KeyValue) (uint64, uint64, bool) {
+		hash := labelsHash(labels)
+		tsr, ok := q.seriesUpdated[hash]
+		return uint64(tsr.minTS), uint64(tsr.maxTS), ok
+	}
+
+	// filter out series that haven't change
+	resp := &tempopb.QueryRangeResponse{
+		Series:  q.eval.Results().ToProtoDiff(q.req, seriesRangeFn),
+		Metrics: q.metrics,
+	}
+
+	// wipe out the diff for the next call
+	clear(q.seriesUpdated)
+
+	return resp
+}
+
+func (q *QueryRangeCombiner) markUpdatedRanges(resp *tempopb.QueryRangeResponse) {
+	if q.seriesUpdated == nil {
+		return
+	}
+
+	// mark all ranges that changed
+	for _, series := range resp.Series {
+		if len(series.Samples) == 0 {
+			continue
+		}
+
+		min := series.Samples[0].TimestampMs
+		max := series.Samples[len(series.Samples)-1].TimestampMs
+
+		hash := labelsHash(series.Labels)
+		tsr, ok := q.seriesUpdated[hash]
+		if !ok {
+			q.seriesUpdated[hash] = tsRange{minTS: min, maxTS: max}
+			continue
+		}
+
+		var updated bool
+		if min < tsr.minTS {
+			updated = true
+			tsr.minTS = min
+		}
+		if max > tsr.maxTS {
+			updated = true
+			tsr.maxTS = max
+		}
+
+		if updated {
+			q.seriesUpdated[hash] = tsr
+		}
+	}
+}
+
+func labelsHash(labels []v1.KeyValue) uint64 {
+	hash := uint64(0)
+	for _, s := range labels {
+		hash = fnv1a.AddString64(hash, s.Key)
+		hash = fnv1a.AddString64(hash, s.Value.String())
+	}
+	return hash
 }

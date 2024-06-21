@@ -116,6 +116,10 @@ type TimeSeries struct {
 type SeriesSet map[string]TimeSeries
 
 func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeries {
+	return set.ToProtoDiff(req, nil)
+}
+
+func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels func(labels []commonv1proto.KeyValue) (uint64, uint64, bool)) []*tempopb.TimeSeries {
 	resp := make([]*tempopb.TimeSeries, 0, len(set))
 
 	for promLabels, s := range set {
@@ -129,10 +133,25 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 			)
 		}
 
-		intervals := IntervalCount(req.Start, req.End, req.Step)
+		start, end := req.Start, req.End
+		include := true
+		if rangeForLabels != nil {
+			start, end, include = rangeForLabels(labels)
+		}
+
+		if !include {
+			continue
+		}
+
+		intervals := IntervalCount(start, end, req.Step)
 		samples := make([]tempopb.Sample, 0, intervals)
 		for i, value := range s.Values {
 			ts := TimestampOf(uint64(i), req.Start, req.Step)
+
+			if ts < start || ts > end { // jpe : can calculate this directly?
+				continue
+			}
+
 			samples = append(samples, tempopb.Sample{
 				TimestampMs: time.Unix(0, int64(ts)).UnixMilli(),
 				Value:       value,

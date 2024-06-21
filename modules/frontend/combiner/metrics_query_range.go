@@ -12,7 +12,7 @@ var _ GRPCCombiner[*tempopb.QueryRangeResponse] = (*genericCombiner[*tempopb.Que
 
 // NewQueryRange returns a query range combiner.
 func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
-	combiner, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeFinal)
+	combiner, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeFinal, true) // jpe - only set true if we want to track diffs
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 		},
 		// todo: the diff method still returns the full response every time. find a way to diff
 		diff: func(_ *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
-			resp := combiner.Response()
+			resp := combiner.Diff()
 			if resp == nil {
 				resp = &tempopb.QueryRangeResponse{}
 			}

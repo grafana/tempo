@@ -52,7 +52,7 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 		return nil, fmt.Errorf("error querying generators in Querier.MetricsQueryRange: %w", err)
 	}
 
-	c, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeSum)
+	c, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeSum, false)
 	if err != nil {
 		return nil, err
 	}
