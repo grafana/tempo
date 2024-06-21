@@ -3,10 +3,9 @@ package traceql
 import (
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	"github.com/segmentio/fasthash/fnv1a"
 )
 
 type MetadataCombiner struct {
@@ -153,7 +152,8 @@ type QueryRangeCombiner struct {
 	metrics *tempopb.SearchMetrics
 
 	// used to track which series were updated since the previous diff
-	seriesUpdated map[uint64]tsRange
+	//  jpe - is it worth calculating this per series? if all responses roughly return all series should we just track min/max globally?
+	seriesUpdated map[string]tsRange
 }
 
 func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode, trackDiffs bool) (*QueryRangeCombiner, error) {
@@ -162,9 +162,9 @@ func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode, t
 		return nil, err
 	}
 
-	var seriesUpdated map[uint64]tsRange
+	var seriesUpdated map[string]tsRange
 	if trackDiffs {
-		seriesUpdated = map[uint64]tsRange{}
+		seriesUpdated = map[string]tsRange{}
 	}
 
 	return &QueryRangeCombiner{
@@ -205,9 +205,12 @@ func (q *QueryRangeCombiner) Response() *tempopb.QueryRangeResponse {
 }
 
 func (q *QueryRangeCombiner) Diff() *tempopb.QueryRangeResponse {
-	seriesRangeFn := func(labels []v1.KeyValue) (uint64, uint64, bool) {
-		hash := labelsHash(labels)
-		tsr, ok := q.seriesUpdated[hash]
+	if q.seriesUpdated == nil {
+		return q.Response()
+	}
+
+	seriesRangeFn := func(promLabels string) (uint64, uint64, bool) {
+		tsr, ok := q.seriesUpdated[promLabels]
 		return uint64(tsr.minTS), uint64(tsr.maxTS), ok
 	}
 
@@ -234,37 +237,27 @@ func (q *QueryRangeCombiner) markUpdatedRanges(resp *tempopb.QueryRangeResponse)
 			continue
 		}
 
-		min := series.Samples[0].TimestampMs
-		max := series.Samples[len(series.Samples)-1].TimestampMs
+		nanoMin := series.Samples[0].TimestampMs * int64(time.Millisecond)
+		nanoMax := series.Samples[len(series.Samples)-1].TimestampMs * int64(time.Millisecond)
 
-		hash := labelsHash(series.Labels)
-		tsr, ok := q.seriesUpdated[hash]
+		tsr, ok := q.seriesUpdated[series.PromLabels]
 		if !ok {
-			q.seriesUpdated[hash] = tsRange{minTS: min, maxTS: max}
+			q.seriesUpdated[series.PromLabels] = tsRange{minTS: nanoMin, maxTS: nanoMax}
 			continue
 		}
 
 		var updated bool
-		if min < tsr.minTS {
+		if nanoMin < tsr.minTS {
 			updated = true
-			tsr.minTS = min
+			tsr.minTS = nanoMin
 		}
-		if max > tsr.maxTS {
+		if nanoMax > tsr.maxTS {
 			updated = true
-			tsr.maxTS = max
+			tsr.maxTS = nanoMax
 		}
 
 		if updated {
-			q.seriesUpdated[hash] = tsr
+			q.seriesUpdated[series.PromLabels] = tsr
 		}
 	}
-}
-
-func labelsHash(labels []v1.KeyValue) uint64 {
-	hash := uint64(0)
-	for _, s := range labels {
-		hash = fnv1a.AddString64(hash, s.Key)
-		hash = fnv1a.AddString64(hash, s.Value.String())
-	}
-	return hash
 }

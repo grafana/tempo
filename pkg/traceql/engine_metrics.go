@@ -119,7 +119,7 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 	return set.ToProtoDiff(req, nil)
 }
 
-func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels func(labels []commonv1proto.KeyValue) (uint64, uint64, bool)) []*tempopb.TimeSeries {
+func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels func(string) (uint64, uint64, bool)) []*tempopb.TimeSeries {
 	resp := make([]*tempopb.TimeSeries, 0, len(set))
 
 	for promLabels, s := range set {
@@ -136,7 +136,7 @@ func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels 
 		start, end := req.Start, req.End
 		include := true
 		if rangeForLabels != nil {
-			start, end, include = rangeForLabels(labels)
+			start, end, include = rangeForLabels(promLabels)
 		}
 
 		if !include {
