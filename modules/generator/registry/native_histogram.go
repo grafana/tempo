@@ -41,6 +41,7 @@ type nativeHistogramSeries struct {
 	labels        LabelPair
 	promHistogram prometheus.Histogram
 	lastUpdated   *atomic.Int64
+	histogram     *dto.Histogram
 }
 
 var (
@@ -157,17 +158,17 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		encodedMetric := &dto.Metric{}
 
 		// Encode to protobuf representation
-		err := s.promHistogram.Write(encodedMetric)
+		err = s.promHistogram.Write(encodedMetric)
 		if err != nil {
 			return activeSeries, err
 		}
-		encodedHistogram := encodedMetric.GetHistogram()
+		s.histogram = encodedMetric.GetHistogram()
 
 		// *** Classic histogram
 
 		// sum
 		lb.Set(labels.MetricName, h.metricName+"_sum")
-		_, err = appender.Append(0, lb.Labels(), timeMs, encodedHistogram.GetSampleSum())
+		_, err = appender.Append(0, lb.Labels(), timeMs, s.histogram.GetSampleSum())
 		if err != nil {
 			return activeSeries, err
 		}
@@ -175,7 +176,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 
 		// count
 		lb.Set(labels.MetricName, h.metricName+"_count")
-		_, err = appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(encodedHistogram.GetSampleCountFloat(), encodedHistogram.GetSampleCount()))
+		_, err = appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(s.histogram.GetSampleCountFloat(), s.histogram.GetSampleCount()))
 		if err != nil {
 			return activeSeries, err
 		}
@@ -188,7 +189,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		// for that bucket or not. To avoid adding it twice, keep track of it with this boolean.
 		infBucketWasAdded := false
 
-		for _, bucket := range encodedHistogram.Bucket {
+		for _, bucket := range s.histogram.Bucket {
 			// add "le" label
 			lb.Set(labels.BucketLabel, formatFloat(bucket.GetUpperBound()))
 
@@ -196,23 +197,23 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 				infBucketWasAdded = true
 			}
 
-			ref, err := appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(bucket.GetCumulativeCountFloat(), bucket.GetCumulativeCount()))
-			if err != nil {
-				return activeSeries, err
+			ref, appendErr := appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(bucket.GetCumulativeCountFloat(), bucket.GetCumulativeCount()))
+			if appendErr != nil {
+				return activeSeries, appendErr
 			}
 			activeSeries++
 
-			ex := bucket.Exemplar
-			if ex != nil {
+			if bucket.Exemplar != nil && len(bucket.Exemplar.Label) > 0 {
 				// TODO are we appending the same exemplar twice?
 				_, err = appender.AppendExemplar(ref, lb.Labels(), exemplar.Exemplar{
-					Labels: convertLabelPairToLabels(ex.GetLabel()),
-					Value:  ex.GetValue(),
+					Labels: convertLabelPairToLabels(bucket.Exemplar.GetLabel()),
+					Value:  bucket.Exemplar.GetValue(),
 					Ts:     timeMs,
 				})
 				if err != nil {
 					return activeSeries, err
 				}
+				bucket.Exemplar.Reset()
 			}
 		}
 
@@ -220,7 +221,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 			// Add +Inf bucket
 			lb.Set(labels.BucketLabel, "+Inf")
 
-			_, err = appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(encodedHistogram.GetSampleCountFloat(), encodedHistogram.GetSampleCount()))
+			_, err = appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(s.histogram.GetSampleCountFloat(), s.histogram.GetSampleCount()))
 			if err != nil {
 				return activeSeries, err
 			}
@@ -234,43 +235,44 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 
 		// Decode to Prometheus representation
 		hist := promhistogram.Histogram{
-			Schema:        encodedHistogram.GetSchema(),
-			Count:         encodedHistogram.GetSampleCount(),
-			Sum:           encodedHistogram.GetSampleSum(),
-			ZeroThreshold: encodedHistogram.GetZeroThreshold(),
-			ZeroCount:     encodedHistogram.GetZeroCount(),
+			Schema:        s.histogram.GetSchema(),
+			Count:         s.histogram.GetSampleCount(),
+			Sum:           s.histogram.GetSampleSum(),
+			ZeroThreshold: s.histogram.GetZeroThreshold(),
+			ZeroCount:     s.histogram.GetZeroCount(),
 		}
-		if len(encodedHistogram.PositiveSpan) > 0 {
-			hist.PositiveSpans = make([]promhistogram.Span, len(encodedHistogram.PositiveSpan))
-			for i, span := range encodedHistogram.PositiveSpan {
+		if len(s.histogram.PositiveSpan) > 0 {
+			hist.PositiveSpans = make([]promhistogram.Span, len(s.histogram.PositiveSpan))
+			for i, span := range s.histogram.PositiveSpan {
 				hist.PositiveSpans[i] = promhistogram.Span{
 					Offset: span.GetOffset(),
 					Length: span.GetLength(),
 				}
 			}
 		}
-		hist.PositiveBuckets = encodedHistogram.PositiveDelta
-		if len(encodedHistogram.NegativeSpan) > 0 {
-			hist.NegativeSpans = make([]promhistogram.Span, len(encodedHistogram.NegativeSpan))
-			for i, span := range encodedHistogram.NegativeSpan {
+		hist.PositiveBuckets = s.histogram.PositiveDelta
+		if len(s.histogram.NegativeSpan) > 0 {
+			hist.NegativeSpans = make([]promhistogram.Span, len(s.histogram.NegativeSpan))
+			for i, span := range s.histogram.NegativeSpan {
 				hist.NegativeSpans[i] = promhistogram.Span{
 					Offset: span.GetOffset(),
 					Length: span.GetLength(),
 				}
 			}
 		}
-		hist.NegativeBuckets = encodedHistogram.NegativeDelta
+		hist.NegativeBuckets = s.histogram.NegativeDelta
 
 		lb.Set(labels.MetricName, h.metricName)
 		_, err = appender.AppendHistogram(0, lb.Labels(), timeMs, &hist, nil)
 		if err != nil {
 			return activeSeries, err
 		}
-		// TODO impact on active series from appending a histogram?
+
+		// TODO: impact on active series from appending a histogram?
 		activeSeries += 0
 
-		if len(encodedHistogram.Exemplars) > 0 {
-			for _, encodedExemplar := range encodedHistogram.Exemplars {
+		if len(s.histogram.Exemplars) > 0 {
+			for _, encodedExemplar := range s.histogram.Exemplars {
 
 				// TODO are we appending the same exemplar twice?
 				e := exemplar.Exemplar{
