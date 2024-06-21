@@ -51,7 +51,7 @@ Refer to the [metrics-generator configuration]({{< relref "../configuration#metr
 
 ## Evaluate query timeouts
 
-Because of their expensive nature, these queries can take a long time to run in different systems.
+Because of their expensive nature, these queries can take a long time to run.
 As such, consider increasing the timeouts in various places of
 the system to allow enough time for the data to be returned.
 
@@ -64,8 +64,18 @@ Consider these areas when raising timeouts:
   - `server.http_server_read_timeout`
   - `server.http_server_write_timeout`
 
-Additionally, a new `query_frontend.metrics` config has been added. The config
-here will depend on the environment.
+## Set TraceQL metrics query options
+
+The `query_frontend.metrics` configuration block controls all TraceQL metrics queries.
+The configuration depends on the environment.
+
+{{< admonition type="note" >}}
+The default maximum time range for a metrics query is 3 hours, configured using the `query_frontend.metrics.max_duration` parameter.
+
+This is different to the default TraceQL maximum time range of 168 hours (7 days).
+
+{{< /admonition >}}
+
 
 For example, in a cloud environment, smaller jobs with more concurrency may be
 desired due to the nature of scale on the backend.
