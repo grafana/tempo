@@ -43,6 +43,12 @@ func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
 	return s.attributes
 }
 
+func (s *span) AllAttributesFunc(cb func(traceql.Attribute, traceql.Static)) {
+	for a, s := range s.attributes {
+		cb(a, s)
+	}
+}
+
 func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 	atts := s.attributes
 	static, ok := atts[a]
@@ -741,6 +747,10 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest,
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return traceql.FetchSpansResponse{}, fmt.Errorf("conditions invalid: %w", err)
+	}
+
+	if req.SecondPassSelectAll {
+		return traceql.FetchSpansResponse{}, common.ErrUnsupported
 	}
 
 	pf, rr, err := b.openForSearch(ctx, opts)

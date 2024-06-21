@@ -14,6 +14,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/prometheus/prometheus/model/labels"
 )
@@ -77,6 +78,14 @@ type Label struct {
 
 type Labels []Label
 
+func LabelsFromProto(ls []v1.KeyValue) Labels {
+	out := make(Labels, 0, len(ls))
+	for _, l := range ls {
+		out = append(out, Label{Name: l.Key, Value: StaticFromAnyValue(l.Value)})
+	}
+	return out
+}
+
 // String returns the prometheus-formatted version of the labels. Which is downcasting
 // the typed TraceQL values to strings, with some special casing.
 func (ls Labels) String() string {
@@ -98,7 +107,7 @@ func (ls Labels) String() string {
 }
 
 type TimeSeries struct {
-	Labels []Label
+	Labels Labels
 	Values []float64
 }
 
@@ -578,7 +587,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 
 // optimize numerous things within the request that is specific to metrics.
 func optimize(req *FetchSpansRequest) {
-	if !req.AllConditions {
+	if !req.AllConditions || req.SecondPassSelectAll {
 		return
 	}
 
