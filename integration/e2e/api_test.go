@@ -30,7 +30,7 @@ func TestSearchTagValuesV2(t *testing.T) {
 	defer s.Close()
 
 	require.NoError(t, util.CopyFileToSharedDir(s, configAllInOneLocal, "config.yaml"))
-	tempo := util.NewTempoAllInOne("-autocomplete-filtering.enabled=true")
+	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))

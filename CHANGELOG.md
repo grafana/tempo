@@ -1,4 +1,6 @@
 ## main / unreleased
+
+* [CHANGE] **BREAKING CHANGE** Remove `autocomplete_filtering_enabled` feature flag [#3729](https://github.com/grafana/tempo/pull/3729) (@mapno)
 * [CHANGE] Bump opentelemetry-collector to 0.102.1 [#3784](https://github.com/grafana/tempo/pull/3784) (@debasishbsws)
 * [CHANGE] Bump Jaeger query docker image to 1.57.0 [#3652](https://github.com/grafana/tempo/issues/3652) (@iblancasa)
 * [CHANGE] Update Go to 1.22.4 [#3757](https://github.com/grafana/tempo/pull/3757) [#3793](https://github.com/grafana/tempo/pull/3793) (@joe-elliott, @mapno)

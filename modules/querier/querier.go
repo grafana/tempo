@@ -995,7 +995,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 	opts.TotalPages = int(req.PagesToSearch)
 
 	query := traceql.ExtractMatchers(req.SearchReq.Query)
-	if !q.cfg.AutocompleteFilteringEnabled || traceql.IsEmptyQuery(query) {
+	if traceql.IsEmptyQuery(query) {
 		return q.store.SearchTagValuesV2(ctx, meta, req.SearchReq, common.DefaultSearchOptions())
 	}
 
