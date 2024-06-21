@@ -2,12 +2,12 @@ package localblocks
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"sync"
 	"time"
+
+	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/modules/ingester"
@@ -219,11 +219,6 @@ func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loc
 }
 
 func (p *Processor) queryRangeCacheGet(ctx context.Context, m *backend.BlockMeta, req tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, string, error) {
-	cacheable := req.Start <= uint64(m.StartTime.UnixNano()) && req.End >= uint64(m.EndTime.UnixNano())
-	if !cacheable {
-		return nil, "", nil
-	}
-
 	hash := queryRangeHashForBlock(req)
 
 	name := fmt.Sprintf("cache_query_range_%v.buf", hash)
@@ -256,25 +251,15 @@ func (p *Processor) queryRangeCacheSet(ctx context.Context, m *backend.BlockMeta
 }
 
 func queryRangeHashForBlock(req tempopb.QueryRangeRequest) uint64 {
-	h := fnv.New64a()
-	buf := make([]byte, 8)
-
-	h.Write([]byte(req.Query))
-
-	binary.BigEndian.PutUint64(buf, req.Step)
-	h.Write(buf)
-
-	binary.BigEndian.PutUint64(buf, req.Start)
-	h.Write(buf)
-
-	binary.BigEndian.PutUint64(buf, req.End)
-	h.Write(buf)
+	h := fnv1a.HashString64(req.Query)
+	h = fnv1a.AddUint64(h, req.Start)
+	h = fnv1a.AddUint64(h, req.End)
+	h = fnv1a.AddUint64(h, req.Step)
 
 	// TODO - caching for WAL blocks
 	// Including trace count means we can safely cache results
 	// for wal blocks which might receive new data
-	// binary.BigEndian.PutUint64(buf, uint64(m.TotalObjects))
-	// h.Write(buf)
+	// h = fnv1a.AddUint64(h, m.TotalObjects)
 
-	return h.Sum64()
+	return h
 }
