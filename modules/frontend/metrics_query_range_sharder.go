@@ -111,7 +111,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[combin
 		return pipeline.NewBadRequest(errors.New("invalid interval specified: 0")), nil
 	}
 
-	generatorReq := s.generatorRequest(*req, r, tenantID, now, samplingRate)
+	generatorReq := s.generatorRequest(*req, r, tenantID, now)
 	reqCh := make(chan *http.Request, 2) // buffer of 2 allows us to insert generatorReq and metrics
 
 	if generatorReq != nil {
@@ -367,10 +367,12 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				continue
 			}
 
+			start, end := traceql.TrimToOverlap(searchReq.Start, searchReq.End, searchReq.Step, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
+
 			queryRangeReq := &tempopb.QueryRangeRequest{
 				Query: searchReq.Query,
-				Start: max(searchReq.Start, uint64(m.StartTime.UnixNano())),
-				End:   min(searchReq.End, uint64(m.EndTime.UnixNano())),
+				Start: start,
+				End:   end,
 				Step:  searchReq.Step,
 				// ShardID:    uint32, // No sharding with RF=1
 				// ShardCount: uint32, // No sharding with RF=1
@@ -385,8 +387,6 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				FooterSize:       m.FooterSize,
 				DedicatedColumns: dc,
 			}
-			alignTimeRange(queryRangeReq)
-			queryRangeReq.End += queryRangeReq.Step
 
 			subR = api.BuildQueryRangeRequest(subR, queryRangeReq)
 			subR.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
@@ -418,7 +418,7 @@ func (s *queryRangeSharder) backendRange(now time.Time, start, end uint64, query
 	return start, end
 }
 
-func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest, parent *http.Request, tenantID string, now time.Time, samplingRate float64) *http.Request {
+func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest, parent *http.Request, tenantID string, now time.Time) *http.Request {
 	cutoff := uint64(now.Add(-s.cfg.QueryBackendAfter).UnixNano())
 
 	// if there's no overlap between the query and ingester range just return nil

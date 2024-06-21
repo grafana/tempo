@@ -17,11 +17,8 @@ import (
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/tempodb"
-	"github.com/opentracing/opentracing-go"
-	"go.uber.org/atomic"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -48,6 +45,8 @@ type Processor struct {
 	logger    kitlog.Logger
 	Cfg       Config
 	wal       *wal.WAL
+	walR      backend.Reader
+	walW      backend.Writer
 	closeCh   chan struct{}
 	wg        sync.WaitGroup
 	cacheMtx  sync.RWMutex
@@ -90,6 +89,8 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 		logger:         log.WithUserID(tenant, log.Logger),
 		Cfg:            cfg,
 		wal:            wal,
+		walR:           backend.NewReader(wal.LocalBackend()),
+		walW:           backend.NewWriter(wal.LocalBackend()),
 		overrides:      overrides,
 		enc:            enc,
 		walBlocks:      map[uuid.UUID]common.WALBlock{},
@@ -494,108 +495,6 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 	return resp, nil
 }
 
-// QueryRange returns metrics.
-func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (traceql.SeriesSet, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	p.blocksMtx.RLock()
-	defer p.blocksMtx.RUnlock()
-
-	cutoff := time.Now().Add(-p.Cfg.CompleteBlockTimeout).Add(-timeBuffer)
-	if req.Start < uint64(cutoff.UnixNano()) {
-		return nil, fmt.Errorf("time range must be within last %v", p.Cfg.CompleteBlockTimeout)
-	}
-
-	// Blocks to check
-	blocks := make([]common.BackendBlock, 0, 1+len(p.walBlocks)+len(p.completeBlocks))
-	if p.headBlock != nil {
-		blocks = append(blocks, p.headBlock)
-	}
-	for _, b := range p.walBlocks {
-		blocks = append(blocks, b)
-	}
-	for _, b := range p.completeBlocks {
-		blocks = append(blocks, b)
-	}
-	if len(blocks) == 0 {
-		return nil, nil
-	}
-
-	expr, err := traceql.Parse(req.Query)
-	if err != nil {
-		return nil, fmt.Errorf("compiling query: %w", err)
-	}
-
-	unsafe := p.overrides.UnsafeQueryHints(p.tenant)
-
-	timeOverlapCutoff := p.Cfg.Metrics.TimeOverlapCutoff
-	if v, ok := expr.Hints.GetFloat(traceql.HintTimeOverlapCutoff, unsafe); ok && v >= 0 && v <= 1.0 {
-		timeOverlapCutoff = v
-	}
-
-	concurrency := p.Cfg.Metrics.ConcurrentBlocks
-	if v, ok := expr.Hints.GetInt(traceql.HintConcurrentBlocks, unsafe); ok && v > 0 && v < 100 {
-		concurrency = uint(v)
-	}
-
-	// Compile the sharded version of the query
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, false, timeOverlapCutoff, unsafe)
-	if err != nil {
-		return nil, err
-	}
-
-	var (
-		wg     = boundedwaitgroup.New(concurrency)
-		jobErr = atomic.Error{}
-	)
-
-	for _, b := range blocks {
-		// If a job errored then quit immediately.
-		if err := jobErr.Load(); err != nil {
-			return nil, err
-		}
-
-		start := uint64(b.BlockMeta().StartTime.UnixNano())
-		end := uint64(b.BlockMeta().EndTime.UnixNano())
-		if start > req.End || end < req.Start {
-			// Out of time range
-			continue
-		}
-
-		wg.Add(1)
-		go func(b common.BackendBlock) {
-			defer wg.Done()
-
-			m := b.BlockMeta()
-
-			span, ctx := opentracing.StartSpanFromContext(ctx, "Processor.QueryRange.Block", opentracing.Tags{
-				"block":     m.BlockID,
-				"blockSize": m.Size,
-			})
-			defer span.Finish()
-
-			// TODO - caching
-			f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-				return b.Fetch(ctx, req, common.DefaultSearchOptions())
-			})
-
-			err := eval.Do(ctx, f, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
-			if err != nil {
-				jobErr.Store(err)
-			}
-		}(b)
-	}
-
-	wg.Wait()
-
-	if err := jobErr.Load(); err != nil {
-		return nil, err
-	}
-
-	return eval.Results(), nil
-}
-
 func (p *Processor) metricsCacheGet(key string) *traceqlmetrics.MetricsResults {
 	p.cacheMtx.RLock()
 	defer p.cacheMtx.RUnlock()
@@ -713,9 +612,26 @@ func (p *Processor) writeHeadBlock(id common.ID, tr *tempopb.Trace) error {
 		}
 	}
 
-	now := uint32(time.Now().Unix())
+	// Get trace timestamp bounds
+	var start, end uint64
+	for _, b := range tr.Batches {
+		for _, ss := range b.ScopeSpans {
+			for _, s := range ss.Spans {
+				if start == 0 || s.StartTimeUnixNano < start {
+					start = s.StartTimeUnixNano
+				}
+				if s.EndTimeUnixNano > end {
+					end = s.EndTimeUnixNano
+				}
+			}
+		}
+	}
 
-	err := p.headBlock.AppendTrace(id, tr, now, now)
+	// Convert from unix nanos to unix seconds
+	startSeconds := uint32(start / uint64(time.Second))
+	endSeconds := uint32(end / uint64(time.Second))
+
+	err := p.headBlock.AppendTrace(id, tr, startSeconds, endSeconds)
 	if err != nil {
 		return err
 	}
