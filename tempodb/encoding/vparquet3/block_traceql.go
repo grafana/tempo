@@ -1424,22 +1424,24 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	// one either resource or span.
 	allConditions = allConditions && !mingledConditions
 
-	spanIter, err := createSpanIterator(makeIter, primaryIter, spanConditions, allConditions, dc)
+	intern := traceql.NewStaticInterner()
+
+	spanIter, err := createSpanIterator(makeIter, primaryIter, spanConditions, allConditions, dc, intern)
 	if err != nil {
 		return nil, fmt.Errorf("creating span iterator: %w", err)
 	}
 
-	resourceIter, err := createResourceIterator(makeIter, spanIter, resourceConditions, batchRequireAtLeastOneMatchOverall, allConditions, dc)
+	resourceIter, err := createResourceIterator(makeIter, spanIter, resourceConditions, batchRequireAtLeastOneMatchOverall, allConditions, dc, intern)
 	if err != nil {
 		return nil, fmt.Errorf("creating resource iterator: %w", err)
 	}
 
-	return createTraceIterator(makeIter, resourceIter, traceConditions, start, end, shardID, shardCount, allConditions)
+	return createTraceIterator(makeIter, resourceIter, traceConditions, start, end, allConditions, intern)
 }
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
 // one span each.  Spans are returned that match any of the given conditions.
-func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, dedicatedColumns backend.DedicatedColumns) (parquetquery.Iterator, error) {
+func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, dedicatedColumns backend.DedicatedColumns, intern *traceql.StaticInterner) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs          = map[string]string{}
 		columnPredicates        = map[string][]parquetquery.Predicate{}
@@ -1630,7 +1632,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 	}
 
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
-		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool, allConditions)
+		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool, allConditions, intern)
 	if err != nil {
 		return nil, fmt.Errorf("creating span attribute iterator: %w", err)
 	}
@@ -1662,6 +1664,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		nestedSetLeftExplicit:   nestedSetLeftExplicit,
 		nestedSetRightExplicit:  nestedSetRightExplicit,
 		nestedSetParentExplicit: nestedSetParentExplicit,
+		intern:                  intern,
 	}
 
 	// This is an optimization for when all of the span conditions must be met.
@@ -1691,7 +1694,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 // createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
 // one batch each. It builds on top of the span iterator, and turns the groups of spans and resource-level values into
 // spansets. Spansets are returned that match any of the given conditions.
-func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatchOverall, allConditions bool, dedicatedColumns backend.DedicatedColumns) (parquetquery.Iterator, error) {
+func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatchOverall, allConditions bool, dedicatedColumns backend.DedicatedColumns, intern *traceql.StaticInterner) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
@@ -1755,7 +1758,7 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	}
 
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceAttrs,
-		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool, allConditions)
+		columnPathResourceAttrKey, columnPathResourceAttrString, columnPathResourceAttrInt, columnPathResourceAttrDouble, columnPathResourceAttrBool, allConditions, intern)
 	if err != nil {
 		return nil, fmt.Errorf("creating span attribute iterator: %w", err)
 	}
@@ -1772,7 +1775,7 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 		}
 		minCount = len(distinct)
 	}
-	batchCol := newBatchCollector(requireAtLeastOneMatchOverall, minCount)
+	batchCol := newBatchCollector(requireAtLeastOneMatchOverall, minCount, intern)
 
 	var required []parquetquery.Iterator
 
@@ -1793,7 +1796,7 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpans, required, iters, batchCol, parquetquery.WithPool(pqSpansetPool))
 }
 
-func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64, shardID, shardCount uint32, allConditions bool) (parquetquery.Iterator, error) {
+func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64, allConditions bool, intern *traceql.StaticInterner) (parquetquery.Iterator, error) {
 	traceIters := make([]parquetquery.Iterator, 0, 3)
 
 	var err error
@@ -1867,7 +1870,7 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 	// Final trace iterator
 	// Join iterator means it requires matching resources to have been found
 	// TraceCollor adds trace-level data to the spansets
-	return parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, newTraceCollector(), parquetquery.WithPool(pqTracePool)), nil
+	return parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, newTraceCollector(intern), parquetquery.WithPool(pqTracePool)), nil
 }
 
 func createPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
@@ -2043,7 +2046,7 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition,
 	definitionLevel int,
 	keyPath, strPath, intPath, floatPath, boolPath string,
-	allConditions bool,
+	allConditions bool, intern *traceql.StaticInterner,
 ) (parquetquery.Iterator, error) {
 	var (
 		attrKeys        = []string{}
@@ -2121,14 +2124,14 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 			iters := append([]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")}, valueIters...)
 			return parquetquery.NewJoinIterator(definitionLevel,
 				iters,
-				&attributeCollector{},
+				newAttributeCollector(intern),
 				parquetquery.WithPool(pqAttrPool)), nil
 		}
 
 		return parquetquery.NewLeftJoinIterator(definitionLevel,
 			[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")},
 			valueIters,
-			&attributeCollector{},
+			newAttributeCollector(intern),
 			parquetquery.WithPool(pqAttrPool))
 	}
 
@@ -2137,11 +2140,11 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 
 // This turns groups of span values into Span objects
 type spanCollector struct {
-	minAttributes int
-
+	minAttributes           int
 	nestedSetLeftExplicit   bool
 	nestedSetRightExplicit  bool
 	nestedSetParentExplicit bool
+	intern                  *traceql.StaticInterner
 }
 
 var _ parquetquery.GroupPredicate = (*spanCollector)(nil)
@@ -2187,7 +2190,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			sp.durationNanos = durationNanos
 			sp.addSpanAttr(traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(durationNanos)))
 		case columnPathSpanName:
-			sp.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
+			sp.addSpanAttr(traceql.IntrinsicNameAttribute, c.intern.StaticString(unsafeToString(kv.Value.Bytes())))
 		case columnPathSpanStatusCode:
 			// Map OTLP status code back to TraceQL enum.
 			// For other values, use the raw integer.
@@ -2202,9 +2205,9 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			default:
 				status = traceql.Status(kv.Value.Uint64())
 			}
-			sp.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(status))
+			sp.addSpanAttr(traceql.IntrinsicStatusAttribute, c.intern.StaticStatus(status))
 		case columnPathSpanStatusMessage:
-			sp.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
+			sp.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, c.intern.StaticString(unsafeToString(kv.Value.Bytes())))
 		case columnPathSpanKind:
 			var kind traceql.Kind
 			switch kv.Value.Uint64() {
@@ -2223,34 +2226,34 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			default:
 				kind = traceql.Kind(kv.Value.Uint64())
 			}
-			sp.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(kind))
+			sp.addSpanAttr(traceql.IntrinsicKindAttribute, c.intern.StaticKind(kind))
 		case columnPathSpanParentID:
 			sp.nestedSetParent = kv.Value.Int32()
 			if c.nestedSetParentExplicit {
-				sp.addSpanAttr(traceql.IntrinsicNestedSetParentAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
+				sp.addSpanAttr(traceql.IntrinsicNestedSetParentAttribute, c.intern.StaticInt(int(kv.Value.Int32())))
 			}
 		case columnPathSpanNestedSetLeft:
 			sp.nestedSetLeft = kv.Value.Int32()
 			if c.nestedSetLeftExplicit {
-				sp.addSpanAttr(traceql.IntrinsicNestedSetLeftAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
+				sp.addSpanAttr(traceql.IntrinsicNestedSetLeftAttribute, c.intern.StaticInt(int(kv.Value.Int32())))
 			}
 		case columnPathSpanNestedSetRight:
 			sp.nestedSetRight = kv.Value.Int32()
 			if c.nestedSetRightExplicit {
-				sp.addSpanAttr(traceql.IntrinsicNestedSetRightAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
+				sp.addSpanAttr(traceql.IntrinsicNestedSetRightAttribute, c.intern.StaticInt(int(kv.Value.Int32())))
 			}
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?
 			switch kv.Value.Kind() {
 			case parquet.Boolean:
-				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticBool(kv.Value.Boolean()))
+				sp.addSpanAttr(newSpanAttr(kv.Key), c.intern.StaticBool(kv.Value.Boolean()))
 			case parquet.Int32, parquet.Int64:
-				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticInt(int(kv.Value.Int64())))
+				sp.addSpanAttr(newSpanAttr(kv.Key), c.intern.StaticInt(int(kv.Value.Int64())))
 			case parquet.Float:
-				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticFloat(kv.Value.Double()))
+				sp.addSpanAttr(newSpanAttr(kv.Key), c.intern.StaticFloat(kv.Value.Double()))
 			case parquet.ByteArray:
-				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
+				sp.addSpanAttr(newSpanAttr(kv.Key), c.intern.StaticString(unsafeToString(kv.Value.Bytes())))
 			}
 		}
 	}
@@ -2275,15 +2278,18 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 type batchCollector struct {
 	requireAtLeastOneMatchOverall bool
 	minAttributes                 int
-	resAttrs                      []attrVal
+	intern                        *traceql.StaticInterner
+
+	resAttrs []attrVal
 }
 
 var _ parquetquery.GroupPredicate = (*batchCollector)(nil)
 
-func newBatchCollector(requireAtLeastOneMatchOverall bool, minAttributes int) *batchCollector {
+func newBatchCollector(requireAtLeastOneMatchOverall bool, minAttributes int, intern *traceql.StaticInterner) *batchCollector {
 	return &batchCollector{
 		requireAtLeastOneMatchOverall: requireAtLeastOneMatchOverall,
 		minAttributes:                 minAttributes,
+		intern:                        intern,
 	}
 }
 
@@ -2318,9 +2324,9 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	for _, e := range res.Entries {
 		switch e.Value.Kind() {
 		case parquet.Int64:
-			c.resAttrs = append(c.resAttrs, attrVal{newResAttr(e.Key), traceql.NewStaticInt(int(e.Value.Int64()))})
+			c.resAttrs = append(c.resAttrs, attrVal{newResAttr(e.Key), c.intern.StaticInt(int(e.Value.Int64()))})
 		case parquet.ByteArray:
-			c.resAttrs = append(c.resAttrs, attrVal{newResAttr(e.Key), traceql.NewStaticString(unsafeToString(e.Value.Bytes()))})
+			c.resAttrs = append(c.resAttrs, attrVal{newResAttr(e.Key), c.intern.StaticString(unsafeToString(e.Value.Bytes()))})
 		}
 	}
 
@@ -2366,14 +2372,16 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 // It adds trace-level attributes into the spansets before
 // they are returned
 type traceCollector struct {
+	intern *traceql.StaticInterner
+
 	// traceAttrs is a slice reused by KeepGroup to reduce allocations
 	traceAttrs []attrVal
 }
 
 var _ parquetquery.GroupPredicate = (*traceCollector)(nil)
 
-func newTraceCollector() *traceCollector {
-	return &traceCollector{}
+func newTraceCollector(intern *traceql.StaticInterner) *traceCollector {
+	return &traceCollector{intern: intern}
 }
 
 func (c *traceCollector) String() string {
@@ -2399,10 +2407,10 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceDurationAttribute, traceql.NewStaticDuration(time.Duration(finalSpanset.DurationNanos))})
 		case columnPathRootSpanName:
 			finalSpanset.RootSpanName = unsafeToString(e.Value.Bytes())
-			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceRootSpanAttribute, traceql.NewStaticString(finalSpanset.RootSpanName)})
+			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceRootSpanAttribute, c.intern.StaticString(finalSpanset.RootSpanName)})
 		case columnPathRootServiceName:
 			finalSpanset.RootServiceName = unsafeToString(e.Value.Bytes())
-			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceRootServiceAttribute, traceql.NewStaticString(finalSpanset.RootServiceName)})
+			c.traceAttrs = append(c.traceAttrs, attrVal{traceql.IntrinsicTraceRootServiceAttribute, c.intern.StaticString(finalSpanset.RootServiceName)})
 		}
 	}
 
@@ -2438,9 +2446,15 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 // attributeCollector receives rows from the individual key/string/int/etc
 // columns and joins them together into map[key]value entries with the
 // right type.
-type attributeCollector struct{}
+type attributeCollector struct {
+	intern *traceql.StaticInterner
+}
 
 var _ parquetquery.GroupPredicate = (*attributeCollector)(nil)
+
+func newAttributeCollector(intern *traceql.StaticInterner) *attributeCollector {
+	return &attributeCollector{intern: intern}
+}
 
 func (c *attributeCollector) String() string {
 	return "attributeCollector{}"
@@ -2461,13 +2475,13 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case "key":
 			key = unsafeToString(e.Value.Bytes())
 		case "string":
-			val = traceql.NewStaticString(unsafeToString(e.Value.Bytes()))
+			val = c.intern.StaticString(unsafeToString(e.Value.Bytes()))
 		case "int":
-			val = traceql.NewStaticInt(int(e.Value.Int64()))
+			val = c.intern.StaticInt(int(e.Value.Int64()))
 		case "float":
-			val = traceql.NewStaticFloat(e.Value.Double())
+			val = c.intern.StaticFloat(e.Value.Double())
 		case "bool":
-			val = traceql.NewStaticBool(e.Value.Boolean())
+			val = c.intern.StaticBool(e.Value.Boolean())
 		}
 	}
 
