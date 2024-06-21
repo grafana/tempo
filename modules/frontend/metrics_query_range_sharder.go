@@ -12,6 +12,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
+	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
@@ -352,6 +353,8 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, metas []*backend.BlockMeta, targetBytesPerRequest int, reqCh chan<- *http.Request) {
 	defer close(reqCh)
 
+	queryHash := hashForQueryRangeRequest(&searchReq)
+
 	for _, m := range metas {
 		pages := pagesPerRequest(m, targetBytesPerRequest)
 		if pages == 0 {
@@ -393,6 +396,10 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 
 			prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query())
 			// TODO: Handle sampling rate
+			key := queryRangeCacheKey(tenantID, queryHash, int64(queryRangeReq.Start), int64(queryRangeReq.End), m, int(queryRangeReq.StartPage), int(queryRangeReq.PagesToSearch))
+			if len(key) > 0 {
+				subR = pipeline.ContextAddCacheKey(key, subR)
+			}
 
 			select {
 			case reqCh <- subR:
@@ -517,4 +524,24 @@ func (s *queryRangeSharder) jobInterval(expr *traceql.RootExpr, allowUnsafe bool
 
 	// Else use configured value
 	return s.cfg.Interval
+}
+
+func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
+	if req.Query == "" {
+		return 0
+	}
+
+	ast, err := traceql.Parse(req.Query)
+	if err != nil { // this should never occur. if we've made this far we've already validated the query can parse. however, for sanity, just fail to cache if we can't parse
+		return 0
+	}
+
+	// forces the query into a canonical form
+	query := ast.String()
+
+	// add the query, limit and spss to the hash
+	hash := fnv1a.HashString64(query)
+	hash = fnv1a.AddUint64(hash, req.Step)
+
+	return hash
 }
