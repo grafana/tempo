@@ -403,7 +403,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		}
 
 		// if the query is empty or autocomplete filtering is disabled, use the old search
-		if !i.autocompleteFilteringEnabled || traceql.IsEmptyQuery(query) {
+		if traceql.IsEmptyQuery(query) {
 			return s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(valueCollector.Collect), common.DefaultSearchOptions())
 		}
 

@@ -74,11 +74,6 @@ Tempo uses the server from `dskit/server`. For more information on configuration
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
 [multitenancy_enabled: <bool> | default = false]
 
-# Optional. Setting to true enables query filtering in tag value search API `/api/v2/search/<tag>/values`.
-# If filtering is enabled, the API accepts a query parameter `q` containing a TraceQL query,
-# and returns only tag values that match the query.
-[autocomplete_filtering_enabled: <bool> | default = true]
-
 # Optional. String prefix for all http api endpoints. Must include beginning slash.
 [http_api_prefix: <string>]
 

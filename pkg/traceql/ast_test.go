@@ -407,6 +407,12 @@ func (m *mockSpan) AllAttributes() map[Attribute]Static {
 	return m.attributes
 }
 
+func (m *mockSpan) AllAttributesFunc(cb func(Attribute, Static)) {
+	for k, v := range m.attributes {
+		cb(k, v)
+	}
+}
+
 func (m *mockSpan) ID() []byte {
 	return m.id
 }

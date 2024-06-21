@@ -58,6 +58,12 @@ func (m *mockSpan) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 	return s, ok
 }
 
+func (m *mockSpan) AllAttributesFunc(cb func(traceql.Attribute, traceql.Static)) {
+	for k, v := range m.attrs {
+		cb(k, v)
+	}
+}
+
 func (m *mockSpan) SiblingOf([]traceql.Span, []traceql.Span, bool, bool, []traceql.Span) []traceql.Span {
 	return nil
 }

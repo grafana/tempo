@@ -43,6 +43,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Registry.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Storage.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.TracesWAL.Version = encoding.DefaultEncoding().Version()
+	cfg.TracesWAL.IngestionSlack = 2 * time.Minute
 
 	// setting default for max span age before discarding to 30s
 	cfg.MetricsIngestionSlack = 30 * time.Second
