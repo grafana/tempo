@@ -517,10 +517,10 @@ func (p *Processor) deleteOldBlocks() (err error) {
 	p.blocksMtx.Lock()
 	defer p.blocksMtx.Unlock()
 
-	before := time.Now().Add(-p.Cfg.CompleteBlockTimeout)
+	cuttoff := time.Now().Add(-p.Cfg.CompleteBlockTimeout)
 
 	for id, b := range p.walBlocks {
-		if b.BlockMeta().EndTime.Before(before) {
+		if b.BlockMeta().EndTime.Before(cuttoff) {
 			if _, ok := p.completeBlocks[id]; !ok {
 				level.Warn(p.logger).Log("msg", "deleting WAL block that was never completed", "block", id.String())
 			}
@@ -534,7 +534,7 @@ func (p *Processor) deleteOldBlocks() (err error) {
 
 	for id, b := range p.completeBlocks {
 		if !p.Cfg.FlushToStorage {
-			if b.BlockMeta().EndTime.Before(before) {
+			if b.BlockMeta().EndTime.Before(cuttoff) {
 				level.Info(p.logger).Log("msg", "deleting complete block", "block", id.String())
 				err = p.wal.LocalBackend().ClearBlock(id, p.tenant)
 				if err != nil {
@@ -547,10 +547,20 @@ func (p *Processor) deleteOldBlocks() (err error) {
 
 		flushedTime := b.FlushedTime()
 		if flushedTime.IsZero() {
+
+			if b.BlockMeta().EndTime.Before(cuttoff) { // Not flushed and old
+				level.Info(p.logger).Log("msg", "deleting complete block", "block", id.String())
+				err = p.wal.LocalBackend().ClearBlock(id, p.tenant)
+				if err != nil {
+					return err
+				}
+				delete(p.completeBlocks, id)
+			}
+
 			continue
 		}
 
-		if flushedTime.Add(p.Cfg.CompleteBlockTimeout).Before(time.Now()) {
+		if flushedTime.Before(cuttoff) {
 			level.Info(p.logger).Log("msg", "deleting flushed complete block", "block", id.String())
 			err = p.wal.LocalBackend().ClearBlock(id, p.tenant)
 			if err != nil {
@@ -561,6 +571,17 @@ func (p *Processor) deleteOldBlocks() (err error) {
 	}
 
 	return
+}
+
+func (p *Processor) deleteCompleteBlock(id uuid.UUID) error {
+	level.Info(p.logger).Log("msg", "deleting complete block", "block", id.String())
+	err := p.wal.LocalBackend().ClearBlock(id, p.tenant)
+	if err != nil {
+		return err
+	}
+
+	delete(p.completeBlocks, id)
+	return nil
 }
 
 func (p *Processor) cutIdleTraces(immediate bool) error {
