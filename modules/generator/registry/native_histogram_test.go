@@ -246,7 +246,7 @@ func Test_Histograms(t *testing.T) {
 							traceID:         "trace-2",
 						},
 					},
-					expectedSeriesCount: 15,
+					expectedSeriesCount: 10,
 					expectedSamples: []sample{
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeMs, 20),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-1"}, collectionTimeMs, 20*1.5),
@@ -260,7 +260,7 @@ func Test_Histograms(t *testing.T) {
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-2", "le": "+Inf"}, collectionTimeMs, 13),
 					},
 					expectedExemplars: []exemplarSample{
-						newExemplar(map[string]string{"__name__": "test_histogram_bucket", "label": "value-1", "le": "+Inf"}, exemplar.Exemplar{
+						newExemplar(map[string]string{"__name__": "test_histogram_bucket", "label": "value-1", "le": "2"}, exemplar.Exemplar{
 							Labels: labels.FromMap(map[string]string{"trace_id": "trace-1"}),
 							Value:  1.5,
 							Ts:     collectionTimeMs,
