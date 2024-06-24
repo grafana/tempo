@@ -573,17 +573,6 @@ func (p *Processor) deleteOldBlocks() (err error) {
 	return
 }
 
-func (p *Processor) deleteCompleteBlock(id uuid.UUID) error {
-	level.Info(p.logger).Log("msg", "deleting complete block", "block", id.String())
-	err := p.wal.LocalBackend().ClearBlock(id, p.tenant)
-	if err != nil {
-		return err
-	}
-
-	delete(p.completeBlocks, id)
-	return nil
-}
-
 func (p *Processor) cutIdleTraces(immediate bool) error {
 	p.liveTracesMtx.Lock()
 
