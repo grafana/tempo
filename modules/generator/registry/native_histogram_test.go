@@ -41,10 +41,9 @@ func Test_Histograms(t *testing.T) {
 	// allows the test to track the accumulation of observations over a series of
 	// collections.
 	type collections []struct {
-		observations        observations
-		expectedSamples     []sample
-		expectedExemplars   []exemplarSample
-		expectedSeriesCount int
+		observations      observations
+		expectedSamples   []sample
+		expectedExemplars []exemplarSample
 	}
 
 	collectionTimeMs := time.Now().UnixMilli()
@@ -69,7 +68,6 @@ func Test_Histograms(t *testing.T) {
 							traceID:         "trace-1",
 						},
 					},
-					expectedSeriesCount: 5,
 					expectedSamples: []sample{
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
@@ -106,7 +104,6 @@ func Test_Histograms(t *testing.T) {
 							traceID:         "trace-2",
 						},
 					},
-					expectedSeriesCount: 10,
 					expectedSamples: []sample{
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
@@ -153,7 +150,6 @@ func Test_Histograms(t *testing.T) {
 							traceID:         "trace-2",
 						},
 					},
-					expectedSeriesCount: 10,
 					expectedSamples: []sample{
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
@@ -194,7 +190,6 @@ func Test_Histograms(t *testing.T) {
 							traceID:         "trace-3",
 						},
 					},
-					expectedSeriesCount: 15,
 					expectedSamples: []sample{
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
@@ -246,7 +241,6 @@ func Test_Histograms(t *testing.T) {
 							traceID:         "trace-2",
 						},
 					},
-					expectedSeriesCount: 10,
 					expectedSamples: []sample{
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeMs, 20),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-1"}, collectionTimeMs, 20*1.5),
@@ -294,7 +288,6 @@ func Test_Histograms(t *testing.T) {
 							traceID:         "trace-2",
 						},
 					},
-					expectedSeriesCount: 10,
 					expectedSamples: []sample{
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
@@ -335,7 +328,6 @@ func Test_Histograms(t *testing.T) {
 							traceID:         "trace-3",
 						},
 					},
-					expectedSeriesCount: 15,
 					expectedSamples: []sample{
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
@@ -387,7 +379,6 @@ func Test_Histograms(t *testing.T) {
 							traceID:         "trace-3.3",
 						},
 					},
-					expectedSeriesCount: 15,
 					expectedSamples: []sample{
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
@@ -435,7 +426,7 @@ func Test_Histograms(t *testing.T) {
 				h.ObserveWithExemplar(obs.labelValueCombo, obs.value, obs.traceID, obs.multiplier)
 			}
 
-			collectMetricsAndAssertSeries(t, h, collectionTimeMs, c.expectedSeriesCount, appender)
+			collectMetricsAndAssertSeries(t, h, collectionTimeMs, len(c.expectedSamples), appender)
 			if len(c.expectedSamples) > 0 {
 				assertAppenderSamples(t, appender, c.expectedSamples)
 			}
