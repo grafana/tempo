@@ -346,9 +346,9 @@ func TestQueryRangeCombinerDiffs(t *testing.T) {
 
 	for i, tc := range tcs {
 		t.Run(fmt.Sprintf("step %d", i), func(t *testing.T) {
-
 			combiner.Combine(tc.resp)
 
+			// jpe - test is non-deterministic due to map ordering
 			resp := combiner.Response()
 			resp.Metrics = nil // we want to ignore metrics for this test, just nil them out
 			require.Equal(t, tc.expectedResponse, resp)

@@ -59,7 +59,6 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (Combiner, e
 			sortResponse(resp)
 			return resp, nil
 		},
-		// todo: the diff method still returns the full response every time. find a way to diff
 		diff: func(_ *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
 			resp := combiner.Diff()
 			if resp == nil {
