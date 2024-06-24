@@ -148,7 +148,9 @@ func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels 
 		for i, value := range s.Values {
 			ts := TimestampOf(uint64(i), req.Start, req.Step)
 
-			if ts < start || ts > end { // jpe : can calculate this directly?
+			// todo: this loop should be able to be restructured to directly pass over
+			// the desired intervals
+			if ts < start || ts > end {
 				continue
 			}
 
