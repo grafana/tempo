@@ -154,7 +154,7 @@ func logQueryRangeRequest(logger log.Logger, tenantID string, req *tempopb.Query
 		"msg", "query range request",
 		"tenant", tenantID,
 		"query", req.Query,
-		"range_seconds", req.End-req.Start,
+		"range_nanos", req.End-req.Start,
 		"mode", req.QueryMode,
 		"step", req.Step)
 }
