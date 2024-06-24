@@ -547,20 +547,10 @@ func (p *Processor) deleteOldBlocks() (err error) {
 
 		flushedTime := b.FlushedTime()
 		if flushedTime.IsZero() {
-
-			if b.BlockMeta().EndTime.Before(cuttoff) { // Not flushed and old
-				level.Info(p.logger).Log("msg", "deleting complete block", "block", id.String())
-				err = p.wal.LocalBackend().ClearBlock(id, p.tenant)
-				if err != nil {
-					return err
-				}
-				delete(p.completeBlocks, id)
-			}
-
 			continue
 		}
 
-		if flushedTime.Before(cuttoff) {
+		if b.BlockMeta().EndTime.Before(cuttoff) {
 			level.Info(p.logger).Log("msg", "deleting flushed complete block", "block", id.String())
 			err = p.wal.LocalBackend().ClearBlock(id, p.tenant)
 			if err != nil {
