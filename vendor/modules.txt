@@ -876,7 +876,7 @@ github.com/modern-go/concurrent
 # github.com/modern-go/reflect2 v1.0.2
 ## explicit; go 1.12
 github.com/modern-go/reflect2
-# github.com/mostynb/go-grpc-compression v1.2.2
+# github.com/mostynb/go-grpc-compression v1.2.3
 ## explicit; go 1.17
 github.com/mostynb/go-grpc-compression/internal/snappy
 github.com/mostynb/go-grpc-compression/nonclobbering/snappy
