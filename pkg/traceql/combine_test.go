@@ -1,6 +1,7 @@
 package traceql
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -265,118 +266,105 @@ func TestCombineResults(t *testing.T) {
 	}
 }
 
-func TestQueryRangeCombinerFinal(t *testing.T) {
+func TestQueryRangeCombinerDiffs(t *testing.T) {
+	start := uint64(100 * time.Millisecond)
+	end := uint64(150 * time.Millisecond)
+	step := uint64(10 * time.Millisecond)
+
 	tcs := []struct {
-		name  string
-		start uint64
-		end   uint64
-		step  uint64
-		resps []struct {
-			resp             *tempopb.QueryRangeResponse
-			expectedResponse *tempopb.QueryRangeResponse
-			expectedDiff     *tempopb.QueryRangeResponse
-		}
+		resp, expectedResponse, expectedDiff *tempopb.QueryRangeResponse
 	}{
+		// push nothing get nothing
 		{
-			name:  "simple",
-			start: uint64(100 * time.Millisecond),
-			end:   uint64(150 * time.Millisecond),
-			step:  uint64(10 * time.Millisecond),
-			resps: []struct{ resp, expectedResponse, expectedDiff *tempopb.QueryRangeResponse }{
-				// push nothing get nothing
-				{
-					resp: &tempopb.QueryRangeResponse{},
-					expectedResponse: &tempopb.QueryRangeResponse{
-						Series: []*tempopb.TimeSeries{},
-					},
+			resp: &tempopb.QueryRangeResponse{},
+			expectedResponse: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{},
+			},
+		},
+		// push 3 data points, get them back
+		{
+			resp: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					timeSeries("foo", "1", []tempopb.Sample{{100, 1}, {110, 2}, {120, 3}}),
 				},
-				// push 3 data points, get them back
-				{
-					resp: &tempopb.QueryRangeResponse{
-						Series: []*tempopb.TimeSeries{
-							timeSeries("foo", "1", []tempopb.Sample{{100, 1}, {110, 2}, {120, 3}}),
-						},
-					},
-					expectedResponse: &tempopb.QueryRangeResponse{
-						Series: []*tempopb.TimeSeries{
-							timeSeries("foo", "1", []tempopb.Sample{{100, 1}, {110, 2}, {120, 3}, {130, 0}, {140, 0}, {150, 0}}),
-						},
-					},
-					expectedDiff: &tempopb.QueryRangeResponse{
-						Series: []*tempopb.TimeSeries{
-							timeSeries("foo", "1", []tempopb.Sample{{100, 1}, {110, 2}, {120, 3}}),
-						},
-					},
+			},
+			expectedResponse: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					timeSeries("foo", "1", []tempopb.Sample{{100, 1}, {110, 2}, {120, 3}, {130, 0}, {140, 0}, {150, 0}}),
 				},
-				// push 2 data points, check aggregation
-				{
-					resp: &tempopb.QueryRangeResponse{
-						Series: []*tempopb.TimeSeries{
-							timeSeries("foo", "1", []tempopb.Sample{{120, 1}, {130, 2}, {150, 3}}),
-						},
-					},
-					expectedResponse: &tempopb.QueryRangeResponse{
-						Series: []*tempopb.TimeSeries{
-							timeSeries("foo", "1", []tempopb.Sample{{100, 1}, {110, 2}, {120, 4}, {130, 2}, {140, 0}, {150, 3}}),
-						},
-					},
+			},
+			expectedDiff: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					timeSeries("foo", "1", []tempopb.Sample{{100, 1}, {110, 2}, {120, 3}}),
 				},
-				// push different series
-				{
-					resp: &tempopb.QueryRangeResponse{
-						Series: []*tempopb.TimeSeries{
-							timeSeries("bar", "1", []tempopb.Sample{{100, 1}, {110, 2}, {120, 3}}),
-						},
-					},
-					expectedResponse: &tempopb.QueryRangeResponse{
-						Series: []*tempopb.TimeSeries{
-							timeSeries("foo", "1", []tempopb.Sample{{100, 1}, {110, 2}, {120, 4}, {130, 2}, {140, 0}, {150, 3}}),
-							timeSeries("bar", "1", []tempopb.Sample{{100, 1}, {110, 2}, {120, 3}, {130, 0}, {140, 0}, {150, 0}}),
-						},
-					},
-					// includes last 2 pushes
-					expectedDiff: &tempopb.QueryRangeResponse{
-						Series: []*tempopb.TimeSeries{
-							timeSeries("foo", "1", []tempopb.Sample{{120, 4}, {130, 2}, {140, 0}, {150, 3}}),
-							timeSeries("bar", "1", []tempopb.Sample{{100, 1}, {110, 2}, {120, 3}}),
-						},
-					},
+			},
+		},
+		// push 2 data points, check aggregation
+		{
+			resp: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					timeSeries("foo", "1", []tempopb.Sample{{120, 1}, {130, 2}, {150, 3}}),
+				},
+			},
+			expectedResponse: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					timeSeries("foo", "1", []tempopb.Sample{{100, 1}, {110, 2}, {120, 4}, {130, 2}, {140, 0}, {150, 3}}),
+				},
+			},
+		},
+		// push different series
+		{
+			resp: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					timeSeries("bar", "1", []tempopb.Sample{{100, 1}, {110, 2}, {120, 3}}),
+				},
+			},
+			expectedResponse: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					timeSeries("foo", "1", []tempopb.Sample{{100, 1}, {110, 2}, {120, 4}, {130, 2}, {140, 0}, {150, 3}}),
+					timeSeries("bar", "1", []tempopb.Sample{{100, 1}, {110, 2}, {120, 3}, {130, 0}, {140, 0}, {150, 0}}),
+				},
+			},
+			// includes last 2 pushes
+			expectedDiff: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					timeSeries("foo", "1", []tempopb.Sample{{120, 4}, {130, 2}, {140, 0}, {150, 3}}),
+					timeSeries("bar", "1", []tempopb.Sample{{100, 1}, {110, 2}, {120, 3}}),
 				},
 			},
 		},
 	}
 
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			req := &tempopb.QueryRangeRequest{
-				Start: tc.start,
-				End:   tc.end,
-				Step:  tc.step,
-				Query: "{} | rate()", // simple aggregate
-			}
-			combiner, err := QueryRangeCombinerFor(req, AggregateModeFinal, true)
-			require.NoError(t, err)
+	req := &tempopb.QueryRangeRequest{
+		Start: start,
+		End:   end,
+		Step:  step,
+		Query: "{} | rate()", // simple aggregate
+	}
+	combiner, err := QueryRangeCombinerFor(req, AggregateModeFinal, true)
+	require.NoError(t, err)
 
-			for _, tcResp := range tc.resps {
-				combiner.Combine(tcResp.resp)
+	for i, tc := range tcs {
+		t.Run(fmt.Sprintf("step %d", i), func(t *testing.T) {
 
-				resp := combiner.Response()
-				resp.Metrics = nil // we want to ignore metrics for this test, just nil them out
-				require.Equal(t, tcResp.expectedResponse, resp)
+			combiner.Combine(tc.resp)
 
-				if tcResp.expectedDiff != nil {
-					// call diff and get expected
-					diff := combiner.Diff()
-					diff.Metrics = nil
-					require.Equal(t, tcResp.expectedDiff, diff)
+			resp := combiner.Response()
+			resp.Metrics = nil // we want to ignore metrics for this test, just nil them out
+			require.Equal(t, tc.expectedResponse, resp)
 
-					// call diff again and get nothing!
-					diff = combiner.Diff()
-					diff.Metrics = nil
-					require.Equal(t, &tempopb.QueryRangeResponse{
-						Series: []*tempopb.TimeSeries{},
-					}, diff)
-				}
+			if tc.expectedDiff != nil {
+				// call diff and get expected
+				diff := combiner.Diff()
+				diff.Metrics = nil
+				require.Equal(t, tc.expectedDiff, diff)
+
+				// call diff again and get nothing!
+				diff = combiner.Diff()
+				diff.Metrics = nil
+				require.Equal(t, &tempopb.QueryRangeResponse{
+					Series: []*tempopb.TimeSeries{},
+				}, diff)
 			}
 		})
 	}
