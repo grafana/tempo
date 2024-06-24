@@ -53,6 +53,8 @@ func Test_Histograms(t *testing.T) {
 		name        string
 		buckets     []float64
 		collections collections
+		// native histogram does not support all features yet
+		skipNativeHistogram bool
 	}{
 		{
 			name:    "single collection single observation",
@@ -226,8 +228,56 @@ func Test_Histograms(t *testing.T) {
 			},
 		},
 		{
-			name:    "many observations with some multipliers",
+			name:    "integer multiplier",
 			buckets: []float64{1, 2},
+			collections: collections{
+				{
+					observations: observations{
+						{
+							labelValueCombo: newLabelValueCombo([]string{"label"}, []string{"value-1"}),
+							value:           1.5,
+							multiplier:      20.0,
+							traceID:         "trace-1",
+						},
+						{
+							labelValueCombo: newLabelValueCombo([]string{"label"}, []string{"value-2"}),
+							value:           3.0,
+							multiplier:      13,
+							traceID:         "trace-2",
+						},
+					},
+					expectedSeriesCount: 15,
+					expectedSamples: []sample{
+						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeMs, 20),
+						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-1"}, collectionTimeMs, 20*1.5),
+						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-1", "le": "1"}, collectionTimeMs, 0),
+						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-1", "le": "2"}, collectionTimeMs, 20),
+						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-1", "le": "+Inf"}, collectionTimeMs, 20),
+						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-2"}, collectionTimeMs, 13),
+						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-2"}, collectionTimeMs, 13*3),
+						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-2", "le": "1"}, collectionTimeMs, 0),
+						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-2", "le": "2"}, collectionTimeMs, 0),
+						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-2", "le": "+Inf"}, collectionTimeMs, 13),
+					},
+					expectedExemplars: []exemplarSample{
+						newExemplar(map[string]string{"__name__": "test_histogram_bucket", "label": "value-1", "le": "+Inf"}, exemplar.Exemplar{
+							Labels: labels.FromMap(map[string]string{"trace_id": "trace-1"}),
+							Value:  1.5,
+							Ts:     collectionTimeMs,
+						}),
+						newExemplar(map[string]string{"__name__": "test_histogram_bucket", "label": "value-2", "le": "+Inf"}, exemplar.Exemplar{
+							Labels: labels.FromMap(map[string]string{"trace_id": "trace-2"}),
+							Value:  3,
+							Ts:     collectionTimeMs,
+						}),
+					},
+				},
+			},
+		},
+		{
+			name:                "many observations with floating point multiplier",
+			skipNativeHistogram: true,
+			buckets:             []float64{1, 2},
 			collections: collections{
 				{
 					observations: observations{
@@ -408,6 +458,10 @@ func Test_Histograms(t *testing.T) {
 				testHistogram(t, h, tc.collections)
 			})
 			t.Run("native", func(t *testing.T) {
+				if tc.skipNativeHistogram {
+					t.SkipNow()
+				}
+
 				var seriesAdded int
 				onAdd := func(count uint32) bool {
 					seriesAdded += int(count)
