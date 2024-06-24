@@ -152,7 +152,8 @@ type QueryRangeCombiner struct {
 	metrics *tempopb.SearchMetrics
 
 	// used to track which series were updated since the previous diff
-	//  jpe - is it worth calculating this per series? if all responses roughly return all series should we just track min/max globally?
+	// todo: it may not be worth it to track the diffs per series. it would be simpler (and possibly nearly as effective) to just calculate a global
+	//  max/min for all series
 	seriesUpdated map[string]tsRange
 }
 
