@@ -1,0 +1,63 @@
+---
+title: Custom service graphs
+menuTitle: Custom service graphs
+description: Build your own service graphs using the Node Graph visualization from Tempo generated metrics
+weight: 300
+---
+
+# Custom service graphs
+
+Depending on your need, you might want to craft custom service graphs based on the metrics generated from metrics generator, so this page is exactly about that.  
+
+## Building custom graphs
+
+
+### Prerequisites  
+
+For custom service graphs we will use:
+- Tempo metrics generator
+- Grafana deployment of version v10 or higher 
+- Grafana [Node graph panel](https://grafana.com/docs/grafana/latest/panels-visualizations/visualizations/node-graph/)
+
+Tempo metrics generator creates multiple metrics and one of which is `traces_service_graph_request_total` that holds:
+- relationships between services
+- total number of requests performed between services
+
+### Creating Grafana dashboards
+Crate a new dashboard and add two variables:
+- data source of type `Prometheus`
+![Custom service graph Grafana data source variable](../custom-service-graph-var-datasource.png)
+- service of type `Label values`, enable multi-value option
+![Custom service graph service variable](../custom-service-graph-var-service.png)
+
+
+### Add a panel
+
+1. Create a panel with a single query called `edges`
+2. Select your Prometheus data source with metrics from tempo metrics generator
+3. Query using the following example:
+```
+label_join(
+  label_join(
+    label_join(
+      sum(increase(traces_service_graph_request_total{server=~"$service"}[5m])) by (server, client) > 0
+      or
+      sum(increase(traces_service_graph_request_total{client=~"$service"}[5m])) by (server, client) > 0,
+    "source", "", "client"),
+  "target", "", "server"), 
+"id", "-", "server", "client")
+```
+4. Use instant query type
+5. If you need to debug, switch to Table data visualization and read [Node graph panel](/docs/grafana/latest/panels-visualizations/visualizations/node-graph/) docs for more options and expected data shape.
+![Custom service graph panel view](../custom-service-graph-with-query.png)
+
+All data transformations are done with Prometheus `label_join` operators. Query explanation:
+- first `label_join` creates new field `id` which is required by Node graph panel
+- second and third `label_join` copy client and server labels to source and target respectively as this names are also required by Node graph panel
+- we query `traces_service_graph_request_total` twice with `OR` operator to get a combination of requests from and to all of selected services
+
+This query does most of the job done, but unfortunately it leaves us with some limitations that can not be compensated even by Grafana transform data feature. Some limitations:
+- unable to add request stats to nodes and edges, such as req/sec and error rates
+- unable to add custom icons for nodes
+
+This limitations can be overcome by wrapping up Prometheus query into a REST API. In which we have more flexibility with query results data transformations. You can use [Grafana Infinity data source](/grafana/plugins/yesoreyeram-infinity-datasource/) to visualize data from REST API.
