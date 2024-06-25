@@ -105,7 +105,7 @@ If you want to search by a trace name of `perf`, use `trace:rootName` to match a
 This example searches all Kubernetes clusters called `service-name` that have a span with a root name of including `perf`.
 
 ```
-{ .k8s.cluster.name="service-name" && rootName !~ ".*perf.*"}
+{ resource.k8s.cluster.name="service-name" && trace:rootName !~ ".*perf.*"}
 ```
 
 ### Attribute fields
