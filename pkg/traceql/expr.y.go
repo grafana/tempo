@@ -34,7 +34,7 @@ type yySymType struct {
 	wrappedScalarPipeline          Pipeline
 	scalarPipeline                 Pipeline
 	aggregate                      Aggregate
-	metricsAggregation             *MetricsAggregate
+	metricsAggregation             metricsFirstStageElement
 
 	fieldExpression      FieldExpression
 	static               Static
@@ -115,37 +115,38 @@ const RATE = 57402
 const COUNT_OVER_TIME = 57403
 const QUANTILE_OVER_TIME = 57404
 const HISTOGRAM_OVER_TIME = 57405
-const WITH = 57406
-const PIPE = 57407
-const AND = 57408
-const OR = 57409
-const EQ = 57410
-const NEQ = 57411
-const LT = 57412
-const LTE = 57413
-const GT = 57414
-const GTE = 57415
-const NRE = 57416
-const RE = 57417
-const DESC = 57418
-const ANCE = 57419
-const SIBL = 57420
-const NOT_CHILD = 57421
-const NOT_PARENT = 57422
-const NOT_DESC = 57423
-const NOT_ANCE = 57424
-const UNION_CHILD = 57425
-const UNION_PARENT = 57426
-const UNION_DESC = 57427
-const UNION_ANCE = 57428
-const UNION_SIBL = 57429
-const ADD = 57430
-const SUB = 57431
-const NOT = 57432
-const MUL = 57433
-const DIV = 57434
-const MOD = 57435
-const POW = 57436
+const COMPARE = 57406
+const WITH = 57407
+const PIPE = 57408
+const AND = 57409
+const OR = 57410
+const EQ = 57411
+const NEQ = 57412
+const LT = 57413
+const LTE = 57414
+const GT = 57415
+const GTE = 57416
+const NRE = 57417
+const RE = 57418
+const DESC = 57419
+const ANCE = 57420
+const SIBL = 57421
+const NOT_CHILD = 57422
+const NOT_PARENT = 57423
+const NOT_DESC = 57424
+const NOT_ANCE = 57425
+const UNION_CHILD = 57426
+const UNION_PARENT = 57427
+const UNION_DESC = 57428
+const UNION_ANCE = 57429
+const UNION_SIBL = 57430
+const ADD = 57431
+const SUB = 57432
+const NOT = 57433
+const MUL = 57434
+const DIV = 57435
+const MOD = 57436
+const POW = 57437
 
 var yyToknames = [...]string{
 	"$end",
@@ -211,6 +212,7 @@ var yyToknames = [...]string{
 	"COUNT_OVER_TIME",
 	"QUANTILE_OVER_TIME",
 	"HISTOGRAM_OVER_TIME",
+	"COMPARE",
 	"WITH",
 	"PIPE",
 	"AND",
@@ -254,158 +256,158 @@ var yyExca = [...]int{
 	-1, 1,
 	1, -1,
 	-2, 0,
-	-1, 282,
+	-1, 284,
 	13, 86,
 	-2, 94,
 }
 
 const yyPrivate = 57344
 
-const yyLast = 952
+const yyLast = 949
 
 var yyAct = [...]int{
 
-	101, 5, 100, 6, 99, 8, 221, 7, 98, 18,
-	202, 67, 240, 271, 13, 280, 2, 222, 94, 229,
-	230, 231, 240, 90, 70, 66, 87, 88, 89, 90,
-	77, 317, 149, 198, 150, 197, 153, 30, 151, 227,
-	228, 29, 229, 230, 231, 240, 74, 75, 76, 77,
-	178, 180, 181, 182, 183, 184, 185, 186, 187, 188,
-	189, 190, 191, 192, 193, 194, 195, 314, 85, 86,
-	326, 87, 88, 89, 90, 325, 308, 313, 72, 73,
-	204, 74, 75, 76, 77, 85, 86, 323, 87, 88,
-	89, 90, 197, 225, 307, 224, 306, 223, 305, 212,
-	214, 215, 216, 217, 218, 219, 348, 338, 330, 329,
-	220, 202, 263, 264, 243, 244, 245, 262, 200, 332,
-	241, 242, 232, 233, 234, 235, 236, 237, 239, 238,
-	241, 242, 232, 233, 234, 235, 236, 237, 239, 238,
-	331, 249, 227, 228, 198, 229, 230, 231, 240, 353,
-	287, 322, 227, 228, 226, 229, 230, 231, 240, 319,
-	277, 318, 266, 267, 268, 269, 78, 79, 80, 81,
-	82, 83, 265, 278, 256, 201, 257, 259, 260, 350,
-	258, 277, 250, 251, 351, 287, 85, 86, 261, 87,
-	88, 89, 90, 72, 73, 343, 74, 75, 76, 77,
-	149, 17, 150, 179, 153, 334, 151, 333, 282, 241,
-	242, 232, 233, 234, 235, 236, 237, 239, 238, 345,
-	287, 284, 344, 287, 342, 341, 315, 316, 278, 286,
-	287, 227, 228, 279, 229, 230, 231, 240, 276, 275,
-	274, 273, 205, 161, 147, 146, 288, 289, 290, 291,
+	101, 5, 100, 6, 99, 8, 222, 7, 272, 98,
+	12, 67, 18, 13, 282, 2, 241, 90, 223, 94,
+	77, 319, 198, 70, 66, 228, 229, 198, 230, 231,
+	232, 241, 149, 199, 150, 30, 153, 29, 151, 85,
+	86, 329, 87, 88, 89, 90, 230, 231, 232, 241,
+	179, 181, 182, 183, 184, 185, 186, 187, 188, 189,
+	190, 191, 192, 193, 194, 195, 196, 316, 72, 73,
+	328, 74, 75, 76, 77, 326, 310, 315, 309, 308,
+	199, 205, 87, 88, 89, 90, 74, 75, 76, 77,
+	307, 356, 343, 226, 333, 225, 332, 224, 213, 215,
+	216, 217, 218, 219, 220, 264, 265, 263, 364, 289,
+	250, 221, 360, 289, 361, 244, 245, 246, 334, 17,
+	365, 242, 243, 233, 234, 235, 236, 237, 238, 240,
+	239, 242, 243, 233, 234, 235, 236, 237, 238, 240,
+	239, 68, 11, 228, 229, 335, 230, 231, 232, 241,
+	325, 251, 252, 228, 229, 321, 230, 231, 232, 241,
+	320, 279, 266, 267, 268, 269, 270, 353, 289, 352,
+	289, 350, 351, 280, 233, 234, 235, 236, 237, 238,
+	240, 239, 279, 202, 19, 20, 21, 17, 17, 180,
+	159, 359, 363, 203, 228, 229, 349, 230, 231, 232,
+	241, 149, 339, 150, 338, 153, 281, 151, 348, 347,
+	336, 337, 284, 204, 207, 208, 209, 210, 211, 212,
+	278, 286, 317, 318, 288, 289, 277, 276, 280, 23,
+	26, 24, 25, 27, 14, 160, 15, 275, 154, 155,
+	156, 157, 158, 274, 206, 162, 358, 200, 290, 291,
 	292, 293, 294, 295, 296, 297, 298, 299, 300, 301,
-	302, 303, 19, 20, 21, 145, 17, 144, 158, 143,
-	142, 92, 91, 272, 84, 252, 225, 225, 224, 224,
-	223, 223, 253, 67, 254, 67, 71, 310, 225, 255,
-	224, 309, 223, 320, 321, 248, 70, 247, 70, 284,
-	139, 140, 141, 347, 346, 324, 246, 23, 26, 24,
-	25, 27, 14, 159, 15, 28, 154, 155, 156, 157,
-	337, 336, 270, 335, 69, 149, 328, 150, 16, 153,
-	327, 151, 4, 148, 225, 225, 224, 224, 223, 223,
-	339, 340, 12, 10, 225, 22, 224, 152, 223, 1,
-	349, 225, 0, 224, 0, 223, 0, 352, 102, 103,
-	104, 108, 131, 0, 93, 95, 0, 0, 107, 105,
-	106, 110, 109, 111, 112, 113, 114, 115, 116, 117,
-	118, 119, 120, 121, 122, 124, 123, 125, 126, 0,
-	127, 128, 129, 130, 0, 68, 11, 134, 132, 133,
-	135, 136, 137, 138, 312, 102, 103, 104, 108, 131,
+	302, 303, 304, 305, 147, 146, 145, 144, 22, 85,
+	86, 143, 87, 88, 89, 90, 142, 226, 226, 225,
+	225, 224, 224, 92, 253, 67, 91, 67, 344, 324,
+	226, 254, 225, 255, 224, 322, 323, 70, 256, 70,
+	286, 48, 53, 355, 354, 50, 273, 49, 327, 57,
+	312, 51, 52, 54, 55, 56, 59, 58, 60, 61,
+	64, 63, 62, 84, 139, 140, 141, 330, 149, 331,
+	150, 311, 153, 249, 151, 71, 342, 341, 248, 226,
+	226, 225, 225, 224, 224, 345, 346, 247, 28, 271,
+	226, 340, 225, 69, 224, 16, 357, 4, 148, 10,
+	226, 152, 225, 1, 224, 0, 362, 102, 103, 104,
+	108, 131, 0, 93, 95, 0, 0, 107, 105, 106,
+	110, 109, 111, 112, 113, 114, 115, 116, 117, 118,
+	119, 120, 121, 122, 124, 123, 125, 126, 0, 127,
+	128, 129, 130, 201, 0, 0, 134, 132, 133, 135,
+	136, 137, 138, 314, 0, 102, 103, 104, 108, 131,
 	0, 0, 95, 0, 0, 107, 105, 106, 110, 109,
 	111, 112, 113, 114, 115, 116, 117, 118, 119, 120,
 	121, 122, 124, 123, 125, 126, 0, 127, 128, 129,
-	130, 311, 96, 97, 134, 132, 133, 135, 136, 137,
-	138, 304, 0, 0, 0, 0, 0, 241, 242, 232,
-	233, 234, 235, 236, 237, 239, 238, 203, 206, 207,
-	208, 209, 210, 211, 0, 0, 0, 0, 0, 227,
-	228, 285, 229, 230, 231, 240, 0, 0, 0, 96,
-	97, 0, 0, 0, 241, 242, 232, 233, 234, 235,
-	236, 237, 239, 238, 241, 242, 232, 233, 234, 235,
-	236, 237, 239, 238, 0, 0, 227, 228, 0, 229,
-	230, 231, 240, 0, 0, 0, 227, 228, 0, 229,
-	230, 231, 240, 0, 241, 242, 232, 233, 234, 235,
-	236, 237, 239, 238, 232, 233, 234, 235, 236, 237,
-	239, 238, 199, 0, 0, 0, 227, 228, 0, 229,
-	230, 231, 240, 0, 227, 228, 0, 229, 230, 231,
-	240, 78, 79, 80, 81, 82, 83, 196, 78, 79,
-	80, 81, 82, 83, 0, 0, 0, 0, 0, 0,
-	0, 85, 86, 0, 87, 88, 89, 90, 72, 73,
-	0, 74, 75, 76, 77, 48, 53, 0, 0, 50,
-	0, 49, 0, 57, 0, 51, 52, 54, 55, 56,
-	59, 58, 60, 61, 64, 63, 62, 0, 0, 0,
-	31, 36, 0, 0, 33, 0, 32, 0, 42, 0,
-	34, 35, 37, 38, 39, 40, 41, 43, 44, 45,
-	46, 47, 48, 53, 0, 0, 50, 0, 49, 0,
-	57, 0, 51, 52, 54, 55, 56, 59, 58, 60,
-	61, 64, 63, 62, 31, 36, 0, 0, 33, 0,
-	32, 0, 42, 0, 34, 35, 37, 38, 39, 40,
-	41, 43, 44, 45, 46, 47, 19, 20, 21, 0,
-	17, 0, 158, 0, 19, 20, 21, 0, 17, 0,
-	283, 0, 19, 20, 21, 50, 17, 49, 281, 57,
-	0, 51, 52, 54, 55, 56, 59, 58, 60, 61,
-	64, 63, 62, 0, 0, 0, 0, 0, 0, 0,
-	0, 23, 26, 24, 25, 27, 14, 159, 15, 23,
-	26, 24, 25, 27, 14, 0, 15, 23, 26, 24,
-	25, 27, 14, 0, 15, 19, 20, 21, 0, 17,
-	0, 9, 0, 0, 19, 20, 21, 0, 17, 22,
-	158, 0, 19, 20, 21, 0, 0, 22, 213, 0,
-	33, 0, 32, 0, 42, 22, 34, 35, 37, 38,
-	39, 40, 41, 43, 44, 45, 46, 47, 0, 0,
-	23, 26, 24, 25, 27, 14, 0, 15, 0, 23,
-	26, 24, 25, 27, 0, 0, 0, 23, 26, 24,
-	25, 27, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 22, 131,
-	0, 0, 0, 0, 0, 0, 0, 22, 0, 65,
-	3, 0, 0, 0, 0, 22, 0, 118, 119, 120,
-	121, 122, 124, 123, 125, 126, 0, 127, 128, 129,
-	130, 0, 0, 0, 134, 132, 133, 135, 136, 137,
-	138, 160, 162, 163, 164, 165, 166, 167, 168, 169,
-	170, 171, 172, 173, 174, 175, 176, 177, 102, 103,
-	104, 108, 0, 0, 0, 205, 0, 0, 107, 105,
-	106, 110, 109, 111, 112, 113, 114, 115, 116, 117,
-	102, 103, 104, 108, 0, 0, 0, 0, 0, 0,
-	107, 105, 106, 110, 109, 111, 112, 113, 114, 115,
-	116, 117,
+	130, 313, 96, 97, 134, 132, 133, 135, 136, 137,
+	138, 306, 0, 0, 0, 0, 0, 242, 243, 233,
+	234, 235, 236, 237, 238, 240, 239, 0, 0, 72,
+	73, 0, 74, 75, 76, 77, 0, 0, 0, 228,
+	229, 287, 230, 231, 232, 241, 0, 0, 0, 227,
+	96, 97, 0, 0, 0, 242, 243, 233, 234, 235,
+	236, 237, 238, 240, 239, 242, 243, 233, 234, 235,
+	236, 237, 238, 240, 239, 0, 0, 228, 229, 203,
+	230, 231, 232, 241, 0, 0, 0, 228, 229, 0,
+	230, 231, 232, 241, 0, 242, 243, 233, 234, 235,
+	236, 237, 238, 240, 239, 242, 243, 233, 234, 235,
+	236, 237, 238, 240, 239, 0, 0, 228, 229, 0,
+	230, 231, 232, 241, 197, 0, 0, 228, 229, 0,
+	230, 231, 232, 241, 0, 78, 79, 80, 81, 82,
+	83, 0, 78, 79, 80, 81, 82, 83, 0, 78,
+	79, 80, 81, 82, 83, 85, 86, 0, 87, 88,
+	89, 90, 85, 86, 0, 87, 88, 89, 90, 72,
+	73, 0, 74, 75, 76, 77, 0, 0, 31, 36,
+	0, 0, 33, 0, 32, 0, 42, 0, 34, 35,
+	37, 38, 39, 40, 41, 43, 44, 45, 46, 47,
+	48, 53, 0, 0, 50, 0, 49, 0, 57, 0,
+	51, 52, 54, 55, 56, 59, 58, 60, 61, 64,
+	63, 62, 31, 36, 0, 0, 33, 0, 32, 0,
+	42, 0, 34, 35, 37, 38, 39, 40, 41, 43,
+	44, 45, 46, 47, 19, 20, 21, 0, 17, 0,
+	159, 0, 19, 20, 21, 0, 17, 0, 285, 0,
+	19, 20, 21, 50, 17, 49, 283, 57, 0, 51,
+	52, 54, 55, 56, 59, 58, 60, 61, 64, 63,
+	62, 0, 0, 0, 0, 0, 0, 0, 0, 23,
+	26, 24, 25, 27, 14, 160, 15, 23, 26, 24,
+	25, 27, 14, 0, 15, 23, 26, 24, 25, 27,
+	14, 0, 15, 19, 20, 21, 0, 17, 0, 9,
+	0, 19, 20, 21, 0, 17, 0, 159, 22, 19,
+	20, 21, 0, 0, 0, 214, 22, 0, 0, 33,
+	0, 32, 0, 42, 22, 34, 35, 37, 38, 39,
+	40, 41, 43, 44, 45, 46, 47, 0, 23, 26,
+	24, 25, 27, 14, 0, 15, 23, 26, 24, 25,
+	27, 0, 0, 0, 23, 26, 24, 25, 27, 257,
+	0, 258, 260, 261, 0, 259, 0, 0, 0, 0,
+	0, 0, 0, 262, 0, 0, 131, 22, 0, 0,
+	0, 0, 0, 0, 0, 22, 65, 3, 0, 0,
+	0, 0, 0, 22, 118, 119, 120, 121, 122, 124,
+	123, 125, 126, 0, 127, 128, 129, 130, 0, 0,
+	0, 134, 132, 133, 135, 136, 137, 138, 161, 163,
+	164, 165, 166, 167, 168, 169, 170, 171, 172, 173,
+	174, 175, 176, 177, 178, 102, 103, 104, 108, 0,
+	0, 0, 206, 0, 0, 107, 105, 106, 110, 109,
+	111, 112, 113, 114, 115, 116, 117, 102, 103, 104,
+	108, 0, 0, 0, 0, 0, 0, 107, 105, 106,
+	110, 109, 111, 112, 113, 114, 115, 116, 117,
 }
 var yyPact = [...]int{
 
-	759, -23, -28, 608, -1000, 586, -1000, -1000, -1000, 759,
-	-1000, 510, -1000, 503, 260, 259, -1000, 353, -1000, -1000,
-	-1000, -1000, 294, 258, 257, 255, 253, 233, -1000, 232,
-	256, 231, 231, 231, 231, 231, 231, 231, 231, 231,
-	231, 231, 231, 231, 231, 231, 231, 231, 191, 191,
-	191, 191, 191, 191, 191, 191, 191, 191, 191, 191,
-	191, 191, 191, 191, 191, 564, 79, 539, 105, 162,
-	98, 903, 230, 230, 230, 230, 230, 230, -1000, -1000,
-	-1000, -1000, -1000, -1000, 776, 776, 776, 776, 776, 776,
-	776, 400, 840, -1000, 143, 400, 400, 400, -1000, -1000,
+	757, -28, -31, 605, -1000, 583, -1000, -1000, -1000, 757,
+	-1000, 530, -1000, 523, 274, 271, -1000, 362, -1000, -1000,
+	-1000, -1000, 318, 264, 259, 255, 254, 253, -1000, 252,
+	178, 233, 233, 233, 233, 233, 233, 233, 233, 233,
+	233, 233, 233, 233, 233, 233, 233, 233, 177, 177,
+	177, 177, 177, 177, 177, 177, 177, 177, 177, 177,
+	177, 177, 177, 177, 177, 561, 14, 234, 390, 170,
+	516, 900, 232, 232, 232, 232, 232, 232, -1000, -1000,
+	-1000, -1000, -1000, -1000, 773, 773, 773, 773, 773, 773,
+	773, 410, 837, -1000, 488, 410, 410, 410, -1000, -1000,
 	-1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
 	-1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
 	-1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
-	-1000, 302, 293, 291, 137, 248, 147, 88, 70, -1000,
-	-1000, -1000, 159, 400, 400, 400, 400, 269, -1000, 586,
-	-1000, -1000, -1000, -1000, 229, 228, 227, 226, 768, 221,
-	720, 706, -1000, -1000, -1000, -1000, 720, -1000, -1000, -1000,
-	-1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, 645, 191,
-	-1000, -1000, -1000, -1000, 645, -1000, -1000, -1000, -1000, -1000,
-	-1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, 690, -1000,
-	-1000, -1000, -1000, -10, -1000, 698, -45, -45, -64, -64,
-	-64, -64, -20, 776, -65, -65, -71, -71, -71, -71,
-	468, 216, -1000, -1000, -1000, -1000, -1000, 400, 400, 400,
-	400, 400, 400, 400, 400, 400, 400, 400, 400, 400,
-	400, 400, 400, 438, -72, -72, 39, 37, 35, 17,
-	287, 283, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
-	-1000, -1000, -1000, -1000, -1000, -1000, 428, 391, 64, 54,
-	213, -1000, -37, 148, 146, 840, 840, 539, -3, 138,
-	22, 706, -1000, 698, -32, -1000, -1000, 840, -72, -72,
-	-82, -82, -82, -49, -49, -49, -49, -49, -49, -49,
-	-49, -82, 476, 476, -1000, -1000, -1000, -1000, -1000, 16,
-	11, -1000, -1000, -1000, -1000, -1000, 269, 925, 53, 52,
-	126, 106, -1000, 690, -1000, -1000, -1000, -1000, -1000, 195,
-	193, 314, 51, 840, 840, 211, -1000, -1000, 183, 209,
-	206, 297, 50, 840, -1000, -1000, -1000, -1000, 167, 171,
-	840, -1000, 136, -1000,
+	-1000, 343, 334, 329, 106, 257, 802, 78, 63, -1000,
+	-1000, -1000, 149, 410, 410, 410, 410, 302, -1000, 583,
+	-1000, -1000, -1000, -1000, 231, 225, 215, 214, 208, 765,
+	194, 718, 704, -1000, -1000, -1000, -1000, 718, -1000, -1000,
+	-1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, 642,
+	177, -1000, -1000, -1000, -1000, 642, -1000, -1000, -1000, -1000,
+	-1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, 688,
+	-1000, -1000, -1000, -1000, -21, -1000, 696, -6, -6, -75,
+	-75, -75, -75, -50, 773, -10, -10, -78, -78, -78,
+	-78, 478, 211, -1000, -1000, -1000, -1000, -1000, 410, 410,
+	410, 410, 410, 410, 410, 410, 410, 410, 410, 410,
+	410, 410, 410, 410, 448, -46, -46, 31, 20, 19,
+	17, 327, 306, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
+	-1000, -1000, -1000, -1000, -1000, -1000, -1000, 438, 400, 64,
+	54, 209, -1000, -48, 147, 142, 837, 837, 109, 234,
+	180, 137, 9, 704, -1000, 696, -33, -1000, -1000, 837,
+	-46, -46, -79, -79, -79, -64, -64, -64, -64, -64,
+	-64, -64, -64, -79, 105, 105, -1000, -1000, -1000, -1000,
+	-1000, 11, -18, -1000, -1000, -1000, -1000, -1000, 302, 922,
+	40, 38, 104, 132, 197, -1000, 688, -1000, -1000, -1000,
+	-1000, -1000, 192, 190, 330, 36, -1000, 282, 837, 837,
+	195, -1000, -1000, 184, 158, 156, 154, 297, 35, 837,
+	-1000, 240, -1000, -1000, -1000, -1000, 179, 99, 100, 837,
+	-1000, 186, 95, 107, -1000, -1000,
 }
 var yyPgo = [...]int{
 
-	0, 349, 7, 347, 5, 6, 1, 859, 343, 15,
-	342, 3, 274, 333, 332, 395, 14, 328, 324, 9,
-	18, 8, 4, 2, 0, 17, 323, 13, 322, 315,
+	0, 363, 7, 361, 5, 6, 1, 856, 359, 14,
+	10, 3, 323, 358, 357, 141, 13, 355, 353, 12,
+	19, 9, 4, 2, 0, 18, 351, 8, 349, 348,
 }
 var yyR1 = [...]int{
 
@@ -420,14 +422,15 @@ var yyR1 = [...]int{
 	15, 15, 15, 15, 15, 17, 18, 16, 16, 16,
 	16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
 	16, 19, 19, 19, 19, 19, 13, 13, 13, 13,
-	13, 13, 13, 13, 27, 29, 28, 28, 20, 20,
+	13, 13, 13, 13, 13, 13, 13, 27, 29, 28,
+	28, 20, 20, 20, 20, 20, 20, 20, 20, 20,
 	20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-	20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-	20, 21, 21, 21, 21, 21, 21, 21, 21, 21,
-	21, 21, 21, 21, 21, 21, 21, 22, 22, 22,
+	20, 20, 20, 20, 21, 21, 21, 21, 21, 21,
+	21, 21, 21, 21, 21, 21, 21, 21, 21, 21,
 	22, 22, 22, 22, 22, 22, 22, 22, 22, 22,
-	24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
-	24, 24, 24, 23, 23, 23, 23, 23, 23,
+	22, 22, 22, 24, 24, 24, 24, 24, 24, 24,
+	24, 24, 24, 24, 24, 24, 23, 23, 23, 23,
+	23, 23,
 }
 var yyR2 = [...]int{
 
@@ -442,53 +445,55 @@ var yyR2 = [...]int{
 	3, 3, 3, 3, 1, 3, 3, 3, 3, 3,
 	3, 3, 3, 3, 1, 1, 1, 1, 2, 2,
 	2, 3, 4, 4, 4, 4, 3, 7, 3, 7,
-	6, 10, 4, 8, 3, 4, 1, 3, 3, 3,
+	6, 10, 4, 8, 4, 6, 10, 3, 4, 1,
 	3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-	3, 3, 3, 3, 3, 2, 2, 1, 1, 1,
+	3, 3, 3, 3, 3, 3, 3, 3, 2, 2,
 	1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 	1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 	1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-	2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 3, 3, 3, 3, 4, 4,
+	1, 1, 1, 2, 2, 2, 2, 2, 2, 2,
+	2, 2, 2, 2, 2, 2, 3, 3, 3, 3,
+	4, 4,
 }
 var yyChk = [...]int{
 
 	-1000, -1, -9, -7, -14, -6, -11, -2, -4, 12,
 	-8, -15, -10, -16, 56, 58, -17, 10, -19, 6,
-	7, 8, 89, 51, 53, 54, 52, 55, -29, 64,
-	65, 66, 72, 70, 76, 77, 67, 78, 79, 80,
-	81, 82, 74, 83, 84, 85, 86, 87, 66, 72,
-	70, 76, 77, 67, 78, 79, 80, 74, 82, 81,
-	83, 84, 87, 86, 85, -7, -9, -6, -15, -18,
-	-16, -12, 88, 89, 91, 92, 93, 94, 68, 69,
-	70, 71, 72, 73, -12, 88, 89, 91, 92, 93,
-	94, 12, 12, 11, -20, 12, 89, 90, -21, -22,
+	7, 8, 90, 51, 53, 54, 52, 55, -29, 65,
+	66, 67, 73, 71, 77, 78, 68, 79, 80, 81,
+	82, 83, 75, 84, 85, 86, 87, 88, 67, 73,
+	71, 77, 78, 68, 79, 80, 81, 75, 83, 82,
+	84, 85, 88, 87, 86, -7, -9, -6, -15, -18,
+	-16, -12, 89, 90, 92, 93, 94, 95, 69, 70,
+	71, 72, 73, 74, -12, 89, 90, 92, 93, 94,
+	95, 12, 12, 11, -20, 12, 90, 91, -21, -22,
 	-23, -24, 5, 6, 7, 16, 17, 15, 8, 19,
 	18, 20, 21, 22, 23, 24, 25, 26, 27, 28,
 	29, 30, 31, 33, 32, 34, 35, 37, 38, 39,
 	40, 9, 45, 46, 44, 47, 48, 49, 50, 6,
 	7, 8, 12, 12, 12, 12, 12, 12, -13, -6,
-	-11, -2, -3, -4, 60, 61, 62, 63, 12, 57,
-	-7, 12, -7, -7, -7, -7, -7, -7, -7, -7,
-	-7, -7, -7, -7, -7, -7, -7, -7, -6, 12,
-	-6, -6, -6, -6, -6, -6, -6, -6, -6, -6,
-	-6, -6, -6, -6, -6, -6, 13, 13, 65, 13,
-	13, 13, 13, -15, -21, 12, -15, -15, -15, -15,
-	-15, -15, -16, 12, -16, -16, -16, -16, -16, -16,
-	-20, -5, -25, -22, -23, -24, 11, 88, 89, 91,
-	92, 93, 68, 69, 70, 71, 72, 73, 75, 74,
-	94, 66, 67, -20, -20, -20, 4, 4, 4, 4,
-	45, 46, 27, 34, 36, 41, 27, 29, 33, 30,
-	31, 41, 29, 42, 43, 13, -20, -20, -20, -20,
-	-28, -27, 4, 12, 12, 12, 12, -6, -16, 12,
-	-9, 12, -19, 12, -9, 13, 13, 14, -20, -20,
+	-11, -2, -3, -4, 60, 61, 62, 63, 64, 12,
+	57, -7, 12, -7, -7, -7, -7, -7, -7, -7,
+	-7, -7, -7, -7, -7, -7, -7, -7, -7, -6,
+	12, -6, -6, -6, -6, -6, -6, -6, -6, -6,
+	-6, -6, -6, -6, -6, -6, -6, 13, 13, 66,
+	13, 13, 13, 13, -15, -21, 12, -15, -15, -15,
+	-15, -15, -15, -16, 12, -16, -16, -16, -16, -16,
+	-16, -20, -5, -25, -22, -23, -24, 11, 89, 90,
+	92, 93, 94, 69, 70, 71, 72, 73, 74, 76,
+	75, 95, 67, 68, -20, -20, -20, 4, 4, 4,
+	4, 45, 46, 27, 34, 36, 41, 27, 29, 33,
+	30, 31, 41, 29, 42, 43, 13, -20, -20, -20,
+	-20, -28, -27, 4, 12, 12, 12, 12, 12, -6,
+	-16, 12, -9, 12, -19, 12, -9, 13, 13, 14,
 	-20, -20, -20, -20, -20, -20, -20, -20, -20, -20,
-	-20, -20, -20, -20, 13, 59, 59, 59, 59, 4,
-	4, 13, 13, 13, 13, 13, 14, 68, 13, 13,
-	-25, -25, 13, 65, -25, 59, 59, -27, -21, 56,
-	56, 14, 13, 12, 12, -26, 7, 6, 56, -5,
-	-5, 14, 13, 12, 13, 13, 7, 6, 56, -5,
-	12, 13, -5, 13,
+	-20, -20, -20, -20, -20, -20, 13, 59, 59, 59,
+	59, 4, 4, 13, 13, 13, 13, 13, 14, 69,
+	13, 13, -25, -25, -10, 13, 66, -25, 59, 59,
+	-27, -21, 56, 56, 14, 13, 13, 14, 12, 12,
+	-26, 7, 6, 56, 6, -5, -5, 14, 13, 12,
+	13, 14, 13, 13, 7, 6, 56, -5, 6, 12,
+	13, 14, -5, 6, 13, 13,
 }
 var yyDef = [...]int{
 
@@ -501,33 +506,34 @@ var yyDef = [...]int{
 	0, 0, 0, 0, 0, 0, 0, 26, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 69, 70,
 	71, 72, 73, 74, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 66, 0, 0, 0, 0, 137, 138,
-	139, 140, 141, 142, 143, 144, 145, 146, 147, 148,
-	149, 150, 151, 152, 153, 154, 155, 156, 157, 158,
-	159, 160, 161, 162, 163, 164, 165, 166, 167, 168,
-	169, 0, 0, 0, 0, 0, 0, 0, 0, 98,
+	0, 0, 0, 66, 0, 0, 0, 0, 140, 141,
+	142, 143, 144, 145, 146, 147, 148, 149, 150, 151,
+	152, 153, 154, 155, 156, 157, 158, 159, 160, 161,
+	162, 163, 164, 165, 166, 167, 168, 169, 170, 171,
+	172, 0, 0, 0, 0, 0, 0, 0, 0, 98,
 	99, 100, 0, 0, 0, 0, 0, 0, 4, 30,
 	31, 32, 33, 34, 0, 0, 0, 0, 0, 0,
-	7, 0, 8, 9, 10, 11, 12, 13, 14, 15,
-	16, 17, 18, 19, 20, 21, 22, 23, 48, 0,
-	49, 50, 51, 52, 53, 54, 55, 56, 57, 58,
-	59, 60, 61, 62, 63, 64, 6, 25, 0, 47,
-	77, 85, 87, 75, 76, 0, 78, 79, 80, 81,
-	82, 83, 68, 0, 88, 89, 90, 91, 92, 93,
-	0, 0, 41, 38, 39, 40, 67, 0, 0, 0,
+	0, 7, 0, 8, 9, 10, 11, 12, 13, 14,
+	15, 16, 17, 18, 19, 20, 21, 22, 23, 48,
+	0, 49, 50, 51, 52, 53, 54, 55, 56, 57,
+	58, 59, 60, 61, 62, 63, 64, 6, 25, 0,
+	47, 77, 85, 87, 75, 76, 0, 78, 79, 80,
+	81, 82, 83, 68, 0, 88, 89, 90, 91, 92,
+	93, 0, 0, 41, 38, 39, 40, 67, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 135, 136, 0, 0, 0, 0,
-	0, 0, 170, 171, 172, 173, 174, 175, 176, 177,
-	178, 179, 180, 181, 182, 101, 0, 0, 0, 0,
-	0, 116, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, -2, 0, 0, 35, 37, 0, 119, 120,
-	121, 122, 123, 124, 125, 126, 127, 128, 129, 130,
-	131, 132, 133, 134, 118, 183, 184, 185, 186, 0,
-	0, 102, 103, 104, 105, 115, 0, 0, 106, 108,
-	0, 0, 36, 0, 42, 187, 188, 117, 114, 0,
-	0, 0, 112, 0, 0, 0, 43, 44, 0, 0,
-	0, 0, 110, 0, 107, 109, 45, 46, 0, 0,
-	0, 113, 0, 111,
+	0, 0, 0, 0, 0, 138, 139, 0, 0, 0,
+	0, 0, 0, 173, 174, 175, 176, 177, 178, 179,
+	180, 181, 182, 183, 184, 185, 101, 0, 0, 0,
+	0, 0, 119, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, -2, 0, 0, 35, 37, 0,
+	122, 123, 124, 125, 126, 127, 128, 129, 130, 131,
+	132, 133, 134, 135, 136, 137, 121, 186, 187, 188,
+	189, 0, 0, 102, 103, 104, 105, 118, 0, 0,
+	106, 108, 0, 0, 0, 36, 0, 42, 190, 191,
+	120, 117, 0, 0, 0, 112, 114, 0, 0, 0,
+	0, 43, 44, 0, 0, 0, 0, 0, 110, 0,
+	115, 0, 107, 109, 45, 46, 0, 0, 0, 0,
+	113, 0, 0, 0, 111, 116,
 }
 var yyTok1 = [...]int{
 
@@ -544,7 +550,7 @@ var yyTok2 = [...]int{
 	62, 63, 64, 65, 66, 67, 68, 69, 70, 71,
 	72, 73, 74, 75, 76, 77, 78, 79, 80, 81,
 	82, 83, 84, 85, 86, 87, 88, 89, 90, 91,
-	92, 93, 94,
+	92, 93, 94, 95,
 }
 var yyTok3 = [...]int{
 	0,
@@ -1566,452 +1572,470 @@ yydefault:
 			yyVAL.metricsAggregation = newMetricsAggregateHistogramOverTime(yyDollar[3].attribute, yyDollar[7].attributeList)
 		}
 	case 114:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:309
+		yyDollar = yyS[yypt-4 : yypt+1]
+//line pkg/traceql/expr.y:303
 		{
-			yyVAL.hint = newHint(yyDollar[1].staticStr, yyDollar[3].static)
+			yyVAL.metricsAggregation = newMetricsCompare(yyDollar[3].spansetFilter, 10, 0, 0)
 		}
 	case 115:
-		yyDollar = yyS[yypt-4 : yypt+1]
-//line pkg/traceql/expr.y:313
+		yyDollar = yyS[yypt-6 : yypt+1]
+//line pkg/traceql/expr.y:304
 		{
-			yyVAL.hints = newHints(yyDollar[3].hintList)
+			yyVAL.metricsAggregation = newMetricsCompare(yyDollar[3].spansetFilter, yyDollar[5].staticInt, 0, 0)
 		}
 	case 116:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:317
+		yyDollar = yyS[yypt-10 : yypt+1]
+//line pkg/traceql/expr.y:305
 		{
-			yyVAL.hintList = []*Hint{yyDollar[1].hint}
+			yyVAL.metricsAggregation = newMetricsCompare(yyDollar[3].spansetFilter, yyDollar[5].staticInt, yyDollar[7].staticInt, yyDollar[9].staticInt)
 		}
 	case 117:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:318
+//line pkg/traceql/expr.y:312
 		{
-			yyVAL.hintList = append(yyDollar[1].hintList, yyDollar[3].hint)
+			yyVAL.hint = newHint(yyDollar[1].staticStr, yyDollar[3].static)
 		}
 	case 118:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:326
+		yyDollar = yyS[yypt-4 : yypt+1]
+//line pkg/traceql/expr.y:316
 		{
-			yyVAL.fieldExpression = yyDollar[2].fieldExpression
+			yyVAL.hints = newHints(yyDollar[3].hintList)
 		}
 	case 119:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:327
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:320
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpAdd, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.hintList = []*Hint{yyDollar[1].hint}
 		}
 	case 120:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:328
+//line pkg/traceql/expr.y:321
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpSub, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.hintList = append(yyDollar[1].hintList, yyDollar[3].hint)
 		}
 	case 121:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:329
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpMult, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = yyDollar[2].fieldExpression
 		}
 	case 122:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:330
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpDiv, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpAdd, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 123:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:331
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpMod, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpSub, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 124:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:332
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpMult, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 125:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:333
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpNotEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpDiv, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 126:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:334
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpLess, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpMod, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 127:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:335
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpLessEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 128:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:336
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpGreater, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpNotEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 129:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:337
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpGreaterEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpLess, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 130:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:338
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpRegex, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpLessEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 131:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:339
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpNotRegex, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpGreater, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 132:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:340
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpPower, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpGreaterEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 133:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:341
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpAnd, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpRegex, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 134:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:342
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpOr, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpNotRegex, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 135:
-		yyDollar = yyS[yypt-2 : yypt+1]
+		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:343
+		{
+			yyVAL.fieldExpression = newBinaryOperation(OpPower, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+		}
+	case 136:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:344
+		{
+			yyVAL.fieldExpression = newBinaryOperation(OpAnd, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+		}
+	case 137:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:345
+		{
+			yyVAL.fieldExpression = newBinaryOperation(OpOr, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+		}
+	case 138:
+		yyDollar = yyS[yypt-2 : yypt+1]
+//line pkg/traceql/expr.y:346
 		{
 			yyVAL.fieldExpression = newUnaryOperation(OpSub, yyDollar[2].fieldExpression)
 		}
-	case 136:
-		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:344
-		{
-			yyVAL.fieldExpression = newUnaryOperation(OpNot, yyDollar[2].fieldExpression)
-		}
-	case 137:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:345
-		{
-			yyVAL.fieldExpression = yyDollar[1].static
-		}
-	case 138:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:346
-		{
-			yyVAL.fieldExpression = yyDollar[1].intrinsicField
-		}
 	case 139:
-		yyDollar = yyS[yypt-1 : yypt+1]
+		yyDollar = yyS[yypt-2 : yypt+1]
 //line pkg/traceql/expr.y:347
 		{
-			yyVAL.fieldExpression = yyDollar[1].attributeField
+			yyVAL.fieldExpression = newUnaryOperation(OpNot, yyDollar[2].fieldExpression)
 		}
 	case 140:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:348
 		{
-			yyVAL.fieldExpression = yyDollar[1].scopedIntrinsicField
+			yyVAL.fieldExpression = yyDollar[1].static
 		}
 	case 141:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:355
+//line pkg/traceql/expr.y:349
 		{
-			yyVAL.static = NewStaticString(yyDollar[1].staticStr)
+			yyVAL.fieldExpression = yyDollar[1].intrinsicField
 		}
 	case 142:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:356
+//line pkg/traceql/expr.y:350
 		{
-			yyVAL.static = NewStaticInt(yyDollar[1].staticInt)
+			yyVAL.fieldExpression = yyDollar[1].attributeField
 		}
 	case 143:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:357
+//line pkg/traceql/expr.y:351
 		{
-			yyVAL.static = NewStaticFloat(yyDollar[1].staticFloat)
+			yyVAL.fieldExpression = yyDollar[1].scopedIntrinsicField
 		}
 	case 144:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:358
 		{
-			yyVAL.static = NewStaticBool(true)
+			yyVAL.static = NewStaticString(yyDollar[1].staticStr)
 		}
 	case 145:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:359
 		{
-			yyVAL.static = NewStaticBool(false)
+			yyVAL.static = NewStaticInt(yyDollar[1].staticInt)
 		}
 	case 146:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:360
 		{
-			yyVAL.static = NewStaticNil()
+			yyVAL.static = NewStaticFloat(yyDollar[1].staticFloat)
 		}
 	case 147:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:361
 		{
-			yyVAL.static = NewStaticDuration(yyDollar[1].staticDuration)
+			yyVAL.static = NewStaticBool(true)
 		}
 	case 148:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:362
 		{
-			yyVAL.static = NewStaticStatus(StatusOk)
+			yyVAL.static = NewStaticBool(false)
 		}
 	case 149:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:363
 		{
-			yyVAL.static = NewStaticStatus(StatusError)
+			yyVAL.static = NewStaticNil()
 		}
 	case 150:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:364
 		{
-			yyVAL.static = NewStaticStatus(StatusUnset)
+			yyVAL.static = NewStaticDuration(yyDollar[1].staticDuration)
 		}
 	case 151:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:365
 		{
-			yyVAL.static = NewStaticKind(KindUnspecified)
+			yyVAL.static = NewStaticStatus(StatusOk)
 		}
 	case 152:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:366
 		{
-			yyVAL.static = NewStaticKind(KindInternal)
+			yyVAL.static = NewStaticStatus(StatusError)
 		}
 	case 153:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:367
 		{
-			yyVAL.static = NewStaticKind(KindServer)
+			yyVAL.static = NewStaticStatus(StatusUnset)
 		}
 	case 154:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:368
 		{
-			yyVAL.static = NewStaticKind(KindClient)
+			yyVAL.static = NewStaticKind(KindUnspecified)
 		}
 	case 155:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:369
 		{
-			yyVAL.static = NewStaticKind(KindProducer)
+			yyVAL.static = NewStaticKind(KindInternal)
 		}
 	case 156:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:370
 		{
-			yyVAL.static = NewStaticKind(KindConsumer)
+			yyVAL.static = NewStaticKind(KindServer)
 		}
 	case 157:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:376
+//line pkg/traceql/expr.y:371
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicDuration)
+			yyVAL.static = NewStaticKind(KindClient)
 		}
 	case 158:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:377
+//line pkg/traceql/expr.y:372
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicChildCount)
+			yyVAL.static = NewStaticKind(KindProducer)
 		}
 	case 159:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:378
+//line pkg/traceql/expr.y:373
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicName)
+			yyVAL.static = NewStaticKind(KindConsumer)
 		}
 	case 160:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:379
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicStatus)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicDuration)
 		}
 	case 161:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:380
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicStatusMessage)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicChildCount)
 		}
 	case 162:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:381
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicKind)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicName)
 		}
 	case 163:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:382
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicParent)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicStatus)
 		}
 	case 164:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:383
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceRootSpan)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicStatusMessage)
 		}
 	case 165:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:384
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceRootService)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicKind)
 		}
 	case 166:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:385
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceDuration)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicParent)
 		}
 	case 167:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:386
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicNestedSetLeft)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceRootSpan)
 		}
 	case 168:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:387
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicNestedSetRight)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceRootService)
 		}
 	case 169:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:388
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicNestedSetParent)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceDuration)
 		}
 	case 170:
-		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:393
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:389
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicTraceDuration)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicNestedSetLeft)
 		}
 	case 171:
-		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:394
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:390
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicTraceRootSpan)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicNestedSetRight)
 		}
 	case 172:
-		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:395
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:391
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicTraceRootService)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicNestedSetParent)
 		}
 	case 173:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line pkg/traceql/expr.y:396
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicTraceID)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicTraceDuration)
 		}
 	case 174:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:398
+//line pkg/traceql/expr.y:397
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicDuration)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicTraceRootSpan)
 		}
 	case 175:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:399
+//line pkg/traceql/expr.y:398
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicName)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicTraceRootService)
 		}
 	case 176:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:400
+//line pkg/traceql/expr.y:399
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicKind)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicTraceID)
 		}
 	case 177:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line pkg/traceql/expr.y:401
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicStatus)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicDuration)
 		}
 	case 178:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line pkg/traceql/expr.y:402
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicStatusMessage)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicName)
 		}
 	case 179:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line pkg/traceql/expr.y:403
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicSpanID)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicKind)
 		}
 	case 180:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:405
+//line pkg/traceql/expr.y:404
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicEventName)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicStatus)
 		}
 	case 181:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:407
+//line pkg/traceql/expr.y:405
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicLinkTraceID)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicStatusMessage)
 		}
 	case 182:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:408
+//line pkg/traceql/expr.y:406
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicLinkSpanID)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicSpanID)
 		}
 	case 183:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:412
+		yyDollar = yyS[yypt-2 : yypt+1]
+//line pkg/traceql/expr.y:408
 		{
-			yyVAL.attributeField = NewAttribute(yyDollar[2].staticStr)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicEventName)
 		}
 	case 184:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:413
+		yyDollar = yyS[yypt-2 : yypt+1]
+//line pkg/traceql/expr.y:410
 		{
-			yyVAL.attributeField = NewScopedAttribute(AttributeScopeResource, false, yyDollar[2].staticStr)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicLinkTraceID)
 		}
 	case 185:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:414
+		yyDollar = yyS[yypt-2 : yypt+1]
+//line pkg/traceql/expr.y:411
 		{
-			yyVAL.attributeField = NewScopedAttribute(AttributeScopeSpan, false, yyDollar[2].staticStr)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicLinkSpanID)
 		}
 	case 186:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:415
 		{
-			yyVAL.attributeField = NewScopedAttribute(AttributeScopeNone, true, yyDollar[2].staticStr)
+			yyVAL.attributeField = NewAttribute(yyDollar[2].staticStr)
 		}
 	case 187:
-		yyDollar = yyS[yypt-4 : yypt+1]
+		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:416
+		{
+			yyVAL.attributeField = NewScopedAttribute(AttributeScopeResource, false, yyDollar[2].staticStr)
+		}
+	case 188:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:417
+		{
+			yyVAL.attributeField = NewScopedAttribute(AttributeScopeSpan, false, yyDollar[2].staticStr)
+		}
+	case 189:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:418
+		{
+			yyVAL.attributeField = NewScopedAttribute(AttributeScopeNone, true, yyDollar[2].staticStr)
+		}
+	case 190:
+		yyDollar = yyS[yypt-4 : yypt+1]
+//line pkg/traceql/expr.y:419
 		{
 			yyVAL.attributeField = NewScopedAttribute(AttributeScopeResource, true, yyDollar[3].staticStr)
 		}
-	case 188:
+	case 191:
 		yyDollar = yyS[yypt-4 : yypt+1]
-//line pkg/traceql/expr.y:417
+//line pkg/traceql/expr.y:420
 		{
 			yyVAL.attributeField = NewScopedAttribute(AttributeScopeSpan, true, yyDollar[3].staticStr)
 		}

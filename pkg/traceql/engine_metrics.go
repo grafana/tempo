@@ -14,6 +14,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/prometheus/prometheus/model/labels"
 )
@@ -70,12 +71,29 @@ func IntervalOfMs(tsmills int64, start, end, step uint64) int {
 	return IntervalOf(ts, start, end, step)
 }
 
+// TrimToOverlap returns the aligned overlap between the two given time ranges.
+func TrimToOverlap(start1, end1, step, start2, end2 uint64) (uint64, uint64) {
+	start1 = max(start1, start2)
+	end1 = min(end1, end2)
+	start1 = (start1 / step) * step
+	end1 = (end1/step)*step + step
+	return start1, end1
+}
+
 type Label struct {
 	Name  string
 	Value Static
 }
 
 type Labels []Label
+
+func LabelsFromProto(ls []v1.KeyValue) Labels {
+	out := make(Labels, 0, len(ls))
+	for _, l := range ls {
+		out = append(out, Label{Name: l.Key, Value: StaticFromAnyValue(l.Value)})
+	}
+	return out
+}
 
 // String returns the prometheus-formatted version of the labels. Which is downcasting
 // the typed TraceQL values to strings, with some special casing.
@@ -103,7 +121,7 @@ func (ls Labels) String() string {
 }
 
 type TimeSeries struct {
-	Labels []Label
+	Labels Labels
 	Values []float64
 }
 
@@ -613,7 +631,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 
 // optimize numerous things within the request that is specific to metrics.
 func optimize(req *FetchSpansRequest) {
-	if !req.AllConditions {
+	if !req.AllConditions || req.SecondPassSelectAll {
 		return
 	}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/model/v1"
 	v2 "github.com/grafana/tempo/pkg/model/v2"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -259,7 +261,14 @@ func (i *Ingester) PushBytesV2(ctx context.Context, req *tempopb.PushBytesReques
 }
 
 // FindTraceByID implements tempopb.Querier.f
-func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (*tempopb.TraceByIDResponse, error) {
+func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest) (res *tempopb.TraceByIDResponse, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			level.Error(log.Logger).Log("msg", "recover in FindTraceByID", "id", util.TraceIDToHexString(req.TraceID), "stack", r, string(debug.Stack()))
+			err = errors.New("recovered in FindTraceByID")
+		}
+	}()
+
 	if !validation.ValidTraceID(req.TraceID) {
 		return nil, fmt.Errorf("invalid trace id")
 	}
@@ -284,9 +293,11 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequ
 
 	span.LogFields(ot_log.Bool("trace found", trace != nil))
 
-	return &tempopb.TraceByIDResponse{
+	res = &tempopb.TraceByIDResponse{
 		Trace: trace,
-	}, nil
+	}
+
+	return res, nil
 }
 
 func (i *Ingester) CheckReady(ctx context.Context) error {
@@ -308,7 +319,7 @@ func (i *Ingester) getOrCreateInstance(instanceID string) (*instance, error) {
 	inst, ok = i.instances[instanceID]
 	if !ok {
 		var err error
-		inst, err = newInstance(instanceID, i.limiter, i.overrides, i.store, i.local, i.cfg.AutocompleteFilteringEnabled, i.cfg.DedicatedColumns)
+		inst, err = newInstance(instanceID, i.limiter, i.overrides, i.store, i.local, i.cfg.DedicatedColumns)
 		if err != nil {
 			return nil, err
 		}

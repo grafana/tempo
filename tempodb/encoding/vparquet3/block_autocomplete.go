@@ -27,7 +27,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 
 	// Last check. No conditions, use old path. It's much faster.
 	if len(req.Conditions) <= 1 || mingledConditions { // <= 1 because we always have a "OpNone" condition for the tag name
-		return b.SearchTagValuesV2(ctx, req.TagName, common.TagCallbackV2(cb), common.DefaultSearchOptions())
+		return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), common.DefaultSearchOptions())
 	}
 
 	pf, _, err := b.openForSearch(ctx, opts)

@@ -75,6 +75,7 @@ type FetchSpansRequest struct {
 	// TODO: extend this to an arbitrary number of passes
 	SecondPass           SecondPassFn
 	SecondPassConditions []Condition
+	SecondPassSelectAll  bool // Ignore second pass conditions and select all attributes
 }
 
 func (f *FetchSpansRequest) appendCondition(c ...Condition) {
@@ -103,6 +104,9 @@ type Span interface {
 	// AllAttributes returns a map of all attributes for this span. AllAttributes should be used sparingly
 	// and is expected to be significantly slower than AttributeFor.
 	AllAttributes() map[Attribute]Static
+	// AllAttributesFunc is a way to access all attributes for this span, letting the span determine the
+	// optimal method. Avoids allocating a map like AllAttributes.
+	AllAttributesFunc(func(Attribute, Static))
 
 	ID() []byte
 	StartTimeUnixNanos() uint64

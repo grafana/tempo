@@ -477,20 +477,17 @@ func (rw *readerWriter) readRange(ctx context.Context, name string, offset int64
 	}
 	defer r.Close()
 
-	totalBytes := 0
-	for {
-		byteCount, err := r.Read(buffer[totalBytes:])
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if byteCount == 0 {
-			return nil
-		}
-		totalBytes += byteCount
+	/* bytes read == len(buffer) if and only if err == nil */
+	_, err = io.ReadFull(r, buffer)
+
+	if err == nil {
+		/* read EOF so connection can be reused */
+		var dummy [1]byte
+		_, _ = r.Read(dummy[:])
+		return nil
 	}
+
+	return err
 }
 
 func createBucket(ctx context.Context, cfg *Config, hedge bool) (*storage.BucketHandle, error) {

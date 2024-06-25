@@ -93,6 +93,51 @@ func TestIntervalOf(t *testing.T) {
 	}
 }
 
+func TestTrimToOverlap(t *testing.T) {
+	tc := []struct {
+		start1, end1, start2, end2 string
+		step                       time.Duration
+		expectedStart, expectedEnd string
+	}{
+		{
+			// Inner range of 33 to 38
+			// gets rounded at 5m intervals to 30 to 40
+			"2024-01-01 01:00:00", "2024-01-01 02:00:00",
+			"2024-01-01 01:33:00", "2024-01-01 01:38:00",
+			5 * time.Minute,
+			"2024-01-01 01:30:00", "2024-01-01 01:40:00",
+		},
+		{
+			// Partially Overlapping
+			// Overlap between 1:01-2:01 and 1:31-2:31
+			// in 5m intervals is only 1:30-2:05
+			// Start is pushed back
+			// and end is pushed out
+			"2024-01-01 01:01:00", "2024-01-01 02:01:00",
+			"2024-01-01 01:31:00", "2024-01-01 02:31:00",
+			5 * time.Minute,
+			"2024-01-01 01:30:00", "2024-01-01 02:05:00",
+		},
+	}
+
+	for _, c := range tc {
+		start1, _ := time.Parse(time.DateTime, c.start1)
+		end1, _ := time.Parse(time.DateTime, c.end1)
+		start2, _ := time.Parse(time.DateTime, c.start2)
+		end2, _ := time.Parse(time.DateTime, c.end2)
+
+		actualStart, actualEnd := TrimToOverlap(
+			uint64(start1.UnixNano()),
+			uint64(end1.UnixNano()),
+			uint64(c.step.Nanoseconds()),
+			uint64(start2.UnixNano()),
+			uint64(end2.UnixNano()))
+
+		require.Equal(t, c.expectedStart, time.Unix(0, int64(actualStart)).UTC().Format(time.DateTime))
+		require.Equal(t, c.expectedEnd, time.Unix(0, int64(actualEnd)).UTC().Format(time.DateTime))
+	}
+}
+
 func TestTimeRangeOverlap(t *testing.T) {
 	tc := []struct {
 		reqStart, reqEnd, dataStart, dataEnd uint64

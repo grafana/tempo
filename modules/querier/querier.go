@@ -20,7 +20,6 @@ import (
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"go.uber.org/atomic"
 	"go.uber.org/multierr"
 	"golang.org/x/sync/semaphore"
 
@@ -31,6 +30,7 @@ import (
 	"github.com/grafana/tempo/modules/querier/worker"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -479,7 +479,28 @@ func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) 
 }
 
 func (q *Querier) SearchTagsBlocks(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsResponse, error) {
-	return q.internalTagsSearchBlock(ctx, req)
+	v2Response, err := q.internalTagsSearchBlockV2(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	distinctValues := collector.NewDistinctString(0)
+
+	// flatten v2 response
+	for _, s := range v2Response.Scopes {
+		// SearchTags does not include intrinsics on an empty scope, but v2 does.
+		if req.SearchReq.Scope == "" && s.Name == api.ParamScopeIntrinsic {
+			continue
+		}
+
+		for _, t := range s.Tags {
+			distinctValues.Collect(t)
+		}
+	}
+
+	return &tempopb.SearchTagsResponse{
+		TagNames: distinctValues.Strings(),
+	}, nil
 }
 
 func (q *Querier) SearchTagValuesBlocks(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (*tempopb.SearchTagValuesResponse, error) {
@@ -501,7 +522,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 	}
 
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := util.NewDistinctStringCollector(limit)
+	distinctValues := collector.NewDistinctString(limit)
 
 	lookupResults, err := q.forIngesterRings(ctx, userID, nil, func(ctx context.Context, client tempopb.QuerierClient) (interface{}, error) {
 		return client.SearchTags(ctx, req)
@@ -541,33 +562,28 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 	}
 
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := map[string]*util.DistinctStringCollector{}
+	distinctValues := collector.NewScopedDistinctString(limit)
 
 	for _, resp := range lookupResults {
 		for _, res := range resp.response.(*tempopb.SearchTagsV2Response).Scopes {
-			dvc := distinctValues[res.Name]
-			if dvc == nil {
-				dvc = util.NewDistinctStringCollector(limit)
-				distinctValues[res.Name] = dvc
-			}
-
 			for _, tag := range res.Tags {
-				dvc.Collect(tag)
+				distinctValues.Collect(res.Name, tag)
 			}
 		}
 	}
 
-	for scope, dvc := range distinctValues {
-		if dvc.Exceeded() {
-			level.Warn(log.Logger).Log("msg", "size of tags in instance exceeded limit, reduce cardinality or size of tags", "userID", userID, "limit", limit, "scope", scope, "total", dvc.TotalDataSize())
-		}
+	if distinctValues.Exceeded() {
+		level.Warn(log.Logger).Log("msg", "size of tags in instance exceeded limit, reduce cardinality or size of tags", "userID", userID, "limit", limit)
 	}
 
-	resp := &tempopb.SearchTagsV2Response{}
-	for scope, dvc := range distinctValues {
+	collected := distinctValues.Strings()
+	resp := &tempopb.SearchTagsV2Response{
+		Scopes: make([]*tempopb.SearchTagsV2Scope, 0, len(collected)),
+	}
+	for scope, vals := range collected {
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
 			Name: scope,
-			Tags: dvc.Strings(),
+			Tags: vals,
 		})
 	}
 
@@ -581,7 +597,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	}
 
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := util.NewDistinctStringCollector(limit)
+	distinctValues := collector.NewDistinctString(limit)
 
 	// Virtual tags values. Get these first.
 	for _, v := range search.GetVirtualTagValues(req.TagName) {
@@ -618,7 +634,7 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 	}
 
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := util.NewDistinctValueCollector(limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	distinctValues := collector.NewDistinctValue(limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 
 	// Virtual tags values. Get these first.
 	virtualVals := search.GetVirtualTagValuesV2(req.TagName)
@@ -742,7 +758,7 @@ func (q *Querier) SpanMetricsSummary(
 	return resp, nil
 }
 
-func valuesToV2Response(distinctValues *util.DistinctValueCollector[tempopb.TagValue]) *tempopb.SearchTagValuesV2Response {
+func valuesToV2Response(distinctValues *collector.DistinctValue[tempopb.TagValue]) *tempopb.SearchTagValuesV2Response {
 	resp := &tempopb.SearchTagValuesV2Response{}
 	for _, v := range distinctValues.Values() {
 		v2 := v
@@ -825,11 +841,17 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 	return q.store.Search(ctx, meta, req.SearchReq, opts)
 }
 
-func (q *Querier) internalTagsSearchBlock(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsResponse, error) {
+func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsV2Response, error) {
 	// check if it's the special intrinsic scope
+	// note that every block search passes the same values up. this could be handled in the frontend and be far more efficient
 	if req.SearchReq.Scope == api.ParamScopeIntrinsic {
-		return &tempopb.SearchTagsResponse{
-			TagNames: search.GetVirtualIntrinsicValues(),
+		return &tempopb.SearchTagsV2Response{
+			Scopes: []*tempopb.SearchTagsV2Scope{
+				{
+					Name: api.ParamScopeIntrinsic,
+					Tags: search.GetVirtualIntrinsicValues(),
+				},
+			},
 		}, nil
 	}
 
@@ -870,59 +892,20 @@ func (q *Querier) internalTagsSearchBlock(ctx context.Context, req *tempopb.Sear
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	return q.store.SearchTags(ctx, meta, req.SearchReq.Scope, opts)
-}
-
-func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsV2Response, error) {
-	scopes := []string{req.SearchReq.Scope}
-
-	if req.SearchReq.Scope == "" {
-		// start with intrinsic scope and all traceql attribute scopes
-		atts := traceql.AllAttributeScopes()
-		scopes = make([]string, 0, len(atts)+1) // +1 for intrinsic
-		scopes = append(scopes, api.ParamScopeIntrinsic)
-		for _, att := range atts {
-			scopes = append(scopes, att.String())
-		}
-	}
-
-	resps := make([]*tempopb.SearchTagsResponse, len(scopes))
-
-	overallError := atomic.NewError(nil)
-	wg := sync.WaitGroup{}
-	for idx := range scopes {
-		resps[idx] = &tempopb.SearchTagsResponse{}
-
-		wg.Add(1)
-		go func(scope string, ret **tempopb.SearchTagsResponse) {
-			defer wg.Done()
-			newReq := *req
-			newReq.SearchReq.Scope = scope
-			resp, err := q.SearchTagsBlocks(ctx, &newReq)
-			if err != nil {
-				overallError.Store(fmt.Errorf("error searching tags: %s: %w", scope, err))
-				return
-			}
-
-			*ret = resp
-		}(scopes[idx], &resps[idx])
-	}
-	wg.Wait()
-
-	err := overallError.Load()
+	resp, err := q.store.SearchTags(ctx, meta, req.SearchReq.Scope, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	// build response
-	resp := &tempopb.SearchTagsV2Response{}
-	for idx := range resps {
+	// add intrinsic tags if scope is none
+	if req.SearchReq.Scope == "" {
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
-			Name: scopes[idx],
-			Tags: resps[idx].TagNames,
+			Name: api.ParamScopeIntrinsic,
+			Tags: search.GetVirtualIntrinsicValues(),
 		})
 	}
-	return resp, err
+
+	return resp, nil
 }
 
 func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (*tempopb.SearchTagValuesResponse, error) {
@@ -1012,7 +995,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 	opts.TotalPages = int(req.PagesToSearch)
 
 	query := traceql.ExtractMatchers(req.SearchReq.Query)
-	if !q.cfg.AutocompleteFilteringEnabled || traceql.IsEmptyQuery(query) {
+	if traceql.IsEmptyQuery(query) {
 		return q.store.SearchTagValuesV2(ctx, meta, req.SearchReq, common.DefaultSearchOptions())
 	}
 
@@ -1025,7 +1008,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		return q.store.FetchTagValues(ctx, meta, req, cb, common.DefaultSearchOptions())
 	})
 
-	valueCollector := util.NewDistinctValueCollector(q.limits.MaxBytesPerTagValuesQuery(tenantID), func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	valueCollector := collector.NewDistinctValue(q.limits.MaxBytesPerTagValuesQuery(tenantID), func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 	err = q.engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
 	if err != nil {
 		return nil, err

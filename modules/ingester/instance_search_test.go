@@ -300,7 +300,6 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 
 func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 	i, _ := defaultInstance(t)
-	i.autocompleteFilteringEnabled = true
 
 	// add dummy search data
 	var (
@@ -378,7 +377,11 @@ func TestInstanceSearchTagsSpecialCases(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(
 		t,
-		[]string{"duration", "kind", "name", "status", "statusMessage", "traceDuration", "rootServiceName", "rootName"},
+		[]string{
+			"duration", "event:name", "kind", "name", "rootName", "rootServiceName",
+			"span:duration", "span:kind", "span:name", "span:status", "span:statusMessage", "status", "statusMessage",
+			"trace:duration", "trace:rootName", "trace:rootService", "traceDuration",
+		},
 		resp.TagNames,
 	)
 }
