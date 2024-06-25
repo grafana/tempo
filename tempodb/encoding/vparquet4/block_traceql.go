@@ -1598,7 +1598,7 @@ func createEventIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator,
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanEventAttrs,
 		columnPathEventAttrKey, columnPathEventAttrString, columnPathEventAttrInt, columnPathEventAttrDouble, columnPathEventAttrBool, allConditions, selectAll)
 	if err != nil {
-		return nil, fmt.Errorf("creating span attribute iterator: %w", err)
+		return nil, fmt.Errorf("creating event attribute iterator: %w", err)
 	}
 
 	if attrIter != nil {
@@ -1632,20 +1632,6 @@ func createEventIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator,
 		eventIters = nil
 	}
 
-	// This is an optimization for cases when allConditions is false, and
-	// only span conditions are present, and we require at least one of them to match.
-	// Wrap up the individual conditions with a union and move it into the required list.
-	// This skips over static columns like ID that are omnipresent. This is also only
-	// possible when there isn't a duration filter because it's computed from start/end.
-
-	// if there are no direct conditions imposed on the span/span attributes level we are purposefully going to request the "Kind" column
-	//  b/c it is extremely cheap to retrieve. retrieving matching spans in this case will allow aggregates such as "count" to be computed
-	//  how do we know to pull duration for things like | avg(duration) > 1s? look at avg(span.http.status_code) it pushes a column request down here
-	//  the entire engine is built around spans. we have to return at least one entry for every span to the layers above for things to work
-	// TODO: note that if the query is { kind = client } the fetch layer will actually create two iterators over the kind column. this is evidence
-	//  this spaniterator code could be tightened up
-	// Also note that this breaks optimizations related to requireAtLeastOneMatch and requireAtLeastOneMatchOverall b/c it will add a kind attribute
-	//  to the span attributes map in spanCollector
 	if len(required) == 0 {
 		required = []parquetquery.Iterator{makeIter(columnPathEventName, nil, "")}
 	}

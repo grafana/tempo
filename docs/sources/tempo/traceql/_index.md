@@ -128,6 +128,12 @@ Find any database connection string that goes to a Postgres or MySQL database:
 { span.db.system =~ "postgresql|mysql" }
 ```
 
+You can use quoted attributes syntax with non-quoted attribute syntax, the following is a valid TraceQL query:
+
+```
+{ span.attribute."attribute name with space" = "value" }
+```
+
 ### Unscoped attribute fields
 
 Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource. When possible, use scoped instead of unscoped attributes. Scoped attributes provide faster query results.
@@ -150,12 +156,6 @@ To find a span with the attribute name `attribute name with space`, use the foll
 
 ```
 { ."attribute name with space" = "value" }
-```
-
-You can use quoted attributes syntax with non-quoted attribute syntax, the following is a valid TraceQL query:
-
-```
-{ span.attribute."attribute name with space" = "value" }
 ```
 
 You can query for an exception in your span event
