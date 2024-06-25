@@ -535,7 +535,7 @@ metrics_generator:
             block:
                 bloom_filter_false_positive: 0.01
                 bloom_filter_shard_size_bytes: 102400
-                version: vParquet3
+                version: vParquet4
                 search_encoding: snappy
                 search_page_size_bytes: 1048576
                 v2_index_downsample_bytes: 1048576
@@ -586,7 +586,7 @@ metrics_generator:
         v2_encoding: none
         search_encoding: none
         ingestion_time_range_slack: 0s
-        version: vParquet3
+        version: vParquet4
     metrics_ingestion_time_range_slack: 30s
     query_timeout: 30s
     override_ring_key: metrics-generator
@@ -602,11 +602,11 @@ storage:
             v2_encoding: snappy
             search_encoding: none
             ingestion_time_range_slack: 2m0s
-            version: vParquet3
+            version: vParquet4
         block:
             bloom_filter_false_positive: 0.01
             bloom_filter_shard_size_bytes: 102400
-            version: vParquet3
+            version: vParquet4
             search_encoding: snappy
             search_page_size_bytes: 1048576
             v2_index_downsample_bytes: 1048576
