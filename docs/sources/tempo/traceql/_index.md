@@ -101,7 +101,7 @@ possible to span-level intrinsics.
 
 ### Attribute fields
 
-There are two types of attributes: span attributes and resource attributes. By expanding a span in the Grafana UI, you can see both its span attributes (1 in the screenshot) and resource attributes (2 in the screenshot).
+There are three types of attributes: span attributes, resource attributes, and event attributes. By expanding a span in the Grafana UI, you can see both its span attributes (1 in the screenshot) and resource attributes (2 in the screenshot).
 
 <p align="center"><img src="assets/span-resource-attributes.png" alt="Example of span and resource  attributes." /></p>
 
@@ -156,6 +156,11 @@ You can use quoted attributes syntax with non-quoted attribute syntax, the follo
 
 ```
 { span.attribute."attribute name with space" = "value" }
+```
+
+You can query for an exception in your span event
+```
+{ event.exception.message ~= "something went wrong" }
 ```
 
 {{< admonition type="note" >}}
