@@ -29,12 +29,12 @@ var iterTestCases = []struct {
 // TestNext compares the unrolled Next() with the original nextSlow() to
 // prevent drift
 func TestNext(t *testing.T) {
-	rn1 := RowNumber{0, 0, 0, 0, 0, 0, 0}
-	rn2 := RowNumber{0, 0, 0, 0, 0, 0, 0}
+	rn1 := RowNumber{0, 0, 0, 0, 0, 0, 0, 0}
+	rn2 := RowNumber{0, 0, 0, 0, 0, 0, 0, 0}
 
 	for i := 0; i < 1000; i++ {
-		r := rand.Intn(6)
-		d := rand.Intn(6)
+		r := rand.Intn(MaxDefinitionLevel + 1)
+		d := rand.Intn(MaxDefinitionLevel + 1)
 
 		rn1.Next(r, d)
 		rn2.nextSlow(r, d)
@@ -43,9 +43,24 @@ func TestNext(t *testing.T) {
 	}
 }
 
+// TestTruncate compares the unrolled TruncateRowNumber() with the original truncateRowNumberSlow() to
+// prevent drift
+func TestTruncate(t *testing.T) {
+
+	for i := 0; i < 1000; i++ {
+		rn := RowNumber{1, 2, 3, 4, 5, 6, 7, 8}
+		d := rand.Intn(MaxDefinitionLevel + 1)
+
+		new := TruncateRowNumber(d, rn)
+		old := truncateRowNumberSlow(d, rn)
+
+		require.Equal(t, new, old)
+	}
+}
+
 func TestRowNumber(t *testing.T) {
 	tr := EmptyRowNumber()
-	require.Equal(t, RowNumber{-1, -1, -1, -1, -1, -1, -1}, tr)
+	require.Equal(t, RowNumber{-1, -1, -1, -1, -1, -1, -1, -1}, tr)
 
 	steps := []struct {
 		repetitionLevel int
@@ -53,11 +68,11 @@ func TestRowNumber(t *testing.T) {
 		expected        RowNumber
 	}{
 		// Name.Language.Country examples from the Dremel whitepaper
-		{0, 3, RowNumber{0, 0, 0, 0, -1, -1, -1}},
-		{2, 2, RowNumber{0, 0, 1, -1, -1, -1, -1}},
-		{1, 1, RowNumber{0, 1, -1, -1, -1, -1, -1}},
-		{1, 3, RowNumber{0, 2, 0, 0, -1, -1, -1}},
-		{0, 1, RowNumber{1, 0, -1, -1, -1, -1, -1}},
+		{0, 3, RowNumber{0, 0, 0, 0, -1, -1, -1, -1}},
+		{2, 2, RowNumber{0, 0, 1, -1, -1, -1, -1, -1}},
+		{1, 1, RowNumber{0, 1, -1, -1, -1, -1, -1, -1}},
+		{1, 3, RowNumber{0, 2, 0, 0, -1, -1, -1, -1}},
+		{0, 1, RowNumber{1, 0, -1, -1, -1, -1, -1, -1}},
 	}
 
 	for _, step := range steps {
@@ -88,8 +103,8 @@ func TestRowNumberPreceding(t *testing.T) {
 	testCases := []struct {
 		start, preceding RowNumber
 	}{
-		{RowNumber{1000, -1, -1, -1, -1, -1, -1}, RowNumber{999, -1, -1, -1, -1, -1, -1}},
-		{RowNumber{1000, 0, 0, 0, 0, 0, 0}, RowNumber{999, math.MaxInt32, math.MaxInt32, math.MaxInt32, math.MaxInt32, math.MaxInt32, math.MaxInt32}},
+		{RowNumber{1000, -1, -1, -1, -1, -1, -1, -1}, RowNumber{999, -1, -1, -1, -1, -1, -1, -1}},
+		{RowNumber{1000, 0, 0, 0, 0, 0, 0, 0}, RowNumber{999, math.MaxInt32, math.MaxInt32, math.MaxInt32, math.MaxInt32, math.MaxInt32, math.MaxInt32, math.MaxInt32}},
 	}
 
 	for _, tc := range testCases {
@@ -117,7 +132,7 @@ func testColumnIterator(t *testing.T, makeIter makeTestIterFn) {
 		res, err := iter.Next()
 		require.NoError(t, err)
 		require.NotNil(t, res, "i=%d", i)
-		require.Equal(t, RowNumber{int32(i), -1, -1, -1, -1, -1, -1}, res.RowNumber)
+		require.Equal(t, RowNumber{int32(i), -1, -1, -1, -1, -1, -1, -1}, res.RowNumber)
 		require.Equal(t, int64(i), res.ToMap()["A"][0].Int64())
 	}
 
@@ -156,7 +171,7 @@ func testColumnIteratorSeek(t *testing.T, makeIter makeTestIterFn) {
 		res, err := iter.SeekTo(rn, 0)
 		require.NoError(t, err)
 		require.NotNil(t, res, "seekTo=%v", seekTo)
-		require.Equal(t, RowNumber{seekTo, -1, -1, -1, -1, -1, -1}, res.RowNumber)
+		require.Equal(t, RowNumber{seekTo, -1, -1, -1, -1, -1, -1, -1}, res.RowNumber)
 		require.Equal(t, seekTo, res.ToMap()["A"][0].Int32())
 	}
 }
@@ -189,7 +204,7 @@ func testColumnIteratorPredicate(t *testing.T, makeIter makeTestIterFn) {
 		res, err := iter.Next()
 		require.NoError(t, err)
 		require.NotNil(t, res)
-		require.Equal(t, RowNumber{expectedResult, -1, -1, -1, -1, -1, -1}, res.RowNumber)
+		require.Equal(t, RowNumber{expectedResult, -1, -1, -1, -1, -1, -1, -1}, res.RowNumber)
 		require.Equal(t, expectedResult, res.ToMap()["A"][0].Int32())
 	}
 }
@@ -357,13 +372,13 @@ func TestEqualRowNumber(t *testing.T) {
 }
 
 func BenchmarkEqualRowNumber(b *testing.B) {
-	r1 := RowNumber{1, 2, 3, 4, 5, 6}
-	r2 := RowNumber{1, 2, 3, 5, 7, 9}
+	r1 := RowNumber{1, 2, 3, 4, 5, 6, 7, 8}
+	r2 := RowNumber{1, 2, 3, 5, 7, 9, 11, 13}
 
 	for d := 0; d <= MaxDefinitionLevel; d++ {
 		b.Run(strconv.Itoa(d), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				EqualRowNumber(3, r1, r2)
+				EqualRowNumber(d, r1, r2)
 			}
 		})
 	}
