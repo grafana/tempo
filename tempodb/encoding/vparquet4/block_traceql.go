@@ -1369,27 +1369,38 @@ func (i *mergeSpansetIterator) Close() {
 //
 // Diagram:
 //
-//  Span attribute iterator: key    -----------------------------
-//                           ...    --------------------------  |
-//  Span attribute iterator: valueN ----------------------|  |  |
-//                                                        |  |  |
-//                                                        V  V  V
-//                                                     -------------
-//                                                     | attribute |
-//                                                     | collector |
-//                                                     -------------
-//                                                            |
-//                                                            | List of attributes
-//                                                            |
-//                                                            |
-//  Span column iterator 1    ---------------------------     |
-//                      ...   ------------------------  |     |
-//  Span column iterator N    ---------------------  |  |     |
-//    (ex: name, status)                          |  |  |     |
-//                                                V  V  V     V
-//                                            ------------------
-//                                            | span collector |
-//                                            ------------------
+//  Event attribute iterator: key    --------------------------------------------
+//                                                                            | |
+//  Event attribute iterator: valunN ---------------------------------------  | |
+//    											                            | | |
+//                                                                          V V V
+//                                                                         ------------
+//  Event column iterator 1 ---------------------------------------------  | attribute |
+//     (ex: name, time since)                                           |  | collector |
+//                                                                      |  ------------
+//                                                                      |      |
+//                                                                      V      V
+//  Span attribute iterator: key    -------------------------         ------------
+//                           ...    -----------------------  |        |  event    |
+//  Span attribute iterator: valueN -------------------|  |  |        | collector |
+//                                                     |  |  |        -------------
+//                                                     V  V  V               |
+//                                                   -------------           |
+//                                                   | attribute |           |
+//                                                   | collector |           |
+//                                                   -------------           |
+//                                                            |              |
+//                                                            | List         |
+//                                                            | of span      |
+//                                                            | attributes   |
+//  Span column iterator 1    ---------------------------     |              |
+//                      ...   ------------------------  |     |              |
+//  Span column iterator N    ---------------------  |  |     |              |
+//    (ex: name, status)                          |  |  |     |              |
+//                                                V  V  V     V              V
+//                                               -------------------------------------------------
+//                                               |                 span collector                |
+//                                               -------------------------------------------------
 //                                                            |
 //                                                            | List of Spans
 //  Resource attribute                                        |
@@ -1534,7 +1545,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		innerIterators = append(innerIterators, primaryIter)
 	}
 
-	eventIter, err := createEventIterator(makeIter, primaryIter, catConditions.event, allConditions)
+	eventIter, err := createEventIterator(makeIter, primaryIter, catConditions.event, allConditions, selectAll)
 	if err != nil {
 		return nil, fmt.Errorf("creating event iterator: %w", err)
 	}
@@ -1563,7 +1574,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	return createTraceIterator(makeIter, resourceIter, catConditions.trace, start, end, shardID, shardCount, allConditions, selectAll)
 }
 
-func createEventIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, allConditions bool) (parquetquery.Iterator, error) {
+func createEventIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, selectAll bool) (parquetquery.Iterator, error) {
 	if len(conditions) == 0 {
 		return nil, nil
 	}
@@ -1585,7 +1596,7 @@ func createEventIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator,
 	}
 
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanEventAttrs,
-		columnPathEventAttrKey, columnPathEventAttrString, columnPathEventAttrInt, columnPathEventAttrDouble, columnPathEventAttrBool, allConditions)
+		columnPathEventAttrKey, columnPathEventAttrString, columnPathEventAttrInt, columnPathEventAttrDouble, columnPathEventAttrBool, allConditions, selectAll)
 	if err != nil {
 		return nil, fmt.Errorf("creating span attribute iterator: %w", err)
 	}
