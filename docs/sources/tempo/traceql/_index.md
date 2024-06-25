@@ -100,7 +100,13 @@ They should be preferred whenever possible to span-level intrinsics.
 
 You may have a time when you want to search by a trace-level intrinsic instead.
 For example, using `span:name` looks for the names of spans within traces.
-If you want to search by a trace name, use `trace:rootName` to match against trace names.
+If you want to search by a trace name of `perf`, use `trace:rootName` to match against trace name.
+
+This example searches all Kubernetes clusters called `service-name` that have a span with a root name of including `perf`.
+
+```
+{ .k8s.cluster.name="service-name" && rootName !~ ".*perf.*"}
+```
 
 ### Attribute fields
 
