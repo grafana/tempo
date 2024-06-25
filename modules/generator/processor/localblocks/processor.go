@@ -517,10 +517,10 @@ func (p *Processor) deleteOldBlocks() (err error) {
 	p.blocksMtx.Lock()
 	defer p.blocksMtx.Unlock()
 
-	before := time.Now().Add(-p.Cfg.CompleteBlockTimeout)
+	cuttoff := time.Now().Add(-p.Cfg.CompleteBlockTimeout)
 
 	for id, b := range p.walBlocks {
-		if b.BlockMeta().EndTime.Before(before) {
+		if b.BlockMeta().EndTime.Before(cuttoff) {
 			if _, ok := p.completeBlocks[id]; !ok {
 				level.Warn(p.logger).Log("msg", "deleting WAL block that was never completed", "block", id.String())
 			}
@@ -534,7 +534,7 @@ func (p *Processor) deleteOldBlocks() (err error) {
 
 	for id, b := range p.completeBlocks {
 		if !p.Cfg.FlushToStorage {
-			if b.BlockMeta().EndTime.Before(before) {
+			if b.BlockMeta().EndTime.Before(cuttoff) {
 				level.Info(p.logger).Log("msg", "deleting complete block", "block", id.String())
 				err = p.wal.LocalBackend().ClearBlock(id, p.tenant)
 				if err != nil {
@@ -550,7 +550,7 @@ func (p *Processor) deleteOldBlocks() (err error) {
 			continue
 		}
 
-		if flushedTime.Add(p.Cfg.CompleteBlockTimeout).Before(time.Now()) {
+		if b.BlockMeta().EndTime.Before(cuttoff) {
 			level.Info(p.logger).Log("msg", "deleting flushed complete block", "block", id.String())
 			err = p.wal.LocalBackend().ClearBlock(id, p.tenant)
 			if err != nil {
