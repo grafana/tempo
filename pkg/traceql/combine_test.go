@@ -2,6 +2,8 @@ package traceql
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -266,6 +268,7 @@ func TestCombineResults(t *testing.T) {
 	}
 }
 
+// nolint:govet
 func TestQueryRangeCombinerDiffs(t *testing.T) {
 	start := uint64(100 * time.Millisecond)
 	end := uint64(150 * time.Millisecond)
@@ -333,6 +336,27 @@ func TestQueryRangeCombinerDiffs(t *testing.T) {
 				},
 			},
 		},
+		// push different series by label value
+		{
+			resp: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					timeSeries("foo", "2", []tempopb.Sample{{100, 1}, {110, 2}, {120, 3}}),
+				},
+			},
+			expectedResponse: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					timeSeries("foo", "1", []tempopb.Sample{{100, 1}, {110, 2}, {120, 4}, {130, 2}, {140, 0}, {150, 3}}),
+					timeSeries("bar", "1", []tempopb.Sample{{100, 1}, {110, 2}, {120, 3}, {130, 0}, {140, 0}, {150, 0}}),
+					timeSeries("foo", "2", []tempopb.Sample{{100, 1}, {110, 2}, {120, 3}, {130, 0}, {140, 0}, {150, 0}}),
+				},
+			},
+			// includes last 2 pushes
+			expectedDiff: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					timeSeries("foo", "2", []tempopb.Sample{{100, 1}, {110, 2}, {120, 3}}),
+				},
+			},
+		},
 	}
 
 	req := &tempopb.QueryRangeRequest{
@@ -348,16 +372,15 @@ func TestQueryRangeCombinerDiffs(t *testing.T) {
 		t.Run(fmt.Sprintf("step %d", i), func(t *testing.T) {
 			combiner.Combine(tc.resp)
 
-			// jpe - test is non-deterministic due to map ordering
 			resp := combiner.Response()
 			resp.Metrics = nil // we want to ignore metrics for this test, just nil them out
-			require.Equal(t, tc.expectedResponse, resp)
+			metricsEqual(t, tc.expectedResponse, resp)
 
 			if tc.expectedDiff != nil {
 				// call diff and get expected
 				diff := combiner.Diff()
 				diff.Metrics = nil
-				require.Equal(t, tc.expectedDiff, diff)
+				metricsEqual(t, tc.expectedDiff, diff)
 
 				// call diff again and get nothing!
 				diff = combiner.Diff()
@@ -368,6 +391,19 @@ func TestQueryRangeCombinerDiffs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func metricsEqual(t *testing.T, a, b *tempopb.QueryRangeResponse) {
+	t.Helper()
+
+	slices.SortFunc(a.Series, func(a, b *tempopb.TimeSeries) int {
+		return strings.Compare(a.PromLabels, b.PromLabels)
+	})
+	slices.SortFunc(b.Series, func(a, b *tempopb.TimeSeries) int {
+		return strings.Compare(a.PromLabels, b.PromLabels)
+	})
+
+	require.Equal(t, a, b)
 }
 
 func timeSeries(name, val string, samples []tempopb.Sample) *tempopb.TimeSeries {
