@@ -73,7 +73,8 @@ In TraceQL, curly brackets `{}` always select a set of spans from the current tr
 
 ### Intrinsic fields
 
-Intrinsic fields are fundamental to spans. These fields can be referenced when selecting spans. Note that custom attributes are prefixed with `.`, `span.` or `resource.` whereas intrinsics are typed directly.
+Intrinsic fields are fundamental to spans. These fields can be referenced when selecting spans.
+Custom attributes are prefixed with `.`, `span.` or `resource.`, whereas intrinsics are typed directly.
 
 The following table shows the current available scoped intrinsic fields:
 
@@ -93,11 +94,13 @@ The following table shows the current available scoped intrinsic fields:
 | `link:spanID`           | string      | link span id using hex string                                   | `{ link:spanID = "0000000000000001" }` |
 | `link:traceID`          | string      | link trace id using hex string                                  | `{ link:traceID = "1234567890abcde" }` |
 
-{{< admonition type="note" >}}
-`trace:duration`, `trace:rootName`, and `trace:rootService` are trace-level intrinsics and will be the same for all spans in the same trace. Additionally,
-these intrinsics are significantly more performant because they have to inspect much less data then a span-level intrinsic. They should be preferred whenever
-possible to span-level intrinsics.
-{{% /admonition %}}
+`trace:duration`, `trace:rootName`, and `trace:rootService` are trace-level intrinsics and are the same for all spans in the same trace.
+Additionally, these intrinsics are significantly more performant because they have to inspect much less data then a span-level intrinsic.
+They should be preferred whenever possible to span-level intrinsics.
+
+You may have a time when you want to search by a trace-level intrinsic instead.
+For example, using `span:name` looks for the names of spans within traces.
+If you want to search by a trace name, use `trace:rootName` to match against trace names.
 
 ### Attribute fields
 
@@ -130,7 +133,8 @@ Find any database connection string that goes to a Postgres or MySQL database:
 
 ### Unscoped attribute fields
 
-Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource. When possible, use scoped instead of unscoped attributes. Scoped attributes provide faster query results.
+Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource.
+When possible, use scoped instead of unscoped attributes. Scoped attributes provide faster query results.
 
 For example, to find traces with an attribute of `sla` set to `critical`:
 ```
@@ -269,7 +273,7 @@ For example, to find a trace where a specific HTTP API interacted with a specifi
 ### Union structural
 
 These spanset operators look at the structure of a trace and the relationship between the spans. These operators are unique in that they
-return spans that match on both side of the operator. 
+return spans that match on both side of the operator.
 
 - `{condA} &>> {condB}` - The descendant operator (`>>`) looks for spans matching `{condB}` that are descendants of a span matching `{condA}`.
 - `{condA} &<< {condB}` - The ancestor operator (`<<`) looks for spans matching `{condB}` that are ancestor of a span matching `{condA}`.
