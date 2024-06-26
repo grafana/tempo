@@ -11,12 +11,12 @@ You can craft custom service graphs based on the metrics generated from metrics-
 
 ## Before you begin  
 
-For custom service graphs we will use:
-- Tempo metrics generator
+For custom service graphs, you'll use:
+- Tempo metrics-generator
 - Grafana deployment of version v10 or higher 
 - Grafana [Node graph panel](https://grafana.com/docs/grafana/latest/panels-visualizations/visualizations/node-graph/)
 
-Tempo metrics generator creates multiple metrics and one of which is `traces_service_graph_request_total` that holds:
+The metrics-generator creates multiple metrics, including `traces_service_graph_request_total`. This metric holds:
 - relationships between services
 - total number of requests performed between services
 
