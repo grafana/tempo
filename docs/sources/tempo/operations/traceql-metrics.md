@@ -30,13 +30,15 @@ To use the metrics generated from traces, you need to:
 
 ## Activate and configure the `local-blocks` processor
 
-To activate the `local-blocks` processor, add it to the list of processors in the `overrides` block of your Tempo configuration.
+To activate the `local-blocks` processor for all users, add it to the list of processors in the `overrides` block of your Tempo configuration.
 
 ```yaml
 # Global overrides configuration.
 overrides:
   metrics_generator_processors: ['local-blocks']
 ```
+
+To configure the processor per tenant, use the `metrics_generator.processor` override. 
 
 For more information about overrides, refer to [Standard overrides]({{< relref "../configuration#standard-overrides" >}}).
 
