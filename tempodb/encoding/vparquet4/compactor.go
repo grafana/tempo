@@ -124,6 +124,9 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		if !connected {
 			c.opts.DisconnectedTrace()
 		}
+		if tr != nil && tr.RootSpanName == "" {
+			c.opts.RootlessTrace()
+		}
 
 		c.opts.ObjectsCombined(int(compactionLevel), 1)
 		return sch.Deconstruct(pool.Get(), tr), nil
