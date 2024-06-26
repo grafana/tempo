@@ -45,7 +45,7 @@ func TestNext(t *testing.T) {
 
 // TestTruncate compares the unrolled TruncateRowNumber() with the original truncateRowNumberSlow() to
 // prevent drift
-func TestTruncate(t *testing.T) {
+func TestTruncateRowNumber(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		rn := RowNumber{1, 2, 3, 4, 5, 6, 7, 8}
 		d := rand.Intn(MaxDefinitionLevel + 1)
@@ -55,6 +55,22 @@ func TestTruncate(t *testing.T) {
 
 		require.Equal(t, newR, oldR)
 	}
+
+	// Test with d > MaxDefinitionLevel
+	rn := RowNumber{1, 2, 3, 4, 5, 6, 7, 8}
+	d := MaxDefinitionLevel + 1
+	newR := TruncateRowNumber(d, rn)
+	oldR := truncateRowNumberSlow(d, rn)
+
+	require.Equal(t, newR, oldR)
+
+	// Test with d < 0
+	rn = RowNumber{1, 2, 3, 4, 5, 6, 7, 8}
+	d = -1
+	newR = TruncateRowNumber(d, rn)
+	oldR = truncateRowNumberSlow(d, rn)
+
+	require.Equal(t, newR, oldR)
 }
 
 func TestRowNumber(t *testing.T) {

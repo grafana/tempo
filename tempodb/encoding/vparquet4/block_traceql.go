@@ -1370,8 +1370,8 @@ func (i *mergeSpansetIterator) Close() {
 // Diagram:
 //
 //  Event attribute iterator: key    --------------------------------------------
-//                                                                            | |
-//  Event attribute iterator: valunN ---------------------------------------  | |
+//                            ...    -----------------------------------------  |
+//  Event attribute iterator: valueN ---------------------------------------  | |
 //    											                            | | |
 //                                                                          V V V
 //                                                                         ------------
@@ -1386,9 +1386,9 @@ func (i *mergeSpansetIterator) Close() {
 //                                                     |  |  |        -------------
 //                                                     V  V  V               |
 //                                                   -------------           |
-//                                                   | attribute |           |
-//                                                   | collector |           |
-//                                                   -------------           |
+//                                                   | attribute |           | list
+//                                                   | collector |           | of
+//                                                   -------------           | events
 //                                                            |              |
 //                                                            | List         |
 //                                                            | of span      |
@@ -2912,8 +2912,7 @@ func (c *eventCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
-	res.Entries = res.Entries[:0]
-	res.OtherEntries = res.OtherEntries[:0]
+	res.Reset()
 	res.AppendOtherValue(otherEntryEventKey, ev)
 
 	return true

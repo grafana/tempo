@@ -71,7 +71,7 @@ TraceQL differentiates between two types of span data: intrinsics, which are fun
 
 In TraceQL, curly brackets `{}` always select a set of spans from the current trace. They are commonly paired with a condition to reduce the spans being passed in.
 
-### Intrinsic fields
+### Scoped Intrinsic fields
 
 Intrinsic fields are fundamental to spans. These fields can be referenced when selecting spans. Note that custom attributes are prefixed with `.`, `span.` or `resource.` whereas intrinsics are typed directly.
 
@@ -101,7 +101,7 @@ possible to span-level intrinsics.
 
 ### Attribute fields
 
-There are three types of attributes: span attributes, resource attributes, and event attributes. By expanding a span in the Grafana UI, you can see both its span attributes (1 in the screenshot) and resource attributes (2 in the screenshot).
+TraceQL has three different attribute scopes: span attributes, resource attributes, and event attributes. By expanding a span in the Grafana UI, you can see both its span attributes (1 in the screenshot) and resource attributes (2 in the screenshot).
 
 <p align="center"><img src="assets/span-resource-attributes.png" alt="Example of span and resource  attributes." /></p>
 
@@ -130,7 +130,7 @@ Find any database connection string that goes to a Postgres or MySQL database:
 
 You can query for an exception in your span event
 ```
-{ event.exception.message ~= "something went wrong" }
+{ event.exception.message =~ "something went wrong" }
 ```
 
 ### Unscoped attribute fields

@@ -405,10 +405,10 @@ scopedIntrinsicField:
   | SPAN_COLON STATUS_MESSAGE    { $$ = NewIntrinsic(IntrinsicStatusMessage)       }
   | SPAN_COLON ID                { $$ = NewIntrinsic(IntrinsicSpanID)              }
 // event:
-  | EVENT_COLON NAME 	           { $$ = NewIntrinsic(IntrinsicEventName)           }
+  | EVENT_COLON NAME             { $$ = NewIntrinsic(IntrinsicEventName)           }
 // link:
-  | LINK_COLON TRACE_ID 	       { $$ = NewIntrinsic(IntrinsicLinkTraceID)         }
-  | LINK_COLON SPAN_ID 	         { $$ = NewIntrinsic(IntrinsicLinkSpanID)          }
+  | LINK_COLON TRACE_ID          { $$ = NewIntrinsic(IntrinsicLinkTraceID)         }
+  | LINK_COLON SPAN_ID           { $$ = NewIntrinsic(IntrinsicLinkSpanID)          }
   ;
 
 attributeField:

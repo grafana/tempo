@@ -10,8 +10,11 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/go-kit/log/level"
+
 	"github.com/grafana/tempo/pkg/parquetquery/intern"
 	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/opentracing/opentracing-go"
 	pq "github.com/parquet-go/parquet-go"
 )
@@ -112,7 +115,8 @@ func TruncateRowNumber(definitionLevelToKeep int, t RowNumber) RowNumber {
 	case 7:
 		return RowNumber{t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7]}
 	}
-	return TruncateRowNumber(definitionLevelToKeep, t)
+	level.Error(log.Logger).Log("msg", "definition level out of bound: should be [0:7] but got %d", definitionLevelToKeep)
+	return EmptyRowNumber()
 }
 
 func (t *RowNumber) Valid() bool {
