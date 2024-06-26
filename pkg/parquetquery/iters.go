@@ -90,6 +90,10 @@ func EqualRowNumber(upToDefinitionLevel int, a, b RowNumber) bool {
 
 func truncateRowNumberSlow(definitionLevelToKeep int, t RowNumber) RowNumber {
 	n := EmptyRowNumber()
+	if definitionLevelToKeep > MaxDefinitionLevel {
+		level.Error(log.Logger).Log("msg", "definition level out of bound: should be [0:7] but got %d", definitionLevelToKeep)
+		return n
+	}
 	for i := 0; i <= definitionLevelToKeep; i++ {
 		n[i] = t[i]
 	}

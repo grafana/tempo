@@ -71,7 +71,7 @@ TraceQL differentiates between two types of span data: intrinsics, which are fun
 
 In TraceQL, curly brackets `{}` always select a set of spans from the current trace. They are commonly paired with a condition to reduce the spans being passed in.
 
-### Scoped Intrinsic fields
+### Intrinsic fields
 
 Intrinsic fields are fundamental to spans. These fields can be referenced when selecting spans. Note that custom attributes are prefixed with `.`, `span.` or `resource.` whereas intrinsics are typed directly.
 
