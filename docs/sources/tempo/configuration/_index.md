@@ -429,7 +429,7 @@ query_frontend:
     [max_retries: <int>]
 
     # The number of goroutines dedicated to consuming, unmarshalling and recombining responses per request. This
-    # same parameter is used for all endpoints. 
+    # same parameter is used for all endpoints.
     # (default: 10)
     [response_consumers: <int>]
 
@@ -712,10 +712,10 @@ For more information on configuration options, refer to [this file](https://gith
 ### Local storage recommendations
 
 While you can use local storage, object storage is recommended for production workloads.
-A local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk.
+A local backend won't correctly retrieve traces with a distributed deployment unless all components have access to the same disk.
 Tempo is designed for object storage more than local storage.
 
-At Grafana Labs, we have run Tempo with SSDs when using local storage.
+At Grafana Labs, we've run Tempo with SSDs when using local storage.
 Hard drives haven't been tested.
 
 You can estimate how much storage space you need by considering the ingested bytes and retention.
@@ -880,7 +880,7 @@ storage:
             [forcepathstyle: <bool>]
 
             # Optional.
-            # Enable to use dualstack endpoint for DNS resolution. 
+            # Enable to use dualstack endpoint for DNS resolution.
             # Check out the (S3 documentation on dualstack endpoints)[https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html]
             [enable_dual_stack: <bool>]
 
@@ -1254,7 +1254,7 @@ See below for how to override these limits globally or per tenant.
 
 #### Standard overrides
 
-You can create an `overrides` section to configure new ingestion limits that applies to all tenants of the cluster.
+You can create an `overrides` section to configure ingestion limits that apply to all tenants of the cluster.
 A snippet of a `config.yaml` file showing how the overrides section is [here](https://github.com/grafana/tempo/blob/a000a0d461221f439f585e7ed55575e7f51a0acd/integration/bench/config.yaml#L39-L40).
 
 ```yaml
@@ -1548,7 +1548,7 @@ overrides:
 
 These tenant-specific overrides are stored in an object store and can be modified using API requests.
 User-configurable overrides have priority over runtime overrides.
-See [user-configurable overrides]{{< relref "../operations/user-configurable-overrides" >}} for more details.
+Refer to [user-configurable overrides]{{< relref "../operations/user-configurable-overrides" >}} for more details.
 
 #### Override strategies
 
