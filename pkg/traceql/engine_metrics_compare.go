@@ -92,7 +92,7 @@ func (m *MetricsCompare) observe(span Span) {
 	i := IntervalOf(st, m.qstart, m.qend, m.qstep)
 
 	// Determine if this span is inside the selection
-	isSelection := StaticFalse
+	var isSelection Static = StaticFalse
 	if m.start > 0 && m.end > 0 {
 		// Timestamp filtering
 		if st >= uint64(m.start) && st < uint64(m.end) {
@@ -115,7 +115,7 @@ func (m *MetricsCompare) observe(span Span) {
 	span.AllAttributesFunc(func(a Attribute, v Static) {
 		// We don't group by attributes of these types because the
 		// cardinality isn't useful.
-		switch v.Type {
+		switch v.Type() {
 		case TypeDuration:
 			return
 		}
