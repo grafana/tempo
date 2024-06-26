@@ -9,10 +9,7 @@ weight: 300
 
 You can craft custom service graphs based on the metrics generated from metrics-generator.  
 
-## Building custom graphs
-
-
-### Prerequisites  
+## Before you begin  
 
 For custom service graphs we will use:
 - Tempo metrics generator
