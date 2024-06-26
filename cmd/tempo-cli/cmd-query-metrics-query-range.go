@@ -34,13 +34,13 @@ func (cmd *metricsQueryRangeCmd) Run(_ *globalOptions) error {
 	if err != nil {
 		return err
 	}
-	start := startDate.Unix()
+	start := startDate.UnixNano()
 
 	endDate, err := time.Parse(time.RFC3339, cmd.End)
 	if err != nil {
 		return err
 	}
-	end := endDate.Unix()
+	end := endDate.UnixNano()
 
 	req := &tempopb.QueryRangeRequest{
 		Query: cmd.TraceQL,

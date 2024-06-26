@@ -37,7 +37,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		start := time.Now()
 
 		var finalResponse *tempopb.QueryRangeResponse
-		c, err := combiner.NewTypedQueryRange(req)
+		c, err := combiner.NewTypedQueryRange(req, true)
 		if err != nil {
 			return err
 		}
@@ -83,7 +83,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		logQueryRangeRequest(logger, tenant, queryRangeReq)
 
 		// build and use roundtripper
-		combiner, err := combiner.NewTypedQueryRange(queryRangeReq)
+		combiner, err := combiner.NewTypedQueryRange(queryRangeReq, false)
 		if err != nil {
 			level.Error(logger).Log("msg", "query range: query range combiner failed", "err", err)
 			return &http.Response{
@@ -154,7 +154,7 @@ func logQueryRangeRequest(logger log.Logger, tenantID string, req *tempopb.Query
 		"msg", "query range request",
 		"tenant", tenantID,
 		"query", req.Query,
-		"range_seconds", req.End-req.Start,
+		"range_nanos", req.End-req.Start,
 		"mode", req.QueryMode,
 		"step", req.Step)
 }
