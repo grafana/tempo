@@ -13,7 +13,7 @@
 #
 # build the lambda and retrive the lambda-local-proxy
 #
-FROM golang:1.21.3 AS build
+FROM golang:1.21.4 AS build
 
 # copy in the lambda. todo: build in container
 COPY lambda /

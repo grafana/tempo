@@ -12,6 +12,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
+	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
@@ -111,7 +112,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[combin
 		return pipeline.NewBadRequest(errors.New("invalid interval specified: 0")), nil
 	}
 
-	generatorReq := s.generatorRequest(*req, r, tenantID, now, samplingRate)
+	generatorReq := s.generatorRequest(*req, r, tenantID, now)
 	reqCh := make(chan *http.Request, 2) // buffer of 2 allows us to insert generatorReq and metrics
 
 	if generatorReq != nil {
@@ -352,6 +353,8 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, metas []*backend.BlockMeta, targetBytesPerRequest int, reqCh chan<- *http.Request) {
 	defer close(reqCh)
 
+	queryHash := hashForQueryRangeRequest(&searchReq)
+
 	for _, m := range metas {
 		pages := pagesPerRequest(m, targetBytesPerRequest)
 		if pages == 0 {
@@ -367,10 +370,12 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				continue
 			}
 
+			start, end := traceql.TrimToOverlap(searchReq.Start, searchReq.End, searchReq.Step, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
+
 			queryRangeReq := &tempopb.QueryRangeRequest{
 				Query: searchReq.Query,
-				Start: max(searchReq.Start, uint64(m.StartTime.UnixNano())),
-				End:   min(searchReq.End, uint64(m.EndTime.UnixNano())),
+				Start: start,
+				End:   end,
 				Step:  searchReq.Step,
 				// ShardID:    uint32, // No sharding with RF=1
 				// ShardCount: uint32, // No sharding with RF=1
@@ -385,14 +390,16 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				FooterSize:       m.FooterSize,
 				DedicatedColumns: dc,
 			}
-			alignTimeRange(queryRangeReq)
-			queryRangeReq.End += queryRangeReq.Step
 
 			subR = api.BuildQueryRangeRequest(subR, queryRangeReq)
 			subR.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
 
 			prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query())
 			// TODO: Handle sampling rate
+			key := queryRangeCacheKey(tenantID, queryHash, int64(queryRangeReq.Start), int64(queryRangeReq.End), m, int(queryRangeReq.StartPage), int(queryRangeReq.PagesToSearch))
+			if len(key) > 0 {
+				subR = pipeline.ContextAddCacheKey(key, subR)
+			}
 
 			select {
 			case reqCh <- subR:
@@ -418,7 +425,7 @@ func (s *queryRangeSharder) backendRange(now time.Time, start, end uint64, query
 	return start, end
 }
 
-func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest, parent *http.Request, tenantID string, now time.Time, samplingRate float64) *http.Request {
+func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest, parent *http.Request, tenantID string, now time.Time) *http.Request {
 	cutoff := uint64(now.Add(-s.cfg.QueryBackendAfter).UnixNano())
 
 	// if there's no overlap between the query and ingester range just return nil
@@ -458,6 +465,11 @@ func (s *queryRangeSharder) toUpstreamRequest(ctx context.Context, req tempopb.Q
 // Without alignment each refresh is shifted by seconds or even milliseconds and the time series
 // calculations are sublty different each time. It's not wrong, but less preferred behavior.
 func alignTimeRange(req *tempopb.QueryRangeRequest) {
+	if req.End-req.Start == req.Step {
+		// Instant query
+		return
+	}
+
 	// It doesn't really matter but the request fields are expected to be in nanoseconds.
 	req.Start = req.Start / req.Step * req.Step
 	req.End = req.End / req.Step * req.Step
@@ -517,4 +529,24 @@ func (s *queryRangeSharder) jobInterval(expr *traceql.RootExpr, allowUnsafe bool
 
 	// Else use configured value
 	return s.cfg.Interval
+}
+
+func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
+	if req.Query == "" {
+		return 0
+	}
+
+	ast, err := traceql.Parse(req.Query)
+	if err != nil { // this should never occur. if we've made this far we've already validated the query can parse. however, for sanity, just fail to cache if we can't parse
+		return 0
+	}
+
+	// forces the query into a canonical form
+	query := ast.String()
+
+	// add the query, limit and spss to the hash
+	hash := fnv1a.HashString64(query)
+	hash = fnv1a.AddUint64(hash, req.Step)
+
+	return hash
 }

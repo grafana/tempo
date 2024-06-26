@@ -282,7 +282,7 @@ vendor-check: gen-proto update-mod gen-traceql gen-parquet-query
 
 ### Tidy dependencies for tempo and tempo-serverless modules
 .PHONY: update-mod
-update-mod:
+update-mod: tools-update-mod
 	go mod vendor
 	go mod tidy -e
 	$(MAKE) -C cmd/tempo-serverless update-mod

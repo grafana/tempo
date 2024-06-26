@@ -11,10 +11,15 @@ const (
 	cacheKeyPrefixSearchJob       = "sj:"
 	cacheKeyPrefixSearchTag       = "st:"
 	cacheKeyPrefixSearchTagValues = "stv:"
+	cacheKeyPrefixQueryRange      = "qr:"
 )
 
 func searchJobCacheKey(tenant string, queryHash uint64, start int64, end int64, meta *backend.BlockMeta, startPage, pagesToSearch int) string {
 	return cacheKey(cacheKeyPrefixSearchJob, tenant, queryHash, start, end, meta, startPage, pagesToSearch)
+}
+
+func queryRangeCacheKey(tenant string, queryHash uint64, start int64, end int64, meta *backend.BlockMeta, startPage, pagesToSearch int) string {
+	return cacheKey(cacheKeyPrefixQueryRange, tenant, queryHash, start, end, meta, startPage, pagesToSearch)
 }
 
 // cacheKey returns a string that can be used as a cache key for a backend search job. if a valid key cannot be calculated

@@ -60,9 +60,8 @@ var (
 		nil,
 	)
 
-	statFeatureEnabledAuth                  = usagestats.NewInt("feature_enabled_auth_stats")
-	statFeatureEnabledMultitenancy          = usagestats.NewInt("feature_enabled_multitenancy")
-	statFeatureAutocompleteFilteringEnabled = usagestats.NewInt("feature_enabled_autocomplete_filtering")
+	statFeatureEnabledAuth         = usagestats.NewInt("feature_enabled_auth_stats")
+	statFeatureEnabledMultitenancy = usagestats.NewInt("feature_enabled_multitenancy")
 )
 
 // App is the root datastructure.
@@ -111,11 +110,6 @@ func New(cfg Config) (*App, error) {
 	statFeatureEnabledMultitenancy.Set(0)
 	if cfg.MultitenancyEnabled {
 		statFeatureEnabledMultitenancy.Set(1)
-	}
-
-	statFeatureAutocompleteFilteringEnabled.Set(0)
-	if cfg.AutocompleteFilteringEnabled {
-		statFeatureAutocompleteFilteringEnabled.Set(1)
 	}
 
 	app.setupAuthMiddleware()
