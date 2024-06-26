@@ -7,7 +7,7 @@ weight: 300
 
 # Custom service graphs
 
-Depending on your need, you might want to craft custom service graphs based on the metrics generated from metrics generator, so this page is exactly about that.  
+You can craft custom service graphs based on the metrics generated from metrics-generator.  
 
 ## Building custom graphs
 
