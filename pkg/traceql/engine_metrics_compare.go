@@ -33,11 +33,16 @@ type MetricsCompare struct {
 	len                 int
 	start, end          int
 	topN                int
-	baselines           map[Attribute]map[Static][]float64
-	selections          map[Attribute]map[Static][]float64
+	baselines           map[Attribute]map[StaticMapKey]staticCounts
+	selections          map[Attribute]map[StaticMapKey]staticCounts
 	baselineTotals      map[Attribute][]float64
 	selectionTotals     map[Attribute][]float64
 	seriesAgg           SeriesAggregator
+}
+
+type staticCounts struct {
+	val    Static
+	counts []float64
 }
 
 func newMetricsCompare(f *SpansetFilter, topN, start, end int) *MetricsCompare {
@@ -65,8 +70,8 @@ func (m *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) 
 		m.qend = q.End
 		m.qstep = q.Step
 		m.len = IntervalCount(q.Start, q.End, q.Step)
-		m.baselines = make(map[Attribute]map[Static][]float64)
-		m.selections = make(map[Attribute]map[Static][]float64)
+		m.baselines = make(map[Attribute]map[StaticMapKey]staticCounts)
+		m.selections = make(map[Attribute]map[StaticMapKey]staticCounts)
 		m.baselineTotals = make(map[Attribute][]float64)
 		m.selectionTotals = make(map[Attribute][]float64)
 
@@ -130,16 +135,17 @@ func (m *MetricsCompare) observe(span Span) {
 
 		values, ok := dest[a]
 		if !ok {
-			values = make(map[Static][]float64, m.len)
+			values = make(map[StaticMapKey]staticCounts, m.len)
 			dest[a] = values
 		}
 
-		counts, ok := values[v]
+		vk := v.MapKey()
+		sc, ok := values[vk]
 		if !ok {
-			counts = make([]float64, m.len)
-			values[v] = counts
+			sc = staticCounts{val: v, counts: make([]float64, m.len)}
+			values[vk] = sc
 		}
-		counts[i]++
+		sc.counts[i]++
 
 		// TODO - It's probably faster to aggregate these at the end
 		// instead of incrementing in the hotpath twice
@@ -175,19 +181,19 @@ func (m *MetricsCompare) result() SeriesSet {
 		}
 	}
 
-	addValues := func(prefix Label, data map[Attribute]map[Static][]float64) {
+	addValues := func(prefix Label, data map[Attribute]map[StaticMapKey]staticCounts) {
 		for a, values := range data {
 			// Compute topN values for this attribute
 			top.reset()
-			for v, counts := range values {
-				top.add(v, counts)
+			for _, sc := range values {
+				top.add(sc.val, sc.counts)
 			}
 
 			top.get(m.topN, func(v Static) {
 				add(Labels{
 					prefix,
 					{Name: a.String(), Value: v},
-				}, values[v])
+				}, values[v.MapKey()].counts)
 			})
 
 			if len(values) > m.topN {
