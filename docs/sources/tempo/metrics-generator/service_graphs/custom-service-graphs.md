@@ -20,18 +20,19 @@ The metrics-generator creates multiple metrics, including `traces_service_graph_
 - relationships between services
 - total number of requests performed between services
 
-### Creating Grafana dashboards
-Crate a new dashboard and add two variables:
-- data source of type `Prometheus`
-![Custom service graph Grafana data source variable](../custom-service-graph-var-datasource.png)
-- service of type `Label values`, enable multi-value option
-![Custom service graph service variable](../custom-service-graph-var-service.png)
+### Create one or more Grafana dashboards
+1. In Grafana, [create a new dashboard](https://grafana.com/docs/grafana/latest/dashboards/build-dashboards/create-dashboard/).
+2.  Add two variables:
+  - data source of type `Prometheus`
+  ![Custom service graph Grafana data source variable](../custom-service-graph-var-datasource.png)
+  - service of type `Label values`, enable multi-value option
+  ![Custom service graph service variable](../custom-service-graph-var-service.png)
 
 
 ### Add a panel
 
-1. Create a panel with a single query called `edges`
-2. Select your Prometheus data source with metrics from tempo metrics generator
+1. Create a panel with a single query called `edges`.
+2. Select your Prometheus data source with metrics from the metrics-generator.
 3. Query using the following example:
 ```
 label_join(
@@ -44,17 +45,22 @@ label_join(
   "target", "", "server"), 
 "id", "-", "server", "client")
 ```
-4. Use instant query type
-5. If you need to debug, switch to Table data visualization and read [Node graph panel](/docs/grafana/latest/panels-visualizations/visualizations/node-graph/) docs for more options and expected data shape.
+4. Use Instant query type.
+5. If you encounter issues, switch to the Table data visualization. Refer to the [Node graph panel](/docs/grafana/latest/panels-visualizations/visualizations/node-graph/) documentation for more options and expected data shape.
+
 ![Custom service graph panel view](../custom-service-graph-with-query.png)
 
-All data transformations are done with Prometheus `label_join` operators. Query explanation:
-- first `label_join` creates new field `id` which is required by Node graph panel
-- second and third `label_join` copy client and server labels to source and target respectively as this names are also required by Node graph panel
-- we query `traces_service_graph_request_total` twice with `OR` operator to get a combination of requests from and to all of selected services
+All data transformations are done with the Prometheus `label_join` operators. 
 
-This query does most of the job done, but unfortunately it leaves us with some limitations that can not be compensated even by Grafana transform data feature. Some limitations:
+Explanation of the query: 
+- The first `label_join` creates a new field `id` which is required by the Node graph panel.
+- The second and third `label_join` copy the client and server labels to source and target respectively, as these names are also required by Node graph panel.
+- `traces_service_graph_request_total` is queried twice with the `OR` operator to get a combination of requests from and to all of the selected services.
+
+This query gets most of the job done. However, it's limitations can't be compensated for even using the Grafana transform data feature. 
+These limitations include:
 - unable to add request stats to nodes and edges, such as req/sec and error rates
 - unable to add custom icons for nodes
 
-This limitations can be overcome by wrapping up Prometheus query into a REST API. In which we have more flexibility with query results data transformations. You can use [Grafana Infinity data source](/grafana/plugins/yesoreyeram-infinity-datasource/) to visualize data from REST API.
+These limitations can be overcome by wrapping the Prometheus query into a REST API, which provides more flexibility with query results data transformations.
+You can use [Grafana Infinity data source](/grafana/plugins/yesoreyeram-infinity-datasource/) to visualize data from REST API.
