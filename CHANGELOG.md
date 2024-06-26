@@ -4,6 +4,7 @@
 * [CHANGE] Bump opentelemetry-collector to 0.102.1 [#3784](https://github.com/grafana/tempo/pull/3784) (@debasishbsws)
 * [CHANGE] Bump Jaeger query docker image to 1.57.0 [#3652](https://github.com/grafana/tempo/issues/3652) (@iblancasa)
 * [CHANGE] Update Go to 1.22.4 [#3757](https://github.com/grafana/tempo/pull/3757) [#3793](https://github.com/grafana/tempo/pull/3793) (@joe-elliott, @mapno)
+* [CHANGE] Make vParquet4 the default block encoding [#3810](https://github.com/grafana/tempo/pull/3810) (@ie-pham)
 * [FEATURE] TraceQL support for link scope and link:traceID and link:spanID [#3741](https://github.com/grafana/tempo/pull/3741) (@stoewer)
 * [FEATURE] TraceQL support for event scope and event:name intrinsic [#3708](https://github.com/grafana/tempo/pull/3708) (@stoewer)
 * [FEATURE] Flush and query RF1 blocks for TraceQL metric queries [#3628](https://github.com/grafana/tempo/pull/3628) [#3691](https://github.com/grafana/tempo/pull/3691) [#3723](https://github.com/grafana/tempo/pull/3723) (@mapno)
