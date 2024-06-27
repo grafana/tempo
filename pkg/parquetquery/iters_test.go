@@ -65,16 +65,13 @@ func TestInvalidDefinitionLevel(t *testing.T) {
 			TruncateRowNumber(d, rn)
 		})
 	})
-
 	t.Run("TruncateRowNumber Max+1", func(t *testing.T) {
 		assertPanic(t, func() {
 			rn := RowNumber{1, 2, 3, 4, 5, 6, 7, 8}
 			d := MaxDefinitionLevel + 1
 			TruncateRowNumber(d, rn)
 		})
-
 	})
-
 	t.Run("Next -1", func(t *testing.T) {
 		assertPanic(t, func() {
 			rn := RowNumber{1, 2, 3, 4, 5, 6, 7, 8}
@@ -83,7 +80,6 @@ func TestInvalidDefinitionLevel(t *testing.T) {
 			rn.Next(r, d)
 		})
 	})
-
 	t.Run("Next Max+1", func(t *testing.T) {
 		assertPanic(t, func() {
 			rn := RowNumber{1, 2, 3, 4, 5, 6, 7, 8}
