@@ -33,14 +33,14 @@ type MetricsCompare struct {
 	len                 int
 	start, end          int
 	topN                int
-	baselines           map[Attribute]map[StaticMapKey]staticCounts
-	selections          map[Attribute]map[StaticMapKey]staticCounts
+	baselines           map[Attribute]map[StaticMapKey]staticWithCounts
+	selections          map[Attribute]map[StaticMapKey]staticWithCounts
 	baselineTotals      map[Attribute][]float64
 	selectionTotals     map[Attribute][]float64
 	seriesAgg           SeriesAggregator
 }
 
-type staticCounts struct {
+type staticWithCounts struct {
 	val    Static
 	counts []float64
 }
@@ -70,8 +70,8 @@ func (m *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) 
 		m.qend = q.End
 		m.qstep = q.Step
 		m.len = IntervalCount(q.Start, q.End, q.Step)
-		m.baselines = make(map[Attribute]map[StaticMapKey]staticCounts)
-		m.selections = make(map[Attribute]map[StaticMapKey]staticCounts)
+		m.baselines = make(map[Attribute]map[StaticMapKey]staticWithCounts)
+		m.selections = make(map[Attribute]map[StaticMapKey]staticWithCounts)
 		m.baselineTotals = make(map[Attribute][]float64)
 		m.selectionTotals = make(map[Attribute][]float64)
 
@@ -135,14 +135,14 @@ func (m *MetricsCompare) observe(span Span) {
 
 		values, ok := dest[a]
 		if !ok {
-			values = make(map[StaticMapKey]staticCounts, m.len)
+			values = make(map[StaticMapKey]staticWithCounts, m.len)
 			dest[a] = values
 		}
 
 		vk := v.MapKey()
 		sc, ok := values[vk]
 		if !ok {
-			sc = staticCounts{val: v, counts: make([]float64, m.len)}
+			sc = staticWithCounts{val: v, counts: make([]float64, m.len)}
 			values[vk] = sc
 		}
 		sc.counts[i]++
@@ -181,7 +181,7 @@ func (m *MetricsCompare) result() SeriesSet {
 		}
 	}
 
-	addValues := func(prefix Label, data map[Attribute]map[StaticMapKey]staticCounts) {
+	addValues := func(prefix Label, data map[Attribute]map[StaticMapKey]staticWithCounts) {
 		for a, values := range data {
 			// Compute topN values for this attribute
 			top.reset()
@@ -265,19 +265,24 @@ type BaselineAggregator struct {
 	topN             int
 	len              int
 	start, end, step uint64
-	baseline         map[string]map[Static]TimeSeries
-	selection        map[string]map[Static]TimeSeries
-	baselineTotals   map[string]map[Static]TimeSeries
-	selectionTotals  map[string]map[Static]TimeSeries
+	baseline         map[string]map[StaticMapKey]staticWithTimeSeries
+	selection        map[string]map[StaticMapKey]staticWithTimeSeries
+	baselineTotals   map[string]map[StaticMapKey]staticWithTimeSeries
+	selectionTotals  map[string]map[StaticMapKey]staticWithTimeSeries
 	maxed            map[string]struct{}
+}
+
+type staticWithTimeSeries struct {
+	val    Static
+	series TimeSeries
 }
 
 func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int) *BaselineAggregator {
 	return &BaselineAggregator{
-		baseline:        make(map[string]map[Static]TimeSeries),
-		selection:       make(map[string]map[Static]TimeSeries),
-		baselineTotals:  make(map[string]map[Static]TimeSeries),
-		selectionTotals: make(map[string]map[Static]TimeSeries),
+		baseline:        make(map[string]map[StaticMapKey]staticWithTimeSeries),
+		selection:       make(map[string]map[StaticMapKey]staticWithTimeSeries),
+		baselineTotals:  make(map[string]map[StaticMapKey]staticWithTimeSeries),
+		selectionTotals: make(map[string]map[StaticMapKey]staticWithTimeSeries),
 		maxed:           make(map[string]struct{}),
 		len:             IntervalCount(req.Start, req.End, req.Step),
 		start:           req.Start,
@@ -320,7 +325,7 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 
 		// Merge this time series into the destination buffer
 		// based on meta type
-		var dest map[string]map[Static]TimeSeries
+		var dest map[string]map[StaticMapKey]staticWithTimeSeries
 		switch metaType {
 		case internalMetaTypeBaseline:
 			dest = b.baseline
@@ -337,16 +342,15 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 
 		attr, ok := dest[a]
 		if !ok {
-			attr = make(map[Static]TimeSeries)
+			attr = make(map[StaticMapKey]staticWithTimeSeries)
 			dest[a] = attr
 		}
 
-		val, ok := attr[v]
+		vk := v.MapKey()
+		ts, ok := attr[vk]
 		if !ok {
-			val = TimeSeries{
-				Values: make([]float64, b.len),
-			}
-			attr[v] = val
+			ts = staticWithTimeSeries{val: v, series: TimeSeries{Values: make([]float64, b.len)}}
+			attr[vk] = ts
 		}
 
 		if len(attr) > b.topN {
@@ -357,8 +361,8 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 
 		for _, sample := range s.Samples {
 			j := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
-			if j >= 0 && j < len(val.Values) {
-				val.Values[j] += sample.Value
+			if j >= 0 && j < len(ts.series.Values) {
+				ts.series.Values[j] += sample.Value
 			}
 		}
 	}
@@ -379,16 +383,17 @@ func (b *BaselineAggregator) Results() SeriesSet {
 		}
 	}
 
-	do := func(buffer map[string]map[Static]TimeSeries, prefix Label) {
+	do := func(buffer map[string]map[StaticMapKey]staticWithTimeSeries, prefix Label) {
 		for a, m := range buffer {
 
 			topN.reset()
-			for v, ts := range m {
-				topN.add(v, ts.Values)
+			for _, ts := range m {
+				topN.add(ts.val, ts.series.Values)
 			}
 
 			topN.get(b.topN, func(key Static) {
-				addSeries(prefix, a, key, m[key].Values)
+				ts := m[key.MapKey()]
+				addSeries(prefix, a, key, ts.series.Values)
 			})
 		}
 	}
