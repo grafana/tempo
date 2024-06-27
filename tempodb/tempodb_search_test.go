@@ -34,6 +34,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -1529,6 +1530,13 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	rw := r.(*readerWriter)
 
 	wantID, wantTr, start, end, wantMeta, searchesThatMatch, searchesThatDontMatch := searchTestSuite()
+	if blockVersion == vparquet4.VersionString {
+		searchesThatMatch = append(searchesThatMatch, &tempopb.SearchRequest{
+			Query: "{ event.exception.message = `random error` }",
+		}, &tempopb.SearchRequest{
+			Query: "{ event:name = `event name` }",
+		})
+	}
 
 	// Write to wal
 	wal := w.WAL()
@@ -1705,6 +1713,15 @@ func searchTestSuite() (
 									boolKV("child"),
 									stringKV("span-dedicated.01", "span-1a"),
 									stringKV("span-dedicated.02", "span-2a"),
+								},
+								Events: []*v1.Span_Event{
+									{
+										TimeUnixNano: uint64(1000 * time.Second) + 100,
+										Name:         "event name",
+										Attributes: []*v1_common.KeyValue{
+											stringKV("exception.message", "random error"),
+										},
+									},
 								},
 							},
 						},
