@@ -335,6 +335,9 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 	if !connected {
 		dataquality.WarnDisconnectedTrace(b.meta.TenantID, dataquality.PhaseTraceFlushedToWal)
 	}
+	if b.buffer != nil && b.buffer.RootSpanName == "" {
+		dataquality.WarnRootlessTrace(b.meta.TenantID, dataquality.PhaseTraceFlushedToWal)
+	}
 
 	start, end = b.adjustTimeRangeForSlack(start, end, 0)
 

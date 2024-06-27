@@ -236,6 +236,9 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 		DisconnectedTrace: func() {
 			dataquality.WarnDisconnectedTrace(tenantID, dataquality.PhaseTraceCompactorCombine)
 		},
+		RootlessTrace: func() {
+			dataquality.WarnRootlessTrace(tenantID, dataquality.PhaseTraceCompactorCombine)
+		},
 	}
 
 	compactor := enc.NewCompactor(opts)

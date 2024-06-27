@@ -8,6 +8,7 @@ import (
 const (
 	reasonOutsideIngestionSlack = "outside_ingestion_time_slack"
 	reasonDisconnectedTrace     = "disconnected_trace"
+	reasonRootlessTrace         = "rootless_trace"
 
 	PhaseTraceFlushedToWal     = "_flushed_to_wal"
 	PhaseTraceWalToComplete    = "_wal_to_complete"
@@ -26,4 +27,8 @@ func WarnOutsideIngestionSlack(tenant string) {
 
 func WarnDisconnectedTrace(tenant string, phase string) {
 	metric.WithLabelValues(tenant, reasonDisconnectedTrace+phase).Inc()
+}
+
+func WarnRootlessTrace(tenant string, phase string) {
+	metric.WithLabelValues(tenant, reasonRootlessTrace+phase).Inc()
 }

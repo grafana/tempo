@@ -80,6 +80,7 @@ type CompactionOptions struct {
 	BytesWritten      func(compactionLevel, bytes int)
 	SpansDiscarded    func(traceID string, rootSpanName string, rootServiceName string, spans int)
 	DisconnectedTrace func()
+	RootlessTrace     func()
 }
 
 type Iterator interface {
