@@ -154,7 +154,7 @@ func (r *ManagedRegistry) NewHistogram(name string, buckets []float64) (h Histog
 	if !r.overrides.MetricsGeneratorGenerateNativeHistograms(r.tenant) {
 		h = newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName)
 	} else {
-		level.Warn(r.logger).Log("msg", "creating native histogram!", "metric", name)
+		level.Debug(r.logger).Log("msg", "creating native histogram!", "metric", name)
 		h = newNativeHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName)
 	}
 
