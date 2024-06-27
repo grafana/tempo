@@ -90,10 +90,6 @@ func EqualRowNumber(upToDefinitionLevel int, a, b RowNumber) bool {
 
 func truncateRowNumberSlow(definitionLevelToKeep int, t RowNumber) RowNumber {
 	n := EmptyRowNumber()
-	if definitionLevelToKeep > MaxDefinitionLevel {
-		level.Error(log.Logger).Log("msg", "definition level out of bound: should be [0:7] but got %d", definitionLevelToKeep)
-		return n
-	}
 	for i := 0; i <= definitionLevelToKeep; i++ {
 		n[i] = t[i]
 	}
@@ -119,7 +115,11 @@ func TruncateRowNumber(definitionLevelToKeep int, t RowNumber) RowNumber {
 	case 7:
 		return RowNumber{t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7]}
 	}
-	level.Error(log.Logger).Log("msg", "definition level out of bound: should be [0:7] but got %d", definitionLevelToKeep)
+
+	if definitionLevelToKeep > MaxDefinitionLevel || definitionLevelToKeep < 0 {
+		level.Error(log.Logger).Log("msg", "definition level out of bound: should be [0:7] but got %d", definitionLevelToKeep)
+		panic("invalid definition level")
+	}
 	return EmptyRowNumber()
 }
 
@@ -542,6 +542,10 @@ func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 		case 6:
 			t[7] = -1
 		}
+	}
+	if definitionLevel > MaxDefinitionLevel || definitionLevel < 0 {
+		level.Error(log.Logger).Log("msg", "definition level out of bound: should be [0:7] but got %d", definitionLevel)
+		panic("invalid definition level")
 	}
 }
 

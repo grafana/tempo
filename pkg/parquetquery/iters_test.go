@@ -55,22 +55,43 @@ func TestTruncateRowNumber(t *testing.T) {
 
 		require.Equal(t, newR, oldR)
 	}
+}
 
-	// Test with d > MaxDefinitionLevel
-	rn := RowNumber{1, 2, 3, 4, 5, 6, 7, 8}
-	d := MaxDefinitionLevel + 1
-	newR := TruncateRowNumber(d, rn)
-	oldR := truncateRowNumberSlow(d, rn)
+func TestInvalidDefinitionLevel(t *testing.T) {
+	t.Run("TruncateRowNumber -1", func(t *testing.T) {
+		assertPanic(t, func() {
+			rn := RowNumber{1, 2, 3, 4, 5, 6, 7, 8}
+			d := -1
+			TruncateRowNumber(d, rn)
+		})
+	})
 
-	require.Equal(t, newR, oldR)
+	t.Run("TruncateRowNumber Max+1", func(t *testing.T) {
+		assertPanic(t, func() {
+			rn := RowNumber{1, 2, 3, 4, 5, 6, 7, 8}
+			d := MaxDefinitionLevel + 1
+			TruncateRowNumber(d, rn)
+		})
 
-	// Test with d < 0
-	rn = RowNumber{1, 2, 3, 4, 5, 6, 7, 8}
-	d = -1
-	newR = TruncateRowNumber(d, rn)
-	oldR = truncateRowNumberSlow(d, rn)
+	})
 
-	require.Equal(t, newR, oldR)
+	t.Run("Next -1", func(t *testing.T) {
+		assertPanic(t, func() {
+			rn := RowNumber{1, 2, 3, 4, 5, 6, 7, 8}
+			r := 0
+			d := -1
+			rn.Next(r, d)
+		})
+	})
+
+	t.Run("Next Max+1", func(t *testing.T) {
+		assertPanic(t, func() {
+			rn := RowNumber{1, 2, 3, 4, 5, 6, 7, 8}
+			r := 0
+			d := MaxDefinitionLevel + 1
+			rn.Next(r, d)
+		})
+	})
 }
 
 func TestRowNumber(t *testing.T) {
@@ -397,4 +418,13 @@ func BenchmarkEqualRowNumber(b *testing.B) {
 			}
 		})
 	}
+}
+
+func assertPanic(t *testing.T, f func()) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("no panic")
+		}
+	}()
+	f()
 }
