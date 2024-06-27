@@ -9,7 +9,10 @@ import (
 	"go.uber.org/atomic"
 )
 
+var _ metric = (*counter)(nil)
+
 type counter struct {
+	metric
 	metricName string
 
 	// seriesMtx is used to sync modifications to the map, not to the data in series

@@ -14,6 +14,8 @@ import (
 	"go.uber.org/atomic"
 )
 
+var _ metric = (*histogram)(nil)
+
 type histogram struct {
 	metricName   string
 	nameCount    string

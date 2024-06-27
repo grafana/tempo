@@ -11,6 +11,8 @@ type Registry interface {
 // Counter
 // https://prometheus.io/docs/concepts/metric_types/#counter
 type Counter interface {
+	metric
+
 	Inc(labelValueCombo *LabelValueCombo, value float64)
 }
 
@@ -27,6 +29,8 @@ type Histogram interface {
 // https://prometheus.io/docs/concepts/metric_types/#gauge
 // https://pkg.go.dev/github.com/prometheus/client_golang/prometheus#Gauge
 type Gauge interface {
+	metric
+
 	// Set sets the Gauge to an arbitrary value.
 	Set(labelValueCombo *LabelValueCombo, value float64)
 	Inc(labelValueCombo *LabelValueCombo, value float64)
