@@ -51,7 +51,6 @@ func NewStaticInterner() *StaticInterner {
 		ints:    make(map[int]Static, initialMapSize),
 		floats:  make(map[float64]Static, initialMapSize),
 	}
-
 }
 
 func (si *StaticInterner) StaticString(s string) Static {

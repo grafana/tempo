@@ -1,9 +1,10 @@
 package traceql
 
 import (
-	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestStaticInterner_StaticInt(t *testing.T) {
