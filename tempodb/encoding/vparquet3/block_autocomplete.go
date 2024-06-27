@@ -323,7 +323,7 @@ func createDistinctAttributeIterator(
 
 		var keyIter, valIter parquetquery.Iterator
 
-		switch cond.Operands[0].Type {
+		switch cond.Operands[0].Type() {
 		case traceql.TypeString:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
@@ -572,13 +572,13 @@ var _ parquetquery.GroupPredicate = (*distinctAttrCollector)(nil)
 type distinctAttrCollector struct {
 	scope traceql.AttributeScope
 
-	sentVals map[traceql.Static]struct{}
+	sentVals map[traceql.StaticMapKey]struct{}
 }
 
 func newDistinctAttrCollector(scope traceql.AttributeScope) *distinctAttrCollector {
 	return &distinctAttrCollector{
 		scope:    scope,
-		sentVals: make(map[traceql.Static]struct{}),
+		sentVals: make(map[traceql.StaticMapKey]struct{}),
 	}
 }
 
@@ -608,11 +608,10 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 		}
 	}
 
-	var empty traceql.Static
-	if val != empty {
-		if _, ok := d.sentVals[val]; !ok {
+	if val != nil {
+		if _, ok := d.sentVals[val.MapKey()]; !ok {
 			result.AppendOtherValue("", val)
-			d.sentVals[val] = struct{}{}
+			d.sentVals[val.MapKey()] = struct{}{}
 		}
 	}
 
@@ -630,13 +629,13 @@ var _ parquetquery.GroupPredicate = (*distinctValueCollector)(nil)
 
 type distinctValueCollector struct {
 	mapToStatic func(entry) traceql.Static
-	sentVals    map[traceql.Static]struct{}
+	sentVals    map[traceql.StaticMapKey]struct{}
 }
 
 func newDistinctValueCollector(mapToStatic func(entry) traceql.Static) *distinctValueCollector {
 	return &distinctValueCollector{
 		mapToStatic: mapToStatic,
-		sentVals:    make(map[traceql.Static]struct{}),
+		sentVals:    make(map[traceql.StaticMapKey]struct{}),
 	}
 }
 
@@ -649,9 +648,9 @@ func (d distinctValueCollector) KeepGroup(result *parquetquery.IteratorResult) b
 		}
 		static := d.mapToStatic(e)
 
-		if _, ok := d.sentVals[static]; !ok {
+		if _, ok := d.sentVals[static.MapKey()]; !ok {
 			result.AppendOtherValue("", static)
-			d.sentVals[static] = struct{}{}
+			d.sentVals[static.MapKey()] = struct{}{}
 		}
 	}
 	result.Entries = result.Entries[:0]
@@ -718,7 +717,7 @@ func mapSpanAttr(e entry) traceql.Static {
 			return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 		}
 	}
-	return traceql.Static{}
+	return traceql.NewStaticNil()
 }
 
 func mapResourceAttr(e entry) traceql.Static {
@@ -732,7 +731,7 @@ func mapResourceAttr(e entry) traceql.Static {
 	case parquet.ByteArray, parquet.FixedLenByteArray:
 		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	default:
-		return traceql.Static{}
+		return traceql.NewStaticNil()
 	}
 }
 
@@ -746,7 +745,7 @@ func mapTraceAttr(e entry) traceql.Static {
 	case columnPathRootServiceName:
 		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	}
-	return traceql.Static{}
+	return traceql.NewStaticNil()
 }
 
 func scopeFromDefinitionLevel(lvl int) traceql.AttributeScope {

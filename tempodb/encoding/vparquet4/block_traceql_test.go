@@ -660,6 +660,7 @@ func TestBackendBlockSelectAll(t *testing.T) {
 		// Cleanup found data for comparison
 		// equal will fail on the rownum mismatches. this is an internal detail to the
 		// fetch layer. just wipe them out here
+		ss.Scalar = nil
 		ss.ReleaseFn = nil
 		ss.ServiceStats = nil
 		for _, sp := range ss.Spans {

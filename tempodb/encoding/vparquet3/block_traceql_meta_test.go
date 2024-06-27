@@ -26,6 +26,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 
 	makeSpanset := func(traceID []byte, rootSpanName, rootServiceName string, startTimeUnixNano, durationNanos uint64, spans ...traceql.Span) *traceql.Spanset {
 		return &traceql.Spanset{
+			Scalar:             traceql.NewStaticNil(),
 			TraceID:            traceID,
 			RootSpanName:       rootSpanName,
 			RootServiceName:    rootServiceName,

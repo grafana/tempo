@@ -1,12 +1,14 @@
 package traceql
 
 import (
+	"cmp"
 	"fmt"
 	"math"
 	"regexp"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 )
 
 type Element interface {
@@ -30,7 +32,7 @@ type pipelineElement interface {
 }
 
 type typedExpression interface {
-	impliedType() StaticType
+	Type() StaticType
 }
 
 type RootExpr struct {
@@ -92,7 +94,7 @@ func (p Pipeline) addItem(i pipelineElement) Pipeline {
 	return p
 }
 
-func (p Pipeline) impliedType() StaticType {
+func (p Pipeline) Type() StaticType {
 	if len(p.Elements) == 0 {
 		return TypeSpanset
 	}
@@ -100,7 +102,7 @@ func (p Pipeline) impliedType() StaticType {
 	finalItem := p.Elements[len(p.Elements)-1]
 	aggregate, ok := finalItem.(Aggregate)
 	if ok {
-		return aggregate.impliedType()
+		return aggregate.Type()
 	}
 
 	return TypeSpanset
@@ -136,13 +138,13 @@ func (p Pipeline) evaluate(input []*Spanset) (result []*Spanset, err error) {
 type GroupOperation struct {
 	Expression FieldExpression
 
-	groupBuffer map[Static]*Spanset
+	groupBuffer map[StaticMapKey]*Spanset
 }
 
 func newGroupOperation(e FieldExpression) GroupOperation {
 	return GroupOperation{
 		Expression:  e,
-		groupBuffer: make(map[Static]*Spanset),
+		groupBuffer: make(map[StaticMapKey]*Spanset),
 	}
 }
 
@@ -198,19 +200,19 @@ func newScalarOperation(op Operator, lhs, rhs ScalarExpression) ScalarOperation 
 // nolint: revive
 func (ScalarOperation) __scalarExpression() {}
 
-func (o ScalarOperation) impliedType() StaticType {
+func (o ScalarOperation) Type() StaticType {
 	if o.Op.isBoolean() {
 		return TypeBoolean
 	}
 
 	// remaining operators will be based on the operands
 	// opAdd, opSub, opDiv, opMod, opMult
-	t := o.LHS.impliedType()
+	t := o.LHS.Type()
 	if t != TypeAttribute {
 		return t
 	}
 
-	return o.RHS.impliedType()
+	return o.RHS.Type()
 }
 
 func (o ScalarOperation) extractConditions(request *FetchSpansRequest) {
@@ -234,12 +236,12 @@ func newAggregate(agg AggregateOp, e FieldExpression) Aggregate {
 // nolint: revive
 func (Aggregate) __scalarExpression() {}
 
-func (a Aggregate) impliedType() StaticType {
+func (a Aggregate) Type() StaticType {
 	if a.op == aggregateCount || a.e == nil {
 		return TypeInt
 	}
 
-	return a.e.impliedType()
+	return a.e.Type()
 }
 
 func (a Aggregate) extractConditions(request *FetchSpansRequest) {
@@ -326,11 +328,8 @@ func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
 				return nil, err
 			}
 
-			if result.Type != TypeBoolean {
-				continue
-			}
-
-			if !result.B {
+			boolResult, ok := result.(StaticBool)
+			if !ok || !boolResult.Bool {
 				continue
 			}
 
@@ -421,19 +420,19 @@ func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
 // nolint: revive
 func (BinaryOperation) __fieldExpression() {}
 
-func (o *BinaryOperation) impliedType() StaticType {
+func (o *BinaryOperation) Type() StaticType {
 	if o.Op.isBoolean() {
 		return TypeBoolean
 	}
 
 	// remaining operators will be based on the operands
 	// opAdd, opSub, opDiv, opMod, opMult
-	t := o.LHS.impliedType()
+	t := o.LHS.Type()
 	if t != TypeAttribute {
 		return t
 	}
 
-	return o.RHS.impliedType()
+	return o.RHS.Type()
 }
 
 func (o *BinaryOperation) referencesSpan() bool {
@@ -463,9 +462,9 @@ func newUnaryOperation(op Operator, e FieldExpression) FieldExpression {
 // nolint: revive
 func (UnaryOperation) __fieldExpression() {}
 
-func (o UnaryOperation) impliedType() StaticType {
+func (o UnaryOperation) Type() StaticType {
 	// both operators (opPower and opNot) will just be based on the operand type
-	return o.Expression.impliedType()
+	return o.Expression.Type()
 }
 
 func (o UnaryOperation) referencesSpan() bool {
@@ -475,202 +474,465 @@ func (o UnaryOperation) referencesSpan() bool {
 // **********************
 // Statics
 // **********************
-type Static struct {
-	Type   StaticType
-	N      int
-	F      float64
-	S      string
-	B      bool
-	D      time.Duration
-	Status Status // todo: can we just use the N member for status and kind?
-	Kind   Kind
+
+type Static interface {
+	ScalarExpression
+	FieldExpression
+
+	AsAnyValue() *common_v1.AnyValue
+	EncodeToString(quotes bool) string
+	MapKey() StaticMapKey
+	equals(o Static) bool
+	compare(o Static) int
+	asFloat() float64
+	add(o Static) Static
+	divide(f float64) Static
 }
 
-// nolint: revive
-func (Static) __fieldExpression() {}
+// StaticMapKey is a comparable key that corresponds to a given Static value.
+type StaticMapKey struct {
+	Type StaticType
+	Code uint64
+	Str  string
+}
 
-// nolint: revive
-func (Static) __scalarExpression() {}
+// StaticBase partially implements Static and is meant to be embedded in other static types
+type StaticBase struct{}
 
-func (Static) referencesSpan() bool {
+func (s StaticBase) asFloat() float64 {
+	return math.NaN()
+}
+
+func (StaticBase) referencesSpan() bool {
 	return false
 }
 
-func (s Static) impliedType() StaticType {
-	return s.Type
+// nolint: revive
+func (StaticBase) __fieldExpression() {}
+
+// nolint: revive
+func (StaticBase) __scalarExpression() {}
+
+// StaticNil a nil representation of a static value
+type StaticNil struct {
+	StaticBase
 }
 
-func (s Static) Equals(other Static) bool {
-	// if they are different number types. compare them as floats. however, if they are the same type just fall through to
-	// a normal comparison which should be more efficient
-	differentNumberTypes := (s.Type == TypeInt || s.Type == TypeFloat || s.Type == TypeDuration) &&
-		(other.Type == TypeInt || other.Type == TypeFloat || other.Type == TypeDuration) &&
-		s.Type != other.Type
-	if differentNumberTypes {
-		return s.asFloat() == other.asFloat()
-	}
+var staticNil Static = StaticNil{}
 
-	eitherIsTypeStatus := (s.Type == TypeStatus && other.Type == TypeInt) || (other.Type == TypeStatus && s.Type == TypeInt)
-	if eitherIsTypeStatus {
-		if s.Type == TypeStatus {
-			return s.Status == Status(other.N)
-		}
-		return Status(s.N) == other.Status
-	}
-
-	// no special cases, just compare directly
-	return s == other
+func NewStaticNil() Static {
+	return staticNil
 }
 
-func (s Static) compare(other *Static) int {
-	if s.Type != other.Type {
-		if s.asFloat() > other.asFloat() {
-			return 1
-		} else if s.asFloat() < other.asFloat() {
-			return -1
-		}
+func (StaticNil) Type() StaticType {
+	return TypeNil
+}
 
-		return 0
+func (StaticNil) equals(o Static) bool {
+	_, ok := o.(StaticNil)
+	return ok
+}
+
+func (StaticNil) compare(o Static) int {
+	_, ok := o.(StaticNil)
+	if !ok {
+		return cmp.Compare(TypeNil, o.Type())
 	}
-
-	switch s.Type {
-	case TypeInt:
-		if s.N > other.N {
-			return 1
-		} else if s.N < other.N {
-			return -1
-		}
-	case TypeFloat:
-		if s.F > other.F {
-			return 1
-		} else if s.F < other.F {
-			return -1
-		}
-	case TypeDuration:
-		if s.D > other.D {
-			return 1
-		} else if s.D < other.D {
-			return -1
-		}
-	case TypeString:
-		if s.S > other.S {
-			return 1
-		} else if s.S < other.S {
-			return -1
-		}
-	case TypeBoolean:
-		if s.B && !other.B {
-			return 1
-		} else if !s.B && other.B {
-			return -1
-		}
-	case TypeStatus:
-		if s.Status > other.Status {
-			return 1
-		} else if s.Status < other.Status {
-			return -1
-		}
-	case TypeKind:
-		if s.Kind > other.Kind {
-			return 1
-		} else if s.Kind < other.Kind {
-			return -1
-		}
-	}
-
 	return 0
 }
 
-func (s *Static) sumInto(other Static) {
-	switch s.Type {
-	case TypeInt:
-		s.N += other.N
-	case TypeFloat:
-		s.F += other.F
-	case TypeDuration:
-		s.D += other.D
+func (StaticNil) add(_ Static) Static {
+	return NewStaticNil()
+}
+
+func (StaticNil) divide(_ float64) Static {
+	return NewStaticNil()
+}
+
+func (StaticNil) MapKey() StaticMapKey {
+	return StaticMapKey{Type: TypeNil}
+}
+
+// StaticInt represents a Static implementation based on int
+type StaticInt struct {
+	StaticBase
+	Int int
+}
+
+var _ Static = StaticInt{}
+
+func NewStaticInt(n int) StaticInt {
+	return StaticInt{Int: n}
+}
+
+func (s StaticInt) Type() StaticType {
+	return TypeInt
+}
+
+func (s StaticInt) equals(o Static) bool {
+	switch o := o.(type) {
+	case StaticInt:
+		return s.Int == o.Int
+	case StaticDuration:
+		return s.Int == int(o.Duration)
+	case StaticFloat:
+		return float64(s.Int) == o.Float
+	case StaticStatus:
+		return s.Int == int(o.Status)
+	default:
+		return false
 	}
 }
 
-func (s Static) divideBy(f float64) Static {
-	switch s.Type {
-	case TypeInt:
-		return NewStaticFloat(float64(s.N) / f) // there's no integer division in traceql
-	case TypeFloat:
-		return NewStaticFloat(s.F / f)
-	case TypeDuration:
-		return NewStaticDuration(s.D / time.Duration(f))
+func (s StaticInt) compare(o Static) int {
+	switch o := o.(type) {
+	case StaticInt:
+		return cmp.Compare(s.Int, o.Int)
+	case StaticDuration:
+		return cmp.Compare(s.Int, int(o.Duration))
+	case StaticFloat:
+		return cmp.Compare(float64(s.Int), o.Float)
+	case StaticStatus:
+		return cmp.Compare(s.Int, int(o.Status))
+	default:
+		return cmp.Compare(TypeInt, o.Type())
 	}
+}
 
+func (s StaticInt) add(o Static) Static {
+	n, ok := o.(StaticInt)
+	if ok {
+		s.Int += n.Int
+	}
 	return s
 }
 
-func (s Static) asFloat() float64 {
-	switch s.Type {
-	case TypeInt:
-		return float64(s.N)
-	case TypeFloat:
-		return s.F
-	case TypeDuration:
-		return float64(s.D.Nanoseconds())
+func (s StaticInt) divide(f float64) Static {
+	return NewStaticFloat(float64(s.Int) / f)
+}
+
+func (s StaticInt) asFloat() float64 {
+	return float64(s.Int)
+}
+
+func (s StaticInt) MapKey() StaticMapKey {
+	return StaticMapKey{Type: TypeInt, Code: uint64(s.Int)}
+}
+
+// StaticFloat represents a Static implementation based on float64
+type StaticFloat struct {
+	StaticBase
+	Float float64
+}
+
+var _ Static = StaticFloat{}
+
+func NewStaticFloat(f float64) StaticFloat {
+	return StaticFloat{Float: f}
+}
+
+func (s StaticFloat) Type() StaticType {
+	return TypeFloat
+}
+
+func (s StaticFloat) equals(o Static) bool {
+	switch o := o.(type) {
+	case StaticFloat:
+		return s.Float == o.Float
+	case StaticInt:
+		return s.Float == float64(o.Int)
+	case StaticDuration:
+		return s.Float == float64(o.Duration)
 	default:
-		return math.NaN()
+		return false
 	}
 }
 
-func NewStaticInt(n int) Static {
-	return Static{
-		Type: TypeInt,
-		N:    n,
+func (s StaticFloat) compare(o Static) int {
+	switch o := o.(type) {
+	case StaticFloat:
+		return cmp.Compare(s.Float, o.Float)
+	case StaticInt:
+		return cmp.Compare(s.Float, float64(o.Int))
+	case StaticDuration:
+		return cmp.Compare(s.Float, float64(o.Duration))
+	default:
+		return cmp.Compare(TypeFloat, o.Type())
 	}
 }
 
-func NewStaticFloat(f float64) Static {
-	return Static{
-		Type: TypeFloat,
-		F:    f,
+func (s StaticFloat) asFloat() float64 {
+	return s.Float
+}
+
+func (s StaticFloat) add(o Static) Static {
+	n, ok := o.(StaticFloat)
+	if ok {
+		s.Float += n.Float
+	}
+	return s
+}
+
+func (s StaticFloat) divide(f float64) Static {
+	s.Float /= f
+	return s
+}
+
+func (s StaticFloat) MapKey() StaticMapKey {
+	return StaticMapKey{Type: TypeFloat, Code: math.Float64bits(s.Float)}
+}
+
+// StaticString represents a Static implementation based on string
+type StaticString struct {
+	StaticBase
+	Str string
+}
+
+var _ Static = StaticString{}
+
+func NewStaticString(s string) StaticString {
+	return StaticString{Str: s}
+}
+
+func (s StaticString) Type() StaticType {
+	return TypeString
+}
+
+func (s StaticString) equals(o Static) bool {
+	v, ok := o.(StaticString)
+	if !ok {
+		return false
+	}
+	return s.Str == v.Str
+}
+
+func (s StaticString) compare(o Static) int {
+	v, ok := o.(StaticString)
+	if !ok {
+		return cmp.Compare(TypeString, o.Type())
+	}
+	return cmp.Compare(s.Str, v.Str)
+}
+
+func (s StaticString) add(_ Static) Static {
+	return s
+}
+
+func (s StaticString) divide(_ float64) Static {
+	return s
+}
+
+func (s StaticString) MapKey() StaticMapKey {
+	return StaticMapKey{Type: TypeString, Str: s.Str}
+}
+
+// StaticBool represents a Static implementation based on bool
+type StaticBool struct {
+	StaticBase
+	Bool bool
+}
+
+var _ Static = StaticBool{}
+
+func NewStaticBool(b bool) StaticBool {
+	return StaticBool{Bool: b}
+}
+
+func (s StaticBool) Type() StaticType {
+	return TypeBoolean
+}
+
+func (s StaticBool) equals(o Static) bool {
+	v, ok := o.(StaticBool)
+	if !ok {
+		return false
+	}
+	return s.Bool == v.Bool
+}
+
+func (s StaticBool) compare(o Static) int {
+	v, ok := o.(StaticBool)
+	if !ok {
+		return cmp.Compare(TypeBoolean, o.Type())
+	}
+	if s.Bool && !v.Bool {
+		return 1
+	} else if !s.Bool && v.Bool {
+		return -1
+	}
+	return 0
+}
+
+func (s StaticBool) add(_ Static) Static {
+	return s
+}
+
+func (s StaticBool) divide(_ float64) Static {
+	return s
+}
+
+func (s StaticBool) MapKey() StaticMapKey {
+	if s.Bool {
+		return StaticMapKey{Type: TypeBoolean, Code: 1}
+	}
+	return StaticMapKey{Type: TypeBoolean, Code: 0}
+}
+
+// StaticDuration represents a Static implementation based on time.Duration
+type StaticDuration struct {
+	StaticBase
+	Duration time.Duration
+}
+
+var _ Static = StaticDuration{}
+
+func NewStaticDuration(d time.Duration) StaticDuration {
+	return StaticDuration{Duration: d}
+}
+
+func (s StaticDuration) Type() StaticType {
+	return TypeDuration
+}
+
+func (s StaticDuration) equals(o Static) bool {
+	switch o := o.(type) {
+	case StaticDuration:
+		return s.Duration == o.Duration
+	case StaticInt:
+		return int(s.Duration) == o.Int
+	case StaticFloat:
+		return float64(s.Duration) == o.Float
+	default:
+		return false
 	}
 }
 
-func NewStaticString(s string) Static {
-	return Static{
-		Type: TypeString,
-		S:    s,
+func (s StaticDuration) compare(o Static) int {
+	switch o := o.(type) {
+	case StaticDuration:
+		return cmp.Compare(s.Duration, o.Duration)
+	case StaticInt:
+		return cmp.Compare(int(s.Duration), o.Int)
+	case StaticFloat:
+		return cmp.Compare(float64(s.Duration), o.Float)
+	default:
+		return cmp.Compare(TypeDuration, o.Type())
 	}
 }
 
-func NewStaticBool(b bool) Static {
-	return Static{
-		Type: TypeBoolean,
-		B:    b,
+func (s StaticDuration) asFloat() float64 {
+	return float64(s.Duration)
+}
+
+func (s StaticDuration) add(o Static) Static {
+	d, ok := o.(StaticDuration)
+	if ok {
+		s.Duration += d.Duration
+	}
+	return s
+}
+
+func (s StaticDuration) divide(f float64) Static {
+	d := time.Duration(float64(s.Duration) / f)
+	return NewStaticDuration(d)
+}
+
+func (s StaticDuration) MapKey() StaticMapKey {
+	return StaticMapKey{Type: TypeDuration, Code: uint64(s.Duration)}
+}
+
+// StaticStatus represents a Static implementation based on Status
+type StaticStatus struct {
+	StaticBase
+	Status Status
+}
+
+var _ Static = StaticStatus{}
+
+func NewStaticStatus(s Status) StaticStatus {
+	return StaticStatus{Status: s}
+}
+
+func (s StaticStatus) Type() StaticType {
+	return TypeStatus
+}
+
+func (s StaticStatus) equals(o Static) bool {
+	switch o := o.(type) {
+	case StaticStatus:
+		return s.Status == o.Status
+	case StaticInt:
+		return s.Status == Status(o.Int)
+	default:
+		return false
 	}
 }
 
-func NewStaticNil() Static {
-	return Static{
-		Type: TypeNil,
+func (s StaticStatus) compare(o Static) int {
+	switch o := o.(type) {
+	case StaticStatus:
+		return cmp.Compare(s.Status, o.Status)
+	case StaticInt:
+		return cmp.Compare(s.Status, Status(o.Int))
+	default:
+		return cmp.Compare(TypeStatus, o.Type())
 	}
 }
 
-func NewStaticDuration(d time.Duration) Static {
-	return Static{
-		Type: TypeDuration,
-		D:    d,
-	}
+func (s StaticStatus) add(_ Static) Static {
+	return s
 }
 
-func NewStaticStatus(s Status) Static {
-	return Static{
-		Type:   TypeStatus,
-		Status: s,
-	}
+func (s StaticStatus) divide(_ float64) Static {
+	return s
 }
 
-func NewStaticKind(k Kind) Static {
-	return Static{
-		Type: TypeKind,
-		Kind: k,
+func (s StaticStatus) MapKey() StaticMapKey {
+	return StaticMapKey{Type: TypeStatus, Code: uint64(s.Status)}
+}
+
+// StaticKind represents a Static implementation based on Kind
+type StaticKind struct {
+	StaticBase
+	Kind Kind
+}
+
+var _ Static = StaticKind{}
+
+func NewStaticKind(k Kind) StaticKind {
+	return StaticKind{Kind: k}
+}
+
+func (s StaticKind) Type() StaticType {
+	return TypeKind
+}
+
+func (s StaticKind) equals(o Static) bool {
+	v, ok := o.(StaticKind)
+	if !ok {
+		return false
 	}
+	return s.Kind == v.Kind
+}
+
+func (s StaticKind) compare(o Static) int {
+	v, ok := o.(StaticKind)
+	if !ok {
+		return cmp.Compare(TypeKind, o.Type())
+	}
+	return cmp.Compare(s.Kind, v.Kind)
+}
+
+func (s StaticKind) add(_ Static) Static {
+	return s
+}
+
+func (s StaticKind) divide(_ float64) Static {
+	return s
+}
+
+func (s StaticKind) MapKey() StaticMapKey {
+	return StaticMapKey{Type: TypeKind, Code: uint64(s.Kind)}
 }
 
 // **********************
@@ -697,7 +959,7 @@ func NewAttribute(att string) Attribute {
 // nolint: revive
 func (Attribute) __fieldExpression() {}
 
-func (a Attribute) impliedType() StaticType {
+func (a Attribute) Type() StaticType {
 	switch a.Intrinsic {
 	case IntrinsicDuration:
 		return TypeDuration
@@ -878,7 +1140,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 			byFunc = func(s Span) (Static, bool) {
 				d := s.DurationNanos()
 				if d < 2 {
-					return Static{}, false
+					return NewStaticNil(), false
 				}
 				// Bucket is log2(nanos) converted to float seconds
 				return NewStaticFloat(Log2Bucketize(d) / float64(time.Second)), true
@@ -888,20 +1150,18 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 			byFunc = func(s Span) (Static, bool) {
 				v, ok := s.AttributeFor(a.attr)
 				if !ok {
-					return Static{}, false
+					return NewStaticNil(), false
 				}
 
 				// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
 				// Because of the range of floats, we need a native histogram approach.
-				if v.Type != TypeInt {
-					return Static{}, false
+				n, ok := v.(StaticInt)
+				if !ok || n.Int < 2 {
+					return NewStaticNil(), false
 				}
 
-				if v.N < 2 {
-					return Static{}, false
-				}
 				// Bucket is the value rounded up to the nearest power of 2
-				return NewStaticFloat(Log2Bucketize(uint64(v.N))), true
+				return NewStaticFloat(Log2Bucketize(uint64(n.Int))), true
 			}
 		}
 
@@ -915,7 +1175,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 			byFunc = func(s Span) (Static, bool) {
 				d := s.DurationNanos()
 				if d < 2 {
-					return Static{}, false
+					return NewStaticNil(), false
 				}
 				// Bucket is in seconds
 				return NewStaticFloat(Log2Bucketize(d) / float64(time.Second)), true
@@ -925,19 +1185,17 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 			byFunc = func(s Span) (Static, bool) {
 				v, ok := s.AttributeFor(a.attr)
 				if !ok {
-					return Static{}, false
+					return NewStaticNil(), false
 				}
 
 				// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
 				// Because of the range of floats, we need a native histogram approach.
-				if v.Type != TypeInt {
-					return Static{}, false
+				n, ok := v.(StaticInt)
+				if !ok || n.Int < 2 {
+					return NewStaticNil(), false
 				}
 
-				if v.N < 2 {
-					return Static{}, false
-				}
-				return NewStaticFloat(Log2Bucketize(uint64(v.N))), true
+				return NewStaticFloat(Log2Bucketize(uint64(n.Int))), true
 			}
 		}
 	}

@@ -40,14 +40,14 @@ func TestStatic_Equals(t *testing.T) {
 	}
 	for _, tt := range areEqual {
 		t.Run(fmt.Sprintf("%v == %v", tt.lhs, tt.rhs), func(t *testing.T) {
-			assert.True(t, tt.lhs.Equals(tt.rhs))
-			assert.True(t, tt.rhs.Equals(tt.lhs))
+			assert.True(t, tt.lhs.equals(tt.rhs))
+			assert.True(t, tt.rhs.equals(tt.lhs))
 		})
 	}
 	for _, tt := range areNotEqual {
 		t.Run(fmt.Sprintf("%v != %v", tt.lhs, tt.rhs), func(t *testing.T) {
-			assert.False(t, tt.lhs.Equals(tt.rhs))
-			assert.False(t, tt.rhs.Equals(tt.lhs))
+			assert.False(t, tt.lhs.equals(tt.rhs))
+			assert.False(t, tt.rhs.equals(tt.lhs))
 		})
 	}
 }
@@ -309,33 +309,33 @@ func TestStaticCompare(t *testing.T) {
 	}{
 		{
 			name:     "IntComparison_Greater",
-			s1:       Static{Type: TypeInt, N: 10},
-			s2:       Static{Type: TypeInt, N: 5},
+			s1:       NewStaticInt(10),
+			s2:       NewStaticInt(5),
 			expected: 1,
 		},
 		{
 			name:     "FloatComparison_Greater",
-			s1:       Static{Type: TypeFloat, F: 10.5},
-			s2:       Static{Type: TypeFloat, F: 5.5},
+			s1:       NewStaticFloat(10.5),
+			s2:       NewStaticFloat(5.5),
 			expected: 1,
 		},
 		{
 			name:     "StringComparison_Less",
-			s1:       Static{Type: TypeString, S: "hello"},
-			s2:       Static{Type: TypeString, S: "world"},
+			s1:       NewStaticString("hello"),
+			s2:       NewStaticString("world"),
 			expected: -1,
 		},
 		{
 			name:     "BooleanComparison_Greater",
-			s1:       Static{Type: TypeBoolean, B: true},
-			s2:       Static{Type: TypeBoolean, B: false},
+			s1:       NewStaticBool(true),
+			s2:       NewStaticBool(false),
 			expected: 1,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := tc.s1.compare(&tc.s2)
+			result := tc.s1.compare(tc.s2)
 			require.Equal(t, tc.expected, result)
 		})
 	}

@@ -314,5 +314,5 @@ func lookup(needles []traceql.Attribute, span traceql.Span) traceql.Static {
 		}
 	}
 
-	return traceql.Static{}
+	return traceql.NewStaticNil()
 }
