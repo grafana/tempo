@@ -1935,7 +1935,6 @@ func searchTestSuite() (
 	searchesThatMatch []*tempopb.SearchRequest,
 	searchesThatDontMatch []*tempopb.SearchRequest,
 ) {
-
 	// Matches
 	searchesThatMatch = []*tempopb.SearchRequest{
 		{

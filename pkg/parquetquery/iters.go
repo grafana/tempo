@@ -2200,7 +2200,7 @@ func (a *KeyValueGroupPredicate) KeepGroup(group *IteratorResult) bool {
 }
 
 func panicWhenInvalidDefinitionLevel(definitionLevel int) {
-	panic(fmt.Sprintf("definition level out of bound: should be [0:7] but got %d %d", definitionLevel))
+	panic(fmt.Sprintf("definition level out of bound: should be [0:7] but got %d", definitionLevel))
 }
 
 /*func printGroup(g *iteratorResult) {
