@@ -11,37 +11,22 @@ import (
 	promhistogram "github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
-	"go.uber.org/atomic"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type nativeHistogram struct {
 	metricName string
 
-	// TODO we can also switch to a HistrogramVec and let prometheus handle the labels. This would remove the series map
-	//  and all locking around it.
-	//  Downside: you need to list labels at creation time while our interfaces only pass labels at observe time, this
-	//  will requires a bigger refactor, maybe something for a second pass?
-	//  Might break processors that have variable amount of labels...
-	//  promHistogram prometheus.HistogramVec
-
-	seriesMtx sync.Mutex
-	series    map[uint64]*nativeHistogramSeries
+	promHistogramInit sync.Once
+	promHistogram     *prometheus.HistogramVec
 
 	onAddSerie    func(count uint32) bool
 	onRemoveSerie func(count uint32)
 
-	buckets []float64
+	labelNames []string
+	buckets    []float64
 
 	traceIDLabelName string
-}
-
-type nativeHistogramSeries struct {
-	// labels should not be modified after creation
-	labels        LabelPair
-	promHistogram prometheus.Histogram
-	lastUpdated   *atomic.Int64
-	histogram     *dto.Histogram
 }
 
 var (
@@ -64,8 +49,9 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 	}
 
 	return &nativeHistogram{
-		metricName:       name,
-		series:           make(map[uint64]*nativeHistogramSeries),
+		metricName: name,
+		// we delay set up until first call to ObserveWithExemplar
+		promHistogram:    nil,
 		onAddSerie:       onAddSeries,
 		onRemoveSerie:    onRemoveSeries,
 		traceIDLabelName: traceIDLabelName,
@@ -74,30 +60,11 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 }
 
 func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) {
-	hash := labelValueCombo.getHash()
-
-	h.seriesMtx.Lock()
-	defer h.seriesMtx.Unlock()
-
-	s, ok := h.series[hash]
-	if ok {
-		h.updateSeries(s, value, traceID, multiplier)
-		return
-	}
-
-	if !h.onAddSerie(h.activeSeriesPerHistogramSerie()) {
-		return
-	}
-
-	newSeries := h.newSeries(labelValueCombo, value, traceID, multiplier)
-	h.series[hash] = newSeries
-}
-
-func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) *nativeHistogramSeries {
-	newSeries := &nativeHistogramSeries{
-		// TODO move these labels in HistogramOpts.ConstLabels?
-		labels: labelValueCombo.getLabelPair(),
-		promHistogram: prometheus.NewHistogram(prometheus.HistogramOpts{
+	// NOTE: we make the assumption here that all LabelValueCombos have the same label names. This
+	// not guaranteed at all.
+	h.promHistogramInit.Do(func() {
+		h.labelNames = labelValueCombo.getNames()
+		h.promHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    h.name(),
 			Help:    "Native histogram for metric " + h.name(),
 			Buckets: h.buckets,
@@ -105,23 +72,30 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  100,
 			NativeHistogramMinResetDuration: 15 * time.Minute,
-		}),
-		lastUpdated: atomic.NewInt64(0),
+		}, h.labelNames)
+	})
+
+	// TODO this is not correct anymore, we have now way to check whether this label combo already exists
+	if !h.onAddSerie(h.activeSeriesPerHistogramSerie()) {
+		return
 	}
 
-	h.updateSeries(newSeries, value, traceID, multiplier)
-
-	return newSeries
-}
-
-func (h *nativeHistogram) updateSeries(s *nativeHistogramSeries, value float64, traceID string, multiplier float64) {
-	for i := 0.0; i < multiplier; i++ {
-		s.promHistogram.(prometheus.ExemplarObserver).ObserveWithExemplar(
-			value,
-			map[string]string{h.traceIDLabelName: traceID},
-		)
+	histogram, err := h.promHistogram.GetMetricWithLabelValues(labelValueCombo.getValues()...)
+	if err != nil {
+		// we gambled and we lost - a processor has been setting dynamic values
+		panic(err)
 	}
-	s.lastUpdated.Store(time.Now().UnixMilli())
+
+	// observe with exemplar
+	histogram.(prometheus.ExemplarObserver).ObserveWithExemplar(value, map[string]string{h.traceIDLabelName: traceID})
+
+	// if multiplier is set, observe some more times
+	if multiplier > 1 {
+		for i := 0.0; i < multiplier-1; i++ {
+			histogram.Observe(value)
+		}
+	}
+
 }
 
 func (h *nativeHistogram) name() string {
@@ -129,16 +103,8 @@ func (h *nativeHistogram) name() string {
 }
 
 func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
-	h.seriesMtx.Lock()
-	defer h.seriesMtx.Unlock()
-
-	labelsCount := 0
-	if h.series[0] != nil {
-		labelsCount = len(h.series[0].labels.names)
-	}
-	lbls := make(labels.Labels, 1+len(externalLabels)+labelsCount)
+	lbls := make(labels.Labels, 1+len(externalLabels)+len(h.labelNames))
 	lb := labels.NewBuilder(lbls)
-	activeSeries = 0
 
 	lb.Set(labels.MetricName, h.metricName)
 
@@ -147,28 +113,33 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		lb.Set(name, value)
 	}
 
-	for _, s := range h.series {
+	metricChan := make(chan prometheus.Metric)
+	go func() {
+		h.promHistogram.Collect(metricChan)
+		close(metricChan)
+	}()
 
-		// Set series-specific labels
-		for i, name := range s.labels.names {
-			lb.Set(name, s.labels.values[i])
-		}
-
+	for m := range metricChan {
 		// Extract histogram
 		encodedMetric := &dto.Metric{}
 
 		// Encode to protobuf representation
-		err = s.promHistogram.Write(encodedMetric)
+		err = m.Write(encodedMetric)
 		if err != nil {
 			return activeSeries, err
 		}
-		s.histogram = encodedMetric.GetHistogram()
+		histogram := encodedMetric.GetHistogram()
+
+		// Set series-specific labels
+		for _, pair := range encodedMetric.GetLabel() {
+			lb.Set(pair.GetName(), pair.GetValue())
+		}
 
 		// *** Classic histogram
 
 		// sum
 		lb.Set(labels.MetricName, h.metricName+"_sum")
-		_, err = appender.Append(0, lb.Labels(), timeMs, s.histogram.GetSampleSum())
+		_, err = appender.Append(0, lb.Labels(), timeMs, histogram.GetSampleSum())
 		if err != nil {
 			return activeSeries, err
 		}
@@ -176,7 +147,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 
 		// count
 		lb.Set(labels.MetricName, h.metricName+"_count")
-		_, err = appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(s.histogram.GetSampleCountFloat(), s.histogram.GetSampleCount()))
+		_, err = appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(histogram.GetSampleCountFloat(), histogram.GetSampleCount()))
 		if err != nil {
 			return activeSeries, err
 		}
@@ -189,7 +160,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		// for that bucket or not. To avoid adding it twice, keep track of it with this boolean.
 		infBucketWasAdded := false
 
-		for _, bucket := range s.histogram.Bucket {
+		for _, bucket := range histogram.Bucket {
 			// add "le" label
 			lb.Set(labels.BucketLabel, formatFloat(bucket.GetUpperBound()))
 
@@ -221,7 +192,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 			// Add +Inf bucket
 			lb.Set(labels.BucketLabel, "+Inf")
 
-			_, err = appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(s.histogram.GetSampleCountFloat(), s.histogram.GetSampleCount()))
+			_, err = appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(histogram.GetSampleCountFloat(), histogram.GetSampleCount()))
 			if err != nil {
 				return activeSeries, err
 			}
@@ -235,32 +206,32 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 
 		// Decode to Prometheus representation
 		hist := promhistogram.Histogram{
-			Schema:        s.histogram.GetSchema(),
-			Count:         s.histogram.GetSampleCount(),
-			Sum:           s.histogram.GetSampleSum(),
-			ZeroThreshold: s.histogram.GetZeroThreshold(),
-			ZeroCount:     s.histogram.GetZeroCount(),
+			Schema:        histogram.GetSchema(),
+			Count:         histogram.GetSampleCount(),
+			Sum:           histogram.GetSampleSum(),
+			ZeroThreshold: histogram.GetZeroThreshold(),
+			ZeroCount:     histogram.GetZeroCount(),
 		}
-		if len(s.histogram.PositiveSpan) > 0 {
-			hist.PositiveSpans = make([]promhistogram.Span, len(s.histogram.PositiveSpan))
-			for i, span := range s.histogram.PositiveSpan {
+		if len(histogram.PositiveSpan) > 0 {
+			hist.PositiveSpans = make([]promhistogram.Span, len(histogram.PositiveSpan))
+			for i, span := range histogram.PositiveSpan {
 				hist.PositiveSpans[i] = promhistogram.Span{
 					Offset: span.GetOffset(),
 					Length: span.GetLength(),
 				}
 			}
 		}
-		hist.PositiveBuckets = s.histogram.PositiveDelta
-		if len(s.histogram.NegativeSpan) > 0 {
-			hist.NegativeSpans = make([]promhistogram.Span, len(s.histogram.NegativeSpan))
-			for i, span := range s.histogram.NegativeSpan {
+		hist.PositiveBuckets = histogram.PositiveDelta
+		if len(histogram.NegativeSpan) > 0 {
+			hist.NegativeSpans = make([]promhistogram.Span, len(histogram.NegativeSpan))
+			for i, span := range histogram.NegativeSpan {
 				hist.NegativeSpans[i] = promhistogram.Span{
 					Offset: span.GetOffset(),
 					Length: span.GetLength(),
 				}
 			}
 		}
-		hist.NegativeBuckets = s.histogram.NegativeDelta
+		hist.NegativeBuckets = histogram.NegativeDelta
 
 		lb.Set(labels.MetricName, h.metricName)
 		_, err = appender.AppendHistogram(0, lb.Labels(), timeMs, &hist, nil)
@@ -271,8 +242,8 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		// TODO: impact on active series from appending a histogram?
 		activeSeries += 0
 
-		if len(s.histogram.Exemplars) > 0 {
-			for _, encodedExemplar := range s.histogram.Exemplars {
+		if len(histogram.Exemplars) > 0 {
+			for _, encodedExemplar := range histogram.Exemplars {
 
 				// TODO are we appending the same exemplar twice?
 				e := exemplar.Exemplar{
@@ -294,14 +265,9 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 }
 
 func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
-	h.seriesMtx.Lock()
-	defer h.seriesMtx.Unlock()
-	for hash, s := range h.series {
-		if s.lastUpdated.Load() < staleTimeMs {
-			delete(h.series, hash)
-			h.onRemoveSerie(h.activeSeriesPerHistogramSerie())
-		}
-	}
+	// TODO can't really do much here now 🤷
+	//  possible solution: we can keep a map of label values + their last updated time and delete them from HistogramVec
+	//  con: we need to keep a map again with locking
 }
 
 func (h *nativeHistogram) activeSeriesPerHistogramSerie() uint32 {
