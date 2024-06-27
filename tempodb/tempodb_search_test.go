@@ -57,7 +57,7 @@ func TestSearchCompleteBlock(t *testing.T) {
 				autoComplete,
 			)
 		})
-		if (vers == vparquet4.VersionString){
+		if vers == vparquet4.VersionString {
 			t.Run("event query", func(t *testing.T) {
 				runEventSearchTest(t, vers)
 			})
@@ -1534,7 +1534,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	r.EnablePolling(ctx, &mockJobSharder{})
 	rw := r.(*readerWriter)
 
-	wantID, wantTr, start, end, wantMeta := makeExpectedTrace() 
+	wantID, wantTr, start, end, wantMeta := makeExpectedTrace()
 	searchesThatMatch, searchesThatDontMatch := searchTestSuite()
 
 	// Write to wal
@@ -1825,7 +1825,7 @@ func makeExpectedTrace() (
 								},
 								Events: []*v1.Span_Event{
 									{
-										TimeUnixNano: uint64(1000 * time.Second) + 100,
+										TimeUnixNano: uint64(1000*time.Second) + 100,
 										Name:         "event name",
 										Attributes: []*v1_common.KeyValue{
 											stringKV("exception.message", "random error"),
