@@ -33,8 +33,8 @@ func TestNext(t *testing.T) {
 	rn2 := RowNumber{0, 0, 0, 0, 0, 0, 0, 0}
 
 	for i := 0; i < 1000; i++ {
-		r := rand.Intn(MaxDefinitionLevel + 1)
-		d := rand.Intn(MaxDefinitionLevel + 1)
+		r := rand.Intn(MaxDefinitionLevel)
+		d := rand.Intn(MaxDefinitionLevel)
 
 		rn1.Next(r, d)
 		rn2.nextSlow(r, d)
@@ -46,18 +46,17 @@ func TestNext(t *testing.T) {
 // TestTruncate compares the unrolled TruncateRowNumber() with the original truncateRowNumberSlow() to
 // prevent drift
 func TestTruncateRowNumber(t *testing.T) {
-	for i := 0; i < 1000; i++ {
+	for i := 0; i <= MaxDefinitionLevel; i++ {
 		rn := RowNumber{1, 2, 3, 4, 5, 6, 7, 8}
-		d := rand.Intn(MaxDefinitionLevel + 1)
 
-		newR := TruncateRowNumber(d, rn)
-		oldR := truncateRowNumberSlow(d, rn)
+		newR := TruncateRowNumber(i, rn)
+		oldR := truncateRowNumberSlow(i, rn)
 
 		require.Equal(t, newR, oldR)
 	}
 }
 
-func TestInvalidDefinitionLevel(t *testing.T) {
+func TestInvalidDefinitionLevelTruncate(t *testing.T) {
 	t.Run("TruncateRowNumber -1", func(t *testing.T) {
 		assertPanic(t, func() {
 			rn := RowNumber{1, 2, 3, 4, 5, 6, 7, 8}
@@ -72,6 +71,9 @@ func TestInvalidDefinitionLevel(t *testing.T) {
 			TruncateRowNumber(d, rn)
 		})
 	})
+}
+
+func TestInvalidDefinitionLevelNext(t *testing.T) {
 	t.Run("Next -1", func(t *testing.T) {
 		assertPanic(t, func() {
 			rn := RowNumber{1, 2, 3, 4, 5, 6, 7, 8}

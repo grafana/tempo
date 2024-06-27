@@ -114,13 +114,10 @@ func TruncateRowNumber(definitionLevelToKeep int, t RowNumber) RowNumber {
 		return RowNumber{t[0], t[1], t[2], t[3], t[4], t[5], t[6], -1}
 	case 7:
 		return RowNumber{t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7]}
-	}
-
-	if definitionLevelToKeep > MaxDefinitionLevel || definitionLevelToKeep < 0 {
+	default:
 		level.Error(log.Logger).Log("msg", "definition level out of bound: should be [0:7] but got %d", definitionLevelToKeep)
 		panic("invalid definition level")
 	}
-	return EmptyRowNumber()
 }
 
 func (t *RowNumber) Valid() bool {
@@ -213,6 +210,8 @@ func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 			t[5] = 0
 			t[6] = 0
 			t[7] = 0
+		default:
+			panicWhenInvalidDefinitionLevel(definitionLevel)
 		}
 	case 1:
 		switch definitionLevel {
@@ -273,6 +272,8 @@ func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 			t[5] = 0
 			t[6] = 0
 			t[7] = 0
+		default:
+			panicWhenInvalidDefinitionLevel(definitionLevel)
 		}
 	case 2:
 		switch definitionLevel {
@@ -327,6 +328,8 @@ func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 			t[5] = 0
 			t[6] = 0
 			t[7] = 0
+		default:
+			panicWhenInvalidDefinitionLevel(definitionLevel)
 		}
 	case 3:
 		switch definitionLevel {
@@ -376,6 +379,8 @@ func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 			t[5] = 0
 			t[6] = 0
 			t[7] = 0
+		default:
+			panicWhenInvalidDefinitionLevel(definitionLevel)
 		}
 	case 4:
 		switch definitionLevel {
@@ -421,6 +426,8 @@ func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 			t[5] = 0
 			t[6] = 0
 			t[7] = 0
+		default:
+			panicWhenInvalidDefinitionLevel(definitionLevel)
 		}
 	case 5:
 		switch definitionLevel {
@@ -463,6 +470,8 @@ func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 		case 7:
 			t[6] = 0
 			t[7] = 0
+		default:
+			panicWhenInvalidDefinitionLevel(definitionLevel)
 		}
 	case 6:
 		switch definitionLevel {
@@ -503,6 +512,8 @@ func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 			t[7] = -1
 		case 7:
 			t[7] = 0
+		default:
+			panicWhenInvalidDefinitionLevel(definitionLevel)
 		}
 	case 7:
 		switch definitionLevel {
@@ -541,11 +552,10 @@ func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
 			t[7] = -1
 		case 6:
 			t[7] = -1
+		case 7:
+		default:
+			panicWhenInvalidDefinitionLevel(definitionLevel)
 		}
-	}
-	if definitionLevel > MaxDefinitionLevel || definitionLevel < 0 {
-		level.Error(log.Logger).Log("msg", "definition level out of bound: should be [0:7] but got %d", definitionLevel)
-		panic("invalid definition level")
 	}
 }
 
@@ -2191,6 +2201,11 @@ func (a *KeyValueGroupPredicate) KeepGroup(group *IteratorResult) bool {
 		}
 	}
 	return true
+}
+
+func panicWhenInvalidDefinitionLevel(definitionLevel int) {
+	level.Error(log.Logger).Log("msg", "definition level out of bound: should be [0:7] but got %d", definitionLevel)
+	panic("invalid definition level")
 }
 
 /*func printGroup(g *iteratorResult) {
