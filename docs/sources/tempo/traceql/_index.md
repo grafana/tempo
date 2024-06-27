@@ -128,9 +128,9 @@ Find any database connection string that goes to a Postgres or MySQL database:
 { span.db.system =~ "postgresql|mysql" }
 ```
 
-You can query for an exception in your span event
+You can query for an exception in your span event:
 ```
-{ event.exception.message =~ "something went wrong" }
+{ event.exception.message =~ ".*something went wrong.*" }
 ```
 
 ### Unscoped attribute fields
