@@ -139,7 +139,7 @@ Find any database connection string that goes to a Postgres or MySQL database:
 
 You can query for an exception in your span event:
 ```
-{ event.exception.message =~ "something went wrong" }
+{ event.exception.message =~ ".*something went wrong.*" }
 ```
 
 You can search for an attribute in your link:
