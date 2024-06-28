@@ -25,15 +25,26 @@ For more information about available queries, refer to [TraceQL metrics queries]
 To use the metrics generated from traces, you need to:
 
 * Set the `local-blocks` processor to active in your `metrics-generator` configuration
-* Configure a Tempo data source configured in Grafana or Grafana Cloud
-* Access Grafana Cloud or Grafana 10.4
+* Configure a Tempo data source in Grafana or Grafana Cloud
+* Access Grafana Cloud or Grafana version 10.4 or newer
 
-## Configure the `local-blocks` processor
+## Activate and configure the `local-blocks` processor
 
-Once the `local-blocks` processor is enabled in your `metrics-generator`
-configuration, you can configure it using the following block to make sure
-it records all spans for TraceQL metrics.
+To activate the `local-blocks` processor for all users, add it to the list of processors in the `overrides` block of your Tempo configuration.
 
+```yaml
+# Global overrides configuration.
+overrides:
+  metrics_generator_processors: ['local-blocks']
+```
+
+To configure the processor per tenant, use the `metrics_generator.processor` override. 
+
+For more information about overrides, refer to [Standard overrides]({{< relref "../configuration#standard-overrides" >}}).
+
+### Configure the processor
+
+Next, configure the `local-blocks` processor to record all spans for TraceQL metrics.
 Here is an example configuration:
 
 ```yaml
@@ -47,11 +58,14 @@ Here is an example configuration:
     path: /var/tempo/generator/traces
 ```
 
+If you configured Tempo using the `tempo-distributed` Helm chart, you can also set `traces_storage` using your `values.yaml` file. Refer to the [Helm chart for an example](https://github.com/grafana/helm-charts/blob/559ecf4a9c9eefac4521454e7a8066778e4eeff7/charts/tempo-distributed/values.yaml#L362).
+
+
 Refer to the [metrics-generator configuration]({{< relref "../configuration#metrics-generator" >}}) documentation for more information.
 
 ## Evaluate query timeouts
 
-Because of their expensive nature, these queries can take a long time to run in different systems.
+Because of their expensive nature, these queries can take a long time to run.
 As such, consider increasing the timeouts in various places of
 the system to allow enough time for the data to be returned.
 
@@ -64,8 +78,17 @@ Consider these areas when raising timeouts:
   - `server.http_server_read_timeout`
   - `server.http_server_write_timeout`
 
-Additionally, a new `query_frontend.metrics` config has been added. The config
-here will depend on the environment.
+## Set TraceQL metrics query options
+
+The `query_frontend.metrics` configuration block controls all TraceQL metrics queries.
+The configuration depends on the environment.
+
+{{< admonition type="note" >}}
+The default maximum time range for a metrics query is 3 hours, configured using the `query_frontend.metrics.max_duration` parameter.
+
+This is different to the default TraceQL maximum time range of 168 hours (7 days).
+
+{{< /admonition >}}
 
 For example, in a cloud environment, smaller jobs with more concurrency may be
 desired due to the nature of scale on the backend.

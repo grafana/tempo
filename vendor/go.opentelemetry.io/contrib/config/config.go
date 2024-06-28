@@ -67,7 +67,11 @@ func NewSDK(opts ...ConfigurationOption) (SDK, error) {
 		return SDK{}, err
 	}
 
-	mp, mpShutdown := initMeterProvider(o)
+	mp, mpShutdown, err := meterProvider(o, r)
+	if err != nil {
+		return SDK{}, err
+	}
+
 	tp, tpShutdown, err := tracerProvider(o, r)
 	if err != nil {
 		return SDK{}, err

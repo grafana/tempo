@@ -149,7 +149,7 @@ func collectLabelKeysSummaryDataPoints(dhdp pmetric.SummaryDataPointSlice, keySe
 }
 
 func addLabelKeys(keySet map[string]struct{}, attributes pcommon.Map) {
-	attributes.Range(func(k string, v pcommon.Value) bool {
+	attributes.Range(func(k string, _ pcommon.Value) bool {
 		keySet[k] = struct{}{}
 		return true
 	})

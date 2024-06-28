@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -198,20 +198,20 @@ func TestFetchTagNames(t *testing.T) {
 			wellKnownSpanValues := []string{"http.method"}
 			wellKnownResourceValues := []string{"cluster", "service.name"}
 
-			var expectedValues []string
+			expectedValues := map[string][]string{}
 			if scope == traceql.AttributeScopeSpan || scope == traceql.AttributeScopeNone {
-				expectedValues = append(expectedValues, expectedSpanValues...)
-				expectedValues = append(expectedValues, wellKnownSpanValues...)
-				expectedValues = append(expectedValues, dedicatedSpanValues...)
+				expectedValues["span"] = append(expectedValues["span"], expectedSpanValues...)
+				expectedValues["span"] = append(expectedValues["span"], wellKnownSpanValues...)
+				expectedValues["span"] = append(expectedValues["span"], dedicatedSpanValues...)
 			}
 			if scope == traceql.AttributeScopeResource || scope == traceql.AttributeScopeNone {
-				expectedValues = append(expectedValues, expectedResourceValues...)
-				expectedValues = append(expectedValues, wellKnownResourceValues...)
-				expectedValues = append(expectedValues, dedicatedResourceValues...)
+				expectedValues["resource"] = append(expectedValues["resource"], expectedResourceValues...)
+				expectedValues["resource"] = append(expectedValues["resource"], wellKnownResourceValues...)
+				expectedValues["resource"] = append(expectedValues["resource"], dedicatedResourceValues...)
 			}
 
-			t.Run(fmt.Sprintf("query: %s-%s", tc.query, scope), func(t *testing.T) {
-				distinctAttrNames := util.NewDistinctStringCollector(1_000_000)
+			t.Run(fmt.Sprintf("query: %s %s-%s", tc.name, tc.query, scope), func(t *testing.T) {
+				distinctAttrNames := collector.NewScopedDistinctString(0)
 				req, err := traceql.ExtractFetchSpansRequest(tc.query)
 				require.NoError(t, err)
 
@@ -221,14 +221,22 @@ func TestFetchTagNames(t *testing.T) {
 					Scope:      scope,
 				}
 
-				err = block.FetchTagNames(ctx, autocompleteReq, distinctAttrNames.Collect, opts)
+				err = block.FetchTagNames(ctx, autocompleteReq, func(t string, scope traceql.AttributeScope) {
+					distinctAttrNames.Collect(scope.String(), t)
+				}, opts)
 				require.NoError(t, err)
 
 				actualValues := distinctAttrNames.Strings()
 
-				sort.Strings(expectedValues)
-				sort.Strings(actualValues)
-				require.Equal(t, expectedValues, actualValues)
+				require.Equal(t, len(expectedValues), len(actualValues))
+				for k := range expectedValues {
+					actual := actualValues[k]
+					sort.Strings(actual)
+					expected := expectedValues[k]
+					sort.Strings(expected)
+
+					require.Equal(t, expected, actual, "scope: %s", k)
+				}
 			})
 		}
 	}
@@ -482,7 +490,7 @@ func TestFetchTagValues(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("tag: %s, query: %s", tc.tag, tc.query), func(t *testing.T) {
-			distinctValues := util.NewDistinctValueCollector[tempopb.TagValue](1_000_000, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+			distinctValues := collector.NewDistinctValue[tempopb.TagValue](1_000_000, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 			req, err := traceql.ExtractFetchSpansRequest(tc.query)
 			require.NoError(t, err)
 
@@ -587,7 +595,7 @@ func BenchmarkFetchTagValues(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(fmt.Sprintf("tag: %s, query: %s", tc.tag, tc.query), func(b *testing.B) {
-			distinctValues := util.NewDistinctValueCollector[tempopb.TagValue](1_000_000, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+			distinctValues := collector.NewDistinctValue[tempopb.TagValue](1_000_000, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 			req, err := traceql.ExtractFetchSpansRequest(tc.query)
 			require.NoError(b, err)
 
@@ -668,7 +676,7 @@ func BenchmarkFetchTags(b *testing.B) {
 	for _, tc := range testCases {
 		for _, scope := range []traceql.AttributeScope{traceql.AttributeScopeSpan, traceql.AttributeScopeResource, traceql.AttributeScopeNone} {
 			b.Run(fmt.Sprintf("query: %s %s", tc.query, scope), func(b *testing.B) {
-				distinctStrings := util.NewDistinctStringCollector(1_000_000)
+				distinctStrings := collector.NewScopedDistinctString(1_000_000)
 				req, err := traceql.ExtractFetchSpansRequest(tc.query)
 				require.NoError(b, err)
 
@@ -679,7 +687,9 @@ func BenchmarkFetchTags(b *testing.B) {
 				b.ResetTimer()
 
 				for i := 0; i < b.N; i++ {
-					err := block.FetchTagNames(ctx, autocompleteReq, distinctStrings.Collect, opts)
+					err := block.FetchTagNames(ctx, autocompleteReq, func(t string, scope traceql.AttributeScope) {
+						distinctStrings.Collect(scope.String(), t)
+					}, opts)
 					require.NoError(b, err)
 				}
 			})

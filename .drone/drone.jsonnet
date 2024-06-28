@@ -105,7 +105,7 @@ local image_tag_for_cd() = {
 
 local build_binaries(arch) = {
   name: 'build-tempo-binaries',
-  image: 'golang:1.21.3-alpine',
+  image: 'golang:1.22-alpine',
   commands: [
     'apk --update --no-cache add make git bash',
   ] + [
@@ -251,7 +251,7 @@ local deploy_to_dev() = {
     steps+: [
               {
                 name: 'build-tempo-serverless',
-                image: 'golang:1.21.3-alpine',
+                image: 'golang:1.22-alpine',
                 commands: [
                   'apk add make git zip bash',
                   './tools/image-tag | cut -d, -f 1 | tr A-Z a-z > .tags',  // values in .tags are used by the next step when pushing the image
@@ -348,7 +348,7 @@ local deploy_to_dev() = {
       },
       {
         name: 'write-key',
-        image: 'golang:1.21.3',
+        image: 'golang:1.22',
         commands: ['printf "%s" "$NFPM_SIGNING_KEY" > $NFPM_SIGNING_KEY_FILE'],
         environment: {
           NFPM_SIGNING_KEY: { from_secret: gpg_private_key.name },
@@ -357,7 +357,7 @@ local deploy_to_dev() = {
       },
       {
         name: 'test release',
-        image: 'golang:1.21.3',
+        image: 'golang:1.22',
         commands: ['make release-snapshot'],
         environment: {
           NFPM_DEFAULT_PASSPHRASE: { from_secret: gpg_passphrase.name },
@@ -390,7 +390,7 @@ local deploy_to_dev() = {
       },
       {
         name: 'release',
-        image: 'golang:1.21.3',
+        image: 'golang:1.22',
         commands: ['make release'],
         environment: {
           GITHUB_TOKEN: { from_secret: gh_token_secret.name },

@@ -74,11 +74,6 @@ Tempo uses the server from `dskit/server`. For more information on configuration
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
 [multitenancy_enabled: <bool> | default = false]
 
-# Optional. Setting to true enables query filtering in tag value search API `/api/v2/search/<tag>/values`.
-# If filtering is enabled, the API accepts a query parameter `q` containing a TraceQL query,
-# and returns only tag values that match the query.
-[autocomplete_filtering_enabled: <bool> | default = true]
-
 # Optional. String prefix for all http api endpoints. Must include beginning slash.
 [http_api_prefix: <string>]
 
@@ -434,7 +429,7 @@ query_frontend:
     [max_retries: <int>]
 
     # The number of goroutines dedicated to consuming, unmarshalling and recombining responses per request. This
-    # same parameter is used for all endpoints. 
+    # same parameter is used for all endpoints.
     # (default: 10)
     [response_consumers: <int>]
 
@@ -717,10 +712,10 @@ For more information on configuration options, refer to [this file](https://gith
 ### Local storage recommendations
 
 While you can use local storage, object storage is recommended for production workloads.
-A local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk.
+A local backend won't correctly retrieve traces with a distributed deployment unless all components have access to the same disk.
 Tempo is designed for object storage more than local storage.
 
-At Grafana Labs, we have run Tempo with SSDs when using local storage.
+At Grafana Labs, we've run Tempo with SSDs when using local storage.
 Hard drives haven't been tested.
 
 You can estimate how much storage space you need by considering the ingested bytes and retention.
@@ -883,6 +878,11 @@ storage:
             # optional.
             # enable to use path-style requests.
             [forcepathstyle: <bool>]
+
+            # Optional.
+            # Enable to use dualstack endpoint for DNS resolution.
+            # Check out the (S3 documentation on dualstack endpoints)[https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html]
+            [enable_dual_stack: <bool>]
 
             # Optional. Default is 0
             # Example: "bucket_lookup_type: 0"
@@ -1119,7 +1119,7 @@ storage:
         # block configuration
         block:
             # block format version. options: v2, vParquet2, vParquet3, vParquet4
-            [version: <string> | default = vParquet3]
+            [version: <string> | default = vParquet4]
 
             # bloom filter false positive rate. lower values create larger filters but fewer false positives
             [bloom_filter_false_positive: <float> | default = 0.01]
@@ -1254,7 +1254,7 @@ See below for how to override these limits globally or per tenant.
 
 #### Standard overrides
 
-You can create an `overrides` section to configure new ingestion limits that applies to all tenants of the cluster.
+You can create an `overrides` section to configure ingestion limits that apply to all tenants of the cluster.
 A snippet of a `config.yaml` file showing how the overrides section is [here](https://github.com/grafana/tempo/blob/a000a0d461221f439f585e7ed55575e7f51a0acd/integration/bench/config.yaml#L39-L40).
 
 ```yaml
@@ -1548,7 +1548,7 @@ overrides:
 
 These tenant-specific overrides are stored in an object store and can be modified using API requests.
 User-configurable overrides have priority over runtime overrides.
-See [user-configurable overrides]{{< relref "../operations/user-configurable-overrides" >}} for more details.
+Refer to [user-configurable overrides]{{< relref "../operations/user-configurable-overrides" >}} for more details.
 
 #### Override strategies
 

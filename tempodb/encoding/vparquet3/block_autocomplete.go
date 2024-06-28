@@ -40,7 +40,7 @@ func (r tagRequest) keysRequested(scope traceql.AttributeScope) bool {
 }
 
 // jpe - callback needs to take a scope somehow
-func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb common.TagCallback, opts common.SearchOptions) error {
+func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb common.TagsCallback, opts common.SearchOptions) error {
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return errors.Wrap(err, "conditions invalid")
@@ -85,7 +85,7 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 			break
 		}
 		for _, oe := range res.OtherEntries {
-			cb(oe.Key)
+			cb(oe.Key, traceql.AttributeScopeResource) // jpe - set scope correctly
 		}
 	}
 
@@ -112,8 +112,8 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 			continue
 		}
 
-		if hasValues(entry.columnPath, pf) { // jpe - resource vs span scope?
-			cb(name)
+		if hasValues(entry.columnPath, pf) {
+			cb(name, entry.level)
 		}
 	}
 
@@ -122,7 +122,7 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 		dedCols := dedicatedColumnsToColumnMapping(b.meta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
 		for name, col := range dedCols.mapping {
 			if hasValues(col.ColumnPath, pf) {
-				cb(name)
+				cb(name, traceql.AttributeScopeSpan)
 			}
 		}
 	}
@@ -132,7 +132,7 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 		dedCols := dedicatedColumnsToColumnMapping(b.meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
 		for name, col := range dedCols.mapping {
 			if hasValues(col.ColumnPath, pf) {
-				cb(name)
+				cb(name, traceql.AttributeScopeResource)
 			}
 		}
 	}
@@ -153,7 +153,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 
 	// Last check. No conditions, use old path. It's much faster.
 	if len(req.Conditions) <= 1 || mingledConditions { // <= 1 because we always have a "OpNone" condition for the tag name
-		return b.SearchTagValuesV2(ctx, req.TagName, common.TagCallbackV2(cb), common.DefaultSearchOptions())
+		return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), common.DefaultSearchOptions())
 	}
 
 	pf, _, err := b.openForSearch(ctx, opts)

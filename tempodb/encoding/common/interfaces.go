@@ -15,18 +15,20 @@ type Finder interface {
 	FindTraceByID(ctx context.Context, id ID, opts SearchOptions) (*tempopb.Trace, error)
 }
 
-type TagCallback func(t string)
-
-type TagCallbackV2 func(traceql.Static) (stop bool)
+type (
+	TagsCallback        func(t string, scope traceql.AttributeScope) // flip args?
+	TagValuesCallback   func(t string) bool
+	TagValuesCallbackV2 func(traceql.Static) (stop bool)
+)
 
 type Searcher interface {
 	Search(ctx context.Context, req *tempopb.SearchRequest, opts SearchOptions) (*tempopb.SearchResponse, error)
-	SearchTags(ctx context.Context, scope traceql.AttributeScope, cb TagCallback, opts SearchOptions) error
-	SearchTagValues(ctx context.Context, tag string, cb TagCallback, opts SearchOptions) error
-	SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb TagCallbackV2, opts SearchOptions) error
+	SearchTags(ctx context.Context, scope traceql.AttributeScope, cb TagsCallback, opts SearchOptions) error
+	SearchTagValues(ctx context.Context, tag string, cb TagValuesCallback, opts SearchOptions) error
+	SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb TagValuesCallbackV2, opts SearchOptions) error
 
 	Fetch(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansResponse, error)
-	FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, SearchOptions) error
+	FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, SearchOptions) error // jpe - remove this for TagValuesCallbackV2
 }
 
 type SearchOptions struct {
@@ -78,6 +80,7 @@ type CompactionOptions struct {
 	BytesWritten      func(compactionLevel, bytes int)
 	SpansDiscarded    func(traceID string, rootSpanName string, rootServiceName string, spans int)
 	DisconnectedTrace func()
+	RootlessTrace     func()
 }
 
 type Iterator interface {
