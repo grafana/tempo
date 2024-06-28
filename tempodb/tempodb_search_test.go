@@ -58,8 +58,8 @@ func TestSearchCompleteBlock(t *testing.T) {
 			)
 		})
 		if vers == vparquet4.VersionString {
-			t.Run("event query", func(t *testing.T) {
-				runEventSearchTest(t, vers)
+			t.Run("event/link query", func(t *testing.T) {
+				runEventLinkSearchTest(t, vers)
 			})
 		}
 	}
@@ -1578,7 +1578,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	// todo: do some compaction and then call runner again
 }
 
-func runEventSearchTest(t *testing.T, blockVersion string) {
+func runEventLinkSearchTest(t *testing.T, blockVersion string) {
 	// only run this test for vparquet4
 	if blockVersion != vparquet4.VersionString {
 		return
@@ -1624,6 +1624,7 @@ func runEventSearchTest(t *testing.T, blockVersion string) {
 	rw := r.(*readerWriter)
 
 	wantID, wantTr, start, end, wantMeta := makeExpectedTrace()
+	wantIDText := util.TraceIDToHexString(wantID)
 
 	searchesThatMatch := []*tempopb.SearchRequest{
 		{
@@ -1631,6 +1632,12 @@ func runEventSearchTest(t *testing.T, blockVersion string) {
 		},
 		{
 			Query: "{ event:name = `event name` }",
+		},
+		{
+			Query: "{ link.relation = `child-of` }",
+		},
+		{
+			Query: "{ link:traceID = `" + wantIDText + "` }",
 		},
 	}
 
@@ -1829,6 +1836,15 @@ func makeExpectedTrace() (
 										Name:         "event name",
 										Attributes: []*v1_common.KeyValue{
 											stringKV("exception.message", "random error"),
+										},
+									},
+								},
+								Links: []*v1.Span_Link{
+									{
+										TraceId: id,
+										SpanId:  []byte{4, 5, 6},
+										Attributes: []*v1_common.KeyValue{
+											stringKV("relation", "child-of"),
 										},
 									},
 								},
