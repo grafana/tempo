@@ -744,6 +744,68 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 	return nil
 }
 
+func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, opts common.SearchOptions) error {
+	err := checkConditions(req.Conditions)
+	if err != nil {
+		return fmt.Errorf("conditions invalid: %w", err)
+	}
+
+	mingledConditions, _, _, _, err := categorizeConditions(req.Conditions)
+	if err != nil {
+		return err
+	}
+
+	if len(req.Conditions) < 1 || mingledConditions { // jpe - fetch with {} puts in a condition for span start time?
+		return b.SearchTags(ctx, traceql.AttributeScopeResource, func(t string, scope traceql.AttributeScope) {
+			cb(t, scope)
+		}, opts)
+	}
+
+	blockFlushes := b.readFlushes()
+	for _, page := range blockFlushes {
+		file, err := page.file(ctx)
+		if err != nil {
+			return fmt.Errorf("error opening file %s: %w", page.path, err)
+		}
+		defer file.Close()
+
+		tr := tagRequest{
+			conditions: req.Conditions,
+			scope:      req.Scope,
+		}
+
+		iter, err := autocompleteIter(ctx, tr, file.parquetFile, opts, b.meta.DedicatedColumns)
+		if err != nil {
+			return fmt.Errorf("creating fetch iter: %w", err)
+		}
+
+		for {
+			// Exhaust the iterator
+			res, err := iter.Next()
+			if err != nil {
+				iter.Close()
+				return err
+			}
+			if res == nil {
+				break
+			}
+			for _, oe := range res.OtherEntries {
+				if cb(oe.Key, oe.Value.(traceql.AttributeScope)) {
+					iter.Close()
+					return nil // We have enough values
+				}
+			}
+		}
+		iter.Close()
+
+		// add well known
+		tagNamesForSpecialColumns(req.Scope, file.parquetFile, b.meta.DedicatedColumns, cb)
+	}
+
+	// combine iters?
+	return nil
+}
+
 func (b *walBlock) walPath() string {
 	filename := fmt.Sprintf("%s+%s+%s", b.meta.BlockID, b.meta.TenantID, VersionString)
 	return filepath.Join(b.path, filename)

@@ -16,7 +16,7 @@ type Finder interface {
 }
 
 type (
-	TagsCallback        func(t string, scope traceql.AttributeScope) // flip args?
+	TagsCallback        func(t string, scope traceql.AttributeScope)
 	TagValuesCallback   func(t string) bool
 	TagValuesCallbackV2 func(traceql.Static) (stop bool)
 )
@@ -28,7 +28,8 @@ type Searcher interface {
 	SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb TagValuesCallbackV2, opts SearchOptions) error
 
 	Fetch(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansResponse, error)
-	FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, SearchOptions) error // jpe - remove this for TagValuesCallbackV2
+	FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, SearchOptions) error
+	FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, SearchOptions) error
 }
 
 type SearchOptions struct {

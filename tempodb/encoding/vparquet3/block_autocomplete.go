@@ -36,7 +36,7 @@ func (r tagRequest) keysRequested(scope traceql.AttributeScope) bool {
 	return r.scope == scope
 }
 
-func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb common.TagsCallback, opts common.SearchOptions) error {
+func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, opts common.SearchOptions) error {
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return errors.Wrap(err, "conditions invalid")
@@ -49,7 +49,9 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 
 	// Last check. No conditions, use old path. It's much faster.
 	if len(req.Conditions) < 1 || mingledConditions { // jpe - fetch with {} puts in a condition for span start time?
-		return b.SearchTags(ctx, traceql.AttributeScopeResource, cb, opts)
+		return b.SearchTags(ctx, traceql.AttributeScopeResource, func(t string, scope traceql.AttributeScope) {
+			cb(t, scope)
+		}, opts)
 	}
 
 	pf, _, err := b.openForSearch(ctx, opts)
@@ -81,10 +83,18 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 			break
 		}
 		for _, oe := range res.OtherEntries {
-			cb(oe.Key, oe.Value.(traceql.AttributeScope))
+			if cb(oe.Key, oe.Value.(traceql.AttributeScope)) {
+				return nil // We have enough values
+			}
 		}
 	}
 
+	tagNamesForSpecialColumns(req.Scope, pf, b.meta.DedicatedColumns, cb)
+
+	return nil
+}
+
+func tagNamesForSpecialColumns(scope traceql.AttributeScope, pf *parquet.File, dcs backend.DedicatedColumns, cb traceql.FetchTagsCallback) {
 	// currently just seeing if any row groups have values. future improvements:
 	// - only check those row groups that otherwise have a match in the iterators above
 	// - use rep/def levels to determine if a value exists at a row w/o actually testing values.
@@ -104,36 +114,40 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 
 	// add all well known columns that have values
 	for name, entry := range wellKnownColumnLookups {
-		if entry.level != tr.scope && tr.scope != traceql.AttributeScopeNone {
+		if entry.level != scope && scope != traceql.AttributeScopeNone {
 			continue
 		}
 
 		if hasValues(entry.columnPath, pf) {
-			cb(name, entry.level)
+			if cb(name, entry.level) {
+				return
+			}
 		}
 	}
 
 	// add all span dedicated columns that have values
-	if tr.scope == traceql.AttributeScopeNone || tr.scope == traceql.AttributeScopeSpan {
-		dedCols := dedicatedColumnsToColumnMapping(b.meta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
+	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeSpan {
+		dedCols := dedicatedColumnsToColumnMapping(dcs, backend.DedicatedColumnScopeSpan)
 		for name, col := range dedCols.mapping {
 			if hasValues(col.ColumnPath, pf) {
-				cb(name, traceql.AttributeScopeSpan)
+				if cb(name, traceql.AttributeScopeSpan) {
+					return
+				}
 			}
 		}
 	}
 
 	// add all resource dedicated columns that have values
-	if tr.scope == traceql.AttributeScopeNone || tr.scope == traceql.AttributeScopeResource {
-		dedCols := dedicatedColumnsToColumnMapping(b.meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
+	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeResource {
+		dedCols := dedicatedColumnsToColumnMapping(dcs, backend.DedicatedColumnScopeResource)
 		for name, col := range dedCols.mapping {
 			if hasValues(col.ColumnPath, pf) {
-				cb(name, traceql.AttributeScopeResource)
+				if cb(name, traceql.AttributeScopeResource) {
+					return
+				}
 			}
 		}
 	}
-
-	return nil
 }
 
 func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, opts common.SearchOptions) error {

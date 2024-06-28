@@ -221,8 +221,9 @@ func TestFetchTagNames(t *testing.T) {
 					Scope:      scope,
 				}
 
-				err = block.FetchTagNames(ctx, autocompleteReq, func(t string, scope traceql.AttributeScope) {
+				err = block.FetchTagNames(ctx, autocompleteReq, func(t string, scope traceql.AttributeScope) bool {
 					distinctAttrNames.Collect(scope.String(), t)
+					return false
 				}, opts)
 				require.NoError(t, err)
 
@@ -686,8 +687,9 @@ func BenchmarkFetchTags(b *testing.B) {
 				b.ResetTimer()
 
 				for i := 0; i < b.N; i++ {
-					err := block.FetchTagNames(ctx, autocompleteReq, func(t string, scope traceql.AttributeScope) {
+					err := block.FetchTagNames(ctx, autocompleteReq, func(t string, scope traceql.AttributeScope) bool {
 						distinctStrings.Collect(scope.String(), t)
+						return false
 					}, opts)
 					require.NoError(b, err)
 				}

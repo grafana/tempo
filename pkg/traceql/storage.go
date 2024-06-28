@@ -263,6 +263,8 @@ func (s SpansetFetcherWrapper) Fetch(ctx context.Context, request FetchSpansRequ
 	return s.f(ctx, request)
 }
 
+type FetchTagsCallback func(tag string, scope AttributeScope) bool
+
 type FetchTagsRequest struct {
 	Conditions []Condition
 	Scope      AttributeScope
