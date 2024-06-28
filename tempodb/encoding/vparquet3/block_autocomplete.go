@@ -14,9 +14,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-// jpe - require scope?
-// jpe - add effort param?
-
 type tagRequest struct {
 	// applies to tag names and tag values. the conditions by which to return the filtered data
 	conditions []traceql.Condition
@@ -39,7 +36,6 @@ func (r tagRequest) keysRequested(scope traceql.AttributeScope) bool {
 	return r.scope == scope
 }
 
-// jpe - callback needs to take a scope somehow
 func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb common.TagsCallback, opts common.SearchOptions) error {
 	err := checkConditions(req.Conditions)
 	if err != nil {
@@ -53,7 +49,7 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 
 	// Last check. No conditions, use old path. It's much faster.
 	if len(req.Conditions) < 1 || mingledConditions { // jpe - fetch with {} puts in a condition for span start time?
-		return b.SearchTags(ctx, traceql.AttributeScopeResource, cb, opts) // jpe - remove hardcoded scope - should be SearchtagsV2?
+		return b.SearchTags(ctx, traceql.AttributeScopeResource, cb, opts)
 	}
 
 	pf, _, err := b.openForSearch(ctx, opts)
@@ -66,7 +62,7 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 		scope:      req.Scope,
 	}
 
-	iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns) // jpe call iter funcs directly to avoid nil cb
+	iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
 	if err != nil {
 		return errors.Wrap(err, "creating fetch iter")
 	}
@@ -85,7 +81,7 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 			break
 		}
 		for _, oe := range res.OtherEntries {
-			cb(oe.Key, traceql.AttributeScopeResource) // jpe - set scope correctly
+			cb(oe.Key, oe.Value.(traceql.AttributeScope))
 		}
 	}
 
@@ -767,7 +763,7 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 			if e.Key == "key" {
 				key := unsafeToString(e.Value.ByteArray())
 				if _, ok := d.sentKeys[key]; !ok {
-					result.AppendOtherValue(key, traceql.Attribute{}) // jpe allocs?
+					result.AppendOtherValue(key, d.scope)
 					d.sentKeys[key] = struct{}{}
 				}
 			}
@@ -814,7 +810,7 @@ func (d *distinctKeyPredicate) String() string {
 	return fmt.Sprintf("distinctKeyPredicate{}")
 }
 
-func (d *distinctKeyPredicate) KeepColumnChunk(cc *parquetquery.ColumnChunkHelper) bool { // jpe name better and extend all the way to the tag call back, so we can test globally if something has been added
+func (d *distinctKeyPredicate) KeepColumnChunk(cc *parquetquery.ColumnChunkHelper) bool {
 	// foundNew := false
 
 	// if dict := cc.Dictionary(); dict != nil {

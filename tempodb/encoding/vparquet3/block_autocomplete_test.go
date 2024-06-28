@@ -506,7 +506,6 @@ func TestFetchTagValues(t *testing.T) {
 			tagAtrr, err := traceql.ParseIdentifier(tc.tag)
 			require.NoError(t, err)
 
-			// jpe - remove this if we move it into the FetchTagValues function
 			autocompleteReq.Conditions = append(autocompleteReq.Conditions, traceql.Condition{
 				Attribute: tagAtrr,
 				Op:        traceql.OpNone,
