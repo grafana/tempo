@@ -74,6 +74,10 @@ func (m *mockReader) Fetch(context.Context, *backend.BlockMeta, traceql.FetchSpa
 	return traceql.FetchSpansResponse{}, nil
 }
 
+func (m *mockReader) FetchTagNames(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, opts common.SearchOptions) error {
+	return nil
+}
+
 func (m *mockReader) EnablePolling(context.Context, blocklist.JobSharder) {}
 func (m *mockReader) Shutdown()                                           {}
 

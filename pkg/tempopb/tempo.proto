@@ -152,6 +152,7 @@ message SearchMetrics {
 
 message SearchTagsRequest {
   string scope = 1;
+  string query = 2; 
   uint32 start = 3;
   uint32 end = 4;
 }

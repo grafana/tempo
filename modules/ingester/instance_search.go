@@ -175,7 +175,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 }
 
 func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.SearchTagsResponse, error) {
-	v2Response, err := i.SearchTagsV2(ctx, scope)
+	v2Response, err := i.SearchTagsV2(ctx, &tempopb.SearchTagsRequest{Scope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +200,7 @@ func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.Searc
 }
 
 // SearchTagsV2 calls SearchTags for each scope and returns the results.
-func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.SearchTagsV2Response, error) {
+func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsV2Response, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTagsV2")
 	defer span.Finish()
 
@@ -209,6 +209,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.Sea
 		return nil, err
 	}
 
+	scope := req.Scope
 	// check if it's the special intrinsic scope
 	if scope == api.ParamScopeIntrinsic {
 		return &tempopb.SearchTagsV2Response{
@@ -231,7 +232,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.Sea
 	distinctValues := collector.NewScopedDistinctString(limit)
 
 	engine := traceql.NewEngine()
-	query := traceql.ExtractMatchers("{}") // jpe - where is the query?
+	query := traceql.ExtractMatchers(req.Query)
 
 	searchBlock := func(ctx context.Context, s common.Searcher, spanName string) error {
 		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTags."+spanName)

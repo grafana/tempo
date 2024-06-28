@@ -892,7 +892,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	query := traceql.ExtractMatchers("{}") // jpe query
+	query := traceql.ExtractMatchers(req.SearchReq.Query)
 	if traceql.IsEmptyQuery(query) {
 		resp, err := q.store.SearchTags(ctx, meta, req.SearchReq.Scope, opts)
 		if err != nil {
