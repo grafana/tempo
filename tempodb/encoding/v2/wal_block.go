@@ -312,7 +312,7 @@ func (a *walBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest
 }
 
 // FetchTagNames implements traceql.Searcher
-func (b *walBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.SearchOptions) error {
+func (a *walBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 

@@ -74,7 +74,7 @@ func (m *mockReader) Fetch(context.Context, *backend.BlockMeta, traceql.FetchSpa
 	return traceql.FetchSpansResponse{}, nil
 }
 
-func (m *mockReader) FetchTagNames(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, opts common.SearchOptions) error {
+func (m *mockReader) FetchTagNames(_ context.Context, _ *backend.BlockMeta, _ traceql.FetchTagsRequest, _ traceql.FetchTagsCallback, _ common.SearchOptions) error {
 	return nil
 }
 
