@@ -94,7 +94,7 @@ import (
                         KIND_UNSPECIFIED KIND_INTERNAL KIND_SERVER KIND_CLIENT KIND_PRODUCER KIND_CONSUMER
                         IDURATION CHILDCOUNT NAME STATUS STATUS_MESSAGE PARENT KIND ROOTNAME ROOTSERVICENAME 
                         ROOTSERVICE TRACEDURATION NESTEDSETLEFT NESTEDSETRIGHT NESTEDSETPARENT ID TRACE_ID SPAN_ID
-                        PARENT_DOT RESOURCE_DOT SPAN_DOT TRACE_COLON SPAN_COLON EVENT_COLON LINK_COLON
+                        PARENT_DOT RESOURCE_DOT SPAN_DOT TRACE_COLON SPAN_COLON EVENT_COLON EVENT_DOT LINK_COLON
                         COUNT AVG MAX MIN SUM
                         BY COALESCE SELECT
                         END_ATTRIBUTE
@@ -405,10 +405,10 @@ scopedIntrinsicField:
   | SPAN_COLON STATUS_MESSAGE    { $$ = NewIntrinsic(IntrinsicStatusMessage)       }
   | SPAN_COLON ID                { $$ = NewIntrinsic(IntrinsicSpanID)              }
 // event:
-  | EVENT_COLON NAME 	         { $$ = NewIntrinsic(IntrinsicEventName)           }
+  | EVENT_COLON NAME             { $$ = NewIntrinsic(IntrinsicEventName)           }
 // link:
-  | LINK_COLON TRACE_ID 	 { $$ = NewIntrinsic(IntrinsicLinkTraceID)         }
-  | LINK_COLON SPAN_ID 	         { $$ = NewIntrinsic(IntrinsicLinkSpanID)          }
+  | LINK_COLON TRACE_ID          { $$ = NewIntrinsic(IntrinsicLinkTraceID)         }
+  | LINK_COLON SPAN_ID           { $$ = NewIntrinsic(IntrinsicLinkSpanID)          }
   ;
 
 attributeField:
@@ -418,4 +418,5 @@ attributeField:
   | PARENT_DOT IDENTIFIER END_ATTRIBUTE               { $$ = NewScopedAttribute(AttributeScopeNone, true, $2)      }
   | PARENT_DOT RESOURCE_DOT IDENTIFIER END_ATTRIBUTE  { $$ = NewScopedAttribute(AttributeScopeResource, true, $3)  }
   | PARENT_DOT SPAN_DOT IDENTIFIER END_ATTRIBUTE      { $$ = NewScopedAttribute(AttributeScopeSpan, true, $3)      }
+  | EVENT_DOT IDENTIFIER END_ATTRIBUTE                { $$ = NewScopedAttribute(AttributeScopeEvent, false, $2)    }
   ;

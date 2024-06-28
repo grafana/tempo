@@ -882,6 +882,11 @@ const (
 	columnPathEventName          = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Name"
 	columnPathLinkTraceID        = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.TraceID"
 	columnPathLinkSpanID         = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.SpanID"
+	columnPathEventAttrKey       = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Key"
+	columnPathEventAttrString    = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Value.list.element"
+	columnPathEventAttrInt       = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueInt.list.element"
+	columnPathEventAttrDouble    = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueDouble.list.element"
+	columnPathEventAttrBool      = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueBool.list.element"
 
 	otherEntrySpansetKey = "spanset"
 	otherEntrySpanKey    = "span"
@@ -1364,27 +1369,38 @@ func (i *mergeSpansetIterator) Close() {
 //
 // Diagram:
 //
-//  Span attribute iterator: key    -----------------------------
-//                           ...    --------------------------  |
-//  Span attribute iterator: valueN ----------------------|  |  |
-//                                                        |  |  |
-//                                                        V  V  V
-//                                                     -------------
-//                                                     | attribute |
-//                                                     | collector |
-//                                                     -------------
-//                                                            |
-//                                                            | List of attributes
-//                                                            |
-//                                                            |
-//  Span column iterator 1    ---------------------------     |
-//                      ...   ------------------------  |     |
-//  Span column iterator N    ---------------------  |  |     |
-//    (ex: name, status)                          |  |  |     |
-//                                                V  V  V     V
-//                                            ------------------
-//                                            | span collector |
-//                                            ------------------
+//  Event attribute iterator: key    --------------------------------------------
+//                            ...    -----------------------------------------  |
+//  Event attribute iterator: valueN ---------------------------------------  | |
+//    											                            | | |
+//                                                                          V V V
+//                                                                         ------------
+//  Event column iterator 1 ---------------------------------------------  | attribute |
+//     (ex: name, time since)                                           |  | collector |
+//                                                                      |  ------------
+//                                                                      |      |
+//                                                                      V      V
+//  Span attribute iterator: key    -------------------------         ------------
+//                           ...    -----------------------  |        |  event    |
+//  Span attribute iterator: valueN -------------------|  |  |        | collector |
+//                                                     |  |  |        -------------
+//                                                     V  V  V               |
+//                                                   -------------           |
+//                                                   | attribute |           | list
+//                                                   | collector |           | of
+//                                                   -------------           | events
+//                                                            |              |
+//                                                            | List         |
+//                                                            | of span      |
+//                                                            | attributes   |
+//  Span column iterator 1    ---------------------------     |              |
+//                      ...   ------------------------  |     |              |
+//  Span column iterator N    ---------------------  |  |     |              |
+//    (ex: name, status)                          |  |  |     |              |
+//                                                V  V  V     V              V
+//                                               -------------------------------------------------
+//                                               |                 span collector                |
+//                                               -------------------------------------------------
 //                                                            |
 //                                                            | List of Spans
 //  Resource attribute                                        |
@@ -1529,7 +1545,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		innerIterators = append(innerIterators, primaryIter)
 	}
 
-	eventIter, err := createEventIterator(makeIter, catConditions.event)
+	eventIter, err := createEventIterator(makeIter, primaryIter, catConditions.event, allConditions, selectAll)
 	if err != nil {
 		return nil, fmt.Errorf("creating event iterator: %w", err)
 	}
@@ -1558,12 +1574,13 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	return createTraceIterator(makeIter, resourceIter, catConditions.trace, start, end, shardID, shardCount, allConditions, selectAll)
 }
 
-func createEventIterator(makeIter makeIterFn, conditions []traceql.Condition) (parquetquery.Iterator, error) {
+func createEventIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, selectAll bool) (parquetquery.Iterator, error) {
 	if len(conditions) == 0 {
 		return nil, nil
 	}
 
 	eventIters := make([]parquetquery.Iterator, 0, len(conditions))
+	var genericConditions []traceql.Condition
 
 	for _, cond := range conditions {
 		switch cond.Attribute.Intrinsic {
@@ -1573,14 +1590,57 @@ func createEventIterator(makeIter makeIterFn, conditions []traceql.Condition) (p
 				return nil, err
 			}
 			eventIters = append(eventIters, makeIter(columnPathEventName, pred, columnPathEventName))
+			continue
 		}
+		genericConditions = append(genericConditions, cond)
 	}
 
-	if len(eventIters) == 0 {
+	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanEventAttrs,
+		columnPathEventAttrKey, columnPathEventAttrString, columnPathEventAttrInt, columnPathEventAttrDouble, columnPathEventAttrBool, allConditions, selectAll)
+	if err != nil {
+		return nil, fmt.Errorf("creating event attribute iterator: %w", err)
+	}
+
+	if attrIter != nil {
+		eventIters = append(eventIters, attrIter)
+	}
+
+	var required []parquetquery.Iterator
+	if primaryIter != nil {
+		required = []parquetquery.Iterator{primaryIter}
+	}
+
+	minCount := 0
+
+	if allConditions {
+		// The final number of expected attributes.
+		distinct := map[string]struct{}{}
+		for _, cond := range conditions {
+			distinct[cond.Attribute.Name] = struct{}{}
+		}
+		minCount = len(distinct)
+	}
+
+	eventCol := &eventCollector{
+		minAttributes: minCount,
+	}
+
+	// This is an optimization for when all of the span conditions must be met.
+	// We simply move all iterators into the required list.
+	if allConditions {
+		required = append(required, eventIters...)
+		eventIters = nil
+	}
+
+	if len(required) == 0 {
+		required = []parquetquery.Iterator{makeIter(columnPathEventName, nil, "")}
+	}
+
+	if len(eventIters) == 0 && len(required) == 0 {
 		return nil, nil
 	}
 
-	return parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpanEvent, eventIters, &eventCollector{}, parquetquery.WithPool(pqEventPool)), nil
+	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpanEvent, required, eventIters, eventCol, parquetquery.WithPool(pqEventPool))
 }
 
 func createLinkIterator(makeIter makeIterFn, conditions []traceql.Condition) (parquetquery.Iterator, error) {
@@ -2799,7 +2859,9 @@ func getEvent() *event {
 
 // eventCollector receives rows from the event columns and joins them together into
 // map[key]value entries with the right type.
-type eventCollector struct{}
+type eventCollector struct {
+	minAttributes int
+}
 
 var _ parquetquery.GroupPredicate = (*eventCollector)(nil)
 
@@ -2823,6 +2885,16 @@ func (c *eventCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		ev = getEvent()
 	}
 
+	// extract from attribute collector
+	for _, e := range res.OtherEntries {
+		if v, ok := e.Value.(traceql.Static); ok {
+			ev.attrs = append(ev.attrs, attrVal{
+				a: newEventAttr(e.Key),
+				s: v,
+			})
+		}
+	}
+
 	for _, e := range res.Entries {
 		switch e.Key {
 		case columnPathEventName:
@@ -2830,6 +2902,13 @@ func (c *eventCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 				a: traceql.NewIntrinsic(traceql.IntrinsicEventName),
 				s: traceql.NewStaticString(unsafeToString(e.Value.Bytes())),
 			})
+		}
+	}
+
+	if c.minAttributes > 0 {
+		if len(ev.attrs) < c.minAttributes {
+			putEvent(ev)
+			return false
 		}
 	}
 
@@ -2911,6 +2990,10 @@ func newSpanAttr(name string) traceql.Attribute {
 
 func newResAttr(name string) traceql.Attribute {
 	return traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, name)
+}
+
+func newEventAttr(name string) traceql.Attribute {
+	return traceql.NewScopedAttribute(traceql.AttributeScopeEvent, false, name)
 }
 
 func unionIfNeeded(definitionLevel int, iters []parquetquery.Iterator, pred parquetquery.GroupPredicate) parquetquery.Iterator {

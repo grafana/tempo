@@ -44,6 +44,13 @@ func TestLexerAttributes(t *testing.T) {
 		{`resource.foo3`, []int{RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`resource.foo+bar`, []int{RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`resource.foo-bar`, []int{RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		// event attributes
+		{`event.foo`, []int{EVENT_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`event.count`, []int{EVENT_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`event.count`, []int{EVENT_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`event.foo3`, []int{EVENT_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`event.foo+bar`, []int{EVENT_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`event.foo-bar`, []int{EVENT_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		// parent span attributes
 		{`parent.span.foo`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`parent.span.count`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},

@@ -34,6 +34,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -56,6 +57,11 @@ func TestSearchCompleteBlock(t *testing.T) {
 				autoComplete,
 			)
 		})
+		if vers == vparquet4.VersionString {
+			t.Run("event query", func(t *testing.T) {
+				runEventSearchTest(t, vers)
+			})
+		}
 	}
 }
 
@@ -1528,7 +1534,8 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	r.EnablePolling(ctx, &mockJobSharder{})
 	rw := r.(*readerWriter)
 
-	wantID, wantTr, start, end, wantMeta, searchesThatMatch, searchesThatDontMatch := searchTestSuite()
+	wantID, wantTr, start, end, wantMeta := makeExpectedTrace()
+	searchesThatMatch, searchesThatDontMatch := searchTestSuite()
 
 	// Write to wal
 	wal := w.WAL()
@@ -1569,6 +1576,118 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	}
 
 	// todo: do some compaction and then call runner again
+}
+
+func runEventSearchTest(t *testing.T, blockVersion string) {
+	// only run this test for vparquet4
+	if blockVersion != vparquet4.VersionString {
+		return
+	}
+
+	tempDir := t.TempDir()
+
+	r, w, c, err := New(&Config{
+		Backend: backend.Local,
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			IndexDownsampleBytes: 17,
+			BloomFP:              .01,
+			BloomShardSizeBytes:  100_000,
+			Version:              blockVersion,
+			IndexPageSizeBytes:   1000,
+			RowGroupSizeBytes:    10000,
+		},
+		WAL: &wal.Config{
+			Filepath:       path.Join(tempDir, "wal"),
+			IngestionSlack: time.Since(time.Time{}),
+		},
+		Search: &SearchConfig{
+			ChunkSizeBytes:  1_000_000,
+			ReadBufferCount: 8, ReadBufferSizeBytes: 4 * 1024 * 1024,
+		},
+		BlocklistPoll: 0,
+	}, nil, log.NewNopLogger())
+	require.NoError(t, err)
+
+	err = c.EnableCompaction(context.Background(), &CompactorConfig{
+		ChunkSizeBytes:          10,
+		MaxCompactionRange:      time.Hour,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	r.EnablePolling(ctx, &mockJobSharder{})
+	rw := r.(*readerWriter)
+
+	wantID, wantTr, start, end, wantMeta := makeExpectedTrace()
+
+	searchesThatMatch := []*tempopb.SearchRequest{
+		{
+			Query: "{ event.exception.message = `random error` }",
+		},
+		{
+			Query: "{ event:name = `event name` }",
+		},
+	}
+
+	// Write to wal
+	wal := w.WAL()
+
+	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
+	require.NoError(t, err)
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	totalTraces := 50
+	wantTrIdx := rand.Intn(totalTraces)
+	for i := 0; i < totalTraces; i++ {
+		var tr *tempopb.Trace
+		var id []byte
+		if i == wantTrIdx {
+			tr = wantTr
+			id = wantID
+		} else {
+			id = test.ValidTraceID(nil)
+			tr = test.MakeTrace(10, id)
+		}
+		b1, err := dec.PrepareForWrite(tr, start, end)
+		require.NoError(t, err)
+
+		b2, err := dec.ToObject([][]byte{b1})
+		require.NoError(t, err)
+		err = head.Append(id, b2, start, end)
+		require.NoError(t, err)
+	}
+
+	// Complete block
+	block, err := w.CompleteBlock(context.Background(), head)
+	require.NoError(t, err)
+	blockMeta := block.BlockMeta()
+
+	e := traceql.NewEngine()
+
+	for _, req := range searchesThatMatch {
+		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return rw.Fetch(ctx, blockMeta, req, common.DefaultSearchOptions())
+		})
+
+		res, err := e.ExecuteSearch(ctx, req, fetcher)
+		if errors.Is(err, common.ErrUnsupported) {
+			continue
+		}
+
+		require.NoError(t, err, "search request: %+v", req)
+		actual := actualForExpectedMeta(wantMeta, res)
+		require.NotNil(t, actual, "search request: %v", req)
+		actual.SpanSet = nil // todo: add the matching spansets to wantmeta
+		actual.SpanSets = nil
+		actual.ServiceStats = nil
+		require.Equal(t, wantMeta, actual, "search request: %v", req)
+	}
 }
 
 func stringKV(k, v string) *v1_common.KeyValue {
@@ -1651,13 +1770,11 @@ func addTraceQL(req *tempopb.SearchRequest) {
 //   - expected - The exact search result that should be returned for every matching request
 //   - searchesThatMatch - List of search requests that are expected to match the trace
 //   - searchesThatDontMatch - List of requests that don't match the trace
-func searchTestSuite() (
+func makeExpectedTrace() (
 	id []byte,
 	tr *tempopb.Trace,
 	start, end uint32,
 	expected *tempopb.TraceSearchMetadata,
-	searchesThatMatch []*tempopb.SearchRequest,
-	searchesThatDontMatch []*tempopb.SearchRequest,
 ) {
 	id = test.ValidTraceID(nil)
 
@@ -1705,6 +1822,15 @@ func searchTestSuite() (
 									boolKV("child"),
 									stringKV("span-dedicated.01", "span-1a"),
 									stringKV("span-dedicated.02", "span-2a"),
+								},
+								Events: []*v1.Span_Event{
+									{
+										TimeUnixNano: uint64(1000*time.Second) + 100,
+										Name:         "event name",
+										Attributes: []*v1_common.KeyValue{
+											stringKV("exception.message", "random error"),
+										},
+									},
 								},
 							},
 						},
@@ -1802,7 +1928,13 @@ func searchTestSuite() (
 		RootServiceName:   "RootService",
 		RootTraceName:     "RootSpan",
 	}
+	return
+}
 
+func searchTestSuite() (
+	searchesThatMatch []*tempopb.SearchRequest,
+	searchesThatDontMatch []*tempopb.SearchRequest,
+) {
 	// Matches
 	searchesThatMatch = []*tempopb.SearchRequest{
 		{

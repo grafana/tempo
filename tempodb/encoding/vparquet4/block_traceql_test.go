@@ -151,6 +151,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		{"span.dedicated.span.4", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 = "dedicated-span-attr-value-4"}`)},
 		// Events
 		{"event:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:name = "e1"}`)},
+		{"event.message", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message =~ "exception"}`)},
 		// Links
 		{"link:spanID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:spanID = "1234567890abcdef"}`)},
 		{"link:traceID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:traceID = "1234567890abcdef1234567890abcdef"}`)},
@@ -525,6 +526,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 										Attrs: []Attribute{
 											attr("event-attr-key-1", "event-value-1"),
 											attr("event-attr-key-2", "event-value-2"),
+											attr("message", "exception"),
 										},
 									},
 									{TimeSinceStartNano: 2, Name: "e2", Attrs: []Attribute{}},
