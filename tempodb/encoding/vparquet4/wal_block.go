@@ -710,7 +710,12 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 
 		pf := file.parquetFile
 
-		iter, err := autocompleteIter(ctx, req, pf, opts, b.meta.DedicatedColumns)
+		tr := tagRequest{
+			conditions: req.Conditions,
+			tag:        req.TagName,
+		}
+
+		iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
 		if err != nil {
 			return fmt.Errorf("creating fetch iter: %w", err)
 		}
@@ -735,6 +740,68 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 			}
 		}
 		iter.Close()
+	}
+
+	// combine iters?
+	return nil
+}
+
+func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, opts common.SearchOptions) error {
+	err := checkConditions(req.Conditions)
+	if err != nil {
+		return fmt.Errorf("conditions invalid: %w", err)
+	}
+
+	_, mingledConditions, err := categorizeConditions(req.Conditions)
+	if err != nil {
+		return err
+	}
+
+	if len(req.Conditions) < 1 || mingledConditions {
+		return b.SearchTags(ctx, traceql.AttributeScopeResource, func(t string, scope traceql.AttributeScope) {
+			cb(t, scope)
+		}, opts)
+	}
+
+	blockFlushes := b.readFlushes()
+	for _, page := range blockFlushes {
+		file, err := page.file(ctx)
+		if err != nil {
+			return fmt.Errorf("error opening file %s: %w", page.path, err)
+		}
+		defer file.Close()
+
+		tr := tagRequest{
+			conditions: req.Conditions,
+			scope:      req.Scope,
+		}
+
+		iter, err := autocompleteIter(ctx, tr, file.parquetFile, opts, b.meta.DedicatedColumns)
+		if err != nil {
+			return fmt.Errorf("creating fetch iter: %w", err)
+		}
+
+		for {
+			// Exhaust the iterator
+			res, err := iter.Next()
+			if err != nil {
+				iter.Close()
+				return err
+			}
+			if res == nil {
+				break
+			}
+			for _, oe := range res.OtherEntries {
+				if cb(oe.Key, oe.Value.(traceql.AttributeScope)) {
+					iter.Close()
+					return nil // We have enough values
+				}
+			}
+		}
+		iter.Close()
+
+		// add well known
+		tagNamesForSpecialColumns(req.Scope, file.parquetFile, b.meta.DedicatedColumns, cb)
 	}
 
 	// combine iters?
