@@ -268,6 +268,5 @@ type FetchTagsCallback func(tag string, scope AttributeScope) bool
 type FetchTagsRequest struct {
 	Conditions []Condition
 	Scope      AttributeScope
-	// jpe - add effort param?
 	// TODO: Add start and end time?
 }

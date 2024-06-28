@@ -26,7 +26,7 @@ func TestFetchTagNames(t *testing.T) {
 		expectedResourceValues []string
 	}{
 		{
-			name:  "no query - fall back to old search", // jpe - not working. not falling back to old search due to span start time cond?
+			name:  "no query - fall back to old search",
 			query: "{}",
 			expectedSpanValues: []string{
 				"generic-01-01",

@@ -755,7 +755,7 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 		return err
 	}
 
-	if len(req.Conditions) < 1 || mingledConditions { // jpe - fetch with {} puts in a condition for span start time?
+	if len(req.Conditions) < 1 || mingledConditions {
 		return b.SearchTags(ctx, traceql.AttributeScopeResource, func(t string, scope traceql.AttributeScope) {
 			cb(t, scope)
 		}, opts)

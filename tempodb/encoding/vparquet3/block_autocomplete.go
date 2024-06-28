@@ -48,7 +48,7 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 	}
 
 	// Last check. No conditions, use old path. It's much faster.
-	if len(req.Conditions) < 1 || mingledConditions { // jpe - fetch with {} puts in a condition for span start time?
+	if len(req.Conditions) < 1 || mingledConditions {
 		return b.SearchTags(ctx, traceql.AttributeScopeResource, func(t string, scope traceql.AttributeScope) {
 			cb(t, scope)
 		}, opts)
@@ -69,9 +69,6 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 		return errors.Wrap(err, "creating fetch iter")
 	}
 	defer iter.Close()
-
-	fmt.Println("-------------")
-	fmt.Println(iter) // jpe remove
 
 	for {
 		// Exhaust the iterator
@@ -176,7 +173,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 		tag:        req.TagName,
 	}
 
-	iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns) // jpe call iter funcs directly to avoid nil cb
+	iter, err := autocompleteIter(ctx, tr, pf, opts, b.meta.DedicatedColumns)
 	if err != nil {
 		return errors.Wrap(err, "creating fetch iter")
 	}
@@ -555,7 +552,7 @@ func keyNameIterator(makeIter makeIterFn, definitionLevel int, keyPath string, a
 	if len(attrIters) == 0 {
 		return parquetquery.NewJoinIterator(
 			oneLevelUp(definitionLevel),
-			[]parquetquery.Iterator{makeIter(keyPath, newDistinctKeyPredicate(), "key")},
+			[]parquetquery.Iterator{makeIter(keyPath, nil, "key")},
 			newDistinctAttrCollector(scopeFromDefinitionLevel(definitionLevel), true),
 		), nil
 	}
@@ -563,7 +560,7 @@ func keyNameIterator(makeIter makeIterFn, definitionLevel int, keyPath string, a
 	return parquetquery.NewLeftJoinIterator(
 		oneLevelUp(definitionLevel),
 		attrIters,
-		[]parquetquery.Iterator{makeIter(keyPath, newDistinctKeyPredicate(), "key")},
+		[]parquetquery.Iterator{makeIter(keyPath, nil, "key")},
 		newDistinctAttrCollector(scopeFromDefinitionLevel(definitionLevel), true),
 	)
 }
@@ -805,51 +802,6 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 
 	result.Entries = result.Entries[:0]
 
-	return true
-}
-
-// distinctKeyPredicate skips chunks that only contain keys that have been seen.
-// jpe - this is approximate! document it as such
-type distinctKeyPredicate struct {
-	sentKeys map[string]struct{}
-}
-
-func newDistinctKeyPredicate() *distinctKeyPredicate {
-	return &distinctKeyPredicate{
-		sentKeys: make(map[string]struct{}),
-	}
-}
-
-func (d *distinctKeyPredicate) String() string {
-	return fmt.Sprintf("distinctKeyPredicate{}")
-}
-
-func (d *distinctKeyPredicate) KeepColumnChunk(cc *parquetquery.ColumnChunkHelper) bool {
-	// foundNew := false
-
-	// if dict := cc.Dictionary(); dict != nil {
-	// 	l := dict.Len()
-	// 	for i := 0; i < l; i++ {
-	// 		v := dict.Index(int32(i))
-	// 		key := unsafeToString(v.ByteArray())
-
-	// 		if _, ok := d.sentKeys[key]; !ok {
-	// 			d.sentKeys[key] = struct{}{}
-	// 			foundNew = true
-	// 			break // jpe - noodle on this. it's a perf boost somehow?
-	// 		}
-	// 	}
-	// }
-
-	// return foundNew
-	return true
-}
-
-func (d *distinctKeyPredicate) KeepPage(pq parquet.Page) bool {
-	return true
-}
-
-func (d *distinctKeyPredicate) KeepValue(v parquet.Value) bool {
 	return true
 }
 
