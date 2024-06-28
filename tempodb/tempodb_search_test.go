@@ -1290,7 +1290,7 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 	}
 }
 
-// autoComplete!
+// autoComplete! - jpe - add here
 func autoComplete(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, _ *backend.BlockMeta, _ Reader, bb common.BackendBlock) {
 	ctx := context.Background()
 	e := traceql.NewEngine()

@@ -24,6 +24,7 @@ const (
 	resourceX = "resource.xx"
 )
 
+// jpe - add here
 func TestSearchTagValuesV2(t *testing.T) {
 	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)

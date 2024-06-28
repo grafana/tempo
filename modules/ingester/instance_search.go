@@ -230,6 +230,9 @@ func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.Sea
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewScopedDistinctString(limit)
 
+	engine := traceql.NewEngine()
+	query := traceql.ExtractMatchers("{}") // jpe - where is the query?
+
 	searchBlock := func(ctx context.Context, s common.Searcher, spanName string) error {
 		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTags."+spanName)
 		defer span.Finish()
@@ -240,14 +243,26 @@ func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.Sea
 		if distinctValues.Exceeded() {
 			return nil
 		}
-		err = s.SearchTags(ctx, attributeScope, func(t string, scope traceql.AttributeScope) {
-			distinctValues.Collect(scope.String(), t)
-		}, common.DefaultSearchOptions())
-		if err != nil && !errors.Is(err, common.ErrUnsupported) {
-			return fmt.Errorf("unexpected error searching tags: %w", err)
+
+		// if the query is empty, use the old search
+		if traceql.IsEmptyQuery(query) {
+			err = s.SearchTags(ctx, attributeScope, func(t string, scope traceql.AttributeScope) {
+				distinctValues.Collect(scope.String(), t)
+			}, common.DefaultSearchOptions())
+			if err != nil && !errors.Is(err, common.ErrUnsupported) {
+				return fmt.Errorf("unexpected error searching tags: %w", err)
+			}
 		}
 
-		return nil
+		// otherwise use the filtered search
+		fetcher := traceql.NewTagNamesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback) error {
+			return s.FetchTagNames(ctx, req, cb, common.DefaultSearchOptions())
+		})
+
+		return engine.ExecuteTagNames(ctx, attributeScope, query, func(tag string, scope traceql.AttributeScope) bool {
+			distinctValues.Collect(scope.String(), tag)
+			return distinctValues.Exceeded()
+		}, fetcher)
 	}
 
 	i.headBlockMtx.RLock()
@@ -402,7 +417,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			return nil
 		}
 
-		// if the query is empty or autocomplete filtering is disabled, use the old search
+		// if the query is empty, use the old search
 		if traceql.IsEmptyQuery(query) {
 			return s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(valueCollector.Collect), common.DefaultSearchOptions())
 		}
