@@ -326,6 +326,8 @@ Parameters:
 - `scope = (resource|span|intrinsic)`
   Specifies the scope of the tags, this is an optional parameter, if not specified it means all scopes.
   Default = `all`
+- `q = (traceql query)`
+  Optional. A TraceQL query to filter tag names by. Currently only works for a single spanset of &&ed conditions. ie. `{ span.foo = "bar" && resource.baz = "bat" ...}`. See also [Filtered tag values](#filtered-tag-values).
 - `start = (unix epoch seconds)`
   Optional. Along with `end` define a time range from which tags should be returned.
 - `end = (unix epoch seconds)`
