@@ -422,14 +422,17 @@ func parseSearchTagValuesRequest(r *http.Request, enforceTraceQL bool) (*tempopb
 
 func ParseSearchTagsRequest(r *http.Request) (*tempopb.SearchTagsRequest, error) {
 	scope, _ := extractQueryParam(r, urlParamScope)
+	query, _ := extractQueryParam(r, urlParamQuery)
 
 	attScope := traceql.AttributeScopeFromString(scope)
 	if attScope == traceql.AttributeScopeUnknown && scope != ParamScopeIntrinsic {
 		return nil, fmt.Errorf("invalid scope: %s", scope)
 	}
 
-	req := &tempopb.SearchTagsRequest{}
-	req.Scope = scope
+	req := &tempopb.SearchTagsRequest{
+		Query: query,
+		Scope: scope,
+	}
 
 	if s, ok := extractQueryParam(r, urlParamStart); ok {
 		start, err := strconv.ParseInt(s, 10, 32)
@@ -464,6 +467,7 @@ func BuildSearchTagsRequest(req *http.Request, searchReq *tempopb.SearchTagsRequ
 	q.Set(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
 	q.Set(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
 	q.Set(urlParamScope, searchReq.Scope)
+	q.Set(urlParamQuery, searchReq.Query)
 
 	req.URL.RawQuery = q.Encode()
 
