@@ -9,9 +9,13 @@ import (
 	"go.uber.org/atomic"
 )
 
-// this is mostly copied from counter
+var _ metric = (*gauge)(nil)
 
+// this is mostly copied from counter
 type gauge struct {
+	//nolint unused
+	metric
+
 	metricName string
 
 	// seriesMtx is used to sync modifications to the map, not to the data in series

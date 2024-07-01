@@ -147,8 +147,17 @@ func (r *ManagedRegistry) NewCounter(name string) Counter {
 	return c
 }
 
-func (r *ManagedRegistry) NewHistogram(name string, buckets []float64) Histogram {
-	h := newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, r.overrides.MetricsGenerationTraceIDLabelName(r.tenant))
+func (r *ManagedRegistry) NewHistogram(name string, buckets []float64) (h Histogram) {
+	traceIDLabelName := r.overrides.MetricsGenerationTraceIDLabelName(r.tenant)
+
+	// Temporary switch: use the old implementation when native histograms are disabled, eventually the new implementation can handle all cases
+	if !r.overrides.MetricsGeneratorGenerateNativeHistograms(r.tenant) {
+		h = newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName)
+	} else {
+		level.Debug(r.logger).Log("msg", "creating native histogram!", "metric", name)
+		h = newNativeHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName)
+	}
+
 	r.registerMetric(h)
 	return h
 }

@@ -41,6 +41,10 @@ func (n noopAppender) UpdateMetadata(storage.SeriesRef, labels.Labels, metadata.
 	return 0, nil
 }
 
+func (n noopAppender) AppendCTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64) (storage.SeriesRef, error) {
+	return 0, nil
+}
+
 type capturingAppender struct {
 	samples      []sample
 	exemplars    []exemplarSample
@@ -116,5 +120,9 @@ func (c *capturingAppender) Rollback() error {
 }
 
 func (c *capturingAppender) UpdateMetadata(storage.SeriesRef, labels.Labels, metadata.Metadata) (storage.SeriesRef, error) {
+	return 0, nil
+}
+
+func (c *capturingAppender) AppendCTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64) (storage.SeriesRef, error) {
 	return 0, nil
 }

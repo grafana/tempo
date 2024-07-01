@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"fmt"
 	"math/rand"
 	"sync"
 	"testing"
@@ -270,5 +271,13 @@ func collectMetricAndAssert(t *testing.T, m metric, collectionTimeMs int64, exte
 	assert.False(t, appender.isCommitted)
 	assert.False(t, appender.isRolledback)
 	assert.ElementsMatch(t, expectedSamples, appender.samples)
+	fmt.Println("Expected samples:")
+	for _, expectedSample := range expectedSamples {
+		fmt.Println(" - ", expectedSample.l, expectedSample.v)
+	}
+	fmt.Println("Appender samples:")
+	for _, sample := range appender.samples {
+		fmt.Println(" - ", sample.l, sample.v)
+	}
 	assert.ElementsMatch(t, expectedExemplars, appender.exemplars)
 }

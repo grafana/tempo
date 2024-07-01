@@ -13,7 +13,7 @@ import (
 
 // generateTenantRemoteWriteConfigs creates a copy of the remote write configurations with the
 // X-Scope-OrgID header present for the given tenant, unless Tempo is run in single tenant mode or instructed not to add X-Scope-OrgID header.
-func generateTenantRemoteWriteConfigs(originalCfgs []prometheus_config.RemoteWriteConfig, tenant string, headers map[string]string, addOrgIDHeader bool, logger log.Logger) []*prometheus_config.RemoteWriteConfig {
+func generateTenantRemoteWriteConfigs(originalCfgs []prometheus_config.RemoteWriteConfig, tenant string, headers map[string]string, addOrgIDHeader bool, logger log.Logger, sendNativeHistograms bool) []*prometheus_config.RemoteWriteConfig {
 	var cloneCfgs []*prometheus_config.RemoteWriteConfig
 
 	for _, originalCfg := range originalCfgs {
@@ -41,6 +41,10 @@ func generateTenantRemoteWriteConfigs(originalCfgs []prometheus_config.RemoteWri
 		for k, v := range headers {
 			cloneCfg.Headers[k] = v
 		}
+
+		cloneCfg.SendNativeHistograms = sendNativeHistograms
+		// TODO: enable exemplars
+		// cloneCfg.SendExemplars = sendExemplars
 
 		cloneCfgs = append(cloneCfgs, cloneCfg)
 	}

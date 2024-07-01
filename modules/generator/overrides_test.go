@@ -56,6 +56,10 @@ func (m *mockOverrides) MetricsGeneratorDisableCollection(string) bool {
 	return false
 }
 
+func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(string) bool {
+	return false
+}
+
 func (m *mockOverrides) MetricsGenerationTraceIDLabelName(userID string) string {
 	return ""
 }

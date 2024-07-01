@@ -32,7 +32,7 @@ func Test_generateTenantRemoteWriteConfigs(t *testing.T) {
 
 	addOrgIDHeader := true
 
-	result := generateTenantRemoteWriteConfigs(original, "my-tenant", nil, addOrgIDHeader, logger)
+	result := generateTenantRemoteWriteConfigs(original, "my-tenant", nil, addOrgIDHeader, logger, false)
 
 	assert.Equal(t, original[0].URL, result[0].URL)
 	assert.Equal(t, map[string]string{}, original[0].Headers, "Original headers have been modified")
@@ -61,7 +61,7 @@ func Test_generateTenantRemoteWriteConfigs_singleTenant(t *testing.T) {
 
 	addOrgIDHeader := true
 
-	result := generateTenantRemoteWriteConfigs(original, util.FakeTenantID, nil, addOrgIDHeader, logger)
+	result := generateTenantRemoteWriteConfigs(original, util.FakeTenantID, nil, addOrgIDHeader, logger, false)
 
 	assert.Equal(t, original[0].URL, result[0].URL)
 
@@ -95,13 +95,30 @@ func Test_generateTenantRemoteWriteConfigs_addOrgIDHeader(t *testing.T) {
 
 	addOrgIDHeader := false
 
-	result := generateTenantRemoteWriteConfigs(original, "my-tenant", nil, addOrgIDHeader, logger)
+	result := generateTenantRemoteWriteConfigs(original, "my-tenant", nil, addOrgIDHeader, logger, false)
 
 	assert.Equal(t, original[0].URL, result[0].URL)
 	assert.Empty(t, original[0].Headers, "X-Scope-OrgID header is not added")
 
 	assert.Equal(t, original[1].URL, result[1].URL)
 	assert.Equal(t, map[string]string{"foo": "bar", "x-scope-orgid": "fake-tenant"}, result[1].Headers, "Original headers not modified")
+}
+
+func Test_generateTenantRemoteWriteConfigs_sendNativeHistograms(t *testing.T) {
+	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
+
+	original := []prometheus_config.RemoteWriteConfig{
+		{
+			URL:     &prometheus_common_config.URL{URL: urlMustParse("http://prometheus-1/api/prom/push")},
+			Headers: map[string]string{},
+		},
+	}
+
+	result := generateTenantRemoteWriteConfigs(original, "my-tenant", nil, false, logger, true)
+	assert.Equal(t, true, result[0].SendNativeHistograms, "SendNativeHistograms should be true")
+
+	result = generateTenantRemoteWriteConfigs(original, "my-tenant", nil, false, logger, false)
+	assert.Equal(t, false, result[0].SendNativeHistograms, "SendNativeHistograms should be true")
 }
 
 func Test_copyMap(t *testing.T) {

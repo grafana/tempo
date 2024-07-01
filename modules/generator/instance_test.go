@@ -397,3 +397,7 @@ func (n noopAppender) Rollback() error { return nil }
 func (n noopAppender) UpdateMetadata(prometheus_storage.SeriesRef, labels.Labels, metadata.Metadata) (prometheus_storage.SeriesRef, error) {
 	return 0, nil
 }
+
+func (n noopAppender) AppendCTZeroSample(_ prometheus_storage.SeriesRef, _ labels.Labels, _, _ int64) (prometheus_storage.SeriesRef, error) {
+	return 0, nil
+}

@@ -21,10 +21,10 @@ import (
 	tsdb_errors "github.com/prometheus/prometheus/tsdb/errors"
 )
 
-var metricStorageHeadersUpdateFailed = promauto.NewCounterVec(prometheus.CounterOpts{
+var metricStorageRemoteWriteUpdateFailed = promauto.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "tempo",
-	Name:      "metrics_generator_storage_headers_update_failed_total",
-	Help:      "The total number of times updating the remote write headers failed",
+	Name:      "metrics_generator_storage_remote_write_update_failed_total",
+	Help:      "The total number of times updating the remote write configueration failed",
 }, []string{"tenant"})
 
 type Storage interface {
@@ -40,10 +40,14 @@ type storageImpl struct {
 	remote  *remote.Storage
 	storage storage.Storage
 
-	tenantID       string
-	currentHeaders map[string]string
-	overrides      Overrides
-	closeCh        chan struct{}
+	tenantID string
+
+	// Cached from the overrides
+	currentHeaders       map[string]string
+	sendNativeHistograms bool
+
+	overrides Overrides
+	closeCh   chan struct{}
 
 	logger log.Logger
 }
@@ -81,8 +85,10 @@ func New(cfg *Config, o Overrides, tenant string, reg prometheus.Registerer, log
 	remoteStorage := remote.NewStorage(log.With(logger, "component", "remote"), reg, startTimeCallback, walDir, cfg.RemoteWriteFlushDeadline, &noopScrapeManager{})
 
 	headers := o.MetricsGeneratorRemoteWriteHeaders(tenant)
+	sendNativeHistograms := o.MetricsGeneratorGenerateNativeHistograms(tenant)
+
 	remoteStorageConfig := &prometheus_config.Config{
-		RemoteWriteConfigs: generateTenantRemoteWriteConfigs(cfg.RemoteWrite, tenant, headers, cfg.RemoteWriteAddOrgIDHeader, logger),
+		RemoteWriteConfigs: generateTenantRemoteWriteConfigs(cfg.RemoteWrite, tenant, headers, cfg.RemoteWriteAddOrgIDHeader, logger, sendNativeHistograms),
 	}
 
 	err = remoteStorage.ApplyConfig(remoteStorageConfig)
@@ -102,10 +108,11 @@ func New(cfg *Config, o Overrides, tenant string, reg prometheus.Registerer, log
 		remote:  remoteStorage,
 		storage: storage.NewFanout(logger, wal, remoteStorage),
 
-		tenantID:       tenant,
-		currentHeaders: headers,
-		overrides:      o,
-		closeCh:        make(chan struct{}),
+		tenantID:             tenant,
+		currentHeaders:       headers,
+		sendNativeHistograms: sendNativeHistograms,
+		overrides:            o,
+		closeCh:              make(chan struct{}),
 
 		logger: logger,
 	}
@@ -141,15 +148,17 @@ func (s *storageImpl) watchOverrides() {
 		select {
 		case <-t.C:
 			newHeaders := s.overrides.MetricsGeneratorRemoteWriteHeaders(s.tenantID)
-			if !headersEqual(s.currentHeaders, newHeaders) {
-				level.Info(s.logger).Log("msg", "updating remote write headers")
+			newSendNativeHistograms := s.overrides.MetricsGeneratorGenerateNativeHistograms(s.tenantID)
+			if !headersEqual(s.currentHeaders, newHeaders) || s.sendNativeHistograms != newSendNativeHistograms {
+				level.Info(s.logger).Log("msg", "updating remote write configuration")
 				s.currentHeaders = newHeaders
+				s.sendNativeHistograms = newSendNativeHistograms
 				err := s.remote.ApplyConfig(&prometheus_config.Config{
-					RemoteWriteConfigs: generateTenantRemoteWriteConfigs(s.cfg.RemoteWrite, s.tenantID, newHeaders, s.cfg.RemoteWriteAddOrgIDHeader, s.logger),
+					RemoteWriteConfigs: generateTenantRemoteWriteConfigs(s.cfg.RemoteWrite, s.tenantID, newHeaders, s.cfg.RemoteWriteAddOrgIDHeader, s.logger, newSendNativeHistograms),
 				})
 				if err != nil {
-					metricStorageHeadersUpdateFailed.WithLabelValues(s.tenantID).Inc()
-					level.Error(s.logger).Log("msg", "Failed to update remote write headers. Remote write will continue with old headers", "err", err)
+					metricStorageRemoteWriteUpdateFailed.WithLabelValues(s.tenantID).Inc()
+					level.Error(s.logger).Log("msg", "Failed to update remote write configuration. Remote write will continue with configuration", "err", err)
 				}
 			}
 		case <-s.closeCh:
