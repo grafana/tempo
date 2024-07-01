@@ -66,8 +66,13 @@ func TestPercentile(t *testing.T) {
 
 func TestMetricsResultsCombine(t *testing.T) {
 	a := MetricSeries{KeyValue{Key: "x", Value: traceql.NewStaticString("1")}}
+	ak := a.MetricKeys()
+
 	b := MetricSeries{KeyValue{Key: "x", Value: traceql.NewStaticString("2")}}
+	bk := b.MetricKeys()
+
 	c := MetricSeries{KeyValue{Key: "x", Value: traceql.NewStaticString("3")}}
+	ck := c.MetricKeys()
 
 	m := NewMetricsResults()
 	m.Record(a, 1, true)
@@ -86,13 +91,13 @@ func TestMetricsResultsCombine(t *testing.T) {
 	require.Equal(t, 3, len(m.Series))
 	require.Equal(t, 3, len(m.Errors))
 
-	require.Equal(t, 1, m.Series[a].Count())
-	require.Equal(t, 4, m.Series[b].Count())
-	require.Equal(t, 3, m.Series[c].Count())
+	require.Equal(t, 1, m.Series[ak].Histogram.Count())
+	require.Equal(t, 4, m.Series[bk].Histogram.Count())
+	require.Equal(t, 3, m.Series[ck].Histogram.Count())
 
-	require.Equal(t, 1, m.Errors[a])
-	require.Equal(t, 2, m.Errors[b])
-	require.Equal(t, 1, m.Errors[c])
+	require.Equal(t, 1, m.Errors[ak])
+	require.Equal(t, 2, m.Errors[bk])
+	require.Equal(t, 1, m.Errors[ck])
 }
 
 func TestGetMetrics(t *testing.T) {
@@ -126,21 +131,24 @@ func TestGetMetrics(t *testing.T) {
 	require.NotNil(t, res)
 
 	one := MetricSeries{KeyValue{Key: "span.foo", Value: traceql.NewStaticString("1")}}
+	oneK := one.MetricKeys()
+
 	two := MetricSeries{KeyValue{Key: "span.foo", Value: traceql.NewStaticString("2")}}
+	twoK := two.MetricKeys()
 
-	require.Equal(t, 0, res.Errors[one])
-	require.Equal(t, 1, res.Errors[two])
+	require.Equal(t, 0, res.Errors[oneK])
+	require.Equal(t, 1, res.Errors[twoK])
 
-	require.NotNil(t, res.Series[one])
-	require.NotNil(t, res.Series[two])
+	require.NotNil(t, res.Series[oneK])
+	require.NotNil(t, res.Series[twoK])
 
-	require.Equal(t, uint64(128), res.Series[one].Percentile(0.5))  // p50
-	require.Equal(t, uint64(181), res.Series[one].Percentile(0.75)) // p75, 128 * 2^0.5 = 181
-	require.Equal(t, uint64(256), res.Series[one].Percentile(1.0))  // p100
+	require.Equal(t, uint64(128), res.Series[oneK].Histogram.Percentile(0.5))  // p50
+	require.Equal(t, uint64(181), res.Series[oneK].Histogram.Percentile(0.75)) // p75, 128 * 2^0.5 = 181
+	require.Equal(t, uint64(256), res.Series[oneK].Histogram.Percentile(1.0))  // p100
 
-	require.Equal(t, uint64(256), res.Series[two].Percentile(0.5))  // p50
-	require.Equal(t, uint64(362), res.Series[two].Percentile(0.75)) // p75, 256 * 2^0.5 = 362
-	require.Equal(t, uint64(512), res.Series[two].Percentile(1.0))  // p100
+	require.Equal(t, uint64(256), res.Series[twoK].Histogram.Percentile(0.5))  // p50
+	require.Equal(t, uint64(362), res.Series[twoK].Histogram.Percentile(0.75)) // p75, 256 * 2^0.5 = 362
+	require.Equal(t, uint64(512), res.Series[twoK].Histogram.Percentile(1.0))  // p100
 }
 
 func TestGetMetricsTimeRange(t *testing.T) {
@@ -170,8 +178,11 @@ func TestGetMetricsTimeRange(t *testing.T) {
 	require.NotNil(t, res)
 
 	one := MetricSeries{KeyValue{Key: "span.foo", Value: traceql.NewStaticString("1")}}
-	two := MetricSeries{KeyValue{Key: "span.foo", Value: traceql.NewStaticString("2")}}
+	oneK := one.MetricKeys()
 
-	require.Equal(t, uint64(128), res.Series[one].Percentile(1.0)) // Highest span
-	require.Equal(t, uint64(512), res.Series[two].Percentile(1.0)) // Highest span
+	two := MetricSeries{KeyValue{Key: "span.foo", Value: traceql.NewStaticString("2")}}
+	twoK := two.MetricKeys()
+
+	require.Equal(t, uint64(128), res.Series[oneK].Histogram.Percentile(1.0)) // Highest span
+	require.Equal(t, uint64(512), res.Series[twoK].Histogram.Percentile(1.0)) // Highest span
 }
