@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"cmp"
 	"fmt"
-	"github.com/pkg/errors"
 	"hash/crc32"
 	"math"
 	"regexp"
@@ -331,7 +330,7 @@ func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
 				return nil, err
 			}
 
-			if b, err := result.Bool(); err != nil || !b {
+			if b, ok := result.Bool(); !ok || !b {
 				continue
 			}
 
@@ -620,7 +619,7 @@ func (s Static) Equals(o *Static) bool {
 
 func (s Static) compare(o *Static) int {
 	if s.Type != o.Type {
-		if s.isNumber() && o.isNumber() {
+		if s.isNumeric() && o.isNumeric() {
 			return cmp.Compare(s.Float(), o.Float())
 		}
 		return cmp.Compare(s.Type, o.Type)
@@ -634,13 +633,11 @@ func (s Static) compare(o *Static) int {
 	}
 }
 
-func (s Static) Int() (int, error) {
-	switch s.Type {
-	case TypeInt, TypeDuration:
-		return int(s.valScalar), nil
-	default:
-		return 0, errors.New("unable to convert to int")
+func (s Static) Int() (int, bool) {
+	if s.Type != TypeInt {
+		return 0, false
 	}
+	return int(s.valScalar), true
 }
 
 func (s Static) Float() float64 {
@@ -656,61 +653,51 @@ func (s Static) Float() float64 {
 	}
 }
 
-func (s Static) Bool() (bool, error) {
+func (s Static) Bool() (bool, bool) {
 	if s.Type != TypeBoolean {
-		return false, errors.New("unable to convert to bool")
+		return false, false
 	}
-
-	return s.valScalar != 0, nil
+	return s.valScalar != 0, true
 }
 
-func (s Static) Duration() (time.Duration, error) {
-	switch s.Type {
-	case TypeDuration:
-		return time.Duration(s.valScalar), nil
-	default:
-		return 0, errors.New("unable to convert to time.Duration")
+func (s Static) Duration() (time.Duration, bool) {
+	if s.Type != TypeDuration {
+		return 0, false
 	}
+	return time.Duration(s.valScalar), true
 }
 
-func (s Static) Status() (Status, error) {
+func (s Static) Status() (Status, bool) {
 	if s.Type != TypeStatus {
-		return 0, errors.New("unable to convert to Status")
+		return 0, false
 	}
-
-	return Status(s.valScalar), nil
+	return Status(s.valScalar), true
 }
 
-func (s Static) Kind() (Kind, error) {
+func (s Static) Kind() (Kind, bool) {
 	if s.Type != TypeKind {
-		return 0, errors.New("unable to convert to Kind")
+		return 0, false
 	}
-
-	return Kind(s.valScalar), nil
+	return Kind(s.valScalar), true
 }
 
-func (s Static) IntArray() ([]int, error) {
+func (s Static) IntArray() ([]int, bool) {
 	if s.Type != TypeIntArray {
-		return nil, errors.New("unable to convert to int slice")
+		return nil, false
 	}
 
 	if s.valBytes == nil {
-		return nil, nil
+		return nil, true
 	}
 	if len(s.valBytes) == 0 {
-		return []int{}, nil
+		return []int{}, true
 	}
 	numInts := uintptr(len(s.valBytes)) / unsafe.Sizeof(int(0))
-	return unsafe.Slice((*int)(unsafe.Pointer(&s.valBytes[0])), numInts), nil
+	return unsafe.Slice((*int)(unsafe.Pointer(&s.valBytes[0])), numInts), true
 }
 
-func (s Static) isNumber() bool {
-	switch s.Type {
-	case TypeInt, TypeDuration, TypeFloat:
-		return true
-	default:
-		return false
-	}
+func (s Static) isNumeric() bool {
+	return s.Type.isNumeric()
 }
 
 func (s *Static) sumInto(o *Static) {
@@ -976,8 +963,8 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 
 				// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
 				// Because of the range of floats, we need a native histogram approach.
-				n, err := v.Int()
-				if err != nil {
+				n, ok := v.Int()
+				if !ok {
 					return Static{}, false
 				}
 
