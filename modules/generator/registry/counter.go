@@ -12,6 +12,7 @@ import (
 var _ metric = (*counter)(nil)
 
 type counter struct {
+	//nolint unused
 	metric
 	metricName string
 

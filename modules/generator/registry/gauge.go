@@ -13,6 +13,7 @@ var _ metric = (*gauge)(nil)
 
 // this is mostly copied from counter
 type gauge struct {
+	//nolint unused
 	metric
 
 	metricName string

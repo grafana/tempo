@@ -108,8 +108,8 @@ func (t *testCounter) name() string {
 	return t.n
 }
 
-func (t *testCounter) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
-	return 0, nil
+func (t *testCounter) collectMetrics(_ storage.Appender, _ int64, _ map[string]string) (activeSeries int, err error) {
+	return
 }
 
 func (t *testCounter) removeStaleSeries(int64) {
@@ -155,7 +155,7 @@ func (t *testGauge) name() string {
 	return t.n
 }
 
-func (t *testGauge) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
+func (t *testGauge) collectMetrics(_ storage.Appender, _ int64, _ map[string]string) (activeSeries int, err error) {
 	return 0, nil
 }
 
