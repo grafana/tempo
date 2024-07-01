@@ -1839,8 +1839,6 @@ cache:
   caches:
   - roles:
     - parquet-footer
-    - parquet-column-idx
-    - parquet-offset-idx
     memcached:
       host: memcached-instance
   - roles:
