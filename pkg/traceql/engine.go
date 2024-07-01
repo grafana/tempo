@@ -302,8 +302,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 	// add attributes
 	for _, att := range spanset.Attributes {
 		if att.Name == attributeMatched {
-			n, err := att.Val.Int()
-			if err == nil {
+			if n, ok := att.Val.Int(); ok {
 				metadata.SpanSet.Matched = uint32(n)
 			}
 			continue

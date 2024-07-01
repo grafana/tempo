@@ -17,39 +17,31 @@ func TestNewStaticNil(t *testing.T) {
 
 func TestStatic_Int(t *testing.T) {
 	tests := []struct {
-		arg   any
-		want  int
-		error bool
+		arg any
+		ok  bool
 	}{
 		// supported values
-		{arg: -math.MaxInt},
-		{arg: -1},
-		{arg: 0},
-		{arg: 1},
-		{arg: math.MaxInt},
-		{arg: time.Duration(1), want: 1},
+		{arg: -math.MaxInt, ok: true},
+		{arg: -1, ok: true},
+		{arg: 0, ok: true},
+		{arg: 1, ok: true},
+		{arg: math.MaxInt, ok: true},
 		// unsupported values
-		{arg: "test", error: true},
-		{arg: 3.14, error: true},
-		{arg: true, error: true},
-		{arg: StatusOk, error: true},
-		{arg: KindClient, error: true},
+		{arg: "test"},
+		{arg: 3.14},
+		{arg: true},
+		{arg: StatusOk},
+		{arg: KindClient},
 	}
 
 	for _, tt := range tests {
 		t.Run(testName(tt.arg), func(t *testing.T) {
 			static := newStatic(tt.arg)
-			i, err := static.Int()
+			i, ok := static.Int()
 
-			if tt.error {
-				assert.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				if static.Type == TypeInt {
-					assert.Equal(t, tt.arg, i)
-				} else {
-					assert.Equal(t, tt.want, i)
-				}
+			require.Equal(t, tt.ok, ok)
+			if tt.ok {
+				assert.Equal(t, tt.arg, i)
 			}
 		})
 	}
@@ -119,30 +111,28 @@ func TestStatic_String(t *testing.T) {
 
 func TestStatic_Bool(t *testing.T) {
 	tests := []struct {
-		arg   any
-		error bool
+		arg any
+		ok  bool
 	}{
 		// supported values
-		{arg: false},
-		{arg: true},
+		{arg: false, ok: true},
+		{arg: true, ok: true},
 		// unsupported values
-		{arg: 3.14, error: true},
-		{arg: "test", error: true},
-		{arg: time.Duration(1), error: true},
-		{arg: StatusOk, error: true},
-		{arg: KindClient, error: true},
-		{arg: []int{1, 2, 3}, error: true},
+		{arg: 3.14},
+		{arg: "test"},
+		{arg: time.Duration(1)},
+		{arg: StatusOk},
+		{arg: KindClient},
+		{arg: []int{1, 2, 3}},
 	}
 
 	for _, tt := range tests {
 		t.Run(testName(tt.arg), func(t *testing.T) {
 			static := newStatic(tt.arg)
-			b, err := static.Bool()
+			b, ok := static.Bool()
 
-			if tt.error {
-				assert.Error(t, err)
-			} else {
-				require.NoError(t, err)
+			require.Equal(t, tt.ok, ok)
+			if tt.ok {
 				assert.Equal(t, tt.arg, b)
 			}
 		})
@@ -151,32 +141,30 @@ func TestStatic_Bool(t *testing.T) {
 
 func TestStatic_Duration(t *testing.T) {
 	tests := []struct {
-		arg   any
-		error bool
+		arg any
+		ok  bool
 	}{
 		// supported values
-		{arg: time.Duration(0)},
-		{arg: time.Duration(1)},
-		{arg: time.Duration(100) * time.Second},
+		{arg: time.Duration(0), ok: true},
+		{arg: time.Duration(1), ok: true},
+		{arg: time.Duration(100) * time.Second, ok: true},
 		// unsupported values
-		{arg: 1, error: true},
-		{arg: 3.14, error: true},
-		{arg: "test", error: true},
-		{arg: true, error: true},
-		{arg: StatusOk, error: true},
-		{arg: KindClient, error: true},
-		{arg: []int{1, 2, 3}, error: true},
+		{arg: 1},
+		{arg: 3.14},
+		{arg: "test"},
+		{arg: true},
+		{arg: StatusOk},
+		{arg: KindClient},
+		{arg: []int{1, 2, 3}},
 	}
 
 	for _, tt := range tests {
 		t.Run(testName(tt.arg), func(t *testing.T) {
 			static := newStatic(tt.arg)
-			d, err := static.Duration()
+			d, ok := static.Duration()
 
-			if tt.error {
-				assert.Error(t, err)
-			} else {
-				require.NoError(t, err)
+			require.Equal(t, tt.ok, ok)
+			if tt.ok {
 				assert.Equal(t, tt.arg, d)
 			}
 		})
@@ -185,31 +173,29 @@ func TestStatic_Duration(t *testing.T) {
 
 func TestStatic_Status(t *testing.T) {
 	tests := []struct {
-		arg   any
-		error bool
+		arg any
+		ok  bool
 	}{
 		// supported values
-		{arg: StatusError},
-		{arg: StatusOk},
-		{arg: StatusUnset},
+		{arg: StatusError, ok: true},
+		{arg: StatusOk, ok: true},
+		{arg: StatusUnset, ok: true},
 		// unsupported values
-		{arg: 1, error: true},
-		{arg: 3.14, error: true},
-		{arg: "test", error: true},
-		{arg: true, error: true},
-		{arg: KindClient, error: true},
-		{arg: []int{1, 2, 3}, error: true},
+		{arg: 1},
+		{arg: 3.14},
+		{arg: "test"},
+		{arg: true},
+		{arg: KindClient},
+		{arg: []int{1, 2, 3}},
 	}
 
 	for _, tt := range tests {
 		t.Run(testName(tt.arg), func(t *testing.T) {
 			static := newStatic(tt.arg)
-			s, err := static.Status()
+			s, ok := static.Status()
 
-			if tt.error {
-				assert.Error(t, err)
-			} else {
-				require.NoError(t, err)
+			require.Equal(t, tt.ok, ok)
+			if tt.ok {
 				assert.Equal(t, tt.arg, s)
 			}
 		})
@@ -218,34 +204,32 @@ func TestStatic_Status(t *testing.T) {
 
 func TestStatic_Kind(t *testing.T) {
 	tests := []struct {
-		arg   any
-		error bool
+		arg any
+		ok  bool
 	}{
 		// supported values
-		{arg: KindUnspecified},
-		{arg: KindInternal},
-		{arg: KindClient},
-		{arg: KindServer},
-		{arg: KindProducer},
-		{arg: KindConsumer},
+		{arg: KindUnspecified, ok: true},
+		{arg: KindInternal, ok: true},
+		{arg: KindClient, ok: true},
+		{arg: KindServer, ok: true},
+		{arg: KindProducer, ok: true},
+		{arg: KindConsumer, ok: true},
 		// unsupported values
-		{arg: 1, error: true},
-		{arg: 3.14, error: true},
-		{arg: "test", error: true},
-		{arg: true, error: true},
-		{arg: StatusOk, error: true},
-		{arg: []int{1, 2, 3}, error: true},
+		{arg: 1},
+		{arg: 3.14},
+		{arg: "test"},
+		{arg: true},
+		{arg: StatusOk},
+		{arg: []int{1, 2, 3}},
 	}
 
 	for _, tt := range tests {
 		t.Run(testName(tt.arg), func(t *testing.T) {
 			static := newStatic(tt.arg)
-			k, err := static.Kind()
+			k, ok := static.Kind()
 
-			if tt.error {
-				assert.Error(t, err)
-			} else {
-				require.NoError(t, err)
+			require.Equal(t, tt.ok, ok)
+			if tt.ok {
 				assert.Equal(t, tt.arg, k)
 			}
 		})
@@ -254,32 +238,30 @@ func TestStatic_Kind(t *testing.T) {
 
 func TestStatic_IntArray(t *testing.T) {
 	tests := []struct {
-		arg   any
-		error bool
+		arg any
+		ok  bool
 	}{
 		// supported values
-		{arg: []int(nil)},
-		{arg: []int{}},
-		{arg: []int{1}},
-		{arg: []int{1, 2, 3, 4, 5}},
+		{arg: []int(nil), ok: true},
+		{arg: []int{}, ok: true},
+		{arg: []int{1}, ok: true},
+		{arg: []int{1, 2, 3, 4, 5}, ok: true},
 		// unsupported values
-		{arg: 1, error: true},
-		{arg: 3.14, error: true},
-		{arg: "test", error: true},
-		{arg: true, error: true},
-		{arg: StatusOk, error: true},
-		{arg: KindClient, error: true},
+		{arg: 1},
+		{arg: 3.14},
+		{arg: "test"},
+		{arg: true},
+		{arg: StatusOk},
+		{arg: KindClient},
 	}
 
 	for _, tt := range tests {
 		t.Run(testName(tt.arg), func(t *testing.T) {
 			static := newStatic(tt.arg)
-			a, err := static.IntArray()
+			a, ok := static.IntArray()
 
-			if tt.error {
-				assert.Error(t, err)
-			} else {
-				require.NoError(t, err)
+			require.Equal(t, tt.ok, ok)
+			if tt.ok {
 				assert.Equal(t, tt.arg, a)
 			}
 		})

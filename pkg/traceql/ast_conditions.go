@@ -14,8 +14,7 @@ func (f SpansetFilter) extractConditions(request *FetchSpansRequest) {
 	// Use start time which would have been selected as part of the second pass
 	// metadata, and is still fairly efficient to pull back.
 	if s, ok := f.Expression.(Static); ok {
-		b, err := s.Bool()
-		if err != nil || !b {
+		if b, ok := s.Bool(); !ok || !b {
 			return
 		}
 
