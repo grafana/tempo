@@ -26,14 +26,14 @@ func NewTestRegistry() *TestRegistry {
 
 func (t *TestRegistry) NewCounter(name string) Counter {
 	return &testCounter{
-		name:     name,
+		n:        name,
 		registry: t,
 	}
 }
 
 func (t *TestRegistry) NewGauge(name string) Gauge {
 	return &testGauge{
-		name:     name,
+		n:        name,
 		registry: t,
 	}
 }
@@ -84,7 +84,7 @@ func (t *TestRegistry) String() string {
 }
 
 type testCounter struct {
-	name     string
+	n        string
 	registry *TestRegistry
 }
 
@@ -101,11 +101,23 @@ func (t *testCounter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 	}
 	sort.Sort(lbls)
 
-	t.registry.addToMetric(t.name, lbls, value)
+	t.registry.addToMetric(t.n, lbls, value)
+}
+
+func (t *testCounter) name() string {
+	return t.n
+}
+
+func (t *testCounter) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
+	return 0, nil
+}
+
+func (t *testCounter) removeStaleSeries(int64) {
+	panic("implement me")
 }
 
 type testGauge struct {
-	name     string
+	n        string
 	registry *TestRegistry
 }
 
@@ -122,7 +134,7 @@ func (t *testGauge) Inc(labelValueCombo *LabelValueCombo, value float64) {
 	}
 	sort.Sort(lbls)
 
-	t.registry.addToMetric(t.name, lbls, value)
+	t.registry.addToMetric(t.n, lbls, value)
 }
 
 func (t *testGauge) Set(labelValueCombo *LabelValueCombo, value float64) {
@@ -132,11 +144,23 @@ func (t *testGauge) Set(labelValueCombo *LabelValueCombo, value float64) {
 	}
 	sort.Sort(lbls)
 
-	t.registry.setMetric(t.name, lbls, value)
+	t.registry.setMetric(t.n, lbls, value)
 }
 
 func (t *testGauge) SetForTargetInfo(labelValueCombo *LabelValueCombo, value float64) {
 	t.Set(labelValueCombo, value)
+}
+
+func (t *testGauge) name() string {
+	return t.n
+}
+
+func (t *testGauge) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
+	return 0, nil
+}
+
+func (t *testGauge) removeStaleSeries(int64) {
+	panic("implement me")
 }
 
 type testHistogram struct {
