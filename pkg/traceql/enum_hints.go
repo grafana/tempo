@@ -13,11 +13,12 @@ const (
 	HintJobSize           = "job_size"
 	HintTimeOverlapCutoff = "time_overlap_cutoff"
 	HintConcurrentBlocks  = "concurrent_blocks"
+	HintExemplars         = "exemplars"
 )
 
 func isUnsafe(h string) bool {
 	switch h {
-	case HintSample:
+	case HintSample, HintExemplars:
 		return false
 	default:
 		return true

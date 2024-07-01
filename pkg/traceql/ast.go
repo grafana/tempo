@@ -838,8 +838,6 @@ func (a *MetricsAggregate) extractConditions(request *FetchSpansRequest) {
 			})
 		}
 	}
-
-	request.Conditions = append(request.Conditions, ExemplarMetaConditions()...)
 }
 
 func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {

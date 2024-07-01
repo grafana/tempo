@@ -8,6 +8,7 @@ import (
 	"hash"
 	"hash/fnv"
 	"math"
+	"math/rand"
 	"sort"
 	"sync"
 	"time"
@@ -580,6 +581,11 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		dedupeSpans = v
 	}
 
+	var collectExemplars bool
+	if v, ok := expr.Hints.GetBool(HintExemplars, allowUnsafeQueryHints); ok {
+		collectExemplars = v
+	}
+
 	// This initializes all step buffers, counters, etc
 	metricsPipeline.init(req, AggregateModeRaw)
 
@@ -588,6 +594,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		metricsPipeline:   metricsPipeline,
 		dedupeSpans:       dedupeSpans,
 		timeOverlapCutoff: timeOverlapCutoff,
+		exemplars:         collectExemplars,
 	}
 
 	// TraceID (optional)
@@ -633,6 +640,9 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	me.start = req.Start
 	me.end = req.End
 
+	if me.exemplars {
+		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, ExemplarMetaConditions()...)
+	}
 	// Setup second pass callback.  It might be optimized away
 	storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
 		// The traceql engine isn't thread-safe.
@@ -720,6 +730,7 @@ type MetricsEvalulator struct {
 	start, end        uint64
 	checkTime         bool
 	dedupeSpans       bool
+	exemplars         bool
 	deduper           *SpanDeduper2
 	timeOverlapCutoff float64
 	storageReq        *FetchSpansRequest
@@ -810,8 +821,11 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 			e.metricsPipeline.observe(s)
 		}
 
-		durationMs := float64(time.Duration(ss.DurationNanos) * time.Millisecond / time.Nanosecond)
-		e.metricsPipeline.observeExemplar(ss.TraceID, durationMs, ss.StartTimeUnixNanos)
+		// TODO: Add real sampling
+		if e.sampleExemplar() {
+			durationMs := float64(time.Duration(ss.DurationNanos) * time.Nanosecond / time.Millisecond)
+			e.metricsPipeline.observeExemplar(ss.TraceID, durationMs, ss.StartTimeUnixNanos)
+		}
 		e.mtx.Unlock()
 		ss.Release()
 	}
@@ -821,6 +835,10 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 	e.bytes += fetch.Bytes()
 
 	return nil
+}
+
+func (e *MetricsEvalulator) sampleExemplar() bool {
+	return e.exemplars && rand.Int()%1000 == 0
 }
 
 func (e *MetricsEvalulator) Metrics() (uint64, uint64, uint64) {

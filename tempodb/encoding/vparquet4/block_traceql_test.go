@@ -1030,13 +1030,17 @@ func TestBackendBlockQueryRange(t *testing.T) {
 		//"{status=error} | rate()",
 	}
 
+	const (
+		tenantID  = "1"
+		queryHint = "with(exemplars=true)"
+	)
+
 	var (
-		ctx      = context.TODO()
-		e        = traceql.NewEngine()
-		opts     = common.DefaultSearchOptions()
-		tenantID = "1"
-		blockID  = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
-		path     = path.Join("/Users/mapno/workspace/testblock")
+		ctx     = context.TODO()
+		e       = traceql.NewEngine()
+		opts    = common.DefaultSearchOptions()
+		blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
+		path    = path.Join("/Users/mapno/workspace/testblock")
 	)
 
 	r, _, _, err := local.New(&local.Config{
@@ -1068,7 +1072,7 @@ func TestBackendBlockQueryRange(t *testing.T) {
 			}
 
 			req := &tempopb.QueryRangeRequest{
-				Query:      tc,
+				Query:      fmt.Sprintf("%s %s", tc, queryHint),
 				Step:       uint64(time.Minute),
 				Start:      uint64(st.UnixNano()),
 				End:        uint64(end.UnixNano()),
