@@ -610,6 +610,8 @@ func (s Static) Equals(o *Static) bool {
 		return s.Type == o.Type && bytes.Equal(s.valBytes, o.valBytes)
 	case TypeKind, TypeBoolean:
 		return s.Type == o.Type && s.valScalar == o.valScalar
+	case TypeNil:
+		return o.Type == TypeNil
 	default:
 		// should not be reached
 		return false
