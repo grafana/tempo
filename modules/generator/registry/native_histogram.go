@@ -11,7 +11,6 @@ import (
 	promhistogram "github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
-	"go.uber.org/atomic"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -40,7 +39,7 @@ type nativeHistogramSeries struct {
 	// labels should not be modified after creation
 	labels        LabelPair
 	promHistogram prometheus.Histogram
-	lastUpdated   *atomic.Int64
+	lastUpdated   int64
 	histogram     *dto.Histogram
 }
 
@@ -106,7 +105,7 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 			NativeHistogramMaxBucketNumber:  100,
 			NativeHistogramMinResetDuration: 15 * time.Minute,
 		}),
-		lastUpdated: atomic.NewInt64(0),
+		lastUpdated: 0,
 	}
 
 	h.updateSeries(newSeries, value, traceID, multiplier)
@@ -121,7 +120,7 @@ func (h *nativeHistogram) updateSeries(s *nativeHistogramSeries, value float64, 
 			map[string]string{h.traceIDLabelName: traceID},
 		)
 	}
-	s.lastUpdated.Store(time.Now().UnixMilli())
+	s.lastUpdated = time.Now().UnixMilli()
 }
 
 func (h *nativeHistogram) name() string {
@@ -297,7 +296,7 @@ func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 	for hash, s := range h.series {
-		if s.lastUpdated.Load() < staleTimeMs {
+		if s.lastUpdated < staleTimeMs {
 			delete(h.series, hash)
 			h.onRemoveSerie(h.activeSeriesPerHistogramSerie())
 		}
