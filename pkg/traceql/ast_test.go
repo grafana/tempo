@@ -2,12 +2,283 @@ package traceql
 
 import (
 	"fmt"
-	"testing"
-	"time"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"math"
+	"testing"
+	"time"
 )
+
+func TestStatic_Int(t *testing.T) {
+	tests := []struct {
+		arg   any
+		want  int
+		error bool
+	}{
+		// supported values
+		{arg: -math.MaxInt},
+		{arg: -1},
+		{arg: 0},
+		{arg: 1},
+		{arg: math.MaxInt},
+		{arg: time.Duration(1), want: 1},
+		// unsupported values
+		{arg: "test", error: true},
+		{arg: 3.14, error: true},
+		{arg: true, error: true},
+		{arg: StatusOk, error: true},
+		{arg: KindClient, error: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(testName(tt.arg), func(t *testing.T) {
+			static := newStatic(tt.arg)
+			i, err := static.Int()
+
+			if tt.error {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				if static.Type == TypeInt {
+					assert.Equal(t, tt.arg, i)
+				} else {
+					assert.Equal(t, tt.want, i)
+				}
+			}
+		})
+	}
+}
+
+func TestStatic_Float(t *testing.T) {
+	tests := []struct {
+		arg  any
+		want float64
+	}{
+		{arg: -math.MaxFloat64},
+		{arg: -1.0},
+		{arg: 0.0},
+		{arg: 10.0 + math.SmallestNonzeroFloat64},
+		{arg: 1.0},
+		{arg: math.MaxFloat64},
+		{arg: int(3117), want: 3117.0},
+		{arg: time.Duration(101), want: 101.0},
+		{arg: "test", want: math.NaN()},
+		{arg: true, want: math.NaN()},
+		{arg: StatusError, want: math.NaN()},
+		{arg: KindServer, want: math.NaN()},
+	}
+
+	for _, tt := range tests {
+		t.Run(testName(tt.arg), func(t *testing.T) {
+			static := newStatic(tt.arg)
+			f := static.Float()
+
+			if static.Type == TypeFloat {
+				assert.Equal(t, tt.arg, f)
+			} else if math.IsNaN(tt.want) {
+				assert.True(t, math.IsNaN(f))
+			} else {
+				assert.Equal(t, tt.want, f)
+			}
+		})
+	}
+}
+
+func TestStatic_String(t *testing.T) {
+	tests := []struct {
+		arg  any
+		want string
+	}{
+		{arg: nil, want: "nil"},
+		{arg: 101, want: "101"},
+		{arg: -10, want: "-10"},
+		{arg: -1.0, want: "-1"},
+		{arg: 0.0, want: "0"},
+		{arg: 10.0, want: "10"},
+		{arg: "test", want: "`test`"},
+		{arg: true, want: "true"},
+		{arg: StatusOk, want: "ok"},
+		{arg: KindClient, want: "client"},
+		{arg: time.Duration(70) * time.Second, want: "1m10s"},
+		{arg: []int{1, 2, 3}, want: "[1 2 3]"},
+	}
+
+	for _, tt := range tests {
+		t.Run(testName(tt.arg), func(t *testing.T) {
+			static := newStatic(tt.arg)
+			assert.Equal(t, tt.want, static.String())
+		})
+	}
+}
+
+func TestStatic_Bool(t *testing.T) {
+	tests := []struct {
+		arg   any
+		error bool
+	}{
+		// supported values
+		{arg: false},
+		{arg: true},
+		// unsupported values
+		{arg: 3.14, error: true},
+		{arg: "test", error: true},
+		{arg: time.Duration(1), error: true},
+		{arg: StatusOk, error: true},
+		{arg: KindClient, error: true},
+		{arg: []int{1, 2, 3}, error: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(testName(tt.arg), func(t *testing.T) {
+			static := newStatic(tt.arg)
+			b, err := static.Bool()
+
+			if tt.error {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.arg, b)
+			}
+		})
+	}
+}
+
+func TestStatic_Duration(t *testing.T) {
+	tests := []struct {
+		arg   any
+		error bool
+	}{
+		// supported values
+		{arg: time.Duration(0)},
+		{arg: time.Duration(1)},
+		{arg: time.Duration(100) * time.Second},
+		// unsupported values
+		{arg: 1, error: true},
+		{arg: 3.14, error: true},
+		{arg: "test", error: true},
+		{arg: true, error: true},
+		{arg: StatusOk, error: true},
+		{arg: KindClient, error: true},
+		{arg: []int{1, 2, 3}, error: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(testName(tt.arg), func(t *testing.T) {
+			static := newStatic(tt.arg)
+			d, err := static.Duration()
+
+			if tt.error {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.arg, d)
+			}
+		})
+	}
+}
+
+func TestStatic_Status(t *testing.T) {
+	tests := []struct {
+		arg   any
+		error bool
+	}{
+		// supported values
+		{arg: StatusError},
+		{arg: StatusOk},
+		{arg: StatusUnset},
+		// unsupported values
+		{arg: 1, error: true},
+		{arg: 3.14, error: true},
+		{arg: "test", error: true},
+		{arg: true, error: true},
+		{arg: KindClient, error: true},
+		{arg: []int{1, 2, 3}, error: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(testName(tt.arg), func(t *testing.T) {
+			static := newStatic(tt.arg)
+			s, err := static.Status()
+
+			if tt.error {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.arg, s)
+			}
+		})
+	}
+}
+
+func TestStatic_Kind(t *testing.T) {
+	tests := []struct {
+		arg   any
+		error bool
+	}{
+		// supported values
+		{arg: KindUnspecified},
+		{arg: KindInternal},
+		{arg: KindClient},
+		{arg: KindServer},
+		{arg: KindProducer},
+		{arg: KindConsumer},
+		// unsupported values
+		{arg: 1, error: true},
+		{arg: 3.14, error: true},
+		{arg: "test", error: true},
+		{arg: true, error: true},
+		{arg: StatusOk, error: true},
+		{arg: []int{1, 2, 3}, error: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(testName(tt.arg), func(t *testing.T) {
+			static := newStatic(tt.arg)
+			k, err := static.Kind()
+
+			if tt.error {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.arg, k)
+			}
+		})
+	}
+}
+
+func TestStatic_IntArray(t *testing.T) {
+	tests := []struct {
+		arg   any
+		error bool
+	}{
+		// supported values
+		{arg: []int(nil)},
+		{arg: []int{}},
+		{arg: []int{1}},
+		{arg: []int{1, 2, 3, 4, 5}},
+		// unsupported values
+		{arg: 1, error: true},
+		{arg: 3.14, error: true},
+		{arg: "test", error: true},
+		{arg: true, error: true},
+		{arg: StatusOk, error: true},
+		{arg: KindClient, error: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(testName(tt.arg), func(t *testing.T) {
+			static := newStatic(tt.arg)
+			a, err := static.IntArray()
+
+			if tt.error {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.arg, a)
+			}
+		})
+	}
+}
 
 func TestStatic_Equals(t *testing.T) {
 	areEqual := []struct {
@@ -15,13 +286,15 @@ func TestStatic_Equals(t *testing.T) {
 	}{
 		{NewStaticInt(1), NewStaticInt(1)},
 		{NewStaticFloat(1.5), NewStaticFloat(1.5)},
-		{NewStaticInt(1), NewStaticFloat(1)},
+		{NewStaticInt(2), NewStaticFloat(2.0)},
 		{NewStaticString("foo"), NewStaticString("foo")},
 		{NewStaticBool(true), NewStaticBool(true)},
 		{NewStaticDuration(1 * time.Second), NewStaticDuration(1000 * time.Millisecond)},
 		{NewStaticStatus(StatusOk), NewStaticStatus(StatusOk)},
 		{NewStaticKind(KindClient), NewStaticKind(KindClient)},
 		{NewStaticDuration(0), NewStaticInt(0)},
+		{NewStaticIntArray([]int{}), NewStaticIntArray(nil)},
+		{NewStaticIntArray([]int{11, 111}), NewStaticIntArray([]int{11, 111})},
 		// Status and int comparison
 		{NewStaticStatus(StatusError), NewStaticInt(0)},
 		{NewStaticStatus(StatusOk), NewStaticInt(1)},
@@ -35,19 +308,86 @@ func TestStatic_Equals(t *testing.T) {
 		{NewStaticString("foo"), NewStaticString("bar")},
 		{NewStaticKind(KindClient), NewStaticKind(KindConsumer)},
 		{NewStaticStatus(StatusError), NewStaticStatus(StatusOk)},
-		{NewStaticStatus(StatusOk), NewStaticInt(0)},
+		{NewStaticStatus(StatusOk), NewStaticStatus(StatusUnset)},
+		{NewStaticStatus(StatusOk), NewStaticKind(KindInternal)},
 		{NewStaticStatus(StatusError), NewStaticFloat(0)},
+		{NewStaticIntArray([]int{}), NewStaticIntArray([]int{0})},
+		{NewStaticIntArray([]int{111, 11}), NewStaticIntArray([]int{11, 111})},
 	}
 	for _, tt := range areEqual {
-		t.Run(fmt.Sprintf("%v == %v", tt.lhs, tt.rhs), func(t *testing.T) {
-			assert.True(t, tt.lhs.Equals(tt.rhs))
-			assert.True(t, tt.rhs.Equals(tt.lhs))
+		t.Run(fmt.Sprintf("%s==%s", testName(tt.rhs), testName(tt.rhs)), func(t *testing.T) {
+			assert.True(t, tt.lhs.Equals(&tt.rhs))
+			assert.True(t, tt.rhs.Equals(&tt.lhs))
 		})
 	}
 	for _, tt := range areNotEqual {
-		t.Run(fmt.Sprintf("%v != %v", tt.lhs, tt.rhs), func(t *testing.T) {
-			assert.False(t, tt.lhs.Equals(tt.rhs))
-			assert.False(t, tt.rhs.Equals(tt.lhs))
+		t.Run(fmt.Sprintf("%s!=%s", testName(tt.lhs), testName(tt.rhs)), func(t *testing.T) {
+			assert.False(t, tt.lhs.Equals(&tt.rhs))
+			assert.False(t, tt.rhs.Equals(&tt.lhs))
+		})
+	}
+}
+
+func TestStatic_compare(t *testing.T) {
+	testCases := []struct {
+		s1, s2 Static
+		want   int
+	}{
+		{s1: NewStaticInt(10), s2: NewStaticInt(5), want: 1},
+		{s1: NewStaticInt(5), s2: NewStaticInt(-10), want: 1},
+		{s1: NewStaticInt(20), s2: NewStaticInt(20), want: 0},
+		{s1: NewStaticFloat(10.5), s2: NewStaticFloat(5.5), want: 1},
+		{s1: NewStaticFloat(100.0), s2: NewStaticInt(100), want: 0},
+		{s1: NewStaticFloat(100.0), s2: NewStaticInt(50), want: 1},
+		{s1: NewStaticString("world"), s2: NewStaticString("hello"), want: 1},
+		{s1: NewStaticBool(true), s2: NewStaticBool(false), want: 1},
+	}
+
+	for _, tt := range testCases {
+		t.Run(fmt.Sprintf("%s<>%s", tt.s1.String(), tt.s2.String()), func(t *testing.T) {
+			res := tt.s1.compare(&tt.s2)
+			require.Equal(t, tt.want, res, "s1.compare(s2)")
+			res = tt.s2.compare(&tt.s1)
+			require.Equal(t, -tt.want, res, "s2.compare(s1)")
+		})
+	}
+}
+
+func TestStatic_sumInto(t *testing.T) {
+	tests := []struct {
+		s1, s2, want Static
+	}{
+		{NewStaticInt(1), NewStaticInt(2), NewStaticInt(3)},
+		{NewStaticInt(-3), NewStaticInt(2), NewStaticInt(-1)},
+		{NewStaticInt(-3), NewStaticDuration(3), NewStaticInt(-3)},
+		{NewStaticDuration(2 * time.Second), NewStaticDuration(1 * time.Second), NewStaticDuration(3 * time.Second)},
+		{NewStaticDuration(2 * time.Second), NewStaticInt(3000), NewStaticDuration(2 * time.Second)},
+		{NewStaticFloat(1.5), NewStaticFloat(2.5), NewStaticFloat(4.0)},
+		{NewStaticFloat(-4.5), NewStaticFloat(2.0), NewStaticFloat(-2.5)},
+		{NewStaticFloat(3.14), NewStaticInt(1), NewStaticFloat(3.14)},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%s+%s", tt.s1.String(), tt.s2.String()), func(t *testing.T) {
+			tt.s1.sumInto(&tt.s2)
+			assert.Equal(t, tt.want, tt.s1, "s1.sumInto(s2)")
+		})
+	}
+}
+
+func TestStatic_divideBy(t *testing.T) {
+	tests := []struct {
+		s    Static
+		f    float64
+		want Static
+	}{
+		{NewStaticInt(10), 2, NewStaticFloat(5)},
+		{NewStaticDuration(12 * time.Second), 2.1, NewStaticDuration(6 * time.Second)},
+		{NewStaticFloat(12.2), 2.0, NewStaticFloat(6.1)},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%s/%.2f", tt.s.String(), tt.f), func(t *testing.T) {
+			s := tt.s.divideBy(tt.f)
+			assert.Equal(t, tt.want, s, "s.divideBy(f)")
 		})
 	}
 }
@@ -300,48 +640,15 @@ func TestSpansetFilterEvaluate(t *testing.T) {
 	}
 }
 
-func TestStaticCompare(t *testing.T) {
-	testCases := []struct {
-		name     string
-		s1       Static
-		s2       Static
-		expected int
-	}{
-		{
-			name:     "IntComparison_Greater",
-			s1:       Static{Type: TypeInt, N: 10},
-			s2:       Static{Type: TypeInt, N: 5},
-			expected: 1,
-		},
-		{
-			name:     "FloatComparison_Greater",
-			s1:       Static{Type: TypeFloat, F: 10.5},
-			s2:       Static{Type: TypeFloat, F: 5.5},
-			expected: 1,
-		},
-		{
-			name:     "StringComparison_Less",
-			s1:       Static{Type: TypeString, S: "hello"},
-			s2:       Static{Type: TypeString, S: "world"},
-			expected: -1,
-		},
-		{
-			name:     "BooleanComparison_Greater",
-			s1:       Static{Type: TypeBoolean, B: true},
-			s2:       Static{Type: TypeBoolean, B: false},
-			expected: 1,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result := tc.s1.compare(&tc.s2)
-			require.Equal(t, tc.expected, result)
-		})
-	}
-}
-
 var _ Span = (*mockSpan)(nil)
+
+type AlternateStatic struct {
+	Type StaticType
+
+	valScalar  uint64   // used for int, float64, bool, time.Duration, Kind, and Status
+	valBytes   []byte   // used for string, []int, []float64, []bool
+	valStrings []string // used for []string
+}
 
 type mockSpan struct {
 	id                 []byte
@@ -473,4 +780,47 @@ func loop(lhs []Span, rhs []Span, falseForAll bool, invert bool, eval func(s1 Sp
 	}
 
 	return out
+}
+
+func newStatic(val any) Static {
+	if val == nil {
+		return NewStaticNil()
+	}
+
+	switch v := val.(type) {
+	case int:
+		return NewStaticInt(v)
+	case float64:
+		return NewStaticFloat(v)
+	case string:
+		return NewStaticString(v)
+	case bool:
+		return NewStaticBool(v)
+	case time.Duration:
+		return NewStaticDuration(v)
+	case Status:
+		return NewStaticStatus(v)
+	case Kind:
+		return NewStaticKind(v)
+	case []int:
+		return NewStaticIntArray(v)
+	}
+	panic(fmt.Sprintf("unsupported type %T", val))
+}
+
+func testName(val any) string {
+	if val == nil {
+		return "nil"
+	}
+
+	switch v := val.(type) {
+	case float64:
+		return fmt.Sprintf("%e", v)
+	case []int:
+		return fmt.Sprintf("[%d]int", len(v))
+	case Static:
+		return v.EncodeToString(false)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
 }
