@@ -1,10 +1,15 @@
 package traceql
 
 import (
+	"bytes"
+	"cmp"
 	"fmt"
+	"github.com/pkg/errors"
+	"hash/crc32"
 	"math"
 	"regexp"
 	"time"
+	"unsafe"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -326,11 +331,7 @@ func (f *SpansetFilter) evaluate(input []*Spanset) ([]*Spanset, error) {
 				return nil, err
 			}
 
-			if result.Type != TypeBoolean {
-				continue
-			}
-
-			if !result.B {
+			if b, err := result.Bool(); err != nil || !b {
 				continue
 			}
 
@@ -475,22 +476,269 @@ func (o UnaryOperation) referencesSpan() bool {
 // **********************
 // Statics
 // **********************
+
 type Static struct {
-	Type   StaticType
-	N      int
-	F      float64
-	S      string
-	B      bool
-	D      time.Duration
-	Status Status // todo: can we just use the N member for status and kind?
-	Kind   Kind
+	Type StaticType
+
+	valScalar  uint64   // used for int, float64, bool, time.Duration, Kind, and Status
+	valBytes   []byte   // used for string, []int, []float64, []bool
+	valStrings []string // used for []string
 }
 
-// nolint: revive
-func (Static) __fieldExpression() {}
+type StaticMapKey struct {
+	typ  StaticType
+	code uint64
+	str  string
+}
 
-// nolint: revive
-func (Static) __scalarExpression() {}
+func NewStaticNil() Static {
+	return Static{Type: TypeNil}
+}
+
+func NewStaticInt(i int) Static {
+	return Static{
+		Type:      TypeInt,
+		valScalar: uint64(i),
+	}
+}
+
+func NewStaticFloat(f float64) Static {
+	return Static{
+		Type:      TypeFloat,
+		valScalar: math.Float64bits(f),
+	}
+}
+
+func NewStaticString(s string) Static {
+	return Static{
+		Type:     TypeString,
+		valBytes: unsafe.Slice(unsafe.StringData(s), len(s)),
+	}
+}
+
+func NewStaticBool(b bool) Static {
+	var val uint64
+	if b {
+		val = 1
+	}
+	return Static{
+		Type:      TypeBoolean,
+		valScalar: val,
+	}
+}
+
+func NewStaticDuration(d time.Duration) Static {
+	return Static{
+		Type:      TypeDuration,
+		valScalar: uint64(d),
+	}
+}
+
+func NewStaticStatus(s Status) Static {
+	return Static{
+		Type:      TypeStatus,
+		valScalar: uint64(s),
+	}
+}
+
+func NewStaticKind(k Kind) Static {
+	return Static{
+		Type:      TypeKind,
+		valScalar: uint64(k),
+	}
+}
+
+func NewStaticIntArray(i []int) Static {
+	if i == nil {
+		return Static{Type: TypeIntArray}
+	}
+	if len(i) == 0 {
+		return Static{Type: TypeIntArray, valBytes: []byte{}}
+	}
+
+	numBytes := uintptr(len(i)) * unsafe.Sizeof(i[0])
+	return Static{
+		Type:     TypeIntArray,
+		valBytes: unsafe.Slice((*byte)(unsafe.Pointer(&i[0])), numBytes),
+	}
+}
+
+func (s Static) MapKey() StaticMapKey {
+	switch s.Type {
+	case TypeNil:
+		return StaticMapKey{typ: TypeNil}
+	case TypeString:
+		var str string
+		if len(s.valBytes) > 0 {
+			str = unsafe.String(unsafe.SliceData(s.valBytes), len(s.valBytes))
+		}
+		return StaticMapKey{typ: s.Type, str: str}
+	case TypeIntArray:
+		sum := crc32.ChecksumIEEE(s.valBytes)
+		return StaticMapKey{typ: s.Type, code: uint64(sum)}
+	default:
+		return StaticMapKey{typ: s.Type, code: s.valScalar}
+	}
+}
+
+func (s Static) Equals(o *Static) bool {
+	switch s.Type {
+	case TypeInt, TypeDuration:
+		switch o.Type {
+		case TypeInt, TypeDuration:
+			return s.valScalar == o.valScalar
+		case TypeStatus:
+			// only int can be compared to status
+			return s.Type == TypeInt && s.valScalar == o.valScalar
+		case TypeFloat:
+			of := math.Float64frombits(o.valScalar)
+			return s.Float() == of
+		default:
+			return false
+		}
+	case TypeStatus:
+		switch o.Type {
+		case TypeInt, TypeStatus:
+			return s.valScalar == o.valScalar
+		default:
+			return false
+		}
+	case TypeFloat:
+		sf := math.Float64frombits(s.valScalar)
+		return sf == o.Float()
+	case TypeString, TypeIntArray:
+		return s.Type == o.Type && bytes.Equal(s.valBytes, o.valBytes)
+	case TypeKind, TypeBoolean:
+		return s.Type == o.Type && s.valScalar == o.valScalar
+	default:
+		// should not be reached
+		return false
+	}
+}
+
+func (s Static) compare(o *Static) int {
+	if s.Type != o.Type {
+		if s.isNumber() && o.isNumber() {
+			return cmp.Compare(s.Float(), o.Float())
+		}
+		return cmp.Compare(s.Type, o.Type)
+	}
+
+	switch s.Type {
+	case TypeString, TypeIntArray:
+		return bytes.Compare(s.valBytes, o.valBytes)
+	default:
+		return cmp.Compare(int64(s.valScalar), int64(o.valScalar))
+	}
+}
+
+func (s Static) Int() (int, error) {
+	switch s.Type {
+	case TypeInt, TypeDuration:
+		return int(s.valScalar), nil
+	default:
+		return 0, errors.New("unable to convert to int")
+	}
+}
+
+func (s Static) Float() float64 {
+	switch s.Type {
+	case TypeFloat:
+		return math.Float64frombits(s.valScalar)
+	case TypeInt:
+		return float64(int(s.valScalar))
+	case TypeDuration:
+		return float64(int64(s.valScalar))
+	default:
+		return math.NaN()
+	}
+}
+
+func (s Static) Bool() (bool, error) {
+	if s.Type != TypeBoolean {
+		return false, errors.New("unable to convert to bool")
+	}
+
+	return s.valScalar != 0, nil
+}
+
+func (s Static) Duration() (time.Duration, error) {
+	switch s.Type {
+	case TypeDuration:
+		return time.Duration(s.valScalar), nil
+	default:
+		return 0, errors.New("unable to convert to time.Duration")
+	}
+}
+
+func (s Static) Status() (Status, error) {
+	if s.Type != TypeStatus {
+		return 0, errors.New("unable to convert to Status")
+	}
+
+	return Status(s.valScalar), nil
+}
+
+func (s Static) Kind() (Kind, error) {
+	if s.Type != TypeKind {
+		return 0, errors.New("unable to convert to Kind")
+	}
+
+	return Kind(s.valScalar), nil
+}
+
+func (s Static) IntArray() ([]int, error) {
+	if s.Type != TypeIntArray {
+		return nil, errors.New("unable to convert to int slice")
+	}
+
+	if s.valBytes == nil {
+		return nil, nil
+	}
+	if len(s.valBytes) == 0 {
+		return []int{}, nil
+	}
+	numInts := uintptr(len(s.valBytes)) / unsafe.Sizeof(int(0))
+	return unsafe.Slice((*int)(unsafe.Pointer(&s.valBytes[0])), numInts), nil
+}
+
+func (s Static) isNumber() bool {
+	switch s.Type {
+	case TypeInt, TypeDuration, TypeFloat:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s Static) sumInto(o *Static) {
+	if s.Type != o.Type {
+		return
+	}
+	switch s.Type {
+	case TypeInt:
+		s.valScalar = uint64(int(s.valScalar) + int(o.valScalar))
+	case TypeDuration:
+		s.valScalar = uint64(time.Duration(s.valScalar) + time.Duration(o.valScalar))
+	case TypeFloat:
+		sf := math.Float64frombits(s.valScalar)
+		of := math.Float64frombits(o.valScalar)
+		s.valScalar = math.Float64bits(sf + of)
+	}
+}
+
+func (s Static) divideBy(f float64) Static {
+	switch s.Type {
+	case TypeInt:
+		return NewStaticFloat(float64(s.valScalar) / f) // there's no integer division in traceql
+	case TypeDuration:
+		return NewStaticDuration(time.Duration(s.valScalar) / time.Duration(f))
+	case TypeFloat:
+		sf := math.Float64frombits(s.valScalar)
+		return NewStaticFloat(sf / f)
+	}
+	return s
+}
 
 func (Static) referencesSpan() bool {
 	return false
@@ -500,178 +748,11 @@ func (s Static) impliedType() StaticType {
 	return s.Type
 }
 
-func (s Static) Equals(other Static) bool {
-	// if they are different number types. compare them as floats. however, if they are the same type just fall through to
-	// a normal comparison which should be more efficient
-	differentNumberTypes := (s.Type == TypeInt || s.Type == TypeFloat || s.Type == TypeDuration) &&
-		(other.Type == TypeInt || other.Type == TypeFloat || other.Type == TypeDuration) &&
-		s.Type != other.Type
-	if differentNumberTypes {
-		return s.asFloat() == other.asFloat()
-	}
+// nolint: revive
+func (Static) __fieldExpression() {}
 
-	eitherIsTypeStatus := (s.Type == TypeStatus && other.Type == TypeInt) || (other.Type == TypeStatus && s.Type == TypeInt)
-	if eitherIsTypeStatus {
-		if s.Type == TypeStatus {
-			return s.Status == Status(other.N)
-		}
-		return Status(s.N) == other.Status
-	}
-
-	// no special cases, just compare directly
-	return s == other
-}
-
-func (s Static) compare(other *Static) int {
-	if s.Type != other.Type {
-		if s.asFloat() > other.asFloat() {
-			return 1
-		} else if s.asFloat() < other.asFloat() {
-			return -1
-		}
-
-		return 0
-	}
-
-	switch s.Type {
-	case TypeInt:
-		if s.N > other.N {
-			return 1
-		} else if s.N < other.N {
-			return -1
-		}
-	case TypeFloat:
-		if s.F > other.F {
-			return 1
-		} else if s.F < other.F {
-			return -1
-		}
-	case TypeDuration:
-		if s.D > other.D {
-			return 1
-		} else if s.D < other.D {
-			return -1
-		}
-	case TypeString:
-		if s.S > other.S {
-			return 1
-		} else if s.S < other.S {
-			return -1
-		}
-	case TypeBoolean:
-		if s.B && !other.B {
-			return 1
-		} else if !s.B && other.B {
-			return -1
-		}
-	case TypeStatus:
-		if s.Status > other.Status {
-			return 1
-		} else if s.Status < other.Status {
-			return -1
-		}
-	case TypeKind:
-		if s.Kind > other.Kind {
-			return 1
-		} else if s.Kind < other.Kind {
-			return -1
-		}
-	}
-
-	return 0
-}
-
-func (s *Static) sumInto(other Static) {
-	switch s.Type {
-	case TypeInt:
-		s.N += other.N
-	case TypeFloat:
-		s.F += other.F
-	case TypeDuration:
-		s.D += other.D
-	}
-}
-
-func (s Static) divideBy(f float64) Static {
-	switch s.Type {
-	case TypeInt:
-		return NewStaticFloat(float64(s.N) / f) // there's no integer division in traceql
-	case TypeFloat:
-		return NewStaticFloat(s.F / f)
-	case TypeDuration:
-		return NewStaticDuration(s.D / time.Duration(f))
-	}
-
-	return s
-}
-
-func (s Static) asFloat() float64 {
-	switch s.Type {
-	case TypeInt:
-		return float64(s.N)
-	case TypeFloat:
-		return s.F
-	case TypeDuration:
-		return float64(s.D.Nanoseconds())
-	default:
-		return math.NaN()
-	}
-}
-
-func NewStaticInt(n int) Static {
-	return Static{
-		Type: TypeInt,
-		N:    n,
-	}
-}
-
-func NewStaticFloat(f float64) Static {
-	return Static{
-		Type: TypeFloat,
-		F:    f,
-	}
-}
-
-func NewStaticString(s string) Static {
-	return Static{
-		Type: TypeString,
-		S:    s,
-	}
-}
-
-func NewStaticBool(b bool) Static {
-	return Static{
-		Type: TypeBoolean,
-		B:    b,
-	}
-}
-
-func NewStaticNil() Static {
-	return Static{
-		Type: TypeNil,
-	}
-}
-
-func NewStaticDuration(d time.Duration) Static {
-	return Static{
-		Type: TypeDuration,
-		D:    d,
-	}
-}
-
-func NewStaticStatus(s Status) Static {
-	return Static{
-		Type:   TypeStatus,
-		Status: s,
-	}
-}
-
-func NewStaticKind(k Kind) Static {
-	return Static{
-		Type: TypeKind,
-		Kind: k,
-	}
-}
+// nolint: revive
+func (Static) __scalarExpression() {}
 
 // **********************
 // Attributes

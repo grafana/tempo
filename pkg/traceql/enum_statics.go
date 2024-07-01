@@ -12,6 +12,10 @@ const (
 	TypeFloat
 	TypeString
 	TypeBoolean
+	TypeIntArray
+	TypeFloatArray
+	TypeStringArray
+	TypeBooleanArray
 	TypeDuration
 	TypeStatus
 	TypeKind

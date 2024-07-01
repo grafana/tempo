@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unsafe"
 )
 
 func (r RootExpr) String() string {
@@ -76,34 +77,47 @@ func (o UnaryOperation) String() string {
 	return unaryOp(o.Op, o.Expression)
 }
 
-func (n Static) String() string {
-	return n.EncodeToString(true)
+func (s Static) String() string {
+	return s.EncodeToString(true)
 }
 
-func (n Static) EncodeToString(quotes bool) string {
-	switch n.Type {
-	case TypeInt:
-		return strconv.Itoa(n.N)
-	case TypeFloat:
-		return strconv.FormatFloat(n.F, 'g', -1, 64)
-	case TypeString:
-		if quotes {
-			return "`" + n.S + "`"
-		}
-		return n.S
-	case TypeBoolean:
-		return strconv.FormatBool(n.B)
+func (s Static) EncodeToString(quotes bool) string {
+	switch s.Type {
 	case TypeNil:
 		return "nil"
+	case TypeInt:
+		i, _ := s.Int()
+		return strconv.Itoa(i)
+	case TypeFloat:
+		return strconv.FormatFloat(s.Float(), 'g', -1, 64)
+	case TypeString:
+		var str string
+		if len(s.valBytes) > 0 {
+			str = unsafe.String(unsafe.SliceData(s.valBytes), len(s.valBytes))
+		}
+		if quotes {
+			return "`" + str + "`"
+		}
+		return str
+	case TypeBoolean:
+		b, _ := s.Bool()
+		return strconv.FormatBool(b)
 	case TypeDuration:
-		return n.D.String()
+		d, _ := s.Duration()
+		return d.String()
 	case TypeStatus:
-		return n.Status.String()
+		st, _ := s.Status()
+		return st.String()
 	case TypeKind:
-		return n.Kind.String()
+		k, _ := s.Kind()
+		return k.String()
+	case TypeIntArray:
+		ints, _ := s.IntArray()
+		return fmt.Sprintf("%+v", ints)
+	default:
+		return fmt.Sprintf("static(%d)", s.Type)
 	}
 
-	return fmt.Sprintf("static(%d)", n.Type)
 }
 
 func (a Attribute) String() string {
