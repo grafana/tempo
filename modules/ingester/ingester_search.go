@@ -78,7 +78,7 @@ func (i *Ingester) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 		return &tempopb.SearchTagsV2Response{}, nil
 	}
 
-	res, err = inst.SearchTagsV2(ctx, req.Scope)
+	res, err = inst.SearchTagsV2(ctx, req)
 	if err != nil {
 		return nil, err
 	}

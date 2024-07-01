@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -54,7 +55,8 @@ func TestSearchCompleteBlock(t *testing.T) {
 				traceQLStructural,
 				traceQLExistence,
 				nestedSet,
-				autoComplete,
+				tagValuesRunner,
+				tagNamesRunner,
 			)
 		})
 		if vers == vparquet4.VersionString {
@@ -1296,8 +1298,8 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 	}
 }
 
-// autoComplete!
-func autoComplete(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, _ *backend.BlockMeta, _ Reader, bb common.BackendBlock) {
+// tagValuesRunner!
+func tagValuesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, _ *backend.BlockMeta, _ Reader, bb common.BackendBlock) {
 	ctx := context.Background()
 	e := traceql.NewEngine()
 
@@ -1403,6 +1405,77 @@ func autoComplete(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata
 			})
 
 			require.Equal(t, expected, actual)
+		})
+	}
+}
+
+// tagNamesRunner!
+func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, _ *backend.BlockMeta, _ Reader, bb common.BackendBlock) {
+	ctx := context.Background()
+	e := traceql.NewEngine()
+
+	tcs := []struct {
+		name     string
+		scope    string
+		query    string
+		expected map[string][]string
+	}{
+		{
+			name:  "no matches",
+			scope: "none",
+			query: "{ span.dne = `123456`}",
+			expected: map[string][]string{
+				// even with no matches, we still return dedicated and intrinsic attributes that have values
+				"span":     {"http.method", "http.status_code", "http.url", "span-dedicated.01", "span-dedicated.02"},
+				"resource": {"cluster", "container", "k8s.cluster.name", "k8s.container.name", "k8s.namespace.name", "k8s.pod.name", "namespace", "pod", "res-dedicated.01", "res-dedicated.02", "service.name"},
+			},
+		},
+		{
+			name:  "resource match",
+			scope: "none",
+			query: "{ resource.cluster = `MyCluster` }",
+			expected: map[string][]string{
+				"span":     {"child", "foo", "http.method", "http.status_code", "http.url", "span-dedicated.01", "span-dedicated.02"},
+				"resource": {"bat", "{ } ( ) = ~ ! < > & | ^", "cluster", "container", "k8s.cluster.name", "k8s.container.name", "k8s.namespace.name", "k8s.pod.name", "namespace", "pod", "res-dedicated.01", "res-dedicated.02", "service.name"},
+			},
+		},
+		{
+			name:  "span match",
+			scope: "none",
+			query: "{ span.foo = `Bar` }",
+			expected: map[string][]string{
+				"span":     {"child", "parent", "{ } ( ) = ~ ! < > & | ^", "foo", "http.method", "http.status_code", "http.url", "span-dedicated.01", "span-dedicated.02"},
+				"resource": {"bat", "{ } ( ) = ~ ! < > & | ^", "cluster", "container", "k8s.cluster.name", "k8s.container.name", "k8s.namespace.name", "k8s.pod.name", "namespace", "pod", "res-dedicated.01", "res-dedicated.02", "service.name"},
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			fetcher := traceql.NewTagNamesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback) error {
+				return bb.FetchTagNames(ctx, req, cb, common.DefaultSearchOptions())
+			})
+
+			valueCollector := collector.NewScopedDistinctString(0)
+			err := e.ExecuteTagNames(ctx, traceql.AttributeScopeFromString(tc.scope), tc.query, func(tag string, scope traceql.AttributeScope) bool {
+				valueCollector.Collect(scope.String(), tag)
+				return valueCollector.Exceeded()
+			}, fetcher)
+			if errors.Is(err, common.ErrUnsupported) {
+				return
+			}
+			require.NoError(t, err, "autocomplete request: %+v", tc)
+
+			actualMap := valueCollector.Strings()
+			require.Equal(t, len(tc.expected), len(actualMap))
+
+			for k, expected := range tc.expected {
+				actual := actualMap[k]
+
+				slices.Sort(actual)
+				slices.Sort(expected)
+				require.Equal(t, expected, actual, "key: %s", k)
+			}
 		})
 	}
 }

@@ -85,6 +85,7 @@ type Reader interface {
 
 	Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error)
 	FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, opts common.SearchOptions) error
+	FetchTagNames(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, opts common.SearchOptions) error
 
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
@@ -459,6 +460,16 @@ func (rw *readerWriter) FetchTagValues(ctx context.Context, meta *backend.BlockM
 
 	rw.cfg.Search.ApplyToOptions(&opts)
 	return block.FetchTagValues(ctx, req, cb, opts)
+}
+
+func (rw *readerWriter) FetchTagNames(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, opts common.SearchOptions) error {
+	block, err := encoding.OpenBlock(meta, rw.r)
+	if err != nil {
+		return err
+	}
+
+	rw.cfg.Search.ApplyToOptions(&opts)
+	return block.FetchTagNames(ctx, req, cb, opts)
 }
 
 func (rw *readerWriter) Shutdown() {

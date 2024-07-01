@@ -444,6 +444,8 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 					Attrs: []Attribute{
 						{Key: "foo", Value: strPtr("abc")},
 						{Key: LabelServiceName, ValueInt: intPtr(123)}, // Different type than dedicated column
+						{Key: "asdf", ValueInt: intPtr(1234)},          // Different type than dedicated column
+						{Key: "other", ValueInt: intPtr(1234)},         // Different type than dedicated column
 					},
 					DedicatedAttributes: DedicatedAttributes{
 						String01: strPtr("dedicated-resource-attr-value-1"),

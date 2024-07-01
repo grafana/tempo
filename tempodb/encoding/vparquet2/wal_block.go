@@ -672,7 +672,10 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 }
 
 func (b *walBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.SearchOptions) error {
-	// TODO: Add support?
+	return common.ErrUnsupported
+}
+
+func (b *walBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 

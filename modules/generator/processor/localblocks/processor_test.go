@@ -356,4 +356,8 @@ func (m *mockBlock) FetchTagValues(context.Context, traceql.FetchTagValuesReques
 	return nil
 }
 
+func (m *mockBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.SearchOptions) error {
+	return nil
+}
+
 func (m *mockBlock) BlockMeta() *backend.BlockMeta { return m.meta }

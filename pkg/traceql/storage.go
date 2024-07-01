@@ -262,3 +262,29 @@ func NewSpansetFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest)
 func (s SpansetFetcherWrapper) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	return s.f(ctx, request)
 }
+
+type FetchTagsCallback func(tag string, scope AttributeScope) bool
+
+type FetchTagsRequest struct {
+	Conditions []Condition
+	Scope      AttributeScope
+	// TODO: Add start and end time?
+}
+
+type TagNamesFetcher interface {
+	Fetch(context.Context, FetchTagsRequest, FetchTagsCallback) error
+}
+
+type TagNamesFetcherWrapper struct {
+	f func(context.Context, FetchTagsRequest, FetchTagsCallback) error
+}
+
+var _ TagNamesFetcher = (*TagNamesFetcherWrapper)(nil)
+
+func NewTagNamesFetcherWrapper(f func(context.Context, FetchTagsRequest, FetchTagsCallback) error) TagNamesFetcher {
+	return TagNamesFetcherWrapper{f}
+}
+
+func (s TagNamesFetcherWrapper) Fetch(ctx context.Context, request FetchTagsRequest, callback FetchTagsCallback) error {
+	return s.f(ctx, request, callback)
+}

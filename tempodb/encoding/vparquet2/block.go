@@ -35,6 +35,9 @@ func (b *backendBlock) BlockMeta() *backend.BlockMeta {
 }
 
 func (b *backendBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.SearchOptions) error {
-	// TODO: Add support?
+	return common.ErrUnsupported
+}
+
+func (b *backendBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
