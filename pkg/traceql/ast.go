@@ -141,13 +141,13 @@ func (p Pipeline) evaluate(input []*Spanset) (result []*Spanset, err error) {
 type GroupOperation struct {
 	Expression FieldExpression
 
-	groupBuffer map[Static]*Spanset
+	groupBuffer map[StaticMapKey]*Spanset
 }
 
 func newGroupOperation(e FieldExpression) GroupOperation {
 	return GroupOperation{
 		Expression:  e,
-		groupBuffer: make(map[Static]*Spanset),
+		groupBuffer: make(map[StaticMapKey]*Spanset),
 	}
 }
 
@@ -711,7 +711,7 @@ func (s Static) isNumber() bool {
 	}
 }
 
-func (s Static) sumInto(o *Static) {
+func (s *Static) sumInto(o *Static) {
 	if s.Type != o.Type {
 		return
 	}
