@@ -33,8 +33,8 @@ func TestNext(t *testing.T) {
 	rn2 := RowNumber{0, 0, 0, 0, 0, 0, 0, 0}
 
 	for i := 0; i < 1000; i++ {
-		r := rand.Intn(MaxDefinitionLevel)
-		d := rand.Intn(MaxDefinitionLevel)
+		r := rand.Intn(MaxDefinitionLevel + 1)
+		d := rand.Intn(MaxDefinitionLevel + 1)
 
 		rn1.Next(r, d)
 		rn2.nextSlow(r, d)

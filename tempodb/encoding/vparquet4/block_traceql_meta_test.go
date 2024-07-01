@@ -640,6 +640,39 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 				),
 			),
 		},
+		{
+			"Link attribute lookup",
+			makeReq(
+				parse(t, `{link.opentracing.ref_type =~ "child"}`), //
+			),
+			makeSpansets(
+				makeSpanset(
+					wantTr.TraceID,
+					wantTr.RootSpanName,
+					wantTr.RootServiceName,
+					wantTr.StartTimeUnixNano,
+					wantTr.DurationNano,
+					&span{
+						id:                 wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID,
+						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartTimeUnixNano,
+						durationNanos:      wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].DurationNano,
+						spanAttrs: []attrVal{
+							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(100 * time.Second)},
+							{traceql.NewIntrinsic(traceql.IntrinsicSpanID), traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID))},
+						},
+						traceAttrs: []attrVal{
+							{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.NewStaticString("RootService")},
+							{traceql.NewIntrinsic(traceql.IntrinsicTraceRootSpan), traceql.NewStaticString("RootSpan")},
+							{traceql.NewIntrinsic(traceql.IntrinsicTraceDuration), traceql.NewStaticDuration(100 * time.Millisecond)},
+							{traceql.NewIntrinsic(traceql.IntrinsicTraceID), traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID))},
+						},
+						linkAttrs: []attrVal{
+							{traceql.NewScopedAttribute(traceql.AttributeScopeLink, false, "opentracing.ref_type"), traceql.NewStaticString("child-of")},
+						},
+					},
+				),
+			),
+		},
 	}
 
 	for _, tc := range testCases {
@@ -677,6 +710,12 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 					}
 					if len(spn.spanAttrs) == 0 {
 						spn.spanAttrs = nil
+					}
+					if len(spn.linkAttrs) == 0 {
+						spn.linkAttrs = nil
+					}
+					if len(spn.eventAttrs) == 0 {
+						spn.eventAttrs = nil
 					}
 
 					// sort actual attrs to get consistent comparisons

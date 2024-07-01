@@ -110,7 +110,7 @@ This example searches all Kubernetes clusters called `service-name` that have a 
 
 ### Attribute fields
 
-TraceQL has three different attribute scopes: span attributes, resource attributes, and event attributes. By expanding a span in the Grafana UI, you can see both its span attributes (1 in the screenshot) and resource attributes (2 in the screenshot).
+TraceQL has four different attribute scopes: span attributes, resource attributes, event attributes, and link attributes. By expanding a span in the Grafana UI, you can see both its span attributes (1 in the screenshot) and resource attributes (2 in the screenshot).
 
 <p align="center"><img src="assets/span-resource-attributes.png" alt="Example of span and resource  attributes." /></p>
 
@@ -140,6 +140,11 @@ Find any database connection string that goes to a Postgres or MySQL database:
 You can query for an exception in your span event:
 ```
 { event.exception.message =~ ".*something went wrong.*" }
+```
+
+You can search for an attribute in your link:
+```
+{ link.opentracing.ref_type = "child_of" }
 ```
 
 ### Unscoped attribute fields
