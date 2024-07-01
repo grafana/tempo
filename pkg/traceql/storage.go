@@ -26,6 +26,13 @@ func SearchMetaConditions() []Condition {
 	}
 }
 
+func ExemplarMetaConditions() []Condition {
+	return []Condition{
+		{NewIntrinsic(IntrinsicTraceDuration), OpNone, nil},
+		{NewIntrinsic(IntrinsicTraceStartTime), OpNone, nil},
+	}
+}
+
 func SearchMetaConditionsWithout(remove []Condition) []Condition {
 	metaConds := SearchMetaConditions()
 	retConds := make([]Condition, 0, len(metaConds))
