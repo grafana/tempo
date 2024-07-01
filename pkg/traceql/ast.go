@@ -974,15 +974,16 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 
 				// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
 				// Because of the range of floats, we need a native histogram approach.
-				if v.Type != TypeInt {
+				n, err := v.Int()
+				if err != nil {
 					return Static{}, false
 				}
 
-				if v.N < 2 {
+				if n < 2 {
 					return Static{}, false
 				}
 				// Bucket is the value rounded up to the nearest power of 2
-				return NewStaticFloat(Log2Bucketize(uint64(v.N))), true
+				return NewStaticFloat(Log2Bucketize(uint64(n))), true
 			}
 		}
 
@@ -1014,11 +1015,11 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 				if v.Type != TypeInt {
 					return Static{}, false
 				}
-
-				if v.N < 2 {
+				n, _ := v.Int()
+				if n < 2 {
 					return Static{}, false
 				}
-				return NewStaticFloat(Log2Bucketize(uint64(v.N))), true
+				return NewStaticFloat(Log2Bucketize(uint64(n))), true
 			}
 		}
 	}

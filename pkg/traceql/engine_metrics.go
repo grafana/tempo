@@ -104,8 +104,13 @@ func (ls Labels) String() string {
 		switch {
 		case l.Value.Type == TypeNil:
 			promValue = "<nil>"
-		case l.Value.Type == TypeString && l.Value.S == "":
-			promValue = "<empty>"
+		case l.Value.Type == TypeString:
+			s := l.Value.EncodeToString(false)
+			if s == "" {
+				promValue = "<empty>"
+			} else {
+				promValue = s
+			}
 		default:
 			promValue = l.Value.EncodeToString(false)
 		}

@@ -9,6 +9,12 @@ import (
 	"time"
 )
 
+func TestNewStaticNil(t *testing.T) {
+	s := NewStaticNil()
+	assert.Equal(t, TypeNil, s.Type)
+	assert.Equal(t, Static{}, s)
+}
+
 func TestStatic_Int(t *testing.T) {
 	tests := []struct {
 		arg   any
