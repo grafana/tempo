@@ -8,6 +8,7 @@ import (
 	"hash"
 	"hash/fnv"
 	"math"
+	"math/rand"
 	"sort"
 	"sync"
 	"time"
@@ -115,9 +116,16 @@ func (ls Labels) String() string {
 	return promLabels.Labels().String()
 }
 
+type Exemplar struct {
+	Labels    Labels
+	Value     float64
+	Timestamp uint64
+}
+
 type TimeSeries struct {
-	Labels Labels
-	Values []float64
+	Labels    Labels
+	Values    []float64
+	Exemplars []Exemplar
 }
 
 // SeriesSet is a set of unique timeseries. They are mapped by the "Prometheus"-style
@@ -148,10 +156,29 @@ func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeri
 			})
 		}
 
+		exemplars := make([]tempopb.Exemplar, 0, len(s.Exemplars))
+		for _, e := range s.Exemplars {
+			labels := make([]commonv1proto.KeyValue, 0, len(e.Labels))
+			for _, label := range e.Labels {
+				labels = append(labels,
+					commonv1proto.KeyValue{
+						Key:   label.Name,
+						Value: label.Value.AsAnyValue(),
+					},
+				)
+			}
+			exemplars = append(exemplars, tempopb.Exemplar{
+				Labels:      labels,
+				Value:       e.Value,
+				TimestampMs: time.Unix(0, int64(e.Timestamp)).UnixMilli(),
+			})
+		}
+
 		ss := &tempopb.TimeSeries{
 			PromLabels: promLabels,
 			Labels:     labels,
 			Samples:    samples,
+			Exemplars:  exemplars,
 		}
 
 		resp = append(resp, ss)
@@ -170,12 +197,15 @@ type VectorAggregator interface {
 // TODO - for efficiency we probably combine this with VectorAggregator (see todo about CountOverTimeAggregator)
 type RangeAggregator interface {
 	Observe(s Span)
+	ObserveExemplar([]byte, float64, uint64)
 	Samples() []float64
+	Exemplars() []Exemplar
 }
 
 // SpanAggregator sorts spans into series
 type SpanAggregator interface {
 	Observe(Span)
+	ObserveExemplar([]byte, float64, uint64)
 	Series() SeriesSet
 }
 
@@ -211,10 +241,11 @@ func (c *CountOverTimeAggregator) Sample() float64 {
 
 // StepAggregator sorts spans into time slots using a step interval like 30s or 1m
 type StepAggregator struct {
-	start   uint64
-	end     uint64
-	step    uint64
-	vectors []VectorAggregator
+	start     uint64
+	end       uint64
+	step      uint64
+	vectors   []VectorAggregator
+	exemplars []Exemplar
 }
 
 var _ RangeAggregator = (*StepAggregator)(nil)
@@ -242,12 +273,24 @@ func (s *StepAggregator) Observe(span Span) {
 	s.vectors[interval].Observe(span)
 }
 
+func (s *StepAggregator) ObserveExemplar(id []byte, value float64, ts uint64) {
+	s.exemplars = append(s.exemplars, Exemplar{
+		Labels:    Labels{{"__trace_id", NewStaticString(util.TraceIDToHexString(id))}},
+		Value:     value,
+		Timestamp: ts,
+	})
+}
+
 func (s *StepAggregator) Samples() []float64 {
 	ss := make([]float64, len(s.vectors))
 	for i, v := range s.vectors {
 		ss[i] = v.Sample()
 	}
 	return ss
+}
+
+func (s *StepAggregator) Exemplars() []Exemplar {
+	return s.exemplars
 }
 
 const maxGroupBys = 5 // TODO - This isn't ideal but see comment below.
@@ -375,6 +418,12 @@ func (g *GroupingAggregator[FV]) Observe(span Span) {
 	agg.Observe(span)
 }
 
+func (g *GroupingAggregator[FV]) ObserveExemplar(id []byte, value float64, ts uint64) {
+	if g.lastSeries != nil && g.lastBuf == g.buf {
+		g.lastSeries.ObserveExemplar(id, value, ts)
+	}
+}
+
 // labelsFor gives the final labels for the series. Slower and not on the hot path.
 // This is tweaked to match what prometheus does where possible with an exception.
 // In the case of all values missing.
@@ -431,8 +480,9 @@ func (g *GroupingAggregator[FV]) Series() SeriesSet {
 		labels, promLabels := g.labelsFor(vals)
 
 		ss[promLabels] = TimeSeries{
-			Labels: labels,
-			Values: agg.Samples(),
+			Labels:    labels,
+			Values:    agg.Samples(),
+			Exemplars: agg.Exemplars(),
 		}
 	}
 
@@ -451,6 +501,10 @@ func (u *UngroupedAggregator) Observe(span Span) {
 	u.innerAgg.Observe(span)
 }
 
+func (u *UngroupedAggregator) ObserveExemplar(id []byte, value float64, ts uint64) {
+	u.innerAgg.ObserveExemplar(id, value, ts)
+}
+
 // Series output.
 // This is tweaked to match what prometheus does.  For ungrouped metrics we
 // fill in a placeholder metric name with the name of the aggregation.
@@ -459,8 +513,9 @@ func (u *UngroupedAggregator) Series() SeriesSet {
 	l := labels.FromStrings(labels.MetricName, u.name)
 	return SeriesSet{
 		l.String(): {
-			Labels: []Label{{labels.MetricName, NewStaticString(u.name)}},
-			Values: u.innerAgg.Samples(),
+			Labels:    []Label{{labels.MetricName, NewStaticString(u.name)}},
+			Values:    u.innerAgg.Samples(),
+			Exemplars: u.innerAgg.Exemplars(),
 		},
 	}
 }
@@ -526,6 +581,11 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		dedupeSpans = v
 	}
 
+	var collectExemplars bool
+	if v, ok := expr.Hints.GetBool(HintExemplars, allowUnsafeQueryHints); ok {
+		collectExemplars = v
+	}
+
 	// This initializes all step buffers, counters, etc
 	metricsPipeline.init(req, AggregateModeRaw)
 
@@ -534,6 +594,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		metricsPipeline:   metricsPipeline,
 		dedupeSpans:       dedupeSpans,
 		timeOverlapCutoff: timeOverlapCutoff,
+		exemplars:         collectExemplars,
 	}
 
 	// TraceID (optional)
@@ -579,6 +640,9 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	me.start = req.Start
 	me.end = req.End
 
+	if me.exemplars {
+		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, ExemplarMetaConditions()...)
+	}
 	// Setup second pass callback.  It might be optimized away
 	storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
 		// The traceql engine isn't thread-safe.
@@ -666,6 +730,7 @@ type MetricsEvalulator struct {
 	start, end        uint64
 	checkTime         bool
 	dedupeSpans       bool
+	exemplars         bool
 	deduper           *SpanDeduper2
 	timeOverlapCutoff float64
 	storageReq        *FetchSpansRequest
@@ -754,7 +819,12 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 
 			e.spansTotal++
 			e.metricsPipeline.observe(s)
+		}
 
+		// TODO: Add real sampling
+		if e.sampleExemplar() {
+			durationMs := float64(time.Duration(ss.DurationNanos) * time.Nanosecond / time.Millisecond)
+			e.metricsPipeline.observeExemplar(ss.TraceID, durationMs, ss.StartTimeUnixNanos)
 		}
 		e.mtx.Unlock()
 		ss.Release()
@@ -765,6 +835,10 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 	e.bytes += fetch.Bytes()
 
 	return nil
+}
+
+func (e *MetricsEvalulator) sampleExemplar() bool {
+	return e.exemplars && rand.Int()%1000 == 0
 }
 
 func (e *MetricsEvalulator) Metrics() (uint64, uint64, uint64) {
@@ -929,6 +1003,7 @@ type HistogramAggregator struct {
 	qs               []float64
 	len              int
 	start, end, step uint64
+	exemplars        []Exemplar
 }
 
 func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64) *HistogramAggregator {
@@ -988,6 +1063,21 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			if j >= 0 && j < len(existing.hist) {
 				existing.hist[j].Record(b, int(sample.Value))
 			}
+		}
+
+		for _, exemplar := range ts.Exemplars {
+			labels := make(Labels, 0, len(exemplar.Labels))
+			for _, l := range exemplar.Labels {
+				labels = append(labels, Label{
+					Name:  l.Key,
+					Value: StaticFromAnyValue(l.Value),
+				})
+			}
+			h.exemplars = append(h.exemplars, Exemplar{
+				Labels:    labels,
+				Value:     exemplar.Value,
+				Timestamp: uint64(exemplar.TimestampMs),
+			})
 		}
 	}
 }

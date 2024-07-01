@@ -383,6 +383,13 @@ message QueryRangeResponse {
   SearchMetrics metrics = 2;
 }
 
+message Exemplar {
+  // Optional, can be empty.
+  repeated tempopb.common.v1.KeyValue labels = 1 [(gogoproto.nullable) = false];
+  double value = 2;
+  int64 timestamp_ms = 3;
+}
+
 message Sample {
   // Fields order MUST match promql.FPoint so that we can cast types between them.
   int64 timestamp_ms = 2;
@@ -399,4 +406,8 @@ message TimeSeries {
   // prom_labels are a flattened string-only version of the typed labels.
   // They are used internally and may differ from official prometheus conventions.
   string prom_labels = 3;
+
+  // Exemplars are optional and can be empty.
+  // Sorted by time, oldest exemplar first.
+  repeated Exemplar exemplars = 4 [(gogoproto.nullable) = false];
 }

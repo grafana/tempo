@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
@@ -1017,6 +1018,81 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 					b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
 					b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
 				})
+			}
+		})
+	}
+}
+
+func TestBackendBlockQueryRange(t *testing.T) {
+	testCases := []string{
+		"{} | rate()",
+		//"{} | rate() by (name)",
+		//"{} | rate() by (resource.service.name)",
+		//"{} | rate() by (span.http.url)", // High cardinality attribute
+		//"{resource.service.name=`loki-ingester`} | rate()",
+		//"{status=error} | rate()",
+	}
+
+	const (
+		tenantID  = "1"
+		queryHint = "with(exemplars=true)"
+	)
+
+	var (
+		ctx     = context.TODO()
+		e       = traceql.NewEngine()
+		opts    = common.DefaultSearchOptions()
+		blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
+		path    = path.Join("/Users/mapno/workspace/testblock")
+	)
+
+	r, _, _, err := local.New(&local.Config{
+		Path: path,
+	})
+	require.NoError(t, err)
+
+	rr := backend.NewReader(r)
+	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
+	require.NoError(t, err)
+	require.Equal(t, vparquet3.VersionString, meta.Version)
+
+	block := newBackendBlock(meta, rr)
+	_, _, err = block.openForSearch(ctx, opts)
+	require.NoError(t, err)
+
+	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return block.Fetch(ctx, req, opts)
+	})
+
+	for _, tc := range testCases {
+		t.Run(tc, func(t *testing.T) {
+			st := meta.StartTime
+			end := st.Add(time.Duration(5) * time.Minute)
+
+			if end.After(meta.EndTime) {
+				t.SkipNow()
+				return
+			}
+
+			req := &tempopb.QueryRangeRequest{
+				Query:      fmt.Sprintf("%s %s", tc, queryHint),
+				Step:       uint64(time.Minute),
+				Start:      uint64(st.UnixNano()),
+				End:        uint64(end.UnixNano()),
+				ShardID:    30,
+				ShardCount: 65,
+			}
+
+			eval, err := e.CompileMetricsQueryRange(req, false, 0, false)
+			require.NoError(t, err)
+
+			require.NoError(t, eval.Do(ctx, f, uint64(block.meta.StartTime.UnixNano()), uint64(block.meta.EndTime.UnixNano())))
+
+			ss := eval.Results()
+			require.NotNil(t, ss)
+
+			for _, s := range ss {
+				fmt.Println("Exemplars", s.Exemplars)
 			}
 		})
 	}

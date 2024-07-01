@@ -152,6 +152,8 @@ func (m *MetricsCompare) observe(span Span) {
 	})
 }
 
+func (m *MetricsCompare) observeExemplar([]byte, float64, uint64) {}
+
 func (m *MetricsCompare) observeSeries(ss []*tempopb.TimeSeries) {
 	m.seriesAgg.Combine(ss)
 }
