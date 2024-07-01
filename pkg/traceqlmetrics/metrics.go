@@ -108,30 +108,53 @@ type KeyValue struct {
 
 type MetricSeries [maxGroupBys]KeyValue
 
+func (ms *MetricSeries) MetricKeys() MetricKeys {
+	var keys MetricKeys
+	for i, kv := range ms {
+		keys[i] = MetricKey{Key: kv.Key, StaticKey: kv.Value.MapKey()}
+	}
+	return keys
+}
+
+type MetricKey struct {
+	Key       string
+	StaticKey traceql.StaticMapKey
+}
+
+type MetricKeys [maxGroupBys]MetricKey
+
 type MetricsResults struct {
 	Estimated bool
 	SpanCount int
-	Series    map[MetricSeries]*LatencyHistogram
-	Errors    map[MetricSeries]int
+	Series    map[MetricKeys]*SeriesHistogram
+	Errors    map[MetricKeys]int
+}
+
+type SeriesHistogram struct {
+	Series    MetricSeries
+	Histogram LatencyHistogram
 }
 
 func NewMetricsResults() *MetricsResults {
 	return &MetricsResults{
-		Series: map[MetricSeries]*LatencyHistogram{},
-		Errors: map[MetricSeries]int{},
+		Series: map[MetricKeys]*SeriesHistogram{},
+		Errors: map[MetricKeys]int{},
 	}
 }
 
 func (m *MetricsResults) Record(series MetricSeries, durationNanos uint64, err bool) {
-	s := m.Series[series]
-	if s == nil {
-		s = &LatencyHistogram{}
-		m.Series[series] = s
+	keys := series.MetricKeys()
+
+	sh := m.Series[keys]
+	if sh == nil {
+		sh = &SeriesHistogram{Series: series}
+		m.Series[keys] = sh
 	}
-	s.Record(durationNanos)
+
+	sh.Histogram.Record(durationNanos)
 
 	if err {
-		m.Errors[series]++
+		m.Errors[keys]++
 	}
 }
 
@@ -142,12 +165,12 @@ func (m *MetricsResults) Combine(other *MetricsResults) {
 	}
 
 	for k, v := range other.Series {
-		s := m.Series[k]
-		if s == nil {
-			s = &LatencyHistogram{}
-			m.Series[k] = s
+		sh := m.Series[k]
+		if sh == nil {
+			sh = &SeriesHistogram{Series: v.Series}
+			m.Series[k] = sh
 		}
-		s.Combine(*v)
+		sh.Histogram.Combine(v.Histogram)
 	}
 
 	for k, v := range other.Errors {
@@ -283,11 +306,12 @@ func GetMetrics(ctx context.Context, query, groupBy string, spanLimit int, start
 			var (
 				series    = MetricSeries{}
 				status, _ = s.AttributeFor(status)
-				err       = status == statusErr
+				err       = status.Equals(&statusErr)
 			)
 
 			for i, g := range groupBys {
-				series[i] = KeyValue{Key: groupByKeys[i], Value: lookup(g, s)}
+				static := lookup(g, s)
+				series[i] = KeyValue{Key: groupByKeys[i], Value: static}
 			}
 
 			results.Record(series, s.DurationNanos(), err)
