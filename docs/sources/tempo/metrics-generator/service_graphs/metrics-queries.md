@@ -2,7 +2,7 @@
 title: Service graph metrics queries
 menuTitle: Metrics queries
 description: Use PromQL queries to access metrics from service graphs
-weight: 300
+weight: 500
 ---
 
 # Service graph metrics queries

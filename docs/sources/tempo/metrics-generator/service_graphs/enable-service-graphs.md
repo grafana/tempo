@@ -4,7 +4,7 @@ aliases:
 - /docs/tempo/latest/metrics-generator/service_graphs/
 title: Enable service graphs
 description: Learn how to enable service graphs
-weight: 300
+weight: 200
 ---
 
 ## Enable service graphs
