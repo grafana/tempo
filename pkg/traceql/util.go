@@ -9,7 +9,7 @@ func MakeCollectTagValueFunc(collect func(tempopb.TagValue) bool) func(v Static)
 		switch v.Type {
 		case TypeString:
 			tv.Type = "string"
-			tv.Value = v.S // avoid formatting
+			tv.Value = v.EncodeToString(false) // avoid formatting
 
 		case TypeBoolean:
 			tv.Type = "bool"
