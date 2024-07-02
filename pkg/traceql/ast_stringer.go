@@ -117,7 +117,6 @@ func (s Static) EncodeToString(quotes bool) string {
 	default:
 		return fmt.Sprintf("static(%d)", s.Type)
 	}
-
 }
 
 func (a Attribute) String() string {
