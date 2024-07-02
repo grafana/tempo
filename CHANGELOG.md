@@ -26,7 +26,7 @@
 * [BUGFIX] max_global_traces_per_user: take into account ingestion.tenant_shard_size when converting to local limit [#3618](https://github.com/grafana/tempo/pull/3618) (@kvrhdn)
 * [BUGFIX] Fix http connection reuse on GCP and AWS by reading io.EOF through the http body. [#3760](https://github.com/grafana/tempo/pull/3760) (@bmteller)
 * [BUGFIX] Improved handling of complete blocks in localblocks processor after enabling flusing [#3805](https://github.com/grafana/tempo/pull/3805) (@mapno)
-* [ENHANCEMENT] Added an example for running Tempo vulture, **BREAKING CHANGE** Don't hardcode tempoPushURL port (@javiermolinar)
+* [ENHANCEMENT] Added an example for running Tempo vulture, **BREAKING CHANGE** Don't hardcode tempoPushURL port [#3829](https://github.com/grafana/tempo/pull/3829) (@javiermolinar)
 
 ## v2.5.0
 
