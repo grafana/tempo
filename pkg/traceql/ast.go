@@ -476,6 +476,8 @@ func (o UnaryOperation) referencesSpan() bool {
 // Statics
 // **********************
 
+// todo: remove once []string is implemented
+// nolint: unused
 type Static struct {
 	Type StaticType
 

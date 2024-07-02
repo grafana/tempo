@@ -2,11 +2,12 @@ package traceql
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"math"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewStaticNil(t *testing.T) {
@@ -629,14 +630,6 @@ func TestSpansetFilterEvaluate(t *testing.T) {
 }
 
 var _ Span = (*mockSpan)(nil)
-
-type AlternateStatic struct {
-	Type StaticType
-
-	valScalar  uint64   // used for int, float64, bool, time.Duration, Kind, and Status
-	valBytes   []byte   // used for string, []int, []float64, []bool
-	valStrings []string // used for []string
-}
 
 type mockSpan struct {
 	id                 []byte

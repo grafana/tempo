@@ -97,7 +97,7 @@ func (m *MetricsCompare) observe(span Span) {
 	i := IntervalOf(st, m.qstart, m.qend, m.qstep)
 
 	// Determine if this span is inside the selection
-	var isSelection Static = StaticFalse
+	isSelection := StaticFalse
 	if m.start > 0 && m.end > 0 {
 		// Timestamp filtering
 		if st >= uint64(m.start) && st < uint64(m.end) {
