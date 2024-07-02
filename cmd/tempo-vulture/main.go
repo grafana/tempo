@@ -311,7 +311,7 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	}
 
 	// new jaeger grpc exporter
-	conn, err := grpc.Dial(u.Host, dialOpts...)
+	conn, err := grpc.NewClient(u.Host, dialOpts...)
 	if err != nil {
 		return nil, err
 	}
