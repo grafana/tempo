@@ -2139,14 +2139,17 @@ func TestWALBlockGetMetrics(t *testing.T) {
 	require.NoError(t, err)
 
 	one := traceqlmetrics.MetricSeries{traceqlmetrics.KeyValue{Key: "name", Value: traceql.NewStaticString("1")}}
+	oneK := one.MetricKeys()
+
 	two := traceqlmetrics.MetricSeries{traceqlmetrics.KeyValue{Key: "name", Value: traceql.NewStaticString("2")}}
+	twoK := two.MetricKeys()
 
 	require.Equal(t, 2, len(res.Series))
 	require.Equal(t, 2, res.SpanCount)
-	require.Equal(t, 1, res.Series[one].Count())
-	require.Equal(t, 1, res.Series[two].Count())
-	require.Equal(t, uint64(1), res.Series[one].Percentile(1.0)) // The only span was 1ns
-	require.Equal(t, uint64(2), res.Series[two].Percentile(1.0)) // The only span was 2ns
+	require.Equal(t, 1, res.Series[oneK].Histogram.Count())
+	require.Equal(t, 1, res.Series[twoK].Histogram.Count())
+	require.Equal(t, uint64(1), res.Series[oneK].Histogram.Percentile(1.0)) // The only span was 1ns
+	require.Equal(t, uint64(2), res.Series[twoK].Histogram.Percentile(1.0)) // The only span was 2ns
 }
 
 func TestSearchForTagsAndTagValues(t *testing.T) {
