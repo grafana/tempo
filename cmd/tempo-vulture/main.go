@@ -293,7 +293,7 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	}
 
 	logger.Info("dialing grpc",
-		zap.String("endpoint", fmt.Sprintf("%s:14250", u.Host)),
+		zap.String("endpoint", u.Host),
 	)
 
 	var dialOpts []grpc.DialOption
@@ -311,7 +311,7 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	}
 
 	// new jaeger grpc exporter
-	conn, err := grpc.Dial(u.Host+":14250", dialOpts...)
+	conn, err := grpc.Dial(u.Host, dialOpts...)
 	if err != nil {
 		return nil, err
 	}
