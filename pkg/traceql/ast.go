@@ -617,6 +617,27 @@ func (s Static) Equals(o *Static) bool {
 	}
 }
 
+func (s Static) StrictEquals(o *Static) bool {
+	if s.Type != o.Type {
+		return false
+	}
+
+	switch s.Type {
+	case TypeInt, TypeDuration, TypeStatus, TypeKind, TypeBoolean:
+		return s.valScalar == o.valScalar
+	case TypeFloat:
+		sf := math.Float64frombits(s.valScalar)
+		of := math.Float64frombits(o.valScalar)
+		return sf == of
+	case TypeString, TypeIntArray:
+		return bytes.Equal(s.valBytes, o.valBytes)
+	case TypeNil:
+		return true
+	default:
+		return false
+	}
+}
+
 func (s Static) compare(o *Static) int {
 	if s.Type != o.Type {
 		if s.isNumeric() && o.isNumeric() {
