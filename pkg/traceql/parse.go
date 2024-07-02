@@ -60,6 +60,10 @@ func ParseIdentifier(s string) (Attribute, error) {
 		return NewScopedAttribute(AttributeScopeResource, false, strings.TrimPrefix(s, "resource.")), nil
 	case strings.HasPrefix(s, "span."):
 		return NewScopedAttribute(AttributeScopeSpan, false, strings.TrimPrefix(s, "span.")), nil
+	case strings.HasPrefix(s, "event."):
+		return NewScopedAttribute(AttributeScopeEvent, false, strings.TrimPrefix(s, "event.")), nil
+	case strings.HasPrefix(s, "link."):
+		return NewScopedAttribute(AttributeScopeLink, false, strings.TrimPrefix(s, "link.")), nil
 	default:
 		return Attribute{}, fmt.Errorf("tag name is not valid intrinsic or scoped attribute: %s", s)
 	}

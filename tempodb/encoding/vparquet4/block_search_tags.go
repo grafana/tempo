@@ -185,6 +185,21 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsC
 			return err
 		}
 	}
+	// event
+	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeEvent {
+		err := scanColumns(columnPathEventAttrKey, nil, dedicatedColumnMapping{}, cb, traceql.AttributeScopeEvent)
+		if err != nil {
+			return err
+		}
+	}
+
+	// link
+	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeLink {
+		err := scanColumns(columnPathLinkAttrKey, nil, dedicatedColumnMapping{}, cb, traceql.AttributeScopeLink)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -310,6 +325,32 @@ func searchStandardTagValues(ctx context.Context, tag traceql.Attribute, pf *par
 			FieldSpanAttrValInt,
 			FieldSpanAttrValDouble,
 			FieldSpanAttrValBool,
+			makeIter, keyPred, cb)
+		if err != nil {
+			return fmt.Errorf("search span key values: %w", err)
+		}
+	}
+
+	if tag.Scope == traceql.AttributeScopeEvent {
+		err := searchKeyValues(DefinitionLevelResourceSpansILSSpanEventAttrs,
+			columnPathEventAttrKey,
+			columnPathEventAttrString,
+			columnPathEventAttrInt,
+			columnPathEventAttrDouble,
+			columnPathEventAttrBool,
+			makeIter, keyPred, cb)
+		if err != nil {
+			return fmt.Errorf("search span key values: %w", err)
+		}
+	}
+
+	if tag.Scope == traceql.AttributeScopeLink {
+		err := searchKeyValues(DefinitionLevelResourceSpansILSSpanLinkAttrs,
+			columnPathLinkAttrKey,
+			columnPathLinkAttrString,
+			columnPathLinkAttrInt,
+			columnPathLinkAttrDouble,
+			columnPathLinkAttrBool,
 			makeIter, keyPred, cb)
 		if err != nil {
 			return fmt.Errorf("search span key values: %w", err)

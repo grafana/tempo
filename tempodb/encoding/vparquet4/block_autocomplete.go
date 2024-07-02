@@ -212,6 +212,20 @@ func autocompleteIter(ctx context.Context, tr tagRequest, pf *parquet.File, opts
 
 	var currentIter parquetquery.Iterator
 
+	if len(catConditions.event) > 0 {
+		currentIter, err = createDistinctEventIterator(makeIter, tag, currentIter, catConditions.event)
+		if err != nil {
+			return nil, errors.Wrap(err, "creating span iterator")
+		}
+	}
+
+	if len(catConditions.link) > 0 {
+		currentIter, err = createDistinctLinkIterator(makeIter, tag, currentIter, catConditions.link)
+		if err != nil {
+			return nil, errors.Wrap(err, "creating span iterator")
+		}
+	}
+
 	if len(catConditions.span) > 0 || tr.keysRequested(traceql.AttributeScopeSpan) {
 		currentIter, err = createDistinctSpanIterator(makeIter, tr, catConditions.span, dc)
 		if err != nil {
@@ -234,6 +248,129 @@ func autocompleteIter(ctx context.Context, tr tagRequest, pf *parquet.File, opts
 	}
 
 	return currentIter, nil
+}
+
+func createDistinctEventIterator(
+	makeIter makeIterFn,
+	tag traceql.Attribute,
+	primaryIter parquetquery.Iterator,
+	conditions []traceql.Condition,
+) (parquetquery.Iterator, error) {
+	var (
+		columnSelectAs    = map[string]string{}
+		iters             []parquetquery.Iterator
+		genericConditions []traceql.Condition
+		intrinsicCount    int
+	)
+
+	// TODO: Potentially problematic when wanted attribute is also part of a condition
+	//     e.g. { span.foo =~ ".*" && span.foo = }
+	addSelectAs := func(attr traceql.Attribute, columnPath, selectAs string) {
+		if attr == tag {
+			columnSelectAs[columnPath] = selectAs
+		} else {
+			columnSelectAs[columnPath] = "" // Don't select, just filter
+		}
+	}
+
+	for _, cond := range conditions {
+		// Intrinsic?
+		switch cond.Attribute.Intrinsic {
+		case traceql.IntrinsicEventName:
+			pred, err := createStringPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			iters = append(iters, makeIter(columnPathEventName, pred, columnSelectAs[columnPathEventName]))
+			addSelectAs(cond.Attribute, columnPathEventName, columnPathEventName)
+			intrinsicCount++
+			continue
+		}
+		// Else: generic attribute lookup
+		genericConditions = append(genericConditions, cond)
+	}
+
+	attrIter, err := createDistinctAttributeIterator(makeIter, tag, genericConditions, DefinitionLevelResourceSpansILSSpanEventAttrs,
+		columnPathEventAttrKey, columnPathEventAttrString, columnPathEventAttrInt, columnPathEventAttrDouble, columnPathEventAttrBool)
+	if err != nil {
+		return nil, errors.Wrap(err, "creating event attribute iterator")
+	}
+	if attrIter != nil {
+		iters = append(iters, attrIter)
+	}
+
+	if primaryIter != nil {
+		iters = append([]parquetquery.Iterator{primaryIter}, iters...)
+	}
+
+	if intrinsicCount == 0 {
+		return attrIter, nil
+	}
+
+	eventCol := newDistinctValueCollector(mapEventAttr)
+
+	return parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpanEvent, iters, eventCol), nil
+}
+
+func createDistinctLinkIterator(
+	makeIter makeIterFn,
+	tag traceql.Attribute,
+	primaryIter parquetquery.Iterator,
+	conditions []traceql.Condition,
+) (parquetquery.Iterator, error) {
+	var (
+		columnSelectAs    = map[string]string{}
+		iters             []parquetquery.Iterator
+		genericConditions []traceql.Condition
+		intrinsicCount    int
+	)
+
+	for _, cond := range conditions {
+		// Intrinsic?
+		switch cond.Attribute.Intrinsic {
+		case traceql.IntrinsicLinkTraceID:
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
+			if err != nil {
+				return nil, err
+			}
+			iters = append(iters, makeIter(columnPathLinkTraceID, pred, columnPathLinkTraceID))
+			columnSelectAs[columnPathLinkTraceID] = "" // Don't select, just filter
+			intrinsicCount++
+			continue
+		case traceql.IntrinsicLinkSpanID:
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
+			if err != nil {
+				return nil, err
+			}
+			iters = append(iters, makeIter(columnPathLinkSpanID, pred, columnPathLinkSpanID))
+			columnSelectAs[columnPathLinkTraceID] = "" // Don't select, just filter
+			intrinsicCount++
+			continue
+		}
+		// Else: generic attribute lookup
+		genericConditions = append(genericConditions, cond)
+	}
+
+	attrIter, err := createDistinctAttributeIterator(makeIter, tag, genericConditions, DefinitionLevelResourceSpansILSSpanLinkAttrs,
+		columnPathLinkAttrKey, columnPathLinkAttrString, columnPathLinkAttrInt, columnPathLinkAttrDouble, columnPathLinkAttrBool)
+	if err != nil {
+		return nil, errors.Wrap(err, "creating link attribute iterator")
+	}
+	if attrIter != nil {
+		iters = append(iters, attrIter)
+	}
+
+	if primaryIter != nil {
+		iters = append([]parquetquery.Iterator{primaryIter}, iters...)
+	}
+
+	if intrinsicCount == 0 {
+		return attrIter, nil
+	}
+
+	linkCol := newDistinctValueCollector(mapLinkAttr)
+
+	return parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpanEvent, iters, linkCol), nil
 }
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
@@ -522,6 +659,15 @@ func createDistinctAttributeIterator(
 	scope := scopeFromDefinitionLevel(definitionLevel)
 	if len(valueIters) > 0 || len(iters) > 0 || tr.keysRequested(scope) {
 		if len(valueIters) > 0 {
+			scope := scopeFromDefinitionLevel(definitionLevel)
+			if definitionLevel == DefinitionLevelResourceSpansILSSpanEventAttrs {
+				switch keyPath {
+				case columnPathEventAttrKey:
+					scope = traceql.AttributeScopeEvent
+				case columnPathLinkAttrKey:
+					scope = traceql.AttributeScopeLink
+				}
+			}
 			tagIter, err := parquetquery.NewLeftJoinIterator(
 				definitionLevel,
 				[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")},
@@ -571,6 +717,9 @@ func oneLevelUp(definitionLevel int) int {
 		return DefinitionLevelResourceSpansILSSpan
 	case DefinitionLevelResourceAttrs:
 		return DefinitionLevelResourceSpans
+	case DefinitionLevelResourceSpansILSSpanEventAttrs: // should cover links as well
+		return DefinitionLevelResourceSpansILSSpanEvent
+
 	}
 	return definitionLevel
 }
@@ -842,6 +991,18 @@ func (d distinctValueCollector) KeepGroup(result *parquetquery.IteratorResult) b
 	}
 	result.Entries = result.Entries[:0]
 	return true
+}
+
+func mapEventAttr(e entry) traceql.Static {
+	switch e.Key {
+	case columnPathEventName:
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
+	}
+	return traceql.Static{}
+}
+
+func mapLinkAttr(e entry) traceql.Static {
+	return traceql.Static{}
 }
 
 func mapSpanAttr(e entry) traceql.Static {
