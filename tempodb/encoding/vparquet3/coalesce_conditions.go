@@ -74,7 +74,7 @@ func operandsEqual(c1 traceql.Condition, c2 traceql.Condition) bool {
 
 	// todo: sort first?
 	for i := 0; i < len(c1.Operands); i++ {
-		if !c1.Operands[i].Equals(&c2.Operands[i]) {
+		if !c1.Operands[i].StrictEquals(&c2.Operands[i]) {
 			return false
 		}
 	}
