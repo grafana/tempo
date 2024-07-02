@@ -131,11 +131,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 
-	labelsCount := 0
-	if h.series[0] != nil {
-		labelsCount = len(h.series[0].labels.names)
-	}
-	lbls := make(labels.Labels, 1+len(externalLabels)+labelsCount)
+	lbls := make(labels.Labels, 1+len(externalLabels))
 	lb := labels.NewBuilder(lbls)
 	activeSeries = 0
 
