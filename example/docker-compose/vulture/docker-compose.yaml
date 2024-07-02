@@ -26,6 +26,6 @@ services:
 
   vulture:
     image: grafana/tempo-vulture:latest
-    command: [ "-tempo-query-url=http://tempo:3200", "-tempo-push-url=http://tempo:14268" ]
+    command: [ "-tempo-query-url=http://tempo:3200", "-tempo-push-url=http://tempo:14250" ]
     depends_on:
       - tempo
