@@ -69,7 +69,7 @@ func NewTempoAllInOne(extraArgs ...string) *e2e.HTTPService {
 	return NewTempoAllInOneWithReadinessProbe(e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299), extraArgs...)
 }
 
-func NewTempoAllInOnDebug(extraArgs ...string) *e2e.HTTPService {
+func NewTempoAllInOneDebug(extraArgs ...string) *e2e.HTTPService {
 	rp := e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299)
 	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml")}
 	args = buildArgsWithExtra(args, extraArgs)
