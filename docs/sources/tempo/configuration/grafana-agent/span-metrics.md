@@ -9,6 +9,8 @@ aliases:
 
 # Generate metrics from spans
 
+{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
+
 Span metrics allow you to generate metrics from your tracing data automatically.
 Span metrics aggregates request, error and duration (RED) metrics from span data.
 Metrics are exported in Prometheus format.
@@ -27,6 +29,12 @@ as far as tracing gets propagated through your applications.
 
 Span metrics are also used in the service graph view.
 For more information, refer to the [service graph view]({{< relref "../../metrics-generator/service-graph-view" >}}).
+
+{{< admonition type="note">}}
+Grafana Alloy provides tooling to convert your Agent Static or Flow configuration files into a format that can be used by Alloy.
+
+For more information, refer to [Migrate to Alloy]({{<relref "../grafana-alloy/migrate-alloy" >}}).
+{{< /admonition>}}
 
 ## Server-side metrics
 

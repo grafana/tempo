@@ -4,12 +4,10 @@ menuTitle: Enable service graphs
 description: Service graphs help to understand the structure of a distributed system, and the connections and dependencies between its components.
 weight:
 aliases:
-  - ../../grafana-agent/service-graphs/ # /docs/tempo/<TEMPO_VERSION>/grafana-agent/service-graphs/
+  - ../../grafana-alloy/service-graphs/ # /docs/tempo/<TEMPO_VERSION>/grafana-alloy/service-graphs/
 ---
 
 # Enable service graphs
-
-{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
 
 A service graph is a visual representation of the interrelationships between various services.
 Service graphs help to understand the structure of a distributed system,
@@ -24,46 +22,48 @@ For more information, refer to the [service graph view documentation]({{< relref
 
 ## Before you begin
 
-Service graphs are generated in Grafana Agent and pushed to a Prometheus-compatible backend.
+Service graphs are generated in Grafana Alloy and pushed to a Prometheus-compatible backend.
 Once generated, they can be represented in Grafana as a graph.
 You need these components to fully use service graphs.
 
-{{< admonition type="note">}}
-Grafana Alloy provides tooling to convert your Agent Static or Flow configuration files into a format that can be used by Alloy.
+### Enable service graphs in Grafana Alloy
 
-For more information, refer to [Migrate to Alloy]({{<relref "../grafana-alloy/migrate-alloy" >}}).
-{{< /admonition>}}
+{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
 
-### Enable service graphs in Grafana Agent
+To start using service graphs, enable the feature in the Alloy configuration.
 
-To start using service graphs, enable the feature in Grafana Agent configuration.
+The following example adds the `http.method` and `http.target` span attributes as Prometheus labels
+to the generated service graph metrics, before writing the metrics to the Grafana OTLP gateway.
+Received trace spans are immediately written to the OTLP gateway.
 
-```yaml
-traces:
-  configs:
-    - name: default
-      ...
-      service_graphs:
-        enabled: true
+```alloy
+otelcol.receiver.otlp "default" {
+  grpc {}
+  http {}
+
+  output {
+    traces = [
+      otelcol.connector.servicegraph.default.input,
+      otelcol.exporter.otlp.default.input
+    ]
+  }
+}
+
+otelcol.connector.servicegraph "default" {
+  dimensions = ["http.method", "http.target"]
+  output {
+    metrics = [otelcol.exporter.otlp.default.input]
+  }
+}
+
+otelcol.exporter.otlp "default" {
+  client {
+    endpoint = env("OTLP_ENDPOINT")
+  }
+}
 ```
 
-To see all the available configuration options, refer to the [configuration reference](/docs/agent/latest/configuration/traces-config).
-
-Metrics are registered in the Agent's default registerer.
-Therefore, they are exposed at `/metrics` in the Agent's server port (default `12345`).
-One option is to use the Agent self-scrape capabilities to export the metrics to a Prometheus-compatible backend.
-
-```yaml
-metrics:
-  configs:
-    - name: default
-      scrape_configs:
-        - job_name: local_scrape
-          static_configs:
-            - targets: ['127.0.0.1:12345']
-      remote_write:
-        - url: <remote_write>
-```
+To see all the available configuration options, refer to the [component reference](https://grafana.com/docs/alloy/latest/reference/components/otelcol.connector.servicegraph/).
 
 ### Grafana
 
