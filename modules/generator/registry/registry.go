@@ -153,10 +153,14 @@ func (r *ManagedRegistry) NewHistogram(name string, buckets []float64) (h Histog
 
 	histograms := r.overrides.MetricsGeneratorGenerateNativeHistograms(r.tenant)
 
+	histogramsModeFunc := func() string {
+		return r.overrides.MetricsGeneratorGenerateNativeHistograms(r.tenant)
+	}
+
 	// Temporary switch: use the old implementation when native histograms are
 	// disabled, eventually the new implementation can handle all cases
 	if overrides.HasNativeHistograms(histograms) {
-		h = newNativeHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, histograms)
+		h = newNativeHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, histogramsModeFunc)
 	} else {
 		h = newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName)
 	}

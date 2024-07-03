@@ -35,8 +35,10 @@ type nativeHistogram struct {
 
 	traceIDLabelName string
 
-	// "native" or "both", to include classic histograms.
-	mode string
+	// Returns "native" or "both", to include classic histograms.  We wrap the
+	// ovverrides with this func so that we can update the implementation after
+	// the nativeHistogram has been created.
+	modeFunc func() string
 }
 
 type nativeHistogramSeries struct {
@@ -52,7 +54,7 @@ var (
 	_ metric    = (*nativeHistogram)(nil)
 )
 
-func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, f func() string) *nativeHistogram {
+func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, histogramsModeFunc func() string) *nativeHistogram {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -60,6 +62,12 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 	}
 	if onRemoveSeries == nil {
 		onRemoveSeries = func(uint32) {}
+	}
+
+	if histogramsModeFunc == nil {
+		histogramsModeFunc = func() string {
+			return "native"
+		}
 	}
 
 	if traceIDLabelName == "" {
@@ -73,8 +81,7 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 		onRemoveSerie:    onRemoveSeries,
 		traceIDLabelName: traceIDLabelName,
 		buckets:          buckets,
-		// FIXME: the mode never gets updated after here, so we can't downgrade from "both" to "native"
-		mode: f(),
+		modeFunc:         histogramsModeFunc,
 	}
 }
 
@@ -164,53 +171,37 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 			return activeSeries, err
 		}
 
-		// Store the encoded histogram here so we can keep track of the exemplars
+		// NOTE: Store the encoded histogram here so we can keep track of the exemplars
 		// that have been sent.  The value is updated here, but the pointers remain
 		// the same, and so Reset() call below can be used to clear the exemplars.
 		s.histogram = encodedMetric.GetHistogram()
 
-		// If we are in "both" mode, also emit classic histograms
-		if h.mode == string(overrides.HistogramMethodBoth) {
+		// NOTE: A subtle point here is that the new histogram implementation is
+		// chosen in the registry.  This means that if the user overrides change
+		// from "both" to "classic", we will still be using the new histograms
+		// implementation. This is because the registry is not recreated when the
+		// overrides change. This is a tradeoff to avoid recreating the registry
+		// for every change in the overrides, but it does mean that even if user
+		// changes to "classic" histograms, we will still be using the new
+		// histograms implementation and want to avoid generating native
+		// histograms.
+
+		// If we are in "both" or "classic" mode, also emit classic histograms.
+		if overrides.HasClassicHistograms(h.modeFunc()) {
 			classicSeries, classicErr := h.classicHistograms(appender, lb, timeMs, s)
-			activeSeries += classicSeries
 			if classicErr != nil {
 				return activeSeries, classicErr
 			}
+			activeSeries += classicSeries
 		}
 
-		// Decode to Prometheus representation
-		hist := promhistogram.Histogram{
-			Schema:        s.histogram.GetSchema(),
-			Count:         s.histogram.GetSampleCount(),
-			Sum:           s.histogram.GetSampleSum(),
-			ZeroThreshold: s.histogram.GetZeroThreshold(),
-			ZeroCount:     s.histogram.GetZeroCount(),
-		}
-		if len(s.histogram.PositiveSpan) > 0 {
-			hist.PositiveSpans = make([]promhistogram.Span, len(s.histogram.PositiveSpan))
-			for i, span := range s.histogram.PositiveSpan {
-				hist.PositiveSpans[i] = promhistogram.Span{
-					Offset: span.GetOffset(),
-					Length: span.GetLength(),
-				}
+		// If we are in "both" or "native" mode, also emit native histograms.
+		if overrides.HasNativeHistograms(h.modeFunc()) {
+			nativeSeries, nativeErr := h.nativeHistograms(appender, lb, timeMs, s)
+			if nativeErr != nil {
+				return nativeSeries, nativeErr
 			}
-		}
-		hist.PositiveBuckets = s.histogram.PositiveDelta
-		if len(s.histogram.NegativeSpan) > 0 {
-			hist.NegativeSpans = make([]promhistogram.Span, len(s.histogram.NegativeSpan))
-			for i, span := range s.histogram.NegativeSpan {
-				hist.NegativeSpans[i] = promhistogram.Span{
-					Offset: span.GetOffset(),
-					Length: span.GetLength(),
-				}
-			}
-		}
-		hist.NegativeBuckets = s.histogram.NegativeDelta
-
-		lb.Set(labels.MetricName, h.metricName)
-		_, err = appender.AppendHistogram(0, lb.Labels(), timeMs, &hist, nil)
-		if err != nil {
-			return activeSeries, err
+			activeSeries += nativeSeries
 		}
 
 		// TODO: impact on active series from appending a histogram?
@@ -252,6 +243,45 @@ func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 func (h *nativeHistogram) activeSeriesPerHistogramSerie() uint32 {
 	// TODO can we estimate this?
 	return 1
+}
+
+func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lb *labels.Builder, timeMs int64, s *nativeHistogramSeries) (activeSeries int, err error) {
+	// Decode to Prometheus representation
+	hist := promhistogram.Histogram{
+		Schema:        s.histogram.GetSchema(),
+		Count:         s.histogram.GetSampleCount(),
+		Sum:           s.histogram.GetSampleSum(),
+		ZeroThreshold: s.histogram.GetZeroThreshold(),
+		ZeroCount:     s.histogram.GetZeroCount(),
+	}
+	if len(s.histogram.PositiveSpan) > 0 {
+		hist.PositiveSpans = make([]promhistogram.Span, len(s.histogram.PositiveSpan))
+		for i, span := range s.histogram.PositiveSpan {
+			hist.PositiveSpans[i] = promhistogram.Span{
+				Offset: span.GetOffset(),
+				Length: span.GetLength(),
+			}
+		}
+	}
+	hist.PositiveBuckets = s.histogram.PositiveDelta
+	if len(s.histogram.NegativeSpan) > 0 {
+		hist.NegativeSpans = make([]promhistogram.Span, len(s.histogram.NegativeSpan))
+		for i, span := range s.histogram.NegativeSpan {
+			hist.NegativeSpans[i] = promhistogram.Span{
+				Offset: span.GetOffset(),
+				Length: span.GetLength(),
+			}
+		}
+	}
+	hist.NegativeBuckets = s.histogram.NegativeDelta
+
+	lb.Set(labels.MetricName, h.metricName)
+	_, err = appender.AppendHistogram(0, lb.Labels(), timeMs, &hist, nil)
+	if err != nil {
+		return activeSeries, err
+	}
+
+	return
 }
 
 func (h *nativeHistogram) classicHistograms(appender storage.Appender, lb *labels.Builder, timeMs int64, s *nativeHistogramSeries) (activeSeries int, err error) {
