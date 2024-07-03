@@ -127,9 +127,6 @@ github.com/AzureAD/microsoft-authentication-library-for-go/apps/public
 # github.com/IBM/sarama v1.43.2
 ## explicit; go 1.19
 github.com/IBM/sarama
-# github.com/VividCortex/gohistogram v1.0.0
-## explicit
-github.com/VividCortex/gohistogram
 # github.com/alecthomas/kong v0.8.0
 ## explicit; go 1.18
 github.com/alecthomas/kong
@@ -321,12 +318,6 @@ github.com/felixge/httpsnoop
 # github.com/fsnotify/fsnotify v1.7.0
 ## explicit; go 1.17
 github.com/fsnotify/fsnotify
-# github.com/go-kit/kit v0.13.0
-## explicit; go 1.17
-github.com/go-kit/kit/metrics
-github.com/go-kit/kit/metrics/expvar
-github.com/go-kit/kit/metrics/generic
-github.com/go-kit/kit/metrics/internal/lv
 # github.com/go-kit/log v0.2.1
 ## explicit; go 1.17
 github.com/go-kit/log
@@ -491,7 +482,7 @@ github.com/google/uuid
 ## explicit; go 1.19
 github.com/googleapis/enterprise-certificate-proxy/client
 github.com/googleapis/enterprise-certificate-proxy/client/util
-# github.com/googleapis/gax-go/v2 v2.12.2
+# github.com/googleapis/gax-go/v2 v2.12.3
 ## explicit; go 1.19
 github.com/googleapis/gax-go/v2
 github.com/googleapis/gax-go/v2/apierror
@@ -583,7 +574,7 @@ github.com/grpc-ecosystem/grpc-gateway/v2/utilities
 # github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 ## explicit
 github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc
-# github.com/hashicorp/consul/api v1.25.1
+# github.com/hashicorp/consul/api v1.28.2
 ## explicit; go 1.19
 github.com/hashicorp/consul/api
 # github.com/hashicorp/errwrap v1.1.0
@@ -658,8 +649,8 @@ github.com/iancoleman/strcase
 # github.com/inconshreveable/mousetrap v1.1.0
 ## explicit; go 1.18
 github.com/inconshreveable/mousetrap
-# github.com/jaegertracing/jaeger v1.57.0
-## explicit; go 1.21
+# github.com/jaegertracing/jaeger v1.58.1
+## explicit; go 1.21.0
 github.com/jaegertracing/jaeger/cmd/agent/app/configmanager
 github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/grpc
 github.com/jaegertracing/jaeger/cmd/agent/app/customtransport
@@ -674,7 +665,6 @@ github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model
 github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore
 github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin
 github.com/jaegertracing/jaeger/cmd/internal/flags
-github.com/jaegertracing/jaeger/internal/metrics/expvar
 github.com/jaegertracing/jaeger/internal/metrics/metricsbuilder
 github.com/jaegertracing/jaeger/internal/metrics/prometheus
 github.com/jaegertracing/jaeger/model
@@ -694,11 +684,7 @@ github.com/jaegertracing/jaeger/pkg/healthcheck
 github.com/jaegertracing/jaeger/pkg/metrics
 github.com/jaegertracing/jaeger/pkg/netutils
 github.com/jaegertracing/jaeger/pkg/recoveryhandler
-github.com/jaegertracing/jaeger/pkg/tenancy
 github.com/jaegertracing/jaeger/pkg/version
-github.com/jaegertracing/jaeger/plugin
-github.com/jaegertracing/jaeger/plugin/storage/grpc
-github.com/jaegertracing/jaeger/plugin/storage/grpc/config
 github.com/jaegertracing/jaeger/plugin/storage/grpc/shared
 github.com/jaegertracing/jaeger/ports
 github.com/jaegertracing/jaeger/proto-gen/api_v2
@@ -1034,7 +1020,7 @@ github.com/parquet-go/parquet-go/internal/bytealg
 github.com/parquet-go/parquet-go/internal/debug
 github.com/parquet-go/parquet-go/internal/unsafecast
 github.com/parquet-go/parquet-go/sparse
-# github.com/pelletier/go-toml/v2 v2.1.0
+# github.com/pelletier/go-toml/v2 v2.2.2
 ## explicit; go 1.16
 github.com/pelletier/go-toml/v2
 github.com/pelletier/go-toml/v2/internal/characters
@@ -1078,7 +1064,7 @@ github.com/prometheus/client_golang/prometheus/testutil/promlint/validations
 # github.com/prometheus/client_model v0.6.1
 ## explicit; go 1.19
 github.com/prometheus/client_model/go
-# github.com/prometheus/common v0.53.0
+# github.com/prometheus/common v0.54.0
 ## explicit; go 1.20
 github.com/prometheus/common/config
 github.com/prometheus/common/expfmt
@@ -1230,8 +1216,8 @@ github.com/spf13/cobra
 # github.com/spf13/pflag v1.0.5
 ## explicit; go 1.12
 github.com/spf13/pflag
-# github.com/spf13/viper v1.18.2
-## explicit; go 1.18
+# github.com/spf13/viper v1.19.0
+## explicit; go 1.20
 github.com/spf13/viper
 github.com/spf13/viper/internal/encoding
 github.com/spf13/viper/internal/encoding/dotenv
@@ -1314,7 +1300,7 @@ github.com/yuin/gopher-lua/pm
 # github.com/yusufpapurcu/wmi v1.2.4
 ## explicit; go 1.16
 github.com/yusufpapurcu/wmi
-# go.etcd.io/etcd/api/v3 v3.5.10
+# go.etcd.io/etcd/api/v3 v3.5.12
 ## explicit; go 1.20
 go.etcd.io/etcd/api/v3/authpb
 go.etcd.io/etcd/api/v3/etcdserverpb
@@ -1322,7 +1308,7 @@ go.etcd.io/etcd/api/v3/membershippb
 go.etcd.io/etcd/api/v3/mvccpb
 go.etcd.io/etcd/api/v3/v3rpc/rpctypes
 go.etcd.io/etcd/api/v3/version
-# go.etcd.io/etcd/client/pkg/v3 v3.5.10
+# go.etcd.io/etcd/client/pkg/v3 v3.5.12
 ## explicit; go 1.20
 go.etcd.io/etcd/client/pkg/v3/fileutil
 go.etcd.io/etcd/client/pkg/v3/logutil
@@ -1330,7 +1316,7 @@ go.etcd.io/etcd/client/pkg/v3/systemd
 go.etcd.io/etcd/client/pkg/v3/tlsutil
 go.etcd.io/etcd/client/pkg/v3/transport
 go.etcd.io/etcd/client/pkg/v3/types
-# go.etcd.io/etcd/client/v3 v3.5.10
+# go.etcd.io/etcd/client/v3 v3.5.12
 ## explicit; go 1.20
 go.etcd.io/etcd/client/v3
 go.etcd.io/etcd/client/v3/credentials
@@ -1821,7 +1807,7 @@ gonum.org/v1/gonum/lapack
 gonum.org/v1/gonum/lapack/gonum
 gonum.org/v1/gonum/lapack/lapack64
 gonum.org/v1/gonum/mat
-# google.golang.org/api v0.169.0
+# google.golang.org/api v0.171.0
 ## explicit; go 1.19
 google.golang.org/api/googleapi
 google.golang.org/api/googleapi/transport
