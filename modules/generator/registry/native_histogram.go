@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/exemplar"
@@ -33,6 +34,9 @@ type nativeHistogram struct {
 	buckets []float64
 
 	traceIDLabelName string
+
+	// "native" or "both", to include classic histograms.
+	mode string
 }
 
 type nativeHistogramSeries struct {
@@ -48,7 +52,7 @@ var (
 	_ metric    = (*nativeHistogram)(nil)
 )
 
-func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string) *nativeHistogram {
+func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, f func() string) *nativeHistogram {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -69,6 +73,8 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 		onRemoveSerie:    onRemoveSeries,
 		traceIDLabelName: traceIDLabelName,
 		buckets:          buckets,
+		// FIXME: the mode never gets updated after here, so we can't downgrade from "both" to "native"
+		mode: f(),
 	}
 }
 
@@ -157,76 +163,20 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		if err != nil {
 			return activeSeries, err
 		}
+
+		// Store the encoded histogram here so we can keep track of the exemplars
+		// that have been sent.  The value is updated here, but the pointers remain
+		// the same, and so Reset() call below can be used to clear the exemplars.
 		s.histogram = encodedMetric.GetHistogram()
 
-		// *** Classic histogram
-
-		// sum
-		lb.Set(labels.MetricName, h.metricName+"_sum")
-		_, err = appender.Append(0, lb.Labels(), timeMs, s.histogram.GetSampleSum())
-		if err != nil {
-			return activeSeries, err
-		}
-		activeSeries++
-
-		// count
-		lb.Set(labels.MetricName, h.metricName+"_count")
-		_, err = appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(s.histogram.GetSampleCountFloat(), s.histogram.GetSampleCount()))
-		if err != nil {
-			return activeSeries, err
-		}
-		activeSeries++
-
-		// bucket
-		lb.Set(labels.MetricName, h.metricName+"_bucket")
-
-		// the Prometheus histogram will sometimes add the +Inf bucket, it depends on whether there is an exemplar
-		// for that bucket or not. To avoid adding it twice, keep track of it with this boolean.
-		infBucketWasAdded := false
-
-		for _, bucket := range s.histogram.Bucket {
-			// add "le" label
-			lb.Set(labels.BucketLabel, formatFloat(bucket.GetUpperBound()))
-
-			if bucket.GetUpperBound() == math.Inf(1) {
-				infBucketWasAdded = true
-			}
-
-			ref, appendErr := appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(bucket.GetCumulativeCountFloat(), bucket.GetCumulativeCount()))
-			if appendErr != nil {
-				return activeSeries, appendErr
-			}
-			activeSeries++
-
-			if bucket.Exemplar != nil && len(bucket.Exemplar.Label) > 0 {
-				// TODO are we appending the same exemplar twice?
-				_, err = appender.AppendExemplar(ref, lb.Labels(), exemplar.Exemplar{
-					Labels: convertLabelPairToLabels(bucket.Exemplar.GetLabel()),
-					Value:  bucket.Exemplar.GetValue(),
-					Ts:     timeMs,
-				})
-				if err != nil {
-					return activeSeries, err
-				}
-				bucket.Exemplar.Reset()
+		// If we are in "both" mode, also emit classic histograms
+		if h.mode == string(overrides.HistogramMethodBoth) {
+			classicSeries, classicErr := h.classicHistograms(appender, lb, timeMs, s)
+			activeSeries += classicSeries
+			if classicErr != nil {
+				return activeSeries, classicErr
 			}
 		}
-
-		if !infBucketWasAdded {
-			// Add +Inf bucket
-			lb.Set(labels.BucketLabel, "+Inf")
-
-			_, err = appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(s.histogram.GetSampleCountFloat(), s.histogram.GetSampleCount()))
-			if err != nil {
-				return activeSeries, err
-			}
-			activeSeries++
-		}
-
-		// drop "le" label again
-		lb.Del(labels.BucketLabel)
-
-		// *** Native histogram
 
 		// Decode to Prometheus representation
 		hist := promhistogram.Histogram{
@@ -302,6 +252,75 @@ func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
 func (h *nativeHistogram) activeSeriesPerHistogramSerie() uint32 {
 	// TODO can we estimate this?
 	return 1
+}
+
+func (h *nativeHistogram) classicHistograms(appender storage.Appender, lb *labels.Builder, timeMs int64, s *nativeHistogramSeries) (activeSeries int, err error) {
+	// sum
+	lb.Set(labels.MetricName, h.metricName+"_sum")
+	_, err = appender.Append(0, lb.Labels(), timeMs, s.histogram.GetSampleSum())
+	if err != nil {
+		return activeSeries, err
+	}
+	activeSeries++
+
+	// count
+	lb.Set(labels.MetricName, h.metricName+"_count")
+	_, err = appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(s.histogram.GetSampleCountFloat(), s.histogram.GetSampleCount()))
+	if err != nil {
+		return activeSeries, err
+	}
+	activeSeries++
+
+	// bucket
+	lb.Set(labels.MetricName, h.metricName+"_bucket")
+
+	// the Prometheus histogram will sometimes add the +Inf bucket, it depends on whether there is an exemplar
+	// for that bucket or not. To avoid adding it twice, keep track of it with this boolean.
+	infBucketWasAdded := false
+
+	for _, bucket := range s.histogram.Bucket {
+		// add "le" label
+		lb.Set(labels.BucketLabel, formatFloat(bucket.GetUpperBound()))
+
+		if bucket.GetUpperBound() == math.Inf(1) {
+			infBucketWasAdded = true
+		}
+
+		ref, appendErr := appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(bucket.GetCumulativeCountFloat(), bucket.GetCumulativeCount()))
+		if appendErr != nil {
+			return activeSeries, appendErr
+		}
+		activeSeries++
+
+		if bucket.Exemplar != nil && len(bucket.Exemplar.Label) > 0 {
+			// TODO are we appending the same exemplar twice?
+			_, err = appender.AppendExemplar(ref, lb.Labels(), exemplar.Exemplar{
+				Labels: convertLabelPairToLabels(bucket.Exemplar.GetLabel()),
+				Value:  bucket.Exemplar.GetValue(),
+				Ts:     timeMs,
+			})
+			if err != nil {
+				return activeSeries, err
+			}
+			bucket.Exemplar.Reset()
+		}
+	}
+
+	if !infBucketWasAdded {
+		// Add +Inf bucket
+		lb.Set(labels.BucketLabel, "+Inf")
+
+		_, err = appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(s.histogram.GetSampleCountFloat(), s.histogram.GetSampleCount()))
+		if err != nil {
+			return activeSeries, err
+		}
+		activeSeries++
+	}
+
+	// drop "le" label again
+	lb.Del(labels.BucketLabel)
+
+	return
 }
 
 func convertLabelPairToLabels(lbps []*dto.LabelPair) labels.Labels {

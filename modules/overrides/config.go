@@ -51,6 +51,14 @@ const (
 	MetricsGeneratorDryRunEnabled         = "metrics_generator_dry_run_enabled"
 )
 
+type HistogramMethod string
+
+const (
+	HistogramMethodClassic HistogramMethod = "classic"
+	HistogramMethodNative  HistogramMethod = "native"
+	HistogramMethodBoth    HistogramMethod = "both"
+)
+
 var metricLimitsDesc = prometheus.NewDesc(
 	"tempo_limits_defaults",
 	"Default resource limits",
@@ -132,7 +140,7 @@ type MetricsGeneratorOverrides struct {
 	MaxActiveSeries          uint32              `yaml:"max_active_series,omitempty" json:"max_active_series,omitempty"`
 	CollectionInterval       time.Duration       `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
 	DisableCollection        bool                `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
-	GenerateNativeHistograms bool                `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
+	GenerateNativeHistograms string              `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
 	TraceIDLabelName         string              `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
 
 	RemoteWriteHeaders RemoteWriteHeaders `yaml:"remote_write_headers,omitempty" json:"remote_write_headers,omitempty"`
@@ -277,4 +285,8 @@ func (c *Config) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.Global.MaxBytesPerTrace), MetricMaxBytesPerTrace)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.Compaction.BlockRetention), MetricBlockRetention)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.MetricsGenerator.MaxActiveSeries), MetricMetricsGeneratorMaxActiveSeries)
+}
+
+func HasNativeHistograms(s string) bool {
+	return s == string(HistogramMethodNative) || s == string(HistogramMethodBoth)
 }

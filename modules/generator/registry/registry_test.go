@@ -255,6 +255,54 @@ func TestValidLabelValueCombo(t *testing.T) {
 	})
 }
 
+func TestHistogramOverridesConfig(t *testing.T) {
+	cases := []struct {
+		name                string
+		nativeHistogramMode string
+		typeOfHistogram     interface{}
+	}{
+		{
+			"empty",
+			"",
+			&histogram{},
+		},
+		{
+			"bad",
+			"invalid",
+			&histogram{},
+		},
+		{
+			"classic",
+			"classic",
+			&histogram{},
+		},
+		{
+			"native",
+			"native",
+			&nativeHistogram{},
+		},
+		{
+			"both",
+			"both",
+			&nativeHistogram{},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			appender := &capturingAppender{}
+			overrides := &mockOverrides{
+				generateNativeHistograms: c.nativeHistogramMode,
+			}
+			registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger())
+			defer registry.Close()
+
+			tt := registry.NewHistogram("histogram", []float64{1.0, 2.0})
+			require.IsType(t, c.typeOfHistogram, tt)
+		})
+	}
+}
+
 func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender *capturingAppender, expectedSamples []sample) {
 	collectionTimeMs := time.Now().UnixMilli()
 	r.collectMetrics(context.Background())
@@ -298,8 +346,9 @@ func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender 
 }
 
 type mockOverrides struct {
-	maxActiveSeries   uint32
-	disableCollection bool
+	maxActiveSeries          uint32
+	disableCollection        bool
+	generateNativeHistograms string
 }
 
 var _ Overrides = (*mockOverrides)(nil)
@@ -316,8 +365,8 @@ func (m *mockOverrides) MetricsGeneratorDisableCollection(string) bool {
 	return m.disableCollection
 }
 
-func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(_ string) bool {
-	return false
+func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(_ string) string {
+	return m.generateNativeHistograms
 }
 
 func (m *mockOverrides) MetricsGenerationTraceIDLabelName(string) string {

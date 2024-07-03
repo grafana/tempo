@@ -19,7 +19,7 @@ func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 		seriesAdded += int(count)
 		return true
 	}
-	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, onAdd, nil, "trace_id")
+	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, onAdd, nil, "trace_id", "both")
 
 	lv := newLabelValueCombo([]string{"label"}, []string{"value-1"})
 
@@ -458,7 +458,7 @@ func Test_Histograms(t *testing.T) {
 					seriesAdded += int(count)
 					return true
 				}
-				h := newNativeHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id")
+				h := newNativeHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", "both")
 				testHistogram(t, h, tc.collections)
 			})
 		})

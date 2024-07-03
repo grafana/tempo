@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/common/model"
@@ -85,7 +86,8 @@ func New(cfg *Config, o Overrides, tenant string, reg prometheus.Registerer, log
 	remoteStorage := remote.NewStorage(log.With(logger, "component", "remote"), reg, startTimeCallback, walDir, cfg.RemoteWriteFlushDeadline, &noopScrapeManager{})
 
 	headers := o.MetricsGeneratorRemoteWriteHeaders(tenant)
-	sendNativeHistograms := o.MetricsGeneratorGenerateNativeHistograms(tenant)
+	generateNativeHistograms := o.MetricsGeneratorGenerateNativeHistograms(tenant)
+	sendNativeHistograms := overrides.HasNativeHistograms(generateNativeHistograms)
 
 	remoteStorageConfig := &prometheus_config.Config{
 		RemoteWriteConfigs: generateTenantRemoteWriteConfigs(cfg.RemoteWrite, tenant, headers, cfg.RemoteWriteAddOrgIDHeader, logger, sendNativeHistograms),
@@ -111,8 +113,9 @@ func New(cfg *Config, o Overrides, tenant string, reg prometheus.Registerer, log
 		tenantID:             tenant,
 		currentHeaders:       headers,
 		sendNativeHistograms: sendNativeHistograms,
-		overrides:            o,
-		closeCh:              make(chan struct{}),
+
+		overrides: o,
+		closeCh:   make(chan struct{}),
 
 		logger: logger,
 	}
@@ -148,7 +151,9 @@ func (s *storageImpl) watchOverrides() {
 		select {
 		case <-t.C:
 			newHeaders := s.overrides.MetricsGeneratorRemoteWriteHeaders(s.tenantID)
-			newSendNativeHistograms := s.overrides.MetricsGeneratorGenerateNativeHistograms(s.tenantID)
+			newGenerateNativeHistograms := s.overrides.MetricsGeneratorGenerateNativeHistograms(s.tenantID)
+			newSendNativeHistograms := overrides.HasNativeHistograms(newGenerateNativeHistograms)
+
 			if !headersEqual(s.currentHeaders, newHeaders) || s.sendNativeHistograms != newSendNativeHistograms {
 				level.Info(s.logger).Log("msg", "updating remote write configuration")
 				s.currentHeaders = newHeaders
