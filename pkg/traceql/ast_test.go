@@ -280,17 +280,18 @@ func TestStatic_MapKey(t *testing.T) {
 		NewStaticBool(false), NewStaticBool(true),
 		NewStaticString(""), NewStaticString("foo"),
 		NewStaticIntArray([]int{}), NewStaticIntArray([]int{1, 2, 3}),
+		NewStaticStringArray([]string{}), NewStaticStringArray([]string{""}), NewStaticStringArray([]string{"foo"}),
 	}
 
 	// All above values must have unique MapKey
-	occurredValues := make(map[StaticMapKey]struct{}, len(staticVals))
+	occurredValues := make(map[StaticMapKey]Static, len(staticVals))
 	for _, s := range staticVals {
 		mk := s.MapKey()
 
-		_, found := occurredValues[mk]
-		occurredValues[mk] = struct{}{}
+		prev, found := occurredValues[mk]
+		occurredValues[mk] = s
 
-		assert.False(t, found, "duplicate MapKey: %+v", mk)
+		assert.False(t, found, "static values produce the same MapKey %s, %s", prev.String(), s.String())
 	}
 }
 

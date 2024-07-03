@@ -113,7 +113,9 @@ func (s Static) EncodeToString(quotes bool) string {
 		return k.String()
 	case TypeIntArray:
 		ints, _ := s.IntArray()
-		return fmt.Sprintf("%+v", ints)
+		return fmt.Sprintf("int%+v", ints)
+	case TypeStringArray:
+		return fmt.Sprintf("str%+v", s.valStrings)
 	default:
 		return fmt.Sprintf("static(%d)", s.Type)
 	}

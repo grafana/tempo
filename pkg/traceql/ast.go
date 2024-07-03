@@ -7,6 +7,7 @@ import (
 	"hash/crc32"
 	"math"
 	"regexp"
+	"slices"
 	"time"
 	"unsafe"
 
@@ -476,8 +477,6 @@ func (o UnaryOperation) referencesSpan() bool {
 // Statics
 // **********************
 
-// todo: remove once []string is implemented
-// nolint: unused
 type Static struct {
 	Type StaticType
 
@@ -564,6 +563,22 @@ func NewStaticIntArray(i []int) Static {
 	}
 }
 
+func NewStaticStringArray(s []string) Static {
+	if s == nil {
+		return Static{Type: TypeStringArray}
+	}
+	if len(s) == 0 {
+		return Static{Type: TypeStringArray, valStrings: []string{}}
+	}
+
+	return Static{
+		Type:       TypeStringArray,
+		valStrings: s,
+	}
+}
+
+var seedBytes = []byte{204, 38, 247, 160, 15, 37, 67, 77}
+
 func (s Static) MapKey() StaticMapKey {
 	switch s.Type {
 	case TypeNil:
@@ -575,8 +590,23 @@ func (s Static) MapKey() StaticMapKey {
 		}
 		return StaticMapKey{typ: s.Type, str: str}
 	case TypeIntArray:
+		if len(s.valBytes) == 0 {
+			return StaticMapKey{typ: s.Type}
+		}
+
 		sum := crc32.ChecksumIEEE(s.valBytes)
 		return StaticMapKey{typ: s.Type, code: uint64(sum)}
+	case TypeStringArray:
+		if len(s.valStrings) == 0 {
+			return StaticMapKey{typ: s.Type}
+		}
+
+		crc := crc32.NewIEEE()
+		_, _ = crc.Write(seedBytes) // avoid collisions with values like []string{""}
+		for _, str := range s.valStrings {
+			_, _ = crc.Write(unsafe.Slice(unsafe.StringData(str), len(str)))
+		}
+		return StaticMapKey{typ: s.Type, code: uint64(crc.Sum32())}
 	default:
 		return StaticMapKey{typ: s.Type, code: s.valScalar}
 	}
@@ -607,10 +637,12 @@ func (s Static) Equals(o *Static) bool {
 	case TypeFloat:
 		sf := math.Float64frombits(s.valScalar)
 		return sf == o.Float()
-	case TypeString, TypeIntArray:
-		return s.Type == o.Type && bytes.Equal(s.valBytes, o.valBytes)
 	case TypeKind, TypeBoolean:
 		return s.Type == o.Type && s.valScalar == o.valScalar
+	case TypeString, TypeIntArray:
+		return s.Type == o.Type && bytes.Equal(s.valBytes, o.valBytes)
+	case TypeStringArray:
+		return s.Type == o.Type && slices.Equal(s.valStrings, o.valStrings)
 	case TypeNil:
 		return o.Type == TypeNil
 	default:
@@ -633,6 +665,8 @@ func (s Static) StrictEquals(o *Static) bool {
 		return sf == of
 	case TypeString, TypeIntArray:
 		return bytes.Equal(s.valBytes, o.valBytes)
+	case TypeStringArray:
+		return s.Type == o.Type && slices.Equal(s.valStrings, o.valStrings)
 	case TypeNil:
 		return true
 	default:
@@ -651,6 +685,8 @@ func (s Static) compare(o *Static) int {
 	switch s.Type {
 	case TypeString, TypeIntArray:
 		return bytes.Compare(s.valBytes, o.valBytes)
+	case TypeStringArray:
+		return slices.Compare(s.valStrings, o.valStrings)
 	default:
 		return cmp.Compare(int64(s.valScalar), int64(o.valScalar))
 	}
@@ -717,6 +753,14 @@ func (s Static) IntArray() ([]int, bool) {
 	}
 	numInts := uintptr(len(s.valBytes)) / unsafe.Sizeof(int(0))
 	return unsafe.Slice((*int)(unsafe.Pointer(&s.valBytes[0])), numInts), true
+}
+
+func (s Static) StringArray() ([]string, bool) {
+	if s.Type != TypeStringArray {
+		return nil, false
+	}
+
+	return s.valStrings, true
 }
 
 func (s Static) isNumeric() bool {
