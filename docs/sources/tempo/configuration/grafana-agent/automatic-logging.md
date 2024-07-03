@@ -46,7 +46,7 @@ This allows searching by those key-value pairs in Loki.
 {{< admonition type="note">}}
 Grafana Alloy provides tooling to convert your Agent Static or Flow configuration files into a format that can be used by Alloy.
 
-For more information, refer to [Migrate to Alloy]({{<relref "../grafana-alloy/migrate-alloy" >}}).
+For more information, refer to [Migrate to Alloy]({{< relref "../grafana-alloy/migrate-alloy" >}}).
 {{< /admonition>}}
 
 To configure automatic logging, you need to select your preferred backend and the trace data to log.

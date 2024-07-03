@@ -31,7 +31,7 @@ You need these components to fully use service graphs.
 {{< admonition type="note">}}
 Grafana Alloy provides tooling to convert your Agent Static or Flow configuration files into a format that can be used by Alloy.
 
-For more information, refer to [Migrate to Alloy]({{<relref "../grafana-alloy/migrate-alloy" >}}).
+For more information, refer to [Migrate to Alloy]({{< relref "../grafana-alloy/migrate-alloy" >}}).
 {{< /admonition>}}
 
 ### Enable service graphs in Grafana Agent

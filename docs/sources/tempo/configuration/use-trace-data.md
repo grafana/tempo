@@ -7,7 +7,7 @@ aliases:
 weight: 900
 ---
 
-# Use tracing data with Grafana
+# Use tracing data in Grafana
 
 You can use Tempo as a data source in Grafana.
 Grafana Cloud comes pre-configured with a Tempo data source.
