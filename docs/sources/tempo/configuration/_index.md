@@ -1841,7 +1841,7 @@ cache:
   caches:
   - roles:
     - parquet-footer
-    memcached:
+    memcached: 
       host: memcached-instance
   - roles:
     - bloom
