@@ -12,7 +12,9 @@ import (
 type Config struct {
 	ClientConfig cache.MemcachedClientConfig `yaml:",inline"`
 
-	TTL time.Duration `yaml:"ttl"`
+	TTL         time.Duration `yaml:"ttl"`
+	BatchSize   int           `yaml:"batch_size"`
+	Parallelism int           `yaml:"parallelism"`
 }
 
 func NewClient(cfg *Config, cfgBackground *cache.BackgroundConfig, name string, logger log.Logger) cache.Cache {
@@ -29,8 +31,8 @@ func NewClient(cfg *Config, cfgBackground *cache.BackgroundConfig, name string, 
 	client := cache.NewMemcachedClient(cfg.ClientConfig, name, prometheus.DefaultRegisterer, logger)
 	memcachedCfg := cache.MemcachedConfig{
 		Expiration:  cfg.TTL,
-		BatchSize:   0, // we are currently only requesting one key at a time, which is bad.  we could restructure Find() to batch request all blooms at once
-		Parallelism: 0,
+		BatchSize:   cfg.BatchSize, // we are currently only requesting one key at a time, which is bad.  we could restructure Find() to batch request all blooms at once
+		Parallelism: cfg.Parallelism,
 	}
 	c := cache.NewMemcached(memcachedCfg, client, name, prometheus.DefaultRegisterer, logger)
 
