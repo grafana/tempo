@@ -58,6 +58,10 @@ type traceMetrics struct {
 	notFoundSearchAttribute int
 }
 
+const (
+	defaultGRPCEndpoint = 14250
+)
+
 func init() {
 	flag.StringVar(&prometheusPath, "prometheus-path", "/metrics", "The path to publish Prometheus metrics to.")
 	flag.StringVar(&prometheusListenAddress, "prometheus-listen-address", ":80", "The address to listen on for Prometheus scrapes.")
@@ -82,6 +86,11 @@ func main() {
 		os.Stdout,
 		zapcore.DebugLevel,
 	))
+
+	grpcEndpoint, err := getGRPCEndpoint(tempoPushURL)
+	if err != nil {
+		panic(err)
+	}
 
 	logger.Info("Tempo Vulture starting")
 
@@ -120,7 +129,7 @@ func main() {
 
 	// Write
 	go func() {
-		client, err := newJaegerGRPCClient(tempoPushURL)
+		client, err := newJaegerGRPCClient(grpcEndpoint)
 		if err != nil {
 			panic(err)
 		}
@@ -285,15 +294,22 @@ func selectPastTimestamp(start, stop time.Time, interval, retention time.Duratio
 	return newStart.Round(interval), ts.Round(interval)
 }
 
-func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
-	// remove scheme and port
+func getGRPCEndpoint(endpoint string) (string, error) {
 	u, err := url.Parse(endpoint)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
+	dialAddress := u.Host
 
+	if u.Port() == "" {
+		dialAddress = dialAddress + fmt.Sprintf(":%d", defaultGRPCEndpoint)
+	}
+	return dialAddress, nil
+}
+
+func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	logger.Info("dialing grpc",
-		zap.String("endpoint", u.Host),
+		zap.String("endpoint", endpoint),
 	)
 
 	var dialOpts []grpc.DialOption
@@ -311,7 +327,7 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	}
 
 	// new jaeger grpc exporter
-	conn, err := grpc.NewClient(u.Host, dialOpts...)
+	conn, err := grpc.NewClient(endpoint, dialOpts...)
 	if err != nil {
 		return nil, err
 	}

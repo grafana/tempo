@@ -21,12 +21,13 @@
 * [ENHANCEMENT] Added a boolean flag to enable or disable dualstack mode on Storage block config for S3 [#3721](https://github.com/grafana/tempo/pull/3721) (@sid-jar, @mapno)
 * [ENHANCEMENT] Add caching to query range queries [#3796](https://github.com/grafana/tempo/pull/3796) (@mapno)
 * [ENHANCEMENT] Add data quality metric to measure traces without a root [#3812](https://github.com/grafana/tempo/pull/3812) (@mapno)
+* [ENHANCEMENT] Added an example for running Tempo vulture [#3829](https://github.com/grafana/tempo/pull/3829) (@javiermolinar)
 * [BUGFIX] Fix metrics queries when grouping by attributes that may not exist [#3734](https://github.com/grafana/tempo/pull/3734) (@mdisibio)
 * [BUGFIX] Fix frontend parsing error on cached responses [#3759](https://github.com/grafana/tempo/pull/3759) (@mdisibio)
 * [BUGFIX] max_global_traces_per_user: take into account ingestion.tenant_shard_size when converting to local limit [#3618](https://github.com/grafana/tempo/pull/3618) (@kvrhdn)
 * [BUGFIX] Fix http connection reuse on GCP and AWS by reading io.EOF through the http body. [#3760](https://github.com/grafana/tempo/pull/3760) (@bmteller)
 * [BUGFIX] Improved handling of complete blocks in localblocks processor after enabling flusing [#3805](https://github.com/grafana/tempo/pull/3805) (@mapno)
-* [ENHANCEMENT] Added an example for running Tempo vulture, **BREAKING CHANGE** Don't hardcode tempoPushURL port [#3829](https://github.com/grafana/tempo/pull/3829) (@javiermolinar)
+
 
 ## v2.5.0
 

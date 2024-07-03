@@ -111,3 +111,16 @@ func TestEqualTraces(t *testing.T) {
 
 	require.True(t, equalTraces(a, b))
 }
+
+func TestGetGrpcEndpoint(t *testing.T) {
+	_, err := getGRPCEndpoint("http://%gh&%ij")
+	require.Error(t, err)
+
+	got, err := getGRPCEndpoint("http://localhost:4000")
+	require.NoError(t, err)
+	assert.Equal(t, "localhost:4000", got, "Address endpoint should keep the given port")
+
+	got, err = getGRPCEndpoint("http://localhost")
+	require.NoError(t, err)
+	assert.Equal(t, "localhost:14250", got, "Address without a port should be defaulted to 14250")
+}
