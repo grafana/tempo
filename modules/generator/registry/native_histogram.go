@@ -197,11 +197,10 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 
 		// If we are in "both" or "native" mode, also emit native histograms.
 		if overrides.HasNativeHistograms(h.modeFunc()) {
-			nativeSeries, nativeErr := h.nativeHistograms(appender, lb, timeMs, s)
+			nativeErr := h.nativeHistograms(appender, lb, timeMs, s)
 			if nativeErr != nil {
-				return nativeSeries, nativeErr
+				return activeSeries, nativeErr
 			}
-			activeSeries += nativeSeries
 		}
 
 		// TODO: impact on active series from appending a histogram?
@@ -245,7 +244,7 @@ func (h *nativeHistogram) activeSeriesPerHistogramSerie() uint32 {
 	return 1
 }
 
-func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lb *labels.Builder, timeMs int64, s *nativeHistogramSeries) (activeSeries int, err error) {
+func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lb *labels.Builder, timeMs int64, s *nativeHistogramSeries) (err error) {
 	// Decode to Prometheus representation
 	hist := promhistogram.Histogram{
 		Schema:        s.histogram.GetSchema(),
@@ -278,7 +277,7 @@ func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lb *labels
 	lb.Set(labels.MetricName, h.metricName)
 	_, err = appender.AppendHistogram(0, lb.Labels(), timeMs, &hist, nil)
 	if err != nil {
-		return activeSeries, err
+		return err
 	}
 
 	return
