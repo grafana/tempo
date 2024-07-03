@@ -269,6 +269,31 @@ func TestStatic_IntArray(t *testing.T) {
 	}
 }
 
+func TestStatic_MapKey(t *testing.T) {
+	staticVals := []Static{
+		NewStaticNil(),
+		NewStaticInt(0), NewStaticInt(1), NewStaticInt(2), NewStaticInt(-2), NewStaticInt(math.MaxInt), NewStaticInt(math.MinInt),
+		NewStaticDuration(0), NewStaticDuration(2), NewStaticDuration(-2),
+		NewStaticFloat(0), NewStaticFloat(2), NewStaticFloat(-2), NewStaticFloat(math.SmallestNonzeroFloat64), NewStaticFloat(math.MaxFloat64), NewStaticFloat(-math.MaxFloat64),
+		NewStaticKind(KindUnspecified), NewStaticKind(KindClient), // corresponds to 0 and 2
+		NewStaticStatus(StatusError), NewStaticStatus(StatusUnset), // corresponds to 0 and 2
+		NewStaticBool(false), NewStaticBool(true),
+		NewStaticString(""), NewStaticString("foo"),
+		NewStaticIntArray([]int{}), NewStaticIntArray([]int{1, 2, 3}),
+	}
+
+	// All above values must have unique MapKey
+	occurredValues := make(map[StaticMapKey]struct{}, len(staticVals))
+	for _, s := range staticVals {
+		mk := s.MapKey()
+
+		_, found := occurredValues[mk]
+		occurredValues[mk] = struct{}{}
+
+		assert.False(t, found, "duplicate MapKey: %+v", mk)
+	}
+}
+
 func TestStatic_Equals(t *testing.T) {
 	areEqual := []struct {
 		lhs, rhs Static
