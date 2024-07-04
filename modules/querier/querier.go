@@ -1081,8 +1081,7 @@ func protoToTraceQLStatic(kv *tempopb.KeyValue) traceqlmetrics.KeyValue {
 	case traceql.TypeKind:
 		val = traceql.NewStaticKind(traceql.Kind(kv.Value.Kind))
 	default:
-		// todo: remove panic
-		panic(fmt.Sprintf("unknown type %v", kv.Value.Type))
+		val = traceql.NewStaticNil()
 	}
 
 	return traceqlmetrics.KeyValue{
