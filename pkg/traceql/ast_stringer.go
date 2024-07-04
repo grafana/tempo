@@ -113,18 +113,36 @@ func (s Static) EncodeToString(quotes bool) string {
 		return k.String()
 	case TypeIntArray:
 		ints, _ := s.IntArray()
-		return fmt.Sprintf("int%+v", ints)
+		return arrayToString(ints, false)
 	case TypeFloatArray:
 		floats, _ := s.FloatArray()
-		return fmt.Sprintf("float%+v", floats)
+		return arrayToString(floats, false)
 	case TypeStringArray:
-		return fmt.Sprintf("str%+v", s.valStrings)
+		return arrayToString(s.valStrings, true)
 	case TypeBooleanArray:
 		booleans, _ := s.BooleanArray()
-		return fmt.Sprintf("bool%+v", booleans)
+		return arrayToString(booleans, false)
 	default:
 		return fmt.Sprintf("static(%d)", s.Type)
 	}
+}
+
+func arrayToString[T any](array []T, quoted bool) string {
+	tmpl := "%v"
+	if quoted {
+		tmpl = `"%v"`
+	}
+
+	var s strings.Builder
+	s.WriteByte('[')
+	for i, e := range array {
+		s.WriteString(fmt.Sprintf(tmpl, e))
+		if i < len(array)-1 {
+			s.WriteString(", ")
+		}
+	}
+	s.WriteRune(']')
+	return s.String()
 }
 
 func (a Attribute) String() string {

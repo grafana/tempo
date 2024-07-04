@@ -107,10 +107,10 @@ func TestStatic_String(t *testing.T) {
 		{arg: StatusOk, want: "ok"},
 		{arg: KindClient, want: "client"},
 		{arg: time.Duration(70) * time.Second, want: "1m10s"},
-		{arg: []int{1, 2, 3}, want: "int[1 2 3]"},
-		{arg: []float64{1.1, 3.3}, want: "float[1.1 3.3]"},
-		{arg: []bool{true, true, false}, want: "bool[true true false]"},
-		{arg: []string{"aa", "bb"}, want: "str[aa bb]"},
+		{arg: []int{1, 2, 3}, want: "[1, 2, 3]"},
+		{arg: []float64{1.1, 3.3}, want: "[1.1, 3.3]"},
+		{arg: []bool{true, true, false}, want: "[true, true, false]"},
+		{arg: []string{"aa", "bb"}, want: `["aa", "bb"]`},
 	}
 
 	for _, tt := range tests {
@@ -991,6 +991,12 @@ func testName(val any) string {
 		return fmt.Sprintf("%e", v)
 	case []int:
 		return fmt.Sprintf("[%d]int", len(v))
+	case []float64:
+		return fmt.Sprintf("[%d]float", len(v))
+	case []string:
+		return fmt.Sprintf("[%d]str", len(v))
+	case []bool:
+		return fmt.Sprintf("[%d]bool", len(v))
 	case Static:
 		return v.EncodeToString(false)
 	default:
