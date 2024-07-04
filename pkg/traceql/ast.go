@@ -1081,7 +1081,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 			byFunc = func(s Span) (Static, bool) {
 				d := s.DurationNanos()
 				if d < 2 {
-					return Static{}, false
+					return NewStaticNil(), false
 				}
 				// Bucket is log2(nanos) converted to float seconds
 				return NewStaticFloat(Log2Bucketize(d) / float64(time.Second)), true
@@ -1091,18 +1091,18 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 			byFunc = func(s Span) (Static, bool) {
 				v, ok := s.AttributeFor(a.attr)
 				if !ok {
-					return Static{}, false
+					return NewStaticNil(), false
 				}
 
 				// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
 				// Because of the range of floats, we need a native histogram approach.
 				n, ok := v.Int()
 				if !ok {
-					return Static{}, false
+					return NewStaticNil(), false
 				}
 
 				if n < 2 {
-					return Static{}, false
+					return NewStaticNil(), false
 				}
 				// Bucket is the value rounded up to the nearest power of 2
 				return NewStaticFloat(Log2Bucketize(uint64(n))), true
@@ -1119,7 +1119,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 			byFunc = func(s Span) (Static, bool) {
 				d := s.DurationNanos()
 				if d < 2 {
-					return Static{}, false
+					return NewStaticNil(), false
 				}
 				// Bucket is in seconds
 				return NewStaticFloat(Log2Bucketize(d) / float64(time.Second)), true
@@ -1129,17 +1129,17 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 			byFunc = func(s Span) (Static, bool) {
 				v, ok := s.AttributeFor(a.attr)
 				if !ok {
-					return Static{}, false
+					return NewStaticNil(), false
 				}
 
 				// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
 				// Because of the range of floats, we need a native histogram approach.
 				if v.Type != TypeInt {
-					return Static{}, false
+					return NewStaticNil(), false
 				}
 				n, _ := v.Int()
 				if n < 2 {
-					return Static{}, false
+					return NewStaticNil(), false
 				}
 				return NewStaticFloat(Log2Bucketize(uint64(n))), true
 			}
