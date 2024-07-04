@@ -563,6 +563,21 @@ func NewStaticIntArray(i []int) Static {
 	}
 }
 
+func NewStaticFloatArray(f []float64) Static {
+	if f == nil {
+		return Static{Type: TypeFloatArray}
+	}
+	if len(f) == 0 {
+		return Static{Type: TypeFloatArray, valBytes: []byte{}}
+	}
+
+	numBytes := uintptr(len(f)) * unsafe.Sizeof(f[0])
+	return Static{
+		Type:     TypeFloatArray,
+		valBytes: unsafe.Slice((*byte)(unsafe.Pointer(&f[0])), numBytes),
+	}
+}
+
 func NewStaticStringArray(s []string) Static {
 	if s == nil {
 		return Static{Type: TypeStringArray}
@@ -574,6 +589,20 @@ func NewStaticStringArray(s []string) Static {
 	return Static{
 		Type:       TypeStringArray,
 		valStrings: s,
+	}
+}
+
+func NewStaticBooleanArray(b []bool) Static {
+	if b == nil {
+		return Static{Type: TypeBooleanArray}
+	}
+	if len(b) == 0 {
+		return Static{Type: TypeBooleanArray, valBytes: []byte{}}
+	}
+
+	return Static{
+		Type:     TypeBooleanArray,
+		valBytes: unsafe.Slice((*byte)(unsafe.Pointer(&b[0])), len(b)),
 	}
 }
 
@@ -589,7 +618,7 @@ func (s Static) MapKey() StaticMapKey {
 			str = unsafe.String(unsafe.SliceData(s.valBytes), len(s.valBytes))
 		}
 		return StaticMapKey{typ: s.Type, str: str}
-	case TypeIntArray:
+	case TypeIntArray, TypeFloatArray, TypeBooleanArray:
 		if len(s.valBytes) == 0 {
 			return StaticMapKey{typ: s.Type}
 		}
@@ -639,7 +668,7 @@ func (s Static) Equals(o *Static) bool {
 		return sf == o.Float()
 	case TypeKind, TypeBoolean:
 		return s.Type == o.Type && s.valScalar == o.valScalar
-	case TypeString, TypeIntArray:
+	case TypeString, TypeIntArray, TypeFloatArray, TypeBooleanArray:
 		return s.Type == o.Type && bytes.Equal(s.valBytes, o.valBytes)
 	case TypeStringArray:
 		return s.Type == o.Type && slices.Equal(s.valStrings, o.valStrings)
@@ -657,20 +686,18 @@ func (s Static) StrictEquals(o *Static) bool {
 	}
 
 	switch s.Type {
-	case TypeInt, TypeDuration, TypeStatus, TypeKind, TypeBoolean:
-		return s.valScalar == o.valScalar
 	case TypeFloat:
 		sf := math.Float64frombits(s.valScalar)
 		of := math.Float64frombits(o.valScalar)
 		return sf == of
-	case TypeString, TypeIntArray:
+	case TypeString, TypeIntArray, TypeFloatArray, TypeBooleanArray:
 		return bytes.Equal(s.valBytes, o.valBytes)
 	case TypeStringArray:
 		return s.Type == o.Type && slices.Equal(s.valStrings, o.valStrings)
 	case TypeNil:
 		return true
 	default:
-		return false
+		return s.valScalar == o.valScalar
 	}
 }
 
@@ -683,10 +710,20 @@ func (s Static) compare(o *Static) int {
 	}
 
 	switch s.Type {
-	case TypeString, TypeIntArray:
+	case TypeString, TypeBooleanArray:
 		return bytes.Compare(s.valBytes, o.valBytes)
+	case TypeIntArray:
+		sa, _ := s.IntArray()
+		oa, _ := o.IntArray()
+		return slices.Compare(sa, oa)
+	case TypeFloatArray:
+		sa, _ := s.FloatArray()
+		oa, _ := o.FloatArray()
+		return slices.Compare(sa, oa)
 	case TypeStringArray:
 		return slices.Compare(s.valStrings, o.valStrings)
+	case TypeNil:
+		return 0
 	default:
 		return cmp.Compare(int64(s.valScalar), int64(o.valScalar))
 	}
@@ -755,12 +792,41 @@ func (s Static) IntArray() ([]int, bool) {
 	return unsafe.Slice((*int)(unsafe.Pointer(&s.valBytes[0])), numInts), true
 }
 
+func (s Static) FloatArray() ([]float64, bool) {
+	if s.Type != TypeFloatArray {
+		return nil, false
+	}
+
+	if s.valBytes == nil {
+		return nil, true
+	}
+	if len(s.valBytes) == 0 {
+		return []float64{}, true
+	}
+	numFloats := uintptr(len(s.valBytes)) / unsafe.Sizeof(float64(0))
+	return unsafe.Slice((*float64)(unsafe.Pointer(&s.valBytes[0])), numFloats), true
+}
+
 func (s Static) StringArray() ([]string, bool) {
 	if s.Type != TypeStringArray {
 		return nil, false
 	}
 
 	return s.valStrings, true
+}
+
+func (s Static) BooleanArray() ([]bool, bool) {
+	if s.Type != TypeBooleanArray {
+		return nil, false
+	}
+
+	if s.valBytes == nil {
+		return nil, true
+	}
+	if len(s.valBytes) == 0 {
+		return []bool{}, true
+	}
+	return unsafe.Slice((*bool)(unsafe.Pointer(&s.valBytes[0])), len(s.valBytes)), true
 }
 
 func (s Static) isNumeric() bool {

@@ -33,6 +33,10 @@ func TestStatic_Int(t *testing.T) {
 		{arg: true},
 		{arg: StatusOk},
 		{arg: KindClient},
+		{arg: []int{1}},
+		{arg: []float64{1.0}},
+		{arg: []bool{true}},
+		{arg: []string{"test"}},
 	}
 
 	for _, tt := range tests {
@@ -65,6 +69,10 @@ func TestStatic_Float(t *testing.T) {
 		{arg: true, want: math.NaN()},
 		{arg: StatusError, want: math.NaN()},
 		{arg: KindServer, want: math.NaN()},
+		{arg: []int{1}, want: math.NaN()},
+		{arg: []float64{1.0}, want: math.NaN()},
+		{arg: []bool{true}, want: math.NaN()},
+		{arg: []string{"test"}, want: math.NaN()},
 	}
 
 	for _, tt := range tests {
@@ -99,7 +107,10 @@ func TestStatic_String(t *testing.T) {
 		{arg: StatusOk, want: "ok"},
 		{arg: KindClient, want: "client"},
 		{arg: time.Duration(70) * time.Second, want: "1m10s"},
-		{arg: []int{1, 2, 3}, want: "[1 2 3]"},
+		{arg: []int{1, 2, 3}, want: "int[1 2 3]"},
+		{arg: []float64{1.1, 3.3}, want: "float[1.1 3.3]"},
+		{arg: []bool{true, true, false}, want: "bool[true true false]"},
+		{arg: []string{"aa", "bb"}, want: "str[aa bb]"},
 	}
 
 	for _, tt := range tests {
@@ -125,6 +136,9 @@ func TestStatic_Bool(t *testing.T) {
 		{arg: StatusOk},
 		{arg: KindClient},
 		{arg: []int{1, 2, 3}},
+		{arg: []float64{1.0, 2.2}},
+		{arg: []bool{true, true}},
+		{arg: []string{"aa", "bb"}},
 	}
 
 	for _, tt := range tests {
@@ -157,6 +171,9 @@ func TestStatic_Duration(t *testing.T) {
 		{arg: StatusOk},
 		{arg: KindClient},
 		{arg: []int{1, 2, 3}},
+		{arg: []float64{1.0, 2.2}},
+		{arg: []bool{true, true}},
+		{arg: []string{"aa", "bb"}},
 	}
 
 	for _, tt := range tests {
@@ -188,6 +205,9 @@ func TestStatic_Status(t *testing.T) {
 		{arg: true},
 		{arg: KindClient},
 		{arg: []int{1, 2, 3}},
+		{arg: []float64{1.0, 2.2}},
+		{arg: []bool{true, true}},
+		{arg: []string{"aa", "bb"}},
 	}
 
 	for _, tt := range tests {
@@ -222,6 +242,9 @@ func TestStatic_Kind(t *testing.T) {
 		{arg: true},
 		{arg: StatusOk},
 		{arg: []int{1, 2, 3}},
+		{arg: []float64{1.0, 2.2}},
+		{arg: []bool{true, true}},
+		{arg: []string{"aa", "bb"}},
 	}
 
 	for _, tt := range tests {
@@ -254,6 +277,9 @@ func TestStatic_IntArray(t *testing.T) {
 		{arg: true},
 		{arg: StatusOk},
 		{arg: KindClient},
+		{arg: []float64{1.0, 2.2}},
+		{arg: []bool{true, true}},
+		{arg: []string{"aa", "bb"}},
 	}
 
 	for _, tt := range tests {
@@ -264,6 +290,114 @@ func TestStatic_IntArray(t *testing.T) {
 			require.Equal(t, tt.ok, ok)
 			if tt.ok {
 				assert.Equal(t, tt.arg, a)
+			}
+		})
+	}
+}
+
+func TestStatic_FloatArray(t *testing.T) {
+	tests := []struct {
+		arg any
+		ok  bool
+	}{
+		// supported values
+		{arg: []float64(nil), ok: true},
+		{arg: []float64{}, ok: true},
+		{arg: []float64{1.11}, ok: true},
+		{arg: []float64{1.11 + math.SmallestNonzeroFloat64}, ok: true},
+		{arg: []float64{1.23, 2.0, 3.14, 4.1, 5.15}, ok: true},
+		// unsupported values
+		{arg: 1},
+		{arg: 3.14},
+		{arg: "test"},
+		{arg: true},
+		{arg: StatusOk},
+		{arg: KindClient},
+		{arg: []int{1, 2}},
+		{arg: []bool{true, true}},
+		{arg: []string{"aa", "bb"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(testName(tt.arg), func(t *testing.T) {
+			static := newStatic(tt.arg)
+			f, ok := static.FloatArray()
+
+			require.Equal(t, tt.ok, ok)
+			if tt.ok {
+				assert.Equal(t, tt.arg, f)
+			}
+		})
+	}
+}
+
+func TestStatic_StringArray(t *testing.T) {
+	tests := []struct {
+		arg any
+		ok  bool
+	}{
+		// supported values
+		{arg: []string(nil), ok: true},
+		{arg: []string{}, ok: true},
+		{arg: []string{""}, ok: true},
+		{arg: []string{"aa"}, ok: true},
+		{arg: []string{"aa", "bb"}, ok: true},
+		// unsupported values
+		{arg: 1},
+		{arg: 3.14},
+		{arg: "test"},
+		{arg: true},
+		{arg: StatusOk},
+		{arg: KindClient},
+		{arg: []int{1, 2}},
+		{arg: []float64{1.0, 2.2}},
+		{arg: []bool{true, true}},
+	}
+
+	for _, tt := range tests {
+		t.Run(testName(tt.arg), func(t *testing.T) {
+			static := newStatic(tt.arg)
+			s, ok := static.StringArray()
+
+			require.Equal(t, tt.ok, ok)
+			if tt.ok {
+				assert.Equal(t, tt.arg, s)
+			}
+		})
+	}
+}
+
+func TestStatic_BooleanArray(t *testing.T) {
+	tests := []struct {
+		arg any
+		ok  bool
+	}{
+		// supported values
+		{arg: []bool(nil), ok: true},
+		{arg: []bool{}, ok: true},
+		{arg: []bool{true}, ok: true},
+		{arg: []bool{false}, ok: true},
+		{arg: []bool{false, true}, ok: true},
+		// unsupported values
+		{arg: 1},
+		{arg: 3.14},
+		{arg: "test"},
+		{arg: true},
+		{arg: StatusOk},
+		{arg: KindClient},
+		{arg: []int{1, 2}},
+		{arg: []float64{1.0, 2.2}},
+		{arg: []string{"aa", "bb"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(testName(tt.arg), func(t *testing.T) {
+			static := newStatic(tt.arg)
+			b, ok := static.BooleanArray()
+
+			require.Equal(t, tt.ok, ok)
+			if tt.ok {
+				assert.Equal(t, tt.arg, b)
 			}
 		})
 	}
@@ -280,7 +414,9 @@ func TestStatic_MapKey(t *testing.T) {
 		NewStaticBool(false), NewStaticBool(true),
 		NewStaticString(""), NewStaticString("foo"),
 		NewStaticIntArray([]int{}), NewStaticIntArray([]int{1, 2, 3}),
+		NewStaticFloatArray([]float64{}), NewStaticFloatArray([]float64{0.0}), NewStaticFloatArray([]float64{0.0, 2.0, 3.0}),
 		NewStaticStringArray([]string{}), NewStaticStringArray([]string{""}), NewStaticStringArray([]string{"foo"}),
+		NewStaticBooleanArray([]bool{}), NewStaticBooleanArray([]bool{false}), NewStaticBooleanArray([]bool{true}),
 	}
 
 	// All above values must have unique MapKey
@@ -310,6 +446,12 @@ func TestStatic_Equals(t *testing.T) {
 		{NewStaticDuration(0), NewStaticInt(0)},
 		{NewStaticIntArray([]int{}), NewStaticIntArray(nil)},
 		{NewStaticIntArray([]int{11, 111}), NewStaticIntArray([]int{11, 111})},
+		{NewStaticFloatArray([]float64{}), NewStaticFloatArray(nil)},
+		{NewStaticFloatArray([]float64{1.1, 2.2}), NewStaticFloatArray([]float64{1.1, 2.2})},
+		{NewStaticStringArray([]string{}), NewStaticStringArray(nil)},
+		{NewStaticStringArray([]string{"foo", "bar"}), NewStaticStringArray([]string{"foo", "bar"})},
+		{NewStaticBooleanArray([]bool{}), NewStaticBooleanArray(nil)},
+		{NewStaticBooleanArray([]bool{true, false}), NewStaticBooleanArray([]bool{true, false})},
 		// Status and int comparison
 		{NewStaticStatus(StatusError), NewStaticInt(0)},
 		{NewStaticStatus(StatusOk), NewStaticInt(1)},
@@ -328,6 +470,12 @@ func TestStatic_Equals(t *testing.T) {
 		{NewStaticStatus(StatusError), NewStaticFloat(0)},
 		{NewStaticIntArray([]int{}), NewStaticIntArray([]int{0})},
 		{NewStaticIntArray([]int{111, 11}), NewStaticIntArray([]int{11, 111})},
+		{NewStaticFloatArray([]float64{}), NewStaticFloatArray([]float64{0.0})},
+		{NewStaticFloatArray([]float64{1.1, 2.2}), NewStaticFloatArray([]float64{2.2, 1.1})},
+		{NewStaticStringArray([]string{}), NewStaticStringArray([]string{""})},
+		{NewStaticStringArray([]string{"foo", "bar"}), NewStaticStringArray([]string{"bar", "foo"})},
+		{NewStaticBooleanArray([]bool{}), NewStaticBooleanArray([]bool{true})},
+		{NewStaticBooleanArray([]bool{true, false}), NewStaticBooleanArray([]bool{false, true})},
 	}
 	for _, tt := range areEqual {
 		t.Run(fmt.Sprintf("%s==%s", testName(tt.rhs), testName(tt.rhs)), func(t *testing.T) {
@@ -356,6 +504,17 @@ func TestStatic_compare(t *testing.T) {
 		{s1: NewStaticFloat(100.0), s2: NewStaticInt(50), want: 1},
 		{s1: NewStaticString("world"), s2: NewStaticString("hello"), want: 1},
 		{s1: NewStaticBool(true), s2: NewStaticBool(false), want: 1},
+		{s1: NewStaticDuration(10 * time.Second), s2: NewStaticDuration(5 * time.Second), want: 1},
+		{s1: NewStaticDuration(10), s2: NewStaticInt(10), want: 0},
+		{s1: NewStaticIntArray([]int{1, 3, 3}), s2: NewStaticIntArray([]int{1, -2, 3}), want: 1},
+		{s1: NewStaticIntArray([]int{1, 2, 3}), s2: NewStaticIntArray([]int{1, 2, 3}), want: 0},
+		{s1: NewStaticFloatArray([]float64{1.1, math.SmallestNonzeroFloat64}), s2: NewStaticFloatArray([]float64{1.1, 0}), want: 1},
+		{s1: NewStaticFloatArray([]float64{1.1, 2.2, 3.3}), s2: NewStaticFloatArray([]float64{1.1, -2.2, 3.3}), want: 1},
+		{s1: NewStaticFloatArray([]float64{1.1, 2.2, 3.3}), s2: NewStaticFloatArray([]float64{1.1, 2.2, 3.3}), want: 0},
+		{s1: NewStaticStringArray([]string{"a", "b", "c"}), s2: NewStaticStringArray([]string{"a", "b"}), want: 1},
+		{s1: NewStaticStringArray([]string{"a", "b"}), s2: NewStaticStringArray([]string{"a", "b"}), want: 0},
+		{s1: NewStaticBooleanArray([]bool{true, false, true}), s2: NewStaticBooleanArray([]bool{true, false}), want: 1},
+		{s1: NewStaticBooleanArray([]bool{true, false}), s2: NewStaticBooleanArray([]bool{true, false}), want: 0},
 	}
 
 	for _, tt := range testCases {
@@ -811,8 +970,15 @@ func newStatic(val any) Static {
 		return NewStaticKind(v)
 	case []int:
 		return NewStaticIntArray(v)
+	case []float64:
+		return NewStaticFloatArray(v)
+	case []string:
+		return NewStaticStringArray(v)
+	case []bool:
+		return NewStaticBooleanArray(v)
+	default:
+		panic(fmt.Sprintf("unsupported type %T", val))
 	}
-	panic(fmt.Sprintf("unsupported type %T", val))
 }
 
 func testName(val any) string {

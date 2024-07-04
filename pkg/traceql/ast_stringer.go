@@ -114,8 +114,14 @@ func (s Static) EncodeToString(quotes bool) string {
 	case TypeIntArray:
 		ints, _ := s.IntArray()
 		return fmt.Sprintf("int%+v", ints)
+	case TypeFloatArray:
+		floats, _ := s.FloatArray()
+		return fmt.Sprintf("float%+v", floats)
 	case TypeStringArray:
 		return fmt.Sprintf("str%+v", s.valStrings)
+	case TypeBooleanArray:
+		booleans, _ := s.BooleanArray()
+		return fmt.Sprintf("bool%+v", booleans)
 	default:
 		return fmt.Sprintf("static(%d)", s.Type)
 	}
