@@ -295,9 +295,9 @@ func createDistinctEventIterator(
 	}
 
 	// if no intrinsics and no primary then we can just return the attribute iterator
-	if len(iters) == 0 && primaryIter == nil {
-		return attrIter, nil
-	}
+	// if len(iters) == 0 && primaryIter == nil {
+	// 	return attrIter, nil
+	// }
 
 	if attrIter != nil {
 		iters = append(iters, attrIter)
@@ -1007,7 +1007,7 @@ func mapEventAttr(e entry) traceql.Static {
 	return traceql.Static{}
 }
 
-func mapLinkAttr(e entry) traceql.Static {
+func mapLinkAttr(_ entry) traceql.Static {
 	return traceql.Static{}
 }
 

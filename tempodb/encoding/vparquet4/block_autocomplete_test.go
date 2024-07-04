@@ -482,6 +482,22 @@ func TestFetchTagValues(t *testing.T) {
 				{Type: "keyword", Value: "error"},
 			},
 		},
+		{
+			name:  "event attribute - match",
+			tag:   "event.message",
+			query: `{resource.service.name="myservice"}`,
+			expectedValues: []tempopb.TagValue{
+				stringTagValue("exception"),
+			},
+		},
+		{
+			name:  "link attribute - match",
+			tag:   "link.opentracing.ref_type",
+			query: `{span.bar=123}`,
+			expectedValues: []tempopb.TagValue{
+				stringTagValue("child-of"),
+			},
+		},
 	}
 
 	ctx := context.TODO()
