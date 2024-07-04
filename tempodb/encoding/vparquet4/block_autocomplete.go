@@ -215,14 +215,14 @@ func autocompleteIter(ctx context.Context, tr tagRequest, pf *parquet.File, opts
 	if len(catConditions.event) > 0 {
 		currentIter, err = createDistinctEventIterator(makeIter, tag, currentIter, catConditions.event)
 		if err != nil {
-			return nil, errors.Wrap(err, "creating span iterator")
+			return nil, errors.Wrap(err, "creating event iterator")
 		}
 	}
 
 	if len(catConditions.link) > 0 {
 		currentIter, err = createDistinctLinkIterator(makeIter, tag, currentIter, catConditions.link)
 		if err != nil {
-			return nil, errors.Wrap(err, "creating span iterator")
+			return nil, errors.Wrap(err, "creating link iterator")
 		}
 	}
 
@@ -260,7 +260,6 @@ func createDistinctEventIterator(
 		columnSelectAs    = map[string]string{}
 		iters             []parquetquery.Iterator
 		genericConditions []traceql.Condition
-		intrinsicCount    int
 	)
 
 	// TODO: Potentially problematic when wanted attribute is also part of a condition
@@ -283,7 +282,6 @@ func createDistinctEventIterator(
 			}
 			iters = append(iters, makeIter(columnPathEventName, pred, columnSelectAs[columnPathEventName]))
 			addSelectAs(cond.Attribute, columnPathEventName, columnPathEventName)
-			intrinsicCount++
 			continue
 		}
 		// Else: generic attribute lookup
@@ -295,16 +293,18 @@ func createDistinctEventIterator(
 	if err != nil {
 		return nil, errors.Wrap(err, "creating event attribute iterator")
 	}
+
+	// if no intrinsics and no primary then we can just return the attribute iterator
+	if len(iters) == 0 && primaryIter == nil {
+		return attrIter, nil
+	}
+
 	if attrIter != nil {
 		iters = append(iters, attrIter)
 	}
 
 	if primaryIter != nil {
-		iters = append([]parquetquery.Iterator{primaryIter}, iters...)
-	}
-
-	if intrinsicCount == 0 {
-		return attrIter, nil
+		iters = append(iters, primaryIter)
 	}
 
 	eventCol := newDistinctValueCollector(mapEventAttr)
@@ -322,7 +322,6 @@ func createDistinctLinkIterator(
 		columnSelectAs    = map[string]string{}
 		iters             []parquetquery.Iterator
 		genericConditions []traceql.Condition
-		intrinsicCount    int
 	)
 
 	for _, cond := range conditions {
@@ -335,7 +334,6 @@ func createDistinctLinkIterator(
 			}
 			iters = append(iters, makeIter(columnPathLinkTraceID, pred, columnPathLinkTraceID))
 			columnSelectAs[columnPathLinkTraceID] = "" // Don't select, just filter
-			intrinsicCount++
 			continue
 		case traceql.IntrinsicLinkSpanID:
 			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
@@ -344,7 +342,6 @@ func createDistinctLinkIterator(
 			}
 			iters = append(iters, makeIter(columnPathLinkSpanID, pred, columnPathLinkSpanID))
 			columnSelectAs[columnPathLinkTraceID] = "" // Don't select, just filter
-			intrinsicCount++
 			continue
 		}
 		// Else: generic attribute lookup
@@ -356,16 +353,18 @@ func createDistinctLinkIterator(
 	if err != nil {
 		return nil, errors.Wrap(err, "creating link attribute iterator")
 	}
+
+	// if no intrinsics and no events then we can just return the attribute iterator
+	if len(iters) == 0 && primaryIter == nil {
+		return attrIter, nil
+	}
+
 	if attrIter != nil {
 		iters = append(iters, attrIter)
 	}
 
 	if primaryIter != nil {
-		iters = append([]parquetquery.Iterator{primaryIter}, iters...)
-	}
-
-	if intrinsicCount == 0 {
-		return attrIter, nil
+		iters = append(iters, primaryIter)
 	}
 
 	linkCol := newDistinctValueCollector(mapLinkAttr)
@@ -546,6 +545,13 @@ func createDistinctSpanIterator(
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span attribute iterator")
 	}
+
+	if len(columnPredicates) == 0 && primaryIter == nil {
+		// If no special+intrinsic+dedicated columns + events/links are being searched,
+		// we can iterate over the generic attributes directly.
+		return attrIter, nil
+	}
+
 	if attrIter != nil {
 		iters = append(iters, attrIter)
 	}
