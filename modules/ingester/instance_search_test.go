@@ -481,7 +481,6 @@ func testSearchTagsAndValuesV2(
 	sort.Strings(expectedLinkTagValues)
 	assert.Contains(t, tagsResp.TagNames, tagName)
 	assert.Equal(t, expectedLinkTagValues, tagValues)
-
 }
 
 // TestInstanceSearchTagsSpecialCases tess that SearchTags errors on an unknown scope and
