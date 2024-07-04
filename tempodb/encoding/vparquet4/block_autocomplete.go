@@ -719,7 +719,7 @@ func mapSpanAttr(e entry) traceql.Static {
 			return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 		}
 	}
-	return traceql.Static{}
+	return traceql.NewStaticNil()
 }
 
 func mapResourceAttr(e entry) traceql.Static {
@@ -733,7 +733,7 @@ func mapResourceAttr(e entry) traceql.Static {
 	case parquet.ByteArray, parquet.FixedLenByteArray:
 		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	default:
-		return traceql.Static{}
+		return traceql.NewStaticNil()
 	}
 }
 
@@ -747,7 +747,7 @@ func mapTraceAttr(e entry) traceql.Static {
 	case columnPathRootServiceName:
 		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	}
-	return traceql.Static{}
+	return traceql.NewStaticNil()
 }
 
 func scopeFromDefinitionLevel(lvl int) traceql.AttributeScope {

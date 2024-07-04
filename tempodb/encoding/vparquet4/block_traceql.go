@@ -158,27 +158,27 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 		if attr := find(a, s.resourceAttrs); attr != nil {
 			return *attr, true
 		}
-		return traceql.Static{}, false
+		return traceql.NewStaticNil(), false
 	}
 
 	if a.Scope == traceql.AttributeScopeSpan {
 		if attr := find(a, s.spanAttrs); attr != nil {
 			return *attr, true
 		}
-		return traceql.Static{}, false
+		return traceql.NewStaticNil(), false
 	}
 
 	if a.Scope == traceql.AttributeScopeEvent {
 		if attr := find(a, s.eventAttrs); attr != nil {
 			return *attr, true
 		}
-		return traceql.Static{}, false
+		return traceql.NewStaticNil(), false
 	}
 	if a.Scope == traceql.AttributeScopeLink {
 		if attr := find(a, s.linkAttrs); attr != nil {
 			return *attr, true
 		}
-		return traceql.Static{}, false
+		return traceql.NewStaticNil(), false
 	}
 
 	if a.Intrinsic != traceql.IntrinsicNone {
@@ -228,7 +228,7 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 		return *attr, true
 	}
 
-	return traceql.Static{}, false
+	return traceql.NewStaticNil(), false
 }
 
 func (s *span) ID() []byte {
@@ -812,7 +812,7 @@ func putSpanset(ss *traceql.Spanset) {
 	ss.DurationNanos = 0
 	ss.RootServiceName = ""
 	ss.RootSpanName = ""
-	ss.Scalar = traceql.Static{}
+	ss.Scalar = traceql.NewStaticNil()
 	ss.StartTimeUnixNanos = 0
 	ss.TraceID = nil
 	clear(ss.ServiceStats)

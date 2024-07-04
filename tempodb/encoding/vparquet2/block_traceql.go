@@ -613,7 +613,7 @@ func putSpanset(ss *traceql.Spanset) {
 	ss.DurationNanos = 0
 	ss.RootServiceName = ""
 	ss.RootSpanName = ""
-	ss.Scalar = traceql.Static{}
+	ss.Scalar = traceql.NewStaticNil()
 	ss.StartTimeUnixNanos = 0
 	ss.TraceID = nil
 	ss.Spans = ss.Spans[:0]
