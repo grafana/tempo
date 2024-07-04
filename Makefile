@@ -93,69 +93,69 @@ exe-debug:
 ##@  Testin' and Lintin'
 
 .PHONY: test
-test: ## tests
+test: ## Run tests
 	$(GOTEST) $(GOTEST_OPT) $(ALL_PKGS)
 
 .PHONY: benchmark
-benchmark: tools ## benchmark
+benchmark: tools ## Run benchmarks
 	$(GOTEST) -bench=. -run=notests $(ALL_PKGS)
 
 # Not used in CI, tests are split in pkg, tempodb, tempodb-wal and others in CI jobs
-.PHONY: test-with-cover
-test-with-cover: tools test-serverless
+.PHONY: test-with-cover 
+test-with-cover: tools test-serverless ## Run tests with code coverage
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
 
 # tests in pkg
 .PHONY: test-with-cover-pkg 
-test-with-cover-pkg: tools  ## test packages with code coverage
+test-with-cover-pkg: tools  ##  Run Tempo packages' tests with code coverage
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './pkg*/*' -type f | sort))))
 
 # tests in tempodb (excluding tempodb/wal)
 .PHONY: test-with-cover-tempodb
-test-with-cover-tempodb: tools ## test tempodb with code coverage
+test-with-cover-tempodb: tools ## Run tempodb tests with code coverage
 	GOMEMLIMIT=6GiB $(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go'  -not -path './tempodb/wal*/*' -path './tempodb*/*' -type f | sort))))
 
 # tests in tempodb/wal
 .PHONY: test-with-cover-tempodb-wal
-test-with-cover-tempodb-wal: tools  ## test tempodb/wal with code coverage
+test-with-cover-tempodb-wal: tools  ## Test tempodb/wal with code coverage
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(shell find . -name '*.go' -path './tempodb/wal*/*' -type f | sort))))
 
 # all other tests (excluding pkg & tempodb)
 .PHONY: test-with-cover-others
-test-with-cover-others: tools test-serverless ## test others with code coverage
+test-with-cover-others: tools test-serverless ## Run other tests with code coverage
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(OTHERS_SRC))))
 
 # runs e2e tests in the top level integration/e2e directory
 .PHONY: test-e2e
-test-e2e: tools docker-tempo docker-tempo-query  ## test end to end
+test-e2e: tools docker-tempo docker-tempo-query  ## Run end to end tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e
 
 # runs only serverless e2e tests
 .PHONY: test-e2e-serverless
-test-e2e-serverless: tools docker-tempo docker-serverless ## test serverless end to end
+test-e2e-serverless: tools docker-tempo docker-serverless ## Run serverless end to end tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/serverless
 
 .PHONY: test-integration-poller
-test-integration-poller: tools ## test poller integration tests
+test-integration-poller: tools ## Run poller integration tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/poller
 
 # test-all/bench use a docker image so build it first to make sure we're up to date
-.PHONY: test-all ## test all
+.PHONY: test-all ## Run all tests
 test-all: test-with-cover test-e2e test-e2e-serverless test-integration-poller
 
 .PHONY: test-bench
-test-bench: tools docker-tempo ## test benchmarks
+test-bench: tools docker-tempo ## Run all benchmarks
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/bench
 
 .PHONY: fmt check-fmt
-fmt: tools-image ## check fmt
+fmt: tools-image ## Check fmt
 	@$(TOOLS_CMD) gofumpt -w $(FILES_TO_FMT)
 	@$(TOOLS_CMD) goimports -w $(FILES_TO_FMT)
 
 check-fmt: fmt
 	@git diff --exit-code -- $(FILES_TO_FMT)
 
-.PHONY: jsonnetfmt check-jsonnetfmt ## check jsonnetfmt
+.PHONY: jsonnetfmt check-jsonnetfmt ## Check jsonnetfmt
 jsonnetfmt: tools-image
 	@$(TOOLS_CMD) jsonnetfmt -i $(FILES_TO_JSONNETFMT)
 
@@ -183,25 +183,25 @@ docker-component-debug: check-component exe-debug
 	docker tag grafana/$(COMPONENT)-debug $(COMPONENT)-debug
 
 .PHONY: docker-tempo 
-docker-tempo: ## Tempo docker image
+docker-tempo: ## Build tempo docker image
 	COMPONENT=tempo $(MAKE) docker-component
 
-docker-tempo-debug: ## Tempo debug docker image
+docker-tempo-debug: ## Build tempo debug docker image
 	COMPONENT=tempo $(MAKE) docker-component-debug
 
 .PHONY: docker-cli
-docker-tempo-cli: ## Tempo cli docker image
+docker-tempo-cli: ## Build tempo cli docker image
 	COMPONENT=tempo-cli $(MAKE) docker-component
 
 .PHONY: docker-tempo-query
-docker-tempo-query: ## Tempo query docker image
+docker-tempo-query: ## Build tempo query docker image
 	COMPONENT=tempo-query $(MAKE) docker-component
 
 .PHONY: docker-tempo-vulture
-docker-tempo-vulture: ## Tempo vulture docker image
+docker-tempo-vulture: ## Build tempo vulture docker image
 	COMPONENT=tempo-vulture $(MAKE) docker-component
 
-.PHONY: docker-images ## All docker images
+.PHONY: docker-images ## Build all docker images
 docker-images: docker-tempo docker-tempo-query docker-tempo-vulture
 
 .PHONY: check-component
@@ -317,21 +317,21 @@ docs-test:
 
 ##@ jsonnet
 .PHONY: jsonnet jsonnet-check jsonnet-test
-jsonnet: tools-image ## jsonnet
+jsonnet: tools-image ##  Generate jsonnet
 	$(TOOLS_CMD) $(MAKE) -C operations/jsonnet-compiled/util gen
 
-jsonnet-check: tools-image ## jsonnet check
+jsonnet-check: tools-image ## Check jsonnet
 	$(TOOLS_CMD) $(MAKE) -C operations/jsonnet-compiled/util check
 
-jsonnet-test: tools-image ## jsonnet tests
+jsonnet-test: tools-image ## Test jsonnet
 	$(TOOLS_CMD) $(MAKE) -C operations/jsonnet/microservices test
 
 ##@ serverless
 .PHONY: docker-serverless test-serverless
-docker-serverless: ## docker serverless
+docker-serverless: ## Build docker Tempo serverless
 	$(MAKE) -C cmd/tempo-serverless build-docker
-
-test-serverless: ## test serverless
+ 
+test-serverless: ## Run Tempo serverless tests
 	$(MAKE) -C cmd/tempo-serverless test
 
 ### tempo-mixin
@@ -345,7 +345,7 @@ tempo-mixin-check: tools-image
 ##@ drone
 .PHONY: drone drone-jsonnet drone-signature
 # this requires the drone-cli https://docs.drone.io/cli/install/
-drone: ## run drone targets
+drone: ## Run Drone targets
 	# piggyback on Loki's build image, this image contains a newer version of drone-cli than is
 	# released currently (1.4.0). The newer version of drone-clie keeps drone.yml human-readable.
 	# This will run 'make drone-jsonnet' from within the container
