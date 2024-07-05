@@ -71,7 +71,7 @@ Tempo offers different deployment options, depending upon your needs. Refer to t
 
 {{< admonition type="note" >}}
 Grafana Alloy is already set up to use Tempo.
-Refer to [Grafana Alloy configuration for tracing]({{< relref "../configuration/grafana-alloy" >}}).
+Refer to [Grafana Alloy configuration for tracing](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy).
 {{% /admonition %}}
 
 ## Visualization (Grafana)

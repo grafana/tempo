@@ -35,6 +35,6 @@ The port of 3200 is a common port used in our examples. Tempo default HTTP port 
 
 ## Query the data source
 
-Refer to [Tempo in Grafana]({{< relref "../getting-started/tempo-in-grafana" >}}) for an overview about how tracing data can be viewed and queried in Grafana.
+Refer to [Tempo in Grafana](https://grafana.com/docs/tempo/<TEMPO_VERSION>/getting-started/tempo-in-grafana) for an overview about how tracing data can be viewed and queried in Grafana.
 
 For information on querying the Tempo data source, refer to [Tempo query editor](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/query-editor/).

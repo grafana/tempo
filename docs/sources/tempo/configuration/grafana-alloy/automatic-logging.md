@@ -25,12 +25,12 @@ pipeline. This allows for automatically building a mechanism for trace discovery
 On top of that, you can also get metrics from traces using a logs source, and
 allow quickly jumping from a log message to the trace view in Grafana.
 
-While this approach is useful, it isn't as powerful as [TraceQL]({{< relref
-"../../traceql" >}}). If you are here because you know you want to log the
+While this approach is useful, it isn't as powerful as TraceQL. 
+If you are here because you know you want to log the
 trace ID, to enable jumping from logs to traces, then read on.
 
 If you want to query the system directly, read the [TraceQL
-documentation]({{< relref "../../traceql" >}}).
+documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql).
 
 ## Configuration
 

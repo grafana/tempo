@@ -24,12 +24,12 @@ pipeline. This allows for automatically building a mechanism for trace
 discovery. On top of that, you can also get metrics from traces using Loki, and
 allow quickly jumping from a log message to the trace view in Grafana.
 
-While this approach is useful, it isn't as powerful as [TraceQL]({{< relref
-"../../traceql" >}}). If you are here because you know you want to log the
+While this approach is useful, it isn't as powerful as TraceQL.
+If you are here because you know you want to log the
 trace ID, to enable jumping from logs to traces, then read on!
 
 If you want to query the system directly, read the [TraceQL
-documentation]({{< relref "../../traceql" >}}).
+documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql).
 
 ## Configuration
 
@@ -46,12 +46,12 @@ This allows searching by those key-value pairs in Loki.
 {{< admonition type="note">}}
 Grafana Alloy provides tooling to convert your Agent Static or Flow configuration files into a format that can be used by Alloy.
 
-For more information, refer to [Migrate to Alloy]({{< relref "../grafana-alloy/migrate-alloy" >}}).
+For more information, refer to [Migrate to Alloy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/migrate-alloy).
 {{< /admonition>}}
 
 To configure automatic logging, you need to select your preferred backend and the trace data to log.
 
-To see all the available configuration options, refer to the [configuration reference](/docs/agent/latest/configuration/traces-config).
+To see all the available configuration options, refer to the [configuration reference](https://grafana.com/docs/agent/latest/configuration/traces-config).
 
 This simple example logs trace roots to `stdout` and is a good way to get started using automatic logging:
 ```yaml

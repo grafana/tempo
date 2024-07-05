@@ -103,20 +103,20 @@ Refer to the `otelcol.processor.k8sattributes` block in the [components referenc
 
 Automatic logging writes well formatted log lines to help with trace discovery.
 
-For a closer look into the feature, visit [Automatic logging]({{< relref "./automatic-logging" >}}).
+For a closer look into the feature, visit [Automatic logging](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/automatic-logging/).
 
 #### Tail-based sampling
 
 Alloy implements tail-based sampling for distributed tracing systems and multi-instance Alloy deployments.
 With this feature, you can make sampling decisions based on data from a trace, rather than exclusively with probabilistic methods.
 
-For a detailed description, refer to [Tail-based sampling]({{< relref "./tail-based-sampling" >}}).
+For a detailed description, refer to [Tail-based sampling](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/tail-based-sampling).
 
 #### Generating metrics from spans
 
 Alloy can take advantage of the span data flowing through the pipeline to generate Prometheus metrics.
 
-Refer to [Span metrics]({{< relref "./span-metrics" >}}) for a more detailed explanation of the feature.
+Refer to [Span metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/span-metrics/) for a more detailed explanation of the feature.
 
 #### Service graph metrics
 
@@ -126,7 +126,7 @@ This service graphs processor builds a map of services by analyzing traces, with
 Edges are spans with a parent-child relationship, that represent a jump, such as a request, between two services.
 The amount of requests and their duration are recorded as metrics, which are used to represent the graph.
 
-To read more about this processor, go to its [section]({{< relref "./service-graphs" >}}).
+To read more about this processor, go to its [section](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/service-graphs).
 
 ### Exporting spans
 

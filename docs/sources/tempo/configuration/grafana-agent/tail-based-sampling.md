@@ -62,7 +62,7 @@ To see all the available configuration options, refer to the [configuration refe
 {{< admonition type="note">}}
 Grafana Alloy provides tooling to convert your Agent Static or Flow configuration files into a format that can be used by Alloy.
 
-For more information, refer to [Migrate to Alloy]({{< relref "../grafana-alloy/migrate-alloy" >}}).
+For more information, refer to [Migrate to Alloy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/migrate-alloy).
 {{< /admonition>}}
 
 ### Example for Grafana Agent Flow

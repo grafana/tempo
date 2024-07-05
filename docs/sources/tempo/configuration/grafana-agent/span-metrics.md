@@ -28,12 +28,12 @@ The generated metrics show application-level insight into your monitoring,
 as far as tracing gets propagated through your applications.
 
 Span metrics are also used in the service graph view.
-For more information, refer to the [service graph view]({{< relref "../../metrics-generator/service-graph-view" >}}).
+For more information, refer to the [service graph view](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/service-graph-view/).
 
 {{< admonition type="note">}}
 Grafana Alloy provides tooling to convert your Agent Static or Flow configuration files into a format that can be used by Alloy.
 
-For more information, refer to [Migrate to Alloy]({{< relref "../grafana-alloy/migrate-alloy" >}}).
+For more information, refer to [Migrate to Alloy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/migrate-alloy).
 {{< /admonition>}}
 
 ## Server-side metrics
