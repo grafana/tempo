@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/user"
-	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 	jaegerTrans "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -26,6 +26,12 @@ var (
 	// maxBatchesPerWrite is the maximum number of time-delayed writes for a trace.
 	maxLongWritesPerTrace int64 = 3
 )
+
+// jaegerClient is an interface used to mock the underlying client in tests.
+type JaegerClient interface {
+	EmitBatch(ctx context.Context, b *thrift.Batch) error
+	EmitZipkinBatch(ctx context.Context, zSpans []*zipkincore.Span) error
+}
 
 // TraceInfo is used to construct synthetic traces and manage the expectations.
 type TraceInfo struct {
@@ -85,7 +91,7 @@ func (t *TraceInfo) Done() {
 	t.longWritesRemaining--
 }
 
-func (t *TraceInfo) EmitBatches(c *jaeger_grpc.Reporter) error {
+func (t *TraceInfo) EmitBatches(c JaegerClient) error {
 	for i := int64(0); i < t.generateRandomInt(1, maxBatchesPerWrite); i++ {
 		ctx := user.InjectOrgID(context.Background(), t.tempoOrgID)
 		ctx, err := user.InjectIntoGRPCRequest(ctx)
@@ -104,7 +110,7 @@ func (t *TraceInfo) EmitBatches(c *jaeger_grpc.Reporter) error {
 
 // EmitAllBatches sends all the batches that would normally be sent at some
 // interval when using EmitBatches.
-func (t *TraceInfo) EmitAllBatches(c *jaeger_grpc.Reporter) error {
+func (t *TraceInfo) EmitAllBatches(c JaegerClient) error {
 	err := t.EmitBatches(c)
 	if err != nil {
 		return err

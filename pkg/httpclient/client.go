@@ -35,6 +35,28 @@ const (
 
 var ErrNotFound = errors.New("resource not found")
 
+type IClient interface {
+	WithTransport(t http.RoundTripper)
+	Do(req *http.Request) (*http.Response, error)
+	SearchTags() (*tempopb.SearchTagsResponse, error)
+	SearchTagsV2() (*tempopb.SearchTagsV2Response, error)
+	SearchTagsWithRange(start int64, end int64) (*tempopb.SearchTagsResponse, error)
+	SearchTagsV2WithRange(start int64, end int64) (*tempopb.SearchTagsV2Response, error)
+	SearchTagValues(key string) (*tempopb.SearchTagValuesResponse, error)
+	SearchTagValuesV2(key, query string) (*tempopb.SearchTagValuesV2Response, error)
+	SearchTagValuesV2WithRange(tag string, start int64, end int64) (*tempopb.SearchTagValuesV2Response, error)
+	Search(tags string) (*tempopb.SearchResponse, error)
+	SearchWithRange(tags string, start int64, end int64) (*tempopb.SearchResponse, error)
+	QueryTrace(id string) (*tempopb.Trace, error)
+	SearchTraceQL(query string) (*tempopb.SearchResponse, error)
+	SearchTraceQLWithRange(query string, start int64, end int64) (*tempopb.SearchResponse, error)
+	MetricsSummary(query string, groupBy string, start int64, end int64) (*tempopb.SpanMetricsSummaryResponse, error)
+	GetOverrides() (*userconfigurableoverrides.Limits, string, error)
+	SetOverrides(limits *userconfigurableoverrides.Limits, version string) (string, error)
+	PatchOverrides(limits *userconfigurableoverrides.Limits) (*userconfigurableoverrides.Limits, string, error)
+	DeleteOverrides(version string) error
+}
+
 // Client is client to the Tempo API.
 type Client struct {
 	BaseURL string

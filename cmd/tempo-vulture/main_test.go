@@ -2,13 +2,14 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/go-test/deep"
 	"github.com/gogo/protobuf/jsonpb"
+	"go.uber.org/zap"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -88,7 +89,6 @@ func TestResponseFixture(t *testing.T) {
 	marshaller := &jsonpb.Marshaler{}
 	err = marshaller.Marshal(&jsonTrace, generatedTrace)
 	require.NoError(t, err)
-	fmt.Println(jsonTrace.String())
 
 	assert.True(t, equalTraces(expected, generatedTrace))
 
@@ -96,6 +96,67 @@ func TestResponseFixture(t *testing.T) {
 		for _, d := range diff {
 			t.Error(d)
 		}
+	}
+}
+
+func TestInitTickers(t *testing.T) {
+	tests := []struct {
+		name                                        string
+		writeDuration, readDuration, searchDuration time.Duration
+		expectedWriteTicker                         bool
+		expectedReadTicker                          bool
+		expectedSearchTicker                        bool
+		expectedError                               string
+	}{
+		{
+			name:                 "Valid write and read durations",
+			writeDuration:        1 * time.Second,
+			readDuration:         2 * time.Second,
+			searchDuration:       0,
+			expectedWriteTicker:  true,
+			expectedReadTicker:   true,
+			expectedSearchTicker: false,
+			expectedError:        "",
+		},
+		{
+			name:                 "Invalid write duration (zero)",
+			writeDuration:        0,
+			readDuration:         0,
+			searchDuration:       0,
+			expectedWriteTicker:  false,
+			expectedReadTicker:   false,
+			expectedSearchTicker: false,
+			expectedError:        "tempo-write-backoff-duration must be greater than 0",
+		},
+		{
+			name:                 "No read or search durations set",
+			writeDuration:        1 * time.Second,
+			readDuration:         0,
+			searchDuration:       0,
+			expectedWriteTicker:  false,
+			expectedReadTicker:   false,
+			expectedSearchTicker: false,
+			expectedError:        "at least one of tempo-search-backoff-duration or tempo-read-backoff-duration must be set",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tickerWrite, tickerRead, tickerSearch, err := initTickers(tt.writeDuration, tt.readDuration, tt.searchDuration)
+
+			// Check ticker existence
+			assert.Equal(t, tt.expectedWriteTicker, tickerWrite != nil, "TickerWrite")
+			assert.Equal(t, tt.expectedReadTicker, tickerRead != nil, "TickerRead")
+			assert.Equal(t, tt.expectedSearchTicker, tickerSearch != nil, "TickerSearch")
+
+			// Check error
+			if tt.expectedError != "" {
+				assert.NotNil(t, err, "Expected error but got nil")
+				assert.EqualError(t, err, tt.expectedError, "Error message mismatch")
+			} else {
+				assert.Nil(t, err, "Expected no error but got one")
+			}
+		})
 	}
 }
 
@@ -110,4 +171,23 @@ func TestEqualTraces(t *testing.T) {
 	require.NoError(t, err)
 
 	require.True(t, equalTraces(a, b))
+}
+
+func TestDoWrite(t *testing.T) {
+	mockJaegerClient := MockReporter{err: nil}
+	// Define the configuration
+	config := vultureConfiguration{
+		tempoOrgID:                "orgID",
+		tempoWriteBackoffDuration: time.Second,
+	}
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	logger = zap.NewNop()
+
+	doWrite(&mockJaegerClient, ticker, config.tempoWriteBackoffDuration, config, logger)
+
+	time.Sleep(time.Second)
+	ticker.Stop()
+
+	require.Greater(t, len(mockJaegerClient.batches_emited), 0)
 }
