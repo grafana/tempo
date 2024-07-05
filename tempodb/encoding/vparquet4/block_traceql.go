@@ -2704,7 +2704,10 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	// Second pass. Update and further filter the spans
 	spans = res.OtherEntries[:0]
 	for _, e := range res.OtherEntries {
-		span := e.Value.(*span)
+		span, ok := e.Value.(*span)
+		if !ok {
+			continue
+		}
 
 		// Copy resource-level attributes to the span
 		// If the span already has an entry for this attribute it
