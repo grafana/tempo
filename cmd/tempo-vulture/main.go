@@ -131,10 +131,8 @@ func main() {
 	if tickerSearch != nil {
 		doSearchs(httpClient, tickerSearch, startTime, interval, r, vultureConfig, logger)
 	}
-
 	http.Handle(prometheusPath, promhttp.Handler())
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
-
 }
 
 func initTickers(tempoWriteBackoffDuration time.Duration, tempoReadBackoffDuration time.Duration, tempoSearchBackoffDuration time.Duration) (tickerWrite *time.Ticker, tickerRead *time.Ticker, tickerSearch *time.Ticker, err error) {
@@ -226,7 +224,6 @@ func doReads(client httpclient.IClient, tickerRead *time.Ticker, startTime time.
 // expect the write loop to have fired yet.  Double the duration here to
 // avoid a race.
 func traceIsReady(info *util.TraceInfo, now time.Time, startTime time.Time, config vultureConfiguration) bool {
-
 	if info.Timestamp().Before(startTime.Add(2 * config.tempoWriteBackoffDuration)) {
 		return false
 	}
