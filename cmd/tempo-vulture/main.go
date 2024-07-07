@@ -302,7 +302,7 @@ func getGRPCEndpoint(endpoint string) (string, error) {
 	dialAddress := u.Host
 
 	if u.Port() == "" {
-		dialAddress = dialAddress + fmt.Sprintf(":%d", defaultGRPCEndpoint)
+		dialAddress = fmt.Sprintf("%s:%d", dialAddress, defaultGRPCEndpoint)
 	}
 	return dialAddress, nil
 }
