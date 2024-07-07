@@ -340,7 +340,7 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	}
 
 	// new jaeger grpc exporter
-	conn, err := grpc.Dial(u.Host+":14250", dialOpts...)
+	conn, err := grpc.NewClient(u.Host+":14250", dialOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -418,12 +418,12 @@ func searchTag(client httpclient.IClient, seed time.Time) (traceMetrics, error) 
 	return tm, nil
 }
 
-func searchTraceql(client httpclient.IClient, seed time.Time, tempoOrgId string) (traceMetrics, error) {
+func searchTraceql(client httpclient.IClient, seed time.Time, tempoOrgID string) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
 
-	info := util.NewTraceInfo(seed, tempoOrgId)
+	info := util.NewTraceInfo(seed, tempoOrgID)
 	hexID := info.HexID()
 
 	// Get the expected

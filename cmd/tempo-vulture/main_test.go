@@ -189,5 +189,5 @@ func TestDoWrite(t *testing.T) {
 	time.Sleep(time.Second)
 	ticker.Stop()
 
-	require.Greater(t, len(mockJaegerClient.batches_emitted), 0)
+	require.Greater(t, len(mockJaegerClient.batchesEmitted), 0)
 }
