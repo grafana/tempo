@@ -59,7 +59,7 @@ type traceMetrics struct {
 }
 
 const (
-	defaultGRPCEndpoint = 14250
+	defaultJaegerGRPCEndpoint = 14250
 )
 
 func init() {
