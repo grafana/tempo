@@ -3,8 +3,10 @@
 .idea
 .vscode
 *.test
+*.out
 /bin
 /cmd/tempo-cli/tempo-cli
+/cmd/tempo-vulture/tempo-vulture
 /cmd/tempo-serverless/vendor/
 /dist
 /example/docker-compose/**/gcs-data/
