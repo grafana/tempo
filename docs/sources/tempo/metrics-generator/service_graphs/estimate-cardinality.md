@@ -2,7 +2,7 @@
 title: Estimate cardinality from traces
 menuTitle: Estimate cardinality
 description: Service graphs help you understand the structure of a distributed system and the connections and dependencies between its components.
-weight: 300
+weight: 400
 ---
 
 ## Estimate cardinality from traces
