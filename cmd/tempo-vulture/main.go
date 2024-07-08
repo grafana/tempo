@@ -57,6 +57,11 @@ type traceMetrics struct {
 	requestFailed           int
 	notFoundSearchAttribute int
 }
+
+const (
+	defaultJaegerGRPCEndpoint = 14250
+)
+
 type vultureConfiguration struct {
 	tempoQueryURL                 string
 	tempoPushURL                  string
@@ -93,6 +98,11 @@ func main() {
 		os.Stdout,
 		zapcore.DebugLevel,
 	))
+
+	grpcEndpoint, err := getGRPCEndpoint(tempoPushURL)
+	if err != nil {
+		panic(err)
+	}
 
 	logger.Info("Tempo Vulture starting")
 
@@ -321,11 +331,19 @@ func newJaegerGRPCClient(endpoint string, config vultureConfiguration, logger *z
 	// remove scheme and port
 	u, err := url.Parse(endpoint)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
+	dialAddress := u.Host
 
+	if u.Port() == "" {
+		dialAddress = fmt.Sprintf("%s:%d", dialAddress, defaultJaegerGRPCEndpoint)
+	}
+	return dialAddress, nil
+}
+
+func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	logger.Info("dialing grpc",
-		zap.String("endpoint", fmt.Sprintf("%s:14250", u.Host)),
+		zap.String("endpoint", endpoint),
 	)
 
 	var dialOpts []grpc.DialOption
@@ -343,7 +361,7 @@ func newJaegerGRPCClient(endpoint string, config vultureConfiguration, logger *z
 	}
 
 	// new jaeger grpc exporter
-	conn, err := grpc.Dial(u.Host+":14250", dialOpts...)
+	conn, err := grpc.NewClient(endpoint, dialOpts...)
 	if err != nil {
 		return nil, err
 	}
