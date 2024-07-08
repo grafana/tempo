@@ -56,6 +56,7 @@ func NewTraceInfo(timestamp time.Time, tempoOrgID string) *TraceInfo {
 		tempoOrgID:          tempoOrgID,
 	}
 }
+
 func NewTraceInfoWithMaxLongWrites(timestamp time.Time, maxLongWrites int64, tempoOrgID string) *TraceInfo {
 	r := newRand(timestamp)
 
