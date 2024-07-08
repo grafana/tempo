@@ -555,12 +555,26 @@ func TestDoSearch(t *testing.T) {
 	assert.Equal(t, mockHTTPClient.searchesCount, 2)
 }
 
+func TestGetGrpcEndpoint(t *testing.T) {
+	_, err := getGRPCEndpoint("http://%gh&%ij")
+	require.Error(t, err)
+
+	got, err := getGRPCEndpoint("http://localhost:4000")
+	require.NoError(t, err)
+	assert.Equal(t, "localhost:4000", got, "Address endpoint should keep the given port")
+
+	got, err = getGRPCEndpoint("http://localhost")
+	require.NoError(t, err)
+	assert.Equal(t, "localhost:14250", got, "Address without a port should be defaulted to 14250")
+}
+
 func TestNewJaegerGRPCClient(t *testing.T) {
 	config := vultureConfiguration{
 		tempoOrgID:                "orgID",
 		tempoWriteBackoffDuration: time.Second,
+		tempoPushURL:              "http://localhost",
 	}
-	client, err := newJaegerGRPCClient("http://localhost", config, zap.NewNop())
+	client, err := newJaegerGRPCClient(config, zap.NewNop())
 
 	assert.NoError(t, err)
 	assert.NotNil(t, client)
@@ -569,9 +583,20 @@ func TestNewJaegerGRPCClient(t *testing.T) {
 		tempoOrgID:                "orgID",
 		tempoWriteBackoffDuration: time.Second,
 		tempoPushTLS:              true,
+		tempoPushURL:              "http://localhost",
 	}
-	client, err = newJaegerGRPCClient("http://localhost", config, zap.NewNop())
+	client, err = newJaegerGRPCClient(config, zap.NewNop())
 
 	assert.NoError(t, err)
 	assert.NotNil(t, client)
+
+	config = vultureConfiguration{
+		tempoOrgID:                "orgID",
+		tempoWriteBackoffDuration: time.Second,
+		tempoPushURL:              "http://%gh&%ij",
+	}
+	client, err = newJaegerGRPCClient(config, zap.NewNop())
+
+	assert.Error(t, err)
+	assert.Nil(t, client)
 }

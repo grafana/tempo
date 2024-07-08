@@ -99,11 +99,6 @@ func main() {
 		zapcore.DebugLevel,
 	))
 
-	grpcEndpoint, err := getGRPCEndpoint(tempoPushURL)
-	if err != nil {
-		panic(err)
-	}
-
 	logger.Info("Tempo Vulture starting")
 
 	vultureConfig := vultureConfiguration{
@@ -118,7 +113,7 @@ func main() {
 		tempoPushTLS:                  tempoPushTLS,
 	}
 
-	jaegerClient, err := newJaegerGRPCClient(vultureConfig.tempoPushURL, vultureConfig, logger)
+	jaegerClient, err := newJaegerGRPCClient(vultureConfig, logger)
 	if err != nil {
 		panic(err)
 	}
@@ -138,6 +133,19 @@ func main() {
 
 	http.Handle(prometheusPath, promhttp.Handler())
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
+}
+
+func getGRPCEndpoint(endpoint string) (string, error) {
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return "", err
+	}
+	dialAddress := u.Host
+
+	if u.Port() == "" {
+		dialAddress = fmt.Sprintf("%s:%d", dialAddress, defaultJaegerGRPCEndpoint)
+	}
+	return dialAddress, nil
 }
 
 func initTickers(tempoWriteBackoffDuration time.Duration, tempoReadBackoffDuration time.Duration, tempoSearchBackoffDuration time.Duration) (tickerWrite *time.Ticker, tickerRead *time.Ticker, tickerSearch *time.Ticker, err error) {
@@ -327,21 +335,12 @@ func selectPastTimestamp(start, stop time.Time, interval, retention time.Duratio
 	return newStart.Round(interval), ts.Round(interval)
 }
 
-func newJaegerGRPCClient(endpoint string, config vultureConfiguration, logger *zap.Logger) (*jaeger_grpc.Reporter, error) {
-	// remove scheme and port
-	u, err := url.Parse(endpoint)
+func newJaegerGRPCClient(config vultureConfiguration, logger *zap.Logger) (*jaeger_grpc.Reporter, error) {
+	endpoint, err := getGRPCEndpoint(config.tempoPushURL)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	dialAddress := u.Host
 
-	if u.Port() == "" {
-		dialAddress = fmt.Sprintf("%s:%d", dialAddress, defaultJaegerGRPCEndpoint)
-	}
-	return dialAddress, nil
-}
-
-func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	logger.Info("dialing grpc",
 		zap.String("endpoint", endpoint),
 	)
@@ -359,13 +358,12 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		}
 	}
-
 	// new jaeger grpc exporter
 	conn, err := grpc.NewClient(endpoint, dialOpts...)
 	if err != nil {
 		return nil, err
 	}
-	return jaeger_grpc.NewReporter(conn, nil, logger), err
+	return jaeger_grpc.NewReporter(conn, nil, logger), nil
 }
 
 func generateRandomInt(min, max int64, r *rand.Rand) int64 {
