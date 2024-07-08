@@ -217,7 +217,7 @@ func queueFutureBatches(client util.JaegerClient, info *util.TraceInfo, config v
 	}()
 }
 
-func doRead(httpClient httpclient.HttpClient, tickerRead *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
+func doRead(httpClient httpclient.HTTPClient, tickerRead *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
 	if tickerRead != nil {
 		go func() {
 			for now := range tickerRead.C {
@@ -251,7 +251,7 @@ func doRead(httpClient httpclient.HttpClient, tickerRead *time.Ticker, startTime
 	}
 }
 
-func doSearch(httpClient httpclient.HttpClient, tickerSearch *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
+func doSearch(httpClient httpclient.HTTPClient, tickerSearch *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
 	if tickerSearch != nil {
 		go func() {
 			for now := range tickerSearch.C {
@@ -354,7 +354,7 @@ func generateRandomInt(min, max int64, r *rand.Rand) int64 {
 	min++
 	var duration int64
 	duration = 1
-	// This is to prevent a panic when min == max since substracting them will end in a negative number
+	// This is to prevent a panic when min == max since subtracting them will end in a negative number
 	if min < max {
 		duration = max - min
 	}
@@ -378,7 +378,7 @@ func traceInTraces(traceID string, traces []*tempopb.TraceSearchMetadata) bool {
 	return false
 }
 
-func searchTag(client httpclient.HttpClient, seed time.Time, config vultureConfiguration, l *zap.Logger) (traceMetrics, error) {
+func searchTag(client httpclient.HTTPClient, seed time.Time, config vultureConfiguration, l *zap.Logger) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
@@ -427,7 +427,7 @@ func searchTag(client httpclient.HttpClient, seed time.Time, config vultureConfi
 	return tm, nil
 }
 
-func searchTraceql(client httpclient.HttpClient, seed time.Time, config vultureConfiguration, l *zap.Logger) (traceMetrics, error) {
+func searchTraceql(client httpclient.HTTPClient, seed time.Time, config vultureConfiguration, l *zap.Logger) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
@@ -474,7 +474,7 @@ func searchTraceql(client httpclient.HttpClient, seed time.Time, config vultureC
 	return tm, nil
 }
 
-func queryTrace(client httpclient.HttpClient, info *util.TraceInfo, l *zap.Logger) (traceMetrics, error) {
+func queryTrace(client httpclient.HTTPClient, info *util.TraceInfo, l *zap.Logger) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
