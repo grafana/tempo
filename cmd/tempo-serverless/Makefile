@@ -33,13 +33,14 @@ build-docker-lambda-test:
 	$(IN_LAMBDA) CGO_ENABLED=0 go build -o ./lambda
 	$(IN_LAMBDA) docker build -f ./Dockerfile -t tempo-serverless-lambda .
 
-# lambda zips expect a compiled executable in root. the filename "main" is important
-# as that should the handler config option in aws
+# Lambda zips expect a compiled executable in the root. The filename "bootstrap" is important here.
+# The new AWS Lambda runtime expects an executable with the name "bootstrap" to be provided, the "handler" configuration is ignored when using the new runtime.
+# See https://aws.amazon.com/blogs/compute/migrating-aws-lambda-functions-from-the-go1-x-runtime-to-the-custom-runtime-on-amazon-linux-2/ for more info.
 .PHONY: build-lambda-zip
 build-lambda-zip:
-	$(IN_LAMBDA) CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o main
-	$(IN_LAMBDA) zip tempo-serverless-$(VERSION).zip main
-	$(IN_LAMBDA) rm main
+	$(IN_LAMBDA) CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bootstrap
+	$(IN_LAMBDA) zip tempo-serverless-$(VERSION).zip bootstrap
+	$(IN_LAMBDA) rm bootstrap
 
 .PHONY: test
 test:
