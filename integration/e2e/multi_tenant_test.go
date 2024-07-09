@@ -148,7 +148,8 @@ func TestMultiTenantSearch(t *testing.T) {
 
 			tagsV2Resp, err := apiClient.SearchTagsV2()
 			require.NoError(t, err)
-			require.Equal(t, 3, len(tagsV2Resp.GetScopes()))
+			fmt.Println(tagsV2Resp.Scopes)
+			require.Equal(t, 4, len(tagsV2Resp.GetScopes())) // resource, span, event, intrinsics
 			for _, s := range tagsV2Resp.Scopes {
 				require.NotEmpty(t, s.Tags)
 			}
