@@ -550,10 +550,6 @@ func BenchmarkFetchTagValues(b *testing.B) {
 			tag:   "resource.namespace",
 			query: `{span.http.status_code=200}`,
 		},
-		{
-			tag:   "resource.namespace",
-			query: `{span.http.status_code=200}`,
-		},
 		// pathologic cases
 		/*
 			{

@@ -42,16 +42,16 @@ func TestSearchTagsV2(t *testing.T) {
 		spanCount                  int
 		name                       string
 		resourceAttVal, spanAttVal string
-		resourceName, spanName     string
+		resourceAttr, SpanAttr     string
 	}
 
-	firstBatch := batchTmpl{spanCount: 2, name: "foo", resourceAttVal: "bar", spanAttVal: "bar", resourceName: "firstRes", spanName: "firstSpan"}
-	secondBatch := batchTmpl{spanCount: 2, name: "baz", resourceAttVal: "qux", spanAttVal: "qux", resourceName: "secondRes", spanName: "secondSpan"}
+	firstBatch := batchTmpl{spanCount: 2, name: "foo", resourceAttVal: "bar", spanAttVal: "bar", resourceAttr: "firstRes", SpanAttr: "firstSpan"}
+	secondBatch := batchTmpl{spanCount: 2, name: "baz", resourceAttVal: "qux", spanAttVal: "qux", resourceAttr: "secondRes", SpanAttr: "secondSpan"}
 
-	batch := makeThriftBatchWithSpanCountAttributeAndName(firstBatch.spanCount, firstBatch.name, firstBatch.resourceAttVal, firstBatch.spanAttVal, firstBatch.resourceName, firstBatch.spanName)
+	batch := makeThriftBatchWithSpanCountAttributeAndName(firstBatch.spanCount, firstBatch.name, firstBatch.resourceAttVal, firstBatch.spanAttVal, firstBatch.resourceAttr, firstBatch.SpanAttr)
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
-	batch = makeThriftBatchWithSpanCountAttributeAndName(secondBatch.spanCount, secondBatch.name, secondBatch.resourceAttVal, secondBatch.spanAttVal, secondBatch.resourceName, secondBatch.spanName)
+	batch = makeThriftBatchWithSpanCountAttributeAndName(secondBatch.spanCount, secondBatch.name, secondBatch.resourceAttVal, secondBatch.spanAttVal, secondBatch.resourceAttr, secondBatch.SpanAttr)
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
 	// Wait for the traces to be written to the WAL
@@ -71,11 +71,11 @@ func TestSearchTagsV2(t *testing.T) {
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: "span",
-						Tags: []string{firstBatch.spanName, secondBatch.spanName},
+						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
 					},
 					{
 						Name: "resource",
-						Tags: []string{firstBatch.resourceName, secondBatch.resourceName, "service.name"},
+						Tags: []string{firstBatch.resourceAttr, secondBatch.resourceAttr, "service.name"},
 					},
 				},
 			},
@@ -88,7 +88,7 @@ func TestSearchTagsV2(t *testing.T) {
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: "resource",
-						Tags: []string{firstBatch.resourceName, "service.name"},
+						Tags: []string{firstBatch.resourceAttr, "service.name"},
 					},
 				},
 			},
@@ -101,53 +101,53 @@ func TestSearchTagsV2(t *testing.T) {
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: "span",
-						Tags: []string{secondBatch.spanName},
+						Tags: []string{secondBatch.SpanAttr},
 					},
 				},
 			},
 		},
 		{
 			name:  "first batch - resource att - span",
-			query: fmt.Sprintf(`{ resource.%s="%s" }`, firstBatch.resourceName, firstBatch.resourceAttVal),
+			query: fmt.Sprintf(`{ resource.%s="%s" }`, firstBatch.resourceAttr, firstBatch.resourceAttVal),
 			scope: "span",
 			expected: tempopb.SearchTagsV2Response{
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: "span",
-						Tags: []string{firstBatch.spanName},
+						Tags: []string{firstBatch.SpanAttr},
 					},
 				},
 			},
 		},
 		{
 			name:  "first batch - resource att - resource",
-			query: fmt.Sprintf(`{ resource.%s="%s" }`, firstBatch.resourceName, firstBatch.resourceAttVal),
+			query: fmt.Sprintf(`{ resource.%s="%s" }`, firstBatch.resourceAttr, firstBatch.resourceAttVal),
 			scope: "resource",
 			expected: tempopb.SearchTagsV2Response{
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: "resource",
-						Tags: []string{firstBatch.resourceName, "service.name"},
+						Tags: []string{firstBatch.resourceAttr, "service.name"},
 					},
 				},
 			},
 		},
 		{
 			name:  "second batch - resource attribute - span",
-			query: fmt.Sprintf(`{ resource.%s="%s" }`, secondBatch.resourceName, secondBatch.resourceAttVal),
+			query: fmt.Sprintf(`{ resource.%s="%s" }`, secondBatch.resourceAttr, secondBatch.resourceAttVal),
 			scope: "span",
 			expected: tempopb.SearchTagsV2Response{
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: "span",
-						Tags: []string{secondBatch.spanName},
+						Tags: []string{secondBatch.SpanAttr},
 					},
 				},
 			},
 		},
 		{
 			name:  "too restrictive query",
-			query: fmt.Sprintf(`{ resource.%s="%s" && resource.y="%s" }`, firstBatch.resourceName, firstBatch.resourceAttVal, secondBatch.resourceAttVal),
+			query: fmt.Sprintf(`{ resource.%s="%s" && resource.y="%s" }`, firstBatch.resourceAttr, firstBatch.resourceAttVal, secondBatch.resourceAttVal),
 			scope: "none",
 			expected: tempopb.SearchTagsV2Response{
 				Scopes: []*tempopb.SearchTagsV2Scope{
@@ -167,11 +167,11 @@ func TestSearchTagsV2(t *testing.T) {
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: "span",
-						Tags: []string{firstBatch.spanName, secondBatch.spanName},
+						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
 					},
 					{
 						Name: "resource",
-						Tags: []string{firstBatch.resourceName, secondBatch.resourceName, "service.name"},
+						Tags: []string{firstBatch.resourceAttr, secondBatch.resourceAttr, "service.name"},
 					},
 				},
 			},
@@ -184,11 +184,11 @@ func TestSearchTagsV2(t *testing.T) {
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: "span",
-						Tags: []string{firstBatch.spanName, secondBatch.spanName},
+						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
 					},
 					{
 						Name: "resource",
-						Tags: []string{firstBatch.resourceName, secondBatch.resourceName, "service.name"},
+						Tags: []string{firstBatch.resourceAttr, secondBatch.resourceAttr, "service.name"},
 					},
 				},
 			},
@@ -201,11 +201,11 @@ func TestSearchTagsV2(t *testing.T) {
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: "span",
-						Tags: []string{firstBatch.spanName, secondBatch.spanName},
+						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
 					},
 					{
 						Name: "resource",
-						Tags: []string{firstBatch.resourceName, secondBatch.resourceName, "service.name"},
+						Tags: []string{firstBatch.resourceAttr, secondBatch.resourceAttr, "service.name"},
 					},
 				},
 			},
@@ -218,11 +218,11 @@ func TestSearchTagsV2(t *testing.T) {
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: "span",
-						Tags: []string{firstBatch.spanName, secondBatch.spanName},
+						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
 					},
 					{
 						Name: "resource",
-						Tags: []string{firstBatch.resourceName, secondBatch.resourceName, "service.name"},
+						Tags: []string{firstBatch.resourceAttr, secondBatch.resourceAttr, "service.name"},
 					},
 				},
 			},
