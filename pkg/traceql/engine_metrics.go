@@ -65,9 +65,11 @@ func IntervalOf(ts, start, end, step uint64) int {
 	return int((ts - start) / step)
 }
 
-// IntervalOfMs is the same as IntervalOf except the input timestamp is in unix milliseconds.
+// IntervalOfMs is the same as IntervalOf except the input and calculations are in unix milliseconds.
 func IntervalOfMs(tsmills int64, start, end, step uint64) int {
 	ts := uint64(time.Duration(tsmills) * time.Millisecond)
+	start -= start % uint64(time.Millisecond)
+	end -= end % uint64(time.Millisecond)
 	return IntervalOf(ts, start, end, step)
 }
 
@@ -78,6 +80,10 @@ func TrimToOverlap(start1, end1, step, start2, end2 uint64) (uint64, uint64) {
 	start1 = (start1 / step) * step
 	end1 = (end1/step)*step + step
 	return start1, end1
+}
+
+func IsInstant(req *tempopb.QueryRangeRequest) bool {
+	return req.End-req.Start == req.Step
 }
 
 type Label struct {

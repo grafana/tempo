@@ -1,0 +1,162 @@
+package frontend
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/modules/frontend/combiner"
+	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/tempopb"
+)
+
+func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
+	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
+
+	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		tenant, _ := user.ExtractOrgID(req.Context())
+		start := time.Now()
+
+		// Parse request
+		i, err := api.ParseQueryInstantRequest(req)
+		if err != nil {
+			level.Error(logger).Log("msg", "query instant: parse search request failed", "err", err)
+			return &http.Response{
+				StatusCode: http.StatusBadRequest,
+				Status:     http.StatusText(http.StatusBadRequest),
+				Body:       io.NopCloser(strings.NewReader(err.Error())),
+			}, nil
+		}
+
+		logQueryInstantRequest(logger, tenant, i)
+
+		// Rewrite into a query_range and continue processing using that sharder and combiner.
+		qr := &tempopb.QueryRangeRequest{
+			Query: i.Query,
+			Start: i.Start,
+			End:   i.End,
+			Step:  i.End - i.Start,
+		}
+		req.URL.Path = strings.ReplaceAll(req.URL.Path, api.PathMetricsQueryInstant, api.PathMetricsQueryRange)
+		req = api.BuildQueryRangeRequest(req, qr)
+
+		combiner, err := combiner.NewTypedQueryRange(qr)
+		if err != nil {
+			level.Error(logger).Log("msg", "query instant: query range combiner failed", "err", err)
+			return &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Status:     http.StatusText(http.StatusInternalServerError),
+				Body:       io.NopCloser(strings.NewReader(err.Error())),
+			}, nil
+		}
+		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, combiner)
+
+		// Roundtrip the request and look for intermediate failures
+		innerResp, err := rt.RoundTrip(req)
+		if err != nil {
+			return nil, err
+		}
+		if innerResp != nil && innerResp.StatusCode != http.StatusOK {
+			return innerResp, nil
+		}
+
+		// Get the final data and translate to instant
+		qrResp, err := combiner.GRPCFinal()
+		if err != nil {
+			return nil, err
+		}
+
+		iResp := &tempopb.QueryInstantRespone{
+			Metrics: qrResp.Metrics,
+		}
+		for _, series := range qrResp.Series {
+			if len(series.Samples) == 0 {
+				continue
+			}
+			// Use first value
+			iResp.Series = append(iResp.Series, &tempopb.InstantSeries{
+				Labels:     series.Labels,
+				PromLabels: series.PromLabels,
+				Value:      series.Samples[0].Value,
+			})
+		}
+
+		bodyString, err := new(jsonpb.Marshaler).MarshalToString(iResp)
+		if err != nil {
+			return nil, fmt.Errorf("error marshalling response body: %w", err)
+		}
+
+		resp := &http.Response{
+			StatusCode: combiner.StatusCode(),
+			Header: http.Header{
+				api.HeaderContentType: {api.HeaderAcceptJSON},
+			},
+			Body:          io.NopCloser(strings.NewReader(bodyString)),
+			ContentLength: int64(len([]byte(bodyString))),
+		}
+
+		duration := time.Since(start)
+		var bytesProcessed uint64
+		if iResp.Metrics != nil {
+			bytesProcessed = iResp.Metrics.InspectedBytes
+		}
+		postSLOHook(resp, tenant, bytesProcessed, duration, err)
+		logQueryInstantResult(logger, tenant, duration.Seconds(), i, iResp, err)
+
+		return resp, nil
+	})
+}
+
+func logQueryInstantResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.QueryInstantRequest, resp *tempopb.QueryInstantRespone, err error) {
+	if resp == nil {
+		level.Info(logger).Log(
+			"msg", "query instant results - no resp",
+			"tenant", tenantID,
+			"duration_seconds", durationSeconds,
+			"error", err)
+
+		return
+	}
+
+	if resp.Metrics == nil {
+		level.Info(logger).Log(
+			"msg", "query instant results - no metrics",
+			"tenant", tenantID,
+			"query", req.Query,
+			"range_nanos", req.End-req.Start,
+			"duration_seconds", durationSeconds,
+			"error", err)
+		return
+	}
+
+	level.Info(logger).Log(
+		"msg", "query instant results",
+		"tenant", tenantID,
+		"query", req.Query,
+		"range_nanos", req.End-req.Start,
+		"duration_seconds", durationSeconds,
+		"request_throughput", float64(resp.Metrics.InspectedBytes)/durationSeconds,
+		"total_requests", resp.Metrics.TotalJobs,
+		"total_blockBytes", resp.Metrics.TotalBlockBytes,
+		"total_blocks", resp.Metrics.TotalBlocks,
+		"completed_requests", resp.Metrics.CompletedJobs,
+		"inspected_bytes", resp.Metrics.InspectedBytes,
+		"inspected_traces", resp.Metrics.InspectedTraces,
+		"inspected_spans", resp.Metrics.InspectedSpans,
+		"error", err)
+}
+
+func logQueryInstantRequest(logger log.Logger, tenantID string, req *tempopb.QueryInstantRequest) {
+	level.Info(logger).Log(
+		"msg", "query instant request",
+		"tenant", tenantID,
+		"query", req.Query,
+		"range_seconds", req.End-req.Start)
+}

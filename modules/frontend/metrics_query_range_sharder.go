@@ -312,9 +312,16 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 	}
 
 	// Make a copy and limit to backend time range.
+	// Preserve instant nature of request if needed
+	instant := traceql.IsInstant(&searchReq)
 	backendReq := searchReq
 	backendReq.Start, backendReq.End = s.backendRange(now, backendReq.Start, backendReq.End, s.cfg.QueryBackendAfter)
-	alignTimeRange(&backendReq)
+	if instant {
+		// Ensure it is still instant again after pruning
+		backendReq.Step = backendReq.End - backendReq.Start
+	} else {
+		alignTimeRange(&backendReq)
+	}
 
 	// If empty window then no need to search backend
 	if backendReq.Start == backendReq.End {
@@ -356,6 +363,11 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 	queryHash := hashForQueryRangeRequest(&searchReq)
 
 	for _, m := range metas {
+		if m.EndTime.Before(m.StartTime) {
+			// Ignore blocks with bad timings from debugging
+			continue
+		}
+
 		pages := pagesPerRequest(m, targetBytesPerRequest)
 		if pages == 0 {
 			continue
@@ -370,7 +382,12 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				continue
 			}
 
-			start, end := traceql.TrimToOverlap(searchReq.Start, searchReq.End, searchReq.Step, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
+			// Job time range - For non-instant queries, limit time scope to closer to the block for efficiency.
+			start := searchReq.Start
+			end := searchReq.End
+			if !traceql.IsInstant(&searchReq) {
+				start, end = traceql.TrimToOverlap(searchReq.Start, searchReq.End, searchReq.Step, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
+			}
 
 			queryRangeReq := &tempopb.QueryRangeRequest{
 				Query: searchReq.Query,
@@ -433,15 +450,23 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 		return nil
 	}
 
+	// Limit to generator time range
+	// and preserve instant nature of query if needed
+	instant := traceql.IsInstant(&searchReq)
+
 	if searchReq.Start < cutoff {
 		searchReq.Start = cutoff
 	}
 
-	alignTimeRange(&searchReq)
-
 	// if start == end then we don't need to query it
 	if searchReq.Start == searchReq.End {
 		return nil
+	}
+
+	if instant {
+		searchReq.Step = searchReq.End - searchReq.Start
+	} else {
+		alignTimeRange(&searchReq)
 	}
 
 	searchReq.QueryMode = querier.QueryModeRecent
@@ -465,8 +490,7 @@ func (s *queryRangeSharder) toUpstreamRequest(ctx context.Context, req tempopb.Q
 // Without alignment each refresh is shifted by seconds or even milliseconds and the time series
 // calculations are sublty different each time. It's not wrong, but less preferred behavior.
 func alignTimeRange(req *tempopb.QueryRangeRequest) {
-	if req.End-req.Start == req.Step {
-		// Instant query
+	if traceql.IsInstant(req) {
 		return
 	}
 

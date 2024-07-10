@@ -359,6 +359,28 @@ message SpanMetricsResultPoint {
   uint64 exemplarDuration = 4;
 }
 
+message QueryInstantRequest {
+  string query = 1;
+  uint64 start = 2;
+  uint64 end = 3;
+}
+
+message QueryInstantRespone {
+  repeated InstantSeries series = 1;
+  SearchMetrics metrics = 2;
+}
+
+message InstantSeries {
+  // Series labels containing name and value. Data-type aware.
+  repeated tempopb.common.v1.KeyValue labels = 1 [(gogoproto.nullable) = false];
+
+  double value = 2;
+
+  // prom_labels are a flattened string-only version of the typed labels.
+  // They are used internally and may differ from official prometheus conventions.
+  string prom_labels = 3;
+}
+
 message QueryRangeRequest {
   string query = 1;
   uint64 start = 2;

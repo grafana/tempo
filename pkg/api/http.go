@@ -71,16 +71,17 @@ const (
 	PathPrefixQuerier   = "/querier"
 	PathPrefixGenerator = "/generator"
 
-	PathTraces             = "/api/traces/{traceID}"
-	PathSearch             = "/api/search"
-	PathSearchTags         = "/api/search/tags"
-	PathSearchTagValues    = "/api/search/tag/{" + MuxVarTagName + "}/values"
-	PathEcho               = "/api/echo"
-	PathBuildInfo          = "/api/status/buildinfo"
-	PathUsageStats         = "/status/usage-stats"
-	PathSpanMetrics        = "/api/metrics"
-	PathSpanMetricsSummary = "/api/metrics/summary"
-	PathMetricsQueryRange  = "/api/metrics/query_range"
+	PathTraces              = "/api/traces/{traceID}"
+	PathSearch              = "/api/search"
+	PathSearchTags          = "/api/search/tags"
+	PathSearchTagValues     = "/api/search/tag/{" + MuxVarTagName + "}/values"
+	PathEcho                = "/api/echo"
+	PathBuildInfo           = "/api/status/buildinfo"
+	PathUsageStats          = "/status/usage-stats"
+	PathSpanMetrics         = "/api/metrics"
+	PathSpanMetricsSummary  = "/api/metrics/summary"
+	PathMetricsQueryInstant = "/api/metrics/query"
+	PathMetricsQueryRange   = "/api/metrics/query_range"
 
 	// PathOverrides user configurable overrides
 	PathOverrides = "/api/overrides"
@@ -325,6 +326,26 @@ func ParseSpanMetricsSummaryRequest(r *http.Request) (*tempopb.SpanMetricsSummar
 	return req, nil
 }
 
+func ParseQueryInstantRequest(r *http.Request) (*tempopb.QueryInstantRequest, error) {
+	req := &tempopb.QueryInstantRequest{}
+
+	// check "query" first. this was originally added for prom compatibility and Grafana still uses it.
+	if s, ok := extractQueryParam(r, "query"); ok {
+		req.Query = s
+	}
+
+	// also check the `q` parameter. this is what all other Tempo endpoints take for a TraceQL query.
+	if s, ok := extractQueryParam(r, urlParamQuery); ok {
+		req.Query = s
+	}
+
+	start, end, _ := bounds(r)
+	req.Start = uint64(start.UnixNano())
+	req.End = uint64(end.UnixNano())
+
+	return req, nil
+}
+
 func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error) {
 	req := &tempopb.QueryRangeRequest{}
 
@@ -529,7 +550,7 @@ func parseSecondsOrDuration(value string) (time.Duration, error) {
 		}
 		return time.Duration(ts), nil
 	}
-	if d, err := model.ParseDuration(value); err == nil {
+	if d, err := time.ParseDuration(value); err == nil {
 		return time.Duration(d), nil
 	}
 	return 0, fmt.Errorf("cannot parse %q to a valid duration", value)
