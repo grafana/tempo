@@ -145,7 +145,7 @@ func TestDeprecatedVersions(t *testing.T) {
 					IndexPageSizeBytes:   1,
 					BloomFP:              0.01,
 					BloomShardSizeBytes:  1,
-					Version:              "vParquet3",
+					Version:              "vParquet4",
 				},
 			},
 			expectedConfig: &Config{
@@ -157,7 +157,7 @@ func TestDeprecatedVersions(t *testing.T) {
 					IndexPageSizeBytes:   1,
 					BloomFP:              0.01,
 					BloomShardSizeBytes:  1,
-					Version:              "vParquet3",
+					Version:              "vParquet4",
 				},
 			},
 		},

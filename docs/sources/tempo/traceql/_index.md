@@ -73,7 +73,8 @@ In TraceQL, curly brackets `{}` always select a set of spans from the current tr
 
 ### Intrinsic fields
 
-Intrinsic fields are fundamental to spans. These fields can be referenced when selecting spans. Note that custom attributes are prefixed with `.`, `span.` or `resource.` whereas intrinsics are typed directly.
+Intrinsic fields are fundamental to spans. These fields can be referenced when selecting spans.
+Custom attributes are prefixed with `.`, `span.` or `resource.`, whereas intrinsics are typed directly.
 
 The following table shows the current available scoped intrinsic fields:
 
@@ -84,17 +85,28 @@ The following table shows the current available scoped intrinsic fields:
 | `span:duration`         | duration    | end - start time of the span                                    | `{ span:duration > 100ms }`            |
 | `span:name`             | string      | operation or span name                                          | `{ span:name = "HTTP POST" }`          |
 | `span:kind`             | kind enum   | kind: server, client, producer, consumer, internal, unspecified | `{ span:kind = server }`               |
-| `span:id`               | strig       | span id using hex string                                        | `{ span:id = "0000000000000001" }`     |
+| `span:id`               | string      | span id using hex string                                        | `{ span:id = "0000000000000001" }`     |
 | `trace:duration`        | duration    | max(end) - min(start) time of the spans in the trace            | `{ trace:duration > 100ms }`           |
 | `trace:rootName`        | string      | if it exists the name of the root span in the trace             | `{ trace:rootName = "HTTP GET" }`      |
-| `trace:rootServiceName` | string      | if it exists the service name of the root span in the trace     | `{ trace:rootServiceName = "gateway" }`|
-| `trace:id`              | string      | trace id using hex string                                       | `{ trace:id = "1234567890abcdef" }`    |
+| `trace:rootService`     | string      | if it exists the service name of the root span in the trace     | `{ trace:rootServiceName = "gateway" }`|
+| `trace:id`              | string      | trace id using hex string                                       | `{ trace:id = "1234567890abcde" }`     |
+| `event:name`            | string      | name of event                                                   | `{ event:name = "exception" }`         |
+| `link:spanID`           | string      | link span id using hex string                                   | `{ link:spanID = "0000000000000001" }` |
+| `link:traceID`          | string      | link trace id using hex string                                  | `{ link:traceID = "1234567890abcde" }` |
 
-{{< admonition type="note" >}}
-`traceDuration`, `rootName`, and `rootServiceName` are trace-level intrinsics and will be the same for all spans in the same trace. Additionally,
-these intrinsics are significantly more performant because they have to inspect much less data then a span-level intrinsic. They should be preferred whenever
-possible to span-level intrinsics.
-{{% /admonition %}}
+`trace:duration`, `trace:rootName`, and `trace:rootService` are trace-level intrinsics and are the same for all spans in the same trace.
+Additionally, these intrinsics are significantly more performant because they have to inspect much less data then a span-level intrinsic.
+They should be preferred whenever possible to span-level intrinsics.
+
+You may have a time when you want to search by a trace-level intrinsic instead.
+For example, using `span:name` looks for the names of spans within traces.
+If you want to search by a trace name of `perf`, use `trace:rootName` to match against trace name.
+
+This example searches all Kubernetes clusters called `service-name` that have a span with a root name of including `perf`.
+
+```
+{ resource.k8s.cluster.name="service-name" && trace:rootName !~ ".*perf.*"}
+```
 
 ### Attribute fields
 
@@ -127,7 +139,8 @@ Find any database connection string that goes to a Postgres or MySQL database:
 
 ### Unscoped attribute fields
 
-Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource. When possible, use scoped instead of unscoped attributes. Scoped attributes provide faster query results.
+Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource.
+When possible, use scoped instead of unscoped attributes. Scoped attributes provide faster query results.
 
 For example, to find traces with an attribute of `sla` set to `critical`:
 ```
@@ -266,7 +279,7 @@ For example, to find a trace where a specific HTTP API interacted with a specifi
 ### Union structural
 
 These spanset operators look at the structure of a trace and the relationship between the spans. These operators are unique in that they
-return spans that match on both side of the operator. 
+return spans that match on both side of the operator.
 
 - `{condA} &>> {condB}` - The descendant operator (`>>`) looks for spans matching `{condB}` that are descendants of a span matching `{condA}`.
 - `{condA} &<< {condB}` - The ancestor operator (`<<`) looks for spans matching `{condB}` that are ancestor of a span matching `{condA}`.

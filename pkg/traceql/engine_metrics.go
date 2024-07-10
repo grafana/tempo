@@ -71,6 +71,15 @@ func IntervalOfMs(tsmills int64, start, end, step uint64) int {
 	return IntervalOf(ts, start, end, step)
 }
 
+// TrimToOverlap returns the aligned overlap between the two given time ranges.
+func TrimToOverlap(start1, end1, step, start2, end2 uint64) (uint64, uint64) {
+	start1 = max(start1, start2)
+	end1 = min(end1, end2)
+	start1 = (start1 / step) * step
+	end1 = (end1/step)*step + step
+	return start1, end1
+}
+
 type Label struct {
 	Name  string
 	Value Static
