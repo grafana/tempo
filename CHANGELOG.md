@@ -20,6 +20,7 @@
 * [ENHANCEMENT] Protect ingesters from panics by adding defer/recover to all read path methods. [#3790](https://github.com/grafana/tempo/pull/3790) (@joe-elliott)
 * [ENHANCEMENT] Added a boolean flag to enable or disable dualstack mode on Storage block config for S3 [#3721](https://github.com/grafana/tempo/pull/3721) (@sid-jar, @mapno)
 * [ENHANCEMENT] Add caching to query range queries [#3796](https://github.com/grafana/tempo/pull/3796) (@mapno)
+* [ENHANCEMENT] Only stream diffs on metrics queries [#3808](https://github.com/grafana/tempo/pull/3808) (@joe-elliott)
 * [ENHANCEMENT] Add data quality metric to measure traces without a root [#3812](https://github.com/grafana/tempo/pull/3812) (@mapno)
 * [ENHANCEMENT] Added an example for running Tempo vulture [#3829](https://github.com/grafana/tempo/pull/3829) (@javiermolinar)
 * [ENHANCEMENT] Add a new helper method to allow debugging e2e tests [#3836](https://github.com/grafana/tempo/pull/3836) (@javiermolinar)
