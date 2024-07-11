@@ -75,6 +75,10 @@ type CompactionOptions struct {
 	BlockConfig        BlockConfig
 	Combiner           model.ObjectCombiner
 
+	// DropObject can be used to drop a trace from the compaction process. Currently it only receives the ID
+	// of the trace to be compacted. If it returns false, the trace will be dropped.
+	DropObject func(ID) bool
+
 	ObjectsCombined   func(compactionLevel, objects int)
 	ObjectsWritten    func(compactionLevel, objects int)
 	BytesWritten      func(compactionLevel, bytes int)
