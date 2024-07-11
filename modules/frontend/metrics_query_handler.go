@@ -17,6 +17,8 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
+// newMetricsQueryInstantHTTPHandler handles instant queries.  Internally these are rewritten as query_range with single step
+// to make use of the existing pipeline.
 func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 
@@ -37,7 +39,9 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 
 		logQueryInstantRequest(logger, tenant, i)
 
-		// Rewrite into a query_range and continue processing using that sharder and combiner.
+		// --------------------------------------------------
+		// Rewrite into a query_range request.
+		// --------------------------------------------------
 		qr := &tempopb.QueryRangeRequest{
 			Query: i.Query,
 			Start: i.Start,
@@ -67,7 +71,9 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 			return innerResp, nil
 		}
 
-		// Get the final data and translate to instant
+		// --------------------------------------------------
+		// Get the final data and translate to instant.
+		// --------------------------------------------------
 		qrResp, err := combiner.GRPCFinal()
 		if err != nil {
 			return nil, err
