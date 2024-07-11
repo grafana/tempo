@@ -67,11 +67,6 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[combin
 	span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.QueryRangeSharder")
 	defer span.Finish()
 
-	var (
-		err error
-		now = time.Now()
-	)
-
 	req, err := api.ParseQueryRangeRequest(r)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
@@ -90,9 +85,11 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[combin
 	if req.Step == 0 {
 		return pipeline.NewBadRequest(errors.New("step must be greater than 0")), nil
 	}
-	alignTimeRange(req)
+
+	traceql.AlignRequest(req)
 
 	// calculate and enforce max search duration
+	// Note: this is checked after alignment for consistency.
 	maxDuration := s.maxDuration(tenantID)
 	if maxDuration != 0 && time.Duration(req.End-req.Start)*time.Nanosecond > maxDuration {
 		err = fmt.Errorf(fmt.Sprintf("range specified by start and end (%s) exceeds %s. received start=%d end=%d", time.Duration(req.End-req.Start), maxDuration, req.Start, req.End))
@@ -104,6 +101,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[combin
 		samplingRate          = s.samplingRate(expr, allowUnsafe)
 		targetBytesPerRequest = s.jobSize(expr, samplingRate, allowUnsafe)
 		interval              = s.jobInterval(expr, allowUnsafe)
+		cutoff                = time.Now().Add(-s.cfg.QueryBackendAfter)
 	)
 
 	// if interval is 0 then the backend requests code will loop forever. technically if we are here with a 0 interval it should mean a bad request
@@ -112,7 +110,7 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[combin
 		return pipeline.NewBadRequest(errors.New("invalid interval specified: 0")), nil
 	}
 
-	generatorReq := s.generatorRequest(*req, r, tenantID, now)
+	generatorReq := s.generatorRequest(*req, r, tenantID, cutoff)
 	reqCh := make(chan *http.Request, 2) // buffer of 2 allows us to insert generatorReq and metrics
 
 	if generatorReq != nil {
@@ -124,9 +122,9 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[combin
 		totalBlockBytes        uint64
 	)
 	if s.cfg.RF1ReadPath {
-		totalJobs, totalBlocks, totalBlockBytes = s.backendRequests(ctx, tenantID, r, *req, now, samplingRate, targetBytesPerRequest, interval, reqCh)
+		totalJobs, totalBlocks, totalBlockBytes = s.backendRequests(ctx, tenantID, r, *req, cutoff, samplingRate, targetBytesPerRequest, interval, reqCh)
 	} else {
-		totalJobs, totalBlocks, totalBlockBytes = s.shardedBackendRequests(ctx, tenantID, r, *req, now, samplingRate, targetBytesPerRequest, interval, reqCh, nil)
+		totalJobs, totalBlocks, totalBlockBytes = s.shardedBackendRequests(ctx, tenantID, r, *req, cutoff, samplingRate, targetBytesPerRequest, interval, reqCh, nil)
 	}
 
 	span.SetTag("totalJobs", totalJobs)
@@ -172,7 +170,7 @@ func (s *queryRangeSharder) blockMetas(start, end int64, tenantID string) []*bac
 	return metas
 }
 
-func (s *queryRangeSharder) shardedBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, now time.Time, samplingRate float64, targetBytesPerRequest int, interval time.Duration, reqCh chan *http.Request, _ func(error)) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
+func (s *queryRangeSharder) shardedBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, samplingRate float64, targetBytesPerRequest int, interval time.Duration, reqCh chan *http.Request, _ func(error)) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
 	// request without start or end, search only in generator
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		close(reqCh)
@@ -181,8 +179,7 @@ func (s *queryRangeSharder) shardedBackendRequests(ctx context.Context, tenantID
 
 	// Make a copy and limit to backend time range.
 	backendReq := searchReq
-	backendReq.Start, backendReq.End = s.backendRange(now, backendReq.Start, backendReq.End, s.cfg.QueryBackendAfter)
-	alignTimeRange(&backendReq)
+	traceql.TrimToBefore(&backendReq, cutoff)
 
 	// If empty window then no need to search backend
 	if backendReq.Start == backendReq.End {
@@ -197,46 +194,6 @@ func (s *queryRangeSharder) shardedBackendRequests(ctx context.Context, tenantID
 		// no need to search backend
 		close(reqCh)
 		return
-	}
-
-	// count blocks
-	totalBlocks = uint32(len(blocks))
-	for _, b := range blocks {
-		totalBlockBytes += b.Size
-	}
-
-	// count jobs. same loops as below
-	var (
-		start          = backendReq.Start
-		end            = backendReq.End
-		timeWindowSize = uint64(interval.Nanoseconds())
-	)
-
-	for start < end {
-		thisStart := start
-		thisEnd := start + timeWindowSize
-		if thisEnd > end {
-			thisEnd = end
-		}
-
-		blocks := s.blockMetas(int64(thisStart), int64(thisEnd), tenantID)
-		if len(blocks) == 0 {
-			start = thisEnd
-			continue
-		}
-
-		totalBlockSize := uint64(0)
-		for _, b := range blocks {
-			totalBlockSize += b.Size
-		}
-
-		shards := uint32(math.Ceil(float64(totalBlockSize) / float64(targetBytesPerRequest)))
-
-		for i := uint32(1); i <= shards; i++ {
-			totalJobs++
-		}
-
-		start = thisEnd
 	}
 
 	go func() {
@@ -304,7 +261,7 @@ func (s *queryRangeSharder) buildShardedBackendRequests(ctx context.Context, ten
 	}
 }
 
-func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, now time.Time, _ float64, targetBytesPerRequest int, _ time.Duration, reqCh chan *http.Request) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
+func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, _ float64, targetBytesPerRequest int, _ time.Duration, reqCh chan *http.Request) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
 	// request without start or end, search only in generator
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		close(reqCh)
@@ -313,15 +270,8 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 
 	// Make a copy and limit to backend time range.
 	// Preserve instant nature of request if needed
-	instant := traceql.IsInstant(&searchReq)
 	backendReq := searchReq
-	backendReq.Start, backendReq.End = s.backendRange(now, backendReq.Start, backendReq.End, s.cfg.QueryBackendAfter)
-	if instant {
-		// Ensure it is still instant again after pruning
-		backendReq.Step = backendReq.End - backendReq.Start
-	} else {
-		alignTimeRange(&backendReq)
-	}
+	traceql.TrimToBefore(&backendReq, cutoff)
 
 	// If empty window then no need to search backend
 	if backendReq.Start == backendReq.End {
@@ -336,18 +286,6 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 		// no need to search backend
 		close(reqCh)
 		return
-	}
-
-	// calculate metrics to return to the caller
-	totalBlocks = uint32(len(blocks))
-	for _, b := range blocks {
-		p := pagesPerRequest(b, targetBytesPerRequest)
-
-		totalJobs += b.TotalRecords / uint32(p)
-		if int(b.TotalRecords)%p != 0 {
-			totalJobs++
-		}
-		totalBlockBytes += b.Size
 	}
 
 	go func() {
@@ -427,46 +365,12 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 	}
 }
 
-func (s *queryRangeSharder) backendRange(now time.Time, start, end uint64, queryBackendAfter time.Duration) (uint64, uint64) {
-	backendAfter := uint64(now.Add(-queryBackendAfter).UnixNano())
-
-	// adjust start/end if necessary. if the entire query range was inside backendAfter then
-	// start will == end. This signals we don't need to query the backend.
-	if end > backendAfter {
-		end = backendAfter
-	}
-	if start > backendAfter {
-		start = backendAfter
-	}
-
-	return start, end
-}
-
-func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest, parent *http.Request, tenantID string, now time.Time) *http.Request {
-	cutoff := uint64(now.Add(-s.cfg.QueryBackendAfter).UnixNano())
-
-	// if there's no overlap between the query and ingester range just return nil
-	if searchReq.End < cutoff {
-		return nil
-	}
-
-	// Limit to generator time range
-	// and preserve instant nature of query if needed
-	instant := traceql.IsInstant(&searchReq)
-
-	if searchReq.Start < cutoff {
-		searchReq.Start = cutoff
-	}
+func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest, parent *http.Request, tenantID string, cutoff time.Time) *http.Request {
+	traceql.TrimToAfter(&searchReq, cutoff)
 
 	// if start == end then we don't need to query it
 	if searchReq.Start == searchReq.End {
 		return nil
-	}
-
-	if instant {
-		searchReq.Step = searchReq.End - searchReq.Start
-	} else {
-		alignTimeRange(&searchReq)
 	}
 
 	searchReq.QueryMode = querier.QueryModeRecent
@@ -483,20 +387,6 @@ func (s *queryRangeSharder) toUpstreamRequest(ctx context.Context, req tempopb.Q
 
 	prepareRequestForQueriers(subR, tenantID, parent.URL.Path, subR.URL.Query())
 	return subR
-}
-
-// alignTimeRange shifts the start and end times of the request to align with the step
-// interval.  This gives more consistent results across refreshes of queries like "last 1 hour".
-// Without alignment each refresh is shifted by seconds or even milliseconds and the time series
-// calculations are sublty different each time. It's not wrong, but less preferred behavior.
-func alignTimeRange(req *tempopb.QueryRangeRequest) {
-	if traceql.IsInstant(req) {
-		return
-	}
-
-	// It doesn't really matter but the request fields are expected to be in nanoseconds.
-	req.Start = req.Start / req.Step * req.Step
-	req.End = req.End / req.Step * req.Step
 }
 
 // maxDuration returns the max search duration allowed for this tenant.
