@@ -10,7 +10,7 @@ keywords:
 
 # Trace structure and TraceQL
 
-The TraceQL language is designed to use the same syntax and semantics as PromQL and LogQL, where possible.
+Inspired by PromQL and LogQL, TraceQL uses similar syntax and semantics.
 The differences being inherent to the very nature of searching spans and traces.
 
 ## Trace structure
