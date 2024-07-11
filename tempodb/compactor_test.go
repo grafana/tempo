@@ -1,6 +1,7 @@
 package tempodb
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -659,10 +660,10 @@ func TestCompactionDropsTraces(t *testing.T) {
 	}
 }
 
-func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) { // jpe!
+func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 	tempDir := t.TempDir()
 
-	r, w, c, err := New(&Config{
+	r, w, _, err := New(&Config{
 		Backend: backend.Local,
 		Pool: &pool.Config{
 			MaxWorkers: 10,
@@ -687,122 +688,89 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) { // jpe
 	}, nil, log.NewNopLogger())
 	require.NoError(t, err)
 
-	ctx := context.Background()
-	err = c.EnableCompaction(ctx, &CompactorConfig{
-		ChunkSizeBytes:          10_000_000,
-		MaxCompactionRange:      24 * time.Hour,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
-		FlushSizeBytes:          10_000_000,
-	}, &mockSharder{}, &mockOverrides{})
-	require.NoError(t, err)
-
-	r.EnablePolling(ctx, &mockJobSharder{})
-
 	wal := w.WAL()
 	require.NoError(t, err)
 
 	dec := model.MustNewSegmentDecoder(v1.Encoding)
 
-	blockCount := 5
 	recordCount := 100
+	allIds := make([]common.ID, 0, recordCount)
 
-	// make a bunch of sharded requests
-	allReqs := make([][][]byte, 0, recordCount)
-	allIds := make([][]byte, 0, recordCount)
-	sharded := 0
-	for i := 0; i < recordCount; i++ {
+	// write a bunch of dummy data
+	blockID := uuid.New()
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: v1.Encoding}
+	head, err := wal.NewBlock(meta, v1.Encoding)
+	require.NoError(t, err)
+
+	for j := 0; j < recordCount; j++ {
 		id := test.ValidTraceID(nil)
-
-		requestShards := rand.Intn(blockCount) + 1
-		reqs := make([][]byte, 0, requestShards)
-		for j := 0; j < requestShards; j++ {
-			buff, err := dec.PrepareForWrite(test.MakeTrace(1, id), 0, 0)
-			require.NoError(t, err)
-
-			buff2, err := dec.ToObject([][]byte{buff})
-			require.NoError(t, err)
-
-			reqs = append(reqs, buff2)
-		}
-
-		if requestShards > 1 {
-			sharded++
-		}
-		allReqs = append(allReqs, reqs)
 		allIds = append(allIds, id)
-	}
 
-	// and write them to different blocks
-	for i := 0; i < blockCount; i++ {
-		blockID := uuid.New()
-		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: v1.Encoding}
-		head, err := wal.NewBlock(meta, v1.Encoding)
+		obj, err := dec.PrepareForWrite(test.MakeTrace(1, id), 0, 0)
 		require.NoError(t, err)
 
-		for j := 0; j < recordCount; j++ {
-			req := allReqs[j]
-			id := allIds[j]
-
-			if i < len(req) {
-				err = head.Append(id, req[i], 0, 0)
-				require.NoError(t, err, "unexpected error writing req")
-			}
-		}
-
-		_, err = w.CompleteBlock(context.Background(), head)
+		obj2, err := dec.ToObject([][]byte{obj})
 		require.NoError(t, err)
+
+		err = head.Append(id, obj2, 0, 0)
+		require.NoError(t, err, "unexpected error writing req")
 	}
+
+	firstBlock, err := w.CompleteBlock(context.Background(), head)
+	require.NoError(t, err)
+
+	// choose a random id to drop
+	dropID := allIds[rand.Intn(len(allIds))]
 
 	rw := r.(*readerWriter)
+	// force compact to a new block
+	opts := common.CompactionOptions{
+		BlockConfig:        *rw.cfg.Block,
+		ChunkSizeBytes:     DefaultChunkSizeBytes,
+		FlushSizeBytes:     DefaultFlushSizeBytes,
+		IteratorBufferSize: DefaultIteratorBufferSize,
+		OutputBlocks:       1,
+		Combiner:           model.StaticCombiner,
+		MaxBytesPerTrace:   0,
 
-	// check blocklists, force compaction and check again
-	checkBlocklists(t, uuid.Nil, blockCount, 0, rw)
+		// hook to drop the trace
+		DropObject: func(id common.ID) bool {
+			return bytes.Equal(id, dropID)
+		},
 
-	var blocks []*backend.BlockMeta
-	list := rw.blocklist.Metas(testTenantID)
-	blockSelector := newTimeWindowBlockSelector(list, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, blockCount)
-	blocks, _ = blockSelector.BlocksToCompact()
-	require.Len(t, blocks, blockCount)
-
-	combinedStart, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
-	require.NoError(t, err)
-
-	err = rw.compact(ctx, blocks, testTenantID)
-	require.NoError(t, err)
-
-	checkBlocklists(t, uuid.Nil, 1, blockCount, rw)
-
-	// force clear compacted blocks to guarantee that we're only querying the new blocks that went through the combiner
-	metas := rw.blocklist.Metas(testTenantID)
-	rw.blocklist.ApplyPollResults(blocklist.PerTenant{testTenantID: metas}, blocklist.PerTenantCompacted{})
-
-	// search for all ids
-	for i, id := range allIds {
-		trs, failedBlocks, err := rw.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax, 0, 0, common.DefaultSearchOptions())
-		require.NoError(t, err)
-		require.Nil(t, failedBlocks)
-
-		c := trace.NewCombiner(0)
-		for _, tr := range trs {
-			_, err = c.Consume(tr)
-			require.NoError(t, err)
-		}
-		tr, _ := c.Result()
-		b1, err := dec.PrepareForWrite(tr, 0, 0)
-		require.NoError(t, err)
-
-		b2, err := dec.ToObject([][]byte{b1})
-		require.NoError(t, err)
-
-		expectedBytes, _, err := model.StaticCombiner.Combine(v1.Encoding, allReqs[i]...)
-		require.NoError(t, err)
-		require.Equal(t, expectedBytes, b2)
+		// setting to prevent panics.
+		BytesWritten:      func(_, _ int) {},
+		ObjectsCombined:   func(_, _ int) {},
+		ObjectsWritten:    func(_, objs int) {},
+		SpansDiscarded:    func(_, _, _ string, _ int) {},
+		DisconnectedTrace: func() {},
+		RootlessTrace:     func() {},
 	}
 
-	combinedEnd, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
+	enc, err := encoding.FromVersion(targetBlockVersion)
 	require.NoError(t, err)
-	require.Equal(t, float64(sharded), combinedEnd-combinedStart)
+
+	compactor := enc.NewCompactor(opts)
+	newMetas, err := compactor.Compact(context.Background(), log.NewNopLogger(), rw.r, rw.w, []*backend.BlockMeta{firstBlock.BlockMeta()})
+	require.NoError(t, err)
+
+	// require new meta has len 1
+	require.Len(t, newMetas, 1)
+
+	secondBlock, err := enc.OpenBlock(newMetas[0], rw.r)
+	require.NoError(t, err)
+
+	// search for all ids. confirm they all return except the dropped one
+	for _, id := range allIds {
+		tr, err := secondBlock.FindTraceByID(context.Background(), id, common.DefaultSearchOptions())
+		require.NoError(t, err)
+
+		if bytes.Equal(id, dropID) {
+			require.Nil(t, tr)
+		} else {
+			require.NotNil(t, tr)
+		}
+	}
 }
 
 type testData struct {
