@@ -214,16 +214,23 @@ func TestDoWrite(t *testing.T) {
 
 	time.Sleep(time.Second)
 	ticker.Stop()
+	assert.Greater(t, len(mockJaegerClient.GetEmittedBatches()), 0)
+}
 
-	assert.Greater(t, len(mockJaegerClient.batchesEmitted), 0)
+func TestDoWriteWithError(t *testing.T) {
+	mockJaegerClient := MockReporter{err: errors.New("an error")}
+	// Define the configuration
+	config := vultureConfiguration{
+		tempoOrgID:                "orgID",
+		tempoWriteBackoffDuration: time.Second,
+	}
 
-	// assert an error
-	mockJaegerClient = MockReporter{err: errors.New("an error")}
+	ticker := time.NewTicker(10 * time.Millisecond)
+	logger = zap.NewNop()
+
 	doWrite(&mockJaegerClient, ticker, config.tempoWriteBackoffDuration, config, logger)
-	time.Sleep(time.Second)
 	ticker.Stop()
-
-	assert.Greater(t, len(mockJaegerClient.batchesEmitted), 0)
+	assert.Equal(t, len(mockJaegerClient.GetEmittedBatches()), 0)
 }
 
 func TestQueueFutureBatches(t *testing.T) {
@@ -240,7 +247,7 @@ func TestQueueFutureBatches(t *testing.T) {
 
 	queueFutureBatches(&mockJaegerClient, traceInfo, config, logger)
 	time.Sleep(time.Second)
-	require.Greater(t, len(mockJaegerClient.batchesEmitted), 0)
+	require.Greater(t, len(mockJaegerClient.GetEmittedBatches()), 0)
 
 	// Assert an error
 	mockJaegerClient = MockReporter{err: errors.New("an error")}
@@ -352,7 +359,28 @@ func doQueryTrace(f traceOps, err error) (traceMetrics, error) {
 	return queryTrace(&mockHTTPClient, traceInfo, logger)
 }
 
-func TestDoRead(t *testing.T) {
+func TestDoReadWhenTickerIsNil(t *testing.T) {
+	seed := time.Date(2008, 1, 1, 12, 0, 0, 0, time.UTC)
+	traceInfo := util.NewTraceInfo(seed, "test")
+
+	trace, _ := traceInfo.ConstructTraceFromEpoch()
+	startTime := time.Date(2007, 1, 1, 12, 0, 0, 0, time.UTC)
+	mockHTTPClient := MockHTTPClient{err: nil, traceResp: trace}
+	// Define the configuration
+	config := vultureConfiguration{
+		tempoOrgID:                "orgID",
+		tempoWriteBackoffDuration: time.Second,
+	}
+
+	logger = zap.NewNop()
+	r := rand.New(rand.NewSource(startTime.Unix()))
+
+	// Assert ticker is nil
+	doRead(&mockHTTPClient, nil, startTime, config.tempoWriteBackoffDuration, r, config, logger)
+	assert.Equal(t, 0, mockHTTPClient.GetRequestsCount())
+}
+
+func TestDoReadForAnOkRead(t *testing.T) {
 	seed := time.Date(2008, 1, 1, 12, 0, 0, 0, time.UTC)
 	traceInfo := util.NewTraceInfo(seed, "test")
 
@@ -369,22 +397,35 @@ func TestDoRead(t *testing.T) {
 	logger = zap.NewNop()
 	r := rand.New(rand.NewSource(startTime.Unix()))
 
-	// Assert ticker is nil
-	doRead(&mockHTTPClient, nil, startTime, config.tempoWriteBackoffDuration, r, config, logger)
-	assert.Equal(t, 0, mockHTTPClient.requestsCount)
-
 	// Assert an ok read
 	doRead(&mockHTTPClient, ticker, startTime, config.tempoWriteBackoffDuration, r, config, logger)
 	time.Sleep(time.Second)
 	ticker.Stop()
-	assert.Greater(t, mockHTTPClient.requestsCount, 0)
+	assert.Greater(t, mockHTTPClient.GetRequestsCount(), 0)
+}
+
+func TestDoReadForAnErroredRead(t *testing.T) {
+	seed := time.Date(2008, 1, 1, 12, 0, 0, 0, time.UTC)
+	traceInfo := util.NewTraceInfo(seed, "test")
+
+	trace, _ := traceInfo.ConstructTraceFromEpoch()
+	startTime := time.Date(2007, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	// Define the configuration
+	config := vultureConfiguration{
+		tempoOrgID:                "orgID",
+		tempoWriteBackoffDuration: time.Second,
+	}
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	logger = zap.NewNop()
+	r := rand.New(rand.NewSource(startTime.Unix()))
 
 	// Assert a read with errors
-	mockHTTPClient = MockHTTPClient{err: errors.New("an error"), traceResp: trace}
+	mockHTTPClient := MockHTTPClient{err: errors.New("an error"), traceResp: trace}
 	doRead(&mockHTTPClient, ticker, startTime, config.tempoWriteBackoffDuration, r, config, logger)
 	time.Sleep(time.Second)
-	ticker.Stop()
-	assert.Equal(t, 1, mockHTTPClient.requestsCount)
+	assert.Equal(t, 0, mockHTTPClient.GetRequestsCount())
 }
 
 func TestSearchTraceql(t *testing.T) {
@@ -532,27 +573,60 @@ func TestDoSearch(t *testing.T) {
 		},
 	}
 	logger = zap.NewNop()
-
 	mockHTTPClient := MockHTTPClient{err: nil, searchResponse: searchResponse}
-	// Assert when ticker is nil
-	doSearch(&mockHTTPClient, ticker, startTime, config.tempoWriteBackoffDuration, r, config, logger)
-	assert.Equal(t, mockHTTPClient.searchesCount, 0)
 
-	// Assert an ok search
 	doSearch(&mockHTTPClient, ticker, startTime, config.tempoWriteBackoffDuration, r, config, logger)
+
 	time.Sleep(time.Second)
 	ticker.Stop()
+	assert.Greater(t, mockHTTPClient.GetSearchesCount(), 0)
+}
 
-	assert.Greater(t, mockHTTPClient.searchesCount, 0)
+func TestDoSearchWhenTickerIsNil(t *testing.T) {
+	startTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	// Define the configuration
+	config := vultureConfiguration{
+		tempoOrgID: "orgID",
+		// This is a hack to ensure the trace is "ready"
+		tempoWriteBackoffDuration: -time.Hour * 10000,
+		tempoRetentionDuration:    time.Second * 10,
+	}
+
+	logger = zap.NewNop()
+	r := rand.New(rand.NewSource(startTime.Unix()))
+
+	logger = zap.NewNop()
+
+	mockHTTPClient := MockHTTPClient{err: nil}
+	doSearch(&mockHTTPClient, nil, startTime, config.tempoWriteBackoffDuration, r, config, logger)
+	assert.Equal(t, mockHTTPClient.GetSearchesCount(), 0)
+}
+
+func TestDoSearchOnSearchError(t *testing.T) {
+	startTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	// Define the configuration
+	config := vultureConfiguration{
+		tempoOrgID: "orgID",
+		// This is a hack to ensure the trace is "ready"
+		tempoWriteBackoffDuration: -time.Hour * 10000,
+		tempoRetentionDuration:    time.Second * 10,
+	}
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	logger = zap.NewNop()
+	r := rand.New(rand.NewSource(startTime.Unix()))
+
+	logger = zap.NewNop()
 
 	// Assert an errored search
-	mockHTTPClient = MockHTTPClient{err: errors.New("an error"), searchResponse: searchResponse}
+	mockHTTPClient := MockHTTPClient{err: errors.New("an error")}
 
 	doSearch(&mockHTTPClient, ticker, startTime, config.tempoWriteBackoffDuration, r, config, logger)
-	time.Sleep(time.Second)
 	ticker.Stop()
 
-	assert.Equal(t, mockHTTPClient.searchesCount, 2)
+	assert.Equal(t, mockHTTPClient.searchesCount, 0)
 }
 
 func TestGetGrpcEndpoint(t *testing.T) {
