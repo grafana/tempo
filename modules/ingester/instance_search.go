@@ -253,6 +253,8 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 			if err != nil && !errors.Is(err, common.ErrUnsupported) {
 				return fmt.Errorf("unexpected error searching tags: %w", err)
 			}
+
+			return nil
 		}
 
 		// otherwise use the filtered search
