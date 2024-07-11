@@ -115,7 +115,7 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 			Encoding:             backend.EncZstd,
 
 			// parquet fields
-			RowGroupSizeBytes: int(meta.Size / uint64(meta.TotalRecords)), // set to the average row group size of the current block
+			RowGroupSizeBytes: 100_000_000, // default
 
 			// vParquet3 fields
 			DedicatedColumns: meta.DedicatedColumns,
@@ -163,12 +163,10 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 }
 
 func blocksWithTraceID(ctx context.Context, r backend.Reader, tenantID string, traceID common.ID) ([]*backend.BlockMeta, error) {
-	blockIDs, compactedBlockIDs, err := r.Blocks(context.Background(), tenantID)
+	blockIDs, _, err := r.Blocks(context.Background(), tenantID)
 	if err != nil {
 		return nil, err
 	}
-
-	blockIDs = append(blockIDs, compactedBlockIDs...)
 
 	// Load in parallel
 	wg := boundedwaitgroup.New(100)
@@ -196,7 +194,7 @@ func blocksWithTraceID(ctx context.Context, r backend.Reader, tenantID string, t
 	wg.Wait()
 	close(resultsCh)
 
-	results := make([]*backend.BlockMeta, 0)
+	results := make([]*backend.BlockMeta, 0, len(resultsCh))
 	for q := range resultsCh {
 		results = append(results, q)
 	}
