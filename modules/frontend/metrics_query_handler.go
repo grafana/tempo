@@ -48,6 +48,9 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 			End:   i.End,
 			Step:  i.End - i.Start,
 		}
+
+		// Clone existing to keep it unaltered.
+		req = req.Clone(req.Context())
 		req.URL.Path = strings.ReplaceAll(req.URL.Path, api.PathMetricsQueryInstant, api.PathMetricsQueryRange)
 		req = api.BuildQueryRangeRequest(req, qr)
 
