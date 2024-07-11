@@ -85,7 +85,7 @@ func TrimToOverlap(start1, end1, step, start2, end2 uint64) (uint64, uint64) {
 // TrimToBefore shortens the query window to only include before the given time.
 // Request must be in unix nanoseconds already.
 func TrimToBefore(req *tempopb.QueryRangeRequest, before time.Time) {
-	wasInstant := IsInstant(req)
+	wasInstant := IsInstant(*req)
 	beforeNs := uint64(before.UnixNano())
 
 	req.Start = min(req.Start, beforeNs)
@@ -103,7 +103,7 @@ func TrimToBefore(req *tempopb.QueryRangeRequest, before time.Time) {
 // TrimToAfter shortens the query window to only include after the given time.
 // Request must be in unix nanoseconds already.
 func TrimToAfter(req *tempopb.QueryRangeRequest, before time.Time) {
-	wasInstant := IsInstant(req)
+	wasInstant := IsInstant(*req)
 	beforeNs := uint64(before.UnixNano())
 
 	req.Start = max(req.Start, beforeNs)
@@ -118,7 +118,7 @@ func TrimToAfter(req *tempopb.QueryRangeRequest, before time.Time) {
 	}
 }
 
-func IsInstant(req *tempopb.QueryRangeRequest) bool {
+func IsInstant(req tempopb.QueryRangeRequest) bool {
 	return req.End-req.Start == req.Step
 }
 
@@ -127,7 +127,7 @@ func IsInstant(req *tempopb.QueryRangeRequest) bool {
 // Without alignment each refresh is shifted by seconds or even milliseconds and the time series
 // calculations are sublty different each time. It's not wrong, but less preferred behavior.
 func AlignRequest(req *tempopb.QueryRangeRequest) {
-	if IsInstant(req) {
+	if IsInstant(*req) {
 		return
 	}
 

@@ -375,7 +375,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 			// Job time range - For non-instant queries, limit time scope to closer to the block for efficiency.
 			start := searchReq.Start
 			end := searchReq.End
-			if !traceql.IsInstant(&searchReq) {
+			if !traceql.IsInstant(searchReq) {
 				start, end = traceql.TrimToOverlap(searchReq.Start, searchReq.End, searchReq.Step, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
 			}
 
