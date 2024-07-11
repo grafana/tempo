@@ -52,7 +52,7 @@ func (cmd *dropTraceCmd) Run(ctx *globalOptions) error {
 	}
 
 	if len(blocks) == 0 {
-		fmt.Println("trace not found in any block. aborting")
+		fmt.Println("\ntrace not found in any block. aborting")
 		return nil
 	}
 
