@@ -51,7 +51,7 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		req.URL.Path = strings.ReplaceAll(req.URL.Path, api.PathMetricsQueryInstant, api.PathMetricsQueryRange)
 		req = api.BuildQueryRangeRequest(req, qr)
 
-		combiner, err := combiner.NewTypedQueryRange(qr)
+		combiner, err := combiner.NewTypedQueryRange(qr, false)
 		if err != nil {
 			level.Error(logger).Log("msg", "query instant: query range combiner failed", "err", err)
 			return &http.Response{

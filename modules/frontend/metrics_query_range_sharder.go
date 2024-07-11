@@ -196,6 +196,46 @@ func (s *queryRangeSharder) shardedBackendRequests(ctx context.Context, tenantID
 		return
 	}
 
+	// count blocks
+	totalBlocks = uint32(len(blocks))
+	for _, b := range blocks {
+		totalBlockBytes += b.Size
+	}
+
+	// count jobs. same loops as below
+	var (
+		start          = backendReq.Start
+		end            = backendReq.End
+		timeWindowSize = uint64(interval.Nanoseconds())
+	)
+
+	for start < end {
+		thisStart := start
+		thisEnd := start + timeWindowSize
+		if thisEnd > end {
+			thisEnd = end
+		}
+
+		blocks := s.blockMetas(int64(thisStart), int64(thisEnd), tenantID)
+		if len(blocks) == 0 {
+			start = thisEnd
+			continue
+		}
+
+		totalBlockSize := uint64(0)
+		for _, b := range blocks {
+			totalBlockSize += b.Size
+		}
+
+		shards := uint32(math.Ceil(float64(totalBlockSize) / float64(targetBytesPerRequest)))
+
+		for i := uint32(1); i <= shards; i++ {
+			totalJobs++
+		}
+
+		start = thisEnd
+	}
+
 	go func() {
 		s.buildShardedBackendRequests(ctx, tenantID, parent, backendReq, samplingRate, targetBytesPerRequest, interval, reqCh)
 	}()
@@ -286,6 +326,18 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 		// no need to search backend
 		close(reqCh)
 		return
+	}
+
+	// calculate metrics to return to the caller
+	totalBlocks = uint32(len(blocks))
+	for _, b := range blocks {
+		p := pagesPerRequest(b, targetBytesPerRequest)
+
+		totalJobs += b.TotalRecords / uint32(p)
+		if int(b.TotalRecords)%p != 0 {
+			totalJobs++
+		}
+		totalBlockBytes += b.Size
 	}
 
 	go func() {
