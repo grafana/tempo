@@ -49,6 +49,7 @@ services:
       - --config.file=/etc/prometheus.yaml
       - --web.enable-remote-write-receiver
       - --enable-feature=exemplar-storage
+      - --enable-feature=native-histograms
     volumes:
       - ../shared/prometheus.yaml:/etc/prometheus.yaml
     ports:

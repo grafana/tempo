@@ -29,6 +29,7 @@ type Searcher interface {
 
 	Fetch(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansResponse, error)
 	FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, SearchOptions) error
+	FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, SearchOptions) error
 }
 
 type SearchOptions struct {

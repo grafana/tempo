@@ -35,6 +35,8 @@
       "3xx": "#6ED0E0",
       "4xx": "#EF843C",
       "5xx": "#E24D42",
+      "OK": "#7EB26D",
+      "cancel": "#A9A9A9",
       "error": "#E24D42",
       "success": "#7EB26D"
      },
@@ -72,13 +74,11 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
-       "intervalFactor": 2,
        "legendFormat": "{{status}}",
-       "refId": "A",
-       "step": 10
+       "refId": "A"
       }
      ],
      "thresholds": [
@@ -279,10 +279,8 @@
        "expr": "sum by (grpc_status) (\n    rate(\n        label_replace(\n            {cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", __name__=~\"envoy_cluster_grpc_proto_collector_trace_v1_TraceService_[0-9]+\"},\n            \"grpc_status\", \"$1\", \"__name__\", \"envoy_cluster_grpc_proto_collector_trace_v1_TraceService_(.+)\"\n        )\n        [$__interval:$__interval]\n    )\n)\n",
        "format": "time_series",
        "interval": "1m",
-       "intervalFactor": 2,
        "legendFormat": "{{grpc_status}}",
-       "legendLink": null,
-       "step": 10
+       "legendLink": null
       }
      ],
      "thresholds": [
@@ -402,19 +400,15 @@
        "expr": "sum(rate(tempo_receiver_accepted_spans{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
-       "intervalFactor": 2,
        "legendFormat": "accepted",
-       "legendLink": null,
-       "step": 10
+       "legendLink": null
       },
       {
        "expr": "sum(rate(tempo_receiver_refused_spans{cluster=~\"$cluster\", job=~\"($namespace)/distributor\"}[$__rate_interval]))",
        "format": "time_series",
        "interval": "1m",
-       "intervalFactor": 2,
        "legendFormat": "refused",
-       "legendLink": null,
-       "step": 10
+       "legendLink": null
       }
      ],
      "thresholds": [
@@ -581,6 +575,8 @@
       "3xx": "#6ED0E0",
       "4xx": "#EF843C",
       "5xx": "#E24D42",
+      "OK": "#7EB26D",
+      "cancel": "#A9A9A9",
       "error": "#E24D42",
       "success": "#7EB26D"
      },
@@ -618,13 +614,11 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
-       "intervalFactor": 2,
        "legendFormat": "{{status}}",
-       "refId": "A",
-       "step": 10
+       "refId": "A"
       }
      ],
      "thresholds": [
@@ -791,6 +785,8 @@
       "3xx": "#6ED0E0",
       "4xx": "#EF843C",
       "5xx": "#E24D42",
+      "OK": "#7EB26D",
+      "cancel": "#A9A9A9",
       "error": "#E24D42",
       "success": "#7EB26D"
      },
@@ -828,13 +824,11 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",method=\"Memcache.Put\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
-       "intervalFactor": 2,
        "legendFormat": "{{status}}",
-       "refId": "A",
-       "step": 10
+       "refId": "A"
       }
      ],
      "thresholds": [
@@ -1001,6 +995,8 @@
       "3xx": "#6ED0E0",
       "4xx": "#EF843C",
       "5xx": "#E24D42",
+      "OK": "#7EB26D",
+      "cancel": "#A9A9A9",
       "error": "#E24D42",
       "success": "#7EB26D"
      },
@@ -1038,13 +1034,11 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=~\"(PUT|POST)\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\",operation=~\"(PUT|POST)\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
-       "intervalFactor": 2,
        "legendFormat": "{{status}}",
-       "refId": "A",
-       "step": 10
+       "refId": "A"
       }
      ],
      "thresholds": [
@@ -1211,6 +1205,8 @@
       "3xx": "#6ED0E0",
       "4xx": "#EF843C",
       "5xx": "#E24D42",
+      "OK": "#7EB26D",
+      "cancel": "#A9A9A9",
       "error": "#E24D42",
       "success": "#7EB26D"
      },
@@ -1248,13 +1244,11 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",method=\"Memcache.Put\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
-       "intervalFactor": 2,
        "legendFormat": "{{status}}",
-       "refId": "A",
-       "step": 10
+       "refId": "A"
       }
      ],
      "thresholds": [
@@ -1421,6 +1415,8 @@
       "3xx": "#6ED0E0",
       "4xx": "#EF843C",
       "5xx": "#E24D42",
+      "OK": "#7EB26D",
+      "cancel": "#A9A9A9",
       "error": "#E24D42",
       "success": "#7EB26D"
      },
@@ -1458,13 +1454,11 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=~\"(PUT|POST)\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/compactor\",operation=~\"(PUT|POST)\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
-       "intervalFactor": 2,
        "legendFormat": "{{status}}",
-       "refId": "A",
-       "step": 10
+       "refId": "A"
       }
      ],
      "thresholds": [
@@ -1634,7 +1628,7 @@
      "value": "default"
     },
     "hide": 0,
-    "label": "Data Source",
+    "label": "Data source",
     "name": "datasource",
     "options": [
 

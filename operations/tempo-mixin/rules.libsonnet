@@ -5,7 +5,7 @@ local utils = import 'mixin-utils/utils.libsonnet';
     groups+: [{
       name: 'tempo_rules',
       rules:
-        utils.histogramRules('tempo_request_duration_seconds', $._config.job_selectors + ['route']),
+        utils.histogramRules('tempo_request_duration_seconds', $._config.job_selectors + ['route'], $._config.recording_rules_range_interval),
     }],
   },
 }

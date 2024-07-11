@@ -35,6 +35,8 @@
       "3xx": "#6ED0E0",
       "4xx": "#EF843C",
       "5xx": "#E24D42",
+      "OK": "#7EB26D",
+      "cancel": "#A9A9A9",
       "error": "#E24D42",
       "success": "#7EB26D"
      },
@@ -72,13 +74,11 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
-       "intervalFactor": 2,
        "legendFormat": "{{status}}",
-       "refId": "A",
-       "step": 10
+       "refId": "A"
       }
      ],
      "thresholds": [
@@ -245,6 +245,8 @@
       "3xx": "#6ED0E0",
       "4xx": "#EF843C",
       "5xx": "#E24D42",
+      "OK": "#7EB26D",
+      "cancel": "#A9A9A9",
       "error": "#E24D42",
       "success": "#7EB26D"
      },
@@ -282,13 +284,11 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\", route=~\"api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/query-frontend\", route=~\"api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
-       "intervalFactor": 2,
        "legendFormat": "{{status}}",
-       "refId": "A",
-       "step": 10
+       "refId": "A"
       }
      ],
      "thresholds": [
@@ -455,6 +455,8 @@
       "3xx": "#6ED0E0",
       "4xx": "#EF843C",
       "5xx": "#E24D42",
+      "OK": "#7EB26D",
+      "cancel": "#A9A9A9",
       "error": "#E24D42",
       "success": "#7EB26D"
      },
@@ -492,13 +494,11 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\", route=~\"querier_api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\", route=~\"querier_api_.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
-       "intervalFactor": 2,
        "legendFormat": "{{status}}",
-       "refId": "A",
-       "step": 10
+       "refId": "A"
       }
      ],
      "thresholds": [
@@ -665,6 +665,8 @@
       "3xx": "#6ED0E0",
       "4xx": "#EF843C",
       "5xx": "#E24D42",
+      "OK": "#7EB26D",
+      "cancel": "#A9A9A9",
       "error": "#E24D42",
       "success": "#7EB26D"
      },
@@ -702,13 +704,11 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_querier_external_endpoint_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_querier_external_endpoint_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
-       "intervalFactor": 2,
        "legendFormat": "{{status}}",
-       "refId": "A",
-       "step": 10
+       "refId": "A"
       }
      ],
      "thresholds": [
@@ -875,6 +875,8 @@
       "3xx": "#6ED0E0",
       "4xx": "#EF843C",
       "5xx": "#E24D42",
+      "OK": "#7EB26D",
+      "cancel": "#A9A9A9",
       "error": "#E24D42",
       "success": "#7EB26D"
      },
@@ -912,13 +914,11 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\", route=~\"/tempopb.Querier/.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/ingester\", route=~\"/tempopb.Querier/.*\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
-       "intervalFactor": 2,
        "legendFormat": "{{status}}",
-       "refId": "A",
-       "step": 10
+       "refId": "A"
       }
      ],
      "thresholds": [
@@ -1085,6 +1085,8 @@
       "3xx": "#6ED0E0",
       "4xx": "#EF843C",
       "5xx": "#E24D42",
+      "OK": "#7EB26D",
+      "cancel": "#A9A9A9",
       "error": "#E24D42",
       "success": "#7EB26D"
      },
@@ -1122,13 +1124,11 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",method=~\"Memcache.Get|Memcache.GetMulti\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempo_memcache_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",method=~\"Memcache.Get|Memcache.GetMulti\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
-       "intervalFactor": 2,
        "legendFormat": "{{status}}",
-       "refId": "A",
-       "step": 10
+       "refId": "A"
       }
      ],
      "thresholds": [
@@ -1295,6 +1295,8 @@
       "3xx": "#6ED0E0",
       "4xx": "#EF843C",
       "5xx": "#E24D42",
+      "OK": "#7EB26D",
+      "cancel": "#A9A9A9",
       "error": "#E24D42",
       "success": "#7EB26D"
      },
@@ -1332,13 +1334,11 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",operation=\"GET\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-z]+)\"))\n",
+       "expr": "sum by (status) (\n  label_replace(label_replace(rate(tempodb_backend_request_duration_seconds_count{cluster=~\"$cluster\", job=~\"($namespace)/querier\",operation=\"GET\"}[$__rate_interval]),\n  \"status\", \"${1}xx\", \"status_code\", \"([0-9])..\"),\n  \"status\", \"${1}\", \"status_code\", \"([a-zA-Z]+)\"))\n",
        "format": "time_series",
        "interval": "1m",
-       "intervalFactor": 2,
        "legendFormat": "{{status}}",
-       "refId": "A",
-       "step": 10
+       "refId": "A"
       }
      ],
      "thresholds": [
@@ -1508,7 +1508,7 @@
      "value": "default"
     },
     "hide": 0,
-    "label": "Data Source",
+    "label": "Data source",
     "name": "datasource",
     "options": [
 
