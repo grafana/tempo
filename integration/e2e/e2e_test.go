@@ -491,10 +491,10 @@ func makeThriftBatch() *thrift.Batch {
 }
 
 func makeThriftBatchWithSpanCount(n int) *thrift.Batch {
-	return makeThriftBatchWithSpanCountAttributeAndName(n, "my operation", "", "y")
+	return makeThriftBatchWithSpanCountAttributeAndName(n, "my operation", "", "y", "xx", "x")
 }
 
-func makeThriftBatchWithSpanCountAttributeAndName(n int, name, resourceTag, spanTag string) *thrift.Batch {
+func makeThriftBatchWithSpanCountAttributeAndName(n int, name, resourceValue, spanValue, resourceTag, spanTag string) *thrift.Batch {
 	var spans []*thrift.Span
 
 	traceIDLow := rand.Int63()
@@ -512,8 +512,8 @@ func makeThriftBatchWithSpanCountAttributeAndName(n int, name, resourceTag, span
 			Duration:      1,
 			Tags: []*thrift.Tag{
 				{
-					Key:  "x",
-					VStr: &spanTag,
+					Key:  spanTag,
+					VStr: &spanValue,
 				},
 			},
 			Logs: nil,
@@ -525,9 +525,9 @@ func makeThriftBatchWithSpanCountAttributeAndName(n int, name, resourceTag, span
 			ServiceName: "my-service",
 			Tags: []*thrift.Tag{
 				{
-					Key:   "xx",
+					Key:   resourceTag,
 					VType: thrift.TagType_STRING,
-					VStr:  &resourceTag,
+					VStr:  &resourceValue,
 				},
 			},
 		},
