@@ -29,11 +29,13 @@ type dropTraceCmd struct {
 
 func (cmd *dropTraceCmd) Run(ctx *globalOptions) error {
 	fmt.Printf("beginning process to drop trace %v from tenant %v\n", cmd.TraceID, cmd.TenantID)
-	fmt.Println("**warning**: compaction must be disabled or a compactor may duplicate a block as this process is rewriting it\n")
+	fmt.Println("**warning**: compaction must be disabled or a compactor may duplicate a block as this process is rewriting it")
+	fmt.Println("")
 	if cmd.DropTrace {
 		fmt.Println("************************************************************************")
 		fmt.Println("**this is not a dry run. blocks will be rewritten and marked compacted**")
-		fmt.Println("************************************************************************\n")
+		fmt.Println("************************************************************************")
+		fmt.Println("")
 	}
 
 	r, w, c, err := loadBackend(&cmd.backendOptions, ctx)
@@ -70,11 +72,11 @@ func (cmd *dropTraceCmd) Run(ctx *globalOptions) error {
 	fmt.Println("rewriting blocks:")
 	for _, block := range blocks {
 		fmt.Printf("  rewriting %v\n", block.BlockID)
-		new, err := rewriteBlock(context.Background(), r, w, block, id)
+		newBlock, err := rewriteBlock(context.Background(), r, w, block, id)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("  rewrote to new block: %v\n", new.BlockID)
+		fmt.Printf("  rewrote to new block: %v\n", newBlock.BlockID)
 	}
 
 	fmt.Println("marking old blocks compacted")
@@ -135,7 +137,7 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 		// setting to prevent panics. should we track and report these?
 		BytesWritten:      func(_, _ int) {},
 		ObjectsCombined:   func(_, _ int) {},
-		ObjectsWritten:    func(_, objs int) {},
+		ObjectsWritten:    func(_, _ int) {},
 		SpansDiscarded:    func(_, _, _ string, _ int) {},
 		DisconnectedTrace: func() {},
 		RootlessTrace:     func() {},

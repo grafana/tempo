@@ -694,7 +694,7 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 	dec := model.MustNewSegmentDecoder(v1.Encoding)
 
 	recordCount := 100
-	allIds := make([]common.ID, 0, recordCount)
+	allIDs := make([]common.ID, 0, recordCount)
 
 	// write a bunch of dummy data
 	blockID := uuid.New()
@@ -704,7 +704,7 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 
 	for j := 0; j < recordCount; j++ {
 		id := test.ValidTraceID(nil)
-		allIds = append(allIds, id)
+		allIDs = append(allIDs, id)
 
 		obj, err := dec.PrepareForWrite(test.MakeTrace(1, id), 0, 0)
 		require.NoError(t, err)
@@ -720,7 +720,7 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 	require.NoError(t, err)
 
 	// choose a random id to drop
-	dropID := allIds[rand.Intn(len(allIds))]
+	dropID := allIDs[rand.Intn(len(allIDs))]
 
 	rw := r.(*readerWriter)
 	// force compact to a new block
@@ -741,7 +741,7 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 		// setting to prevent panics.
 		BytesWritten:      func(_, _ int) {},
 		ObjectsCombined:   func(_, _ int) {},
-		ObjectsWritten:    func(_, objs int) {},
+		ObjectsWritten:    func(_, _ int) {},
 		SpansDiscarded:    func(_, _, _ string, _ int) {},
 		DisconnectedTrace: func() {},
 		RootlessTrace:     func() {},
@@ -761,7 +761,7 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 	require.NoError(t, err)
 
 	// search for all ids. confirm they all return except the dropped one
-	for _, id := range allIds {
+	for _, id := range allIDs {
 		tr, err := secondBlock.FindTraceByID(context.Background(), id, common.DefaultSearchOptions())
 		require.NoError(t, err)
 
