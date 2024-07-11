@@ -15,14 +15,14 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-type deleteTraceCmd struct {
+type dropTraceCmd struct {
 	backendOptions
 
 	TraceID  string `arg:"" help:"trace ID to retrieve"`
 	TenantID string `arg:"" help:"tenant ID to search"`
 }
 
-func (cmd *deleteTraceCmd) Run(ctx *globalOptions) error {
+func (cmd *dropTraceCmd) Run(ctx *globalOptions) error {
 	r, _, _, err := loadBackend(&cmd.backendOptions, ctx)
 	if err != nil {
 		return err
