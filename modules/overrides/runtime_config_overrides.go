@@ -396,6 +396,10 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorDisableCollection(userID
 	return o.getOverridesForUser(userID).MetricsGenerator.DisableCollection
 }
 
+func (o *runtimeConfigOverridesManager) MetricsGeneratorGenerateNativeHistograms(userID string) string {
+	return o.getOverridesForUser(userID).MetricsGenerator.GenerateNativeHistograms
+}
+
 // MetricsGenerationTraceIDLabelName is the label name used for the trace ID in metrics.
 // "TraceID" is used if no value is provided.
 func (o *runtimeConfigOverridesManager) MetricsGenerationTraceIDLabelName(userID string) string {
