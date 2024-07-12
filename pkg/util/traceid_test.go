@@ -191,6 +191,14 @@ func TestSpanIDAndKindToToken(t *testing.T) {
 			tokensForKind[token] = struct{}{}
 		}
 	}
+
+	t.Run("when kind is outside the boundaries", func(t *testing.T) {
+		spanID := []byte{0x60}
+		t1 := SpanIDAndKindToToken(spanID, 1000)
+		t2 := SpanIDAndKindToToken(spanID, -2)
+
+		assert.Equal(t, t1, t2)
+	})
 }
 
 var tokenToPreventOptimization uint64
