@@ -165,9 +165,9 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 	)
 
 	for _, tenantID := range tenants {
-		if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
+		if err := finalErr.Load(); err != nil {
 			level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors", "errCount", consecutiveErrors)
-			return nil, nil, finalErr.Load()
+			return nil, nil, err
 		}
 
 		wg.Add(1)
