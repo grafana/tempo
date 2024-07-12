@@ -60,6 +60,9 @@ var spanKindFNVHashes = [...]uint64{
 // that it has a low collision probability. In zipkin traces the span id is not guaranteed to be unique as it
 // is shared between client and server spans. Therefore, it is sometimes required to take the span kind into account.
 func SpanIDAndKindToToken(id []byte, kind int) uint64 {
+	if kind < 0 || kind >= len(spanKindFNVHashes) {
+		kind = 0
+	}
 	return SpanIDToUint64(id) ^ spanKindFNVHashes[kind]
 }
 
