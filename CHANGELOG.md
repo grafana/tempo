@@ -30,7 +30,7 @@
 * [BUGFIX] max_global_traces_per_user: take into account ingestion.tenant_shard_size when converting to local limit [#3618](https://github.com/grafana/tempo/pull/3618) (@kvrhdn)
 * [BUGFIX] Fix http connection reuse on GCP and AWS by reading io.EOF through the http body. [#3760](https://github.com/grafana/tempo/pull/3760) (@bmteller)
 * [BUGFIX] Improved handling of complete blocks in localblocks processor after enabling flusing [#3805](https://github.com/grafana/tempo/pull/3805) (@mapno)
-
+* [BUGFIX] Handle out of boundaries spans kinds [#3861](https://github.com/grafana/tempo/pull/3861) (@javiermolinar)
 
 ## v2.5.0
 
