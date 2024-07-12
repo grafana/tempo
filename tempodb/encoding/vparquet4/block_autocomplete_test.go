@@ -24,6 +24,8 @@ func TestFetchTagNames(t *testing.T) {
 		query                  string
 		expectedSpanValues     []string
 		expectedResourceValues []string
+		expectedEventValues    []string
+		expectedLinkValues     []string
 	}{
 		{
 			name:  "no query - fall back to old search",
@@ -35,12 +37,16 @@ func TestFetchTagNames(t *testing.T) {
 				"span-same",
 			},
 			expectedResourceValues: []string{"generic-01", "generic-02", "resource-same"},
+			expectedEventValues:    []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:     []string{"link-generic-01-01", "link-generic-02-01"},
 		},
 		{
 			name:                   "matches nothing",
 			query:                  "{span.generic-01-01=`bar`}",
 			expectedSpanValues:     []string{},
 			expectedResourceValues: []string{},
+			expectedEventValues:    []string{},
+			expectedLinkValues:     []string{},
 		},
 		// span
 		{
@@ -48,24 +54,32 @@ func TestFetchTagNames(t *testing.T) {
 			query:                  "{statusMessage=`msg-01-01`}",
 			expectedSpanValues:     []string{"generic-01-01", "span-same"},
 			expectedResourceValues: []string{"generic-01", "resource-same"},
+			expectedEventValues:    []string{"event-generic-01-01"},
+			expectedLinkValues:     []string{"link-generic-01-01"},
 		},
 		{
 			name:                   "well known span",
 			query:                  "{span.http.method=`method-01-01`}",
 			expectedSpanValues:     []string{"generic-01-01", "span-same"},
 			expectedResourceValues: []string{"generic-01", "resource-same"},
+			expectedEventValues:    []string{"event-generic-01-01"},
+			expectedLinkValues:     []string{"link-generic-01-01"},
 		},
 		{
 			name:                   "generic span",
 			query:                  "{span.generic-01-01=`foo`}",
 			expectedSpanValues:     []string{"generic-01-01", "span-same"},
 			expectedResourceValues: []string{"generic-01", "resource-same"},
+			expectedEventValues:    []string{"event-generic-01-01"},
+			expectedLinkValues:     []string{"link-generic-01-01"},
 		},
 		{
 			name:                   "match two spans",
 			query:                  "{span.span-same=`foo`}",
 			expectedSpanValues:     []string{"generic-01-01", "span-same", "generic-02-01"},
 			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
+			expectedEventValues:    []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:     []string{"link-generic-01-01", "link-generic-02-01"},
 		},
 		// resource
 		{
@@ -73,18 +87,24 @@ func TestFetchTagNames(t *testing.T) {
 			query:                  "{resource.cluster=`cluster-01`}",
 			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same"},
 			expectedResourceValues: []string{"generic-01", "resource-same"},
+			expectedEventValues:    []string{"event-generic-01-01"},
+			expectedLinkValues:     []string{"link-generic-01-01"},
 		},
 		{
 			name:                   "generic resource",
 			query:                  "{resource.generic-01=`bar`}",
 			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same"},
 			expectedResourceValues: []string{"generic-01", "resource-same"},
+			expectedEventValues:    []string{"event-generic-01-01"},
+			expectedLinkValues:     []string{"link-generic-01-01"},
 		},
 		{
 			name:                   "match two resources",
 			query:                  "{resource.resource-same=`foo`}",
 			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
 			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
+			expectedEventValues:    []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:     []string{"link-generic-01-01", "link-generic-02-01"},
 		},
 		// trace level match
 		{
@@ -92,6 +112,8 @@ func TestFetchTagNames(t *testing.T) {
 			query:                  "{rootName=`root` }",
 			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
 			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
+			expectedEventValues:    []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:     []string{"link-generic-01-01", "link-generic-02-01"},
 		},
 	}
 
@@ -127,6 +149,22 @@ func TestFetchTagNames(t *testing.T) {
 								},
 								DedicatedAttributes: DedicatedAttributes{
 									String01: strPtr("dedicated-01-01"),
+								},
+								Events: []Event{
+									{
+										Name: "event-01-01",
+										Attrs: []Attribute{
+											{Key: "event-generic-01-01", Value: []string{"foo"}},
+										},
+									},
+								},
+								Links: []Link{
+									{
+										SpanID: []byte("0101"),
+										Attrs: []Attribute{
+											{Key: "link-generic-01-01", Value: []string{"foo"}},
+										},
+									},
 								},
 							},
 							{
@@ -172,6 +210,22 @@ func TestFetchTagNames(t *testing.T) {
 								DedicatedAttributes: DedicatedAttributes{
 									String01: strPtr("dedicated-02-01"),
 								},
+								Events: []Event{
+									{
+										Name: "event-02-01",
+										Attrs: []Attribute{
+											{Key: "event-generic-02-01", Value: []string{"foo"}},
+										},
+									},
+								},
+								Links: []Link{
+									{
+										SpanID: []byte("0102"),
+										Attrs: []Attribute{
+											{Key: "link-generic-02-01", Value: []string{"foo"}},
+										},
+									},
+								},
 							},
 						},
 					},
@@ -186,9 +240,17 @@ func TestFetchTagNames(t *testing.T) {
 	opts := common.DefaultSearchOptions()
 
 	for _, tc := range testCases {
-		for _, scope := range []traceql.AttributeScope{traceql.AttributeScopeSpan, traceql.AttributeScopeResource, traceql.AttributeScopeNone} {
+		for _, scope := range []traceql.AttributeScope{
+			traceql.AttributeScopeSpan,
+			traceql.AttributeScopeResource,
+			traceql.AttributeScopeNone,
+			traceql.AttributeScopeEvent,
+			traceql.AttributeScopeLink,
+		} {
 			expectedSpanValues := tc.expectedSpanValues
 			expectedResourceValues := tc.expectedResourceValues
+			expectedEventValues := tc.expectedEventValues
+			expectedLinkValues := tc.expectedLinkValues
 
 			// add dedicated and well known columns to expected values. the code currently does not
 			// attempt to perfectly filter these, but instead adds them to the return if any values are present
@@ -208,6 +270,16 @@ func TestFetchTagNames(t *testing.T) {
 				expectedValues["resource"] = append(expectedValues["resource"], expectedResourceValues...)
 				expectedValues["resource"] = append(expectedValues["resource"], wellKnownResourceValues...)
 				expectedValues["resource"] = append(expectedValues["resource"], dedicatedResourceValues...)
+			}
+			if scope == traceql.AttributeScopeEvent || scope == traceql.AttributeScopeNone {
+				if len(expectedEventValues) > 0 {
+					expectedValues["event"] = append(expectedValues["event"], expectedEventValues...)
+				}
+			}
+			if scope == traceql.AttributeScopeLink || scope == traceql.AttributeScopeNone {
+				if len(expectedLinkValues) > 0 {
+					expectedValues["link"] = append(expectedValues["link"], expectedLinkValues...)
+				}
 			}
 
 			t.Run(fmt.Sprintf("query: %s %s-%s", tc.name, tc.query, scope), func(t *testing.T) {

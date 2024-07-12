@@ -23,7 +23,7 @@ import (
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v11 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -571,8 +571,8 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 		}
 		testTrace.Batches[0].ScopeSpans[0].Spans[0].Attributes = append(testTrace.Batches[0].ScopeSpans[0].Spans[0].Attributes, kv)
 		// add link and event
-		event := &v11.Span_Event{Name: "event-name", Attributes: []*v1.KeyValue{eventKv}}
-		link := &v11.Span_Link{TraceId: id, SpanId: id, Attributes: []*v1.KeyValue{linkKv}}
+		event := &trace_v1.Span_Event{Name: "event-name", Attributes: []*v1.KeyValue{eventKv}}
+		link := &trace_v1.Span_Link{TraceId: id, SpanId: id, Attributes: []*v1.KeyValue{linkKv}}
 		testTrace.Batches[0].ScopeSpans[0].Spans[0].Events = append(testTrace.Batches[0].ScopeSpans[0].Spans[0].Events, event)
 		testTrace.Batches[0].ScopeSpans[0].Spans[0].Links = append(testTrace.Batches[0].ScopeSpans[0].Spans[0].Links, link)
 
