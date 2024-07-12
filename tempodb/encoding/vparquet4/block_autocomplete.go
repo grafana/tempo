@@ -257,20 +257,9 @@ func createDistinctEventIterator(
 	conditions []traceql.Condition,
 ) (parquetquery.Iterator, error) {
 	var (
-		columnSelectAs    = map[string]string{}
 		iters             []parquetquery.Iterator
 		genericConditions []traceql.Condition
 	)
-
-	// TODO: Potentially problematic when wanted attribute is also part of a condition
-	//     e.g. { span.foo =~ ".*" && span.foo = }
-	addSelectAs := func(attr traceql.Attribute, columnPath, selectAs string) {
-		if attr == tr.tag {
-			columnSelectAs[columnPath] = selectAs
-		} else {
-			columnSelectAs[columnPath] = "" // Don't select, just filter
-		}
-	}
 
 	for _, cond := range conditions {
 		// Intrinsic?
@@ -280,8 +269,11 @@ func createDistinctEventIterator(
 			if err != nil {
 				return nil, err
 			}
-			iters = append(iters, makeIter(columnPathEventName, pred, columnSelectAs[columnPathEventName]))
-			addSelectAs(cond.Attribute, columnPathEventName, columnPathEventName)
+			selectAs := ""
+			if tr.tag == cond.Attribute {
+				selectAs = columnPathEventName
+			}
+			iters = append(iters, makeIter(columnPathEventName, pred, selectAs))
 			continue
 		}
 		// Else: generic attribute lookup
@@ -319,7 +311,6 @@ func createDistinctLinkIterator(
 	conditions []traceql.Condition,
 ) (parquetquery.Iterator, error) {
 	var (
-		columnSelectAs    = map[string]string{}
 		iters             []parquetquery.Iterator
 		genericConditions []traceql.Condition
 	)
@@ -332,16 +323,14 @@ func createDistinctLinkIterator(
 			if err != nil {
 				return nil, err
 			}
-			iters = append(iters, makeIter(columnPathLinkTraceID, pred, columnPathLinkTraceID))
-			columnSelectAs[columnPathLinkTraceID] = "" // Don't select, just filter
+			iters = append(iters, makeIter(columnPathLinkTraceID, pred, "")) // don't select just filter
 			continue
 		case traceql.IntrinsicLinkSpanID:
 			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
 			if err != nil {
 				return nil, err
 			}
-			iters = append(iters, makeIter(columnPathLinkSpanID, pred, columnPathLinkSpanID))
-			columnSelectAs[columnPathLinkTraceID] = "" // Don't select, just filter
+			iters = append(iters, makeIter(columnPathLinkSpanID, pred, "")) // don't select just filter
 			continue
 		}
 		// Else: generic attribute lookup
