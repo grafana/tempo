@@ -35,6 +35,8 @@
 * [BUGFIX] Fix http connection reuse on GCP and AWS by reading io.EOF through the http body. [#3760](https://github.com/grafana/tempo/pull/3760) (@bmteller)
 * [BUGFIX] Improved handling of complete blocks in localblocks processor after enabling flusing [#3805](https://github.com/grafana/tempo/pull/3805) (@mapno)
 * [BUGFIX] Handle out of boundaries spans kinds [#3861](https://github.com/grafana/tempo/pull/3861) (@javiermolinar)
+* [BUGFIX] Maintain previous tenant blocklist on tenant errors [#3860](https://github.com/grafana/tempo/pull/3860) (@zalegrala)
+
 
 ## v2.5.0
 
