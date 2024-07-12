@@ -893,16 +893,50 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	resp, err := q.store.SearchTags(ctx, meta, req.SearchReq.Scope, opts)
+	query := traceql.ExtractMatchers(req.SearchReq.Query)
+	if traceql.IsEmptyQuery(query) {
+		resp, err := q.store.SearchTags(ctx, meta, req.SearchReq.Scope, opts)
+		if err != nil {
+			return nil, err
+		}
+
+		// add intrinsic tags if scope is none
+		if req.SearchReq.Scope == "" {
+			resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
+				Name: api.ParamScopeIntrinsic,
+				Tags: search.GetVirtualIntrinsicValues(),
+			})
+		}
+
+		return resp, nil
+	}
+
+	fetcher := traceql.NewTagNamesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback) error {
+		return q.store.FetchTagNames(ctx, meta, req, cb, common.DefaultSearchOptions())
+	})
+
+	scope := traceql.AttributeScopeFromString(req.SearchReq.Scope)
+	if scope == traceql.AttributeScopeUnknown {
+		return nil, fmt.Errorf("unknown scope: %s", req.SearchReq.Scope)
+	}
+
+	valueCollector := collector.NewScopedDistinctString(q.limits.MaxBytesPerTagValuesQuery(tenantID))
+	err = q.engine.ExecuteTagNames(ctx, scope, query, func(tag string, scope traceql.AttributeScope) bool {
+		valueCollector.Collect(scope.String(), tag)
+		return valueCollector.Exceeded()
+	}, fetcher)
 	if err != nil {
 		return nil, err
 	}
 
-	// add intrinsic tags if scope is none
-	if req.SearchReq.Scope == "" {
+	scopedVals := valueCollector.Strings()
+	resp := &tempopb.SearchTagsV2Response{
+		Scopes: make([]*tempopb.SearchTagsV2Scope, 0, len(scopedVals)),
+	}
+	for scope, vals := range scopedVals {
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
-			Name: api.ParamScopeIntrinsic,
-			Tags: search.GetVirtualIntrinsicValues(),
+			Name: scope,
+			Tags: vals,
 		})
 	}
 
