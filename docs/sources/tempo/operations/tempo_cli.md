@@ -501,3 +501,20 @@ Options:
 ```bash
 tempo-cli analyse blocks --backend=local --bucket=./cmd/tempo-cli/test-data/ single-tenant
 ```
+
+## Drop trace by id
+Rewrites all blocks for a tenant that contain a specific trace id. The trace is dropped from
+the new blocks and the rewritten blocks are marked compacted so they will be cleaned up.
+
+Arguments:
+- `tenant-id` The tenant ID. Use `single-tenant` for single tenant setups.
+- `trace-id` The trace id to drop
+
+Options:
+- [Backend options](#backend-options)
+- `--drop-traces` By default this command runs in dry run mode. Supplying this argument causes it to actually rewrite blocks with the trace dropped.
+
+**Example:**
+```bash
+tempo-cli rewrite-blocks drop-trace --backend=local --bucket=./cmd/tempo-cli/test-data/ single-tenant a188ea38aa3a83d74523774ad6728cc8
+```

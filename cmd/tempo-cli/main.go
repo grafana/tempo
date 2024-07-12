@@ -70,12 +70,13 @@ var cli struct {
 			Search          querySearchCmd          `cmd:"" help:"query Tempo search"`
 			Metrics         metricsQueryRangeCmd    `cmd:"" help:"query Tempo metrics query range"`
 		} `cmd:""`
-		Blocks       queryBlocksCmd       `cmd:"" help:"query for a traceid directly from backend blocks"`
+		TraceID      queryBlocksCmd       `cmd:"" help:"query for a traceid directly from backend blocks"`
 		TraceSummary queryTraceSummaryCmd `cmd:"" help:"query summary for a traceid directly from backend blocks"`
+		Search       searchBlocksCmd      `cmd:"" help:"search for a traceid directly from backend blocks"`
 	} `cmd:""`
 
-	Search struct {
-		Blocks searchBlocksCmd `cmd:"" help:"search for a traceid directly from backend blocks"`
+	RewriteBlocks struct {
+		DropTrace dropTraceCmd `cmd:"" help:"rewrite blocks with a given trace id redacted"`
 	} `cmd:""`
 
 	Parquet struct {

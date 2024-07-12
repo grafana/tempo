@@ -149,6 +149,10 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			return nil, fmt.Errorf("error iterating input blocks: %w", err)
 		}
 
+		if c.opts.DropObject != nil && c.opts.DropObject(lowestID) {
+			continue
+		}
+
 		// make a new block if necessary
 		if currentBlock == nil {
 			// Start with a copy and then customize
