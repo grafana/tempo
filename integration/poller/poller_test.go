@@ -123,19 +123,18 @@ func TestPollerOwnership(t *testing.T) {
 				var ww backend.RawWriter
 				var cc backend.Compactor
 
-				concurrency := 10
-				tenantCount := 1000
+				listBlockConcurrency := 10
 
 				e := hhh.Endpoint(hhh.HTTPPort())
 				switch tc.name {
 				case "s3":
-					cfg.StorageConfig.Trace.S3.ListBlocksConcurrency = concurrency
+					cfg.StorageConfig.Trace.S3.ListBlocksConcurrency = listBlockConcurrency
 					cfg.StorageConfig.Trace.S3.Endpoint = e
 					cfg.StorageConfig.Trace.S3.Prefix = pc.prefix
 					cfg.Overrides.UserConfigurableOverridesConfig.Client.S3.Endpoint = e
 					rr, ww, cc, err = s3.New(cfg.StorageConfig.Trace.S3)
 				case "gcs":
-					cfg.StorageConfig.Trace.GCS.ListBlocksConcurrency = concurrency
+					cfg.StorageConfig.Trace.GCS.ListBlocksConcurrency = listBlockConcurrency
 					cfg.StorageConfig.Trace.GCS.Endpoint = e
 					cfg.StorageConfig.Trace.GCS.Prefix = pc.prefix
 					cfg.Overrides.UserConfigurableOverridesConfig.Client.GCS.Endpoint = e
@@ -159,8 +158,9 @@ func TestPollerOwnership(t *testing.T) {
 				}, OwnsEverythingSharder, r, cc, w, logger)
 
 				// Use the block boundaries in the GCS and S3 implementation
-				bb := blockboundary.CreateBlockBoundaries(concurrency)
+				bb := blockboundary.CreateBlockBoundaries(listBlockConcurrency)
 
+				tenantCount := 1000
 				tenantExpected := map[string][]uuid.UUID{}
 
 				// Push some data to a few tenants
@@ -168,8 +168,8 @@ func TestPollerOwnership(t *testing.T) {
 					testTenant := tenant + strconv.Itoa(i)
 					tenantExpected[testTenant] = pushBlocksToTenant(t, testTenant, bb, w)
 
-					mmResults, cmResults, err := rr.ListBlocks(context.Background(), testTenant)
-					require.NoError(t, err)
+					mmResults, cmResults, listBlocksErr := rr.ListBlocks(context.Background(), testTenant)
+					require.NoError(t, listBlocksErr)
 					sort.Slice(mmResults, func(i, j int) bool { return mmResults[i].String() < mmResults[j].String() })
 
 					require.Equal(t, tenantExpected[testTenant], mmResults)
@@ -284,21 +284,21 @@ func TestTenantDeletion(t *testing.T) {
 				var ww backend.RawWriter
 				var cc backend.Compactor
 
-				concurrency := 3
+				listBlockConcurrency := 3
 				ctx := context.Background()
 
 				e := hhh.Endpoint(hhh.HTTPPort())
 				switch tc.name {
 				case "s3":
 					cfg.StorageConfig.Trace.S3.Endpoint = e
-					cfg.StorageConfig.Trace.S3.ListBlocksConcurrency = concurrency
+					cfg.StorageConfig.Trace.S3.ListBlocksConcurrency = listBlockConcurrency
 					cfg.StorageConfig.Trace.S3.Prefix = pc.prefix
 					cfg.Overrides.UserConfigurableOverridesConfig.Client.S3.Endpoint = e
 					rr, ww, cc, err = s3.New(cfg.StorageConfig.Trace.S3)
 				case "gcs":
 					cfg.Overrides.UserConfigurableOverridesConfig.Client.GCS.Endpoint = e
 					cfg.StorageConfig.Trace.GCS.Endpoint = e
-					cfg.StorageConfig.Trace.GCS.ListBlocksConcurrency = concurrency
+					cfg.StorageConfig.Trace.GCS.ListBlocksConcurrency = listBlockConcurrency
 					cfg.StorageConfig.Trace.GCS.Prefix = pc.prefix
 					rr, ww, cc, err = gcs.New(cfg.StorageConfig.Trace.GCS)
 				case "azure":
