@@ -165,6 +165,7 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 	)
 
 	for _, tenantID := range tenants {
+		// The finalErr is only stored when the number of consecutive errors exceeds the tolerance.  If present, return it.
 		if err := finalErr.Load(); err != nil {
 			level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors", "errCount", consecutiveErrors)
 			return nil, nil, err
@@ -212,6 +213,7 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 
 	wg.Wait()
 
+	// Load the finalErr in case the error was on the last itteration of the tenant loop.
 	if err := finalErr.Load(); err != nil {
 		return nil, nil, err
 	}
