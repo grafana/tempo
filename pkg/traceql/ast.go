@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"fmt"
-	"hash/crc32"
+	"hash/fnv"
 	"math"
 	"regexp"
 	"slices"
@@ -623,19 +623,20 @@ func (s Static) MapKey() StaticMapKey {
 			return StaticMapKey{typ: s.Type}
 		}
 
-		sum := crc32.ChecksumIEEE(s.valBytes)
-		return StaticMapKey{typ: s.Type, code: uint64(sum)}
+		h := fnv.New64a()
+		_, _ = h.Write(s.valBytes)
+		return StaticMapKey{typ: s.Type, code: h.Sum64()}
 	case TypeStringArray:
 		if len(s.valStrings) == 0 {
 			return StaticMapKey{typ: s.Type}
 		}
 
-		crc := crc32.NewIEEE()
-		_, _ = crc.Write(seedBytes) // avoid collisions with values like []string{""}
+		h := fnv.New64a()
+		_, _ = h.Write(seedBytes) // avoid collisions with values like []string{""}
 		for _, str := range s.valStrings {
-			_, _ = crc.Write(unsafe.Slice(unsafe.StringData(str), len(str)))
+			_, _ = h.Write(unsafe.Slice(unsafe.StringData(str), len(str)))
 		}
-		return StaticMapKey{typ: s.Type, code: uint64(crc.Sum32())}
+		return StaticMapKey{typ: s.Type, code: h.Sum64()}
 	default:
 		return StaticMapKey{typ: s.Type, code: s.valScalar}
 	}
