@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	mathrand "math/rand"
 	"os"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
@@ -121,7 +123,8 @@ func TestPollerOwnership(t *testing.T) {
 				var ww backend.RawWriter
 				var cc backend.Compactor
 
-				concurrency := 3
+				concurrency := 10
+				tenantCount := 1000
 
 				e := hhh.Endpoint(hhh.HTTPPort())
 				switch tc.name {
@@ -150,47 +153,31 @@ func TestPollerOwnership(t *testing.T) {
 
 				blocklistPoller := blocklist.NewPoller(&blocklist.PollerConfig{
 					PollConcurrency:        3,
-					TenantPollConcurrency:  2,
+					TenantPollConcurrency:  3,
 					TenantIndexBuilders:    1,
 					EmptyTenantDeletionAge: 10 * time.Minute,
 				}, OwnsEverythingSharder, r, cc, w, logger)
 
 				// Use the block boundaries in the GCS and S3 implementation
 				bb := blockboundary.CreateBlockBoundaries(concurrency)
-				// Pick a boundary to use for this test
-				base := bb[1]
-				expected := []uuid.UUID{}
 
-				expected = append(expected, uuid.MustParse("00000000-0000-0000-0000-000000000000"))
-				expected = append(expected, uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff"))
+				tenantExpected := map[string][]uuid.UUID{}
 
-				// Grab the one before the boundary
-				decrementUUIDBytes(base)
-				expected = append(expected, uuid.UUID(base))
+				// Push some data to a few tenants
+				for i := 0; i < tenantCount; i++ {
+					testTenant := tenant + strconv.Itoa(i)
+					tenantExpected[testTenant] = pushBlocksToTenant(t, testTenant, bb, w)
 
-				incrementUUIDBytes(base)
-				expected = append(expected, uuid.UUID(base))
+					mmResults, cmResults, err := rr.ListBlocks(context.Background(), testTenant)
+					require.NoError(t, err)
+					sort.Slice(mmResults, func(i, j int) bool { return mmResults[i].String() < mmResults[j].String() })
+					// t.Logf("mmResults: %s", mmResults)
+					// t.Logf("cmResults: %s", cmResults)
 
-				incrementUUIDBytes(base)
-				expected = append(expected, uuid.UUID(base))
-
-				incrementUUIDBytes(base)
-				expected = append(expected, uuid.UUID(base))
-
-				writeTenantBlocks(t, w, tenant, expected)
-
-				sort.Slice(expected, func(i, j int) bool { return expected[i].String() < expected[j].String() })
-				t.Logf("expected: %v", expected)
-
-				mmResults, cmResults, err := rr.ListBlocks(context.Background(), tenant)
-				require.NoError(t, err)
-				sort.Slice(mmResults, func(i, j int) bool { return mmResults[i].String() < mmResults[j].String() })
-				t.Logf("mmResults: %s", mmResults)
-				t.Logf("cmResults: %s", cmResults)
-
-				assert.Equal(t, expected, mmResults)
-				assert.Equal(t, len(expected), len(mmResults))
-				assert.Equal(t, 0, len(cmResults))
+					require.Equal(t, tenantExpected[testTenant], mmResults)
+					require.Equal(t, len(tenantExpected[testTenant]), len(mmResults))
+					require.Equal(t, 0, len(cmResults))
+				}
 
 				l := blocklist.New()
 				mm, cm, err := blocklistPoller.Do(l)
@@ -200,21 +187,23 @@ func TestPollerOwnership(t *testing.T) {
 
 				l.ApplyPollResults(mm, cm)
 
-				metas := l.Metas(tenant)
+				for testTenant, expected := range tenantExpected {
+					metas := l.Metas(testTenant)
 
-				actual := []uuid.UUID{}
-				for _, m := range metas {
-					actual = append(actual, m.BlockID)
-				}
+					actual := []uuid.UUID{}
+					for _, m := range metas {
+						actual = append(actual, m.BlockID)
+					}
 
-				sort.Slice(actual, func(i, j int) bool { return actual[i].String() < actual[j].String() })
+					sort.Slice(actual, func(i, j int) bool { return actual[i].String() < actual[j].String() })
 
-				assert.Equal(t, expected, actual)
-				assert.Equal(t, len(expected), len(metas))
-				t.Logf("actual: %v", actual)
+					assert.Equal(t, expected, actual)
+					assert.Equal(t, len(expected), len(metas))
+					t.Logf("actual: %v", actual)
 
-				for _, e := range expected {
-					assert.True(t, found(e, metas))
+					for _, e := range expected {
+						assert.True(t, found(e, metas))
+					}
 				}
 			})
 		}
@@ -330,6 +319,7 @@ func TestTenantDeletion(t *testing.T) {
 					PollConcurrency:        3,
 					TenantIndexBuilders:    1,
 					EmptyTenantDeletionAge: 100 * time.Millisecond,
+					TenantPollConcurrency:  3,
 				}, OwnsEverythingSharder, r, cc, w, logger)
 
 				l := blocklist.New()
@@ -455,4 +445,51 @@ func writeBadBlockFiles(t *testing.T, ww backend.RawWriter, rr backend.RawReader
 	err = rr.Find(ctx, backend.KeyPath{}, f)
 	require.NoError(t, err)
 	t.Logf("items: %v", found)
+}
+
+func pushBlocksToTenant(t *testing.T, tenant string, bb [][]byte, w backend.Writer) []uuid.UUID {
+	// Randomly pick a block boundary
+	r := mathrand.Intn(len(bb))
+
+	base := bb[r]
+	expected := []uuid.UUID{}
+
+	// Include the min and max in each tenant for testing
+	expected = append(expected, uuid.MustParse("00000000-0000-0000-0000-000000000000"))
+	expected = append(expected, uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff"))
+
+	// If we are above zero, then we have room to decrement
+	if r > 0 {
+		decrementUUIDBytes(base)
+		expected = append(expected, uuid.UUID(base))
+	}
+
+	// If we are n-1 then we have room to increment
+	if r < len(bb)-1 {
+		// Grab the one after the boundary
+		incrementUUIDBytes(base)
+		expected = append(expected, uuid.UUID(base))
+	}
+
+	// If we are n-2 then we have room to increment again
+	if r < len(bb)-2 {
+		// Grab the one after the boundary
+		incrementUUIDBytes(base)
+		expected = append(expected, uuid.UUID(base))
+	}
+
+	// If we are n-3 then we have room to increment again
+	if r < len(bb)-3 {
+		// Grab the one after the boundary
+		incrementUUIDBytes(base)
+		expected = append(expected, uuid.UUID(base))
+	}
+
+	// Write the blocks using the expectaed block IDs
+	writeTenantBlocks(t, w, tenant, expected)
+
+	sort.Slice(expected, func(i, j int) bool { return expected[i].String() < expected[j].String() })
+	// t.Logf("expected: %v", expected)
+
+	return expected
 }
