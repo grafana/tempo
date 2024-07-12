@@ -693,7 +693,7 @@ func (s Static) StrictEquals(o *Static) bool {
 	case TypeString, TypeIntArray, TypeFloatArray, TypeBooleanArray:
 		return bytes.Equal(s.valBytes, o.valBytes)
 	case TypeStringArray:
-		return s.Type == o.Type && slices.Equal(s.valStrings, o.valStrings)
+		return slices.Equal(s.valStrings, o.valStrings)
 	case TypeNil:
 		return true
 	default:
