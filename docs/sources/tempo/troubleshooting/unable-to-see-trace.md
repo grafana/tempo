@@ -147,9 +147,6 @@ To fix connection issues:
       frontend_worker:
         frontend_address: query-frontend-discovery.default.svc.cluster.local:9095
     ```
-<!-- >  - Verify the `backend.yaml` configuration file present on the Tempo Query container and make sure it is attempting to connect to the right port of the query frontend.
-    **Note** this is only relevant for [Grafana 7.4.x and before](https://grafana.com/docs/tempo/latest/configuration/querying/#grafana-74x).
-    -->
   - Confirm that the Grafana data source is configured correctly and debug network issues between Grafana and Tempo.
 
 To fix an insufficient permissions issue:
