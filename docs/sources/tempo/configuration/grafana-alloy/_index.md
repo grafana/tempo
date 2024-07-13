@@ -9,7 +9,7 @@ aliases:
 # Grafana Alloy
 
 Grafana Alloy offers native pipelines for OTel, Prometheus, Pyroscope, Loki, and many other metrics, logs, traces, and profile tools.
-In addition, you can use Alloy pipelines to do different tasks, such as configure alert rules in Loki and Mimir. Alloy is fully compatible with the OTel Collector, Prometheus Agent, and Promtail.
+In addition, you can use Alloy pipelines to do other tasks, such as configure alert rules in Loki and Mimir. Alloy is fully compatible with the OTel Collector, Prometheus Agent, and Promtail.
 
 You can use Alloy as an alternative to either of these solutions or combine it into a hybrid system of multiple collectors and agents.
 You can deploy Alloy anywhere within your IT infrastructure and pair it with your Grafana LGTM stack, a telemetry backend from Grafana Cloud, or any other compatible backend from any other vendor.
