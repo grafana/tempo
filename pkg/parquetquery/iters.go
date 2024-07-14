@@ -781,6 +781,12 @@ func SyncIteratorOptIntern() SyncIteratorOpt {
 	}
 }
 
+func SyncIteratorOptRepetitionLevel(repLevel int) SyncIteratorOpt {
+	return func(i *SyncIterator) {
+		i.repLevel = repLevel
+	}
+}
+
 // SyncIterator is like ColumnIterator but synchronous. It scans through the given row
 // groups and column, and applies the optional predicate to each chunk, page, and value.
 // Results are read by calling Next() until it returns nil.
@@ -793,6 +799,7 @@ type SyncIterator struct {
 	rgsMax     []RowNumber // Exclusive, row number of next one past the row group
 	readSize   int
 	filter     Predicate
+	repLevel   int
 
 	// Status
 	span            opentracing.Span
@@ -804,11 +811,14 @@ type SyncIterator struct {
 	currPage        pq.Page
 	currPageMin     RowNumber
 	currPageMax     RowNumber
-	currValues      pq.ValueReader
+	currReader      pq.ValueReader
 	currBuf         []pq.Value
 	currBufN        int
 	currPageN       int
-	at              IteratorResult // Current value pointed at by iterator. Returned by call Next and SeekTo, valid until next call.
+	currValues      []pq.Value
+
+	// Current value pointed at by iterator. Returned by call Next and SeekTo, valid until next call.
+	at IteratorResult
 
 	intern   bool
 	interner *intern.Interner
@@ -856,6 +866,7 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		rgsMin:     rgsMin,
 		rgsMax:     rgsMax,
 		filter:     filter,
+		repLevel:   -1,
 		curr:       EmptyRowNumber(),
 		at:         at,
 	}
@@ -877,14 +888,21 @@ func (c *SyncIterator) String() string {
 }
 
 func (c *SyncIterator) Next() (*IteratorResult, error) {
-	rn, v, err := c.next()
+	rn, err := c.next(false)
 	if err != nil {
 		return nil, err
 	}
 	if !rn.Valid() {
 		return nil, nil
 	}
-	return c.makeResult(rn, v), nil
+	if c.repLevel >= 0 {
+		_, err = c.next(true)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return c.makeResult(rn), nil
 }
 
 // SeekTo moves this iterator to the next result that is greater than
@@ -907,16 +925,22 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 	// The row group and page have been selected to where this value is possibly
 	// located. Now scan through the page and look for it.
 	for {
-		rn, v, err := c.next()
+		rn, err := c.next(false)
 		if err != nil {
 			return nil, err
 		}
 		if !rn.Valid() {
 			return nil, nil
 		}
+		if c.repLevel >= 0 {
+			_, err = c.next(true)
+			if err != nil {
+				return nil, err
+			}
+		}
 
 		if CompareRowNumbers(definitionLevel, rn, to) >= 0 {
-			return c.makeResult(rn, v), nil
+			return c.makeResult(rn), nil
 		}
 	}
 }
@@ -1095,7 +1119,7 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 	pq.Release(c.currPage)
 	c.currPage = pg
 	c.currPageMin = c.curr
-	c.currValues = pg.Values()
+	c.currReader = pg.Values()
 	c.currPageN = 0
 	syncIteratorPoolPut(c.currBuf)
 	c.currBuf = nil
@@ -1106,12 +1130,14 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 // we run out of things to inspect, it returns nil. The reason this method is distinct from
 // Next() is because it doesn't wrap the results in an IteratorResult, which is more efficient
 // when being called multiple times and throwing away the results like in SeekTo().
-func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
+// matchEndOfArray is a special case where the iterator advances to the end of the current array
+// if the c.repLevel is set.
+func (c *SyncIterator) next(matchEndOfArray bool) (RowNumber, error) {
 	for {
 		if c.currRowGroup == nil {
 			rg, min, max := c.popRowGroup()
 			if rg == nil {
-				return EmptyRowNumber(), nil, nil
+				return EmptyRowNumber(), nil
 			}
 
 			cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
@@ -1131,7 +1157,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 				continue
 			}
 			if err != nil {
-				return EmptyRowNumber(), nil, err
+				return EmptyRowNumber(), err
 			}
 			if c.filter != nil && !c.filter.KeepPage(pg) {
 				// This page filtered out
@@ -1148,9 +1174,9 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 		}
 		if c.currBufN >= len(c.currBuf) || len(c.currBuf) == 0 {
 			c.currBuf = c.currBuf[:cap(c.currBuf)]
-			n, err := c.currValues.ReadValues(c.currBuf)
+			n, err := c.currReader.ReadValues(c.currBuf)
 			if err != nil && !errors.Is(err, io.EOF) {
-				return EmptyRowNumber(), nil, err
+				return EmptyRowNumber(), err
 			}
 			c.currBuf = c.currBuf[:n]
 			c.currBufN = 0
@@ -1165,17 +1191,25 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 		for c.currBufN < len(c.currBuf) {
 			v := &c.currBuf[c.currBufN]
 
+			if c.repLevel < 0 || (v.RepetitionLevel() <= c.repLevel) {
+				if matchEndOfArray {
+					return c.curr, nil
+				}
+				c.currValues = c.currValues[:0]
+			}
+
 			// Inspect all values to track the current row number,
 			// even if the value is filtered out next.
 			c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel())
 			c.currBufN++
 			c.currPageN++
 
+			c.currValues = append(c.currValues, *v)
 			if c.filter != nil && !c.filter.KeepValue(*v) {
 				continue
 			}
 
-			return c.curr, v, nil
+			return c.curr, nil
 		}
 	}
 }
@@ -1198,7 +1232,7 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 	}
 
 	// Reset value buffers
-	c.currValues = nil
+	c.currReader = nil
 	c.currPageMax = EmptyRowNumber()
 	c.currPageMin = EmptyRowNumber()
 	c.currBufN = 0
@@ -1218,7 +1252,7 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 		c.currPage = pg
 		c.currPageMin = c.curr
 		c.currPageMax = rn
-		c.currValues = pg.Values()
+		c.currReader = pg.Values()
 	}
 }
 
@@ -1234,7 +1268,7 @@ func (c *SyncIterator) closeCurrRowGroup() {
 	c.setPage(nil)
 }
 
-func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
+func (c *SyncIterator) makeResult(t RowNumber) *IteratorResult {
 	// Use same static result instead of pooling
 	c.at.RowNumber = t
 
@@ -1242,12 +1276,17 @@ func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
 	// value or just the row number. This has already been checked during
 	// creation. SyncIterator reads a single column so the slice will
 	// always have length 0 or 1.
-	if len(c.at.Entries) == 1 {
-		if c.intern {
-			c.at.Entries[0].Value = c.interner.UnsafeClone(v)
-		} else {
-			c.at.Entries[0].Value = v.Clone()
-		}
+	if len(c.at.Entries) == 0 {
+		return &c.at
+	}
+	if len(c.currValues) == 0 {
+		return &c.at
+	}
+
+	if c.intern {
+		c.at.Entries[0].Value = c.interner.UnsafeClone(&c.currValues[0])
+	} else {
+		c.at.Entries[0].Value = c.currValues[0].Clone()
 	}
 
 	return &c.at
