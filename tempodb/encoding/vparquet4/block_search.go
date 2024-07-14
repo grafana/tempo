@@ -349,7 +349,10 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 	return results, nil
 }
 
-func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File) func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
+// makeIterFn is a helper to create an iterator, that abstracts away context like file and row groups.
+type makeIterFn func(columnName string, predicate pq.Predicate, selectAs string) pq.Iterator
+
+func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File) makeIterFn {
 	async := os.Getenv(EnvVarAsyncIteratorName) == EnvVarAsyncIteratorValue
 
 	return func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {

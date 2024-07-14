@@ -832,10 +832,6 @@ func putSpansetAndSpans(ss *traceql.Spanset) {
 	}
 }
 
-// Helper function to create an iterator, that abstracts away
-// context like file and rowgroups.
-type makeIterFn func(columnName string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator
-
 const (
 	columnPathTraceID                  = "TraceID"
 	columnPathStartTimeUnixNano        = "StartTimeUnixNano"
