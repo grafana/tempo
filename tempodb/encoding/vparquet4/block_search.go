@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
 	"strconv"
 	"time"
 
@@ -350,12 +351,12 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 }
 
 // makeIterFn is a helper to create an iterator, that abstracts away context like file and row groups.
-type makeIterFn func(columnName string, predicate pq.Predicate, selectAs string) pq.Iterator
+type makeIterFn func(columnName string, predicate pq.Predicate, selectAs string, iterOptions ...pq.SyncIteratorOpt) pq.Iterator
 
 func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File) makeIterFn {
 	async := os.Getenv(EnvVarAsyncIteratorName) == EnvVarAsyncIteratorValue
 
-	return func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
+	return func(name string, predicate pq.Predicate, selectAs string, iterOptions ...pq.SyncIteratorOpt) pq.Iterator {
 		index, _ := pq.GetColumnIndexByPath(pf, name)
 		if index == -1 {
 			// TODO - don't panic, error instead
@@ -366,7 +367,7 @@ func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File)
 			return pq.NewColumnIterator(ctx, rgs, index, name, 1000, predicate, selectAs)
 		}
 
-		var opts []pq.SyncIteratorOpt
+		opts := slices.Clone(iterOptions)
 		if name != columnPathSpanID && name != columnPathTraceID {
 			opts = append(opts, pq.SyncIteratorOptIntern())
 		}
