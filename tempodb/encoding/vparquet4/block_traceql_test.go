@@ -149,6 +149,11 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		// Span dedicated attributes
 		{"span.dedicated.span.2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = "dedicated-span-attr-value-2"}`)},
 		{"span.dedicated.span.4", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 = "dedicated-span-attr-value-4"}`)},
+		// Arrays
+		{"resource.str-array", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.str-array = "value-three"}`)},
+		{"resource.int-array", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.int-array = 11}`)},
+		{"span.str-array", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.str-array = "value-two"}`)},
+		{"span.int-array", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.int-array = 222}`)},
 		// Events
 		{"event:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:name = "e1"}`)},
 		{"event:timeSinceStart", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:timeSinceStart > 2ms}`)},
@@ -518,7 +523,8 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 					K8sContainerName: ptr("k8scontainer"),
 					Attrs: []Attribute{
 						attr("foo", "abc"),
-						attr("str-array", []string{"value-one", "value-two"}),
+						attr("str-array", []string{"value-one", "value-two", "value-three", "value-four"}),
+						attr("int-array", []int64{11, 22, 33}),
 						attr(LabelServiceName, 123), // Different type than dedicated column
 						// Unsupported attributes
 						{Key: "unsupported-mixed-array", ValueUnsupported: &mixedArrayAttrValue, IsArray: false},
@@ -567,8 +573,8 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 									attr("bar", 123),
 									attr("float", 456.78),
 									attr("bool", false),
-									attr("string-array", []string{"value-one"}),
-									attr("int-array", []int64{11, 22}),
+									attr("str-array", []string{"value-one", "value-two"}),
+									attr("int-array", []int64{111, 222, 333, 444}),
 									attr("double-array", []float64{1.1, 2.2, 3.3}),
 									attr("bool-array", []bool{true, false, true, false}),
 									// Edge-cases
