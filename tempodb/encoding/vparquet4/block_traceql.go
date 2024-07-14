@@ -2427,14 +2427,16 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 	keyPath, strPath, intPath, floatPath, boolPath string,
 	allConditions bool, selectAll bool,
 ) (parquetquery.Iterator, error) {
+	repLevelOpt := parquetquery.SyncIteratorOptRepetitionLevel(definitionLevel)
+
 	if selectAll {
 		return parquetquery.NewLeftJoinIterator(definitionLevel,
 			[]parquetquery.Iterator{makeIter(keyPath, nil, "key")},
 			[]parquetquery.Iterator{
-				makeIter(strPath, nil, "string"),
-				makeIter(intPath, nil, "int"),
-				makeIter(floatPath, nil, "float"),
-				makeIter(boolPath, nil, "bool"),
+				makeIter(strPath, nil, "string", repLevelOpt),
+				makeIter(intPath, nil, "int", repLevelOpt),
+				makeIter(floatPath, nil, "float", repLevelOpt),
+				makeIter(boolPath, nil, "bool", repLevelOpt),
 			},
 			&attributeCollector{},
 			parquetquery.WithPool(pqAttrPool))
@@ -2495,16 +2497,16 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 
 	var valueIters []parquetquery.Iterator
 	if len(attrStringPreds) > 0 {
-		valueIters = append(valueIters, makeIter(strPath, orIfNeeded(attrStringPreds), "string"))
+		valueIters = append(valueIters, makeIter(strPath, orIfNeeded(attrStringPreds), "string", repLevelOpt))
 	}
 	if len(attrIntPreds) > 0 {
-		valueIters = append(valueIters, makeIter(intPath, orIfNeeded(attrIntPreds), "int"))
+		valueIters = append(valueIters, makeIter(intPath, orIfNeeded(attrIntPreds), "int", repLevelOpt))
 	}
 	if len(attrFltPreds) > 0 {
-		valueIters = append(valueIters, makeIter(floatPath, orIfNeeded(attrFltPreds), "float"))
+		valueIters = append(valueIters, makeIter(floatPath, orIfNeeded(attrFltPreds), "float", repLevelOpt))
 	}
 	if len(boolPreds) > 0 {
-		valueIters = append(valueIters, makeIter(boolPath, orIfNeeded(boolPreds), "bool"))
+		valueIters = append(valueIters, makeIter(boolPath, orIfNeeded(boolPreds), "bool", repLevelOpt))
 	}
 
 	if len(valueIters) > 0 {
