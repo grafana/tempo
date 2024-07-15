@@ -346,7 +346,11 @@ func searchKeyValues(definitionLevel int, keyPath, stringPath, intPath, floatPat
 			break
 		}
 		for _, e := range match.Entries {
-			if callback(cb, e.Value) {
+			if len(e.Values) == 0 {
+				continue
+			}
+
+			if callback(cb, e.Values[0]) {
 				// Stop
 				return nil
 			}
