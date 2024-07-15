@@ -120,6 +120,11 @@ func TestExtractMatchers(t *testing.T) {
 			query:    `{ .foo = "a" && .bar =~ "(c|d)" }`,
 			expected: `{.foo = "a" && .bar =~ "(c|d)"}`,
 		},
+		{
+			name:     "scoped intrinsic",
+			query:    `{ event:name = "exception" }`,
+			expected: `{event:name = "exception"}`,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
