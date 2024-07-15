@@ -9,6 +9,7 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/grafana/tempo/pkg/parquetquery/intern"
 	"github.com/grafana/tempo/pkg/util"
@@ -605,8 +606,8 @@ func (t RowNumber) Preceding() RowNumber {
 type IteratorResult struct {
 	RowNumber RowNumber
 	Entries   []struct {
-		Key   string
-		Value pq.Value
+		Key    string
+		Values []pq.Value
 	}
 	OtherEntries []struct {
 		Key   string
@@ -624,10 +625,10 @@ func (r *IteratorResult) Append(rr *IteratorResult) {
 	r.OtherEntries = append(r.OtherEntries, rr.OtherEntries...)
 }
 
-func (r *IteratorResult) AppendValue(k string, v pq.Value) {
+func (r *IteratorResult) AppendValue(k string, v []pq.Value) {
 	r.Entries = append(r.Entries, struct {
-		Key   string
-		Value pq.Value
+		Key    string
+		Values []pq.Value
 	}{k, v})
 }
 
@@ -653,7 +654,9 @@ func (r *IteratorResult) OtherValueFromKey(k string) interface{} {
 func (r *IteratorResult) ToMap() map[string][]pq.Value {
 	m := map[string][]pq.Value{}
 	for _, e := range r.Entries {
-		m[e.Key] = append(m[e.Key], e.Value)
+		for _, v := range e.Values {
+			m[e.Key] = append(m[e.Key], v)
+		}
 	}
 	return m
 }
@@ -673,7 +676,9 @@ func (r *IteratorResult) Columns(buffer [][]pq.Value, names ...string) [][]pq.Va
 	for _, e := range r.Entries {
 		for i := range names {
 			if e.Key == names[i] {
-				buffer[i] = append(buffer[i], e.Value)
+				for _, v := range e.Values {
+					buffer[i] = append(buffer[i], v)
+				}
 				break
 			}
 		}
@@ -849,8 +854,8 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 	if selectAs != "" {
 		// Preallocate 1 entry with the given name.
 		at.Entries = []struct {
-			Key   string
-			Value pq.Value
+			Key    string
+			Values []pq.Value
 		}{
 			{Key: selectAs},
 		}
@@ -1283,10 +1288,15 @@ func (c *SyncIterator) makeResult(t RowNumber) *IteratorResult {
 		return &c.at
 	}
 
+	c.at.Entries[0].Values = c.at.Entries[0].Values[:0]
 	if c.intern {
-		c.at.Entries[0].Value = c.interner.UnsafeClone(&c.currValues[0])
+		for _, v := range c.currValues {
+			c.at.Entries[0].Values = append(c.at.Entries[0].Values, c.interner.UnsafeClone(&v))
+		}
 	} else {
-		c.at.Entries[0].Value = c.currValues[0].Clone()
+		for _, v := range c.currValues {
+			c.at.Entries[0].Values = append(c.at.Entries[0].Values, v.Clone())
+		}
 	}
 
 	return &c.at
@@ -1600,7 +1610,8 @@ func (c *ColumnIterator) makeResult(t RowNumber, v pq.Value) *IteratorResult {
 	r := DefaultPool.Get()
 	r.RowNumber = t
 	if c.selectAs != "" {
-		r.AppendValue(c.selectAs, v)
+		vs := unsafe.Slice(&v, 1)
+		r.AppendValue(c.selectAs, vs)
 	}
 	return r
 }
