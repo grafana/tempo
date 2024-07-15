@@ -92,7 +92,10 @@
     $.util.podPriority('high') +
     (if with_anti_affinity then $.util.antiAffinity else {}),
 
-  tempo_metrics_generator_statefulset: $.newGeneratorStatefulSet(target_name, self.tempo_metrics_generator_container) + statefulset.mixin.spec.withReplicas($._config.metrics_generator.replicas),
+  tempo_metrics_generator_statefulset:
+    $.newGeneratorStatefulSet(target_name, self.tempo_metrics_generator_container)
+    + statefulset.spec.template.spec.securityContext.withFsGroup(10001)  // 10001 is the UID of the tempo user
+    + statefulset.mixin.spec.withReplicas($._config.metrics_generator.replicas),
 
   tempo_metrics_generator_service:
     kausal.util.serviceFor($.tempo_metrics_generator_deployment),
