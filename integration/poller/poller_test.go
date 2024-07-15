@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	mathrand "math/rand"
+	mathrand "math/rand/v2"
 	"os"
 	"sort"
 	"strconv"
@@ -448,7 +448,7 @@ func writeBadBlockFiles(t *testing.T, ww backend.RawWriter, rr backend.RawReader
 
 func pushBlocksToTenant(t *testing.T, tenant string, bb [][]byte, w backend.Writer) []uuid.UUID {
 	// Randomly pick a block boundary
-	r := mathrand.Intn(len(bb))
+	r := mathrand.IntN(len(bb))
 
 	base := bb[r]
 	t.Logf("base: %v", base)
