@@ -212,8 +212,22 @@ func autocompleteIter(ctx context.Context, tr tagRequest, pf *parquet.File, opts
 
 	var currentIter parquetquery.Iterator
 
+	if len(catConditions.event) > 0 || tr.keysRequested(traceql.AttributeScopeEvent) {
+		currentIter, err = createDistinctEventIterator(makeIter, tr, currentIter, catConditions.event)
+		if err != nil {
+			return nil, errors.Wrap(err, "creating event iterator")
+		}
+	}
+
+	if len(catConditions.link) > 0 || tr.keysRequested(traceql.AttributeScopeLink) {
+		currentIter, err = createDistinctLinkIterator(makeIter, tr, currentIter, catConditions.link)
+		if err != nil {
+			return nil, errors.Wrap(err, "creating link iterator")
+		}
+	}
+
 	if len(catConditions.span) > 0 || tr.keysRequested(traceql.AttributeScopeSpan) {
-		currentIter, err = createDistinctSpanIterator(makeIter, tr, catConditions.span, dc)
+		currentIter, err = createDistinctSpanIterator(makeIter, tr, currentIter, catConditions.span, dc)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating span iterator")
 		}
@@ -236,11 +250,123 @@ func autocompleteIter(ctx context.Context, tr tagRequest, pf *parquet.File, opts
 	return currentIter, nil
 }
 
+func createDistinctEventIterator(
+	makeIter makeIterFn,
+	tr tagRequest,
+	primaryIter parquetquery.Iterator,
+	conditions []traceql.Condition,
+) (parquetquery.Iterator, error) {
+	var (
+		iters             []parquetquery.Iterator
+		genericConditions []traceql.Condition
+	)
+
+	for _, cond := range conditions {
+		// Intrinsic?
+		switch cond.Attribute.Intrinsic {
+		case traceql.IntrinsicEventName:
+			pred, err := createStringPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			selectAs := ""
+			if tr.tag == cond.Attribute {
+				selectAs = columnPathEventName
+			}
+			iters = append(iters, makeIter(columnPathEventName, pred, selectAs))
+			continue
+		}
+		// Else: generic attribute lookup
+		genericConditions = append(genericConditions, cond)
+	}
+
+	attrIter, err := createDistinctAttributeIterator(makeIter, tr, genericConditions, DefinitionLevelResourceSpansILSSpanEventAttrs,
+		columnPathEventAttrKey, columnPathEventAttrString, columnPathEventAttrInt, columnPathEventAttrDouble, columnPathEventAttrBool)
+	if err != nil {
+		return nil, errors.Wrap(err, "creating event attribute iterator")
+	}
+
+	// if no intrinsics and no primary then we can just return the attribute iterator
+	if len(iters) == 0 && primaryIter == nil {
+		return attrIter, nil
+	}
+
+	if attrIter != nil {
+		iters = append(iters, attrIter)
+	}
+
+	if primaryIter != nil {
+		iters = append(iters, primaryIter)
+	}
+
+	eventCol := newDistinctValueCollector(mapEventAttr, "event")
+
+	return parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpanEvent, iters, eventCol), nil
+}
+
+func createDistinctLinkIterator(
+	makeIter makeIterFn,
+	tr tagRequest,
+	primaryIter parquetquery.Iterator,
+	conditions []traceql.Condition,
+) (parquetquery.Iterator, error) {
+	var (
+		iters             []parquetquery.Iterator
+		genericConditions []traceql.Condition
+	)
+
+	for _, cond := range conditions {
+		// Intrinsic?
+		switch cond.Attribute.Intrinsic {
+		case traceql.IntrinsicLinkTraceID:
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
+			if err != nil {
+				return nil, err
+			}
+			iters = append(iters, makeIter(columnPathLinkTraceID, pred, "")) // don't select just filter
+			continue
+		case traceql.IntrinsicLinkSpanID:
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
+			if err != nil {
+				return nil, err
+			}
+			iters = append(iters, makeIter(columnPathLinkSpanID, pred, "")) // don't select just filter
+			continue
+		}
+		// Else: generic attribute lookup
+		genericConditions = append(genericConditions, cond)
+	}
+
+	attrIter, err := createDistinctAttributeIterator(makeIter, tr, genericConditions, DefinitionLevelResourceSpansILSSpanLinkAttrs,
+		columnPathLinkAttrKey, columnPathLinkAttrString, columnPathLinkAttrInt, columnPathLinkAttrDouble, columnPathLinkAttrBool)
+	if err != nil {
+		return nil, errors.Wrap(err, "creating link attribute iterator")
+	}
+
+	// if no intrinsics and no events then we can just return the attribute iterator
+	if len(iters) == 0 && primaryIter == nil {
+		return attrIter, nil
+	}
+
+	if attrIter != nil {
+		iters = append(iters, attrIter)
+	}
+
+	if primaryIter != nil {
+		iters = append(iters, primaryIter)
+	}
+
+	linkCol := newDistinctValueCollector(mapLinkAttr, "link")
+
+	return parquetquery.NewJoinIterator(DefinitionLevelResourceSpansILSSpanEvent, iters, linkCol), nil
+}
+
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
 // one span each.  Spans are returned that match any of the given conditions.
 func createDistinctSpanIterator(
 	makeIter makeIterFn,
 	tr tagRequest,
+	primaryIter parquetquery.Iterator,
 	conditions []traceql.Condition,
 	dedicatedColumns backend.DedicatedColumns,
 ) (parquetquery.Iterator, error) {
@@ -409,14 +535,25 @@ func createDistinctSpanIterator(
 	if err != nil {
 		return nil, errors.Wrap(err, "creating span attribute iterator")
 	}
+
+	if len(columnPredicates) == 0 && primaryIter == nil {
+		// If no special+intrinsic+dedicated columns + events/links are being searched,
+		// we can iterate over the generic attributes directly.
+		return attrIter, nil
+	}
+
 	if attrIter != nil {
 		iters = append(iters, attrIter)
 	}
 
-	if len(columnPredicates) == 0 {
+	if len(columnPredicates) == 0 && primaryIter == nil {
 		// If no special+intrinsic+dedicated columns are being searched,
 		// we can iterate over the generic attributes directly.
 		return attrIter, nil
+	}
+
+	if primaryIter != nil {
+		iters = append(iters, primaryIter)
 	}
 
 	spanCol := newDistinctValueCollector(mapSpanAttr, "span")
@@ -520,6 +657,14 @@ func createDistinctAttributeIterator(
 	}
 
 	scope := scopeFromDefinitionLevel(definitionLevel)
+	if definitionLevel == DefinitionLevelResourceSpansILSSpanEventAttrs {
+		switch keyPath {
+		case columnPathEventAttrKey:
+			scope = traceql.AttributeScopeEvent
+		case columnPathLinkAttrKey:
+			scope = traceql.AttributeScopeLink
+		}
+	}
 	if len(valueIters) > 0 || len(iters) > 0 || tr.keysRequested(scope) {
 		if len(valueIters) > 0 {
 			tagIter, err := parquetquery.NewLeftJoinIterator(
@@ -549,11 +694,21 @@ func createDistinctAttributeIterator(
 }
 
 func keyNameIterator(makeIter makeIterFn, definitionLevel int, keyPath string, attrIters []parquetquery.Iterator) (parquetquery.Iterator, error) {
+	scope := scopeFromDefinitionLevel(definitionLevel)
+	if definitionLevel == DefinitionLevelResourceSpansILSSpanEventAttrs {
+		switch keyPath {
+		case columnPathEventAttrKey:
+			scope = traceql.AttributeScopeEvent
+		case columnPathLinkAttrKey:
+			scope = traceql.AttributeScopeLink
+		}
+	}
+
 	if len(attrIters) == 0 {
 		return parquetquery.NewJoinIterator(
 			oneLevelUp(definitionLevel),
 			[]parquetquery.Iterator{makeIter(keyPath, nil, "key")},
-			newDistinctAttrCollector(scopeFromDefinitionLevel(definitionLevel), true),
+			newDistinctAttrCollector(scope, true),
 		), nil
 	}
 
@@ -561,7 +716,7 @@ func keyNameIterator(makeIter makeIterFn, definitionLevel int, keyPath string, a
 		oneLevelUp(definitionLevel),
 		attrIters,
 		[]parquetquery.Iterator{makeIter(keyPath, nil, "key")},
-		newDistinctAttrCollector(scopeFromDefinitionLevel(definitionLevel), true),
+		newDistinctAttrCollector(scope, true),
 	)
 }
 
@@ -571,6 +726,9 @@ func oneLevelUp(definitionLevel int) int {
 		return DefinitionLevelResourceSpansILSSpan
 	case DefinitionLevelResourceAttrs:
 		return DefinitionLevelResourceSpans
+	case DefinitionLevelResourceSpansILSSpanEventAttrs: // should cover links as well
+		return DefinitionLevelResourceSpansILSSpanEvent
+
 	}
 	return definitionLevel
 }
@@ -842,6 +1000,18 @@ func (d distinctValueCollector) KeepGroup(result *parquetquery.IteratorResult) b
 	}
 	result.Entries = result.Entries[:0]
 	return true
+}
+
+func mapEventAttr(e entry) traceql.Static {
+	switch e.Key {
+	case columnPathEventName:
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
+	}
+	return traceql.Static{}
+}
+
+func mapLinkAttr(_ entry) traceql.Static {
+	return traceql.Static{}
 }
 
 func mapSpanAttr(e entry) traceql.Static {

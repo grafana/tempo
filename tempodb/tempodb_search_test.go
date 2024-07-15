@@ -1410,7 +1410,7 @@ func tagValuesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetad
 }
 
 // tagNamesRunner!
-func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, _ *backend.BlockMeta, _ Reader, bb common.BackendBlock) {
+func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, bm *backend.BlockMeta, _ Reader, bb common.BackendBlock) {
 	ctx := context.Background()
 	e := traceql.NewEngine()
 
@@ -1467,6 +1467,12 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 			require.NoError(t, err, "autocomplete request: %+v", tc)
 
 			actualMap := valueCollector.Strings()
+
+			if (bm.Version == vparquet4.VersionString) && (tc.name == "resource match" || tc.name == "span match") {
+				// v4 has events and links
+				tc.expected["event"] = []string{"exception.message"}
+				tc.expected["link"] = []string{"relation"}
+			}
 			require.Equal(t, len(tc.expected), len(actualMap))
 
 			for k, expected := range tc.expected {

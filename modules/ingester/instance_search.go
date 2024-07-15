@@ -408,6 +408,13 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	if err != nil {
 		return nil, err
 	}
+	if tag == traceql.IntrinsicLinkTraceIDAttribute ||
+		tag == traceql.IntrinsicLinkSpanIDAttribute ||
+		tag == traceql.IntrinsicSpanIDAttribute ||
+		tag == traceql.IntrinsicTraceIDAttribute {
+		// do not return tag values for IDs
+		return &tempopb.SearchTagValuesV2Response{}, nil
+	}
 
 	query := traceql.ExtractMatchers(req.Query)
 
