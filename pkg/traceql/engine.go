@@ -171,6 +171,38 @@ func (e *Engine) ExecuteTagValues(
 	return fetcher.Fetch(ctx, autocompleteReq, cb)
 }
 
+func (e *Engine) ExecuteTagNames(
+	ctx context.Context,
+	scope AttributeScope,
+	query string,
+	cb FetchTagsCallback,
+	fetcher TagNamesFetcher,
+) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteTagNames")
+	defer span.Finish()
+
+	span.SetTag("sanitized query", query)
+
+	var conditions []Condition
+	rootExpr, err := Parse(query)
+	// if the parse succeeded then use those conditions, otherwise pass in none. the next layer will handle it
+	if err == nil {
+		req := &FetchSpansRequest{}
+		rootExpr.Pipeline.extractConditions(req)
+		conditions = req.Conditions
+	}
+
+	autocompleteReq := FetchTagsRequest{
+		Conditions: conditions,
+		Scope:      scope,
+	}
+
+	span.SetTag("pipeline", rootExpr.Pipeline)
+	span.SetTag("autocompleteReq", autocompleteReq)
+
+	return fetcher.Fetch(ctx, autocompleteReq, cb)
+}
+
 func (e *Engine) parseQuery(searchReq *tempopb.SearchRequest) (*RootExpr, error) {
 	r, err := Parse(searchReq.Query)
 	if err != nil {
@@ -271,10 +303,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 				attribute.Intrinsic == IntrinsicTraceRootService ||
 				attribute.Intrinsic == IntrinsicTraceRootSpan ||
 				attribute.Intrinsic == IntrinsicTraceID ||
-				attribute.Intrinsic == IntrinsicSpanID ||
-				attribute.Intrinsic == IntrinsicEventName ||
-				attribute.Intrinsic == IntrinsicLinkTraceID ||
-				attribute.Intrinsic == IntrinsicLinkSpanID {
+				attribute.Intrinsic == IntrinsicSpanID {
 
 				continue
 			}

@@ -199,7 +199,7 @@
             alert: 'TempoProvisioningTooManyWrites',
             // 30MB/s written to the WAL per ingester max
             expr: |||
-              avg by (%s) (rate(tempo_ingester_bytes_received_total{job=~".+/ingester"}[1m])) / 1024 / 1024 > 30
+              avg by (%s) (rate(tempo_ingester_bytes_received_total{job=~".+/ingester"}[5m])) / 1024 / 1024 > 30
             ||| % $._config.group_by_cluster,
             'for': '15m',
             labels: {

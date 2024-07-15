@@ -10,7 +10,6 @@ permissions set in order to start correctly.
 
 ```console
 mkdir tempo-data/
-sudo chown 10001:10001 tempo-data/
 docker compose up -d
 ```
 

@@ -14,6 +14,7 @@ import (
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
 
+	"github.com/grafana/tempo/modules/overrides"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 )
 
@@ -147,8 +148,23 @@ func (r *ManagedRegistry) NewCounter(name string) Counter {
 	return c
 }
 
-func (r *ManagedRegistry) NewHistogram(name string, buckets []float64) Histogram {
-	h := newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, r.overrides.MetricsGenerationTraceIDLabelName(r.tenant))
+func (r *ManagedRegistry) NewHistogram(name string, buckets []float64) (h Histogram) {
+	traceIDLabelName := r.overrides.MetricsGenerationTraceIDLabelName(r.tenant)
+
+	histograms := r.overrides.MetricsGeneratorGenerateNativeHistograms(r.tenant)
+
+	histogramsModeFunc := func() string {
+		return r.overrides.MetricsGeneratorGenerateNativeHistograms(r.tenant)
+	}
+
+	// Temporary switch: use the old implementation when native histograms are
+	// disabled, eventually the new implementation can handle all cases
+	if overrides.HasNativeHistograms(histograms) {
+		h = newNativeHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, histogramsModeFunc)
+	} else {
+		h = newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName)
+	}
+
 	r.registerMetric(h)
 	return h
 }

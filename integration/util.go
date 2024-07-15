@@ -39,6 +39,7 @@ import (
 
 const (
 	image      = "tempo:latest"
+	debugImage = "tempo-debug:latest"
 	queryImage = "tempo-query:latest"
 )
 
@@ -66,6 +67,34 @@ func buildArgsWithExtra(args, extraArgs []string) []string {
 
 func NewTempoAllInOne(extraArgs ...string) *e2e.HTTPService {
 	return NewTempoAllInOneWithReadinessProbe(e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299), extraArgs...)
+}
+
+func NewTempoAllInOneDebug(extraArgs ...string) *e2e.HTTPService {
+	rp := e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299)
+	args := []string{"-config.file=" + filepath.Join(e2e.ContainerSharedDir, "config.yaml")}
+	args = buildArgsWithExtra(args, extraArgs)
+
+	s := e2e.NewHTTPService(
+		"tempo",
+		debugImage,
+		e2e.NewCommand("", args...),
+		rp,
+		3200,  // http all things
+		3201,  // http all things
+		9095,  // grpc tempo
+		14250, // jaeger grpc ingest
+		9411,  // zipkin ingest (used by load)
+		4317,  // otlp grpc
+		4318,  // OTLP HTTP
+		2345,  // delve port
+	)
+	env := map[string]string{
+		"DEBUG_BLOCK": "0",
+	}
+	s.SetEnvVars(env)
+
+	s.SetBackoff(TempoBackoff())
+	return s
 }
 
 func NewTempoAllInOneWithReadinessProbe(rp e2e.ReadinessProbe, extraArgs ...string) *e2e.HTTPService {

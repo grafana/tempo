@@ -123,6 +123,8 @@ var (
 	IntrinsicNestedSetLeftAttribute    = NewIntrinsic(IntrinsicNestedSetLeft)
 	IntrinsicNestedSetRightAttribute   = NewIntrinsic(IntrinsicNestedSetRight)
 	IntrinsicNestedSetParentAttribute  = NewIntrinsic(IntrinsicNestedSetParent)
+	IntrinsicLinkTraceIDAttribute      = NewIntrinsic(IntrinsicLinkTraceID)
+	IntrinsicLinkSpanIDAttribute       = NewIntrinsic(IntrinsicLinkSpanID)
 )
 
 func (i Intrinsic) String() string {
