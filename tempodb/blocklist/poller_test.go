@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"math/rand"
+	"regexp"
 	"sort"
 	"strconv"
 	"testing"
@@ -526,7 +527,7 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 		name          string
 		tolerate      int
 		tenantErrors  []error
-		expectedError error
+		expectedError *regexp.Regexp
 	}{
 		{
 			name:          "no errors",
@@ -538,7 +539,7 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 			name:          "untolerated single error",
 			tolerate:      0,
 			tenantErrors:  []error{nil, errors.New("tenant 1 err"), nil},
-			expectedError: errors.New("tenant 1 err"),
+			expectedError: regexp.MustCompile(`tenant 1 err`),
 		},
 		{
 			name:          "tolerated errors",
@@ -556,7 +557,7 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 				errors.New("tenant 3 err"),
 				nil,
 			},
-			expectedError: errors.New("tenant 3 err"),
+			expectedError: regexp.MustCompile(`tenant \d err`),
 		},
 	}
 
@@ -586,7 +587,11 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 			_, _, err := poller.Do(b)
 
 			if tc.expectedError != nil {
-				assert.ErrorContains(t, err, tc.expectedError.Error())
+				// We expect an error, but we don't know which one, so match the regex
+				// against the error.
+				require.NotNil(t, err)
+				matches := tc.expectedError.FindAllString(err.Error(), -1)
+				require.Greater(t, len(matches), 0)
 			} else {
 				assert.NoError(t, err)
 			}
