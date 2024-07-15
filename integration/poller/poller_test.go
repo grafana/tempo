@@ -353,6 +353,7 @@ func TestTenantDeletion(t *testing.T) {
 					TenantIndexBuilders:        1,
 					EmptyTenantDeletionAge:     100 * time.Millisecond,
 					EmptyTenantDeletionEnabled: true,
+					TenantPollConcurrency:      3,
 				}, OwnsEverythingSharder, r, cc, w, logger)
 
 				// Again
