@@ -9,6 +9,8 @@ aliases:
 
 # Tail-based sampling
 
+{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
+
 Tempo aims to provide an inexpensive solution that makes 100% sampling possible.
 However, sometimes constraints make a lower sampling percentage necessary or desirable,
 such as runtime or egress traffic related costs.
@@ -57,9 +59,13 @@ If you're using a multi-instance deployment of the agent,
 add load balancing and specify the resolving mechanism to find other Agents in the setup.
 To see all the available configuration options, refer to the [configuration reference](/docs/agent/latest/configuration/traces-config/).
 
-## Example for Grafana Agent Flow
+{{< admonition type="note">}}
+Grafana Alloy provides tooling to convert your Agent Static or Flow configuration files into a format that can be used by Alloy.
 
-{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
+For more information, refer to [Migrate to Alloy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/migrate-alloy).
+{{< /admonition>}}
+
+### Example for Grafana Agent Flow
 
 [Grafana Agent Flow](/docs/agent/latest/flow/) is a component-based revision of Grafana Agent with a focus on ease-of-use, debuggability, and ability to adapt to the needs of power users.
 Flow configuration files are written in River instead of YAML.

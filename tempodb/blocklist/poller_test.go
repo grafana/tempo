@@ -609,6 +609,8 @@ func TestPollComparePreviousResults(t *testing.T) {
 		expectedBlockMetaCalls          map[string]map[uuid.UUID]int
 		expectedCompactedBlockMetaCalls map[string]map[uuid.UUID]int
 
+		tollerateErrors int
+
 		readerErr bool
 		err       error
 	}{
@@ -761,6 +763,39 @@ func TestPollComparePreviousResults(t *testing.T) {
 			expectedCompactedPerTenant: PerTenantCompacted{},
 			expectedBlockMetaCalls:     map[string]map[uuid.UUID]int{},
 		},
+		{
+			name:            "previous results with read error should maintain previous results",
+			tollerateErrors: 10,
+			readerErr:       true,
+			// err:               fmt.Errorf("failed to poll tenant blocks"),
+			previousPerTenant: PerTenant{},
+			previousCompactedPerTenant: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
+				},
+			},
+			currentPerTenant: PerTenant{},
+			currentCompactedPerTenant: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
+				},
+			},
+			expectedPerTenant: PerTenant{
+				"test": []*backend.BlockMeta{},
+			},
+			expectedCompactedPerTenant: PerTenantCompacted{
+				"test": []*backend.CompactedBlockMeta{
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
+				},
+			},
+			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -775,9 +810,10 @@ func TestPollComparePreviousResults(t *testing.T) {
 
 			// This mock reader returns error or nil based on the tenant ID
 			poller := NewPoller(&PollerConfig{
-				PollConcurrency:     testPollConcurrency,
-				PollFallback:        testPollFallback,
-				TenantIndexBuilders: testBuilders,
+				PollConcurrency:           testPollConcurrency,
+				PollFallback:              testPollFallback,
+				TenantIndexBuilders:       testBuilders,
+				TolerateConsecutiveErrors: tc.tollerateErrors,
 			}, s, r, c, w, log.NewNopLogger())
 
 			metas, compactedMetas, err := poller.Do(previous)

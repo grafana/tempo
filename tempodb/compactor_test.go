@@ -1,6 +1,7 @@
 package tempodb
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -648,6 +649,128 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	require.Equal(t, uint8(1), blocks[0].CompactionLevel)
 	require.Equal(t, 100, int(blocks[0].StartTime.Unix()))
 	require.Equal(t, 107, int(blocks[0].EndTime.Unix()))
+}
+
+func TestCompactionDropsTraces(t *testing.T) {
+	for _, enc := range encoding.AllEncodings() {
+		version := enc.Version()
+		t.Run(version, func(t *testing.T) {
+			testCompactionDropsTraces(t, version)
+		})
+	}
+}
+
+func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
+	tempDir := t.TempDir()
+
+	r, w, _, err := New(&Config{
+		Backend: backend.Local,
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			IndexDownsampleBytes: 11,
+			BloomFP:              .01,
+			BloomShardSizeBytes:  100_000,
+			Version:              targetBlockVersion,
+			Encoding:             backend.EncSnappy,
+			IndexPageSizeBytes:   1000,
+			RowGroupSizeBytes:    30_000_000,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, nil, log.NewNopLogger())
+	require.NoError(t, err)
+
+	wal := w.WAL()
+	require.NoError(t, err)
+
+	dec := model.MustNewSegmentDecoder(v1.Encoding)
+
+	recordCount := 100
+	allIDs := make([]common.ID, 0, recordCount)
+
+	// write a bunch of dummy data
+	blockID := uuid.New()
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: v1.Encoding}
+	head, err := wal.NewBlock(meta, v1.Encoding)
+	require.NoError(t, err)
+
+	for j := 0; j < recordCount; j++ {
+		id := test.ValidTraceID(nil)
+		allIDs = append(allIDs, id)
+
+		obj, err := dec.PrepareForWrite(test.MakeTrace(1, id), 0, 0)
+		require.NoError(t, err)
+
+		obj2, err := dec.ToObject([][]byte{obj})
+		require.NoError(t, err)
+
+		err = head.Append(id, obj2, 0, 0)
+		require.NoError(t, err, "unexpected error writing req")
+	}
+
+	firstBlock, err := w.CompleteBlock(context.Background(), head)
+	require.NoError(t, err)
+
+	// choose a random id to drop
+	dropID := allIDs[rand.Intn(len(allIDs))]
+
+	rw := r.(*readerWriter)
+	// force compact to a new block
+	opts := common.CompactionOptions{
+		BlockConfig:        *rw.cfg.Block,
+		ChunkSizeBytes:     DefaultChunkSizeBytes,
+		FlushSizeBytes:     DefaultFlushSizeBytes,
+		IteratorBufferSize: DefaultIteratorBufferSize,
+		OutputBlocks:       1,
+		Combiner:           model.StaticCombiner,
+		MaxBytesPerTrace:   0,
+
+		// hook to drop the trace
+		DropObject: func(id common.ID) bool {
+			return bytes.Equal(id, dropID)
+		},
+
+		// setting to prevent panics.
+		BytesWritten:      func(_, _ int) {},
+		ObjectsCombined:   func(_, _ int) {},
+		ObjectsWritten:    func(_, _ int) {},
+		SpansDiscarded:    func(_, _, _ string, _ int) {},
+		DisconnectedTrace: func() {},
+		RootlessTrace:     func() {},
+	}
+
+	enc, err := encoding.FromVersion(targetBlockVersion)
+	require.NoError(t, err)
+
+	compactor := enc.NewCompactor(opts)
+	newMetas, err := compactor.Compact(context.Background(), log.NewNopLogger(), rw.r, rw.w, []*backend.BlockMeta{firstBlock.BlockMeta()})
+	require.NoError(t, err)
+
+	// require new meta has len 1
+	require.Len(t, newMetas, 1)
+
+	secondBlock, err := enc.OpenBlock(newMetas[0], rw.r)
+	require.NoError(t, err)
+
+	// search for all ids. confirm they all return except the dropped one
+	for _, id := range allIDs {
+		tr, err := secondBlock.FindTraceByID(context.Background(), id, common.DefaultSearchOptions())
+		require.NoError(t, err)
+
+		if bytes.Equal(id, dropID) {
+			require.Nil(t, tr)
+		} else {
+			require.NotNil(t, tr)
+		}
+	}
 }
 
 type testData struct {

@@ -11,11 +11,309 @@ import (
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/require"
 )
+
+func TestFetchTagNames(t *testing.T) {
+	testCases := []struct {
+		name                   string
+		query                  string
+		expectedSpanValues     []string
+		expectedResourceValues []string
+		expectedEventValues    []string
+		expectedLinkValues     []string
+	}{
+		{
+			name:  "no query - fall back to old search",
+			query: "{}",
+			expectedSpanValues: []string{
+				"generic-01-01",
+				"generic-01-02",
+				"generic-02-01",
+				"span-same",
+			},
+			expectedResourceValues: []string{"generic-01", "generic-02", "resource-same"},
+			expectedEventValues:    []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:     []string{"link-generic-01-01", "link-generic-02-01"},
+		},
+		{
+			name:                   "matches nothing",
+			query:                  "{span.generic-01-01=`bar`}",
+			expectedSpanValues:     []string{},
+			expectedResourceValues: []string{},
+			expectedEventValues:    []string{},
+			expectedLinkValues:     []string{},
+		},
+		// span
+		{
+			name:                   "intrinsic span",
+			query:                  "{statusMessage=`msg-01-01`}",
+			expectedSpanValues:     []string{"generic-01-01", "span-same"},
+			expectedResourceValues: []string{"generic-01", "resource-same"},
+			expectedEventValues:    []string{"event-generic-01-01"},
+			expectedLinkValues:     []string{"link-generic-01-01"},
+		},
+		{
+			name:                   "well known span",
+			query:                  "{span.http.method=`method-01-01`}",
+			expectedSpanValues:     []string{"generic-01-01", "span-same"},
+			expectedResourceValues: []string{"generic-01", "resource-same"},
+			expectedEventValues:    []string{"event-generic-01-01"},
+			expectedLinkValues:     []string{"link-generic-01-01"},
+		},
+		{
+			name:                   "generic span",
+			query:                  "{span.generic-01-01=`foo`}",
+			expectedSpanValues:     []string{"generic-01-01", "span-same"},
+			expectedResourceValues: []string{"generic-01", "resource-same"},
+			expectedEventValues:    []string{"event-generic-01-01"},
+			expectedLinkValues:     []string{"link-generic-01-01"},
+		},
+		{
+			name:                   "match two spans",
+			query:                  "{span.span-same=`foo`}",
+			expectedSpanValues:     []string{"generic-01-01", "span-same", "generic-02-01"},
+			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
+			expectedEventValues:    []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:     []string{"link-generic-01-01", "link-generic-02-01"},
+		},
+		// resource
+		{
+			name:                   "well known resource",
+			query:                  "{resource.cluster=`cluster-01`}",
+			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same"},
+			expectedResourceValues: []string{"generic-01", "resource-same"},
+			expectedEventValues:    []string{"event-generic-01-01"},
+			expectedLinkValues:     []string{"link-generic-01-01"},
+		},
+		{
+			name:                   "generic resource",
+			query:                  "{resource.generic-01=`bar`}",
+			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same"},
+			expectedResourceValues: []string{"generic-01", "resource-same"},
+			expectedEventValues:    []string{"event-generic-01-01"},
+			expectedLinkValues:     []string{"link-generic-01-01"},
+		},
+		{
+			name:                   "match two resources",
+			query:                  "{resource.resource-same=`foo`}",
+			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
+			expectedEventValues:    []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:     []string{"link-generic-01-01", "link-generic-02-01"},
+		},
+		// trace level match
+		{
+			name:                   "trace",
+			query:                  "{rootName=`root` }",
+			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
+			expectedEventValues:    []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:     []string{"link-generic-01-01", "link-generic-02-01"},
+		},
+	}
+
+	strPtr := func(s string) *string { return &s }
+	tr := &Trace{
+		TraceID:         test.ValidTraceID(nil),
+		RootServiceName: "tr",
+		RootSpanName:    "root",
+		ResourceSpans: []ResourceSpans{
+			{
+				Resource: Resource{
+					ServiceName: "svc-01",
+					Cluster:     strPtr("cluster-01"), // well known
+					Attrs: []Attribute{
+						{Key: "generic-01", Value: []string{"bar"}}, // generic
+						{Key: "resource-same", Value: []string{"foo"}},
+					},
+					DedicatedAttributes: DedicatedAttributes{
+						String01: strPtr("dedicated-01"),
+					},
+				},
+				ScopeSpans: []ScopeSpans{
+					{
+						Spans: []Span{
+							{
+								SpanID:        []byte("0101"),
+								Name:          "span-01-01",
+								HttpMethod:    strPtr("method-01-01"), // well known
+								StatusMessage: "msg-01-01",            // intrinsic
+								Attrs: []Attribute{
+									{Key: "generic-01-01", Value: []string{"foo"}}, // generic
+									{Key: "span-same", Value: []string{"foo"}},     // generic
+								},
+								DedicatedAttributes: DedicatedAttributes{
+									String01: strPtr("dedicated-01-01"),
+								},
+								Events: []Event{
+									{
+										Name: "event-01-01",
+										Attrs: []Attribute{
+											{Key: "event-generic-01-01", Value: []string{"foo"}},
+										},
+									},
+								},
+								Links: []Link{
+									{
+										SpanID: []byte("0101"),
+										Attrs: []Attribute{
+											{Key: "link-generic-01-01", Value: []string{"foo"}},
+										},
+									},
+								},
+							},
+							{
+								SpanID:        []byte("0102"),
+								Name:          "span-01-02",
+								HttpMethod:    strPtr("method-01-02"), // well known
+								StatusMessage: "msg-01-02",            // intrinsic
+								Attrs: []Attribute{
+									{Key: "generic-01-02", Value: []string{"foo"}}, // generic
+								},
+								DedicatedAttributes: DedicatedAttributes{
+									String01: strPtr("dedicated-01-02"),
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				Resource: Resource{
+					ServiceName: "svc-02",
+					Cluster:     strPtr("cluster-02"), // well known
+					Attrs: []Attribute{
+						{Key: "generic-02", Value: []string{"bar"}}, // generic
+						{Key: "resource-same", Value: []string{"foo"}},
+					},
+					DedicatedAttributes: DedicatedAttributes{
+						String01: strPtr("dedicated-02"),
+					},
+				},
+				ScopeSpans: []ScopeSpans{
+					{
+						Spans: []Span{
+							{
+								SpanID:        []byte("0201"),
+								Name:          "span-02-01",
+								HttpMethod:    strPtr("method-02-01"), // well known
+								StatusMessage: "msg-02-01",            // intrinsic
+								Attrs: []Attribute{
+									{Key: "generic-02-01", Value: []string{"foo"}}, // generic
+									{Key: "span-same", Value: []string{"foo"}},     // generic
+								},
+								DedicatedAttributes: DedicatedAttributes{
+									String01: strPtr("dedicated-02-01"),
+								},
+								Events: []Event{
+									{
+										Name: "event-02-01",
+										Attrs: []Attribute{
+											{Key: "event-generic-02-01", Value: []string{"foo"}},
+										},
+									},
+								},
+								Links: []Link{
+									{
+										SpanID: []byte("0102"),
+										Attrs: []Attribute{
+											{Key: "link-generic-02-01", Value: []string{"foo"}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ctx := context.TODO()
+	block := makeBackendBlockWithTraces(t, []*Trace{tr})
+
+	opts := common.DefaultSearchOptions()
+
+	for _, tc := range testCases {
+		for _, scope := range []traceql.AttributeScope{
+			traceql.AttributeScopeSpan,
+			traceql.AttributeScopeResource,
+			traceql.AttributeScopeNone,
+			traceql.AttributeScopeEvent,
+			traceql.AttributeScopeLink,
+		} {
+			expectedSpanValues := tc.expectedSpanValues
+			expectedResourceValues := tc.expectedResourceValues
+			expectedEventValues := tc.expectedEventValues
+			expectedLinkValues := tc.expectedLinkValues
+
+			// add dedicated and well known columns to expected values. the code currently does not
+			// attempt to perfectly filter these, but instead adds them to the return if any values are present
+			dedicatedSpanValues := []string{"dedicated.span.1"}
+			dedicatedResourceValues := []string{"dedicated.resource.1"}
+
+			wellKnownSpanValues := []string{"http.method"}
+			wellKnownResourceValues := []string{"cluster", "service.name"}
+
+			expectedValues := map[string][]string{}
+			if scope == traceql.AttributeScopeSpan || scope == traceql.AttributeScopeNone {
+				expectedValues["span"] = append(expectedValues["span"], expectedSpanValues...)
+				expectedValues["span"] = append(expectedValues["span"], wellKnownSpanValues...)
+				expectedValues["span"] = append(expectedValues["span"], dedicatedSpanValues...)
+			}
+			if scope == traceql.AttributeScopeResource || scope == traceql.AttributeScopeNone {
+				expectedValues["resource"] = append(expectedValues["resource"], expectedResourceValues...)
+				expectedValues["resource"] = append(expectedValues["resource"], wellKnownResourceValues...)
+				expectedValues["resource"] = append(expectedValues["resource"], dedicatedResourceValues...)
+			}
+			if scope == traceql.AttributeScopeEvent || scope == traceql.AttributeScopeNone {
+				if len(expectedEventValues) > 0 {
+					expectedValues["event"] = append(expectedValues["event"], expectedEventValues...)
+				}
+			}
+			if scope == traceql.AttributeScopeLink || scope == traceql.AttributeScopeNone {
+				if len(expectedLinkValues) > 0 {
+					expectedValues["link"] = append(expectedValues["link"], expectedLinkValues...)
+				}
+			}
+
+			t.Run(fmt.Sprintf("query: %s %s-%s", tc.name, tc.query, scope), func(t *testing.T) {
+				distinctAttrNames := collector.NewScopedDistinctString(0)
+				req, err := traceql.ExtractFetchSpansRequest(tc.query)
+				require.NoError(t, err)
+
+				// Build autocomplete request
+				autocompleteReq := traceql.FetchTagsRequest{
+					Conditions: req.Conditions,
+					Scope:      scope,
+				}
+
+				err = block.FetchTagNames(ctx, autocompleteReq, func(t string, scope traceql.AttributeScope) bool {
+					distinctAttrNames.Collect(scope.String(), t)
+					return false
+				}, opts)
+				require.NoError(t, err)
+
+				actualValues := distinctAttrNames.Strings()
+
+				require.Equal(t, len(expectedValues), len(actualValues))
+				for k := range expectedValues {
+					actual := actualValues[k]
+					sort.Strings(actual)
+					expected := expectedValues[k]
+					sort.Strings(expected)
+
+					require.Equal(t, expected, actual, "scope: %s", k)
+				}
+			})
+		}
+	}
+}
 
 func TestFetchTagValues(t *testing.T) {
 	testCases := []struct {
@@ -256,6 +554,22 @@ func TestFetchTagValues(t *testing.T) {
 				{Type: "keyword", Value: "error"},
 			},
 		},
+		{
+			name:  "event attribute - match",
+			tag:   "event.message",
+			query: `{resource.service.name="myservice"}`,
+			expectedValues: []tempopb.TagValue{
+				stringTagValue("exception"),
+			},
+		},
+		{
+			name:  "link attribute - match",
+			tag:   "link.opentracing.ref_type",
+			query: `{span.bar=123}`,
+			expectedValues: []tempopb.TagValue{
+				stringTagValue("child-of"),
+			},
+		},
 	}
 
 	ctx := context.TODO()
@@ -324,6 +638,25 @@ func BenchmarkFetchTagValues(b *testing.B) {
 			tag:   "resource.namespace",
 			query: `{span.http.status_code=200}`,
 		},
+		// pathologic cases
+		/*
+			{
+				tag:   "resource.k8s.node.name",
+				query: `{span.http.method="GET"}`,
+			},
+			{
+				tag:   "span.sampler.type",
+				query: `{span.http.method="GET"}`,
+			},
+			{
+				tag:   "span.sampler.type",
+				query: `{resource.k8s.node.name>"aaa"}`,
+			},
+			{
+				tag:   "resource.k8s.node.name",
+				query: `{span.sampler.type>"aaa"}`,
+			},
+		*/
 	}
 
 	ctx := context.TODO()
@@ -370,5 +703,81 @@ func BenchmarkFetchTagValues(b *testing.B) {
 				require.NoError(b, err)
 			}
 		})
+	}
+}
+
+func BenchmarkFetchTags(b *testing.B) {
+	testCases := []struct {
+		query string
+	}{
+		{
+			query: `{resource.namespace="tempo-ops"}`, // well known/dedicated column
+		},
+		{
+			query: `{resource.k8s.node.name>"h"}`, // generic attribute
+		},
+		{
+			query: `{span.http.status_code=200}`, // well known/dedicated column
+		},
+		{
+			query: `{nestedSetParent=-1}`, // generic attribute
+		},
+		{
+			query: `{rootName="Memcache.Put"}`, // trace level
+		},
+		// pathological cases
+		/*
+			{
+				query: `{resource.k8s.node.name>"aaa"}`, // generic attribute
+			},
+			{
+				query: `{span.http.method="GET"}`, // well known/dedicated column
+			},
+			{
+				query: `{span.sampler.type>"aaa"}`, // generic attribute
+			},
+		*/
+	}
+
+	ctx := context.TODO()
+	tenantID := "1"
+	// blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
+	blockID := uuid.MustParse("00145f38-6058-4e57-b1ba-334db8edce23")
+
+	r, _, _, err := local.New(&local.Config{
+		// Path: path.Join("/Users/marty/src/tmp/"),
+		Path: path.Join("/Users/joe/testblock"),
+	})
+	require.NoError(b, err)
+
+	rr := backend.NewReader(r)
+	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
+	require.NoError(b, err)
+
+	block := newBackendBlock(meta, rr)
+	opts := common.DefaultSearchOptions()
+
+	for _, tc := range testCases {
+		for _, scope := range []traceql.AttributeScope{traceql.AttributeScopeSpan, traceql.AttributeScopeResource, traceql.AttributeScopeNone} {
+			b.Run(fmt.Sprintf("query: %s %s", tc.query, scope), func(b *testing.B) {
+				distinctStrings := collector.NewScopedDistinctString(1_000_000)
+				req, err := traceql.ExtractFetchSpansRequest(tc.query)
+				require.NoError(b, err)
+
+				autocompleteReq := traceql.FetchTagsRequest{
+					Conditions: req.Conditions,
+					Scope:      scope,
+				}
+				b.ResetTimer()
+
+				for i := 0; i < b.N; i++ {
+					err := block.FetchTagNames(ctx, autocompleteReq, func(t string, scope traceql.AttributeScope) bool {
+						distinctStrings.Collect(scope.String(), t)
+						return false
+					}, opts)
+					require.NoError(b, err)
+				}
+			})
+		}
 	}
 }

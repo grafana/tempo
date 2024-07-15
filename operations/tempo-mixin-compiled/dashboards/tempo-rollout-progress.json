@@ -1384,19 +1384,15 @@
      "expr": "1 - (\n  avg_over_time(histogram_quantile(0.99, sum by (le) (tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"opentelemetry_proto_collector_trace_v1_traceservice_export\"} offset 24h))[1h:])\n  /\n  avg_over_time(histogram_quantile(0.99, sum by (le) (tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}))[1h:])\n)\n",
      "format": "time_series",
      "interval": "1m",
-     "intervalFactor": 2,
      "legendFormat": "writes",
-     "legendLink": null,
-     "step": 10
+     "legendLink": null
     },
     {
      "expr": "1 - (\n  avg_over_time(histogram_quantile(0.99, sum by (le) (tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"tempo_api_.*\"} offset 24h))[1h:])\n  /\n  avg_over_time(histogram_quantile(0.99, sum by (le) (tempo_request_duration_seconds_bucket{cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", route=~\"tempo_api_.*\"}))[1h:])\n)\n",
      "format": "time_series",
      "interval": "1m",
-     "intervalFactor": 2,
      "legendFormat": "reads",
-     "legendLink": null,
-     "step": 10
+     "legendLink": null
     }
    ],
    "thresholds": [
@@ -1455,7 +1451,7 @@
      "value": "default"
     },
     "hide": 0,
-    "label": "Data Source",
+    "label": "Data source",
     "name": "datasource",
     "options": [
 

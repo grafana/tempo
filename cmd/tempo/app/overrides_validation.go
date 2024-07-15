@@ -33,6 +33,13 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) error {
 		}
 	}
 
+	if config.MetricsGenerator.GenerateNativeHistograms != "classic" &&
+		config.MetricsGenerator.GenerateNativeHistograms != "native" &&
+		config.MetricsGenerator.GenerateNativeHistograms != "both" &&
+		config.MetricsGenerator.GenerateNativeHistograms != "" {
+		return fmt.Errorf("metrics_generator.generate_native_histograms \"%s\" is not a valid value, valid values: classic, native, both", config.MetricsGenerator.GenerateNativeHistograms)
+	}
+
 	return nil
 }
 

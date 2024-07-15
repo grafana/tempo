@@ -162,6 +162,9 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 				level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors", "errCount", consecutiveErrors)
 				return nil, nil, err
 			}
+
+			blocklist[tenantID] = previous.Metas(tenantID)
+			compactedBlocklist[tenantID] = previous.CompactedMetas(tenantID)
 			continue
 		}
 
