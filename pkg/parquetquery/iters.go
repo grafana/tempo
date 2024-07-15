@@ -1284,18 +1284,28 @@ func (c *SyncIterator) makeResult(t RowNumber) *IteratorResult {
 	if len(c.at.Entries) == 0 {
 		return &c.at
 	}
-	if len(c.currValues) == 0 {
-		return &c.at
-	}
 
-	c.at.Entries[0].Values = c.at.Entries[0].Values[:0]
-	if c.intern {
-		for _, v := range c.currValues {
-			c.at.Entries[0].Values = append(c.at.Entries[0].Values, c.interner.UnsafeClone(&v))
+	switch len(c.currValues) {
+	case 0:
+		return &c.at
+	case 1:
+		v := c.currValues[0]
+		if c.intern {
+			v = c.interner.UnsafeClone(&v)
+		} else {
+			v = v.Clone()
 		}
-	} else {
-		for _, v := range c.currValues {
-			c.at.Entries[0].Values = append(c.at.Entries[0].Values, v.Clone())
+		c.at.Entries[0].Values = unsafe.Slice(&v, 1)
+	default:
+		c.at.Entries[0].Values = make([]pq.Value, 0, len(c.currValues))
+		if c.intern {
+			for _, v := range c.currValues {
+				c.at.Entries[0].Values = append(c.at.Entries[0].Values, c.interner.UnsafeClone(&v))
+			}
+		} else {
+			for _, v := range c.currValues {
+				c.at.Entries[0].Values = append(c.at.Entries[0].Values, v.Clone())
+			}
 		}
 	}
 
