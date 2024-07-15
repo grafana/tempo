@@ -451,6 +451,7 @@ func pushBlocksToTenant(t *testing.T, tenant string, bb [][]byte, w backend.Writ
 	r := mathrand.Intn(len(bb))
 
 	base := bb[r]
+	t.Logf("base: %v", base)
 	expected := []uuid.UUID{}
 
 	// Include the min and max in each tenant for testing
