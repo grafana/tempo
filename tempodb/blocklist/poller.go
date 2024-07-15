@@ -160,14 +160,15 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 		blocklist          = PerTenant{}
 		compactedBlocklist = PerTenantCompacted{}
 
-		finalErr          atomic.Error
-		consecutiveErrors int
+		finalErr atomic.Error
+		pollErrs = make([]error, len(tenants))
 	)
 
-	for _, tenantID := range tenants {
-		// The finalErr is only stored when the number of consecutive errors exceeds the tolerance.  If present, return it.
+	for i, tenantID := range tenants {
+		// The finalErr is only stored when the number of consecutive errors
+		// exceeds the tolerance.  If present, return it.
 		if err := finalErr.Load(); err != nil {
-			level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors", "errCount", consecutiveErrors)
+			level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors")
 			return nil, nil, err
 		}
 
@@ -180,17 +181,21 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 			defer mtx.Unlock()
 			if err != nil {
 				level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", tenantID, "err", err)
-				consecutiveErrors++
 				blocklist[tenantID] = previous.Metas(tenantID)
 				compactedBlocklist[tenantID] = previous.CompactedMetas(tenantID)
-				if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
-					finalErr.Store(err)
+
+				// Store the error in the slice at the position of this tenant.  This
+				// allows us to check for consecutive errors.
+				pollErrs[i] = err
+				pollErr := pollError(pollErrs, p.cfg.TolerateConsecutiveErrors)
+				if pollErr != nil {
+					finalErr.Store(pollErr)
 					return
 				}
+
 				return
 			}
 
-			consecutiveErrors = 0
 			if len(newBlockList) > 0 || len(newCompactedBlockList) > 0 {
 				blocklist[tenantID] = newBlockList
 				compactedBlocklist[tenantID] = newCompactedBlockList
@@ -213,7 +218,6 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 
 	wg.Wait()
 
-	// Load the finalErr in case the error was on the last itteration of the tenant loop.
 	if err := finalErr.Load(); err != nil {
 		return nil, nil, err
 	}
@@ -588,4 +592,25 @@ func sumTotalBackendMetaMetrics(
 		blockMetaTotalBytes:            sumTotalBytesBM,
 		compactedBlockMetaTotalBytes:   sumTotalBytesCBM,
 	}
+}
+
+// pollError checks the slice of errors to determine if there is a sequence of
+// non-nil values, and returns the last one in sequence if found, or nil if no
+// sequence exceeeds the max.  Called under lock when concurrent.
+func pollError(errs []error, maxConsecutiveErrors int) error {
+	max := 0
+
+	for i, e := range errs {
+		if e != nil {
+			max++
+		} else {
+			max = 0
+		}
+
+		if max > maxConsecutiveErrors {
+			return errs[i]
+		}
+	}
+
+	return nil
 }
