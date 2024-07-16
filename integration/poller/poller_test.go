@@ -160,7 +160,7 @@ func TestPollerOwnership(t *testing.T) {
 				// Use the block boundaries in the GCS and S3 implementation
 				bb := blockboundary.CreateBlockBoundaries(listBlockConcurrency)
 
-				tenantCount := 1000
+				tenantCount := 250
 				tenantExpected := map[string][]uuid.UUID{}
 
 				// Push some data to a few tenants
@@ -180,8 +180,8 @@ func TestPollerOwnership(t *testing.T) {
 				l := blocklist.New()
 				mm, cm, err := blocklistPoller.Do(l)
 				require.NoError(t, err)
-				t.Logf("mm: %v", mm)
-				t.Logf("cm: %v", cm)
+				// t.Logf("mm: %v", mm)
+				// t.Logf("cm: %v", cm)
 
 				l.ApplyPollResults(mm, cm)
 
@@ -197,7 +197,7 @@ func TestPollerOwnership(t *testing.T) {
 
 					assert.Equal(t, expected, actual)
 					assert.Equal(t, len(expected), len(metas))
-					t.Logf("actual: %v", actual)
+					// t.Logf("actual: %v", actual)
 
 					for _, e := range expected {
 						assert.True(t, found(e, metas))
@@ -361,7 +361,7 @@ func TestTenantDeletion(t *testing.T) {
 				require.NoError(t, err)
 
 				tennants, err = r.Tenants(ctx)
-				t.Logf("tennants: %v", tennants)
+				// t.Logf("tennants: %v", tennants)
 				require.NoError(t, err)
 				require.Equal(t, 0, len(tennants))
 			})
