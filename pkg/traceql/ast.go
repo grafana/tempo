@@ -731,6 +731,55 @@ func (s Static) compare(o *Static) int {
 	}
 }
 
+func (s Static) Elements() func(yield func(int, Static) bool) bool {
+	switch s.Type {
+	case TypeIntArray:
+		return func(yield func(int, Static) bool) bool {
+			ints, _ := s.IntArray()
+			for i, n := range ints {
+				if !yield(i, NewStaticInt(n)) {
+					return false
+				}
+			}
+			return true
+		}
+	case TypeFloatArray:
+		return func(yield func(int, Static) bool) bool {
+			floats, _ := s.FloatArray()
+			for i, f := range floats {
+				if !yield(i, NewStaticFloat(f)) {
+					return false
+				}
+			}
+			return true
+		}
+	case TypeStringArray:
+		return func(yield func(int, Static) bool) bool {
+			strs, _ := s.StringArray()
+			for i, str := range strs {
+				if !yield(i, NewStaticString(str)) {
+					return false
+				}
+			}
+			return true
+		}
+	case TypeBooleanArray:
+		return func(yield func(int, Static) bool) bool {
+			bools, _ := s.BooleanArray()
+			for i, b := range bools {
+				if !yield(i, NewStaticBool(b)) {
+					return false
+				}
+			}
+			return true
+		}
+	default:
+		return func(yield func(int, Static) bool) bool {
+			return false
+		}
+	}
+}
+
 func (s Static) Int() (int, bool) {
 	if s.Type != TypeInt {
 		return 0, false
