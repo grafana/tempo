@@ -27,6 +27,7 @@
 * [ENHANCEMENT] Add data quality metric to measure traces without a root [#3812](https://github.com/grafana/tempo/pull/3812) (@mapno)
 * [ENHANCEMENT] Added an example for running Tempo vulture [#3829](https://github.com/grafana/tempo/pull/3829) (@javiermolinar)
 * [ENHANCEMENT] Add a new helper method to allow debugging e2e tests [#3836](https://github.com/grafana/tempo/pull/3836) (@javiermolinar)
+* [ENHANCEMENT] Refactor Tempo Vulture to reduce code complexity [#3850](https://github.com/grafana/tempo/pull/3850) (@javiermolinar)
 * [ENHANCEMENT] Self document makefile [#3844](https://github.com/grafana/tempo/pull/3844)  (@javiermolinar)
 * [ENHANCEMENT] Added a Tempo CLI command to drop traces by id by rewriting blocks. [#3856](https://github.com/grafana/tempo/pull/3856)  (@joe-elliott)
 * [ENHANCEMENT] Mixin, make recording rule range interval configurable and increase range interval in alert to support scrape interval of 1 minute [#3851](https://github.com/grafana/tempo/pull/3851)  (@jmichalek132)

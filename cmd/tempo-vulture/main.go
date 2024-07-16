@@ -62,6 +62,18 @@ const (
 	defaultJaegerGRPCEndpoint = 14250
 )
 
+type vultureConfiguration struct {
+	tempoQueryURL                 string
+	tempoPushURL                  string
+	tempoOrgID                    string
+	tempoWriteBackoffDuration     time.Duration
+	tempoLongWriteBackoffDuration time.Duration
+	tempoReadBackoffDuration      time.Duration
+	tempoSearchBackoffDuration    time.Duration
+	tempoRetentionDuration        time.Duration
+	tempoPushTLS                  bool
+}
+
 func init() {
 	flag.StringVar(&prometheusPath, "prometheus-path", "/metrics", "The path to publish Prometheus metrics to.")
 	flag.StringVar(&prometheusListenAddress, "prometheus-listen-address", ":80", "The address to listen on for Prometheus scrapes.")
@@ -87,98 +99,167 @@ func main() {
 		zapcore.DebugLevel,
 	))
 
-	grpcEndpoint, err := getGRPCEndpoint(tempoPushURL)
+	logger.Info("Tempo Vulture starting")
+
+	vultureConfig := vultureConfiguration{
+		tempoQueryURL:                 tempoQueryURL,
+		tempoPushURL:                  tempoPushURL,
+		tempoOrgID:                    tempoOrgID,
+		tempoWriteBackoffDuration:     tempoWriteBackoffDuration,
+		tempoLongWriteBackoffDuration: tempoLongWriteBackoffDuration,
+		tempoReadBackoffDuration:      tempoReadBackoffDuration,
+		tempoSearchBackoffDuration:    tempoSearchBackoffDuration,
+		tempoRetentionDuration:        tempoRetentionDuration,
+		tempoPushTLS:                  tempoPushTLS,
+	}
+
+	jaegerClient, err := newJaegerGRPCClient(vultureConfig, logger)
 	if err != nil {
 		panic(err)
 	}
+	httpClient := httpclient.New(vultureConfig.tempoQueryURL, vultureConfig.tempoOrgID)
 
-	logger.Info("Tempo Vulture starting")
+	tickerWrite, tickerRead, tickerSearch, err := initTickers(vultureConfig.tempoWriteBackoffDuration, vultureConfig.tempoReadBackoffDuration, vultureConfig.tempoSearchBackoffDuration)
+	if err != nil {
+		panic(err)
+	}
+	startTime := time.Now()
+	r := rand.New(rand.NewSource(startTime.Unix()))
+	interval := vultureConfig.tempoWriteBackoffDuration
 
-	actualStartTime := time.Now()
-	startTime := actualStartTime
-	tickerWrite := time.NewTicker(tempoWriteBackoffDuration)
+	doWrite(jaegerClient, tickerWrite, interval, vultureConfig, logger)
+	doRead(httpClient, tickerRead, startTime, interval, r, vultureConfig, logger)
+	doSearch(httpClient, tickerSearch, startTime, interval, r, vultureConfig, logger)
 
-	r := rand.New(rand.NewSource(actualStartTime.Unix()))
+	http.Handle(prometheusPath, promhttp.Handler())
+	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
+}
 
-	var tickerRead *time.Ticker
+func getGRPCEndpoint(endpoint string) (string, error) {
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return "", err
+	}
+	dialAddress := u.Host
+
+	if u.Port() == "" {
+		dialAddress = fmt.Sprintf("%s:%d", dialAddress, defaultJaegerGRPCEndpoint)
+	}
+	return dialAddress, nil
+}
+
+func initTickers(tempoWriteBackoffDuration time.Duration, tempoReadBackoffDuration time.Duration, tempoSearchBackoffDuration time.Duration) (tickerWrite *time.Ticker, tickerRead *time.Ticker, tickerSearch *time.Ticker, err error) {
+	if tempoWriteBackoffDuration <= 0 {
+		return nil, nil, nil, errors.New("tempo-write-backoff-duration must be greater than 0")
+	}
+	tickerWrite = time.NewTicker(tempoWriteBackoffDuration)
 	if tempoReadBackoffDuration > 0 {
 		tickerRead = time.NewTicker(tempoReadBackoffDuration)
 	}
-
-	var tickerSearch *time.Ticker
 	if tempoSearchBackoffDuration > 0 {
 		tickerSearch = time.NewTicker(tempoSearchBackoffDuration)
 	}
-
 	if tickerRead == nil && tickerSearch == nil {
-		log.Fatalf("at least one of tempo-search-backoff-duration or tempo-read-backoff-duration must be set")
+		return nil, nil, nil, errors.New("at least one of tempo-search-backoff-duration or tempo-read-backoff-duration must be set")
+	}
+	return tickerWrite, tickerRead, tickerSearch, nil
+}
+
+// Don't attempt to read on the first iteration if we can't reasonably
+// expect the write loop to have fired yet.  Double the duration here to
+// avoid a race.
+func traceIsReady(info *util.TraceInfo, now time.Time, startTime time.Time, writeBackoff time.Duration, longBackoff time.Duration) bool {
+	if info.Timestamp().Before(startTime.Add(2 * writeBackoff)) {
+		return false
 	}
 
-	interval := tempoWriteBackoffDuration
+	return info.Ready(now, writeBackoff, longBackoff)
+}
 
-	ready := func(info *util.TraceInfo, now time.Time) bool {
-		// Don't attempt to read on the first itteration if we can't reasonably
-		// expect the write loop to have fired yet.  Double the duration here to
-		// avoid a race.
-		if info.Timestamp().Before(actualStartTime.Add(2 * tempoWriteBackoffDuration)) {
-			return false
-		}
-
-		return info.Ready(now, tempoWriteBackoffDuration, tempoLongWriteBackoffDuration)
-	}
-
-	// Write
+func doWrite(jaegerClient util.JaegerClient, tickerWrite *time.Ticker, interval time.Duration, config vultureConfiguration, l *zap.Logger) {
 	go func() {
-		client, err := newJaegerGRPCClient(grpcEndpoint)
-		if err != nil {
-			panic(err)
-		}
-
 		for now := range tickerWrite.C {
 			timestamp := now.Round(interval)
-			info := util.NewTraceInfo(timestamp, tempoOrgID)
+			info := util.NewTraceInfo(timestamp, config.tempoOrgID)
 
-			log := logger.With(
-				zap.String("org_id", tempoOrgID),
+			logger := l.With(
+				zap.String("org_id", config.tempoOrgID),
 				zap.Int64("seed", info.Timestamp().Unix()),
 			)
 
-			log.Info("sending trace")
+			logger.Info("sending trace")
 
-			err := info.EmitBatches(client)
+			err := info.EmitBatches(jaegerClient)
 			if err != nil {
 				metricErrorTotal.Inc()
 			}
-			queueFutureBatches(client, info)
+			queueFutureBatches(jaegerClient, info, config, l)
 		}
 	}()
+}
 
-	// Read
+func queueFutureBatches(client util.JaegerClient, info *util.TraceInfo, config vultureConfiguration, l *zap.Logger) {
+	if info.LongWritesRemaining() == 0 {
+		return
+	}
+
+	logger := l.With(
+		zap.String("org_id", config.tempoOrgID),
+		zap.String("write_trace_id", info.HexID()),
+		zap.Int64("seed", info.Timestamp().Unix()),
+		zap.Int64("longWritesRemaining", info.LongWritesRemaining()),
+	)
+	logger.Info("queueing future batches")
+
+	info.Done()
+
+	go func() {
+		time.Sleep(config.tempoLongWriteBackoffDuration)
+
+		logger := l.With(
+			zap.String("org_id", config.tempoOrgID),
+			zap.String("write_trace_id", info.HexID()),
+			zap.Int64("seed", info.Timestamp().Unix()),
+			zap.Int64("longWritesRemaining", info.LongWritesRemaining()),
+		)
+		logger.Info("sending trace")
+
+		err := info.EmitBatches(client)
+		if err != nil {
+			logger.Error("failed to queue batches",
+				zap.Error(err),
+			)
+		}
+
+		queueFutureBatches(client, info, config, l)
+	}()
+}
+
+func doRead(httpClient httpclient.HTTPClient, tickerRead *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
 	if tickerRead != nil {
 		go func() {
 			for now := range tickerRead.C {
 				var seed time.Time
 				startTime, seed = selectPastTimestamp(startTime, now, interval, tempoRetentionDuration, r)
 
-				log := logger.With(
-					zap.String("org_id", tempoOrgID),
+				logger := l.With(
+					zap.String("org_id", config.tempoOrgID),
 					zap.Int64("seed", seed.Unix()),
 				)
 
-				info := util.NewTraceInfo(seed, tempoOrgID)
+				info := util.NewTraceInfo(seed, config.tempoOrgID)
 
 				// Don't query for a trace we don't expect to be complete
-				if !ready(info, now) {
+				if !traceIsReady(info, now, startTime,
+					config.tempoWriteBackoffDuration, config.tempoLongWriteBackoffDuration) {
 					continue
 				}
 
-				client := httpclient.New(tempoQueryURL, tempoOrgID)
-
 				// query the trace
-				queryMetrics, err := queryTrace(client, info)
+				queryMetrics, err := queryTrace(httpClient, info, l)
 				if err != nil {
 					metricErrorTotal.Inc()
-					log.Error("query for metrics failed",
+					logger.Error("query for metrics failed",
 						zap.Error(err),
 					)
 				}
@@ -186,40 +267,40 @@ func main() {
 			}
 		}()
 	}
+}
 
-	// Search
+func doSearch(httpClient httpclient.HTTPClient, tickerSearch *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
 	if tickerSearch != nil {
 		go func() {
 			for now := range tickerSearch.C {
-				_, seed := selectPastTimestamp(startTime, now, interval, tempoRetentionDuration, r)
-				log := logger.With(
-					zap.String("org_id", tempoOrgID),
+				_, seed := selectPastTimestamp(startTime, now, interval, config.tempoRetentionDuration, r)
+				logger := l.With(
+					zap.String("org_id", config.tempoOrgID),
 					zap.Int64("seed", seed.Unix()),
 				)
 
-				info := util.NewTraceInfo(seed, tempoOrgID)
+				info := util.NewTraceInfo(seed, config.tempoOrgID)
 
-				if !ready(info, now) {
+				if !traceIsReady(info, now, startTime,
+					config.tempoWriteBackoffDuration, config.tempoLongWriteBackoffDuration) {
 					continue
 				}
 
-				client := httpclient.New(tempoQueryURL, tempoOrgID)
-
 				// query a tag we expect the trace to be found within
-				searchMetrics, err := searchTag(client, seed)
+				searchMetrics, err := searchTag(httpClient, seed, config, l)
 				if err != nil {
 					metricErrorTotal.Inc()
-					log.Error("search tag for metrics failed",
+					logger.Error("search tag for metrics failed",
 						zap.Error(err),
 					)
 				}
 				pushMetrics(searchMetrics)
 
 				// traceql query
-				traceqlSearchMetrics, err := searchTraceql(client, seed)
+				traceqlSearchMetrics, err := searchTraceql(httpClient, seed, config, l)
 				if err != nil {
 					metricErrorTotal.Inc()
-					log.Error("traceql query for metrics failed",
+					logger.Error("traceql query for metrics failed",
 						zap.Error(err),
 					)
 				}
@@ -227,46 +308,6 @@ func main() {
 			}
 		}()
 	}
-
-	http.Handle(prometheusPath, promhttp.Handler())
-	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
-}
-
-func queueFutureBatches(client *jaeger_grpc.Reporter, info *util.TraceInfo) {
-	if info.LongWritesRemaining() == 0 {
-		return
-	}
-
-	log := logger.With(
-		zap.String("org_id", tempoOrgID),
-		zap.String("write_trace_id", info.HexID()),
-		zap.Int64("seed", info.Timestamp().Unix()),
-		zap.Int64("longWritesRemaining", info.LongWritesRemaining()),
-	)
-	log.Info("queueing future batches")
-
-	info.Done()
-
-	go func() {
-		time.Sleep(tempoLongWriteBackoffDuration)
-
-		log := logger.With(
-			zap.String("org_id", tempoOrgID),
-			zap.String("write_trace_id", info.HexID()),
-			zap.Int64("seed", info.Timestamp().Unix()),
-			zap.Int64("longWritesRemaining", info.LongWritesRemaining()),
-		)
-		log.Info("sending trace")
-
-		err := info.EmitBatches(client)
-		if err != nil {
-			log.Error("failed to queue batches",
-				zap.Error(err),
-			)
-		}
-
-		queueFutureBatches(client, info)
-	}()
 }
 
 func pushMetrics(metrics traceMetrics) {
@@ -294,27 +335,19 @@ func selectPastTimestamp(start, stop time.Time, interval, retention time.Duratio
 	return newStart.Round(interval), ts.Round(interval)
 }
 
-func getGRPCEndpoint(endpoint string) (string, error) {
-	u, err := url.Parse(endpoint)
+func newJaegerGRPCClient(config vultureConfiguration, logger *zap.Logger) (*jaeger_grpc.Reporter, error) {
+	endpoint, err := getGRPCEndpoint(config.tempoPushURL)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	dialAddress := u.Host
 
-	if u.Port() == "" {
-		dialAddress = fmt.Sprintf("%s:%d", dialAddress, defaultJaegerGRPCEndpoint)
-	}
-	return dialAddress, nil
-}
-
-func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 	logger.Info("dialing grpc",
 		zap.String("endpoint", endpoint),
 	)
 
 	var dialOpts []grpc.DialOption
 
-	if tempoPushTLS {
+	if config.tempoPushTLS {
 		dialOpts = []grpc.DialOption{
 			grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
 				InsecureSkipVerify: true,
@@ -325,27 +358,48 @@ func newJaegerGRPCClient(endpoint string) (*jaeger_grpc.Reporter, error) {
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		}
 	}
-
 	// new jaeger grpc exporter
 	conn, err := grpc.NewClient(endpoint, dialOpts...)
 	if err != nil {
 		return nil, err
 	}
-	return jaeger_grpc.NewReporter(conn, nil, logger), err
+	return jaeger_grpc.NewReporter(conn, nil, logger), nil
 }
 
 func generateRandomInt(min, max int64, r *rand.Rand) int64 {
 	min++
-	number := min + r.Int63n(max-min)
+	var duration int64
+	duration = 1
+	// This is to prevent a panic when min == max since subtracting them will end in a negative number
+	if min < max {
+		duration = max - min
+	}
+	number := min + r.Int63n(duration)
 	return number
 }
 
-func searchTag(client *httpclient.Client, seed time.Time) (traceMetrics, error) {
+func traceInTraces(traceID string, traces []*tempopb.TraceSearchMetadata) bool {
+	for _, t := range traces {
+		equal, err := util.EqualHexStringTraceIDs(t.TraceID, traceID)
+		if err != nil {
+			logger.Error("error comparing trace IDs", zap.Error(err))
+			continue
+		}
+
+		if equal {
+			return true
+		}
+	}
+
+	return false
+}
+
+func searchTag(client httpclient.HTTPClient, seed time.Time, config vultureConfiguration, l *zap.Logger) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
 
-	info := util.NewTraceInfo(seed, tempoOrgID)
+	info := util.NewTraceInfo(seed, config.tempoOrgID)
 	hexID := info.HexID()
 
 	// Get the expected
@@ -355,29 +409,13 @@ func searchTag(client *httpclient.Client, seed time.Time) (traceMetrics, error) 
 		return traceMetrics{}, err
 	}
 
-	traceInTraces := func(traceID string, traces []*tempopb.TraceSearchMetadata) bool {
-		for _, t := range traces {
-			equal, err := util.EqualHexStringTraceIDs(t.TraceID, traceID)
-			if err != nil {
-				logger.Error("error comparing trace IDs", zap.Error(err))
-				continue
-			}
-
-			if equal {
-				return true
-			}
-		}
-
-		return false
-	}
-
 	attr := util.RandomAttrFromTrace(expected)
 	if attr == nil {
 		tm.notFoundSearchAttribute++
 		return tm, fmt.Errorf("no search attr selected from trace")
 	}
 
-	logger := logger.With(
+	logger := l.With(
 		zap.Int64("seed", seed.Unix()),
 		zap.String("hexID", hexID),
 		zap.Duration("ago", time.Since(seed)),
@@ -405,35 +443,19 @@ func searchTag(client *httpclient.Client, seed time.Time) (traceMetrics, error) 
 	return tm, nil
 }
 
-func searchTraceql(client *httpclient.Client, seed time.Time) (traceMetrics, error) {
+func searchTraceql(client httpclient.HTTPClient, seed time.Time, config vultureConfiguration, l *zap.Logger) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
 
-	info := util.NewTraceInfo(seed, tempoOrgID)
+	info := util.NewTraceInfo(seed, config.tempoOrgID)
 	hexID := info.HexID()
 
 	// Get the expected
 	expected, err := info.ConstructTraceFromEpoch()
 	if err != nil {
-		logger.Error("unable to construct trace from epoch", zap.Error(err))
+		l.Error("unable to construct trace from epoch", zap.Error(err))
 		return traceMetrics{}, err
-	}
-
-	traceInTraces := func(traceID string, traces []*tempopb.TraceSearchMetadata) bool {
-		for _, t := range traces {
-			equal, err := util.EqualHexStringTraceIDs(t.TraceID, traceID)
-			if err != nil {
-				logger.Error("error comparing trace IDs", zap.Error(err))
-				continue
-			}
-
-			if equal {
-				return true
-			}
-		}
-
-		return false
 	}
 
 	attr := util.RandomAttrFromTrace(expected)
@@ -442,7 +464,7 @@ func searchTraceql(client *httpclient.Client, seed time.Time) (traceMetrics, err
 		return tm, fmt.Errorf("no search attr selected from trace")
 	}
 
-	logger := logger.With(
+	logger := l.With(
 		zap.Int64("seed", seed.Unix()),
 		zap.String("hexID", hexID),
 		zap.Duration("ago", time.Since(seed)),
@@ -468,14 +490,14 @@ func searchTraceql(client *httpclient.Client, seed time.Time) (traceMetrics, err
 	return tm, nil
 }
 
-func queryTrace(client *httpclient.Client, info *util.TraceInfo) (traceMetrics, error) {
+func queryTrace(client httpclient.HTTPClient, info *util.TraceInfo, l *zap.Logger) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
 
 	hexID := info.HexID()
 
-	logger := logger.With(
+	logger := l.With(
 		zap.Int64("seed", info.Timestamp().Unix()),
 		zap.String("hexID", hexID),
 		zap.Duration("ago", time.Since(info.Timestamp())),

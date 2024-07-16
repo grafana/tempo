@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/user"
-	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	zipkincore "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 	jaegerTrans "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -37,6 +37,12 @@ type TraceInfo struct {
 	tempoOrgID          string
 }
 
+// JaegerClient is an interface used to mock the underlying client in tests.
+type JaegerClient interface {
+	EmitBatch(ctx context.Context, b *thrift.Batch) error
+	EmitZipkinBatch(ctx context.Context, zSpans []*zipkincore.Span) error
+}
+
 // NewTraceInfo is used to produce a new TraceInfo.
 func NewTraceInfo(timestamp time.Time, tempoOrgID string) *TraceInfo {
 	r := newRand(timestamp)
@@ -51,6 +57,19 @@ func NewTraceInfo(timestamp time.Time, tempoOrgID string) *TraceInfo {
 	}
 }
 
+func NewTraceInfoWithMaxLongWrites(timestamp time.Time, maxLongWrites int64, tempoOrgID string) *TraceInfo {
+	r := newRand(timestamp)
+
+	return &TraceInfo{
+		timestamp:           timestamp,
+		r:                   r,
+		traceIDHigh:         r.Int63(),
+		traceIDLow:          r.Int63(),
+		longWritesRemaining: maxLongWrites,
+		tempoOrgID:          tempoOrgID,
+	}
+}
+
 func (t *TraceInfo) Ready(now time.Time, writeBackoff, longWriteBackoff time.Duration) bool {
 	// Don't use the last time interval to allow the write loop to finish before
 	// we try to read it.
@@ -58,7 +77,7 @@ func (t *TraceInfo) Ready(now time.Time, writeBackoff, longWriteBackoff time.Dur
 		return false
 	}
 
-	// Compare a new instance with the same timstamp to know how many longWritesRemaining.
+	// Compare a new instance with the same timestamp to know how many longWritesRemaining.
 	totalWrites := NewTraceInfo(t.timestamp, t.tempoOrgID).longWritesRemaining
 	// We are not ready if not all writes have had a chance to send.
 	lastWrite := t.timestamp.Add(time.Duration(totalWrites) * longWriteBackoff)
@@ -85,7 +104,7 @@ func (t *TraceInfo) Done() {
 	t.longWritesRemaining--
 }
 
-func (t *TraceInfo) EmitBatches(c *jaeger_grpc.Reporter) error {
+func (t *TraceInfo) EmitBatches(c JaegerClient) error {
 	for i := int64(0); i < t.generateRandomInt(1, maxBatchesPerWrite); i++ {
 		ctx := user.InjectOrgID(context.Background(), t.tempoOrgID)
 		ctx, err := user.InjectIntoGRPCRequest(ctx)
@@ -104,7 +123,7 @@ func (t *TraceInfo) EmitBatches(c *jaeger_grpc.Reporter) error {
 
 // EmitAllBatches sends all the batches that would normally be sent at some
 // interval when using EmitBatches.
-func (t *TraceInfo) EmitAllBatches(c *jaeger_grpc.Reporter) error {
+func (t *TraceInfo) EmitAllBatches(c JaegerClient) error {
 	err := t.EmitBatches(c)
 	if err != nil {
 		return err
