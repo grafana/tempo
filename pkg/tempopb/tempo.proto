@@ -38,7 +38,7 @@ service StreamingQuerier {
   rpc SearchTagValues(SearchTagValuesRequest) returns (stream SearchTagValuesResponse) {}
   rpc SearchTagValuesV2(SearchTagValuesRequest) returns (stream SearchTagValuesV2Response) {}
   rpc MetricsQueryRange(QueryRangeRequest) returns (stream QueryRangeResponse) {} 
-  rpc MetricsQueryInstant(QueryInstantRequest) returns (stream QueryInstantRespone) {}
+  rpc MetricsQueryInstant(QueryInstantRequest) returns (stream QueryInstantResponse) {}
 }
 
 service Metrics {
@@ -367,7 +367,7 @@ message QueryInstantRequest {
   uint64 end = 3;
 }
 
-message QueryInstantRespone {
+message QueryInstantResponse {
   repeated InstantSeries series = 1;
   SearchMetrics metrics = 2;
 }

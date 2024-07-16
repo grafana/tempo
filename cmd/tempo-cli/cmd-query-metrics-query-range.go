@@ -215,7 +215,7 @@ func (cmd *metricsQueryCmd) searchHTTPInstant(req *tempopb.QueryInstantRequest) 
 		return errors.New("failed to query. body: " + string(body) + " status: " + httpResp.Status)
 	}
 
-	resp := &tempopb.QueryInstantRespone{}
+	resp := &tempopb.QueryInstantResponse{}
 	err = jsonpb.Unmarshal(bytes.NewReader(body), resp)
 	if err != nil {
 		panic("failed to parse resp: " + err.Error())

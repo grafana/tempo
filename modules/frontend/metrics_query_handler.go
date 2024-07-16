@@ -48,7 +48,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		}, qr)
 		httpReq = httpReq.Clone(ctx)
 
-		var finalResponse *tempopb.QueryInstantRespone
+		var finalResponse *tempopb.QueryInstantResponse
 		c, err := combiner.NewTypedQueryRange(qr, true)
 		if err != nil {
 			return err
@@ -168,8 +168,8 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 	})
 }
 
-func translateQueryRangeToInstant(input tempopb.QueryRangeResponse) tempopb.QueryInstantRespone {
-	output := tempopb.QueryInstantRespone{
+func translateQueryRangeToInstant(input tempopb.QueryRangeResponse) tempopb.QueryInstantResponse {
+	output := tempopb.QueryInstantResponse{
 		Metrics: input.Metrics,
 	}
 	for _, series := range input.Series {
@@ -186,7 +186,7 @@ func translateQueryRangeToInstant(input tempopb.QueryRangeResponse) tempopb.Quer
 	return output
 }
 
-func logQueryInstantResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.QueryInstantRequest, resp *tempopb.QueryInstantRespone, err error) {
+func logQueryInstantResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.QueryInstantRequest, resp *tempopb.QueryInstantResponse, err error) {
 	if resp == nil {
 		level.Info(logger).Log(
 			"msg", "query instant results - no resp",
