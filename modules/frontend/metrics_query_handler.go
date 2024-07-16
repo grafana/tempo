@@ -1,9 +1,12 @@
 package frontend
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -16,6 +19,61 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
+
+func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger) streamingQueryInstantHandler {
+	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
+	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
+
+	return func(req *tempopb.QueryInstantRequest, srv tempopb.StreamingQuerier_MetricsQueryInstantServer) error {
+		start := time.Now()
+		ctx := srv.Context()
+		tenant, err := user.ExtractOrgID(ctx)
+		if err != nil {
+			return err
+		}
+
+		// --------------------------------------------------
+		// Rewrite into a query_range request.
+		// --------------------------------------------------
+		qr := &tempopb.QueryRangeRequest{
+			Query: req.Query,
+			Start: req.Start,
+			End:   req.End,
+			Step:  req.End - req.Start,
+		}
+		httpReq := api.BuildQueryRangeRequest(&http.Request{
+			URL:    &url.URL{Path: downstreamPath},
+			Header: http.Header{},
+			Body:   io.NopCloser(bytes.NewReader([]byte{})),
+		}, qr)
+		httpReq = httpReq.Clone(ctx)
+
+		var finalResponse *tempopb.QueryInstantRespone
+		c, err := combiner.NewTypedQueryRange(qr, true)
+		if err != nil {
+			return err
+		}
+
+		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, c, func(qrr *tempopb.QueryRangeResponse) error {
+			// Translate each diff into the instant version and send it
+			resp := translateQueryRangeToInstant(*qrr)
+			finalResponse = &resp // Save last response for bytesProcessed for the SLO calculations
+			return srv.Send(&resp)
+		})
+
+		logQueryInstantRequest(logger, tenant, req)
+		err = collector.RoundTrip(httpReq)
+
+		duration := time.Since(start)
+		bytesProcessed := uint64(0)
+		if finalResponse != nil && finalResponse.Metrics != nil {
+			bytesProcessed = finalResponse.Metrics.InspectedBytes
+		}
+		postSLOHook(nil, tenant, bytesProcessed, duration, err)
+		logQueryInstantResult(logger, tenant, duration.Seconds(), req, finalResponse, err)
+		return err
+	}
+}
 
 // newMetricsQueryInstantHTTPHandler handles instant queries.  Internally these are rewritten as query_range with single step
 // to make use of the existing pipeline.
@@ -82,22 +140,9 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 			return nil, err
 		}
 
-		iResp := &tempopb.QueryInstantRespone{
-			Metrics: qrResp.Metrics,
-		}
-		for _, series := range qrResp.Series {
-			if len(series.Samples) == 0 {
-				continue
-			}
-			// Use first value
-			iResp.Series = append(iResp.Series, &tempopb.InstantSeries{
-				Labels:     series.Labels,
-				PromLabels: series.PromLabels,
-				Value:      series.Samples[0].Value,
-			})
-		}
+		qiResp := translateQueryRangeToInstant(*qrResp)
 
-		bodyString, err := new(jsonpb.Marshaler).MarshalToString(iResp)
+		bodyString, err := new(jsonpb.Marshaler).MarshalToString(&qiResp)
 		if err != nil {
 			return nil, fmt.Errorf("error marshalling response body: %w", err)
 		}
@@ -113,14 +158,32 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 
 		duration := time.Since(start)
 		var bytesProcessed uint64
-		if iResp.Metrics != nil {
-			bytesProcessed = iResp.Metrics.InspectedBytes
+		if qiResp.Metrics != nil {
+			bytesProcessed = qiResp.Metrics.InspectedBytes
 		}
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
-		logQueryInstantResult(logger, tenant, duration.Seconds(), i, iResp, err)
+		logQueryInstantResult(logger, tenant, duration.Seconds(), i, &qiResp, err)
 
 		return resp, nil
 	})
+}
+
+func translateQueryRangeToInstant(input tempopb.QueryRangeResponse) tempopb.QueryInstantRespone {
+	output := tempopb.QueryInstantRespone{
+		Metrics: input.Metrics,
+	}
+	for _, series := range input.Series {
+		if len(series.Samples) == 0 {
+			continue
+		}
+		// Use first value
+		output.Series = append(output.Series, &tempopb.InstantSeries{
+			Labels:     series.Labels,
+			PromLabels: series.PromLabels,
+			Value:      series.Samples[0].Value,
+		})
+	}
+	return output
 }
 
 func logQueryInstantResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.QueryInstantRequest, resp *tempopb.QueryInstantRespone, err error) {

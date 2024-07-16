@@ -3,7 +3,6 @@ package traceql
 import (
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -143,7 +142,7 @@ func spansetID(ss *tempopb.SpanSet) string {
 }
 
 type tsRange struct {
-	minTS, maxTS int64
+	minTS, maxTS uint64
 }
 
 type QueryRangeCombiner struct {
@@ -238,8 +237,14 @@ func (q *QueryRangeCombiner) markUpdatedRanges(resp *tempopb.QueryRangeResponse)
 			continue
 		}
 
-		nanoMin := series.Samples[0].TimestampMs * int64(time.Millisecond)
-		nanoMax := series.Samples[len(series.Samples)-1].TimestampMs * int64(time.Millisecond)
+		// Normalize into request alignment by converting timestamp into index and back
+		// TimestampMs may not match exactly when we trim things around blocks, and the generators
+		// This is mainly for instant queries that have large steps and few samples.
+		idxMin := IntervalOfMs(series.Samples[0].TimestampMs, q.req.Start, q.req.End, q.req.Step)
+		idxMax := IntervalOfMs(series.Samples[len(series.Samples)-1].TimestampMs, q.req.Start, q.req.End, q.req.Step)
+
+		nanoMin := TimestampOf(uint64(idxMin), q.req.Start, q.req.Step)
+		nanoMax := TimestampOf(uint64(idxMax), q.req.Start, q.req.Step)
 
 		tsr, ok := q.seriesUpdated[series.PromLabels]
 		if !ok {

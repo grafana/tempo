@@ -425,6 +425,27 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 	return req, nil
 }
 
+func BuildQueryInstantRequest(req *http.Request, searchReq *tempopb.QueryInstantRequest) *http.Request {
+	if req == nil {
+		req = &http.Request{
+			URL: &url.URL{},
+		}
+	}
+
+	if searchReq == nil {
+		return req
+	}
+
+	q := req.URL.Query()
+	q.Set(urlParamStart, strconv.FormatUint(searchReq.Start, 10))
+	q.Set(urlParamEnd, strconv.FormatUint(searchReq.End, 10))
+	q.Set(urlParamQuery, searchReq.Query)
+
+	req.URL.RawQuery = q.Encode()
+
+	return req
+}
+
 func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequest) *http.Request {
 	if req == nil {
 		req = &http.Request{
