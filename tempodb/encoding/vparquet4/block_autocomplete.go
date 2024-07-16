@@ -1014,9 +1014,14 @@ func (d distinctValueCollector) KeepGroup(result *parquetquery.IteratorResult) b
 }
 
 func mapEventAttr(e entry) traceql.Static {
+	if len(e.Values) == 0 {
+		return traceql.NewStaticNil()
+	}
+	v := e.Values[0]
+
 	switch e.Key {
 	case columnPathEventName:
-		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
+		return traceql.NewStaticString(unsafeToString(v.ByteArray()))
 	}
 	return traceql.Static{}
 }
