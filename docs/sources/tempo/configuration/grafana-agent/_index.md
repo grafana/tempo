@@ -14,6 +14,12 @@ aliases:
 collector for sending metrics, logs, and trace data to the opinionated
 Grafana observability stack.
 
+{{< admonition type="note">}} 
+Grafana Alloy provides tooling to convert your Agent Static or Flow configuration files into a format that can be used by Alloy.
+
+For more information, refer to [Migrate to Alloy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/migrate-alloy).
+{{< /admonition>}}
+
 It's commonly used as a tracing pipeline, offloading traces from the
 application and forwarding them to a storage backend.
 Grafana Agent tracing stack is built using OpenTelemetry.
