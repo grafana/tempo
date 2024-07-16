@@ -20,7 +20,7 @@ type TResponse interface {
 
 type PipelineResponse interface {
 	HTTPResponse() *http.Response
-	AdditionalData() any
+	RequestData() any
 }
 
 type genericCombiner[T TResponse] struct {

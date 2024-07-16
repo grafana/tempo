@@ -98,11 +98,9 @@ func (b *pipelineBridge) RoundTrip(req *http.Request) (Responses[combiner.Pipeli
 		return nil, err
 	}
 
-	// check for additional data in the context and echo it back if it exists
-	// todo: this idea is good, but needs to be fleshed out. Currently only supports one
-	// strangely communicated piece of data
-	if val := req.Context().Value(contextEchoAdditionalData); val != nil {
-		return NewHTTPToAsyncResponseWithAdditionalData(r, val), nil
+	// check for request data in the context and echo it back if it exists
+	if val := req.Context().Value(contextRequestDataForResponse); val != nil {
+		return NewHTTPToAsyncResponseWithRequestData(r, val), nil
 	}
 
 	return NewHTTPToAsyncResponse(r), nil

@@ -31,7 +31,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (Combiner, e
 				}
 			}
 
-			samplingRate := resp.AdditionalData()
+			samplingRate := resp.RequestData()
 			if samplingRate != nil {
 				fRate := samplingRate.(float64)
 
