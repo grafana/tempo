@@ -18,16 +18,16 @@ type Responses[T any] interface {
 var _ Responses[combiner.PipelineResponse] = syncResponse{}
 
 type pipelineResponse struct {
-	r              *http.Response
-	additionalData any
+	r           *http.Response
+	requestData any
 }
 
 func (p pipelineResponse) HTTPResponse() *http.Response {
 	return p.r
 }
 
-func (p pipelineResponse) AdditionalData() any {
-	return p.additionalData
+func (p pipelineResponse) RequestData() any {
+	return p.requestData
 }
 
 // syncResponse is a single http.Response that implements the Responses[*http.Response] interface.
@@ -39,17 +39,17 @@ type syncResponse struct {
 func NewHTTPToAsyncResponse(r *http.Response) Responses[combiner.PipelineResponse] {
 	return syncResponse{
 		r: pipelineResponse{
-			r:              r,
-			additionalData: nil,
+			r:           r,
+			requestData: nil,
 		},
 	}
 }
 
-func NewHTTPToAsyncResponseWithAdditionalData(r *http.Response, additionalData any) Responses[combiner.PipelineResponse] {
+func NewHTTPToAsyncResponseWithRequestData(r *http.Response, requestData any) Responses[combiner.PipelineResponse] {
 	return syncResponse{
 		r: pipelineResponse{
-			r:              r,
-			additionalData: additionalData,
+			r:           r,
+			requestData: requestData,
 		},
 	}
 }

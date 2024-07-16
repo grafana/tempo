@@ -16,8 +16,9 @@ func ContextAddCacheKey(key string, req *http.Request) *http.Request {
 
 // contextEchoData is used to echo request specific data through the pipeline. It stores any value.
 // see usage for samplingRate in modules/frontend/metrics_query_range_sharder.go
-var contextEchoAdditionalData = struct{}{}
+var contextRequestDataForResponse = struct{}{}
 
-func ContextAddAdditionalData(val any, req *http.Request) *http.Request {
-	return req.WithContext(context.WithValue(req.Context(), contextEchoAdditionalData, val))
+// ContextAddResponseDataForResponse adds a value to the request context that will be echoed back in the response.
+func ContextAddResponseDataForResponse(val any, req *http.Request) *http.Request {
+	return req.WithContext(context.WithValue(req.Context(), contextRequestDataForResponse, val))
 }

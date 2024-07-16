@@ -394,7 +394,7 @@ func (p *pipelineResponse) HTTPResponse() *http.Response {
 	return p.r
 }
 
-func (p *pipelineResponse) AdditionalData() any {
+func (p *pipelineResponse) RequestData() any {
 	return nil
 }
 
