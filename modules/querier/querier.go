@@ -710,35 +710,36 @@ func (q *Querier) SpanMetricsSummary(
 	}
 
 	// Combine the results
-	yyy := make(map[traceqlmetrics.MetricSeries]*traceqlmetrics.LatencyHistogram)
-	xxx := make(map[traceqlmetrics.MetricSeries]*tempopb.SpanMetricsSummary)
+	yyy := make(map[traceqlmetrics.MetricKeys]*traceqlmetrics.LatencyHistogram)
+	xxx := make(map[traceqlmetrics.MetricKeys]*tempopb.SpanMetricsSummary)
 
 	var h *traceqlmetrics.LatencyHistogram
 	var s traceqlmetrics.MetricSeries
 	for _, r := range results {
 		for _, m := range r.Metrics {
 			s = protoToMetricSeries(m.Series)
+			k := s.MetricKeys()
 
-			if _, ok := xxx[s]; !ok {
-				xxx[s] = &tempopb.SpanMetricsSummary{Series: m.Series}
+			if _, ok := xxx[k]; !ok {
+				xxx[k] = &tempopb.SpanMetricsSummary{Series: m.Series}
 			}
 
-			xxx[s].ErrorSpanCount += m.Errors
+			xxx[k].ErrorSpanCount += m.Errors
 
 			var b [64]int
 			for _, l := range m.GetLatencyHistogram() {
 				// Reconstitude the bucket
 				b[l.Bucket] += int(l.Count)
 				// Add to the total
-				xxx[s].SpanCount += l.Count
+				xxx[k].SpanCount += l.Count
 			}
 
 			// Combine the histogram
 			h = traceqlmetrics.New(b)
-			if _, ok := yyy[s]; !ok {
-				yyy[s] = h
+			if _, ok := yyy[k]; !ok {
+				yyy[k] = h
 			} else {
-				yyy[s].Combine(*h)
+				yyy[k].Combine(*h)
 			}
 		}
 	}
@@ -1095,18 +1096,30 @@ func protoToMetricSeries(proto []*tempopb.KeyValue) traceqlmetrics.MetricSeries 
 	return r
 }
 
-func protoToTraceQLStatic(proto *tempopb.KeyValue) traceqlmetrics.KeyValue {
+func protoToTraceQLStatic(kv *tempopb.KeyValue) traceqlmetrics.KeyValue {
+	var val traceql.Static
+
+	switch traceql.StaticType(kv.Value.Type) {
+	case traceql.TypeInt:
+		val = traceql.NewStaticInt(int(kv.Value.N))
+	case traceql.TypeFloat:
+		val = traceql.NewStaticFloat(kv.Value.F)
+	case traceql.TypeString:
+		val = traceql.NewStaticString(kv.Value.S)
+	case traceql.TypeBoolean:
+		val = traceql.NewStaticBool(kv.Value.B)
+	case traceql.TypeDuration:
+		val = traceql.NewStaticDuration(time.Duration(kv.Value.D))
+	case traceql.TypeStatus:
+		val = traceql.NewStaticStatus(traceql.Status(kv.Value.Status))
+	case traceql.TypeKind:
+		val = traceql.NewStaticKind(traceql.Kind(kv.Value.Kind))
+	default:
+		val = traceql.NewStaticNil()
+	}
+
 	return traceqlmetrics.KeyValue{
-		Key: proto.Key,
-		Value: traceql.Static{
-			Type:   traceql.StaticType(proto.Value.Type),
-			N:      int(proto.Value.N),
-			F:      proto.Value.F,
-			S:      proto.Value.S,
-			B:      proto.Value.B,
-			D:      time.Duration(proto.Value.D),
-			Status: traceql.Status(proto.Value.Status),
-			Kind:   traceql.Kind(proto.Value.Kind),
-		},
+		Key:   kv.Key,
+		Value: val,
 	}
 }

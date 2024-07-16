@@ -293,7 +293,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 		atts := span.AllAttributes()
 
 		if name, ok := atts[NewIntrinsic(IntrinsicName)]; ok {
-			tempopbSpan.Name = name.S
+			tempopbSpan.Name = name.EncodeToString(false)
 		}
 
 		for attribute, static := range atts {
@@ -331,7 +331,9 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 	// add attributes
 	for _, att := range spanset.Attributes {
 		if att.Name == attributeMatched {
-			metadata.SpanSet.Matched = uint32(att.Val.N)
+			if n, ok := att.Val.Int(); ok {
+				metadata.SpanSet.Matched = uint32(n)
+			}
 			continue
 		}
 
@@ -353,59 +355,44 @@ func unixSecToNano(ts uint32) uint64 {
 func (s Static) AsAnyValue() *common_v1.AnyValue {
 	switch s.Type {
 	case TypeInt:
+		n, _ := s.Int()
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_IntValue{
-				IntValue: int64(s.N),
-			},
-		}
-	case TypeString:
-		return &common_v1.AnyValue{
-			Value: &common_v1.AnyValue_StringValue{
-				StringValue: s.S,
+				IntValue: int64(n),
 			},
 		}
 	case TypeFloat:
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_DoubleValue{
-				DoubleValue: s.F,
+				DoubleValue: s.Float(),
 			},
 		}
 	case TypeBoolean:
+		b, _ := s.Bool()
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_BoolValue{
-				BoolValue: s.B,
+				BoolValue: b,
 			},
 		}
 	case TypeDuration:
+		d, _ := s.Duration()
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_StringValue{
-				StringValue: s.D.String(),
+				StringValue: d.String(),
 			},
 		}
-	case TypeStatus:
+	case TypeString, TypeStatus, TypeNil, TypeKind:
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_StringValue{
-				StringValue: s.Status.String(),
+				StringValue: s.EncodeToString(false),
 			},
 		}
-	case TypeNil:
+	default:
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_StringValue{
-				StringValue: "nil",
+				StringValue: fmt.Sprintf("error formatting val: static has unexpected type %v", s.Type),
 			},
 		}
-	case TypeKind:
-		return &common_v1.AnyValue{
-			Value: &common_v1.AnyValue_StringValue{
-				StringValue: s.Kind.String(),
-			},
-		}
-	}
-
-	return &common_v1.AnyValue{
-		Value: &common_v1.AnyValue_StringValue{
-			StringValue: fmt.Sprintf("error formatting val: static has unexpected type %v", s.Type),
-		},
 	}
 }
 

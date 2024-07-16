@@ -104,8 +104,13 @@ func (ls Labels) String() string {
 		switch {
 		case l.Value.Type == TypeNil:
 			promValue = "<nil>"
-		case l.Value.Type == TypeString && l.Value.S == "":
-			promValue = "<empty>"
+		case l.Value.Type == TypeString:
+			s := l.Value.EncodeToString(false)
+			if s != "" {
+				promValue = s
+			} else {
+				promValue = "<empty>"
+			}
 		default:
 			promValue = l.Value.EncodeToString(false)
 		}
@@ -280,15 +285,31 @@ const maxGroupBys = 5 // TODO - This isn't ideal but see comment below.
 // the maximum number of values.
 
 type (
-	FastValues1 [1]Static
-	FastValues2 [2]Static
-	FastValues3 [3]Static
-	FastValues4 [4]Static
-	FastValues5 [5]Static
+	FastStatic1 [1]StaticMapKey
+	FastStatic2 [2]StaticMapKey
+	FastStatic3 [3]StaticMapKey
+	FastStatic4 [4]StaticMapKey
+	FastStatic5 [5]StaticMapKey
 )
 
+type FastStatic interface {
+	FastStatic1 | FastStatic2 | FastStatic3 | FastStatic4 | FastStatic5
+}
+
+type (
+	StaticVals1 [1]Static
+	StaticVals2 [2]Static
+	StaticVals3 [3]Static
+	StaticVals4 [4]Static
+	StaticVals5 [5]Static
+)
+
+type StaticVals interface {
+	StaticVals1 | StaticVals2 | StaticVals3 | StaticVals4 | StaticVals5
+}
+
 // GroupingAggregator groups spans into series based on attribute values.
-type GroupingAggregator[FV FastValues1 | FastValues2 | FastValues3 | FastValues4 | FastValues5] struct {
+type GroupingAggregator[F FastStatic, S StaticVals] struct {
 	// Config
 	by          []Attribute               // Original attributes: .foo
 	byLookups   [][]Attribute             // Lookups: span.foo resource.foo
@@ -297,13 +318,23 @@ type GroupingAggregator[FV FastValues1 | FastValues2 | FastValues3 | FastValues4
 	innerAgg    func() RangeAggregator
 
 	// Data
-	series     map[FV]RangeAggregator
-	lastSeries RangeAggregator
-	buf        FV
-	lastBuf    FV
+	series     map[F]aggregatorWitValues[S]
+	lastSeries aggregatorWitValues[S]
+	buf        fastStaticWithValues[F, S]
+	lastBuf    fastStaticWithValues[F, S]
 }
 
-var _ SpanAggregator = (*GroupingAggregator[FastValues5])(nil)
+type aggregatorWitValues[S StaticVals] struct {
+	agg  RangeAggregator
+	vals S
+}
+
+type fastStaticWithValues[F FastStatic, S StaticVals] struct {
+	fast F
+	vals S
+}
+
+var _ SpanAggregator = (*GroupingAggregator[FastStatic1, StaticVals1])(nil)
 
 func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by []Attribute, byFunc func(Span) (Static, bool), byFuncLabel string) SpanAggregator {
 	if len(by) == 0 && byFunc == nil {
@@ -334,23 +365,23 @@ func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by [
 
 	switch aggNum {
 	case 1:
-		return newGroupingAggregator[FastValues1](innerAgg, by, byFunc, byFuncLabel, lookups)
+		return newGroupingAggregator[FastStatic1, StaticVals1](innerAgg, by, byFunc, byFuncLabel, lookups)
 	case 2:
-		return newGroupingAggregator[FastValues2](innerAgg, by, byFunc, byFuncLabel, lookups)
+		return newGroupingAggregator[FastStatic2, StaticVals2](innerAgg, by, byFunc, byFuncLabel, lookups)
 	case 3:
-		return newGroupingAggregator[FastValues3](innerAgg, by, byFunc, byFuncLabel, lookups)
+		return newGroupingAggregator[FastStatic3, StaticVals3](innerAgg, by, byFunc, byFuncLabel, lookups)
 	case 4:
-		return newGroupingAggregator[FastValues4](innerAgg, by, byFunc, byFuncLabel, lookups)
+		return newGroupingAggregator[FastStatic4, StaticVals4](innerAgg, by, byFunc, byFuncLabel, lookups)
 	case 5:
-		return newGroupingAggregator[FastValues5](innerAgg, by, byFunc, byFuncLabel, lookups)
+		return newGroupingAggregator[FastStatic5, StaticVals5](innerAgg, by, byFunc, byFuncLabel, lookups)
 	default:
 		panic("unsupported number of group-bys")
 	}
 }
 
-func newGroupingAggregator[FV FastValues1 | FastValues2 | FastValues3 | FastValues4 | FastValues5](innerAgg func() RangeAggregator, by []Attribute, byFunc func(Span) (Static, bool), byFuncLabel string, lookups [][]Attribute) SpanAggregator {
-	return &GroupingAggregator[FV]{
-		series:      map[FV]RangeAggregator{},
+func newGroupingAggregator[F FastStatic, S StaticVals](innerAgg func() RangeAggregator, by []Attribute, byFunc func(Span) (Static, bool), byFuncLabel string, lookups [][]Attribute) SpanAggregator {
+	return &GroupingAggregator[F, S]{
+		series:      map[F]aggregatorWitValues[S]{},
 		by:          by,
 		byFunc:      byFunc,
 		byFuncLabel: byFuncLabel,
@@ -361,13 +392,15 @@ func newGroupingAggregator[FV FastValues1 | FastValues2 | FastValues3 | FastValu
 
 // Observe the span by looking up its group-by attributes, mapping to the series,
 // and passing to the inner aggregate.  This is a critical hot path.
-func (g *GroupingAggregator[FV]) Observe(span Span) {
+func (g *GroupingAggregator[F, S]) Observe(span Span) {
 	// Get grouping values
 	// Reuse same buffer
 	// There is no need to reset, the number of group-by attributes
 	// is fixed after creation.
 	for i, lookups := range g.byLookups {
-		g.buf[i] = lookup(lookups, span)
+		val := lookup(lookups, span)
+		g.buf.vals[i] = val
+		g.buf.fast[i] = val.MapKey()
 	}
 
 	// If dynamic label exists calculate and append it
@@ -377,23 +410,25 @@ func (g *GroupingAggregator[FV]) Observe(span Span) {
 			// Totally drop this span
 			return
 		}
-		g.buf[len(g.byLookups)] = v
+		g.buf.vals[len(g.byLookups)] = v
+		g.buf.fast[len(g.byLookups)] = v.MapKey()
 	}
 
-	if g.lastSeries != nil && g.lastBuf == g.buf {
-		g.lastSeries.Observe(span)
+	if g.lastSeries.agg != nil && g.lastBuf.fast == g.buf.fast {
+		g.lastSeries.agg.Observe(span)
 		return
 	}
 
-	agg, ok := g.series[g.buf]
+	s, ok := g.series[g.buf.fast]
 	if !ok {
-		agg = g.innerAgg()
-		g.series[g.buf] = agg
+		s.agg = g.innerAgg()
+		s.vals = g.buf.vals
+		g.series[g.buf.fast] = s
 	}
 
 	g.lastBuf = g.buf
-	g.lastSeries = agg
-	agg.Observe(span)
+	g.lastSeries = s
+	s.agg.Observe(span)
 }
 
 // labelsFor gives the final labels for the series. Slower and not on the hot path.
@@ -425,7 +460,7 @@ func (g *GroupingAggregator[FV]) Observe(span Span) {
 //
 //	Ex: rate() by (x,y,z) and all nil yields:
 //	{x="nil"}
-func (g *GroupingAggregator[FV]) labelsFor(vals FV) (Labels, string) {
+func (g *GroupingAggregator[F, S]) labelsFor(vals S) (Labels, string) {
 	labels := make(Labels, 0, len(g.by)+1)
 	for i := range g.by {
 		if vals[i].Type == TypeNil {
@@ -445,15 +480,15 @@ func (g *GroupingAggregator[FV]) labelsFor(vals FV) (Labels, string) {
 	return labels, labels.String()
 }
 
-func (g *GroupingAggregator[FV]) Series() SeriesSet {
+func (g *GroupingAggregator[F, S]) Series() SeriesSet {
 	ss := SeriesSet{}
 
-	for vals, agg := range g.series {
-		labels, promLabels := g.labelsFor(vals)
+	for _, s := range g.series {
+		labels, promLabels := g.labelsFor(s.vals)
 
 		ss[promLabels] = TimeSeries{
 			Labels: labels,
-			Values: agg.Samples(),
+			Values: s.agg.Samples(),
 		}
 	}
 
@@ -680,7 +715,7 @@ func lookup(needles []Attribute, haystack Span) Static {
 		}
 	}
 
-	return Static{}
+	return NewStaticNil()
 }
 
 type MetricsEvalulator struct {
@@ -999,7 +1034,7 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			h.ss[withoutBucketStr] = existing
 		}
 
-		b := bucket.asFloat()
+		b := bucket.Float()
 
 		for _, sample := range ts.Samples {
 			if sample.Value == 0 {
