@@ -49,6 +49,7 @@ var (
 		Namespace:                       "tempodb",
 		Name:                            "blocklist_poll_duration_seconds",
 		Help:                            "Records the amount of time to poll and update the blocklist.",
+		Buckets:                         prometheus.DefBuckets,
 		NativeHistogramBucketFactor:     1.1,
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
