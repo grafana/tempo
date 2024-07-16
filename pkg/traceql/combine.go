@@ -211,7 +211,7 @@ func (q *QueryRangeCombiner) Diff() *tempopb.QueryRangeResponse {
 
 	seriesRangeFn := func(promLabels string) (uint64, uint64, bool) {
 		tsr, ok := q.seriesUpdated[promLabels]
-		return uint64(tsr.minTS), uint64(tsr.maxTS), ok
+		return tsr.minTS, tsr.maxTS, ok
 	}
 
 	// filter out series that haven't change

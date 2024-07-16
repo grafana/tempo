@@ -55,21 +55,20 @@ func (cmd *metricsQueryCmd) Run(_ *globalOptions) error {
 		}
 
 		return cmd.searchHTTPInstant(req)
-	} else {
-
-		req := &tempopb.QueryRangeRequest{
-			Query: cmd.TraceQL,
-			Start: uint64(start),
-			End:   uint64(end),
-			Step:  uint64(5 * time.Second),
-		}
-
-		if cmd.UseGRPC {
-			return cmd.searchGRPC(req)
-		}
-
-		return cmd.searchHTTP(req)
 	}
+
+	req := &tempopb.QueryRangeRequest{
+		Query: cmd.TraceQL,
+		Start: uint64(start),
+		End:   uint64(end),
+		Step:  uint64(5 * time.Second),
+	}
+
+	if cmd.UseGRPC {
+		return cmd.searchGRPC(req)
+	}
+
+	return cmd.searchHTTP(req)
 }
 
 func (cmd *metricsQueryCmd) searchGRPC(req *tempopb.QueryRangeRequest) error {
