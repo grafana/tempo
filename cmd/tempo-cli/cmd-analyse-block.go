@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 	"io"
 	"os"
 	"sort"
@@ -17,12 +18,11 @@ import (
 	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/stoewer/parquet-cli/pkg/inspect"
 
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
-
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
 )
 
 var (
@@ -38,6 +38,12 @@ var (
 	vparquet3ResourceAttrs = []string{
 		vparquet3.FieldResourceAttrVal,
 	}
+	vparquet4SpanAttrs = []string{
+		vparquet4.FieldSpanAttrVal,
+	}
+	vparquet4ResourceAttrs = []string{
+		vparquet4.FieldResourceAttrVal,
+	}
 )
 
 func spanPathsForVersion(v string) (string, []string) {
@@ -46,6 +52,8 @@ func spanPathsForVersion(v string) (string, []string) {
 		return vparquet2.FieldSpanAttrKey, vparquet2SpanAttrs
 	case vparquet3.VersionString:
 		return vparquet3.FieldSpanAttrKey, vparquet3SpanAttrs
+	case vparquet4.VersionString:
+		return vparquet4.FieldSpanAttrKey, vparquet4SpanAttrs
 	}
 	return "", nil
 }
@@ -56,6 +64,8 @@ func resourcePathsForVersion(v string) (string, []string) {
 		return vparquet2.FieldResourceAttrKey, vparquet2ResourceAttrs
 	case vparquet3.VersionString:
 		return vparquet3.FieldResourceAttrKey, vparquet3ResourceAttrs
+	case vparquet4.VersionString:
+		return vparquet4.FieldResourceAttrKey, vparquet4ResourceAttrs
 	}
 	return "", nil
 }
@@ -64,6 +74,8 @@ func dedicatedColPathForVersion(i int, scope backend.DedicatedColumnScope, v str
 	switch v {
 	case vparquet3.VersionString:
 		return vparquet3.DedicatedResourceColumnPaths[scope][backend.DedicatedColumnTypeString][i]
+	case vparquet4.VersionString:
+		return vparquet4.DedicatedResourceColumnPaths[scope][backend.DedicatedColumnTypeString][i]
 	}
 	return ""
 }
@@ -123,6 +135,8 @@ func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minS
 		reader = vparquet2.NewBackendReaderAt(context.Background(), r, vparquet2.DataFileName, meta)
 	case vparquet3.VersionString:
 		reader = vparquet3.NewBackendReaderAt(context.Background(), r, vparquet3.DataFileName, meta)
+	case vparquet4.VersionString:
+		reader = vparquet4.NewBackendReaderAt(context.Background(), r, vparquet4.DataFileName, meta)
 	default:
 		fmt.Println("Unsupported block version:", meta.Version)
 		return nil, nil
