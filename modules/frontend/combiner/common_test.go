@@ -220,7 +220,7 @@ func (p *testPipelineResponse) HTTPResponse() *http.Response {
 	return p.r
 }
 
-func (p *testPipelineResponse) AdditionalData() any {
+func (p *testPipelineResponse) RequestData() any {
 	return nil
 }
 

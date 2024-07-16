@@ -290,7 +290,7 @@ func (s *queryRangeSharder) buildShardedBackendRequests(ctx context.Context, ten
 				// Set final sampling rate after integer rounding
 				samplingRate = float64(shards) / float64(shardR.ShardCount)
 
-				httpReq = pipeline.ContextAddAdditionalData(samplingRate, httpReq)
+				httpReq = pipeline.ContextAddResponseDataForResponse(samplingRate, httpReq)
 			}
 
 			select {
