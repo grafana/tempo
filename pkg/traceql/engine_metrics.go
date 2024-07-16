@@ -73,13 +73,24 @@ func IntervalOfMs(tsmills int64, start, end, step uint64) int {
 	return IntervalOf(ts, start, end, step)
 }
 
-// TrimToOverlap returns the aligned overlap between the two given time ranges.
-func TrimToOverlap(start1, end1, step, start2, end2 uint64) (uint64, uint64) {
+// TrimToOverlap returns the aligned overlap between the two given time ranges. If the request
+// is instant, then will return and updated step to match to the new time range.
+func TrimToOverlap(start1, end1, step, start2, end2 uint64) (uint64, uint64, uint64) {
+	wasInstant := end1-start1 == step
+
 	start1 = max(start1, start2)
 	end1 = min(end1, end2)
-	start1 = (start1 / step) * step
-	end1 = (end1/step)*step + step
-	return start1, end1
+
+	if wasInstant {
+		// Alter step to maintain instant nature
+		step = end1 - start1
+	} else {
+		// Realign after trimming
+		start1 = (start1 / step) * step
+		end1 = (end1/step)*step + step
+	}
+
+	return start1, end1, step
 }
 
 // TrimToBefore shortens the query window to only include before the given time.

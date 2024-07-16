@@ -372,18 +372,16 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				continue
 			}
 
-			// Job time range - For non-instant queries, limit time scope to closer to the block for efficiency.
-			start := searchReq.Start
-			end := searchReq.End
-			if !traceql.IsInstant(searchReq) {
-				start, end = traceql.TrimToOverlap(searchReq.Start, searchReq.End, searchReq.Step, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
-			}
+			// Trim and align the request for this block. I.e. if the request is "Last Hour" we don't want to
+			// cache the response for that, we want only the few minutes time range for this block. This has
+			// size savings but the main thing is that the response is reuseable for any overlapping query.
+			start, end, step := traceql.TrimToOverlap(searchReq.Start, searchReq.End, searchReq.Step, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
 
 			queryRangeReq := &tempopb.QueryRangeRequest{
 				Query: searchReq.Query,
 				Start: start,
 				End:   end,
-				Step:  searchReq.Step,
+				Step:  step,
 				// ShardID:    uint32, // No sharding with RF=1
 				// ShardCount: uint32, // No sharding with RF=1
 				QueryMode: searchReq.QueryMode,

@@ -173,7 +173,7 @@ func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loc
 	// Trim and align the request for this block. I.e. if the request is "Last Hour" we don't want to
 	// cache the response for that, we want only the few minutes time range for this block. This has
 	// size savings but the main thing is that the response is reuseable for any overlapping query.
-	req.Start, req.End = traceql.TrimToOverlap(req.Start, req.End, req.Step, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
+	req.Start, req.End, req.Step = traceql.TrimToOverlap(req.Start, req.End, req.Step, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
 
 	if req.Start >= req.End {
 		// After alignment there is no overlap or something else isn't right
