@@ -774,7 +774,7 @@ func (s Static) Elements() func(yield func(int, Static) bool) bool {
 			return true
 		}
 	default:
-		return func(yield func(int, Static) bool) bool {
+		return func(_ func(int, Static) bool) bool {
 			return false
 		}
 	}

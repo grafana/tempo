@@ -654,9 +654,7 @@ func (r *IteratorResult) OtherValueFromKey(k string) interface{} {
 func (r *IteratorResult) ToMap() map[string][]pq.Value {
 	m := map[string][]pq.Value{}
 	for _, e := range r.Entries {
-		for _, v := range e.Values {
-			m[e.Key] = append(m[e.Key], v)
-		}
+		m[e.Key] = append(m[e.Key], e.Values...)
 	}
 	return m
 }
@@ -676,9 +674,7 @@ func (r *IteratorResult) Columns(buffer [][]pq.Value, names ...string) [][]pq.Va
 	for _, e := range r.Entries {
 		for i := range names {
 			if e.Key == names[i] {
-				for _, v := range e.Values {
-					buffer[i] = append(buffer[i], v)
-				}
+				buffer[i] = append(buffer[i], e.Values...)
 				break
 			}
 		}
