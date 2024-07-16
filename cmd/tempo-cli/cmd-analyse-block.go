@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 	"io"
 	"os"
 	"sort"
@@ -12,17 +11,17 @@ import (
 	"text/tabwriter"
 	"time"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/parquet-go/parquet-go"
-
-	pq "github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/stoewer/parquet-cli/pkg/inspect"
-
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
+	"github.com/parquet-go/parquet-go"
+	"github.com/stoewer/parquet-cli/pkg/inspect"
+
+	tempo_io "github.com/grafana/tempo/pkg/io"
+	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 )
 
 var (
