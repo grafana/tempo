@@ -41,11 +41,26 @@ func (t StaticType) isMatchingOperand(otherT StaticType) bool {
 		return true
 	}
 
-	return false
+	return t.isMatchingArrayElement(otherT)
 }
 
 func (t StaticType) isNumeric() bool {
 	return t == TypeInt || t == TypeFloat || t == TypeDuration
+}
+
+func (t StaticType) isMatchingArrayElement(otherT StaticType) bool {
+	switch t {
+	case TypeIntArray:
+		return TypeInt.isMatchingOperand(otherT)
+	case TypeFloatArray:
+		return TypeFloat.isMatchingOperand(otherT)
+	case TypeStringArray:
+		return TypeString.isMatchingOperand(otherT)
+	case TypeBooleanArray:
+		return TypeBoolean.isMatchingOperand(otherT)
+	default:
+		return false
+	}
 }
 
 // Status represents valid static values of typeStatus
