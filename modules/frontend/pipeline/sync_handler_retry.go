@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/tempo/modules/frontend/queue"
@@ -18,10 +19,13 @@ import (
 
 func NewRetryWare(maxRetries int, registerer prometheus.Registerer) Middleware {
 	retriesCount := promauto.With(registerer).NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Name:      "query_frontend_retries",
-		Help:      "Number of times a request is retried.",
-		Buckets:   []float64{0, 1, 2, 3, 4, 5},
+		Namespace:                       "tempo",
+		Name:                            "query_frontend_retries",
+		Help:                            "Number of times a request is retried.",
+		Buckets:                         []float64{0, 1, 2, 3, 4, 5},
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 
 	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {

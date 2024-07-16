@@ -21,10 +21,13 @@ import (
 
 var (
 	metricEndpointDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Name:      "querier_external_endpoint_duration_seconds",
-		Help:      "The duration of the external endpoints.",
-		Buckets:   prometheus.DefBuckets,
+		Namespace:                       "tempo",
+		Name:                            "querier_external_endpoint_duration_seconds",
+		Help:                            "The duration of the external endpoints.",
+		Buckets:                         prometheus.DefBuckets,
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{"endpoint"})
 	metricExternalHedgedRequests = promauto.NewGauge(
 		prometheus.GaugeOpts{

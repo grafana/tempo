@@ -91,10 +91,13 @@ var (
 		Help:      "The total number of proto bytes received per tenant",
 	}, []string{"tenant"})
 	metricTracesPerBatch = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Name:      "distributor_traces_per_batch",
-		Help:      "The number of traces in each batch",
-		Buckets:   prometheus.ExponentialBuckets(2, 2, 10),
+		Namespace:                       "tempo",
+		Name:                            "distributor_traces_per_batch",
+		Help:                            "The number of traces in each batch",
+		Buckets:                         prometheus.ExponentialBuckets(2, 2, 10),
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 	metricIngesterClients = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "tempo",

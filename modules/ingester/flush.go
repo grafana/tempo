@@ -45,10 +45,13 @@ var (
 		Help:      "The total number of failed retries after a failed flush",
 	})
 	metricFlushDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Name:      "ingester_flush_duration_seconds",
-		Help:      "Records the amount of time to flush a complete block.",
-		Buckets:   prometheus.ExponentialBuckets(1, 2, 10),
+		Namespace:                       "tempo",
+		Name:                            "ingester_flush_duration_seconds",
+		Help:                            "Records the amount of time to flush a complete block.",
+		Buckets:                         prometheus.ExponentialBuckets(1, 2, 10),
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 	metricFlushSize = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "tempo",
