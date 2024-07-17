@@ -10,7 +10,7 @@ keywords:
 
 # Trace structure and TraceQL
 
-Inspired by PromQL and LogQL, TraceQL uses similar syntax and semantics.
+Inspired by PromQL and LogQL, TraceQL uses similar syntax and semantics. 
 The differences being inherent to the very nature of searching spans and traces.
 
 ## Trace structure
