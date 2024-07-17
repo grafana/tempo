@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -603,6 +604,9 @@ func (t RowNumber) Preceding() RowNumber {
 // IteratorResult is a row of data with a row number and named columns of data.
 // Internally it has an unstructured list for efficient collection. The ToMap()
 // function can be used to make inspection easier.
+// WARNING: Be careful when adding slices of values from iterators to Entries, as
+// there is always the risk of the slice being reused by the iterator. Always use
+// Append or AppendValue to add entries.
 type IteratorResult struct {
 	RowNumber RowNumber
 	Entries   []struct {
@@ -621,15 +625,27 @@ func (r *IteratorResult) Reset() {
 }
 
 func (r *IteratorResult) Append(rr *IteratorResult) {
-	r.Entries = append(r.Entries, rr.Entries...)
+	for _, e := range rr.Entries {
+		r.AppendValue(e.Key, e.Values)
+	}
 	r.OtherEntries = append(r.OtherEntries, rr.OtherEntries...)
 }
 
 func (r *IteratorResult) AppendValue(k string, v []pq.Value) {
-	r.Entries = append(r.Entries, struct {
-		Key    string
-		Values []pq.Value
-	}{k, v})
+	if len(r.Entries) < cap(r.Entries) {
+		// if possible reuse existing entries _and_ their slices in order
+		// to avoid unnecessary allocations
+		l := len(r.Entries)
+		r.Entries = r.Entries[:l+1]
+		r.Entries[l].Key = k
+		r.Entries[l].Values = r.Entries[l].Values[:0]
+		r.Entries[l].Values = append(r.Entries[l].Values, v...)
+	} else {
+		r.Entries = append(r.Entries, struct {
+			Key    string
+			Values []pq.Value
+		}{Key: k, Values: slices.Clone(v)})
+	}
 }
 
 func (r *IteratorResult) AppendOtherValue(k string, v interface{}) {
@@ -1280,28 +1296,19 @@ func (c *SyncIterator) makeResult(t RowNumber) *IteratorResult {
 	if len(c.at.Entries) == 0 {
 		return &c.at
 	}
+	c.at.Entries[0].Values = c.at.Entries[0].Values[:0]
 
-	switch len(c.currValues) {
-	case 0:
+	if len(c.currValues) == 0 {
 		return &c.at
-	case 1:
-		v := c.currValues[0]
-		if c.intern {
-			v = c.interner.UnsafeClone(&v)
-		} else {
-			v = v.Clone()
+	}
+
+	if c.intern {
+		for _, v := range c.currValues {
+			c.at.Entries[0].Values = append(c.at.Entries[0].Values, c.interner.UnsafeClone(&v))
 		}
-		c.at.Entries[0].Values = unsafe.Slice(&v, 1)
-	default:
-		c.at.Entries[0].Values = make([]pq.Value, 0, len(c.currValues))
-		if c.intern {
-			for _, v := range c.currValues {
-				c.at.Entries[0].Values = append(c.at.Entries[0].Values, c.interner.UnsafeClone(&v))
-			}
-		} else {
-			for _, v := range c.currValues {
-				c.at.Entries[0].Values = append(c.at.Entries[0].Values, v.Clone())
-			}
+	} else {
+		for _, v := range c.currValues {
+			c.at.Entries[0].Values = append(c.at.Entries[0].Values, v.Clone())
 		}
 	}
 
