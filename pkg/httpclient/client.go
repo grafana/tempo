@@ -112,8 +112,7 @@ func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 		if err = jsonpb.UnmarshalString(string(body), m); err != nil {
 			return resp, fmt.Errorf("error decoding %T json, err: %v body: %s", m, err, string(body))
 		}
-	case applicationProtobuf:
-
+	default:
 		if err = proto.Unmarshal(body, m); err != nil {
 			return nil, fmt.Errorf("error decoding %T proto, err: %w body: %s", m, err, string(body))
 		}
