@@ -33,7 +33,7 @@ const (
 	applicationJSON     = "application/json"
 )
 
-type HTTPClient interface {
+type TempoHTTPClient interface {
 	WithTransport(t http.RoundTripper)
 	Do(req *http.Request) (*http.Response, error)
 	SearchTags() (*tempopb.SearchTagsResponse, error)
