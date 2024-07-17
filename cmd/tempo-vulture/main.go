@@ -504,7 +504,11 @@ func queryTrace(client httpclient.TempoHTTPClient, info *util.TraceInfo, l *zap.
 	)
 	logger.Info("querying Tempo")
 
-	trace, err := client.QueryTrace(hexID)
+	start := info.Timestamp().Add(-30 * time.Minute).Unix()
+	end := info.Timestamp().Add(30 * time.Minute).Unix()
+
+	// We want to define a time range to reduce the number of lookups
+	trace, err := client.QueryTraceWithRange(hexID, start, end)
 	if err != nil {
 		if errors.Is(err, util.ErrTraceNotFound) {
 			tm.notFoundByID++
