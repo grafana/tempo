@@ -70,70 +70,64 @@ func TestHedge(t *testing.T) {
 			count := int32(0)
 			server := fakeServer(t, tc.returnIn, &count)
 
-			common := func(t *testing.T, name string) {
-				t.Run(name, func(t *testing.T) {
-					r, w, _, err := New(&Config{
-						StorageAccountName: "testing",
-						StorageAccountKey:  flagext.SecretWithValue("YQo="),
-						MaxBuffers:         3,
-						BufferSize:         1000,
-						ContainerName:      "blerg",
-						Endpoint:           server.URL[7:], // [7:] -> strip http://,
-						HedgeRequestsAt:    tc.hedgeAt,
-						HedgeRequestsUpTo:  2,
-					})
-					require.NoError(t, err)
+			r, w, _, err := New(&Config{
+				StorageAccountName: "testing",
+				StorageAccountKey:  flagext.SecretWithValue("YQo="),
+				MaxBuffers:         3,
+				BufferSize:         1000,
+				ContainerName:      "blerg",
+				Endpoint:           server.URL[7:], // [7:] -> strip http://,
+				HedgeRequestsAt:    tc.hedgeAt,
+				HedgeRequestsUpTo:  2,
+			})
+			require.NoError(t, err)
 
-					ctx := context.Background()
+			ctx := context.Background()
 
-					// the first call on each client initiates an extra http request
-					// clearing that here
-					_, _, _ = r.Read(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), nil)
-					time.Sleep(tc.returnIn)
-					atomic.StoreInt32(&count, 0)
+			// the first call on each client initiates an extra http request
+			// clearing that here
+			_, _, _ = r.Read(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), nil)
+			time.Sleep(tc.returnIn)
+			atomic.StoreInt32(&count, 0)
 
-					// calls that should hedge
-					_, _, _ = r.Read(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), nil)
-					time.Sleep(tc.returnIn)
-					assert.Equal(t, tc.expectedHedgedRequests*2, atomic.LoadInt32(&count)) // *2 b/c reads execute a HEAD and GET
-					atomic.StoreInt32(&count, 0)
+			// calls that should hedge
+			_, _, _ = r.Read(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), nil)
+			time.Sleep(tc.returnIn)
+			assert.Equal(t, tc.expectedHedgedRequests*2, atomic.LoadInt32(&count)) // *2 b/c reads execute a HEAD and GET
+			atomic.StoreInt32(&count, 0)
 
-					// this panics with the garbage test setup. todo: make it not panic
-					// _ = r.ReadRange(ctx, "object", uuid.New(), "tenant", 10, make([]byte, 100))
-					// time.Sleep(tc.returnIn)
-					// assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
-					// atomic.StoreInt32(&count, 0)
+			// this panics with the garbage test setup. todo: make it not panic
+			// _ = r.ReadRange(ctx, "object", uuid.New(), "tenant", 10, make([]byte, 100))
+			// time.Sleep(tc.returnIn)
+			// assert.Equal(t, tc.expectedHedgedRequests, atomic.LoadInt32(&count))
+			// atomic.StoreInt32(&count, 0)
 
-					// calls that should not hedge
-					_, _ = r.List(ctx, backend.KeyPath{"test"})
-					assert.Equal(t, int32(1), atomic.LoadInt32(&count))
-					atomic.StoreInt32(&count, 0)
+			// calls that should not hedge
+			_, _ = r.List(ctx, backend.KeyPath{"test"})
+			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
+			atomic.StoreInt32(&count, 0)
 
-					_ = w.Write(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), bytes.NewReader(make([]byte, 10)), 10, nil)
-					// Write consists of two operations:
-					// - Put Block operation
-					//   https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
-					// - Put Block List operation
-					//   https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
+			_ = w.Write(ctx, "object", backend.KeyPathForBlock(uuid.New(), "tenant"), bytes.NewReader(make([]byte, 10)), 10, nil)
+			// Write consists of two operations:
+			// - Put Block operation
+			//   https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
+			// - Put Block List operation
+			//   https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
 
-					// If the written bytes can fit in a single block, the Azure SDK will not call Put Block List, and will
-					// instead perform a single upload.
-					assert.Equal(t, int32(1), atomic.LoadInt32(&count))
-					// In order to more closely resemble a real-world upload scenario, and to force the SDK to call
-					// Put Block List, we deliberately create a payload that exceeds the size of a single block, forcing the
-					// SDK to make three requests in total: one request for each of the two blocks, and a final commit request.
-					// See azblob.UploadStreamOptions.BlockSize.
+			// If the written bytes can fit in a single block, the Azure SDK will not call Put Block List, and will
+			// instead perform a single upload.
+			assert.Equal(t, int32(1), atomic.LoadInt32(&count))
+			// In order to more closely resemble a real-world upload scenario, and to force the SDK to call
+			// Put Block List, we deliberately create a payload that exceeds the size of a single block, forcing the
+			// SDK to make three requests in total: one request for each of the two blocks, and a final commit request.
+			// See azblob.UploadStreamOptions.BlockSize.
 
-					// TODO: this test periodically causes segfaults in the test and a root cause has not been determined.
-					// blockSize := 2000000
-					// u, err := uuid.Parse("f97223f3-d60c-4923-b255-bb7b8140b389")
-					// require.NoError(t, err)
-					// _ = w.Write(ctx, "object", backend.KeyPathForBlock(u, "tenant"), bytes.NewReader(make([]byte, blockSize)), 10, nil)
-					atomic.StoreInt32(&count, 0)
-				})
-			}
-
-			common(t, "azure")
+			// TODO: this test periodically causes segfaults in the test and a root cause has not been determined.
+			// blockSize := 2000000
+			// u, err := uuid.Parse("f97223f3-d60c-4923-b255-bb7b8140b389")
+			// require.NoError(t, err)
+			// _ = w.Write(ctx, "object", backend.KeyPathForBlock(u, "tenant"), bytes.NewReader(make([]byte, blockSize)), 10, nil)
+			atomic.StoreInt32(&count, 0)
 		})
 	}
 }
