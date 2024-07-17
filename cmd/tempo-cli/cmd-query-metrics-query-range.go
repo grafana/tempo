@@ -51,10 +51,10 @@ func (cmd *metricsQueryCmd) Run(_ *globalOptions) error {
 		}
 
 		if cmd.UseGRPC {
-			return cmd.searchGRPCInstant(req)
+			return cmd.queryInstantGRPC(req)
 		}
 
-		return cmd.searchHTTPInstant(req)
+		return cmd.queryInstantHTTP(req)
 	}
 
 	req := &tempopb.QueryRangeRequest{
@@ -65,20 +65,20 @@ func (cmd *metricsQueryCmd) Run(_ *globalOptions) error {
 	}
 
 	if cmd.UseGRPC {
-		return cmd.searchGRPC(req)
+		return cmd.queryRangeGRPC(req)
 	}
 
-	return cmd.searchHTTP(req)
+	return cmd.queryRangeHTTP(req)
 }
 
-func (cmd *metricsQueryCmd) searchGRPC(req *tempopb.QueryRangeRequest) error {
+func (cmd *metricsQueryCmd) queryRangeGRPC(req *tempopb.QueryRangeRequest) error {
 	ctx := user.InjectOrgID(context.Background(), cmd.OrgID)
 	ctx, err := user.InjectIntoGRPCRequest(ctx)
 	if err != nil {
 		return err
 	}
 
-	clientConn, err := grpc.DialContext(ctx, cmd.HostPort, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	clientConn, err := grpc.NewClient(cmd.HostPort, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return err
 	}
@@ -108,7 +108,7 @@ func (cmd *metricsQueryCmd) searchGRPC(req *tempopb.QueryRangeRequest) error {
 }
 
 // nolint: goconst // goconst wants us to make http:// a const
-func (cmd *metricsQueryCmd) searchHTTP(req *tempopb.QueryRangeRequest) error {
+func (cmd *metricsQueryCmd) queryRangeHTTP(req *tempopb.QueryRangeRequest) error {
 	httpReq, err := http.NewRequest("GET", "http://"+path.Join(cmd.HostPort, cmd.PathPrefix, api.PathMetricsQueryRange), nil)
 	if err != nil {
 		return err
@@ -149,14 +149,14 @@ func (cmd *metricsQueryCmd) searchHTTP(req *tempopb.QueryRangeRequest) error {
 	return nil
 }
 
-func (cmd *metricsQueryCmd) searchGRPCInstant(req *tempopb.QueryInstantRequest) error {
+func (cmd *metricsQueryCmd) queryInstantGRPC(req *tempopb.QueryInstantRequest) error {
 	ctx := user.InjectOrgID(context.Background(), cmd.OrgID)
 	ctx, err := user.InjectIntoGRPCRequest(ctx)
 	if err != nil {
 		return err
 	}
 
-	clientConn, err := grpc.DialContext(ctx, cmd.HostPort, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	clientConn, err := grpc.NewClient(cmd.HostPort, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return err
 	}
@@ -186,7 +186,7 @@ func (cmd *metricsQueryCmd) searchGRPCInstant(req *tempopb.QueryInstantRequest) 
 }
 
 // nolint: goconst // goconst wants us to make http:// a const
-func (cmd *metricsQueryCmd) searchHTTPInstant(req *tempopb.QueryInstantRequest) error {
+func (cmd *metricsQueryCmd) queryInstantHTTP(req *tempopb.QueryInstantRequest) error {
 	httpReq, err := http.NewRequest("GET", "http://"+path.Join(cmd.HostPort, cmd.PathPrefix, api.PathMetricsQueryInstant), nil)
 	if err != nil {
 		return err
