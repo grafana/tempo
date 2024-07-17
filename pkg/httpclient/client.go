@@ -256,6 +256,26 @@ func (c *Client) QueryTrace(id string) (*tempopb.Trace, error) {
 	return m, nil
 }
 
+func (c *Client) QueryTraceWithRange(id string, start int64, end int64) (*tempopb.Trace, error) {
+	m := &tempopb.Trace{}
+	if start > end {
+		return nil, errors.New("start time can not be greater than end time")
+	}
+	url := c.getURLWithQueryParams(QueryTraceEndpoint+"/"+id, map[string]string{
+		"start": strconv.FormatInt(start, 10),
+		"end":   strconv.FormatInt(end, 10),
+	})
+	resp, err := c.getFor(url, m)
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return nil, util.ErrTraceNotFound
+		}
+		return nil, err
+	}
+
+	return m, nil
+}
+
 func (c *Client) SearchTraceQL(query string) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
 	_, err := c.getFor(c.buildSearchQueryURL("q", query, 0, 0), m)
@@ -416,4 +436,16 @@ func (c *Client) DeleteOverrides(version string) error {
 
 	_, _, err = c.doRequest(req)
 	return err
+}
+
+func (c *Client) getURLWithQueryParams(endpoint string, queryParams map[string]string) string {
+	joinURL, _ := url.Parse(c.BaseURL + endpoint + "?")
+	q := joinURL.Query()
+
+	for k, v := range queryParams {
+		q.Set(k, v)
+	}
+	joinURL.RawQuery = q.Encode()
+
+	return fmt.Sprint(joinURL)
 }
