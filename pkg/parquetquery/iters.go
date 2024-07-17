@@ -1222,7 +1222,7 @@ func (c *SyncIterator) next(matchEndOfArray bool) (RowNumber, error) {
 			c.currPageN++
 
 			c.currValues = append(c.currValues, *v)
-			if c.filter != nil && !c.filter.KeepValue(*v) {
+			if matchEndOfArray || (c.filter != nil && !c.filter.KeepValue(*v)) {
 				continue
 			}
 

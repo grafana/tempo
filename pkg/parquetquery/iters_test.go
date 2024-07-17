@@ -323,6 +323,25 @@ func TestColumnIteratorExitEarly(t *testing.T) {
 	})
 }
 
+func TestSyncIteratorArrays(t *testing.T) {
+	pf, expectedRows := createArrayTestFile(t, 100)
+	iter := NewSyncIterator(context.TODO(), pf.RowGroups(), 0, "A", 1000, nil, "A", SyncIteratorOptRepetitionLevel(0))
+	defer iter.Close()
+
+	for i := 0; i < len(expectedRows); i++ {
+		res, err := iter.Next()
+		require.NoError(t, err)
+
+		require.Len(t, res.Entries, 1, "len(res.Entries) != 1")
+		require.Len(t, res.Entries[0].Values, len(expectedRows[i]), "len(res.Entries[0].Values) != len(expectedRows[%d])", i)
+		for j, v1 := range res.Entries[0].Values {
+			v2 := expectedRows[i][j]
+			require.Equal(t, v1.Kind(), parquet.Int64, "res.Entries[0].Values[%d].Kind() != parquet.Int64", j)
+			require.Equal(t, v1.Int64(), v2, "res.Entries[0].Values[%[2]d].Int64() != expectedRows[%[1]d][%[2]d]", i, j)
+		}
+	}
+}
+
 func BenchmarkColumnIterator(b *testing.B) {
 	for _, tc := range iterTestCases {
 		b.Run(tc.name, func(b *testing.B) {
@@ -365,6 +384,31 @@ func createTestFile(t testing.TB, count int) *parquet.File {
 
 	pf := createFileWith(t, rows)
 	return pf
+}
+
+func createArrayTestFile(t testing.TB, count int) (*parquet.File, [][]int64) {
+	testArrays := [][]int64{
+		{1, 2, 3},
+		{4, 5},
+		{6},
+		{7, 8, 9},
+		{10, 11, 12, 13},
+		{14},
+	}
+
+	type Entry struct {
+		A []int64 `parquet:",list"`
+	}
+
+	rows := make([]Entry, count)
+	content := make([][]int64, count)
+	for i := range count {
+		a := testArrays[i%len(testArrays)]
+		rows[i] = Entry{A: a}
+		content[i] = a
+	}
+
+	return createFileWith(t, rows), content
 }
 
 func createFileWith[T any](t testing.TB, rows []T) *parquet.File {
