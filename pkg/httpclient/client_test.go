@@ -86,7 +86,7 @@ func TestQueryTraceWithRance(t *testing.T) {
 	})
 
 	t.Run("returns a trace with range not found error on 404", func(t *testing.T) {
-		mockTransport := MockRoundTripper(func(req *http.Request) *http.Response {
+		mockTransport := MockRoundTripper(func(_ *http.Request) *http.Response {
 			return &http.Response{
 				StatusCode: 404,
 				Body:       nil,
