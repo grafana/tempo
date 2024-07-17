@@ -260,7 +260,6 @@ func (rw *Azure) Find(ctx context.Context, keypath backend.KeyPath, f backend.Fi
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
 
 	prefix := path.Join(keypath...)
-
 	if len(prefix) > 0 {
 		prefix = prefix + dir
 	}
@@ -280,7 +279,8 @@ func (rw *Azure) Find(ctx context.Context, keypath backend.KeyPath, f backend.Fi
 			if b == nil || b.Name == nil {
 				continue
 			}
-			o = strings.TrimPrefix(strings.TrimSuffix(*b.Name, dir), prefix)
+
+			o = strings.TrimSuffix(*b.Name, dir)
 			opts := backend.FindMatch{
 				Key:      o,
 				Modified: *b.Properties.LastModified,
