@@ -496,15 +496,18 @@ func queryTrace(client httpclient.TempoHTTPClient, info *util.TraceInfo, l *zap.
 	}
 
 	hexID := info.HexID()
+	start := info.Timestamp().Add(-30 * time.Minute).Unix()
+	end := info.Timestamp().Add(30 * time.Minute).Unix()
 
 	logger := l.With(
 		zap.Int64("seed", info.Timestamp().Unix()),
 		zap.String("hexID", hexID),
 		zap.Duration("ago", time.Since(info.Timestamp())),
 	)
-	logger.Info("querying Tempo")
+	logger.Info("querying Tempo trace")
 
-	trace, err := client.QueryTrace(hexID)
+	// We want to define a time range to reduce the number of lookups
+	trace, err := client.QueryTraceWithRange(hexID, start, end)
 	if err != nil {
 		if errors.Is(err, util.ErrTraceNotFound) {
 			tm.notFoundByID++
