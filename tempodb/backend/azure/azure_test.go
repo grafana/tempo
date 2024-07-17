@@ -20,11 +20,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/azure/config"
 )
 
 func TestCredentials(t *testing.T) {
-	_, _, _, err := New(&config.Config{})
+	_, _, _, err := New(&Config{})
 	require.Error(t, err)
 
 	os.Setenv("AZURE_STORAGE_ACCOUNT", "testing")
@@ -36,7 +35,7 @@ func TestCredentials(t *testing.T) {
 	count := int32(0)
 	server := fakeServer(t, 1*time.Second, &count)
 
-	_, _, _, err = New(&config.Config{
+	_, _, _, err = New(&Config{
 		Endpoint: server.URL[7:], // [7:] -> strip http://,
 	})
 	require.NoError(t, err)
@@ -71,9 +70,9 @@ func TestHedge(t *testing.T) {
 			count := int32(0)
 			server := fakeServer(t, tc.returnIn, &count)
 
-			common := func(t *testing.T, name string, useV2 bool) {
+			common := func(t *testing.T, name string) {
 				t.Run(name, func(t *testing.T) {
-					r, w, _, err := New(&config.Config{
+					r, w, _, err := New(&Config{
 						StorageAccountName: "testing",
 						StorageAccountKey:  flagext.SecretWithValue("YQo="),
 						MaxBuffers:         3,
@@ -82,7 +81,6 @@ func TestHedge(t *testing.T) {
 						Endpoint:           server.URL[7:], // [7:] -> strip http://,
 						HedgeRequestsAt:    tc.hedgeAt,
 						HedgeRequestsUpTo:  2,
-						UseV2SDK:           useV2,
 					})
 					require.NoError(t, err)
 
@@ -117,29 +115,25 @@ func TestHedge(t *testing.T) {
 					//   https://docs.microsoft.com/en-us/rest/api/storageservices/put-block
 					// - Put Block List operation
 					//   https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list
-					if useV2 {
-						// If the written bytes can fit in a single block, the Azure SDK will not call Put Block List, and will
-						// instead perform a single upload.
-						assert.Equal(t, int32(1), atomic.LoadInt32(&count))
-						// In order to more closely resemble a real-world upload scenario, and to force the SDK to call
-						// Put Block List, we deliberately create a payload that exceeds the size of a single block, forcing the
-						// SDK to make three requests in total: one request for each of the two blocks, and a final commit request.
-						// See azblob.UploadStreamOptions.BlockSize.
 
-						// TODO: this test periodically causes segfaults in the test and a root cause has not been determined.
-						// blockSize := 2000000
-						// u, err := uuid.Parse("f97223f3-d60c-4923-b255-bb7b8140b389")
-						// require.NoError(t, err)
-						// _ = w.Write(ctx, "object", backend.KeyPathForBlock(u, "tenant"), bytes.NewReader(make([]byte, blockSize)), 10, nil)
-					} else {
-						assert.Equal(t, int32(2), atomic.LoadInt32(&count))
-					}
+					// If the written bytes can fit in a single block, the Azure SDK will not call Put Block List, and will
+					// instead perform a single upload.
+					assert.Equal(t, int32(1), atomic.LoadInt32(&count))
+					// In order to more closely resemble a real-world upload scenario, and to force the SDK to call
+					// Put Block List, we deliberately create a payload that exceeds the size of a single block, forcing the
+					// SDK to make three requests in total: one request for each of the two blocks, and a final commit request.
+					// See azblob.UploadStreamOptions.BlockSize.
+
+					// TODO: this test periodically causes segfaults in the test and a root cause has not been determined.
+					// blockSize := 2000000
+					// u, err := uuid.Parse("f97223f3-d60c-4923-b255-bb7b8140b389")
+					// require.NoError(t, err)
+					// _ = w.Write(ctx, "object", backend.KeyPathForBlock(u, "tenant"), bytes.NewReader(make([]byte, blockSize)), 10, nil)
 					atomic.StoreInt32(&count, 0)
 				})
 			}
 
-			common(t, "without v2", false)
-			common(t, "with v2", true)
+			common(t, "azure")
 		})
 	}
 }
@@ -234,7 +228,7 @@ func TestObjectWithPrefix(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			server := testServer(t, tc.httpHandler(t))
-			_, w, _, err := New(&config.Config{
+			_, w, _, err := New(&Config{
 				StorageAccountName: "testing_account",
 				StorageAccountKey:  flagext.SecretWithValue("YQo="),
 				MaxBuffers:         3,
@@ -384,7 +378,7 @@ func TestListBlocksWithPrefix(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			server := testServer(t, tc.httpHandler(t))
-			r, _, _, err := NewNoConfirm(&config.Config{
+			r, _, _, err := NewNoConfirm(&Config{
 				StorageAccountName: "testing_account",
 				StorageAccountKey:  flagext.SecretWithValue("YQo="),
 				MaxBuffers:         3,

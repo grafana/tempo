@@ -12,7 +12,7 @@ import (
 	"github.com/grafana/tempo/cmd/tempo/app"
 	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/tempodb/backend"
-	azure "github.com/grafana/tempo/tempodb/backend/azure/v1"
+	"github.com/grafana/tempo/tempodb/backend/azure"
 )
 
 const (

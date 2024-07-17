@@ -1,4 +1,4 @@
-package v2
+package azure
 
 import (
 	"context"
@@ -21,7 +21,7 @@ type BlobAttributes struct {
 	LastModified time.Time `json:"last_modified"`
 }
 
-func (rw *V2) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
+func (rw *Azure) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 	if len(tenantID) == 0 {
 		return backend.ErrEmptyTenantID
 	}
@@ -48,7 +48,7 @@ func (rw *V2) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 	return rw.Delete(ctx, metaFilename, []string{}, nil)
 }
 
-func (rw *V2) ClearBlock(blockID uuid.UUID, tenantID string) error {
+func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	var warning error
 	if len(tenantID) == 0 {
 		return fmt.Errorf("empty tenant id")
@@ -89,7 +89,7 @@ func (rw *V2) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	return warning
 }
 
-func (rw *V2) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
+func (rw *Azure) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
 	if len(tenantID) == 0 {
 		return nil, backend.ErrEmptyTenantID
 	}
@@ -113,7 +113,7 @@ func (rw *V2) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.C
 	return out, nil
 }
 
-func (rw *V2) readAllWithModTime(ctx context.Context, name string) ([]byte, time.Time, error) {
+func (rw *Azure) readAllWithModTime(ctx context.Context, name string) ([]byte, time.Time, error) {
 	bytes, _, err := rw.readAll(ctx, name)
 	if err != nil {
 		return nil, time.Time{}, err
@@ -127,7 +127,7 @@ func (rw *V2) readAllWithModTime(ctx context.Context, name string) ([]byte, time
 }
 
 // getAttributes returns information about the specified blob using its name.
-func (rw *V2) getAttributes(ctx context.Context, name string) (BlobAttributes, error) {
+func (rw *Azure) getAttributes(ctx context.Context, name string) (BlobAttributes, error) {
 	blobClient, err := getBlobClient(ctx, rw.cfg, name)
 	if err != nil {
 		return BlobAttributes{}, fmt.Errorf("cannot get Azure blob client, name: %s: %w", name, err)
