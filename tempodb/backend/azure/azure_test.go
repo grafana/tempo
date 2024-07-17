@@ -193,6 +193,7 @@ func TestObjectWithPrefix(t *testing.T) {
 			httpHandler: func(t *testing.T) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					if r.Method == "GET" {
+						// FIXME: this empty body seems to break the new SDK
 						_, _ = w.Write([]byte(""))
 						return
 					}
@@ -208,7 +209,10 @@ func TestObjectWithPrefix(t *testing.T) {
 			keyPath:    backend.KeyPath{"test_path"},
 			httpHandler: func(t *testing.T) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusCreated)
+
 					if r.Method == "GET" {
+						// FIXME: this empty body seems to break the new SDK
 						_, _ = w.Write([]byte(""))
 						return
 					}

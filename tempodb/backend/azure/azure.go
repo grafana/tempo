@@ -439,12 +439,14 @@ func (rw *Azure) append(ctx context.Context, src []byte, name string) error {
 func (rw *Azure) writer(ctx context.Context, src io.Reader, name string) error {
 	blobClient := rw.containerClient.NewBlockBlobClient(name)
 
-	if _, err := blobClient.UploadStream(ctx, src, &azblob.UploadStreamOptions{
+	_, err := blobClient.UploadStream(ctx, src, &azblob.UploadStreamOptions{
 		BlockSize:   int64(rw.cfg.BufferSize),
 		Concurrency: rw.cfg.MaxBuffers,
-	}); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("cannot upload blob, name: %s: %w", name, err)
 	}
+
 	return nil
 }
 
