@@ -86,6 +86,17 @@ func (m *MockHTTPClient) QueryTrace(id string) (*tempopb.Trace, error) {
 	return m.traceResp, m.err
 }
 
+//nolint:all
+func (m *MockHTTPClient) QueryTraceWithRange(id string, start int64, end int64) (*tempopb.Trace, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	m.m.Lock()
+	defer m.m.Unlock()
+	m.requestsCount++
+	return m.traceResp, m.err
+}
+
 func (m *MockHTTPClient) GetRequestsCount() int {
 	m.m.Lock()
 	defer m.m.Unlock()
