@@ -33,7 +33,7 @@ const (
 	applicationJSON     = "application/json"
 )
 
-type HTTPClient interface {
+type TempoHTTPClient interface {
 	WithTransport(t http.RoundTripper)
 	Do(req *http.Request) (*http.Response, error)
 	SearchTags() (*tempopb.SearchTagsResponse, error)
@@ -46,6 +46,7 @@ type HTTPClient interface {
 	Search(tags string) (*tempopb.SearchResponse, error)
 	SearchWithRange(tags string, start int64, end int64) (*tempopb.SearchResponse, error)
 	QueryTrace(id string) (*tempopb.Trace, error)
+	QueryTraceWithRange(id string, start int64, end int64) (*tempopb.Trace, error)
 	SearchTraceQL(query string) (*tempopb.SearchResponse, error)
 	SearchTraceQLWithRange(query string, start int64, end int64) (*tempopb.SearchResponse, error)
 	MetricsSummary(query string, groupBy string, start int64, end int64) (*tempopb.SpanMetricsSummaryResponse, error)
@@ -112,8 +113,7 @@ func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 		if err = jsonpb.UnmarshalString(string(body), m); err != nil {
 			return resp, fmt.Errorf("error decoding %T json, err: %v body: %s", m, err, string(body))
 		}
-	case applicationProtobuf:
-
+	default:
 		if err = proto.Unmarshal(body, m); err != nil {
 			return nil, fmt.Errorf("error decoding %T proto, err: %w body: %s", m, err, string(body))
 		}
@@ -247,6 +247,26 @@ func (c *Client) SearchWithRange(tags string, start int64, end int64) (*tempopb.
 func (c *Client) QueryTrace(id string) (*tempopb.Trace, error) {
 	m := &tempopb.Trace{}
 	resp, err := c.getFor(c.BaseURL+QueryTraceEndpoint+"/"+id, m)
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return nil, util.ErrTraceNotFound
+		}
+		return nil, err
+	}
+
+	return m, nil
+}
+
+func (c *Client) QueryTraceWithRange(id string, start int64, end int64) (*tempopb.Trace, error) {
+	m := &tempopb.Trace{}
+	if start > end {
+		return nil, errors.New("start time can not be greater than end time")
+	}
+	url := c.getURLWithQueryParams(QueryTraceEndpoint+"/"+id, map[string]string{
+		"start": strconv.FormatInt(start, 10),
+		"end":   strconv.FormatInt(end, 10),
+	})
+	resp, err := c.getFor(url, m)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
 			return nil, util.ErrTraceNotFound
@@ -417,4 +437,16 @@ func (c *Client) DeleteOverrides(version string) error {
 
 	_, _, err = c.doRequest(req)
 	return err
+}
+
+func (c *Client) getURLWithQueryParams(endpoint string, queryParams map[string]string) string {
+	joinURL, _ := url.Parse(c.BaseURL + endpoint + "?")
+	q := joinURL.Query()
+
+	for k, v := range queryParams {
+		q.Set(k, v)
+	}
+	joinURL.RawQuery = q.Encode()
+
+	return fmt.Sprint(joinURL)
 }

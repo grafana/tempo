@@ -235,7 +235,7 @@ func queueFutureBatches(client util.JaegerClient, info *util.TraceInfo, config v
 	}()
 }
 
-func doRead(httpClient httpclient.HTTPClient, tickerRead *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
+func doRead(httpClient httpclient.TempoHTTPClient, tickerRead *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
 	if tickerRead != nil {
 		go func() {
 			for now := range tickerRead.C {
@@ -269,7 +269,7 @@ func doRead(httpClient httpclient.HTTPClient, tickerRead *time.Ticker, startTime
 	}
 }
 
-func doSearch(httpClient httpclient.HTTPClient, tickerSearch *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
+func doSearch(httpClient httpclient.TempoHTTPClient, tickerSearch *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
 	if tickerSearch != nil {
 		go func() {
 			for now := range tickerSearch.C {
@@ -394,7 +394,7 @@ func traceInTraces(traceID string, traces []*tempopb.TraceSearchMetadata) bool {
 	return false
 }
 
-func searchTag(client httpclient.HTTPClient, seed time.Time, config vultureConfiguration, l *zap.Logger) (traceMetrics, error) {
+func searchTag(client httpclient.TempoHTTPClient, seed time.Time, config vultureConfiguration, l *zap.Logger) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
@@ -443,7 +443,7 @@ func searchTag(client httpclient.HTTPClient, seed time.Time, config vultureConfi
 	return tm, nil
 }
 
-func searchTraceql(client httpclient.HTTPClient, seed time.Time, config vultureConfiguration, l *zap.Logger) (traceMetrics, error) {
+func searchTraceql(client httpclient.TempoHTTPClient, seed time.Time, config vultureConfiguration, l *zap.Logger) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
@@ -490,21 +490,24 @@ func searchTraceql(client httpclient.HTTPClient, seed time.Time, config vultureC
 	return tm, nil
 }
 
-func queryTrace(client httpclient.HTTPClient, info *util.TraceInfo, l *zap.Logger) (traceMetrics, error) {
+func queryTrace(client httpclient.TempoHTTPClient, info *util.TraceInfo, l *zap.Logger) (traceMetrics, error) {
 	tm := traceMetrics{
 		requested: 1,
 	}
 
 	hexID := info.HexID()
+	start := info.Timestamp().Add(-30 * time.Minute).Unix()
+	end := info.Timestamp().Add(30 * time.Minute).Unix()
 
 	logger := l.With(
 		zap.Int64("seed", info.Timestamp().Unix()),
 		zap.String("hexID", hexID),
 		zap.Duration("ago", time.Since(info.Timestamp())),
 	)
-	logger.Info("querying Tempo")
+	logger.Info("querying Tempo trace")
 
-	trace, err := client.QueryTrace(hexID)
+	// We want to define a time range to reduce the number of lookups
+	trace, err := client.QueryTraceWithRange(hexID, start, end)
 	if err != nil {
 		if errors.Is(err, util.ErrTraceNotFound) {
 			tm.notFoundByID++
