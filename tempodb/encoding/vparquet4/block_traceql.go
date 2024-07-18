@@ -2427,16 +2427,18 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 	keyPath, strPath, intPath, floatPath, boolPath string,
 	allConditions bool, selectAll bool,
 ) (parquetquery.Iterator, error) {
-	repLevelOpt := parquetquery.SyncIteratorOptRepetitionLevel(definitionLevel)
+	// Generic attributes can represent scalar values or arrays. Therefore, we need to enable
+	// it is necessary to enable array collection for the iterator.
+	collectArraysOpt := parquetquery.SyncIteratorOptCollectArraysOnLevel(definitionLevel)
 
 	if selectAll {
 		return parquetquery.NewLeftJoinIterator(definitionLevel,
 			[]parquetquery.Iterator{makeIter(keyPath, nil, "key")},
 			[]parquetquery.Iterator{
-				makeIter(strPath, nil, "string", repLevelOpt),
-				makeIter(intPath, nil, "int", repLevelOpt),
-				makeIter(floatPath, nil, "float", repLevelOpt),
-				makeIter(boolPath, nil, "bool", repLevelOpt),
+				makeIter(strPath, nil, "string", collectArraysOpt),
+				makeIter(intPath, nil, "int", collectArraysOpt),
+				makeIter(floatPath, nil, "float", collectArraysOpt),
+				makeIter(boolPath, nil, "bool", collectArraysOpt),
 			},
 			&attributeCollector{},
 			parquetquery.WithPool(pqAttrPool))
@@ -2497,16 +2499,16 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 
 	var valueIters []parquetquery.Iterator
 	if len(attrStringPreds) > 0 {
-		valueIters = append(valueIters, makeIter(strPath, orIfNeeded(attrStringPreds), "string", repLevelOpt))
+		valueIters = append(valueIters, makeIter(strPath, orIfNeeded(attrStringPreds), "string", collectArraysOpt))
 	}
 	if len(attrIntPreds) > 0 {
-		valueIters = append(valueIters, makeIter(intPath, orIfNeeded(attrIntPreds), "int", repLevelOpt))
+		valueIters = append(valueIters, makeIter(intPath, orIfNeeded(attrIntPreds), "int", collectArraysOpt))
 	}
 	if len(attrFltPreds) > 0 {
-		valueIters = append(valueIters, makeIter(floatPath, orIfNeeded(attrFltPreds), "float", repLevelOpt))
+		valueIters = append(valueIters, makeIter(floatPath, orIfNeeded(attrFltPreds), "float", collectArraysOpt))
 	}
 	if len(boolPreds) > 0 {
-		valueIters = append(valueIters, makeIter(boolPath, orIfNeeded(boolPreds), "bool", repLevelOpt))
+		valueIters = append(valueIters, makeIter(boolPath, orIfNeeded(boolPreds), "bool", collectArraysOpt))
 	}
 
 	if len(valueIters) > 0 {
