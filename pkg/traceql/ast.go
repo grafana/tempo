@@ -1067,89 +1067,62 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 	case metricsAggregateRate:
 		innerAgg = func() VectorAggregator { return NewRateAggregator(1.0 / time.Duration(q.Step).Seconds()) }
 
-	case metricsAggregateHistogramOverTime:
-		// Histograms are implemented as count_over_time() by(2^log2(attr)) for now
-		// This is very similar to quantile_over_time except the bucket values are the true
-		// underlying value in scale, i.e. a duration of 500ms will be in __bucket==0.512s
-		// The difference is that quantile_over_time has to calculate the final quantiles
-		// so in that case the log2 bucket number is more useful.  We can clean it up later
-		// when updating quantiles to be smarter and more customizable range of buckets.
+	case metricsAggregateHistogramOverTime, metricsAggregateQuantileOverTime:
+		// Histograms and quantiles are implemented as count_over_time() by(2^log2(attr)) for now
+		// I.e. a duration of 500ms will be in __bucket==0.512s
 		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
 		byFuncLabel = internalLabelBucket
 		switch a.attr {
 		case IntrinsicDurationAttribute:
 			// Optimal implementation for duration attribute
-			byFunc = func(s Span) (Static, bool) {
-				d := s.DurationNanos()
-				if d < 2 {
-					return NewStaticNil(), false
-				}
-				// Bucket is log2(nanos) converted to float seconds
-				return NewStaticFloat(Log2Bucketize(d) / float64(time.Second)), true
-			}
+			byFunc = a.bucketizeSpanDuration
 		default:
 			// Basic implementation for all other attributes
-			byFunc = func(s Span) (Static, bool) {
-				v, ok := s.AttributeFor(a.attr)
-				if !ok {
-					return NewStaticNil(), false
-				}
-
-				// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
-				// Because of the range of floats, we need a native histogram approach.
-				n, ok := v.Int()
-				if !ok {
-					return NewStaticNil(), false
-				}
-
-				if n < 2 {
-					return NewStaticNil(), false
-				}
-				// Bucket is the value rounded up to the nearest power of 2
-				return NewStaticFloat(Log2Bucketize(uint64(n))), true
-			}
-		}
-
-	case metricsAggregateQuantileOverTime:
-		// Quantiles are implemented as count_over_time() by(log2(attr)) for now
-		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
-		byFuncLabel = internalLabelBucket
-		switch a.attr {
-		case IntrinsicDurationAttribute:
-			// Optimal implementation for duration attribute
-			byFunc = func(s Span) (Static, bool) {
-				d := s.DurationNanos()
-				if d < 2 {
-					return NewStaticNil(), false
-				}
-				// Bucket is in seconds
-				return NewStaticFloat(Log2Bucketize(d) / float64(time.Second)), true
-			}
-		default:
-			// Basic implementation for all other attributes
-			byFunc = func(s Span) (Static, bool) {
-				v, ok := s.AttributeFor(a.attr)
-				if !ok {
-					return NewStaticNil(), false
-				}
-
-				// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
-				// Because of the range of floats, we need a native histogram approach.
-				if v.Type != TypeInt {
-					return NewStaticNil(), false
-				}
-				n, _ := v.Int()
-				if n < 2 {
-					return NewStaticNil(), false
-				}
-				return NewStaticFloat(Log2Bucketize(uint64(n))), true
-			}
+			byFunc = a.bucketizeAttribute
 		}
 	}
 
 	a.agg = NewGroupingAggregator(a.op.String(), func() RangeAggregator {
 		return NewStepAggregator(q.Start, q.End, q.Step, innerAgg)
 	}, a.by, byFunc, byFuncLabel)
+}
+
+func (a *MetricsAggregate) bucketizeSpanDuration(s Span) (Static, bool) {
+	d := s.DurationNanos()
+	if d < 2 {
+		return NewStaticNil(), false
+	}
+	// Bucket is in seconds
+	return NewStaticFloat(Log2Bucketize(d) / float64(time.Second)), true
+}
+
+func (a *MetricsAggregate) bucketizeAttribute(s Span) (Static, bool) {
+	v, ok := s.AttributeFor(a.attr)
+	if !ok {
+		return NewStaticNil(), false
+	}
+
+	switch v.Type {
+	case TypeInt:
+		n, _ := v.Int()
+		if n < 2 {
+			return NewStaticNil(), false
+		}
+		// Bucket is the value rounded up to the nearest power of 2
+		return NewStaticFloat(Log2Bucketize(uint64(n))), true
+	case TypeDuration:
+		d, _ := v.Duration()
+		n := d.Nanoseconds()
+		if n < 2 {
+			return NewStaticNil(), false
+		}
+		// Bucket is log2(nanos) converted to float seconds
+		return NewStaticFloat(Log2Bucketize(uint64(n)) / float64(time.Second)), true
+	default:
+		// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
+		// Because of the range of floats, we need a native histogram approach.
+		return NewStaticNil(), false
+	}
 }
 
 func (a *MetricsAggregate) initSum(q *tempopb.QueryRangeRequest) {
