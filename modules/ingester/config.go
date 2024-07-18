@@ -48,7 +48,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.DurationVar(&cfg.MaxBlockDuration, prefix+".max-block-duration", 30*time.Minute, "Maximum duration which the head block can be appended to before cutting it.")
 	f.Uint64Var(&cfg.MaxBlockBytes, prefix+".max-block-bytes", 500*1024*1024, "Maximum size of the head block before cutting it.")
 	f.DurationVar(&cfg.CompleteBlockTimeout, prefix+".complete-block-timeout", 3*tempodb.DefaultBlocklistPoll, "Duration to keep blocks in the ingester after they have been flushed.")
-	f.StringVar(&cfg.LifecyclerConfig.Zone, prefix+".availability-zone", "default-zone", "Define Availability Zone in which this ingester is running in")
+	f.StringVar(&cfg.LifecyclerConfig.Zone, prefix+".availability-zone", "", "Define Availability Zone in which this ingester is running in")
 
 	hostname, err := os.Hostname()
 	if err != nil {
