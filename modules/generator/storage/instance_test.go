@@ -335,6 +335,7 @@ func (m *mockPrometheusRemoteWriteServer) close() {
 // poll executes f every interval until ctx is done or cancelled.
 func poll(ctx context.Context, interval time.Duration, f func()) {
 	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 
 	for {
 		select {
