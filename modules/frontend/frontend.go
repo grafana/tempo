@@ -26,25 +26,27 @@ import (
 // these handler funcs could likely be removed and the code written directly into the respective
 // gRPC functions
 type (
-	streamingSearchHandler      func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error
-	streamingTagsHandler        func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsServer) error
-	streamingTagsV2Handler      func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsV2Server) error
-	streamingTagValuesHandler   func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesServer) error
-	streamingTagValuesV2Handler func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesV2Server) error
-	streamingQueryRangeHandler  func(req *tempopb.QueryRangeRequest, srv tempopb.StreamingQuerier_MetricsQueryRangeServer) error
+	streamingSearchHandler       func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error
+	streamingTagsHandler         func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsServer) error
+	streamingTagsV2Handler       func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsV2Server) error
+	streamingTagValuesHandler    func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesServer) error
+	streamingTagValuesV2Handler  func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesV2Server) error
+	streamingQueryRangeHandler   func(req *tempopb.QueryRangeRequest, srv tempopb.StreamingQuerier_MetricsQueryRangeServer) error
+	streamingQueryInstantHandler func(req *tempopb.QueryInstantRequest, srv tempopb.StreamingQuerier_MetricsQueryInstantServer) error
 )
 
 type QueryFrontend struct {
-	TraceByIDHandler, SearchHandler, MetricsSummaryHandler, MetricsQueryRangeHandler           http.Handler
-	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler http.Handler
-	cacheProvider                                                                              cache.Provider
-	streamingSearch                                                                            streamingSearchHandler
-	streamingTags                                                                              streamingTagsHandler
-	streamingTagsV2                                                                            streamingTagsV2Handler
-	streamingTagValues                                                                         streamingTagValuesHandler
-	streamingTagValuesV2                                                                       streamingTagValuesV2Handler
-	streamingQueryRange                                                                        streamingQueryRangeHandler
-	logger                                                                                     log.Logger
+	TraceByIDHandler, SearchHandler, MetricsSummaryHandler, MetricsQueryInstantHandler, MetricsQueryRangeHandler http.Handler
+	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler                   http.Handler
+	cacheProvider                                                                                                cache.Provider
+	streamingSearch                                                                                              streamingSearchHandler
+	streamingTags                                                                                                streamingTagsHandler
+	streamingTagsV2                                                                                              streamingTagsV2Handler
+	streamingTagValues                                                                                           streamingTagValuesHandler
+	streamingTagValuesV2                                                                                         streamingTagValuesV2Handler
+	streamingQueryRange                                                                                          streamingQueryRangeHandler
+	streamingQueryInstant                                                                                        streamingQueryInstantHandler
+	logger                                                                                                       log.Logger
 }
 
 // New returns a new QueryFrontend
@@ -140,26 +142,29 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	searchTagValues := newTagHTTPHandler(cfg, searchTagValuesPipeline, o, combiner.NewSearchTagValues, logger)
 	searchTagValuesV2 := newTagHTTPHandler(cfg, searchTagValuesPipeline, o, combiner.NewSearchTagValuesV2, logger)
 	metrics := newMetricsSummaryHandler(metricsPipeline, logger)
+	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryRangePipeline, logger) // Reuses the same pipeline
 	queryrange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger)
 
 	return &QueryFrontend{
 		// http/discrete
-		TraceByIDHandler:          newHandler(cfg.Config.LogQueryRequestHeaders, traces, logger),
-		SearchHandler:             newHandler(cfg.Config.LogQueryRequestHeaders, search, logger),
-		SearchTagsHandler:         newHandler(cfg.Config.LogQueryRequestHeaders, searchTags, logger),
-		SearchTagsV2Handler:       newHandler(cfg.Config.LogQueryRequestHeaders, searchTagsV2, logger),
-		SearchTagsValuesHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValues, logger),
-		SearchTagsValuesV2Handler: newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValuesV2, logger),
-		MetricsSummaryHandler:     newHandler(cfg.Config.LogQueryRequestHeaders, metrics, logger),
-		MetricsQueryRangeHandler:  newHandler(cfg.Config.LogQueryRequestHeaders, queryrange, logger),
+		TraceByIDHandler:           newHandler(cfg.Config.LogQueryRequestHeaders, traces, logger),
+		SearchHandler:              newHandler(cfg.Config.LogQueryRequestHeaders, search, logger),
+		SearchTagsHandler:          newHandler(cfg.Config.LogQueryRequestHeaders, searchTags, logger),
+		SearchTagsV2Handler:        newHandler(cfg.Config.LogQueryRequestHeaders, searchTagsV2, logger),
+		SearchTagsValuesHandler:    newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValues, logger),
+		SearchTagsValuesV2Handler:  newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValuesV2, logger),
+		MetricsSummaryHandler:      newHandler(cfg.Config.LogQueryRequestHeaders, metrics, logger),
+		MetricsQueryInstantHandler: newHandler(cfg.Config.LogQueryRequestHeaders, queryInstant, logger),
+		MetricsQueryRangeHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, queryrange, logger),
 
 		// grpc/streaming
-		streamingSearch:      newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
-		streamingTags:        newTagStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
-		streamingTagsV2:      newTagV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
-		streamingTagValues:   newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger),
-		streamingTagValuesV2: newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger),
-		streamingQueryRange:  newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger),
+		streamingSearch:       newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
+		streamingTags:         newTagStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
+		streamingTagsV2:       newTagV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
+		streamingTagValues:    newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger),
+		streamingTagValuesV2:  newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger),
+		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger),
+		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger), // Reuses the same pipeline
 
 		cacheProvider: cacheProvider,
 		logger:        logger,
@@ -189,6 +194,10 @@ func (q *QueryFrontend) SearchTagValuesV2(req *tempopb.SearchTagValuesRequest, s
 
 func (q *QueryFrontend) MetricsQueryRange(req *tempopb.QueryRangeRequest, srv tempopb.StreamingQuerier_MetricsQueryRangeServer) error {
 	return q.streamingQueryRange(req, srv)
+}
+
+func (q *QueryFrontend) MetricsQueryInstant(req *tempopb.QueryInstantRequest, srv tempopb.StreamingQuerier_MetricsQueryInstantServer) error {
+	return q.streamingQueryInstant(req, srv)
 }
 
 // newSpanMetricsMiddleware creates a new frontend middleware to handle metrics-generator requests.
