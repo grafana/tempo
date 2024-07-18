@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	azuriteImage = "mcr.microsoft.com/azure-storage/azurite"
+	azuriteImage = "mcr.microsoft.com/azure-storage/azurite:3.31.0"
 	gcsImage     = "fsouza/fake-gcs-server:1.47.6"
 )
 
