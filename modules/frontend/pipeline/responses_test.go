@@ -392,25 +392,25 @@ type sharder struct {
 	funcSharder bool
 }
 
-func (s sharder) RoundTrip(r *http.Request) (Responses[combiner.PipelineResponse], error) {
+func (s sharder) RoundTrip(r Request) (Responses[combiner.PipelineResponse], error) {
 	total := 4
 	concurrent := 2
 
 	// execute requests
 	if s.funcSharder {
-		return NewAsyncSharderFunc(r.Context(), concurrent, total, func(i int) *http.Request {
-			return r
+		return NewAsyncSharderFunc(r.HTTPRequest().Context(), concurrent, total, func(i int) *http.Request {
+			return r.HTTPRequest()
 		}, s.next), nil
 	}
 
 	reqCh := make(chan *http.Request)
 	go func() {
 		for i := 0; i < total; i++ {
-			reqCh <- r
+			reqCh <- r.HTTPRequest()
 		}
 		close(reqCh)
 	}()
-	return NewAsyncSharderChan(r.Context(), concurrent, reqCh, nil, s.next), nil
+	return NewAsyncSharderChan(r.HTTPRequest().Context(), concurrent, reqCh, nil, s.next), nil
 }
 
 func BenchmarkNewSyncToAsyncResponse(b *testing.B) {

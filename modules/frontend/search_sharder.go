@@ -64,7 +64,9 @@ func newAsyncSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg Sea
 // RoundTrip implements http.RoundTripper
 // execute up to concurrentRequests simultaneously where each request scans ~targetMBsPerRequest
 // until limit results are found
-func (s asyncSearchSharder) RoundTrip(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+	r := pipelineRequest.HTTPRequest()
+
 	searchReq, err := api.ParseSearchRequest(r)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil

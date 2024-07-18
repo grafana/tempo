@@ -46,7 +46,7 @@ func NewAsyncSharderFunc(ctx context.Context, concurrentReqs, totalReqs int, req
 			go func(r *http.Request) {
 				defer wg.Done()
 
-				resp, err := next.RoundTrip(r)
+				resp, err := next.RoundTrip(NewHTTPRequest(r))
 				if err != nil {
 					asyncResp.SendError(err)
 					return
@@ -81,7 +81,7 @@ func NewAsyncSharderChan(ctx context.Context, concurrentReqs int, reqs <-chan *h
 					continue
 				}
 
-				resp, err := next.RoundTrip(req)
+				resp, err := next.RoundTrip(NewHTTPRequest(req))
 				if err != nil {
 					asyncResp.SendError(err)
 					continue

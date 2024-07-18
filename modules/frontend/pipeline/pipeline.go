@@ -1,22 +1,48 @@
 package pipeline
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
 )
+
+type Request interface {
+	HTTPRequest() *http.Request
+	Context() context.Context
+}
+
+type HTTPRequest struct {
+	req *http.Request
+}
+
+func NewHTTPRequest(req *http.Request) HTTPRequest {
+	return HTTPRequest{req: req}
+}
+
+func (r HTTPRequest) HTTPRequest() *http.Request {
+	return r.req // jpe ?
+}
+
+func (r HTTPRequest) Context() context.Context {
+	if r.req == nil {
+		return nil
+	}
+
+	return r.req.Context()
+}
 
 //
 // Async Pipeline
 //
 
 type AsyncRoundTripper[T any] interface {
-	RoundTrip(*http.Request) (Responses[T], error)
+	RoundTrip(Request) (Responses[T], error)
 }
 
-type AsyncRoundTripperFunc[T any] func(*http.Request) (Responses[T], error)
+type AsyncRoundTripperFunc[T any] func(Request) (Responses[T], error)
 
-func (fn AsyncRoundTripperFunc[T]) RoundTrip(req *http.Request) (Responses[T], error) {
+func (fn AsyncRoundTripperFunc[T]) RoundTrip(req Request) (Responses[T], error) {
 	return fn(req)
 }
 
@@ -92,14 +118,16 @@ type pipelineBridge struct {
 	convert func(*http.Response) Responses[combiner.PipelineResponse]
 }
 
-func (b *pipelineBridge) RoundTrip(req *http.Request) (Responses[combiner.PipelineResponse], error) {
-	r, err := b.next.RoundTrip(req)
+func (b *pipelineBridge) RoundTrip(req Request) (Responses[combiner.PipelineResponse], error) {
+	httpReq := req.HTTPRequest()
+
+	r, err := b.next.RoundTrip(httpReq)
 	if err != nil {
 		return nil, err
 	}
 
 	// check for request data in the context and echo it back if it exists
-	if val := req.Context().Value(contextRequestDataForResponse); val != nil {
+	if val := httpReq.Context().Value(contextRequestDataForResponse); val != nil {
 		return NewHTTPToAsyncResponseWithRequestData(r, val), nil
 	}
 

@@ -64,7 +64,9 @@ func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg
 	})
 }
 
-func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+	r := pipelineRequest.HTTPRequest()
+
 	span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.QueryRangeSharder")
 	defer span.Finish()
 

@@ -218,7 +218,7 @@ func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineR
 			"tenant", tenant,
 			"path", req.URL.Path)
 
-		resps, err := next.RoundTrip(req)
+		resps, err := next.RoundTrip(pipeline.NewHTTPRequest(req))
 		if err != nil {
 			return nil, err
 		}

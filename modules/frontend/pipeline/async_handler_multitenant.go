@@ -1,7 +1,6 @@
 package pipeline
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -34,7 +33,7 @@ func NewMultiTenantMiddleware(logger log.Logger) AsyncMiddleware[combiner.Pipeli
 	})
 }
 
-func (t *tenantRoundTripper) RoundTrip(req *http.Request) (Responses[combiner.PipelineResponse], error) {
+func (t *tenantRoundTripper) RoundTrip(req Request) (Responses[combiner.PipelineResponse], error) {
 	// extract tenant ids, this will normalize and de-duplicate tenant ids
 	tenants, err := t.resolver.TenantIDs(req.Context())
 	if err != nil {
@@ -55,13 +54,16 @@ func (t *tenantRoundTripper) RoundTrip(req *http.Request) (Responses[combiner.Pi
 		if tenantIdx >= len(tenants) {
 			return nil
 		}
-		return requestForTenant(req.Context(), req, tenants[tenantIdx])
+		return requestForTenant(req, tenants[tenantIdx])
 	}, t.next), nil
 }
 
 // requestForTenant makes a copy of request and injects the tenant id into context and Header.
 // this allows us to keep all multi-tenant logic in query frontend and keep other components single tenant
-func requestForTenant(ctx context.Context, r *http.Request, tenant string) *http.Request {
+func requestForTenant(req Request, tenant string) *http.Request {
+	r := req.HTTPRequest()
+	ctx := r.Context()
+
 	ctx = user.InjectOrgID(ctx, tenant)
 	rCopy := r.Clone(ctx)
 	rCopy.Header.Set(user.OrgIDHeaderName, tenant)
@@ -85,7 +87,7 @@ func NewMultiTenantUnsupportedMiddleware(logger log.Logger) AsyncMiddleware[comb
 	})
 }
 
-func (t *unsupportedRoundTripper) RoundTrip(req *http.Request) (Responses[combiner.PipelineResponse], error) {
+func (t *unsupportedRoundTripper) RoundTrip(req Request) (Responses[combiner.PipelineResponse], error) {
 	// extract tenant ids
 	tenants, err := t.resolver.TenantIDs(req.Context())
 	if err != nil {

@@ -39,7 +39,9 @@ func newAsyncTraceIDSharder(cfg *TraceByIDConfig, logger log.Logger) pipeline.As
 }
 
 // RoundTrip implements http.RoundTripper
-func (s asyncTraceSharder) RoundTrip(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+	r := pipelineRequest.HTTPRequest()
+
 	span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.ShardQuery")
 	defer span.Finish()
 	r = r.WithContext(ctx)

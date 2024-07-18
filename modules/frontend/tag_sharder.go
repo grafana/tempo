@@ -189,7 +189,8 @@ func newAsyncTagSharder(reader tempodb.Reader, o overrides.Interface, cfg Search
 // RoundTrip implements pipeline.AsyncRoundTripper
 // execute up to concurrentRequests simultaneously where each request scans ~targetMBsPerRequest
 // until limit results are found
-func (s searchTagSharder) RoundTrip(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+	r := pipelineRequest.HTTPRequest()
 	requestCtx := r.Context()
 
 	tenantID, err := user.ExtractOrgID(requestCtx)
