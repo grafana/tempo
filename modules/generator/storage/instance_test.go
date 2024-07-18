@@ -69,6 +69,9 @@ func TestInstance(t *testing.T) {
 		}
 
 		err = appender.Commit()
+		if err != nil {
+			assert.ErrorIs(t, err, os.ErrClosed)
+		}
 		assert.NoError(t, err)
 	})
 
