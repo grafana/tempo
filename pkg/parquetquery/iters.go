@@ -798,7 +798,9 @@ func SyncIteratorOptIntern() SyncIteratorOpt {
 	}
 }
 
-func SyncIteratorOptRepetitionLevel(repLevel int) SyncIteratorOpt {
+// SyncIteratorOptCollectArraysOnLevel enables the iterator to collect values as arrays if they
+// repeat above the given repetition level. This is useful when the data is stored as arrays.
+func SyncIteratorOptCollectArraysOnLevel(repLevel int) SyncIteratorOpt {
 	return func(i *SyncIterator) {
 		i.repLevel = repLevel
 	}

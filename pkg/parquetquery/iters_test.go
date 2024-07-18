@@ -325,7 +325,7 @@ func TestColumnIteratorExitEarly(t *testing.T) {
 
 func TestSyncIteratorArrays(t *testing.T) {
 	pf, expectedRows := createArrayTestFile(t, 100)
-	iter := NewSyncIterator(context.TODO(), pf.RowGroups(), 0, "A", 1000, nil, "A", SyncIteratorOptRepetitionLevel(0))
+	iter := NewSyncIterator(context.TODO(), pf.RowGroups(), 0, "A", 1000, nil, "A", SyncIteratorOptCollectArraysOnLevel(0))
 	defer iter.Close()
 
 	for i := 0; i < len(expectedRows); i++ {
