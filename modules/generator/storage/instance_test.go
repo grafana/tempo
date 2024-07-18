@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -70,7 +71,9 @@ func TestInstance(t *testing.T) {
 
 		err = appender.Commit()
 		if err != nil {
-			assert.ErrorIs(t, err, os.ErrClosed)
+			// TODO: Fix the shutdown handling so that we avoid trying to commit on a closed WAL.
+			assert.IsType(t, &fs.PathError{}, err)
+			assert.ErrorContains(t, err, os.ErrClosed.Error())
 		}
 		assert.NoError(t, err)
 	})
