@@ -245,6 +245,8 @@ func (r *ManagedRegistry) collectMetrics(ctx context.Context) {
 	r.metricMaxActiveSeries.Set(float64(maxActiveSeries))
 
 	// TODO: Avoid trying to commit after we have started the shutdown process.
+	// If the shutdown has started here, a "file already closed" error will be
+	// handled here.
 	err = appender.Commit()
 	if err != nil {
 		return
