@@ -74,8 +74,9 @@ func TestInstance(t *testing.T) {
 			// TODO: Fix the shutdown handling so that we avoid trying to commit on a closed WAL.
 			assert.IsType(t, &fs.PathError{}, err)
 			assert.ErrorContains(t, err, os.ErrClosed.Error())
+		} else {
+			assert.NoError(t, err)
 		}
-		assert.NoError(t, err)
 	})
 
 	// Wait until remote.Storage has tried at least once to send data
