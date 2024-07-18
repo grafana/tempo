@@ -913,6 +913,7 @@ func (c *SyncIterator) Next() (*IteratorResult, error) {
 		return nil, nil
 	}
 	if c.repLevel >= 0 {
+		// If the repetition level is set, we need to consume the remaining values of the potential array.
 		_, err = c.next(true)
 		if err != nil {
 			return nil, err
@@ -949,6 +950,7 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 		if !rn.Valid() {
 			return nil, nil
 		}
+		// If the repetition level is set, we need to consume the remaining values of the potential array.
 		if c.repLevel >= 0 {
 			_, err = c.next(true)
 			if err != nil {
@@ -1208,10 +1210,14 @@ func (c *SyncIterator) next(matchEndOfArray bool) (RowNumber, error) {
 		for c.currBufN < len(c.currBuf) {
 			v := &c.currBuf[c.currBufN]
 
+			// If the repetition level is set, and the repetition level of the value is less or equal to
+			// the iterators repetition level, the v is either a single value or the start of a new array.
 			if c.repLevel < 0 || (v.RepetitionLevel() <= c.repLevel) {
 				if matchEndOfArray {
+					// If we are looking for the end of the array, we've now consumed all values and can return.
 					return c.curr, nil
 				}
+				// Otherwise we have to reset the current values buffer.
 				c.currValues = c.currValues[:0]
 			}
 
@@ -1222,6 +1228,8 @@ func (c *SyncIterator) next(matchEndOfArray bool) (RowNumber, error) {
 			c.currPageN++
 
 			c.currValues = append(c.currValues, *v)
+
+			// If we are looking for the end of the array, or v does not match the filter, we continue.
 			if matchEndOfArray || (c.filter != nil && !c.filter.KeepValue(*v)) {
 				continue
 			}
