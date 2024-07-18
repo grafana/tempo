@@ -404,7 +404,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 			subR = api.BuildQueryRangeRequest(subR, queryRangeReq)
 			subR.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
 
-			prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query())
+			prepareRequestForQueriers(subR, tenantID)
 			// TODO: Handle sampling rate
 			key := queryRangeCacheKey(tenantID, queryHash, int64(queryRangeReq.Start), int64(queryRangeReq.End), m, int(queryRangeReq.StartPage), int(queryRangeReq.PagesToSearch))
 			if len(key) > 0 {
@@ -440,7 +440,7 @@ func (s *queryRangeSharder) toUpstreamRequest(ctx context.Context, req tempopb.Q
 	subR := parent.Clone(ctx)
 	subR = api.BuildQueryRangeRequest(subR, &req)
 
-	prepareRequestForQueriers(subR, tenantID, parent.URL.Path, subR.URL.Query())
+	prepareRequestForQueriers(subR, tenantID)
 	return subR
 }
 

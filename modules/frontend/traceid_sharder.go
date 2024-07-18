@@ -83,8 +83,9 @@ func (s *asyncTraceSharder) buildShardedRequests(ctx context.Context, parent *ht
 			q.Add(querier.BlockEndKey, hex.EncodeToString(s.blockBoundaries[i]))
 			q.Add(querier.QueryModeKey, querier.QueryModeBlocks)
 		}
+		reqs[i].URL.RawQuery = q.Encode()
 
-		prepareRequestForQueriers(reqs[i], userID, reqs[i].URL.Path, q)
+		prepareRequestForQueriers(reqs[i], userID)
 	}
 
 	return reqs, nil
