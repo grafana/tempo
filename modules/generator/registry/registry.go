@@ -244,6 +244,7 @@ func (r *ManagedRegistry) collectMetrics(ctx context.Context) {
 	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
 	r.metricMaxActiveSeries.Set(float64(maxActiveSeries))
 
+	// TODO: Avoid trying to commit after we have started the shutdown process.
 	err = appender.Commit()
 	if err != nil {
 		return
