@@ -149,7 +149,7 @@ func TestRetry_CancelledRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = NewRetryWare(5, prometheus.NewRegistry()).
-		Wrap(RoundTripperFunc(func(req Request) (*http.Response, error) {
+		Wrap(RoundTripperFunc(func(_ Request) (*http.Response, error) {
 			try.Inc()
 			cancel()
 			return nil, errors.New("this request failed")
