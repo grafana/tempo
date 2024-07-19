@@ -283,6 +283,8 @@ func (s *queryRangeSharder) buildShardedBackendRequests(ctx context.Context, ten
 			shardR.ShardID = i
 			shardR.ShardCount = shards
 			httpReq := s.toUpstreamRequest(ctx, shardR, parent, tenantID)
+
+			pipelineR := pipeline.NewHTTPRequest(httpReq)
 			if samplingRate != 1.0 {
 				shardR.ShardID *= uint32(1.0 / samplingRate)
 				shardR.ShardCount *= uint32(1.0 / samplingRate)
@@ -290,11 +292,11 @@ func (s *queryRangeSharder) buildShardedBackendRequests(ctx context.Context, ten
 				// Set final sampling rate after integer rounding
 				samplingRate = float64(shards) / float64(shardR.ShardCount)
 
-				httpReq = pipeline.ContextAddResponseDataForResponse(samplingRate, httpReq)
+				pipelineR.SetResponseData(samplingRate)
 			}
 
 			select {
-			case reqCh <- pipeline.NewHTTPRequest(httpReq):
+			case reqCh <- pipelineR:
 			case <-ctx.Done():
 				return
 			}

@@ -14,12 +14,16 @@ type Request interface {
 
 	SetCacheKey(string)
 	CacheKey() string
+
+	SetResponseData(any) // add data that will be sent back with this requests response
+	ResponseData() any
 }
 
 type HTTPRequest struct {
 	req *http.Request
 
-	cacheKey string
+	cacheKey     string
+	responseData any
 }
 
 func NewHTTPRequest(req *http.Request) *HTTPRequest {
@@ -48,6 +52,14 @@ func (r *HTTPRequest) SetCacheKey(s string) {
 
 func (r *HTTPRequest) CacheKey() string {
 	return r.cacheKey
+}
+
+func (r *HTTPRequest) SetResponseData(data any) {
+	r.responseData = data
+}
+
+func (r *HTTPRequest) ResponseData() any {
+	return r.responseData
 }
 
 //
@@ -149,8 +161,7 @@ func (b *pipelineBridge) RoundTrip(req Request) (Responses[combiner.PipelineResp
 	}
 
 	// check for request data in the context and echo it back if it exists
-	httpReq := req.HTTPRequest() // jpe - move any into Request
-	if val := httpReq.Context().Value(contextRequestDataForResponse); val != nil {
+	if val := req.ResponseData(); val != nil {
 		return NewHTTPToAsyncResponseWithRequestData(r, val), nil
 	}
 
