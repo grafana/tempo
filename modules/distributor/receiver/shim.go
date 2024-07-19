@@ -49,10 +49,13 @@ const (
 
 var (
 	metricPushDuration = promauto.NewHistogram(prom_client.HistogramOpts{
-		Namespace: "tempo",
-		Name:      "distributor_push_duration_seconds",
-		Help:      "Records the amount of time to push a batch to the ingester.",
-		Buckets:   prom_client.DefBuckets,
+		Namespace:                       "tempo",
+		Name:                            "distributor_push_duration_seconds",
+		Help:                            "Records the amount of time to push a batch to the ingester.",
+		Buckets:                         prom_client.DefBuckets,
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 
 	statReceiverOtlp       = usagestats.NewInt("receiver_enabled_otlp")

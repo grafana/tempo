@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -31,11 +32,14 @@ func NewRedisCache(name string, redisClient *RedisClient, reg prometheus.Registe
 		logger: logger,
 		requestDuration: instr.NewHistogramCollector(
 			promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
-				Namespace:   "tempo",
-				Name:        "rediscache_request_duration_seconds",
-				Help:        "Total time spent in seconds doing Redis requests.",
-				Buckets:     prometheus.ExponentialBuckets(0.000016, 4, 8),
-				ConstLabels: prometheus.Labels{"name": name},
+				Namespace:                       "tempo",
+				Name:                            "rediscache_request_duration_seconds",
+				Help:                            "Total time spent in seconds doing Redis requests.",
+				Buckets:                         prometheus.ExponentialBuckets(0.000016, 4, 8),
+				NativeHistogramBucketFactor:     1.1,
+				NativeHistogramMaxBucketNumber:  100,
+				NativeHistogramMinResetDuration: 1 * time.Hour,
+				ConstLabels:                     prometheus.Labels{"name": name},
 			}, []string{"method", "status_code"}),
 		),
 	}

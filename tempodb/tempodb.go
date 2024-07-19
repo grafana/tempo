@@ -45,10 +45,13 @@ const (
 
 var (
 	metricRetentionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempodb",
-		Name:      "retention_duration_seconds",
-		Help:      "Records the amount of time to perform retention tasks.",
-		Buckets:   prometheus.ExponentialBuckets(.25, 2, 6),
+		Namespace:                       "tempodb",
+		Name:                            "retention_duration_seconds",
+		Help:                            "Records the amount of time to perform retention tasks.",
+		Buckets:                         prometheus.ExponentialBuckets(.25, 2, 6),
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 	metricRetentionErrors = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "tempodb",
