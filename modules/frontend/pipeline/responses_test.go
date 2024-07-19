@@ -214,7 +214,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 		{
 			name: "happy path",
 			finalRT: func(_ context.CancelFunc) RoundTripperFunc {
-				return RoundTripperFunc(func(r Request) (*http.Response, error) {
+				return RoundTripperFunc(func(_ Request) (*http.Response, error) {
 					return &http.Response{
 						Body: io.NopCloser(strings.NewReader("foo")),
 					}, nil
@@ -224,7 +224,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 		{
 			name: "error path",
 			finalRT: func(_ context.CancelFunc) RoundTripperFunc {
-				return RoundTripperFunc(func(r Request) (*http.Response, error) {
+				return RoundTripperFunc(func(_ Request) (*http.Response, error) {
 					return nil, errors.New("foo")
 				})
 			},
@@ -234,7 +234,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 			finalRT: func(_ context.CancelFunc) RoundTripperFunc {
 				responseCounter := atomic.Int32{}
 
-				return RoundTripperFunc(func(r Request) (*http.Response, error) {
+				return RoundTripperFunc(func(_ Request) (*http.Response, error) {
 					counter := responseCounter.Add(1)
 					if counter == 2 {
 						return &http.Response{
@@ -257,7 +257,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 					cancel()
 				}()
 
-				return RoundTripperFunc(func(r Request) (*http.Response, error) {
+				return RoundTripperFunc(func(_ Request) (*http.Response, error) {
 					time.Sleep(3 * time.Second)
 
 					return &http.Response{
@@ -274,7 +274,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 			finalRT: func(cancel context.CancelFunc) RoundTripperFunc {
 				responseCounter := atomic.Int32{}
 
-				return RoundTripperFunc(func(r Request) (*http.Response, error) {
+				return RoundTripperFunc(func(_ Request) (*http.Response, error) {
 					counter := responseCounter.Add(1)
 					if counter == 2 {
 						cancel()
@@ -398,7 +398,7 @@ func (s sharder) RoundTrip(r Request) (Responses[combiner.PipelineResponse], err
 
 	// execute requests
 	if s.funcSharder {
-		return NewAsyncSharderFunc(r.HTTPRequest().Context(), concurrent, total, func(i int) Request {
+		return NewAsyncSharderFunc(r.HTTPRequest().Context(), concurrent, total, func(_ int) Request {
 			return r
 		}, s.next), nil
 	}

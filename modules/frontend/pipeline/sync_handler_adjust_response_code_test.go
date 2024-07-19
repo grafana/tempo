@@ -10,7 +10,7 @@ import (
 
 func TestAdjustsResponseCode(t *testing.T) {
 	nextFn := func(status int) RoundTripper {
-		return RoundTripperFunc(func(req Request) (*http.Response, error) {
+		return RoundTripperFunc(func(_ Request) (*http.Response, error) {
 			return &http.Response{StatusCode: status}, nil
 		})
 	}
@@ -39,7 +39,7 @@ func TestAdjustsResponseCode(t *testing.T) {
 
 func TestAdjustsResponseCodeTeapotAllowed(t *testing.T) {
 	nextFn := func(status int) RoundTripper {
-		return RoundTripperFunc(func(req Request) (*http.Response, error) {
+		return RoundTripperFunc(func(_ Request) (*http.Response, error) {
 			return &http.Response{StatusCode: status}, nil
 		})
 	}
