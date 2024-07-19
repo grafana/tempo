@@ -59,7 +59,7 @@ func TestAsyncSharders(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			next := AsyncRoundTripperFunc[combiner.PipelineResponse](func(r Request) (Responses[combiner.PipelineResponse], error) {
+			next := AsyncRoundTripperFunc[combiner.PipelineResponse](func(_ Request) (Responses[combiner.PipelineResponse], error) {
 				// return a generic 200
 				return NewHTTPToAsyncResponse(&http.Response{
 					Body:       io.NopCloser(strings.NewReader("")),

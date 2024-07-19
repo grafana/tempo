@@ -640,7 +640,7 @@ func TestBackendRange(t *testing.T) {
 }
 
 func TestTotalJobsIncludesIngester(t *testing.T) {
-	next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(r pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+	next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(_ pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 		resString, err := (&jsonpb.Marshaler{}).MarshalToString(&tempopb.SearchResponse{
 			Metrics: &tempopb.SearchMetrics{},
 		})
@@ -710,7 +710,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 }
 
 func TestSearchSharderRoundTripBadRequest(t *testing.T) {
-	next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(r pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+	next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(_ pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 		return nil, nil
 	})
 

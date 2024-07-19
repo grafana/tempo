@@ -26,7 +26,7 @@ func TestRetry(t *testing.T) {
 	}{
 		{
 			name: "retry errors until success",
-			handler: RoundTripperFunc(func(req Request) (*http.Response, error) {
+			handler: RoundTripperFunc(func(_ Request) (*http.Response, error) {
 				if try.Inc() == 5 {
 					return &http.Response{StatusCode: 200}, nil
 				}
@@ -39,7 +39,7 @@ func TestRetry(t *testing.T) {
 		},
 		{
 			name: "don't retry 400's",
-			handler: RoundTripperFunc(func(req Request) (*http.Response, error) {
+			handler: RoundTripperFunc(func(_ Request) (*http.Response, error) {
 				try.Inc()
 				return &http.Response{StatusCode: 400}, nil
 			}),
@@ -50,7 +50,7 @@ func TestRetry(t *testing.T) {
 		},
 		{
 			name: "don't retry GRPC request with HTTP 400's",
-			handler: RoundTripperFunc(func(req Request) (*http.Response, error) {
+			handler: RoundTripperFunc(func(_ Request) (*http.Response, error) {
 				try.Inc()
 				return nil, httpgrpc.ErrorFromHTTPResponse(&httpgrpc.HTTPResponse{Code: 400})
 			}),
@@ -61,7 +61,7 @@ func TestRetry(t *testing.T) {
 		},
 		{
 			name: "retry 500s",
-			handler: RoundTripperFunc(func(req Request) (*http.Response, error) {
+			handler: RoundTripperFunc(func(_ Request) (*http.Response, error) {
 				try.Inc()
 				return &http.Response{StatusCode: 503}, nil
 			}),
@@ -72,7 +72,7 @@ func TestRetry(t *testing.T) {
 		},
 		{
 			name: "return last error",
-			handler: RoundTripperFunc(func(req Request) (*http.Response, error) {
+			handler: RoundTripperFunc(func(_ Request) (*http.Response, error) {
 				if try.Inc() == 5 {
 					return nil, errors.New("request failed")
 				}
@@ -85,7 +85,7 @@ func TestRetry(t *testing.T) {
 		},
 		{
 			name: "maxRetries=1",
-			handler: RoundTripperFunc(func(req Request) (*http.Response, error) {
+			handler: RoundTripperFunc(func(_ Request) (*http.Response, error) {
 				try.Inc()
 				return &http.Response{StatusCode: 500}, nil
 			}),
@@ -96,7 +96,7 @@ func TestRetry(t *testing.T) {
 		},
 		{
 			name: "maxRetries=0",
-			handler: RoundTripperFunc(func(req Request) (*http.Response, error) {
+			handler: RoundTripperFunc(func(_ Request) (*http.Response, error) {
 				try.Inc()
 				return &http.Response{StatusCode: 500}, nil
 			}),
