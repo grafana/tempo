@@ -10,6 +10,7 @@ import (
 type Request interface {
 	HTTPRequest() *http.Request
 	Context() context.Context
+	WithContext(context.Context)
 
 	SetCacheKey(string)
 	CacheKey() string
@@ -26,7 +27,7 @@ func NewHTTPRequest(req *http.Request) *HTTPRequest {
 }
 
 func (r HTTPRequest) HTTPRequest() *http.Request {
-	return r.req // jpe ?
+	return r.req
 }
 
 func (r HTTPRequest) Context() context.Context {
@@ -35,6 +36,10 @@ func (r HTTPRequest) Context() context.Context {
 	}
 
 	return r.req.Context()
+}
+
+func (r *HTTPRequest) WithContext(ctx context.Context) {
+	r.req = r.req.WithContext(ctx)
 }
 
 func (r *HTTPRequest) SetCacheKey(s string) {
@@ -76,23 +81,27 @@ func (f AsyncMiddlewareFunc[T]) Wrap(w AsyncRoundTripper[T]) AsyncRoundTripper[T
 // Sync Pipeline
 //
 
-type RoundTripperFunc func(*http.Request) (*http.Response, error)
+type RoundTripperFunc func(Request) (*http.Response, error)
 
-// RoundTrip implememnts http.RoundTripper
-func (fn RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+// RoundTrip implememnts RoundTripper
+func (fn RoundTripperFunc) RoundTrip(req Request) (*http.Response, error) {
 	return fn(req)
+}
+
+type RoundTripper interface {
+	RoundTrip(Request) (*http.Response, error)
 }
 
 // Middleware is used to build pipelines of pipeline.Roundtrippers
 type Middleware interface {
-	Wrap(http.RoundTripper) http.RoundTripper
+	Wrap(RoundTripper) RoundTripper
 }
 
 // MiddlewareFunc is like http.HandlerFunc, but for Middleware.
-type MiddlewareFunc func(http.RoundTripper) http.RoundTripper
+type MiddlewareFunc func(RoundTripper) RoundTripper
 
 // Wrap implements Middleware.
-func (f MiddlewareFunc) Wrap(w http.RoundTripper) http.RoundTripper {
+func (f MiddlewareFunc) Wrap(w RoundTripper) RoundTripper {
 	return f(w)
 }
 
@@ -109,7 +118,7 @@ func Build(asyncMW []AsyncMiddleware[combiner.PipelineResponse], mw []Middleware
 		return next
 	})
 
-	syncPipeline := MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+	syncPipeline := MiddlewareFunc(func(next RoundTripper) RoundTripper {
 		for i := len(mw) - 1; i >= 0; i-- {
 			next = mw[i].Wrap(next)
 		}
@@ -118,7 +127,9 @@ func Build(asyncMW []AsyncMiddleware[combiner.PipelineResponse], mw []Middleware
 
 	// bridge the two pipelines
 	bridge := &pipelineBridge{
-		next:    syncPipeline.Wrap(next),
+		next: syncPipeline.Wrap(RoundTripperFunc(func(req Request) (*http.Response, error) {
+			return next.RoundTrip(req.HTTPRequest())
+		})),
 		convert: NewHTTPToAsyncResponse,
 	}
 	return asyncPipeline.Wrap(bridge)
@@ -127,19 +138,18 @@ func Build(asyncMW []AsyncMiddleware[combiner.PipelineResponse], mw []Middleware
 var _ AsyncRoundTripper[combiner.PipelineResponse] = (*pipelineBridge)(nil)
 
 type pipelineBridge struct {
-	next    http.RoundTripper
+	next    RoundTripper
 	convert func(*http.Response) Responses[combiner.PipelineResponse]
 }
 
 func (b *pipelineBridge) RoundTrip(req Request) (Responses[combiner.PipelineResponse], error) {
-	httpReq := req.HTTPRequest()
-
-	r, err := b.next.RoundTrip(httpReq)
+	r, err := b.next.RoundTrip(req)
 	if err != nil {
 		return nil, err
 	}
 
 	// check for request data in the context and echo it back if it exists
+	httpReq := req.HTTPRequest() // jpe - move any into Request
 	if val := httpReq.Context().Value(contextRequestDataForResponse); val != nil {
 		return NewHTTPToAsyncResponseWithRequestData(r, val), nil
 	}

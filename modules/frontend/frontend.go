@@ -22,6 +22,13 @@ import (
 	"github.com/grafana/tempo/tempodb"
 )
 
+type RoundTripperFunc func(*http.Request) (*http.Response, error)
+
+// RoundTrip implememnts http.RoundTripper
+func (fn RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
+
 // these handler funcs could likely be removed and the code written directly into the respective
 // gRPC functions
 type (
@@ -201,7 +208,7 @@ func (q *QueryFrontend) MetricsQueryInstant(req *tempopb.QueryInstantRequest, sr
 
 // newSpanMetricsMiddleware creates a new frontend middleware to handle metrics-generator requests.
 func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
-	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		tenant, err := user.ExtractOrgID(req.Context())
 		if err != nil {
 			level.Error(logger).Log("msg", "metrics summary: failed to extract tenant id", "err", err)

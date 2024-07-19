@@ -74,7 +74,7 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
 	postSLOHook := searchSLOPostHook(cfg.Search.SLO)
 
-	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		tenant, _ := user.ExtractOrgID(req.Context())
 		start := time.Now()
 

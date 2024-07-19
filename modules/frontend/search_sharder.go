@@ -344,7 +344,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 			pipelineR.SetCacheKey(key)
 
 			select {
-			case reqCh <- pipeline.NewHTTPRequest(subR):
+			case reqCh <- pipelineR:
 			case <-ctx.Done():
 				// ignore the error if there is one. it will be handled elsewhere
 				return
