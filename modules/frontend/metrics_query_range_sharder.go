@@ -378,7 +378,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 			// size savings but the main thing is that the response is reuseable for any overlapping query.
 			start, end, step := traceql.TrimToOverlap(searchReq.Start, searchReq.End, searchReq.Step, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
 			if start == end || step == 0 {
-				level.Warn(s.logger).Log("invalid start/step end. skipping", "start", start, "end", end, "step", step, "blockStart", m.StartTime.UnixNano(), "blockEnd", m.EndTime.UnixNano())
+				level.Warn(s.logger).Log("msg", "invalid start/step end. skipping", "start", start, "end", end, "step", step, "blockStart", m.StartTime.UnixNano(), "blockEnd", m.EndTime.UnixNano())
 				continue
 			}
 
