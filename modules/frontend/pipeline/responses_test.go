@@ -398,15 +398,15 @@ func (s sharder) RoundTrip(r Request) (Responses[combiner.PipelineResponse], err
 
 	// execute requests
 	if s.funcSharder {
-		return NewAsyncSharderFunc(r.HTTPRequest().Context(), concurrent, total, func(i int) *http.Request {
-			return r.HTTPRequest()
+		return NewAsyncSharderFunc(r.HTTPRequest().Context(), concurrent, total, func(i int) Request {
+			return r
 		}, s.next), nil
 	}
 
-	reqCh := make(chan *http.Request)
+	reqCh := make(chan Request)
 	go func() {
 		for i := 0; i < total; i++ {
-			reqCh <- r.HTTPRequest()
+			reqCh <- r
 		}
 		close(reqCh)
 	}()

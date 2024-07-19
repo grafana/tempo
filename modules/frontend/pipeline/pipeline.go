@@ -10,14 +10,19 @@ import (
 type Request interface {
 	HTTPRequest() *http.Request
 	Context() context.Context
+
+	SetCacheKey(string)
+	CacheKey() string
 }
 
 type HTTPRequest struct {
 	req *http.Request
+
+	cacheKey string
 }
 
-func NewHTTPRequest(req *http.Request) HTTPRequest {
-	return HTTPRequest{req: req}
+func NewHTTPRequest(req *http.Request) *HTTPRequest {
+	return &HTTPRequest{req: req}
 }
 
 func (r HTTPRequest) HTTPRequest() *http.Request {
@@ -30,6 +35,14 @@ func (r HTTPRequest) Context() context.Context {
 	}
 
 	return r.req.Context()
+}
+
+func (r *HTTPRequest) SetCacheKey(s string) {
+	r.cacheKey = s
+}
+
+func (r *HTTPRequest) CacheKey() string {
+	return r.cacheKey
 }
 
 //

@@ -2,7 +2,6 @@ package pipeline
 
 import (
 	"errors"
-	"net/http"
 	"strings"
 
 	"github.com/go-kit/log"
@@ -50,7 +49,7 @@ func (t *tenantRoundTripper) RoundTrip(req Request) (Responses[combiner.Pipeline
 	// join tenants for logger because list value type is unsupported.
 	_ = level.Debug(t.logger).Log("msg", "handling multi-tenant query", "tenants", strings.Join(tenants, ","))
 
-	return NewAsyncSharderFunc(req.Context(), 0, len(tenants), func(tenantIdx int) *http.Request {
+	return NewAsyncSharderFunc(req.Context(), 0, len(tenants), func(tenantIdx int) Request {
 		if tenantIdx >= len(tenants) {
 			return nil
 		}
@@ -60,14 +59,14 @@ func (t *tenantRoundTripper) RoundTrip(req Request) (Responses[combiner.Pipeline
 
 // requestForTenant makes a copy of request and injects the tenant id into context and Header.
 // this allows us to keep all multi-tenant logic in query frontend and keep other components single tenant
-func requestForTenant(req Request, tenant string) *http.Request {
+func requestForTenant(req Request, tenant string) Request {
 	r := req.HTTPRequest()
 	ctx := r.Context()
 
 	ctx = user.InjectOrgID(ctx, tenant)
 	rCopy := r.Clone(ctx)
 	rCopy.Header.Set(user.OrgIDHeaderName, tenant)
-	return rCopy
+	return NewHTTPRequest(rCopy)
 }
 
 type unsupportedRoundTripper struct {

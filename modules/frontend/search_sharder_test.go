@@ -224,7 +224,7 @@ func TestBuildBackendRequests(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx, cancelCause := context.WithCancelCause(context.Background())
-		reqCh := make(chan *http.Request)
+		reqCh := make(chan pipeline.Request)
 
 		go func() {
 			buildBackendRequests(ctx, "test", req, searchReq, tc.metas, tc.targetBytesPerRequest, reqCh, cancelCause)
@@ -233,7 +233,7 @@ func TestBuildBackendRequests(t *testing.T) {
 		actualURIs := []string{}
 		for r := range reqCh {
 			if r != nil {
-				actualURIs = append(actualURIs, r.RequestURI)
+				actualURIs = append(actualURIs, r.HTTPRequest().RequestURI)
 			}
 		}
 
@@ -313,7 +313,7 @@ func TestBackendRequests(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer close(stopCh)
-			reqCh := make(chan *http.Request)
+			reqCh := make(chan pipeline.Request)
 
 			ctx, cancelCause := context.WithCancelCause(context.Background())
 
@@ -325,7 +325,7 @@ func TestBackendRequests(t *testing.T) {
 			actualReqURIs := []string{}
 			for r := range reqCh {
 				if r != nil {
-					actualReqURIs = append(actualReqURIs, r.RequestURI)
+					actualReqURIs = append(actualReqURIs, r.HTTPRequest().RequestURI)
 				}
 			}
 			require.NoError(t, ctx.Err())
@@ -489,7 +489,7 @@ func TestIngesterRequests(t *testing.T) {
 		searchReq, err := api.ParseSearchRequest(req)
 		require.NoError(t, err)
 
-		reqChan := make(chan *http.Request, tc.ingesterShards)
+		reqChan := make(chan pipeline.Request, tc.ingesterShards)
 		defer close(reqChan)
 
 		copyReq := searchReq
@@ -506,7 +506,7 @@ func TestIngesterRequests(t *testing.T) {
 			req := <-reqChan
 			require.NotNil(t, req)
 
-			values := req.URL.Query()
+			values := req.HTTPRequest().URL.Query()
 			expectedQueryStringValues, err := url.ParseQuery(expectedURI)
 			require.NoError(t, err)
 

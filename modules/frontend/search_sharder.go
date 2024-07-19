@@ -93,7 +93,7 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	}
 
 	// buffer of shards+1 allows us to insert ingestReq and metrics
-	reqCh := make(chan *http.Request, s.cfg.IngesterShards+1)
+	reqCh := make(chan pipeline.Request, s.cfg.IngesterShards+1)
 
 	// build request to search ingesters based on query_ingesters_until config and time range
 	// pass subCtx in requests so we can cancel and exit early
@@ -155,7 +155,7 @@ func (s *asyncSearchSharder) blockMetas(start, end int64, tenantID string) []*ba
 
 // backendRequest builds backend requests to search backend blocks. backendRequest takes ownership of reqCh and closes it.
 // it returns 3 int values: totalBlocks, totalBlockBytes, and estimated jobs
-func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, reqCh chan<- *http.Request, errFn func(error)) (totalJobs, totalBlocks int, totalBlockBytes uint64) {
+func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, reqCh chan<- pipeline.Request, errFn func(error)) (totalJobs, totalBlocks int, totalBlockBytes uint64) {
 	var blocks []*backend.BlockMeta
 
 	// request without start or end, search only in ingester
@@ -201,7 +201,7 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 // that covers the ingesters. If nil is returned for the http.Request then there is no ingesters query.
 // since this function modifies searchReq.Start and End we are taking a value instead of a pointer to prevent it from
 // unexpectedly changing the passed searchReq.
-func (s *asyncSearchSharder) ingesterRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.SearchRequest, reqCh chan *http.Request) error {
+func (s *asyncSearchSharder) ingesterRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.SearchRequest, reqCh chan pipeline.Request) error {
 	// request without start or end, search only in ingester
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		return buildIngesterRequest(ctx, tenantID, parent, &searchReq, reqCh)
@@ -299,7 +299,7 @@ func backendRange(start, end uint32, queryBackendAfter time.Duration) (uint32, u
 
 // buildBackendRequests returns a slice of requests that cover all blocks in the store
 // that are covered by start/end.
-func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, metas []*backend.BlockMeta, bytesPerRequest int, reqCh chan<- *http.Request, errFn func(error)) {
+func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, metas []*backend.BlockMeta, bytesPerRequest int, reqCh chan<- pipeline.Request, errFn func(error)) {
 	defer close(reqCh)
 
 	queryHash := hashForSearchRequest(searchReq)
@@ -340,12 +340,11 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 
 			prepareRequestForQueriers(subR, tenantID)
 			key := searchJobCacheKey(tenantID, queryHash, int64(searchReq.Start), int64(searchReq.End), m, startPage, pages)
-			if len(key) > 0 {
-				subR = pipeline.ContextAddCacheKey(key, subR)
-			}
+			pipelineR := pipeline.NewHTTPRequest(subR)
+			pipelineR.SetCacheKey(key)
 
 			select {
-			case reqCh <- subR:
+			case reqCh <- pipeline.NewHTTPRequest(subR):
 			case <-ctx.Done():
 				// ignore the error if there is one. it will be handled elsewhere
 				return
@@ -398,7 +397,7 @@ func pagesPerRequest(m *backend.BlockMeta, bytesPerRequest int) int {
 	return pagesPerQuery
 }
 
-func buildIngesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, reqCh chan *http.Request) error {
+func buildIngesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, reqCh chan pipeline.Request) error {
 	subR := parent.Clone(ctx)
 	subR, err := api.BuildSearchRequest(subR, searchReq)
 	if err != nil {
@@ -406,6 +405,6 @@ func buildIngesterRequest(ctx context.Context, tenantID string, parent *http.Req
 	}
 
 	prepareRequestForQueriers(subR, tenantID)
-	reqCh <- subR
+	reqCh <- pipeline.NewHTTPRequest(subR)
 	return nil
 }

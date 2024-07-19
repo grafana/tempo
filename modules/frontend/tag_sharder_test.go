@@ -154,7 +154,7 @@ func TestTagsBackendRequests(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer close(stopCh)
-			reqCh := make(chan *http.Request)
+			reqCh := make(chan pipeline.Request)
 			req := fakeReq{}
 			if tc.params != nil {
 				req.startValue = uint32(tc.params.start)
@@ -167,7 +167,7 @@ func TestTagsBackendRequests(t *testing.T) {
 
 			actualReqURIs := []string{}
 			for r := range reqCh {
-				actualReqURIs = append(actualReqURIs, r.RequestURI)
+				actualReqURIs = append(actualReqURIs, r.HTTPRequest().RequestURI)
 			}
 			require.Equal(t, tc.expectedReqsURIs, actualReqURIs)
 		})

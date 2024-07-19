@@ -57,8 +57,8 @@ func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		concurrentShards = uint(s.cfg.ConcurrentShards)
 	}
 
-	return pipeline.NewAsyncSharderFunc(ctx, int(concurrentShards), len(reqs), func(i int) *http.Request {
-		return reqs[i]
+	return pipeline.NewAsyncSharderFunc(ctx, int(concurrentShards), len(reqs), func(i int) pipeline.Request {
+		return pipeline.NewHTTPRequest(reqs[i])
 	}, s.next), nil
 }
 

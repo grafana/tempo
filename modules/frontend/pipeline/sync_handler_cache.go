@@ -36,8 +36,8 @@ func (c cachingWare) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	// extract cache key
-	key, ok := req.Context().Value(contextCacheKey).(string)
-	if ok && len(key) > 0 {
+	key := "foo" //ok := req.Context().Value(contextCacheKey).(string)
+	if len(key) > 0 {
 		body := c.cache.fetchBytes(key)
 		if len(body) > 0 {
 			resp := &http.Response{
