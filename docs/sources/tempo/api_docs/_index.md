@@ -31,6 +31,8 @@ For externally supported GRPC API, [see below](#tempo-grpc-api).
 | [Search tag names V2](#search-tags-v2) | Query-frontend | HTTP | `GET /api/v2/search/tags` |
 | [Search tag values](#search-tag-values) | Query-frontend | HTTP | `GET /api/search/tag/<tag>/values` |
 | [Search tag values V2](#search-tag-values-v2) | Query-frontend | HTTP | `GET /api/v2/search/tag/<tag>/values` |
+| [TraceQL Metrics](#traceql-metrics) | Query-frontend | HTTP | `GET /api/metrics/query_range` | 
+| [TraceQL Metrics (instant)](#instant) | Query-frontend | HTTP | `GET /api/metrics/query` |
 | [Query Echo Endpoint](#query-echo-endpoint) | Query-frontend |  HTTP | `GET /api/echo` |
 | [Overrides API](#overrides-api) | Query-frontend | HTTP | `GET,POST,PATCH,DELETE /api/overrides` |
 | Memberlist | Distributor, Ingester, Querier, Compactor |  HTTP | `GET /memberlist` |
@@ -467,6 +469,66 @@ GET /api/v2/search/tag/.service.name/values?q="{span.http.method='GET'}"
 ```
 
 If a particular service name (for example, `shopping-cart`) is only present on spans with `span.http.method=POST`, it won't be included in the list of values returned.
+
+### TraceQL Metrics
+
+The TraceQL Metrics API returns Prometheus-like time-series for a given metrics query.  Metrics queries are those using metrics functions like `rate()` and `quantile_over_time()`.  See the [documentation]({{< relref "../traceql/metrics-queries" >}}) for the complete list.
+
+Parameters:
+
+- `q = (traceql query)`
+  The TraceQL metrics query to process.
+- `start = (unix epoch seconds | unix epoch nanoseconds | RFC3339 string)`
+  Optional. Along with `end` defines the time range.
+- `end = (unix epoch seconds | unix epoch nanoseconds | RFC3339 string)`
+  Optional. Along with `start` define the time range. Providing both `start` and `end` includes blocks for the specified time range only.
+- `since = (duration string)`
+  Optional. Can be used instead of `start` and `end` to define the time range in relative values. For example `since=15m` will query the last 15 minutes.  Default is last 1 hour.
+- `step = (duration string)`
+  Optional. Defines the granularity of the returned time-series. For example `step=15s` will return a data point every 15s within the time range.  If not specified then the default behavior will choose a dynamic step based on the time range.
+
+The API is available in the query frontend service in
+a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
+
+For example the following request computes the rate of spans received for `myservice` over the last three hours, at 1 minute intervals. 
+
+{{< admonition type="note" >}}
+Actual API parameters must be url-encoded. This example is left unencoded for readability.
+{{% /admonition %}}
+
+```
+GET /api/metrics/query_range?q={resource.service.name="myservice"}|rate()&since=3h&step=1m
+```
+
+#### Instant
+
+The instant version of the metrics API is similar to the range version, but instead returns a single value for the query. This version is useful when you don't need the granularity of a full time-series, but instead want a total sum, or single value computed across the whole time range.
+
+The parameters are identical to the range version except there is no `step`.
+
+Parameters:
+
+- `q = (traceql query)`
+  The TraceQL metrics query to process.
+- `start = (unix epoch seconds | unix epoch nanoseconds | RFC3339 string)`
+  Optional. Along with `end` defines the time range.
+- `end = (unix epoch seconds | unix epoch nanoseconds | RFC3339 string)`
+  Optional. Along with `start` define the time range. Providing both `start` and `end` includes blocks for the specified time range only.
+- `since = (duration string)`
+  Optional. Can be used instead of `start` and `end` to define the time range in relative values. For example `since=15m` will query the last 15 minutes.  Default is last 1 hour.
+
+The API is available in the query frontend service in
+a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
+
+For example the following request computes the total number of failed spans over the last hour per service.
+
+{{< admonition type="note" >}}
+Actual API parameters must be url-encoded. This example is left unencoded for readability.
+{{% /admonition %}}
+
+```
+GET /api/metrics/query?q={status=error}|count_over_time()by(resource.service.name)
+```
 
 ### Query Echo endpoint
 
