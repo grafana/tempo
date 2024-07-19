@@ -1042,12 +1042,6 @@ storage:
             [use_federated_token: <bool>]
 
             # optional.
-            # experimental.
-            # Use the v2 SDK (azure-sdk-for-go) to communicate with azure instead of the default blob client.
-            # Enable if you want to use the newer Azure azure-sdk-for-go.
-            [use_v2_sdk: <bool>]
-
-            # optional.
             # The Client ID for the user-assigned Azure Managed Identity used to access Azure storage.
             [user_assigned_id: <bool>]
 
