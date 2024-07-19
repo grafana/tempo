@@ -13,7 +13,8 @@ import (
 	"testing"
 	"time"
 
-	blob "github.com/Azure/azure-storage-blob-go/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/flagext"
 	"github.com/stretchr/testify/assert"
@@ -146,7 +147,7 @@ func fakeServer(t *testing.T, returnIn time.Duration, counter *int32) *httptest.
 
 func TestReadError(t *testing.T) {
 	// confirm blobNotFoundError converts to ErrDoesNotExist
-	blobNotFoundError := blobStorageError(string(blob.ServiceCodeBlobNotFound))
+	blobNotFoundError := blobStorageError(string(bloberror.BlobNotFound))
 	err := readError(blobNotFoundError)
 	require.Equal(t, backend.ErrDoesNotExist, err)
 
@@ -161,7 +162,7 @@ func TestReadError(t *testing.T) {
 	require.NotEqual(t, backend.ErrDoesNotExist, err)
 
 	// other azure error is not returned as ErrDoesNotExist
-	otherAzureError := blobStorageError(string(blob.ServiceCodeInternalError))
+	otherAzureError := blobStorageError(string(bloberror.InternalError))
 	err = readError(otherAzureError)
 	require.NotEqual(t, backend.ErrDoesNotExist, err)
 }
@@ -174,7 +175,7 @@ func blobStorageError(serviceCode string) error {
 		Request: httptest.NewRequest("GET", "/blobby/blob", nil), // azure error handling code will panic if Request is unset
 	}
 
-	return blob.NewResponseError(nil, resp, "")
+	return runtime.NewResponseError(resp)
 }
 
 // func TestObjectWithPrefix(t *testing.T) {
