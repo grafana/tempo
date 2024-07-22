@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,6 +20,30 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var config = &Config{
+	MultiTenantQueriesEnabled: true,
+	MaxRetries:                0, // disable retries or it will try twice and get success. the querier response is designed to fail exactly once
+	TraceByID: TraceByIDConfig{
+		QueryShards: 2,
+		SLO:         testSLOcfg,
+	},
+	Search: SearchConfig{
+		Sharder: SearchSharderConfig{
+			ConcurrentRequests:    defaultConcurrentRequests,
+			TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		},
+		SLO: testSLOcfg,
+	},
+	Metrics: MetricsConfig{
+		Sharder: QueryRangeSharderConfig{
+			ConcurrentRequests:    defaultConcurrentRequests,
+			TargetBytesPerRequest: defaultTargetBytesPerRequest,
+			Interval:              time.Second,
+		},
+		SLO: testSLOcfg,
+	},
+}
 
 func TestTraceIDHandler(t *testing.T) {
 	// create and split a splitTrace
@@ -175,29 +200,7 @@ func TestTraceIDHandler(t *testing.T) {
 			})
 
 			// queriers will return one err
-			f := frontendWithSettings(t, next, nil, &Config{
-				MultiTenantQueriesEnabled: true,
-				MaxRetries:                0, // disable retries or it will try twice and get success. the querier response is designed to fail exactly once
-				TraceByID: TraceByIDConfig{
-					QueryShards: 2,
-					SLO:         testSLOcfg,
-				},
-				Search: SearchConfig{
-					Sharder: SearchSharderConfig{
-						ConcurrentRequests:    defaultConcurrentRequests,
-						TargetBytesPerRequest: defaultTargetBytesPerRequest,
-					},
-					SLO: testSLOcfg,
-				},
-				Metrics: MetricsConfig{
-					Sharder: QueryRangeSharderConfig{
-						ConcurrentRequests:    defaultConcurrentRequests,
-						TargetBytesPerRequest: defaultTargetBytesPerRequest,
-						Interval:              time.Second,
-					},
-					SLO: testSLOcfg,
-				},
-			}, nil)
+			f := frontendWithSettings(t, next, nil, config, nil)
 
 			req := httptest.NewRequest("GET", "/api/traces/1234", nil)
 			ctx := req.Context()
@@ -230,4 +233,37 @@ func TestTraceIDHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTraceIDHandlerForJSONResponse(t *testing.T) {
+	next := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		testTrace := test.MakeTrace(2, []byte{0x01, 0x02})
+		resBytes, _ := proto.Marshal(&tempopb.TraceByIDResponse{
+			Trace:   testTrace,
+			Metrics: &tempopb.TraceByIDMetrics{},
+		})
+		return &http.Response{
+			Body:       io.NopCloser(bytes.NewReader(resBytes)),
+			StatusCode: 200,
+		}, nil
+	})
+
+	// queriers will return one err
+	f := frontendWithSettings(t, next, nil, config, nil)
+
+	req := httptest.NewRequest("GET", "/api/traces/1234", nil)
+	ctx := req.Context()
+	ctx = user.InjectOrgID(ctx, "blerg")
+	req = req.WithContext(ctx)
+	req = mux.SetURLVars(req, map[string]string{"traceID": "1234"})
+	req.Header.Set("Accept", "application/json")
+
+	httpResp := httptest.NewRecorder()
+	f.TraceByIDHandler.ServeHTTP(httpResp, req)
+	resp := httpResp.Result()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	bodyString := string(bodyBytes)
+
+	assert.True(t, strings.Contains(bodyString, "batches"))
 }
