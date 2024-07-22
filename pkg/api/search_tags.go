@@ -463,13 +463,13 @@ func BuildSearchTagsRequest(req *http.Request, searchReq *tempopb.SearchTagsRequ
 		return req, nil
 	}
 
-	q := req.URL.Query()
-	q.Set(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
-	q.Set(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
-	q.Set(urlParamScope, searchReq.Scope)
-	q.Set(urlParamQuery, searchReq.Query)
+	qb := newQueryBuilder("")
+	qb.addParam(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
+	qb.addParam(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
+	qb.addParam(urlParamScope, searchReq.Scope)
+	qb.addParam(urlParamQuery, searchReq.Query)
 
-	req.URL.RawQuery = q.Encode()
+	req.URL.RawQuery = qb.query()
 
 	return req, nil
 }
@@ -486,19 +486,19 @@ func BuildSearchTagsBlockRequest(req *http.Request, searchReq *tempopb.SearchTag
 		return nil, err
 	}
 
-	q := req.URL.Query()
-	q.Set(urlParamSize, strconv.FormatUint(searchReq.Size_, 10))
-	q.Set(urlParamBlockID, searchReq.BlockID)
-	q.Set(urlParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
-	q.Set(urlParamPagesToSearch, strconv.FormatUint(uint64(searchReq.PagesToSearch), 10))
-	q.Set(urlParamEncoding, searchReq.Encoding)
-	q.Set(urlParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
-	q.Set(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
-	q.Set(urlParamDataEncoding, searchReq.DataEncoding)
-	q.Set(urlParamVersion, searchReq.Version)
-	q.Set(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
+	q := newQueryBuilder(req.URL.RawQuery)
+	q.addParam(urlParamSize, strconv.FormatUint(searchReq.Size_, 10))
+	q.addParam(urlParamBlockID, searchReq.BlockID)
+	q.addParam(urlParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
+	q.addParam(urlParamPagesToSearch, strconv.FormatUint(uint64(searchReq.PagesToSearch), 10))
+	q.addParam(urlParamEncoding, searchReq.Encoding)
+	q.addParam(urlParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
+	q.addParam(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
+	q.addParam(urlParamDataEncoding, searchReq.DataEncoding)
+	q.addParam(urlParamVersion, searchReq.Version)
+	q.addParam(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
 
-	req.URL.RawQuery = q.Encode()
+	req.URL.RawQuery = q.query()
 
 	return req, nil
 }
@@ -514,12 +514,12 @@ func BuildSearchTagValuesRequest(req *http.Request, searchReq *tempopb.SearchTag
 		return req, nil
 	}
 
-	q := req.URL.Query()
-	q.Set(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
-	q.Set(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
-	q.Set(urlParamQuery, searchReq.Query)
+	qb := newQueryBuilder("")
+	qb.addParam(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
+	qb.addParam(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
+	qb.addParam(urlParamQuery, searchReq.Query)
 
-	req.URL.RawQuery = q.Encode()
+	req.URL.RawQuery = qb.query()
 
 	return req, nil
 }
@@ -536,19 +536,19 @@ func BuildSearchTagValuesBlockRequest(req *http.Request, searchReq *tempopb.Sear
 		return nil, err
 	}
 
-	q := req.URL.Query()
-	q.Set(urlParamSize, strconv.FormatUint(searchReq.Size_, 10))
-	q.Set(urlParamBlockID, searchReq.BlockID)
-	q.Set(urlParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
-	q.Set(urlParamPagesToSearch, strconv.FormatUint(uint64(searchReq.PagesToSearch), 10))
-	q.Set(urlParamEncoding, searchReq.Encoding)
-	q.Set(urlParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
-	q.Set(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
-	q.Set(urlParamDataEncoding, searchReq.DataEncoding)
-	q.Set(urlParamVersion, searchReq.Version)
-	q.Set(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
+	qb := newQueryBuilder(req.URL.RawQuery)
+	qb.addParam(urlParamSize, strconv.FormatUint(searchReq.Size_, 10))
+	qb.addParam(urlParamBlockID, searchReq.BlockID)
+	qb.addParam(urlParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
+	qb.addParam(urlParamPagesToSearch, strconv.FormatUint(uint64(searchReq.PagesToSearch), 10))
+	qb.addParam(urlParamEncoding, searchReq.Encoding)
+	qb.addParam(urlParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
+	qb.addParam(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
+	qb.addParam(urlParamDataEncoding, searchReq.DataEncoding)
+	qb.addParam(urlParamVersion, searchReq.Version)
+	qb.addParam(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
 
-	req.URL.RawQuery = q.Encode()
+	req.URL.RawQuery = qb.query()
 
 	return req, nil
 }
