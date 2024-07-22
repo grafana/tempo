@@ -100,6 +100,80 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
 }
 
+// TraceByIDHandler is a http.HandlerFunc to retrieve traces
+func (q *Querier) TraceByIDV2Handler(w http.ResponseWriter, r *http.Request) {
+	// Enforce the query timeout while querying backends
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.TraceByID.QueryTimeout))
+	defer cancel()
+
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.TraceByIDHandler")
+	defer span.Finish()
+
+	byteID, err := api.ParseTraceID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// validate request
+	blockStart, blockEnd, queryMode, timeStart, timeEnd, err := api.ValidateAndSanitizeRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	span.LogFields(
+		ot_log.String("msg", "validated request"),
+		ot_log.String("blockStart", blockStart),
+		ot_log.String("blockEnd", blockEnd),
+		ot_log.String("queryMode", queryMode),
+		ot_log.String("timeStart", fmt.Sprint(timeStart)),
+		ot_log.String("timeEnd", fmt.Sprint(timeEnd)))
+
+	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+		TraceID:    byteID,
+		BlockStart: blockStart,
+		BlockEnd:   blockEnd,
+		QueryMode:  queryMode,
+	}, timeStart, timeEnd)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	traceResp := &tempopb.TraceByIDV2Response{}
+	// record not found here, but continue on so we can marshal metrics
+	// to the body
+	if resp.Trace == nil || len(resp.Trace.Batches) == 0 {
+		w.WriteHeader(http.StatusNotFound)
+	} else {
+		traceResp.Trace = trace.ConvertToTraceV2(resp.Trace)
+	}
+
+	if r.Header.Get(api.HeaderAccept) == api.HeaderAcceptProtobuf {
+		span.SetTag("contentType", api.HeaderAcceptProtobuf)
+		b, err := proto.Marshal(traceResp)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set(api.HeaderContentType, api.HeaderAcceptProtobuf)
+		_, err = w.Write(b)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		return
+	}
+
+	span.SetTag("contentType", api.HeaderAcceptJSON)
+	marshaller := &jsonpb.Marshaler{}
+	err = marshaller.Marshal(w, traceResp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+}
+
 func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	isSearchBlock := api.IsSearchBlock(r)
 

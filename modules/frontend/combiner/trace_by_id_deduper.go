@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
@@ -21,28 +20,21 @@ func newDeduper() *spanIDDeduper {
 // This is copied over from Jaeger and modified to work for OpenTelemetry Trace data structure
 // https://github.com/jaegertracing/jaeger/blob/12bba8c9b91cf4a29d314934bc08f4a80e43c042/model/adjuster/span_id_deduper.go
 type spanIDDeduper struct {
-	trace     *tempopb.Trace
-	spansByID map[uint64][]*v1.Span
-	maxUsedID uint64
+	traceSpans []*v1.ResourceSpans
+	spansByID  map[uint64][]*v1.Span
+	maxUsedID  uint64
 }
 
-func (s *spanIDDeduper) dedupe(trace *tempopb.Trace) *tempopb.Trace {
-	if trace == nil {
-		return nil
-	}
-
-	s.trace = trace
-
+func (s *spanIDDeduper) dedupe(spans []*v1.ResourceSpans) {
+	s.traceSpans = spans
 	s.groupSpansByID()
 	s.dedupeSpanIDs()
-
-	return s.trace
 }
 
 // groupSpansByID groups spans with the same ID returning a map id -> []Span
 func (s *spanIDDeduper) groupSpansByID() {
 	spansByID := make(map[uint64][]*v1.Span)
-	for _, batch := range s.trace.Batches {
+	for _, batch := range s.traceSpans {
 		for _, ils := range batch.ScopeSpans {
 			for _, span := range ils.Spans {
 				id := binary.BigEndian.Uint64(span.SpanId)
@@ -69,7 +61,7 @@ func (s *spanIDDeduper) isSharedWithClientSpan(spanID uint64) bool {
 
 func (s *spanIDDeduper) dedupeSpanIDs() {
 	oldToNewSpanIDs := make(map[uint64]uint64)
-	for _, batch := range s.trace.Batches {
+	for _, batch := range s.traceSpans {
 		for _, ils := range batch.ScopeSpans {
 			for _, span := range ils.Spans {
 				id := binary.BigEndian.Uint64(span.SpanId)
@@ -99,7 +91,7 @@ func (s *spanIDDeduper) swapParentIDs(oldToNewSpanIDs map[uint64]uint64) {
 	if len(oldToNewSpanIDs) == 0 {
 		return
 	}
-	for _, batch := range s.trace.Batches {
+	for _, batch := range s.traceSpans {
 		for _, ils := range batch.ScopeSpans {
 			for _, span := range ils.Spans {
 				if len(span.GetParentSpanId()) > 0 {

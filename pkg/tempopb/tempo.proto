@@ -21,6 +21,7 @@ service MetricsGenerator {
 
 service Querier {
   rpc FindTraceByID(TraceByIDRequest) returns (TraceByIDResponse) {}
+  rpc FindTraceByIDV2(TraceByIDRequest) returns (TraceByIDV2Response) {}
   rpc SearchRecent(SearchRequest) returns (SearchResponse) {}
   rpc SearchBlock(SearchBlockRequest) returns (SearchResponse) {}
   rpc SearchTags(SearchTagsRequest) returns (SearchTagsResponse) {}
@@ -55,6 +56,11 @@ message TraceByIDRequest {
 
 message TraceByIDResponse {
   Trace trace = 1;
+  TraceByIDMetrics metrics = 2;
+}
+
+message TraceByIDV2Response {
+  TraceV2 trace = 1;
   TraceByIDMetrics metrics = 2;
 }
 
@@ -225,6 +231,11 @@ message SearchTagValuesV2Response {
 
 message Trace {
   repeated tempopb.trace.v1.ResourceSpans batches = 1;
+}
+
+
+message TraceV2  {
+  tempopb.trace.v1.TracesData trace_data = 1;
 }
 
 // Write

@@ -26,6 +26,24 @@ func SortTrace(t *tempopb.Trace) {
 	})
 }
 
+// SortTrace sorts a *tempopb.Trace
+func SortTraceV2(t *tempopb.TraceV2) {
+	// Sort bottom up by span start times
+	for _, b := range t.TraceData.ResourceSpans {
+		for _, ss := range b.ScopeSpans {
+			sort.Slice(ss.Spans, func(i, j int) bool {
+				return compareSpans(ss.Spans[i], ss.Spans[j])
+			})
+		}
+		sort.Slice(b.ScopeSpans, func(i, j int) bool {
+			return compareScopeSpans(b.ScopeSpans[i], b.ScopeSpans[j])
+		})
+	}
+	sort.Slice(t.TraceData.ResourceSpans, func(i, j int) bool {
+		return compareBatches(t.TraceData.ResourceSpans[i], t.TraceData.ResourceSpans[j])
+	})
+}
+
 // SortTraceAndAttributes sorts a *tempopb.Trace like SortTrace, but also
 // sorts all resource and span attributes by name.
 func SortTraceAndAttributes(t *tempopb.Trace) {
