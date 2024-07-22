@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/pkg/model/trace"
 	v1 "github.com/grafana/tempo/pkg/model/v1"
 	v2 "github.com/grafana/tempo/pkg/model/v2"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -298,6 +299,16 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequ
 	}
 
 	return res, nil
+}
+
+func (i *Ingester) FindTraceByIDV2(ctx context.Context, req *tempopb.TraceByIDRequest) (res *tempopb.TraceByIDV2Response, err error) {
+	resp, err := i.FindTraceByID(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	trace := trace.ConvertToTraceV2(resp.Trace)
+	return &tempopb.TraceByIDV2Response{Trace: trace}, nil
 }
 
 func (i *Ingester) CheckReady(ctx context.Context) error {

@@ -59,6 +59,15 @@ message TraceByIDResponse {
   TraceByIDMetrics metrics = 2;
 }
 
+message TraceByIDV2Response {
+  TraceV2 trace = 1;
+  TraceByIDMetrics metrics = 2;
+}
+
+message TraceV2  {
+  tempopb.trace.v1.TracesData trace_data = 1;
+}
+
 message TraceByIDMetrics {}
 
 // SearchRequest takes no block parameters and implies a "recent traces" search
