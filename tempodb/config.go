@@ -87,7 +87,7 @@ type SearchConfig struct {
 	// vParquet blocks
 	ReadBufferCount     int `yaml:"read_buffer_count"`
 	ReadBufferSizeBytes int `yaml:"read_buffer_size_bytes"`
-	// todo: consolidate caching conffig in one spot
+	// todo: consolidate caching config in one spot
 	CacheControl CacheControlConfig `yaml:"cache_control"`
 }
 
