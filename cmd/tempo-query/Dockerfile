@@ -1,7 +1,4 @@
-FROM jaegertracing/jaeger-query:1.57.0
-
-ENV SPAN_STORAGE_TYPE=grpc-plugin \
-    GRPC_STORAGE_PLUGIN_BINARY=/tempo-query
+FROM jaegertracing/jaeger-query:1.58.1
 
 # Ensure /tmp dir exists, hashicorp plugins need a /tmp dir to exist.
 RUN mkdir -p /tmp

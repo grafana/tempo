@@ -3,14 +3,12 @@ package main
 import (
 	"flag"
 	"io"
+	"net"
 	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	hcplugin "github.com/hashicorp/go-plugin"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	otgrpc "github.com/opentracing-contrib/go-grpc"
 	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/viper"
@@ -57,31 +55,26 @@ func main() {
 	if err != nil {
 		logger.Error("failed to init tracer backend", "error", err)
 	}
-	plugin := &plugin{backend: backend}
-	grpc.ServeWithGRPCServer(&shared.PluginServices{
-		Store: plugin,
-	}, func(options []google_grpc.ServerOption) *google_grpc.Server {
-		return hcplugin.DefaultGRPCServer([]google_grpc.ServerOption{
-			google_grpc.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(opentracing.GlobalTracer())),
-			google_grpc.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(opentracing.GlobalTracer())),
-		})
+
+	srv := hcplugin.DefaultGRPCServer([]google_grpc.ServerOption{
+		google_grpc.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(opentracing.GlobalTracer())),
+		google_grpc.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(opentracing.GlobalTracer())),
 	})
-}
 
-type plugin struct {
-	backend *tempo.Backend
-}
+	storage_v1.RegisterSpanReaderPluginServer(srv, backend)
+	storage_v1.RegisterDependenciesReaderPluginServer(srv, backend)
+	storage_v1.RegisterSpanWriterPluginServer(srv, backend)
 
-func (p *plugin) DependencyReader() dependencystore.Reader {
-	return p.backend
-}
+	const addr = "0.0.0.0:7777"
+	lis, err := net.Listen("tcp", addr)
+	if err != nil {
+		logger.Error("failed to listen", "error", err)
+	}
 
-func (p *plugin) SpanReader() spanstore.Reader {
-	return p.backend
-}
-
-func (p *plugin) SpanWriter() spanstore.Writer {
-	return p.backend
+	logger.Info("server is listening", "address", addr)
+	if err := srv.Serve(lis); err != nil {
+		logger.Error("failed to serve", "error", err)
+	}
 }
 
 func initJaeger(service string) (io.Closer, error) {
