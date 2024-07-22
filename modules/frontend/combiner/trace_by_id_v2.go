@@ -83,6 +83,15 @@ func (c *traceByIDCombinerV2) AddResponse(r PipelineResponse) error {
 	return err
 }
 
+func StatusIn(status int, statuses []int) bool {
+	for _, s := range statuses {
+		if status == s {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *traceByIDCombinerV2) HTTPFinal() (*http.Response, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -90,7 +99,7 @@ func (c *traceByIDCombinerV2) HTTPFinal() (*http.Response, error) {
 	statusCode := c.code
 	traceResult, _ := c.c.Result()
 
-	if statusCode != http.StatusOK {
+	if !StatusIn(statusCode, []int{http.StatusOK, http.StatusNotFound}) {
 		return &http.Response{
 			StatusCode: statusCode,
 			Body:       io.NopCloser(strings.NewReader(c.statusMessage)),
@@ -101,11 +110,11 @@ func (c *traceByIDCombinerV2) HTTPFinal() (*http.Response, error) {
 	// if we have no trace result just substitute and return an empty trace
 	if traceResult == nil {
 		traceResult = &tempopb.TraceV2{}
+	} else {
+		// dedupe duplicate span ids
+		deduper := newDeduper()
+		deduper.dedupe(traceResult.TraceData.ResourceSpans)
 	}
-
-	// dedupe duplicate span ids
-	deduper := newDeduper()
-	deduper.dedupe(traceResult.TraceData.ResourceSpans)
 
 	// marshal in the requested format
 	var buff []byte
