@@ -122,6 +122,7 @@ func (c *traceByIDCombiner) HTTPFinal() (*http.Response, error) {
 
 		marshaler := &jsonpb.Marshaler{}
 		jsonStr, err = marshaler.MarshalToString(traceResult)
+		jsonStr = strings.Replace(jsonStr, `"resourceSpans":`, `"batches":`, 1)
 		buff = []byte(jsonStr)
 	}
 	if err != nil {

@@ -586,7 +586,7 @@ func (p *Processor) cutIdleTraces(immediate bool) error {
 	for _, t := range tracesToCut {
 
 		tr := &tempopb.Trace{
-			Batches: t.Batches,
+			ResourceSpans: t.Batches,
 		}
 
 		err := p.writeHeadBlock(t.id, tr)
@@ -614,7 +614,7 @@ func (p *Processor) writeHeadBlock(id common.ID, tr *tempopb.Trace) error {
 
 	// Get trace timestamp bounds
 	var start, end uint64
-	for _, b := range tr.Batches {
+	for _, b := range tr.ResourceSpans {
 		for _, ss := range b.ScopeSpans {
 			for _, s := range ss.Spans {
 				if start == 0 || s.StartTimeUnixNano < start {

@@ -205,7 +205,7 @@ func relativeValue(v values) float64 {
 
 func extractKVPairs(t *tempopb.Trace) kvPairs {
 	kvp := kvPairs{}
-	for _, b := range t.Batches {
+	for _, b := range t.ResourceSpans {
 		spanCount := 0
 		for _, ils := range b.ScopeSpans {
 			for _, s := range ils.Spans {

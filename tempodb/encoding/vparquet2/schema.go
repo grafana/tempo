@@ -256,8 +256,8 @@ func traceToParquet(id common.ID, tr *tempopb.Trace, ot *Trace) *Trace {
 	var rootSpan *v1_trace.Span
 	var rootBatch *v1_trace.ResourceSpans
 
-	ot.ResourceSpans = extendReuseSlice(len(tr.Batches), ot.ResourceSpans)
-	for ib, b := range tr.Batches {
+	ot.ResourceSpans = extendReuseSlice(len(tr.ResourceSpans), ot.ResourceSpans)
+	for ib, b := range tr.ResourceSpans {
 		ob := &ot.ResourceSpans[ib]
 		// clear out any existing fields in case they were set on the original
 		ob.Resource.ServiceName = ""
@@ -533,7 +533,7 @@ func parquetToProtoEvents(parquetEvents []Event) []*v1_trace.Span_Event {
 
 func ParquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
 	protoTrace := &tempopb.Trace{}
-	protoTrace.Batches = make([]*v1_trace.ResourceSpans, 0, len(parquetTrace.ResourceSpans))
+	protoTrace.ResourceSpans = make([]*v1_trace.ResourceSpans, 0, len(parquetTrace.ResourceSpans))
 
 	for _, rs := range parquetTrace.ResourceSpans {
 		protoBatch := &v1_trace.ResourceSpans{}
@@ -654,7 +654,7 @@ func ParquetTraceToTempopbTrace(parquetTrace *Trace) *tempopb.Trace {
 
 			protoBatch.ScopeSpans = append(protoBatch.ScopeSpans, protoSS)
 		}
-		protoTrace.Batches = append(protoTrace.Batches, protoBatch)
+		protoTrace.ResourceSpans = append(protoTrace.ResourceSpans, protoBatch)
 	}
 
 	return protoTrace

@@ -518,7 +518,7 @@ func queryTrace(client httpclient.TempoHTTPClient, info *util.TraceInfo, l *zap.
 		return tm, err
 	}
 
-	if len(trace.Batches) == 0 {
+	if len(trace.ResourceSpans) == 0 {
 		logger.Error("trace contains 0 batches")
 		tm.notFoundByID++
 		return tm, nil
@@ -565,7 +565,7 @@ func hasMissingSpans(t *tempopb.Trace) bool {
 	// collect all parent span IDs
 	linkedSpanIDs := make([][]byte, 0)
 
-	for _, b := range t.Batches {
+	for _, b := range t.ResourceSpans {
 		for _, ss := range b.ScopeSpans {
 			for _, s := range ss.Spans {
 				if len(s.ParentSpanId) > 0 {
@@ -579,7 +579,7 @@ func hasMissingSpans(t *tempopb.Trace) bool {
 		found := false
 
 	B:
-		for _, b := range t.Batches {
+		for _, b := range t.ResourceSpans {
 			for _, ss := range b.ScopeSpans {
 				for _, s := range ss.Spans {
 					if bytes.Equal(s.SpanId, id) {

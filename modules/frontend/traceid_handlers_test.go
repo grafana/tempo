@@ -26,11 +26,11 @@ func TestTraceIDHandler(t *testing.T) {
 	trace1 := &tempopb.Trace{}
 	trace2 := &tempopb.Trace{}
 
-	for i, b := range splitTrace.Batches {
+	for i, b := range splitTrace.ResourceSpans {
 		if i%2 == 0 {
-			trace1.Batches = append(trace1.Batches, b)
+			trace1.ResourceSpans = append(trace1.ResourceSpans, b)
 		} else {
-			trace2.Batches = append(trace2.Batches, b)
+			trace2.ResourceSpans = append(trace2.ResourceSpans, b)
 		}
 	}
 
