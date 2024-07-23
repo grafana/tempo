@@ -236,7 +236,7 @@ func TestTraceIDHandler(t *testing.T) {
 }
 
 func TestTraceIDHandlerForJSONResponse(t *testing.T) {
-	next := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+	next := pipeline.RoundTripperFunc(func(_ *http.Request) (*http.Response, error) {
 		testTrace := test.MakeTrace(2, []byte{0x01, 0x02})
 		resBytes, _ := proto.Marshal(&tempopb.TraceByIDResponse{
 			Trace:   testTrace,

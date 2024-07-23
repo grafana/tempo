@@ -72,7 +72,11 @@ func TestTraceByIDHonorsContentType(t *testing.T) {
 	require.NoError(t, err)
 
 	actual := &tempopb.Trace{}
-	err = jsonpb.Unmarshal(resp.Body, actual)
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	bodyString := string(bodyBytes)
+	bodyString = strings.Replace(bodyString, `"batches":`, `"resourceSpans":`, 1)
+
+	err = jsonpb.UnmarshalString(bodyString, actual)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 
