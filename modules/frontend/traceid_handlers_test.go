@@ -12,7 +12,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -134,7 +133,7 @@ func TestTraceIDHandler(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc // copy the test case to prevent race on the loop variable
 		t.Run(tc.name, func(t *testing.T) {
-			next := pipeline.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 				var testTrace *tempopb.Trace
 				var statusCode int
 				var err error

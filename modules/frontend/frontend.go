@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"path"
 	"strings"
 
@@ -22,6 +21,13 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb"
 )
+
+type RoundTripperFunc func(*http.Request) (*http.Response, error)
+
+// RoundTrip implememnts http.RoundTripper
+func (fn RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
 
 // these handler funcs could likely be removed and the code written directly into the respective
 // gRPC functions
@@ -202,7 +208,7 @@ func (q *QueryFrontend) MetricsQueryInstant(req *tempopb.QueryInstantRequest, sr
 
 // newSpanMetricsMiddleware creates a new frontend middleware to handle metrics-generator requests.
 func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
-	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		tenant, err := user.ExtractOrgID(req.Context())
 		if err != nil {
 			level.Error(logger).Log("msg", "metrics summary: failed to extract tenant id", "err", err)
@@ -212,14 +218,14 @@ func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineR
 				Body:       io.NopCloser(strings.NewReader(err.Error())),
 			}, nil
 		}
-		prepareRequestForQueriers(req, tenant, req.RequestURI, nil)
+		prepareRequestForQueriers(req, tenant)
 
 		level.Info(logger).Log(
 			"msg", "metrics summary request",
 			"tenant", tenant,
 			"path", req.URL.Path)
 
-		resps, err := next.RoundTrip(req)
+		resps, err := next.RoundTrip(pipeline.NewHTTPRequest(req))
 		if err != nil {
 			return nil, err
 		}
@@ -239,20 +245,19 @@ func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineR
 // prepareRequestForQueriers modifies the request so they will be farmed correctly to the queriers
 //   - adds the tenant header
 //   - sets the requesturi (see below for details)
-func prepareRequestForQueriers(req *http.Request, tenant string, originalURI string, params url.Values) {
+func prepareRequestForQueriers(req *http.Request, tenant string) {
 	// set the tenant header
 	req.Header.Set(user.OrgIDHeaderName, tenant)
 
-	// build and set the request uri
+	// copy the url (which is correct) to the RequestURI
 	// we do this because dskit/common uses the RequestURI field to translate from http.Request to httpgrpc.Request
-	// https://github.com/grafana/dskit/blob/740f56bd293423c5147773ce97264519f9fddc58/httpgrpc/server/server.go#L59
+	// https://github.com/grafana/dskit/blob/f5bd38371e1cfae5479b2c23b3893c1a97868bdf/httpgrpc/httpgrpc.go#L53
 	const queryDelimiter = "?"
 
-	uri := path.Join(api.PathPrefixQuerier, originalURI)
-	if len(params) > 0 {
-		uri += queryDelimiter + params.Encode()
+	uri := path.Join(api.PathPrefixQuerier, req.URL.Path)
+	if len(req.URL.RawQuery) > 0 {
+		uri += queryDelimiter + req.URL.RawQuery
 	}
-
 	req.RequestURI = uri
 }
 

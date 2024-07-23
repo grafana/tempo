@@ -52,7 +52,7 @@ func TestMultiTenant(t *testing.T) {
 			trace := test.MakeTrace(10, traceID)
 
 			once := sync.Once{}
-			next := AsyncRoundTripperFunc[combiner.PipelineResponse](func(req *http.Request) (Responses[combiner.PipelineResponse], error) {
+			next := AsyncRoundTripperFunc[combiner.PipelineResponse](func(req Request) (Responses[combiner.PipelineResponse], error) {
 				reqCount.Inc() // Count the number of requests.
 
 				// Check if the tenant is in the list of tenants.
@@ -91,7 +91,7 @@ func TestMultiTenant(t *testing.T) {
 			ctx := user.InjectOrgID(context.Background(), tc.tenants)
 			req = req.WithContext(ctx)
 
-			resps, err := rt.RoundTrip(req)
+			resps, err := rt.RoundTrip(NewHTTPRequest(req))
 			require.NoError(t, err)
 
 			for {
@@ -153,12 +153,12 @@ func TestMultiTenantNotSupported(t *testing.T) {
 			}
 
 			test := NewMultiTenantUnsupportedMiddleware(log.NewNopLogger())
-			next := AsyncRoundTripperFunc[combiner.PipelineResponse](func(req *http.Request) (Responses[combiner.PipelineResponse], error) {
+			next := AsyncRoundTripperFunc[combiner.PipelineResponse](func(_ Request) (Responses[combiner.PipelineResponse], error) {
 				return NewSuccessfulResponse("foo"), nil
 			})
 
 			rt := test.Wrap(next)
-			resps, err := rt.RoundTrip(req)
+			resps, err := rt.RoundTrip(NewHTTPRequest(req))
 			require.NoError(t, err) // no error expected. tenant unsupported should be passed back as a bad request. errors bubble up as 5xx
 
 			r, done, err := resps.Next(context.Background())

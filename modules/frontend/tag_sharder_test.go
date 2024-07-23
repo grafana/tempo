@@ -154,7 +154,7 @@ func TestTagsBackendRequests(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer close(stopCh)
-			reqCh := make(chan *http.Request)
+			reqCh := make(chan pipeline.Request)
 			req := fakeReq{}
 			if tc.params != nil {
 				req.startValue = uint32(tc.params.start)
@@ -167,7 +167,7 @@ func TestTagsBackendRequests(t *testing.T) {
 
 			actualReqURIs := []string{}
 			for r := range reqCh {
-				actualReqURIs = append(actualReqURIs, r.RequestURI)
+				actualReqURIs = append(actualReqURIs, r.HTTPRequest().RequestURI)
 			}
 			require.Equal(t, tc.expectedReqsURIs, actualReqURIs)
 		})
@@ -283,7 +283,7 @@ func TestTagsIngesterRequest(t *testing.T) {
 }
 
 func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
-	next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+	next := pipeline.AsyncRoundTripperFunc[combiner.PipelineResponse](func(_ pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 		return nil, nil
 	})
 
@@ -299,19 +299,19 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 
 	// no org id
 	req := httptest.NewRequest("GET", "/?start=1000&end=1100", nil)
-	resp, err := testRT.RoundTrip(req)
+	resp, err := testRT.RoundTrip(pipeline.NewHTTPRequest(req))
 	testBadRequestFromResponses(t, resp, err, "no org id")
 
 	// start/end outside of max duration
 	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
 	req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
-	resp, err = testRT.RoundTrip(req)
+	resp, err = testRT.RoundTrip(pipeline.NewHTTPRequest(req))
 	testBadRequestFromResponses(t, resp, err, "range specified by start and end exceeds 5m0s. received start=1000 end=1500")
 
 	// bad request
 	req = httptest.NewRequest("GET", "/?start=asdf&end=1500", nil)
 	req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
-	resp, err = testRT.RoundTrip(req)
+	resp, err = testRT.RoundTrip(pipeline.NewHTTPRequest(req))
 	testBadRequestFromResponses(t, resp, err, "invalid start: strconv.ParseInt: parsing \"asdf\": invalid syntax")
 
 	// test max duration error with overrides
@@ -333,6 +333,6 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 
 	req = httptest.NewRequest("GET", "/?start=1000&end=1500", nil)
 	req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
-	resp, err = testRT.RoundTrip(req)
+	resp, err = testRT.RoundTrip(pipeline.NewHTTPRequest(req))
 	testBadRequestFromResponses(t, resp, err, "range specified by start and end exceeds 1m0s. received start=1000 end=1500")
 }

@@ -2,7 +2,6 @@ package pipeline
 
 import (
 	"context"
-	"net/http"
 	"sync"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
@@ -17,7 +16,7 @@ type waitGroup interface {
 
 // NewAsyncSharderFunc creates a new AsyncResponse that shards requests to the next AsyncRoundTripper[combiner.PipelineResponse]. It creates one
 // goroutine per concurrent request.
-func NewAsyncSharderFunc(ctx context.Context, concurrentReqs, totalReqs int, reqFn func(i int) *http.Request, next AsyncRoundTripper[combiner.PipelineResponse]) Responses[combiner.PipelineResponse] {
+func NewAsyncSharderFunc(ctx context.Context, concurrentReqs, totalReqs int, reqFn func(i int) Request, next AsyncRoundTripper[combiner.PipelineResponse]) Responses[combiner.PipelineResponse] {
 	var wg waitGroup
 	if concurrentReqs <= 0 {
 		wg = &sync.WaitGroup{}
@@ -43,7 +42,7 @@ func NewAsyncSharderFunc(ctx context.Context, concurrentReqs, totalReqs int, req
 			}
 
 			wg.Add(1)
-			go func(r *http.Request) {
+			go func(r Request) {
 				defer wg.Done()
 
 				resp, err := next.RoundTrip(r)
@@ -63,7 +62,7 @@ func NewAsyncSharderFunc(ctx context.Context, concurrentReqs, totalReqs int, req
 }
 
 // NewAsyncSharderChan creates a new AsyncResponse that shards requests to the next AsyncRoundTripper[combiner.PipelineResponse] using a limited number of goroutines.
-func NewAsyncSharderChan(ctx context.Context, concurrentReqs int, reqs <-chan *http.Request, resps Responses[combiner.PipelineResponse], next AsyncRoundTripper[combiner.PipelineResponse]) Responses[combiner.PipelineResponse] {
+func NewAsyncSharderChan(ctx context.Context, concurrentReqs int, reqs <-chan Request, resps Responses[combiner.PipelineResponse], next AsyncRoundTripper[combiner.PipelineResponse]) Responses[combiner.PipelineResponse] {
 	if concurrentReqs == 0 {
 		panic("NewAsyncSharderChan: concurrentReqs must be greater than 0")
 	}
