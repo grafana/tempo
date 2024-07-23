@@ -123,7 +123,9 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 		SpansPerSpanSet: defaultSpansPerSpanSet,
 	}
 
-	if s, ok := extractQueryParam(r, urlParamStart); ok {
+	vals := r.URL.Query()
+
+	if s, ok := extractQueryParam(vals, urlParamStart); ok {
 		start, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("invalid start: %w", err)
@@ -131,7 +133,7 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 		req.Start = uint32(start)
 	}
 
-	if s, ok := extractQueryParam(r, urlParamEnd); ok {
+	if s, ok := extractQueryParam(vals, urlParamEnd); ok {
 		end, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("invalid end: %w", err)
@@ -139,7 +141,7 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 		req.End = uint32(end)
 	}
 
-	query, queryFound := extractQueryParam(r, urlParamQuery)
+	query, queryFound := extractQueryParam(vals, urlParamQuery)
 	if queryFound {
 		// TODO hacky fix: we don't validate {} since this isn't handled correctly yet
 		if query != "{}" {
@@ -151,7 +153,7 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 		req.Query = query
 	}
 
-	encodedTags, tagsFound := extractQueryParam(r, urlParamTags)
+	encodedTags, tagsFound := extractQueryParam(vals, urlParamTags)
 	if tagsFound {
 		// tags and traceQL API are mutually exclusive
 		if queryFound {
@@ -186,7 +188,7 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 		// Passing tags as individual query parameters is not supported anymore, clients should use the tags
 		// query parameter instead. We still parse these tags since the initial Grafana implementation uses this.
 		// As Grafana gets updated and/or versions using this get old we can remove this section.
-		for k, v := range r.URL.Query() {
+		for k, v := range vals {
 			// Skip reserved keywords
 			if k == urlParamQuery || k == urlParamTags || k == urlParamMinDuration || k == urlParamMaxDuration || k == urlParamLimit || k == urlParamSpansPerSpanSet || k == urlParamStart || k == urlParamEnd {
 				continue
@@ -198,7 +200,7 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 		}
 	}
 
-	if s, ok := extractQueryParam(r, urlParamMinDuration); ok {
+	if s, ok := extractQueryParam(vals, urlParamMinDuration); ok {
 		dur, err := time.ParseDuration(s)
 		if err != nil {
 			return nil, fmt.Errorf("invalid minDuration: %w", err)
@@ -206,7 +208,7 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 		req.MinDurationMs = uint32(dur.Milliseconds())
 	}
 
-	if s, ok := extractQueryParam(r, urlParamMaxDuration); ok {
+	if s, ok := extractQueryParam(vals, urlParamMaxDuration); ok {
 		dur, err := time.ParseDuration(s)
 		if err != nil {
 			return nil, fmt.Errorf("invalid maxDuration: %w", err)
@@ -218,7 +220,7 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 		}
 	}
 
-	if s, ok := extractQueryParam(r, urlParamLimit); ok {
+	if s, ok := extractQueryParam(vals, urlParamLimit); ok {
 		limit, err := strconv.Atoi(s)
 		if err != nil {
 			return nil, fmt.Errorf("invalid limit: %w", err)
@@ -229,7 +231,7 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 		req.Limit = uint32(limit)
 	}
 
-	if s, ok := extractQueryParam(r, urlParamSpansPerSpanSet); ok {
+	if s, ok := extractQueryParam(vals, urlParamSpansPerSpanSet); ok {
 		spansPerSpanSet, err := strconv.Atoi(s)
 		if err != nil {
 			return nil, fmt.Errorf("invalid spss: %w", err)
@@ -254,14 +256,15 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 
 func ParseSpanMetricsRequest(r *http.Request) (*tempopb.SpanMetricsRequest, error) {
 	req := &tempopb.SpanMetricsRequest{}
+	vals := r.URL.Query()
 
-	groupBy := r.URL.Query().Get(urlParamGroupBy)
+	groupBy := vals.Get(urlParamGroupBy)
 	req.GroupBy = groupBy
 
-	query := r.URL.Query().Get(urlParamQuery)
+	query := vals.Get(urlParamQuery)
 	req.Query = query
 
-	l := r.URL.Query().Get(urlParamLimit)
+	l := vals.Get(urlParamLimit)
 	if l != "" {
 		limit, err := strconv.Atoi(l)
 		if err != nil {
@@ -270,7 +273,7 @@ func ParseSpanMetricsRequest(r *http.Request) (*tempopb.SpanMetricsRequest, erro
 		req.Limit = uint64(limit)
 	}
 
-	if s, ok := extractQueryParam(r, urlParamStart); ok {
+	if s, ok := extractQueryParam(vals, urlParamStart); ok {
 		start, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("invalid start: %w", err)
@@ -278,7 +281,7 @@ func ParseSpanMetricsRequest(r *http.Request) (*tempopb.SpanMetricsRequest, erro
 		req.Start = uint32(start)
 	}
 
-	if s, ok := extractQueryParam(r, urlParamEnd); ok {
+	if s, ok := extractQueryParam(vals, urlParamEnd); ok {
 		end, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("invalid end: %w", err)
@@ -291,14 +294,15 @@ func ParseSpanMetricsRequest(r *http.Request) (*tempopb.SpanMetricsRequest, erro
 
 func ParseSpanMetricsSummaryRequest(r *http.Request) (*tempopb.SpanMetricsSummaryRequest, error) {
 	req := &tempopb.SpanMetricsSummaryRequest{}
+	vals := r.URL.Query()
 
-	groupBy := r.URL.Query().Get(urlParamGroupBy)
+	groupBy := vals.Get(urlParamGroupBy)
 	req.GroupBy = groupBy
 
-	query := r.URL.Query().Get(urlParamQuery)
+	query := vals.Get(urlParamQuery)
 	req.Query = query
 
-	l := r.URL.Query().Get(urlParamLimit)
+	l := vals.Get(urlParamLimit)
 	if l != "" {
 		limit, err := strconv.Atoi(l)
 		if err != nil {
@@ -307,7 +311,7 @@ func ParseSpanMetricsSummaryRequest(r *http.Request) (*tempopb.SpanMetricsSummar
 		req.Limit = uint64(limit)
 	}
 
-	if s, ok := extractQueryParam(r, urlParamStart); ok {
+	if s, ok := extractQueryParam(vals, urlParamStart); ok {
 		start, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("invalid start: %w", err)
@@ -315,7 +319,7 @@ func ParseSpanMetricsSummaryRequest(r *http.Request) (*tempopb.SpanMetricsSummar
 		req.Start = uint32(start)
 	}
 
-	if s, ok := extractQueryParam(r, urlParamEnd); ok {
+	if s, ok := extractQueryParam(vals, urlParamEnd); ok {
 		end, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("invalid end: %w", err)
@@ -328,18 +332,19 @@ func ParseSpanMetricsSummaryRequest(r *http.Request) (*tempopb.SpanMetricsSummar
 
 func ParseQueryInstantRequest(r *http.Request) (*tempopb.QueryInstantRequest, error) {
 	req := &tempopb.QueryInstantRequest{}
+	vals := r.URL.Query()
 
 	// check "query" first. this was originally added for prom compatibility and Grafana still uses it.
-	if s, ok := extractQueryParam(r, "query"); ok {
+	if s, ok := extractQueryParam(vals, "query"); ok {
 		req.Query = s
 	}
 
 	// also check the `q` parameter. this is what all other Tempo endpoints take for a TraceQL query.
-	if s, ok := extractQueryParam(r, urlParamQuery); ok {
+	if s, ok := extractQueryParam(vals, urlParamQuery); ok {
 		req.Query = s
 	}
 
-	start, end, _ := bounds(r)
+	start, end, _ := bounds(vals)
 	req.Start = uint64(start.UnixNano())
 	req.End = uint64(end.UnixNano())
 
@@ -348,73 +353,74 @@ func ParseQueryInstantRequest(r *http.Request) (*tempopb.QueryInstantRequest, er
 
 func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error) {
 	req := &tempopb.QueryRangeRequest{}
+	vals := r.URL.Query()
 
 	// check "query" first. this was originally added for prom compatibility and Grafana still uses it.
-	if s, ok := extractQueryParam(r, "query"); ok {
+	if s, ok := extractQueryParam(vals, "query"); ok {
 		req.Query = s
 	}
 
 	// also check the `q` parameter. this is what all other Tempo endpoints take for a TraceQL query.
-	if s, ok := extractQueryParam(r, urlParamQuery); ok {
+	if s, ok := extractQueryParam(vals, urlParamQuery); ok {
 		req.Query = s
 	}
 
-	if s, ok := extractQueryParam(r, QueryModeKey); ok {
+	if s, ok := extractQueryParam(vals, QueryModeKey); ok {
 		req.QueryMode = s
 	}
 
-	start, end, _ := bounds(r)
+	start, end, _ := bounds(vals)
 	req.Start = uint64(start.UnixNano())
 	req.End = uint64(end.UnixNano())
 
-	step, err := step(r, start, end)
+	step, err := step(vals, start, end)
 	if err != nil {
 		return nil, httpgrpc.Errorf(http.StatusBadRequest, err.Error())
 	}
 	req.Step = uint64(step.Nanoseconds())
 
-	shardCount, _ := extractQueryParam(r, urlParamShardCount)
+	shardCount, _ := extractQueryParam(vals, urlParamShardCount)
 	if shardCount, err := strconv.Atoi(shardCount); err == nil {
 		req.ShardCount = uint32(shardCount)
 	}
-	shard, _ := extractQueryParam(r, urlParamShard)
+	shard, _ := extractQueryParam(vals, urlParamShard)
 	if shard, err := strconv.Atoi(shard); err == nil {
 		req.ShardID = uint32(shard)
 	}
 
 	// New RF1 params
-	blockID, _ := extractQueryParam(r, urlParamBlockID)
+	blockID, _ := extractQueryParam(vals, urlParamBlockID)
 	if blockID, err := uuid.Parse(blockID); err == nil {
 		req.BlockID = blockID.String()
 	}
 
-	startPage, _ := extractQueryParam(r, urlParamStartPage)
+	startPage, _ := extractQueryParam(vals, urlParamStartPage)
 	if startPage, err := strconv.Atoi(startPage); err == nil {
 		req.StartPage = uint32(startPage)
 	}
 
-	pagesToSearch, _ := extractQueryParam(r, urlParamPagesToSearch)
+	pagesToSearch, _ := extractQueryParam(vals, urlParamPagesToSearch)
 	if of, err := strconv.Atoi(pagesToSearch); err == nil {
 		req.PagesToSearch = uint32(of)
 	}
 
-	version, _ := extractQueryParam(r, urlParamVersion)
+	version, _ := extractQueryParam(vals, urlParamVersion)
 	req.Version = version
 
-	encoding, _ := extractQueryParam(r, urlParamEncoding)
+	encoding, _ := extractQueryParam(vals, urlParamEncoding)
 	req.Encoding = encoding
 
-	size, _ := extractQueryParam(r, urlParamSize)
+	size, _ := extractQueryParam(vals, urlParamSize)
 	if size, err := strconv.Atoi(size); err == nil {
 		req.Size_ = uint64(size)
 	}
 
-	footerSize, _ := extractQueryParam(r, urlParamFooterSize)
+	footerSize, _ := extractQueryParam(vals, urlParamFooterSize)
 	if footerSize, err := strconv.Atoi(footerSize); err == nil {
 		req.FooterSize = uint32(footerSize)
 	}
 
-	dedicatedColumns, _ := extractQueryParam(r, urlParamDedicatedColumns)
+	dedicatedColumns, _ := extractQueryParam(vals, urlParamDedicatedColumns)
 	if len(dedicatedColumns) > 0 {
 		err := json.Unmarshal([]byte(dedicatedColumns), &req.DedicatedColumns)
 		if err != nil {
@@ -486,12 +492,12 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 	return req
 }
 
-func bounds(r *http.Request) (time.Time, time.Time, error) {
+func bounds(vals url.Values) (time.Time, time.Time, error) {
 	var (
 		now      = time.Now()
-		start, _ = extractQueryParam(r, urlParamStart)
-		end, _   = extractQueryParam(r, urlParamEnd)
-		since, _ = extractQueryParam(r, urlParamSince)
+		start, _ = extractQueryParam(vals, urlParamStart)
+		end, _   = extractQueryParam(vals, urlParamEnd)
+		since, _ = extractQueryParam(vals, urlParamSince)
 	)
 
 	return determineBounds(now, start, end, since)
@@ -555,8 +561,8 @@ func parseTimestamp(value string, def time.Time) (time.Time, error) {
 	return time.Unix(0, nanos), nil
 }
 
-func step(r *http.Request, start, end time.Time) (time.Duration, error) {
-	value, _ := extractQueryParam(r, urlParamStep)
+func step(vals url.Values, start, end time.Time) (time.Duration, error) {
+	value, _ := extractQueryParam(vals, urlParamStep)
 	if value == "" {
 		return time.Duration(traceql.DefaultQueryRangeStep(uint64(start.UnixNano()), uint64(end.UnixNano()))), nil
 	}
@@ -686,7 +692,7 @@ func AddServerlessParams(req *http.Request, maxBytes int) *http.Request {
 // ExtractServerlessParams extracts params for the serverless functions from
 // an http.Request
 func ExtractServerlessParams(req *http.Request) (int, error) {
-	s, exists := extractQueryParam(req, urlParamMaxBytes)
+	s, exists := extractQueryParam(req.URL.Query(), urlParamMaxBytes)
 	if !exists {
 		return 0, nil
 	}
@@ -698,15 +704,17 @@ func ExtractServerlessParams(req *http.Request) (int, error) {
 	return int(maxBytes), nil
 }
 
-func extractQueryParam(r *http.Request, param string) (string, bool) {
-	value := r.URL.Query().Get(param)
+func extractQueryParam(v url.Values, param string) (string, bool) {
+	value := v.Get(param)
 	return value, value != ""
 }
 
 // ValidateAndSanitizeRequest validates params for trace by id api
 // return values are (blockStart, blockEnd, queryMode, start, end, error)
 func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64, int64, error) {
-	q, _ := extractQueryParam(r, QueryModeKey)
+	vals := r.URL.Query()
+
+	q, _ := extractQueryParam(vals, QueryModeKey)
 
 	// validate queryMode. it should either be empty or one of (QueryModeIngesters|QueryModeBlocks|QueryModeAll)
 	var queryMode string
@@ -729,7 +737,7 @@ func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64,
 		return "", "", queryMode, 0, 0, nil
 	}
 
-	if start, ok := extractQueryParam(r, BlockStartKey); ok {
+	if start, ok := extractQueryParam(vals, BlockStartKey); ok {
 		_, err := uuid.Parse(start)
 		if err != nil {
 			return "", "", "", 0, 0, fmt.Errorf("invalid value for blockstart: %w", err)
@@ -739,7 +747,7 @@ func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64,
 		blockStart = tempodb.BlockIDMin
 	}
 
-	if end, ok := extractQueryParam(r, BlockEndKey); ok {
+	if end, ok := extractQueryParam(vals, BlockEndKey); ok {
 		_, err := uuid.Parse(end)
 		if err != nil {
 			return "", "", "", 0, 0, fmt.Errorf("invalid value for blockEnd: %w", err)
@@ -749,7 +757,7 @@ func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64,
 		blockEnd = tempodb.BlockIDMax
 	}
 
-	if s, ok := extractQueryParam(r, urlParamStart); ok {
+	if s, ok := extractQueryParam(vals, urlParamStart); ok {
 		var err error
 		startTime, err = strconv.ParseInt(s, 10, 64)
 		if err != nil {
@@ -759,7 +767,7 @@ func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64,
 		startTime = 0
 	}
 
-	if s, ok := extractQueryParam(r, urlParamEnd); ok {
+	if s, ok := extractQueryParam(vals, urlParamEnd); ok {
 		var err error
 		endTime, err = strconv.ParseInt(s, 10, 64)
 		if err != nil {
