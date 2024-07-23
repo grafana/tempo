@@ -78,6 +78,7 @@ var tokens = map[string]int{
 	"id":                  ID,
 	"traceID":             TRACE_ID,
 	"spanID":              SPAN_ID,
+	"timeSinceStart":      TIMESINCESTART,
 	"parent":              PARENT,
 	"parent.":             PARENT_DOT,
 	"resource.":           RESOURCE_DOT,

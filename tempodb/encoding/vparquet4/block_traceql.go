@@ -861,37 +861,38 @@ const (
 	columnPathResourceK8sPodName       = "rs.list.element.Resource.K8sPodName"
 	columnPathResourceK8sContainerName = "rs.list.element.Resource.K8sContainerName"
 
-	columnPathSpanID             = "rs.list.element.ss.list.element.Spans.list.element.SpanID"
-	columnPathSpanName           = "rs.list.element.ss.list.element.Spans.list.element.Name"
-	columnPathSpanStartTime      = "rs.list.element.ss.list.element.Spans.list.element.StartTimeUnixNano"
-	columnPathSpanDuration       = "rs.list.element.ss.list.element.Spans.list.element.DurationNano"
-	columnPathSpanKind           = "rs.list.element.ss.list.element.Spans.list.element.Kind"
-	columnPathSpanStatusCode     = "rs.list.element.ss.list.element.Spans.list.element.StatusCode"
-	columnPathSpanStatusMessage  = "rs.list.element.ss.list.element.Spans.list.element.StatusMessage"
-	columnPathSpanAttrKey        = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Key"
-	columnPathSpanAttrString     = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Value.list.element"
-	columnPathSpanAttrInt        = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueInt.list.element"
-	columnPathSpanAttrDouble     = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueDouble.list.element"
-	columnPathSpanAttrBool       = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueBool.list.element"
-	columnPathSpanHTTPStatusCode = "rs.list.element.ss.list.element.Spans.list.element.HttpStatusCode"
-	columnPathSpanHTTPMethod     = "rs.list.element.ss.list.element.Spans.list.element.HttpMethod"
-	columnPathSpanHTTPURL        = "rs.list.element.ss.list.element.Spans.list.element.HttpUrl"
-	columnPathSpanNestedSetLeft  = "rs.list.element.ss.list.element.Spans.list.element.NestedSetLeft"
-	columnPathSpanNestedSetRight = "rs.list.element.ss.list.element.Spans.list.element.NestedSetRight"
-	columnPathSpanParentID       = "rs.list.element.ss.list.element.Spans.list.element.ParentID"
-	columnPathEventName          = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Name"
-	columnPathLinkTraceID        = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.TraceID"
-	columnPathLinkSpanID         = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.SpanID"
-	columnPathEventAttrKey       = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Key"
-	columnPathEventAttrString    = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Value.list.element"
-	columnPathEventAttrInt       = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueInt.list.element"
-	columnPathEventAttrDouble    = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueDouble.list.element"
-	columnPathEventAttrBool      = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueBool.list.element"
-	columnPathLinkAttrKey        = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.Key"
-	columnPathLinkAttrString     = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.Value.list.element"
-	columnPathLinkAttrInt        = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueInt.list.element"
-	columnPathLinkAttrDouble     = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueDouble.list.element"
-	columnPathLinkAttrBool       = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueBool.list.element"
+	columnPathSpanID              = "rs.list.element.ss.list.element.Spans.list.element.SpanID"
+	columnPathSpanName            = "rs.list.element.ss.list.element.Spans.list.element.Name"
+	columnPathSpanStartTime       = "rs.list.element.ss.list.element.Spans.list.element.StartTimeUnixNano"
+	columnPathSpanDuration        = "rs.list.element.ss.list.element.Spans.list.element.DurationNano"
+	columnPathSpanKind            = "rs.list.element.ss.list.element.Spans.list.element.Kind"
+	columnPathSpanStatusCode      = "rs.list.element.ss.list.element.Spans.list.element.StatusCode"
+	columnPathSpanStatusMessage   = "rs.list.element.ss.list.element.Spans.list.element.StatusMessage"
+	columnPathSpanAttrKey         = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Key"
+	columnPathSpanAttrString      = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Value.list.element"
+	columnPathSpanAttrInt         = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueInt.list.element"
+	columnPathSpanAttrDouble      = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueDouble.list.element"
+	columnPathSpanAttrBool        = "rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueBool.list.element"
+	columnPathSpanHTTPStatusCode  = "rs.list.element.ss.list.element.Spans.list.element.HttpStatusCode"
+	columnPathSpanHTTPMethod      = "rs.list.element.ss.list.element.Spans.list.element.HttpMethod"
+	columnPathSpanHTTPURL         = "rs.list.element.ss.list.element.Spans.list.element.HttpUrl"
+	columnPathSpanNestedSetLeft   = "rs.list.element.ss.list.element.Spans.list.element.NestedSetLeft"
+	columnPathSpanNestedSetRight  = "rs.list.element.ss.list.element.Spans.list.element.NestedSetRight"
+	columnPathSpanParentID        = "rs.list.element.ss.list.element.Spans.list.element.ParentID"
+	columnPathEventName           = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Name"
+	columnPathEventTimeSinceStart = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.TimeSinceStartNano"
+	columnPathLinkTraceID         = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.TraceID"
+	columnPathLinkSpanID          = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.SpanID"
+	columnPathEventAttrKey        = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Key"
+	columnPathEventAttrString     = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.Value.list.element"
+	columnPathEventAttrInt        = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueInt.list.element"
+	columnPathEventAttrDouble     = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueDouble.list.element"
+	columnPathEventAttrBool       = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Attrs.list.element.ValueBool.list.element"
+	columnPathLinkAttrKey         = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.Key"
+	columnPathLinkAttrString      = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.Value.list.element"
+	columnPathLinkAttrInt         = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueInt.list.element"
+	columnPathLinkAttrDouble      = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueDouble.list.element"
+	columnPathLinkAttrBool        = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueBool.list.element"
 
 	otherEntrySpansetKey = "spanset"
 	otherEntrySpanKey    = "span"
@@ -931,9 +932,10 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicTraceID:          {intrinsicScopeTrace, traceql.TypeString, columnPathTraceID},
 	traceql.IntrinsicTraceStartTime:   {intrinsicScopeTrace, traceql.TypeDuration, columnPathStartTimeUnixNano},
 
-	traceql.IntrinsicEventName:   {intrinsicScopeEvent, traceql.TypeString, columnPathEventName},
-	traceql.IntrinsicLinkTraceID: {intrinsicScopeLink, traceql.TypeString, columnPathLinkTraceID},
-	traceql.IntrinsicLinkSpanID:  {intrinsicScopeLink, traceql.TypeString, columnPathLinkSpanID},
+	traceql.IntrinsicEventName:           {intrinsicScopeEvent, traceql.TypeString, columnPathEventName},
+	traceql.IntrinsicEventTimeSinceStart: {intrinsicScopeEvent, traceql.TypeDuration, columnPathEventTimeSinceStart},
+	traceql.IntrinsicLinkTraceID:         {intrinsicScopeLink, traceql.TypeString, columnPathLinkTraceID},
+	traceql.IntrinsicLinkSpanID:          {intrinsicScopeLink, traceql.TypeString, columnPathLinkSpanID},
 
 	traceql.IntrinsicServiceStats: {intrinsicScopeTrace, traceql.TypeNil, ""}, // Not a real column, this entry is only used to assign default scope.
 }
@@ -1606,6 +1608,13 @@ func createEventIterator(makeIter makeIterFn, conditions []traceql.Condition, al
 				return nil, err
 			}
 			eventIters = append(eventIters, makeIter(columnPathEventName, pred, columnPathEventName))
+			continue
+		case traceql.IntrinsicEventTimeSinceStart:
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			eventIters = append(eventIters, makeIter(columnPathEventTimeSinceStart, pred, columnPathEventTimeSinceStart))
 			continue
 		}
 		genericConditions = append(genericConditions, cond)
@@ -2953,8 +2962,13 @@ func (c *eventCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		switch e.Key {
 		case columnPathEventName:
 			ev.attrs = append(ev.attrs, attrVal{
-				a: traceql.NewIntrinsic(traceql.IntrinsicEventName),
+				a: traceql.IntrinsicEventNameAttribute,
 				s: traceql.NewStaticString(unsafeToString(e.Value.Bytes())),
+			})
+		case columnPathEventTimeSinceStart:
+			ev.attrs = append(ev.attrs, attrVal{
+				a: traceql.IntrinsicEventTimeSinceStartAttribute,
+				s: traceql.NewStaticDuration(time.Duration(e.Value.Int64())),
 			})
 		}
 	}
