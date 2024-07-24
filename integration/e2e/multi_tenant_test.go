@@ -211,7 +211,7 @@ func getAttrsAndSpanNames(trace *tempopb.Trace) traceStringsMap {
 	rAttrsValues := collector.NewDistinctString(0)
 	spanNames := collector.NewDistinctString(0)
 
-	for _, b := range trace.ResourceSpans {
+	for _, b := range trace.Batches {
 		for _, ss := range b.ScopeSpans {
 			for _, s := range ss.Spans {
 				if s.Name != "" {
