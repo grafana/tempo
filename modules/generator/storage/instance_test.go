@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -70,13 +69,7 @@ func TestInstance(t *testing.T) {
 		}
 
 		err = appender.Commit()
-		if err != nil {
-			// TODO: Fix the shutdown handling so that we avoid trying to commit on a closed WAL.
-			assert.IsType(t, &fs.PathError{}, err)
-			assert.ErrorContains(t, err, os.ErrClosed.Error())
-		} else {
-			assert.NoError(t, err)
-		}
+		assert.NoError(t, err)
 	})
 
 	// Wait until remote.Storage has tried at least once to send data
@@ -92,6 +85,7 @@ func TestInstance(t *testing.T) {
 	mockServer.refuseRequests.Store(false)
 
 	// Shutdown the instance - even though previous requests failed, remote.Storage should flush pending data
+	cancel()
 	err = instance.Close()
 	assert.NoError(t, err)
 
@@ -145,13 +139,7 @@ func TestInstance_multiTenancy(t *testing.T) {
 			}
 
 			err = appender.Commit()
-			if err != nil {
-				// TODO: Fix the shutdown handling so that we avoid trying to commit on a closed WAL.
-				assert.IsType(t, &fs.PathError{}, err)
-				assert.ErrorContains(t, err, os.ErrClosed.Error())
-			} else {
-				assert.NoError(t, err)
-			}
+			assert.NoError(t, err)
 		}
 	})
 
@@ -169,6 +157,7 @@ func TestInstance_multiTenancy(t *testing.T) {
 	})
 	require.NoError(t, err, "timed out while waiting for accepted requests")
 
+	cancel()
 	for _, instance := range instances {
 		// Shutdown the instance - remote write should flush pending data
 		err = instance.Close()
@@ -245,13 +234,7 @@ func TestInstance_remoteWriteHeaders(t *testing.T) {
 		}
 
 		err = appender.Commit()
-		if err != nil {
-			// TODO: Fix the shutdown handling so that we avoid trying to commit on a closed WAL.
-			assert.IsType(t, &fs.PathError{}, err)
-			assert.ErrorContains(t, err, os.ErrClosed.Error())
-		} else {
-			assert.NoError(t, err)
-		}
+		assert.NoError(t, err)
 	})
 
 	// Wait until remote.Storage has tried at least once to send data
@@ -267,6 +250,7 @@ func TestInstance_remoteWriteHeaders(t *testing.T) {
 	mockServer.refuseRequests.Store(false)
 
 	// Shutdown the instance - even though previous requests failed, remote.Storage should flush pending data
+	cancel()
 	err = instance.Close()
 	assert.NoError(t, err)
 
