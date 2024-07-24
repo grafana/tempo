@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
@@ -91,8 +92,15 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	span.SetTag("contentType", api.HeaderAcceptJSON)
-	marshaller := &jsonpb.Marshaler{}
-	err = marshaller.Marshal(w, resp)
+	marshaler := &jsonpb.Marshaler{}
+	jsonStr, err := marshaler.MarshalToString(resp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	jsonStr = strings.Replace(jsonStr, `"resourceSpans":`, `"batches":`, 1)
+	bytes := []byte(jsonStr)
+	_, err = w.Write(bytes)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -69,8 +69,8 @@ func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRou
 
 		start := time.Now()
 		resp, err := rt.RoundTrip(req)
-
 		elapsed := time.Since(start)
+
 		postSLOHook(resp, tenant, 0, elapsed, err)
 
 		level.Info(logger).Log(

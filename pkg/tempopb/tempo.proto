@@ -225,7 +225,7 @@ message SearchTagValuesV2Response {
 }
 
 message Trace {
-  repeated tempopb.trace.v1.ResourceSpans batches = 1;
+  repeated tempopb.trace.v1.ResourceSpans batches = 1 [json_name = "resourceSpans"];
 }
 
 // Write
