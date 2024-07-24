@@ -42,17 +42,17 @@ type (
 )
 
 type QueryFrontend struct {
-	TraceByIDHandler, SearchHandler, MetricsSummaryHandler, MetricsQueryInstantHandler, MetricsQueryRangeHandler http.Handler
-	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler                   http.Handler
-	cacheProvider                                                                                                cache.Provider
-	streamingSearch                                                                                              streamingSearchHandler
-	streamingTags                                                                                                streamingTagsHandler
-	streamingTagsV2                                                                                              streamingTagsV2Handler
-	streamingTagValues                                                                                           streamingTagValuesHandler
-	streamingTagValuesV2                                                                                         streamingTagValuesV2Handler
-	streamingQueryRange                                                                                          streamingQueryRangeHandler
-	streamingQueryInstant                                                                                        streamingQueryInstantHandler
-	logger                                                                                                       log.Logger
+	TraceByIDHandler, TraceByIDHandlerV2, SearchHandler, MetricsSummaryHandler, MetricsQueryInstantHandler, MetricsQueryRangeHandler http.Handler
+	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler                                       http.Handler
+	cacheProvider                                                                                                                    cache.Provider
+	streamingSearch                                                                                                                  streamingSearchHandler
+	streamingTags                                                                                                                    streamingTagsHandler
+	streamingTagsV2                                                                                                                  streamingTagsV2Handler
+	streamingTagValues                                                                                                               streamingTagValuesHandler
+	streamingTagValuesV2                                                                                                             streamingTagValuesV2Handler
+	streamingQueryRange                                                                                                              streamingQueryRangeHandler
+	streamingQueryInstant                                                                                                            streamingQueryInstantHandler
+	logger                                                                                                                           log.Logger
 }
 
 // New returns a new QueryFrontend
@@ -142,6 +142,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		next)
 
 	traces := newTraceIDHandler(cfg, o, tracePipeline, logger)
+	tracesV2 := newTraceIDHandlerV2(cfg, o, tracePipeline, logger)
 	search := newSearchHTTPHandler(cfg, searchPipeline, logger)
 	searchTags := newTagHTTPHandler(cfg, searchTagsPipeline, o, combiner.NewSearchTags, logger)
 	searchTagsV2 := newTagHTTPHandler(cfg, searchTagsPipeline, o, combiner.NewSearchTagsV2, logger)
@@ -154,6 +155,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	return &QueryFrontend{
 		// http/discrete
 		TraceByIDHandler:           newHandler(cfg.Config.LogQueryRequestHeaders, traces, logger),
+		TraceByIDHandlerV2:         newHandler(cfg.Config.LogQueryRequestHeaders, tracesV2, logger),
 		SearchHandler:              newHandler(cfg.Config.LogQueryRequestHeaders, search, logger),
 		SearchTagsHandler:          newHandler(cfg.Config.LogQueryRequestHeaders, searchTags, logger),
 		SearchTagsV2Handler:        newHandler(cfg.Config.LogQueryRequestHeaders, searchTagsV2, logger),

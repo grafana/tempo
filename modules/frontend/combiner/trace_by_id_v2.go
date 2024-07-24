@@ -15,11 +15,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-const (
-	internalErrorMsg = "internal error"
-)
-
-type traceByIDCombiner struct {
+type traceByIDCombinerV2 struct {
 	mu sync.Mutex
 
 	c           *trace.Combiner
@@ -34,15 +30,15 @@ type traceByIDCombiner struct {
 // - translate tempopb.TraceByIDResponse to tempopb.Trace. all other combiners pass the same object through
 // - runs the zipkin dedupe logic on the fully combined trace
 // - encode the returned trace as either json or proto depending on the request
-func NewTraceByID(maxBytes int, contentType string) Combiner {
-	return &traceByIDCombiner{
+func NewTraceByIDV2(maxBytes int, contentType string) Combiner {
+	return &traceByIDCombinerV2{
 		c:           trace.NewCombiner(maxBytes),
 		code:        http.StatusNotFound,
 		contentType: contentType,
 	}
 }
 
-func (c *traceByIDCombiner) AddResponse(r PipelineResponse) error {
+func (c *traceByIDCombinerV2) AddResponse(r PipelineResponse) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -87,7 +83,7 @@ func (c *traceByIDCombiner) AddResponse(r PipelineResponse) error {
 	return err
 }
 
-func (c *traceByIDCombiner) HTTPFinal() (*http.Response, error) {
+func (c *traceByIDCombinerV2) HTTPFinal() (*http.Response, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -111,18 +107,19 @@ func (c *traceByIDCombiner) HTTPFinal() (*http.Response, error) {
 	deduper := newDeduper()
 	traceResult = deduper.dedupe(traceResult)
 
+	resp := &tempopb.TraceByIDResponse{Trace: traceResult}
+
 	// marshal in the requested format
 	var buff []byte
 	var err error
 
 	if c.contentType == api.HeaderAcceptProtobuf {
-		buff, err = proto.Marshal(traceResult)
+		buff, err = proto.Marshal(resp)
 	} else {
 		var jsonStr string
 
 		marshaler := &jsonpb.Marshaler{}
-		jsonStr, err = marshaler.MarshalToString(traceResult)
-		jsonStr = strings.Replace(jsonStr, `"resourceSpans":`, `"batches":`, 1)
+		jsonStr, err = marshaler.MarshalToString(resp)
 		buff = []byte(jsonStr)
 	}
 	if err != nil {
@@ -139,20 +136,20 @@ func (c *traceByIDCombiner) HTTPFinal() (*http.Response, error) {
 	}, nil
 }
 
-func (c *traceByIDCombiner) StatusCode() int {
+func (c *traceByIDCombinerV2) StatusCode() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.code
 }
 
 // ShouldQuit returns true if the response should be returned early.
-func (c *traceByIDCombiner) ShouldQuit() bool {
+func (c *traceByIDCombinerV2) ShouldQuit() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.shouldQuit()
 }
 
-func (c *traceByIDCombiner) shouldQuit() bool {
+func (c *traceByIDCombinerV2) shouldQuit() bool {
 	if c.code/100 == 5 { // Bail on 5xx
 		return true
 	}
