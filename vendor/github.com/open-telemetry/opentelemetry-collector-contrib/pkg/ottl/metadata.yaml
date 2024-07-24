@@ -1,8 +1,0 @@
-type: ottl
-
-status:
-  class: pkg
-  stability:
-    alpha: [ traces, metrics, logs ]
-  codeowners:
-    active: [TylerHelmuth, kentquirk, bogdandrutu, evan-bradley]
