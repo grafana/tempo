@@ -214,7 +214,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 		{
 			name: "happy path",
 			finalRT: func(_ context.CancelFunc) RoundTripperFunc {
-				return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				return RoundTripperFunc(func(_ Request) (*http.Response, error) {
 					return &http.Response{
 						Body: io.NopCloser(strings.NewReader("foo")),
 					}, nil
@@ -224,7 +224,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 		{
 			name: "error path",
 			finalRT: func(_ context.CancelFunc) RoundTripperFunc {
-				return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				return RoundTripperFunc(func(_ Request) (*http.Response, error) {
 					return nil, errors.New("foo")
 				})
 			},
@@ -234,7 +234,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 			finalRT: func(_ context.CancelFunc) RoundTripperFunc {
 				responseCounter := atomic.Int32{}
 
-				return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				return RoundTripperFunc(func(_ Request) (*http.Response, error) {
 					counter := responseCounter.Add(1)
 					if counter == 2 {
 						return &http.Response{
@@ -257,7 +257,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 					cancel()
 				}()
 
-				return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				return RoundTripperFunc(func(_ Request) (*http.Response, error) {
 					time.Sleep(3 * time.Second)
 
 					return &http.Response{
@@ -274,7 +274,7 @@ func TestAsyncResponsesDoesNotLeak(t *testing.T) {
 			finalRT: func(cancel context.CancelFunc) RoundTripperFunc {
 				responseCounter := atomic.Int32{}
 
-				return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				return RoundTripperFunc(func(_ Request) (*http.Response, error) {
 					counter := responseCounter.Add(1)
 					if counter == 2 {
 						cancel()
@@ -392,25 +392,25 @@ type sharder struct {
 	funcSharder bool
 }
 
-func (s sharder) RoundTrip(r *http.Request) (Responses[combiner.PipelineResponse], error) {
+func (s sharder) RoundTrip(r Request) (Responses[combiner.PipelineResponse], error) {
 	total := 4
 	concurrent := 2
 
 	// execute requests
 	if s.funcSharder {
-		return NewAsyncSharderFunc(r.Context(), concurrent, total, func(i int) *http.Request {
+		return NewAsyncSharderFunc(r.HTTPRequest().Context(), concurrent, total, func(_ int) Request {
 			return r
 		}, s.next), nil
 	}
 
-	reqCh := make(chan *http.Request)
+	reqCh := make(chan Request)
 	go func() {
 		for i := 0; i < total; i++ {
 			reqCh <- r
 		}
 		close(reqCh)
 	}()
-	return NewAsyncSharderChan(r.Context(), concurrent, reqCh, nil, s.next), nil
+	return NewAsyncSharderChan(r.HTTPRequest().Context(), concurrent, reqCh, nil, s.next), nil
 }
 
 func BenchmarkNewSyncToAsyncResponse(b *testing.B) {

@@ -34,7 +34,7 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 	defer cancel()
 
 	req = req.WithContext(ctx)
-	resps, err := c.next.RoundTrip(req)
+	resps, err := c.next.RoundTrip(NewHTTPRequest(req))
 	if err != nil {
 		return grpcError(err)
 	}
