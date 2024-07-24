@@ -1561,7 +1561,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		innerIterators = append(innerIterators, primaryIter)
 	}
 
-	eventIter, err := createEventIterator(makeIter, primaryIter, catConditions.event, allConditions, selectAll)
+	eventIter, err := createEventIterator(makeIter, catConditions.event, allConditions, selectAll)
 	if err != nil {
 		return nil, fmt.Errorf("creating event iterator: %w", err)
 	}
@@ -1590,7 +1590,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 	return createTraceIterator(makeIter, resourceIter, catConditions.trace, start, end, shardID, shardCount, allConditions, selectAll)
 }
 
-func createEventIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, selectAll bool) (parquetquery.Iterator, error) {
+func createEventIterator(makeIter makeIterFn, conditions []traceql.Condition, allConditions bool, selectAll bool) (parquetquery.Iterator, error) {
 	if len(conditions) == 0 {
 		return nil, nil
 	}
@@ -1622,9 +1622,6 @@ func createEventIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator,
 	}
 
 	var required []parquetquery.Iterator
-	if primaryIter != nil {
-		required = []parquetquery.Iterator{primaryIter}
-	}
 
 	minCount := 0
 
