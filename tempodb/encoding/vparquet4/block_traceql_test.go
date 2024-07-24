@@ -151,6 +151,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		{"span.dedicated.span.4", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 = "dedicated-span-attr-value-4"}`)},
 		// Events
 		{"event:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:name = "e1"}`)},
+		{"event:timeSinceStart", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:timeSinceStart > 2ms}`)},
 		{"event.message", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message =~ "exception"}`)},
 		// Links
 		{"link:spanID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:spanID = "1234567890abcdef"}`)},
@@ -391,6 +392,64 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	}
 }
 
+func TestBackendBlockSearchTraceQLEvents(t *testing.T) {
+	numTraces := 50
+	traces := make([]*Trace, 0, numTraces)
+	wantTraceIdx := rand.Intn(numTraces)
+	wantTraceID := test.ValidTraceID(nil)
+
+	for i := 0; i < numTraces; i++ {
+		if i == wantTraceIdx {
+			// this trace has one span with two identical events
+			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
+			continue
+		}
+
+		id := test.ValidTraceID(nil)
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+	}
+
+	b := makeBackendBlockWithTraces(t, traces)
+	ctx := context.Background()
+
+	requests := []string{
+		`{event.message =~ "exception"}`,
+		`{event:name = "e1"}`,
+		`{event:timeSinceStart > 2ms}`,
+	}
+
+	for _, request := range requests {
+		t.Run(request, func(t *testing.T) {
+			req := traceql.MustExtractFetchSpansRequestWithMetadata(request)
+			if req.SecondPass == nil {
+				req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
+				req.SecondPassConditions = traceql.SearchMetaConditions()
+			}
+
+			resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+			require.NoError(t, err, "search request:%v", req)
+
+			found := false
+			count := 0
+			for {
+				spanSet, err := resp.Results.Next(ctx)
+				require.NoError(t, err, "search request:%v", req)
+				if spanSet == nil {
+					break
+				}
+				found = bytes.Equal(spanSet.TraceID, wantTraceID)
+				if found {
+					count++
+				}
+			}
+			require.True(t, found, "search request:%v", req)
+			// two events in the same span should still return just one span
+			require.Equal(t, 1, count, "search request:%v", req)
+		})
+	}
+}
+
 func makeReq(conditions ...traceql.Condition) traceql.FetchSpansRequest {
 	return traceql.FetchSpansRequest{
 		Conditions: conditions,
@@ -522,7 +581,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 								},
 								Events: []Event{
 									{
-										TimeSinceStartNano: 1,
+										TimeSinceStartNano: 3 * 1000 * 1000, // 3ms
 										Name:               "e1",
 										Attrs: []Attribute{
 											attr("event-attr-key-1", "event-value-1"),
@@ -531,6 +590,15 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 										},
 									},
 									{TimeSinceStartNano: 2, Name: "e2", Attrs: []Attribute{}},
+									{
+										TimeSinceStartNano: 3 * 1000 * 1000, // 3ms
+										Name:               "e1",
+										Attrs: []Attribute{
+											attr("event-attr-key-1", "event-value-1"),
+											attr("event-attr-key-2", "event-value-2"),
+											attr("message", "exception"),
+										},
+									},
 								},
 								Links: links,
 								DedicatedAttributes: DedicatedAttributes{

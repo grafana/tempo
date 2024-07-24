@@ -86,7 +86,7 @@ func MakeSpanWithAttributeCount(traceID []byte, count int) *v1_trace.Span {
 	// add event
 	if rand.Intn(3) == 0 {
 		s.Events = append(s.Events, &v1_trace.Span_Event{
-			TimeUnixNano:           rand.Uint64(),
+			TimeUnixNano:           s.StartTimeUnixNano + uint64(rand.Intn(1*1000*1000)), // 1ms
 			Name:                   "event",
 			DroppedAttributesCount: rand.Uint32(),
 			Attributes: []*v1_common.KeyValue{

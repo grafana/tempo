@@ -536,6 +536,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						},
 						eventAttrs: []attrVal{
 							{traceql.IntrinsicEventNameAttribute, traceql.NewStaticString("e1")},
+							{traceql.IntrinsicEventNameAttribute, traceql.NewStaticString("e1")}, // two events with the same name in the same span
 						},
 					},
 				),
@@ -544,7 +545,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 		{
 			"Intrinsic event time since start lookup",
 			makeReq(
-				parse(t, `{event:timeSinceStart > 1ms}`), //
+				parse(t, `{event:timeSinceStart > 2ms}`), //
 			),
 			makeSpansets(
 				makeSpanset(
@@ -568,7 +569,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							{traceql.NewIntrinsic(traceql.IntrinsicTraceID), traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID))},
 						},
 						eventAttrs: []attrVal{
-							{traceql.IntrinsicEventTimeSinceStartAttribute, traceql.NewStaticDuration(2 * time.Millisecond)},
+							{traceql.IntrinsicEventTimeSinceStartAttribute, traceql.NewStaticDuration(3 * time.Millisecond)},
+							{traceql.IntrinsicEventTimeSinceStartAttribute, traceql.NewStaticDuration(3 * time.Millisecond)}, // two events with same time since start in the same span
 						},
 					},
 				),
@@ -602,6 +604,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						},
 						eventAttrs: []attrVal{
 							{traceql.NewScopedAttribute(traceql.AttributeScopeEvent, false, "message"), traceql.NewStaticString("exception")},
+							{traceql.NewScopedAttribute(traceql.AttributeScopeEvent, false, "message"), traceql.NewStaticString("exception")}, // two events with the same message attr in the same span
 						},
 					},
 				),
