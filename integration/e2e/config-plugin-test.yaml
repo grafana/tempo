@@ -2,7 +2,7 @@ target: all
 
 server:
   http_listen_port: 3200
-  log_level: error
+  log_level: info
 
 query_frontend:
   search:
