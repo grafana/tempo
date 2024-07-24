@@ -248,8 +248,9 @@ func (r *ManagedRegistry) collectMetrics(ctx context.Context) {
 	if ctx.Err() != nil { // shutdown
 		return
 	}
+
 	// If the shutdown has started here, a "file already closed" error will be
-	// handled here.
+	// observed here.
 	err = appender.Commit()
 	if err != nil {
 		return
