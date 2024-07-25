@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -73,10 +72,7 @@ func TestTraceByIDHonorsContentType(t *testing.T) {
 
 	actual := &tempopb.Trace{}
 	bodyBytes, _ := io.ReadAll(resp.Body)
-	bodyString := string(bodyBytes)
-	bodyString = strings.Replace(bodyString, `"batches":`, `"resourceSpans":`, 1)
-
-	err = jsonpb.UnmarshalString(bodyString, actual)
+	err = tempopb.UnmarshalFromJSONV1(bodyBytes, actual)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 

@@ -4,11 +4,9 @@ import (
 	"compress/gzip"
 	"io"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/e2e"
 	"github.com/stretchr/testify/require"
 
@@ -78,10 +76,7 @@ func queryAndAssertTraceCompression(t *testing.T, client *httpclient.Client, inf
 	m := &tempopb.Trace{}
 
 	bodyBytes, _ := io.ReadAll(gzipReader)
-	bodyString := string(bodyBytes)
-	bodyString = strings.Replace(bodyString, `"batches":`, `"resourceSpans":`, 1)
-
-	err = jsonpb.UnmarshalString(bodyString, m)
+	err = tempopb.UnmarshalFromJSONV1(bodyBytes, m)
 
 	require.NoError(t, err)
 	assertEqualTrace(t, expected, m)
