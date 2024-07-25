@@ -60,7 +60,7 @@ func TestFieldsAreCleared(t *testing.T) {
 	traceID := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}
 	complexTrace := ParquetTraceToTempopbTrace(fullyPopulatedTestTrace(traceID))
 	simpleTrace := &tempopb.Trace{
-		Batches: []*v1_trace.ResourceSpans{
+		ResourceSpans: []*v1_trace.ResourceSpans{
 			{
 				Resource: &v1_resource.Resource{
 					Attributes: []*v1.KeyValue{
@@ -124,7 +124,7 @@ func TestTraceToParquet(t *testing.T) {
 			name: "span and resource attributes",
 			id:   traceID,
 			trace: tempopb.Trace{
-				Batches: []*v1_trace.ResourceSpans{{
+				ResourceSpans: []*v1_trace.ResourceSpans{{
 					Resource: &v1_resource.Resource{
 						Attributes: []*v1.KeyValue{
 							{Key: "res.attr", Value: &v1.AnyValue{Value: &v1.AnyValue_IntValue{IntValue: 123}}},
@@ -196,7 +196,7 @@ func TestTraceToParquet(t *testing.T) {
 			name: "nested set model bounds",
 			id:   traceID,
 			trace: tempopb.Trace{
-				Batches: []*v1_trace.ResourceSpans{{
+				ResourceSpans: []*v1_trace.ResourceSpans{{
 					Resource: &v1_resource.Resource{
 						Attributes: []*v1.KeyValue{
 							{Key: "service.name", Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "service-a"}}},

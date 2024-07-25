@@ -315,7 +315,7 @@ func countSpans(dataEncoding string, objs ...[]byte) (total int) {
 			continue
 		}
 
-		for _, b := range t.Batches {
+		for _, b := range t.ResourceSpans {
 			for _, ilm := range b.ScopeSpans {
 				if len(ilm.Spans) > 0 && traceID == "" {
 					traceID = tempoUtil.TraceIDToHexString(ilm.Spans[0].TraceId)

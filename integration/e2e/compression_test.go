@@ -2,11 +2,11 @@ package e2e
 
 import (
 	"compress/gzip"
+	"io"
 	"net/http"
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/e2e"
 	"github.com/stretchr/testify/require"
 
@@ -74,8 +74,10 @@ func queryAndAssertTraceCompression(t *testing.T, client *httpclient.Client, inf
 	defer gzipReader.Close()
 
 	m := &tempopb.Trace{}
-	unmarshaller := &jsonpb.Unmarshaler{}
-	err = unmarshaller.Unmarshal(gzipReader, m)
+
+	bodyBytes, _ := io.ReadAll(gzipReader)
+	err = tempopb.UnmarshalFromJSONV1(bodyBytes, m)
+
 	require.NoError(t, err)
 	assertEqualTrace(t, expected, m)
 }

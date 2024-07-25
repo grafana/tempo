@@ -70,7 +70,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 
 	// record not found here, but continue on so we can marshal metrics
 	// to the body
-	if resp.Trace == nil || len(resp.Trace.Batches) == 0 {
+	if resp.Trace == nil || len(resp.Trace.ResourceSpans) == 0 {
 		w.WriteHeader(http.StatusNotFound)
 	}
 

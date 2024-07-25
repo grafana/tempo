@@ -512,7 +512,7 @@ func loadTestData(path string) (*tempopb.PushSpansRequest, error) {
 
 	trace := &tempopb.Trace{}
 	err = jsonpb.Unmarshal(f, trace)
-	return &tempopb.PushSpansRequest{Batches: trace.Batches}, err
+	return &tempopb.PushSpansRequest{Batches: trace.ResourceSpans}, err
 }
 
 func withLe(lbls labels.Labels, le float64) labels.Labels {

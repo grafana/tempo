@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model/trace"
@@ -118,12 +117,7 @@ func (c *traceByIDCombiner) HTTPFinal() (*http.Response, error) {
 	if c.contentType == api.HeaderAcceptProtobuf {
 		buff, err = proto.Marshal(traceResult)
 	} else {
-		var jsonStr string
-
-		marshaler := &jsonpb.Marshaler{}
-		jsonStr, err = marshaler.MarshalToString(traceResult)
-		jsonStr = strings.Replace(jsonStr, `"resourceSpans":`, `"batches":`, 1)
-		buff = []byte(jsonStr)
+		buff, err = tempopb.MarshalToJSONV1(traceResult)
 	}
 	if err != nil {
 		return &http.Response{}, fmt.Errorf("error marshalling response: %w content type: %s", err, c.contentType)

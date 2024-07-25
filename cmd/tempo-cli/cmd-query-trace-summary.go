@@ -152,7 +152,7 @@ func queryBucketForSummary(ctx context.Context, percentage float32, r backend.Re
 
 	for q := range resultsCh {
 		numBlock++
-		for _, b := range q.trace.Batches {
+		for _, b := range q.trace.ResourceSpans {
 			size += b.Size()
 			for _, attr := range b.Resource.Attributes {
 				if "service.name" == attr.Key {

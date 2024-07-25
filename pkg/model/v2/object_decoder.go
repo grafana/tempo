@@ -48,7 +48,7 @@ func (d *ObjectDecoder) PrepareForRead(obj []byte) (*tempopb.Trace, error) {
 			return nil, err
 		}
 
-		trace.Batches = append(trace.Batches, innerTrace.Batches...)
+		trace.ResourceSpans = append(trace.ResourceSpans, innerTrace.ResourceSpans...)
 	}
 	return trace, nil
 }
