@@ -1,4 +1,4 @@
-package v2
+package azure
 
 import (
 	"context"
@@ -16,7 +16,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/cristalhq/hedgedhttp"
 
-	"github.com/grafana/tempo/tempodb/backend/azure/config"
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 )
 
@@ -24,7 +23,7 @@ const (
 	maxRetries = 1
 )
 
-func getContainerClient(ctx context.Context, cfg *config.Config, hedge bool) (*container.Client, error) {
+func getContainerClient(ctx context.Context, cfg *Config, hedge bool) (*container.Client, error) {
 	var err error
 
 	retry := policy.RetryOptions{
@@ -131,7 +130,7 @@ func getContainerClient(ctx context.Context, cfg *config.Config, hedge bool) (*c
 	return client.ServiceClient().NewContainerClient(cfg.ContainerName), nil
 }
 
-func getBlobClient(ctx context.Context, conf *config.Config, blobName string) (*blob.Client, error) {
+func getBlobClient(ctx context.Context, conf *Config, blobName string) (*blob.Client, error) {
 	c, err := getContainerClient(ctx, conf, false)
 	if err != nil {
 		return nil, err
@@ -140,7 +139,7 @@ func getBlobClient(ctx context.Context, conf *config.Config, blobName string) (*
 	return c.NewBlobClient(blobName), nil
 }
 
-func CreateContainer(ctx context.Context, conf *config.Config) (*container.Client, error) {
+func CreateContainer(ctx context.Context, conf *Config) (*container.Client, error) {
 	c, err := getContainerClient(ctx, conf, false)
 	if err != nil {
 		return nil, err
@@ -149,7 +148,7 @@ func CreateContainer(ctx context.Context, conf *config.Config) (*container.Clien
 	return c, err
 }
 
-func getStorageAccountName(cfg *config.Config) string {
+func getStorageAccountName(cfg *Config) string {
 	accountName := cfg.StorageAccountName
 	if accountName == "" {
 		accountName = os.Getenv("AZURE_STORAGE_ACCOUNT")
@@ -158,7 +157,7 @@ func getStorageAccountName(cfg *config.Config) string {
 	return accountName
 }
 
-func getStorageAccountKey(cfg *config.Config) string {
+func getStorageAccountKey(cfg *Config) string {
 	accountKey := cfg.StorageAccountKey.String()
 	if accountKey == "" {
 		accountKey = os.Getenv("AZURE_STORAGE_KEY")
