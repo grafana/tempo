@@ -424,7 +424,7 @@ func TestInstanceSearchTagsSpecialCases(t *testing.T) {
 	require.Equal(
 		t,
 		[]string{
-			"duration", "event:name", "kind", "name", "rootName", "rootServiceName",
+			"duration", "event:name", "event:timeSinceStart", "kind", "name", "rootName", "rootServiceName",
 			"span:duration", "span:kind", "span:name", "span:status", "span:statusMessage", "status", "statusMessage",
 			"trace:duration", "trace:rootName", "trace:rootService", "traceDuration",
 		},
