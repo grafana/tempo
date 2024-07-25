@@ -1713,6 +1713,9 @@ func runEventLinkSearchTest(t *testing.T, blockVersion string) {
 			Query: "{ event:name = `event name` }",
 		},
 		{
+			Query: "{ event:timeSinceStart > 10ms }",
+		},
+		{
 			Query: "{ link.relation = `child-of` }",
 		},
 		{
@@ -1911,7 +1914,7 @@ func makeExpectedTrace() (
 								},
 								Events: []*v1.Span_Event{
 									{
-										TimeUnixNano: uint64(1000*time.Second) + 100,
+										TimeUnixNano: uint64(1000*time.Second) + uint64(500*time.Millisecond),
 										Name:         "event name",
 										Attributes: []*v1_common.KeyValue{
 											stringKV("exception.message", "random error"),
