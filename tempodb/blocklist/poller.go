@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/rand"
 	"path"
-	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -371,14 +370,6 @@ func (p *Poller) pollTenantBlocks(
 
 	newBlockList = append(newBlockList, newM...)
 	newCompactedBlocklist = append(newCompactedBlocklist, newCm...)
-
-	sort.Slice(newBlockList, func(i, j int) bool {
-		return newBlockList[i].StartTime.Before(newBlockList[j].StartTime)
-	})
-
-	sort.Slice(newCompactedBlocklist, func(i, j int) bool {
-		return newCompactedBlocklist[i].StartTime.Before(newCompactedBlocklist[j].StartTime)
-	})
 
 	return newBlockList, newCompactedBlocklist, nil
 }

@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/uuid"
 	"github.com/segmentio/fasthash/fnv1a"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -43,21 +42,30 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 
 	var (
 		resultsMtx = sync.Mutex{}
-		combiner   = traceql.NewMetadataCombiner()
+		combiner   = traceql.NewMetadataCombiner(maxResults)
 		metrics    = &tempopb.SearchMetrics{}
 		opts       = common.DefaultSearchOptions()
 		anyErr     atomic.Error
 	)
 
-	search := func(blockID uuid.UUID, block common.Searcher, spanName string) {
+	search := func(blockMeta *backend.BlockMeta, block common.Searcher, spanName string) {
 		ctx, span := tracer.Start(ctx, "instance.searchBlock."+spanName)
 		defer span.End()
 
 		span.AddEvent("block entry mtx acquired")
-		span.SetAttributes(attribute.String("blockID", blockID.String()))
+		span.SetAttributes(attribute.String("blockID", blockMeta.BlockID.String()))
 
 		var resp *tempopb.SearchResponse
 		var err error
+
+		// if blocks end time < the oldest entry in the combiner we can ignore b/c its impossible for a trace in this block
+		// to be more recent than our current results
+		// if endtime = 0 in means the block is not yet completed and we should always search it
+		if combiner.Count() >= maxResults &&
+			!blockMeta.EndTime.IsZero() &&
+			blockMeta.EndTime.Unix() < int64(combiner.OldestTimestampNanos()) {
+			return
+		}
 
 		if api.IsTraceQLQuery(req) {
 			// note: we are creating new engine for each wal block,
@@ -70,7 +78,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		}
 
 		if errors.Is(err, common.ErrUnsupported) {
-			level.Warn(log.Logger).Log("msg", "block does not support search", "blockID", blockID)
+			level.Warn(log.Logger).Log("msg", "block does not support search", "blockID", blockMeta.BlockID)
 			return
 		}
 		if errors.Is(err, context.Canceled) {
@@ -78,7 +86,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			return
 		}
 		if err != nil {
-			level.Error(log.Logger).Log("msg", "error searching block", "blockID", blockID, "err", err)
+			level.Error(log.Logger).Log("msg", "error searching block", "blockID", blockMeta.BlockID, "err", err)
 			anyErr.Store(err)
 			return
 		}
@@ -95,17 +103,8 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 			metrics.InspectedBytes += resp.Metrics.InspectedBytes
 		}
 
-		if combiner.Count() >= maxResults {
-			return
-		}
-
 		for _, tr := range resp.Traces {
 			combiner.AddMetadata(tr)
-			if combiner.Count() >= maxResults {
-				// Cancel all other tasks
-				cancel()
-				return
-			}
 		}
 	}
 
@@ -119,7 +118,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	i.headBlockMtx.RLock()
 	span.AddEvent("acquired headblock mtx")
 	if includeBlock(i.headBlock.BlockMeta(), req) {
-		search((uuid.UUID)(i.headBlock.BlockMeta().BlockID), i.headBlock, "headBlock")
+		search(i.headBlock.BlockMeta(), i.headBlock, "headBlock")
 	}
 	i.headBlockMtx.RUnlock()
 	if err := anyErr.Load(); err != nil {
@@ -150,7 +149,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		wg.Add(1)
 		go func(b common.WALBlock) {
 			defer wg.Done()
-			search((uuid.UUID)(b.BlockMeta().BlockID), b, "completingBlock")
+			search(b.BlockMeta(), b, "completingBlock")
 		}(b)
 	}
 
@@ -161,7 +160,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		wg.Add(1)
 		go func(b *LocalBlock) {
 			defer wg.Done()
-			search((uuid.UUID)(b.BlockMeta().BlockID), b, "completeBlock")
+			search(b.BlockMeta(), b, "completeBlock")
 		}(b)
 	}
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -175,8 +176,9 @@ func runnerRequests(t *testing.T, f *QueryFrontend) {
 			expectedStatusCode: 200,
 			expectedResponse: &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{{
-					TraceID:         "1",
-					RootServiceName: search.RootSpanNotYetReceivedText,
+					TraceID:           "1",
+					RootServiceName:   search.RootSpanNotYetReceivedText,
+					StartTimeUnixNano: math.MaxUint64,
 				}},
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 4,
@@ -212,8 +214,9 @@ func runnerRequests(t *testing.T, f *QueryFrontend) {
 			expectedStatusCode: 200,
 			expectedResponse: &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{{
-					TraceID:         "1",
-					RootServiceName: search.RootSpanNotYetReceivedText,
+					TraceID:           "1",
+					RootServiceName:   search.RootSpanNotYetReceivedText,
+					StartTimeUnixNano: math.MaxUint64,
 				}},
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 8,
@@ -304,7 +307,8 @@ func TestSearchLimitHonored(t *testing.T) {
 			return &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
 					{
-						TraceID: util.TraceIDToHexString(test.ValidTraceID(nil)),
+						TraceID:           util.TraceIDToHexString(test.ValidTraceID(nil)),
+						StartTimeUnixNano: math.MaxUint64, // forces GRPCDiff in the search combiner to return this trace b/c it's always after CompletedThroughSeconds
 					},
 				},
 				Metrics: &tempopb.SearchMetrics{
@@ -387,7 +391,6 @@ func TestSearchLimitHonored(t *testing.T) {
 
 			ctx := user.InjectOrgID(httpReq.Context(), tenant)
 			httpReq = httpReq.WithContext(ctx)
-
 			httpResp := httptest.NewRecorder()
 
 			f.SearchHandler.ServeHTTP(httpResp, httpReq)
@@ -403,7 +406,7 @@ func TestSearchLimitHonored(t *testing.T) {
 			}
 
 			// grpc
-			combiner := traceql.NewMetadataCombiner()
+			combiner := traceql.NewMetadataCombiner(100)
 			err = f.streamingSearch(tc.request, newMockStreamingServer(tenant, func(i int, sr *tempopb.SearchResponse) {
 				// combine
 				for _, t := range sr.Traces {
@@ -414,7 +417,7 @@ func TestSearchLimitHonored(t *testing.T) {
 				require.Equal(t, status.Error(codes.InvalidArgument, "adjust limit: limit 20 exceeds max limit 15"), err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, combiner.Count(), tc.expectedTraces)
+				require.Equal(t, tc.expectedTraces, combiner.Count())
 			}
 		})
 	}
@@ -718,7 +721,8 @@ func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr te
 				return &tempopb.SearchResponse{
 					Traces: []*tempopb.TraceSearchMetadata{
 						{
-							TraceID: "1",
+							TraceID:           "1",
+							StartTimeUnixNano: math.MaxUint64, // forces GRPCDiff in the search combiner to return this trace b/c it's always after CompletedThroughSeconds
 						},
 					},
 					Metrics: &tempopb.SearchMetrics{

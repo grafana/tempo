@@ -111,7 +111,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		Traces:  nil,
 		Metrics: &tempopb.SearchMetrics{},
 	}
-	combiner := NewMetadataCombiner()
+	combiner := NewMetadataCombiner(int(searchReq.Limit))
 	for {
 		spanset, err := iterator.Next(ctx)
 		if err != nil && !errors.Is(err, io.EOF) {
@@ -121,11 +121,8 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		if spanset == nil {
 			break
 		}
-		combiner.AddMetadata(e.asTraceSearchMetadata(spanset))
 
-		if combiner.Count() >= int(searchReq.Limit) && searchReq.Limit > 0 {
-			break
-		}
+		combiner.AddSpanset(spanset)
 	}
 	res.Traces = combiner.Metadata()
 
@@ -242,7 +239,7 @@ func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) Fet
 	return autocompleteReq
 }
 
-func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMetadata {
+func asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMetadata {
 	metadata := &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(spanset.TraceID),
 		RootServiceName:   spanset.RootServiceName,

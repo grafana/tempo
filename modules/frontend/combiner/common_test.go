@@ -198,7 +198,8 @@ func TestGenericCombinerDoesntRace(t *testing.T) {
 }
 
 type testPipelineResponse struct {
-	r *http.Response
+	r            *http.Response
+	responseData any
 }
 
 func newTestResponse(t *testing.T) *testPipelineResponse {
@@ -230,7 +231,11 @@ func (p *testPipelineResponse) HTTPResponse() *http.Response {
 }
 
 func (p *testPipelineResponse) RequestData() any {
-	return nil
+	return p.responseData
+}
+
+func (p *testPipelineResponse) IsMetadata() bool {
+	return false
 }
 
 func newTestCombiner() *genericCombiner[*tempopb.ServiceStats] {

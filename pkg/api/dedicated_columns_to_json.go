@@ -23,6 +23,7 @@ func (d *DedicatedColumnsToJSON) JSONForDedicatedColumns(cols backend.DedicatedC
 	}
 
 	hash := cols.Hash()
+
 	if jsonString, ok := d.columnsToJSON[hash]; ok {
 		return jsonString, nil
 	}

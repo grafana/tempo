@@ -2,7 +2,6 @@ package combiner
 
 import (
 	"io"
-	"math"
 	"net/http"
 	"strings"
 	"testing"
@@ -39,7 +38,7 @@ func TestSearchProgressShouldQuit(t *testing.T) {
 
 	// unparseable body should not quit, but should return an error
 	c = NewSearch(0)
-	err = c.AddResponse(&pipelineResponse{&http.Response{Body: io.NopCloser(strings.NewReader("foo")), StatusCode: 200}})
+	err = c.AddResponse(&testPipelineResponse{r: &http.Response{Body: io.NopCloser(strings.NewReader("foo")), StatusCode: 200}})
 	require.Error(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
@@ -57,18 +56,55 @@ func TestSearchProgressShouldQuit(t *testing.T) {
 	should = c.ShouldQuit()
 	require.False(t, should)
 
-	// over limit should quit
+	// over limit but no search job response, should not quit
 	c = NewSearch(1)
-	err = c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{
+	err = c.AddResponse(toHTTPResponseWithResponseData(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
-				TraceID: "1",
+				TraceID:           "1",
+				StartTimeUnixNano: uint64(100 * time.Second),
 			},
 			{
-				TraceID: "2",
+				TraceID:           "2",
+				StartTimeUnixNano: uint64(200 * time.Second),
 			},
 		},
-	}, 200))
+	}, 200, 0)) // 0 is the shard index
+	require.NoError(t, err)
+	should = c.ShouldQuit()
+	require.False(t, should)
+
+	// send shards. should not quit b/c completed through is 300
+	err = c.AddResponse(&SearchJobResponse{
+		TotalJobs: 3,
+		Shards: []SearchShards{
+			{
+				TotalJobs:               1,
+				CompletedThroughSeconds: 300,
+			},
+			{
+				TotalJobs:               1,
+				CompletedThroughSeconds: 150,
+			},
+			{
+				TotalJobs:               1,
+				CompletedThroughSeconds: 50,
+			},
+		},
+	})
+	require.NoError(t, err)
+	should = c.ShouldQuit()
+	require.False(t, should)
+
+	// add complete the second shard. quit should be true b/c completed through is 150, our limit is one and we have a trace at 200
+	err = c.AddResponse(toHTTPResponseWithResponseData(t, &tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID:           "3",
+				StartTimeUnixNano: uint64(50 * time.Second),
+			},
+		},
+	}, 200, 1)) // 1 is the shard index
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
@@ -199,14 +235,11 @@ func TestSearchResponseCombiner(t *testing.T) {
 		},
 		{
 			name: "respects total blocks message",
-			response1: toHTTPResponse(t, &tempopb.SearchResponse{
-				Traces: nil,
-				Metrics: &tempopb.SearchMetrics{
-					TotalBlocks:     5,
-					TotalJobs:       10,
-					TotalBlockBytes: 15,
-				},
-			}, 200),
+			response1: &SearchJobResponse{
+				TotalBlocks: 5,
+				TotalJobs:   10,
+				TotalBytes:  15,
+			},
 			response2: toHTTPResponse(t, &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
 					{
@@ -309,96 +342,445 @@ func TestSearchResponseCombiner(t *testing.T) {
 	}
 }
 
-func TestSearchDiffsResults(t *testing.T) {
-	traceID := "traceID"
-
-	c := NewTypedSearch(10)
-	sr := toHTTPResponse(t, &tempopb.SearchResponse{
-		Traces: []*tempopb.TraceSearchMetadata{
-			{
-				TraceID: traceID,
+func TestCombinerDiffs(t *testing.T) {
+	tests := []struct {
+		name             string
+		pipelineResponse PipelineResponse
+		expected         *tempopb.SearchResponse
+	}{
+		{
+			name:             "initial state",
+			pipelineResponse: nil,
+			expected: &tempopb.SearchResponse{
+				Traces:  []*tempopb.TraceSearchMetadata{},
+				Metrics: &tempopb.SearchMetrics{},
 			},
 		},
-		Metrics: &tempopb.SearchMetrics{},
-	}, 200)
-	expectedDiff := &tempopb.SearchResponse{
-		Traces: []*tempopb.TraceSearchMetadata{
-			{
-				TraceID:         traceID,
-				RootServiceName: search.RootSpanNotYetReceivedText,
+		{
+			name: "add job metadata",
+			pipelineResponse: &SearchJobResponse{
+				TotalBlocks: 5,
+				TotalJobs:   6,
+				TotalBytes:  15,
+				Shards: []SearchShards{ // 5 shards, 2 jobs each. starting at 500 seconds and walking back 100 seconds each
+					{
+						TotalJobs:               2,
+						CompletedThroughSeconds: 500,
+					},
+					{
+						TotalJobs:               1,
+						CompletedThroughSeconds: 400,
+					},
+					{
+						TotalJobs:               1,
+						CompletedThroughSeconds: 300,
+					},
+					{
+						TotalJobs:               1,
+						CompletedThroughSeconds: 200,
+					},
+					{
+						TotalJobs:               1,
+						CompletedThroughSeconds: 100,
+					},
+				},
+			},
+			expected: &tempopb.SearchResponse{
+				Traces: []*tempopb.TraceSearchMetadata{},
+				Metrics: &tempopb.SearchMetrics{
+					TotalBlocks:     5,
+					TotalJobs:       6,
+					TotalBlockBytes: 15,
+				},
 			},
 		},
-		Metrics: &tempopb.SearchMetrics{
-			CompletedJobs: 1,
+		{
+			name: "add response results",
+			pipelineResponse: toHTTPResponseWithResponseData(t, &tempopb.SearchResponse{
+				Traces: []*tempopb.TraceSearchMetadata{
+					{
+						TraceID:           "450",
+						RootServiceName:   "root-450",
+						StartTimeUnixNano: uint64(450 * time.Second),
+					},
+					{
+						TraceID:           "550",
+						RootServiceName:   "root-550",
+						StartTimeUnixNano: uint64(550 * time.Second),
+					},
+				},
+				Metrics: &tempopb.SearchMetrics{
+					InspectedTraces: 1,
+					InspectedBytes:  2,
+				},
+			}, 200, 0), // shard 0
+			expected: &tempopb.SearchResponse{
+				Traces: []*tempopb.TraceSearchMetadata{}, // no traces b/c only one job has finished and the first shard has 2 jobs
+				Metrics: &tempopb.SearchMetrics{ // metadata is incrementing
+					CompletedJobs:   1,
+					InspectedTraces: 1,
+					InspectedBytes:  2,
+					TotalBlocks:     5,
+					TotalJobs:       6,
+					TotalBlockBytes: 15,
+				},
+			},
+		},
+		{
+			name: "add second job to finish the first shard and get one result",
+			pipelineResponse: toHTTPResponseWithResponseData(t, &tempopb.SearchResponse{
+				Traces: []*tempopb.TraceSearchMetadata{
+					{
+						TraceID:           "350",
+						RootServiceName:   "root-350",
+						StartTimeUnixNano: uint64(350 * time.Second),
+					},
+				},
+				Metrics: &tempopb.SearchMetrics{
+					InspectedTraces: 1,
+					InspectedBytes:  2,
+				},
+			}, 200, 0), // shard 0,
+			expected: &tempopb.SearchResponse{
+				Traces: []*tempopb.TraceSearchMetadata{
+					{
+						TraceID:           "550",
+						RootServiceName:   "root-550",
+						StartTimeUnixNano: uint64(550 * time.Second),
+					},
+				},
+				Metrics: &tempopb.SearchMetrics{ // metadata is incrementing
+					CompletedJobs:   2,
+					InspectedTraces: 2,
+					InspectedBytes:  4,
+					TotalBlocks:     5,
+					TotalJobs:       6,
+					TotalBlockBytes: 15,
+				},
+			},
+		},
+		{
+			name: "update response results",
+			pipelineResponse: toHTTPResponseWithResponseData(t, &tempopb.SearchResponse{
+				Traces: []*tempopb.TraceSearchMetadata{
+					{
+						TraceID:           "550",
+						RootServiceName:   "root-550",
+						RootTraceName:     "root-550",
+						StartTimeUnixNano: uint64(550 * time.Second),
+					},
+				},
+				Metrics: &tempopb.SearchMetrics{
+					InspectedTraces: 1,
+					InspectedBytes:  2,
+				},
+			}, 200, 1), // complete shard 1
+			expected: &tempopb.SearchResponse{
+				Traces: []*tempopb.TraceSearchMetadata{
+					{ // included b/c updated
+						TraceID:           "550",
+						RootServiceName:   "root-550",
+						RootTraceName:     "root-550",
+						StartTimeUnixNano: uint64(550 * time.Second),
+					},
+					{ // included b/c second shard is done
+						TraceID:           "450",
+						RootServiceName:   "root-450",
+						StartTimeUnixNano: uint64(450 * time.Second),
+					},
+				},
+				Metrics: &tempopb.SearchMetrics{ // metadata is incrementing
+					CompletedJobs:   3,
+					InspectedTraces: 3,
+					InspectedBytes:  6,
+					TotalBlocks:     5,
+					TotalJobs:       6,
+					TotalBlockBytes: 15,
+				},
+			},
+		},
+		{
+			name: "skip a shard and see no change",
+			pipelineResponse: toHTTPResponseWithResponseData(t, &tempopb.SearchResponse{
+				Traces: []*tempopb.TraceSearchMetadata{
+					{
+						TraceID:           "50",
+						RootServiceName:   "root-50",
+						StartTimeUnixNano: uint64(50 * time.Second),
+					},
+				},
+				Metrics: &tempopb.SearchMetrics{
+					InspectedTraces: 1,
+					InspectedBytes:  2,
+				},
+			}, 200, 3), // complete shard 3,
+			expected: &tempopb.SearchResponse{
+				Traces: []*tempopb.TraceSearchMetadata{}, // no traces b/c we skipped shard 2 and we can't include results from 3 until 2 is done
+				Metrics: &tempopb.SearchMetrics{ // metadata is incrementing
+					CompletedJobs:   4,
+					InspectedTraces: 4,
+					InspectedBytes:  8,
+					TotalBlocks:     5,
+					TotalJobs:       6,
+					TotalBlockBytes: 15,
+				},
+			},
+		},
+		{
+			name: "fill in shard 2 and see results",
+			pipelineResponse: toHTTPResponseWithResponseData(t, &tempopb.SearchResponse{
+				Traces: []*tempopb.TraceSearchMetadata{},
+				Metrics: &tempopb.SearchMetrics{
+					InspectedTraces: 1,
+					InspectedBytes:  2,
+				},
+			}, 200, 2), // complete shard 2,
+			expected: &tempopb.SearchResponse{
+				Traces: []*tempopb.TraceSearchMetadata{
+					{
+						TraceID:           "350",
+						RootServiceName:   "root-350",
+						StartTimeUnixNano: uint64(350 * time.Second),
+					},
+				},
+				Metrics: &tempopb.SearchMetrics{ // metadata is incrementing
+					CompletedJobs:   5,
+					InspectedTraces: 5,
+					InspectedBytes:  10,
+					TotalBlocks:     5,
+					TotalJobs:       6,
+					TotalBlockBytes: 15,
+				},
+			},
+		},
+		{
+			name: "complete all shards which dumps all results",
+			pipelineResponse: toHTTPResponseWithResponseData(t, &tempopb.SearchResponse{
+				Traces: []*tempopb.TraceSearchMetadata{},
+				Metrics: &tempopb.SearchMetrics{
+					InspectedTraces: 1,
+					InspectedBytes:  2,
+				},
+			}, 200, 4), // complete shard 4,
+			expected: &tempopb.SearchResponse{
+				Traces: []*tempopb.TraceSearchMetadata{
+					{
+						TraceID:           "50",
+						RootServiceName:   "root-50",
+						StartTimeUnixNano: uint64(50 * time.Second),
+					},
+				}, // 50 is BEFORE the earliest trace shard, but it's still returned b/c at this point we have completed all jobs
+				Metrics: &tempopb.SearchMetrics{ // metadata is incrementing
+					CompletedJobs:   6,
+					InspectedTraces: 6,
+					InspectedBytes:  12,
+					TotalBlocks:     5,
+					TotalJobs:       6,
+					TotalBlockBytes: 15,
+				},
+			},
 		},
 	}
-	expectedNoDiff := &tempopb.SearchResponse{
-		Traces:  []*tempopb.TraceSearchMetadata{},
-		Metrics: &tempopb.SearchMetrics{},
+
+	// apply tests one at a time to the combiner and check expected results
+	combiner := NewTypedSearch(5)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.pipelineResponse != nil {
+				err := combiner.AddResponse(tc.pipelineResponse)
+				require.NoError(t, err)
+			}
+
+			resp, err := combiner.GRPCDiff()
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, resp)
+		})
+	}
+}
+
+func TestCompletionTracker(t *testing.T) {
+	tcs := []struct {
+		name   string
+		add    []int // -1 means send shards
+		shards []SearchShards
+		exp    uint32
+	}{
+		// shards only
+		{
+			name: "shards only",
+			add:  []int{-1},
+			shards: []SearchShards{
+				{
+					TotalJobs:               1,
+					CompletedThroughSeconds: 100,
+				},
+			},
+			exp: 0,
+		},
+		// indexes only
+		{
+			name: "indexes only",
+			add:  []int{1, 0, 1, 3, 2, 0, 1, 1},
+			shards: []SearchShards{
+				{
+					TotalJobs:               1,
+					CompletedThroughSeconds: 100,
+				},
+			},
+			exp: 0,
+		},
+		// first shard complete, shards first
+		{
+			name: "first shard complete, shards first",
+			add:  []int{-1, 0},
+			shards: []SearchShards{
+				{
+					TotalJobs:               1,
+					CompletedThroughSeconds: 100,
+				},
+			},
+			exp: 100,
+		},
+		// first shard complete, index first
+		{
+			name: "first shard complete, index first",
+			add:  []int{0, -1},
+			shards: []SearchShards{
+				{
+					TotalJobs:               1,
+					CompletedThroughSeconds: 100,
+				},
+			},
+			exp: 100,
+		},
+		// shards received at various times
+		{
+			name: "shards received at various times",
+			add:  []int{-1, 0, 0, 1, 1},
+			shards: []SearchShards{
+				{
+					TotalJobs:               2,
+					CompletedThroughSeconds: 100,
+				},
+				{
+					TotalJobs:               2,
+					CompletedThroughSeconds: 200,
+				},
+			},
+			exp: 200,
+		},
+		{
+			name: "shards received at various times",
+			add:  []int{0, -1, 0, 1, 1},
+			shards: []SearchShards{
+				{
+					TotalJobs:               2,
+					CompletedThroughSeconds: 100,
+				},
+				{
+					TotalJobs:               2,
+					CompletedThroughSeconds: 200,
+				},
+			},
+			exp: 200,
+		},
+		{
+			name: "shards received at various times",
+			add:  []int{0, 0, 1, -1, 1},
+			shards: []SearchShards{
+				{
+					TotalJobs:               2,
+					CompletedThroughSeconds: 100,
+				},
+				{
+					TotalJobs:               2,
+					CompletedThroughSeconds: 200,
+				},
+			},
+			exp: 200,
+		},
+		{
+			name: "shards received at various times",
+			add:  []int{0, 0, 1, 1, -1},
+			shards: []SearchShards{
+				{
+					TotalJobs:               2,
+					CompletedThroughSeconds: 100,
+				},
+				{
+					TotalJobs:               2,
+					CompletedThroughSeconds: 200,
+				},
+			},
+			exp: 200,
+		},
+		// bad data received
+		{
+			name: "bad data received last",
+			add:  []int{-1, 0, 0, 2},
+			shards: []SearchShards{
+				{
+					TotalJobs:               2,
+					CompletedThroughSeconds: 100,
+				},
+				{
+					TotalJobs:               2,
+					CompletedThroughSeconds: 200,
+				},
+			},
+			exp: 100,
+		},
+		{
+			name: "bad data immediately after shards",
+			add:  []int{-1, 2, 0, 0},
+			shards: []SearchShards{
+				{
+					TotalJobs:               2,
+					CompletedThroughSeconds: 100,
+				},
+				{
+					TotalJobs:               2,
+					CompletedThroughSeconds: 200,
+				},
+			},
+			exp: 100,
+		},
+		{
+			name: "bad data immediately before shards",
+			add:  []int{0, 0, 2, -1},
+			shards: []SearchShards{
+				{
+					TotalJobs:               2,
+					CompletedThroughSeconds: 100,
+				},
+				{
+					TotalJobs:               2,
+					CompletedThroughSeconds: 200,
+				},
+			},
+			exp: 100,
+		},
 	}
 
-	// haven't added anything yet
-	actual, err := c.GRPCDiff()
-	require.NoError(t, err)
-	require.Equal(t, expectedNoDiff, actual)
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			tracker := &ShardCompletionTracker{}
 
-	// add a trace and get it back in diff
-	err = c.AddResponse(sr)
-	require.NoError(t, err)
+			ct := uint32(0)
+			for _, sc := range tc.add {
+				if sc == -1 {
+					ct = tracker.addShards(tc.shards)
+					continue
+				}
 
-	actual, err = c.GRPCDiff()
-	require.NoError(t, err)
-	require.Equal(t, expectedDiff, actual)
-
-	// now we should get no diff again (with 1 completed job)
-	expectedNoDiff.Metrics.CompletedJobs = 1
-	actual, err = c.GRPCDiff()
-	require.NoError(t, err)
-	require.Equal(t, expectedNoDiff, actual)
-
-	// let's add a different trace and get it back in diff
-	traceID2 := "traceID2"
-	sr2 := toHTTPResponse(t, &tempopb.SearchResponse{
-		Traces: []*tempopb.TraceSearchMetadata{
-			{
-				TraceID: traceID2,
-			},
-		},
-		Metrics: &tempopb.SearchMetrics{},
-	}, 200)
-	expectedDiff2 := &tempopb.SearchResponse{
-		Traces: []*tempopb.TraceSearchMetadata{
-			{
-				TraceID:         traceID2,
-				RootServiceName: search.RootSpanNotYetReceivedText,
-			},
-		},
-		Metrics: &tempopb.SearchMetrics{
-			CompletedJobs: 2, // we will have 2 completed jobs at this point
-		},
+				ct = tracker.addShardIdx(sc)
+			}
+			require.Equal(t, int(tc.exp), int(ct))
+		})
 	}
-
-	err = c.AddResponse(sr2)
-	require.NoError(t, err)
-
-	actual, err = c.GRPCDiff()
-	require.NoError(t, err)
-	require.Equal(t, expectedDiff2, actual)
 }
 
-type pipelineResponse struct {
-	r *http.Response
-}
-
-func (p *pipelineResponse) HTTPResponse() *http.Response {
-	return p.r
-}
-
-func (p *pipelineResponse) RequestData() any {
-	return nil
-}
-
-func toHTTPResponse(t *testing.T, pb proto.Message, statusCode int) PipelineResponse {
+func toHTTPResponseWithResponseData(t *testing.T, pb proto.Message, statusCode int, responseData any) PipelineResponse {
 	var body string
 
 	if pb != nil {
@@ -408,198 +790,20 @@ func toHTTPResponse(t *testing.T, pb proto.Message, statusCode int) PipelineResp
 		require.NoError(t, err)
 	}
 
-	return &pipelineResponse{&http.Response{
-		Body:       io.NopCloser(strings.NewReader(body)),
-		StatusCode: statusCode,
-	}}
+	return &testPipelineResponse{
+		responseData: responseData,
+		r: &http.Response{
+			Body:       io.NopCloser(strings.NewReader(body)),
+			StatusCode: statusCode,
+		},
+	}
+}
+
+func toHTTPResponse(t *testing.T, pb proto.Message, statusCode int) PipelineResponse {
+	return toHTTPResponseWithResponseData(t, pb, statusCode, nil)
 }
 
 func fromHTTPResponse(t *testing.T, r *http.Response, pb proto.Message) {
 	err := jsonpb.Unmarshal(r.Body, pb)
 	require.NoError(t, err)
-}
-
-func TestCombinerDiffs(t *testing.T) {
-	combiner := NewTypedSearch(100)
-
-	// first request should be empty
-	resp, err := combiner.GRPCDiff()
-	require.NoError(t, err)
-	require.Equal(t, &tempopb.SearchResponse{
-		Traces:  []*tempopb.TraceSearchMetadata{},
-		Metrics: &tempopb.SearchMetrics{},
-	}, resp)
-
-	err = combiner.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{
-		Traces: []*tempopb.TraceSearchMetadata{
-			{
-				TraceID:         "1234",
-				RootServiceName: "root",
-			},
-		},
-		Metrics: &tempopb.SearchMetrics{
-			InspectedTraces: 1,
-			InspectedBytes:  2,
-		},
-	}, 200))
-	require.NoError(t, err)
-
-	// now we should get the same metadata as above
-	resp, err = combiner.GRPCDiff()
-	require.NoError(t, err)
-	require.Equal(t, &tempopb.SearchResponse{
-		Traces: []*tempopb.TraceSearchMetadata{
-			{
-				TraceID:         "1234",
-				RootServiceName: "root",
-			},
-		},
-		Metrics: &tempopb.SearchMetrics{
-			CompletedJobs:   1,
-			InspectedTraces: 1,
-			InspectedBytes:  2,
-		},
-	}, resp)
-
-	// metrics, but the trace hasn't change
-	resp, err = combiner.GRPCDiff()
-	require.NoError(t, err)
-	require.Equal(t, &tempopb.SearchResponse{
-		Traces: []*tempopb.TraceSearchMetadata{},
-		Metrics: &tempopb.SearchMetrics{
-			CompletedJobs:   1,
-			InspectedTraces: 1,
-			InspectedBytes:  2,
-		},
-	}, resp)
-
-	// new traces
-	err = combiner.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{
-		Traces: []*tempopb.TraceSearchMetadata{
-			{
-				TraceID:           "5678",
-				RootServiceName:   "root",
-				StartTimeUnixNano: 1, // forces order
-			},
-			{
-				TraceID:           "9011",
-				RootServiceName:   "root",
-				StartTimeUnixNano: 2,
-			},
-		},
-		Metrics: &tempopb.SearchMetrics{
-			InspectedTraces: 1,
-			InspectedBytes:  2,
-		},
-	}, 200))
-	require.NoError(t, err)
-
-	resp, err = combiner.GRPCDiff()
-	require.NoError(t, err)
-	require.Equal(t, &tempopb.SearchResponse{
-		Traces: []*tempopb.TraceSearchMetadata{
-			{
-				TraceID:           "9011",
-				RootServiceName:   "root",
-				StartTimeUnixNano: 2,
-			},
-			{
-				TraceID:           "5678",
-				RootServiceName:   "root",
-				StartTimeUnixNano: 1,
-			},
-		},
-		Metrics: &tempopb.SearchMetrics{
-			CompletedJobs:   2,
-			InspectedTraces: 2,
-			InspectedBytes:  4,
-		},
-	}, resp)
-
-	// write over existing trace
-	err = combiner.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{
-		Traces: []*tempopb.TraceSearchMetadata{
-			{
-				TraceID:    "1234",
-				DurationMs: 100,
-			},
-		},
-		Metrics: &tempopb.SearchMetrics{
-			InspectedTraces: 1,
-			InspectedBytes:  2,
-		},
-	}, 200))
-	require.NoError(t, err)
-
-	resp, err = combiner.GRPCDiff()
-	require.NoError(t, err)
-	require.Equal(t, &tempopb.SearchResponse{
-		Traces: []*tempopb.TraceSearchMetadata{
-			{
-				TraceID:         "1234",
-				RootServiceName: "root",
-				DurationMs:      100,
-			},
-		},
-		Metrics: &tempopb.SearchMetrics{
-			CompletedJobs:   3,
-			InspectedTraces: 3,
-			InspectedBytes:  6,
-		},
-	}, resp)
-}
-
-func TestSearchCombinerDoesNotRace(t *testing.T) {
-	end := make(chan struct{})
-	concurrent := func(f func()) {
-		for {
-			select {
-			case <-end:
-				return
-			default:
-				f()
-			}
-		}
-	}
-
-	traceID := "1234"
-	combiner := NewTypedSearch(10)
-	i := 0
-	go concurrent(func() {
-		i++
-		resp := toHTTPResponse(t, &tempopb.SearchResponse{
-			Traces: []*tempopb.TraceSearchMetadata{
-				{
-					TraceID:           traceID,
-					StartTimeUnixNano: math.MaxUint64 - uint64(i),
-					DurationMs:        uint32(i),
-					SpanSets: []*tempopb.SpanSet{{
-						Matched: uint32(i),
-					}},
-				},
-			},
-			Metrics: &tempopb.SearchMetrics{
-				InspectedTraces: 1,
-				InspectedBytes:  1,
-				TotalBlocks:     1,
-				TotalJobs:       1,
-				CompletedJobs:   1,
-			},
-		}, 200)
-		_ = combiner.AddResponse(resp)
-	})
-
-	go concurrent(func() {
-		_, _ = combiner.GRPCFinal()
-	})
-
-	go concurrent(func() {
-		_, _ = combiner.HTTPFinal()
-	})
-
-	time.Sleep(100 * time.Millisecond)
-	close(end)
-	// Wait for go funcs to quit before
-	// exiting and cleaning up
-	time.Sleep(2 * time.Second)
 }

@@ -27,6 +27,10 @@ func (m MockResponse) RequestData() any {
 	return nil
 }
 
+func (m MockResponse) IsMetadata() bool {
+	return false
+}
+
 func TestNewTraceByIdV2ReturnsAPartialTrace(t *testing.T) {
 	traceResponse := &tempopb.TraceByIDResponse{
 		Trace:   test.MakeTrace(2, []byte{0x01, 0x02}),
