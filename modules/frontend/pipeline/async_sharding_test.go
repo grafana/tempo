@@ -22,32 +22,32 @@ func TestAsyncSharders(t *testing.T) {
 		{
 			name: "AsyncSharder",
 			responseFn: func(next AsyncRoundTripper[combiner.PipelineResponse]) *asyncResponse {
-				return NewAsyncSharderFunc(context.Background(), 10, expectedRequestCount, func(i int) *http.Request {
+				return NewAsyncSharderFunc(context.Background(), 10, expectedRequestCount, func(i int) Request {
 					if i >= expectedRequestCount {
 						return nil
 					}
-					return &http.Request{}
+					return NewHTTPRequest(&http.Request{})
 				}, next).(*asyncResponse)
 			},
 		},
 		{
 			name: "AsyncSharder - no limit",
 			responseFn: func(next AsyncRoundTripper[combiner.PipelineResponse]) *asyncResponse {
-				return NewAsyncSharderFunc(context.Background(), 0, expectedRequestCount, func(i int) *http.Request {
+				return NewAsyncSharderFunc(context.Background(), 0, expectedRequestCount, func(i int) Request {
 					if i >= expectedRequestCount {
 						return nil
 					}
-					return &http.Request{}
+					return NewHTTPRequest(&http.Request{})
 				}, next).(*asyncResponse)
 			},
 		},
 		{
 			name: "AsyncSharderLimitedGoroutines",
 			responseFn: func(next AsyncRoundTripper[combiner.PipelineResponse]) *asyncResponse {
-				reqChan := make(chan *http.Request)
+				reqChan := make(chan Request)
 				go func() {
 					for i := 0; i < expectedRequestCount; i++ {
-						reqChan <- &http.Request{}
+						reqChan <- NewHTTPRequest(&http.Request{})
 					}
 					close(reqChan)
 				}()
@@ -59,7 +59,7 @@ func TestAsyncSharders(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			next := AsyncRoundTripperFunc[combiner.PipelineResponse](func(r *http.Request) (Responses[combiner.PipelineResponse], error) {
+			next := AsyncRoundTripperFunc[combiner.PipelineResponse](func(_ Request) (Responses[combiner.PipelineResponse], error) {
 				// return a generic 200
 				return NewHTTPToAsyncResponse(&http.Response{
 					Body:       io.NopCloser(strings.NewReader("")),

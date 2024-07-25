@@ -15,7 +15,7 @@ import (
 )
 
 func NewCachingWare(cacheProvider cache.Provider, role cache.Role, logger log.Logger) Middleware {
-	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+	return MiddlewareFunc(func(next RoundTripper) RoundTripper {
 		return cachingWare{
 			next:  next,
 			cache: newFrontendCache(cacheProvider, role, logger),
@@ -24,20 +24,20 @@ func NewCachingWare(cacheProvider cache.Provider, role cache.Role, logger log.Lo
 }
 
 type cachingWare struct {
-	next  http.RoundTripper
+	next  RoundTripper
 	cache *frontendCache
 }
 
 // RoundTrip implements http.RoundTripper
-func (c cachingWare) RoundTrip(req *http.Request) (*http.Response, error) {
+func (c cachingWare) RoundTrip(req Request) (*http.Response, error) {
 	// short circuit everything if there cache is no cache
 	if c.cache == nil {
 		return c.next.RoundTrip(req)
 	}
 
 	// extract cache key
-	key, ok := req.Context().Value(contextCacheKey).(string)
-	if ok && len(key) > 0 {
+	key := req.CacheKey()
+	if len(key) > 0 {
 		body := c.cache.fetchBytes(key)
 		if len(body) > 0 {
 			resp := &http.Response{

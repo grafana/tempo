@@ -64,7 +64,9 @@ func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg
 	})
 }
 
-func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+	r := pipelineRequest.HTTPRequest()
+
 	span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.QueryRangeSharder")
 	defer span.Finish()
 
@@ -112,10 +114,10 @@ func (s queryRangeSharder) RoundTrip(r *http.Request) (pipeline.Responses[combin
 	}
 
 	generatorReq := s.generatorRequest(*req, r, tenantID, cutoff)
-	reqCh := make(chan *http.Request, 2) // buffer of 2 allows us to insert generatorReq and metrics
+	reqCh := make(chan pipeline.Request, 2) // buffer of 2 allows us to insert generatorReq and metrics
 
 	if generatorReq != nil {
-		reqCh <- generatorReq
+		reqCh <- pipeline.NewHTTPRequest(generatorReq)
 	}
 
 	var (
@@ -171,7 +173,7 @@ func (s *queryRangeSharder) blockMetas(start, end int64, tenantID string) []*bac
 	return metas
 }
 
-func (s *queryRangeSharder) shardedBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, samplingRate float64, targetBytesPerRequest int, interval time.Duration, reqCh chan *http.Request, _ func(error)) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
+func (s *queryRangeSharder) shardedBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, samplingRate float64, targetBytesPerRequest int, interval time.Duration, reqCh chan pipeline.Request, _ func(error)) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
 	// request without start or end, search only in generator
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		close(reqCh)
@@ -244,7 +246,7 @@ func (s *queryRangeSharder) shardedBackendRequests(ctx context.Context, tenantID
 	return
 }
 
-func (s *queryRangeSharder) buildShardedBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, samplingRate float64, targetBytesPerRequest int, interval time.Duration, reqCh chan *http.Request) {
+func (s *queryRangeSharder) buildShardedBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, samplingRate float64, targetBytesPerRequest int, interval time.Duration, reqCh chan pipeline.Request) {
 	defer close(reqCh)
 
 	var (
@@ -281,6 +283,8 @@ func (s *queryRangeSharder) buildShardedBackendRequests(ctx context.Context, ten
 			shardR.ShardID = i
 			shardR.ShardCount = shards
 			httpReq := s.toUpstreamRequest(ctx, shardR, parent, tenantID)
+
+			pipelineR := pipeline.NewHTTPRequest(httpReq)
 			if samplingRate != 1.0 {
 				shardR.ShardID *= uint32(1.0 / samplingRate)
 				shardR.ShardCount *= uint32(1.0 / samplingRate)
@@ -288,11 +292,11 @@ func (s *queryRangeSharder) buildShardedBackendRequests(ctx context.Context, ten
 				// Set final sampling rate after integer rounding
 				samplingRate = float64(shards) / float64(shardR.ShardCount)
 
-				httpReq = pipeline.ContextAddResponseDataForResponse(samplingRate, httpReq)
+				pipelineR.SetResponseData(samplingRate)
 			}
 
 			select {
-			case reqCh <- httpReq:
+			case reqCh <- pipelineR:
 			case <-ctx.Done():
 				return
 			}
@@ -302,7 +306,7 @@ func (s *queryRangeSharder) buildShardedBackendRequests(ctx context.Context, ten
 	}
 }
 
-func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, _ float64, targetBytesPerRequest int, _ time.Duration, reqCh chan *http.Request) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
+func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, _ float64, targetBytesPerRequest int, _ time.Duration, reqCh chan pipeline.Request) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
 	// request without start or end, search only in generator
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		close(reqCh)
@@ -348,7 +352,7 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 	return
 }
 
-func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, metas []*backend.BlockMeta, targetBytesPerRequest int, reqCh chan<- *http.Request) {
+func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, metas []*backend.BlockMeta, targetBytesPerRequest int, reqCh chan<- pipeline.Request) {
 	defer close(reqCh)
 
 	queryHash := hashForQueryRangeRequest(&searchReq)
@@ -404,15 +408,17 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 			subR = api.BuildQueryRangeRequest(subR, queryRangeReq)
 			subR.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
 
-			prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query())
+			prepareRequestForQueriers(subR, tenantID)
+			pipelineR := pipeline.NewHTTPRequest(subR)
+
 			// TODO: Handle sampling rate
 			key := queryRangeCacheKey(tenantID, queryHash, int64(queryRangeReq.Start), int64(queryRangeReq.End), m, int(queryRangeReq.StartPage), int(queryRangeReq.PagesToSearch))
 			if len(key) > 0 {
-				subR = pipeline.ContextAddCacheKey(key, subR)
+				pipelineR.SetCacheKey(key)
 			}
 
 			select {
-			case reqCh <- subR:
+			case reqCh <- pipelineR:
 			case <-ctx.Done():
 				return
 			}
@@ -440,7 +446,7 @@ func (s *queryRangeSharder) toUpstreamRequest(ctx context.Context, req tempopb.Q
 	subR := parent.Clone(ctx)
 	subR = api.BuildQueryRangeRequest(subR, &req)
 
-	prepareRequestForQueriers(subR, tenantID, parent.URL.Path, subR.URL.Query())
+	prepareRequestForQueriers(subR, tenantID)
 	return subR
 }
 

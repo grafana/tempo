@@ -189,7 +189,8 @@ func newAsyncTagSharder(reader tempodb.Reader, o overrides.Interface, cfg Search
 // RoundTrip implements pipeline.AsyncRoundTripper
 // execute up to concurrentRequests simultaneously where each request scans ~targetMBsPerRequest
 // until limit results are found
-func (s searchTagSharder) RoundTrip(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+	r := pipelineRequest.HTTPRequest()
 	requestCtx := r.Context()
 
 	tenantID, err := user.ExtractOrgID(requestCtx)
@@ -218,9 +219,9 @@ func (s searchTagSharder) RoundTrip(r *http.Request) (pipeline.Responses[combine
 		return nil, err
 	}
 
-	reqCh := make(chan *http.Request, 1) // buffer of 1 allows us to insert ingestReq if it exists
+	reqCh := make(chan pipeline.Request, 1) // buffer of 1 allows us to insert ingestReq if it exists
 	if ingesterReq != nil {
-		reqCh <- ingesterReq
+		reqCh <- pipeline.NewHTTPRequest(ingesterReq)
 	}
 
 	s.backendRequests(ctx, tenantID, r, searchReq, reqCh, func(err error) {
@@ -249,7 +250,7 @@ func (s searchTagSharder) blockMetas(start, end int64, tenantID string) []*backe
 
 // backendRequest builds backend requests to search backend blocks. backendRequest takes ownership of reqCh and closes it.
 // it returns 3 int values: totalBlocks, totalBlockBytes, and estimated jobs
-func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tagSearchReq, reqCh chan<- *http.Request, errFn func(error)) {
+func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tagSearchReq, reqCh chan<- pipeline.Request, errFn func(error)) {
 	var blocks []*backend.BlockMeta
 
 	// request without start or end, search only in ingester
@@ -279,7 +280,7 @@ func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, 
 
 // buildBackendRequests returns a slice of requests that cover all blocks in the store
 // that are covered by start/end.
-func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, metas []*backend.BlockMeta, bytesPerRequest int, reqCh chan<- *http.Request, errFn func(error), searchReq tagSearchReq) {
+func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, metas []*backend.BlockMeta, bytesPerRequest int, reqCh chan<- pipeline.Request, errFn func(error), searchReq tagSearchReq) {
 	defer close(reqCh)
 
 	hash := searchReq.hash()
@@ -300,15 +301,14 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 				return
 			}
 			subR.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
-			prepareRequestForQueriers(subR, tenantID, parent.URL.Path, subR.URL.Query())
+			prepareRequestForQueriers(subR, tenantID)
+			pipelineR := pipeline.NewHTTPRequest(subR)
 
 			key := cacheKey(keyPrefix, tenantID, hash, int64(searchReq.start()), int64(searchReq.end()), m, startPage, pages)
-			if len(key) > 0 {
-				subR = pipeline.ContextAddCacheKey(key, subR)
-			}
+			pipelineR.SetCacheKey(key)
 
 			select {
-			case reqCh <- subR:
+			case reqCh <- pipelineR:
 			case <-ctx.Done():
 				return
 			}
@@ -358,7 +358,7 @@ func (s searchTagSharder) buildIngesterRequest(ctx context.Context, tenantID str
 		return nil, err
 	}
 	subR.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
-	prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query())
+	prepareRequestForQueriers(subR, tenantID)
 	return subR, nil
 }
 
