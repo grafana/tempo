@@ -35,6 +35,8 @@
 * [ENHANCEMENT] Add vParquet4 support to the tempo-cli analyse blocks command [#3868](https://github.com/grafana/tempo/pull/3868) (@stoewer)
 * [ENHANCEMENT] Improve trace id lookup from Tempo Vulture by selecting a date range [#3874](https://github.com/grafana/tempo/pull/3874) (@javiermolinar)
 * [ENHANCEMENT] Add native histograms for internal metrics[#3870](https://github.com/grafana/tempo/pull/3870) (@zalegrala)
+* [ENHANCEMENT] Expose availability-zone as a cli flag in ingester [#3881](https://github.com/grafana/tempo/pull/3881)
+* [ENHANCEMENT] Rename batches property of Trace to ResourceSpans to be OTEL compatible [#3895](https://github.com/grafana/tempo/pull/3895)
 * [ENHANCEMENT] Reduce memory consumption of query-frontend[#3888](https://github.com/grafana/tempo/pull/3888) (@joe-elliott)
 * [ENHANCEMENT] Reduce log level verbosity for e2e tests[#3900](https://github.com/grafana/tempo/pull/3900) (@javiermolinar)
 * [BUGFIX] Fix panic in certain metrics queries using `rate()` with `by` [#3847](https://github.com/grafana/tempo/pull/3847) (@stoewer)
@@ -48,7 +50,7 @@
 * [BUGFIX] Improved handling of complete blocks in localblocks processor after enabling flusing [#3805](https://github.com/grafana/tempo/pull/3805) (@mapno)
 * [BUGFIX] Handle out of boundaries spans kinds [#3861](https://github.com/grafana/tempo/pull/3861) (@javiermolinar)
 * [BUGFIX] Maintain previous tenant blocklist on tenant errors [#3860](https://github.com/grafana/tempo/pull/3860) (@zalegrala)
-* [ENHANCEMENT] expose availability-zone as a cli flag in ingester [#3881](https://github.com/grafana/tempo/pull/3881)
+
 
 
 ## v2.5.0

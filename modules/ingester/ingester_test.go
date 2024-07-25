@@ -93,7 +93,7 @@ func TestFullTraceReturned(t *testing.T) {
 	trace.SortTrace(testTrace)
 
 	// push the first batch
-	pushBatchV2(t, ingester, testTrace.Batches[0], traceID)
+	pushBatchV2(t, ingester, testTrace.ResourceSpans[0], traceID)
 
 	// force cut all traces
 	for _, instance := range ingester.instances {
@@ -102,7 +102,7 @@ func TestFullTraceReturned(t *testing.T) {
 	}
 
 	// push the 2nd batch
-	pushBatchV2(t, ingester, testTrace.Batches[1], traceID)
+	pushBatchV2(t, ingester, testTrace.ResourceSpans[1], traceID)
 
 	// make sure the trace comes back whole
 	foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
@@ -489,7 +489,7 @@ func defaultIngesterWithPush(t testing.TB, tmpDir string, push func(testing.TB, 
 	}
 
 	for i, trace := range traces {
-		for _, batch := range trace.Batches {
+		for _, batch := range trace.ResourceSpans {
 			push(t, ingester, batch, traceIDs[i])
 		}
 	}
@@ -540,7 +540,7 @@ func pushBatchV1(t testing.TB, i *Ingester, batch *v1.ResourceSpans, id []byte) 
 	batchDecoder := model.MustNewSegmentDecoder(model_v1.Encoding)
 
 	pbTrace := &tempopb.Trace{
-		Batches: []*v1.ResourceSpans{batch},
+		ResourceSpans: []*v1.ResourceSpans{batch},
 	}
 
 	buffer, err := batchDecoder.PrepareForWrite(pbTrace, 0, 0)

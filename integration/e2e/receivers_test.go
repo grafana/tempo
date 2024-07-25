@@ -112,7 +112,7 @@ func TestReceivers(t *testing.T) {
 			// zipkin doesn't support events and will 400 if you attempt to push one. just strip
 			// all events from the trace here
 			if tc.name == "zipkin" {
-				for _, b := range req.Batches {
+				for _, b := range req.ResourceSpans {
 					for _, ss := range b.ScopeSpans {
 						for _, s := range ss.Spans {
 							s.Events = nil

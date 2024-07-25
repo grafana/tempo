@@ -27,7 +27,7 @@ func TestHasMissingSpans(t *testing.T) {
 	}{
 		{
 			&tempopb.Trace{
-				Batches: []*v1.ResourceSpans{
+				ResourceSpans: []*v1.ResourceSpans{
 					{
 						ScopeSpans: []*v1.ScopeSpans{
 							{
@@ -45,7 +45,7 @@ func TestHasMissingSpans(t *testing.T) {
 		},
 		{
 			&tempopb.Trace{
-				Batches: []*v1.ResourceSpans{
+				ResourceSpans: []*v1.ResourceSpans{
 					{
 						ScopeSpans: []*v1.ScopeSpans{
 							{
@@ -262,13 +262,13 @@ type traceOps func(*tempopb.Trace)
 func TestQueryTrace(t *testing.T) {
 	noOp := func(_ *tempopb.Trace) {}
 	setMissingSpan := func(trace *tempopb.Trace) {
-		trace.Batches[0].ScopeSpans[0].Spans[0].ParentSpanId = []byte{'t', 'e', 's', 't'}
+		trace.ResourceSpans[0].ScopeSpans[0].Spans[0].ParentSpanId = []byte{'t', 'e', 's', 't'}
 	}
 	setNoBatchesSpan := func(trace *tempopb.Trace) {
-		trace.Batches = make([]*v1.ResourceSpans, 0)
+		trace.ResourceSpans = make([]*v1.ResourceSpans, 0)
 	}
 	setAlteredSpan := func(trace *tempopb.Trace) {
-		trace.Batches[0].ScopeSpans[0].Spans[0].Name = "Different spam"
+		trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Name = "Different spam"
 	}
 	tests := []struct {
 		name            string

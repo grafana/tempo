@@ -304,7 +304,7 @@ func TestLimitsPartialSuccess(t *testing.T) {
 		if count == 1 {
 			result, err := client.QueryTrace(tempoUtil.TraceIDToHexString(traceIDs[i]))
 			require.NoError(t, err)
-			assert.Equal(t, 1, len(result.Batches))
+			assert.Equal(t, 1, len(result.ResourceSpans))
 		}
 	}
 

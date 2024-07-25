@@ -342,7 +342,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		return nil, err
 	}
 
-	batches := trace.Batches
+	batches := trace.ResourceSpans
 
 	if d.cfg.LogReceivedSpans.Enabled {
 		logSpans(batches, &d.cfg.LogReceivedSpans, d.logger)
@@ -468,7 +468,7 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys 
 			Batches: nil,
 		}
 		for _, j := range indexes {
-			req.Batches = append(req.Batches, traces[j].trace.Batches...)
+			req.Batches = append(req.Batches, traces[j].trace.ResourceSpans...)
 		}
 
 		c, err := d.generatorsPool.GetClientFor(generator.Addr)
@@ -532,7 +532,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 					existingTrace = &rebatchedTrace{
 						id: traceID,
 						trace: &tempopb.Trace{
-							Batches: make([]*v1.ResourceSpans, 0, spanCount/tracesPerBatch),
+							ResourceSpans: make([]*v1.ResourceSpans, 0, spanCount/tracesPerBatch),
 						},
 						start:     math.MaxUint32,
 						end:       0,
@@ -550,7 +550,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 					existingTrace.start = start
 				}
 				if !ilsAdded {
-					existingTrace.trace.Batches = append(existingTrace.trace.Batches, &v1.ResourceSpans{
+					existingTrace.trace.ResourceSpans = append(existingTrace.trace.ResourceSpans, &v1.ResourceSpans{
 						Resource:   b.Resource,
 						ScopeSpans: []*v1.ScopeSpans{existingILS},
 					})

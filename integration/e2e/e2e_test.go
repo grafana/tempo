@@ -614,7 +614,7 @@ func assertEqualTrace(t *testing.T, a, b *tempopb.Trace) {
 
 func spanCount(a *tempopb.Trace) float64 {
 	count := 0
-	for _, batch := range a.Batches {
+	for _, batch := range a.ResourceSpans {
 		for _, spans := range batch.ScopeSpans {
 			count += len(spans.Spans)
 		}

@@ -76,14 +76,14 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 		// Pre-alloc map with input size. This saves having to grow the
 		// map from the small starting size.
 		n := 0
-		for _, b := range c.result.Batches {
+		for _, b := range c.result.ResourceSpans {
 			for _, ils := range b.ScopeSpans {
 				n += len(ils.Spans)
 			}
 		}
 		c.spans = make(map[token]struct{}, n)
 
-		for _, b := range c.result.Batches {
+		for _, b := range c.result.ResourceSpans {
 			for _, ils := range b.ScopeSpans {
 				for _, s := range ils.Spans {
 					c.spans[tokenForID(h, buffer, int32(s.Kind), s.SpanId)] = struct{}{}
@@ -94,7 +94,7 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 	}
 
 	// loop through every span and copy spans in B that don't exist to A
-	for _, b := range tr.Batches {
+	for _, b := range tr.ResourceSpans {
 		notFoundILS := b.ScopeSpans[:0]
 
 		for _, ils := range b.ScopeSpans {
@@ -124,7 +124,7 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 		// if there were some spans not found in A, add everything left in the batch
 		if len(notFoundILS) > 0 {
 			b.ScopeSpans = notFoundILS
-			c.result.Batches = append(c.result.Batches, b)
+			c.result.ResourceSpans = append(c.result.ResourceSpans, b)
 		}
 	}
 

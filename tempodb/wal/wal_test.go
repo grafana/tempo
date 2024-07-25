@@ -318,7 +318,7 @@ func testFetch(t *testing.T, e encoding.VersionedEncoding) {
 }
 
 func findFirstAttribute(obj *tempopb.Trace) (string, string) {
-	for _, b := range obj.Batches {
+	for _, b := range obj.ResourceSpans {
 		for _, s := range b.ScopeSpans {
 			for _, span := range s.Spans {
 				for _, a := range span.Attributes {

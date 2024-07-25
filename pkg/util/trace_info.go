@@ -242,7 +242,7 @@ func (t *TraceInfo) ConstructTraceFromEpoch() (*tempopb.Trace, error) {
 			// get the parentSpanID to match.  In the case of an empty []byte in place
 			// for the ParentSpanId, we set to nil here to ensure that the final result
 			// matches the json.Unmarshal value when tempo is queried.
-			for _, b := range t.Batches {
+			for _, b := range t.ResourceSpans {
 				for _, l := range b.ScopeSpans {
 					for _, s := range l.Spans {
 						if len(s.GetParentSpanId()) == 0 {
@@ -252,7 +252,7 @@ func (t *TraceInfo) ConstructTraceFromEpoch() (*tempopb.Trace, error) {
 				}
 			}
 
-			trace.Batches = append(trace.Batches, t.Batches...)
+			trace.ResourceSpans = append(trace.ResourceSpans, t.ResourceSpans...)
 		}
 
 		return nil
@@ -277,10 +277,10 @@ func (t *TraceInfo) ConstructTraceFromEpoch() (*tempopb.Trace, error) {
 func RandomAttrFromTrace(t *tempopb.Trace) *v1common.KeyValue {
 	r := newRand(time.Now())
 
-	if len(t.Batches) == 0 {
+	if len(t.ResourceSpans) == 0 {
 		return nil
 	}
-	batch := randFrom(r, t.Batches)
+	batch := randFrom(r, t.ResourceSpans)
 
 	// maybe choose resource attribute
 	res := batch.Resource
