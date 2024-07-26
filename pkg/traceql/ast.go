@@ -1144,9 +1144,8 @@ func (a *MetricsAggregate) initFinal(q *tempopb.QueryRangeRequest) {
 }
 
 func (a *MetricsAggregate) observe(span Span, traceID []byte) {
-	a.agg.Observe(span)
-
 	if len(traceID) == 0 {
+		a.agg.Observe(span)
 		return
 	}
 

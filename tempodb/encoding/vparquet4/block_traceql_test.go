@@ -1094,14 +1094,23 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	}
 }
 
+// TestBackendBlockQueryRange is the `TestOne` of metric queries.
+// It's skipped because it depends on a local block, like benchmarks
+//
+// You also need to manually print the iterator in `backendBlock.Fetch`,
+// because there is no access to the iterator in the test. Sad.
 func TestBackendBlockQueryRange(t *testing.T) {
+	if os.Getenv("debug") != "1" {
+		t.Skip()
+	}
+
 	testCases := []string{
 		"{} | rate()",
 		"{} | rate() by (name)",
 		"{} | rate() by (resource.service.name)",
 		"{} | rate() by (span.http.url)", // High cardinality attribute
 		"{resource.service.name=`loki-ingester`} | rate()",
-		"{status=error} | rate()",
+		"{status=unset} | rate()",
 	}
 
 	const (

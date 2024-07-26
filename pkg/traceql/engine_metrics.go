@@ -813,7 +813,8 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	me.end = req.End
 
 	if me.exemplarsEnabled {
-		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, ExemplarMetaConditionsWithout(storageReq.SecondPassConditions)...)
+		meta := ExemplarMetaConditionsWithout(storageReq.SecondPassConditions, storageReq.AllConditions)
+		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, meta...)
 		storageReq.Exemplars = true
 	}
 	// Setup second pass callback.  It might be optimized away

@@ -41,6 +41,10 @@ func ExemplarMetaConditions() []Condition {
 
 func SearchMetaConditionsWithout(remove []Condition, allConditions bool) []Condition {
 	metaConds := SearchMetaConditions()
+	return metaConditionsWithout(metaConds, remove, allConditions)
+}
+
+func metaConditionsWithout(metaConds, remove []Condition, allConditions bool) []Condition {
 	retConds := make([]Condition, 0, len(metaConds))
 	for _, c := range metaConds {
 		// if we can't find c in the remove conditions then add it to retConds
@@ -66,24 +70,8 @@ func SearchMetaConditionsWithout(remove []Condition, allConditions bool) []Condi
 	return retConds
 }
 
-func ExemplarMetaConditionsWithout(remove []Condition) []Condition {
-	metaConds := ExemplarMetaConditions()
-	retConds := make([]Condition, 0, len(metaConds))
-	for _, c := range metaConds {
-		// if we can't find c in the remove conditions then add it to retConds
-		found := false
-		for _, e := range remove {
-			if e.Attribute == c.Attribute {
-				found = true
-				break
-			}
-		}
-		if !found {
-			retConds = append(retConds, c)
-		}
-	}
-
-	return retConds
+func ExemplarMetaConditionsWithout(remove []Condition, allConditions bool) []Condition {
+	return metaConditionsWithout(ExemplarMetaConditions(), remove, allConditions)
 }
 
 // SecondPassFn is a method that is called in between the first and second
