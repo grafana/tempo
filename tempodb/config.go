@@ -10,7 +10,7 @@ import (
 	"github.com/grafana/tempo/modules/cache/redis"
 
 	"github.com/grafana/tempo/pkg/cache"
-	azure "github.com/grafana/tempo/tempodb/backend/azure/config"
+	"github.com/grafana/tempo/tempodb/backend/azure"
 	backend_cache "github.com/grafana/tempo/tempodb/backend/cache"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"

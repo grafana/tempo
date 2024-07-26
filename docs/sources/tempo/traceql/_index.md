@@ -91,6 +91,7 @@ The following table shows the current available scoped intrinsic fields:
 | `trace:rootService`     | string      | if it exists the service name of the root span in the trace     | `{ trace:rootServiceName = "gateway" }`|
 | `trace:id`              | string      | trace id using hex string                                       | `{ trace:id = "1234567890abcde" }`     |
 | `event:name`            | string      | name of event                                                   | `{ event:name = "exception" }`         |
+| `event:timeSinceStart`  | duration    | time of event in relation to the span start time                | `{ event:timeSinceStart > 2ms}`        |
 | `link:spanID`           | string      | link span id using hex string                                   | `{ link:spanID = "0000000000000001" }` |
 | `link:traceID`          | string      | link trace id using hex string                                  | `{ link:traceID = "1234567890abcde" }` |
 

@@ -917,6 +917,8 @@ func (a Attribute) impliedType() StaticType {
 		return TypeKind
 	case IntrinsicEventName:
 		return TypeString
+	case IntrinsicEventTimeSinceStart:
+		return TypeDuration
 	case IntrinsicLinkTraceID:
 		return TypeString
 	case IntrinsicLinkSpanID:
