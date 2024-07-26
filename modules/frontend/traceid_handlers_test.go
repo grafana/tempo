@@ -459,7 +459,7 @@ func TestTraceIDHandlerV2WithJSONResponse(t *testing.T) {
 		}
 	}
 
-	next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+	next := RoundTripperFunc(func(_ *http.Request) (*http.Response, error) {
 		var err error
 		resBytes, err := proto.Marshal(&tempopb.TraceByIDResponse{
 			Trace:   splitTrace,
