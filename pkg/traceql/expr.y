@@ -93,6 +93,7 @@ import (
                         NIL TRUE FALSE STATUS_ERROR STATUS_OK STATUS_UNSET
                         KIND_UNSPECIFIED KIND_INTERNAL KIND_SERVER KIND_CLIENT KIND_PRODUCER KIND_CONSUMER
                         IDURATION CHILDCOUNT NAME STATUS STATUS_MESSAGE PARENT KIND ROOTNAME ROOTSERVICENAME 
+                        TIMESINCESTART
                         ROOTSERVICE TRACEDURATION NESTEDSETLEFT NESTEDSETRIGHT NESTEDSETPARENT ID TRACE_ID SPAN_ID
                         PARENT_DOT RESOURCE_DOT SPAN_DOT TRACE_COLON SPAN_COLON EVENT_COLON EVENT_DOT LINK_COLON LINK_DOT
                         COUNT AVG MAX MIN SUM
@@ -406,6 +407,7 @@ scopedIntrinsicField:
   | SPAN_COLON ID                { $$ = NewIntrinsic(IntrinsicSpanID)              }
 // event:
   | EVENT_COLON NAME             { $$ = NewIntrinsic(IntrinsicEventName)           }
+  | EVENT_COLON TIMESINCESTART   { $$ = NewIntrinsic(IntrinsicEventTimeSinceStart) }
 // link:
   | LINK_COLON TRACE_ID          { $$ = NewIntrinsic(IntrinsicLinkTraceID)         }
   | LINK_COLON SPAN_ID           { $$ = NewIntrinsic(IntrinsicLinkSpanID)          }

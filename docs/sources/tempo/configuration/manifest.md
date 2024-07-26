@@ -683,7 +683,6 @@ storage:
             buffer_size: 3145728
             hedge_requests_at: 0s
             hedge_requests_up_to: 2
-            use_v2_sdk: false
         cache: ""
         background_cache:
             writeback_goroutines: 10
@@ -765,7 +764,6 @@ overrides:
                 buffer_size: 3145728
                 hedge_requests_at: 0s
                 hedge_requests_up_to: 2
-                use_v2_sdk: false
         api:
             check_for_conflicting_runtime_overrides: false
 memberlist:

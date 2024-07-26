@@ -64,6 +64,7 @@ valid:
   - '{ span:statusMessage = "status message" }'
   - '{ span:id = "61626364656667" }'
   - '{ event:name = "exception" }'
+  - '{ event:timeSinceStart > 1s }'
   - '{ link:traceID = "f1f1f1f1f1f1ff1f1f1f1f1f1f1f1f1" }'
   - '{ link:spanID = "f1f1f1f1f1f1f1f1" }'
   # binary operations
