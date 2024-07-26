@@ -3,6 +3,7 @@ package s3
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -26,6 +27,7 @@ import (
 	"github.com/go-kit/log/level"
 	minio "github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/minio/minio-go/v7/pkg/encrypt"
 
 	"github.com/grafana/tempo/pkg/blockboundary"
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -692,4 +694,36 @@ func readError(err error) error {
 		return backend.ErrDoesNotExist
 	}
 	return err
+}
+
+func parseKMSEncryptionContext(data string) (map[string]string, error) {
+	if data == "" {
+		return nil, nil
+	}
+
+	decoded := map[string]string{}
+	err := fmt.Errorf("unable to parse KMS encryption context %w", json.Unmarshal([]byte(data), &decoded))
+	return decoded, err
+}
+
+func buildSSEConfig(cfg *Config) (encrypt.ServerSide, error) {
+	switch cfg.SSE.Type {
+	case "":
+		return nil, nil
+	case SSEKMS:
+		encryptionCtx, err := parseKMSEncryptionContext(cfg.SSE.KMSEncryptionContext)
+		if err != nil {
+			return nil, err
+		}
+
+		if encryptionCtx == nil {
+			// To overcome a limitation in Minio which checks interface{} == nil.
+			return encrypt.NewSSEKMS(cfg.SSE.KMSKeyID, nil)
+		}
+		return encrypt.NewSSEKMS(cfg.SSE.KMSKeyID, encryptionCtx)
+	case SSES3:
+		return encrypt.NewSSE(), nil
+	default:
+		return nil, errUnsupportedSSEType
+	}
 }
