@@ -1427,16 +1427,6 @@ The storage WAL configuration block.
 # Example: "/var/tempo/wal
 [path: <string> | default = ""]
 
-# Where to store the completed wal files
-# If not set (""), will join the `path` with "completed" to generate the effective path
-# Example: "/var/tempo/wal/completed"
-[completedfilepath: <string> | default = join(.path, "/completed")]
-
-# Where to store the intermediate blocks while they are being appended to.
-# Will always join the `path` with "blocks" to generate the effective path
-# Example: "/var/tempo/wal/blocks" (ignored)
-[blocksfilepath: <ignored> | = join(.path, "/blocks")]
-
 # WAL encoding/compression.
 # options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
 [v2_encoding: <string> | default = "zstd" ]

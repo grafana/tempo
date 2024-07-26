@@ -25,13 +25,11 @@ type WAL struct {
 }
 
 type Config struct {
-	Filepath          string `yaml:"path"`
-	CompletedFilepath string
-	BlocksFilepath    string
-	Encoding          backend.Encoding `yaml:"v2_encoding"`
-	SearchEncoding    backend.Encoding `yaml:"search_encoding"`
-	IngestionSlack    time.Duration    `yaml:"ingestion_time_range_slack"`
-	Version           string           `yaml:"version,omitempty"`
+	Filepath       string           `yaml:"path"`
+	Encoding       backend.Encoding `yaml:"v2_encoding"`
+	SearchEncoding backend.Encoding `yaml:"search_encoding"`
+	IngestionSlack time.Duration    `yaml:"ingestion_time_range_slack"`
+	Version        string           `yaml:"version,omitempty"`
 }
 
 func ValidateConfig(c *Config) error {
@@ -53,29 +51,15 @@ func New(c *Config) (*WAL, error) {
 		return nil, err
 	}
 
-	// The /completed/ folder is now obsolete and no new data is written,
-	// but it needs to be cleared out one last time for any files left
-	// from a previous version.
-	if c.CompletedFilepath == "" {
-		completedFilepath := filepath.Join(c.Filepath, completedDir)
-		err = os.RemoveAll(completedFilepath)
-		if err != nil {
-			return nil, err
-		}
-
-		c.CompletedFilepath = completedFilepath
-	}
-
 	// Setup local backend in /blocks/
-	p := filepath.Join(c.Filepath, blocksDir)
-	err = os.MkdirAll(p, os.ModePerm)
+	blocksFolderPath := filepath.Join(c.Filepath, blocksDir)
+	err = os.MkdirAll(blocksFolderPath, os.ModePerm)
 	if err != nil {
 		return nil, err
 	}
-	c.BlocksFilepath = p
 
 	l, err := local.NewBackend(&local.Config{
-		Path: p,
+		Path: blocksFolderPath,
 	})
 	if err != nil {
 		return nil, err
