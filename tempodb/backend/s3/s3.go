@@ -148,11 +148,33 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 }
 
 func getPutObjectOptions(rw *readerWriter) minio.PutObjectOptions {
-	return minio.PutObjectOptions{
-		PartSize:     rw.cfg.PartSize,
-		UserTags:     rw.cfg.Tags,
-		StorageClass: rw.cfg.StorageClass,
-		UserMetadata: rw.cfg.Metadata,
+	sseConfig, err := buildSSEConfig(rw.cfg)
+	if sseConfig == nil && err == nil {
+		return minio.PutObjectOptions{
+			PartSize:     rw.cfg.PartSize,
+			UserTags:     rw.cfg.Tags,
+			StorageClass: rw.cfg.StorageClass,
+			UserMetadata: rw.cfg.Metadata,
+		}
+	} else {
+		return minio.PutObjectOptions{
+			PartSize:             rw.cfg.PartSize,
+			UserTags:             rw.cfg.Tags,
+			StorageClass:         rw.cfg.StorageClass,
+			UserMetadata:         rw.cfg.Metadata,
+			ServerSideEncryption: sseConfig,
+		}
+	}
+}
+
+func getObjectOptions(rw *readerWriter) minio.GetObjectOptions {
+	sseConfig, err := buildSSEConfig(rw.cfg)
+	if sseConfig == nil && err == nil {
+		return minio.GetObjectOptions{}
+	} else {
+		return minio.GetObjectOptions{
+			ServerSideEncryption: sseConfig,
+		}
 	}
 }
 
@@ -542,7 +564,8 @@ func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath 
 }
 
 func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error) {
-	reader, info, _, err := rw.hedgedCore.GetObject(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
+	options := getObjectOptions(rw)
+	reader, info, _, err := rw.hedgedCore.GetObject(ctx, rw.cfg.Bucket, name, options)
 	if err != nil {
 		// do not change or wrap this error
 		// we need to compare the specific err message
@@ -554,7 +577,8 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 }
 
 func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]byte, minio.ObjectInfo, error) {
-	reader, info, _, err := rw.hedgedCore.GetObject(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
+	options := getObjectOptions(rw)
+	reader, info, _, err := rw.hedgedCore.GetObject(ctx, rw.cfg.Bucket, name, options)
 	if err != nil && minio.ToErrorResponse(err).Code == s3.ErrCodeNoSuchKey {
 		return nil, minio.ObjectInfo{}, backend.ErrDoesNotExist
 	} else if err != nil {
@@ -570,7 +594,7 @@ func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]
 }
 
 func (rw *readerWriter) readRange(ctx context.Context, objName string, offset int64, buffer []byte) error {
-	options := minio.GetObjectOptions{}
+	options := getObjectOptions(rw)
 	err := options.SetRange(offset, offset+int64(len(buffer)))
 	if err != nil {
 		return fmt.Errorf("error setting headers for range read in s3: %w", err)
