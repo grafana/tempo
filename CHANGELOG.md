@@ -50,7 +50,7 @@
 * [BUGFIX] Improved handling of complete blocks in localblocks processor after enabling flusing [#3805](https://github.com/grafana/tempo/pull/3805) (@mapno)
 * [BUGFIX] Handle out of boundaries spans kinds [#3861](https://github.com/grafana/tempo/pull/3861) (@javiermolinar)
 * [BUGFIX] Maintain previous tenant blocklist on tenant errors [#3860](https://github.com/grafana/tempo/pull/3860) (@zalegrala)
-* [BUGFIX] Remove unused properties from the WAL configuration [#3911](https://github.com/grafana/tempo/pull/3911) (@javiermolianr)
+* [BUGFIX] **BREAKING CHANGE** Remove unused properties from the WAL configuration [#3911](https://github.com/grafana/tempo/pull/3911) (@javiermolianr)
 
 
 ## v2.5.0
