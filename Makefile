@@ -19,7 +19,7 @@ GORELEASER := $(GOPATH)/bin/goreleaser
 
 # Build Images
 DOCKER_PROTOBUF_IMAGE ?= otel/build-protobuf:0.23.0
-LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.21.0
+LOKI_BUILD_IMAGE ?= grafana/loki-build-image:0.33.2
 DOCS_IMAGE ?= grafana/docs-base:latest
 
 # More exclusions can be added similar with: -not -path './testbed/*'
