@@ -27,11 +27,9 @@ const (
 )
 
 var (
-	supportedSignatureVersions = []string{SignatureVersionV4, SignatureVersionV2}
-	supportedSSETypes          = []string{SSEKMS, SSES3}
+	supportedSSETypes = []string{SSEKMS, SSES3}
 
 	errUnsupportedSSEType = errors.New("unsupported S3 SSE type")
-	errInvalidSSEContext  = errors.New("invalid S3 SSE encryption context")
 )
 
 type SSEConfig struct {
@@ -83,6 +81,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.StringVar(&cfg.SSE.KMSKeyID, util.PrefixConfig(prefix, "s3.sse.kms-key-id"), "", "KMS Key ID used to encrypt objects in S3")
 	f.StringVar(&cfg.SSE.KMSEncryptionContext, util.PrefixConfig(prefix, "s3.sse.kms-encryption-context"), "", "KMS Encryption Context used for object encryption. It expects JSON formatted string.")
 	cfg.HedgeRequestsUpTo = 2
+
 }
 
 func (cfg *Config) PathMatches(other *Config) bool {
