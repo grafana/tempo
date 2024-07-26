@@ -132,19 +132,20 @@ func newTraceIDHandlerV2(cfg Config, o overrides.Interface, next pipeline.AsyncR
 			"tenant", tenant,
 			"path", req.URL.Path)
 
-		combiner := combiner.NewTraceByIDV2(o.MaxBytesPerTrace(tenant), marshallingFormat)
-		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, combiner)
+		c := combiner.NewTraceByIDV2(o.MaxBytesPerTrace(tenant), marshallingFormat)
+		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, c)
 
 		start := time.Now()
 		resp, err := rt.RoundTrip(req)
-
 		elapsed := time.Since(start)
+
 		postSLOHook(resp, tenant, 0, elapsed, err)
 
 		level.Info(logger).Log(
 			"msg", "trace id response",
+			"content-type", marshallingFormat,
 			"tenant", tenant,
-			"path", req.URL.Path,
+			"path", req.RequestURI,
 			"duration_seconds", elapsed.Seconds(),
 			"err", err)
 
