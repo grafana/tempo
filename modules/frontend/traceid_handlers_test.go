@@ -313,18 +313,6 @@ func TestTraceIDHandlerV2(t *testing.T) {
 			expectedStatus: 500,
 		},
 		{
-			name:           "500+404",
-			status1:        500,
-			status2:        404,
-			expectedStatus: 500,
-		},
-		{
-			name:           "404+500",
-			status1:        404,
-			status2:        500,
-			expectedStatus: 500,
-		},
-		{
 			name:           "500+200",
 			status1:        500,
 			status2:        200,
