@@ -518,11 +518,35 @@ func (d *Desc) getOldestRegisteredTimestamp() int64 {
 	return result
 }
 
+func (d *Desc) instancesWithTokensCount() int {
+	count := 0
+	if d != nil {
+		for _, ingester := range d.Ingesters {
+			if len(ingester.Tokens) > 0 {
+				count++
+			}
+		}
+	}
+	return count
+}
+
 func (d *Desc) instancesCountPerZone() map[string]int {
 	instancesCountPerZone := map[string]int{}
 	if d != nil {
 		for _, ingester := range d.Ingesters {
 			instancesCountPerZone[ingester.Zone]++
+		}
+	}
+	return instancesCountPerZone
+}
+
+func (d *Desc) instancesWithTokensCountPerZone() map[string]int {
+	instancesCountPerZone := map[string]int{}
+	if d != nil {
+		for _, ingester := range d.Ingesters {
+			if len(ingester.Tokens) > 0 {
+				instancesCountPerZone[ingester.Zone]++
+			}
 		}
 	}
 	return instancesCountPerZone
