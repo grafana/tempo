@@ -17,7 +17,6 @@ import (
 	"github.com/opentracing/opentracing-go"
 	prom_client "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"go.opencensus.io/stats/view"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/consumer"
@@ -115,12 +114,11 @@ var _ services.Service = (*receiversShim)(nil)
 type receiversShim struct {
 	services.Service
 
-	retryDelay  *durationpb.Duration
-	receivers   []receiver.Traces
-	pusher      TracesPusher
-	logger      *log.RateLimitedLogger
-	metricViews []*view.View
-	fatal       chan error
+	retryDelay *durationpb.Duration
+	receivers  []receiver.Traces
+	pusher     TracesPusher
+	logger     *log.RateLimitedLogger
+	fatal      chan error
 }
 
 func (r *receiversShim) Capabilities() consumer.Capabilities {
@@ -233,9 +231,11 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		return nil, err
 	}
 
+	nopType := component.MustNewType("tempo")
 	// todo: propagate a real context?  translate our log configuration into zap?
 	ctx := context.Background()
 	params := receiver.CreateSettings{
+		ID: component.NewIDWithName(nopType, "otel_receiver"),
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         zapLogger,
 			TracerProvider: tracenoop.NewTracerProvider(),
