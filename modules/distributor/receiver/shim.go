@@ -28,7 +28,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
-	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -156,11 +155,6 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 
 	// shim otel observability
 	zapLogger := newLogger(logLevel)
-	views, err := newMetricViews()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create metric traceReceiverViews: %w", err)
-	}
-	shim.metricViews = views
 
 	// load config
 	receiverFactories, err := receiver.MakeFactoryMap(
@@ -245,7 +239,7 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         zapLogger,
 			TracerProvider: tracenoop.NewTracerProvider(),
-			MeterProvider:  metricnoop.NewMeterProvider(),
+			MeterProvider:  NewMeterProvider(),
 			ReportStatus: func(*component.StatusEvent) {
 			},
 		},
