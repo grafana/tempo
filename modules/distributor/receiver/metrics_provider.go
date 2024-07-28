@@ -193,20 +193,23 @@ type Int64Counter struct {
 
 // Add performs no operation.
 func (r Int64Counter) Add(_ context.Context, value int64, options ...metric.AddOption) {
-	attributes := metric.NewAddConfig(options).Attributes()
-	var receiver string
-	var transport string
-
-	for i := 0; i < attributes.Len(); i++ {
-		kv, _ := attributes.Get(i)
-		value := kv.Value.AsString()
-		switch string(kv.Key) {
-		case "receiver":
-			receiver = value
-		case "transport":
-			transport = value
+	getMetricsLabels := func(options ...metric.AddOption) (receiver, transport string) {
+		attributes := metric.NewAddConfig(options).Attributes()
+		for i := 0; i < attributes.Len(); i++ {
+			kv, _ := attributes.Get(i)
+			value := kv.Value.AsString()
+			switch string(kv.Key) {
+			case "receiver":
+				receiver = value
+			case "transport":
+				transport = value
+			}
 		}
+		return receiver, transport
 	}
+
+	receiver, transport := getMetricsLabels(options...)
+
 	switch r.Name {
 	case "receiver_accepted_spans":
 		receiverAcceptedSpans.WithLabelValues(receiver, transport).Add(float64(value))
