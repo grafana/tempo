@@ -81,7 +81,12 @@ type Meter struct{ embedded.Meter }
 // Int64Counter returns a Counter used to record int64 measurements that
 // produces no telemetry.
 func (Meter) Int64Counter(name string, _ ...metric.Int64CounterOption) (metric.Int64Counter, error) {
-	return Int64Counter{Name: name}, nil
+	switch name {
+	case "receiver_accepted_spans", "receiver_refused_spans":
+		return Int64Counter{Name: name}, nil
+	default:
+		return Int64Counter{}, nil
+	}
 }
 
 // Int64UpDownCounter returns an UpDownCounter used to record int64
