@@ -200,22 +200,24 @@ type Int64Counter struct {
 }
 
 func (r Int64Counter) Add(_ context.Context, value int64, options ...metric.AddOption) {
-	getMetricsLabels := func(options ...metric.AddOption) (receiver, transport string) {
-		attributes := metric.NewAddConfig(options).Attributes()
-		for i := 0; i < attributes.Len(); i++ {
-			kv, _ := attributes.Get(i)
-			value := kv.Value.AsString()
-			switch string(kv.Key) {
-			case "receiver":
-				receiver = value
-			case "transport":
-				transport = value
-			}
-		}
-		return receiver, transport
+	// don't do anything for other metrics that the one that we care about
+	if r.Name == "" {
+		return
+	}
+	attributes := metric.NewAddConfig(options).Attributes()
+	var receiver string
+	var transport string
+
+	// attributes are sorted by key, therefore we can expect that "resource" to comes always first. This can be broken in the future.
+	kv, found := attributes.Get(0)
+	if found {
+		receiver = kv.Value.AsString()
 	}
 
-	receiver, transport := getMetricsLabels(options...)
+	kv, found = attributes.Get(1)
+	if found {
+		transport = kv.Value.AsString()
+	}
 
 	switch r.Name {
 	case "receiver_accepted_spans":
