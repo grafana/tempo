@@ -55,7 +55,8 @@
 * [BUGFIX] Handle out of boundaries spans kinds [#3861](https://github.com/grafana/tempo/pull/3861) (@javiermolinar)
 * [BUGFIX] Maintain previous tenant blocklist on tenant errors [#3860](https://github.com/grafana/tempo/pull/3860) (@zalegrala)
 * [BUGFIX] Fix prefix handling in Azure backend Find() call [#3875](https://github.com/grafana/tempo/pull/3875) (@zalegrala)
-* [BUGFIX] **BREAKING CHANGE** Remove unused properties from the WAL configuration [#3911](https://github.com/grafana/tempo/pull/3911) (@javiermolianr)
+* [BUGFIX] **BREAKING CHANGE** Remove unused properties from the WAL configuration [#3911](https://github.com/grafana/tempo/pull/3911) (@javiermolinar)
+* [BUGFIX] Bring back OTEL receiver metrics [#3917](https://github.com/grafana/tempo/pull/3917) (@javiermolinar)
 
 ## v2.5.0
 

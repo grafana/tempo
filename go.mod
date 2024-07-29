@@ -4,7 +4,6 @@ go 1.22.4
 
 require (
 	cloud.google.com/go/storage v1.38.0
-	contrib.go.opencensus.io/exporter/prometheus v0.4.2
 	github.com/alecthomas/kong v0.8.0
 	github.com/alicebob/miniredis/v2 v2.21.0
 	github.com/aws/aws-sdk-go v1.53.11
@@ -56,7 +55,7 @@ require (
 	github.com/uber-go/atomic v1.4.0
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
 	github.com/willf/bloom v2.0.3+incompatible
-	go.opencensus.io v0.24.0
+	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/collector v0.102.1
 	go.opentelemetry.io/collector/component v0.102.1
 	go.opentelemetry.io/collector/confmap v0.102.1

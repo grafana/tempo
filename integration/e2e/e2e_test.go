@@ -134,10 +134,27 @@ func TestAllInOne(t *testing.T) {
 				// force clear completed block
 				callFlush(t, tempo)
 
+				fmt.Println(tempo.Endpoint(3200))
 				// test metrics
 				require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 				require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
 				require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(3), "tempo_query_frontend_queries_total"))
+
+				matchers := []*labels.Matcher{
+					{
+						Type:  labels.MatchEqual,
+						Name:  "receiver",
+						Value: "tempo/jaeger_receiver",
+					},
+					{
+						Type:  labels.MatchEqual,
+						Name:  "transport",
+						Value: "grpc",
+					},
+				}
+
+				require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Greater(1), []string{"tempo_receiver_accepted_spans"}, e2e.WithLabelMatchers(matchers...)))
+				require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(0), []string{"tempo_receiver_refused_spans"}, e2e.WithLabelMatchers(matchers...)))
 
 				// query trace - should fetch from backend
 				queryAndAssertTrace(t, apiClient, info)
