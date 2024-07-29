@@ -232,20 +232,12 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 	}
 
 	nopType := component.MustNewType("tempo")
+	traceProvider := tracenoop.NewTracerProvider()
+	meterProvider := NewMeterProvider()
 	// todo: propagate a real context?  translate our log configuration into zap?
 	ctx := context.Background()
-	params := receiver.CreateSettings{
-		ID: component.NewIDWithName(nopType, "otel_receiver"),
-		TelemetrySettings: component.TelemetrySettings{
-			Logger:         zapLogger,
-			TracerProvider: tracenoop.NewTracerProvider(),
-			MeterProvider:  NewMeterProvider(),
-			ReportStatus: func(*component.StatusEvent) {
-			},
-		},
-	}
-
 	for componentID, cfg := range conf.Receivers {
+
 		factoryBase := receiverFactories[componentID.Type()]
 		if factoryBase == nil {
 			return nil, fmt.Errorf("receiver factory not found for type: %s", componentID.Type())
@@ -277,6 +269,16 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 			cfg = jaegerRecvCfg
 		}
 
+		params := receiver.CreateSettings{
+			ID: component.NewIDWithName(nopType, fmt.Sprintf("%s_receiver", componentID.Type().String())),
+			TelemetrySettings: component.TelemetrySettings{
+				Logger:         zapLogger,
+				TracerProvider: traceProvider,
+				MeterProvider:  meterProvider,
+				ReportStatus: func(*component.StatusEvent) {
+				},
+			},
+		}
 		receiver, err := factoryBase.CreateTracesReceiver(ctx, params, cfg, middleware.Wrap(shim))
 		if err != nil {
 			return nil, err
