@@ -1084,11 +1084,19 @@ storage:
         # Default 0 (disabled)
         [blocklist_poll_jitter_ms: <int>]
 
-        # Polling will tolerate this many consecutive errors before failing and exiting early for the
-        # current repoll. Can be set to 0 which means a single error is sufficient to fail and exit early
-        # (matches the original polling behavior).
+        # Polling will tolerate this many consecutive errors during the poll of
+        # a single tenant before marking the tenant as failed.
+        # This can be set to 0 which means a single error is sufficient to mark the tenant failed
+        # and exit early.  Any previous results for the failing tenant will be kept.
+        # See also `blocklist_poll_tolerate_tenant_failures` below.
         # Default 1
         [blocklist_poll_tolerate_consecutive_errors: <int>]
+
+        # Polling will tolerate this number of tenants which have failed to poll.
+        # This can be set to 0 which means a single tenant failure  sufficient to fail and exit
+        # early.
+        # Default 1
+        [blocklist_poll_tolerate_tenant_failures: <int>]
 
         # Used to tune how quickly the poller will delete any remaining backend
         # objects found in the tenant path.  This functionality requires enabling

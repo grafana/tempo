@@ -29,6 +29,7 @@ const (
 	DefaultRetentionConcurrency           = uint(10)
 	DefaultTenantIndexBuilders            = 2
 	DefaultTolerateConsecutiveErrors      = 1
+	DefaultTolerateTenantFailures         = 1
 
 	DefaultEmptyTenantDeletionAge = 12 * time.Hour
 
@@ -54,6 +55,7 @@ type Config struct {
 	BlocklistPollStaleTenantIndex          time.Duration `yaml:"blocklist_poll_stale_tenant_index"`
 	BlocklistPollJitterMs                  int           `yaml:"blocklist_poll_jitter_ms"`
 	BlocklistPollTolerateConsecutiveErrors int           `yaml:"blocklist_poll_tolerate_consecutive_errors"`
+	BlocklistPollTolerateTenantFailures    int           `yaml:"blocklist_poll_tolerate_tenant_failures"`
 
 	EmptyTenantDeletionEnabled bool          `yaml:"empty_tenant_deletion_enabled"`
 	EmptyTenantDeletionAge     time.Duration `yaml:"empty_tenant_deletion_age"`

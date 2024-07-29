@@ -86,6 +86,7 @@ type PollerConfig struct {
 	StaleTenantIndex           time.Duration
 	PollJitterMs               int
 	TolerateConsecutiveErrors  int
+	TolerateTenantFailures     int
 	EmptyTenantDeletionAge     time.Duration
 	EmptyTenantDeletionEnabled bool
 }
@@ -160,38 +161,52 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 		blocklist          = PerTenant{}
 		compactedBlocklist = PerTenantCompacted{}
 
-		finalErr atomic.Error
-		pollErrs = make([]error, len(tenants))
+		finalErr       atomic.Error
+		tenantFailures atomic.Int32
+
+		tenantFailuresRemaining = p.cfg.TolerateTenantFailures
 	)
 
-	for i, tenantID := range tenants {
-		// The finalErr is only stored when the number of consecutive errors
-		// exceeds the tolerance.  If present, return it.
-		if err := finalErr.Load(); err != nil {
-			level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors")
-			return nil, nil, err
+	for _, tenantID := range tenants {
+		// Exit early if we have exceeded our tolerance for number of failing tenants.
+		if tenantFailures.Load() >= int32(tenantFailuresRemaining) {
+			if lastErr := finalErr.Load(); lastErr != nil {
+				level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors")
+				return nil, nil, lastErr
+			}
 		}
 
 		wg.Add(1)
 		go func(tenantID string) {
 			defer wg.Done()
 
-			newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID, previous)
+			var (
+				consecutiveErrorsRemaining = p.cfg.TolerateConsecutiveErrors
+				newBlockList               = make([]*backend.BlockMeta, 0)
+				newCompactedBlockList      = make([]*backend.CompactedBlockMeta, 0)
+				err                        error
+			)
+
+			for consecutiveErrorsRemaining >= 0 {
+				newBlockList, newCompactedBlockList, err = p.pollTenantAndCreateIndex(ctx, tenantID, previous)
+				if err == nil {
+					break
+				}
+
+				tenantFailures.Inc()
+				consecutiveErrorsRemaining--
+			}
+
 			mtx.Lock()
 			defer mtx.Unlock()
+
 			if err != nil {
 				level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", tenantID, "err", err)
 				blocklist[tenantID] = previous.Metas(tenantID)
 				compactedBlocklist[tenantID] = previous.CompactedMetas(tenantID)
 
-				// Store the error in the slice at the position of this tenant.  This
-				// allows us to check for consecutive errors.
-				pollErrs[i] = err
-				pollErr := pollError(pollErrs, p.cfg.TolerateConsecutiveErrors)
-				if pollErr != nil {
-					finalErr.Store(pollErr)
-					return
-				}
+				tenantFailuresRemaining--
+				finalErr.Store(err)
 
 				return
 			}
@@ -218,8 +233,11 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 
 	wg.Wait()
 
-	if err := finalErr.Load(); err != nil {
-		return nil, nil, err
+	// Return the final error if we have exceeded our tolerance for tenant failure.
+	if tenantFailures.Load() > int32(p.cfg.TolerateTenantFailures) {
+		if err := finalErr.Load(); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	return blocklist, compactedBlocklist, nil
@@ -592,25 +610,4 @@ func sumTotalBackendMetaMetrics(
 		blockMetaTotalBytes:            sumTotalBytesBM,
 		compactedBlockMetaTotalBytes:   sumTotalBytesCBM,
 	}
-}
-
-// pollError checks the slice of errors to determine if there is a sequence of
-// non-nil values, and returns the last one in sequence if found, or nil if no
-// sequence exceeeds the max.  Called under lock when concurrent.
-func pollError(errs []error, maxConsecutiveErrors int) error {
-	max := 0
-
-	for i, e := range errs {
-		if e != nil {
-			max++
-		} else {
-			max = 0
-		}
-
-		if max > maxConsecutiveErrors {
-			return errs[i]
-		}
-	}
-
-	return nil
 }
