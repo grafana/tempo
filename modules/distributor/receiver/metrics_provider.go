@@ -200,7 +200,7 @@ type Int64Counter struct {
 }
 
 func (r Int64Counter) Add(_ context.Context, value int64, options ...metric.AddOption) {
-	// don't do anything for other metrics that the one that we care about
+	// don't do anything for metrics that we don't care
 	if r.Name == "" {
 		return
 	}
