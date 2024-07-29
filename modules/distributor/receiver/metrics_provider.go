@@ -10,7 +10,10 @@
 // This implementation can be embedded in other implementations of the
 // OpenTelemetry metric API. Doing so will mean the implementation defaults to
 // no operation for methods it does not implement.
-package receiver // import "go.opentelemetry.io/otel/metric/noop"
+
+// Adapted from "go.opentelemetry.io/otel/metric/noop"
+
+package receiver
 
 import (
 	"context"
@@ -191,7 +194,6 @@ type Int64Counter struct {
 	Name string
 }
 
-// Add performs no operation.
 func (r Int64Counter) Add(_ context.Context, value int64, options ...metric.AddOption) {
 	getMetricsLabels := func(options ...metric.AddOption) (receiver, transport string) {
 		attributes := metric.NewAddConfig(options).Attributes()
