@@ -55,8 +55,9 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		ot_log.String("blockEnd", blockEnd),
 		ot_log.String("queryMode", queryMode),
 		ot_log.String("timeStart", fmt.Sprint(timeStart)),
-		ot_log.String("timeEnd", fmt.Sprint(timeEnd)))
-
+		ot_log.String("timeEnd", fmt.Sprint(timeEnd)),
+		ot_log.String("apiVersion", "v1"),
+	)
 	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID:    byteID,
 		BlockStart: blockStart,
@@ -74,30 +75,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}
 
-	if r.Header.Get(api.HeaderAccept) == api.HeaderAcceptProtobuf {
-		span.SetTag("contentType", api.HeaderAcceptProtobuf)
-		b, err := proto.Marshal(resp)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set(api.HeaderContentType, api.HeaderAcceptProtobuf)
-		_, err = w.Write(b)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		return
-	}
-
-	span.SetTag("contentType", api.HeaderAcceptJSON)
-	marshaller := &jsonpb.Marshaler{}
-	err = marshaller.Marshal(w, resp)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+	writeFormattedContentForRequest(w, r, resp, span)
 }
 
 func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
@@ -105,7 +83,7 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.TraceByID.QueryTimeout))
 	defer cancel()
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.TraceByIDHandler")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.TraceByIDHandlerV2")
 	defer span.Finish()
 
 	byteID, err := api.ParseTraceID(r)
@@ -126,7 +104,8 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 		ot_log.String("blockEnd", blockEnd),
 		ot_log.String("queryMode", queryMode),
 		ot_log.String("timeStart", fmt.Sprint(timeStart)),
-		ot_log.String("timeEnd", fmt.Sprint(timeEnd)))
+		ot_log.String("timeEnd", fmt.Sprint(timeEnd)),
+		ot_log.String("apiVersion", "v2"))
 
 	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID:    byteID,
@@ -138,31 +117,7 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 		handleError(w, err)
 		return
 	}
-
-	if r.Header.Get(api.HeaderAccept) == api.HeaderAcceptProtobuf {
-		span.SetTag("contentType", api.HeaderAcceptProtobuf)
-		b, err := proto.Marshal(resp)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set(api.HeaderContentType, api.HeaderAcceptProtobuf)
-		_, err = w.Write(b)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		return
-	}
-
-	span.SetTag("contentType", api.HeaderAcceptJSON)
-	marshaller := &jsonpb.Marshaler{}
-	err = marshaller.Marshal(w, resp)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+	writeFormattedContentForRequest(w, r, resp, span)
 }
 
 func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
@@ -403,7 +358,7 @@ func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	writeFormattedContentForRequest(w, r, resp)
+	writeFormattedContentForRequest(w, r, resp, span)
 }
 
 func (q *Querier) SpanMetricsSummaryHandler(w http.ResponseWriter, r *http.Request) {
@@ -474,7 +429,7 @@ func (q *Querier) QueryRangeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		writeFormattedContentForRequest(w, r, resp)
+		writeFormattedContentForRequest(w, r, resp, span)
 	}()
 
 	req, err := api.ParseQueryRangeRequest(r)
@@ -522,7 +477,7 @@ func handleError(w http.ResponseWriter, err error) {
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
-func writeFormattedContentForRequest(w http.ResponseWriter, req *http.Request, m proto.Message) {
+func writeFormattedContentForRequest(w http.ResponseWriter, req *http.Request, m proto.Message, span opentracing.Span) {
 	switch req.Header.Get(api.HeaderAccept) {
 	case api.HeaderAcceptProtobuf:
 		b, err := proto.Marshal(m)
@@ -537,6 +492,9 @@ func writeFormattedContentForRequest(w http.ResponseWriter, req *http.Request, m
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		if span != nil {
+			span.SetTag("contentType", api.HeaderAcceptProtobuf)
+		}
 
 	default:
 		w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
@@ -544,6 +502,9 @@ func writeFormattedContentForRequest(w http.ResponseWriter, req *http.Request, m
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+		if span != nil {
+			span.SetTag("contentType", api.HeaderAcceptJSON)
 		}
 
 	}
