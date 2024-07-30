@@ -71,6 +71,7 @@ type instance struct {
 	instanceID             string
 	overrides              metricsGeneratorOverrides
 	ingestionSlackOverride atomic.Int64
+	histogramsOverride     atomic.String
 
 	registry *registry.ManagedRegistry
 	wal      storage.Storage
@@ -110,6 +111,16 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 		reg:    reg,
 		logger: logger,
 	}
+
+	// NOTE: When a new histogram is created, the overrides are checked to determine
+	// which histogram implementaion to use.  This happens when the servicegraphs
+	// or spanmetrics processors are created.  The new implementation can
+	// generate native histograms or both classic and native.  However, if the
+	// new implementation is chosen, and then the overrieds are updated to
+	// indicated that the old implementation should be use by setting "classic",
+	// we need to know if the processors should be re-created.  Store the current
+	// value for later comparison.
+	i.histogramsOverride.Store(i.overrides.MetricsGeneratorGenerateNativeHistograms(i.instanceID))
 
 	err := i.updateProcessors()
 	if err != nil {
@@ -238,6 +249,7 @@ func (i *instance) updateProcessors() error {
 		}
 	}
 
+	i.histogramsOverride.Store(i.overrides.MetricsGeneratorGenerateNativeHistograms(i.instanceID))
 	i.updateProcessorMetrics()
 
 	return nil
@@ -246,6 +258,14 @@ func (i *instance) updateProcessors() error {
 // diffProcessors compares the existing processors with the desired processors and config.
 // Must be called under a read lock.
 func (i *instance) diffProcessors(desiredProcessors map[string]struct{}, desiredCfg ProcessorConfig) (toAdd, toRemove, toReplace []string, err error) {
+	var reloadForHistograms bool
+
+	currentHistogramsOverrides := i.overrides.MetricsGeneratorGenerateNativeHistograms(i.instanceID)
+	previousHisograms := i.histogramsOverride.Load()
+	if currentHistogramsOverrides == "classic" && currentHistogramsOverrides != previousHisograms {
+		reloadForHistograms = true
+	}
+
 	for processorName := range desiredProcessors {
 		if _, ok := i.processors[processorName]; !ok {
 			toAdd = append(toAdd, processorName)
@@ -259,11 +279,11 @@ func (i *instance) diffProcessors(desiredProcessors map[string]struct{}, desired
 
 		switch p := processor.(type) {
 		case *spanmetrics.Processor:
-			if !reflect.DeepEqual(p.Cfg, desiredCfg.SpanMetrics) {
+			if !reflect.DeepEqual(p.Cfg, desiredCfg.SpanMetrics) || reloadForHistograms {
 				toReplace = append(toReplace, processorName)
 			}
 		case *servicegraphs.Processor:
-			if !reflect.DeepEqual(p.Cfg, desiredCfg.ServiceGraphs) {
+			if !reflect.DeepEqual(p.Cfg, desiredCfg.ServiceGraphs) || reloadForHistograms {
 				toReplace = append(toReplace, processorName)
 			}
 		case *localblocks.Processor:

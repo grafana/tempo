@@ -285,6 +285,38 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 		assert.Equal(t, expectedProcessors, actualProcessors)
 	})
+
+	t.Run("replace span-metrics and servicegraphs processors when histograms impementation changes", func(t *testing.T) {
+		overrides.nativeHistograms = "native"
+		overrides.processors = map[string]struct{}{
+			servicegraphs.Name: {},
+			spanmetrics.Name:   {},
+		}
+		err := instance.updateProcessors()
+		assert.NoError(t, err)
+
+		overrides.nativeHistograms = "classic"
+
+		desiredProcessors := instance.overrides.MetricsGeneratorProcessors(instance.instanceID)
+		desiredCfg, err := instance.cfg.Processor.copyWithOverrides(instance.overrides, instance.instanceID)
+		assert.NoError(t, err)
+		toAdd, toRemove, toReplace, err := instance.diffProcessors(desiredProcessors, desiredCfg)
+		assert.NoError(t, err)
+		assert.Empty(t, toAdd)
+		assert.Empty(t, toRemove)
+		assert.Equal(t, []string{servicegraphs.Name, spanmetrics.Name}, toReplace)
+
+		expectedProcessors := []string{servicegraphs.Name, spanmetrics.Name}
+		actualProcessors := make([]string, 0, len(instance.processors))
+
+		for name := range instance.processors {
+			actualProcessors = append(actualProcessors, name)
+		}
+
+		sort.Strings(actualProcessors)
+
+		assert.Equal(t, expectedProcessors, actualProcessors)
+	})
 }
 
 func Test_instanceQueryRangeTraceQLToProto(t *testing.T) {
