@@ -113,10 +113,10 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 	}
 
 	// NOTE: When a new histogram is created, the overrides are checked to determine
-	// which histogram implementaion to use.  This happens when the servicegraphs
+	// which histogram implementation to use.  This happens when the servicegraphs
 	// or spanmetrics processors are created.  The new implementation can
 	// generate native histograms or both classic and native.  However, if the
-	// new implementation is chosen, and then the overrieds are updated to
+	// new implementation is chosen, and then the overrides are updated to
 	// indicated that the old implementation should be use by setting "classic",
 	// we need to know if the processors should be re-created.  Store the current
 	// value for later comparison.
