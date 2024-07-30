@@ -304,6 +304,8 @@ func Test_instance_updateProcessors(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Empty(t, toAdd)
 		assert.Empty(t, toRemove)
+
+		sort.Strings(toReplace)
 		assert.Equal(t, []string{servicegraphs.Name, spanmetrics.Name}, toReplace)
 
 		expectedProcessors := []string{servicegraphs.Name, spanmetrics.Name}
