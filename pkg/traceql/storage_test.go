@@ -48,23 +48,31 @@ func TestSpansetClone(t *testing.T) {
 }
 
 func TestMetaConditionsWithout(t *testing.T) {
-	conditionsFor := func(q string) []Condition {
-		req, err := ExtractFetchSpansRequest(q)
-		require.NoError(t, err)
-
-		return req.Conditions
-	}
-
 	tcs := []struct {
-		remove []Condition
+		query  string
 		expect []Condition
 	}{
 		{
-			remove: []Condition{},
+			// No meta fields present in query, all are selected.
+			query:  "{ status=error}",
 			expect: SearchMetaConditions(),
 		},
 		{
-			remove: conditionsFor("{ duration > 1s}"),
+			// Service name, span name are able to be reused
+			query: "{ rootServiceName = `foo` && rootName = `bar`}",
+			expect: []Condition{
+				{NewIntrinsic(IntrinsicTraceDuration), OpNone, nil},
+				{NewIntrinsic(IntrinsicTraceID), OpNone, nil},
+				{NewIntrinsic(IntrinsicTraceStartTime), OpNone, nil},
+				{NewIntrinsic(IntrinsicSpanID), OpNone, nil},
+				{NewIntrinsic(IntrinsicSpanStartTime), OpNone, nil},
+				{NewIntrinsic(IntrinsicDuration), OpNone, nil},
+				{NewIntrinsic(IntrinsicServiceStats), OpNone, nil},
+			},
+		},
+		{
+			// Duration is the only one able to be reused because it has no filtering
+			query: "{ rootServiceName = `foo` && rootName = `bar`} | avg(duration) > 1s",
 			expect: []Condition{
 				{NewIntrinsic(IntrinsicTraceRootService), OpNone, nil},
 				{NewIntrinsic(IntrinsicTraceRootSpan), OpNone, nil},
@@ -77,19 +85,14 @@ func TestMetaConditionsWithout(t *testing.T) {
 			},
 		},
 		{
-			remove: conditionsFor("{ rootServiceName = `foo` && rootName = `bar`} | avg(duration) > 1s"),
-			expect: []Condition{
-				{NewIntrinsic(IntrinsicTraceDuration), OpNone, nil},
-				{NewIntrinsic(IntrinsicTraceID), OpNone, nil},
-				{NewIntrinsic(IntrinsicTraceStartTime), OpNone, nil},
-				{NewIntrinsic(IntrinsicSpanID), OpNone, nil},
-				{NewIntrinsic(IntrinsicSpanStartTime), OpNone, nil},
-				{NewIntrinsic(IntrinsicServiceStats), OpNone, nil},
-			},
+			// None are reused because the values are filtered and allConditions=false
+			query:  "{ rootServiceName = `foo` || rootName = `bar`}",
+			expect: SearchMetaConditions(),
 		},
 	}
 
 	for _, tc := range tcs {
-		require.Equal(t, tc.expect, SearchMetaConditionsWithout(tc.remove))
+		req, _ := ExtractFetchSpansRequest(tc.query)
+		require.Equal(t, tc.expect, SearchMetaConditionsWithout(req.Conditions, req.AllConditions))
 	}
 }

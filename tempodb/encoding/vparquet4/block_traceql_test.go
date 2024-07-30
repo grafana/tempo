@@ -903,6 +903,10 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `tempo-gateway` }"},
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `does-not-exit-6c2408325a45` }"},
 
+		// trace
+		{"traceOrMatch", "{ rootServiceName = `tempo-gateway` && (status = error || span.http.status_code = 500)}"},
+		{"traceOrNoMatch", "{ rootServiceName = `doesntexist` && (status = error || span.http.status_code = 500)}"},
+
 		// mixed
 		{"mixedValNoMatch", "{ .bloom = `does-not-exit-6c2408325a45` }"},
 		{"mixedValMixedMatchAnd", "{ resource.foo = `bar` && name = `gcs.ReadRange` }"},

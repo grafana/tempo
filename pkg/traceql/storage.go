@@ -26,16 +26,23 @@ func SearchMetaConditions() []Condition {
 	}
 }
 
-func SearchMetaConditionsWithout(remove []Condition) []Condition {
+func SearchMetaConditionsWithout(remove []Condition, allConditions bool) []Condition {
 	metaConds := SearchMetaConditions()
 	retConds := make([]Condition, 0, len(metaConds))
 	for _, c := range metaConds {
 		// if we can't find c in the remove conditions then add it to retConds
 		found := false
-		for _, e := range remove {
-			if e.Attribute == c.Attribute {
-				found = true
-				break
+		for _, r := range remove {
+			if r.Attribute == c.Attribute {
+				// We can reuse the existing condition of a metadata field in two cases:
+				// (1) OpNone, since it has no filtering it will always return a value, there is no need to read it again.
+				// (2) AllConditions - No matter the operation, it will return a value for all results.
+				// If neither of those apply then we have to select
+				// the metadata field again without filtering.
+				if r.Op == OpNone || allConditions {
+					found = true
+					break
+				}
 			}
 		}
 		if !found {

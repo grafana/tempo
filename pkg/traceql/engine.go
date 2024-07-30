@@ -60,11 +60,11 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	span.SetTag("fetchSpansRequest", fetchSpansRequest)
 
 	// calculate search meta conditions.
-	metaConditions := SearchMetaConditionsWithout(fetchSpansRequest.Conditions)
+	meta := SearchMetaConditionsWithout(fetchSpansRequest.Conditions, fetchSpansRequest.AllConditions)
+	fetchSpansRequest.SecondPassConditions = append(fetchSpansRequest.SecondPassConditions, meta...)
 
 	spansetsEvaluated := 0
 	// set up the expression evaluation as a filter to reduce data pulled
-	fetchSpansRequest.SecondPassConditions = append(fetchSpansRequest.SecondPassConditions, metaConditions...)
 	fetchSpansRequest.SecondPass = func(inSS *Spanset) ([]*Spanset, error) {
 		if len(inSS.Spans) == 0 {
 			return nil, nil
