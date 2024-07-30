@@ -581,8 +581,6 @@ metrics_generator:
         remote_write_add_org_id_header: true
     traces_storage:
         path: ""
-        completedfilepath: ""
-        blocksfilepath: ""
         v2_encoding: none
         search_encoding: none
         ingestion_time_range_slack: 0s
@@ -597,8 +595,6 @@ storage:
             queue_depth: 20000
         wal:
             path: /var/tempo/wal
-            completedfilepath: /var/tempo/wal/completed
-            blocksfilepath: /var/tempo/wal/blocks
             v2_encoding: snappy
             search_encoding: none
             ingestion_time_range_slack: 2m0s

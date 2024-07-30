@@ -238,7 +238,8 @@ func TestBuildBackendRequests(t *testing.T) {
 		}
 
 		assert.NoError(t, ctx.Err())
-		assert.Equal(t, tc.expectedURIs, actualURIs)
+
+		urisEqual(t, tc.expectedURIs, actualURIs)
 	}
 }
 
@@ -329,7 +330,7 @@ func TestBackendRequests(t *testing.T) {
 				}
 			}
 			require.NoError(t, ctx.Err())
-			require.Equal(t, tc.expectedReqsURIs, actualReqURIs)
+			urisEqual(t, tc.expectedReqsURIs, actualReqURIs)
 		})
 	}
 }
@@ -865,4 +866,22 @@ func TestHashTraceQLQuery(t *testing.T) {
 	h1 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }", SpansPerSpanSet: 1})
 	h2 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }", SpansPerSpanSet: 2})
 	require.NotEqual(t, h1, h2)
+}
+
+func urisEqual(t *testing.T, expectedURIs, actualURIs []string) {
+	require.Equal(t, len(expectedURIs), len(actualURIs))
+
+	for i, expected := range expectedURIs {
+		actual := actualURIs[i]
+
+		e, err := url.Parse(expected)
+		require.NoError(t, err)
+		a, err := url.Parse(actual)
+		require.NoError(t, err)
+
+		e.RawQuery = e.Query().Encode()
+		a.RawQuery = a.Query().Encode()
+
+		assert.Equal(t, e, a)
+	}
 }

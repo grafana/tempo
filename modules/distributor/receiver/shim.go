@@ -17,7 +17,6 @@ import (
 	"github.com/opentracing/opentracing-go"
 	prom_client "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"go.opencensus.io/stats/view"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/consumer"
@@ -28,7 +27,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
-	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -116,12 +114,11 @@ var _ services.Service = (*receiversShim)(nil)
 type receiversShim struct {
 	services.Service
 
-	retryDelay  *durationpb.Duration
-	receivers   []receiver.Traces
-	pusher      TracesPusher
-	logger      *log.RateLimitedLogger
-	metricViews []*view.View
-	fatal       chan error
+	retryDelay *durationpb.Duration
+	receivers  []receiver.Traces
+	pusher     TracesPusher
+	logger     *log.RateLimitedLogger
+	fatal      chan error
 }
 
 func (r *receiversShim) Capabilities() consumer.Capabilities {
@@ -156,11 +153,6 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 
 	// shim otel observability
 	zapLogger := newLogger(logLevel)
-	views, err := newMetricViews()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create metric traceReceiverViews: %w", err)
-	}
-	shim.metricViews = views
 
 	// load config
 	receiverFactories, err := receiver.MakeFactoryMap(
@@ -239,19 +231,13 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		return nil, err
 	}
 
+	nopType := component.MustNewType("tempo")
+	traceProvider := tracenoop.NewTracerProvider()
+	meterProvider := NewMeterProvider()
 	// todo: propagate a real context?  translate our log configuration into zap?
 	ctx := context.Background()
-	params := receiver.CreateSettings{
-		TelemetrySettings: component.TelemetrySettings{
-			Logger:         zapLogger,
-			TracerProvider: tracenoop.NewTracerProvider(),
-			MeterProvider:  metricnoop.NewMeterProvider(),
-			ReportStatus: func(*component.StatusEvent) {
-			},
-		},
-	}
-
 	for componentID, cfg := range conf.Receivers {
+
 		factoryBase := receiverFactories[componentID.Type()]
 		if factoryBase == nil {
 			return nil, fmt.Errorf("receiver factory not found for type: %s", componentID.Type())
@@ -283,6 +269,16 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 			cfg = jaegerRecvCfg
 		}
 
+		params := receiver.CreateSettings{
+			ID: component.NewIDWithName(nopType, fmt.Sprintf("%s_receiver", componentID.Type().String())),
+			TelemetrySettings: component.TelemetrySettings{
+				Logger:         zapLogger,
+				TracerProvider: traceProvider,
+				MeterProvider:  meterProvider,
+				ReportStatus: func(*component.StatusEvent) {
+				},
+			},
+		}
 		receiver, err := factoryBase.CreateTracesReceiver(ctx, params, cfg, middleware.Wrap(shim))
 		if err != nil {
 			return nil, err

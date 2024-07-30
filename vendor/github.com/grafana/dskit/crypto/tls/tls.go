@@ -109,15 +109,7 @@ func (cfg *ClientConfig) GetTLSConfig() (*tls.Config, error) {
 		config.RootCAs = caCertPool
 	}
 
-	// Read Client Certificate
-	if cfg.CertPath != "" || cfg.KeyPath != "" {
-		if cfg.CertPath == "" {
-			return nil, errCertMissing
-		}
-		if cfg.KeyPath == "" {
-			return nil, errKeyMissing
-		}
-
+	loadCert := func() (*tls.Certificate, error) {
 		cert, err := reader.ReadSecret(cfg.CertPath)
 		if err != nil {
 			return nil, errors.Wrapf(err, "error loading client cert: %s", cfg.CertPath)
@@ -131,7 +123,26 @@ func (cfg *ClientConfig) GetTLSConfig() (*tls.Config, error) {
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to load TLS certificate %s,%s", cfg.CertPath, cfg.KeyPath)
 		}
-		config.Certificates = []tls.Certificate{clientCert}
+		return &clientCert, nil
+
+	}
+
+	// Read Client Certificate
+	if cfg.CertPath != "" || cfg.KeyPath != "" {
+		if cfg.CertPath == "" {
+			return nil, errCertMissing
+		}
+		if cfg.KeyPath == "" {
+			return nil, errKeyMissing
+		}
+		// Confirm that certificate and key paths are valid.
+		if _, err := loadCert(); err != nil {
+			return nil, err
+		}
+
+		config.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			return loadCert()
+		}
 	}
 
 	if cfg.MinVersion != "" {
