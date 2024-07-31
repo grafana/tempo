@@ -26,8 +26,8 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat string) Combiner {
 			resp.Trace = traceResult
 			return resp, nil
 		},
-		new:              func() *tempopb.TraceByIDResponse { return &tempopb.TraceByIDResponse{} },
-		current:          &tempopb.TraceByIDResponse{},
-		marshalingFormat: marshalingFormat,
+		new:                  func() *tempopb.TraceByIDResponse { return &tempopb.TraceByIDResponse{} },
+		current:              &tempopb.TraceByIDResponse{},
+		httpMarshalingFormat: marshalingFormat,
 	}
 }

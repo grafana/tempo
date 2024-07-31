@@ -38,7 +38,7 @@ type genericCombiner[T TResponse] struct {
 	httpRespBody   string
 
 	// Used to marshal the response when using an HTTP Combiner, it doesn't affect for a GRPC combiner.
-	marshalingFormat string
+	httpMarshalingFormat string
 }
 
 // AddResponse is used to add a http response to the combiner.
@@ -132,7 +132,7 @@ func (c *genericCombiner[T]) HTTPFinal() (*http.Response, error) {
 	}
 
 	var bodyString string
-	if c.marshalingFormat == api.HeaderAcceptProtobuf {
+	if c.httpMarshalingFormat == api.HeaderAcceptProtobuf {
 		buff, err := proto.Marshal(final)
 		if err != nil {
 			return nil, fmt.Errorf("error marshalling response body: %w", err)
@@ -148,7 +148,7 @@ func (c *genericCombiner[T]) HTTPFinal() (*http.Response, error) {
 	return &http.Response{
 		StatusCode: c.httpStatusCode,
 		Header: http.Header{
-			api.HeaderContentType: {c.marshalingFormat},
+			api.HeaderContentType: {c.httpMarshalingFormat},
 		},
 		Body:          io.NopCloser(strings.NewReader(bodyString)),
 		ContentLength: int64(len([]byte(bodyString))),
