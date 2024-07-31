@@ -11,6 +11,7 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/status"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -84,8 +85,16 @@ func TestErroredResponse(t *testing.T) {
 	}
 }
 
+func TestInitHttpCombiner(t *testing.T) {
+	combiner := newTestCombiner()
+
+	require.Equal(t, 200, combiner.httpStatusCode)
+	require.Equal(t, api.HeaderAcceptJSON, combiner.httpMarshalingFormat)
+}
+
 func TestGenericCombiner(t *testing.T) {
 	combiner := newTestCombiner()
+
 	wg := sync.WaitGroup{}
 
 	for i := 0; i < 10; i++ {
@@ -227,10 +236,9 @@ func (p *testPipelineResponse) RequestData() any {
 func newTestCombiner() *genericCombiner[*tempopb.ServiceStats] {
 	count := 0
 
-	return &genericCombiner[*tempopb.ServiceStats]{
-		httpStatusCode: 200,
-		new:            func() *tempopb.ServiceStats { return &tempopb.ServiceStats{} },
-		current:        nil,
+	gc := &genericCombiner[*tempopb.ServiceStats]{
+		new:     func() *tempopb.ServiceStats { return &tempopb.ServiceStats{} },
+		current: nil,
 		combine: func(_, _ *tempopb.ServiceStats, _ PipelineResponse) error {
 			count++
 			return nil
@@ -251,4 +259,6 @@ func newTestCombiner() *genericCombiner[*tempopb.ServiceStats] {
 			}, nil
 		},
 	}
+	initHTTPCombiner(gc, api.HeaderAcceptJSON)
+	return gc
 }

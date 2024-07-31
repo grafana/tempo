@@ -7,8 +7,7 @@ import (
 
 func NewTraceByIDV2(maxBytes int, marshalingFormat string) Combiner {
 	combiner := trace.NewCombiner(maxBytes)
-	return &genericCombiner[*tempopb.TraceByIDResponse]{
-		httpStatusCode: 200,
+	gc := &genericCombiner[*tempopb.TraceByIDResponse]{
 		combine: func(partial *tempopb.TraceByIDResponse, _ *tempopb.TraceByIDResponse, _ PipelineResponse) error {
 			_, err := combiner.Consume(partial.Trace)
 			return err
@@ -26,8 +25,9 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat string) Combiner {
 			resp.Trace = traceResult
 			return resp, nil
 		},
-		new:                  func() *tempopb.TraceByIDResponse { return &tempopb.TraceByIDResponse{} },
-		current:              &tempopb.TraceByIDResponse{},
-		httpMarshalingFormat: marshalingFormat,
+		new:     func() *tempopb.TraceByIDResponse { return &tempopb.TraceByIDResponse{} },
+		current: &tempopb.TraceByIDResponse{},
 	}
+	initHTTPCombiner(gc, marshalingFormat)
+	return gc
 }
