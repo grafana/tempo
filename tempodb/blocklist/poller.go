@@ -193,7 +193,6 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 					break
 				}
 
-				tenantFailures.Inc()
 				consecutiveErrorsRemaining--
 			}
 
@@ -205,6 +204,7 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 				blocklist[tenantID] = previous.Metas(tenantID)
 				compactedBlocklist[tenantID] = previous.CompactedMetas(tenantID)
 
+				tenantFailures.Inc()
 				tenantFailuresRemaining--
 				finalErr.Store(err)
 
