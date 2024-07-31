@@ -318,6 +318,15 @@ func Test_instance_updateProcessors(t *testing.T) {
 		sort.Strings(actualProcessors)
 
 		assert.Equal(t, expectedProcessors, actualProcessors)
+
+		err = instance.updateProcessors()
+		assert.NoError(t, err)
+
+		toAdd, toRemove, toReplace, err = instance.diffProcessors(desiredProcessors, desiredCfg)
+		assert.NoError(t, err)
+		assert.Empty(t, toAdd)
+		assert.Empty(t, toRemove)
+		assert.Empty(t, toReplace)
 	})
 }
 
