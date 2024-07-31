@@ -120,7 +120,7 @@ jobs:
         run: make test-integration-poller
 
       - name: Deployment modes
-        run: make test-integration-deployments
+        run: make test-e2e-deployments
 
   integration-tests-serverless:
     name: Test serverless integration e2e suite
