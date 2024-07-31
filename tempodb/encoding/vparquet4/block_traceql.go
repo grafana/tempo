@@ -3026,7 +3026,7 @@ func (c *eventCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case columnPathEventTimeSinceStart:
 			ev.attrs = append(ev.attrs, attrVal{
 				a: traceql.IntrinsicEventTimeSinceStartAttribute,
-				s: traceql.NewStaticDuration(time.Duration(e.Value.Int64())),
+				s: traceql.NewStaticDuration(time.Duration(e.Values[0].Int64())),
 			})
 		}
 	}
