@@ -117,7 +117,7 @@ jobs:
         run: make test-e2e
 
   integration-tests-poller:
-    name: Test integration e2e suite
+    name: Test integration e2e suite - poller
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.22
@@ -132,7 +132,7 @@ jobs:
         run: make test-integration-poller
 
   integration-tests-deployment-modes:
-    name: Test integration e2e suite
+    name: Test integration e2e suite - deployment modes
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.22
@@ -147,7 +147,7 @@ jobs:
         run: make test-e2e-deployments
 
   integration-tests-serverless:
-    name: Test serverless integration e2e suite
+    name: Test integration e2e suite - serverless
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.22
