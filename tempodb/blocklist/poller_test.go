@@ -252,7 +252,7 @@ func TestTenantIndexFallback(t *testing.T) {
 			w := &backend.MockWriter{}
 			b := newBlocklist(PerTenant{}, PerTenantCompacted{})
 
-			r.(*backend.MockReader).TenantIndexFn = func(_ context.Context, tenantID string) (*backend.TenantIndex, error) {
+			r.(*backend.MockReader).TenantIndexFn = func(_ context.Context, _ string) (*backend.TenantIndex, error) {
 				if tc.errorOnCreateTenantIndex {
 					return nil, errors.New("err")
 				}
