@@ -27,12 +27,13 @@ import (
 )
 
 type queryRangeSharder struct {
-	next              pipeline.AsyncRoundTripper[combiner.PipelineResponse]
-	reader            tempodb.Reader
-	overrides         overrides.Interface
-	cfg               QueryRangeSharderConfig
-	logger            log.Logger
-	replicationFactor uint32
+	next                   pipeline.AsyncRoundTripper[combiner.PipelineResponse]
+	reader                 tempodb.Reader
+	overrides              overrides.Interface
+	cfg                    QueryRangeSharderConfig
+	logger                 log.Logger
+	replicationFactor      uint32
+	rf1ReadPath, exemplars bool
 }
 
 type QueryRangeSharderConfig struct {
@@ -41,13 +42,12 @@ type QueryRangeSharderConfig struct {
 	MaxDuration           time.Duration `yaml:"max_duration"`
 	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
 	Interval              time.Duration `yaml:"interval,omitempty"`
-	RF1ReadPath           bool          `yaml:"rf1_read_path,omitempty"`
 }
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search
-func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, rf1ReadPath, exemplars bool, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	var replicationFactor uint32
-	if cfg.RF1ReadPath {
+	if rf1ReadPath {
 		replicationFactor = 1
 	}
 	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
@@ -60,6 +60,8 @@ func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg
 			logger: logger,
 
 			replicationFactor: replicationFactor,
+			rf1ReadPath:       rf1ReadPath,
+			exemplars:         exemplars,
 		}
 	})
 }
@@ -124,7 +126,7 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		totalJobs, totalBlocks uint32
 		totalBlockBytes        uint64
 	)
-	if s.cfg.RF1ReadPath {
+	if s.rf1ReadPath {
 		totalJobs, totalBlocks, totalBlockBytes = s.backendRequests(ctx, tenantID, r, *req, cutoff, samplingRate, targetBytesPerRequest, interval, reqCh)
 	} else {
 		totalJobs, totalBlocks, totalBlockBytes = s.shardedBackendRequests(ctx, tenantID, r, *req, cutoff, samplingRate, targetBytesPerRequest, interval, reqCh, nil)
@@ -282,6 +284,7 @@ func (s *queryRangeSharder) buildShardedBackendRequests(ctx context.Context, ten
 			shardR.End = thisEnd
 			shardR.ShardID = i
 			shardR.ShardCount = shards
+			shardR.Exemplars = s.exemplars
 			httpReq := s.toUpstreamRequest(ctx, shardR, parent, tenantID)
 
 			pipelineR := pipeline.NewHTTPRequest(httpReq)
@@ -403,6 +406,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				Size_:            m.Size,
 				FooterSize:       m.FooterSize,
 				DedicatedColumns: dc,
+				Exemplars:        s.exemplars,
 			}
 
 			subR = api.BuildQueryRangeRequest(subR, queryRangeReq)
@@ -435,6 +439,7 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 	}
 
 	searchReq.QueryMode = querier.QueryModeRecent
+	searchReq.Exemplars = s.exemplars
 
 	req := s.toUpstreamRequest(parent.Context(), searchReq, parent, tenantID)
 	req.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)

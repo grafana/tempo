@@ -26,6 +26,19 @@ func SearchMetaConditions() []Condition {
 	}
 }
 
+func ExemplarMetaConditions() []Condition {
+	// TODO: Configurable? Each column is very expensive to store.
+	// TODO: Build predicate that quits early if we have enough exemplars.
+	return []Condition{
+		{NewIntrinsic(IntrinsicTraceID), OpNone, nil},
+		//{NewIntrinsic(IntrinsicSpanID), OpNone, nil},
+		//{NewIntrinsic(IntrinsicTraceDuration), OpNone, nil},
+		//{NewIntrinsic(IntrinsicTraceStartTime), OpNone, nil},
+		//{NewIntrinsic(IntrinsicTraceRootService), OpNone, nil},
+		//{NewIntrinsic(IntrinsicTraceRootSpan), OpNone, nil},
+	}
+}
+
 func SearchMetaConditionsWithout(remove []Condition, allConditions bool) []Condition {
 	metaConds := SearchMetaConditions()
 	retConds := make([]Condition, 0, len(metaConds))
@@ -53,6 +66,26 @@ func SearchMetaConditionsWithout(remove []Condition, allConditions bool) []Condi
 	return retConds
 }
 
+func ExemplarMetaConditionsWithout(remove []Condition) []Condition {
+	metaConds := ExemplarMetaConditions()
+	retConds := make([]Condition, 0, len(metaConds))
+	for _, c := range metaConds {
+		// if we can't find c in the remove conditions then add it to retConds
+		found := false
+		for _, e := range remove {
+			if e.Attribute == c.Attribute {
+				found = true
+				break
+			}
+		}
+		if !found {
+			retConds = append(retConds, c)
+		}
+	}
+
+	return retConds
+}
+
 // SecondPassFn is a method that is called in between the first and second
 // pass of a fetch spans request. See below.
 type SecondPassFn func(*Spanset) ([]*Spanset, error)
@@ -68,11 +101,17 @@ type FetchSpansRequest struct {
 
 	// Hints
 
-	// By default the storage layer fetches spans meeting any of the criteria.
+	// By default, the storage layer fetches spans meeting any of the criteria.
 	// This hint is for common cases like { x && y && z } where the storage layer
 	// can make extra optimizations by returning only spansets that meet
 	// all criteria.
 	AllConditions bool
+
+	// Exemplars hint tells the storage layer that the query wants to collect exemplars.
+	// This allows to optimise second pass iterators to quit if we have enough samples.
+	// Iterating over all spans to collect exemplars is very expensive,
+	// specially in allocs and mem.
+	Exemplars bool
 
 	// SecondPassFn and Conditions allow a caller to retrieve one set of data
 	// in the first pass, filter using the SecondPassFn callback and then

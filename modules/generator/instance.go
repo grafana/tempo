@@ -447,10 +447,29 @@ func (i *instance) queryRangeTraceQLToProto(set traceql.SeriesSet, req *tempopb.
 			})
 		}
 
+		exemplars := make([]tempopb.Exemplar, 0, len(s.Exemplars))
+		for _, e := range s.Exemplars {
+			lbls := make([]commonv1proto.KeyValue, 0, len(e.Labels))
+			for _, label := range e.Labels {
+				lbls = append(lbls,
+					commonv1proto.KeyValue{
+						Key:   label.Name,
+						Value: label.Value.AsAnyValue(),
+					},
+				)
+			}
+			exemplars = append(exemplars, tempopb.Exemplar{
+				Labels:      lbls,
+				TimestampMs: time.Unix(0, int64(e.Timestamp)).UnixMilli(),
+				Value:       e.Value,
+			})
+		}
+
 		ss := &tempopb.TimeSeries{
 			PromLabels: promLabels,
 			Labels:     labels,
 			Samples:    samples,
+			Exemplars:  exemplars,
 		}
 
 		resp = append(resp, ss)

@@ -116,7 +116,12 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		timeOverlapCutoff = v
 	}
 
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, false, timeOverlapCutoff, unsafe)
+	exemplarsEnabled := req.Exemplars
+	if v, ok := expr.Hints.GetBool(traceql.HintExemplars, unsafe); ok {
+		exemplarsEnabled = v
+	}
+
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, false, exemplarsEnabled, timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}
@@ -185,8 +190,12 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 		concurrency = v
 	}
 
-	// Compile the sharded version of the query
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, dedupe, timeOverlapCutoff, unsafe)
+	exemplarsEnabled := req.Exemplars
+	if v, ok := expr.Hints.GetBool(traceql.HintExemplars, unsafe); ok {
+		exemplarsEnabled = v
+	}
+
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, dedupe, exemplarsEnabled, timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}
@@ -266,10 +275,29 @@ func queryRangeTraceQLToProto(set traceql.SeriesSet, req *tempopb.QueryRangeRequ
 			})
 		}
 
+		exemplars := make([]tempopb.Exemplar, 0, len(s.Exemplars))
+		for _, e := range s.Exemplars {
+			lbls := make([]v1.KeyValue, 0, len(e.Labels))
+			for _, label := range e.Labels {
+				lbls = append(lbls,
+					v1.KeyValue{
+						Key:   label.Name,
+						Value: label.Value.AsAnyValue(),
+					},
+				)
+			}
+			exemplars = append(exemplars, tempopb.Exemplar{
+				Labels:      lbls,
+				TimestampMs: time.Unix(0, int64(e.Timestamp)).UnixMilli(),
+				Value:       e.Value,
+			})
+		}
+
 		ss := &tempopb.TimeSeries{
 			PromLabels: promLabels,
 			Labels:     labels,
 			Samples:    samples,
+			Exemplars:  exemplars,
 		}
 
 		resp = append(resp, ss)

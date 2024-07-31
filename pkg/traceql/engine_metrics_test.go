@@ -219,7 +219,7 @@ func TestCompileMetricsQueryRange(t *testing.T) {
 				Start: c.start,
 				End:   c.end,
 				Step:  c.step,
-			}, false, 0, false)
+			}, false, false, 0, false)
 
 			if c.expectedErr != nil {
 				require.EqualError(t, err, c.expectedErr.Error())
@@ -335,7 +335,7 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 				Start:      1,
 				End:        2,
 				Step:       3,
-			}, tc.dedupe, 0, false)
+			}, tc.dedupe, false, 0, false)
 			require.NoError(t, err)
 
 			// Nil out func to Equal works
@@ -438,7 +438,7 @@ func TestQuantileOverTime(t *testing.T) {
 	}
 
 	// 3 layers of processing matches:  query-frontend -> queriers -> generators -> blocks
-	layer1, err := e.CompileMetricsQueryRange(req, false, 0, false)
+	layer1, err := e.CompileMetricsQueryRange(req, false, false, 0, false)
 	require.NoError(t, err)
 
 	layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
@@ -449,7 +449,7 @@ func TestQuantileOverTime(t *testing.T) {
 
 	// Pass spans to layer 1
 	for _, s := range in {
-		layer1.metricsPipeline.observe(s)
+		layer1.metricsPipeline.observe(s, nil)
 	}
 
 	// Pass layer 1 to layer 2
@@ -515,33 +515,37 @@ func TestHistogramOverTime(t *testing.T) {
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: internalLabelBucket, Value: _128ns},
 			},
-			Values: []float64{1, 0, 0},
+			Values:    []float64{1, 0, 0},
+			Exemplars: make([]Exemplar, 0),
 		},
 		`{` + internalLabelBucket + `="` + _256ns.EncodeToString(true) + `", span.foo="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: internalLabelBucket, Value: _256ns},
 			},
-			Values: []float64{1, 4, 0},
+			Values:    []float64{1, 4, 0},
+			Exemplars: make([]Exemplar, 0),
 		},
 		`{` + internalLabelBucket + `="` + _512ns.EncodeToString(true) + `", span.foo="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: internalLabelBucket, Value: _512ns},
 			},
-			Values: []float64{1, 0, 0},
+			Values:    []float64{1, 0, 0},
+			Exemplars: make([]Exemplar, 0),
 		},
 		`{` + internalLabelBucket + `="` + _512ns.EncodeToString(true) + `", span.foo="baz"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 				{Name: internalLabelBucket, Value: _512ns},
 			},
-			Values: []float64{0, 0, 3},
+			Values:    []float64{0, 0, 3},
+			Exemplars: make([]Exemplar, 0),
 		},
 	}
 
 	// 3 layers of processing matches:  query-frontend -> queriers -> generators -> blocks
-	layer1, err := e.CompileMetricsQueryRange(req, false, 0, false)
+	layer1, err := e.CompileMetricsQueryRange(req, false, false, 0, false)
 	require.NoError(t, err)
 
 	layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
@@ -552,7 +556,7 @@ func TestHistogramOverTime(t *testing.T) {
 
 	// Pass spans to layer 1
 	for _, s := range in {
-		layer1.metricsPipeline.observe(s)
+		layer1.metricsPipeline.observe(s, nil)
 	}
 
 	// Pass layer 1 to layer 2

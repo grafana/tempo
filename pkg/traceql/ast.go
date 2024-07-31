@@ -23,7 +23,7 @@ type metricsFirstStageElement interface {
 	Element
 	extractConditions(request *FetchSpansRequest)
 	init(req *tempopb.QueryRangeRequest, mode AggregateMode)
-	observe(Span)                        // TODO - batching?
+	observe(Span, []byte)                // TODO - batching?
 	observeSeries([]*tempopb.TimeSeries) // Re-entrant metrics on the query-frontend.  Using proto version for efficiency
 	result() SeriesSet
 }
@@ -1143,8 +1143,25 @@ func (a *MetricsAggregate) initFinal(q *tempopb.QueryRangeRequest) {
 	}
 }
 
-func (a *MetricsAggregate) observe(span Span) {
+func (a *MetricsAggregate) observe(span Span, traceID []byte) {
 	a.agg.Observe(span)
+
+	if len(traceID) == 0 {
+		return
+	}
+
+	var value float64
+	switch a.op {
+	case metricsAggregateQuantileOverTime,
+		metricsAggregateHistogramOverTime:
+		value = float64(span.DurationNanos())
+
+	case metricsAggregateRate,
+		metricsAggregateCountOverTime:
+		value = math.NaN()
+	}
+
+	a.agg.ObserveWithExemplar(span, value, span.StartTimeUnixNanos())
 }
 
 func (a *MetricsAggregate) observeSeries(ss []*tempopb.TimeSeries) {

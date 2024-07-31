@@ -89,7 +89,7 @@ func NewTempoAllInOneDebug(extraArgs ...string) *e2e.HTTPService {
 		2345,  // delve port
 	)
 	env := map[string]string{
-		"DEBUG_BLOCK": "0",
+		"DEBUG_BLOCK": "1",
 	}
 	s.SetEnvVars(env)
 

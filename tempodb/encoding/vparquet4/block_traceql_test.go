@@ -1029,11 +1029,11 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	var (
 		ctx      = context.TODO()
 		e        = traceql.NewEngine()
-		opts     = common.DefaultSearchOptions()
 		tenantID = "1"
 		// blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
 		blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
-		path    = "/Users/marty/src/tmp/"
+		path    = "/Users/mapno/workspace/testblock"
+		// path = "/Users/marty/src/tmp"
 	)
 
 	r, _, _, err := local.New(&local.Config{
@@ -1046,6 +1046,8 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	require.NoError(b, err)
 	require.Equal(b, VersionString, meta.Version)
 
+	opts := common.DefaultSearchOptions()
+	opts.TotalPages = 10
 	block := newBackendBlock(meta, rr)
 	_, _, err = block.openForSearch(ctx, opts)
 	require.NoError(b, err)
@@ -1067,15 +1069,13 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 					}
 
 					req := &tempopb.QueryRangeRequest{
-						Query:      tc,
-						Step:       uint64(time.Minute),
-						Start:      uint64(st.UnixNano()),
-						End:        uint64(end.UnixNano()),
-						ShardID:    30,
-						ShardCount: 65,
+						Query: tc,
+						Step:  uint64(time.Minute),
+						Start: uint64(st.UnixNano()),
+						End:   uint64(end.UnixNano()),
 					}
 
-					eval, err := e.CompileMetricsQueryRange(req, false, 0, false)
+					eval, err := e.CompileMetricsQueryRange(req, false, true, 0, false)
 					require.NoError(b, err)
 
 					b.ResetTimer()
@@ -1089,6 +1089,83 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 					b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
 					b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
 				})
+			}
+		})
+	}
+}
+
+func TestBackendBlockQueryRange(t *testing.T) {
+	testCases := []string{
+		"{} | rate()",
+		"{} | rate() by (name)",
+		"{} | rate() by (resource.service.name)",
+		"{} | rate() by (span.http.url)", // High cardinality attribute
+		"{resource.service.name=`loki-ingester`} | rate()",
+		"{status=error} | rate()",
+	}
+
+	const (
+		tenantID  = "1"
+		queryHint = "with(exemplars=true)"
+	)
+
+	var (
+		ctx     = context.TODO()
+		e       = traceql.NewEngine()
+		opts    = common.DefaultSearchOptions()
+		blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
+		path    = path.Join("/Users/mapno/workspace/testblock")
+	)
+
+	r, _, _, err := local.New(&local.Config{
+		Path: path,
+	})
+	require.NoError(t, err)
+
+	rr := backend.NewReader(r)
+	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
+	require.NoError(t, err)
+	require.Equal(t, VersionString, meta.Version)
+
+	block := newBackendBlock(meta, rr)
+	opts.TotalPages = 10
+	_, _, err = block.openForSearch(ctx, opts)
+	require.NoError(t, err)
+
+	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return block.Fetch(ctx, req, opts)
+	})
+
+	for _, tc := range testCases {
+		t.Run(tc, func(t *testing.T) {
+			st := meta.StartTime
+			end := st.Add(time.Duration(5) * time.Minute)
+
+			if end.After(meta.EndTime) {
+				t.SkipNow()
+				return
+			}
+
+			req := &tempopb.QueryRangeRequest{
+				Query: fmt.Sprintf("%s %s", tc, queryHint),
+				Step:  uint64(time.Minute),
+				Start: uint64(st.UnixNano()),
+				End:   uint64(end.UnixNano()),
+			}
+
+			eval, err := e.CompileMetricsQueryRange(req, false, true, 0, false)
+			require.NoError(t, err)
+
+			require.NoError(t, eval.Do(ctx, f, uint64(block.meta.StartTime.UnixNano()), uint64(block.meta.EndTime.UnixNano())))
+
+			ss := eval.Results()
+			require.NotNil(t, ss)
+
+			for _, s := range ss {
+				if s.Exemplars != nil && len(s.Exemplars) > 0 {
+					fmt.Println("series", s.Labels)
+					fmt.Println("Exemplars", s.Exemplars)
+				}
 			}
 		})
 	}

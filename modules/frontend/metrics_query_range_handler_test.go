@@ -92,6 +92,7 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 						Value:       8,
 					},
 				},
+				Exemplars: make([]tempopb.Exemplar, 0),
 			},
 		},
 	}
@@ -124,6 +125,7 @@ func TestQueryRangeHandlerRespectsSamplingRate(t *testing.T) {
 						Value:       1,
 					},
 				},
+				Exemplars: make([]tempopb.Exemplar, 0),
 			},
 		},
 	}
@@ -179,6 +181,7 @@ func TestQueryRangeHandlerRespectsSamplingRate(t *testing.T) {
 						Value:       10,
 					},
 				},
+				Exemplars: make([]tempopb.Exemplar, 0),
 			},
 		},
 	}

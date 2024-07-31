@@ -351,6 +351,7 @@ func Test_instanceQueryRangeTraceQLToProto(t *testing.T) {
 						Value:       0,
 					},
 				},
+				Exemplars: make([]tempopb.Exemplar, 0),
 			},
 		},
 	}

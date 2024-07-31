@@ -400,11 +400,20 @@ message QueryRangeRequest {
   uint64 size = 13; // total size of data file
   uint32 footerSize = 14; // size of file footer (parquet)
   repeated DedicatedColumn dedicatedColumns = 15;
+  // Exemplars are optional and can be empty.
+  bool exemplars = 16;
 }
 
 message QueryRangeResponse {
   repeated TimeSeries series = 1;
   SearchMetrics metrics = 2;
+}
+
+message Exemplar {
+  // Optional, can be empty.
+  repeated tempopb.common.v1.KeyValue labels = 1 [(gogoproto.nullable) = false];
+  double value = 2;
+  int64 timestamp_ms = 3;
 }
 
 message Sample {
@@ -423,4 +432,8 @@ message TimeSeries {
   // prom_labels are a flattened string-only version of the typed labels.
   // They are used internally and may differ from official prometheus conventions.
   string prom_labels = 3;
+
+  // Exemplars are optional and can be empty.
+  // Sorted by time, oldest exemplar first.
+  repeated Exemplar exemplars = 4 [(gogoproto.nullable) = false];
 }

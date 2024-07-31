@@ -2,7 +2,9 @@ package traceql
 
 import (
 	"fmt"
+	"math"
 	"sort"
+	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -37,6 +39,8 @@ type MetricsCompare struct {
 	selections          map[Attribute]map[StaticMapKey]staticWithCounts
 	baselineTotals      map[Attribute][]float64
 	selectionTotals     map[Attribute][]float64
+	baselineExemplars   []Exemplar
+	selectionExemplars  []Exemplar
 	seriesAgg           SeriesAggregator
 }
 
@@ -85,7 +89,7 @@ func (m *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) 
 	}
 }
 
-func (m *MetricsCompare) observe(span Span) {
+func (m *MetricsCompare) observe(span Span, traceID []byte) {
 	// For performance, MetricsCompare doesn't use the Range/StepAggregator abstractions.
 	// This lets us:
 	// * Include the same attribute value in multiple series. This doesn't fit within
@@ -156,6 +160,34 @@ func (m *MetricsCompare) observe(span Span) {
 		}
 		totals[i]++
 	})
+
+	m.observeExemplar(isSelection, st, traceID, span)
+}
+
+func (m *MetricsCompare) observeExemplar(isSelection Static, st uint64, traceID []byte, span Span) {
+	if len(traceID) == 0 {
+		return
+	}
+	// Exemplars
+	if len(m.baselineExemplars) >= maxExemplars || len(m.selectionExemplars) >= maxExemplars {
+		return
+	}
+
+	all := span.AllAttributes()
+	lbls := make(Labels, 0, len(all))
+	for a, v := range all {
+		lbls = append(lbls, Label{Name: a.String(), Value: v})
+	}
+	exemplar := Exemplar{
+		Labels:    lbls,
+		Value:     math.NaN(), // TODO: What value?
+		Timestamp: st,
+	}
+	if isSelection.Equals(&StaticTrue) {
+		m.selectionExemplars = append(m.selectionExemplars, exemplar)
+	} else {
+		m.baselineExemplars = append(m.baselineExemplars, exemplar)
+	}
 }
 
 func (m *MetricsCompare) observeSeries(ss []*tempopb.TimeSeries) {
@@ -225,6 +257,27 @@ func (m *MetricsCompare) result() SeriesSet {
 	addTotals(internalLabelTypeBaselineTotal, m.baselineTotals)
 	addTotals(internalLabelTypeSelectionTotal, m.selectionTotals)
 
+	// Add exemplars
+	addExemplar := func(prefix Label, e Exemplar) {
+		for _, l := range e.Labels {
+			seriesLabels := Labels{
+				prefix,
+				{Name: l.Name},
+			}
+			if ts, ok := ss[seriesLabels.String()]; ok {
+				ts.Exemplars = append(ts.Exemplars, e)
+				ss[seriesLabels.String()] = ts
+			}
+		}
+	}
+
+	for _, e := range m.baselineExemplars {
+		addExemplar(internalLabelTypeBaselineTotal, e)
+	}
+	for _, e := range m.selectionExemplars {
+		addExemplar(internalLabelTypeSelectionTotal, e)
+	}
+
 	return ss
 }
 
@@ -270,6 +323,7 @@ type BaselineAggregator struct {
 	baselineTotals   map[string]map[StaticMapKey]staticWithTimeSeries
 	selectionTotals  map[string]map[StaticMapKey]staticWithTimeSeries
 	maxed            map[string]struct{}
+	exemplarBuckets  *bucketSet
 }
 
 type staticWithTimeSeries struct {
@@ -278,17 +332,19 @@ type staticWithTimeSeries struct {
 }
 
 func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int) *BaselineAggregator {
+	l := IntervalCount(req.Start, req.End, req.Step)
 	return &BaselineAggregator{
 		baseline:        make(map[string]map[StaticMapKey]staticWithTimeSeries),
 		selection:       make(map[string]map[StaticMapKey]staticWithTimeSeries),
 		baselineTotals:  make(map[string]map[StaticMapKey]staticWithTimeSeries),
 		selectionTotals: make(map[string]map[StaticMapKey]staticWithTimeSeries),
 		maxed:           make(map[string]struct{}),
-		len:             IntervalCount(req.Start, req.End, req.Step),
+		len:             l,
 		start:           req.Start,
 		end:             req.End,
 		step:            req.Step,
 		topN:            topN,
+		exemplarBuckets: newBucketSet(l),
 	}
 }
 
@@ -365,6 +421,27 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 				ts.series.Values[j] += sample.Value
 			}
 		}
+
+		for _, exemplar := range s.Exemplars {
+			if b.exemplarBuckets.testTotal() {
+				break
+			}
+			interval := IntervalOfMs(exemplar.TimestampMs, b.start, b.end, b.step)
+			if b.exemplarBuckets.addAndTest(interval) {
+				continue
+			}
+
+			lbls := make(Labels, 0, len(exemplar.Labels))
+			for _, l := range exemplar.Labels {
+				lbls = append(lbls, Label{Name: l.Key, Value: StaticFromAnyValue(l.Value)})
+			}
+			ts.series.Exemplars = append(ts.series.Exemplars, Exemplar{
+				Labels:    lbls,
+				Value:     exemplar.Value,
+				Timestamp: uint64(time.Duration(exemplar.TimestampMs) * time.Millisecond),
+			})
+		}
+		attr[vk] = ts
 	}
 }
 
@@ -372,14 +449,15 @@ func (b *BaselineAggregator) Results() SeriesSet {
 	output := make(SeriesSet)
 	topN := &topN[Static]{}
 
-	addSeries := func(prefix Label, name string, value Static, samples []float64) {
+	addSeries := func(prefix Label, name string, value Static, samples []float64, exemplars []Exemplar) {
 		ls := Labels{
 			prefix,
 			{Name: name, Value: value},
 		}
 		output[ls.String()] = TimeSeries{
-			Labels: ls,
-			Values: samples,
+			Labels:    ls,
+			Values:    samples,
+			Exemplars: exemplars,
 		}
 	}
 
@@ -393,7 +471,7 @@ func (b *BaselineAggregator) Results() SeriesSet {
 
 			topN.get(b.topN, func(key Static) {
 				ts := m[key.MapKey()]
-				addSeries(prefix, a, key, ts.series.Values)
+				addSeries(prefix, a, key, ts.series.Values, ts.series.Exemplars)
 			})
 		}
 	}
@@ -405,7 +483,7 @@ func (b *BaselineAggregator) Results() SeriesSet {
 
 	// Add series for every attribute that exceeded max value.
 	for a := range b.maxed {
-		addSeries(internalLabelErrorTooManyValues, a, NewStaticNil(), nil)
+		addSeries(internalLabelErrorTooManyValues, a, NewStaticNil(), nil, nil)
 	}
 
 	return output

@@ -136,7 +136,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	queryRangePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			multiTenantMiddleware(cfg, logger),
-			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, logger),
+			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, cfg.Metrics.RF1ReadPath, cfg.Metrics.Exemplars, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)

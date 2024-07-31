@@ -418,5 +418,6 @@ func timeSeries(name, val string, samples []tempopb.Sample) *tempopb.TimeSeries 
 		Labels:     []v1.KeyValue{{Key: name, Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: val}}}},
 		Samples:    samples,
 		PromLabels: lbls.String(),
+		Exemplars:  make([]tempopb.Exemplar, 0),
 	}
 }

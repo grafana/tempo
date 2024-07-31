@@ -39,6 +39,7 @@ const (
 	urlParamShard           = "shard"
 	urlParamShardCount      = "shardCount"
 	urlParamSince           = "since"
+	urlParamExemplars       = "exemplars"
 
 	// backend search (querier/serverless)
 	urlParamStartPage        = "startPage"
@@ -428,6 +429,11 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 		}
 	}
 
+	exemplars, _ := extractQueryParam(vals, urlParamExemplars)
+	if exemplars == "true" {
+		req.Exemplars = true
+	}
+
 	return req, nil
 }
 
@@ -485,6 +491,10 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 
 	if len(searchReq.Query) > 0 {
 		qb.addParam(urlParamQuery, searchReq.Query)
+	}
+
+	if searchReq.Exemplars {
+		qb.addParam(urlParamExemplars, "true")
 	}
 
 	req.URL.RawQuery = qb.query()
