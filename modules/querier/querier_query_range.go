@@ -288,7 +288,7 @@ func queryRangeTraceQLToProto(set traceql.SeriesSet, req *tempopb.QueryRangeRequ
 			}
 			exemplars = append(exemplars, tempopb.Exemplar{
 				Labels:      lbls,
-				TimestampMs: time.Unix(0, int64(e.Timestamp)).UnixMilli(),
+				TimestampMs: int64(e.TimestampMs),
 				Value:       e.Value,
 			})
 		}

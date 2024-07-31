@@ -1100,16 +1100,16 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 // You also need to manually print the iterator in `backendBlock.Fetch`,
 // because there is no access to the iterator in the test. Sad.
 func TestBackendBlockQueryRange(t *testing.T) {
-	if os.Getenv("debug") != "1" {
-		t.Skip()
-	}
+	//if os.Getenv("debug") != "1" {
+	//	t.Skip()
+	//}
 
 	testCases := []string{
 		"{} | rate()",
 		"{} | rate() by (name)",
 		"{} | rate() by (resource.service.name)",
 		"{} | rate() by (span.http.url)", // High cardinality attribute
-		"{resource.service.name=`loki-ingester`} | rate()",
+		"{resource.service.name=`tempo-ingester`} | rate()",
 		"{status=unset} | rate()",
 	}
 

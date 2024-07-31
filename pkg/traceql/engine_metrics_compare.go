@@ -89,7 +89,7 @@ func (m *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) 
 	}
 }
 
-func (m *MetricsCompare) observe(span Span, traceID []byte) {
+func (m *MetricsCompare) observe(span Span, withExemplar bool) {
 	// For performance, MetricsCompare doesn't use the Range/StepAggregator abstractions.
 	// This lets us:
 	// * Include the same attribute value in multiple series. This doesn't fit within
@@ -161,13 +161,12 @@ func (m *MetricsCompare) observe(span Span, traceID []byte) {
 		totals[i]++
 	})
 
-	m.observeExemplar(isSelection, st, traceID, span)
+	if withExemplar {
+		m.observeExemplar(isSelection, st, span)
+	}
 }
 
-func (m *MetricsCompare) observeExemplar(isSelection Static, st uint64, traceID []byte, span Span) {
-	if len(traceID) == 0 {
-		return
-	}
+func (m *MetricsCompare) observeExemplar(isSelection Static, st uint64, span Span) {
 	// Exemplars
 	if len(m.baselineExemplars) >= maxExemplars || len(m.selectionExemplars) >= maxExemplars {
 		return
@@ -179,9 +178,9 @@ func (m *MetricsCompare) observeExemplar(isSelection Static, st uint64, traceID 
 		lbls = append(lbls, Label{Name: a.String(), Value: v})
 	}
 	exemplar := Exemplar{
-		Labels:    lbls,
-		Value:     math.NaN(), // TODO: What value?
-		Timestamp: st,
+		Labels:      lbls,
+		Value:       math.NaN(), // TODO: What value?
+		TimestampMs: st / uint64(time.Millisecond),
 	}
 	if isSelection.Equals(&StaticTrue) {
 		m.selectionExemplars = append(m.selectionExemplars, exemplar)
@@ -436,9 +435,9 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 				lbls = append(lbls, Label{Name: l.Key, Value: StaticFromAnyValue(l.Value)})
 			}
 			ts.series.Exemplars = append(ts.series.Exemplars, Exemplar{
-				Labels:    lbls,
-				Value:     exemplar.Value,
-				Timestamp: uint64(time.Duration(exemplar.TimestampMs) * time.Millisecond),
+				Labels:      lbls,
+				Value:       exemplar.Value,
+				TimestampMs: uint64(exemplar.TimestampMs),
 			})
 		}
 		attr[vk] = ts

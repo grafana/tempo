@@ -193,9 +193,9 @@ func (ls Labels) String() string {
 }
 
 type Exemplar struct {
-	Labels    Labels
-	Value     float64
-	Timestamp uint64
+	Labels      Labels
+	Value       float64
+	TimestampMs uint64
 }
 
 type TimeSeries struct {
@@ -267,7 +267,7 @@ func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels 
 			exemplars = append(exemplars, tempopb.Exemplar{
 				Labels:      labels,
 				Value:       e.Value,
-				TimestampMs: time.Unix(0, int64(e.Timestamp)).UnixMilli(),
+				TimestampMs: int64(e.TimestampMs),
 			})
 		}
 
@@ -379,15 +379,15 @@ func (s *StepAggregator) ObserveExemplar(value float64, ts uint64, lbls Labels) 
 	if s.exemplarBuckets.testTotal() {
 		return
 	}
-	interval := IntervalOf(ts, s.start, s.end, s.step)
+	interval := IntervalOfMs(int64(ts), s.start, s.end, s.step)
 	if s.exemplarBuckets.addAndTest(interval) {
 		return
 	}
 
 	s.exemplars = append(s.exemplars, Exemplar{
-		Labels:    lbls,
-		Value:     value,
-		Timestamp: ts,
+		Labels:      lbls,
+		Value:       value,
+		TimestampMs: ts,
 	})
 }
 
@@ -677,7 +677,6 @@ func (u *UngroupedAggregator) ObserveWithExemplar(span Span, value float64, ts u
 	for k, v := range all {
 		lbls = append(lbls, Label{k.String(), v})
 	}
-
 	u.innerAgg.ObserveExemplar(value, ts, lbls)
 }
 
@@ -994,10 +993,7 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 
 			e.spansTotal++
 
-			if e.sampleExemplar(ss.TraceID) {
-				e.metricsPipeline.observe(s, ss.TraceID)
-			}
-			e.metricsPipeline.observe(s, nil)
+			e.metricsPipeline.observe(s, e.sampleExemplar(ss.TraceID))
 		}
 
 		e.mtx.Unlock()
@@ -1033,14 +1029,21 @@ func (e *MetricsEvalulator) sampleExemplar(id []byte) bool {
 		return false
 	}
 
-	s := unsafe.String(unsafe.SliceData(id), len(id))
 	// Avoid sampling exemplars for the same trace
-	if _, ok := e.exemplarBloom[s]; ok {
+	if _, ok := e.exemplarBloom[bytesToString(id)]; ok {
 		return false
 	}
-	e.exemplarBloom[s] = struct{}{}
+
+	// TODO: Can we avoid the copy?
+	// Clone string
+	clone := make([]byte, len(id))
+	copy(clone, id)
+	e.exemplarBloom[bytesToString(clone)] = struct{}{}
 	return true
 }
+
+// bytesToString is a helper function to convert a byte slice to a string without a copy.
+func bytesToString(b []byte) string { return unsafe.String(unsafe.SliceData(b), len(b)) }
 
 // SpanDeduper2 is EXTREMELY LAZY. It attempts to dedupe spans for metrics
 // without requiring any new data fields.  It uses trace ID and span start time
@@ -1179,9 +1182,9 @@ func (b *SimpleAdditionAggregator) Combine(in []*tempopb.TimeSeries) {
 				value = 0 // TODO: Use the value of the series at the same timestamp
 			}
 			existing.Exemplars = append(existing.Exemplars, Exemplar{
-				Labels:    labels,
-				Value:     value,
-				Timestamp: uint64(time.Duration(exemplar.TimestampMs) * time.Millisecond),
+				Labels:      labels,
+				Value:       value,
+				TimestampMs: uint64(exemplar.TimestampMs),
 			})
 		}
 
@@ -1308,9 +1311,9 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 				})
 			}
 			h.exemplars = append(h.exemplars, Exemplar{
-				Labels:    labels,
-				Value:     exemplar.Value,
-				Timestamp: uint64(time.Duration(exemplar.TimestampMs) * time.Millisecond),
+				Labels:      labels,
+				Value:       exemplar.Value,
+				TimestampMs: uint64(exemplar.TimestampMs),
 			})
 		}
 	}
