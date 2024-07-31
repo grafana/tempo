@@ -34,9 +34,11 @@ type genericCombiner[T TResponse] struct {
 	diff     func(T) (T, error) // currently only implemented by the search combiner. required for streaming
 	quit     func(T) bool
 
-	httpStatusCode    int
-	httpRespBody      string
-	marshallingFormat string
+	httpStatusCode int
+	httpRespBody   string
+
+	// Used to marshal the response when using an HTTP Combiner, it doesn't affect for a GRPC combiner.
+	marshalingFormat string
 }
 
 // AddResponse is used to add a http response to the combiner.
@@ -130,14 +132,13 @@ func (c *genericCombiner[T]) HTTPFinal() (*http.Response, error) {
 	}
 
 	var bodyString string
-	if c.marshallingFormat == api.HeaderAcceptProtobuf {
+	if c.marshalingFormat == api.HeaderAcceptProtobuf {
 		buff, err := proto.Marshal(final)
 		if err != nil {
 			return nil, fmt.Errorf("error marshalling response body: %w", err)
 		}
 		bodyString = string(buff)
 	} else {
-		c.marshallingFormat = api.HeaderAcceptJSON
 		bodyString, err = new(jsonpb.Marshaler).MarshalToString(final)
 		if err != nil {
 			return nil, fmt.Errorf("error marshalling response body: %w", err)
@@ -147,7 +148,7 @@ func (c *genericCombiner[T]) HTTPFinal() (*http.Response, error) {
 	return &http.Response{
 		StatusCode: c.httpStatusCode,
 		Header: http.Header{
-			api.HeaderContentType: {c.marshallingFormat},
+			api.HeaderContentType: {c.marshalingFormat},
 		},
 		Body:          io.NopCloser(strings.NewReader(bodyString)),
 		ContentLength: int64(len([]byte(bodyString))),

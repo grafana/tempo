@@ -5,7 +5,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-func NewTraceByIDV2(maxBytes int, marshallingFormat string) Combiner {
+func NewTraceByIDV2(maxBytes int, marshalingFormat string) Combiner {
 	combiner := trace.NewCombiner(maxBytes)
 	return &genericCombiner[*tempopb.TraceByIDResponse]{
 		httpStatusCode: 200,
@@ -26,8 +26,8 @@ func NewTraceByIDV2(maxBytes int, marshallingFormat string) Combiner {
 			resp.Trace = traceResult
 			return resp, nil
 		},
-		new:               func() *tempopb.TraceByIDResponse { return &tempopb.TraceByIDResponse{} },
-		current:           &tempopb.TraceByIDResponse{},
-		marshallingFormat: marshallingFormat,
+		new:              func() *tempopb.TraceByIDResponse { return &tempopb.TraceByIDResponse{} },
+		current:          &tempopb.TraceByIDResponse{},
+		marshalingFormat: marshalingFormat,
 	}
 }
