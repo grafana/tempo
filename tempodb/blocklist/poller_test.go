@@ -577,17 +577,17 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 					nil,
 				},
 				"three": {
-					errors.New("tenant three error"),
-					errors.New("tenant three error"),
-					errors.New("tenant three error"),
+					errors.New("tenant x error"),
+					errors.New("tenant x error"),
+					errors.New("tenant x error"),
 				},
 				"four": {
-					errors.New("tenant four error"),
-					errors.New("tenant four error"),
-					errors.New("tenant four error"),
+					errors.New("tenant x error"),
+					errors.New("tenant x error"),
+					errors.New("tenant x error"),
 				},
 			},
-			expectedError: errors.New("tenant four err"),
+			expectedError: errors.New("tenant x err"), // test for tenant x err to avoid needing to care which of the last two tenants were caught
 		},
 	}
 
