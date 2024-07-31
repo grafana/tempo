@@ -116,12 +116,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		timeOverlapCutoff = v
 	}
 
-	exemplarsEnabled := req.Exemplars
-	if v, ok := expr.Hints.GetBool(traceql.HintExemplars, unsafe); ok {
-		exemplarsEnabled = v
-	}
-
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, false, exemplarsEnabled, timeOverlapCutoff, unsafe)
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, false, req.Exemplars, timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}
@@ -190,12 +185,7 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 		concurrency = v
 	}
 
-	exemplarsEnabled := req.Exemplars
-	if v, ok := expr.Hints.GetBool(traceql.HintExemplars, unsafe); ok {
-		exemplarsEnabled = v
-	}
-
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, dedupe, exemplarsEnabled, timeOverlapCutoff, unsafe)
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, dedupe, req.Exemplars, timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}

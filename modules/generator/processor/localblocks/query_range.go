@@ -50,17 +50,12 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 		concurrency = uint(v)
 	}
 
-	exemplarsEnabled := req.Exemplars
-	if v, ok := expr.Hints.GetBool(traceql.HintExemplars, unsafe); ok {
-		exemplarsEnabled = v
-	}
-
 	e := traceql.NewEngine()
 
 	// Compile the raw version of the query for wal blocks
 	// These aren't cached and we put them all into the same evaluator
 	// for efficiency.
-	eval, err := e.CompileMetricsQueryRange(req, false, exemplarsEnabled, timeOverlapCutoff, unsafe)
+	eval, err := e.CompileMetricsQueryRange(req, false, req.Exemplars, timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +122,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 		wg.Add(1)
 		go func(b *ingester.LocalBlock) {
 			defer wg.Done()
-			resp, err := p.queryRangeCompleteBlock(ctx, b, *req, timeOverlapCutoff, unsafe, exemplarsEnabled)
+			resp, err := p.queryRangeCompleteBlock(ctx, b, *req, timeOverlapCutoff, unsafe, req.Exemplars)
 			if err != nil {
 				jobErr.Store(err)
 				return

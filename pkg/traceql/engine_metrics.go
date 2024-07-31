@@ -756,6 +756,10 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		dedupeSpans = v
 	}
 
+	if v, ok := expr.Hints.GetBool(HintExemplars, allowUnsafeQueryHints); ok {
+		exemplarsEnabled = v
+	}
+
 	// This initializes all step buffers, counters, etc
 	metricsPipeline.init(req, AggregateModeRaw)
 
