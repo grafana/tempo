@@ -772,7 +772,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		dedupeSpans:       dedupeSpans,
 		timeOverlapCutoff: timeOverlapCutoff,
 		exemplarsEnabled:  exemplarsEnabled,
-		exemplarBloom:     make(map[string]struct{}, maxExemplars), // TODO: Lazy, use bloom filter, CM sketch or something
+		exemplarMap:       make(map[string]struct{}, maxExemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 	}
 
 	// TraceID (optional)
@@ -912,7 +912,7 @@ type MetricsEvalulator struct {
 	dedupeSpans                     bool
 	deduper                         *SpanDeduper2
 	exemplarsEnabled                bool
-	exemplarBloom                   map[string]struct{}
+	exemplarMap                     map[string]struct{}
 	timeOverlapCutoff               float64
 	storageReq                      *FetchSpansRequest
 	metricsPipeline                 metricsFirstStageElement
@@ -1029,7 +1029,7 @@ func (e *MetricsEvalulator) sampleExemplar(id []byte) bool {
 	if !e.exemplarsEnabled {
 		return false
 	}
-	if len(e.exemplarBloom) >= maxExemplars {
+	if len(e.exemplarMap) >= maxExemplars {
 		return false
 	}
 	if len(id) == 0 {
@@ -1037,7 +1037,7 @@ func (e *MetricsEvalulator) sampleExemplar(id []byte) bool {
 	}
 
 	// Avoid sampling exemplars for the same trace
-	if _, ok := e.exemplarBloom[bytesToString(id)]; ok {
+	if _, ok := e.exemplarMap[bytesToString(id)]; ok {
 		return false
 	}
 
@@ -1045,7 +1045,7 @@ func (e *MetricsEvalulator) sampleExemplar(id []byte) bool {
 	// Clone string
 	clone := make([]byte, len(id))
 	copy(clone, id)
-	e.exemplarBloom[bytesToString(clone)] = struct{}{}
+	e.exemplarMap[bytesToString(clone)] = struct{}{}
 	return true
 }
 
