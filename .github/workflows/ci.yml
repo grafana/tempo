@@ -119,6 +119,9 @@ jobs:
       - name: Poller
         run: make test-integration-poller
 
+      - name: Deployment modes
+        run: make test-integration-deployments
+
   integration-tests-serverless:
     name: Test serverless integration e2e suite
     runs-on: ubuntu-latest

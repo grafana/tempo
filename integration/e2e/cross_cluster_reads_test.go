@@ -6,10 +6,10 @@ import (
 
 	"github.com/grafana/e2e"
 	e2edb "github.com/grafana/e2e/db"
+	"github.com/grafana/tempo/integration/util"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
 
-	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/pkg/httpclient"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
@@ -44,13 +44,13 @@ func TestCrossClusterReads(t *testing.T) {
 	require.NoError(t, err)
 
 	// test metrics
-	require.NoError(t, tempoDistributorA.WaitSumMetrics(e2e.Equals(spanCount(expected)), "tempo_distributor_spans_received_total"))
+	require.NoError(t, tempoDistributorA.WaitSumMetrics(e2e.Equals(util.SpanCount(expected)), "tempo_distributor_spans_received_total"))
 
 	// read from cluster B
 	apiClient := httpclient.New("http://"+tempoQueryFrontendB.Endpoint(3200), "")
 
 	// query an in-memory trace
-	queryAndAssertTrace(t, apiClient, info)
+	util.QueryAndAssertTrace(t, apiClient, info)
 }
 
 func createCluster(t *testing.T, s *e2e.Scenario, postfix string) (*e2e.HTTPService, *e2e.HTTPService) {
