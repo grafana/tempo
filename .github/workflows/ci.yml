@@ -117,7 +117,7 @@ jobs:
         run: make test-e2e
 
   integration-tests-poller:
-    name: Test integration e2e poller
+    name: Test integration e2e pollerr
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.22
