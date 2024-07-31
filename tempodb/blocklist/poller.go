@@ -161,10 +161,8 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 		blocklist          = PerTenant{}
 		compactedBlocklist = PerTenantCompacted{}
 
-		tenantFailuresRemaining atomic.Int32
+		tenantFailuresRemaining = atomic.NewInt32(int32(p.cfg.TolerateTenantFailures))
 	)
-
-	tenantFailuresRemaining.Store(int32(p.cfg.TolerateTenantFailures))
 
 	for _, tenantID := range tenants {
 		// Exit early if we have exceeded our tolerance for number of failing tenants.
