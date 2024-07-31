@@ -161,18 +161,18 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 		blocklist          = PerTenant{}
 		compactedBlocklist = PerTenantCompacted{}
 
-		finalErr       atomic.Error
-		tenantFailures atomic.Int32
-
-		tenantFailuresRemaining = p.cfg.TolerateTenantFailures
+		finalErr                atomic.Error
+		tenantFailures          atomic.Int32
+		tenantFailuresRemaining atomic.Int32
 	)
+	tenantFailuresRemaining.Store(int32(p.cfg.TolerateTenantFailures))
 
 	for _, tenantID := range tenants {
 		// Exit early if we have exceeded our tolerance for number of failing tenants.
-		if tenantFailures.Load() >= int32(tenantFailuresRemaining) {
+		if tenantFailures.Load() >= tenantFailuresRemaining.Load() {
 			if lastErr := finalErr.Load(); lastErr != nil {
 				level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors")
-				return nil, nil, lastErr
+				break
 			}
 		}
 
@@ -205,7 +205,7 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 				compactedBlocklist[tenantID] = previous.CompactedMetas(tenantID)
 
 				tenantFailures.Inc()
-				tenantFailuresRemaining--
+				tenantFailuresRemaining.Dec()
 				finalErr.Store(err)
 
 				return
