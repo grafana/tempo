@@ -12,9 +12,9 @@ import (
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/api"
+	"github.com/grafana/tempo/v2/pkg/model/trace"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 )
 
 const (

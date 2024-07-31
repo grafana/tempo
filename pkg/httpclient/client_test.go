@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 	"github.com/stretchr/testify/assert"
 )
 

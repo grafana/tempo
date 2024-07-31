@@ -19,8 +19,8 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/grafana/tempo/cmd/tempo/build"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/cmd/tempo/build"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 const (

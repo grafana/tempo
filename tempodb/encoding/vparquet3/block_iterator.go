@@ -8,9 +8,9 @@ import (
 
 	"github.com/parquet-go/parquet-go"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	tempo_io "github.com/grafana/tempo/v2/pkg/io"
+	"github.com/grafana/tempo/v2/pkg/parquetquery"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 func (b *backendBlock) open(ctx context.Context) (*parquet.File, *parquet.Reader, error) { //nolint:all //deprecated

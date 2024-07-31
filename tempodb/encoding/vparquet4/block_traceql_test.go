@@ -17,17 +17,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/traceqlmetrics"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/pkg/util/traceidboundary"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/pkg/parquetquery"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v2/pkg/traceql"
+	"github.com/grafana/tempo/v2/pkg/traceqlmetrics"
+	"github.com/grafana/tempo/v2/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util/test"
+	"github.com/grafana/tempo/v2/pkg/util/traceidboundary"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend/local"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 func TestOne(t *testing.T) {

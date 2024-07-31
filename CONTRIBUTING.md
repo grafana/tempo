@@ -76,8 +76,8 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/opentracing/opentracing-go"
 
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/v2/modules/overrides"
+	"github.com/grafana/tempo/v2/pkg/validation"
 )
 
 ```

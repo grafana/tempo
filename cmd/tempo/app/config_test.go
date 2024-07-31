@@ -4,16 +4,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/tempodb/backend/s3"
+	"github.com/grafana/tempo/v2/tempodb/backend/s3"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/grafana/tempo/modules/distributor"
-	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
+	"github.com/grafana/tempo/v2/modules/distributor"
+	"github.com/grafana/tempo/v2/modules/storage"
+	"github.com/grafana/tempo/v2/tempodb"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/v2/tempodb/encoding/v2"
+	"github.com/grafana/tempo/v2/tempodb/encoding/vparquet4"
 )
 
 func TestConfig_CheckConfig(t *testing.T) {

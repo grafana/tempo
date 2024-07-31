@@ -31,10 +31,10 @@ import (
 	"google.golang.org/grpc/encoding"
 	"gopkg.in/yaml.v2"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/cmd/tempo/build"
-	"github.com/grafana/tempo/pkg/gogocodec"
-	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/v2/cmd/tempo/app"
+	"github.com/grafana/tempo/v2/cmd/tempo/build"
+	"github.com/grafana/tempo/v2/pkg/gogocodec"
+	"github.com/grafana/tempo/v2/pkg/util/log"
 )
 
 const appName = "tempo"

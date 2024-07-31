@@ -11,7 +11,7 @@ import (
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 //go:embed tenant_status.gohtml

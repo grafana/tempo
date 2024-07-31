@@ -12,13 +12,13 @@ import (
 	"github.com/parquet-go/parquet-go"
 	"github.com/willf/bloom"
 
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/parquetquery"
-	pq "github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/pkg/cache"
+	"github.com/grafana/tempo/v2/pkg/parquetquery"
+	pq "github.com/grafana/tempo/v2/pkg/parquetquery"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/util"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 const (

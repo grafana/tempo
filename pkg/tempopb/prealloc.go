@@ -1,6 +1,6 @@
 package tempopb
 
-import "github.com/grafana/tempo/pkg/tempopb/pool"
+import "github.com/grafana/tempo/v2/pkg/tempopb/pool"
 
 // buckets: [0.5KiB, 1KiB, 2KiB, 4KiB, 8KiB, 16KiB] ...
 var bytePool = pool.New(500, 64_000, 2, func(size int) []byte { return make([]byte, 0, size) })

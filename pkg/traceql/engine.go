@@ -9,9 +9,9 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	common_v1 "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 const (

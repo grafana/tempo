@@ -3,8 +3,8 @@ package client
 import (
 	"time"
 
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/grafana/tempo/pkg/util/listtomap"
+	filterconfig "github.com/grafana/tempo/v2/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v2/pkg/util/listtomap"
 )
 
 type Limits struct {

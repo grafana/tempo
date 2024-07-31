@@ -3,7 +3,7 @@ package util
 import (
 	"strconv"
 
-	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1common "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
 )
 
 func StringifyAnyValue(anyValue *v1common.AnyValue) string {

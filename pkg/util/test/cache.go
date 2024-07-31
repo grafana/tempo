@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/v2/pkg/cache"
 )
 
 type mockClient struct {

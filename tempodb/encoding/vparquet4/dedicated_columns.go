@@ -1,8 +1,8 @@
 package vparquet4
 
 import (
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	"github.com/grafana/tempo/tempodb/backend"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 // Column paths for spare dedicated attribute columns

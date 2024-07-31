@@ -5,11 +5,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/grafana/tempo/pkg/sort"
+	"github.com/grafana/tempo/v2/pkg/sort"
 
 	"github.com/cespare/xxhash"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
 )
 

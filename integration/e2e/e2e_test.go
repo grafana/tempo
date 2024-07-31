@@ -21,13 +21,13 @@ import (
 	"github.com/grafana/e2e"
 	e2edb "github.com/grafana/e2e/db"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
-	util "github.com/grafana/tempo/integration"
-	"github.com/grafana/tempo/integration/e2e/backend"
-	"github.com/grafana/tempo/pkg/httpclient"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/cmd/tempo/app"
+	util "github.com/grafana/tempo/v2/integration"
+	"github.com/grafana/tempo/v2/integration/e2e/backend"
+	"github.com/grafana/tempo/v2/pkg/httpclient"
+	"github.com/grafana/tempo/v2/pkg/model/trace"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	tempoUtil "github.com/grafana/tempo/v2/pkg/util"
 )
 
 const (

@@ -17,14 +17,14 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 
-	gen "github.com/grafana/tempo/modules/generator/processor"
-	"github.com/grafana/tempo/modules/generator/processor/servicegraphs/store"
-	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
-	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	tempo_util "github.com/grafana/tempo/pkg/util"
+	gen "github.com/grafana/tempo/v2/modules/generator/processor"
+	"github.com/grafana/tempo/v2/modules/generator/processor/servicegraphs/store"
+	processor_util "github.com/grafana/tempo/v2/modules/generator/processor/util"
+	"github.com/grafana/tempo/v2/modules/generator/registry"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
+	v1_trace "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
+	tempo_util "github.com/grafana/tempo/v2/pkg/util"
 )
 
 var (

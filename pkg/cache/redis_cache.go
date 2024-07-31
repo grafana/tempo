@@ -11,8 +11,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	util_log "github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/pkg/util/spanlogger"
+	util_log "github.com/grafana/tempo/v2/pkg/util/log"
+	"github.com/grafana/tempo/v2/pkg/util/spanlogger"
 )
 
 // RedisCache type caches chunks in redis

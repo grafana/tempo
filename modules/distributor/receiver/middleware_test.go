@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 type assertFunc func(*testing.T, context.Context)

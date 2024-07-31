@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gogo/status"
-	"github.com/grafana/tempo/modules/frontend/combiner"
+	"github.com/grafana/tempo/v2/modules/frontend/combiner"
 	"google.golang.org/grpc/codes"
 )
 

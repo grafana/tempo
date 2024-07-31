@@ -6,8 +6,8 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/pkg/util/test"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 func TestCombiner(t *testing.T) {

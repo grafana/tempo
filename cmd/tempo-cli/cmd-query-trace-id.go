@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/grafana/tempo/pkg/httpclient"
+	"github.com/grafana/tempo/v2/pkg/httpclient"
 )
 
 type queryTraceIDCmd struct {

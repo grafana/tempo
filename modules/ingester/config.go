@@ -9,9 +9,9 @@ import (
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/ring"
 
-	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/pkg/util/log"
+	"github.com/grafana/tempo/v2/tempodb"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 // Config for an ingester.

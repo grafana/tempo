@@ -10,10 +10,10 @@ import (
 	"github.com/grafana/e2e"
 	"github.com/stretchr/testify/require"
 
-	util "github.com/grafana/tempo/integration"
-	"github.com/grafana/tempo/pkg/httpclient"
-	"github.com/grafana/tempo/pkg/tempopb"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	util "github.com/grafana/tempo/v2/integration"
+	"github.com/grafana/tempo/v2/pkg/httpclient"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	tempoUtil "github.com/grafana/tempo/v2/pkg/util"
 )
 
 const (

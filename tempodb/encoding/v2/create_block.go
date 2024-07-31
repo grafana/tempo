@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/pkg/model"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 const DefaultFlushSizeBytes int = 30 * 1024 * 1024 // 30 MiB

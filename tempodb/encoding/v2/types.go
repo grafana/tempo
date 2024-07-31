@@ -6,7 +6,7 @@ import (
 	"io"
 	"sort"
 
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 // Record represents the location of an ID in an object file

@@ -8,12 +8,12 @@ import (
 	"github.com/alecthomas/kong"
 	"gopkg.in/yaml.v2"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/azure"
-	"github.com/grafana/tempo/tempodb/backend/gcs"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/backend/s3"
+	"github.com/grafana/tempo/v2/cmd/tempo/app"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend/azure"
+	"github.com/grafana/tempo/v2/tempodb/backend/gcs"
+	"github.com/grafana/tempo/v2/tempodb/backend/local"
+	"github.com/grafana/tempo/v2/tempodb/backend/s3"
 )
 
 const (

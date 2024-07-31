@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/pkg/util"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 type recordAppender struct {

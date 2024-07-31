@@ -6,8 +6,8 @@ import (
 
 	"github.com/dustin/go-humanize"
 
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/encoding"
 )
 
 type migrateTenantCmd struct {

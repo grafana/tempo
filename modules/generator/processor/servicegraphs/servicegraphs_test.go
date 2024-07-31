@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 
-	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/modules/generator/registry"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 )
 
 // NOTE: This is a way to know if the contents of the semconv package have changed.

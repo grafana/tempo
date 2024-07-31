@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	commonv1proto "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/v2/pkg/util"
 	"github.com/prometheus/prometheus/model/labels"
 )
 

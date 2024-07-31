@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	"github.com/grafana/tempo/tempodb/backend"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 func TestDedicatedColumnsToColumnMapping(t *testing.T) {

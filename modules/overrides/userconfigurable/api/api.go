@@ -15,11 +15,11 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/opentracing/opentracing-go"
 
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
-	tempo_log "github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/pkg/util/tracing"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/modules/overrides"
+	"github.com/grafana/tempo/v2/modules/overrides/userconfigurable/client"
+	tempo_log "github.com/grafana/tempo/v2/pkg/util/log"
+	"github.com/grafana/tempo/v2/pkg/util/tracing"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 var errConflictingRuntimeOverrides = errors.New("tenant has conflicting overrides set in runtime config, contact your system administrator to perform changes through the API")

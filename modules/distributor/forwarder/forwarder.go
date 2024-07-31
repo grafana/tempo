@@ -23,7 +23,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/grafana/tempo/modules/distributor/forwarder/otlpgrpc"
+	"github.com/grafana/tempo/v2/modules/distributor/forwarder/otlpgrpc"
 )
 
 type Forwarder interface {

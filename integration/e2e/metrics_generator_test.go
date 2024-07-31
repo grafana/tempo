@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	util "github.com/grafana/tempo/integration"
+	util "github.com/grafana/tempo/v2/integration"
 )
 
 const (

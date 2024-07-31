@@ -6,18 +6,18 @@ import (
 	"testing"
 	"time"
 
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
+	v2 "github.com/grafana/tempo/v2/tempodb/encoding/v2"
 
 	"github.com/grafana/e2e"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/integration"
-	"github.com/grafana/tempo/integration/e2e/backend"
-	"github.com/grafana/tempo/pkg/httpclient"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/v2/cmd/tempo/app"
+	"github.com/grafana/tempo/v2/integration"
+	"github.com/grafana/tempo/v2/integration/e2e/backend"
+	"github.com/grafana/tempo/v2/pkg/httpclient"
+	"github.com/grafana/tempo/v2/pkg/util"
+	"github.com/grafana/tempo/v2/tempodb/encoding"
 )
 
 const (

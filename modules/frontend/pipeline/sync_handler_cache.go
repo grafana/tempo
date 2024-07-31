@@ -10,8 +10,8 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/v2/pkg/api"
+	"github.com/grafana/tempo/v2/pkg/cache"
 )
 
 func NewCachingWare(cacheProvider cache.Provider, role cache.Role, logger log.Logger) Middleware {

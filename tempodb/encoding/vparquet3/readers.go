@@ -7,8 +7,8 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/pkg/cache"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 type cacheReaderAt interface {

@@ -8,8 +8,8 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/v2/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util/log"
 )
 
 type ConsumeTracesFunc func(context.Context, ptrace.Traces) error

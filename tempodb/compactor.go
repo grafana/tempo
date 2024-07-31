@@ -13,11 +13,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/grafana/tempo/pkg/dataquality"
-	"github.com/grafana/tempo/pkg/util/tracing"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/pkg/dataquality"
+	"github.com/grafana/tempo/v2/pkg/util/tracing"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/encoding"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 const (

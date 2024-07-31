@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/cmd/tempo-query/tempo"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/cmd/tempo-query/tempo"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 )
 
 // For licensing reasons these strings exist in two packages. This test exists to make sure they don't

@@ -10,18 +10,18 @@ import (
 
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/e2e"
-	"github.com/grafana/tempo/pkg/collector"
-	"github.com/grafana/tempo/pkg/httpclient"
-	"github.com/grafana/tempo/pkg/tempopb"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/collector"
+	"github.com/grafana/tempo/v2/pkg/httpclient"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	tempoUtil "github.com/grafana/tempo/v2/pkg/util"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
-	util "github.com/grafana/tempo/integration"
-	"github.com/grafana/tempo/integration/e2e/backend"
+	"github.com/grafana/tempo/v2/cmd/tempo/app"
+	util "github.com/grafana/tempo/v2/integration"
+	"github.com/grafana/tempo/v2/integration/e2e/backend"
 )
 
 const (

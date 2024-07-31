@@ -3,9 +3,9 @@ package model
 import (
 	"fmt"
 
-	v1 "github.com/grafana/tempo/pkg/model/v1"
-	v2 "github.com/grafana/tempo/pkg/model/v2"
-	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v2/pkg/model/v1"
+	v2 "github.com/grafana/tempo/v2/pkg/model/v2"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 )
 
 // SegmentDecoder is used by the distributor/ingester to aggregate and pass segments of traces. The distributor

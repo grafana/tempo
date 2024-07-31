@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
+	tempo_io "github.com/grafana/tempo/v2/pkg/io"
 
 	"github.com/google/uuid"
 )

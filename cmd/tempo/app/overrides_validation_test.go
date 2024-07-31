@@ -8,13 +8,13 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/grafana/tempo/modules/distributor"
-	"github.com/grafana/tempo/modules/distributor/forwarder"
-	"github.com/grafana/tempo/modules/generator"
-	"github.com/grafana/tempo/modules/ingester"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v2/modules/distributor"
+	"github.com/grafana/tempo/v2/modules/distributor/forwarder"
+	"github.com/grafana/tempo/v2/modules/generator"
+	"github.com/grafana/tempo/v2/modules/ingester"
+	"github.com/grafana/tempo/v2/modules/overrides"
+	"github.com/grafana/tempo/v2/modules/overrides/userconfigurable/client"
+	filterconfig "github.com/grafana/tempo/v2/pkg/spanfilter/config"
 )
 
 func Test_runtimeOverridesValidator(t *testing.T) {

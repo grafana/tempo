@@ -15,10 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
-	"github.com/grafana/tempo/pkg/collector"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/collector"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 func TestEngine_Execute(t *testing.T) {

@@ -32,9 +32,9 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/grafana/tempo/pkg/httpclient"
-	"github.com/grafana/tempo/pkg/tempopb"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/httpclient"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	tempoUtil "github.com/grafana/tempo/v2/pkg/util"
 )
 
 const (

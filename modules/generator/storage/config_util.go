@@ -8,7 +8,7 @@ import (
 	"github.com/grafana/dskit/user"
 	prometheus_config "github.com/prometheus/prometheus/config"
 
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 // generateTenantRemoteWriteConfigs creates a copy of the remote write configurations with the

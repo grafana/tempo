@@ -20,8 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
-	"github.com/grafana/tempo/pkg/sharedconfig"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/pkg/sharedconfig"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 func TestRuntimeConfigOverrides_loadPerTenantOverrides(t *testing.T) {

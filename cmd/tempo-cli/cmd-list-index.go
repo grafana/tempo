@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
+	v2 "github.com/grafana/tempo/v2/tempodb/encoding/v2"
 )
 
 type listIndexCmd struct {

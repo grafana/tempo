@@ -15,12 +15,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v2/modules/overrides"
+	"github.com/grafana/tempo/v2/pkg/model"
+	"github.com/grafana/tempo/v2/pkg/model/trace"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	v1_trace "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v2/pkg/util/test"
 )
 
 const testTenantID = "fake"

@@ -3,7 +3,7 @@ package distributor
 import (
 	"github.com/grafana/dskit/limiter"
 
-	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/v2/modules/overrides"
 )
 
 // ReadLifecycler represents the read interface to the lifecycler.

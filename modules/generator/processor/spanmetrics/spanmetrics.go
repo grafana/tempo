@@ -7,14 +7,14 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/prometheus/util/strutil"
 
-	gen "github.com/grafana/tempo/modules/generator/processor"
-	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
-	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/pkg/spanfilter"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	tempo_util "github.com/grafana/tempo/pkg/util"
+	gen "github.com/grafana/tempo/v2/modules/generator/processor"
+	processor_util "github.com/grafana/tempo/v2/modules/generator/processor/util"
+	"github.com/grafana/tempo/v2/modules/generator/registry"
+	"github.com/grafana/tempo/v2/pkg/spanfilter"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/resource/v1"
+	v1_trace "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
+	tempo_util "github.com/grafana/tempo/v2/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

@@ -8,8 +8,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/grafana/tempo/modules/overrides"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v2/modules/overrides"
+	filterconfig "github.com/grafana/tempo/v2/pkg/spanfilter/config"
 )
 
 func Test_limitsFromOverrides(t *testing.T) {

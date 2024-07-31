@@ -22,10 +22,10 @@ import (
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
-	util "github.com/grafana/tempo/integration"
-	"github.com/grafana/tempo/pkg/httpclient"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
+	util "github.com/grafana/tempo/v2/integration"
+	"github.com/grafana/tempo/v2/pkg/httpclient"
+	tempoUtil "github.com/grafana/tempo/v2/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util/test"
 )
 
 const (

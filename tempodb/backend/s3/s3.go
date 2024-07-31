@@ -14,7 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/grafana/tempo/tempodb/backend/instrumentation"
+	"github.com/grafana/tempo/v2/tempodb/backend/instrumentation"
 
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/cristalhq/hedgedhttp"
@@ -24,10 +24,10 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/opentracing/opentracing-go"
 
-	"github.com/grafana/tempo/pkg/blockboundary"
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/pkg/blockboundary"
+	tempo_io "github.com/grafana/tempo/v2/pkg/io"
+	"github.com/grafana/tempo/v2/pkg/util/log"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 // readerWriter can read/write from an s3 backend

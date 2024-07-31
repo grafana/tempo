@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/grafana/e2e"
-	util "github.com/grafana/tempo/integration"
+	util "github.com/grafana/tempo/v2/integration"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

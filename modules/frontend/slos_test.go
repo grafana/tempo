@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v2/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"

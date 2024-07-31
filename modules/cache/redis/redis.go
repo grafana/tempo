@@ -6,7 +6,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/v2/pkg/cache"
 )
 
 type Config struct {

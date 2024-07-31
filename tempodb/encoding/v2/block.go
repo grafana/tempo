@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/pkg/cache"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 // writeBlockMeta writes the bloom filter, meta and index to the passed in backend.Writer

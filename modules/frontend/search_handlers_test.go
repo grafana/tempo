@@ -26,15 +26,15 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/search"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/modules/overrides"
+	"github.com/grafana/tempo/v2/pkg/api"
+	"github.com/grafana/tempo/v2/pkg/cache"
+	"github.com/grafana/tempo/v2/pkg/search"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util/test"
+	"github.com/grafana/tempo/v2/tempodb"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 var _ http.RoundTripper = &mockRoundTripper{}

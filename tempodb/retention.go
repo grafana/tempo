@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-kit/log/level"
 
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/pkg/boundedwaitgroup"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 // retentionLoop watches a timer to clean up blocks that are past retention.

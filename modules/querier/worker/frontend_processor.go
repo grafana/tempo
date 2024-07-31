@@ -13,7 +13,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/httpgrpc"
-	"github.com/grafana/tempo/pkg/util/httpgrpcutil"
+	"github.com/grafana/tempo/v2/pkg/util/httpgrpcutil"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -21,7 +21,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
+	"github.com/grafana/tempo/v2/modules/frontend/v1/frontendv1pb"
 )
 
 var processorBackoffConfig = backoff.Config{

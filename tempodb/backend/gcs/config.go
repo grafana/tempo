@@ -4,7 +4,7 @@ import (
 	"flag"
 	"time"
 
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 type Config struct {

@@ -21,7 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sony/gobreaker"
 
-	util_log "github.com/grafana/tempo/pkg/util/log"
+	util_log "github.com/grafana/tempo/v2/pkg/util/log"
 )
 
 // MemcachedClient interface exists for mocking memcacheClient.

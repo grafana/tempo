@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 // ReplayWALAndGetRecords replays a WAL file that could contain either traces or searchdata

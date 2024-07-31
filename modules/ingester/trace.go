@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grafana/tempo/pkg/model"
+	"github.com/grafana/tempo/v2/pkg/model"
 )
 
 type liveTrace struct {

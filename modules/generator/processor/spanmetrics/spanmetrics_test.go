@@ -15,14 +15,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/pkg/sharedconfig"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/grafana/tempo/pkg/tempopb"
-	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	resource_v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v2/modules/generator/registry"
+	"github.com/grafana/tempo/v2/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/v2/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	common_v1 "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
+	resource_v1 "github.com/grafana/tempo/v2/pkg/tempopb/resource/v1"
+	trace_v1 "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v2/pkg/util/test"
 )
 
 var metricSpansDiscarded = promauto.NewCounterVec(prometheus.CounterOpts{

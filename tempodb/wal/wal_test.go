@@ -17,15 +17,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/pkg/model"
+	"github.com/grafana/tempo/v2/pkg/model/trace"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/traceql"
+	"github.com/grafana/tempo/v2/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util/test"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/encoding"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 func TestAppendBlockStartEnd(t *testing.T) {

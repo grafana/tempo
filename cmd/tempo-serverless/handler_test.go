@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 func TestLoadConfig(t *testing.T) {

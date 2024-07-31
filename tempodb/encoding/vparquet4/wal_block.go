@@ -15,14 +15,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/multierror"
-	"github.com/grafana/tempo/pkg/dataquality"
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/pkg/dataquality"
+	"github.com/grafana/tempo/v2/pkg/model"
+	"github.com/grafana/tempo/v2/pkg/model/trace"
+	"github.com/grafana/tempo/v2/pkg/parquetquery"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/traceql"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
 )
 

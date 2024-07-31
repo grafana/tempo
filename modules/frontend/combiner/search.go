@@ -3,9 +3,9 @@ package combiner
 import (
 	"sort"
 
-	"github.com/grafana/tempo/pkg/search"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/v2/pkg/search"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/traceql"
 )
 
 var _ GRPCCombiner[*tempopb.SearchResponse] = (*genericCombiner[*tempopb.SearchResponse])(nil)

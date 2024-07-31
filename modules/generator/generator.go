@@ -18,10 +18,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 
-	"github.com/grafana/tempo/modules/generator/storage"
-	objStorage "github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/tempopb"
-	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v2/modules/generator/storage"
+	objStorage "github.com/grafana/tempo/v2/modules/storage"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	tempodb_wal "github.com/grafana/tempo/v2/tempodb/wal"
 )
 
 const (

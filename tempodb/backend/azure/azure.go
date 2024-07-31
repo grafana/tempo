@@ -21,8 +21,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/pkg/util/log"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 	"github.com/opentracing/opentracing-go"
 )
 

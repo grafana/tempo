@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grafana/tempo/modules/generator/processor/localblocks"
-	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
-	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
-	"github.com/grafana/tempo/modules/generator/registry"
-	"github.com/grafana/tempo/modules/generator/storage"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v2/modules/generator/processor/localblocks"
+	"github.com/grafana/tempo/v2/modules/generator/processor/servicegraphs"
+	"github.com/grafana/tempo/v2/modules/generator/processor/spanmetrics"
+	"github.com/grafana/tempo/v2/modules/generator/registry"
+	"github.com/grafana/tempo/v2/modules/generator/storage"
+	"github.com/grafana/tempo/v2/tempodb/encoding"
+	"github.com/grafana/tempo/v2/tempodb/wal"
 )
 
 const (

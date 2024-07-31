@@ -16,16 +16,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
-	util "github.com/grafana/tempo/integration"
-	e2eBackend "github.com/grafana/tempo/integration/e2e/backend"
-	"github.com/grafana/tempo/pkg/blockboundary"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/azure"
-	"github.com/grafana/tempo/tempodb/backend/gcs"
-	"github.com/grafana/tempo/tempodb/backend/s3"
-	"github.com/grafana/tempo/tempodb/blocklist"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
+	"github.com/grafana/tempo/v2/cmd/tempo/app"
+	util "github.com/grafana/tempo/v2/integration"
+	e2eBackend "github.com/grafana/tempo/v2/integration/e2e/backend"
+	"github.com/grafana/tempo/v2/pkg/blockboundary"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend/azure"
+	"github.com/grafana/tempo/v2/tempodb/backend/gcs"
+	"github.com/grafana/tempo/v2/tempodb/backend/s3"
+	"github.com/grafana/tempo/v2/tempodb/blocklist"
+	"github.com/grafana/tempo/v2/tempodb/encoding/vparquet3"
 )
 
 const (

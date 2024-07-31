@@ -6,7 +6,7 @@ import (
 	"hash"
 	"hash/fnv"
 
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 )
 
 // token is uint64 to reduce hash collision rates.  Experimentally, it was observed

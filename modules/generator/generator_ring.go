@@ -12,7 +12,7 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 
-	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/v2/pkg/util/log"
 )
 
 type RingConfig struct {

@@ -11,13 +11,13 @@ import (
 
 	"github.com/parquet-go/parquet-go"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/traceql"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend/local"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/tempodb/encoding/vparquet3"
+	"github.com/grafana/tempo/v2/tempodb/encoding/vparquet4"
 )
 
 type convertParquet3to4 struct {

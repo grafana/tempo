@@ -23,11 +23,11 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 
-	util "github.com/grafana/tempo/integration"
-	"github.com/grafana/tempo/pkg/httpclient"
-	"github.com/grafana/tempo/pkg/tempopb"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
+	util "github.com/grafana/tempo/v2/integration"
+	"github.com/grafana/tempo/v2/pkg/httpclient"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	tempoUtil "github.com/grafana/tempo/v2/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util/test"
 
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/ptrace"

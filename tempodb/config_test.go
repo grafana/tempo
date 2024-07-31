@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/tempodb/wal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

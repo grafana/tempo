@@ -10,7 +10,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/google/uuid"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 type BlobAttributes struct {

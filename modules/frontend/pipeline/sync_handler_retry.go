@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/httpgrpc"
-	"github.com/grafana/tempo/modules/frontend/queue"
+	"github.com/grafana/tempo/v2/modules/frontend/queue"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	ot_log "github.com/opentracing/opentracing-go/log"

@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
-	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/v2/pkg/cache"
 )
 
 func TestMemcached(t *testing.T) {

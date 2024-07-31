@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 var testLogger log.Logger = log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))

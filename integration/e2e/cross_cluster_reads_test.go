@@ -9,9 +9,9 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
 
-	util "github.com/grafana/tempo/integration"
-	"github.com/grafana/tempo/pkg/httpclient"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	util "github.com/grafana/tempo/v2/integration"
+	"github.com/grafana/tempo/v2/pkg/httpclient"
+	tempoUtil "github.com/grafana/tempo/v2/pkg/util"
 )
 
 // TestCrossClusterReads uses the secondary_ingester_ring querier configuration option. it writes a trace to
