@@ -541,7 +541,7 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 			tolerate:                0,
 			tollerateTenantFailures: 0,
 			tenantErrors:            map[string][]error{"one": {errors.New("tenant one error")}},
-			expectedError:           errors.New("tenant one err"),
+			expectedError:           errors.New("too many tenant failures; abandoning polling cycle"),
 		},
 		{
 			name:                    "tolerated errors",
@@ -577,17 +577,17 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 					nil,
 				},
 				"three": {
-					errors.New("tenant x error"),
-					errors.New("tenant x error"),
-					errors.New("tenant x error"),
+					errors.New("tenant three error"),
+					errors.New("tenant three error"),
+					errors.New("tenant three error"),
 				},
 				"four": {
-					errors.New("tenant x error"),
-					errors.New("tenant x error"),
-					errors.New("tenant x error"),
+					errors.New("tenant four error"),
+					errors.New("tenant four error"),
+					errors.New("tenant four error"),
 				},
 			},
-			expectedError: errors.New("tenant x err"), // test for tenant x err to avoid needing to care which of the last two tenants were caught
+			expectedError: errors.New("too many tenant failures; abandoning polling cycle"), // test for tenant x err to avoid needing to care which of the last two tenants were caught
 		},
 	}
 
