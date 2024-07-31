@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	configCompression = "config-all-in-one-local.yaml"
+	configCompression = "deployments/config-all-in-one-local.yaml"
 )
 
 func TestCompression(t *testing.T) {
