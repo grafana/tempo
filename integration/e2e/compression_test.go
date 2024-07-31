@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/grafana/e2e"
-	util2 "github.com/grafana/tempo/integration/util"
+	"github.com/grafana/tempo/integration/util"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/httpclient"
@@ -25,12 +25,12 @@ func TestCompression(t *testing.T) {
 	require.NoError(t, err)
 	defer s.Close()
 
-	require.NoError(t, util2.CopyFileToSharedDir(s, configCompression, "config.yaml"))
-	tempo := util2.NewTempoAllInOne()
+	require.NoError(t, util.CopyFileToSharedDir(s, configCompression, "config.yaml"))
+	tempo := util.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	// Get port for the Jaeger gRPC receiver endpoint
-	c, err := util2.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	c, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
@@ -41,7 +41,7 @@ func TestCompression(t *testing.T) {
 
 	apiClientWithCompression := httpclient.NewWithCompression("http://"+tempo.Endpoint(3200), "")
 
-	util2.QueryAndAssertTrace(t, apiClient, info)
+	util.QueryAndAssertTrace(t, apiClient, info)
 	queryAndAssertTraceCompression(t, apiClientWithCompression, info)
 }
 
@@ -53,7 +53,7 @@ func queryAndAssertTraceCompression(t *testing.T, client *httpclient.Client, inf
 
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
-	util2.AssertEqualTrace(t, result, expected)
+	util.AssertEqualTrace(t, result, expected)
 
 	// Go's http.Client transparently requests gzip compression and automatically decompresses the
 	// response, to disable this behaviour you have to explicitly set the Accept-Encoding header.
@@ -79,5 +79,5 @@ func queryAndAssertTraceCompression(t *testing.T, client *httpclient.Client, inf
 	err = tempopb.UnmarshalFromJSONV1(bodyBytes, m)
 
 	require.NoError(t, err)
-	util.assertEqualTrace(t, expected, m)
+	util.AssertEqualTrace(t, expected, m)
 }
