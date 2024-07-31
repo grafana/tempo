@@ -65,3 +65,11 @@ To learn more about the endpoint configuration, refer to the [Metrics-generator]
 Writing interval can be controlled via `metrics_generator.registry.collection_interval`.
 
 When multi-tenancy is enabled, the metrics-generator forwards the `X-Scope-OrgID` header of the original request to the `remote_write` endpoint. This feature can be disabled by setting `remote_write_add_org_id_header` to false.
+
+## Native histograms
+
+The metrics-generator supports the ability to produce native histograms, for
+high-resolution data. Users must [update the receiving endpoint](https://grafana.com/docs/mimir/latest/configure/configure-native-histograms-ingestion/) to ingest native
+histograms, and [update histogram queries](https://grafana.com/docs/mimir/latest/visualize/native-histograms/) in their dashboards.
+
+To learn more about the configuration, refer to the [Metrics-generator]({{< relref "../configuration#metrics-generator" >}}) section of the Tempo Configuration documentation.
