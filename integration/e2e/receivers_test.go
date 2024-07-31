@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	configAllInOneLocal = "config-all-in-one-local.yaml"
+	configAllInOneLocal = "deployments/config-all-in-one-local.yaml"
 )
 
 func TestReceivers(t *testing.T) {
