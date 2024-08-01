@@ -430,8 +430,8 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 	}
 
 	exemplars, _ := extractQueryParam(vals, urlParamExemplars)
-	if exemplars == "true" {
-		req.Exemplars = true
+	if exemplars, err := strconv.Atoi(exemplars); err == nil {
+		req.Exemplars = uint32(exemplars)
 	}
 
 	return req, nil
@@ -493,9 +493,7 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 		qb.addParam(urlParamQuery, searchReq.Query)
 	}
 
-	if searchReq.Exemplars {
-		qb.addParam(urlParamExemplars, "true")
-	}
+	qb.addParam(urlParamExemplars, strconv.FormatUint(uint64(searchReq.Exemplars), 10))
 
 	req.URL.RawQuery = qb.query()
 

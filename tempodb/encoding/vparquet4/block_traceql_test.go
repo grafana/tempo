@@ -1075,7 +1075,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 						End:   uint64(end.UnixNano()),
 					}
 
-					eval, err := e.CompileMetricsQueryRange(req, false, true, 0, false)
+					eval, err := e.CompileMetricsQueryRange(req, false, 2, 0, false)
 					require.NoError(b, err)
 
 					b.ResetTimer()
@@ -1100,9 +1100,9 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 // You also need to manually print the iterator in `backendBlock.Fetch`,
 // because there is no access to the iterator in the test. Sad.
 func TestBackendBlockQueryRange(t *testing.T) {
-	if os.Getenv("debug") != "1" {
-		t.Skip()
-	}
+	//if os.Getenv("debug") != "1" {
+	//	t.Skip()
+	//}
 
 	testCases := []string{
 		"{} | rate()",
@@ -1162,7 +1162,7 @@ func TestBackendBlockQueryRange(t *testing.T) {
 				End:   uint64(end.UnixNano()),
 			}
 
-			eval, err := e.CompileMetricsQueryRange(req, false, true, 0, false)
+			eval, err := e.CompileMetricsQueryRange(req, false, 1, 0, false)
 			require.NoError(t, err)
 
 			require.NoError(t, eval.Do(ctx, f, uint64(block.meta.StartTime.UnixNano()), uint64(block.meta.EndTime.UnixNano())))

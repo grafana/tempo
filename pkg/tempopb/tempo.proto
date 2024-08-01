@@ -401,7 +401,7 @@ message QueryRangeRequest {
   uint32 footerSize = 14; // size of file footer (parquet)
   repeated DedicatedColumn dedicatedColumns = 15;
   // Exemplars are optional and can be empty.
-  bool exemplars = 16;
+  uint32 exemplars = 16;
 }
 
 message QueryRangeResponse {

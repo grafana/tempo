@@ -44,10 +44,8 @@ type TraceByIDConfig struct {
 }
 
 type MetricsConfig struct {
-	Sharder     QueryRangeSharderConfig `yaml:",inline"`
-	SLO         SLOConfig               `yaml:",inline"`
-	RF1ReadPath bool                    `yaml:"rf1_read_path,omitempty"`
-	Exemplars   bool                    `yaml:"exemplars,omitempty"`
+	Sharder QueryRangeSharderConfig `yaml:",inline"`
+	SLO     SLOConfig               `yaml:",inline"`
 }
 
 type SLOConfig struct {
@@ -89,10 +87,11 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 			ConcurrentRequests:    defaultConcurrentRequests,
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			Interval:              5 * time.Minute,
+			RF1ReadPath:           false,
+			Exemplars:             false, // TODO: Remove?
+			MaxExemplars:          100,
 		},
-		RF1ReadPath: false,
-		Exemplars:   false,
-		SLO:         slo,
+		SLO: slo,
 	}
 
 	// enable multi tenant queries by default

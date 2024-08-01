@@ -495,28 +495,20 @@ func (p *SkipNilsPredicate) KeepValue(v pq.Value) bool {
 	return !v.IsNull()
 }
 
-type MaxCountPredicate struct {
-	max int
-	m   map[string]struct{}
+type CallbackPredicate struct {
+	cb func() bool
 }
 
-var _ Predicate = (*MaxCountPredicate)(nil)
+var _ Predicate = (*CallbackPredicate)(nil)
 
-func NewMaxCountPredicate(max int) *MaxCountPredicate {
-	return &MaxCountPredicate{max: max, m: make(map[string]struct{})}
+func NewCallbackPredicate(cb func() bool) *CallbackPredicate {
+	return &CallbackPredicate{cb: cb}
 }
 
-func (m *MaxCountPredicate) String() string { return fmt.Sprintf("MaxCountPredicate{%d}", m.max) }
+func (m *CallbackPredicate) String() string { return fmt.Sprintf("CallbackPredicate{}") }
 
-func (m *MaxCountPredicate) KeepColumnChunk(*ColumnChunkHelper) bool {
-	return len(m.m) < m.max
-}
+func (m *CallbackPredicate) KeepColumnChunk(*ColumnChunkHelper) bool { return m.cb() }
 
-func (m *MaxCountPredicate) KeepPage(pq.Page) bool {
-	return len(m.m) < m.max
-}
+func (m *CallbackPredicate) KeepPage(pq.Page) bool { return m.cb() }
 
-func (m *MaxCountPredicate) KeepValue(v pq.Value) bool {
-	m.m[string(v.ByteArray())] = struct{}{}
-	return len(m.m) < m.max
-}
+func (m *CallbackPredicate) KeepValue(v pq.Value) bool { return m.cb() }

@@ -99,7 +99,7 @@ type FetchSpansRequest struct {
 	// This allows to optimise second pass iterators to quit if we have enough samples.
 	// Iterating over all spans to collect exemplars is very expensive,
 	// specially in allocs and mem.
-	Exemplars bool
+	Exemplars func() bool
 
 	// SecondPassFn and Conditions allow a caller to retrieve one set of data
 	// in the first pass, filter using the SecondPassFn callback and then

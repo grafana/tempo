@@ -1528,7 +1528,7 @@ func categorizeConditions(conditions []traceql.Condition) (*categorizedCondition
 	return &categorizedCond, mingled, nil
 }
 
-func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conditions []traceql.Condition, allConditions, exemplars bool, start, end uint64, rgs []parquet.RowGroup, pf *parquet.File, dc backend.DedicatedColumns, selectAll bool,
+func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, exemplars func() bool, start, end uint64, rgs []parquet.RowGroup, pf *parquet.File, dc backend.DedicatedColumns, selectAll bool,
 ) (parquetquery.Iterator, error) {
 	// categorize conditions by scope
 	catConditions, mingledConditions, err := categorizeConditions(conditions)
@@ -2154,7 +2154,7 @@ func createServiceStatsIterator(makeIter makeIterFn) parquetquery.Iterator {
 	return parquetquery.NewJoinIterator(DefinitionLevelServiceStats, serviceStatsIters, &serviceStatsCollector{})
 }
 
-func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64, allConditions, exemplars bool, selectAll bool) (parquetquery.Iterator, error) {
+func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64, allConditions bool, exemplars func() bool, selectAll bool) (parquetquery.Iterator, error) {
 	iters := make([]parquetquery.Iterator, 0, 3)
 	metaIters := make([]parquetquery.Iterator, 0)
 
@@ -2179,8 +2179,8 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 		for _, cond := range conds {
 			switch cond.Attribute.Intrinsic {
 			case traceql.IntrinsicTraceID:
-				if cond.Op == traceql.OpNone && exemplars {
-					metaIters = append(metaIters, makeIter(columnPathTraceID, parquetquery.NewMaxCountPredicate(5), columnPathTraceID))
+				if cond.Op == traceql.OpNone && exemplars != nil {
+					metaIters = append(metaIters, makeIter(columnPathTraceID, parquetquery.NewCallbackPredicate(exemplars), columnPathTraceID))
 				} else {
 					pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
 					if err != nil {

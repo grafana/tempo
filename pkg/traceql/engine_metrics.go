@@ -729,7 +729,7 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 // Dedupe spans parameter is an indicator of whether to expect duplicates in the datasource. For
 // example if the datasource is replication factor=1 or only a single block then we know there
 // aren't duplicates, and we can make some optimizations.
-func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupeSpans, exemplarsEnabled bool, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvalulator, error) {
+func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupeSpans bool, exemplars int, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvalulator, error) {
 	if req.Start <= 0 {
 		return nil, fmt.Errorf("start required")
 	}
@@ -756,8 +756,8 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		dedupeSpans = v
 	}
 
-	if v, ok := expr.Hints.GetBool(HintExemplars, allowUnsafeQueryHints); ok {
-		exemplarsEnabled = v
+	if v, ok := expr.Hints.GetInt(HintExemplars, allowUnsafeQueryHints); ok {
+		exemplars = v
 	}
 
 	// This initializes all step buffers, counters, etc
@@ -768,7 +768,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		metricsPipeline:   metricsPipeline,
 		dedupeSpans:       dedupeSpans,
 		timeOverlapCutoff: timeOverlapCutoff,
-		exemplarsEnabled:  exemplarsEnabled,
+		maxExemplars:      exemplars,
 		exemplarMap:       make(map[string]struct{}, maxExemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 	}
 
@@ -815,10 +815,10 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	me.start = req.Start
 	me.end = req.End
 
-	if me.exemplarsEnabled {
+	if me.maxExemplars > 0 {
 		meta := ExemplarMetaConditionsWithout(storageReq.SecondPassConditions, storageReq.AllConditions)
 		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, meta...)
-		storageReq.Exemplars = true
+		storageReq.Exemplars = func() bool { return me.exemplarCount < me.maxExemplars }
 	}
 	// Setup second pass callback.  It might be optimized away
 	storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
@@ -908,7 +908,7 @@ type MetricsEvalulator struct {
 	checkTime                       bool
 	dedupeSpans                     bool
 	deduper                         *SpanDeduper2
-	exemplarsEnabled                bool
+	maxExemplars, exemplarCount     int
 	exemplarMap                     map[string]struct{}
 	timeOverlapCutoff               float64
 	storageReq                      *FetchSpansRequest
@@ -954,8 +954,6 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 			storageReq.EndTimeUnixNanos = e.end // Should this be exclusive?
 		}
 	}
-
-	storageReq.Exemplars = e.exemplarsEnabled
 
 	fetch, err := f.Fetch(ctx, storageReq)
 	if errors.Is(err, util.ErrUnsupported) {
@@ -1027,16 +1025,14 @@ func (e *MetricsEvalulator) Results() SeriesSet {
 }
 
 func (e *MetricsEvalulator) sampleExemplar(id []byte) bool {
-	if !e.exemplarsEnabled {
-		return false
-	}
-	if len(e.exemplarMap) >= maxExemplars {
+	if len(e.exemplarMap) >= e.maxExemplars {
 		return false
 	}
 	if len(id) == 0 {
 		return false
 	}
 
+	// TODO: Is it actually possible to get duplicates within the same job?
 	// Avoid sampling exemplars for the same trace
 	if _, ok := e.exemplarMap[bytesToString(id)]; ok {
 		return false
@@ -1047,6 +1043,7 @@ func (e *MetricsEvalulator) sampleExemplar(id []byte) bool {
 	clone := make([]byte, len(id))
 	copy(clone, id)
 	e.exemplarMap[bytesToString(clone)] = struct{}{}
+	e.exemplarCount++
 	return true
 }
 
