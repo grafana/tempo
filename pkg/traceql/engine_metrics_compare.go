@@ -89,16 +89,8 @@ func (m *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) 
 	}
 }
 
-func (m *MetricsCompare) observe(span Span, withExemplar bool) {
-	// For performance, MetricsCompare doesn't use the Range/StepAggregator abstractions.
-	// This lets us:
-	// * Include the same attribute value in multiple series. This doesn't fit within
-	//   the existing by() grouping or even the potential byeach() (which was in this branch and then deleted)
-	// * Avoid reading the span start time twice, once for the selection window filter, and
-	//   then again instead of StepAggregator.
-	// TODO - It would be nice to use those abstractions, area for future improvement
+func (m *MetricsCompare) isSelection(span Span) Static {
 	st := span.StartTimeUnixNanos()
-	i := IntervalOf(st, m.qstart, m.qend, m.qstep)
 
 	// Determine if this span is inside the selection
 	isSelection := StaticFalse
@@ -111,6 +103,21 @@ func (m *MetricsCompare) observe(span Span, withExemplar bool) {
 		// No timestamp filtering
 		isSelection, _ = m.f.Expression.execute(span)
 	}
+	return isSelection
+}
+
+func (m *MetricsCompare) observe(span Span) {
+	// For performance, MetricsCompare doesn't use the Range/StepAggregator abstractions.
+	// This lets us:
+	// * Include the same attribute value in multiple series. This doesn't fit within
+	//   the existing by() grouping or even the potential byeach() (which was in this branch and then deleted)
+	// * Avoid reading the span start time twice, once for the selection window filter, and
+	//   then again instead of StepAggregator.
+	// TODO - It would be nice to use those abstractions, area for future improvement
+	st := span.StartTimeUnixNanos()
+
+	// Determine if this span is inside the selection
+	isSelection := m.isSelection(span)
 
 	// Choose destination buffers
 	dest := m.baselines
@@ -120,6 +127,7 @@ func (m *MetricsCompare) observe(span Span, withExemplar bool) {
 		destTotals = m.selectionTotals
 	}
 
+	i := IntervalOf(st, m.qstart, m.qend, m.qstep)
 	// Increment values for all attributes of this span
 	span.AllAttributesFunc(func(a Attribute, v Static) {
 		// We don't group by attributes of these types because the
@@ -160,13 +168,11 @@ func (m *MetricsCompare) observe(span Span, withExemplar bool) {
 		}
 		totals[i]++
 	})
-
-	if withExemplar {
-		m.observeExemplar(isSelection, st, span)
-	}
 }
 
-func (m *MetricsCompare) observeExemplar(isSelection Static, st uint64, span Span) {
+func (m *MetricsCompare) observeExemplar(span Span) {
+	isSelection := m.isSelection(span)
+
 	// Exemplars
 	if len(m.baselineExemplars) >= maxExemplars || len(m.selectionExemplars) >= maxExemplars {
 		return
@@ -180,7 +186,7 @@ func (m *MetricsCompare) observeExemplar(isSelection Static, st uint64, span Spa
 	exemplar := Exemplar{
 		Labels:      lbls,
 		Value:       math.NaN(), // TODO: What value?
-		TimestampMs: st / uint64(time.Millisecond),
+		TimestampMs: span.StartTimeUnixNanos() / uint64(time.Millisecond),
 	}
 	if isSelection.Equals(&StaticTrue) {
 		m.selectionExemplars = append(m.selectionExemplars, exemplar)

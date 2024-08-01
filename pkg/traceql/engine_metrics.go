@@ -305,7 +305,7 @@ type RangeAggregator interface {
 // SpanAggregator sorts spans into series
 type SpanAggregator interface {
 	Observe(Span)
-	ObserveWithExemplar(Span, float64, uint64)
+	ObserveExemplar(Span, float64, uint64)
 	Series() SeriesSet
 }
 
@@ -578,13 +578,12 @@ func (g *GroupingAggregator[F, S]) Observe(span Span) {
 	s.agg.Observe(span)
 }
 
-func (g *GroupingAggregator[F, S]) ObserveWithExemplar(span Span, value float64, ts uint64) {
+func (g *GroupingAggregator[F, S]) ObserveExemplar(span Span, value float64, ts uint64) {
 	if !g.getGroupingValues(span) {
 		return
 	}
 
 	s := g.getSeries()
-	s.agg.Observe(span)
 
 	// Observe exemplar
 	all := span.AllAttributes()
@@ -672,9 +671,7 @@ func (u *UngroupedAggregator) Observe(span Span) {
 	u.innerAgg.Observe(span)
 }
 
-func (u *UngroupedAggregator) ObserveWithExemplar(span Span, value float64, ts uint64) {
-	u.innerAgg.Observe(span)
-
+func (u *UngroupedAggregator) ObserveExemplar(span Span, value float64, ts uint64) {
 	all := span.AllAttributes()
 	lbls := make(Labels, 0, len(all))
 	for k, v := range all {
@@ -1000,7 +997,11 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 
 			e.spansTotal++
 
-			e.metricsPipeline.observe(s, e.sampleExemplar(ss.TraceID))
+			e.metricsPipeline.observe(s)
+		}
+
+		if len(ss.Spans) > 0 && e.sampleExemplar(ss.TraceID) {
+			e.metricsPipeline.observeExemplar(ss.Spans[0]) // Randomly sample the first span
 		}
 
 		e.mtx.Unlock()
