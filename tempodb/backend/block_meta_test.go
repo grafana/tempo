@@ -173,7 +173,6 @@ func TestBlockMetaParsing(t *testing.T) {
 
 	assert.Exactly(t, metaRoundtrip.Version, metaRoundtrip2.Version)
 	assert.Exactly(t, metaRoundtrip.TenantID, metaRoundtrip2.TenantID)
-	t.Error("f")
 }
 
 func TestDedicatedColumnsFromTempopb(t *testing.T) {
