@@ -34,9 +34,17 @@ type genericCombiner[T TResponse] struct {
 	diff     func(T) (T, error) // currently only implemented by the search combiner. required for streaming
 	quit     func(T) bool
 
-	//
+	// Used to determine the response code and when to stop
 	httpStatusCode int
 	httpRespBody   string
+	// Used to marshal the response when using an HTTP Combiner, it doesn't affect for a GRPC combiner.
+	httpMarshalingFormat string
+}
+
+// Init an HTTP combiner with default values. The marshaling format dictates how the response will be marshaled, including the Content-type header.
+func initHTTPCombiner[T TResponse](c *genericCombiner[T], marshalingFormat string) {
+	c.httpStatusCode = 200
+	c.httpMarshalingFormat = marshalingFormat
 }
 
 // AddResponse is used to add a http response to the combiner.
@@ -129,15 +137,24 @@ func (c *genericCombiner[T]) HTTPFinal() (*http.Response, error) {
 		return nil, err
 	}
 
-	bodyString, err := new(jsonpb.Marshaler).MarshalToString(final)
-	if err != nil {
-		return nil, fmt.Errorf("error marshalling response body: %w", err)
+	var bodyString string
+	if c.httpMarshalingFormat == api.HeaderAcceptProtobuf {
+		buff, err := proto.Marshal(final)
+		if err != nil {
+			return nil, fmt.Errorf("error marshalling response body: %w", err)
+		}
+		bodyString = string(buff)
+	} else {
+		bodyString, err = new(jsonpb.Marshaler).MarshalToString(final)
+		if err != nil {
+			return nil, fmt.Errorf("error marshalling response body: %w", err)
+		}
 	}
 
 	return &http.Response{
-		StatusCode: c.httpStatusCode,
+		StatusCode: 200,
 		Header: http.Header{
-			api.HeaderContentType: {api.HeaderAcceptJSON},
+			api.HeaderContentType: {c.httpMarshalingFormat},
 		},
 		Body:          io.NopCloser(strings.NewReader(bodyString)),
 		ContentLength: int64(len([]byte(bodyString))),
