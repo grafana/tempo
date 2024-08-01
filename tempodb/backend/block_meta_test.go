@@ -111,7 +111,7 @@ func TestBlockMetaParsing(t *testing.T) {
 
 	meta := BlockMeta{
 		Version:         "vParquet3",
-		BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+		BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 		MinID:           minID,
 		MaxID:           maxID,
 		TenantID:        "single-tenant",
@@ -135,7 +135,7 @@ func TestBlockMetaParsing(t *testing.T) {
 
 	expectedJSON := `{
     	"format": "vParquet3",
-    	"blockID": "00000000-0000-0000-0000-000000000000",
+    	"blockID": "00000000-0000-0000-0000-000000000001",
     	"minID": "ACA/8tpRKjtPqxHXJDrBzA==",
     	"maxID": "8St6GtMRX/IHc0+rDQqyNQ==",
     	"tenantID": "single-tenant",
@@ -165,6 +165,15 @@ func TestBlockMetaParsing(t *testing.T) {
 	err = json.Unmarshal(metaJSON, &metaRoundtrip)
 	require.NoError(t, err)
 	assert.Equal(t, meta, metaRoundtrip)
+
+	var metaRoundtrip2 BlockMeta
+	err = json.Unmarshal(metaJSON, &metaRoundtrip2)
+	require.NoError(t, err)
+	assert.Equal(t, meta, metaRoundtrip2)
+
+	assert.Exactly(t, metaRoundtrip.Version, metaRoundtrip2.Version)
+	assert.Exactly(t, metaRoundtrip.TenantID, metaRoundtrip2.TenantID)
+	t.Error("f")
 }
 
 func TestDedicatedColumnsFromTempopb(t *testing.T) {

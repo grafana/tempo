@@ -2,6 +2,7 @@ package backend
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/google/uuid"
 
+	"github.com/grafana/tempo/pkg/intern"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 )
@@ -134,6 +136,114 @@ type BlockMeta struct {
 	// ReplicationFactor is the number of times the data written in this block has been replicated.
 	// It's left unset if replication factor is 3. Default is 0 (RF3).
 	ReplicationFactor uint32 `json:"replicationFactor,omitempty"`
+}
+
+func (b *BlockMeta) UnmarshalJSON(data []byte) error {
+	var msg interface{}
+	err := json.Unmarshal(data, &msg)
+	if err != nil {
+		return err
+	}
+	msgMap := msg.(map[string]interface{})
+
+	if v, ok := msgMap["format"]; ok {
+		b.Version = intern.Get(v.(string)).Get().(string)
+	}
+
+	if v, ok := msgMap["blockID"]; ok {
+		b.BlockID, err = uuid.Parse(v.(string))
+		if err != nil {
+			return err
+		}
+	}
+
+	if v, ok := msgMap["minID"]; ok {
+		b.MinID, err = base64.StdEncoding.DecodeString(v.(string))
+		if err != nil {
+			return fmt.Errorf("failed decode at minID: %w", err)
+		}
+	}
+
+	if v, ok := msgMap["maxID"]; ok {
+		b.MaxID, err = base64.StdEncoding.DecodeString(v.(string))
+		if err != nil {
+			return fmt.Errorf("failed decode at maxID: %w", err)
+		}
+	}
+
+	if v, ok := msgMap["tenantID"]; ok {
+		b.TenantID = intern.Get(v.(string)).Get().(string)
+	}
+
+	if v, ok := msgMap["startTime"]; ok {
+		b.StartTime, err = time.Parse(time.RFC3339, v.(string))
+		if err != nil {
+			return fmt.Errorf("failed to parse time at startTime: %w", err)
+		}
+	}
+
+	if v, ok := msgMap["endTime"]; ok {
+		b.EndTime, err = time.Parse(time.RFC3339, v.(string))
+		if err != nil {
+			return fmt.Errorf("failed to parse time at startTime: %w", err)
+		}
+	}
+
+	if v, ok := msgMap["totalObjects"]; ok {
+		b.TotalObjects = int(v.(float64))
+	}
+
+	if v, ok := msgMap["size"]; ok {
+		b.Size = uint64(v.(float64))
+	}
+
+	if v, ok := msgMap["compactionLevel"]; ok {
+		b.CompactionLevel = uint8(v.(float64))
+	}
+
+	if v, ok := msgMap["encoding"]; ok {
+		b.Encoding, err = ParseEncoding(v.(string))
+		if err != nil {
+			return fmt.Errorf("failed unmarshal at encoding: %w", err)
+		}
+	}
+
+	if v, ok := msgMap["indexPageSize"]; ok {
+		b.IndexPageSize = uint32((v.(float64)))
+	}
+
+	if v, ok := msgMap["totalRecords"]; ok {
+		b.TotalRecords = uint32((v.(float64)))
+	}
+
+	if v, ok := msgMap["dataEncoding"]; ok {
+		b.DataEncoding = v.(string)
+	}
+
+	if v, ok := msgMap["bloomShards"]; ok {
+		b.BloomShardCount = uint16((v.(float64)))
+	}
+
+	if v, ok := msgMap["footerSize"]; ok {
+		b.FooterSize = uint32((v.(float64)))
+	}
+
+	if v, ok := msgMap["dedicatedColumns"]; ok {
+		jsonStr, err := json.Marshal(v)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		if err := json.Unmarshal(jsonStr, &b.DedicatedColumns); err != nil {
+			return fmt.Errorf("failed at unmarshal for dedicated columns: %w", err)
+		}
+	}
+
+	if v, ok := msgMap["replicationFactor"]; ok {
+		b.ReplicationFactor = uint32((v.(float64)))
+	}
+
+	return nil
 }
 
 // DedicatedColumn contains the configuration for a single attribute with the given name that should
