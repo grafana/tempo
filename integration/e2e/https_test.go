@@ -10,9 +10,9 @@ import (
 
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/cmd/tempo/app"
-	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/integration/e2e/backend"
 	e2e_ca "github.com/grafana/tempo/integration/e2e/ca"
+	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/httpclient"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/stretchr/testify/require"
@@ -73,7 +73,7 @@ func TestHTTPS(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// query an in-memory trace
-	queryAndAssertTrace(t, apiClient, info)
+	util.QueryAndAssertTrace(t, apiClient, info)
 	util.SearchAndAssertTrace(t, apiClient, info)
 	util.SearchTraceQLAndAssertTrace(t, apiClient, info)
 

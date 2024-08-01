@@ -8,9 +8,9 @@ import (
 
 	"github.com/grafana/e2e"
 	e2e_db "github.com/grafana/e2e/db"
+	"github.com/grafana/tempo/integration/util"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
-	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 )

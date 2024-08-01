@@ -7,6 +7,7 @@ import (
 
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/e2e"
+	"github.com/grafana/tempo/integration/util"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,14 +23,13 @@ import (
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
-	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/pkg/httpclient"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
 const (
-	configAllInOneLocal = "config-all-in-one-local.yaml"
+	configAllInOneLocal = "deployments/config-all-in-one-local.yaml"
 )
 
 func TestReceivers(t *testing.T) {
@@ -146,7 +146,7 @@ func TestReceivers(t *testing.T) {
 			require.NoError(t, err)
 
 			// just compare spanCount because otel flattens all ILS into one
-			assert.Equal(t, spanCount(req), spanCount(trace))
+			assert.Equal(t, util.SpanCount(req), util.SpanCount(trace))
 		})
 	}
 }

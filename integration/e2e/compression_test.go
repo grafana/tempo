@@ -8,16 +8,16 @@ import (
 	"time"
 
 	"github.com/grafana/e2e"
+	"github.com/grafana/tempo/integration/util"
 	"github.com/stretchr/testify/require"
 
-	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
 
 const (
-	configCompression = "config-all-in-one-local.yaml"
+	configCompression = "deployments/config-all-in-one-local.yaml"
 )
 
 func TestCompression(t *testing.T) {
@@ -41,7 +41,7 @@ func TestCompression(t *testing.T) {
 
 	apiClientWithCompression := httpclient.NewWithCompression("http://"+tempo.Endpoint(3200), "")
 
-	queryAndAssertTrace(t, apiClient, info)
+	util.QueryAndAssertTrace(t, apiClient, info)
 	queryAndAssertTraceCompression(t, apiClientWithCompression, info)
 }
 
@@ -53,7 +53,7 @@ func queryAndAssertTraceCompression(t *testing.T, client *httpclient.Client, inf
 
 	expected, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
-	assertEqualTrace(t, result, expected)
+	util.AssertEqualTrace(t, result, expected)
 
 	// Go's http.Client transparently requests gzip compression and automatically decompresses the
 	// response, to disable this behaviour you have to explicitly set the Accept-Encoding header.
@@ -79,5 +79,5 @@ func queryAndAssertTraceCompression(t *testing.T, client *httpclient.Client, inf
 	err = tempopb.UnmarshalFromJSONV1(bodyBytes, m)
 
 	require.NoError(t, err)
-	assertEqualTrace(t, expected, m)
+	util.AssertEqualTrace(t, expected, m)
 }
