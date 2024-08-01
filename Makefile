@@ -53,6 +53,7 @@ ifeq ($(BUILD_DEBUG), 1)
 endif
 
 GOTEST_OPT?= -race -timeout 25m -count=1 -v
+GOTEST_OPT_NO_RACE?= -timeout 25m
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
 GOTEST=gotestsum --format=testname --
 LINT=golangci-lint
@@ -128,16 +129,16 @@ test-with-cover-others: tools test-serverless ## Run other tests with code cover
 # runs e2e tests in the top level integration/e2e directory
 .PHONY: test-e2e
 test-e2e: tools docker-tempo docker-tempo-query  ## Run end to end tests
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e
+	$(GOTEST) -v $(GOTEST_OPT_NO_RACE) ./integration/e2e
 
 # runs only serverless e2e tests
 .PHONY: test-e2e-serverless
 test-e2e-serverless: tools docker-tempo docker-serverless ## Run serverless end to end tests
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/serverless
+	$(GOTEST) -v $(GOTEST_OPT_NO_RACE) ./integration/e2e/serverless
 
 .PHONY: test-integration-poller
 test-integration-poller: tools ## Run poller integration tests
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/poller
+	$(GOTEST) -v $(GOTEST_OPT_NO_RACE) ./integration/poller
 
 # test-all/bench use a docker image so build it first to make sure we're up to date
 .PHONY: test-all ## Run all tests
