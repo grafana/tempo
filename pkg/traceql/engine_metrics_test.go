@@ -449,7 +449,7 @@ func TestQuantileOverTime(t *testing.T) {
 
 	// Pass spans to layer 1
 	for _, s := range in {
-		layer1.metricsPipeline.observe(s, false)
+		layer1.metricsPipeline.observe(s)
 	}
 
 	// Pass layer 1 to layer 2
@@ -556,7 +556,7 @@ func TestHistogramOverTime(t *testing.T) {
 
 	// Pass spans to layer 1
 	for _, s := range in {
-		layer1.metricsPipeline.observe(s, false)
+		layer1.metricsPipeline.observe(s)
 	}
 
 	// Pass layer 1 to layer 2
