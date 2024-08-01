@@ -158,16 +158,20 @@ func (b *BlockMeta) UnmarshalJSON(data []byte) error {
 	}
 
 	if v, ok := msgMap["minID"]; ok {
-		b.MinID, err = base64.StdEncoding.DecodeString(v.(string))
-		if err != nil {
-			return fmt.Errorf("failed decode at minID: %w", err)
+		if v != nil {
+			b.MinID, err = base64.StdEncoding.DecodeString(v.(string))
+			if err != nil {
+				return fmt.Errorf("failed decode at minID: %w", err)
+			}
 		}
 	}
 
 	if v, ok := msgMap["maxID"]; ok {
-		b.MaxID, err = base64.StdEncoding.DecodeString(v.(string))
-		if err != nil {
-			return fmt.Errorf("failed decode at maxID: %w", err)
+		if v != nil {
+			b.MaxID, err = base64.StdEncoding.DecodeString(v.(string))
+			if err != nil {
+				return fmt.Errorf("failed decode at maxID: %w", err)
+			}
 		}
 	}
 
