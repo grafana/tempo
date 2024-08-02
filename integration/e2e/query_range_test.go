@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/grafana/e2e"
-	util "github.com/grafana/tempo/integration"
+	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +42,7 @@ sendLoop:
 	for {
 		select {
 		case <-ticker.C:
-			require.NoError(t, jaegerClient.EmitBatch(context.Background(), makeThriftBatch()))
+			require.NoError(t, jaegerClient.EmitBatch(context.Background(), util.MakeThriftBatch()))
 		case <-timer.C:
 			break sendLoop
 		}

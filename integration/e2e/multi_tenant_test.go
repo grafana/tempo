@@ -10,6 +10,7 @@ import (
 
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/e2e"
+	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -20,7 +21,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
-	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/integration/e2e/backend"
 )
 
@@ -89,7 +89,7 @@ func testSearch(t *testing.T, tenant string, tenantSize int) {
 		traceMap = getAttrsAndSpanNames(trace) // store it to assert tests
 
 		require.NoError(t, err)
-		expectedSpans = expectedSpans + spanCount(trace)
+		expectedSpans = expectedSpans + util.SpanCount(trace)
 	}
 
 	// assert that we have one trace and each tenant and correct number of spans received
@@ -100,7 +100,7 @@ func testSearch(t *testing.T, tenant string, tenantSize int) {
 	time.Sleep(time.Second * 3)
 
 	// test echo
-	assertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
+	util.AssertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
 
 	// client will have testcase tenant id
 	apiClient := httpclient.New("http://"+tempo.Endpoint(3200), tenant)
@@ -115,14 +115,14 @@ func testSearch(t *testing.T, tenant string, tenantSize int) {
 	assert.ElementsMatch(t, traceMap.spanNames, respTm.spanNames)
 
 	// flush trace to backend
-	callFlush(t, tempo)
+	util.CallFlush(t, tempo)
 
 	// search and traceql search, note: SearchAndAssertTrace also calls SearchTagValues
 	util.SearchAndAssertTrace(t, apiClient, info)
 	util.SearchTraceQLAndAssertTrace(t, apiClient, info)
 
 	// force clear completed block
-	callFlush(t, tempo)
+	util.CallFlush(t, tempo)
 
 	// wait for flush to complete for all tenants, each tenant will have one block
 	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(float64(tenantSize)), "tempo_ingester_blocks_flushed_total"))
