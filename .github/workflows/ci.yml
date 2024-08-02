@@ -17,8 +17,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  setup:
-    name: Set up
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
@@ -29,21 +29,6 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
-          cache-dependency-path: "**/go.sum"
-      - name: Upload code as artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: code
-          path: .
-  lint:
-    name: Lint
-    needs: setup
-    runs-on: ubuntu-latest
-      - name: Download code artifact
-        uses: actions/download-artifact@v3
-        with:
-          name: code
-          path: .
       - name: check-fmt
         run: make check-fmt
 
@@ -53,223 +38,209 @@ jobs:
       - name: lint
         run: make lint base=origin/${{github.base_ref}}
 
-  # unit-tests-pkg:
-  #   name: Test packages - pkg
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Set up Go 1.22
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         cache-dependency-path: "**/go.sum"
-  #         go-version: '>=1.22.4'
+  unit-tests-pkg:
+    name: Test packages - pkg
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
 
-  #     - name: Check out code
-  #       uses: actions/checkout@v4
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: Test
+        run: make test-with-cover-pkg
 
-  #     - name: Test
-  #       run: make test-with-cover-pkg
+  unit-tests-tempodb:
+    name: Test packages - tempodb
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
 
-  # unit-tests-tempodb:
-  #   name: Test packages - tempodb
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Set up Go 1.22
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         go-version: '>=1.22.4'
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          
+      - name: Test
+        run: make test-with-cover-tempodb
 
-  #     - name: Check out code
-  #       uses: actions/checkout@v4
+  unit-tests-tempodb-wal:
+    name: Test packages - tempodb/wal
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
 
-  #     - name: Test
-  #       run: make test-with-cover-tempodb
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
 
-  # unit-tests-tempodb-wal:
-  #   name: Test packages - tempodb/wal
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Set up Go 1.22
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         cache-dependency-path: "**/go.sum"
-  #         go-version: '>=1.22.4'
+      - name: Test
+        run: make test-with-cover-tempodb-wal
 
-  #     - name: Check out code
-  #       uses: actions/checkout@v4
+  unit-tests-others:
+    name: Test packages - others
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
 
-  #     - name: Test
-  #       run: make test-with-cover-tempodb-wal
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
 
-  # unit-tests-others:
-  #   name: Test packages - others
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Set up Go 1.22
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         cache-dependency-path: "**/go.sum"
-  #         go-version: '>=1.22.4'
+      - name: Test
+        run: make test-with-cover-others
 
-  #     - name: Check out code
-  #       uses: actions/checkout@v4
+  integration-tests:
+    name: Test integration e2e suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+      - name: Test
+        run: make test-e2e
 
-  #     - name: Test
-  #       run: make test-with-cover-others
+  integration-tests-poller:
+    name: Test integration e2e suite - poller
+    runs-on: ubuntu-latest
+    steps:
 
-  # integration-tests:
-  #   name: Test integration e2e suite
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Set up Go 1.22
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         cache-dependency-path: "**/go.sum"
-  #         go-version: '>=1.22.4'
+      - name: Check out code
+        uses: actions/checkout@v4
 
-  #     - name: Check out code
-  #       uses: actions/checkout@v4
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
 
-  #     - name: Test
-  #       run: make test-e2e
+      - name: Poller
+        run: make test-integration-poller
 
-  # integration-tests-poller:
-  #   name: Test integration e2e suite - poller
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Set up Go 1.22
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         cache-dependency-path: "**/go.sum"
-  #         go-version: '>=1.22.4'
+  integration-tests-deployment-modes:
+    name: Test integration e2e suite - deployment modes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
 
-  #     - name: Check out code
-  #       uses: actions/checkout@v4
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
 
-  #     - name: Poller
-  #       run: make test-integration-poller
+      - name: Deployment modes
+        run: make test-e2e-deployments
 
-  # integration-tests-deployment-modes:
-  #   name: Test integration e2e suite - deployment modes
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Set up Go 1.22
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         cache-dependency-path: "**/go.sum"
-  #         go-version: '>=1.22.4'
+  integration-tests-serverless:
+    name: Test integration e2e suite - serverless
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
 
-  #     - name: Check out code
-  #       uses: actions/checkout@v4
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
 
-  #     - name: Deployment modes
-  #       run: make test-e2e-deployments
+      - name: Test
+        run: make test-e2e-serverless
 
-  # integration-tests-serverless:
-  #   name: Test integration e2e suite - serverless
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Set up Go 1.22
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         cache-dependency-path: "**/go.sum"
-  #         go-version: '>=1.22.4'
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
 
-  #     - name: Check out code
-  #       uses: actions/checkout@v4
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
 
-  #     - name: Test
-  #       run: make test-e2e-serverless
+      - name: Build Tempo
+        run: make tempo
 
-  # build:
-  #   name: Build
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Set up Go 1.22
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         cache-dependency-path: "**/go.sum"
-  #         cache: true
-  #         go-version: '>=1.22.4'
+      - name: Build tempo-query
+        run: make tempo-query
 
-  #     - name: Check out code
-  #       uses: actions/checkout@v4
+      - name: Build vulture
+        run: make tempo-vulture
 
-  #     - name: Build Tempo
-  #       run: make tempo
+      - name: Build tempo-cli
+        run: make tempo-cli
 
-  #     - name: Build tempo-query
-  #       run: make tempo-query
+  benchmark:
+    name: Benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
 
-  #     - name: Build vulture
-  #       run: make tempo-vulture
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
 
-  #     - name: Build tempo-cli
-  #       run: make tempo-cli
+      - name: Bench
+        run: make test-bench
 
-  # benchmark:
-  #   name: Benchmark
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Set up Go 1.22
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         cache-dependency-path: "**/go.sum"
-  #         go-version: '>=1.22.4'
+  vendor-check:
+    name: Vendor check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
 
-  #     - name: Check out code
-  #       uses: actions/checkout@v4
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
 
-  #     - name: Bench
-  #       run: make test-bench
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-  # vendor-check:
-  #   name: Vendor check
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Set up Go 1.22
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         cache-dependency-path: "**/go.sum"
-  #         go-version: '>=1.22.4'
+      - name: Check vendor
+        run: make vendor-check
 
-  #     - name: Check out code
-  #       uses: actions/checkout@v4
+  tempo-jsonnet:
+    name: Check jsonnet & tempo-mixin
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
 
-  #     - name: Install Protoc
-  #       uses: arduino/setup-protoc@v3
-  #       with:
-  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
 
-  #     - name: Check vendor
-  #       run: make vendor-check
+      - name: Check jsonnet
+        run: make jsonnet-check
 
-  # tempo-jsonnet:
-  #   name: Check jsonnet & tempo-mixin
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Set up Go 1.22
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         cache-dependency-path: "**/go.sum"
-  #         go-version: '>=1.22.4'
+      - name: Check tempo-mixin
+        run: make tempo-mixin-check
 
-  #     - name: Check out code
-  #       uses: actions/checkout@v4
+      - name: Test jsonnet
+        run: make jsonnet-test
 
-  #     - name: Check jsonnet
-  #       run: make jsonnet-check
-
-  #     - name: Check tempo-mixin
-  #       run: make tempo-mixin-check
-
-  #     - name: Test jsonnet
-  #       run: make jsonnet-test
-
-  # build-technical-documentation:
-  #   name: Build technical documentation
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Check out code
-  #       uses: actions/checkout@v4
-  #     - name: Build Website
-  #       run: docker run -v ${PWD}/docs/sources:/hugo/content/docs/tempo/latest --rm grafana/docs-base:latest make prod
+  build-technical-documentation:
+    name: Build technical documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Build Website
+        run: docker run -v ${PWD}/docs/sources:/hugo/content/docs/tempo/latest --rm grafana/docs-base:latest make prod
