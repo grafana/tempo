@@ -56,68 +56,14 @@ jobs:
 
       - name: Run Tests
         run: make ${{ matrix.test-target }}
-  # unit-tests-pkg:
-  #   name: Test packages - pkg
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Check out code
-  #       uses: actions/checkout@v4
-
-  #     - name: Set up Go 1.22
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         go-version-file: 'go.mod'
-  #     - name: Test
-  #       run: make test-with-cover-pkg
-
-  # unit-tests-tempodb:
-  #   name: Test packages - tempodb
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Check out code
-  #       uses: actions/checkout@v4
-
-  #     - name: Set up Go 1.22
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         go-version-file: 'go.mod'
-
-  #     - name: Test
-  #       run: make test-with-cover-tempodb
-
-  # unit-tests-tempodb-wal:
-  #   name: Test packages - tempodb/wal
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Check out code
-  #       uses: actions/checkout@v4
-
-  #     - name: Set up Go 1.22
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         go-version-file: 'go.mod'
-
-  #     - name: Test
-  #       run: make test-with-cover-tempodb-wal
-
-  # unit-tests-others:
-  #   name: Test packages - others
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Check out code
-  #       uses: actions/checkout@v4
-
-  #     - name: Set up Go 1.22
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         go-version-file: 'go.mod'
-
-  #     - name: Test
-  #       run: make test-with-cover-others
-
+  
   integration-tests:
-    name: Test integration e2e suite
+    name: Run integration tests
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        test-target: [test-e2e, test-integration-poller, test-e2e-deployments, test-e2e-deployments,test-e2e-serverless]
+
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -125,54 +71,8 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
-      - name: Test
-        run: make test-e2e
-
-  integration-tests-poller:
-    name: Test integration e2e suite - poller
-    runs-on: ubuntu-latest
-    steps:
-
-      - name: Check out code
-        uses: actions/checkout@v4
-
-      - name: Set up Go 1.22
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: 'go.mod'
-
-      - name: Poller
-        run: make test-integration-poller
-
-  integration-tests-deployment-modes:
-    name: Test integration e2e suite - deployment modes
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-
-      - name: Set up Go 1.22
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: 'go.mod'
-
-      - name: Deployment modes
-        run: make test-e2e-deployments
-
-  integration-tests-serverless:
-    name: Test integration e2e suite - serverless
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-
-      - name: Set up Go 1.22
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: 'go.mod'
-
-      - name: Test
-        run: make test-e2e-serverless
+      - name: Run Tests
+        run: make ${{ matrix.test-target }}
 
   build:
     name: Build
