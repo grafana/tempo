@@ -1032,17 +1032,15 @@ func (e *MetricsEvalulator) sampleExemplar(id []byte) bool {
 		return false
 	}
 
+	s := bytesToString(id)
 	// TODO: Is it actually possible to get duplicates within the same job?
 	// Avoid sampling exemplars for the same trace
-	if _, ok := e.exemplarMap[bytesToString(id)]; ok {
+	if _, ok := e.exemplarMap[s]; ok {
 		return false
 	}
 
-	// TODO: Can we avoid the copy?
-	// Clone string
-	clone := make([]byte, len(id))
-	copy(clone, id)
-	e.exemplarMap[bytesToString(clone)] = struct{}{}
+	// TODO: Do we need a copy?
+	e.exemplarMap[s] = struct{}{}
 	e.exemplarCount++
 	return true
 }
