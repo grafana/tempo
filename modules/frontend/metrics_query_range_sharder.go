@@ -276,7 +276,7 @@ func (s *queryRangeSharder) buildShardedBackendRequests(ctx context.Context, ten
 		}
 
 		shards := uint32(math.Ceil(float64(totalBlockSize) / float64(targetBytesPerRequest)))
-		exemplars := s.exemplarsPerShard(shards)
+		exemplars := max(s.exemplarsPerShard(shards), 1)
 
 		for i := uint32(1); i <= shards; i++ {
 
@@ -367,8 +367,8 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 	defer close(reqCh)
 
 	queryHash := hashForQueryRangeRequest(&searchReq)
-	exemplars := s.exemplarsPerShard(uint32(len(metas)))
 
+	exemplars := s.exemplarsPerShard(uint32(len(metas)))
 	for _, m := range metas {
 		if m.EndTime.Before(m.StartTime) {
 			// Ignore blocks with bad timings from debugging
@@ -415,7 +415,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				Size_:            m.Size,
 				FooterSize:       m.FooterSize,
 				DedicatedColumns: dc,
-				Exemplars:        exemplars,
+				Exemplars:        max(exemplars/(m.TotalRecords/uint32(pages)), 1),
 			}
 
 			subR = api.BuildQueryRangeRequest(subR, queryRangeReq)
@@ -437,6 +437,13 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 			}
 		}
 	}
+}
+
+func max(a, b uint32) uint32 {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest, parent *http.Request, tenantID string, cutoff time.Time) *http.Request {

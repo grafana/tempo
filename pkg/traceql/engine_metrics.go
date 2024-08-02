@@ -11,7 +11,6 @@ import (
 	"sort"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -1032,21 +1031,16 @@ func (e *MetricsEvalulator) sampleExemplar(id []byte) bool {
 		return false
 	}
 
-	s := bytesToString(id)
-	// TODO: Is it actually possible to get duplicates within the same job?
 	// Avoid sampling exemplars for the same trace
-	if _, ok := e.exemplarMap[s]; ok {
+	// Check does zero allocs
+	if _, ok := e.exemplarMap[string(id)]; ok {
 		return false
 	}
 
-	// TODO: Do we need a copy?
-	e.exemplarMap[s] = struct{}{}
+	e.exemplarMap[string(id)] = struct{}{}
 	e.exemplarCount++
 	return true
 }
-
-// bytesToString is a helper function to convert a byte slice to a string without a copy.
-func bytesToString(b []byte) string { return unsafe.String(unsafe.SliceData(b), len(b)) }
 
 // SpanDeduper2 is EXTREMELY LAZY. It attempts to dedupe spans for metrics
 // without requiring any new data fields.  It uses trace ID and span start time

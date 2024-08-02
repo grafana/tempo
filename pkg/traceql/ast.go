@@ -1130,20 +1130,13 @@ func (a *MetricsAggregate) floatizeAttribute(s Span) (float64, StaticType) {
 	switch v.Type {
 	case TypeInt:
 		n, _ := v.Int()
-		if n < 2 {
-			return 0, v.Type
-		}
-		return float64(n), TypeInt
+		return float64(n), v.Type
 	case TypeDuration:
 		d, _ := v.Duration()
-		n := d.Nanoseconds()
-		if n < 2 {
-			return 0, TypeNil
-		}
-		return float64(n), v.Type
+		return float64(d.Nanoseconds()), v.Type
+	case TypeFloat:
+		return v.Float(), v.Type
 	default:
-		// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
-		// Because of the range of floats, we need a native histogram approach.
 		return 0, TypeNil
 	}
 }
@@ -1153,12 +1146,20 @@ func (a *MetricsAggregate) bucketizeAttribute(s Span) (Static, bool) {
 
 	switch t {
 	case TypeInt:
+		if f < 2 {
+			return NewStaticNil(), false
+		}
 		// Bucket is the value rounded up to the nearest power of 2
 		return NewStaticFloat(Log2Bucketize(uint64(f))), true
 	case TypeDuration:
+		if f < 2 {
+			return NewStaticNil(), false
+		}
 		// Bucket is log2(nanos) converted to float seconds
 		return NewStaticFloat(Log2Bucketize(uint64(f)) / float64(time.Second)), true
 	default:
+		// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
+		// Because of the range of floats, we need a native histogram approach.
 		return NewStaticNil(), false
 	}
 }
