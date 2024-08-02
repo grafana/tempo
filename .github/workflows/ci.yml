@@ -38,7 +38,7 @@ jobs:
       - name: lint
         run: make lint base=origin/${{github.base_ref}}
 
-   unit-tests:
+  unit-tests:
     name: Run Unit Tests
     runs-on: ubuntu-latest
     strategy:
