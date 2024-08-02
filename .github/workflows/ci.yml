@@ -24,11 +24,11 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
         with:
-          fetch-depth: '0'
+          fetch-depth: "0"
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version-file: 'go.mod'
+          go-version-file: "go.mod"
       - name: check-fmt
         run: make check-fmt
 
@@ -43,10 +43,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        test-target: [test-with-cover-pkg,
-          test-with-cover-tempodb, 
-          test-with-cover-tempodb-wal, 
-          test-with-cover-others]
+        test-target:
+          [
+            test-with-cover-pkg,
+            test-with-cover-tempodb,
+            test-with-cover-tempodb-wal,
+            test-with-cover-others,
+          ]
 
     steps:
       - name: Check out code
@@ -55,17 +58,24 @@ jobs:
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version-file: 'go.mod'
+          go-version-file: "go.mod"
 
       - name: Run Tests
         run: make ${{ matrix.test-target }}
-  
+
   integration-tests:
     name: Run integration tests
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        test-target: [test-e2e, test-integration-poller, test-e2e-deployments, test-e2e-deployments,test-e2e-serverless]
+        test-target:
+          [
+            test-e2e,
+            test-integration-poller,
+            test-e2e-deployments,
+            test-e2e-deployments,
+            test-e2e-serverless,
+          ]
 
     steps:
       - name: Check out code
@@ -73,7 +83,7 @@ jobs:
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version-file: 'go.mod'
+          go-version-file: "go.mod"
       - name: Run Tests
         run: make ${{ matrix.test-target }}
 
@@ -87,7 +97,7 @@ jobs:
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version-file: 'go.mod'
+          go-version-file: "go.mod"
 
       - name: Build Tempo
         run: make tempo
@@ -111,7 +121,7 @@ jobs:
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version-file: 'go.mod'
+          go-version-file: "go.mod"
 
       - name: Bench
         run: make test-bench
@@ -126,7 +136,7 @@ jobs:
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version-file: 'go.mod'
+          go-version-file: "go.mod"
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -146,7 +156,7 @@ jobs:
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version-file: 'go.mod'
+          go-version-file: "go.mod"
 
       - name: Check jsonnet
         run: make jsonnet-check
