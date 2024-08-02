@@ -10,27 +10,28 @@ type Condition struct {
 	Attribute Attribute
 	Op        Operator
 	Operands  Operands
+	CallBack  func() bool
 }
 
 func SearchMetaConditions() []Condition {
 	return []Condition{
-		{NewIntrinsic(IntrinsicTraceRootService), OpNone, nil},
-		{NewIntrinsic(IntrinsicTraceRootSpan), OpNone, nil},
-		{NewIntrinsic(IntrinsicTraceDuration), OpNone, nil},
-		{NewIntrinsic(IntrinsicTraceID), OpNone, nil},
-		{NewIntrinsic(IntrinsicTraceStartTime), OpNone, nil},
-		{NewIntrinsic(IntrinsicSpanID), OpNone, nil},
-		{NewIntrinsic(IntrinsicSpanStartTime), OpNone, nil},
-		{NewIntrinsic(IntrinsicDuration), OpNone, nil},
-		{NewIntrinsic(IntrinsicServiceStats), OpNone, nil},
+		{Attribute: NewIntrinsic(IntrinsicTraceRootService), Op: OpNone},
+		{Attribute: NewIntrinsic(IntrinsicTraceRootSpan), Op: OpNone},
+		{Attribute: NewIntrinsic(IntrinsicTraceDuration), Op: OpNone},
+		{Attribute: NewIntrinsic(IntrinsicTraceID), Op: OpNone},
+		{Attribute: NewIntrinsic(IntrinsicTraceStartTime), Op: OpNone},
+		{Attribute: NewIntrinsic(IntrinsicSpanID), Op: OpNone},
+		{Attribute: NewIntrinsic(IntrinsicSpanStartTime), Op: OpNone},
+		{Attribute: NewIntrinsic(IntrinsicDuration), Op: OpNone},
+		{Attribute: NewIntrinsic(IntrinsicServiceStats), Op: OpNone},
 	}
 }
 
-func ExemplarMetaConditions() []Condition {
+func ExemplarMetaConditions(cb func() bool) []Condition {
 	// TODO: Configurable? Each column is very expensive to store.
 	// TODO: Build predicate that quits early if we have enough exemplars.
 	return []Condition{
-		{NewIntrinsic(IntrinsicTraceID), OpNone, nil},
+		{Attribute: NewIntrinsic(IntrinsicTraceID), Op: OpNone, CallBack: cb},
 		//{NewIntrinsic(IntrinsicSpanID), OpNone, nil},
 		//{NewIntrinsic(IntrinsicTraceDuration), OpNone, nil},
 		//{NewIntrinsic(IntrinsicTraceStartTime), OpNone, nil},
@@ -70,8 +71,8 @@ func metaConditionsWithout(metaConds, remove []Condition, allConditions bool) []
 	return retConds
 }
 
-func ExemplarMetaConditionsWithout(remove []Condition, allConditions bool) []Condition {
-	return metaConditionsWithout(ExemplarMetaConditions(), remove, allConditions)
+func ExemplarMetaConditionsWithout(cb func() bool, remove []Condition, allConditions bool) []Condition {
+	return metaConditionsWithout(ExemplarMetaConditions(cb), remove, allConditions)
 }
 
 // SecondPassFn is a method that is called in between the first and second
@@ -94,12 +95,6 @@ type FetchSpansRequest struct {
 	// can make extra optimizations by returning only spansets that meet
 	// all criteria.
 	AllConditions bool
-
-	// Exemplars hint tells the storage layer that the query wants to collect exemplars.
-	// This allows to optimise second pass iterators to quit if we have enough samples.
-	// Iterating over all spans to collect exemplars is very expensive,
-	// specially in allocs and mem.
-	Exemplars func() bool
 
 	// SecondPassFn and Conditions allow a caller to retrieve one set of data
 	// in the first pass, filter using the SecondPassFn callback and then

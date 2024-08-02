@@ -815,9 +815,9 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	me.end = req.End
 
 	if me.maxExemplars > 0 {
-		meta := ExemplarMetaConditionsWithout(storageReq.SecondPassConditions, storageReq.AllConditions)
+		cb := func() bool { return me.exemplarCount < me.maxExemplars }
+		meta := ExemplarMetaConditionsWithout(cb, storageReq.SecondPassConditions, storageReq.AllConditions)
 		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, meta...)
-		storageReq.Exemplars = func() bool { return me.exemplarCount < me.maxExemplars }
 	}
 	// Setup second pass callback.  It might be optimized away
 	storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
