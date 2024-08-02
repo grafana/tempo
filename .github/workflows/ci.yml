@@ -43,7 +43,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        test-target: [pkg, tempodb, tempodb-wal, others]
+        test-target: [test-with-cover-pkg,
+          test-with-cover-tempodb, 
+          test-with-cover-tempodb-wal, 
+          test-with-cover-others]
 
     steps:
       - name: Check out code
