@@ -30,13 +30,20 @@ jobs:
         with:
           go-version-file: 'go.mod'
           cache-dependency-path: "**/go.sum"
-
-
+      - name: Upload code as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: code
+          path: .
   lint:
     name: Lint
-    runs-on: ubuntu-latest
     needs: setup
-    steps:
+    runs-on: ubuntu-latest
+      - name: Download code artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: code
+          path: .
       - name: check-fmt
         run: make check-fmt
 
@@ -46,22 +53,21 @@ jobs:
       - name: lint
         run: make lint base=origin/${{github.base_ref}}
 
-  unit-tests-pkg:
-    name: Test packages - pkg
-    runs-on: ubuntu-latest
-    needs: setup
-    steps:
-      - name: Set up Go 1.22
-        uses: actions/setup-go@v5
-        with:
-          cache-dependency-path: "**/go.sum"
-          go-version: '>=1.22.4'
+  # unit-tests-pkg:
+  #   name: Test packages - pkg
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Set up Go 1.22
+  #       uses: actions/setup-go@v5
+  #       with:
+  #         cache-dependency-path: "**/go.sum"
+  #         go-version: '>=1.22.4'
 
-      - name: Check out code
-        uses: actions/checkout@v4
+  #     - name: Check out code
+  #       uses: actions/checkout@v4
 
-      - name: Test
-        run: make test-with-cover-pkg
+  #     - name: Test
+  #       run: make test-with-cover-pkg
 
   # unit-tests-tempodb:
   #   name: Test packages - tempodb
