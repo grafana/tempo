@@ -88,5 +88,8 @@ func sortResponse(res *tempopb.QueryRangeResponse) {
 		sort.Slice(series.Samples, func(i, j int) bool {
 			return series.Samples[i].TimestampMs < series.Samples[j].TimestampMs
 		})
+		sort.Slice(series.Exemplars, func(i, j int) bool {
+			return series.Exemplars[i].TimestampMs < series.Exemplars[j].TimestampMs
+		})
 	}
 }

@@ -23,7 +23,8 @@ type metricsFirstStageElement interface {
 	Element
 	extractConditions(request *FetchSpansRequest)
 	init(req *tempopb.QueryRangeRequest, mode AggregateMode)
-	observe(Span)                        // TODO - batching?
+	observe(Span) // TODO - batching?
+	observeExemplar(Span)
 	observeSeries([]*tempopb.TimeSeries) // Re-entrant metrics on the query-frontend.  Using proto version for efficiency
 	result() SeriesSet
 }
@@ -986,18 +987,21 @@ var (
 	_ pipelineElement = (*GroupOperation)(nil)
 )
 
+type getExemplar func(Span) (float64, uint64)
+
 // MetricsAggregate is a placeholder in the AST for a metrics aggregation
 // pipeline element. It has a superset of the properties of them all, and
 // builds them later via init() so that appropriate buffers can be allocated
 // for the query time range and step, and different implementations for
 // shardable and unshardable pipelines.
 type MetricsAggregate struct {
-	op        MetricsAggregateOp
-	by        []Attribute
-	attr      Attribute
-	floats    []float64
-	agg       SpanAggregator
-	seriesAgg SeriesAggregator
+	op         MetricsAggregateOp
+	by         []Attribute
+	attr       Attribute
+	floats     []float64
+	agg        SpanAggregator
+	seriesAgg  SeriesAggregator
+	exemplarFn getExemplar
 }
 
 func newMetricsAggregate(agg MetricsAggregateOp, by []Attribute) *MetricsAggregate {
@@ -1061,13 +1065,20 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 	var innerAgg func() VectorAggregator
 	var byFunc func(Span) (Static, bool)
 	var byFuncLabel string
+	var exemplarFn getExemplar
 
 	switch a.op {
 	case metricsAggregateCountOverTime:
 		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
+		exemplarFn = func(s Span) (float64, uint64) {
+			return math.NaN(), a.spanStartTimeMs(s)
+		}
 
 	case metricsAggregateRate:
 		innerAgg = func() VectorAggregator { return NewRateAggregator(1.0 / time.Duration(q.Step).Seconds()) }
+		exemplarFn = func(s Span) (float64, uint64) {
+			return math.NaN(), a.spanStartTimeMs(s)
+		}
 
 	case metricsAggregateHistogramOverTime, metricsAggregateQuantileOverTime:
 		// Histograms and quantiles are implemented as count_over_time() by(2^log2(attr)) for now
@@ -1078,15 +1089,27 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 		case IntrinsicDurationAttribute:
 			// Optimal implementation for duration attribute
 			byFunc = a.bucketizeSpanDuration
+			exemplarFn = func(s Span) (float64, uint64) {
+				return float64(s.DurationNanos()), a.spanStartTimeMs(s)
+			}
 		default:
 			// Basic implementation for all other attributes
 			byFunc = a.bucketizeAttribute
+			exemplarFn = func(s Span) (float64, uint64) {
+				v, _ := a.floatizeAttribute(s)
+				return v, a.spanStartTimeMs(s)
+			}
 		}
 	}
 
 	a.agg = NewGroupingAggregator(a.op.String(), func() RangeAggregator {
 		return NewStepAggregator(q.Start, q.End, q.Step, innerAgg)
 	}, a.by, byFunc, byFuncLabel)
+	a.exemplarFn = exemplarFn
+}
+
+func (a *MetricsAggregate) spanStartTimeMs(s Span) uint64 {
+	return s.StartTimeUnixNanos() / uint64(time.Millisecond)
 }
 
 func (a *MetricsAggregate) bucketizeSpanDuration(s Span) (Static, bool) {
@@ -1098,28 +1121,42 @@ func (a *MetricsAggregate) bucketizeSpanDuration(s Span) (Static, bool) {
 	return NewStaticFloat(Log2Bucketize(d) / float64(time.Second)), true
 }
 
-func (a *MetricsAggregate) bucketizeAttribute(s Span) (Static, bool) {
+func (a *MetricsAggregate) floatizeAttribute(s Span) (float64, StaticType) {
 	v, ok := s.AttributeFor(a.attr)
 	if !ok {
-		return NewStaticNil(), false
+		return 0, TypeNil
 	}
 
 	switch v.Type {
 	case TypeInt:
 		n, _ := v.Int()
-		if n < 2 {
+		return float64(n), v.Type
+	case TypeDuration:
+		d, _ := v.Duration()
+		return float64(d.Nanoseconds()), v.Type
+	case TypeFloat:
+		return v.Float(), v.Type
+	default:
+		return 0, TypeNil
+	}
+}
+
+func (a *MetricsAggregate) bucketizeAttribute(s Span) (Static, bool) {
+	f, t := a.floatizeAttribute(s)
+
+	switch t {
+	case TypeInt:
+		if f < 2 {
 			return NewStaticNil(), false
 		}
 		// Bucket is the value rounded up to the nearest power of 2
-		return NewStaticFloat(Log2Bucketize(uint64(n))), true
+		return NewStaticFloat(Log2Bucketize(uint64(f))), true
 	case TypeDuration:
-		d, _ := v.Duration()
-		n := d.Nanoseconds()
-		if n < 2 {
+		if f < 2 {
 			return NewStaticNil(), false
 		}
 		// Bucket is log2(nanos) converted to float seconds
-		return NewStaticFloat(Log2Bucketize(uint64(n)) / float64(time.Second)), true
+		return NewStaticFloat(Log2Bucketize(uint64(f)) / float64(time.Second)), true
 	default:
 		// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
 		// Because of the range of floats, we need a native histogram approach.
@@ -1145,6 +1182,11 @@ func (a *MetricsAggregate) initFinal(q *tempopb.QueryRangeRequest) {
 
 func (a *MetricsAggregate) observe(span Span) {
 	a.agg.Observe(span)
+}
+
+func (a *MetricsAggregate) observeExemplar(span Span) {
+	v, ts := a.exemplarFn(span)
+	a.agg.ObserveExemplar(span, v, ts)
 }
 
 func (a *MetricsAggregate) observeSeries(ss []*tempopb.TimeSeries) {

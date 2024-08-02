@@ -55,7 +55,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	// Compile the raw version of the query for wal blocks
 	// These aren't cached and we put them all into the same evaluator
 	// for efficiency.
-	eval, err := e.CompileMetricsQueryRange(req, false, timeOverlapCutoff, unsafe)
+	eval, err := e.CompileMetricsQueryRange(req, false, int(req.Exemplars), timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +122,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 		wg.Add(1)
 		go func(b *ingester.LocalBlock) {
 			defer wg.Done()
-			resp, err := p.queryRangeCompleteBlock(ctx, b, *req, timeOverlapCutoff, unsafe)
+			resp, err := p.queryRangeCompleteBlock(ctx, b, *req, timeOverlapCutoff, unsafe, int(req.Exemplars))
 			if err != nil {
 				jobErr.Store(err)
 				return
@@ -162,7 +162,7 @@ func (p *Processor) queryRangeWALBlock(ctx context.Context, b common.WALBlock, e
 	return eval.Do(ctx, fetcher, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
 }
 
-func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.LocalBlock, req tempopb.QueryRangeRequest, timeOverlapCutoff float64, unsafe bool) ([]*tempopb.TimeSeries, error) {
+func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.LocalBlock, req tempopb.QueryRangeRequest, timeOverlapCutoff float64, unsafe bool, exemplars int) ([]*tempopb.TimeSeries, error) {
 	m := b.BlockMeta()
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Processor.QueryRange.CompleteBlock", opentracing.Tags{
 		"block":     m.BlockID,
@@ -192,7 +192,7 @@ func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loc
 	}
 
 	// Not in cache or not cacheable, so execute
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(&req, false, timeOverlapCutoff, unsafe)
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(&req, false, exemplars, timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}
