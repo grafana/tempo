@@ -769,7 +769,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		dedupeSpans:       dedupeSpans,
 		timeOverlapCutoff: timeOverlapCutoff,
 		maxExemplars:      exemplars,
-		exemplarMap:       make(map[string]struct{}, maxExemplars), // TODO: Lazy, use bloom filter, CM sketch or something
+		exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 	}
 
 	// TraceID (optional)
