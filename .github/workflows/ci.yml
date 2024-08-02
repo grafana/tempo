@@ -38,38 +38,13 @@ jobs:
       - name: lint
         run: make lint base=origin/${{github.base_ref}}
 
-  unit-tests-pkg:
-    name: Test packages - pkg
+   unit-tests:
+    name: Run Unit Tests
     runs-on: ubuntu-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
+    strategy:
+      matrix:
+        test-target: [pkg, tempodb, tempodb-wal, others]
 
-      - name: Set up Go 1.22
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: 'go.mod'
-      - name: Test
-        run: make test-with-cover-pkg
-
-  unit-tests-tempodb:
-    name: Test packages - tempodb
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-
-      - name: Set up Go 1.22
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: 'go.mod'
-          
-      - name: Test
-        run: make test-with-cover-tempodb
-
-  unit-tests-tempodb-wal:
-    name: Test packages - tempodb/wal
-    runs-on: ubuntu-latest
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -79,23 +54,66 @@ jobs:
         with:
           go-version-file: 'go.mod'
 
-      - name: Test
-        run: make test-with-cover-tempodb-wal
+      - name: Run Tests
+        run: make ${{ matrix.test-target }}
+  # unit-tests-pkg:
+  #   name: Test packages - pkg
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Check out code
+  #       uses: actions/checkout@v4
 
-  unit-tests-others:
-    name: Test packages - others
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
+  #     - name: Set up Go 1.22
+  #       uses: actions/setup-go@v5
+  #       with:
+  #         go-version-file: 'go.mod'
+  #     - name: Test
+  #       run: make test-with-cover-pkg
 
-      - name: Set up Go 1.22
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: 'go.mod'
+  # unit-tests-tempodb:
+  #   name: Test packages - tempodb
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Check out code
+  #       uses: actions/checkout@v4
 
-      - name: Test
-        run: make test-with-cover-others
+  #     - name: Set up Go 1.22
+  #       uses: actions/setup-go@v5
+  #       with:
+  #         go-version-file: 'go.mod'
+
+  #     - name: Test
+  #       run: make test-with-cover-tempodb
+
+  # unit-tests-tempodb-wal:
+  #   name: Test packages - tempodb/wal
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Check out code
+  #       uses: actions/checkout@v4
+
+  #     - name: Set up Go 1.22
+  #       uses: actions/setup-go@v5
+  #       with:
+  #         go-version-file: 'go.mod'
+
+  #     - name: Test
+  #       run: make test-with-cover-tempodb-wal
+
+  # unit-tests-others:
+  #   name: Test packages - others
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Check out code
+  #       uses: actions/checkout@v4
+
+  #     - name: Set up Go 1.22
+  #       uses: actions/setup-go@v5
+  #       with:
+  #         go-version-file: 'go.mod'
+
+  #     - name: Test
+  #       run: make test-with-cover-others
 
   integration-tests:
     name: Test integration e2e suite
