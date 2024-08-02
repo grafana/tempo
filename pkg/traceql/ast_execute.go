@@ -422,6 +422,7 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		}
 	}
 
+	// array type
 	if lhsT.isMatchingArrayElement(rhsT) {
 		var (
 			res Static
@@ -430,8 +431,15 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 
 		// TODO: this can be a range loop once iterators are available in Go 1.23
 		//       for _, s := range lhs.Elements() { ... }
+		// do we need to use newBinaryOperation?? we already know it's a binary op?
+		// understand why we are execute here on the binary op, instead the execute??
+		// elemOp := newBinaryOperation(o.Op, NewStaticNil(), rhs) // this also works fine for perf.
+		elemOp := &BinaryOperation{Op: o.Op, LHS: lhs, RHS: rhs}
 		lhs.Elements()(func(_ int, elem Static) bool {
-			elemOp := newBinaryOperation(o.Op, elem, rhs)
+			// why does this alloc too much during structural operations only?? why not for other binary ops??
+			// elemOp := newBinaryOperation(o.Op, elem, rhs)
+			// elemOp.(*BinaryOperation).LHS = elem
+			elemOp.LHS = elem
 			res, err = elemOp.execute(span)
 			if err != nil {
 				return false
