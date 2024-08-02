@@ -80,7 +80,7 @@ func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.C
 	}
 
 	if cfg.Subprocessors[Latency] {
-		p.spanMetricsDurationSeconds = registry.NewHistogram(metricDurationSeconds, cfg.HistogramBuckets)
+		p.spanMetricsDurationSeconds = registry.NewHistogram(metricDurationSeconds, cfg.HistogramBuckets, cfg.HistogramOverride)
 	}
 	if cfg.Subprocessors[Count] {
 		p.spanMetricsCallsTotal = registry.NewCounter(metricCallsTotal)

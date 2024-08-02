@@ -4,7 +4,7 @@ package registry
 type Registry interface {
 	NewLabelValueCombo(labels []string, values []string) *LabelValueCombo
 	NewCounter(name string) Counter
-	NewHistogram(name string, buckets []float64) Histogram
+	NewHistogram(name string, buckets []float64, histogramOverride string) Histogram
 	NewGauge(name string) Gauge
 }
 

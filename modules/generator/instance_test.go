@@ -295,38 +295,53 @@ func Test_instance_updateProcessors(t *testing.T) {
 		err := instance.updateProcessors()
 		assert.NoError(t, err)
 
-		overrides.nativeHistograms = "classic"
+		assertHistogramsReload := func(t *testing.T) {
+			desiredProcessors := instance.overrides.MetricsGeneratorProcessors(instance.instanceID)
+			desiredCfg, copyErr := instance.cfg.Processor.copyWithOverrides(instance.overrides, instance.instanceID)
+			assert.NoError(t, copyErr)
+			toAdd, toRemove, toReplace, diffErr := instance.diffProcessors(desiredProcessors, desiredCfg)
+			assert.NoError(t, diffErr)
+			assert.Empty(t, toAdd)
+			assert.Empty(t, toRemove)
 
-		desiredProcessors := instance.overrides.MetricsGeneratorProcessors(instance.instanceID)
-		desiredCfg, err := instance.cfg.Processor.copyWithOverrides(instance.overrides, instance.instanceID)
-		assert.NoError(t, err)
-		toAdd, toRemove, toReplace, err := instance.diffProcessors(desiredProcessors, desiredCfg)
-		assert.NoError(t, err)
-		assert.Empty(t, toAdd)
-		assert.Empty(t, toRemove)
-
-		sort.Strings(toReplace)
-		assert.Equal(t, []string{servicegraphs.Name, spanmetrics.Name}, toReplace)
-
-		expectedProcessors := []string{servicegraphs.Name, spanmetrics.Name}
-		actualProcessors := make([]string, 0, len(instance.processors))
-
-		for name := range instance.processors {
-			actualProcessors = append(actualProcessors, name)
+			sort.Strings(toReplace)
+			assert.Equal(t, []string{servicegraphs.Name, spanmetrics.Name}, toReplace)
 		}
 
-		sort.Strings(actualProcessors)
+		assertHistogramsNoChange := func(t *testing.T) {
+			desiredProcessors := instance.overrides.MetricsGeneratorProcessors(instance.instanceID)
+			desiredCfg, copyErr := instance.cfg.Processor.copyWithOverrides(instance.overrides, instance.instanceID)
+			assert.NoError(t, copyErr)
+			toAdd, toRemove, toReplace, diffErr := instance.diffProcessors(desiredProcessors, desiredCfg)
+			assert.NoError(t, diffErr)
+			assert.Empty(t, toAdd)
+			assert.Empty(t, toRemove)
+			assert.Empty(t, toReplace)
+		}
 
-		assert.Equal(t, expectedProcessors, actualProcessors)
+		// Downgrade to classic
+		overrides.nativeHistograms = "classic"
+		assertHistogramsReload(t)
 
 		err = instance.updateProcessors()
 		assert.NoError(t, err)
+		assertHistogramsNoChange(t)
 
-		toAdd, toRemove, toReplace, err = instance.diffProcessors(desiredProcessors, desiredCfg)
+		// Upgrade to both native and classic
+		overrides.nativeHistograms = "both"
+		assertHistogramsReload(t)
+
+		err = instance.updateProcessors()
 		assert.NoError(t, err)
-		assert.Empty(t, toAdd)
-		assert.Empty(t, toRemove)
-		assert.Empty(t, toReplace)
+		assertHistogramsNoChange(t)
+
+		// Upgrade back to native
+		overrides.nativeHistograms = "native"
+		assertHistogramsReload(t)
+
+		err = instance.updateProcessors()
+		assert.NoError(t, err)
+		assertHistogramsNoChange(t)
 	})
 }
 
