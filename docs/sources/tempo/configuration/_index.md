@@ -1071,6 +1071,9 @@ storage:
         # the index. Default 2.
         [blocklist_poll_tenant_index_builders: <int>]
 
+        # Number of tenants to poll concurrently. Default is 1.
+        [blocklist_poll_tenant_concurrency: <int>]
+
         # The oldest allowable tenant index. If an index is pulled that is older than this duration,
         # the polling will consider this an error. Note that `blocklist_poll_fallback` applies here.
         # If fallback is true and a tenant index exceeds this duration, it will fall back to listing
