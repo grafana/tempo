@@ -459,6 +459,8 @@ github.com/gorilla/websocket v1.5.0 h1:PPwGk2jz7EePpoHN/+ClbZu8SPxiqlu12wZP/3sWm
 github.com/gorilla/websocket v1.5.0/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/grafana/dskit v0.0.0-20240724161724-90da9087cc55 h1:9MsxbtwKfUA0ECN4cYk3LjTdutOa3j/5oKiiam2ArLo=
 github.com/grafana/dskit v0.0.0-20240724161724-90da9087cc55/go.mod h1:lcjGB6SuaZ2o44A9nD6p/tR4QXSPbzViRY520Gy6pTQ=
+github.com/grafana/dskit v0.0.0-20240801171758-736c44c85382 h1:hcVxOw584ov31MyEAuNNGjrj4vPZX626F39zuOtWQs0=
+github.com/grafana/dskit v0.0.0-20240801171758-736c44c85382/go.mod h1:lcjGB6SuaZ2o44A9nD6p/tR4QXSPbzViRY520Gy6pTQ=
 github.com/grafana/e2e v0.1.1 h1:/b6xcv5BtoBnx8cZnCiey9DbjEc8z7gXHO5edoeRYxc=
 github.com/grafana/e2e v0.1.1/go.mod h1:RpNLgae5VT+BUHvPE+/zSypmOXKwEu4t+tnEMS1ATaE=
 github.com/grafana/gomemcache v0.0.0-20240229205252-cd6a66d6fb56 h1:X8IKQ0wu40wpvYcKfBcc5T4QnhdQjUhtUtB/1CY89lE=
