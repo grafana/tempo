@@ -73,7 +73,6 @@ jobs:
             test-e2e,
             test-integration-poller,
             test-e2e-deployments,
-            test-e2e-deployments,
             test-e2e-serverless,
           ]
 
