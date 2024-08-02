@@ -443,12 +443,12 @@ func BuildQueryInstantRequest(req *http.Request, searchReq *tempopb.QueryInstant
 		return req
 	}
 
-	qb := newQueryBuilder("")
-	qb.addParam(urlParamStart, strconv.FormatUint(searchReq.Start, 10))
-	qb.addParam(urlParamEnd, strconv.FormatUint(searchReq.End, 10))
-	qb.addParam(urlParamQuery, searchReq.Query)
+	qb := NewQueryBuilder("")
+	qb.AddParam(urlParamStart, strconv.FormatUint(searchReq.Start, 10))
+	qb.AddParam(urlParamEnd, strconv.FormatUint(searchReq.End, 10))
+	qb.AddParam(urlParamQuery, searchReq.Query)
 
-	req.URL.RawQuery = qb.query()
+	req.URL.RawQuery = qb.Query()
 
 	return req
 }
@@ -464,31 +464,31 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 		return req
 	}
 
-	qb := newQueryBuilder("")
-	qb.addParam(urlParamStart, strconv.FormatUint(searchReq.Start, 10))
-	qb.addParam(urlParamEnd, strconv.FormatUint(searchReq.End, 10))
-	qb.addParam(urlParamStep, time.Duration(searchReq.Step).String())
-	qb.addParam(urlParamShard, strconv.FormatUint(uint64(searchReq.ShardID), 10))
-	qb.addParam(urlParamShardCount, strconv.FormatUint(uint64(searchReq.ShardCount), 10))
-	qb.addParam(QueryModeKey, searchReq.QueryMode)
+	qb := NewQueryBuilder("")
+	qb.AddParam(urlParamStart, strconv.FormatUint(searchReq.Start, 10))
+	qb.AddParam(urlParamEnd, strconv.FormatUint(searchReq.End, 10))
+	qb.AddParam(urlParamStep, time.Duration(searchReq.Step).String())
+	qb.AddParam(urlParamShard, strconv.FormatUint(uint64(searchReq.ShardID), 10))
+	qb.AddParam(urlParamShardCount, strconv.FormatUint(uint64(searchReq.ShardCount), 10))
+	qb.AddParam(QueryModeKey, searchReq.QueryMode)
 	// New RF1 params
-	qb.addParam(urlParamBlockID, searchReq.BlockID)
-	qb.addParam(urlParamStartPage, strconv.Itoa(int(searchReq.StartPage)))
-	qb.addParam(urlParamPagesToSearch, strconv.Itoa(int(searchReq.PagesToSearch)))
-	qb.addParam(urlParamVersion, searchReq.Version)
-	qb.addParam(urlParamEncoding, searchReq.Encoding)
-	qb.addParam(urlParamSize, strconv.Itoa(int(searchReq.Size_)))
-	qb.addParam(urlParamFooterSize, strconv.Itoa(int(searchReq.FooterSize)))
+	qb.AddParam(urlParamBlockID, searchReq.BlockID)
+	qb.AddParam(urlParamStartPage, strconv.Itoa(int(searchReq.StartPage)))
+	qb.AddParam(urlParamPagesToSearch, strconv.Itoa(int(searchReq.PagesToSearch)))
+	qb.AddParam(urlParamVersion, searchReq.Version)
+	qb.AddParam(urlParamEncoding, searchReq.Encoding)
+	qb.AddParam(urlParamSize, strconv.Itoa(int(searchReq.Size_)))
+	qb.AddParam(urlParamFooterSize, strconv.Itoa(int(searchReq.FooterSize)))
 	if len(searchReq.DedicatedColumns) > 0 {
 		columnsJSON, _ := json.Marshal(searchReq.DedicatedColumns)
-		qb.addParam(urlParamDedicatedColumns, string(columnsJSON))
+		qb.AddParam(urlParamDedicatedColumns, string(columnsJSON))
 	}
 
 	if len(searchReq.Query) > 0 {
-		qb.addParam(urlParamQuery, searchReq.Query)
+		qb.AddParam(urlParamQuery, searchReq.Query)
 	}
 
-	req.URL.RawQuery = qb.query()
+	req.URL.RawQuery = qb.Query()
 
 	return req
 }
@@ -597,24 +597,24 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 		return req, nil
 	}
 
-	qb := newQueryBuilder("")
-	qb.addParam(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
-	qb.addParam(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
+	qb := NewQueryBuilder("")
+	qb.AddParam(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
+	qb.AddParam(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
 	if searchReq.Limit != 0 {
-		qb.addParam(urlParamLimit, strconv.FormatUint(uint64(searchReq.Limit), 10))
+		qb.AddParam(urlParamLimit, strconv.FormatUint(uint64(searchReq.Limit), 10))
 	}
 	if searchReq.MaxDurationMs != 0 {
-		qb.addParam(urlParamMaxDuration, strconv.FormatUint(uint64(searchReq.MaxDurationMs), 10)+"ms")
+		qb.AddParam(urlParamMaxDuration, strconv.FormatUint(uint64(searchReq.MaxDurationMs), 10)+"ms")
 	}
 	if searchReq.MinDurationMs != 0 {
-		qb.addParam(urlParamMinDuration, strconv.FormatUint(uint64(searchReq.MinDurationMs), 10)+"ms")
+		qb.AddParam(urlParamMinDuration, strconv.FormatUint(uint64(searchReq.MinDurationMs), 10)+"ms")
 	}
 	if searchReq.SpansPerSpanSet != 0 {
-		qb.addParam(urlParamSpansPerSpanSet, strconv.FormatUint(uint64(searchReq.SpansPerSpanSet), 10))
+		qb.AddParam(urlParamSpansPerSpanSet, strconv.FormatUint(uint64(searchReq.SpansPerSpanSet), 10))
 	}
 
 	if len(searchReq.Query) > 0 {
-		qb.addParam(urlParamQuery, searchReq.Query)
+		qb.AddParam(urlParamQuery, searchReq.Query)
 	}
 
 	if len(searchReq.Tags) > 0 {
@@ -628,10 +628,10 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 			}
 		}
 
-		qb.addParam(urlParamTags, builder.String())
+		qb.AddParam(urlParamTags, builder.String())
 	}
 
-	req.URL.RawQuery = qb.query()
+	req.URL.RawQuery = qb.Query()
 
 	return req, nil
 }
@@ -650,26 +650,26 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 		return nil, err
 	}
 
-	qb := newQueryBuilder(req.URL.RawQuery)
-	qb.addParam(urlParamBlockID, searchReq.BlockID)
-	qb.addParam(urlParamPagesToSearch, strconv.FormatUint(uint64(searchReq.PagesToSearch), 10))
-	qb.addParam(urlParamSize, strconv.FormatUint(searchReq.Size_, 10))
-	qb.addParam(urlParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
-	qb.addParam(urlParamEncoding, searchReq.Encoding)
-	qb.addParam(urlParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
-	qb.addParam(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
-	qb.addParam(urlParamDataEncoding, searchReq.DataEncoding)
-	qb.addParam(urlParamVersion, searchReq.Version)
-	qb.addParam(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
+	qb := NewQueryBuilder(req.URL.RawQuery)
+	qb.AddParam(urlParamBlockID, searchReq.BlockID)
+	qb.AddParam(urlParamPagesToSearch, strconv.FormatUint(uint64(searchReq.PagesToSearch), 10))
+	qb.AddParam(urlParamSize, strconv.FormatUint(searchReq.Size_, 10))
+	qb.AddParam(urlParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
+	qb.AddParam(urlParamEncoding, searchReq.Encoding)
+	qb.AddParam(urlParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
+	qb.AddParam(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
+	qb.AddParam(urlParamDataEncoding, searchReq.DataEncoding)
+	qb.AddParam(urlParamVersion, searchReq.Version)
+	qb.AddParam(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
 	if len(searchReq.DedicatedColumns) > 0 {
 		columnsJSON, err := json.Marshal(searchReq.DedicatedColumns)
 		if err != nil {
 			return nil, err
 		}
-		qb.addParam(urlParamDedicatedColumns, string(columnsJSON))
+		qb.AddParam(urlParamDedicatedColumns, string(columnsJSON))
 	}
 
-	req.URL.RawQuery = qb.query()
+	req.URL.RawQuery = qb.Query()
 
 	return req, nil
 }
@@ -683,9 +683,9 @@ func AddServerlessParams(req *http.Request, maxBytes int) *http.Request {
 		}
 	}
 
-	qb := newQueryBuilder(req.URL.RawQuery)
-	qb.addParam(urlParamMaxBytes, strconv.FormatInt(int64(maxBytes), 10))
-	req.URL.RawQuery = qb.query()
+	qb := NewQueryBuilder(req.URL.RawQuery)
+	qb.AddParam(urlParamMaxBytes, strconv.FormatInt(int64(maxBytes), 10))
+	req.URL.RawQuery = qb.Query()
 
 	return req
 }
