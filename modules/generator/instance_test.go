@@ -21,9 +21,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
-	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
@@ -285,83 +283,6 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 		assert.Equal(t, expectedProcessors, actualProcessors)
 	})
-}
-
-func Test_instanceQueryRangeTraceQLToProto(t *testing.T) {
-	cfg := Config{}
-	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
-	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
-	overrides := mockOverrides{}
-
-	instance, err := newInstance(&cfg, "test", &overrides, &noopStorage{}, prometheus.DefaultRegisterer, logger, nil, nil)
-	assert.NoError(t, err)
-
-	req := &tempopb.QueryRangeRequest{
-		Query: "{}",
-		Start: 1700143700617413958, // 3 minute window
-		End:   1700143880619139505,
-		Step:  30000000000, // 30 seconds
-	}
-
-	ts := instance.queryRangeTraceQLToProto(traceql.SeriesSet{
-		"": traceql.TimeSeries{
-			Labels: []traceql.Label{{Name: "a", Value: traceql.NewStaticString("b")}},
-			Values: []float64{17.566666666666666, 18.133333333333333, 17.3, 14.533333333333333, 0, 0, 0},
-		},
-	}, req)
-
-	expected := &tempopb.QueryRangeResponse{
-		Series: []*tempopb.TimeSeries{
-			{
-				Labels: []commonv1proto.KeyValue{
-					{
-						Key: "a",
-						Value: &commonv1proto.AnyValue{
-							Value: &commonv1proto.AnyValue_StringValue{StringValue: "b"},
-						},
-					},
-				},
-				Samples: []tempopb.Sample{
-					{
-						TimestampMs: 1700143700617,
-						Value:       17.566666666666666,
-					},
-					{
-						TimestampMs: 1700143730617,
-						Value:       18.133333333333333,
-					},
-					{
-						TimestampMs: 1700143760617,
-						Value:       17.3,
-					},
-					{
-						TimestampMs: 1700143790617,
-						Value:       14.533333333333333,
-					},
-					{
-						TimestampMs: 1700143820617,
-						Value:       0,
-					},
-					{
-						TimestampMs: 1700143850617,
-						Value:       0,
-					},
-					{
-						TimestampMs: 1700143880617,
-						Value:       0,
-					},
-				},
-			},
-		},
-	}
-
-	assert.Equal(t, len(expected.Series), len(ts))
-
-	for i, e := range expected.Series {
-		assert.Equal(t, e, ts[i])
-	}
-
-	// require.Equal(t, expected.Series, ts)
 }
 
 type noopStorage struct{}

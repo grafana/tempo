@@ -22,9 +22,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
-	commonv1proto "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/wal"
 
 	"go.uber.org/atomic"
@@ -410,7 +408,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 				return resp, err
 			}
 
-			rr := i.queryRangeTraceQLToProto(r, req)
+			rr := r.ToProto(req)
 			return &tempopb.QueryRangeResponse{
 				Series: rr,
 			}, nil
@@ -419,66 +417,6 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	}
 
 	return resp, fmt.Errorf("localblocks processor not found")
-}
-
-func (i *instance) queryRangeTraceQLToProto(set traceql.SeriesSet, req *tempopb.QueryRangeRequest) []*tempopb.TimeSeries {
-	resp := make([]*tempopb.TimeSeries, 0, len(set))
-
-	for promLabels, s := range set {
-		labels := make([]commonv1proto.KeyValue, 0, len(s.Labels))
-		for _, label := range s.Labels {
-			labels = append(labels,
-				commonv1proto.KeyValue{
-					Key:   label.Name,
-					Value: label.Value.AsAnyValue(),
-				},
-			)
-		}
-
-		intervals := traceql.IntervalCount(req.Start, req.End, req.Step)
-		samples := make([]tempopb.Sample, 0, intervals)
-		for i, value := range s.Values {
-
-			ts := traceql.TimestampOf(uint64(i), req.Start, req.Step)
-
-			samples = append(samples, tempopb.Sample{
-				TimestampMs: time.Unix(0, int64(ts)).UnixMilli(),
-				Value:       value,
-			})
-		}
-
-		var exemplars []tempopb.Exemplar
-		if len(s.Exemplars) > 0 {
-			exemplars = make([]tempopb.Exemplar, 0, len(s.Exemplars))
-		}
-		for _, e := range s.Exemplars {
-			lbls := make([]commonv1proto.KeyValue, 0, len(e.Labels))
-			for _, label := range e.Labels {
-				lbls = append(lbls,
-					commonv1proto.KeyValue{
-						Key:   label.Name,
-						Value: label.Value.AsAnyValue(),
-					},
-				)
-			}
-			exemplars = append(exemplars, tempopb.Exemplar{
-				Labels:      lbls,
-				TimestampMs: int64(e.TimestampMs),
-				Value:       e.Value,
-			})
-		}
-
-		ss := &tempopb.TimeSeries{
-			PromLabels: promLabels,
-			Labels:     labels,
-			Samples:    samples,
-			Exemplars:  exemplars,
-		}
-
-		resp = append(resp, ss)
-	}
-
-	return resp
 }
 
 func (i *instance) updatePushMetrics(bytesIngested int, spanCount int, expiredSpanCount int) {
