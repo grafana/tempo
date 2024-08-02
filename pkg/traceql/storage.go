@@ -10,7 +10,9 @@ type Condition struct {
 	Attribute Attribute
 	Op        Operator
 	Operands  Operands
-	CallBack  func() bool
+	// Callback is used in the parquetquery.CallbackPredicate to determine if the iterator should be stopped.
+	// It's used to limit the overhead of fetching exemplars by stopping the iterator early.
+	CallBack func() bool
 }
 
 func SearchMetaConditions() []Condition {
