@@ -17,7 +17,7 @@ func NewSearchTags(limitBytes int) Combiner {
 		httpStatusCode: 200,
 		new:            func() *tempopb.SearchTagsResponse { return &tempopb.SearchTagsResponse{} },
 		current:        &tempopb.SearchTagsResponse{TagNames: make([]string, 0)},
-		combine: func(partial, final *tempopb.SearchTagsResponse, _ PipelineResponse) error {
+		combine: func(partial, _ *tempopb.SearchTagsResponse, _ PipelineResponse) error {
 			for _, v := range partial.TagNames {
 				d.Collect(v)
 			}
@@ -49,7 +49,7 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 		httpStatusCode: 200,
 		new:            func() *tempopb.SearchTagsV2Response { return &tempopb.SearchTagsV2Response{} },
 		current:        &tempopb.SearchTagsV2Response{Scopes: make([]*tempopb.SearchTagsV2Scope, 0)},
-		combine: func(partial, final *tempopb.SearchTagsV2Response, _ PipelineResponse) error {
+		combine: func(partial, _ *tempopb.SearchTagsV2Response, _ PipelineResponse) error {
 			for _, res := range partial.GetScopes() {
 				for _, tag := range res.Tags {
 					distinctValues.Collect(res.Name, tag)

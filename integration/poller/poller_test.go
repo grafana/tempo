@@ -12,12 +12,12 @@ import (
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
 	"github.com/grafana/e2e"
+	"github.com/grafana/tempo/v2/integration/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
 	"github.com/grafana/tempo/v2/cmd/tempo/app"
-	util "github.com/grafana/tempo/v2/integration"
 	e2eBackend "github.com/grafana/tempo/v2/integration/e2e/backend"
 	"github.com/grafana/tempo/v2/pkg/blockboundary"
 	"github.com/grafana/tempo/v2/tempodb/backend"

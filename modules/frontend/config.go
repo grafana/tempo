@@ -88,6 +88,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			Interval:              5 * time.Minute,
 			RF1ReadPath:           false,
+			Exemplars:             false, // TODO: Remove?
+			MaxExemplars:          100,
 		},
 		SLO: slo,
 	}

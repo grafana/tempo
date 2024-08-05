@@ -1,14 +1,17 @@
-package integration
+package util
 
 // Collection of utilities to share between our various load tests
 
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
 	"io"
+	"math/rand"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -18,7 +21,10 @@ import (
 
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/e2e"
+	"github.com/grafana/tempo/v2/pkg/model/trace"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
+	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -89,7 +95,7 @@ func NewTempoAllInOneDebug(extraArgs ...string) *e2e.HTTPService {
 		2345,  // delve port
 	)
 	env := map[string]string{
-		"DEBUG_BLOCK": "0",
+		"DEBUG_BLOCK": "1",
 	}
 	s.SetEnvVars(env)
 
@@ -469,4 +475,141 @@ func traceIDInResults(t *testing.T, hexID string, resp *tempopb.SearchResponse) 
 	}
 
 	return false
+}
+
+func MakeThriftBatch() *thrift.Batch {
+	return MakeThriftBatchWithSpanCount(1)
+}
+
+func MakeThriftBatchWithSpanCount(n int) *thrift.Batch {
+	return MakeThriftBatchWithSpanCountAttributeAndName(n, "my operation", "", "y", "xx", "x")
+}
+
+func MakeThriftBatchWithSpanCountAttributeAndName(n int, name, resourceValue, spanValue, resourceTag, spanTag string) *thrift.Batch {
+	var spans []*thrift.Span
+
+	traceIDLow := rand.Int63()
+	traceIDHigh := rand.Int63()
+	for i := 0; i < n; i++ {
+		spans = append(spans, &thrift.Span{
+			TraceIdLow:    traceIDLow,
+			TraceIdHigh:   traceIDHigh,
+			SpanId:        rand.Int63(),
+			ParentSpanId:  0,
+			OperationName: name,
+			References:    nil,
+			Flags:         0,
+			StartTime:     time.Now().UnixNano() / 1000, // microsecconds
+			Duration:      1,
+			Tags: []*thrift.Tag{
+				{
+					Key:  spanTag,
+					VStr: &spanValue,
+				},
+			},
+			Logs: nil,
+		})
+	}
+
+	return &thrift.Batch{
+		Process: &thrift.Process{
+			ServiceName: "my-service",
+			Tags: []*thrift.Tag{
+				{
+					Key:   resourceTag,
+					VType: thrift.TagType_STRING,
+					VStr:  &resourceValue,
+				},
+			},
+		},
+		Spans: spans,
+	}
+}
+
+func CallFlush(t *testing.T, ingester *e2e.HTTPService) {
+	fmt.Printf("Calling /flush on %s\n", ingester.Name())
+	res, err := e2e.DoGet("http://" + ingester.Endpoint(3200) + "/flush")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusNoContent, res.StatusCode)
+}
+
+func CallIngesterRing(t *testing.T, svc *e2e.HTTPService) {
+	endpoint := "/ingester/ring"
+	fmt.Printf("Calling %s on %s\n", endpoint, svc.Name())
+	res, err := e2e.DoGet("http://" + svc.Endpoint(3200) + endpoint)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+}
+
+func CallCompactorRing(t *testing.T, svc *e2e.HTTPService) {
+	endpoint := "/compactor/ring"
+	fmt.Printf("Calling %s on %s\n", endpoint, svc.Name())
+	res, err := e2e.DoGet("http://" + svc.Endpoint(3200) + endpoint)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+}
+
+func CallStatus(t *testing.T, svc *e2e.HTTPService) {
+	endpoint := "/status/endpoints"
+	fmt.Printf("Calling %s on %s\n", endpoint, svc.Name())
+	res, err := e2e.DoGet("http://" + svc.Endpoint(3200) + endpoint)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+}
+
+func CallBuildinfo(t *testing.T, svc *e2e.HTTPService) {
+	endpoint := "/api/status/buildinfo"
+	fmt.Printf("Calling %s on %s\n", endpoint, svc.Name())
+	res, err := e2e.DoGet("http://" + svc.Endpoint(3200) + endpoint)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+
+	// Check that the actual JSON response contains all the expected keys (we disregard the values)
+	var jsonResponse map[string]any
+	keys := []string{"version", "revision", "branch", "buildDate", "buildUser", "goVersion"}
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	err = json.Unmarshal(body, &jsonResponse)
+	require.NoError(t, err)
+	for _, key := range keys {
+		_, ok := jsonResponse[key]
+		require.True(t, ok)
+	}
+	defer res.Body.Close()
+}
+
+func AssertEcho(t *testing.T, url string) {
+	res, err := e2e.DoGet(url)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	defer res.Body.Close()
+}
+
+func QueryAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo) {
+	resp, err := client.QueryTrace(info.HexID())
+	require.NoError(t, err)
+
+	expected, err := info.ConstructTraceFromEpoch()
+	require.NoError(t, err)
+
+	AssertEqualTrace(t, resp, expected)
+}
+
+func AssertEqualTrace(t *testing.T, a, b *tempopb.Trace) {
+	t.Helper()
+	trace.SortTraceAndAttributes(a)
+	trace.SortTraceAndAttributes(b)
+
+	assert.Equal(t, a, b)
+}
+
+func SpanCount(a *tempopb.Trace) float64 {
+	count := 0
+	for _, batch := range a.ResourceSpans {
+		for _, spans := range batch.ScopeSpans {
+			count += len(spans.Spans)
+		}
+	}
+
+	return float64(count)
 }

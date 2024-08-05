@@ -142,7 +142,53 @@ frontend.
 
 **Returns**
 
-By default, this endpoint returns [OpenTelemetry](https://github.com/open-telemetry/opentelemetry-proto/tree/main/opentelemetry/proto/trace/v1) JSON,
+By default, this endpoint returns a mostly compatible [OpenTelemetry](https://github.com/open-telemetry/opentelemetry-proto/tree/main/opentelemetry/proto/trace/v1) JSON,
+but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is passed.
+
+
+### Query V2
+
+The following request is used to retrieve a trace from the query frontend service in
+a microservices deployment or the Tempo endpoint in a monolithic mode deployment.
+
+```
+GET /api/v2/traces/<traceid>?start=<start>&end=<end>
+```
+
+Parameters:
+
+- `start = (unix epoch seconds)`
+  Optional. Along with `end` define a time range from which traces should be returned.
+- `end = (unix epoch seconds)`
+  Optional. Along with `start` define a time range from which traces should be returned. Providing both `start` and `end` includes traces for the specified time range only. If the parameters aren't provided then Tempo checks for the trace across all blocks in backend. If the parameters are provided, it only checks in the blocks within the specified time range, this can result in trace not being found or partial results if it doesn't fall in the specified time range.
+
+The following query API is also provided on the querier service for _debugging_ purposes.
+
+```
+GET /querier/api/v2/traces/<traceid>?mode=xxxx&blockStart=0000&blockEnd=FFFF&start=<start>&end=<end>
+```
+
+Parameters:
+
+- `mode = (blocks|ingesters|all)`
+  Specifies whether the querier should look for the trace in blocks, ingesters or both (all).
+  Default = `all`
+- `blockStart = (GUID)`
+  Specifies the blockID start boundary. If specified, the querier only searches blocks with IDs > blockStart.
+  Default = `00000000-0000-0000-0000-000000000000`
+  Example: `blockStart=12345678-0000-0000-1235-000001240000`
+- `blockEnd = (GUID)`
+  Specifies the blockID finish boundary. If specified, the querier only searches blocks with IDs < blockEnd.
+  Default = `FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF`
+  Example: `blockStart=FFFFFFFF-FFFF-FFFF-FFFF-456787652341`
+- `start = (unix epoch seconds)`
+  Optional. Along with `end` define a time range from which traces should be returned.
+- `end = (unix epoch seconds)`
+  Optional. Along with `start` define a time range from which traces should be returned. Providing both `start` and `end` includes blocks for the specified time range only.
+
+**Returns**
+
+By default, this endpoint returns Query response with a [OpenTelemetry](https://github.com/open-telemetry/opentelemetry-proto/tree/main/opentelemetry/proto/trace/v1) JSON trace,
 but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is passed.
 
 ### Search
