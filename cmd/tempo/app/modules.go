@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"embed"
 	"errors"
 	"fmt"
 	"io"
@@ -422,9 +423,14 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	// http endpoint to see usage stats data
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathUsageStats), usageStatsHandler(t.cfg.UsageReport))
 
+	t.Server.HTTPRouter().PathPrefix("/static/").HandlerFunc(http.FileServer(http.FS(staticFiles)).ServeHTTP).Methods("GET")
+
 	// todo: queryFrontend should implement service.Service and take the cortex frontend a submodule
 	return t.frontend, nil
 }
+
+//go:embed static
+var staticFiles embed.FS
 
 func (t *App) initCompactor() (services.Service, error) {
 	if t.cfg.Target == ScalableSingleBinary && t.cfg.Compactor.ShardingRing.KVStore.Store == "" {
@@ -488,7 +494,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 
-	t.Server.HTTPRouter().Handle("/memberlist", t.MemberlistKV)
+	t.Server.HTTPRouter().Handle("/memberlist", memberlistStatusHandler("", t.MemberlistKV))
 
 	return t.MemberlistKV, nil
 }
