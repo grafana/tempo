@@ -175,7 +175,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 }
 
 func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.SearchTagsResponse, error) {
-	v2Response, err := i.SearchTagsV2(ctx, scope)
+	v2Response, err := i.SearchTagsV2(ctx, &tempopb.SearchTagsRequest{Scope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +200,7 @@ func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.Searc
 }
 
 // SearchTagsV2 calls SearchTags for each scope and returns the results.
-func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.SearchTagsV2Response, error) {
+func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsV2Response, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTagsV2")
 	defer span.Finish()
 
@@ -209,6 +209,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.Sea
 		return nil, err
 	}
 
+	scope := req.Scope
 	// check if it's the special intrinsic scope
 	if scope == api.ParamScopeIntrinsic {
 		return &tempopb.SearchTagsV2Response{
@@ -230,6 +231,9 @@ func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.Sea
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewScopedDistinctString(limit)
 
+	engine := traceql.NewEngine()
+	query := traceql.ExtractMatchers(req.Query)
+
 	searchBlock := func(ctx context.Context, s common.Searcher, spanName string) error {
 		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTags."+spanName)
 		defer span.Finish()
@@ -240,14 +244,28 @@ func (i *instance) SearchTagsV2(ctx context.Context, scope string) (*tempopb.Sea
 		if distinctValues.Exceeded() {
 			return nil
 		}
-		err = s.SearchTags(ctx, attributeScope, func(t string, scope traceql.AttributeScope) {
-			distinctValues.Collect(scope.String(), t)
-		}, common.DefaultSearchOptions())
-		if err != nil && !errors.Is(err, common.ErrUnsupported) {
-			return fmt.Errorf("unexpected error searching tags: %w", err)
+
+		// if the query is empty, use the old search
+		if traceql.IsEmptyQuery(query) {
+			err = s.SearchTags(ctx, attributeScope, func(t string, scope traceql.AttributeScope) {
+				distinctValues.Collect(scope.String(), t)
+			}, common.DefaultSearchOptions())
+			if err != nil && !errors.Is(err, common.ErrUnsupported) {
+				return fmt.Errorf("unexpected error searching tags: %w", err)
+			}
+
+			return nil
 		}
 
-		return nil
+		// otherwise use the filtered search
+		fetcher := traceql.NewTagNamesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback) error {
+			return s.FetchTagNames(ctx, req, cb, common.DefaultSearchOptions())
+		})
+
+		return engine.ExecuteTagNames(ctx, attributeScope, query, func(tag string, scope traceql.AttributeScope) bool {
+			distinctValues.Collect(scope.String(), tag)
+			return distinctValues.Exceeded()
+		}, fetcher)
 	}
 
 	i.headBlockMtx.RLock()
@@ -390,6 +408,13 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	if err != nil {
 		return nil, err
 	}
+	if tag == traceql.IntrinsicLinkTraceIDAttribute ||
+		tag == traceql.IntrinsicLinkSpanIDAttribute ||
+		tag == traceql.IntrinsicSpanIDAttribute ||
+		tag == traceql.IntrinsicTraceIDAttribute {
+		// do not return tag values for IDs
+		return &tempopb.SearchTagValuesV2Response{}, nil
+	}
 
 	query := traceql.ExtractMatchers(req.Query)
 
@@ -402,7 +427,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			return nil
 		}
 
-		// if the query is empty or autocomplete filtering is disabled, use the old search
+		// if the query is empty, use the old search
 		if traceql.IsEmptyQuery(query) {
 			return s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(valueCollector.Collect), common.DefaultSearchOptions())
 		}

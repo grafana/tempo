@@ -93,3 +93,17 @@ To demonstrate this flexibility, consider this nonsensical quantile on `span.htt
 ```
 { name = "GET /:endpoint" } | quantile_over_time(span.http.status_code, .99, .9, .5)
 ```
+
+## Exemplars
+
+Exemplars are a powerful feature of TraceQL metrics.
+They allow you to see an exact trace that contributed to a given metric value.
+This is particularly useful when you want to understand why a given metric is high or low.
+
+Exemplars are available in TraceQL metrics for all functions.
+To get exemplars, you need to configure it in the query-frontend with the parameter `query_frontend.metrics.exemplars`,
+or pass a query hint in your query.
+
+```
+{ name = "GET /:endpoint" } | quantile_over_time(duration, .99) by (span.http.target) with (exemplars=true)
+```

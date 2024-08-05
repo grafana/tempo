@@ -32,6 +32,7 @@ type mockOverrides struct {
 	dedicatedColumns                                   backend.DedicatedColumns
 	maxBytesPerTrace                                   int
 	unsafeQueryHints                                   bool
+	nativeHistograms                                   string
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
@@ -56,7 +57,11 @@ func (m *mockOverrides) MetricsGeneratorDisableCollection(string) bool {
 	return false
 }
 
-func (m *mockOverrides) MetricsGenerationTraceIDLabelName(userID string) string {
+func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(string) string {
+	return m.nativeHistograms
+}
+
+func (m *mockOverrides) MetricsGenerationTraceIDLabelName(string) string {
 	return ""
 }
 

@@ -77,7 +77,6 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	defer iter.Close()
 
 	for {
-
 		id, body, err := iter.NextBytes(ctx)
 		if errors.Is(err, io.EOF) {
 			break
@@ -85,6 +84,10 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		if err != nil {
 			return nil, fmt.Errorf("error iterating input blocks: %w", err)
+		}
+
+		if c.opts.DropObject != nil && c.opts.DropObject(id) {
+			continue
 		}
 
 		// make a new block if necessary

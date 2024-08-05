@@ -60,8 +60,11 @@ func NewMemcached(cfg MemcachedConfig, client MemcachedClient, name string, reg 
 				Name:      "memcache_request_duration_seconds",
 				Help:      "Total time spent in seconds doing memcache requests.",
 				// Memcached requests are very quick: smallest bucket is 16us, biggest is 1s
-				Buckets:     prometheus.ExponentialBuckets(0.000016, 4, 8),
-				ConstLabels: prometheus.Labels{"name": name},
+				Buckets:                         prometheus.ExponentialBuckets(0.000016, 4, 8),
+				NativeHistogramBucketFactor:     1.1,
+				NativeHistogramMaxBucketNumber:  100,
+				NativeHistogramMinResetDuration: 1 * time.Hour,
+				ConstLabels:                     prometheus.Labels{"name": name},
 			}, []string{"method", "status_code"}),
 		),
 	}

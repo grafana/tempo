@@ -21,99 +21,99 @@ func TestCoalesceConditions(t *testing.T) {
 			f: &traceql.FetchSpansRequest{
 				AllConditions: true,
 				Conditions: []traceql.Condition{
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpEqual, []traceql.Static{traceql.NewStaticString("foo")}},
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpEqual, []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpEqual, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpEqual, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
 				},
 			},
 			expected: &traceql.FetchSpansRequest{
 				AllConditions: true,
 				Conditions: []traceql.Condition{
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpEqual, []traceql.Static{traceql.NewStaticString("foo")}},
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpEqual, []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpEqual, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpEqual, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
 				},
 			},
 		},
 		{
 			f: &traceql.FetchSpansRequest{
 				Conditions: []traceql.Condition{
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpEqual, []traceql.Static{traceql.NewStaticString("foo")}},
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpNotEqual, []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpEqual, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpNotEqual, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
 				},
 			},
 			expected: &traceql.FetchSpansRequest{
 				Conditions: []traceql.Condition{
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpNone, nil},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpNone},
 				},
 			},
 		},
 		{
 			f: &traceql.FetchSpansRequest{
 				Conditions: []traceql.Condition{
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpEqual, []traceql.Static{traceql.NewStaticString("foo")}},
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpNotEqual, []traceql.Static{traceql.NewStaticString("bar")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpEqual, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpNotEqual, Operands: []traceql.Static{traceql.NewStaticString("bar")}},
 				},
 			},
 			expected: &traceql.FetchSpansRequest{
 				Conditions: []traceql.Condition{
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpEqual, []traceql.Static{traceql.NewStaticString("foo")}},
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpNotEqual, []traceql.Static{traceql.NewStaticString("bar")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpEqual, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpNotEqual, Operands: []traceql.Static{traceql.NewStaticString("bar")}},
 				},
 			},
 		},
 		{
 			f: &traceql.FetchSpansRequest{
 				Conditions: []traceql.Condition{
-					{traceql.NewIntrinsic(traceql.IntrinsicKind), traceql.OpEqual, []traceql.Static{traceql.NewStaticString("foo")}},
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpNotEqual, []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicKind), Op: traceql.OpEqual, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpNotEqual, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
 				},
 			},
 			expected: &traceql.FetchSpansRequest{
 				Conditions: []traceql.Condition{
-					{traceql.NewIntrinsic(traceql.IntrinsicKind), traceql.OpEqual, []traceql.Static{traceql.NewStaticString("foo")}},
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpNotEqual, []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicKind), Op: traceql.OpEqual, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpNotEqual, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
 				},
 			},
 		},
 		{
 			f: &traceql.FetchSpansRequest{
 				Conditions: []traceql.Condition{
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpEqual, []traceql.Static{traceql.NewStaticString("foo")}},
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpNotEqual, []traceql.Static{traceql.NewStaticString("foo")}},
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpGreater, []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpEqual, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpNotEqual, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpGreater, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
 				},
 			},
 			expected: &traceql.FetchSpansRequest{
 				Conditions: []traceql.Condition{
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpNone, nil},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpNone},
 				},
 			},
 		},
 		{
 			f: &traceql.FetchSpansRequest{
 				Conditions: []traceql.Condition{
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpGreater, []traceql.Static{traceql.NewStaticString("foo")}},
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpEqual, []traceql.Static{traceql.NewStaticString("foo")}},
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpNotEqual, []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpGreater, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpEqual, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpNotEqual, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
 				},
 			},
 			expected: &traceql.FetchSpansRequest{
 				Conditions: []traceql.Condition{
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpNone, nil},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpNone},
 				},
 			},
 		},
 		{
 			f: &traceql.FetchSpansRequest{
 				Conditions: []traceql.Condition{
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpEqual, []traceql.Static{traceql.NewStaticString("foo")}},
-					{traceql.NewIntrinsic(traceql.IntrinsicChildCount), traceql.OpEqual, []traceql.Static{traceql.NewStaticString("bar")}},
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpNotEqual, []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpEqual, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicChildCount), Op: traceql.OpEqual, Operands: []traceql.Static{traceql.NewStaticString("bar")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpNotEqual, Operands: []traceql.Static{traceql.NewStaticString("foo")}},
 				},
 			},
 			expected: &traceql.FetchSpansRequest{
 				Conditions: []traceql.Condition{
-					{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.OpNone, nil},
-					{traceql.NewIntrinsic(traceql.IntrinsicChildCount), traceql.OpEqual, []traceql.Static{traceql.NewStaticString("bar")}},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), Op: traceql.OpNone},
+					{Attribute: traceql.NewIntrinsic(traceql.IntrinsicChildCount), Op: traceql.OpEqual, Operands: []traceql.Static{traceql.NewStaticString("bar")}},
 				},
 			},
 		},

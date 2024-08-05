@@ -466,10 +466,10 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 
 	var rawHistorgram *tempopb.RawHistogram
 	var errCount int
-	for series, hist := range m.Series {
+	for keys, sh := range m.Series {
 		h := []*tempopb.RawHistogram{}
 
-		for bucket, count := range hist.Buckets() {
+		for bucket, count := range sh.Histogram.Buckets() {
 			if count != 0 {
 				rawHistorgram = &tempopb.RawHistogram{
 					Bucket: uint64(bucket),
@@ -481,13 +481,13 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 		}
 
 		errCount = 0
-		if errs, ok := m.Errors[series]; ok {
+		if errs, ok := m.Errors[keys]; ok {
 			errCount = errs
 		}
 
 		resp.Metrics = append(resp.Metrics, &tempopb.SpanMetrics{
 			LatencyHistogram: h,
-			Series:           metricSeriesToProto(series),
+			Series:           metricSeriesToProto(sh.Series),
 			Errors:           uint64(errCount),
 		})
 	}
@@ -586,7 +586,7 @@ func (p *Processor) cutIdleTraces(immediate bool) error {
 	for _, t := range tracesToCut {
 
 		tr := &tempopb.Trace{
-			Batches: t.Batches,
+			ResourceSpans: t.Batches,
 		}
 
 		err := p.writeHeadBlock(t.id, tr)
@@ -614,7 +614,7 @@ func (p *Processor) writeHeadBlock(id common.ID, tr *tempopb.Trace) error {
 
 	// Get trace timestamp bounds
 	var start, end uint64
-	for _, b := range tr.Batches {
+	for _, b := range tr.ResourceSpans {
 		for _, ss := range b.ScopeSpans {
 			for _, s := range ss.Spans {
 				if start == 0 || s.StartTimeUnixNano < start {
@@ -802,23 +802,40 @@ func metricSeriesToProto(series traceqlmetrics.MetricSeries) []*tempopb.KeyValue
 	var r []*tempopb.KeyValue
 	for _, kv := range series {
 		if kv.Key != "" {
-			static := kv.Value
-			r = append(r, &tempopb.KeyValue{
-				Key: kv.Key,
-				Value: &tempopb.TraceQLStatic{
-					Type:   int32(static.Type),
-					N:      int64(static.N),
-					F:      static.F,
-					S:      static.S,
-					B:      static.B,
-					D:      uint64(static.D),
-					Status: int32(static.Status),
-					Kind:   int32(static.Kind),
-				},
-			})
+			r = append(r, traceQLStaticToProto(&kv))
 		}
 	}
 	return r
+}
+
+func traceQLStaticToProto(kv *traceqlmetrics.KeyValue) *tempopb.KeyValue {
+	val := tempopb.TraceQLStatic{Type: int32(kv.Value.Type)}
+
+	switch kv.Value.Type {
+	case traceql.TypeInt:
+		n, _ := kv.Value.Int()
+		val.N = int64(n)
+	case traceql.TypeFloat:
+		val.F = kv.Value.Float()
+	case traceql.TypeString:
+		val.S = kv.Value.EncodeToString(false)
+	case traceql.TypeBoolean:
+		b, _ := kv.Value.Bool()
+		val.B = b
+	case traceql.TypeDuration:
+		d, _ := kv.Value.Duration()
+		val.D = uint64(d)
+	case traceql.TypeStatus:
+		st, _ := kv.Value.Status()
+		val.Status = int32(st)
+	case traceql.TypeKind:
+		k, _ := kv.Value.Kind()
+		val.Kind = int32(k)
+	default:
+		val = tempopb.TraceQLStatic{Type: int32(traceql.TypeNil)}
+	}
+
+	return &tempopb.KeyValue{Key: kv.Key, Value: &val}
 }
 
 // filterBatches to only root spans or kind==server. Does not modify the input

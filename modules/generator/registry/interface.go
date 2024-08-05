@@ -4,19 +4,23 @@ package registry
 type Registry interface {
 	NewLabelValueCombo(labels []string, values []string) *LabelValueCombo
 	NewCounter(name string) Counter
-	NewHistogram(name string, buckets []float64) Histogram
+	NewHistogram(name string, buckets []float64, histogramOverride string) Histogram
 	NewGauge(name string) Gauge
 }
 
 // Counter
 // https://prometheus.io/docs/concepts/metric_types/#counter
 type Counter interface {
+	metric
+
 	Inc(labelValueCombo *LabelValueCombo, value float64)
 }
 
 // Histogram
 // https://prometheus.io/docs/concepts/metric_types/#histogram
 type Histogram interface {
+	metric
+
 	// ObserveWithExemplar observes a datapoint with the given values. traceID will be added as exemplar.
 	ObserveWithExemplar(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64)
 }
@@ -25,6 +29,8 @@ type Histogram interface {
 // https://prometheus.io/docs/concepts/metric_types/#gauge
 // https://pkg.go.dev/github.com/prometheus/client_golang/prometheus#Gauge
 type Gauge interface {
+	metric
+
 	// Set sets the Gauge to an arbitrary value.
 	Set(labelValueCombo *LabelValueCombo, value float64)
 	Inc(labelValueCombo *LabelValueCombo, value float64)

@@ -60,11 +60,11 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	span.SetTag("fetchSpansRequest", fetchSpansRequest)
 
 	// calculate search meta conditions.
-	metaConditions := SearchMetaConditionsWithout(fetchSpansRequest.Conditions)
+	meta := SearchMetaConditionsWithout(fetchSpansRequest.Conditions, fetchSpansRequest.AllConditions)
+	fetchSpansRequest.SecondPassConditions = append(fetchSpansRequest.SecondPassConditions, meta...)
 
 	spansetsEvaluated := 0
 	// set up the expression evaluation as a filter to reduce data pulled
-	fetchSpansRequest.SecondPassConditions = append(fetchSpansRequest.SecondPassConditions, metaConditions...)
 	fetchSpansRequest.SecondPass = func(inSS *Spanset) ([]*Spanset, error) {
 		if len(inSS.Spans) == 0 {
 			return nil, nil
@@ -171,6 +171,38 @@ func (e *Engine) ExecuteTagValues(
 	return fetcher.Fetch(ctx, autocompleteReq, cb)
 }
 
+func (e *Engine) ExecuteTagNames(
+	ctx context.Context,
+	scope AttributeScope,
+	query string,
+	cb FetchTagsCallback,
+	fetcher TagNamesFetcher,
+) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteTagNames")
+	defer span.Finish()
+
+	span.SetTag("sanitized query", query)
+
+	var conditions []Condition
+	rootExpr, err := Parse(query)
+	// if the parse succeeded then use those conditions, otherwise pass in none. the next layer will handle it
+	if err == nil {
+		req := &FetchSpansRequest{}
+		rootExpr.Pipeline.extractConditions(req)
+		conditions = req.Conditions
+	}
+
+	autocompleteReq := FetchTagsRequest{
+		Conditions: conditions,
+		Scope:      scope,
+	}
+
+	span.SetTag("pipeline", rootExpr.Pipeline)
+	span.SetTag("autocompleteReq", autocompleteReq)
+
+	return fetcher.Fetch(ctx, autocompleteReq, cb)
+}
+
 func (e *Engine) parseQuery(searchReq *tempopb.SearchRequest) (*RootExpr, error) {
 	r, err := Parse(searchReq.Query)
 	if err != nil {
@@ -261,7 +293,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 		atts := span.AllAttributes()
 
 		if name, ok := atts[NewIntrinsic(IntrinsicName)]; ok {
-			tempopbSpan.Name = name.S
+			tempopbSpan.Name = name.EncodeToString(false)
 		}
 
 		for attribute, static := range atts {
@@ -271,10 +303,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 				attribute.Intrinsic == IntrinsicTraceRootService ||
 				attribute.Intrinsic == IntrinsicTraceRootSpan ||
 				attribute.Intrinsic == IntrinsicTraceID ||
-				attribute.Intrinsic == IntrinsicSpanID ||
-				attribute.Intrinsic == IntrinsicEventName ||
-				attribute.Intrinsic == IntrinsicLinkTraceID ||
-				attribute.Intrinsic == IntrinsicLinkSpanID {
+				attribute.Intrinsic == IntrinsicSpanID {
 
 				continue
 			}
@@ -302,7 +331,9 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 	// add attributes
 	for _, att := range spanset.Attributes {
 		if att.Name == attributeMatched {
-			metadata.SpanSet.Matched = uint32(att.Val.N)
+			if n, ok := att.Val.Int(); ok {
+				metadata.SpanSet.Matched = uint32(n)
+			}
 			continue
 		}
 
@@ -324,59 +355,44 @@ func unixSecToNano(ts uint32) uint64 {
 func (s Static) AsAnyValue() *common_v1.AnyValue {
 	switch s.Type {
 	case TypeInt:
+		n, _ := s.Int()
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_IntValue{
-				IntValue: int64(s.N),
-			},
-		}
-	case TypeString:
-		return &common_v1.AnyValue{
-			Value: &common_v1.AnyValue_StringValue{
-				StringValue: s.S,
+				IntValue: int64(n),
 			},
 		}
 	case TypeFloat:
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_DoubleValue{
-				DoubleValue: s.F,
+				DoubleValue: s.Float(),
 			},
 		}
 	case TypeBoolean:
+		b, _ := s.Bool()
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_BoolValue{
-				BoolValue: s.B,
+				BoolValue: b,
 			},
 		}
 	case TypeDuration:
+		d, _ := s.Duration()
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_StringValue{
-				StringValue: s.D.String(),
+				StringValue: d.String(),
 			},
 		}
-	case TypeStatus:
+	case TypeString, TypeStatus, TypeNil, TypeKind:
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_StringValue{
-				StringValue: s.Status.String(),
+				StringValue: s.EncodeToString(false),
 			},
 		}
-	case TypeNil:
+	default:
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_StringValue{
-				StringValue: "nil",
+				StringValue: fmt.Sprintf("error formatting val: static has unexpected type %v", s.Type),
 			},
 		}
-	case TypeKind:
-		return &common_v1.AnyValue{
-			Value: &common_v1.AnyValue_StringValue{
-				StringValue: s.Kind.String(),
-			},
-		}
-	}
-
-	return &common_v1.AnyValue{
-		Value: &common_v1.AnyValue_StringValue{
-			StringValue: fmt.Sprintf("error formatting val: static has unexpected type %v", s.Type),
-		},
 	}
 }
 

@@ -41,7 +41,9 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 		SearchReq: searchReq,
 	}
 
-	s := r.URL.Query().Get(urlParamStartPage)
+	vals := r.URL.Query()
+
+	s := vals.Get(urlParamStartPage)
 	startPage, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid startPage: %w", err)
@@ -51,7 +53,7 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 	}
 	req.StartPage = uint32(startPage)
 
-	s = r.URL.Query().Get(urlParamPagesToSearch)
+	s = vals.Get(urlParamPagesToSearch)
 	pagesToSearch64, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid pagesToSearch %s: %w", s, err)
@@ -61,28 +63,28 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 	}
 	req.PagesToSearch = uint32(pagesToSearch64)
 
-	s = r.URL.Query().Get(urlParamBlockID)
+	s = vals.Get(urlParamBlockID)
 	blockID, err := uuid.Parse(s)
 	if err != nil {
 		return nil, fmt.Errorf("invalid blockID: %w", err)
 	}
 	req.BlockID = blockID.String()
 
-	s = r.URL.Query().Get(urlParamEncoding)
+	s = vals.Get(urlParamEncoding)
 	encoding, err := backend.ParseEncoding(s)
 	if err != nil {
 		return nil, err
 	}
 	req.Encoding = encoding.String()
 
-	s = r.URL.Query().Get(urlParamIndexPageSize)
+	s = vals.Get(urlParamIndexPageSize)
 	indexPageSize, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid indexPageSize %s: %w", s, err)
 	}
 	req.IndexPageSize = uint32(indexPageSize)
 
-	s = r.URL.Query().Get(urlParamTotalRecords)
+	s = vals.Get(urlParamTotalRecords)
 	totalRecords, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid totalRecords %s: %w", s, err)
@@ -95,16 +97,16 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 	// Data encoding can be blank for some block formats, therefore
 	// no validation on the param here.  Eventually we may be able
 	// to remove this parameter entirely.
-	dataEncoding := r.URL.Query().Get(urlParamDataEncoding)
+	dataEncoding := vals.Get(urlParamDataEncoding)
 	req.DataEncoding = dataEncoding
 
-	version := r.URL.Query().Get(urlParamVersion)
+	version := vals.Get(urlParamVersion)
 	if version == "" {
 		return nil, errors.New("version required")
 	}
 	req.Version = version
 
-	s = r.URL.Query().Get(urlParamSize)
+	s = vals.Get(urlParamSize)
 	size, err := strconv.ParseUint(s, 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("invalid size %s: %w", s, err)
@@ -113,14 +115,14 @@ func ParseSearchBlockRequest(r *http.Request) (*tempopb.SearchBlockRequest, erro
 
 	// Footer size can be 0 for some blocks, just ensure we
 	// get a valid integer.
-	f := r.URL.Query().Get(urlParamFooterSize)
+	f := vals.Get(urlParamFooterSize)
 	footerSize, err := strconv.ParseUint(f, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid footerSize %s: %w", f, err)
 	}
 	req.FooterSize = uint32(footerSize)
 
-	s = r.URL.Query().Get(urlParamDedicatedColumns)
+	s = vals.Get(urlParamDedicatedColumns)
 	if s != "" {
 		var dedicatedColumns []*tempopb.DedicatedColumn
 		err = json.Unmarshal([]byte(s), &dedicatedColumns)
@@ -163,7 +165,9 @@ func parseSearchTagValuesBlockRequest(r *http.Request, enforceTraceQL bool) (*te
 		SearchReq: tagSearchReq,
 	}
 
-	s := r.URL.Query().Get(urlParamStartPage)
+	vals := r.URL.Query()
+
+	s := vals.Get(urlParamStartPage)
 	startPage, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid startPage: %w", err)
@@ -173,7 +177,7 @@ func parseSearchTagValuesBlockRequest(r *http.Request, enforceTraceQL bool) (*te
 	}
 	req.StartPage = uint32(startPage)
 
-	s = r.URL.Query().Get(urlParamPagesToSearch)
+	s = vals.Get(urlParamPagesToSearch)
 	pagesToSearch64, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid pagesToSearch %s: %w", s, err)
@@ -183,28 +187,28 @@ func parseSearchTagValuesBlockRequest(r *http.Request, enforceTraceQL bool) (*te
 	}
 	req.PagesToSearch = uint32(pagesToSearch64)
 
-	s = r.URL.Query().Get(urlParamBlockID)
+	s = vals.Get(urlParamBlockID)
 	blockID, err := uuid.Parse(s)
 	if err != nil {
 		return nil, fmt.Errorf("invalid blockID: %w", err)
 	}
 	req.BlockID = blockID.String()
 
-	s = r.URL.Query().Get(urlParamEncoding)
+	s = vals.Get(urlParamEncoding)
 	encoding, err := backend.ParseEncoding(s)
 	if err != nil {
 		return nil, err
 	}
 	req.Encoding = encoding.String()
 
-	s = r.URL.Query().Get(urlParamIndexPageSize)
+	s = vals.Get(urlParamIndexPageSize)
 	indexPageSize, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid indexPageSize %s: %w", s, err)
 	}
 	req.IndexPageSize = uint32(indexPageSize)
 
-	s = r.URL.Query().Get(urlParamTotalRecords)
+	s = vals.Get(urlParamTotalRecords)
 	totalRecords, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid totalRecords %s: %w", s, err)
@@ -217,16 +221,16 @@ func parseSearchTagValuesBlockRequest(r *http.Request, enforceTraceQL bool) (*te
 	// Data encoding can be blank for some block formats, therefore
 	// no validation on the param here.  Eventually we may be able
 	// to remove this parameter entirely.
-	dataEncoding := r.URL.Query().Get(urlParamDataEncoding)
+	dataEncoding := vals.Get(urlParamDataEncoding)
 	req.DataEncoding = dataEncoding
 
-	version := r.URL.Query().Get(urlParamVersion)
+	version := vals.Get(urlParamVersion)
 	if version == "" {
 		return nil, errors.New("version required")
 	}
 	req.Version = version
 
-	s = r.URL.Query().Get(urlParamSize)
+	s = vals.Get(urlParamSize)
 	size, err := strconv.ParseUint(s, 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("invalid size %s: %w", s, err)
@@ -235,14 +239,14 @@ func parseSearchTagValuesBlockRequest(r *http.Request, enforceTraceQL bool) (*te
 
 	// Footer size can be 0 for some blocks, just ensure we
 	// get a valid integer.
-	f := r.URL.Query().Get(urlParamFooterSize)
+	f := vals.Get(urlParamFooterSize)
 	footerSize, err := strconv.ParseUint(f, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid footerSize %s: %w", f, err)
 	}
 	req.FooterSize = uint32(footerSize)
 
-	s = r.URL.Query().Get(urlParamDedicatedColumns)
+	s = vals.Get(urlParamDedicatedColumns)
 	if s != "" {
 		var dedicatedColumns []*tempopb.DedicatedColumn
 		err = json.Unmarshal([]byte(s), &dedicatedColumns)
@@ -270,7 +274,9 @@ func ParseSearchTagsBlockRequest(r *http.Request) (*tempopb.SearchTagsBlockReque
 		SearchReq: tagSearchReq,
 	}
 
-	s := r.URL.Query().Get(urlParamStartPage)
+	vals := r.URL.Query()
+
+	s := vals.Get(urlParamStartPage)
 	startPage, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid startPage: %w", err)
@@ -280,7 +286,7 @@ func ParseSearchTagsBlockRequest(r *http.Request) (*tempopb.SearchTagsBlockReque
 	}
 	req.StartPage = uint32(startPage)
 
-	s = r.URL.Query().Get(urlParamPagesToSearch)
+	s = vals.Get(urlParamPagesToSearch)
 	pagesToSearch64, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid pagesToSearch %s: %w", s, err)
@@ -290,28 +296,28 @@ func ParseSearchTagsBlockRequest(r *http.Request) (*tempopb.SearchTagsBlockReque
 	}
 	req.PagesToSearch = uint32(pagesToSearch64)
 
-	s = r.URL.Query().Get(urlParamBlockID)
+	s = vals.Get(urlParamBlockID)
 	blockID, err := uuid.Parse(s)
 	if err != nil {
 		return nil, fmt.Errorf("invalid blockID: %w", err)
 	}
 	req.BlockID = blockID.String()
 
-	s = r.URL.Query().Get(urlParamEncoding)
+	s = vals.Get(urlParamEncoding)
 	encoding, err := backend.ParseEncoding(s)
 	if err != nil {
 		return nil, err
 	}
 	req.Encoding = encoding.String()
 
-	s = r.URL.Query().Get(urlParamIndexPageSize)
+	s = vals.Get(urlParamIndexPageSize)
 	indexPageSize, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid indexPageSize %s: %w", s, err)
 	}
 	req.IndexPageSize = uint32(indexPageSize)
 
-	s = r.URL.Query().Get(urlParamTotalRecords)
+	s = vals.Get(urlParamTotalRecords)
 	totalRecords, err := strconv.ParseInt(s, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid totalRecords %s: %w", s, err)
@@ -324,16 +330,16 @@ func ParseSearchTagsBlockRequest(r *http.Request) (*tempopb.SearchTagsBlockReque
 	// Data encoding can be blank for some block formats, therefore
 	// no validation on the param here.  Eventually we may be able
 	// to remove this parameter entirely.
-	dataEncoding := r.URL.Query().Get(urlParamDataEncoding)
+	dataEncoding := vals.Get(urlParamDataEncoding)
 	req.DataEncoding = dataEncoding
 
-	version := r.URL.Query().Get(urlParamVersion)
+	version := vals.Get(urlParamVersion)
 	if version == "" {
 		return nil, errors.New("version required")
 	}
 	req.Version = version
 
-	s = r.URL.Query().Get(urlParamSize)
+	s = vals.Get(urlParamSize)
 	size, err := strconv.ParseUint(s, 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("invalid size %s: %w", s, err)
@@ -342,14 +348,14 @@ func ParseSearchTagsBlockRequest(r *http.Request) (*tempopb.SearchTagsBlockReque
 
 	// Footer size can be 0 for some blocks, just ensure we
 	// get a valid integer.
-	f := r.URL.Query().Get(urlParamFooterSize)
+	f := vals.Get(urlParamFooterSize)
 	footerSize, err := strconv.ParseUint(f, 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("invalid footerSize %s: %w", f, err)
 	}
 	req.FooterSize = uint32(footerSize)
 
-	s = r.URL.Query().Get(urlParamDedicatedColumns)
+	s = vals.Get(urlParamDedicatedColumns)
 	if s != "" {
 		var dedicatedColumns []*tempopb.DedicatedColumn
 		err = json.Unmarshal([]byte(s), &dedicatedColumns)
@@ -394,14 +400,15 @@ func parseSearchTagValuesRequest(r *http.Request, enforceTraceQL bool) (*tempopb
 		}
 	}
 
-	query, _ := extractQueryParam(r, urlParamQuery)
+	vals := r.URL.Query()
+	query, _ := extractQueryParam(vals, urlParamQuery)
 
 	req := &tempopb.SearchTagValuesRequest{
 		TagName: tagName,
 		Query:   query,
 	}
 
-	if s, ok := extractQueryParam(r, urlParamStart); ok {
+	if s, ok := extractQueryParam(vals, urlParamStart); ok {
 		start, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("invalid start: %w", err)
@@ -409,7 +416,7 @@ func parseSearchTagValuesRequest(r *http.Request, enforceTraceQL bool) (*tempopb
 		req.Start = uint32(start)
 	}
 
-	if s, ok := extractQueryParam(r, urlParamEnd); ok {
+	if s, ok := extractQueryParam(vals, urlParamEnd); ok {
 		end, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("invalid end: %w", err)
@@ -421,17 +428,21 @@ func parseSearchTagValuesRequest(r *http.Request, enforceTraceQL bool) (*tempopb
 }
 
 func ParseSearchTagsRequest(r *http.Request) (*tempopb.SearchTagsRequest, error) {
-	scope, _ := extractQueryParam(r, urlParamScope)
+	vals := r.URL.Query()
+	scope, _ := extractQueryParam(vals, urlParamScope)
+	query, _ := extractQueryParam(vals, urlParamQuery)
 
 	attScope := traceql.AttributeScopeFromString(scope)
 	if attScope == traceql.AttributeScopeUnknown && scope != ParamScopeIntrinsic {
 		return nil, fmt.Errorf("invalid scope: %s", scope)
 	}
 
-	req := &tempopb.SearchTagsRequest{}
-	req.Scope = scope
+	req := &tempopb.SearchTagsRequest{
+		Query: query,
+		Scope: scope,
+	}
 
-	if s, ok := extractQueryParam(r, urlParamStart); ok {
+	if s, ok := extractQueryParam(vals, urlParamStart); ok {
 		start, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("invalid start: %w", err)
@@ -439,7 +450,7 @@ func ParseSearchTagsRequest(r *http.Request) (*tempopb.SearchTagsRequest, error)
 		req.Start = uint32(start)
 	}
 
-	if s, ok := extractQueryParam(r, urlParamEnd); ok {
+	if s, ok := extractQueryParam(vals, urlParamEnd); ok {
 		end, err := strconv.ParseInt(s, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("invalid end: %w", err)
@@ -460,12 +471,13 @@ func BuildSearchTagsRequest(req *http.Request, searchReq *tempopb.SearchTagsRequ
 		return req, nil
 	}
 
-	q := req.URL.Query()
-	q.Set(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
-	q.Set(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
-	q.Set(urlParamScope, searchReq.Scope)
+	qb := newQueryBuilder("")
+	qb.addParam(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
+	qb.addParam(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
+	qb.addParam(urlParamScope, searchReq.Scope)
+	qb.addParam(urlParamQuery, searchReq.Query)
 
-	req.URL.RawQuery = q.Encode()
+	req.URL.RawQuery = qb.query()
 
 	return req, nil
 }
@@ -482,19 +494,19 @@ func BuildSearchTagsBlockRequest(req *http.Request, searchReq *tempopb.SearchTag
 		return nil, err
 	}
 
-	q := req.URL.Query()
-	q.Set(urlParamSize, strconv.FormatUint(searchReq.Size_, 10))
-	q.Set(urlParamBlockID, searchReq.BlockID)
-	q.Set(urlParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
-	q.Set(urlParamPagesToSearch, strconv.FormatUint(uint64(searchReq.PagesToSearch), 10))
-	q.Set(urlParamEncoding, searchReq.Encoding)
-	q.Set(urlParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
-	q.Set(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
-	q.Set(urlParamDataEncoding, searchReq.DataEncoding)
-	q.Set(urlParamVersion, searchReq.Version)
-	q.Set(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
+	q := newQueryBuilder(req.URL.RawQuery)
+	q.addParam(urlParamSize, strconv.FormatUint(searchReq.Size_, 10))
+	q.addParam(urlParamBlockID, searchReq.BlockID)
+	q.addParam(urlParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
+	q.addParam(urlParamPagesToSearch, strconv.FormatUint(uint64(searchReq.PagesToSearch), 10))
+	q.addParam(urlParamEncoding, searchReq.Encoding)
+	q.addParam(urlParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
+	q.addParam(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
+	q.addParam(urlParamDataEncoding, searchReq.DataEncoding)
+	q.addParam(urlParamVersion, searchReq.Version)
+	q.addParam(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
 
-	req.URL.RawQuery = q.Encode()
+	req.URL.RawQuery = q.query()
 
 	return req, nil
 }
@@ -510,12 +522,12 @@ func BuildSearchTagValuesRequest(req *http.Request, searchReq *tempopb.SearchTag
 		return req, nil
 	}
 
-	q := req.URL.Query()
-	q.Set(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
-	q.Set(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
-	q.Set(urlParamQuery, searchReq.Query)
+	qb := newQueryBuilder("")
+	qb.addParam(urlParamStart, strconv.FormatUint(uint64(searchReq.Start), 10))
+	qb.addParam(urlParamEnd, strconv.FormatUint(uint64(searchReq.End), 10))
+	qb.addParam(urlParamQuery, searchReq.Query)
 
-	req.URL.RawQuery = q.Encode()
+	req.URL.RawQuery = qb.query()
 
 	return req, nil
 }
@@ -532,19 +544,19 @@ func BuildSearchTagValuesBlockRequest(req *http.Request, searchReq *tempopb.Sear
 		return nil, err
 	}
 
-	q := req.URL.Query()
-	q.Set(urlParamSize, strconv.FormatUint(searchReq.Size_, 10))
-	q.Set(urlParamBlockID, searchReq.BlockID)
-	q.Set(urlParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
-	q.Set(urlParamPagesToSearch, strconv.FormatUint(uint64(searchReq.PagesToSearch), 10))
-	q.Set(urlParamEncoding, searchReq.Encoding)
-	q.Set(urlParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
-	q.Set(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
-	q.Set(urlParamDataEncoding, searchReq.DataEncoding)
-	q.Set(urlParamVersion, searchReq.Version)
-	q.Set(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
+	qb := newQueryBuilder(req.URL.RawQuery)
+	qb.addParam(urlParamSize, strconv.FormatUint(searchReq.Size_, 10))
+	qb.addParam(urlParamBlockID, searchReq.BlockID)
+	qb.addParam(urlParamStartPage, strconv.FormatUint(uint64(searchReq.StartPage), 10))
+	qb.addParam(urlParamPagesToSearch, strconv.FormatUint(uint64(searchReq.PagesToSearch), 10))
+	qb.addParam(urlParamEncoding, searchReq.Encoding)
+	qb.addParam(urlParamIndexPageSize, strconv.FormatUint(uint64(searchReq.IndexPageSize), 10))
+	qb.addParam(urlParamTotalRecords, strconv.FormatUint(uint64(searchReq.TotalRecords), 10))
+	qb.addParam(urlParamDataEncoding, searchReq.DataEncoding)
+	qb.addParam(urlParamVersion, searchReq.Version)
+	qb.addParam(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
 
-	req.URL.RawQuery = q.Encode()
+	req.URL.RawQuery = qb.query()
 
 	return req, nil
 }

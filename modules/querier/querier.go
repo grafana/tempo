@@ -710,35 +710,36 @@ func (q *Querier) SpanMetricsSummary(
 	}
 
 	// Combine the results
-	yyy := make(map[traceqlmetrics.MetricSeries]*traceqlmetrics.LatencyHistogram)
-	xxx := make(map[traceqlmetrics.MetricSeries]*tempopb.SpanMetricsSummary)
+	yyy := make(map[traceqlmetrics.MetricKeys]*traceqlmetrics.LatencyHistogram)
+	xxx := make(map[traceqlmetrics.MetricKeys]*tempopb.SpanMetricsSummary)
 
 	var h *traceqlmetrics.LatencyHistogram
 	var s traceqlmetrics.MetricSeries
 	for _, r := range results {
 		for _, m := range r.Metrics {
 			s = protoToMetricSeries(m.Series)
+			k := s.MetricKeys()
 
-			if _, ok := xxx[s]; !ok {
-				xxx[s] = &tempopb.SpanMetricsSummary{Series: m.Series}
+			if _, ok := xxx[k]; !ok {
+				xxx[k] = &tempopb.SpanMetricsSummary{Series: m.Series}
 			}
 
-			xxx[s].ErrorSpanCount += m.Errors
+			xxx[k].ErrorSpanCount += m.Errors
 
 			var b [64]int
 			for _, l := range m.GetLatencyHistogram() {
 				// Reconstitude the bucket
 				b[l.Bucket] += int(l.Count)
 				// Add to the total
-				xxx[s].SpanCount += l.Count
+				xxx[k].SpanCount += l.Count
 			}
 
 			// Combine the histogram
 			h = traceqlmetrics.New(b)
-			if _, ok := yyy[s]; !ok {
-				yyy[s] = h
+			if _, ok := yyy[k]; !ok {
+				yyy[k] = h
 			} else {
-				yyy[s].Combine(*h)
+				yyy[k].Combine(*h)
 			}
 		}
 	}
@@ -892,16 +893,50 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	resp, err := q.store.SearchTags(ctx, meta, req.SearchReq.Scope, opts)
+	query := traceql.ExtractMatchers(req.SearchReq.Query)
+	if traceql.IsEmptyQuery(query) {
+		resp, err := q.store.SearchTags(ctx, meta, req.SearchReq.Scope, opts)
+		if err != nil {
+			return nil, err
+		}
+
+		// add intrinsic tags if scope is none
+		if req.SearchReq.Scope == "" {
+			resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
+				Name: api.ParamScopeIntrinsic,
+				Tags: search.GetVirtualIntrinsicValues(),
+			})
+		}
+
+		return resp, nil
+	}
+
+	fetcher := traceql.NewTagNamesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback) error {
+		return q.store.FetchTagNames(ctx, meta, req, cb, common.DefaultSearchOptions())
+	})
+
+	scope := traceql.AttributeScopeFromString(req.SearchReq.Scope)
+	if scope == traceql.AttributeScopeUnknown {
+		return nil, fmt.Errorf("unknown scope: %s", req.SearchReq.Scope)
+	}
+
+	valueCollector := collector.NewScopedDistinctString(q.limits.MaxBytesPerTagValuesQuery(tenantID))
+	err = q.engine.ExecuteTagNames(ctx, scope, query, func(tag string, scope traceql.AttributeScope) bool {
+		valueCollector.Collect(scope.String(), tag)
+		return valueCollector.Exceeded()
+	}, fetcher)
 	if err != nil {
 		return nil, err
 	}
 
-	// add intrinsic tags if scope is none
-	if req.SearchReq.Scope == "" {
+	scopedVals := valueCollector.Strings()
+	resp := &tempopb.SearchTagsV2Response{
+		Scopes: make([]*tempopb.SearchTagsV2Scope, 0, len(scopedVals)),
+	}
+	for scope, vals := range scopedVals {
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
-			Name: api.ParamScopeIntrinsic,
-			Tags: search.GetVirtualIntrinsicValues(),
+			Name: scope,
+			Tags: vals,
 		})
 	}
 
@@ -1061,18 +1096,30 @@ func protoToMetricSeries(proto []*tempopb.KeyValue) traceqlmetrics.MetricSeries 
 	return r
 }
 
-func protoToTraceQLStatic(proto *tempopb.KeyValue) traceqlmetrics.KeyValue {
+func protoToTraceQLStatic(kv *tempopb.KeyValue) traceqlmetrics.KeyValue {
+	var val traceql.Static
+
+	switch traceql.StaticType(kv.Value.Type) {
+	case traceql.TypeInt:
+		val = traceql.NewStaticInt(int(kv.Value.N))
+	case traceql.TypeFloat:
+		val = traceql.NewStaticFloat(kv.Value.F)
+	case traceql.TypeString:
+		val = traceql.NewStaticString(kv.Value.S)
+	case traceql.TypeBoolean:
+		val = traceql.NewStaticBool(kv.Value.B)
+	case traceql.TypeDuration:
+		val = traceql.NewStaticDuration(time.Duration(kv.Value.D))
+	case traceql.TypeStatus:
+		val = traceql.NewStaticStatus(traceql.Status(kv.Value.Status))
+	case traceql.TypeKind:
+		val = traceql.NewStaticKind(traceql.Kind(kv.Value.Kind))
+	default:
+		val = traceql.NewStaticNil()
+	}
+
 	return traceqlmetrics.KeyValue{
-		Key: proto.Key,
-		Value: traceql.Static{
-			Type:   traceql.StaticType(proto.Value.Type),
-			N:      int(proto.Value.N),
-			F:      proto.Value.F,
-			S:      proto.Value.S,
-			B:      proto.Value.B,
-			D:      time.Duration(proto.Value.D),
-			Status: traceql.Status(proto.Value.Status),
-			Kind:   traceql.Kind(proto.Value.Kind),
-		},
+		Key:   kv.Key,
+		Value: val,
 	}
 }

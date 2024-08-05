@@ -53,7 +53,7 @@ var ctx = user.InjectOrgID(context.Background(), "test")
 func batchesToTraces(t *testing.T, batches []*v1.ResourceSpans) ptrace.Traces {
 	t.Helper()
 
-	trace := tempopb.Trace{Batches: batches}
+	trace := tempopb.Trace{ResourceSpans: batches}
 
 	m, err := trace.Marshal()
 	require.NoError(t, err)
@@ -127,7 +127,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							ScopeSpans: []*v1.ScopeSpans{
 								{
@@ -175,7 +175,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							ScopeSpans: []*v1.ScopeSpans{
 								{
@@ -192,7 +192,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							ScopeSpans: []*v1.ScopeSpans{
 								{
@@ -255,7 +255,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 3,
@@ -275,7 +275,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 4,
@@ -330,7 +330,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 1,
@@ -350,7 +350,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 1,
@@ -405,7 +405,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							ScopeSpans: []*v1.ScopeSpans{
 								{
@@ -425,7 +425,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							ScopeSpans: []*v1.ScopeSpans{
 								{
@@ -485,7 +485,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 3,
@@ -589,7 +589,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			},
 			expectedTraces: []*tempopb.Trace{
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 3,
@@ -639,7 +639,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 3,
@@ -733,7 +733,7 @@ func BenchmarkTestsByRequestID(b *testing.B) {
 
 	for i := 0; i < batches; i++ {
 		for _, t := range traces {
-			ils[i] = append(ils[i], t.Batches[i].ScopeSpans...)
+			ils[i] = append(ils[i], t.ResourceSpans[i].ScopeSpans...)
 		}
 	}
 
@@ -1500,6 +1500,10 @@ func (r mockRing) InstancesCount() int {
 	return len(r.ingesters)
 }
 
+func (r mockRing) InstancesWithTokensCount() int {
+	return len(r.ingesters)
+}
+
 func (r mockRing) HasInstance(string) bool {
 	return true
 }
@@ -1512,6 +1516,10 @@ func (r mockRing) GetInstanceState(string) (ring.InstanceState, error) {
 }
 
 func (r mockRing) InstancesInZoneCount(string) int {
+	return 0
+}
+
+func (r mockRing) InstancesWithTokensInZoneCount(_ string) int {
 	return 0
 }
 

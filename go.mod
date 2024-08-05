@@ -4,7 +4,6 @@ go 1.22.4
 
 require (
 	cloud.google.com/go/storage v1.38.0
-	contrib.go.opencensus.io/exporter/prometheus v0.4.2
 	github.com/alecthomas/kong v0.8.0
 	github.com/alicebob/miniredis/v2 v2.21.0
 	github.com/aws/aws-sdk-go v1.53.11
@@ -26,7 +25,7 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
-	github.com/grafana/dskit v0.0.0-20240311184239-73feada6c0d7
+	github.com/grafana/dskit v0.0.0-20240801171758-736c44c85382
 	github.com/grafana/e2e v0.1.1
 	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-hclog v1.6.3
@@ -56,7 +55,7 @@ require (
 	github.com/uber-go/atomic v1.4.0
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
 	github.com/willf/bloom v2.0.3+incompatible
-	go.opencensus.io v0.24.0
+	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/collector v0.102.1
 	go.opentelemetry.io/collector/component v0.102.1
 	go.opentelemetry.io/collector/confmap v0.102.1
@@ -84,14 +83,9 @@ require (
 )
 
 require (
-	github.com/Azure/azure-pipeline-go v0.2.3
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.11.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.6.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.2.0
-	github.com/Azure/azure-storage-blob-go v0.15.0
-	github.com/Azure/go-autorest/autorest v0.11.29
-	github.com/Azure/go-autorest/autorest/adal v0.9.23
-	github.com/Azure/go-autorest/autorest/azure/auth v0.5.12
 	github.com/brianvoe/gofakeit/v6 v6.25.0
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
@@ -131,11 +125,6 @@ require (
 	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	cloud.google.com/go/iam v1.1.6 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.8.0 // indirect
-	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
-	github.com/Azure/go-autorest/autorest/azure/cli v0.4.5 // indirect
-	github.com/Azure/go-autorest/autorest/date v0.3.0 // indirect
-	github.com/Azure/go-autorest/logger v0.2.1 // indirect
-	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/IBM/sarama v1.43.2 // indirect
 	github.com/VividCortex/gohistogram v1.0.0 // indirect
@@ -155,7 +144,6 @@ require (
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/dennwc/varint v1.0.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
-	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/eapache/go-resiliency v1.6.0 // indirect
 	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
@@ -182,7 +170,6 @@ require (
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
-	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/google/s2a-go v0.1.7 // indirect
@@ -226,7 +213,6 @@ require (
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-ieproxy v0.0.11 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/miekg/dns v1.1.56 // indirect
@@ -256,6 +242,7 @@ require (
 	github.com/opentracing-contrib/go-stdlib v1.0.0 // indirect
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect
 	github.com/pelletier/go-toml/v2 v2.1.0 // indirect
+	github.com/pires/go-proxyproto v0.7.0 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect

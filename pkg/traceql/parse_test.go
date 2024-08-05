@@ -1214,6 +1214,7 @@ func TestScopedIntrinsics(t *testing.T) {
 		{in: "span:statusMessage", expected: IntrinsicStatusMessage},
 		{in: "span:id", expected: IntrinsicSpanID},
 		{in: "event:name", expected: IntrinsicEventName},
+		{in: "event:timeSinceStart", expected: IntrinsicEventTimeSinceStart},
 		{in: "link:traceID", expected: IntrinsicLinkTraceID},
 		{in: "link:spanID", expected: IntrinsicLinkSpanID},
 		{in: ":duration", shouldError: true},

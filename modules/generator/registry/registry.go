@@ -14,6 +14,7 @@ import (
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
 
+	"github.com/grafana/tempo/modules/overrides"
 	tempo_log "github.com/grafana/tempo/pkg/util/log"
 )
 
@@ -147,8 +148,17 @@ func (r *ManagedRegistry) NewCounter(name string) Counter {
 	return c
 }
 
-func (r *ManagedRegistry) NewHistogram(name string, buckets []float64) Histogram {
-	h := newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, r.overrides.MetricsGenerationTraceIDLabelName(r.tenant))
+func (r *ManagedRegistry) NewHistogram(name string, buckets []float64, histogramOverride string) (h Histogram) {
+	traceIDLabelName := r.overrides.MetricsGenerationTraceIDLabelName(r.tenant)
+
+	// TODO: Temporary switch: use the old implementation when native histograms
+	// are disabled, eventually the new implementation can handle all cases
+	if overrides.HasNativeHistograms(histogramOverride) {
+		h = newNativeHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, histogramOverride)
+	} else {
+		h = newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName)
+	}
+
 	r.registerMetric(h)
 	return h
 }
@@ -228,6 +238,13 @@ func (r *ManagedRegistry) collectMetrics(ctx context.Context) {
 	maxActiveSeries := r.overrides.MetricsGeneratorMaxActiveSeries(r.tenant)
 	r.metricMaxActiveSeries.Set(float64(maxActiveSeries))
 
+	// Try to avoid committing after we have started the shutdown process.
+	if ctx.Err() != nil { // shutdown
+		return
+	}
+
+	// If the shutdown has started here, a "file already closed" error will be
+	// observed here.
 	err = appender.Commit()
 	if err != nil {
 		return

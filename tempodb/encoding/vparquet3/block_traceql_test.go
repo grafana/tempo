@@ -444,6 +444,8 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 					Attrs: []Attribute{
 						{Key: "foo", Value: strPtr("abc")},
 						{Key: LabelServiceName, ValueInt: intPtr(123)}, // Different type than dedicated column
+						{Key: "asdf", ValueInt: intPtr(1234)},          // Different type than dedicated column
+						{Key: "other", ValueInt: intPtr(1234)},         // Different type than dedicated column
 					},
 					DedicatedAttributes: DedicatedAttributes{
 						String01: strPtr("dedicated-resource-attr-value-1"),
@@ -578,6 +580,10 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"resourceAttValNoMatch", "{ resource.module.path = `does-not-exit-6c2408325a45` }"},
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `tempo-gateway` }"},
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `does-not-exit-6c2408325a45` }"},
+
+		// trace
+		{"traceOrMatch", "{ rootServiceName = `tempo-gateway` && (status = error || span.http.status_code = 500)}"},
+		{"traceOrNoMatch", "{ rootServiceName = `doesntexist` && (status = error || span.http.status_code = 500)}"},
 
 		// mixed
 		{"mixedValNoMatch", "{ .bloom = `does-not-exit-6c2408325a45` }"},
@@ -758,7 +764,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 						ShardCount: 65,
 					}
 
-					eval, err := e.CompileMetricsQueryRange(req, false, 0, false)
+					eval, err := e.CompileMetricsQueryRange(req, false, 4, 0, false)
 					require.NoError(b, err)
 
 					b.ResetTimer()

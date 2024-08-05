@@ -70,7 +70,10 @@
     (if with_anti_affinity then $.util.antiAffinity else {})
   ,
 
-  tempo_ingester_statefulset: $.newIngesterStatefulSet(target_name, self.tempo_ingester_container) + statefulset.mixin.spec.withReplicas($._config.ingester.replicas),
+  tempo_ingester_statefulset:
+    $.newIngesterStatefulSet(target_name, self.tempo_ingester_container)
+    + statefulset.spec.template.spec.securityContext.withFsGroup(10001)  // 10001 is the UID of the tempo user
+    + statefulset.mixin.spec.withReplicas($._config.ingester.replicas),
 
   tempo_ingester_service:
     kausal.util.serviceFor($.tempo_ingester_statefulset),

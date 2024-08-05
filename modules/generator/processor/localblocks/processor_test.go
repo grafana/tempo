@@ -119,7 +119,7 @@ func TestProcessorDoesNotRace(t *testing.T) {
 
 	go concurrent(func() {
 		tr := test.MakeTrace(10, nil)
-		for _, b := range tr.Batches {
+		for _, b := range tr.ResourceSpans {
 			for _, ss := range b.ScopeSpans {
 				for _, s := range ss.Spans {
 					s.Kind = v1.Span_SPAN_KIND_SERVER
@@ -128,7 +128,7 @@ func TestProcessorDoesNotRace(t *testing.T) {
 		}
 
 		req := &tempopb.PushSpansRequest{
-			Batches: tr.Batches,
+			Batches: tr.ResourceSpans,
 		}
 		p.PushSpans(ctx, req)
 	})
@@ -225,7 +225,7 @@ func TestReplicationFactor(t *testing.T) {
 
 	tr := test.MakeTrace(10, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9})
 	p.PushSpans(context.TODO(), &tempopb.PushSpansRequest{
-		Batches: tr.Batches,
+		Batches: tr.ResourceSpans,
 	})
 
 	require.NoError(t, p.cutIdleTraces(true))
@@ -353,6 +353,10 @@ func (m *mockBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.Sea
 }
 
 func (m *mockBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.SearchOptions) error {
+	return nil
+}
+
+func (m *mockBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.SearchOptions) error {
 	return nil
 }
 

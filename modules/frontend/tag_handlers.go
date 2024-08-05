@@ -108,7 +108,7 @@ func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	prepareRequestForQueriers(httpReq, tenant, httpReq.URL.Path, httpReq.URL.Query())
+	prepareRequestForQueriers(httpReq, tenant)
 
 	c := fnCombiner(o.MaxBytesPerTagValuesQuery(tenant))
 	collector := pipeline.NewGRPCCollector[TResp](next, cfg.ResponseConsumers, c, fnSend)
@@ -123,7 +123,7 @@ func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
 
 // newTagHTTPHandler returns a handler that returns a single response from the HTTP handler
 func newTagHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, fnCombiner func(int) combiner.Combiner, logger log.Logger) http.RoundTripper {
-	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		tenant, err := user.ExtractOrgID(req.Context())
 		if err != nil {
 			level.Error(logger).Log("msg", "tags failed to extract orgid", "err", err)

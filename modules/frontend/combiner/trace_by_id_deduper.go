@@ -42,7 +42,7 @@ func (s *spanIDDeduper) dedupe(trace *tempopb.Trace) *tempopb.Trace {
 // groupSpansByID groups spans with the same ID returning a map id -> []Span
 func (s *spanIDDeduper) groupSpansByID() {
 	spansByID := make(map[uint64][]*v1.Span)
-	for _, batch := range s.trace.Batches {
+	for _, batch := range s.trace.ResourceSpans {
 		for _, ils := range batch.ScopeSpans {
 			for _, span := range ils.Spans {
 				id := binary.BigEndian.Uint64(span.SpanId)
@@ -69,7 +69,7 @@ func (s *spanIDDeduper) isSharedWithClientSpan(spanID uint64) bool {
 
 func (s *spanIDDeduper) dedupeSpanIDs() {
 	oldToNewSpanIDs := make(map[uint64]uint64)
-	for _, batch := range s.trace.Batches {
+	for _, batch := range s.trace.ResourceSpans {
 		for _, ils := range batch.ScopeSpans {
 			for _, span := range ils.Spans {
 				id := binary.BigEndian.Uint64(span.SpanId)
@@ -99,7 +99,7 @@ func (s *spanIDDeduper) swapParentIDs(oldToNewSpanIDs map[uint64]uint64) {
 	if len(oldToNewSpanIDs) == 0 {
 		return
 	}
-	for _, batch := range s.trace.Batches {
+	for _, batch := range s.trace.ResourceSpans {
 		for _, ils := range batch.ScopeSpans {
 			for _, span := range ils.Spans {
 				if len(span.GetParentSpanId()) > 0 {

@@ -86,7 +86,7 @@ func MakeSpanWithAttributeCount(traceID []byte, count int) *v1_trace.Span {
 	// add event
 	if rand.Intn(3) == 0 {
 		s.Events = append(s.Events, &v1_trace.Span_Event{
-			TimeUnixNano:           rand.Uint64(),
+			TimeUnixNano:           s.StartTimeUnixNano + uint64(rand.Intn(1*1000*1000)), // 1ms
 			Name:                   "event",
 			DroppedAttributesCount: rand.Uint32(),
 			Attributes: []*v1_common.KeyValue{
@@ -146,11 +146,11 @@ func MakeTrace(requests int, traceID []byte) *tempopb.Trace {
 	traceID = ValidTraceID(traceID)
 
 	trace := &tempopb.Trace{
-		Batches: make([]*v1_trace.ResourceSpans, 0),
+		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
 	}
 
 	for i := 0; i < requests; i++ {
-		trace.Batches = append(trace.Batches, MakeBatch(rand.Int()%20+1, traceID))
+		trace.ResourceSpans = append(trace.ResourceSpans, MakeBatch(rand.Int()%20+1, traceID))
 	}
 
 	return trace
@@ -158,11 +158,11 @@ func MakeTrace(requests int, traceID []byte) *tempopb.Trace {
 
 func MakeTraceWithSpanCount(requests int, spansEach int, traceID []byte) *tempopb.Trace {
 	trace := &tempopb.Trace{
-		Batches: make([]*v1_trace.ResourceSpans, 0),
+		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
 	}
 
 	for i := 0; i < requests; i++ {
-		trace.Batches = append(trace.Batches, MakeBatch(spansEach, traceID))
+		trace.ResourceSpans = append(trace.ResourceSpans, MakeBatch(spansEach, traceID))
 	}
 
 	return trace
@@ -211,7 +211,7 @@ func AddDedicatedAttributes(trace *tempopb.Trace) *tempopb.Trace {
 		})
 	}
 
-	for _, batch := range trace.Batches {
+	for _, batch := range trace.ResourceSpans {
 		attr := make([]*v1_common.KeyValue, 0, len(resourceAttrs)+len(batch.Resource.Attributes))
 		attr = append(attr, resourceAttrs...)
 		batch.Resource.Attributes = append(attr, batch.Resource.Attributes...)
@@ -233,12 +233,12 @@ func MakeReqWithMultipleTraceWithSpanCount(spanCounts []int, traceIDs [][]byte) 
 		panic("spanCounts and traceIDs lengths do not match")
 	}
 	trace := &tempopb.Trace{
-		Batches: make([]*v1_trace.ResourceSpans, 0),
+		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
 	}
 
 	for index, traceID := range traceIDs {
 		traceID = ValidTraceID(traceID)
-		trace.Batches = append(trace.Batches, MakeBatch(spanCounts[index], traceID))
+		trace.ResourceSpans = append(trace.ResourceSpans, MakeBatch(spanCounts[index], traceID))
 	}
 
 	return trace
@@ -294,7 +294,7 @@ func MakeTraceWithTags(traceID []byte, service string, intValue int64) *tempopb.
 	traceID = ValidTraceID(traceID)
 
 	trace := &tempopb.Trace{
-		Batches: make([]*v1_trace.ResourceSpans, 0),
+		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
 	}
 
 	attributes := make([]*v1_common.KeyValue, 0, 2)
@@ -308,7 +308,7 @@ func MakeTraceWithTags(traceID []byte, service string, intValue int64) *tempopb.
 		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_IntValue{IntValue: intValue}},
 	})
 
-	trace.Batches = append(trace.Batches, &v1_trace.ResourceSpans{
+	trace.ResourceSpans = append(trace.ResourceSpans, &v1_trace.ResourceSpans{
 		Resource: &v1_resource.Resource{
 			Attributes: []*v1_common.KeyValue{
 				{

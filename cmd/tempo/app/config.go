@@ -102,7 +102,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.IntVar(&c.Server.GRPCListenPort, "server.grpc-listen-port", 9095, "gRPC server listen port.")
 
 	// Memberlist settings
-	fs := flag.NewFlagSet("", flag.PanicOnError) // create a new flag set b/c we don't want all of the memberlist settings in our flags. we're just doing this to get defaults
+	fs := flag.NewFlagSet("", flag.PanicOnError) // create a new flag set b/c we don't want all the memberlist settings in our flags. we're just doing this to get defaults
 	c.MemberlistKV.RegisterFlags(fs)
 	_ = fs.Parse([]string{})
 	// these defaults were chosen to balance resource usage vs. ring propagation speed. they are a "toned down" version of
@@ -114,6 +114,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 
 	f.Var(&c.MemberlistKV.JoinMembers, "memberlist.host-port", "Host port to connect to memberlist cluster.")
 	f.IntVar(&c.MemberlistKV.TCPTransport.BindPort, "memberlist.bind-port", 7946, "Port for memberlist to communicate on")
+	f.IntVar(&c.MemberlistKV.MessageHistoryBufferBytes, "memberlist.message-history-buffer-bytes", 0, "")
 
 	// Everything else
 	flagext.DefaultValues(&c.IngesterClient)

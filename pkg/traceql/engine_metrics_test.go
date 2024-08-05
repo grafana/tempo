@@ -95,17 +95,18 @@ func TestIntervalOf(t *testing.T) {
 
 func TestTrimToOverlap(t *testing.T) {
 	tc := []struct {
-		start1, end1, start2, end2 string
+		start1, end1               string
 		step                       time.Duration
+		start2, end2               string
 		expectedStart, expectedEnd string
+		expectedStep               time.Duration
 	}{
 		{
 			// Inner range of 33 to 38
 			// gets rounded at 5m intervals to 30 to 40
-			"2024-01-01 01:00:00", "2024-01-01 02:00:00",
+			"2024-01-01 01:00:00", "2024-01-01 02:00:00", 5 * time.Minute,
 			"2024-01-01 01:33:00", "2024-01-01 01:38:00",
-			5 * time.Minute,
-			"2024-01-01 01:30:00", "2024-01-01 01:40:00",
+			"2024-01-01 01:30:00", "2024-01-01 01:40:00", 5 * time.Minute,
 		},
 		{
 			// Partially Overlapping
@@ -113,10 +114,17 @@ func TestTrimToOverlap(t *testing.T) {
 			// in 5m intervals is only 1:30-2:05
 			// Start is pushed back
 			// and end is pushed out
-			"2024-01-01 01:01:00", "2024-01-01 02:01:00",
+			"2024-01-01 01:01:00", "2024-01-01 02:01:00", 5 * time.Minute,
 			"2024-01-01 01:31:00", "2024-01-01 02:31:00",
-			5 * time.Minute,
-			"2024-01-01 01:30:00", "2024-01-01 02:05:00",
+			"2024-01-01 01:30:00", "2024-01-01 02:05:00", 5 * time.Minute,
+		},
+		{
+			// Instant query
+			// Original range is 1h
+			// Inner overlap is only 30m and step is updated to match
+			"2024-01-01 01:00:00", "2024-01-01 02:00:00", time.Hour,
+			"2024-01-01 01:30:00", "2024-01-01 02:30:00",
+			"2024-01-01 01:30:00", "2024-01-01 02:00:00", 30 * time.Minute,
 		},
 	}
 
@@ -126,7 +134,7 @@ func TestTrimToOverlap(t *testing.T) {
 		start2, _ := time.Parse(time.DateTime, c.start2)
 		end2, _ := time.Parse(time.DateTime, c.end2)
 
-		actualStart, actualEnd := TrimToOverlap(
+		actualStart, actualEnd, actualStep := TrimToOverlap(
 			uint64(start1.UnixNano()),
 			uint64(end1.UnixNano()),
 			uint64(c.step.Nanoseconds()),
@@ -135,6 +143,7 @@ func TestTrimToOverlap(t *testing.T) {
 
 		require.Equal(t, c.expectedStart, time.Unix(0, int64(actualStart)).UTC().Format(time.DateTime))
 		require.Equal(t, c.expectedEnd, time.Unix(0, int64(actualEnd)).UTC().Format(time.DateTime))
+		require.Equal(t, c.expectedStep, time.Duration(actualStep))
 	}
 }
 
@@ -210,7 +219,7 @@ func TestCompileMetricsQueryRange(t *testing.T) {
 				Start: c.start,
 				End:   c.end,
 				Step:  c.step,
-			}, false, 0, false)
+			}, false, 0, 0, false)
 
 			if c.expectedErr != nil {
 				require.EqualError(t, err, c.expectedErr.Error())
@@ -326,7 +335,7 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 				Start:      1,
 				End:        2,
 				Step:       3,
-			}, tc.dedupe, 0, false)
+			}, tc.dedupe, 0, 0, false)
 			require.NoError(t, err)
 
 			// Nil out func to Equal works
@@ -429,7 +438,7 @@ func TestQuantileOverTime(t *testing.T) {
 	}
 
 	// 3 layers of processing matches:  query-frontend -> queriers -> generators -> blocks
-	layer1, err := e.CompileMetricsQueryRange(req, false, 0, false)
+	layer1, err := e.CompileMetricsQueryRange(req, false, 0, 0, false)
 	require.NoError(t, err)
 
 	layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
@@ -506,33 +515,37 @@ func TestHistogramOverTime(t *testing.T) {
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: internalLabelBucket, Value: _128ns},
 			},
-			Values: []float64{1, 0, 0},
+			Values:    []float64{1, 0, 0},
+			Exemplars: make([]Exemplar, 0),
 		},
 		`{` + internalLabelBucket + `="` + _256ns.EncodeToString(true) + `", span.foo="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: internalLabelBucket, Value: _256ns},
 			},
-			Values: []float64{1, 4, 0},
+			Values:    []float64{1, 4, 0},
+			Exemplars: make([]Exemplar, 0),
 		},
 		`{` + internalLabelBucket + `="` + _512ns.EncodeToString(true) + `", span.foo="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: internalLabelBucket, Value: _512ns},
 			},
-			Values: []float64{1, 0, 0},
+			Values:    []float64{1, 0, 0},
+			Exemplars: make([]Exemplar, 0),
 		},
 		`{` + internalLabelBucket + `="` + _512ns.EncodeToString(true) + `", span.foo="baz"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 				{Name: internalLabelBucket, Value: _512ns},
 			},
-			Values: []float64{0, 0, 3},
+			Values:    []float64{0, 0, 3},
+			Exemplars: make([]Exemplar, 0),
 		},
 	}
 
 	// 3 layers of processing matches:  query-frontend -> queriers -> generators -> blocks
-	layer1, err := e.CompileMetricsQueryRange(req, false, 0, false)
+	layer1, err := e.CompileMetricsQueryRange(req, false, 0, 0, false)
 	require.NoError(t, err)
 
 	layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)

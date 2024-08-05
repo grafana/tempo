@@ -29,6 +29,7 @@ type Searcher interface {
 
 	Fetch(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansResponse, error)
 	FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, SearchOptions) error
+	FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, SearchOptions) error
 }
 
 type SearchOptions struct {
@@ -74,6 +75,10 @@ type CompactionOptions struct {
 	OutputBlocks       uint8
 	BlockConfig        BlockConfig
 	Combiner           model.ObjectCombiner
+
+	// DropObject can be used to drop a trace from the compaction process. Currently it only receives the ID
+	// of the trace to be compacted. If the function returns true, the trace will be dropped.
+	DropObject func(ID) bool
 
 	ObjectsCombined   func(compactionLevel, objects int)
 	ObjectsWritten    func(compactionLevel, objects int)

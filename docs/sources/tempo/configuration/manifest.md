@@ -581,8 +581,6 @@ metrics_generator:
         remote_write_add_org_id_header: true
     traces_storage:
         path: ""
-        completedfilepath: ""
-        blocksfilepath: ""
         v2_encoding: none
         search_encoding: none
         ingestion_time_range_slack: 0s
@@ -597,8 +595,6 @@ storage:
             queue_depth: 20000
         wal:
             path: /var/tempo/wal
-            completedfilepath: /var/tempo/wal/completed
-            blocksfilepath: /var/tempo/wal/blocks
             v2_encoding: snappy
             search_encoding: none
             ingestion_time_range_slack: 2m0s
@@ -687,7 +683,6 @@ storage:
             buffer_size: 3145728
             hedge_requests_at: 0s
             hedge_requests_up_to: 2
-            use_v2_sdk: false
         cache: ""
         background_cache:
             writeback_goroutines: 10
@@ -769,7 +764,6 @@ overrides:
                 buffer_size: 3145728
                 hedge_requests_at: 0s
                 hedge_requests_up_to: 2
-                use_v2_sdk: false
         api:
             check_for_conflicting_runtime_overrides: false
 memberlist:

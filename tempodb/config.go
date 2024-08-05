@@ -10,7 +10,7 @@ import (
 	"github.com/grafana/tempo/modules/cache/redis"
 
 	"github.com/grafana/tempo/pkg/cache"
-	azure "github.com/grafana/tempo/tempodb/backend/azure/config"
+	"github.com/grafana/tempo/tempodb/backend/azure"
 	backend_cache "github.com/grafana/tempo/tempodb/backend/cache"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
@@ -22,12 +22,14 @@ import (
 )
 
 const (
-	DefaultBlocklistPoll             = 5 * time.Minute
-	DefaultMaxTimePerTenant          = 5 * time.Minute
-	DefaultBlocklistPollConcurrency  = uint(50)
-	DefaultRetentionConcurrency      = uint(10)
-	DefaultTenantIndexBuilders       = 2
-	DefaultTolerateConsecutiveErrors = 1
+	DefaultBlocklistPoll                  = 5 * time.Minute
+	DefaultMaxTimePerTenant               = 5 * time.Minute
+	DefaultBlocklistPollConcurrency       = uint(50)
+	DefaultBlocklistPollTenantConcurrency = uint(1)
+	DefaultRetentionConcurrency           = uint(10)
+	DefaultTenantIndexBuilders            = 2
+	DefaultTolerateConsecutiveErrors      = 1
+	DefaultTolerateTenantFailures         = 1
 
 	DefaultEmptyTenantDeletionAge = 12 * time.Hour
 
@@ -47,11 +49,13 @@ type Config struct {
 
 	BlocklistPoll                          time.Duration `yaml:"blocklist_poll"`
 	BlocklistPollConcurrency               uint          `yaml:"blocklist_poll_concurrency"`
+	BlocklistPollTenantConcurrency         uint          `yaml:"blocklist_poll_tenant_concurrency"`
 	BlocklistPollFallback                  bool          `yaml:"blocklist_poll_fallback"`
 	BlocklistPollTenantIndexBuilders       int           `yaml:"blocklist_poll_tenant_index_builders"`
 	BlocklistPollStaleTenantIndex          time.Duration `yaml:"blocklist_poll_stale_tenant_index"`
 	BlocklistPollJitterMs                  int           `yaml:"blocklist_poll_jitter_ms"`
 	BlocklistPollTolerateConsecutiveErrors int           `yaml:"blocklist_poll_tolerate_consecutive_errors"`
+	BlocklistPollTolerateTenantFailures    int           `yaml:"blocklist_poll_tolerate_tenant_failures"`
 
 	EmptyTenantDeletionEnabled bool          `yaml:"empty_tenant_deletion_enabled"`
 	EmptyTenantDeletionAge     time.Duration `yaml:"empty_tenant_deletion_age"`
@@ -87,7 +91,7 @@ type SearchConfig struct {
 	// vParquet blocks
 	ReadBufferCount     int `yaml:"read_buffer_count"`
 	ReadBufferSizeBytes int `yaml:"read_buffer_size_bytes"`
-	// todo: consolidate caching conffig in one spot
+	// todo: consolidate caching config in one spot
 	CacheControl CacheControlConfig `yaml:"cache_control"`
 }
 

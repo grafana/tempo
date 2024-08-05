@@ -141,22 +141,37 @@ func spansetID(ss *tempopb.SpanSet) string {
 	return id
 }
 
+type tsRange struct {
+	minTS, maxTS uint64
+}
+
 type QueryRangeCombiner struct {
 	req     *tempopb.QueryRangeRequest
 	eval    *MetricsFrontendEvaluator
 	metrics *tempopb.SearchMetrics
+
+	// used to track which series were updated since the previous diff
+	// todo: it may not be worth it to track the diffs per series. it would be simpler (and possibly nearly as effective) to just calculate a global
+	//  max/min for all series
+	seriesUpdated map[string]tsRange
 }
 
-func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode) (*QueryRangeCombiner, error) {
+func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode, trackDiffs bool) (*QueryRangeCombiner, error) {
 	eval, err := NewEngine().CompileMetricsQueryRangeNonRaw(req, mode)
 	if err != nil {
 		return nil, err
 	}
 
+	var seriesUpdated map[string]tsRange
+	if trackDiffs {
+		seriesUpdated = map[string]tsRange{}
+	}
+
 	return &QueryRangeCombiner{
-		req:     req,
-		eval:    eval,
-		metrics: &tempopb.SearchMetrics{},
+		req:           req,
+		eval:          eval,
+		metrics:       &tempopb.SearchMetrics{},
+		seriesUpdated: seriesUpdated,
 	}, nil
 }
 
@@ -164,6 +179,9 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 	if resp == nil {
 		return
 	}
+
+	// mark min/max for all series
+	q.markUpdatedRanges(resp)
 
 	// Here is where the job results are reentered into the pipeline
 	q.eval.ObserveSeries(resp.Series)
@@ -183,5 +201,69 @@ func (q *QueryRangeCombiner) Response() *tempopb.QueryRangeResponse {
 	return &tempopb.QueryRangeResponse{
 		Series:  q.eval.Results().ToProto(q.req),
 		Metrics: q.metrics,
+	}
+}
+
+func (q *QueryRangeCombiner) Diff() *tempopb.QueryRangeResponse {
+	if q.seriesUpdated == nil {
+		return q.Response()
+	}
+
+	seriesRangeFn := func(promLabels string) (uint64, uint64, bool) {
+		tsr, ok := q.seriesUpdated[promLabels]
+		return tsr.minTS, tsr.maxTS, ok
+	}
+
+	// filter out series that haven't change
+	resp := &tempopb.QueryRangeResponse{
+		Series:  q.eval.Results().ToProtoDiff(q.req, seriesRangeFn),
+		Metrics: q.metrics,
+	}
+
+	// wipe out the diff for the next call
+	clear(q.seriesUpdated)
+
+	return resp
+}
+
+func (q *QueryRangeCombiner) markUpdatedRanges(resp *tempopb.QueryRangeResponse) {
+	if q.seriesUpdated == nil {
+		return
+	}
+
+	// mark all ranges that changed
+	for _, series := range resp.Series {
+		if len(series.Samples) == 0 {
+			continue
+		}
+
+		// Normalize into request alignment by converting timestamp into index and back
+		// TimestampMs may not match exactly when we trim things around blocks, and the generators
+		// This is mainly for instant queries that have large steps and few samples.
+		idxMin := IntervalOfMs(series.Samples[0].TimestampMs, q.req.Start, q.req.End, q.req.Step)
+		idxMax := IntervalOfMs(series.Samples[len(series.Samples)-1].TimestampMs, q.req.Start, q.req.End, q.req.Step)
+
+		nanoMin := TimestampOf(uint64(idxMin), q.req.Start, q.req.Step)
+		nanoMax := TimestampOf(uint64(idxMax), q.req.Start, q.req.Step)
+
+		tsr, ok := q.seriesUpdated[series.PromLabels]
+		if !ok {
+			q.seriesUpdated[series.PromLabels] = tsRange{minTS: nanoMin, maxTS: nanoMax}
+			continue
+		}
+
+		var updated bool
+		if nanoMin < tsr.minTS {
+			updated = true
+			tsr.minTS = nanoMin
+		}
+		if nanoMax > tsr.maxTS {
+			updated = true
+			tsr.maxTS = nanoMax
+		}
+
+		if updated {
+			q.seriesUpdated[series.PromLabels] = tsr
+		}
 	}
 }

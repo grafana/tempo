@@ -39,7 +39,9 @@ func newAsyncTraceIDSharder(cfg *TraceByIDConfig, logger log.Logger) pipeline.As
 }
 
 // RoundTrip implements http.RoundTripper
-func (s asyncTraceSharder) RoundTrip(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+	r := pipelineRequest.HTTPRequest()
+
 	span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.ShardQuery")
 	defer span.Finish()
 	r = r.WithContext(ctx)
@@ -55,8 +57,8 @@ func (s asyncTraceSharder) RoundTrip(r *http.Request) (pipeline.Responses[combin
 		concurrentShards = uint(s.cfg.ConcurrentShards)
 	}
 
-	return pipeline.NewAsyncSharderFunc(ctx, int(concurrentShards), len(reqs), func(i int) *http.Request {
-		return reqs[i]
+	return pipeline.NewAsyncSharderFunc(ctx, int(concurrentShards), len(reqs), func(i int) pipeline.Request {
+		return pipeline.NewHTTPRequest(reqs[i])
 	}, s.next), nil
 }
 
@@ -83,8 +85,9 @@ func (s *asyncTraceSharder) buildShardedRequests(ctx context.Context, parent *ht
 			q.Add(querier.BlockEndKey, hex.EncodeToString(s.blockBoundaries[i]))
 			q.Add(querier.QueryModeKey, querier.QueryModeBlocks)
 		}
+		reqs[i].URL.RawQuery = q.Encode()
 
-		prepareRequestForQueriers(reqs[i], userID, reqs[i].URL.Path, q)
+		prepareRequestForQueriers(reqs[i], userID)
 	}
 
 	return reqs, nil

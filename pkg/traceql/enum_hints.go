@@ -13,11 +13,12 @@ const (
 	HintJobSize           = "job_size"
 	HintTimeOverlapCutoff = "time_overlap_cutoff"
 	HintConcurrentBlocks  = "concurrent_blocks"
+	HintExemplars         = "exemplars"
 )
 
 func isUnsafe(h string) bool {
 	switch h {
-	case HintSample:
+	case HintSample, HintExemplars:
 		return false
 	default:
 		return true
@@ -43,12 +44,13 @@ func newHints(h []*Hint) *Hints {
 
 func (h *Hints) GetFloat(k string, allowUnsafe bool) (v float64, ok bool) {
 	if v, ok := h.Get(k, TypeFloat, allowUnsafe); ok {
-		return v.F, ok
+		return v.Float(), ok
 	}
 
 	// If float not found, then try integer.
 	if v, ok := h.Get(k, TypeInt, allowUnsafe); ok {
-		return float64(v.N), ok
+		n, _ := v.Int()
+		return float64(n), ok
 	}
 
 	return
@@ -56,7 +58,8 @@ func (h *Hints) GetFloat(k string, allowUnsafe bool) (v float64, ok bool) {
 
 func (h *Hints) GetInt(k string, allowUnsafe bool) (v int, ok bool) {
 	if v, ok := h.Get(k, TypeInt, allowUnsafe); ok {
-		return v.N, ok
+		n, _ := v.Int()
+		return n, ok
 	}
 
 	return
@@ -64,7 +67,8 @@ func (h *Hints) GetInt(k string, allowUnsafe bool) (v int, ok bool) {
 
 func (h *Hints) GetDuration(k string, allowUnsafe bool) (v time.Duration, ok bool) {
 	if v, ok := h.Get(k, TypeDuration, allowUnsafe); ok {
-		return v.D, ok
+		d, _ := v.Duration()
+		return d, ok
 	}
 
 	return
@@ -72,7 +76,8 @@ func (h *Hints) GetDuration(k string, allowUnsafe bool) (v time.Duration, ok boo
 
 func (h *Hints) GetBool(k string, allowUnsafe bool) (v, ok bool) {
 	if v, ok := h.Get(k, TypeBoolean, allowUnsafe); ok {
-		return v.B, ok
+		b, _ := v.Bool()
+		return b, ok
 	}
 
 	return

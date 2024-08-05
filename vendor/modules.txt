@@ -17,12 +17,6 @@ cloud.google.com/go/storage
 cloud.google.com/go/storage/internal
 cloud.google.com/go/storage/internal/apiv2
 cloud.google.com/go/storage/internal/apiv2/storagepb
-# contrib.go.opencensus.io/exporter/prometheus v0.4.2
-## explicit; go 1.13
-contrib.go.opencensus.io/exporter/prometheus
-# github.com/Azure/azure-pipeline-go v0.2.3
-## explicit; go 1.14
-github.com/Azure/azure-pipeline-go/pipeline
 # github.com/Azure/azure-sdk-for-go/sdk/azcore v1.11.1
 ## explicit; go 1.18
 github.com/Azure/azure-sdk-for-go/sdk/azcore
@@ -73,34 +67,6 @@ github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/internal/shared
 github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/pageblob
 github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/sas
 github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/service
-# github.com/Azure/azure-storage-blob-go v0.15.0
-## explicit; go 1.15
-github.com/Azure/azure-storage-blob-go/azblob
-# github.com/Azure/go-autorest v14.2.0+incompatible
-## explicit
-github.com/Azure/go-autorest
-# github.com/Azure/go-autorest/autorest v0.11.29
-## explicit; go 1.15
-github.com/Azure/go-autorest/autorest
-github.com/Azure/go-autorest/autorest/azure
-# github.com/Azure/go-autorest/autorest/adal v0.9.23
-## explicit; go 1.15
-github.com/Azure/go-autorest/autorest/adal
-# github.com/Azure/go-autorest/autorest/azure/auth v0.5.12
-## explicit; go 1.15
-github.com/Azure/go-autorest/autorest/azure/auth
-# github.com/Azure/go-autorest/autorest/azure/cli v0.4.5
-## explicit; go 1.15
-github.com/Azure/go-autorest/autorest/azure/cli
-# github.com/Azure/go-autorest/autorest/date v0.3.0
-## explicit; go 1.12
-github.com/Azure/go-autorest/autorest/date
-# github.com/Azure/go-autorest/logger v0.2.1
-## explicit; go 1.12
-github.com/Azure/go-autorest/logger
-# github.com/Azure/go-autorest/tracing v0.6.0
-## explicit; go 1.12
-github.com/Azure/go-autorest/tracing
 # github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2
 ## explicit; go 1.18
 github.com/AzureAD/microsoft-authentication-library-for-go/apps/cache
@@ -263,9 +229,6 @@ github.com/dennwc/varint
 # github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f
 ## explicit
 github.com/dgryski/go-rendezvous
-# github.com/dimchansky/utfbom v1.1.1
-## explicit
-github.com/dimchansky/utfbom
 # github.com/drone/envsubst v1.0.3
 ## explicit; go 1.13
 github.com/drone/envsubst
@@ -431,9 +394,6 @@ github.com/gogo/protobuf/types
 # github.com/gogo/status v1.1.1
 ## explicit; go 1.12
 github.com/gogo/status
-# github.com/golang-jwt/jwt/v4 v4.5.0
-## explicit; go 1.16
-github.com/golang-jwt/jwt/v4
 # github.com/golang-jwt/jwt/v5 v5.2.1
 ## explicit; go 1.18
 github.com/golang-jwt/jwt/v5
@@ -504,8 +464,8 @@ github.com/gorilla/handlers
 # github.com/gorilla/mux v1.8.1
 ## explicit; go 1.20
 github.com/gorilla/mux
-# github.com/grafana/dskit v0.0.0-20240311184239-73feada6c0d7
-## explicit; go 1.20
+# github.com/grafana/dskit v0.0.0-20240801171758-736c44c85382
+## explicit; go 1.21
 github.com/grafana/dskit/backoff
 github.com/grafana/dskit/cancellation
 github.com/grafana/dskit/concurrency
@@ -827,9 +787,6 @@ github.com/mailru/easyjson/jwriter
 # github.com/mattn/go-colorable v0.1.13
 ## explicit; go 1.15
 github.com/mattn/go-colorable
-# github.com/mattn/go-ieproxy v0.0.11
-## explicit; go 1.17
-github.com/mattn/go-ieproxy
 # github.com/mattn/go-isatty v0.0.19
 ## explicit; go 1.15
 github.com/mattn/go-isatty
@@ -1048,6 +1005,9 @@ github.com/pierrec/lz4/v4/internal/lz4block
 github.com/pierrec/lz4/v4/internal/lz4errors
 github.com/pierrec/lz4/v4/internal/lz4stream
 github.com/pierrec/lz4/v4/internal/xxh32
+# github.com/pires/go-proxyproto v0.7.0
+## explicit; go 1.18
+github.com/pires/go-proxyproto
 # github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 ## explicit; go 1.14
 github.com/pkg/browser
@@ -1154,8 +1114,6 @@ github.com/prometheus/prometheus/web/api/v1
 # github.com/prometheus/statsd_exporter v0.26.0
 ## explicit; go 1.18
 github.com/prometheus/statsd_exporter/pkg/level
-github.com/prometheus/statsd_exporter/pkg/mapper
-github.com/prometheus/statsd_exporter/pkg/mapper/fsm
 # github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475
 ## explicit
 github.com/rcrowley/go-metrics
@@ -1351,7 +1309,6 @@ go.opencensus.io
 go.opencensus.io/internal
 go.opencensus.io/internal/tagencoding
 go.opencensus.io/metric/metricdata
-go.opencensus.io/metric/metricexport
 go.opencensus.io/metric/metricproducer
 go.opencensus.io/plugin/ocgrpc
 go.opencensus.io/plugin/ochttp
@@ -1884,6 +1841,7 @@ google.golang.org/grpc/credentials/oauth
 google.golang.org/grpc/encoding
 google.golang.org/grpc/encoding/gzip
 google.golang.org/grpc/encoding/proto
+google.golang.org/grpc/experimental
 google.golang.org/grpc/grpclog
 google.golang.org/grpc/health
 google.golang.org/grpc/health/grpc_health_v1

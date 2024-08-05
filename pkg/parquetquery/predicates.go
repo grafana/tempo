@@ -494,3 +494,21 @@ func (p *SkipNilsPredicate) KeepPage(page pq.Page) bool {
 func (p *SkipNilsPredicate) KeepValue(v pq.Value) bool {
 	return !v.IsNull()
 }
+
+type CallbackPredicate struct {
+	cb func() bool
+}
+
+var _ Predicate = (*CallbackPredicate)(nil)
+
+func NewCallbackPredicate(cb func() bool) *CallbackPredicate {
+	return &CallbackPredicate{cb: cb}
+}
+
+func (m *CallbackPredicate) String() string { return "CallbackPredicate{}" }
+
+func (m *CallbackPredicate) KeepColumnChunk(*ColumnChunkHelper) bool { return m.cb() }
+
+func (m *CallbackPredicate) KeepPage(pq.Page) bool { return m.cb() }
+
+func (m *CallbackPredicate) KeepValue(pq.Value) bool { return m.cb() }

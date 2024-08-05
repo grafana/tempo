@@ -73,6 +73,7 @@ const (
 	IntrinsicNestedSetRight
 	IntrinsicNestedSetParent
 	IntrinsicEventName
+	IntrinsicEventTimeSinceStart
 	IntrinsicLinkSpanID
 	IntrinsicLinkTraceID
 
@@ -108,21 +109,25 @@ const (
 )
 
 var (
-	IntrinsicDurationAttribute         = NewIntrinsic(IntrinsicDuration)
-	IntrinsicNameAttribute             = NewIntrinsic(IntrinsicName)
-	IntrinsicStatusAttribute           = NewIntrinsic(IntrinsicStatus)
-	IntrinsicStatusMessageAttribute    = NewIntrinsic(IntrinsicStatusMessage)
-	IntrinsicKindAttribute             = NewIntrinsic(IntrinsicKind)
-	IntrinsicSpanIDAttribute           = NewIntrinsic(IntrinsicSpanID)
-	IntrinsicChildCountAttribute       = NewIntrinsic(IntrinsicChildCount)
-	IntrinsicTraceIDAttribute          = NewIntrinsic(IntrinsicTraceID)
-	IntrinsicTraceRootServiceAttribute = NewIntrinsic(IntrinsicTraceRootService)
-	IntrinsicTraceRootSpanAttribute    = NewIntrinsic(IntrinsicTraceRootSpan)
-	IntrinsicTraceDurationAttribute    = NewIntrinsic(IntrinsicTraceDuration)
-	IntrinsicSpanStartTimeAttribute    = NewIntrinsic(IntrinsicSpanStartTime)
-	IntrinsicNestedSetLeftAttribute    = NewIntrinsic(IntrinsicNestedSetLeft)
-	IntrinsicNestedSetRightAttribute   = NewIntrinsic(IntrinsicNestedSetRight)
-	IntrinsicNestedSetParentAttribute  = NewIntrinsic(IntrinsicNestedSetParent)
+	IntrinsicDurationAttribute            = NewIntrinsic(IntrinsicDuration)
+	IntrinsicNameAttribute                = NewIntrinsic(IntrinsicName)
+	IntrinsicStatusAttribute              = NewIntrinsic(IntrinsicStatus)
+	IntrinsicStatusMessageAttribute       = NewIntrinsic(IntrinsicStatusMessage)
+	IntrinsicKindAttribute                = NewIntrinsic(IntrinsicKind)
+	IntrinsicSpanIDAttribute              = NewIntrinsic(IntrinsicSpanID)
+	IntrinsicChildCountAttribute          = NewIntrinsic(IntrinsicChildCount)
+	IntrinsicTraceIDAttribute             = NewIntrinsic(IntrinsicTraceID)
+	IntrinsicTraceRootServiceAttribute    = NewIntrinsic(IntrinsicTraceRootService)
+	IntrinsicTraceRootSpanAttribute       = NewIntrinsic(IntrinsicTraceRootSpan)
+	IntrinsicTraceDurationAttribute       = NewIntrinsic(IntrinsicTraceDuration)
+	IntrinsicSpanStartTimeAttribute       = NewIntrinsic(IntrinsicSpanStartTime)
+	IntrinsicNestedSetLeftAttribute       = NewIntrinsic(IntrinsicNestedSetLeft)
+	IntrinsicNestedSetRightAttribute      = NewIntrinsic(IntrinsicNestedSetRight)
+	IntrinsicNestedSetParentAttribute     = NewIntrinsic(IntrinsicNestedSetParent)
+	IntrinsicLinkTraceIDAttribute         = NewIntrinsic(IntrinsicLinkTraceID)
+	IntrinsicLinkSpanIDAttribute          = NewIntrinsic(IntrinsicLinkSpanID)
+	IntrinsicEventNameAttribute           = NewIntrinsic(IntrinsicEventName)
+	IntrinsicEventTimeSinceStartAttribute = NewIntrinsic(IntrinsicEventTimeSinceStart)
 )
 
 func (i Intrinsic) String() string {
@@ -143,6 +148,8 @@ func (i Intrinsic) String() string {
 		return "childCount"
 	case IntrinsicEventName:
 		return "event:name"
+	case IntrinsicEventTimeSinceStart:
+		return "event:timeSinceStart"
 	case IntrinsicLinkSpanID:
 		return "link:spanID"
 	case IntrinsicLinkTraceID:
@@ -208,6 +215,8 @@ func intrinsicFromString(s string) Intrinsic {
 		return IntrinsicChildCount
 	case "event:name":
 		return IntrinsicEventName
+	case "event:timeSinceStart":
+		return IntrinsicEventTimeSinceStart
 	case "link:spanID":
 		return IntrinsicLinkSpanID
 	case "link:traceID":

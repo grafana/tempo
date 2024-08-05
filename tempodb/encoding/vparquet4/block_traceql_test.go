@@ -151,6 +151,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		{"span.dedicated.span.4", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 = "dedicated-span-attr-value-4"}`)},
 		// Events
 		{"event:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:name = "e1"}`)},
+		{"event:timeSinceStart", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:timeSinceStart > 2ms}`)},
 		{"event.message", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message =~ "exception"}`)},
 		// Links
 		{"link:spanID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:spanID = "1234567890abcdef"}`)},
@@ -391,6 +392,64 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	}
 }
 
+func TestBackendBlockSearchTraceQLEvents(t *testing.T) {
+	numTraces := 50
+	traces := make([]*Trace, 0, numTraces)
+	wantTraceIdx := rand.Intn(numTraces)
+	wantTraceID := test.ValidTraceID(nil)
+
+	for i := 0; i < numTraces; i++ {
+		if i == wantTraceIdx {
+			// this trace has one span with two identical events
+			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
+			continue
+		}
+
+		id := test.ValidTraceID(nil)
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+	}
+
+	b := makeBackendBlockWithTraces(t, traces)
+	ctx := context.Background()
+
+	requests := []string{
+		`{event.message =~ "exception"}`,
+		`{event:name = "e1"}`,
+		`{event:timeSinceStart > 2ms}`,
+	}
+
+	for _, request := range requests {
+		t.Run(request, func(t *testing.T) {
+			req := traceql.MustExtractFetchSpansRequestWithMetadata(request)
+			if req.SecondPass == nil {
+				req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
+				req.SecondPassConditions = traceql.SearchMetaConditions()
+			}
+
+			resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+			require.NoError(t, err, "search request:%v", req)
+
+			found := false
+			count := 0
+			for {
+				spanSet, err := resp.Results.Next(ctx)
+				require.NoError(t, err, "search request:%v", req)
+				if spanSet == nil {
+					break
+				}
+				found = bytes.Equal(spanSet.TraceID, wantTraceID)
+				if found {
+					count++
+				}
+			}
+			require.True(t, found, "search request:%v", req)
+			// two events in the same span should still return just one span
+			require.Equal(t, 1, count, "search request:%v", req)
+		})
+	}
+}
+
 func makeReq(conditions ...traceql.Condition) traceql.FetchSpansRequest {
 	return traceql.FetchSpansRequest{
 		Conditions: conditions,
@@ -522,7 +581,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 								},
 								Events: []Event{
 									{
-										TimeSinceStartNano: 1,
+										TimeSinceStartNano: 3 * 1000 * 1000, // 3ms
 										Name:               "e1",
 										Attrs: []Attribute{
 											attr("event-attr-key-1", "event-value-1"),
@@ -531,6 +590,15 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 										},
 									},
 									{TimeSinceStartNano: 2, Name: "e2", Attrs: []Attribute{}},
+									{
+										TimeSinceStartNano: 3 * 1000 * 1000, // 3ms
+										Name:               "e1",
+										Attrs: []Attribute{
+											attr("event-attr-key-1", "event-value-1"),
+											attr("event-attr-key-2", "event-value-2"),
+											attr("message", "exception"),
+										},
+									},
 								},
 								Links: links,
 								DedicatedAttributes: DedicatedAttributes{
@@ -835,6 +903,10 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `tempo-gateway` }"},
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `does-not-exit-6c2408325a45` }"},
 
+		// trace
+		{"traceOrMatch", "{ rootServiceName = `tempo-gateway` && (status = error || span.http.status_code = 500)}"},
+		{"traceOrNoMatch", "{ rootServiceName = `doesntexist` && (status = error || span.http.status_code = 500)}"},
+
 		// mixed
 		{"mixedValNoMatch", "{ .bloom = `does-not-exit-6c2408325a45` }"},
 		{"mixedValMixedMatchAnd", "{ resource.foo = `bar` && name = `gcs.ReadRange` }"},
@@ -957,11 +1029,11 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	var (
 		ctx      = context.TODO()
 		e        = traceql.NewEngine()
-		opts     = common.DefaultSearchOptions()
 		tenantID = "1"
 		// blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
 		blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
-		path    = "/Users/marty/src/tmp/"
+		path    = "/Users/mapno/workspace/testblock"
+		// path = "/Users/marty/src/tmp"
 	)
 
 	r, _, _, err := local.New(&local.Config{
@@ -974,6 +1046,8 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	require.NoError(b, err)
 	require.Equal(b, VersionString, meta.Version)
 
+	opts := common.DefaultSearchOptions()
+	opts.TotalPages = 10
 	block := newBackendBlock(meta, rr)
 	_, _, err = block.openForSearch(ctx, opts)
 	require.NoError(b, err)
@@ -995,15 +1069,13 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 					}
 
 					req := &tempopb.QueryRangeRequest{
-						Query:      tc,
-						Step:       uint64(time.Minute),
-						Start:      uint64(st.UnixNano()),
-						End:        uint64(end.UnixNano()),
-						ShardID:    30,
-						ShardCount: 65,
+						Query: tc,
+						Step:  uint64(time.Minute),
+						Start: uint64(st.UnixNano()),
+						End:   uint64(end.UnixNano()),
 					}
 
-					eval, err := e.CompileMetricsQueryRange(req, false, 0, false)
+					eval, err := e.CompileMetricsQueryRange(req, false, 2, 0, false)
 					require.NoError(b, err)
 
 					b.ResetTimer()
@@ -1017,6 +1089,92 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 					b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
 					b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
 				})
+			}
+		})
+	}
+}
+
+// TestBackendBlockQueryRange is the `TestOne` of metric queries.
+// It's skipped because it depends on a local block, like benchmarks
+//
+// You also need to manually print the iterator in `backendBlock.Fetch`,
+// because there is no access to the iterator in the test. Sad.
+func TestBackendBlockQueryRange(t *testing.T) {
+	if os.Getenv("debug") != "1" {
+		t.Skip()
+	}
+
+	testCases := []string{
+		"{} | rate()",
+		"{} | rate() by (name)",
+		"{} | rate() by (resource.service.name)",
+		"{} | rate() by (span.http.url)", // High cardinality attribute
+		"{resource.service.name=`tempo-ingester`} | rate()",
+		"{status=unset} | rate()",
+	}
+
+	const (
+		tenantID  = "1"
+		queryHint = "with(exemplars=true)"
+	)
+
+	var (
+		ctx     = context.TODO()
+		e       = traceql.NewEngine()
+		opts    = common.DefaultSearchOptions()
+		blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
+		path    = path.Join("/Users/mapno/workspace/testblock")
+	)
+
+	r, _, _, err := local.New(&local.Config{
+		Path: path,
+	})
+	require.NoError(t, err)
+
+	rr := backend.NewReader(r)
+	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
+	require.NoError(t, err)
+	require.Equal(t, VersionString, meta.Version)
+
+	block := newBackendBlock(meta, rr)
+	opts.TotalPages = 10
+	_, _, err = block.openForSearch(ctx, opts)
+	require.NoError(t, err)
+
+	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return block.Fetch(ctx, req, opts)
+	})
+
+	for _, tc := range testCases {
+		t.Run(tc, func(t *testing.T) {
+			st := meta.StartTime
+			end := st.Add(time.Duration(5) * time.Minute)
+
+			if end.After(meta.EndTime) {
+				t.SkipNow()
+				return
+			}
+
+			req := &tempopb.QueryRangeRequest{
+				Query: fmt.Sprintf("%s %s", tc, queryHint),
+				Step:  uint64(time.Minute),
+				Start: uint64(st.UnixNano()),
+				End:   uint64(end.UnixNano()),
+			}
+
+			eval, err := e.CompileMetricsQueryRange(req, false, 1, 0, false)
+			require.NoError(t, err)
+
+			require.NoError(t, eval.Do(ctx, f, uint64(block.meta.StartTime.UnixNano()), uint64(block.meta.EndTime.UnixNano())))
+
+			ss := eval.Results()
+			require.NotNil(t, ss)
+
+			for _, s := range ss {
+				if s.Exemplars != nil && len(s.Exemplars) > 0 {
+					fmt.Println("series", s.Labels)
+					fmt.Println("Exemplars", s.Exemplars)
+				}
 			}
 		})
 	}

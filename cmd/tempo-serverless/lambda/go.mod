@@ -14,22 +14,11 @@ require (
 	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	cloud.google.com/go/iam v1.1.6 // indirect
 	cloud.google.com/go/storage v1.38.0 // indirect
-	github.com/Azure/azure-pipeline-go v0.2.3 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.11.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.6.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.8.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.2.0 // indirect
-	github.com/Azure/azure-storage-blob-go v0.15.0 // indirect
-	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
-	github.com/Azure/go-autorest/autorest v0.11.29 // indirect
-	github.com/Azure/go-autorest/autorest/adal v0.9.23 // indirect
-	github.com/Azure/go-autorest/autorest/azure/auth v0.5.12 // indirect
-	github.com/Azure/go-autorest/autorest/azure/cli v0.4.5 // indirect
-	github.com/Azure/go-autorest/autorest/date v0.3.0 // indirect
-	github.com/Azure/go-autorest/logger v0.2.1 // indirect
-	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
-	github.com/VividCortex/gohistogram v1.0.0 // indirect
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
 	github.com/andybalholm/brotli v1.0.6 // indirect
 	github.com/apache/thrift v0.20.0 // indirect
@@ -41,12 +30,10 @@ require (
 	github.com/cristalhq/hedgedhttp v0.9.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
-	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/facette/natsort v0.0.0-20181210072756-2cd4dd1e2dcb // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
-	github.com/go-kit/kit v0.13.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
@@ -55,7 +42,6 @@ require (
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/gogo/status v1.1.1 // indirect
-	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
@@ -64,15 +50,12 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.2 // indirect
 	github.com/googleapis/gax-go/v2 v2.12.2 // indirect
-	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
-	github.com/grafana/dskit v0.0.0-20240311184239-73feada6c0d7 // indirect
+	github.com/grafana/dskit v0.0.0-20240801171758-736c44c85382 // indirect
 	github.com/grafana/gomemcache v0.0.0-20240229205252-cd6a66d6fb56 // indirect
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.6 // indirect
 	github.com/grafana/regexp v0.0.0-20221123153739-15dc172cd2db // indirect
-	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
-	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jaegertracing/jaeger v1.57.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
@@ -81,12 +64,10 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.6 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
-	github.com/mattn/go-ieproxy v0.0.11 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/miekg/dns v1.1.56 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/minio/minio-go/v7 v7.0.70 // indirect
-	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
@@ -100,6 +81,7 @@ require (
 	github.com/parquet-go/parquet-go v0.20.2-0.20240416173845-962b3c5827c3 // indirect
 	github.com/pelletier/go-toml/v2 v2.1.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
+	github.com/pires/go-proxyproto v0.7.0 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
@@ -120,7 +102,6 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
-	github.com/spf13/cobra v1.8.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spf13/viper v1.18.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect

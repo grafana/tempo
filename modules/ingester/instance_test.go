@@ -627,11 +627,11 @@ func TestInstancePartialSuccess(t *testing.T) {
 	// check that the two good ones actually made it
 	result, err := i.FindTraceByID(ctx, ids[0])
 	require.NoError(t, err, "error finding trace by id")
-	assert.Equal(t, 1, len(result.Batches))
+	assert.Equal(t, 1, len(result.ResourceSpans))
 
 	result, err = i.FindTraceByID(ctx, ids[3])
 	require.NoError(t, err, "error finding trace by id")
-	assert.Equal(t, 1, len(result.Batches))
+	assert.Equal(t, 1, len(result.ResourceSpans))
 
 	// check that the three traces that had errors did not actually make it
 	var expected *tempopb.Trace
@@ -817,7 +817,7 @@ func makeRequestWithByteLimit(maxBytes int, traceID []byte) *tempopb.PushBytesRe
 }
 
 func makePushBytesRequest(traceID []byte, batch *v1_trace.ResourceSpans) *tempopb.PushBytesRequest {
-	trace := &tempopb.Trace{Batches: []*v1_trace.ResourceSpans{batch}}
+	trace := &tempopb.Trace{ResourceSpans: []*v1_trace.ResourceSpans{batch}}
 
 	buffer, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(trace, 0, 0)
 	if err != nil {
@@ -951,7 +951,7 @@ func makeBatchWithMaxBytes(maxBytes int, traceID []byte) *v1_trace.ResourceSpans
 func makeTraces(batches []*v1_trace.ResourceSpans) []*tempopb.Trace {
 	traces := make([]*tempopb.Trace, 0, len(batches))
 	for _, batch := range batches {
-		traces = append(traces, &tempopb.Trace{Batches: []*v1_trace.ResourceSpans{batch}})
+		traces = append(traces, &tempopb.Trace{ResourceSpans: []*v1_trace.ResourceSpans{batch}})
 	}
 
 	return traces

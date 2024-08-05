@@ -45,10 +45,13 @@ const (
 
 var (
 	metricRetentionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempodb",
-		Name:      "retention_duration_seconds",
-		Help:      "Records the amount of time to perform retention tasks.",
-		Buckets:   prometheus.ExponentialBuckets(.25, 2, 6),
+		Namespace:                       "tempodb",
+		Name:                            "retention_duration_seconds",
+		Help:                            "Records the amount of time to perform retention tasks.",
+		Buckets:                         prometheus.ExponentialBuckets(.25, 2, 6),
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 	metricRetentionErrors = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "tempodb",
@@ -85,6 +88,7 @@ type Reader interface {
 
 	Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error)
 	FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, opts common.SearchOptions) error
+	FetchTagNames(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, opts common.SearchOptions) error
 
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
@@ -461,6 +465,16 @@ func (rw *readerWriter) FetchTagValues(ctx context.Context, meta *backend.BlockM
 	return block.FetchTagValues(ctx, req, cb, opts)
 }
 
+func (rw *readerWriter) FetchTagNames(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, opts common.SearchOptions) error {
+	block, err := encoding.OpenBlock(meta, rw.r)
+	if err != nil {
+		return err
+	}
+
+	rw.cfg.Search.ApplyToOptions(&opts)
+	return block.FetchTagNames(ctx, req, cb, opts)
+}
+
 func (rw *readerWriter) Shutdown() {
 	// todo: stop blocklist poll
 	rw.pool.Shutdown()
@@ -514,6 +528,10 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 		rw.cfg.BlocklistPollConcurrency = DefaultBlocklistPollConcurrency
 	}
 
+	if rw.cfg.BlocklistPollTenantConcurrency == 0 {
+		rw.cfg.BlocklistPollTenantConcurrency = DefaultBlocklistPollTenantConcurrency
+	}
+
 	if rw.cfg.BlocklistPollTenantIndexBuilders <= 0 {
 		rw.cfg.BlocklistPollTenantIndexBuilders = DefaultTenantIndexBuilders
 	}
@@ -531,6 +549,8 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 		StaleTenantIndex:           rw.cfg.BlocklistPollStaleTenantIndex,
 		PollJitterMs:               rw.cfg.BlocklistPollJitterMs,
 		TolerateConsecutiveErrors:  rw.cfg.BlocklistPollTolerateConsecutiveErrors,
+		TolerateTenantFailures:     rw.cfg.BlocklistPollTolerateTenantFailures,
+		TenantPollConcurrency:      rw.cfg.BlocklistPollTenantConcurrency,
 		EmptyTenantDeletionAge:     rw.cfg.EmptyTenantDeletionAge,
 		EmptyTenantDeletionEnabled: rw.cfg.EmptyTenantDeletionEnabled,
 	}, sharder, rw.r, rw.c, rw.w, rw.logger)

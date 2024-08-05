@@ -55,6 +55,7 @@ services:
       - --config.file=/etc/prometheus.yaml
       - --web.enable-remote-write-receiver
       - --enable-feature=exemplar-storage
+      - --enable-feature=native-histograms
     volumes:
       - ./prometheus.yaml:/etc/prometheus.yaml
 
@@ -73,12 +74,9 @@ services:
   minio:
     image: minio/minio:latest
     environment:
-      - MINIO_ACCESS_KEY=tempo
-      - MINIO_SECRET_KEY=supersecret
-    entrypoint:
-      - sh
-      - -euc
-      - mkdir -p /data/tempo && /opt/bin/minio server /data --console-address ':9001'
+      - MINIO_ROOT_USER=tempo
+      - MINIO_ROOT_PASSWORD=supersecret
+    entrypoint: /bin/sh -c "mc mb --ignore-existing /data/tempo ; minio server /data --console-address ':9001'"
     ports:
       - 9001:9001
 

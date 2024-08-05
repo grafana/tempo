@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/grafana/e2e"
-	util "github.com/grafana/tempo/integration"
+	"github.com/grafana/tempo/integration/util"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,9 +100,9 @@ func TestSearchUsingBackendTagsService(t *testing.T) {
 	// Wait for the traces to be written to the WAL
 	time.Sleep(time.Second * 3)
 
-	callFlush(t, tempo)
+	util.CallFlush(t, tempo)
 	time.Sleep(time.Second * 1)
-	callFlush(t, tempo)
+	util.CallFlush(t, tempo)
 
 	callJaegerQuerySearchServicesAssert(t, tempoQuery, servicesOrOpJaegerQueryResponse{
 		Data: []string{

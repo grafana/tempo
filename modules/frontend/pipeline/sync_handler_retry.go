@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/tempo/modules/frontend/queue"
@@ -18,13 +19,16 @@ import (
 
 func NewRetryWare(maxRetries int, registerer prometheus.Registerer) Middleware {
 	retriesCount := promauto.With(registerer).NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Name:      "query_frontend_retries",
-		Help:      "Number of times a request is retried.",
-		Buckets:   []float64{0, 1, 2, 3, 4, 5},
+		Namespace:                       "tempo",
+		Name:                            "query_frontend_retries",
+		Help:                            "Number of times a request is retried.",
+		Buckets:                         []float64{0, 1, 2, 3, 4, 5},
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 
-	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+	return MiddlewareFunc(func(next RoundTripper) RoundTripper {
 		return retryWare{
 			next:         next,
 			maxRetries:   maxRetries,
@@ -34,20 +38,20 @@ func NewRetryWare(maxRetries int, registerer prometheus.Registerer) Middleware {
 }
 
 type retryWare struct {
-	next         http.RoundTripper
+	next         RoundTripper
 	maxRetries   int
 	retriesCount prometheus.Histogram
 }
 
 // RoundTrip implements http.RoundTripper
-func (r retryWare) RoundTrip(req *http.Request) (*http.Response, error) {
+func (r retryWare) RoundTrip(req Request) (*http.Response, error) {
 	ctx := req.Context()
 	span, ctx := opentracing.StartSpanFromContext(ctx, "frontend.Retry")
 	defer span.Finish()
 	ext.SpanKindRPCClient.Set(span)
 
 	// context propagation
-	req = req.WithContext(ctx)
+	req.WithContext(ctx)
 
 	tries := 0
 	defer func() { r.retriesCount.Observe(float64(tries)) }()
