@@ -17,7 +17,7 @@ Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure
 
 * Create a [bucket](https://docs.aws.amazon.com/AmazonS3/latest/userguide/create-bucket-overview.html) on AWS.
 
-### Static token
+### Static Token Installation
 
 * Create an Object Storage secret with keys as follows:
 
@@ -41,7 +41,7 @@ Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure
         type: s3
   ```
 
-### Secure Token Service (STS)
+### Secure Token Service (STS) Installation
 
 * Create an Object Storage secret with keys as follows:
 
