@@ -91,6 +91,28 @@ type CompactedBlockMeta struct {
 	CompactedTime time.Time `json:"compactedTime"`
 }
 
+func (b *CompactedBlockMeta) UnmarshalJSON(data []byte) error {
+	if err := json.Unmarshal(data, &b.BlockMeta); err != nil {
+		return fmt.Errorf("failed at unmarshal for dedicated columns: %w", err)
+	}
+
+	var msg interface{}
+	err := json.Unmarshal(data, &msg)
+	if err != nil {
+		return err
+	}
+	msgMap := msg.(map[string]interface{})
+
+	if v, ok := msgMap["compactedTime"]; ok {
+		b.CompactedTime, err = time.Parse(time.RFC3339, v.(string))
+		if err != nil {
+			return fmt.Errorf("failed to parse time at compactedTime: %w", err)
+		}
+	}
+
+	return nil
+}
+
 const (
 	DefaultReplicationFactor          = 0 // Replication factor for blocks from the ingester. This is the default value to indicate RF3.
 	MetricsGeneratorReplicationFactor = 1
