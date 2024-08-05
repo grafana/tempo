@@ -53,6 +53,7 @@
 * [BUGFIX] Fix frontend parsing error on cached responses [#3759](https://github.com/grafana/tempo/pull/3759) (@mdisibio)
 * [BUGFIX] Fix autocomplete of a query using scoped instrinsics [#3865](https://github.com/grafana/tempo/pull/3865) (@mdisibio)
 * [BUGFIX] Fix metrics query histograms and quantiles on traceDuration [#3879](https://github.com/grafana/tempo/pull/3879) (@mdisibio)
+* [BUGFIX] Fix divide by 0 bug in query frontend exemplar calculations [#3936](https://github.com/grafana/tempo/pull/3936) (@mdisibio)
 * [BUGFIX] max_global_traces_per_user: take into account ingestion.tenant_shard_size when converting to local limit [#3618](https://github.com/grafana/tempo/pull/3618) (@kvrhdn)
 * [BUGFIX] Fix http connection reuse on GCP and AWS by reading io.EOF through the http body. [#3760](https://github.com/grafana/tempo/pull/3760) (@bmteller)
 * [BUGFIX] Improved handling of complete blocks in localblocks processor after enabling flusing [#3805](https://github.com/grafana/tempo/pull/3805) (@mapno)
