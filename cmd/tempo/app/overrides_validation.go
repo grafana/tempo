@@ -33,9 +33,9 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) error {
 		}
 	}
 
-	if config.MetricsGenerator.GenerateNativeHistograms != "classic" &&
-		config.MetricsGenerator.GenerateNativeHistograms != "native" &&
-		config.MetricsGenerator.GenerateNativeHistograms != "both" &&
+	if config.MetricsGenerator.GenerateNativeHistograms != overrides.HistogramMethodClassic &&
+		config.MetricsGenerator.GenerateNativeHistograms != overrides.HistogramMethodNative &&
+		config.MetricsGenerator.GenerateNativeHistograms != overrides.HistogramMethodBoth &&
 		config.MetricsGenerator.GenerateNativeHistograms != "" {
 		return fmt.Errorf("metrics_generator.generate_native_histograms \"%s\" is not a valid value, valid values: classic, native, both", config.MetricsGenerator.GenerateNativeHistograms)
 	}

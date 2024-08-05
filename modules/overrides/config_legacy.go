@@ -90,7 +90,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorMaxActiveSeries                                             uint32                           `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
 	MetricsGeneratorCollectionInterval                                          time.Duration                    `yaml:"metrics_generator_collection_interval" json:"metrics_generator_collection_interval"`
 	MetricsGeneratorDisableCollection                                           bool                             `yaml:"metrics_generator_disable_collection" json:"metrics_generator_disable_collection"`
-	MetricsGeneratorGenerateNativeHistograms                                    string                           `yaml:"metrics_generator_generate_native_histograms" json:"metrics_generator_generate_native_histograms"`
+	MetricsGeneratorGenerateNativeHistograms                                    HistogramMethod                  `yaml:"metrics_generator_generate_native_histograms" json:"metrics_generator_generate_native_histograms"`
 	MetricsGeneratorTraceIDLabelName                                            string                           `yaml:"metrics_generator_trace_id_label_name" json:"metrics_generator_trace_id_label_name"`
 	MetricsGeneratorForwarderQueueSize                                          int                              `yaml:"metrics_generator_forwarder_queue_size" json:"metrics_generator_forwarder_queue_size"`
 	MetricsGeneratorForwarderWorkers                                            int                              `yaml:"metrics_generator_forwarder_workers" json:"metrics_generator_forwarder_workers"`
