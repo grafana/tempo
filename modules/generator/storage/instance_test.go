@@ -368,14 +368,14 @@ var _ Overrides = (*mockOverrides)(nil)
 
 type mockOverrides struct {
 	headers          map[string]string
-	nativeHistograms string
+	nativeHistograms overrides.HistogramMethod
 }
 
 func (m *mockOverrides) MetricsGeneratorRemoteWriteHeaders(string) map[string]string {
 	return m.headers
 }
 
-func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(string) string {
+func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(string) overrides.HistogramMethod {
 	return m.nativeHistograms
 }
 
