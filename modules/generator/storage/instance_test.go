@@ -206,7 +206,7 @@ func TestInstance_remoteWriteHeaders(t *testing.T) {
 
 	headers := map[string]string{user.OrgIDHeaderName: "my-other-tenant"}
 
-	instance, err := New(&cfg, &mockOverrides{headers, string(overrides.HistogramMethodClassic)}, "test-tenant", &noopRegisterer{}, logger)
+	instance, err := New(&cfg, &mockOverrides{headers, overrides.HistogramMethodClassic}, "test-tenant", &noopRegisterer{}, logger)
 	require.NoError(t, err)
 
 	// Refuse requests - the WAL should buffer data until requests succeed
