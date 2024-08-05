@@ -17,9 +17,7 @@ Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure
 
 * Create a [bucket](https://docs.aws.amazon.com/AmazonS3/latest/userguide/create-bucket-overview.html) on AWS.
 
-### Installation
-
-* Deploy the Tempo Operator to your cluster.
+### Static token
 
 * Create an Object Storage secret with keys as follows:
 
@@ -32,6 +30,72 @@ Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure
     ```
 
   where `tempostack-dev-s3` is the secret name.
+
+* Create an instance of TempoStack by referencing the secret name and type as `s3`:
+
+  ```yaml
+  spec:
+    storage:
+      secret:
+        name: tempostack-dev-s3
+        type: s3
+  ```
+
+### Secure Token Service (STS)
+
+* Create an Object Storage secret with keys as follows:
+
+    ```console
+    kubectl create secret generic tempostack-dev-s3 \
+      --from-literal=bucket="<BUCKET_NAME>" \
+      --from-literal=region="<AWS_REGION>" \
+      --from-literal=role_arn="<ROLE ARN>"
+    ```
+
+  where `tempostack-dev-s3` is the secret name.
+
+* Create a custom AWS IAM Role associated with a trust relationship to the Tempo's Kubernetes ServiceAccount
+  
+  ```yaml
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Principal": {
+          "Federated": "arn:aws:iam::${AWS_ACCOUNT_ID}:oidc-provider/${OIDC_PROVIDER}"
+        },
+        "Action": "sts:AssumeRoleWithWebIdentity",
+        "Condition": {
+          "StringEquals": {
+            "${OIDC_PROVIDER}:sub": [
+              "system:serviceaccount:${TEMPOSTACK_NS}:tempo-${TEMPOSTACK_NAME}",
+              "system:serviceaccount:${TEMPOSTACK_NS}:tempo-${TEMPOSTACK_NAME}-query-frontend"
+           ]
+         }
+       }
+     }
+    ]
+  }
+  ```
+  
+* Create an AWS IAM role:
+
+  ```yaml
+  aws iam create-role \
+    --role-name "tempo-s3-access" \
+    --assume-role-policy-document "file:///tmp/trust.json" \
+    --query Role.Arn \
+    --output text
+  ```
+
+* Attach a specific policy that role:
+
+  ```yaml 
+  aws iam attach-role-policy \
+    --role-name "tempo-s3-access" \
+    --policy-arn "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+  ```
 
 * Create an instance of TempoStack by referencing the secret name and type as `s3`:
 
