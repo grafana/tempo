@@ -368,7 +368,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 
 	queryHash := hashForQueryRangeRequest(&searchReq)
 
-	exemplars := s.exemplarsPerShard(uint32(len(metas)))
+	exemplarsPerBlock := s.exemplarsPerShard(uint32(len(metas)))
 	for _, m := range metas {
 		if m.EndTime.Before(m.StartTime) {
 			// Ignore blocks with bad timings from debugging
@@ -378,6 +378,13 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 		pages := pagesPerRequest(m, targetBytesPerRequest)
 		if pages == 0 {
 			continue
+		}
+
+		exemplars := exemplarsPerBlock
+		if exemplars > 0 {
+			// Scale the number of exemplars per block to match the size
+			// of each sub request on this block. For very small blocks or other edge cases, return at least 1.
+			exemplars = max(uint32(float64(exemplars)*float64(m.TotalRecords)/float64(pages)), 1)
 		}
 
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
@@ -415,7 +422,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				Size_:            m.Size,
 				FooterSize:       m.FooterSize,
 				DedicatedColumns: dc,
-				Exemplars:        max(exemplars/(m.TotalRecords/uint32(pages)), 1),
+				Exemplars:        exemplars,
 			}
 
 			subR = api.BuildQueryRangeRequest(subR, queryRangeReq)
