@@ -10,6 +10,7 @@ const (
 	AttributeScopeSpan
 	AttributeScopeEvent
 	AttributeScopeLink
+	AttributeScopeInstrumentation
 	AttributeScopeUnknown
 
 	none     = "none"
@@ -32,6 +33,8 @@ func (s AttributeScope) String() string {
 		return "event"
 	case AttributeScopeLink:
 		return "link"
+	case AttributeScopeInstrumentation:
+		return "scope"
 	}
 
 	return fmt.Sprintf("att(%d).", s)
@@ -47,6 +50,8 @@ func AttributeScopeFromString(s string) AttributeScope {
 		return AttributeScopeEvent
 	case "link":
 		return AttributeScopeLink
+	case "scope":
+		return AttributeScopeInstrumentation
 	case "":
 		fallthrough
 	case none:
@@ -76,6 +81,8 @@ const (
 	IntrinsicEventTimeSinceStart
 	IntrinsicLinkSpanID
 	IntrinsicLinkTraceID
+	IntrinsicScopeName
+	IntrinsicScopeVersion
 
 	// not yet implemented in traceql but will be
 	IntrinsicParent
@@ -184,6 +191,10 @@ func (i Intrinsic) String() string {
 		return "trace:duration"
 	case IntrinsicSpanID:
 		return "span:id"
+	case IntrinsicScopeName:
+		return "scope:name"
+	case IntrinsicScopeVersion:
+		return "scope:version"
 	// below is unimplemented
 	case IntrinsicSpanStartTime:
 		return "spanStartTime"
@@ -251,6 +262,10 @@ func intrinsicFromString(s string) Intrinsic {
 		return IntrinsicTraceRootService
 	case "trace:duration":
 		return IntrinsicTraceDuration
+	case "scope:name":
+		return IntrinsicScopeName
+	case "scope:version":
+		return IntrinsicScopeVersion
 	// unimplemented
 	case "spanStartTime":
 		return IntrinsicSpanStartTime

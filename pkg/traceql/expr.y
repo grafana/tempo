@@ -93,9 +93,10 @@ import (
                         NIL TRUE FALSE STATUS_ERROR STATUS_OK STATUS_UNSET
                         KIND_UNSPECIFIED KIND_INTERNAL KIND_SERVER KIND_CLIENT KIND_PRODUCER KIND_CONSUMER
                         IDURATION CHILDCOUNT NAME STATUS STATUS_MESSAGE PARENT KIND ROOTNAME ROOTSERVICENAME 
-                        TIMESINCESTART
-                        ROOTSERVICE TRACEDURATION NESTEDSETLEFT NESTEDSETRIGHT NESTEDSETPARENT ID TRACE_ID SPAN_ID
-                        PARENT_DOT RESOURCE_DOT SPAN_DOT TRACE_COLON SPAN_COLON EVENT_COLON EVENT_DOT LINK_COLON LINK_DOT
+                        ROOTSERVICE TRACEDURATION NESTEDSETLEFT NESTEDSETRIGHT NESTEDSETPARENT ID 
+                        TRACE_ID SPAN_ID TIMESINCESTART VERSION
+                        PARENT_DOT RESOURCE_DOT SPAN_DOT TRACE_COLON SPAN_COLON 
+                        EVENT_COLON EVENT_DOT LINK_COLON LINK_DOT SCOPE_COLON SCOPE_DOT
                         COUNT AVG MAX MIN SUM
                         BY COALESCE SELECT
                         END_ATTRIBUTE
@@ -411,15 +412,19 @@ scopedIntrinsicField:
 // link:
   | LINK_COLON TRACE_ID          { $$ = NewIntrinsic(IntrinsicLinkTraceID)         }
   | LINK_COLON SPAN_ID           { $$ = NewIntrinsic(IntrinsicLinkSpanID)          }
+// scope:
+  | SCOPE_COLON NAME             { $$ = NewIntrinsic(IntrinsicScopeName)           }
+  | SCOPE_COLON VERSION          { $$ = NewIntrinsic(IntrinsicScopeVersion)        }
   ;
 
 attributeField:
-    DOT IDENTIFIER END_ATTRIBUTE                      { $$ = NewAttribute($2)                                      }
-  | RESOURCE_DOT IDENTIFIER END_ATTRIBUTE             { $$ = NewScopedAttribute(AttributeScopeResource, false, $2) }
-  | SPAN_DOT IDENTIFIER END_ATTRIBUTE                 { $$ = NewScopedAttribute(AttributeScopeSpan, false, $2)     }
-  | PARENT_DOT IDENTIFIER END_ATTRIBUTE               { $$ = NewScopedAttribute(AttributeScopeNone, true, $2)      }
-  | PARENT_DOT RESOURCE_DOT IDENTIFIER END_ATTRIBUTE  { $$ = NewScopedAttribute(AttributeScopeResource, true, $3)  }
-  | PARENT_DOT SPAN_DOT IDENTIFIER END_ATTRIBUTE      { $$ = NewScopedAttribute(AttributeScopeSpan, true, $3)      }
-  | EVENT_DOT IDENTIFIER END_ATTRIBUTE                { $$ = NewScopedAttribute(AttributeScopeEvent, false, $2)    }
-  | LINK_DOT IDENTIFIER END_ATTRIBUTE                 { $$ = NewScopedAttribute(AttributeScopeLink, false, $2)     }
+    DOT IDENTIFIER END_ATTRIBUTE                      { $$ = NewAttribute($2)                                             }
+  | RESOURCE_DOT IDENTIFIER END_ATTRIBUTE             { $$ = NewScopedAttribute(AttributeScopeResource, false, $2)        }
+  | SPAN_DOT IDENTIFIER END_ATTRIBUTE                 { $$ = NewScopedAttribute(AttributeScopeSpan, false, $2)            }
+  | PARENT_DOT IDENTIFIER END_ATTRIBUTE               { $$ = NewScopedAttribute(AttributeScopeNone, true, $2)             }
+  | PARENT_DOT RESOURCE_DOT IDENTIFIER END_ATTRIBUTE  { $$ = NewScopedAttribute(AttributeScopeResource, true, $3)         }
+  | PARENT_DOT SPAN_DOT IDENTIFIER END_ATTRIBUTE      { $$ = NewScopedAttribute(AttributeScopeSpan, true, $3)             }
+  | EVENT_DOT IDENTIFIER END_ATTRIBUTE                { $$ = NewScopedAttribute(AttributeScopeEvent, false, $2)           }
+  | LINK_DOT IDENTIFIER END_ATTRIBUTE                 { $$ = NewScopedAttribute(AttributeScopeLink, false, $2)            }
+  | SCOPE_DOT IDENTIFIER END_ATTRIBUTE                { $$ = NewScopedAttribute(AttributeScopeInstrumentation, false, $2) }
   ;

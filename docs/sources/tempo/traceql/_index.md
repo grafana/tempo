@@ -94,6 +94,8 @@ The following table shows the current available scoped intrinsic fields:
 | `event:timeSinceStart`  | duration    | time of event in relation to the span start time                | `{ event:timeSinceStart > 2ms}`        |
 | `link:spanID`           | string      | link span id using hex string                                   | `{ link:spanID = "0000000000000001" }` |
 | `link:traceID`          | string      | link trace id using hex string                                  | `{ link:traceID = "1234567890abcde" }` |
+| `scope:name`            | string      | instrumentation scope name                                      | `{ scope:name = "grpc" }`              |
+| `scope:version`         | string      | instrumentation scope version                                   | `{ scope:version = "1.0.0.0" }`        |   
 
 `trace:duration`, `trace:rootName`, and `trace:rootService` are trace-level intrinsics and are the same for all spans in the same trace.
 Additionally, these intrinsics are significantly more performant because they have to inspect much less data then a span-level intrinsic.
@@ -111,7 +113,7 @@ This example searches all Kubernetes clusters called `service-name` that have a 
 
 ### Attribute fields
 
-TraceQL has four different attribute scopes: span attributes, resource attributes, event attributes, and link attributes. By expanding a span in the Grafana UI, you can see both its span attributes (1 in the screenshot) and resource attributes (2 in the screenshot).
+TraceQL has five different attribute scopes: span attributes, resource attributes, event attributes, link attributes, instrumentation scope attributes. By expanding a span in the Grafana UI, you can see both its span attributes (1 in the screenshot) and resource attributes (2 in the screenshot).
 
 <p align="center"><img src="assets/span-resource-attributes.png" alt="Example of span and resource  attributes." /></p>
 
@@ -146,6 +148,11 @@ You can query for an exception in your span event:
 You can search for an attribute in your link:
 ```
 { link.opentracing.ref_type = "child_of" }
+```
+
+Find instrumentation scope programming language:
+```
+{ scope.language = "java" }
 ```
 
 ### Unscoped attribute fields

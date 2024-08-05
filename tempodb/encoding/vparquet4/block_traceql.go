@@ -33,6 +33,7 @@ var (
 	pqAttrPool    = parquetquery.NewResultPool(1)
 	pqEventPool   = parquetquery.NewResultPool(1)
 	pqLinkPool    = parquetquery.NewResultPool(1)
+	pqScopePool   = parquetquery.NewResultPool(1)
 )
 
 type attrVal struct {
@@ -47,6 +48,7 @@ type span struct {
 	traceAttrs    []attrVal
 	eventAttrs    []attrVal
 	linkAttrs     []attrVal
+	scopeAttrs    []attrVal
 
 	id                 []byte
 	startTimeUnixNanos uint64

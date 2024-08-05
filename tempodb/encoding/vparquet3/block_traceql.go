@@ -819,6 +819,7 @@ const (
 	intrinsicScopeSpan  = -2
 	intrinsicScopeEvent = -3
 	intrinsicScopeLink  = -4
+	intrinsicScopeInstrumentation = -5
 )
 
 // todo: scope is the only field used here. either remove the other fields or use them.
@@ -852,6 +853,8 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicLinkTraceID:  {intrinsicScopeLink, traceql.TypeNil, ""},
 	traceql.IntrinsicLinkSpanID:   {intrinsicScopeLink, traceql.TypeNil, ""},
 	traceql.IntrinsicServiceStats: {intrinsicScopeTrace, traceql.TypeNil, ""},
+	traceql.IntrinsicScopeName:    {intrinsicScopeInstrumentation, traceql.TypeNil, ""},
+	traceql.IntrinsicScopeVersion: {intrinsicScopeInstrumentation, traceql.TypeNil, ""},
 }
 
 // Lookup table of all well-known attributes with dedicated columns
@@ -940,11 +943,13 @@ func checkConditions(conditions []traceql.Condition) error {
 		// Check for conditions that are not supported in vParquet3
 		if cond.Attribute.Intrinsic == traceql.IntrinsicEventName ||
 			cond.Attribute.Intrinsic == traceql.IntrinsicLinkTraceID ||
-			cond.Attribute.Intrinsic == traceql.IntrinsicLinkSpanID {
+			cond.Attribute.Intrinsic == traceql.IntrinsicLinkSpanID || 
+			cond.Attribute.Intrinsic == traceql.IntrinsicScopeName || 
+			cond.Attribute.Intrinsic == traceql.IntrinsicScopeVersion {
 
 			return fmt.Errorf("intrinsic '%s' not supported in vParquet3: %w", cond.Attribute.Intrinsic, common.ErrUnsupported)
 		}
-		if cond.Attribute.Scope == traceql.AttributeScopeEvent || cond.Attribute.Scope == traceql.AttributeScopeLink {
+		if cond.Attribute.Scope == traceql.AttributeScopeEvent || cond.Attribute.Scope == traceql.AttributeScopeLink || cond.Attribute.Scope == traceql.AttributeScopeInstrumentation {
 			return fmt.Errorf("scope '%s' not supported in vParquet3: %w", cond.Attribute.Scope, common.ErrUnsupported)
 		}
 
