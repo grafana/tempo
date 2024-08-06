@@ -17,9 +17,9 @@ Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure
 
 * Create a [bucket](https://docs.aws.amazon.com/AmazonS3/latest/userguide/create-bucket-overview.html) on AWS.
 
-### Static Token Installation
+### Static token installation
 
-* Create an Object Storage secret with keys as follows:
+1. Create an Object Storage secret with keys as follows:
 
     ```console
     kubectl create secret generic tempostack-dev-s3 \
@@ -31,7 +31,7 @@ Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure
 
   where `tempostack-dev-s3` is the secret name.
 
-* Create an instance of TempoStack by referencing the secret name and type as `s3`:
+2. Create an instance of TempoStack by referencing the secret name and type as `s3`:
 
   ```yaml
   spec:
@@ -41,20 +41,9 @@ Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure
         type: s3
   ```
 
-### Secure Token Service (STS) Installation
+### AWS Security Token Service (STS) installation
 
-* Create an Object Storage secret with keys as follows:
-
-    ```console
-    kubectl create secret generic tempostack-dev-s3 \
-      --from-literal=bucket="<BUCKET_NAME>" \
-      --from-literal=region="<AWS_REGION>" \
-      --from-literal=role_arn="<ROLE ARN>"
-    ```
-
-  where `tempostack-dev-s3` is the secret name.
-
-* Create a custom AWS IAM Role associated with a trust relationship to the Tempo's Kubernetes ServiceAccount
+1. Create a custom AWS IAM Role associated with a trust relationship to Tempo's Kubernetes `ServiceAccount`:
   
   ```yaml
   {
@@ -79,7 +68,7 @@ Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure
   }
   ```
   
-* Create an AWS IAM role:
+2. Create an AWS IAM role:
 
   ```yaml
   aws iam create-role \
@@ -89,7 +78,7 @@ Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure
     --output text
   ```
 
-* Attach a specific policy that role:
+3. Attach a specific policy to that role:
 
   ```yaml 
   aws iam attach-role-policy \
@@ -97,7 +86,18 @@ Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure
     --policy-arn "arn:aws:iam::aws:policy/AmazonS3FullAccess"
   ```
 
-* Create an instance of TempoStack by referencing the secret name and type as `s3`:
+4. Create an Object Storage secret with keys as follows:
+
+    ```console
+    kubectl create secret generic tempostack-dev-s3 \
+      --from-literal=bucket="<BUCKET_NAME>" \
+      --from-literal=region="<AWS_REGION>" \
+      --from-literal=role_arn="<ROLE ARN>"
+    ```
+
+where `tempostack-dev-s3` is the secret name.
+
+5. Create an instance of TempoStack by referencing the secret name and type as `s3`:
 
   ```yaml
   spec:
@@ -115,9 +115,7 @@ Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure
 
 ### Installation
 
-* Deploy the Tempo Operator to your cluster.
-
-* Create an Object Storage secret with keys as follows:
+1. Create an Object Storage secret with keys as follows:
 
     ```console
     kubectl create secret generic tempostack-dev-azure \
@@ -128,7 +126,7 @@ Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure
 
   where `tempostack-dev-azure` is the secret name.
 
-* Create an instance of TempoStack by referencing the secret name and type as `azure`:
+2. Create an instance of TempoStack by referencing the secret name and type as `azure`:
 
   ```yaml
   spec:
@@ -148,11 +146,8 @@ Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure
 
 ### Installation
 
-* Deploy the Tempo Operator to your cluster.
-
-* Copy the service account credentials received from GCP into a file name `key.json`.
-
-* Create an Object Storage secret with keys `bucketname` and `key.json` as follows:
+1. Copy the service account credentials received from GCP into a file name `key.json`.
+2. Create an Object Storage secret with keys `bucketname` and `key.json` as follows:
 
     ```console
     kubectl create secret generic tempostack-dev-gcs \
@@ -162,7 +157,7 @@ Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure
 
   where `tempostack-dev-gcs` is the secret name, `<BUCKET_NAME>` is the name of bucket created in requirements step and `<PATH/TO/KEY.JSON>` is the file path where the `key.json` was copied to.
 
-* Create an instance of TempoStack by referencing the secret name and type as `gcs`:
+3. Create an instance of TempoStack by referencing the secret name and type as `gcs`:
 
   ```yaml
   spec:
@@ -182,9 +177,7 @@ Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure
 
 ### Installation
 
-* Deploy the Tempo Operator to your cluster.
-
-* Create an Object Storage secret with keys as follows:
+1. Create an Object Storage secret with keys as follows:
 
     ```console
     kubectl create secret generic tempostack-dev-minio \
@@ -196,7 +189,7 @@ Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure
 
   where `tempostack-dev-minio` is the secret name.
 
-* Create an instance of TempoStack by referencing the secret name and type as `s3`:
+2. Create an instance of TempoStack by referencing the secret name and type as `s3`:
 
   ```yaml
   spec:
@@ -216,9 +209,7 @@ Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure
 
 ### Installation
 
-* Deploy the Tempo Operator to your cluster.
-
-* Create an Object Storage secret with keys as follows:
+1. Create an Object Storage secret with keys as follows:
 
     ```console
     kubectl create secret generic tempostack-dev-odf \
@@ -230,7 +221,7 @@ Tempo Operator supports [AWS S3](https://aws.amazon.com/), [Azure](https://azure
 
   where `tempostack-dev-odf` is the secret name. You can copy the values for `BUCKET_NAME`, `ACCESS_KEY_ID` and `ACCESS_KEY_SECRET` from your ObjectBucketClaim's accompanied secret.
 
-* Create an instance of TempoStack by referencing the secret name and type as `s3`:
+2. Create an instance of TempoStack by referencing the secret name and type as `s3`:
 
   ```yaml
   spec:
