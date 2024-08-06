@@ -1591,8 +1591,8 @@ overrides:
       # This is to filter out spans that are outdated.
       [ingestion_time_range_slack: <duration>]
 
-      # Configures the histogram implementation to use for span-metrics and
-      # service-graphs processors.  If native histograms are desired, the
+      # Configures the histogram implementation to use for span metrics and
+      # service graphs processors.  If native histograms are desired, the
       # receiver must be configured to ingest native histograms.
       [generate_native_histograms: <classic|native|both> | default = classic]
 
