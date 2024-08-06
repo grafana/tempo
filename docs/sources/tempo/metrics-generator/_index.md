@@ -68,7 +68,7 @@ When multi-tenancy is enabled, the metrics-generator forwards the `X-Scope-OrgID
 
 ## Native histograms
 
-The metrics-generator supports the ability to produce native histograms, for
+The metrics-generator supports the ability to produce [native histograms](https://grafana.com/docs/grafana-cloud/whats-new/native-histograms/), for
 high-resolution data. Users must [update the receiving endpoint](https://grafana.com/docs/mimir/latest/configure/configure-native-histograms-ingestion/) to ingest native
 histograms, and [update histogram queries](https://grafana.com/docs/mimir/latest/visualize/native-histograms/) in their dashboards.
 
