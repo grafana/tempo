@@ -35,12 +35,3 @@ func (qb *queryBuilder) addParam(key, value string) {
 func (qb *queryBuilder) query() string {
 	return qb.builder.String()
 }
-
-// Returns an url with query parameters
-func BuildURLWithQueryParams(url string, queryParams map[string]string) string {
-	qb := newQueryBuilder(url)
-	for k, v := range queryParams {
-		qb.addParam(k, v)
-	}
-	return qb.query()
-}
