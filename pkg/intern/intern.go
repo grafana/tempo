@@ -4,16 +4,16 @@ import "sync"
 
 // A Value pointer is the handle to an underlying comparable value.
 type Value struct {
-	cmpVal interface{}
+	cmpVal string
 }
 
 // Get returns the comparable value passed to the Get func that returned v.
-func (v *Value) Get() interface{} { return v.cmpVal }
+func (v *Value) Get() string { return v.cmpVal }
 
 // Our pool of interned values and a lock to serialize access.
 var (
 	mu  sync.Mutex
-	val = map[interface{}]*Value{}
+	val = map[string]*Value{}
 )
 
 // Get returns a pointer representing the comparable value cmpVal.
@@ -24,7 +24,7 @@ var (
 // Note that Get returns a *Value so we only return one word of data
 // to the caller, despite potentially storing a large amount of data
 // within the Value itself.
-func Get(cmpVal interface{}) *Value {
+func Get(cmpVal string) *Value {
 	mu.Lock()
 	defer mu.Unlock()
 

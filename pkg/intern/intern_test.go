@@ -25,8 +25,8 @@ func TestBasics(t *testing.T) {
 	a1 := x.Get()
 	a2 := y.Get()
 
-	p1 := fmt.Sprintf("%08x\n", stringAddr(a1.(string)))
-	p2 := fmt.Sprintf("%08x\n", stringAddr(a2.(string)))
+	p1 := fmt.Sprintf("%08x\n", stringAddr(a1))
+	p2 := fmt.Sprintf("%08x\n", stringAddr(a2))
 	require.Equal(t, p1, p2)
 }
 

@@ -166,8 +166,8 @@ func (b *BlockMeta) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	b.Version = intern.Get(b.Version).Get().(string)
-	b.TenantID = intern.Get(b.TenantID).Get().(string)
+	b.Version = intern.Get(b.Version).Get()
+	b.TenantID = intern.Get(b.TenantID).Get()
 
 	return nil
 }
