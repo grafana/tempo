@@ -42,6 +42,8 @@ type QueryRangeSharderConfig struct {
 	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
 	Interval              time.Duration `yaml:"interval,omitempty"`
 	RF1ReadPath           bool          `yaml:"rf1_read_path,omitempty"`
+	Exemplars             bool          `yaml:"exemplars,omitempty"`
+	MaxExemplars          int           `yaml:"max_exemplars,omitempty"`
 }
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search
@@ -274,6 +276,7 @@ func (s *queryRangeSharder) buildShardedBackendRequests(ctx context.Context, ten
 		}
 
 		shards := uint32(math.Ceil(float64(totalBlockSize) / float64(targetBytesPerRequest)))
+		exemplars := max(s.exemplarsPerShard(shards), 1)
 
 		for i := uint32(1); i <= shards; i++ {
 
@@ -282,6 +285,7 @@ func (s *queryRangeSharder) buildShardedBackendRequests(ctx context.Context, ten
 			shardR.End = thisEnd
 			shardR.ShardID = i
 			shardR.ShardCount = shards
+			shardR.Exemplars = exemplars
 			httpReq := s.toUpstreamRequest(ctx, shardR, parent, tenantID)
 
 			pipelineR := pipeline.NewHTTPRequest(httpReq)
@@ -304,6 +308,13 @@ func (s *queryRangeSharder) buildShardedBackendRequests(ctx context.Context, ten
 
 		start = thisEnd
 	}
+}
+
+func (s *queryRangeSharder) exemplarsPerShard(total uint32) uint32 {
+	if !s.cfg.Exemplars {
+		return 0
+	}
+	return uint32(math.Ceil(float64(s.cfg.MaxExemplars)*1.2)) / total
 }
 
 func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, _ float64, targetBytesPerRequest int, _ time.Duration, reqCh chan pipeline.Request) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
@@ -357,6 +368,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 
 	queryHash := hashForQueryRangeRequest(&searchReq)
 
+	exemplarsPerBlock := s.exemplarsPerShard(uint32(len(metas)))
 	for _, m := range metas {
 		if m.EndTime.Before(m.StartTime) {
 			// Ignore blocks with bad timings from debugging
@@ -366,6 +378,13 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 		pages := pagesPerRequest(m, targetBytesPerRequest)
 		if pages == 0 {
 			continue
+		}
+
+		exemplars := exemplarsPerBlock
+		if exemplars > 0 {
+			// Scale the number of exemplars per block to match the size
+			// of each sub request on this block. For very small blocks or other edge cases, return at least 1.
+			exemplars = max(uint32(float64(exemplars)*float64(m.TotalRecords)/float64(pages)), 1)
 		}
 
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
@@ -403,6 +422,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				Size_:            m.Size,
 				FooterSize:       m.FooterSize,
 				DedicatedColumns: dc,
+				Exemplars:        exemplars,
 			}
 
 			subR = api.BuildQueryRangeRequest(subR, queryRangeReq)
@@ -426,6 +446,13 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 	}
 }
 
+func max(a, b uint32) uint32 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest, parent *http.Request, tenantID string, cutoff time.Time) *http.Request {
 	traceql.TrimToAfter(&searchReq, cutoff)
 
@@ -435,6 +462,7 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 	}
 
 	searchReq.QueryMode = querier.QueryModeRecent
+	searchReq.Exemplars = uint32(s.cfg.MaxExemplars) // TODO: Review this
 
 	req := s.toUpstreamRequest(parent.Context(), searchReq, parent, tenantID)
 	req.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)

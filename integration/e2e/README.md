@@ -27,16 +27,14 @@ docker logs $(docker container ls -f name=tempo_e2e-tempo -q) -f
 **How to debug Tempo while running an integration test**
 
 1. Build latest debug image
-```sh
-    make docker-tempo-debug
-```
+    ```sh
+        make docker-tempo-debug
+    ```
 2. Use the function ``NewTempoAllInOneDebug`` in your test to spin a Tempo instance with debug capabilities
 3. Set a breakpoint after ``require.NoError(t, s.StartAndWaitReady(tempo))`` and before the action you want debug
 4. Get the port of Delve debugger inside the container
-```sh
+    ```sh
     docker ps --format '{{.Ports}}'  
-    # 0.0.0.0:53467->2345
-```
+        # 0.0.0.0:53467->2345
+    ```
 5. Run the debugger against that port as is specified [here](https://github.com/grafana/tempo/tree/main/example/docker-compose/debug)
- 
-

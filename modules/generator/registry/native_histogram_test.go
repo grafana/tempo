@@ -20,11 +20,7 @@ func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 		return true
 	}
 
-	f := func() string {
-		return "both"
-	}
-
-	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, onAdd, nil, "trace_id", f)
+	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, onAdd, nil, "trace_id", "both")
 
 	lv := newLabelValueCombo([]string{"label"}, []string{"value-1"})
 
@@ -59,7 +55,6 @@ func Test_Histograms(t *testing.T) {
 		collections collections
 		// native histogram does not support all features yet
 		skipNativeHistogram bool
-		modeFunc            func() string
 	}{
 		{
 			name:    "single collection single observation",
@@ -459,20 +454,13 @@ func Test_Histograms(t *testing.T) {
 					t.SkipNow()
 				}
 
-				modeFunc := tc.modeFunc
-				if modeFunc == nil {
-					modeFunc = func() string {
-						return "both"
-					}
-				}
-
 				var seriesAdded int
 				onAdd := func(count uint32) bool {
 					seriesAdded += int(count)
 					return true
 				}
 
-				h := newNativeHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", modeFunc)
+				h := newNativeHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", "both")
 				testHistogram(t, h, tc.collections)
 			})
 		})

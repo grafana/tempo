@@ -148,19 +148,13 @@ func (r *ManagedRegistry) NewCounter(name string) Counter {
 	return c
 }
 
-func (r *ManagedRegistry) NewHistogram(name string, buckets []float64) (h Histogram) {
+func (r *ManagedRegistry) NewHistogram(name string, buckets []float64, histogramOverride string) (h Histogram) {
 	traceIDLabelName := r.overrides.MetricsGenerationTraceIDLabelName(r.tenant)
 
-	histograms := r.overrides.MetricsGeneratorGenerateNativeHistograms(r.tenant)
-
-	histogramsModeFunc := func() string {
-		return r.overrides.MetricsGeneratorGenerateNativeHistograms(r.tenant)
-	}
-
-	// Temporary switch: use the old implementation when native histograms are
-	// disabled, eventually the new implementation can handle all cases
-	if overrides.HasNativeHistograms(histograms) {
-		h = newNativeHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, histogramsModeFunc)
+	// TODO: Temporary switch: use the old implementation when native histograms
+	// are disabled, eventually the new implementation can handle all cases
+	if overrides.HasNativeHistograms(histogramOverride) {
+		h = newNativeHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, histogramOverride)
 	} else {
 		h = newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName)
 	}
