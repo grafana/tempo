@@ -21,7 +21,7 @@
 * [ENHANCEMENT] Implement arrays for traceql.Static with reused fields [#3827](https://github.com/grafana/tempo/pull/3827) (@stoewer)
 * [ENHANCEMENT] Tag value lookup use protobuf internally for improved latency [#3731](https://github.com/grafana/tempo/pull/3731) (@mdisibio)
 * [ENHANCEMENT] TraceQL metrics queries use protobuf internally for improved latency [#3745](https://github.com/grafana/tempo/pull/3745) (@mdisibio)
-* [ENHANCEMENT] TraceQL search and remaining endpoints use protobuf internally for improved latency and resource usage [#3944](https://github.com/grafana/tempo/pull/3944) (@mdisibio)
+* [ENHANCEMENT] TraceQL search and other endpoints use protobuf internally for improved latency and resource usage [#3944](https://github.com/grafana/tempo/pull/3944) (@mdisibio)
 * [ENHANCEMENT] Add local disk caching of metrics queries in local-blocks processor [#3799](https://github.com/grafana/tempo/pull/3799) (@mdisibio)
 * [ENHANCEMENT] Improve use of OTEL semantic conventions on the service graph [#3711](https://github.com/grafana/tempo/pull/3711) (@zalegrala)
 * [ENHANCEMENT] Performance improvement for `rate() by ()` queries [#3719](https://github.com/grafana/tempo/pull/3719) (@mapno)

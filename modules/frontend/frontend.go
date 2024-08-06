@@ -221,6 +221,9 @@ func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineR
 			}, nil
 		}
 		prepareRequestForQueriers(req, tenant)
+		// This API is always json because it only ever has 1 job and this
+		// lets us return the response as-is.
+		req.Header.Set(api.HeaderAccept, api.HeaderAcceptJSON)
 
 		level.Info(logger).Log(
 			"msg", "metrics summary request",
