@@ -101,7 +101,7 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 	}
 
 	// Do not combine more spans for now
-	if c.maxTraceSizeReached {
+	if c.maxTraceSizeReached && c.partialTraceAllowed {
 		return spanCount, nil
 	}
 	// loop through every span and copy spans in B that don't exist to A
@@ -145,7 +145,7 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 		return spanCount, nil
 	}
 
-	return spanCount, nil
+	return spanCount, maxSizeErr
 }
 
 func (c *Combiner) sizeError() error {
