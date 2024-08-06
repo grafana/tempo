@@ -221,7 +221,7 @@ func (q *Querier) stopping(_ error) error {
 }
 
 // FindTraceByID implements tempopb.Querier.
-func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest, timeStart int64, timeEnd int64, allowPartialTraces bool) (*tempopb.TraceByIDResponse, error) {
+func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest, timeStart int64, timeEnd int64, allowPartialTrace bool) (*tempopb.TraceByIDResponse, error) {
 	if !validation.ValidTraceID(req.TraceID) {
 		return nil, errors.New("invalid trace id")
 	}
@@ -237,7 +237,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	span.SetTag("queryMode", req.QueryMode)
 
 	maxBytes := q.limits.MaxBytesPerTrace(userID)
-	combiner := trace.NewCombiner(maxBytes, allowPartialTraces)
+	combiner := trace.NewCombiner(maxBytes, allowPartialTrace)
 
 	var spanCount, spanCountTotal, traceCountTotal int
 	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
@@ -252,6 +252,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		// get responses from all ingesters in parallel
 		span.LogFields(ot_log.String("msg", "searching ingesters"))
 		responses, err := q.forIngesterRings(ctx, userID, getRSFn, func(funcCtx context.Context, client tempopb.QuerierClient) (interface{}, error) {
+			req.AllowPartialTrace = allowPartialTrace
 			return client.FindTraceByID(funcCtx, req)
 		})
 		if err != nil {
@@ -285,7 +286,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 		opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
 		opts.BlockReplicationFactor = backend.DefaultReplicationFactor
-		opts.AllowPartialTraces = allowPartialTraces
+		opts.AllowPartialTraces = allowPartialTrace
 		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req.TraceID, req.BlockStart, req.BlockEnd, timeStart, timeEnd, opts)
 		if err != nil {
 			retErr := fmt.Errorf("error querying store in Querier.FindTraceByID: %w", err)

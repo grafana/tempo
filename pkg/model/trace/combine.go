@@ -45,14 +45,14 @@ type Combiner struct {
 	spans               map[token]struct{}
 	combined            bool
 	maxSizeBytes        int
-	partialTraceAllowed bool
+	allowPartialTrace   bool
 	maxTraceSizeReached bool
 }
 
-func NewCombiner(maxSizeBytes int, partialTraceAllowed bool) *Combiner {
+func NewCombiner(maxSizeBytes int, allowPartialTrace bool) *Combiner {
 	return &Combiner{
-		maxSizeBytes:        maxSizeBytes,
-		partialTraceAllowed: partialTraceAllowed,
+		maxSizeBytes:      maxSizeBytes,
+		allowPartialTrace: allowPartialTrace,
 	}
 }
 
@@ -94,14 +94,14 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 			}
 		}
 		maxSizeErr := c.sizeError()
-		if maxSizeErr != nil && c.partialTraceAllowed {
+		if maxSizeErr != nil && c.allowPartialTrace {
 			return spanCount, nil
 		}
 		return spanCount, maxSizeErr
 	}
 
 	// Do not combine more spans for now
-	if c.maxTraceSizeReached && c.partialTraceAllowed {
+	if c.maxTraceSizeReached && c.allowPartialTrace {
 		return spanCount, nil
 	}
 	// loop through every span and copy spans in B that don't exist to A
@@ -141,7 +141,7 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 
 	c.combined = true
 	maxSizeErr := c.sizeError()
-	if maxSizeErr != nil && c.partialTraceAllowed {
+	if maxSizeErr != nil && c.allowPartialTrace {
 		return spanCount, nil
 	}
 
