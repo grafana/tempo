@@ -6,7 +6,7 @@ import (
 
 	"github.com/grafana/dskit/middleware"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util"
 	"google.golang.org/grpc"
 )
 

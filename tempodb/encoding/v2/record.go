@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/v2/pkg/validation"
 )
 
 // recordLength holds the size of a single record in bytes

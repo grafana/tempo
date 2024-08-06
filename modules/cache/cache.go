@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/tempo/modules/cache/memcached"
-	"github.com/grafana/tempo/modules/cache/redis"
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/usagestats"
+	"github.com/grafana/tempo/v2/modules/cache/memcached"
+	"github.com/grafana/tempo/v2/modules/cache/redis"
+	"github.com/grafana/tempo/v2/pkg/cache"
+	"github.com/grafana/tempo/v2/pkg/usagestats"
 	"github.com/prometheus/statsd_exporter/pkg/level"
 
 	"github.com/go-kit/log"

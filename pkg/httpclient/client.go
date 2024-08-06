@@ -15,12 +15,12 @@ import (
 	"github.com/golang/protobuf/proto"  //nolint:all
 	"github.com/klauspost/compress/gzhttp"
 
-	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
-	"github.com/grafana/tempo/pkg/api"
-	tempo_api "github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
+	userconfigurableoverrides "github.com/grafana/tempo/v2/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/v2/pkg/api"
+	tempo_api "github.com/grafana/tempo/v2/pkg/api"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 const (

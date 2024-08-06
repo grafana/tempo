@@ -8,12 +8,12 @@ import (
 	"time"
 
 	"github.com/grafana/e2e"
-	"github.com/grafana/tempo/integration/util"
+	"github.com/grafana/tempo/v2/integration/util"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/httpclient"
-	"github.com/grafana/tempo/pkg/tempopb"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/httpclient"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	tempoUtil "github.com/grafana/tempo/v2/pkg/util"
 )
 
 const (

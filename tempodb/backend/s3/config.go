@@ -7,7 +7,7 @@ import (
 	"github.com/grafana/dskit/crypto/tls"
 	"github.com/grafana/dskit/flagext"
 
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 type Config struct {

@@ -17,12 +17,12 @@ import (
 	prometheus_storage "github.com/prometheus/prometheus/storage"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
-	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
-	"github.com/grafana/tempo/modules/generator/storage"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v2/modules/generator/processor/servicegraphs"
+	"github.com/grafana/tempo/v2/modules/generator/processor/spanmetrics"
+	"github.com/grafana/tempo/v2/modules/generator/storage"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v2/pkg/util/test"
 )
 
 func Test_instance_concurrency(t *testing.T) {

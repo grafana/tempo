@@ -18,10 +18,10 @@ import (
 
 	"github.com/grafana/dskit/httpgrpc"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/traceql"
+	"github.com/grafana/tempo/v2/pkg/util"
+	"github.com/grafana/tempo/v2/tempodb"
 )
 
 const (

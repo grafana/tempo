@@ -7,8 +7,8 @@ import (
 
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/util/log"
 )
 
 func (i *Ingester) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (res *tempopb.SearchResponse, err error) {

@@ -10,8 +10,8 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
-	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/v2/modules/generator/processor/spanmetrics"
+	"github.com/grafana/tempo/v2/modules/overrides"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"

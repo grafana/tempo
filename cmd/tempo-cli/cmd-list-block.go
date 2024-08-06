@@ -15,12 +15,12 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
-	tempodb_backend "github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
+	"github.com/grafana/tempo/v2/pkg/model"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/util"
+	tempodb_backend "github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/v2/tempodb/encoding/v2"
 )
 
 type valueStats struct {

@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 // CompactionBlockSelector is an interface for different algorithms to pick suitable blocks for compaction

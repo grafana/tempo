@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	frontendProtoGenPkgPath = "github.com/grafana/tempo/modules/frontend"
-	tempoProtoGenPkgPath    = "github.com/grafana/tempo/pkg/tempopb"
+	frontendProtoGenPkgPath = "github.com/grafana/tempo/v2/modules/frontend"
+	tempoProtoGenPkgPath    = "github.com/grafana/tempo/v2/pkg/tempopb"
 	jaegerProtoGenPkgPath   = "github.com/jaegertracing/jaeger/proto-gen"
 	jaegerModelPkgPath      = "github.com/jaegertracing/jaeger/model"
 	otelProtoPkgPath        = "go.opentelemetry.io/collector"

@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1_common "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
 )
 
 func TestFindServiceName(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"github.com/grafana/dskit/flagext"
 	ring_client "github.com/grafana/dskit/ring/client"
 
-	"github.com/grafana/tempo/modules/distributor/forwarder"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/modules/distributor/forwarder"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 var defaultReceivers = map[string]interface{}{

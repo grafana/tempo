@@ -20,7 +20,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/uber/jaeger-client-go"
 
-	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/v2/pkg/util/log"
 )
 
 var (

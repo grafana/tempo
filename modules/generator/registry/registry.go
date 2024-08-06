@@ -14,8 +14,8 @@ import (
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
 
-	"github.com/grafana/tempo/modules/overrides"
-	tempo_log "github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/v2/modules/overrides"
+	tempo_log "github.com/grafana/tempo/v2/pkg/util/log"
 )
 
 var (

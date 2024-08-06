@@ -4,10 +4,10 @@ import (
 	"context"
 	"sync"
 
-	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/v2/pkg/traceql"
 
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 const (

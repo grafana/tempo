@@ -8,7 +8,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/tenant"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/frontend/combiner"
+	"github.com/grafana/tempo/v2/modules/frontend/combiner"
 )
 
 var ErrMultiTenantUnsupported = errors.New("multi-tenant query unsupported")

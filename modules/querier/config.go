@@ -7,8 +7,8 @@ import (
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/grpcclient"
 
-	"github.com/grafana/tempo/modules/querier/external"
-	"github.com/grafana/tempo/modules/querier/worker"
+	"github.com/grafana/tempo/v2/modules/querier/external"
+	"github.com/grafana/tempo/v2/modules/querier/worker"
 )
 
 // Config for a querier.

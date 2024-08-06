@@ -9,10 +9,10 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
 
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/querier"
-	"github.com/grafana/tempo/pkg/blockboundary"
+	"github.com/grafana/tempo/v2/modules/frontend/combiner"
+	"github.com/grafana/tempo/v2/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v2/modules/querier"
+	"github.com/grafana/tempo/v2/pkg/blockboundary"
 )
 
 const (

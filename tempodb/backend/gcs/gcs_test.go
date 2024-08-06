@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 	raw "google.golang.org/api/storage/v1"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 func TestHedge(t *testing.T) {

@@ -1,6 +1,6 @@
 package vparquet4
 
-import "github.com/grafana/tempo/pkg/traceql"
+import "github.com/grafana/tempo/v2/pkg/traceql"
 
 // coalesceConditions reduces the amount of data pulled from the backend when the same column is used in multiple conditions
 //

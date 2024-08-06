@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/pkg/httpclient"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/httpclient"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

@@ -12,11 +12,11 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level" //nolint:all //deprecated
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v2/modules/frontend/combiner"
+	"github.com/grafana/tempo/v2/modules/frontend/pipeline"
 
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/api"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 )
 
 // newQueryRangeStreamingGRPCHandler returns a handler that streams results from the HTTP handler

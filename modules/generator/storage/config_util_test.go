@@ -10,7 +10,7 @@ import (
 	prometheus_config "github.com/prometheus/prometheus/config"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 func Test_generateTenantRemoteWriteConfigs(t *testing.T) {

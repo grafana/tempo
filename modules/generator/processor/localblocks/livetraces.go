@@ -5,7 +5,7 @@ import (
 	"hash/fnv"
 	"time"
 
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
 )
 
 type liveTrace struct {

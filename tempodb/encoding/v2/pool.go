@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/golang/snappy"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 	"github.com/klauspost/compress/gzip"
 	"github.com/klauspost/compress/s2"
 	"github.com/klauspost/compress/zstd"

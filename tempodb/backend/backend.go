@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/v2/pkg/cache"
 )
 
 const (

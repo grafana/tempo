@@ -14,15 +14,15 @@ import (
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/tenant"
-	"github.com/grafana/tempo/pkg/util/httpgrpcutil"
+	"github.com/grafana/tempo/v2/pkg/util/httpgrpcutil"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/grafana/tempo/modules/frontend/queue"
-	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/validation"
+	"github.com/grafana/tempo/v2/modules/frontend/queue"
+	"github.com/grafana/tempo/v2/modules/frontend/v1/frontendv1pb"
+	"github.com/grafana/tempo/v2/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/validation"
 )
 
 // Config for a Frontend.

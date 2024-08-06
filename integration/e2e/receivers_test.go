@@ -7,7 +7,7 @@ import (
 
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/e2e"
-	"github.com/grafana/tempo/integration/util"
+	"github.com/grafana/tempo/v2/integration/util"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,9 +23,9 @@ import (
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
-	"github.com/grafana/tempo/pkg/httpclient"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v2/pkg/httpclient"
+	tempoUtil "github.com/grafana/tempo/v2/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util/test"
 )
 
 const (

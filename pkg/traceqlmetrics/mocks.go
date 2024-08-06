@@ -3,7 +3,7 @@ package traceqlmetrics
 import (
 	"context"
 
-	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/v2/pkg/traceql"
 )
 
 type mockSpan struct {

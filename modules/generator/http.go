@@ -8,8 +8,8 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/opentracing/opentracing-go"
 
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/api"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 )
 
 func (g *Generator) SpanMetricsHandler(w http.ResponseWriter, r *http.Request) {

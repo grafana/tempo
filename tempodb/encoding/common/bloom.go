@@ -7,8 +7,8 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/willf/bloom"
 
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/v2/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util/log"
 )
 
 const (

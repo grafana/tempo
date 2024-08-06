@@ -12,8 +12,8 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/uber-go/atomic"
 
-	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/pkg/model"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 type multiblockIterator struct {

@@ -20,10 +20,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/modules/frontend/combiner"
+	"github.com/grafana/tempo/v2/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v2/modules/overrides"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 type fakeReq struct {

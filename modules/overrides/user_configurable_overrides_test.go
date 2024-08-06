@@ -16,13 +16,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
-	tempo_api "github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/sharedconfig"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/grafana/tempo/pkg/util/listtomap"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
+	userconfigurableoverrides "github.com/grafana/tempo/v2/modules/overrides/userconfigurable/client"
+	tempo_api "github.com/grafana/tempo/v2/pkg/api"
+	"github.com/grafana/tempo/v2/pkg/sharedconfig"
+	filterconfig "github.com/grafana/tempo/v2/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v2/pkg/util/listtomap"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend/local"
 )
 
 const (

@@ -1,11 +1,11 @@
-module github.com/grafana/tempo/cmd/tempo-serverless/lambda
+module github.com/grafana/tempo/cmd/tempo-serverless/lambda/v2
 
 go 1.22.4
 
 require (
 	github.com/aws/aws-lambda-go v1.28.0
 	github.com/gogo/protobuf v1.3.2
-	github.com/grafana/tempo v0.0.0-00010101000000-000000000000
+	github.com/grafana/tempo/v2 v2.5.0
 	github.com/stretchr/testify v1.9.0
 )
 
@@ -142,7 +142,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/grafana/tempo => ../../../
+replace github.com/grafana/tempo/v2 => ../../../
 
 replace (
 	github.com/bradfitz/gomemcache => github.com/themihai/gomemcache v0.0.0-20180902122335-24332e2d58ab

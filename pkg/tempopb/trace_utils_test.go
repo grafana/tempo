@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
 	"github.com/stretchr/testify/assert"
 )
 

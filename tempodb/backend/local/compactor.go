@@ -8,7 +8,7 @@ import (
 	"path"
 
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 func (rw *Backend) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {

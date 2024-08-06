@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/grafana/tempo/pkg/util/math"
+	"github.com/grafana/tempo/v2/pkg/util/math"
 )
 
 // MemcachedConfig is config to make a Memcached

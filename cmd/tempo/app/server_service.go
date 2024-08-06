@@ -17,7 +17,7 @@ import (
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
 
-	util_log "github.com/grafana/tempo/pkg/util/log"
+	util_log "github.com/grafana/tempo/v2/pkg/util/log"
 )
 
 type TempoServer interface {

@@ -1,8 +1,8 @@
 package vparquet2
 
 import (
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 // spanNode is a wrapper around a span that is used to build and travers spans as a tree.

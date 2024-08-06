@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/grafana/e2e"
-	"github.com/grafana/tempo/integration/util"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/integration/util"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 )
 

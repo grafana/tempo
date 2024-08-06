@@ -1,8 +1,8 @@
 package combiner
 
 import (
-	"github.com/grafana/tempo/pkg/model/trace"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/model/trace"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 )
 
 func NewTraceByIDV2(maxBytes int, marshalingFormat string) Combiner {

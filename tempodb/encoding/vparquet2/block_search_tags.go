@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"io"
 
-	pq "github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	pq "github.com/grafana/tempo/v2/pkg/parquetquery"
+	"github.com/grafana/tempo/v2/pkg/traceql"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
 	"github.com/parquet-go/parquet-go"
 )

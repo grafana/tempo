@@ -11,7 +11,7 @@ import (
 	"github.com/googleapis/gax-go/v2"
 	"google.golang.org/api/iterator"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {

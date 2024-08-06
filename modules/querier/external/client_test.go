@@ -13,7 +13,7 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/oauth2"
 
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 )
 
 func TestAuthHeader(t *testing.T) {

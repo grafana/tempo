@@ -12,10 +12,10 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 
-	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/v2/pkg/cache"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/tempodb/backend"
+	tempo_io "github.com/grafana/tempo/v2/pkg/io"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 type BloomConfig struct {
