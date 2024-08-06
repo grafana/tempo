@@ -1602,6 +1602,11 @@ overrides:
       # This is to filter out spans that are outdated.
       [ingestion_time_range_slack: <duration>]
 
+      # Configures the histogram implementation to use for span metrics and
+      # service graphs processors.  If native histograms are desired, the
+      # receiver must be configured to ingest native histograms.
+      [generate_native_histograms: <classic|native|both> | default = classic]
+
       # Distributor -> metrics-generator forwarder related overrides
       forwarder:
         # Spans are stored in a queue in the distributor before being sent to the metrics-generators.
