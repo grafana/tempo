@@ -72,23 +72,20 @@ func (s *asyncTraceSharder) buildShardedRequests(ctx context.Context, parent *ht
 	}
 
 	reqs := make([]*http.Request, s.cfg.QueryShards)
+	params := map[string]string{}
 	// build sharded block queries
 	for i := 0; i < len(s.blockBoundaries); i++ {
 		reqs[i] = parent.Clone(ctx)
-
-		qb := api.NewQueryBuilder(reqs[i].URL.RawQuery)
-
 		if i == 0 {
 			// ingester query
-			qb.AddParam(querier.QueryModeKey, querier.QueryModeIngesters)
+			params[querier.QueryModeKey] = querier.QueryModeIngesters
 		} else {
 			// block queries
-			qb.AddParam(querier.BlockStartKey, hex.EncodeToString(s.blockBoundaries[i-1]))
-			qb.AddParam(querier.BlockEndKey, hex.EncodeToString(s.blockBoundaries[i]))
-			qb.AddParam(querier.QueryModeKey, querier.QueryModeBlocks)
+			params[querier.BlockStartKey] = hex.EncodeToString(s.blockBoundaries[i-1])
+			params[querier.BlockEndKey] = hex.EncodeToString(s.blockBoundaries[i])
+			params[querier.QueryModeKey] = querier.QueryModeBlocks
 		}
-		reqs[i].URL.RawQuery = qb.Query()
-
+		reqs[i].URL.RawQuery = api.BuildURLWithQueryParams(reqs[i].URL.RawQuery, params)
 		prepareRequestForQueriers(reqs[i], userID)
 	}
 
