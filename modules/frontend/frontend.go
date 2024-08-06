@@ -251,6 +251,11 @@ func prepareRequestForQueriers(req *http.Request, tenant string) {
 	// set the tenant header
 	req.Header.Set(user.OrgIDHeaderName, tenant)
 
+	// All communication with the queriers should be proto for efficiency
+	// NOTE - This isn't strict and queriers may still return json if we missed
+	// an endpoint. But cache and response unmarshalling still work.
+	req.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
+
 	// copy the url (which is correct) to the RequestURI
 	// we do this because dskit/common uses the RequestURI field to translate from http.Request to httpgrpc.Request
 	// https://github.com/grafana/dskit/blob/f5bd38371e1cfae5479b2c23b3893c1a97868bdf/httpgrpc/httpgrpc.go#L53
