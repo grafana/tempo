@@ -41,15 +41,18 @@ var ErrTraceTooLarge = fmt.Errorf("trace exceeds max size")
 // * Only sort the final result once and if needed.
 // * Don't scan/hash the spans for the last input (final=true).
 type Combiner struct {
-	result       *tempopb.Trace
-	spans        map[token]struct{}
-	combined     bool
-	maxSizeBytes int
+	result              *tempopb.Trace
+	spans               map[token]struct{}
+	combined            bool
+	maxSizeBytes        int
+	partialTraceAllowed bool
+	maxTraceSizeReached bool
 }
 
-func NewCombiner(maxSizeBytes int) *Combiner {
+func NewCombiner(maxSizeBytes int, partialTraceAllowed bool) *Combiner {
 	return &Combiner{
-		maxSizeBytes: maxSizeBytes,
+		maxSizeBytes:        maxSizeBytes,
+		partialTraceAllowed: partialTraceAllowed,
 	}
 }
 
@@ -63,7 +66,7 @@ func (c *Combiner) Consume(tr *tempopb.Trace) (int, error) {
 func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) {
 	var spanCount int
 	if tr == nil {
-		return spanCount, c.sizeError()
+		return spanCount, nil
 	}
 
 	h := newHash()
@@ -90,9 +93,17 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 				}
 			}
 		}
-		return spanCount, c.sizeError()
+		maxSizeErr := c.sizeError()
+		if maxSizeErr != nil && c.partialTraceAllowed {
+			return spanCount, nil
+		}
+		return spanCount, maxSizeErr
 	}
 
+	// Do not combine more spans for now
+	if c.maxTraceSizeReached {
+		return spanCount, nil
+	}
 	// loop through every span and copy spans in B that don't exist to A
 	for _, b := range tr.ResourceSpans {
 		notFoundILS := b.ScopeSpans[:0]
@@ -129,7 +140,12 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 	}
 
 	c.combined = true
-	return spanCount, c.sizeError()
+	maxSizeErr := c.sizeError()
+	if maxSizeErr != nil && c.partialTraceAllowed {
+		return spanCount, nil
+	}
+
+	return spanCount, nil
 }
 
 func (c *Combiner) sizeError() error {
@@ -138,6 +154,8 @@ func (c *Combiner) sizeError() error {
 	}
 
 	if c.result.Size() > c.maxSizeBytes {
+		// To avoid recalculing the size
+		c.maxTraceSizeReached = true
 		return fmt.Errorf("%w (max bytes: %d)", ErrTraceTooLarge, c.maxSizeBytes)
 	}
 

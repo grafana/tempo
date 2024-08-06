@@ -426,7 +426,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
 	searchOpts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
 
-	combiner := trace.NewCombiner(maxBytes)
+	combiner := trace.NewCombiner(maxBytes, false)
 	_, err = combiner.Consume(completeTrace)
 	if err != nil {
 		return nil, err
