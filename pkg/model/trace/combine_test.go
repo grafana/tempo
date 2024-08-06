@@ -83,6 +83,27 @@ func TestCombinerChecksMaxBytes(t *testing.T) {
 	}
 }
 
+func TestCombinerReturnsAPartialTrace(t *testing.T) {
+	// Ensure that the combiner checks max bytes when consuming a trace.
+	for _, maxBytes := range []int{0, 100, 1000, 10000} {
+		c := NewCombiner(maxBytes, true)
+		curSize := 0
+
+		// attempt up to 20 traces to exceed max bytes
+		for i := 0; i < 20; i++ {
+			tr := test.MakeTraceWithSpanCount(1, 1, []byte{0x01})
+			curSize += tr.Size()
+
+			_, err := c.Consume(tr)
+			if curSize > maxBytes && maxBytes != 0 {
+				require.NoError(t, err)
+				continue
+			}
+			require.NoError(t, err)
+		}
+	}
+}
+
 func TestTokenForIDCollision(t *testing.T) {
 	// Estimate the hash collision rate of tokenForID.
 

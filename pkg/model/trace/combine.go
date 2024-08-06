@@ -149,6 +149,7 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 }
 
 func (c *Combiner) sizeError() error {
+	// Should we allow a maxSizeBytes <= 0?
 	if c.result == nil || c.maxSizeBytes <= 0 {
 		return nil
 	}
