@@ -11,6 +11,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
 )
 
 // DedicatedColumnType is the type of the values in the dedicated attribute column. Only 'string' is supported.
@@ -85,6 +86,18 @@ func (s DedicatedColumnScope) ToTempopb() (tempopb.DedicatedColumn_Scope, error)
 type CompactedBlockMeta struct {
 	CompactedTime time.Time `json:"compactedTime"`
 	BlockMeta
+}
+
+func (b *CompactedBlockMeta) ToBackendV1Proto() (*backend_v1.CompactedBlockMeta, error) {
+	bm, err := b.BlockMeta.ToBackendV1Proto()
+	if err != nil {
+		return nil, err
+	}
+
+	return &backend_v1.CompactedBlockMeta{
+		BlockMeta:     bm,
+		CompactedTime: b.CompactedTime.Unix(),
+	}, nil
 }
 
 const (
@@ -231,6 +244,36 @@ func (b *BlockMeta) ObjectAdded(start, end uint32) {
 
 func (b *BlockMeta) DedicatedColumnsHash() uint64 {
 	return b.DedicatedColumns.Hash()
+}
+
+func (b *BlockMeta) ToBackendV1Proto() (*backend_v1.BlockMeta, error) {
+	m := &backend_v1.BlockMeta{
+		Version:           b.Version,
+		BlockId:           b.BlockID.String(),
+		MinId:             b.MinID,
+		MaxId:             b.MaxID,
+		TenantId:          b.TenantID,
+		StartTime:         b.StartTime.Unix(),
+		EndTime:           b.EndTime.Unix(),
+		TotalObjects:      int32(b.TotalObjects),
+		Size_:             b.Size,
+		CompactionLevel:   uint32(b.CompactionLevel),
+		Encoding:          b.Encoding.String(),
+		IndexPageSize:     b.IndexPageSize,
+		TotalRecords:      b.TotalRecords,
+		DataEncoding:      b.DataEncoding,
+		BloomShardCount:   uint32(b.BloomShardCount),
+		FooterSize:        b.FooterSize,
+		ReplicationFactor: b.ReplicationFactor,
+	}
+
+	dc, err := b.DedicatedColumns.ToTempopb()
+	if err != nil {
+		return nil, err
+	}
+	m.DedicatedColumns = dc
+
+	return m, nil
 }
 
 func DedicatedColumnsFromTempopb(tempopbCols []*tempopb.DedicatedColumn) (DedicatedColumns, error) {

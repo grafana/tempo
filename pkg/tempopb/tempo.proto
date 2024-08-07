@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package tempopb;
 
+option go_package = "github.com/grafana/tempo/pkg/tempopb";
+
 import "common/v1/common.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "trace/v1/trace.proto";
