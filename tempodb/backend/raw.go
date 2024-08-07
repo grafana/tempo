@@ -5,19 +5,29 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"path"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
+	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
 )
 
 const (
+	// JSON
 	MetaName          = "meta.json"
 	CompactedMetaName = "meta.compacted.json"
 	TenantIndexName   = "index.json.gz"
+
+	// Proto
+	MetaNameProto          = "meta"
+	CompactedMetaNameProto = "meta.compacted"
+	TenantIndexNameProto   = "index"
+
 	// File name for the cluster seed file.
 	ClusterSeedFileName = "tempo_cluster_seed.json"
 )
@@ -93,17 +103,33 @@ func (w *writer) StreamWriter(ctx context.Context, name string, blockID uuid.UUI
 }
 
 // Write implements backend.Writer
-func (w *writer) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
-	blockID := meta.BlockID
-	tenantID := meta.TenantID
+func (w *writer) WriteBlockMeta(ctx context.Context, meta *backend_v1.BlockMeta) error {
+	// TODO: consider writing both json and proto files
+	blockID, err := uuid.Parse(meta.BlockId)
+	if err != nil {
+		return err
+	}
+	tenantID := meta.TenantId
 
-	bMeta, err := json.Marshal(meta)
+	bMeta, err := proto.Marshal(meta)
 	if err != nil {
 		return err
 	}
 
 	return w.w.Write(ctx, MetaName, KeyPathForBlock(blockID, tenantID), bytes.NewReader(bMeta), int64(len(bMeta)), nil)
 }
+
+// func (w *writer) writeBlockMetaJSON(ctx context.Context, meta *backend_v1.BlockMeta) error {
+// 	blockID := meta.BlockId
+// 	tenantID := meta.TenantId
+//
+// 	bMeta, err := json.Marshal(meta)
+// 	if err != nil {
+// 		return err
+// 	}
+//
+// 	return w.w.Write(ctx, MetaName, KeyPathForBlock(blockID, tenantID), bytes.NewReader(bMeta), int64(len(bMeta)), nil)
+// }
 
 // Write implements backend.Writer
 func (w *writer) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker AppendTracker, buffer []byte) (AppendTracker, error) {
@@ -116,7 +142,7 @@ func (w *writer) CloseAppend(ctx context.Context, tracker AppendTracker) error {
 }
 
 // Write implements backend.Writer
-func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error {
+func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*backend_v1.BlockMeta, compactedMeta []*backend_v1.CompactedBlockMeta) error {
 	// If meta and compactedMeta are empty, call delete the tenant index.
 	if len(meta) == 0 && len(compactedMeta) == 0 {
 		// Skip returning an error when the object is already deleted.
@@ -129,7 +155,13 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 
 	b := newTenantIndex(meta, compactedMeta)
 
-	indexBytes, err := b.marshal()
+	// TODO: consider writing both json and proto files
+	// indexBytes, err := b.marshal()
+	// if err != nil {
+	// 	return err
+	// }
+
+	indexBytes, err := b.Marshal()
 	if err != nil {
 		return err
 	}
@@ -199,7 +231,7 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uu
 }
 
 // BlockMeta implements backend.Reader
-func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
+func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend_v1.BlockMeta, error) {
 	reader, size, err := r.r.Read(ctx, MetaName, KeyPathForBlock(blockID, tenantID), nil)
 	if err != nil {
 		return nil, err
@@ -211,7 +243,7 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 		return nil, err
 	}
 
-	out := &BlockMeta{}
+	out := &backend_v1.BlockMeta{}
 	err = json.Unmarshal(bytes, out)
 	if err != nil {
 		return nil, err
@@ -221,26 +253,23 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 }
 
 // TenantIndex implements backend.Reader
-func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error) {
-	reader, size, err := r.r.Read(ctx, TenantIndexName, KeyPath([]string{tenantID}), nil)
+func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*backend_v1.TenantIndex, error) {
+	tenantIndexProto, err := r.tenantIndexProto(ctx, tenantID)
+	if err == nil {
+		return tenantIndexProto, nil
+	}
+
+	tenantIndex, err := r.tenantIndexJson(ctx, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("error reading tenant index: %w", err)
+	}
+
+	tenantIndexProto, err = tenantIndex.proto()
 	if err != nil {
 		return nil, err
 	}
 
-	defer reader.Close()
-
-	bytes, err := tempo_io.ReadAllWithEstimate(reader, size)
-	if err != nil {
-		return nil, err
-	}
-
-	i := &TenantIndex{}
-	err = i.unmarshal(bytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return i, nil
+	return tenantIndexProto, nil
 }
 
 // Find implements backend.Reader
@@ -251,6 +280,53 @@ func (r *reader) Find(ctx context.Context, keypath KeyPath, f FindFunc) error {
 // Shutdown implements backend.Reader
 func (r *reader) Shutdown() {
 	r.r.Shutdown()
+}
+
+func (r *reader) tenantIndexProto(ctx context.Context, tenantID string) (*backend_v1.TenantIndex, error) {
+	tenantIndexMessage := &backend_v1.TenantIndex{}
+
+	reader, size, err := r.r.Read(ctx, TenantIndexNameProto, KeyPath([]string{tenantID}), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+
+	bytes, err := tempo_io.ReadAllWithEstimate(reader, size)
+	if err != nil {
+		return nil, err
+	}
+
+	err = proto.Unmarshal(bytes, tenantIndexMessage)
+	if err == nil {
+		return tenantIndexMessage, nil
+	}
+
+	return nil, fmt.Errorf("error reading tenant index proto: %w", err)
+}
+
+func (r *reader) tenantIndexJson(ctx context.Context, tenantID string) (*TenantIndex, error) {
+	var (
+		i   = &TenantIndex{}
+		err error
+	)
+
+	reader, size, err := r.r.Read(ctx, TenantIndexName, KeyPath([]string{tenantID}), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+
+	bytes, err := tempo_io.ReadAllWithEstimate(reader, size)
+	if err != nil {
+		return nil, err
+	}
+
+	err = i.unmarshal(bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return i, nil
 }
 
 // KeyPathForBlock returns a correctly ordered keypath given a block id and tenantid
@@ -274,12 +350,12 @@ func KeyPathWithPrefix(keypath KeyPath, prefix string) KeyPath {
 
 // MetaFileName returns the object name for the block meta given a block id and tenantid
 func MetaFileName(blockID uuid.UUID, tenantID, prefix string) string {
-	return path.Join(prefix, tenantID, blockID.String(), MetaName)
+	return path.Join(prefix, tenantID, blockID.String(), MetaNameProto)
 }
 
 // CompactedMetaFileName returns the object name for the compacted block meta given a block id and tenantid
 func CompactedMetaFileName(blockID uuid.UUID, tenantID, prefix string) string {
-	return path.Join(prefix, tenantID, blockID.String(), CompactedMetaName)
+	return path.Join(prefix, tenantID, blockID.String(), CompactedMetaNameProto)
 }
 
 // RootPath returns the root path for a block given a block id and tenantid

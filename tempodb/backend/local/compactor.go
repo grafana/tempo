@@ -1,14 +1,15 @@
 package local
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
+	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
 )
 
 func (rw *Backend) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
@@ -37,7 +38,9 @@ func (rw *Backend) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	return nil
 }
 
-func (rw *Backend) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
+func (rw *Backend) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend_v1.CompactedBlockMeta, error) {
+	// TODO: consider fetching the json version here as well.
+
 	filename := rw.compactedMetaFileName(blockID, tenantID)
 
 	fi, err := os.Stat(filename)
@@ -50,12 +53,12 @@ func (rw *Backend) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*back
 		return nil, readError(err)
 	}
 
-	out := &backend.CompactedBlockMeta{}
-	err = json.Unmarshal(bytes, out)
+	out := &backend_v1.CompactedBlockMeta{}
+	err = proto.Unmarshal(bytes, out)
 	if err != nil {
 		return nil, err
 	}
-	out.CompactedTime = fi.ModTime()
+	out.CompactedTime = fi.ModTime().Unix()
 
 	return out, nil
 }

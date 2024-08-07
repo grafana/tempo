@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/tempodb/backend"
+	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -25,11 +26,11 @@ func (v Encoding) OpenBlock(meta *backend.BlockMeta, r backend.Reader) (common.B
 	return newBackendBlock(meta, r), nil
 }
 
-func (v Encoding) CopyBlock(ctx context.Context, meta *backend.BlockMeta, from backend.Reader, to backend.Writer) error {
+func (v Encoding) CopyBlock(ctx context.Context, meta *backend_v1.BlockMeta, from backend.Reader, to backend.Writer) error {
 	return CopyBlock(ctx, meta, meta, from, to)
 }
 
-func (v Encoding) MigrateBlock(ctx context.Context, fromMeta, toMeta *backend.BlockMeta, from backend.Reader, to backend.Writer) error {
+func (v Encoding) MigrateBlock(ctx context.Context, fromMeta, toMeta *backend_v1.BlockMeta, from backend.Reader, to backend.Writer) error {
 	return CopyBlock(ctx, fromMeta, toMeta, from, to)
 }
 

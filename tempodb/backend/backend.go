@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/pkg/cache"
+	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
 )
 
 const (
@@ -27,7 +28,7 @@ var (
 )
 
 type CacheInfo struct {
-	Meta *BlockMeta
+	Meta *backend_v1.BlockMeta
 	Role cache.Role
 }
 
@@ -41,13 +42,13 @@ type Writer interface {
 	// StreamWriter is for larger data payloads streamed through an io.Reader.  It is expected this will _not_ be cached.
 	StreamWriter(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error
 	// WriteBlockMeta writes a block meta to its blocks
-	WriteBlockMeta(ctx context.Context, meta *BlockMeta) error
+	WriteBlockMeta(ctx context.Context, meta *backend_v1.BlockMeta) error
 	// Append starts or continues an Append job. Pass nil to AppendTracker to start a job.
 	Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker AppendTracker, buffer []byte) (AppendTracker, error)
 	// CloseAppend closes any resources associated with the AppendTracker
 	CloseAppend(ctx context.Context, tracker AppendTracker) error
 	// WriteTenantIndex writes the two meta slices as a tenant index
-	WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error
+	WriteTenantIndex(ctx context.Context, tenantID string, meta []*backend_v1.BlockMeta, compactedMeta []*backend_v1.CompactedBlockMeta) error
 	// Delete deletes an object.
 	Delete(ctx context.Context, name string, keypath KeyPath) error
 }
@@ -65,9 +66,9 @@ type Reader interface {
 	// Blocks returns the blockIDs, compactedBlockIDs and an error from the backend.
 	Blocks(ctx context.Context, tenantID string) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error)
 	// BlockMeta returns the blockmeta given a block and tenant id
-	BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error)
+	BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend_v1.BlockMeta, error)
 	// TenantIndex returns lists of all metas given a tenant
-	TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error)
+	TenantIndex(ctx context.Context, tenantID string) (*backend_v1.TenantIndex, error)
 	// Find executes f for each object in the backend that matches the keypath.
 	Find(ctx context.Context, keypath KeyPath, f FindFunc) error
 	// Shutdown shuts...down?
@@ -81,5 +82,5 @@ type Compactor interface {
 	// ClearBlock removes a block from the backend
 	ClearBlock(blockID uuid.UUID, tenantID string) error
 	// CompactedBlockMeta returns the compacted blockmeta given a block and tenant id
-	CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*CompactedBlockMeta, error)
+	CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend_v1.CompactedBlockMeta, error)
 }

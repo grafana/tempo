@@ -9,6 +9,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/tempodb/backend"
+	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
 )
 
 type cacheReaderAt interface {
@@ -21,14 +22,14 @@ type BackendReaderAt struct {
 	ctx  context.Context
 	r    backend.Reader
 	name string
-	meta *backend.BlockMeta
+	meta *backend_v1.BlockMeta
 
 	bytesRead atomic.Uint64
 }
 
 var _ cacheReaderAt = (*BackendReaderAt)(nil)
 
-func NewBackendReaderAt(ctx context.Context, r backend.Reader, name string, meta *backend.BlockMeta) *BackendReaderAt {
+func NewBackendReaderAt(ctx context.Context, r backend.Reader, name string, meta *backend_v1.BlockMeta) *BackendReaderAt {
 	return &BackendReaderAt{ctx, r, name, meta, atomic.Uint64{}}
 }
 

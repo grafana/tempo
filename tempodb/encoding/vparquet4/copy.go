@@ -5,37 +5,49 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/tempodb/backend"
+	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-func CopyBlock(ctx context.Context, fromMeta, toMeta *backend.BlockMeta, from backend.Reader, to backend.Writer) error {
+func CopyBlock(ctx context.Context, fromMeta, toMeta *backend_v1.BlockMeta, from backend.Reader, to backend.Writer) error {
+	fromMetaBlockID, err := uuid.Parse(fromMeta.BlockId)
+	if err != nil {
+		return err
+	}
+
+	toMetaBlockID, err := uuid.Parse(toMeta.BlockId)
+	if err != nil {
+		return err
+	}
+
 	// Copy streams, efficient but can't cache.
 	copyStream := func(name string) error {
-		reader, size, err := from.StreamReader(ctx, name, fromMeta.BlockID, fromMeta.TenantID)
+		reader, size, err := from.StreamReader(ctx, name, fromMetaBlockID, fromMeta.TenantId)
 		if err != nil {
 			return fmt.Errorf("error reading %s: %w", name, err)
 		}
 		defer reader.Close()
 
-		return to.StreamWriter(ctx, name, toMeta.BlockID, toMeta.TenantID, reader, size)
+		return to.StreamWriter(ctx, name, toMetaBlockID, toMeta.TenantId, reader, size)
 	}
 
 	// Read entire object and attempt to cache
 	cpy := func(name string, cacheInfo *backend.CacheInfo) error {
 		cacheInfo.Meta = fromMeta
-		b, err := from.Read(ctx, name, fromMeta.BlockID, fromMeta.TenantID, cacheInfo)
+		b, err := from.Read(ctx, name, fromMetaBlockID, fromMeta.TenantId, cacheInfo)
 		if err != nil {
 			return fmt.Errorf("error reading %s: %w", name, err)
 		}
 
 		cacheInfo.Meta = toMeta
-		return to.Write(ctx, name, toMeta.BlockID, toMeta.TenantID, b, cacheInfo)
+		return to.Write(ctx, name, toMetaBlockID, toMeta.TenantId, b, cacheInfo)
 	}
 
 	// Data
-	err := copyStream(DataFileName)
+	err = copyStream(DataFileName)
 	if err != nil {
 		return err
 	}
@@ -60,7 +72,7 @@ func CopyBlock(ctx context.Context, fromMeta, toMeta *backend.BlockMeta, from ba
 	return err
 }
 
-func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMeta, bloom *common.ShardedBloomFilter, index *index) error {
+func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend_v1.BlockMeta, bloom *common.ShardedBloomFilter, index *index) error {
 	// bloom
 	blooms, err := bloom.Marshal()
 	if err != nil {
@@ -71,9 +83,15 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 		Meta: meta,
 		Role: cache.RoleBloom,
 	}
+
+	metaBlockID, err := uuid.Parse(meta.BlockId)
+	if err != nil {
+		return err
+	}
+
 	for i, bloom := range blooms {
 		nameBloom := common.BloomName(i)
-		err := w.Write(ctx, nameBloom, meta.BlockID, meta.TenantID, bloom, cacheInfo)
+		err := w.Write(ctx, nameBloom, metaBlockID, meta.TenantId, bloom, cacheInfo)
 		if err != nil {
 			return fmt.Errorf("unexpected error writing bloom-%d: %w", i, err)
 		}
@@ -84,7 +102,7 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 	if err != nil {
 		return err
 	}
-	err = w.Write(ctx, common.NameIndex, meta.BlockID, meta.TenantID, i, &backend.CacheInfo{
+	err = w.Write(ctx, common.NameIndex, metaBlockID, meta.TenantId, i, &backend.CacheInfo{
 		Meta: meta,
 		Role: cache.RoleTraceIDIdx,
 	})
