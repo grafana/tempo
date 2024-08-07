@@ -423,8 +423,6 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	// http endpoint to see usage stats data
 	t.Server.HTTPRouter().Handle(addHTTPAPIPrefix(&t.cfg, api.PathUsageStats), usageStatsHandler(t.cfg.UsageReport))
 
-	t.Server.HTTPRouter().PathPrefix("/static/").HandlerFunc(http.FileServer(http.FS(staticFiles)).ServeHTTP).Methods("GET")
-
 	// todo: queryFrontend should implement service.Service and take the cortex frontend a submodule
 	return t.frontend, nil
 }
@@ -493,6 +491,9 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.Generator.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+
+	// Only the memberlist endpoint uses static files currently
+	t.Server.HTTPRouter().PathPrefix("/static/").HandlerFunc(http.FileServer(http.FS(staticFiles)).ServeHTTP).Methods("GET")
 
 	t.Server.HTTPRouter().Handle("/memberlist", memberlistStatusHandler("", t.MemberlistKV))
 
