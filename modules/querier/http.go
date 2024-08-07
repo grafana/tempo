@@ -63,7 +63,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		BlockStart: blockStart,
 		BlockEnd:   blockEnd,
 		QueryMode:  queryMode,
-	}, timeStart, timeEnd)
+	}, timeStart, timeEnd, false)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -112,7 +112,7 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 		BlockStart: blockStart,
 		BlockEnd:   blockEnd,
 		QueryMode:  queryMode,
-	}, timeStart, timeEnd)
+	}, timeStart, timeEnd, true)
 	if err != nil {
 		handleError(w, err)
 		return

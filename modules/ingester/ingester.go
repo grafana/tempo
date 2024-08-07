@@ -286,7 +286,7 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequ
 		return &tempopb.TraceByIDResponse{}, nil
 	}
 
-	trace, err := inst.FindTraceByID(ctx, req.TraceID)
+	trace, err := inst.FindTraceByID(ctx, req.TraceID, req.AllowPartialTrace)
 	if err != nil {
 		return nil, err
 	}

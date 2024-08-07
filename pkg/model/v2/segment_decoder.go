@@ -28,7 +28,7 @@ func (d *SegmentDecoder) PrepareForWrite(trace *tempopb.Trace, start uint32, end
 }
 
 func (d *SegmentDecoder) PrepareForRead(segments [][]byte) (*tempopb.Trace, error) {
-	combiner := trace.NewCombiner(0)
+	combiner := trace.NewCombiner(0, false)
 	for i, obj := range segments {
 		obj, _, _, err := stripStartEnd(obj)
 		if err != nil {

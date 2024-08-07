@@ -40,7 +40,7 @@ func (d *ObjectDecoder) PrepareForRead(obj []byte) (*tempopb.Trace, error) {
 }
 
 func (d *ObjectDecoder) Combine(objs ...[]byte) ([]byte, error) {
-	c := trace.NewCombiner(0)
+	c := trace.NewCombiner(0, false)
 	for i, obj := range objs {
 		t, err := staticDecoder.PrepareForRead(obj)
 		if err != nil {

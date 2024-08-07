@@ -51,7 +51,7 @@ func (cmd *queryBlocksCmd) Run(ctx *globalOptions) error {
 	}
 
 	var (
-		combiner   = trace.NewCombiner(0)
+		combiner   = trace.NewCombiner(0, true)
 		marshaller = new(jsonpb.Marshaler)
 		jsonBytes  = bytes.Buffer{}
 	)
