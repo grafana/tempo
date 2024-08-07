@@ -46,6 +46,8 @@
 * [ENHANCEMENT] Reduce log level verbosity for e2e tests[#3900](https://github.com/grafana/tempo/pull/3900) (@javiermolinar)
 * [ENHANCEMENT] Added new Traces api V2[#3912](https://github.com/grafana/tempo/pull/3912) (@javiermolinar)
 * [ENHANCEMENT] Update to the latest dskit [#3915](https://github.com/grafana/tempo/pull/3915) (@andreasgerstmayr)
+* [ENHANCEMENT] Reduce allocs building queriers sharded requests [#3932](https://github.com/grafana/tempo/pull/3932) (@javiermolinar)
+
 * [ENHANCEMENT] Implement polling tenants concurrently [#3647](https://github.com/grafana/tempo/pull/3647) (@zalegrala)
 * [BUGFIX] Fix panic in certain metrics queries using `rate()` with `by` [#3847](https://github.com/grafana/tempo/pull/3847) (@stoewer)
 * [BUGFIX] Fix double appending the primary iterator on second pass with event iterator [#3903](https://github.com/grafana/tempo/pull/3903) (@ie-pham)
