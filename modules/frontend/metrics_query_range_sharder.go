@@ -426,7 +426,6 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 			}
 
 			subR = api.BuildQueryRangeRequest(subR, queryRangeReq)
-			subR.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
 
 			prepareRequestForQueriers(subR, tenantID)
 			pipelineR := pipeline.NewHTTPRequest(subR)
@@ -465,7 +464,6 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 	searchReq.Exemplars = uint32(s.cfg.MaxExemplars) // TODO: Review this
 
 	req := s.toUpstreamRequest(parent.Context(), searchReq, parent, tenantID)
-	req.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
 
 	return req
 }

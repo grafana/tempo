@@ -221,6 +221,9 @@ func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineR
 			}, nil
 		}
 		prepareRequestForQueriers(req, tenant)
+		// This API is always json because it only ever has 1 job and this
+		// lets us return the response as-is.
+		req.Header.Set(api.HeaderAccept, api.HeaderAcceptJSON)
 
 		level.Info(logger).Log(
 			"msg", "metrics summary request",
@@ -250,6 +253,11 @@ func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineR
 func prepareRequestForQueriers(req *http.Request, tenant string) {
 	// set the tenant header
 	req.Header.Set(user.OrgIDHeaderName, tenant)
+
+	// All communication with the queriers should be proto for efficiency
+	// NOTE - This isn't strict and queriers may still return json if we missed
+	// an endpoint. But cache and response unmarshalling still work.
+	req.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
 
 	// copy the url (which is correct) to the RequestURI
 	// we do this because dskit/common uses the RequestURI field to translate from http.Request to httpgrpc.Request
