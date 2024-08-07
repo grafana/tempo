@@ -7,6 +7,7 @@ import (
 	"io"
 
 	pq "github.com/grafana/tempo/pkg/parquetquery"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -46,8 +47,8 @@ var nonTraceQLAttributes = map[string]string{
 func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagsCallback, opts common.SearchOptions) error {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTags",
 		opentracing.Tags{
-			"blockID":   b.meta.BlockID,
-			"tenantID":  b.meta.TenantID,
+			"blockID":   b.meta.BlockId,
+			"tenantID":  b.meta.TenantId,
 			"blockSize": b.meta.Size,
 		})
 	defer span.Finish()
@@ -61,7 +62,7 @@ func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeSc
 	return searchTags(derivedCtx, scope, cb, pf, b.meta.DedicatedColumns)
 }
 
-func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsCallback, pf *parquet.File, dc backend.DedicatedColumns) error {
+func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsCallback, pf *parquet.File, dc []*tempopb.DedicatedColumn) error {
 	scanColumns := func(standardKeyPath string, specialMappings map[string]string, columnMapping dedicatedColumnMapping, cb common.TagsCallback, scope traceql.AttributeScope) error {
 		specialAttrIdxs := map[int]string{}
 
@@ -222,8 +223,8 @@ func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, opts common.SearchOptions) error {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTagValuesV2",
 		opentracing.Tags{
-			"blockID":   b.meta.BlockID,
-			"tenantID":  b.meta.TenantID,
+			"blockID":   b.meta.BlockId,
+			"tenantID":  b.meta.TenantId,
 			"blockSize": b.meta.Size,
 		})
 	defer span.Finish()
@@ -237,7 +238,7 @@ func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attrib
 	return searchTagValues(derivedCtx, tag, cb, pf, b.meta.DedicatedColumns)
 }
 
-func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, pf *parquet.File, dc backend.DedicatedColumns) error {
+func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, pf *parquet.File, dc []*tempopb.DedicatedColumn) error {
 	// Special handling for intrinsics
 	if tag.Intrinsic != traceql.IntrinsicNone {
 		lookup := intrinsicColumnLookups[tag.Intrinsic]

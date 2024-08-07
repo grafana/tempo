@@ -13,16 +13,19 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
 	"github.com/parquet-go/parquet-go"
 
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/parquetquery"
+	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/traceidboundary"
 	"github.com/grafana/tempo/tempodb/backend"
+	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -1459,7 +1462,7 @@ func (i *mergeSpansetIterator) Close() {
 //                                                            |
 //                                                            V
 
-func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, rowGroups []parquet.RowGroup, dc backend.DedicatedColumns) (*spansetIterator, error) {
+func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, rowGroups []parquet.RowGroup, dc []*tempopb.DedicatedColumn) (*spansetIterator, error) {
 	iter, err := createAllIterator(ctx, nil, req.Conditions, req.AllConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, rowGroups, pf, dc, false)
 	if err != nil {
 		return nil, fmt.Errorf("error creating iterator: %w", err)
@@ -1528,7 +1531,7 @@ func categorizeConditions(conditions []traceql.Condition) (*categorizedCondition
 	return &categorizedCond, mingled, nil
 }
 
-func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, start, end uint64, rgs []parquet.RowGroup, pf *parquet.File, dc backend.DedicatedColumns, selectAll bool,
+func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, start, end uint64, rgs []parquet.RowGroup, pf *parquet.File, dc []*tempopb.DedicatedColumn, selectAll bool,
 ) (parquetquery.Iterator, error) {
 	// categorize conditions by scope
 	catConditions, mingledConditions, err := categorizeConditions(conditions)
@@ -1737,7 +1740,7 @@ func createLinkIterator(makeIter makeIterFn, conditions []traceql.Condition, all
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
 // one span each.  Spans are returned that match any of the given conditions.
-func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool) (parquetquery.Iterator, error) {
+func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Iterator, conditions []traceql.Condition, allConditions bool, dedicatedColumns []*tempopb.DedicatedColumn, selectAll bool) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs          = map[string]string{}
 		columnPredicates        = map[string][]parquetquery.Predicate{}
@@ -2026,7 +2029,7 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 // createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
 // one batch each. It builds on top of the span iterator, and turns the groups of spans and resource-level values into
 // spansets. Spansets are returned that match any of the given conditions.
-func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatchOverall, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool) (parquetquery.Iterator, error) {
+func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatchOverall, allConditions bool, dedicatedColumns []*tempopb.DedicatedColumn, selectAll bool) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
@@ -3135,7 +3138,7 @@ func NewTraceIDShardingPredicate(shardID, shardCount uint32) parquetquery.Predic
 // groups that contain trace IDs within the given shard.  Reading the trace ID index
 // is a single read and typically comes from cache.   Without this we have to test every
 // row group in the file which would be N reads.
-func (b *backendBlock) rowGroupsForShard(ctx context.Context, pf *parquet.File, m backend.BlockMeta, shardID, shardCount uint32) ([]parquet.RowGroup, error) {
+func (b *backendBlock) rowGroupsForShard(ctx context.Context, pf *parquet.File, m backend_v1.BlockMeta, shardID, shardCount uint32) ([]parquet.RowGroup, error) {
 	span, _ := opentracing.StartSpanFromContext(ctx, "parquet.rowGroupsForShard")
 	defer span.Finish()
 
@@ -3144,7 +3147,12 @@ func (b *backendBlock) rowGroupsForShard(ctx context.Context, pf *parquet.File, 
 		Role: cache.RoleTraceIDIdx,
 	}
 
-	indexBytes, err := b.r.Read(ctx, common.NameIndex, b.meta.BlockID, b.meta.TenantID, cacheInfo)
+	bMetaBlockID, err := uuid.Parse(b.meta.BlockId)
+	if err != nil {
+		return nil, err
+	}
+
+	indexBytes, err := b.r.Read(ctx, common.NameIndex, bMetaBlockID, b.meta.TenantId, cacheInfo)
 	if errors.Is(err, backend.ErrDoesNotExist) {
 		// No index, check all groups
 		return pf.RowGroups(), nil
@@ -3155,7 +3163,7 @@ func (b *backendBlock) rowGroupsForShard(ctx context.Context, pf *parquet.File, 
 
 	index, err := unmarshalIndex(indexBytes)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+		return nil, fmt.Errorf("error parsing index (%s, %s): %w", b.meta.TenantId, b.meta.BlockId, err)
 	}
 
 	_, testRange := traceidboundary.Funcs(shardID, shardCount)
@@ -3167,7 +3175,7 @@ func (b *backendBlock) rowGroupsForShard(ctx context.Context, pf *parquet.File, 
 			// The index contains the max trace ID for each row
 			// group.  So to determine the min/max for the first
 			// entry we use the minimum ID from block meta.
-			if testRange(m.MinID, index.RowGroups[i]) {
+			if testRange(m.MinId, index.RowGroups[i]) {
 				matches = append(matches, rgs[i])
 			}
 		} else {

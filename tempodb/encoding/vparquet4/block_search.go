@@ -17,7 +17,6 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -80,11 +79,11 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	o = append(o, parquet.ReadBufferSize(readBufferSize))
 
 	// cached reader
-	cachedReaderAt := newCachedReaderAt(backendReaderAt, readBufferSize, int64(b.meta.Size), b.meta.FooterSize) // most reads to the backend are going to be readbuffersize so use it as our "page cache" size
+	cachedReaderAt := newCachedReaderAt(backendReaderAt, readBufferSize, int64(b.meta.Size_), b.meta.FooterSize) // most reads to the backend are going to be readbuffersize so use it as our "page cache" size
 
 	span, _ := opentracing.StartSpanFromContext(ctx, "parquet.OpenFile")
 	defer span.Finish()
-	pf, err := parquet.OpenFile(cachedReaderAt, int64(b.meta.Size), o...)
+	pf, err := parquet.OpenFile(cachedReaderAt, int64(b.meta.Size_), o...)
 
 	return pf, backendReaderAt, err
 }
@@ -92,8 +91,8 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (_ *tempopb.SearchResponse, err error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.Search",
 		opentracing.Tags{
-			"blockID":   b.meta.BlockID,
-			"tenantID":  b.meta.TenantID,
+			"blockID":   b.meta.BlockId,
+			"tenantID":  b.meta.TenantId,
 			"blockSize": b.meta.Size,
 		})
 	defer span.Finish()
@@ -118,7 +117,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 	return results, nil
 }
 
-func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, pf *parquet.File, rgs []parquet.RowGroup, dc backend.DedicatedColumns) pq.Iterator {
+func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, pf *parquet.File, rgs []parquet.RowGroup, dc []*tempopb.DedicatedColumn) pq.Iterator {
 	makeIter := makeIterFunc(ctx, rgs, pf)
 
 	// Wire up iterators
@@ -259,7 +258,7 @@ func makePipelineWithRowGroups(ctx context.Context, req *tempopb.SearchRequest, 
 	}
 }
 
-func searchParquetFile(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup, dc backend.DedicatedColumns) (*tempopb.SearchResponse, error) {
+func searchParquetFile(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup, dc []*tempopb.DedicatedColumn) (*tempopb.SearchResponse, error) {
 	// Search happens in 2 phases for an optimization.
 	// Phase 1 is iterate all columns involved in the request.
 	// Only if there are any matches do we enter phase 2, which
@@ -286,7 +285,7 @@ func searchParquetFile(ctx context.Context, pf *parquet.File, req *tempopb.Searc
 	}, nil
 }
 
-func searchRaw(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup, dc backend.DedicatedColumns) ([]pq.RowNumber, error) {
+func searchRaw(ctx context.Context, pf *parquet.File, req *tempopb.SearchRequest, rgs []parquet.RowGroup, dc []*tempopb.DedicatedColumn) ([]pq.RowNumber, error) {
 	iter := makePipelineWithRowGroups(ctx, req, pf, rgs, dc)
 	if iter == nil {
 		return nil, errors.New("make pipeline returned a nil iterator")

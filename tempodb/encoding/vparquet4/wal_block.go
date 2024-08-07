@@ -22,6 +22,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
+	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/parquet-go/parquet-go"
 )
@@ -149,7 +150,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 }
 
 // createWALBlock creates a new appendable block
-func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (*walBlock, error) {
+func createWALBlock(meta *backend_v1.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (*walBlock, error) {
 	b := &walBlock{
 		meta: &backend.BlockMeta{
 			Version:           VersionString,

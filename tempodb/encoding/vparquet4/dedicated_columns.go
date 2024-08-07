@@ -1,6 +1,7 @@
 package vparquet4
 
 import (
+	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -38,14 +39,14 @@ var DedicatedResourceColumnPaths = map[backend.DedicatedColumnScope]map[backend.
 }
 
 type dedicatedColumn struct {
-	Type        backend.DedicatedColumnType
+	Type        tempopb.DedicatedColumn_Type
 	ColumnPath  string
 	ColumnIndex int
 }
 
 func (dc *dedicatedColumn) readValue(attrs *DedicatedAttributes) *v1.AnyValue {
 	switch dc.Type {
-	case backend.DedicatedColumnTypeString:
+	case tempopb.DedicatedColumn_STRING:
 		var strVal *string
 		switch dc.ColumnIndex {
 		case 0:
@@ -80,7 +81,7 @@ func (dc *dedicatedColumn) readValue(attrs *DedicatedAttributes) *v1.AnyValue {
 
 func (dc *dedicatedColumn) writeValue(attrs *DedicatedAttributes, value *v1.AnyValue) bool {
 	switch dc.Type {
-	case backend.DedicatedColumnTypeString:
+	case tempopb.DedicatedColumn_STRING:
 		strVal, ok := value.Value.(*v1.AnyValue_StringValue)
 		if !ok {
 			return false
@@ -145,11 +146,11 @@ func (dm *dedicatedColumnMapping) forEach(callback func(attr string, column dedi
 	}
 }
 
-var allScopes = []backend.DedicatedColumnScope{backend.DedicatedColumnScopeResource, backend.DedicatedColumnScopeSpan}
+var allScopes = []tempopb.DedicatedColumn_Scope{tempopb.DedicatedColumn_RESOURCE, tempopb.DedicatedColumn_SPAN}
 
 // dedicatedColumnsToColumnMapping returns mapping from attribute names to spare columns for a give
 // block meta and scope.
-func dedicatedColumnsToColumnMapping(dedicatedColumns backend.DedicatedColumns, scopes ...backend.DedicatedColumnScope) dedicatedColumnMapping {
+func dedicatedColumnsToColumnMapping(dedicatedColumns []*tempopb.DedicatedColumn, scopes ...tempopb.DedicatedColumn_Scope) dedicatedColumnMapping {
 	if len(scopes) == 0 {
 		scopes = allScopes
 	}
