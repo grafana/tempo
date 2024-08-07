@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
+	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -91,7 +92,7 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 	return nil
 }
 
-func tagNamesForSpecialColumns(scope traceql.AttributeScope, pf *parquet.File, dcs backend.DedicatedColumns, cb traceql.FetchTagsCallback) {
+func tagNamesForSpecialColumns(scope traceql.AttributeScope, pf *parquet.File, dcs []*tempopb.DedicatedColumn, cb traceql.FetchTagsCallback) {
 	// currently just seeing if any row groups have values. future improvements:
 	// - only check those row groups that otherwise have a match in the iterators above
 	// - use rep/def levels to determine if a value exists at a row w/o actually testing values.
@@ -200,7 +201,7 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 }
 
 // autocompleteIter creates an iterator that will collect values for a given attribute/tag.
-func autocompleteIter(ctx context.Context, tr tagRequest, pf *parquet.File, opts common.SearchOptions, dc backend.DedicatedColumns) (parquetquery.Iterator, error) {
+func autocompleteIter(ctx context.Context, tr tagRequest, pf *parquet.File, opts common.SearchOptions, dc []*tempopb.DedicatedColumn) (parquetquery.Iterator, error) {
 	// categorizeConditions conditions into span-level or resource-level
 	catConditions, _, err := categorizeConditions(tr.conditions)
 	if err != nil {
@@ -368,7 +369,7 @@ func createDistinctSpanIterator(
 	tr tagRequest,
 	primaryIter parquetquery.Iterator,
 	conditions []traceql.Condition,
-	dedicatedColumns backend.DedicatedColumns,
+	dedicatedColumns []*tempopb.DedicatedColumn,
 ) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs    = map[string]string{}
@@ -738,7 +739,7 @@ func createDistinctResourceIterator(
 	tr tagRequest,
 	spanIterator parquetquery.Iterator,
 	conditions []traceql.Condition,
-	dedicatedColumns backend.DedicatedColumns,
+	dedicatedColumns []*tempopb.DedicatedColumn,
 ) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs    = map[string]string{}

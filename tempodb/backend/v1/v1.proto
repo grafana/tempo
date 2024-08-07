@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package backend.v1;
+
+import "pkg/tempopb/tempo.proto";
+
+option go_package = "github.com/grafana/tempo/tempodb/backend/v1";
+
+message BlockMeta {
+    string version = 1;
+    string block_id = 2;
+    bytes min_id = 3;
+    bytes max_id = 4;
+    string tenant_id = 5;
+    int64 start_time = 6;
+    int64 end_time = 7;
+    int32 total_objects = 8;
+    uint64 size = 9;
+    uint32 compaction_level = 10;
+    string encoding = 11;
+    uint32 index_page_size = 12;
+    uint32 total_records = 13;
+    string data_encoding = 14;
+    uint32 bloom_shard_count = 15;
+    uint32 footer_size = 16;
+    repeated tempopb.DedicatedColumn dedicated_columns = 17;
+    uint32 replication_factor = 18;
+}
+
+message CompactedBlockMeta {
+    BlockMeta block_meta = 1;
+    int64 compacted_time = 2;
+}
+
+message TenantIndex {
+    int64 created_at = 1;
+    repeated BlockMeta meta = 2;
+    repeated CompactedBlockMeta compacted_meta = 3;
+}

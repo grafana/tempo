@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
 	"github.com/parquet-go/parquet-go"
 	"github.com/willf/bloom"
@@ -18,6 +19,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
+	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -35,8 +37,8 @@ const (
 func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool, err error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.checkBloom",
 		opentracing.Tags{
-			"blockID":  b.meta.BlockID,
-			"tenantID": b.meta.TenantID,
+			"blockID":  b.meta.BlockId,
+			"tenantID": b.meta.TenantId,
 		})
 	defer span.Finish()
 
@@ -44,18 +46,23 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 	nameBloom := common.BloomName(shardKey)
 	span.SetTag("bloom", nameBloom)
 
-	bloomBytes, err := b.r.Read(derivedCtx, nameBloom, b.meta.BlockID, b.meta.TenantID, &backend.CacheInfo{
+	bMetaBlockID, err := uuid.Parse(b.meta.BlockId)
+	if err != nil {
+		return false, err
+	}
+
+	bloomBytes, err := b.r.Read(derivedCtx, nameBloom, bMetaBlockID, b.meta.TenantId, &backend.CacheInfo{
 		Meta: b.meta,
 		Role: cache.RoleBloom,
 	})
 	if err != nil {
-		return false, fmt.Errorf("error retrieving bloom %s (%s, %s): %w", nameBloom, b.meta.TenantID, b.meta.BlockID, err)
+		return false, fmt.Errorf("error retrieving bloom %s (%s, %s): %w", nameBloom, b.meta.TenantId, b.meta.BlockId, err)
 	}
 
 	filter := &bloom.BloomFilter{}
 	_, err = filter.ReadFrom(bytes.NewReader(bloomBytes))
 	if err != nil {
-		return false, fmt.Errorf("error parsing bloom (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+		return false, fmt.Errorf("error parsing bloom (%s, %s): %w", b.meta.TenantId, b.meta.BlockId, err)
 	}
 
 	return filter.Test(id), nil
@@ -69,12 +76,17 @@ func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int,
 
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet3.backendBlock.checkIndex",
 		opentracing.Tags{
-			"blockID":  b.meta.BlockID,
-			"tenantID": b.meta.TenantID,
+			"blockID":  b.meta.BlockId,
+			"tenantID": b.meta.TenantId,
 		})
 	defer span.Finish()
 
-	indexBytes, err := b.r.Read(derivedCtx, common.NameIndex, b.meta.BlockID, b.meta.TenantID, &backend.CacheInfo{
+	bMetaBlockID, err := uuid.Parse(b.meta.BlockId)
+	if err != nil {
+		return false, -1, err
+	}
+
+	indexBytes, err := b.r.Read(derivedCtx, common.NameIndex, bMetaBlockID, b.meta.TenantId, &backend.CacheInfo{
 		Meta: b.meta,
 		Role: cache.RoleTraceIDIdx,
 	})
@@ -82,12 +94,12 @@ func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int,
 		return true, -1, nil
 	}
 	if err != nil {
-		return false, -1, fmt.Errorf("error retrieving index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+		return false, -1, fmt.Errorf("error retrieving index (%s, %s): %w", b.meta.TenantId, b.meta.BlockId, err)
 	}
 
 	index, err := unmarshalIndex(indexBytes)
 	if err != nil {
-		return false, -1, fmt.Errorf("error parsing index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
+		return false, -1, fmt.Errorf("error parsing index (%s, %s): %w", b.meta.TenantId, b.meta.BlockId, err)
 	}
 
 	rowGroup := index.Find(id)
@@ -102,8 +114,8 @@ func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int,
 func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opts common.SearchOptions) (_ *tempopb.Trace, err error) {
 	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.FindTraceByID",
 		opentracing.Tags{
-			"blockID":   b.meta.BlockID,
-			"tenantID":  b.meta.TenantID,
+			"blockID":   b.meta.BlockId,
+			"tenantID":  b.meta.TenantId,
 			"blockSize": b.meta.Size,
 		})
 	defer span.Finish()
@@ -135,7 +147,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	return findTraceByID(derivedCtx, traceID, opts.MaxBytes, b.meta, pf, rowGroup)
 }
 
-func findTraceByID(ctx context.Context, traceID common.ID, maxTraceSizeBytes int, meta *backend.BlockMeta, pf *parquet.File, rowGroup int) (*tempopb.Trace, error) {
+func findTraceByID(ctx context.Context, traceID common.ID, maxTraceSizeBytes int, meta *backend_v1.BlockMeta, pf *parquet.File, rowGroup int) (*tempopb.Trace, error) {
 	// traceID column index
 	colIndex, _ := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
 	if colIndex == -1 {
@@ -180,7 +192,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, maxTraceSizeBytes int
 				return nil, err
 			}
 			if c < 1 {
-				return nil, fmt.Errorf("failed to read value from page: traceID: %s blockID:%v rowGroupIdx:%d", util.TraceIDToHexString(traceID), meta.BlockID, rgIdx)
+				return nil, fmt.Errorf("failed to read value from page: traceID: %s blockID:%v rowGroupIdx:%d", util.TraceIDToHexString(traceID), meta.BlockId, rgIdx)
 			}
 
 			// Clone ensures that the byte array is disconnected

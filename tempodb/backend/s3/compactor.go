@@ -2,14 +2,15 @@ package s3
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/minio/minio-go/v7"
 
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
+	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
 )
 
 func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
@@ -70,7 +71,7 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	return nil
 }
 
-func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
+func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend_v1.CompactedBlockMeta, error) {
 	if len(tenantID) == 0 {
 		return nil, backend.ErrEmptyTenantID
 	}
@@ -79,17 +80,17 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 	}
 
 	compactedMetaFileName := backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix)
-	bytes, info, err := rw.readAllWithObjInfo(context.TODO(), compactedMetaFileName)
+	bytes, info, err := rw.readAllWithObjInfo(context.Background(), compactedMetaFileName)
 	if err != nil {
 		return nil, readError(err)
 	}
 
-	out := &backend.CompactedBlockMeta{}
-	err = json.Unmarshal(bytes, out)
+	out := &backend_v1.CompactedBlockMeta{}
+	err = proto.Unmarshal(bytes, out)
 	if err != nil {
 		return nil, err
 	}
-	out.CompactedTime = info.LastModified
+	out.CompactedTime = info.LastModified.Unix()
 
 	return out, nil
 }

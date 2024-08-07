@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/grafana/tempo/tempodb/backend"
+	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -12,7 +13,7 @@ const (
 )
 
 type backendBlock struct {
-	meta *backend.BlockMeta
+	meta *backend_v1.BlockMeta
 	r    backend.Reader
 
 	openMtx sync.Mutex
@@ -20,13 +21,13 @@ type backendBlock struct {
 
 var _ common.BackendBlock = (*backendBlock)(nil)
 
-func newBackendBlock(meta *backend.BlockMeta, r backend.Reader) *backendBlock {
+func newBackendBlock(meta *backend_v1.BlockMeta, r backend.Reader) *backendBlock {
 	return &backendBlock{
 		meta: meta,
 		r:    r,
 	}
 }
 
-func (b *backendBlock) BlockMeta() *backend.BlockMeta {
+func (b *backendBlock) BlockMeta() *backend_v1.BlockMeta {
 	return b.meta
 }

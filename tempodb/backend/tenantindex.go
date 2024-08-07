@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
 	"github.com/klauspost/compress/gzip"
 )
 
@@ -20,12 +21,14 @@ type TenantIndex struct {
 	CompactedMeta []*CompactedBlockMeta `json:"compacted"`
 }
 
-func newTenantIndex(meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) *TenantIndex {
-	return &TenantIndex{
-		CreatedAt:     time.Now(),
+func newTenantIndex(meta []*backend_v1.BlockMeta, compactedMeta []*backend_v1.CompactedBlockMeta) *backend_v1.TenantIndex {
+	i := &backend_v1.TenantIndex{
+		CreatedAt:     time.Now().Unix(),
 		Meta:          meta,
 		CompactedMeta: compactedMeta,
 	}
+
+	return i
 }
 
 // marshal converts to json and compresses the bucketindex
@@ -63,4 +66,38 @@ func (b *TenantIndex) unmarshal(buffer []byte) error {
 
 	d := json.NewDecoder(gzipReader)
 	return d.Decode(b)
+}
+
+func (b *TenantIndex) proto() (*backend_v1.TenantIndex, error) {
+	tenantIndex := &backend_v1.TenantIndex{
+		CreatedAt:     b.CreatedAt.Unix(),
+		Meta:          make([]*backend_v1.BlockMeta, len(b.Meta)),
+		CompactedMeta: make([]*backend_v1.CompactedBlockMeta, len(b.CompactedMeta)),
+	}
+
+	var (
+		err error
+		mPb *backend_v1.BlockMeta
+		cPb *backend_v1.CompactedBlockMeta
+	)
+
+	for _, m := range b.Meta {
+		mPb, err = m.ToBackendV1Proto()
+		if err != nil {
+			return nil, err
+		}
+
+		tenantIndex.Meta = append(tenantIndex.Meta, mPb)
+	}
+
+	for _, m := range b.CompactedMeta {
+		cPb, err = m.ToBackendV1Proto()
+		if err != nil {
+			return nil, err
+		}
+
+		tenantIndex.CompactedMeta = append(tenantIndex.CompactedMeta, cPb)
+	}
+
+	return tenantIndex, nil
 }
