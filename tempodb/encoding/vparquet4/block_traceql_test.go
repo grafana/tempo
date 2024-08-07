@@ -928,11 +928,13 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	ctx := context.TODO()
 	tenantID := "1"
 	// blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-	blockID := uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
+	// blockID := uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
+	blockID := uuid.MustParse("257e3a56-224a-4ebe-9696-1b304f456ac2")
 
 	r, _, _, err := local.New(&local.Config{
 		// Path: path.Join("/Users/marty/src/tmp"),
-		Path: path.Join("/Users/mapno/workspace/testblock"),
+		// Path: path.Join("/Users/mapno/workspace/testblock"),
+		Path: path.Join("/Users/suraj/wd/grafana/testblock"),
 	})
 	require.NoError(b, err)
 
@@ -978,16 +980,18 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 		query   string
 		groupby string
 	}{
-		//{"{ resource.service.name = `gme-ingester` }", "resource.cluster"},
+		// {"{ resource.service.name = `gme-ingester` }", "resource.cluster"},
 		{"{}", "name"},
 	}
 
 	ctx := context.TODO()
 	tenantID := "1"
-	blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+	// blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+	blockID := uuid.MustParse("257e3a56-224a-4ebe-9696-1b304f456ac2")
 
 	r, _, _, err := local.New(&local.Config{
-		Path: path.Join("/Users/marty/src/tmp/"),
+		// Path: path.Join("/Users/marty/src/tmp/"),
+		Path: path.Join("/Users/suraj/wd/grafana/testblock"),
 	})
 	require.NoError(b, err)
 
@@ -1037,9 +1041,11 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		e        = traceql.NewEngine()
 		tenantID = "1"
 		// blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-		blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
-		path    = "/Users/mapno/workspace/testblock"
-		// path = "/Users/marty/src/tmp"
+		// blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
+		blockID = uuid.MustParse("257e3a56-224a-4ebe-9696-1b304f456ac2")
+		// path    = "/Users/marty/src/tmp/"
+		// path    = "/Users/mapno/workspace/testblock"
+		path = "/Users/suraj/wd/grafana/testblock"
 	)
 
 	r, _, _, err := local.New(&local.Config{
@@ -1197,8 +1203,10 @@ func TestTraceIDShardingQuality(t *testing.T) {
 		opts     = common.DefaultSearchOptions()
 		tenantID = "1"
 		// blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-		blockID = uuid.MustParse("18364616-f80d-45a6-b2a3-cb63e203edff")
-		path    = "/Users/marty/src/tmp/"
+		// blockID = uuid.MustParse("18364616-f80d-45a6-b2a3-cb63e203edff")
+		blockID = uuid.MustParse("257e3a56-224a-4ebe-9696-1b304f456ac2")
+		// path    = "/Users/marty/src/tmp/"
+		path = "/Users/suraj/wd/grafana/testblock"
 	)
 
 	r, _, _, err := local.New(&local.Config{
