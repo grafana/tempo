@@ -396,7 +396,7 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorDisableCollection(userID
 	return o.getOverridesForUser(userID).MetricsGenerator.DisableCollection
 }
 
-func (o *runtimeConfigOverridesManager) MetricsGeneratorGenerateNativeHistograms(userID string) string {
+func (o *runtimeConfigOverridesManager) MetricsGeneratorGenerateNativeHistograms(userID string) HistogramMethod {
 	return o.getOverridesForUser(userID).MetricsGenerator.GenerateNativeHistograms
 }
 

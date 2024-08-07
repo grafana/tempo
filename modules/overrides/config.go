@@ -140,7 +140,7 @@ type MetricsGeneratorOverrides struct {
 	MaxActiveSeries          uint32              `yaml:"max_active_series,omitempty" json:"max_active_series,omitempty"`
 	CollectionInterval       time.Duration       `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
 	DisableCollection        bool                `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
-	GenerateNativeHistograms string              `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
+	GenerateNativeHistograms HistogramMethod     `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
 	TraceIDLabelName         string              `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
 
 	RemoteWriteHeaders RemoteWriteHeaders `yaml:"remote_write_headers,omitempty" json:"remote_write_headers,omitempty"`
@@ -287,10 +287,10 @@ func (c *Config) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.MetricsGenerator.MaxActiveSeries), MetricMetricsGeneratorMaxActiveSeries)
 }
 
-func HasNativeHistograms(s string) bool {
-	return s == string(HistogramMethodNative) || s == string(HistogramMethodBoth)
+func HasNativeHistograms(s HistogramMethod) bool {
+	return s == HistogramMethodNative || s == HistogramMethodBoth
 }
 
-func HasClassicHistograms(s string) bool {
-	return s == string(HistogramMethodClassic) || s == string(HistogramMethodBoth)
+func HasClassicHistograms(s HistogramMethod) bool {
+	return s == HistogramMethodClassic || s == HistogramMethodBoth
 }

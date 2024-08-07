@@ -117,8 +117,8 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	}
 
 	if histograms := o.MetricsGeneratorGenerateNativeHistograms(userID); histograms != "" {
-		copyCfg.ServiceGraphs.HistogramOverride = histograms
-		copyCfg.SpanMetrics.HistogramOverride = histograms
+		copyCfg.ServiceGraphs.HistogramOverride = registry.HistogramModeToValue[string(histograms)]
+		copyCfg.SpanMetrics.HistogramOverride = registry.HistogramModeToValue[string(histograms)]
 	}
 
 	copyCfg.SpanMetrics.DimensionMappings = o.MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID)

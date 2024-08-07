@@ -4,6 +4,7 @@ import (
 	"flag"
 	"time"
 
+	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -23,8 +24,8 @@ type Config struct {
 	// Buckets for latency histogram in seconds.
 	HistogramBuckets []float64 `yaml:"histogram_buckets"`
 
-	// The histogram implementation to select.
-	HistogramOverride string `yaml:"-"`
+	// The histogram mode to select.
+	HistogramOverride registry.HistogramMode `yaml:"-"`
 
 	// Additional dimensions (labels) to be added to the metric along with the default ones.
 	// If client and server spans have the same attribute and EnableClientServerPrefix is not enabled,
@@ -56,6 +57,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.Workers = 10
 	// TODO: Revisit this default value.
 	cfg.HistogramBuckets = prometheus.ExponentialBuckets(0.1, 2, 8)
+	cfg.HistogramOverride = registry.HistogramModeClassic
 
 	peerAttr := make([]string, 0, len(defaultPeerAttributes))
 	for _, attr := range defaultPeerAttributes {

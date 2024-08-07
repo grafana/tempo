@@ -46,7 +46,7 @@ type Interface interface {
 	MetricsGeneratorMaxActiveSeries(userID string) uint32
 	MetricsGeneratorCollectionInterval(userID string) time.Duration
 	MetricsGeneratorDisableCollection(userID string) bool
-	MetricsGeneratorGenerateNativeHistograms(userID string) string
+	MetricsGeneratorGenerateNativeHistograms(userID string) HistogramMethod
 	MetricsGenerationTraceIDLabelName(userID string) string
 	MetricsGeneratorRemoteWriteHeaders(userID string) map[string]string
 	MetricsGeneratorForwarderQueueSize(userID string) int

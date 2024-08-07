@@ -42,7 +42,7 @@ func (t *TestRegistry) NewLabelValueCombo(labels []string, values []string) *Lab
 	return newLabelValueCombo(labels, values)
 }
 
-func (t *TestRegistry) NewHistogram(name string, buckets []float64, histogramOverrides string) Histogram {
+func (t *TestRegistry) NewHistogram(name string, buckets []float64, histogramOverrides HistogramMode) Histogram {
 	return &testHistogram{
 		nameSum:            name + "_sum",
 		nameCount:          name + "_count",
@@ -170,7 +170,7 @@ type testHistogram struct {
 	nameBucket         string
 	buckets            []float64
 	registry           *TestRegistry
-	histogramOverrides string
+	histogramOverrides HistogramMode
 }
 
 var (
