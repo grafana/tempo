@@ -387,6 +387,66 @@ func (s Static) AsAnyValue() *common_v1.AnyValue {
 				StringValue: s.EncodeToString(false),
 			},
 		}
+	case TypeIntArray:
+		ints, _ := s.IntArray()
+
+		anyInts := make([]common_v1.AnyValue_IntValue, len(ints))
+		anyVals := make([]common_v1.AnyValue, len(ints))
+		anyArray := common_v1.ArrayValue{
+			Values: make([]*common_v1.AnyValue, len(ints)),
+		}
+		for i, n := range ints {
+			anyInts[i].IntValue = int64(n)
+			anyVals[i].Value = &anyInts[i]
+			anyArray.Values[i] = &anyVals[i]
+		}
+
+		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: &anyArray}}
+	case TypeFloatArray:
+		floats, _ := s.FloatArray()
+
+		anyDouble := make([]common_v1.AnyValue_DoubleValue, len(floats))
+		anyVals := make([]common_v1.AnyValue, len(floats))
+		anyArray := common_v1.ArrayValue{
+			Values: make([]*common_v1.AnyValue, len(floats)),
+		}
+		for i, f := range floats {
+			anyDouble[i].DoubleValue = f
+			anyVals[i].Value = &anyDouble[i]
+			anyArray.Values[i] = &anyVals[i]
+		}
+
+		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: &anyArray}}
+	case TypeStringArray:
+		strs, _ := s.StringArray()
+
+		anyStrs := make([]common_v1.AnyValue_StringValue, len(strs))
+		anyVals := make([]common_v1.AnyValue, len(strs))
+		anyArray := common_v1.ArrayValue{
+			Values: make([]*common_v1.AnyValue, len(strs)),
+		}
+		for i, str := range strs {
+			anyStrs[i].StringValue = str
+			anyVals[i].Value = &anyStrs[i]
+			anyArray.Values[i] = &anyVals[i]
+		}
+
+		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: &anyArray}}
+	case TypeBooleanArray:
+		bools, _ := s.BooleanArray()
+
+		anyBools := make([]common_v1.AnyValue_BoolValue, len(bools))
+		anyVals := make([]common_v1.AnyValue, len(bools))
+		anyArray := common_v1.ArrayValue{
+			Values: make([]*common_v1.AnyValue, len(bools)),
+		}
+		for i, b := range bools {
+			anyBools[i].BoolValue = b
+			anyVals[i].Value = &anyBools[i]
+			anyArray.Values[i] = &anyVals[i]
+		}
+
+		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: &anyArray}}
 	default:
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_StringValue{

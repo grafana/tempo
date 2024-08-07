@@ -422,6 +422,30 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		}
 	}
 
+	// array type
+	if lhsT.isMatchingArrayElement(rhsT) {
+		var (
+			res Static
+			err error
+		)
+
+		// TODO: this can be a range loop once iterators are available in Go 1.23
+		//       for _, s := range lhs.Elements() { ... }
+		elemOp := &BinaryOperation{Op: o.Op, LHS: lhs, RHS: rhs}
+		lhs.Elements()(func(_ int, elem Static) bool {
+			elemOp.LHS = elem
+			res, err = elemOp.execute(span)
+			if err != nil {
+				return false
+			}
+			if match, ok := res.Bool(); ok && match {
+				return false
+			}
+			return true
+		})
+		return res, err
+	}
+
 	switch o.Op {
 	case OpAdd:
 		return NewStaticFloat(lhs.Float() + rhs.Float()), nil

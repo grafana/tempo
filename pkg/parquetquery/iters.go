@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"slices"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/grafana/tempo/pkg/parquetquery/intern"
 	"github.com/grafana/tempo/pkg/util"
@@ -602,11 +604,14 @@ func (t RowNumber) Preceding() RowNumber {
 // IteratorResult is a row of data with a row number and named columns of data.
 // Internally it has an unstructured list for efficient collection. The ToMap()
 // function can be used to make inspection easier.
+// WARNING: Be careful when adding slices of values from iterators to Entries, as
+// there is always the risk of the slice being reused by the iterator. Always use
+// Append or AppendValue to add entries.
 type IteratorResult struct {
 	RowNumber RowNumber
 	Entries   []struct {
-		Key   string
-		Value pq.Value
+		Key    string
+		Values []pq.Value
 	}
 	OtherEntries []struct {
 		Key   string
@@ -620,15 +625,27 @@ func (r *IteratorResult) Reset() {
 }
 
 func (r *IteratorResult) Append(rr *IteratorResult) {
-	r.Entries = append(r.Entries, rr.Entries...)
+	for _, e := range rr.Entries {
+		r.AppendValue(e.Key, e.Values)
+	}
 	r.OtherEntries = append(r.OtherEntries, rr.OtherEntries...)
 }
 
-func (r *IteratorResult) AppendValue(k string, v pq.Value) {
-	r.Entries = append(r.Entries, struct {
-		Key   string
-		Value pq.Value
-	}{k, v})
+func (r *IteratorResult) AppendValue(k string, v []pq.Value) {
+	if len(r.Entries) < cap(r.Entries) {
+		// if possible reuse existing entries _and_ their slices in order
+		// to avoid unnecessary allocations
+		l := len(r.Entries)
+		r.Entries = r.Entries[:l+1]
+		r.Entries[l].Key = k
+		r.Entries[l].Values = r.Entries[l].Values[:0]
+		r.Entries[l].Values = append(r.Entries[l].Values, v...)
+	} else {
+		r.Entries = append(r.Entries, struct {
+			Key    string
+			Values []pq.Value
+		}{Key: k, Values: slices.Clone(v)})
+	}
 }
 
 func (r *IteratorResult) AppendOtherValue(k string, v interface{}) {
@@ -653,7 +670,7 @@ func (r *IteratorResult) OtherValueFromKey(k string) interface{} {
 func (r *IteratorResult) ToMap() map[string][]pq.Value {
 	m := map[string][]pq.Value{}
 	for _, e := range r.Entries {
-		m[e.Key] = append(m[e.Key], e.Value)
+		m[e.Key] = append(m[e.Key], e.Values...)
 	}
 	return m
 }
@@ -673,7 +690,7 @@ func (r *IteratorResult) Columns(buffer [][]pq.Value, names ...string) [][]pq.Va
 	for _, e := range r.Entries {
 		for i := range names {
 			if e.Key == names[i] {
-				buffer[i] = append(buffer[i], e.Value)
+				buffer[i] = append(buffer[i], e.Values...)
 				break
 			}
 		}
@@ -781,6 +798,14 @@ func SyncIteratorOptIntern() SyncIteratorOpt {
 	}
 }
 
+// SyncIteratorOptCollectArraysOnLevel enables the iterator to collect values as arrays if they
+// repeat above the given repetition level. This is useful when the data is stored as arrays.
+func SyncIteratorOptCollectArraysOnLevel(repLevel int) SyncIteratorOpt {
+	return func(i *SyncIterator) {
+		i.repLevel = repLevel
+	}
+}
+
 // SyncIterator is like ColumnIterator but synchronous. It scans through the given row
 // groups and column, and applies the optional predicate to each chunk, page, and value.
 // Results are read by calling Next() until it returns nil.
@@ -793,6 +818,7 @@ type SyncIterator struct {
 	rgsMax     []RowNumber // Exclusive, row number of next one past the row group
 	readSize   int
 	filter     Predicate
+	repLevel   int
 
 	// Status
 	span            opentracing.Span
@@ -804,11 +830,14 @@ type SyncIterator struct {
 	currPage        pq.Page
 	currPageMin     RowNumber
 	currPageMax     RowNumber
-	currValues      pq.ValueReader
+	currReader      pq.ValueReader
 	currBuf         []pq.Value
 	currBufN        int
 	currPageN       int
-	at              IteratorResult // Current value pointed at by iterator. Returned by call Next and SeekTo, valid until next call.
+	currValues      []pq.Value
+
+	// Current value pointed at by iterator. Returned by call Next and SeekTo, valid until next call.
+	at IteratorResult
 
 	intern   bool
 	interner *intern.Interner
@@ -839,8 +868,8 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 	if selectAs != "" {
 		// Preallocate 1 entry with the given name.
 		at.Entries = []struct {
-			Key   string
-			Value pq.Value
+			Key    string
+			Values []pq.Value
 		}{
 			{Key: selectAs},
 		}
@@ -856,6 +885,7 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 		rgsMin:     rgsMin,
 		rgsMax:     rgsMax,
 		filter:     filter,
+		repLevel:   -1,
 		curr:       EmptyRowNumber(),
 		at:         at,
 	}
@@ -877,14 +907,22 @@ func (c *SyncIterator) String() string {
 }
 
 func (c *SyncIterator) Next() (*IteratorResult, error) {
-	rn, v, err := c.next()
+	rn, err := c.next(false)
 	if err != nil {
 		return nil, err
 	}
 	if !rn.Valid() {
 		return nil, nil
 	}
-	return c.makeResult(rn, v), nil
+	if c.repLevel >= 0 {
+		// If the repetition level is set, we need to consume the remaining values of the potential array.
+		_, err = c.next(true)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return c.makeResult(rn), nil
 }
 
 // SeekTo moves this iterator to the next result that is greater than
@@ -907,16 +945,23 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 	// The row group and page have been selected to where this value is possibly
 	// located. Now scan through the page and look for it.
 	for {
-		rn, v, err := c.next()
+		rn, err := c.next(false)
 		if err != nil {
 			return nil, err
 		}
 		if !rn.Valid() {
 			return nil, nil
 		}
+		// If the repetition level is set, we need to consume the remaining values of the potential array.
+		if c.repLevel >= 0 {
+			_, err = c.next(true)
+			if err != nil {
+				return nil, err
+			}
+		}
 
 		if CompareRowNumbers(definitionLevel, rn, to) >= 0 {
-			return c.makeResult(rn, v), nil
+			return c.makeResult(rn), nil
 		}
 	}
 }
@@ -1095,7 +1140,7 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 	pq.Release(c.currPage)
 	c.currPage = pg
 	c.currPageMin = c.curr
-	c.currValues = pg.Values()
+	c.currReader = pg.Values()
 	c.currPageN = 0
 	syncIteratorPoolPut(c.currBuf)
 	c.currBuf = nil
@@ -1106,12 +1151,14 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 // we run out of things to inspect, it returns nil. The reason this method is distinct from
 // Next() is because it doesn't wrap the results in an IteratorResult, which is more efficient
 // when being called multiple times and throwing away the results like in SeekTo().
-func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
+// matchEndOfArray is a special case where the iterator advances to the end of the current array
+// if the c.repLevel is set.
+func (c *SyncIterator) next(matchEndOfArray bool) (RowNumber, error) {
 	for {
 		if c.currRowGroup == nil {
 			rg, min, max := c.popRowGroup()
 			if rg == nil {
-				return EmptyRowNumber(), nil, nil
+				return EmptyRowNumber(), nil
 			}
 
 			cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
@@ -1131,7 +1178,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 				continue
 			}
 			if err != nil {
-				return EmptyRowNumber(), nil, err
+				return EmptyRowNumber(), err
 			}
 			if c.filter != nil && !c.filter.KeepPage(pg) {
 				// This page filtered out
@@ -1148,9 +1195,9 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 		}
 		if c.currBufN >= len(c.currBuf) || len(c.currBuf) == 0 {
 			c.currBuf = c.currBuf[:cap(c.currBuf)]
-			n, err := c.currValues.ReadValues(c.currBuf)
+			n, err := c.currReader.ReadValues(c.currBuf)
 			if err != nil && !errors.Is(err, io.EOF) {
-				return EmptyRowNumber(), nil, err
+				return EmptyRowNumber(), err
 			}
 			c.currBuf = c.currBuf[:n]
 			c.currBufN = 0
@@ -1165,17 +1212,31 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 		for c.currBufN < len(c.currBuf) {
 			v := &c.currBuf[c.currBufN]
 
+			// If the repetition level is set, and the repetition level of the value is less or equal to
+			// the iterators repetition level, the v is either a single value or the start of a new array.
+			if c.repLevel < 0 || (v.RepetitionLevel() <= c.repLevel) {
+				if matchEndOfArray {
+					// If we are looking for the end of the array, we've now consumed all values and can return.
+					return c.curr, nil
+				}
+				// Otherwise we have to reset the current values buffer.
+				c.currValues = c.currValues[:0]
+			}
+
 			// Inspect all values to track the current row number,
 			// even if the value is filtered out next.
 			c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel())
 			c.currBufN++
 			c.currPageN++
 
-			if c.filter != nil && !c.filter.KeepValue(*v) {
+			c.currValues = append(c.currValues, *v)
+
+			// If we are looking for the end of the array, or v does not match the filter, we continue.
+			if matchEndOfArray || (c.filter != nil && !c.filter.KeepValue(*v)) {
 				continue
 			}
 
-			return c.curr, v, nil
+			return c.curr, nil
 		}
 	}
 }
@@ -1198,7 +1259,7 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 	}
 
 	// Reset value buffers
-	c.currValues = nil
+	c.currReader = nil
 	c.currPageMax = EmptyRowNumber()
 	c.currPageMin = EmptyRowNumber()
 	c.currBufN = 0
@@ -1218,7 +1279,7 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 		c.currPage = pg
 		c.currPageMin = c.curr
 		c.currPageMax = rn
-		c.currValues = pg.Values()
+		c.currReader = pg.Values()
 	}
 }
 
@@ -1234,7 +1295,7 @@ func (c *SyncIterator) closeCurrRowGroup() {
 	c.setPage(nil)
 }
 
-func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
+func (c *SyncIterator) makeResult(t RowNumber) *IteratorResult {
 	// Use same static result instead of pooling
 	c.at.RowNumber = t
 
@@ -1242,11 +1303,22 @@ func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
 	// value or just the row number. This has already been checked during
 	// creation. SyncIterator reads a single column so the slice will
 	// always have length 0 or 1.
-	if len(c.at.Entries) == 1 {
-		if c.intern {
-			c.at.Entries[0].Value = c.interner.UnsafeClone(v)
-		} else {
-			c.at.Entries[0].Value = v.Clone()
+	if len(c.at.Entries) == 0 {
+		return &c.at
+	}
+	c.at.Entries[0].Values = c.at.Entries[0].Values[:0]
+
+	if len(c.currValues) == 0 {
+		return &c.at
+	}
+
+	if c.intern {
+		for _, v := range c.currValues {
+			c.at.Entries[0].Values = append(c.at.Entries[0].Values, c.interner.UnsafeClone(&v))
+		}
+	} else {
+		for _, v := range c.currValues {
+			c.at.Entries[0].Values = append(c.at.Entries[0].Values, v.Clone())
 		}
 	}
 
@@ -1561,7 +1633,8 @@ func (c *ColumnIterator) makeResult(t RowNumber, v pq.Value) *IteratorResult {
 	r := DefaultPool.Get()
 	r.RowNumber = t
 	if c.selectAs != "" {
-		r.AppendValue(c.selectAs, v)
+		vs := unsafe.Slice(&v, 1)
+		r.AppendValue(c.selectAs, vs)
 	}
 	return r
 }
