@@ -10,6 +10,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/google/uuid"
 
+	"github.com/grafana/tempo/pkg/intern"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 )
@@ -89,6 +90,28 @@ type CompactedBlockMeta struct {
 	CompactedTime time.Time `json:"compactedTime"`
 }
 
+func (b *CompactedBlockMeta) UnmarshalJSON(data []byte) error {
+	if err := json.Unmarshal(data, &b.BlockMeta); err != nil {
+		return fmt.Errorf("failed at unmarshal for dedicated columns: %w", err)
+	}
+
+	var msg interface{}
+	err := json.Unmarshal(data, &msg)
+	if err != nil {
+		return err
+	}
+	msgMap := msg.(map[string]interface{})
+
+	if v, ok := msgMap["compactedTime"]; ok {
+		b.CompactedTime, err = time.Parse(time.RFC3339, v.(string))
+		if err != nil {
+			return fmt.Errorf("failed to parse time at compactedTime: %w", err)
+		}
+	}
+
+	return nil
+}
+
 const (
 	DefaultReplicationFactor          = 0 // Replication factor for blocks from the ingester. This is the default value to indicate RF3.
 	MetricsGeneratorReplicationFactor = 1
@@ -136,6 +159,19 @@ type BlockMeta struct {
 	ReplicationFactor uint32 `json:"replicationFactor,omitempty"`
 }
 
+func (b *BlockMeta) UnmarshalJSON(data []byte) error {
+	type metaAlias BlockMeta
+
+	err := json.Unmarshal(data, (*metaAlias)(b))
+	if err != nil {
+		return err
+	}
+	b.Version = intern.Get(b.Version).Get()
+	b.TenantID = intern.Get(b.TenantID).Get()
+
+	return nil
+}
+
 // DedicatedColumn contains the configuration for a single attribute with the given name that should
 // be stored in a dedicated column instead of the generic attribute column.
 type DedicatedColumn struct {
@@ -173,6 +209,11 @@ func (dc *DedicatedColumn) UnmarshalJSON(b []byte) error {
 	if dc.Type == "" {
 		dc.Type = DefaultDedicatedColumnType
 	}
+
+	dc.Scope = DedicatedColumnScope(intern.Get(string(dc.Scope)).Get())
+	dc.Type = DedicatedColumnType(intern.Get(string(dc.Type)).Get())
+	dc.Name = intern.Get(dc.Name).Get()
+
 	return nil
 }
 
