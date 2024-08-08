@@ -209,6 +209,11 @@ func (dc *DedicatedColumn) UnmarshalJSON(b []byte) error {
 	if dc.Type == "" {
 		dc.Type = DefaultDedicatedColumnType
 	}
+
+	dc.Scope = DedicatedColumnScope(intern.Get(string(dc.Scope)).Get())
+	dc.Type = DedicatedColumnType(intern.Get(string(dc.Type)).Get())
+	dc.Name = intern.Get(dc.Name).Get()
+
 	return nil
 }
 

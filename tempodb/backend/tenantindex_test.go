@@ -111,6 +111,14 @@ func BenchmarkIndexMarshal(b *testing.B) {
 		},
 	}
 
+	for i := range idx.Meta {
+		idx.Meta[i].DedicatedColumns = DedicatedColumns{
+			{Scope: "resource", Name: "namespace", Type: "string"},
+			{Scope: "span", Name: "http.method", Type: "string"},
+			{Scope: "span", Name: "namespace", Type: "string"},
+		}
+	}
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _ = idx.marshal()
@@ -138,6 +146,14 @@ func BenchmarkIndexUnmarshal(b *testing.B) {
 				CompactedTime: time.Now(),
 			},
 		},
+	}
+
+	for i := range idx.Meta {
+		idx.Meta[i].DedicatedColumns = DedicatedColumns{
+			{Scope: "resource", Name: "namespace", Type: "string"},
+			{Scope: "span", Name: "http.method", Type: "string"},
+			{Scope: "span", Name: "namespace", Type: "string"},
+		}
 	}
 
 	buf, err := idx.marshal()
