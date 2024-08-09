@@ -337,7 +337,8 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, startTime, en
 		return fmt.Errorf("error writing row: %w", err)
 	}
 
-	b.meta.ObjectAdded(id, b.getStartTimeForSlack(startTime), b.getEndTimeForSlack(endTime))
+	start, end := b.getTimeForSlack(startTime, endTime)
+	b.meta.ObjectAdded(id, start, end)
 	b.ids.Set(id, int64(b.ids.Len())) // Next row number
 
 	b.unflushedSize += int64(estimateMarshalledSizeFromTrace(b.buffer))
@@ -345,26 +346,23 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, startTime, en
 	return nil
 }
 
-// It corrects traces start time outside the ingestion slack
-func (b *walBlock) getStartTimeForSlack(start uint32) uint32 {
+// It corrects traces where the start or end time outside the ingestion slack
+func (b *walBlock) getTimeForSlack(start, end uint32) (uint32, uint32) {
 	startTime := time.Unix(int64(start), 0)
+	endTime := time.Unix(int64(end), 0)
 	now := time.Now()
+
 	if startTime.Before(now.Add(-b.ingestionSlack)) {
 		dataquality.WarnOutsideIngestionSlack(b.meta.TenantID)
 		startTime = now
 	}
-	return uint32(startTime.Unix())
-}
 
-// It corrects traces end time outside the ingestion slack
-func (b *walBlock) getEndTimeForSlack(end uint32) uint32 {
-	endTime := time.Unix(int64(end), 0)
-	now := time.Now()
-	if endTime.After(now.Add(b.ingestionSlack)) {
+	if endTime.After(now.Add(b.ingestionSlack)) || endTime.Before(startTime) {
 		dataquality.WarnOutsideIngestionSlack(b.meta.TenantID)
 		endTime = now
 	}
-	return uint32(endTime.Unix())
+
+	return uint32(startTime.Unix()), uint32(endTime.Unix())
 }
 
 func (b *walBlock) filepathOf(page int) string {
