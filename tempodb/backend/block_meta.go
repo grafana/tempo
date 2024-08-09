@@ -229,7 +229,7 @@ func (b *BlockMeta) updateEndTime(newEndTime uint32) {
 		return
 	}
 	end := time.Unix(int64(newEndTime), 0)
-	if b.EndTime.IsZero() || end.Before(b.EndTime) {
+	if b.EndTime.IsZero() || end.After(b.EndTime) {
 		b.EndTime = end
 	}
 }

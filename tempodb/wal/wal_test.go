@@ -53,8 +53,8 @@ func testAppendBlockStartEnd(t *testing.T, e encoding.VersionedEncoding) {
 	enc := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	// create a new block and confirm start/end times are correct
-	blockStart := uint32(time.Now().Add(-time.Minute).Unix())
-	blockEnd := uint32(time.Now().Add(time.Minute).Unix())
+	blockStart := time.Now().Add(-time.Minute)
+	blockEnd := time.Now().Add(time.Minute)
 
 	for i := 0; i < 10; i++ {
 		id := make([]byte, 16)
@@ -62,28 +62,28 @@ func testAppendBlockStartEnd(t *testing.T, e encoding.VersionedEncoding) {
 		require.NoError(t, err)
 		obj := test.MakeTrace(rand.Int()%10+1, id)
 
-		b1, err := enc.PrepareForWrite(obj, blockStart, blockEnd)
+		b1, err := enc.PrepareForWrite(obj, uint32(blockStart.Unix()), uint32(blockEnd.Unix()))
 		require.NoError(t, err)
 
 		b2, err := enc.ToObject([][]byte{b1})
 		require.NoError(t, err)
 
-		err = block.Append(id, b2, blockStart, blockEnd)
+		err = block.Append(id, b2, uint32(blockStart.Unix()), uint32(blockEnd.Unix()))
 		require.NoError(t, err, "unexpected error writing req")
 	}
 
 	require.NoError(t, block.Flush())
 
-	require.Equal(t, blockStart, uint32(block.BlockMeta().StartTime.Unix()))
-	require.Equal(t, blockEnd, uint32(block.BlockMeta().EndTime.Unix()))
+	require.True(t, block.BlockMeta().StartTime.Before(blockStart))
+	require.True(t, block.BlockMeta().EndTime.After(blockEnd))
 
 	// rescan the block and make sure the start/end times are the same
 	blocks, err := wal.RescanBlocks(time.Hour, log.NewNopLogger())
 	require.NoError(t, err, "unexpected error getting blocks")
 	require.Len(t, blocks, 1)
 
-	require.Equal(t, blockStart, uint32(blocks[0].BlockMeta().StartTime.Unix()))
-	require.Equal(t, blockEnd, uint32(blocks[0].BlockMeta().EndTime.Unix()))
+	require.True(t, blocks[0].BlockMeta().StartTime.Before(blockStart))
+	require.True(t, blocks[0].BlockMeta().EndTime.After(blockEnd))
 }
 
 func TestIngestionSlack(t *testing.T) {
@@ -125,15 +125,16 @@ func testIngestionSlack(t *testing.T, e encoding.VersionedEncoding) {
 	b2, err := enc.ToObject([][]byte{b1})
 	require.NoError(t, err)
 
-	appendTime := time.Now()
 	err = block.Append(id, b2, traceStart, traceEnd)
 	require.NoError(t, err, "unexpected error writing req")
 
-	blockStart := uint32(block.BlockMeta().StartTime.Unix())
-	blockEnd := uint32(block.BlockMeta().EndTime.Unix())
+	blockStart := block.BlockMeta().StartTime
+	blockEnd := block.BlockMeta().EndTime
+	traceStartTime := time.Unix(int64(traceStart), 0)
+	traceEndTime := time.Unix(int64(traceEnd), 0)
 
-	require.Equal(t, uint32(appendTime.Unix()), blockStart)
-	require.Equal(t, traceEnd, blockEnd)
+	require.True(t, blockStart.After(traceStartTime))
+	require.True(t, blockEnd.After(traceEndTime))
 }
 
 func TestFindByTraceID(t *testing.T) {
