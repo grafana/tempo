@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -100,10 +99,6 @@ type BlockMeta struct {
 	Version string `json:"format"`
 	// BlockID is a unique identifier of the block.
 	BlockID uuid.UUID `json:"blockID"`
-	// MinID is the smallest object id stored in this block.
-	MinID []byte `json:"minID"`
-	// MaxID is the largest object id stored in this block.
-	MaxID []byte `json:"maxID"`
 	// A TenantID that defines the tenant to which this block belongs.
 	TenantID string `json:"tenantID"`
 	// StartTime roughly matches when the first obj was written to this block. It is used to determine block.
@@ -187,8 +182,6 @@ func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, versio
 	b := &BlockMeta{
 		Version:          version,
 		BlockID:          blockID,
-		MinID:            []byte{},
-		MaxID:            []byte{},
 		TenantID:         tenantID,
 		Encoding:         encoding,
 		DataEncoding:     dataEncoding,
@@ -213,13 +206,6 @@ func (b *BlockMeta) ObjectAdded(id []byte, start, end uint32) {
 		if b.EndTime.IsZero() || endTime.After(b.EndTime) {
 			b.EndTime = endTime
 		}
-	}
-
-	if len(b.MinID) == 0 || bytes.Compare(id, b.MinID) == -1 {
-		b.MinID = id
-	}
-	if len(b.MaxID) == 0 || bytes.Compare(id, b.MaxID) == 1 {
-		b.MaxID = id
 	}
 
 	b.TotalObjects++
