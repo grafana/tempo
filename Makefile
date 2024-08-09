@@ -169,7 +169,7 @@ check-jsonnetfmt: jsonnetfmt
 	@git diff --exit-code -- $(FILES_TO_JSONNETFMT)
 
 .PHONY: lint
-lint: # linting
+lint: ##  linting
 ifneq ($(base),)
 	$(TOOLS_CMD) $(LINT) run --config .golangci.yml --new-from-rev=$(base)
 else

@@ -683,7 +683,7 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 			IndexPageSizeBytes:   1000,
 		},
 		WAL: &wal.Config{
-			IngestionSlack: time.Minute,
+			IngestionSlack: 0,
 			Filepath:       path.Join(tempDir, "wal"),
 		},
 		BlocklistPoll: 0,
@@ -713,8 +713,8 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 
 	// Verify the block time was constrained to the slack time.
 	// Accept a couple seconds of slack time to ensure test reliability.
-	require.Less(t, complete.BlockMeta().StartTime.Sub(now).Seconds(), 2.0)
-	require.Less(t, complete.BlockMeta().EndTime.Sub(now).Seconds(), 2.0)
+	require.Less(t, complete.BlockMeta().StartTime.Sub(now).Seconds(), 1.0)
+	require.Less(t, complete.BlockMeta().EndTime.Sub(now).Seconds(), 1.0)
 }
 
 func writeTraceToWal(t require.TestingT, b common.WALBlock, dec model.SegmentDecoder, id common.ID, tr *tempopb.Trace, start, end uint32) {
