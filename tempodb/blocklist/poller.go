@@ -140,6 +140,7 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 		diff := time.Since(start).Seconds()
 		metricBlocklistPollDuration.Observe(diff)
 		level.Info(p.logger).Log("msg", "blocklist poll complete", "seconds", diff)
+		backend.ClearDedicatedColumns()
 	}()
 
 	ctx, cancel := context.WithCancel(context.Background())
