@@ -32,7 +32,7 @@ type queryRangeSharder struct {
 	overrides         overrides.Interface
 	cfg               QueryRangeSharderConfig
 	logger            log.Logger
-	replicationFactor uint32
+	replicationFactor uint8
 }
 
 type QueryRangeSharderConfig struct {
@@ -48,7 +48,7 @@ type QueryRangeSharderConfig struct {
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search
 func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
-	var replicationFactor uint32
+	var replicationFactor uint8
 	if cfg.RF1ReadPath {
 		replicationFactor = 1
 	}
