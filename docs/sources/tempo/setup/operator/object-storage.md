@@ -221,7 +221,7 @@ where `tempostack-dev-s3` is the secret name.
 
   where `tempostack-dev-odf` is the secret name. You can copy the values for `BUCKET_NAME`, `ACCESS_KEY_ID` and `ACCESS_KEY_SECRET` from your ObjectBucketClaim's accompanied secret.
 
-2. Create an instance of TempoStack by referencing the secret name and type as `s3`: 
+2. Create an instance of TempoStack by referencing the secret name and type as `s3`:
 
   ```yaml
   spec:
