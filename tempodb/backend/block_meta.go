@@ -83,9 +83,8 @@ func (s DedicatedColumnScope) ToTempopb() (tempopb.DedicatedColumn_Scope, error)
 }
 
 type CompactedBlockMeta struct {
-	BlockMeta
-
 	CompactedTime time.Time `json:"compactedTime"`
+	BlockMeta
 }
 
 const (
@@ -173,6 +172,25 @@ func (dc *DedicatedColumn) UnmarshalJSON(b []byte) error {
 
 // DedicatedColumns represents a set of configured dedicated columns.
 type DedicatedColumns []DedicatedColumn
+
+func (dcs *DedicatedColumns) UnmarshalJSON(b []byte) error {
+	// Get the pre-unmarshalled data if available.
+	v := getDedicatedColumns(string(b))
+	if v != nil {
+		*dcs = *v
+		return nil
+	}
+
+	type dcsAlias DedicatedColumns // alias required to avoid recursive calls of UnmarshalJSON
+	err := json.Unmarshal(b, (*dcsAlias)(dcs))
+	if err != nil {
+		return err
+	}
+
+	putDedicatedColumns(string(b), dcs)
+
+	return nil
+}
 
 func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {
 	return NewBlockMetaWithDedicatedColumns(tenantID, blockID, version, encoding, dataEncoding, nil)
