@@ -115,7 +115,7 @@ func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig,
 		TenantID:          tenantID,
 		BlockID:           uuid.New(),
 		TotalObjects:      traceCount,
-		ReplicationFactor: uint32(replicationFactor),
+		ReplicationFactor: uint8(replicationFactor),
 		DedicatedColumns:  dc,
 	}
 
@@ -211,6 +211,6 @@ func TestCompact(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, newMeta, 1)
 	require.Equal(t, 20, newMeta[0].TotalObjects)
-	require.Equal(t, uint32(1), newMeta[0].ReplicationFactor)
+	require.Equal(t, uint8(1), newMeta[0].ReplicationFactor)
 	require.Equal(t, dedicatedColumns, newMeta[0].DedicatedColumns)
 }

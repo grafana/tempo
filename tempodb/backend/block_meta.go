@@ -128,7 +128,7 @@ type BlockMeta struct {
 	DedicatedColumns DedicatedColumns `json:"dedicatedColumns,omitempty"`
 	// ReplicationFactor is the number of times the data written in this block has been replicated.
 	// It's left unset if replication factor is 3. Default is 0 (RF3).
-	ReplicationFactor uint32 `json:"replicationFactor,omitempty"`
+	ReplicationFactor uint8 `json:"replicationFactor,omitempty"`
 }
 
 // DedicatedColumn contains the configuration for a single attribute with the given name that should

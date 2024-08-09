@@ -7,7 +7,7 @@
 * [CHANGE] Make vParquet4 the default block encoding [#3810](https://github.com/grafana/tempo/pull/3810) (@ie-pham)
 * [CHANGE] Azure v2 backend becomes the only and primary Azure backend [#3875](https://github.com/grafana/tempo/pull/3875) (@zalegrala)
   **BREAKING CHANGE** The `use_v2_sdk` configuration option has been removed.
-* [CHANGE] BlockMeta improvements to reduce the size [#3950](https://github.com/grafana/tempo/pull/3950) (@zalegrala)
+* [CHANGE] BlockMeta improvements to reduce the size [#3950](https://github.com/grafana/tempo/pull/3950) [#3951](https://github.com/grafana/tempo/pull/3951) (@zalegrala)
 * [FEATURE] TraceQL support for link scope and link:traceID and link:spanID [#3741](https://github.com/grafana/tempo/pull/3741) (@stoewer)
 * [FEATURE] TraceQL support for link attribute querying [#3814](https://github.com/grafana/tempo/pull/3814) (@ie-pham)
 * [FEATURE] TraceQL support for event scope and event:name intrinsic [#3708](https://github.com/grafana/tempo/pull/3708) (@stoewer)
