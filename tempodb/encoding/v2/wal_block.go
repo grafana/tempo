@@ -368,7 +368,7 @@ func (a *walBlock) adjustTimeRangeForSlack(start, end uint32, additionalStartSla
 		warn = true
 		start = uint32(now.Unix())
 	}
-	if end > endOfRange {
+	if end > endOfRange || end < start {
 		warn = true
 		end = uint32(now.Unix())
 	}

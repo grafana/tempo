@@ -339,7 +339,7 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 		dataquality.WarnRootlessTrace(b.meta.TenantID, dataquality.PhaseTraceFlushedToWal)
 	}
 
-	start, end = b.adjustTimeRangeForSlack(start, end, 0)
+	start, end = b.adjustTimeRangeForSlack(start, end)
 
 	// add to current
 	_, err := b.writer.Write([]*Trace{b.buffer})
@@ -355,9 +355,9 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 	return nil
 }
 
-func (b *walBlock) adjustTimeRangeForSlack(start, end uint32, additionalStartSlack time.Duration) (uint32, uint32) {
+func (b *walBlock) adjustTimeRangeForSlack(start, end uint32) (uint32, uint32) {
 	now := time.Now()
-	startOfRange := uint32(now.Add(-b.ingestionSlack).Add(-additionalStartSlack).Unix())
+	startOfRange := uint32(now.Add(-b.ingestionSlack).Unix())
 	endOfRange := uint32(now.Add(b.ingestionSlack).Unix())
 
 	warn := false
@@ -365,7 +365,7 @@ func (b *walBlock) adjustTimeRangeForSlack(start, end uint32, additionalStartSla
 		warn = true
 		start = uint32(now.Unix())
 	}
-	if end > endOfRange {
+	if end > endOfRange || end < start {
 		warn = true
 		end = uint32(now.Unix())
 	}
