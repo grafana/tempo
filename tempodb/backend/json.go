@@ -23,3 +23,10 @@ func putDedicatedColumns(b string, d *DedicatedColumns) {
 
 	dedicatedColumnsKeeper[b] = d
 }
+
+func ClearDedicatedColumns() {
+	dedicatedColumnsMtx.Lock()
+	defer dedicatedColumnsMtx.Unlock()
+
+	clear(dedicatedColumnsKeeper)
+}
