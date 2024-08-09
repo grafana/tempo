@@ -41,6 +41,7 @@ type readerWriter struct {
 	cfg        *Config
 	core       *minio.Core
 	hedgedCore *minio.Core
+	sse        encrypt.ServerSide
 }
 
 var tracer = otel.Tracer("tempodb/backend/s3")
@@ -138,42 +139,35 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 		}
 	}
 
+	encryption, err := buildSSEConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("returned Error when trying to configure Server Side Encryption: %w", err)
+	}
+
 	rw := &readerWriter{
 		logger:     l,
 		cfg:        cfg,
 		core:       core,
 		hedgedCore: hedgedCore,
+		sse:        encryption,
 	}
 
 	return rw, nil
 }
 
 func getPutObjectOptions(rw *readerWriter) minio.PutObjectOptions {
-	sseConfig, err := buildSSEConfig(rw.cfg)
-	if sseConfig == nil && err == nil {
-		return minio.PutObjectOptions{
-			PartSize:     rw.cfg.PartSize,
-			UserTags:     rw.cfg.Tags,
-			StorageClass: rw.cfg.StorageClass,
-			UserMetadata: rw.cfg.Metadata,
-		}
-	}
 	return minio.PutObjectOptions{
 		PartSize:             rw.cfg.PartSize,
 		UserTags:             rw.cfg.Tags,
 		StorageClass:         rw.cfg.StorageClass,
 		UserMetadata:         rw.cfg.Metadata,
-		ServerSideEncryption: sseConfig,
+		ServerSideEncryption: rw.sse,
 	}
 }
 
 func getObjectOptions(rw *readerWriter) minio.GetObjectOptions {
-	sseConfig, err := buildSSEConfig(rw.cfg)
-	if sseConfig == nil && err == nil {
-		return minio.GetObjectOptions{}
-	}
 	return minio.GetObjectOptions{
-		ServerSideEncryption: sseConfig,
+		ServerSideEncryption: rw.sse,
 	}
 }
 
