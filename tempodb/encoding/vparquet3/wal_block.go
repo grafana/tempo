@@ -150,6 +150,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 
 // createWALBlock creates a new appendable block
 func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (*walBlock, error) {
+	now := time.Now()
 	b := &walBlock{
 		meta: &backend.BlockMeta{
 			Version:           VersionString,
@@ -157,6 +158,8 @@ func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, inge
 			TenantID:          meta.TenantID,
 			DedicatedColumns:  meta.DedicatedColumns,
 			ReplicationFactor: meta.ReplicationFactor,
+			StartTime:         now.Add(-ingestionSlack),
+			EndTime:           now.Add(ingestionSlack),
 		},
 		path:           filepath,
 		ids:            common.NewIDMap[int64](),
@@ -329,7 +332,7 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 	return b.AppendTrace(id, trace, start, end)
 }
 
-func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end uint32) error {
+func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, startTime, endTime uint32) error {
 	var connected bool
 	b.buffer, connected = traceToParquet(b.meta, id, trace, b.buffer)
 	if !connected {
@@ -339,14 +342,12 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 		dataquality.WarnRootlessTrace(b.meta.TenantID, dataquality.PhaseTraceFlushedToWal)
 	}
 
-	start, end = b.adjustTimeRangeForSlack(start, end, 0)
-
 	// add to current
 	_, err := b.writer.Write([]*Trace{b.buffer})
 	if err != nil {
 		return fmt.Errorf("error writing row: %w", err)
 	}
-
+	start, end := b.getTimeForSlack(startTime, endTime)
 	b.meta.ObjectAdded(id, start, end)
 	b.ids.Set(id, int64(b.ids.Len())) // Next row number
 
@@ -355,26 +356,23 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 	return nil
 }
 
-func (b *walBlock) adjustTimeRangeForSlack(start, end uint32, additionalStartSlack time.Duration) (uint32, uint32) {
+// It corrects traces where the start or end time outside the ingestion slack
+func (b *walBlock) getTimeForSlack(start, end uint32) (uint32, uint32) {
+	startTime := time.Unix(int64(start), 0)
+	endTime := time.Unix(int64(end), 0)
 	now := time.Now()
-	startOfRange := uint32(now.Add(-b.ingestionSlack).Add(-additionalStartSlack).Unix())
-	endOfRange := uint32(now.Add(b.ingestionSlack).Unix())
 
-	warn := false
-	if start < startOfRange {
-		warn = true
-		start = uint32(now.Unix())
-	}
-	if end > endOfRange {
-		warn = true
-		end = uint32(now.Unix())
-	}
-
-	if warn {
+	if startTime.Before(now.Add(-b.ingestionSlack)) {
 		dataquality.WarnOutsideIngestionSlack(b.meta.TenantID)
+		startTime = now
 	}
 
-	return start, end
+	if endTime.After(now.Add(b.ingestionSlack)) || endTime.Before(startTime) {
+		dataquality.WarnOutsideIngestionSlack(b.meta.TenantID)
+		endTime = now
+	}
+
+	return uint32(startTime.Unix()), uint32(endTime.Unix())
 }
 
 func (b *walBlock) filepathOf(page int) string {

@@ -176,7 +176,7 @@ func (i *instance) addTraceError(errorsByTrace []tempopb.PushErrorReason, pushEr
 		errorsByTrace = append(errorsByTrace, tempopb.PushErrorReason_UNKNOWN_ERROR)
 		return errorsByTrace
 
-	} else if pushError == nil && len(errorsByTrace) > 0 {
+	} else if len(errorsByTrace) > 0 {
 		errorsByTrace = append(errorsByTrace, tempopb.PushErrorReason_NO_ERROR)
 	}
 

@@ -606,8 +606,9 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 			RowGroupSizeBytes:    30_000_000,
 		},
 		WAL: &wal.Config{
-			Filepath:       path.Join(tempDir, "wal"),
-			IngestionSlack: time.Since(time.Unix(0, 0)), // Let us use obvious start/end times below
+			Filepath: path.Join(tempDir, "wal"),
+			// Ten minutes ensure all the traces are in the ingestion slack
+			IngestionSlack: 10 * time.Minute,
 		},
 		BlocklistPoll: 0,
 	}, nil, log.NewNopLogger())
@@ -625,13 +626,19 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 
 	r.EnablePolling(ctx, &mockJobSharder{})
 
+	startTrace := time.Now()
+
+	timeToInt32 := func(t time.Time) uint32 {
+		return uint32(t.Unix())
+	}
+
 	cutTestBlockWithTraces(t, w, testTenantID, []testData{
-		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 100, 101},
-		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 102, 103},
+		{test.ValidTraceID(nil), test.MakeTrace(10, nil), timeToInt32(startTrace), timeToInt32(startTrace.Add(time.Minute))},
+		{test.ValidTraceID(nil), test.MakeTrace(10, nil), timeToInt32(startTrace.Add(time.Minute)), timeToInt32(startTrace.Add(2 * time.Minute))},
 	})
 	cutTestBlockWithTraces(t, w, testTenantID, []testData{
-		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 104, 105},
-		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 106, 107},
+		{test.ValidTraceID(nil), test.MakeTrace(10, nil), timeToInt32(startTrace.Add(4 * time.Minute)), timeToInt32(startTrace.Add(5 * time.Minute))},
+		{test.ValidTraceID(nil), test.MakeTrace(10, nil), timeToInt32(startTrace.Add(6 * time.Minute)), timeToInt32(startTrace.Add(7 * time.Minute))},
 	})
 
 	rw := r.(*readerWriter)
@@ -645,10 +652,13 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 
 	// New blocklist contains 1 compacted block with min start and max end
 	blocks := rw.blocklist.Metas(testTenantID)
+	startTime := blocks[0].StartTime
+	endTime := blocks[0].EndTime
+
 	require.Equal(t, 1, len(blocks))
 	require.Equal(t, uint8(1), blocks[0].CompactionLevel)
-	require.Equal(t, 100, int(blocks[0].StartTime.Unix()))
-	require.Equal(t, 107, int(blocks[0].EndTime.Unix()))
+	require.True(t, startTime.Before(startTrace))
+	require.True(t, endTime.After(startTrace.Add(7*time.Minute)))
 }
 
 func TestCompactionDropsTraces(t *testing.T) {

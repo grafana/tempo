@@ -177,15 +177,15 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 	tagValue := bar
 	ids, _, _, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, false, false)
 
-	search := func(req *tempopb.SearchRequest, start, end uint32) *tempopb.SearchResponse {
-		req.Start = start
-		req.End = end
-		sr, err := i.Search(context.Background(), req)
-		assert.NoError(t, err)
-		return sr
-	}
-
 	searchAndAssert := func(req *tempopb.SearchRequest, inspectedTraces uint32) {
+		search := func(req *tempopb.SearchRequest, start, end uint32) *tempopb.SearchResponse {
+			req.Start = start
+			req.End = end
+			sr, err := i.Search(context.Background(), req)
+			assert.NoError(t, err)
+			return sr
+		}
+
 		sr := search(req, 0, 0)
 		assert.Len(t, sr.Traces, len(ids))
 		assert.Equal(t, sr.Metrics.InspectedTraces, inspectedTraces)
@@ -224,6 +224,7 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 	// Test after completing a block
 	err = i.CompleteBlock(blockID)
 	require.NoError(t, err)
+	// It should inspect 200 traces because the completingBlocks (the wal) has not been cleaned yet
 	searchAndAssert(req, uint32(200))
 
 	err = ingester.stopping(nil)

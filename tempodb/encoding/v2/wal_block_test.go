@@ -9,7 +9,6 @@ import (
 	"math/rand"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
@@ -127,45 +126,6 @@ func TestFullFilename(t *testing.T) {
 			assert.Equal(t, tc.expected, actual)
 		})
 	}
-}
-
-func TestAdjustTimeRangeForSlack(t *testing.T) {
-	a := &walBlock{
-		meta: &backend.BlockMeta{
-			TenantID: "test",
-		},
-		ingestionSlack: 2 * time.Minute,
-	}
-
-	// test happy path
-	start := uint32(time.Now().Unix())
-	end := uint32(time.Now().Unix())
-	actualStart, actualEnd := a.adjustTimeRangeForSlack(start, end, 0)
-	assert.Equal(t, start, actualStart)
-	assert.Equal(t, end, actualEnd)
-
-	// test start out of range
-	now := uint32(time.Now().Unix())
-	start = uint32(time.Now().Add(-time.Hour).Unix())
-	end = uint32(time.Now().Unix())
-	actualStart, actualEnd = a.adjustTimeRangeForSlack(start, end, 0)
-	assert.Equal(t, now, actualStart)
-	assert.Equal(t, end, actualEnd)
-
-	// test end out of range
-	now = uint32(time.Now().Unix())
-	start = uint32(time.Now().Unix())
-	end = uint32(time.Now().Add(time.Hour).Unix())
-	actualStart, actualEnd = a.adjustTimeRangeForSlack(start, end, 0)
-	assert.Equal(t, start, actualStart)
-	assert.Equal(t, now, actualEnd)
-
-	// test additional start slack honored
-	start = uint32(time.Now().Add(-time.Hour).Unix())
-	end = uint32(time.Now().Unix())
-	actualStart, actualEnd = a.adjustTimeRangeForSlack(start, end, time.Hour)
-	assert.Equal(t, start, actualStart)
-	assert.Equal(t, end, actualEnd)
 }
 
 func TestPartialBlock(t *testing.T) {

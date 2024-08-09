@@ -56,8 +56,10 @@ type Ingester struct {
 	cfg Config
 
 	instancesMtx sync.RWMutex
-	instances    map[string]*instance
-	pushErr      atomic.Error
+
+	// Handle all the ingestion lifecycle. One instance per tenant
+	instances map[string]*instance
+	pushErr   atomic.Error
 
 	lifecycler   *ring.Lifecycler
 	store        storage.Store

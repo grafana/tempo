@@ -439,7 +439,8 @@ func defaultIngesterStore(t testing.TB, tmpDir string) storage.Store {
 				IndexPageSizeBytes:   1000,
 			},
 			WAL: &wal.Config{
-				Filepath: tmpDir,
+				Filepath:       tmpDir,
+				IngestionSlack: 2 * time.Minute,
 			},
 		},
 	}, nil, log.NewNopLogger())
