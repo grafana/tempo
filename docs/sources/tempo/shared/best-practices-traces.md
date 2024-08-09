@@ -18,7 +18,7 @@ labels:
 
 ## Span and resource attributes
 
-[Traces]({{< relref "../introduction" >}}) are built from spans, which denote units of work such as a call to, or from, an upstream service. Spans are constructed primarily of span and resource attributes.
+[Traces](https://grafana.com/docs/tempo/<TEMPO_VERSION>/introduction/) are built from spans, which denote units of work such as a call to, or from, an upstream service. Spans are constructed primarily of span and resource attributes.
 Spans also have a hierarchy, where parent spans can have children or siblings.
 
 In the screenshot below, the left side of the screen (1) shows the list of results for the query. The right side (2) lists each span that makes up the selected trace.
