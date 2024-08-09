@@ -135,7 +135,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 				switch e.Key {
 				case columnPathTraceID:
 					traceID := e.Value.ByteArray()
-					b.meta.ObjectAdded(traceID, 0, 0)
+					b.meta.ObjectAdded(0, 0)
 					page.ids.Set(traceID, int64(match.RowNumber[0])) // Save rownumber for the trace ID
 				}
 			}
@@ -347,7 +347,7 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 		return fmt.Errorf("error writing row: %w", err)
 	}
 
-	b.meta.ObjectAdded(id, start, end)
+	b.meta.ObjectAdded(start, end)
 	b.ids.Set(id, int64(b.ids.Len())) // Next row number
 
 	b.unflushedSize += int64(estimateMarshalledSizeFromTrace(b.buffer))

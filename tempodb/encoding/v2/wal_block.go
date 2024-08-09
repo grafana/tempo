@@ -162,7 +162,7 @@ func (a *walBlock) Append(id common.ID, b []byte, start, end uint32) error {
 		return err
 	}
 	start, end = a.adjustTimeRangeForSlack(start, end, 0)
-	a.meta.ObjectAdded(id, start, end)
+	a.meta.ObjectAdded(start, end)
 	return nil
 }
 
