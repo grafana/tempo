@@ -199,21 +199,10 @@ func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, versio
 }
 
 // ObjectAdded updates the block meta appropriately based on information about an added record
-// start/end are unix epoch seconds
-func (b *BlockMeta) ObjectAdded(id []byte, start, end uint32) {
-	if start > 0 {
-		startTime := time.Unix(int64(start), 0)
-		if b.StartTime.IsZero() || startTime.Before(b.StartTime) {
-			b.StartTime = startTime
-		}
-	}
-
-	if end > 0 {
-		endTime := time.Unix(int64(end), 0)
-		if b.EndTime.IsZero() || endTime.After(b.EndTime) {
-			b.EndTime = endTime
-		}
-	}
+// start/end are unix epoch seconds, 0 means that the block start or end time won't be updated
+func (b *BlockMeta) ObjectAdded(id []byte, startTime, endTime uint32) {
+	b.updateStartTime(startTime)
+	b.updateEndTime(endTime)
 
 	if len(b.MinID) == 0 || bytes.Compare(id, b.MinID) == -1 {
 		b.MinID = id
@@ -223,6 +212,26 @@ func (b *BlockMeta) ObjectAdded(id []byte, start, end uint32) {
 	}
 
 	b.TotalObjects++
+}
+
+func (b *BlockMeta) updateStartTime(newStartTime uint32) {
+	if newStartTime == 0 {
+		return
+	}
+	start := time.Unix(int64(newStartTime), 0)
+	if b.StartTime.IsZero() || start.Before(b.StartTime) {
+		b.StartTime = start
+	}
+}
+
+func (b *BlockMeta) updateEndTime(newEndTime uint32) {
+	if newEndTime == 0 {
+		return
+	}
+	end := time.Unix(int64(newEndTime), 0)
+	if b.EndTime.IsZero() || end.Before(b.EndTime) {
+		b.EndTime = end
+	}
 }
 
 func (b *BlockMeta) DedicatedColumnsHash() uint64 {

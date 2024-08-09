@@ -150,6 +150,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 
 // createWALBlock creates a new appendable block
 func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, ingestionSlack time.Duration) (*walBlock, error) {
+	now := time.Now()
 	b := &walBlock{
 		meta: &backend.BlockMeta{
 			Version:           VersionString,
@@ -157,6 +158,8 @@ func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, inge
 			TenantID:          meta.TenantID,
 			DedicatedColumns:  meta.DedicatedColumns,
 			ReplicationFactor: meta.ReplicationFactor,
+			StartTime:         now.Add(-ingestionSlack),
+			EndTime:           now.Add(ingestionSlack),
 		},
 		path:           filepath,
 		ids:            common.NewIDMap[int64](),
@@ -315,7 +318,7 @@ func (b *walBlock) BlockMeta() *backend.BlockMeta {
 	return b.meta
 }
 
-func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
+func (b *walBlock) Append(id common.ID, buff []byte, startTime, endTime uint32) error {
 	// if decoder = nil we were created with OpenWALBlock and will not accept writes
 	if b.decoder == nil {
 		return nil
@@ -326,10 +329,10 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 		return fmt.Errorf("error preparing trace for read: %w", err)
 	}
 
-	return b.AppendTrace(id, trace, start, end)
+	return b.AppendTrace(id, trace, startTime, endTime)
 }
 
-func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end uint32) error {
+func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, startTime, endTime uint32) error {
 	var connected bool
 	b.buffer, connected = traceToParquet(b.meta, id, trace, b.buffer)
 	if !connected {
@@ -339,15 +342,13 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 		dataquality.WarnRootlessTrace(b.meta.TenantID, dataquality.PhaseTraceFlushedToWal)
 	}
 
-	start, end = b.adjustTimeRangeForSlack(start, end, 0)
-
 	// add to current
 	_, err := b.writer.Write([]*Trace{b.buffer})
 	if err != nil {
 		return fmt.Errorf("error writing row: %w", err)
 	}
 
-	b.meta.ObjectAdded(id, start, end)
+	b.meta.ObjectAdded(id, b.getStartTimeForSlack(startTime), b.getEndTimeForSlack(endTime))
 	b.ids.Set(id, int64(b.ids.Len())) // Next row number
 
 	b.unflushedSize += int64(estimateMarshalledSizeFromTrace(b.buffer))
@@ -355,26 +356,26 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 	return nil
 }
 
-func (b *walBlock) adjustTimeRangeForSlack(start, end uint32, additionalStartSlack time.Duration) (uint32, uint32) {
+// It corrects traces start time outside the ingestion slack
+func (b *walBlock) getStartTimeForSlack(start uint32) uint32 {
+	startTime := time.Unix(int64(start), 0)
 	now := time.Now()
-	startOfRange := uint32(now.Add(-b.ingestionSlack).Add(-additionalStartSlack).Unix())
-	endOfRange := uint32(now.Add(b.ingestionSlack).Unix())
-
-	warn := false
-	if start < startOfRange {
-		warn = true
-		start = uint32(now.Unix())
-	}
-	if end > endOfRange {
-		warn = true
-		end = uint32(now.Unix())
-	}
-
-	if warn {
+	if startTime.Before(now.Add(-b.ingestionSlack)) {
 		dataquality.WarnOutsideIngestionSlack(b.meta.TenantID)
+		startTime = now
 	}
+	return uint32(startTime.Unix())
+}
 
-	return start, end
+// It corrects traces end time outside the ingestion slack
+func (b *walBlock) getEndTimeForSlack(end uint32) uint32 {
+	endTime := time.Unix(int64(end), 0)
+	now := time.Now()
+	if endTime.After(now.Add(b.ingestionSlack)) {
+		dataquality.WarnOutsideIngestionSlack(b.meta.TenantID)
+		endTime = now
+	}
+	return uint32(endTime.Unix())
 }
 
 func (b *walBlock) filepathOf(page int) string {

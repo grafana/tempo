@@ -329,7 +329,7 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 	return b.AppendTrace(id, trace, start, end)
 }
 
-func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end uint32) error {
+func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, startTime, endTime uint32) error {
 	var connected bool
 	b.buffer, connected = traceToParquet(b.meta, id, trace, b.buffer)
 	if !connected {
@@ -339,15 +339,13 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 		dataquality.WarnRootlessTrace(b.meta.TenantID, dataquality.PhaseTraceFlushedToWal)
 	}
 
-	start, end = b.adjustTimeRangeForSlack(start, end, 0)
-
 	// add to current
 	_, err := b.writer.Write([]*Trace{b.buffer})
 	if err != nil {
 		return fmt.Errorf("error writing row: %w", err)
 	}
 
-	b.meta.ObjectAdded(id, start, end)
+	b.meta.ObjectAdded(id, b.getStartTimeForSlack(startTime), b.getEndTimeForSlack(endTime))
 	b.ids.Set(id, int64(b.ids.Len())) // Next row number
 
 	b.unflushedSize += int64(estimateMarshalledSizeFromTrace(b.buffer))
@@ -355,26 +353,26 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 	return nil
 }
 
-func (b *walBlock) adjustTimeRangeForSlack(start, end uint32, additionalStartSlack time.Duration) (uint32, uint32) {
+// It corrects traces start time outside the ingestion slack
+func (b *walBlock) getStartTimeForSlack(start uint32) uint32 {
+	startTime := time.Unix(int64(start), 0)
 	now := time.Now()
-	startOfRange := uint32(now.Add(-b.ingestionSlack).Add(-additionalStartSlack).Unix())
-	endOfRange := uint32(now.Add(b.ingestionSlack).Unix())
-
-	warn := false
-	if start < startOfRange {
-		warn = true
-		start = uint32(now.Unix())
-	}
-	if end > endOfRange {
-		warn = true
-		end = uint32(now.Unix())
-	}
-
-	if warn {
+	if startTime.Before(now.Add(-b.ingestionSlack)) {
 		dataquality.WarnOutsideIngestionSlack(b.meta.TenantID)
+		startTime = now
 	}
+	return uint32(startTime.Unix())
+}
 
-	return start, end
+// It corrects traces end time outside the ingestion slack
+func (b *walBlock) getEndTimeForSlack(end uint32) uint32 {
+	endTime := time.Unix(int64(end), 0)
+	now := time.Now()
+	if endTime.After(now.Add(b.ingestionSlack)) {
+		dataquality.WarnOutsideIngestionSlack(b.meta.TenantID)
+		endTime = now
+	}
+	return uint32(endTime.Unix())
 }
 
 func (b *walBlock) filepathOf(page int) string {
