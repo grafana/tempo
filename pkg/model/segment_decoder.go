@@ -21,7 +21,7 @@ type SegmentDecoder interface {
 	PrepareForWrite(trace *tempopb.Trace, start uint32, end uint32) ([]byte, error)
 	// PrepareForRead converts a set of segments created using PrepareForWrite. These segments
 	//  are converted into a tempopb.Trace. This operation can be quite costly and should be called only for reading
-	PrepareForRead(segments [][]byte) (*tempopb.Trace, error)
+	PrepareForRead(segments [][]byte, allowPartialTraces bool) (*tempopb.Trace, error)
 	// ToObject converts a set of segments into an object ready to be written to the tempodb backend.
 	//  The resultant byte slice can then be manipulated using the corresponding ObjectDecoder.
 	//  ToObject is on the write path and should do as little as possible.
