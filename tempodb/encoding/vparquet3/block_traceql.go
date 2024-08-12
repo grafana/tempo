@@ -2657,10 +2657,7 @@ func (b *backendBlock) rowGroupsForShard(ctx context.Context, pf *parquet.File, 
 	matches := []parquet.RowGroup{}
 	for i := 0; i < len(index.RowGroups); i++ {
 		if i == 0 {
-			// The index contains the max trace ID for each row
-			// group.  So to determine the min/max for the first
-			// entry we use the minimum ID from block meta.
-			if testRange(m.MinID, index.RowGroups[i]) {
+			if testRange([]byte{}, index.RowGroups[i]) {
 				matches = append(matches, rgs[i])
 			}
 		} else {

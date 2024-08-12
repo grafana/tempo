@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"embed"
 	"errors"
 	"fmt"
 	"io"
@@ -426,6 +427,9 @@ func (t *App) initQueryFrontend() (services.Service, error) {
 	return t.frontend, nil
 }
 
+//go:embed static
+var staticFiles embed.FS
+
 func (t *App) initCompactor() (services.Service, error) {
 	if t.cfg.Target == ScalableSingleBinary && t.cfg.Compactor.ShardingRing.KVStore.Store == "" {
 		t.cfg.Compactor.ShardingRing.KVStore.Store = "memberlist"
@@ -488,7 +492,10 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 
-	t.Server.HTTPRouter().Handle("/memberlist", t.MemberlistKV)
+	// Only the memberlist endpoint uses static files currently
+	t.Server.HTTPRouter().PathPrefix("/static/").HandlerFunc(http.FileServer(http.FS(staticFiles)).ServeHTTP).Methods("GET")
+
+	t.Server.HTTPRouter().Handle("/memberlist", memberlistStatusHandler("", t.MemberlistKV))
 
 	return t.MemberlistKV, nil
 }

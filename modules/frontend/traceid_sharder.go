@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/querier"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/blockboundary"
 )
 
@@ -71,22 +72,20 @@ func (s *asyncTraceSharder) buildShardedRequests(ctx context.Context, parent *ht
 	}
 
 	reqs := make([]*http.Request, s.cfg.QueryShards)
+	params := map[string]string{}
 	// build sharded block queries
 	for i := 0; i < len(s.blockBoundaries); i++ {
 		reqs[i] = parent.Clone(ctx)
-
-		q := reqs[i].URL.Query()
 		if i == 0 {
 			// ingester query
-			q.Add(querier.QueryModeKey, querier.QueryModeIngesters)
+			params[querier.QueryModeKey] = querier.QueryModeIngesters
 		} else {
 			// block queries
-			q.Add(querier.BlockStartKey, hex.EncodeToString(s.blockBoundaries[i-1]))
-			q.Add(querier.BlockEndKey, hex.EncodeToString(s.blockBoundaries[i]))
-			q.Add(querier.QueryModeKey, querier.QueryModeBlocks)
+			params[querier.BlockStartKey] = hex.EncodeToString(s.blockBoundaries[i-1])
+			params[querier.BlockEndKey] = hex.EncodeToString(s.blockBoundaries[i])
+			params[querier.QueryModeKey] = querier.QueryModeBlocks
 		}
-		reqs[i].URL.RawQuery = q.Encode()
-
+		reqs[i] = api.BuildQueryRequest(reqs[i], params)
 		prepareRequestForQueriers(reqs[i], userID)
 	}
 

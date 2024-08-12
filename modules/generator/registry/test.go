@@ -42,13 +42,14 @@ func (t *TestRegistry) NewLabelValueCombo(labels []string, values []string) *Lab
 	return newLabelValueCombo(labels, values)
 }
 
-func (t *TestRegistry) NewHistogram(name string, buckets []float64) Histogram {
+func (t *TestRegistry) NewHistogram(name string, buckets []float64, histogramOverrides string) Histogram {
 	return &testHistogram{
-		nameSum:    name + "_sum",
-		nameCount:  name + "_count",
-		nameBucket: name + "_bucket",
-		buckets:    buckets,
-		registry:   t,
+		nameSum:            name + "_sum",
+		nameCount:          name + "_count",
+		nameBucket:         name + "_bucket",
+		buckets:            buckets,
+		registry:           t,
+		histogramOverrides: histogramOverrides,
 	}
 }
 
@@ -164,11 +165,12 @@ func (t *testGauge) removeStaleSeries(int64) {
 }
 
 type testHistogram struct {
-	nameSum    string
-	nameCount  string
-	nameBucket string
-	buckets    []float64
-	registry   *TestRegistry
+	nameSum            string
+	nameCount          string
+	nameBucket         string
+	buckets            []float64
+	registry           *TestRegistry
+	histogramOverrides string
 }
 
 var (

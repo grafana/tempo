@@ -187,7 +187,7 @@ func BenchmarkFindTraceByID(b *testing.B) {
 	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
 	require.NoError(b, err)
 
-	traceID := meta.MinID
+	traceID := []byte{}
 	block := newBackendBlock(meta, rr)
 
 	// index := genIndex(b, block)

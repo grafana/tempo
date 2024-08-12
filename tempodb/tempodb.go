@@ -528,6 +528,10 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 		rw.cfg.BlocklistPollConcurrency = DefaultBlocklistPollConcurrency
 	}
 
+	if rw.cfg.BlocklistPollTenantConcurrency == 0 {
+		rw.cfg.BlocklistPollTenantConcurrency = DefaultBlocklistPollTenantConcurrency
+	}
+
 	if rw.cfg.BlocklistPollTenantIndexBuilders <= 0 {
 		rw.cfg.BlocklistPollTenantIndexBuilders = DefaultTenantIndexBuilders
 	}
@@ -545,6 +549,8 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 		StaleTenantIndex:           rw.cfg.BlocklistPollStaleTenantIndex,
 		PollJitterMs:               rw.cfg.BlocklistPollJitterMs,
 		TolerateConsecutiveErrors:  rw.cfg.BlocklistPollTolerateConsecutiveErrors,
+		TolerateTenantFailures:     rw.cfg.BlocklistPollTolerateTenantFailures,
+		TenantPollConcurrency:      rw.cfg.BlocklistPollTenantConcurrency,
 		EmptyTenantDeletionAge:     rw.cfg.EmptyTenantDeletionAge,
 		EmptyTenantDeletionEnabled: rw.cfg.EmptyTenantDeletionEnabled,
 	}, sharder, rw.r, rw.c, rw.w, rw.logger)
@@ -603,7 +609,7 @@ func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart, blockEnd []byte
 		return false
 	}
 
-	return b.ReplicationFactor == uint32(replicationFactor)
+	return b.ReplicationFactor == uint8(replicationFactor)
 }
 
 // if block is compacted within lookback period, and is within shard ranges, include it in search

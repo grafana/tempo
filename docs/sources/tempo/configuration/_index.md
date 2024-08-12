@@ -1071,6 +1071,9 @@ storage:
         # the index. Default 2.
         [blocklist_poll_tenant_index_builders: <int>]
 
+        # Number of tenants to poll concurrently. Default is 1.
+        [blocklist_poll_tenant_concurrency: <int>]
+
         # The oldest allowable tenant index. If an index is pulled that is older than this duration,
         # the polling will consider this an error. Note that `blocklist_poll_fallback` applies here.
         # If fallback is true and a tenant index exceeds this duration, it will fall back to listing
@@ -1084,11 +1087,19 @@ storage:
         # Default 0 (disabled)
         [blocklist_poll_jitter_ms: <int>]
 
-        # Polling will tolerate this many consecutive errors before failing and exiting early for the
-        # current repoll. Can be set to 0 which means a single error is sufficient to fail and exit early
-        # (matches the original polling behavior).
+        # Polling will tolerate this many consecutive errors during the poll of
+        # a single tenant before marking the tenant as failed.
+        # This can be set to 0 which means a single error is sufficient to mark the tenant failed
+        # and exit early.  Any previous results for the failing tenant will be kept.
+        # See also `blocklist_poll_tolerate_tenant_failures` below.
         # Default 1
         [blocklist_poll_tolerate_consecutive_errors: <int>]
+
+        # Polling will tolerate this number of tenants which have failed to poll.
+        # This can be set to 0 which means a single tenant failure  sufficient to fail and exit
+        # early.
+        # Default 1
+        [blocklist_poll_tolerate_tenant_failures: <int>]
 
         # Used to tune how quickly the poller will delete any remaining backend
         # objects found in the tenant path.  This functionality requires enabling
@@ -1590,6 +1601,11 @@ overrides:
       # considered in metrics generation.
       # This is to filter out spans that are outdated.
       [ingestion_time_range_slack: <duration>]
+
+      # Configures the histogram implementation to use for span metrics and
+      # service graphs processors.  If native histograms are desired, the
+      # receiver must be configured to ingest native histograms.
+      [generate_native_histograms: <classic|native|both> | default = classic]
 
       # Distributor -> metrics-generator forwarder related overrides
       forwarder:
