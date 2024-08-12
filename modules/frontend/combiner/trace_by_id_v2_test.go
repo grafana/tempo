@@ -64,4 +64,18 @@ func TestNewTraceByIDV2(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, res)
 	})
+
+	t.Run("returns a partial trace", func(t *testing.T) {
+		combiner := NewTraceByIDV2(10, api.HeaderAcceptJSON)
+		err = combiner.AddResponse(MockResponse{&response})
+		require.NoError(t, err)
+
+		res, err := combiner.HTTPFinal()
+		require.NoError(t, err)
+
+		actualResp := &tempopb.TraceByIDResponse{}
+		err = new(jsonpb.Unmarshaler).Unmarshal(res.Body, actualResp)
+		require.NoError(t, err)
+		assert.True(t, actualResp.PartialTrace)
+	})
 }
