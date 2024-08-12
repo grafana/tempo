@@ -51,7 +51,7 @@ func TestNewTraceByIdV2ReturnsAPartialTrace(t *testing.T) {
 	actualResp := &tempopb.TraceByIDResponse{}
 	err = new(jsonpb.Unmarshaler).Unmarshal(res.Body, actualResp)
 	require.NoError(t, err)
-	assert.True(t, actualResp.PartialTrace)
+	assert.Equal(t, actualResp.TraceType, tempopb.TraceByIDResponse_PARTIAL)
 }
 
 func TestNewTraceByIDV2(t *testing.T) {

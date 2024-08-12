@@ -26,8 +26,8 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat string) Combiner {
 			resp.Trace = traceResult
 
 			if combiner.IsPartialTrace() {
-				resp.PartialTrace = true
-				resp.Warning = fmt.Sprintf("Trace exceeds maximun size of %d bytes, a partial trace is returned", maxBytes)
+				resp.TraceType = tempopb.TraceByIDResponse_PARTIAL
+				resp.Message = fmt.Sprintf("Trace exceeds maximun size of %d bytes, a partial trace is returned", maxBytes)
 			}
 
 			return resp, nil

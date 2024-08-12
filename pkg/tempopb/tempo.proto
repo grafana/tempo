@@ -58,8 +58,12 @@ message TraceByIDRequest {
 message TraceByIDResponse {
   Trace trace = 1;
   TraceByIDMetrics metrics = 2;
-  bool partialTrace = 3;
-  string warning = 4;
+  enum TraceType {
+    COMPLETE = 0;
+    PARTIAL = 1;
+  }
+  TraceType traceType = 3;
+  string message = 4;
 }
 
 message TraceByIDMetrics {}
