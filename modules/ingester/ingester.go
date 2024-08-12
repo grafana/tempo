@@ -218,7 +218,7 @@ func (i *Ingester) PushBytes(ctx context.Context, req *tempopb.PushBytesRequest)
 	}
 
 	for i, t := range req.Traces {
-		trace, err := v1Decoder.PrepareForRead([][]byte{t.Slice})
+		trace, err := v1Decoder.PrepareForRead([][]byte{t.Slice}, false)
 		if err != nil {
 			return nil, fmt.Errorf("error calling v1.PrepareForRead: %w", err)
 		}
