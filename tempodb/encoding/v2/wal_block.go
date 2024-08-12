@@ -162,7 +162,7 @@ func (a *walBlock) Append(id common.ID, b []byte, start, end uint32) error {
 		return err
 	}
 	start, end = a.adjustTimeRangeForSlack(start, end, 0)
-	a.meta.ObjectAdded(id, start, end)
+	a.meta.ObjectAdded(start, end)
 	return nil
 }
 
@@ -368,7 +368,7 @@ func (a *walBlock) adjustTimeRangeForSlack(start, end uint32, additionalStartSla
 		warn = true
 		start = uint32(now.Unix())
 	}
-	if end > endOfRange {
+	if end > endOfRange || end < start {
 		warn = true
 		end = uint32(now.Unix())
 	}
