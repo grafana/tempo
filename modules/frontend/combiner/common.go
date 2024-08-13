@@ -194,7 +194,10 @@ func (c *genericCombiner[T]) GRPCDiff() (T, error) {
 		return empty, err
 	}
 
-	return diff, nil
+	// clone the diff to prevent race conditions with marshalling this data
+	diffClone := proto.Clone(diff)
+
+	return diffClone.(T), nil
 }
 
 func (c *genericCombiner[T]) erroredResponse() (*http.Response, error) {
