@@ -88,7 +88,7 @@ type Processor struct {
 	logger             log.Logger
 }
 
-func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger) (gen.Processor, error) {
+func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger) gen.Processor {
 	labels := []string{"client", "server", "connection_type"}
 
 	if cfg.EnableVirtualNodeLabel {
@@ -146,7 +146,7 @@ func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger) (g
 		}()
 	}
 
-	return p, nil
+	return p
 }
 
 func (p *Processor) Name() string {
