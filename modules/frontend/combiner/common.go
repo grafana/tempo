@@ -176,7 +176,9 @@ func (c *genericCombiner[T]) GRPCFinal() (T, error) {
 		return empty, err
 	}
 
-	return final, nil
+	// clone the final response to prevent race conditions with marshalling this data
+	finalClone := proto.Clone(final).(T)
+	return finalClone, nil
 }
 
 func (c *genericCombiner[T]) GRPCDiff() (T, error) {
@@ -196,7 +198,6 @@ func (c *genericCombiner[T]) GRPCDiff() (T, error) {
 
 	// clone the diff to prevent race conditions with marshalling this data
 	diffClone := proto.Clone(diff)
-
 	return diffClone.(T), nil
 }
 
