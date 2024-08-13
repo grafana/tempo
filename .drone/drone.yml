@@ -18,7 +18,7 @@ steps:
   - COMPONENT=tempo-vulture GOARCH=amd64 make exe
   - COMPONENT=tempo-query GOARCH=amd64 make exe
   - COMPONENT=tempo-cli GOARCH=amd64 make exe
-  image: golang:1.22-alpine
+  image: golang:1.23-alpine
   name: build-tempo-binaries
 - image: plugins/docker
   name: build-tempo-image
@@ -95,7 +95,7 @@ steps:
   - COMPONENT=tempo-vulture GOARCH=arm64 make exe
   - COMPONENT=tempo-query GOARCH=arm64 make exe
   - COMPONENT=tempo-cli GOARCH=arm64 make exe
-  image: golang:1.22-alpine
+  image: golang:1.23-alpine
   name: build-tempo-binaries
 - image: plugins/docker
   name: build-tempo-image
@@ -377,7 +377,7 @@ steps:
   - cd ./cmd/tempo-serverless
   - make build-docker-gcr-binary
   - make build-lambda-zip
-  image: golang:1.22-alpine
+  image: golang:1.23-alpine
   name: build-tempo-serverless
 - image: plugins/gcr
   name: deploy-tempo-serverless-gcr
@@ -447,7 +447,7 @@ steps:
     NFPM_SIGNING_KEY:
       from_secret: gpg_private_key
     NFPM_SIGNING_KEY_FILE: /drone/src/private-key.key
-  image: golang:1.22
+  image: golang:1.23
   name: write-key
 - commands:
   - make release-snapshot
@@ -455,7 +455,7 @@ steps:
     NFPM_DEFAULT_PASSPHRASE:
       from_secret: gpg_passphrase
     NFPM_SIGNING_KEY_FILE: /drone/src/private-key.key
-  image: golang:1.22
+  image: golang:1.23
   name: test release
 - commands:
   - ./tools/packaging/verify-deb-install.sh
@@ -481,7 +481,7 @@ steps:
     NFPM_DEFAULT_PASSPHRASE:
       from_secret: gpg_passphrase
     NFPM_SIGNING_KEY_FILE: /drone/src/private-key.key
-  image: golang:1.22
+  image: golang:1.23
   name: release
   when:
     event:
@@ -565,6 +565,6 @@ kind: secret
 name: gpg_passphrase
 ---
 kind: signature
-hmac: bee5601dffa0f46559f5d8734ebda1261ec9171a3dca7add1a23188f6f162945
+hmac: a489a9809cc5a994d7453ac654e242ad6c3378d5c279ca1d1a7a20fc196207a4
 
 ...
