@@ -210,8 +210,8 @@ func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, versio
 }
 
 // ObjectAdded updates the block meta appropriately based on information about an added record
-// start/end are unix epoch seconds
-func (b *BlockMeta) ObjectAdded(id []byte, start, end uint32) {
+// start/end are unix epoch seconds, when 0 the start and the end are not applied.
+func (b *BlockMeta) ObjectAdded(start, end uint32) {
 	if start > 0 {
 		startTime := time.Unix(int64(start), 0)
 		if b.StartTime.IsZero() || startTime.Before(b.StartTime) {

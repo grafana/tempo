@@ -66,6 +66,7 @@
 * [BUGFIX] Fix prefix handling in Azure backend Find() call [#3875](https://github.com/grafana/tempo/pull/3875) (@zalegrala)
 * [BUGFIX] **BREAKING CHANGE** Remove unused properties from the WAL configuration [#3911](https://github.com/grafana/tempo/pull/3911) (@javiermolinar)
 * [BUGFIX] Bring back OTEL receiver metrics [#3917](https://github.com/grafana/tempo/pull/3917) (@javiermolinar)
+* [BUGFIX] Correct block end time when the ingested traces are outside the ingestion slack [#3954](https://github.com/grafana/tempo/pull/3954) (@javiermolinar)
 
 ## v2.5.0
 
