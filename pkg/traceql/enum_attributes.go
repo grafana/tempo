@@ -135,6 +135,8 @@ var (
 	IntrinsicLinkSpanIDAttribute          = NewIntrinsic(IntrinsicLinkSpanID)
 	IntrinsicEventNameAttribute           = NewIntrinsic(IntrinsicEventName)
 	IntrinsicEventTimeSinceStartAttribute = NewIntrinsic(IntrinsicEventTimeSinceStart)
+	IntrinsicScopeNameAttribute           = NewIntrinsic(IntrinsicScopeName)
+	IntrinsicScopeVersionAttribute        = NewIntrinsic(IntrinsicScopeVersion)
 )
 
 func (i Intrinsic) String() string {

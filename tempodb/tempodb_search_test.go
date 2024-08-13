@@ -60,8 +60,8 @@ func TestSearchCompleteBlock(t *testing.T) {
 			)
 		})
 		if vers == vparquet4.VersionString {
-			t.Run("event/link query", func(t *testing.T) {
-				runEventLinkSearchTest(t, vers)
+			t.Run("event/link/scope query", func(t *testing.T) {
+				runEventLinkScopeSearchTest(t, vers)
 			})
 		}
 	}
@@ -1657,7 +1657,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	// todo: do some compaction and then call runner again
 }
 
-func runEventLinkSearchTest(t *testing.T, blockVersion string) {
+func runEventLinkScopeSearchTest(t *testing.T, blockVersion string) {
 	// only run this test for vparquet4
 	if blockVersion != vparquet4.VersionString {
 		return
@@ -1720,6 +1720,15 @@ func runEventLinkSearchTest(t *testing.T, blockVersion string) {
 		},
 		{
 			Query: "{ link:traceID = `" + wantIDText + "` }",
+		},
+		{
+			Query: "{ scope:name = `scope-1` }",
+		},
+		{
+			Query: "{ scope:version = `version-1` }",
+		},
+		{
+			Query: "{ scope.scope-attr-str = `scope-attr-1` }",
 		},
 	}
 
@@ -1892,6 +1901,14 @@ func makeExpectedTrace() (
 				},
 				ScopeSpans: []*v1.ScopeSpans{
 					{
+						Scope: &v1_common.InstrumentationScope{
+							Name:                   "scope-1",
+							Version:                "version-1",
+							DroppedAttributesCount: 1,
+							Attributes: []*v1_common.KeyValue{
+								stringKV("scope-attr-str", "scope-attr-1"),
+							},
+						},
 						Spans: []*v1.Span{
 							{
 								TraceId:           id,

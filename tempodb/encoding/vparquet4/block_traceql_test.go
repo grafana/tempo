@@ -157,6 +157,10 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		{"link:spanID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:spanID = "1234567890abcdef"}`)},
 		{"link:traceID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:traceID = "1234567890abcdef1234567890abcdef"}`)},
 		{"link.opentracing.ref_type", traceql.MustExtractFetchSpansRequestWithMetadata(`{link.opentracing.ref_type = "child-of"}`)},
+		// Instrumentation Scope
+		{"scope:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{scope:name = "scope-1"}`)},
+		{"scope:version", traceql.MustExtractFetchSpansRequestWithMetadata(`{scope:version = "version-1"}`)},
+		{"scope.attr-str", traceql.MustExtractFetchSpansRequestWithMetadata(`{scope.scope-attr-str = "scope-attr-1"}`)},
 		// Basic data types and operations
 		{".float = 456.78", traceql.MustExtractFetchSpansRequestWithMetadata(`{.float = 456.78}`)},             // Float ==
 		{".float != 456.79", traceql.MustExtractFetchSpansRequestWithMetadata(`{.float != 456.79}`)},           // Float !=

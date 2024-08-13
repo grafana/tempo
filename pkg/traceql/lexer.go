@@ -79,7 +79,7 @@ var tokens = map[string]int{
 	"traceID":             TRACE_ID,
 	"spanID":              SPAN_ID,
 	"timeSinceStart":      TIMESINCESTART,
-	"version":			   VERSION,
+	"version":             VERSION,
 	"parent":              PARENT,
 	"parent.":             PARENT_DOT,
 	"resource.":           RESOURCE_DOT,
@@ -222,7 +222,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 		multiTok == LINK_COLON ||
 		multiTok == SCOPE_COLON ||
 		multiTok == EVENT_DOT ||
-		multiTok == LINK_DOT || 
+		multiTok == LINK_DOT ||
 		multiTok == SCOPE_DOT {
 
 		l.currentScope = multiTok

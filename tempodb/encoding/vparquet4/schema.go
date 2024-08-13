@@ -50,8 +50,8 @@ const (
 	DefinitionLevelServiceStats                   = 1
 	DefinitionLevelResourceSpans                  = 1
 	DefinitionLevelResourceAttrs                  = 2
-	DefinitionLevelInstrumentationScope           = 3
-	DefinitionLevelInstrumentationScopeAttrs      = 4
+	DefinitionLevelInstrumentationScope           = 2
+	DefinitionLevelInstrumentationScopeAttrs      = 3
 	DefinitionLevelResourceSpansILSSpan           = 3
 	DefinitionLevelResourceSpansILSSpanAttrs      = 4
 	DefinitionLevelResourceSpansILSSpanEvent      = 4
