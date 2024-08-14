@@ -15,7 +15,7 @@ type metricsGeneratorOverrides interface {
 	registry.Overrides
 	storage.Overrides
 
-	MetricsGeneratorGenerateNativeHistograms(userID string) string
+	MetricsGeneratorGenerateNativeHistograms(userID string) overrides.HistogramMethod
 	MetricsGeneratorIngestionSlack(userID string) time.Duration
 	MetricsGeneratorProcessors(userID string) map[string]struct{}
 	MetricsGeneratorProcessorServiceGraphsHistogramBuckets(userID string) []float64

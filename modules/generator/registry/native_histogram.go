@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grafana/tempo/modules/overrides"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/exemplar"
@@ -38,7 +37,7 @@ type nativeHistogram struct {
 	// Can be "native", classic", "both" to determine which histograms to
 	// generate.  A diff in the configured value on the processors will cause a
 	// reload of the process, and a new instance of the histogram to be created.
-	histogramOverride string
+	histogramOverride HistogramMode
 }
 
 type nativeHistogramSeries struct {
@@ -54,7 +53,7 @@ var (
 	_ metric    = (*nativeHistogram)(nil)
 )
 
-func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, histogramOverride string) *nativeHistogram {
+func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, histogramOverride HistogramMode) *nativeHistogram {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -62,10 +61,6 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 	}
 	if onRemoveSeries == nil {
 		onRemoveSeries = func(uint32) {}
-	}
-
-	if histogramOverride == "" {
-		histogramOverride = "native"
 	}
 
 	if traceIDLabelName == "" {
@@ -175,7 +170,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		s.histogram = encodedMetric.GetHistogram()
 
 		// If we are in "both" or "classic" mode, also emit classic histograms.
-		if overrides.HasClassicHistograms(h.histogramOverride) {
+		if hasClassicHistograms(h.histogramOverride) {
 			classicSeries, classicErr := h.classicHistograms(appender, lb, timeMs, s)
 			if classicErr != nil {
 				return activeSeries, classicErr
@@ -184,7 +179,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		}
 
 		// If we are in "both" or "native" mode, also emit native histograms.
-		if overrides.HasNativeHistograms(h.histogramOverride) {
+		if hasNativeHistograms(h.histogramOverride) {
 			nativeErr := h.nativeHistograms(appender, lb, timeMs, s)
 			if nativeErr != nil {
 				return activeSeries, nativeErr
