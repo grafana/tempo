@@ -1,4 +1,4 @@
-local apps = ['tempo', 'tempo-vulture', 'tempo-query'];
+local apps = ['tempo', 'tempo-vulture', 'tempo-query', 'tempo-cli'];
 local archs = ['amd64', 'arm64'];
 
 //# Building blocks ##
