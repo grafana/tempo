@@ -495,7 +495,8 @@ func TestStatic_AsAnyValue(t *testing.T) {
 			NewStaticFloatArray([]float64{1.1, 2.2}),
 			&v1.AnyValue{
 				Value: &v1.AnyValue_ArrayValue{
-					ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.1}}, {Value: &v1.AnyValue_DoubleValue{DoubleValue: 2.2}}}}},
+					ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.1}}, {Value: &v1.AnyValue_DoubleValue{DoubleValue: 2.2}}}},
+				},
 			},
 		},
 		{
