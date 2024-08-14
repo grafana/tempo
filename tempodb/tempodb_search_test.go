@@ -1469,7 +1469,8 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 			actualMap := valueCollector.Strings()
 
 			if (bm.Version == vparquet4.VersionString) && (tc.name == "resource match" || tc.name == "span match") {
-				// v4 has events and links
+				// v4 has scope, events, and links
+				tc.expected["scope"] = []string{"scope-attr-str"}
 				tc.expected["event"] = []string{"exception.message"}
 				tc.expected["link"] = []string{"relation"}
 			}

@@ -407,6 +407,26 @@ func testSearchTagsAndValuesV2(
 	sort.Strings(expectedLinkTagValues)
 	assert.Contains(t, tagsResp.TagNames, tagName)
 	assert.Equal(t, expectedLinkTagValues, tagValues)
+
+	// scope scope attr
+
+	tagValuesResp, err = i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
+		TagName: fmt.Sprintf("scope.%s", tagName),
+		Query:   query,
+	})
+	require.NoError(t, err)
+
+	tagValues = make([]string, 0, len(tagValuesResp.TagValues))
+	for _, v := range tagValuesResp.TagValues {
+		tagValues = append(tagValues, v.Value)
+	}
+
+	sort.Strings(tagValues)
+	sort.Strings(expectedTagValues)
+	assert.Contains(t, tagsResp.TagNames, tagName)
+	assert.Equal(t, expectedTagValues, tagValues)
+
+
 }
 
 // TestInstanceSearchTagsSpecialCases tess that SearchTags errors on an unknown scope and
@@ -425,6 +445,7 @@ func TestInstanceSearchTagsSpecialCases(t *testing.T) {
 		t,
 		[]string{
 			"duration", "event:name", "event:timeSinceStart", "kind", "name", "rootName", "rootServiceName",
+			"scope:name", "scope:version",
 			"span:duration", "span:kind", "span:name", "span:status", "span:statusMessage", "status", "statusMessage",
 			"trace:duration", "trace:rootName", "trace:rootService", "traceDuration",
 		},
@@ -562,6 +583,11 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 		// add the time
 		for _, batch := range testTrace.ResourceSpans {
 			for _, ils := range batch.ScopeSpans {
+				ils.Scope = &v1.InstrumentationScope{
+					Name: "scope-name",
+					Version: "scope-version",
+					Attributes: []*v1.KeyValue{kv},
+				}
 				for _, span := range ils.Spans {
 					span.Name = spanName
 					span.StartTimeUnixNano = uint64(now.UnixNano())

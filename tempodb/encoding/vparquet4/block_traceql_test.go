@@ -645,6 +645,9 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 						Scope: InstrumentationScope{
 							Name:    "scope-2",
 							Version: "version-2",
+							Attrs: []Attribute{
+								attr("scope-attr-str", "scope-attr-2"),
+							},
 						},
 						Spans: []Span{
 							{
@@ -746,6 +749,7 @@ func TestBackendBlockSelectAll(t *testing.T) {
 			sortAttrs(s.traceAttrs)
 			sortAttrs(s.resourceAttrs)
 			sortAttrs(s.spanAttrs)
+			sortAttrs(s.scopeAttrs)
 		}
 
 		require.Equal(t, wantSS, ss)
@@ -837,6 +841,20 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 		sortAttrs(rsAttrs)
 
 		for _, ss := range rs.ScopeSpans {
+			var scopeAttrs []attrVal
+			scopeAttrs = append(scopeAttrs, attrVal{traceql.IntrinsicScopeNameAttribute, traceql.NewStaticString(ss.Scope.Name)})
+			scopeAttrs = append(scopeAttrs, attrVal{traceql.IntrinsicScopeVersionAttribute, traceql.NewStaticString(ss.Scope.Version)})
+			for _, a := range parquetToProtoAttrs(ss.Scope.Attrs) {
+				if arr := a.Value.GetArrayValue(); arr != nil {
+					for _, v := range arr.Values {
+						scopeAttrs = append(scopeAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, a.Key), traceql.StaticFromAnyValue(v)})
+					}
+					continue
+				}
+				scopeAttrs = append(scopeAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, a.Key), traceql.StaticFromAnyValue(a.Value)})
+			}
+			sortAttrs(scopeAttrs)
+
 			for _, s := range ss.Spans {
 
 				newS := &span{}
@@ -845,6 +863,7 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 				newS.durationNanos = s.DurationNano
 				newS.setTraceAttrs(traceAttrs)
 				newS.setResourceAttrs(rsAttrs)
+				newS.setScopeAttrs(scopeAttrs)
 				newS.addSpanAttr(traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(s.DurationNano)))
 				newS.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(otlpKindToTraceqlKind(uint64(s.Kind))))
 				newS.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(s.Name))

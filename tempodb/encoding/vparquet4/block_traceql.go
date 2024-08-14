@@ -2136,6 +2136,15 @@ func createScopeIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator
 		genericConditions = append(genericConditions, cond)
 	}
 
+	if selectAll {
+		for _, entry := range intrinsicColumnLookups {
+			if entry.scope != intrinsicScopeScope {
+				continue
+			}
+			iters = append(iters, makeIter(entry.columnPath, nil, entry.columnPath))
+		}
+	}
+
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelInstrumentationScopeAttrs,
 		columnPathScopeAttrKey, columnPathScopeAttrString, columnPathScopeAttrInt, columnPathScopeAttrDouble, columnPathScopeAttrBool, allConditions, selectAll)
 	if err != nil {
