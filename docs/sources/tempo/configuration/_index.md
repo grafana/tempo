@@ -562,7 +562,7 @@ query_frontend:
     [api_timeout: <duration>]
 
     # A list of regular expressions for refusing matching requests, these will apply for every request regardless of the endpoint.
-    [url_black_list: <list of strings> | default = <empty list>]]
+    [url_deny_list: <list of strings> | default = <empty list>]]
 
     search:
 

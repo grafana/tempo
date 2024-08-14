@@ -31,7 +31,7 @@ type Config struct {
 	APITimeout time.Duration `yaml:"api_timeout,omitempty"`
 
 	// A list of regexes for black listing requests, these will apply for every request regardless the endpoint
-	URLBlackList []string `yaml:"url_black_list,omitempty"`
+	URLDenyList []string `yaml:"url_deny_list,omitempty"`
 }
 
 type SearchConfig struct {

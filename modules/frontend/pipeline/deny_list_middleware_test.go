@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/go-kit/log"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,20 +20,24 @@ var next = AsyncRoundTripperFunc[combiner.PipelineResponse](func(_ Request) (Res
 })
 
 func TestURLBlackListMiddlewareForEmptyBlackList(t *testing.T) {
-	logger := log.NewNopLogger()
 	regexes := []string{}
-	roundTrip := NewURLBlackListWare(regexes, logger).Wrap(next)
+	roundTrip := NewURLDenyListWare(regexes).Wrap(next)
 	statusCode := DoRequest(t, "http://localhost:8080/api/v2/traces/123345", roundTrip)
 	assert.Equal(t, 200, statusCode)
 }
 
+func TestURLBlackListMiddlewarePanicsOnSyntacticallyIncorrectRegex(t *testing.T) {
+	regexes := []string{"qr/^(.*\\.traces\\/[a-f0-9]{32}$/"}
+	assert.Panics(t, func() {
+		NewURLDenyListWare(regexes).Wrap(next)
+	})
+}
+
 func TestURLBlackListMiddleware(t *testing.T) {
-	logger := log.NewNopLogger()
 	regexes := []string{
-		"qr/^(.*\\.traces\\/[a-f0-9]{32}$/", // Invalid regex
 		"^.*v2.*",
 	}
-	roundTrip := NewURLBlackListWare(regexes, logger).Wrap(next)
+	roundTrip := NewURLDenyListWare(regexes).Wrap(next)
 	statusCode := DoRequest(t, "http://localhost:9000", roundTrip)
 	assert.Equal(t, 200, statusCode)
 
