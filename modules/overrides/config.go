@@ -290,7 +290,3 @@ func (c *Config) Collect(ch chan<- prometheus.Metric) {
 func HasNativeHistograms(s HistogramMethod) bool {
 	return s == HistogramMethodNative || s == HistogramMethodBoth
 }
-
-func HasClassicHistograms(s HistogramMethod) bool {
-	return s == HistogramMethodClassic || s == HistogramMethodBoth
-}
