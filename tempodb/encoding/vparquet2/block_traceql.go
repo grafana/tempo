@@ -681,10 +681,10 @@ const (
 	otherEntrySpanKey    = "span"
 
 	// a fake intrinsic scope at the trace lvl
-	intrinsicScopeTrace = -1
-	intrinsicScopeSpan  = -2
-	intrinsicScopeEvent = -3
-	intrinsicScopeLink  = -4
+	intrinsicScopeTrace           = -1
+	intrinsicScopeSpan            = -2
+	intrinsicScopeEvent           = -3
+	intrinsicScopeLink            = -4
 	intrinsicScopeInstrumentation = -5
 )
 
@@ -800,8 +800,8 @@ func checkConditions(conditions []traceql.Condition) error {
 		// Check for conditions that are not supported in vParquet2
 		if cond.Attribute.Intrinsic == traceql.IntrinsicEventName ||
 			cond.Attribute.Intrinsic == traceql.IntrinsicLinkTraceID ||
-			cond.Attribute.Intrinsic == traceql.IntrinsicLinkSpanID || 
-			cond.Attribute.Intrinsic == traceql.IntrinsicScopeName || 
+			cond.Attribute.Intrinsic == traceql.IntrinsicLinkSpanID ||
+			cond.Attribute.Intrinsic == traceql.IntrinsicScopeName ||
 			cond.Attribute.Intrinsic == traceql.IntrinsicScopeVersion {
 
 			return fmt.Errorf("intrinsic '%s' not supported in vParquet2: %w", cond.Attribute.Intrinsic, common.ErrUnsupported)

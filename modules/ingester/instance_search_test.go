@@ -425,8 +425,6 @@ func testSearchTagsAndValuesV2(
 	sort.Strings(expectedTagValues)
 	assert.Contains(t, tagsResp.TagNames, tagName)
 	assert.Equal(t, expectedTagValues, tagValues)
-
-
 }
 
 // TestInstanceSearchTagsSpecialCases tess that SearchTags errors on an unknown scope and
@@ -584,8 +582,8 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 		for _, batch := range testTrace.ResourceSpans {
 			for _, ils := range batch.ScopeSpans {
 				ils.Scope = &v1.InstrumentationScope{
-					Name: "scope-name",
-					Version: "scope-version",
+					Name:       "scope-name",
+					Version:    "scope-version",
 					Attributes: []*v1.KeyValue{kv},
 				}
 				for _, span := range ils.Spans {
