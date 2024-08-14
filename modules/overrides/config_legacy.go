@@ -118,7 +118,7 @@ type LegacyOverrides struct {
 
 	// Compactor enforced limits.
 	BlockRetention   model.Duration `yaml:"block_retention" json:"block_retention"`
-	Disabled         bool           `yaml:"disabled" json:"disabled"`
+	Disabled         bool           `yaml:"compaction_disabled" json:"compaction_disabled"`
 	CompactionWindow model.Duration `yaml:"compaction_window" json:"compaction_window"`
 
 	// Querier and Ingester enforced limits.
