@@ -48,12 +48,17 @@ func (m *mockJobSharder) Owns(string) bool { return true }
 
 type mockOverrides struct {
 	blockRetention      time.Duration
+	disabled            bool
 	maxBytesPerTrace    int
 	maxCompactionWindow time.Duration
 }
 
 func (m *mockOverrides) BlockRetentionForTenant(_ string) time.Duration {
 	return m.blockRetention
+}
+
+func (m *mockOverrides) DisabledForTenant(_ string) bool {
+	return m.disabled
 }
 
 func (m *mockOverrides) MaxBytesPerTraceForTenant(_ string) int {
