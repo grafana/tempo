@@ -18,7 +18,7 @@ labels:
 
 ## Span and resource attributes
 
-[Traces]({{< relref "../introduction" >}}) are built from spans, which denote units of work such as a call to, or from, an upstream service. Spans are constructed primarily of span and resource attributes.
+[Traces](https://grafana.com/docs/tempo/<TEMPO_VERSION>/introduction/) are built from spans, which denote units of work such as a call to, or from, an upstream service. Spans are constructed primarily of span and resource attributes.
 Spans also have a hierarchy, where parent spans can have children or siblings.
 
 In the screenshot below, the left side of the screen (1) shows the list of results for the query. The right side (2) lists each span that makes up the selected trace.
@@ -63,7 +63,8 @@ In general, consider the following guidelines:
 - Don't use redundant attributes.
 - When determining which attributes to add, consider an application's service flow, and execution in the context of only the current span.
 
-The OpenTelemetry project does not specify a maximum number of attributes that a span can have. However, the default limits for the number of attributes per span is [128 entries](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/#attribute-limits), so you will have to adjust that. There are also default limits on attribute value and name character lengths.
+The OpenTelemetry project doesn't specify a maximum number of attributes that a span can have.
+However, the default limits for the number of attributes per span is [128 entries](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/#attribute-limits), so you will have to adjust that. There are also default limits on attribute value and name character lengths.
 
 ## Determining where to add spans
 
@@ -78,13 +79,13 @@ However, adding a span for each method or function call in that loop might not, 
 
 ## Span length
 
-While there are some (high) default limits to the length that a span (and by definition, the traces they belong to) can be, these can be adjusted by [these configurations]({{< relref "../configuration#ingestion-limits" >}}).
+While there are some (high) default limits to the length that a span (and by definition, the traces they belong to) can be, these can be adjusted by [these configurations](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#ingestion-limits).
 Traces that include a large number of spans and/or long-running spans can have an impact on the time taken to query them once stored.
-Cloud Traces users should contact Grafana Support to modify overrides
+Cloud Traces users should contact Grafana Support to modify overrides.
 
-For long-running spans and traces, the best way to see this impact on requests is to send a few test cases and see what the performance looks like (and evaluate the trace size).
+For long-running spans and traces, the best way to see this impact on requests is to send a few test cases and see what the performance looks like and to evaluate the trace size.
 
-From there, you can tweak the configuration for Tempo or determine ways to re-architect how the trace is being produced.
+From there, you can modify the configuration for Tempo or determine ways to re-architect how the trace is produced.
 
 You can consider breaking up the spans in several ways:
 - Decompose the query
