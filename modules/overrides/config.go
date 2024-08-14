@@ -250,6 +250,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // RegisterFlagsAndApplyDefaults adds the flags required to config this to the given FlagSet
 func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
+	// Generator
+	c.Defaults.MetricsGenerator.GenerateNativeHistograms = HistogramMethodClassic
+
 	// Distributor LegacyOverrides
 	f.StringVar(&c.Defaults.Ingestion.RateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
 	f.IntVar(&c.Defaults.Ingestion.RateLimitBytes, "distributor.ingestion-rate-limit-bytes", 15e6, "Per-user ingestion rate limit in bytes per second.")
