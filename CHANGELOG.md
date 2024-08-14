@@ -50,7 +50,6 @@
 * [ENHANCEMENT] Update to the latest dskit [#3915](https://github.com/grafana/tempo/pull/3915) (@andreasgerstmayr)
 * [ENHANCEMENT] Reduce allocs building queriers sharded requests [#3932](https://github.com/grafana/tempo/pull/3932) (@javiermolinar)
 * [ENHANCEMENT] Implement polling tenants concurrently [#3647](https://github.com/grafana/tempo/pull/3647) (@zalegrala)
-* [ENHANCEMENT] Fix broken links in the documentation [#3956](https://github.com/grafana/tempo/pull/3956) (@javiermolinar)
 * [BUGFIX] Fix panic in certain metrics queries using `rate()` with `by` [#3847](https://github.com/grafana/tempo/pull/3847) (@stoewer)
 * [BUGFIX] Fix double appending the primary iterator on second pass with event iterator [#3903](https://github.com/grafana/tempo/pull/3903) (@ie-pham)
 * [BUGFIX] Fix metrics queries when grouping by attributes that may not exist [#3734](https://github.com/grafana/tempo/pull/3734) (@mdisibio)
