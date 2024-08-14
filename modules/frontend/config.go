@@ -29,6 +29,9 @@ type Config struct {
 	// traceql, tag search, tag value search, trace by id and all streaming gRPC endpoints.
 	// 0 disables
 	APITimeout time.Duration `yaml:"api_timeout,omitempty"`
+
+	// A list of regexes for black listing requests, these will apply for every request regardless the endpoint
+	URLBlackList []string `yaml:"url_black_list,omitempty"`
 }
 
 type SearchConfig struct {

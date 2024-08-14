@@ -561,6 +561,9 @@ query_frontend:
     # (default: 0)
     [api_timeout: <duration>]
 
+    # A list of regular expressions for refusing matching requests, these will apply for every request regardless of the endpoint.
+    [url_black_list: <list of strings> | default = <empty list>]]
+
     search:
 
         # The number of concurrent jobs to execute when searching the backend.
