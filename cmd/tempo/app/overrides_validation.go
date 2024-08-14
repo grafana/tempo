@@ -34,8 +34,8 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) error {
 		}
 	}
 
-	if v, ok := registry.HistogramModeToValue[string(config.MetricsGenerator.GenerateNativeHistograms)]; !ok {
-		if string(v) != "" {
+	if _, ok := registry.HistogramModeToValue[string(config.MetricsGenerator.GenerateNativeHistograms)]; !ok {
+		if config.MetricsGenerator.GenerateNativeHistograms != "" {
 			return fmt.Errorf("metrics_generator.generate_native_histograms \"%s\" is not a valid value, valid values: classic, native, both", config.MetricsGenerator.GenerateNativeHistograms)
 		}
 	}
