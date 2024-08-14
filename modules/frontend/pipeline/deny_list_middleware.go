@@ -33,7 +33,7 @@ func NewURLDenyListWare(denyList []string) AsyncMiddleware[combiner.PipelineResp
 
 func (c urlDenylistWare) RoundTrip(req Request) (Responses[combiner.PipelineResponse], error) {
 	if len(c.denyList) != 0 {
-		err := c.validateRequest(req.HTTPRequest().URL.Path)
+		err := c.validateRequest(req.HTTPRequest().URL.String())
 		if err != nil {
 			return NewBadRequest(err), nil
 		}

@@ -38,7 +38,7 @@ func TestURLBlackListMiddleware(t *testing.T) {
 		"^.*v2.*",
 	}
 	roundTrip := NewURLDenyListWare(regexes).Wrap(next)
-	statusCode := DoRequest(t, "http://localhost:9000", roundTrip)
+	statusCode := DoRequest(t, "http://localhost:9000?param1=a&param2=b", roundTrip)
 	assert.Equal(t, 200, statusCode)
 
 	// Blacklisted url
