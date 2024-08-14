@@ -108,6 +108,7 @@ type CompactorSharder interface {
 
 type CompactorOverrides interface {
 	BlockRetentionForTenant(tenantID string) time.Duration
+	DisabledForTenant(tenantID string) bool
 	MaxBytesPerTraceForTenant(tenantID string) int
 	MaxCompactionRangeForTenant(tenantID string) time.Duration
 }

@@ -118,6 +118,7 @@ type LegacyOverrides struct {
 
 	// Compactor enforced limits.
 	BlockRetention   model.Duration `yaml:"block_retention" json:"block_retention"`
+	Disabled         bool           `yaml:"disabled" json:"disabled"`
 	CompactionWindow model.Duration `yaml:"compaction_window" json:"compaction_window"`
 
 	// Querier and Ingester enforced limits.
@@ -156,6 +157,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 		},
 		Compaction: CompactionOverrides{
 			BlockRetention:   l.BlockRetention,
+			Disabled:         l.Disabled,
 			CompactionWindow: l.CompactionWindow,
 		},
 		MetricsGenerator: MetricsGeneratorOverrides{
