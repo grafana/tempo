@@ -117,8 +117,9 @@ type LegacyOverrides struct {
 	MetricsGeneratorIngestionSlack                                              time.Duration                    `yaml:"metrics_generator_ingestion_time_range_slack" json:"metrics_generator_ingestion_time_range_slack"`
 
 	// Compactor enforced limits.
-	BlockRetention   model.Duration `yaml:"block_retention" json:"block_retention"`
-	CompactionWindow model.Duration `yaml:"compaction_window" json:"compaction_window"`
+	BlockRetention     model.Duration `yaml:"block_retention" json:"block_retention"`
+	CompactionDisabled bool           `yaml:"compaction_disabled" json:"compaction_disabled"`
+	CompactionWindow   model.Duration `yaml:"compaction_window" json:"compaction_window"`
 
 	// Querier and Ingester enforced limits.
 	MaxBytesPerTagValuesQuery  int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
@@ -155,8 +156,9 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			UnsafeQueryHints:           l.UnsafeQueryHints,
 		},
 		Compaction: CompactionOverrides{
-			BlockRetention:   l.BlockRetention,
-			CompactionWindow: l.CompactionWindow,
+			BlockRetention:     l.BlockRetention,
+			CompactionDisabled: l.CompactionDisabled,
+			CompactionWindow:   l.CompactionWindow,
 		},
 		MetricsGenerator: MetricsGeneratorOverrides{
 			RingSize:                 l.MetricsGeneratorRingSize,
