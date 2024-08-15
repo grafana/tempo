@@ -34,7 +34,9 @@ func TestOne(t *testing.T) {
 	wantTr := fullyPopulatedTestTrace(nil)
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
 	ctx := context.Background()
-	q := `{ resource.region != nil && resource.service.name = "bar" }`
+	q := `{ resource.str-array = "value-one" }` // -> only return one matching element
+	// q := `{ resource.str-array[] = "value-one" }` // -> if it matches, return all elements of array?? maybe do it in the future
+	// q := `{ resource.str-array =~ "value.*" }` // this will return all matching elements??
 	req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
 
 	req.StartTimeUnixNanos = uint64(1000 * time.Second)
@@ -196,13 +198,11 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 			parse(t, `{.foo = "def"}`),
 		)},
 		{"Multiple conditions on same well-known attribute, matches either", makeReq(
-			//
 			parse(t, `{.`+LabelHTTPStatusCode+` = 500}`),
 			parse(t, `{.`+LabelHTTPStatusCode+` > 500}`),
 		)},
 		{
 			"Mix of duration with other conditions", makeReq(
-				//
 				parse(t, `{`+LabelName+` = "hello"}`),   // Match
 				parse(t, `{`+LabelDuration+` < 100s }`), // No match
 			),
