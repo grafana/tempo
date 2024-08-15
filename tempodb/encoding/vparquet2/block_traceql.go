@@ -1937,28 +1937,23 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	// Merge all individual columns into the span
 	for _, kv := range res.Entries {
-		if len(kv.Values) == 0 {
-			continue
-		}
-		v := kv.Values[0]
-
 		switch kv.Key {
 		case columnPathSpanID:
-			sp.id = v.ByteArray()
-			sp.attributes[traceql.IntrinsicSpanIDAttribute] = traceql.NewStaticString(util.SpanIDToHexString(v.ByteArray()))
+			sp.id = kv.Value.ByteArray()
+			sp.attributes[traceql.IntrinsicSpanIDAttribute] = traceql.NewStaticString(util.SpanIDToHexString(kv.Value.ByteArray()))
 		case columnPathSpanStartTime:
-			sp.startTimeUnixNanos = v.Uint64()
+			sp.startTimeUnixNanos = kv.Value.Uint64()
 		case columnPathSpanDuration:
-			durationNanos = v.Uint64()
+			durationNanos = kv.Value.Uint64()
 			sp.durationNanos = durationNanos
 			sp.attributes[traceql.IntrinsicDurationAttribute] = traceql.NewStaticDuration(time.Duration(durationNanos))
 		case columnPathSpanName:
-			sp.attributes[traceql.IntrinsicNameAttribute] = traceql.NewStaticString(v.String())
+			sp.attributes[traceql.IntrinsicNameAttribute] = traceql.NewStaticString(kv.Value.String())
 		case columnPathSpanStatusCode:
 			// Map OTLP status code back to TraceQL enum.
 			// For other values, use the raw integer.
 			var status traceql.Status
-			switch v.Uint64() {
+			switch kv.Value.Uint64() {
 			case uint64(v1.Status_STATUS_CODE_UNSET):
 				status = traceql.StatusUnset
 			case uint64(v1.Status_STATUS_CODE_OK):
@@ -1966,14 +1961,14 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			case uint64(v1.Status_STATUS_CODE_ERROR):
 				status = traceql.StatusError
 			default:
-				status = traceql.Status(v.Uint64())
+				status = traceql.Status(kv.Value.Uint64())
 			}
 			sp.attributes[traceql.IntrinsicStatusAttribute] = traceql.NewStaticStatus(status)
 		case columnPathSpanStatusMessage:
-			sp.attributes[traceql.IntrinsicStatusMessageAttribute] = traceql.NewStaticString(v.String())
+			sp.attributes[traceql.IntrinsicStatusMessageAttribute] = traceql.NewStaticString(kv.Value.String())
 		case columnPathSpanKind:
 			var kind traceql.Kind
-			switch v.Uint64() {
+			switch kv.Value.Uint64() {
 			case uint64(v1.Span_SPAN_KIND_UNSPECIFIED):
 				kind = traceql.KindUnspecified
 			case uint64(v1.Span_SPAN_KIND_INTERNAL):
@@ -1987,27 +1982,27 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 			case uint64(v1.Span_SPAN_KIND_CONSUMER):
 				kind = traceql.KindConsumer
 			default:
-				kind = traceql.Kind(v.Uint64())
+				kind = traceql.Kind(kv.Value.Uint64())
 			}
 			sp.attributes[traceql.IntrinsicKindAttribute] = traceql.NewStaticKind(kind)
 		case columnPathSpanParentID:
-			sp.nestedSetParent = v.Int32()
+			sp.nestedSetParent = kv.Value.Int32()
 		case columnPathSpanNestedSetLeft:
-			sp.nestedSetLeft = v.Int32()
+			sp.nestedSetLeft = kv.Value.Int32()
 		case columnPathSpanNestedSetRight:
-			sp.nestedSetRight = v.Int32()
+			sp.nestedSetRight = kv.Value.Int32()
 		default:
 			// TODO - This exists for span-level dedicated columns like http.status_code
 			// Are nils possible here?
-			switch v.Kind() {
+			switch kv.Value.Kind() {
 			case parquet.Boolean:
-				sp.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticBool(v.Boolean())
+				sp.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticBool(kv.Value.Boolean())
 			case parquet.Int32, parquet.Int64:
-				sp.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticInt(int(v.Int64()))
+				sp.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticInt(int(kv.Value.Int64()))
 			case parquet.Float:
-				sp.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticFloat(v.Double())
+				sp.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticFloat(kv.Value.Double())
 			case parquet.ByteArray:
-				sp.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticString(v.String())
+				sp.attributes[newSpanAttr(kv.Key)] = traceql.NewStaticString(kv.Value.String())
 			}
 		}
 	}
@@ -2073,16 +2068,11 @@ func (c *batchCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 
 	// Gather Attributes from dedicated resource-level columns
 	for _, e := range res.Entries {
-		if len(e.Values) == 0 {
-			continue
-		}
-		v := e.Values[0]
-
-		switch v.Kind() {
+		switch e.Value.Kind() {
 		case parquet.Int64:
-			c.resAttrs[newResAttr(e.Key)] = traceql.NewStaticInt(int(v.Int64()))
+			c.resAttrs[newResAttr(e.Key)] = traceql.NewStaticInt(int(e.Value.Int64()))
 		case parquet.ByteArray:
-			c.resAttrs[newResAttr(e.Key)] = traceql.NewStaticString(v.String())
+			c.resAttrs[newResAttr(e.Key)] = traceql.NewStaticString(e.Value.String())
 		}
 	}
 
@@ -2163,25 +2153,20 @@ func (c *traceCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	clear(c.traceAttrs)
 
 	for _, e := range res.Entries {
-		if len(e.Values) == 0 {
-			continue
-		}
-		v := e.Values[0]
-
 		switch e.Key {
 		case columnPathTraceID:
-			finalSpanset.TraceID = v.ByteArray()
-			c.traceAttrs[traceql.IntrinsicTraceIDAttribute] = traceql.NewStaticString(util.TraceIDToHexString(v.ByteArray()))
+			finalSpanset.TraceID = e.Value.ByteArray()
+			c.traceAttrs[traceql.IntrinsicTraceIDAttribute] = traceql.NewStaticString(util.TraceIDToHexString(e.Value.ByteArray()))
 		case columnPathStartTimeUnixNano:
-			finalSpanset.StartTimeUnixNanos = v.Uint64()
+			finalSpanset.StartTimeUnixNanos = e.Value.Uint64()
 		case columnPathDurationNanos:
-			finalSpanset.DurationNanos = v.Uint64()
+			finalSpanset.DurationNanos = e.Value.Uint64()
 			c.traceAttrs[traceql.IntrinsicTraceDurationAttribute] = traceql.NewStaticDuration(time.Duration(finalSpanset.DurationNanos))
 		case columnPathRootSpanName:
-			finalSpanset.RootSpanName = v.String()
+			finalSpanset.RootSpanName = e.Value.String()
 			c.traceAttrs[traceql.IntrinsicTraceRootSpanAttribute] = traceql.NewStaticString(finalSpanset.RootSpanName)
 		case columnPathRootServiceName:
-			finalSpanset.RootServiceName = v.String()
+			finalSpanset.RootServiceName = e.Value.String()
 			c.traceAttrs[traceql.IntrinsicTraceRootServiceAttribute] = traceql.NewStaticString(finalSpanset.RootServiceName)
 		}
 	}
@@ -2235,28 +2220,23 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	var val traceql.Static
 
 	for _, e := range res.Entries {
-		if e.Values[0].Kind() < 0 {
-			continue
-		}
-		v := e.Values[0]
-
 		// Ignore nulls, this leaves val as the remaining found value,
 		// or nil if the key was found but no matching values
-		if v.Kind() < 0 {
+		if e.Value.Kind() < 0 {
 			continue
 		}
 
 		switch e.Key {
 		case "key":
-			key = v.String()
+			key = e.Value.String()
 		case "string":
-			val = traceql.NewStaticString(v.String())
+			val = traceql.NewStaticString(e.Value.String())
 		case "int":
-			val = traceql.NewStaticInt(int(v.Int64()))
+			val = traceql.NewStaticInt(int(e.Value.Int64()))
 		case "float":
-			val = traceql.NewStaticFloat(v.Double())
+			val = traceql.NewStaticFloat(e.Value.Double())
 		case "bool":
-			val = traceql.NewStaticBool(v.Boolean())
+			val = traceql.NewStaticBool(e.Value.Boolean())
 		}
 	}
 

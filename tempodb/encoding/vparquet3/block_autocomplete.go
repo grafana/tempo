@@ -764,20 +764,15 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 	var val traceql.Static
 
 	for _, e := range result.Entries {
-		if len(e.Values) == 0 {
-			continue
-		}
-		v := e.Values[0]
-
 		// Ignore nulls, this leaves val as the remaining found value,
 		// or nil if the key was found but no matching values
-		if v.Kind() < 0 {
+		if e.Value.Kind() < 0 {
 			continue
 		}
 
 		if d.attrNames {
 			if e.Key == "key" {
-				key := unsafeToString(v.ByteArray())
+				key := unsafeToString(e.Value.ByteArray())
 				if _, ok := d.sentKeys[key]; !ok {
 					result.AppendOtherValue(key, d.scope)
 					d.sentKeys[key] = struct{}{}
@@ -786,13 +781,13 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 		} else {
 			switch e.Key {
 			case "string":
-				val = traceql.NewStaticString(unsafeToString(v.ByteArray()))
+				val = traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 			case "int":
-				val = traceql.NewStaticInt(int(v.Int64()))
+				val = traceql.NewStaticInt(int(e.Value.Int64()))
 			case "float":
-				val = traceql.NewStaticFloat(v.Double())
+				val = traceql.NewStaticFloat(e.Value.Double())
 			case "bool":
-				val = traceql.NewStaticBool(v.Boolean())
+				val = traceql.NewStaticBool(e.Value.Boolean())
 			}
 		}
 	}
@@ -811,8 +806,8 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 }
 
 type entry struct {
-	Key    string
-	Values []parquet.Value
+	Key   string
+	Value parquet.Value
 }
 
 var _ parquetquery.GroupPredicate = (*distinctValueCollector)(nil)
@@ -835,12 +830,7 @@ func (d distinctValueCollector) String() string { return "distinctValueCollector
 
 func (d distinctValueCollector) KeepGroup(result *parquetquery.IteratorResult) bool {
 	for _, e := range result.Entries {
-		if len(e.Values) == 0 {
-			continue
-		}
-		v := e.Values[0]
-
-		if v.IsNull() {
+		if e.Value.IsNull() {
 			continue
 		}
 		static := d.mapToStatic(e)
@@ -856,11 +846,6 @@ func (d distinctValueCollector) KeepGroup(result *parquetquery.IteratorResult) b
 }
 
 func mapSpanAttr(e entry) traceql.Static {
-	if len(e.Values) == 0 {
-		return traceql.NewStaticNil()
-	}
-	v := e.Values[0]
-
 	switch e.Key {
 	case columnPathSpanID,
 		columnPathSpanParentID,
@@ -868,14 +853,14 @@ func mapSpanAttr(e entry) traceql.Static {
 		columnPathSpanNestedSetRight,
 		columnPathSpanStartTime:
 	case columnPathSpanDuration:
-		return traceql.NewStaticDuration(time.Duration(v.Int64()))
+		return traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
 	case columnPathSpanName:
-		return traceql.NewStaticString(unsafeToString(v.ByteArray()))
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	case columnPathSpanStatusCode:
 		// Map OTLP status code back to TraceQL enum.
 		// For other values, use the raw integer.
 		var status traceql.Status
-		switch v.Uint64() {
+		switch e.Value.Uint64() {
 		case uint64(v1.Status_STATUS_CODE_UNSET):
 			status = traceql.StatusUnset
 		case uint64(v1.Status_STATUS_CODE_OK):
@@ -883,14 +868,14 @@ func mapSpanAttr(e entry) traceql.Static {
 		case uint64(v1.Status_STATUS_CODE_ERROR):
 			status = traceql.StatusError
 		default:
-			status = traceql.Status(v.Uint64())
+			status = traceql.Status(e.Value.Uint64())
 		}
 		return traceql.NewStaticStatus(status)
 	case columnPathSpanStatusMessage:
-		return traceql.NewStaticString(unsafeToString(v.ByteArray()))
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	case columnPathSpanKind:
 		var kind traceql.Kind
-		switch v.Uint64() {
+		switch e.Value.Uint64() {
 		case uint64(v1.Span_SPAN_KIND_UNSPECIFIED):
 			kind = traceql.KindUnspecified
 		case uint64(v1.Span_SPAN_KIND_INTERNAL):
@@ -904,59 +889,49 @@ func mapSpanAttr(e entry) traceql.Static {
 		case uint64(v1.Span_SPAN_KIND_CONSUMER):
 			kind = traceql.KindConsumer
 		default:
-			kind = traceql.Kind(v.Uint64())
+			kind = traceql.Kind(e.Value.Uint64())
 		}
 		return traceql.NewStaticKind(kind)
 	default:
 		// This exists for span-level dedicated columns like http.status_code
-		switch v.Kind() {
+		switch e.Value.Kind() {
 		case parquet.Boolean:
-			return traceql.NewStaticBool(v.Boolean())
+			return traceql.NewStaticBool(e.Value.Boolean())
 		case parquet.Int32, parquet.Int64:
-			return traceql.NewStaticInt(int(v.Int64()))
+			return traceql.NewStaticInt(int(e.Value.Int64()))
 		case parquet.Float:
-			return traceql.NewStaticFloat(v.Double())
+			return traceql.NewStaticFloat(e.Value.Double())
 		case parquet.ByteArray, parquet.FixedLenByteArray:
-			return traceql.NewStaticString(unsafeToString(v.ByteArray()))
+			return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 		}
 	}
 	return traceql.NewStaticNil()
 }
 
 func mapResourceAttr(e entry) traceql.Static {
-	if len(e.Values) == 0 {
-		return traceql.NewStaticNil()
-	}
-	v := e.Values[0]
-
-	switch v.Kind() {
+	switch e.Value.Kind() {
 	case parquet.Boolean:
-		return traceql.NewStaticBool(v.Boolean())
+		return traceql.NewStaticBool(e.Value.Boolean())
 	case parquet.Int32, parquet.Int64:
-		return traceql.NewStaticInt(int(v.Int64()))
+		return traceql.NewStaticInt(int(e.Value.Int64()))
 	case parquet.Float:
-		return traceql.NewStaticFloat(v.Double())
+		return traceql.NewStaticFloat(e.Value.Double())
 	case parquet.ByteArray, parquet.FixedLenByteArray:
-		return traceql.NewStaticString(unsafeToString(v.ByteArray()))
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	default:
 		return traceql.NewStaticNil()
 	}
 }
 
 func mapTraceAttr(e entry) traceql.Static {
-	if len(e.Values) == 0 {
-		return traceql.NewStaticNil()
-	}
-	v := e.Values[0]
-
 	switch e.Key {
 	case columnPathTraceID, columnPathEndTimeUnixNano, columnPathStartTimeUnixNano: // No TraceQL intrinsics for these
 	case columnPathDurationNanos:
-		return traceql.NewStaticDuration(time.Duration(v.Int64()))
+		return traceql.NewStaticDuration(time.Duration(e.Value.Int64()))
 	case columnPathRootSpanName:
-		return traceql.NewStaticString(unsafeToString(v.ByteArray()))
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	case columnPathRootServiceName:
-		return traceql.NewStaticString(unsafeToString(v.ByteArray()))
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	}
 	return traceql.NewStaticNil()
 }
