@@ -2427,8 +2427,6 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 	keyPath, strPath, intPath, floatPath, boolPath string,
 	allConditions bool, selectAll bool,
 ) (parquetquery.Iterator, error) {
-	// Generic attributes can represent scalar values or arrays. Therefore, we need to enable
-	// it is necessary to enable array collection for the iterator.
 	if selectAll {
 		return parquetquery.NewLeftJoinIterator(definitionLevel,
 			[]parquetquery.Iterator{makeIter(keyPath, nil, "key")},

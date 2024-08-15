@@ -807,16 +807,13 @@ type SyncIterator struct {
 	currPage        pq.Page
 	currPageMin     RowNumber
 	currPageMax     RowNumber
-	currReader      pq.ValueReader
+	currValues      pq.ValueReader
 	currBuf         []pq.Value
 	currBufN        int
 	currPageN       int
-
-	// Current value pointed at by iterator. Returned by call Next and SeekTo, valid until next call.
-	at IteratorResult
-
-	intern   bool
-	interner *intern.Interner
+	at              IteratorResult // Current value pointed at by iterator. Returned by call Next and SeekTo, valid until next call.
+	intern          bool
+	interner        *intern.Interner
 }
 
 var _ Iterator = (*SyncIterator)(nil)
@@ -1099,7 +1096,7 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 	pq.Release(c.currPage)
 	c.currPage = pg
 	c.currPageMin = c.curr
-	c.currReader = pg.Values()
+	c.currValues = pg.Values()
 	c.currPageN = 0
 	syncIteratorPoolPut(c.currBuf)
 	c.currBuf = nil
@@ -1152,7 +1149,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 		}
 		if c.currBufN >= len(c.currBuf) || len(c.currBuf) == 0 {
 			c.currBuf = c.currBuf[:cap(c.currBuf)]
-			n, err := c.currReader.ReadValues(c.currBuf)
+			n, err := c.currValues.ReadValues(c.currBuf)
 			if err != nil && !errors.Is(err, io.EOF) {
 				return EmptyRowNumber(), nil, err
 			}
@@ -1202,7 +1199,7 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 	}
 
 	// Reset value buffers
-	c.currReader = nil
+	c.currValues = nil
 	c.currPageMax = EmptyRowNumber()
 	c.currPageMin = EmptyRowNumber()
 	c.currBufN = 0
@@ -1222,7 +1219,7 @@ func (c *SyncIterator) setPage(pg pq.Page) {
 		c.currPage = pg
 		c.currPageMin = c.curr
 		c.currPageMax = rn
-		c.currReader = pg.Values()
+		c.currValues = pg.Values()
 	}
 }
 
