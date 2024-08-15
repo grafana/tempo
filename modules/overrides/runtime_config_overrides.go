@@ -515,9 +515,9 @@ func (o *runtimeConfigOverridesManager) BlockRetention(userID string) time.Durat
 	return time.Duration(o.getOverridesForUser(userID).Compaction.BlockRetention)
 }
 
-// Disabled will not compact tenants which have this enabled.
-func (o *runtimeConfigOverridesManager) Disabled(userID string) bool {
-	return o.getOverridesForUser(userID).Compaction.Disabled
+// CompactionDisabled will not compact tenants which have this enabled.
+func (o *runtimeConfigOverridesManager) CompactionDisabled(userID string) bool {
+	return o.getOverridesForUser(userID).Compaction.CompactionDisabled
 }
 
 func (o *runtimeConfigOverridesManager) DedicatedColumns(userID string) backend.DedicatedColumns {

@@ -164,9 +164,9 @@ type ReadOverrides struct {
 
 type CompactionOverrides struct {
 	// Compactor enforced overrides.
-	BlockRetention   model.Duration `yaml:"block_retention,omitempty" json:"block_retention,omitempty"`
-	CompactionWindow model.Duration `yaml:"compaction_window,omitempty" json:"compaction_window,omitempty"`
-	Disabled         bool           `yaml:"disabled,omitempty" json:"disabled,omitempty"`
+	BlockRetention     model.Duration `yaml:"block_retention,omitempty" json:"block_retention,omitempty"`
+	CompactionWindow   model.Duration `yaml:"compaction_window,omitempty" json:"compaction_window,omitempty"`
+	CompactionDisabled bool           `yaml:"compaction_disabled,omitempty" json:"compaction_disabled,omitempty"`
 }
 
 type GlobalOverrides struct {

@@ -71,7 +71,7 @@ type Interface interface {
 	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) bool
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string
 	BlockRetention(userID string) time.Duration
-	Disabled(userID string) bool
+	CompactionDisabled(userID string) bool
 	MaxSearchDuration(userID string) time.Duration
 	MaxMetricsDuration(userID string) time.Duration
 	DedicatedColumns(userID string) backend.DedicatedColumns
