@@ -30,8 +30,8 @@ func (p *ResultPool) Get() *IteratorResult {
 
 	return &IteratorResult{
 		Entries: make([]struct {
-			Key    string
-			Values []parquet.Value
+			Key   string
+			Value parquet.Value
 		}, 0, p.cap),
 		OtherEntries: make([]struct {
 			Key   string
