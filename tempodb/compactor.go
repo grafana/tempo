@@ -106,7 +106,7 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 	tenantID := tenants[rw.compactorTenantOffset]
 
 	// Skip compaction for tenants which have it disabled.
-	if rw.compactorOverrides.DisabledForTenant(tenantID) {
+	if rw.compactorOverrides.CompactionDisabledForTenant(tenantID) {
 		return
 	}
 

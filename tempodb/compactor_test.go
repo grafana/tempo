@@ -57,7 +57,7 @@ func (m *mockOverrides) BlockRetentionForTenant(_ string) time.Duration {
 	return m.blockRetention
 }
 
-func (m *mockOverrides) DisabledForTenant(_ string) bool {
+func (m *mockOverrides) CompactionDisabledForTenant(_ string) bool {
 	return m.disabled
 }
 

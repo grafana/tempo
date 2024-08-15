@@ -254,8 +254,8 @@ func (c *Compactor) BlockRetentionForTenant(tenantID string) time.Duration {
 	return c.overrides.BlockRetention(tenantID)
 }
 
-// DisabledForTenant implements CompactorOverrides
-func (c *Compactor) DisabledForTenant(tenantID string) bool {
+// CompactionDisabledForTenant implements CompactorOverrides
+func (c *Compactor) CompactionDisabledForTenant(tenantID string) bool {
 	return c.overrides.CompactionDisabled(tenantID)
 }
 
