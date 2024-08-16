@@ -27,8 +27,8 @@ func (d *SegmentDecoder) PrepareForWrite(trace *tempopb.Trace, start uint32, end
 	return marshalWithStartEnd(trace, start, end)
 }
 
-func (d *SegmentDecoder) PrepareForRead(segments [][]byte, allowPartialTraces bool) (*tempopb.Trace, error) {
-	combiner := trace.NewCombiner(0, allowPartialTraces)
+func (d *SegmentDecoder) PrepareForRead(segments [][]byte) (*tempopb.Trace, error) {
+	combiner := trace.NewCombiner(0, false)
 	for i, obj := range segments {
 		obj, _, _, err := stripStartEnd(obj)
 		if err != nil {

@@ -49,6 +49,8 @@ type Combiner struct {
 	maxTraceSizeReached bool
 }
 
+// It creates a new Trace combiner. If maxSizeBytes is 0, the final trace size is not checked
+// when allowPartialTrace is set to true a partial trace that exceed the max size may be returned
 func NewCombiner(maxSizeBytes int, allowPartialTrace bool) *Combiner {
 	return &Combiner{
 		maxSizeBytes:      maxSizeBytes,
@@ -149,7 +151,6 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 }
 
 func (c *Combiner) canContinue() (bool, error) {
-	// Should we allow a maxSizeBytes <= 0?
 	if c.result == nil || c.maxSizeBytes <= 0 {
 		return true, nil
 	}

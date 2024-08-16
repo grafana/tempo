@@ -311,11 +311,17 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	}
 
 	completeTrace, _ := combiner.Result()
-
-	return &tempopb.TraceByIDResponse{
+	resp := &tempopb.TraceByIDResponse{
 		Trace:   completeTrace,
 		Metrics: &tempopb.TraceByIDMetrics{},
-	}, nil
+	}
+
+	if combiner.IsPartialTrace() {
+		resp.Status = tempopb.TraceByIDResponse_PARTIAL
+		resp.Message = fmt.Sprintf("Trace exceeds maximun size of %d bytes, a partial trace is returned", maxBytes)
+	}
+
+	return resp, nil
 }
 
 type (

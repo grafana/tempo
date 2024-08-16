@@ -23,9 +23,9 @@ func (d *SegmentDecoder) PrepareForWrite(trace *tempopb.Trace, _, _ uint32) ([]b
 	return proto.Marshal(trace)
 }
 
-func (d *SegmentDecoder) PrepareForRead(segments [][]byte, allowPartialTraces bool) (*tempopb.Trace, error) {
+func (d *SegmentDecoder) PrepareForRead(segments [][]byte) (*tempopb.Trace, error) {
 	// each slice is a marshalled tempopb.Trace, unmarshal and combine
-	combiner := trace.NewCombiner(0, allowPartialTraces)
+	combiner := trace.NewCombiner(0, false)
 	for i, s := range segments {
 		t := &tempopb.Trace{}
 		err := proto.Unmarshal(s, t)

@@ -28,7 +28,7 @@ func TestSegmentDecoderToObjectDecoder(t *testing.T) {
 			require.NoError(t, err)
 
 			// segment prepareforread
-			actual, err := segmentDecoder.PrepareForRead([][]byte{segment}, false)
+			actual, err := segmentDecoder.PrepareForRead([][]byte{segment})
 			require.NoError(t, err)
 			require.True(t, proto.Equal(trace, actual))
 
