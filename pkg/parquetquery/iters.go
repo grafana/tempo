@@ -602,9 +602,6 @@ func (t RowNumber) Preceding() RowNumber {
 // IteratorResult is a row of data with a row number and named columns of data.
 // Internally it has an unstructured list for efficient collection. The ToMap()
 // function can be used to make inspection easier.
-// WARNING: Be careful when adding slices of values from iterators to Entries, as
-// there is always the risk of the slice being reused by the iterator. Always use
-// Append or AppendValue to add entries.
 type IteratorResult struct {
 	RowNumber RowNumber
 	Entries   []struct {
@@ -684,14 +681,14 @@ func (r *IteratorResult) Columns(buffer [][]pq.Value, names ...string) [][]pq.Va
 	return buffer
 }
 
-// Iterator - Every iterator follows this interface and can be composed.
+// iterator - Every iterator follows this interface and can be composed.
 type Iterator interface {
 	fmt.Stringer
 
 	// Next returns nil when done
 	Next() (*IteratorResult, error)
 
-	// SeekTo is like Next but skips over results until reading >= the given location
+	// Like Next but skips over results until reading >= the given location
 	SeekTo(t RowNumber, definitionLevel int) (*IteratorResult, error)
 
 	Close()
@@ -812,8 +809,9 @@ type SyncIterator struct {
 	currBufN        int
 	currPageN       int
 	at              IteratorResult // Current value pointed at by iterator. Returned by call Next and SeekTo, valid until next call.
-	intern          bool
-	interner        *intern.Interner
+
+	intern   bool
+	interner *intern.Interner
 }
 
 var _ Iterator = (*SyncIterator)(nil)
@@ -916,6 +914,7 @@ func (c *SyncIterator) SeekTo(to RowNumber, definitionLevel int) (*IteratorResul
 		if !rn.Valid() {
 			return nil, nil
 		}
+
 		if CompareRowNumbers(definitionLevel, rn, to) >= 0 {
 			return c.makeResult(rn, v), nil
 		}
