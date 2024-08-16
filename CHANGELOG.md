@@ -67,6 +67,7 @@
 * [BUGFIX] **BREAKING CHANGE** Remove unused properties from the WAL configuration [#3911](https://github.com/grafana/tempo/pull/3911) (@javiermolinar)
 * [BUGFIX] Bring back OTEL receiver metrics [#3917](https://github.com/grafana/tempo/pull/3917) (@javiermolinar)
 * [BUGFIX] Correct block end time when the ingested traces are outside the ingestion slack [#3954](https://github.com/grafana/tempo/pull/3954) (@javiermolinar)
+* [BUGFIX] Pass search options to the backend for SearchTagValuesBlocksV2 requests [#3971](https://github.com/grafana/tempo/pull/3971) (@javiermolinar)
 
 ## v2.5.0
 
