@@ -17,6 +17,7 @@ steps:
   - COMPONENT=tempo GOARCH=amd64 make exe
   - COMPONENT=tempo-vulture GOARCH=amd64 make exe
   - COMPONENT=tempo-query GOARCH=amd64 make exe
+  - COMPONENT=tempo-cli GOARCH=amd64 make exe
   image: golang:1.22-alpine
   name: build-tempo-binaries
 - image: plugins/docker
@@ -53,6 +54,18 @@ steps:
       from_secret: docker_password
     platform: linux/amd64
     repo: grafana/tempo-query
+    username:
+      from_secret: docker_username
+- image: plugins/docker
+  name: build-tempo-cli-image
+  settings:
+    build_args:
+    - TARGETARCH=amd64
+    dockerfile: cmd/tempo-cli/Dockerfile
+    password:
+      from_secret: docker_password
+    platform: linux/amd64
+    repo: grafana/tempo-cli
     username:
       from_secret: docker_username
 trigger:
@@ -81,6 +94,7 @@ steps:
   - COMPONENT=tempo GOARCH=arm64 make exe
   - COMPONENT=tempo-vulture GOARCH=arm64 make exe
   - COMPONENT=tempo-query GOARCH=arm64 make exe
+  - COMPONENT=tempo-cli GOARCH=arm64 make exe
   image: golang:1.22-alpine
   name: build-tempo-binaries
 - image: plugins/docker
@@ -117,6 +131,18 @@ steps:
       from_secret: docker_password
     platform: linux/arm64
     repo: grafana/tempo-query
+    username:
+      from_secret: docker_username
+- image: plugins/docker
+  name: build-tempo-cli-image
+  settings:
+    build_args:
+    - TARGETARCH=arm64
+    dockerfile: cmd/tempo-cli/Dockerfile
+    password:
+      from_secret: docker_password
+    platform: linux/arm64
+    repo: grafana/tempo-cli
     username:
       from_secret: docker_username
 trigger:
@@ -167,6 +193,15 @@ steps:
       from_secret: docker_password
     spec: .drone/docker-manifest.tmpl
     target: tempo-query
+    username:
+      from_secret: docker_username
+- image: plugins/manifest:1.4.0
+  name: manifest-tempo-cli
+  settings:
+    password:
+      from_secret: docker_password
+    spec: .drone/docker-manifest.tmpl
+    target: tempo-cli
     username:
       from_secret: docker_username
 trigger:
@@ -530,6 +565,6 @@ kind: secret
 name: gpg_passphrase
 ---
 kind: signature
-hmac: 6f0a771ee87cefa9d1ef3622fc936adaae60a19e5f285acc4f7310244c0f899c
+hmac: bee5601dffa0f46559f5d8734ebda1261ec9171a3dca7add1a23188f6f162945
 
 ...

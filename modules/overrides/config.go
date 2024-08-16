@@ -140,7 +140,7 @@ type MetricsGeneratorOverrides struct {
 	MaxActiveSeries          uint32              `yaml:"max_active_series,omitempty" json:"max_active_series,omitempty"`
 	CollectionInterval       time.Duration       `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
 	DisableCollection        bool                `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
-	GenerateNativeHistograms string              `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
+	GenerateNativeHistograms HistogramMethod     `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
 	TraceIDLabelName         string              `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
 
 	RemoteWriteHeaders RemoteWriteHeaders `yaml:"remote_write_headers,omitempty" json:"remote_write_headers,omitempty"`
@@ -164,8 +164,9 @@ type ReadOverrides struct {
 
 type CompactionOverrides struct {
 	// Compactor enforced overrides.
-	BlockRetention   model.Duration `yaml:"block_retention,omitempty" json:"block_retention,omitempty"`
-	CompactionWindow model.Duration `yaml:"compaction_window,omitempty" json:"compaction_window,omitempty"`
+	BlockRetention     model.Duration `yaml:"block_retention,omitempty" json:"block_retention,omitempty"`
+	CompactionWindow   model.Duration `yaml:"compaction_window,omitempty" json:"compaction_window,omitempty"`
+	CompactionDisabled bool           `yaml:"compaction_disabled,omitempty" json:"compaction_disabled,omitempty"`
 }
 
 type GlobalOverrides struct {
@@ -250,6 +251,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // RegisterFlagsAndApplyDefaults adds the flags required to config this to the given FlagSet
 func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
+	// Generator
+	c.Defaults.MetricsGenerator.GenerateNativeHistograms = HistogramMethodClassic
+
 	// Distributor LegacyOverrides
 	f.StringVar(&c.Defaults.Ingestion.RateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
 	f.IntVar(&c.Defaults.Ingestion.RateLimitBytes, "distributor.ingestion-rate-limit-bytes", 15e6, "Per-user ingestion rate limit in bytes per second.")
@@ -287,10 +291,6 @@ func (c *Config) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.MetricsGenerator.MaxActiveSeries), MetricMetricsGeneratorMaxActiveSeries)
 }
 
-func HasNativeHistograms(s string) bool {
-	return s == string(HistogramMethodNative) || s == string(HistogramMethodBoth)
-}
-
-func HasClassicHistograms(s string) bool {
-	return s == string(HistogramMethodClassic) || s == string(HistogramMethodBoth)
+func HasNativeHistograms(s HistogramMethod) bool {
+	return s == HistogramMethodNative || s == HistogramMethodBoth
 }

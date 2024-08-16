@@ -49,7 +49,7 @@
 * [ENHANCEMENT] Added new Traces api V2[#3912](https://github.com/grafana/tempo/pull/3912) (@javiermolinar)
 * [ENHANCEMENT] Update to the latest dskit [#3915](https://github.com/grafana/tempo/pull/3915) (@andreasgerstmayr)
 * [ENHANCEMENT] Reduce allocs building queriers sharded requests [#3932](https://github.com/grafana/tempo/pull/3932) (@javiermolinar)
-
+* [ENHANCEMENT] Allow compaction disablement per-tenant [#3965](https://github.com/grafana/tempo/pull/3965) (@zalegrala)
 * [ENHANCEMENT] Implement polling tenants concurrently [#3647](https://github.com/grafana/tempo/pull/3647) (@zalegrala)
 * [BUGFIX] Fix panic in certain metrics queries using `rate()` with `by` [#3847](https://github.com/grafana/tempo/pull/3847) (@stoewer)
 * [BUGFIX] Fix double appending the primary iterator on second pass with event iterator [#3903](https://github.com/grafana/tempo/pull/3903) (@ie-pham)
@@ -67,7 +67,9 @@
 * [BUGFIX] **BREAKING CHANGE** Remove unused properties from the WAL configuration [#3911](https://github.com/grafana/tempo/pull/3911) (@javiermolinar)
 * [BUGFIX] Bring back OTEL receiver metrics [#3917](https://github.com/grafana/tempo/pull/3917) (@javiermolinar)
 * [BUGFIX] Correct block end time when the ingested traces are outside the ingestion slack [#3954](https://github.com/grafana/tempo/pull/3954) (@javiermolinar)
+* [BUGFIX] Fix race condition where a streaming response could be marshalled while being modified in the combiner resulting in a panic. [#3961](https://github.com/grafana/tempo/pull/3961) (@joe-elliott)
 * [BUGFIX] Pass search options to the backend for SearchTagValuesBlocksV2 requests [#3971](https://github.com/grafana/tempo/pull/3971) (@javiermolinar)
+
 
 ## v2.5.0
 
