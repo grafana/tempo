@@ -45,7 +45,7 @@ func (c urlDenylistWare) RoundTrip(req Request) (Responses[combiner.PipelineResp
 func (c urlDenylistWare) validateRequest(url string) error {
 	for _, v := range c.denyList {
 		if v.MatchString(url) {
-			return fmt.Errorf("Invalid request %s, URL is blacklisted", url)
+			return fmt.Errorf("Invalid request %s. This query has been identified as one that destabilizes our system. Contact your system administrator for more information", url)
 		}
 	}
 	return nil
