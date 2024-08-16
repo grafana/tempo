@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
 	"github.com/prometheus/client_golang/prometheus"
@@ -25,8 +26,8 @@ type Config struct {
 	// Buckets for latency histogram in seconds.
 	HistogramBuckets []float64 `yaml:"histogram_buckets"`
 
-	// The histogram implementation to select.
-	HistogramOverride string `yaml:"-"`
+	// The histogram mode to select.
+	HistogramOverride registry.HistogramMode `yaml:"-"`
 
 	// Intrinsic dimensions (labels) added to the metric, that are generated from fixed span
 	// data. The dimensions service, span_name, span_kind, status_code, job and instance are enabled by
@@ -59,6 +60,7 @@ type Config struct {
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 14)
+	cfg.HistogramOverride = registry.HistogramModeClassic
 	cfg.IntrinsicDimensions.Service = true
 	cfg.IntrinsicDimensions.SpanName = true
 	cfg.IntrinsicDimensions.SpanKind = true
