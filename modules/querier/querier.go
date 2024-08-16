@@ -1031,7 +1031,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 
 	query := traceql.ExtractMatchers(req.SearchReq.Query)
 	if traceql.IsEmptyQuery(query) {
-		return q.store.SearchTagValuesV2(ctx, meta, req.SearchReq, common.DefaultSearchOptions())
+		return q.store.SearchTagValuesV2(ctx, meta, req.SearchReq, opts)
 	}
 
 	tag, err := traceql.ParseIdentifier(req.SearchReq.TagName)
@@ -1040,7 +1040,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 	}
 
 	fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
-		return q.store.FetchTagValues(ctx, meta, req, cb, common.DefaultSearchOptions())
+		return q.store.FetchTagValues(ctx, meta, req, cb, opts)
 	})
 
 	valueCollector := collector.NewDistinctValue(q.limits.MaxBytesPerTagValuesQuery(tenantID), func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
