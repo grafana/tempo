@@ -814,10 +814,9 @@ func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
 	if length < 0 {
 		length = bytes.MinRead
 	}
-	// buffer.ReadFrom always allocs at least bytes.MinRead past the end of the actual buffer so this prevents extending the slice if its less
-	if length <= bytes.MinRead {
-		length += bytes.MinRead
-	}
+	// buffer.ReadFrom always allocs at least bytes.MinRead past the end of the actual required length b/c of how io.EOF is handled. this prevents extending the internal
+	// slice unnecessarily.  https://github.com/golang/go/issues/21852
+	length += bytes.MinRead
 
 	// alloc a buffer to store the response body
 	buffer := bytes.NewBuffer(make([]byte, 0, length))
