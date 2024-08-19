@@ -141,6 +141,7 @@ valid:
   # metrics
   - '{} | rate()'
   - '{} | count_over_time() by (name) with(sample=0.1)'
+  - '{} | min_over_time(duration) by (span.http.path)'
   - '{} | quantile_over_time(duration, 0, 0.9, 1) by (span.http.path)'
   # undocumented - nested set
   - '{ nestedSetLeft > 3 }'

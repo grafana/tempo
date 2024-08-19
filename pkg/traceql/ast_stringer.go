@@ -189,6 +189,8 @@ func (a MetricsAggregate) String() string {
 				s.WriteString(",")
 			}
 		}
+	case metricsAggregateMinOverTime:
+		s.WriteString(a.attr.String())
 	}
 	s.WriteString(")")
 
