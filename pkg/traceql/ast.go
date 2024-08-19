@@ -1011,6 +1011,14 @@ func newMetricsAggregate(agg MetricsAggregateOp, by []Attribute) *MetricsAggrega
 	}
 }
 
+func newMetricsAggregateWithAttr(agg MetricsAggregateOp, attr Attribute, by []Attribute) *MetricsAggregate {
+	return &MetricsAggregate{
+		op:   agg,
+		attr: attr,
+		by:   by,
+	}
+}
+
 func newMetricsAggregateQuantileOverTime(attr Attribute, qs []float64, by []Attribute) *MetricsAggregate {
 	return &MetricsAggregate{
 		op:     metricsAggregateQuantileOverTime,
@@ -1070,6 +1078,11 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 	switch a.op {
 	case metricsAggregateCountOverTime:
 		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
+		exemplarFn = func(s Span) (float64, uint64) {
+			return math.NaN(), a.spanStartTimeMs(s)
+		}
+	case metricsAggregateMinOverTime:
+		innerAgg = func() VectorAggregator { return NewMinOverTimeAggregator(a.attr) }
 		exemplarFn = func(s Span) (float64, uint64) {
 			return math.NaN(), a.spanStartTimeMs(s)
 		}
@@ -1206,6 +1219,7 @@ func (a *MetricsAggregate) result() SeriesSet {
 func (a *MetricsAggregate) validate() error {
 	switch a.op {
 	case metricsAggregateCountOverTime:
+	case metricsAggregateMinOverTime:
 	case metricsAggregateRate:
 	case metricsAggregateHistogramOverTime:
 		if len(a.by) >= maxGroupBys {

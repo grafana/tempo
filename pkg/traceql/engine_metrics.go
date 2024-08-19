@@ -338,6 +338,69 @@ func (c *CountOverTimeAggregator) Sample() float64 {
 	return c.count * c.rateMult
 }
 
+// MinOverTimeAggregator it calculates the mininum value over time. It can also
+// calculate the rate when given a multiplier.
+type MinOverTimeAggregator struct {
+	firstTime       bool
+	getSpanAttValue func(s Span) float64
+	min             float64
+	rateMult        float64
+}
+
+var _ VectorAggregator = (*MinOverTimeAggregator)(nil)
+
+func NewMinOverTimeAggregator(attr Attribute) *MinOverTimeAggregator {
+	var fn func(s Span) float64
+	switch attr {
+	case IntrinsicDurationAttribute:
+		fn = func(s Span) float64 {
+			return float64(s.DurationNanos())
+		}
+	default:
+		fn = func(s Span) float64 {
+			return floatizeAttribute(s, attr)
+		}
+	}
+	return &MinOverTimeAggregator{
+		getSpanAttValue: fn,
+		rateMult:        1.0,
+	}
+}
+
+func (c *MinOverTimeAggregator) Observe(s Span) {
+	val := c.getSpanAttValue(s)
+	if !c.firstTime {
+		c.min = val
+		c.firstTime = true
+	} else if val < c.min {
+		c.min = val
+	}
+}
+
+func (c *MinOverTimeAggregator) Sample() float64 {
+	return c.min * c.rateMult
+}
+
+// Copyed from ast.go. Probably should be refactored elsewhere
+func floatizeAttribute(s Span, attr Attribute) float64 {
+	v, ok := s.AttributeFor(attr)
+	if !ok {
+		return 0
+	}
+	switch v.Type {
+	case TypeInt:
+		n, _ := v.Int()
+		return float64(n)
+	case TypeDuration:
+		d, _ := v.Duration()
+		return float64(d.Nanoseconds())
+	case TypeFloat:
+		return v.Float()
+	default:
+		return 0
+	}
+}
+
 // StepAggregator sorts spans into time slots using a step interval like 30s or 1m
 type StepAggregator struct {
 	start, end, step uint64
@@ -724,7 +787,7 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 	}, nil
 }
 
-// CompileMetricsQueryRange returns an evalulator that can be reused across multiple data sources.
+// CompileMetricsQueryRange returns an evaluator that can be reused across multiple data sources.
 // Dedupe spans parameter is an indicator of whether to expect duplicates in the datasource. For
 // example if the datasource is replication factor=1 or only a single block then we know there
 // aren't duplicates, and we can make some optimizations.
