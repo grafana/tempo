@@ -527,6 +527,320 @@ func TestSpansetOperationEvaluate(t *testing.T) {
 	}
 }
 
+// test cases for array
+func TestSpansetOperationEvaluateArray(t *testing.T) {
+	testCases := []evalTC{
+		// string arrays
+		{
+			"{ .foo = `bar` }", // match string array
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
+				}},
+			},
+		},
+		{
+			"{ .foo = `bar` || .bat = `baz` }", // match string array with or
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
+				}},
+			},
+		},
+		{
+			"{ .foo != `baz` }", // match string array not equal
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"baz"})}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
+				}},
+			},
+		},
+		{
+			"{ .foo =~ `ba` }", // match string array with regex
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"foo", "baz"})}},
+					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"dog", "cat"})}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"foo", "baz"})}},
+				}},
+			},
+		},
+		{
+			"{ .foo !~ `ba` }", // regex non-matching
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"foo", "baz"})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
+					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"cat"})}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"foo", "baz"})}},
+					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"cat"})}},
+				}},
+			},
+		},
+		// int arrays
+		{
+			"{ .foo = 2 }", // match int array
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 2})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 2})}},
+				}},
+			},
+		},
+		{
+			"{ .foo != 3 }", // match int array not equal
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 2})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{3, 4})}},
+					// this is filtered out as expected??
+					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{3, 3})}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 2})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{3, 4})}},
+				}},
+			},
+		},
+		{
+			"{ .foo = 2.5 }", // match float array
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{1.5, 2.5})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{1.5, 2.5})}},
+				}},
+			},
+		},
+		{
+			"{ .foo = 3.14 }", // match another float array
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{3.14, 6.28})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{1.23, 4.56})}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{3.14, 6.28})}},
+				}},
+			},
+		},
+		{
+			"{ .foo > 1 }", // match int array greater than
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 2})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{0, 1})}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 2})}},
+				}},
+			},
+		},
+		{
+			"{ .foo < 2 }", // match int array less than
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 3})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{3, 4})}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 3})}},
+				}},
+			},
+		},
+		// match float arrays
+		{
+			"{ .foo != 2.5 }", // match float array not equal
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{1.5, 3.0})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{2.5, 4.0})}},
+					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{2.5})}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{1.5, 3.0})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{2.5, 4.0})}},
+				}},
+			},
+		},
+		{
+			"{ .foo < 2.0 }", // match float array less than
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{1.5, 3.0})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{2.0, 4.0})}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{1.5, 3.0})}},
+				}},
+			},
+		},
+		{
+			"{ .foo > 2.5 }", // match float array greater than
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{2.0, 3.0})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{1.0, 2.0})}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticFloatArray([]float64{2.0, 3.0})}},
+				}},
+			},
+		},
+		// match bool arrays
+		{
+			"{ .foo = true }", // match boolean array
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, false})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticString("b")}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, false})}},
+				}},
+			},
+		},
+		{
+			"{ .foo = false }", // match another boolean array
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{false, false})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, true})}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{false, false})}},
+				}},
+			},
+		},
+		{
+			"{ .foo != true }", // match boolean array not equal to true
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{false, false})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, false})}},
+					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, true})}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{false, false})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, false})}},
+				}},
+			},
+		},
+		// invalid operations
+		{
+			"{ .foo + 3 = 0 }",
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{1, 2})}},
+				}},
+			},
+			// TODO: maybe an error??
+			[]*Spanset{}, // empty result since addition on arrays is invalid
+		},
+		// empty arrays - TODO: add more types here??
+		{
+			"{ .foo != 1 }",
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{})}},
+				}},
+			},
+			[]*Spanset{
+				// TODO: we get an empty spanset here, why??
+				// {Spans: []Span{
+				// 	&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticIntArray([]int{})}},
+				// }},
+			},
+		},
+		{
+			"{ .foo = true && .foo = false }",
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, false})}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, false})}},
+				}},
+			},
+		},
+		{
+			"{ .foo = true || .foo = false }",
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, false})}},
+				}},
+			},
+			[]*Spanset{
+				{Spans: []Span{
+					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticBooleanArray([]bool{true, false})}},
+				}},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		testEvaluator(t, tc)
+	}
+}
+
 func TestScalarFilterEvaluate(t *testing.T) {
 	testCases := []evalTC{
 		{

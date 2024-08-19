@@ -422,27 +422,27 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		}
 	}
 
-	// array type
 	if lhsT.isMatchingArrayElement(rhsT) {
 		var (
 			res Static
 			err error
 		)
+		elements, err := lhs.GetElements()
+		if err != nil {
+			return NewStaticNil(), err // return early in case of error
+		}
 
-		// TODO: this can be a range loop once iterators are available in Go 1.23
-		//       for _, s := range lhs.Elements() { ... }
 		elemOp := &BinaryOperation{Op: o.Op, LHS: lhs, RHS: rhs}
-		lhs.Elements()(func(_ int, elem Static) bool {
+		for _, elem := range elements {
 			elemOp.LHS = elem
 			res, err = elemOp.execute(span)
 			if err != nil {
-				return false
+				break // get out early in case of errors
 			}
 			if match, ok := res.Bool(); ok && match {
-				return false
+				break // found a match, break
 			}
-			return true
-		})
+		}
 		return res, err
 	}
 

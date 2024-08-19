@@ -731,52 +731,43 @@ func (s Static) compare(o *Static) int {
 	}
 }
 
-func (s Static) Elements() func(yield func(int, Static) bool) bool {
+// GetElements turns arrays into slice of Static elements to iterate over.
+func (s Static) GetElements() ([]Static, error) {
 	switch s.Type {
 	case TypeIntArray:
-		return func(yield func(int, Static) bool) bool {
-			ints, _ := s.IntArray()
-			for i, n := range ints {
-				if !yield(i, NewStaticInt(n)) {
-					return false
-				}
-			}
-			return true
+		ints, _ := s.IntArray()
+		elements := make([]Static, len(ints))
+		for i, n := range ints {
+			elements[i] = NewStaticInt(n)
 		}
+		return elements, nil
+
 	case TypeFloatArray:
-		return func(yield func(int, Static) bool) bool {
-			floats, _ := s.FloatArray()
-			for i, f := range floats {
-				if !yield(i, NewStaticFloat(f)) {
-					return false
-				}
-			}
-			return true
+		floats, _ := s.FloatArray()
+		elements := make([]Static, len(floats))
+		for i, f := range floats {
+			elements[i] = NewStaticFloat(f)
 		}
+		return elements, nil
+
 	case TypeStringArray:
-		return func(yield func(int, Static) bool) bool {
-			strs, _ := s.StringArray()
-			for i, str := range strs {
-				if !yield(i, NewStaticString(str)) {
-					return false
-				}
-			}
-			return true
+		strs, _ := s.StringArray()
+		elements := make([]Static, len(strs))
+		for i, str := range strs {
+			elements[i] = NewStaticString(str)
 		}
+		return elements, nil
+
 	case TypeBooleanArray:
-		return func(yield func(int, Static) bool) bool {
-			bools, _ := s.BooleanArray()
-			for i, b := range bools {
-				if !yield(i, NewStaticBool(b)) {
-					return false
-				}
-			}
-			return true
+		bools, _ := s.BooleanArray()
+		elements := make([]Static, len(bools))
+		for i, b := range bools {
+			elements[i] = NewStaticBool(b)
 		}
+		return elements, nil
+
 	default:
-		return func(_ func(int, Static) bool) bool {
-			return false
-		}
+		return nil, fmt.Errorf("unsupported type")
 	}
 }
 
