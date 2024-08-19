@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sync"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -15,8 +14,6 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/cache"
 )
-
-var responsePool = &sync.Pool{}
 
 func NewCachingWare(cacheProvider cache.Provider, role cache.Role, logger log.Logger) Middleware {
 	return MiddlewareFunc(func(next RoundTripper) RoundTripper {
