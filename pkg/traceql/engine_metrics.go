@@ -354,7 +354,7 @@ func NewMinOverTimeAggregator(attr Attribute) *MinOverTimeAggregator {
 	switch attr {
 	case IntrinsicDurationAttribute:
 		fn = func(s Span) float64 {
-			return float64(s.DurationNanos())
+			return float64(s.DurationNanos()) / float64(time.Millisecond)
 		}
 	default:
 		fn = func(s Span) float64 {

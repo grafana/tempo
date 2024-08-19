@@ -1040,7 +1040,7 @@ func (a *MetricsAggregate) extractConditions(request *FetchSpansRequest) {
 	switch a.op {
 	case metricsAggregateRate, metricsAggregateCountOverTime:
 		// No extra conditions, start time is already enough
-	case metricsAggregateQuantileOverTime, metricsAggregateHistogramOverTime:
+	case metricsAggregateQuantileOverTime, metricsAggregateHistogramOverTime, metricsAggregateMinOverTime:
 		if !request.HasAttribute(a.attr) {
 			request.SecondPassConditions = append(request.SecondPassConditions, Condition{
 				Attribute: a.attr,
