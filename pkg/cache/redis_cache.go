@@ -110,3 +110,8 @@ func (c *RedisCache) Store(ctx context.Context, keys []string, bufs [][]byte) {
 func (c *RedisCache) Stop() {
 	_ = c.redis.Close()
 }
+
+// redis doesn't have a max item size. todo: add
+func (c *RedisCache) MaxItemSize() int {
+	return 0
+}
