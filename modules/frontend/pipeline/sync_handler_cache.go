@@ -78,7 +78,7 @@ func (c cachingWare) RoundTrip(req Request) (*http.Response, error) {
 	if len(key) > 0 {
 		// don't bother caching if the response is too large
 		maxItemSize := c.cache.c.MaxItemSize()
-		if maxItemSize != 0 && resp.ContentLength > int64(maxItemSize) {
+		if maxItemSize > 0 && resp.ContentLength > int64(maxItemSize) {
 			return resp, nil
 		}
 
