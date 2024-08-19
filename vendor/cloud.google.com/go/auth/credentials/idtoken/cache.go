@@ -23,6 +23,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"cloud.google.com/go/auth/internal"
 )
 
 type cachingClient struct {
@@ -52,22 +54,20 @@ func (c *cachingClient) getCert(ctx context.Context, url string) (*certResponse,
 	if response, ok := c.get(url); ok {
 		return response, nil
 	}
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	req = req.WithContext(ctx)
-	resp, err := c.client.Do(req)
+	resp, body, err := internal.DoRequest(c.client, req)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("idtoken: unable to retrieve cert, got status code %d", resp.StatusCode)
 	}
 
 	certResp := &certResponse{}
-	if err := json.NewDecoder(resp.Body).Decode(certResp); err != nil {
+	if err := json.Unmarshal(body, &certResp); err != nil {
 		return nil, err
 
 	}

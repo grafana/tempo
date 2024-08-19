@@ -92,14 +92,14 @@ type userTokenProvider struct {
 }
 
 func (u userTokenProvider) Token(ctx context.Context) (*auth.Token, error) {
-	signedJWT, err := u.signJWT()
+	signedJWT, err := u.signJWT(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return u.exchangeToken(ctx, signedJWT)
 }
 
-func (u userTokenProvider) signJWT() (string, error) {
+func (u userTokenProvider) signJWT(ctx context.Context) (string, error) {
 	now := time.Now()
 	exp := now.Add(u.lifetime)
 	claims := claimSet{
@@ -124,20 +124,16 @@ func (u userTokenProvider) signJWT() (string, error) {
 		return "", fmt.Errorf("impersonate: unable to marshal request: %w", err)
 	}
 	reqURL := fmt.Sprintf("%s/v1/%s:signJwt", iamCredentialsEndpoint, formatIAMServiceAccountName(u.targetPrincipal))
-	req, err := http.NewRequest("POST", reqURL, bytes.NewReader(bodyBytes))
+	req, err := http.NewRequestWithContext(ctx, "POST", reqURL, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return "", fmt.Errorf("impersonate: unable to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	rawResp, err := u.client.Do(req)
+	resp, body, err := internal.DoRequest(u.client, req)
 	if err != nil {
 		return "", fmt.Errorf("impersonate: unable to sign JWT: %w", err)
 	}
-	body, err := internal.ReadAll(rawResp.Body)
-	if err != nil {
-		return "", fmt.Errorf("impersonate: unable to read body: %w", err)
-	}
-	if c := rawResp.StatusCode; c < 200 || c > 299 {
+	if c := resp.StatusCode; c < 200 || c > 299 {
 		return "", fmt.Errorf("impersonate: status code %d: %s", c, body)
 	}
 
@@ -157,15 +153,11 @@ func (u userTokenProvider) exchangeToken(ctx context.Context, signedJWT string) 
 	if err != nil {
 		return nil, err
 	}
-	rawResp, err := u.client.Do(req)
+	resp, body, err := internal.DoRequest(u.client, req)
 	if err != nil {
 		return nil, fmt.Errorf("impersonate: unable to exchange token: %w", err)
 	}
-	body, err := internal.ReadAll(rawResp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("impersonate: unable to read body: %w", err)
-	}
-	if c := rawResp.StatusCode; c < 200 || c > 299 {
+	if c := resp.StatusCode; c < 200 || c > 299 {
 		return nil, fmt.Errorf("impersonate: status code %d: %s", c, body)
 	}
 

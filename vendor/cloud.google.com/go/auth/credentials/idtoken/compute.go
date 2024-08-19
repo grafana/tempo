@@ -66,7 +66,7 @@ func (c computeIDTokenProvider) Token(ctx context.Context) (*auth.Token, error) 
 		v.Set("licenses", "TRUE")
 	}
 	urlSuffix := identitySuffix + "?" + v.Encode()
-	res, err := c.client.Get(urlSuffix)
+	res, err := c.client.GetWithContext(ctx, urlSuffix)
 	if err != nil {
 		return nil, err
 	}
