@@ -104,7 +104,7 @@ func NewCredentials(opts *Options) (*auth.Credentials, error) {
 }
 
 func (o *Options) jsonBytes() []byte {
-	if len(o.CredentialsJSON) > 0 {
+	if o.CredentialsJSON != nil {
 		return o.CredentialsJSON
 	}
 	var fnOverride string

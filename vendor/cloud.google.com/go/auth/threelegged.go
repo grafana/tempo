@@ -62,8 +62,7 @@ type Options3LO struct {
 	// Optional.
 	Client *http.Client
 	// EarlyTokenExpiry is the time before the token expires that it should be
-	// refreshed. If not set the default value is 3 minutes and 45 seconds.
-	// Optional.
+	// refreshed. If not set the default value is 10 seconds. Optional.
 	EarlyTokenExpiry time.Duration
 
 	// AuthHandlerOpts provides a set of options for doing a
@@ -285,7 +284,7 @@ func fetchToken(ctx context.Context, o *Options3LO, v url.Values) (*Token, strin
 			v.Set("client_secret", o.ClientSecret)
 		}
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", o.TokenURL, strings.NewReader(v.Encode()))
+	req, err := http.NewRequest("POST", o.TokenURL, strings.NewReader(v.Encode()))
 	if err != nil {
 		return nil, refreshToken, err
 	}
@@ -295,19 +294,25 @@ func fetchToken(ctx context.Context, o *Options3LO, v url.Values) (*Token, strin
 	}
 
 	// Make request
-	resp, body, err := internal.DoRequest(o.client(), req)
+	r, err := o.client().Do(req.WithContext(ctx))
 	if err != nil {
 		return nil, refreshToken, err
 	}
-	failureStatus := resp.StatusCode < 200 || resp.StatusCode > 299
+	body, err := internal.ReadAll(r.Body)
+	r.Body.Close()
+	if err != nil {
+		return nil, refreshToken, fmt.Errorf("auth: cannot fetch token: %w", err)
+	}
+
+	failureStatus := r.StatusCode < 200 || r.StatusCode > 299
 	tokError := &Error{
-		Response: resp,
+		Response: r,
 		Body:     body,
 	}
 
 	var token *Token
 	// errors ignored because of default switch on content
-	content, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	content, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	switch content {
 	case "application/x-www-form-urlencoded", "text/plain":
 		// some endpoints return a query string

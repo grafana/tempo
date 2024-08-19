@@ -53,9 +53,6 @@ var logRateLimiter = rate.Sometimes{Interval: 1 * time.Second}
 // Assign to var for unit test replacement
 var dialContext = grpc.DialContext
 
-// Assign to var for unit test replacement
-var dialContextNewAuth = grpctransport.Dial
-
 // otelStatsHandler is a singleton otelgrpc.clientHandler to be used across
 // all dial connections to avoid the memory leak documented in
 // https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4226
@@ -221,20 +218,26 @@ func dialPoolNewAuth(ctx context.Context, secure bool, poolSize int, ds *interna
 		defaultEndpointTemplate = ds.DefaultEndpoint
 	}
 
-	pool, err := dialContextNewAuth(ctx, secure, &grpctransport.Options{
+	tokenURL, oauth2Client, err := internal.GetOAuth2Configuration(ctx, ds)
+	if err != nil {
+		return nil, err
+	}
+
+	pool, err := grpctransport.Dial(ctx, secure, &grpctransport.Options{
 		DisableTelemetry:      ds.TelemetryDisabled,
 		DisableAuthentication: ds.NoAuth,
 		Endpoint:              ds.Endpoint,
 		Metadata:              metadata,
-		GRPCDialOpts:          prepareDialOptsNewAuth(ds),
+		GRPCDialOpts:          ds.GRPCDialOpts,
 		PoolSize:              poolSize,
 		Credentials:           creds,
-		APIKey:                ds.APIKey,
 		DetectOpts: &credentials.DetectOptions{
 			Scopes:          ds.Scopes,
 			Audience:        aud,
 			CredentialsFile: ds.CredentialsFile,
 			CredentialsJSON: ds.CredentialsJSON,
+			TokenURL:        tokenURL,
+			Client:          oauth2Client,
 		},
 		InternalOptions: &grpctransport.InternalOptions{
 			EnableNonDefaultSAForDirectPath: ds.AllowNonDefaultServiceAccount,
@@ -249,15 +252,6 @@ func dialPoolNewAuth(ctx context.Context, secure bool, poolSize int, ds *interna
 		},
 	})
 	return pool, err
-}
-
-func prepareDialOptsNewAuth(ds *internal.DialSettings) []grpc.DialOption {
-	var opts []grpc.DialOption
-	if ds.UserAgent != "" {
-		opts = append(opts, grpc.WithUserAgent(ds.UserAgent))
-	}
-
-	return append(opts, ds.GRPCDialOpts...)
 }
 
 func dial(ctx context.Context, insecure bool, o *internal.DialSettings) (*grpc.ClientConn, error) {

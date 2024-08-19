@@ -178,7 +178,6 @@ type HeadOptions struct {
 	WALReplayConcurrency int
 
 	// EnableSharding enables ShardedPostings() support in the Head.
-	// EnableSharding is temporarily disabled during Init().
 	EnableSharding bool
 }
 
@@ -610,7 +609,7 @@ const cardinalityCacheExpirationTime = time.Duration(30) * time.Second
 // Init loads data from the write ahead log and prepares the head for writes.
 // It should be called before using an appender so that it
 // limits the ingested samples to the head min valid time.
-func (h *Head) Init(minValidTime int64) (err error) {
+func (h *Head) Init(minValidTime int64) error {
 	h.minValidTime.Store(minValidTime)
 	defer func() {
 		h.postings.EnsureOrder(h.opts.WALReplayConcurrency)
@@ -623,24 +622,6 @@ func (h *Head) Init(minValidTime int64) (err error) {
 			h.minTime.Store(h.minValidTime.Load())
 		}
 	}()
-
-	// If sharding is enabled, disable it while initializing, and calculate the shards later.
-	// We're going to use that field for other purposes during WAL replay,
-	// so we don't want to waste time on calculating the shard that we're going to lose anyway.
-	if h.opts.EnableSharding {
-		h.opts.EnableSharding = false
-		defer func() {
-			h.opts.EnableSharding = true
-			if err == nil {
-				// No locking is needed here as nobody should be writing while we're in Init.
-				for _, stripe := range h.series.series {
-					for _, s := range stripe {
-						s.shardHashOrMemoryMappedMaxTime = labels.StableHash(s.lset)
-					}
-				}
-			}
-		}()
-	}
 
 	level.Info(h.logger).Log("msg", "Replaying on-disk memory mappable chunks if any")
 	start := time.Now()
@@ -702,6 +683,7 @@ func (h *Head) Init(minValidTime int64) (err error) {
 		mmappedChunks    map[chunks.HeadSeriesRef][]*mmappedChunk
 		oooMmappedChunks map[chunks.HeadSeriesRef][]*mmappedChunk
 		lastMmapRef      chunks.ChunkDiskMapperRef
+		err              error
 
 		mmapChunkReplayDuration time.Duration
 	)
@@ -1570,7 +1552,7 @@ func (h *Head) gc() (actualInOrderMint, minOOOTime int64, minMmapFile int) {
 
 	// Drop old chunks and remember series IDs and hashes if they can be
 	// deleted entirely.
-	deleted, affected, chunksRemoved, actualInOrderMint, minOOOTime, minMmapFile := h.series.gc(mint, minOOOMmapRef)
+	deleted, chunksRemoved, actualInOrderMint, minOOOTime, minMmapFile := h.series.gc(mint, minOOOMmapRef)
 	seriesRemoved := len(deleted)
 
 	h.metrics.seriesRemoved.Add(float64(seriesRemoved))
@@ -1579,7 +1561,7 @@ func (h *Head) gc() (actualInOrderMint, minOOOTime int64, minMmapFile int) {
 	h.numSeries.Sub(uint64(seriesRemoved))
 
 	// Remove deleted series IDs from the postings lists.
-	h.postings.Delete(deleted, affected)
+	h.postings.Delete(deleted)
 
 	// Remove tombstones referring to the deleted series.
 	h.tombstones.DeleteTombstones(deleted)
@@ -1777,12 +1759,12 @@ type seriesHashmap struct {
 
 func (m *seriesHashmap) get(hash uint64, lset labels.Labels) *memSeries {
 	if s, found := m.unique[hash]; found {
-		if labels.Equal(s.labels(), lset) {
+		if labels.Equal(s.lset, lset) {
 			return s
 		}
 	}
 	for _, s := range m.conflicts[hash] {
-		if labels.Equal(s.labels(), lset) {
+		if labels.Equal(s.lset, lset) {
 			return s
 		}
 	}
@@ -1790,7 +1772,7 @@ func (m *seriesHashmap) get(hash uint64, lset labels.Labels) *memSeries {
 }
 
 func (m *seriesHashmap) set(hash uint64, s *memSeries) {
-	if existing, found := m.unique[hash]; !found || labels.Equal(existing.labels(), s.labels()) {
+	if existing, found := m.unique[hash]; !found || labels.Equal(existing.lset, s.lset) {
 		m.unique[hash] = s
 		return
 	}
@@ -1799,7 +1781,7 @@ func (m *seriesHashmap) set(hash uint64, s *memSeries) {
 	}
 	l := m.conflicts[hash]
 	for i, prev := range l {
-		if labels.Equal(prev.labels(), s.labels()) {
+		if labels.Equal(prev.lset, s.lset) {
 			l[i] = s
 			return
 		}
@@ -1887,10 +1869,9 @@ func newStripeSeries(stripeSize int, seriesCallback SeriesLifecycleCallback) *st
 // but the returned map goes into postings.Delete() which expects a map[storage.SeriesRef]struct
 // and there's no easy way to cast maps.
 // minMmapFile is the min mmap file number seen in the series (in-order and out-of-order) after gc'ing the series.
-func (s *stripeSeries) gc(mint int64, minOOOMmapRef chunks.ChunkDiskMapperRef) (_ map[storage.SeriesRef]struct{}, _ map[labels.Label]struct{}, _ int, _, _ int64, minMmapFile int) {
+func (s *stripeSeries) gc(mint int64, minOOOMmapRef chunks.ChunkDiskMapperRef) (_ map[storage.SeriesRef]struct{}, _ int, _, _ int64, minMmapFile int) {
 	var (
 		deleted          = map[storage.SeriesRef]struct{}{}
-		affected         = map[labels.Label]struct{}{}
 		rmChunks         = 0
 		actualMint int64 = math.MaxInt64
 		minOOOTime int64 = math.MaxInt64
@@ -1946,10 +1927,9 @@ func (s *stripeSeries) gc(mint int64, minOOOMmapRef chunks.ChunkDiskMapperRef) (
 		}
 
 		deleted[storage.SeriesRef(series.ref)] = struct{}{}
-		series.lset.Range(func(l labels.Label) { affected[l] = struct{}{} })
 		s.hashes[hashShard].del(hash, series.ref)
 		delete(s.series[refShard], series.ref)
-		deletedForCallback[series.ref] = series.lset // OK to access lset; series is locked at the top of this function.
+		deletedForCallback[series.ref] = series.lset
 	}
 
 	s.iterForDeletion(check)
@@ -1958,7 +1938,7 @@ func (s *stripeSeries) gc(mint int64, minOOOMmapRef chunks.ChunkDiskMapperRef) (
 		actualMint = mint
 	}
 
-	return deleted, affected, rmChunks, actualMint, minOOOTime, minMmapFile
+	return deleted, rmChunks, actualMint, minOOOTime, minMmapFile
 }
 
 // The iterForDeletion function iterates through all series, invoking the checkDeletedFunc for each.
@@ -2041,7 +2021,7 @@ func (s *stripeSeries) getOrSet(hash uint64, lset labels.Labels, createSeries fu
 	}
 	// Setting the series in the s.hashes marks the creation of series
 	// as any further calls to this methods would return that series.
-	s.seriesLifecycleCallback.PostCreation(series.labels())
+	s.seriesLifecycleCallback.PostCreation(series.lset)
 
 	i = uint64(series.ref) & uint64(s.size-1)
 
@@ -2082,20 +2062,15 @@ func (s sample) Type() chunkenc.ValueType {
 // memSeries is the in-memory representation of a series. None of its methods
 // are goroutine safe and it is the caller's responsibility to lock it.
 type memSeries struct {
-	// Members up to the Mutex are not changed after construction, so can be accessed without a lock.
-	ref  chunks.HeadSeriesRef
-	meta *metadata.Metadata
-
-	// Series labels hash to use for sharding purposes.
-	// The value is always 0 when sharding has not been explicitly enabled in TSDB.
-	// While the WAL replay the value stored here is the max time of any mmapped chunk,
-	// and the shard hash is re-calculated after WAL replay is complete.
-	shardHashOrMemoryMappedMaxTime uint64
-
-	// Everything after here should only be accessed with the lock held.
 	sync.Mutex
 
-	lset labels.Labels // Locking required with -tags dedupelabels, not otherwise.
+	ref  chunks.HeadSeriesRef
+	lset labels.Labels
+	meta *metadata.Metadata
+
+	// Series labels hash to use for sharding purposes. The value is always 0 when sharding has not
+	// been explicitly enabled in TSDB.
+	shardHash uint64
 
 	// Immutable chunks on disk that have not yet gone into a block, in order of ascending time stamps.
 	// When compaction runs, chunks get moved into a block and all pointers are shifted like so:
@@ -2115,9 +2090,10 @@ type memSeries struct {
 
 	ooo *memSeriesOOOFields
 
+	mmMaxTime int64 // Max time of any mmapped chunk, only used during WAL replay.
+
 	nextAt                           int64 // Timestamp at which to cut the next chunk.
 	histogramChunkHasComputedEndTime bool  // True if nextAt has been predicted for the current histograms chunk; false otherwise.
-	pendingCommit                    bool  // Whether there are samples waiting to be committed to this series.
 
 	// We keep the last value here (in addition to appending it to the chunk) so we can check for duplicates.
 	lastValue float64
@@ -2133,6 +2109,8 @@ type memSeries struct {
 
 	// txs is nil if isolation is disabled.
 	txs *txRing
+
+	pendingCommit bool // Whether there are samples waiting to be committed to this series.
 }
 
 // memSeriesOOOFields contains the fields required by memSeries
@@ -2145,10 +2123,10 @@ type memSeriesOOOFields struct {
 
 func newMemSeries(lset labels.Labels, id chunks.HeadSeriesRef, shardHash uint64, isolationDisabled bool) *memSeries {
 	s := &memSeries{
-		lset:                           lset,
-		ref:                            id,
-		nextAt:                         math.MinInt64,
-		shardHashOrMemoryMappedMaxTime: shardHash,
+		lset:      lset,
+		ref:       id,
+		nextAt:    math.MinInt64,
+		shardHash: shardHash,
 	}
 	if !isolationDisabled {
 		s.txs = newTxRing(0)
@@ -2235,12 +2213,6 @@ func (s *memSeries) truncateChunksBefore(mint int64, minOOOMmapRef chunks.ChunkD
 
 	return removedInOrder + removedOOO
 }
-
-// shardHash returns the shard hash of the series, only available after WAL replay.
-func (s *memSeries) shardHash() uint64 { return s.shardHashOrMemoryMappedMaxTime }
-
-// mmMaxTime returns the max time of any mmapped chunk in the series, only available during WAL replay.
-func (s *memSeries) mmMaxTime() int64 { return int64(s.shardHashOrMemoryMappedMaxTime) }
 
 // cleanupAppendIDsBelow cleans up older appendIDs. Has to be called after
 // acquiring lock.

@@ -48,21 +48,27 @@ func (sp *urlSubjectProvider) subjectToken(ctx context.Context) (string, error) 
 	for key, val := range sp.Headers {
 		req.Header.Add(key, val)
 	}
-	resp, body, err := internal.DoRequest(sp.Client, req)
+	resp, err := sp.Client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("credentials: invalid response when retrieving subject token: %w", err)
 	}
+	defer resp.Body.Close()
+
+	respBody, err := internal.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("credentials: invalid body in subject token URL query: %w", err)
+	}
 	if c := resp.StatusCode; c < http.StatusOK || c >= http.StatusMultipleChoices {
-		return "", fmt.Errorf("credentials: status code %d: %s", c, body)
+		return "", fmt.Errorf("credentials: status code %d: %s", c, respBody)
 	}
 
 	if sp.Format == nil {
-		return string(body), nil
+		return string(respBody), nil
 	}
 	switch sp.Format.Type {
 	case "json":
 		jsonData := make(map[string]interface{})
-		err = json.Unmarshal(body, &jsonData)
+		err = json.Unmarshal(respBody, &jsonData)
 		if err != nil {
 			return "", fmt.Errorf("credentials: failed to unmarshal subject token file: %w", err)
 		}
@@ -76,7 +82,7 @@ func (sp *urlSubjectProvider) subjectToken(ctx context.Context) (string, error) 
 		}
 		return token, nil
 	case fileTypeText:
-		return string(body), nil
+		return string(respBody), nil
 	default:
 		return "", errors.New("credentials: invalid credential_source file format type: " + sp.Format.Type)
 	}

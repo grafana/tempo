@@ -126,7 +126,7 @@ func (h *Head) loadWAL(r *wlog.Reader, syms *labels.SymbolTable, multiRef map[ch
 			}
 			// At the moment the only possible error here is out of order exemplars, which we shouldn't see when
 			// replaying the WAL, so lets just log the error if it's not that type.
-			err = h.exemplars.AddExemplar(ms.labels(), exemplar.Exemplar{Ts: e.T, Value: e.V, Labels: e.Labels})
+			err = h.exemplars.AddExemplar(ms.lset, exemplar.Exemplar{Ts: e.T, Value: e.V, Labels: e.Labels})
 			if err != nil && errors.Is(err, storage.ErrOutOfOrderExemplar) {
 				level.Warn(h.logger).Log("msg", "Unexpected error when replaying WAL on exemplar record", "err", err)
 			}
@@ -435,8 +435,6 @@ Outer:
 	return nil
 }
 
-func minInt64() int64 { return math.MinInt64 }
-
 // resetSeriesWithMMappedChunks is only used during the WAL replay.
 func (h *Head) resetSeriesWithMMappedChunks(mSeries *memSeries, mmc, oooMmc []*mmappedChunk, walSeriesRef chunks.HeadSeriesRef) (overlapped bool) {
 	if mSeries.ref != walSeriesRef {
@@ -450,7 +448,7 @@ func (h *Head) resetSeriesWithMMappedChunks(mSeries *memSeries, mmc, oooMmc []*m
 			) {
 				level.Debug(h.logger).Log(
 					"msg", "M-mapped chunks overlap on a duplicate series record",
-					"series", mSeries.labels().String(),
+					"series", mSeries.lset.String(),
 					"oldref", mSeries.ref,
 					"oldmint", mSeries.mmappedChunks[0].minTime,
 					"oldmaxt", mSeries.mmappedChunks[len(mSeries.mmappedChunks)-1].maxTime,
@@ -483,11 +481,10 @@ func (h *Head) resetSeriesWithMMappedChunks(mSeries *memSeries, mmc, oooMmc []*m
 	}
 	// Cache the last mmapped chunk time, so we can skip calling append() for samples it will reject.
 	if len(mmc) == 0 {
-		mSeries.shardHashOrMemoryMappedMaxTime = uint64(minInt64())
+		mSeries.mmMaxTime = math.MinInt64
 	} else {
-		mmMaxTime := mmc[len(mmc)-1].maxTime
-		mSeries.shardHashOrMemoryMappedMaxTime = uint64(mmMaxTime)
-		h.updateMinMaxTime(mmc[0].minTime, mmMaxTime)
+		mSeries.mmMaxTime = mmc[len(mmc)-1].maxTime
+		h.updateMinMaxTime(mmc[0].minTime, mSeries.mmMaxTime)
 	}
 	if len(oooMmc) != 0 {
 		// Mint and maxt can be in any chunk, they are not sorted.
@@ -588,7 +585,7 @@ func (wp *walSubsetProcessor) processWALSamples(h *Head, mmappedChunks, oooMmapp
 				unknownRefs++
 				continue
 			}
-			if s.T <= ms.mmMaxTime() {
+			if s.T <= ms.mmMaxTime {
 				continue
 			}
 			if _, chunkCreated := ms.append(s.T, s.V, 0, appendChunkOpts); chunkCreated {
@@ -617,7 +614,7 @@ func (wp *walSubsetProcessor) processWALSamples(h *Head, mmappedChunks, oooMmapp
 				unknownHistogramRefs++
 				continue
 			}
-			if s.t <= ms.mmMaxTime() {
+			if s.t <= ms.mmMaxTime {
 				continue
 			}
 			var chunkCreated bool
@@ -890,7 +887,7 @@ func (wp *wblSubsetProcessor) processWBLSamples(h *Head) (unknownRefs uint64) {
 				unknownRefs++
 				continue
 			}
-			ok, chunkCreated, _ := ms.insert(s.T, s.V, nil, nil, h.chunkDiskMapper, oooCapMax, h.logger)
+			ok, chunkCreated, _ := ms.insert(s.T, s.V, h.chunkDiskMapper, oooCapMax)
 			if chunkCreated {
 				h.metrics.chunksCreated.Inc()
 				h.metrics.chunks.Inc()
@@ -935,7 +932,7 @@ func (s *memSeries) encodeToSnapshotRecord(b []byte) []byte {
 
 	buf.PutByte(chunkSnapshotRecordTypeSeries)
 	buf.PutBE64(uint64(s.ref))
-	record.EncodeLabels(&buf, s.labels())
+	record.EncodeLabels(&buf, s.lset)
 	buf.PutBE64int64(0) // Backwards-compatibility; was chunkRange but now unused.
 
 	s.Lock()
@@ -1488,7 +1485,7 @@ Outer:
 					continue
 				}
 
-				if err := h.exemplars.AddExemplar(ms.labels(), exemplar.Exemplar{
+				if err := h.exemplars.AddExemplar(ms.lset, exemplar.Exemplar{
 					Labels: e.Labels,
 					Value:  e.V,
 					Ts:     e.T,

@@ -39,3 +39,9 @@ func (m *maxTimestamp) Get() float64 {
 	defer m.mtx.Unlock()
 	return m.value
 }
+
+func (m *maxTimestamp) Collect(c chan<- prometheus.Metric) {
+	if m.Get() > 0 {
+		m.Gauge.Collect(c)
+	}
+}

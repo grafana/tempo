@@ -19,6 +19,7 @@ package prometheus
 import "strings"
 
 var wordToUCUM = map[string]string{
+
 	// Time
 	"days":         "d",
 	"hours":        "h",

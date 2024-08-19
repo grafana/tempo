@@ -8,7 +8,6 @@ import (
 	"errors"
 	"io"
 	"net"
-	"net/url"
 	"strings"
 	"time"
 
@@ -30,6 +29,8 @@ var (
 	backoff = func() Backoff {
 		return &gax.Backoff{Initial: 100 * time.Millisecond}
 	}
+	// syscallRetryable is a platform-specific hook, specified in retryable_linux.go
+	syscallRetryable func(error) bool = func(err error) bool { return false }
 )
 
 const (
@@ -55,33 +56,30 @@ func shouldRetry(status int, err error) bool {
 	if status == statusTooManyRequests || status == statusRequestTimeout {
 		return true
 	}
-	if errors.Is(err, io.ErrUnexpectedEOF) {
+	if err == io.ErrUnexpectedEOF {
 		return true
 	}
-	if errors.Is(err, net.ErrClosed) {
+	// Transient network errors should be retried.
+	if syscallRetryable(err) {
 		return true
 	}
-	switch e := err.(type) {
-	case *net.OpError, *url.Error:
-		// Retry socket-level errors ECONNREFUSED and ECONNRESET (from syscall).
-		// Unfortunately the error type is unexported, so we resort to string
-		// matching.
-		retriable := []string{"connection refused", "connection reset", "broken pipe"}
-		for _, s := range retriable {
-			if strings.Contains(e.Error(), s) {
-				return true
-			}
+	if err, ok := err.(interface{ Temporary() bool }); ok {
+		if err.Temporary() {
+			return true
 		}
-	case interface{ Temporary() bool }:
-		if e.Temporary() {
+	}
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		if strings.Contains(opErr.Error(), "use of closed network connection") {
+			// TODO: check against net.ErrClosed (go 1.16+) instead of string
 			return true
 		}
 	}
 
-	// If error unwrapping is available, use this to examine wrapped
+	// If Go 1.13 error unwrapping is available, use this to examine wrapped
 	// errors.
-	if e, ok := err.(interface{ Unwrap() error }); ok {
-		return shouldRetry(status, e.Unwrap())
+	if err, ok := err.(interface{ Unwrap() error }); ok {
+		return shouldRetry(status, err.Unwrap())
 	}
 	return false
 }

@@ -73,11 +73,9 @@ type Options struct {
 	// Option used by downstream scraper users like OpenTelemetry Collector
 	// to help lookup metric metadata. Should be false for Prometheus.
 	PassMetadataInContext bool
-	// Option to enable appending of scraped Metadata to the TSDB/other appenders. Individual appenders
-	// can decide what to do with metadata, but for practical purposes this flag exists so that metadata
-	// can be written to the WAL and thus read for remote write.
-	// TODO: implement some form of metadata storage
-	AppendMetadata bool
+	// Option to enable the experimental in-memory metadata storage and append
+	// metadata to the WAL.
+	EnableMetadataStorage bool
 	// Option to increase the interval used by scrape manager to throttle target groups updates.
 	DiscoveryReloadInterval model.Duration
 	// Option to enable the ingestion of the created timestamp as a synthetic zero sample.
@@ -92,8 +90,6 @@ type Options struct {
 	// private option for testability.
 	skipOffsetting bool
 }
-
-const DefaultNameEscapingScheme = model.ValueEncodingEscaping
 
 // Manager maintains a set of scrape pools and manages start/stop cycles
 // when receiving new target groups from the discovery manager.

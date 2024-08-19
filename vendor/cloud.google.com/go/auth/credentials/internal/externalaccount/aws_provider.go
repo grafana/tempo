@@ -122,7 +122,7 @@ func (sp *awsSubjectProvider) subjectToken(ctx context.Context) (string, error) 
 
 	// Generate the signed request to AWS STS GetCallerIdentity API.
 	// Use the required regional endpoint. Otherwise, the request will fail.
-	req, err := http.NewRequestWithContext(ctx, "POST", strings.Replace(sp.RegionalCredVerificationURL, "{region}", sp.region, 1), nil)
+	req, err := http.NewRequest("POST", strings.Replace(sp.RegionalCredVerificationURL, "{region}", sp.region, 1), nil)
 	if err != nil {
 		return "", err
 	}
@@ -194,14 +194,20 @@ func (sp *awsSubjectProvider) getAWSSessionToken(ctx context.Context) (string, e
 	}
 	req.Header.Set(awsIMDSv2SessionTTLHeader, awsIMDSv2SessionTTL)
 
-	resp, body, err := internal.DoRequest(sp.Client, req)
+	resp, err := sp.Client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := internal.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("credentials: unable to retrieve AWS session token: %s", body)
+		return "", fmt.Errorf("credentials: unable to retrieve AWS session token: %s", respBody)
 	}
-	return string(body), nil
+	return string(respBody), nil
 }
 
 func (sp *awsSubjectProvider) getRegion(ctx context.Context, headers map[string]string) (string, error) {
@@ -227,21 +233,29 @@ func (sp *awsSubjectProvider) getRegion(ctx context.Context, headers map[string]
 	for name, value := range headers {
 		req.Header.Add(name, value)
 	}
-	resp, body, err := internal.DoRequest(sp.Client, req)
+
+	resp, err := sp.Client.Do(req)
 	if err != nil {
 		return "", err
 	}
+	defer resp.Body.Close()
+
+	respBody, err := internal.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("credentials: unable to retrieve AWS region - %s", body)
+		return "", fmt.Errorf("credentials: unable to retrieve AWS region - %s", respBody)
 	}
 
 	// This endpoint will return the region in format: us-east-2b.
 	// Only the us-east-2 part should be used.
-	bodyLen := len(body)
+	bodyLen := len(respBody)
 	if bodyLen == 0 {
 		return "", nil
 	}
-	return string(body[:bodyLen-1]), nil
+	return string(respBody[:bodyLen-1]), nil
 }
 
 func (sp *awsSubjectProvider) getSecurityCredentials(ctx context.Context, headers map[string]string) (result *AwsSecurityCredentials, err error) {
@@ -285,17 +299,22 @@ func (sp *awsSubjectProvider) getMetadataSecurityCredentials(ctx context.Context
 	for name, value := range headers {
 		req.Header.Add(name, value)
 	}
-	resp, body, err := internal.DoRequest(sp.Client, req)
+
+	resp, err := sp.Client.Do(req)
+	if err != nil {
+		return result, err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := internal.ReadAll(resp.Body)
 	if err != nil {
 		return result, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return result, fmt.Errorf("credentials: unable to retrieve AWS security credentials - %s", body)
+		return result, fmt.Errorf("credentials: unable to retrieve AWS security credentials - %s", respBody)
 	}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, err
-	}
-	return result, nil
+	err = json.Unmarshal(respBody, &result)
+	return result, err
 }
 
 func (sp *awsSubjectProvider) getMetadataRoleName(ctx context.Context, headers map[string]string) (string, error) {
@@ -310,14 +329,20 @@ func (sp *awsSubjectProvider) getMetadataRoleName(ctx context.Context, headers m
 		req.Header.Add(name, value)
 	}
 
-	resp, body, err := internal.DoRequest(sp.Client, req)
+	resp, err := sp.Client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := internal.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("credentials: unable to retrieve AWS role name - %s", body)
+		return "", fmt.Errorf("credentials: unable to retrieve AWS role name - %s", respBody)
 	}
-	return string(body), nil
+	return string(respBody), nil
 }
 
 // awsRequestSigner is a utility class to sign http requests using a AWS V4 signature.

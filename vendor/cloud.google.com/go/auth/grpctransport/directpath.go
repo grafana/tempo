@@ -66,10 +66,10 @@ func isTokenProviderDirectPathCompatible(tp auth.TokenProvider, _ *Options) bool
 	if tok == nil {
 		return false
 	}
-	if tok.MetadataString("auth.google.tokenSource") != "compute-metadata" {
+	if source, _ := tok.Metadata["auth.google.tokenSource"].(string); source != "compute-metadata" {
 		return false
 	}
-	if tok.MetadataString("auth.google.serviceAccount") != "default" {
+	if acct, _ := tok.Metadata["auth.google.serviceAccount"].(string); acct != "default" {
 		return false
 	}
 	return true

@@ -27,7 +27,7 @@ import (
 
 // MetadataAppender is an interface used by the Metadata Watcher to send metadata, It is read from the scrape manager, on to somewhere else.
 type MetadataAppender interface {
-	AppendWatcherMetadata(context.Context, []scrape.MetricMetadata)
+	AppendMetadata(context.Context, []scrape.MetricMetadata)
 }
 
 // Watchable represents from where we fetch active targets for metadata.
@@ -146,7 +146,7 @@ func (mw *MetadataWatcher) collect() {
 	}
 
 	// Blocks until the metadata is sent to the remote write endpoint or hardShutdownContext is expired.
-	mw.writer.AppendWatcherMetadata(mw.hardShutdownCtx, metadata)
+	mw.writer.AppendMetadata(mw.hardShutdownCtx, metadata)
 }
 
 func (mw *MetadataWatcher) ready() bool {

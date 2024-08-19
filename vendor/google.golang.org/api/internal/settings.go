@@ -126,7 +126,7 @@ func (ds *DialSettings) Validate() error {
 	if ds.Credentials != nil {
 		nCreds++
 	}
-	if len(ds.CredentialsJSON) > 0 {
+	if ds.CredentialsJSON != nil {
 		nCreds++
 	}
 	if ds.CredentialsFile != "" {

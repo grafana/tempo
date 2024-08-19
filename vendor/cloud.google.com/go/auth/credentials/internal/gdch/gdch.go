@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 	"time"
 
 	"cloud.google.com/go/auth"
@@ -130,13 +129,12 @@ func (g gdchProvider) Token(ctx context.Context) (*auth.Token, error) {
 	v.Set("requested_token_type", requestTokenType)
 	v.Set("subject_token", payload)
 	v.Set("subject_token_type", subjectTokenType)
-
-	req, err := http.NewRequestWithContext(ctx, "POST", g.tokenURL, strings.NewReader(v.Encode()))
+	resp, err := g.client.PostForm(g.tokenURL, v)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("credentials: cannot fetch token: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, body, err := internal.DoRequest(g.client, req)
+	defer resp.Body.Close()
+	body, err := internal.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("credentials: cannot fetch token: %w", err)
 	}
