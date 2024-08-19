@@ -524,14 +524,14 @@ func TestMinOverTimeForDuration(t *testing.T) {
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 			},
-			Values:    []float64{0, 0, 512},
+			Values:    []float64{0, 0, 512 / float64(time.Millisecond)},
 			Exemplars: make([]Exemplar, 0),
 		},
 		`{span.foo="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 			},
-			Values:    []float64{128, 8, 0},
+			Values:    []float64{128 / float64(time.Millisecond), 8 / float64(time.Millisecond), 0},
 			Exemplars: make([]Exemplar, 0),
 		},
 	}
