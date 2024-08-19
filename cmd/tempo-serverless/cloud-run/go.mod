@@ -89,7 +89,7 @@ require (
 	github.com/prometheus/common v0.55.0 // indirect
 	github.com/prometheus/exporter-toolkit v0.11.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
-	github.com/prometheus/prometheus v0.54.0-rc.0.0.20240819115129-b914a9b580ab // indirect
+	github.com/prometheus/prometheus v0.54.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/rs/xid v1.5.0 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect

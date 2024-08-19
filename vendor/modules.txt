@@ -1915,8 +1915,8 @@ google.golang.org/grpc/stats
 google.golang.org/grpc/status
 google.golang.org/grpc/tap
 google.golang.org/grpc/test/bufconn
-# google.golang.org/protobuf v1.34.2 => google.golang.org/protobuf v1.34.1
-## explicit; go 1.17
+# google.golang.org/protobuf v1.34.2
+## explicit; go 1.20
 google.golang.org/protobuf/encoding/protodelim
 google.golang.org/protobuf/encoding/protojson
 google.golang.org/protobuf/encoding/prototext
@@ -1990,4 +1990,3 @@ k8s.io/utils/clock
 # k8s.io/api => k8s.io/api v0.25.0
 # k8s.io/client-go => k8s.io/client-go v0.25.0
 # github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-0.20220708130638-bd88e10a3d91
-# google.golang.org/protobuf => google.golang.org/protobuf v1.34.1
