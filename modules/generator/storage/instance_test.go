@@ -206,7 +206,7 @@ func TestInstance_remoteWriteHeaders(t *testing.T) {
 
 	headers := map[string]string{user.OrgIDHeaderName: "my-other-tenant"}
 
-	instance, err := New(&cfg, &mockOverrides{headers, string(overrides.HistogramMethodClassic)}, "test-tenant", &noopRegisterer{}, logger)
+	instance, err := New(&cfg, &mockOverrides{headers, overrides.HistogramMethodClassic}, "test-tenant", &noopRegisterer{}, logger)
 	require.NoError(t, err)
 
 	// Refuse requests - the WAL should buffer data until requests succeed
@@ -368,14 +368,14 @@ var _ Overrides = (*mockOverrides)(nil)
 
 type mockOverrides struct {
 	headers          map[string]string
-	nativeHistograms string
+	nativeHistograms overrides.HistogramMethod
 }
 
 func (m *mockOverrides) MetricsGeneratorRemoteWriteHeaders(string) map[string]string {
 	return m.headers
 }
 
-func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(string) string {
+func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(string) overrides.HistogramMethod {
 	return m.nativeHistograms
 }
 

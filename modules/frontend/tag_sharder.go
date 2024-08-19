@@ -300,7 +300,6 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 				errFn(err)
 				return
 			}
-			subR.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
 			prepareRequestForQueriers(subR, tenantID)
 			pipelineR := pipeline.NewHTTPRequest(subR)
 
@@ -357,7 +356,6 @@ func (s searchTagSharder) buildIngesterRequest(ctx context.Context, tenantID str
 	if err != nil {
 		return nil, err
 	}
-	subR.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
 	prepareRequestForQueriers(subR, tenantID)
 	return subR, nil
 }

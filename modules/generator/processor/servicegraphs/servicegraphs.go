@@ -88,7 +88,7 @@ type Processor struct {
 	logger             log.Logger
 }
 
-func New(cfg Config, tenant string, registry registry.Registry, logger log.Logger) gen.Processor {
+func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger) gen.Processor {
 	labels := []string{"client", "server", "connection_type"}
 
 	if cfg.EnableVirtualNodeLabel {
@@ -112,15 +112,15 @@ func New(cfg Config, tenant string, registry registry.Registry, logger log.Logge
 
 	p := &Processor{
 		Cfg:      cfg,
-		registry: registry,
+		registry: reg,
 		labels:   labels,
 		closeCh:  make(chan struct{}, 1),
 
-		serviceGraphRequestTotal:                           registry.NewCounter(metricRequestTotal),
-		serviceGraphRequestFailedTotal:                     registry.NewCounter(metricRequestFailedTotal),
-		serviceGraphRequestServerSecondsHistogram:          registry.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets),
-		serviceGraphRequestClientSecondsHistogram:          registry.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets),
-		serviceGraphRequestMessagingSystemSecondsHistogram: registry.NewHistogram(metricRequestMessagingSystemSeconds, cfg.HistogramBuckets),
+		serviceGraphRequestTotal:                           reg.NewCounter(metricRequestTotal),
+		serviceGraphRequestFailedTotal:                     reg.NewCounter(metricRequestFailedTotal),
+		serviceGraphRequestServerSecondsHistogram:          reg.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
+		serviceGraphRequestClientSecondsHistogram:          reg.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
+		serviceGraphRequestMessagingSystemSecondsHistogram: reg.NewHistogram(metricRequestMessagingSystemSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
 
 		metricDroppedSpans: metricDroppedSpans.WithLabelValues(tenant),
 		metricTotalEdges:   metricTotalEdges.WithLabelValues(tenant),

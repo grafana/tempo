@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/grafana/tempo/v2/modules/generator/registry"
 	"github.com/grafana/tempo/v2/pkg/sharedconfig"
 	filterconfig "github.com/grafana/tempo/v2/pkg/spanfilter/config"
 	"github.com/prometheus/client_golang/prometheus"
@@ -24,15 +25,22 @@ const (
 type Config struct {
 	// Buckets for latency histogram in seconds.
 	HistogramBuckets []float64 `yaml:"histogram_buckets"`
+
+	// The histogram mode to select.
+	HistogramOverride registry.HistogramMode `yaml:"-"`
+
 	// Intrinsic dimensions (labels) added to the metric, that are generated from fixed span
 	// data. The dimensions service, span_name, span_kind, status_code, job and instance are enabled by
 	// default, whereas the dimension status_message must be enabled explicitly.
 	IntrinsicDimensions IntrinsicDimensions `yaml:"intrinsic_dimensions"`
+
 	// Additional dimensions (labels) to be added to the metric. The dimensions are generated
 	// from span attributes and are created along with the intrinsic dimensions.
 	Dimensions []string `yaml:"dimensions"`
+
 	// Dimension label mapping to allow the user to rename attributes in their metrics
 	DimensionMappings []sharedconfig.DimensionMappings `yaml:"dimension_mappings"`
+
 	// Enable target_info as a metrics
 	EnableTargetInfo bool `yaml:"enable_target_info"`
 
@@ -52,6 +60,7 @@ type Config struct {
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.HistogramBuckets = prometheus.ExponentialBuckets(0.002, 2, 14)
+	cfg.HistogramOverride = registry.HistogramModeClassic
 	cfg.IntrinsicDimensions.Service = true
 	cfg.IntrinsicDimensions.SpanName = true
 	cfg.IntrinsicDimensions.SpanKind = true

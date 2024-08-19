@@ -14,7 +14,6 @@ import (
 	"github.com/prometheus/prometheus/storage"
 	"go.uber.org/atomic"
 
-	"github.com/grafana/tempo/v2/modules/overrides"
 	tempo_log "github.com/grafana/tempo/v2/pkg/util/log"
 )
 
@@ -148,19 +147,14 @@ func (r *ManagedRegistry) NewCounter(name string) Counter {
 	return c
 }
 
-func (r *ManagedRegistry) NewHistogram(name string, buckets []float64) (h Histogram) {
+func (r *ManagedRegistry) NewHistogram(name string, buckets []float64, histogramOverride HistogramMode) (h Histogram) {
 	traceIDLabelName := r.overrides.MetricsGenerationTraceIDLabelName(r.tenant)
 
-	histograms := r.overrides.MetricsGeneratorGenerateNativeHistograms(r.tenant)
+	// TODO: Temporary switch: use the old implementation when native histograms
+	// are disabled, eventually the new implementation can handle all cases
 
-	histogramsModeFunc := func() string {
-		return r.overrides.MetricsGeneratorGenerateNativeHistograms(r.tenant)
-	}
-
-	// Temporary switch: use the old implementation when native histograms are
-	// disabled, eventually the new implementation can handle all cases
-	if overrides.HasNativeHistograms(histograms) {
-		h = newNativeHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, histogramsModeFunc)
+	if hasNativeHistograms(histogramOverride) {
+		h = newNativeHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, histogramOverride)
 	} else {
 		h = newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName)
 	}
@@ -283,4 +277,12 @@ func (r *ManagedRegistry) removeStaleSeries(_ context.Context) {
 func (r *ManagedRegistry) Close() {
 	level.Info(r.logger).Log("msg", "closing registry")
 	r.onShutdown()
+}
+
+func hasNativeHistograms(s HistogramMode) bool {
+	return s == HistogramModeNative || s == HistogramModeBoth
+}
+
+func hasClassicHistograms(s HistogramMode) bool {
+	return s == HistogramModeClassic || s == HistogramModeBoth
 }

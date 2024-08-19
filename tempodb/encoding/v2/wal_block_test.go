@@ -166,6 +166,14 @@ func TestAdjustTimeRangeForSlack(t *testing.T) {
 	actualStart, actualEnd = a.adjustTimeRangeForSlack(start, end, time.Hour)
 	assert.Equal(t, start, actualStart)
 	assert.Equal(t, end, actualEnd)
+
+	// test start and end out of range
+	now = uint32(time.Now().Unix())
+	start = uint32(time.Now().Add(5 * -time.Hour).Unix())
+	end = uint32(time.Now().Add(4 * -time.Hour).Unix())
+	actualStart, actualEnd = a.adjustTimeRangeForSlack(start, end, 0)
+	assert.Equal(t, now, actualStart)
+	assert.Equal(t, now, actualEnd)
 }
 
 func TestPartialBlock(t *testing.T) {

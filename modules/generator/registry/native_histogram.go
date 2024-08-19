@@ -35,10 +35,10 @@ type nativeHistogram struct {
 
 	traceIDLabelName string
 
-	// Returns "native" or "both", to include classic histograms.  We wrap the
-	// ovverrides with this func so that we can update the implementation after
-	// the nativeHistogram has been created.
-	modeFunc func() string
+	// Can be "native", classic", "both" to determine which histograms to
+	// generate.  A diff in the configured value on the processors will cause a
+	// reload of the process, and a new instance of the histogram to be created.
+	histogramOverride HistogramMode
 }
 
 type nativeHistogramSeries struct {
@@ -54,7 +54,7 @@ var (
 	_ metric    = (*nativeHistogram)(nil)
 )
 
-func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, histogramsModeFunc func() string) *nativeHistogram {
+func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, histogramOverride HistogramMode) *nativeHistogram {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -64,24 +64,18 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 		onRemoveSeries = func(uint32) {}
 	}
 
-	if histogramsModeFunc == nil {
-		histogramsModeFunc = func() string {
-			return "native"
-		}
-	}
-
 	if traceIDLabelName == "" {
 		traceIDLabelName = "traceID"
 	}
 
 	return &nativeHistogram{
-		metricName:       name,
-		series:           make(map[uint64]*nativeHistogramSeries),
-		onAddSerie:       onAddSeries,
-		onRemoveSerie:    onRemoveSeries,
-		traceIDLabelName: traceIDLabelName,
-		buckets:          buckets,
-		modeFunc:         histogramsModeFunc,
+		metricName:        name,
+		series:            make(map[uint64]*nativeHistogramSeries),
+		onAddSerie:        onAddSeries,
+		onRemoveSerie:     onRemoveSeries,
+		traceIDLabelName:  traceIDLabelName,
+		buckets:           buckets,
+		histogramOverride: histogramOverride,
 	}
 }
 
@@ -176,18 +170,8 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		// the same, and so Reset() call below can be used to clear the exemplars.
 		s.histogram = encodedMetric.GetHistogram()
 
-		// NOTE: A subtle point here is that the new histogram implementation is
-		// chosen in the registry.  This means that if the user overrides change
-		// from "both" to "classic", we will still be using the new histograms
-		// implementation. This is because the registry is not recreated when the
-		// overrides change. This is a tradeoff to avoid recreating the registry
-		// for every change in the overrides, but it does mean that even if user
-		// changes to "classic" histograms, we will still be using the new
-		// histograms implementation and want to avoid generating native
-		// histograms.
-
 		// If we are in "both" or "classic" mode, also emit classic histograms.
-		if overrides.HasClassicHistograms(h.modeFunc()) {
+		if hasClassicHistograms(h.histogramOverride) {
 			classicSeries, classicErr := h.classicHistograms(appender, lb, timeMs, s)
 			if classicErr != nil {
 				return activeSeries, classicErr
@@ -196,7 +180,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		}
 
 		// If we are in "both" or "native" mode, also emit native histograms.
-		if overrides.HasNativeHistograms(h.modeFunc()) {
+		if hasNativeHistograms(h.histogramOverride) {
 			nativeErr := h.nativeHistograms(appender, lb, timeMs, s)
 			if nativeErr != nil {
 				return activeSeries, nativeErr

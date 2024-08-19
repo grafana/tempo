@@ -114,8 +114,6 @@ func TestStreamingBlockAddObject(t *testing.T) {
 
 	assert.Equal(t, time.Unix(10000, 0), meta.StartTime)
 	assert.Equal(t, time.Unix(25000, 0), meta.EndTime)
-	assert.Equal(t, minID, common.ID(meta.MinID))
-	assert.Equal(t, maxID, common.ID(meta.MaxID))
 	assert.Equal(t, testTenantID, meta.TenantID)
 	assert.Equal(t, numObjects, meta.TotalObjects)
 	assert.Greater(t, meta.Size, uint64(0))
@@ -281,8 +279,6 @@ func streamingBlock(t *testing.T, cfg *common.BlockConfig, w backend.Writer) (*S
 	require.NoError(t, err)
 
 	// test downsample config
-	require.True(t, bytes.Equal(block.BlockMeta().MinID, minID))
-	require.True(t, bytes.Equal(block.BlockMeta().MaxID, maxID))
 	require.Equal(t, originatingMeta.StartTime, block.BlockMeta().StartTime)
 	require.Equal(t, originatingMeta.EndTime, block.BlockMeta().EndTime)
 	require.Equal(t, originatingMeta.TenantID, block.BlockMeta().TenantID)

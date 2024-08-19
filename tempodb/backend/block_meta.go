@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -84,9 +83,8 @@ func (s DedicatedColumnScope) ToTempopb() (tempopb.DedicatedColumn_Scope, error)
 }
 
 type CompactedBlockMeta struct {
-	BlockMeta
-
 	CompactedTime time.Time `json:"compactedTime"`
+	BlockMeta
 }
 
 const (
@@ -100,10 +98,6 @@ type BlockMeta struct {
 	Version string `json:"format"`
 	// BlockID is a unique identifier of the block.
 	BlockID uuid.UUID `json:"blockID"`
-	// MinID is the smallest object id stored in this block.
-	MinID []byte `json:"minID"`
-	// MaxID is the largest object id stored in this block.
-	MaxID []byte `json:"maxID"`
 	// A TenantID that defines the tenant to which this block belongs.
 	TenantID string `json:"tenantID"`
 	// StartTime roughly matches when the first obj was written to this block. It is used to determine block.
@@ -133,7 +127,7 @@ type BlockMeta struct {
 	DedicatedColumns DedicatedColumns `json:"dedicatedColumns,omitempty"`
 	// ReplicationFactor is the number of times the data written in this block has been replicated.
 	// It's left unset if replication factor is 3. Default is 0 (RF3).
-	ReplicationFactor uint32 `json:"replicationFactor,omitempty"`
+	ReplicationFactor uint8 `json:"replicationFactor,omitempty"`
 }
 
 // DedicatedColumn contains the configuration for a single attribute with the given name that should
@@ -179,6 +173,25 @@ func (dc *DedicatedColumn) UnmarshalJSON(b []byte) error {
 // DedicatedColumns represents a set of configured dedicated columns.
 type DedicatedColumns []DedicatedColumn
 
+func (dcs *DedicatedColumns) UnmarshalJSON(b []byte) error {
+	// Get the pre-unmarshalled data if available.
+	v := getDedicatedColumns(string(b))
+	if v != nil {
+		*dcs = *v
+		return nil
+	}
+
+	type dcsAlias DedicatedColumns // alias required to avoid recursive calls of UnmarshalJSON
+	err := json.Unmarshal(b, (*dcsAlias)(dcs))
+	if err != nil {
+		return err
+	}
+
+	putDedicatedColumns(string(b), dcs)
+
+	return nil
+}
+
 func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {
 	return NewBlockMetaWithDedicatedColumns(tenantID, blockID, version, encoding, dataEncoding, nil)
 }
@@ -187,8 +200,6 @@ func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, versio
 	b := &BlockMeta{
 		Version:          version,
 		BlockID:          blockID,
-		MinID:            []byte{},
-		MaxID:            []byte{},
 		TenantID:         tenantID,
 		Encoding:         encoding,
 		DataEncoding:     dataEncoding,
@@ -199,8 +210,8 @@ func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, versio
 }
 
 // ObjectAdded updates the block meta appropriately based on information about an added record
-// start/end are unix epoch seconds
-func (b *BlockMeta) ObjectAdded(id []byte, start, end uint32) {
+// start/end are unix epoch seconds, when 0 the start and the end are not applied.
+func (b *BlockMeta) ObjectAdded(start, end uint32) {
 	if start > 0 {
 		startTime := time.Unix(int64(start), 0)
 		if b.StartTime.IsZero() || startTime.Before(b.StartTime) {
@@ -213,13 +224,6 @@ func (b *BlockMeta) ObjectAdded(id []byte, start, end uint32) {
 		if b.EndTime.IsZero() || endTime.After(b.EndTime) {
 			b.EndTime = endTime
 		}
-	}
-
-	if len(b.MinID) == 0 || bytes.Compare(id, b.MinID) == -1 {
-		b.MinID = id
-	}
-	if len(b.MaxID) == 0 || bytes.Compare(id, b.MaxID) == 1 {
-		b.MaxID = id
 	}
 
 	b.TotalObjects++

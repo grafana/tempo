@@ -116,6 +116,11 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 		copyCfg.LocalBlocks.CompleteBlockTimeout = timeout
 	}
 
+	if histograms := o.MetricsGeneratorGenerateNativeHistograms(userID); histograms != "" {
+		copyCfg.ServiceGraphs.HistogramOverride = registry.HistogramModeToValue[string(histograms)]
+		copyCfg.SpanMetrics.HistogramOverride = registry.HistogramModeToValue[string(histograms)]
+	}
+
 	copyCfg.SpanMetrics.DimensionMappings = o.MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID)
 
 	copyCfg.SpanMetrics.EnableTargetInfo = o.MetricsGeneratorProcessorSpanMetricsEnableTargetInfo(userID)

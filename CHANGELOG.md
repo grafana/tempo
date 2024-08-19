@@ -7,6 +7,7 @@
 * [CHANGE] Make vParquet4 the default block encoding [#3810](https://github.com/grafana/tempo/pull/3810) (@ie-pham)
 * [CHANGE] Azure v2 backend becomes the only and primary Azure backend [#3875](https://github.com/grafana/tempo/pull/3875) (@zalegrala)
   **BREAKING CHANGE** The `use_v2_sdk` configuration option has been removed.
+* [CHANGE] BlockMeta improvements to reduce the size [#3950](https://github.com/grafana/tempo/pull/3950) [#3951](https://github.com/grafana/tempo/pull/3951) [#3952](https://github.com/grafana/tempo/pull/3952)(@zalegrala)
 * [FEATURE] TraceQL support for link scope and link:traceID and link:spanID [#3741](https://github.com/grafana/tempo/pull/3741) (@stoewer)
 * [FEATURE] TraceQL support for link attribute querying [#3814](https://github.com/grafana/tempo/pull/3814) (@ie-pham)
 * [FEATURE] TraceQL support for event scope and event:name intrinsic [#3708](https://github.com/grafana/tempo/pull/3708) (@stoewer)
@@ -21,6 +22,7 @@
 * [ENHANCEMENT] Implement arrays for traceql.Static with reused fields [#3827](https://github.com/grafana/tempo/pull/3827) (@stoewer)
 * [ENHANCEMENT] Tag value lookup use protobuf internally for improved latency [#3731](https://github.com/grafana/tempo/pull/3731) (@mdisibio)
 * [ENHANCEMENT] TraceQL metrics queries use protobuf internally for improved latency [#3745](https://github.com/grafana/tempo/pull/3745) (@mdisibio)
+* [ENHANCEMENT] TraceQL search and other endpoints use protobuf internally for improved latency and resource usage [#3944](https://github.com/grafana/tempo/pull/3944) (@mdisibio)
 * [ENHANCEMENT] Add local disk caching of metrics queries in local-blocks processor [#3799](https://github.com/grafana/tempo/pull/3799) (@mdisibio)
 * [ENHANCEMENT] Improve use of OTEL semantic conventions on the service graph [#3711](https://github.com/grafana/tempo/pull/3711) (@zalegrala)
 * [ENHANCEMENT] Performance improvement for `rate() by ()` queries [#3719](https://github.com/grafana/tempo/pull/3719) (@mapno)
@@ -46,13 +48,17 @@
 * [ENHANCEMENT] Reduce log level verbosity for e2e tests[#3900](https://github.com/grafana/tempo/pull/3900) (@javiermolinar)
 * [ENHANCEMENT] Added new Traces api V2[#3912](https://github.com/grafana/tempo/pull/3912) (@javiermolinar)
 * [ENHANCEMENT] Update to the latest dskit [#3915](https://github.com/grafana/tempo/pull/3915) (@andreasgerstmayr)
-
+* [ENHANCEMENT] Reduce allocs building queriers sharded requests [#3932](https://github.com/grafana/tempo/pull/3932) (@javiermolinar)
+* [ENHANCEMENT] Allow compaction disablement per-tenant [#3965](https://github.com/grafana/tempo/pull/3965) (@zalegrala)
+* [ENHANCEMENT] Implement polling tenants concurrently [#3647](https://github.com/grafana/tempo/pull/3647) (@zalegrala)
+* [ENHANCEMENT] Added new middleware to block matching urls [#3963](https://github.com/grafana/tempo/pull/3963) (@javiermolinar)
 * [BUGFIX] Fix panic in certain metrics queries using `rate()` with `by` [#3847](https://github.com/grafana/tempo/pull/3847) (@stoewer)
 * [BUGFIX] Fix double appending the primary iterator on second pass with event iterator [#3903](https://github.com/grafana/tempo/pull/3903) (@ie-pham)
 * [BUGFIX] Fix metrics queries when grouping by attributes that may not exist [#3734](https://github.com/grafana/tempo/pull/3734) (@mdisibio)
 * [BUGFIX] Fix frontend parsing error on cached responses [#3759](https://github.com/grafana/tempo/pull/3759) (@mdisibio)
 * [BUGFIX] Fix autocomplete of a query using scoped instrinsics [#3865](https://github.com/grafana/tempo/pull/3865) (@mdisibio)
 * [BUGFIX] Fix metrics query histograms and quantiles on traceDuration [#3879](https://github.com/grafana/tempo/pull/3879) (@mdisibio)
+* [BUGFIX] Fix divide by 0 bug in query frontend exemplar calculations [#3936](https://github.com/grafana/tempo/pull/3936) (@mdisibio)
 * [BUGFIX] max_global_traces_per_user: take into account ingestion.tenant_shard_size when converting to local limit [#3618](https://github.com/grafana/tempo/pull/3618) (@kvrhdn)
 * [BUGFIX] Fix http connection reuse on GCP and AWS by reading io.EOF through the http body. [#3760](https://github.com/grafana/tempo/pull/3760) (@bmteller)
 * [BUGFIX] Improved handling of complete blocks in localblocks processor after enabling flusing [#3805](https://github.com/grafana/tempo/pull/3805) (@mapno)
@@ -61,6 +67,10 @@
 * [BUGFIX] Fix prefix handling in Azure backend Find() call [#3875](https://github.com/grafana/tempo/pull/3875) (@zalegrala)
 * [BUGFIX] **BREAKING CHANGE** Remove unused properties from the WAL configuration [#3911](https://github.com/grafana/tempo/pull/3911) (@javiermolinar)
 * [BUGFIX] Bring back OTEL receiver metrics [#3917](https://github.com/grafana/tempo/pull/3917) (@javiermolinar)
+* [BUGFIX] Correct block end time when the ingested traces are outside the ingestion slack [#3954](https://github.com/grafana/tempo/pull/3954) (@javiermolinar)
+* [BUGFIX] Fix race condition where a streaming response could be marshalled while being modified in the combiner resulting in a panic. [#3961](https://github.com/grafana/tempo/pull/3961) (@joe-elliott)
+* [BUGFIX] Pass search options to the backend for SearchTagValuesBlocksV2 requests [#3971](https://github.com/grafana/tempo/pull/3971) (@javiermolinar)
+
 
 ## v2.5.0
 

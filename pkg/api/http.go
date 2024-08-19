@@ -501,6 +501,21 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 	return req
 }
 
+// Generic helper to append query parameters to an http request with less allocations
+func BuildQueryRequest(req *http.Request, queryParams map[string]string) *http.Request {
+	if req == nil {
+		req = &http.Request{
+			URL: &url.URL{},
+		}
+	}
+	qb := newQueryBuilder(req.URL.RawQuery)
+	for k, v := range queryParams {
+		qb.addParam(k, v)
+	}
+	req.URL.RawQuery = qb.query()
+	return req
+}
+
 func bounds(vals url.Values) (time.Time, time.Time, error) {
 	var (
 		now      = time.Now()

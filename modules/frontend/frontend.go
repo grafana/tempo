@@ -88,12 +88,15 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	}
 
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, registerer)
+
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()
 	traceIDStatusCodeWare := pipeline.NewStatusCodeAdjustWareWithAllowedCode(http.StatusNotFound)
+	urlDenyListWare := pipeline.NewURLDenyListWare(cfg.URLDenyList)
 
 	tracePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
+			urlDenyListWare,
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTraceIDSharder(&cfg.TraceByID, logger),
 		},
@@ -102,6 +105,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 	searchPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
+			urlDenyListWare,
 			multiTenantMiddleware(cfg, logger),
 			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, logger),
 		},
@@ -110,6 +114,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 	searchTagsPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
+			urlDenyListWare,
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagsRequest, logger),
 		},
@@ -118,6 +123,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 
 	searchTagValuesPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
+			urlDenyListWare,
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequest, logger),
 		},
@@ -127,6 +133,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	// metrics summary
 	metricsPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
+			urlDenyListWare,
 			multiTenantUnsupportedMiddleware(cfg, logger),
 		},
 		[]pipeline.Middleware{statusCodeWare, retryWare},
@@ -135,6 +142,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	// traceql metrics
 	queryRangePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
+			urlDenyListWare,
 			multiTenantMiddleware(cfg, logger),
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, logger),
 		},
@@ -221,6 +229,9 @@ func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineR
 			}, nil
 		}
 		prepareRequestForQueriers(req, tenant)
+		// This API is always json because it only ever has 1 job and this
+		// lets us return the response as-is.
+		req.Header.Set(api.HeaderAccept, api.HeaderAcceptJSON)
 
 		level.Info(logger).Log(
 			"msg", "metrics summary request",
@@ -250,6 +261,11 @@ func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineR
 func prepareRequestForQueriers(req *http.Request, tenant string) {
 	// set the tenant header
 	req.Header.Set(user.OrgIDHeaderName, tenant)
+
+	// All communication with the queriers should be proto for efficiency
+	// NOTE - This isn't strict and queriers may still return json if we missed
+	// an endpoint. But cache and response unmarshalling still work.
+	req.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
 
 	// copy the url (which is correct) to the RequestURI
 	// we do this because dskit/common uses the RequestURI field to translate from http.Request to httpgrpc.Request

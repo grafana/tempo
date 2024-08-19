@@ -283,6 +283,64 @@ func Test_instance_updateProcessors(t *testing.T) {
 
 		assert.Equal(t, expectedProcessors, actualProcessors)
 	})
+
+	t.Run("replace span-metrics and servicegraphs processors when histograms impementation changes", func(t *testing.T) {
+		overrides.nativeHistograms = "native"
+		overrides.processors = map[string]struct{}{
+			servicegraphs.Name: {},
+			spanmetrics.Name:   {},
+		}
+		err := instance.updateProcessors()
+		assert.NoError(t, err)
+
+		assertHistogramsReload := func(t *testing.T) {
+			desiredProcessors := instance.overrides.MetricsGeneratorProcessors(instance.instanceID)
+			desiredCfg, copyErr := instance.cfg.Processor.copyWithOverrides(instance.overrides, instance.instanceID)
+			assert.NoError(t, copyErr)
+			toAdd, toRemove, toReplace, diffErr := instance.diffProcessors(desiredProcessors, desiredCfg)
+			assert.NoError(t, diffErr)
+			assert.Empty(t, toAdd)
+			assert.Empty(t, toRemove)
+
+			sort.Strings(toReplace)
+			assert.Equal(t, []string{servicegraphs.Name, spanmetrics.Name}, toReplace)
+		}
+
+		assertHistogramsNoChange := func(t *testing.T) {
+			desiredProcessors := instance.overrides.MetricsGeneratorProcessors(instance.instanceID)
+			desiredCfg, copyErr := instance.cfg.Processor.copyWithOverrides(instance.overrides, instance.instanceID)
+			assert.NoError(t, copyErr)
+			toAdd, toRemove, toReplace, diffErr := instance.diffProcessors(desiredProcessors, desiredCfg)
+			assert.NoError(t, diffErr)
+			assert.Empty(t, toAdd)
+			assert.Empty(t, toRemove)
+			assert.Empty(t, toReplace)
+		}
+
+		// Downgrade to classic
+		overrides.nativeHistograms = "classic"
+		assertHistogramsReload(t)
+
+		err = instance.updateProcessors()
+		assert.NoError(t, err)
+		assertHistogramsNoChange(t)
+
+		// Upgrade to both native and classic
+		overrides.nativeHistograms = "both"
+		assertHistogramsReload(t)
+
+		err = instance.updateProcessors()
+		assert.NoError(t, err)
+		assertHistogramsNoChange(t)
+
+		// Upgrade back to native
+		overrides.nativeHistograms = "native"
+		assertHistogramsReload(t)
+
+		err = instance.updateProcessors()
+		assert.NoError(t, err)
+		assertHistogramsNoChange(t)
+	})
 }
 
 type noopStorage struct{}

@@ -396,7 +396,7 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorDisableCollection(userID
 	return o.getOverridesForUser(userID).MetricsGenerator.DisableCollection
 }
 
-func (o *runtimeConfigOverridesManager) MetricsGeneratorGenerateNativeHistograms(userID string) string {
+func (o *runtimeConfigOverridesManager) MetricsGeneratorGenerateNativeHistograms(userID string) HistogramMethod {
 	return o.getOverridesForUser(userID).MetricsGenerator.GenerateNativeHistograms
 }
 
@@ -513,6 +513,11 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsTarg
 // BlockRetention is the duration of the block retention for this tenant.
 func (o *runtimeConfigOverridesManager) BlockRetention(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).Compaction.BlockRetention)
+}
+
+// CompactionDisabled will not compact tenants which have this enabled.
+func (o *runtimeConfigOverridesManager) CompactionDisabled(userID string) bool {
+	return o.getOverridesForUser(userID).Compaction.CompactionDisabled
 }
 
 func (o *runtimeConfigOverridesManager) DedicatedColumns(userID string) backend.DedicatedColumns {

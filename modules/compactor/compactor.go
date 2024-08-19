@@ -254,6 +254,11 @@ func (c *Compactor) BlockRetentionForTenant(tenantID string) time.Duration {
 	return c.overrides.BlockRetention(tenantID)
 }
 
+// CompactionDisabledForTenant implements CompactorOverrides
+func (c *Compactor) CompactionDisabledForTenant(tenantID string) bool {
+	return c.overrides.CompactionDisabled(tenantID)
+}
+
 func (c *Compactor) MaxBytesPerTraceForTenant(tenantID string) int {
 	return c.overrides.MaxBytesPerTrace(tenantID)
 }

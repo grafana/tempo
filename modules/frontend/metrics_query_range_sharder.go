@@ -32,7 +32,7 @@ type queryRangeSharder struct {
 	overrides         overrides.Interface
 	cfg               QueryRangeSharderConfig
 	logger            log.Logger
-	replicationFactor uint32
+	replicationFactor uint8
 }
 
 type QueryRangeSharderConfig struct {
@@ -48,7 +48,7 @@ type QueryRangeSharderConfig struct {
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search
 func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
-	var replicationFactor uint32
+	var replicationFactor uint8
 	if cfg.RF1ReadPath {
 		replicationFactor = 1
 	}
@@ -368,7 +368,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 
 	queryHash := hashForQueryRangeRequest(&searchReq)
 
-	exemplars := s.exemplarsPerShard(uint32(len(metas)))
+	exemplarsPerBlock := s.exemplarsPerShard(uint32(len(metas)))
 	for _, m := range metas {
 		if m.EndTime.Before(m.StartTime) {
 			// Ignore blocks with bad timings from debugging
@@ -378,6 +378,13 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 		pages := pagesPerRequest(m, targetBytesPerRequest)
 		if pages == 0 {
 			continue
+		}
+
+		exemplars := exemplarsPerBlock
+		if exemplars > 0 {
+			// Scale the number of exemplars per block to match the size
+			// of each sub request on this block. For very small blocks or other edge cases, return at least 1.
+			exemplars = max(uint32(float64(exemplars)*float64(m.TotalRecords)/float64(pages)), 1)
 		}
 
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
@@ -415,11 +422,10 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				Size_:            m.Size,
 				FooterSize:       m.FooterSize,
 				DedicatedColumns: dc,
-				Exemplars:        max(exemplars/(m.TotalRecords/uint32(pages)), 1),
+				Exemplars:        exemplars,
 			}
 
 			subR = api.BuildQueryRangeRequest(subR, queryRangeReq)
-			subR.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
 
 			prepareRequestForQueriers(subR, tenantID)
 			pipelineR := pipeline.NewHTTPRequest(subR)
@@ -458,7 +464,6 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 	searchReq.Exemplars = uint32(s.cfg.MaxExemplars) // TODO: Review this
 
 	req := s.toUpstreamRequest(parent.Context(), searchReq, parent, tenantID)
-	req.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
 
 	return req
 }
