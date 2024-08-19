@@ -77,12 +77,22 @@ func (node *AggregateExpr) getAggOpStr() string {
 
 	switch {
 	case node.Without:
-		aggrString += fmt.Sprintf(" without (%s) ", strings.Join(node.Grouping, ", "))
+		aggrString += fmt.Sprintf(" without (%s) ", joinLabels(node.Grouping))
 	case len(node.Grouping) > 0:
-		aggrString += fmt.Sprintf(" by (%s) ", strings.Join(node.Grouping, ", "))
+		aggrString += fmt.Sprintf(" by (%s) ", joinLabels(node.Grouping))
 	}
 
 	return aggrString
+}
+
+func joinLabels(ss []string) string {
+	for i, s := range ss {
+		// If the label is already quoted, don't quote it again.
+		if s[0] != '"' && s[0] != '\'' && s[0] != '`' && !model.IsValidLegacyMetricName(model.LabelValue(s)) {
+			ss[i] = fmt.Sprintf("\"%s\"", s)
+		}
+	}
+	return strings.Join(ss, ", ")
 }
 
 func (node *BinaryExpr) String() string {
@@ -204,8 +214,8 @@ func (node *VectorSelector) String() string {
 		labelStrings = make([]string, 0, len(node.LabelMatchers)-1)
 	}
 	for _, matcher := range node.LabelMatchers {
-		// Only include the __name__ label if its equality matching and matches the name.
-		if matcher.Name == labels.MetricName && matcher.Type == labels.MatchEqual && matcher.Value == node.Name {
+		// Only include the __name__ label if its equality matching and matches the name, but don't skip if it's an explicit empty name matcher.
+		if matcher.Name == labels.MetricName && matcher.Type == labels.MatchEqual && matcher.Value == node.Name && matcher.Value != "" {
 			continue
 		}
 		labelStrings = append(labelStrings, matcher.String())

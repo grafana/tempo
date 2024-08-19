@@ -11,10 +11,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// nolint:revive // Many legitimately empty blocks in this file.
 package tsdb
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 
 	"github.com/prometheus/prometheus/model/exemplar"
@@ -53,7 +52,7 @@ type histogramRecord struct {
 	fh  *histogram.FloatHistogram
 }
 
-func (h *Head) loadWAL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chunks.HeadSeriesRef, mmappedChunks, oooMmappedChunks map[chunks.HeadSeriesRef][]*mmappedChunk) (err error) {
+func (h *Head) loadWAL(r *wlog.Reader, syms *labels.SymbolTable, multiRef map[chunks.HeadSeriesRef]chunks.HeadSeriesRef, mmappedChunks, oooMmappedChunks map[chunks.HeadSeriesRef][]*mmappedChunk) (err error) {
 	// Track number of samples that referenced a series we don't know about
 	// for error reporting.
 	var unknownRefs atomic.Uint64
@@ -70,7 +69,6 @@ func (h *Head) loadWAL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chunks.
 		processors     = make([]walSubsetProcessor, concurrency)
 		exemplarsInput chan record.RefExemplar
 
-		dec             record.Decoder
 		shards          = make([][]record.RefSample, concurrency)
 		histogramShards = make([][]histogramRecord, concurrency)
 
@@ -128,8 +126,8 @@ func (h *Head) loadWAL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chunks.
 			}
 			// At the moment the only possible error here is out of order exemplars, which we shouldn't see when
 			// replaying the WAL, so lets just log the error if it's not that type.
-			err = h.exemplars.AddExemplar(ms.lset, exemplar.Exemplar{Ts: e.T, Value: e.V, Labels: e.Labels})
-			if err != nil && err == storage.ErrOutOfOrderExemplar {
+			err = h.exemplars.AddExemplar(ms.labels(), exemplar.Exemplar{Ts: e.T, Value: e.V, Labels: e.Labels})
+			if err != nil && errors.Is(err, storage.ErrOutOfOrderExemplar) {
 				level.Warn(h.logger).Log("msg", "Unexpected error when replaying WAL on exemplar record", "err", err)
 			}
 		}
@@ -138,6 +136,7 @@ func (h *Head) loadWAL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chunks.
 	go func() {
 		defer close(decoded)
 		var err error
+		dec := record.NewDecoder(syms)
 		for r.Next() {
 			rec := r.Record()
 			switch dec.Type(rec) {
@@ -146,7 +145,7 @@ func (h *Head) loadWAL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chunks.
 				series, err = dec.Series(rec, series)
 				if err != nil {
 					decodeErr = &wlog.CorruptionErr{
-						Err:     errors.Wrap(err, "decode series"),
+						Err:     fmt.Errorf("decode series: %w", err),
 						Segment: r.Segment(),
 						Offset:  r.Offset(),
 					}
@@ -158,7 +157,7 @@ func (h *Head) loadWAL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chunks.
 				samples, err = dec.Samples(rec, samples)
 				if err != nil {
 					decodeErr = &wlog.CorruptionErr{
-						Err:     errors.Wrap(err, "decode samples"),
+						Err:     fmt.Errorf("decode samples: %w", err),
 						Segment: r.Segment(),
 						Offset:  r.Offset(),
 					}
@@ -170,7 +169,7 @@ func (h *Head) loadWAL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chunks.
 				tstones, err = dec.Tombstones(rec, tstones)
 				if err != nil {
 					decodeErr = &wlog.CorruptionErr{
-						Err:     errors.Wrap(err, "decode tombstones"),
+						Err:     fmt.Errorf("decode tombstones: %w", err),
 						Segment: r.Segment(),
 						Offset:  r.Offset(),
 					}
@@ -182,7 +181,7 @@ func (h *Head) loadWAL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chunks.
 				exemplars, err = dec.Exemplars(rec, exemplars)
 				if err != nil {
 					decodeErr = &wlog.CorruptionErr{
-						Err:     errors.Wrap(err, "decode exemplars"),
+						Err:     fmt.Errorf("decode exemplars: %w", err),
 						Segment: r.Segment(),
 						Offset:  r.Offset(),
 					}
@@ -194,7 +193,7 @@ func (h *Head) loadWAL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chunks.
 				hists, err = dec.HistogramSamples(rec, hists)
 				if err != nil {
 					decodeErr = &wlog.CorruptionErr{
-						Err:     errors.Wrap(err, "decode histograms"),
+						Err:     fmt.Errorf("decode histograms: %w", err),
 						Segment: r.Segment(),
 						Offset:  r.Offset(),
 					}
@@ -206,7 +205,7 @@ func (h *Head) loadWAL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chunks.
 				hists, err = dec.FloatHistogramSamples(rec, hists)
 				if err != nil {
 					decodeErr = &wlog.CorruptionErr{
-						Err:     errors.Wrap(err, "decode float histograms"),
+						Err:     fmt.Errorf("decode float histograms: %w", err),
 						Segment: r.Segment(),
 						Offset:  r.Offset(),
 					}
@@ -218,7 +217,7 @@ func (h *Head) loadWAL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chunks.
 				meta, err := dec.Metadata(rec, meta)
 				if err != nil {
 					decodeErr = &wlog.CorruptionErr{
-						Err:     errors.Wrap(err, "decode metadata"),
+						Err:     fmt.Errorf("decode metadata: %w", err),
 						Segment: r.Segment(),
 						Offset:  r.Offset(),
 					}
@@ -389,7 +388,7 @@ Outer:
 					continue
 				}
 				s.meta = &metadata.Metadata{
-					Type: record.ToTextparseMetricType(m.Type),
+					Type: record.ToMetricType(m.Type),
 					Unit: m.Unit,
 					Help: m.Help,
 				}
@@ -417,8 +416,8 @@ Outer:
 	close(exemplarsInput)
 	wg.Wait()
 
-	if r.Err() != nil {
-		return errors.Wrap(r.Err(), "read records")
+	if err := r.Err(); err != nil {
+		return fmt.Errorf("read records: %w", err)
 	}
 
 	if unknownRefs.Load()+unknownExemplarRefs.Load()+unknownHistogramRefs.Load()+unknownMetadataRefs.Load() > 0 {
@@ -436,6 +435,8 @@ Outer:
 	return nil
 }
 
+func minInt64() int64 { return math.MinInt64 }
+
 // resetSeriesWithMMappedChunks is only used during the WAL replay.
 func (h *Head) resetSeriesWithMMappedChunks(mSeries *memSeries, mmc, oooMmc []*mmappedChunk, walSeriesRef chunks.HeadSeriesRef) (overlapped bool) {
 	if mSeries.ref != walSeriesRef {
@@ -449,7 +450,7 @@ func (h *Head) resetSeriesWithMMappedChunks(mSeries *memSeries, mmc, oooMmc []*m
 			) {
 				level.Debug(h.logger).Log(
 					"msg", "M-mapped chunks overlap on a duplicate series record",
-					"series", mSeries.lset.String(),
+					"series", mSeries.labels().String(),
 					"oldref", mSeries.ref,
 					"oldmint", mSeries.mmappedChunks[0].minTime,
 					"oldmaxt", mSeries.mmappedChunks[len(mSeries.mmappedChunks)-1].maxTime,
@@ -482,10 +483,11 @@ func (h *Head) resetSeriesWithMMappedChunks(mSeries *memSeries, mmc, oooMmc []*m
 	}
 	// Cache the last mmapped chunk time, so we can skip calling append() for samples it will reject.
 	if len(mmc) == 0 {
-		mSeries.mmMaxTime = math.MinInt64
+		mSeries.shardHashOrMemoryMappedMaxTime = uint64(minInt64())
 	} else {
-		mSeries.mmMaxTime = mmc[len(mmc)-1].maxTime
-		h.updateMinMaxTime(mmc[0].minTime, mSeries.mmMaxTime)
+		mmMaxTime := mmc[len(mmc)-1].maxTime
+		mSeries.shardHashOrMemoryMappedMaxTime = uint64(mmMaxTime)
+		h.updateMinMaxTime(mmc[0].minTime, mmMaxTime)
 	}
 	if len(oooMmc) != 0 {
 		// Mint and maxt can be in any chunk, they are not sorted.
@@ -586,7 +588,7 @@ func (wp *walSubsetProcessor) processWALSamples(h *Head, mmappedChunks, oooMmapp
 				unknownRefs++
 				continue
 			}
-			if s.T <= ms.mmMaxTime {
+			if s.T <= ms.mmMaxTime() {
 				continue
 			}
 			if _, chunkCreated := ms.append(s.T, s.V, 0, appendChunkOpts); chunkCreated {
@@ -615,7 +617,7 @@ func (wp *walSubsetProcessor) processWALSamples(h *Head, mmappedChunks, oooMmapp
 				unknownHistogramRefs++
 				continue
 			}
-			if s.t <= ms.mmMaxTime {
+			if s.t <= ms.mmMaxTime() {
 				continue
 			}
 			var chunkCreated bool
@@ -646,7 +648,7 @@ func (wp *walSubsetProcessor) processWALSamples(h *Head, mmappedChunks, oooMmapp
 	return unknownRefs, unknownHistogramRefs, mmapOverlappingChunks
 }
 
-func (h *Head) loadWBL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chunks.HeadSeriesRef, lastMmapRef chunks.ChunkDiskMapperRef) (err error) {
+func (h *Head) loadWBL(r *wlog.Reader, syms *labels.SymbolTable, multiRef map[chunks.HeadSeriesRef]chunks.HeadSeriesRef, lastMmapRef chunks.ChunkDiskMapperRef) (err error) {
 	// Track number of samples, m-map markers, that referenced a series we don't know about
 	// for error reporting.
 	var unknownRefs, mmapMarkerUnknownRefs atomic.Uint64
@@ -658,7 +660,7 @@ func (h *Head) loadWBL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chunks.
 		concurrency = h.opts.WALReplayConcurrency
 		processors  = make([]wblSubsetProcessor, concurrency)
 
-		dec    record.Decoder
+		dec    = record.NewDecoder(syms)
 		shards = make([][]record.RefSample, concurrency)
 
 		decodedCh   = make(chan interface{}, 10)
@@ -709,7 +711,7 @@ func (h *Head) loadWBL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chunks.
 				samples, err = dec.Samples(rec, samples)
 				if err != nil {
 					decodeErr = &wlog.CorruptionErr{
-						Err:     errors.Wrap(err, "decode samples"),
+						Err:     fmt.Errorf("decode samples: %w", err),
 						Segment: r.Segment(),
 						Offset:  r.Offset(),
 					}
@@ -721,7 +723,7 @@ func (h *Head) loadWBL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chunks.
 				markers, err = dec.MmapMarkers(rec, markers)
 				if err != nil {
 					decodeErr = &wlog.CorruptionErr{
-						Err:     errors.Wrap(err, "decode mmap markers"),
+						Err:     fmt.Errorf("decode mmap markers: %w", err),
 						Segment: r.Segment(),
 						Offset:  r.Offset(),
 					}
@@ -807,8 +809,8 @@ func (h *Head) loadWBL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chunks.
 	}
 	wg.Wait()
 
-	if r.Err() != nil {
-		return errors.Wrap(r.Err(), "read records")
+	if err := r.Err(); err != nil {
+		return fmt.Errorf("read records: %w", err)
 	}
 
 	if unknownRefs.Load() > 0 || mmapMarkerUnknownRefs.Load() > 0 {
@@ -888,7 +890,7 @@ func (wp *wblSubsetProcessor) processWBLSamples(h *Head) (unknownRefs uint64) {
 				unknownRefs++
 				continue
 			}
-			ok, chunkCreated, _ := ms.insert(s.T, s.V, h.chunkDiskMapper, oooCapMax)
+			ok, chunkCreated, _ := ms.insert(s.T, s.V, nil, nil, h.chunkDiskMapper, oooCapMax, h.logger)
 			if chunkCreated {
 				h.metrics.chunksCreated.Inc()
 				h.metrics.chunks.Inc()
@@ -933,7 +935,7 @@ func (s *memSeries) encodeToSnapshotRecord(b []byte) []byte {
 
 	buf.PutByte(chunkSnapshotRecordTypeSeries)
 	buf.PutBE64(uint64(s.ref))
-	record.EncodeLabels(&buf, s.lset)
+	record.EncodeLabels(&buf, s.labels())
 	buf.PutBE64int64(0) // Backwards-compatibility; was chunkRange but now unused.
 
 	s.Lock()
@@ -971,7 +973,7 @@ func decodeSeriesFromChunkSnapshot(d *record.Decoder, b []byte) (csr chunkSnapsh
 	dec := encoding.Decbuf{B: b}
 
 	if flag := dec.Byte(); flag != chunkSnapshotRecordTypeSeries {
-		return csr, errors.Errorf("invalid record type %x", flag)
+		return csr, fmt.Errorf("invalid record type %x", flag)
 	}
 
 	csr.ref = chunks.HeadSeriesRef(dec.Be64())
@@ -996,7 +998,7 @@ func decodeSeriesFromChunkSnapshot(d *record.Decoder, b []byte) (csr chunkSnapsh
 
 	chk, err := chunkenc.FromData(enc, chunkBytesCopy)
 	if err != nil {
-		return csr, errors.Wrap(err, "chunk from data")
+		return csr, fmt.Errorf("chunk from data: %w", err)
 	}
 	csr.mc.chunk = chk
 
@@ -1019,7 +1021,7 @@ func decodeSeriesFromChunkSnapshot(d *record.Decoder, b []byte) (csr chunkSnapsh
 
 	err = dec.Err()
 	if err != nil && len(dec.B) > 0 {
-		err = errors.Errorf("unexpected %d bytes left in entry", len(dec.B))
+		err = fmt.Errorf("unexpected %d bytes left in entry", len(dec.B))
 	}
 
 	return
@@ -1031,7 +1033,7 @@ func encodeTombstonesToSnapshotRecord(tr tombstones.Reader) ([]byte, error) {
 	buf.PutByte(chunkSnapshotRecordTypeTombstones)
 	b, err := tombstones.Encode(tr)
 	if err != nil {
-		return nil, errors.Wrap(err, "encode tombstones")
+		return nil, fmt.Errorf("encode tombstones: %w", err)
 	}
 	buf.PutUvarintBytes(b)
 
@@ -1042,11 +1044,14 @@ func decodeTombstonesSnapshotRecord(b []byte) (tombstones.Reader, error) {
 	dec := encoding.Decbuf{B: b}
 
 	if flag := dec.Byte(); flag != chunkSnapshotRecordTypeTombstones {
-		return nil, errors.Errorf("invalid record type %x", flag)
+		return nil, fmt.Errorf("invalid record type %x", flag)
 	}
 
 	tr, err := tombstones.Decode(dec.UvarintBytes())
-	return tr, errors.Wrap(err, "decode tombstones")
+	if err != nil {
+		return tr, fmt.Errorf("decode tombstones: %w", err)
+	}
+	return tr, nil
 }
 
 const chunkSnapshotPrefix = "chunk_snapshot."
@@ -1073,13 +1078,13 @@ func (h *Head) ChunkSnapshot() (*ChunkSnapshotStats, error) {
 	stats := &ChunkSnapshotStats{}
 
 	wlast, woffset, err := h.wal.LastSegmentAndOffset()
-	if err != nil && err != record.ErrNotFound {
-		return stats, errors.Wrap(err, "get last wal segment and offset")
+	if err != nil && !errors.Is(err, record.ErrNotFound) {
+		return stats, fmt.Errorf("get last wal segment and offset: %w", err)
 	}
 
 	_, cslast, csoffset, err := LastChunkSnapshot(h.opts.ChunkDirRoot)
-	if err != nil && err != record.ErrNotFound {
-		return stats, errors.Wrap(err, "find last chunk snapshot")
+	if err != nil && !errors.Is(err, record.ErrNotFound) {
+		return stats, fmt.Errorf("find last chunk snapshot: %w", err)
 	}
 
 	if wlast == cslast && woffset == csoffset {
@@ -1094,11 +1099,11 @@ func (h *Head) ChunkSnapshot() (*ChunkSnapshotStats, error) {
 	stats.Dir = cpdir
 
 	if err := os.MkdirAll(cpdirtmp, 0o777); err != nil {
-		return stats, errors.Wrap(err, "create chunk snapshot dir")
+		return stats, fmt.Errorf("create chunk snapshot dir: %w", err)
 	}
 	cp, err := wlog.New(nil, nil, cpdirtmp, h.wal.CompressionType())
 	if err != nil {
-		return stats, errors.Wrap(err, "open chunk snapshot")
+		return stats, fmt.Errorf("open chunk snapshot: %w", err)
 	}
 
 	// Ensures that an early return caused by an error doesn't leave any tmp files.
@@ -1127,7 +1132,7 @@ func (h *Head) ChunkSnapshot() (*ChunkSnapshotStats, error) {
 			if len(buf) > 10*1024*1024 {
 				if err := cp.Log(recs...); err != nil {
 					h.series.locks[i].RUnlock()
-					return stats, errors.Wrap(err, "flush records")
+					return stats, fmt.Errorf("flush records: %w", err)
 				}
 				buf, recs = buf[:0], recs[:0]
 			}
@@ -1140,16 +1145,16 @@ func (h *Head) ChunkSnapshot() (*ChunkSnapshotStats, error) {
 	// Add tombstones to the snapshot.
 	tombstonesReader, err := h.Tombstones()
 	if err != nil {
-		return stats, errors.Wrap(err, "get tombstones")
+		return stats, fmt.Errorf("get tombstones: %w", err)
 	}
 	rec, err := encodeTombstonesToSnapshotRecord(tombstonesReader)
 	if err != nil {
-		return stats, errors.Wrap(err, "encode tombstones")
+		return stats, fmt.Errorf("encode tombstones: %w", err)
 	}
 	recs = append(recs, rec)
 	// Flush remaining series records and tombstones.
 	if err := cp.Log(recs...); err != nil {
-		return stats, errors.Wrap(err, "flush records")
+		return stats, fmt.Errorf("flush records: %w", err)
 	}
 	buf = buf[:0]
 
@@ -1168,7 +1173,7 @@ func (h *Head) ChunkSnapshot() (*ChunkSnapshotStats, error) {
 		encbuf.PutByte(chunkSnapshotRecordTypeExemplars)
 		enc.EncodeExemplarsIntoBuffer(batch, &encbuf)
 		if err := cp.Log(encbuf.Get()); err != nil {
-			return errors.Wrap(err, "log exemplars")
+			return fmt.Errorf("log exemplars: %w", err)
 		}
 		buf, batch = buf[:0], batch[:0]
 		return nil
@@ -1176,7 +1181,7 @@ func (h *Head) ChunkSnapshot() (*ChunkSnapshotStats, error) {
 	err = h.exemplars.IterateExemplars(func(seriesLabels labels.Labels, e exemplar.Exemplar) error {
 		if len(batch) >= maxExemplarsPerRecord {
 			if err := flushExemplars(); err != nil {
-				return errors.Wrap(err, "flush exemplars")
+				return fmt.Errorf("flush exemplars: %w", err)
 			}
 		}
 
@@ -1194,19 +1199,19 @@ func (h *Head) ChunkSnapshot() (*ChunkSnapshotStats, error) {
 		return nil
 	})
 	if err != nil {
-		return stats, errors.Wrap(err, "iterate exemplars")
+		return stats, fmt.Errorf("iterate exemplars: %w", err)
 	}
 
 	// Flush remaining exemplars.
 	if err := flushExemplars(); err != nil {
-		return stats, errors.Wrap(err, "flush exemplars at the end")
+		return stats, fmt.Errorf("flush exemplars at the end: %w", err)
 	}
 
 	if err := cp.Close(); err != nil {
-		return stats, errors.Wrap(err, "close chunk snapshot")
+		return stats, fmt.Errorf("close chunk snapshot: %w", err)
 	}
 	if err := fileutil.Replace(cpdirtmp, cpdir); err != nil {
-		return stats, errors.Wrap(err, "rename chunk snapshot directory")
+		return stats, fmt.Errorf("rename chunk snapshot directory: %w", err)
 	}
 
 	if err := DeleteChunkSnapshots(h.opts.ChunkDirRoot, wlast, woffset); err != nil {
@@ -1230,7 +1235,10 @@ func (h *Head) performChunkSnapshot() error {
 	if err == nil {
 		level.Info(h.logger).Log("msg", "chunk snapshot complete", "duration", elapsed.String(), "num_series", stats.TotalSeries, "dir", stats.Dir)
 	}
-	return errors.Wrap(err, "chunk snapshot")
+	if err != nil {
+		return fmt.Errorf("chunk snapshot: %w", err)
+	}
+	return nil
 }
 
 // ChunkSnapshotStats returns stats about a created chunk snapshot.
@@ -1255,7 +1263,7 @@ func LastChunkSnapshot(dir string) (string, int, int, error) {
 			continue
 		}
 		if !fi.IsDir() {
-			return "", 0, 0, errors.Errorf("chunk snapshot %s is not a directory", fi.Name())
+			return "", 0, 0, fmt.Errorf("chunk snapshot %s is not a directory", fi.Name())
 		}
 
 		splits := strings.Split(fi.Name()[len(chunkSnapshotPrefix):], ".")
@@ -1318,7 +1326,6 @@ func DeleteChunkSnapshots(dir string, maxIndex, maxOffset int) error {
 				errs.Add(err)
 			}
 		}
-
 	}
 	return errs.Err()
 }
@@ -1328,16 +1335,16 @@ func DeleteChunkSnapshots(dir string, maxIndex, maxOffset int) error {
 func (h *Head) loadChunkSnapshot() (int, int, map[chunks.HeadSeriesRef]*memSeries, error) {
 	dir, snapIdx, snapOffset, err := LastChunkSnapshot(h.opts.ChunkDirRoot)
 	if err != nil {
-		if err == record.ErrNotFound {
+		if errors.Is(err, record.ErrNotFound) {
 			return snapIdx, snapOffset, nil, nil
 		}
-		return snapIdx, snapOffset, nil, errors.Wrap(err, "find last chunk snapshot")
+		return snapIdx, snapOffset, nil, fmt.Errorf("find last chunk snapshot: %w", err)
 	}
 
 	start := time.Now()
 	sr, err := wlog.NewSegmentsReader(dir)
 	if err != nil {
-		return snapIdx, snapOffset, nil, errors.Wrap(err, "open chunk snapshot")
+		return snapIdx, snapOffset, nil, fmt.Errorf("open chunk snapshot: %w", err)
 	}
 	defer func() {
 		if err := sr.Close(); err != nil {
@@ -1355,7 +1362,8 @@ func (h *Head) loadChunkSnapshot() (int, int, map[chunks.HeadSeriesRef]*memSerie
 		errChan          = make(chan error, concurrency)
 		refSeries        map[chunks.HeadSeriesRef]*memSeries
 		exemplarBuf      []record.RefExemplar
-		dec              record.Decoder
+		syms             = labels.NewSymbolTable() // New table for the whole snapshot.
+		dec              = record.NewDecoder(syms)
 	)
 
 	wg.Add(concurrency)
@@ -1425,7 +1433,7 @@ Outer:
 			numSeries++
 			csr, err := decodeSeriesFromChunkSnapshot(&dec, rec)
 			if err != nil {
-				loopErr = errors.Wrap(err, "decode series record")
+				loopErr = fmt.Errorf("decode series record: %w", err)
 				break Outer
 			}
 			recordChan <- csr
@@ -1433,7 +1441,7 @@ Outer:
 		case chunkSnapshotRecordTypeTombstones:
 			tr, err := decodeTombstonesSnapshotRecord(rec)
 			if err != nil {
-				loopErr = errors.Wrap(err, "decode tombstones")
+				loopErr = fmt.Errorf("decode tombstones: %w", err)
 				break Outer
 			}
 
@@ -1441,7 +1449,7 @@ Outer:
 				h.tombstones.AddInterval(ref, ivs...)
 				return nil
 			}); err != nil {
-				loopErr = errors.Wrap(err, "iterate tombstones")
+				loopErr = fmt.Errorf("iterate tombstones: %w", err)
 				break Outer
 			}
 
@@ -1469,7 +1477,7 @@ Outer:
 			exemplarBuf = exemplarBuf[:0]
 			exemplarBuf, err = dec.ExemplarsFromBuffer(&decbuf, exemplarBuf)
 			if err != nil {
-				loopErr = errors.Wrap(err, "exemplars from buffer")
+				loopErr = fmt.Errorf("exemplars from buffer: %w", err)
 				break Outer
 			}
 
@@ -1480,20 +1488,20 @@ Outer:
 					continue
 				}
 
-				if err := h.exemplars.AddExemplar(ms.lset, exemplar.Exemplar{
+				if err := h.exemplars.AddExemplar(ms.labels(), exemplar.Exemplar{
 					Labels: e.Labels,
 					Value:  e.V,
 					Ts:     e.T,
 				}); err != nil {
-					loopErr = errors.Wrap(err, "add exemplar")
+					loopErr = fmt.Errorf("add exemplar: %w", err)
 					break Outer
 				}
 			}
 
 		default:
-			// This is a record type we don't understand. It is either and old format from earlier versions,
+			// This is a record type we don't understand. It is either an old format from earlier versions,
 			// or a new format and the code was rolled back to old version.
-			loopErr = errors.Errorf("unsupported snapshot record type 0b%b", rec[0])
+			loopErr = fmt.Errorf("unsupported snapshot record type 0b%b", rec[0])
 			break Outer
 		}
 	}
@@ -1503,16 +1511,19 @@ Outer:
 	}
 
 	close(errChan)
-	merr := tsdb_errors.NewMulti(errors.Wrap(loopErr, "decode loop"))
+	merr := tsdb_errors.NewMulti()
+	if loopErr != nil {
+		merr.Add(fmt.Errorf("decode loop: %w", loopErr))
+	}
 	for err := range errChan {
-		merr.Add(errors.Wrap(err, "record processing"))
+		merr.Add(fmt.Errorf("record processing: %w", err))
 	}
 	if err := merr.Err(); err != nil {
 		return -1, -1, nil, err
 	}
 
-	if r.Err() != nil {
-		return -1, -1, nil, errors.Wrap(r.Err(), "read records")
+	if err := r.Err(); err != nil {
+		return -1, -1, nil, fmt.Errorf("read records: %w", err)
 	}
 
 	if len(refSeries) == 0 {
