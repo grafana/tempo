@@ -9,7 +9,7 @@ aliases:
 # Long-running traces
 
 An issue arises in Tempo when a user exercises a usage pattern referred to as
-long-running traces. This happens is when Tempo spans receives spans for a
+long-running traces. This happens when Tempo receives spans for a
 trace, and then there is a delay, and then Tempo receives additional spans for
 the same trace. If the delay between spans is great enough, the spans end up in
 different blocks, which can lead to inconsistency in a few ways.
