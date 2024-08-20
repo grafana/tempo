@@ -1294,7 +1294,6 @@ func TestSpansetOperationEvaluateArrayUnsupported(t *testing.T) {
 			require.Error(t, err, errors.ErrUnsupported)
 		})
 	}
-
 }
 
 func TestScalarFilterEvaluate(t *testing.T) {

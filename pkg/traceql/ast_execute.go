@@ -440,7 +440,6 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		// maybe use newBinaryOperation() here to ensure we have a compiled regex.
 		for _, elem := range elements {
 			elemOp.LHS = elem
-			// FIXME: can we make do without the nested execute in a loop??
 			res, err = elemOp.execute(span)
 			if err != nil {
 				break // get out early in case of errors
@@ -456,8 +455,7 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	if rhsT.isMatchingArrayElement(lhsT) {
 		// for regex operations, we assume that RHS is the regex, and compile it.
 		// we can support symmetric array operations by flipping the sides and executing the binary operation.
-		// FIXME: flipping the ops will mess up >, >=, <, <= operations so flip these operations as well.
-		// if we flip sides for	OpGreater, OpGreaterEqual, OpLess, OpLessEqual. we will
+		// for >, >=, <, <= we need to flip the op as well, otherwise flipping sides will change the query.
 		flippedOp := o.Op
 		switch o.Op {
 		case OpGreater:
