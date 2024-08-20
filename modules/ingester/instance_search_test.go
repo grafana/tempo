@@ -411,7 +411,7 @@ func testSearchTagsAndValuesV2(
 	// scope scope attr
 
 	tagValuesResp, err = i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
-		TagName: fmt.Sprintf("scope.%s", tagName),
+		TagName: fmt.Sprintf("instrumentation.%s", tagName),
 		Query:   query,
 	})
 	require.NoError(t, err)
@@ -442,9 +442,11 @@ func TestInstanceSearchTagsSpecialCases(t *testing.T) {
 	require.Equal(
 		t,
 		[]string{
-			"duration", "event:name", "event:timeSinceStart", "kind", "name", "rootName", "rootServiceName",
-			"scope:name", "scope:version",
-			"span:duration", "span:kind", "span:name", "span:status", "span:statusMessage", "status", "statusMessage",
+			"duration", "event:name", "event:timeSinceStart", 
+			"instrumentation:name", "instrumentation:version",
+			"kind", "name", "rootName", "rootServiceName",
+			"span:duration", "span:kind", "span:name", 
+			"span:status", "span:statusMessage", "status", "statusMessage",
 			"trace:duration", "trace:rootName", "trace:rootService", "traceDuration",
 		},
 		resp.TagNames,

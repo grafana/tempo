@@ -34,7 +34,7 @@ func (s AttributeScope) String() string {
 	case AttributeScopeLink:
 		return "link"
 	case AttributeScopeInstrumentation:
-		return "scope"
+		return "instrumentation"
 	}
 
 	return fmt.Sprintf("att(%d).", s)
@@ -50,7 +50,7 @@ func AttributeScopeFromString(s string) AttributeScope {
 		return AttributeScopeEvent
 	case "link":
 		return AttributeScopeLink
-	case "scope":
+	case "instrumentation":
 		return AttributeScopeInstrumentation
 	case "":
 		fallthrough
@@ -81,8 +81,8 @@ const (
 	IntrinsicEventTimeSinceStart
 	IntrinsicLinkSpanID
 	IntrinsicLinkTraceID
-	IntrinsicScopeName
-	IntrinsicScopeVersion
+	IntrinsicInstrumentationName
+	IntrinsicInstrumentationVersion
 
 	// not yet implemented in traceql but will be
 	IntrinsicParent
@@ -116,27 +116,27 @@ const (
 )
 
 var (
-	IntrinsicDurationAttribute            = NewIntrinsic(IntrinsicDuration)
-	IntrinsicNameAttribute                = NewIntrinsic(IntrinsicName)
-	IntrinsicStatusAttribute              = NewIntrinsic(IntrinsicStatus)
-	IntrinsicStatusMessageAttribute       = NewIntrinsic(IntrinsicStatusMessage)
-	IntrinsicKindAttribute                = NewIntrinsic(IntrinsicKind)
-	IntrinsicSpanIDAttribute              = NewIntrinsic(IntrinsicSpanID)
-	IntrinsicChildCountAttribute          = NewIntrinsic(IntrinsicChildCount)
-	IntrinsicTraceIDAttribute             = NewIntrinsic(IntrinsicTraceID)
-	IntrinsicTraceRootServiceAttribute    = NewIntrinsic(IntrinsicTraceRootService)
-	IntrinsicTraceRootSpanAttribute       = NewIntrinsic(IntrinsicTraceRootSpan)
-	IntrinsicTraceDurationAttribute       = NewIntrinsic(IntrinsicTraceDuration)
-	IntrinsicSpanStartTimeAttribute       = NewIntrinsic(IntrinsicSpanStartTime)
-	IntrinsicNestedSetLeftAttribute       = NewIntrinsic(IntrinsicNestedSetLeft)
-	IntrinsicNestedSetRightAttribute      = NewIntrinsic(IntrinsicNestedSetRight)
-	IntrinsicNestedSetParentAttribute     = NewIntrinsic(IntrinsicNestedSetParent)
-	IntrinsicLinkTraceIDAttribute         = NewIntrinsic(IntrinsicLinkTraceID)
-	IntrinsicLinkSpanIDAttribute          = NewIntrinsic(IntrinsicLinkSpanID)
-	IntrinsicEventNameAttribute           = NewIntrinsic(IntrinsicEventName)
-	IntrinsicEventTimeSinceStartAttribute = NewIntrinsic(IntrinsicEventTimeSinceStart)
-	IntrinsicScopeNameAttribute           = NewIntrinsic(IntrinsicScopeName)
-	IntrinsicScopeVersionAttribute        = NewIntrinsic(IntrinsicScopeVersion)
+	IntrinsicDurationAttribute               = NewIntrinsic(IntrinsicDuration)
+	IntrinsicNameAttribute                   = NewIntrinsic(IntrinsicName)
+	IntrinsicStatusAttribute                 = NewIntrinsic(IntrinsicStatus)
+	IntrinsicStatusMessageAttribute          = NewIntrinsic(IntrinsicStatusMessage)
+	IntrinsicKindAttribute                   = NewIntrinsic(IntrinsicKind)
+	IntrinsicSpanIDAttribute                 = NewIntrinsic(IntrinsicSpanID)
+	IntrinsicChildCountAttribute             = NewIntrinsic(IntrinsicChildCount)
+	IntrinsicTraceIDAttribute                = NewIntrinsic(IntrinsicTraceID)
+	IntrinsicTraceRootServiceAttribute       = NewIntrinsic(IntrinsicTraceRootService)
+	IntrinsicTraceRootSpanAttribute          = NewIntrinsic(IntrinsicTraceRootSpan)
+	IntrinsicTraceDurationAttribute          = NewIntrinsic(IntrinsicTraceDuration)
+	IntrinsicSpanStartTimeAttribute          = NewIntrinsic(IntrinsicSpanStartTime)
+	IntrinsicNestedSetLeftAttribute          = NewIntrinsic(IntrinsicNestedSetLeft)
+	IntrinsicNestedSetRightAttribute         = NewIntrinsic(IntrinsicNestedSetRight)
+	IntrinsicNestedSetParentAttribute        = NewIntrinsic(IntrinsicNestedSetParent)
+	IntrinsicLinkTraceIDAttribute            = NewIntrinsic(IntrinsicLinkTraceID)
+	IntrinsicLinkSpanIDAttribute             = NewIntrinsic(IntrinsicLinkSpanID)
+	IntrinsicEventNameAttribute              = NewIntrinsic(IntrinsicEventName)
+	IntrinsicEventTimeSinceStartAttribute    = NewIntrinsic(IntrinsicEventTimeSinceStart)
+	IntrinsicInstrumentationNameAttribute    = NewIntrinsic(IntrinsicInstrumentationName)
+	IntrinsicInstrumentationVersionAttribute = NewIntrinsic(IntrinsicInstrumentationVersion)
 )
 
 func (i Intrinsic) String() string {
@@ -193,10 +193,10 @@ func (i Intrinsic) String() string {
 		return "trace:duration"
 	case IntrinsicSpanID:
 		return "span:id"
-	case IntrinsicScopeName:
-		return "scope:name"
-	case IntrinsicScopeVersion:
-		return "scope:version"
+	case IntrinsicInstrumentationName:
+		return "instrumentation:name"
+	case IntrinsicInstrumentationVersion:
+		return "instrumentation:version"
 	// below is unimplemented
 	case IntrinsicSpanStartTime:
 		return "spanStartTime"
@@ -264,10 +264,10 @@ func intrinsicFromString(s string) Intrinsic {
 		return IntrinsicTraceRootService
 	case "trace:duration":
 		return IntrinsicTraceDuration
-	case "scope:name":
-		return IntrinsicScopeName
-	case "scope:version":
-		return IntrinsicScopeVersion
+	case "instrumentation:name":
+		return IntrinsicInstrumentationName
+	case "instrumentation:version":
+		return IntrinsicInstrumentationVersion
 	// unimplemented
 	case "spanStartTime":
 		return IntrinsicSpanStartTime

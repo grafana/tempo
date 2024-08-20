@@ -158,9 +158,9 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		{"link:traceID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:traceID = "1234567890abcdef1234567890abcdef"}`)},
 		{"link.opentracing.ref_type", traceql.MustExtractFetchSpansRequestWithMetadata(`{link.opentracing.ref_type = "child-of"}`)},
 		// Instrumentation Scope
-		{"scope:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{scope:name = "scope-1"}`)},
-		{"scope:version", traceql.MustExtractFetchSpansRequestWithMetadata(`{scope:version = "version-1"}`)},
-		{"scope.attr-str", traceql.MustExtractFetchSpansRequestWithMetadata(`{scope.scope-attr-str = "scope-attr-1"}`)},
+		{"instrumentation:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation:name = "scope-1"}`)},
+		{"instrumentation:version", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation:version = "version-1"}`)},
+		{"instrumentation.attr-str", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.scope-attr-str = "scope-attr-1"}`)},
 		// Basic data types and operations
 		{".float = 456.78", traceql.MustExtractFetchSpansRequestWithMetadata(`{.float = 456.78}`)},             // Float ==
 		{".float != 456.79", traceql.MustExtractFetchSpansRequestWithMetadata(`{.float != 456.79}`)},           // Float !=
@@ -749,7 +749,7 @@ func TestBackendBlockSelectAll(t *testing.T) {
 			sortAttrs(s.traceAttrs)
 			sortAttrs(s.resourceAttrs)
 			sortAttrs(s.spanAttrs)
-			sortAttrs(s.scopeAttrs)
+			sortAttrs(s.instrumentationAttrs)
 		}
 
 		require.Equal(t, wantSS, ss)
@@ -842,8 +842,8 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 
 		for _, ss := range rs.ScopeSpans {
 			var scopeAttrs []attrVal
-			scopeAttrs = append(scopeAttrs, attrVal{traceql.IntrinsicScopeNameAttribute, traceql.NewStaticString(ss.Scope.Name)})
-			scopeAttrs = append(scopeAttrs, attrVal{traceql.IntrinsicScopeVersionAttribute, traceql.NewStaticString(ss.Scope.Version)})
+			scopeAttrs = append(scopeAttrs, attrVal{traceql.IntrinsicInstrumentationNameAttribute, traceql.NewStaticString(ss.Scope.Name)})
+			scopeAttrs = append(scopeAttrs, attrVal{traceql.IntrinsicInstrumentationVersionAttribute, traceql.NewStaticString(ss.Scope.Version)})
 			for _, a := range parquetToProtoAttrs(ss.Scope.Attrs) {
 				if arr := a.Value.GetArrayValue(); arr != nil {
 					for _, v := range arr.Values {
@@ -863,7 +863,7 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 				newS.durationNanos = s.DurationNano
 				newS.setTraceAttrs(traceAttrs)
 				newS.setResourceAttrs(rsAttrs)
-				newS.setScopeAttrs(scopeAttrs)
+				newS.setInstrumentationAttrs(scopeAttrs)
 				newS.addSpanAttr(traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(s.DurationNano)))
 				newS.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(otlpKindToTraceqlKind(uint64(s.Kind))))
 				newS.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(s.Name))

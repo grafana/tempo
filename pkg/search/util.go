@@ -74,8 +74,8 @@ func GetVirtualIntrinsicValues() []string {
 		traceql.ScopedIntrinsicTraceDuration.String(),
 		traceql.IntrinsicEventName.String(),
 		traceql.IntrinsicEventTimeSinceStart.String(),
-		traceql.IntrinsicScopeName.String(),
-		traceql.IntrinsicScopeVersion.String(),
+		traceql.IntrinsicInstrumentationName.String(),
+		traceql.IntrinsicInstrumentationVersion.String(),
 		/* these are technically intrinsics that can be requested, but they are not generally of interest to a user
 		   typing a query. for simplicity and clarity we are leaving them out of autocomplete
 			IntrinsicNestedSetLeft

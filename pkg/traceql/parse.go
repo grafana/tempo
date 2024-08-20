@@ -60,8 +60,8 @@ func ParseIdentifier(s string) (Attribute, error) {
 		return NewScopedAttribute(AttributeScopeResource, false, strings.TrimPrefix(s, "resource.")), nil
 	case strings.HasPrefix(s, "span."):
 		return NewScopedAttribute(AttributeScopeSpan, false, strings.TrimPrefix(s, "span.")), nil
-	case strings.HasPrefix(s, "scope."):
-		return NewScopedAttribute(AttributeScopeInstrumentation, false, strings.TrimPrefix(s, "scope.")), nil
+	case strings.HasPrefix(s, "instrumentation."):
+		return NewScopedAttribute(AttributeScopeInstrumentation, false, strings.TrimPrefix(s, "instrumentation.")), nil
 	case strings.HasPrefix(s, "event."):
 		return NewScopedAttribute(AttributeScopeEvent, false, strings.TrimPrefix(s, "event.")), nil
 	case strings.HasPrefix(s, "link."):

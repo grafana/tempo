@@ -59,11 +59,11 @@ func TestLexerAttributes(t *testing.T) {
 		{`link.foo+bar`, []int{LINK_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`link.foo-bar`, []int{LINK_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		// instrumentation attributes
-		{`scope.foo`, []int{SCOPE_DOT, IDENTIFIER, END_ATTRIBUTE}},
-		{`scope.count`, []int{SCOPE_DOT, IDENTIFIER, END_ATTRIBUTE}},
-		{`scope.foo3`, []int{SCOPE_DOT, IDENTIFIER, END_ATTRIBUTE}},
-		{`scope.foo+bar`, []int{SCOPE_DOT, IDENTIFIER, END_ATTRIBUTE}},
-		{`scope.foo-bar`, []int{SCOPE_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`instrumentation.foo`, []int{INSTRUMENTATION_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`instrumentation.count`, []int{INSTRUMENTATION_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`instrumentation.foo3`, []int{INSTRUMENTATION_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`instrumentation.foo+bar`, []int{INSTRUMENTATION_DOT, IDENTIFIER, END_ATTRIBUTE}},
+		{`instrumentation.foo-bar`, []int{INSTRUMENTATION_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		// parent span attributes
 		{`parent.span.foo`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`parent.span.count`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
@@ -111,8 +111,8 @@ func TestLexerScopedIntrinsic(t *testing.T) {
 		{`link:traceID`, []int{LINK_COLON, TRACE_ID}},
 		{`link:spanID`, []int{LINK_COLON, SPAN_ID}},
 		// instrumentation scoped intrinsics
-		{`scope:name`, []int{SCOPE_COLON, NAME}},
-		{`scope:version`, []int{SCOPE_COLON, VERSION}},
+		{`instrumentation:name`, []int{INSTRUMENTATION_COLON, NAME}},
+		{`instrumentation:version`, []int{INSTRUMENTATION_COLON, VERSION}},
 	}))
 }
 

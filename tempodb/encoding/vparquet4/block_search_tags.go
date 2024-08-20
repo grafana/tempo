@@ -179,7 +179,7 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsC
 	}
 	// scope
 	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeInstrumentation {
-		err := scanColumns(columnPathScopeAttrKey, nil, dedicatedColumnMapping{}, cb, traceql.AttributeScopeInstrumentation)
+		err := scanColumns(columnPathInstrumentationAttrKey, nil, dedicatedColumnMapping{}, cb, traceql.AttributeScopeInstrumentation)
 		if err != nil {
 			return err
 		}
@@ -339,11 +339,11 @@ func searchStandardTagValues(ctx context.Context, tag traceql.Attribute, pf *par
 
 	if tag.Scope == traceql.AttributeScopeNone || tag.Scope == traceql.AttributeScopeInstrumentation {
 		err := searchKeyValues(DefinitionLevelInstrumentationScopeAttrs,
-			columnPathScopeAttrKey,
-			columnPathScopeAttrString,
-			columnPathScopeAttrInt,
-			columnPathScopeAttrDouble,
-			columnPathScopeAttrBool,
+			columnPathInstrumentationAttrKey,
+			columnPathInstrumentationAttrString,
+			columnPathInstrumentationAttrInt,
+			columnPathInstrumentationAttrDouble,
+			columnPathInstrumentationAttrBool,
 			makeIter, keyPred, cb)
 		if err != nil {
 			return fmt.Errorf("search scope key values: %w", err)

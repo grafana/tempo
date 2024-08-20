@@ -1470,7 +1470,7 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 
 			if (bm.Version == vparquet4.VersionString) && (tc.name == "resource match" || tc.name == "span match") {
 				// v4 has scope, events, and links
-				tc.expected["scope"] = []string{"scope-attr-str"}
+				tc.expected["instrumentation"] = []string{"scope-attr-str"}
 				tc.expected["event"] = []string{"exception.message"}
 				tc.expected["link"] = []string{"relation"}
 			}
@@ -1723,13 +1723,13 @@ func runEventLinkScopeSearchTest(t *testing.T, blockVersion string) {
 			Query: "{ link:traceID = `" + wantIDText + "` }",
 		},
 		{
-			Query: "{ scope:name = `scope-1` }",
+			Query: "{ instrumentation:name = `scope-1` }",
 		},
 		{
-			Query: "{ scope:version = `version-1` }",
+			Query: "{ instrumentation:version = `version-1` }",
 		},
 		{
-			Query: "{ scope.scope-attr-str = `scope-attr-1` }",
+			Query: "{ instrumentation.scope-attr-str = `scope-attr-1` }",
 		},
 	}
 

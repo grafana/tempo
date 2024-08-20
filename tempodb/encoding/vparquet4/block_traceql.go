@@ -43,12 +43,12 @@ type attrVal struct {
 
 // span implements traceql.Span
 type span struct {
-	spanAttrs     []attrVal
-	resourceAttrs []attrVal
-	traceAttrs    []attrVal
-	eventAttrs    []attrVal
-	linkAttrs     []attrVal
-	scopeAttrs    []attrVal
+	spanAttrs            []attrVal
+	resourceAttrs        []attrVal
+	traceAttrs           []attrVal
+	eventAttrs           []attrVal
+	linkAttrs            []attrVal
+	instrumentationAttrs []attrVal
 
 	id                 []byte
 	startTimeUnixNanos uint64
@@ -95,7 +95,7 @@ func (s *span) AllAttributes() map[traceql.Attribute]traceql.Static {
 		}
 		atts[st.a] = st.s
 	}
-	for _, st := range s.scopeAttrs {
+	for _, st := range s.instrumentationAttrs {
 		if st.s.Type == traceql.TypeNil {
 			continue
 		}
@@ -111,7 +111,7 @@ func (s *span) AllAttributesFunc(cb func(traceql.Attribute, traceql.Static)) {
 	for _, a := range s.resourceAttrs {
 		cb(a.a, a.s)
 	}
-	for _, a := range s.scopeAttrs {
+	for _, a := range s.instrumentationAttrs {
 		cb(a.a, a.s)
 	}
 	for _, a := range s.spanAttrs {
@@ -192,7 +192,7 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 		return traceql.NewStaticNil(), false
 	}
 	if a.Scope == traceql.AttributeScopeInstrumentation {
-		if attr := find(a, s.scopeAttrs); attr != nil {
+		if attr := find(a, s.instrumentationAttrs); attr != nil {
 			return *attr, true
 		}
 		return traceql.NewStaticNil(), false
@@ -226,7 +226,7 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 			return *attr, true
 		}
 
-		if attr := find(a, s.scopeAttrs); attr != nil {
+		if attr := find(a, s.instrumentationAttrs); attr != nil {
 			return *attr, true
 		}
 	}
@@ -249,7 +249,7 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 		return *attr, true
 	}
 
-	if attr := findName(a.Name, s.scopeAttrs); attr != nil {
+	if attr := findName(a.Name, s.instrumentationAttrs); attr != nil {
 		return *attr, true
 	}
 
@@ -720,8 +720,8 @@ func (s *span) addSpanAttr(a traceql.Attribute, st traceql.Static) {
 	s.spanAttrs = append(s.spanAttrs, attrVal{a: a, s: st})
 }
 
-func (s *span) setScopeAttrs(attrs []attrVal) {
-	s.scopeAttrs = append(s.scopeAttrs, attrs...)
+func (s *span) setInstrumentationAttrs(attrs []attrVal) {
+	s.instrumentationAttrs = append(s.instrumentationAttrs, attrs...)
 }
 
 func (s *span) setResourceAttrs(attrs []attrVal) {
@@ -769,7 +769,7 @@ func (s *span) attributesMatched() int {
 			count++
 		}
 	}
-	for _, st := range s.scopeAttrs {
+	for _, st := range s.instrumentationAttrs {
 		if st.s.Type != traceql.TypeNil {
 			count++
 		}
@@ -819,7 +819,7 @@ func putSpan(s *span) {
 	s.traceAttrs = s.traceAttrs[:0]
 	s.eventAttrs = s.eventAttrs[:0]
 	s.linkAttrs = s.linkAttrs[:0]
-	s.scopeAttrs = s.scopeAttrs[:0]
+	s.instrumentationAttrs = s.instrumentationAttrs[:0]
 
 	spanPool.Put(s)
 }
@@ -896,13 +896,13 @@ const (
 	columnPathResourceK8sPodName       = "rs.list.element.Resource.K8sPodName"
 	columnPathResourceK8sContainerName = "rs.list.element.Resource.K8sContainerName"
 
-	columnPathScopeName       = "rs.list.element.ss.list.element.Scope.Name"
-	columnPathScopeVersion    = "rs.list.element.ss.list.element.Scope.Version"
-	columnPathScopeAttrKey    = "rs.list.element.ss.list.element.Scope.Attrs.list.element.Key"
-	columnPathScopeAttrString = "rs.list.element.ss.list.element.Scope.Attrs.list.element.Value.list.element"
-	columnPathScopeAttrInt    = "rs.list.element.ss.list.element.Scope.Attrs.list.element.ValueInt.list.element"
-	columnPathScopeAttrDouble = "rs.list.element.ss.list.element.Scope.Attrs.list.element.ValueDouble.list.element"
-	columnPathScopeAttrBool   = "rs.list.element.ss.list.element.Scope.Attrs.list.element.ValueBool.list.element"
+	columnPathInstrumentationName       = "rs.list.element.ss.list.element.Scope.Name"
+	columnPathInstrumentationVersion    = "rs.list.element.ss.list.element.Scope.Version"
+	columnPathInstrumentationAttrKey    = "rs.list.element.ss.list.element.Scope.Attrs.list.element.Key"
+	columnPathInstrumentationAttrString = "rs.list.element.ss.list.element.Scope.Attrs.list.element.Value.list.element"
+	columnPathInstrumentationAttrInt    = "rs.list.element.ss.list.element.Scope.Attrs.list.element.ValueInt.list.element"
+	columnPathInstrumentationAttrDouble = "rs.list.element.ss.list.element.Scope.Attrs.list.element.ValueDouble.list.element"
+	columnPathInstrumentationAttrBool   = "rs.list.element.ss.list.element.Scope.Attrs.list.element.ValueBool.list.element"
 
 	columnPathSpanID              = "rs.list.element.ss.list.element.Spans.list.element.SpanID"
 	columnPathSpanName            = "rs.list.element.ss.list.element.Spans.list.element.Name"
@@ -982,8 +982,8 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicLinkTraceID:         {intrinsicScopeLink, traceql.TypeString, columnPathLinkTraceID},
 	traceql.IntrinsicLinkSpanID:          {intrinsicScopeLink, traceql.TypeString, columnPathLinkSpanID},
 
-	traceql.IntrinsicScopeName:    {intrinsicScopeScope, traceql.TypeString, columnPathScopeName},
-	traceql.IntrinsicScopeVersion: {intrinsicScopeScope, traceql.TypeString, columnPathScopeVersion},
+	traceql.IntrinsicInstrumentationName:    {intrinsicScopeScope, traceql.TypeString, columnPathInstrumentationName},
+	traceql.IntrinsicInstrumentationVersion: {intrinsicScopeScope, traceql.TypeString, columnPathInstrumentationVersion},
 
 	traceql.IntrinsicServiceStats: {intrinsicScopeTrace, traceql.TypeNil, ""}, // Not a real column, this entry is only used to assign default scope.
 }
@@ -2115,20 +2115,20 @@ func createScopeIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator
 
 		// Intrinsics ?
 		switch cond.Attribute.Intrinsic {
-		case traceql.IntrinsicScopeName:
+		case traceql.IntrinsicInstrumentationName:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, err
 			}
-			iters = append(iters, makeIter(columnPathScopeName, pred, columnPathScopeName))
+			iters = append(iters, makeIter(columnPathInstrumentationName, pred, columnPathInstrumentationName))
 			continue
 
-		case traceql.IntrinsicScopeVersion:
+		case traceql.IntrinsicInstrumentationVersion:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, err
 			}
-			iters = append(iters, makeIter(columnPathScopeVersion, pred, columnPathScopeVersion))
+			iters = append(iters, makeIter(columnPathInstrumentationVersion, pred, columnPathInstrumentationVersion))
 			continue
 		}
 
@@ -2146,7 +2146,7 @@ func createScopeIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator
 	}
 
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelInstrumentationScopeAttrs,
-		columnPathScopeAttrKey, columnPathScopeAttrString, columnPathScopeAttrInt, columnPathScopeAttrDouble, columnPathScopeAttrBool, allConditions, selectAll)
+		columnPathInstrumentationAttrKey, columnPathInstrumentationAttrString, columnPathInstrumentationAttrInt, columnPathInstrumentationAttrDouble, columnPathInstrumentationAttrBool, allConditions, selectAll)
 	if err != nil {
 		return nil, fmt.Errorf("creating scope attribute iterator: %w", err)
 	}
@@ -2163,7 +2163,7 @@ func createScopeIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator
 		}
 		minCount = len(distinct)
 	}
-	scopeCol := newScopeCollector(minCount)
+	scopeCol := newInstrumentationCollector(minCount)
 
 	var required []parquetquery.Iterator
 
@@ -2808,35 +2808,35 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	return true
 }
 
-// scopeCollector receives rows of matching scope-level
-type scopeCollector struct {
-	minAttributes int
-	scopeAttrs    []attrVal
+// instrumentationCollector receives rows of matching scope-level
+type instrumentationCollector struct {
+	minAttributes        int
+	instrumentationAttrs []attrVal
 }
 
-var _ parquetquery.GroupPredicate = (*scopeCollector)(nil)
+var _ parquetquery.GroupPredicate = (*instrumentationCollector)(nil)
 
-func newScopeCollector(minAttributes int) *scopeCollector {
-	return &scopeCollector{
+func newInstrumentationCollector(minAttributes int) *instrumentationCollector {
+	return &instrumentationCollector{
 		minAttributes: minAttributes,
 	}
 }
 
-func (c *scopeCollector) String() string {
-	return fmt.Sprintf("scopeCollector(%d)", c.minAttributes)
+func (c *instrumentationCollector) String() string {
+	return fmt.Sprintf("instrumentationCollector(%d)", c.minAttributes)
 }
 
-func (c *scopeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
+func (c *instrumentationCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	// First pass over spans and attributes from the AttributeCollector
 	spans := res.OtherEntries[:0]
-	c.scopeAttrs = c.scopeAttrs[:0]
+	c.instrumentationAttrs = c.instrumentationAttrs[:0]
 
 	for _, kv := range res.OtherEntries {
 		switch v := kv.Value.(type) {
 		case *span:
 			spans = append(spans, kv)
 		case traceql.Static:
-			c.scopeAttrs = append(c.scopeAttrs, attrVal{newScopeAttr(kv.Key), v})
+			c.instrumentationAttrs = append(c.instrumentationAttrs, attrVal{newInstrumentationAttrs(kv.Key), v})
 		}
 	}
 	res.OtherEntries = spans
@@ -2849,21 +2849,21 @@ func (c *scopeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	// scope intrinsics
 	for _, kv := range res.Entries {
 		switch kv.Key {
-		case columnPathScopeName:
-			c.scopeAttrs = append(c.scopeAttrs, attrVal{
-				a: traceql.IntrinsicScopeNameAttribute,
+		case columnPathInstrumentationName:
+			c.instrumentationAttrs = append(c.instrumentationAttrs, attrVal{
+				a: traceql.IntrinsicInstrumentationNameAttribute,
 				s: traceql.NewStaticString(unsafeToString(kv.Value.Bytes())),
 			})
-		case columnPathScopeVersion:
-			c.scopeAttrs = append(c.scopeAttrs, attrVal{
-				a: traceql.IntrinsicScopeVersionAttribute,
+		case columnPathInstrumentationVersion:
+			c.instrumentationAttrs = append(c.instrumentationAttrs, attrVal{
+				a: traceql.IntrinsicInstrumentationVersionAttribute,
 				s: traceql.NewStaticString(unsafeToString(kv.Value.Bytes())),
 			})
 		}
 	}
 
 	if c.minAttributes > 0 {
-		if len(c.scopeAttrs) < c.minAttributes {
+		if len(c.instrumentationAttrs) < c.minAttributes {
 			return false
 		}
 	}
@@ -2879,7 +2879,7 @@ func (c *scopeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		// Copy scope-level attributes to the span
 		// If the span already has an entry for this attribute it
 		// takes precedence (can be nil to indicate no match)
-		span.setScopeAttrs(c.scopeAttrs)
+		span.setInstrumentationAttrs(c.instrumentationAttrs)
 		spans = append(spans, e)
 
 	}
@@ -3328,7 +3328,7 @@ func newResAttr(name string) traceql.Attribute {
 	return traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, name)
 }
 
-func newScopeAttr(name string) traceql.Attribute {
+func newInstrumentationAttrs(name string) traceql.Attribute {
 	return traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, name)
 }
 

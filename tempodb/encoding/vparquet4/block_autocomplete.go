@@ -737,27 +737,27 @@ func createDistinctScopeIterator(
 	for _, cond := range conditions {
 		// Intrinsic?
 		switch cond.Attribute.Intrinsic {
-		case traceql.IntrinsicScopeName:
+		case traceql.IntrinsicInstrumentationName:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, err
 			}
 			selectAs := ""
 			if tr.tag == cond.Attribute {
-				selectAs = columnPathScopeName
+				selectAs = columnPathInstrumentationName
 			}
-			iters = append(iters, makeIter(columnPathScopeName, pred, selectAs))
+			iters = append(iters, makeIter(columnPathInstrumentationName, pred, selectAs))
 			continue
-		case traceql.IntrinsicScopeVersion:
+		case traceql.IntrinsicInstrumentationVersion:
 			pred, err := createStringPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, err
 			}
 			selectAs := ""
 			if tr.tag == cond.Attribute {
-				selectAs = columnPathScopeVersion
+				selectAs = columnPathInstrumentationVersion
 			}
-			iters = append(iters, makeIter(columnPathScopeVersion, pred, selectAs))
+			iters = append(iters, makeIter(columnPathInstrumentationVersion, pred, selectAs))
 			continue
 		}
 		// Else: generic attribute lookup
@@ -765,7 +765,7 @@ func createDistinctScopeIterator(
 	}
 
 	attrIter, err := createDistinctAttributeIterator(makeIter, tr, genericConditions, DefinitionLevelInstrumentationScopeAttrs,
-		columnPathScopeAttrKey, columnPathScopeAttrString, columnPathScopeAttrInt, columnPathScopeAttrDouble, columnPathScopeAttrBool)
+		columnPathInstrumentationAttrKey, columnPathInstrumentationAttrString, columnPathInstrumentationAttrInt, columnPathInstrumentationAttrDouble, columnPathInstrumentationAttrBool)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating scope attribute iterator")
 	}
@@ -1135,7 +1135,7 @@ func mapSpanAttr(e entry) traceql.Static {
 
 func mapScopeAttr(e entry) traceql.Static {
 	switch e.Key {
-	case columnPathScopeName, columnPathScopeVersion:
+	case columnPathInstrumentationName, columnPathInstrumentationVersion:
 		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	}
 	return traceql.Static{}

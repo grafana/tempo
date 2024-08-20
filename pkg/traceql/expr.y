@@ -96,7 +96,7 @@ import (
                         ROOTSERVICE TRACEDURATION NESTEDSETLEFT NESTEDSETRIGHT NESTEDSETPARENT ID 
                         TRACE_ID SPAN_ID TIMESINCESTART VERSION
                         PARENT_DOT RESOURCE_DOT SPAN_DOT TRACE_COLON SPAN_COLON 
-                        EVENT_COLON EVENT_DOT LINK_COLON LINK_DOT SCOPE_COLON SCOPE_DOT
+                        EVENT_COLON EVENT_DOT LINK_COLON LINK_DOT INSTRUMENTATION_COLON INSTRUMENTATION_DOT
                         COUNT AVG MAX MIN SUM
                         BY COALESCE SELECT
                         END_ATTRIBUTE
@@ -395,26 +395,26 @@ intrinsicField:
 
 scopedIntrinsicField:
 //  trace:
-    TRACE_COLON IDURATION        { $$ = NewIntrinsic(IntrinsicTraceDuration)       }
-  | TRACE_COLON ROOTNAME         { $$ = NewIntrinsic(IntrinsicTraceRootSpan)       }
-  | TRACE_COLON ROOTSERVICE      { $$ = NewIntrinsic(IntrinsicTraceRootService)    }
-  | TRACE_COLON ID               { $$ = NewIntrinsic(IntrinsicTraceID)             }
-//  span:
-  | SPAN_COLON IDURATION         { $$ = NewIntrinsic(IntrinsicDuration)            }
-  | SPAN_COLON NAME              { $$ = NewIntrinsic(IntrinsicName)                }
-  | SPAN_COLON KIND              { $$ = NewIntrinsic(IntrinsicKind)                }
-  | SPAN_COLON STATUS            { $$ = NewIntrinsic(IntrinsicStatus)              }
-  | SPAN_COLON STATUS_MESSAGE    { $$ = NewIntrinsic(IntrinsicStatusMessage)       }
-  | SPAN_COLON ID                { $$ = NewIntrinsic(IntrinsicSpanID)              }
-// event:
-  | EVENT_COLON NAME             { $$ = NewIntrinsic(IntrinsicEventName)           }
-  | EVENT_COLON TIMESINCESTART   { $$ = NewIntrinsic(IntrinsicEventTimeSinceStart) }
-// link:
-  | LINK_COLON TRACE_ID          { $$ = NewIntrinsic(IntrinsicLinkTraceID)         }
-  | LINK_COLON SPAN_ID           { $$ = NewIntrinsic(IntrinsicLinkSpanID)          }
+    TRACE_COLON IDURATION           { $$ = NewIntrinsic(IntrinsicTraceDuration)          }
+  | TRACE_COLON ROOTNAME            { $$ = NewIntrinsic(IntrinsicTraceRootSpan)          }
+  | TRACE_COLON ROOTSERVICE         { $$ = NewIntrinsic(IntrinsicTraceRootService)       }
+  | TRACE_COLON ID                  { $$ = NewIntrinsic(IntrinsicTraceID)                }
+//  span:             
+  | SPAN_COLON IDURATION            { $$ = NewIntrinsic(IntrinsicDuration)               }
+  | SPAN_COLON NAME                 { $$ = NewIntrinsic(IntrinsicName)                   }
+  | SPAN_COLON KIND                 { $$ = NewIntrinsic(IntrinsicKind)                   }
+  | SPAN_COLON STATUS               { $$ = NewIntrinsic(IntrinsicStatus)                 }
+  | SPAN_COLON STATUS_MESSAGE       { $$ = NewIntrinsic(IntrinsicStatusMessage)          }
+  | SPAN_COLON ID                   { $$ = NewIntrinsic(IntrinsicSpanID)                 }
+// event:             
+  | EVENT_COLON NAME                { $$ = NewIntrinsic(IntrinsicEventName)              }
+  | EVENT_COLON TIMESINCESTART      { $$ = NewIntrinsic(IntrinsicEventTimeSinceStart)    }
+// link:             
+  | LINK_COLON TRACE_ID             { $$ = NewIntrinsic(IntrinsicLinkTraceID)            }
+  | LINK_COLON SPAN_ID              { $$ = NewIntrinsic(IntrinsicLinkSpanID)             }
 // scope:
-  | SCOPE_COLON NAME             { $$ = NewIntrinsic(IntrinsicScopeName)           }
-  | SCOPE_COLON VERSION          { $$ = NewIntrinsic(IntrinsicScopeVersion)        }
+  | INSTRUMENTATION_COLON NAME      { $$ = NewIntrinsic(IntrinsicInstrumentationName)    }
+  | INSTRUMENTATION_COLON VERSION   { $$ = NewIntrinsic(IntrinsicInstrumentationVersion) }
   ;
 
 attributeField:
@@ -426,5 +426,5 @@ attributeField:
   | PARENT_DOT SPAN_DOT IDENTIFIER END_ATTRIBUTE      { $$ = NewScopedAttribute(AttributeScopeSpan, true, $3)             }
   | EVENT_DOT IDENTIFIER END_ATTRIBUTE                { $$ = NewScopedAttribute(AttributeScopeEvent, false, $2)           }
   | LINK_DOT IDENTIFIER END_ATTRIBUTE                 { $$ = NewScopedAttribute(AttributeScopeLink, false, $2)            }
-  | SCOPE_DOT IDENTIFIER END_ATTRIBUTE                { $$ = NewScopedAttribute(AttributeScopeInstrumentation, false, $2) }
+  | INSTRUMENTATION_DOT IDENTIFIER END_ATTRIBUTE      { $$ = NewScopedAttribute(AttributeScopeInstrumentation, false, $2) }
   ;

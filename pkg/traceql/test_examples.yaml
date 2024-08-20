@@ -53,7 +53,7 @@ valid:
   - '{ 1 <= 1.1 }'
   - '{ event.foo = "bar" }'
   - '{ link.foo = "bar" }'
-  - '{ scope.foo = "bar" }'
+  - '{ instrumentation.foo = "bar" }'
   # scoped intrinsics
   - '{ trace:duration > 2s }'
   - '{ trace:rootName = "a" }'
@@ -68,8 +68,8 @@ valid:
   - '{ event:timeSinceStart > 1s }'
   - '{ link:traceID = "f1f1f1f1f1f1ff1f1f1f1f1f1f1f1f1" }'
   - '{ link:spanID = "f1f1f1f1f1f1f1f1" }'
-  - '{ scope:name = "grpc" }'
-  - '{ scope:version = "v3.34" }'
+  - '{ instrumentation:name = "grpc" }'
+  - '{ instrumentation:version = "v3.34" }'
   # binary operations
   - '{ 1 + 1 = 2 }'
   - '{ 1 - 1 = 2 }'

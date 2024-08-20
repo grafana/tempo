@@ -712,7 +712,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 		{
 			"Intrinsic scope name lookup",
 			makeReq(
-				parse(t, `{scope:name = "scope-1"}`), //
+				parse(t, `{instrumentation:name = "scope-1"}`), //
 			),
 			makeSpansets(
 				makeSpanset(
@@ -735,8 +735,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							{traceql.NewIntrinsic(traceql.IntrinsicTraceDuration), traceql.NewStaticDuration(100 * time.Millisecond)},
 							{traceql.NewIntrinsic(traceql.IntrinsicTraceID), traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID))},
 						},
-						scopeAttrs: []attrVal{
-							{traceql.IntrinsicScopeNameAttribute, traceql.NewStaticString("scope-1")},
+						instrumentationAttrs: []attrVal{
+							{traceql.IntrinsicInstrumentationNameAttribute, traceql.NewStaticString("scope-1")},
 						},
 					},
 				),
@@ -745,7 +745,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 		{
 			"Intrinsic scope version lookup",
 			makeReq(
-				parse(t, `{scope:version = "version-1"}`), //
+				parse(t, `{instrumentation:version = "version-1"}`), //
 			),
 			makeSpansets(
 				makeSpanset(
@@ -768,8 +768,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							{traceql.NewIntrinsic(traceql.IntrinsicTraceDuration), traceql.NewStaticDuration(100 * time.Millisecond)},
 							{traceql.NewIntrinsic(traceql.IntrinsicTraceID), traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID))},
 						},
-						scopeAttrs: []attrVal{
-							{traceql.IntrinsicScopeVersionAttribute, traceql.NewStaticString("version-1")},
+						instrumentationAttrs: []attrVal{
+							{traceql.IntrinsicInstrumentationVersionAttribute, traceql.NewStaticString("version-1")},
 						},
 					},
 				),
@@ -778,7 +778,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 		{
 			"Scope attribute lookup",
 			makeReq(
-				parse(t, `{scope.scope-attr-int = 101}`), //
+				parse(t, `{instrumentation.scope-attr-int = 101}`), //
 			),
 			makeSpansets(
 				makeSpanset(
@@ -801,7 +801,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							{traceql.NewIntrinsic(traceql.IntrinsicTraceDuration), traceql.NewStaticDuration(100 * time.Millisecond)},
 							{traceql.NewIntrinsic(traceql.IntrinsicTraceID), traceql.NewStaticString(util.TraceIDToHexString(wantTr.TraceID))},
 						},
-						scopeAttrs: []attrVal{
+						instrumentationAttrs: []attrVal{
 							{traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, "scope-attr-int"), traceql.NewStaticInt(101)},
 						},
 					},
@@ -852,8 +852,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 					if len(spn.eventAttrs) == 0 {
 						spn.eventAttrs = nil
 					}
-					if len(spn.scopeAttrs) == 0 {
-						spn.scopeAttrs = nil
+					if len(spn.instrumentationAttrs) == 0 {
+						spn.instrumentationAttrs = nil
 					}
 
 					// sort actual attrs to get consistent comparisons

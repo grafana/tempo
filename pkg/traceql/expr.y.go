@@ -106,8 +106,8 @@ const EVENT_COLON = 57393
 const EVENT_DOT = 57394
 const LINK_COLON = 57395
 const LINK_DOT = 57396
-const SCOPE_COLON = 57397
-const SCOPE_DOT = 57398
+const INSTRUMENTATION_COLON = 57397
+const INSTRUMENTATION_DOT = 57398
 const COUNT = 57399
 const AVG = 57400
 const MAX = 57401
@@ -209,8 +209,8 @@ var yyToknames = [...]string{
 	"EVENT_DOT",
 	"LINK_COLON",
 	"LINK_DOT",
-	"SCOPE_COLON",
-	"SCOPE_DOT",
+	"INSTRUMENTATION_COLON",
+	"INSTRUMENTATION_DOT",
 	"COUNT",
 	"AVG",
 	"MAX",
@@ -2029,13 +2029,13 @@ yydefault:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line pkg/traceql/expr.y:416
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicScopeName)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicInstrumentationName)
 		}
 	case 188:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line pkg/traceql/expr.y:417
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicScopeVersion)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicInstrumentationVersion)
 		}
 	case 189:
 		yyDollar = yyS[yypt-3 : yypt+1]
