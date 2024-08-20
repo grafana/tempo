@@ -1,5 +1,7 @@
 ## main / unreleased
 
+# v2.6.0-rc.0
+
 * [CHANGE] **BREAKING CHANGE** Remove `autocomplete_filtering_enabled` feature flag [#3729](https://github.com/grafana/tempo/pull/3729) (@mapno)
 * [CHANGE] Bump opentelemetry-collector to 0.102.1 [#3784](https://github.com/grafana/tempo/pull/3784) (@debasishbsws)
 * [CHANGE] Bump Jaeger query docker image to 1.57.0 [#3652](https://github.com/grafana/tempo/issues/3652) (@iblancasa)
@@ -7,7 +9,6 @@
 * [CHANGE] Make vParquet4 the default block encoding [#3810](https://github.com/grafana/tempo/pull/3810) (@ie-pham)
 * [CHANGE] Azure v2 backend becomes the only and primary Azure backend [#3875](https://github.com/grafana/tempo/pull/3875) (@zalegrala)
   **BREAKING CHANGE** The `use_v2_sdk` configuration option has been removed.
-* [CHANGE] BlockMeta improvements to reduce the size [#3950](https://github.com/grafana/tempo/pull/3950) [#3951](https://github.com/grafana/tempo/pull/3951) [#3952](https://github.com/grafana/tempo/pull/3952)(@zalegrala)
 * [FEATURE] TraceQL support for link scope and link:traceID and link:spanID [#3741](https://github.com/grafana/tempo/pull/3741) (@stoewer)
 * [FEATURE] TraceQL support for link attribute querying [#3814](https://github.com/grafana/tempo/pull/3814) (@ie-pham)
 * [FEATURE] TraceQL support for event scope and event:name intrinsic [#3708](https://github.com/grafana/tempo/pull/3708) (@stoewer)
@@ -53,6 +54,7 @@
 * [ENHANCEMENT] Implement polling tenants concurrently [#3647](https://github.com/grafana/tempo/pull/3647) (@zalegrala)
 * [ENHANCEMENT] Added new middleware to block matching urls [#3963](https://github.com/grafana/tempo/pull/3963) (@javiermolinar)
 * [ENHANCEMENT] Reduce allocs of caching middleware [#3976](https://github.com/grafana/tempo/pull/3976) (@joe-elliott)
+* [ENHANCEMENT] BlockMeta improvements to reduce the size [#3950](https://github.com/grafana/tempo/pull/3950) [#3951](https://github.com/grafana/tempo/pull/3951) [#3952](https://github.com/grafana/tempo/pull/3952)(@zalegrala)
 * [BUGFIX] Fix panic in certain metrics queries using `rate()` with `by` [#3847](https://github.com/grafana/tempo/pull/3847) (@stoewer)
 * [BUGFIX] Fix double appending the primary iterator on second pass with event iterator [#3903](https://github.com/grafana/tempo/pull/3903) (@ie-pham)
 * [BUGFIX] Fix metrics queries when grouping by attributes that may not exist [#3734](https://github.com/grafana/tempo/pull/3734) (@mdisibio)
@@ -71,7 +73,6 @@
 * [BUGFIX] Correct block end time when the ingested traces are outside the ingestion slack [#3954](https://github.com/grafana/tempo/pull/3954) (@javiermolinar)
 * [BUGFIX] Fix race condition where a streaming response could be marshalled while being modified in the combiner resulting in a panic. [#3961](https://github.com/grafana/tempo/pull/3961) (@joe-elliott)
 * [BUGFIX] Pass search options to the backend for SearchTagValuesBlocksV2 requests [#3971](https://github.com/grafana/tempo/pull/3971) (@javiermolinar)
-
 
 ## v2.5.0
 
