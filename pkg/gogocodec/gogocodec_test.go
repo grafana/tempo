@@ -30,7 +30,6 @@ func TestCodecMarshallAndUnmarshall_tempo_type(t *testing.T) {
 }
 
 func TestCodecMarshallAndUnmarshall_foreign_type(t *testing.T) {
-	t.Skip("this test is failing because of a change in the github.com/protocolbuffers/protobuf-go/internal/impl.  I don't know how to fix it.")
 	// marshal a foreign object (anything other than Tempo/Cortex/Jaeger) using the custom codec
 	c := NewCodec()
 	goprotoMessage1 := &emptypb.Empty{}
@@ -41,7 +40,7 @@ func TestCodecMarshallAndUnmarshall_foreign_type(t *testing.T) {
 	goprotoMessage2 := &emptypb.Empty{}
 	err = c.Unmarshal(data, goprotoMessage2)
 	require.NoError(t, err)
-	assert.Equal(t, goprotoMessage1, goprotoMessage2)
+	assert.True(t, proto.Equal(goprotoMessage1, goprotoMessage2))
 }
 
 func TestWireCompatibility(t *testing.T) {
