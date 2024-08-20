@@ -34,6 +34,7 @@ import (
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/usagestats"
 	tempo_util "github.com/grafana/tempo/pkg/util"
 
 	"github.com/grafana/tempo/pkg/validation"
@@ -109,6 +110,9 @@ var (
 		Name:      "distributor_metrics_generator_clients",
 		Help:      "The current number of metrics-generator clients.",
 	})
+
+	statBytesReceived = usagestats.NewCounter("distributor_bytes_received")
+	statSpansReceived = usagestats.NewCounter("distributor_spans_received")
 )
 
 // rebatchedTrace is used to more cleanly pass the set of data
@@ -353,6 +357,8 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 
 	metricBytesIngested.WithLabelValues(userID).Add(float64(size))
 	metricSpansIngested.WithLabelValues(userID).Add(float64(spanCount))
+	statBytesReceived.Inc(int64(size))
+	statSpansReceived.Inc(int64(spanCount))
 
 	keys, rebatchedTraces, err := requestsByTraceID(batches, userID, spanCount)
 	if err != nil {
