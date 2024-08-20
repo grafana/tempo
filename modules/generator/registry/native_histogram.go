@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grafana/tempo/v2/modules/overrides"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/model/exemplar"
