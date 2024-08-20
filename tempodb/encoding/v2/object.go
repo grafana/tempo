@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 type object struct{}

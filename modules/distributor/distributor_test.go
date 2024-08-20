@@ -29,16 +29,16 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/grafana/tempo/modules/distributor/receiver"
-	generator_client "github.com/grafana/tempo/modules/generator/client"
-	ingester_client "github.com/grafana/tempo/modules/ingester/client"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
-	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v2/modules/distributor/receiver"
+	generator_client "github.com/grafana/tempo/v2/modules/generator/client"
+	ingester_client "github.com/grafana/tempo/v2/modules/ingester/client"
+	"github.com/grafana/tempo/v2/modules/overrides"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/v2/pkg/tempopb/resource/v1"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v2/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util/test"
 )
 
 const (

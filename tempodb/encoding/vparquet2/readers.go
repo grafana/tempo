@@ -7,8 +7,8 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/pkg/cache"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 // This stack of readers is used to bridge the gap between the backend.Reader and the parquet.File.

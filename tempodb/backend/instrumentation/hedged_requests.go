@@ -2,7 +2,7 @@ package instrumentation
 
 import (
 	"github.com/cristalhq/hedgedhttp"
-	"github.com/grafana/tempo/pkg/hedgedmetrics"
+	"github.com/grafana/tempo/v2/pkg/hedgedmetrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )

@@ -8,8 +8,8 @@ import (
 	"math"
 	"strings"
 
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/traceql"
+	"github.com/grafana/tempo/v2/pkg/util"
 )
 
 const maxBuckets = 64

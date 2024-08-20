@@ -3,8 +3,8 @@ package vparquet3
 import (
 	"testing"
 
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/util"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v2/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

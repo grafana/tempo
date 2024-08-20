@@ -4,9 +4,9 @@ import (
 	"flag"
 	"time"
 
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/tempodb"
+	"github.com/grafana/tempo/v2/tempodb/encoding"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 const (

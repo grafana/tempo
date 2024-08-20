@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
+	"github.com/grafana/tempo/v2/modules/frontend/combiner"
+	"github.com/grafana/tempo/v2/pkg/boundedwaitgroup"
 )
 
 type waitGroup interface {

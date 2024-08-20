@@ -12,11 +12,11 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/storage"
-	"github.com/grafana/tempo/pkg/model"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/v2/modules/overrides"
+	"github.com/grafana/tempo/v2/modules/storage"
+	"github.com/grafana/tempo/v2/pkg/model"
+	tempoUtil "github.com/grafana/tempo/v2/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util/log"
 )
 
 const (

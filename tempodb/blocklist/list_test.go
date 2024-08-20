@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 const testTenantID = "test"

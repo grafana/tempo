@@ -15,15 +15,15 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/segmentio/fasthash/fnv1a"
 
-	"github.com/grafana/tempo/modules/frontend/combiner"
-	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/querier"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/tempodb"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/modules/frontend/combiner"
+	"github.com/grafana/tempo/v2/modules/frontend/pipeline"
+	"github.com/grafana/tempo/v2/modules/overrides"
+	"github.com/grafana/tempo/v2/modules/querier"
+	"github.com/grafana/tempo/v2/pkg/api"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/traceql"
+	"github.com/grafana/tempo/v2/tempodb"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 type queryRangeSharder struct {

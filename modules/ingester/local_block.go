@@ -7,11 +7,11 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
-	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend/local"
+	"github.com/grafana/tempo/v2/tempodb/encoding"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
 )
 

@@ -12,8 +12,8 @@ import (
 	jaegerTrans "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1common "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	v1common "github.com/grafana/tempo/v2/pkg/tempopb/common/v1"
 )
 
 var (

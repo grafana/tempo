@@ -1,8 +1,8 @@
 package combiner
 
 import (
-	"github.com/grafana/tempo/pkg/collector"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/collector"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 )
 
 var (

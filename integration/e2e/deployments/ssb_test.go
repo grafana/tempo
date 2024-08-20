@@ -7,12 +7,12 @@ import (
 
 	"github.com/grafana/e2e"
 	e2edb "github.com/grafana/e2e/db"
-	"github.com/grafana/tempo/integration/util"
+	"github.com/grafana/tempo/v2/integration/util"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/httpclient"
-	tempoUtil "github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/httpclient"
+	tempoUtil "github.com/grafana/tempo/v2/pkg/util"
 )
 
 const (

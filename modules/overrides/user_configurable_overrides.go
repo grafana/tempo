@@ -20,12 +20,12 @@ import (
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
-	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
-	filterconfig "github.com/grafana/tempo/pkg/spanfilter/config"
-	"github.com/grafana/tempo/pkg/util/listtomap"
-	tempo_log "github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/pkg/util/tracing"
-	"github.com/grafana/tempo/tempodb/backend"
+	userconfigurableoverrides "github.com/grafana/tempo/v2/modules/overrides/userconfigurable/client"
+	filterconfig "github.com/grafana/tempo/v2/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v2/pkg/util/listtomap"
+	tempo_log "github.com/grafana/tempo/v2/pkg/util/log"
+	"github.com/grafana/tempo/v2/pkg/util/tracing"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 var metricUserConfigurableOverridesReloadFailed = promauto.NewCounter(prometheus.CounterOpts{

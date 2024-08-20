@@ -16,12 +16,12 @@ import (
 	"github.com/parquet-go/parquet-go"
 	"github.com/stoewer/parquet-cli/pkg/inspect"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	pq "github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
+	tempo_io "github.com/grafana/tempo/v2/pkg/io"
+	pq "github.com/grafana/tempo/v2/pkg/parquetquery"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/encoding/vparquet2"
+	"github.com/grafana/tempo/v2/tempodb/encoding/vparquet3"
+	"github.com/grafana/tempo/v2/tempodb/encoding/vparquet4"
 )
 
 var (

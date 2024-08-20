@@ -12,9 +12,9 @@ import (
 	"github.com/cristalhq/hedgedhttp"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/hedgedmetrics"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/api"
+	"github.com/grafana/tempo/v2/pkg/hedgedmetrics"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )

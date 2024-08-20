@@ -21,8 +21,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/atomic"
 
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/pkg/boundedwaitgroup"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 const (

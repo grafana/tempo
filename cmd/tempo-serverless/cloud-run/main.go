@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/gogo/protobuf/jsonpb"
-	serverless "github.com/grafana/tempo/cmd/tempo-serverless"
+	serverless "github.com/grafana/tempo/v2/cmd/tempo-serverless"
 )
 
 func main() {

@@ -3,9 +3,9 @@ package api
 import (
 	"time"
 
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
-	"github.com/grafana/tempo/pkg/spanfilter/config"
+	"github.com/grafana/tempo/v2/modules/overrides"
+	"github.com/grafana/tempo/v2/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/v2/pkg/spanfilter/config"
 )
 
 // limitsFromOverrides will reconstruct a client.Limits from the overrides module

@@ -15,12 +15,12 @@ import (
 
 	"github.com/parquet-go/parquet-go"
 
-	"github.com/grafana/tempo/pkg/parquetquery"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/traceidboundary"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/pkg/parquetquery"
+	v1 "github.com/grafana/tempo/v2/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/v2/pkg/traceql"
+	"github.com/grafana/tempo/v2/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/util/traceidboundary"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 // span implements traceql.Span

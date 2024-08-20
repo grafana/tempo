@@ -15,10 +15,10 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 	ot_log "github.com/opentracing/opentracing-go/log"
 
-	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/util/tracing"
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/v2/pkg/api"
+	"github.com/grafana/tempo/v2/pkg/util/tracing"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 const (

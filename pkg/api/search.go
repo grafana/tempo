@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 )
 
 // IsSearchBlock returns true if the request appears to be for backend blocks. It is not exhaustive

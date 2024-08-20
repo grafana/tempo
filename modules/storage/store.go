@@ -6,9 +6,9 @@ import (
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/services"
 
-	"github.com/grafana/tempo/pkg/cache"
-	"github.com/grafana/tempo/pkg/usagestats"
-	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/v2/pkg/cache"
+	"github.com/grafana/tempo/v2/pkg/usagestats"
+	"github.com/grafana/tempo/v2/tempodb"
 )
 
 var (

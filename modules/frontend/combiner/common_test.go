@@ -11,8 +11,8 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/status"
-	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/api"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )

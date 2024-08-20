@@ -13,8 +13,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/multierr"
 
-	"github.com/grafana/tempo/modules/distributor/queue"
-	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/v2/modules/distributor/queue"
+	"github.com/grafana/tempo/v2/modules/overrides"
 )
 
 const (

@@ -17,7 +17,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	tlsCfg "github.com/grafana/dskit/crypto/tls"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 	"github.com/opentracing/opentracing-go"
 	ot_log "github.com/opentracing/opentracing-go/log"
 	"go.opentelemetry.io/collector/pdata/ptrace"

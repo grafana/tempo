@@ -10,12 +10,12 @@ import (
 	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/grafana/tempo/modules/ingester"
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/modules/ingester"
+	"github.com/grafana/tempo/v2/pkg/boundedwaitgroup"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/traceql"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/atomic"
 )

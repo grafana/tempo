@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/atomic"
 
-	generator_client "github.com/grafana/tempo/modules/generator/client"
-	ingester_client "github.com/grafana/tempo/modules/ingester/client"
-	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/querier/external"
-	"github.com/grafana/tempo/pkg/tempopb"
+	generator_client "github.com/grafana/tempo/v2/modules/generator/client"
+	ingester_client "github.com/grafana/tempo/v2/modules/ingester/client"
+	"github.com/grafana/tempo/v2/modules/overrides"
+	"github.com/grafana/tempo/v2/modules/querier/external"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 )
 
 func TestQuerierUsesSearchExternalEndpoint(t *testing.T) {

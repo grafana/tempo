@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 )
 
 func TestCredentials(t *testing.T) {

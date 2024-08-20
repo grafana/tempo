@@ -1,7 +1,7 @@
 package traceql
 
 import (
-	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
 )
 
 func MakeCollectTagValueFunc(collect func(tempopb.TagValue) bool) func(v Static) bool {

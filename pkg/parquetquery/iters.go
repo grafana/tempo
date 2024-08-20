@@ -10,8 +10,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/grafana/tempo/pkg/parquetquery/intern"
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/v2/pkg/parquetquery/intern"
+	"github.com/grafana/tempo/v2/pkg/util"
 	"github.com/opentracing/opentracing-go"
 	pq "github.com/parquet-go/parquet-go"
 )

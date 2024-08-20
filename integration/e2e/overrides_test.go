@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
-	"github.com/grafana/tempo/cmd/tempo/app"
-	"github.com/grafana/tempo/integration/e2e/backend"
-	"github.com/grafana/tempo/integration/util"
-	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
-	"github.com/grafana/tempo/pkg/httpclient"
+	"github.com/grafana/tempo/v2/cmd/tempo/app"
+	"github.com/grafana/tempo/v2/integration/e2e/backend"
+	"github.com/grafana/tempo/v2/integration/util"
+	"github.com/grafana/tempo/v2/modules/overrides/userconfigurable/client"
+	"github.com/grafana/tempo/v2/pkg/httpclient"
 )
 
 const (

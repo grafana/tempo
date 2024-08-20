@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/cespare/xxhash"
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 // Appender is capable of tracking objects and ids that are added to it

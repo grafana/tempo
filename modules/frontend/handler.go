@@ -17,7 +17,7 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/opentracing/opentracing-go"
 
-	"github.com/grafana/tempo/pkg/util/tracing"
+	"github.com/grafana/tempo/v2/pkg/util/tracing"
 )
 
 const (

@@ -13,7 +13,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/v2/modules/overrides"
 	"github.com/prometheus/client_golang/prometheus"
 	prometheus_common_config "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"

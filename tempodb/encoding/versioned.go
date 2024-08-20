@@ -6,12 +6,12 @@ import (
 	"io/fs"
 	"time"
 
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/encoding/common"
-	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
+	"github.com/grafana/tempo/v2/tempodb/backend"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
+	v2 "github.com/grafana/tempo/v2/tempodb/encoding/v2"
+	"github.com/grafana/tempo/v2/tempodb/encoding/vparquet2"
+	"github.com/grafana/tempo/v2/tempodb/encoding/vparquet3"
+	"github.com/grafana/tempo/v2/tempodb/encoding/vparquet4"
 )
 
 // VersionedEncoding represents a backend block version, and the methods to

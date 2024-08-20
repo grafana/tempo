@@ -8,7 +8,7 @@ import (
 	"github.com/grafana/dskit/grpcutil"
 	"github.com/grafana/dskit/services"
 
-	util_log "github.com/grafana/tempo/pkg/util/log"
+	util_log "github.com/grafana/tempo/v2/pkg/util/log"
 )
 
 // Notifications about address resolution. All notifications are sent on the same goroutine.

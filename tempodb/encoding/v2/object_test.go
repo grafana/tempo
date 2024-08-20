@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/golang/protobuf/proto" //nolint:all //ProtoReflect
-	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/v2/pkg/tempopb"
+	"github.com/grafana/tempo/v2/pkg/util/test"
 	"github.com/stretchr/testify/assert"
 )
 

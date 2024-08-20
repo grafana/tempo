@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/v2/tempodb/encoding/common"
 )
 
 type intIterator []*uint8 // making this a pointer makes the below code a little gross but allows multiblockiterator to treat all types as nillable

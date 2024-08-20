@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/tempodb/backend"
+	tempo_io "github.com/grafana/tempo/v2/pkg/io"
+	"github.com/grafana/tempo/v2/tempodb/backend"
 	"github.com/klauspost/compress/zstd"
 )
 
