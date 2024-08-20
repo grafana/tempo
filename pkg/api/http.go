@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -805,4 +806,24 @@ func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64,
 		return "", "", "", 0, 0, fmt.Errorf("http parameter start must be before end. received start=%d end=%d", startTime, endTime)
 	}
 	return blockStart, blockEnd, queryMode, startTime, endTime, nil
+}
+
+func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
+	length := resp.ContentLength
+	// if ContentLength is -1 if the length is unknown. default to bytes.MinRead (its what buffer.ReadFrom does)
+	if length < 0 {
+		length = bytes.MinRead
+	}
+	// buffer.ReadFrom always allocs at least bytes.MinRead past the end of the actual required length b/c of how io.EOF is handled. this prevents extending the internal
+	// slice unnecessarily.  https://github.com/golang/go/issues/21852
+	length += bytes.MinRead
+
+	// alloc a buffer to store the response body
+	buffer := bytes.NewBuffer(make([]byte, 0, length))
+	_, err := buffer.ReadFrom(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	return buffer, nil
 }

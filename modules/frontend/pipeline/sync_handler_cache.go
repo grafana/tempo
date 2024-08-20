@@ -3,6 +3,7 @@ package pipeline
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -75,21 +76,27 @@ func (c cachingWare) RoundTrip(req Request) (*http.Response, error) {
 	}
 
 	if len(key) > 0 {
+		// don't bother caching if the response is too large
+		maxItemSize := c.cache.c.MaxItemSize()
+		if maxItemSize > 0 && resp.ContentLength > int64(maxItemSize) {
+			return resp, nil
+		}
+
+		buffer, err := api.ReadBodyToBuffer(resp)
+		if err != nil {
+			return resp, fmt.Errorf("failed to cache: %w", err)
+		}
+
+		// reset the body so the caller can read it
+		resp.Body = io.NopCloser(buffer)
+
 		// cache the response
 		//  todo: currently this is blindly caching any 200 status codes. it would be a bug, but it's possible for a querier
 		//  to return a 200 status code with a response that does not parse as the expected type in the combiner.
 		//  technically this should never happen...
 		//  long term we should migrate the sync part of the pipeline to use generics so we can do the parsing early in the pipeline
 		//  and be confident it's cacheable.
-		b, err := io.ReadAll(resp.Body)
-
-		// reset the body so the caller can read it
-		resp.Body = io.NopCloser(bytes.NewBuffer(b))
-		if err != nil {
-			return resp, nil
-		}
-
-		c.cache.store(req.Context(), key, b)
+		c.cache.store(req.Context(), key, buffer.Bytes())
 	}
 
 	return resp, nil

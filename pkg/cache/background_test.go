@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/grafana/tempo/v2/pkg/cache"
+	"github.com/grafana/tempo/v2/pkg/util/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,7 +16,7 @@ func TestBackground(t *testing.T) {
 	c := cache.NewBackground("mock", cache.BackgroundConfig{
 		WriteBackGoroutines: 1,
 		WriteBackBuffer:     100,
-	}, cache.NewMockCache(), nil)
+	}, test.NewMockClient(), nil)
 
 	keys, chunks := fillCache(c)
 	cache.Flush(c)

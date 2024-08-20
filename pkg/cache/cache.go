@@ -37,6 +37,7 @@ type Provider interface {
 // when they returned an error.
 type Cache interface {
 	Store(ctx context.Context, key []string, buf [][]byte)
+	MaxItemSize() int
 	// TODO: both cached backend clients support deletion. Should we implement?
 	// Remove(ctx context.Context, key []string)
 	Fetch(ctx context.Context, keys []string) (found []string, bufs [][]byte, missing []string)
