@@ -338,7 +338,7 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	// Ensure the resolved types are still valid
 	lhsT := lhs.Type
 	rhsT := rhs.Type
-	if !lhsT.isMatchingOperand(rhsT) {
+	if !lhsT.isMatchingOperand(rhsT) && !rhsT.isMatchingOperand(lhsT) {
 		return NewStaticBool(false), nil
 	}
 
@@ -381,7 +381,7 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	}
 
 	// if both sides are integers then do integer math, otherwise we can drop to the
-	// catch all below
+	// catch-all below
 	if lhsT == TypeInt && rhsT == TypeInt {
 		lhsN, _ := lhs.Int()
 		rhsN, _ := rhs.Int()
@@ -422,19 +422,25 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		}
 	}
 
+	// return if array doesn't support this op...
 	if lhsT.isMatchingArrayElement(rhsT) {
-		var (
-			res Static
-			err error
-		)
+		// we only support boolean op in the arrays
+		if !o.Op.isBoolean() {
+			// we don't support non-bool ops on arrays
+			return NewStaticNil(), errors.ErrUnsupported
+		}
 		elements, err := lhs.GetElements()
 		if err != nil {
 			return NewStaticNil(), err // return early in case of error
 		}
 
 		elemOp := &BinaryOperation{Op: o.Op, LHS: lhs, RHS: rhs}
+		var res Static
+		// regex over array might be slow or incorrect?? we are not overriding them??
+		// maybe use newBinaryOperation() here to ensure we have a compiled regex.
 		for _, elem := range elements {
 			elemOp.LHS = elem
+			// FIXME: can we make do without the nested execute in a loop??
 			res, err = elemOp.execute(span)
 			if err != nil {
 				break // get out early in case of errors
@@ -444,6 +450,27 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 			}
 		}
 		return res, err
+	}
+
+	// make array support symmetric
+	if rhsT.isMatchingArrayElement(lhsT) {
+		// for regex operations, we assume that RHS is the regex, and compile it.
+		// we can support symmetric array operations by flipping the sides and executing the binary operation.
+		// FIXME: flipping the ops will mess up >, >=, <, <= operations so flip these operations as well.
+		// if we flip sides for	OpGreater, OpGreaterEqual, OpLess, OpLessEqual. we will
+		flippedOp := o.Op
+		switch o.Op {
+		case OpGreater:
+			flippedOp = OpLess
+		case OpGreaterEqual:
+			flippedOp = OpLessEqual
+		case OpLess:
+			flippedOp = OpGreater
+		case OpLessEqual:
+			flippedOp = OpGreaterEqual
+		}
+		flippedBinOp := &BinaryOperation{Op: flippedOp, LHS: rhs, RHS: lhs}
+		return flippedBinOp.execute(span)
 	}
 
 	switch o.Op {
