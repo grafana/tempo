@@ -957,14 +957,14 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
-					// &mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"foo", "baz"})}},
-					// &mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"cat", "dog"})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"foo", "baz"})}},
+					&mockSpan{id: []byte{3}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"cat", "dog"})}},
 				}},
 			},
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
-					// &mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"foo", "baz"})}},
+					&mockSpan{id: []byte{2}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"foo", "baz"})}},
 				}},
 			},
 		},

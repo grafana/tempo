@@ -2993,7 +2993,7 @@ func (c *eventCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		switch e.Key {
 		case columnPathEventName:
 			ev.attrs = append(ev.attrs, attrVal{
-				a: traceql.NewIntrinsic(traceql.IntrinsicEventName),
+				a: traceql.IntrinsicEventNameAttribute,
 				s: traceql.NewStaticString(unsafeToString(e.Value.Bytes())),
 			})
 		case columnPathEventTimeSinceStart:
