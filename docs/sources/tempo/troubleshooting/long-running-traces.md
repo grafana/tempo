@@ -56,5 +56,5 @@ be worth modifying the usage pattern slightly. For example, you may want to use
 [span
 links](https://opentelemetry.io/docs/concepts/signals/traces/#span-links), so
 that traces are split up, allowing one trace to complete, while pointing to the
-next trace in the causal chain . This would allow both traces to finish in a
+next trace in the causal chain . This allows both traces to finish in a
 shorter duration, and increase the chances of ending up in the same block.
