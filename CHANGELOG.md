@@ -1,7 +1,7 @@
 ## main / unreleased
 
 * [ENHANCEMENT] Add bytes and spans received to usage stats [#3983](https://github.com/grafana/tempo/pull/3983) (@joe-elliott)
-
+* [BUGFIX] Use the builtin clear to clean the map of trace sizes [#3988](https://github.com/grafana/tempo/pull/3988) (@javiermolinar)
 # v2.6.0-rc.0
 
 * [CHANGE] **BREAKING CHANGE** Remove `autocomplete_filtering_enabled` feature flag [#3729](https://github.com/grafana/tempo/pull/3729) (@mapno)
