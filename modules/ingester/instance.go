@@ -117,7 +117,7 @@ func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverride
 	i := &instance{
 		traces: map[uint32]*liveTrace{},
 		// Keep tracks of the size of traces even after cutting them into the HeadBlock
-		// It is clean then the block is flushed to the backend
+		// It is cleaned then the block is flushed to the backend
 		traceSizes: map[uint32]uint32{},
 
 		instanceID:         instanceID,
