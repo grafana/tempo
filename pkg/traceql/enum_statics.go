@@ -39,7 +39,7 @@ func (t StaticType) isMatchingOperand(otherT StaticType) bool {
 		return true
 	}
 
-	if otherT == TypeNil {
+	if otherT == TypeNil || t == TypeNil {
 		return true
 	}
 
