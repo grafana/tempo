@@ -17,7 +17,7 @@ The metrics-generator processes spans and writes metrics to a Prometheus data so
 Enabling metrics generation and remote writing them to Grafana Cloud Metrics produces extra active series that could impact your billing. For more information on billing, refer to [Billing and usage](/docs/grafana-cloud/billing-and-usage/).
 {{% /admonition %}}
 
-## Overview
+## Architecture
 
 Metrics-generator leverages the data available in the ingest path in Tempo to provide additional value by generating metrics from traces.
 
@@ -31,7 +31,7 @@ Every processor derives different metrics. Currently, the following processors a
 
 <p align="center"><img src="tempo-metrics-gen-overview.svg" alt="Service metrics architecture"></p>
 
-## Service graphs
+### Service graphs
 
 Service graphs are the representations of the relationships between services within a distributed system.
 
@@ -41,7 +41,7 @@ The amount of request and their duration are recorded as metrics, which are used
 
 To learn more about this processor, refer to the [service graph]({{< relref "./service_graphs" >}}) documentation.
 
-## Span metrics
+### Span metrics
 
 The span metrics processor derives RED (Request, Error, and Duration) metrics from spans.
 
@@ -51,7 +51,7 @@ The more dimensions are enabled, the higher the cardinality of the generated met
 
 To learn more about this processor, refer to the [span metrics]({{< relref "./span_metrics" >}}).
 
-## Local blocks
+### Local blocks
 
 The local blocks processor stores spans for a set period of time and
 enables more complex APIs to perform calculations on the data. The processor must be
