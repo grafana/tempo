@@ -40,8 +40,7 @@ If you have long-running traces, you may also be interested in the
 `rootless_trace_flushed_to_wal` reason to know when a trace is flushed to the
 wall without a root trace.
 
-Additional `reason` fields are available for discovery with the following
-query.
+You can use `reason` fields for discovery with this query: 
 
 ```
 sum(rate(tempo_warnings_total{}[5m])) by (reason)
