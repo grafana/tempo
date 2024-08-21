@@ -357,7 +357,12 @@ func NewMinOverTimeAggregator(attr Attribute) *MinOverTimeAggregator {
 		}
 	default:
 		fn = func(s Span) float64 {
-			return floatizeAttribute(s, attr)
+			f, t := FloatizeAttribute(s, attr)
+			if t == TypeNil {
+				// Handle this case properly
+				return 0
+			}
+			return f
 		}
 	}
 	return &MinOverTimeAggregator{
@@ -377,26 +382,6 @@ func (c *MinOverTimeAggregator) Observe(s Span) {
 
 func (c *MinOverTimeAggregator) Sample() float64 {
 	return c.min
-}
-
-// Copyed from ast.go. Probably should be refactored elsewhere
-func floatizeAttribute(s Span, attr Attribute) float64 {
-	v, ok := s.AttributeFor(attr)
-	if !ok {
-		return 0
-	}
-	switch v.Type {
-	case TypeInt:
-		n, _ := v.Int()
-		return float64(n)
-	case TypeDuration:
-		d, _ := v.Duration()
-		return float64(d.Nanoseconds())
-	case TypeFloat:
-		return v.Float()
-	default:
-		return 0
-	}
 }
 
 // StepAggregator sorts spans into time slots using a step interval like 30s or 1m
@@ -1491,3 +1476,16 @@ var (
 	_ SeriesAggregator = (*SimpleAdditionAggregator)(nil)
 	_ SeriesAggregator = (*HistogramAggregator)(nil)
 )
+
+func FloatizeAttribute(s Span, a Attribute) (float64, StaticType) {
+	v, ok := s.AttributeFor(a)
+	if !ok {
+		return 0, TypeNil
+	}
+
+	f := v.Float()
+	if math.IsNaN(f) {
+		return 0, TypeNil
+	}
+	return f, v.Type
+}

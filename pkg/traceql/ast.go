@@ -1098,7 +1098,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 			// Basic implementation for all other attributes
 			byFunc = a.bucketizeAttribute
 			exemplarFn = func(s Span) (float64, uint64) {
-				v, _ := a.floatizeAttribute(s)
+				v, _ := FloatizeAttribute(s, a.attr)
 				return v, a.spanStartTimeMs(s)
 			}
 		}
@@ -1123,28 +1123,8 @@ func (a *MetricsAggregate) bucketizeSpanDuration(s Span) (Static, bool) {
 	return NewStaticFloat(Log2Bucketize(d) / float64(time.Second)), true
 }
 
-func (a *MetricsAggregate) floatizeAttribute(s Span) (float64, StaticType) {
-	v, ok := s.AttributeFor(a.attr)
-	if !ok {
-		return 0, TypeNil
-	}
-
-	switch v.Type {
-	case TypeInt:
-		n, _ := v.Int()
-		return float64(n), v.Type
-	case TypeDuration:
-		d, _ := v.Duration()
-		return float64(d.Nanoseconds()), v.Type
-	case TypeFloat:
-		return v.Float(), v.Type
-	default:
-		return 0, TypeNil
-	}
-}
-
 func (a *MetricsAggregate) bucketizeAttribute(s Span) (Static, bool) {
-	f, t := a.floatizeAttribute(s)
+	f, t := FloatizeAttribute(s, a.attr)
 
 	switch t {
 	case TypeInt:
