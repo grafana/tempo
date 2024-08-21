@@ -49,7 +49,7 @@ The span metrics processor computes the total count and the duration of spans fo
 Dimensions can be the service name, the operation, the span kind, the status code and any tag or attribute present in the span.
 The more dimensions are enabled, the higher the cardinality of the generated metrics.
 
-To learn more about this processor, refer to the [span metrics]({{< relref "./span_metrics" >}}).
+To learn more about this processor, refer to the [span metrics]({{< relref "./span_metrics" >}}) documentation.
 
 ### Local blocks
 
