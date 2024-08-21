@@ -338,7 +338,6 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	// Ensure the resolved types are still valid
 	lhsT := lhs.Type
 	rhsT := rhs.Type
-
 	if !lhsT.isMatchingOperand(rhsT) {
 		return NewStaticBool(false), nil
 	}
@@ -433,7 +432,7 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		elemOp := &BinaryOperation{Op: o.Op, LHS: lhs, RHS: rhs}
 		arraySide := lhs
 		// to support symmetric operations
-		if rhsT.isArrayType() {
+		if rhsT.isArray() {
 			// for regex operations, TraceQL makes an assumption that RHS is the regex, and compiles it.
 			// we can support symmetric array operations by flipping the sides and executing the binary operation.
 			elemOp = &BinaryOperation{Op: getFlippedOp(o.Op), LHS: rhs, RHS: lhs}

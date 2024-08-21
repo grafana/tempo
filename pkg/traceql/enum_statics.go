@@ -1,6 +1,8 @@
 package traceql
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type StaticType int
 
@@ -72,16 +74,51 @@ func (t StaticType) isMatchingArrayElement(otherT StaticType) bool {
 	case TypeBooleanArray:
 		return TypeBoolean.isMatchingOperand(t)
 	}
-
+	// either t or otherT are non-array types
 	return false
 }
 
-// isArrayType used to test if a type is ArrayType
-func (t StaticType) isArrayType() bool {
+// isArray used to test if a type is ArrayType
+func (t StaticType) isArray() bool {
 	if t == TypeIntArray || t == TypeFloatArray || t == TypeStringArray || t == TypeBooleanArray {
 		return true
 	}
 	return false
+}
+
+func (t StaticType) String() string {
+	switch t {
+	case TypeNil:
+		return "TypeNil"
+	case TypeSpanset:
+		return "TypeSpanset"
+	case TypeAttribute:
+		return "TypeAttribute"
+	case TypeInt:
+		return "TypeInt"
+	case TypeFloat:
+		return "TypeFloat"
+	case TypeString:
+		return "TypeString"
+	case TypeBoolean:
+		return "TypeBoolean"
+	case TypeIntArray:
+		return "TypeIntArray"
+	case TypeFloatArray:
+		return "TypeFloatArray"
+	case TypeStringArray:
+		return "TypeStringArray"
+	case TypeBooleanArray:
+		return "TypeBooleanArray"
+	case TypeDuration:
+		return "TypeDuration"
+	case TypeStatus:
+		return "TypeStatus"
+	case TypeKind:
+		return "TypeKind"
+	default:
+		return fmt.Sprintf("StaticType(%d)", int(t))
+	}
 }
 
 // Status represents valid static values of typeStatus
