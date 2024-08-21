@@ -29,7 +29,7 @@ Every processor derives different metrics. Currently, the following processors a
 - Span metrics
 - Local blocks
 
-<p align="center"><img src="server-side-metrics-arch-overview.png" alt="Service metrics architecture"></p>
+<p align="center"><img src="tempo-metrics-gen-overview.svg" alt="Service metrics architecture"></p>
 
 ## Service graphs
 
@@ -39,17 +39,17 @@ This service graphs processor builds a map of services by analyzing traces, with
 Edges are spans with a parent-child relationship, that represent a jump (e.g. a request) between two services.
 The amount of request and their duration are recorded as metrics, which are used to represent the graph.
 
-To learn more about this processor, read the [documentation]({{< relref "./service_graphs" >}}).
+To learn more about this processor, refer to [service graph]({{< relref "./service_graphs" >}}) documentation.
 
 ## Span metrics
 
-The span metrics processor derives RED (Request, Error and Duration) metrics from spans.
+The span metrics processor derives RED (Request, Error, and Duration) metrics from spans.
 
-The span metrics processor will compute the total count and the duration of spans for every unique combination of dimensions.
+The span metrics processor computes the total count and the duration of spans for every unique combination of dimensions.
 Dimensions can be the service name, the operation, the span kind, the status code and any tag or attribute present in the span.
 The more dimensions are enabled, the higher the cardinality of the generated metrics.
 
-To learn more about this processor, read the [documentation]({{< relref "./span_metrics" >}}).
+To learn more about this processor, refer to the[span metrics]({{< relref "./span_metrics" >}}).
 
 ## Local blocks
 

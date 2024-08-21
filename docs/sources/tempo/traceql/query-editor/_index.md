@@ -13,7 +13,7 @@ keywords:
   - TraceQL
 ---
 
-# Query tracing data
+# Write TraceQL queries in Grafana
 
 The Tempo data source's query editor helps you query and display traces from Tempo in [Explore](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/).
 The queries use [TraceQL](/docs/tempo/latest/traceql), the query language designed specifically for tracing.
