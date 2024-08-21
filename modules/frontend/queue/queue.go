@@ -13,7 +13,7 @@ import (
 
 const (
 	// How frequently to check for disconnected queriers that should be forgotten.
-	forgetCheckPeriod = 5 * time.Second
+	forgetCheckPeriod = 5 * time.Minute
 )
 
 var (
@@ -69,7 +69,7 @@ func NewRequestQueue(maxOutstandingPerTenant int, forgetDelay time.Duration, que
 	}
 
 	q.cond = contextCond{Cond: sync.NewCond(&q.mtx)}
-	q.Service = services.NewTimerService(forgetCheckPeriod, nil, q.forgetDisconnectedQueriers, q.stopping).WithName("request queue")
+	q.Service = services.NewTimerService(forgetCheckPeriod, nil, q.regularMaintenance, q.stopping).WithName("request queue")
 
 	return q
 }
@@ -180,9 +180,6 @@ FindQueue:
 		}
 
 		qLen := len(queue)
-		if qLen == 0 {
-			q.queues.deleteQueue(userID)
-		}
 		q.queueLength.WithLabelValues(userID).Set(float64(qLen))
 
 		// Tell close() we've processed a request.
@@ -197,9 +194,16 @@ FindQueue:
 	goto FindQueue
 }
 
-func (q *RequestQueue) forgetDisconnectedQueriers(_ context.Context) error {
+func (q *RequestQueue) regularMaintenance(_ context.Context) error {
 	q.mtx.Lock()
 	defer q.mtx.Unlock()
+
+	// look for 0 len queues and remove them
+	for userID, uq := range q.queues.userQueues {
+		if uq.ch != nil && len(uq.ch) == 0 {
+			q.queues.deleteQueue(userID)
+		}
+	}
 
 	if q.queues.forgetDisconnectedQueriers(time.Now()) > 0 {
 		// We need to notify goroutines cause having removed some queriers

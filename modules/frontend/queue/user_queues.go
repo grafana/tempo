@@ -166,6 +166,10 @@ func (q *queues) getNextQueueForQuerier(lastUserIndex int, querierID string) (ch
 			}
 		}
 
+		if len(q.ch) == 0 {
+			continue
+		}
+
 		return q.ch, u, uid
 	}
 	return nil, "", uid
