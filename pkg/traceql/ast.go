@@ -731,44 +731,51 @@ func (s Static) compare(o *Static) int {
 	}
 }
 
+type VisitFunc func(Static) bool // Return false to stop iteration
+
 // GetElements turns arrays into slice of Static elements to iterate over.
-func (s Static) GetElements() ([]Static, error) {
+func (s Static) GetElements(fn VisitFunc) error {
 	switch s.Type {
 	case TypeIntArray:
 		ints, _ := s.IntArray()
-		elements := make([]Static, len(ints))
-		for i, n := range ints {
-			elements[i] = NewStaticInt(n)
+		for _, n := range ints {
+			if !fn(NewStaticInt(n)) {
+				break // stop early if the callback returns false
+			}
 		}
-		return elements, nil
+		return nil
 
 	case TypeFloatArray:
 		floats, _ := s.FloatArray()
-		elements := make([]Static, len(floats))
-		for i, f := range floats {
-			elements[i] = NewStaticFloat(f)
+		for _, f := range floats {
+			if !fn(NewStaticFloat(f)) {
+				break
+			}
 		}
-		return elements, nil
+		return nil
 
 	case TypeStringArray:
 		strs, _ := s.StringArray()
-		elements := make([]Static, len(strs))
-		for i, str := range strs {
-			elements[i] = NewStaticString(str)
+		for _, str := range strs {
+			if !fn(NewStaticString(str)) {
+				break
+			}
 		}
-		return elements, nil
+		return nil
 
 	case TypeBooleanArray:
 		bools, _ := s.BooleanArray()
-		elements := make([]Static, len(bools))
-		for i, b := range bools {
-			elements[i] = NewStaticBool(b)
+		for _, b := range bools {
+			if !fn(NewStaticBool(b)) {
+				break
+			}
 		}
-		return elements, nil
+		return nil
 
 	default:
-		return nil, fmt.Errorf("unsupported type")
+		return fmt.Errorf("unsupported type")
 	}
+	return nil
 }
 
 func (s Static) Int() (int, bool) {

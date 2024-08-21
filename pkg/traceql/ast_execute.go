@@ -429,25 +429,22 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 			// we don't support non-bool ops on arrays
 			return NewStaticNil(), errors.ErrUnsupported
 		}
-		elements, err := lhs.GetElements()
-		if err != nil {
-			return NewStaticNil(), err // return early in case of error
-		}
 
 		elemOp := &BinaryOperation{Op: o.Op, LHS: lhs, RHS: rhs}
 		var res Static
-		// regex over array might be slow or incorrect?? we are not overriding them??
-		// maybe use newBinaryOperation() here to ensure we have a compiled regex.
-		for _, elem := range elements {
+		err := lhs.GetElements(func(elem Static) bool {
 			elemOp.LHS = elem
 			res, err = elemOp.execute(span)
 			if err != nil {
-				break // get out early in case of errors
+				return false // stop iteration early if there's an error
 			}
-			if match, ok := res.Bool(); ok && match {
-				break // found a match, break
-			}
+			match, ok := res.Bool()
+			return !(ok && match) // stop if a match is found
+		})
+		if err != nil {
+			return NewStaticNil(), err
 		}
+
 		return res, err
 	}
 
