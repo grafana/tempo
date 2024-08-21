@@ -832,10 +832,6 @@ func putSpansetAndSpans(ss *traceql.Spanset) {
 	}
 }
 
-// Helper function to create an iterator, that abstracts away
-// context like file and rowgroups.
-type makeIterFn func(columnName string, predicate parquetquery.Predicate, selectAs string) parquetquery.Iterator
-
 const (
 	columnPathTraceID                  = "TraceID"
 	columnPathStartTimeUnixNano        = "StartTimeUnixNano"
@@ -2862,7 +2858,12 @@ func (c *serviceStatsCollector) KeepGroup(res *parquetquery.IteratorResult) bool
 // attributeCollector receives rows from the individual key/string/int/etc
 // columns and joins them together into map[key]value entries with the
 // right type.
-type attributeCollector struct{}
+type attributeCollector struct {
+	strBuffer   []string
+	intBuffer   []int
+	floatBuffer []float64
+	boolBuffer  []bool
+}
 
 var _ parquetquery.GroupPredicate = (*attributeCollector)(nil)
 
@@ -2874,27 +2875,54 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	var key string
 	var val traceql.Static
 
+	// Reset buffers to reuse them without reallocating
+	c.strBuffer = c.strBuffer[:0]
+	c.intBuffer = c.intBuffer[:0]
+	c.floatBuffer = c.floatBuffer[:0]
+	c.boolBuffer = c.boolBuffer[:0]
+
 	for _, e := range res.Entries {
 		// Ignore nulls, this leaves val as the remaining found value,
 		// or nil if the key was found but no matching values
 		if e.Value.Kind() < 0 {
 			continue
 		}
-
 		switch e.Key {
 		case "key":
 			key = unsafeToString(e.Value.Bytes())
 		case "string":
-			val = traceql.NewStaticString(unsafeToString(e.Value.Bytes()))
+			c.strBuffer = append(c.strBuffer, unsafeToString(e.Value.Bytes()))
 		case "int":
-			val = traceql.NewStaticInt(int(e.Value.Int64()))
+			c.intBuffer = append(c.intBuffer, int(e.Value.Int64()))
 		case "float":
-			val = traceql.NewStaticFloat(e.Value.Double())
+			c.floatBuffer = append(c.floatBuffer, e.Value.Double())
 		case "bool":
-			val = traceql.NewStaticBool(e.Value.Boolean())
+			c.boolBuffer = append(c.boolBuffer, e.Value.Boolean())
 		}
 	}
 
+	// TODO: maybe pull IsArray here, and decide that to see if we have an array or not and make this go faster
+	switch {
+	// keep len == 1 cases first so we short-circuit early for non-array case
+	case len(c.strBuffer) == 1:
+		val = traceql.NewStaticString(c.strBuffer[0])
+	case len(c.intBuffer) == 1:
+		val = traceql.NewStaticInt(c.intBuffer[0])
+	case len(c.floatBuffer) == 1:
+		val = traceql.NewStaticFloat(c.floatBuffer[0])
+	case len(c.boolBuffer) == 1:
+		val = traceql.NewStaticBool(c.boolBuffer[0])
+	case len(c.strBuffer) > 1:
+		val = traceql.NewStaticStringArray(c.strBuffer)
+	case len(c.intBuffer) > 1:
+		val = traceql.NewStaticIntArray(c.intBuffer)
+	case len(c.floatBuffer) > 1:
+		val = traceql.NewStaticFloatArray(c.floatBuffer)
+	case len(c.boolBuffer) > 1:
+		val = traceql.NewStaticBooleanArray(c.boolBuffer)
+	}
+
+	// reset the slices
 	res.Entries = res.Entries[:0]
 	res.OtherEntries = res.OtherEntries[:0]
 	res.AppendOtherValue(key, val)

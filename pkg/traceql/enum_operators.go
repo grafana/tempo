@@ -66,16 +66,12 @@ func binaryTypeValid(op Operator, t StaticType) bool {
 	}
 
 	switch t {
-	case TypeBoolean:
+	case TypeBoolean, TypeBooleanArray:
 		return op == OpAnd ||
 			op == OpOr ||
 			op == OpEqual ||
 			op == OpNotEqual
-	case TypeFloat:
-		fallthrough
-	case TypeInt:
-		fallthrough
-	case TypeDuration:
+	case TypeFloat, TypeFloatArray, TypeInt, TypeIntArray, TypeDuration:
 		return op == OpAdd ||
 			op == OpSub ||
 			op == OpMult ||
@@ -88,7 +84,7 @@ func binaryTypeValid(op Operator, t StaticType) bool {
 			op == OpGreaterEqual ||
 			op == OpLess ||
 			op == OpLessEqual
-	case TypeString:
+	case TypeString, TypeStringArray:
 		return op == OpEqual ||
 			op == OpNotEqual ||
 			op == OpRegex ||
@@ -97,11 +93,7 @@ func binaryTypeValid(op Operator, t StaticType) bool {
 			op == OpGreaterEqual ||
 			op == OpLess ||
 			op == OpLessEqual
-	case TypeNil:
-		fallthrough
-	case TypeStatus:
-		return op == OpEqual || op == OpNotEqual
-	case TypeKind:
+	case TypeNil, TypeStatus, TypeKind:
 		return op == OpEqual || op == OpNotEqual
 	}
 
