@@ -2858,7 +2858,12 @@ func (c *serviceStatsCollector) KeepGroup(res *parquetquery.IteratorResult) bool
 // attributeCollector receives rows from the individual key/string/int/etc
 // columns and joins them together into map[key]value entries with the
 // right type.
-type attributeCollector struct{}
+type attributeCollector struct {
+	strBuffer   []string
+	intBuffer   []int
+	floatBuffer []float64
+	boolBuffer  []bool
+}
 
 var _ parquetquery.GroupPredicate = (*attributeCollector)(nil)
 
@@ -2870,10 +2875,11 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	var key string
 	var val traceql.Static
 
-	var strBuffer []string
-	var intBuffer []int
-	var floatBuffer []float64
-	var boolBuffer []bool
+	// Reset buffers to reuse them without reallocating
+	c.strBuffer = c.strBuffer[:0]
+	c.intBuffer = c.intBuffer[:0]
+	c.floatBuffer = c.floatBuffer[:0]
+	c.boolBuffer = c.boolBuffer[:0]
 
 	for _, e := range res.Entries {
 		// Ignore nulls, this leaves val as the remaining found value,
@@ -2885,43 +2891,35 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case "key":
 			key = unsafeToString(e.Value.Bytes())
 		case "string":
-			strBuffer = append(strBuffer, unsafeToString(e.Value.Bytes()))
+			c.strBuffer = append(c.strBuffer, unsafeToString(e.Value.Bytes()))
 		case "int":
-			intBuffer = append(intBuffer, int(e.Value.Int64()))
+			c.intBuffer = append(c.intBuffer, int(e.Value.Int64()))
 		case "float":
-			floatBuffer = append(floatBuffer, e.Value.Double())
+			c.floatBuffer = append(c.floatBuffer, e.Value.Double())
 		case "bool":
-			boolBuffer = append(boolBuffer, e.Value.Boolean())
+			c.boolBuffer = append(c.boolBuffer, e.Value.Boolean())
 		}
 	}
 
-	// TODO: maybe pull in IsArray here, and decide that to see if we have an array or not??
-	if len(strBuffer) == 1 {
-		val = traceql.NewStaticString(strBuffer[0])
-	}
-	if len(strBuffer) > 1 {
-		val = traceql.NewStaticStringArray(strBuffer)
-	}
-
-	if len(intBuffer) == 1 {
-		val = traceql.NewStaticInt(intBuffer[0])
-	}
-	if len(intBuffer) > 1 {
-		val = traceql.NewStaticIntArray(intBuffer)
-	}
-
-	if len(floatBuffer) == 1 {
-		val = traceql.NewStaticFloat(floatBuffer[0])
-	}
-	if len(floatBuffer) > 1 {
-		val = traceql.NewStaticFloatArray(floatBuffer)
-	}
-
-	if len(boolBuffer) == 1 {
-		val = traceql.NewStaticBool(boolBuffer[0])
-	}
-	if len(boolBuffer) > 1 {
-		val = traceql.NewStaticBooleanArray(boolBuffer)
+	// TODO: maybe pull IsArray here, and decide that to see if we have an array or not and make this go faster
+	switch {
+	// keep len == 1 cases first so we short-circuit early for non-array case
+	case len(c.strBuffer) == 1:
+		val = traceql.NewStaticString(c.strBuffer[0])
+	case len(c.intBuffer) == 1:
+		val = traceql.NewStaticInt(c.intBuffer[0])
+	case len(c.floatBuffer) == 1:
+		val = traceql.NewStaticFloat(c.floatBuffer[0])
+	case len(c.boolBuffer) == 1:
+		val = traceql.NewStaticBool(c.boolBuffer[0])
+	case len(c.strBuffer) > 1:
+		val = traceql.NewStaticStringArray(c.strBuffer)
+	case len(c.intBuffer) > 1:
+		val = traceql.NewStaticIntArray(c.intBuffer)
+	case len(c.floatBuffer) > 1:
+		val = traceql.NewStaticFloatArray(c.floatBuffer)
+	case len(c.boolBuffer) > 1:
+		val = traceql.NewStaticBooleanArray(c.boolBuffer)
 	}
 
 	// reset the slices
