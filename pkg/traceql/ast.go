@@ -1028,24 +1028,13 @@ func newMetricsAggregateQuantileOverTime(attr Attribute, qs []float64, by []Attr
 	}
 }
 
-func newMetricsAggregateHistogramOverTime(attr Attribute, by []Attribute) *MetricsAggregate {
-	return &MetricsAggregate{
-		op:   metricsAggregateHistogramOverTime,
-		by:   by,
-		attr: attr,
-	}
-}
-
 func (a *MetricsAggregate) extractConditions(request *FetchSpansRequest) {
-	switch a.op {
-	case metricsAggregateRate, metricsAggregateCountOverTime:
-		// No extra conditions, start time is already enough
-	case metricsAggregateQuantileOverTime, metricsAggregateHistogramOverTime, metricsAggregateMinOverTime:
-		if !request.HasAttribute(a.attr) {
-			request.SecondPassConditions = append(request.SecondPassConditions, Condition{
-				Attribute: a.attr,
-			})
-		}
+	// For metrics aggregators based on a span attribute we have to include it
+	includeAttribute := a.attr != (Attribute{}) && !request.HasAttribute(a.attr)
+	if includeAttribute {
+		request.SecondPassConditions = append(request.SecondPassConditions, Condition{
+			Attribute: a.attr,
+		})
 	}
 
 	for _, b := range a.by {

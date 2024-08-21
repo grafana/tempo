@@ -1592,13 +1592,13 @@ yydefault:
 		yyDollar = yyS[yypt-4 : yypt+1]
 //line pkg/traceql/expr.y:304
 		{
-			yyVAL.metricsAggregation = newMetricsAggregateHistogramOverTime(yyDollar[3].attribute, nil)
+			yyVAL.metricsAggregation = newMetricsAggregateWithAttr(metricsAggregateHistogramOverTime, yyDollar[3].attribute, nil)
 		}
 	case 115:
 		yyDollar = yyS[yypt-8 : yypt+1]
 //line pkg/traceql/expr.y:305
 		{
-			yyVAL.metricsAggregation = newMetricsAggregateHistogramOverTime(yyDollar[3].attribute, yyDollar[7].attributeList)
+			yyVAL.metricsAggregation = newMetricsAggregateWithAttr(metricsAggregateHistogramOverTime, yyDollar[3].attribute, yyDollar[7].attributeList)
 		}
 	case 116:
 		yyDollar = yyS[yypt-4 : yypt+1]

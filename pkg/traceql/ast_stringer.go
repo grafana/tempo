@@ -179,9 +179,11 @@ func (a MetricsAggregate) String() string {
 
 	s.WriteString(a.op.String())
 	s.WriteString("(")
+	if a.attr != (Attribute{}) {
+		s.WriteString(a.attr.String())
+	}
 	switch a.op {
 	case metricsAggregateQuantileOverTime:
-		s.WriteString(a.attr.String())
 		s.WriteString(",")
 		for i, f := range a.floats {
 			s.WriteString(strconv.FormatFloat(f, 'f', 5, 64))
@@ -189,8 +191,6 @@ func (a MetricsAggregate) String() string {
 				s.WriteString(",")
 			}
 		}
-	case metricsAggregateMinOverTime:
-		s.WriteString(a.attr.String())
 	}
 	s.WriteString(")")
 

@@ -344,7 +344,6 @@ type MinOverTimeAggregator struct {
 	firstTime       bool
 	getSpanAttValue func(s Span) float64
 	min             float64
-	rateMult        float64
 }
 
 var _ VectorAggregator = (*MinOverTimeAggregator)(nil)
@@ -354,7 +353,7 @@ func NewMinOverTimeAggregator(attr Attribute) *MinOverTimeAggregator {
 	switch attr {
 	case IntrinsicDurationAttribute:
 		fn = func(s Span) float64 {
-			return float64(s.DurationNanos()) / float64(time.Millisecond)
+			return float64(s.DurationNanos()) / float64(time.Second)
 		}
 	default:
 		fn = func(s Span) float64 {
@@ -363,7 +362,6 @@ func NewMinOverTimeAggregator(attr Attribute) *MinOverTimeAggregator {
 	}
 	return &MinOverTimeAggregator{
 		getSpanAttValue: fn,
-		rateMult:        1.0,
 	}
 }
 
@@ -378,7 +376,7 @@ func (c *MinOverTimeAggregator) Observe(s Span) {
 }
 
 func (c *MinOverTimeAggregator) Sample() float64 {
-	return c.min * c.rateMult
+	return c.min
 }
 
 // Copyed from ast.go. Probably should be refactored elsewhere
