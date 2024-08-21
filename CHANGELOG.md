@@ -1,6 +1,7 @@
 ## main / unreleased
 
 * [ENHANCEMENT] Add bytes and spans received to usage stats [#3983](https://github.com/grafana/tempo/pull/3983) (@joe-elliott)
+* [ENHANCEMENT] Allow returning partial traces that exceed the MaxBytes limit for V2 [#3941](https://github.com/grafana/tempo/pull/3941) (@javiermolinar)
 
 # v2.6.0-rc.0
 
