@@ -204,7 +204,7 @@ func TestWalDropsZeroLength(t *testing.T) {
 	}
 
 	// create new ingester. we should have no tenants b/c we all our wals should have been 0 length
-	ingester, _, _ = defaultIngesterWithPush(t, tmpDir, func(t testing.TB, i *Ingester, rs *v1.ResourceSpans, b []byte) {})
+	ingester, _, _ = defaultIngesterWithPush(t, tmpDir, func(_ testing.TB, _ *Ingester, _ *v1.ResourceSpans, _ []byte) {})
 	require.Equal(t, 0, len(ingester.instances))
 }
 
@@ -228,7 +228,7 @@ func TestSearchWAL(t *testing.T) {
 	require.NoError(t, err)
 
 	// push to instance
-	require.NoError(t, inst.PushBytes(context.Background(), id, b1))
+	require.NoError(t, inst.PushBytes(id, b1))
 
 	// Write wal
 	require.NoError(t, inst.CutCompleteTraces(0, true))
@@ -383,7 +383,7 @@ func TestDedicatedColumns(t *testing.T) {
 	require.NoError(t, err)
 
 	// push to instance
-	require.NoError(t, inst.PushBytes(context.Background(), id, b1))
+	require.NoError(t, inst.PushBytes(id, b1))
 
 	// Write wal
 	require.NoError(t, inst.CutCompleteTraces(0, true))

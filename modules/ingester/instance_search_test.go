@@ -586,7 +586,7 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 		require.NoError(t, err)
 
 		// searchData will be nil if not
-		err = i.PushBytes(context.Background(), id, traceBytes)
+		err = i.PushBytes(id, traceBytes)
 		require.NoError(t, err)
 
 		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
@@ -654,7 +654,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		require.NoError(t, err)
 
 		// searchData will be nil if not
-		err = i.PushBytes(context.Background(), id, traceBytes)
+		err = i.PushBytes(id, traceBytes)
 		require.NoError(t, err)
 	})
 
@@ -743,7 +743,7 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 		require.NoError(t, err)
 
-		err = i.PushBytes(context.Background(), id, traceBytes)
+		err = i.PushBytes(id, traceBytes)
 		require.NoError(t, err)
 	}
 
@@ -794,7 +794,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 		traceBytes, err := dec.PrepareForWrite(trace, 0, 0)
 		require.NoError(t, err)
 
-		err = i.PushBytes(context.Background(), id, traceBytes)
+		err = i.PushBytes(id, traceBytes)
 		require.NoError(t, err)
 
 		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
@@ -869,7 +869,7 @@ func BenchmarkInstanceSearchUnderLoad(b *testing.B) {
 			require.NoError(b, err)
 
 			// searchData will be nil if not
-			err = i.PushBytes(context.Background(), id, traceBytes)
+			err = i.PushBytes(id, traceBytes)
 			require.NoError(b, err)
 
 			tracesPushed.Inc()

@@ -1,7 +1,6 @@
 package ingester
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -31,7 +30,7 @@ func newTrace(traceID []byte, maxBytes int) *liveTrace {
 	}
 }
 
-func (t *liveTrace) Push(_ context.Context, instanceID string, trace []byte) error {
+func (t *liveTrace) Push(instanceID string, trace []byte) error {
 	t.lastAppend = time.Now()
 	if t.maxBytes != 0 {
 		reqSize := len(trace)

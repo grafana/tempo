@@ -115,7 +115,9 @@ type instance struct {
 
 func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverrides, writer tempodb.Writer, l *local.Backend, dedicatedColumns backend.DedicatedColumns) (*instance, error) {
 	i := &instance{
-		traces:     map[uint32]*liveTrace{},
+		traces: map[uint32]*liveTrace{},
+		// Keep tracks of the size of traces even after cutting them into the HeadBlock
+		// It is clean then the block is flushed to the backend
 		traceSizes: map[uint32]uint32{},
 
 		instanceID:         instanceID,
@@ -140,11 +142,11 @@ func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverride
 	return i, nil
 }
 
-func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesRequest) *tempopb.PushResponse {
+func (i *instance) PushBytesRequest(req *tempopb.PushBytesRequest) *tempopb.PushResponse {
 	pr := &tempopb.PushResponse{}
 
 	for j := range req.Traces {
-		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice)
+		err := i.PushBytes(req.Ids[j].Slice, req.Traces[j].Slice)
 		pr.ErrorsByTrace = i.addTraceError(pr.ErrorsByTrace, err, len(req.Traces), j)
 	}
 
@@ -176,7 +178,7 @@ func (i *instance) addTraceError(errorsByTrace []tempopb.PushErrorReason, pushEr
 		errorsByTrace = append(errorsByTrace, tempopb.PushErrorReason_UNKNOWN_ERROR)
 		return errorsByTrace
 
-	} else if pushError == nil && len(errorsByTrace) > 0 {
+	} else if len(errorsByTrace) > 0 {
 		errorsByTrace = append(errorsByTrace, tempopb.PushErrorReason_NO_ERROR)
 	}
 
@@ -184,7 +186,7 @@ func (i *instance) addTraceError(errorsByTrace []tempopb.PushErrorReason, pushEr
 }
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
-func (i *instance) PushBytes(ctx context.Context, id, traceBytes []byte) error {
+func (i *instance) PushBytes(id, traceBytes []byte) error {
 	i.measureReceivedBytes(traceBytes)
 
 	if !validation.ValidTraceID(id) {
@@ -197,10 +199,10 @@ func (i *instance) PushBytes(ctx context.Context, id, traceBytes []byte) error {
 		return newMaxLiveTracesError(i.instanceID, err.Error())
 	}
 
-	return i.push(ctx, id, traceBytes)
+	return i.push(id, traceBytes)
 }
 
-func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
+func (i *instance) push(id, traceBytes []byte) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
@@ -217,7 +219,7 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 
 	trace := i.getOrCreateTrace(id, tkn, maxBytes)
 
-	err := trace.Push(ctx, i.instanceID, traceBytes)
+	err := trace.Push(i.instanceID, traceBytes)
 	if err != nil {
 		return err
 	}
@@ -512,7 +514,7 @@ func (i *instance) tokenForTraceID(id []byte) uint32 {
 func (i *instance) resetHeadBlock() error {
 	// Reset trace sizes when cutting block
 	i.tracesMtx.Lock()
-	i.traceSizes = make(map[uint32]uint32, len(i.traceSizes))
+	clear(i.traceSizes)
 	i.tracesMtx.Unlock()
 
 	dedicatedColumns := i.getDedicatedColumns()

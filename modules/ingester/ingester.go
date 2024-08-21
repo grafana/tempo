@@ -257,7 +257,7 @@ func (i *Ingester) PushBytesV2(ctx context.Context, req *tempopb.PushBytesReques
 		return nil, err
 	}
 
-	return instance.PushBytesRequest(ctx, req), nil
+	return instance.PushBytesRequest(req), nil
 }
 
 // FindTraceByID implements tempopb.Querier.f
