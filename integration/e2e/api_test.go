@@ -596,7 +596,7 @@ func callSearchTagsV2AndAssert(t *testing.T, svc *e2e.HTTPService, scope, query 
 	if scope == "none" || scope == "" || scope == "intrinsic" {
 		expected.Scopes = append(expected.Scopes, &tempopb.SearchTagsV2Scope{
 			Name: "intrinsic",
-			Tags: []string{"duration", "event:name", "event:timeSinceStart", "kind", "name", "rootName", "rootServiceName", "span:duration", "span:kind", "span:name", "span:status", "span:statusMessage", "status", "statusMessage", "trace:duration", "trace:rootName", "trace:rootService", "traceDuration"},
+			Tags: []string{"duration", "event:name", "event:timeSinceStart", "instrumentation:name", "instrumentation:version", "kind", "name", "rootName", "rootServiceName", "span:duration", "span:kind", "span:name", "span:status", "span:statusMessage", "status", "statusMessage", "trace:duration", "trace:rootName", "trace:rootService", "traceDuration"},
 		})
 	}
 	sort.Slice(expected.Scopes, func(i, j int) bool { return expected.Scopes[i].Name < expected.Scopes[j].Name })

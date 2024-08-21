@@ -20,12 +20,13 @@ import (
 
 func TestFetchTagNames(t *testing.T) {
 	testCases := []struct {
-		name                   string
-		query                  string
-		expectedSpanValues     []string
-		expectedResourceValues []string
-		expectedEventValues    []string
-		expectedLinkValues     []string
+		name                          string
+		query                         string
+		expectedSpanValues            []string
+		expectedResourceValues        []string
+		expectedEventValues           []string
+		expectedLinkValues            []string
+		expectedInstrumentationValues []string
 	}{
 		{
 			name:  "no query - fall back to old search",
@@ -36,84 +37,94 @@ func TestFetchTagNames(t *testing.T) {
 				"generic-02-01",
 				"span-same",
 			},
-			expectedResourceValues: []string{"generic-01", "generic-02", "resource-same"},
-			expectedEventValues:    []string{"event-generic-01-01", "event-generic-02-01"},
-			expectedLinkValues:     []string{"link-generic-01-01", "link-generic-02-01"},
+			expectedResourceValues:        []string{"generic-01", "generic-02", "resource-same"},
+			expectedEventValues:           []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:            []string{"link-generic-01-01", "link-generic-02-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
 		},
 		{
-			name:                   "matches nothing",
-			query:                  "{span.generic-01-01=`bar`}",
-			expectedSpanValues:     []string{},
-			expectedResourceValues: []string{},
-			expectedEventValues:    []string{},
-			expectedLinkValues:     []string{},
+			name:                          "matches nothing",
+			query:                         "{span.generic-01-01=`bar`}",
+			expectedSpanValues:            []string{},
+			expectedResourceValues:        []string{},
+			expectedEventValues:           []string{},
+			expectedLinkValues:            []string{},
+			expectedInstrumentationValues: []string{},
 		},
 		// span
 		{
-			name:                   "intrinsic span",
-			query:                  "{statusMessage=`msg-01-01`}",
-			expectedSpanValues:     []string{"generic-01-01", "span-same"},
-			expectedResourceValues: []string{"generic-01", "resource-same"},
-			expectedEventValues:    []string{"event-generic-01-01"},
-			expectedLinkValues:     []string{"link-generic-01-01"},
+			name:                          "intrinsic span",
+			query:                         "{statusMessage=`msg-01-01`}",
+			expectedSpanValues:            []string{"generic-01-01", "span-same"},
+			expectedResourceValues:        []string{"generic-01", "resource-same"},
+			expectedEventValues:           []string{"event-generic-01-01"},
+			expectedLinkValues:            []string{"link-generic-01-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1"},
 		},
 		{
-			name:                   "well known span",
-			query:                  "{span.http.method=`method-01-01`}",
-			expectedSpanValues:     []string{"generic-01-01", "span-same"},
-			expectedResourceValues: []string{"generic-01", "resource-same"},
-			expectedEventValues:    []string{"event-generic-01-01"},
-			expectedLinkValues:     []string{"link-generic-01-01"},
+			name:                          "well known span",
+			query:                         "{span.http.method=`method-01-01`}",
+			expectedSpanValues:            []string{"generic-01-01", "span-same"},
+			expectedResourceValues:        []string{"generic-01", "resource-same"},
+			expectedEventValues:           []string{"event-generic-01-01"},
+			expectedLinkValues:            []string{"link-generic-01-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1"},
 		},
 		{
-			name:                   "generic span",
-			query:                  "{span.generic-01-01=`foo`}",
-			expectedSpanValues:     []string{"generic-01-01", "span-same"},
-			expectedResourceValues: []string{"generic-01", "resource-same"},
-			expectedEventValues:    []string{"event-generic-01-01"},
-			expectedLinkValues:     []string{"link-generic-01-01"},
+			name:                          "generic span",
+			query:                         "{span.generic-01-01=`foo`}",
+			expectedSpanValues:            []string{"generic-01-01", "span-same"},
+			expectedResourceValues:        []string{"generic-01", "resource-same"},
+			expectedEventValues:           []string{"event-generic-01-01"},
+			expectedLinkValues:            []string{"link-generic-01-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1"},
 		},
 		{
-			name:                   "match two spans",
-			query:                  "{span.span-same=`foo`}",
-			expectedSpanValues:     []string{"generic-01-01", "span-same", "generic-02-01"},
-			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
-			expectedEventValues:    []string{"event-generic-01-01", "event-generic-02-01"},
-			expectedLinkValues:     []string{"link-generic-01-01", "link-generic-02-01"},
+			name:                          "match two spans",
+			query:                         "{span.span-same=`foo`}",
+			expectedSpanValues:            []string{"generic-01-01", "span-same", "generic-02-01"},
+			expectedResourceValues:        []string{"generic-01", "resource-same", "generic-02"},
+			expectedEventValues:           []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:            []string{"link-generic-01-01", "link-generic-02-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
 		},
 		// resource
 		{
-			name:                   "well known resource",
-			query:                  "{resource.cluster=`cluster-01`}",
-			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same"},
-			expectedResourceValues: []string{"generic-01", "resource-same"},
-			expectedEventValues:    []string{"event-generic-01-01"},
-			expectedLinkValues:     []string{"link-generic-01-01"},
+			name:                          "well known resource",
+			query:                         "{resource.cluster=`cluster-01`}",
+			expectedSpanValues:            []string{"generic-01-01", "generic-01-02", "span-same"},
+			expectedResourceValues:        []string{"generic-01", "resource-same"},
+			expectedEventValues:           []string{"event-generic-01-01"},
+			expectedLinkValues:            []string{"link-generic-01-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1"},
 		},
 		{
-			name:                   "generic resource",
-			query:                  "{resource.generic-01=`bar`}",
-			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same"},
-			expectedResourceValues: []string{"generic-01", "resource-same"},
-			expectedEventValues:    []string{"event-generic-01-01"},
-			expectedLinkValues:     []string{"link-generic-01-01"},
+			name:                          "generic resource",
+			query:                         "{resource.generic-01=`bar`}",
+			expectedSpanValues:            []string{"generic-01-01", "generic-01-02", "span-same"},
+			expectedResourceValues:        []string{"generic-01", "resource-same"},
+			expectedEventValues:           []string{"event-generic-01-01"},
+			expectedLinkValues:            []string{"link-generic-01-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1"},
 		},
 		{
-			name:                   "match two resources",
-			query:                  "{resource.resource-same=`foo`}",
-			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
-			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
-			expectedEventValues:    []string{"event-generic-01-01", "event-generic-02-01"},
-			expectedLinkValues:     []string{"link-generic-01-01", "link-generic-02-01"},
+			name:                          "match two resources",
+			query:                         "{resource.resource-same=`foo`}",
+			expectedSpanValues:            []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues:        []string{"generic-01", "resource-same", "generic-02"},
+			expectedEventValues:           []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:            []string{"link-generic-01-01", "link-generic-02-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
 		},
 		// trace level match
 		{
-			name:                   "trace",
-			query:                  "{rootName=`root` }",
-			expectedSpanValues:     []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
-			expectedResourceValues: []string{"generic-01", "resource-same", "generic-02"},
-			expectedEventValues:    []string{"event-generic-01-01", "event-generic-02-01"},
-			expectedLinkValues:     []string{"link-generic-01-01", "link-generic-02-01"},
+			name:                          "trace",
+			query:                         "{rootName=`root` }",
+			expectedSpanValues:            []string{"generic-01-01", "generic-01-02", "span-same", "generic-02-01"},
+			expectedResourceValues:        []string{"generic-01", "resource-same", "generic-02"},
+			expectedEventValues:           []string{"event-generic-01-01", "event-generic-02-01"},
+			expectedLinkValues:            []string{"link-generic-01-01", "link-generic-02-01"},
+			expectedInstrumentationValues: []string{"scope-attr-str-1", "scope-attr-str-2"},
 		},
 	}
 
@@ -137,6 +148,14 @@ func TestFetchTagNames(t *testing.T) {
 				},
 				ScopeSpans: []ScopeSpans{
 					{
+						Scope: InstrumentationScope{
+							Name:                   "scope-1",
+							Version:                "version-1",
+							DroppedAttributesCount: 1,
+							Attrs: []Attribute{
+								attr("scope-attr-str-1", "scope-attr-1"),
+							},
+						},
 						Spans: []Span{
 							{
 								SpanID:        []byte("0101"),
@@ -197,6 +216,14 @@ func TestFetchTagNames(t *testing.T) {
 				},
 				ScopeSpans: []ScopeSpans{
 					{
+						Scope: InstrumentationScope{
+							Name:                   "scope-2",
+							Version:                "version-2",
+							DroppedAttributesCount: 1,
+							Attrs: []Attribute{
+								attr("scope-attr-str-2", "scope-attr-2"),
+							},
+						},
 						Spans: []Span{
 							{
 								SpanID:        []byte("0201"),
@@ -246,11 +273,13 @@ func TestFetchTagNames(t *testing.T) {
 			traceql.AttributeScopeNone,
 			traceql.AttributeScopeEvent,
 			traceql.AttributeScopeLink,
+			traceql.AttributeScopeInstrumentation,
 		} {
 			expectedSpanValues := tc.expectedSpanValues
 			expectedResourceValues := tc.expectedResourceValues
 			expectedEventValues := tc.expectedEventValues
 			expectedLinkValues := tc.expectedLinkValues
+			expectedInstrumentationValues := tc.expectedInstrumentationValues
 
 			// add dedicated and well known columns to expected values. the code currently does not
 			// attempt to perfectly filter these, but instead adds them to the return if any values are present
@@ -279,6 +308,12 @@ func TestFetchTagNames(t *testing.T) {
 			if scope == traceql.AttributeScopeLink || scope == traceql.AttributeScopeNone {
 				if len(expectedLinkValues) > 0 {
 					expectedValues["link"] = append(expectedValues["link"], expectedLinkValues...)
+				}
+			}
+
+			if scope == traceql.AttributeScopeInstrumentation || scope == traceql.AttributeScopeNone {
+				if len(expectedInstrumentationValues) > 0 {
+					expectedValues["instrumentation"] = append(expectedValues["instrumentation"], expectedInstrumentationValues...)
 				}
 			}
 
