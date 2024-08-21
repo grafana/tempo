@@ -60,8 +60,8 @@ func TestSearchCompleteBlock(t *testing.T) {
 			)
 		})
 		if vers == vparquet4.VersionString {
-			t.Run("event/link/scope query", func(t *testing.T) {
-				runEventLinkScopeSearchTest(t, vers)
+			t.Run("event/link/instrumentation query", func(t *testing.T) {
+				runEventLinkInstrumentationSearchTest(t, vers)
 			})
 		}
 	}
@@ -1658,7 +1658,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	// todo: do some compaction and then call runner again
 }
 
-func runEventLinkScopeSearchTest(t *testing.T, blockVersion string) {
+func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 	// only run this test for vparquet4
 	if blockVersion != vparquet4.VersionString {
 		return

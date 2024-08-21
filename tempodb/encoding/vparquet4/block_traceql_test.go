@@ -841,19 +841,19 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 		sortAttrs(rsAttrs)
 
 		for _, ss := range rs.ScopeSpans {
-			var scopeAttrs []attrVal
-			scopeAttrs = append(scopeAttrs, attrVal{traceql.IntrinsicInstrumentationNameAttribute, traceql.NewStaticString(ss.Scope.Name)})
-			scopeAttrs = append(scopeAttrs, attrVal{traceql.IntrinsicInstrumentationVersionAttribute, traceql.NewStaticString(ss.Scope.Version)})
+			var instrumentationAttrs []attrVal
+			instrumentationAttrs = append(instrumentationAttrs, attrVal{traceql.IntrinsicInstrumentationNameAttribute, traceql.NewStaticString(ss.Scope.Name)})
+			instrumentationAttrs = append(instrumentationAttrs, attrVal{traceql.IntrinsicInstrumentationVersionAttribute, traceql.NewStaticString(ss.Scope.Version)})
 			for _, a := range parquetToProtoAttrs(ss.Scope.Attrs) {
 				if arr := a.Value.GetArrayValue(); arr != nil {
 					for _, v := range arr.Values {
-						scopeAttrs = append(scopeAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, a.Key), traceql.StaticFromAnyValue(v)})
+						instrumentationAttrs = append(instrumentationAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, a.Key), traceql.StaticFromAnyValue(v)})
 					}
 					continue
 				}
-				scopeAttrs = append(scopeAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, a.Key), traceql.StaticFromAnyValue(a.Value)})
+				instrumentationAttrs = append(instrumentationAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, a.Key), traceql.StaticFromAnyValue(a.Value)})
 			}
-			sortAttrs(scopeAttrs)
+			sortAttrs(instrumentationAttrs)
 
 			for _, s := range ss.Spans {
 
@@ -863,7 +863,7 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 				newS.durationNanos = s.DurationNano
 				newS.setTraceAttrs(traceAttrs)
 				newS.setResourceAttrs(rsAttrs)
-				newS.setInstrumentationAttrs(scopeAttrs)
+				newS.setInstrumentationAttrs(instrumentationAttrs)
 				newS.addSpanAttr(traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(s.DurationNano)))
 				newS.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(otlpKindToTraceqlKind(uint64(s.Kind))))
 				newS.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(s.Name))

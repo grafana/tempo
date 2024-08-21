@@ -346,7 +346,7 @@ func searchStandardTagValues(ctx context.Context, tag traceql.Attribute, pf *par
 			columnPathInstrumentationAttrBool,
 			makeIter, keyPred, cb)
 		if err != nil {
-			return fmt.Errorf("search scope key values: %w", err)
+			return fmt.Errorf("search instrumentation key values: %w", err)
 		}
 	}
 

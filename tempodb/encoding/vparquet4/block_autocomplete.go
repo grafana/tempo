@@ -233,8 +233,8 @@ func autocompleteIter(ctx context.Context, tr tagRequest, pf *parquet.File, opts
 		}
 	}
 
-	if len(catConditions.scope) > 0 || tr.keysRequested(traceql.AttributeScopeInstrumentation) {
-		currentIter, err = createDistinctScopeIterator(makeIter, tr, currentIter, catConditions.scope)
+	if len(catConditions.instrumentation) > 0 || tr.keysRequested(traceql.AttributeScopeInstrumentation) {
+		currentIter, err = createDistinctScopeIterator(makeIter, tr, currentIter, catConditions.instrumentation)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating instrumentation iterator")
 		}
@@ -767,7 +767,7 @@ func createDistinctScopeIterator(
 	attrIter, err := createDistinctAttributeIterator(makeIter, tr, genericConditions, DefinitionLevelInstrumentationScopeAttrs,
 		columnPathInstrumentationAttrKey, columnPathInstrumentationAttrString, columnPathInstrumentationAttrInt, columnPathInstrumentationAttrDouble, columnPathInstrumentationAttrBool)
 	if err != nil {
-		return nil, errors.Wrap(err, "creating scope attribute iterator")
+		return nil, errors.Wrap(err, "creating instrumentation attribute iterator")
 	}
 
 	// if no intrinsics and no events then we can just return the attribute iterator
@@ -783,9 +783,9 @@ func createDistinctScopeIterator(
 		iters = append(iters, primaryIter)
 	}
 
-	scopeCol := newDistinctValueCollector(mapScopeAttr, "scope")
+	instrumentationCol := newDistinctValueCollector(mapInstrumentationAttr, "instrumentation")
 
-	return parquetquery.NewJoinIterator(DefinitionLevelInstrumentationScope, iters, scopeCol), nil
+	return parquetquery.NewJoinIterator(DefinitionLevelInstrumentationScope, iters, instrumentationCol), nil
 }
 
 func createDistinctResourceIterator(
@@ -1133,7 +1133,7 @@ func mapSpanAttr(e entry) traceql.Static {
 	return traceql.NewStaticNil()
 }
 
-func mapScopeAttr(e entry) traceql.Static {
+func mapInstrumentationAttr(e entry) traceql.Static {
 	switch e.Key {
 	case columnPathInstrumentationName, columnPathInstrumentationVersion:
 		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))

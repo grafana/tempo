@@ -408,7 +408,7 @@ func testSearchTagsAndValuesV2(
 	assert.Contains(t, tagsResp.TagNames, tagName)
 	assert.Equal(t, expectedLinkTagValues, tagValues)
 
-	// scope scope attr
+	// instrumentation scope attr
 
 	tagValuesResp, err = i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
 		TagName: fmt.Sprintf("instrumentation.%s", tagName),

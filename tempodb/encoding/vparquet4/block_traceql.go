@@ -27,13 +27,13 @@ import (
 )
 
 var (
-	pqSpanPool    = parquetquery.NewResultPool(1)
-	pqSpansetPool = parquetquery.NewResultPool(1)
-	pqTracePool   = parquetquery.NewResultPool(1)
-	pqAttrPool    = parquetquery.NewResultPool(1)
-	pqEventPool   = parquetquery.NewResultPool(1)
-	pqLinkPool    = parquetquery.NewResultPool(1)
-	pqScopePool   = parquetquery.NewResultPool(1)
+	pqSpanPool            = parquetquery.NewResultPool(1)
+	pqSpansetPool         = parquetquery.NewResultPool(1)
+	pqTracePool           = parquetquery.NewResultPool(1)
+	pqAttrPool            = parquetquery.NewResultPool(1)
+	pqEventPool           = parquetquery.NewResultPool(1)
+	pqLinkPool            = parquetquery.NewResultPool(1)
+	pqInstrumentationPool = parquetquery.NewResultPool(1)
 )
 
 type attrVal struct {
@@ -937,18 +937,18 @@ const (
 	columnPathLinkAttrDouble      = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueDouble.list.element"
 	columnPathLinkAttrBool        = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.Attrs.list.element.ValueBool.list.element"
 
-	otherEntrySpansetKey = "spanset"
-	otherEntrySpanKey    = "span"
-	otherEntryEventKey   = "event"
-	otherEntryLinkKey    = "link"
-	otherEntryScopeKey   = "scope"
+	otherEntrySpansetKey         = "spanset"
+	otherEntrySpanKey            = "span"
+	otherEntryEventKey           = "event"
+	otherEntryLinkKey            = "link"
+	otherEntryInstrumentationKey = "instrumentation"
 
 	// a fake intrinsic scope at the trace lvl
-	intrinsicScopeTrace = -1
-	intrinsicScopeSpan  = -2
-	intrinsicScopeEvent = -3
-	intrinsicScopeLink  = -4
-	intrinsicScopeScope = -5
+	intrinsicScopeTrace           = -1
+	intrinsicScopeSpan            = -2
+	intrinsicScopeEvent           = -3
+	intrinsicScopeLink            = -4
+	intrinsicScopeInstrumentation = -5
 )
 
 // todo: scope is the only field used here. either remove the other fields or use them.
@@ -982,8 +982,8 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicLinkTraceID:         {intrinsicScopeLink, traceql.TypeString, columnPathLinkTraceID},
 	traceql.IntrinsicLinkSpanID:          {intrinsicScopeLink, traceql.TypeString, columnPathLinkSpanID},
 
-	traceql.IntrinsicInstrumentationName:    {intrinsicScopeScope, traceql.TypeString, columnPathInstrumentationName},
-	traceql.IntrinsicInstrumentationVersion: {intrinsicScopeScope, traceql.TypeString, columnPathInstrumentationVersion},
+	traceql.IntrinsicInstrumentationName:    {intrinsicScopeInstrumentation, traceql.TypeString, columnPathInstrumentationName},
+	traceql.IntrinsicInstrumentationVersion: {intrinsicScopeInstrumentation, traceql.TypeString, columnPathInstrumentationVersion},
 
 	traceql.IntrinsicServiceStats: {intrinsicScopeTrace, traceql.TypeNil, ""}, // Not a real column, this entry is only used to assign default scope.
 }
@@ -1548,12 +1548,12 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 }
 
 type categorizedConditions struct {
-	span     []traceql.Condition
-	scope    []traceql.Condition
-	resource []traceql.Condition
-	trace    []traceql.Condition
-	event    []traceql.Condition
-	link     []traceql.Condition
+	span            []traceql.Condition
+	instrumentation []traceql.Condition
+	resource        []traceql.Condition
+	trace           []traceql.Condition
+	event           []traceql.Condition
+	link            []traceql.Condition
 }
 
 // categorizeConditions categorizes conditions by scope
@@ -1592,8 +1592,8 @@ func categorizeConditions(conditions []traceql.Condition) (*categorizedCondition
 		case intrinsicScopeTrace:
 			categorizedCond.trace = append(categorizedCond.trace, cond)
 
-		case traceql.AttributeScopeInstrumentation, intrinsicScopeScope:
-			categorizedCond.scope = append(categorizedCond.scope, cond)
+		case traceql.AttributeScopeInstrumentation, intrinsicScopeInstrumentation:
+			categorizedCond.instrumentation = append(categorizedCond.instrumentation, cond)
 
 		default:
 			return nil, false, fmt.Errorf("unsupported traceql scope: %s", cond.Attribute)
@@ -1657,12 +1657,12 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		return nil, fmt.Errorf("creating span iterator: %w", err)
 	}
 
-	scopeIter, err := createScopeIterator(makeIter, spanIter, catConditions.scope, allConditions, selectAll)
+	instrumentationIter, err := createInstrumentationIterator(makeIter, spanIter, catConditions.instrumentation, allConditions, selectAll)
 	if err != nil {
 		return nil, fmt.Errorf("creating scope iterator: %w", err)
 	}
 
-	resourceIter, err := createResourceIterator(makeIter, scopeIter, catConditions.resource, batchRequireAtLeastOneMatchOverall, allConditions, dc, selectAll)
+	resourceIter, err := createResourceIterator(makeIter, instrumentationIter, catConditions.resource, batchRequireAtLeastOneMatchOverall, allConditions, dc, selectAll)
 	if err != nil {
 		return nil, fmt.Errorf("creating resource iterator: %w", err)
 	}
@@ -2102,10 +2102,7 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpansILSSpan, required, iters, spanCol, parquetquery.WithPool(pqSpanPool))
 }
 
-// createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
-// one batch each. It builds on top of the span iterator, and turns the groups of spans and resource-level values into
-// spansets. Spansets are returned that match any of the given conditions.
-func createScopeIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, allConditions, selectAll bool) (parquetquery.Iterator, error) {
+func createInstrumentationIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator, conditions []traceql.Condition, allConditions, selectAll bool) (parquetquery.Iterator, error) {
 	var (
 		iters             = []parquetquery.Iterator{}
 		genericConditions []traceql.Condition
@@ -2138,7 +2135,7 @@ func createScopeIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator
 
 	if selectAll {
 		for _, entry := range intrinsicColumnLookups {
-			if entry.scope != intrinsicScopeScope {
+			if entry.scope != intrinsicScopeInstrumentation {
 				continue
 			}
 			iters = append(iters, makeIter(entry.columnPath, nil, entry.columnPath))
@@ -2148,7 +2145,7 @@ func createScopeIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelInstrumentationScopeAttrs,
 		columnPathInstrumentationAttrKey, columnPathInstrumentationAttrString, columnPathInstrumentationAttrInt, columnPathInstrumentationAttrDouble, columnPathInstrumentationAttrBool, allConditions, selectAll)
 	if err != nil {
-		return nil, fmt.Errorf("creating scope attribute iterator: %w", err)
+		return nil, fmt.Errorf("creating instrumentation attribute iterator: %w", err)
 	}
 	if attrIter != nil {
 		iters = append(iters, attrIter)
@@ -2163,7 +2160,7 @@ func createScopeIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator
 		}
 		minCount = len(distinct)
 	}
-	scopeCol := newInstrumentationCollector(minCount)
+	instrumentationCol := newInstrumentationCollector(minCount)
 
 	var required []parquetquery.Iterator
 
@@ -2181,13 +2178,13 @@ func createScopeIterator(makeIter makeIterFn, spanIterator parquetquery.Iterator
 	// Left join here means the span iterator + 1 are required,
 	// and all other resource conditions are optional. Whatever matches
 	// is returned.
-	return parquetquery.NewLeftJoinIterator(DefinitionLevelInstrumentationScope, required, iters, scopeCol, parquetquery.WithPool(pqScopePool))
+	return parquetquery.NewLeftJoinIterator(DefinitionLevelInstrumentationScope, required, iters, instrumentationCol, parquetquery.WithPool(pqInstrumentationPool))
 }
 
 // createResourceIterator iterates through all resourcespans-level (batch-level) columns, groups them into rows representing
 // one batch each. It builds on top of the span iterator, and turns the groups of spans and resource-level values into
 // spansets. Spansets are returned that match any of the given conditions.
-func createResourceIterator(makeIter makeIterFn, scopeIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatchOverall, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool) (parquetquery.Iterator, error) {
+func createResourceIterator(makeIter makeIterFn, instrumentationIterator parquetquery.Iterator, conditions []traceql.Condition, requireAtLeastOneMatchOverall, allConditions bool, dedicatedColumns backend.DedicatedColumns, selectAll bool) (parquetquery.Iterator, error) {
 	var (
 		columnSelectAs    = map[string]string{}
 		columnPredicates  = map[string][]parquetquery.Predicate{}
@@ -2298,7 +2295,7 @@ func createResourceIterator(makeIter makeIterFn, scopeIterator parquetquery.Iter
 
 	// Put span iterator last so it is only read when
 	// the resource conditions are met.
-	required = append(required, scopeIterator)
+	required = append(required, instrumentationIterator)
 
 	// Left join here means the span iterator + 1 are required,
 	// and all other resource conditions are optional. Whatever matches

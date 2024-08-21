@@ -412,7 +412,7 @@ scopedIntrinsicField:
 // link:             
   | LINK_COLON TRACE_ID             { $$ = NewIntrinsic(IntrinsicLinkTraceID)            }
   | LINK_COLON SPAN_ID              { $$ = NewIntrinsic(IntrinsicLinkSpanID)             }
-// scope:
+// instrumentation:
   | INSTRUMENTATION_COLON NAME      { $$ = NewIntrinsic(IntrinsicInstrumentationName)    }
   | INSTRUMENTATION_COLON VERSION   { $$ = NewIntrinsic(IntrinsicInstrumentationVersion) }
   ;

@@ -710,7 +710,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 			),
 		},
 		{
-			"Intrinsic scope name lookup",
+			"Intrinsic instrumentation name lookup",
 			makeReq(
 				parse(t, `{instrumentation:name = "scope-1"}`), //
 			),
@@ -743,7 +743,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 			),
 		},
 		{
-			"Intrinsic scope version lookup",
+			"Intrinsic instrumentation version lookup",
 			makeReq(
 				parse(t, `{instrumentation:version = "version-1"}`), //
 			),
@@ -776,7 +776,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 			),
 		},
 		{
-			"Scope attribute lookup",
+			"Instrumentation attribute lookup",
 			makeReq(
 				parse(t, `{instrumentation.scope-attr-int = 101}`), //
 			),
