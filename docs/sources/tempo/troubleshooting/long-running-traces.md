@@ -8,11 +8,10 @@ aliases:
 
 # Long-running traces
 
-An issue arises in Tempo when a user exercises a usage pattern referred to as
-long-running traces. This happens when Tempo receives spans for a trace,
+Long-running traces are created when Tempo receives spans for a trace,
 followed by a delay, and then Tempo receives additional spans for the same
 trace. If the delay between spans is great enough, the spans end up in
-different blocks, which can lead to inconsistency in a few ways.
+different blocks, which can lead to inconsistency in a few ways:
 
 1. When using TraceQL search, the duration information only pertains to a
    subset of the blocks that contain a trace. This happens because Tempo
