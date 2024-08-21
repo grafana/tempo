@@ -36,7 +36,7 @@ can aid in understanding when this situation arises. In particular, the followin
 1 - sum(rate(tempo_warnings_total{reason="disconnected_trace_flushed_to_wal"}[5m])) / sum(rate(tempo_ingester_traces_created_total{}[5m]))
 ```
 
-Users of this pattern may also be interested in the
+If you have long-running traces, you may also be interested in the
 `rootless_trace_flushed_to_wal` reason to know when a trace is flushed to the
 wall without a root trace.
 
