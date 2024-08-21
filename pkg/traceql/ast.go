@@ -775,7 +775,6 @@ func (s Static) GetElements(fn VisitFunc) error {
 	default:
 		return fmt.Errorf("unsupported type")
 	}
-	return nil
 }
 
 func (s Static) Int() (int, bool) {

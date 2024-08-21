@@ -338,7 +338,8 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	// Ensure the resolved types are still valid
 	lhsT := lhs.Type
 	rhsT := rhs.Type
-	if !lhsT.isMatchingOperand(rhsT) && !rhsT.isMatchingOperand(lhsT) {
+
+	if !lhsT.isMatchingOperand(rhsT) {
 		return NewStaticBool(false), nil
 	}
 
@@ -422,7 +423,6 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		}
 	}
 
-	// return if array doesn't support this op...
 	if lhsT.isMatchingArrayElement(rhsT) {
 		// we only support boolean op in the arrays
 		if !o.Op.isBoolean() {
@@ -431,8 +431,17 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		}
 
 		elemOp := &BinaryOperation{Op: o.Op, LHS: lhs, RHS: rhs}
+		arraySide := lhs
+		// to support symmetric operations
+		if rhsT.isArrayType() {
+			// for regex operations, TraceQL makes an assumption that RHS is the regex, and compiles it.
+			// we can support symmetric array operations by flipping the sides and executing the binary operation.
+			elemOp = &BinaryOperation{Op: getFlippedOp(o.Op), LHS: rhs, RHS: lhs}
+			arraySide = rhs
+		}
+
 		var res Static
-		err := lhs.GetElements(func(elem Static) bool {
+		err := arraySide.GetElements(func(elem Static) bool {
 			elemOp.LHS = elem
 			res, err = elemOp.execute(span)
 			if err != nil {
@@ -446,26 +455,6 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		}
 
 		return res, err
-	}
-
-	// make array support symmetric
-	if rhsT.isMatchingArrayElement(lhsT) {
-		// for regex operations, we assume that RHS is the regex, and compile it.
-		// we can support symmetric array operations by flipping the sides and executing the binary operation.
-		// for >, >=, <, <= we need to flip the op as well, otherwise flipping sides will change the query.
-		flippedOp := o.Op
-		switch o.Op {
-		case OpGreater:
-			flippedOp = OpLess
-		case OpGreaterEqual:
-			flippedOp = OpLessEqual
-		case OpLess:
-			flippedOp = OpGreater
-		case OpLessEqual:
-			flippedOp = OpGreaterEqual
-		}
-		flippedBinOp := &BinaryOperation{Op: flippedOp, LHS: rhs, RHS: lhs}
-		return flippedBinOp.execute(span)
 	}
 
 	switch o.Op {
@@ -495,6 +484,23 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		return NewStaticBool(!lhs.Equals(&rhs)), nil
 	default:
 		return NewStaticNil(), errors.New("unexpected operator " + o.Op.String())
+	}
+}
+
+// getFlippedOp will return the flipped op, used when flipping the LHS and RHS of a BinaryOperation
+func getFlippedOp(op Operator) Operator {
+	switch op {
+	case OpGreater:
+		return OpLess
+	case OpGreaterEqual:
+		return OpLessEqual
+	case OpLess:
+		return OpGreater
+	case OpLessEqual:
+
+		return OpGreaterEqual
+	default:
+		return op
 	}
 }
 

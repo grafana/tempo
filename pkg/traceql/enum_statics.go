@@ -48,6 +48,7 @@ func (t StaticType) isNumeric() bool {
 	return t == TypeInt || t == TypeFloat || t == TypeDuration
 }
 
+// isMatchingArrayElement is like isMatchingOperand but for arrays
 func (t StaticType) isMatchingArrayElement(otherT StaticType) bool {
 	switch t {
 	case TypeIntArray:
@@ -58,9 +59,29 @@ func (t StaticType) isMatchingArrayElement(otherT StaticType) bool {
 		return TypeString.isMatchingOperand(otherT)
 	case TypeBooleanArray:
 		return TypeBoolean.isMatchingOperand(otherT)
-	default:
-		return false
 	}
+
+	// make it symmetric
+	switch otherT {
+	case TypeIntArray:
+		return TypeInt.isMatchingOperand(t)
+	case TypeFloatArray:
+		return TypeFloat.isMatchingOperand(t)
+	case TypeStringArray:
+		return TypeString.isMatchingOperand(t)
+	case TypeBooleanArray:
+		return TypeBoolean.isMatchingOperand(t)
+	}
+
+	return false
+}
+
+// isArrayType used to test if a type is ArrayType
+func (t StaticType) isArrayType() bool {
+	if t == TypeIntArray || t == TypeFloatArray || t == TypeStringArray || t == TypeBooleanArray {
+		return true
+	}
+	return false
 }
 
 // Status represents valid static values of typeStatus
