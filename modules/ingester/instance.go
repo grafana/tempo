@@ -425,7 +425,6 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte, allowPartialTra
 
 	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
 	searchOpts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
-	searchOpts.AllowPartialTraces = allowPartialTrace
 
 	combiner := trace.NewCombiner(maxBytes, allowPartialTrace)
 	_, err = combiner.Consume(completeTrace)

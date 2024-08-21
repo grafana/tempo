@@ -132,10 +132,10 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		span.SetTag("inspectedBytes", rr.BytesRead())
 	}()
 
-	return findTraceByID(derivedCtx, traceID, opts.MaxBytes, b.meta, pf, rowGroup, opts.AllowPartialTraces)
+	return findTraceByID(derivedCtx, traceID, b.meta, pf, rowGroup)
 }
 
-func findTraceByID(ctx context.Context, traceID common.ID, maxTraceSizeBytes int, meta *backend.BlockMeta, pf *parquet.File, rowGroup int, allowPartialTraces bool) (*tempopb.Trace, error) {
+func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMeta, pf *parquet.File, rowGroup int) (*tempopb.Trace, error) {
 	// traceID column index
 	colIndex, _ := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
 	if colIndex == -1 {
@@ -262,14 +262,6 @@ func findTraceByID(ctx context.Context, traceID common.ID, maxTraceSizeBytes int
 	if err != nil {
 		return nil, fmt.Errorf("error reading row from backend: %w", err)
 	}
-
-	if maxTraceSizeBytes > 0 {
-		estimatedSize := estimateMarshalledSizeFromTrace(tr)
-		if estimatedSize > maxTraceSizeBytes && !allowPartialTraces {
-			return nil, fmt.Errorf("trace exceeds max size in the block. (max bytes: %d)", maxTraceSizeBytes)
-		}
-	}
-
 	// convert to proto trace and return
 	return ParquetTraceToTempopbTrace(meta, tr), nil
 }
