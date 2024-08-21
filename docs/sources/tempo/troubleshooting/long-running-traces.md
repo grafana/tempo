@@ -19,8 +19,11 @@ different blocks, which can lead to inconsistency in a few ways:
    performing a TraceID lookup, Tempo searches for all parts of a trace in all
    matching blocks, which yields greater accuracy when combined.
 
-1. When using structural operators, the conditions may match on different
-   blocks, and so results can be confusing.
+1. When using [`spanset`
+   operators](https://grafana.com/docs/tempo/latest/traceql/#combining-spansets),
+   Tempo only evaluates the contiguous trace of the current block. This means
+   that for a single block the conditions may evaluate to false, but to
+   consider all parts of the trace from all blocks would evaluate true.
 
 You can tune the `ingester.trace_idle_period` configuration to allow for
 greater control about when traces are written to a block. Extending this beyond
@@ -40,7 +43,7 @@ If you have long-running traces, you may also be interested in the
 `rootless_trace_flushed_to_wal` reason to know when a trace is flushed to the
 wall without a root trace.
 
-You can use `reason` fields for discovery with this query: 
+You can use `reason` fields for discovery with this query:
 
 ```
 sum(rate(tempo_warnings_total{}[5m])) by (reason)
