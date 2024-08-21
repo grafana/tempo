@@ -10,13 +10,13 @@
 
 Grafana Tempo is an open source, easy-to-use and high-scale distributed tracing backend. Tempo is cost-efficient, requiring only object storage to operate, and is deeply integrated with Grafana, Prometheus, and Loki.
 
-Tempo is Jaeger, Zipkin, Kafka, OpenCensus and OpenTelemetry compatible.  It ingests batches in any of the mentioned formats, buffers them and then writes them to Azure, GCS, S3 or local disk.  As such it is robust, cheap and easy to operate!
+Tempo is Jaeger, Zipkin, Kafka, OpenCensus and OpenTelemetry compatible.  It ingests batches in any of the mentioned formats, buffers them and then writes them to Azure, GCS, S3 or local disk. As such, it is robust, cheap and easy to operate!
 
 Tempo implements [TraceQL](https://grafana.com/docs/tempo/latest/traceql/), a traces-first query language inspired by LogQL and PromQL. This query language allows users to very precisely and easily select spans and jump directly to the spans fulfilling the specified conditions:
 
-<p align="center"><img src="docs/sources/tempo/getting-started/assets/grafana-query.png" alt="Tempo Screenshot"></p>
+![Tempo data source query editor](/media/docs/grafana/data-sources/tempo/query-editor/tempo-ds-query-ed-example-v11-a.png)
 
-## Getting Started
+## Getting started
 
 - [Get started documentation](https://grafana.com/docs/tempo/latest/getting-started/)
 - [Deployment Examples](./example)
@@ -24,7 +24,7 @@ Tempo implements [TraceQL](https://grafana.com/docs/tempo/latest/traceql/), a tr
   - [Helm](./example/helm)
   - [Jsonnet](./example/tk)
 
-## Further Reading
+## Further reading
 
 To learn more about Tempo, consult the following documents & talks:
 
@@ -34,7 +34,7 @@ To learn more about Tempo, consult the following documents & talks:
 [tempo_20_announce]: https://grafana.com/blog/2023/02/01/new-in-grafana-tempo-2.0-apache-parquet-as-the-default-storage-format-support-for-traceql/
 [traceql-post]: https://grafana.com/blog/2023/02/07/get-to-know-traceql-a-powerful-new-query-language-for-distributed-tracing/
 
-## Getting Help
+## Getting help
 
 If you have any questions or feedback regarding Tempo:
 
@@ -49,7 +49,7 @@ Tempo's receiver layer, wire format and storage format are all based directly on
 
 Check out the [Integration Guides](https://grafana.com/docs/tempo/latest/guides/instrumentation/) to see examples of OpenTelemetry instrumentation with Tempo.
 
-## Other Components
+## Other components
 
 ### tempo-vulture
 [tempo-vulture](https://github.com/grafana/tempo/tree/main/cmd/tempo-vulture) is Tempo's bird themed consistency checking tool.  It writes traces to Tempo and then queries them back in a variety of ways.
