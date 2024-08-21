@@ -935,7 +935,7 @@ func TestSpansetFilterOperators(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		t.Run(tc.in, func(t *testing.T) {
+		t.Run(tc.in, func(_ *testing.T) {
 			test(tc.in, tc.expected)
 			if tc.alsoTestWithoutSpace {
 				test(strings.ReplaceAll(tc.in, " ", ""), tc.expected)
