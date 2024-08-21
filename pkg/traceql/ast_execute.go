@@ -425,7 +425,6 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	if lhsT.isMatchingArrayElement(rhsT) {
 		// we only support boolean op in the arrays
 		if !o.Op.isBoolean() {
-			// we don't support non-bool ops on arrays
 			return NewStaticNil(), errors.ErrUnsupported
 		}
 
@@ -496,7 +495,6 @@ func getFlippedOp(op Operator) Operator {
 	case OpLess:
 		return OpGreater
 	case OpLessEqual:
-
 		return OpGreaterEqual
 	default:
 		return op

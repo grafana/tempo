@@ -34,9 +34,8 @@ func TestOne(t *testing.T) {
 	wantTr := fullyPopulatedTestTrace(nil)
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
 	ctx := context.Background()
-	q := `{ resource.str-array = "value-one" }` // -> only return one matching element
-	// q := `{ resource.str-array[] = "value-one" }` // -> if it matches, return all elements of array?? maybe do it in the future
-	// q := `{ resource.str-array =~ "value.*" }` // this will return all matching elements??
+	q := `{ resource.region != nil && resource.service.name = "bar" }`
+	// q := `{ resource.str-array =~ "value.*" }`
 	req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
 
 	req.StartTimeUnixNanos = uint64(1000 * time.Second)
