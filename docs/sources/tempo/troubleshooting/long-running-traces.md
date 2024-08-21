@@ -23,7 +23,7 @@ different blocks, which can lead to inconsistency in a few ways.
 1. When using structural operators, the conditions may match on different
    blocks, and so results can be confusing.
 
-Users can tune the `ingester.trace_idle_period` configuration to allow for
+You can tune the `ingester.trace_idle_period` configuration to allow for
 greater control about when traces are written to a block. Extending this beyond
 the default `10s` can allow for long running trace to be co-located in the same
 block, but take into account other considerations around memory consumption on
