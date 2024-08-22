@@ -35,7 +35,7 @@ The three **Query types** are:
 
 - The **Search** query builder provides a user interface for building a TraceQL query.
 - The **TraceQL** query editor lets you write your own TraceQL query with assistance from autocomplete.
-- The **Service Graph** view displays a visual relationship between services. Refer to the [Service graph view](../../metrics-generator/service-graph-view/) documentation for more information.
+- The **Service Graph** view displays a visual relationship between services. Refer to the [Service graph view](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/service-graph-view/) documentation for more information.
 
 ### Search query builder
 
@@ -68,7 +68,7 @@ Using the service graph view, you can:
 - Determine how long the slowest queries in your service take to complete
 - Examine all traces that contain spans of particular interest based on rate, error, and duration values (RED signals)
 
-For more information about the service graph, refer to [Service graph view](../../metrics-generator/service-graph-view/).
+For more information about the service graph, refer to [Service graph view](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/service-graph-view/).
 
 ![Screenshot of the Service Graph view](/media/docs/grafana/data-sources/tempo/query-editor/tempo-ds-query-service-graph.png)
 
