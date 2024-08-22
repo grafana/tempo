@@ -63,7 +63,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		BlockStart: blockStart,
 		BlockEnd:   blockEnd,
 		QueryMode:  queryMode,
-	}, timeStart, timeEnd, false)
+	}, timeStart, timeEnd)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -108,11 +108,12 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 		ot_log.String("apiVersion", "v2"))
 
 	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
-		TraceID:    byteID,
-		BlockStart: blockStart,
-		BlockEnd:   blockEnd,
-		QueryMode:  queryMode,
-	}, timeStart, timeEnd, true)
+		TraceID:           byteID,
+		BlockStart:        blockStart,
+		BlockEnd:          blockEnd,
+		QueryMode:         queryMode,
+		AllowPartialTrace: true,
+	}, timeStart, timeEnd)
 	if err != nil {
 		handleError(w, err)
 		return

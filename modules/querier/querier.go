@@ -221,7 +221,7 @@ func (q *Querier) stopping(_ error) error {
 }
 
 // FindTraceByID implements tempopb.Querier.
-func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest, timeStart int64, timeEnd int64, allowPartialTrace bool) (*tempopb.TraceByIDResponse, error) {
+func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest, timeStart int64, timeEnd int64) (*tempopb.TraceByIDResponse, error) {
 	if !validation.ValidTraceID(req.TraceID) {
 		return nil, errors.New("invalid trace id")
 	}
@@ -237,7 +237,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	span.SetTag("queryMode", req.QueryMode)
 
 	maxBytes := q.limits.MaxBytesPerTrace(userID)
-	combiner := trace.NewCombiner(maxBytes, allowPartialTrace)
+	combiner := trace.NewCombiner(maxBytes, req.AllowPartialTrace)
 
 	var spanCount, spanCountTotal, traceCountTotal int
 	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
@@ -252,7 +252,6 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		// get responses from all ingesters in parallel
 		span.LogFields(ot_log.String("msg", "searching ingesters"))
 		responses, err := q.forIngesterRings(ctx, userID, getRSFn, func(funcCtx context.Context, client tempopb.QuerierClient) (interface{}, error) {
-			req.AllowPartialTrace = allowPartialTrace
 			return client.FindTraceByID(funcCtx, req)
 		})
 		if err != nil {
@@ -317,7 +316,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	if combiner.IsPartialTrace() {
 		resp.Status = tempopb.TraceByIDResponse_PARTIAL
-		resp.Message = fmt.Sprintf("Trace exceeds maximun size of %d bytes, a partial trace is returned", maxBytes)
+		resp.Message = fmt.Sprintf("Trace exceeds maximum size of %d bytes, a partial trace is returned", maxBytes)
 	}
 
 	return resp, nil

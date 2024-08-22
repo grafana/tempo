@@ -71,6 +71,11 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 		return spanCount, nil
 	}
 
+	// Do not combine more spans for now
+	if c.maxTraceSizeReached && c.allowPartialTrace {
+		return spanCount, nil
+	}
+
 	h := newHash()
 	buffer := make([]byte, 4)
 
@@ -102,10 +107,6 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 		return spanCount, maxSizeErr
 	}
 
-	// Do not combine more spans for now
-	if c.maxTraceSizeReached && c.allowPartialTrace {
-		return spanCount, nil
-	}
 	// loop through every span and copy spans in B that don't exist to A
 	for _, b := range tr.ResourceSpans {
 		notFoundILS := b.ScopeSpans[:0]
