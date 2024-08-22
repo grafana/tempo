@@ -39,7 +39,7 @@ func TestQueryValidatorForAnInvalidTraceQLQuery(t *testing.T) {
 
 func TestQueryValidatorForAnInvalidTraceQlQueryRegex(t *testing.T) {
 	roundTrip := NewQueryValidatorWare().Wrap(nextFunc)
-	statusCode := doRequest(t, "http://localhost:8080/api/search?query={span.a =~ \".*((?<!(-test))(?<!(-uat)))$\"}", roundTrip)
+	statusCode := doRequest(t, "http://localhost:8080/api/search?query={span.a =~ \"[\"}", roundTrip)
 	assert.Equal(t, 400, statusCode)
 }
 
