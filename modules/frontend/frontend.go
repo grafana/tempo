@@ -136,6 +136,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	metricsPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
+			queryValidatorWare,
 			multiTenantUnsupportedMiddleware(cfg, logger),
 		},
 		[]pipeline.Middleware{statusCodeWare, retryWare},
