@@ -731,6 +731,52 @@ func (s Static) compare(o *Static) int {
 	}
 }
 
+type VisitFunc func(Static) bool // Return false to stop iteration
+
+// GetElements turns arrays into slice of Static elements to iterate over.
+func (s Static) GetElements(fn VisitFunc) error {
+	switch s.Type {
+	case TypeIntArray:
+		ints, _ := s.IntArray()
+		for _, n := range ints {
+			if !fn(NewStaticInt(n)) {
+				break // stop early if the callback returns false
+			}
+		}
+		return nil
+
+	case TypeFloatArray:
+		floats, _ := s.FloatArray()
+		for _, f := range floats {
+			if !fn(NewStaticFloat(f)) {
+				break
+			}
+		}
+		return nil
+
+	case TypeStringArray:
+		strs, _ := s.StringArray()
+		for _, str := range strs {
+			if !fn(NewStaticString(str)) {
+				break
+			}
+		}
+		return nil
+
+	case TypeBooleanArray:
+		bools, _ := s.BooleanArray()
+		for _, b := range bools {
+			if !fn(NewStaticBool(b)) {
+				break
+			}
+		}
+		return nil
+
+	default:
+		return fmt.Errorf("unsupported type")
+	}
+}
+
 func (s Static) Int() (int, bool) {
 	if s.Type != TypeInt {
 		return 0, false

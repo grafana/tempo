@@ -35,6 +35,7 @@ func TestOne(t *testing.T) {
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
 	ctx := context.Background()
 	q := `{ resource.region != nil && resource.service.name = "bar" }`
+	// q := `{ resource.str-array =~ "value.*" }`
 	req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
 
 	req.StartTimeUnixNanos = uint64(1000 * time.Second)
@@ -149,6 +150,11 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		// Span dedicated attributes
 		{"span.dedicated.span.2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = "dedicated-span-attr-value-2"}`)},
 		{"span.dedicated.span.4", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 = "dedicated-span-attr-value-4"}`)},
+		// Arrays
+		{"resource.str-array", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.str-array = "value-three"}`)},
+		{"resource.int-array", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.int-array = 11}`)},
+		{"span.str-array", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.str-array = "value-two"}`)},
+		{"span.int-array", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.int-array = 222}`)},
 		// Events
 		{"event:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:name = "e1"}`)},
 		{"event:timeSinceStart", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:timeSinceStart > 2ms}`)},
@@ -157,6 +163,10 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		{"link:spanID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:spanID = "1234567890abcdef"}`)},
 		{"link:traceID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:traceID = "1234567890abcdef1234567890abcdef"}`)},
 		{"link.opentracing.ref_type", traceql.MustExtractFetchSpansRequestWithMetadata(`{link.opentracing.ref_type = "child-of"}`)},
+		// Instrumentation Scope
+		{"instrumentation:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation:name = "scope-1"}`)},
+		{"instrumentation:version", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation:version = "version-1"}`)},
+		{"instrumentation.attr-str", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.scope-attr-str = "scope-attr-1"}`)},
 		// Basic data types and operations
 		{".float = 456.78", traceql.MustExtractFetchSpansRequestWithMetadata(`{.float = 456.78}`)},             // Float ==
 		{".float != 456.79", traceql.MustExtractFetchSpansRequestWithMetadata(`{.float != 456.79}`)},           // Float !=
@@ -191,13 +201,11 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 			parse(t, `{.foo = "def"}`),
 		)},
 		{"Multiple conditions on same well-known attribute, matches either", makeReq(
-			//
 			parse(t, `{.`+LabelHTTPStatusCode+` = 500}`),
 			parse(t, `{.`+LabelHTTPStatusCode+` > 500}`),
 		)},
 		{
 			"Mix of duration with other conditions", makeReq(
-				//
 				parse(t, `{`+LabelName+` = "hello"}`),   // Match
 				parse(t, `{`+LabelDuration+` < 100s }`), // No match
 			),
@@ -518,7 +526,8 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 					K8sContainerName: ptr("k8scontainer"),
 					Attrs: []Attribute{
 						attr("foo", "abc"),
-						attr("str-array", []string{"value-one", "value-two"}),
+						attr("str-array", []string{"value-one", "value-two", "value-three", "value-four"}),
+						attr("int-array", []int64{11, 22, 33}),
 						attr(LabelServiceName, 123), // Different type than dedicated column
 						// Unsupported attributes
 						{Key: "unsupported-mixed-array", ValueUnsupported: &mixedArrayAttrValue, IsArray: false},
@@ -567,8 +576,8 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 									attr("bar", 123),
 									attr("float", 456.78),
 									attr("bool", false),
-									attr("string-array", []string{"value-one"}),
-									attr("int-array", []int64{11, 22}),
+									attr("str-array", []string{"value-one", "value-two"}),
+									attr("int-array", []int64{111, 222, 333, 444}),
 									attr("double-array", []float64{1.1, 2.2, 3.3}),
 									attr("bool-array", []bool{true, false, true, false}),
 									// Edge-cases
@@ -641,6 +650,9 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 						Scope: InstrumentationScope{
 							Name:    "scope-2",
 							Version: "version-2",
+							Attrs: []Attribute{
+								attr("scope-attr-str", "scope-attr-2"),
+							},
 						},
 						Spans: []Span{
 							{
@@ -742,6 +754,7 @@ func TestBackendBlockSelectAll(t *testing.T) {
 			sortAttrs(s.traceAttrs)
 			sortAttrs(s.resourceAttrs)
 			sortAttrs(s.spanAttrs)
+			sortAttrs(s.instrumentationAttrs)
 		}
 
 		require.Equal(t, wantSS, ss)
@@ -833,6 +846,20 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 		sortAttrs(rsAttrs)
 
 		for _, ss := range rs.ScopeSpans {
+			var instrumentationAttrs []attrVal
+			instrumentationAttrs = append(instrumentationAttrs, attrVal{traceql.IntrinsicInstrumentationNameAttribute, traceql.NewStaticString(ss.Scope.Name)})
+			instrumentationAttrs = append(instrumentationAttrs, attrVal{traceql.IntrinsicInstrumentationVersionAttribute, traceql.NewStaticString(ss.Scope.Version)})
+			for _, a := range parquetToProtoAttrs(ss.Scope.Attrs) {
+				if arr := a.Value.GetArrayValue(); arr != nil {
+					for _, v := range arr.Values {
+						instrumentationAttrs = append(instrumentationAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, a.Key), traceql.StaticFromAnyValue(v)})
+					}
+					continue
+				}
+				instrumentationAttrs = append(instrumentationAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, a.Key), traceql.StaticFromAnyValue(a.Value)})
+			}
+			sortAttrs(instrumentationAttrs)
+
 			for _, s := range ss.Spans {
 
 				newS := &span{}
@@ -841,6 +868,7 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 				newS.durationNanos = s.DurationNano
 				newS.setTraceAttrs(traceAttrs)
 				newS.setResourceAttrs(rsAttrs)
+				newS.setInstrumentationAttrs(instrumentationAttrs)
 				newS.addSpanAttr(traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(s.DurationNano)))
 				newS.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(otlpKindToTraceqlKind(uint64(s.Kind))))
 				newS.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(s.Name))
@@ -922,11 +950,13 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	ctx := context.TODO()
 	tenantID := "1"
 	// blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-	blockID := uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
+	// blockID := uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
+	blockID := uuid.MustParse("257e3a56-224a-4ebe-9696-1b304f456ac2")
 
 	r, _, _, err := local.New(&local.Config{
 		// Path: path.Join("/Users/marty/src/tmp"),
-		Path: path.Join("/Users/mapno/workspace/testblock"),
+		// Path: path.Join("/Users/mapno/workspace/testblock"),
+		Path: path.Join("/Users/suraj/wd/grafana/testblock"),
 	})
 	require.NoError(b, err)
 
@@ -972,16 +1002,18 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 		query   string
 		groupby string
 	}{
-		//{"{ resource.service.name = `gme-ingester` }", "resource.cluster"},
+		// {"{ resource.service.name = `gme-ingester` }", "resource.cluster"},
 		{"{}", "name"},
 	}
 
 	ctx := context.TODO()
 	tenantID := "1"
-	blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+	// blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+	blockID := uuid.MustParse("257e3a56-224a-4ebe-9696-1b304f456ac2")
 
 	r, _, _, err := local.New(&local.Config{
-		Path: path.Join("/Users/marty/src/tmp/"),
+		// Path: path.Join("/Users/marty/src/tmp/"),
+		Path: path.Join("/Users/suraj/wd/grafana/testblock"),
 	})
 	require.NoError(b, err)
 
@@ -1031,9 +1063,11 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		e        = traceql.NewEngine()
 		tenantID = "1"
 		// blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-		blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
-		path    = "/Users/mapno/workspace/testblock"
-		// path = "/Users/marty/src/tmp"
+		// blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
+		blockID = uuid.MustParse("257e3a56-224a-4ebe-9696-1b304f456ac2")
+		// path    = "/Users/marty/src/tmp/"
+		// path    = "/Users/mapno/workspace/testblock"
+		path = "/Users/suraj/wd/grafana/testblock"
 	)
 
 	r, _, _, err := local.New(&local.Config{
@@ -1191,8 +1225,10 @@ func TestTraceIDShardingQuality(t *testing.T) {
 		opts     = common.DefaultSearchOptions()
 		tenantID = "1"
 		// blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-		blockID = uuid.MustParse("18364616-f80d-45a6-b2a3-cb63e203edff")
-		path    = "/Users/marty/src/tmp/"
+		// blockID = uuid.MustParse("18364616-f80d-45a6-b2a3-cb63e203edff")
+		blockID = uuid.MustParse("257e3a56-224a-4ebe-9696-1b304f456ac2")
+		// path    = "/Users/marty/src/tmp/"
+		path = "/Users/suraj/wd/grafana/testblock"
 	)
 
 	r, _, _, err := local.New(&local.Config{
