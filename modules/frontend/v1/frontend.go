@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/grafana/dskit/flagext"
@@ -22,13 +23,11 @@ import (
 	"github.com/grafana/tempo/modules/frontend/queue"
 	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/validation"
 )
 
 // Config for a Frontend.
 type Config struct {
 	MaxOutstandingPerTenant int                    `yaml:"max_outstanding_per_tenant"`
-	QuerierForgetDelay      time.Duration          `yaml:"querier_forget_delay"`
 	MaxBatchSize            int                    `yaml:"max_batch_size"`
 	LogQueryRequestHeaders  flagext.StringSliceCSV `yaml:"log_query_request_headers"`
 }
@@ -36,13 +35,7 @@ type Config struct {
 // RegisterFlags adds the flags required to config this to the given FlagSet.
 func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 	f.IntVar(&cfg.MaxOutstandingPerTenant, "querier.max-outstanding-requests-per-tenant", 2000, "Maximum number of outstanding requests per tenant per frontend; requests beyond this error with HTTP 429.")
-	f.DurationVar(&cfg.QuerierForgetDelay, "query-frontend.querier-forget-delay", 0, "If a querier disconnects without sending notification about graceful shutdown, the query-frontend will keep the querier in the tenant's shard until the forget delay has passed. This feature is useful to reduce the blast radius when shuffle-sharding is enabled.")
 	f.Var(&cfg.LogQueryRequestHeaders, "query-frontend.log-query-request-headers", "Comma-separated list of request header names to include in query logs. Applies to both query stats and slow queries logs.")
-}
-
-type Limits interface {
-	// Returns max queriers to use per tenant, or 0 if shuffle sharding is disabled.
-	MaxQueriersPerUser(user string) int
 }
 
 // Frontend queues HTTP requests, dispatches them to backends, and handles retries
@@ -50,12 +43,13 @@ type Limits interface {
 type Frontend struct {
 	services.Service
 
-	cfg    Config
-	log    log.Logger
-	limits Limits
+	cfg Config
+	log log.Logger
 
 	requestQueue *queue.RequestQueue
 	activeUsers  *util.ActiveUsersCleanupService
+
+	connectedQuerierWorkers *atomic.Int32
 
 	// Subservices manager.
 	subservices        *services.Manager
@@ -80,7 +74,7 @@ type request struct {
 }
 
 // New creates a new frontend. Frontend implements service, and must be started and stopped.
-func New(cfg Config, limits Limits, log log.Logger, registerer prometheus.Registerer) (*Frontend, error) {
+func New(cfg Config, log log.Logger, registerer prometheus.Registerer) (*Frontend, error) {
 	const batchBucketCount = 5
 	if cfg.MaxBatchSize <= 0 {
 		return nil, errors.New("max_batch_size must be positive")
@@ -88,9 +82,8 @@ func New(cfg Config, limits Limits, log log.Logger, registerer prometheus.Regist
 	batchBucketSize := float64(cfg.MaxBatchSize) / float64(batchBucketCount)
 
 	f := &Frontend{
-		cfg:    cfg,
-		log:    log,
-		limits: limits,
+		cfg: cfg,
+		log: log,
 		queueLength: promauto.With(registerer).NewGaugeVec(prometheus.GaugeOpts{
 			Name: "tempo_query_frontend_queue_length",
 			Help: "Number of queries in the queue.",
@@ -114,8 +107,9 @@ func New(cfg Config, limits Limits, log log.Logger, registerer prometheus.Regist
 		}),
 	}
 
-	f.requestQueue = queue.NewRequestQueue(cfg.MaxOutstandingPerTenant, cfg.QuerierForgetDelay, f.queueLength, f.discardedRequests)
+	f.requestQueue = queue.NewRequestQueue(cfg.MaxOutstandingPerTenant, f.queueLength, f.discardedRequests)
 	f.activeUsers = util.NewActiveUsersCleanupWithDefaultValues(f.cleanupInactiveUserMetrics)
+	f.connectedQuerierWorkers = &atomic.Int32{}
 
 	var err error
 	f.subservices, err = services.NewManager(f.requestQueue, f.activeUsers)
@@ -126,7 +120,9 @@ func New(cfg Config, limits Limits, log log.Logger, registerer prometheus.Regist
 	f.numClients = promauto.With(registerer).NewGaugeFunc(prometheus.GaugeOpts{
 		Name: "tempo_query_frontend_connected_clients",
 		Help: "Number of worker clients currently connected to the frontend.",
-	}, f.requestQueue.GetConnectedQuerierWorkersMetric)
+	}, func() float64 {
+		return float64(f.connectedQuerierWorkers.Load())
+	})
 
 	f.Service = services.NewBasicService(f.starting, f.running, f.stopping)
 	return f, nil
@@ -210,8 +206,8 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 		return err
 	}
 
-	f.requestQueue.RegisterQuerierConnection(querierID)
-	defer f.requestQueue.UnregisterQuerierConnection(querierID)
+	f.connectedQuerierWorkers.Add(1)
+	defer f.connectedQuerierWorkers.Add(-1)
 
 	lastUserIndex := queue.FirstUser()
 
@@ -331,7 +327,6 @@ func reportResponseUpstream(reqBatch *requestBatch, errs chan error, resps chan 
 
 func (f *Frontend) NotifyClientShutdown(_ context.Context, req *frontendv1pb.NotifyClientShutdownRequest) (*frontendv1pb.NotifyClientShutdownResponse, error) {
 	level.Info(f.log).Log("msg", "received shutdown notification from querier", "querier", req.GetClientID())
-	f.requestQueue.NotifyQuerierShutdown(req.GetClientID())
 
 	return &frontendv1pb.NotifyClientShutdownResponse{}, nil
 }
@@ -371,20 +366,17 @@ func (f *Frontend) queueRequest(ctx context.Context, req *request) error {
 	req.enqueueTime = now
 	req.queueSpan, _ = opentracing.StartSpanFromContext(ctx, "queued")
 
-	// aggregate the max queriers limit in the case of a multi tenant query
-	maxQueriers := validation.SmallestPositiveNonZeroIntPerTenant(tenantIDs, f.limits.MaxQueriersPerUser)
-
 	joinedTenantID := tenant.JoinTenantIDs(tenantIDs)
 	f.activeUsers.UpdateUserTimestamp(joinedTenantID, now)
 
-	return f.requestQueue.EnqueueRequest(joinedTenantID, req, maxQueriers)
+	return f.requestQueue.EnqueueRequest(joinedTenantID, req)
 }
 
 // CheckReady determines if the query frontend is ready.  Function parameters/return
 // chosen to match the same method in the ingester
 func (f *Frontend) CheckReady(_ context.Context) error {
 	// if we have more than one querier connected we will consider ourselves ready
-	connectedClients := f.requestQueue.GetConnectedQuerierWorkersMetric()
+	connectedClients := f.connectedQuerierWorkers.Load()
 	if connectedClients > 0 {
 		return nil
 	}
