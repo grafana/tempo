@@ -215,8 +215,6 @@ jobs:
   build-technical-documentation:
     name: Build technical documentation
     runs-on: ubuntu-latest
-    paths:
-      - 'docs/**'
     steps:
       - name: Check out code
         uses: actions/checkout@v4
