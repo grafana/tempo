@@ -47,10 +47,23 @@ func (q *queues) deleteQueue(userID string) {
 	}
 }
 
+// deleteEmptyQueues removes all user queues that have no length. in addition it returns true if any
+// queues were removed.
+func (q *queues) deleteEmptyQueues() bool {
+	removedQueue := false
+
+	// look for 0 len queues and remove them
+	for userID, uq := range q.userQueues {
+		if len(uq.ch) == 0 {
+			removedQueue = true
+			q.deleteQueue(userID)
+		}
+	}
+
+	return removedQueue
+}
+
 // Returns existing or new queue for user.
-// MaxQueriers is used to compute which queriers should handle requests for this user.
-// If maxQueriers is <= 0, all queriers can handle this user's requests.
-// If maxQueriers has changed since the last call, queriers for this are recomputed.
 func (q *queues) getOrAddQueue(userID string) chan Request {
 	// Empty user is not allowed, as that would break our users list ("" is used for free spot).
 	if userID == "" {
@@ -88,7 +101,7 @@ func (q *queues) getOrAddQueue(userID string) chan Request {
 // Finds next queue for the querier. To support fair scheduling between users, client is expected
 // to pass last user index returned by this function as argument. Is there was no previous
 // last user index, use -1.
-func (q *queues) getNextQueueForQuerier(lastUserIndex int, querierID string) (chan Request, string, int) {
+func (q *queues) getNextQueueForQuerier(lastUserIndex int) (chan Request, string, int) {
 	uid := lastUserIndex
 
 	for iters := 0; iters < len(q.users); iters++ {

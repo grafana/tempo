@@ -105,11 +105,11 @@ func New(cfg Config, log log.Logger, registerer prometheus.Registerer) (*Fronten
 			Help:    "Batch size.",
 			Buckets: prometheus.LinearBuckets(1, batchBucketSize, batchBucketCount),
 		}),
+		connectedQuerierWorkers: &atomic.Int32{},
 	}
 
 	f.requestQueue = queue.NewRequestQueue(cfg.MaxOutstandingPerTenant, f.queueLength, f.discardedRequests)
 	f.activeUsers = util.NewActiveUsersCleanupWithDefaultValues(f.cleanupInactiveUserMetrics)
-	f.connectedQuerierWorkers = &atomic.Int32{}
 
 	var err error
 	f.subservices, err = services.NewManager(f.requestQueue, f.activeUsers)
@@ -201,7 +201,7 @@ func (f *Frontend) RoundTripGRPC(ctx context.Context, req *httpgrpc.HTTPRequest)
 
 // Process allows backends to pull requests from the frontend.
 func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
-	querierID, querierFeatures, err := getQuerierInfo(server)
+	_, querierFeatures, err := getQuerierInfo(server)
 	if err != nil {
 		return err
 	}
@@ -218,7 +218,7 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 	}
 	for {
 		reqSlice := make([]queue.Request, batchSize)
-		reqSlice, idx, err := f.requestQueue.GetNextRequestForQuerier(server.Context(), lastUserIndex, querierID, reqSlice)
+		reqSlice, idx, err := f.requestQueue.GetNextRequestForQuerier(server.Context(), lastUserIndex, reqSlice)
 		if err != nil {
 			return err
 		}

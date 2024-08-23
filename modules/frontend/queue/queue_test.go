@@ -173,7 +173,7 @@ func queueWithListeners(ctx context.Context, listeners int, batchSize int, liste
 
 			batchBuffer := make([]Request, batchSize)
 			for {
-				r, last, err = q.GetNextRequestForQuerier(ctx, last, "", batchBuffer)
+				r, last, err = q.GetNextRequestForQuerier(ctx, last, batchBuffer)
 				if err != nil {
 					return
 				}

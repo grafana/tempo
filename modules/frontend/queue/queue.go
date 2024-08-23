@@ -11,8 +11,7 @@ import (
 )
 
 const (
-	// How frequently to check for disconnected queriers that should be forgotten.
-	forgetCheckPeriod = 30 * time.Second // every 30 seconds b/c the the stopping code requires there to be no queues. i would like to make this 5-10 minutes but then shutdowns would be blocked
+	queueCleanupPeriod = 30 * time.Second // every 30 seconds b/c the the stopping code requires there to be no queues. i would like to make this 5-10 minutes but then shutdowns would be blocked
 )
 
 var (
@@ -42,9 +41,7 @@ func FirstUser() UserIndex {
 // Request stored into the queue.
 type Request interface{}
 
-// RequestQueue holds incoming requests in per-user queues. It also assigns each user specified number of queriers,
-// and when querier asks for next request to handle (using GetNextRequestForQuerier), it returns requests
-// in a fair fashion.
+// RequestQueue holds incoming requests in per-user queues.
 type RequestQueue struct {
 	services.Service
 
@@ -65,14 +62,12 @@ func NewRequestQueue(maxOutstandingPerTenant int, queueLength *prometheus.GaugeV
 	}
 
 	q.cond = contextCond{Cond: sync.NewCond(&q.mtx)}
-	q.Service = services.NewTimerService(forgetCheckPeriod, nil, q.cleanupQueues, q.stopping).WithName("request queue")
+	q.Service = services.NewTimerService(queueCleanupPeriod, nil, q.cleanupQueues, q.stopping).WithName("request queue")
 
 	return q
 }
 
-// EnqueueRequest puts the request into the queue. MaxQueries is user-specific value that specifies how many queriers can
-// this user use (zero or negative = all queriers). It is passed to each EnqueueRequest, because it can change
-// between calls.
+// EnqueueRequest puts the request into the queue.
 //
 // If request is successfully enqueued, successFn is called with the lock held, before any querier can receive the request.
 func (q *RequestQueue) EnqueueRequest(userID string, req Request) error {
@@ -135,7 +130,7 @@ func (q *RequestQueue) getQueueUnderRlock(userID string) (chan Request, func(), 
 
 // GetNextRequestForQuerier find next user queue and attempts to dequeue N requests as defined by the length of
 // batchBuffer. This slice is a reusable buffer to fill up with requests
-func (q *RequestQueue) GetNextRequestForQuerier(ctx context.Context, last UserIndex, querierID string, batchBuffer []Request) ([]Request, UserIndex, error) {
+func (q *RequestQueue) GetNextRequestForQuerier(ctx context.Context, last UserIndex, batchBuffer []Request) ([]Request, UserIndex, error) {
 	requestedCount := len(batchBuffer)
 	if requestedCount == 0 {
 		return nil, last, errors.New("batch buffer must have len > 0")
@@ -161,7 +156,7 @@ FindQueue:
 		return nil, last, err
 	}
 
-	queue, userID, idx := q.queues.getNextQueueForQuerier(last.last, querierID)
+	queue, userID, idx := q.queues.getNextQueueForQuerier(last.last)
 	last.last = idx
 	if queue != nil {
 		// this is all threadsafe b/c all users queues are blocked by q.mtx
@@ -175,11 +170,7 @@ FindQueue:
 			batchBuffer[i] = <-queue
 		}
 
-		qLen := len(queue)
-		q.queueLength.WithLabelValues(userID).Set(float64(qLen))
-
-		// Tell close() we've processed a request.
-		// q.cond.Broadcast()
+		q.queueLength.WithLabelValues(userID).Set(float64(len(queue)))
 
 		return batchBuffer, last, nil
 	}
@@ -194,18 +185,7 @@ func (q *RequestQueue) cleanupQueues(_ context.Context) error {
 	q.mtx.Lock()
 	defer q.mtx.Unlock()
 
-	removedQueue := false
-
-	// look for 0 len queues and remove them
-	for userID, uq := range q.queues.userQueues {
-		if uq.ch != nil && len(uq.ch) == 0 {
-			removedQueue = true
-			q.queues.deleteQueue(userID)
-		}
-	}
-
-	// if we removed a queue, notify stopping
-	if removedQueue {
+	if q.queues.deleteEmptyQueues() {
 		q.cond.Broadcast()
 	}
 
