@@ -65,6 +65,9 @@ func (c *Combiner) Consume(tr *tempopb.Trace) (int, error) {
 
 // Consume the given partial trace, no further processing is needed
 func (c *Combiner) ConsumePartialTrace(tr *tempopb.Trace) (int, error) {
+	if tr == nil || c.IsPartialTrace() {
+		return 0, nil
+	}
 	c.result = tr
 	c.maxTraceSizeReached = true
 	return len(tr.ResourceSpans), nil
