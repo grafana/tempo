@@ -28,7 +28,7 @@ jobs:
         run: |
           excluded_paths="${{ env.EXCLUDED_PATHS }}"
           changed_files="${{ steps.changed-files.outputs.files }}"
-          
+
           # Convert excluded_paths to a regex pattern
           excluded_regex=$(echo "$excluded_paths" | sed 's/|/\\|/g')
 
@@ -121,6 +121,13 @@ jobs:
           go-version-file: "go.mod"
       - name: Run Tests
         run: make ${{ matrix.test-target }}
+      - name: Report completion
+        if: success()
+        run: echo "Test ${{ matrix.test-target }} completed successfully."
+
+      - name: Report skipped
+        if: failure()
+        run: echo "Test ${{ matrix.test-target }} failed or was skipped."
 
   build:
     name: Build
