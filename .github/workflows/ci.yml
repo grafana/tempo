@@ -1,11 +1,13 @@
 name: CI
 on:
   pull_request:
-    paths:
-      - '**.go'
-      - 'go.mod'
-      - 'Makefile'
-      - '**.jsonnet'
+# Requiring certain checks for PRs to be merge-able in Github, forces for those checks to be *always* run.
+# Even if the changes do not require them (i.e. the paths indicated below). That's why `paths-ignore` is commented out.
+#
+#    paths-ignore:
+#      - 'docs/**'
+#      - 'example/**'
+#      - 'tools/**'
 
 concurrency:
   # Cancel any running workflow for the same branch when new commits are pushed.
@@ -16,31 +18,39 @@ concurrency:
 
 jobs:
   check-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      changed: ${{ steps.check-changes.outputs.changed }}
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
+  runs-on: ubuntu-latest
+  outputs:
+    skip-job: ${{ steps.set-output.outputs.skip-job }}
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Check for changes
-        id: check-changes
-        run: |
-          if git diff --name-only HEAD~1 | grep -E 'docs/**|README.md|Makefile.md'; then
-            echo "Files changed"
-            echo "changed=true" >> $GITHUB_ENV
-            echo "::set-output name=changed::true"
+    - name: Get list of changed files
+      id: changed-files
+      run: |
+        git fetch --prune --unshallow
+        changed_files=$(git diff --name-only HEAD^ HEAD)
+        echo "Changed files: $changed_files"
+        echo "::set-output name=files::$changed_files"
+
+    - name: Determine if only CHANGELOG.md or /docs folder has changed
+      id: set-output
+      run: |
+        changed_files="${{ steps.changed-files.outputs.files }}"
+        if [[ "$changed_files" =~ ^(CHANGELOG.md|docs/) ]]; then
+          if [[ ! "$changed_files" =~ ^(CHANGELOG.md|docs/) || ! "$changed_files" =~ ^docs/ ]]; then
+            echo "::set-output name=skip-job::true"
           else
-            echo "No relevant changes"
-            echo "changed=false" >> $GITHUB_ENV
-            echo "::set-output name=changed::false"
+            echo "::set-output name=skip-job::false"
           fi
+        else
+          echo "::set-output name=skip-job::false"
+        fi
   lint:
     name: Lint
-    needs: check-changes
-    if: needs.check-changes.outputs.changed == 'true'
     runs-on: ubuntu-latest
-    if: ${{ *pr_conditions }}
+    needs: check-changes
+    if: needs.check-changes.outputs.skip-job == 'false'
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -52,17 +62,16 @@ jobs:
           go-version-file: "go.mod"
       - name: check-fmt
         run: make check-fmt
+
       - name: check-jsonnetfmt
         run: make check-jsonnetfmt
+
       - name: lint
         run: make lint base=origin/${{github.base_ref}}
 
   unit-tests:
     name: Run Unit Tests
-    needs: check-changes
-    if: needs.check-changes.outputs.changed == 'true'
     runs-on: ubuntu-latest
-    if: ${{ *pr_conditions }}
     strategy:
       matrix:
         test-target:
@@ -88,7 +97,6 @@ jobs:
   integration-tests:
     name: Run integration tests
     runs-on: ubuntu-latest
-    if: ${{ *pr_conditions }}
     strategy:
       matrix:
         test-target:
@@ -112,7 +120,6 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    if: ${{ *pr_conditions }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -137,7 +144,6 @@ jobs:
   benchmark:
     name: Benchmark
     runs-on: ubuntu-latest
-    if: ${{ *pr_conditions }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -153,7 +159,6 @@ jobs:
   vendor-check:
     name: Vendor check
     runs-on: ubuntu-latest
-    if: ${{ *pr_conditions }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -174,7 +179,6 @@ jobs:
   tempo-jsonnet:
     name: Check jsonnet & tempo-mixin
     runs-on: ubuntu-latest
-    if: ${{ *pr_conditions }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -196,8 +200,6 @@ jobs:
   build-technical-documentation:
     name: Build technical documentation
     runs-on: ubuntu-latest
-    paths:
-      - 'docs/**'
     steps:
       - name: Check out code
         uses: actions/checkout@v4
