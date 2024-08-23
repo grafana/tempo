@@ -63,6 +63,13 @@ func (c *Combiner) Consume(tr *tempopb.Trace) (int, error) {
 	return c.ConsumeWithFinal(tr, false)
 }
 
+// Consume the given partial trace, no further processing is needed
+func (c *Combiner) ConsumePartialTrace(tr *tempopb.Trace) (int, error) {
+	c.result = tr
+	c.maxTraceSizeReached = true
+	return len(tr.ResourceSpans), nil
+}
+
 // ConsumeWithFinal consumes the trace, but allows for performance savings when
 // it is known that this is the last expected input trace.
 func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) {
