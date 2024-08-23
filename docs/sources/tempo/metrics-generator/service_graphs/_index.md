@@ -1,13 +1,16 @@
 ---
 aliases:
-- /docs/tempo/latest/server_side_metrics/service_graphs/
-- /docs/tempo/latest/metrics-generator/service_graphs/
+  - ./ #/docs/tempo/<TEMPO_VERSION>/metrics-generator/service_graphs/
+  - ../server_side_metrics/service_graphs/ # /docs/tempo/<TEMPO_VERSION>/server_side_metrics/service_graphs/
 title: Service graphs
 description: Service graphs help you understand the structure of a distributed system and the connections and dependencies between its components.
 weight: 300
 ---
 
 # Service graphs
+
+{{< docs/alias from="/docs/tempo/latest/server_side_metrics/service_graphs/" to="/docs/tempo/latest/metrics-generator/service_graphs/" >}}
+
 
 A service graph is a visual representation of the interrelationships between various services.
 Service graphs help you to understand the structure of a distributed system,
