@@ -482,6 +482,39 @@ func TestStatic_AsAnyValue(t *testing.T) {
 		{NewStaticStatus(StatusOk), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "ok"}}},
 		{NewStaticKind(KindInternal), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "internal"}}},
 		{NewStaticNil(), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "nil"}}},
+		// Test for arrays
+		{
+			NewStaticIntArray([]int{1, 2}),
+			&v1.AnyValue{
+				Value: &v1.AnyValue_ArrayValue{
+					ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 1}}, {Value: &v1.AnyValue_IntValue{IntValue: 2}}}},
+				},
+			},
+		},
+		{
+			NewStaticFloatArray([]float64{1.1, 2.2}),
+			&v1.AnyValue{
+				Value: &v1.AnyValue_ArrayValue{
+					ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.1}}, {Value: &v1.AnyValue_DoubleValue{DoubleValue: 2.2}}}},
+				},
+			},
+		},
+		{
+			NewStaticStringArray([]string{"foo", "bar"}),
+			&v1.AnyValue{
+				Value: &v1.AnyValue_ArrayValue{
+					ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_StringValue{StringValue: "foo"}}, {Value: &v1.AnyValue_StringValue{StringValue: "bar"}}}},
+				},
+			},
+		},
+		{
+			NewStaticBooleanArray([]bool{true, false}),
+			&v1.AnyValue{
+				Value: &v1.AnyValue_ArrayValue{
+					ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_BoolValue{BoolValue: true}}, {Value: &v1.AnyValue_BoolValue{BoolValue: false}}}},
+				},
+			},
+		},
 	}
 	for _, tc := range tt {
 		t.Run(fmt.Sprintf("%v", tc.s), func(t *testing.T) {

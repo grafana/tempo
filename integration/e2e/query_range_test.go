@@ -60,15 +60,13 @@ sendLoop:
 			callQueryRange(t, tempo.Endpoint(3200), query, debugMode)
 		})
 	}
+
+	res := doRequest(t, tempo.Endpoint(3200), "{. a}")
+	require.Equal(t, 400, res.StatusCode)
 }
 
 func callQueryRange(t *testing.T, endpoint, query string, printBody bool) {
-	url := buildURL(endpoint, fmt.Sprintf("%s with(exemplars=true)", query))
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	require.NoError(t, err)
-
-	res, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
+	res := doRequest(t, endpoint, query)
 	require.Equal(t, http.StatusOK, res.StatusCode)
 
 	// Read body and print it
@@ -87,6 +85,16 @@ func callQueryRange(t *testing.T, endpoint, query string, printBody bool) {
 		exemplarCount += len(series.GetExemplars())
 	}
 	require.GreaterOrEqual(t, exemplarCount, 1)
+}
+
+func doRequest(t *testing.T, endpoint, query string) *http.Response {
+	url := buildURL(endpoint, fmt.Sprintf("%s with(exemplars=true)", query))
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	require.NoError(t, err)
+
+	res, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	return res
 }
 
 func buildURL(endpoint, query string) string {

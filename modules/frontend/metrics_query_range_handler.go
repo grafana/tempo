@@ -87,8 +87,8 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		if err != nil {
 			level.Error(logger).Log("msg", "query range: query range combiner failed", "err", err)
 			return &http.Response{
-				StatusCode: http.StatusInternalServerError,
-				Status:     http.StatusText(http.StatusInternalServerError),
+				StatusCode: http.StatusBadRequest,
+				Status:     http.StatusText(http.StatusBadRequest),
 				Body:       io.NopCloser(strings.NewReader(err.Error())),
 			}, nil
 		}

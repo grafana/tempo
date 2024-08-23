@@ -104,11 +104,6 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			},
 		},
 		{
-			name:     "invalid traceql query",
-			urlQuery: "q=" + url.QueryEscape(`{ .foo="bar" `),
-			err:      "invalid TraceQL query: parse error at line 1, col 14: syntax error: unexpected $end",
-		},
-		{
 			name:     "traceql query and tags",
 			urlQuery: "q=" + url.QueryEscape(`{ .foo="bar" }`) + "&tags=" + url.QueryEscape("service.name=foo"),
 			err:      "invalid request: can't specify tags and q in the same query",

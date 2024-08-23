@@ -146,13 +146,6 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 
 	query, queryFound := extractQueryParam(vals, urlParamQuery)
 	if queryFound {
-		// TODO hacky fix: we don't validate {} since this isn't handled correctly yet
-		if query != "{}" {
-			_, err := traceql.Parse(query)
-			if err != nil {
-				return nil, fmt.Errorf("invalid TraceQL query: %w", err)
-			}
-		}
 		req.Query = query
 	}
 

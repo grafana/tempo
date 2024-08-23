@@ -1,8 +1,12 @@
 ## main / unreleased
 
+* [FEATURE] Discarded span logging `log_discarded_spans` [#3957](https://github.com/grafana/tempo/issues/3957) (@dastrobu)
+* [ENHANCEMENT] TraceQL: Attribute iterators collect matched array values [#3867](https://github.com/grafana/tempo/pull/3867) (@electron0zero, @stoewer)
 * [ENHANCEMENT] Add bytes and spans received to usage stats [#3983](https://github.com/grafana/tempo/pull/3983) (@joe-elliott)
 * [ENHANCEMENT] Allow returning partial traces that exceed the MaxBytes limit for V2 [#3941](https://github.com/grafana/tempo/pull/3941) (@javiermolinar)
 * [ENHANCEMENT] Added new middleware to validate request query values [#3993](https://github.com/grafana/tempo/pull/3993) (@javiermolinar)
+* [ENHANCEMENT] Prevent massive allocations in the frontend if there is not sufficient pressure from the query pipeline. [#3996](https://github.com/grafana/tempo/pull/3996) (@joe-elliott)
+  **BREAKING CHANGE** Removed `querier_forget_delay` setting from the frontend. This configuration option did nothing.
 
 # v2.6.0-rc.0
 
@@ -19,6 +23,7 @@
 * [FEATURE] TraecQL support for event attributes [#3708](https://github.com/grafana/tempo/pull/3748) (@ie-pham)
 * [FEATURE] TraceQL support for event:timeSinceStart [#3908](https://github.com/grafana/tempo/pull/3908) (@ie-pham)
 * [FEATURE] Autocomplete support for events and links [#3846](https://github.com/grafana/tempo/pull/3846) (@ie-pham)
+* [FEATURE] TraceQL support for instrumentation scope [#3967](https://github.com/grafana/tempo/pull/3967) (@ie-pham)
 * [FEATURE] Flush and query RF1 blocks for TraceQL metric queries [#3628](https://github.com/grafana/tempo/pull/3628) [#3691](https://github.com/grafana/tempo/pull/3691) [#3723](https://github.com/grafana/tempo/pull/3723) (@mapno)
 * [FEATURE] Add new compare() metrics function [#3695](https://github.com/grafana/tempo/pull/3695) (@mdisibio)
 * [FEATURE] Add new api `/api/metrics/query` for instant metrics queries [#3859](https://github.com/grafana/tempo/pull/3859) (@mdisibio)
