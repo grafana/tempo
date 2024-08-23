@@ -564,7 +564,7 @@ func TestSearchAccessesCache(t *testing.T) {
 	}
 
 	// setup mock cache
-	c := cache.NewMockCache()
+	c := test.NewMockClient()
 	p := test.NewMockProvider()
 	err := p.AddCache(cache.RoleFrontendSearch, c)
 	require.NoError(t, err)

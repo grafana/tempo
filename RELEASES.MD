@@ -1,6 +1,8 @@
 # Release Candidates
 
-- Push a semver tag to main.  Something like:
+- Create a branch named `changelog-<version>-<rc.#>`. Clean up the changelog, add the version heading
+  and merge to main. 
+- Push a semver tag to main on the merge commit above.  Something like:
   - `git tag -a v1.2.0-rc.0`
   - `git push origin v1.2.0-rc.0`
 - This will initiate the build process in Github Actions and Drone.  The tagged docker image should
@@ -16,7 +18,7 @@
 
 This document details release procedures for Tempo.
 
-- Create a release branch. This will likely be on the same commit as the release candidate above.
+- Create a release branch. This may or may not be on the same commit as the release candidate above.
   - Name the branch like `release-v2.2`
 - Follow all steps in [Release Candidates](#release-candidates) except:
   - Drop the `-rc.#` postfix from the tag. For instance use `v1.2.0` instead. Something like:

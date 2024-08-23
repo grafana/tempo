@@ -60,8 +60,8 @@ func TestSearchCompleteBlock(t *testing.T) {
 			)
 		})
 		if vers == vparquet4.VersionString {
-			t.Run("event/link query", func(t *testing.T) {
-				runEventLinkSearchTest(t, vers)
+			t.Run("event/link/instrumentation query", func(t *testing.T) {
+				runEventLinkInstrumentationSearchTest(t, vers)
 			})
 		}
 	}
@@ -1469,7 +1469,8 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 			actualMap := valueCollector.Strings()
 
 			if (bm.Version == vparquet4.VersionString) && (tc.name == "resource match" || tc.name == "span match") {
-				// v4 has events and links
+				// v4 has scope, events, and links
+				tc.expected["instrumentation"] = []string{"scope-attr-str"}
 				tc.expected["event"] = []string{"exception.message"}
 				tc.expected["link"] = []string{"relation"}
 			}
@@ -1657,7 +1658,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	// todo: do some compaction and then call runner again
 }
 
-func runEventLinkSearchTest(t *testing.T, blockVersion string) {
+func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 	// only run this test for vparquet4
 	if blockVersion != vparquet4.VersionString {
 		return
@@ -1720,6 +1721,15 @@ func runEventLinkSearchTest(t *testing.T, blockVersion string) {
 		},
 		{
 			Query: "{ link:traceID = `" + wantIDText + "` }",
+		},
+		{
+			Query: "{ instrumentation:name = `scope-1` }",
+		},
+		{
+			Query: "{ instrumentation:version = `version-1` }",
+		},
+		{
+			Query: "{ instrumentation.scope-attr-str = `scope-attr-1` }",
 		},
 	}
 
@@ -1892,6 +1902,14 @@ func makeExpectedTrace() (
 				},
 				ScopeSpans: []*v1.ScopeSpans{
 					{
+						Scope: &v1_common.InstrumentationScope{
+							Name:                   "scope-1",
+							Version:                "version-1",
+							DroppedAttributesCount: 1,
+							Attributes: []*v1_common.KeyValue{
+								stringKV("scope-attr-str", "scope-attr-1"),
+							},
+						},
 						Spans: []*v1.Span{
 							{
 								TraceId:           id,
