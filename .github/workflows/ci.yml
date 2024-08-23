@@ -51,23 +51,27 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     needs: check-changes
-    if: needs.check-changes.outputs.skip-job == 'false'
     steps:
       - name: Check out code
         uses: actions/checkout@v4
+        if: needs.check-changes.outputs.skip-job == 'false'
         with:
           fetch-depth: "0"
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
+        if: needs.check-changes.outputs.skip-job == 'false'
         with:
           go-version-file: "go.mod"
       - name: check-fmt
+        if: needs.check-changes.outputs.skip-job == 'false'
         run: make check-fmt
 
       - name: check-jsonnetfmt
+        if: needs.check-changes.outputs.skip-job == 'false'
         run: make check-jsonnetfmt
 
       - name: lint
+        if: needs.check-changes.outputs.skip-job == 'false'
         run: make lint base=origin/${{github.base_ref}}
 
   unit-tests:
@@ -130,88 +134,103 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     needs: check-changes
-    if: needs.check-changes.outputs.skip-job == 'false'
+  
     steps:
       - name: Check out code
+        if: needs.check-changes.outputs.skip-job == 'false'
         uses: actions/checkout@v4
 
       - name: Set up Go 1.22
+        if: needs.check-changes.outputs.skip-job == 'false'
         uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
 
       - name: Build Tempo
+        if: needs.check-changes.outputs.skip-job == 'false'
         run: make tempo
 
       - name: Build tempo-query
+        if: needs.check-changes.outputs.skip-job == 'false'
         run: make tempo-query
 
       - name: Build vulture
+        if: needs.check-changes.outputs.skip-job == 'false'
         run: make tempo-vulture
 
       - name: Build tempo-cli
+        if: needs.check-changes.outputs.skip-job == 'false'
         run: make tempo-cli
 
   benchmark:
     name: Benchmark
     runs-on: ubuntu-latest
     needs: check-changes
-    if: needs.check-changes.outputs.skip-job == 'false'
     steps:
       - name: Check out code
+        if: needs.check-changes.outputs.skip-job == 'false'
         uses: actions/checkout@v4
 
       - name: Set up Go 1.22
+        if: needs.check-changes.outputs.skip-job == 'false'
         uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
 
       - name: Bench
+        if: needs.check-changes.outputs.skip-job == 'false'
         run: make test-bench
 
   vendor-check:
     name: Vendor check
     runs-on: ubuntu-latest
     needs: check-changes
-    if: needs.check-changes.outputs.skip-job == 'false'
     steps:
       - name: Check out code
+        if: needs.check-changes.outputs.skip-job == 'false'
         uses: actions/checkout@v4
 
       - name: Set up Go 1.22
+        if: needs.check-changes.outputs.skip-job == 'false'
         uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
 
       - name: Install Protoc
+        if: needs.check-changes.outputs.skip-job == 'false'
         uses: arduino/setup-protoc@v3
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check vendor
+        if: needs.check-changes.outputs.skip-job == 'false'
         run: make vendor-check
 
   tempo-jsonnet:
     name: Check jsonnet & tempo-mixin
     runs-on: ubuntu-latest
     needs: check-changes
-    if: needs.check-changes.outputs.skip-job == 'false'
     steps:
       - name: Check out code
+        if: needs.check-changes.outputs.skip-job == 'false'
         uses: actions/checkout@v4
 
       - name: Set up Go 1.22
+        if: needs.check-changes.outputs.skip-job == 'false'
         uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
 
       - name: Check jsonnet
+        if: needs.check-changes.outputs.skip-job == 'false'
         run: make jsonnet-check
 
       - name: Check tempo-mixin
+        if: needs.check-changes.outputs.skip-job == 'false'
         run: make tempo-mixin-check
 
       - name: Test jsonnet
+        if: needs.check-changes.outputs.skip-job == 'false'
         run: make jsonnet-test
 
   build-technical-documentation:
