@@ -87,14 +87,17 @@ jobs:
 
     steps:
       - name: Check out code
+        if: needs.check-changes.outputs.skip-job == 'false'
         uses: actions/checkout@v4
 
       - name: Set up Go 1.22
+        if: needs.check-changes.outputs.skip-job == 'false'
         uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
 
       - name: Run Tests
+        if: needs.check-changes.outputs.skip-job == 'false'
         run: make ${{ matrix.test-target }}
 
   integration-tests:
