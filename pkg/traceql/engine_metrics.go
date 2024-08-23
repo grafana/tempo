@@ -357,11 +357,8 @@ func NewMinOverTimeAggregator(attr Attribute) *MinOverTimeAggregator {
 		}
 	default:
 		fn = func(s Span) float64 {
-			f, t := FloatizeAttribute(s, attr)
-			if t == TypeNil {
-				// Handle this case properly
-				return 0
-			}
+			// This is returning 0 in case the att.Float() returns a NaN.
+			f, _ := FloatizeAttribute(s, attr)
 			return f
 		}
 	}
@@ -1157,26 +1154,42 @@ type SeriesAggregator interface {
 	Results() SeriesSet
 }
 
-type SimpleAdditionAggregator struct {
+type SimpleAggregationOp int
+
+const (
+	sumAggregation SimpleAggregationOp = iota
+	minAggregation
+)
+
+type SimpleAggregator struct {
 	ss               SeriesSet
 	exemplarBuckets  *bucketSet
 	len              int
+	aggregationFunc  func(new bool, start, end, step uint64, existing *TimeSeries, samples []tempopb.Sample)
 	start, end, step uint64
 }
 
-func NewSimpleAdditionCombiner(req *tempopb.QueryRangeRequest) *SimpleAdditionAggregator {
+func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *SimpleAggregator {
 	l := IntervalCount(req.Start, req.End, req.Step)
-	return &SimpleAdditionAggregator{
+	var f func(new bool, start, end, step uint64, existing *TimeSeries, samples []tempopb.Sample)
+	switch op {
+	case sumAggregation:
+		f = simpleAdditionAggregator
+	default:
+		f = simpleMinAggregator
+	}
+	return &SimpleAggregator{
 		ss:              make(SeriesSet),
 		exemplarBuckets: newBucketSet(l),
 		len:             l,
 		start:           req.Start,
 		end:             req.End,
 		step:            req.Step,
+		aggregationFunc: f,
 	}
 }
 
-func (b *SimpleAdditionAggregator) Combine(in []*tempopb.TimeSeries) {
+func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
 	for _, ts := range in {
 		existing, ok := b.ss[ts.PromLabels]
 		if !ok {
@@ -1197,12 +1210,7 @@ func (b *SimpleAdditionAggregator) Combine(in []*tempopb.TimeSeries) {
 			b.ss[ts.PromLabels] = existing
 		}
 
-		for _, sample := range ts.Samples {
-			j := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
-			if j >= 0 && j < len(existing.Values) {
-				existing.Values[j] += sample.Value
-			}
-		}
+		b.aggregationFunc(!ok, b.start, b.end, b.step, &existing, ts.Samples)
 
 		for _, exemplar := range ts.Exemplars {
 			if b.exemplarBuckets.testTotal() {
@@ -1235,8 +1243,30 @@ func (b *SimpleAdditionAggregator) Combine(in []*tempopb.TimeSeries) {
 	}
 }
 
-func (b *SimpleAdditionAggregator) Results() SeriesSet {
+func (b *SimpleAggregator) Results() SeriesSet {
 	return b.ss
+}
+
+// Simple addition aggregator. It adds existing values with the new sample. New indicates if the existing values were just initialized, ugly
+func simpleAdditionAggregator(_ bool, start, end, step uint64, existing *TimeSeries, samples []tempopb.Sample) {
+	for _, sample := range samples {
+		j := IntervalOfMs(sample.TimestampMs, start, end, step)
+		if j >= 0 && j < len(existing.Values) {
+			existing.Values[j] += sample.Value
+		}
+	}
+}
+
+// Simple min aggregator. It calculates the minumun between existing values and a new sample, New indicates if the existing values were just initialized, ugly
+func simpleMinAggregator(new bool, start, end, step uint64, existing *TimeSeries, samples []tempopb.Sample) {
+	for _, sample := range samples {
+		j := IntervalOfMs(sample.TimestampMs, start, end, step)
+		if j >= 0 && j < len(existing.Values) {
+			if new || sample.Value < existing.Values[j] {
+				existing.Values[j] = sample.Value
+			}
+		}
+	}
 }
 
 type HistogramBucket struct {
@@ -1473,7 +1503,7 @@ func Log2Quantile(p float64, buckets []HistogramBucket) float64 {
 }
 
 var (
-	_ SeriesAggregator = (*SimpleAdditionAggregator)(nil)
+	_ SeriesAggregator = (*SimpleAggregator)(nil)
 	_ SeriesAggregator = (*HistogramAggregator)(nil)
 )
 

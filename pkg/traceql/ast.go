@@ -1002,6 +1002,8 @@ type MetricsAggregate struct {
 	agg        SpanAggregator
 	seriesAgg  SeriesAggregator
 	exemplarFn getExemplar
+	// Type of operation for simple aggregatation in layers 2 and 3
+	simpleAggregationOp SimpleAggregationOp
 }
 
 func newMetricsAggregate(agg MetricsAggregateOp, by []Attribute) *MetricsAggregate {
@@ -1047,16 +1049,6 @@ func (a *MetricsAggregate) extractConditions(request *FetchSpansRequest) {
 }
 
 func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
-	switch mode {
-	case AggregateModeSum:
-		a.initSum(q)
-		return
-
-	case AggregateModeFinal:
-		a.initFinal(q)
-		return
-	}
-
 	// Raw mode:
 
 	var innerAgg func() VectorAggregator
@@ -1067,17 +1059,20 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 	switch a.op {
 	case metricsAggregateCountOverTime:
 		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
+		a.simpleAggregationOp = sumAggregation
 		exemplarFn = func(s Span) (float64, uint64) {
 			return math.NaN(), a.spanStartTimeMs(s)
 		}
 	case metricsAggregateMinOverTime:
 		innerAgg = func() VectorAggregator { return NewMinOverTimeAggregator(a.attr) }
+		a.simpleAggregationOp = minAggregation
 		exemplarFn = func(s Span) (float64, uint64) {
 			return math.NaN(), a.spanStartTimeMs(s)
 		}
 
 	case metricsAggregateRate:
 		innerAgg = func() VectorAggregator { return NewRateAggregator(1.0 / time.Duration(q.Step).Seconds()) }
+		a.simpleAggregationOp = sumAggregation
 		exemplarFn = func(s Span) (float64, uint64) {
 			return math.NaN(), a.spanStartTimeMs(s)
 		}
@@ -1087,6 +1082,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 		// I.e. a duration of 500ms will be in __bucket==0.512s
 		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
 		byFuncLabel = internalLabelBucket
+		a.simpleAggregationOp = sumAggregation
 		switch a.attr {
 		case IntrinsicDurationAttribute:
 			// Optimal implementation for duration attribute
@@ -1102,6 +1098,16 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 				return v, a.spanStartTimeMs(s)
 			}
 		}
+	}
+
+	switch mode {
+	case AggregateModeSum:
+		a.initSum(q)
+		return
+
+	case AggregateModeFinal:
+		a.initFinal(q)
+		return
 	}
 
 	a.agg = NewGroupingAggregator(a.op.String(), func() RangeAggregator {
@@ -1149,7 +1155,7 @@ func (a *MetricsAggregate) bucketizeAttribute(s Span) (Static, bool) {
 func (a *MetricsAggregate) initSum(q *tempopb.QueryRangeRequest) {
 	// Currently all metrics are summed by job to produce
 	// intermediate results. This will change when adding min/max/topk/etc
-	a.seriesAgg = NewSimpleAdditionCombiner(q)
+	a.seriesAgg = NewSimpleCombiner(q, a.simpleAggregationOp)
 }
 
 func (a *MetricsAggregate) initFinal(q *tempopb.QueryRangeRequest) {
@@ -1158,7 +1164,7 @@ func (a *MetricsAggregate) initFinal(q *tempopb.QueryRangeRequest) {
 		a.seriesAgg = NewHistogramAggregator(q, a.floats)
 	default:
 		// These are simple additions by series
-		a.seriesAgg = NewSimpleAdditionCombiner(q)
+		a.seriesAgg = NewSimpleCombiner(q, a.simpleAggregationOp)
 	}
 }
 

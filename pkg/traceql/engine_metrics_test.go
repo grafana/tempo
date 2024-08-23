@@ -436,7 +436,7 @@ func TestQuantileOverTime(t *testing.T) {
 		},
 	}
 
-	testTraceQlMetric(t, in, out, req)
+	testTraceQlMetric(t, out, req, in)
 }
 
 func percentileHelper(q float64, values ...float64) float64 {
@@ -490,7 +490,7 @@ func TestCountOverTime(t *testing.T) {
 		},
 	}
 
-	testTraceQlMetric(t, in, out, req)
+	testTraceQlMetric(t, out, req, in)
 }
 
 func TestMinOverTimeForDuration(t *testing.T) {
@@ -536,7 +536,7 @@ func TestMinOverTimeForDuration(t *testing.T) {
 		},
 	}
 
-	testTraceQlMetric(t, in, out, req)
+	testTraceQlMetric(t, out, req, in)
 }
 
 func TestMinOverTimeForSpanAttribute(t *testing.T) {
@@ -563,6 +563,21 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 500).WithDuration(512),
 	}
 
+	in2 := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 100).WithDuration(128),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200).WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 300).WithDuration(512),
+
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 400).WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 401).WithDuration(64),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 402).WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 403).WithDuration(8),
+
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 200).WithDuration(512),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 300).WithDuration(1024),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 400).WithDuration(512),
+	}
+
 	// Output series with quantiles per foo
 	// Prom labels are sorted alphabetically, traceql labels maintain original order.
 	out := SeriesSet{
@@ -570,18 +585,19 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 			},
-			Values:    []float64{0, 0, 201},
+			Values:    []float64{0, 0, 200},
 			Exemplars: make([]Exemplar, 0),
 		},
 		`{span.foo="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 			},
-			Values:    []float64{200, 200, 0},
+			// Silly I know
+			Values:    []float64{100, 200, 0},
 			Exemplars: make([]Exemplar, 0),
 		},
 	}
-	testTraceQlMetric(t, in, out, req)
+	testTraceQlMetric(t, out, req, in, in2)
 }
 
 func TestHistogramOverTime(t *testing.T) {
@@ -651,14 +667,12 @@ func TestHistogramOverTime(t *testing.T) {
 		},
 	}
 
-	testTraceQlMetric(t, in, out, req)
+	testTraceQlMetric(t, out, req, in)
 }
 
-func testTraceQlMetric(t *testing.T, in []Span, out SeriesSet, req *tempopb.QueryRangeRequest) {
+func testTraceQlMetric(t *testing.T, out SeriesSet, req *tempopb.QueryRangeRequest, inSpans ...[]Span) {
 	e := NewEngine()
 	// 3 layers of processing matches:  query-frontend -> queriers -> generators -> blocks
-	layer1, err := e.CompileMetricsQueryRange(req, false, 0, 0, false)
-	require.NoError(t, err)
 
 	layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
 	require.NoError(t, err)
@@ -666,19 +680,21 @@ func testTraceQlMetric(t *testing.T, in []Span, out SeriesSet, req *tempopb.Quer
 	layer3, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
 	require.NoError(t, err)
 
-	// Pass spans to layer 1
-	for _, s := range in {
-		layer1.metricsPipeline.observe(s)
+	for _, spanSet := range inSpans {
+		layer1, err := e.CompileMetricsQueryRange(req, false, 0, 0, false)
+		require.NoError(t, err)
+		for _, s := range spanSet {
+			layer1.metricsPipeline.observe(s)
+		}
+		res := layer1.Results()
+		// Pass layer 1 to layer 2
+		// These are partial counts over time by bucket
+		layer2.metricsPipeline.observeSeries(res.ToProto(req))
 	}
-
-	// Pass layer 1 to layer 2
-	// These are partial counts over time by bucket
-	res := layer1.Results()
-	layer2.metricsPipeline.observeSeries(res.ToProto(req))
 
 	// Pass layer 2 to layer 3
 	// These are summed counts over time by bucket
-	res = layer2.Results()
+	res := layer2.Results()
 	layer3.ObserveSeries(res.ToProto(req))
 
 	// Layer 3 final results
