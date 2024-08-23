@@ -67,12 +67,7 @@ func (c *Combiner) Consume(tr *tempopb.Trace) (int, error) {
 // it is known that this is the last expected input trace.
 func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) {
 	var spanCount int
-	if tr == nil {
-		return spanCount, nil
-	}
-
-	// Do not combine more spans for now
-	if c.maxTraceSizeReached && c.allowPartialTrace {
+	if tr == nil || c.IsPartialTrace() {
 		return spanCount, nil
 	}
 
@@ -100,8 +95,9 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 				}
 			}
 		}
-		moveForward, maxSizeErr := c.canContinue()
-		if moveForward {
+
+		maxSizeErr := c.sizeError()
+		if c.IsPartialTrace() {
 			return spanCount, nil
 		}
 		return spanCount, maxSizeErr
@@ -143,26 +139,25 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 	}
 
 	c.combined = true
-	moveForward, maxSizeErr := c.canContinue()
-	if moveForward {
+	maxSizeErr := c.sizeError()
+	if c.IsPartialTrace() {
 		return spanCount, nil
 	}
 
 	return spanCount, maxSizeErr
 }
 
-func (c *Combiner) canContinue() (bool, error) {
+func (c *Combiner) sizeError() error {
 	if c.result == nil || c.maxSizeBytes <= 0 {
-		return true, nil
+		return nil
 	}
 
 	if c.result.Size() > c.maxSizeBytes {
-		// To avoid recalculing the size
 		c.maxTraceSizeReached = true
-		return c.allowPartialTrace, fmt.Errorf("%w (max bytes: %d)", ErrTraceTooLarge, c.maxSizeBytes)
+		return fmt.Errorf("%w (max bytes: %d)", ErrTraceTooLarge, c.maxSizeBytes)
 	}
 
-	return true, nil
+	return nil
 }
 
 // Result returns the final trace and span count.
@@ -178,7 +173,7 @@ func (c *Combiner) Result() (*tempopb.Trace, int) {
 	return c.result, spanCount
 }
 
-// Returns true if the comnbined trace is a partial one
+// Returns true if the combined trace is a partial one if partal trace is enabled
 func (c *Combiner) IsPartialTrace() bool {
 	return c.maxTraceSizeReached && c.allowPartialTrace
 }
