@@ -18,34 +18,34 @@ concurrency:
 
 jobs:
   check-changes:
-  runs-on: ubuntu-latest
-  outputs:
-    skip-job: ${{ steps.set-output.outputs.skip-job }}
-  steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+    runs-on: ubuntu-latest
+    outputs:
+      skip-job: ${{ steps.set-output.outputs.skip-job }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Get list of changed files
-      id: changed-files
-      run: |
-        git fetch --prune --unshallow
-        changed_files=$(git diff --name-only HEAD^ HEAD)
-        echo "Changed files: $changed_files"
-        echo "::set-output name=files::$changed_files"
+      - name: Get list of changed files
+        id: changed-files
+        run: |
+          git fetch --prune --unshallow
+          changed_files=$(git diff --name-only HEAD^ HEAD)
+          echo "Changed files: $changed_files"
+          echo "::set-output name=files::$changed_files"
 
-    - name: Determine if only CHANGELOG.md or /docs folder has changed
-      id: set-output
-      run: |
-        changed_files="${{ steps.changed-files.outputs.files }}"
-        if [[ "$changed_files" =~ ^(CHANGELOG.md|docs/) ]]; then
-          if [[ ! "$changed_files" =~ ^(CHANGELOG.md|docs/) || ! "$changed_files" =~ ^docs/ ]]; then
-            echo "::set-output name=skip-job::true"
+      - name: Determine if only CHANGELOG.md or /docs folder has changed
+        id: set-output
+        run: |
+          changed_files="${{ steps.changed-files.outputs.files }}"
+          if [[ "$changed_files" =~ ^(CHANGELOG.md|docs/) ]]; then
+            if [[ ! "$changed_files" =~ ^(CHANGELOG.md|docs/) || ! "$changed_files" =~ ^docs/ ]]; then
+              echo "::set-output name=skip-job::true"
+            else
+              echo "::set-output name=skip-job::false"
+            fi
           else
             echo "::set-output name=skip-job::false"
           fi
-        else
-          echo "::set-output name=skip-job::false"
-        fi
   lint:
     name: Lint
     runs-on: ubuntu-latest
