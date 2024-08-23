@@ -1,12 +1,22 @@
 name: CI
 on:
   pull_request:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'Makefile'
+      - '**.jsonnet'
 
-paths-ignore-config: &paths-ignore-config
-  paths-ignore:
-    - 'docs/**'
-    - 'README.md'
-    - 'Makefile.md'
+pr_conditions: &conditions
+  github.event_name == 'pull_request' &&
+  (
+    github.event.changes != null &&
+    (
+      contains(github.event.changes, 'docs/**') ||
+      contains(github.event.changes, 'README.md') ||
+      contains(github.event.changes, 'Makefile.md')
+    )
+  )
 
 concurrency:
   # Cancel any running workflow for the same branch when new commits are pushed.
@@ -19,7 +29,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    <<: *paths-ignore-config
+    if: ${{ *pr_conditions }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -31,17 +41,15 @@ jobs:
           go-version-file: "go.mod"
       - name: check-fmt
         run: make check-fmt
-
       - name: check-jsonnetfmt
         run: make check-jsonnetfmt
-
       - name: lint
         run: make lint base=origin/${{github.base_ref}}
 
   unit-tests:
     name: Run Unit Tests
     runs-on: ubuntu-latest
-    <<: *paths-ignore-config
+    if: ${{ *pr_conditions }}
     strategy:
       matrix:
         test-target:
@@ -67,7 +75,7 @@ jobs:
   integration-tests:
     name: Run integration tests
     runs-on: ubuntu-latest
-    <<: *paths-ignore-config
+    if: ${{ *pr_conditions }}
     strategy:
       matrix:
         test-target:
@@ -91,7 +99,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    <<: *paths-ignore-config
+    if: ${{ *pr_conditions }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -116,7 +124,7 @@ jobs:
   benchmark:
     name: Benchmark
     runs-on: ubuntu-latest
-    <<: *paths-ignore-config
+    if: ${{ *pr_conditions }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -132,7 +140,7 @@ jobs:
   vendor-check:
     name: Vendor check
     runs-on: ubuntu-latest
-    <<: *paths-ignore-config
+    if: ${{ *pr_conditions }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -153,7 +161,7 @@ jobs:
   tempo-jsonnet:
     name: Check jsonnet & tempo-mixin
     runs-on: ubuntu-latest
-    <<: *paths-ignore-config
+    if: ${{ *pr_conditions }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
