@@ -15,22 +15,20 @@ jobs:
       EXCLUDED_PATHS: "CHANGELOG.md|docs/"
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Get list of changed files
         id: changed-files
         run: |
           git fetch --prune --unshallow
           changed_files=$(git diff --name-only HEAD^ HEAD)
-          echo "Changed files: $changed_files"
-          echo "::set-output name=files::$changed_files"
 
       - name: Determine if only excluded files or directories have changed
         id: set-output
         run: |
           excluded_paths="${{ env.EXCLUDED_PATHS }}"
           changed_files="${{ steps.changed-files.outputs.files }}"
-
+          
           # Convert excluded_paths to a regex pattern
           excluded_regex=$(echo "$excluded_paths" | sed 's/|/\\|/g')
 
