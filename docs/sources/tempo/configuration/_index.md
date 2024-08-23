@@ -196,9 +196,16 @@ distributor:
 
 
     # Optional.
-    # Enable to log every received span to help debug ingestion or calculate span error distributions using the logs
+    # Enable to log every received span to help debug ingestion or calculate span error distributions using the logs.
     # This is not recommended for production environments
     log_received_spans:
+        [enabled: <boolean> | default = false]
+        [include_all_attributes: <boolean> | default = false]
+        [filter_by_status_error: <boolean> | default = false]
+      
+    # Optional.
+    # Enable to log every discarded span to help debug ingestion or calculate span error distributions using the logs.
+    log_discarded_spans:
         [enabled: <boolean> | default = false]
         [include_all_attributes: <boolean> | default = false]
         [filter_by_status_error: <boolean> | default = false]

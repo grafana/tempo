@@ -348,9 +348,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 
 	batches := trace.ResourceSpans
 
-	if d.cfg.LogReceivedSpans.Enabled {
-		logSpans(batches, &d.cfg.LogReceivedSpans, d.logger)
-	}
+	logReceivedSpans(batches, &d.cfg.LogReceivedSpans, d.logger)
 	if d.cfg.MetricReceivedSpans.Enabled {
 		metricSpans(batches, userID, &d.cfg.MetricReceivedSpans)
 	}
@@ -363,6 +361,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	keys, rebatchedTraces, err := requestsByTraceID(batches, userID, spanCount)
 	if err != nil {
 		overrides.RecordDiscardedSpans(spanCount, reasonInternalError, userID)
+		logDiscardedResourceSpans(batches, userID, &d.cfg.LogDiscardedSpans, d.logger)
 		return nil, err
 	}
 
@@ -441,20 +440,18 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 
 		return nil
 	}, func() {})
-	// if err != nil, we discarded everything because of an internal error
+	// if err != nil, we discarded everything because of an internal error (like "context cancelled")
 	if err != nil {
 		overrides.RecordDiscardedSpans(totalSpanCount, reasonInternalError, userID)
+		logDiscardedRebatchedSpans(traces, userID, &d.cfg.LogDiscardedSpans, d.logger)
 		return err
 	}
 
 	// count discarded span count
 	mu.Lock()
 	defer mu.Unlock()
-
-	maxLiveDiscardedCount, traceTooLargeDiscardedCount, unknownErrorCount := countDiscaredSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traces, writeRing.ReplicationFactor())
-	overrides.RecordDiscardedSpans(maxLiveDiscardedCount, reasonLiveTracesExceeded, userID)
-	overrides.RecordDiscardedSpans(traceTooLargeDiscardedCount, reasonTraceTooLarge, userID)
-	overrides.RecordDiscardedSpans(unknownErrorCount, reasonUnknown, userID)
+	recordDiscardedSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traces, writeRing, userID)
+	logDiscardedSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traces, writeRing, userID, &d.cfg.LogDiscardedSpans, d.logger)
 
 	return nil
 }
@@ -581,12 +578,21 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 	return keys, traces, nil
 }
 
-func countDiscaredSpans(numSuccessByTraceIndex []int, lastErrorReasonByTraceIndex []tempopb.PushErrorReason, traces []*rebatchedTrace, repFactor int) (maxLiveDiscardedCount, traceTooLargeDiscardedCount, unknownErrorCount int) {
+// discardedPredicate determines if a trace is discarded based on the number of successful replications.
+type discardedPredicate func(int) bool
+
+func newDiscardedPredicate(repFactor int) discardedPredicate {
 	quorum := int(math.Floor(float64(repFactor)/2)) + 1 // min success required
+	return func(numSuccess int) bool {
+		return numSuccess < quorum
+	}
+}
+
+func countDiscardedSpans(numSuccessByTraceIndex []int, lastErrorReasonByTraceIndex []tempopb.PushErrorReason, traces []*rebatchedTrace, repFactor int) (maxLiveDiscardedCount, traceTooLargeDiscardedCount, unknownErrorCount int) {
+	discarded := newDiscardedPredicate(repFactor)
 
 	for traceIndex, numSuccess := range numSuccessByTraceIndex {
-		// we will count anything that did not receive min success as discarded
-		if numSuccess >= quorum {
+		if !discarded(numSuccess) {
 			continue
 		}
 		spanCount := traces[traceIndex].spanCount
@@ -660,7 +666,69 @@ func metricSpans(batches []*v1.ResourceSpans, tenantID string, cfg *MetricReceiv
 	}
 }
 
-func logSpans(batches []*v1.ResourceSpans, cfg *LogReceivedSpansConfig, logger log.Logger) {
+func recordDiscardedSpans(numSuccessByTraceIndex []int, lastErrorReasonByTraceIndex []tempopb.PushErrorReason, traces []*rebatchedTrace, writeRing ring.ReadRing, userID string) {
+	maxLiveDiscardedCount, traceTooLargeDiscardedCount, unknownErrorCount := countDiscardedSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traces, writeRing.ReplicationFactor())
+	overrides.RecordDiscardedSpans(maxLiveDiscardedCount, reasonLiveTracesExceeded, userID)
+	overrides.RecordDiscardedSpans(traceTooLargeDiscardedCount, reasonTraceTooLarge, userID)
+	overrides.RecordDiscardedSpans(unknownErrorCount, reasonUnknown, userID)
+}
+
+func logDiscardedSpans(numSuccessByTraceIndex []int, lastErrorReasonByTraceIndex []tempopb.PushErrorReason, traces []*rebatchedTrace, writeRing ring.ReadRing, userID string, cfg *LogSpansConfig, logger log.Logger) {
+	if !cfg.Enabled {
+		return
+	}
+	discarded := newDiscardedPredicate(writeRing.ReplicationFactor())
+	for traceIndex, numSuccess := range numSuccessByTraceIndex {
+		if !discarded(numSuccess) {
+			continue
+		}
+		errorReason := lastErrorReasonByTraceIndex[traceIndex]
+		if errorReason != tempopb.PushErrorReason_NO_ERROR {
+			loggerWithAtts := logger
+			loggerWithAtts = log.With(
+				loggerWithAtts,
+				"push_error_reason", fmt.Sprintf("%v", errorReason),
+			)
+			logDiscardedResourceSpans(traces[traceIndex].trace.ResourceSpans, userID, cfg, loggerWithAtts)
+		}
+	}
+}
+
+func logDiscardedRebatchedSpans(batches []*rebatchedTrace, userID string, cfg *LogSpansConfig, logger log.Logger) {
+	if !cfg.Enabled {
+		return
+	}
+	for _, b := range batches {
+		logDiscardedResourceSpans(b.trace.ResourceSpans, userID, cfg, logger)
+	}
+}
+
+func logDiscardedResourceSpans(batches []*v1.ResourceSpans, userID string, cfg *LogSpansConfig, logger log.Logger) {
+	if !cfg.Enabled {
+		return
+	}
+	loggerWithAtts := logger
+	loggerWithAtts = log.With(
+		loggerWithAtts,
+		"msg", "discarded",
+		"tenant", userID,
+	)
+	logSpans(batches, cfg, loggerWithAtts)
+}
+
+func logReceivedSpans(batches []*v1.ResourceSpans, cfg *LogSpansConfig, logger log.Logger) {
+	if !cfg.Enabled {
+		return
+	}
+	loggerWithAtts := logger
+	loggerWithAtts = log.With(
+		loggerWithAtts,
+		"msg", "received",
+	)
+	logSpans(batches, cfg, loggerWithAtts)
+}
+
+func logSpans(batches []*v1.ResourceSpans, cfg *LogSpansConfig, logger log.Logger) {
 	for _, b := range batches {
 		loggerWithAtts := logger
 
@@ -703,7 +771,7 @@ func logSpan(s *v1.Span, allAttributes bool, logger log.Logger) {
 			"span_status", s.GetStatus().GetCode().String())
 	}
 
-	level.Info(logger).Log("msg", "received", "spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
+	level.Info(logger).Log("spanid", hex.EncodeToString(s.SpanId), "traceid", hex.EncodeToString(s.TraceId))
 }
 
 // startEndFromSpan returns a unix epoch timestamp in seconds for the start and end of a span
