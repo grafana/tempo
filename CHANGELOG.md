@@ -6,6 +6,7 @@
 * [ENHANCEMENT] Prevent massive allocations in the frontend if there is not sufficient pressure from the query pipeline. [#3996](https://github.com/grafana/tempo/pull/3996) (@joe-elliott)
   **BREAKING CHANGE** Removed `querier_forget_delay` setting from the frontend. This configuration option did nothing.
 
+
 # v2.6.0-rc.0
 
 * [CHANGE] **BREAKING CHANGE** Remove `autocomplete_filtering_enabled` feature flag [#3729](https://github.com/grafana/tempo/pull/3729) (@mapno)
