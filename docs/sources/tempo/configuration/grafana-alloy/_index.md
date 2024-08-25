@@ -18,7 +18,7 @@ Alloy is flexible, and you can easily configure it to fit your needs in on-prem,
 It's commonly used as a tracing pipeline, offloading traces from the
 application and forwarding them to a storage backend.
 
-Grafana Alloy configuration files are written in the [Alloy configuration syntax]([https://grafana.com/docs/agent/latest/flow/concepts/config-language/](https://grafana.com/docs/alloy/latest/concepts/configuration-syntax/)).
+Grafana Alloy configuration files are written in the [Alloy configuration syntax](https://grafana.com/docs/alloy/latest/concepts/configuration-syntax/).
 
 For more information, refer to the [Introduction to Grafana Alloy](https://grafana.com/docs/alloy/latest/introduction).
 
