@@ -7,7 +7,6 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-// jpe - move to api?
 type DedicatedColumnsToJSON struct {
 	columnsToJSON map[uint64]string
 }
