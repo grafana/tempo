@@ -27,12 +27,11 @@ import (
 )
 
 type queryRangeSharder struct {
-	next              pipeline.AsyncRoundTripper[combiner.PipelineResponse]
-	reader            tempodb.Reader
-	overrides         overrides.Interface
-	cfg               QueryRangeSharderConfig
-	logger            log.Logger
-	replicationFactor uint8
+	next      pipeline.AsyncRoundTripper[combiner.PipelineResponse]
+	reader    tempodb.Reader
+	overrides overrides.Interface
+	cfg       QueryRangeSharderConfig
+	logger    log.Logger
 }
 
 type QueryRangeSharderConfig struct {
@@ -41,17 +40,12 @@ type QueryRangeSharderConfig struct {
 	MaxDuration           time.Duration `yaml:"max_duration"`
 	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
 	Interval              time.Duration `yaml:"interval,omitempty"`
-	RF1ReadPath           bool          `yaml:"rf1_read_path,omitempty"`
 	Exemplars             bool          `yaml:"exemplars,omitempty"`
 	MaxExemplars          int           `yaml:"max_exemplars,omitempty"`
 }
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search
 func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
-	var replicationFactor uint8
-	if cfg.RF1ReadPath {
-		replicationFactor = 1
-	}
 	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		return queryRangeSharder{
 			next:      next,
@@ -60,8 +54,6 @@ func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg
 
 			cfg:    cfg,
 			logger: logger,
-
-			replicationFactor: replicationFactor,
 		}
 	})
 }
@@ -103,17 +95,9 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 
 	var (
 		allowUnsafe           = s.overrides.UnsafeQueryHints(tenantID)
-		samplingRate          = s.samplingRate(expr, allowUnsafe)
-		targetBytesPerRequest = s.jobSize(expr, samplingRate, allowUnsafe)
-		interval              = s.jobInterval(expr, allowUnsafe)
+		targetBytesPerRequest = s.jobSize(expr, allowUnsafe)
 		cutoff                = time.Now().Add(-s.cfg.QueryBackendAfter)
 	)
-
-	// if interval is 0 then the backend requests code will loop forever. technically if we are here with a 0 interval it should mean a bad request
-	// b/c it was specified using a query hint. we're going to assume that and return 400
-	if interval == 0 {
-		return pipeline.NewBadRequest(errors.New("invalid interval specified: 0")), nil
-	}
 
 	generatorReq := s.generatorRequest(*req, r, tenantID, cutoff)
 	reqCh := make(chan pipeline.Request, 2) // buffer of 2 allows us to insert generatorReq and metrics
@@ -122,15 +106,7 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		reqCh <- pipeline.NewHTTPRequest(generatorReq)
 	}
 
-	var (
-		totalJobs, totalBlocks uint32
-		totalBlockBytes        uint64
-	)
-	if s.cfg.RF1ReadPath {
-		totalJobs, totalBlocks, totalBlockBytes = s.backendRequests(ctx, tenantID, r, *req, cutoff, samplingRate, targetBytesPerRequest, interval, reqCh)
-	} else {
-		totalJobs, totalBlocks, totalBlockBytes = s.shardedBackendRequests(ctx, tenantID, r, *req, cutoff, samplingRate, targetBytesPerRequest, interval, reqCh, nil)
-	}
+	totalJobs, totalBlocks, totalBlockBytes := s.backendRequests(ctx, tenantID, r, *req, cutoff, targetBytesPerRequest, reqCh)
 
 	span.SetTag("totalJobs", totalJobs)
 	span.SetTag("totalBlocks", totalBlocks)
@@ -167,147 +143,12 @@ func (s *queryRangeSharder) blockMetas(start, end int64, tenantID string) []*bac
 	for _, m := range allMetas {
 		if m.StartTime.UnixNano() <= end &&
 			m.EndTime.UnixNano() >= start &&
-			m.ReplicationFactor == s.replicationFactor {
+			m.ReplicationFactor == 1 { // We always only query RF1 blocks
 			metas = append(metas, m)
 		}
 	}
 
 	return metas
-}
-
-func (s *queryRangeSharder) shardedBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, samplingRate float64, targetBytesPerRequest int, interval time.Duration, reqCh chan pipeline.Request, _ func(error)) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
-	// request without start or end, search only in generator
-	if searchReq.Start == 0 || searchReq.End == 0 {
-		close(reqCh)
-		return
-	}
-
-	// Make a copy and limit to backend time range.
-	backendReq := searchReq
-	traceql.TrimToBefore(&backendReq, cutoff)
-
-	// If empty window then no need to search backend
-	if backendReq.Start == backendReq.End {
-		close(reqCh)
-		return
-	}
-
-	// Blocks within overall time range. This is just for instrumentation, more precise time
-	// range is checked for each window.
-	blocks := s.blockMetas(int64(backendReq.Start), int64(backendReq.End), tenantID)
-	if len(blocks) == 0 {
-		// no need to search backend
-		close(reqCh)
-		return
-	}
-
-	// count blocks
-	totalBlocks = uint32(len(blocks))
-	for _, b := range blocks {
-		totalBlockBytes += b.Size
-	}
-
-	// count jobs. same loops as below
-	var (
-		start          = backendReq.Start
-		end            = backendReq.End
-		timeWindowSize = uint64(interval.Nanoseconds())
-	)
-
-	for start < end {
-		thisStart := start
-		thisEnd := start + timeWindowSize
-		if thisEnd > end {
-			thisEnd = end
-		}
-
-		blocks := s.blockMetas(int64(thisStart), int64(thisEnd), tenantID)
-		if len(blocks) == 0 {
-			start = thisEnd
-			continue
-		}
-
-		totalBlockSize := uint64(0)
-		for _, b := range blocks {
-			totalBlockSize += b.Size
-		}
-
-		shards := uint32(math.Ceil(float64(totalBlockSize) / float64(targetBytesPerRequest)))
-
-		for i := uint32(1); i <= shards; i++ {
-			totalJobs++
-		}
-
-		start = thisEnd
-	}
-
-	go func() {
-		s.buildShardedBackendRequests(ctx, tenantID, parent, backendReq, samplingRate, targetBytesPerRequest, interval, reqCh)
-	}()
-
-	return
-}
-
-func (s *queryRangeSharder) buildShardedBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, samplingRate float64, targetBytesPerRequest int, interval time.Duration, reqCh chan pipeline.Request) {
-	defer close(reqCh)
-
-	var (
-		start          = searchReq.Start
-		end            = searchReq.End
-		timeWindowSize = uint64(interval.Nanoseconds())
-	)
-
-	for start < end {
-		thisStart := start
-		thisEnd := start + timeWindowSize
-		if thisEnd > end {
-			thisEnd = end
-		}
-
-		blocks := s.blockMetas(int64(thisStart), int64(thisEnd), tenantID)
-		if len(blocks) == 0 {
-			start = thisEnd
-			continue
-		}
-
-		totalBlockSize := uint64(0)
-		for _, b := range blocks {
-			totalBlockSize += b.Size
-		}
-
-		shards := uint32(math.Ceil(float64(totalBlockSize) / float64(targetBytesPerRequest)))
-		exemplars := max(s.exemplarsPerShard(shards), 1)
-
-		for i := uint32(1); i <= shards; i++ {
-
-			shardR := searchReq
-			shardR.Start = thisStart
-			shardR.End = thisEnd
-			shardR.ShardID = i
-			shardR.ShardCount = shards
-			shardR.Exemplars = exemplars
-			httpReq := s.toUpstreamRequest(ctx, shardR, parent, tenantID)
-
-			pipelineR := pipeline.NewHTTPRequest(httpReq)
-			if samplingRate != 1.0 {
-				shardR.ShardID *= uint32(1.0 / samplingRate)
-				shardR.ShardCount *= uint32(1.0 / samplingRate)
-
-				// Set final sampling rate after integer rounding
-				samplingRate = float64(shards) / float64(shardR.ShardCount)
-
-				pipelineR.SetResponseData(samplingRate)
-			}
-
-			select {
-			case reqCh <- pipelineR:
-			case <-ctx.Done():
-				return
-			}
-		}
-
-		start = thisEnd
-	}
 }
 
 func (s *queryRangeSharder) exemplarsPerShard(total uint32) uint32 {
@@ -317,7 +158,7 @@ func (s *queryRangeSharder) exemplarsPerShard(total uint32) uint32 {
 	return uint32(math.Ceil(float64(s.cfg.MaxExemplars)*1.2)) / total
 }
 
-func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, _ float64, targetBytesPerRequest int, _ time.Duration, reqCh chan pipeline.Request) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
+func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, targetBytesPerRequest int, reqCh chan pipeline.Request) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
 	// request without start or end, search only in generator
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		close(reqCh)
@@ -406,12 +247,10 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 			}
 
 			queryRangeReq := &tempopb.QueryRangeRequest{
-				Query: searchReq.Query,
-				Start: start,
-				End:   end,
-				Step:  step,
-				// ShardID:    uint32, // No sharding with RF=1
-				// ShardCount: uint32, // No sharding with RF=1
+				Query:     searchReq.Query,
+				Start:     start,
+				End:       end,
+				Step:      step,
 				QueryMode: searchReq.QueryMode,
 				// New RF1 fields
 				BlockID:          m.BlockID.String(),
@@ -487,17 +326,7 @@ func (s *queryRangeSharder) maxDuration(tenantID string) time.Duration {
 	return s.cfg.MaxDuration
 }
 
-func (s *queryRangeSharder) samplingRate(expr *traceql.RootExpr, allowUnsafe bool) float64 {
-	samplingRate := 1.0
-	if v, ok := expr.Hints.GetFloat(traceql.HintSample, allowUnsafe); ok {
-		if v > 0 && v < 1.0 {
-			samplingRate = v
-		}
-	}
-	return samplingRate
-}
-
-func (s *queryRangeSharder) jobSize(expr *traceql.RootExpr, samplingRate float64, allowUnsafe bool) int {
+func (s *queryRangeSharder) jobSize(expr *traceql.RootExpr, allowUnsafe bool) int {
 	// If we have a query hint then use it
 	if v, ok := expr.Hints.GetInt(traceql.HintJobSize, allowUnsafe); ok && v > 0 {
 		return v
@@ -506,30 +335,7 @@ func (s *queryRangeSharder) jobSize(expr *traceql.RootExpr, samplingRate float64
 	// Else use configured value.
 	size := s.cfg.TargetBytesPerRequest
 
-	// Automatically scale job size when sampling less than 100%
-	// This improves performance.
-	if samplingRate < 1.0 {
-		factor := 1.0 / samplingRate
-
-		// Keep it within reason
-		if factor > 10.0 {
-			factor = 10.0
-		}
-
-		size = int(float64(size) * factor)
-	}
-
 	return size
-}
-
-func (s *queryRangeSharder) jobInterval(expr *traceql.RootExpr, allowUnsafe bool) time.Duration {
-	// If we have a query hint then use it
-	if v, ok := expr.Hints.GetDuration(traceql.HintJobInterval, allowUnsafe); ok && v > 0 {
-		return v
-	}
-
-	// Else use configured value
-	return s.cfg.Interval
 }
 
 func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {

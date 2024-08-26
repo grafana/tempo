@@ -11,7 +11,6 @@ query_frontend:
     query_ingesters_until: 0
   metrics:
     exemplars: true
-    rf1_read_path: true
 
 distributor:
   receivers:
