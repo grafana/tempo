@@ -710,13 +710,11 @@ func TestQueryRangeRoundtrip(t *testing.T) {
 		{
 			name: "not empty!",
 			req: &tempopb.QueryRangeRequest{
-				Query:      "{ foo = `bar` }",
-				Start:      uint64(24 * time.Hour),
-				End:        uint64(25 * time.Hour),
-				Step:       uint64(30 * time.Second),
-				ShardID:    1,
-				ShardCount: 2,
-				QueryMode:  "foo",
+				Query:     "{ foo = `bar` }",
+				Start:     uint64(24 * time.Hour),
+				End:       uint64(25 * time.Hour),
+				Step:      uint64(30 * time.Second),
+				QueryMode: "foo",
 			},
 		},
 	}

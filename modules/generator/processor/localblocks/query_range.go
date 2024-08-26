@@ -55,7 +55,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	// Compile the raw version of the query for wal blocks
 	// These aren't cached and we put them all into the same evaluator
 	// for efficiency.
-	eval, err := e.CompileMetricsQueryRange(req, false, int(req.Exemplars), timeOverlapCutoff, unsafe)
+	eval, err := e.CompileMetricsQueryRange(req, int(req.Exemplars), timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +192,7 @@ func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loc
 	}
 
 	// Not in cache or not cacheable, so execute
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(&req, false, exemplars, timeOverlapCutoff, unsafe)
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(&req, exemplars, timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}
