@@ -150,7 +150,7 @@ func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.
 
 func queryAll(t *testing.T, i *instance, ids [][]byte, traces []*tempopb.Trace) {
 	for j, id := range ids {
-		trace, err := i.FindTraceByID(context.Background(), id)
+		trace, err := i.FindTraceByID(context.Background(), id, false)
 		require.NoError(t, err)
 		require.Equal(t, traces[j], trace)
 	}
@@ -200,7 +200,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		_, err := i.FindTraceByID(context.Background(), []byte{0x01})
+		_, err := i.FindTraceByID(context.Background(), []byte{0x01}, false)
 		require.NoError(t, err, "error finding trace by id")
 	})
 
@@ -625,25 +625,25 @@ func TestInstancePartialSuccess(t *testing.T) {
 	assert.Equal(t, true, traceTooLargeCount > 0)
 
 	// check that the two good ones actually made it
-	result, err := i.FindTraceByID(ctx, ids[0])
+	result, err := i.FindTraceByID(ctx, ids[0], false)
 	require.NoError(t, err, "error finding trace by id")
 	assert.Equal(t, 1, len(result.ResourceSpans))
 
-	result, err = i.FindTraceByID(ctx, ids[3])
+	result, err = i.FindTraceByID(ctx, ids[3], false)
 	require.NoError(t, err, "error finding trace by id")
 	assert.Equal(t, 1, len(result.ResourceSpans))
 
 	// check that the three traces that had errors did not actually make it
 	var expected *tempopb.Trace
-	result, err = i.FindTraceByID(ctx, ids[1])
+	result, err = i.FindTraceByID(ctx, ids[1], false)
 	require.NoError(t, err, "error finding trace by id")
 	assert.Equal(t, expected, result)
 
-	result, err = i.FindTraceByID(ctx, ids[2])
+	result, err = i.FindTraceByID(ctx, ids[2], false)
 	require.NoError(t, err, "error finding trace by id")
 	assert.Equal(t, expected, result)
 
-	result, err = i.FindTraceByID(ctx, ids[4])
+	result, err = i.FindTraceByID(ctx, ids[4], false)
 	require.NoError(t, err, "error finding trace by id")
 	assert.Equal(t, expected, result)
 }
@@ -745,7 +745,7 @@ func BenchmarkInstanceFindTraceByIDFromCompleteBlock(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		trace, err := instance.FindTraceByID(context.Background(), traceID)
+		trace, err := instance.FindTraceByID(context.Background(), traceID, false)
 		require.NotNil(b, trace)
 		require.NoError(b, err)
 	}
@@ -899,7 +899,7 @@ func BenchmarkInstanceContention(t *testing.B) {
 	})
 
 	go concurrent(func() {
-		_, err := i.FindTraceByID(ctx, []byte{0x01})
+		_, err := i.FindTraceByID(ctx, []byte{0x01}, false)
 		require.NoError(t, err, "error finding trace by id")
 		finds++
 	})

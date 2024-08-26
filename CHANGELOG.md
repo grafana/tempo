@@ -3,6 +3,8 @@
 * [FEATURE] Discarded span logging `log_discarded_spans` [#3957](https://github.com/grafana/tempo/issues/3957) (@dastrobu)
 * [ENHANCEMENT] TraceQL: Attribute iterators collect matched array values [#3867](https://github.com/grafana/tempo/pull/3867) (@electron0zero, @stoewer)
 * [ENHANCEMENT] Add bytes and spans received to usage stats [#3983](https://github.com/grafana/tempo/pull/3983) (@joe-elliott)
+* [ENHANCEMENT] Allow returning partial traces that exceed the MaxBytes limit for V2 [#3941](https://github.com/grafana/tempo/pull/3941) (@javiermolinar)
+* [ENHANCEMENT] Added new middleware to validate request query values [#3993](https://github.com/grafana/tempo/pull/3993) (@javiermolinar)
 * [ENHANCEMENT] Prevent massive allocations in the frontend if there is not sufficient pressure from the query pipeline. [#3996](https://github.com/grafana/tempo/pull/3996) (@joe-elliott)
   **BREAKING CHANGE** Removed `querier_forget_delay` setting from the frontend. This configuration option did nothing.
 * [ENHANCEMENT] Update metrics-generator config in Tempo distributed docker compose example to serve TraceQL metrics [#4003](https://github.com/grafana/tempo/pull/4003) (@javiermolinar)

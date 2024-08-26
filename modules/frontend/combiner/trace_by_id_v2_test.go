@@ -27,6 +27,61 @@ func (m MockResponse) RequestData() any {
 	return nil
 }
 
+func TestNewTraceByIdV2ReturnsAPartialTrace(t *testing.T) {
+	traceResponse := &tempopb.TraceByIDResponse{
+		Trace:   test.MakeTrace(2, []byte{0x01, 0x02}),
+		Metrics: &tempopb.TraceByIDMetrics{},
+	}
+	resBytes, err := proto.Marshal(traceResponse)
+	require.NoError(t, err)
+	response := http.Response{
+		StatusCode: 200,
+		Header: map[string][]string{
+			"Content-Type": {"application/protobuf"},
+		},
+		Body: io.NopCloser(bytes.NewReader(resBytes)),
+	}
+	combiner := NewTraceByIDV2(10, api.HeaderAcceptJSON)
+	err = combiner.AddResponse(MockResponse{&response})
+	require.NoError(t, err)
+
+	res, err := combiner.HTTPFinal()
+	require.NoError(t, err)
+
+	actualResp := &tempopb.TraceByIDResponse{}
+	err = new(jsonpb.Unmarshaler).Unmarshal(res.Body, actualResp)
+	require.NoError(t, err)
+	assert.Equal(t, actualResp.Status, tempopb.TraceByIDResponse_PARTIAL)
+}
+
+func TestNewTraceByIdV2ReturnsAPartialTraceOnPartialTraceReturnedByQuerier(t *testing.T) {
+	traceResponse := &tempopb.TraceByIDResponse{
+		Trace:   test.MakeTrace(2, []byte{0x01, 0x02}),
+		Status:  tempopb.TraceByIDResponse_PARTIAL,
+		Metrics: &tempopb.TraceByIDMetrics{},
+	}
+	resBytes, err := proto.Marshal(traceResponse)
+	require.NoError(t, err)
+	response := http.Response{
+		StatusCode: 200,
+		Header: map[string][]string{
+			"Content-Type": {"application/protobuf"},
+		},
+		Body: io.NopCloser(bytes.NewReader(resBytes)),
+	}
+	combiner := NewTraceByIDV2(10, api.HeaderAcceptJSON)
+	err = combiner.AddResponse(MockResponse{&response})
+	require.NoError(t, err)
+
+	res, err := combiner.HTTPFinal()
+	require.NoError(t, err)
+
+	actualResp := &tempopb.TraceByIDResponse{}
+	err = new(jsonpb.Unmarshaler).Unmarshal(res.Body, actualResp)
+	require.NoError(t, err)
+	assert.Equal(t, actualResp.Status, tempopb.TraceByIDResponse_PARTIAL)
+}
+
 func TestNewTraceByIDV2(t *testing.T) {
 	traceResponse := &tempopb.TraceByIDResponse{
 		Trace:   test.MakeTrace(2, []byte{0x01, 0x02}),
