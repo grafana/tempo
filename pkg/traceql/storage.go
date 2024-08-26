@@ -86,10 +86,6 @@ type FetchSpansRequest struct {
 	EndTimeUnixNanos   uint64
 	Conditions         []Condition
 
-	// mdisibio - Better to push trace by ID filtering into Conditions with a new between op?
-	ShardID    uint32
-	ShardCount uint32
-
 	// Hints
 
 	// By default, the storage layer fetches spans meeting any of the criteria.
