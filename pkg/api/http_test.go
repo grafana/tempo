@@ -720,7 +720,10 @@ func TestQueryRangeRoundtrip(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			httpReq := BuildQueryRangeRequest(nil, tc.req)
+			jsonBytes, err := json.Marshal(tc.req.DedicatedColumns)
+			require.NoError(t, err)
+
+			httpReq := BuildQueryRangeRequest(nil, tc.req, string(jsonBytes))
 			actualReq, err := ParseQueryRangeRequest(httpReq)
 			require.NoError(t, err)
 			assert.Equal(t, tc.req, actualReq)

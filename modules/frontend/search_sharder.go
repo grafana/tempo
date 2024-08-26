@@ -303,7 +303,6 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 	defer close(reqCh)
 
 	queryHash := hashForSearchRequest(searchReq)
-
 	colsToJSON := newDedicatedColumnsToJSON()
 
 	for _, m := range metas {
@@ -316,7 +315,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
 			subR := parent.Clone(ctx)
 
-			jsonString, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
+			dedColsJSON, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
 			if err != nil {
 				errFn(fmt.Errorf("failed to convert dedicated columns. block: %s tempopb: %w", blockID, err))
 				continue
@@ -333,8 +332,8 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 				Version:       m.Version,
 				Size_:         m.Size,
 				FooterSize:    m.FooterSize,
-				// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to recalc everytime
-			}, jsonString)
+				// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
+			}, dedColsJSON)
 			if err != nil {
 				errFn(fmt.Errorf("failed to build search block request. block: %s tempopb: %w", blockID, err))
 				continue

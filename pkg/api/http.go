@@ -442,8 +442,7 @@ func BuildQueryInstantRequest(req *http.Request, searchReq *tempopb.QueryInstant
 	return req
 }
 
-// jpe - convert me
-func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequest) *http.Request {
+func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequest, dedicatedColumnsJSON string) *http.Request {
 	if req == nil {
 		req = &http.Request{
 			URL: &url.URL{},
@@ -468,9 +467,8 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 	qb.addParam(urlParamSize, strconv.Itoa(int(searchReq.Size_)))
 	qb.addParam(urlParamFooterSize, strconv.Itoa(int(searchReq.FooterSize)))
 
-	if len(searchReq.DedicatedColumns) > 0 {
-		columnsJSON, _ := json.Marshal(searchReq.DedicatedColumns)
-		qb.addParam(urlParamDedicatedColumns, string(columnsJSON))
+	if len(dedicatedColumnsJSON) > 0 && dedicatedColumnsJSON != "null" { // if a caller marshals a nil dedicated cols we will receive the string "null"
+		qb.addParam(urlParamDedicatedColumns, string(dedicatedColumnsJSON))
 	}
 
 	if len(searchReq.Query) > 0 {
@@ -644,7 +642,7 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 
 // BuildSearchBlockRequest takes a tempopb.SearchBlockRequest and populates the passed http.Request
 // with the appropriate params. If no http.Request is provided a new one is created.
-func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRequest, dedicatedColumsJSON string) (*http.Request, error) {
+func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRequest, dedicatedColumnsJSON string) (*http.Request, error) {
 	if req == nil {
 		req = &http.Request{
 			URL: &url.URL{},
@@ -667,8 +665,8 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 	qb.addParam(urlParamDataEncoding, searchReq.DataEncoding)
 	qb.addParam(urlParamVersion, searchReq.Version)
 	qb.addParam(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
-	if len(dedicatedColumsJSON) > 0 && dedicatedColumsJSON != "null" { // if a caller marshals a nil dedicated cols we will receive the string "null"
-		qb.addParam(urlParamDedicatedColumns, string(dedicatedColumsJSON))
+	if len(dedicatedColumnsJSON) > 0 && dedicatedColumnsJSON != "null" { // if a caller marshals a nil dedicated cols we will receive the string "null"
+		qb.addParam(urlParamDedicatedColumns, string(dedicatedColumnsJSON))
 	}
 
 	req.URL.RawQuery = qb.query()

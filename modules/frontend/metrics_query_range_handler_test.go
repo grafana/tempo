@@ -56,7 +56,7 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 		Start: uint64(1100 * time.Second),
 		End:   uint64(1200 * time.Second),
 		Step:  uint64(100 * time.Second),
-	})
+	}, "")
 
 	ctx := user.InjectOrgID(httpReq.Context(), tenant)
 	httpReq = httpReq.WithContext(ctx)
