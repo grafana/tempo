@@ -250,8 +250,6 @@ func (b *BlockMeta) ToBackendV1Proto() (*backend_v1.BlockMeta, error) {
 	m := &backend_v1.BlockMeta{
 		Version:           b.Version,
 		BlockId:           b.BlockID.String(),
-		MinId:             b.MinID,
-		MaxId:             b.MaxID,
 		TenantId:          b.TenantID,
 		StartTime:         b.StartTime.Unix(),
 		EndTime:           b.EndTime.Unix(),
@@ -264,7 +262,7 @@ func (b *BlockMeta) ToBackendV1Proto() (*backend_v1.BlockMeta, error) {
 		DataEncoding:      b.DataEncoding,
 		BloomShardCount:   uint32(b.BloomShardCount),
 		FooterSize:        b.FooterSize,
-		ReplicationFactor: b.ReplicationFactor,
+		ReplicationFactor: uint32(b.ReplicationFactor),
 	}
 
 	dc, err := b.DedicatedColumns.ToTempopb()
