@@ -43,7 +43,7 @@ type Processor struct {
 	now func() time.Time
 }
 
-func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.Counter) (gen.Processor, error) {
+func New(cfg Config, reg registry.Registry, spanDiscardCounter prometheus.Counter) (gen.Processor, error) {
 	labels := make([]string, 0, 4+len(cfg.Dimensions))
 
 	if cfg.IntrinsicDimensions.Service {
@@ -72,21 +72,21 @@ func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.C
 
 	p := &Processor{
 		Cfg:                   cfg,
-		registry:              registry,
-		spanMetricsTargetInfo: registry.NewGauge(targetInfo),
+		registry:              reg,
+		spanMetricsTargetInfo: reg.NewGauge(targetInfo),
 		now:                   time.Now,
 		labels:                labels,
 		filteredSpansCounter:  spanDiscardCounter,
 	}
 
 	if cfg.Subprocessors[Latency] {
-		p.spanMetricsDurationSeconds = registry.NewHistogram(metricDurationSeconds, cfg.HistogramBuckets, cfg.HistogramOverride)
+		p.spanMetricsDurationSeconds = reg.NewHistogram(metricDurationSeconds, cfg.HistogramBuckets, cfg.HistogramOverride)
 	}
 	if cfg.Subprocessors[Count] {
-		p.spanMetricsCallsTotal = registry.NewCounter(metricCallsTotal)
+		p.spanMetricsCallsTotal = reg.NewCounter(metricCallsTotal)
 	}
 	if cfg.Subprocessors[Size] {
-		p.spanMetricsSizeTotal = registry.NewCounter(metricSizeTotal)
+		p.spanMetricsSizeTotal = reg.NewCounter(metricSizeTotal)
 	}
 
 	filter, err := spanfilter.NewSpanFilter(cfg.FilterPolicies)

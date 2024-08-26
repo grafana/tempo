@@ -108,6 +108,7 @@ type CompactorSharder interface {
 
 type CompactorOverrides interface {
 	BlockRetentionForTenant(tenantID string) time.Duration
+	CompactionDisabledForTenant(tenantID string) bool
 	MaxBytesPerTraceForTenant(tenantID string) int
 	MaxCompactionRangeForTenant(tenantID string) time.Duration
 }
@@ -609,7 +610,7 @@ func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart, blockEnd []byte
 		return false
 	}
 
-	return b.ReplicationFactor == uint32(replicationFactor)
+	return b.ReplicationFactor == uint8(replicationFactor)
 }
 
 // if block is compacted within lookback period, and is within shard ranges, include it in search

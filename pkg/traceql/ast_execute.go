@@ -381,7 +381,7 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	}
 
 	// if both sides are integers then do integer math, otherwise we can drop to the
-	// catch all below
+	// catch-all below
 	if lhsT == TypeInt && rhsT == TypeInt {
 		lhsN, _ := lhs.Int()
 		rhsN, _ := rhs.Int()
@@ -422,6 +422,39 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		}
 	}
 
+	if lhsT.isMatchingArrayElement(rhsT) {
+		// we only support boolean op in the arrays
+		if !o.Op.isBoolean() {
+			return NewStaticNil(), errors.ErrUnsupported
+		}
+
+		elemOp := &BinaryOperation{Op: o.Op, LHS: lhs, RHS: rhs}
+		arraySide := lhs
+		// to support symmetric operations
+		if rhsT.isArray() {
+			// for regex operations, TraceQL makes an assumption that RHS is the regex, and compiles it.
+			// we can support symmetric array operations by flipping the sides and executing the binary operation.
+			elemOp = &BinaryOperation{Op: getFlippedOp(o.Op), LHS: rhs, RHS: lhs}
+			arraySide = rhs
+		}
+
+		var res Static
+		err := arraySide.GetElements(func(elem Static) bool {
+			elemOp.LHS = elem
+			res, err = elemOp.execute(span)
+			if err != nil {
+				return false // stop iteration early if there's an error
+			}
+			match, ok := res.Bool()
+			return !(ok && match) // stop if a match is found
+		})
+		if err != nil {
+			return NewStaticNil(), err
+		}
+
+		return res, err
+	}
+
 	switch o.Op {
 	case OpAdd:
 		return NewStaticFloat(lhs.Float() + rhs.Float()), nil
@@ -449,6 +482,22 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		return NewStaticBool(!lhs.Equals(&rhs)), nil
 	default:
 		return NewStaticNil(), errors.New("unexpected operator " + o.Op.String())
+	}
+}
+
+// getFlippedOp will return the flipped op, used when flipping the LHS and RHS of a BinaryOperation
+func getFlippedOp(op Operator) Operator {
+	switch op {
+	case OpGreater:
+		return OpLess
+	case OpGreaterEqual:
+		return OpLessEqual
+	case OpLess:
+		return OpGreater
+	case OpLessEqual:
+		return OpGreaterEqual
+	default:
+		return op
 	}
 }
 

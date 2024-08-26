@@ -10,6 +10,23 @@ aliases:
 
 The two most likely causes of refused spans are unhealthy ingesters or trace limits being exceeded.
 
+To log spans that are discarded, add the `--distributor.log_discarded_spans.enabled` flag to the distributor or 
+adjust the [distributor config]({{< relref "../configuration#distributor" >}}):
+
+```yaml
+distributor:
+  log_discarded_spans:
+    enabled: true
+    include_all_attributes: false # set to true for more verbose logs
+```
+
+Adding the flag logs all discarded spans, as shown below:
+
+```
+level=info ts=2024-08-19T16:06:25.880684385Z caller=distributor.go:767 msg=discarded spanid=c2ebe710d2e2ce7a traceid=bd63605778e3dbe935b05e6afd291006
+level=info ts=2024-08-19T16:06:25.881169385Z caller=distributor.go:767 msg=discarded spanid=5352b0cb176679c8 traceid=ba41cae5089c9284e18bca08fbf10ca2
+```
+
 ## Unhealthy ingesters
 
 Unhealthy ingesters can be caused by failing OOMs or scale down events.
@@ -41,3 +58,17 @@ tempo_discarded_spans_total
 ```
 
 In this case, use available configuration options to [increase limits]({{< relref "../configuration#ingestion-limits" >}}).
+
+## Client resets connection
+
+When the client resets the connection before the distributor can consume the trace data, you see logs like this:
+
+```
+msg="pusher failed to consume trace data" err="context canceled"
+```
+
+This issue needs to be fixed on the client side. To inspect which clients are causing the issue, logging discarded spans
+with `include_all_attributes: true` may help. 
+
+Note that there may be other reasons for a closed context as well. Identifying the reason for a closed context is 
+not straightforward and may require additional debugging.

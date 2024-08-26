@@ -79,6 +79,7 @@ var tokens = map[string]int{
 	"traceID":             TRACE_ID,
 	"spanID":              SPAN_ID,
 	"timeSinceStart":      TIMESINCESTART,
+	"version":             VERSION,
 	"parent":              PARENT,
 	"parent.":             PARENT_DOT,
 	"resource.":           RESOURCE_DOT,
@@ -87,8 +88,10 @@ var tokens = map[string]int{
 	"span:":               SPAN_COLON,
 	"event:":              EVENT_COLON,
 	"link:":               LINK_COLON,
+	"instrumentation:":    INSTRUMENTATION_COLON,
 	"event.":              EVENT_DOT,
 	"link.":               LINK_DOT,
+	"instrumentation.":    INSTRUMENTATION_DOT,
 	"count":               COUNT,
 	"avg":                 AVG,
 	"max":                 MAX,
@@ -217,8 +220,10 @@ func (l *lexer) Lex(lval *yySymType) int {
 		multiTok == TRACE_COLON ||
 		multiTok == EVENT_COLON ||
 		multiTok == LINK_COLON ||
+		multiTok == INSTRUMENTATION_COLON ||
 		multiTok == EVENT_DOT ||
-		multiTok == LINK_DOT {
+		multiTok == LINK_DOT ||
+		multiTok == INSTRUMENTATION_DOT {
 
 		l.currentScope = multiTok
 	}
@@ -410,5 +415,6 @@ func startsAttribute(tok int) bool {
 		tok == SPAN_DOT ||
 		tok == PARENT_DOT ||
 		tok == EVENT_DOT ||
-		tok == LINK_DOT
+		tok == LINK_DOT ||
+		tok == INSTRUMENTATION_DOT
 }

@@ -237,7 +237,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	span.SetTag("queryMode", req.QueryMode)
 
 	maxBytes := q.limits.MaxBytesPerTrace(userID)
-	combiner := trace.NewCombiner(maxBytes)
+	combiner := trace.NewCombiner(maxBytes, req.AllowPartialTrace)
 
 	var spanCount, spanCountTotal, traceCountTotal int
 	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
@@ -309,11 +309,17 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	}
 
 	completeTrace, _ := combiner.Result()
-
-	return &tempopb.TraceByIDResponse{
+	resp := &tempopb.TraceByIDResponse{
 		Trace:   completeTrace,
 		Metrics: &tempopb.TraceByIDMetrics{},
-	}, nil
+	}
+
+	if combiner.IsPartialTrace() {
+		resp.Status = tempopb.TraceByIDResponse_PARTIAL
+		resp.Message = fmt.Sprintf("Trace exceeds maximum size of %d bytes, a partial trace is returned", maxBytes)
+	}
+
+	return resp, nil
 }
 
 type (
@@ -1031,7 +1037,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 
 	query := traceql.ExtractMatchers(req.SearchReq.Query)
 	if traceql.IsEmptyQuery(query) {
-		return q.store.SearchTagValuesV2(ctx, meta, req.SearchReq, common.DefaultSearchOptions())
+		return q.store.SearchTagValuesV2(ctx, meta, req.SearchReq, opts)
 	}
 
 	tag, err := traceql.ParseIdentifier(req.SearchReq.TagName)
@@ -1040,7 +1046,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 	}
 
 	fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
-		return q.store.FetchTagValues(ctx, meta, req, cb, common.DefaultSearchOptions())
+		return q.store.FetchTagValues(ctx, meta, req, cb, opts)
 	})
 
 	valueCollector := collector.NewDistinctValue(q.limits.MaxBytesPerTagValuesQuery(tenantID), func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })

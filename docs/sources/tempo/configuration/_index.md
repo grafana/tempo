@@ -196,9 +196,16 @@ distributor:
 
 
     # Optional.
-    # Enable to log every received span to help debug ingestion or calculate span error distributions using the logs
+    # Enable to log every received span to help debug ingestion or calculate span error distributions using the logs.
     # This is not recommended for production environments
     log_received_spans:
+        [enabled: <boolean> | default = false]
+        [include_all_attributes: <boolean> | default = false]
+        [filter_by_status_error: <boolean> | default = false]
+      
+    # Optional.
+    # Enable to log every discarded span to help debug ingestion or calculate span error distributions using the logs.
+    log_discarded_spans:
         [enabled: <boolean> | default = false]
         [include_all_attributes: <boolean> | default = false]
         [filter_by_status_error: <boolean> | default = false]
@@ -561,6 +568,9 @@ query_frontend:
     # (default: 0)
     [api_timeout: <duration>]
 
+    # A list of regular expressions for refusing matching requests, these will apply for every request regardless of the endpoint.
+    [url_deny_list: <list of strings> | default = <empty list>]]
+
     search:
 
         # The number of concurrent jobs to execute when searching the backend.
@@ -651,9 +661,6 @@ query_frontend:
         # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         [throughput_bytes_slo: <float> | default = 0 ]
-
-        # If set to true, TraceQL metric queries will use RF1 blocks built and flushed by the metrics-generator.
-        [rf1_read_path: <bool> | default = false]
 ```
 
 ## Querier
@@ -1601,6 +1608,11 @@ overrides:
       # considered in metrics generation.
       # This is to filter out spans that are outdated.
       [ingestion_time_range_slack: <duration>]
+
+      # Configures the histogram implementation to use for span metrics and
+      # service graphs processors.  If native histograms are desired, the
+      # receiver must be configured to ingest native histograms.
+      [generate_native_histograms: <classic|native|both> | default = classic]
 
       # Distributor -> metrics-generator forwarder related overrides
       forwarder:

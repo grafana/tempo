@@ -83,7 +83,7 @@ func New(cfg *Config, o Overrides, tenant string, reg prometheus.Registerer, log
 	startTimeCallback := func() (int64, error) {
 		return int64(model.Latest), nil
 	}
-	remoteStorage := remote.NewStorage(log.With(logger, "component", "remote"), reg, startTimeCallback, walDir, cfg.RemoteWriteFlushDeadline, &noopScrapeManager{})
+	remoteStorage := remote.NewStorage(log.With(logger, "component", "remote"), reg, startTimeCallback, walDir, cfg.RemoteWriteFlushDeadline, &noopScrapeManager{}, false)
 
 	headers := o.MetricsGeneratorRemoteWriteHeaders(tenant)
 	generateNativeHistograms := o.MetricsGeneratorGenerateNativeHistograms(tenant)

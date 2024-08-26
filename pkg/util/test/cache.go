@@ -2,28 +2,42 @@ package test
 
 import (
 	"context"
+	"sync"
 
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/pkg/cache"
 )
 
 type mockClient struct {
-	client map[string][]byte
+	sync.Mutex
+	cache map[string][]byte
 }
 
-func (m *mockClient) Store(_ context.Context, key []string, val [][]byte) {
-	m.client[key[0]] = val[0]
+func (m *mockClient) Store(_ context.Context, keys []string, bufs [][]byte) {
+	m.Lock()
+	defer m.Unlock()
+	for i := range keys {
+		m.cache[keys[i]] = bufs[i]
+	}
 }
 
-func (m *mockClient) Fetch(_ context.Context, key []string) (found []string, bufs [][]byte, missing []string) {
-	val, ok := m.client[key[0]]
-	if ok {
-		found = append(found, key[0])
-		bufs = append(bufs, val)
-	} else {
-		missing = append(missing, key[0])
+func (m *mockClient) Fetch(_ context.Context, keys []string) (found []string, bufs [][]byte, missing []string) {
+	m.Lock()
+	defer m.Unlock()
+	for _, key := range keys {
+		buf, ok := m.cache[key]
+		if ok {
+			found = append(found, key)
+			bufs = append(bufs, buf)
+		} else {
+			missing = append(missing, key)
+		}
 	}
 	return
+}
+
+func (m *mockClient) MaxItemSize() int {
+	return 0
 }
 
 func (m *mockClient) Stop() {
@@ -32,7 +46,7 @@ func (m *mockClient) Stop() {
 // NewMockClient makes a new mockClient.
 func NewMockClient() cache.Cache {
 	return &mockClient{
-		client: map[string][]byte{},
+		cache: map[string][]byte{},
 	}
 }
 

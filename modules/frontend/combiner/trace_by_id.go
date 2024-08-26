@@ -35,7 +35,7 @@ type traceByIDCombiner struct {
 // - encode the returned trace as either json or proto depending on the request
 func NewTraceByID(maxBytes int, contentType string) Combiner {
 	return &traceByIDCombiner{
-		c:           trace.NewCombiner(maxBytes),
+		c:           trace.NewCombiner(maxBytes, false),
 		code:        http.StatusNotFound,
 		contentType: contentType,
 	}

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,8 +37,6 @@ const (
 	urlParamEnd             = "end"
 	urlParamSpansPerSpanSet = "spss"
 	urlParamStep            = "step"
-	urlParamShard           = "shard"
-	urlParamShardCount      = "shardCount"
 	urlParamSince           = "since"
 	urlParamExemplars       = "exemplars"
 
@@ -145,13 +144,6 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 
 	query, queryFound := extractQueryParam(vals, urlParamQuery)
 	if queryFound {
-		// TODO hacky fix: we don't validate {} since this isn't handled correctly yet
-		if query != "{}" {
-			_, err := traceql.Parse(query)
-			if err != nil {
-				return nil, fmt.Errorf("invalid TraceQL query: %w", err)
-			}
-		}
 		req.Query = query
 	}
 
@@ -381,15 +373,6 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 	}
 	req.Step = uint64(step.Nanoseconds())
 
-	shardCount, _ := extractQueryParam(vals, urlParamShardCount)
-	if shardCount, err := strconv.Atoi(shardCount); err == nil {
-		req.ShardCount = uint32(shardCount)
-	}
-	shard, _ := extractQueryParam(vals, urlParamShard)
-	if shard, err := strconv.Atoi(shard); err == nil {
-		req.ShardID = uint32(shard)
-	}
-
 	// New RF1 params
 	blockID, _ := extractQueryParam(vals, urlParamBlockID)
 	if blockID, err := uuid.Parse(blockID); err == nil {
@@ -474,8 +457,6 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 	qb.addParam(urlParamStart, strconv.FormatUint(searchReq.Start, 10))
 	qb.addParam(urlParamEnd, strconv.FormatUint(searchReq.End, 10))
 	qb.addParam(urlParamStep, time.Duration(searchReq.Step).String())
-	qb.addParam(urlParamShard, strconv.FormatUint(uint64(searchReq.ShardID), 10))
-	qb.addParam(urlParamShardCount, strconv.FormatUint(uint64(searchReq.ShardCount), 10))
 	qb.addParam(QueryModeKey, searchReq.QueryMode)
 	// New RF1 params
 	qb.addParam(urlParamBlockID, searchReq.BlockID)
@@ -498,6 +479,21 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 
 	req.URL.RawQuery = qb.query()
 
+	return req
+}
+
+// Generic helper to append query parameters to an http request with less allocations
+func BuildQueryRequest(req *http.Request, queryParams map[string]string) *http.Request {
+	if req == nil {
+		req = &http.Request{
+			URL: &url.URL{},
+		}
+	}
+	qb := newQueryBuilder(req.URL.RawQuery)
+	for k, v := range queryParams {
+		qb.addParam(k, v)
+	}
+	req.URL.RawQuery = qb.query()
 	return req
 }
 
@@ -790,4 +786,24 @@ func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64,
 		return "", "", "", 0, 0, fmt.Errorf("http parameter start must be before end. received start=%d end=%d", startTime, endTime)
 	}
 	return blockStart, blockEnd, queryMode, startTime, endTime, nil
+}
+
+func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
+	length := resp.ContentLength
+	// if ContentLength is -1 if the length is unknown. default to bytes.MinRead (its what buffer.ReadFrom does)
+	if length < 0 {
+		length = bytes.MinRead
+	}
+	// buffer.ReadFrom always allocs at least bytes.MinRead past the end of the actual required length b/c of how io.EOF is handled. this prevents extending the internal
+	// slice unnecessarily.  https://github.com/golang/go/issues/21852
+	length += bytes.MinRead
+
+	// alloc a buffer to store the response body
+	buffer := bytes.NewBuffer(make([]byte, 0, length))
+	_, err := buffer.ReadFrom(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	return buffer, nil
 }

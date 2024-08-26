@@ -28,7 +28,7 @@ func TestTestRegistry_counter(t *testing.T) {
 func TestTestRegistry_histogram(t *testing.T) {
 	testRegistry := NewTestRegistry()
 
-	histogram := testRegistry.NewHistogram("histogram", []float64{1.0, 2.0}, "classic")
+	histogram := testRegistry.NewHistogram("histogram", []float64{1.0, 2.0}, HistogramModeClassic)
 
 	labelValues := newLabelValueCombo([]string{"foo", "bar"}, []string{"foo-value", "bar-value"})
 	histogram.ObserveWithExemplar(labelValues, 1.0, "", 1.0)
