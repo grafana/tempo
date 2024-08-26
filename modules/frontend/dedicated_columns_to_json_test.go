@@ -11,7 +11,7 @@ import (
 )
 
 func TestDedicatedColumnsToJson(t *testing.T) {
-	d := NewDedicatedColumnsToJSON()
+	d := newDedicatedColumnsToJSON()
 
 	testCols := []backend.DedicatedColumns{}
 	for i := 0; i < 10; i++ {

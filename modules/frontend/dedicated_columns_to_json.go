@@ -7,11 +7,12 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
+// jpe - move to api?
 type DedicatedColumnsToJSON struct {
 	columnsToJSON map[uint64]string
 }
 
-func NewDedicatedColumnsToJSON() *DedicatedColumnsToJSON {
+func newDedicatedColumnsToJSON() *DedicatedColumnsToJSON {
 	return &DedicatedColumnsToJSON{
 		columnsToJSON: make(map[uint64]string),
 	}
@@ -19,7 +20,7 @@ func NewDedicatedColumnsToJSON() *DedicatedColumnsToJSON {
 
 func (d *DedicatedColumnsToJSON) JSONForDedicatedColumns(cols backend.DedicatedColumns) (string, error) {
 	if len(cols) == 0 {
-		return "", nil // jpe - api.Build needs to handle empty string
+		return "", nil
 	}
 
 	hash := cols.Hash()

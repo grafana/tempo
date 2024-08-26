@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -477,7 +478,10 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		actualURL, err := BuildSearchBlockRequest(tc.httpReq, tc.req)
+		jsonBytes, err := json.Marshal(tc.req.DedicatedColumns)
+		require.NoError(t, err)
+
+		actualURL, err := BuildSearchBlockRequest(tc.httpReq, tc.req, string(jsonBytes))
 		assert.NoError(t, err)
 		assert.Equal(t, tc.query, actualURL.URL.String())
 	}
