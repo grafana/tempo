@@ -294,7 +294,6 @@ querier:
     query_relevant_ingesters: false
 query_frontend:
     max_outstanding_per_tenant: 2000
-    querier_forget_delay: 0s
     max_batch_size: 5
     log_query_request_headers: ""
     max_retries: 2

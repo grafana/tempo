@@ -199,9 +199,16 @@ distributor:
 
 
     # Optional.
-    # Enable to log every received span to help debug ingestion or calculate span error distributions using the logs
+    # Enable to log every received span to help debug ingestion or calculate span error distributions using the logs.
     # This is not recommended for production environments
     log_received_spans:
+        [enabled: <boolean> | default = false]
+        [include_all_attributes: <boolean> | default = false]
+        [filter_by_status_error: <boolean> | default = false]
+      
+    # Optional.
+    # Enable to log every discarded span to help debug ingestion or calculate span error distributions using the logs.
+    log_discarded_spans:
         [enabled: <boolean> | default = false]
         [include_all_attributes: <boolean> | default = false]
         [filter_by_status_error: <boolean> | default = false]
@@ -657,9 +664,6 @@ query_frontend:
         # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         [throughput_bytes_slo: <float> | default = 0 ]
-
-        # If set to true, TraceQL metric queries will use RF1 blocks built and flushed by the metrics-generator.
-        [rf1_read_path: <bool> | default = false]
 ```
 
 ## Querier

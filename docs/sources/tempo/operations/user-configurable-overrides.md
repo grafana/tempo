@@ -39,7 +39,7 @@ Tempo regularly polls this bucket and keeps a copy of the limits in-memory. When
 
 ### Supported fields
 
-User-configurable overrides are designed to be a subset of the runtime overrides. Refer to [Overrides]{{< relref "../configuration#overrides" >}} for information about all overrides.
+User-configurable overrides are designed to be a subset of the runtime overrides. Refer to [Overrides]({{< relref "../configuration#overrides" >}}) for information about all overrides.
 When a field is set in both the user-configurable overrides and the runtime overrides, the value from the user-configurable overrides will take priority.
 
 {{< admonition type="note" >}}

@@ -104,11 +104,6 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 			},
 		},
 		{
-			name:     "invalid traceql query",
-			urlQuery: "q=" + url.QueryEscape(`{ .foo="bar" `),
-			err:      "invalid TraceQL query: parse error at line 1, col 14: syntax error: unexpected $end",
-		},
-		{
 			name:     "traceql query and tags",
 			urlQuery: "q=" + url.QueryEscape(`{ .foo="bar" }`) + "&tags=" + url.QueryEscape("service.name=foo"),
 			err:      "invalid request: can't specify tags and q in the same query",
@@ -710,13 +705,11 @@ func TestQueryRangeRoundtrip(t *testing.T) {
 		{
 			name: "not empty!",
 			req: &tempopb.QueryRangeRequest{
-				Query:      "{ foo = `bar` }",
-				Start:      uint64(24 * time.Hour),
-				End:        uint64(25 * time.Hour),
-				Step:       uint64(30 * time.Second),
-				ShardID:    1,
-				ShardCount: 2,
-				QueryMode:  "foo",
+				Query:     "{ foo = `bar` }",
+				Start:     uint64(24 * time.Hour),
+				End:       uint64(25 * time.Hour),
+				Step:      uint64(30 * time.Second),
+				QueryMode: "foo",
 			},
 		},
 	}

@@ -37,8 +37,6 @@ const (
 	urlParamEnd             = "end"
 	urlParamSpansPerSpanSet = "spss"
 	urlParamStep            = "step"
-	urlParamShard           = "shard"
-	urlParamShardCount      = "shardCount"
 	urlParamSince           = "since"
 	urlParamExemplars       = "exemplars"
 
@@ -146,13 +144,6 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 
 	query, queryFound := extractQueryParam(vals, urlParamQuery)
 	if queryFound {
-		// TODO hacky fix: we don't validate {} since this isn't handled correctly yet
-		if query != "{}" {
-			_, err := traceql.Parse(query)
-			if err != nil {
-				return nil, fmt.Errorf("invalid TraceQL query: %w", err)
-			}
-		}
 		req.Query = query
 	}
 
@@ -382,15 +373,6 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 	}
 	req.Step = uint64(step.Nanoseconds())
 
-	shardCount, _ := extractQueryParam(vals, urlParamShardCount)
-	if shardCount, err := strconv.Atoi(shardCount); err == nil {
-		req.ShardCount = uint32(shardCount)
-	}
-	shard, _ := extractQueryParam(vals, urlParamShard)
-	if shard, err := strconv.Atoi(shard); err == nil {
-		req.ShardID = uint32(shard)
-	}
-
 	// New RF1 params
 	blockID, _ := extractQueryParam(vals, urlParamBlockID)
 	if blockID, err := uuid.Parse(blockID); err == nil {
@@ -475,8 +457,6 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 	qb.addParam(urlParamStart, strconv.FormatUint(searchReq.Start, 10))
 	qb.addParam(urlParamEnd, strconv.FormatUint(searchReq.End, 10))
 	qb.addParam(urlParamStep, time.Duration(searchReq.Step).String())
-	qb.addParam(urlParamShard, strconv.FormatUint(uint64(searchReq.ShardID), 10))
-	qb.addParam(urlParamShardCount, strconv.FormatUint(uint64(searchReq.ShardCount), 10))
 	qb.addParam(QueryModeKey, searchReq.QueryMode)
 	// New RF1 params
 	qb.addParam(urlParamBlockID, searchReq.BlockID)

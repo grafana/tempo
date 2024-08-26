@@ -93,6 +93,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()
 	traceIDStatusCodeWare := pipeline.NewStatusCodeAdjustWareWithAllowedCode(http.StatusNotFound)
 	urlDenyListWare := pipeline.NewURLDenyListWare(cfg.URLDenyList)
+	queryValidatorWare := pipeline.NewQueryValidatorWare()
 
 	tracePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
@@ -106,6 +107,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	searchPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
+			queryValidatorWare,
 			multiTenantMiddleware(cfg, logger),
 			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, logger),
 		},
@@ -134,6 +136,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	metricsPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
+			queryValidatorWare,
 			multiTenantUnsupportedMiddleware(cfg, logger),
 		},
 		[]pipeline.Middleware{statusCodeWare, retryWare},
@@ -143,6 +146,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	queryRangePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
+			queryValidatorWare,
 			multiTenantMiddleware(cfg, logger),
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, logger),
 		},

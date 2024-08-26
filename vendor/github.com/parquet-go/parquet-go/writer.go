@@ -11,6 +11,7 @@ import (
 	"math/bits"
 	"os"
 	"reflect"
+	"slices"
 	"sort"
 
 	"github.com/parquet-go/parquet-go/compress"
@@ -604,7 +605,10 @@ func newWriter(output io.Writer, config *WriterConfig) *writer {
 			bufferIndex:        int32(leaf.columnIndex),
 			bufferSize:         int32(float64(config.PageBufferSize) * 0.98),
 			writePageStats:     config.DataPageStatistics,
-			encodings:          make([]format.Encoding, 0, 3),
+			writePageBounds: !slices.ContainsFunc(config.SkipPageBounds, func(skip []string) bool {
+				return columnPath(skip).equal(leaf.path)
+			}),
+			encodings: make([]format.Encoding, 0, 3),
 			// Data pages in version 2 can omit compression when dictionary
 			// encoding is employed; only the dictionary page needs to be
 			// compressed, the data pages are encoded with the hybrid
@@ -786,8 +790,15 @@ func (w *writer) writeFileFooter() error {
 		numRows += w.rowGroups[rowGroupIndex].NumRows
 	}
 
+	// We implemented the parquet specification version 2+, which is represented
+	// by the version number 2 in the file metadata.
+	//
+	// For reference, see:
+	// https://github.com/apache/arrow/blob/70b9ef5/go/parquet/metadata/file.go#L122-L127
+	const parquetFileFormatVersion = 2
+
 	footer, err := thrift.Marshal(new(thrift.CompactProtocol), &format.FileMetaData{
-		Version:          1,
+		Version:          parquetFileFormatVersion,
 		Schema:           w.schemaElements,
 		NumRows:          numRows,
 		RowGroups:        w.rowGroups,
@@ -1138,13 +1149,14 @@ type writerColumn struct {
 		encoder  thrift.Encoder
 	}
 
-	filter         []byte
-	numRows        int64
-	bufferIndex    int32
-	bufferSize     int32
-	writePageStats bool
-	isCompressed   bool
-	encodings      []format.Encoding
+	filter          []byte
+	numRows         int64
+	bufferIndex     int32
+	bufferSize      int32
+	writePageStats  bool
+	writePageBounds bool
+	isCompressed    bool
+	encodings       []format.Encoding
 
 	columnChunk *format.ColumnChunk
 	offsetIndex *format.OffsetIndex
@@ -1566,7 +1578,13 @@ func (c *writerColumn) recordPageStats(headerSize int32, header *format.PageHead
 	if page != nil {
 		numNulls := page.NumNulls()
 		numValues := page.NumValues()
-		minValue, maxValue, pageHasBounds := page.Bounds()
+
+		var minValue, maxValue Value
+		var pageHasBounds bool
+		if c.writePageBounds {
+			minValue, maxValue, pageHasBounds = page.Bounds()
+		}
+
 		c.columnIndex.IndexPage(numValues, numNulls, minValue, maxValue)
 		c.columnChunk.MetaData.NumValues += numValues
 		c.columnChunk.MetaData.Statistics.NullCount += numNulls
@@ -1581,11 +1599,19 @@ func (c *writerColumn) recordPageStats(headerSize int32, header *format.PageHead
 
 			if existingMaxValue.isNull() || c.columnType.Compare(maxValue, existingMaxValue) > 0 {
 				buf := c.columnChunk.MetaData.Statistics.MaxValue[:0]
+				// if maxValue is empty string, c.columnChunk.MetaData.Statistics.MaxValue should be []bytes{}, but nil
+				if buf == nil && maxValue.Kind() == ByteArray && len(maxValue.ByteArray()) == 0 {
+					buf = make([]byte, 0)
+				}
 				c.columnChunk.MetaData.Statistics.MaxValue = maxValue.AppendBytes(buf)
 			}
 
 			if existingMinValue.isNull() || c.columnType.Compare(minValue, existingMinValue) < 0 {
 				buf := c.columnChunk.MetaData.Statistics.MinValue[:0]
+				// same as above
+				if buf == nil && minValue.Kind() == ByteArray && len(minValue.ByteArray()) == 0 {
+					buf = make([]byte, 0)
+				}
 				c.columnChunk.MetaData.Statistics.MinValue = minValue.AppendBytes(buf)
 			}
 		}
