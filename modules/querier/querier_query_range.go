@@ -29,7 +29,7 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 	// // Get results from all generators
 	replicationSet, err := q.generatorRing.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
-		return nil, fmt.Errorf("error finding generators in Querier.SpanMetricsSummary: %w", err)
+		return nil, fmt.Errorf("error finding generators in Querier.queryRangeRecent: %w", err)
 	}
 	lookupResults, err := q.forGivenGenerators(
 		ctx,
@@ -39,9 +39,9 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 		},
 	)
 	if err != nil {
-		_ = level.Error(log.Logger).Log("error querying generators in Querier.MetricsQueryRange", "err", err)
+		_ = level.Error(log.Logger).Log("error querying generators in Querier.queryRangeRecent", "err", err)
 
-		return nil, fmt.Errorf("error querying generators in Querier.MetricsQueryRange: %w", err)
+		return nil, fmt.Errorf("error querying generators in Querier.queryRangeRecent: %w", err)
 	}
 
 	c, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeSum, false)
@@ -59,7 +59,7 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
+		return nil, fmt.Errorf("error extracting org id in Querier.queryBlock: %w", err)
 	}
 
 	blockID, err := uuid.Parse(req.BlockID)
