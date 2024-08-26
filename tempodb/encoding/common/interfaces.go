@@ -9,7 +9,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
-	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
 )
 
 type Finder interface {
@@ -98,7 +97,7 @@ type BackendBlock interface {
 	Finder
 	Searcher
 
-	BlockMeta() *backend_v1.BlockMeta
+	BlockMeta() *backend.BlockMeta
 }
 
 type WALBlock interface {
