@@ -27,7 +27,7 @@ message BlockMeta {
     uint32 bloom_shard_count = 15;
     uint32 footer_size = 16;
     repeated tempopb.DedicatedColumn dedicated_columns = 17;
-    uint32 replication_factor = 18;
+    uint32 replication_factor = 18[(gogoproto.customtype) = "uint8"];
 }
 
 message CompactedBlockMeta {
