@@ -208,7 +208,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 	defer close(reqCh)
 
 	queryHash := hashForQueryRangeRequest(&searchReq)
-	colsToJSON := newDedicatedColumnsToJSON()
+	colsToJSON := api.NewDedicatedColumnsToJSON()
 
 	exemplarsPerBlock := s.exemplarsPerShard(uint32(len(metas)))
 	for _, m := range metas {

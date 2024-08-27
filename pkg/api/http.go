@@ -442,6 +442,9 @@ func BuildQueryInstantRequest(req *http.Request, searchReq *tempopb.QueryInstant
 	return req
 }
 
+// BuildQueryRangeRequest takes a tempopb.QueryRangeRequest and populates the passed http.Request
+// dedicatedColumnsJSON should be generated using the DedicatedColumnsToJSON struct which produces the expected string
+// value and memoizes results to prevent redundant marshaling.
 func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequest, dedicatedColumnsJSON string) *http.Request {
 	if req == nil {
 		req = &http.Request{
@@ -642,6 +645,8 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 
 // BuildSearchBlockRequest takes a tempopb.SearchBlockRequest and populates the passed http.Request
 // with the appropriate params. If no http.Request is provided a new one is created.
+// dedicatedColumnsJSON should be generated using the DedicatedColumnsToJSON struct which produces the expected string
+// value and memoizes results to prevent redundant marshaling.
 func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRequest, dedicatedColumnsJSON string) (*http.Request, error) {
 	if req == nil {
 		req = &http.Request{

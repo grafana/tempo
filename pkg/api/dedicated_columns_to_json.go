@@ -1,4 +1,4 @@
-package frontend
+package api
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ type DedicatedColumnsToJSON struct {
 	columnsToJSON map[uint64]string
 }
 
-func newDedicatedColumnsToJSON() *DedicatedColumnsToJSON {
+func NewDedicatedColumnsToJSON() *DedicatedColumnsToJSON {
 	return &DedicatedColumnsToJSON{
 		columnsToJSON: make(map[uint64]string),
 	}

@@ -1,4 +1,4 @@
-package frontend
+package api
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 )
 
 func TestDedicatedColumnsToJson(t *testing.T) {
-	d := newDedicatedColumnsToJSON()
+	d := NewDedicatedColumnsToJSON()
 
 	testCols := []backend.DedicatedColumns{}
 	for i := 0; i < 10; i++ {
