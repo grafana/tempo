@@ -4,11 +4,14 @@ package backend.v1;
 
 import "pkg/tempopb/tempo.proto";
 
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+
 option go_package = "github.com/grafana/tempo/tempodb/backend/v1";
 
 message BlockMeta {
     string version = 1;
-    string block_id = 2;
+    string block_id = 2[(gogoproto.customtype) = "github.com/google/uuid.UUID"];
     bytes min_id = 3;
     bytes max_id = 4;
     string tenant_id = 5;
