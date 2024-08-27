@@ -654,9 +654,6 @@ query_frontend:
         # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         [throughput_bytes_slo: <float> | default = 0 ]
-
-        # If set to true, TraceQL metric queries will use RF1 blocks built and flushed by the metrics-generator.
-        [rf1_read_path: <bool> | default = false]
 ```
 
 ## Querier

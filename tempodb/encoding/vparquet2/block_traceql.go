@@ -19,7 +19,6 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/traceidboundary"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -1200,7 +1199,7 @@ func (i *mergeSpansetIterator) Close() {
 //                                                            V
 
 func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, rowGroups []parquet.RowGroup) (*spansetIterator, error) {
-	iter, err := createAllIterator(ctx, nil, req.Conditions, req.AllConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, req.ShardID, req.ShardCount, rowGroups, pf)
+	iter, err := createAllIterator(ctx, nil, req.Conditions, req.AllConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, rowGroups, pf)
 	if err != nil {
 		return nil, fmt.Errorf("error creating iterator: %w", err)
 	}
@@ -1208,7 +1207,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 	if req.SecondPass != nil {
 		iter = newBridgeIterator(newRebatchIterator(iter), req.SecondPass)
 
-		iter, err = createAllIterator(ctx, iter, req.SecondPassConditions, false, 0, 0, req.ShardID, req.ShardCount, rowGroups, pf)
+		iter, err = createAllIterator(ctx, iter, req.SecondPassConditions, false, 0, 0, rowGroups, pf)
 		if err != nil {
 			return nil, fmt.Errorf("error creating second pass iterator: %w", err)
 		}
@@ -1218,7 +1217,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 }
 
 func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conds []traceql.Condition, allConditions bool, start, end uint64,
-	shardID, shardCount uint32, rgs []parquet.RowGroup, pf *parquet.File,
+	rgs []parquet.RowGroup, pf *parquet.File,
 ) (parquetquery.Iterator, error) {
 	// Categorize conditions into span-level or resource-level
 	var (
@@ -1292,7 +1291,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		return nil, fmt.Errorf("creating resource iterator: %w", err)
 	}
 
-	return createTraceIterator(makeIter, resourceIter, traceConditions, start, end, shardID, shardCount, allConditions)
+	return createTraceIterator(makeIter, resourceIter, traceConditions, start, end, allConditions)
 }
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
@@ -1560,7 +1559,7 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 		required, iters, batchCol)
 }
 
-func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64, shardID, shardCount uint32, allConditions bool) (parquetquery.Iterator, error) {
+func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64, allConditions bool) (parquetquery.Iterator, error) {
 	iters := make([]parquetquery.Iterator, 0, 3)
 
 	// add conditional iterators first. this way if someone searches for { traceDuration > 1s && span.foo = "bar"} the query will
@@ -2275,17 +2274,4 @@ func orIfNeeded(preds []parquetquery.Predicate) parquetquery.Predicate {
 	default:
 		return parquetquery.NewOrPredicate(preds...)
 	}
-}
-
-// NewTraceIDShardingPredicate creates a predicate for the TraceID column to match only IDs
-// within the shard.  If sharding isn't present, returns nil meaning no predicate.
-func NewTraceIDShardingPredicate(shardID, shardCount uint32) parquetquery.Predicate {
-	if shardCount <= 1 || shardID <= 0 {
-		return nil
-	}
-
-	isMatch, withinRange := traceidboundary.Funcs(shardID, shardCount)
-	extract := func(v parquet.Value) []byte { return v.ByteArray() }
-
-	return parquetquery.NewGenericPredicate(isMatch, withinRange, extract)
 }
