@@ -4,6 +4,7 @@ package backend.v1;
 
 import "pkg/tempopb/tempo.proto";
 
+import "google/protobuf/timestamp.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 
@@ -11,12 +12,16 @@ option go_package = "github.com/grafana/tempo/tempodb/backend/v1";
 
 message BlockMeta {
     string version = 1;
-    string block_id = 2[(gogoproto.customtype) = "github.com/google/uuid.UUID"];
+    string block_id = 2;
+    // [
+    //   // (gogoproto.customtype) = "github.com/google/uuid.UUID",
+    //   // (gogoproto.nullable) = false
+    // ];
     bytes min_id = 3;
     bytes max_id = 4;
     string tenant_id = 5;
-    int64 start_time = 6[(gogoproto.stdtime) = true];
-    int64 end_time = 7[(gogoproto.stdtime) = true];
+    google.protobuf.Timestamp start_time = 6[(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    google.protobuf.Timestamp end_time = 7[(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     int32 total_objects = 8;
     uint64 size = 9;
     uint32 compaction_level = 10;
@@ -27,7 +32,7 @@ message BlockMeta {
     uint32 bloom_shard_count = 15;
     uint32 footer_size = 16;
     repeated tempopb.DedicatedColumn dedicated_columns = 17;
-    uint32 replication_factor = 18[(gogoproto.customtype) = "uint8"];
+    uint32 replication_factor = 18;
 }
 
 message CompactedBlockMeta {
