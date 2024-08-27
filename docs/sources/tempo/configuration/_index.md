@@ -3,7 +3,6 @@ title: Configure Tempo
 menuTitle: Configure
 description: Learn about available options in Tempo and how to configure them.
 weight: 400
-aliases:
 ---
 
 # Configure Tempo
