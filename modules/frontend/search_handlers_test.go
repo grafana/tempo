@@ -742,6 +742,23 @@ func frontendWithSettings(t require.TestingT, next http.RoundTripper, rdr tempod
 					TotalRecords: 2,
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 				},
+				// These are RF1 metrics blocks
+				{
+					StartTime:         time.Unix(1100, 0),
+					EndTime:           time.Unix(1200, 0),
+					Size:              defaultTargetBytesPerRequest * 2,
+					TotalRecords:      2,
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					ReplicationFactor: 1,
+				},
+				{
+					StartTime:         time.Unix(1100, 0),
+					EndTime:           time.Unix(1200, 0),
+					Size:              defaultTargetBytesPerRequest * 2,
+					TotalRecords:      2,
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					ReplicationFactor: 1,
+				},
 			},
 		}
 	}

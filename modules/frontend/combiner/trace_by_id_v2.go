@@ -1,14 +1,20 @@
 package combiner
 
 import (
+	"fmt"
+
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 func NewTraceByIDV2(maxBytes int, marshalingFormat string) Combiner {
-	combiner := trace.NewCombiner(maxBytes)
+	combiner := trace.NewCombiner(maxBytes, true)
+	var partialTrace bool
 	gc := &genericCombiner[*tempopb.TraceByIDResponse]{
 		combine: func(partial *tempopb.TraceByIDResponse, _ *tempopb.TraceByIDResponse, _ PipelineResponse) error {
+			if partial.Status == tempopb.TraceByIDResponse_PARTIAL {
+				partialTrace = true
+			}
 			_, err := combiner.Consume(partial.Trace)
 			return err
 		},
@@ -21,8 +27,13 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat string) Combiner {
 			// dedupe duplicate span ids
 			deduper := newDeduper()
 			traceResult = deduper.dedupe(traceResult)
-
 			resp.Trace = traceResult
+
+			if partialTrace || combiner.IsPartialTrace() {
+				resp.Status = tempopb.TraceByIDResponse_PARTIAL
+				resp.Message = fmt.Sprintf("Trace exceeds maximum size of %d bytes, a partial trace is returned", maxBytes)
+			}
+
 			return resp, nil
 		},
 		new:     func() *tempopb.TraceByIDResponse { return &tempopb.TraceByIDResponse{} },

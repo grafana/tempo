@@ -197,7 +197,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 		require.Nil(t, failedBlocks)
 		require.NotNil(t, trs)
 
-		c := trace.NewCombiner(0)
+		c := trace.NewCombiner(0, false)
 		for _, tr := range trs {
 			_, err = c.Consume(tr)
 			require.NoError(t, err)
@@ -351,7 +351,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)
 
-		c := trace.NewCombiner(0)
+		c := trace.NewCombiner(0, false)
 		for _, tr := range trs {
 			_, err = c.Consume(tr)
 			require.NoError(t, err)

@@ -8,8 +8,6 @@ import (
 // and not part of the language or engine, we organize them here in one place.
 const (
 	HintSample            = "sample"
-	HintDedupe            = "dedupe"
-	HintJobInterval       = "job_interval"
 	HintJobSize           = "job_size"
 	HintTimeOverlapCutoff = "time_overlap_cutoff"
 	HintConcurrentBlocks  = "concurrent_blocks"

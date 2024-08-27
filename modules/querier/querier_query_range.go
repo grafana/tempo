@@ -9,15 +9,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/opentracing/opentracing-go"
-	"github.com/uber-go/atomic"
 )
 
 func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
@@ -25,19 +22,14 @@ func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest
 		return q.queryRangeRecent(ctx, req)
 	}
 
-	if req.BlockID != "" { // RF1 search
-		return q.queryBlock(ctx, req)
-	}
-
-	// Backend requests go here
-	return q.queryBackend(ctx, req)
+	return q.queryBlock(ctx, req)
 }
 
 func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
 	// // Get results from all generators
 	replicationSet, err := q.generatorRing.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
-		return nil, fmt.Errorf("error finding generators in Querier.SpanMetricsSummary: %w", err)
+		return nil, fmt.Errorf("error finding generators in Querier.queryRangeRecent: %w", err)
 	}
 	lookupResults, err := q.forGivenGenerators(
 		ctx,
@@ -47,9 +39,9 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 		},
 	)
 	if err != nil {
-		_ = level.Error(log.Logger).Log("error querying generators in Querier.MetricsQueryRange", "err", err)
+		_ = level.Error(log.Logger).Log("error querying generators in Querier.queryRangeRecent", "err", err)
 
-		return nil, fmt.Errorf("error querying generators in Querier.MetricsQueryRange: %w", err)
+		return nil, fmt.Errorf("error querying generators in Querier.queryRangeRecent: %w", err)
 	}
 
 	c, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeSum, false)
@@ -67,7 +59,7 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
+		return nil, fmt.Errorf("error extracting org id in Querier.queryBlock: %w", err)
 	}
 
 	blockID, err := uuid.Parse(req.BlockID)
@@ -116,7 +108,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		timeOverlapCutoff = v
 	}
 
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, false, int(req.Exemplars), timeOverlapCutoff, unsafe)
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, int(req.Exemplars), timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}
@@ -126,103 +118,6 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 	})
 	err = eval.Do(ctx, f, uint64(meta.StartTime.UnixNano()), uint64(meta.EndTime.UnixNano()))
 	if err != nil {
-		return nil, err
-	}
-
-	res := eval.Results()
-
-	inspectedBytes, spansTotal, _ := eval.Metrics()
-
-	return &tempopb.QueryRangeResponse{
-		Series: queryRangeTraceQLToProto(res, req),
-		Metrics: &tempopb.SearchMetrics{
-			InspectedBytes: inspectedBytes,
-			InspectedSpans: spansTotal,
-		},
-	}, nil
-}
-
-func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	tenantID, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get blocks that overlap this time range
-	metas := q.store.BlockMetas(tenantID)
-	withinTimeRange := metas[:0]
-	for _, m := range metas {
-		if m.StartTime.UnixNano() <= int64(req.End) && m.EndTime.UnixNano() > int64(req.Start) {
-			withinTimeRange = append(withinTimeRange, m)
-		}
-	}
-
-	if len(withinTimeRange) == 0 {
-		return nil, nil
-	}
-
-	unsafe := q.limits.UnsafeQueryHints(tenantID)
-
-	// Optimization
-	// If there's only 1 block then dedupe not needed.
-	dedupe := len(withinTimeRange) > 1
-
-	expr, err := traceql.Parse(req.Query)
-	if err != nil {
-		return nil, err
-	}
-
-	timeOverlapCutoff := q.cfg.Metrics.TimeOverlapCutoff
-	if v, ok := expr.Hints.GetFloat(traceql.HintTimeOverlapCutoff, unsafe); ok && v >= 0 && v <= 1.0 {
-		timeOverlapCutoff = v
-	}
-
-	concurrency := q.cfg.Metrics.ConcurrentBlocks
-	if v, ok := expr.Hints.GetInt(traceql.HintConcurrentBlocks, unsafe); ok && v > 0 && v < 100 {
-		concurrency = v
-	}
-
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, dedupe, int(req.Exemplars), timeOverlapCutoff, unsafe)
-	if err != nil {
-		return nil, err
-	}
-
-	wg := boundedwaitgroup.New(uint(concurrency))
-	jobErr := atomic.Error{}
-
-	for _, m := range withinTimeRange {
-		// If a job errored then quit immediately.
-		if err := jobErr.Load(); err != nil {
-			return nil, err
-		}
-
-		wg.Add(1)
-		go func(m *backend.BlockMeta) {
-			defer wg.Done()
-
-			span, ctx := opentracing.StartSpanFromContext(ctx, "querier.queryBackEnd.Block", opentracing.Tags{
-				"block":     m.BlockID.String(),
-				"blockSize": m.Size,
-			})
-			defer span.Finish()
-
-			f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-				return q.store.Fetch(ctx, m, req, common.DefaultSearchOptions())
-			})
-
-			// TODO handle error
-			err := eval.Do(ctx, f, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
-			if err != nil {
-				jobErr.Store(err)
-			}
-		}(m)
-	}
-
-	wg.Wait()
-	if err := jobErr.Load(); err != nil {
 		return nil, err
 	}
 

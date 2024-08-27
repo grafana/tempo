@@ -690,7 +690,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		_, err := i.FindTraceByID(context.Background(), []byte{0x01})
+		_, err := i.FindTraceByID(context.Background(), []byte{0x01}, false)
 		assert.NoError(t, err, "error finding trace by id")
 	})
 

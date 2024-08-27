@@ -692,7 +692,7 @@ func truncateLargeMaxByteArrayValue(value []byte, sizeLimit int) []byte {
 }
 
 // incrementByteArray increments the given byte array by 1.
-// Reference: https://github.com/apache/parquet-mr/blob/master/parquet-column/src/main/java/org/apache/parquet/internal/column/columnindex/BinaryTruncator.java#L124
+// Reference: https://github.com/apache/parquet-java/blob/master/parquet-column/src/main/java/org/apache/parquet/internal/column/columnindex/BinaryTruncator.java#L124
 func incrementByteArrayInplace(value []byte) {
 	for i := len(value) - 1; i >= 0; i-- {
 		value[i]++

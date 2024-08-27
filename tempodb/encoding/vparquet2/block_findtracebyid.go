@@ -288,21 +288,3 @@ func binarySearch(n int, compare func(int) (int, error)) (int, error) {
 	// No match
 	return -1, nil
 }
-
-/*func dumpParquetRow(sch parquet.Schema, row parquet.Row) {
-	for i, r := range row {
-		slicestr := ""
-		if r.Kind() == parquet.ByteArray {
-			slicestr = util.TraceIDToHexString(r.ByteArray())
-		}
-		fmt.Printf("row[%d] = c:%d (%s) r:%d d:%d v:%s (%s)\n",
-			i,
-			r.Column(),
-			strings.Join(sch.Columns()[r.Column()], "."),
-			r.RepetitionLevel(),
-			r.DefinitionLevel(),
-			r.String(),
-			slicestr,
-		)
-	}
-}*/
