@@ -20,7 +20,7 @@ message BlockMeta {
     int32 total_objects = 8;
     uint64 size = 9;
     uint32 compaction_level = 10;
-    string encoding = 11[(gogoproto.customtype) = "github.com/grafana/tempo/tempodb/backend.Encoding"];
+    string encoding = 11;
     uint32 index_page_size = 12;
     uint32 total_records = 13;
     string data_encoding = 14;
