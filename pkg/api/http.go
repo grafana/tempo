@@ -468,7 +468,7 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 	qb.addParam(urlParamFooterSize, strconv.Itoa(int(searchReq.FooterSize)))
 
 	if len(dedicatedColumnsJSON) > 0 && dedicatedColumnsJSON != "null" { // if a caller marshals a nil dedicated cols we will receive the string "null"
-		qb.addParam(urlParamDedicatedColumns, string(dedicatedColumnsJSON))
+		qb.addParam(urlParamDedicatedColumns, dedicatedColumnsJSON)
 	}
 
 	if len(searchReq.Query) > 0 {
@@ -666,7 +666,7 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 	qb.addParam(urlParamVersion, searchReq.Version)
 	qb.addParam(urlParamFooterSize, strconv.FormatUint(uint64(searchReq.FooterSize), 10))
 	if len(dedicatedColumnsJSON) > 0 && dedicatedColumnsJSON != "null" { // if a caller marshals a nil dedicated cols we will receive the string "null"
-		qb.addParam(urlParamDedicatedColumns, string(dedicatedColumnsJSON))
+		qb.addParam(urlParamDedicatedColumns, dedicatedColumnsJSON)
 	}
 
 	req.URL.RawQuery = qb.query()
