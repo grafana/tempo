@@ -3,7 +3,6 @@ title: Write TraceQL queries in Grafana
 menuTitle: Write TraceQL queries in Grafana
 description: Learn how to create TraceQL queries in Grafana using the query editor and search.
 aliases:
-  - ./ # /docs/tempo/<TEMPO_VERSION>/traceql/query-editor
   - ./construct-query # /docs/tempo/<TEMPO_VERSION>/traceql/construct-query
   - ./query-editor/traceql-editor # /docs/tempo/<TEMPO_VERSION>/traceql/query-editor/traceql-editor
   - ./query-editor/traceql-search # /docs/tempo/<TEMPO_VERSION>/traceql/query-editor/traceql-search
@@ -75,6 +74,6 @@ For more information about the service graph, refer to [Service graph view](http
 
 ## Use TraceQL panels in dashboards
 
-To add TraceQL panels to your dashboard, refer to the [Traces panel documentation](/docs/grafana/latest/panels-visualizations/visualizations/traces/).
+To add TraceQL panels to your dashboard, refer to the [Traces panel documentation](/docs/grafana/<GRAFANA_VERSION>/panels-visualizations/visualizations/traces/).
 
-To learn more about Grafana dashboards, refer to the [Use dashboards documentation](/docs/grafana/latest/dashboards/use-dashboards/).
+To learn more about Grafana dashboards, refer to the [Use dashboards documentation](/docs/grafana/<GRAFANA_VERSION>/dashboards/use-dashboards/).

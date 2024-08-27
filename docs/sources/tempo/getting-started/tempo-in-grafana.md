@@ -30,7 +30,7 @@ Traces can be discovered by searching logs for entries containing trace IDs.
 This is most useful when your application also logs relevant information about the trace that can also be searched, such as HTTP status code, customer ID, etc.
 This feature requires a linked Loki data source, and a [traceID derived field](/docs/grafana/latest/datasources/loki/#derived-fields).
 
-For more information, refer to [Trace to logs](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/configure-tempo-data-source/#trace-to-logs).
+For more information, refer to the  [Trace to logs](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/configure-tempo-data-source/#trace-to-logs) documentation.
 
 ![Trace to logs lets you link your tracing data with log data](/media/docs/grafana/data-sources/tempo/trace-to-logs-v11.png)
 

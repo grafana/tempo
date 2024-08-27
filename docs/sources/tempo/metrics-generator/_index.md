@@ -1,7 +1,7 @@
 ---
 aliases:
   - ./server_side_metrics # /docs/tempo/<TEMPO_VERSION>/server_side_metrics/
-  - /docs/tempo/latest/metrics-generator/
+  - /docs/tempo/<TEMPO_VERSION>/metrics-generator/
 title: Metrics-generator
 description: Metrics-generator is an optional Tempo component that derives metrics from ingested traces.
 weight: 500

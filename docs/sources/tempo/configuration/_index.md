@@ -4,7 +4,6 @@ menuTitle: Configure
 description: Learn about available options in Tempo and how to configure them.
 weight: 400
 aliases:
-- ./ # /docs/tempo/<TEMPO_VERSION>/configuration/
 ---
 
 # Configure Tempo
@@ -455,7 +454,7 @@ metrics_generator:
             [concurrent_blocks: <uint> | default = 10]
 
             # A tuning factor that controls whether the trace-level timestamp columns are used in a metrics query.
-            # If a block overlaps the time window by less than this ratio, then we skip the columns.
+            # If a block overlaps the time window by less than this ratio, then the columns are skipped.
             # A value of 1.0 will always load the columns, and 0.0 will never load any.
             [time_overlap_cutoff: <float64> | default = 0.2]
 
