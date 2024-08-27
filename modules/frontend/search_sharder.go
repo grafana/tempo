@@ -303,7 +303,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 	defer close(reqCh)
 
 	queryHash := hashForSearchRequest(searchReq)
-	colsToJSON := newDedicatedColumnsToJSON()
+	colsToJSON := api.NewDedicatedColumnsToJSON()
 
 	for _, m := range metas {
 		pages := pagesPerRequest(m, bytesPerRequest)
