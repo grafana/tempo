@@ -107,25 +107,20 @@ func (w *writer) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
 	blockID := meta.BlockID
 	tenantID := meta.TenantID
 
-	bMeta, err := json.Marshal(meta)
+	// TODO: Consider writing both json and proto files
+
+	pb, err := meta.ToBackendV1Proto()
+	if err != nil {
+		return err
+	}
+
+	bMeta, err := proto.Marshal(pb)
 	if err != nil {
 		return err
 	}
 
 	return w.w.Write(ctx, MetaName, KeyPathForBlock(blockID, tenantID), bytes.NewReader(bMeta), int64(len(bMeta)), nil)
 }
-
-// func (w *writer) writeBlockMetaJSON(ctx context.Context, meta *backend_v1.BlockMeta) error {
-// 	blockID := meta.BlockId
-// 	tenantID := meta.TenantId
-//
-// 	bMeta, err := json.Marshal(meta)
-// 	if err != nil {
-// 		return err
-// 	}
-//
-// 	return w.w.Write(ctx, MetaName, KeyPathForBlock(blockID, tenantID), bytes.NewReader(bMeta), int64(len(bMeta)), nil)
-// }
 
 // Write implements backend.Writer
 func (w *writer) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker AppendTracker, buffer []byte) (AppendTracker, error) {
@@ -230,9 +225,9 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uu
 // BlockMeta implements backend.Reader
 func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
 	// Read the proto first and return it if it was found
-	out, err := r.blockMetaProto(ctx, blockID, tenantID)
+	outProto, err := r.blockMetaProto(ctx, blockID, tenantID)
 	if err == nil {
-		return out, nil
+		return outProto, nil
 	}
 
 	// TODO: consider what to do with the json meta once we start writing proto.
@@ -248,6 +243,7 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 		return nil, err
 	}
 
+	out := &BlockMeta{}
 	err = json.Unmarshal(bytes, out)
 	if err != nil {
 		return nil, err
@@ -259,9 +255,7 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 func (r *reader) blockMetaProto(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
 	reader, size, err := r.r.Read(ctx, MetaNameProto, KeyPathForBlock(blockID, tenantID), nil)
 	if err != nil {
-		if !errors.Is(err, ErrDoesNotExist) {
-			return nil, err
-		}
+		return nil, err
 	}
 
 	bb, err := tempo_io.ReadAllWithEstimate(reader, size)
@@ -293,23 +287,13 @@ func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex
 
 	tenantIndex := &TenantIndex{}
 	err = tenantIndex.fromProto(tenantIndexProto)
-	if err != nil {
-		return nil, err
+	if err == nil {
+		return tenantIndex, nil
 	}
 
-	return tenantIndex, nil
+	// TODO: read the json file if we don't have a proto file
 
-	// tenantIndex, err := r.tenantIndexJson(ctx, tenantID)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("error reading tenant index: %w", err)
-	// }
-	//
-	// tenantIndexProto, err = tenantIndex.proto()
-	// if err != nil {
-	// 	return nil, err
-	// }
-	//
-	// return tenantIndexProto, nil
+	return nil, fmt.Errorf("error reading tenant index: %w", err)
 }
 
 // Find implements backend.Reader
