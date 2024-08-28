@@ -175,7 +175,7 @@ func tlsCipherSuites() map[string]uint16 {
 }
 
 func (b *Backend) GetDependencies(context.Context, *storage_v1.GetDependenciesRequest) (*storage_v1.GetDependenciesResponse, error) {
-	return nil, nil
+	return &storage_v1.GetDependenciesResponse{}, nil
 }
 
 func (b *Backend) apiSchema() string {
