@@ -138,7 +138,7 @@ rule {
 
 This lets you create a configuration that scrapes metrics from Tempo components and writes the data to a Mimir instance of your choice.
 
-Here’s a complete configuration for a [Grafana Alloy Helm](hhttps://grafana.com/docs/alloy/<ALLOY_VERSION>/configure/kubernetes/) values file for Alloy, to scrape a running instance of Tempo.
+Here’s a complete configuration for a [Grafana Alloy Helm](https://grafana.com/docs/alloy/<ALLOY_VERSION>/configure/kubernetes/) values file for Alloy, to scrape a running instance of Tempo.
 
 ```yaml
 alloy:
