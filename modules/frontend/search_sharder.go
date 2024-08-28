@@ -303,6 +303,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 	defer close(reqCh)
 
 	queryHash := hashForSearchRequest(searchReq)
+	colsToJSON := api.NewDedicatedColumnsToJSON()
 
 	for _, m := range metas {
 		pages := pagesPerRequest(m, bytesPerRequest)
@@ -314,25 +315,25 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
 			subR := parent.Clone(ctx)
 
-			dc, err := m.DedicatedColumns.ToTempopb()
+			dedColsJSON, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
 			if err != nil {
 				errFn(fmt.Errorf("failed to convert dedicated columns. block: %s tempopb: %w", blockID, err))
 				continue
 			}
 
 			subR, err = api.BuildSearchBlockRequest(subR, &tempopb.SearchBlockRequest{
-				BlockID:          blockID,
-				StartPage:        uint32(startPage),
-				PagesToSearch:    uint32(pages),
-				Encoding:         m.Encoding.String(),
-				IndexPageSize:    m.IndexPageSize,
-				TotalRecords:     m.TotalRecords,
-				DataEncoding:     m.DataEncoding,
-				Version:          m.Version,
-				Size_:            m.Size,
-				FooterSize:       m.FooterSize,
-				DedicatedColumns: dc,
-			})
+				BlockID:       blockID,
+				StartPage:     uint32(startPage),
+				PagesToSearch: uint32(pages),
+				Encoding:      m.Encoding.String(),
+				IndexPageSize: m.IndexPageSize,
+				TotalRecords:  m.TotalRecords,
+				DataEncoding:  m.DataEncoding,
+				Version:       m.Version,
+				Size_:         m.Size,
+				FooterSize:    m.FooterSize,
+				// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
+			}, dedColsJSON)
 			if err != nil {
 				errFn(fmt.Errorf("failed to build search block request. block: %s tempopb: %w", blockID, err))
 				continue

@@ -208,6 +208,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 	defer close(reqCh)
 
 	queryHash := hashForQueryRangeRequest(&searchReq)
+	colsToJSON := api.NewDedicatedColumnsToJSON()
 
 	exemplarsPerBlock := s.exemplarsPerShard(uint32(len(metas)))
 	for _, m := range metas {
@@ -231,7 +232,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
 			subR := parent.Clone(ctx)
 
-			dc, err := m.DedicatedColumns.ToTempopb()
+			dedColsJSON, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
 			if err != nil {
 				// errFn(fmt.Errorf("failed to convert dedicated columns. block: %s tempopb: %w", blockID, err))
 				continue
@@ -253,18 +254,18 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				Step:      step,
 				QueryMode: searchReq.QueryMode,
 				// New RF1 fields
-				BlockID:          m.BlockID.String(),
-				StartPage:        uint32(startPage),
-				PagesToSearch:    uint32(pages),
-				Version:          m.Version,
-				Encoding:         m.Encoding.String(),
-				Size_:            m.Size,
-				FooterSize:       m.FooterSize,
-				DedicatedColumns: dc,
-				Exemplars:        exemplars,
+				BlockID:       m.BlockID.String(),
+				StartPage:     uint32(startPage),
+				PagesToSearch: uint32(pages),
+				Version:       m.Version,
+				Encoding:      m.Encoding.String(),
+				Size_:         m.Size,
+				FooterSize:    m.FooterSize,
+				// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
+				Exemplars: exemplars,
 			}
 
-			subR = api.BuildQueryRangeRequest(subR, queryRangeReq)
+			subR = api.BuildQueryRangeRequest(subR, queryRangeReq, dedColsJSON)
 
 			prepareRequestForQueriers(subR, tenantID)
 			pipelineR := pipeline.NewHTTPRequest(subR)
@@ -302,16 +303,11 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 	searchReq.QueryMode = querier.QueryModeRecent
 	searchReq.Exemplars = uint32(s.cfg.MaxExemplars) // TODO: Review this
 
-	req := s.toUpstreamRequest(parent.Context(), searchReq, parent, tenantID)
-
-	return req
-}
-
-func (s *queryRangeSharder) toUpstreamRequest(ctx context.Context, req tempopb.QueryRangeRequest, parent *http.Request, tenantID string) *http.Request {
-	subR := parent.Clone(ctx)
-	subR = api.BuildQueryRangeRequest(subR, &req)
+	subR := parent.Clone(parent.Context())
+	subR = api.BuildQueryRangeRequest(subR, &searchReq, "") // dedicated cols are never passed to the generators
 
 	prepareRequestForQueriers(subR, tenantID)
+
 	return subR
 }
 

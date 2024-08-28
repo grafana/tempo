@@ -3,6 +3,7 @@ package external
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math/rand"
@@ -149,7 +150,11 @@ func (s *Client) Search(ctx context.Context, maxBytes int, searchReq *tempopb.Se
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to make new request: %w", err)
 	}
-	req, err = api.BuildSearchBlockRequest(req, searchReq)
+	columnsJSON, err := json.Marshal(searchReq.DedicatedColumns)
+	if err != nil {
+		return nil, err
+	}
+	req, err = api.BuildSearchBlockRequest(req, searchReq, string(columnsJSON))
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to build search block request: %w", err)
 	}
