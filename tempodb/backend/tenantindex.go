@@ -21,9 +21,9 @@ type TenantIndex struct {
 	CompactedMeta []*CompactedBlockMeta `json:"compacted"`
 }
 
-func newTenantIndex(meta []*backend_v1.BlockMeta, compactedMeta []*backend_v1.CompactedBlockMeta) *backend_v1.TenantIndex {
-	i := &backend_v1.TenantIndex{
-		CreatedAt:     time.Now().Unix(),
+func newTenantIndex(meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) *TenantIndex {
+	i := &TenantIndex{
+		CreatedAt:     time.Now(),
 		Meta:          meta,
 		CompactedMeta: compactedMeta,
 	}
