@@ -3,8 +3,6 @@ title: Configure Tempo
 menuTitle: Configure
 description: Learn about available options in Tempo and how to configure them.
 weight: 400
-aliases:
-- /docs/tempo/latest/configuration/
 ---
 
 # Configure Tempo
@@ -33,6 +31,9 @@ The Tempo configuration options include:
   - [Configuration blocks](#configuration-blocks)
     - [Block config](#block-config)
     - [Filter policy config](#filter-policy-config)
+      - [Filter policy](#filter-policy)
+      - [Policy match](#policy-match)
+      - [Examples](#examples)
     - [KVStore config](#kvstore-config)
     - [Search config](#search-config)
     - [WAL config](#wal-config)
@@ -305,7 +306,7 @@ metrics_generator:
       # 0 disables heartbeat altogether
       [heartbeat_period: <duration> | default = 5s]
 
-      # The heartbeat timeout, after which, the instance is skipped. 
+      # The heartbeat timeout, after which, the instance is skipped.
       # 0 disables timeout.
       [heartbeat_timeout: <duration> | default = 1m]
 
@@ -316,7 +317,7 @@ metrics_generator:
       [instance_interface_names: <list of string> | default = ["eth0", "en0"] ]
 
       # Our advertised IP address in the ring, (usefull if the local ip =/= the external ip)
-      # Will default to the configured `instance_id` ip address, 
+      # Will default to the configured `instance_id` ip address,
       # if unset, will fallback to ip reported by `instance_interface_names`
       # (Effected by `enable_inet6`)
       [instance_addr: <string> | default = auto(instance_id, instance_interface_names)]
@@ -445,14 +446,14 @@ metrics_generator:
             [max_live_traces: <uint64>]
 
             # Whether server spans should be filtered in or not.
-            # If enabled, only parent spans or spans with the SpanKind of `server` will be retained 
+            # If enabled, only parent spans or spans with the SpanKind of `server` will be retained
             [filter_server_spans: <bool> | default = true]
 
             # Number of blocks that are allowed to be processed concurently
             [concurrent_blocks: <uint> | default = 10]
 
             # A tuning factor that controls whether the trace-level timestamp columns are used in a metrics query.
-            # If a block overlaps the time window by less than this ratio, then we skip the columns. 
+            # If a block overlaps the time window by less than this ratio, then the columns are skipped.
             # A value of 1.0 will always load the columns, and 0.0 will never load any.
             [time_overlap_cutoff: <float64> | default = 0.2]
 
@@ -1303,7 +1304,7 @@ parquet_dedicated_columns: <list of columns>
       # type of the attribute. options: string
       [type: <string>]
 
-      # scope of the attribute. 
+      # scope of the attribute.
       # options: resource, span
       [scope: <string>]
 ```
