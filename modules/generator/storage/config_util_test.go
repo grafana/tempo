@@ -34,13 +34,16 @@ func Test_generateTenantRemoteWriteConfigs(t *testing.T) {
 
 	result := generateTenantRemoteWriteConfigs(original, "my-tenant", nil, addOrgIDHeader, logger, false)
 
+	// First case doesn't have a header, gets set.
 	assert.Equal(t, original[0].URL, result[0].URL)
 	assert.Equal(t, map[string]string{}, original[0].Headers, "Original headers have been modified")
 	assert.Equal(t, map[string]string{"X-Scope-OrgID": "my-tenant"}, result[0].Headers)
 
+	// Second case already contains header, not overwritten
+	// Also checks case-insensitivity
 	assert.Equal(t, original[1].URL, result[1].URL)
 	assert.Equal(t, map[string]string{"foo": "bar", "x-scope-orgid": "fake-tenant"}, original[1].Headers, "Original headers have been modified")
-	assert.Equal(t, map[string]string{"foo": "bar", "X-Scope-OrgID": "my-tenant"}, result[1].Headers)
+	assert.Equal(t, map[string]string{"foo": "bar", "x-scope-orgid": "fake-tenant"}, result[1].Headers, "Existing header was incorrectly overwritten")
 }
 
 func Test_generateTenantRemoteWriteConfigs_singleTenant(t *testing.T) {
