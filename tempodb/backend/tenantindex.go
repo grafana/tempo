@@ -70,7 +70,7 @@ func (b *TenantIndex) unmarshal(buffer []byte) error {
 
 func (b *TenantIndex) proto() (*backend_v1.TenantIndex, error) {
 	tenantIndex := &backend_v1.TenantIndex{
-		CreatedAt:     b.CreatedAt.Unix(),
+		CreatedAt:     b.CreatedAt,
 		Meta:          make([]*backend_v1.BlockMeta, len(b.Meta)),
 		CompactedMeta: make([]*backend_v1.CompactedBlockMeta, len(b.CompactedMeta)),
 	}
@@ -100,4 +100,34 @@ func (b *TenantIndex) proto() (*backend_v1.TenantIndex, error) {
 	}
 
 	return tenantIndex, nil
+}
+
+func (b *TenantIndex) fromProto(pb *backend_v1.TenantIndex) error {
+	b.CreatedAt = pb.CreatedAt
+	b.Meta = make([]*BlockMeta, len(pb.Meta))
+	b.CompactedMeta = make([]*CompactedBlockMeta, len(pb.CompactedMeta))
+
+	var (
+		err error
+		m   *BlockMeta
+		c   *CompactedBlockMeta
+	)
+
+	for i, mPb := range pb.Meta {
+		m = &BlockMeta{}
+		err = m.FromBackendV1Proto(mPb)
+		if err != nil {
+			return err
+		}
+		b.Meta[i] = m
+	}
+	for i, cPb := range pb.CompactedMeta {
+		c = &CompactedBlockMeta{}
+		err = c.FromBackendV1Proto(cPb)
+		if err != nil {
+			return err
+		}
+		b.CompactedMeta[i] = c
+	}
+	return nil
 }

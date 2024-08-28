@@ -103,15 +103,11 @@ func (w *writer) StreamWriter(ctx context.Context, name string, blockID uuid.UUI
 }
 
 // Write implements backend.Writer
-func (w *writer) WriteBlockMeta(ctx context.Context, meta *backend_v1.BlockMeta) error {
-	// TODO: consider writing both json and proto files
-	blockID, err := uuid.Parse(meta.BlockId)
-	if err != nil {
-		return err
-	}
-	tenantID := meta.TenantId
+func (w *writer) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
+	blockID := meta.BlockID
+	tenantID := meta.TenantID
 
-	bMeta, err := proto.Marshal(meta)
+	bMeta, err := json.Marshal(meta)
 	if err != nil {
 		return err
 	}
@@ -142,7 +138,7 @@ func (w *writer) CloseAppend(ctx context.Context, tracker AppendTracker) error {
 }
 
 // Write implements backend.Writer
-func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*backend_v1.BlockMeta, compactedMeta []*backend_v1.CompactedBlockMeta) error {
+func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error {
 	// If meta and compactedMeta are empty, call delete the tenant index.
 	if len(meta) == 0 && len(compactedMeta) == 0 {
 		// Skip returning an error when the object is already deleted.
@@ -156,12 +152,13 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 	b := newTenantIndex(meta, compactedMeta)
 
 	// TODO: consider writing both json and proto files
-	// indexBytes, err := b.marshal()
-	// if err != nil {
-	// 	return err
-	// }
 
-	indexBytes, err := b.Marshal()
+	bpb, err := b.proto()
+	if err != nil {
+		return err
+	}
+
+	indexBytes, err := proto.Marshal(bpb)
 	if err != nil {
 		return err
 	}
@@ -231,7 +228,15 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uu
 }
 
 // BlockMeta implements backend.Reader
-func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend_v1.BlockMeta, error) {
+func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
+	// Read the proto first and return it if it was found
+	out, err := r.blockMetaProto(ctx, blockID, tenantID)
+	if err == nil {
+		return out, nil
+	}
+
+	// TODO: consider what to do with the json meta once we start writing proto.
+
 	reader, size, err := r.r.Read(ctx, MetaName, KeyPathForBlock(blockID, tenantID), nil)
 	if err != nil {
 		return nil, err
@@ -243,7 +248,6 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 		return nil, err
 	}
 
-	out := &backend_v1.BlockMeta{}
 	err = json.Unmarshal(bytes, out)
 	if err != nil {
 		return nil, err
@@ -252,24 +256,60 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 	return out, nil
 }
 
-// TenantIndex implements backend.Reader
-func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*backend_v1.TenantIndex, error) {
-	tenantIndexProto, err := r.tenantIndexProto(ctx, tenantID)
-	if err == nil {
-		return tenantIndexProto, nil
-	}
-
-	tenantIndex, err := r.tenantIndexJson(ctx, tenantID)
+func (r *reader) blockMetaProto(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
+	reader, size, err := r.r.Read(ctx, MetaNameProto, KeyPathForBlock(blockID, tenantID), nil)
 	if err != nil {
-		return nil, fmt.Errorf("error reading tenant index: %w", err)
+		if !errors.Is(err, ErrDoesNotExist) {
+			return nil, err
+		}
 	}
 
-	tenantIndexProto, err = tenantIndex.proto()
+	bb, err := tempo_io.ReadAllWithEstimate(reader, size)
 	if err != nil {
 		return nil, err
 	}
 
-	return tenantIndexProto, nil
+	out := &BlockMeta{}
+	v1meta := &backend_v1.BlockMeta{}
+	err = proto.Unmarshal(bb, v1meta)
+	if err != nil {
+		return nil, err
+	}
+
+	err = out.FromBackendV1Proto(v1meta)
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
+// TenantIndex implements backend.Reader
+func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error) {
+	tenantIndexProto, err := r.tenantIndexProto(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	tenantIndex := &TenantIndex{}
+	err = tenantIndex.fromProto(tenantIndexProto)
+	if err != nil {
+		return nil, err
+	}
+
+	return tenantIndex, nil
+
+	// tenantIndex, err := r.tenantIndexJson(ctx, tenantID)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("error reading tenant index: %w", err)
+	// }
+	//
+	// tenantIndexProto, err = tenantIndex.proto()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	//
+	// return tenantIndexProto, nil
 }
 
 // Find implements backend.Reader

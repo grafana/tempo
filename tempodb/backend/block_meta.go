@@ -96,8 +96,19 @@ func (b *CompactedBlockMeta) ToBackendV1Proto() (*backend_v1.CompactedBlockMeta,
 
 	return &backend_v1.CompactedBlockMeta{
 		BlockMeta:     bm,
-		CompactedTime: b.CompactedTime.Unix(),
+		CompactedTime: b.CompactedTime,
 	}, nil
+}
+
+func (b *CompactedBlockMeta) FromBackendV1Proto(pb *backend_v1.CompactedBlockMeta) error {
+	err := b.BlockMeta.FromBackendV1Proto(pb.BlockMeta)
+	if err != nil {
+		return err
+	}
+
+	b.CompactedTime = pb.CompactedTime
+
+	return nil
 }
 
 const (
@@ -256,7 +267,7 @@ func (b *BlockMeta) ToBackendV1Proto() (*backend_v1.BlockMeta, error) {
 		TotalObjects:      int32(b.TotalObjects),
 		Size_:             b.Size,
 		CompactionLevel:   uint32(b.CompactionLevel),
-		Encoding:          b.Encoding.String(),
+		Encoding:          int32(b.Encoding),
 		IndexPageSize:     b.IndexPageSize,
 		TotalRecords:      b.TotalRecords,
 		DataEncoding:      b.DataEncoding,
@@ -272,6 +283,35 @@ func (b *BlockMeta) ToBackendV1Proto() (*backend_v1.BlockMeta, error) {
 	m.DedicatedColumns = dc
 
 	return m, nil
+}
+
+func (b *BlockMeta) FromBackendV1Proto(pb *backend_v1.BlockMeta) error {
+	blockID, err := uuid.Parse(pb.BlockId)
+	if err != nil {
+		return err
+	}
+
+	b.Version = pb.Version
+	b.BlockID = blockID
+	b.TenantID = pb.TenantId
+	b.StartTime = pb.StartTime
+	b.EndTime = pb.EndTime
+	b.TotalObjects = int(pb.TotalObjects)
+	b.Size = pb.Size_
+	b.CompactionLevel = uint8(pb.CompactionLevel)
+	b.Encoding = Encoding(pb.Encoding)
+	b.IndexPageSize = pb.IndexPageSize
+	b.TotalRecords = pb.TotalRecords
+	b.DataEncoding = pb.DataEncoding
+	b.BloomShardCount = uint16(pb.BloomShardCount)
+	b.FooterSize = pb.FooterSize
+	b.ReplicationFactor = uint8(pb.ReplicationFactor)
+	dcs, err := DedicatedColumnsFromTempopb(pb.DedicatedColumns)
+	if err != nil {
+		return err
+	}
+	b.DedicatedColumns = dcs
+	return nil
 }
 
 func DedicatedColumnsFromTempopb(tempopbCols []*tempopb.DedicatedColumn) (DedicatedColumns, error) {

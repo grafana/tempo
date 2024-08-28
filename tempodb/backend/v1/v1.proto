@@ -25,7 +25,7 @@ message BlockMeta {
     int32 total_objects = 8;
     uint64 size = 9;
     uint32 compaction_level = 10;
-    string encoding = 11;
+    int32 encoding = 11;
     uint32 index_page_size = 12;
     uint32 total_records = 13;
     string data_encoding = 14;
@@ -37,7 +37,7 @@ message BlockMeta {
 
 message CompactedBlockMeta {
     BlockMeta block_meta = 1[(gogoproto.embed) = true];
-    int64 compacted_time = 2;
+    google.protobuf.Timestamp compacted_time = 2[(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
 }
 
 message TenantIndex {
