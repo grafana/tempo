@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
-	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
 
 	"github.com/google/uuid"
 )
@@ -117,7 +116,7 @@ func (m *MockRawWriter) Delete(_ context.Context, name string, keypath KeyPath, 
 type MockCompactor struct {
 	sync.Mutex
 
-	BlockMetaFn             func(blockID uuid.UUID, tenantID string) (*backend_v1.CompactedBlockMeta, error)
+	BlockMetaFn             func(blockID uuid.UUID, tenantID string) (*CompactedBlockMeta, error)
 	CompactedBlockMetaCalls map[string]map[uuid.UUID]int
 }
 
@@ -129,7 +128,7 @@ func (c *MockCompactor) ClearBlock(uuid.UUID, string) error {
 	return nil
 }
 
-func (c *MockCompactor) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend_v1.CompactedBlockMeta, error) {
+func (c *MockCompactor) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*CompactedBlockMeta, error) {
 	c.Lock()
 	defer c.Unlock()
 	if c.CompactedBlockMetaCalls == nil {
@@ -149,9 +148,9 @@ type MockReader struct {
 
 	T                 []string
 	BlocksFn          func(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error)
-	M                 *backend_v1.BlockMeta // meta
-	BlockMetaFn       func(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend_v1.BlockMeta, error)
-	TenantIndexFn     func(ctx context.Context, tenantID string) (*backend_v1.TenantIndex, error)
+	M                 *BlockMeta // meta
+	BlockMetaFn       func(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error)
+	TenantIndexFn     func(ctx context.Context, tenantID string) (*TenantIndex, error)
 	R                 []byte // read
 	Range             []byte // ReadRange
 	ReadFn            func(name string, blockID uuid.UUID, tenantID string) ([]byte, error)
@@ -176,7 +175,7 @@ func (m *MockReader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, 
 	return m.BlockIDs, m.CompactedBlockIDs, nil
 }
 
-func (m *MockReader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*backend_v1.BlockMeta, error) {
+func (m *MockReader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -214,12 +213,12 @@ func (m *MockReader) ReadRange(_ context.Context, _ string, _ uuid.UUID, _ strin
 	return nil
 }
 
-func (m *MockReader) TenantIndex(ctx context.Context, tenantID string) (*backend_v1.TenantIndex, error) {
+func (m *MockReader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error) {
 	if m.TenantIndexFn != nil {
 		return m.TenantIndexFn(ctx, tenantID)
 	}
 
-	return &backend_v1.TenantIndex{}, nil
+	return &TenantIndex{}, nil
 }
 
 func (m *MockReader) Shutdown() {}
@@ -227,8 +226,8 @@ func (m *MockReader) Shutdown() {}
 // MockWriter
 type MockWriter struct {
 	sync.Mutex
-	IndexMeta          map[string][]*backend_v1.BlockMeta
-	IndexCompactedMeta map[string][]*backend_v1.CompactedBlockMeta
+	IndexMeta          map[string][]*BlockMeta
+	IndexCompactedMeta map[string][]*CompactedBlockMeta
 }
 
 func (m *MockWriter) Write(context.Context, string, uuid.UUID, string, []byte, *CacheInfo) error {
@@ -239,7 +238,7 @@ func (m *MockWriter) StreamWriter(context.Context, string, uuid.UUID, string, io
 	return nil
 }
 
-func (m *MockWriter) WriteBlockMeta(context.Context, *backend_v1.BlockMeta) error {
+func (m *MockWriter) WriteBlockMeta(context.Context, *BlockMeta) error {
 	return nil
 }
 
@@ -255,15 +254,15 @@ func (m *MockWriter) Delete(context.Context, string, KeyPath) error {
 	return nil
 }
 
-func (m *MockWriter) WriteTenantIndex(_ context.Context, tenantID string, meta []*backend_v1.BlockMeta, compactedMeta []*backend_v1.CompactedBlockMeta) error {
+func (m *MockWriter) WriteTenantIndex(_ context.Context, tenantID string, meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) error {
 	m.Lock()
 	defer m.Unlock()
 
 	if m.IndexMeta == nil {
-		m.IndexMeta = make(map[string][]*backend_v1.BlockMeta)
+		m.IndexMeta = make(map[string][]*BlockMeta)
 	}
 	if m.IndexCompactedMeta == nil {
-		m.IndexCompactedMeta = make(map[string][]*backend_v1.CompactedBlockMeta)
+		m.IndexCompactedMeta = make(map[string][]*CompactedBlockMeta)
 	}
 	m.IndexMeta[tenantID] = meta
 	m.IndexCompactedMeta[tenantID] = compactedMeta
@@ -271,14 +270,14 @@ func (m *MockWriter) WriteTenantIndex(_ context.Context, tenantID string, meta [
 }
 
 type MockBlocklist struct {
-	MetasFn          func(tenantID string) []*backend_v1.BlockMeta
-	CompactedMetasFn func(tenantID string) []*backend_v1.CompactedBlockMeta
+	MetasFn          func(tenantID string) []*BlockMeta
+	CompactedMetasFn func(tenantID string) []*CompactedBlockMeta
 }
 
-func (m *MockBlocklist) Metas(tenantID string) []*backend_v1.BlockMeta {
+func (m *MockBlocklist) Metas(tenantID string) []*BlockMeta {
 	return m.MetasFn(tenantID)
 }
 
-func (m *MockBlocklist) CompactedMetas(tenantID string) []*backend_v1.CompactedBlockMeta {
+func (m *MockBlocklist) CompactedMetas(tenantID string) []*CompactedBlockMeta {
 	return m.CompactedMetasFn(tenantID)
 }
