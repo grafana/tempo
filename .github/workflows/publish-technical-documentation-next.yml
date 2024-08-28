@@ -24,5 +24,3 @@ jobs:
         with:
           source_directory: docs/sources/helm-charts/tempo-distributed
           website_directory: content/docs/helm-charts/tempo-distributed/next
-
-
