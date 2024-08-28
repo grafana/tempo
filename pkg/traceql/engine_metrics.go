@@ -20,6 +20,8 @@ const (
 	internalLabelBucket   = "__bucket"
 	maxExemplars          = 100
 	maxExemplarsPerBucket = 2
+	// NormalNaN is a quiet NaN. This is also math.NaN().
+	normalNaN uint64 = 0x7ff8000000000001
 )
 
 func DefaultQueryRangeStep(start, end uint64) uint64 {
@@ -239,7 +241,7 @@ func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels 
 
 			// todo: this loop should be able to be restructured to directly pass over
 			// the desired intervals
-			if ts < start || ts > end {
+			if ts < start || ts > end || math.IsNaN(value) {
 				continue
 			}
 
@@ -338,7 +340,6 @@ func (c *CountOverTimeAggregator) Sample() float64 {
 // MinOverTimeAggregator it calculates the mininum value over time. It can also
 // calculate the rate when given a multiplier.
 type MinOverTimeAggregator struct {
-	firstTime       bool
 	getSpanAttValue func(s Span) float64
 	min             float64
 }
@@ -354,21 +355,23 @@ func NewMinOverTimeAggregator(attr Attribute) *MinOverTimeAggregator {
 		}
 	default:
 		fn = func(s Span) float64 {
-			// This is returning 0 in case the att.Float() returns a NaN.
-			f, _ := FloatizeAttribute(s, attr)
+			f, a := FloatizeAttribute(s, attr)
+			if a == TypeNil {
+				return math.Float64frombits(normalNaN)
+			}
 			return f
 		}
 	}
 	return &MinOverTimeAggregator{
 		getSpanAttValue: fn,
+		min:             math.Float64frombits(normalNaN),
 	}
 }
 
 func (c *MinOverTimeAggregator) Observe(s Span) {
 	val := c.getSpanAttValue(s)
-	if !c.firstTime {
+	if math.IsNaN(c.min) {
 		c.min = val
-		c.firstTime = true
 	} else if val < c.min {
 		c.min = val
 	}
@@ -1077,18 +1080,22 @@ type SimpleAggregator struct {
 	ss               SeriesSet
 	exemplarBuckets  *bucketSet
 	len              int
-	aggregationFunc  func(new bool, start, end, step uint64, existing *TimeSeries, samples []tempopb.Sample)
+	aggregationFunc  func(start, end, step uint64, existing *TimeSeries, samples []tempopb.Sample)
 	start, end, step uint64
+	initWithNaN      bool
 }
 
 func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *SimpleAggregator {
 	l := IntervalCount(req.Start, req.End, req.Step)
-	var f func(new bool, start, end, step uint64, existing *TimeSeries, samples []tempopb.Sample)
+	var initWithNaN bool
+	var f func(start, end, step uint64, existing *TimeSeries, samples []tempopb.Sample)
 	switch op {
 	case sumAggregation:
 		f = simpleAdditionAggregator
+		initWithNaN = false
 	default:
 		f = simpleMinAggregator
+		initWithNaN = true
 	}
 	return &SimpleAggregator{
 		ss:              make(SeriesSet),
@@ -1098,10 +1105,13 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *
 		end:             req.End,
 		step:            req.Step,
 		aggregationFunc: f,
+		initWithNaN:     initWithNaN,
 	}
 }
 
 func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
+	nan := math.Float64frombits(normalNaN)
+
 	for _, ts := range in {
 		existing, ok := b.ss[ts.PromLabels]
 		if !ok {
@@ -1119,48 +1129,68 @@ func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
 				Values:    make([]float64, b.len),
 				Exemplars: make([]Exemplar, 0, len(ts.Exemplars)),
 			}
+			if b.initWithNaN {
+				for i := range existing.Values {
+					existing.Values[i] = nan
+				}
+			}
+
 			b.ss[ts.PromLabels] = existing
 		}
 
-		b.aggregationFunc(!ok, b.start, b.end, b.step, &existing, ts.Samples)
-
-		for _, exemplar := range ts.Exemplars {
-			if b.exemplarBuckets.testTotal() {
-				break
-			}
-			interval := IntervalOfMs(exemplar.TimestampMs, b.start, b.end, b.step)
-			if b.exemplarBuckets.addAndTest(interval) {
-				continue // Skip this exemplar and continue, next exemplar might fit in a different bucket
-			}
-
-			labels := make(Labels, 0, len(exemplar.Labels))
-			for _, l := range exemplar.Labels {
-				labels = append(labels, Label{
-					Name:  l.Key,
-					Value: StaticFromAnyValue(l.Value),
-				})
-			}
-			value := exemplar.Value
-			if math.IsNaN(value) {
-				value = 0 // TODO: Use the value of the series at the same timestamp
-			}
-			existing.Exemplars = append(existing.Exemplars, Exemplar{
-				Labels:      labels,
-				Value:       value,
-				TimestampMs: uint64(exemplar.TimestampMs),
-			})
-		}
+		b.aggregationFunc(b.start, b.end, b.step, &existing, ts.Samples)
+		b.aggregateExemplars(ts, &existing)
 
 		b.ss[ts.PromLabels] = existing
 	}
 }
 
+func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *TimeSeries) {
+	for _, exemplar := range ts.Exemplars {
+		if b.exemplarBuckets.testTotal() {
+			break
+		}
+		interval := IntervalOfMs(exemplar.TimestampMs, b.start, b.end, b.step)
+		if b.exemplarBuckets.addAndTest(interval) {
+			continue // Skip this exemplar and continue, next exemplar might fit in a different bucket	}
+		}
+		labels := make(Labels, 0, len(exemplar.Labels))
+		for _, l := range exemplar.Labels {
+			labels = append(labels, Label{
+				Name:  l.Key,
+				Value: StaticFromAnyValue(l.Value),
+			})
+		}
+		value := exemplar.Value
+		if math.IsNaN(value) {
+			value = 0 // TODO: Use the value of the series at the same timestamp
+		}
+		existing.Exemplars = append(existing.Exemplars, Exemplar{
+			Labels:      labels,
+			Value:       value,
+			TimestampMs: uint64(exemplar.TimestampMs),
+		})
+	}
+}
+
 func (b *SimpleAggregator) Results() SeriesSet {
+	if b.initWithNaN {
+		for _, ss := range b.ss {
+			i := 0
+			for _, v := range ss.Values {
+				if !math.IsNaN(v) {
+					ss.Values[i] = v
+					i++
+				}
+			}
+			ss.Values = ss.Values[:i]
+		}
+	}
 	return b.ss
 }
 
 // Simple addition aggregator. It adds existing values with the new sample. New indicates if the existing values were just initialized, ugly
-func simpleAdditionAggregator(_ bool, start, end, step uint64, existing *TimeSeries, samples []tempopb.Sample) {
+func simpleAdditionAggregator(start, end, step uint64, existing *TimeSeries, samples []tempopb.Sample) {
 	for _, sample := range samples {
 		j := IntervalOfMs(sample.TimestampMs, start, end, step)
 		if j >= 0 && j < len(existing.Values) {
@@ -1170,11 +1200,11 @@ func simpleAdditionAggregator(_ bool, start, end, step uint64, existing *TimeSer
 }
 
 // Simple min aggregator. It calculates the minumun between existing values and a new sample, New indicates if the existing values were just initialized, ugly
-func simpleMinAggregator(new bool, start, end, step uint64, existing *TimeSeries, samples []tempopb.Sample) {
+func simpleMinAggregator(start, end, step uint64, existing *TimeSeries, samples []tempopb.Sample) {
 	for _, sample := range samples {
 		j := IntervalOfMs(sample.TimestampMs, start, end, step)
 		if j >= 0 && j < len(existing.Values) {
-			if new || sample.Value < existing.Values[j] {
+			if math.IsNaN(existing.Values[j]) || sample.Value < existing.Values[j] {
 				existing.Values[j] = sample.Value
 			}
 		}
