@@ -116,14 +116,17 @@ To demonstrate this flexibility, consider this nonsensical quantile on `span.htt
 
 ### The `compare` function
 
-This adds a new metrics function `compare` which is used to split the stream of spans into two groups:  a selection and a baseline.  Then it returns time-series for all attributes found on the spans to highlight the differences between the two groups. This is kind of hard to describe so there are some example outputs below:
+This adds a new metrics function `compare` which is used to split the stream of spans into two groups: a selection and a baseline.
+It returns time-series for all attributes found on the spans to highlight the differences between the two groups.
+This is kind of hard to describe so there are some example outputs below:
 
-Function signature:
-The function is used like other metrics functions, which it is placed after any search query, and converts it into a metrics query:
+The function is used like other metrics functions: when it's placed after any search query, and converts it into a metrics query:
 `...any spanset pipeline... | compare({subset filters}, <topN>, <start timestamp>, <end timestamp>)`
 
 Example:
-`{ resource.service.name="a" && span.http.path="/myapi" } | compare({status=error})`
+```
+{ resource.service.name="a" && span.http.path="/myapi" } | compare({status=error})
+```
 
 #### Parameters
 
