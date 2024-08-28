@@ -36,12 +36,12 @@ message BlockMeta {
 }
 
 message CompactedBlockMeta {
-    BlockMeta block_meta = 1;
+    BlockMeta block_meta = 1[(gogoproto.embed) = true];
     int64 compacted_time = 2;
 }
 
 message TenantIndex {
-    int64 created_at = 1;
+    google.protobuf.Timestamp created_at = 1[(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     repeated BlockMeta meta = 2;
     repeated CompactedBlockMeta compacted_meta = 3;
 }

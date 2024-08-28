@@ -5,14 +5,14 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/grafana/tempo/tempodb/backend"
+	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
 )
 
-// PerTenant is a map of tenant ids to backend.BlockMetas
-type PerTenant map[string][]*backend.BlockMeta
+// PerTenant is a map of tenant ids to backend_v1.BlockMetas
+type PerTenant map[string][]*backend_v1.BlockMeta
 
-// PerTenantCompacted is a map of tenant ids to backend.CompactedBlockMetas
-type PerTenantCompacted map[string][]*backend.CompactedBlockMeta
+// PerTenantCompacted is a map of tenant ids to backend_v1.CompactedBlockMetas
+type PerTenantCompacted map[string][]*backend_v1.CompactedBlockMeta
 
 // List controls access to a per tenant blocklist and compacted blocklist
 type List struct {
@@ -52,7 +52,7 @@ func (l *List) Tenants() []string {
 	return tenants
 }
 
-func (l *List) Metas(tenantID string) []*backend.BlockMeta {
+func (l *List) Metas(tenantID string) []*backend_v1.BlockMeta {
 	if tenantID == "" {
 		return nil
 	}
@@ -60,12 +60,12 @@ func (l *List) Metas(tenantID string) []*backend.BlockMeta {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
-	copiedBlocklist := make([]*backend.BlockMeta, 0, len(l.metas[tenantID]))
+	copiedBlocklist := make([]*backend_v1.BlockMeta, 0, len(l.metas[tenantID]))
 	copiedBlocklist = append(copiedBlocklist, l.metas[tenantID]...)
 	return copiedBlocklist
 }
 
-func (l *List) CompactedMetas(tenantID string) []*backend.CompactedBlockMeta {
+func (l *List) CompactedMetas(tenantID string) []*backend_v1.CompactedBlockMeta {
 	if tenantID == "" {
 		return nil
 	}
@@ -73,7 +73,7 @@ func (l *List) CompactedMetas(tenantID string) []*backend.CompactedBlockMeta {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
-	copiedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(l.compactedMetas[tenantID]))
+	copiedBlocklist := make([]*backend_v1.CompactedBlockMeta, 0, len(l.compactedMetas[tenantID]))
 	copiedBlocklist = append(copiedBlocklist, l.compactedMetas[tenantID]...)
 
 	return copiedBlocklist
@@ -102,7 +102,7 @@ func (l *List) ApplyPollResults(m PerTenant, c PerTenantCompacted) {
 
 // Update Adds and removes regular or compacted blocks from the in-memory blocklist.
 // Changes are temporary and will be preserved only for one poll
-func (l *List) Update(tenantID string, add []*backend.BlockMeta, remove []*backend.BlockMeta, compactedAdd []*backend.CompactedBlockMeta, compactedRemove []*backend.CompactedBlockMeta) {
+func (l *List) Update(tenantID string, add []*backend_v1.BlockMeta, remove []*backend_v1.BlockMeta, compactedAdd []*backend_v1.CompactedBlockMeta, compactedRemove []*backend_v1.CompactedBlockMeta) {
 	if tenantID == "" {
 		return
 	}
@@ -125,7 +125,7 @@ func (l *List) Update(tenantID string, add []*backend.BlockMeta, remove []*backe
 
 // updateInternal exists to do the work of applying updates to held PerTenant and PerTenantCompacted maps
 // it must be called under lock
-func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove []*backend.BlockMeta, compactedAdd []*backend.CompactedBlockMeta, compactedRemove []*backend.CompactedBlockMeta) {
+func (l *List) updateInternal(tenantID string, add []*backend_v1.BlockMeta, remove []*backend_v1.BlockMeta, compactedAdd []*backend_v1.CompactedBlockMeta, compactedRemove []*backend_v1.CompactedBlockMeta) {
 	// ******** Regular blocks ********
 	blocklist := l.metas[tenantID]
 
@@ -140,7 +140,7 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 	}
 
 	existingMetas := make(map[uuid.UUID]struct{})
-	newblocklist := make([]*backend.BlockMeta, 0, len(blocklist)-len(matchedRemovals)+len(add))
+	newblocklist := make([]*backend_v1.BlockMeta, 0, len(blocklist)-len(matchedRemovals)+len(add))
 	// rebuild the blocklist dropping all removals
 	for _, b := range blocklist {
 		existingMetas[b.BlockID] = struct{}{}
@@ -171,7 +171,7 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 	}
 
 	existingMetas = make(map[uuid.UUID]struct{})
-	newCompactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(compactedBlocklist)-len(compactedRemovals)+len(compactedAdd))
+	newCompactedBlocklist := make([]*backend_v1.CompactedBlockMeta, 0, len(compactedBlocklist)-len(compactedRemovals)+len(compactedAdd))
 	// rebuild the blocklist dropping all removals
 	for _, b := range compactedBlocklist {
 		existingMetas[b.BlockID] = struct{}{}
