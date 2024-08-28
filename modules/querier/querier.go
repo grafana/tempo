@@ -237,7 +237,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	span.SetTag("queryMode", req.QueryMode)
 
 	maxBytes := q.limits.MaxBytesPerTrace(userID)
-	combiner := trace.NewCombiner(maxBytes)
+	combiner := trace.NewCombiner(maxBytes, req.AllowPartialTrace)
 
 	var spanCount, spanCountTotal, traceCountTotal int
 	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
@@ -309,11 +309,17 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	}
 
 	completeTrace, _ := combiner.Result()
-
-	return &tempopb.TraceByIDResponse{
+	resp := &tempopb.TraceByIDResponse{
 		Trace:   completeTrace,
 		Metrics: &tempopb.TraceByIDMetrics{},
-	}, nil
+	}
+
+	if combiner.IsPartialTrace() {
+		resp.Status = tempopb.TraceByIDResponse_PARTIAL
+		resp.Message = fmt.Sprintf("Trace exceeds maximum size of %d bytes, a partial trace is returned", maxBytes)
+	}
+
+	return resp, nil
 }
 
 type (

@@ -34,7 +34,8 @@ type Config struct {
 	//  otel collector: https://github.com/open-telemetry/opentelemetry-collector/tree/main/receiver
 	Receivers           map[string]interface{}    `yaml:"receivers"`
 	OverrideRingKey     string                    `yaml:"override_ring_key"`
-	LogReceivedSpans    LogReceivedSpansConfig    `yaml:"log_received_spans,omitempty"`
+	LogReceivedSpans    LogSpansConfig            `yaml:"log_received_spans,omitempty"`
+	LogDiscardedSpans   LogSpansConfig            `yaml:"log_discarded_spans,omitempty"`
 	MetricReceivedSpans MetricReceivedSpansConfig `yaml:"metric_received_spans,omitempty"`
 
 	Forwarders forwarder.ConfigList `yaml:"forwarders"`
@@ -51,7 +52,7 @@ type Config struct {
 	factory ring_client.PoolAddrFunc `yaml:"-"`
 }
 
-type LogReceivedSpansConfig struct {
+type LogSpansConfig struct {
 	Enabled              bool `yaml:"enabled"`
 	IncludeAllAttributes bool `yaml:"include_all_attributes"`
 	FilterByStatusError  bool `yaml:"filter_by_status_error"`
@@ -75,4 +76,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.BoolVar(&cfg.LogReceivedSpans.Enabled, util.PrefixConfig(prefix, "log-received-spans.enabled"), false, "Enable to log every received span to help debug ingestion or calculate span error distributions using the logs.")
 	f.BoolVar(&cfg.LogReceivedSpans.IncludeAllAttributes, util.PrefixConfig(prefix, "log-received-spans.include-attributes"), false, "Enable to include span attributes in the logs.")
 	f.BoolVar(&cfg.LogReceivedSpans.FilterByStatusError, util.PrefixConfig(prefix, "log-received-spans.filter-by-status-error"), false, "Enable to filter out spans without status error.")
+
+	f.BoolVar(&cfg.LogDiscardedSpans.Enabled, util.PrefixConfig(prefix, "log-discarded-spans.enabled"), false, "Enable to log every discarded span to help debug ingestion or calculate span error distributions using the logs.")
+	f.BoolVar(&cfg.LogDiscardedSpans.IncludeAllAttributes, util.PrefixConfig(prefix, "log-discarded-spans.include-attributes"), false, "Enable to include span attributes in the logs.")
+	f.BoolVar(&cfg.LogDiscardedSpans.FilterByStatusError, util.PrefixConfig(prefix, "log-discarded-spans.filter-by-status-error"), false, "Enable to filter out spans without status error.")
 }

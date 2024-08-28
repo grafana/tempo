@@ -45,7 +45,10 @@ func TestConfig_CheckConfig(t *testing.T) {
 					},
 				},
 				Distributor: distributor.Config{
-					LogReceivedSpans: distributor.LogReceivedSpansConfig{
+					LogReceivedSpans: distributor.LogSpansConfig{
+						Enabled: true,
+					},
+					LogDiscardedSpans: distributor.LogSpansConfig{
 						Enabled: true,
 					},
 				},
@@ -57,6 +60,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 				warnStorageTraceBackendS3,
 				warnBlocklistPollConcurrency,
 				warnLogReceivedTraces,
+				warnLogDiscardedTraces,
 				warnNativeAWSAuthEnabled,
 				warnConfiguredLegacyCache,
 			},

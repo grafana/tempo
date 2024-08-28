@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"reflect"
 	"sync/atomic"
 )
@@ -656,7 +655,7 @@ func skipBinary(r Reader) error {
 	case *bufio.Reader:
 		_, err = x.Discard(int(n))
 	default:
-		_, err = io.CopyN(ioutil.Discard, x, int64(n))
+		_, err = io.CopyN(io.Discard, x, int64(n))
 	}
 	return dontExpectEOF(err)
 }

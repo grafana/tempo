@@ -52,11 +52,18 @@ message TraceByIDRequest {
   string blockStart = 2;
   string blockEnd = 3;
   string queryMode = 5;
+  bool allowPartialTrace = 6;
 }
 
 message TraceByIDResponse {
   Trace trace = 1;
   TraceByIDMetrics metrics = 2;
+  enum Status {
+    COMPLETE = 0;
+    PARTIAL = 1;
+  }
+  Status status = 3;
+  string message = 4;
 }
 
 message TraceByIDMetrics {}
@@ -388,8 +395,8 @@ message QueryRangeRequest {
   uint64 start = 2;
   uint64 end = 3;
   uint64 step = 4;
-  uint32 shardID = 5;
-  uint32 shardCount = 6;
+  //uint32 shardID = 5; // removed
+  //uint32 shardCount = 6; // removed
   string queryMode = 7;
   // New RF1 fields
   string blockID = 8;

@@ -531,7 +531,7 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.
 		}
 	}
 
-	combiner := trace.NewCombiner(opts.MaxBytes)
+	combiner := trace.NewCombiner(opts.MaxBytes, false)
 	for i, tr := range trs {
 		_, err := combiner.ConsumeWithFinal(tr, i == len(trs)-1)
 		if err != nil {

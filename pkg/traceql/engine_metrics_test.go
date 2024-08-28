@@ -219,7 +219,7 @@ func TestCompileMetricsQueryRange(t *testing.T) {
 				Start: c.start,
 				End:   c.end,
 				Step:  c.step,
-			}, false, 0, 0, false)
+			}, 0, 0, false)
 
 			if c.expectedErr != nil {
 				require.EqualError(t, err, c.expectedErr.Error())
@@ -231,9 +231,6 @@ func TestCompileMetricsQueryRange(t *testing.T) {
 func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 	tc := map[string]struct {
 		q           string
-		shardID     uint32
-		shardCount  uint32
-		dedupe      bool
 		expectedReq FetchSpansRequest
 	}{
 		"minimal": {
@@ -249,36 +246,25 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 			},
 		},
 		"dedupe": {
-			q:      "{} | rate()",
-			dedupe: true,
+			q: "{} | rate()",
 			expectedReq: FetchSpansRequest{
 				AllConditions: true,
 				Conditions: []Condition{
 					{
 						Attribute: IntrinsicSpanStartTimeAttribute,
 					},
-					{
-						Attribute: IntrinsicTraceIDAttribute, // Required for dedupe
-					},
 				},
 			},
 		},
 		"secondPass": {
-			q:          "{duration > 10s} | rate() by (resource.cluster)",
-			shardID:    123,
-			shardCount: 456,
+			q: "{duration > 10s} | rate() by (resource.cluster)",
 			expectedReq: FetchSpansRequest{
 				AllConditions: true,
-				ShardID:       123,
-				ShardCount:    456,
 				Conditions: []Condition{
 					{
 						Attribute: IntrinsicDurationAttribute,
 						Op:        OpGreater,
 						Operands:  Operands{NewStaticDuration(10 * time.Second)},
-					},
-					{
-						Attribute: IntrinsicTraceIDAttribute, // Required for sharding
 					},
 				},
 				SecondPassConditions: []Condition{
@@ -294,21 +280,14 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 			},
 		},
 		"optimizations": {
-			q:          "{duration > 10s} | rate() by (name, resource.service.name)",
-			shardID:    123,
-			shardCount: 456,
+			q: "{duration > 10s} | rate() by (name, resource.service.name)",
 			expectedReq: FetchSpansRequest{
 				AllConditions: true,
-				ShardID:       123,
-				ShardCount:    456,
 				Conditions: []Condition{
 					{
 						Attribute: IntrinsicDurationAttribute,
 						Op:        OpGreater,
 						Operands:  Operands{NewStaticDuration(10 * time.Second)},
-					},
-					{
-						Attribute: IntrinsicTraceIDAttribute, // Required for sharding
 					},
 					{
 						// Intrinsic moved to first pass
@@ -329,13 +308,11 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 	for n, tc := range tc {
 		t.Run(n, func(t *testing.T) {
 			eval, err := NewEngine().CompileMetricsQueryRange(&tempopb.QueryRangeRequest{
-				Query:      tc.q,
-				ShardID:    tc.shardID,
-				ShardCount: tc.shardCount,
-				Start:      1,
-				End:        2,
-				Step:       3,
-			}, tc.dedupe, 0, 0, false)
+				Query: tc.q,
+				Start: 1,
+				End:   2,
+				Step:  3,
+			}, 0, 0, false)
 			require.NoError(t, err)
 
 			// Nil out func to Equal works
@@ -672,7 +649,6 @@ func TestHistogramOverTime(t *testing.T) {
 
 func testTraceQlMetric(t *testing.T, out SeriesSet, req *tempopb.QueryRangeRequest, inSpans ...[]Span) {
 	e := NewEngine()
-	// 3 layers of processing matches:  query-frontend -> queriers -> generators -> blocks
 
 	layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
 	require.NoError(t, err)
@@ -681,7 +657,7 @@ func testTraceQlMetric(t *testing.T, out SeriesSet, req *tempopb.QueryRangeReque
 	require.NoError(t, err)
 
 	for _, spanSet := range inSpans {
-		layer1, err := e.CompileMetricsQueryRange(req, false, 0, 0, false)
+		layer1, err := e.CompileMetricsQueryRange(req, 0, 0, false)
 		require.NoError(t, err)
 		for _, s := range spanSet {
 			layer1.metricsPipeline.observe(s)
@@ -702,27 +678,4 @@ func testTraceQlMetric(t *testing.T, out SeriesSet, req *tempopb.QueryRangeReque
 	final := layer3.Results()
 
 	require.Equal(t, out, final)
-}
-
-func TestSpanDeduper(t *testing.T) {
-	d := NewSpanDeduper2()
-
-	in := []struct {
-		tid []byte
-		ts  uint64
-	}{
-		{nil, 0},
-		{[]byte{1}, 1},
-		{[]byte{1, 1}, 1},
-		{[]byte{1, 2}, 2},
-	}
-
-	for _, tc := range in {
-		// First call is always false
-		require.False(t, d.Skip(tc.tid, tc.ts))
-
-		// Second call is always true
-		require.True(t, d.Skip(tc.tid, tc.ts))
-	}
-	d.Skip(nil, 0)
 }

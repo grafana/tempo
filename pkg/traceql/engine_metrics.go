@@ -2,11 +2,8 @@ package traceql
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
-	"hash"
-	"hash/fnv"
 	"math"
 	"sort"
 	"sync"
@@ -771,7 +768,7 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 // Dedupe spans parameter is an indicator of whether to expect duplicates in the datasource. For
 // example if the datasource is replication factor=1 or only a single block then we know there
 // aren't duplicates, and we can make some optimizations.
-func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupeSpans bool, exemplars int, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvalulator, error) {
+func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exemplars int, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvalulator, error) {
 	if req.Start <= 0 {
 		return nil, fmt.Errorf("start required")
 	}
@@ -794,10 +791,6 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		return nil, fmt.Errorf("not a metrics query")
 	}
 
-	if v, ok := expr.Hints.GetBool(HintDedupe, allowUnsafeQueryHints); ok {
-		dedupeSpans = v
-	}
-
 	if v, ok := expr.Hints.GetInt(HintExemplars, allowUnsafeQueryHints); ok {
 		exemplars = v
 	}
@@ -808,29 +801,9 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	me := &MetricsEvalulator{
 		storageReq:        storageReq,
 		metricsPipeline:   metricsPipeline,
-		dedupeSpans:       dedupeSpans,
 		timeOverlapCutoff: timeOverlapCutoff,
 		maxExemplars:      exemplars,
 		exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
-	}
-
-	// TraceID (optional)
-	if req.ShardCount > 1 {
-		// For sharding it must be in the first pass so that we only evalulate our traces.
-		storageReq.ShardID = req.ShardID
-		storageReq.ShardCount = req.ShardCount
-		if !storageReq.HasAttribute(IntrinsicTraceIDAttribute) {
-			storageReq.Conditions = append(storageReq.Conditions, Condition{Attribute: IntrinsicTraceIDAttribute})
-		}
-	}
-
-	if dedupeSpans {
-		// For dedupe we only need the trace ID on matching spans, so it can go in the second pass.
-		// This is a no-op if we are already sharding and it's in the first pass.
-		// Finally, this is often optimized back to the first pass when it lets us avoid a second pass altogether.
-		if !storageReq.HasAttribute(IntrinsicTraceIDAttribute) {
-			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicTraceIDAttribute})
-		}
 	}
 
 	// Span start time (always required)
@@ -948,8 +921,6 @@ func lookup(needles []Attribute, haystack Span) Static {
 type MetricsEvalulator struct {
 	start, end                      uint64
 	checkTime                       bool
-	dedupeSpans                     bool
-	deduper                         *SpanDeduper2
 	maxExemplars, exemplarCount     int
 	exemplarMap                     map[string]struct{}
 	timeOverlapCutoff               float64
@@ -1005,10 +976,6 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 		return err
 	}
 
-	if e.dedupeSpans && e.deduper == nil {
-		e.deduper = NewSpanDeduper2()
-	}
-
 	defer fetch.Results.Close()
 
 	for {
@@ -1028,11 +995,6 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 				if st < e.start || st >= e.end {
 					continue
 				}
-			}
-
-			if e.dedupeSpans && e.deduper.Skip(ss.TraceID, s.StartTimeUnixNanos()) {
-				e.spansDeduped++
-				continue
 			}
 
 			e.spansTotal++
@@ -1083,56 +1045,6 @@ func (e *MetricsEvalulator) sampleExemplar(id []byte) bool {
 	e.exemplarMap[string(id)] = struct{}{}
 	e.exemplarCount++
 	return true
-}
-
-// SpanDeduper2 is EXTREMELY LAZY. It attempts to dedupe spans for metrics
-// without requiring any new data fields.  It uses trace ID and span start time
-// which are already loaded. This of course terrible, but did I mention that
-// this is extremely lazy?  Additionally it uses sharded maps by the lowest byte
-// of the trace ID to reduce the pressure on any single map.  Maybe it's good enough.  Let's find out!
-type SpanDeduper2 struct {
-	m       []map[uint32]struct{}
-	h       hash.Hash32
-	buf     []byte
-	traceID Attribute
-}
-
-func NewSpanDeduper2() *SpanDeduper2 {
-	maps := make([]map[uint32]struct{}, 256)
-	for i := range maps {
-		maps[i] = make(map[uint32]struct{}, 1000)
-	}
-	return &SpanDeduper2{
-		m:       maps,
-		h:       fnv.New32a(),
-		buf:     make([]byte, 8),
-		traceID: NewIntrinsic(IntrinsicTraceID),
-	}
-}
-
-func (d *SpanDeduper2) Skip(tid []byte, startTime uint64) bool {
-	d.h.Reset()
-	d.h.Write(tid)
-	binary.BigEndian.PutUint64(d.buf, startTime)
-	d.h.Write(d.buf)
-
-	v := d.h.Sum32()
-
-	// Use last byte of the trace to choose the submap.
-	// Empty ID uses submap 0.
-	mapIdx := byte(0)
-	if len(tid) > 0 {
-		mapIdx = tid[len(tid)-1]
-	}
-
-	m := d.m[mapIdx]
-
-	if _, ok := m[v]; ok {
-		return true
-	}
-
-	m[v] = struct{}{}
-	return false
 }
 
 // MetricsFrontendEvaluator pipes the sharded job results back into the engine for the rest

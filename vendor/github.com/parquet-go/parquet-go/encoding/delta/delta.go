@@ -82,13 +82,6 @@ func grow(buf []byte, size int) []byte {
 	return newBuf
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func errPrefixAndSuffixLengthMismatch(prefixLength, suffixLength int) error {
 	return fmt.Errorf("length of prefix and suffix mismatch: %d != %d", prefixLength, suffixLength)
 }

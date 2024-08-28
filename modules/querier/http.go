@@ -108,10 +108,11 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 		ot_log.String("apiVersion", "v2"))
 
 	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
-		TraceID:    byteID,
-		BlockStart: blockStart,
-		BlockEnd:   blockEnd,
-		QueryMode:  queryMode,
+		TraceID:           byteID,
+		BlockStart:        blockStart,
+		BlockEnd:          blockEnd,
+		QueryMode:         queryMode,
+		AllowPartialTrace: true,
 	}, timeStart, timeEnd)
 	if err != nil {
 		handleError(w, err)
@@ -394,8 +395,6 @@ func (q *Querier) QueryRangeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	span.SetTag("query", req.Query)
-	span.SetTag("shard", req.ShardID)
-	span.SetTag("shardCount", req.ShardCount)
 	span.SetTag("step", time.Duration(req.Step))
 	span.SetTag("interval", time.Unix(0, int64(req.End)).Sub(time.Unix(0, int64(req.Start))))
 
