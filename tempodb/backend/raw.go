@@ -291,9 +291,7 @@ func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex
 		return tenantIndex, nil
 	}
 
-	// TODO: read the json file if we don't have a proto file
-
-	return nil, fmt.Errorf("error reading tenant index: %w", err)
+	return r.tenantIndexJSON(ctx, tenantID)
 }
 
 // Find implements backend.Reader
@@ -328,7 +326,7 @@ func (r *reader) tenantIndexProto(ctx context.Context, tenantID string) (*backen
 	return nil, fmt.Errorf("error reading tenant index proto: %w", err)
 }
 
-func (r *reader) tenantIndexJson(ctx context.Context, tenantID string) (*TenantIndex, error) {
+func (r *reader) tenantIndexJSON(ctx context.Context, tenantID string) (*TenantIndex, error) {
 	var (
 		i   = &TenantIndex{}
 		err error
