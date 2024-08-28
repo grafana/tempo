@@ -352,7 +352,7 @@ Update the `storage` configuration options based upon your requirements:
 The Helm chart values in your `custom.yaml` file are configure to use OTLP.
 If you are using other receivers, then you need to configure them.
 
-You can configure Tempo can to receive data from OTLP, Jaegar, Zipkin, Kafka, and OpenCensus.
+You can configure Tempo can to receive data from OTLP, Jaeger, Zipkin, Kafka, and OpenCensus.
 The following example enables OTLP on the distributor. For other options, refer to the [distributor documentation]({{< relref "/docs/tempo/latest/configuration#distributor" >}})
 
 The example used in this procedure has OTLP enabled.
