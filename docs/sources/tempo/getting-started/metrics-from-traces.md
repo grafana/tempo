@@ -28,15 +28,15 @@ Span metrics are of particular interest if your system is not monitored with met
 Metrics generation is disabled by default. Contact Grafana Support to enable metrics generation in your organization.
 {{% /admonition %}}
 
-After the metrics generator is enabled in your organization, refer to [Metrics-generator configuration]({{< relref "../configuration" >}}) for information about metrics-generator options.
+After the metrics-generator is enabled in your organization, refer to [Metrics-generator configuration]({{< relref "../configuration" >}}) for information about metrics-generator options.
 
-<p align="center"><img src="../assets/trace_service_graph.png" alt="Trace service graph"></p>
+![Trace service graph](/media/docs/grafana/data-sources/tempo/query-editor/tempo-ds-query-service-graph.png)
 
 These metrics exist in your Hosted Metrics instance and can also be easily used to generate powerful custom dashboards.
 
 <p align="center"><img src="../assets/trace_custom_metrics_dash.png" alt="Trace custom metrics dashboard"></p>
 
-The metrics generator automatically generates exemplars as well which allows easy metrics to trace linking. [Exemplars](/docs/grafana-cloud/monitor-infrastructure/traces/exemplars/) are available in Grafana Cloud so you can also push your own.
+The metrics-generator automatically generates exemplars as well which allows easy metrics to trace linking. [Exemplars](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/fundamentals/exemplars/) are available in Grafana Cloud so you can also push your own.
 
 <p align="center"><img src="../assets/trace_exemplars.png" alt="Trace exemplars"></p>
 
