@@ -1174,18 +1174,6 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 }
 
 func (b *SimpleAggregator) Results() SeriesSet {
-	if b.initWithNaN {
-		for _, ss := range b.ss {
-			i := 0
-			for _, v := range ss.Values {
-				if !math.IsNaN(v) {
-					ss.Values[i] = v
-					i++
-				}
-			}
-			ss.Values = ss.Values[:i]
-		}
-	}
 	return b.ss
 }
 

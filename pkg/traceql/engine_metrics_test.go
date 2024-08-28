@@ -2,10 +2,12 @@ package traceql
 
 import (
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -413,7 +415,8 @@ func TestQuantileOverTime(t *testing.T) {
 		},
 	}
 
-	testTraceQlMetric(t, out, req, in)
+	result := runTraceQLMetric(t, req, in)
+	require.Equal(t, out, result)
 }
 
 func percentileHelper(q float64, values ...float64) float64 {
@@ -467,7 +470,8 @@ func TestCountOverTime(t *testing.T) {
 		},
 	}
 
-	testTraceQlMetric(t, out, req, in)
+	result := runTraceQLMetric(t, req, in)
+	require.Equal(t, out, result)
 }
 
 func TestMinOverTimeForDuration(t *testing.T) {
@@ -494,26 +498,21 @@ func TestMinOverTimeForDuration(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
 	}
 
-	// Output series with quantiles per foo
-	// Prom labels are sorted alphabetically, traceql labels maintain original order.
-	out := SeriesSet{
-		`{span.foo="baz"}`: TimeSeries{
-			Labels: []Label{
-				{Name: "span.foo", Value: NewStaticString("baz")},
-			},
-			Values:    []float64{0, 0, 512 / float64(time.Second)},
-			Exemplars: make([]Exemplar, 0),
-		},
-		`{span.foo="bar"}`: TimeSeries{
-			Labels: []Label{
-				{Name: "span.foo", Value: NewStaticString("bar")},
-			},
-			Values:    []float64{128 / float64(time.Second), 8 / float64(time.Second), 0},
-			Exemplars: make([]Exemplar, 0),
-		},
-	}
+	result := runTraceQLMetric(t, req, in)
 
-	testTraceQlMetric(t, out, req, in)
+	fooBaz := result[`{span.foo="baz"}`]
+	fooBar := result[`{span.foo="bar"}`]
+
+	// We cannot compare with require.Equal because NaN != NaN
+	// foo.baz = (NaN, NaN, 0.000000512)
+	assert.True(t, math.IsNaN(fooBaz.Values[0]))
+	assert.True(t, math.IsNaN(fooBaz.Values[1]))
+	assert.Equal(t, 512/float64(time.Second), fooBaz.Values[2])
+
+	// foo.bar = (0.000000128, 0.000000128, NaN)
+	assert.Equal(t, 128/float64(time.Second), fooBar.Values[0])
+	assert.Equal(t, 8/float64(time.Second), fooBar.Values[1])
+	assert.True(t, math.IsNaN(fooBar.Values[2]))
 }
 
 func TestMinOverTimeForSpanAttribute(t *testing.T) {
@@ -555,26 +554,34 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 400).WithDuration(512),
 	}
 
-	// Output series with quantiles per foo
-	// Prom labels are sorted alphabetically, traceql labels maintain original order.
-	out := SeriesSet{
-		`{span.foo="baz"}`: TimeSeries{
-			Labels: []Label{
-				{Name: "span.foo", Value: NewStaticString("baz")},
-			},
-			Values:    []float64{0, 0, 200},
-			Exemplars: make([]Exemplar, 0),
-		},
-		`{span.foo="bar"}`: TimeSeries{
-			Labels: []Label{
-				{Name: "span.foo", Value: NewStaticString("bar")},
-			},
-			// Silly I know
-			Values:    []float64{100, 200, 0},
-			Exemplars: make([]Exemplar, 0),
-		},
+	result := runTraceQLMetric(t, req, in, in2)
+
+	fooBaz := result[`{span.foo="baz"}`]
+	fooBar := result[`{span.foo="bar"}`]
+
+	// We cannot compare with require.Equal because NaN != NaN
+	// foo.baz = (NaN, NaN, 200
+	assert.True(t, math.IsNaN(fooBaz.Values[0]))
+	assert.True(t, math.IsNaN(fooBaz.Values[1]))
+	assert.Equal(t, 200.0, fooBaz.Values[2])
+
+	// foo.bar = (100,200, NaN)
+	assert.Equal(t, 100.0, fooBar.Values[0])
+	assert.Equal(t, 200.0, fooBar.Values[1])
+	assert.True(t, math.IsNaN(fooBar.Values[2]))
+
+	// Test that NaN values are not included in the samples
+	ts := result.ToProto(req)
+	fooBarSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 100}, {TimestampMs: 2000, Value: 200}}
+	fooBazSamples := []tempopb.Sample{{TimestampMs: 3000, Value: 200}}
+
+	for _, s := range ts {
+		if s.PromLabels == "{span.foo=\"bar\"}" {
+			assert.Equal(t, fooBarSamples, s.Samples)
+		} else {
+			assert.Equal(t, fooBazSamples, s.Samples)
+		}
 	}
-	testTraceQlMetric(t, out, req, in, in2)
 }
 
 func TestHistogramOverTime(t *testing.T) {
@@ -644,10 +651,11 @@ func TestHistogramOverTime(t *testing.T) {
 		},
 	}
 
-	testTraceQlMetric(t, out, req, in)
+	result := runTraceQLMetric(t, req, in)
+	require.Equal(t, out, result)
 }
 
-func testTraceQlMetric(t *testing.T, out SeriesSet, req *tempopb.QueryRangeRequest, inSpans ...[]Span) {
+func runTraceQLMetric(t *testing.T, req *tempopb.QueryRangeRequest, inSpans ...[]Span) SeriesSet {
 	e := NewEngine()
 
 	layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
@@ -674,8 +682,6 @@ func testTraceQlMetric(t *testing.T, out SeriesSet, req *tempopb.QueryRangeReque
 	layer3.ObserveSeries(res.ToProto(req))
 
 	// Layer 3 final results
-	// The quantiles
-	final := layer3.Results()
 
-	require.Equal(t, out, final)
+	return layer3.Results()
 }
