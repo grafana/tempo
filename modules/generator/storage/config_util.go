@@ -28,7 +28,7 @@ func generateTenantRemoteWriteConfigs(inputs []prometheus_config.RemoteWriteConf
 			output.Headers[k] = v
 		}
 
-		// Inject/overwrite X-Scope-OrgID header in multi-tenant setups
+		// Inject X-Scope-OrgID header in multi-tenant setups if not set already
 		if tenant != util.FakeTenantID && addOrgIDHeader {
 			existing := ""
 			for k, v := range output.Headers {
