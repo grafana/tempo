@@ -2,17 +2,16 @@ package gcs
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
 	"cloud.google.com/go/storage"
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/googleapis/gax-go/v2"
 	"google.golang.org/api/iterator"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
 )
 
 func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
@@ -69,28 +68,20 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	return nil
 }
 
-func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend_v1.CompactedBlockMeta, error) {
-	// TODO: consider fetching the json version here as well.
-
-	if len(tenantID) == 0 {
-		return nil, backend.ErrEmptyTenantID
-	}
-	if blockID == uuid.Nil {
-		return nil, backend.ErrEmptyBlockID
-	}
-
+func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
 	name := backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix)
+
 	bytes, attrs, err := rw.readAll(context.Background(), name)
 	if err != nil {
 		return nil, readError(err)
 	}
 
-	out := &backend_v1.CompactedBlockMeta{}
-	err = proto.Unmarshal(bytes, out)
+	out := &backend.CompactedBlockMeta{}
+	err = json.Unmarshal(bytes, out)
 	if err != nil {
 		return nil, err
 	}
-	out.CompactedTime = attrs.LastModified.Unix()
+	out.CompactedTime = attrs.LastModified
 
 	return out, nil
 }

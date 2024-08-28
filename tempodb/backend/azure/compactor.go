@@ -2,16 +2,15 @@ package azure
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/tempodb/backend"
-	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
 )
 
 type BlobAttributes struct {
@@ -90,9 +89,7 @@ func (rw *Azure) ClearBlock(blockID uuid.UUID, tenantID string) error {
 	return warning
 }
 
-func (rw *Azure) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend_v1.CompactedBlockMeta, error) {
-	// TODO: consider fetching the json version here as well.
-
+func (rw *Azure) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
 	if len(tenantID) == 0 {
 		return nil, backend.ErrEmptyTenantID
 	}
@@ -100,17 +97,18 @@ func (rw *Azure) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backen
 		return nil, backend.ErrEmptyBlockID
 	}
 	name := backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix)
+
 	bytes, modTime, err := rw.readAllWithModTime(context.Background(), name)
 	if err != nil {
 		return nil, readError(err)
 	}
 
-	out := &backend_v1.CompactedBlockMeta{}
-	err = proto.Unmarshal(bytes, out)
+	out := &backend.CompactedBlockMeta{}
+	err = json.Unmarshal(bytes, out)
 	if err != nil {
 		return nil, err
 	}
-	out.CompactedTime = modTime.Unix()
+	out.CompactedTime = modTime
 
 	return out, nil
 }
