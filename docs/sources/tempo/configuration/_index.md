@@ -33,7 +33,7 @@ The Tempo configuration options include:
     - [Filter policy config](#filter-policy-config)
       - [Filter policy](#filter-policy)
       - [Policy match](#policy-match)
-      - [Examples](#examples)
+      - [Examples](#examples) 
     - [KVStore config](#kvstore-config)
     - [Search config](#search-config)
     - [WAL config](#wal-config)
