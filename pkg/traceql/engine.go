@@ -177,10 +177,10 @@ func (e *Engine) ExecuteTagNames(
 	cb FetchTagsCallback,
 	fetcher TagNamesFetcher,
 ) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteTagNames")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "traceql.Engine.ExecuteTagNames")
+	defer span.End()
 
-	span.SetTag("sanitized query", query)
+	span.SetAttributes(attribute.String("sanitized query", query))
 
 	var conditions []Condition
 	rootExpr, err := Parse(query)
@@ -196,8 +196,8 @@ func (e *Engine) ExecuteTagNames(
 		Scope:      scope,
 	}
 
-	span.SetTag("pipeline", rootExpr.Pipeline)
-	span.SetTag("autocompleteReq", autocompleteReq)
+	span.SetAttributes(attribute.String("pipeline", rootExpr.Pipeline.String()))
+	span.SetAttributes(attribute.String("autocompleteReq", fmt.Sprint(autocompleteReq)))
 
 	return fetcher.Fetch(ctx, autocompleteReq, cb)
 }

@@ -26,6 +26,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.opentelemetry.io/otel"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"

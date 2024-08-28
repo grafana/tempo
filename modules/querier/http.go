@@ -98,14 +98,14 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	span.LogFields(
-		ot_log.String("msg", "validated request"),
-		ot_log.String("blockStart", blockStart),
-		ot_log.String("blockEnd", blockEnd),
-		ot_log.String("queryMode", queryMode),
-		ot_log.String("timeStart", fmt.Sprint(timeStart)),
-		ot_log.String("timeEnd", fmt.Sprint(timeEnd)),
-		ot_log.String("apiVersion", "v2"))
+	span.AddEvent("validated request", oteltrace.WithAttributes(
+		attribute.String("blockStart", blockStart),
+		attribute.String("blockEnd", blockEnd),
+		attribute.String("queryMode", queryMode),
+		attribute.String("timeStart", fmt.Sprint(timeStart)),
+		attribute.String("timeEnd", fmt.Sprint(timeEnd)),
+		attribute.String("apiVersion", "v2"),
+	))
 
 	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID:           byteID,
@@ -430,7 +430,7 @@ func handleError(w http.ResponseWriter, err error) {
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
-func writeFormattedContentForRequest(w http.ResponseWriter, req *http.Request, m proto.Message, span opentracing.Span) {
+func writeFormattedContentForRequest(w http.ResponseWriter, req *http.Request, m proto.Message, span oteltrace.Span) {
 	switch req.Header.Get(api.HeaderAccept) {
 	case api.HeaderAcceptProtobuf:
 		b, err := proto.Marshal(m)
@@ -446,7 +446,7 @@ func writeFormattedContentForRequest(w http.ResponseWriter, req *http.Request, m
 			return
 		}
 		if span != nil {
-			span.SetTag("contentType", api.HeaderAcceptProtobuf)
+			span.SetAttributes(attribute.String("contentType", api.HeaderAcceptProtobuf))
 		}
 
 	default:
@@ -457,7 +457,7 @@ func writeFormattedContentForRequest(w http.ResponseWriter, req *http.Request, m
 			return
 		}
 		if span != nil {
-			span.SetTag("contentType", api.HeaderAcceptJSON)
+			span.SetAttributes(attribute.String("contentType", api.HeaderAcceptJSON))
 		}
 
 	}
