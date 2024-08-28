@@ -18,5 +18,5 @@ jobs:
       - uses: actions/checkout@v4
       - uses: grafana/writers-toolkit/publish-technical-documentation@publish-technical-documentation/v1
         with:
-          website_directory: content/docs/tempo
+          website_directory: content/docs/tempo/next
 
