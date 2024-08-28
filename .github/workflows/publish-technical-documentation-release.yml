@@ -1,0 +1,28 @@
+name: publish-technical-documentation-release
+
+on:
+  push:
+    branches:
+      - release-*
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+    paths:
+      - 'docs/sources/tempo/**'
+  workflow_dispatch:
+jobs:
+  sync:
+    if: github.repository == 'grafana/tempo'
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: grafana/writers-toolkit/publish-technical-documentation-release@publish-technical-documentation-release/v1
+        with:
+          release_tag_regexp: "^v(\\d+)\\.(\\d+)\\.(\\d+)$"
+          release_branch_regexp: "^release-v(\\d+)\\.(\\d+)$"
+          release_branch_with_patch_regexp: "^release-v(\\d+)\\.(\\d+)\\.(\\d+)$"
+          website_directory: content/docs/tempo
