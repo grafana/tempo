@@ -16,7 +16,6 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
 	prom_client "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"go.opencensus.io/stats/view"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/consumer"
@@ -27,8 +26,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
-	"go.opentelemetry.io/otel"
-	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -49,10 +46,13 @@ const (
 
 var (
 	metricPushDuration = promauto.NewHistogram(prom_client.HistogramOpts{
-		Namespace: "tempo",
-		Name:      "distributor_push_duration_seconds",
-		Help:      "Records the amount of time to push a batch to the ingester.",
-		Buckets:   prom_client.DefBuckets,
+		Namespace:                       "tempo",
+		Name:                            "distributor_push_duration_seconds",
+		Help:                            "Records the amount of time to push a batch to the ingester.",
+		Buckets:                         prom_client.DefBuckets,
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 
 	statReceiverOtlp       = usagestats.NewInt("receiver_enabled_otlp")
@@ -115,12 +115,11 @@ var _ services.Service = (*receiversShim)(nil)
 type receiversShim struct {
 	services.Service
 
-	retryDelay  *durationpb.Duration
-	receivers   []receiver.Traces
-	pusher      TracesPusher
-	logger      *log.RateLimitedLogger
-	metricViews []*view.View
-	fatal       chan error
+	retryDelay *durationpb.Duration
+	receivers  []receiver.Traces
+	pusher     TracesPusher
+	logger     *log.RateLimitedLogger
+	fatal      chan error
 }
 
 func (r *receiversShim) Capabilities() consumer.Capabilities {
@@ -155,11 +154,6 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 
 	// shim otel observability
 	zapLogger := newLogger(logLevel)
-	views, err := newMetricViews()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create metric traceReceiverViews: %w", err)
-	}
-	shim.metricViews = views
 
 	// load config
 	receiverFactories, err := receiver.MakeFactoryMap(
@@ -193,12 +187,10 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		receivers = append(receivers, k)
 	}
 
-	// Creates a config provider with the given config map.
-	// The provider will be used to retrieve the actual config for the pipeline (although we only need the receivers).
-	pro, err := otelcol.NewConfigProvider(otelcol.ConfigProviderSettings{
-		ResolverSettings: confmap.ResolverSettings{
-			URIs: []string{"mock:/"},
-			Providers: map[string]confmap.Provider{"mock": &mapProvider{raw: map[string]interface{}{
+	// Define a factory function to create the mock provider
+	mockProviderFactory := confmap.NewProviderFactory(func(confmap.ProviderSettings) confmap.Provider {
+		return &mapProvider{
+			raw: map[string]interface{}{
 				"receivers": receiverCfg,
 				"exporters": map[string]interface{}{
 					"nop": map[string]interface{}{},
@@ -211,7 +203,19 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 						},
 					},
 				},
-			}}},
+			},
+		}
+	})
+
+	// Creates a config provider with the given config map.
+	// The provider will be used to retrieve the actual config for the pipeline (although we only need the receivers).
+	pro, err := otelcol.NewConfigProvider(otelcol.ConfigProviderSettings{
+		ResolverSettings: confmap.ResolverSettings{
+			URIs: []string{"mock:/"},
+			ProviderFactories: []confmap.ProviderFactory{
+				mockProviderFactory,
+			},
+			DefaultScheme: "mock",
 		},
 	})
 	if err != nil {
@@ -228,19 +232,13 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		return nil, err
 	}
 
+	nopType := component.MustNewType("tempo")
+	traceProvider := tracenoop.NewTracerProvider()
+	meterProvider := NewMeterProvider()
 	// todo: propagate a real context?  translate our log configuration into zap?
 	ctx := context.Background()
-	params := receiver.CreateSettings{
-		TelemetrySettings: component.TelemetrySettings{
-			Logger:         zapLogger,
-			TracerProvider: tracenoop.NewTracerProvider(),
-			MeterProvider:  metricnoop.NewMeterProvider(),
-			ReportStatus: func(*component.StatusEvent) {
-			},
-		},
-	}
-
 	for componentID, cfg := range conf.Receivers {
+
 		factoryBase := receiverFactories[componentID.Type()]
 		if factoryBase == nil {
 			return nil, fmt.Errorf("receiver factory not found for type: %s", componentID.Type())
@@ -272,6 +270,16 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 			cfg = jaegerRecvCfg
 		}
 
+		params := receiver.CreateSettings{
+			ID: component.NewIDWithName(nopType, fmt.Sprintf("%s_receiver", componentID.Type().String())),
+			TelemetrySettings: component.TelemetrySettings{
+				Logger:         zapLogger,
+				TracerProvider: traceProvider,
+				MeterProvider:  meterProvider,
+				ReportStatus: func(*component.StatusEvent) {
+				},
+			},
+		}
 		receiver, err := factoryBase.CreateTracesReceiver(ctx, params, cfg, middleware.Wrap(shim))
 		if err != nil {
 			return nil, err

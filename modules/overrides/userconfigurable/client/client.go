@@ -20,7 +20,6 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	azure "github.com/grafana/tempo/tempodb/backend/azure"
-	azureconfig "github.com/grafana/tempo/tempodb/backend/azure/config"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
@@ -58,10 +57,10 @@ type Config struct {
 	// checks against concurrent writes will be performed.
 	ConfirmVersioning bool `yaml:"confirm_versioning"`
 
-	Local *local.Config       `yaml:"local"`
-	GCS   *gcs.Config         `yaml:"gcs"`
-	S3    *s3.Config          `yaml:"s3"`
-	Azure *azureconfig.Config `yaml:"azure"`
+	Local *local.Config `yaml:"local"`
+	GCS   *gcs.Config   `yaml:"gcs"`
+	S3    *s3.Config    `yaml:"s3"`
+	Azure *azure.Config `yaml:"azure"`
 }
 
 func (c *Config) RegisterFlagsAndApplyDefaults(*flag.FlagSet) {
@@ -76,7 +75,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(*flag.FlagSet) {
 	c.GCS.RegisterFlagsAndApplyDefaults("", dummyFlagSet)
 	c.S3 = &s3.Config{}
 	c.S3.RegisterFlagsAndApplyDefaults("", dummyFlagSet)
-	c.Azure = &azureconfig.Config{}
+	c.Azure = &azure.Config{}
 	c.Azure.RegisterFlagsAndApplyDefaults("", dummyFlagSet)
 }
 

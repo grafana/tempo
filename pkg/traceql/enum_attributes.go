@@ -9,6 +9,8 @@ const (
 	AttributeScopeResource
 	AttributeScopeSpan
 	AttributeScopeEvent
+	AttributeScopeLink
+	AttributeScopeInstrumentation
 	AttributeScopeUnknown
 
 	none     = "none"
@@ -29,6 +31,10 @@ func (s AttributeScope) String() string {
 		return "resource"
 	case AttributeScopeEvent:
 		return "event"
+	case AttributeScopeLink:
+		return "link"
+	case AttributeScopeInstrumentation:
+		return "instrumentation"
 	}
 
 	return fmt.Sprintf("att(%d).", s)
@@ -42,6 +48,10 @@ func AttributeScopeFromString(s string) AttributeScope {
 		return AttributeScopeResource
 	case "event":
 		return AttributeScopeEvent
+	case "link":
+		return AttributeScopeLink
+	case "instrumentation":
+		return AttributeScopeInstrumentation
 	case "":
 		fallthrough
 	case none:
@@ -68,6 +78,11 @@ const (
 	IntrinsicNestedSetRight
 	IntrinsicNestedSetParent
 	IntrinsicEventName
+	IntrinsicEventTimeSinceStart
+	IntrinsicLinkSpanID
+	IntrinsicLinkTraceID
+	IntrinsicInstrumentationName
+	IntrinsicInstrumentationVersion
 
 	// not yet implemented in traceql but will be
 	IntrinsicParent
@@ -82,6 +97,14 @@ const (
 
 	IntrinsicTraceID
 	IntrinsicSpanID
+	ScopedIntrinsicSpanStatus
+	ScopedIntrinsicSpanStatusMessage
+	ScopedIntrinsicSpanDuration
+	ScopedIntrinsicSpanName
+	ScopedIntrinsicSpanKind
+	ScopedIntrinsicTraceRootName
+	ScopedIntrinsicTraceRootService
+	ScopedIntrinsicTraceDuration
 
 	// not yet implemented in traceql and may never be. these exist so that we can retrieve
 	// these fields from the fetch layer
@@ -93,21 +116,27 @@ const (
 )
 
 var (
-	IntrinsicDurationAttribute         = NewIntrinsic(IntrinsicDuration)
-	IntrinsicNameAttribute             = NewIntrinsic(IntrinsicName)
-	IntrinsicStatusAttribute           = NewIntrinsic(IntrinsicStatus)
-	IntrinsicStatusMessageAttribute    = NewIntrinsic(IntrinsicStatusMessage)
-	IntrinsicKindAttribute             = NewIntrinsic(IntrinsicKind)
-	IntrinsicSpanIDAttribute           = NewIntrinsic(IntrinsicSpanID)
-	IntrinsicChildCountAttribute       = NewIntrinsic(IntrinsicChildCount)
-	IntrinsicTraceIDAttribute          = NewIntrinsic(IntrinsicTraceID)
-	IntrinsicTraceRootServiceAttribute = NewIntrinsic(IntrinsicTraceRootService)
-	IntrinsicTraceRootSpanAttribute    = NewIntrinsic(IntrinsicTraceRootSpan)
-	IntrinsicTraceDurationAttribute    = NewIntrinsic(IntrinsicTraceDuration)
-	IntrinsicSpanStartTimeAttribute    = NewIntrinsic(IntrinsicSpanStartTime)
-	IntrinsicNestedSetLeftAttribute    = NewIntrinsic(IntrinsicNestedSetLeft)
-	IntrinsicNestedSetRightAttribute   = NewIntrinsic(IntrinsicNestedSetRight)
-	IntrinsicNestedSetParentAttribute  = NewIntrinsic(IntrinsicNestedSetParent)
+	IntrinsicDurationAttribute               = NewIntrinsic(IntrinsicDuration)
+	IntrinsicNameAttribute                   = NewIntrinsic(IntrinsicName)
+	IntrinsicStatusAttribute                 = NewIntrinsic(IntrinsicStatus)
+	IntrinsicStatusMessageAttribute          = NewIntrinsic(IntrinsicStatusMessage)
+	IntrinsicKindAttribute                   = NewIntrinsic(IntrinsicKind)
+	IntrinsicSpanIDAttribute                 = NewIntrinsic(IntrinsicSpanID)
+	IntrinsicChildCountAttribute             = NewIntrinsic(IntrinsicChildCount)
+	IntrinsicTraceIDAttribute                = NewIntrinsic(IntrinsicTraceID)
+	IntrinsicTraceRootServiceAttribute       = NewIntrinsic(IntrinsicTraceRootService)
+	IntrinsicTraceRootSpanAttribute          = NewIntrinsic(IntrinsicTraceRootSpan)
+	IntrinsicTraceDurationAttribute          = NewIntrinsic(IntrinsicTraceDuration)
+	IntrinsicSpanStartTimeAttribute          = NewIntrinsic(IntrinsicSpanStartTime)
+	IntrinsicNestedSetLeftAttribute          = NewIntrinsic(IntrinsicNestedSetLeft)
+	IntrinsicNestedSetRightAttribute         = NewIntrinsic(IntrinsicNestedSetRight)
+	IntrinsicNestedSetParentAttribute        = NewIntrinsic(IntrinsicNestedSetParent)
+	IntrinsicLinkTraceIDAttribute            = NewIntrinsic(IntrinsicLinkTraceID)
+	IntrinsicLinkSpanIDAttribute             = NewIntrinsic(IntrinsicLinkSpanID)
+	IntrinsicEventNameAttribute              = NewIntrinsic(IntrinsicEventName)
+	IntrinsicEventTimeSinceStartAttribute    = NewIntrinsic(IntrinsicEventTimeSinceStart)
+	IntrinsicInstrumentationNameAttribute    = NewIntrinsic(IntrinsicInstrumentationName)
+	IntrinsicInstrumentationVersionAttribute = NewIntrinsic(IntrinsicInstrumentationVersion)
 )
 
 func (i Intrinsic) String() string {
@@ -128,6 +157,12 @@ func (i Intrinsic) String() string {
 		return "childCount"
 	case IntrinsicEventName:
 		return "event:name"
+	case IntrinsicEventTimeSinceStart:
+		return "event:timeSinceStart"
+	case IntrinsicLinkSpanID:
+		return "link:spanID"
+	case IntrinsicLinkTraceID:
+		return "link:traceID"
 	case IntrinsicParent:
 		return "parent"
 	case IntrinsicTraceRootService:
@@ -140,8 +175,28 @@ func (i Intrinsic) String() string {
 		return "trace:id"
 	case IntrinsicTraceStartTime:
 		return "traceStartTime"
+	case ScopedIntrinsicSpanStatus:
+		return "span:status"
+	case ScopedIntrinsicSpanStatusMessage:
+		return "span:statusMessage"
+	case ScopedIntrinsicSpanDuration:
+		return "span:duration"
+	case ScopedIntrinsicSpanName:
+		return "span:name"
+	case ScopedIntrinsicSpanKind:
+		return "span:kind"
+	case ScopedIntrinsicTraceRootName:
+		return "trace:rootName"
+	case ScopedIntrinsicTraceRootService:
+		return "trace:rootService"
+	case ScopedIntrinsicTraceDuration:
+		return "trace:duration"
 	case IntrinsicSpanID:
 		return "span:id"
+	case IntrinsicInstrumentationName:
+		return "instrumentation:name"
+	case IntrinsicInstrumentationVersion:
+		return "instrumentation:version"
 	// below is unimplemented
 	case IntrinsicSpanStartTime:
 		return "spanStartTime"
@@ -173,6 +228,12 @@ func intrinsicFromString(s string) Intrinsic {
 		return IntrinsicChildCount
 	case "event:name":
 		return IntrinsicEventName
+	case "event:timeSinceStart":
+		return IntrinsicEventTimeSinceStart
+	case "link:spanID":
+		return IntrinsicLinkSpanID
+	case "link:traceID":
+		return IntrinsicLinkTraceID
 	case "parent":
 		return IntrinsicParent
 	case "rootServiceName":
@@ -187,6 +248,26 @@ func intrinsicFromString(s string) Intrinsic {
 		return IntrinsicTraceStartTime
 	case "span:id":
 		return IntrinsicSpanID
+	case "span:status":
+		return IntrinsicStatus
+	case "span:statusMessage":
+		return IntrinsicStatusMessage
+	case "span:duration":
+		return IntrinsicDuration
+	case "span:name":
+		return IntrinsicName
+	case "span:kind":
+		return IntrinsicKind
+	case "trace:rootName":
+		return IntrinsicTraceRootSpan
+	case "trace:rootService":
+		return IntrinsicTraceRootService
+	case "trace:duration":
+		return IntrinsicTraceDuration
+	case "instrumentation:name":
+		return IntrinsicInstrumentationName
+	case "instrumentation:version":
+		return IntrinsicInstrumentationVersion
 	// unimplemented
 	case "spanStartTime":
 		return IntrinsicSpanStartTime

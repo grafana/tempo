@@ -106,6 +106,12 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 
 	// Select the next tenant to run compaction for
 	tenantID := tenants[rw.compactorTenantOffset]
+
+	// Skip compaction for tenants which have it disabled.
+	if rw.compactorOverrides.CompactionDisabledForTenant(tenantID) {
+		return
+	}
+
 	// Get the meta file of all non-compacted blocks for the given tenant
 	blocklist := rw.blocklist.Metas(tenantID)
 
@@ -237,6 +243,9 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 		},
 		DisconnectedTrace: func() {
 			dataquality.WarnDisconnectedTrace(tenantID, dataquality.PhaseTraceCompactorCombine)
+		},
+		RootlessTrace: func() {
+			dataquality.WarnRootlessTrace(tenantID, dataquality.PhaseTraceCompactorCombine)
 		},
 	}
 

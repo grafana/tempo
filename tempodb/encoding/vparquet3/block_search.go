@@ -407,10 +407,10 @@ func (r *rowNumberIterator) Close() {}
 
 // reportValuesPredicate is a "fake" predicate that uses existing iterator logic to find all values in a given column
 type reportValuesPredicate struct {
-	cb common.TagCallbackV2
+	cb common.TagValuesCallbackV2
 }
 
-func newReportValuesPredicate(cb common.TagCallbackV2) *reportValuesPredicate {
+func newReportValuesPredicate(cb common.TagValuesCallbackV2) *reportValuesPredicate {
 	return &reportValuesPredicate{cb: cb}
 }
 
@@ -452,7 +452,7 @@ func (r *reportValuesPredicate) KeepValue(v parquet.Value) bool {
 	return false
 }
 
-func callback(cb common.TagCallbackV2, v parquet.Value) (stop bool) {
+func callback(cb common.TagValuesCallbackV2, v parquet.Value) (stop bool) {
 	switch v.Kind() {
 
 	case parquet.Boolean:

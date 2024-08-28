@@ -60,11 +60,11 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	span.SetAttributes(attribute.String("pipeline", rootExpr.Pipeline.String()))
 
 	// calculate search meta conditions.
-	metaConditions := SearchMetaConditionsWithout(fetchSpansRequest.Conditions)
+	meta := SearchMetaConditionsWithout(fetchSpansRequest.Conditions, fetchSpansRequest.AllConditions)
+	fetchSpansRequest.SecondPassConditions = append(fetchSpansRequest.SecondPassConditions, meta...)
 
 	spansetsEvaluated := 0
 	// set up the expression evaluation as a filter to reduce data pulled
-	fetchSpansRequest.SecondPassConditions = append(fetchSpansRequest.SecondPassConditions, metaConditions...)
 	fetchSpansRequest.SecondPass = func(inSS *Spanset) ([]*Spanset, error) {
 		if len(inSS.Spans) == 0 {
 			return nil, nil
@@ -170,6 +170,38 @@ func (e *Engine) ExecuteTagValues(
 	return fetcher.Fetch(ctx, autocompleteReq, cb)
 }
 
+func (e *Engine) ExecuteTagNames(
+	ctx context.Context,
+	scope AttributeScope,
+	query string,
+	cb FetchTagsCallback,
+	fetcher TagNamesFetcher,
+) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "traceql.Engine.ExecuteTagNames")
+	defer span.Finish()
+
+	span.SetTag("sanitized query", query)
+
+	var conditions []Condition
+	rootExpr, err := Parse(query)
+	// if the parse succeeded then use those conditions, otherwise pass in none. the next layer will handle it
+	if err == nil {
+		req := &FetchSpansRequest{}
+		rootExpr.Pipeline.extractConditions(req)
+		conditions = req.Conditions
+	}
+
+	autocompleteReq := FetchTagsRequest{
+		Conditions: conditions,
+		Scope:      scope,
+	}
+
+	span.SetTag("pipeline", rootExpr.Pipeline)
+	span.SetTag("autocompleteReq", autocompleteReq)
+
+	return fetcher.Fetch(ctx, autocompleteReq, cb)
+}
+
 func (e *Engine) parseQuery(searchReq *tempopb.SearchRequest) (*RootExpr, error) {
 	r, err := Parse(searchReq.Query)
 	if err != nil {
@@ -260,7 +292,7 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 		atts := span.AllAttributes()
 
 		if name, ok := atts[NewIntrinsic(IntrinsicName)]; ok {
-			tempopbSpan.Name = name.S
+			tempopbSpan.Name = name.EncodeToString(false)
 		}
 
 		for attribute, static := range atts {
@@ -270,8 +302,8 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 				attribute.Intrinsic == IntrinsicTraceRootService ||
 				attribute.Intrinsic == IntrinsicTraceRootSpan ||
 				attribute.Intrinsic == IntrinsicTraceID ||
-				attribute.Intrinsic == IntrinsicSpanID ||
-				attribute.Intrinsic == IntrinsicEventName {
+				attribute.Intrinsic == IntrinsicSpanID {
+
 				continue
 			}
 
@@ -298,7 +330,9 @@ func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMet
 	// add attributes
 	for _, att := range spanset.Attributes {
 		if att.Name == attributeMatched {
-			metadata.SpanSet.Matched = uint32(att.Val.N)
+			if n, ok := att.Val.Int(); ok {
+				metadata.SpanSet.Matched = uint32(n)
+			}
 			continue
 		}
 
@@ -320,59 +354,104 @@ func unixSecToNano(ts uint32) uint64 {
 func (s Static) AsAnyValue() *common_v1.AnyValue {
 	switch s.Type {
 	case TypeInt:
+		n, _ := s.Int()
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_IntValue{
-				IntValue: int64(s.N),
-			},
-		}
-	case TypeString:
-		return &common_v1.AnyValue{
-			Value: &common_v1.AnyValue_StringValue{
-				StringValue: s.S,
+				IntValue: int64(n),
 			},
 		}
 	case TypeFloat:
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_DoubleValue{
-				DoubleValue: s.F,
+				DoubleValue: s.Float(),
 			},
 		}
 	case TypeBoolean:
+		b, _ := s.Bool()
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_BoolValue{
-				BoolValue: s.B,
+				BoolValue: b,
 			},
 		}
 	case TypeDuration:
+		d, _ := s.Duration()
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_StringValue{
-				StringValue: s.D.String(),
+				StringValue: d.String(),
 			},
 		}
-	case TypeStatus:
+	case TypeString, TypeStatus, TypeNil, TypeKind:
 		return &common_v1.AnyValue{
 			Value: &common_v1.AnyValue_StringValue{
-				StringValue: s.Status.String(),
+				StringValue: s.EncodeToString(false),
 			},
 		}
-	case TypeNil:
-		return &common_v1.AnyValue{
-			Value: &common_v1.AnyValue_StringValue{
-				StringValue: "nil",
-			},
-		}
-	case TypeKind:
-		return &common_v1.AnyValue{
-			Value: &common_v1.AnyValue_StringValue{
-				StringValue: s.Kind.String(),
-			},
-		}
-	}
+	case TypeIntArray:
+		ints, _ := s.IntArray()
 
-	return &common_v1.AnyValue{
-		Value: &common_v1.AnyValue_StringValue{
-			StringValue: fmt.Sprintf("error formatting val: static has unexpected type %v", s.Type),
-		},
+		anyInts := make([]common_v1.AnyValue_IntValue, len(ints))
+		anyVals := make([]common_v1.AnyValue, len(ints))
+		anyArray := common_v1.ArrayValue{
+			Values: make([]*common_v1.AnyValue, len(ints)),
+		}
+		for i, n := range ints {
+			anyInts[i].IntValue = int64(n)
+			anyVals[i].Value = &anyInts[i]
+			anyArray.Values[i] = &anyVals[i]
+		}
+
+		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: &anyArray}}
+	case TypeFloatArray:
+		floats, _ := s.FloatArray()
+
+		anyDouble := make([]common_v1.AnyValue_DoubleValue, len(floats))
+		anyVals := make([]common_v1.AnyValue, len(floats))
+		anyArray := common_v1.ArrayValue{
+			Values: make([]*common_v1.AnyValue, len(floats)),
+		}
+		for i, f := range floats {
+			anyDouble[i].DoubleValue = f
+			anyVals[i].Value = &anyDouble[i]
+			anyArray.Values[i] = &anyVals[i]
+		}
+
+		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: &anyArray}}
+	case TypeStringArray:
+		strs, _ := s.StringArray()
+
+		anyStrs := make([]common_v1.AnyValue_StringValue, len(strs))
+		anyVals := make([]common_v1.AnyValue, len(strs))
+		anyArray := common_v1.ArrayValue{
+			Values: make([]*common_v1.AnyValue, len(strs)),
+		}
+		for i, str := range strs {
+			anyStrs[i].StringValue = str
+			anyVals[i].Value = &anyStrs[i]
+			anyArray.Values[i] = &anyVals[i]
+		}
+
+		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: &anyArray}}
+	case TypeBooleanArray:
+		bools, _ := s.BooleanArray()
+
+		anyBools := make([]common_v1.AnyValue_BoolValue, len(bools))
+		anyVals := make([]common_v1.AnyValue, len(bools))
+		anyArray := common_v1.ArrayValue{
+			Values: make([]*common_v1.AnyValue, len(bools)),
+		}
+		for i, b := range bools {
+			anyBools[i].BoolValue = b
+			anyVals[i].Value = &anyBools[i]
+			anyArray.Values[i] = &anyVals[i]
+		}
+
+		return &common_v1.AnyValue{Value: &common_v1.AnyValue_ArrayValue{ArrayValue: &anyArray}}
+	default:
+		return &common_v1.AnyValue{
+			Value: &common_v1.AnyValue_StringValue{
+				StringValue: fmt.Sprintf("error formatting val: static has unexpected type %v", s.Type),
+			},
+		}
 	}
 }
 

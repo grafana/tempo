@@ -9,6 +9,8 @@ aliases:
 
 # Automatic logging: Trace discovery through logs
 
+{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
+
 Running instrumented distributed systems is a very powerful way to gain
 understanding over a system, but it brings its own challenges. One of them is
 discovering which traces exist.
@@ -19,15 +21,15 @@ Automatic logging provides an easy and fast way of discovering trace IDs
 through log messages. Well-formatted log lines are written to a Loki instance
 or to `stdout` for each span, root, or process that passes through the tracing
 pipeline. This allows for automatically building a mechanism for trace
-discovery. On top of that, we also get metrics from traces using Loki, and
+discovery. On top of that, you can also get metrics from traces using Loki, and
 allow quickly jumping from a log message to the trace view in Grafana.
 
-While this approach is useful, it isn't as powerful as [TraceQL]({{< relref
-"../../traceql" >}}). If you are here because you know you want to log the
+While this approach is useful, it isn't as powerful as TraceQL.
+If you are here because you know you want to log the
 trace ID, to enable jumping from logs to traces, then read on!
 
 If you want to query the system directly, read the [TraceQL
-documentation]({{< relref "../../traceql" >}}). 
+documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql).
 
 ## Configuration
 
@@ -41,11 +43,17 @@ This allows searching by those key-value pairs in Loki.
 
 ## Before you begin
 
+{{< admonition type="note">}}
+Grafana Alloy provides tooling to convert your Agent Static or Flow configuration files into a format that can be used by Alloy.
+
+For more information, refer to [Migrate to Alloy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/migrate-alloy).
+{{< /admonition>}}
+
 To configure automatic logging, you need to select your preferred backend and the trace data to log.
 
-To see all the available config options, refer to the [configuration reference](/docs/agent/latest/configuration/traces-config).
+To see all the available configuration options, refer to the [configuration reference](https://grafana.com/docs/agent/latest/configuration/traces-config).
 
-This simple example logs trace roots to stdout and is a good way to get started using automatic logging:
+This simple example logs trace roots to `stdout` and is a good way to get started using automatic logging:
 ```yaml
 traces:
   configs:

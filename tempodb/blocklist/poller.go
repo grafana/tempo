@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -49,10 +50,13 @@ var (
 		Help:      "Total number of times an error occurred while polling the blocklist.",
 	}, []string{"tenant"})
 	metricBlocklistPollDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempodb",
-		Name:      "blocklist_poll_duration_seconds",
-		Help:      "Records the amount of time to poll and update the blocklist.",
-		Buckets:   prometheus.LinearBuckets(0, 60, 10),
+		Namespace:                       "tempodb",
+		Name:                            "blocklist_poll_duration_seconds",
+		Help:                            "Records the amount of time to poll and update the blocklist.",
+		Buckets:                         prometheus.DefBuckets,
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 	metricBlocklistLength = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempodb",
@@ -79,11 +83,13 @@ var (
 // Config is used to configure the poller
 type PollerConfig struct {
 	PollConcurrency            uint
+	TenantPollConcurrency      uint
 	PollFallback               bool
 	TenantIndexBuilders        int
 	StaleTenantIndex           time.Duration
 	PollJitterMs               int
 	TolerateConsecutiveErrors  int
+	TolerateTenantFailures     int
 	EmptyTenantDeletionAge     time.Duration
 	EmptyTenantDeletionEnabled bool
 }
@@ -137,6 +143,7 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 		diff := time.Since(start).Seconds()
 		metricBlocklistPollDuration.Observe(diff)
 		level.Info(p.logger).Log("msg", "blocklist poll complete", "seconds", diff)
+		backend.ClearDedicatedColumns()
 	}()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -151,41 +158,80 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 		return nil, nil, err
 	}
 
-	blocklist := PerTenant{}
-	compactedBlocklist := PerTenantCompacted{}
+	var (
+		wg  = boundedwaitgroup.New(p.cfg.TenantPollConcurrency)
+		mtx = sync.Mutex{}
 
-	consecutiveErrors := 0
+		blocklist          = PerTenant{}
+		compactedBlocklist = PerTenantCompacted{}
+
+		tenantFailuresRemaining = atomic.NewInt32(int32(p.cfg.TolerateTenantFailures))
+	)
 
 	for _, tenantID := range tenants {
-		newBlockList, newCompactedBlockList, err := p.pollTenantAndCreateIndex(ctx, tenantID, previous)
-		if err != nil {
-			level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", tenantID, "err", err)
-			consecutiveErrors++
-			if consecutiveErrors > p.cfg.TolerateConsecutiveErrors {
-				level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors", "errCount", consecutiveErrors)
-				return nil, nil, err
+		// Exit early if we have exceeded our tolerance for number of failing tenants.
+		if tenantFailuresRemaining.Load() < 0 {
+			level.Error(p.logger).Log("msg", "exiting polling loop early because too many errors")
+			break
+		}
+
+		wg.Add(1)
+		go func(tenantID string) {
+			defer wg.Done()
+
+			var (
+				consecutiveErrorsRemaining = p.cfg.TolerateConsecutiveErrors
+				newBlockList               = make([]*backend.BlockMeta, 0)
+				newCompactedBlockList      = make([]*backend.CompactedBlockMeta, 0)
+				err                        error
+			)
+
+			for consecutiveErrorsRemaining >= 0 {
+				newBlockList, newCompactedBlockList, err = p.pollTenantAndCreateIndex(ctx, tenantID, previous)
+				if err == nil {
+					break
+				}
+
+				consecutiveErrorsRemaining--
 			}
-			continue
-		}
 
-		consecutiveErrors = 0
-		if len(newBlockList) > 0 || len(newCompactedBlockList) > 0 {
-			blocklist[tenantID] = newBlockList
-			compactedBlocklist[tenantID] = newCompactedBlockList
+			mtx.Lock()
+			defer mtx.Unlock()
 
-			metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
+			if err != nil {
+				level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", tenantID, "err", err)
+				blocklist[tenantID] = previous.Metas(tenantID)
+				compactedBlocklist[tenantID] = previous.CompactedMetas(tenantID)
 
-			backendMetaMetrics := sumTotalBackendMetaMetrics(newBlockList, newCompactedBlockList)
-			metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalObjects))
-			metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
-			metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
-			metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
-			continue
-		}
-		metricBlocklistLength.DeleteLabelValues(tenantID)
-		metricBackendObjects.DeleteLabelValues(tenantID)
-		metricBackendObjects.DeleteLabelValues(tenantID)
-		metricBackendBytes.DeleteLabelValues(tenantID)
+				tenantFailuresRemaining.Dec()
+
+				return
+			}
+
+			if len(newBlockList) > 0 || len(newCompactedBlockList) > 0 {
+				blocklist[tenantID] = newBlockList
+				compactedBlocklist[tenantID] = newCompactedBlockList
+
+				metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
+
+				backendMetaMetrics := sumTotalBackendMetaMetrics(newBlockList, newCompactedBlockList)
+				metricBackendObjects.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalObjects))
+				metricBackendObjects.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalObjects))
+				metricBackendBytes.WithLabelValues(tenantID, blockStatusLiveLabel).Set(float64(backendMetaMetrics.blockMetaTotalBytes))
+				metricBackendBytes.WithLabelValues(tenantID, blockStatusCompactedLabel).Set(float64(backendMetaMetrics.compactedBlockMetaTotalBytes))
+				return
+			}
+			metricBlocklistLength.DeleteLabelValues(tenantID)
+			metricBackendObjects.DeleteLabelValues(tenantID)
+			metricBackendObjects.DeleteLabelValues(tenantID)
+			metricBackendBytes.DeleteLabelValues(tenantID)
+		}(tenantID)
+	}
+
+	wg.Wait()
+
+	if tenantFailuresRemaining.Load() < 0 {
+		return nil, nil, errors.New("too many tenant failures; abandoning polling cycle")
 	}
 
 	return blocklist, compactedBlocklist, nil

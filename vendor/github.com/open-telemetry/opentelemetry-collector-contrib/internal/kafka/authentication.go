@@ -4,6 +4,7 @@
 package kafka // import "github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka"
 
 import (
+	"context"
 	"crypto/sha256"
 	"crypto/sha512"
 	"fmt"
@@ -135,7 +136,7 @@ func configureSASL(config SASLConfig, saramaConfig *sarama.Config) error {
 }
 
 func configureTLS(config configtls.ClientConfig, saramaConfig *sarama.Config) error {
-	tlsConfig, err := config.LoadTLSConfig()
+	tlsConfig, err := config.LoadTLSConfig(context.Background())
 	if err != nil {
 		return fmt.Errorf("error loading tls config: %w", err)
 	}

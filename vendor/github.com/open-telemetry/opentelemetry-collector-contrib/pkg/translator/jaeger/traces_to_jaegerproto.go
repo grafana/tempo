@@ -4,8 +4,6 @@
 package jaeger // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 
 import (
-	"encoding/base64"
-
 	"github.com/jaegertracing/jaeger/model"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -125,8 +123,6 @@ func attributeToJaegerProtoTag(key string, attr pcommon.Value) model.KeyValue {
 	tag := model.KeyValue{Key: key}
 	switch attr.Type() {
 	case pcommon.ValueTypeStr:
-		// Jaeger-to-Internal maps binary tags to string attributes and encodes them as
-		// base64 strings. Blindingly attempting to decode base64 seems too much.
 		tag.VType = model.ValueType_STRING
 		tag.VStr = attr.Str()
 	case pcommon.ValueTypeInt:
@@ -139,8 +135,8 @@ func attributeToJaegerProtoTag(key string, attr pcommon.Value) model.KeyValue {
 		tag.VType = model.ValueType_FLOAT64
 		tag.VFloat64 = attr.Double()
 	case pcommon.ValueTypeBytes:
-		tag.VType = model.ValueType_STRING
-		tag.VStr = base64.StdEncoding.EncodeToString(attr.Bytes().AsRaw())
+		tag.VType = model.ValueType_BINARY
+		tag.VBinary = attr.Bytes().AsRaw()
 	case pcommon.ValueTypeMap, pcommon.ValueTypeSlice:
 		tag.VType = model.ValueType_STRING
 		tag.VStr = attr.AsString()

@@ -11,8 +11,8 @@ import (
 var _ GRPCCombiner[*tempopb.QueryRangeResponse] = (*genericCombiner[*tempopb.QueryRangeResponse])(nil)
 
 // NewQueryRange returns a query range combiner.
-func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
-	combiner, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeFinal)
+func NewQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (Combiner, error) {
+	combiner, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeFinal, trackDiffs)
 	if err != nil {
 		return nil, err
 	}
@@ -31,22 +31,6 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 				}
 			}
 
-			samplingRate := resp.AdditionalData()
-			if samplingRate != nil {
-				fRate := samplingRate.(float64)
-
-				if fRate <= 1.0 {
-					// Set final sampling rate after integer rounding
-					// Multiply up the sampling rate
-					for _, series := range partial.Series {
-						for i, sample := range series.Samples {
-							sample.Value *= 1.0 / fRate
-							series.Samples[i] = sample
-						}
-					}
-				}
-			}
-
 			combiner.Combine(partial)
 
 			return nil
@@ -59,9 +43,8 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 			sortResponse(resp)
 			return resp, nil
 		},
-		// todo: the diff method still returns the full response every time. find a way to diff
 		diff: func(_ *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
-			resp := combiner.Response()
+			resp := combiner.Diff()
 			if resp == nil {
 				resp = &tempopb.QueryRangeResponse{}
 			}
@@ -71,8 +54,8 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 	}, nil
 }
 
-func NewTypedQueryRange(req *tempopb.QueryRangeRequest) (GRPCCombiner[*tempopb.QueryRangeResponse], error) {
-	c, err := NewQueryRange(req)
+func NewTypedQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (GRPCCombiner[*tempopb.QueryRangeResponse], error) {
+	c, err := NewQueryRange(req, trackDiffs)
 	if err != nil {
 		return nil, err
 	}
@@ -88,6 +71,9 @@ func sortResponse(res *tempopb.QueryRangeResponse) {
 	for _, series := range res.Series {
 		sort.Slice(series.Samples, func(i, j int) bool {
 			return series.Samples[i].TimestampMs < series.Samples[j].TimestampMs
+		})
+		sort.Slice(series.Exemplars, func(i, j int) bool {
+			return series.Exemplars[i].TimestampMs < series.Exemplars[j].TimestampMs
 		})
 	}
 }

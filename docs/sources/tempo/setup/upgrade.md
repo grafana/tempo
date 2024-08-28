@@ -17,6 +17,79 @@ This upgrade guide applies to on-premise installations and not for Grafana Cloud
 You can check your configuration options using the [`status` API endpoint]({{< relref "../api_docs#status" >}}) in your Tempo installation.
 {{% /admonition %}}
 
+## Upgrade to Tempo 2.5
+
+Tempo 2.5 has several considerations for any upgrade:
+
+* Docker image runs as new UID
+* Support for vParquet format removed
+* Experimental vParquet4 block format
+* Removed configuration parameters
+
+For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo 2.5 changelog](https://github.com/).
+
+### Docker image runs as new UID
+
+The Tempo process in the [official Docker image](https://hub.docker.com/r/grafana/tempo/tags) used to run as `root`. The Tempo process now runs as UID `10001` in the Docker image.
+
+Components such as ingesters and metrics generators that maintain files on disk won't come up cleanly without intervention.
+The new user `10001` won't have access to the old files created by `root`.
+
+The ownership of `/var/tempo` changed from `root:root` to `tempo:tempo` with the UID/GID of `10001`.
+
+The `ingester` and `metrics-generator` statefulsets may need to [run chown](https://opensource.com/article/19/8/linux-chown-command) to change ownership to start properly.
+
+Refer to [PR 2265](https://github.com/grafana/tempo/pull/2265) to see a Jsonnet example of an `init` container.
+
+This change doesn’t impact you if you used the Helm chart with the default security context set in the chart.
+All data should be owned by the `tempo` user already.
+The UID won’t impact Helm chart users.
+
+### Support for vParquet format removed
+
+The original vParquet format [has been removed](https://github.com/grafana/tempo/pull/3663) from Tempo 2.5.
+Direct upgrades from Tempo 2.1 to Tempo 2.5 are not possible.
+You will need to upgrade to an intermediate version and wait for the old vParquet blocks to fall out of retention before upgrading to 2.5. [PR 3663](https://github.com/grafana/tempo/pull/3663)]
+
+vParquet(1) won't be recognized as a valid encoding and any remaining vParquet(1) blocks will not be readable.
+
+Installations running with historical defaults should not require any changes as the default has been migrated for several releases.
+Installations with storage settings pinned to vParquet must run a previous release configured for vParquet2 or higher until all existing vParquet(1) blocks have expired and been deleted from the backend, or else will encounter read errors after upgrading to this release.
+
+### Experimental vParquet4 block format
+
+The vParquet4 block format is required for querying links, events, and arrays and improves query performance relative to previous formats. vParquet4 will be the default block format in the next release. [[PR 3368](https://github.com/grafana/tempo/pull/3368)]
+
+While you can use vParquet4, keep in mind that it's experimental.
+If you choose to use vParquet4 and then opt to revert to vParquet3, any vParquet4 blocks would not be readable by vParquet3.
+
+To try vParquet4, refer to [Choose a block format](https://grafana.com/docs/tempo/latest/configuration/parquet/#choose-a-different-block-format).
+
+### Removed configuration parameters
+
+<table>
+ <tr>
+  <td><strong>Parameter</strong>
+  </td>
+  <td><strong>Comments</strong>
+  </td>
+ </tr>
+ <tr>
+  <td>`[hedge_requests_at: &lt;duration> | default = 2s ]`
+<p>
+`[hedge_requests_up_to: &lt;int> | default = 2 ]`
+  </td>
+  <td>Removed options from the configuration. [PR <a href="https://github.com/grafana/tempo/pull/3522">#3522</a>]
+  </td>
+ </tr>
+</table>
+
+### Additional considerations
+
+* Updating to OTLP 1.3.0 removes the deprecated `InstrumentationLibrary` and `InstrumentationLibrarySpan` from the OTLP receivers. [PR 3649](https://github.com/grafana/tempo/pull/3649)]
+* Removes the addition of a tenant in multitenant trace id lookup. [PR 3522](https://github.com/grafana/tempo/pull/3522)]
+
+
 ## Upgrade to Tempo 2.4
 
 Tempo 2.4 has several considerations for any upgrade:
@@ -84,14 +157,8 @@ cache:
 <table>
   <tr>
    <td>Parameter
-   </td>
+   </td
    <td>Comments
-   </td>
-  </tr>
-  <tr>
-   <td><code>autocomplete_filtering_enabled</code>
-   </td>
-   <td>Set to <code>true</code> by default [PR <a href="https://github.com/grafana/tempo/pull/3178">3178</a>]
    </td>
   </tr>
   <tr>

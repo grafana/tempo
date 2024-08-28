@@ -110,11 +110,9 @@ type instance struct {
 	localWriter backend.Writer
 
 	hash hash.Hash32
-
-	autocompleteFilteringEnabled bool
 }
 
-func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverrides, writer tempodb.Writer, l *local.Backend, autocompleteFiltering bool, dedicatedColumns backend.DedicatedColumns) (*instance, error) {
+func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverrides, writer tempodb.Writer, l *local.Backend, dedicatedColumns backend.DedicatedColumns) (*instance, error) {
 	i := &instance{
 		traces:     map[uint32]*liveTrace{},
 		traceSizes: map[uint32]uint32{},
@@ -133,8 +131,6 @@ func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverride
 		localWriter: backend.NewWriter(l),
 
 		hash: fnv.New32(),
-
-		autocompleteFilteringEnabled: autocompleteFiltering,
 	}
 	err := i.resetHeadBlock()
 	if err != nil {
@@ -179,7 +175,7 @@ func (i *instance) addTraceError(errorsByTrace []tempopb.PushErrorReason, pushEr
 		errorsByTrace = append(errorsByTrace, tempopb.PushErrorReason_UNKNOWN_ERROR)
 		return errorsByTrace
 
-	} else if pushError == nil && len(errorsByTrace) > 0 {
+	} else if len(errorsByTrace) > 0 {
 		errorsByTrace = append(errorsByTrace, tempopb.PushErrorReason_NO_ERROR)
 	}
 
@@ -408,7 +404,7 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 	return err
 }
 
-func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace, error) {
+func (i *instance) FindTraceByID(ctx context.Context, id []byte, allowPartialTrace bool) (*tempopb.Trace, error) {
 	ctx, span := tracer.Start(ctx, "instance.FindTraceByID")
 	defer span.End()
 
@@ -429,7 +425,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte) (*tempopb.Trace
 	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
 	searchOpts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
 
-	combiner := trace.NewCombiner(maxBytes)
+	combiner := trace.NewCombiner(maxBytes, allowPartialTrace)
 	_, err = combiner.Consume(completeTrace)
 	if err != nil {
 		return nil, err

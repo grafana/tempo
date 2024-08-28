@@ -123,6 +123,9 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		if !connected {
 			c.opts.DisconnectedTrace()
 		}
+		if tr != nil && tr.RootSpanName == "" {
+			c.opts.RootlessTrace()
+		}
 
 		c.opts.ObjectsCombined(int(compactionLevel), 1)
 		return sch.Deconstruct(pool.Get(), tr), nil
@@ -143,6 +146,10 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		if err != nil {
 			return nil, fmt.Errorf("error iterating input blocks: %w", err)
+		}
+
+		if c.opts.DropObject != nil && c.opts.DropObject(lowestID) {
+			continue
 		}
 
 		// make a new block if necessary

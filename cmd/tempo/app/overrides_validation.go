@@ -7,6 +7,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/grafana/tempo/modules/generator"
+	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/api"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
@@ -30,6 +31,12 @@ func (r *runtimeConfigValidator) Validate(config *overrides.Overrides) error {
 		ingesterReplicationFactor := r.cfg.Ingester.LifecyclerConfig.RingConfig.ReplicationFactor
 		if config.Ingestion.TenantShardSize < ingesterReplicationFactor {
 			return fmt.Errorf("ingester.tenant.shard_size is lower than replication factor (%d < %d)", config.Ingestion.TenantShardSize, ingesterReplicationFactor)
+		}
+	}
+
+	if _, ok := registry.HistogramModeToValue[string(config.MetricsGenerator.GenerateNativeHistograms)]; !ok {
+		if config.MetricsGenerator.GenerateNativeHistograms != "" {
+			return fmt.Errorf("metrics_generator.generate_native_histograms \"%s\" is not a valid value, valid values: classic, native, both", config.MetricsGenerator.GenerateNativeHistograms)
 		}
 	}
 

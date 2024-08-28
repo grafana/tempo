@@ -37,11 +37,6 @@ type SearchSharderConfig struct {
 	IngesterShards        int           `yaml:"ingester_shards,omitempty"`
 }
 
-type backendReqMsg struct {
-	req *http.Request
-	err error
-}
-
 type asyncSearchSharder struct {
 	next      pipeline.AsyncRoundTripper[combiner.PipelineResponse]
 	reader    tempodb.Reader
@@ -68,7 +63,9 @@ func newAsyncSearchSharder(reader tempodb.Reader, o overrides.Interface, cfg Sea
 // RoundTrip implements http.RoundTripper
 // execute up to concurrentRequests simultaneously where each request scans ~targetMBsPerRequest
 // until limit results are found
-func (s asyncSearchSharder) RoundTrip(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+	r := pipelineRequest.HTTPRequest()
+
 	searchReq, err := api.ParseSearchRequest(r)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
@@ -95,7 +92,7 @@ func (s asyncSearchSharder) RoundTrip(r *http.Request) (pipeline.Responses[combi
 	}
 
 	// buffer of shards+1 allows us to insert ingestReq and metrics
-	reqCh := make(chan *http.Request, s.cfg.IngesterShards+1)
+	reqCh := make(chan pipeline.Request, s.cfg.IngesterShards+1)
 
 	// build request to search ingesters based on query_ingesters_until config and time range
 	// pass subCtx in requests so we can cancel and exit early
@@ -146,7 +143,8 @@ func (s *asyncSearchSharder) blockMetas(start, end int64, tenantID string) []*ba
 	metas := make([]*backend.BlockMeta, 0, len(allMetas)/50) // divide by 50 for luck
 	for _, m := range allMetas {
 		if m.StartTime.Unix() <= end &&
-			m.EndTime.Unix() >= start {
+			m.EndTime.Unix() >= start &&
+			m.ReplicationFactor == backend.DefaultReplicationFactor { // This check skips generator blocks (RF=1)
 			metas = append(metas, m)
 		}
 	}
@@ -156,7 +154,7 @@ func (s *asyncSearchSharder) blockMetas(start, end int64, tenantID string) []*ba
 
 // backendRequest builds backend requests to search backend blocks. backendRequest takes ownership of reqCh and closes it.
 // it returns 3 int values: totalBlocks, totalBlockBytes, and estimated jobs
-func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, reqCh chan<- *http.Request, errFn func(error)) (totalJobs, totalBlocks int, totalBlockBytes uint64) {
+func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, reqCh chan<- pipeline.Request, errFn func(error)) (totalJobs, totalBlocks int, totalBlockBytes uint64) {
 	var blocks []*backend.BlockMeta
 
 	// request without start or end, search only in ingester
@@ -202,7 +200,7 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 // that covers the ingesters. If nil is returned for the http.Request then there is no ingesters query.
 // since this function modifies searchReq.Start and End we are taking a value instead of a pointer to prevent it from
 // unexpectedly changing the passed searchReq.
-func (s *asyncSearchSharder) ingesterRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.SearchRequest, reqCh chan *http.Request) error {
+func (s *asyncSearchSharder) ingesterRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.SearchRequest, reqCh chan pipeline.Request) error {
 	// request without start or end, search only in ingester
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		return buildIngesterRequest(ctx, tenantID, parent, &searchReq, reqCh)
@@ -300,10 +298,11 @@ func backendRange(start, end uint32, queryBackendAfter time.Duration) (uint32, u
 
 // buildBackendRequests returns a slice of requests that cover all blocks in the store
 // that are covered by start/end.
-func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, metas []*backend.BlockMeta, bytesPerRequest int, reqCh chan<- *http.Request, errFn func(error)) {
+func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, metas []*backend.BlockMeta, bytesPerRequest int, reqCh chan<- pipeline.Request, errFn func(error)) {
 	defer close(reqCh)
 
 	queryHash := hashForSearchRequest(searchReq)
+	colsToJSON := api.NewDedicatedColumnsToJSON()
 
 	for _, m := range metas {
 		pages := pagesPerRequest(m, bytesPerRequest)
@@ -315,38 +314,37 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
 			subR := parent.Clone(ctx)
 
-			dc, err := m.DedicatedColumns.ToTempopb()
+			dedColsJSON, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
 			if err != nil {
 				errFn(fmt.Errorf("failed to convert dedicated columns. block: %s tempopb: %w", blockID, err))
 				continue
 			}
 
 			subR, err = api.BuildSearchBlockRequest(subR, &tempopb.SearchBlockRequest{
-				BlockID:          blockID,
-				StartPage:        uint32(startPage),
-				PagesToSearch:    uint32(pages),
-				Encoding:         m.Encoding.String(),
-				IndexPageSize:    m.IndexPageSize,
-				TotalRecords:     m.TotalRecords,
-				DataEncoding:     m.DataEncoding,
-				Version:          m.Version,
-				Size_:            m.Size,
-				FooterSize:       m.FooterSize,
-				DedicatedColumns: dc,
-			})
+				BlockID:       blockID,
+				StartPage:     uint32(startPage),
+				PagesToSearch: uint32(pages),
+				Encoding:      m.Encoding.String(),
+				IndexPageSize: m.IndexPageSize,
+				TotalRecords:  m.TotalRecords,
+				DataEncoding:  m.DataEncoding,
+				Version:       m.Version,
+				Size_:         m.Size,
+				FooterSize:    m.FooterSize,
+				// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
+			}, dedColsJSON)
 			if err != nil {
 				errFn(fmt.Errorf("failed to build search block request. block: %s tempopb: %w", blockID, err))
 				continue
 			}
 
-			prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query())
+			prepareRequestForQueriers(subR, tenantID)
 			key := searchJobCacheKey(tenantID, queryHash, int64(searchReq.Start), int64(searchReq.End), m, startPage, pages)
-			if len(key) > 0 {
-				subR = pipeline.ContextAddCacheKey(key, subR)
-			}
+			pipelineR := pipeline.NewHTTPRequest(subR)
+			pipelineR.SetCacheKey(key)
 
 			select {
-			case reqCh <- subR:
+			case reqCh <- pipelineR:
 			case <-ctx.Done():
 				// ignore the error if there is one. it will be handled elsewhere
 				return
@@ -399,14 +397,14 @@ func pagesPerRequest(m *backend.BlockMeta, bytesPerRequest int) int {
 	return pagesPerQuery
 }
 
-func buildIngesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, reqCh chan *http.Request) error {
+func buildIngesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, reqCh chan pipeline.Request) error {
 	subR := parent.Clone(ctx)
 	subR, err := api.BuildSearchRequest(subR, searchReq)
 	if err != nil {
 		return err
 	}
 
-	prepareRequestForQueriers(subR, tenantID, subR.URL.Path, subR.URL.Query())
-	reqCh <- subR
+	prepareRequestForQueriers(subR, tenantID)
+	reqCh <- pipeline.NewHTTPRequest(subR)
 	return nil
 }

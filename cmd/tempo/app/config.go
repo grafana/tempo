@@ -31,14 +31,13 @@ import (
 
 // Config is the root config for App.
 type Config struct {
-	Target                       string        `yaml:"target,omitempty"`
-	AuthEnabled                  bool          `yaml:"auth_enabled,omitempty"`
-	MultitenancyEnabled          bool          `yaml:"multitenancy_enabled,omitempty"`
-	ShutdownDelay                time.Duration `yaml:"shutdown_delay,omitempty"`
-	StreamOverHTTPEnabled        bool          `yaml:"stream_over_http_enabled,omitempty"`
-	HTTPAPIPrefix                string        `yaml:"http_api_prefix"`
-	EnableGoRuntimeMetrics       bool          `yaml:"enable_go_runtime_metrics,omitempty"`
-	AutocompleteFilteringEnabled bool          `yaml:"autocomplete_filtering_enabled,omitempty"`
+	Target                 string        `yaml:"target,omitempty"`
+	AuthEnabled            bool          `yaml:"auth_enabled,omitempty"`
+	MultitenancyEnabled    bool          `yaml:"multitenancy_enabled,omitempty"`
+	ShutdownDelay          time.Duration `yaml:"shutdown_delay,omitempty"`
+	StreamOverHTTPEnabled  bool          `yaml:"stream_over_http_enabled,omitempty"`
+	HTTPAPIPrefix          string        `yaml:"http_api_prefix"`
+	EnableGoRuntimeMetrics bool          `yaml:"enable_go_runtime_metrics,omitempty"`
 
 	Server          server.Config           `yaml:"server,omitempty"`
 	InternalServer  internalserver.Config   `yaml:"internal_server,omitempty"`
@@ -74,7 +73,6 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.BoolVar(&c.MultitenancyEnabled, "multitenancy.enabled", false, "Set to true to enable multitenancy.")
 	f.StringVar(&c.HTTPAPIPrefix, "http-api-prefix", "", "String prefix for all http api endpoints.")
 	f.BoolVar(&c.EnableGoRuntimeMetrics, "enable-go-runtime-metrics", false, "Set to true to enable all Go runtime metrics")
-	f.BoolVar(&c.AutocompleteFilteringEnabled, "autocomplete-filtering.enabled", true, "Set to false to disable autocomplete filtering")
 	f.DurationVar(&c.ShutdownDelay, "shutdown-delay", 0, "How long to wait between SIGTERM and shutdown. After receiving SIGTERM, Tempo will report not-ready status via /ready endpoint.")
 
 	// Server settings
@@ -102,7 +100,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.IntVar(&c.Server.GRPCListenPort, "server.grpc-listen-port", 9095, "gRPC server listen port.")
 
 	// Memberlist settings
-	fs := flag.NewFlagSet("", flag.PanicOnError) // create a new flag set b/c we don't want all of the memberlist settings in our flags. we're just doing this to get defaults
+	fs := flag.NewFlagSet("", flag.PanicOnError) // create a new flag set b/c we don't want all the memberlist settings in our flags. we're just doing this to get defaults
 	c.MemberlistKV.RegisterFlags(fs)
 	_ = fs.Parse([]string{})
 	// these defaults were chosen to balance resource usage vs. ring propagation speed. they are a "toned down" version of
@@ -114,6 +112,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 
 	f.Var(&c.MemberlistKV.JoinMembers, "memberlist.host-port", "Host port to connect to memberlist cluster.")
 	f.IntVar(&c.MemberlistKV.TCPTransport.BindPort, "memberlist.bind-port", 7946, "Port for memberlist to communicate on")
+	f.IntVar(&c.MemberlistKV.MessageHistoryBufferBytes, "memberlist.message-history-buffer-bytes", 0, "")
 
 	// Everything else
 	flagext.DefaultValues(&c.IngesterClient)
@@ -163,6 +162,10 @@ func (c *Config) CheckConfig() []ConfigWarning {
 
 	if c.Distributor.LogReceivedSpans.Enabled {
 		warnings = append(warnings, warnLogReceivedTraces)
+	}
+
+	if c.Distributor.LogDiscardedSpans.Enabled {
+		warnings = append(warnings, warnLogDiscardedTraces)
 	}
 
 	if c.StorageConfig.Trace.Backend == backend.Local && c.Target != SingleBinary {
@@ -265,7 +268,10 @@ var (
 		Explain: fmt.Sprintf("default=%d", tempodb.DefaultBlocklistPollConcurrency),
 	}
 	warnLogReceivedTraces = ConfigWarning{
-		Message: "Span logging is enabled. This is for debuging only and not recommended for production deployments.",
+		Message: "Span logging is enabled. This is for debugging only and not recommended for production deployments.",
+	}
+	warnLogDiscardedTraces = ConfigWarning{
+		Message: "Span logging for discarded traces is enabled. This is for debugging only and not recommended for production deployments.",
 	}
 	warnStorageTraceBackendLocal = ConfigWarning{
 		Message: "Local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk. You should probably be using object storage as a backend.",

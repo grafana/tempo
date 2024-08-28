@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/user"
+	util2 "github.com/grafana/tempo/integration/util"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -23,7 +24,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 
-	util "github.com/grafana/tempo/integration"
+	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/httpclient"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
@@ -45,28 +46,28 @@ func TestLimits(t *testing.T) {
 	require.NoError(t, err)
 	defer s.Close()
 
-	require.NoError(t, util.CopyFileToSharedDir(s, configLimits, "config.yaml"))
-	tempo := util.NewTempoAllInOne()
+	require.NoError(t, util2.CopyFileToSharedDir(s, configLimits, "config.yaml"))
+	tempo := util2.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	// Get port for the otlp receiver endpoint
-	c, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	c, err := util2.NewJaegerGRPCClient(tempo.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
 	// should fail b/c the trace is too large. each batch should be ~70 bytes
-	batch := makeThriftBatchWithSpanCount(2)
+	batch := util.MakeThriftBatchWithSpanCount(2)
 	require.NoError(t, c.EmitBatch(context.Background(), batch), "max trace size")
 
 	// push a trace
-	require.NoError(t, c.EmitBatch(context.Background(), makeThriftBatchWithSpanCount(1)))
+	require.NoError(t, c.EmitBatch(context.Background(), util.MakeThriftBatchWithSpanCount(1)))
 
 	// should fail b/c this will be too many traces
-	batch = makeThriftBatch()
+	batch = util.MakeThriftBatch()
 	require.NoError(t, c.EmitBatch(context.Background(), batch), "too many traces")
 
 	// should fail b/c due to ingestion rate limit
-	batch = makeThriftBatchWithSpanCount(10)
+	batch = util.MakeThriftBatchWithSpanCount(10)
 	err = c.EmitBatch(context.Background(), batch)
 	require.Error(t, err)
 
@@ -105,8 +106,8 @@ func TestOTLPLimits(t *testing.T) {
 	require.NoError(t, err)
 	defer s.Close()
 
-	require.NoError(t, util.CopyFileToSharedDir(s, configLimits, "config.yaml"))
-	tempo := util.NewTempoAllInOne()
+	require.NoError(t, util2.CopyFileToSharedDir(s, configLimits, "config.yaml"))
+	tempo := util2.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	protoSpans := test.MakeProtoSpans(100)
@@ -141,8 +142,8 @@ func TestOTLPLimitsVanillaClient(t *testing.T) {
 	require.NoError(t, err)
 	defer s.Close()
 
-	require.NoError(t, util.CopyFileToSharedDir(s, configLimits, "config.yaml"))
-	tempo := util.NewTempoAllInOne()
+	require.NoError(t, util2.CopyFileToSharedDir(s, configLimits, "config.yaml"))
+	tempo := util2.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	trace := test.MakeTrace(10, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
@@ -203,22 +204,22 @@ func TestQueryLimits(t *testing.T) {
 	require.NoError(t, err)
 	defer s.Close()
 
-	require.NoError(t, util.CopyFileToSharedDir(s, configLimitsQuery, "config.yaml"))
-	tempo := util.NewTempoAllInOne()
+	require.NoError(t, util2.CopyFileToSharedDir(s, configLimitsQuery, "config.yaml"))
+	tempo := util2.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	// Get port for the otlp receiver endpoint
-	c, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	c, err := util2.NewJaegerGRPCClient(tempo.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
 	// make a trace with 10 spans and push them one at a time, flush in between each one to force different blocks
-	batch := makeThriftBatchWithSpanCount(5)
+	batch := util.MakeThriftBatchWithSpanCount(5)
 	allSpans := batch.Spans
 	for i := range batch.Spans {
 		batch.Spans = allSpans[i : i+1]
 		require.NoError(t, c.EmitBatch(context.Background(), batch))
-		callFlush(t, tempo)
+		util.CallFlush(t, tempo)
 		time.Sleep(2 * time.Second) // trace idle and flush time are both 1ms
 	}
 
@@ -254,12 +255,12 @@ func TestLimitsPartialSuccess(t *testing.T) {
 	s, err := e2e.NewScenario("tempo_e2e")
 	require.NoError(t, err)
 	defer s.Close()
-	require.NoError(t, util.CopyFileToSharedDir(s, configLimitsPartialError, "config.yaml"))
-	tempo := util.NewTempoAllInOne()
+	require.NoError(t, util2.CopyFileToSharedDir(s, configLimitsPartialError, "config.yaml"))
+	tempo := util2.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	// otel grpc exporter
-	exporter, err := util.NewOtelGRPCExporter(tempo.Endpoint(4317))
+	exporter, err := util2.NewOtelGRPCExporter(tempo.Endpoint(4317))
 	require.NoError(t, err)
 
 	err = exporter.Start(context.Background(), componenttest.NewNopHost())
@@ -304,7 +305,7 @@ func TestLimitsPartialSuccess(t *testing.T) {
 		if count == 1 {
 			result, err := client.QueryTrace(tempoUtil.TraceIDToHexString(traceIDs[i]))
 			require.NoError(t, err)
-			assert.Equal(t, 1, len(result.Batches))
+			assert.Equal(t, 1, len(result.ResourceSpans))
 		}
 	}
 
@@ -329,22 +330,22 @@ func TestQueryRateLimits(t *testing.T) {
 	require.NoError(t, err)
 	defer s.Close()
 
-	require.NoError(t, util.CopyFileToSharedDir(s, configLimits429, "config.yaml"))
-	tempo := util.NewTempoAllInOne()
+	require.NoError(t, util2.CopyFileToSharedDir(s, configLimits429, "config.yaml"))
+	tempo := util2.NewTempoAllInOne()
 	require.NoError(t, s.StartAndWaitReady(tempo))
 
 	// Get port for the otlp receiver endpoint
-	c, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	c, err := util2.NewJaegerGRPCClient(tempo.Endpoint(14250))
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
 	// make a trace with 10 spans and push them one at a time, flush in between each one to force different blocks
-	batch := makeThriftBatchWithSpanCount(5)
+	batch := util.MakeThriftBatchWithSpanCount(5)
 	allSpans := batch.Spans
 	for i := range batch.Spans {
 		batch.Spans = allSpans[i : i+1]
 		require.NoError(t, c.EmitBatch(context.Background(), batch))
-		callFlush(t, tempo)
+		util.CallFlush(t, tempo)
 		time.Sleep(2 * time.Second) // trace idle and flush time are both 1ms
 	}
 	// now try to query it back. this should fail b/c the frontend queue doesn't have room
@@ -365,7 +366,7 @@ func TestQueryRateLimits(t *testing.T) {
 	require.ErrorContains(t, err, "failed with response: 429")
 
 	// 429 GRPC Search
-	grpcClient, err := util.NewSearchGRPCClient(context.Background(), tempo.Endpoint(3200))
+	grpcClient, err := util2.NewSearchGRPCClient(context.Background(), tempo.Endpoint(3200))
 	require.NoError(t, err)
 
 	resp, err := grpcClient.Search(context.Background(), &tempopb.SearchRequest{
@@ -375,7 +376,13 @@ func TestQueryRateLimits(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = resp.Recv()
+	// loop until we get io.EOF or an error
+	for {
+		_, err = resp.Recv()
+		if err != nil {
+			break
+		}
+	}
 	require.ErrorContains(t, err, "job queue full")
 	require.ErrorContains(t, err, "code = ResourceExhausted")
 }

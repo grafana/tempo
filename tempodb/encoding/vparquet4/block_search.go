@@ -350,7 +350,10 @@ func rawToResults(ctx context.Context, pf *parquet.File, rgs []parquet.RowGroup,
 	return results, nil
 }
 
-func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File) func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
+// makeIterFn is a helper to create an iterator, that abstracts away context like file and row groups.
+type makeIterFn func(columnName string, predicate pq.Predicate, selectAs string) pq.Iterator
+
+func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File) makeIterFn {
 	async := os.Getenv(EnvVarAsyncIteratorName) == EnvVarAsyncIteratorValue
 
 	return func(name string, predicate pq.Predicate, selectAs string) pq.Iterator {
@@ -407,10 +410,10 @@ func (r *rowNumberIterator) Close() {}
 
 // reportValuesPredicate is a "fake" predicate that uses existing iterator logic to find all values in a given column
 type reportValuesPredicate struct {
-	cb common.TagCallbackV2
+	cb common.TagValuesCallbackV2
 }
 
-func newReportValuesPredicate(cb common.TagCallbackV2) *reportValuesPredicate {
+func newReportValuesPredicate(cb common.TagValuesCallbackV2) *reportValuesPredicate {
 	return &reportValuesPredicate{cb: cb}
 }
 
@@ -452,7 +455,7 @@ func (r *reportValuesPredicate) KeepValue(v parquet.Value) bool {
 	return false
 }
 
-func callback(cb common.TagCallbackV2, v parquet.Value) (stop bool) {
+func callback(cb common.TagValuesCallbackV2, v parquet.Value) (stop bool) {
 	switch v.Kind() {
 
 	case parquet.Boolean:

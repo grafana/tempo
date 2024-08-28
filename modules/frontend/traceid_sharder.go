@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/querier"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/blockboundary"
 )
 
@@ -38,7 +39,9 @@ func newAsyncTraceIDSharder(cfg *TraceByIDConfig, logger log.Logger) pipeline.As
 }
 
 // RoundTrip implements http.RoundTripper
-func (s asyncTraceSharder) RoundTrip(r *http.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
+	r := pipelineRequest.HTTPRequest()
+
 	ctx, span := tracer.Start(r.Context(), "frontend.ShardQuery")
 	defer span.End()
 	r = r.WithContext(ctx)
@@ -54,8 +57,8 @@ func (s asyncTraceSharder) RoundTrip(r *http.Request) (pipeline.Responses[combin
 		concurrentShards = uint(s.cfg.ConcurrentShards)
 	}
 
-	return pipeline.NewAsyncSharderFunc(ctx, int(concurrentShards), len(reqs), func(i int) *http.Request {
-		return reqs[i]
+	return pipeline.NewAsyncSharderFunc(ctx, int(concurrentShards), len(reqs), func(i int) pipeline.Request {
+		return pipeline.NewHTTPRequest(reqs[i])
 	}, s.next), nil
 }
 
@@ -68,22 +71,21 @@ func (s *asyncTraceSharder) buildShardedRequests(ctx context.Context, parent *ht
 	}
 
 	reqs := make([]*http.Request, s.cfg.QueryShards)
+	params := map[string]string{}
 	// build sharded block queries
 	for i := 0; i < len(s.blockBoundaries); i++ {
 		reqs[i] = parent.Clone(ctx)
-
-		q := reqs[i].URL.Query()
 		if i == 0 {
 			// ingester query
-			q.Add(querier.QueryModeKey, querier.QueryModeIngesters)
+			params[querier.QueryModeKey] = querier.QueryModeIngesters
 		} else {
 			// block queries
-			q.Add(querier.BlockStartKey, hex.EncodeToString(s.blockBoundaries[i-1]))
-			q.Add(querier.BlockEndKey, hex.EncodeToString(s.blockBoundaries[i]))
-			q.Add(querier.QueryModeKey, querier.QueryModeBlocks)
+			params[querier.BlockStartKey] = hex.EncodeToString(s.blockBoundaries[i-1])
+			params[querier.BlockEndKey] = hex.EncodeToString(s.blockBoundaries[i])
+			params[querier.QueryModeKey] = querier.QueryModeBlocks
 		}
-
-		prepareRequestForQueriers(reqs[i], userID, reqs[i].URL.Path, q)
+		reqs[i] = api.BuildQueryRequest(reqs[i], params)
+		prepareRequestForQueriers(reqs[i], userID)
 	}
 
 	return reqs, nil

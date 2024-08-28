@@ -6,18 +6,15 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+	"github.com/google/uuid"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/uber-go/atomic"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
 func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
@@ -25,15 +22,14 @@ func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest
 		return q.queryRangeRecent(ctx, req)
 	}
 
-	// Backend requests go here
-	return q.queryBackend(ctx, req)
+	return q.queryBlock(ctx, req)
 }
 
 func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
 	// // Get results from all generators
 	replicationSet, err := q.generatorRing.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
-		return nil, fmt.Errorf("error finding generators in Querier.SpanMetricsSummary: %w", err)
+		return nil, fmt.Errorf("error finding generators in Querier.queryRangeRecent: %w", err)
 	}
 	lookupResults, err := q.forGivenGenerators(
 		ctx,
@@ -43,12 +39,12 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 		},
 	)
 	if err != nil {
-		_ = level.Error(log.Logger).Log("error querying generators in Querier.MetricsQueryRange", "err", err)
+		_ = level.Error(log.Logger).Log("error querying generators in Querier.queryRangeRecent", "err", err)
 
-		return nil, fmt.Errorf("error querying generators in Querier.MetricsQueryRange: %w", err)
+		return nil, fmt.Errorf("error querying generators in Querier.queryRangeRecent: %w", err)
 	}
 
-	c, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeSum)
+	c, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeSum, false)
 	if err != nil {
 		return nil, err
 	}
@@ -60,33 +56,47 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 	return c.Response(), nil
 }
 
-func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
+func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
 	tenantID, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error extracting org id in Querier.queryBlock: %w", err)
+	}
+
+	blockID, err := uuid.Parse(req.BlockID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Get blocks that overlap this time range
-	metas := q.store.BlockMetas(tenantID)
-	withinTimeRange := metas[:0]
-	for _, m := range metas {
-		if m.StartTime.UnixNano() <= int64(req.End) && m.EndTime.UnixNano() > int64(req.Start) {
-			withinTimeRange = append(withinTimeRange, m)
-		}
+	enc, err := backend.ParseEncoding(req.Encoding)
+	if err != nil {
+		return nil, err
 	}
 
-	if len(withinTimeRange) == 0 {
-		return nil, nil
+	dc, err := backend.DedicatedColumnsFromTempopb(req.DedicatedColumns)
+	if err != nil {
+		return nil, err
 	}
+
+	meta := &backend.BlockMeta{
+		Version:   req.Version,
+		TenantID:  tenantID,
+		StartTime: time.Unix(0, int64(req.Start)),
+		EndTime:   time.Unix(0, int64(req.End)),
+		Encoding:  enc,
+		// IndexPageSize:    req.IndexPageSize,
+		// TotalRecords:     req.TotalRecords,
+		BlockID: blockID,
+		// DataEncoding:     req.DataEncoding,
+		Size:             req.Size_,
+		FooterSize:       req.FooterSize,
+		DedicatedColumns: dc,
+	}
+
+	opts := common.DefaultSearchOptions()
+	opts.StartPage = int(req.StartPage)
+	opts.TotalPages = int(req.PagesToSearch)
 
 	unsafe := q.limits.UnsafeQueryHints(tenantID)
-
-	// Optimization
-	// If there's only 1 block then dedupe not needed.
-	dedupe := len(withinTimeRange) > 1
 
 	expr, err := traceql.Parse(req.Query)
 	if err != nil {
@@ -98,50 +108,16 @@ func (q *Querier) queryBackend(ctx context.Context, req *tempopb.QueryRangeReque
 		timeOverlapCutoff = v
 	}
 
-	concurrency := q.cfg.Metrics.ConcurrentBlocks
-	if v, ok := expr.Hints.GetInt(traceql.HintConcurrentBlocks, unsafe); ok && v > 0 && v < 100 {
-		concurrency = v
-	}
-
-	// Compile the sharded version of the query
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, dedupe, timeOverlapCutoff, unsafe)
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, int(req.Exemplars), timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}
 
-	wg := boundedwaitgroup.New(uint(concurrency))
-	jobErr := atomic.Error{}
-
-	for _, m := range withinTimeRange {
-		// If a job errored then quit immediately.
-		if err := jobErr.Load(); err != nil {
-			return nil, err
-		}
-
-		wg.Add(1)
-		go func(m *backend.BlockMeta) {
-			defer wg.Done()
-
-			ctx, span := tracer.Start(ctx, "querier.queryBackEnd.Block", trace.WithAttributes(
-				attribute.String("block", m.BlockID.String()),
-				attribute.Int64("blockSize", int64(m.Size)),
-			))
-			defer span.End()
-
-			f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-				return q.store.Fetch(ctx, m, req, common.DefaultSearchOptions())
-			})
-
-			// TODO handle error
-			err := eval.Do(ctx, f, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
-			if err != nil {
-				jobErr.Store(err)
-			}
-		}(m)
-	}
-
-	wg.Wait()
-	if err := jobErr.Load(); err != nil {
+	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+		return q.store.Fetch(ctx, meta, req, opts)
+	})
+	err = eval.Do(ctx, f, uint64(meta.StartTime.UnixNano()), uint64(meta.EndTime.UnixNano()))
+	if err != nil {
 		return nil, err
 	}
 
@@ -184,10 +160,29 @@ func queryRangeTraceQLToProto(set traceql.SeriesSet, req *tempopb.QueryRangeRequ
 			})
 		}
 
+		exemplars := make([]tempopb.Exemplar, 0, len(s.Exemplars))
+		for _, e := range s.Exemplars {
+			lbls := make([]v1.KeyValue, 0, len(e.Labels))
+			for _, label := range e.Labels {
+				lbls = append(lbls,
+					v1.KeyValue{
+						Key:   label.Name,
+						Value: label.Value.AsAnyValue(),
+					},
+				)
+			}
+			exemplars = append(exemplars, tempopb.Exemplar{
+				Labels:      lbls,
+				TimestampMs: int64(e.TimestampMs),
+				Value:       e.Value,
+			})
+		}
+
 		ss := &tempopb.TimeSeries{
 			PromLabels: promLabels,
 			Labels:     labels,
 			Samples:    samples,
+			Exemplars:  exemplars,
 		}
 
 		resp = append(resp, ss)

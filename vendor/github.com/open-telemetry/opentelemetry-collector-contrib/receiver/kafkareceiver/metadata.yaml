@@ -8,14 +8,14 @@ status:
   distributions:
   - core
   - contrib
-  - aws
-  - grafana
-  - observiq
-  - splunk
-  - sumo
   codeowners:
     active: [pavolloffay, MovieStoreGuy]
 
 # TODO: Update the receiver to pass the tests
 tests:
   skip_lifecycle: true
+  goleak:
+    ignore:
+      top:
+        # See https://github.com/census-instrumentation/opencensus-go/issues/1191 for more information.
+        - "go.opencensus.io/stats/view.(*worker).start"

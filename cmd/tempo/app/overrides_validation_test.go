@@ -51,6 +51,35 @@ func Test_runtimeOverridesValidator(t *testing.T) {
 			},
 			overrides: overrides.Overrides{Ingestion: overrides.IngestionOverrides{TenantShardSize: 3}},
 		},
+		{
+			name: "metrics_generator.generate_native_histograms invalid",
+			cfg:  Config{},
+			overrides: overrides.Overrides{MetricsGenerator: overrides.MetricsGeneratorOverrides{
+				GenerateNativeHistograms: "invalid",
+			}},
+			expErr: "metrics_generator.generate_native_histograms \"invalid\" is not a valid value, valid values: classic, native, both",
+		},
+		{
+			name: "metrics_generator.generate_native_histograms classic",
+			cfg:  Config{},
+			overrides: overrides.Overrides{MetricsGenerator: overrides.MetricsGeneratorOverrides{
+				GenerateNativeHistograms: "classic",
+			}},
+		},
+		{
+			name: "metrics_generator.generate_native_histograms native",
+			cfg:  Config{},
+			overrides: overrides.Overrides{MetricsGenerator: overrides.MetricsGeneratorOverrides{
+				GenerateNativeHistograms: "native",
+			}},
+		},
+		{
+			name: "metrics_generator.generate_native_histograms both",
+			cfg:  Config{},
+			overrides: overrides.Overrides{MetricsGenerator: overrides.MetricsGeneratorOverrides{
+				GenerateNativeHistograms: "both",
+			}},
+		},
 	}
 
 	for _, tc := range testCases {

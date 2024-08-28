@@ -33,13 +33,13 @@ func TestCombineLimitsNotHit(t *testing.T) {
 
 	trace := test.MakeTraceWithSpanCount(2, 10, nil)
 	t1 := &tempopb.Trace{
-		Batches: []*v1.ResourceSpans{
-			trace.Batches[0],
+		ResourceSpans: []*v1.ResourceSpans{
+			trace.ResourceSpans[0],
 		},
 	}
 	t2 := &tempopb.Trace{
-		Batches: []*v1.ResourceSpans{
-			trace.Batches[1],
+		ResourceSpans: []*v1.ResourceSpans{
+			trace.ResourceSpans[1],
 		},
 	}
 	obj1 := encode(t, t1)
@@ -67,13 +67,13 @@ func TestCombineLimitsHit(t *testing.T) {
 
 	trace := test.MakeTraceWithSpanCount(2, 10, nil)
 	t1 := &tempopb.Trace{
-		Batches: []*v1.ResourceSpans{
-			trace.Batches[0],
+		ResourceSpans: []*v1.ResourceSpans{
+			trace.ResourceSpans[0],
 		},
 	}
 	t2 := &tempopb.Trace{
-		Batches: []*v1.ResourceSpans{
-			trace.Batches[1],
+		ResourceSpans: []*v1.ResourceSpans{
+			trace.ResourceSpans[1],
 		},
 	}
 	obj1 := encode(t, t1)
@@ -101,13 +101,13 @@ func TestCombineDoesntEnforceZero(t *testing.T) {
 
 	trace := test.MakeTraceWithSpanCount(2, 10, nil)
 	t1 := &tempopb.Trace{
-		Batches: []*v1.ResourceSpans{
-			trace.Batches[0],
+		ResourceSpans: []*v1.ResourceSpans{
+			trace.ResourceSpans[0],
 		},
 	}
 	t2 := &tempopb.Trace{
-		Batches: []*v1.ResourceSpans{
-			trace.Batches[1],
+		ResourceSpans: []*v1.ResourceSpans{
+			trace.ResourceSpans[1],
 		},
 	}
 	obj1 := encode(t, t1)
@@ -154,13 +154,13 @@ func TestDedicatedColumns(t *testing.T) {
 
 	tr := test.AddDedicatedAttributes(test.MakeTraceWithSpanCount(2, 10, nil))
 	t1 := &tempopb.Trace{
-		Batches: []*v1.ResourceSpans{
-			tr.Batches[0],
+		ResourceSpans: []*v1.ResourceSpans{
+			tr.ResourceSpans[0],
 		},
 	}
 	t2 := &tempopb.Trace{
-		Batches: []*v1.ResourceSpans{
-			tr.Batches[1],
+		ResourceSpans: []*v1.ResourceSpans{
+			tr.ResourceSpans[1],
 		},
 	}
 	obj1 := encode(t, t1)

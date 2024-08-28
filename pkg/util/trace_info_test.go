@@ -98,7 +98,7 @@ func TestConstructTraceFromEpoch(t *testing.T) {
 
 	result, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)
-	assert.Equal(t, 7, len(result.Batches))
+	assert.Equal(t, 7, len(result.ResourceSpans))
 
 	result2, err := info.ConstructTraceFromEpoch()
 	require.NoError(t, err)

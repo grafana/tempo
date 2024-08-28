@@ -9,6 +9,8 @@ aliases:
 
 # Enable service graphs
 
+{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
+
 A service graph is a visual representation of the interrelationships between various services.
 Service graphs help to understand the structure of a distributed system,
 and the connections and dependencies between its components.
@@ -26,9 +28,13 @@ Service graphs are generated in Grafana Agent and pushed to a Prometheus-compati
 Once generated, they can be represented in Grafana as a graph.
 You need these components to fully use service graphs.
 
-### Enable service graphs in Grafana Agent
+{{< admonition type="note">}}
+Grafana Alloy provides tooling to convert your Agent Static or Flow configuration files into a format that can be used by Alloy.
 
-{{< docs/shared source="alloy" lookup="agent-deprecation.md" version="next" >}}
+For more information, refer to [Migrate to Alloy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/migrate-alloy).
+{{< /admonition>}}
+
+### Enable service graphs in Grafana Agent
 
 To start using service graphs, enable the feature in Grafana Agent configuration.
 

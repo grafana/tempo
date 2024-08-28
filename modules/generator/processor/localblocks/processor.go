@@ -18,12 +18,8 @@ import (
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/tempodb"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/atomic"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
-	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -52,6 +48,8 @@ type Processor struct {
 	logger    kitlog.Logger
 	Cfg       Config
 	wal       *wal.WAL
+	walR      backend.Reader
+	walW      backend.Writer
 	closeCh   chan struct{}
 	wg        sync.WaitGroup
 	cacheMtx  sync.RWMutex
@@ -94,6 +92,8 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 		logger:         log.WithUserID(tenant, log.Logger),
 		Cfg:            cfg,
 		wal:            wal,
+		walR:           backend.NewReader(wal.LocalBackend()),
+		walW:           backend.NewWriter(wal.LocalBackend()),
 		overrides:      overrides,
 		enc:            enc,
 		walBlocks:      map[uuid.UUID]common.WALBlock{},
@@ -469,10 +469,10 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 
 	var rawHistorgram *tempopb.RawHistogram
 	var errCount int
-	for series, hist := range m.Series {
+	for keys, sh := range m.Series {
 		h := []*tempopb.RawHistogram{}
 
-		for bucket, count := range hist.Buckets() {
+		for bucket, count := range sh.Histogram.Buckets() {
 			if count != 0 {
 				rawHistorgram = &tempopb.RawHistogram{
 					Bucket: uint64(bucket),
@@ -484,120 +484,18 @@ func (p *Processor) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequ
 		}
 
 		errCount = 0
-		if errs, ok := m.Errors[series]; ok {
+		if errs, ok := m.Errors[keys]; ok {
 			errCount = errs
 		}
 
 		resp.Metrics = append(resp.Metrics, &tempopb.SpanMetrics{
 			LatencyHistogram: h,
-			Series:           metricSeriesToProto(series),
+			Series:           metricSeriesToProto(sh.Series),
 			Errors:           uint64(errCount),
 		})
 	}
 
 	return resp, nil
-}
-
-// QueryRange returns metrics.
-func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (traceql.SeriesSet, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	p.blocksMtx.RLock()
-	defer p.blocksMtx.RUnlock()
-
-	cutoff := time.Now().Add(-p.Cfg.CompleteBlockTimeout).Add(-timeBuffer)
-	if req.Start < uint64(cutoff.UnixNano()) {
-		return nil, fmt.Errorf("time range must be within last %v", p.Cfg.CompleteBlockTimeout)
-	}
-
-	// Blocks to check
-	blocks := make([]common.BackendBlock, 0, 1+len(p.walBlocks)+len(p.completeBlocks))
-	if p.headBlock != nil {
-		blocks = append(blocks, p.headBlock)
-	}
-	for _, b := range p.walBlocks {
-		blocks = append(blocks, b)
-	}
-	for _, b := range p.completeBlocks {
-		blocks = append(blocks, b)
-	}
-	if len(blocks) == 0 {
-		return nil, nil
-	}
-
-	expr, err := traceql.Parse(req.Query)
-	if err != nil {
-		return nil, fmt.Errorf("compiling query: %w", err)
-	}
-
-	unsafe := p.overrides.UnsafeQueryHints(p.tenant)
-
-	timeOverlapCutoff := p.Cfg.Metrics.TimeOverlapCutoff
-	if v, ok := expr.Hints.GetFloat(traceql.HintTimeOverlapCutoff, unsafe); ok && v >= 0 && v <= 1.0 {
-		timeOverlapCutoff = v
-	}
-
-	concurrency := p.Cfg.Metrics.ConcurrentBlocks
-	if v, ok := expr.Hints.GetInt(traceql.HintConcurrentBlocks, unsafe); ok && v > 0 && v < 100 {
-		concurrency = uint(v)
-	}
-
-	// Compile the sharded version of the query
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, false, timeOverlapCutoff, unsafe)
-	if err != nil {
-		return nil, err
-	}
-
-	var (
-		wg     = boundedwaitgroup.New(concurrency)
-		jobErr = atomic.Error{}
-	)
-
-	for _, b := range blocks {
-		// If a job errored then quit immediately.
-		if err := jobErr.Load(); err != nil {
-			return nil, err
-		}
-
-		start := uint64(b.BlockMeta().StartTime.UnixNano())
-		end := uint64(b.BlockMeta().EndTime.UnixNano())
-		if start > req.End || end < req.Start {
-			// Out of time range
-			continue
-		}
-
-		wg.Add(1)
-		go func(b common.BackendBlock) {
-			defer wg.Done()
-
-			m := b.BlockMeta()
-
-			ctx, span := tracer.Start(ctx, "Processor.QueryRange.Block", trace.WithAttributes(
-				attribute.String("block", m.BlockID.String()),
-				attribute.Int64("blockSize", int64(m.Size)),
-			))
-			defer span.End()
-
-			// TODO - caching
-			f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-				return b.Fetch(ctx, req, common.DefaultSearchOptions())
-			})
-
-			err := eval.Do(ctx, f, uint64(m.StartTime.UnixNano()), uint64(m.EndTime.UnixNano()))
-			if err != nil {
-				jobErr.Store(err)
-			}
-		}(b)
-	}
-
-	wg.Wait()
-
-	if err := jobErr.Load(); err != nil {
-		return nil, err
-	}
-
-	return eval.Results(), nil
 }
 
 func (p *Processor) metricsCacheGet(key string) *traceqlmetrics.MetricsResults {
@@ -622,10 +520,10 @@ func (p *Processor) deleteOldBlocks() (err error) {
 	p.blocksMtx.Lock()
 	defer p.blocksMtx.Unlock()
 
-	before := time.Now().Add(-p.Cfg.CompleteBlockTimeout)
+	cuttoff := time.Now().Add(-p.Cfg.CompleteBlockTimeout)
 
 	for id, b := range p.walBlocks {
-		if b.BlockMeta().EndTime.Before(before) {
+		if b.BlockMeta().EndTime.Before(cuttoff) {
 			if _, ok := p.completeBlocks[id]; !ok {
 				level.Warn(p.logger).Log("msg", "deleting WAL block that was never completed", "block", id.String())
 			}
@@ -638,12 +536,25 @@ func (p *Processor) deleteOldBlocks() (err error) {
 	}
 
 	for id, b := range p.completeBlocks {
+		if !p.Cfg.FlushToStorage {
+			if b.BlockMeta().EndTime.Before(cuttoff) {
+				level.Info(p.logger).Log("msg", "deleting complete block", "block", id.String())
+				err = p.wal.LocalBackend().ClearBlock(id, p.tenant)
+				if err != nil {
+					return err
+				}
+				delete(p.completeBlocks, id)
+			}
+			continue
+		}
+
 		flushedTime := b.FlushedTime()
 		if flushedTime.IsZero() {
 			continue
 		}
 
-		if flushedTime.Add(p.Cfg.CompleteBlockTimeout).Before(time.Now()) {
+		if b.BlockMeta().EndTime.Before(cuttoff) {
+			level.Info(p.logger).Log("msg", "deleting flushed complete block", "block", id.String())
 			err = p.wal.LocalBackend().ClearBlock(id, p.tenant)
 			if err != nil {
 				return err
@@ -678,7 +589,7 @@ func (p *Processor) cutIdleTraces(immediate bool) error {
 	for _, t := range tracesToCut {
 
 		tr := &tempopb.Trace{
-			Batches: t.Batches,
+			ResourceSpans: t.Batches,
 		}
 
 		err := p.writeHeadBlock(t.id, tr)
@@ -704,9 +615,26 @@ func (p *Processor) writeHeadBlock(id common.ID, tr *tempopb.Trace) error {
 		}
 	}
 
-	now := uint32(time.Now().Unix())
+	// Get trace timestamp bounds
+	var start, end uint64
+	for _, b := range tr.ResourceSpans {
+		for _, ss := range b.ScopeSpans {
+			for _, s := range ss.Spans {
+				if start == 0 || s.StartTimeUnixNano < start {
+					start = s.StartTimeUnixNano
+				}
+				if s.EndTimeUnixNano > end {
+					end = s.EndTimeUnixNano
+				}
+			}
+		}
+	}
 
-	err := p.headBlock.AppendTrace(id, tr, now, now)
+	// Convert from unix nanos to unix seconds
+	startSeconds := uint32(start / uint64(time.Second))
+	endSeconds := uint32(end / uint64(time.Second))
+
+	err := p.headBlock.AppendTrace(id, tr, startSeconds, endSeconds)
 	if err != nil {
 		return err
 	}
@@ -719,7 +647,7 @@ func (p *Processor) resetHeadBlock() error {
 		BlockID:           uuid.New(),
 		TenantID:          p.tenant,
 		DedicatedColumns:  p.overrides.DedicatedColumns(p.tenant),
-		ReplicationFactor: 1,
+		ReplicationFactor: backend.MetricsGeneratorReplicationFactor,
 	}
 	block, err := p.wal.NewBlock(meta, model.CurrentEncoding)
 	if err != nil {
@@ -777,12 +705,15 @@ func (p *Processor) reloadBlocks() error {
 	if err != nil {
 		return err
 	}
+	level.Info(p.logger).Log("msg", "reloading wal blocks", "count", len(walBlocks))
 	for _, blk := range walBlocks {
 		meta := blk.BlockMeta()
 		if meta.TenantID == p.tenant {
+			level.Info(p.logger).Log("msg", "reloading wal block", "block", meta.BlockID.String())
 			p.walBlocks[blk.BlockMeta().BlockID] = blk
 		}
 	}
+	level.Info(p.logger).Log("msg", "reloaded wal blocks", "count", len(p.walBlocks))
 
 	// ------------------------------------
 	// Complete blocks
@@ -795,6 +726,7 @@ func (p *Processor) reloadBlocks() error {
 		return err
 	}
 	if len(tenants) == 0 {
+		level.Info(p.logger).Log("msg", "no tenants found, skipping complete block replay")
 		return nil
 	}
 
@@ -802,8 +734,10 @@ func (p *Processor) reloadBlocks() error {
 	if err != nil {
 		return err
 	}
+	level.Info(p.logger).Log("msg", "reloading complete blocks", "count", len(ids))
 
 	for _, id := range ids {
+		level.Info(p.logger).Log("msg", "reloading complete block", "block", id.String())
 		meta, err := r.BlockMeta(ctx, id, t)
 
 		var clearBlock bool
@@ -815,6 +749,7 @@ func (p *Processor) reloadBlocks() error {
 		}
 
 		if clearBlock {
+			level.Info(p.logger).Log("msg", "clearing block", "block", id.String(), "err", err)
 			// Partially written block, delete and continue
 			err = l.ClearBlock(id, t)
 			if err != nil {
@@ -831,11 +766,13 @@ func (p *Processor) reloadBlocks() error {
 		if err != nil {
 			return err
 		}
+		level.Info(p.logger).Log("msg", "reloaded complete block", "block", id.String())
 
 		lb := ingester.NewLocalBlock(ctx, blk, l)
 		p.completeBlocks[id] = lb
 
-		if lb.FlushedTime().IsZero() {
+		if p.Cfg.FlushToStorage && lb.FlushedTime().IsZero() {
+			level.Info(p.logger).Log("msg", "queueing reloaded block for flushing", "block", id.String())
 			if _, err := p.flushqueue.Enqueue(newFlushOp(id)); err != nil {
 				_ = level.Error(p.logger).Log("msg", "local blocks processor failed to enqueue block for flushing during replay", "err", err)
 			}
@@ -868,23 +805,40 @@ func metricSeriesToProto(series traceqlmetrics.MetricSeries) []*tempopb.KeyValue
 	var r []*tempopb.KeyValue
 	for _, kv := range series {
 		if kv.Key != "" {
-			static := kv.Value
-			r = append(r, &tempopb.KeyValue{
-				Key: kv.Key,
-				Value: &tempopb.TraceQLStatic{
-					Type:   int32(static.Type),
-					N:      int64(static.N),
-					F:      static.F,
-					S:      static.S,
-					B:      static.B,
-					D:      uint64(static.D),
-					Status: int32(static.Status),
-					Kind:   int32(static.Kind),
-				},
-			})
+			r = append(r, traceQLStaticToProto(&kv))
 		}
 	}
 	return r
+}
+
+func traceQLStaticToProto(kv *traceqlmetrics.KeyValue) *tempopb.KeyValue {
+	val := tempopb.TraceQLStatic{Type: int32(kv.Value.Type)}
+
+	switch kv.Value.Type {
+	case traceql.TypeInt:
+		n, _ := kv.Value.Int()
+		val.N = int64(n)
+	case traceql.TypeFloat:
+		val.F = kv.Value.Float()
+	case traceql.TypeString:
+		val.S = kv.Value.EncodeToString(false)
+	case traceql.TypeBoolean:
+		b, _ := kv.Value.Bool()
+		val.B = b
+	case traceql.TypeDuration:
+		d, _ := kv.Value.Duration()
+		val.D = uint64(d)
+	case traceql.TypeStatus:
+		st, _ := kv.Value.Status()
+		val.Status = int32(st)
+	case traceql.TypeKind:
+		k, _ := kv.Value.Kind()
+		val.Kind = int32(k)
+	default:
+		val = tempopb.TraceQLStatic{Type: int32(traceql.TypeNil)}
+	}
+
+	return &tempopb.KeyValue{Key: kv.Key, Value: &val}
 }
 
 // filterBatches to only root spans or kind==server. Does not modify the input

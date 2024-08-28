@@ -55,11 +55,12 @@ services:
       - --config.file=/etc/prometheus.yaml
       - --web.enable-remote-write-receiver
       - --enable-feature=exemplar-storage
+      - --enable-feature=native-histograms
     volumes:
       - ./prometheus.yaml:/etc/prometheus.yaml
 
   grafana:
-    image: grafana/grafana:10.4.2
+    image: grafana/grafana:11.0.0
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:
@@ -73,17 +74,14 @@ services:
   minio:
     image: minio/minio:latest
     environment:
-      - MINIO_ACCESS_KEY=tempo
-      - MINIO_SECRET_KEY=supersecret
-    entrypoint:
-      - sh
-      - -euc
-      - mkdir -p /data/tempo && /opt/bin/minio server /data --console-address ':9001'
+      - MINIO_ROOT_USER=tempo
+      - MINIO_ROOT_PASSWORD=supersecret
+    entrypoint: /bin/sh -c "mc mb --ignore-existing /data/tempo ; minio server /data --console-address ':9001'"
     ports:
       - 9001:9001
 
   k6-tracing:
-    image: ghcr.io/grafana/xk6-client-tracing:v0.0.2
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.5
     environment:
       - ENDPOINT=tempo1:4317
     restart: always

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/grafana/tempo/pkg/util"
+	"github.com/grafana/tempo/pkg/collector"
 	"go.opentelemetry.io/otel/attribute"
 
 	gkLog "github.com/go-kit/log"
@@ -45,10 +45,13 @@ const (
 
 var (
 	metricRetentionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempodb",
-		Name:      "retention_duration_seconds",
-		Help:      "Records the amount of time to perform retention tasks.",
-		Buckets:   prometheus.ExponentialBuckets(.25, 2, 6),
+		Namespace:                       "tempodb",
+		Name:                            "retention_duration_seconds",
+		Help:                            "Records the amount of time to perform retention tasks.",
+		Buckets:                         prometheus.ExponentialBuckets(.25, 2, 6),
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 	metricRetentionErrors = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "tempodb",
@@ -79,12 +82,13 @@ type IterateObjectCallback func(id common.ID, obj []byte) bool
 type Reader interface {
 	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64, opts common.SearchOptions) ([]*tempopb.Trace, []error, error)
 	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error)
-	SearchTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsResponse, error)
+	SearchTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsV2Response, error)
 	SearchTagValues(ctx context.Context, meta *backend.BlockMeta, tag string, opts common.SearchOptions) ([]string, error)
 	SearchTagValuesV2(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error)
 
 	Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error)
 	FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, opts common.SearchOptions) error
+	FetchTagNames(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, opts common.SearchOptions) error
 
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
@@ -104,6 +108,7 @@ type CompactorSharder interface {
 
 type CompactorOverrides interface {
 	BlockRetentionForTenant(tenantID string) time.Duration
+	CompactionDisabledForTenant(tenantID string) bool
 	MaxBytesPerTraceForTenant(tenantID string) int
 	MaxCompactionRangeForTenant(tenantID string) time.Duration
 }
@@ -302,13 +307,13 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 	compactedBlocksSearched := 0
 
 	for _, b := range blocklist {
-		if includeBlock(b, id, blockStartBytes, blockEndBytes, timeStart, timeEnd) {
+		if includeBlock(b, id, blockStartBytes, blockEndBytes, timeStart, timeEnd, opts.BlockReplicationFactor) {
 			copiedBlocklist = append(copiedBlocklist, b)
 			blocksSearched++
 		}
 	}
 	for _, c := range compactedBlocklist {
-		if includeCompactedBlock(c, id, blockStartBytes, blockEndBytes, rw.cfg.BlocklistPoll, timeStart, timeEnd) {
+		if includeCompactedBlock(c, id, blockStartBytes, blockEndBytes, rw.cfg.BlocklistPoll, timeStart, timeEnd, opts.BlockReplicationFactor) {
 			copiedBlocklist = append(copiedBlocklist, &c.BlockMeta)
 			compactedBlocksSearched++
 		}
@@ -363,7 +368,7 @@ func (rw *readerWriter) Search(ctx context.Context, meta *backend.BlockMeta, req
 	return block.Search(ctx, req, opts)
 }
 
-func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsResponse, error) {
+func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsV2Response, error) {
 	attributeScope := traceql.AttributeScopeFromString(scope)
 
 	if attributeScope == traceql.AttributeScopeUnknown {
@@ -375,13 +380,29 @@ func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta,
 		return nil, err
 	}
 
-	dv := util.NewDistinctStringCollector(0)
-	rw.cfg.Search.ApplyToOptions(&opts)
-	err = block.SearchTags(ctx, attributeScope, dv.Collect, opts)
+	distinctValues := collector.NewScopedDistinctString(0) // todo: propagate limit?
 
-	return &tempopb.SearchTagsResponse{
-		TagNames: dv.Strings(),
-	}, err
+	rw.cfg.Search.ApplyToOptions(&opts)
+	err = block.SearchTags(ctx, attributeScope, func(s string, scope traceql.AttributeScope) {
+		distinctValues.Collect(scope.String(), s)
+	}, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	// build response
+	collected := distinctValues.Strings()
+	resp := &tempopb.SearchTagsV2Response{
+		Scopes: make([]*tempopb.SearchTagsV2Scope, 0, len(collected)),
+	}
+	for scope, vals := range collected {
+		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
+			Name: scope,
+			Tags: vals,
+		})
+	}
+
+	return resp, nil
 }
 
 func (rw *readerWriter) SearchTagValues(ctx context.Context, meta *backend.BlockMeta, tag string, opts common.SearchOptions) ([]string, error) {
@@ -390,7 +411,7 @@ func (rw *readerWriter) SearchTagValues(ctx context.Context, meta *backend.Block
 		return nil, err
 	}
 
-	dv := util.NewDistinctStringCollector(0)
+	dv := collector.NewDistinctString(0)
 	rw.cfg.Search.ApplyToOptions(&opts)
 	err = block.SearchTagValues(ctx, tag, dv.Collect, opts)
 
@@ -408,7 +429,7 @@ func (rw *readerWriter) SearchTagValuesV2(ctx context.Context, meta *backend.Blo
 		return nil, err
 	}
 
-	dv := util.NewDistinctValueCollector[tempopb.TagValue](0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	dv := collector.NewDistinctValue[tempopb.TagValue](0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 	rw.cfg.Search.ApplyToOptions(&opts)
 	err = block.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(dv.Collect), opts)
 	if err != nil {
@@ -443,6 +464,16 @@ func (rw *readerWriter) FetchTagValues(ctx context.Context, meta *backend.BlockM
 
 	rw.cfg.Search.ApplyToOptions(&opts)
 	return block.FetchTagValues(ctx, req, cb, opts)
+}
+
+func (rw *readerWriter) FetchTagNames(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, opts common.SearchOptions) error {
+	block, err := encoding.OpenBlock(meta, rw.r)
+	if err != nil {
+		return err
+	}
+
+	rw.cfg.Search.ApplyToOptions(&opts)
+	return block.FetchTagNames(ctx, req, cb, opts)
 }
 
 func (rw *readerWriter) Shutdown() {
@@ -498,6 +529,10 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 		rw.cfg.BlocklistPollConcurrency = DefaultBlocklistPollConcurrency
 	}
 
+	if rw.cfg.BlocklistPollTenantConcurrency == 0 {
+		rw.cfg.BlocklistPollTenantConcurrency = DefaultBlocklistPollTenantConcurrency
+	}
+
 	if rw.cfg.BlocklistPollTenantIndexBuilders <= 0 {
 		rw.cfg.BlocklistPollTenantIndexBuilders = DefaultTenantIndexBuilders
 	}
@@ -515,6 +550,8 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 		StaleTenantIndex:           rw.cfg.BlocklistPollStaleTenantIndex,
 		PollJitterMs:               rw.cfg.BlocklistPollJitterMs,
 		TolerateConsecutiveErrors:  rw.cfg.BlocklistPollTolerateConsecutiveErrors,
+		TolerateTenantFailures:     rw.cfg.BlocklistPollTolerateTenantFailures,
+		TenantPollConcurrency:      rw.cfg.BlocklistPollTenantConcurrency,
 		EmptyTenantDeletionAge:     rw.cfg.EmptyTenantDeletionAge,
 		EmptyTenantDeletionEnabled: rw.cfg.EmptyTenantDeletionEnabled,
 	}, sharder, rw.r, rw.c, rw.w, rw.logger)
@@ -552,7 +589,7 @@ func (rw *readerWriter) pollBlocklist() {
 }
 
 // includeBlock indicates whether a given block should be included in a backend search
-func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart []byte, blockEnd []byte, timeStart int64, timeEnd int64) bool {
+func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart, blockEnd []byte, timeStart, timeEnd int64, replicationFactor int) bool {
 	// todo: restore this functionality once it works. min/max ids are currently not recorded
 	//    https://github.com/grafana/tempo/issues/1903
 	//  correctly in a block
@@ -573,16 +610,16 @@ func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart []byte, blockEnd
 		return false
 	}
 
-	return true
+	return b.ReplicationFactor == uint8(replicationFactor)
 }
 
 // if block is compacted within lookback period, and is within shard ranges, include it in search
-func includeCompactedBlock(c *backend.CompactedBlockMeta, id common.ID, blockStart []byte, blockEnd []byte, poll time.Duration, timeStart int64, timeEnd int64) bool {
+func includeCompactedBlock(c *backend.CompactedBlockMeta, id common.ID, blockStart, blockEnd []byte, poll time.Duration, timeStart, timeEnd int64, replicationFactor int) bool {
 	lookback := time.Now().Add(-(2 * poll))
 	if c.CompactedTime.Before(lookback) {
 		return false
 	}
-	return includeBlock(&c.BlockMeta, id, blockStart, blockEnd, timeStart, timeEnd)
+	return includeBlock(&c.BlockMeta, id, blockStart, blockEnd, timeStart, timeEnd, replicationFactor)
 }
 
 // createLegacyCache uses the config to return a cache and a list of roles.

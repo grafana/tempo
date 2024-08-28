@@ -10,32 +10,59 @@ type Condition struct {
 	Attribute Attribute
 	Op        Operator
 	Operands  Operands
+	// Callback is used in the parquetquery.CallbackPredicate to determine if the iterator should be stopped.
+	// It's used to limit the overhead of fetching exemplars by stopping the iterator early.
+	CallBack func() bool
 }
 
 func SearchMetaConditions() []Condition {
 	return []Condition{
-		{NewIntrinsic(IntrinsicTraceRootService), OpNone, nil},
-		{NewIntrinsic(IntrinsicTraceRootSpan), OpNone, nil},
-		{NewIntrinsic(IntrinsicTraceDuration), OpNone, nil},
-		{NewIntrinsic(IntrinsicTraceID), OpNone, nil},
-		{NewIntrinsic(IntrinsicTraceStartTime), OpNone, nil},
-		{NewIntrinsic(IntrinsicSpanID), OpNone, nil},
-		{NewIntrinsic(IntrinsicSpanStartTime), OpNone, nil},
-		{NewIntrinsic(IntrinsicDuration), OpNone, nil},
-		{NewIntrinsic(IntrinsicServiceStats), OpNone, nil},
+		{Attribute: NewIntrinsic(IntrinsicTraceRootService), Op: OpNone},
+		{Attribute: NewIntrinsic(IntrinsicTraceRootSpan), Op: OpNone},
+		{Attribute: NewIntrinsic(IntrinsicTraceDuration), Op: OpNone},
+		{Attribute: NewIntrinsic(IntrinsicTraceID), Op: OpNone},
+		{Attribute: NewIntrinsic(IntrinsicTraceStartTime), Op: OpNone},
+		{Attribute: NewIntrinsic(IntrinsicSpanID), Op: OpNone},
+		{Attribute: NewIntrinsic(IntrinsicSpanStartTime), Op: OpNone},
+		{Attribute: NewIntrinsic(IntrinsicDuration), Op: OpNone},
+		{Attribute: NewIntrinsic(IntrinsicServiceStats), Op: OpNone},
 	}
 }
 
-func SearchMetaConditionsWithout(remove []Condition) []Condition {
+func ExemplarMetaConditions(cb func() bool) []Condition {
+	// TODO: Configurable? Each column is very expensive to store.
+	// TODO: Build predicate that quits early if we have enough exemplars.
+	return []Condition{
+		{Attribute: NewIntrinsic(IntrinsicTraceID), Op: OpNone, CallBack: cb},
+		//{NewIntrinsic(IntrinsicSpanID), OpNone, nil},
+		//{NewIntrinsic(IntrinsicTraceDuration), OpNone, nil},
+		//{NewIntrinsic(IntrinsicTraceStartTime), OpNone, nil},
+		//{NewIntrinsic(IntrinsicTraceRootService), OpNone, nil},
+		//{NewIntrinsic(IntrinsicTraceRootSpan), OpNone, nil},
+	}
+}
+
+func SearchMetaConditionsWithout(remove []Condition, allConditions bool) []Condition {
 	metaConds := SearchMetaConditions()
+	return metaConditionsWithout(metaConds, remove, allConditions)
+}
+
+func metaConditionsWithout(metaConds, remove []Condition, allConditions bool) []Condition {
 	retConds := make([]Condition, 0, len(metaConds))
 	for _, c := range metaConds {
 		// if we can't find c in the remove conditions then add it to retConds
 		found := false
-		for _, e := range remove {
-			if e.Attribute == c.Attribute {
-				found = true
-				break
+		for _, r := range remove {
+			if r.Attribute == c.Attribute {
+				// We can reuse the existing condition of a metadata field in two cases:
+				// (1) OpNone, since it has no filtering it will always return a value, there is no need to read it again.
+				// (2) AllConditions - No matter the operation, it will return a value for all results.
+				// If neither of those apply then we have to select
+				// the metadata field again without filtering.
+				if r.Op == OpNone || allConditions {
+					found = true
+					break
+				}
 			}
 		}
 		if !found {
@@ -44,6 +71,10 @@ func SearchMetaConditionsWithout(remove []Condition) []Condition {
 	}
 
 	return retConds
+}
+
+func ExemplarMetaConditionsWithout(cb func() bool, remove []Condition, allConditions bool) []Condition {
+	return metaConditionsWithout(ExemplarMetaConditions(cb), remove, allConditions)
 }
 
 // SecondPassFn is a method that is called in between the first and second
@@ -55,13 +86,9 @@ type FetchSpansRequest struct {
 	EndTimeUnixNanos   uint64
 	Conditions         []Condition
 
-	// mdisibio - Better to push trace by ID filtering into Conditions with a new between op?
-	ShardID    uint32
-	ShardCount uint32
-
 	// Hints
 
-	// By default the storage layer fetches spans meeting any of the criteria.
+	// By default, the storage layer fetches spans meeting any of the criteria.
 	// This hint is for common cases like { x && y && z } where the storage layer
 	// can make extra optimizations by returning only spansets that meet
 	// all criteria.
@@ -75,6 +102,7 @@ type FetchSpansRequest struct {
 	// TODO: extend this to an arbitrary number of passes
 	SecondPass           SecondPassFn
 	SecondPassConditions []Condition
+	SecondPassSelectAll  bool // Ignore second pass conditions and select all attributes
 }
 
 func (f *FetchSpansRequest) appendCondition(c ...Condition) {
@@ -103,6 +131,9 @@ type Span interface {
 	// AllAttributes returns a map of all attributes for this span. AllAttributes should be used sparingly
 	// and is expected to be significantly slower than AttributeFor.
 	AllAttributes() map[Attribute]Static
+	// AllAttributesFunc is a way to access all attributes for this span, letting the span determine the
+	// optimal method. Avoids allocating a map like AllAttributes.
+	AllAttributesFunc(func(Attribute, Static))
 
 	ID() []byte
 	StartTimeUnixNanos() uint64
@@ -257,4 +288,30 @@ func NewSpansetFetcherWrapper(f func(ctx context.Context, req FetchSpansRequest)
 
 func (s SpansetFetcherWrapper) Fetch(ctx context.Context, request FetchSpansRequest) (FetchSpansResponse, error) {
 	return s.f(ctx, request)
+}
+
+type FetchTagsCallback func(tag string, scope AttributeScope) bool
+
+type FetchTagsRequest struct {
+	Conditions []Condition
+	Scope      AttributeScope
+	// TODO: Add start and end time?
+}
+
+type TagNamesFetcher interface {
+	Fetch(context.Context, FetchTagsRequest, FetchTagsCallback) error
+}
+
+type TagNamesFetcherWrapper struct {
+	f func(context.Context, FetchTagsRequest, FetchTagsCallback) error
+}
+
+var _ TagNamesFetcher = (*TagNamesFetcherWrapper)(nil)
+
+func NewTagNamesFetcherWrapper(f func(context.Context, FetchTagsRequest, FetchTagsCallback) error) TagNamesFetcher {
+	return TagNamesFetcherWrapper{f}
+}
+
+func (s TagNamesFetcherWrapper) Fetch(ctx context.Context, request FetchTagsRequest, callback FetchTagsCallback) error {
+	return s.f(ctx, request, callback)
 }

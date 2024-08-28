@@ -517,13 +517,14 @@ func BuildHTTPMiddleware(cfg Config, router *mux.Router, metrics *Metrics, logge
 	defaultLogMiddleware.DisableRequestSuccessLog = cfg.DisableRequestSuccessLog
 
 	defaultHTTPMiddleware := []middleware.Interface{
-		middleware.Tracer{
+		middleware.RouteInjector{
 			RouteMatcher: router,
-			SourceIPs:    sourceIPs,
+		},
+		middleware.Tracer{
+			SourceIPs: sourceIPs,
 		},
 		defaultLogMiddleware,
 		middleware.Instrument{
-			RouteMatcher:      router,
 			Duration:          metrics.RequestDuration,
 			PerTenantDuration: metrics.PerTenantRequestDuration,
 			PerTenantCallback: cfg.PerTenantDurationInstrumentation,

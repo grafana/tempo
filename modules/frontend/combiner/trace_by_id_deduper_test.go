@@ -19,7 +19,7 @@ func TestDedupeSpanIDs(t *testing.T) {
 		{
 			name: "no duplicates",
 			trace: &tempopb.Trace{
-				Batches: []*v1.ResourceSpans{
+				ResourceSpans: []*v1.ResourceSpans{
 					{
 						ScopeSpans: []*v1.ScopeSpans{
 							{
@@ -42,7 +42,7 @@ func TestDedupeSpanIDs(t *testing.T) {
 				},
 			},
 			expectedRes: &tempopb.Trace{
-				Batches: []*v1.ResourceSpans{
+				ResourceSpans: []*v1.ResourceSpans{
 					{
 						ScopeSpans: []*v1.ScopeSpans{
 							{
@@ -68,7 +68,7 @@ func TestDedupeSpanIDs(t *testing.T) {
 		{
 			name: "duplicate span id",
 			trace: &tempopb.Trace{
-				Batches: []*v1.ResourceSpans{
+				ResourceSpans: []*v1.ResourceSpans{
 					{
 						ScopeSpans: []*v1.ScopeSpans{
 							{
@@ -91,7 +91,7 @@ func TestDedupeSpanIDs(t *testing.T) {
 				},
 			},
 			expectedRes: &tempopb.Trace{
-				Batches: []*v1.ResourceSpans{
+				ResourceSpans: []*v1.ResourceSpans{
 					{
 						ScopeSpans: []*v1.ScopeSpans{
 							{
@@ -118,7 +118,7 @@ func TestDedupeSpanIDs(t *testing.T) {
 		{
 			name: "duplicate multi level",
 			trace: &tempopb.Trace{
-				Batches: []*v1.ResourceSpans{
+				ResourceSpans: []*v1.ResourceSpans{
 					{
 						ScopeSpans: []*v1.ScopeSpans{
 							{
@@ -151,7 +151,7 @@ func TestDedupeSpanIDs(t *testing.T) {
 				},
 			},
 			expectedRes: &tempopb.Trace{
-				Batches: []*v1.ResourceSpans{
+				ResourceSpans: []*v1.ResourceSpans{
 					{
 						ScopeSpans: []*v1.ScopeSpans{
 							{

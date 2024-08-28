@@ -24,3 +24,5 @@ distributor:
   config:
     log_received_spans:
       enabled: true
+    log_discarded_spans:
+      enabled: true

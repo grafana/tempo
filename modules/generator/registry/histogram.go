@@ -14,6 +14,8 @@ import (
 	"go.uber.org/atomic"
 )
 
+var _ metric = (*histogram)(nil)
+
 type histogram struct {
 	metricName   string
 	nameCount    string
@@ -101,13 +103,7 @@ func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value 
 		return
 	}
 
-	newSeries := h.newSeries(labelValueCombo, value, traceID, multiplier)
-	s, ok = h.series[hash]
-	if ok {
-		h.updateSeries(s, value, traceID, multiplier)
-		return
-	}
-	h.series[hash] = newSeries
+	h.series[hash] = h.newSeries(labelValueCombo, value, traceID, multiplier)
 }
 
 func (h *histogram) newSeries(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) *histogramSeries {

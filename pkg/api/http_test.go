@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -102,11 +103,6 @@ func TestQuerierParseSearchRequest(t *testing.T) {
 				Tags:            map[string]string{},
 				SpansPerSpanSet: defaultSpansPerSpanSet,
 			},
-		},
-		{
-			name:     "invalid traceql query",
-			urlQuery: "q=" + url.QueryEscape(`{ .foo="bar" `),
-			err:      "invalid TraceQL query: parse error at line 1, col 14: syntax error: unexpected $end",
 		},
 		{
 			name:     "traceql query and tags",
@@ -418,7 +414,7 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 				Size_:         1000,
 				FooterSize:    2000,
 			},
-			query: "?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&footerSize=2000&indexPageSize=10&pagesToSearch=10&size=1000&startPage=0&totalRecords=11&version=v2",
+			query: "?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&pagesToSearch=10&size=1000&startPage=0&encoding=s2&indexPageSize=10&totalRecords=11&dataEncoding=v1&version=v2&footerSize=2000",
 		},
 		{
 			req: &tempopb.SearchBlockRequest{
@@ -434,7 +430,7 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 				FooterSize:    2000,
 			},
 			httpReq: httptest.NewRequest("GET", "/test/path", nil),
-			query:   "/test/path?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&footerSize=2000&indexPageSize=10&pagesToSearch=10&size=1000&startPage=0&totalRecords=11&version=v2",
+			query:   "/test/path?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&pagesToSearch=10&size=1000&startPage=0&encoding=s2&indexPageSize=10&totalRecords=11&dataEncoding=v1&version=v2&footerSize=2000",
 		},
 		{
 			req: &tempopb.SearchBlockRequest{
@@ -459,7 +455,7 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 				Size_:         1000,
 				FooterSize:    2000,
 			},
-			query: "?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=v1&encoding=s2&end=20&footerSize=2000&indexPageSize=10&limit=50&maxDuration=40ms&minDuration=30ms&pagesToSearch=10&size=1000&start=10&startPage=0&tags=foo%3Dbar&totalRecords=11&version=v2",
+			query: "?start=10&end=20&limit=50&maxDuration=40ms&minDuration=30ms&tags=foo%3Dbar&blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&pagesToSearch=10&size=1000&startPage=0&encoding=s2&indexPageSize=10&totalRecords=11&dataEncoding=v1&version=v2&footerSize=2000",
 		},
 		{
 			req: &tempopb.SearchBlockRequest{
@@ -477,12 +473,15 @@ func TestBuildSearchBlockRequest(t *testing.T) {
 				},
 			},
 			httpReq: httptest.NewRequest("GET", "/test/path", nil),
-			query:   "/test/path?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&dataEncoding=&dc=%5B%7B%22scope%22%3A1%2C%22name%22%3A%22net.sock.host.addr%22%7D%5D&encoding=none&footerSize=2000&indexPageSize=0&pagesToSearch=10&size=1000&startPage=0&totalRecords=2&version=vParquet3",
+			query:   "/test/path?blockID=b92ec614-3fd7-4299-b6db-f657e7025a9b&pagesToSearch=10&size=1000&startPage=0&encoding=none&indexPageSize=0&totalRecords=2&dataEncoding=&version=vParquet3&footerSize=2000&dc=%5B%7B%22scope%22%3A1%2C%22name%22%3A%22net.sock.host.addr%22%7D%5D",
 		},
 	}
 
 	for _, tc := range tests {
-		actualURL, err := BuildSearchBlockRequest(tc.httpReq, tc.req)
+		jsonBytes, err := json.Marshal(tc.req.DedicatedColumns)
+		require.NoError(t, err)
+
+		actualURL, err := BuildSearchBlockRequest(tc.httpReq, tc.req, string(jsonBytes))
 		assert.NoError(t, err)
 		assert.Equal(t, tc.query, actualURL.URL.String())
 	}
@@ -574,7 +573,7 @@ func TestBuildSearchRequest(t *testing.T) {
 				Limit:           50,
 				SpansPerSpanSet: 60,
 			},
-			query: "?end=20&limit=50&maxDuration=40ms&minDuration=30ms&spss=60&start=10&tags=foo%3Dbar",
+			query: "?start=10&end=20&limit=50&maxDuration=40ms&minDuration=30ms&spss=60&tags=foo%3Dbar",
 		},
 		{
 			req: &tempopb.SearchRequest{
@@ -586,7 +585,7 @@ func TestBuildSearchRequest(t *testing.T) {
 				MaxDurationMs: 30,
 				Limit:         50,
 			},
-			query: "?end=20&limit=50&maxDuration=30ms&start=10&tags=foo%3Dbar",
+			query: "?start=10&end=20&limit=50&maxDuration=30ms&tags=foo%3Dbar",
 		},
 		{
 			req: &tempopb.SearchRequest{
@@ -598,7 +597,7 @@ func TestBuildSearchRequest(t *testing.T) {
 				MinDurationMs: 30,
 				Limit:         50,
 			},
-			query: "?end=20&limit=50&minDuration=30ms&start=10&tags=foo%3Dbar",
+			query: "?start=10&end=20&limit=50&minDuration=30ms&tags=foo%3Dbar",
 		},
 		{
 			req: &tempopb.SearchRequest{
@@ -610,7 +609,7 @@ func TestBuildSearchRequest(t *testing.T) {
 				MinDurationMs: 30,
 				MaxDurationMs: 40,
 			},
-			query: "?end=20&maxDuration=40ms&minDuration=30ms&start=10&tags=foo%3Dbar",
+			query: "?start=10&end=20&maxDuration=40ms&minDuration=30ms&tags=foo%3Dbar",
 		},
 		{
 			req: &tempopb.SearchRequest{
@@ -620,7 +619,7 @@ func TestBuildSearchRequest(t *testing.T) {
 				MinDurationMs: 30,
 				MaxDurationMs: 40,
 			},
-			query: "?end=20&maxDuration=40ms&minDuration=30ms&start=10",
+			query: "?start=10&end=20&maxDuration=40ms&minDuration=30ms",
 		},
 		{
 			req: &tempopb.SearchRequest{
@@ -628,7 +627,7 @@ func TestBuildSearchRequest(t *testing.T) {
 				Start: 10,
 				End:   20,
 			},
-			query: "?end=20&q=%7B+foo+%3D+%60bar%60+%7D&start=10",
+			query: "?start=10&end=20&q=%7B+foo+%3D+%60bar%60+%7D",
 		},
 	}
 
@@ -710,20 +709,21 @@ func TestQueryRangeRoundtrip(t *testing.T) {
 		{
 			name: "not empty!",
 			req: &tempopb.QueryRangeRequest{
-				Query:      "{ foo = `bar` }",
-				Start:      uint64(24 * time.Hour),
-				End:        uint64(25 * time.Hour),
-				Step:       uint64(30 * time.Second),
-				ShardID:    1,
-				ShardCount: 2,
-				QueryMode:  "foo",
+				Query:     "{ foo = `bar` }",
+				Start:     uint64(24 * time.Hour),
+				End:       uint64(25 * time.Hour),
+				Step:      uint64(30 * time.Second),
+				QueryMode: "foo",
 			},
 		},
 	}
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			httpReq := BuildQueryRangeRequest(nil, tc.req)
+			jsonBytes, err := json.Marshal(tc.req.DedicatedColumns)
+			require.NoError(t, err)
+
+			httpReq := BuildQueryRangeRequest(nil, tc.req, string(jsonBytes))
 			actualReq, err := ParseQueryRangeRequest(httpReq)
 			require.NoError(t, err)
 			assert.Equal(t, tc.req, actualReq)

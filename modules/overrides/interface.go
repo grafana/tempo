@@ -46,6 +46,7 @@ type Interface interface {
 	MetricsGeneratorMaxActiveSeries(userID string) uint32
 	MetricsGeneratorCollectionInterval(userID string) time.Duration
 	MetricsGeneratorDisableCollection(userID string) bool
+	MetricsGeneratorGenerateNativeHistograms(userID string) HistogramMethod
 	MetricsGenerationTraceIDLabelName(userID string) string
 	MetricsGeneratorRemoteWriteHeaders(userID string) map[string]string
 	MetricsGeneratorForwarderQueueSize(userID string) int
@@ -70,6 +71,7 @@ type Interface interface {
 	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) bool
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string
 	BlockRetention(userID string) time.Duration
+	CompactionDisabled(userID string) bool
 	MaxSearchDuration(userID string) time.Duration
 	MaxMetricsDuration(userID string) time.Duration
 	DedicatedColumns(userID string) backend.DedicatedColumns

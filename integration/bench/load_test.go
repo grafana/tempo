@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	util "github.com/grafana/tempo/integration"
+	"github.com/grafana/tempo/integration/util"
 
 	"github.com/grafana/e2e"
 	e2e_db "github.com/grafana/e2e/db"

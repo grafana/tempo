@@ -43,6 +43,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Registry.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Storage.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.TracesWAL.Version = encoding.DefaultEncoding().Version()
+	cfg.TracesWAL.IngestionSlack = 2 * time.Minute
 
 	// setting default for max span age before discarding to 30s
 	cfg.MetricsIngestionSlack = 30 * time.Second
@@ -113,6 +114,11 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 
 	if timeout := o.MetricsGeneratorProcessorLocalBlocksCompleteBlockTimeout(userID); timeout > 0 {
 		copyCfg.LocalBlocks.CompleteBlockTimeout = timeout
+	}
+
+	if histograms := o.MetricsGeneratorGenerateNativeHistograms(userID); histograms != "" {
+		copyCfg.ServiceGraphs.HistogramOverride = registry.HistogramModeToValue[string(histograms)]
+		copyCfg.SpanMetrics.HistogramOverride = registry.HistogramModeToValue[string(histograms)]
 	}
 
 	copyCfg.SpanMetrics.DimensionMappings = o.MetricsGeneratorProcessorSpanMetricsDimensionMappings(userID)

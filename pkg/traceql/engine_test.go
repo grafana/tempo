@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
+	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/util"
@@ -481,6 +482,39 @@ func TestStatic_AsAnyValue(t *testing.T) {
 		{NewStaticStatus(StatusOk), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "ok"}}},
 		{NewStaticKind(KindInternal), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "internal"}}},
 		{NewStaticNil(), &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: "nil"}}},
+		// Test for arrays
+		{
+			NewStaticIntArray([]int{1, 2}),
+			&v1.AnyValue{
+				Value: &v1.AnyValue_ArrayValue{
+					ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_IntValue{IntValue: 1}}, {Value: &v1.AnyValue_IntValue{IntValue: 2}}}},
+				},
+			},
+		},
+		{
+			NewStaticFloatArray([]float64{1.1, 2.2}),
+			&v1.AnyValue{
+				Value: &v1.AnyValue_ArrayValue{
+					ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_DoubleValue{DoubleValue: 1.1}}, {Value: &v1.AnyValue_DoubleValue{DoubleValue: 2.2}}}},
+				},
+			},
+		},
+		{
+			NewStaticStringArray([]string{"foo", "bar"}),
+			&v1.AnyValue{
+				Value: &v1.AnyValue_ArrayValue{
+					ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_StringValue{StringValue: "foo"}}, {Value: &v1.AnyValue_StringValue{StringValue: "bar"}}}},
+				},
+			},
+		},
+		{
+			NewStaticBooleanArray([]bool{true, false}),
+			&v1.AnyValue{
+				Value: &v1.AnyValue_ArrayValue{
+					ArrayValue: &v1.ArrayValue{Values: []*v1.AnyValue{{Value: &v1.AnyValue_BoolValue{BoolValue: true}}, {Value: &v1.AnyValue_BoolValue{BoolValue: false}}}},
+				},
+			},
+		},
 	}
 	for _, tc := range tt {
 		t.Run(fmt.Sprintf("%v", tc.s), func(t *testing.T) {
@@ -644,7 +678,7 @@ func TestExecuteTagValues(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			distinctValues := util.NewDistinctValueCollector[tempopb.TagValue](100_000, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+			distinctValues := collector.NewDistinctValue[tempopb.TagValue](100_000, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 
 			// Ugly hack to make the mock fetcher work with a bad query
 			fetcherQuery := tc.query

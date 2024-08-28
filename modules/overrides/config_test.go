@@ -139,6 +139,7 @@ metrics_generator_processor_local_blocks_max_block_bytes: 10
 metrics_generator_processor_local_blocks_flush_check_period: 11s
 metrics_generator_processor_local_blocks_trace_idle_period: 12s
 metrics_generator_processor_local_blocks_complete_block_timeout: 13s
+metrics_generator_generate_native_histograms: true
 block_retention: 14s
 max_bytes_per_tag_values_query: 15
 max_blocks_per_tag_values_query: 16
@@ -183,6 +184,7 @@ defaults:
     forwarder:
       queue_size: 6
       workers: 7
+    generate_native_histograms: true
     processor:
       service_graphs:
         histogram_buckets:

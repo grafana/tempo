@@ -141,7 +141,7 @@ func (b *streamingBlock) Add(tr *Trace, start, end uint32) error {
 
 	b.index.Add(id)
 	b.bloom.Add(id)
-	b.meta.ObjectAdded(id, start, end)
+	b.meta.ObjectAdded(start, end)
 	b.currentBufferedTraces++
 	b.currentBufferedBytes += estimateMarshalledSizeFromTrace(tr)
 
@@ -156,7 +156,7 @@ func (b *streamingBlock) AddRaw(id []byte, row parquet.Row, start, end uint32) e
 
 	b.index.Add(id)
 	b.bloom.Add(id)
-	b.meta.ObjectAdded(id, start, end)
+	b.meta.ObjectAdded(start, end)
 	b.currentBufferedTraces++
 	b.currentBufferedBytes += estimateMarshalledSizeFromParquetRow(row)
 

@@ -46,13 +46,18 @@ const (
 
 // These definition levels match the schema below
 const (
-	DefinitionLevelTrace                     = 0
-	DefinitionLevelServiceStats              = 1
-	DefinitionLevelResourceSpans             = 1
-	DefinitionLevelResourceAttrs             = 2
-	DefinitionLevelResourceSpansILSSpan      = 3
-	DefinitionLevelResourceSpansILSSpanAttrs = 4
-	DefinitionLevelResourceSpansILSSpanEvent = 4
+	DefinitionLevelTrace                          = 0
+	DefinitionLevelServiceStats                   = 1
+	DefinitionLevelResourceSpans                  = 1
+	DefinitionLevelResourceAttrs                  = 2
+	DefinitionLevelInstrumentationScope           = 2
+	DefinitionLevelInstrumentationScopeAttrs      = 3
+	DefinitionLevelResourceSpansILSSpan           = 3
+	DefinitionLevelResourceSpansILSSpanAttrs      = 4
+	DefinitionLevelResourceSpansILSSpanEvent      = 4
+	DefinitionLevelResourceSpansILSSpanLink       = 4
+	DefinitionLevelResourceSpansILSSpanEventAttrs = 5
+	DefinitionLevelResourceSpansILSSpanLinkAttrs  = 5
 
 	FieldResourceAttrKey       = "rs.list.element.Resource.Attrs.list.element.Key"
 	FieldResourceAttrVal       = "rs.list.element.Resource.Attrs.list.element.Value.list.element"
@@ -352,8 +357,8 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 	dedicatedResourceAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
 	dedicatedSpanAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
 
-	ot.ResourceSpans = extendReuseSlice(len(tr.Batches), ot.ResourceSpans)
-	for ib, b := range tr.Batches {
+	ot.ResourceSpans = extendReuseSlice(len(tr.ResourceSpans), ot.ResourceSpans)
+	for ib, b := range tr.ResourceSpans {
 		ob := &ot.ResourceSpans[ib]
 		// Clear out any existing fields in case they were set on the original
 		ob.Resource.DroppedAttributesCount = 0
@@ -737,7 +742,7 @@ func parquetToProtoEvents(parquetEvents []Event, spanStartTimeNano uint64) []*v1
 
 func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *tempopb.Trace {
 	protoTrace := &tempopb.Trace{}
-	protoTrace.Batches = make([]*v1_trace.ResourceSpans, 0, len(parquetTrace.ResourceSpans))
+	protoTrace.ResourceSpans = make([]*v1_trace.ResourceSpans, 0, len(parquetTrace.ResourceSpans))
 
 	// dedicated attribute column assignments
 	dedicatedResourceAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
@@ -879,7 +884,7 @@ func parquetTraceToTempopbTrace(meta *backend.BlockMeta, parquetTrace *Trace) *t
 
 			protoBatch.ScopeSpans = append(protoBatch.ScopeSpans, protoSS)
 		}
-		protoTrace.Batches = append(protoTrace.Batches, protoBatch)
+		protoTrace.ResourceSpans = append(protoTrace.ResourceSpans, protoBatch)
 	}
 
 	return protoTrace

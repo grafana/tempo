@@ -16,10 +16,10 @@ import (
 )
 
 // newTraceIDHandler creates a http.handler for trace by id requests
-func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
+func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, combiner func(int, string) combiner.Combiner, logger log.Logger) http.RoundTripper {
 	postSLOHook := traceByIDSLOPostHook(cfg.TraceByID.SLO)
 
-	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		tenant, err := user.ExtractOrgID(req.Context())
 		if err != nil {
 			level.Error(logger).Log("msg", "trace id: failed to extract tenant id", "err", err)
@@ -58,20 +58,19 @@ func newTraceIDHandler(cfg Config, o overrides.Interface, next pipeline.AsyncRou
 
 		// enforce all communication internal to Tempo to be in protobuf bytes
 		req.Header.Set(api.HeaderAccept, api.HeaderAcceptProtobuf)
-		prepareRequestForQueriers(req, tenant, req.RequestURI, nil)
 
 		level.Info(logger).Log(
 			"msg", "trace id request",
 			"tenant", tenant,
 			"path", req.URL.Path)
 
-		combiner := combiner.NewTraceByID(o.MaxBytesPerTrace(tenant), marshallingFormat)
-		rt := pipeline.NewHTTPCollector(next, combiner)
+		combiner := combiner(o.MaxBytesPerTrace(tenant), marshallingFormat)
+		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, combiner)
 
 		start := time.Now()
 		resp, err := rt.RoundTrip(req)
-
 		elapsed := time.Since(start)
+
 		postSLOHook(resp, tenant, 0, elapsed, err)
 
 		level.Info(logger).Log(

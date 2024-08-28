@@ -10,6 +10,7 @@ type Overrides interface {
 	MetricsGeneratorMaxActiveSeries(userID string) uint32
 	MetricsGeneratorCollectionInterval(userID string) time.Duration
 	MetricsGeneratorDisableCollection(userID string) bool
+	MetricsGeneratorGenerateNativeHistograms(userID string) overrides.HistogramMethod
 	MetricsGenerationTraceIDLabelName(userID string) string
 }
 

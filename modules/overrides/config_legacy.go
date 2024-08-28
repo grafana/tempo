@@ -28,6 +28,7 @@ func (c *Overrides) toLegacy() LegacyOverrides {
 		MetricsGeneratorMaxActiveSeries:                                             c.MetricsGenerator.MaxActiveSeries,
 		MetricsGeneratorCollectionInterval:                                          c.MetricsGenerator.CollectionInterval,
 		MetricsGeneratorDisableCollection:                                           c.MetricsGenerator.DisableCollection,
+		MetricsGeneratorGenerateNativeHistograms:                                    c.MetricsGenerator.GenerateNativeHistograms,
 		MetricsGeneratorTraceIDLabelName:                                            c.MetricsGenerator.TraceIDLabelName,
 		MetricsGeneratorRemoteWriteHeaders:                                          c.MetricsGenerator.RemoteWriteHeaders,
 		MetricsGeneratorForwarderQueueSize:                                          c.MetricsGenerator.Forwarder.QueueSize,
@@ -89,6 +90,7 @@ type LegacyOverrides struct {
 	MetricsGeneratorMaxActiveSeries                                             uint32                           `yaml:"metrics_generator_max_active_series" json:"metrics_generator_max_active_series"`
 	MetricsGeneratorCollectionInterval                                          time.Duration                    `yaml:"metrics_generator_collection_interval" json:"metrics_generator_collection_interval"`
 	MetricsGeneratorDisableCollection                                           bool                             `yaml:"metrics_generator_disable_collection" json:"metrics_generator_disable_collection"`
+	MetricsGeneratorGenerateNativeHistograms                                    HistogramMethod                  `yaml:"metrics_generator_generate_native_histograms" json:"metrics_generator_generate_native_histograms"`
 	MetricsGeneratorTraceIDLabelName                                            string                           `yaml:"metrics_generator_trace_id_label_name" json:"metrics_generator_trace_id_label_name"`
 	MetricsGeneratorForwarderQueueSize                                          int                              `yaml:"metrics_generator_forwarder_queue_size" json:"metrics_generator_forwarder_queue_size"`
 	MetricsGeneratorForwarderWorkers                                            int                              `yaml:"metrics_generator_forwarder_workers" json:"metrics_generator_forwarder_workers"`
@@ -115,8 +117,9 @@ type LegacyOverrides struct {
 	MetricsGeneratorIngestionSlack                                              time.Duration                    `yaml:"metrics_generator_ingestion_time_range_slack" json:"metrics_generator_ingestion_time_range_slack"`
 
 	// Compactor enforced limits.
-	BlockRetention   model.Duration `yaml:"block_retention" json:"block_retention"`
-	CompactionWindow model.Duration `yaml:"compaction_window" json:"compaction_window"`
+	BlockRetention     model.Duration `yaml:"block_retention" json:"block_retention"`
+	CompactionDisabled bool           `yaml:"compaction_disabled" json:"compaction_disabled"`
+	CompactionWindow   model.Duration `yaml:"compaction_window" json:"compaction_window"`
 
 	// Querier and Ingester enforced limits.
 	MaxBytesPerTagValuesQuery  int `yaml:"max_bytes_per_tag_values_query" json:"max_bytes_per_tag_values_query"`
@@ -153,18 +156,20 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			UnsafeQueryHints:           l.UnsafeQueryHints,
 		},
 		Compaction: CompactionOverrides{
-			BlockRetention:   l.BlockRetention,
-			CompactionWindow: l.CompactionWindow,
+			BlockRetention:     l.BlockRetention,
+			CompactionDisabled: l.CompactionDisabled,
+			CompactionWindow:   l.CompactionWindow,
 		},
 		MetricsGenerator: MetricsGeneratorOverrides{
-			RingSize:           l.MetricsGeneratorRingSize,
-			Processors:         l.MetricsGeneratorProcessors,
-			MaxActiveSeries:    l.MetricsGeneratorMaxActiveSeries,
-			CollectionInterval: l.MetricsGeneratorCollectionInterval,
-			DisableCollection:  l.MetricsGeneratorDisableCollection,
-			TraceIDLabelName:   l.MetricsGeneratorTraceIDLabelName,
-			IngestionSlack:     l.MetricsGeneratorIngestionSlack,
-			RemoteWriteHeaders: l.MetricsGeneratorRemoteWriteHeaders,
+			RingSize:                 l.MetricsGeneratorRingSize,
+			Processors:               l.MetricsGeneratorProcessors,
+			MaxActiveSeries:          l.MetricsGeneratorMaxActiveSeries,
+			CollectionInterval:       l.MetricsGeneratorCollectionInterval,
+			DisableCollection:        l.MetricsGeneratorDisableCollection,
+			TraceIDLabelName:         l.MetricsGeneratorTraceIDLabelName,
+			IngestionSlack:           l.MetricsGeneratorIngestionSlack,
+			RemoteWriteHeaders:       l.MetricsGeneratorRemoteWriteHeaders,
+			GenerateNativeHistograms: l.MetricsGeneratorGenerateNativeHistograms,
 			Forwarder: ForwarderOverrides{
 				QueueSize: l.MetricsGeneratorForwarderQueueSize,
 				Workers:   l.MetricsGeneratorForwarderWorkers,

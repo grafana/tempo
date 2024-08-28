@@ -58,6 +58,8 @@ spec:
           name: ingester-data
         - mountPath: /overrides
           name: overrides
+      securityContext:
+        fsGroup: 10001
       terminationGracePeriodSeconds: 1200
       volumes:
       - configMap:

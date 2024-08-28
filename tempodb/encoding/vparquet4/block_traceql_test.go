@@ -4,24 +4,25 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"math"
 	"math/rand"
 	"os"
 	"path"
+	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/pkg/util/traceidboundary"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -32,6 +33,7 @@ func TestOne(t *testing.T) {
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
 	ctx := context.Background()
 	q := `{ resource.region != nil && resource.service.name = "bar" }`
+	// q := `{ resource.str-array =~ "value.*" }`
 	req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
 
 	req.StartTimeUnixNanos = uint64(1000 * time.Second)
@@ -146,8 +148,23 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		// Span dedicated attributes
 		{"span.dedicated.span.2", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = "dedicated-span-attr-value-2"}`)},
 		{"span.dedicated.span.4", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 = "dedicated-span-attr-value-4"}`)},
+		// Arrays
+		{"resource.str-array", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.str-array = "value-three"}`)},
+		{"resource.int-array", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.int-array = 11}`)},
+		{"span.str-array", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.str-array = "value-two"}`)},
+		{"span.int-array", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.int-array = 222}`)},
 		// Events
 		{"event:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:name = "e1"}`)},
+		{"event:timeSinceStart", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:timeSinceStart > 2ms}`)},
+		{"event.message", traceql.MustExtractFetchSpansRequestWithMetadata(`{event.message =~ "exception"}`)},
+		// Links
+		{"link:spanID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:spanID = "1234567890abcdef"}`)},
+		{"link:traceID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:traceID = "1234567890abcdef1234567890abcdef"}`)},
+		{"link.opentracing.ref_type", traceql.MustExtractFetchSpansRequestWithMetadata(`{link.opentracing.ref_type = "child-of"}`)},
+		// Instrumentation Scope
+		{"instrumentation:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation:name = "scope-1"}`)},
+		{"instrumentation:version", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation:version = "version-1"}`)},
+		{"instrumentation.attr-str", traceql.MustExtractFetchSpansRequestWithMetadata(`{instrumentation.scope-attr-str = "scope-attr-1"}`)},
 		// Basic data types and operations
 		{".float = 456.78", traceql.MustExtractFetchSpansRequestWithMetadata(`{.float = 456.78}`)},             // Float ==
 		{".float != 456.79", traceql.MustExtractFetchSpansRequestWithMetadata(`{.float != 456.79}`)},           // Float !=
@@ -182,13 +199,11 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 			parse(t, `{.foo = "def"}`),
 		)},
 		{"Multiple conditions on same well-known attribute, matches either", makeReq(
-			//
 			parse(t, `{.`+LabelHTTPStatusCode+` = 500}`),
 			parse(t, `{.`+LabelHTTPStatusCode+` > 500}`),
 		)},
 		{
 			"Mix of duration with other conditions", makeReq(
-				//
 				parse(t, `{`+LabelName+` = "hello"}`),   // Match
 				parse(t, `{`+LabelDuration+` < 100s }`), // No match
 			),
@@ -272,6 +287,9 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		{"Intrinsic: statusMessage", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + "statusMessage" + ` = "abc"}`)},
 		{"Intrinsic: name", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + ` = "nothello"}`)},
 		{"Intrinsic: kind", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelKind + ` = producer }`)},
+		{"Intrinsic: event:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:name = "x2"}`)},
+		{"Intrinsic: link:spanID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:spanID = "ffffffffffffffff"}`)},
+		{"Intrinsic: link:traceID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:traceID = "ffffffffffffffffffffffffffffffff"}`)},
 		{"Well-known attribute: service.name not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelServiceName + ` = "notmyservice"}`)},
 		{"Well-known attribute: http.status_code not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelHTTPStatusCode + ` = 200}`)},
 		{"Well-known attribute: http.status_code not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelHTTPStatusCode + ` > 600}`)},
@@ -380,6 +398,64 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	}
 }
 
+func TestBackendBlockSearchTraceQLEvents(t *testing.T) {
+	numTraces := 50
+	traces := make([]*Trace, 0, numTraces)
+	wantTraceIdx := rand.Intn(numTraces)
+	wantTraceID := test.ValidTraceID(nil)
+
+	for i := 0; i < numTraces; i++ {
+		if i == wantTraceIdx {
+			// this trace has one span with two identical events
+			traces = append(traces, fullyPopulatedTestTrace(wantTraceID))
+			continue
+		}
+
+		id := test.ValidTraceID(nil)
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+	}
+
+	b := makeBackendBlockWithTraces(t, traces)
+	ctx := context.Background()
+
+	requests := []string{
+		`{event.message =~ "exception"}`,
+		`{event:name = "e1"}`,
+		`{event:timeSinceStart > 2ms}`,
+	}
+
+	for _, request := range requests {
+		t.Run(request, func(t *testing.T) {
+			req := traceql.MustExtractFetchSpansRequestWithMetadata(request)
+			if req.SecondPass == nil {
+				req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
+				req.SecondPassConditions = traceql.SearchMetaConditions()
+			}
+
+			resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+			require.NoError(t, err, "search request:%v", req)
+
+			found := false
+			count := 0
+			for {
+				spanSet, err := resp.Results.Next(ctx)
+				require.NoError(t, err, "search request:%v", req)
+				if spanSet == nil {
+					break
+				}
+				found = bytes.Equal(spanSet.TraceID, wantTraceID)
+				if found {
+					count++
+				}
+			}
+			require.True(t, found, "search request:%v", req)
+			// two events in the same span should still return just one span
+			require.Equal(t, 1, count, "search request:%v", req)
+		})
+	}
+}
+
 func makeReq(conditions ...traceql.Condition) traceql.FetchSpansRequest {
 	return traceql.FetchSpansRequest{
 		Conditions: conditions,
@@ -398,14 +474,17 @@ func parse(t *testing.T, q string) traceql.Condition {
 }
 
 func fullyPopulatedTestTrace(id common.ID) *Trace {
+	linkTraceID, _ := util.HexStringToTraceID("1234567890abcdef1234567890abcdef")
+	linkSpanID, _ := util.HexStringToSpanID("1234567890abcdef")
+
 	links := []Link{
 		{
-			TraceID:                []byte{0x01},
-			SpanID:                 []byte{0x02},
+			TraceID:                linkTraceID,
+			SpanID:                 linkSpanID,
 			TraceState:             "state",
 			DroppedAttributesCount: 3,
 			Attrs: []Attribute{
-				attr("link-attr-key-1", "link-value-1"),
+				attr("opentracing.ref_type", "child-of"),
 			},
 		},
 	}
@@ -415,6 +494,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 
 	return &Trace{
 		TraceID:           test.ValidTraceID(id),
+		TraceIDText:       util.TraceIDToHexString(id),
 		StartTimeUnixNano: uint64(1000 * time.Second),
 		EndTimeUnixNano:   uint64(2000 * time.Second),
 		DurationNano:      uint64((100 * time.Millisecond).Nanoseconds()),
@@ -444,7 +524,8 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 					K8sContainerName: ptr("k8scontainer"),
 					Attrs: []Attribute{
 						attr("foo", "abc"),
-						attr("str-array", []string{"value-one", "value-two"}),
+						attr("str-array", []string{"value-one", "value-two", "value-three", "value-four"}),
+						attr("int-array", []int64{11, 22, 33}),
 						attr(LabelServiceName, 123), // Different type than dedicated column
 						// Unsupported attributes
 						{Key: "unsupported-mixed-array", ValueUnsupported: &mixedArrayAttrValue, IsArray: false},
@@ -493,8 +574,8 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 									attr("bar", 123),
 									attr("float", 456.78),
 									attr("bool", false),
-									attr("string-array", []string{"value-one"}),
-									attr("int-array", []int64{11, 22}),
+									attr("str-array", []string{"value-one", "value-two"}),
+									attr("int-array", []int64{111, 222, 333, 444}),
 									attr("double-array", []float64{1.1, 2.2, 3.3}),
 									attr("bool-array", []bool{true, false, true, false}),
 									// Edge-cases
@@ -507,14 +588,24 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 								},
 								Events: []Event{
 									{
-										TimeSinceStartNano: 1,
+										TimeSinceStartNano: 3 * 1000 * 1000, // 3ms
 										Name:               "e1",
 										Attrs: []Attribute{
 											attr("event-attr-key-1", "event-value-1"),
 											attr("event-attr-key-2", "event-value-2"),
+											attr("message", "exception"),
 										},
 									},
 									{TimeSinceStartNano: 2, Name: "e2", Attrs: []Attribute{}},
+									{
+										TimeSinceStartNano: 3 * 1000 * 1000, // 3ms
+										Name:               "e1",
+										Attrs: []Attribute{
+											attr("event-attr-key-1", "event-value-1"),
+											attr("event-attr-key-2", "event-value-2"),
+											attr("message", "exception"),
+										},
+									},
 								},
 								Links: links,
 								DedicatedAttributes: DedicatedAttributes{
@@ -557,6 +648,9 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 						Scope: InstrumentationScope{
 							Name:    "scope-2",
 							Version: "version-2",
+							Attrs: []Attribute{
+								attr("scope-attr-str", "scope-attr-2"),
+							},
 						},
 						Spans: []Span{
 							{
@@ -592,6 +686,232 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 	}
 }
 
+func TestBackendBlockSelectAll(t *testing.T) {
+	var (
+		ctx          = context.Background()
+		numTraces    = 250
+		traces       = make([]*Trace, 0, numTraces)
+		wantTraceIdx = rand.Intn(numTraces)
+		wantTraceID  = test.ValidTraceID(nil)
+		wantTrace    = fullyPopulatedTestTrace(wantTraceID)
+		dc           = test.MakeDedicatedColumns()
+		dcm          = dedicatedColumnsToColumnMapping(dc)
+	)
+
+	// TODO - This strips unsupported attributes types for now. Revisit when
+	// add support for arrays/kvlists in the fetch layer.
+	trimForSelectAll(wantTrace)
+
+	for i := 0; i < numTraces; i++ {
+		if i == wantTraceIdx {
+			traces = append(traces, wantTrace)
+			continue
+		}
+
+		id := test.ValidTraceID(nil)
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+	}
+
+	b := makeBackendBlockWithTraces(t, traces)
+
+	_, _, _, req, err := traceql.NewEngine().Compile("{}")
+	require.NoError(t, err)
+	req.SecondPass = func(inSS *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{inSS}, nil }
+	req.SecondPassSelectAll = true
+
+	resp, err := b.Fetch(ctx, *req, common.DefaultSearchOptions())
+	require.NoError(t, err)
+	defer resp.Results.Close()
+
+	// This is a dump of all spans in the fully-populated test trace
+	wantSS := flattenForSelectAll(wantTrace, dcm)
+
+	for {
+		// Seek to our desired trace
+		ss, err := resp.Results.Next(ctx)
+		require.NoError(t, err)
+		if ss == nil {
+			break
+		}
+		if !bytes.Equal(ss.TraceID, wantTraceID) {
+			continue
+		}
+
+		// Cleanup found data for comparison
+		// equal will fail on the rownum mismatches. this is an internal detail to the
+		// fetch layer. just wipe them out here
+		ss.ReleaseFn = nil
+		ss.ServiceStats = nil
+		for _, sp := range ss.Spans {
+			s := sp.(*span)
+			s.cbSpanset = nil
+			s.cbSpansetFinal = false
+			s.rowNum = parquetquery.RowNumber{}
+			s.startTimeUnixNanos = 0 // selectall doesn't imply start time
+			sortAttrs(s.traceAttrs)
+			sortAttrs(s.resourceAttrs)
+			sortAttrs(s.spanAttrs)
+			sortAttrs(s.instrumentationAttrs)
+		}
+
+		require.Equal(t, wantSS, ss)
+	}
+}
+
+func sortAttrs(attrs []attrVal) {
+	sort.SliceStable(attrs, func(i, j int) bool {
+		is := attrs[i].a.String()
+		js := attrs[j].a.String()
+		if is == js {
+			// Compare by value
+			return attrs[i].s.String() < attrs[j].s.String()
+		}
+		return is < js
+	})
+}
+
+func trimArrayAttrs(in []Attribute) []Attribute {
+	out := []Attribute{}
+	for _, a := range in {
+		if a.IsArray || a.ValueUnsupported != nil {
+			continue
+		}
+		out = append(out, a)
+	}
+	return out
+}
+
+func trimForSelectAll(tr *Trace) {
+	for i, rs := range tr.ResourceSpans {
+		tr.ResourceSpans[i].Resource.Attrs = trimArrayAttrs(rs.Resource.Attrs)
+		for j, ss := range rs.ScopeSpans {
+			for k, s := range ss.Spans {
+				tr.ResourceSpans[i].ScopeSpans[j].Spans[k].Attrs = trimArrayAttrs(s.Attrs)
+			}
+		}
+	}
+}
+
+func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset {
+	var traceAttrs []attrVal
+	newSS := &traceql.Spanset{
+		RootServiceName: tr.RootServiceName,
+		RootSpanName:    tr.RootSpanName,
+		TraceID:         tr.TraceID,
+		DurationNanos:   tr.DurationNano,
+	}
+	traceAttrs = append(traceAttrs, attrVal{traceql.IntrinsicTraceIDAttribute, traceql.NewStaticString(tr.TraceIDText)})
+	traceAttrs = append(traceAttrs, attrVal{traceql.IntrinsicTraceDurationAttribute, traceql.NewStaticDuration(time.Duration(tr.DurationNano))})
+	traceAttrs = append(traceAttrs, attrVal{traceql.IntrinsicTraceRootServiceAttribute, traceql.NewStaticString(tr.RootServiceName)})
+	traceAttrs = append(traceAttrs, attrVal{traceql.IntrinsicTraceRootSpanAttribute, traceql.NewStaticString(tr.RootSpanName)})
+	sortAttrs(traceAttrs)
+
+	for _, rs := range tr.ResourceSpans {
+		var rsAttrs []attrVal
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelServiceName), traceql.NewStaticString(rs.Resource.ServiceName)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelCluster), traceql.NewStaticString(*rs.Resource.Cluster)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelNamespace), traceql.NewStaticString(*rs.Resource.Namespace)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelPod), traceql.NewStaticString(*rs.Resource.Pod)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelContainer), traceql.NewStaticString(*rs.Resource.Container)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sClusterName), traceql.NewStaticString(*rs.Resource.K8sClusterName)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sNamespaceName), traceql.NewStaticString(*rs.Resource.K8sNamespaceName)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sPodName), traceql.NewStaticString(*rs.Resource.K8sPodName)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sContainerName), traceql.NewStaticString(*rs.Resource.K8sContainerName)})
+
+		for _, a := range parquetToProtoAttrs(rs.Resource.Attrs) {
+			if arr := a.Value.GetArrayValue(); arr != nil {
+				for _, v := range arr.Values {
+					rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, a.Key), traceql.StaticFromAnyValue(v)})
+				}
+				continue
+			}
+			rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, a.Key), traceql.StaticFromAnyValue(a.Value)})
+		}
+
+		dcm.forEach(func(attr string, column dedicatedColumn) {
+			if strings.Contains(column.ColumnPath, "Resource") {
+				v := column.readValue(&rs.Resource.DedicatedAttributes)
+				if v == nil {
+					return
+				}
+				a := traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, attr)
+				s := traceql.StaticFromAnyValue(v)
+				rsAttrs = append(rsAttrs, attrVal{a, s})
+			}
+		})
+
+		sortAttrs(rsAttrs)
+
+		for _, ss := range rs.ScopeSpans {
+			var instrumentationAttrs []attrVal
+			instrumentationAttrs = append(instrumentationAttrs, attrVal{traceql.IntrinsicInstrumentationNameAttribute, traceql.NewStaticString(ss.Scope.Name)})
+			instrumentationAttrs = append(instrumentationAttrs, attrVal{traceql.IntrinsicInstrumentationVersionAttribute, traceql.NewStaticString(ss.Scope.Version)})
+			for _, a := range parquetToProtoAttrs(ss.Scope.Attrs) {
+				if arr := a.Value.GetArrayValue(); arr != nil {
+					for _, v := range arr.Values {
+						instrumentationAttrs = append(instrumentationAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, a.Key), traceql.StaticFromAnyValue(v)})
+					}
+					continue
+				}
+				instrumentationAttrs = append(instrumentationAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, a.Key), traceql.StaticFromAnyValue(a.Value)})
+			}
+			sortAttrs(instrumentationAttrs)
+
+			for _, s := range ss.Spans {
+
+				newS := &span{}
+				// newS.id = s.SpanID  SpanID isn't implied by SelectAll
+				// newS.startTimeUnixNanos = s.StartTimeUnixNano Span StartTime isn't implied by selectAll
+				newS.durationNanos = s.DurationNano
+				newS.setTraceAttrs(traceAttrs)
+				newS.setResourceAttrs(rsAttrs)
+				newS.setInstrumentationAttrs(instrumentationAttrs)
+				newS.addSpanAttr(traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(s.DurationNano)))
+				newS.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(otlpKindToTraceqlKind(uint64(s.Kind))))
+				newS.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(s.Name))
+				newS.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(otlpStatusToTraceqlStatus(uint64(s.StatusCode))))
+				newS.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(s.StatusMessage))
+				if s.HttpStatusCode != nil {
+					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPStatusCode), traceql.NewStaticInt(int(*s.HttpStatusCode)))
+				}
+				if s.HttpMethod != nil {
+					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPMethod), traceql.NewStaticString(*s.HttpMethod))
+				}
+				if s.HttpUrl != nil {
+					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPUrl), traceql.NewStaticString(*s.HttpUrl))
+				}
+
+				dcm.forEach(func(attr string, column dedicatedColumn) {
+					if strings.Contains(column.ColumnPath, "Span") {
+						v := column.readValue(&s.DedicatedAttributes)
+						if v == nil {
+							return
+						}
+						a := traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, attr)
+						s := traceql.StaticFromAnyValue(v)
+						newS.addSpanAttr(a, s)
+					}
+				})
+
+				for _, a := range parquetToProtoAttrs(s.Attrs) {
+					if arr := a.Value.GetArrayValue(); arr != nil {
+						for _, v := range arr.Values {
+							newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, a.Key), traceql.StaticFromAnyValue(v))
+						}
+						continue
+					}
+					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, a.Key), traceql.StaticFromAnyValue(a.Value))
+				}
+
+				sortAttrs(newS.spanAttrs)
+				newSS.Spans = append(newSS.Spans, newS)
+			}
+		}
+	}
+	return newSS
+}
+
 func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	testCases := []struct {
 		name  string
@@ -609,6 +929,10 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `tempo-gateway` }"},
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `does-not-exit-6c2408325a45` }"},
 
+		// trace
+		{"traceOrMatch", "{ rootServiceName = `tempo-gateway` && (status = error || span.http.status_code = 500)}"},
+		{"traceOrNoMatch", "{ rootServiceName = `doesntexist` && (status = error || span.http.status_code = 500)}"},
+
 		// mixed
 		{"mixedValNoMatch", "{ .bloom = `does-not-exit-6c2408325a45` }"},
 		{"mixedValMixedMatchAnd", "{ resource.foo = `bar` && name = `gcs.ReadRange` }"},
@@ -624,11 +948,13 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	ctx := context.TODO()
 	tenantID := "1"
 	// blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-	blockID := uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
+	// blockID := uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
+	blockID := uuid.MustParse("257e3a56-224a-4ebe-9696-1b304f456ac2")
 
 	r, _, _, err := local.New(&local.Config{
 		// Path: path.Join("/Users/marty/src/tmp"),
-		Path: path.Join("/Users/mapno/workspace/testblock"),
+		// Path: path.Join("/Users/mapno/workspace/testblock"),
+		Path: path.Join("/Users/suraj/wd/grafana/testblock"),
 	})
 	require.NoError(b, err)
 
@@ -674,16 +1000,18 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 		query   string
 		groupby string
 	}{
-		//{"{ resource.service.name = `gme-ingester` }", "resource.cluster"},
+		// {"{ resource.service.name = `gme-ingester` }", "resource.cluster"},
 		{"{}", "name"},
 	}
 
 	ctx := context.TODO()
 	tenantID := "1"
-	blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+	// blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
+	blockID := uuid.MustParse("257e3a56-224a-4ebe-9696-1b304f456ac2")
 
 	r, _, _, err := local.New(&local.Config{
-		Path: path.Join("/Users/marty/src/tmp/"),
+		// Path: path.Join("/Users/marty/src/tmp/"),
+		Path: path.Join("/Users/suraj/wd/grafana/testblock"),
 	})
 	require.NoError(b, err)
 
@@ -731,11 +1059,13 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	var (
 		ctx      = context.TODO()
 		e        = traceql.NewEngine()
-		opts     = common.DefaultSearchOptions()
 		tenantID = "1"
 		// blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-		blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
-		path    = "/Users/marty/src/tmp/"
+		// blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
+		blockID = uuid.MustParse("257e3a56-224a-4ebe-9696-1b304f456ac2")
+		// path    = "/Users/marty/src/tmp/"
+		// path    = "/Users/mapno/workspace/testblock"
+		path = "/Users/suraj/wd/grafana/testblock"
 	)
 
 	r, _, _, err := local.New(&local.Config{
@@ -748,6 +1078,8 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	require.NoError(b, err)
 	require.Equal(b, VersionString, meta.Version)
 
+	opts := common.DefaultSearchOptions()
+	opts.TotalPages = 10
 	block := newBackendBlock(meta, rr)
 	_, _, err = block.openForSearch(ctx, opts)
 	require.NoError(b, err)
@@ -769,15 +1101,13 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 					}
 
 					req := &tempopb.QueryRangeRequest{
-						Query:      tc,
-						Step:       uint64(time.Minute),
-						Start:      uint64(st.UnixNano()),
-						End:        uint64(end.UnixNano()),
-						ShardID:    30,
-						ShardCount: 65,
+						Query: tc,
+						Step:  uint64(time.Minute),
+						Start: uint64(st.UnixNano()),
+						End:   uint64(end.UnixNano()),
 					}
 
-					eval, err := e.CompileMetricsQueryRange(req, false, 0, false)
+					eval, err := e.CompileMetricsQueryRange(req, 2, 0, false)
 					require.NoError(b, err)
 
 					b.ResetTimer()
@@ -796,19 +1126,36 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	}
 }
 
-func TestTraceIDShardingQuality(t *testing.T) {
-	// Use debug=1 go test -v -run=TestTraceIDShardingQuality
+// TestBackendBlockQueryRange is the `TestOne` of metric queries.
+// It's skipped because it depends on a local block, like benchmarks
+//
+// You also need to manually print the iterator in `backendBlock.Fetch`,
+// because there is no access to the iterator in the test. Sad.
+func TestBackendBlockQueryRange(t *testing.T) {
 	if os.Getenv("debug") != "1" {
 		t.Skip()
 	}
 
+	testCases := []string{
+		"{} | rate()",
+		"{} | rate() by (name)",
+		"{} | rate() by (resource.service.name)",
+		"{} | rate() by (span.http.url)", // High cardinality attribute
+		"{resource.service.name=`tempo-ingester`} | rate()",
+		"{status=unset} | rate()",
+	}
+
+	const (
+		tenantID  = "1"
+		queryHint = "with(exemplars=true)"
+	)
+
 	var (
-		ctx      = context.TODO()
-		opts     = common.DefaultSearchOptions()
-		tenantID = "1"
-		// blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-		blockID = uuid.MustParse("18364616-f80d-45a6-b2a3-cb63e203edff")
-		path    = "/Users/marty/src/tmp/"
+		ctx     = context.TODO()
+		e       = traceql.NewEngine()
+		opts    = common.DefaultSearchOptions()
+		blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
+		path    = path.Join("/Users/mapno/workspace/testblock")
 	)
 
 	r, _, _, err := local.New(&local.Config{
@@ -822,94 +1169,45 @@ func TestTraceIDShardingQuality(t *testing.T) {
 	require.Equal(t, VersionString, meta.Version)
 
 	block := newBackendBlock(meta, rr)
-	pf, _, err := block.openForSearch(ctx, opts)
+	opts.TotalPages = 10
+	_, _, err = block.openForSearch(ctx, opts)
 	require.NoError(t, err)
-
-	fetchReq := traceql.FetchSpansRequest{
-		AllConditions: true,
-		Conditions: []traceql.Condition{
-			{Attribute: traceql.IntrinsicTraceIDAttribute},
-		},
-	}
 
 	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 		return block.Fetch(ctx, req, opts)
 	})
 
-	summarizeCounts := func(prefix string, cs []int) {
-		count := len(cs)
-		sum := 0
-		l := math.MaxInt
-		h := math.MinInt
-		for _, v := range cs {
-			sum += v
-			l = min(l, v)
-			h = max(h, v)
-		}
-		fmt.Printf("Shards:%d %s: Min:%d Max:%d Total:%d Avg:%.1f Quality:%.1f %%\n",
-			count, prefix, l, h, sum, float64(sum)/float64(count), float64(l)/float64(h)*100.0)
-	}
+	for _, tc := range testCases {
+		t.Run(tc, func(t *testing.T) {
+			st := meta.StartTime
+			end := st.Add(time.Duration(5) * time.Minute)
 
-	shardsToTest := []int{10, 100, 1000}
-
-	for _, shards := range shardsToTest {
-		t.Run(strconv.Itoa(shards), func(t *testing.T) {
-			var (
-				rgCounts = make([]int, shards)
-				trCounts = make([]int, shards)
-				pairs    = make([][]traceidboundary.Boundary, shards)
-				funcs    = make([]func([]byte) bool, shards)
-			)
-
-			for s := 1; s <= shards; s++ {
-				pairs[s-1], _ = traceidboundary.Pairs(uint32(s), uint32(shards))
-				funcs[s-1], _ = traceidboundary.Funcs(uint32(s), uint32(shards))
-
-				rgs, err := block.rowGroupsForShard(ctx, pf, *meta, uint32(s), uint32(shards))
-				require.NoError(t, err)
-				rgCounts[s-1] = len(rgs)
+			if end.After(meta.EndTime) {
+				t.SkipNow()
+				return
 			}
 
-			resp, err := f.Fetch(ctx, fetchReq)
+			req := &tempopb.QueryRangeRequest{
+				Query: fmt.Sprintf("%s %s", tc, queryHint),
+				Step:  uint64(time.Minute),
+				Start: uint64(st.UnixNano()),
+				End:   uint64(end.UnixNano()),
+			}
+
+			eval, err := e.CompileMetricsQueryRange(req, 1, 0, false)
 			require.NoError(t, err)
-			defer resp.Results.Close()
 
-			for {
-				ss, err := resp.Results.Next(ctx)
-				require.NoError(t, err)
+			require.NoError(t, eval.Do(ctx, f, uint64(block.meta.StartTime.UnixNano()), uint64(block.meta.EndTime.UnixNano())))
 
-				if ss == nil {
-					break
+			ss := eval.Results()
+			require.NotNil(t, ss)
+
+			for _, s := range ss {
+				if s.Exemplars != nil && len(s.Exemplars) > 0 {
+					fmt.Println("series", s.Labels)
+					fmt.Println("Exemplars", s.Exemplars)
 				}
-
-				// Match the trace ID against every shard
-				matched := []int{}
-				for i := 0; i < shards; i++ {
-					if funcs[i](ss.TraceID) {
-						trCounts[i]++
-						matched = append(matched, i)
-					}
-				}
-
-				// Check for missing or overlapping ranges
-				if len(matched) > 1 {
-					fmt.Printf("TraceID %X matched %d shards\n", ss.TraceID, len(matched))
-					for _, s := range matched {
-						for i, b := range pairs[s] {
-							fmt.Printf("  Bucket %d %d: %X %X\n", s, i, b.Min, b.Max)
-						}
-					}
-					panic("trace matched multiple shards")
-				} else if len(matched) == 0 {
-					fmt.Println("TraceID not matched by any shard:", ss.TraceID)
-					panic("trace id not matched by any shard")
-				}
-
-				ss.Release()
 			}
-
-			summarizeCounts("Traces", trCounts)
-			summarizeCounts("RowGroups", rgCounts)
 		})
 	}
 }

@@ -161,7 +161,7 @@ func (a *walBlock) Append(id common.ID, b []byte, start, end uint32) error {
 		return err
 	}
 	start, end = a.adjustTimeRangeForSlack(start, end, 0)
-	a.meta.ObjectAdded(id, start, end)
+	a.meta.ObjectAdded(start, end)
 	return nil
 }
 
@@ -287,16 +287,16 @@ func (a *walBlock) Search(context.Context, *tempopb.SearchRequest, common.Search
 }
 
 // Search implements common.Searcher
-func (a *walBlock) SearchTags(context.Context, traceql.AttributeScope, common.TagCallback, common.SearchOptions) error {
+func (a *walBlock) SearchTags(context.Context, traceql.AttributeScope, common.TagsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
 // SearchTagValues implements common.Searcher
-func (a *walBlock) SearchTagValues(context.Context, string, common.TagCallback, common.SearchOptions) error {
+func (a *walBlock) SearchTagValues(context.Context, string, common.TagValuesCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
-func (a *walBlock) SearchTagValuesV2(context.Context, traceql.Attribute, common.TagCallbackV2, common.SearchOptions) error {
+func (a *walBlock) SearchTagValuesV2(context.Context, traceql.Attribute, common.TagValuesCallbackV2, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
@@ -307,6 +307,11 @@ func (a *walBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.Sear
 
 // FetchTagValues implements traceql.Searcher
 func (a *walBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.SearchOptions) error {
+	return common.ErrUnsupported
+}
+
+// FetchTagNames implements traceql.Searcher
+func (a *walBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
@@ -362,7 +367,7 @@ func (a *walBlock) adjustTimeRangeForSlack(start, end uint32, additionalStartSla
 		warn = true
 		start = uint32(now.Unix())
 	}
-	if end > endOfRange {
+	if end > endOfRange || end < start {
 		warn = true
 		end = uint32(now.Unix())
 	}

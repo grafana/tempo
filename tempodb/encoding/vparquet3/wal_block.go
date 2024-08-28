@@ -135,7 +135,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 				switch e.Key {
 				case columnPathTraceID:
 					traceID := e.Value.ByteArray()
-					b.meta.ObjectAdded(traceID, 0, 0)
+					b.meta.ObjectAdded(0, 0)
 					page.ids.Set(traceID, int64(match.RowNumber[0])) // Save rownumber for the trace ID
 				}
 			}
@@ -335,8 +335,11 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 	if !connected {
 		dataquality.WarnDisconnectedTrace(b.meta.TenantID, dataquality.PhaseTraceFlushedToWal)
 	}
+	if b.buffer != nil && b.buffer.RootSpanName == "" {
+		dataquality.WarnRootlessTrace(b.meta.TenantID, dataquality.PhaseTraceFlushedToWal)
+	}
 
-	start, end = b.adjustTimeRangeForSlack(start, end, 0)
+	start, end = b.adjustTimeRangeForSlack(start, end)
 
 	// add to current
 	_, err := b.writer.Write([]*Trace{b.buffer})
@@ -344,7 +347,7 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 		return fmt.Errorf("error writing row: %w", err)
 	}
 
-	b.meta.ObjectAdded(id, start, end)
+	b.meta.ObjectAdded(start, end)
 	b.ids.Set(id, int64(b.ids.Len())) // Next row number
 
 	b.unflushedSize += int64(estimateMarshalledSizeFromTrace(b.buffer))
@@ -352,9 +355,9 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 	return nil
 }
 
-func (b *walBlock) adjustTimeRangeForSlack(start, end uint32, additionalStartSlack time.Duration) (uint32, uint32) {
+func (b *walBlock) adjustTimeRangeForSlack(start, end uint32) (uint32, uint32) {
 	now := time.Now()
-	startOfRange := uint32(now.Add(-b.ingestionSlack).Add(-additionalStartSlack).Unix())
+	startOfRange := uint32(now.Add(-b.ingestionSlack).Unix())
 	endOfRange := uint32(now.Add(b.ingestionSlack).Unix())
 
 	warn := false
@@ -362,7 +365,7 @@ func (b *walBlock) adjustTimeRangeForSlack(start, end uint32, additionalStartSla
 		warn = true
 		start = uint32(now.Unix())
 	}
-	if end > endOfRange {
+	if end > endOfRange || end < start {
 		warn = true
 		end = uint32(now.Unix())
 	}
@@ -542,7 +545,7 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.
 		}
 	}
 
-	combiner := trace.NewCombiner(opts.MaxBytes)
+	combiner := trace.NewCombiner(opts.MaxBytes, false)
 	for i, tr := range trs {
 		_, err := combiner.ConsumeWithFinal(tr, i == len(trs)-1)
 		if err != nil {
@@ -584,7 +587,7 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, _ com
 	return results, nil
 }
 
-func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagCallback, _ common.SearchOptions) error {
+func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagsCallback, _ common.SearchOptions) error {
 	for i, blockFlush := range b.readFlushes() {
 		file, err := blockFlush.file(ctx)
 		if err != nil {
@@ -603,7 +606,7 @@ func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope,
 	return nil
 }
 
-func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
+func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagValuesCallback, opts common.SearchOptions) error {
 	att, ok := translateTagToAttribute[tag]
 	if !ok {
 		att = traceql.NewAttribute(tag)
@@ -618,7 +621,7 @@ func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.Ta
 	return b.SearchTagValuesV2(ctx, att, cb2, opts)
 }
 
-func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, _ common.SearchOptions) error {
+func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, _ common.SearchOptions) error {
 	for i, blockFlush := range b.readFlushes() {
 		file, err := blockFlush.file(ctx)
 		if err != nil {
@@ -694,7 +697,7 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 	}
 
 	if len(req.Conditions) <= 1 || mingledConditions { // Last check. No conditions, use old path. It's much faster.
-		return b.SearchTagValuesV2(ctx, req.TagName, common.TagCallbackV2(cb), common.DefaultSearchOptions())
+		return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), common.DefaultSearchOptions())
 	}
 
 	blockFlushes := b.readFlushes()
@@ -705,9 +708,12 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 		}
 		defer file.Close()
 
-		pf := file.parquetFile
+		tr := tagRequest{
+			conditions: req.Conditions,
+			tag:        req.TagName,
+		}
 
-		iter, err := autocompleteIter(ctx, req, pf, opts, b.meta.DedicatedColumns)
+		iter, err := autocompleteIter(ctx, tr, file.parquetFile, opts, b.meta.DedicatedColumns)
 		if err != nil {
 			return fmt.Errorf("creating fetch iter: %w", err)
 		}
@@ -732,6 +738,68 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 			}
 		}
 		iter.Close()
+	}
+
+	// combine iters?
+	return nil
+}
+
+func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, opts common.SearchOptions) error {
+	err := checkConditions(req.Conditions)
+	if err != nil {
+		return fmt.Errorf("conditions invalid: %w", err)
+	}
+
+	mingledConditions, _, _, _, err := categorizeConditions(req.Conditions)
+	if err != nil {
+		return err
+	}
+
+	if len(req.Conditions) < 1 || mingledConditions {
+		return b.SearchTags(ctx, req.Scope, func(t string, scope traceql.AttributeScope) {
+			cb(t, scope)
+		}, opts)
+	}
+
+	blockFlushes := b.readFlushes()
+	for _, page := range blockFlushes {
+		file, err := page.file(ctx)
+		if err != nil {
+			return fmt.Errorf("error opening file %s: %w", page.path, err)
+		}
+		defer file.Close()
+
+		tr := tagRequest{
+			conditions: req.Conditions,
+			scope:      req.Scope,
+		}
+
+		iter, err := autocompleteIter(ctx, tr, file.parquetFile, opts, b.meta.DedicatedColumns)
+		if err != nil {
+			return fmt.Errorf("creating fetch iter: %w", err)
+		}
+
+		for {
+			// Exhaust the iterator
+			res, err := iter.Next()
+			if err != nil {
+				iter.Close()
+				return err
+			}
+			if res == nil {
+				break
+			}
+			for _, oe := range res.OtherEntries {
+				if cb(oe.Key, oe.Value.(traceql.AttributeScope)) {
+					iter.Close()
+					return nil // We have enough values
+				}
+			}
+		}
+		iter.Close()
+
+		// add well known
+		tagNamesForSpecialColumns(req.Scope, file.parquetFile, b.meta.DedicatedColumns, cb)
 	}
 
 	// combine iters?

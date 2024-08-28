@@ -17,7 +17,7 @@ import (
 	"github.com/grafana/dskit/spanprofiler"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
-	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
+	ver "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/common/version"
 	"go.opentelemetry.io/contrib/exporters/autoexport"
 	"go.opentelemetry.io/otel"
@@ -49,7 +49,7 @@ func init() {
 	version.Version = Version
 	version.Branch = Branch
 	version.Revision = Revision
-	prometheus.MustRegister(versioncollector.NewCollector(appName))
+	prometheus.MustRegister(ver.NewCollector(appName))
 
 	// Register the gogocodec as early as possible.
 	encoding.RegisterCodec(gogocodec.NewCodec())

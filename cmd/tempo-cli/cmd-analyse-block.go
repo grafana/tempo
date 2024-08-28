@@ -11,18 +11,17 @@ import (
 	"text/tabwriter"
 	"time"
 
-	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/parquet-go/parquet-go"
-
-	pq "github.com/grafana/tempo/pkg/parquetquery"
-	"github.com/stoewer/parquet-cli/pkg/inspect"
-
-	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
-	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
-
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
+	"github.com/parquet-go/parquet-go"
+	"github.com/stoewer/parquet-cli/pkg/inspect"
+
+	tempo_io "github.com/grafana/tempo/pkg/io"
+	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet3"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 )
 
 var (
@@ -38,6 +37,12 @@ var (
 	vparquet3ResourceAttrs = []string{
 		vparquet3.FieldResourceAttrVal,
 	}
+	vparquet4SpanAttrs = []string{
+		vparquet4.FieldSpanAttrVal,
+	}
+	vparquet4ResourceAttrs = []string{
+		vparquet4.FieldResourceAttrVal,
+	}
 )
 
 func spanPathsForVersion(v string) (string, []string) {
@@ -46,6 +51,8 @@ func spanPathsForVersion(v string) (string, []string) {
 		return vparquet2.FieldSpanAttrKey, vparquet2SpanAttrs
 	case vparquet3.VersionString:
 		return vparquet3.FieldSpanAttrKey, vparquet3SpanAttrs
+	case vparquet4.VersionString:
+		return vparquet4.FieldSpanAttrKey, vparquet4SpanAttrs
 	}
 	return "", nil
 }
@@ -56,6 +63,8 @@ func resourcePathsForVersion(v string) (string, []string) {
 		return vparquet2.FieldResourceAttrKey, vparquet2ResourceAttrs
 	case vparquet3.VersionString:
 		return vparquet3.FieldResourceAttrKey, vparquet3ResourceAttrs
+	case vparquet4.VersionString:
+		return vparquet4.FieldResourceAttrKey, vparquet4ResourceAttrs
 	}
 	return "", nil
 }
@@ -64,6 +73,8 @@ func dedicatedColPathForVersion(i int, scope backend.DedicatedColumnScope, v str
 	switch v {
 	case vparquet3.VersionString:
 		return vparquet3.DedicatedResourceColumnPaths[scope][backend.DedicatedColumnTypeString][i]
+	case vparquet4.VersionString:
+		return vparquet4.DedicatedResourceColumnPaths[scope][backend.DedicatedColumnTypeString][i]
 	}
 	return ""
 }
@@ -123,6 +134,8 @@ func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minS
 		reader = vparquet2.NewBackendReaderAt(context.Background(), r, vparquet2.DataFileName, meta)
 	case vparquet3.VersionString:
 		reader = vparquet3.NewBackendReaderAt(context.Background(), r, vparquet3.DataFileName, meta)
+	case vparquet4.VersionString:
+		reader = vparquet4.NewBackendReaderAt(context.Background(), r, vparquet4.DataFileName, meta)
 	default:
 		fmt.Println("Unsupported block version:", meta.Version)
 		return nil, nil
@@ -152,6 +165,7 @@ func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minS
 	// merge dedicated with span attributes
 	for k, v := range spanDedicatedSummary.attributes {
 		spanAttrsSummary.attributes[k] = v
+		spanAttrsSummary.dedicated[k] = struct{}{}
 	}
 	spanAttrsSummary.totalBytes += spanDedicatedSummary.totalBytes
 
@@ -202,6 +216,7 @@ func (s *blockSummary) print(maxAttr int, generateJsonnet bool) error {
 type genericAttrSummary struct {
 	totalBytes uint64
 	attributes map[string]uint64 // key: attribute name, value: total bytes
+	dedicated  map[string]struct{}
 }
 
 type attribute struct {
@@ -249,6 +264,7 @@ func aggregateAttributes(pf *parquet.File, keyPath string, valuePaths []string) 
 	return genericAttrSummary{
 		totalBytes: totalBytes,
 		attributes: attrMap,
+		dedicated:  make(map[string]struct{}),
 	}, nil
 }
 
@@ -269,7 +285,7 @@ func aggregateDedicatedColumns(pf *parquet.File, scope backend.DedicatedColumnSc
 		}
 		i++
 
-		attrMap["dedicated: "+dedColumn.Name] = sz
+		attrMap[dedColumn.Name] = sz
 		totalBytes += sz
 	}
 
@@ -318,8 +334,14 @@ func printSummary(scope string, max int, summary genericAttrSummary) error {
 	fmt.Printf("Top %d %s attributes by size\n", max, scope)
 	attrList := topN(max, summary.attributes)
 	for _, a := range attrList {
+
+		name := a.name
+		if _, ok := summary.dedicated[a.name]; !ok {
+			name = a.name + " (dedicated)"
+		}
+
 		percentage := float64(a.bytes) / float64(summary.totalBytes) * 100
-		_, err := fmt.Fprintf(w, "name: %s\t size: %s\t (%s%%)\n", a.name, humanize.Bytes(a.bytes), strconv.FormatFloat(percentage, 'f', 2, 64))
+		_, err := fmt.Fprintf(w, "name: %s\t size: %s\t (%s%%)\n", name, humanize.Bytes(a.bytes), strconv.FormatFloat(percentage, 'f', 2, 64))
 		if err != nil {
 			return err
 		}

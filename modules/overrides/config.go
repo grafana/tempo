@@ -51,6 +51,14 @@ const (
 	MetricsGeneratorDryRunEnabled         = "metrics_generator_dry_run_enabled"
 )
 
+type HistogramMethod string
+
+const (
+	HistogramMethodClassic HistogramMethod = "classic"
+	HistogramMethodNative  HistogramMethod = "native"
+	HistogramMethodBoth    HistogramMethod = "both"
+)
+
 var metricLimitsDesc = prometheus.NewDesc(
 	"tempo_limits_defaults",
 	"Default resource limits",
@@ -127,16 +135,17 @@ func (h *RemoteWriteHeaders) toStringStringMap() map[string]string {
 }
 
 type MetricsGeneratorOverrides struct {
-	RingSize           int                 `yaml:"ring_size,omitempty" json:"ring_size,omitempty"`
-	Processors         listtomap.ListToMap `yaml:"processors,omitempty" json:"processors,omitempty"`
-	MaxActiveSeries    uint32              `yaml:"max_active_series,omitempty" json:"max_active_series,omitempty"`
-	CollectionInterval time.Duration       `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
-	DisableCollection  bool                `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
-	TraceIDLabelName   string              `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
-	RemoteWriteHeaders RemoteWriteHeaders  `yaml:"remote_write_headers,omitempty" json:"remote_write_headers,omitempty"`
+	RingSize                 int                 `yaml:"ring_size,omitempty" json:"ring_size,omitempty"`
+	Processors               listtomap.ListToMap `yaml:"processors,omitempty" json:"processors,omitempty"`
+	MaxActiveSeries          uint32              `yaml:"max_active_series,omitempty" json:"max_active_series,omitempty"`
+	CollectionInterval       time.Duration       `yaml:"collection_interval,omitempty" json:"collection_interval,omitempty"`
+	DisableCollection        bool                `yaml:"disable_collection,omitempty" json:"disable_collection,omitempty"`
+	GenerateNativeHistograms HistogramMethod     `yaml:"generate_native_histograms" json:"generate_native_histograms,omitempty"`
+	TraceIDLabelName         string              `yaml:"trace_id_label_name,omitempty" json:"trace_id_label_name,omitempty"`
 
-	Forwarder ForwarderOverrides `yaml:"forwarder,omitempty" json:"forwarder,omitempty"`
+	RemoteWriteHeaders RemoteWriteHeaders `yaml:"remote_write_headers,omitempty" json:"remote_write_headers,omitempty"`
 
+	Forwarder      ForwarderOverrides `yaml:"forwarder,omitempty" json:"forwarder,omitempty"`
 	Processor      ProcessorOverrides `yaml:"processor,omitempty" json:"processor,omitempty"`
 	IngestionSlack time.Duration      `yaml:"ingestion_time_range_slack" json:"ingestion_time_range_slack"`
 }
@@ -155,8 +164,9 @@ type ReadOverrides struct {
 
 type CompactionOverrides struct {
 	// Compactor enforced overrides.
-	BlockRetention   model.Duration `yaml:"block_retention,omitempty" json:"block_retention,omitempty"`
-	CompactionWindow model.Duration `yaml:"compaction_window,omitempty" json:"compaction_window,omitempty"`
+	BlockRetention     model.Duration `yaml:"block_retention,omitempty" json:"block_retention,omitempty"`
+	CompactionWindow   model.Duration `yaml:"compaction_window,omitempty" json:"compaction_window,omitempty"`
+	CompactionDisabled bool           `yaml:"compaction_disabled,omitempty" json:"compaction_disabled,omitempty"`
 }
 
 type GlobalOverrides struct {
@@ -241,6 +251,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // RegisterFlagsAndApplyDefaults adds the flags required to config this to the given FlagSet
 func (c *Config) RegisterFlagsAndApplyDefaults(f *flag.FlagSet) {
+	// Generator
+	c.Defaults.MetricsGenerator.GenerateNativeHistograms = HistogramMethodClassic
+
 	// Distributor LegacyOverrides
 	f.StringVar(&c.Defaults.Ingestion.RateStrategy, "distributor.rate-limit-strategy", "local", "Whether the various ingestion rate limits should be applied individually to each distributor instance (local), or evenly shared across the cluster (global).")
 	f.IntVar(&c.Defaults.Ingestion.RateLimitBytes, "distributor.ingestion-rate-limit-bytes", 15e6, "Per-user ingestion rate limit in bytes per second.")
@@ -276,4 +289,8 @@ func (c *Config) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.Global.MaxBytesPerTrace), MetricMaxBytesPerTrace)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.Compaction.BlockRetention), MetricBlockRetention)
 	ch <- prometheus.MustNewConstMetric(metricLimitsDesc, prometheus.GaugeValue, float64(c.Defaults.MetricsGenerator.MaxActiveSeries), MetricMetricsGeneratorMaxActiveSeries)
+}
+
+func HasNativeHistograms(s HistogramMethod) bool {
+	return s == HistogramMethodNative || s == HistogramMethodBoth
 }

@@ -86,10 +86,10 @@ var ctimeSubstitutes = map[string]string{
 //	%S - Second as a zero-padded decimal number (00, 01, ..., 59)
 //	%L - Millisecond as a decimal number, zero-padded on the left (000, 001, ..., 999)
 //	%f - Microsecond as a decimal number, zero-padded on the left (000000, ..., 999999)
-//	%s - Nanosecond as a decimal number, zero-padded on the left (000000, ..., 999999)
+//	%s - Nanosecond as a decimal number, zero-padded on the left (00000000, ..., 99999999)
 //	%z - UTC offset in the form ±HHMM[SS[.ffffff]] or empty(+0000, -0400)
 //	%Z - Timezone name or abbreviation or empty (UTC, EST, CST)
-//	%D, %x - Short MM/DD/YY date, equivalent to %m/%d/%y
+//	%D, %x - Short MM/DD/YYYY date, equivalent to %m/%d/%y
 //	%F - Short YYYY-MM-DD date, equivalent to %Y-%m-%d
 //	%T, %X - ISO 8601 time format (HH:MM:SS), equivalent to %H:%M:%S
 //	%r - 12-hour clock time (02:55:02 pm)

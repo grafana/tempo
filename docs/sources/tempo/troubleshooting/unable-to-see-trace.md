@@ -18,7 +18,7 @@ The two main causes of missing traces are:
 
 The first step is to check whether the application spans are actually reaching Tempo.
 
-Add the following flag to the distributor container - [`distributor.log-received-spans.enabled`](https://github.com/grafana/tempo/blob/57da4f3fd5d2966e13a39d27dbed4342af6a857a/modules/distributor/config.go#L55).
+Add the following flag to the distributor container - [`distributor.log_received_spans.enabled`](https://github.com/grafana/tempo/blob/57da4f3fd5d2966e13a39d27dbed4342af6a857a/modules/distributor/config.go#L55).
 
 This flag enables debug logging of all the traces received by the distributor. These logs can help check if Tempo is receiving any traces at all.
 
@@ -147,9 +147,6 @@ To fix connection issues:
       frontend_worker:
         frontend_address: query-frontend-discovery.default.svc.cluster.local:9095
     ```
-<!-- >  - Verify the `backend.yaml` configuration file present on the Tempo Query container and make sure it is attempting to connect to the right port of the query frontend.
-    **Note** this is only relevant for [Grafana 7.4.x and before](https://grafana.com/docs/tempo/latest/configuration/querying/#grafana-74x).
-    -->
   - Confirm that the Grafana data source is configured correctly and debug network issues between Grafana and Tempo.
 
 To fix an insufficient permissions issue:

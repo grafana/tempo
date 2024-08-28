@@ -17,21 +17,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.21
-        uses: actions/setup-go@v5
-        with:
-          go-version: 1.21.x
-
       - name: Check out code
         uses: actions/checkout@v4
         with:
-          fetch-depth: '0'
-
+          fetch-depth: "0"
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
       - name: check-fmt
         run: make check-fmt
 
@@ -41,110 +38,65 @@ jobs:
       - name: lint
         run: make lint base=origin/${{github.base_ref}}
 
-  unit-tests-pkg:
-    name: Test packages - pkg
+  unit-tests:
+    name: Run Unit Tests
     runs-on: ubuntu-latest
-    steps:
-      - name: Set up Go 1.21
-        uses: actions/setup-go@v5
-        with:
-          go-version: 1.21.x
+    strategy:
+      matrix:
+        test-target:
+          [
+            test-with-cover-pkg,
+            test-with-cover-tempodb,
+            test-with-cover-tempodb-wal,
+            test-with-cover-others,
+          ]
 
+    steps:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Test
-        run: make test-with-cover-pkg
-
-  unit-tests-tempodb:
-    name: Test packages - tempodb
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set up Go 1.21
+      - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version: 1.21.x
+          go-version-file: "go.mod"
 
-      - name: Check out code
-        uses: actions/checkout@v4
-
-      - name: Test
-        run: make test-with-cover-tempodb
-
-  unit-tests-tempodb-wal:
-    name: Test packages - tempodb/wal
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set up Go 1.21
-        uses: actions/setup-go@v5
-        with:
-          go-version: 1.21.x
-
-      - name: Check out code
-        uses: actions/checkout@v4
-
-      - name: Test
-        run: make test-with-cover-tempodb-wal
-
-  unit-tests-others:
-    name: Test packages - others
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set up Go 1.21
-        uses: actions/setup-go@v5
-        with:
-          go-version: 1.21.x
-
-      - name: Check out code
-        uses: actions/checkout@v4
-
-      - name: Test
-        run: make test-with-cover-others
+      - name: Run Tests
+        run: make ${{ matrix.test-target }}
 
   integration-tests:
-    name: Test integration e2e suite
+    name: Run integration tests
     runs-on: ubuntu-latest
-    steps:
-      - name: Set up Go 1.21
-        uses: actions/setup-go@v5
-        with:
-          go-version: 1.21.x
+    strategy:
+      matrix:
+        test-target:
+          [
+            test-e2e,
+            test-integration-poller,
+            test-e2e-deployments,
+            test-e2e-serverless,
+          ]
 
+    steps:
       - name: Check out code
         uses: actions/checkout@v4
-
-      - name: Test
-        run: make test-e2e
-
-      - name: Poller
-        run: make test-integration-poller
-
-  integration-tests-serverless:
-    name: Test serverless integration e2e suite
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set up Go 1.21
+      - name: Set up Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version: 1.21.x
-
-      - name: Check out code
-        uses: actions/checkout@v4
-
-      - name: Test
-        run: make test-e2e-serverless
+          go-version-file: "go.mod"
+      - name: Run Tests
+        run: make ${{ matrix.test-target }}
 
   build:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.21
-        uses: actions/setup-go@v5
-        with:
-          go-version: 1.21.x
-
       - name: Check out code
         uses: actions/checkout@v4
+
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
 
       - name: Build Tempo
         run: make tempo
@@ -162,13 +114,13 @@ jobs:
     name: Benchmark
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.21
-        uses: actions/setup-go@v5
-        with:
-          go-version: 1.21.x
-
       - name: Check out code
         uses: actions/checkout@v4
+
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
 
       - name: Bench
         run: make test-bench
@@ -177,13 +129,13 @@ jobs:
     name: Vendor check
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.21
-        uses: actions/setup-go@v5
-        with:
-          go-version: 1.21.x
-
       - name: Check out code
         uses: actions/checkout@v4
+
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -197,13 +149,13 @@ jobs:
     name: Check jsonnet & tempo-mixin
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.21
-        uses: actions/setup-go@v5
-        with:
-          go-version: 1.21.x
-
       - name: Check out code
         uses: actions/checkout@v4
+
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
 
       - name: Check jsonnet
         run: make jsonnet-check

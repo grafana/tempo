@@ -93,6 +93,60 @@ func TestIntervalOf(t *testing.T) {
 	}
 }
 
+func TestTrimToOverlap(t *testing.T) {
+	tc := []struct {
+		start1, end1               string
+		step                       time.Duration
+		start2, end2               string
+		expectedStart, expectedEnd string
+		expectedStep               time.Duration
+	}{
+		{
+			// Inner range of 33 to 38
+			// gets rounded at 5m intervals to 30 to 40
+			"2024-01-01 01:00:00", "2024-01-01 02:00:00", 5 * time.Minute,
+			"2024-01-01 01:33:00", "2024-01-01 01:38:00",
+			"2024-01-01 01:30:00", "2024-01-01 01:40:00", 5 * time.Minute,
+		},
+		{
+			// Partially Overlapping
+			// Overlap between 1:01-2:01 and 1:31-2:31
+			// in 5m intervals is only 1:30-2:05
+			// Start is pushed back
+			// and end is pushed out
+			"2024-01-01 01:01:00", "2024-01-01 02:01:00", 5 * time.Minute,
+			"2024-01-01 01:31:00", "2024-01-01 02:31:00",
+			"2024-01-01 01:30:00", "2024-01-01 02:05:00", 5 * time.Minute,
+		},
+		{
+			// Instant query
+			// Original range is 1h
+			// Inner overlap is only 30m and step is updated to match
+			"2024-01-01 01:00:00", "2024-01-01 02:00:00", time.Hour,
+			"2024-01-01 01:30:00", "2024-01-01 02:30:00",
+			"2024-01-01 01:30:00", "2024-01-01 02:00:00", 30 * time.Minute,
+		},
+	}
+
+	for _, c := range tc {
+		start1, _ := time.Parse(time.DateTime, c.start1)
+		end1, _ := time.Parse(time.DateTime, c.end1)
+		start2, _ := time.Parse(time.DateTime, c.start2)
+		end2, _ := time.Parse(time.DateTime, c.end2)
+
+		actualStart, actualEnd, actualStep := TrimToOverlap(
+			uint64(start1.UnixNano()),
+			uint64(end1.UnixNano()),
+			uint64(c.step.Nanoseconds()),
+			uint64(start2.UnixNano()),
+			uint64(end2.UnixNano()))
+
+		require.Equal(t, c.expectedStart, time.Unix(0, int64(actualStart)).UTC().Format(time.DateTime))
+		require.Equal(t, c.expectedEnd, time.Unix(0, int64(actualEnd)).UTC().Format(time.DateTime))
+		require.Equal(t, c.expectedStep, time.Duration(actualStep))
+	}
+}
+
 func TestTimeRangeOverlap(t *testing.T) {
 	tc := []struct {
 		reqStart, reqEnd, dataStart, dataEnd uint64
@@ -165,7 +219,7 @@ func TestCompileMetricsQueryRange(t *testing.T) {
 				Start: c.start,
 				End:   c.end,
 				Step:  c.step,
-			}, false, 0, false)
+			}, 0, 0, false)
 
 			if c.expectedErr != nil {
 				require.EqualError(t, err, c.expectedErr.Error())
@@ -177,9 +231,6 @@ func TestCompileMetricsQueryRange(t *testing.T) {
 func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 	tc := map[string]struct {
 		q           string
-		shardID     uint32
-		shardCount  uint32
-		dedupe      bool
 		expectedReq FetchSpansRequest
 	}{
 		"minimal": {
@@ -195,36 +246,25 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 			},
 		},
 		"dedupe": {
-			q:      "{} | rate()",
-			dedupe: true,
+			q: "{} | rate()",
 			expectedReq: FetchSpansRequest{
 				AllConditions: true,
 				Conditions: []Condition{
 					{
 						Attribute: IntrinsicSpanStartTimeAttribute,
 					},
-					{
-						Attribute: IntrinsicTraceIDAttribute, // Required for dedupe
-					},
 				},
 			},
 		},
 		"secondPass": {
-			q:          "{duration > 10s} | rate() by (resource.cluster)",
-			shardID:    123,
-			shardCount: 456,
+			q: "{duration > 10s} | rate() by (resource.cluster)",
 			expectedReq: FetchSpansRequest{
 				AllConditions: true,
-				ShardID:       123,
-				ShardCount:    456,
 				Conditions: []Condition{
 					{
 						Attribute: IntrinsicDurationAttribute,
 						Op:        OpGreater,
 						Operands:  Operands{NewStaticDuration(10 * time.Second)},
-					},
-					{
-						Attribute: IntrinsicTraceIDAttribute, // Required for sharding
 					},
 				},
 				SecondPassConditions: []Condition{
@@ -240,21 +280,14 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 			},
 		},
 		"optimizations": {
-			q:          "{duration > 10s} | rate() by (name, resource.service.name)",
-			shardID:    123,
-			shardCount: 456,
+			q: "{duration > 10s} | rate() by (name, resource.service.name)",
 			expectedReq: FetchSpansRequest{
 				AllConditions: true,
-				ShardID:       123,
-				ShardCount:    456,
 				Conditions: []Condition{
 					{
 						Attribute: IntrinsicDurationAttribute,
 						Op:        OpGreater,
 						Operands:  Operands{NewStaticDuration(10 * time.Second)},
-					},
-					{
-						Attribute: IntrinsicTraceIDAttribute, // Required for sharding
 					},
 					{
 						// Intrinsic moved to first pass
@@ -275,13 +308,11 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 	for n, tc := range tc {
 		t.Run(n, func(t *testing.T) {
 			eval, err := NewEngine().CompileMetricsQueryRange(&tempopb.QueryRangeRequest{
-				Query:      tc.q,
-				ShardID:    tc.shardID,
-				ShardCount: tc.shardCount,
-				Start:      1,
-				End:        2,
-				Step:       3,
-			}, tc.dedupe, 0, false)
+				Query: tc.q,
+				Start: 1,
+				End:   2,
+				Step:  3,
+			}, 0, 0, false)
 			require.NoError(t, err)
 
 			// Nil out func to Equal works
@@ -384,7 +415,7 @@ func TestQuantileOverTime(t *testing.T) {
 	}
 
 	// 3 layers of processing matches:  query-frontend -> queriers -> generators -> blocks
-	layer1, err := e.CompileMetricsQueryRange(req, false, 0, false)
+	layer1, err := e.CompileMetricsQueryRange(req, 0, 0, false)
 	require.NoError(t, err)
 
 	layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
@@ -461,33 +492,37 @@ func TestHistogramOverTime(t *testing.T) {
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: internalLabelBucket, Value: _128ns},
 			},
-			Values: []float64{1, 0, 0},
+			Values:    []float64{1, 0, 0},
+			Exemplars: make([]Exemplar, 0),
 		},
 		`{` + internalLabelBucket + `="` + _256ns.EncodeToString(true) + `", span.foo="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: internalLabelBucket, Value: _256ns},
 			},
-			Values: []float64{1, 4, 0},
+			Values:    []float64{1, 4, 0},
+			Exemplars: make([]Exemplar, 0),
 		},
 		`{` + internalLabelBucket + `="` + _512ns.EncodeToString(true) + `", span.foo="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: internalLabelBucket, Value: _512ns},
 			},
-			Values: []float64{1, 0, 0},
+			Values:    []float64{1, 0, 0},
+			Exemplars: make([]Exemplar, 0),
 		},
 		`{` + internalLabelBucket + `="` + _512ns.EncodeToString(true) + `", span.foo="baz"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 				{Name: internalLabelBucket, Value: _512ns},
 			},
-			Values: []float64{0, 0, 3},
+			Values:    []float64{0, 0, 3},
+			Exemplars: make([]Exemplar, 0),
 		},
 	}
 
 	// 3 layers of processing matches:  query-frontend -> queriers -> generators -> blocks
-	layer1, err := e.CompileMetricsQueryRange(req, false, 0, false)
+	layer1, err := e.CompileMetricsQueryRange(req, 0, 0, false)
 	require.NoError(t, err)
 
 	layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
@@ -515,27 +550,4 @@ func TestHistogramOverTime(t *testing.T) {
 	// The quantiles
 	final := layer3.Results()
 	require.Equal(t, out, final)
-}
-
-func TestSpanDeduper(t *testing.T) {
-	d := NewSpanDeduper2()
-
-	in := []struct {
-		tid []byte
-		ts  uint64
-	}{
-		{nil, 0},
-		{[]byte{1}, 1},
-		{[]byte{1, 1}, 1},
-		{[]byte{1, 2}, 2},
-	}
-
-	for _, tc := range in {
-		// First call is always false
-		require.False(t, d.Skip(tc.tid, tc.ts))
-
-		// Second call is always true
-		require.True(t, d.Skip(tc.tid, tc.ts))
-	}
-	d.Skip(nil, 0)
 }

@@ -44,7 +44,7 @@ var nonTraceQLAttributes = map[string]string{
 	LabelRootSpanName:    columnPathRootSpanName,
 }
 
-func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagCallback, opts common.SearchOptions) error {
+func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagsCallback, opts common.SearchOptions) error {
 	derivedCtx, span := tracer.Start(ctx, "parquet.backendBlock.SearchTags",
 		trace.WithAttributes(
 			attribute.String("blockID", b.meta.BlockID.String()),
@@ -62,17 +62,12 @@ func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeSc
 	return searchTags(derivedCtx, scope, cb, pf, b.meta.DedicatedColumns)
 }
 
-func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCallback, pf *parquet.File, dc backend.DedicatedColumns) error {
-	standardAttrIdxs := make([]int, 0, 2) // the most we can have is 2, resource and span indexes depending on scope passed
-	specialAttrIdxs := map[int]string{}
+func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsCallback, pf *parquet.File, dc backend.DedicatedColumns) error {
+	scanColumns := func(standardKeyPath string, specialMappings map[string]string, columnMapping dedicatedColumnMapping, cb common.TagsCallback, scope traceql.AttributeScope) error {
+		specialAttrIdxs := map[int]string{}
 
-	addToIndexes := func(standardKeyPath string, specialMappings map[string]string, columnMapping dedicatedColumnMapping) error {
 		// standard attributes
 		resourceKeyIdx, _ := pq.GetColumnIndexByPath(pf, standardKeyPath)
-		if resourceKeyIdx == -1 {
-			return fmt.Errorf("resource attributes col not found (%d)", resourceKeyIdx)
-		}
-		standardAttrIdxs = append(standardAttrIdxs, resourceKeyIdx)
 
 		// special attributes
 		for lbl, col := range specialMappings {
@@ -94,70 +89,48 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCa
 			specialAttrIdxs[idx] = lbl
 		})
 
-		return nil
-	}
-
-	// resource
-	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeResource {
-		columnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeResource)
-		err := addToIndexes(FieldResourceAttrKey, traceqlResourceLabelMappings, columnMapping)
-		if err != nil {
-			return err
-		}
-	}
-	// span
-	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeSpan {
-		columnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeSpan)
-		err := addToIndexes(FieldSpanAttrKey, traceqlSpanLabelMappings, columnMapping)
-		if err != nil {
-			return err
-		}
-	}
-
-	// now search all row groups
-	var err error
-	rgs := pf.RowGroups()
-	for _, rg := range rgs {
-		// search all special attributes
-		for idx, lbl := range specialAttrIdxs {
-			cc := rg.ColumnChunks()[idx]
-			err = func() error {
-				pgs := cc.Pages()
-				defer pgs.Close()
-				for {
-					pg, err := pgs.ReadPage()
-					if errors.Is(err, io.EOF) || pg == nil {
-						break
-					}
-					if err != nil {
-						return err
-					}
-
-					stop := func(page parquet.Page) bool {
-						defer parquet.Release(page)
-
-						// if a special attribute has any non-null values, include it
-						if page.NumNulls() < page.NumValues() {
-							cb(lbl)
-							delete(specialAttrIdxs, idx) // remove from map so we won't search again
-							return true
+		// now search all row groups
+		var err error
+		rgs := pf.RowGroups()
+		for _, rg := range rgs {
+			// search all special attributes
+			for idx, lbl := range specialAttrIdxs {
+				cc := rg.ColumnChunks()[idx]
+				err = func() error {
+					pgs := cc.Pages()
+					defer pgs.Close()
+					for {
+						pg, err := pgs.ReadPage()
+						if errors.Is(err, io.EOF) || pg == nil {
+							break
 						}
-						return false
-					}(pg)
-					if stop {
-						break
-					}
-				}
-				return nil
-			}()
-			if err != nil {
-				return err
-			}
-		}
+						if err != nil {
+							return err
+						}
 
-		// search other attributes
-		for _, idx := range standardAttrIdxs {
-			cc := rg.ColumnChunks()[idx]
+						stop := func(page parquet.Page) bool {
+							defer parquet.Release(page)
+
+							// if a special attribute has any non-null values, include it
+							if page.NumNulls() < page.NumValues() {
+								cb(lbl, scope)
+								delete(specialAttrIdxs, idx) // remove from map so we won't search again
+								return true
+							}
+							return false
+						}(pg)
+						if stop {
+							break
+						}
+					}
+					return nil
+				}()
+				if err != nil {
+					return err
+				}
+			}
+
+			cc := rg.ColumnChunks()[resourceKeyIdx]
 			err = func() error {
 				pgs := cc.Pages()
 				defer pgs.Close()
@@ -183,7 +156,7 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCa
 
 					for i := 0; i < dict.Len(); i++ {
 						s := dict.Index(int32(i)).String()
-						cb(s)
+						cb(s, scope)
 					}
 				}(pg)
 
@@ -193,12 +166,31 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagCa
 				return err
 			}
 		}
+
+		return nil
+	}
+
+	// resource
+	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeResource {
+		columnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeResource)
+		err := scanColumns(FieldResourceAttrKey, traceqlResourceLabelMappings, columnMapping, cb, traceql.AttributeScopeResource)
+		if err != nil {
+			return err
+		}
+	}
+	// span
+	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeSpan {
+		columnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeSpan)
+		err := scanColumns(FieldSpanAttrKey, traceqlSpanLabelMappings, columnMapping, cb, traceql.AttributeScopeSpan)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagCallback, opts common.SearchOptions) error {
+func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagValuesCallback, opts common.SearchOptions) error {
 	att, ok := translateTagToAttribute[tag]
 	if !ok {
 		att = traceql.NewAttribute(tag)
@@ -213,7 +205,7 @@ func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 	return b.SearchTagValuesV2(ctx, att, cb2, opts)
 }
 
-func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, opts common.SearchOptions) error {
+func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, opts common.SearchOptions) error {
 	derivedCtx, span := tracer.Start(ctx, "parquet.backendBlock.SearchTagValuesV2",
 		trace.WithAttributes(
 			attribute.String("blockID", b.meta.BlockID.String()),
@@ -231,7 +223,7 @@ func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attrib
 	return searchTagValues(derivedCtx, tag, cb, pf, b.meta.DedicatedColumns)
 }
 
-func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagCallbackV2, pf *parquet.File, dc backend.DedicatedColumns) error {
+func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, pf *parquet.File, dc backend.DedicatedColumns) error {
 	// Special handling for intrinsics
 	if tag.Intrinsic != traceql.IntrinsicNone {
 		lookup := intrinsicColumnLookups[tag.Intrinsic]
@@ -293,7 +285,7 @@ func searchTagValues(ctx context.Context, tag traceql.Attribute, cb common.TagCa
 
 // searchStandardTagValues searches a parquet file for "standard" tags. i.e. tags that don't have unique
 // columns and are contained in labelMappings
-func searchStandardTagValues(ctx context.Context, tag traceql.Attribute, pf *parquet.File, cb common.TagCallbackV2) error {
+func searchStandardTagValues(ctx context.Context, tag traceql.Attribute, pf *parquet.File, cb common.TagValuesCallbackV2) error {
 	rgs := pf.RowGroups()
 	makeIter := makeIterFunc(ctx, rgs, pf)
 
@@ -328,7 +320,7 @@ func searchStandardTagValues(ctx context.Context, tag traceql.Attribute, pf *par
 	return nil
 }
 
-func searchKeyValues(definitionLevel int, keyPath, stringPath, intPath, floatPath, boolPath string, makeIter makeIterFn, keyPred pq.Predicate, cb common.TagCallbackV2) error {
+func searchKeyValues(definitionLevel int, keyPath, stringPath, intPath, floatPath, boolPath string, makeIter makeIterFn, keyPred pq.Predicate, cb common.TagValuesCallbackV2) error {
 	skipNils := pq.NewSkipNilsPredicate()
 
 	iter, err := pq.NewLeftJoinIterator(definitionLevel,
@@ -367,7 +359,7 @@ func searchKeyValues(definitionLevel int, keyPath, stringPath, intPath, floatPat
 
 // searchSpecialTagValues searches a parquet file for all values for the provided column. It first attempts
 // to only pull all values from the column's dictionary. If this fails it falls back to scanning the entire path.
-func searchSpecialTagValues(ctx context.Context, column string, pf *parquet.File, cb common.TagCallbackV2) error {
+func searchSpecialTagValues(ctx context.Context, column string, pf *parquet.File, cb common.TagValuesCallbackV2) error {
 	pred := newReportValuesPredicate(cb)
 	rgs := pf.RowGroups()
 

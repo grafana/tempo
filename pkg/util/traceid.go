@@ -15,7 +15,11 @@ func HexStringToTraceID(id string) ([]byte, error) {
 
 // TraceIDToHexString converts a trace ID to its string representation and removes any leading zeros.
 func TraceIDToHexString(byteID []byte) string {
-	id := hex.EncodeToString(byteID)
+	dst := make([]byte, hex.EncodedLen(len(byteID)))
+	hex.Encode(dst, byteID)
+	// fast conversion to string
+	p := unsafe.SliceData(dst)
+	id := unsafe.String(p, len(dst))
 	// remove leading zeros
 	id = strings.TrimLeft(id, "0")
 	return id
@@ -24,7 +28,12 @@ func TraceIDToHexString(byteID []byte) string {
 // SpanIDToHexString converts a span ID to its string representation and WITHOUT removing any leading zeros.
 // If the id is < 16, left pad with 0s
 func SpanIDToHexString(byteID []byte) string {
-	id := hex.EncodeToString(byteID)
+	dst := make([]byte, hex.EncodedLen(len(byteID)))
+	hex.Encode(dst, byteID)
+	// fast conversion to string
+	p := unsafe.SliceData(dst)
+	id := unsafe.String(p, len(dst))
+	// remove and pad
 	id = strings.TrimLeft(id, "0")
 	return fmt.Sprintf("%016s", id)
 }
@@ -51,6 +60,9 @@ var spanKindFNVHashes = [...]uint64{
 // that it has a low collision probability. In zipkin traces the span id is not guaranteed to be unique as it
 // is shared between client and server spans. Therefore, it is sometimes required to take the span kind into account.
 func SpanIDAndKindToToken(id []byte, kind int) uint64 {
+	if kind < 0 || kind >= len(spanKindFNVHashes) {
+		kind = 0
+	}
 	return SpanIDToUint64(id) ^ spanKindFNVHashes[kind]
 }
 
@@ -103,13 +115,10 @@ func PadTraceIDTo16Bytes(traceID []byte) []byte {
 func hexStringToID(id string, isSpan bool) ([]byte, error) {
 	// The encoding/hex package does not handle non-hex characters.
 	// Ensure the ID has only the proper characters
-	for pos, idChar := range strings.Split(id, "") {
-		if (idChar >= "a" && idChar <= "f") ||
-			(idChar >= "A" && idChar <= "F") ||
-			(idChar >= "0" && idChar <= "9") {
-			continue
+	for i, c := range id {
+		if (c < 'a' || c > 'f') && (c < 'A' || c > 'F') && (c < '0' || c > '9') {
+			return nil, fmt.Errorf("trace IDs can only contain hex characters: invalid character '%c' at position %d", c, i+1)
 		}
-		return nil, fmt.Errorf("trace IDs can only contain hex characters: invalid character '%s' at position %d", idChar, pos+1)
 	}
 
 	// the encoding/hex package does not like odd length strings.

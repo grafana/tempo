@@ -44,10 +44,13 @@ var (
 	metricsCounter   = queriesPerTenant.MustCurryWith(prometheus.Labels{"op": metricsOp})
 
 	queryThroughput = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "tempo",
-		Name:      "query_frontend_bytes_processed_per_second",
-		Help:      "Bytes processed per second in the query per tenant",
-		Buckets:   prometheus.ExponentialBuckets(8*1024*1024, 2, 12), // from 8MB up to 16GB
+		Namespace:                       "tempo",
+		Name:                            "query_frontend_bytes_processed_per_second",
+		Help:                            "Bytes processed per second in the query per tenant",
+		Buckets:                         prometheus.ExponentialBuckets(8*1024*1024, 2, 12), // from 8MB up to 16GB
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{"tenant", "op"})
 
 	searchThroughput  = queryThroughput.MustCurryWith(prometheus.Labels{"op": searchOp})

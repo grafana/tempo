@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -79,7 +80,7 @@ func TestManagedRegistry_histogram(t *testing.T) {
 	registry := New(&Config{}, &mockOverrides{}, "test", appender, log.NewNopLogger())
 	defer registry.Close()
 
-	histogram := registry.NewHistogram("histogram", []float64{1.0, 2.0})
+	histogram := registry.NewHistogram("histogram", []float64{1.0, 2.0}, HistogramModeClassic)
 
 	histogram.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
 
@@ -228,7 +229,7 @@ func TestManagedRegistry_maxLabelNameLength(t *testing.T) {
 	defer registry.Close()
 
 	counter := registry.NewCounter("counter")
-	histogram := registry.NewHistogram("histogram", []float64{1.0})
+	histogram := registry.NewHistogram("histogram", []float64{1.0}, HistogramModeClassic)
 
 	counter.Inc(registry.NewLabelValueCombo([]string{"very_lengthy_label"}, []string{"very_length_value"}), 1.0)
 	histogram.ObserveWithExemplar(registry.NewLabelValueCombo([]string{"another_very_lengthy_label"}, []string{"another_very_lengthy_value"}), 1.0, "", 1.0)
@@ -253,6 +254,42 @@ func TestValidLabelValueCombo(t *testing.T) {
 	assert.Panics(t, func() {
 		registry.NewLabelValueCombo([]string{"one-label"}, []string{"one-value", "two-value"})
 	})
+}
+
+func TestHistogramOverridesConfig(t *testing.T) {
+	cases := []struct {
+		name                string
+		nativeHistogramMode HistogramMode
+		typeOfHistogram     interface{}
+	}{
+		{
+			"classic",
+			HistogramModeClassic,
+			&histogram{},
+		},
+		{
+			"native",
+			HistogramModeNative,
+			&nativeHistogram{},
+		},
+		{
+			"both",
+			HistogramModeBoth,
+			&nativeHistogram{},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			appender := &capturingAppender{}
+			overrides := &mockOverrides{}
+			registry := New(&Config{}, overrides, "test", appender, log.NewNopLogger())
+			defer registry.Close()
+
+			tt := registry.NewHistogram("histogram", []float64{1.0, 2.0}, c.nativeHistogramMode)
+			require.IsType(t, c.typeOfHistogram, tt)
+		})
+	}
 }
 
 func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender *capturingAppender, expectedSamples []sample) {
@@ -298,8 +335,9 @@ func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender 
 }
 
 type mockOverrides struct {
-	maxActiveSeries   uint32
-	disableCollection bool
+	maxActiveSeries          uint32
+	disableCollection        bool
+	generateNativeHistograms overrides.HistogramMethod
 }
 
 var _ Overrides = (*mockOverrides)(nil)
@@ -314,6 +352,10 @@ func (m *mockOverrides) MetricsGeneratorCollectionInterval(string) time.Duration
 
 func (m *mockOverrides) MetricsGeneratorDisableCollection(string) bool {
 	return m.disableCollection
+}
+
+func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(_ string) overrides.HistogramMethod {
+	return m.generateNativeHistograms
 }
 
 func (m *mockOverrides) MetricsGenerationTraceIDLabelName(string) string {

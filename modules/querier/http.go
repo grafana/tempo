@@ -55,6 +55,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		attribute.String("queryMode", queryMode),
 		attribute.String("timeStart", fmt.Sprint(timeStart)),
 		attribute.String("timeEnd", fmt.Sprint(timeEnd)),
+		attribute.String("apiVersion", "v1"),
 	))
 
 	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
@@ -70,34 +71,54 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 
 	// record not found here, but continue on so we can marshal metrics
 	// to the body
-	if resp.Trace == nil || len(resp.Trace.Batches) == 0 {
+	if resp.Trace == nil || len(resp.Trace.ResourceSpans) == 0 {
 		w.WriteHeader(http.StatusNotFound)
 	}
 
-	if r.Header.Get(api.HeaderAccept) == api.HeaderAcceptProtobuf {
-		span.SetAttributes(attribute.String("contentType", api.HeaderAcceptProtobuf))
-		b, err := proto.Marshal(resp)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set(api.HeaderContentType, api.HeaderAcceptProtobuf)
-		_, err = w.Write(b)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	writeFormattedContentForRequest(w, r, resp, span)
+}
+
+func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
+	// Enforce the query timeout while querying backends
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.TraceByID.QueryTimeout))
+	defer cancel()
+
+	ctx, span := tracer.Start(ctx, "Querier.TraceByIDHandlerV2")
+	defer span.End()
+
+	byteID, err := api.ParseTraceID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	span.SetAttributes(attribute.String("contentType", api.HeaderAcceptJSON))
-	marshaller := &jsonpb.Marshaler{}
-	err = marshaller.Marshal(w, resp)
+	// validate request
+	blockStart, blockEnd, queryMode, timeStart, timeEnd, err := api.ValidateAndSanitizeRequest(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+	span.LogFields(
+		ot_log.String("msg", "validated request"),
+		ot_log.String("blockStart", blockStart),
+		ot_log.String("blockEnd", blockEnd),
+		ot_log.String("queryMode", queryMode),
+		ot_log.String("timeStart", fmt.Sprint(timeStart)),
+		ot_log.String("timeEnd", fmt.Sprint(timeEnd)),
+		ot_log.String("apiVersion", "v2"))
+
+	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+		TraceID:           byteID,
+		BlockStart:        blockStart,
+		BlockEnd:          blockEnd,
+		QueryMode:         queryMode,
+		AllowPartialTrace: true,
+	}, timeStart, timeEnd)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	writeFormattedContentForRequest(w, r, resp, span)
 }
 
 func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
@@ -144,13 +165,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	marshaller := &jsonpb.Marshaler{}
-	err := marshaller.Marshal(w, resp)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+	writeFormattedContentForRequest(w, r, resp, span)
 }
 
 func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
@@ -163,22 +178,16 @@ func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagsHandler")
 	defer span.End()
 
+	var resp *tempopb.SearchTagsResponse
 	if !isSearchBlock {
 		req, err := api.ParseSearchTagsRequest(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		resp, err := q.SearchTags(ctx, req)
+		resp, err = q.SearchTags(ctx, req)
 		if err != nil {
 			handleError(w, err)
-			return
-		}
-
-		marshaller := &jsonpb.Marshaler{}
-		err = marshaller.Marshal(w, resp)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	} else {
@@ -187,19 +196,13 @@ func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		resp, err := q.SearchTagsBlocks(ctx, req)
+		resp, err = q.SearchTagsBlocks(ctx, req)
 		if err != nil {
 			handleError(w, err)
 			return
 		}
-		marshaller := &jsonpb.Marshaler{}
-		err = marshaller.Marshal(w, resp)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
 	}
-	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+	writeFormattedContentForRequest(w, r, resp, span)
 }
 
 func (q *Querier) SearchTagsV2Handler(w http.ResponseWriter, r *http.Request) {
@@ -212,6 +215,7 @@ func (q *Querier) SearchTagsV2Handler(w http.ResponseWriter, r *http.Request) {
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagsHandler")
 	defer span.End()
 
+	var resp *tempopb.SearchTagsV2Response
 	if !isSearchBlock {
 		req, err := api.ParseSearchTagsRequest(r)
 		if err != nil {
@@ -219,16 +223,9 @@ func (q *Querier) SearchTagsV2Handler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		resp, err := q.SearchTagsV2(ctx, req)
+		resp, err = q.SearchTagsV2(ctx, req)
 		if err != nil {
 			handleError(w, err)
-			return
-		}
-
-		marshaller := &jsonpb.Marshaler{}
-		err = marshaller.Marshal(w, resp)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	} else {
@@ -237,19 +234,14 @@ func (q *Querier) SearchTagsV2Handler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		resp, err := q.SearchTagsBlocksV2(ctx, req)
+		resp, err = q.SearchTagsBlocksV2(ctx, req)
 		if err != nil {
 			handleError(w, err)
 			return
 		}
-		marshaller := &jsonpb.Marshaler{}
-		err = marshaller.Marshal(w, resp)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
 	}
-	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+
+	writeFormattedContentForRequest(w, r, resp, span)
 }
 
 func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request) {
@@ -262,6 +254,7 @@ func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request)
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagValuesHandler")
 	defer span.End()
 
+	var resp *tempopb.SearchTagValuesResponse
 	if !isSearchBlock {
 		req, err := api.ParseSearchTagValuesRequest(r)
 		if err != nil {
@@ -269,15 +262,9 @@ func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		resp, err := q.SearchTagValues(ctx, req)
+		resp, err = q.SearchTagValues(ctx, req)
 		if err != nil {
 			handleError(w, err)
-			return
-		}
-		marshaller := &jsonpb.Marshaler{}
-		err = marshaller.Marshal(w, resp)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	} else {
@@ -286,20 +273,14 @@ func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		resp, err := q.SearchTagValuesBlocks(ctx, req)
+		resp, err = q.SearchTagValuesBlocks(ctx, req)
 		if err != nil {
 			handleError(w, err)
 			return
 		}
-		marshaller := &jsonpb.Marshaler{}
-		err = marshaller.Marshal(w, resp)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
 	}
 
-	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+	writeFormattedContentForRequest(w, r, resp, span)
 }
 
 func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Request) {
@@ -312,44 +293,33 @@ func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Reques
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagValuesHandler")
 	defer span.End()
 
+	var resp *tempopb.SearchTagValuesV2Response
+	var err error
+
 	if !isSearchBlock {
-		req, err := api.ParseSearchTagValuesRequestV2(r)
+		var req *tempopb.SearchTagValuesRequest
+		req, err = api.ParseSearchTagValuesRequestV2(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-
-		resp, err := q.SearchTagValuesV2(ctx, req)
-		if err != nil {
-			handleError(w, err)
-			return
-		}
-
-		marshaller := &jsonpb.Marshaler{}
-		err = marshaller.Marshal(w, resp)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		resp, err = q.SearchTagValuesV2(ctx, req)
 	} else {
-		req, err := api.ParseSearchTagValuesBlockRequestV2(r)
+		var req *tempopb.SearchTagValuesBlockRequest
+		req, err = api.ParseSearchTagValuesBlockRequestV2(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		resp, err := q.SearchTagValuesBlocksV2(ctx, req)
-		if err != nil {
-			handleError(w, err)
-			return
-		}
-		marshaller := &jsonpb.Marshaler{}
-		err = marshaller.Marshal(w, resp)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		resp, err = q.SearchTagValuesBlocksV2(ctx, req)
 	}
-	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+
+	writeFormattedContentForRequest(w, r, resp, span)
 }
 
 func (q *Querier) SpanMetricsSummaryHandler(w http.ResponseWriter, r *http.Request) {
@@ -372,13 +342,7 @@ func (q *Querier) SpanMetricsSummaryHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	marshaller := &jsonpb.Marshaler{}
-	err = marshaller.Marshal(w, resp)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+	writeFormattedContentForRequest(w, r, resp, span)
 }
 
 func (q *Querier) QueryRangeHandler(w http.ResponseWriter, r *http.Request) {
@@ -420,22 +384,7 @@ func (q *Querier) QueryRangeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		m := jsonpb.Marshaler{}
-		jsBytes, funcErr := m.MarshalToString(resp)
-		if funcErr != nil {
-			errHandler(ctx, span, funcErr)
-			http.Error(w, funcErr.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		_, funcErr = w.Write([]byte(jsBytes))
-		if funcErr != nil {
-			errHandler(ctx, span, funcErr)
-			http.Error(w, funcErr.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+		writeFormattedContentForRequest(w, r, resp, span)
 	}()
 
 	req, err := api.ParseQueryRangeRequest(r)
@@ -446,8 +395,6 @@ func (q *Querier) QueryRangeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	span.SetAttributes(attribute.String("query", req.Query))
-	span.SetAttributes(attribute.Int64("shard", int64(req.ShardID)))
-	span.SetAttributes(attribute.Int64("shardCount", int64(req.ShardCount)))
 	span.SetAttributes(attribute.Int64("step", time.Duration(req.Step).Nanoseconds()))
 	span.SetAttributes(attribute.Int64("interval", time.Unix(0, int64(req.End)).Sub(time.Unix(0, int64(req.Start))).Nanoseconds()))
 
@@ -481,4 +428,37 @@ func handleError(w http.ResponseWriter, err error) {
 	}
 
 	http.Error(w, err.Error(), http.StatusInternalServerError)
+}
+
+func writeFormattedContentForRequest(w http.ResponseWriter, req *http.Request, m proto.Message, span opentracing.Span) {
+	switch req.Header.Get(api.HeaderAccept) {
+	case api.HeaderAcceptProtobuf:
+		b, err := proto.Marshal(m)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set(api.HeaderContentType, api.HeaderAcceptProtobuf)
+		_, err = w.Write(b)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if span != nil {
+			span.SetTag("contentType", api.HeaderAcceptProtobuf)
+		}
+
+	default:
+		w.Header().Set(api.HeaderContentType, api.HeaderAcceptJSON)
+		err := new(jsonpb.Marshaler).Marshal(w, m)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if span != nil {
+			span.SetTag("contentType", api.HeaderAcceptJSON)
+		}
+
+	}
 }

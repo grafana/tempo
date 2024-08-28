@@ -566,20 +566,17 @@ func (rw *readerWriter) readRange(ctx context.Context, objName string, offset in
 	}
 	defer reader.Close()
 
-	totalBytes := 0
-	for {
-		byteCount, err := reader.Read(buffer[totalBytes:])
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		if err != nil {
-			return fmt.Errorf("error in range read from s3 backend: %w", err)
-		}
-		if byteCount == 0 {
-			return nil
-		}
-		totalBytes += byteCount
+	/* bytes read == len(buffer) if and only if err == nil */
+	_, err = io.ReadFull(reader, buffer)
+
+	if err == nil {
+		/* read EOF so connection can be reused */
+		var dummy [1]byte
+		_, _ = reader.Read(dummy[:])
+		return nil
 	}
+
+	return fmt.Errorf("error in range read from s3 backend: %w", err)
 }
 
 func fetchCreds(cfg *Config) (*credentials.Credentials, error) {
@@ -631,6 +628,10 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		return nil, fmt.Errorf("create minio.DefaultTransport: %w", err)
 	}
 
+	/* minio sets MaxIdleConns to 100 but we should also increase per host to 100 */
+	customTransport.MaxIdleConnsPerHost = 100
+	customTransport.MaxIdleConns = 100
+
 	tlsConfig, err := cfg.GetTLSConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create TLS config: %w", err)
@@ -643,7 +644,6 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 	// add instrumentation
 	transport := instrumentation.NewTransport(customTransport)
 	var stats *hedgedhttp.Stats
-
 	if hedge && cfg.HedgeRequestsAt != 0 {
 		transport, stats, err = hedgedhttp.NewRoundTripperAndStats(cfg.HedgeRequestsAt, cfg.HedgeRequestsUpTo, transport)
 		if err != nil {
@@ -665,7 +665,13 @@ func createCore(cfg *Config, hedge bool) (*minio.Core, error) {
 		opts.BucketLookup = minio.BucketLookupType(cfg.BucketLookupType)
 	}
 
-	return minio.NewCore(cfg.Endpoint, opts)
+	core, err := minio.NewCore(cfg.Endpoint, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create minio client: %w", err)
+	}
+
+	core.SetS3EnableDualstack(cfg.UseDualStack)
+	return core, err
 }
 
 func readError(err error) error {

@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -26,7 +27,6 @@ var errUnrecognizedEncoding = fmt.Errorf("unrecognized encoding")
 type kafkaTracesProducer struct {
 	cfg       Config
 	producer  sarama.SyncProducer
-	topic     string
 	marshaler TracesMarshaler
 	logger    *zap.Logger
 }
@@ -41,7 +41,7 @@ func (ke kafkaErrors) Error() string {
 }
 
 func (e *kafkaTracesProducer) tracesPusher(_ context.Context, td ptrace.Traces) error {
-	messages, err := e.marshaler.Marshal(td, e.topic)
+	messages, err := e.marshaler.Marshal(td, getTopic(&e.cfg, td.ResourceSpans()))
 	if err != nil {
 		return consumererror.NewPermanent(err)
 	}
@@ -78,13 +78,12 @@ func (e *kafkaTracesProducer) start(_ context.Context, _ component.Host) error {
 type kafkaMetricsProducer struct {
 	cfg       Config
 	producer  sarama.SyncProducer
-	topic     string
 	marshaler MetricsMarshaler
 	logger    *zap.Logger
 }
 
 func (e *kafkaMetricsProducer) metricsDataPusher(_ context.Context, md pmetric.Metrics) error {
-	messages, err := e.marshaler.Marshal(md, e.topic)
+	messages, err := e.marshaler.Marshal(md, getTopic(&e.cfg, md.ResourceMetrics()))
 	if err != nil {
 		return consumererror.NewPermanent(err)
 	}
@@ -121,13 +120,12 @@ func (e *kafkaMetricsProducer) start(_ context.Context, _ component.Host) error 
 type kafkaLogsProducer struct {
 	cfg       Config
 	producer  sarama.SyncProducer
-	topic     string
 	marshaler LogsMarshaler
 	logger    *zap.Logger
 }
 
 func (e *kafkaLogsProducer) logsDataPusher(_ context.Context, ld plog.Logs) error {
-	messages, err := e.marshaler.Marshal(ld, e.topic)
+	messages, err := e.marshaler.Marshal(ld, getTopic(&e.cfg, ld.ResourceLogs()))
 	if err != nil {
 		return consumererror.NewPermanent(err)
 	}
@@ -211,9 +209,14 @@ func newMetricsExporter(config Config, set exporter.CreateSettings, marshalers m
 	if marshaler == nil {
 		return nil, errUnrecognizedEncoding
 	}
+	if config.PartitionMetricsByResourceAttributes {
+		if keyableMarshaler, ok := marshaler.(KeyableMetricsMarshaler); ok {
+			keyableMarshaler.Key()
+		}
+	}
+
 	return &kafkaMetricsProducer{
 		cfg:       config,
-		topic:     config.Topic,
 		marshaler: marshaler,
 		logger:    set.Logger,
 	}, nil
@@ -234,7 +237,6 @@ func newTracesExporter(config Config, set exporter.CreateSettings, marshalers ma
 
 	return &kafkaTracesProducer{
 		cfg:       config,
-		topic:     config.Topic,
 		marshaler: marshaler,
 		logger:    set.Logger,
 	}, nil
@@ -248,9 +250,30 @@ func newLogsExporter(config Config, set exporter.CreateSettings, marshalers map[
 
 	return &kafkaLogsProducer{
 		cfg:       config,
-		topic:     config.Topic,
 		marshaler: marshaler,
 		logger:    set.Logger,
 	}, nil
 
+}
+
+type resourceSlice[T any] interface {
+	Len() int
+	At(int) T
+}
+
+type resource interface {
+	Resource() pcommon.Resource
+}
+
+func getTopic[T resource](cfg *Config, resources resourceSlice[T]) string {
+	if cfg.TopicFromAttribute == "" {
+		return cfg.Topic
+	}
+	for i := 0; i < resources.Len(); i++ {
+		rv, ok := resources.At(i).Resource().Attributes().Get(cfg.TopicFromAttribute)
+		if ok && rv.Str() != "" {
+			return rv.Str()
+		}
+	}
+	return cfg.Topic
 }

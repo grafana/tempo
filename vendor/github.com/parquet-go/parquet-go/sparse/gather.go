@@ -35,10 +35,3 @@ func GatherString(dst []string, src StringArray) int {
 
 	return n
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

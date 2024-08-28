@@ -34,9 +34,10 @@ func (cfg *MemcachedConfig) RegisterFlagsWithPrefix(prefix, description string, 
 
 // Memcached type caches chunks in memcached
 type Memcached struct {
-	cfg      MemcachedConfig
-	memcache MemcachedClient
-	name     string
+	cfg         MemcachedConfig
+	memcache    MemcachedClient
+	name        string
+	maxItemSize int
 
 	requestDuration *instr.HistogramCollector
 
@@ -48,20 +49,24 @@ type Memcached struct {
 }
 
 // NewMemcached makes a new Memcached.
-func NewMemcached(cfg MemcachedConfig, client MemcachedClient, name string, reg prometheus.Registerer, logger log.Logger) *Memcached {
+func NewMemcached(cfg MemcachedConfig, client MemcachedClient, name string, maxItemSize int, reg prometheus.Registerer, logger log.Logger) *Memcached {
 	c := &Memcached{
-		cfg:      cfg,
-		memcache: client,
-		name:     name,
-		logger:   logger,
+		cfg:         cfg,
+		memcache:    client,
+		name:        name,
+		maxItemSize: maxItemSize,
+		logger:      logger,
 		requestDuration: instr.NewHistogramCollector(
 			promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
 				Namespace: "tempo",
 				Name:      "memcache_request_duration_seconds",
 				Help:      "Total time spent in seconds doing memcache requests.",
 				// Memcached requests are very quick: smallest bucket is 16us, biggest is 1s
-				Buckets:     prometheus.ExponentialBuckets(0.000016, 4, 8),
-				ConstLabels: prometheus.Labels{"name": name},
+				Buckets:                         prometheus.ExponentialBuckets(0.000016, 4, 8),
+				NativeHistogramBucketFactor:     1.1,
+				NativeHistogramMaxBucketNumber:  100,
+				NativeHistogramMinResetDuration: 1 * time.Hour,
+				ConstLabels:                     prometheus.Labels{"name": name},
 			}, []string{"method", "status_code"}),
 		),
 	}
@@ -257,4 +262,8 @@ func (c *Memcached) Stop() {
 		close(c.quit)
 	}
 	c.wg.Wait()
+}
+
+func (c *Memcached) MaxItemSize() int {
+	return c.maxItemSize
 }

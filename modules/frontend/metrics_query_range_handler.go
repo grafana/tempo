@@ -29,7 +29,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 			URL:    &url.URL{Path: downstreamPath},
 			Header: http.Header{},
 			Body:   io.NopCloser(bytes.NewReader([]byte{})),
-		}, req)
+		}, req, "") // dedicated cols are never passed from the caller
 
 		ctx := srv.Context()
 		httpReq = httpReq.WithContext(ctx)
@@ -37,12 +37,12 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		start := time.Now()
 
 		var finalResponse *tempopb.QueryRangeResponse
-		c, err := combiner.NewTypedQueryRange(req)
+		c, err := combiner.NewTypedQueryRange(req, true)
 		if err != nil {
 			return err
 		}
 
-		collector := pipeline.NewGRPCCollector(next, c, func(qrr *tempopb.QueryRangeResponse) error {
+		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, c, func(qrr *tempopb.QueryRangeResponse) error {
 			finalResponse = qrr // sadly we can't pass srv.Send directly into the collector. we need bytesProcessed for the SLO calculations
 			return srv.Send(qrr)
 		})
@@ -65,7 +65,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 
-	return pipeline.RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		tenant, _ := user.ExtractOrgID(req.Context())
 		start := time.Now()
 
@@ -83,16 +83,16 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		logQueryRangeRequest(logger, tenant, queryRangeReq)
 
 		// build and use roundtripper
-		combiner, err := combiner.NewTypedQueryRange(queryRangeReq)
+		combiner, err := combiner.NewTypedQueryRange(queryRangeReq, false)
 		if err != nil {
 			level.Error(logger).Log("msg", "query range: query range combiner failed", "err", err)
 			return &http.Response{
-				StatusCode: http.StatusInternalServerError,
-				Status:     http.StatusText(http.StatusInternalServerError),
+				StatusCode: http.StatusBadRequest,
+				Status:     http.StatusText(http.StatusBadRequest),
 				Body:       io.NopCloser(strings.NewReader(err.Error())),
 			}, nil
 		}
-		rt := pipeline.NewHTTPCollector(next, combiner)
+		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, combiner)
 
 		resp, err := rt.RoundTrip(req)
 
@@ -154,7 +154,7 @@ func logQueryRangeRequest(logger log.Logger, tenantID string, req *tempopb.Query
 		"msg", "query range request",
 		"tenant", tenantID,
 		"query", req.Query,
-		"range_seconds", req.End-req.Start,
+		"range_nanos", req.End-req.Start,
 		"mode", req.QueryMode,
 		"step", req.Step)
 }

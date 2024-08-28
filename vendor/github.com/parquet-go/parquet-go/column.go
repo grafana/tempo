@@ -350,6 +350,9 @@ func (cl *columnLoader) open(file *File, path []string) (*Column, error) {
 	}
 
 	c.typ = &groupType{}
+	if lt := c.schema.LogicalType; lt != nil && lt.Map != nil {
+		c.typ = &mapType{}
+	}
 	c.columns = make([]*Column, numChildren)
 
 	for i := range c.columns {

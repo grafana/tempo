@@ -30,6 +30,12 @@ The Tempo configuration options include:
     - [Local storage recommendations](#local-storage-recommendations)
     - [Storage block configuration example](#storage-block-configuration-example)
   - [Memberlist](#memberlist)
+  - [Configuration blocks](#configuration-blocks)
+    - [Block config](#block-config)
+    - [Filter policy config](#filter-policy-config)
+    - [KVStore config](#kvstore-config)
+    - [Search config](#search-config)
+    - [WAL config](#wal-config)
   - [Overrides](#overrides)
     - [Ingestion limits](#ingestion-limits)
       - [Standard overrides](#standard-overrides)
@@ -73,11 +79,6 @@ Tempo uses the server from `dskit/server`. For more information on configuration
 ```yaml
 # Optional. Setting to true enables multitenancy and requires X-Scope-OrgID header on all requests.
 [multitenancy_enabled: <bool> | default = false]
-
-# Optional. Setting to true enables query filtering in tag value search API `/api/v2/search/<tag>/values`.
-# If filtering is enabled, the API accepts a query parameter `q` containing a TraceQL query,
-# and returns only tag values that match the query.
-[autocomplete_filtering_enabled: <bool> | default = true]
 
 # Optional. String prefix for all http api endpoints. Must include beginning slash.
 [http_api_prefix: <string>]
@@ -195,9 +196,16 @@ distributor:
 
 
     # Optional.
-    # Enable to log every received span to help debug ingestion or calculate span error distributions using the logs
+    # Enable to log every received span to help debug ingestion or calculate span error distributions using the logs.
     # This is not recommended for production environments
     log_received_spans:
+        [enabled: <boolean> | default = false]
+        [include_all_attributes: <boolean> | default = false]
+        [filter_by_status_error: <boolean> | default = false]
+      
+    # Optional.
+    # Enable to log every discarded span to help debug ingestion or calculate span error distributions using the logs.
+    log_discarded_spans:
         [enabled: <boolean> | default = false]
         [include_all_attributes: <boolean> | default = false]
         [filter_by_status_error: <boolean> | default = false]
@@ -289,12 +297,36 @@ metrics_generator:
 
     # Ring configuration
     ring:
-
-      kvstore:
-
-        # The metrics-generator uses the ring to balance work across instances. The ring is stored
-        # in a key-vault store.
+      kvstore: <KVStore config>
         [store: <string> | default = memberlist]
+        [prefix: <string> | default = "collectors/"]
+
+      # Period at which to heartbeat the instance
+      # 0 disables heartbeat altogether
+      [heartbeat_period: <duration> | default = 5s]
+
+      # The heartbeat timeout, after which, the instance is skipped. 
+      # 0 disables timeout.
+      [heartbeat_timeout: <duration> | default = 1m]
+
+      # Our Instance ID to register as in the ring.
+      [instance_id: <string> | default = os.Hostname()]
+
+      # Name of the network interface to read address from.
+      [instance_interface_names: <list of string> | default = ["eth0", "en0"] ]
+
+      # Our advertised IP address in the ring, (usefull if the local ip =/= the external ip)
+      # Will default to the configured `instance_id` ip address, 
+      # if unset, will fallback to ip reported by `instance_interface_names`
+      # (Effected by `enable_inet6`)
+      [instance_addr: <string> | default = auto(instance_id, instance_interface_names)]
+
+      # Our advertised port in the ring
+      # Defaults to the configured GRPC listing port
+      [instance_port: <int> | default = auto(listen_port)]
+
+      # Enables the registering of ipv6 addresses in the ring.
+      [enable_inet6: <bool> | default = false]
 
     # Processor-specific configuration
     processor:
@@ -326,6 +358,12 @@ metrics_generator:
             # `wait` value for this processor.
             [enable_messaging_system_latency_histogram: <bool> | default = false]
 
+            # Attributes that will be used to create a peer edge
+            # Attributes are searched in the order they are provided
+            # See: https://pkg.go.dev/go.opentelemetry.io/otel/semconv/v1.18.0
+            # Example: ["peer.service", "db.name", "db.system", "host.name"]
+            [peer_attributes: <list of string> | default = ["peer.service", "db.name", "db.system"] ]
+
             # Attribute Key to multiply span metrics
             [span_multiplier_key: <string> | default = ""]
 
@@ -335,7 +373,7 @@ metrics_generator:
         span_metrics:
 
             # Buckets for the latency histogram in seconds.
-            [histogram_buckets: <list of float> | default = 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.02, 2.05, 4.10]
+            [histogram_buckets: <list of float> | default = 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.024, 2.048, 4.096, 8.192, 16.384]
 
             # Configure intrinsic dimensions to add to the metrics. Intrinsic dimensions are taken
             # directly from the respective resource and span properties.
@@ -357,19 +395,66 @@ metrics_generator:
             # the metrics if present.
             [dimensions: <list of string>]
 
-            # Custom labeling of dimensions is possible via a list of maps consisting of
-            # "name" <string>, "source_labels" <list of string>, "join" <string>
-            # "name" appears in the metrics, "source_labels" are the actual
-            # attributes that will make up the value of the label and "join" is the
-            # separator if multiple source_labels are provided
-            [dimension_mappings: <list of map>]
+            # Custom labeling mapping
+            dimension_mappings: <list of label mappings>
+                # The new label name
+              - [name: <string>]
+                # The actual attributes that will make the value of the new label
+                [source_labels: <list of strings>]
+                # The separator used to join multiple `source_labels`
+                [join: <string>]
+
             # Enable traces_target_info metrics
-            [enable_target_info: <bool>]
-            # Drop specific labels from traces_target_info metrics
-            [target_info_excluded_dimensions: <list of string>]
+            [enable_target_info: <bool> | default = false]
+
             # Attribute Key to multiply span metrics
             [span_multiplier_key: <string> | default = ""]
 
+            # List of policies that will be applied to spans for inclusion or exclusion.
+            [filter_policies: <list of filter policies config> | default = []]
+
+            # Drop specific labels from `traces_target_info` metrics
+            [target_info_excluded_dimensions: <list of string>]
+
+        local_blocks:
+
+            # Block configuration
+            block: <Block config>
+
+            # Search configuration
+            search: <Search config>
+
+            # How often to run the flush loop to cut idle traces and blocks
+            [flush_check_period: <duration> | default = 10s]
+
+            # A trace is considered complete after this period of inactivity (no new spans recieved)
+            [trace_idle_period: <duration> | default = 10s]
+
+            # Maximum duration which the head block can be appended to, before cutting it.
+            [max_block_duration: <duration> | default = 1m]
+
+            # Maximum size of the head block, before cutting it
+            [max_block_bytes: <uint64> | default = 500000000]
+
+            # Duration to keep blocks in the ingester after they have been flushed
+            [complete_block_timeout: <duration> | default = 1h]
+
+            # Maximum amount of live traces
+            # If this value is exceeded, traces will be dropped with reason: `live_traces_exceeded`
+            # A value of 0 disables this limit.
+            [max_live_traces: <uint64>]
+
+            # Whether server spans should be filtered in or not.
+            # If enabled, only parent spans or spans with the SpanKind of `server` will be retained 
+            [filter_server_spans: <bool> | default = true]
+
+            # Number of blocks that are allowed to be processed concurently
+            [concurrent_blocks: <uint> | default = 10]
+
+            # A tuning factor that controls whether the trace-level timestamp columns are used in a metrics query.
+            # If a block overlaps the time window by less than this ratio, then we skip the columns. 
+            # A value of 1.0 will always load the columns, and 0.0 will never load any.
+            [time_overlap_cutoff: <float64> | default = 0.2]
 
     # Registry configuration
     registry:
@@ -393,6 +478,14 @@ metrics_generator:
         # The maximum length of label values. Label values exceeding this limit will be truncated.
         [max_label_value_length: <int> | default = 2048]
 
+    # Configuration block for the Write Ahead Log (WAL)
+    traces_storage: <WAL config>
+
+      # Path to store the WAL files.
+      # Must be set.
+      # Example: "/var/tempo/generator/traces"
+      [path: <string> | default = ""]
+
     # Storage and remote write configuration
     storage:
 
@@ -400,7 +493,8 @@ metrics_generator:
         path: <string>
 
         # Configuration for the Prometheus Agent WAL
-        wal:
+        # https://github.com/prometheus/prometheus/blob/v2.51.2/tsdb/agent/db.go#L62-L84
+        wal: <prometheus agent WAL config>
 
         # How long to wait when flushing samples on shutdown
         [remote_write_flush_deadline: <duration> | default = 1m]
@@ -417,6 +511,12 @@ metrics_generator:
     # considered in metrics generation.
     # This is to filter out spans that are outdated.
     [metrics_ingestion_time_range_slack: <duration> | default = 30s]
+
+    # Timeout for metric requests
+    [query_timeout: <duration> | default = 30s ]
+
+    # Overides the key used to register the metrics-generator in the ring.
+    [override_ring_key: <string> | default = "metrics-generator"]
 ```
 
 ## Query-frontend
@@ -432,6 +532,11 @@ query_frontend:
     # number of times to retry a request sent to a querier
     # (default: 2)
     [max_retries: <int>]
+
+    # The number of goroutines dedicated to consuming, unmarshalling and recombining responses per request. This
+    # same parameter is used for all endpoints.
+    # (default: 10)
+    [response_consumers: <int>]
 
     # Maximum number of outstanding requests per tenant per frontend; requests beyond this error with HTTP 429.
     # (default: 2000)
@@ -462,6 +567,9 @@ query_frontend:
     # from imposing more work on Tempo than desired.
     # (default: 0)
     [api_timeout: <duration>]
+
+    # A list of regular expressions for refusing matching requests, these will apply for every request regardless of the endpoint.
+    [url_deny_list: <list of strings> | default = <empty list>]]
 
     search:
 
@@ -579,7 +687,7 @@ querier:
     # Lookback period to include ingesters that were part of the shuffle sharded subring.
     [shuffle_sharding_ingesters_lookback_period: <duration> | default = 1hr]
 
-    # The query frontend sents sharded requests to ingesters and querier (/api/traces/<id>)
+    # The query frontend sends sharded requests to ingesters and querier (/api/traces/<id>)
     # By default, all healthy ingesters are queried for the trace id.
     # When true the querier will hash the trace id in the same way that distributors do and then
     # only query those ingesters who own the trace id hash as determined by the ring.
@@ -596,7 +704,7 @@ querier:
 
         # A list of external endpoints that the querier will use to offload backend search requests. They must
         # take and return the same value as /api/search endpoint on the querier. This is intended to be
-        # used with serverless technologies for massive parrallelization of the search path.
+        # used with serverless technologies for massive parallelization of the search path.
         # The default value of "" disables this feature.
         [external_endpoints: <list of strings> | default = <empty list>]
 
@@ -625,7 +733,7 @@ querier:
         google_cloud_run:
             # A list of external endpoints that the querier will use to offload backend search requests. They must
             # take and return the same value as /api/search endpoint on the querier. This is intended to be
-            # used with serverless technologies for massive parrallelization of the search path.
+            # used with serverless technologies for massive parallelization of the search path.
             # The default value of "" disables this feature.
             [external_endpoints: <list of strings> | default = <empty list>]
 
@@ -654,13 +762,9 @@ compactor:
     [disabled: <bool>]
 
     ring:
-
-        kvstore:
-
-            # in a high volume environment multiple compactors need to work together to keep up with incoming blocks.
-            # this tells the compactors to use a ring stored in memberlist to coordinate.
-            # Example: "store: memberlist"
-            [store: <string>]
+        kvstore: <KVStore config>
+            [store: <string> | default = memberlist]
+            [prefix: <string> | default = "collectors/" ]
 
     compaction:
 
@@ -709,10 +813,10 @@ For more information on configuration options, refer to [this file](https://gith
 ### Local storage recommendations
 
 While you can use local storage, object storage is recommended for production workloads.
-A local backend will not correctly retrieve traces with a distributed deployment unless all components have access to the same disk.
+A local backend won't correctly retrieve traces with a distributed deployment unless all components have access to the same disk.
 Tempo is designed for object storage more than local storage.
 
-At Grafana Labs, we have run Tempo with SSDs when using local storage.
+At Grafana Labs, we've run Tempo with SSDs when using local storage.
 Hard drives haven't been tested.
 
 You can estimate how much storage space you need by considering the ingested bytes and retention.
@@ -876,6 +980,11 @@ storage:
             # enable to use path-style requests.
             [forcepathstyle: <bool>]
 
+            # Optional.
+            # Enable to use dualstack endpoint for DNS resolution.
+            # Check out the (S3 documentation on dualstack endpoints)[https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html]
+            [enable_dual_stack: <bool>]
+
             # Optional. Default is 0
             # Example: "bucket_lookup_type: 0"
             # options: 0: BucketLookupAuto, 1: BucketLookupDNS, 2: BucketLookupPath
@@ -940,19 +1049,13 @@ storage:
             [use_federated_token: <bool>]
 
             # optional.
-            # experimental.
-            # Use the v2 SDK (azure-sdk-for-go) to communicate with azure instead of the default blob client.
-            # Enable if you want to use the newer Azure azure-sdk-for-go.
-            [use_v2_sdk: <bool>]
-
-            # optional.
             # The Client ID for the user-assigned Azure Managed Identity used to access Azure storage.
             [user_assigned_id: <bool>]
 
             # Optional. Default is 0 (disabled)
             # Example: "hedge_requests_at: 500ms"
             # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
-            # be set to p99 of Axure Blog Storage requests to reduce long tail latency. This setting is most impactful when
+            # be set to p99 of Azure Block Storage requests to reduce long tail latency. This setting is most impactful when
             # used with queriers and has minimal to no impact on other pieces.
             [hedge_requests_at: <duration>]
 
@@ -975,6 +1078,9 @@ storage:
         # the index. Default 2.
         [blocklist_poll_tenant_index_builders: <int>]
 
+        # Number of tenants to poll concurrently. Default is 1.
+        [blocklist_poll_tenant_concurrency: <int>]
+
         # The oldest allowable tenant index. If an index is pulled that is older than this duration,
         # the polling will consider this an error. Note that `blocklist_poll_fallback` applies here.
         # If fallback is true and a tenant index exceeds this duration, it will fall back to listing
@@ -988,11 +1094,19 @@ storage:
         # Default 0 (disabled)
         [blocklist_poll_jitter_ms: <int>]
 
-        # Polling will tolerate this many consecutive errors before failing and exiting early for the
-        # current repoll. Can be set to 0 which means a single error is sufficient to fail and exit early
-        # (matches the original polling behavior).
+        # Polling will tolerate this many consecutive errors during the poll of
+        # a single tenant before marking the tenant as failed.
+        # This can be set to 0 which means a single error is sufficient to mark the tenant failed
+        # and exit early.  Any previous results for the failing tenant will be kept.
+        # See also `blocklist_poll_tolerate_tenant_failures` below.
         # Default 1
         [blocklist_poll_tolerate_consecutive_errors: <int>]
+
+        # Polling will tolerate this number of tenants which have failed to poll.
+        # This can be set to 0 which means a single tenant failure  sufficient to fail and exit
+        # early.
+        # Default 1
+        [blocklist_poll_tolerate_tenant_failures: <int>]
 
         # Used to tune how quickly the poller will delete any remaining backend
         # objects found in the tenant path.  This functionality requires enabling
@@ -1009,7 +1123,7 @@ storage:
 
         # Cache type to use. Should be one of "redis", "memcached"
         # Example: "cache: memcached"
-        # Deprecated. See [cache](#cache) section below.
+        # Deprecated. See [cache](#cache) section.
         [cache: <string>]
 
         # Minimum compaction level of block to qualify for bloom filter caching. Default is 0 (disabled), meaning
@@ -1023,129 +1137,39 @@ storage:
         [cache_max_block_age: <duration>]
 
         # Configuration parameters that impact trace search
-        search:
-
-            # Target number of bytes per GET request while scanning blocks. Default is 1MB. Reducing
-            # this value could positively impact trace search performance at the cost of more requests
-            # to object storage.
-            # Example: "chunk_size_bytes: 5_000_000"
-            [chunk_size_bytes: <int>]
-
-            # Number of traces to prefetch while scanning blocks. Default is 1000. Increasing this value
-            # can improve trace search performance at the cost of memory.
-            # Example: "prefetch_trace_count: 10000"
-            [prefetch_trace_count: <int>]
-
-            # Size of read buffers used when performing search on a vparquet block. This value times the read_buffer_count
-            # is the total amount of bytes used for buffering when performing search on a parquet block.
-            # Default: 1048576
-            [read_buffer_size_bytes: <int>]
-
-            # Number of read buffers used when performing search on a vparquet block. This value times the  read_buffer_size_bytes
-            # is the total amount of bytes used for buffering when performing search on a parquet block.
-            # Default: 32
-            [read_buffer_count: <int>]
-
-            # Granular cache control settings for parquet metadata objects
-            # Deprecated. See [cache](#cache) section below.
-            cache_control:
-
-                # Specifies if footer should be cached
-                [footer: <bool> | default = false]
-
-                # Specifies if column index should be cached
-                [column_index: <bool> | default = false]
-
-                # Specifies if offset index should be cached
-                [offset_index: <bool> | default = false]
-
+        search: <Search config>
 
         # Background cache configuration. Requires having a cache configured.
-        # Deprecated. See [cache](#cache) section below.
+        # Deprecated. See [cache](#cache) section.
         background_cache:
 
         # Memcached caching configuration block
-        # Deprecated. See [cache](#cache) section below.
+        # Deprecated. See [cache](#cache) section.
         memcached:
 
         # Redis configuration block
         # EXPERIMENTAL
-        # Deprecated. See [cache](#cache) section below.
+        # Deprecated. See [cache](#cache) section.
         redis:
 
         # the worker pool is used primarily when finding traces by id, but is also used by other
         pool:
 
-            # total number of workers pulling jobs from the queue (default: 400)
-            [max_workers: <int>]
+            # total number of workers pulling jobs from the queue
+            [max_workers: <int> | default = 30]
 
-            # length of job queue. imporatant for querier as it queues a job for every block it has to search
-            # (default: 20000)
-            [queue_depth: <int>]
+            # length of job queue. important for querier as it queues a job for every block it has to search
+            [queue_depth: <int> | default = 10000 ]
 
-        # Configuration block for the Write Ahead Log (WAL)
-        wal:
-
-            # where to store the head blocks while they are being appended to
-            # Example: "wal: /var/tempo/wal"
-            [path: <string>]
-
-            # wal encoding/compression.
-            # options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-            [v2_encoding: <string> | default = snappy]
-
-            # Defines the search data encoding/compression protocol.
-            # Options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-            [search_encoding: <string> | default = none]
-
-            # When a span is written to the WAL it adjusts the start and end times of the block it is written to.
-            # This block start and end time range is then used when choosing blocks for search.
-            # This is also used for querying traces by ID when the start and end parameters are specified. To prevent spans too far
-            # in the past or future from impacting the block start and end times we use this configuration option.
-            # This option only allows spans that occur within the configured duration to adjust the block start and
-            # end times.
-            # This can result in trace not being found if the trace falls outside the slack configuration value as the
-            # start and end times of the block will not be updated in this case.
-            [ingestion_time_range_slack: <duration> | default = 2m]
+        # configuration block for the Write Ahead Log (WAL)
+        wal: <WAL config>
+          [path: <string> | default = "/var/tempo/wal"]
+          [v2_encoding: <string> | default = snappy]
+          [search_encoding: <string> | default = none]
+          [ingestion_time_range_slack: <duration> | default = 2m]
 
         # block configuration
-        block:
-            # block format version. options: v2, vParquet2, vParquet3, vParquet4
-            [version: <string> | default = vParquet3]
-
-            # bloom filter false positive rate. lower values create larger filters but fewer false positives
-            [bloom_filter_false_positive: <float> | default = 0.01]
-
-            # maximum size of each bloom filter shard
-            [bloom_filter_shard_size_bytes: <int> | default = 100KiB]
-
-            # number of bytes per index record
-            [v2_index_downsample_bytes: <uint64> | default = 1MiB]
-
-            # block encoding/compression. options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
-            [v2_encoding: <string> | default = zstd]
-
-            # search data encoding/compression. same options as block encoding.
-            [search_encoding: <string> | default = snappy]
-
-            # number of bytes per search page
-            [search_page_size_bytes: <int> | default = 1MiB]
-
-            # an estimate of the number of bytes per row group when cutting Parquet blocks. lower values will
-            #  create larger footers but will be harder to shard when searching. It is difficult to calculate
-            #  this field directly and it may vary based on workload. This is roughly a lower bound.
-            [parquet_row_group_size_bytes: <int> | default = 100MB]
-
-            # Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
-            # generic attribute key-value list. This allows for more efficient searching of these attributes.
-            # Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
-            # Requires vParquet3
-            parquet_dedicated_columns:
-                [
-                  name: <string>, # name of the attribute
-                  type: <string>, # type of the attribute. options: string
-                  scope: <string> # scope of the attribute. options: resource, span
-                ]
+        block: <Block config>
 ```
 
 ## Memberlist
@@ -1219,9 +1243,9 @@ memberlist:
     # Timeout for leaving memberlist cluster.
     [leave_timeout: <duration> | default = 5s]
 
-    # IP address to listen on for gossip messages. Multiple addresses may be
-    # specified. Defaults to 0.0.0.0
-    [bind_addr: <list of string> | default = ]
+    # IP address to listen on for gossip messages.
+    # Multiple addresses may be specified.
+    [bind_addr: <list of string> | default = ["0.0.0.0"] ]
 
     # Port to listen on for gossip messages.
     [bind_port: <int> | default = 7946]
@@ -1232,6 +1256,216 @@ memberlist:
     # Timeout for writing 'packet' data.
     [packet_write_timeout: <duration> | default = 5s]
 
+```
+
+## Configuration blocks
+
+Defines re-used configuration blocks.
+
+### Block config
+
+```yaml
+# block format version. options: v2, vParquet2, vParquet3, vParquet4
+[version: <string> | default = vParquet4]
+
+# bloom filter false positive rate. lower values create larger filters but fewer false positives
+[bloom_filter_false_positive: <float> | default = 0.01]
+
+# maximum size of each bloom filter shard
+[bloom_filter_shard_size_bytes: <int> | default = 100KiB]
+
+# number of bytes per index record
+[v2_index_downsample_bytes: <uint64> | default = 1MiB]
+
+# block encoding/compression. options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
+[v2_encoding: <string> | default = zstd]
+
+# search data encoding/compression. same options as block encoding.
+[search_encoding: <string> | default = snappy]
+
+# number of bytes per search page
+[search_page_size_bytes: <int> | default = 1MiB]
+
+# an estimate of the number of bytes per row group when cutting Parquet blocks. lower values will
+#  create larger footers but will be harder to shard when searching. It is difficult to calculate
+#  this field directly and it may vary based on workload. This is roughly a lower bound.
+[parquet_row_group_size_bytes: <int> | default = 100MB]
+
+# Configures attributes to be stored in dedicated columns within the parquet file, rather than in the
+# generic attribute key-value list. This allows for more efficient searching of these attributes.
+# Up to 10 span attributes and 10 resource attributes can be configured as dedicated columns.
+# Requires vParquet3
+parquet_dedicated_columns: <list of columns>
+
+      # name of the attribute
+    - [name: <string>]
+
+      # type of the attribute. options: string
+      [type: <string>]
+
+      # scope of the attribute. 
+      # options: resource, span
+      [scope: <string>]
+```
+
+### Filter policy config
+
+Span filter config block
+
+#### Filter policy
+```yaml
+# Exclude filters (positive matching)
+[include: <policy match>]
+
+# Exclude filters (negative matching)
+[exclude: <policy match>]
+```
+
+#### Policy match
+```yaml
+# How to match the value of attributes
+# Options: "strict", "regex"
+[match_type: <string>]
+
+# List of attributes to match
+attributes: <list of policy atributes>
+
+    # Attribute key
+  - [key: <string>]
+
+    # Attribute value
+    [value: <any>]
+```
+
+#### Examples
+
+```yaml
+exclude:
+  match_type: "regex"
+  attributes:
+    - key: "resource.service.name"
+      value: "unknown_service:myservice"
+```
+
+```yaml
+include:
+  match_type: "strict"
+  attributes:
+    - key: "foo.bar"
+      value: "baz"
+```
+
+### KVStore config
+
+The kvstore configuration block
+
+```yaml
+# Set backing store to use
+[store: <string> | default = "consul"]
+
+# What prefix to use for keys
+[prefix: <string> | default = "ring."]
+
+# Store specific configs
+consul:
+  [host: <string> | default = "localhost:8500"]
+  [acl_token: <secret string> | default = "" ]
+  [http_client_timeout: <duration> | default = 20s]
+  [consistent_reads: <bool> | default = false]
+  [watch_rate_limit: <float64> | default = 1.0]
+  [watch_burst_size: <int> | default = 1]
+  [cas_retry_delay: <duration> | default 1s]
+
+etcd:
+  [endpoints: <list of string> | default = [] ]
+  [dial_timeout: <duration> | default = 10s]
+  [max_retries: <int> | default = 10 ]
+  [tls_enabled: <bool> | default = false]
+
+  # TLS config
+  [tls_cert_path: <string> | default = ""]
+  [tls_key_path: <string> | default = ""]
+  [tls_ca_path: <string> | default = ""]
+  [tls_server_name: <string> | default = ""]
+  [tls_insecure_skip_verify: <bool> | default = false]
+  [tls_cipher_suites: <string> | default = ""]
+  [tls_min_version: <string> | default = ""]
+
+  [username: <string> | default = ""]
+  [password: <secret string> | default = ""]
+
+multi:
+  [primary: <string> | default = ""]
+  [secondary: <string> | default = ""]
+  [mirror_enabled: <bool> | default = false]
+  [mirror_timeout: <bool> | default = 2s]
+```
+
+### Search config
+
+```yaml
+# Target number of bytes per GET request while scanning blocks. Default is 1MB. Reducing
+# this value could positively impact trace search performance at the cost of more requests
+# to object storage.
+[chunk_size_bytes: <uint32> | default = 1000000]
+
+# Number of traces to prefetch while scanning blocks. Default is 1000. Increasing this value
+# can improve trace search performance at the cost of memory.
+[prefetch_trace_count: <int> | default = 1000]
+
+# Number of read buffers used when performing search on a vparquet block. This value times the  read_buffer_size_bytes
+# is the total amount of bytes used for buffering when performing search on a parquet block.
+[read_buffer_count: <int> | default = 32]
+
+# Size of read buffers used when performing search on a vparquet block. This value times the read_buffer_count
+# is the total amount of bytes used for buffering when performing search on a parquet block.
+[read_buffer_size_bytes: <int> | default = 1048576]
+
+# Granular cache control settings for parquet metadata objects
+# Deprecated. See [Cache](#cache) section.
+cache_control:
+
+    # Specifies if footer should be cached
+    [footer: <bool> | default = false]
+
+    # Specifies if column index should be cached
+    [column_index: <bool> | default = false]
+
+    # Specifies if offset index should be cached
+    [offset_index: <bool> | default = false]
+```
+
+### WAL config
+
+The storage WAL configuration block.
+
+```yaml
+# Where to store the wal files while they are being appended to.
+# Must be set.
+# Example: "/var/tempo/wal
+[path: <string> | default = ""]
+
+# WAL encoding/compression.
+# options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
+[v2_encoding: <string> | default = "zstd" ]
+
+# Defines the search data encoding/compression protocol.
+# Options: none, gzip, lz4-64k, lz4-256k, lz4-1M, lz4, snappy, zstd, s2
+[search_encoding: <string> | default = "snappy"]
+
+# When a span is written to the WAL it adjusts the start and end times of the block it is written to.
+# This block start and end time range is then used when choosing blocks for search.
+# This is also used for querying traces by ID when the start and end parameters are specified. To prevent spans too far
+# in the past or future from impacting the block start and end times we use this configuration option.
+# This option only allows spans that occur within the configured duration to adjust the block start and
+# end times.
+# This can result in trace not being found if the trace falls outside the slack configuration value as the
+# start and end times of the block will not be updated in this case.
+[ingestion_time_range_slack: <duration> | default = unset]
+
+# WAL file format version
+# Options: v2, vParquet, vParquet2, vParquet3
+[version: <string> | default = "vParquet3"]
 ```
 
 ## Overrides
@@ -1246,7 +1480,7 @@ See below for how to override these limits globally or per tenant.
 
 #### Standard overrides
 
-You can create an `overrides` section to configure new ingestion limits that applies to all tenants of the cluster.
+You can create an `overrides` section to configure ingestion limits that apply to all tenants of the cluster.
 A snippet of a `config.yaml` file showing how the overrides section is [here](https://github.com/grafana/tempo/blob/a000a0d461221f439f585e7ed55575e7f51a0acd/integration/bench/config.yaml#L39-L40).
 
 ```yaml
@@ -1375,6 +1609,11 @@ overrides:
       # This is to filter out spans that are outdated.
       [ingestion_time_range_slack: <duration>]
 
+      # Configures the histogram implementation to use for span metrics and
+      # service graphs processors.  If native histograms are desired, the
+      # receiver must be configured to ingest native histograms.
+      [generate_native_histograms: <classic|native|both> | default = classic]
+
       # Distributor -> metrics-generator forwarder related overrides
       forwarder:
         # Spans are stored in a queue in the distributor before being sent to the metrics-generators.
@@ -1461,7 +1700,7 @@ overrides:
   [per_tenant_override_config: <string> | default = ""]
 
   # How frequent tenant-specific overrides are read from the configuration file.
-  [per_tenant_override_period: <druation> | default = 10s]
+  [per_tenant_override_period: <duration> | default = 10s]
 
   # User-configurable overrides configuration
   user_configurable_overrides:
@@ -1540,7 +1779,7 @@ overrides:
 
 These tenant-specific overrides are stored in an object store and can be modified using API requests.
 User-configurable overrides have priority over runtime overrides.
-See [user-configurable overrides]{{< relref "../operations/user-configurable-overrides" >}} for more details.
+Refer to [user-configurable overrides]{{< relref "../operations/user-configurable-overrides" >}} for more details.
 
 #### Override strategies
 
@@ -1831,8 +2070,6 @@ cache:
   caches:
   - roles:
     - parquet-footer
-    - parquet-column-idx
-    - parquet-offset-idx
     memcached:
       host: memcached-instance
   - roles:

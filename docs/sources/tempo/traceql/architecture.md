@@ -31,11 +31,10 @@ For examples of query syntax, refer to [Construct a TraceQL query]({{< relref ".
 
 TraceQL will be implemented in phases. The initial iteration of the TraceQL engine includes spanset selection and pipelines.
 
-For more information about TraceQL’s design, refer to the [TraceQL Concepts design proposal](https://github.com/grafana/tempo/blob/main/docs/design-proposals/2022-04%20TraceQL%20Concepts.md).
+For more information about TraceQL’s design, refer to the [TraceQL extensions](https://github.com/grafana/tempo/blob/main/docs/design-proposals/2023-11%20TraceQL%20Extensions.md) abd [TraceQL Concepts](https://github.com/grafana/tempo/blob/main/docs/design-proposals/2022-04%20TraceQL%20Concepts.md) design proposals.
 
 ### Future work
 
 - Increase OTEL support: Events, Lists, ILS Scope, etc.
 - Ancestor and parent structural queries
-- Metrics
 - Pipeline comparisons

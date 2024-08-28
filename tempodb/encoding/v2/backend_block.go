@@ -151,15 +151,15 @@ func (b *BackendBlock) Search(context.Context, *tempopb.SearchRequest, common.Se
 	return nil, common.ErrUnsupported
 }
 
-func (b *BackendBlock) SearchTags(context.Context, traceql.AttributeScope, common.TagCallback, common.SearchOptions) error {
+func (b *BackendBlock) SearchTags(context.Context, traceql.AttributeScope, common.TagsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
-func (b *BackendBlock) SearchTagValues(context.Context, string, common.TagCallback, common.SearchOptions) error {
+func (b *BackendBlock) SearchTagValues(context.Context, string, common.TagValuesCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
-func (b *BackendBlock) SearchTagValuesV2(context.Context, traceql.Attribute, common.TagCallbackV2, common.SearchOptions) error {
+func (b *BackendBlock) SearchTagValuesV2(context.Context, traceql.Attribute, common.TagValuesCallbackV2, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
@@ -168,5 +168,9 @@ func (b *BackendBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.
 }
 
 func (b *BackendBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.SearchOptions) error {
+	return common.ErrUnsupported
+}
+
+func (b *BackendBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }

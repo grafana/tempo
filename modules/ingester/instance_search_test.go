@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -39,7 +40,7 @@ func TestInstanceSearch(t *testing.T) {
 
 	tagKey := foo
 	tagValue := bar
-	ids, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, false)
+	ids, _, _, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, false, false)
 
 	req := &tempopb.SearchRequest{
 		Tags: map[string]string{},
@@ -174,7 +175,7 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 
 	tagKey := foo
 	tagValue := bar
-	ids, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, false)
+	ids, _, _, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, false, false)
 
 	search := func(req *tempopb.SearchRequest, start, end uint32) *tempopb.SearchResponse {
 		req.Start = start
@@ -251,7 +252,7 @@ func TestInstanceSearchTags(t *testing.T) {
 	tagKey := "foo"
 	tagValue := bar
 
-	_, expectedTagValues := writeTracesForSearch(t, i, "", tagKey, tagValue, true)
+	_, expectedTagValues, _, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, true, false)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
 
@@ -290,6 +291,15 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 		tagName,
 	) // tags are added to h the spans and not resources so they should not be returned
 
+	// added the same span tag to both event and link
+	sr, err = i.SearchTags(ctx, "event")
+	require.NoError(t, err)
+	assert.Contains(t, sr.TagNames, tagName)
+
+	sr, err = i.SearchTags(ctx, "link")
+	require.NoError(t, err)
+	assert.Contains(t, sr.TagNames, tagName)
+
 	srv, err := i.SearchTagValues(ctx, tagName)
 	require.NoError(t, err)
 
@@ -300,7 +310,6 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 
 func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 	i, _ := defaultInstance(t)
-	i.autocompleteFilteringEnabled = true
 
 	// add dummy search data
 	var (
@@ -312,28 +321,28 @@ func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 		queryThatDoesNotMatch = `{ resource.service.name = "aaaaa" }`
 	)
 
-	_, expectedTagValues := writeTracesForSearch(t, i, spanName, tagKey, tagValue, true)
-	_, _ = writeTracesForSearch(t, i, "other-"+spanName, tagKey, otherTagValue, true)
+	_, expectedTagValues, expectedEventTagValues, expectedLinkTagValues := writeTracesForSearch(t, i, spanName, tagKey, tagValue, true, true)
+	_, _, _, _ = writeTracesForSearch(t, i, "other-"+spanName, tagKey, otherTagValue, true, false)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
 
 	// Test after appending to WAL
-	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues) // Matches the expected tag values
-	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatDoesNotMatch, []string{})   // Does not match the expected tag values
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues, expectedEventTagValues, expectedLinkTagValues) // Matches the expected tag values
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatDoesNotMatch, []string{}, []string{}, []string{})                          // Does not match the expected tag values
 
 	// Test after cutting new headblock
 	blockID, err := i.CutBlockIfReady(0, 0, true)
 	require.NoError(t, err)
 	assert.NotEqual(t, blockID, uuid.Nil)
 
-	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues)
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues, expectedEventTagValues, expectedLinkTagValues)
 
 	// Test after completing a block
 	err = i.CompleteBlock(blockID)
 	require.NoError(t, err)
 	require.NoError(t, i.ClearCompletingBlock(blockID)) // Clear the completing block
 
-	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues)
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues, expectedEventTagValues, expectedLinkTagValues)
 }
 
 // nolint:revive,unparam
@@ -343,6 +352,8 @@ func testSearchTagsAndValuesV2(
 	i *instance,
 	tagName, query string,
 	expectedTagValues []string,
+	expectedEventTagValues []string,
+	expectedLinkTagValues []string,
 ) {
 	tagsResp, err := i.SearchTags(ctx, "none")
 	require.NoError(t, err)
@@ -354,6 +365,58 @@ func testSearchTagsAndValuesV2(
 	require.NoError(t, err)
 
 	tagValues := make([]string, 0, len(tagValuesResp.TagValues))
+	for _, v := range tagValuesResp.TagValues {
+		tagValues = append(tagValues, v.Value)
+	}
+
+	sort.Strings(tagValues)
+	sort.Strings(expectedTagValues)
+	assert.Contains(t, tagsResp.TagNames, tagName)
+	assert.Equal(t, expectedTagValues, tagValues)
+
+	// Test with event and link
+
+	tagValuesResp, err = i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
+		TagName: fmt.Sprintf("event.%s", tagName),
+		Query:   query,
+	})
+	require.NoError(t, err)
+
+	tagValues = make([]string, 0, len(tagValuesResp.TagValues))
+	for _, v := range tagValuesResp.TagValues {
+		tagValues = append(tagValues, v.Value)
+	}
+
+	sort.Strings(tagValues)
+	sort.Strings(expectedEventTagValues)
+	assert.Contains(t, tagsResp.TagNames, tagName)
+	assert.Equal(t, expectedEventTagValues, tagValues)
+
+	tagValuesResp, err = i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
+		TagName: fmt.Sprintf("link.%s", tagName),
+		Query:   query,
+	})
+	require.NoError(t, err)
+
+	tagValues = make([]string, 0, len(tagValuesResp.TagValues))
+	for _, v := range tagValuesResp.TagValues {
+		tagValues = append(tagValues, v.Value)
+	}
+
+	sort.Strings(tagValues)
+	sort.Strings(expectedLinkTagValues)
+	assert.Contains(t, tagsResp.TagNames, tagName)
+	assert.Equal(t, expectedLinkTagValues, tagValues)
+
+	// instrumentation scope attr
+
+	tagValuesResp, err = i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
+		TagName: fmt.Sprintf("instrumentation.%s", tagName),
+		Query:   query,
+	})
+	require.NoError(t, err)
+
+	tagValues = make([]string, 0, len(tagValuesResp.TagValues))
 	for _, v := range tagValuesResp.TagValues {
 		tagValues = append(tagValues, v.Value)
 	}
@@ -378,7 +441,14 @@ func TestInstanceSearchTagsSpecialCases(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(
 		t,
-		[]string{"duration", "kind", "name", "status", "statusMessage", "traceDuration", "rootServiceName", "rootName"},
+		[]string{
+			"duration", "event:name", "event:timeSinceStart",
+			"instrumentation:name", "instrumentation:version",
+			"kind", "name", "rootName", "rootServiceName",
+			"span:duration", "span:kind", "span:name",
+			"span:status", "span:statusMessage", "status", "statusMessage",
+			"trace:duration", "trace:rootName", "trace:rootService", "traceDuration",
+		},
 		resp.TagNames,
 	)
 }
@@ -406,7 +476,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	tagKey := foo
 	tagValue := bar
 
-	_, _ = writeTracesForSearch(t, i, "", tagKey, tagValue, true)
+	_, _, _, _ = writeTracesForSearch(t, i, "", tagKey, tagValue, true, false)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
 	resp, err := i.SearchTagValues(userCtx, tagKey)
@@ -437,7 +507,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	tagKey := foo
 	tagValue := bar
 
-	_, _ = writeTracesForSearch(t, i, "", tagKey, tagValue, true)
+	_, _, _, _ = writeTracesForSearch(t, i, "", tagKey, tagValue, true, false)
 
 	// Cut the headblock
 	blockID, err := i.CutBlockIfReady(0, 0, true)
@@ -445,7 +515,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 	assert.NotEqual(t, blockID, uuid.Nil)
 
 	// Write more traces
-	_, _ = writeTracesForSearch(t, i, "", tagKey, "another-"+bar, true)
+	_, _, _, _ = writeTracesForSearch(t, i, "", tagKey, "another-"+bar, true, false)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
 
@@ -476,7 +546,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 // ids expected to be returned from a tag search and strings expected to
 // be returned from a tag value search
 // nolint:revive,unparam
-func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue string, postFixValue bool) ([][]byte, []string) {
+func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue string, postFixValue bool, includeEventLink bool) ([][]byte, []string, []string, []string) {
 	// This matches the encoding for live traces, since
 	// we are pushing to the instance directly it must match.
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -484,6 +554,8 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 	numTraces := 100
 	ids := make([][]byte, 0, numTraces)
 	expectedTagValues := make([]string, 0, numTraces)
+	expectedEventTagValues := make([]string, 0, numTraces)
+	expectedLinkTagValues := make([]string, 0, numTraces)
 
 	now := time.Now()
 	for j := 0; j < numTraces; j++ {
@@ -496,13 +568,26 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 			tv = tv + strconv.Itoa(j)
 		}
 		kv := &v1.KeyValue{Key: tagKey, Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: tv}}}
+		eTv := "event-" + tv
+		lTv := "link-" + tv
+		eventKv := &v1.KeyValue{Key: tagKey, Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: eTv}}}
+		linkKv := &v1.KeyValue{Key: tagKey, Value: &v1.AnyValue{Value: &v1.AnyValue_StringValue{StringValue: lTv}}}
 		expectedTagValues = append(expectedTagValues, tv)
+		if includeEventLink {
+			expectedEventTagValues = append(expectedEventTagValues, eTv)
+			expectedLinkTagValues = append(expectedLinkTagValues, lTv)
+		}
 		ids = append(ids, id)
 
 		testTrace := test.MakeTrace(10, id)
 		// add the time
-		for _, batch := range testTrace.Batches {
+		for _, batch := range testTrace.ResourceSpans {
 			for _, ils := range batch.ScopeSpans {
+				ils.Scope = &v1.InstrumentationScope{
+					Name:       "scope-name",
+					Version:    "scope-version",
+					Attributes: []*v1.KeyValue{kv},
+				}
 				for _, span := range ils.Spans {
 					span.Name = spanName
 					span.StartTimeUnixNano = uint64(now.UnixNano())
@@ -510,7 +595,13 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 				}
 			}
 		}
-		testTrace.Batches[0].ScopeSpans[0].Spans[0].Attributes = append(testTrace.Batches[0].ScopeSpans[0].Spans[0].Attributes, kv)
+		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes, kv)
+		// add link and event
+		event := &trace_v1.Span_Event{Name: "event-name", Attributes: []*v1.KeyValue{eventKv}}
+		link := &trace_v1.Span_Link{TraceId: id, SpanId: id, Attributes: []*v1.KeyValue{linkKv}}
+		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events, event)
+		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links, link)
+
 		trace.SortTrace(testTrace)
 
 		// // Print trace as json string
@@ -531,7 +622,7 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 	err := i.CutCompleteTraces(0, true)
 	require.NoError(t, err)
 
-	return ids, expectedTagValues
+	return ids, expectedTagValues, expectedEventTagValues, expectedLinkTagValues
 }
 
 func TestInstanceSearchNoData(t *testing.T) {
@@ -599,7 +690,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		_, err := i.FindTraceByID(context.Background(), []byte{0x01})
+		_, err := i.FindTraceByID(context.Background(), []byte{0x01}, false)
 		assert.NoError(t, err, "error finding trace by id")
 	})
 

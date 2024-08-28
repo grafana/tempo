@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -33,6 +35,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/grafana/tempo/tempodb/encoding/vparquet2"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -52,9 +55,15 @@ func TestSearchCompleteBlock(t *testing.T) {
 				traceQLStructural,
 				traceQLExistence,
 				nestedSet,
-				autoComplete,
+				tagValuesRunner,
+				tagNamesRunner,
 			)
 		})
+		if vers == vparquet4.VersionString {
+			t.Run("event/link/instrumentation query", func(t *testing.T) {
+				runEventLinkInstrumentationSearchTest(t, vers)
+			})
+		}
 	}
 }
 
@@ -145,7 +154,7 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 		fmt.Sprintf("rootName=`%s`", wantMeta.RootTraceName),
 	}
 	totalSpans := 0
-	for _, b := range wantTr.Batches {
+	for _, b := range wantTr.ResourceSpans {
 		trueResourceC, falseResourceC := conditionsForAttributes(b.Resource.Attributes, "resource")
 		falseConditions = append(falseConditions, falseResourceC...)
 
@@ -1289,8 +1298,8 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 	}
 }
 
-// autoComplete!
-func autoComplete(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, _ *backend.BlockMeta, _ Reader, bb common.BackendBlock) {
+// tagValuesRunner!
+func tagValuesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, _ *backend.BlockMeta, _ Reader, bb common.BackendBlock) {
 	ctx := context.Background()
 	e := traceql.NewEngine()
 
@@ -1379,7 +1388,7 @@ func autoComplete(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata
 				return bb.FetchTagValues(ctx, req, cb, common.DefaultSearchOptions())
 			})
 
-			valueCollector := util.NewDistinctValueCollector[tempopb.TagValue](0, func(v tempopb.TagValue) int { return 0 })
+			valueCollector := collector.NewDistinctValue[tempopb.TagValue](0, func(_ tempopb.TagValue) int { return 0 })
 			err := e.ExecuteTagValues(ctx, tc.tag, tc.query, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
 			if errors.Is(err, common.ErrUnsupported) {
 				return
@@ -1396,6 +1405,84 @@ func autoComplete(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata
 			})
 
 			require.Equal(t, expected, actual)
+		})
+	}
+}
+
+// tagNamesRunner!
+func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetadata, _, _ []*tempopb.SearchRequest, bm *backend.BlockMeta, _ Reader, bb common.BackendBlock) {
+	ctx := context.Background()
+	e := traceql.NewEngine()
+
+	tcs := []struct {
+		name     string
+		scope    string
+		query    string
+		expected map[string][]string
+	}{
+		{
+			name:  "no matches",
+			scope: "none",
+			query: "{ span.dne = `123456`}",
+			expected: map[string][]string{
+				// even with no matches, we still return dedicated and intrinsic attributes that have values
+				"span":     {"http.method", "http.status_code", "http.url", "span-dedicated.01", "span-dedicated.02"},
+				"resource": {"cluster", "container", "k8s.cluster.name", "k8s.container.name", "k8s.namespace.name", "k8s.pod.name", "namespace", "pod", "res-dedicated.01", "res-dedicated.02", "service.name"},
+			},
+		},
+		{
+			name:  "resource match",
+			scope: "none",
+			query: "{ resource.cluster = `MyCluster` }",
+			expected: map[string][]string{
+				"span":     {"child", "foo", "http.method", "http.status_code", "http.url", "span-dedicated.01", "span-dedicated.02"},
+				"resource": {"bat", "{ } ( ) = ~ ! < > & | ^", "cluster", "container", "k8s.cluster.name", "k8s.container.name", "k8s.namespace.name", "k8s.pod.name", "namespace", "pod", "res-dedicated.01", "res-dedicated.02", "service.name"},
+			},
+		},
+		{
+			name:  "span match",
+			scope: "none",
+			query: "{ span.foo = `Bar` }",
+			expected: map[string][]string{
+				"span":     {"child", "parent", "{ } ( ) = ~ ! < > & | ^", "foo", "http.method", "http.status_code", "http.url", "span-dedicated.01", "span-dedicated.02"},
+				"resource": {"bat", "{ } ( ) = ~ ! < > & | ^", "cluster", "container", "k8s.cluster.name", "k8s.container.name", "k8s.namespace.name", "k8s.pod.name", "namespace", "pod", "res-dedicated.01", "res-dedicated.02", "service.name"},
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			fetcher := traceql.NewTagNamesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback) error {
+				return bb.FetchTagNames(ctx, req, cb, common.DefaultSearchOptions())
+			})
+
+			valueCollector := collector.NewScopedDistinctString(0)
+			err := e.ExecuteTagNames(ctx, traceql.AttributeScopeFromString(tc.scope), tc.query, func(tag string, scope traceql.AttributeScope) bool {
+				valueCollector.Collect(scope.String(), tag)
+				return valueCollector.Exceeded()
+			}, fetcher)
+			if errors.Is(err, common.ErrUnsupported) {
+				return
+			}
+			require.NoError(t, err, "autocomplete request: %+v", tc)
+
+			actualMap := valueCollector.Strings()
+
+			if (bm.Version == vparquet4.VersionString) && (tc.name == "resource match" || tc.name == "span match") {
+				// v4 has scope, events, and links
+				tc.expected["instrumentation"] = []string{"scope-attr-str"}
+				tc.expected["event"] = []string{"exception.message"}
+				tc.expected["link"] = []string{"relation"}
+			}
+			require.Equal(t, len(tc.expected), len(actualMap))
+
+			for k, expected := range tc.expected {
+				actual := actualMap[k]
+
+				slices.Sort(actual)
+				slices.Sort(expected)
+				require.Equal(t, expected, actual, "key: %s", k)
+			}
 		})
 	}
 }
@@ -1527,7 +1614,8 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	r.EnablePolling(ctx, &mockJobSharder{})
 	rw := r.(*readerWriter)
 
-	wantID, wantTr, start, end, wantMeta, searchesThatMatch, searchesThatDontMatch := searchTestSuite()
+	wantID, wantTr, start, end, wantMeta := makeExpectedTrace()
+	searchesThatMatch, searchesThatDontMatch := searchTestSuite()
 
 	// Write to wal
 	wal := w.WAL()
@@ -1568,6 +1656,137 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	}
 
 	// todo: do some compaction and then call runner again
+}
+
+func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
+	// only run this test for vparquet4
+	if blockVersion != vparquet4.VersionString {
+		return
+	}
+
+	tempDir := t.TempDir()
+
+	r, w, c, err := New(&Config{
+		Backend: backend.Local,
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			IndexDownsampleBytes: 17,
+			BloomFP:              .01,
+			BloomShardSizeBytes:  100_000,
+			Version:              blockVersion,
+			IndexPageSizeBytes:   1000,
+			RowGroupSizeBytes:    10000,
+		},
+		WAL: &wal.Config{
+			Filepath:       path.Join(tempDir, "wal"),
+			IngestionSlack: time.Since(time.Time{}),
+		},
+		Search: &SearchConfig{
+			ChunkSizeBytes:  1_000_000,
+			ReadBufferCount: 8, ReadBufferSizeBytes: 4 * 1024 * 1024,
+		},
+		BlocklistPoll: 0,
+	}, nil, log.NewNopLogger())
+	require.NoError(t, err)
+
+	err = c.EnableCompaction(context.Background(), &CompactorConfig{
+		ChunkSizeBytes:          10,
+		MaxCompactionRange:      time.Hour,
+		BlockRetention:          0,
+		CompactedBlockRetention: 0,
+	}, &mockSharder{}, &mockOverrides{})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	r.EnablePolling(ctx, &mockJobSharder{})
+	rw := r.(*readerWriter)
+
+	wantID, wantTr, start, end, wantMeta := makeExpectedTrace()
+	wantIDText := util.TraceIDToHexString(wantID)
+
+	searchesThatMatch := []*tempopb.SearchRequest{
+		{
+			Query: "{ event.exception.message = `random error` }",
+		},
+		{
+			Query: "{ event:name = `event name` }",
+		},
+		{
+			Query: "{ event:timeSinceStart > 10ms }",
+		},
+		{
+			Query: "{ link.relation = `child-of` }",
+		},
+		{
+			Query: "{ link:traceID = `" + wantIDText + "` }",
+		},
+		{
+			Query: "{ instrumentation:name = `scope-1` }",
+		},
+		{
+			Query: "{ instrumentation:version = `version-1` }",
+		},
+		{
+			Query: "{ instrumentation.scope-attr-str = `scope-attr-1` }",
+		},
+	}
+
+	// Write to wal
+	wal := w.WAL()
+
+	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
+	require.NoError(t, err)
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	totalTraces := 50
+	wantTrIdx := rand.Intn(totalTraces)
+	for i := 0; i < totalTraces; i++ {
+		var tr *tempopb.Trace
+		var id []byte
+		if i == wantTrIdx {
+			tr = wantTr
+			id = wantID
+		} else {
+			id = test.ValidTraceID(nil)
+			tr = test.MakeTrace(10, id)
+		}
+		b1, err := dec.PrepareForWrite(tr, start, end)
+		require.NoError(t, err)
+
+		b2, err := dec.ToObject([][]byte{b1})
+		require.NoError(t, err)
+		err = head.Append(id, b2, start, end)
+		require.NoError(t, err)
+	}
+
+	// Complete block
+	block, err := w.CompleteBlock(context.Background(), head)
+	require.NoError(t, err)
+	blockMeta := block.BlockMeta()
+
+	e := traceql.NewEngine()
+
+	for _, req := range searchesThatMatch {
+		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return rw.Fetch(ctx, blockMeta, req, common.DefaultSearchOptions())
+		})
+
+		res, err := e.ExecuteSearch(ctx, req, fetcher)
+		if errors.Is(err, common.ErrUnsupported) {
+			continue
+		}
+
+		require.NoError(t, err, "search request: %+v", req)
+		actual := actualForExpectedMeta(wantMeta, res)
+		require.NotNil(t, actual, "search request: %v", req)
+		actual.SpanSet = nil // todo: add the matching spansets to wantmeta
+		actual.SpanSets = nil
+		actual.ServiceStats = nil
+		require.Equal(t, wantMeta, actual, "search request: %v", req)
+	}
 }
 
 func stringKV(k, v string) *v1_common.KeyValue {
@@ -1650,13 +1869,11 @@ func addTraceQL(req *tempopb.SearchRequest) {
 //   - expected - The exact search result that should be returned for every matching request
 //   - searchesThatMatch - List of search requests that are expected to match the trace
 //   - searchesThatDontMatch - List of requests that don't match the trace
-func searchTestSuite() (
+func makeExpectedTrace() (
 	id []byte,
 	tr *tempopb.Trace,
 	start, end uint32,
 	expected *tempopb.TraceSearchMetadata,
-	searchesThatMatch []*tempopb.SearchRequest,
-	searchesThatDontMatch []*tempopb.SearchRequest,
 ) {
 	id = test.ValidTraceID(nil)
 
@@ -1664,7 +1881,7 @@ func searchTestSuite() (
 	end = 1001
 
 	tr = &tempopb.Trace{
-		Batches: []*v1.ResourceSpans{
+		ResourceSpans: []*v1.ResourceSpans{
 			{
 				Resource: &v1_resource.Resource{
 					Attributes: []*v1_common.KeyValue{
@@ -1685,6 +1902,14 @@ func searchTestSuite() (
 				},
 				ScopeSpans: []*v1.ScopeSpans{
 					{
+						Scope: &v1_common.InstrumentationScope{
+							Name:                   "scope-1",
+							Version:                "version-1",
+							DroppedAttributesCount: 1,
+							Attributes: []*v1_common.KeyValue{
+								stringKV("scope-attr-str", "scope-attr-1"),
+							},
+						},
 						Spans: []*v1.Span{
 							{
 								TraceId:           id,
@@ -1704,6 +1929,24 @@ func searchTestSuite() (
 									boolKV("child"),
 									stringKV("span-dedicated.01", "span-1a"),
 									stringKV("span-dedicated.02", "span-2a"),
+								},
+								Events: []*v1.Span_Event{
+									{
+										TimeUnixNano: uint64(1000*time.Second) + uint64(500*time.Millisecond),
+										Name:         "event name",
+										Attributes: []*v1_common.KeyValue{
+											stringKV("exception.message", "random error"),
+										},
+									},
+								},
+								Links: []*v1.Span_Link{
+									{
+										TraceId: id,
+										SpanId:  []byte{4, 5, 6},
+										Attributes: []*v1_common.KeyValue{
+											stringKV("relation", "child-of"),
+										},
+									},
 								},
 							},
 						},
@@ -1801,7 +2044,13 @@ func searchTestSuite() (
 		RootServiceName:   "RootService",
 		RootTraceName:     "RootSpan",
 	}
+	return
+}
 
+func searchTestSuite() (
+	searchesThatMatch []*tempopb.SearchRequest,
+	searchesThatDontMatch []*tempopb.SearchRequest,
+) {
 	// Matches
 	searchesThatMatch = []*tempopb.SearchRequest{
 		{
@@ -1964,7 +2213,7 @@ func TestWALBlockGetMetrics(t *testing.T) {
 
 	// Write to wal
 	err = head.AppendTrace(common.ID{0x01}, &tempopb.Trace{
-		Batches: []*v1.ResourceSpans{
+		ResourceSpans: []*v1.ResourceSpans{
 			{
 				ScopeSpans: []*v1.ScopeSpans{
 					{
@@ -1990,14 +2239,17 @@ func TestWALBlockGetMetrics(t *testing.T) {
 	require.NoError(t, err)
 
 	one := traceqlmetrics.MetricSeries{traceqlmetrics.KeyValue{Key: "name", Value: traceql.NewStaticString("1")}}
+	oneK := one.MetricKeys()
+
 	two := traceqlmetrics.MetricSeries{traceqlmetrics.KeyValue{Key: "name", Value: traceql.NewStaticString("2")}}
+	twoK := two.MetricKeys()
 
 	require.Equal(t, 2, len(res.Series))
 	require.Equal(t, 2, res.SpanCount)
-	require.Equal(t, 1, res.Series[one].Count())
-	require.Equal(t, 1, res.Series[two].Count())
-	require.Equal(t, uint64(1), res.Series[one].Percentile(1.0)) // The only span was 1ns
-	require.Equal(t, uint64(2), res.Series[two].Percentile(1.0)) // The only span was 2ns
+	require.Equal(t, 1, res.Series[oneK].Histogram.Count())
+	require.Equal(t, 1, res.Series[twoK].Histogram.Count())
+	require.Equal(t, uint64(1), res.Series[oneK].Histogram.Percentile(1.0)) // The only span was 1ns
+	require.Equal(t, uint64(2), res.Series[twoK].Histogram.Percentile(1.0)) // The only span was 2ns
 }
 
 func TestSearchForTagsAndTagValues(t *testing.T) {
@@ -2037,12 +2289,16 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	block, err := w.CompleteBlock(context.Background(), head)
 	require.NoError(t, err)
 
-	tags, err := r.SearchTags(context.Background(), block.BlockMeta(), "", common.DefaultSearchOptions())
+	resp, err := r.SearchTags(context.Background(), block.BlockMeta(), "", common.DefaultSearchOptions())
 	require.NoError(t, err)
 	expectedTags := []string{"stringTag", "intTag", "service.name", "other"}
+	var actualTags []string
+	for _, scopeTags := range resp.Scopes {
+		actualTags = append(actualTags, scopeTags.Tags...)
+	}
 	sort.Strings(expectedTags)
-	sort.Strings(tags.TagNames)
-	assert.Equal(t, expectedTags, tags.TagNames)
+	sort.Strings(actualTags)
+	assert.Equal(t, expectedTags, actualTags)
 
 	values, err := r.SearchTagValues(context.Background(), block.BlockMeta(), "service.name", common.DefaultSearchOptions())
 	require.NoError(t, err)
@@ -2109,7 +2365,7 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	})
 	assert.Equal(t, expected, tagValues.TagValues)
 
-	valueCollector := util.NewDistinctValueCollector[tempopb.TagValue](0, func(value tempopb.TagValue) int { return 0 })
+	valueCollector := collector.NewDistinctValue[tempopb.TagValue](0, func(_ tempopb.TagValue) int { return 0 })
 	f := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
 		return r.FetchTagValues(ctx, block.BlockMeta(), req, cb, common.DefaultSearchOptions())
 	})

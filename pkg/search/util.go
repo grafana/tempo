@@ -30,13 +30,13 @@ func GetVirtualTagValues(tagName string) []string {
 
 func GetVirtualTagValuesV2(tagName string) []tempopb.TagValue {
 	switch tagName {
-	case traceql.IntrinsicStatus.String():
+	case traceql.IntrinsicStatus.String(), traceql.ScopedIntrinsicSpanStatus.String():
 		return []tempopb.TagValue{
 			{Type: "keyword", Value: traceql.StatusOk.String()},
 			{Type: "keyword", Value: traceql.StatusError.String()},
 			{Type: "keyword", Value: traceql.StatusUnset.String()},
 		}
-	case traceql.IntrinsicKind.String():
+	case traceql.IntrinsicKind.String(), traceql.ScopedIntrinsicSpanKind.String():
 		return []tempopb.TagValue{
 			{Type: "keyword", Value: traceql.KindClient.String()},
 			{Type: "keyword", Value: traceql.KindServer.String()},
@@ -45,7 +45,7 @@ func GetVirtualTagValuesV2(tagName string) []tempopb.TagValue {
 			{Type: "keyword", Value: traceql.KindInternal.String()},
 			{Type: "keyword", Value: traceql.KindUnspecified.String()},
 		}
-	case traceql.IntrinsicDuration.String():
+	case traceql.IntrinsicDuration.String(), traceql.ScopedIntrinsicSpanDuration.String():
 		return []tempopb.TagValue{}
 	case traceql.IntrinsicTraceDuration.String():
 		return []tempopb.TagValue{}
@@ -64,6 +64,18 @@ func GetVirtualIntrinsicValues() []string {
 		traceql.IntrinsicTraceDuration.String(),
 		traceql.IntrinsicTraceRootService.String(),
 		traceql.IntrinsicTraceRootSpan.String(),
+		traceql.ScopedIntrinsicSpanStatus.String(),
+		traceql.ScopedIntrinsicSpanStatusMessage.String(),
+		traceql.ScopedIntrinsicSpanDuration.String(),
+		traceql.ScopedIntrinsicSpanName.String(),
+		traceql.ScopedIntrinsicSpanKind.String(),
+		traceql.ScopedIntrinsicTraceRootName.String(),
+		traceql.ScopedIntrinsicTraceRootService.String(),
+		traceql.ScopedIntrinsicTraceDuration.String(),
+		traceql.IntrinsicEventName.String(),
+		traceql.IntrinsicEventTimeSinceStart.String(),
+		traceql.IntrinsicInstrumentationName.String(),
+		traceql.IntrinsicInstrumentationVersion.String(),
 		/* these are technically intrinsics that can be requested, but they are not generally of interest to a user
 		   typing a query. for simplicity and clarity we are leaving them out of autocomplete
 			IntrinsicNestedSetLeft

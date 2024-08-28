@@ -27,13 +27,8 @@ type Config any
 var configValidatorType = reflect.TypeOf((*ConfigValidator)(nil)).Elem()
 
 // UnmarshalConfig helper function to UnmarshalConfig a Config.
-// It checks if the config implements confmap.Unmarshaler and uses that if available,
-// otherwise uses Map.UnmarshalExact, erroring if a field is nonexistent.
+// Deprecated: [v0.101.0] Use conf.Unmarshal(&intoCfg)
 func UnmarshalConfig(conf *confmap.Conf, intoCfg Config) error {
-	if cu, ok := intoCfg.(confmap.Unmarshaler); ok {
-		return cu.Unmarshal(conf)
-	}
-
 	return conf.Unmarshal(intoCfg)
 }
 
@@ -119,11 +114,16 @@ func (t Type) String() string {
 	return t.name
 }
 
+// MarshalText marshals returns the Type name.
+func (t Type) MarshalText() ([]byte, error) {
+	return []byte(t.name), nil
+}
+
 // typeRegexp is used to validate the type of a component.
 // A type must start with an ASCII alphabetic character and
 // can only contain ASCII alphanumeric characters and '_'.
 // This must be kept in sync with the regex in cmd/mdatagen/validate.go.
-var typeRegexp = regexp.MustCompile(`^[a-zA-Z][0-9a-zA-Z_]*$`)
+var typeRegexp = regexp.MustCompile(`^[a-zA-Z][0-9a-zA-Z_]{0,62}$`)
 
 // NewType creates a type. It returns an error if the type is invalid.
 // A type must

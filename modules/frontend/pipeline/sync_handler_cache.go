@@ -3,6 +3,7 @@ package pipeline
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -10,11 +11,12 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/cache"
 )
 
 func NewCachingWare(cacheProvider cache.Provider, role cache.Role, logger log.Logger) Middleware {
-	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+	return MiddlewareFunc(func(next RoundTripper) RoundTripper {
 		return cachingWare{
 			next:  next,
 			cache: newFrontendCache(cacheProvider, role, logger),
@@ -23,27 +25,42 @@ func NewCachingWare(cacheProvider cache.Provider, role cache.Role, logger log.Lo
 }
 
 type cachingWare struct {
-	next  http.RoundTripper
+	next  RoundTripper
 	cache *frontendCache
 }
 
 // RoundTrip implements http.RoundTripper
-func (c cachingWare) RoundTrip(req *http.Request) (*http.Response, error) {
+func (c cachingWare) RoundTrip(req Request) (*http.Response, error) {
 	// short circuit everything if there cache is no cache
 	if c.cache == nil {
 		return c.next.RoundTrip(req)
 	}
 
 	// extract cache key
-	key, ok := req.Context().Value(contextCacheKey).(string)
-	if ok && len(key) > 0 {
+	key := req.CacheKey()
+	if len(key) > 0 {
 		body := c.cache.fetchBytes(key)
 		if len(body) > 0 {
-			return &http.Response{
+			resp := &http.Response{
+				Header:     http.Header{},
 				StatusCode: http.StatusOK,
 				Status:     http.StatusText(http.StatusOK),
 				Body:       io.NopCloser(bytes.NewBuffer(body)),
-			}, nil
+			}
+
+			// We aren't capturing the original content type in the cache, just the raw bytes.
+			// Detect it and readd it, so the upstream code can parse the body.
+			// TODO - Cache should capture all of the relevant parts of the
+			// original response including both content-type and content-length headers, possibly more.
+			// But upgrading the cache format requires migration/detection of previous format either way.
+			// It's tempting to use https://pkg.go.dev/net/http#DetectContentType but it doesn't detect
+			// json or proto.
+			if body[0] == '{' {
+				resp.Header.Add(api.HeaderContentType, api.HeaderAcceptJSON)
+			} else {
+				resp.Header.Add(api.HeaderContentType, api.HeaderAcceptProtobuf)
+			}
+			return resp, nil
 		}
 	}
 
@@ -59,21 +76,27 @@ func (c cachingWare) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	if len(key) > 0 {
+		// don't bother caching if the response is too large
+		maxItemSize := c.cache.c.MaxItemSize()
+		if maxItemSize > 0 && resp.ContentLength > int64(maxItemSize) {
+			return resp, nil
+		}
+
+		buffer, err := api.ReadBodyToBuffer(resp)
+		if err != nil {
+			return resp, fmt.Errorf("failed to cache: %w", err)
+		}
+
+		// reset the body so the caller can read it
+		resp.Body = io.NopCloser(buffer)
+
 		// cache the response
 		//  todo: currently this is blindly caching any 200 status codes. it would be a bug, but it's possible for a querier
 		//  to return a 200 status code with a response that does not parse as the expected type in the combiner.
 		//  technically this should never happen...
 		//  long term we should migrate the sync part of the pipeline to use generics so we can do the parsing early in the pipeline
 		//  and be confident it's cacheable.
-		b, err := io.ReadAll(resp.Body)
-
-		// reset the body so the caller can read it
-		resp.Body = io.NopCloser(bytes.NewBuffer(b))
-		if err != nil {
-			return resp, nil
-		}
-
-		c.cache.store(req.Context(), key, b)
+		c.cache.store(req.Context(), key, buffer.Bytes())
 	}
 
 	return resp, nil
