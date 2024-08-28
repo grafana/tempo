@@ -18,5 +18,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: grafana/writers-toolkit/publish-technical-documentation@publish-technical-documentation/v1
         with:
+          source_directory: docs/sources/tempo
           website_directory: content/docs/tempo/next
+      - uses: grafana/writers-toolkit/publish-technical-documentation@publish-technical-documentation/v1
+        with:
+          source_directory: docs/sources/helm-charts/tempo-distributed
+          website_directory: content/docs/helm-charts/tempo-distributed/next
+
 
