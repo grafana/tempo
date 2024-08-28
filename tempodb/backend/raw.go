@@ -148,12 +148,12 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 
 	// TODO: consider writing both json and proto files
 
-	bpb, err := b.proto()
+	pb, err := b.proto()
 	if err != nil {
 		return err
 	}
 
-	indexBytes, err := proto.Marshal(bpb)
+	indexBytes, err := proto.Marshal(pb)
 	if err != nil {
 		return err
 	}

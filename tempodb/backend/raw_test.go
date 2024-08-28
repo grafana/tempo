@@ -2,11 +2,12 @@ package backend
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -36,7 +37,10 @@ func TestWriter(t *testing.T) {
 	assert.True(t, m.closeAppendCalled)
 
 	meta := NewBlockMeta("test", uuid.New(), "blerg", EncGZIP, "glarg")
-	expected, _ = json.Marshal(meta)
+
+	pb, err := meta.ToBackendV1Proto()
+	assert.NoError(t, err)
+	expected, _ = proto.Marshal(pb)
 	err = w.WriteBlockMeta(ctx, meta)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, m.writeBuffer)
@@ -44,12 +48,16 @@ func TestWriter(t *testing.T) {
 	err = w.WriteTenantIndex(ctx, "test", []*BlockMeta{meta}, nil)
 	assert.NoError(t, err)
 
-	idx := &TenantIndex{}
-	err = idx.unmarshal(m.writeBuffer)
+	pbidx := &backend_v1.TenantIndex{}
+	err = proto.Unmarshal(m.writeBuffer, pbidx)
 	assert.NoError(t, err)
 
-	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idx.Meta))                  // using cmp.Equal to compare json datetimes
-	assert.True(t, cmp.Equal([]*CompactedBlockMeta(nil), idx.CompactedMeta)) // using cmp.Equal to compare json datetimes
+	idx := &TenantIndex{}
+	err = idx.fromProto(pbidx)
+	assert.NoError(t, err)
+
+	assert.Equal(t, []*BlockMeta{meta}, idx.Meta)
+	assert.Equal(t, []*CompactedBlockMeta(nil), idx.CompactedMeta)
 
 	// When there are no blocks, the tenant index should be deleted
 	assert.Equal(t, map[string]map[string]int(nil), w.(*writer).w.(*MockRawWriter).deleteCalls)
@@ -107,21 +115,28 @@ func TestReader(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, meta)
 
+	// BlockMeta round-trip
 	expectedMeta := NewBlockMeta("test", uuid.New(), "blerg", EncGZIP, "glarg")
-	m.R, _ = json.Marshal(expectedMeta)
+	protoExpectedMeta, err := expectedMeta.ToBackendV1Proto()
+	assert.NoError(t, err)
+	m.R, _ = proto.Marshal(protoExpectedMeta)
 	meta, err = r.BlockMeta(ctx, uuid.New(), "test")
 	assert.NoError(t, err)
-	assert.True(t, cmp.Equal(expectedMeta, meta))
+	assert.Equal(t, expectedMeta, meta)
 
 	// should fail b/c tenant index is not valid
 	idx, err := r.TenantIndex(ctx, "test")
 	assert.Error(t, err)
 	assert.Nil(t, idx)
 
+	// TenantIndex round-trip
 	expectedIdx := newTenantIndex([]*BlockMeta{expectedMeta}, nil)
-	m.R, _ = expectedIdx.marshal()
+	protoExpectedIdx, err := expectedIdx.proto()
+	assert.NoError(t, err)
+	m.R, _ = proto.Marshal(protoExpectedIdx)
 	idx, err = r.TenantIndex(ctx, "test")
 	assert.NoError(t, err)
+	// Using cmp.Equal because the timezones are not equal.
 	assert.True(t, cmp.Equal(expectedIdx, idx))
 }
 

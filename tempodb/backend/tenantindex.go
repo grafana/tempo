@@ -69,10 +69,15 @@ func (b *TenantIndex) unmarshal(buffer []byte) error {
 }
 
 func (b *TenantIndex) proto() (*backend_v1.TenantIndex, error) {
+	// TODO: we ned to match the same nilness on proto and fromProto.  If we dont
+	// have a meta or a compacted meta...
+	// I think we set nil.
+	// Tests pass without this, but it seems like it should be there.
+
 	tenantIndex := &backend_v1.TenantIndex{
 		CreatedAt:     b.CreatedAt,
-		Meta:          make([]*backend_v1.BlockMeta, len(b.Meta)),
-		CompactedMeta: make([]*backend_v1.CompactedBlockMeta, len(b.CompactedMeta)),
+		Meta:          make([]*backend_v1.BlockMeta, 0, len(b.Meta)),
+		CompactedMeta: make([]*backend_v1.CompactedBlockMeta, 0, len(b.CompactedMeta)),
 	}
 
 	var (
@@ -104,8 +109,10 @@ func (b *TenantIndex) proto() (*backend_v1.TenantIndex, error) {
 
 func (b *TenantIndex) fromProto(pb *backend_v1.TenantIndex) error {
 	b.CreatedAt = pb.CreatedAt
-	b.Meta = make([]*BlockMeta, len(pb.Meta))
-	b.CompactedMeta = make([]*CompactedBlockMeta, len(pb.CompactedMeta))
+	var (
+		meta          = make([]*BlockMeta, len(pb.Meta))
+		compactedMeta = make([]*CompactedBlockMeta, len(pb.CompactedMeta))
+	)
 
 	var (
 		err error
@@ -119,15 +126,25 @@ func (b *TenantIndex) fromProto(pb *backend_v1.TenantIndex) error {
 		if err != nil {
 			return err
 		}
-		b.Meta[i] = m
+		meta[i] = m
 	}
+
+	if len(meta) > 0 {
+		b.Meta = meta
+	}
+
 	for i, cPb := range pb.CompactedMeta {
 		c = &CompactedBlockMeta{}
 		err = c.FromBackendV1Proto(cPb)
 		if err != nil {
 			return err
 		}
-		b.CompactedMeta[i] = c
+		compactedMeta[i] = c
 	}
+
+	if len(compactedMeta) > 0 {
+		b.CompactedMeta = compactedMeta
+	}
+
 	return nil
 }

@@ -19,6 +19,7 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 		},
 		{
 			idx: &TenantIndex{
+				CreatedAt: time.Now(),
 				Meta: []*BlockMeta{
 					NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
 					NewBlockMeta("test", uuid.New(), "v2", EncNone, "adsf"),
@@ -28,6 +29,7 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 		},
 		{
 			idx: &TenantIndex{
+				CreatedAt: time.Now(),
 				CompactedMeta: []*CompactedBlockMeta{
 					{
 						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
@@ -70,6 +72,7 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		// json
 		buff, err := tc.idx.marshal()
 		require.NoError(t, err)
 
@@ -79,6 +82,15 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 
 		// cmp.Equal used due to time marshalling: https://github.com/stretchr/testify/issues/502
 		assert.True(t, cmp.Equal(tc.idx, actual))
+
+		// proto
+		protobuff, err := tc.idx.proto()
+		require.NoError(t, err)
+		protoactual := &TenantIndex{}
+		err = protoactual.fromProto(protobuff)
+		require.NoError(t, err)
+		assert.True(t, cmp.Equal(tc.idx, protoactual))
+		assert.Equal(t, tc.idx, protoactual)
 	}
 }
 

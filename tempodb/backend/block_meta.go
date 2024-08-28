@@ -95,13 +95,13 @@ func (b *CompactedBlockMeta) ToBackendV1Proto() (*backend_v1.CompactedBlockMeta,
 	}
 
 	return &backend_v1.CompactedBlockMeta{
-		BlockMeta:     bm,
+		BlockMeta:     *bm,
 		CompactedTime: b.CompactedTime,
 	}, nil
 }
 
 func (b *CompactedBlockMeta) FromBackendV1Proto(pb *backend_v1.CompactedBlockMeta) error {
-	err := b.BlockMeta.FromBackendV1Proto(pb.BlockMeta)
+	err := b.BlockMeta.FromBackendV1Proto(&pb.BlockMeta)
 	if err != nil {
 		return err
 	}
@@ -310,7 +310,10 @@ func (b *BlockMeta) FromBackendV1Proto(pb *backend_v1.BlockMeta) error {
 	if err != nil {
 		return err
 	}
-	b.DedicatedColumns = dcs
+	if len(dcs) > 0 {
+		b.DedicatedColumns = dcs
+	}
+
 	return nil
 }
 
