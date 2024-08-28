@@ -32,7 +32,7 @@ func generateTenantRemoteWriteConfigs(inputs []prometheus_config.RemoteWriteConf
 		if tenant != util.FakeTenantID && addOrgIDHeader {
 			existing := ""
 			for k, v := range output.Headers {
-				if strings.EqualFold(user.OrgIDHeaderName, k) {
+				if strings.EqualFold(user.OrgIDHeaderName, strings.TrimSpace(k)) {
 					existing = v
 					break
 				}
