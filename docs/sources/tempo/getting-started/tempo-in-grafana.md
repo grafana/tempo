@@ -16,23 +16,29 @@ Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting
 
 The default Tempo search reviews the whole trace. TraceQL provides a method for formulating precise queries so you can quickly identify the traces and spans that you need. Query results are returned faster because the queries limit what is searched.
 
-You can run a TraceQL query either by issuing it to Tempo’s `q` parameter of the [`search` API endpoint]({{< relref "../api_docs#search" >}}), or, for those using Tempo in conjunction with Grafana, by using Grafana’s [TraceQL query editor]({{< relref "../traceql/query-editor" >}}).
+You can run a TraceQL query either by issuing it to Tempo’s `q` parameter of the [`search` API endpoint]({{< relref "../api_docs#search" >}}), or, for those using Tempo in conjunction with Grafana, by using the [TraceQL query editor]({{< relref "../traceql/query-editor" >}}).
 
 For details about how queries are constructed, read the [TraceQL documentation]({{< relref "../traceql" >}}).
 
-<p align="center"><img src="../../traceql/assets/query-editor-results-span.png" alt="Query editor showing span results" /></p>
+![TraceQL query editor showing span results](/media/docs/grafana/data-sources/tempo/query-editor/tempo-ds-query-ed-example-v11-a.png)
 
 The most basic functionality is to visualize a trace using its ID. Select the TraceQL tab and enter the ID to view it. This functionality is enabled by default and is available in all versions of Grafana.
 
-## Finding traces using Loki logs
+## Finding traces using Trace to logs
 
-Traces can be discovered by searching logs for entries containing trace IDs. This is most useful when your application also logs relevant information about the trace that can also be searched, such as HTTP status code, customer ID, etc. This feature requires Grafana 7.5 or later, with a linked Loki data source, and a [traceID derived field](/docs/grafana/latest/datasources/loki/#derived-fields).
+Traces can be discovered by searching logs for entries containing trace IDs.
+This is most useful when your application also logs relevant information about the trace that can also be searched, such as HTTP status code, customer ID, etc.
+This feature requires a linked Loki data source, and a [traceID derived field](/docs/grafana/<GRAFANA_VERSION>/datasources/loki/#derived-fields).
 
-## Find traces using Tempo tags search
+For more information, refer to the  [Trace to logs](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/configure-tempo-data-source/#trace-to-logs) documentation.
+
+![Trace to logs lets you link your tracing data with log data](/media/docs/grafana/data-sources/tempo/trace-to-logs-v11.png)
+
+## Find traces using Search query builder
 
 Search for traces using common dimensions such as time range, duration, span tags, service names, and more. Use the trace view to quickly diagnose errors and high-latency events in your system.
 
-<p align="center"><img src="../../traceql/assets/screenshot-explore-traceql-search.png" alt="Showing how to build queries with common dimensions using query builder" /></p>
+![Showing how to build queries with common dimensions using the query builder](/media/docs/grafana/data-sources/tempo/query-editor/tempo-ds-query-builder-v11.png)
 
 ### Non-deterministic search
 
@@ -41,7 +47,10 @@ Most search functions are deterministic: using the same search criteria results 
 However, Tempo search is non-deterministic.
 If you perform the same search twice, you’ll get different lists, assuming the possible number of results for your search is greater than the number of results you have your search set to return.
 
-When performing a search, Tempo does a massively parallel search over the given time range, and takes the first N results. Even identical searches will differ due to things like machine load and network latency. This approach values speed over predictability and is quite simple; enforcing that the search results are consistent would introduce additional complexity (and increase the time the user spends waiting for results). TraceQL follows the same behavior.
+When performing a search, Tempo does a massively parallel search over the given time range, and takes the first N results.
+Even identical searches differ due to things like machine load and network latency.
+This approach values speed over predictability and is quite simple; enforcing that the search results are consistent would introduce additional complexity (and increase the time the user spends waiting for results).
+TraceQL follows the same behavior.
 
 ## Service graph view
 
@@ -51,7 +60,7 @@ Once the requirements are set up, this pre-configured view is immediately availa
 
 For more information, refer to the [service graph view]({{< relref "../metrics-generator/service-graph-view" >}}).
 
-<p align="center"><img src="../assets/apm-overview.png" alt="Service graph view overview"></p>
+![Service graph view](/media/docs/grafana/data-sources/tempo/query-editor/tempo-ds-query-service-graph.png)
 
 ## View JSON file
 
