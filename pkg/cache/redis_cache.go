@@ -98,6 +98,33 @@ func (c *RedisCache) Fetch(ctx context.Context, keys []string) (found []string, 
 	return
 }
 
+// Fetch gets a single keys from the cache
+func (c *RedisCache) FetchKey(ctx context.Context, key string) (buf []byte, found bool) {
+	const method = "RedisCache.Get"
+	// Run a tracked request, using c.requestDuration to monitor requests.
+	err := instr.CollectedRequest(ctx, method, c.requestDuration, redisStatusCode, func(ctx context.Context) error {
+		log, _ := spanlogger.New(ctx, method)
+		defer log.Finish()
+		var err error
+		buf, err = c.redis.Get(ctx, key)
+		if err != nil {
+			// nolint:errcheck
+			log.Error(err)
+			level.Error(c.logger).Log("msg", "failed to get key from redis", "name", c.name, "err", err, "key", key)
+			return err
+		}
+
+		log.LogFields(otlog.String("key found", key))
+
+		return nil
+	})
+	if err != nil {
+		return buf, false
+	}
+
+	return buf, true
+}
+
 // Store stores the key in the cache.
 func (c *RedisCache) Store(ctx context.Context, keys []string, bufs [][]byte) {
 	err := c.redis.MSet(ctx, keys, bufs)

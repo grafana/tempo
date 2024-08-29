@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/gomemcache/memcache"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
@@ -67,6 +68,12 @@ func testMemcache(t *testing.T, memcache *cache.Memcached) {
 		found = found[1:]
 		bufs = bufs[1:]
 	}
+
+	_, foundKey := memcache.FetchKey(ctx, "1")
+	assert.True(t, foundKey)
+
+	_, foundKey = memcache.FetchKey(ctx, "5")
+	assert.False(t, foundKey)
 }
 
 // mockMemcache whose calls fail 1/3rd of the time.

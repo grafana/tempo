@@ -154,12 +154,12 @@ func (c *frontendCache) fetch(key string, pb proto.Message) bool {
 		return false
 	}
 
-	_, bufs, _ := c.c.Fetch(context.Background(), []string{key})
-	if len(bufs) != 1 {
+	buf, found := c.c.FetchKey(context.Background(), key)
+	if !found {
 		return false
 	}
 
-	err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(bufs[0]), pb)
+	err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(buf), pb)
 	return err == nil
 }
 
@@ -173,10 +173,10 @@ func (c *frontendCache) fetchBytes(key string) []byte {
 		return nil
 	}
 
-	_, bufs, _ := c.c.Fetch(context.Background(), []string{key})
-	if len(bufs) != 1 {
+	buf, found := c.c.FetchKey(context.Background(), key)
+	if !found {
 		return nil
 	}
 
-	return bufs[0]
+	return buf
 }

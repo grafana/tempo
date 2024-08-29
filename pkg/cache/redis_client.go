@@ -159,6 +159,21 @@ func (c *RedisClient) MGet(ctx context.Context, keys []string) ([][]byte, error)
 	return ret, nil
 }
 
+func (c *RedisClient) Get(ctx context.Context, key string) ([]byte, error) {
+	var cancel context.CancelFunc
+	if c.timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, c.timeout)
+		defer cancel()
+	}
+	cmd := c.rdb.Get(ctx, key)
+	err := cmd.Err()
+	if errors.Is(err, redis.Nil) {
+		return nil, err
+	}
+
+	return StringToBytes(cmd.Val()), nil
+}
+
 func (c *RedisClient) Close() error {
 	return c.rdb.Close()
 }

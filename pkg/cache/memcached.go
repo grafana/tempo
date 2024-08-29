@@ -147,10 +147,28 @@ func (c *Memcached) Fetch(ctx context.Context, keys []string) (found []string, b
 	return
 }
 
+// FetchKey gets a single key from the cache
+func (c *Memcached) FetchKey(ctx context.Context, key string) (buf []byte, found bool) {
+	const method = "Memcache.Get"
+	var item *memcache.Item
+	err := measureRequest(ctx, method, c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
+		var err error
+		item, err = c.memcache.Get(key)
+		if err != nil {
+			level.Error(c.logger).Log("msg", "Failed to get key from memcached", "err", err)
+		}
+		return err
+	})
+	if err != nil {
+		return buf, false
+	}
+	return item.Value, true
+}
+
 func (c *Memcached) fetch(ctx context.Context, keys []string) (found []string, bufs [][]byte, missed []string) {
 	var items map[string]*memcache.Item
 	const method = "Memcache.GetMulti"
-	err := measureRequest(ctx, method, c.requestDuration, memcacheStatusCode, func(innerCtx context.Context) error {
+	err := measureRequest(ctx, method, c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
 		var err error
 		items, err = c.memcache.GetMulti(keys)
 		if err != nil {

@@ -41,5 +41,6 @@ type Cache interface {
 	// TODO: both cached backend clients support deletion. Should we implement?
 	// Remove(ctx context.Context, key []string)
 	Fetch(ctx context.Context, keys []string) (found []string, bufs [][]byte, missing []string)
+	FetchKey(ctx context.Context, key string) (buf []byte, found bool)
 	Stop()
 }
