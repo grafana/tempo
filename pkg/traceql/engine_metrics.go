@@ -96,56 +96,52 @@ func TrimToOverlap(start1, end1, step, start2, end2 uint64) (uint64, uint64, uin
 
 // TrimToBefore shortens the query window to only include before the given time.
 // Request must be in unix nanoseconds already.
-func TrimToBefore(req *tempopb.QueryRangeRequest, before time.Time) {
-	wasInstant := IsInstant(*req)
+func TrimToBefore(start, end, step uint64, before time.Time) (newStart, newEnd uint64) {
 	beforeNs := uint64(before.UnixNano())
+	newStart = min(start, beforeNs)
+	newEnd = min(end, beforeNs)
 
-	req.Start = min(req.Start, beforeNs)
-	req.End = min(req.End, beforeNs)
-
-	if wasInstant {
-		// Maintain instant nature of the request
-		req.Step = req.End - req.Start
-	} else {
-		// Realign after trimming
-		AlignRequest(req)
+	if IsInstant(start, end, step) {
+		return newStart, newEnd
 	}
+
+	// Realign after trimming
+	return AlignRequest(newStart, newEnd, step)
 }
 
 // TrimToAfter shortens the query window to only include after the given time.
 // Request must be in unix nanoseconds already.
-func TrimToAfter(req *tempopb.QueryRangeRequest, before time.Time) {
-	wasInstant := IsInstant(*req)
+func TrimToAfter(start, end, step uint64, before time.Time) (newStart, newEnd uint64) {
 	beforeNs := uint64(before.UnixNano())
+	newStart = max(start, beforeNs)
+	newEnd = max(end, beforeNs)
 
-	req.Start = max(req.Start, beforeNs)
-	req.End = max(req.End, beforeNs)
-
-	if wasInstant {
-		// Maintain instant nature of the request
-		req.Step = req.End - req.Start
-	} else {
-		// Realign after trimming
-		AlignRequest(req)
+	if IsInstant(start, end, step) {
+		return newStart, newEnd
 	}
+
+	// Realign after trimming
+	return AlignRequest(newStart, newEnd, step)
 }
 
-func IsInstant(req tempopb.QueryRangeRequest) bool {
-	return req.End-req.Start == req.Step
+func IsInstant(start, end, step uint64) bool {
+	return step == end-start
 }
 
 // AlignRequest shifts the start and end times of the request to align with the step
 // interval.  This gives more consistent results across refreshes of queries like "last 1 hour".
 // Without alignment each refresh is shifted by seconds or even milliseconds and the time series
 // calculations are sublty different each time. It's not wrong, but less preferred behavior.
-func AlignRequest(req *tempopb.QueryRangeRequest) {
-	if IsInstant(*req) {
-		return
+func AlignRequest(start, end, step uint64) (newStart, newEnd uint64) {
+	if IsInstant(start, end, step) {
+		return start, end
 	}
 
 	// It doesn't really matter but the request fields are expected to be in nanoseconds.
-	req.Start = req.Start / req.Step * req.Step
-	req.End = req.End / req.Step * req.Step
+	newStart = start / step * step
+	newEnd = end / step * step
+
+	return newStart, newEnd
 }
 
 type Label struct {

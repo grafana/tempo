@@ -83,7 +83,7 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		return pipeline.NewBadRequest(errors.New("step must be greater than 0")), nil
 	}
 
-	traceql.AlignRequest(req)
+	req.Start, req.End = traceql.AlignRequest(req.Start, req.End, req.Step)
 
 	// calculate and enforce max search duration
 	// Note: this is checked after alignment for consistency.
@@ -168,7 +168,7 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 	// Make a copy and limit to backend time range.
 	// Preserve instant nature of request if needed
 	backendReq := searchReq
-	traceql.TrimToBefore(&backendReq, cutoff)
+	backendReq.Start, backendReq.End = traceql.TrimToBefore(backendReq.Start, backendReq.End, backendReq.Step, cutoff)
 
 	// If empty window then no need to search backend
 	if backendReq.Start == backendReq.End {
@@ -292,7 +292,7 @@ func max(a, b uint32) uint32 {
 }
 
 func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest, parent *http.Request, tenantID string, cutoff time.Time) *http.Request {
-	traceql.TrimToAfter(&searchReq, cutoff)
+	searchReq.Start, searchReq.End = traceql.TrimToAfter(searchReq.Start, searchReq.End, searchReq.Step, cutoff)
 
 	// if start == end then we don't need to query it
 	if searchReq.Start == searchReq.End {

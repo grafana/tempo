@@ -146,6 +146,68 @@ func TestTrimToOverlap(t *testing.T) {
 	}
 }
 
+func TestTrimToBefore(t *testing.T) {
+	tc := []struct {
+		start, end, step           uint64
+		before                     time.Time
+		expectedStart, expectedEnd uint64
+	}{
+		// instant query
+		{
+			1, 2, 1,
+			time.Now(),
+			1, 2,
+		},
+		// non instant query
+		{
+			1, 3, 1,
+			time.Now(),
+			1, 3,
+		},
+		// shorten query
+		{
+			2000000000, 4000000000, 1,
+			time.Unix(1, 0),
+			1000000000, 1000000000,
+		},
+	}
+
+	for _, c := range tc {
+		actualStart, actualEnd := TrimToBefore(c.start, c.end, c.step, c.before)
+
+		require.Equal(t, c.expectedStart, actualStart)
+		require.Equal(t, c.expectedEnd, actualEnd)
+	}
+}
+
+func TestTrimToAfter(t *testing.T) {
+	tc := []struct {
+		start, end, step           uint64
+		before                     time.Time
+		expectedStart, expectedEnd uint64
+	}{
+		// instant query
+		{
+			1, 2, 1,
+			time.Unix(1, 0),
+			1000000000, 1000000000,
+		},
+		// non instant query
+		{
+			2000000000, 4000000000, 1,
+			time.Unix(1, 0),
+			2000000000, 4000000000,
+		},
+	}
+
+	for _, c := range tc {
+		actualStart, actualEnd := TrimToAfter(c.start, c.end, c.step, c.before)
+
+		require.Equal(t, c.expectedStart, actualStart)
+		require.Equal(t, c.expectedEnd, actualEnd)
+	}
+}
+
 func TestTimeRangeOverlap(t *testing.T) {
 	tc := []struct {
 		reqStart, reqEnd, dataStart, dataEnd uint64
