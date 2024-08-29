@@ -101,7 +101,7 @@ import (
                         BY COALESCE SELECT
                         END_ATTRIBUTE
                         RATE COUNT_OVER_TIME MIN_OVER_TIME QUANTILE_OVER_TIME HISTOGRAM_OVER_TIME COMPARE
-                        WITH
+                        WITH ARRAY
 
 // Operators are listed with increasing precedence.
 %left <binOp> PIPE
@@ -420,13 +420,22 @@ scopedIntrinsicField:
   ;
 
 attributeField:
-    DOT IDENTIFIER END_ATTRIBUTE                      { $$ = NewAttribute($2)                                             }
-  | RESOURCE_DOT IDENTIFIER END_ATTRIBUTE             { $$ = NewScopedAttribute(AttributeScopeResource, false, $2)        }
-  | SPAN_DOT IDENTIFIER END_ATTRIBUTE                 { $$ = NewScopedAttribute(AttributeScopeSpan, false, $2)            }
-  | PARENT_DOT IDENTIFIER END_ATTRIBUTE               { $$ = NewScopedAttribute(AttributeScopeNone, true, $2)             }
-  | PARENT_DOT RESOURCE_DOT IDENTIFIER END_ATTRIBUTE  { $$ = NewScopedAttribute(AttributeScopeResource, true, $3)         }
-  | PARENT_DOT SPAN_DOT IDENTIFIER END_ATTRIBUTE      { $$ = NewScopedAttribute(AttributeScopeSpan, true, $3)             }
-  | EVENT_DOT IDENTIFIER END_ATTRIBUTE                { $$ = NewScopedAttribute(AttributeScopeEvent, false, $2)           }
-  | LINK_DOT IDENTIFIER END_ATTRIBUTE                 { $$ = NewScopedAttribute(AttributeScopeLink, false, $2)            }
-  | INSTRUMENTATION_DOT IDENTIFIER END_ATTRIBUTE      { $$ = NewScopedAttribute(AttributeScopeInstrumentation, false, $2) }
+    DOT IDENTIFIER END_ATTRIBUTE                      { $$ = NewAttribute($2, false)                                      }
+  | RESOURCE_DOT IDENTIFIER END_ATTRIBUTE             { $$ = NewScopedAttribute(AttributeScopeResource, false, $2, false)        }
+  | SPAN_DOT IDENTIFIER END_ATTRIBUTE                 { $$ = NewScopedAttribute(AttributeScopeSpan, false, $2, false)            }
+  | PARENT_DOT IDENTIFIER END_ATTRIBUTE               { $$ = NewScopedAttribute(AttributeScopeNone, true, $2, false)             }
+  | PARENT_DOT RESOURCE_DOT IDENTIFIER END_ATTRIBUTE  { $$ = NewScopedAttribute(AttributeScopeResource, true, $3, false)         }
+  | PARENT_DOT SPAN_DOT IDENTIFIER END_ATTRIBUTE      { $$ = NewScopedAttribute(AttributeScopeSpan, true, $3, false)             }
+  | EVENT_DOT IDENTIFIER END_ATTRIBUTE                { $$ = NewScopedAttribute(AttributeScopeEvent, false, $2, false)           }
+  | LINK_DOT IDENTIFIER END_ATTRIBUTE                 { $$ = NewScopedAttribute(AttributeScopeLink, false, $2, false)            }
+  | INSTRUMENTATION_DOT IDENTIFIER END_ATTRIBUTE      { $$ = NewScopedAttribute(AttributeScopeInstrumentation, false, $2, false) }
+  | DOT IDENTIFIER ARRAY END_ATTRIBUTE                      { $$ = NewAttribute($2, true)                                             }
+  | RESOURCE_DOT IDENTIFIER ARRAY END_ATTRIBUTE             { $$ = NewScopedAttribute(AttributeScopeResource, false, $2, true)        }
+  | SPAN_DOT IDENTIFIER ARRAY END_ATTRIBUTE                 { $$ = NewScopedAttribute(AttributeScopeSpan, false, $2, true)            }
+  | PARENT_DOT IDENTIFIER ARRAY END_ATTRIBUTE               { $$ = NewScopedAttribute(AttributeScopeNone, true, $2, true)             }
+  | PARENT_DOT RESOURCE_DOT IDENTIFIER ARRAY END_ATTRIBUTE  { $$ = NewScopedAttribute(AttributeScopeResource, true, $3, true)         }
+  | PARENT_DOT SPAN_DOT IDENTIFIER ARRAY END_ATTRIBUTE      { $$ = NewScopedAttribute(AttributeScopeSpan, true, $3, true)             }
+  | EVENT_DOT IDENTIFIER ARRAY END_ATTRIBUTE                { $$ = NewScopedAttribute(AttributeScopeEvent, false, $2, true)           }
+  | LINK_DOT IDENTIFIER ARRAY END_ATTRIBUTE                 { $$ = NewScopedAttribute(AttributeScopeLink, false, $2, true)            }
+  | INSTRUMENTATION_DOT IDENTIFIER ARRAY END_ATTRIBUTE      { $$ = NewScopedAttribute(AttributeScopeInstrumentation, false, $2, true) }
   ;
