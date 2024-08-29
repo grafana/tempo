@@ -61,5 +61,5 @@ func (rw *Backend) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*back
 }
 
 func (rw *Backend) compactedMetaFileName(blockID uuid.UUID, tenantID string) string {
-	return path.Join(rw.rootPath(backend.KeyPathForBlock(blockID, tenantID)), backend.CompactedMetaNameProto)
+	return path.Join(rw.rootPath(backend.KeyPathForBlock(blockID, tenantID)), backend.CompactedMetaName)
 }

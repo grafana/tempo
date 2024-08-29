@@ -24,9 +24,7 @@ const (
 	TenantIndexName   = "index.json.gz"
 
 	// Proto
-	MetaNameProto          = "meta"
-	CompactedMetaNameProto = "meta.compacted"
-	TenantIndexNameProto   = "index"
+	TenantIndexNameProto = "index"
 
 	// File name for the cluster seed file.
 	ClusterSeedFileName = "tempo_cluster_seed.json"
@@ -107,19 +105,12 @@ func (w *writer) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
 	blockID := meta.BlockID
 	tenantID := meta.TenantID
 
-	// TODO: Consider writing both json and proto files
-
-	pb, err := meta.ToBackendV1Proto()
+	bMeta, err := json.Marshal(meta)
 	if err != nil {
 		return err
 	}
 
-	bMeta, err := proto.Marshal(pb)
-	if err != nil {
-		return err
-	}
-
-	return w.w.Write(ctx, MetaNameProto, KeyPathForBlock(blockID, tenantID), bytes.NewReader(bMeta), int64(len(bMeta)), nil)
+	return w.w.Write(ctx, MetaName, KeyPathForBlock(blockID, tenantID), bytes.NewReader(bMeta), int64(len(bMeta)), nil)
 }
 
 // Write implements backend.Writer
@@ -224,14 +215,6 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uu
 
 // BlockMeta implements backend.Reader
 func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
-	// Read the proto first and return it if it was found
-	outProto, err := r.blockMetaProto(ctx, blockID, tenantID)
-	if err == nil {
-		return outProto, nil
-	}
-
-	// TODO: consider what to do with the json meta once we start writing proto.
-
 	reader, size, err := r.r.Read(ctx, MetaName, KeyPathForBlock(blockID, tenantID), nil)
 	if err != nil {
 		return nil, err
@@ -245,32 +228,6 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 
 	out := &BlockMeta{}
 	err = json.Unmarshal(bytes, out)
-	if err != nil {
-		return nil, err
-	}
-
-	return out, nil
-}
-
-func (r *reader) blockMetaProto(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
-	reader, size, err := r.r.Read(ctx, MetaNameProto, KeyPathForBlock(blockID, tenantID), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	bb, err := tempo_io.ReadAllWithEstimate(reader, size)
-	if err != nil {
-		return nil, err
-	}
-
-	out := &BlockMeta{}
-	v1meta := &backend_v1.BlockMeta{}
-	err = proto.Unmarshal(bb, v1meta)
-	if err != nil {
-		return nil, err
-	}
-
-	err = out.FromBackendV1Proto(v1meta)
 	if err != nil {
 		return nil, err
 	}
@@ -372,12 +329,12 @@ func KeyPathWithPrefix(keypath KeyPath, prefix string) KeyPath {
 
 // MetaFileName returns the object name for the block meta given a block id and tenantid
 func MetaFileName(blockID uuid.UUID, tenantID, prefix string) string {
-	return path.Join(prefix, tenantID, blockID.String(), MetaNameProto)
+	return path.Join(prefix, tenantID, blockID.String(), MetaName)
 }
 
 // CompactedMetaFileName returns the object name for the compacted block meta given a block id and tenantid
 func CompactedMetaFileName(blockID uuid.UUID, tenantID, prefix string) string {
-	return path.Join(prefix, tenantID, blockID.String(), CompactedMetaNameProto)
+	return path.Join(prefix, tenantID, blockID.String(), CompactedMetaName)
 }
 
 // RootPath returns the root path for a block given a block id and tenantid

@@ -313,7 +313,7 @@ func (p *Poller) pollTenantBlocks(
 
 	currentBlockIDs, currentCompactedBlockIDs, err := p.reader.Blocks(derivedCtx, tenantID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed reading Blocks(): %w", err)
 	}
 
 	var (
@@ -365,7 +365,7 @@ func (p *Poller) pollTenantBlocks(
 
 	newM, newCm, err := p.pollUnknown(derivedCtx, unknownBlockIDs, tenantID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed reading unknown blocks: %w", err)
 	}
 
 	newBlockList = append(newBlockList, newM...)
