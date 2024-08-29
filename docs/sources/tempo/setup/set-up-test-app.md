@@ -26,7 +26,7 @@ Otherwise, refer to [Install Grafana](/docs/grafana/latest/installation/) for mo
 
 This section uses a [Grafana Alloy Helm chart](/docs/alloy/<ALLOY_VERSION>/set-up/install/kubernetes/) deployment to send traces to Tempo.
 
-To do this, you need to create a configuration that can be used by Grafana Alloy to receive and export traces in OTLP `protobuf` format.
+To do this, you need to create a configuration that can be used by Alloy to receive and export traces in OTLP `protobuf` format.
 
 1. Create a new `values.yaml` file which we'll use as part of the Alloy install.
 
@@ -129,9 +129,9 @@ Update the endpoints if you have altered the endpoint targets.
    ```bash
    telemetrygen traces --otlp-insecure --rate 20 --duration 5s --otlp-endpoint grafana-alloy.grafana-alloy.svc.cluster.local:4317
    ```
-  This configuration sends traces to Grafana Alloy for 5 seconds, at a rate of 20 traces per second.
+  This configuration sends traces to Alloy for 5 seconds, at a rate of 20 traces per second.
 
-  Optionally, you can also send the trace directly to the Tempo database without using Grafana Alloy as a collector by using the following:
+  Optionally, you can also send the trace directly to the Tempo database without using Alloy as a collector by using the following:
   ```bash
   telemetrygen traces --otlp-insecure --rate 20 --duration 5s --otlp-endpoint tempo-cluster-distributor.tempo.svc.cluster.local:4317
   ```
@@ -197,7 +197,7 @@ This procedure installs the application on your cluster so you can generate mean
       cp intro-to-mltp/k8s/mythical/* ~/tmp/intro-to-mltp-k8s
     ```
 1. Change to the cloned repository: `cd intro-to-mltp/k8s/mythical`
-1. In the `mythical-beasts-deployment.yaml` manifest, alter each `TRACING_COLLECTOR_HOST` environment variable instance value to point to the Grafana Alloy location. For example, based on Grafana Alloy installed in the default namespace and with a Helm installation called `test`:
+1. In the `mythical-beasts-deployment.yaml` manifest, alter each `TRACING_COLLECTOR_HOST` environment variable instance value to point to the Grafana Alloy location. For example, based on Alloy installed in the default namespace and with a Helm installation called `test`:
    ```yaml
     	- env:
         ...

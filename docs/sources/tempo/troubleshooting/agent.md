@@ -1,7 +1,7 @@
 ---
 title: Troubleshoot Grafana Alloy
 menuTitle: Grafana Alloy
-description: Gain visibility on how many traces are being pushed to Alloy and if they are making it to the Tempo backend.
+description: Gain visibility on how many traces are being pushed to Grafana Alloy and if they are making it to the Tempo backend.
 weight: 472
 aliases:
 - ../operations/troubleshooting/agent/

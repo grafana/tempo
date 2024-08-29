@@ -12,12 +12,12 @@ If you don't have a cluster available, you can use the linked documentation to s
 
 To set up monitoring, you need to:
 
-* Use Grafana Alloy collector to remote-write to Tempo and set up Grafana to visualize the tracing data by following [Set up a test app](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/set-up-test-app/).
-* Update your collector configuration to scrape metrics to monitor for your Tempo data.
+* Use Grafana Alloy to remote-write to Tempo and set up Grafana to visualize the tracing data by following [Set up a test app](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/set-up-test-app/).
+* Update your Alloy configuration to scrape metrics to monitor for your Tempo data.
 
 This procedure assumes that you have set up Tempo [using the Helm chart](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/helm-chart/) with [Grafana Alloy](https://grafana.com/docs/alloy/<TEMPO_VERSION>/set-up/install/).
 
-The steps outlined below use the Grafana Alloy configurations described in [Set up a test application for a Tempo cluster](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/set-up-test-app/).
+The steps outlined below use the Alloy configurations described in [Set up a test application for a Tempo cluster](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/set-up-test-app/).
 
 {{< admonition type="note" >}}
 Update any instructions in this document for your own deployment.
@@ -66,10 +66,11 @@ In your Grafana instance, you'll need:
 ## Enable Tempo metrics scraping
 
 Tempo exposes Prometheus metrics from all of its components to allow meta-monitoring.
-Grafana Alloy can both collect traces and act as a Prometheus scraper to retrieve metrics from Tempo. To use this capability, you need to configure Alloy to scrape from all of the components.
+Alloy can both collect traces and act as a Prometheus scraper to retrieve metrics from Tempo.
+To use this capability, you need to configure Alloy to scrape from all of the components.
 
-Grafana Alloy lets you discover targets to scrape in a cluster via a variety of ways.
-Usually for Prometheus metrics scraping, you would annotate the pods, services, and others, to signal that Grafana Alloy should scrape metrics from those objects using annotations such as `prometheus/scrape: true` as well as a port and path.
+Alloy lets you discover targets to scrape in a cluster via a variety of ways.
+Usually for Prometheus metrics scraping, you would annotate the pods, services, and others, to signal that Alloy should scrape metrics from those objects using annotations such as `prometheus/scrape: true` as well as a port and path.
 
 However, the Tempo objects already have some convenient annotations supplied under the `app.kubernetes.io` prefixes.
 The Helm deployment includes these annotations.
@@ -138,7 +139,9 @@ rule {
 
 This lets you create a configuration that scrapes metrics from Tempo components and writes the data to a Mimir instance of your choice.
 
-Here’s a complete configuration for a [Grafana Alloy Helm](https://grafana.com/docs/alloy/<ALLOY_VERSION>/configure/kubernetes/) values file for Alloy, to scrape a running instance of Tempo.
+This example provides a Helm `values.yaml` file that you can use for [Alloy deployed on Kubernetes](https://grafana.com/docs/alloy/<ALLOY_VERSION>/configure/kubernetes/).
+The file configures the options Alloy uses to scrap a running instance of Tempo. 
+Refer to the comments in the example for details. 
 
 ```yaml
 alloy:
@@ -223,7 +226,7 @@ alloy:
 ```
 
 This example doesn’t include ingestion for any other data such as traces for sending to Tempo, but can be included with some configuration updates.
-Refer to [Configure Grafana Alloy to remote-write to Tempo](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/set-up-test-app/) for more information.
+Refer to [Configure Alloy to remote-write to Tempo](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/set-up-test-app/) for more information.
 
 ## Install Tempo dashboards in Grafana
 
