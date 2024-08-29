@@ -204,11 +204,11 @@ type TimeSeries struct {
 // text description: {x="a",y="b"} for convenience.
 type SeriesSet map[string]TimeSeries
 
-func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeries {
-	return set.ToProtoDiff(req, nil)
+func (set SeriesSet) ToProto(start, end, step uint64) []*tempopb.TimeSeries {
+	return set.ToProtoDiff(start, end, step, nil)
 }
 
-func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels func(string) (uint64, uint64, bool)) []*tempopb.TimeSeries {
+func (set SeriesSet) ToProtoDiff(start, end, step uint64, rangeForLabels func(string) (uint64, uint64, bool)) []*tempopb.TimeSeries {
 	resp := make([]*tempopb.TimeSeries, 0, len(set))
 
 	for promLabels, s := range set {
@@ -222,7 +222,6 @@ func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels 
 			)
 		}
 
-		start, end := req.Start, req.End
 		include := true
 		if rangeForLabels != nil {
 			start, end, include = rangeForLabels(promLabels)
@@ -232,10 +231,10 @@ func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels 
 			continue
 		}
 
-		intervals := IntervalCount(start, end, req.Step)
+		intervals := IntervalCount(start, end, step)
 		samples := make([]tempopb.Sample, 0, intervals)
 		for i, value := range s.Values {
-			ts := TimestampOf(uint64(i), req.Start, req.Step)
+			ts := TimestampOf(uint64(i), start, step)
 
 			// todo: this loop should be able to be restructured to directly pass over
 			// the desired intervals
@@ -691,21 +690,21 @@ func (u *UngroupedAggregator) Series() SeriesSet {
 	}
 }
 
-func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, mode AggregateMode) (*MetricsFrontendEvaluator, error) {
-	if req.Start <= 0 {
+func (e *Engine) CompileMetricsQueryRangeNonRaw(start, end, step uint64, query string, mode AggregateMode) (*MetricsFrontendEvaluator, error) {
+	if start <= 0 {
 		return nil, fmt.Errorf("start required")
 	}
-	if req.End <= 0 {
+	if end <= 0 {
 		return nil, fmt.Errorf("end required")
 	}
-	if req.End <= req.Start {
+	if end <= start {
 		return nil, fmt.Errorf("end must be greater than start")
 	}
-	if req.Step <= 0 {
+	if step <= 0 {
 		return nil, fmt.Errorf("step required")
 	}
 
-	_, _, metricsPipeline, _, err := e.Compile(req.Query)
+	_, _, metricsPipeline, _, err := e.Compile(query)
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}
@@ -714,7 +713,7 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 		return nil, fmt.Errorf("not a metrics query")
 	}
 
-	metricsPipeline.init(req, mode)
+	metricsPipeline.init(start, end, step, mode)
 
 	return &MetricsFrontendEvaluator{
 		metricsPipeline: metricsPipeline,
@@ -725,21 +724,21 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 // Dedupe spans parameter is an indicator of whether to expect duplicates in the datasource. For
 // example if the datasource is replication factor=1 or only a single block then we know there
 // aren't duplicates, and we can make some optimizations.
-func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exemplars int, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvalulator, error) {
-	if req.Start <= 0 {
+func (e *Engine) CompileMetricsQueryRange(start, end, step uint64, query string, exemplars int, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvalulator, error) {
+	if start <= 0 {
 		return nil, fmt.Errorf("start required")
 	}
-	if req.End <= 0 {
+	if end <= 0 {
 		return nil, fmt.Errorf("end required")
 	}
-	if req.End <= req.Start {
+	if end <= start {
 		return nil, fmt.Errorf("end must be greater than start")
 	}
-	if req.Step <= 0 {
+	if step <= 0 {
 		return nil, fmt.Errorf("step required")
 	}
 
-	expr, eval, metricsPipeline, storageReq, err := e.Compile(req.Query)
+	expr, eval, metricsPipeline, storageReq, err := e.Compile(query)
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}
@@ -753,7 +752,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 	}
 
 	// This initializes all step buffers, counters, etc
-	metricsPipeline.init(req, AggregateModeRaw)
+	metricsPipeline.init(start, end, step, AggregateModeRaw)
 
 	me := &MetricsEvalulator{
 		storageReq:        storageReq,
@@ -784,8 +783,8 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 	// Queries where we can't are like:  {A} >> {B} | rate() because only require
 	// that {B} occurs within our time range but {A} is allowed to occur any time.
 	me.checkTime = true
-	me.start = req.Start
-	me.end = req.End
+	me.start = start
+	me.end = end
 
 	if me.maxExemplars > 0 {
 		cb := func() bool { return me.exemplarCount < me.maxExemplars }
@@ -1030,15 +1029,15 @@ type SimpleAdditionAggregator struct {
 	start, end, step uint64
 }
 
-func NewSimpleAdditionCombiner(req *tempopb.QueryRangeRequest) *SimpleAdditionAggregator {
-	l := IntervalCount(req.Start, req.End, req.Step)
+func NewSimpleAdditionCombiner(start, end, step uint64) *SimpleAdditionAggregator {
+	l := IntervalCount(start, end, step)
 	return &SimpleAdditionAggregator{
 		ss:              make(SeriesSet),
 		exemplarBuckets: newBucketSet(l),
 		len:             l,
-		start:           req.Start,
-		end:             req.End,
-		step:            req.Step,
+		start:           start,
+		end:             end,
+		step:            step,
 	}
 }
 
@@ -1142,15 +1141,15 @@ type HistogramAggregator struct {
 	exemplarBuckets  *bucketSet
 }
 
-func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64) *HistogramAggregator {
-	l := IntervalCount(req.Start, req.End, req.Step)
+func NewHistogramAggregator(start, end, step uint64, qs []float64) *HistogramAggregator {
+	l := IntervalCount(start, end, step)
 	return &HistogramAggregator{
 		qs:              qs,
 		ss:              make(map[string]histSeries),
 		len:             l,
-		start:           req.Start,
-		end:             req.End,
-		step:            req.Step,
+		start:           start,
+		end:             end,
+		step:            step,
 		exemplarBuckets: newBucketSet(l),
 	}
 }

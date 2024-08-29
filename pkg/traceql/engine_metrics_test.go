@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 )
 
@@ -214,12 +213,7 @@ func TestCompileMetricsQueryRange(t *testing.T) {
 
 	for n, c := range tc {
 		t.Run(n, func(t *testing.T) {
-			_, err := NewEngine().CompileMetricsQueryRange(&tempopb.QueryRangeRequest{
-				Query: c.q,
-				Start: c.start,
-				End:   c.end,
-				Step:  c.step,
-			}, 0, 0, false)
+			_, err := NewEngine().CompileMetricsQueryRange(c.start, c.end, c.step, c.q, 0, 0, false)
 
 			if c.expectedErr != nil {
 				require.EqualError(t, err, c.expectedErr.Error())
@@ -307,12 +301,7 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 
 	for n, tc := range tc {
 		t.Run(n, func(t *testing.T) {
-			eval, err := NewEngine().CompileMetricsQueryRange(&tempopb.QueryRangeRequest{
-				Query: tc.q,
-				Start: 1,
-				End:   2,
-				Step:  3,
-			}, 0, 0, false)
+			eval, err := NewEngine().CompileMetricsQueryRange(1, 2, 3, tc.q, 0, 0, false)
 			require.NoError(t, err)
 
 			// Nil out func to Equal works
@@ -323,14 +312,11 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 }
 
 func TestQuantileOverTime(t *testing.T) {
-	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
-		End:   uint64(3 * time.Second),
-		Step:  uint64(1 * time.Second),
-		Query: "{ } | quantile_over_time(duration, 0, 0.5, 1) by (span.foo)",
-	}
-
 	var (
+		start  = uint64(1 * time.Second)
+		end    = uint64(3 * time.Second)
+		step   = uint64(1 * time.Second)
+		query  = "{ } | quantile_over_time(duration, 0, 0.5, 1) by (span.foo)"
 		e      = NewEngine()
 		_128ns = 0.000000128
 		_256ns = 0.000000256
@@ -415,13 +401,13 @@ func TestQuantileOverTime(t *testing.T) {
 	}
 
 	// 3 layers of processing matches:  query-frontend -> queriers -> generators -> blocks
-	layer1, err := e.CompileMetricsQueryRange(req, 0, 0, false)
+	layer1, err := e.CompileMetricsQueryRange(start, end, step, query, 0, 0, false)
 	require.NoError(t, err)
 
-	layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
+	layer2, err := e.CompileMetricsQueryRangeNonRaw(start, end, step, query, AggregateModeSum)
 	require.NoError(t, err)
 
-	layer3, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
+	layer3, err := e.CompileMetricsQueryRangeNonRaw(start, end, step, query, AggregateModeFinal)
 	require.NoError(t, err)
 
 	// Pass spans to layer 1
@@ -432,12 +418,12 @@ func TestQuantileOverTime(t *testing.T) {
 	// Pass layer 1 to layer 2
 	// These are partial counts over time by bucket
 	res := layer1.Results()
-	layer2.metricsPipeline.observeSeries(res.ToProto(req))
+	layer2.metricsPipeline.observeSeries(res.ToProto(start, end, step))
 
 	// Pass layer 2 to layer 3
 	// These are summed counts over time by bucket
 	res = layer2.Results()
-	layer3.ObserveSeries(res.ToProto(req))
+	layer3.ObserveSeries(res.ToProto(start, end, step))
 
 	// Layer 3 final results
 	// The quantiles
@@ -454,14 +440,11 @@ func percentileHelper(q float64, values ...float64) float64 {
 }
 
 func TestHistogramOverTime(t *testing.T) {
-	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
-		End:   uint64(3 * time.Second),
-		Step:  uint64(1 * time.Second),
-		Query: "{ } | histogram_over_time(duration) by (span.foo)",
-	}
-
 	var (
+		start  = uint64(1 * time.Second)
+		end    = uint64(3 * time.Second)
+		step   = uint64(1 * time.Second)
+		query  = "{ } | histogram_over_time(duration) by (span.foo)"
 		e      = NewEngine()
 		_128ns = NewStaticFloat(0.000000128)
 		_256ns = NewStaticFloat(0.000000256)
@@ -522,13 +505,13 @@ func TestHistogramOverTime(t *testing.T) {
 	}
 
 	// 3 layers of processing matches:  query-frontend -> queriers -> generators -> blocks
-	layer1, err := e.CompileMetricsQueryRange(req, 0, 0, false)
+	layer1, err := e.CompileMetricsQueryRange(start, end, step, query, 0, 0, false)
 	require.NoError(t, err)
 
-	layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
+	layer2, err := e.CompileMetricsQueryRangeNonRaw(start, end, step, query, AggregateModeSum)
 	require.NoError(t, err)
 
-	layer3, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
+	layer3, err := e.CompileMetricsQueryRangeNonRaw(start, end, step, query, AggregateModeFinal)
 	require.NoError(t, err)
 
 	// Pass spans to layer 1
@@ -539,12 +522,12 @@ func TestHistogramOverTime(t *testing.T) {
 	// Pass layer 1 to layer 2
 	// These are partial counts over time by bucket
 	res := layer1.Results()
-	layer2.metricsPipeline.observeSeries(res.ToProto(req))
+	layer2.metricsPipeline.observeSeries(res.ToProto(start, end, step))
 
 	// Pass layer 2 to layer 3
 	// These are summed counts over time by bucket
 	res = layer2.Results()
-	layer3.ObserveSeries(res.ToProto(req))
+	layer3.ObserveSeries(res.ToProto(start, end, step))
 
 	// Layer 3 final results
 	// The quantiles

@@ -146,7 +146,9 @@ type tsRange struct {
 }
 
 type QueryRangeCombiner struct {
-	req     *tempopb.QueryRangeRequest
+	start   uint64
+	end     uint64
+	step    uint64
 	eval    *MetricsFrontendEvaluator
 	metrics *tempopb.SearchMetrics
 
@@ -156,8 +158,8 @@ type QueryRangeCombiner struct {
 	seriesUpdated map[string]tsRange
 }
 
-func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode, trackDiffs bool) (*QueryRangeCombiner, error) {
-	eval, err := NewEngine().CompileMetricsQueryRangeNonRaw(req, mode)
+func QueryRangeCombinerFor(start, end, step uint64, query string, mode AggregateMode, trackDiffs bool) (*QueryRangeCombiner, error) {
+	eval, err := NewEngine().CompileMetricsQueryRangeNonRaw(start, end, step, query, mode)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +170,9 @@ func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode, t
 	}
 
 	return &QueryRangeCombiner{
-		req:           req,
+		start:         start,
+		end:           end,
+		step:          end,
 		eval:          eval,
 		metrics:       &tempopb.SearchMetrics{},
 		seriesUpdated: seriesUpdated,
@@ -199,7 +203,7 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 
 func (q *QueryRangeCombiner) Response() *tempopb.QueryRangeResponse {
 	return &tempopb.QueryRangeResponse{
-		Series:  q.eval.Results().ToProto(q.req),
+		Series:  q.eval.Results().ToProto(q.start, q.end, q.start),
 		Metrics: q.metrics,
 	}
 }
@@ -216,7 +220,7 @@ func (q *QueryRangeCombiner) Diff() *tempopb.QueryRangeResponse {
 
 	// filter out series that haven't change
 	resp := &tempopb.QueryRangeResponse{
-		Series:  q.eval.Results().ToProtoDiff(q.req, seriesRangeFn),
+		Series:  q.eval.Results().ToProtoDiff(q.start, q.end, q.start, seriesRangeFn),
 		Metrics: q.metrics,
 	}
 
@@ -240,11 +244,11 @@ func (q *QueryRangeCombiner) markUpdatedRanges(resp *tempopb.QueryRangeResponse)
 		// Normalize into request alignment by converting timestamp into index and back
 		// TimestampMs may not match exactly when we trim things around blocks, and the generators
 		// This is mainly for instant queries that have large steps and few samples.
-		idxMin := IntervalOfMs(series.Samples[0].TimestampMs, q.req.Start, q.req.End, q.req.Step)
-		idxMax := IntervalOfMs(series.Samples[len(series.Samples)-1].TimestampMs, q.req.Start, q.req.End, q.req.Step)
+		idxMin := IntervalOfMs(series.Samples[0].TimestampMs, q.start, q.end, q.step)
+		idxMax := IntervalOfMs(series.Samples[len(series.Samples)-1].TimestampMs, q.start, q.end, q.step)
 
-		nanoMin := TimestampOf(uint64(idxMin), q.req.Start, q.req.Step)
-		nanoMax := TimestampOf(uint64(idxMax), q.req.Start, q.req.Step)
+		nanoMin := TimestampOf(uint64(idxMin), q.start, q.step)
+		nanoMax := TimestampOf(uint64(idxMax), q.start, q.step)
 
 		tsr, ok := q.seriesUpdated[series.PromLabels]
 		if !ok {

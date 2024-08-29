@@ -44,7 +44,7 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 		return nil, fmt.Errorf("error querying generators in Querier.queryRangeRecent: %w", err)
 	}
 
-	c, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeSum, false)
+	c, err := traceql.QueryRangeCombinerFor(req.Start, req.End, req.Step, req.Query, traceql.AggregateModeSum, false)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		timeOverlapCutoff = v
 	}
 
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req, int(req.Exemplars), timeOverlapCutoff, unsafe)
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req.Start, req.End, req.Step, req.Query, int(req.Exemplars), timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}

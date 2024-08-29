@@ -408,7 +408,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 				return resp, err
 			}
 
-			rr := r.ToProto(req)
+			rr := r.ToProto(req.Start, req.End, req.Step)
 			return &tempopb.QueryRangeResponse{
 				Series: rr,
 			}, nil
