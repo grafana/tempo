@@ -107,6 +107,7 @@ var tokens = map[string]int{
 	"histogram_over_time": HISTOGRAM_OVER_TIME,
 	"compare":             COMPARE,
 	"with":                WITH,
+	"[]":                  ARRAY,
 }
 
 type lexer struct {
@@ -124,6 +125,10 @@ func (l *lexer) Lex(lval *yySymType) int {
 	//  this attribute will end, then return a special token indicating that the attribute is
 	//  done parsing
 	if l.parsingAttribute && !isAttributeRune(l.Peek()) {
+		// check if the attribute ends with [], and return ARRAY token before we return END_ATTRIBUTE
+		if l.checkArrayEnd() {
+			return ARRAY
+		}
 		l.parsingAttribute = false
 		return END_ATTRIBUTE
 	}
@@ -147,6 +152,7 @@ func (l *lexer) Lex(lval *yySymType) int {
 
 	r := l.Scan()
 	// now that we know we're not parsing an attribute, let's look for everything else
+	// we should find and return the Array token here
 	switch r {
 	case scanner.EOF:
 		return 0
@@ -201,6 +207,9 @@ func (l *lexer) Lex(lval *yySymType) int {
 	// look for combination tokens starting with 2 and working up til there is no match
 	// this is only to disamgiguate tokens with common prefixes. it will not find 3+ token combinations
 	// with no valid prefixes
+	// FIXME: this can also be used to parse and return the ARRAY token at the end of the attribute??
+	// multiTok does fund ARRAY token but I think we need to advance the scanner to consume the [] tokens
+	// and then return ARRAY token, and mark it as end of attribute???
 	multiTok := -1
 	tokStrNext := l.TokenText()
 	for {
@@ -403,7 +412,7 @@ func isAttributeRune(r rune) bool {
 	}
 
 	switch r {
-	case scanner.EOF, '{', '}', '(', ')', '=', '~', '!', '<', '>', '&', '|', '^', ',':
+	case scanner.EOF, '{', '}', '(', ')', '=', '~', '!', '<', '>', '&', '|', '^', ',', '[', ']':
 		return false
 	default:
 		return true
@@ -418,4 +427,15 @@ func startsAttribute(tok int) bool {
 		tok == EVENT_DOT ||
 		tok == LINK_DOT ||
 		tok == INSTRUMENTATION_DOT
+}
+
+func (l *lexer) checkArrayEnd() bool {
+	if l.Peek() == '[' {
+		l.Next() // consume '['
+		if l.Peek() == ']' {
+			l.Next() // consume ']'
+			return true
+		}
+	}
+	return false
 }
