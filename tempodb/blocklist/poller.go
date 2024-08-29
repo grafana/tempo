@@ -313,7 +313,7 @@ func (p *Poller) pollTenantBlocks(
 
 	currentBlockIDs, currentCompactedBlockIDs, err := p.reader.Blocks(derivedCtx, tenantID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed reading Blocks(): %w", err)
+		return nil, nil, fmt.Errorf("failed listing tenant blocks: %w", err)
 	}
 
 	var (
