@@ -543,6 +543,7 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 100).WithDuration(128),
 		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200).WithDuration(256),
 		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 300).WithDuration(512),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 204).WithDuration(512),
 
 		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 400).WithDuration(256),
 		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 401).WithDuration(64),
@@ -559,9 +560,9 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 	fooBaz := result[`{span.foo="baz"}`]
 	fooBar := result[`{span.foo="bar"}`]
 
-	// We cannot compare with require.Equal because NaN != NaN
-	// foo.baz = (NaN, NaN, 200
-	assert.True(t, math.IsNaN(fooBaz.Values[0]))
+	// Alas,we cannot compare with require.Equal because NaN != NaN
+	// foo.baz = (204, NaN, 200)
+	assert.Equal(t, 204.0, fooBaz.Values[0])
 	assert.True(t, math.IsNaN(fooBaz.Values[1]))
 	assert.Equal(t, 200.0, fooBaz.Values[2])
 
@@ -570,10 +571,10 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 	assert.Equal(t, 200.0, fooBar.Values[1])
 	assert.True(t, math.IsNaN(fooBar.Values[2]))
 
-	// Test that NaN values are not included in the samples
+	// Test that NaN values are not included in the samples after casting to proto
 	ts := result.ToProto(req)
 	fooBarSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 100}, {TimestampMs: 2000, Value: 200}}
-	fooBazSamples := []tempopb.Sample{{TimestampMs: 3000, Value: 200}}
+	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 204}, {TimestampMs: 3000, Value: 200}}
 
 	for _, s := range ts {
 		if s.PromLabels == "{span.foo=\"bar\"}" {
