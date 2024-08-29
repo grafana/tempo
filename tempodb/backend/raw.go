@@ -287,31 +287,6 @@ func (r *reader) tenantIndexProto(ctx context.Context, tenantID string) (*backen
 	return nil, fmt.Errorf("error reading tenant index proto: %w", err)
 }
 
-func (r *reader) tenantIndexJSON(ctx context.Context, tenantID string) (*TenantIndex, error) {
-	var (
-		i   = &TenantIndex{}
-		err error
-	)
-
-	reader, size, err := r.r.Read(ctx, TenantIndexName, KeyPath([]string{tenantID}), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer reader.Close()
-
-	bytes, err := tempo_io.ReadAllWithEstimate(reader, size)
-	if err != nil {
-		return nil, err
-	}
-
-	err = i.unmarshal(bytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return i, nil
-}
-
 // KeyPathForBlock returns a correctly ordered keypath given a block id and tenantid
 func KeyPathForBlock(blockID uuid.UUID, tenantID string) KeyPath {
 	return []string{tenantID, blockID.String()}
