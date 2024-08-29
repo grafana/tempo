@@ -168,7 +168,10 @@ func (rw *Backend) ListBlocks(_ context.Context, tenant string) (metas []uuid.UU
 			return nil
 		}
 
-		if parts[2] != backend.MetaName && parts[2] != backend.CompactedMetaName {
+		if parts[2] != backend.MetaName &&
+			parts[2] != backend.MetaNameProto &&
+			parts[2] != backend.CompactedMetaName &&
+			parts[2] != backend.CompactedMetaNameProto {
 			return nil
 		}
 
@@ -178,10 +181,12 @@ func (rw *Backend) ListBlocks(_ context.Context, tenant string) (metas []uuid.UU
 		}
 
 		switch parts[2] {
-		case backend.MetaName:
+		case backend.MetaName, backend.MetaNameProto:
 			metas = append(metas, id)
-		case backend.CompactedMetaName:
+		case backend.CompactedMetaName, backend.CompactedMetaNameProto:
 			compactedMetas = append(compactedMetas, id)
+		default:
+			spew.Dump(parts)
 		}
 
 		return nil
@@ -300,7 +305,7 @@ func (rw *Backend) objectFileName(keypath backend.KeyPath, name string) string {
 }
 
 func (rw *Backend) metaFileName(blockID uuid.UUID, tenantID string) string {
-	return filepath.Join(rw.rootPath(backend.KeyPathForBlock(blockID, tenantID)), backend.MetaName)
+	return filepath.Join(rw.rootPath(backend.KeyPathForBlock(blockID, tenantID)), backend.MetaNameProto)
 }
 
 func (rw *Backend) rootPath(keypath backend.KeyPath) string {

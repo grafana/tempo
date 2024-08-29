@@ -235,7 +235,12 @@ func (rw *Azure) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []
 				continue
 			}
 
-			if parts[1] != backend.MetaName && parts[1] != backend.CompactedMetaName {
+			switch parts[1] {
+			case backend.MetaName,
+				backend.CompactedMetaName,
+				backend.MetaNameProto,
+				backend.CompactedMetaNameProto:
+			default:
 				continue
 			}
 
@@ -245,9 +250,9 @@ func (rw *Azure) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []
 			}
 
 			switch parts[1] {
-			case backend.MetaName:
+			case backend.MetaName, backend.MetaNameProto:
 				blockIDs = append(blockIDs, id)
-			case backend.CompactedMetaName:
+			case backend.CompactedMetaName, backend.CompactedMetaNameProto:
 				compactedBlockIDs = append(compactedBlockIDs, id)
 			}
 		}

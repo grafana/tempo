@@ -372,12 +372,12 @@ func KeyPathWithPrefix(keypath KeyPath, prefix string) KeyPath {
 
 // MetaFileName returns the object name for the block meta given a block id and tenantid
 func MetaFileName(blockID uuid.UUID, tenantID, prefix string) string {
-	return path.Join(prefix, tenantID, blockID.String(), MetaName)
+	return path.Join(prefix, tenantID, blockID.String(), MetaNameProto)
 }
 
 // CompactedMetaFileName returns the object name for the compacted block meta given a block id and tenantid
 func CompactedMetaFileName(blockID uuid.UUID, tenantID, prefix string) string {
-	return path.Join(prefix, tenantID, blockID.String(), CompactedMetaName)
+	return path.Join(prefix, tenantID, blockID.String(), CompactedMetaNameProto)
 }
 
 // RootPath returns the root path for a block given a block id and tenantid
