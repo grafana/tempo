@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"math/rand"
-	"os"
 	"path"
 	"testing"
 	"time"
