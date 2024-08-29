@@ -172,7 +172,7 @@ func QueryRangeCombinerFor(start, end, step uint64, query string, mode Aggregate
 	return &QueryRangeCombiner{
 		start:         start,
 		end:           end,
-		step:          end,
+		step:          step,
 		eval:          eval,
 		metrics:       &tempopb.SearchMetrics{},
 		seriesUpdated: seriesUpdated,
@@ -203,7 +203,7 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 
 func (q *QueryRangeCombiner) Response() *tempopb.QueryRangeResponse {
 	return &tempopb.QueryRangeResponse{
-		Series:  q.eval.Results().ToProto(q.start, q.end, q.start),
+		Series:  q.eval.Results().ToProto(q.start, q.end, q.step),
 		Metrics: q.metrics,
 	}
 }
@@ -220,7 +220,7 @@ func (q *QueryRangeCombiner) Diff() *tempopb.QueryRangeResponse {
 
 	// filter out series that haven't change
 	resp := &tempopb.QueryRangeResponse{
-		Series:  q.eval.Results().ToProtoDiff(q.start, q.end, q.start, seriesRangeFn),
+		Series:  q.eval.Results().ToProtoDiff(q.start, q.end, q.step, seriesRangeFn),
 		Metrics: q.metrics,
 	}
 

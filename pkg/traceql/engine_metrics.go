@@ -221,24 +221,24 @@ func (set SeriesSet) ToProtoDiff(start, end, step uint64, rangeForLabels func(st
 				},
 			)
 		}
-
+		intervalStart, intervalEnd := start, end
 		include := true
 		if rangeForLabels != nil {
-			start, end, include = rangeForLabels(promLabels)
+			intervalStart, intervalEnd, include = rangeForLabels(promLabels)
 		}
 
 		if !include {
 			continue
 		}
 
-		intervals := IntervalCount(start, end, step)
+		intervals := IntervalCount(intervalStart, intervalEnd, step)
 		samples := make([]tempopb.Sample, 0, intervals)
 		for i, value := range s.Values {
 			ts := TimestampOf(uint64(i), start, step)
 
 			// todo: this loop should be able to be restructured to directly pass over
 			// the desired intervals
-			if ts < start || ts > end {
+			if ts < intervalStart || ts > intervalEnd {
 				continue
 			}
 
