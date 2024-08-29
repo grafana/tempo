@@ -809,24 +809,24 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 
 	for _, rs := range tr.ResourceSpans {
 		var rsAttrs []attrVal
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelServiceName), traceql.NewStaticString(rs.Resource.ServiceName)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelCluster), traceql.NewStaticString(*rs.Resource.Cluster)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelNamespace), traceql.NewStaticString(*rs.Resource.Namespace)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelPod), traceql.NewStaticString(*rs.Resource.Pod)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelContainer), traceql.NewStaticString(*rs.Resource.Container)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sClusterName), traceql.NewStaticString(*rs.Resource.K8sClusterName)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sNamespaceName), traceql.NewStaticString(*rs.Resource.K8sNamespaceName)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sPodName), traceql.NewStaticString(*rs.Resource.K8sPodName)})
-		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sContainerName), traceql.NewStaticString(*rs.Resource.K8sContainerName)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelServiceName, false), traceql.NewStaticString(rs.Resource.ServiceName)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelCluster, false), traceql.NewStaticString(*rs.Resource.Cluster)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelNamespace, false), traceql.NewStaticString(*rs.Resource.Namespace)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelPod, false), traceql.NewStaticString(*rs.Resource.Pod)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelContainer, false), traceql.NewStaticString(*rs.Resource.Container)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sClusterName, false), traceql.NewStaticString(*rs.Resource.K8sClusterName)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sNamespaceName, false), traceql.NewStaticString(*rs.Resource.K8sNamespaceName)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sPodName, false), traceql.NewStaticString(*rs.Resource.K8sPodName)})
+		rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sContainerName, false), traceql.NewStaticString(*rs.Resource.K8sContainerName)})
 
 		for _, a := range parquetToProtoAttrs(rs.Resource.Attrs) {
 			if arr := a.Value.GetArrayValue(); arr != nil {
 				for _, v := range arr.Values {
-					rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, a.Key), traceql.StaticFromAnyValue(v)})
+					rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, a.Key, false), traceql.StaticFromAnyValue(v)})
 				}
 				continue
 			}
-			rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, a.Key), traceql.StaticFromAnyValue(a.Value)})
+			rsAttrs = append(rsAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, a.Key, false), traceql.StaticFromAnyValue(a.Value)})
 		}
 
 		dcm.forEach(func(attr string, column dedicatedColumn) {
@@ -835,7 +835,7 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 				if v == nil {
 					return
 				}
-				a := traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, attr)
+				a := traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, attr, false)
 				s := traceql.StaticFromAnyValue(v)
 				rsAttrs = append(rsAttrs, attrVal{a, s})
 			}
@@ -850,11 +850,11 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 			for _, a := range parquetToProtoAttrs(ss.Scope.Attrs) {
 				if arr := a.Value.GetArrayValue(); arr != nil {
 					for _, v := range arr.Values {
-						instrumentationAttrs = append(instrumentationAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, a.Key), traceql.StaticFromAnyValue(v)})
+						instrumentationAttrs = append(instrumentationAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, a.Key, false), traceql.StaticFromAnyValue(v)})
 					}
 					continue
 				}
-				instrumentationAttrs = append(instrumentationAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, a.Key), traceql.StaticFromAnyValue(a.Value)})
+				instrumentationAttrs = append(instrumentationAttrs, attrVal{traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, a.Key, false), traceql.StaticFromAnyValue(a.Value)})
 			}
 			sortAttrs(instrumentationAttrs)
 
@@ -873,13 +873,13 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 				newS.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(otlpStatusToTraceqlStatus(uint64(s.StatusCode))))
 				newS.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(s.StatusMessage))
 				if s.HttpStatusCode != nil {
-					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPStatusCode), traceql.NewStaticInt(int(*s.HttpStatusCode)))
+					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPStatusCode, false), traceql.NewStaticInt(int(*s.HttpStatusCode)))
 				}
 				if s.HttpMethod != nil {
-					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPMethod), traceql.NewStaticString(*s.HttpMethod))
+					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPMethod, false), traceql.NewStaticString(*s.HttpMethod))
 				}
 				if s.HttpUrl != nil {
-					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPUrl), traceql.NewStaticString(*s.HttpUrl))
+					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPUrl, false), traceql.NewStaticString(*s.HttpUrl))
 				}
 
 				dcm.forEach(func(attr string, column dedicatedColumn) {
@@ -888,7 +888,7 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 						if v == nil {
 							return
 						}
-						a := traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, attr)
+						a := traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, attr, false)
 						s := traceql.StaticFromAnyValue(v)
 						newS.addSpanAttr(a, s)
 					}
@@ -897,11 +897,11 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 				for _, a := range parquetToProtoAttrs(s.Attrs) {
 					if arr := a.Value.GetArrayValue(); arr != nil {
 						for _, v := range arr.Values {
-							newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, a.Key), traceql.StaticFromAnyValue(v))
+							newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, a.Key, false), traceql.StaticFromAnyValue(v))
 						}
 						continue
 					}
-					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, a.Key), traceql.StaticFromAnyValue(a.Value))
+					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, a.Key, false), traceql.StaticFromAnyValue(a.Value))
 				}
 
 				sortAttrs(newS.spanAttrs)

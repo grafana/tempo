@@ -2252,11 +2252,11 @@ func (c *attributeCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 }
 
 func newSpanAttr(name string) traceql.Attribute {
-	return traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, name)
+	return traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, name, false)
 }
 
 func newResAttr(name string) traceql.Attribute {
-	return traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, name)
+	return traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, name, false)
 }
 
 func unionIfNeeded(definitionLevel int, iters []parquetquery.Iterator, pred parquetquery.GroupPredicate) parquetquery.Iterator {

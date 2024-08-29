@@ -272,7 +272,7 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 				SecondPassConditions: []Condition{
 					{
 						// Group-by attributes (non-intrinsic) must be in the second pass
-						Attribute: NewScopedAttribute(AttributeScopeResource, false, "cluster"),
+						Attribute: NewScopedAttribute(AttributeScopeResource, false, "cluster", false),
 					},
 					{
 						// Since there is already a second pass then span start time isn't optimized to the first pass.
@@ -297,7 +297,7 @@ func TestCompileMetricsQueryRangeFetchSpansRequest(t *testing.T) {
 					},
 					{
 						// Resource service name is treated as an intrinsic and moved to the first pass
-						Attribute: NewScopedAttribute(AttributeScopeResource, false, "service.name"),
+						Attribute: NewScopedAttribute(AttributeScopeResource, false, "service.name", false),
 					},
 					{
 						Attribute: IntrinsicSpanStartTimeAttribute,

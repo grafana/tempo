@@ -2661,7 +2661,10 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		// if all conditions must be true we can use a simple join iterator to test the values one column at a time.
 		// len(valueIters) must be 1 to handle queries like `{ span.foo = "x" && span.bar > 1}`
 		if allConditions && len(valueIters) == 1 {
-			iters := append([]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")}, valueIters...)
+			iters := append([]parquetquery.Iterator{
+				makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key"),
+				makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key"),
+			}, valueIters...)
 			return parquetquery.NewJoinIterator(definitionLevel,
 				iters,
 				&attributeCollector{},
@@ -2669,7 +2672,10 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 		}
 
 		return parquetquery.NewLeftJoinIterator(definitionLevel,
-			[]parquetquery.Iterator{makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key")},
+			[]parquetquery.Iterator{
+				makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key"),
+				makeIter(keyPath, parquetquery.NewStringInPredicate(attrKeys), "key"),
+			},
 			valueIters,
 			&attributeCollector{},
 			parquetquery.WithPool(pqAttrPool))
@@ -3335,23 +3341,23 @@ func (c *linkCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 }
 
 func newSpanAttr(name string) traceql.Attribute {
-	return traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, name)
+	return traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, name, false)
 }
 
 func newResAttr(name string) traceql.Attribute {
-	return traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, name)
+	return traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, name, false)
 }
 
 func newInstrumentationAttrs(name string) traceql.Attribute {
-	return traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, name)
+	return traceql.NewScopedAttribute(traceql.AttributeScopeInstrumentation, false, name, false)
 }
 
 func newEventAttr(name string) traceql.Attribute {
-	return traceql.NewScopedAttribute(traceql.AttributeScopeEvent, false, name)
+	return traceql.NewScopedAttribute(traceql.AttributeScopeEvent, false, name, false)
 }
 
 func newLinkAttr(name string) traceql.Attribute {
-	return traceql.NewScopedAttribute(traceql.AttributeScopeLink, false, name)
+	return traceql.NewScopedAttribute(traceql.AttributeScopeLink, false, name, false)
 }
 
 func unionIfNeeded(definitionLevel int, iters []parquetquery.Iterator, pred parquetquery.GroupPredicate) parquetquery.Iterator {

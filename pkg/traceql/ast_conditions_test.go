@@ -16,16 +16,16 @@ func TestSpansetFilter_extractConditions(t *testing.T) {
 		{
 			query: `{ .foo = "bar" && "bzz" = .fzz }`,
 			conditions: []Condition{
-				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
-				newCondition(NewAttribute("fzz"), OpEqual, NewStaticString("bzz")),
+				newCondition(NewAttribute("foo", false), OpEqual, NewStaticString("bar")),
+				newCondition(NewAttribute("fzz", false), OpEqual, NewStaticString("bzz")),
 			},
 			allConditions: true,
 		},
 		{
 			query: `{ .foo = "bar" || "bzz" = .fzz }`,
 			conditions: []Condition{
-				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
-				newCondition(NewAttribute("fzz"), OpEqual, NewStaticString("bzz")),
+				newCondition(NewAttribute("foo", false), OpEqual, NewStaticString("bar")),
+				newCondition(NewAttribute("fzz", false), OpEqual, NewStaticString("bzz")),
 			},
 			allConditions: false,
 		},
@@ -37,38 +37,38 @@ func TestSpansetFilter_extractConditions(t *testing.T) {
 		{
 			query: `{ .foo = .bar }`,
 			conditions: []Condition{
-				newCondition(NewAttribute("foo"), OpNone),
-				newCondition(NewAttribute("bar"), OpNone),
+				newCondition(NewAttribute("foo", false), OpNone),
+				newCondition(NewAttribute("bar", false), OpNone),
 			},
 			allConditions: true,
 		},
 		{
 			query: `{ (.foo = "bar") = true }`,
 			conditions: []Condition{
-				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				newCondition(NewAttribute("foo", false), OpEqual, NewStaticString("bar")),
 			},
 			allConditions: true,
 		},
 		{
 			query: `{ true = (.foo = "bar") }`,
 			conditions: []Condition{
-				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				newCondition(NewAttribute("foo", false), OpEqual, NewStaticString("bar")),
 			},
 			allConditions: true,
 		},
 		{
 			query: `{ (.foo = "bar") = .bar }`,
 			conditions: []Condition{
-				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
-				newCondition(NewAttribute("bar"), OpNone),
+				newCondition(NewAttribute("foo", false), OpEqual, NewStaticString("bar")),
+				newCondition(NewAttribute("bar", false), OpNone),
 			},
 			allConditions: true,
 		},
 		{
 			query: `{ .bar = (.foo = "bar") }`,
 			conditions: []Condition{
-				newCondition(NewAttribute("bar"), OpNone),
-				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
+				newCondition(NewAttribute("bar", false), OpNone),
+				newCondition(NewAttribute("foo", false), OpEqual, NewStaticString("bar")),
 			},
 			allConditions: true,
 		},
@@ -84,24 +84,24 @@ func TestSpansetFilter_extractConditions(t *testing.T) {
 		{
 			query: `{ (.foo = "bar") = !.bar }`,
 			conditions: []Condition{
-				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("bar")),
-				newCondition(NewAttribute("bar"), OpNone),
+				newCondition(NewAttribute("foo", false), OpEqual, NewStaticString("bar")),
+				newCondition(NewAttribute("bar", false), OpNone),
 			},
 			allConditions: true,
 		},
 		{
 			query: `{ .foo = .bar + 1 }`,
 			conditions: []Condition{
-				newCondition(NewAttribute("foo"), OpNone),
-				newCondition(NewAttribute("bar"), OpNone),
+				newCondition(NewAttribute("foo", false), OpNone),
+				newCondition(NewAttribute("bar", false), OpNone),
 			},
 			allConditions: true,
 		},
 		{
 			query: `{ (.foo = 2) && (.bar / 1 > 3) }`,
 			conditions: []Condition{
-				newCondition(NewAttribute("foo"), OpEqual, NewStaticInt(2)),
-				newCondition(NewAttribute("bar"), OpNone),
+				newCondition(NewAttribute("foo", false), OpEqual, NewStaticInt(2)),
+				newCondition(NewAttribute("bar", false), OpNone),
 			},
 			allConditions: true,
 		},
@@ -135,14 +135,14 @@ func TestScalarFilter_extractConditions(t *testing.T) {
 		{
 			query: `{ .foo = "a" } | count() > 10`,
 			conditions: []Condition{
-				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("a")),
+				newCondition(NewAttribute("foo", false), OpEqual, NewStaticString("a")),
 			},
 			allConditions: false,
 		},
 		{
 			query: `{ .foo = "a" } | avg(duration) > 10ms`,
 			conditions: []Condition{
-				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("a")),
+				newCondition(NewAttribute("foo", false), OpEqual, NewStaticString("a")),
 				newCondition(NewIntrinsic(IntrinsicDuration), OpNone),
 			},
 			allConditions: false,
@@ -225,10 +225,10 @@ func TestSelect_extractConditions(t *testing.T) {
 		{
 			query: `{ .foo = "a" } | select(resource.service.name)`,
 			conditions: []Condition{
-				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("a")),
+				newCondition(NewAttribute("foo", false), OpEqual, NewStaticString("a")),
 			},
 			secondPassConditions: []Condition{
-				newCondition(NewScopedAttribute(AttributeScopeResource, false, "service.name"), OpNone),
+				newCondition(NewScopedAttribute(AttributeScopeResource, false, "service.name", false), OpNone),
 			},
 			allConditions: false,
 		},
@@ -238,7 +238,7 @@ func TestSelect_extractConditions(t *testing.T) {
 				newCondition(NewIntrinsic(IntrinsicSpanStartTime), OpNone),
 			},
 			secondPassConditions: []Condition{
-				newCondition(NewAttribute("name"), OpNone),
+				newCondition(NewAttribute("name", false), OpNone),
 				newCondition(NewIntrinsic(IntrinsicName), OpNone),
 			},
 			allConditions: false,

@@ -55,17 +55,17 @@ func ParseIdentifier(s string) (Attribute, error) {
 
 	switch {
 	case strings.HasPrefix(s, "."):
-		return NewAttribute(strings.TrimPrefix(s, ".")), nil
+		return NewAttribute(strings.TrimPrefix(s, "."), false), nil
 	case strings.HasPrefix(s, "resource."):
-		return NewScopedAttribute(AttributeScopeResource, false, strings.TrimPrefix(s, "resource.")), nil
+		return NewScopedAttribute(AttributeScopeResource, false, strings.TrimPrefix(s, "resource."), false), nil
 	case strings.HasPrefix(s, "span."):
-		return NewScopedAttribute(AttributeScopeSpan, false, strings.TrimPrefix(s, "span.")), nil
+		return NewScopedAttribute(AttributeScopeSpan, false, strings.TrimPrefix(s, "span."), false), nil
 	case strings.HasPrefix(s, "instrumentation."):
-		return NewScopedAttribute(AttributeScopeInstrumentation, false, strings.TrimPrefix(s, "instrumentation.")), nil
+		return NewScopedAttribute(AttributeScopeInstrumentation, false, strings.TrimPrefix(s, "instrumentation."), false), nil
 	case strings.HasPrefix(s, "event."):
-		return NewScopedAttribute(AttributeScopeEvent, false, strings.TrimPrefix(s, "event.")), nil
+		return NewScopedAttribute(AttributeScopeEvent, false, strings.TrimPrefix(s, "event."), false), nil
 	case strings.HasPrefix(s, "link."):
-		return NewScopedAttribute(AttributeScopeLink, false, strings.TrimPrefix(s, "link.")), nil
+		return NewScopedAttribute(AttributeScopeLink, false, strings.TrimPrefix(s, "link."), false), nil
 	default:
 		return Attribute{}, fmt.Errorf("tag name is not valid intrinsic or scoped attribute: %s", s)
 	}

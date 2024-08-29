@@ -595,7 +595,7 @@ func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope,
 func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagValuesCallback, opts common.SearchOptions) error {
 	att, ok := translateTagToAttribute[tag]
 	if !ok {
-		att = traceql.NewAttribute(tag)
+		att = traceql.NewAttribute(tag, false)
 	}
 
 	// Wrap to v2-style
