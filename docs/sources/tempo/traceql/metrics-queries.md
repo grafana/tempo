@@ -118,7 +118,7 @@ To demonstrate this flexibility, consider this nonsensical quantile on `span.htt
 
 This adds a new metrics function `compare` which is used to split the stream of spans into two groups: a selection and a baseline.
 It returns time-series for all attributes found on the spans to highlight the differences between the two groups.
-This is kind of hard to describe so there are some example outputs below:
+This is a powerful function that is best understood by looking at example outputs below:
 
 The function is used like other metrics functions: when it's placed after any search query, and converts it into a metrics query:
 `...any spanset pipeline... | compare({subset filters}, <topN>, <start timestamp>, <end timestamp>)`
@@ -127,24 +127,20 @@ Example:
 ```
 { resource.service.name="a" && span.http.path="/myapi" } | compare({status=error})
 ```
-
+This function is generally run as an instant query.  It may return may exceed gRPC payloads when run as a query range.
 #### Parameters
 
-The `compare` function has three parameters:
+The `compare` function has four parameters:
 
 1. Required. The first parameter is a spanset filter for choosing the subset of spans. This filter is executed against the incoming spans. If it matches, then the span is considered to be part of the selection. Otherwise, it is part of the baseline.  Common filters are expected to be things like `{status=error}` (what is different about errors?) or `{duration>1s}` (what is different about slow spans?)
 
 2. Optional. The second parameter is the top `N` values to return per attribute. If an attribute exceeds this limit in either the selection group or baseline group, then only the top `N` values (based on frequency) are returned, and an error indicator for the attribute is included output (see below).  Defaults to `10`.
 
-3. Optional. Start and end timestamps in Unix nanoseconds, which can be used to additionally subset the spans in time. These timestamps must both be given, or neither.
+3. Optional. Start and End timestamps in Unix nanoseconds, which can be used to constrain the selection window by time, in addition to the filter. For example, the overall query could cover the past hour, and the selection window only a 5 minute time period in which there was an anomaly. These timestamps must both be given, or neither.
 
 #### Output
 
 The outputs are flat time-series for each attribute/value found in the spans.
-
-This function has a built-in select(`*`), which selects all attributes of all spans.
-It may exceed gRPC payloads when run as a query range.
-Tempo doesn't support instant queries. However, you can emulate it by setting `step` equal to `end-start`, which effectively creates a range query that returns a single data point.
 
 Each series has a label `__meta_type` which denotes which group it is in, either `selection` or `baseline`.
 
@@ -157,7 +153,7 @@ Example output series:
 { __meta_type="selection", resource.cluster="dev"} 126  <--- cluster=dev was found in the highlighted spans but not in the baseline
 ```
 
-When an attribute reaches the cardinality limit, there will also be present an error indicator.
+When an attribute reaches the topN limit, there will also be present an error indicator.
 This example means the attribute `resource.cluster` had too many values.
 ```
 { __meta_error="__too_many_values__", resource.cluster=<nil> }
