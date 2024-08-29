@@ -67,11 +67,6 @@ func (b *TenantIndex) unmarshal(buffer []byte) error {
 }
 
 func (b *TenantIndex) proto() (*backend_v1.TenantIndex, error) {
-	// TODO: we ned to match the same nilness on proto and fromProto.  If we dont
-	// have a meta or a compacted meta...
-	// I think we set nil.
-	// Tests pass without this, but it seems like it should be there.
-
 	tenantIndex := &backend_v1.TenantIndex{
 		CreatedAt:     b.CreatedAt,
 		Meta:          make([]*backend_v1.BlockMeta, 0, len(b.Meta)),
