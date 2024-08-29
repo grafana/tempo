@@ -752,14 +752,7 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 						return
 					}
 
-					req := &tempopb.QueryRangeRequest{
-						Query: tc,
-						Step:  uint64(time.Minute),
-						Start: uint64(st.UnixNano()),
-						End:   uint64(end.UnixNano()),
-					}
-
-					eval, err := e.CompileMetricsQueryRange(req, 4, 0, false)
+					eval, err := e.CompileMetricsQueryRange(uint64(st.UnixNano()), uint64(end.UnixNano()), uint64(time.Minute), tc, 4, 0, false)
 					require.NoError(b, err)
 
 					b.ResetTimer()

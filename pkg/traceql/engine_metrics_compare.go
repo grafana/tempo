@@ -67,24 +67,24 @@ func (m *MetricsCompare) extractConditions(request *FetchSpansRequest) {
 	// because we're already selecting all.
 }
 
-func (m *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
+func (m *MetricsCompare) init(start, end, step uint64, mode AggregateMode) {
 	switch mode {
 	case AggregateModeRaw:
-		m.qstart = q.Start
-		m.qend = q.End
-		m.qstep = q.Step
-		m.len = IntervalCount(q.Start, q.End, q.Step)
+		m.qstart = start
+		m.qend = end
+		m.qstep = step
+		m.len = IntervalCount(start, end, step)
 		m.baselines = make(map[Attribute]map[StaticMapKey]staticWithCounts)
 		m.selections = make(map[Attribute]map[StaticMapKey]staticWithCounts)
 		m.baselineTotals = make(map[Attribute][]float64)
 		m.selectionTotals = make(map[Attribute][]float64)
 
 	case AggregateModeSum:
-		m.seriesAgg = NewSimpleAdditionCombiner(q)
+		m.seriesAgg = NewSimpleAdditionCombiner(start, end, step)
 		return
 
 	case AggregateModeFinal:
-		m.seriesAgg = NewBaselineAggregator(q, m.topN)
+		m.seriesAgg = NewBaselineAggregator(start, end, step, m.topN)
 		return
 	}
 }
@@ -336,8 +336,8 @@ type staticWithTimeSeries struct {
 	series TimeSeries
 }
 
-func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int) *BaselineAggregator {
-	l := IntervalCount(req.Start, req.End, req.Step)
+func NewBaselineAggregator(start, end, step uint64, topN int) *BaselineAggregator {
+	l := IntervalCount(start, end, step)
 	return &BaselineAggregator{
 		baseline:        make(map[string]map[StaticMapKey]staticWithTimeSeries),
 		selection:       make(map[string]map[StaticMapKey]staticWithTimeSeries),
@@ -345,9 +345,9 @@ func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int) *BaselineAg
 		selectionTotals: make(map[string]map[StaticMapKey]staticWithTimeSeries),
 		maxed:           make(map[string]struct{}),
 		len:             l,
-		start:           req.Start,
-		end:             req.End,
-		step:            req.Step,
+		start:           start,
+		end:             end,
+		step:            step,
 		topN:            topN,
 		exemplarBuckets: newBucketSet(l),
 	}

@@ -359,13 +359,9 @@ func TestQueryRangeCombinerDiffs(t *testing.T) {
 		},
 	}
 
-	req := &tempopb.QueryRangeRequest{
-		Start: start,
-		End:   end,
-		Step:  step,
-		Query: "{} | rate()", // simple aggregate
-	}
-	combiner, err := QueryRangeCombinerFor(req, AggregateModeFinal, true)
+	query := "{} | rate()" // simple aggregate
+
+	combiner, err := QueryRangeCombinerFor(start, end, step, query, AggregateModeFinal, true)
 	require.NoError(t, err)
 
 	for i, tc := range tcs {

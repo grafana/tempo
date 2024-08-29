@@ -22,7 +22,7 @@ type Element interface {
 type metricsFirstStageElement interface {
 	Element
 	extractConditions(request *FetchSpansRequest)
-	init(req *tempopb.QueryRangeRequest, mode AggregateMode)
+	init(start, end, step uint64, mode AggregateMode)
 	observe(Span) // TODO - batching?
 	observeExemplar(Span)
 	observeSeries([]*tempopb.TimeSeries) // Re-entrant metrics on the query-frontend.  Using proto version for efficiency
@@ -1095,14 +1095,14 @@ func (a *MetricsAggregate) extractConditions(request *FetchSpansRequest) {
 	}
 }
 
-func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
+func (a *MetricsAggregate) init(start, end, step uint64, mode AggregateMode) {
 	switch mode {
 	case AggregateModeSum:
-		a.initSum(q)
+		a.initSum(start, end, step)
 		return
 
 	case AggregateModeFinal:
-		a.initFinal(q)
+		a.initFinal(start, end, step)
 		return
 	}
 
@@ -1121,7 +1121,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 		}
 
 	case metricsAggregateRate:
-		innerAgg = func() VectorAggregator { return NewRateAggregator(1.0 / time.Duration(q.Step).Seconds()) }
+		innerAgg = func() VectorAggregator { return NewRateAggregator(1.0 / time.Duration(step).Seconds()) }
 		exemplarFn = func(s Span) (float64, uint64) {
 			return math.NaN(), a.spanStartTimeMs(s)
 		}
@@ -1149,7 +1149,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 	}
 
 	a.agg = NewGroupingAggregator(a.op.String(), func() RangeAggregator {
-		return NewStepAggregator(q.Start, q.End, q.Step, innerAgg)
+		return NewStepAggregator(start, end, step, innerAgg)
 	}, a.by, byFunc, byFuncLabel)
 	a.exemplarFn = exemplarFn
 }
@@ -1210,19 +1210,19 @@ func (a *MetricsAggregate) bucketizeAttribute(s Span) (Static, bool) {
 	}
 }
 
-func (a *MetricsAggregate) initSum(q *tempopb.QueryRangeRequest) {
+func (a *MetricsAggregate) initSum(start, end, step uint64) {
 	// Currently all metrics are summed by job to produce
 	// intermediate results. This will change when adding min/max/topk/etc
-	a.seriesAgg = NewSimpleAdditionCombiner(q)
+	a.seriesAgg = NewSimpleAdditionCombiner(start, end, step)
 }
 
-func (a *MetricsAggregate) initFinal(q *tempopb.QueryRangeRequest) {
+func (a *MetricsAggregate) initFinal(start, end, step uint64) {
 	switch a.op {
 	case metricsAggregateQuantileOverTime:
-		a.seriesAgg = NewHistogramAggregator(q, a.floats)
+		a.seriesAgg = NewHistogramAggregator(start, end, step, a.floats)
 	default:
 		// These are simple additions by series
-		a.seriesAgg = NewSimpleAdditionCombiner(q)
+		a.seriesAgg = NewSimpleAdditionCombiner(start, end, step)
 	}
 }
 

@@ -55,7 +55,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	// Compile the raw version of the query for wal blocks
 	// These aren't cached and we put them all into the same evaluator
 	// for efficiency.
-	eval, err := e.CompileMetricsQueryRange(req, int(req.Exemplars), timeOverlapCutoff, unsafe)
+	eval, err := e.CompileMetricsQueryRange(req.Start, req.End, req.Step, req.Query, int(req.Exemplars), timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	// which can be cached. But we need their results separately so they are
 	// computed separately.
 	overallEvalMtx := sync.Mutex{}
-	overallEval, err := traceql.NewEngine().CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeSum)
+	overallEval, err := traceql.NewEngine().CompileMetricsQueryRangeNonRaw(req.Start, req.End, req.Step, req.Query, traceql.AggregateModeSum)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	}
 
 	// Combine the uncacheable results into the overall results
-	walResults := eval.Results().ToProto(req)
+	walResults := eval.Results().ToProto(req.Start, req.End, req.Step)
 	overallEval.ObserveSeries(walResults)
 
 	return overallEval.Results(), nil
@@ -192,7 +192,7 @@ func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loc
 	}
 
 	// Not in cache or not cacheable, so execute
-	eval, err := traceql.NewEngine().CompileMetricsQueryRange(&req, exemplars, timeOverlapCutoff, unsafe)
+	eval, err := traceql.NewEngine().CompileMetricsQueryRange(req.Start, req.End, req.Step, req.Query, exemplars, timeOverlapCutoff, unsafe)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +204,7 @@ func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loc
 		return nil, err
 	}
 
-	results := eval.Results().ToProto(&req)
+	results := eval.Results().ToProto(req.Start, req.End, req.Step)
 
 	if name != "" {
 		err = p.queryRangeCacheSet(ctx, m, name, &tempopb.QueryRangeResponse{

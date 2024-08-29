@@ -11,8 +11,8 @@ import (
 var _ GRPCCombiner[*tempopb.QueryRangeResponse] = (*genericCombiner[*tempopb.QueryRangeResponse])(nil)
 
 // NewQueryRange returns a query range combiner.
-func NewQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (Combiner, error) {
-	combiner, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeFinal, trackDiffs)
+func NewQueryRange(start, end, step uint64, query string, trackDiffs bool) (Combiner, error) {
+	combiner, err := traceql.QueryRangeCombinerFor(start, end, step, query, traceql.AggregateModeFinal, trackDiffs)
 	if err != nil {
 		return nil, err
 	}
@@ -21,7 +21,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (Combiner, e
 		httpStatusCode: 200,
 		new:            func() *tempopb.QueryRangeResponse { return &tempopb.QueryRangeResponse{} },
 		current:        &tempopb.QueryRangeResponse{Metrics: &tempopb.SearchMetrics{}},
-		combine: func(partial *tempopb.QueryRangeResponse, _ *tempopb.QueryRangeResponse, resp PipelineResponse) error {
+		combine: func(partial *tempopb.QueryRangeResponse, _ *tempopb.QueryRangeResponse, _ PipelineResponse) error {
 			if partial.Metrics != nil {
 				// this is a coordination between the sharder and combiner. the sharder returns one response with summary metrics
 				// only. the combiner correctly takes and accumulates that job. however, if the response has no jobs this is
@@ -54,8 +54,8 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (Combiner, e
 	}, nil
 }
 
-func NewTypedQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (GRPCCombiner[*tempopb.QueryRangeResponse], error) {
-	c, err := NewQueryRange(req, trackDiffs)
+func NewTypedQueryRange(start, end, step uint64, query string, trackDiffs bool) (GRPCCombiner[*tempopb.QueryRangeResponse], error) {
+	c, err := NewQueryRange(start, end, step, query, trackDiffs)
 	if err != nil {
 		return nil, err
 	}
