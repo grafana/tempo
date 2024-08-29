@@ -31,19 +31,27 @@ services:
   k6-tracing:
     image: ghcr.io/grafana/xk6-client-tracing:v0.0.5
     environment:
-      - ENDPOINT=agent:4317
+      - ENDPOINT=alloy:4317
     restart: always
     depends_on:
       - tempo
+      - alloy
 
-  # And put them in a Grafana Agent pipeline...
-  agent:
-    image: grafana/agent:v0.27.1
+  # And put them in a Grafana Alloy pipeline...
+  alloy:
+    image: grafana/alloy:v1.3.1
     volumes:
-      - ./agent.yaml:/etc/agent.yaml
-    entrypoint:
-     - /bin/agent
-     - -config.file=/etc/agent.yaml
+      - ../shared/config.alloy:/etc/alloy/config.alloy
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12345
+    ports:
+      - "12345:12345"
+      - "4319:4319"
+    depends_on:
+      - tempo
 
   prometheus:
     image: prom/prometheus:latest
@@ -58,7 +66,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:11.0.0
+    image: grafana/grafana:11.2.0
     volumes:
       - ../shared/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:

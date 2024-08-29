@@ -157,17 +157,3 @@ services:
       - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
     ports:
       - "3000:3000"
-
-  agent:
-    image: grafana/agent:v0.38.1
-    volumes:
-      - /tmp/agent:/tmp/agent
-      - ./agent.river:/etc/agent.river
-    environment:
-      - AGENT_MODE=flow
-    entrypoint:
-      - sh
-      - -euc
-      - /bin/grafana-agent run --server.http.listen-addr=0.0.0.0:12345 /etc/agent.river
-    ports:
-      - "12345:12345"
