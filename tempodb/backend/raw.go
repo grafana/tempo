@@ -132,12 +132,16 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 		if err != nil && !errors.Is(err, ErrDoesNotExist) {
 			return err
 		}
+
+		err = w.w.Delete(ctx, TenantIndexNameProto, []string{tenantID}, nil)
+		if err != nil && !errors.Is(err, ErrDoesNotExist) {
+			return err
+		}
+
 		return nil
 	}
 
 	b := newTenantIndex(meta, compactedMeta)
-
-	// TODO: consider writing both json and proto files
 
 	pb, err := b.proto()
 	if err != nil {
@@ -149,7 +153,7 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 		return err
 	}
 
-	err = w.w.Write(ctx, TenantIndexName, KeyPath([]string{tenantID}), bytes.NewReader(indexBytes), int64(len(indexBytes)), nil)
+	err = w.w.Write(ctx, TenantIndexNameProto, KeyPath([]string{tenantID}), bytes.NewReader(indexBytes), int64(len(indexBytes)), nil)
 	if err != nil {
 		return err
 	}
@@ -244,11 +248,11 @@ func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex
 
 	tenantIndex := &TenantIndex{}
 	err = tenantIndex.fromProto(tenantIndexProto)
-	if err == nil {
-		return tenantIndex, nil
+	if err != nil {
+		return nil, err
 	}
 
-	return r.tenantIndexJSON(ctx, tenantID)
+	return tenantIndex, nil
 }
 
 // Find implements backend.Reader

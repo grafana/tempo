@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -37,10 +38,7 @@ func TestWriter(t *testing.T) {
 	assert.True(t, m.closeAppendCalled)
 
 	meta := NewBlockMeta("test", uuid.New(), "blerg", EncGZIP, "glarg")
-
-	pb, err := meta.ToBackendV1Proto()
-	assert.NoError(t, err)
-	expected, _ = proto.Marshal(pb)
+	expected, _ = json.Marshal(meta)
 	err = w.WriteBlockMeta(ctx, meta)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, m.writeBuffer)
@@ -65,7 +63,7 @@ func TestWriter(t *testing.T) {
 	err = w.WriteTenantIndex(ctx, "test", nil, nil)
 	assert.NoError(t, err)
 
-	expectedDeleteMap := map[string]map[string]int{TenantIndexName: {"test": 1}}
+	expectedDeleteMap := map[string]map[string]int{TenantIndexName: {"test": 1}, TenantIndexNameProto: {"test": 1}}
 	assert.Equal(t, expectedDeleteMap, w.(*writer).w.(*MockRawWriter).deleteCalls)
 
 	// When a backend returns ErrDoesNotExist, the tenant index should be deleted, but no error should be returned if the tenant index does not exist
@@ -117,9 +115,7 @@ func TestReader(t *testing.T) {
 
 	// BlockMeta round-trip
 	expectedMeta := NewBlockMeta("test", uuid.New(), "blerg", EncGZIP, "glarg")
-	protoExpectedMeta, err := expectedMeta.ToBackendV1Proto()
-	assert.NoError(t, err)
-	m.R, _ = proto.Marshal(protoExpectedMeta)
+	m.R, _ = json.Marshal(expectedMeta)
 	meta, err = r.BlockMeta(ctx, uuid.New(), "test")
 	assert.NoError(t, err)
 	assert.Equal(t, expectedMeta, meta)

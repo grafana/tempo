@@ -22,13 +22,11 @@ type TenantIndex struct {
 }
 
 func newTenantIndex(meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) *TenantIndex {
-	i := &TenantIndex{
+	return &TenantIndex{
 		CreatedAt:     time.Now(),
 		Meta:          meta,
 		CompactedMeta: compactedMeta,
 	}
-
-	return i
 }
 
 // marshal converts to json and compresses the bucketindex
