@@ -57,7 +57,7 @@ func init() {
 	encoding.RegisterCodec(gogocodec.NewCodec())
 
 	// Register jaeger exporter
-	autoexport.RegisterSpanExporter("jaeger", func(ctx context.Context) (tracesdk.SpanExporter, error) {
+	autoexport.RegisterSpanExporter("jaeger", func(_ context.Context) (tracesdk.SpanExporter, error) {
 		return jaeger.New(jaeger.WithAgentEndpoint())
 	})
 }
