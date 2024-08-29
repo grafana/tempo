@@ -185,8 +185,6 @@ func (rw *Backend) ListBlocks(_ context.Context, tenant string) (metas []uuid.UU
 			metas = append(metas, id)
 		case backend.CompactedMetaName, backend.CompactedMetaNameProto:
 			compactedMetas = append(compactedMetas, id)
-		default:
-			spew.Dump(parts)
 		}
 
 		return nil
