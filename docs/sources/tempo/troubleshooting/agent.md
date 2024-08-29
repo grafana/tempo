@@ -19,7 +19,7 @@ If your logs are showing no obvious errors, one of the following suggestions may
 ## Metrics
 
 Alloy publishes a few Prometheus metrics that are useful to determine how much trace traffic it receives and successfully forwards.
-These metrics are a good place to start when diagnosing tracing Grafana Alloy issues.
+These metrics are a good place to start when diagnosing tracing Alloy issues.
 
 From the [`otelcol.receiver.otlp`](https://grafana.com/docs/alloy/<ALLOY_LATEST>/reference/components/otelcol/otelcol.receiver.otlp/) component:
 ```
