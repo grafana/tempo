@@ -114,8 +114,6 @@ Any numerical attribute on the span is fair game.
 { name = "GET /:endpoint" } | min_over_time(span.http.status_code)
 ```
 
-### The `quantile_over_time` and `histogram_over_time` functions
-
 The `quantile_over_time()` and `histogram_over_time()` functions let you aggregate numerical values, such as the all important span duration.
 You can specify multiple quantiles in the same query.
 
