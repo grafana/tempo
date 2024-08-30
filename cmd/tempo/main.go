@@ -20,6 +20,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	ver "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/common/version"
+	"go.opentelemetry.io/contrib/exporters/autoexport"
 	"go.opentelemetry.io/otel"
 	oc_bridge "go.opentelemetry.io/otel/bridge/opencensus"
 	ot_bridge "go.opentelemetry.io/otel/bridge/opentracing"
@@ -54,6 +55,11 @@ func init() {
 
 	// Register the gogocodec as early as possible.
 	encoding.RegisterCodec(gogocodec.NewCodec())
+
+	// Register jaeger exporter
+	autoexport.RegisterSpanExporter("jaeger", func(_ context.Context) (tracesdk.SpanExporter, error) {
+		return jaeger.New(jaeger.WithAgentEndpoint())
+	})
 }
 
 func main() {
@@ -246,9 +252,9 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 	// for now, migrate OpenTracing Jaeger environment variables
 	migrateJaegerEnvironmentVariables()
 
-	exp, err := jaeger.New(jaeger.WithCollectorEndpoint())
+	exp, err := autoexport.NewSpanExporter(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Jaeger exporter: %w", err)
+		return nil, fmt.Errorf("failed to create OTEL exporter: %w", err)
 	}
 
 	resources, err := resource.New(context.Background(),
@@ -299,6 +305,10 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 }
 
 func migrateJaegerEnvironmentVariables() {
+	if _, ok := os.LookupEnv("OTEL_TRACES_EXPORTER"); !ok {
+		os.Setenv("OTEL_TRACES_EXPORTER", "jaeger")
+	}
+
 	// jaeger-tracing-go: https://github.com/jaegertracing/jaeger-client-go#environment-variables
 	// opentelemetry-go: https://github.com/open-telemetry/opentelemetry-go/tree/main/exporters/jaeger#environment-variables
 	jaegerToOtel := map[string]string{
