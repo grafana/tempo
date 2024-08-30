@@ -103,8 +103,8 @@ func (b *TenantIndex) proto() (*backend_v1.TenantIndex, error) {
 func (b *TenantIndex) fromProto(pb *backend_v1.TenantIndex) error {
 	b.CreatedAt = pb.CreatedAt
 	var (
-		meta          = make([]*BlockMeta, len(pb.Meta))
-		compactedMeta = make([]*CompactedBlockMeta, len(pb.CompactedMeta))
+		meta          = make([]*BlockMeta, 0, len(pb.Meta))
+		compactedMeta = make([]*CompactedBlockMeta, 0, len(pb.CompactedMeta))
 	)
 
 	var (
@@ -113,26 +113,26 @@ func (b *TenantIndex) fromProto(pb *backend_v1.TenantIndex) error {
 		c   *CompactedBlockMeta
 	)
 
-	for i, mPb := range pb.Meta {
+	for _, mPb := range pb.Meta {
 		m = &BlockMeta{}
 		err = m.FromBackendV1Proto(mPb)
 		if err != nil {
 			return err
 		}
-		meta[i] = m
+		meta = append(meta, m)
 	}
 
 	if len(meta) > 0 {
 		b.Meta = meta
 	}
 
-	for i, cPb := range pb.CompactedMeta {
+	for _, cPb := range pb.CompactedMeta {
 		c = &CompactedBlockMeta{}
 		err = c.FromBackendV1Proto(cPb)
 		if err != nil {
 			return err
 		}
-		compactedMeta[i] = c
+		compactedMeta = append(compactedMeta, c)
 	}
 
 	if len(compactedMeta) > 0 {
