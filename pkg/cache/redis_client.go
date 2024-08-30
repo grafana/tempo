@@ -167,7 +167,7 @@ func (c *RedisClient) Get(ctx context.Context, key string) ([]byte, error) {
 	}
 	cmd := c.rdb.Get(ctx, key)
 	err := cmd.Err()
-	if errors.Is(err, redis.Nil) {
+	if err != nil {
 		return nil, err
 	}
 

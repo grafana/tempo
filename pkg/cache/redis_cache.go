@@ -2,10 +2,12 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/go-redis/redis/v8"
 	instr "github.com/grafana/dskit/instrument"
 	otlog "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
@@ -110,7 +112,12 @@ func (c *RedisCache) FetchKey(ctx context.Context, key string) (buf []byte, foun
 		if err != nil {
 			// nolint:errcheck
 			log.Error(err)
-			level.Error(c.logger).Log("msg", "failed to get key from redis", "name", c.name, "err", err, "key", key)
+			if errors.Is(err, redis.Nil) {
+				level.Debug(c.logger).Log("msg", "failed to get key from redis", "name", c.name, "err", err, "key", key)
+			} else {
+				level.Error(c.logger).Log("msg", "error requesting key from redis", "name", c.name, "err", err, "key", key)
+			}
+
 			return err
 		}
 
