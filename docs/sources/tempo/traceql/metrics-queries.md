@@ -94,7 +94,7 @@ down by HTTP route.
 This might let you determine that `/api/sad` had a higher rate of erroring
 spans than `/api/happy`, for example.
 
-### The `<aggregation>_over_time()` functions
+### The `count_over_time` and `min_over_time` functions
 
 The `counts_over_time()` let you counts the number of matching spans per time interval.
 
@@ -113,6 +113,7 @@ Any numerical attribute on the span is fair game.
 ```
 { name = "GET /:endpoint" } | min_over_time(span.http.status_code)
 ```
+### The `quantile_over_time` and `histogram_over_time` functions
 
 The `quantile_over_time()` and `histogram_over_time()` functions let you aggregate numerical values, such as the all important span duration.
 You can specify multiple quantiles in the same query.
