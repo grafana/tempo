@@ -11,10 +11,9 @@ import (
 	"github.com/go-kit/log/level"
 	instr "github.com/grafana/dskit/instrument"
 	"github.com/grafana/gomemcache/memcache"
+	"github.com/grafana/tempo/pkg/util/math"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-
-	"github.com/grafana/tempo/pkg/util/math"
 )
 
 // MemcachedConfig is config to make a Memcached
@@ -155,7 +154,11 @@ func (c *Memcached) FetchKey(ctx context.Context, key string) (buf []byte, found
 		var err error
 		item, err = c.memcache.Get(key)
 		if err != nil {
-			level.Error(c.logger).Log("msg", "Failed to get key from memcached", "err", err)
+			if errors.Is(err, memcache.ErrCacheMiss) {
+				level.Debug(c.logger).Log("msg", "Failed to get key from memcached", "err", err, "key", key)
+			} else {
+				level.Error(c.logger).Log("msg", "Error getting key from memcached", "err", err, "key", key)
+			}
 		}
 		return err
 	})
