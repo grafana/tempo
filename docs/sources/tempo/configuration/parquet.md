@@ -14,7 +14,6 @@ The columnar block format improves search performance and enables an ecosystem o
 For more information, refer to the [Parquet design document](https://github.com/grafana/tempo/blob/main/docs/design-proposals/2022-04%20Parquet.md) and [Issue 1480](https://github.com/grafana/tempo/issues/1480).
 Additionally, there is now a [Parquet v3 design document](https://github.com/grafana/tempo/blob/main/docs/design-proposals/2023-05%20vParquet3.md).
 
-
 ## Considerations
 
 The Parquet block format is enabled by default since Tempo 2.0.
