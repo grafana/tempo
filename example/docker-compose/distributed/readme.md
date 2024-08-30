@@ -4,13 +4,13 @@ In this example tempo is configured in a distributed manner, where modules are
 running as separate components and configured to write data to S3 via MinIO,
 which presents an S3 compatible API.
 
-1. First start up the distributed stack.
+1. Start up the distributed stack.
 
 ```console
 docker compose up -d
 ```
 
-At this point, the following containers should be spun up -
+At this point, the following containers should be spun up:
 
 ```console
 docker compose ps
@@ -38,7 +38,7 @@ http://localhost:9001 and use the username/password of `tempo`/`supersecret`.
 3. Navigate to [Grafana](http://localhost:3000/explore) select the Tempo data source and use the "Search"
 tab to find traces.
 
-4. To stop the setup use -
+4. To stop the setup use: 
 
 ```console
 docker compose down -v

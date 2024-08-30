@@ -6,14 +6,14 @@ but does not work in a distributed/microservices scenario. The container runs
 as non-root, and so the local directory needs to have the appropriate
 permissions set in order to start correctly.
 
-1. First create the storage directory with the correct permissions and start up the local stack.
+1.Create the storage directory with the correct permissions and start up the local stack.
 
 ```console
 mkdir tempo-data/
 docker compose up -d
 ```
 
-At this point, the following containers should be spun up -
+At this point, the following containers should be spun up:
 
 ```console
 docker compose ps
@@ -46,7 +46,7 @@ Grafana.
 docker logs local_tempo_1 -f
 ```
 
-5. To stop the setup use -
+5. To stop the setup use:
 
 ```console
 docker compose down -v

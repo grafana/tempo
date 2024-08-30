@@ -1,13 +1,13 @@
 ## Grafana Agent
 This example highlights setting up the Grafana Alloy in a simple tracing pipeline.
 
-1. First start up the stack.
+1. Start up the stack.
 
 ```console
 docker compose up -d
 ```
 
-At this point, the following containers should be spun up -
+At this point, the following containers should be spun up:
 
 ```console
 docker compose ps
@@ -29,7 +29,7 @@ ls tempo-data/
 3. Navigate to [Grafana](http://localhost:3000/explore) select the Tempo data source and use the "Search"
 tab to find traces.
 
-4. To stop the setup use -
+4. To stop the setup use:
 
 ```console
 docker compose down -v
