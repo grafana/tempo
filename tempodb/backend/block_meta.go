@@ -272,7 +272,7 @@ func (b *BlockMeta) ToBackendV1Proto() (*backend_v1.BlockMeta, error) {
 		TotalObjects:      int32(b.TotalObjects),
 		Size_:             b.Size,
 		CompactionLevel:   uint32(b.CompactionLevel),
-		Encoding:          int32(b.Encoding),
+		Encoding:          uint32(b.Encoding),
 		IndexPageSize:     b.IndexPageSize,
 		TotalRecords:      b.TotalRecords,
 		DataEncoding:      b.DataEncoding,
