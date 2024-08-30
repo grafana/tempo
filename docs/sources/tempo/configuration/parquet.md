@@ -73,11 +73,3 @@ The `cache_control` section contains the follow parameters for Parquet metadata 
 | <code>[footer: <bool> \| default = false]</code> | `false` | Specifies if the footer should be cached |
 | `[column_index: <bool> \| default = false]` | `false` | Specifies if the column index should be cached |
 | `[offset_index: <bool> \| default = false]` | `false` | Specifies if the offset index should be cached |
-
-## Convert to Parquet
-
-If you have used an earlier version of the Parquet format, you can use `tempo-cli` to convert a Parquet file from a v2 schema to vParquet, the one used in Tempo 2.0.
-
-You can also used the Parquet convert 2 to 3 command to convert from vParquet2 to vParquet3.
-
-For instructions, refer to the [Parquet convert command documentation]({{< relref "../operations/tempo_cli#parquet-convert-command" >}}).
