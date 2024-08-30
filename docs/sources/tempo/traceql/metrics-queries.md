@@ -56,6 +56,9 @@ These functions can be added as an operator at the end of any TraceQL query.
 `count_over_time`
 : Counts the number of matching spans per time interval (see the `step` API parameter)
 
+`min_over_time`
+: Returns the minimin value of matching spans values per time interval (see the `step` API parameter)
+
 `quantile_over_time`
 : The quantile of the values in the specified interval
 
@@ -90,6 +93,26 @@ This example still rates the erroring spans in the service `foo` but the metrics
 down by HTTP route.
 This might let you determine that `/api/sad` had a higher rate of erroring
 spans than `/api/happy`, for example.
+
+### The `<aggregation>_over_time()` functions
+
+The `counts_over_time()` let you counts the number of matching spans per time interval.
+
+```
+{ name = "GET /:endpoint" } | count_over_time() by (span.http.status_code)
+
+```
+The `min_over_time()` let you aggregate numerical values by computing the minimun value of them, such as the all important span duration.
+
+```
+{ name = "GET /:endpoint" } | min_over_time(duration) by (span.http.target)
+```
+
+Any numerical attribute on the span is fair game.
+
+```
+{ name = "GET /:endpoint" } | min_over_time(span.http.status_code)
+```
 
 ### The `quantile_over_time` and `histogram_over_time` functions
 
