@@ -30,7 +30,6 @@ The default block format is `vParquet4`, which is the latest iteration of the Pa
 vParquet4 introduces new columns which enable querying for data in array attributes as well as events and links.
 For more information, refer to [Dedicated attribute columns](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/dedicated_columns/).
 
-The vParquet4 block format is required for querying links, events, and arrays and improves query performance relative to previous formats.
 
 You can still use the previous format `vParquet3`.
 To enable it, set the block version option to `vParquet3` in the [Storage section](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#storage) of the configuration file.
