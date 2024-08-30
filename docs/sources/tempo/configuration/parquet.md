@@ -27,8 +27,7 @@ Block formats based on Parquet require more CPU and memory resources than the pr
 ## Choose a different block format
 
 The default block format is `vParquet4`, which is the latest iteration of the Parquet-based columnar block format in Tempo.
-vParquet4 introduces dedicated attribute columns, which improve query performance by storing attributes in own columns,
-rather than in the generic attribute key-value list.
+vParquet4 introduces new columns which enable querying for data in array attributes as well as events and links.
 For more information, refer to [Dedicated attribute columns](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/dedicated_columns/).
 
 The vParquet4 block format is required for querying links, events, and arrays and improves query performance relative to previous formats.
