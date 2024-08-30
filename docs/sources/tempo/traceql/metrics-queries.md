@@ -57,7 +57,7 @@ These functions can be added as an operator at the end of any TraceQL query.
 : Counts the number of matching spans per time interval (see the `step` API parameter)
 
 `min_over_time`
-: Returns the minimin value of matching spans values per time interval (see the `step` API parameter)
+: Returns the minimum value of matching spans values per time interval (see the `step` API parameter)
 
 `quantile_over_time`
 : The quantile of the values in the specified interval
