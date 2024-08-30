@@ -96,13 +96,13 @@ spans than `/api/happy`, for example.
 
 ### The `count_over_time` and `min_over_time` functions
 
-The `counts_over_time()` let you counts the number of matching spans per time interval.
+The `count_over_time()` let you counts the number of matching spans per time interval.
 
 ```
 { name = "GET /:endpoint" } | count_over_time() by (span.http.status_code)
 
 ```
-The `min_over_time()` let you aggregate numerical values by computing the minimun value of them, such as the all important span duration.
+The `min_over_time()` let you aggregate numerical values by computing the minimum value of them, such as the all important span duration.
 
 ```
 { name = "GET /:endpoint" } | min_over_time(duration) by (span.http.target)
