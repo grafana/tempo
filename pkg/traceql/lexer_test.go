@@ -15,7 +15,7 @@ type lexerTestCase struct {
 }
 
 func TestLexerAttributes(t *testing.T) {
-	testLexer(t, ([]lexerTestCase{
+	testLexer(t, []lexerTestCase{
 		// attributes
 		{`.foo`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`."foo".baz."bar"`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
@@ -90,11 +90,11 @@ func TestLexerAttributes(t *testing.T) {
 		// not attributes
 		{`.3`, []int{FLOAT}},
 		{`.24h`, []int{DURATION}},
-	}))
+	})
 }
 
 func TestLexerAttributesArray(t *testing.T) {
-	testLexer(t, ([]lexerTestCase{
+	testLexer(t, []lexerTestCase{
 		// attributes with array
 		{`.foo[]`, []int{DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
 		{`."foo".baz."bar"[]`, []int{DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
@@ -153,11 +153,11 @@ func TestLexerAttributesArray(t *testing.T) {
 		{`parent.resource.foo3[]`, []int{PARENT_DOT, RESOURCE_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
 		{`parent.resource.foo+bar[]`, []int{PARENT_DOT, RESOURCE_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
 		{`parent.resource.foo-bar[]`, []int{PARENT_DOT, RESOURCE_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
-	}))
+	})
 }
 
 func TestLexerScopedIntrinsic(t *testing.T) {
-	testLexer(t, ([]lexerTestCase{
+	testLexer(t, []lexerTestCase{
 		// trace scoped intrinsics
 		{`trace:duration`, []int{TRACE_COLON, IDURATION}},
 		{`trace:rootName`, []int{TRACE_COLON, ROOTNAME}},
@@ -179,19 +179,19 @@ func TestLexerScopedIntrinsic(t *testing.T) {
 		// instrumentation scoped intrinsics
 		{`instrumentation:name`, []int{INSTRUMENTATION_COLON, NAME}},
 		{`instrumentation:version`, []int{INSTRUMENTATION_COLON, VERSION}},
-	}))
+	})
 }
 
 func TestLexerIntrinsics(t *testing.T) {
-	testLexer(t, ([]lexerTestCase{
+	testLexer(t, []lexerTestCase{
 		{`nestedSetLeft`, []int{NESTEDSETLEFT}},
 		{`nestedSetRight`, []int{NESTEDSETRIGHT}},
 		{`duration`, []int{IDURATION}},
-	}))
+	})
 }
 
 func TestLexerMultitokens(t *testing.T) {
-	testLexer(t, ([]lexerTestCase{
+	testLexer(t, []lexerTestCase{
 		// attributes
 		{`&&`, []int{AND}},
 		{`>>`, []int{DESC}},
@@ -200,11 +200,11 @@ func TestLexerMultitokens(t *testing.T) {
 		{`!~`, []int{NRE}},
 		{`&>>`, []int{UNION_DESC}},
 		{`[]`, []int{ARRAY}}, // should this be here?? no idea?? probably not
-	}))
+	})
 }
 
 func TestLexerDuration(t *testing.T) {
-	testLexer(t, ([]lexerTestCase{
+	testLexer(t, []lexerTestCase{
 		// duration
 		{"1ns", []int{DURATION}},
 		{"1s", []int{DURATION}},
@@ -219,7 +219,7 @@ func TestLexerDuration(t *testing.T) {
 		// not duration
 		{"1t", []int{INTEGER, IDENTIFIER}},
 		{"1", []int{INTEGER}},
-	}))
+	})
 }
 
 func TestLexerParseDuration(t *testing.T) {
@@ -251,7 +251,7 @@ func TestLexerParseDuration(t *testing.T) {
 }
 
 func TestLexerScoping(t *testing.T) {
-	testLexer(t, ([]lexerTestCase{
+	testLexer(t, []lexerTestCase{
 		{`span.foo3`, []int{SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`span.foo+bar`, []int{SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`span.foo-bar`, []int{SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
@@ -269,7 +269,7 @@ func TestLexerScoping(t *testing.T) {
 		{`parent.span.foo`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`parent.span.count`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`parent.span.resource.id`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
-	}))
+	})
 }
 
 func testLexer(t *testing.T, tcs []lexerTestCase) {
