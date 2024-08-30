@@ -29,7 +29,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 			URL:    &url.URL{Path: downstreamPath},
 			Header: http.Header{},
 			Body:   io.NopCloser(bytes.NewReader([]byte{})),
-		}, req)
+		}, req, "") // dedicated cols are never passed from the caller
 
 		ctx := srv.Context()
 		httpReq = httpReq.WithContext(ctx)

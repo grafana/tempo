@@ -114,7 +114,7 @@ func (cmd *metricsQueryCmd) queryRangeHTTP(req *tempopb.QueryRangeRequest) error
 		return err
 	}
 
-	httpReq = api.BuildQueryRangeRequest(httpReq, req)
+	httpReq = api.BuildQueryRangeRequest(httpReq, req, "")
 	httpReq.Header = http.Header{}
 	err = user.InjectOrgIDIntoHTTPRequest(user.InjectOrgID(context.Background(), cmd.OrgID), httpReq)
 	if err != nil {

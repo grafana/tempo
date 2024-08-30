@@ -45,7 +45,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 			URL:    &url.URL{Path: downstreamPath},
 			Header: http.Header{},
 			Body:   io.NopCloser(bytes.NewReader([]byte{})),
-		}, qr)
+		}, qr, "") // dedicated cols are never passed from the caller
 		httpReq = httpReq.Clone(ctx)
 
 		var finalResponse *tempopb.QueryInstantResponse
@@ -110,7 +110,7 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		// Clone existing to keep it unaltered.
 		req = req.Clone(req.Context())
 		req.URL.Path = strings.ReplaceAll(req.URL.Path, api.PathMetricsQueryInstant, api.PathMetricsQueryRange)
-		req = api.BuildQueryRangeRequest(req, qr)
+		req = api.BuildQueryRangeRequest(req, qr, "") // dedicated cols are never passed from the caller
 
 		combiner, err := combiner.NewTypedQueryRange(qr, false)
 		if err != nil {
