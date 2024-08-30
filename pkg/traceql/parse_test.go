@@ -935,7 +935,7 @@ func TestSpansetFilterOperators(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		t.Run(tc.in, func(t *testing.T) {
+		t.Run(tc.in, func(_ *testing.T) {
 			test(tc.in, tc.expected)
 			if tc.alsoTestWithoutSpace {
 				test(strings.ReplaceAll(tc.in, " ", ""), tc.expected)
@@ -1367,6 +1367,18 @@ func TestMetrics(t *testing.T) {
 					NewIntrinsic(IntrinsicName),
 					NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
 				}),
+			),
+		},
+		{
+			in: `{ } | min_over_time(duration) by(name, span.http.status_code)`,
+			expected: newRootExprWithMetrics(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregateWithAttr(metricsAggregateMinOverTime,
+					NewIntrinsic(IntrinsicDuration),
+					[]Attribute{
+						NewIntrinsic(IntrinsicName),
+						NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
+					}),
 			),
 		},
 		{
