@@ -8,7 +8,7 @@ weight: 70
 # Tempo CLI
 
 Tempo CLI is a separate executable that contains utility functions related to the Tempo software.
-Although it is not required for a working installation, Tempo CLI can be helpful for deeper analysis or for troubleshooting.
+Although it's not required for a working installation, Tempo CLI can be helpful for deeper analysis or for troubleshooting.
 
 ## Tempo CLI command syntax
 
@@ -466,6 +466,8 @@ tempo-cli migrate overrides-config config.yaml --config-dest config-tmp.yaml --o
 ```
 
 ## Analyse block
+<!-- Note that the command uses analyse and not analyze -->
+
 Analyses a block and outputs a summary of the block's generic attributes.
 It's of particular use when trying to determine candidates for dedicated attribute columns in vParquet3.
 
@@ -483,8 +485,9 @@ tempo-cli analyse block --backend=local --bucket=./cmd/tempo-cli/test-data/ sing
 ```
 
 ## Analyse blocks
+
 Analyses all blocks in a given time range and outputs a summary of the blocks' generic attributes.
-It's of particular use when trying to determine candidates for dedicated attribute columns in vParquet3.
+It's of particular use when trying to determine candidates for dedicated attribute columns in vParquet3 and vParquet4.
 
 Arguments:
 - `tenant-id` The tenant ID. Use `single-tenant` for single-tenant setups.
@@ -503,6 +506,7 @@ tempo-cli analyse blocks --backend=local --bucket=./cmd/tempo-cli/test-data/ sin
 ```
 
 ## Drop trace by id
+
 Rewrites all blocks for a tenant that contain a specific trace id. The trace is dropped from
 the new blocks and the rewritten blocks are marked compacted so they will be cleaned up.
 
