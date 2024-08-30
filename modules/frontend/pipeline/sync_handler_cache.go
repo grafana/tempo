@@ -9,8 +9,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/cache"
 )
@@ -142,25 +140,6 @@ func (c *frontendCache) store(ctx context.Context, key string, buffer []byte) {
 	}
 
 	c.c.Store(ctx, []string{key}, [][]byte{buffer})
-}
-
-// fetch fetches the response body from the cache. the caller assumes the responsibility of closing the response body.
-func (c *frontendCache) fetch(key string, pb proto.Message) bool {
-	if c.c == nil {
-		return false
-	}
-
-	if len(key) == 0 {
-		return false
-	}
-
-	buf, found := c.c.FetchKey(context.Background(), key)
-	if !found {
-		return false
-	}
-
-	err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(buf), pb)
-	return err == nil
 }
 
 // fetch fetches the response body from the cache. the caller assumes the responsibility of closing the response body.
