@@ -10,7 +10,7 @@ services:
       - "3200"   # tempo
 # Uncomment the following lines to enable tracing
 #    environment:
-#      - OTEL_EXPORTER_OTLP_ENDPOINT=http://agent:4318
+#      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   ingester-0:
     image: *tempoImage
@@ -22,7 +22,7 @@ services:
       - "3200"   # tempo
 # Uncomment the following lines to enable tracing
 #    environment:
-#      - OTEL_EXPORTER_OTLP_ENDPOINT=http://agent:4318
+#      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   ingester-1:
     image: *tempoImage
@@ -34,7 +34,7 @@ services:
       - "3200"   # tempo
 # Uncomment the following lines to enable tracing
 #    environment:
-#      - OTEL_EXPORTER_OTLP_ENDPOINT=http://agent:4318
+#      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   ingester-2:
     image: *tempoImage
@@ -46,7 +46,7 @@ services:
       - "3200"   # tempo
 # Uncomment the following lines to enable tracing
 #    environment:
-#      - OTEL_EXPORTER_OTLP_ENDPOINT=http://agent:4318
+#      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   query-frontend:
     image: *tempoImage
@@ -58,7 +58,7 @@ services:
       - "3200:3200"   # tempo
 # Uncomment the following lines to enable tracing
 #    environment:
-#      - OTEL_EXPORTER_OTLP_ENDPOINT=http://agent:4318
+#      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   querier:
     image: *tempoImage
@@ -70,7 +70,7 @@ services:
       - "3200"   # tempo
 # Uncomment the following lines to enable tracing
 #    environment:
-#      - OTEL_EXPORTER_OTLP_ENDPOINT=http://agent:4318
+#      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   compactor:
     image: *tempoImage
@@ -82,7 +82,7 @@ services:
       - "3200"   # tempo
 # Uncomment the following lines to enable tracing
 #    environment:
-#      - OTEL_EXPORTER_OTLP_ENDPOINT=http://agent:4318
+#      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   metrics-generator:
     image: *tempoImage
@@ -94,7 +94,7 @@ services:
       - "3200"   # tempo
 # Uncomment the following lines to enable tracing
 #    environment:
-#      - OTEL_EXPORTER_OTLP_ENDPOINT=http://agent:4318
+#      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   minio:
     image: minio/minio:latest
@@ -141,17 +141,17 @@ services:
       - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
     ports:
       - "3000:3000"
-
-  agent:
-    image: grafana/agent:v0.38.1
-    volumes:
-      - /tmp/agent:/tmp/agent
-      - ./agent.river:/etc/agent.river
-    environment:
-      - AGENT_MODE=flow
-    entrypoint:
-      - sh
-      - -euc
-      - /bin/grafana-agent run --server.http.listen-addr=0.0.0.0:12345 /etc/agent.river
-    ports:
-      - "12345:12345"
+      
+# Uncomment the following lines to enable tracing
+  # alloy:
+  #   image: grafana/alloy:v1.3.1
+  #   volumes:
+  #     - ../shared/config.alloy:/etc/alloy/config.alloy
+  #   command:
+  #     - run
+  #     - /etc/alloy/config.alloy
+  #     - --storage.path=/var/lib/alloy/data
+  #     - --server.http.listen-addr=0.0.0.0:12345
+  #   ports:
+  #     - "12345:12345"
+  #     - "4319:4319" 
