@@ -1084,7 +1084,7 @@ type SimpleAggregator struct {
 	ss               SeriesSet
 	exemplarBuckets  *bucketSet
 	len              int
-	aggregationFunc  func(start, end, step uint64, existing *TimeSeries, samples []tempopb.Sample)
+	aggregationFunc  func(existingValue float64, newValue float64) float64
 	start, end, step uint64
 	initWithNaN      bool
 }
@@ -1092,14 +1092,22 @@ type SimpleAggregator struct {
 func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *SimpleAggregator {
 	l := IntervalCount(req.Start, req.End, req.Step)
 	var initWithNaN bool
-	var f func(start, end, step uint64, existing *TimeSeries, samples []tempopb.Sample)
+	var f func(existingValue float64, newValue float64) float64
 	switch op {
-	case sumAggregation:
-		f = simpleAdditionAggregator
-		initWithNaN = false
-	default:
-		f = simpleMinAggregator
+	case minAggregation:
+		// Simple min aggregator. It calculates the minumun between existing values and a new sample
+		f = func(existingValue float64, newValue float64) float64 {
+			if math.IsNaN(existingValue) || newValue < existingValue {
+				return newValue
+			}
+			return existingValue
+		}
 		initWithNaN = true
+	default:
+		// Simple addition aggregator. It adds existing values with the new sample.
+		f = func(existingValue float64, newValue float64) float64 { return existingValue + newValue }
+		initWithNaN = false
+
 	}
 	return &SimpleAggregator{
 		ss:              make(SeriesSet),
@@ -1142,7 +1150,13 @@ func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
 			b.ss[ts.PromLabels] = existing
 		}
 
-		b.aggregationFunc(b.start, b.end, b.step, &existing, ts.Samples)
+		for _, sample := range ts.Samples {
+			j := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
+			if j >= 0 && j < len(existing.Values) {
+				existing.Values[j] = b.aggregationFunc(existing.Values[j], sample.Value)
+			}
+		}
+
 		b.aggregateExemplars(ts, &existing)
 
 		b.ss[ts.PromLabels] = existing
@@ -1179,28 +1193,6 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 
 func (b *SimpleAggregator) Results() SeriesSet {
 	return b.ss
-}
-
-// Simple addition aggregator. It adds existing values with the new sample. New indicates if the existing values were just initialized, ugly
-func simpleAdditionAggregator(start, end, step uint64, existing *TimeSeries, samples []tempopb.Sample) {
-	for _, sample := range samples {
-		j := IntervalOfMs(sample.TimestampMs, start, end, step)
-		if j >= 0 && j < len(existing.Values) {
-			existing.Values[j] += sample.Value
-		}
-	}
-}
-
-// Simple min aggregator. It calculates the minumun between existing values and a new sample, New indicates if the existing values were just initialized, ugly
-func simpleMinAggregator(start, end, step uint64, existing *TimeSeries, samples []tempopb.Sample) {
-	for _, sample := range samples {
-		j := IntervalOfMs(sample.TimestampMs, start, end, step)
-		if j >= 0 && j < len(existing.Values) {
-			if math.IsNaN(existing.Values[j]) || sample.Value < existing.Values[j] {
-				existing.Values[j] = sample.Value
-			}
-		}
-	}
 }
 
 type HistogramBucket struct {
