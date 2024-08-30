@@ -25,7 +25,7 @@ The [docker-compose examples](https://github.com/grafana/tempo/tree/main/example
 Some of the examples include:
 
 - Trace discovery with Loki
-- Basic Grafana Agent/OpenTelemetry Setup
+- Basic Grafana Alloy/OpenTelemetry Setup
 - Various Backends (S3/GCS/Azure)
 - [K6 with Traces]({{< relref "./docker-example" >}})
 This is a great place to get started with Tempo and learn about various trace discovery flows.

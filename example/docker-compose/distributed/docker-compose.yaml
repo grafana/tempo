@@ -10,7 +10,7 @@ services:
       - "3200"   # tempo
 # Uncomment the following lines to enable tracing
 #    environment:
-#      - JAEGER_AGENT_HOST=agent
+#      - JAEGER_AGENT_HOST=alloy
 #      - JAEGER_SAMPLER_TYPE=const
 #      - JAEGER_SAMPLER_PARAM=1
 
@@ -24,7 +24,7 @@ services:
       - "3200"   # tempo
 # Uncomment the following lines to enable tracing
 #    environment:
-#      - JAEGER_AGENT_HOST=agent
+#      - JAEGER_AGENT_HOST=alloy
 #      - JAEGER_SAMPLER_TYPE=const
 #      - JAEGER_SAMPLER_PARAM=1
 
@@ -38,7 +38,7 @@ services:
       - "3200"   # tempo
 # Uncomment the following lines to enable tracing
 #    environment:
-#      - JAEGER_AGENT_HOST=agent
+#      - JAEGER_AGENT_HOST=alloy
 #      - JAEGER_SAMPLER_TYPE=const
 #      - JAEGER_SAMPLER_PARAM=1
 
@@ -52,7 +52,7 @@ services:
       - "3200"   # tempo
 # Uncomment the following lines to enable tracing
 #    environment:
-#      - JAEGER_AGENT_HOST=agent
+#      - JAEGER_AGENT_HOST=alloy
 #      - JAEGER_SAMPLER_TYPE=const
 #      - JAEGER_SAMPLER_PARAM=1
 
@@ -66,7 +66,7 @@ services:
       - "3200:3200"   # tempo
 # Uncomment the following lines to enable tracing
 #    environment:
-#      - JAEGER_AGENT_HOST=agent
+#      - JAEGER_AGENT_HOST=alloy
 #      - JAEGER_SAMPLER_TYPE=const
 #      - JAEGER_SAMPLER_PARAM=1
 
@@ -80,7 +80,7 @@ services:
       - "3200"   # tempo
 # Uncomment the following lines to enable tracing
 #    environment:
-#      - JAEGER_AGENT_HOST=agent
+#      - JAEGER_AGENT_HOST=alloy
 #      - JAEGER_SAMPLER_TYPE=const
 #      - JAEGER_SAMPLER_PARAM=1
 
@@ -94,7 +94,7 @@ services:
       - "3200"   # tempo
 # Uncomment the following lines to enable tracing
 #    environment:
-#      - JAEGER_AGENT_HOST=agent
+#      - JAEGER_AGENT_HOST=alloy
 #      - JAEGER_SAMPLER_TYPE=const
 #      - JAEGER_SAMPLER_PARAM=1
 
@@ -108,7 +108,7 @@ services:
       - "3200"   # tempo
 # Uncomment the following lines to enable tracing
 #    environment:
-#      - JAEGER_AGENT_HOST=agent
+#      - JAEGER_AGENT_HOST=alloy
 #      - JAEGER_SAMPLER_TYPE=const
 #      - JAEGER_SAMPLER_PARAM=1
 
@@ -157,17 +157,17 @@ services:
       - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
     ports:
       - "3000:3000"
-
-  agent:
-    image: grafana/agent:v0.38.1
-    volumes:
-      - /tmp/agent:/tmp/agent
-      - ./agent.river:/etc/agent.river
-    environment:
-      - AGENT_MODE=flow
-    entrypoint:
-      - sh
-      - -euc
-      - /bin/grafana-agent run --server.http.listen-addr=0.0.0.0:12345 /etc/agent.river
-    ports:
-      - "12345:12345"
+      
+# Uncomment the following lines to enable tracing
+  # alloy:
+  #   image: grafana/alloy:v1.3.1
+  #   volumes:
+  #     - ../shared/config.alloy:/etc/alloy/config.alloy
+  #   command:
+  #     - run
+  #     - /etc/alloy/config.alloy
+  #     - --storage.path=/var/lib/alloy/data
+  #     - --server.http.listen-addr=0.0.0.0:12345
+  #   ports:
+  #     - "12345:12345"
+  #     - "4319:4319" 

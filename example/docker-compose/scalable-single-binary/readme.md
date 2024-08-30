@@ -7,13 +7,13 @@ S3-compatible API.  Additionally, `memberlist` is enabled to demonstrate how a
 single binary can run all services and still make use of the cluster-awareness
 that `memberlist` provides.
 
-1. First start up the local stack.
+1. Start up the local stack.
 
 ```console
 docker compose up -d
 ```
 
-At this point, the following containers should be spun up -
+At this point, the following containers should be spun up:
 
 ```console
 docker compose ps
@@ -39,7 +39,7 @@ http://localhost:9001 and use the username/password of `tempo`/`supersecret`.
 tab to find traces. Also notice that you can query Tempo metrics from the Prometheus data source setup in
 Grafana.
 
-4. To stop the setup use -
+4. To stop the setup use:
 
 ```console
 docker compose down -v
