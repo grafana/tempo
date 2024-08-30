@@ -250,6 +250,10 @@ func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels 
 				Value:       value,
 			})
 		}
+		// Do not include empty TimeSeries
+		if len(samples) == 0 {
+			continue
+		}
 
 		var exemplars []tempopb.Exemplar
 		if len(s.Exemplars) > 0 {

@@ -515,6 +515,38 @@ func TestMinOverTimeForDuration(t *testing.T) {
 	assert.True(t, math.IsNaN(fooBar.Values[2]))
 }
 
+func TestMinOverTimeWithNoMatch(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(1 * time.Second),
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | min_over_time(span.buu)",
+	}
+
+	// A variety of spans across times, durations, and series. All durations are powers of 2 for simplicity
+	in := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200).WithDuration(128),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 404).WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200).WithDuration(512),
+
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200).WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200).WithDuration(64),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200).WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200).WithDuration(8),
+
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 201).WithDuration(512),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 401).WithDuration(1024),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 500).WithDuration(512),
+	}
+
+	result := runTraceQLMetric(t, req, in)
+
+	// Test that empty timeseries are not included
+	ts := result.ToProto(req)
+
+	assert.True(t, len(ts) == 0)
+}
+
 func TestMinOverTimeForSpanAttribute(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
 		Start: uint64(1 * time.Second),
