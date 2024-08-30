@@ -12,7 +12,7 @@ option go_package = "github.com/grafana/tempo/tempodb/backend/v1";
 
 message BlockMeta {
     string version = 1;
-    string block_id = 2;
+    bytes block_id = 2;
     bytes min_id = 3;
     bytes max_id = 4;
     string tenant_id = 5;

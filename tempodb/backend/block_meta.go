@@ -258,9 +258,14 @@ func (b *BlockMeta) DedicatedColumnsHash() uint64 {
 }
 
 func (b *BlockMeta) ToBackendV1Proto() (*backend_v1.BlockMeta, error) {
+	blockID, err := b.BlockID.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
 	m := &backend_v1.BlockMeta{
 		Version:           b.Version,
-		BlockId:           b.BlockID.String(),
+		BlockId:           blockID,
 		TenantId:          b.TenantID,
 		StartTime:         b.StartTime,
 		EndTime:           b.EndTime,
@@ -286,7 +291,7 @@ func (b *BlockMeta) ToBackendV1Proto() (*backend_v1.BlockMeta, error) {
 }
 
 func (b *BlockMeta) FromBackendV1Proto(pb *backend_v1.BlockMeta) error {
-	blockID, err := uuid.Parse(pb.BlockId)
+	blockID, err := uuid.ParseBytes(pb.BlockId)
 	if err != nil {
 		return err
 	}
@@ -310,6 +315,7 @@ func (b *BlockMeta) FromBackendV1Proto(pb *backend_v1.BlockMeta) error {
 	if err != nil {
 		return err
 	}
+
 	if len(dcs) > 0 {
 		b.DedicatedColumns = dcs
 	}
