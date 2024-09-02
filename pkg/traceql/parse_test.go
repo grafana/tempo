@@ -1377,7 +1377,7 @@ func TestMetrics(t *testing.T) {
 					NewIntrinsic(IntrinsicDuration),
 					[]Attribute{
 						NewIntrinsic(IntrinsicName),
-						NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
+						NewScopedAttribute(AttributeScopeSpan, false, "http.status_code", false),
 					}),
 			),
 		},
