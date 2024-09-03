@@ -35,7 +35,7 @@
 * [FEATURE] Add exemplars to TraceQL metrics [#3824](https://github.com/grafana/tempo/pull/3824) (@mapno)
 * [FEATURE] Add support for generating native histograms from metrics-generator [#3789](https://github.com/grafana/tempo/pull/3789) (@zalegrala, @kvrhdn)
 * [FEATURE] Flush and query RF1 blocks for TraceQL metric queries [#3628](https://github.com/grafana/tempo/pull/3628) [#3691](https://github.com/grafana/tempo/pull/3691) [#3723](https://github.com/grafana/tempo/pull/3723) (@mapno) [#3995](https://github.com/grafana/tempo/pull/3995) (@mdisibio)
-* [FEATURE] Added new middleware to block matching urls [#3963](https://github.com/grafana/tempo/pull/3963) (@javiermolinar)
+* [FEATURE] Added new middleware to block matching URLs [#3963](https://github.com/grafana/tempo/pull/3963) (@javiermolinar)
 * [ENHANCEMENT] Implement arrays for traceql.Static with reused fields [#3827](https://github.com/grafana/tempo/pull/3827) (@stoewer)
 * [ENHANCEMENT] Tag value lookup use protobuf internally for improved latency [#3731](https://github.com/grafana/tempo/pull/3731) (@mdisibio)
 * [ENHANCEMENT] TraceQL metrics queries use protobuf internally for improved latency [#3745](https://github.com/grafana/tempo/pull/3745) (@mdisibio)
