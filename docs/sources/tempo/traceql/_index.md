@@ -66,17 +66,16 @@ Queries select sets of spans and filter them through a pipeline of aggregators a
 
 ## Selecting spans
 
-TraceQL differentiates between two types of span data: intrinsics, which are fundamental to spans, and attributes, which are customizable key-value pairs. You can use intrinsics and attributes to build filters and select spans.
-
 In TraceQL, curly brackets `{}` always select a set of spans from the current trace. They are commonly paired with a condition to reduce the spans being passed in.
 
-### Intrinsic fields
+TraceQL differentiates between two types of span data: intrinsics, which are fundamental to spans, and attributes, which are customizable key-value pairs.
+You can use intrinsics and attributes to build filters and select spans.
 
 Intrinsic fields are fundamental to scopes.
 Intrinsics are inherently present, as opposed to other key-value pairs (attributes) that are added by a developer.
 
 Intrinsics are always indicated using a `<scope>:`.
-Refer to the table below for all current intrinsics.
+Refer to the Intrinsics table for all current intrinsics.
 
 Custom attributes are prefixed with <scope>. such as `span.`,  `resource.` , `link.`, or `event`.
 Resource has no intrinsic values.
@@ -98,6 +97,8 @@ Attributes example:
 { link.foo = "bar" }
 { event.foo = "bar" }
 ```
+
+### Intrinsic fields
 
 The following table shows the current available scoped intrinsic fields:
 
