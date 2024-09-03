@@ -141,7 +141,7 @@ This example searches all Kubernetes clusters called `service-name` that have a 
 
 ### Attribute fields
 
-TraceQL has four different attribute scopes: span attributes, resource attributes, event attributes, and link attributes
+TraceQL has four different attribute scopes: span attributes, resource attributes, event attributes, and link attributes.
 <!-- instrumentation scope isn't in 2.6 >
 instrumentation scope attributes.  -->
 
