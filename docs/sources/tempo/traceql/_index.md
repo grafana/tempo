@@ -153,7 +153,8 @@ Attribute fields are derived from the span and can be customized.
 Process and span attribute types are [defined by the attribute itself](https://github.com/open-telemetry/opentelemetry-proto/blob/b43e9b18b76abf3ee040164b55b9c355217151f3/opentelemetry/proto/common/v1/common.proto#L30-L38), whereas intrinsic fields have a built-in type.
 You can refer to dynamic attributes (also known as tags) on the span or the span's resource.
 
-Attributes in a query start with a span scope (for example, `span.http`) or resource scope (for example, `resource.namespace`)  depending on what you want to query.
+Attributes in a query start with a span, resource, event, or link scope.
+For example, you could use `span.http` or  `resource.namespace`, depending on what you want to query.
 This provides significant performance benefits because it allows Tempo to only scan the data you are interested in.
 
 To find traces with the `GET HTTP` method, your query could look like this:
