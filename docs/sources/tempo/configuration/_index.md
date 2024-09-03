@@ -1560,9 +1560,9 @@ overrides:
       # then block_retention in the compactor configuration is used.
       [compaction_window: <duration> | default = 0s]
       # Allow compaction to be deactivated on a per-tenant basis. Default value
-      # is 0 (compaction active). Useful to perform operations on the backend
+      # is false (compaction active). Useful to perform operations on the backend
       # that require compaction to be disabled for a period of time.
-      [compaction_disabled: <bool> | default = 0]
+      [compaction_disabled: <bool> | default = false]
 
     # Metrics-generator related overrides
     metrics_generator:
