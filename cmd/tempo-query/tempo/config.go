@@ -8,6 +8,7 @@ import (
 
 // Config holds the configuration for redbull.
 type Config struct {
+	Address               string           `yaml:"address"`
 	Backend               string           `yaml:"backend"`
 	TLSEnabled            bool             `yaml:"tls_enabled" category:"advanced"`
 	TLS                   tls.ClientConfig `yaml:",inline"`
@@ -17,6 +18,11 @@ type Config struct {
 
 // InitFromViper initializes the options struct with values from Viper
 func (c *Config) InitFromViper(v *viper.Viper) {
+	address := v.GetString("address")
+	if address == "" {
+		address = "0.0.0.0:7777"
+	}
+	c.Address = address
 	c.Backend = v.GetString("backend")
 	c.TLSEnabled = v.GetBool("tls_enabled")
 	c.TLS.CertPath = v.GetString("tls_cert_path")
