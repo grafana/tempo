@@ -14,7 +14,7 @@ The upgrade process changes for each version, depending upon the changes made fo
 
 This upgrade guide applies to on-premise installations and not for Grafana Cloud.
 
-For detailed information about any release, refer to the [Release notes](../release-notes/).
+For detailed information about any release, refer to the [Release notes](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/upgrade/).
 
 {{< admonition type="tip" >}}
 You can check your configuration options using the [`status` API endpoint]({{< relref "../api_docs#status" >}}) in your Tempo installation.
