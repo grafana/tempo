@@ -85,11 +85,13 @@
       "mode": "palette-classic"
      },
      "custom": {
+      "axisBorderShow": false,
       "axisCenteredZero": false,
       "axisColorMode": "text",
       "axisLabel": "",
       "axisPlacement": "auto",
       "barAlignment": 0,
+      "barWidthFactor": 0.6,
       "drawStyle": "line",
       "fillOpacity": 0,
       "gradientMode": "none",
@@ -180,11 +182,13 @@
       "mode": "palette-classic"
      },
      "custom": {
+      "axisBorderShow": false,
       "axisCenteredZero": false,
       "axisColorMode": "text",
       "axisLabel": "",
       "axisPlacement": "auto",
       "barAlignment": 0,
+      "barWidthFactor": 0.6,
       "drawStyle": "line",
       "fillOpacity": 0,
       "gradientMode": "none",
@@ -275,11 +279,13 @@
       "mode": "palette-classic"
      },
      "custom": {
+      "axisBorderShow": false,
       "axisCenteredZero": false,
       "axisColorMode": "text",
       "axisLabel": "",
       "axisPlacement": "auto",
       "barAlignment": 0,
+      "barWidthFactor": 0.6,
       "drawStyle": "line",
       "fillOpacity": 0,
       "gradientMode": "none",
@@ -369,11 +375,13 @@
       "mode": "continuous-BlYlRd"
      },
      "custom": {
+      "axisBorderShow": false,
       "axisCenteredZero": false,
       "axisColorMode": "text",
       "axisLabel": "",
       "axisPlacement": "auto",
       "barAlignment": 0,
+      "barWidthFactor": 0.6,
       "drawStyle": "line",
       "fillOpacity": 0,
       "gradientMode": "none",
@@ -461,11 +469,13 @@
       "mode": "palette-classic"
      },
      "custom": {
+      "axisBorderShow": false,
       "axisCenteredZero": false,
       "axisColorMode": "text",
       "axisLabel": "",
       "axisPlacement": "auto",
       "barAlignment": 0,
+      "barWidthFactor": 0.6,
       "drawStyle": "line",
       "fillOpacity": 0,
       "gradientMode": "none",
@@ -556,11 +566,13 @@
       "mode": "palette-classic"
      },
      "custom": {
+      "axisBorderShow": false,
       "axisCenteredZero": false,
       "axisColorMode": "text",
       "axisLabel": "",
       "axisPlacement": "auto",
       "barAlignment": 0,
+      "barWidthFactor": 0.6,
       "drawStyle": "line",
       "fillOpacity": 0,
       "gradientMode": "none",
@@ -659,11 +671,13 @@
       "mode": "palette-classic"
      },
      "custom": {
+      "axisBorderShow": false,
       "axisCenteredZero": false,
       "axisColorMode": "text",
       "axisLabel": "",
       "axisPlacement": "auto",
       "barAlignment": 0,
+      "barWidthFactor": 0.6,
       "drawStyle": "line",
       "fillOpacity": 0,
       "gradientMode": "none",
@@ -753,11 +767,13 @@
       "mode": "palette-classic"
      },
      "custom": {
+      "axisBorderShow": false,
       "axisCenteredZero": false,
       "axisColorMode": "text",
       "axisLabel": "",
       "axisPlacement": "auto",
       "barAlignment": 0,
+      "barWidthFactor": 0.6,
       "drawStyle": "line",
       "fillOpacity": 10,
       "gradientMode": "none",
@@ -862,11 +878,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -918,7 +936,7 @@
       "h": 5,
       "w": 3,
       "x": 0,
-      "y": 2
+      "y": 7
      },
      "id": 33,
      "options": {
@@ -956,11 +974,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -1012,7 +1032,7 @@
       "h": 5,
       "w": 3,
       "x": 3,
-      "y": 2
+      "y": 7
      },
      "id": 32,
      "options": {
@@ -1052,6 +1072,8 @@
     },
     {
      "datasource": {
+      "default": false,
+      "type": "prometheus",
       "uid": "$ds"
      },
      "fieldConfig": {
@@ -1060,11 +1082,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "points",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -1076,7 +1100,7 @@
         "insertNulls": false,
         "lineInterpolation": "linear",
         "lineWidth": 1,
-        "pointSize": 6,
+        "pointSize": 3,
         "scaleDistribution": {
          "type": "linear"
         },
@@ -1105,8 +1129,7 @@
           "value": 80
          }
         ]
-       },
-       "unit": "s"
+       }
       },
       "overrides": [
 
@@ -1116,7 +1139,7 @@
       "h": 5,
       "w": 3,
       "x": 6,
-      "y": 2
+      "y": 7
      },
      "id": 35,
      "options": {
@@ -1133,24 +1156,80 @@
        "sort": "none"
       }
      },
-     "pluginVersion": "9.0.0-d373beebpre",
+     "pluginVersion": "11.3.0-75324",
      "targets": [
       {
-       "expr": "histogram_quantile(.99, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (le))",
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.99, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (le)) < ($latency_metrics * +Inf)",
        "interval": "",
        "legendFormat": ".99",
+       "range": true,
        "refId": "A"
       },
       {
-       "expr": "histogram_quantile(.9, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (le))",
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.9, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (le)) < ($latency_metrics * +Inf)",
        "legendFormat": ".9",
+       "range": true,
        "refId": "B"
       },
       {
-       "expr": "histogram_quantile(.5, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (le))",
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.5, sum(rate(tempodb_blocklist_poll_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (le)) < ($latency_metrics * +Inf)",
        "interval": "",
        "legendFormat": ".5",
+       "range": true,
        "refId": "C"
+      },
+      {
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.99, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (le)) < ($latency_metrics * -Inf)",
+       "hide": false,
+       "interval": "",
+       "legendFormat": ".99",
+       "range": true,
+       "refId": "D"
+      },
+      {
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.9, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (le)) < ($latency_metrics * -Inf)",
+       "hide": false,
+       "legendFormat": ".9",
+       "range": true,
+       "refId": "E"
+      },
+      {
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.5, sum(rate(tempodb_blocklist_poll_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/$component\"}[$__rate_interval])) by (le)) < ($latency_metrics * -Inf)",
+       "hide": false,
+       "interval": "",
+       "legendFormat": ".5",
+       "range": true,
+       "refId": "F"
       }
      ],
      "title": "Blocklist Poll Duration",
@@ -1166,11 +1245,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -1222,7 +1303,7 @@
       "h": 5,
       "w": 3,
       "x": 9,
-      "y": 2
+      "y": 7
      },
      "id": 47,
      "options": {
@@ -1255,6 +1336,8 @@
     },
     {
      "datasource": {
+      "default": false,
+      "type": "prometheus",
       "uid": "$ds"
      },
      "fieldConfig": {
@@ -1263,11 +1346,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "points",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -1279,7 +1364,7 @@
         "insertNulls": false,
         "lineInterpolation": "linear",
         "lineWidth": 1,
-        "pointSize": 6,
+        "pointSize": 4,
         "scaleDistribution": {
          "type": "linear"
         },
@@ -1319,7 +1404,7 @@
       "h": 5,
       "w": 3,
       "x": 12,
-      "y": 2
+      "y": 7
      },
      "id": 51,
      "options": {
@@ -1339,22 +1424,79 @@
      "pluginVersion": "9.0.0-d373beebpre",
      "targets": [
       {
-       "expr": "histogram_quantile(.99, sum(rate(tempodb_retention_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/compactor\"}[$__rate_interval])) by (le))",
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.99, sum(rate(tempodb_retention_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/compactor\"}[$__rate_interval])) by (le)) < ($latency_metrics * +Inf)",
        "interval": "",
        "legendFormat": ".99",
+       "range": true,
        "refId": "A"
       },
       {
-       "expr": "histogram_quantile(.9, sum(rate(tempodb_retention_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/compactor\"}[$__rate_interval])) by (le))",
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.9, sum(rate(tempodb_retention_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/compactor\"}[$__rate_interval])) by (le)) < ($latency_metrics * +Inf)",
        "interval": "",
        "legendFormat": ".9",
+       "range": true,
        "refId": "B"
       },
       {
-       "expr": "histogram_quantile(.5, sum(rate(tempodb_retention_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/compactor\"}[$__rate_interval])) by (le))",
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.5, sum(rate(tempodb_retention_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/compactor\"}[$__rate_interval])) by (le)) < ($latency_metrics * +Inf)",
        "interval": "",
        "legendFormat": ".5",
+       "range": true,
        "refId": "C"
+      },
+      {
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.99, sum(rate(tempodb_retention_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/compactor\"}[$__rate_interval]))) < ($latency_metrics * -Inf)",
+       "hide": false,
+       "interval": "",
+       "legendFormat": ".99",
+       "range": true,
+       "refId": "D"
+      },
+      {
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.9, sum(rate(tempodb_retention_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/compactor\"}[$__rate_interval]))) < ($latency_metrics * -Inf)",
+       "hide": false,
+       "interval": "",
+       "legendFormat": ".9",
+       "range": true,
+       "refId": "E"
+      },
+      {
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.5, sum(rate(tempodb_retention_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/compactor\"}[$__rate_interval])) ) < ($latency_metrics * -Inf)",
+       "hide": false,
+       "interval": "",
+       "legendFormat": ".5",
+       "range": true,
+       "refId": "F"
       }
      ],
      "title": "retention duration",
@@ -1370,11 +1512,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -1426,7 +1570,7 @@
       "h": 5,
       "w": 3,
       "x": 15,
-      "y": 2
+      "y": 7
      },
      "id": 53,
      "options": {
@@ -1471,11 +1615,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -1527,7 +1673,7 @@
       "h": 5,
       "w": 3,
       "x": 18,
-      "y": 2
+      "y": 7
      },
      "id": 70,
      "options": {
@@ -1585,11 +1731,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -1622,7 +1770,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -1640,7 +1789,7 @@
       "h": 5,
       "w": 4,
       "x": 0,
-      "y": 8
+      "y": 3
      },
      "id": 34,
      "options": {
@@ -1680,11 +1829,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -1717,7 +1868,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -1735,7 +1887,7 @@
       "h": 5,
       "w": 6,
       "x": 4,
-      "y": 8
+      "y": 3
      },
      "id": 78,
      "options": {
@@ -1786,11 +1938,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -1823,7 +1977,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -1841,7 +1996,7 @@
       "h": 5,
       "w": 4,
       "x": 12,
-      "y": 8
+      "y": 3
      },
      "id": 97,
      "options": {
@@ -1883,11 +2038,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -1920,7 +2077,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -1938,7 +2096,7 @@
       "h": 5,
       "w": 6,
       "x": 16,
-      "y": 8
+      "y": 3
      },
      "id": 93,
      "options": {
@@ -1997,11 +2155,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -2034,7 +2194,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -2052,7 +2213,7 @@
       "h": 5,
       "w": 4,
       "x": 0,
-      "y": 13
+      "y": 8
      },
      "id": 90,
      "options": {
@@ -2092,11 +2253,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -2129,7 +2292,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -2147,7 +2311,7 @@
       "h": 5,
       "w": 6,
       "x": 4,
-      "y": 13
+      "y": 8
      },
      "id": 17,
      "options": {
@@ -2198,11 +2362,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -2235,7 +2401,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -2253,7 +2420,7 @@
       "h": 5,
       "w": 4,
       "x": 12,
-      "y": 13
+      "y": 8
      },
      "id": 98,
      "options": {
@@ -2295,11 +2462,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -2332,7 +2501,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -2350,7 +2520,7 @@
       "h": 5,
       "w": 6,
       "x": 16,
-      "y": 13
+      "y": 8
      },
      "id": 94,
      "options": {
@@ -2407,11 +2577,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -2444,7 +2616,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -2462,7 +2635,7 @@
       "h": 5,
       "w": 4,
       "x": 0,
-      "y": 18
+      "y": 13
      },
      "id": 91,
      "options": {
@@ -2502,11 +2675,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -2539,7 +2714,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -2557,7 +2733,7 @@
       "h": 5,
       "w": 6,
       "x": 4,
-      "y": 18
+      "y": 13
      },
      "id": 89,
      "options": {
@@ -2608,11 +2784,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -2645,7 +2823,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -2663,7 +2842,7 @@
       "h": 5,
       "w": 4,
       "x": 12,
-      "y": 18
+      "y": 13
      },
      "id": 99,
      "options": {
@@ -2705,11 +2884,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -2742,7 +2923,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -2760,7 +2942,7 @@
       "h": 5,
       "w": 6,
       "x": 16,
-      "y": 18
+      "y": 13
      },
      "id": 95,
      "options": {
@@ -2817,11 +2999,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -2854,7 +3038,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -2872,7 +3057,7 @@
       "h": 5,
       "w": 4,
       "x": 0,
-      "y": 23
+      "y": 18
      },
      "id": 92,
      "options": {
@@ -2912,11 +3097,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -2949,7 +3136,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -2967,7 +3155,7 @@
       "h": 5,
       "w": 6,
       "x": 4,
-      "y": 23
+      "y": 18
      },
      "id": 3,
      "options": {
@@ -3018,11 +3206,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -3055,7 +3245,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -3073,7 +3264,7 @@
       "h": 5,
       "w": 4,
       "x": 12,
-      "y": 23
+      "y": 18
      },
      "id": 100,
      "options": {
@@ -3115,11 +3306,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -3152,7 +3345,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -3170,7 +3364,7 @@
       "h": 5,
       "w": 6,
       "x": 16,
-      "y": 23
+      "y": 18
      },
      "id": 96,
      "options": {
@@ -3228,11 +3422,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -3265,7 +3461,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -3283,7 +3480,7 @@
       "h": 5,
       "w": 4,
       "x": 0,
-      "y": 28
+      "y": 23
      },
      "id": 102,
      "options": {
@@ -3330,11 +3527,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -3367,7 +3566,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -3385,7 +3585,7 @@
       "h": 5,
       "w": 6,
       "x": 4,
-      "y": 28
+      "y": 23
      },
      "id": 103,
      "options": {
@@ -3455,11 +3655,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -3492,7 +3694,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -3510,7 +3713,7 @@
       "h": 5,
       "w": 4,
       "x": 12,
-      "y": 28
+      "y": 23
      },
      "id": 110,
      "options": {
@@ -3559,11 +3762,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -3596,7 +3801,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -3614,7 +3820,7 @@
       "h": 5,
       "w": 6,
       "x": 16,
-      "y": 28
+      "y": 23
      },
      "id": 111,
      "options": {
@@ -3690,11 +3896,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -3727,7 +3935,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -3745,7 +3954,7 @@
       "h": 5,
       "w": 4,
       "x": 0,
-      "y": 33
+      "y": 28
      },
      "id": 112,
      "options": {
@@ -3792,11 +4001,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -3829,7 +4040,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -3847,7 +4059,7 @@
       "h": 5,
       "w": 6,
       "x": 4,
-      "y": 33
+      "y": 28
      },
      "id": 113,
      "options": {
@@ -3917,11 +4129,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -3954,7 +4168,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -3972,7 +4187,7 @@
       "h": 5,
       "w": 4,
       "x": 12,
-      "y": 33
+      "y": 28
      },
      "id": 106,
      "options": {
@@ -4019,11 +4234,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -4056,7 +4273,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          },
          {
           "color": "red",
@@ -4074,7 +4292,7 @@
       "h": 5,
       "w": 6,
       "x": 16,
-      "y": 33
+      "y": 28
      },
      "id": 107,
      "options": {
@@ -4162,11 +4380,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 0,
         "gradientMode": "none",
@@ -4218,7 +4438,7 @@
       "h": 5,
       "w": 3,
       "x": 0,
-      "y": 4
+      "y": 9
      },
      "id": 10,
      "options": {
@@ -4264,11 +4484,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -4320,7 +4542,7 @@
       "h": 5,
       "w": 3,
       "x": 3,
-      "y": 4
+      "y": 9
      },
      "id": 9,
      "options": {
@@ -4365,11 +4587,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -4421,7 +4645,7 @@
       "h": 5,
       "w": 3,
       "x": 6,
-      "y": 4
+      "y": 9
      },
      "id": 8,
      "options": {
@@ -4460,11 +4684,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -4516,7 +4742,7 @@
       "h": 5,
       "w": 3,
       "x": 9,
-      "y": 4
+      "y": 9
      },
      "id": 12,
      "options": {
@@ -4555,11 +4781,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -4611,7 +4839,7 @@
       "h": 5,
       "w": 3,
       "x": 12,
-      "y": 4
+      "y": 9
      },
      "id": 26,
      "options": {
@@ -4650,11 +4878,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "points",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -4706,7 +4936,7 @@
       "h": 5,
       "w": 3,
       "x": 15,
-      "y": 4
+      "y": 9
      },
      "id": 36,
      "options": {
@@ -4758,11 +4988,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -4814,7 +5046,7 @@
       "h": 5,
       "w": 3,
       "x": 18,
-      "y": 4
+      "y": 9
      },
      "id": 114,
      "options": {
@@ -4851,6 +5083,8 @@
     },
     {
      "datasource": {
+      "default": false,
+      "type": "prometheus",
       "uid": "$ds"
      },
      "fieldConfig": {
@@ -4859,11 +5093,116 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "insertNulls": false,
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 5,
+      "w": 2,
+      "x": 21,
+      "y": 9
+     },
+     "id": 115,
+     "options": {
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "list",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d452322apre",
+     "targets": [
+      {
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "sum(rate(tempo_distributor_metrics_generator_pushes_failures_total{namespace=~\"$namespace\", cluster=~\"$cluster\"}[1m])) by (namespace, cluster)",
+       "interval": "",
+       "legendFormat": "{{cluster}} {{namespace}}",
+       "range": true,
+       "refId": "A"
+      }
+     ],
+     "title": "Pushes Failing (Distributor)",
+     "type": "timeseries"
+    },
+    {
+     "datasource": {
+      "uid": "$ds"
+     },
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisBorderShow": false,
+        "axisCenteredZero": false,
+        "axisColorMode": "text",
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -4915,7 +5254,7 @@
       "h": 10,
       "w": 7,
       "x": 0,
-      "y": 9
+      "y": 14
      },
      "id": 71,
      "options": {
@@ -4954,11 +5293,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -5010,7 +5351,7 @@
       "h": 10,
       "w": 6,
       "x": 7,
-      "y": 9
+      "y": 14
      },
      "id": 72,
      "options": {
@@ -5047,6 +5388,8 @@
     },
     {
      "datasource": {
+      "default": false,
+      "type": "prometheus",
       "uid": "$ds"
      },
      "fieldConfig": {
@@ -5055,118 +5398,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "drawStyle": "line",
-        "fillOpacity": 10,
-        "gradientMode": "none",
-        "hideFrom": {
-         "legend": false,
-         "tooltip": false,
-         "viz": false
-        },
-        "insertNulls": false,
-        "lineInterpolation": "linear",
-        "lineWidth": 1,
-        "pointSize": 5,
-        "scaleDistribution": {
-         "type": "linear"
-        },
-        "showPoints": "never",
-        "spanNulls": false,
-        "stacking": {
-         "group": "A",
-         "mode": "none"
-        },
-        "thresholdsStyle": {
-         "mode": "off"
-        }
-       },
-       "mappings": [
-
-       ],
-       "thresholds": {
-        "mode": "absolute",
-        "steps": [
-         {
-          "color": "green",
-          "value": null
-         },
-         {
-          "color": "red",
-          "value": 80
-         }
-        ]
-       },
-       "unit": "s"
-      },
-      "overrides": [
-
-      ]
-     },
-     "gridPos": {
-      "h": 5,
-      "w": 7,
-      "x": 13,
-      "y": 9
-     },
-     "id": 79,
-     "options": {
-      "legend": {
-       "calcs": [
-
-       ],
-       "displayMode": "list",
-       "placement": "bottom",
-       "showLegend": true
-      },
-      "tooltip": {
-       "mode": "multi",
-       "sort": "none"
-      }
-     },
-     "pluginVersion": "9.0.0-d452322apre",
-     "targets": [
-      {
-       "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le))",
-       "interval": "",
-       "legendFormat": ".99",
-       "refId": "A"
-      },
-      {
-       "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le))",
-       "interval": "",
-       "legendFormat": ".9",
-       "refId": "B"
-      },
-      {
-       "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le))",
-       "interval": "",
-       "legendFormat": ".5",
-       "refId": "C"
-      }
-     ],
-     "title": "Push Latency (Gateway)",
-     "type": "timeseries"
-    },
-    {
-     "datasource": {
-      "uid": "$ds"
-     },
-     "fieldConfig": {
-      "defaults": {
-       "color": {
-        "mode": "palette-classic"
-       },
-       "custom": {
-        "axisCenteredZero": false,
-        "axisColorMode": "text",
-        "axisLabel": "",
-        "axisPlacement": "auto",
-        "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -5220,7 +5458,7 @@
       "x": 13,
       "y": 14
      },
-     "id": 2,
+     "id": 79,
      "options": {
       "legend": {
        "calcs": [
@@ -5238,29 +5476,87 @@
      "pluginVersion": "9.0.0-d452322apre",
      "targets": [
       {
-       "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le))",
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le)) > ($latency_metrics * -Inf)",
        "interval": "",
        "legendFormat": ".99",
+       "range": true,
        "refId": "A"
       },
       {
-       "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le))",
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le)) > ($latency_metrics * -Inf)",
        "interval": "",
        "legendFormat": ".9",
+       "range": true,
        "refId": "B"
       },
       {
-       "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le))",
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval])) by (le)) > ($latency_metrics * -Inf)",
        "interval": "",
        "legendFormat": ".5",
+       "range": true,
        "refId": "C"
+      },
+      {
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval]))) < ($latency_metrics * -Inf)",
+       "hide": false,
+       "interval": "",
+       "legendFormat": ".99",
+       "range": true,
+       "refId": "D"
+      },
+      {
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval]))) < ($latency_metrics * -Inf)",
+       "hide": false,
+       "interval": "",
+       "legendFormat": ".9",
+       "range": true,
+       "refId": "E"
+      },
+      {
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=\"opentelemetry_proto_collector_trace_v1_traceservice_export\"}[$__rate_interval]))) < ($latency_metrics * -Inf)",
+       "hide": false,
+       "interval": "",
+       "legendFormat": ".5",
+       "range": true,
+       "refId": "F"
       }
      ],
-     "title": "Push Latency (Ingester)",
+     "title": "Push Latency (Gateway)",
      "type": "timeseries"
     },
     {
      "datasource": {
+      "default": false,
       "type": "prometheus",
       "uid": "$ds"
      },
@@ -5270,125 +5566,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
         "axisCenteredZero": false,
         "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
-        "drawStyle": "line",
-        "fillOpacity": 10,
-        "gradientMode": "none",
-        "hideFrom": {
-         "legend": false,
-         "tooltip": false,
-         "viz": false
-        },
-        "insertNulls": false,
-        "lineInterpolation": "linear",
-        "lineWidth": 1,
-        "pointSize": 5,
-        "scaleDistribution": {
-         "type": "linear"
-        },
-        "showPoints": "never",
-        "spanNulls": false,
-        "stacking": {
-         "group": "A",
-         "mode": "none"
-        },
-        "thresholdsStyle": {
-         "mode": "off"
-        }
-       },
-       "mappings": [
-
-       ],
-       "thresholds": {
-        "mode": "absolute",
-        "steps": [
-         {
-          "color": "green",
-          "value": null
-         },
-         {
-          "color": "red",
-          "value": 80
-         }
-        ]
-       },
-       "unit": "none"
-      },
-      "overrides": [
-
-      ]
-     },
-     "gridPos": {
-      "h": 5,
-      "w": 6,
-      "x": 7,
-      "y": 19
-     },
-     "id": 109,
-     "options": {
-      "legend": {
-       "calcs": [
-
-       ],
-       "displayMode": "list",
-       "placement": "bottom",
-       "showLegend": true
-      },
-      "tooltip": {
-       "mode": "multi",
-       "sort": "none"
-      }
-     },
-     "pluginVersion": "9.0.0-d452322apre",
-     "targets": [
-      {
-       "datasource": {
-        "type": "prometheus",
-        "uid": "cortex-ops-01"
-       },
-       "editorMode": "code",
-       "expr": "sum(rate(tempo_metrics_generator_spans_received_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
-       "interval": "",
-       "legendFormat": "accepted",
-       "range": true,
-       "refId": "A"
-      },
-      {
-       "datasource": {
-        "type": "prometheus",
-        "uid": "cortex-ops-01"
-       },
-       "editorMode": "code",
-       "expr": "sum(rate(tempo_metrics_generator_spans_discarded_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (reason)",
-       "interval": "",
-       "legendFormat": "refused {{reason}}",
-       "range": true,
-       "refId": "B"
-      }
-     ],
-     "title": "Generator Spans/second",
-     "type": "timeseries"
-    },
-    {
-     "datasource": {
-      "type": "prometheus",
-      "uid": "$ds"
-     },
-     "fieldConfig": {
-      "defaults": {
-       "color": {
-        "mode": "palette-classic"
-       },
-       "custom": {
-        "axisCenteredZero": false,
-        "axisColorMode": "text",
-        "axisLabel": "",
-        "axisPlacement": "auto",
-        "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 10,
         "gradientMode": "none",
@@ -5441,6 +5625,252 @@
       "w": 7,
       "x": 13,
       "y": 19
+     },
+     "id": 2,
+     "options": {
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "list",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d452322apre",
+     "targets": [
+      {
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".99",
+       "range": true,
+       "refId": "A"
+      },
+      {
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le))",
+       "interval": "",
+       "legendFormat": ".9",
+       "range": true,
+       "refId": "B"
+      },
+      {
+       "datasource": {
+        "type": "prometheus",
+        "uid": "mimir-ops-03"
+       },
+       "editorMode": "code",
+       "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/ingester\", route=~\"/tempopb.Pusher/Push.*\"}[$__rate_interval])) by (le))",
+       "hide": false,
+       "interval": "",
+       "legendFormat": ".5",
+       "range": true,
+       "refId": "C"
+      }
+     ],
+     "title": "Push Latency (Ingester)",
+     "type": "timeseries"
+    },
+    {
+     "datasource": {
+      "type": "prometheus",
+      "uid": "$ds"
+     },
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisBorderShow": false,
+        "axisCenteredZero": false,
+        "axisColorMode": "text",
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "barWidthFactor": 0.6,
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "insertNulls": false,
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "none"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 5,
+      "w": 6,
+      "x": 7,
+      "y": 24
+     },
+     "id": 109,
+     "options": {
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "list",
+       "placement": "bottom",
+       "showLegend": true
+      },
+      "tooltip": {
+       "mode": "multi",
+       "sort": "none"
+      }
+     },
+     "pluginVersion": "9.0.0-d452322apre",
+     "targets": [
+      {
+       "datasource": {
+        "type": "prometheus",
+        "uid": "cortex-ops-01"
+       },
+       "editorMode": "code",
+       "expr": "sum(rate(tempo_metrics_generator_spans_received_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
+       "interval": "",
+       "legendFormat": "accepted",
+       "range": true,
+       "refId": "A"
+      },
+      {
+       "datasource": {
+        "type": "prometheus",
+        "uid": "cortex-ops-01"
+       },
+       "editorMode": "code",
+       "expr": "sum(rate(tempo_metrics_generator_spans_discarded_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (reason)",
+       "interval": "",
+       "legendFormat": "refused {{reason}}",
+       "range": true,
+       "refId": "B"
+      }
+     ],
+     "title": "Generator Spans/second",
+     "type": "timeseries"
+    },
+    {
+     "datasource": {
+      "default": false,
+      "type": "prometheus",
+      "uid": "$ds"
+     },
+     "fieldConfig": {
+      "defaults": {
+       "color": {
+        "mode": "palette-classic"
+       },
+       "custom": {
+        "axisBorderShow": false,
+        "axisCenteredZero": false,
+        "axisColorMode": "text",
+        "axisLabel": "",
+        "axisPlacement": "auto",
+        "barAlignment": 0,
+        "barWidthFactor": 0.6,
+        "drawStyle": "line",
+        "fillOpacity": 10,
+        "gradientMode": "none",
+        "hideFrom": {
+         "legend": false,
+         "tooltip": false,
+         "viz": false
+        },
+        "insertNulls": false,
+        "lineInterpolation": "linear",
+        "lineWidth": 1,
+        "pointSize": 5,
+        "scaleDistribution": {
+         "type": "linear"
+        },
+        "showPoints": "never",
+        "spanNulls": false,
+        "stacking": {
+         "group": "A",
+         "mode": "none"
+        },
+        "thresholdsStyle": {
+         "mode": "off"
+        }
+       },
+       "mappings": [
+
+       ],
+       "thresholds": {
+        "mode": "absolute",
+        "steps": [
+         {
+          "color": "green",
+          "value": null
+         },
+         {
+          "color": "red",
+          "value": 80
+         }
+        ]
+       },
+       "unit": "s"
+      },
+      "overrides": [
+
+      ]
+     },
+     "gridPos": {
+      "h": 5,
+      "w": 7,
+      "x": 13,
+      "y": 24
      },
      "id": 108,
      "options": {
@@ -6380,9 +6810,13 @@
         "mode": "palette-classic"
        },
        "custom": {
+        "axisBorderShow": false,
+        "axisCenteredZero": false,
+        "axisColorMode": "text",
         "axisLabel": "",
         "axisPlacement": "auto",
         "barAlignment": 0,
+        "barWidthFactor": 0.6,
         "drawStyle": "line",
         "fillOpacity": 0,
         "gradientMode": "none",
@@ -6391,6 +6825,7 @@
          "tooltip": false,
          "viz": false
         },
+        "insertNulls": false,
         "lineInterpolation": "linear",
         "lineWidth": 1,
         "pointSize": 5,
@@ -6426,7 +6861,7 @@
       "h": 9,
       "w": 12,
       "x": 0,
-      "y": 18
+      "y": 13
      },
      "id": 77,
      "options": {
@@ -6476,7 +6911,8 @@
         "mode": "absolute",
         "steps": [
          {
-          "color": "green"
+          "color": "green",
+          "value": null
          }
         ]
        },
@@ -6490,13 +6926,23 @@
       "h": 9,
       "w": 12,
       "x": 12,
-      "y": 18
+      "y": 13
      },
      "id": 67,
      "options": {
       "displayMode": "gradient",
+      "legend": {
+       "calcs": [
+
+       ],
+       "displayMode": "list",
+       "placement": "bottom",
+       "showLegend": false
+      },
+      "maxVizHeight": 300,
       "minVizHeight": 10,
       "minVizWidth": 0,
+      "namePlacement": "auto",
       "orientation": "auto",
       "reduceOptions": {
        "calcs": [
@@ -6506,11 +6952,13 @@
        "values": false
       },
       "showUnfilled": true,
+      "sizing": "auto",
       "text": {
 
-      }
+      },
+      "valueMode": "color"
      },
-     "pluginVersion": "9.0.0-d373beebpre",
+     "pluginVersion": "11.3.0-75324",
      "targets": [
       {
        "expr": "sum(rate(tempo_vulture_trace_error_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval])) by (error) / ignoring (error) group_left sum(rate(tempo_vulture_trace_total{cluster=\"$cluster\", namespace=\"$namespace\"}[$__rate_interval]))",
@@ -6916,8 +7364,8 @@
    "type": "row"
   }
  ],
- "refresh": "",
- "schemaVersion": 38,
+ "refresh": "30s",
+ "schemaVersion": 39,
  "tags": [
   "tempo"
  ],
@@ -6966,8 +7414,8 @@
    {
     "current": {
      "selected": true,
-     "text": "ops-us-east-0",
-     "value": "ops-us-east-0"
+     "text": "ops-eu-south-0",
+     "value": "ops-eu-south-0"
     },
     "datasource": {
      "type": "prometheus",
@@ -6996,9 +7444,9 @@
    },
    {
     "current": {
-     "selected": true,
-     "text": "tempo-ops",
-     "value": "tempo-ops"
+     "selected": false,
+     "text": "tempo-ops-01",
+     "value": "tempo-ops-01"
     },
     "datasource": {
      "type": "prometheus",
@@ -7084,6 +7532,35 @@
      }
     ],
     "query": "compactor,distributor,ingester,metrics-generator,query-frontend,querier,cortex-gw,cortex-gw-internal",
+    "queryValue": "",
+    "skipUrlSync": false,
+    "type": "custom"
+   },
+   {
+    "current": {
+     "selected": true,
+     "text": "native",
+     "value": "-1"
+    },
+    "description": "Choose between showing latencies based on low precision classic or high precision native histogram metrics.",
+    "hide": 0,
+    "includeAll": false,
+    "label": "Latency metrics",
+    "multi": false,
+    "name": "latency_metrics",
+    "options": [
+     {
+      "selected": true,
+      "text": "native",
+      "value": "-1"
+     },
+     {
+      "selected": false,
+      "text": "classic",
+      "value": "1"
+     }
+    ],
+    "query": "native : -1,classic : 1",
     "queryValue": "",
     "skipUrlSync": false,
     "type": "custom"

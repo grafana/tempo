@@ -403,6 +403,10 @@ func (q *Querier) QueryRangeHandler(w http.ResponseWriter, r *http.Request) {
 		errHandler(ctx, span, err)
 		return
 	}
+	// This is to prevent a panic marshaling nil
+	if resp == nil {
+		resp = &tempopb.QueryRangeResponse{}
+	}
 
 	if resp != nil && resp.Metrics != nil {
 		span.SetAttributes(attribute.Int64("inspectedBytes", int64(resp.Metrics.InspectedBytes)))

@@ -80,7 +80,7 @@ func (m *MetricsCompare) init(q *tempopb.QueryRangeRequest, mode AggregateMode) 
 		m.selectionTotals = make(map[Attribute][]float64)
 
 	case AggregateModeSum:
-		m.seriesAgg = NewSimpleAdditionCombiner(q)
+		m.seriesAgg = NewSimpleCombiner(q, sumAggregation)
 		return
 
 	case AggregateModeFinal:

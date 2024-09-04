@@ -100,7 +100,7 @@ import (
                         COUNT AVG MAX MIN SUM
                         BY COALESCE SELECT
                         END_ATTRIBUTE
-                        RATE COUNT_OVER_TIME QUANTILE_OVER_TIME HISTOGRAM_OVER_TIME COMPARE
+                        RATE COUNT_OVER_TIME MIN_OVER_TIME QUANTILE_OVER_TIME HISTOGRAM_OVER_TIME COMPARE
                         WITH
 
 // Operators are listed with increasing precedence.
@@ -298,10 +298,12 @@ metricsAggregation:
     | RATE            OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS                                { $$ = newMetricsAggregate(metricsAggregateRate, $6) }
     | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS                                                                          { $$ = newMetricsAggregate(metricsAggregateCountOverTime, nil) }
     | COUNT_OVER_TIME OPEN_PARENS CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS                                { $$ = newMetricsAggregate(metricsAggregateCountOverTime, $6) }
+    | MIN_OVER_TIME OPEN_PARENS attribute CLOSE_PARENS                                                                  { $$ = newMetricsAggregateWithAttr(metricsAggregateMinOverTime, $3, nil) }
+    | MIN_OVER_TIME OPEN_PARENS attribute CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS                        { $$ = newMetricsAggregateWithAttr(metricsAggregateMinOverTime, $3, $7) }
     | QUANTILE_OVER_TIME OPEN_PARENS attribute COMMA numericList CLOSE_PARENS                                           { $$ = newMetricsAggregateQuantileOverTime($3, $5, nil) }
     | QUANTILE_OVER_TIME OPEN_PARENS attribute COMMA numericList CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS { $$ = newMetricsAggregateQuantileOverTime($3, $5, $9) }
-    | HISTOGRAM_OVER_TIME OPEN_PARENS attribute CLOSE_PARENS                                                            { $$ = newMetricsAggregateHistogramOverTime($3, nil) }
-    | HISTOGRAM_OVER_TIME OPEN_PARENS attribute CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS                  { $$ = newMetricsAggregateHistogramOverTime($3, $7) }
+    | HISTOGRAM_OVER_TIME OPEN_PARENS attribute CLOSE_PARENS                                                            { $$ = newMetricsAggregateWithAttr(metricsAggregateHistogramOverTime, $3, nil) }
+    | HISTOGRAM_OVER_TIME OPEN_PARENS attribute CLOSE_PARENS BY OPEN_PARENS attributeList CLOSE_PARENS                  { $$ = newMetricsAggregateWithAttr(metricsAggregateHistogramOverTime, $3, $7) }
     | COMPARE OPEN_PARENS spansetFilter CLOSE_PARENS                                                                    { $$ = newMetricsCompare($3, 10, 0, 0)}
     | COMPARE OPEN_PARENS spansetFilter COMMA INTEGER CLOSE_PARENS                                                      { $$ = newMetricsCompare($3, $5, 0, 0)}
     | COMPARE OPEN_PARENS spansetFilter COMMA INTEGER COMMA INTEGER COMMA INTEGER CLOSE_PARENS                          { $$ = newMetricsCompare($3, $5, $7, $9)}

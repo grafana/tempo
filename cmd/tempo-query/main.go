@@ -2,19 +2,17 @@ package main
 
 import (
 	"flag"
-	"io"
+	"net"
 	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	hcplugin "github.com/hashicorp/go-plugin"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
+	otgrpc "github.com/opentracing-contrib/go-grpc"
+	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/viper"
-	jaeger_config "github.com/uber/jaeger-client-go/config"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	google_grpc "google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/grafana/tempo/cmd/tempo-query/tempo"
 )
@@ -22,7 +20,7 @@ import (
 func main() {
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:       "jaeger-tempo",
-		Level:      hclog.Error, // Jaeger only captures >= Warn, so don't bother logging below Warn
+		Level:      hclog.Error,
 		JSONFormat: true,
 	})
 
@@ -43,12 +41,6 @@ func main() {
 		}
 	}
 
-	closer, err := initJaeger("tempo-grpc-plugin")
-	if err != nil {
-		logger.Error("failed to init tracer", "error", err)
-	}
-	defer closer.Close()
-
 	cfg := &tempo.Config{}
 	cfg.InitFromViper(v)
 
@@ -56,38 +48,34 @@ func main() {
 	if err != nil {
 		logger.Error("failed to init tracer backend", "error", err)
 	}
-	plugin := &plugin{backend: backend}
-	grpc.ServeWithGRPCServer(&shared.PluginServices{
-		Store: plugin,
-	}, func(options []google_grpc.ServerOption) *google_grpc.Server {
-		return hcplugin.DefaultGRPCServer([]google_grpc.ServerOption{
-			google_grpc.StatsHandler(otelgrpc.NewServerHandler()),
-		})
-	})
-}
 
-type plugin struct {
-	backend *tempo.Backend
-}
-
-func (p *plugin) DependencyReader() dependencystore.Reader {
-	return p.backend
-}
-
-func (p *plugin) SpanReader() spanstore.Reader {
-	return p.backend
-}
-
-func (p *plugin) SpanWriter() spanstore.Writer {
-	return p.backend
-}
-
-func initJaeger(service string) (io.Closer, error) {
-	// .FromEnv() uses standard environment variables to allow for easy configuration
-	cfg, err := jaeger_config.FromEnv()
-	if err != nil {
-		return nil, err
+	grpcOpts := []google_grpc.ServerOption{
+		google_grpc.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(opentracing.GlobalTracer())),
+		google_grpc.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(opentracing.GlobalTracer())),
 	}
 
-	return cfg.InitGlobalTracer(service)
+	if cfg.TLSEnabled {
+		creds, err := credentials.NewClientTLSFromFile(cfg.TLS.CertPath, cfg.TLS.ServerName)
+		if err != nil {
+			logger.Error("failed to load TLS credentials", "error", err)
+		} else {
+			grpcOpts = append(grpcOpts, google_grpc.Creds(creds))
+		}
+	}
+
+	srv := hcplugin.DefaultGRPCServer(grpcOpts)
+
+	storage_v1.RegisterSpanReaderPluginServer(srv, backend)
+	storage_v1.RegisterDependenciesReaderPluginServer(srv, backend)
+	storage_v1.RegisterSpanWriterPluginServer(srv, backend)
+
+	lis, err := net.Listen("tcp", cfg.Address)
+	if err != nil {
+		logger.Error("failed to listen", "error", err)
+	}
+
+	logger.Info("Server starts serving", "address", cfg.Address)
+	if err := srv.Serve(lis); err != nil {
+		logger.Error("failed to serve", "error", err)
+	}
 }

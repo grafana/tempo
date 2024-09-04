@@ -674,11 +674,7 @@ github.com/jaegertracing/jaeger/pkg/healthcheck
 github.com/jaegertracing/jaeger/pkg/metrics
 github.com/jaegertracing/jaeger/pkg/netutils
 github.com/jaegertracing/jaeger/pkg/recoveryhandler
-github.com/jaegertracing/jaeger/pkg/tenancy
 github.com/jaegertracing/jaeger/pkg/version
-github.com/jaegertracing/jaeger/plugin
-github.com/jaegertracing/jaeger/plugin/storage/grpc
-github.com/jaegertracing/jaeger/plugin/storage/grpc/config
 github.com/jaegertracing/jaeger/plugin/storage/grpc/shared
 github.com/jaegertracing/jaeger/ports
 github.com/jaegertracing/jaeger/proto-gen/api_v2

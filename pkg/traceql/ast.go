@@ -1048,12 +1048,22 @@ type MetricsAggregate struct {
 	agg        SpanAggregator
 	seriesAgg  SeriesAggregator
 	exemplarFn getExemplar
+	// Type of operation for simple aggregatation in layers 2 and 3
+	simpleAggregationOp SimpleAggregationOp
 }
 
 func newMetricsAggregate(agg MetricsAggregateOp, by []Attribute) *MetricsAggregate {
 	return &MetricsAggregate{
 		op: agg,
 		by: by,
+	}
+}
+
+func newMetricsAggregateWithAttr(agg MetricsAggregateOp, attr Attribute, by []Attribute) *MetricsAggregate {
+	return &MetricsAggregate{
+		op:   agg,
+		attr: attr,
+		by:   by,
 	}
 }
 
@@ -1066,24 +1076,13 @@ func newMetricsAggregateQuantileOverTime(attr Attribute, qs []float64, by []Attr
 	}
 }
 
-func newMetricsAggregateHistogramOverTime(attr Attribute, by []Attribute) *MetricsAggregate {
-	return &MetricsAggregate{
-		op:   metricsAggregateHistogramOverTime,
-		by:   by,
-		attr: attr,
-	}
-}
-
 func (a *MetricsAggregate) extractConditions(request *FetchSpansRequest) {
-	switch a.op {
-	case metricsAggregateRate, metricsAggregateCountOverTime:
-		// No extra conditions, start time is already enough
-	case metricsAggregateQuantileOverTime, metricsAggregateHistogramOverTime:
-		if !request.HasAttribute(a.attr) {
-			request.SecondPassConditions = append(request.SecondPassConditions, Condition{
-				Attribute: a.attr,
-			})
-		}
+	// For metrics aggregators based on a span attribute we have to include it
+	includeAttribute := a.attr != (Attribute{}) && !request.HasAttribute(a.attr)
+	if includeAttribute {
+		request.SecondPassConditions = append(request.SecondPassConditions, Condition{
+			Attribute: a.attr,
+		})
 	}
 
 	for _, b := range a.by {
@@ -1096,16 +1095,6 @@ func (a *MetricsAggregate) extractConditions(request *FetchSpansRequest) {
 }
 
 func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
-	switch mode {
-	case AggregateModeSum:
-		a.initSum(q)
-		return
-
-	case AggregateModeFinal:
-		a.initFinal(q)
-		return
-	}
-
 	// Raw mode:
 
 	var innerAgg func() VectorAggregator
@@ -1116,12 +1105,20 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 	switch a.op {
 	case metricsAggregateCountOverTime:
 		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
+		a.simpleAggregationOp = sumAggregation
+		exemplarFn = func(s Span) (float64, uint64) {
+			return math.NaN(), a.spanStartTimeMs(s)
+		}
+	case metricsAggregateMinOverTime:
+		innerAgg = func() VectorAggregator { return NewMinOverTimeAggregator(a.attr) }
+		a.simpleAggregationOp = minAggregation
 		exemplarFn = func(s Span) (float64, uint64) {
 			return math.NaN(), a.spanStartTimeMs(s)
 		}
 
 	case metricsAggregateRate:
 		innerAgg = func() VectorAggregator { return NewRateAggregator(1.0 / time.Duration(q.Step).Seconds()) }
+		a.simpleAggregationOp = sumAggregation
 		exemplarFn = func(s Span) (float64, uint64) {
 			return math.NaN(), a.spanStartTimeMs(s)
 		}
@@ -1131,6 +1128,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 		// I.e. a duration of 500ms will be in __bucket==0.512s
 		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
 		byFuncLabel = internalLabelBucket
+		a.simpleAggregationOp = sumAggregation
 		switch a.attr {
 		case IntrinsicDurationAttribute:
 			// Optimal implementation for duration attribute
@@ -1142,10 +1140,20 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 			// Basic implementation for all other attributes
 			byFunc = a.bucketizeAttribute
 			exemplarFn = func(s Span) (float64, uint64) {
-				v, _ := a.floatizeAttribute(s)
+				v, _ := FloatizeAttribute(s, a.attr)
 				return v, a.spanStartTimeMs(s)
 			}
 		}
+	}
+
+	switch mode {
+	case AggregateModeSum:
+		a.initSum(q)
+		return
+
+	case AggregateModeFinal:
+		a.initFinal(q)
+		return
 	}
 
 	a.agg = NewGroupingAggregator(a.op.String(), func() RangeAggregator {
@@ -1167,28 +1175,8 @@ func (a *MetricsAggregate) bucketizeSpanDuration(s Span) (Static, bool) {
 	return NewStaticFloat(Log2Bucketize(d) / float64(time.Second)), true
 }
 
-func (a *MetricsAggregate) floatizeAttribute(s Span) (float64, StaticType) {
-	v, ok := s.AttributeFor(a.attr)
-	if !ok {
-		return 0, TypeNil
-	}
-
-	switch v.Type {
-	case TypeInt:
-		n, _ := v.Int()
-		return float64(n), v.Type
-	case TypeDuration:
-		d, _ := v.Duration()
-		return float64(d.Nanoseconds()), v.Type
-	case TypeFloat:
-		return v.Float(), v.Type
-	default:
-		return 0, TypeNil
-	}
-}
-
 func (a *MetricsAggregate) bucketizeAttribute(s Span) (Static, bool) {
-	f, t := a.floatizeAttribute(s)
+	f, t := FloatizeAttribute(s, a.attr)
 
 	switch t {
 	case TypeInt:
@@ -1213,7 +1201,7 @@ func (a *MetricsAggregate) bucketizeAttribute(s Span) (Static, bool) {
 func (a *MetricsAggregate) initSum(q *tempopb.QueryRangeRequest) {
 	// Currently all metrics are summed by job to produce
 	// intermediate results. This will change when adding min/max/topk/etc
-	a.seriesAgg = NewSimpleAdditionCombiner(q)
+	a.seriesAgg = NewSimpleCombiner(q, a.simpleAggregationOp)
 }
 
 func (a *MetricsAggregate) initFinal(q *tempopb.QueryRangeRequest) {
@@ -1222,7 +1210,7 @@ func (a *MetricsAggregate) initFinal(q *tempopb.QueryRangeRequest) {
 		a.seriesAgg = NewHistogramAggregator(q, a.floats)
 	default:
 		// These are simple additions by series
-		a.seriesAgg = NewSimpleAdditionCombiner(q)
+		a.seriesAgg = NewSimpleCombiner(q, a.simpleAggregationOp)
 	}
 }
 
@@ -1252,6 +1240,7 @@ func (a *MetricsAggregate) result() SeriesSet {
 func (a *MetricsAggregate) validate() error {
 	switch a.op {
 	case metricsAggregateCountOverTime:
+	case metricsAggregateMinOverTime:
 	case metricsAggregateRate:
 	case metricsAggregateHistogramOverTime:
 		if len(a.by) >= maxGroupBys {
