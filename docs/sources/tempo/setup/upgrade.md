@@ -7,15 +7,139 @@ weight: 310
 
 # Upgrade your Tempo installation
 
-You can upgrade an existing Tempo installation to the next version. However, any new release has the potential to have breaking changes that should be tested in a non-production environment prior to rolling these changes to production.
+You can upgrade an existing Tempo installation to the next version.
+However, any new release has the potential to have breaking changes that should be tested in a non-production environment prior to rolling these changes to production.
 
 The upgrade process changes for each version, depending upon the changes made for the subsequent release.
 
 This upgrade guide applies to on-premise installations and not for Grafana Cloud.
 
+For detailed information about any release, refer to the [Release notes](../release-notes/).
+
 {{< admonition type="tip" >}}
 You can check your configuration options using the [`status` API endpoint]({{< relref "../api_docs#status" >}}) in your Tempo installation.
 {{% /admonition %}}
+
+## Upgrade to Tempo 2.6
+
+Tempo 2.5 has several considerations for any upgrade:
+
+* Operational change for TraceQL metrics
+* vParquet4 is now the default block format
+* Updated, removed, or renamed parameters
+
+For a complete list of changes, refer to the [Temopo 2.6 changelog](https://github.com/grafana/tempo/releases/tag/v2.6.0).
+
+### Operational change for TraceQL metrics
+
+We've changed to an RF1 (Replication Factor 1) pattern for TraceQL metrics as we were unable to hit performance goals for RF3 de-duplication. This requires some operational changes to query TraceQL metrics.
+
+TraceQL metrics are still considered experimental, but we hope to mark them GA soon when we productionize a complete RF1 write-read path. [PRs [3628](https://github.com/grafana/tempo/pull/3628), [3691]([https://github.com/grafana/tempo/pull/3691](https://github.com/grafana/tempo/pull/3691)), [3723]([https://github.com/grafana/tempo/pull/3723](https://github.com/grafana/tempo/pull/3723)), [3995]([https://github.com/grafana/tempo/pull/3995](https://github.com/grafana/tempo/pull/3995))]
+
+**For recent data**
+
+The local-blocks processor must be enabled to start using metrics queries like `{ } | rate()`. If not enabled metrics queries fail with the error `localblocks processor not found`. Enabling the local-blocks processor can be done either per tenant or in all tenants.
+
+* Per-tenant in the per-tenant overrides:
+
+  ```yaml
+    overrides:
+      'tenantID':
+        metrics_generator_processors:
+          - local-blocks
+  ```
+
+* By default, for all tenants in the main config:
+
+  ```yaml
+  overrides:
+    defaults:
+      metrics_generator:
+        processors: [local-blocks]
+  ```
+
+Add this configuration to run TraceQL metrics queries against all spans (and not just server spans):
+
+```yaml
+metrics_generator:
+  processor:
+    local_blocks:
+      filter_server_spans: false
+```
+
+**For historical data**
+
+To run metrics queries on historical data, you must configure the local-blocks processor to flush rf1 blocks to object storage:
+
+```yaml
+metrics_generator:
+  processor:
+    local_blocks:
+      flush_to_storage: true
+```
+
+### Transition to vParquet4
+
+vParquet4 format is now the default block format.
+It's production ready and we highly recommend switching to it for improved query performance. [PR [3810](https://github.com/grafana/tempo/pull/3810)]
+
+Upgrading to Tempo 2.6 modifies the Parquet block format.
+Although you can use Tempo 2.6 with vParquet2 or vParquet3, you can only use Tempo 2.6 with vParquet3.
+
+You can also use the `tempo-cli analyse blocks` command to query vParquet4 blocks. [PR 3868](https://github.com/grafana/tempo/pull/3868)].
+Refer to the [Tempo CLI ](https://grafana.com/docs/tempo/next/operations/tempo_cli/#analyse-blocks)documentation for more information.
+
+For information on upgrading, refer to [Upgrade to Tempo 2.6](https://grafana.com/docs/tempo/next/setup/upgrade/) and [Choose a different block format](https://grafana.com/docs/tempo/next/configuration/parquet/#choose-a-different-block-format).
+
+### Updated, removed, or renamed configuration parameters
+
+<table>
+  <tr>
+   <td>Parameter
+   </td>
+   <td>Comments
+   </td>
+  </tr>
+  <tr>
+   <td><code>storage:</code>
+<p>
+<code>  azure:</code>
+<p>
+<code>    use_v2_sdk: </code>
+   </td>
+   <td>Removed. Azure v2 is the only and primary Azure backend [PR <a href="https://github.com/grafana/tempo/pull/3875">#3875</a>]
+   </td>
+  </tr>
+  <tr>
+   <td><code>autocomplete_filtering_enabled</code>
+   </td>
+   <td>The feature flag option has been removed. The feature is always enabled. [PR  <a href="https://github.com/grafana/tempo/pull/3729">#3729</a>]
+   </td>
+  </tr>
+  <tr>
+   <td><code>completedfilepath</code> and <code>blocksfilepath</code>
+   </td>
+   <td>Removed unused WAL configuration options. [PR <a href="https://github.com/grafana/tempo/pull/3911">#3911</a>]
+   </td>
+  </tr>
+  <tr>
+   <td><code>compaction_disabled</code>
+   </td>
+   <td>New. Allow compaction disablement per-tenant. [PR <a href="https://github.com/grafana/tempo/pull/3965">#3965</a>, <a href="https://grafana.com/docs/tempo/next/configuration/#overrides">documentation</a>]
+   </td>
+  </tr>
+  <tr>
+   <td><code>Storage:</code>
+<p>
+<code>  s3:</code>
+<p>
+<code>    [enable_dual_stack: &lt;bool>]</code>
+   </td>
+   <td>Boolean flag to activate or deactivate <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html">dualstack mode</a> on the Storage block configuration for S3. [PR <a href="https://github.com/grafana/tempo/pull/3721">#3721</a>, <a href="https://grafana.com/docs/tempo/next/configuration/#standard-overrides">documentation</a>]
+   </td>
+  </tr>
+</table>
+
 
 ## Upgrade to Tempo 2.5
 
@@ -26,7 +150,7 @@ Tempo 2.5 has several considerations for any upgrade:
 * Experimental vParquet4 block format
 * Removed configuration parameters
 
-For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo 2.5 changelog](https://github.com/).
+For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo 2.5 changelog](https://github.com/grafana/tempo/releases/tag/v2.5.0).
 
 ### Docker image runs as new UID
 
@@ -88,7 +212,6 @@ To try vParquet4, refer to [Choose a block format](https://grafana.com/docs/temp
 
 * Updating to OTLP 1.3.0 removes the deprecated `InstrumentationLibrary` and `InstrumentationLibrarySpan` from the OTLP receivers. [PR 3649](https://github.com/grafana/tempo/pull/3649)]
 * Removes the addition of a tenant in multitenant trace id lookup. [PR 3522](https://github.com/grafana/tempo/pull/3522)]
-
 
 ## Upgrade to Tempo 2.4
 
