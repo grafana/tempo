@@ -82,30 +82,28 @@ This could happen because of a number of reasons and some have been detailed in 
 [Where did all my spans go? A guide to diagnosing dropped spans in Jaeger distributed tracing](/blog/2020/07/09/where-did-all-my-spans-go-a-guide-to-diagnosing-dropped-spans-in-jaeger-distributed-tracing/).
 This is useful if you are using the Jaeger Agent.
 
-If you are using Grafana Agent, continue reading the following section for metrics to monitor.
+If you are using Grafana Alloy, continue reading the following section for metrics to monitor.
 
 ### Diagnose the issue
 
-Check if the pipeline is dropping spans. The following metrics on Grafana Agent help determine this:
+Check if the pipeline is dropping spans. The following metrics on Grafana Alloy help determine this:
 
-- `tempo_exporter_send_failed_spans`. The value of this metric should be `0`.
-- `tempo_receiver_refused_spans`. This value of this metric should be `0`.
-- `tempo_processor_dropped_spans`. The value of this metric should be `0`.
+- `exporter_send_failed_spans_ratio_total`. The value of this metric should be `0`.
+- `receiver_refused_spans_ratio_total`. This value of this metric should be `0`.
 
 If the pipeline isn't reporting any dropped spans, check whether application spans are being dropped by Tempo. The following metrics help determine this:
 
 - `tempo_receiver_refused_spans`. The value of `tempo_receiver_refused_spans` should be `0`.
 
-  Grafana Agent and Tempo share the same metric. Make sure to check the value of the metric from both services.
   If the value of `tempo_receiver_refused_spans` is greater than 0, then the possible reason is the application spans are being dropped due to rate limiting.
 
 ### Solutions
 
-- If the pipeline (Grafana Agent) is found to be dropping spans, the deployment may need to be scaled up. Look for a message like `too few agents compared to the ingestion rate` in the agent logs.
-- There might also be issues with connectivity to Tempo backend, check the agent for logs like `error sending batch, will retry` and make sure the Tempo endpoint and credentials are correctly configured.
-- If Tempo is found to be dropping spans, then the possible reason is the application spans are being dropped due to rate limiting.
-  The rate limiting may be appropriate and does not need to be fixed. The metric simply explained the cause of the missing spans, and there is nothing more to be done.
-- If more ingestion volume is needed, increase the configuration for the rate limiting, by adding this CLI flag to Tempo at startup - https://github.com/grafana/tempo/blob/78f3554ca30bd5a4dec01629b8b7b2b0b2b489be/modules/overrides/limits.go#L42
+- If the pipeline (Grafana Alloy) drops spans, the deployment may need to be scaled up.
+- There might also be issues with connectivity to Tempo backend, check Alloy logs and make sure the Tempo endpoint and credentials are correctly configured.
+- If Tempo drops spans, this may be due to rate limiting.
+  Rate limiting may be appropriate and therefore not an issue. The metric simply explains the cause of the missing spans.
+- If you require a higher ingest volume, increase the configuration for the rate limiting by adjusting the `max_traces_per_user` property in the [configured override limits](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides).
 
 {{< admonition type="note" >}}
 Check the [ingestion limits page]({{< relref "../configuration#ingestion-limits" >}}) for further information on limits.
@@ -113,9 +111,10 @@ Check the [ingestion limits page]({{< relref "../configuration#ingestion-limits"
 
 ## Section 3: Diagnose and fix issues with querying traces
 
-If you have determined that data has been ingested correctly into Tempo, then it's time to investigate possible issues with querying the data.
+If Tempo is correctly ingesting trace spans, then it's time to investigate possible issues with querying the data.
 
-Check the logs of the query-frontend. The query-frontend pod runs with two containers (query-frontend and query), so lets use the following command to view query-frontend logs -
+Check the logs of the query-frontend. The query-frontend pod runs with two containers, `query-frontend` and `query`.
+Use the following command to view query-frontend logs:
 
 ```bash
 kubectl logs -f pod/query-frontend-xxxxx -c query-frontend
@@ -131,8 +130,8 @@ The presence of the following errors in the log may explain issues with querying
 Possible reasons for these errors are:
 
 - The querier isn't connected to the query-frontend. Check the value of the metric `cortex_query_frontend_connected_clients` exposed by the query-frontend.
-  It should be > `0`, which indicates that queriers are connected to the query-frontend.
-- Grafana Tempo data source isn't configured to pass `tenant-id` in the `Authorization` header (only applicable to multi-tenant deployments).
+  It should be > `0`, indicating querier connections with the query-frontend.
+- Grafana Tempo data source isn't configured to pass `tenant-id` in the `Authorization` header (multi-tenant deployments only).
 - Not connected to Tempo Querier correctly.
 - Insufficient permissions.
 
@@ -140,14 +139,14 @@ Possible reasons for these errors are:
 
 To fix connection issues:
 
-  - If the queriers aren't connected to the query-frontend, check the following section in the querier configuration and make sure the address of the query-frontend is correct.
+  - If the queriers aren't connected to the query-frontend, check the following section in the querier configuration and verify the query-frontend address.
 
     ```yaml
     querier:
       frontend_worker:
         frontend_address: query-frontend-discovery.default.svc.cluster.local:9095
     ```
-  - Confirm that the Grafana data source is configured correctly and debug network issues between Grafana and Tempo.
+  - Validate the Grafana data source configuration and debug network issues between Grafana and Tempo.
 
 To fix an insufficient permissions issue:
 
