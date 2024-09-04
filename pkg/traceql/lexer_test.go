@@ -199,7 +199,7 @@ func TestLexerMultitokens(t *testing.T) {
 		{`!`, []int{NOT}},
 		{`!~`, []int{NRE}},
 		{`&>>`, []int{UNION_DESC}},
-		{`[]`, []int{ARRAY}}, // should this be here?? no idea?? probably not
+		{`[]`, []int{ARRAY}}, // TODO: should this be here?? no idea? figure it out?
 	})
 }
 

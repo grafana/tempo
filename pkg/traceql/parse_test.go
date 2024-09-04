@@ -1039,6 +1039,57 @@ func TestAttributes(t *testing.T) {
 		{in: `."🤘"`, expected: NewAttribute(`🤘`, false)},
 	}
 
+	runAttributeTests(t, tests)
+}
+
+func TestArrayAttributes(t *testing.T) {
+	tests := []struct {
+		in       string
+		expected FieldExpression
+	}{
+		{in: ".foo[]", expected: NewAttribute("foo", true)},
+		{in: ".max[]", expected: NewAttribute("max", true)},
+		{in: ".status[]", expected: NewAttribute("status", true)},
+		{in: ".kind[]", expected: NewAttribute("kind", true)},
+		{in: ".foo.bar[]", expected: NewAttribute("foo.bar", true)},
+		{in: ".foo.bar.baz[]", expected: NewAttribute("foo.bar.baz", true)},
+		{in: ".foo.3[]", expected: NewAttribute("foo.3", true)},
+		{in: ".foo3[]", expected: NewAttribute("foo3", true)},
+		{in: ".http_status[]", expected: NewAttribute("http_status", true)},
+		{in: ".http-status[]", expected: NewAttribute("http-status", true)},
+		{in: ".http+[]", expected: NewAttribute("http+", true)},
+		{in: ".😝[]", expected: NewAttribute("😝", true)},
+		{in: ".http-other[]", expected: NewAttribute("http-other", true)},
+		{in: "parent.duration[]", expected: NewScopedAttribute(AttributeScopeNone, true, "duration", true)},
+		{in: "parent.foo.bar.baz[]", expected: NewScopedAttribute(AttributeScopeNone, true, "foo.bar.baz", true)},
+		{in: "resource.foo.bar.baz[]", expected: NewScopedAttribute(AttributeScopeResource, false, "foo.bar.baz", true)},
+		{in: "span.foo.bar[]", expected: NewScopedAttribute(AttributeScopeSpan, false, "foo.bar", true)},
+		{in: "event.foo.bar[]", expected: NewScopedAttribute(AttributeScopeEvent, false, "foo.bar", true)},
+		{in: "link.foo.bar[]", expected: NewScopedAttribute(AttributeScopeLink, false, "foo.bar", true)},
+		{in: "instrumentation.foo.bar[]", expected: NewScopedAttribute(AttributeScopeInstrumentation, false, "foo.bar", true)},
+		{in: "parent.resource.foo[]", expected: NewScopedAttribute(AttributeScopeResource, true, "foo", true)},
+		{in: "parent.span.foo[]", expected: NewScopedAttribute(AttributeScopeSpan, true, "foo", true)},
+		{in: "parent.resource.foo.bar.baz[]", expected: NewScopedAttribute(AttributeScopeResource, true, "foo.bar.baz", true)},
+		{in: "parent.span.foo.bar[]", expected: NewScopedAttribute(AttributeScopeSpan, true, "foo.bar", true)},
+		{in: `."bar z".foo[]`, expected: NewAttribute("bar z.foo", true)},
+		{in: `span."bar z".foo[]`, expected: NewScopedAttribute(AttributeScopeSpan, false, "bar z.foo", true)},
+		{in: `."bar z".foo."bar"[]`, expected: NewAttribute("bar z.foo.bar", true)},
+		{in: `.foo."bar baz"[]`, expected: NewAttribute("foo.bar baz", true)},
+		{in: `.foo."bar baz".bar[]`, expected: NewAttribute("foo.bar baz.bar", true)},
+		{in: `.foo."bar \" baz"[]`, expected: NewAttribute(`foo.bar " baz`, true)},
+		{in: `.foo."bar \\ baz"[]`, expected: NewAttribute(`foo.bar \ baz`, true)},
+		{in: `.foo."bar \\"." baz"[]`, expected: NewAttribute(`foo.bar \. baz`, true)},
+		{in: `."foo.bar"[]`, expected: NewAttribute(`foo.bar`, true)},
+		{in: `."🤘"[]`, expected: NewAttribute(`🤘`, true)},
+	}
+
+	runAttributeTests(t, tests)
+}
+
+func runAttributeTests(t *testing.T, tests []struct {
+	in       string
+	expected FieldExpression
+}) {
 	for _, tc := range tests {
 		t.Run(tc.in, func(t *testing.T) {
 			s := "{ " + tc.in + " }"
