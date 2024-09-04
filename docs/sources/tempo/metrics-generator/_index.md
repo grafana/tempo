@@ -68,8 +68,11 @@ When multi-tenancy is enabled, the metrics-generator forwards the `X-Scope-OrgID
 
 ## Native histograms
 
-The metrics-generator supports the ability to produce [native histograms](https://grafana.com/docs/grafana-cloud/whats-new/native-histograms/), for
-high-resolution data. Users must [update the receiving endpoint](https://grafana.com/docs/mimir/latest/configure/configure-native-histograms-ingestion/) to ingest native
-histograms, and [update histogram queries](https://grafana.com/docs/mimir/latest/visualize/native-histograms/) in their dashboards.
+[Native histograms](https://grafana.com/docs/grafana-cloud/whats-new/native-histograms/) are a data type in Prometheus that can produce, store, and query high-resolution histograms of observations.
+It usually offers higher resolution and more straightforward instrumentation than classic histograms.
+
+The metrics-generator supports the ability to produce native histograms for
+high-resolution data. Users must [update the receiving endpoint](https://grafana.com/docs/mimir/<MIMIR_VERSION>/configure/configure-native-histograms-ingestion/) to ingest native
+histograms, and [update histogram queries](https://grafana.com/docs/mimir/<MIMIR_VERSION>/visualize/native-histograms/) in their dashboards.
 
 To learn more about the configuration, refer to the [Metrics-generator]({{< relref "../configuration#metrics-generator" >}}) section of the Tempo Configuration documentation.

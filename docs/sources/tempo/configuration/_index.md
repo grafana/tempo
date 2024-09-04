@@ -33,7 +33,7 @@ The Tempo configuration options include:
     - [Filter policy config](#filter-policy-config)
       - [Filter policy](#filter-policy)
       - [Policy match](#policy-match)
-      - [Examples](#examples) 
+      - [Examples](#examples)
     - [KVStore config](#kvstore-config)
     - [Search config](#search-config)
     - [WAL config](#wal-config)
@@ -200,6 +200,13 @@ distributor:
     # Enable to log every received span to help debug ingestion or calculate span error distributions using the logs
     # This is not recommended for production environments
     log_received_spans:
+        [enabled: <boolean> | default = false]
+        [include_all_attributes: <boolean> | default = false]
+        [filter_by_status_error: <boolean> | default = false]
+
+    # Optional.
+    # Enable to log every discarded span to help debug ingestion or calculate span error distributions using the logs.
+    log_discarded_spans:
         [enabled: <boolean> | default = false]
         [include_all_attributes: <boolean> | default = false]
         [filter_by_status_error: <boolean> | default = false]
@@ -1552,6 +1559,10 @@ overrides:
       # Per-user compaction window. If this value is set to 0 (default),
       # then block_retention in the compactor configuration is used.
       [compaction_window: <duration> | default = 0s]
+      # Allow compaction to be deactivated on a per-tenant basis. Default value
+      # is false (compaction active). Useful to perform operations on the backend
+      # that require compaction to be disabled for a period of time.
+      [compaction_disabled: <bool> | default = false]
 
     # Metrics-generator related overrides
     metrics_generator:
