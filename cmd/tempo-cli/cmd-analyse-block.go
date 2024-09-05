@@ -184,6 +184,7 @@ func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minS
 	// merge dedicated with span attributes
 	for k, v := range resourceDedicatedSummary.attributes {
 		resourceAttrsSummary.attributes[k] = v
+		resourceAttrsSummary.dedicated[k] = struct{}{}
 	}
 	resourceAttrsSummary.totalBytes += spanDedicatedSummary.totalBytes
 
@@ -336,7 +337,7 @@ func printSummary(scope string, max int, summary genericAttrSummary) error {
 	for _, a := range attrList {
 
 		name := a.name
-		if _, ok := summary.dedicated[a.name]; !ok {
+		if _, ok := summary.dedicated[a.name]; ok {
 			name = a.name + " (dedicated)"
 		}
 
