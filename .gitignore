@@ -5,6 +5,7 @@
 *.test
 /bin
 /cmd/tempo-cli/tempo-cli
+/cmd/tempo-query/tempo-query
 /cmd/tempo-serverless/vendor/
 /dist
 /example/docker-compose/**/gcs-data/
