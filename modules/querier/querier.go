@@ -44,7 +44,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
-var tracer = otel.Tracer("querier")
+var tracer = otel.Tracer("modules/querier")
 
 var (
 	metricIngesterClients = promauto.NewGauge(prometheus.GaugeOpts{

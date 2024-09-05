@@ -35,7 +35,7 @@ const (
 	ringNumTokens = 256
 )
 
-var tracer = otel.Tracer("generator")
+var tracer = otel.Tracer("modules/generator")
 
 var (
 	ErrUnconfigured = errors.New("no metrics_generator.storage.path configured, metrics generator will be disabled")

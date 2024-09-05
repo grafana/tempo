@@ -25,7 +25,7 @@ const (
 	targetInfo            = "traces_target_info"
 )
 
-var tracer = otel.Tracer("generator/processor/spanmetrics")
+var tracer = otel.Tracer("modules/generator/processor/spanmetrics")
 
 type Processor struct {
 	Cfg Config

@@ -59,7 +59,7 @@ var (
 	_ storage_v1.SpanWriterPluginServer         = (*Backend)(nil)
 )
 
-var tracer = otel.Tracer("tempo-query")
+var tracer = otel.Tracer("cmd/tempo-query")
 
 type Backend struct {
 	tempoBackend          string

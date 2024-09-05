@@ -297,11 +297,12 @@ func withSpan(logger gklog.Logger, sp trace.Span) gklog.Logger {
 	if sp == nil {
 		return logger
 	}
-	if !sp.SpanContext().IsSampled() {
+	sctx := sp.SpanContext()
+	if !sctx.IsSampled() {
 		return logger
 	}
 
-	return gklog.With(logger, "traceID", sp.SpanContext().TraceID().String())
+	return gklog.With(logger, "traceID", sctx.TraceID().String())
 }
 
 func (i *Ingester) handleFlush(ctx context.Context, userID string, blockID uuid.UUID) (retry bool, err error) {

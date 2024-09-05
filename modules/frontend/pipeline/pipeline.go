@@ -8,7 +8,7 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
-var tracer = otel.Tracer("frontend/pipeline")
+var tracer = otel.Tracer("modules/frontend/pipeline")
 
 type Request interface {
 	HTTPRequest() *http.Request

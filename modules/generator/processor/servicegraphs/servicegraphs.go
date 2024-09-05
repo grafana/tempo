@@ -27,7 +27,7 @@ import (
 	tempo_util "github.com/grafana/tempo/pkg/util"
 )
 
-var tracer = otel.Tracer("generator/processor/servicegraphs")
+var tracer = otel.Tracer("modules/generator/processor/servicegraphs")
 
 var (
 	metricDroppedSpans = promauto.NewCounterVec(prometheus.CounterOpts{

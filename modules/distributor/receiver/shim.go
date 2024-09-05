@@ -63,7 +63,7 @@ var (
 	statReceiverKafka      = usagestats.NewInt("receiver_enabled_kafka")
 )
 
-var tracer = otel.Tracer("distributor/receiver")
+var tracer = otel.Tracer("modules/distributor/receiver")
 
 type RetryableError struct {
 	err error

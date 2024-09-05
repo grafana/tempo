@@ -32,7 +32,7 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
-var tracer = otel.Tracer("generator/processor/localblocks")
+var tracer = otel.Tracer("modules/generator/processor/localblocks")
 
 const timeBuffer = 5 * time.Minute
 

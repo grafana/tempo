@@ -12,7 +12,7 @@ const (
 	DataFileName = "data.parquet"
 )
 
-var tracer = otel.Tracer("tempodb/encoding/vparquet")
+var tracer = otel.Tracer("tempodb/encoding/vparquet4")
 
 type backendBlock struct {
 	meta *backend.BlockMeta

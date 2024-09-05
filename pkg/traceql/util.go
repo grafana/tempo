@@ -5,7 +5,7 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
-var tracer = otel.Tracer("traceql")
+var tracer = otel.Tracer("pkg/traceql")
 
 func MakeCollectTagValueFunc(collect func(tempopb.TagValue) bool) func(v Static) bool {
 	return func(v Static) bool {

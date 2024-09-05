@@ -37,7 +37,7 @@ type RowNumber [8]int32
 
 const MaxDefinitionLevel = 7
 
-var tracer = otel.Tracer("parquetquery")
+var tracer = otel.Tracer("pkg/parquetquery")
 
 // EmptyRowNumber creates an empty invalid row number.
 func EmptyRowNumber() RowNumber {
@@ -1333,6 +1333,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 		span.SetAttributes(attribute.Int64("keptColumnChunks", c.filter.KeptColumnChunks))
 		span.SetAttributes(attribute.Int64("keptPages", c.filter.KeptPages))
 		span.SetAttributes(attribute.Int64("keptValues", c.filter.KeptValues))
+		span.End()
 	}()
 
 	rn := EmptyRowNumber()

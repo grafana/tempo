@@ -46,7 +46,7 @@ var metricFlushQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
 	Help:      "The total number of series pending in the flush queue.",
 })
 
-var tracer = otel.Tracer("ingester")
+var tracer = otel.Tracer("modules/ingester")
 
 const (
 	ingesterRingKey = "ring"

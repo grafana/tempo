@@ -26,7 +26,7 @@ import (
 
 var errConflictingRuntimeOverrides = errors.New("tenant has conflicting overrides set in runtime config, contact your system administrator to perform changes through the API")
 
-var tracer = otel.Tracer("overrides/userconfigurable/api")
+var tracer = otel.Tracer("modules/overrides/userconfigurable/api")
 
 type Validator interface {
 	Validate(limits *client.Limits) error

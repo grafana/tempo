@@ -30,7 +30,7 @@ const (
 	OverridesFileName = "overrides.json"
 )
 
-var tracer = otel.Tracer("overrides/userconfigurable/client")
+var tracer = otel.Tracer("modules/overrides/userconfigurable/client")
 
 var (
 	metricList = promauto.NewCounter(prometheus.CounterOpts{

@@ -7,7 +7,7 @@ import (
 
 const wildcardTenant = "*"
 
-var tracer = otel.Tracer("overrides")
+var tracer = otel.Tracer("modules/overrides")
 
 var metricOverridesLimitsDesc = prometheus.NewDesc(
 	"tempo_limits_overrides",

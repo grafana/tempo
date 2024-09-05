@@ -58,6 +58,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	fetchSpansRequest := e.createFetchSpansRequest(searchReq, rootExpr.Pipeline)
 
 	span.SetAttributes(attribute.String("pipeline", rootExpr.Pipeline.String()))
+	span.SetAttributes(attribute.String("fetchSpansRequest", fmt.Sprint(fetchSpansRequest)))
 
 	// calculate search meta conditions.
 	meta := SearchMetaConditionsWithout(fetchSpansRequest.Conditions, fetchSpansRequest.AllConditions)
@@ -166,6 +167,7 @@ func (e *Engine) ExecuteTagValues(
 	autocompleteReq := e.createAutocompleteRequest(tag, rootExpr.Pipeline)
 
 	span.SetAttributes(attribute.String("pipeline", rootExpr.Pipeline.String()))
+	span.SetAttributes(attribute.String("autocompleteReq", fmt.Sprint(autocompleteReq)))
 
 	return fetcher.Fetch(ctx, autocompleteReq, cb)
 }

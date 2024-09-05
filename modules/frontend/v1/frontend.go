@@ -26,7 +26,7 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 )
 
-var tracer = otel.Tracer("frontend/v1")
+var tracer = otel.Tracer("modules/frontend/v1")
 
 // Config for a Frontend.
 type Config struct {

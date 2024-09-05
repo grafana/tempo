@@ -115,7 +115,7 @@ var (
 	statSpansReceived = usagestats.NewCounter("distributor_spans_received")
 )
 
-var tracer = otel.Tracer("distributor")
+var tracer = otel.Tracer("modules/distributor")
 
 // rebatchedTrace is used to more cleanly pass the set of data
 type rebatchedTrace struct {

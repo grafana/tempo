@@ -34,10 +34,11 @@ const (
 )
 
 func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool, err error) {
-	derivedCtx, span := tracer.Start(ctx, "parquet.backendBlock.checkBloom", trace.WithAttributes(
-		attribute.String("blockID", b.meta.BlockID.String()),
-		attribute.String("tenantID", b.meta.TenantID),
-	))
+	derivedCtx, span := tracer.Start(ctx, "parquet.backendBlock.checkBloom",
+		trace.WithAttributes(
+			attribute.String("blockID", b.meta.BlockID.String()),
+			attribute.String("tenantID", b.meta.TenantID),
+		))
 	defer span.End()
 
 	shardKey := common.ShardKeyForTraceID(id, int(b.meta.BloomShardCount))
@@ -67,10 +68,11 @@ func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int,
 		return true, -1, nil
 	}
 
-	derivedCtx, span := tracer.Start(ctx, "parquet3.backendBlock.checkIndex", trace.WithAttributes(
-		attribute.String("blockID", b.meta.BlockID.String()),
-		attribute.String("tenantID", b.meta.TenantID),
-	))
+	derivedCtx, span := tracer.Start(ctx, "parquet4.backendBlock.checkIndex",
+		trace.WithAttributes(
+			attribute.String("blockID", b.meta.BlockID.String()),
+			attribute.String("tenantID", b.meta.TenantID),
+		))
 	defer span.End()
 
 	indexBytes, err := b.r.Read(derivedCtx, common.NameIndex, b.meta.BlockID, b.meta.TenantID, &backend.CacheInfo{
@@ -99,11 +101,12 @@ func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int,
 }
 
 func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opts common.SearchOptions) (_ *tempopb.Trace, err error) {
-	derivedCtx, span := tracer.Start(ctx, "parquet.backendBlock.FindTraceByID", trace.WithAttributes(
-		attribute.String("blockID", b.meta.BlockID.String()),
-		attribute.String("tenantID", b.meta.TenantID),
-		attribute.Int64("blockSize", int64(b.meta.Size)),
-	))
+	derivedCtx, span := tracer.Start(ctx, "parquet.backendBlock.FindTraceByID",
+		trace.WithAttributes(
+			attribute.String("blockID", b.meta.BlockID.String()),
+			attribute.String("tenantID", b.meta.TenantID),
+			attribute.Int64("blockSize", int64(b.meta.Size)),
+		))
 	defer span.End()
 
 	found, err := b.checkBloom(derivedCtx, traceID)

@@ -21,7 +21,7 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 )
 
-var tracer = otel.Tracer("querier/worker")
+var tracer = otel.Tracer("modules/querier/worker")
 
 type Config struct {
 	FrontendAddress string        `yaml:"frontend_address"`
