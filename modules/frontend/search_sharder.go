@@ -9,7 +9,6 @@ import (
 	"github.com/go-kit/log" //nolint:all deprecated
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/dskit/user"
-	"github.com/opentracing/opentracing-go"
 	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
@@ -83,8 +82,8 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}
-	span, ctx := opentracing.StartSpanFromContext(requestCtx, "frontend.ShardSearch")
-	defer span.Finish()
+	ctx, span := tracer.Start(requestCtx, "frontend.ShardSearch")
+	defer span.End()
 
 	// calculate and enforce max search duration
 	maxDuration := s.maxDuration(tenantID)

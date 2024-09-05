@@ -37,7 +37,6 @@ type Config struct {
 	ShutdownDelay          time.Duration `yaml:"shutdown_delay,omitempty"`
 	StreamOverHTTPEnabled  bool          `yaml:"stream_over_http_enabled,omitempty"`
 	HTTPAPIPrefix          string        `yaml:"http_api_prefix"`
-	UseOTelTracer          bool          `yaml:"use_otel_tracer,omitempty"`
 	EnableGoRuntimeMetrics bool          `yaml:"enable_go_runtime_metrics,omitempty"`
 
 	Server          server.Config           `yaml:"server,omitempty"`
@@ -73,7 +72,6 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.BoolVar(&c.AuthEnabled, "auth.enabled", false, "Set to true to enable auth (deprecated: use multitenancy.enabled)")
 	f.BoolVar(&c.MultitenancyEnabled, "multitenancy.enabled", false, "Set to true to enable multitenancy.")
 	f.StringVar(&c.HTTPAPIPrefix, "http-api-prefix", "", "String prefix for all http api endpoints.")
-	f.BoolVar(&c.UseOTelTracer, "use-otel-tracer", false, "Set to true to replace the OpenTracing tracer with the OpenTelemetry tracer")
 	f.BoolVar(&c.EnableGoRuntimeMetrics, "enable-go-runtime-metrics", false, "Set to true to enable all Go runtime metrics")
 	f.DurationVar(&c.ShutdownDelay, "shutdown-delay", 0, "How long to wait between SIGTERM and shutdown. After receiving SIGTERM, Tempo will report not-ready status via /ready endpoint.")
 

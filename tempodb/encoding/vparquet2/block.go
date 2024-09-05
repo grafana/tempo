@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/grafana/tempo/pkg/traceql"
+	"go.opentelemetry.io/otel"
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -13,6 +14,8 @@ import (
 const (
 	DataFileName = "data.parquet"
 )
+
+var tracer = otel.Tracer("tempodb/encoding/vparquet2")
 
 type backendBlock struct {
 	meta *backend.BlockMeta

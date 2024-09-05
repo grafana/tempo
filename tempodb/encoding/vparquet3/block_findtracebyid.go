@@ -8,9 +8,10 @@ import (
 	"io"
 	"os"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/parquet-go/parquet-go"
 	"github.com/willf/bloom"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/parquetquery"
@@ -33,16 +34,16 @@ const (
 )
 
 func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool, err error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.checkBloom",
-		opentracing.Tags{
-			"blockID":  b.meta.BlockID,
-			"tenantID": b.meta.TenantID,
-		})
-	defer span.Finish()
+	derivedCtx, span := tracer.Start(ctx, "parquet.backendBlock.checkBloom",
+		trace.WithAttributes(
+			attribute.String("blockID", b.meta.BlockID.String()),
+			attribute.String("tenantID", b.meta.TenantID),
+		))
+	defer span.End()
 
 	shardKey := common.ShardKeyForTraceID(id, int(b.meta.BloomShardCount))
 	nameBloom := common.BloomName(shardKey)
-	span.SetTag("bloom", nameBloom)
+	span.SetAttributes(attribute.String("bloom", nameBloom))
 
 	bloomBytes, err := b.r.Read(derivedCtx, nameBloom, b.meta.BlockID, b.meta.TenantID, &backend.CacheInfo{
 		Meta: b.meta,
@@ -67,12 +68,12 @@ func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int,
 		return true, -1, nil
 	}
 
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet3.backendBlock.checkIndex",
-		opentracing.Tags{
-			"blockID":  b.meta.BlockID,
-			"tenantID": b.meta.TenantID,
-		})
-	defer span.Finish()
+	derivedCtx, span := tracer.Start(ctx, "parquet3.backendBlock.checkIndex",
+		trace.WithAttributes(
+			attribute.String("blockID", b.meta.BlockID.String()),
+			attribute.String("tenantID", b.meta.TenantID),
+		))
+	defer span.End()
 
 	indexBytes, err := b.r.Read(derivedCtx, common.NameIndex, b.meta.BlockID, b.meta.TenantID, &backend.CacheInfo{
 		Meta: b.meta,
@@ -100,13 +101,13 @@ func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int,
 }
 
 func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opts common.SearchOptions) (_ *tempopb.Trace, err error) {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.FindTraceByID",
-		opentracing.Tags{
-			"blockID":   b.meta.BlockID,
-			"tenantID":  b.meta.TenantID,
-			"blockSize": b.meta.Size,
-		})
-	defer span.Finish()
+	derivedCtx, span := tracer.Start(ctx, "parquet.backendBlock.FindTraceByID",
+		trace.WithAttributes(
+			attribute.String("blockID", b.meta.BlockID.String()),
+			attribute.String("tenantID", b.meta.TenantID),
+			attribute.Int64("blockSize", int64(b.meta.Size)),
+		))
+	defer span.End()
 
 	found, err := b.checkBloom(derivedCtx, traceID)
 	if err != nil {
@@ -129,7 +130,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
 	defer func() {
-		span.SetTag("inspectedBytes", rr.BytesRead())
+		span.SetAttributes(attribute.Int64("inspectedBytes", int64(rr.BytesRead())))
 	}()
 
 	return findTraceByID(derivedCtx, traceID, b.meta, pf, rowGroup)

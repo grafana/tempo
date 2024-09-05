@@ -11,9 +11,11 @@ import (
 
 	"github.com/go-kit/log/level"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -27,6 +29,8 @@ const (
 	OverridesKeyPath  = "overrides"
 	OverridesFileName = "overrides.json"
 )
+
+var tracer = otel.Tracer("modules/overrides/userconfigurable/client")
 
 var (
 	metricList = promauto.NewCounter(prometheus.CounterOpts{
@@ -143,8 +147,8 @@ func initBackend(cfg *Config) (rw backend.VersionedReaderWriter, err error) {
 }
 
 func (o *clientImpl) List(ctx context.Context) ([]string, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "clientImpl.List")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "clientImpl.List")
+	defer span.End()
 
 	metricList.Inc()
 
@@ -152,8 +156,8 @@ func (o *clientImpl) List(ctx context.Context) ([]string, error) {
 }
 
 func (o *clientImpl) Get(ctx context.Context, userID string) (tenantLimits *Limits, version backend.Version, err error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "clientImpl.Get", opentracing.Tag{Key: "tenant", Value: userID})
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "clientImpl.Get", trace.WithAttributes(attribute.String("tenant", userID)))
+	defer span.End()
 
 	metricFetch.WithLabelValues(userID).Inc()
 	defer func() {
@@ -174,8 +178,8 @@ func (o *clientImpl) Get(ctx context.Context, userID string) (tenantLimits *Limi
 }
 
 func (o *clientImpl) Set(ctx context.Context, userID string, limits *Limits, version backend.Version) (backend.Version, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "clientImpl.Set", opentracing.Tag{Key: "tenant", Value: userID})
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "clientImpl.Set", trace.WithAttributes(attribute.String("tenant", userID)))
+	defer span.End()
 
 	data, err := jsoniter.Marshal(limits)
 	if err != nil {
@@ -186,8 +190,8 @@ func (o *clientImpl) Set(ctx context.Context, userID string, limits *Limits, ver
 }
 
 func (o *clientImpl) Delete(ctx context.Context, userID string, version backend.Version) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "clientImpl.Delete", opentracing.Tag{Key: "tenant", Value: userID})
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "clientImpl.Delete", trace.WithAttributes(attribute.String("tenant", userID)))
+	defer span.End()
 
 	return o.rw.DeleteVersioned(ctx, OverridesFileName, []string{OverridesKeyPath, userID}, version)
 }

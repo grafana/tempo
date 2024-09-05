@@ -5,8 +5,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/opentracing/opentracing-go"
 	willf_bloom "github.com/willf/bloom"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/model"
@@ -38,15 +39,16 @@ func NewBackendBlock(meta *backend.BlockMeta, r backend.Reader) (*BackendBlock, 
 // Find searches a block for the ID and returns an object if found.
 func (b *BackendBlock) find(ctx context.Context, id common.ID) ([]byte, error) {
 	var err error
-	span, ctx := opentracing.StartSpanFromContext(ctx, "BackendBlock.find")
+	ctx, span := tracer.Start(ctx, "BackendBlock.find")
 	defer func() {
 		if err != nil {
-			span.SetTag("error", true)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "")
 		}
-		span.Finish()
+		span.End()
 	}()
 
-	span.SetTag("block", b.meta.BlockID.String())
+	span.SetAttributes(attribute.String("block", b.meta.BlockID.String()))
 
 	shardKey := common.ShardKeyForTraceID(id, int(b.meta.BloomShardCount))
 	blockID := b.meta.BlockID
@@ -126,8 +128,8 @@ func (b *BackendBlock) BlockMeta() *backend.BlockMeta {
 }
 
 func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "BackendBlock.FindTraceByID")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "BackendBlock.FindTraceByID")
+	defer span.End()
 
 	obj, err := b.find(ctx, id)
 	if err != nil {
