@@ -2,7 +2,8 @@
 
 * **BREAKING CHANGE** tempo-query is no longer a jaeger instance with grpcPlugin. Its now a standalone server. Serving a grpc api for jaeger on `0.0.0.0:7777` by default. [#3840](https://github.com/grafana/tempo/issues/3840) (@frzifus)
 * [CHANGE] **BREAKING CHANGE** The dynamic injection of X-Scope-OrgID header for metrics generator remote-writes is changed. If the header is aleady set in per-tenant overrides or global tempo configuration, then it is honored and not overwritten. [#4021](https://github.com/grafana/tempo/pull/4021) (@mdisibio)
-* [CHANGE] **BREAKING CHANGE** Migrate from OpenTracing to OpenTelemetry instrumentation. Use the OpenTelemetry environment variables to configure the span exporter [#3646](https://github.com/grafana/tempo/pull/3646) (@andreasgerstmayr)
+* [CHANGE] **BREAKING CHANGE** Migrate from OpenTracing to OpenTelemetry instrumentation. Removed the `use_otel_tracer` configuration option. Use the OpenTelemetry environment variables to configure the span exporter [#3646](https://github.com/grafana/tempo/pull/3646) (@andreasgerstmayr)
+  To continue using the Jaeger exporter, use the following environment variable: `OTEL_TRACES_EXPORTER=jaeger`.
 * [FEATURE] Discarded span logging `log_discarded_spans` [#3957](https://github.com/grafana/tempo/issues/3957) (@dastrobu)
 * [FEATURE] TraceQL support for instrumentation scope [#3967](https://github.com/grafana/tempo/pull/3967) (@ie-pham)
 * [ENHANCEMENT] TraceQL: Attribute iterators collect matched array values [#3867](https://github.com/grafana/tempo/pull/3867) (@electron0zero, @stoewer)
