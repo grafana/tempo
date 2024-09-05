@@ -66,21 +66,19 @@ Queries select sets of spans and filter them through a pipeline of aggregators a
 
 ## Selecting spans
 
-In TraceQL, curly brackets `{}` always select a set of spans from the current trace. They are commonly paired with a condition to reduce the spans being passed in.
+In TraceQL, curly brackets `{}` always select a set of spans from the current trace.
+They are commonly paired with a condition to reduce the spans being passed in.
 
 TraceQL differentiates between two types of span data: intrinsics, which are fundamental to spans, and attributes, which are customizable key-value pairs.
 You can use intrinsics and attributes to build filters and select spans.
+
+{{< youtube id="aIDkPJ_e3W4" >}}
 
 Intrinsic fields are fundamental to scopes.
 Intrinsics are inherently present, as opposed to other key-value pairs (attributes) that are added by a developer.
 
 Intrinsics are always indicated using a `<scope>:`.
 Refer to the Intrinsics table for all current intrinsics.
-
-Custom attributes are prefixed with <scope>. such as `span.`,  `resource.` , `link.`, or `event`.
-Resource has no intrinsic values.
-It only has custom attributes.
-The `trace` scope is only an intrinsic and doesn't have any custom attributes at the trace level.
 
 Intrinsics example:
 ```
@@ -89,6 +87,11 @@ Intrinsics example:
 { trace:id = "1234" }
 { link:traceID = "1234" }
 ```
+
+Custom attributes are prefixed with `<scope>.`, such as `span.`,  `resource.` , `link.`, or `event`.
+Resource has no intrinsic values.
+It only has custom attributes.
+The `trace` scope is only an intrinsic and doesn't have any custom attributes at the trace level.
 
 Attributes example:
 ```
@@ -137,7 +140,6 @@ This example searches all Kubernetes clusters called `service-name` that have a 
 ```
 { resource.k8s.cluster.name="service-name" && trace:rootName !~ ".*perf.*"}
 ```
-
 
 ### Attribute fields
 
