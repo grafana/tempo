@@ -81,7 +81,12 @@ Provide feedback, report bugs, and raise issues in the [Grafana Killercoda repos
    docker compose up -d
    ```
 
-1. Verify that the services are running using `docker compose ps`. You should see something like:
+2. Verify that the services are running.
+   ```bash
+   docker compose ps
+   ``` 
+   
+   You should see something like:
    ```console
    docker compose ps
    NAME                 COMMAND                  SERVICE             STATUS              PORTS
