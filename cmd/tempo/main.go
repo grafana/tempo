@@ -15,7 +15,6 @@ import (
 	"github.com/grafana/dskit/flagext"
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/spanprofiler"
-	"github.com/grafana/dskit/tracing"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	ver "github.com/prometheus/client_golang/prometheus/collectors/version"
@@ -95,18 +94,15 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Init tracer
-	var shutdownTracer func()
-	if config.UseOTelTracer {
-		shutdownTracer, err = installOpenTelemetryTracer(config)
-	} else {
-		shutdownTracer, err = installOpenTracingTracer(config)
+	// Init tracer if OTEL_TRACES_EXPORTER, OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT is set
+	if os.Getenv("OTEL_TRACES_EXPORTER") != "" || os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" || os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != "" {
+		shutdownTracer, err := installOpenTelemetryTracer(config)
+		if err != nil {
+			level.Error(log.Logger).Log("msg", "error initialising tracer", "err", err)
+			os.Exit(1)
+		}
+		defer shutdownTracer()
 	}
-	if err != nil {
-		level.Error(log.Logger).Log("msg", "error initialising tracer", "err", err)
-		os.Exit(1)
-	}
-	defer shutdownTracer()
 
 	if *mutexProfileFraction > 0 {
 		runtime.SetMutexProfileFraction(*mutexProfileFraction)
@@ -228,29 +224,8 @@ func loadConfig() (*app.Config, bool, error) {
 	return config, configVerify, nil
 }
 
-func installOpenTracingTracer(config *app.Config) (func(), error) {
-	level.Info(log.Logger).Log("msg", "initialising OpenTracing tracer")
-
-	// Setting the environment variable JAEGER_AGENT_HOST enables tracing
-	trace, err := tracing.NewFromEnv(fmt.Sprintf("%s-%s", appName, config.Target))
-	if err != nil {
-		return nil, fmt.Errorf("error initialising tracer: %w", err)
-	}
-	ot.SetGlobalTracer(spanprofiler.NewTracer(ot.GlobalTracer()))
-
-	return func() {
-		if err := trace.Close(); err != nil {
-			level.Error(log.Logger).Log("msg", "error closing tracing", "err", err)
-			os.Exit(1)
-		}
-	}, nil
-}
-
 func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 	level.Info(log.Logger).Log("msg", "initialising OpenTelemetry tracer")
-
-	// for now, migrate OpenTracing Jaeger environment variables
-	migrateJaegerEnvironmentVariables()
 
 	exp, err := autoexport.NewSpanExporter(context.Background())
 	if err != nil {
@@ -302,36 +277,6 @@ func installOpenTelemetryTracer(config *app.Config) (func(), error) {
 	oc_bridge.InstallTraceBridge(oc_bridge.WithTracerProvider(tp))
 
 	return shutdown, nil
-}
-
-func migrateJaegerEnvironmentVariables() {
-	if _, ok := os.LookupEnv("OTEL_TRACES_EXPORTER"); !ok {
-		os.Setenv("OTEL_TRACES_EXPORTER", "jaeger")
-	}
-
-	// jaeger-tracing-go: https://github.com/jaegertracing/jaeger-client-go#environment-variables
-	// opentelemetry-go: https://github.com/open-telemetry/opentelemetry-go/tree/main/exporters/jaeger#environment-variables
-	jaegerToOtel := map[string]string{
-		"JAEGER_AGENT_HOST": "OTEL_EXPORTER_JAEGER_AGENT_HOST",
-		"JAEGER_AGENT_PORT": "OTEL_EXPORTER_JAEGER_AGENT_PORT",
-		"JAEGER_ENDPOINT":   "OTEL_EXPORTER_JAEGER_ENDPOINT",
-		"JAEGER_USER":       "OTEL_EXPORTER_JAEGER_USER",
-		"JAEGER_PASSWORD":   "OTEL_EXPORTER_JAEGER_PASSWORD",
-		"JAEGER_TAGS":       "OTEL_RESOURCE_ATTRIBUTES",
-	}
-	for jaegerKey, otelKey := range jaegerToOtel {
-		value, jaegerOk := os.LookupEnv(jaegerKey)
-		_, otelOk := os.LookupEnv(otelKey)
-
-		if jaegerOk && !otelOk {
-			level.Warn(log.Logger).Log("msg", "migrating Jaeger environment variable, consider using native OpenTelemetry variables", "jaeger", jaegerKey, "otel", otelKey)
-			_ = os.Setenv(otelKey, value)
-		}
-	}
-
-	if _, ok := os.LookupEnv("JAEGER_SAMPLER_TYPE"); ok {
-		level.Warn(log.Logger).Log("msg", "JAEGER_SAMPLER_TYPE is not supported with the OpenTelemetry tracer, no sampling will be performed")
-	}
 }
 
 type otelErrorHandlerFunc func(error)

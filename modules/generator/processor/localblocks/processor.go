@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/tempodb"
+	"go.opentelemetry.io/otel"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/pkg/model"
@@ -30,6 +31,8 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 )
+
+var tracer = otel.Tracer("modules/generator/processor/localblocks")
 
 const timeBuffer = 5 * time.Minute
 

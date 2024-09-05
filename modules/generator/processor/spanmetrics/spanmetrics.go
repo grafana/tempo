@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/prometheus/util/strutil"
+	"go.opentelemetry.io/otel"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
@@ -24,6 +24,8 @@ const (
 	metricSizeTotal       = "traces_spanmetrics_size_total"
 	targetInfo            = "traces_target_info"
 )
+
+var tracer = otel.Tracer("modules/generator/processor/spanmetrics")
 
 type Processor struct {
 	Cfg Config
@@ -104,8 +106,8 @@ func (p *Processor) Name() string {
 }
 
 func (p *Processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "spanmetrics.PushSpans")
-	defer span.Finish()
+	_, span := tracer.Start(ctx, "spanmetrics.PushSpans")
+	defer span.End()
 
 	p.aggregateMetrics(req.Batches)
 }

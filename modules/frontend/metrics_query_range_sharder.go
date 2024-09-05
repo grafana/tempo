@@ -12,8 +12,8 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/dskit/user"
-	"github.com/opentracing/opentracing-go"
 	"github.com/segmentio/fasthash/fnv1a"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
@@ -61,8 +61,8 @@ func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg
 func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 	r := pipelineRequest.HTTPRequest()
 
-	span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.QueryRangeSharder")
-	defer span.Finish()
+	ctx, span := tracer.Start(r.Context(), "frontend.QueryRangeSharder")
+	defer span.End()
 
 	req, err := api.ParseQueryRangeRequest(r)
 	if err != nil {
@@ -108,9 +108,9 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 
 	totalJobs, totalBlocks, totalBlockBytes := s.backendRequests(ctx, tenantID, r, *req, cutoff, targetBytesPerRequest, reqCh)
 
-	span.SetTag("totalJobs", totalJobs)
-	span.SetTag("totalBlocks", totalBlocks)
-	span.SetTag("totalBlockBytes", totalBlockBytes)
+	span.SetAttributes(attribute.Int64("totalJobs", int64(totalJobs)))
+	span.SetAttributes(attribute.Int64("totalBlocks", int64(totalBlocks)))
+	span.SetAttributes(attribute.Int64("totalBlockBytes", int64(totalBlockBytes)))
 
 	// send a job to communicate the search metrics. this is consumed by the combiner to calculate totalblocks/bytes/jobs
 	var jobMetricsResponse pipeline.Responses[combiner.PipelineResponse]

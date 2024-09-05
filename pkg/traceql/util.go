@@ -2,7 +2,10 @@ package traceql
 
 import (
 	"github.com/grafana/tempo/pkg/tempopb"
+	"go.opentelemetry.io/otel"
 )
+
+var tracer = otel.Tracer("pkg/traceql")
 
 func MakeCollectTagValueFunc(collect func(tempopb.TagValue) bool) func(v Static) bool {
 	return func(v Static) bool {

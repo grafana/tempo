@@ -10,12 +10,13 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/flagext"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/dskit/user"
-	"github.com/opentracing/opentracing-go"
 
 	"github.com/grafana/tempo/pkg/util/tracing"
 )
@@ -62,9 +63,9 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	// add orgid to existing spans
-	span := opentracing.SpanFromContext(r.Context())
+	span := trace.SpanFromContext(r.Context())
 	if span != nil {
-		span.SetTag("orgID", orgID)
+		span.SetAttributes(attribute.String("orgID", orgID))
 	}
 
 	resp, err := f.roundTripper.RoundTrip(r)

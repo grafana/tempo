@@ -7,7 +7,6 @@ import (
 
 	"github.com/go-kit/log" //nolint:all //deprecated
 	"github.com/grafana/dskit/user"
-	"github.com/opentracing/opentracing-go"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
@@ -43,8 +42,8 @@ func newAsyncTraceIDSharder(cfg *TraceByIDConfig, logger log.Logger) pipeline.As
 func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 	r := pipelineRequest.HTTPRequest()
 
-	span, ctx := opentracing.StartSpanFromContext(r.Context(), "frontend.ShardQuery")
-	defer span.Finish()
+	ctx, span := tracer.Start(r.Context(), "frontend.ShardQuery")
+	defer span.End()
 	r = r.WithContext(ctx)
 
 	reqs, err := s.buildShardedRequests(ctx, r)
