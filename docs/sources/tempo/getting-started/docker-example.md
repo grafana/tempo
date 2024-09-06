@@ -57,7 +57,9 @@ Provide feedback, report bugs, and raise issues in the [Grafana Killercoda repos
 <!-- INTERACTIVE ignore END -->
 
 {{<docs/ignore>}}
-> **Note**: A setup script is running in the background to install the necessary dependencies. This should take no longer than 30 seconds. Your instance will be ready to use once you `Setup complete. You may now begin the tutorial`.
+{{< admonition type="tip" >}}
+A setup script is running in the background to install the necessary dependencies. This should take no longer than 30 seconds. Your instance will be ready to use once you `Setup complete. You may now begin the tutorial`.
+{{< /admonition >}}
 {{</docs/ignore>}}
 
 <!-- INTERACTIVE page intro.md END -->
