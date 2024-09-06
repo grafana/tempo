@@ -12,7 +12,7 @@ killercoda:
   preprocessing:
     substitutions:
       - regexp: ../../
-        replacement: docs/tempo/latest/
+        replacement: /docs/tempo/latest/
       - regexp: '{{< relref "./instrumentation" >}}'
         replacement: https://grafana.com/docs/tempo/latest/getting-started/instrumentation
       - regexp: '{{< relref "../setup" >}}'
