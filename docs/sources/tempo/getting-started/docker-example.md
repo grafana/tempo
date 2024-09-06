@@ -16,7 +16,7 @@ killercoda:
       - regexp: '{{< relref "./instrumentation" >}}'
         replacement: https://grafana.com/docs/tempo/latest/getting-started/instrumentation/
       - regexp: '{{< relref "../setup" >}}'
-        replacement: https://grafana.com/docs/tempo/latest/setup
+        replacement: https://grafana.com/docs/tempo/latest/setup/
   backend:
     imageid: ubuntu
 ---
