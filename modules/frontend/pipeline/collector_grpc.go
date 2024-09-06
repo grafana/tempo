@@ -63,8 +63,8 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 		return grpcError(err)
 	}
 
-	// send a final, complete response
-	resp, err := c.combiner.GRPCFinal()
+	// send the final diff if there is anything left
+	resp, err := c.combiner.GRPCDiff()
 	if err != nil {
 		return grpcError(err)
 	}
