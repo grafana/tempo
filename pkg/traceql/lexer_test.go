@@ -15,7 +15,7 @@ type lexerTestCase struct {
 }
 
 func TestLexerAttributes(t *testing.T) {
-	testLexer(t, ([]lexerTestCase{
+	testLexer(t, []lexerTestCase{
 		// attributes
 		{`.foo`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`."foo".baz."bar"`, []int{DOT, IDENTIFIER, END_ATTRIBUTE}},
@@ -76,7 +76,7 @@ func TestLexerAttributes(t *testing.T) {
 		{`parent.resource.foo3`, []int{PARENT_DOT, RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`parent.resource.foo+bar`, []int{PARENT_DOT, RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`parent.resource.foo-bar`, []int{PARENT_DOT, RESOURCE_DOT, IDENTIFIER, END_ATTRIBUTE}},
-		// attribute enders: <space>, {, }, (, ), <comma> all force end an attribute
+		// attribute enders: <space>, {, }, (, ), [,] <comma> all force end an attribute
 		{`.foo .bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE, DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`.foo}.bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE, CLOSE_BRACE, DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`.foo{.bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE, OPEN_BRACE, DOT, IDENTIFIER, END_ATTRIBUTE}},
@@ -84,14 +84,80 @@ func TestLexerAttributes(t *testing.T) {
 		{`.foo(.bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE, OPEN_PARENS, DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`.foo,.bar`, []int{DOT, IDENTIFIER, END_ATTRIBUTE, COMMA, DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`. foo`, []int{DOT, END_ATTRIBUTE, IDENTIFIER}},
+		{`.[foo`, []int{DOT, END_ATTRIBUTE, IDENTIFIER}},
+		// FIXME: dig and fix this test??
+		// {`.]foo`, []int{DOT, END_ATTRIBUTE, IDENTIFIER}},
 		// not attributes
 		{`.3`, []int{FLOAT}},
 		{`.24h`, []int{DURATION}},
-	}))
+	})
+}
+
+func TestLexerAttributesArray(t *testing.T) {
+	testLexer(t, []lexerTestCase{
+		// attributes with array
+		{`.foo[]`, []int{DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`."foo".baz."bar"[]`, []int{DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`.foo."bar \" baz"."bar"[]`, []int{DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`.foo."baz \\".bar[]`, []int{DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`."foo.bar"[]`, []int{DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`.count[]`, []int{DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`.foo3[]`, []int{DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`.foo+bar[]`, []int{DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`.foo-bar[]`, []int{DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		// parent attributes with array
+		{`parent.foo[]`, []int{PARENT_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`parent.count[]`, []int{PARENT_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`parent.foo3[]`, []int{PARENT_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`parent.foo+bar[]`, []int{PARENT_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`parent.foo-bar[]`, []int{PARENT_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		// span attributes with array
+		{`span.foo[]`, []int{SPAN_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`span.count[]`, []int{SPAN_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`span.foo3[]`, []int{SPAN_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`span.foo+bar[]`, []int{SPAN_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`span.foo-bar[]`, []int{SPAN_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		// resource attributes with array
+		{`resource.foo[]`, []int{RESOURCE_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`resource.count[]`, []int{RESOURCE_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`resource.foo3[]`, []int{RESOURCE_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`resource.foo+bar[]`, []int{RESOURCE_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`resource.foo-bar[]`, []int{RESOURCE_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		// event attributes with array
+		{`event.foo[]`, []int{EVENT_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`event.count[]`, []int{EVENT_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`event.foo3[]`, []int{EVENT_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`event.foo+bar[]`, []int{EVENT_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`event.foo-bar[]`, []int{EVENT_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		// link attributes with array
+		{`link.foo[]`, []int{LINK_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`link.count[]`, []int{LINK_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`link.foo3[]`, []int{LINK_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`link.foo+bar[]`, []int{LINK_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`link.foo-bar[]`, []int{LINK_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		// instrumentation attributes with array
+		{`instrumentation.foo[]`, []int{INSTRUMENTATION_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`instrumentation.count[]`, []int{INSTRUMENTATION_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`instrumentation.foo3[]`, []int{INSTRUMENTATION_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`instrumentation.foo+bar[]`, []int{INSTRUMENTATION_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`instrumentation.foo-bar[]`, []int{INSTRUMENTATION_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		// parent span attributes with array
+		{`parent.span.foo[]`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`parent.span.count[]`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`parent.span.foo3[]`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`parent.span.foo+bar[]`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`parent.span.foo-bar[]`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		// parent resource attributes with array
+		{`parent.resource.foo[]`, []int{PARENT_DOT, RESOURCE_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`parent.resource.count[]`, []int{PARENT_DOT, RESOURCE_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`parent.resource.foo3[]`, []int{PARENT_DOT, RESOURCE_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`parent.resource.foo+bar[]`, []int{PARENT_DOT, RESOURCE_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+		{`parent.resource.foo-bar[]`, []int{PARENT_DOT, RESOURCE_DOT, IDENTIFIER, ARRAY, END_ATTRIBUTE}},
+	})
 }
 
 func TestLexerScopedIntrinsic(t *testing.T) {
-	testLexer(t, ([]lexerTestCase{
+	testLexer(t, []lexerTestCase{
 		// trace scoped intrinsics
 		{`trace:duration`, []int{TRACE_COLON, IDURATION}},
 		{`trace:rootName`, []int{TRACE_COLON, ROOTNAME}},
@@ -113,19 +179,19 @@ func TestLexerScopedIntrinsic(t *testing.T) {
 		// instrumentation scoped intrinsics
 		{`instrumentation:name`, []int{INSTRUMENTATION_COLON, NAME}},
 		{`instrumentation:version`, []int{INSTRUMENTATION_COLON, VERSION}},
-	}))
+	})
 }
 
 func TestLexerIntrinsics(t *testing.T) {
-	testLexer(t, ([]lexerTestCase{
+	testLexer(t, []lexerTestCase{
 		{`nestedSetLeft`, []int{NESTEDSETLEFT}},
 		{`nestedSetRight`, []int{NESTEDSETRIGHT}},
 		{`duration`, []int{IDURATION}},
-	}))
+	})
 }
 
 func TestLexerMultitokens(t *testing.T) {
-	testLexer(t, ([]lexerTestCase{
+	testLexer(t, []lexerTestCase{
 		// attributes
 		{`&&`, []int{AND}},
 		{`>>`, []int{DESC}},
@@ -133,11 +199,12 @@ func TestLexerMultitokens(t *testing.T) {
 		{`!`, []int{NOT}},
 		{`!~`, []int{NRE}},
 		{`&>>`, []int{UNION_DESC}},
-	}))
+		{`[]`, []int{ARRAY}}, // TODO: should this be here?? no idea? figure it out?
+	})
 }
 
 func TestLexerDuration(t *testing.T) {
-	testLexer(t, ([]lexerTestCase{
+	testLexer(t, []lexerTestCase{
 		// duration
 		{"1ns", []int{DURATION}},
 		{"1s", []int{DURATION}},
@@ -152,7 +219,7 @@ func TestLexerDuration(t *testing.T) {
 		// not duration
 		{"1t", []int{INTEGER, IDENTIFIER}},
 		{"1", []int{INTEGER}},
-	}))
+	})
 }
 
 func TestLexerParseDuration(t *testing.T) {
@@ -184,7 +251,7 @@ func TestLexerParseDuration(t *testing.T) {
 }
 
 func TestLexerScoping(t *testing.T) {
-	testLexer(t, ([]lexerTestCase{
+	testLexer(t, []lexerTestCase{
 		{`span.foo3`, []int{SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`span.foo+bar`, []int{SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`span.foo-bar`, []int{SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
@@ -202,7 +269,7 @@ func TestLexerScoping(t *testing.T) {
 		{`parent.span.foo`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`parent.span.count`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
 		{`parent.span.resource.id`, []int{PARENT_DOT, SPAN_DOT, IDENTIFIER, END_ATTRIBUTE}},
-	}))
+	})
 }
 
 func testLexer(t *testing.T, tcs []lexerTestCase) {

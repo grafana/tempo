@@ -211,8 +211,8 @@ func GetMetrics(ctx context.Context, query, groupBy string, spanLimit int, start
 			// Unscoped attribute. Also check span-level, then resource-level.
 			lookups = []traceql.Attribute{
 				attr,
-				traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, attr.Name),
-				traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, attr.Name),
+				traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, attr.Name, false),
+				traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, attr.Name, false),
 			}
 		} else {
 			lookups = []traceql.Attribute{attr}

@@ -102,8 +102,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartTimeUnixNano,
 						durationNanos:      wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].DurationNano,
 						spanAttrs: []attrVal{
-							{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "foo"), traceql.NewStaticNil()},
-							{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "bar"), traceql.NewStaticInt(123)},
+							{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "foo", false), traceql.NewStaticNil()},
+							{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "bar", false), traceql.NewStaticInt(123)},
 							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(100 * time.Second)},
 							{traceql.NewIntrinsic(traceql.IntrinsicSpanID), traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID))},
 						},
@@ -138,7 +138,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							{traceql.NewIntrinsic(traceql.IntrinsicSpanID), traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID))},
 						},
 						resourceAttrs: []attrVal{
-							{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "foo"), traceql.NewStaticString("abc")},
+							{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "foo", false), traceql.NewStaticString("abc")},
 						},
 						traceAttrs: []attrVal{
 							{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.NewStaticString("RootService")},
@@ -168,13 +168,13 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartTimeUnixNano,
 						durationNanos:      wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].DurationNano,
 						spanAttrs: []attrVal{
-							{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "foo"), traceql.NewStaticNil()},
+							{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "foo", false), traceql.NewStaticNil()},
 							{newSpanAttr(LabelHTTPStatusCode), traceql.NewStaticInt(500)}, // This is the only attribute that matched anything
 							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(100 * time.Second)},
 							{traceql.NewIntrinsic(traceql.IntrinsicSpanID), traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID))},
 						},
 						resourceAttrs: []attrVal{
-							{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "foo"), traceql.NewStaticNil()},
+							{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "foo", false), traceql.NewStaticNil()},
 						},
 						traceAttrs: []attrVal{
 							{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.NewStaticString("RootService")},
@@ -206,7 +206,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						startTimeUnixNanos: wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].StartTimeUnixNano,
 						durationNanos:      wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].DurationNano,
 						spanAttrs: []attrVal{
-							{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "foo"), traceql.NewStaticString("def")},
+							{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "foo", false), traceql.NewStaticString("def")},
 							{newSpanAttr("float"), traceql.NewStaticFloat(456.78)},
 							{newSpanAttr("bool"), traceql.NewStaticBool(false)},
 							{newSpanAttr(LabelHTTPStatusCode), traceql.NewStaticInt(500)}, // This is the only attribute that matched anything
@@ -214,7 +214,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							{traceql.NewIntrinsic(traceql.IntrinsicSpanID), traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID))},
 						},
 						resourceAttrs: []attrVal{
-							{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "foo"), traceql.NewStaticString("abc")},
+							{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "foo", false), traceql.NewStaticString("abc")},
 						},
 						traceAttrs: []attrVal{
 							{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.NewStaticString("RootService")},
@@ -228,7 +228,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 						startTimeUnixNanos: wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].StartTimeUnixNano,
 						durationNanos:      wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].DurationNano,
 						spanAttrs: []attrVal{
-							{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "foo"), traceql.NewStaticString("ghi")},
+							{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "foo", false), traceql.NewStaticString("ghi")},
 							{newSpanAttr("float"), traceql.NewStaticFloat(456.789)},
 							{newSpanAttr("bool"), traceql.NewStaticBool(true)},
 							{newSpanAttr(LabelHTTPStatusCode), traceql.NewStaticInt(501)}, // This is the only attribute that matched anything
@@ -236,7 +236,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							{traceql.NewIntrinsic(traceql.IntrinsicSpanID), traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].SpanID))},
 						},
 						resourceAttrs: []attrVal{
-							{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "foo"), traceql.NewStaticString("abc2")},
+							{traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "foo", false), traceql.NewStaticString("abc2")},
 						},
 						traceAttrs: []attrVal{
 							{traceql.NewIntrinsic(traceql.IntrinsicTraceRootService), traceql.NewStaticString("RootService")},

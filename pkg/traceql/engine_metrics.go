@@ -526,8 +526,8 @@ func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by [
 			// Unscoped attribute. Check span-level, then resource-level.
 			// TODO - Is this taken care of by span.AttributeFor now?
 			lookups[i] = []Attribute{
-				NewScopedAttribute(AttributeScopeSpan, false, attr.Name),
-				NewScopedAttribute(AttributeScopeResource, false, attr.Name),
+				NewScopedAttribute(AttributeScopeSpan, false, attr.Name, false),
+				NewScopedAttribute(AttributeScopeResource, false, attr.Name, false),
 			}
 		} else {
 			lookups[i] = []Attribute{attr}

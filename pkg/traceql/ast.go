@@ -933,15 +933,18 @@ type Attribute struct {
 	Parent    bool
 	Name      string
 	Intrinsic Intrinsic
+	IsArray   bool
 }
 
 // NewAttribute creates a new attribute with the given identifier string.
-func NewAttribute(att string) Attribute {
+// this is same as NewScopedAttribute(AttributeScopeNone, false, att), so maybe we remove this method??
+func NewAttribute(att string, isArray bool) Attribute {
 	return Attribute{
 		Scope:     AttributeScopeNone,
 		Parent:    false,
 		Name:      att,
 		Intrinsic: IntrinsicNone,
+		IsArray:   isArray,
 	}
 }
 
@@ -999,7 +1002,7 @@ func (Attribute) referencesSpan() bool {
 
 // NewScopedAttribute creates a new scopedattribute with the given identifier string.
 // this handles parent, span, and resource scopes.
-func NewScopedAttribute(scope AttributeScope, parent bool, att string) Attribute {
+func NewScopedAttribute(scope AttributeScope, parent bool, att string, isArray bool) Attribute {
 	intrinsic := IntrinsicNone
 	// if we are explicitly passed a resource or span scopes then we shouldn't parse for intrinsic
 	if scope == AttributeScopeNone && !parent {
@@ -1011,6 +1014,7 @@ func NewScopedAttribute(scope AttributeScope, parent bool, att string) Attribute
 		Parent:    parent,
 		Name:      att,
 		Intrinsic: intrinsic,
+		IsArray:   isArray,
 	}
 }
 

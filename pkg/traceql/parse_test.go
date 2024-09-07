@@ -40,17 +40,17 @@ func TestPipelineOperatorPrecedence(t *testing.T) {
 			expected: newSpansetOperation(OpSpansetAnd,
 				newSpansetOperation(OpSpansetChild,
 					newPipeline(
-						newSpansetFilter(NewAttribute("a")),
-						newSpansetFilter(NewAttribute("b")),
+						newSpansetFilter(NewAttribute("a", false)),
+						newSpansetFilter(NewAttribute("b", false)),
 					),
 					newPipeline(
-						newSpansetFilter(NewAttribute("a")),
-						newSpansetFilter(NewAttribute("b")),
+						newSpansetFilter(NewAttribute("a", false)),
+						newSpansetFilter(NewAttribute("b", false)),
 					),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 			),
 		},
@@ -58,17 +58,17 @@ func TestPipelineOperatorPrecedence(t *testing.T) {
 			in: "({ .a } | { .b }) > (({ .a } | { .b }) && ({ .a } | { .b }))",
 			expected: newSpansetOperation(OpSpansetChild,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 				newSpansetOperation(OpSpansetAnd,
 					newPipeline(
-						newSpansetFilter(NewAttribute("a")),
-						newSpansetFilter(NewAttribute("b")),
+						newSpansetFilter(NewAttribute("a", false)),
+						newSpansetFilter(NewAttribute("b", false)),
 					),
 					newPipeline(
-						newSpansetFilter(NewAttribute("a")),
-						newSpansetFilter(NewAttribute("b")),
+						newSpansetFilter(NewAttribute("a", false)),
+						newSpansetFilter(NewAttribute("b", false)),
 					),
 				),
 			),
@@ -77,17 +77,17 @@ func TestPipelineOperatorPrecedence(t *testing.T) {
 			in: "({ .a } | { .b }) < (({ .a } | { .b }) && ({ .a } | { .b }))",
 			expected: newSpansetOperation(OpSpansetParent,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 				newSpansetOperation(OpSpansetAnd,
 					newPipeline(
-						newSpansetFilter(NewAttribute("a")),
-						newSpansetFilter(NewAttribute("b")),
+						newSpansetFilter(NewAttribute("a", false)),
+						newSpansetFilter(NewAttribute("b", false)),
 					),
 					newPipeline(
-						newSpansetFilter(NewAttribute("a")),
-						newSpansetFilter(NewAttribute("b")),
+						newSpansetFilter(NewAttribute("a", false)),
+						newSpansetFilter(NewAttribute("b", false)),
 					),
 				),
 			),
@@ -113,12 +113,12 @@ func TestPipelineSpansetOperators(t *testing.T) {
 			in: "({ .a } | { .b }) > ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetChild,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 			),
 		},
@@ -126,12 +126,12 @@ func TestPipelineSpansetOperators(t *testing.T) {
 			in: "({ .a } | { .b }) < ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetParent,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 			),
 		},
@@ -139,12 +139,12 @@ func TestPipelineSpansetOperators(t *testing.T) {
 			in: "({ .a } | { .b }) ~ ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetSibling,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 			),
 		},
@@ -152,12 +152,12 @@ func TestPipelineSpansetOperators(t *testing.T) {
 			in: "({ .a } | { .b }) && ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetAnd,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 			),
 		},
@@ -165,12 +165,12 @@ func TestPipelineSpansetOperators(t *testing.T) {
 			in: "({ .a } | { .b }) >> ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetDescendant,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 			),
 		},
@@ -178,12 +178,12 @@ func TestPipelineSpansetOperators(t *testing.T) {
 			in: "({ .a } | { .b }) << ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetAncestor,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 			),
 		},
@@ -191,12 +191,12 @@ func TestPipelineSpansetOperators(t *testing.T) {
 			in: "({ .a } | { .b }) !> ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetNotChild,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 			),
 		},
@@ -204,12 +204,12 @@ func TestPipelineSpansetOperators(t *testing.T) {
 			in: "({ .a } | { .b }) !< ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetNotParent,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 			),
 		},
@@ -217,12 +217,12 @@ func TestPipelineSpansetOperators(t *testing.T) {
 			in: "({ .a } | { .b }) !~ ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetNotSibling,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 			),
 		},
@@ -230,12 +230,12 @@ func TestPipelineSpansetOperators(t *testing.T) {
 			in: "({ .a } | { .b }) !>> ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetNotDescendant,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 			),
 		},
@@ -243,12 +243,12 @@ func TestPipelineSpansetOperators(t *testing.T) {
 			in: "({ .a } | { .b }) !<< ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetNotAncestor,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 			),
 		},
@@ -256,12 +256,12 @@ func TestPipelineSpansetOperators(t *testing.T) {
 			in: "({ .a } | { .b }) &> ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetUnionChild,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 			),
 		},
@@ -269,12 +269,12 @@ func TestPipelineSpansetOperators(t *testing.T) {
 			in: "({ .a } | { .b }) &< ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetUnionParent,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 			),
 		},
@@ -282,12 +282,12 @@ func TestPipelineSpansetOperators(t *testing.T) {
 			in: "({ .a } | { .b }) &~ ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetUnionSibling,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 			),
 		},
@@ -295,12 +295,12 @@ func TestPipelineSpansetOperators(t *testing.T) {
 			in: "({ .a } | { .b }) &>> ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetUnionDescendant,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 			),
 		},
@@ -308,12 +308,12 @@ func TestPipelineSpansetOperators(t *testing.T) {
 			in: "({ .a } | { .b }) &<< ({ .a } | { .b })",
 			expected: newSpansetOperation(OpSpansetUnionAncestor,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
-					newSpansetFilter(NewAttribute("b")),
+					newSpansetFilter(NewAttribute("a", false)),
+					newSpansetFilter(NewAttribute("b", false)),
 				),
 			),
 		},
@@ -338,11 +338,11 @@ func TestPipelineScalarOperators(t *testing.T) {
 			in: "({ .a } | count()) = ({ .a } | count())",
 			expected: newScalarFilter(OpEqual,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("a", false)),
 					newAggregate(aggregateCount, nil),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("a", false)),
 					newAggregate(aggregateCount, nil),
 				),
 			),
@@ -351,11 +351,11 @@ func TestPipelineScalarOperators(t *testing.T) {
 			in: "({ .a } | count()) != ({ .a } | count())",
 			expected: newScalarFilter(OpNotEqual,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("a", false)),
 					newAggregate(aggregateCount, nil),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("a", false)),
 					newAggregate(aggregateCount, nil),
 				),
 			),
@@ -364,11 +364,11 @@ func TestPipelineScalarOperators(t *testing.T) {
 			in: "({ .a } | count()) < ({ .a } | count())",
 			expected: newScalarFilter(OpLess,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("a", false)),
 					newAggregate(aggregateCount, nil),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("a", false)),
 					newAggregate(aggregateCount, nil),
 				),
 			),
@@ -377,11 +377,11 @@ func TestPipelineScalarOperators(t *testing.T) {
 			in: "({ .a } | count()) <= ({ .a } | count())",
 			expected: newScalarFilter(OpLessEqual,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("a", false)),
 					newAggregate(aggregateCount, nil),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("a", false)),
 					newAggregate(aggregateCount, nil),
 				),
 			),
@@ -390,11 +390,11 @@ func TestPipelineScalarOperators(t *testing.T) {
 			in: "({ .a } | count()) >= ({ .a } | count())",
 			expected: newScalarFilter(OpGreaterEqual,
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("a", false)),
 					newAggregate(aggregateCount, nil),
 				),
 				newPipeline(
-					newSpansetFilter(NewAttribute("a")),
+					newSpansetFilter(NewAttribute("a", false)),
 					newAggregate(aggregateCount, nil),
 				),
 			),
@@ -419,22 +419,22 @@ func TestPipelines(t *testing.T) {
 		{
 			in: "{ .a } | { .b }",
 			expected: newPipeline(
-				newSpansetFilter(NewAttribute("a")),
-				newSpansetFilter(NewAttribute("b")),
+				newSpansetFilter(NewAttribute("a", false)),
+				newSpansetFilter(NewAttribute("b", false)),
 			),
 		},
 		{
 			in: "{ .a } | count() > 1",
 			expected: newPipeline(
-				newSpansetFilter(NewAttribute("a")),
+				newSpansetFilter(NewAttribute("a", false)),
 				newScalarFilter(OpGreater, newAggregate(aggregateCount, nil), NewStaticInt(1)),
 			),
 		},
 		{
 			in: "{ .a } | by(.namespace) | coalesce() | avg(duration) = 1s ",
 			expected: newPipeline(
-				newSpansetFilter(NewAttribute("a")),
-				newGroupOperation(NewAttribute("namespace")),
+				newSpansetFilter(NewAttribute("a", false)),
+				newGroupOperation(NewAttribute("namespace", false)),
 				newCoalesceOperation(),
 				newScalarFilter(OpEqual, newAggregate(aggregateAvg, NewIntrinsic(IntrinsicDuration)), NewStaticDuration(time.Second)),
 			),
@@ -475,8 +475,8 @@ func TestGroupCoalesceOperation(t *testing.T) {
 		in       string
 		expected Pipeline
 	}{
-		{in: "by(.a) | coalesce()", expected: newPipeline(newGroupOperation(NewAttribute("a")), newCoalesceOperation())},
-		{in: "by(.a + .b)", expected: newPipeline(newGroupOperation(newBinaryOperation(OpAdd, NewAttribute("a"), NewAttribute("b"))))},
+		{in: "by(.a) | coalesce()", expected: newPipeline(newGroupOperation(NewAttribute("a", false)), newCoalesceOperation())},
+		{in: "by(.a + .b)", expected: newPipeline(newGroupOperation(newBinaryOperation(OpAdd, NewAttribute("a", false), NewAttribute("b", false))))},
 	}
 
 	for _, tc := range tests {
@@ -512,8 +512,8 @@ func TestSelectOperation(t *testing.T) {
 		in       string
 		expected Pipeline
 	}{
-		{in: "select(.a)", expected: newPipeline(newSelectOperation([]Attribute{NewAttribute("a")}))},
-		{in: "select(.a,.b)", expected: newPipeline(newSelectOperation([]Attribute{NewAttribute("a"), NewAttribute("b")}))},
+		{in: "select(.a)", expected: newPipeline(newSelectOperation([]Attribute{NewAttribute("a", false)}))},
+		{in: "select(.a,.b)", expected: newPipeline(newSelectOperation([]Attribute{NewAttribute("a", false), NewAttribute("b", false)}))},
 	}
 
 	for _, tc := range tests {
@@ -659,10 +659,10 @@ func TestScalarExpressionPrecedence(t *testing.T) {
 		{
 			in: "avg(.foo) > count() + sum(.bar)",
 			expected: newScalarFilter(OpGreater,
-				newAggregate(aggregateAvg, NewAttribute("foo")),
+				newAggregate(aggregateAvg, NewAttribute("foo", false)),
 				newScalarOperation(OpAdd,
 					newAggregate(aggregateCount, nil),
-					newAggregate(aggregateSum, NewAttribute("bar")),
+					newAggregate(aggregateSum, NewAttribute("bar", false)),
 				),
 			),
 		},
@@ -670,10 +670,10 @@ func TestScalarExpressionPrecedence(t *testing.T) {
 			in: "avg(.foo) + count() > sum(.bar)",
 			expected: newScalarFilter(OpGreater,
 				newScalarOperation(OpAdd,
-					newAggregate(aggregateAvg, NewAttribute("foo")),
+					newAggregate(aggregateAvg, NewAttribute("foo", false)),
 					newAggregate(aggregateCount, nil),
 				),
-				newAggregate(aggregateSum, NewAttribute("bar")),
+				newAggregate(aggregateSum, NewAttribute("bar", false)),
 			),
 		},
 	}
@@ -694,7 +694,7 @@ func TestScalarExpressionOperators(t *testing.T) {
 		expected ScalarFilter
 	}{
 		{in: "count() > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateCount, nil), NewStaticInt(1))},
-		{in: "max(.a) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateMax, NewAttribute("a")), NewStaticInt(1))},
+		{in: "max(.a) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateMax, NewAttribute("a", false)), NewStaticInt(1))},
 		{in: "min(1) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateMin, NewStaticInt(1)), NewStaticInt(1))},
 		{in: "sum(true) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateSum, NewStaticBool(true)), NewStaticInt(1))},
 		{in: "avg(`c`) > 1", expected: newScalarFilter(OpGreater, newAggregate(aggregateAvg, NewStaticString("c")), NewStaticInt(1))},
@@ -738,104 +738,104 @@ func TestSpansetFilterOperatorPrecedence(t *testing.T) {
 		{
 			in: "{ .a * .b + .c }",
 			expected: newBinaryOperation(OpAdd,
-				newBinaryOperation(OpMult, NewAttribute("a"), NewAttribute("b")),
-				NewAttribute("c")),
+				newBinaryOperation(OpMult, NewAttribute("a", false), NewAttribute("b", false)),
+				NewAttribute("c", false)),
 		},
 		{
 			in: "{ .a + .b * .c }",
 			expected: newBinaryOperation(OpAdd,
-				NewAttribute("a"),
-				newBinaryOperation(OpMult, NewAttribute("b"), NewAttribute("c"))),
+				NewAttribute("a", false),
+				newBinaryOperation(OpMult, NewAttribute("b", false), NewAttribute("c", false))),
 		},
 		{
 			in: "{ ( .a + .b ) * .c }",
 			expected: newBinaryOperation(OpMult,
-				newBinaryOperation(OpAdd, NewAttribute("a"), NewAttribute("b")),
-				NewAttribute("c")),
+				newBinaryOperation(OpAdd, NewAttribute("a", false), NewAttribute("b", false)),
+				NewAttribute("c", false)),
 		},
 		{
 			in: "{ .a + .b ^ .c }",
 			expected: newBinaryOperation(OpAdd,
-				NewAttribute("a"),
-				newBinaryOperation(OpPower, NewAttribute("b"), NewAttribute("c"))),
+				NewAttribute("a", false),
+				newBinaryOperation(OpPower, NewAttribute("b", false), NewAttribute("c", false))),
 		},
 		{
 			in: "{ .a = .b + .c }",
 			expected: newBinaryOperation(OpEqual,
-				NewAttribute("a"),
-				newBinaryOperation(OpAdd, NewAttribute("b"), NewAttribute("c"))),
+				NewAttribute("a", false),
+				newBinaryOperation(OpAdd, NewAttribute("b", false), NewAttribute("c", false))),
 		},
 		{
 			in: "{ .a + .b = .c }",
 			expected: newBinaryOperation(OpEqual,
-				newBinaryOperation(OpAdd, NewAttribute("a"), NewAttribute("b")),
-				NewAttribute("c")),
+				newBinaryOperation(OpAdd, NewAttribute("a", false), NewAttribute("b", false)),
+				NewAttribute("c", false)),
 		},
 		{
 			in: "{ .c - -.a + .b }",
 			expected: newBinaryOperation(OpAdd,
-				newBinaryOperation(OpSub, NewAttribute("c"), newUnaryOperation(OpSub, NewAttribute("a"))),
-				NewAttribute("b")),
+				newBinaryOperation(OpSub, NewAttribute("c", false), newUnaryOperation(OpSub, NewAttribute("a", false))),
+				NewAttribute("b", false)),
 		},
 		{
 			in: "{ .c - -( .a + .b ) }",
 			expected: newBinaryOperation(OpSub,
-				NewAttribute("c"),
-				newUnaryOperation(OpSub, newBinaryOperation(OpAdd, NewAttribute("a"), NewAttribute("b")))),
+				NewAttribute("c", false),
+				newUnaryOperation(OpSub, newBinaryOperation(OpAdd, NewAttribute("a", false), NewAttribute("b", false)))),
 		},
 		{
 			in: "{ .a && .b = .c }",
 			expected: newBinaryOperation(OpAnd,
-				NewAttribute("a"),
-				newBinaryOperation(OpEqual, NewAttribute("b"), NewAttribute("c"))),
+				NewAttribute("a", false),
+				newBinaryOperation(OpEqual, NewAttribute("b", false), NewAttribute("c", false))),
 		},
 		{
 			in: "{ .a = .b && .c }",
 			expected: newBinaryOperation(OpAnd,
-				newBinaryOperation(OpEqual, NewAttribute("a"), NewAttribute("b")),
-				NewAttribute("c")),
+				newBinaryOperation(OpEqual, NewAttribute("a", false), NewAttribute("b", false)),
+				NewAttribute("c", false)),
 		},
 		{
 			in: "{ .a = !.b && .c }",
 			expected: newBinaryOperation(OpAnd,
-				newBinaryOperation(OpEqual, NewAttribute("a"), newUnaryOperation(OpNot, NewAttribute("b"))),
-				NewAttribute("c")),
+				newBinaryOperation(OpEqual, NewAttribute("a", false), newUnaryOperation(OpNot, NewAttribute("b", false))),
+				NewAttribute("c", false)),
 		},
 		{
 			in: "{ .a = !( .b && .c ) }",
 			expected: newBinaryOperation(OpEqual,
-				NewAttribute("a"),
-				newUnaryOperation(OpNot, newBinaryOperation(OpAnd, NewAttribute("b"), NewAttribute("c")))),
+				NewAttribute("a", false),
+				newUnaryOperation(OpNot, newBinaryOperation(OpAnd, NewAttribute("b", false), NewAttribute("c", false)))),
 		},
 		{
 			in: "{ .a = .b || .c = .d}",
 			expected: newBinaryOperation(OpOr,
-				newBinaryOperation(OpEqual, NewAttribute("a"), NewAttribute("b")),
-				newBinaryOperation(OpEqual, NewAttribute("c"), NewAttribute("d"))),
+				newBinaryOperation(OpEqual, NewAttribute("a", false), NewAttribute("b", false)),
+				newBinaryOperation(OpEqual, NewAttribute("c", false), NewAttribute("d", false))),
 		},
 		{
 			in: "{ !.a = .b }",
 			expected: newBinaryOperation(OpEqual,
-				newUnaryOperation(OpNot, NewAttribute("a")),
-				NewAttribute("b")),
+				newUnaryOperation(OpNot, NewAttribute("a", false)),
+				NewAttribute("b", false)),
 		},
 		{
 			in: "{ !(.a = .b) }",
 			expected: newUnaryOperation(OpNot, newBinaryOperation(OpEqual,
-				NewAttribute("a"),
-				NewAttribute("b"))),
+				NewAttribute("a", false),
+				NewAttribute("b", false))),
 		},
 		{
 			in: "{ -.a = .b }",
 			expected: newBinaryOperation(OpEqual,
-				newUnaryOperation(OpSub, NewAttribute("a")),
-				NewAttribute("b")),
+				newUnaryOperation(OpSub, NewAttribute("a", false)),
+				NewAttribute("b", false)),
 		},
 		{
 			in: "{ -(.a = .b) }",
 			expected: newUnaryOperation(OpSub, newBinaryOperation(OpEqual,
-				NewAttribute("a"),
-				NewAttribute("b"))),
+				NewAttribute("a", false),
+				NewAttribute("b", false))),
 		},
 	}
 
@@ -859,7 +859,7 @@ func TestSpansetFilterStatics(t *testing.T) {
 		{in: `{ "true" }`, expected: NewStaticString("true")},
 		{in: `{ "true\"" }`, expected: NewStaticString("true\"")},
 		{in: "{ `foo` }", expected: NewStaticString("foo")},
-		{in: "{ .foo }", expected: NewAttribute("foo")},
+		{in: "{ .foo }", expected: NewAttribute("foo", false)},
 		{in: "{ duration }", expected: NewIntrinsic(IntrinsicDuration)},
 		{in: "{ childCount }", expected: NewIntrinsic(IntrinsicChildCount)},
 		{in: "{ name }", expected: NewIntrinsic(IntrinsicName)},
@@ -898,34 +898,34 @@ func TestSpansetFilterOperators(t *testing.T) {
 		expected             FieldExpression
 		alsoTestWithoutSpace bool
 	}{
-		{in: "{ .a + .b }", expected: newBinaryOperation(OpAdd, NewAttribute("a"), NewAttribute("b"))},
-		{in: "{ .a - .b }", expected: newBinaryOperation(OpSub, NewAttribute("a"), NewAttribute("b"))},
-		{in: "{ .a / .b }", expected: newBinaryOperation(OpDiv, NewAttribute("a"), NewAttribute("b"))},
-		{in: "{ .a % .b }", expected: newBinaryOperation(OpMod, NewAttribute("a"), NewAttribute("b"))},
-		{in: "{ .a * .b }", expected: newBinaryOperation(OpMult, NewAttribute("a"), NewAttribute("b"))},
-		{in: "{ .a = .b }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
-		{in: "{ .a != .b }", expected: newBinaryOperation(OpNotEqual, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
-		{in: "{ .a =~ .b }", expected: newBinaryOperation(OpRegex, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
-		{in: "{ .a !~ .b }", expected: newBinaryOperation(OpNotRegex, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
-		{in: "{ .a > .b }", expected: newBinaryOperation(OpGreater, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
-		{in: "{ .a >= .b }", expected: newBinaryOperation(OpGreaterEqual, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
-		{in: "{ .a < .b }", expected: newBinaryOperation(OpLess, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
-		{in: "{ .a <= .b }", expected: newBinaryOperation(OpLessEqual, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
-		{in: "{ .a ^ .b }", expected: newBinaryOperation(OpPower, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
-		{in: "{ .a && .b }", expected: newBinaryOperation(OpAnd, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
-		{in: "{ .a || .b }", expected: newBinaryOperation(OpOr, NewAttribute("a"), NewAttribute("b")), alsoTestWithoutSpace: true},
-		{in: "{ !.b }", expected: newUnaryOperation(OpNot, NewAttribute("b"))},
-		{in: "{ -.b }", expected: newUnaryOperation(OpSub, NewAttribute("b"))},
+		{in: "{ .a + .b }", expected: newBinaryOperation(OpAdd, NewAttribute("a", false), NewAttribute("b", false))},
+		{in: "{ .a - .b }", expected: newBinaryOperation(OpSub, NewAttribute("a", false), NewAttribute("b", false))},
+		{in: "{ .a / .b }", expected: newBinaryOperation(OpDiv, NewAttribute("a", false), NewAttribute("b", false))},
+		{in: "{ .a % .b }", expected: newBinaryOperation(OpMod, NewAttribute("a", false), NewAttribute("b", false))},
+		{in: "{ .a * .b }", expected: newBinaryOperation(OpMult, NewAttribute("a", false), NewAttribute("b", false))},
+		{in: "{ .a = .b }", expected: newBinaryOperation(OpEqual, NewAttribute("a", false), NewAttribute("b", false)), alsoTestWithoutSpace: true},
+		{in: "{ .a != .b }", expected: newBinaryOperation(OpNotEqual, NewAttribute("a", false), NewAttribute("b", false)), alsoTestWithoutSpace: true},
+		{in: "{ .a =~ .b }", expected: newBinaryOperation(OpRegex, NewAttribute("a", false), NewAttribute("b", false)), alsoTestWithoutSpace: true},
+		{in: "{ .a !~ .b }", expected: newBinaryOperation(OpNotRegex, NewAttribute("a", false), NewAttribute("b", false)), alsoTestWithoutSpace: true},
+		{in: "{ .a > .b }", expected: newBinaryOperation(OpGreater, NewAttribute("a", false), NewAttribute("b", false)), alsoTestWithoutSpace: true},
+		{in: "{ .a >= .b }", expected: newBinaryOperation(OpGreaterEqual, NewAttribute("a", false), NewAttribute("b", false)), alsoTestWithoutSpace: true},
+		{in: "{ .a < .b }", expected: newBinaryOperation(OpLess, NewAttribute("a", false), NewAttribute("b", false)), alsoTestWithoutSpace: true},
+		{in: "{ .a <= .b }", expected: newBinaryOperation(OpLessEqual, NewAttribute("a", false), NewAttribute("b", false)), alsoTestWithoutSpace: true},
+		{in: "{ .a ^ .b }", expected: newBinaryOperation(OpPower, NewAttribute("a", false), NewAttribute("b", false)), alsoTestWithoutSpace: true},
+		{in: "{ .a && .b }", expected: newBinaryOperation(OpAnd, NewAttribute("a", false), NewAttribute("b", false)), alsoTestWithoutSpace: true},
+		{in: "{ .a || .b }", expected: newBinaryOperation(OpOr, NewAttribute("a", false), NewAttribute("b", false)), alsoTestWithoutSpace: true},
+		{in: "{ !.b }", expected: newUnaryOperation(OpNot, NewAttribute("b", false))},
+		{in: "{ -.b }", expected: newUnaryOperation(OpSub, NewAttribute("b", false))},
 
 		// Against statics
-		{in: "{ .a = `foo` }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticString("foo")), alsoTestWithoutSpace: true},
-		{in: "{ .a = 3 }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticInt(3)), alsoTestWithoutSpace: true},
-		{in: "{ .a = 3.0 }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticFloat(3)), alsoTestWithoutSpace: true},
-		{in: "{ .a = true }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticBool(true)), alsoTestWithoutSpace: true},
+		{in: "{ .a = `foo` }", expected: newBinaryOperation(OpEqual, NewAttribute("a", false), NewStaticString("foo")), alsoTestWithoutSpace: true},
+		{in: "{ .a = 3 }", expected: newBinaryOperation(OpEqual, NewAttribute("a", false), NewStaticInt(3)), alsoTestWithoutSpace: true},
+		{in: "{ .a = 3.0 }", expected: newBinaryOperation(OpEqual, NewAttribute("a", false), NewStaticFloat(3)), alsoTestWithoutSpace: true},
+		{in: "{ .a = true }", expected: newBinaryOperation(OpEqual, NewAttribute("a", false), NewStaticBool(true)), alsoTestWithoutSpace: true},
 
 		// existence
-		{in: "{ .a != nil }", expected: newBinaryOperation(OpNotEqual, NewAttribute("a"), NewStaticNil()), alsoTestWithoutSpace: true},
-		{in: "{ .a = nil }", expected: newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticNil()), alsoTestWithoutSpace: true},
+		{in: "{ .a != nil }", expected: newBinaryOperation(OpNotEqual, NewAttribute("a", false), NewStaticNil()), alsoTestWithoutSpace: true},
+		{in: "{ .a = nil }", expected: newBinaryOperation(OpEqual, NewAttribute("a", false), NewStaticNil()), alsoTestWithoutSpace: true},
 	}
 
 	test := func(q string, expected FieldExpression) {
@@ -980,7 +980,7 @@ func TestBinaryAndUnaryOperationsCollapseToStatics(t *testing.T) {
 		{in: "{ 1 = 1. }", expected: NewStaticBool(true)}, // this is an interesting case, it returns true even though { span.foo = 1 } would be false if span.foo had the float value 1.0
 		{in: "{ .1 + 1 }", expected: NewStaticFloat(1.1)},
 		{in: "{ 1 * -1 = -1 }", expected: NewStaticBool(true)},
-		{in: "{ .foo * -1. = -1 }", expected: newBinaryOperation(OpEqual, newBinaryOperation(OpMult, NewAttribute("foo"), NewStaticFloat(-1)), NewStaticInt(-1))},
+		{in: "{ .foo * -1. = -1 }", expected: newBinaryOperation(OpEqual, newBinaryOperation(OpMult, NewAttribute("foo", false), NewStaticFloat(-1)), NewStaticInt(-1))},
 	}
 
 	test := func(t *testing.T, q string, expected FieldExpression) {
@@ -1003,42 +1003,93 @@ func TestAttributes(t *testing.T) {
 	}{
 		{in: "duration", expected: NewIntrinsic(IntrinsicDuration)},
 		{in: "kind", expected: NewIntrinsic(IntrinsicKind)},
-		{in: ".foo", expected: NewAttribute("foo")},
-		{in: ".max", expected: NewAttribute("max")},
-		{in: ".status", expected: NewAttribute("status")},
-		{in: ".kind", expected: NewAttribute("kind")},
-		{in: ".foo.bar", expected: NewAttribute("foo.bar")},
-		{in: ".foo.bar.baz", expected: NewAttribute("foo.bar.baz")},
-		{in: ".foo.3", expected: NewAttribute("foo.3")},
-		{in: ".foo3", expected: NewAttribute("foo3")},
-		{in: ".http_status", expected: NewAttribute("http_status")},
-		{in: ".http-status", expected: NewAttribute("http-status")},
-		{in: ".http+", expected: NewAttribute("http+")},
-		{in: ".😝", expected: NewAttribute("😝")},
-		{in: ".http-other", expected: NewAttribute("http-other")},
-		{in: "parent.duration", expected: NewScopedAttribute(AttributeScopeNone, true, "duration")},
-		{in: "parent.foo.bar.baz", expected: NewScopedAttribute(AttributeScopeNone, true, "foo.bar.baz")},
-		{in: "resource.foo.bar.baz", expected: NewScopedAttribute(AttributeScopeResource, false, "foo.bar.baz")},
-		{in: "span.foo.bar", expected: NewScopedAttribute(AttributeScopeSpan, false, "foo.bar")},
-		{in: "event.foo.bar", expected: NewScopedAttribute(AttributeScopeEvent, false, "foo.bar")},
-		{in: "link.foo.bar", expected: NewScopedAttribute(AttributeScopeLink, false, "foo.bar")},
-		{in: "instrumentation.foo.bar", expected: NewScopedAttribute(AttributeScopeInstrumentation, false, "foo.bar")},
-		{in: "parent.resource.foo", expected: NewScopedAttribute(AttributeScopeResource, true, "foo")},
-		{in: "parent.span.foo", expected: NewScopedAttribute(AttributeScopeSpan, true, "foo")},
-		{in: "parent.resource.foo.bar.baz", expected: NewScopedAttribute(AttributeScopeResource, true, "foo.bar.baz")},
-		{in: "parent.span.foo.bar", expected: NewScopedAttribute(AttributeScopeSpan, true, "foo.bar")},
-		{in: `."bar z".foo`, expected: NewAttribute("bar z.foo")},
-		{in: `span."bar z".foo`, expected: NewScopedAttribute(AttributeScopeSpan, false, "bar z.foo")},
-		{in: `."bar z".foo."bar"`, expected: NewAttribute("bar z.foo.bar")},
-		{in: `.foo."bar baz"`, expected: NewAttribute("foo.bar baz")},
-		{in: `.foo."bar baz".bar`, expected: NewAttribute("foo.bar baz.bar")},
-		{in: `.foo."bar \" baz"`, expected: NewAttribute(`foo.bar " baz`)},
-		{in: `.foo."bar \\ baz"`, expected: NewAttribute(`foo.bar \ baz`)},
-		{in: `.foo."bar \\"." baz"`, expected: NewAttribute(`foo.bar \. baz`)},
-		{in: `."foo.bar"`, expected: NewAttribute(`foo.bar`)},
-		{in: `."🤘"`, expected: NewAttribute(`🤘`)},
+		{in: ".foo", expected: NewAttribute("foo", false)},
+		{in: ".max", expected: NewAttribute("max", false)},
+		{in: ".status", expected: NewAttribute("status", false)},
+		{in: ".kind", expected: NewAttribute("kind", false)},
+		{in: ".foo.bar", expected: NewAttribute("foo.bar", false)},
+		{in: ".foo.bar.baz", expected: NewAttribute("foo.bar.baz", false)},
+		{in: ".foo.3", expected: NewAttribute("foo.3", false)},
+		{in: ".foo3", expected: NewAttribute("foo3", false)},
+		{in: ".http_status", expected: NewAttribute("http_status", false)},
+		{in: ".http-status", expected: NewAttribute("http-status", false)},
+		{in: ".http+", expected: NewAttribute("http+", false)},
+		{in: ".😝", expected: NewAttribute("😝", false)},
+		{in: ".http-other", expected: NewAttribute("http-other", false)},
+		{in: "parent.duration", expected: NewScopedAttribute(AttributeScopeNone, true, "duration", false)},
+		{in: "parent.foo.bar.baz", expected: NewScopedAttribute(AttributeScopeNone, true, "foo.bar.baz", false)},
+		{in: "resource.foo.bar.baz", expected: NewScopedAttribute(AttributeScopeResource, false, "foo.bar.baz", false)},
+		{in: "span.foo.bar", expected: NewScopedAttribute(AttributeScopeSpan, false, "foo.bar", false)},
+		{in: "event.foo.bar", expected: NewScopedAttribute(AttributeScopeEvent, false, "foo.bar", false)},
+		{in: "link.foo.bar", expected: NewScopedAttribute(AttributeScopeLink, false, "foo.bar", false)},
+		{in: "instrumentation.foo.bar", expected: NewScopedAttribute(AttributeScopeInstrumentation, false, "foo.bar", false)},
+		{in: "parent.resource.foo", expected: NewScopedAttribute(AttributeScopeResource, true, "foo", false)},
+		{in: "parent.span.foo", expected: NewScopedAttribute(AttributeScopeSpan, true, "foo", false)},
+		{in: "parent.resource.foo.bar.baz", expected: NewScopedAttribute(AttributeScopeResource, true, "foo.bar.baz", false)},
+		{in: "parent.span.foo.bar", expected: NewScopedAttribute(AttributeScopeSpan, true, "foo.bar", false)},
+		{in: `."bar z".foo`, expected: NewAttribute("bar z.foo", false)},
+		{in: `span."bar z".foo`, expected: NewScopedAttribute(AttributeScopeSpan, false, "bar z.foo", false)},
+		{in: `."bar z".foo."bar"`, expected: NewAttribute("bar z.foo.bar", false)},
+		{in: `.foo."bar baz"`, expected: NewAttribute("foo.bar baz", false)},
+		{in: `.foo."bar baz".bar`, expected: NewAttribute("foo.bar baz.bar", false)},
+		{in: `.foo."bar \" baz"`, expected: NewAttribute(`foo.bar " baz`, false)},
+		{in: `.foo."bar \\ baz"`, expected: NewAttribute(`foo.bar \ baz`, false)},
+		{in: `.foo."bar \\"." baz"`, expected: NewAttribute(`foo.bar \. baz`, false)},
+		{in: `."foo.bar"`, expected: NewAttribute(`foo.bar`, false)},
+		{in: `."🤘"`, expected: NewAttribute(`🤘`, false)},
 	}
 
+	runAttributeTests(t, tests)
+}
+
+func TestArrayAttributes(t *testing.T) {
+	tests := []struct {
+		in       string
+		expected FieldExpression
+	}{
+		{in: ".foo[]", expected: NewAttribute("foo", true)},
+		{in: ".max[]", expected: NewAttribute("max", true)},
+		{in: ".status[]", expected: NewAttribute("status", true)},
+		{in: ".kind[]", expected: NewAttribute("kind", true)},
+		{in: ".foo.bar[]", expected: NewAttribute("foo.bar", true)},
+		{in: ".foo.bar.baz[]", expected: NewAttribute("foo.bar.baz", true)},
+		{in: ".foo.3[]", expected: NewAttribute("foo.3", true)},
+		{in: ".foo3[]", expected: NewAttribute("foo3", true)},
+		{in: ".http_status[]", expected: NewAttribute("http_status", true)},
+		{in: ".http-status[]", expected: NewAttribute("http-status", true)},
+		{in: ".http+[]", expected: NewAttribute("http+", true)},
+		{in: ".😝[]", expected: NewAttribute("😝", true)},
+		{in: ".http-other[]", expected: NewAttribute("http-other", true)},
+		{in: "parent.duration[]", expected: NewScopedAttribute(AttributeScopeNone, true, "duration", true)},
+		{in: "parent.foo.bar.baz[]", expected: NewScopedAttribute(AttributeScopeNone, true, "foo.bar.baz", true)},
+		{in: "resource.foo.bar.baz[]", expected: NewScopedAttribute(AttributeScopeResource, false, "foo.bar.baz", true)},
+		{in: "span.foo.bar[]", expected: NewScopedAttribute(AttributeScopeSpan, false, "foo.bar", true)},
+		{in: "event.foo.bar[]", expected: NewScopedAttribute(AttributeScopeEvent, false, "foo.bar", true)},
+		{in: "link.foo.bar[]", expected: NewScopedAttribute(AttributeScopeLink, false, "foo.bar", true)},
+		{in: "instrumentation.foo.bar[]", expected: NewScopedAttribute(AttributeScopeInstrumentation, false, "foo.bar", true)},
+		{in: "parent.resource.foo[]", expected: NewScopedAttribute(AttributeScopeResource, true, "foo", true)},
+		{in: "parent.span.foo[]", expected: NewScopedAttribute(AttributeScopeSpan, true, "foo", true)},
+		{in: "parent.resource.foo.bar.baz[]", expected: NewScopedAttribute(AttributeScopeResource, true, "foo.bar.baz", true)},
+		{in: "parent.span.foo.bar[]", expected: NewScopedAttribute(AttributeScopeSpan, true, "foo.bar", true)},
+		{in: `."bar z".foo[]`, expected: NewAttribute("bar z.foo", true)},
+		{in: `span."bar z".foo[]`, expected: NewScopedAttribute(AttributeScopeSpan, false, "bar z.foo", true)},
+		{in: `."bar z".foo."bar"[]`, expected: NewAttribute("bar z.foo.bar", true)},
+		{in: `.foo."bar baz"[]`, expected: NewAttribute("foo.bar baz", true)},
+		{in: `.foo."bar baz".bar[]`, expected: NewAttribute("foo.bar baz.bar", true)},
+		{in: `.foo."bar \" baz"[]`, expected: NewAttribute(`foo.bar " baz`, true)},
+		{in: `.foo."bar \\ baz"[]`, expected: NewAttribute(`foo.bar \ baz`, true)},
+		{in: `.foo."bar \\"." baz"[]`, expected: NewAttribute(`foo.bar \. baz`, true)},
+		{in: `."foo.bar"[]`, expected: NewAttribute(`foo.bar`, true)},
+		{in: `."🤘"[]`, expected: NewAttribute(`🤘`, true)},
+	}
+
+	runAttributeTests(t, tests)
+}
+
+func runAttributeTests(t *testing.T, tests []struct {
+	in       string
+	expected FieldExpression
+}) {
 	for _, tc := range tests {
 		t.Run(tc.in, func(t *testing.T) {
 			s := "{ " + tc.in + " }"
@@ -1256,11 +1307,11 @@ func TestParseIdentifier(t *testing.T) {
 		"status":           NewIntrinsic(IntrinsicStatus),
 		"statusMessage":    NewIntrinsic(IntrinsicStatusMessage),
 		"kind":             NewIntrinsic(IntrinsicKind),
-		".name":            NewAttribute("name"),
-		".status":          NewAttribute("status"),
-		".foo.bar":         NewAttribute("foo.bar"),
-		"resource.foo.bar": NewScopedAttribute(AttributeScopeResource, false, "foo.bar"),
-		"span.foo.bar":     NewScopedAttribute(AttributeScopeSpan, false, "foo.bar"),
+		".name":            NewAttribute("name", false),
+		".status":          NewAttribute("status", false),
+		".foo.bar":         NewAttribute("foo.bar", false),
+		"resource.foo.bar": NewScopedAttribute(AttributeScopeResource, false, "foo.bar", false),
+		"span.foo.bar":     NewScopedAttribute(AttributeScopeSpan, false, "foo.bar", false),
 	}
 	for i, expected := range testCases {
 		actual, err := ParseIdentifier(i)
@@ -1329,7 +1380,7 @@ func TestReallyLongQuery(t *testing.T) {
 
 		// static value
 		query := fmt.Sprintf("{ .a = `%s` }", longVal)
-		expected := newBinaryOperation(OpEqual, NewAttribute("a"), NewStaticString(longVal))
+		expected := newBinaryOperation(OpEqual, NewAttribute("a", false), NewStaticString(longVal))
 
 		actual, err := Parse(query)
 
@@ -1338,7 +1389,7 @@ func TestReallyLongQuery(t *testing.T) {
 
 		// attr name
 		query = fmt.Sprintf("{ .%s = `foo` }", longVal)
-		expected = newBinaryOperation(OpEqual, NewAttribute(longVal), NewStaticString("foo"))
+		expected = newBinaryOperation(OpEqual, NewAttribute(longVal, false), NewStaticString("foo"))
 
 		actual, err = Parse(query)
 
@@ -1365,7 +1416,7 @@ func TestMetrics(t *testing.T) {
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateCountOverTime, []Attribute{
 					NewIntrinsic(IntrinsicName),
-					NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
+					NewScopedAttribute(AttributeScopeSpan, false, "http.status_code", false),
 				}),
 			),
 		},
@@ -1377,7 +1428,7 @@ func TestMetrics(t *testing.T) {
 					NewIntrinsic(IntrinsicDuration),
 					[]Attribute{
 						NewIntrinsic(IntrinsicName),
-						NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
+						NewScopedAttribute(AttributeScopeSpan, false, "http.status_code", false),
 					}),
 			),
 		},
@@ -1390,7 +1441,7 @@ func TestMetrics(t *testing.T) {
 					[]float64{0, 0.9, 0.95, 1.0},
 					[]Attribute{
 						NewIntrinsic(IntrinsicName),
-						NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
+						NewScopedAttribute(AttributeScopeSpan, false, "http.status_code", false),
 					}),
 			),
 		},

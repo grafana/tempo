@@ -46,7 +46,7 @@ func TestEngine_Execute(t *testing.T) {
 						&mockSpan{
 							id: []byte{1},
 							attributes: map[Attribute]Static{
-								NewAttribute("foo"): NewStaticString("value"),
+								NewAttribute("foo", false): NewStaticString("value"),
 							},
 						},
 						&mockSpan{
@@ -54,8 +54,8 @@ func TestEngine_Execute(t *testing.T) {
 							startTimeUnixNanos: uint64(now.UnixNano()),
 							durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
 							attributes: map[Attribute]Static{
-								NewAttribute("foo"): NewStaticString("value"),
-								NewAttribute("bar"): NewStaticString("value"),
+								NewAttribute("foo", false): NewStaticString("value"),
+								NewAttribute("bar", false): NewStaticString("value"),
 							},
 						},
 						&mockSpan{
@@ -63,8 +63,8 @@ func TestEngine_Execute(t *testing.T) {
 							startTimeUnixNanos: uint64(now.UnixNano()),
 							durationNanos:      uint64((200 * time.Millisecond).Nanoseconds()),
 							attributes: map[Attribute]Static{
-								NewAttribute("foo"): NewStaticString("value"),
-								NewAttribute("bar"): NewStaticString("value"),
+								NewAttribute("foo", false): NewStaticString("value"),
+								NewAttribute("bar", false): NewStaticString("value"),
 							},
 						},
 						&mockSpan{
@@ -72,8 +72,8 @@ func TestEngine_Execute(t *testing.T) {
 							startTimeUnixNanos: uint64(now.UnixNano()),
 							durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
 							attributes: map[Attribute]Static{
-								NewAttribute("foo"): NewStaticString("value"),
-								NewAttribute("bar"): NewStaticString("diff"),
+								NewAttribute("foo", false): NewStaticString("value"),
+								NewAttribute("bar", false): NewStaticString("diff"),
 							},
 						},
 						&mockSpan{
@@ -81,8 +81,8 @@ func TestEngine_Execute(t *testing.T) {
 							startTimeUnixNanos: uint64(now.UnixNano()),
 							durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
 							attributes: map[Attribute]Static{
-								NewAttribute("foo"): NewStaticString("value"),
-								NewAttribute("bar"): NewStaticString("value"),
+								NewAttribute("foo", false): NewStaticString("value"),
+								NewAttribute("bar", false): NewStaticString("value"),
 							},
 						},
 					},
@@ -95,7 +95,7 @@ func TestEngine_Execute(t *testing.T) {
 						&mockSpan{
 							id: []byte{3},
 							attributes: map[Attribute]Static{
-								NewAttribute("bar"): NewStaticString("value"),
+								NewAttribute("bar", false): NewStaticString("value"),
 							},
 						},
 					},
@@ -109,8 +109,8 @@ func TestEngine_Execute(t *testing.T) {
 
 	expectedFetchSpansRequest := FetchSpansRequest{
 		Conditions: []Condition{
-			newCondition(NewAttribute("foo"), OpNone),
-			newCondition(NewAttribute("bar"), OpNone),
+			newCondition(NewAttribute("foo", false), OpNone),
+			newCondition(NewAttribute("bar", false), OpNone),
 		},
 		AllConditions:        true,
 		SecondPassConditions: SearchMetaConditions(),
@@ -230,14 +230,14 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 				startTimeUnixNanos: uint64(now.UnixNano()),
 				durationNanos:      uint64((10 * time.Second).Nanoseconds()),
 				attributes: map[Attribute]Static{
-					NewIntrinsic(IntrinsicName):     NewStaticString("HTTP GET"),
-					NewIntrinsic(IntrinsicStatus):   NewStaticStatus(StatusOk),
-					NewIntrinsic(IntrinsicKind):     NewStaticKind(KindClient),
-					NewAttribute("cluster"):         NewStaticString("prod"),
-					NewAttribute("count"):           NewStaticInt(5),
-					NewAttribute("count_but_float"): NewStaticFloat(5.0),
-					NewAttribute("is_ok"):           NewStaticBool(true),
-					NewIntrinsic(IntrinsicDuration): NewStaticDuration(10 * time.Second),
+					NewIntrinsic(IntrinsicName):            NewStaticString("HTTP GET"),
+					NewIntrinsic(IntrinsicStatus):          NewStaticStatus(StatusOk),
+					NewIntrinsic(IntrinsicKind):            NewStaticKind(KindClient),
+					NewAttribute("cluster", false):         NewStaticString("prod"),
+					NewAttribute("count", false):           NewStaticInt(5),
+					NewAttribute("count_but_float", false): NewStaticFloat(5.0),
+					NewAttribute("is_ok", false):           NewStaticBool(true),
+					NewIntrinsic(IntrinsicDuration):        NewStaticDuration(10 * time.Second),
 				},
 			},
 			&mockSpan{
@@ -593,10 +593,10 @@ func TestExecuteTagValues(t *testing.T) {
 							&mockSpan{
 								id: []byte{1},
 								attributes: map[Attribute]Static{
-									NewIntrinsic(IntrinsicName):                                       NewStaticString("HTTP POST /api/v1/users"),
-									NewScopedAttribute(AttributeScopeSpan, false, "http.method"):      NewStaticString("POST"),
-									NewScopedAttribute(AttributeScopeSpan, false, "http.target"):      NewStaticString("/api/v1/users"),
-									NewScopedAttribute(AttributeScopeResource, false, "service.name"): NewStaticString("my-service"),
+									NewIntrinsic(IntrinsicName):                                              NewStaticString("HTTP POST /api/v1/users"),
+									NewScopedAttribute(AttributeScopeSpan, false, "http.method", false):      NewStaticString("POST"),
+									NewScopedAttribute(AttributeScopeSpan, false, "http.target", false):      NewStaticString("/api/v1/users"),
+									NewScopedAttribute(AttributeScopeResource, false, "service.name", false): NewStaticString("my-service"),
 								},
 							},
 							&mockSpan{
@@ -604,8 +604,8 @@ func TestExecuteTagValues(t *testing.T) {
 								startTimeUnixNanos: uint64(now.UnixNano()),
 								durationNanos:      uint64((100 * time.Millisecond).Nanoseconds()),
 								attributes: map[Attribute]Static{
-									NewIntrinsic(IntrinsicName):                                       NewStaticString("redis call"),
-									NewScopedAttribute(AttributeScopeResource, false, "service.name"): NewStaticString("my-service"),
+									NewIntrinsic(IntrinsicName): NewStaticString("redis call"),
+									NewScopedAttribute(AttributeScopeResource, false, "service.name", false): NewStaticString("my-service"),
 								},
 							},
 						},
@@ -618,10 +618,10 @@ func TestExecuteTagValues(t *testing.T) {
 							&mockSpan{
 								id: []byte{3},
 								attributes: map[Attribute]Static{
-									NewIntrinsic(IntrinsicName):                                       NewStaticString("HTTP GET /status"),
-									NewScopedAttribute(AttributeScopeSpan, false, "http.method"):      NewStaticString("GET"),
-									NewScopedAttribute(AttributeScopeSpan, false, "http.target"):      NewStaticString("/status"),
-									NewScopedAttribute(AttributeScopeResource, false, "service.name"): NewStaticString("my-service"),
+									NewIntrinsic(IntrinsicName):                                              NewStaticString("HTTP GET /status"),
+									NewScopedAttribute(AttributeScopeSpan, false, "http.method", false):      NewStaticString("GET"),
+									NewScopedAttribute(AttributeScopeSpan, false, "http.target", false):      NewStaticString("/status"),
+									NewScopedAttribute(AttributeScopeResource, false, "service.name", false): NewStaticString("my-service"),
 								},
 							},
 						},

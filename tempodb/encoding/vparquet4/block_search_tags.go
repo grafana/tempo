@@ -25,18 +25,18 @@ var translateTagToAttribute = map[string]traceql.Attribute{
 
 	// Preserve behavior of v1 tag lookups which directed some attributes
 	// to dedicated columns.
-	LabelServiceName:      traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelServiceName),
-	LabelCluster:          traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelCluster),
-	LabelNamespace:        traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelNamespace),
-	LabelPod:              traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelPod),
-	LabelContainer:        traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelContainer),
-	LabelK8sNamespaceName: traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sNamespaceName),
-	LabelK8sClusterName:   traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sClusterName),
-	LabelK8sPodName:       traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sPodName),
-	LabelK8sContainerName: traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sContainerName),
-	LabelHTTPMethod:       traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPMethod),
-	LabelHTTPUrl:          traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPUrl),
-	LabelHTTPStatusCode:   traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPStatusCode),
+	LabelServiceName:      traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelServiceName, false),
+	LabelCluster:          traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelCluster, false),
+	LabelNamespace:        traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelNamespace, false),
+	LabelPod:              traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelPod, false),
+	LabelContainer:        traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelContainer, false),
+	LabelK8sNamespaceName: traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sNamespaceName, false),
+	LabelK8sClusterName:   traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sClusterName, false),
+	LabelK8sPodName:       traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sPodName, false),
+	LabelK8sContainerName: traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, LabelK8sContainerName, false),
+	LabelHTTPMethod:       traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPMethod, false),
+	LabelHTTPUrl:          traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPUrl, false),
+	LabelHTTPStatusCode:   traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPStatusCode, false),
 }
 
 var nonTraceQLAttributes = map[string]string{
@@ -214,7 +214,7 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsC
 func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagValuesCallback, opts common.SearchOptions) error {
 	att, ok := translateTagToAttribute[tag]
 	if !ok {
-		att = traceql.NewAttribute(tag)
+		att = traceql.NewAttribute(tag, false)
 	}
 
 	// Wrap to v2-style

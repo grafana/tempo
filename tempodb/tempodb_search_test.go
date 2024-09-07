@@ -1311,13 +1311,13 @@ func tagValuesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetad
 	}{
 		{
 			name:     "no matches",
-			tag:      traceql.NewAttribute("resource.service.name"),
+			tag:      traceql.NewAttribute("resource.service.name", false),
 			query:    "{ span.foo = `bar` }",
 			expected: []tempopb.TagValue{},
 		},
 		{
 			name:  "no filtering all service.names",
-			tag:   traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "service.name"),
+			tag:   traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "service.name", false),
 			query: "{}",
 			expected: []tempopb.TagValue{
 				{Type: "string", Value: "RootService"},
@@ -1329,7 +1329,7 @@ func tagValuesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetad
 		},
 		{
 			name:  "resource filtered by resource",
-			tag:   traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "service.name"),
+			tag:   traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "service.name", false),
 			query: "{ resource.cluster = `MyCluster` }",
 			expected: []tempopb.TagValue{
 				{Type: "string", Value: "MyService"},
@@ -1337,7 +1337,7 @@ func tagValuesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetad
 		},
 		{
 			name:  "span filtered by resource",
-			tag:   traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "span-dedicated.01"),
+			tag:   traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "span-dedicated.01", false),
 			query: "{ resource.cluster = `MyCluster` }",
 			expected: []tempopb.TagValue{
 				{Type: "string", Value: "span-1a"},
@@ -1345,7 +1345,7 @@ func tagValuesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetad
 		},
 		{
 			name:  "span filtered by span",
-			tag:   traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "span-dedicated.01"),
+			tag:   traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "span-dedicated.01", false),
 			query: "{ span.http.url = `url/Hello/World` }",
 			expected: []tempopb.TagValue{
 				{Type: "string", Value: "span-1a"},
@@ -1353,7 +1353,7 @@ func tagValuesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetad
 		},
 		{
 			name:  "resource filtered by span",
-			tag:   traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "service.name"),
+			tag:   traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "service.name", false),
 			query: "{ span.foo = `Bar` }",
 			expected: []tempopb.TagValue{
 				{Type: "string", Value: "MyService"},
@@ -1362,7 +1362,7 @@ func tagValuesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetad
 		},
 		{
 			name:  "multiple conditions",
-			tag:   traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "res-dedicated.01"),
+			tag:   traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "res-dedicated.01", false),
 			query: "{ resource.res-dedicated.02 = `res-2a` && span.http.status_code = 500 }",
 			expected: []tempopb.TagValue{
 				{Type: "string", Value: "res-1a"},
@@ -1370,7 +1370,7 @@ func tagValuesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetad
 		},
 		{
 			name:  "unscoped not supported", // todo: add support for unscoped. currently it falls back to old logic and returns everything
-			tag:   traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "service.name"),
+			tag:   traceql.NewScopedAttribute(traceql.AttributeScopeResource, false, "service.name", false),
 			query: "{ .foo = `Bar` }",
 			expected: []tempopb.TagValue{
 				{Type: "string", Value: "RootService"},

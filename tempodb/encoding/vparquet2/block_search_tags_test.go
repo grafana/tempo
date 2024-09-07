@@ -109,7 +109,7 @@ func TestBackendBlockSearchTagValuesV2(t *testing.T) {
 		}},
 
 		// Trace-level special
-		{traceql.NewAttribute("root.name"), []traceql.Static{
+		{traceql.NewAttribute("root.name", false), []traceql.Static{
 			traceql.NewStaticString("RootSpan"),
 		}},
 
