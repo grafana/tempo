@@ -7,11 +7,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-var hedgedRequestsMetrics = promauto.NewGauge(
-	prometheus.GaugeOpts{
+var hedgedRequestsMetrics = promauto.NewCounter(
+	prometheus.CounterOpts{
 		Namespace: "tempodb",
 		Name:      "backend_hedged_roundtrips_total",
-		Help:      "Total number of hedged backend requests. Registered as a gauge for code sanity. This is a counter.",
+		Help:      "Total number of hedged backend requests.",
 	},
 )
 

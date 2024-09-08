@@ -30,11 +30,11 @@ var (
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{"endpoint"})
-	metricExternalHedgedRequests = promauto.NewGauge(
-		prometheus.GaugeOpts{
+	metricExternalHedgedRequests = promauto.NewCounter(
+		prometheus.CounterOpts{
 			Namespace: "tempo",
 			Name:      "querier_external_endpoint_hedged_roundtrips_total",
-			Help:      "Total number of hedged external requests. Registered as a gauge for code sanity. This is a counter.",
+			Help:      "Total number of hedged external requests.",
 		},
 	)
 )
