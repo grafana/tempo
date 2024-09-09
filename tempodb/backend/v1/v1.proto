@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package backend.v1;
+
+import "pkg/tempopb/tempo.proto";
+
+import "google/protobuf/timestamp.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+
+option go_package = "github.com/grafana/tempo/tempodb/backend/v1";
+
+message BlockMeta {
+    string version = 1[(gogoproto.jsontag) = "format"];
+    bytes block_id = 2[(gogoproto.jsontag) = "blockID"];
+    string tenant_id = 5[(gogoproto.jsontag) = "tenantID"];
+    google.protobuf.Timestamp start_time = 6[(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "startTime"];
+    google.protobuf.Timestamp end_time = 7[(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "endTime"];
+    int32 total_objects = 8[(gogoproto.jsontag) = "totalObjects"];
+    uint64 size = 9;
+    uint32 compaction_level = 10[(gogoproto.jsontag) = "compactionLevel"];
+    uint32 encoding = 11;
+    uint32 index_page_size = 12[(gogoproto.jsontag) = "indexPageSize"];
+    uint32 total_records = 13[(gogoproto.jsontag) = "totalRecords"];
+    string data_encoding = 14[(gogoproto.jsontag) = "dataEncoding"];
+    uint32 bloom_shard_count = 15[(gogoproto.jsontag) = "bloomShards"];
+    uint32 footer_size = 16[(gogoproto.jsontag) = "footerSize"];
+    repeated tempopb.DedicatedColumn dedicated_columns = 17[(gogoproto.jsontag) = "dedicatedColumns,omitempty"];
+    uint32 replication_factor = 18[(gogoproto.jsontag) = "replicationFactor,omitempty"];
+}
+
+message CompactedBlockMeta {
+    BlockMeta block_meta = 1[(gogoproto.embed) = true, (gogoproto.nullable) = false];
+    google.protobuf.Timestamp compacted_time = 2[(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+}
+
+message TenantIndex {
+    google.protobuf.Timestamp created_at = 1[(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    repeated BlockMeta meta = 2;
+    repeated CompactedBlockMeta compacted_meta = 3;
+}
