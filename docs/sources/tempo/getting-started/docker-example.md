@@ -39,8 +39,8 @@ The Tempo examples running with Docker using docker-compose include a version of
 To follow this guide, you need:
 
 - Git
-- Docker
-- The docker-compose plugin
+- [Docker](https://docs.docker.com/compose/install/)
+- The Docker Compose plugin (included with Docker Desktop)
 
 {{< admonition type="tip" >}}
 Alternatively, you can try out this example in our interactive learning environment: [Quick start for Tempo](https://killercoda.com/grafana-labs/course/tempo/quick-start).
@@ -141,8 +141,8 @@ Data from `intro-to-mltp` can also be pushed to Grafana Cloud.
 
 ### Further reading
 Here are some resources to help you learn more about Tempo:
-* [Instrumenting your application]({{< relref "./instrumentation" >}})
-* [Setup guides for Tempo]({{< relref "../setup" >}})
+* [Instrumenting your application](https://grafana.com/docs/tempo/<TEMPO_VERSION>/getting-started/instrumentation/)
+* [Setup guides for Tempo](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/)
 
 
 <!-- INTERACTIVE page finish.md END -->
