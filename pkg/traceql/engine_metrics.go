@@ -1113,7 +1113,7 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *
 	var f func(existingValue float64, newValue float64) float64
 	switch op {
 	case minAggregation:
-		// Simple min aggregator. It calculates the minumun between existing values and a new sample
+		// Simple min aggregator. It calculates the minumum between existing values and a new sample
 		f = func(existingValue float64, newValue float64) float64 {
 			if math.IsNaN(existingValue) || newValue < existingValue {
 				return newValue
@@ -1122,7 +1122,7 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *
 		}
 		initWithNaN = true
 	case maxAggregation:
-		// Simple min aggregator. It calculates the minumun between existing values and a new sample
+		// Simple max aggregator. It calculates the maximum between existing values and a new sample
 		f = func(existingValue float64, newValue float64) float64 {
 			if math.IsNaN(existingValue) || newValue > existingValue {
 				return newValue
