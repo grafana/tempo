@@ -109,7 +109,7 @@ The `count_over_time()` let you counts the number of matching spans per time int
 The `min_over_time()` let you aggregate numerical values by computing the minimum value of them, such as the all important span duration.
 
 ```
-{ name = "GET /:endpoint" } | min_over_time(duration` by (span.http.target)
+{ name = "GET /:endpoint" } | min_over_time(duration) by (span.http.target)
 ```
 
 Any numerical attribute on the span is fair game.
@@ -121,7 +121,7 @@ Any numerical attribute on the span is fair game.
 The `max_over_time()` let you aggregate numerical values by computing the maximum value of them, such as the all important span duration.
 
 ```
-{ name = "GET /:endpoint" } | max_over_time(duration` by (span.http.target)
+{ name = "GET /:endpoint" } | max_over_time(duration) by (span.http.target)
 ```
 
 ```
