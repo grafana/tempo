@@ -20,3 +20,4 @@
 private-key.key
 integration/e2e/e2e_integration_test[0-9]*
 .tempo.yaml
+/tmp
