@@ -105,6 +105,27 @@ func (e Encoding) MarshalJSON() ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
+func (e Encoding) Marshal() ([]byte, error) {
+	return e.MarshalJSON()
+}
+
+func (e *Encoding) MarshalTo(data []byte) (n int, err error) {
+	b, err := e.Marshal()
+	if err != nil {
+		return 0, err
+	}
+
+	return copy(data, b), nil
+}
+
+func (e *Encoding) Unmarshal(data []byte) error {
+	return e.UnmarshalJSON(data)
+}
+
+func (e *Encoding) Size() int {
+	return 1
+}
+
 // ParseEncoding parses a chunk encoding (compression algorithm) by its name.
 func ParseEncoding(enc string) (Encoding, error) {
 	for _, e := range SupportedEncoding {

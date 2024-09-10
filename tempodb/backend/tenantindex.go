@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	proto "github.com/gogo/protobuf/proto"
 	"github.com/klauspost/compress/gzip"
 )
 
@@ -12,9 +13,11 @@ const (
 	internalFilename = "index.json"
 )
 
-// TenantIndex holds a list of all metas and compacted metas for a given tenant
+var _ proto.Message = &TenantIndex{}
+
+// tenantIndex holds a list of all metas and compacted metas for a given tenant
 // it is probably stored in /<tenantid>/blockindex.json.gz as a gzipped json file
-type TenantIndex struct {
+type tenantIndex struct {
 	CreatedAt     time.Time             `json:"created_at"`
 	Meta          []*BlockMeta          `json:"meta"`
 	CompactedMeta []*CompactedBlockMeta `json:"compacted"`
@@ -64,3 +67,79 @@ func (b *TenantIndex) unmarshal(buffer []byte) error {
 	d := json.NewDecoder(gzipReader)
 	return d.Decode(b)
 }
+
+// func (b *TenantIndex) proto() (*TenantIndex, error) {
+// 	tenantIndex := &TenantIndex{
+// 		CreatedAt:     b.CreatedAt,
+// 		Meta:          make([]*BlockMeta, 0, len(b.Meta)),
+// 		CompactedMeta: make([]*CompactedBlockMeta, 0, len(b.CompactedMeta)),
+// 	}
+//
+// 	var (
+// 		err error
+// 		mPb *BlockMeta
+// 		cPb *CompactedBlockMeta
+// 	)
+//
+// 	for _, m := range b.Meta {
+// 		mPb, err = m.ToBackendV1Proto()
+// 		if err != nil {
+// 			return nil, err
+// 		}
+//
+// 		tenantIndex.Meta = append(tenantIndex.Meta, mPb)
+// 	}
+//
+// 	for _, m := range b.CompactedMeta {
+// 		cPb, err = m.ToBackendV1Proto()
+// 		if err != nil {
+// 			return nil, err
+// 		}
+//
+// 		tenantIndex.CompactedMeta = append(tenantIndex.CompactedMeta, cPb)
+// 	}
+//
+// 	return tenantIndex, nil
+// }
+
+// func (b *tenantIndex) fromProto(pb *TenantIndex) error {
+// 	b.CreatedAt = pb.CreatedAt
+// 	var (
+// 		meta          = make([]*BlockMeta, 0, len(pb.Meta))
+// 		compactedMeta = make([]*CompactedBlockMeta, 0, len(pb.CompactedMeta))
+// 	)
+//
+// 	var (
+// 		err error
+// 		m   *BlockMeta
+// 		c   *CompactedBlockMeta
+// 	)
+//
+// 	for _, mPb := range pb.Meta {
+// 		m = &BlockMeta{}
+// 		err = m.FromBackendV1Proto(mPb)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		meta = append(meta, m)
+// 	}
+//
+// 	if len(meta) > 0 {
+// 		b.Meta = meta
+// 	}
+//
+// 	for _, cPb := range pb.CompactedMeta {
+// 		c = &CompactedBlockMeta{}
+// 		err = c.FromBackendV1Proto(cPb)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		compactedMeta = append(compactedMeta, c)
+// 	}
+//
+// 	if len(compactedMeta) > 0 {
+// 		b.CompactedMeta = compactedMeta
+// 	}
+//
+// 	return nil
+// }

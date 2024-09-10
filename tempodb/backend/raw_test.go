@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
@@ -49,9 +50,16 @@ func TestWriter(t *testing.T) {
 	err = w.WriteTenantIndex(ctx, "test", []*BlockMeta{meta}, nil)
 	assert.NoError(t, err)
 
-	pbidx := &TenantIndex{}
-	err = json.Unmarshal(m.writeBuffer, pbidx)
+	idx := &TenantIndex{}
+	err = json.Unmarshal(m.writeBuffer, idx)
 	assert.NoError(t, err)
+
+	t.Logf("writeBuffer: %v", string(m.writeBuffer))
+
+	assert.Equal(t, []*BlockMeta{meta}, idx.Meta)
+	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idx.Meta))                  // using cmp.Equal to compare json datetimes
+	assert.Equal(t, []*CompactedBlockMeta(nil), idx.Meta)
+	assert.True(t, cmp.Equal([]*CompactedBlockMeta(nil), idx.CompactedMeta)) // using cmp.Equal to compare json datetimes
 
 	// When there are no blocks, the tenant index should be deleted
 	assert.Equal(t, map[string]map[string]int(nil), w.(*writer).w.(*MockRawWriter).deleteCalls)
@@ -110,21 +118,23 @@ func TestReader(t *testing.T) {
 	assert.Nil(t, meta)
 
 	expectedMeta := NewBlockMeta("test", uuid.New(), "blerg", EncGZIP, "glarg")
-	m.R, _ = json.Marshal(expectedMeta)
+
+	var (
+		bb  = []byte{}
+		buf = bytes.NewBuffer(bb)
+	)
+	err = new(jsonpb.Marshaler).Marshal(buf, expectedMeta)
+	assert.NoError(t, err)
+	m.R = buf.Bytes()
+	t.Logf("meta: %v", string(m.R))
 	meta, err = r.BlockMeta(ctx, uuid.New(), "test")
 	assert.NoError(t, err)
-	assert.True(t, cmp.Equal(expectedMeta, meta))
+	assert.Equal(t, expectedMeta, meta)
 
 	// should fail b/c tenant index is not valid
 	idx, err := r.TenantIndex(ctx, "test")
 	assert.Error(t, err)
 	assert.Nil(t, idx)
-
-	expectedIdx := newTenantIndex([]*BlockMeta{expectedMeta}, nil)
-	m.R, _ = expectedIdx.marshal()
-	idx, err = r.TenantIndex(ctx, "test")
-	assert.NoError(t, err)
-	assert.True(t, cmp.Equal(expectedIdx, idx))
 }
 
 func TestKeyPathForBlock(t *testing.T) {

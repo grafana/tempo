@@ -202,7 +202,7 @@ func (r *readerWriter) cacheFor(cacheInfo *backend.CacheInfo) cache.Cache {
 		}
 
 		// compaction level is _atleast_ CacheMinCompactionLevel
-		if r.cfgBloom.CacheMinCompactionLevel > 0 && cacheInfo.Meta.CompactionLevel > r.cfgBloom.CacheMinCompactionLevel {
+		if r.cfgBloom.CacheMinCompactionLevel > 0 && cacheInfo.Meta.CompactionLevel > uint32(r.cfgBloom.CacheMinCompactionLevel) {
 			return nil
 		}
 

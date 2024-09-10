@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash/v2"
-	"github.com/google/uuid"
+	google_uuid "github.com/google/uuid"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/uuid"
 )
 
 // DedicatedColumnType is the type of the values in the dedicated attribute column. Only 'string' is supported.
@@ -82,10 +83,33 @@ func (s DedicatedColumnScope) ToTempopb() (tempopb.DedicatedColumn_Scope, error)
 	}
 }
 
-type CompactedBlockMeta struct {
+type compactedBlockMeta struct {
 	CompactedTime time.Time `json:"compactedTime"`
 	BlockMeta
 }
+
+// func (b *CompactedBlockMeta) ToBackendV1Proto() (*CompactedBlockMeta, error) {
+// 	bm, err := b.BlockMeta.ToBackendV1Proto()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+//
+// 	return &CompactedBlockMeta{
+// 		BlockMeta:     *bm,
+// 		CompactedTime: b.CompactedTime,
+// 	}, nil
+// }
+//
+// func (b *CompactedBlockMeta) FromBackendV1Proto(pb *CompactedBlockMeta) error {
+// 	err := b.BlockMeta.FromBackendV1Proto(&pb.BlockMeta)
+// 	if err != nil {
+// 		return err
+// 	}
+//
+// 	b.CompactedTime = pb.CompactedTime
+//
+// 	return nil
+// }
 
 const (
 	DefaultReplicationFactor          = 0 // Replication factor for blocks from the ingester. This is the default value to indicate RF3.
@@ -93,11 +117,11 @@ const (
 )
 
 // The BlockMeta data that is stored for each individual block.
-type BlockMeta struct {
+type blockMeta struct {
 	// A Version that indicates the block format. This includes specifics of how the indexes and data is stored.
 	Version string `json:"format"`
 	// BlockID is a unique identifier of the block.
-	BlockID uuid.UUID `json:"blockID"`
+	BlockID google_uuid.UUID `json:"blockID"`
 	// A TenantID that defines the tenant to which this block belongs.
 	TenantID string `json:"tenantID"`
 	// StartTime roughly matches when the first obj was written to this block. It is used to determine block.
@@ -192,14 +216,14 @@ func (dcs *DedicatedColumns) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {
+func NewBlockMeta(tenantID string, blockID google_uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {
 	return NewBlockMetaWithDedicatedColumns(tenantID, blockID, version, encoding, dataEncoding, nil)
 }
 
-func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dc DedicatedColumns) *BlockMeta {
+func NewBlockMetaWithDedicatedColumns(tenantID string, blockID google_uuid.UUID, version string, encoding Encoding, dataEncoding string, dc DedicatedColumns) *BlockMeta {
 	b := &BlockMeta{
 		Version:          version,
-		BlockID:          blockID,
+		BlockID:          uuid.UUID{UUID: blockID},
 		TenantID:         tenantID,
 		Encoding:         encoding,
 		DataEncoding:     dataEncoding,
@@ -232,6 +256,72 @@ func (b *BlockMeta) ObjectAdded(start, end uint32) {
 func (b *BlockMeta) DedicatedColumnsHash() uint64 {
 	return b.DedicatedColumns.Hash()
 }
+
+// func (b *BlockMeta) ToBackendV1Proto() (*BlockMeta, error) {
+// 	blockID, err := b.BlockID.MarshalText()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+//
+// 	m := &BlockMeta{
+// 		Version:           b.Version,
+// 		BlockId:           blockID,
+// 		TenantId:          b.TenantID,
+// 		StartTime:         b.StartTime,
+// 		EndTime:           b.EndTime,
+// 		TotalObjects:      int32(b.TotalObjects),
+// 		Size_:             b.Size,
+// 		CompactionLevel:   uint32(b.CompactionLevel),
+// 		Encoding:          uint32(b.Encoding),
+// 		IndexPageSize:     b.IndexPageSize,
+// 		TotalRecords:      b.TotalRecords,
+// 		DataEncoding:      b.DataEncoding,
+// 		BloomShardCount:   uint32(b.BloomShardCount),
+// 		FooterSize:        b.FooterSize,
+// 		ReplicationFactor: uint32(b.ReplicationFactor),
+// 	}
+//
+// 	dc, err := b.DedicatedColumns.ToTempopb()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	m.DedicatedColumns = dc
+//
+// 	return m, nil
+// }
+
+// func (b *BlockMeta) FromBackendV1Proto(pb *BlockMeta) error {
+// 	blockID, err := uuid.ParseBytes(pb.BlockId)
+// 	if err != nil {
+// 		return err
+// 	}
+//
+// 	b.Version = pb.Version
+// 	b.BlockID = blockID
+// 	b.TenantID = pb.TenantId
+// 	b.StartTime = pb.StartTime
+// 	b.EndTime = pb.EndTime
+// 	b.TotalObjects = int(pb.TotalObjects)
+// 	b.Size = pb.Size_
+// 	b.CompactionLevel = uint8(pb.CompactionLevel)
+// 	b.Encoding = Encoding(pb.Encoding)
+// 	b.IndexPageSize = pb.IndexPageSize
+// 	b.TotalRecords = pb.TotalRecords
+// 	b.DataEncoding = pb.DataEncoding
+// 	b.BloomShardCount = uint16(pb.BloomShardCount)
+// 	b.FooterSize = pb.FooterSize
+// 	b.ReplicationFactor = uint8(pb.ReplicationFactor)
+// 	dcs, err := DedicatedColumnsFromTempopb(pb.DedicatedColumns)
+// 	if err != nil {
+// 		return err
+// 	}
+//
+// 	if len(dcs) > 0 {
+// 		b.DedicatedColumns = dcs
+// 	}
+//
+// 	return nil
+// }
 
 func DedicatedColumnsFromTempopb(tempopbCols []*tempopb.DedicatedColumn) (DedicatedColumns, error) {
 	cols := make(DedicatedColumns, 0, len(tempopbCols))
@@ -336,4 +426,34 @@ func (dcs DedicatedColumns) Hash() uint64 {
 		_, _ = h.WriteString(string(c.Type))
 	}
 	return h.Sum64()
+}
+
+func (dcs DedicatedColumns) Size() int {
+	// FIXME: I don't think this is right.  Since we're not marshaling to proto.
+
+	var s int
+	pb, err := dcs.ToTempopb()
+	if err != nil {
+		return 0
+	}
+
+	for _, i := range pb {
+		s += i.Size()
+	}
+
+	return s
+}
+
+func (dcs DedicatedColumns) MarshalTo(data []byte) (n int, err error) {
+	bb, err := json.Marshal(dcs)
+	if err != nil {
+		return 0, err
+	}
+	copy(data, bb)
+
+	return len(bb), nil
+}
+
+func (dcs DedicatedColumns) Unmarshal(data []byte) error {
+	return json.Unmarshal(data, &dcs)
 }

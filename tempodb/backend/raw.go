@@ -5,19 +5,26 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"path"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/gogo/protobuf/jsonpb"
+	google_uuid "github.com/google/uuid"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 )
 
 const (
+	// JSON
 	MetaName          = "meta.json"
 	CompactedMetaName = "meta.compacted.json"
 	TenantIndexName   = "index.json.gz"
+
+	// Proto
+	TenantIndexNameProto = "index"
+
 	// File name for the cluster seed file.
 	ClusterSeedFileName = "tempo_cluster_seed.json"
 )
@@ -53,7 +60,7 @@ type RawReader interface {
 	// List returns all objects one level beneath the provided keypath
 	List(ctx context.Context, keypath KeyPath) ([]string, error)
 	// ListBlocks returns all blockIDs and compactedBlockIDs for a tenant.
-	ListBlocks(ctx context.Context, tenant string) (blockIDs []uuid.UUID, compactedBlockIDs []uuid.UUID, err error)
+	ListBlocks(ctx context.Context, tenant string) (blockIDs []google_uuid.UUID, compactedBlockIDs []google_uuid.UUID, err error)
 	// Find executes the FindFunc for each object in the backend starting at the specified keypath.  Collection of these objects is the callers responsibility.
 	Find(ctx context.Context, keypath KeyPath, f FindFunc) error
 	// Read is for streaming entire objects from the backend.  There will be an attempt to retrieve this from cache if shouldCache is true.
@@ -83,19 +90,21 @@ func NewWriter(w RawWriter) Writer {
 // )
 
 // Write implements backend.Writer
-func (w *writer) Write(ctx context.Context, name string, blockID uuid.UUID, tenantID string, buffer []byte, cacheInfo *CacheInfo) error {
+func (w *writer) Write(ctx context.Context, name string, blockID google_uuid.UUID, tenantID string, buffer []byte, cacheInfo *CacheInfo) error {
 	return w.w.Write(ctx, name, KeyPathForBlock(blockID, tenantID), bytes.NewReader(buffer), int64(len(buffer)), cacheInfo)
 }
 
 // Write implements backend.Writer
-func (w *writer) StreamWriter(ctx context.Context, name string, blockID uuid.UUID, tenantID string, data io.Reader, size int64) error {
+func (w *writer) StreamWriter(ctx context.Context, name string, blockID google_uuid.UUID, tenantID string, data io.Reader, size int64) error {
 	return w.w.Write(ctx, name, KeyPathForBlock(blockID, tenantID), data, size, nil)
 }
 
 // Write implements backend.Writer
 func (w *writer) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
-	blockID := meta.BlockID
-	tenantID := meta.TenantID
+	var (
+		blockID  = meta.BlockID.UUID
+		tenantID = meta.TenantID
+	)
 
 	bMeta, err := json.Marshal(meta)
 	if err != nil {
@@ -106,7 +115,7 @@ func (w *writer) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
 }
 
 // Write implements backend.Writer
-func (w *writer) Append(ctx context.Context, name string, blockID uuid.UUID, tenantID string, tracker AppendTracker, buffer []byte) (AppendTracker, error) {
+func (w *writer) Append(ctx context.Context, name string, blockID google_uuid.UUID, tenantID string, tracker AppendTracker, buffer []byte) (AppendTracker, error) {
 	return w.w.Append(ctx, name, KeyPathForBlock(blockID, tenantID), tracker, buffer)
 }
 
@@ -170,7 +179,7 @@ func NewReader(r RawReader) Reader {
 }
 
 // Read implements backend.Reader
-func (r *reader) Read(ctx context.Context, name string, blockID uuid.UUID, tenantID string, cacheInfo *CacheInfo) ([]byte, error) {
+func (r *reader) Read(ctx context.Context, name string, blockID google_uuid.UUID, tenantID string, cacheInfo *CacheInfo) ([]byte, error) {
 	objReader, size, err := r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID), cacheInfo)
 	if err != nil {
 		return nil, err
@@ -180,12 +189,12 @@ func (r *reader) Read(ctx context.Context, name string, blockID uuid.UUID, tenan
 }
 
 // StreamReader implements backend.Reader
-func (r *reader) StreamReader(ctx context.Context, name string, blockID uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
+func (r *reader) StreamReader(ctx context.Context, name string, blockID google_uuid.UUID, tenantID string) (io.ReadCloser, int64, error) {
 	return r.r.Read(ctx, name, KeyPathForBlock(blockID, tenantID), nil)
 }
 
 // ReadRange implements backend.Reader
-func (r *reader) ReadRange(ctx context.Context, name string, blockID uuid.UUID, tenantID string, offset uint64, buffer []byte, cacheInfo *CacheInfo) error {
+func (r *reader) ReadRange(ctx context.Context, name string, blockID google_uuid.UUID, tenantID string, offset uint64, buffer []byte, cacheInfo *CacheInfo) error {
 	return r.r.ReadRange(ctx, name, KeyPathForBlock(blockID, tenantID), offset, buffer, cacheInfo)
 }
 
@@ -205,25 +214,20 @@ func (r *reader) Tenants(ctx context.Context) ([]string, error) {
 }
 
 // Blocks implements backend.Reader
-func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
+func (r *reader) Blocks(ctx context.Context, tenantID string) ([]google_uuid.UUID, []google_uuid.UUID, error) {
 	return r.r.ListBlocks(ctx, tenantID)
 }
 
 // BlockMeta implements backend.Reader
-func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
-	reader, size, err := r.r.Read(ctx, MetaName, KeyPathForBlock(blockID, tenantID), nil)
+func (r *reader) BlockMeta(ctx context.Context, blockID google_uuid.UUID, tenantID string) (*BlockMeta, error) {
+	reader, _, err := r.r.Read(ctx, MetaName, KeyPathForBlock(blockID, tenantID), nil)
 	if err != nil {
 		return nil, err
 	}
 	defer reader.Close()
 
-	bytes, err := tempo_io.ReadAllWithEstimate(reader, size)
-	if err != nil {
-		return nil, err
-	}
-
 	out := &BlockMeta{}
-	err = json.Unmarshal(bytes, out)
+	err = jsonpb.Unmarshal(reader, out)
 	if err != nil {
 		return nil, err
 	}
@@ -233,25 +237,12 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 
 // TenantIndex implements backend.Reader
 func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error) {
-	reader, size, err := r.r.Read(ctx, TenantIndexName, KeyPath([]string{tenantID}), nil)
+	tenantIndex, err := r.tenantIndexProto(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}
 
-	defer reader.Close()
-
-	bytes, err := tempo_io.ReadAllWithEstimate(reader, size)
-	if err != nil {
-		return nil, err
-	}
-
-	i := &TenantIndex{}
-	err = i.unmarshal(bytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return i, nil
+	return tenantIndex, nil
 }
 
 // Find implements backend.Reader
@@ -264,8 +255,25 @@ func (r *reader) Shutdown() {
 	r.r.Shutdown()
 }
 
+func (r *reader) tenantIndexProto(ctx context.Context, tenantID string) (*TenantIndex, error) {
+	tenantIndexMessage := &TenantIndex{}
+
+	reader, _, err := r.r.Read(ctx, TenantIndexNameProto, KeyPath([]string{tenantID}), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+
+	err = jsonpb.Unmarshal(reader, tenantIndexMessage)
+	if err == nil {
+		return tenantIndexMessage, nil
+	}
+
+	return nil, fmt.Errorf("error reading tenant index proto: %w", err)
+}
+
 // KeyPathForBlock returns a correctly ordered keypath given a block id and tenantid
-func KeyPathForBlock(blockID uuid.UUID, tenantID string) KeyPath {
+func KeyPathForBlock(blockID google_uuid.UUID, tenantID string) KeyPath {
 	return []string{tenantID, blockID.String()}
 }
 
@@ -284,16 +292,16 @@ func KeyPathWithPrefix(keypath KeyPath, prefix string) KeyPath {
 }
 
 // MetaFileName returns the object name for the block meta given a block id and tenantid
-func MetaFileName(blockID uuid.UUID, tenantID, prefix string) string {
+func MetaFileName(blockID google_uuid.UUID, tenantID, prefix string) string {
 	return path.Join(prefix, tenantID, blockID.String(), MetaName)
 }
 
 // CompactedMetaFileName returns the object name for the compacted block meta given a block id and tenantid
-func CompactedMetaFileName(blockID uuid.UUID, tenantID, prefix string) string {
+func CompactedMetaFileName(blockID google_uuid.UUID, tenantID, prefix string) string {
 	return path.Join(prefix, tenantID, blockID.String(), CompactedMetaName)
 }
 
 // RootPath returns the root path for a block given a block id and tenantid
-func RootPath(blockID uuid.UUID, tenantID, prefix string) string {
+func RootPath(blockID google_uuid.UUID, tenantID, prefix string) string {
 	return path.Join(prefix, tenantID, blockID.String())
 }

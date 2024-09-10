@@ -38,7 +38,7 @@ func TestReadWrite(t *testing.T) {
 	}
 
 	fakeMeta := &backend.BlockMeta{
-		BlockID: blockID,
+		BlockId: []byte(blockID.String()),
 	}
 
 	fakeObject := make([]byte, 20)
@@ -46,15 +46,18 @@ func TestReadWrite(t *testing.T) {
 	_, err = crand.Read(fakeObject)
 	assert.NoError(t, err, "unexpected error creating fakeObject")
 
+	blockID, err = uuid.ParseBytes(fakeMeta.BlockId)
+	assert.NoError(t, err, "unexpected error parsing blockID")
+
 	ctx := context.Background()
 	for _, id := range tenantIDs {
-		fakeMeta.TenantID = id
-		err = w.Write(ctx, objectName, backend.KeyPathForBlock(fakeMeta.BlockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
+		fakeMeta.TenantId = id
+		err = w.Write(ctx, objectName, backend.KeyPathForBlock(blockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
 		assert.NoError(t, err, "unexpected error writing")
 
-		err = w.Write(ctx, backend.MetaName, backend.KeyPathForBlock(fakeMeta.BlockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
+		err = w.Write(ctx, backend.MetaName, backend.KeyPathForBlock(blockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
 		assert.NoError(t, err, "unexpected error meta.json")
-		err = w.Write(ctx, backend.CompactedMetaName, backend.KeyPathForBlock(fakeMeta.BlockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
+		err = w.Write(ctx, backend.CompactedMetaName, backend.KeyPathForBlock(blockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
 		assert.NoError(t, err, "unexpected error meta.compacted.json")
 	}
 
