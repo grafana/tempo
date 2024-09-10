@@ -10,11 +10,8 @@ import (
 	"github.com/go-kit/log/level"
 	instr "github.com/grafana/dskit/instrument"
 	"github.com/grafana/gomemcache/memcache"
-	"github.com/grafana/tempo/pkg/util/spanlogger"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // MemcachedConfig is config to make a Memcached
@@ -86,14 +83,12 @@ func (c *Memcached) Fetch(ctx context.Context, keys []string) (found []string, b
 func (c *Memcached) FetchKey(ctx context.Context, key string) (buf []byte, found bool) {
 	const method = "Memcache.Get"
 	var item *memcache.Item
-	log := spanlogger.FromContext(ctx)
 	err := measureRequest(ctx, method, c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
 		var err error
 		item, err = c.memcache.Get(key)
 		if err != nil {
 			if errors.Is(err, memcache.ErrCacheMiss) {
 				level.Debug(c.logger).Log("msg", "Failed to get key from memcached", "err", err, "key", key)
-				log.AddEvent("cache.key.missed", trace.WithAttributes(attribute.String("key", key)))
 			} else {
 				level.Error(c.logger).Log("msg", "Error getting key from memcached", "err", err, "key", key)
 			}
@@ -101,7 +96,6 @@ func (c *Memcached) FetchKey(ctx context.Context, key string) (buf []byte, found
 		return err
 	})
 	if err != nil {
-		log.AddEvent("cache.key.found", trace.WithAttributes(attribute.String("key", key)))
 		return buf, false
 	}
 	return item.Value, true
@@ -110,12 +104,11 @@ func (c *Memcached) FetchKey(ctx context.Context, key string) (buf []byte, found
 func (c *Memcached) fetch(ctx context.Context, keys []string) (found []string, bufs [][]byte, missed []string) {
 	var items map[string]*memcache.Item
 	const method = "Memcache.GetMulti"
-	log := spanlogger.FromContext(ctx)
+
 	err := measureRequest(ctx, method, c.requestDuration, memcacheStatusCode, func(_ context.Context) error {
 		var err error
 		items, err = c.memcache.GetMulti(keys)
 		if err != nil {
-			log.AddEvent("cache.keys.missed", trace.WithAttributes(attribute.Int("key", len(keys))))
 			level.Error(c.logger).Log("msg", "Failed to get keys from memcached", "err", err)
 		}
 		return err
@@ -123,7 +116,6 @@ func (c *Memcached) fetch(ctx context.Context, keys []string) (found []string, b
 	if err != nil {
 		return found, bufs, keys
 	}
-	log.AddEvent("cache.keys.found", trace.WithAttributes(attribute.Int("keys", len(keys))))
 	for _, key := range keys {
 		item, ok := items[key]
 		if ok {
