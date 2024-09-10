@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	backend_v1 "github.com/grafana/tempo/tempodb/backend/v1"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 const testTenantID = "test"
@@ -27,14 +27,14 @@ func TestApplyPollResults(t *testing.T) {
 		{
 			name: "meta only",
 			metas: PerTenant{
-				"test": []*backend_v1.BlockMeta{
+				"test": []*backend.BlockMeta{
 					{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 					},
 				},
-				"test2": []*backend_v1.BlockMeta{
+				"test2": []*backend.BlockMeta{
 					{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 					},
 				},
 			},
@@ -43,22 +43,22 @@ func TestApplyPollResults(t *testing.T) {
 		{
 			name: "compacted meta only",
 			compacted: PerTenantCompacted{
-				"test": []*backend_v1.CompactedBlockMeta{
+				"test": []*backend.CompactedBlockMeta{
 					{
-						BlockMeta: backend_v1.BlockMeta{
-							BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 						},
 					},
 				},
-				"test2": []*backend_v1.CompactedBlockMeta{
+				"test2": []*backend.CompactedBlockMeta{
 					{
-						BlockMeta: backend_v1.BlockMeta{
-							BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 						},
 					},
 					{
-						BlockMeta: backend_v1.BlockMeta{
-							BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
 						},
 					},
 				},
@@ -68,34 +68,34 @@ func TestApplyPollResults(t *testing.T) {
 		{
 			name: "all",
 			metas: PerTenant{
-				"test": []*backend_v1.BlockMeta{
+				"test": []*backend.BlockMeta{
 					{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 					},
 				},
-				"blerg": []*backend_v1.BlockMeta{
+				"blerg": []*backend.BlockMeta{
 					{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 					},
 				},
 			},
 			compacted: PerTenantCompacted{
-				"test": []*backend_v1.CompactedBlockMeta{
+				"test": []*backend.CompactedBlockMeta{
 					{
-						BlockMeta: backend_v1.BlockMeta{
-							BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 						},
 					},
 				},
-				"test2": []*backend_v1.CompactedBlockMeta{
+				"test2": []*backend.CompactedBlockMeta{
 					{
-						BlockMeta: backend_v1.BlockMeta{
-							BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 						},
 					},
 					{
-						BlockMeta: backend_v1.BlockMeta{
-							BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
 						},
 					},
 				},
@@ -127,10 +127,10 @@ func TestApplyPollResults(t *testing.T) {
 func TestUpdate(t *testing.T) {
 	tests := []struct {
 		name     string
-		existing []*backend_v1.BlockMeta
-		add      []*backend_v1.BlockMeta
-		remove   []*backend_v1.BlockMeta
-		expected []*backend_v1.BlockMeta
+		existing []*backend.BlockMeta
+		add      []*backend.BlockMeta
+		remove   []*backend.BlockMeta
+		expected []*backend.BlockMeta
 	}{
 		{
 			name:     "all nil",
@@ -142,37 +142,37 @@ func TestUpdate(t *testing.T) {
 		{
 			name:     "add to nil",
 			existing: nil,
-			add: []*backend_v1.BlockMeta{
+			add: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 				},
 			},
 			remove: nil,
-			expected: []*backend_v1.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 				},
 			},
 		},
 		{
 			name: "add to existing",
-			existing: []*backend_v1.BlockMeta{
+			existing: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 				},
 			},
-			add: []*backend_v1.BlockMeta{
+			add: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
 				},
 			},
 			remove: nil,
-			expected: []*backend_v1.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 				},
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
 				},
 			},
 		},
@@ -180,120 +180,120 @@ func TestUpdate(t *testing.T) {
 			name:     "remove from nil",
 			existing: nil,
 			add:      nil,
-			remove: []*backend_v1.BlockMeta{
+			remove: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
 				},
 			},
 			expected: nil,
 		},
 		{
 			name: "remove nil",
-			existing: []*backend_v1.BlockMeta{
+			existing: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
 				},
 			},
 			add:    nil,
 			remove: nil,
-			expected: []*backend_v1.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
 				},
 			},
 		},
 		{
 			name: "remove existing",
-			existing: []*backend_v1.BlockMeta{
+			existing: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 				},
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
 				},
 			},
 			add: nil,
-			remove: []*backend_v1.BlockMeta{
+			remove: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 				},
 			},
-			expected: []*backend_v1.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
 				},
 			},
 		},
 		{
 			name: "remove no match",
-			existing: []*backend_v1.BlockMeta{
+			existing: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 				},
 			},
 			add: nil,
-			remove: []*backend_v1.BlockMeta{
+			remove: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
 				},
 			},
-			expected: []*backend_v1.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 				},
 			},
 		},
 		{
 			name: "add and remove",
-			existing: []*backend_v1.BlockMeta{
+			existing: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 				},
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
-				},
-			},
-			add: []*backend_v1.BlockMeta{
-				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000003")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
 				},
 			},
-			remove: []*backend_v1.BlockMeta{
+			add: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000003")),
 				},
 			},
-			expected: []*backend_v1.BlockMeta{
+			remove: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+				},
+			},
+			expected: []*backend.BlockMeta{
+				{
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 				},
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000003")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000003")),
 				},
 			},
 		},
 		{
 			name: "add already exists",
-			existing: []*backend_v1.BlockMeta{
+			existing: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 				},
 			},
-			add: []*backend_v1.BlockMeta{
+			add: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 				},
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
 				},
 			},
 			remove: nil,
-			expected: []*backend_v1.BlockMeta{
+			expected: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 				},
 				{
-					BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
 				},
 			},
 		},
@@ -309,7 +309,7 @@ func TestUpdate(t *testing.T) {
 			assert.Equal(t, len(tt.expected), len(l.metas[testTenantID]))
 
 			for i := range tt.expected {
-				assert.Equal(t, tt.expected[i].BlockId, l.metas[testTenantID][i].BlockId)
+				assert.Equal(t, tt.expected[i].BlockID, l.metas[testTenantID][i].BlockID)
 			}
 		})
 	}
@@ -318,10 +318,10 @@ func TestUpdate(t *testing.T) {
 func TestUpdateCompacted(t *testing.T) {
 	tests := []struct {
 		name     string
-		existing []*backend_v1.CompactedBlockMeta
-		add      []*backend_v1.CompactedBlockMeta
-		remove   []*backend_v1.CompactedBlockMeta
-		expected []*backend_v1.CompactedBlockMeta
+		existing []*backend.CompactedBlockMeta
+		add      []*backend.CompactedBlockMeta
+		remove   []*backend.CompactedBlockMeta
+		expected []*backend.CompactedBlockMeta
 	}{
 		{
 			name:     "all nil",
@@ -332,121 +332,121 @@ func TestUpdateCompacted(t *testing.T) {
 		{
 			name:     "add to nil",
 			existing: nil,
-			add: []*backend_v1.CompactedBlockMeta{
+			add: []*backend.CompactedBlockMeta{
 				{
-					BlockMeta: backend_v1.BlockMeta{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 					},
 				},
 			},
-			expected: []*backend_v1.CompactedBlockMeta{
+			expected: []*backend.CompactedBlockMeta{
 				{
-					BlockMeta: backend_v1.BlockMeta{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 					},
 				},
 			},
 		},
 		{
 			name: "add to existing",
-			existing: []*backend_v1.CompactedBlockMeta{
+			existing: []*backend.CompactedBlockMeta{
 				{
-					BlockMeta: backend_v1.BlockMeta{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 					},
 				},
 			},
-			add: []*backend_v1.CompactedBlockMeta{
+			add: []*backend.CompactedBlockMeta{
 				{
-					BlockMeta: backend_v1.BlockMeta{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
 					},
 				},
 			},
-			expected: []*backend_v1.CompactedBlockMeta{
+			expected: []*backend.CompactedBlockMeta{
 				{
-					BlockMeta: backend_v1.BlockMeta{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 					},
 				},
 				{
-					BlockMeta: backend_v1.BlockMeta{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
 					},
 				},
 			},
 		},
 		{
 			name: "add already exists",
-			existing: []*backend_v1.CompactedBlockMeta{
+			existing: []*backend.CompactedBlockMeta{
 				{
-					BlockMeta: backend_v1.BlockMeta{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 					},
 				},
 			},
-			add: []*backend_v1.CompactedBlockMeta{
+			add: []*backend.CompactedBlockMeta{
 				{
-					BlockMeta: backend_v1.BlockMeta{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 					},
 				},
 				{
-					BlockMeta: backend_v1.BlockMeta{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
 					},
 				},
 			},
-			expected: []*backend_v1.CompactedBlockMeta{
+			expected: []*backend.CompactedBlockMeta{
 				{
-					BlockMeta: backend_v1.BlockMeta{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 					},
 				},
 				{
-					BlockMeta: backend_v1.BlockMeta{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
 					},
 				},
 			},
 		},
 		{
 			name: "add and remove",
-			existing: []*backend_v1.CompactedBlockMeta{
+			existing: []*backend.CompactedBlockMeta{
 				{
-					BlockMeta: backend_v1.BlockMeta{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 					},
 				},
 				{
-					BlockMeta: backend_v1.BlockMeta{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
-					},
-				},
-			},
-			add: []*backend_v1.CompactedBlockMeta{
-				{
-					BlockMeta: backend_v1.BlockMeta{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000003")),
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
 					},
 				},
 			},
-			remove: []*backend_v1.CompactedBlockMeta{
+			add: []*backend.CompactedBlockMeta{
 				{
-					BlockMeta: backend_v1.BlockMeta{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000003")),
 					},
 				},
 			},
-			expected: []*backend_v1.CompactedBlockMeta{
+			remove: []*backend.CompactedBlockMeta{
 				{
-					BlockMeta: backend_v1.BlockMeta{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000002")),
+					},
+				},
+			},
+			expected: []*backend.CompactedBlockMeta{
+				{
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 					},
 				},
 				{
-					BlockMeta: backend_v1.BlockMeta{
-						BlockId: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000003")),
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000003")),
 					},
 				},
 			},
@@ -463,7 +463,7 @@ func TestUpdateCompacted(t *testing.T) {
 			assert.Equal(t, len(tt.expected), len(l.compactedMetas[testTenantID]))
 
 			for i := range tt.expected {
-				assert.Equal(t, tt.expected[i].BlockId, l.compactedMetas[testTenantID][i].BlockId)
+				assert.Equal(t, tt.expected[i].BlockID, l.compactedMetas[testTenantID][i].BlockID)
 			}
 		})
 	}
@@ -482,9 +482,9 @@ func TestUpdatesSaved(t *testing.T) {
 		applyMetas     PerTenant
 		applyCompacted PerTenantCompacted
 		updateTenant   string
-		addMetas       []*backend_v1.BlockMeta
-		removeMetas    []*backend_v1.BlockMeta
-		addCompacted   []*backend_v1.CompactedBlockMeta
+		addMetas       []*backend.BlockMeta
+		removeMetas    []*backend.BlockMeta
+		addCompacted   []*backend.CompactedBlockMeta
 
 		expectedTenants   []string
 		expectedMetas     PerTenant
@@ -493,60 +493,60 @@ func TestUpdatesSaved(t *testing.T) {
 		// STEP 1: apply a normal polling data and updates
 		{
 			applyMetas: PerTenant{
-				"test": []*backend_v1.BlockMeta{
+				"test": []*backend.BlockMeta{
 					{
-						BlockId: uuidBytes(one),
+						BlockID: uuidBytes(one),
 					},
 				},
 			},
 			applyCompacted: PerTenantCompacted{
-				"test": []*backend_v1.CompactedBlockMeta{
+				"test": []*backend.CompactedBlockMeta{
 					{
-						BlockMeta: backend_v1.BlockMeta{
-							BlockId: uuidBytes(oneOhOne),
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuidBytes(oneOhOne),
 						},
 					},
 				},
 			},
 			updateTenant: "test",
-			addMetas: []*backend_v1.BlockMeta{
+			addMetas: []*backend.BlockMeta{
 				{
-					BlockId: uuidBytes(one),
+					BlockID: uuidBytes(one),
 				},
 				{
-					BlockId: uuidBytes(two),
-				},
-			},
-			removeMetas: []*backend_v1.BlockMeta{
-				{
-					BlockId: uuidBytes(one),
+					BlockID: uuidBytes(two),
 				},
 			},
-			addCompacted: []*backend_v1.CompactedBlockMeta{
+			removeMetas: []*backend.BlockMeta{
 				{
-					BlockMeta: backend_v1.BlockMeta{
-						BlockId: uuidBytes(oneOhTwo),
+					BlockID: uuidBytes(one),
+				},
+			},
+			addCompacted: []*backend.CompactedBlockMeta{
+				{
+					BlockMeta: backend.BlockMeta{
+						BlockID: uuidBytes(oneOhTwo),
 					},
 				},
 			},
 			expectedTenants: []string{"test"},
 			expectedMetas: PerTenant{
-				"test": []*backend_v1.BlockMeta{
+				"test": []*backend.BlockMeta{
 					{
-						BlockId: uuidBytes(two),
+						BlockID: uuidBytes(two),
 					},
 				},
 			},
 			expectedCompacted: PerTenantCompacted{
-				"test": []*backend_v1.CompactedBlockMeta{
+				"test": []*backend.CompactedBlockMeta{
 					{
-						BlockMeta: backend_v1.BlockMeta{
-							BlockId: uuidBytes(oneOhOne),
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuidBytes(oneOhOne),
 						},
 					},
 					{
-						BlockMeta: backend_v1.BlockMeta{
-							BlockId: uuidBytes(oneOhTwo),
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuidBytes(oneOhTwo),
 						},
 					},
 				},
@@ -555,43 +555,43 @@ func TestUpdatesSaved(t *testing.T) {
 		// STEP 2: same polling apply, no update! but expect the same results
 		{
 			applyMetas: PerTenant{
-				"test": []*backend_v1.BlockMeta{
+				"test": []*backend.BlockMeta{
 					{
-						BlockId: uuidBytes(one),
+						BlockID: uuidBytes(one),
 					},
 				},
 			},
 			applyCompacted: PerTenantCompacted{
-				"test": []*backend_v1.CompactedBlockMeta{
+				"test": []*backend.CompactedBlockMeta{
 					{
-						BlockMeta: backend_v1.BlockMeta{
-							BlockId: uuidBytes(oneOhOne),
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuidBytes(oneOhOne),
 						},
 					},
 				},
 			},
 			expectedTenants: []string{"test"},
 			expectedMetas: PerTenant{
-				"test": []*backend_v1.BlockMeta{
+				"test": []*backend.BlockMeta{
 					// Even though we have just appled one, it was removed in the previous step, and we we expect not to find it here.
 					// {
-					// 	BlockId: one,
+					// 	BlockID: one,
 					// },
 					{
-						BlockId: uuidBytes(two),
+						BlockID: uuidBytes(two),
 					},
 				},
 			},
 			expectedCompacted: PerTenantCompacted{
-				"test": []*backend_v1.CompactedBlockMeta{
+				"test": []*backend.CompactedBlockMeta{
 					{
-						BlockMeta: backend_v1.BlockMeta{
-							BlockId: uuidBytes(oneOhOne),
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuidBytes(oneOhOne),
 						},
 					},
 					{
-						BlockMeta: backend_v1.BlockMeta{
-							BlockId: uuidBytes(oneOhTwo),
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuidBytes(oneOhTwo),
 						},
 					},
 				},
@@ -600,34 +600,34 @@ func TestUpdatesSaved(t *testing.T) {
 		// STEP 3: same polling apply, no update! but this time the update doesn't impact results
 		{
 			applyMetas: PerTenant{
-				"test": []*backend_v1.BlockMeta{
+				"test": []*backend.BlockMeta{
 					{
-						BlockId: uuidBytes(one),
+						BlockID: uuidBytes(one),
 					},
 				},
 			},
 			applyCompacted: PerTenantCompacted{
-				"test": []*backend_v1.CompactedBlockMeta{
+				"test": []*backend.CompactedBlockMeta{
 					{
-						BlockMeta: backend_v1.BlockMeta{
-							BlockId: uuidBytes(oneOhOne),
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuidBytes(oneOhOne),
 						},
 					},
 				},
 			},
 			expectedTenants: []string{"test"},
 			expectedMetas: PerTenant{
-				"test": []*backend_v1.BlockMeta{
+				"test": []*backend.BlockMeta{
 					{
-						BlockId: uuidBytes(one),
+						BlockID: uuidBytes(one),
 					},
 				},
 			},
 			expectedCompacted: PerTenantCompacted{
-				"test": []*backend_v1.CompactedBlockMeta{
+				"test": []*backend.CompactedBlockMeta{
 					{
-						BlockMeta: backend_v1.BlockMeta{
-							BlockId: uuidBytes(oneOhOne),
+						BlockMeta: backend.BlockMeta{
+							BlockID: uuidBytes(oneOhOne),
 						},
 					},
 				},
