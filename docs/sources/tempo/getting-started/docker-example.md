@@ -9,6 +9,7 @@ killercoda:
   details:
       intro:
          foreground: docker-compose-update.sh
+  backend:
     backend:
     imageid: ubuntu
 ---
