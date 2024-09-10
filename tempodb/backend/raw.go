@@ -142,17 +142,20 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 		return nil
 	}
 
-	var (
-		b   = newTenantIndex(meta, compactedMeta)
-		buf = &bytes.Buffer{}
-	)
+	b := newTenantIndex(meta, compactedMeta)
 
-	err := new(jsonpb.Marshaler).Marshal(buf, b)
+	// Hmm: the jsonpb call does not seem to respect the Version field on the BlockMeta being written as "format".
+	// buf = &bytes.Buffer{}
+	// err := new(jsonpb.Marshaler).Marshal(buf, b)
+	// if err != nil {
+	// 	return err
+	// }
+	// indexBytes := buf.Bytes()
+
+	indexBytes, err := json.Marshal(b)
 	if err != nil {
 		return err
 	}
-
-	indexBytes := buf.Bytes()
 
 	err = w.w.Write(ctx, TenantIndexNameProto, KeyPath([]string{tenantID}), bytes.NewReader(indexBytes), int64(len(indexBytes)), nil)
 	if err != nil {

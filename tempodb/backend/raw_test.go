@@ -54,11 +54,7 @@ func TestWriter(t *testing.T) {
 	err = json.Unmarshal(m.writeBuffer, idx)
 	assert.NoError(t, err)
 
-	t.Logf("writeBuffer: %v", string(m.writeBuffer))
-
-	assert.Equal(t, []*BlockMeta{meta}, idx.Meta)
 	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idx.Meta))                  // using cmp.Equal to compare json datetimes
-	assert.Equal(t, []*CompactedBlockMeta(nil), idx.Meta)
 	assert.True(t, cmp.Equal([]*CompactedBlockMeta(nil), idx.CompactedMeta)) // using cmp.Equal to compare json datetimes
 
 	// When there are no blocks, the tenant index should be deleted
