@@ -4,14 +4,12 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"sync"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	instr "github.com/grafana/dskit/instrument"
 	"github.com/grafana/gomemcache/memcache"
-	"github.com/grafana/tempo/pkg/util/math"
 	"github.com/grafana/tempo/pkg/util/spanlogger"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -22,32 +20,21 @@ import (
 // MemcachedConfig is config to make a Memcached
 type MemcachedConfig struct {
 	Expiration time.Duration `yaml:"expiration"`
-
-	BatchSize   int `yaml:"batch_size"`
-	Parallelism int `yaml:"parallelism"`
 }
 
 // RegisterFlagsWithPrefix adds the flags required to config this to the given FlagSet
 func (cfg *MemcachedConfig) RegisterFlagsWithPrefix(prefix, description string, f *flag.FlagSet) {
 	f.DurationVar(&cfg.Expiration, prefix+"memcached.expiration", 0, description+"How long keys stay in the memcache.")
-	f.IntVar(&cfg.BatchSize, prefix+"memcached.batchsize", 1024, description+"How many keys to fetch in each batch.")
-	f.IntVar(&cfg.Parallelism, prefix+"memcached.parallelism", 100, description+"Maximum active requests to memcache.")
 }
 
 // Memcached type caches chunks in memcached
 type Memcached struct {
-	cfg         MemcachedConfig
-	memcache    MemcachedClient
-	name        string
-	maxItemSize int
-
+	cfg             MemcachedConfig
+	memcache        MemcachedClient
+	name            string
+	maxItemSize     int
 	requestDuration *instr.HistogramCollector
-
-	wg      sync.WaitGroup
-	inputCh chan *work
-	quit    chan struct{}
-
-	logger log.Logger
+	logger          log.Logger
 }
 
 // NewMemcached makes a new Memcached.
@@ -72,54 +59,7 @@ func NewMemcached(cfg MemcachedConfig, client MemcachedClient, name string, maxI
 			}, []string{"method", "status_code"}),
 		),
 	}
-
-	if cfg.BatchSize == 0 || cfg.Parallelism == 0 {
-		return c
-	}
-
-	c.inputCh = make(chan *work)
-	c.quit = make(chan struct{})
-	c.wg.Add(cfg.Parallelism)
-
-	for i := 0; i < cfg.Parallelism; i++ {
-		go func() {
-			defer c.wg.Done()
-			for {
-				select {
-				case <-c.quit:
-					return
-				case input := <-c.inputCh:
-					res := &result{
-						batchID: input.batchID,
-					}
-					res.found, res.bufs, res.missed = c.fetch(input.ctx, input.keys)
-					// No-one will be reading from resultCh if we were asked to quit
-					// during the fetch, so check again before writing to it.
-					select {
-					case <-c.quit:
-						return
-					case input.resultCh <- res:
-					}
-				}
-			}
-		}()
-	}
-
 	return c
-}
-
-type work struct {
-	keys     []string
-	ctx      context.Context
-	resultCh chan<- *result
-	batchID  int // For ordering results.
-}
-
-type result struct {
-	found   []string
-	bufs    [][]byte
-	missed  []string
-	batchID int // For ordering results.
 }
 
 func memcacheStatusCode(err error) string {
@@ -138,14 +78,7 @@ func memcacheStatusCode(err error) string {
 
 // Fetch gets keys from the cache. The keys that are found must be in the order of the keys requested.
 func (c *Memcached) Fetch(ctx context.Context, keys []string) (found []string, bufs [][]byte, missed []string) {
-	if c.cfg.BatchSize == 0 {
-		found, bufs, missed = c.fetch(ctx, keys)
-		return
-	}
-	_ = measureRequest(ctx, "Memcache.GetBatched", c.requestDuration, memcacheStatusCode, func(ctx context.Context) error {
-		found, bufs, missed = c.fetchKeysBatched(ctx, keys)
-		return nil
-	})
+	found, bufs, missed = c.fetch(ctx, keys)
 	return
 }
 
@@ -203,57 +136,6 @@ func (c *Memcached) fetch(ctx context.Context, keys []string) (found []string, b
 	return
 }
 
-func (c *Memcached) fetchKeysBatched(ctx context.Context, keys []string) (found []string, bufs [][]byte, missed []string) {
-	resultsCh := make(chan *result)
-	batchSize := c.cfg.BatchSize
-
-	go func() {
-		for i, j := 0, 0; i < len(keys); i += batchSize {
-			batchKeys := keys[i:math.Min(i+batchSize, len(keys))]
-			select {
-			case <-c.quit:
-				return
-			case c.inputCh <- &work{
-				keys:     batchKeys,
-				ctx:      ctx,
-				resultCh: resultsCh,
-				batchID:  j,
-			}:
-			}
-			j++
-		}
-	}()
-
-	// Read all values from this channel to avoid blocking upstream.
-	numResults := len(keys) / batchSize
-	if len(keys)%batchSize != 0 {
-		numResults++
-	}
-
-	// We need to order found by the input keys order.
-	results := make([]*result, numResults)
-loopResults:
-	for i := 0; i < numResults; i++ {
-		select {
-		case <-c.quit:
-			break loopResults
-		case result := <-resultsCh:
-			results[result.batchID] = result
-		}
-	}
-
-	for _, result := range results {
-		if result == nil {
-			continue
-		}
-		found = append(found, result.found...)
-		bufs = append(bufs, result.bufs...)
-		missed = append(missed, result.missed...)
-	}
-
-	return
-}
-
 // Store stores the key in the cache.
 func (c *Memcached) Store(ctx context.Context, keys []string, bufs [][]byte) {
 	for i := range keys {
@@ -271,18 +153,8 @@ func (c *Memcached) Store(ctx context.Context, keys []string, bufs [][]byte) {
 	}
 }
 
-// Stop does nothing.
 func (c *Memcached) Stop() {
-	if c.quit == nil {
-		return
-	}
-
-	select {
-	case <-c.quit:
-	default:
-		close(c.quit)
-	}
-	c.wg.Wait()
+	c.memcache.Close()
 }
 
 func (c *Memcached) MaxItemSize() int {

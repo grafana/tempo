@@ -50,3 +50,6 @@ func (m *mockMemcache) Get(key string, _ ...memcache.Option) (*memcache.Item, er
 
 	return nil, memcache.ErrCacheMiss
 }
+
+func (m *mockMemcache) Close() {
+}

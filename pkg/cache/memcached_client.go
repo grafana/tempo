@@ -29,6 +29,7 @@ type MemcachedClient interface {
 	GetMulti(keys []string, opts ...memcache.Option) (map[string]*memcache.Item, error)
 	Set(item *memcache.Item) error
 	Get(key string, opts ...memcache.Option) (*memcache.Item, error)
+	Close()
 }
 
 type serverSelector interface {

@@ -23,16 +23,6 @@ func TestMemcached(t *testing.T) {
 
 		testMemcache(t, memcache)
 	})
-
-	t.Run("batched", func(t *testing.T) {
-		client := newMockMemcache()
-		memcache := cache.NewMemcached(cache.MemcachedConfig{
-			BatchSize:   10,
-			Parallelism: 5,
-		}, client, "test", 0, nil, log.NewNopLogger())
-
-		testMemcache(t, memcache)
-	})
 }
 
 func testMemcache(t *testing.T, memcache *cache.Memcached) {
@@ -105,16 +95,6 @@ func TestMemcacheFailure(t *testing.T) {
 
 		testMemcacheFailing(t, memcache)
 	})
-
-	t.Run("batched", func(t *testing.T) {
-		client := newMockMemcacheFailing()
-		memcache := cache.NewMemcached(cache.MemcachedConfig{
-			BatchSize:   10,
-			Parallelism: 5,
-		}, client, "test", 0, nil, log.NewNopLogger())
-
-		testMemcacheFailing(t, memcache)
-	})
 }
 
 func testMemcacheFailing(t *testing.T, memcache *cache.Memcached) {
@@ -169,16 +149,6 @@ func TestMemcacheStop(t *testing.T) {
 		client := newMockMemcacheFailing()
 		memcache := cache.NewMemcached(cache.MemcachedConfig{}, client,
 			"test", 0, nil, log.NewNopLogger())
-
-		testMemcachedStopping(memcache)
-	})
-
-	t.Run("batched", func(_ *testing.T) {
-		client := newMockMemcacheFailing()
-		memcache := cache.NewMemcached(cache.MemcachedConfig{
-			BatchSize:   10,
-			Parallelism: 5,
-		}, client, "test", 0, nil, log.NewNopLogger())
 
 		testMemcachedStopping(memcache)
 	})
