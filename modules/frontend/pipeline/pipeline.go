@@ -15,6 +15,9 @@ type Request interface {
 	Context() context.Context
 	WithContext(context.Context)
 
+	Weight() int
+	SetWeight(int)
+
 	SetCacheKey(string)
 	CacheKey() string
 
@@ -27,6 +30,7 @@ type HTTPRequest struct {
 
 	cacheKey     string
 	responseData any
+	weight       int
 }
 
 func NewHTTPRequest(req *http.Request) *HTTPRequest {
@@ -63,6 +67,14 @@ func (r *HTTPRequest) SetResponseData(data any) {
 
 func (r *HTTPRequest) ResponseData() any {
 	return r.responseData
+}
+
+func (r *HTTPRequest) Weight() int {
+	return r.weight
+}
+
+func (r *HTTPRequest) SetWeight(w int) {
+	r.weight = w
 }
 
 //

@@ -39,7 +39,9 @@ func FirstUser() UserIndex {
 }
 
 // Request stored into the queue.
-type Request interface{}
+type Request interface {
+	Weight() int
+}
 
 // RequestQueue holds incoming requests in per-user queues.
 type RequestQueue struct {
@@ -159,16 +161,29 @@ FindQueue:
 	queue, userID, idx := q.queues.getNextQueueForQuerier(last.last)
 	last.last = idx
 	if queue != nil {
+		guaranteedInQueue := requestedCount
 		// this is all threadsafe b/c all users queues are blocked by q.mtx
 		if len(queue) < requestedCount {
-			requestedCount = len(queue)
+			guaranteedInQueue = len(queue)
 		}
 
-		// Pick next requests from the queue.
-		batchBuffer = batchBuffer[:requestedCount]
-		for i := 0; i < requestedCount; i++ {
+		totalWeight := 0
+		actuallyInBatch := 0
+		for i := 0; i < guaranteedInQueue; i++ {
 			batchBuffer[i] = <-queue
+			actuallyInBatch++
+
+			weight := batchBuffer[i].Weight() // jpe - test
+			if weight <= 0 {
+				weight = 1
+			}
+			totalWeight += weight
+
+			if totalWeight >= requestedCount {
+				break
+			}
 		}
+		batchBuffer = batchBuffer[:actuallyInBatch]
 
 		q.queueLength.WithLabelValues(userID).Set(float64(len(queue)))
 

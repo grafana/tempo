@@ -19,6 +19,9 @@ const messages = 50_000
 type mockRequest struct{}
 
 func (r *mockRequest) Invalid() bool { return false }
+func (r *mockRequest) Weight() int   { return 1 }
+
+// jpe - test weights
 
 func TestGetNextForQuerierOneUser(t *testing.T) {
 	messages := 10

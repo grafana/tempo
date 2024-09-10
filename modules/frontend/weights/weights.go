@@ -43,7 +43,7 @@ func FetchSpans(req *traceql.FetchSpansRequest) int {
 		weight++
 	}
 
-	return 1
+	return weight
 }
 
 func RetryRequest(r WeightRequest) {
