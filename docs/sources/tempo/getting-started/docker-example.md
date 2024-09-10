@@ -47,7 +47,6 @@ Alternatively, you can try out this example in our interactive learning environm
 
 It's a fully configured environment with all the dependencies installed.
 
-![Interactive](/media/docs/tempo/tempo-ile.svg)
 
 Provide feedback, report bugs, and raise issues in the [Grafana Killercoda repository](https://github.com/grafana/killercoda).
 {{< /admonition >}}
