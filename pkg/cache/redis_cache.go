@@ -106,7 +106,7 @@ func (c *RedisCache) FetchKey(ctx context.Context, key string) (buf []byte, foun
 	// Run a tracked request, using c.requestDuration to monitor requests.
 	err := instr.CollectedRequest(ctx, method, c.requestDuration, redisStatusCode, func(ctx context.Context) error {
 		log, _ := spanlogger.New(ctx, method)
-		defer log.Finish()
+		defer log.End()
 		var err error
 		buf, err = c.redis.Get(ctx, key)
 		if err != nil {
@@ -121,7 +121,7 @@ func (c *RedisCache) FetchKey(ctx context.Context, key string) (buf []byte, foun
 			return err
 		}
 
-		log.LogFields(otlog.String("key found", key))
+		log.SetAttributes(attribute.String("key found", key))
 
 		return nil
 	})
