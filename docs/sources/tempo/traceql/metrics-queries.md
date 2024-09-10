@@ -60,7 +60,7 @@ These functions can be added as an operator at the end of any TraceQL query.
 : Returns the minimum value of matching spans values per time interval (see the `step` API parameter)
 
 `max_over_time`
-: Returns the minimum value of matching spans values per time interval (see the `step` API parameter)
+: Returns the maximum value of matching spans values per time interval (see the `step` API parameter)
 
 `quantile_over_time`
 : The quantile of the values in the specified interval
