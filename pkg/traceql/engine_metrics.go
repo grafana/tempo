@@ -343,15 +343,35 @@ func (c *CountOverTimeAggregator) Sample() float64 {
 
 // MinOverTimeAggregator it calculates the mininum value over time. It can also
 // calculate the rate when given a multiplier.
-type MinOverTimeAggregator struct {
+type OverTimeAggregator struct {
 	getSpanAttValue func(s Span) float64
-	min             float64
+	agg             func(current, new float64) float64
+	val             float64
 }
 
-var _ VectorAggregator = (*MinOverTimeAggregator)(nil)
+var _ VectorAggregator = (*OverTimeAggregator)(nil)
 
-func NewMinOverTimeAggregator(attr Attribute) *MinOverTimeAggregator {
+func NewOverTimeAggregator(attr Attribute, op SimpleAggregationOp) *OverTimeAggregator {
 	var fn func(s Span) float64
+	var agg func(current, new float64) float64
+
+	switch op {
+	case maxAggregation:
+		agg = func(current, new float64) float64 {
+			if math.IsNaN(current) || new > current {
+				return new
+			}
+			return current
+		}
+	case minAggregation:
+		agg = func(current, new float64) float64 {
+			if math.IsNaN(current) || new < current {
+				return new
+			}
+			return current
+		}
+	}
+
 	switch attr {
 	case IntrinsicDurationAttribute:
 		fn = func(s Span) float64 {
@@ -366,23 +386,20 @@ func NewMinOverTimeAggregator(attr Attribute) *MinOverTimeAggregator {
 			return f
 		}
 	}
-	return &MinOverTimeAggregator{
+
+	return &OverTimeAggregator{
 		getSpanAttValue: fn,
-		min:             math.Float64frombits(normalNaN),
+		agg:             agg,
+		val:             math.Float64frombits(normalNaN),
 	}
 }
 
-func (c *MinOverTimeAggregator) Observe(s Span) {
-	val := c.getSpanAttValue(s)
-	if math.IsNaN(c.min) {
-		c.min = val
-	} else if val < c.min {
-		c.min = val
-	}
+func (c *OverTimeAggregator) Observe(s Span) {
+	c.val = c.agg(c.val, c.getSpanAttValue(s))
 }
 
-func (c *MinOverTimeAggregator) Sample() float64 {
-	return c.min
+func (c *OverTimeAggregator) Sample() float64 {
+	return c.val
 }
 
 // StepAggregator sorts spans into time slots using a step interval like 30s or 1m
@@ -1078,6 +1095,7 @@ type SimpleAggregationOp int
 const (
 	sumAggregation SimpleAggregationOp = iota
 	minAggregation
+	maxAggregation
 )
 
 type SimpleAggregator struct {
@@ -1095,9 +1113,18 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *
 	var f func(existingValue float64, newValue float64) float64
 	switch op {
 	case minAggregation:
-		// Simple min aggregator. It calculates the minumun between existing values and a new sample
+		// Simple min aggregator. It calculates the minimum between existing values and a new sample
 		f = func(existingValue float64, newValue float64) float64 {
 			if math.IsNaN(existingValue) || newValue < existingValue {
+				return newValue
+			}
+			return existingValue
+		}
+		initWithNaN = true
+	case maxAggregation:
+		// Simple max aggregator. It calculates the maximum between existing values and a new sample
+		f = func(existingValue float64, newValue float64) float64 {
+			if math.IsNaN(existingValue) || newValue > existingValue {
 				return newValue
 			}
 			return existingValue
