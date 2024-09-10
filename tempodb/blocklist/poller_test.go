@@ -14,10 +14,11 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/google/uuid"
+	google_uuid "github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -37,9 +38,9 @@ func (m *mockJobSharder) Owns(_ string) bool { return m.owns }
 
 func TestTenantIndexBuilder(t *testing.T) {
 	var (
-		one   = uuid.MustParse("00000000-0000-0000-0000-000000000001")
-		two   = uuid.MustParse("00000000-0000-0000-0000-000000000002")
-		three = uuid.MustParse("00000000-0000-0000-0000-000000000003")
+		one   = uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")}
+		two   = uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")}
+		three = uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000003")}
 	)
 
 	tests := []struct {
@@ -60,7 +61,7 @@ func TestTenantIndexBuilder(t *testing.T) {
 			list: PerTenant{
 				"test": []*backend.BlockMeta{
 					{
-						BlockID: []byte(one.String()),
+						BlockID: one,
 					},
 				},
 			},
@@ -71,14 +72,14 @@ func TestTenantIndexBuilder(t *testing.T) {
 			list: PerTenant{
 				"test": []*backend.BlockMeta{
 					{
-						BlockID: []byte(one.String()),
+						BlockID: one,
 					},
 				},
 			},
 			expectedList: PerTenant{
 				"test": []*backend.BlockMeta{
 					{
-						BlockID: []byte(one.String()),
+						BlockID: one,
 					},
 				},
 			},
@@ -92,7 +93,7 @@ func TestTenantIndexBuilder(t *testing.T) {
 				"test": []*backend.CompactedBlockMeta{
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: []byte(one.String()),
+							BlockID: one,
 						},
 					},
 				},
@@ -104,7 +105,7 @@ func TestTenantIndexBuilder(t *testing.T) {
 				"test": []*backend.CompactedBlockMeta{
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: []byte(one.String()),
+							BlockID: one,
 						},
 					},
 				},
@@ -115,12 +116,12 @@ func TestTenantIndexBuilder(t *testing.T) {
 			list: PerTenant{
 				"test2": []*backend.BlockMeta{
 					{
-						BlockID: []byte(three.String()),
+						BlockID: three,
 					},
 				},
 				"test": []*backend.BlockMeta{
 					{
-						BlockID: []byte(two.String()),
+						BlockID: two,
 					},
 				},
 			},
@@ -128,7 +129,7 @@ func TestTenantIndexBuilder(t *testing.T) {
 				"test": []*backend.CompactedBlockMeta{
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: []byte(one.String()),
+							BlockID: one,
 						},
 					},
 				},
@@ -136,12 +137,12 @@ func TestTenantIndexBuilder(t *testing.T) {
 			expectedList: PerTenant{
 				"test2": []*backend.BlockMeta{
 					{
-						BlockID: []byte(three.String()),
+						BlockID: three,
 					},
 				},
 				"test": []*backend.BlockMeta{
 					{
-						BlockID: []byte(two.String()),
+						BlockID: two,
 					},
 				},
 			},
@@ -149,7 +150,7 @@ func TestTenantIndexBuilder(t *testing.T) {
 				"test": []*backend.CompactedBlockMeta{
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: []byte(one.String()),
+							BlockID: one,
 						},
 					},
 				},
@@ -289,7 +290,7 @@ func TestTenantIndexFallback(t *testing.T) {
 }
 
 func TestPollBlock(t *testing.T) {
-	one := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	one := uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")}
 
 	tests := []struct {
 		name                  string
@@ -313,42 +314,42 @@ func TestPollBlock(t *testing.T) {
 			list: PerTenant{
 				"test": []*backend.BlockMeta{
 					{
-						BlockID: uuidBytes(one),
+						BlockID: one,
 					},
 				},
 			},
 			expectedMeta: &backend.BlockMeta{
-				BlockID: uuidBytes(one),
+				BlockID: one,
 			},
 		},
 		{
 			name:         "compactedblock exists",
 			pollTenantID: "test",
-			pollBlockID:  uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+			pollBlockID:  one,
 			compactedList: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+							BlockID: one,
 						},
 					},
 				},
 			},
 			expectedCompactedMeta: &backend.CompactedBlockMeta{
 				BlockMeta: backend.BlockMeta{
-					BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+					BlockID: one,
 				},
 			},
 		},
 		{
 			name:         "errors",
 			pollTenantID: "test",
-			pollBlockID:  uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+			pollBlockID:  one,
 			compactedList: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: uuidBytes(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+							BlockID: one,
 						},
 					},
 				},
@@ -369,7 +370,7 @@ func TestPollBlock(t *testing.T) {
 				PollFallback:          testPollFallback,
 				TenantIndexBuilders:   testBuilders,
 			}, &mockJobSharder{}, r, c, w, log.NewNopLogger())
-			actualMeta, actualCompactedMeta, err := poller.pollBlock(context.Background(), tc.pollTenantID, tc.pollBlockID, false)
+			actualMeta, actualCompactedMeta, err := poller.pollBlock(context.Background(), tc.pollTenantID, tc.pollBlockID.UUID, false)
 
 			assert.Equal(t, tc.expectedMeta, actualMeta)
 			assert.Equal(t, tc.expectedCompactedMeta, actualCompactedMeta)
@@ -606,7 +607,7 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 
 			// This mock reader returns error or nil based on the tenant ID
 			r := &backend.MockReader{
-				BlocksFn: func(_ context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
+				BlocksFn: func(_ context.Context, tenantID string) ([]google_uuid.UUID, []google_uuid.UUID, error) {
 					mtx.Lock()
 					defer func() {
 						callCounter[tenantID]++
@@ -658,9 +659,9 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 }
 
 func TestPollComparePreviousResults(t *testing.T) {
-	zero := uuid.MustParse("00000000-0000-0000-0000-000000000000")
-	aaa := uuid.MustParse("00000000-0000-0000-0000-00000000000A")
-	eff := uuid.MustParse("00000000-0000-0000-0000-00000000000F")
+	zero := uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000000")}
+	aaa := uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-00000000000A")}
+	eff := uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-00000000000F")}
 
 	testCases := []struct {
 		name string
@@ -674,8 +675,8 @@ func TestPollComparePreviousResults(t *testing.T) {
 		expectedPerTenant          PerTenant
 		expectedCompactedPerTenant PerTenantCompacted
 
-		expectedBlockMetaCalls          map[string]map[uuid.UUID]int
-		expectedCompactedBlockMetaCalls map[string]map[uuid.UUID]int
+		expectedBlockMetaCalls          map[string]map[google_uuid.UUID]int
+		expectedCompactedBlockMetaCalls map[string]map[google_uuid.UUID]int
 
 		tollerateErrors         int
 		tollerateTenantFailures int
@@ -689,32 +690,32 @@ func TestPollComparePreviousResults(t *testing.T) {
 			previousCompactedPerTenant: PerTenantCompacted{},
 			currentPerTenant: PerTenant{
 				"test": []*backend.BlockMeta{
-					{BlockID: uuidBytes(zero)},
+					{BlockID: zero},
 				},
 			},
 			currentCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(eff)}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
 				},
 			},
 			expectedPerTenant: PerTenant{
 				"test": []*backend.BlockMeta{
-					{BlockID: uuidBytes(zero)},
+					{BlockID: zero},
 				},
 			},
 			expectedCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(eff)}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
 				},
 			},
-			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{
+			expectedBlockMetaCalls: map[string]map[google_uuid.UUID]int{
 				"test": {
-					zero: 1,
+					zero.UUID: 1,
 				},
 			},
-			expectedCompactedBlockMetaCalls: map[string]map[uuid.UUID]int{
+			expectedCompactedBlockMetaCalls: map[string]map[google_uuid.UUID]int{
 				"test": {
-					eff: 1,
+					eff.UUID: 1,
 				},
 			},
 		},
@@ -722,69 +723,69 @@ func TestPollComparePreviousResults(t *testing.T) {
 			name: "with previous results, meta should be read from only new blocks",
 			previousPerTenant: PerTenant{
 				"test": []*backend.BlockMeta{
-					{BlockID: uuidBytes(zero)},
-					{BlockID: uuidBytes(eff)},
+					{BlockID: zero},
+					{BlockID: eff},
 				},
 			},
 			previousCompactedPerTenant: PerTenantCompacted{},
 			currentPerTenant: PerTenant{
 				"test": []*backend.BlockMeta{
-					{BlockID: uuidBytes(zero)},
-					{BlockID: uuidBytes(eff)},
+					{BlockID: zero},
+					{BlockID: eff},
 				},
 			},
 			currentCompactedPerTenant: PerTenantCompacted{},
 			expectedPerTenant: PerTenant{
 				"test": []*backend.BlockMeta{
-					{BlockID: uuidBytes(zero)},
-					{BlockID: uuidBytes(eff)},
+					{BlockID: zero},
+					{BlockID: eff},
 				},
 			},
 			expectedCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{},
 			},
-			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{},
+			expectedBlockMetaCalls: map[string]map[google_uuid.UUID]int{},
 		},
 		{
 			name: "with previous results, blocks that have been compacted since the last poll should be known as compacted",
 			previousPerTenant: PerTenant{
 				"test": []*backend.BlockMeta{
-					{BlockID: uuidBytes(zero)},
-					{BlockID: uuidBytes(aaa)},
+					{BlockID: zero},
+					{BlockID: aaa},
 				},
 			},
 			previousCompactedPerTenant: PerTenantCompacted{},
 			currentPerTenant: PerTenant{
 				"test": []*backend.BlockMeta{
-					{BlockID: uuidBytes(eff)},
+					{BlockID: eff},
 				},
 			},
 			currentCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(zero)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(aaa)}},
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
 				},
 			},
 			expectedPerTenant: PerTenant{
 				"test": []*backend.BlockMeta{
-					{BlockID: uuidBytes(eff)},
+					{BlockID: eff},
 				},
 			},
 			expectedCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(aaa)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(zero)}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
 				},
 			},
-			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{
+			expectedBlockMetaCalls: map[string]map[google_uuid.UUID]int{
 				"test": {
-					eff: 1,
+					eff.UUID: 1,
 				},
 			},
-			expectedCompactedBlockMetaCalls: map[string]map[uuid.UUID]int{
+			expectedCompactedBlockMetaCalls: map[string]map[google_uuid.UUID]int{
 				"test": {
-					aaa:  1,
-					zero: 1,
+					aaa.UUID:  1,
+					zero.UUID: 1,
 				},
 			},
 		},
@@ -793,17 +794,17 @@ func TestPollComparePreviousResults(t *testing.T) {
 			previousPerTenant: PerTenant{},
 			previousCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(zero)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(aaa)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(eff)}},
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
 				},
 			},
 			currentPerTenant: PerTenant{},
 			currentCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(zero)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(aaa)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(eff)}},
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
 				},
 			},
 			expectedPerTenant: PerTenant{
@@ -811,26 +812,26 @@ func TestPollComparePreviousResults(t *testing.T) {
 			},
 			expectedCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(zero)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(aaa)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(eff)}},
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
 				},
 			},
-			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{},
+			expectedBlockMetaCalls: map[string]map[google_uuid.UUID]int{},
 		},
 		{
 			name:              "with previous compactions removed, should be forgotten",
 			previousPerTenant: PerTenant{},
 			previousCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(zero)}},
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
 				},
 			},
 			currentPerTenant:           PerTenant{},
 			currentCompactedPerTenant:  PerTenantCompacted{},
 			expectedPerTenant:          PerTenant{},
 			expectedCompactedPerTenant: PerTenantCompacted{},
-			expectedBlockMetaCalls:     map[string]map[uuid.UUID]int{},
+			expectedBlockMetaCalls:     map[string]map[google_uuid.UUID]int{},
 		},
 		{
 			name:                    "previous results with read error should maintain previous results",
@@ -840,17 +841,17 @@ func TestPollComparePreviousResults(t *testing.T) {
 			previousPerTenant:       PerTenant{},
 			previousCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(zero)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(aaa)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(eff)}},
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
 				},
 			},
 			currentPerTenant: PerTenant{},
 			currentCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(zero)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(aaa)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(eff)}},
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
 				},
 			},
 			expectedPerTenant: PerTenant{
@@ -858,12 +859,12 @@ func TestPollComparePreviousResults(t *testing.T) {
 			},
 			expectedCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(zero)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(aaa)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(eff)}},
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
 				},
 			},
-			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{},
+			expectedBlockMetaCalls: map[string]map[google_uuid.UUID]int{},
 		},
 		{
 			name:                    "previous results with read error should maintain previous results when tolerations are low and multiple tenants",
@@ -872,46 +873,46 @@ func TestPollComparePreviousResults(t *testing.T) {
 			readerErr:               true,
 			previousPerTenant: PerTenant{
 				"test2": []*backend.BlockMeta{
-					{BlockID: uuidBytes(zero)},
-					{BlockID: uuidBytes(eff)},
+					{BlockID: zero},
+					{BlockID: eff},
 				},
 			},
 			previousCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(zero)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(aaa)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(eff)}},
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
 				},
 			},
 			currentPerTenant: PerTenant{
 				"test2": []*backend.BlockMeta{
-					{BlockID: uuidBytes(zero)},
-					{BlockID: uuidBytes(eff)},
+					{BlockID: zero},
+					{BlockID: eff},
 				},
 			},
 			currentCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(zero)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(aaa)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(eff)}},
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
 				},
 			},
 			expectedPerTenant: PerTenant{
 				"test": []*backend.BlockMeta{},
 				"test2": []*backend.BlockMeta{
-					{BlockID: uuidBytes(zero)},
-					{BlockID: uuidBytes(eff)},
+					{BlockID: zero},
+					{BlockID: eff},
 				},
 			},
 			expectedCompactedPerTenant: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(zero)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(aaa)}},
-					{BlockMeta: backend.BlockMeta{BlockID: uuidBytes(eff)}},
+					{BlockMeta: backend.BlockMeta{BlockID: zero}},
+					{BlockMeta: backend.BlockMeta{BlockID: aaa}},
+					{BlockMeta: backend.BlockMeta{BlockID: eff}},
 				},
 				"test2": []*backend.CompactedBlockMeta{},
 			},
-			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{},
+			expectedBlockMetaCalls: map[string]map[google_uuid.UUID]int{},
 		},
 	}
 
@@ -942,12 +943,12 @@ func TestPollComparePreviousResults(t *testing.T) {
 			for tenantID, expectedMetas := range tc.expectedPerTenant {
 				l := metas[tenantID]
 				sort.Slice(l, func(i, j int) bool {
-					x := bytes.Compare(l[i].BlockID[:], l[j].BlockID[:])
+					x := bytes.Compare(l[i].BlockID.UUID[:], l[j].BlockID.UUID[:])
 					return x > 0
 				})
 
 				sort.Slice(expectedMetas, func(i, j int) bool {
-					x := bytes.Compare(expectedMetas[i].BlockID[:], expectedMetas[j].BlockID[:])
+					x := bytes.Compare(expectedMetas[i].BlockID.UUID[:], expectedMetas[j].BlockID.UUID[:])
 					return x > 0
 				})
 
@@ -958,12 +959,12 @@ func TestPollComparePreviousResults(t *testing.T) {
 			for tenantID, expectedCompactedMetas := range tc.expectedCompactedPerTenant {
 				l := compactedMetas[tenantID]
 				sort.Slice(l, func(i, j int) bool {
-					x := bytes.Compare(l[i].BlockID[:], l[j].BlockID[:])
+					x := bytes.Compare(l[i].BlockID.UUID[:], l[j].BlockID.UUID[:])
 					return x > 0
 				})
 
 				sort.Slice(expectedCompactedMetas, func(i, j int) bool {
-					x := bytes.Compare(expectedCompactedMetas[i].BlockID[:], expectedCompactedMetas[j].BlockID[:])
+					x := bytes.Compare(expectedCompactedMetas[i].BlockID.UUID[:], expectedCompactedMetas[j].BlockID.UUID[:])
 					return x > 0
 				})
 				require.Equal(t, expectedCompactedMetas, l)
@@ -1044,7 +1045,7 @@ func newBlockMetas(count int) []*backend.BlockMeta {
 	metas := make([]*backend.BlockMeta, count)
 	for i := 0; i < count; i++ {
 		metas[i] = &backend.BlockMeta{
-			BlockID: []byte(uuid.New().String()),
+			BlockID: uuid.UUID{UUID: google_uuid.New()},
 		}
 	}
 
@@ -1056,7 +1057,7 @@ func newCompactedMetas(count int) []*backend.CompactedBlockMeta {
 	for i := 0; i < count; i++ {
 		metas[i] = &backend.CompactedBlockMeta{
 			BlockMeta: backend.BlockMeta{
-				BlockID: []byte(uuid.New().String()),
+				BlockID: uuid.UUID{UUID: google_uuid.New()},
 			},
 		}
 	}
@@ -1102,9 +1103,7 @@ func newPerTenantCompacted(tenantCount, blockCount int) PerTenantCompacted {
 
 func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compactor {
 	return &backend.MockCompactor{
-		BlockMetaFn: func(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
-			id := []byte(blockID.String())
-
+		BlockMetaFn: func(blockID google_uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
 			if expectsError {
 				return nil, errors.New("err")
 			}
@@ -1115,7 +1114,7 @@ func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compac
 			}
 
 			for _, m := range l {
-				if bytes.Equal(m.BlockID, id) {
+				if m.BlockID.UUID == blockID {
 					return m, nil
 				}
 			}
@@ -1142,40 +1141,28 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 
 	return &backend.MockReader{
 		T: tenants,
-		BlocksFn: func(_ context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
+		BlocksFn: func(_ context.Context, tenantID string) ([]google_uuid.UUID, []google_uuid.UUID, error) {
 			if expectsError {
 				return nil, nil, errors.New("err")
 			}
 			blocks := list[tenantID]
-			uuids := []uuid.UUID{}
-			compactedUUIDs := []uuid.UUID{}
+			uuids := []google_uuid.UUID{}
+			compactedUUIDs := []google_uuid.UUID{}
 			for _, b := range blocks {
-
-				id, err := uuid.ParseBytes(b.BlockID)
-				if err != nil {
-					return nil, nil, err
-				}
-
-				uuids = append(uuids, id)
+				uuids = append(uuids, b.BlockID.UUID)
 			}
 			compactedBlocks := compactedList[tenantID]
 			for _, b := range compactedBlocks {
-				id, err := uuid.ParseBytes(b.BlockID)
-				if err != nil {
-					return nil, nil, err
-				}
-				compactedUUIDs = append(compactedUUIDs, id)
+				compactedUUIDs = append(compactedUUIDs, b.BlockID.UUID)
 			}
 
 			return uuids, compactedUUIDs, nil
 		},
-		BlockMetaCalls: make(map[string]map[uuid.UUID]int),
-		BlockMetaFn: func(_ context.Context, blockID uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
+		BlockMetaCalls: make(map[string]map[google_uuid.UUID]int),
+		BlockMetaFn: func(_ context.Context, blockID google_uuid.UUID, tenantID string) (*backend.BlockMeta, error) {
 			if expectsError {
 				return nil, errors.New("err")
 			}
-
-			id := []byte(blockID.String())
 
 			l, ok := list[tenantID]
 			if !ok {
@@ -1183,7 +1170,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 			}
 
 			for _, m := range l {
-				if bytes.Equal(m.BlockID, id) {
+				if m.BlockID.UUID == blockID {
 					return m, nil
 				}
 			}
@@ -1199,8 +1186,4 @@ func newBlocklist(metas PerTenant, compactedMetas PerTenantCompacted) *List {
 	l.ApplyPollResults(metas, compactedMetas)
 
 	return l
-}
-
-func uuidBytes(u uuid.UUID) []byte {
-	return []byte(u.String())
 }

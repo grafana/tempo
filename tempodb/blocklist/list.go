@@ -1,7 +1,6 @@
 package blocklist
 
 import (
-	"bytes"
 	"sync"
 
 	"github.com/google/uuid"
@@ -132,12 +131,8 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 	matchedRemovals := make(map[uuid.UUID]struct{})
 	for _, b := range blocklist {
 		for _, rem := range remove {
-			if bytes.Equal(b.BlockID, rem.BlockID) {
-				id, err := uuid.ParseBytes(b.BlockID)
-				if err != nil {
-					// FIXME
-				}
-				matchedRemovals[id] = struct{}{}
+			if b.BlockID.UUID == rem.BlockID.UUID {
+				matchedRemovals[rem.BlockID.UUID] = struct{}{}
 				break
 			}
 		}
@@ -145,26 +140,16 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 
 	existingMetas := make(map[uuid.UUID]struct{})
 	newblocklist := make([]*backend.BlockMeta, 0, len(blocklist)-len(matchedRemovals)+len(add))
-	// var id uuid.UUID
-	// var err error
 	// rebuild the blocklist dropping all removals
 	for _, b := range blocklist {
-		id, err := uuid.ParseBytes(b.BlockID)
-		if err != nil {
-			// FIXME:
-		}
-		existingMetas[id] = struct{}{}
-		if _, ok := matchedRemovals[id]; !ok {
+		existingMetas[b.BlockID.UUID] = struct{}{}
+		if _, ok := matchedRemovals[b.BlockID.UUID]; !ok {
 			newblocklist = append(newblocklist, b)
 		}
 	}
 	// add new blocks (only if they don't already exist)
 	for _, b := range add {
-		id, err := uuid.ParseBytes(b.BlockID)
-		if err != nil {
-			// FIXME:
-		}
-		if _, ok := existingMetas[id]; !ok {
+		if _, ok := existingMetas[b.BlockID.UUID]; !ok {
 			newblocklist = append(newblocklist, b)
 		}
 	}
@@ -177,12 +162,8 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 	compactedRemovals := map[uuid.UUID]struct{}{}
 	for _, c := range compactedBlocklist {
 		for _, rem := range compactedRemove {
-			id, err := uuid.ParseBytes(c.BlockID)
-			if err != nil {
-				// FIXME:
-			}
-			if bytes.Equal(c.BlockID, rem.BlockID) {
-				compactedRemovals[id] = struct{}{}
+			if c.BlockID.UUID == rem.BlockID.UUID {
+				compactedRemovals[rem.BlockID.UUID] = struct{}{}
 				break
 			}
 		}
@@ -192,21 +173,13 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 	newCompactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(compactedBlocklist)-len(compactedRemovals)+len(compactedAdd))
 	// rebuild the blocklist dropping all removals
 	for _, b := range compactedBlocklist {
-		id, err := uuid.ParseBytes(b.BlockID)
-		if err != nil {
-			// FIXME:
-		}
-		existingMetas[id] = struct{}{}
-		if _, ok := compactedRemovals[id]; !ok {
+		existingMetas[b.BlockID.UUID] = struct{}{}
+		if _, ok := compactedRemovals[b.BlockID.UUID]; !ok {
 			newCompactedBlocklist = append(newCompactedBlocklist, b)
 		}
 	}
 	for _, b := range compactedAdd {
-		id, err := uuid.ParseBytes(b.BlockID)
-		if err != nil {
-			// FIXME:
-		}
-		if _, ok := existingMetas[id]; !ok {
+		if _, ok := existingMetas[b.BlockID.UUID]; !ok {
 			newCompactedBlocklist = append(newCompactedBlocklist, b)
 		}
 	}
