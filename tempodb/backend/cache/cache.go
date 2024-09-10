@@ -84,9 +84,9 @@ func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.Ke
 	cache := r.cacheFor(cacheInfo)
 	if cache != nil {
 		k = key(keypath, name)
-		found, vals, _ := cache.Fetch(ctx, []string{k})
-		if len(found) > 0 {
-			return io.NopCloser(bytes.NewReader(vals[0])), int64(len(vals[0])), nil
+		b, found := cache.FetchKey(ctx, k)
+		if found {
+			return io.NopCloser(bytes.NewReader(b)), int64(len(b)), nil
 		}
 	}
 
@@ -115,9 +115,9 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backe
 		keyGen := keypath
 		keyGen = append(keyGen, strconv.Itoa(int(offset)), strconv.Itoa(len(buffer)))
 		k = strings.Join(keyGen, ":")
-		found, vals, _ := cache.Fetch(ctx, []string{k})
-		if len(found) > 0 {
-			copy(buffer, vals[0])
+		b, found := cache.FetchKey(ctx, k)
+		if found {
+			copy(buffer, b)
 			return nil
 		}
 	}

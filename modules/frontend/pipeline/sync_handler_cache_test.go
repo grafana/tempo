@@ -39,7 +39,7 @@ func TestCacheCaches(t *testing.T) {
 	c.store(context.Background(), testKey, testData)
 
 	actual := &tempopb.SearchTagsResponse{}
-	buffer := c.fetchBytes(testKey)
+	buffer := c.fetchBytes(context.Background(), testKey)
 	err = (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(buffer), actual)
 
 	require.NoError(t, err)

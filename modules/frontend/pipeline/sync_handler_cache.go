@@ -37,7 +37,7 @@ func (c cachingWare) RoundTrip(req Request) (*http.Response, error) {
 	// extract cache key
 	key := req.CacheKey()
 	if len(key) > 0 {
-		body := c.cache.fetchBytes(key)
+		body := c.cache.fetchBytes(req.Context(), key)
 		if len(body) > 0 {
 			resp := &http.Response{
 				Header:     http.Header{},
@@ -143,7 +143,7 @@ func (c *frontendCache) store(ctx context.Context, key string, buffer []byte) {
 }
 
 // fetch fetches the response body from the cache. the caller assumes the responsibility of closing the response body.
-func (c *frontendCache) fetchBytes(key string) []byte {
+func (c *frontendCache) fetchBytes(ctx context.Context, key string) []byte {
 	if c.c == nil {
 		return nil
 	}
@@ -152,7 +152,7 @@ func (c *frontendCache) fetchBytes(key string) []byte {
 		return nil
 	}
 
-	buf, found := c.c.FetchKey(context.Background(), key)
+	buf, found := c.c.FetchKey(ctx, key)
 	if !found {
 		return nil
 	}
