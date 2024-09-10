@@ -9,8 +9,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/cache"
 )
@@ -39,7 +37,7 @@ func (c cachingWare) RoundTrip(req Request) (*http.Response, error) {
 	// extract cache key
 	key := req.CacheKey()
 	if len(key) > 0 {
-		body := c.cache.fetchBytes(key)
+		body := c.cache.fetchBytes(req.Context(), key)
 		if len(body) > 0 {
 			resp := &http.Response{
 				Header:     http.Header{},
@@ -145,26 +143,7 @@ func (c *frontendCache) store(ctx context.Context, key string, buffer []byte) {
 }
 
 // fetch fetches the response body from the cache. the caller assumes the responsibility of closing the response body.
-func (c *frontendCache) fetch(key string, pb proto.Message) bool {
-	if c.c == nil {
-		return false
-	}
-
-	if len(key) == 0 {
-		return false
-	}
-
-	_, bufs, _ := c.c.Fetch(context.Background(), []string{key})
-	if len(bufs) != 1 {
-		return false
-	}
-
-	err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(bufs[0]), pb)
-	return err == nil
-}
-
-// fetch fetches the response body from the cache. the caller assumes the responsibility of closing the response body.
-func (c *frontendCache) fetchBytes(key string) []byte {
+func (c *frontendCache) fetchBytes(ctx context.Context, key string) []byte {
 	if c.c == nil {
 		return nil
 	}
@@ -173,10 +152,10 @@ func (c *frontendCache) fetchBytes(key string) []byte {
 		return nil
 	}
 
-	_, bufs, _ := c.c.Fetch(context.Background(), []string{key})
-	if len(bufs) != 1 {
+	buf, found := c.c.FetchKey(ctx, key)
+	if !found {
 		return nil
 	}
 
-	return bufs[0]
+	return buf
 }

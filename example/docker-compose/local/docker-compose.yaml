@@ -12,11 +12,20 @@ services:
     volumes:
       - ./tempo-data:/var/tempo
 
+  memcached:
+    image: memcached:1.6.29
+    container_name: memcached
+    ports:
+      - "11211:11211"
+    environment:
+      - MEMCACHED_MAX_MEMORY=64m  # Set the maximum memory usage
+      - MEMCACHED_THREADS=4       # Number of threads to use
+
   tempo:
     image: *tempoImage
     command: [ "-config.file=/etc/tempo.yaml" ]
     volumes:
-      - ../shared/tempo.yaml:/etc/tempo.yaml
+      - ./tempo.yaml:/etc/tempo.yaml
       - ./tempo-data:/var/tempo
     ports:
       - "14268:14268"  # jaeger ingest
@@ -27,6 +36,7 @@ services:
       - "9411:9411"   # zipkin
     depends_on:
       - init
+      - memcached
 
   k6-tracing:
     image: ghcr.io/grafana/xk6-client-tracing:v0.0.5
