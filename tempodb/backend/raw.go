@@ -124,17 +124,28 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 		if err != nil && !errors.Is(err, ErrDoesNotExist) {
 			return err
 		}
+
+		err = w.w.Delete(ctx, TenantIndexNameProto, []string{tenantID}, nil)
+		if err != nil && !errors.Is(err, ErrDoesNotExist) {
+			return err
+		}
+
 		return nil
 	}
 
-	b := newTenantIndex(meta, compactedMeta)
+	var (
+		b   = newTenantIndex(meta, compactedMeta)
+		buf = &bytes.Buffer{}
+	)
 
-	indexBytes, err := b.marshal()
+	err := new(jsonpb.Marshaler).Marshal(buf, b)
 	if err != nil {
 		return err
 	}
 
-	err = w.w.Write(ctx, TenantIndexName, KeyPath([]string{tenantID}), bytes.NewReader(indexBytes), int64(len(indexBytes)), nil)
+	indexBytes := buf.Bytes()
+
+	err = w.w.Write(ctx, TenantIndexNameProto, KeyPath([]string{tenantID}), bytes.NewReader(indexBytes), int64(len(indexBytes)), nil)
 	if err != nil {
 		return err
 	}

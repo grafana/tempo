@@ -1,11 +1,12 @@
 package backend
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
@@ -35,8 +36,12 @@ func TestWriter(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, m.closeAppendCalled)
 
+	// TODO: we want to check the json marshaling will unmarshal with jsonpb.
+	// TODO: we also want to check that we can round-trip with jsonpb.
+
 	meta := NewBlockMeta("test", uuid.New(), "blerg", EncGZIP, "glarg")
-	expected, _ = json.Marshal(meta)
+	expected, err = json.Marshal(meta)
+	assert.NoError(t, err)
 	err = w.WriteBlockMeta(ctx, meta)
 	assert.NoError(t, err)
 	assert.Equal(t, expected, m.writeBuffer)
@@ -44,12 +49,9 @@ func TestWriter(t *testing.T) {
 	err = w.WriteTenantIndex(ctx, "test", []*BlockMeta{meta}, nil)
 	assert.NoError(t, err)
 
-	idx := &TenantIndex{}
-	err = idx.unmarshal(m.writeBuffer)
+	pbidx := &TenantIndex{}
+	err = json.Unmarshal(m.writeBuffer, pbidx)
 	assert.NoError(t, err)
-
-	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idx.Meta))                  // using cmp.Equal to compare json datetimes
-	assert.True(t, cmp.Equal([]*CompactedBlockMeta(nil), idx.CompactedMeta)) // using cmp.Equal to compare json datetimes
 
 	// When there are no blocks, the tenant index should be deleted
 	assert.Equal(t, map[string]map[string]int(nil), w.(*writer).w.(*MockRawWriter).deleteCalls)
@@ -57,7 +59,7 @@ func TestWriter(t *testing.T) {
 	err = w.WriteTenantIndex(ctx, "test", nil, nil)
 	assert.NoError(t, err)
 
-	expectedDeleteMap := map[string]map[string]int{TenantIndexName: {"test": 1}}
+	expectedDeleteMap := map[string]map[string]int{TenantIndexName: {"test": 1}, TenantIndexNameProto: {"test": 1}}
 	assert.Equal(t, expectedDeleteMap, w.(*writer).w.(*MockRawWriter).deleteCalls)
 
 	// When a backend returns ErrDoesNotExist, the tenant index should be deleted, but no error should be returned if the tenant index does not exist
