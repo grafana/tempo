@@ -27,7 +27,6 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/grafana/dskit v0.0.0-20240801171758-736c44c85382
 	github.com/grafana/e2e v0.1.1
-	github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-plugin v1.6.0
 	github.com/jaegertracing/jaeger v1.57.0
@@ -53,7 +52,7 @@ require (
 	github.com/spf13/viper v1.18.2
 	github.com/stretchr/testify v1.9.0
 	github.com/uber-go/atomic v1.4.0
-	github.com/uber/jaeger-client-go v2.30.0+incompatible
+	github.com/uber/jaeger-client-go v2.30.0+incompatible // indirect
 	github.com/willf/bloom v2.0.3+incompatible
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/collector v0.102.1
@@ -112,6 +111,7 @@ require (
 	go.opentelemetry.io/collector/receiver v0.102.1
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.102.1
 	go.opentelemetry.io/contrib/exporters/autoexport v0.53.0
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.52.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.28.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.28.0
 	go.opentelemetry.io/proto/otlp v1.3.1
@@ -306,7 +306,6 @@ require (
 	go.opentelemetry.io/collector/service v0.102.1 // indirect
 	go.opentelemetry.io/contrib/bridges/prometheus v0.53.0 // indirect
 	go.opentelemetry.io/contrib/config v0.7.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.52.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.53.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.27.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.4.0 // indirect

@@ -2,14 +2,14 @@
 
 This example set up a local Tempo instance and Tempo vulture.
 
-1. First create the storage directory with the correct permissions and start up the local stack.
+1. Create the storage directory with the correct permissions and start up the local stack.
 
 ```console
 mkdir tempo-data/
 docker compose up -d
 ```
 
-At this point, the following containers should be spun up -
+At this point, the following containers should be spun up:
 
 ```console
 docker compose ps
@@ -31,7 +31,7 @@ ls tempo-data/
 docker logs vulture_tempo_1 -f
 ```
 
-4. To stop the setup use -
+4. To stop the setup use:
 
 ```console
 docker compose down -v

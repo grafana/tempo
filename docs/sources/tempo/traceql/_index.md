@@ -64,17 +64,44 @@ In this example, the search reduces traces to those spans where:
 
 Queries select sets of spans and filter them through a pipeline of aggregators and conditions. If, for a given trace, this pipeline produces a spanset then it is included in the results of the query.
 
-
 ## Selecting spans
 
-TraceQL differentiates between two types of span data: intrinsics, which are fundamental to spans, and attributes, which are customizable key-value pairs. You can use intrinsics and attributes to build filters and select spans.
+In TraceQL, curly brackets `{}` always select a set of spans from the current trace.
+They are commonly paired with a condition to reduce the spans being passed in.
 
-In TraceQL, curly brackets `{}` always select a set of spans from the current trace. They are commonly paired with a condition to reduce the spans being passed in.
+TraceQL differentiates between two types of span data: intrinsics, which are fundamental to spans, and attributes, which are customizable key-value pairs.
+You can use intrinsics and attributes to build filters and select spans.
+
+{{< youtube id="aIDkPJ_e3W4" >}}
+
+Intrinsic fields are fundamental to scopes.
+Intrinsics are inherently present, as opposed to other key-value pairs (attributes) that are added by a developer.
+
+Intrinsics are always indicated using a `<scope>:`.
+Refer to the Intrinsics table for all current intrinsics.
+
+Intrinsics example:
+```
+{ span:name = "foo" }
+{ event:name = "foo" }
+{ trace:id = "1234" }
+{ link:traceID = "1234" }
+```
+
+Custom attributes are prefixed with `<scope>.`, such as `span.`,  `resource.` , `link.`, or `event`.
+Resource has no intrinsic values.
+It only has custom attributes.
+The `trace` scope is only an intrinsic and doesn't have any custom attributes at the trace level.
+
+Attributes example:
+```
+{ span.foo = "bar" }
+{ resource.foo = "bar" }
+{ link.foo = "bar" }
+{ event.foo = "bar" }
+```
 
 ### Intrinsic fields
-
-Intrinsic fields are fundamental to spans. These fields can be referenced when selecting spans.
-Custom attributes are prefixed with `.`, `span.` or `resource.`, whereas intrinsics are typed directly.
 
 The following table shows the current available scoped intrinsic fields:
 
@@ -94,10 +121,13 @@ The following table shows the current available scoped intrinsic fields:
 | `event:timeSinceStart`   | duration    | time of event in relation to the span start time                | `{ event:timeSinceStart > 2ms}`        |
 | `link:spanID`            | string      | link span id using hex string                                   | `{ link:spanID = "0000000000000001" }` |
 | `link:traceID`           | string      | link trace id using hex string                                  | `{ link:traceID = "1234567890abcde" }` |
-| `instrumentation:name`   | string      | instrumentation scope name                                      | `{ instrumentation:name = "grpc" }`    |
-| `instrumentation:version`| string      | instrumentation scope version                                   | `{ instrumentation:version = "1.0.0" }`|   
 
-`trace:duration`, `trace:rootName`, and `trace:rootService` are trace-level intrinsics and are the same for all spans in the same trace.
+<!-- instrumentation scope isn't included in the 2.6 documentation
+| `instrumentation:name`   | string      | instrumentation scope name                                      | `{ instrumentation:name = "grpc" }`    |
+| `instrumentation:version`| string      | instrumentation scope version                                   | `{ instrumentation:version = "1.0.0" }`|
+-->
+
+The trace-level intrinsics, `trace:duration`, `trace:rootName`, and `trace:rootService`, are the same for all spans in the same trace.
 Additionally, these intrinsics are significantly more performant because they have to inspect much less data then a span-level intrinsic.
 They should be preferred whenever possible to span-level intrinsics.
 
@@ -113,13 +143,21 @@ This example searches all Kubernetes clusters called `service-name` that have a 
 
 ### Attribute fields
 
-TraceQL has five different attribute scopes: span attributes, resource attributes, event attributes, link attributes, instrumentation scope attributes. By expanding a span in the Grafana UI, you can see both its span attributes (1 in the screenshot) and resource attributes (2 in the screenshot).
+TraceQL has four different attribute scopes: span attributes, resource attributes, event attributes, and link attributes.
+<!-- instrumentation scope isn't in 2.6 >
+instrumentation scope attributes.  -->
+
+By expanding a span in the Grafana UI, you can see both its span attributes (1 in the screenshot) and resource attributes (2 in the screenshot).
 
 <p align="center"><img src="assets/span-resource-attributes.png" alt="Example of span and resource  attributes." /></p>
 
-Attribute fields are derived from the span and can be customized. Process and span attribute types are [defined by the attribute itself](https://github.com/open-telemetry/opentelemetry-proto/blob/b43e9b18b76abf3ee040164b55b9c355217151f3/opentelemetry/proto/common/v1/common.proto#L30-L38), whereas intrinsic fields have a built-in type. You can refer to dynamic attributes (also known as tags) on the span or the span's resource.
+Attribute fields are derived from the span and can be customized.
+Process and span attribute types are [defined by the attribute itself](https://github.com/open-telemetry/opentelemetry-proto/blob/b43e9b18b76abf3ee040164b55b9c355217151f3/opentelemetry/proto/common/v1/common.proto#L30-L38), whereas intrinsic fields have a built-in type.
+You can refer to dynamic attributes (also known as tags) on the span or the span's resource.
 
-Attributes in a query start with a span scope (for example, `span.http`) or resource scope (for example, `resource.namespace`)  depending on what you want to query. This provides significant performance benefits because it allows Tempo to only scan the data you are interested in.
+Attributes in a query start with a span, resource, event, or link scope.
+For example, you could use `span.http` or  `resource.namespace`, depending on what you want to query.
+This provides significant performance benefits because it allows Tempo to only scan the data you are interested in.
 
 To find traces with the `GET HTTP` method, your query could look like this:
 
@@ -128,6 +166,7 @@ To find traces with the `GET HTTP` method, your query could look like this:
 ```
 
 For more information about attributes and resources, refer to the [OpenTelemetry Resource SDK](https://opentelemetry.io/docs/reference/specification/resource/sdk/).
+
 #### Examples
 
 Find traces that passed through the `production` environment:
@@ -140,20 +179,29 @@ Find any database connection string that goes to a Postgres or MySQL database:
 { span.db.system =~ "postgresql|mysql" }
 ```
 
+You can use the `event` scope to query events that happen within a span.
+A span event is a unique point in time during the span’s duration.
+While spans help build the structural hierarchy of your services, span events can provide a deeper level of granularity to help debug your application faster and maintain optimal performance.
+To learn more about how you can use span events, read the [What are span events?](https://grafana.com/blog/2024/08/15/all-about-span-events-what-they-are-and-how-to-query-them/) blog post.
+
 You can query for an exception in your span event:
 ```
 { event.exception.message =~ ".*something went wrong.*" }
 ```
 
+If you've instrumented your traces for span links, you can use the `link` scope to query the link data. A span link associates one span with one or more other spans that are a casual relationship.
+For more information on span links, refer to the [Span Links](https://opentelemetry.io/docs/concepts/signals/traces/#span-links) documentation in the Open Telemetry project.
+
 You can search for an attribute in your link:
 ```
 { link.opentracing.ref_type = "child_of" }
 ```
-
+<!-- instrumentation scope isn't included in the 2.6 release
 Find instrumentation scope programming language:
 ```
 { instrumentation.language = "java" }
 ```
+-->
 
 ### Unscoped attribute fields
 

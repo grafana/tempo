@@ -14,7 +14,7 @@ Tempo is Jaeger, Zipkin, Kafka, OpenCensus and OpenTelemetry compatible.  It ing
 
 Tempo implements [TraceQL](https://grafana.com/docs/tempo/latest/traceql/), a traces-first query language inspired by LogQL and PromQL. This query language allows users to very precisely and easily select spans and jump directly to the spans fulfilling the specified conditions:
 
-![Tempo data source query editor](/media/docs/grafana/data-sources/tempo/query-editor/tempo-ds-query-ed-example-v11-a.png)
+![Tempo data source query editor](https://grafana.com/media/docs/grafana/data-sources/tempo/query-editor/tempo-ds-query-ed-example-v11-a.png)
 
 ## Getting started
 

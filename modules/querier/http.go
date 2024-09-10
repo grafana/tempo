@@ -9,8 +9,8 @@ import (
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
 	"github.com/golang/protobuf/proto"  //nolint:all //ProtoReflect
-	"github.com/opentracing/opentracing-go"
-	ot_log "github.com/opentracing/opentracing-go/log"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/model/trace"
@@ -34,8 +34,8 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.TraceByID.QueryTimeout))
 	defer cancel()
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.TraceByIDHandler")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "Querier.TraceByIDHandler")
+	defer span.End()
 
 	byteID, err := api.ParseTraceID(r)
 	if err != nil {
@@ -49,15 +49,15 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	span.LogFields(
-		ot_log.String("msg", "validated request"),
-		ot_log.String("blockStart", blockStart),
-		ot_log.String("blockEnd", blockEnd),
-		ot_log.String("queryMode", queryMode),
-		ot_log.String("timeStart", fmt.Sprint(timeStart)),
-		ot_log.String("timeEnd", fmt.Sprint(timeEnd)),
-		ot_log.String("apiVersion", "v1"),
-	)
+	span.AddEvent("validated request", oteltrace.WithAttributes(
+		attribute.String("blockStart", blockStart),
+		attribute.String("blockEnd", blockEnd),
+		attribute.String("queryMode", queryMode),
+		attribute.String("timeStart", fmt.Sprint(timeStart)),
+		attribute.String("timeEnd", fmt.Sprint(timeEnd)),
+		attribute.String("apiVersion", "v1"),
+	))
+
 	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID:    byteID,
 		BlockStart: blockStart,
@@ -83,8 +83,8 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.TraceByID.QueryTimeout))
 	defer cancel()
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.TraceByIDHandlerV2")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "Querier.TraceByIDHandlerV2")
+	defer span.End()
 
 	byteID, err := api.ParseTraceID(r)
 	if err != nil {
@@ -98,14 +98,14 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	span.LogFields(
-		ot_log.String("msg", "validated request"),
-		ot_log.String("blockStart", blockStart),
-		ot_log.String("blockEnd", blockEnd),
-		ot_log.String("queryMode", queryMode),
-		ot_log.String("timeStart", fmt.Sprint(timeStart)),
-		ot_log.String("timeEnd", fmt.Sprint(timeEnd)),
-		ot_log.String("apiVersion", "v2"))
+	span.AddEvent("validated request", oteltrace.WithAttributes(
+		attribute.String("blockStart", blockStart),
+		attribute.String("blockEnd", blockEnd),
+		attribute.String("queryMode", queryMode),
+		attribute.String("timeStart", fmt.Sprint(timeStart)),
+		attribute.String("timeEnd", fmt.Sprint(timeEnd)),
+		attribute.String("apiVersion", "v2"),
+	))
 
 	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
 		TraceID:           byteID,
@@ -128,11 +128,11 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchHandler")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "Querier.SearchHandler")
+	defer span.End()
 
-	span.SetTag("requestURI", r.RequestURI)
-	span.SetTag("isSearchBlock", isSearchBlock)
+	span.SetAttributes(attribute.String("requestURI", r.RequestURI))
+	span.SetAttributes(attribute.Bool("isSearchBlock", isSearchBlock))
 
 	var resp *tempopb.SearchResponse
 	if !isSearchBlock {
@@ -142,7 +142,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		span.SetTag("SearchRequest", req.String())
+		span.SetAttributes(attribute.String("SearchRequest", req.String()))
 
 		resp, err = q.SearchRecent(ctx, req)
 		if err != nil {
@@ -156,7 +156,7 @@ func (q *Querier) SearchHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		span.SetTag("SearchRequestBlock", req.String())
+		span.SetAttributes(attribute.String("SearchRequestBlock", req.String()))
 
 		resp, err = q.SearchBlock(ctx, req)
 		if err != nil {
@@ -175,8 +175,8 @@ func (q *Querier) SearchTagsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagsHandler")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "Querier.SearchTagsHandler")
+	defer span.End()
 
 	var resp *tempopb.SearchTagsResponse
 	if !isSearchBlock {
@@ -212,8 +212,8 @@ func (q *Querier) SearchTagsV2Handler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagsHandler")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "Querier.SearchTagsHandler")
+	defer span.End()
 
 	var resp *tempopb.SearchTagsV2Response
 	if !isSearchBlock {
@@ -251,8 +251,8 @@ func (q *Querier) SearchTagValuesHandler(w http.ResponseWriter, r *http.Request)
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagValuesHandler")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "Querier.SearchTagValuesHandler")
+	defer span.End()
 
 	var resp *tempopb.SearchTagValuesResponse
 	if !isSearchBlock {
@@ -290,8 +290,8 @@ func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Reques
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SearchTagValuesHandler")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "Querier.SearchTagValuesHandler")
+	defer span.End()
 
 	var resp *tempopb.SearchTagValuesV2Response
 	var err error
@@ -327,8 +327,8 @@ func (q *Querier) SpanMetricsSummaryHandler(w http.ResponseWriter, r *http.Reque
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.SpanMetricsSummaryHandler")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "Querier.SpanMetricsSummaryHandler")
+	defer span.End()
 
 	req, err := api.ParseSpanMetricsSummaryRequest(r)
 	if err != nil {
@@ -355,24 +355,24 @@ func (q *Querier) QueryRangeHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.QueryRangeHandler")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "Querier.QueryRangeHandler")
+	defer span.End()
 
-	errHandler := func(ctx context.Context, span opentracing.Span, err error) {
+	errHandler := func(ctx context.Context, span oteltrace.Span, err error) {
 		if errors.Is(err, context.Canceled) {
 			// todo: context is also canceled when we hit the query timeout. research what the behavior is
 			// ignore this error. we regularly cancel context once queries are complete
-			span.SetTag("error", err.Error())
+			span.RecordError(err)
 			return
 		}
 
 		if ctx.Err() != nil {
-			span.SetTag("error", ctx.Err())
+			span.RecordError(ctx.Err())
 			return
 		}
 
 		if err != nil {
-			span.SetTag("error", err.Error())
+			span.RecordError(err)
 		}
 	}
 
@@ -394,19 +394,23 @@ func (q *Querier) QueryRangeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	span.SetTag("query", req.Query)
-	span.SetTag("step", time.Duration(req.Step))
-	span.SetTag("interval", time.Unix(0, int64(req.End)).Sub(time.Unix(0, int64(req.Start))))
+	span.SetAttributes(attribute.String("query", req.Query))
+	span.SetAttributes(attribute.Int64("step", time.Duration(req.Step).Nanoseconds()))
+	span.SetAttributes(attribute.Int64("interval", time.Unix(0, int64(req.End)).Sub(time.Unix(0, int64(req.Start))).Nanoseconds()))
 
 	resp, err = q.QueryRange(ctx, req)
 	if err != nil {
 		errHandler(ctx, span, err)
 		return
 	}
+	// This is to prevent a panic marshaling nil
+	if resp == nil {
+		resp = &tempopb.QueryRangeResponse{}
+	}
 
 	if resp != nil && resp.Metrics != nil {
-		span.SetTag("inspectedBytes", resp.Metrics.InspectedBytes)
-		span.SetTag("inspectedSpans", resp.Metrics.InspectedSpans)
+		span.SetAttributes(attribute.Int64("inspectedBytes", int64(resp.Metrics.InspectedBytes)))
+		span.SetAttributes(attribute.Int64("inspectedSpans", int64(resp.Metrics.InspectedSpans)))
 	}
 }
 
@@ -430,7 +434,7 @@ func handleError(w http.ResponseWriter, err error) {
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
-func writeFormattedContentForRequest(w http.ResponseWriter, req *http.Request, m proto.Message, span opentracing.Span) {
+func writeFormattedContentForRequest(w http.ResponseWriter, req *http.Request, m proto.Message, span oteltrace.Span) {
 	switch req.Header.Get(api.HeaderAccept) {
 	case api.HeaderAcceptProtobuf:
 		b, err := proto.Marshal(m)
@@ -446,7 +450,7 @@ func writeFormattedContentForRequest(w http.ResponseWriter, req *http.Request, m
 			return
 		}
 		if span != nil {
-			span.SetTag("contentType", api.HeaderAcceptProtobuf)
+			span.SetAttributes(attribute.String("contentType", api.HeaderAcceptProtobuf))
 		}
 
 	default:
@@ -457,7 +461,7 @@ func writeFormattedContentForRequest(w http.ResponseWriter, req *http.Request, m
 			return
 		}
 		if span != nil {
-			span.SetTag("contentType", api.HeaderAcceptJSON)
+			span.SetAttributes(attribute.String("contentType", api.HeaderAcceptJSON))
 		}
 
 	}

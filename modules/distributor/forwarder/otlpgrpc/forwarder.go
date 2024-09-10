@@ -9,10 +9,9 @@ import (
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/middleware"
 	grpcmw "github.com/grpc-ecosystem/go-grpc-middleware"
-	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
-	"github.com/opentracing/opentracing-go"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.uber.org/multierr"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -122,6 +121,7 @@ func (f *Forwarder) newTraceOTLPGRPCClientAndConn(ctx context.Context, endpoint 
 		grpc.WithTransportCredentials(creds),
 		grpc.WithUnaryInterceptor(grpcmw.ChainUnaryClient(unaryClientInterceptor...)),
 		grpc.WithStreamInterceptor(grpcmw.ChainStreamClient(streamClientInterceptor...)),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 	)
 
 	grpcClientConn, err := grpc.DialContext(ctx, endpoint, opts...)
@@ -134,10 +134,8 @@ func (f *Forwarder) newTraceOTLPGRPCClientAndConn(ctx context.Context, endpoint 
 
 func instrumentation() ([]grpc.UnaryClientInterceptor, []grpc.StreamClientInterceptor) {
 	return []grpc.UnaryClientInterceptor{
-			otgrpc.OpenTracingClientInterceptor(opentracing.GlobalTracer()),
 			middleware.ClientUserHeaderInterceptor,
 		}, []grpc.StreamClientInterceptor{
-			otgrpc.OpenTracingStreamClientInterceptor(opentracing.GlobalTracer()),
 			middleware.StreamClientUserHeaderInterceptor,
 		}
 }

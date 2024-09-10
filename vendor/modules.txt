@@ -563,9 +563,6 @@ github.com/grpc-ecosystem/go-grpc-middleware/util/metautils
 github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
-# github.com/grpc-ecosystem/grpc-opentracing v0.0.0-20180507213350-8e809c8a8645
-## explicit
-github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc
 # github.com/hashicorp/consul/api v1.29.2
 ## explicit; go 1.19
 github.com/hashicorp/consul/api
@@ -677,11 +674,7 @@ github.com/jaegertracing/jaeger/pkg/healthcheck
 github.com/jaegertracing/jaeger/pkg/metrics
 github.com/jaegertracing/jaeger/pkg/netutils
 github.com/jaegertracing/jaeger/pkg/recoveryhandler
-github.com/jaegertracing/jaeger/pkg/tenancy
 github.com/jaegertracing/jaeger/pkg/version
-github.com/jaegertracing/jaeger/plugin
-github.com/jaegertracing/jaeger/plugin/storage/grpc
-github.com/jaegertracing/jaeger/plugin/storage/grpc/config
 github.com/jaegertracing/jaeger/plugin/storage/grpc/shared
 github.com/jaegertracing/jaeger/ports
 github.com/jaegertracing/jaeger/proto-gen/api_v2
@@ -1722,7 +1715,6 @@ golang.org/x/mod/semver
 # golang.org/x/net v0.27.0
 ## explicit; go 1.18
 golang.org/x/net/bpf
-golang.org/x/net/context
 golang.org/x/net/http/httpguts
 golang.org/x/net/http/httpproxy
 golang.org/x/net/http2

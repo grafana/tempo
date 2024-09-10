@@ -1,10 +1,13 @@
-FROM jaegertracing/jaeger-query:1.57.0
-
-ENV SPAN_STORAGE_TYPE=grpc-plugin \
-    GRPC_STORAGE_PLUGIN_BINARY=/tempo-query
-
-# Ensure /tmp dir exists, hashicorp plugins need a /tmp dir to exist.
-RUN mkdir -p /tmp
-
+FROM alpine:3.20 as certs
+RUN apk --update add ca-certificates
 ARG TARGETARCH
 COPY bin/linux/tempo-query-${TARGETARCH} /tempo-query
+
+RUN addgroup -g 10001 -S tempo && \
+    adduser -u 10001 -S tempo -G tempo
+
+USER 10001:10001
+
+COPY bin/linux/tempo-query-${TARGETARCH} /tempo-query
+
+ENTRYPOINT ["/tempo-query"]

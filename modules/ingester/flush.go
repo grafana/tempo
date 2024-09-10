@@ -13,12 +13,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
-	ot "github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/ext"
-	otlog "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/uber/jaeger-client-go"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/pkg/util/log"
 )
@@ -294,12 +293,12 @@ func (i *Ingester) handleComplete(op *flushOp) (retry bool, err error) {
 
 // withSpan adds traceID to a logger, if span is sampled
 // TODO: move into some central trace/log package
-func withSpan(logger gklog.Logger, sp ot.Span) gklog.Logger {
+func withSpan(logger gklog.Logger, sp trace.Span) gklog.Logger {
 	if sp == nil {
 		return logger
 	}
-	sctx, ok := sp.Context().(jaeger.SpanContext)
-	if !ok || !sctx.IsSampled() {
+	sctx := sp.SpanContext()
+	if !sctx.IsSampled() {
 		return logger
 	}
 
@@ -307,8 +306,8 @@ func withSpan(logger gklog.Logger, sp ot.Span) gklog.Logger {
 }
 
 func (i *Ingester) handleFlush(ctx context.Context, userID string, blockID uuid.UUID) (retry bool, err error) {
-	sp, ctx := ot.StartSpanFromContext(ctx, "flush", ot.Tag{Key: "organization", Value: userID}, ot.Tag{Key: "blockID", Value: blockID.String()})
-	defer sp.Finish()
+	ctx, sp := tracer.Start(ctx, "flush", trace.WithAttributes(attribute.String("organization", userID), attribute.String("blockID", blockID.String())))
+	defer sp.End()
 	withSpan(level.Info(log.Logger), sp).Log("msg", "flushing block", "userid", userID, "block", blockID.String())
 
 	instance, err := i.getOrCreateInstance(userID)
@@ -330,8 +329,8 @@ func (i *Ingester) handleFlush(ctx context.Context, userID string, blockID uuid.
 		metricFlushDuration.Observe(time.Since(start).Seconds())
 		metricFlushSize.Observe(float64(block.BlockMeta().Size))
 		if err != nil {
-			ext.Error.Set(sp, true)
-			sp.LogFields(otlog.Error(err))
+			sp.SetStatus(codes.Error, "")
+			sp.RecordError(err)
 			return true, err
 		}
 

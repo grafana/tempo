@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level" //nolint:all //deprecated
+	"go.opentelemetry.io/otel"
 
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
@@ -54,6 +55,8 @@ type QueryFrontend struct {
 	streamingQueryInstant                                                                                                            streamingQueryInstantHandler
 	logger                                                                                                                           log.Logger
 }
+
+var tracer = otel.Tracer("modules/frontend")
 
 // New returns a new QueryFrontend
 func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempodb.Reader, cacheProvider cache.Provider, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {

@@ -31,6 +31,7 @@ import (
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
@@ -402,15 +403,18 @@ func TestSearchLimitHonored(t *testing.T) {
 			}
 
 			// grpc
-			var actualResp *tempopb.SearchResponse
+			combiner := traceql.NewMetadataCombiner()
 			err = f.streamingSearch(tc.request, newMockStreamingServer(tenant, func(i int, sr *tempopb.SearchResponse) {
-				actualResp = sr
+				// combine
+				for _, t := range sr.Traces {
+					combiner.AddMetadata(t)
+				}
 			}))
 			if tc.badRequest {
 				require.Equal(t, status.Error(codes.InvalidArgument, "adjust limit: limit 20 exceeds max limit 15"), err)
 			} else {
 				require.NoError(t, err)
-				require.Len(t, actualResp.Traces, tc.expectedTraces)
+				require.Equal(t, combiner.Count(), tc.expectedTraces)
 			}
 		})
 	}

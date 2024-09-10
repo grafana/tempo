@@ -16,10 +16,11 @@ import (
 	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
-	"github.com/opentracing/opentracing-go"
-	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/multierr"
 	"golang.org/x/sync/semaphore"
 
@@ -42,6 +43,8 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
+
+var tracer = otel.Tracer("modules/querier")
 
 var (
 	metricIngesterClients = promauto.NewGauge(prometheus.GaugeOpts{
@@ -231,10 +234,10 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		return nil, fmt.Errorf("error extracting org id in Querier.FindTraceByID: %w", err)
 	}
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.FindTraceByID")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "Querier.FindTraceByID")
+	defer span.End()
 
-	span.SetTag("queryMode", req.QueryMode)
+	span.SetAttributes(attribute.String("queryMode", req.QueryMode))
 
 	maxBytes := q.limits.MaxBytesPerTrace(userID)
 	combiner := trace.NewCombiner(maxBytes, req.AllowPartialTrace)
@@ -250,7 +253,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		}
 
 		// get responses from all ingesters in parallel
-		span.LogFields(ot_log.String("msg", "searching ingesters"))
+		span.AddEvent("searching ingesters")
 		responses, err := q.forIngesterRings(ctx, userID, getRSFn, func(funcCtx context.Context, client tempopb.QuerierClient) (interface{}, error) {
 			return client.FindTraceByID(funcCtx, req)
 		})
@@ -272,23 +275,24 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 				found = true
 			}
 		}
-		span.LogFields(ot_log.String("msg", "done searching ingesters"),
-			ot_log.Bool("found", found),
-			ot_log.Int("combinedSpans", spanCountTotal),
-			ot_log.Int("combinedTraces", traceCountTotal))
+		span.AddEvent("done searching ingesters", oteltrace.WithAttributes(
+			attribute.Bool("found", found),
+			attribute.Int("combinedSpans", spanCountTotal),
+			attribute.Int("combinedTraces", traceCountTotal)))
 	}
 
 	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
-		span.LogFields(ot_log.String("msg", "searching store"))
-		span.LogFields(ot_log.String("timeStart", fmt.Sprint(timeStart)))
-		span.LogFields(ot_log.String("timeEnd", fmt.Sprint(timeEnd)))
+		span.AddEvent("searching store", oteltrace.WithAttributes(
+			attribute.Int64("timeStart", timeStart),
+			attribute.Int64("timeEnd", timeEnd),
+		))
 
 		opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
 		opts.BlockReplicationFactor = backend.DefaultReplicationFactor
 		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req.TraceID, req.BlockStart, req.BlockEnd, timeStart, timeEnd, opts)
 		if err != nil {
 			retErr := fmt.Errorf("error querying store in Querier.FindTraceByID: %w", err)
-			ot_log.Error(retErr)
+			span.RecordError(retErr)
 			return nil, retErr
 		}
 
@@ -296,9 +300,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			return nil, multierr.Combine(blockErrs...)
 		}
 
-		span.LogFields(
-			ot_log.String("msg", "done searching store"),
-			ot_log.Int("foundPartialTraces", len(partialTraces)))
+		span.AddEvent("done searching store", oteltrace.WithAttributes(
+			attribute.Int("foundPartialTraces", len(partialTraces))))
 
 		for _, partialTrace := range partialTraces {
 			_, err = combiner.Consume(partialTrace)
@@ -397,8 +400,8 @@ func (q *Querier) forIngesterRings(ctx context.Context, userID string, getReplic
 }
 
 func forOneIngesterRing(ctx context.Context, replicationSet ring.ReplicationSet, f forEachFn, pool *ring_client.Pool, extraQueryDelay time.Duration) ([]interface{}, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.forOneIngester")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "Querier.forOneIngester")
+	defer span.End()
 
 	doFunc := func(funcCtx context.Context, ingester *ring.InstanceDesc) (interface{}, error) {
 		if funcCtx.Err() != nil {
@@ -433,8 +436,8 @@ func (q *Querier) forGivenGenerators(
 		return nil, ctx.Err()
 	}
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.forGivenGenerators")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "Querier.forGivenGenerators")
+	defer span.End()
 
 	doFunc := func(funcCtx context.Context, generator *ring.InstanceDesc) (interface{}, error) {
 		if funcCtx.Err() != nil {

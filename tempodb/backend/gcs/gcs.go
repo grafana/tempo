@@ -14,12 +14,15 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/tempodb/backend/instrumentation"
 
 	"cloud.google.com/go/storage"
 	"github.com/cristalhq/hedgedhttp"
-	opentracing "github.com/opentracing/opentracing-go"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	google_http "google.golang.org/api/transport/http"
@@ -34,6 +37,8 @@ type readerWriter struct {
 	bucket       *storage.BucketHandle
 	hedgedBucket *storage.BucketHandle
 }
+
+var tracer = otel.Tracer("tempodb/backend/gcs")
 
 var (
 	_ backend.RawReader             = (*readerWriter)(nil)
@@ -106,17 +111,17 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 // Write implements backend.Writer
 func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, _ int64, _ *backend.CacheInfo) error {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Write")
-	defer span.Finish()
+	derivedCtx, span := tracer.Start(ctx, "gcs.Write")
+	defer span.End()
 
-	span.SetTag("object", name)
+	span.SetAttributes(attribute.String("object", name))
 
 	w := rw.writer(derivedCtx, backend.ObjectFileName(keypath, name), nil)
 
 	_, err := io.Copy(w, data)
 	if err != nil {
 		w.Close()
-		span.SetTag("error", true)
+		span.RecordError(err)
 		return fmt.Errorf("failed to write: %w", err)
 	}
 
@@ -126,10 +131,10 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 // Append implements backend.Writer
 func (rw *readerWriter) Append(ctx context.Context, name string, keypath backend.KeyPath, tracker backend.AppendTracker, buffer []byte) (backend.AppendTracker, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
-	span, ctx := opentracing.StartSpanFromContext(ctx, "gcs.Append", opentracing.Tags{
-		"len": len(buffer),
-	})
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "gcs.Append", trace.WithAttributes(
+		attribute.Int("len", len(buffer)),
+	))
+	defer span.End()
 
 	var w *storage.Writer
 	if tracker == nil {
@@ -192,8 +197,8 @@ func (rw *readerWriter) List(ctx context.Context, keypath backend.KeyPath) ([]st
 
 // ListBlocks implements backend.Reader
 func (rw *readerWriter) ListBlocks(ctx context.Context, tenant string) ([]uuid.UUID, []uuid.UUID, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "readerWriter.ListBlocks")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "readerWriter.ListBlocks")
+	defer span.End()
 
 	var (
 		wg                sync.WaitGroup
@@ -344,14 +349,14 @@ func (rw *readerWriter) Find(ctx context.Context, keypath backend.KeyPath, f bac
 // Read implements backend.Reader
 func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.KeyPath, _ *backend.CacheInfo) (io.ReadCloser, int64, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.Read")
-	defer span.Finish()
+	derivedCtx, span := tracer.Start(ctx, "gcs.Read")
+	defer span.End()
 
-	span.SetTag("object", name)
+	span.SetAttributes(attribute.String("object", name))
 
 	b, _, err := rw.readAll(derivedCtx, backend.ObjectFileName(keypath, name))
 	if err != nil {
-		span.SetTag("error", true)
+		span.SetStatus(codes.Error, "")
 	}
 	return io.NopCloser(bytes.NewReader(b)), int64(len(b)), readError(err)
 }
@@ -359,15 +364,15 @@ func (rw *readerWriter) Read(ctx context.Context, name string, keypath backend.K
 // ReadRange implements backend.Reader
 func (rw *readerWriter) ReadRange(ctx context.Context, name string, keypath backend.KeyPath, offset uint64, buffer []byte, _ *backend.CacheInfo) error {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.ReadRange", opentracing.Tags{
-		"len":    len(buffer),
-		"offset": offset,
-	})
-	defer span.Finish()
+	derivedCtx, span := tracer.Start(ctx, "gcs.ReadRange", trace.WithAttributes(
+		attribute.Int("len", len(buffer)),
+		attribute.Int64("offset", int64(offset)),
+	))
+	defer span.End()
 
 	err := rw.readRange(derivedCtx, backend.ObjectFileName(keypath, name), int64(offset), buffer)
 	if err != nil {
-		span.SetTag("error", true)
+		span.SetStatus(codes.Error, "")
 	}
 	return readError(err)
 }
@@ -378,10 +383,10 @@ func (rw *readerWriter) Shutdown() {
 
 func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath backend.KeyPath, data io.Reader, version backend.Version) (backend.Version, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.WriteVersioned", opentracing.Tags{
-		"object": name,
-	})
-	defer span.Finish()
+	derivedCtx, span := tracer.Start(ctx, "gcs.WriteVersioned", trace.WithAttributes(
+		attribute.String("object", name),
+	))
+	defer span.End()
 
 	preconditions, err := createPreconditions(version)
 	if err != nil {
@@ -393,7 +398,7 @@ func (rw *readerWriter) WriteVersioned(ctx context.Context, name string, keypath
 	_, err = io.Copy(w, data)
 	if err != nil {
 		w.Close()
-		span.SetTag("error", true)
+		span.SetStatus(codes.Error, "failed to write")
 		return "", fmt.Errorf("failed to write: %w", err)
 	}
 
@@ -419,14 +424,14 @@ func (rw *readerWriter) DeleteVersioned(ctx context.Context, name string, keypat
 
 func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath backend.KeyPath) (io.ReadCloser, backend.Version, error) {
 	keypath = backend.KeyPathWithPrefix(keypath, rw.cfg.Prefix)
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "gcs.ReadVersioned", opentracing.Tags{
-		"object": name,
-	})
-	defer span.Finish()
+	derivedCtx, span := tracer.Start(ctx, "gcs.ReadVersioned", trace.WithAttributes(
+		attribute.String("object", name),
+	))
+	defer span.End()
 
 	b, attrs, err := rw.readAll(derivedCtx, backend.ObjectFileName(keypath, name))
 	if err != nil {
-		span.SetTag("error", true)
+		span.SetStatus(codes.Error, "")
 		return nil, "", readError(err)
 	}
 	return io.NopCloser(bytes.NewReader(b)), toVersion(attrs.Generation), nil

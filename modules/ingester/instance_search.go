@@ -7,7 +7,8 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	ot_log "github.com/opentracing/opentracing-go/log"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
 
 	"github.com/go-kit/log/level"
@@ -21,12 +22,11 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/opentracing/opentracing-go"
 )
 
 func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "instance.Search")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "instance.Search")
+	defer span.End()
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -37,7 +37,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		maxResults = 20
 	}
 
-	span.LogFields(ot_log.String("SearchRequest", req.String()))
+	span.AddEvent("SearchRequest", trace.WithAttributes(attribute.String("request", req.String())))
 
 	var (
 		resultsMtx = sync.Mutex{}
@@ -48,11 +48,11 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	)
 
 	search := func(blockID uuid.UUID, block common.Searcher, spanName string) {
-		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.searchBlock."+spanName)
-		defer span.Finish()
+		ctx, span := tracer.Start(ctx, "instance.searchBlock."+spanName)
+		defer span.End()
 
-		span.LogFields(ot_log.Event("block entry mtx acquired"))
-		span.SetTag("blockID", blockID)
+		span.AddEvent("block entry mtx acquired")
+		span.SetAttributes(attribute.String("blockID", blockID.String()))
 
 		var resp *tempopb.SearchResponse
 		var err error
@@ -115,7 +115,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	// then headblockMtx. Even if the likelihood is low it is a statistical certainly
 	// that eventually a deadlock will occur.
 	i.headBlockMtx.RLock()
-	span.LogFields(ot_log.String("msg", "acquired headblock mtx"))
+	span.AddEvent("acquired headblock mtx")
 	if includeBlock(i.headBlock.BlockMeta(), req) {
 		search(i.headBlock.BlockMeta().BlockID, i.headBlock, "headBlock")
 	}
@@ -136,7 +136,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	// and then attempting to retake the lock.
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
-	span.LogFields(ot_log.String("msg", "acquired blocks mtx"))
+	span.AddEvent("acquired blocks mtx")
 
 	wg := sync.WaitGroup{}
 
@@ -201,8 +201,8 @@ func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.Searc
 
 // SearchTagsV2 calls SearchTags for each scope and returns the results.
 func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsV2Response, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTagsV2")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "instance.SearchTagsV2")
+	defer span.End()
 
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
@@ -235,8 +235,8 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	query := traceql.ExtractMatchers(req.Query)
 
 	searchBlock := func(ctx context.Context, s common.Searcher, spanName string) error {
-		span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTags."+spanName)
-		defer span.Finish()
+		ctx, span := tracer.Start(ctx, "instance.SearchTags."+spanName)
+		defer span.End()
 
 		if s == nil {
 			return nil
@@ -269,7 +269,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	}
 
 	i.headBlockMtx.RLock()
-	span.LogFields(ot_log.String("msg", "acquired headblock mtx"))
+	span.AddEvent("acquired headblock mtx")
 	err = searchBlock(ctx, i.headBlock, "headBlock")
 	i.headBlockMtx.RUnlock()
 	if err != nil {
@@ -278,7 +278,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
-	span.LogFields(ot_log.String("msg", "acquired blocks mtx"))
+	span.AddEvent("acquired blocks mtx")
 
 	for _, b := range i.completingBlocks {
 		if err = searchBlock(ctx, b, "completingBlock"); err != nil {
@@ -388,8 +388,8 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return nil, err
 	}
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTagValuesV2")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2")
+	defer span.End()
 
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
 	valueCollector := collector.NewDistinctValue[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
@@ -447,12 +447,12 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	// then headblockMtx. Even if the likelihood is low it is a statistical certainly
 	// that eventually a deadlock will occur.
 	i.headBlockMtx.RLock()
-	span.LogFields(ot_log.String("msg", "acquired headblock mtx"))
+	span.AddEvent("acquired headblock mtx")
 	if i.headBlock != nil {
 		wg.Add(1)
 		go func() {
-			span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTagValuesV2.headBlock")
-			defer span.Finish()
+			ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2.headBlock")
+			defer span.End()
 			defer i.headBlockMtx.RUnlock()
 			defer wg.Done()
 			if err := searchBlock(ctx, i.headBlock); err != nil {
@@ -463,14 +463,14 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
-	span.LogFields(ot_log.String("msg", "acquired blocks mtx"))
+	span.AddEvent("acquired blocks mtx")
 
 	// completed blocks
 	for _, b := range i.completeBlocks {
 		wg.Add(1)
 		go func(b *LocalBlock) {
-			span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTagValuesV2.completedBlock")
-			defer span.Finish()
+			ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2.completedBlock")
+			defer span.End()
 			defer wg.Done()
 			if err := searchBlock(ctx, b); err != nil {
 				anyErr.Store(fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err))
@@ -482,8 +482,8 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	for _, b := range i.completingBlocks {
 		wg.Add(1)
 		go func(b common.WALBlock) {
-			span, ctx := opentracing.StartSpanFromContext(ctx, "instance.SearchTagValuesV2.completingBlock")
-			defer span.Finish()
+			ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2.completingBlock")
+			defer span.End()
 			defer wg.Done()
 			if err := searchBlock(ctx, b); err != nil {
 				anyErr.Store(fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err))
