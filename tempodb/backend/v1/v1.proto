@@ -2,18 +2,20 @@ syntax = "proto3";
 
 package backend.v1;
 
-import "pkg/tempopb/tempo.proto";
+// import "pkg/tempopb/tempo.proto";
 
 import "google/protobuf/timestamp.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
+// option go_package = "github.com/grafana/tempo/tempodb/backend/v1";
+option go_package = "tempodb/backend";
 
-option go_package = "github.com/grafana/tempo/tempodb/backend/v1";
+option (gogoproto.marshaler_all) = true;
 
 message BlockMeta {
     string version = 1[(gogoproto.jsontag) = "format"];
-    bytes block_id = 2[(gogoproto.jsontag) = "blockID"];
-    string tenant_id = 5[(gogoproto.jsontag) = "tenantID"];
+    bytes block_id = 2[(gogoproto.jsontag) = "blockID", (gogoproto.customname) = "BlockID"];
+    string tenant_id = 5[(gogoproto.jsontag) = "tenantID", (gogoproto.customname) = "TenantID"];
     google.protobuf.Timestamp start_time = 6[(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "startTime"];
     google.protobuf.Timestamp end_time = 7[(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "endTime"];
     int32 total_objects = 8[(gogoproto.jsontag) = "totalObjects"];
@@ -25,7 +27,11 @@ message BlockMeta {
     string data_encoding = 14[(gogoproto.jsontag) = "dataEncoding"];
     uint32 bloom_shard_count = 15[(gogoproto.jsontag) = "bloomShards"];
     uint32 footer_size = 16[(gogoproto.jsontag) = "footerSize"];
-    repeated tempopb.DedicatedColumn dedicated_columns = 17[(gogoproto.jsontag) = "dedicatedColumns,omitempty"];
+    // repeated bytes dedicated_columns = 17 [(gogoproto.customtype) = "github.com/grafana/tempo/pkg/tempopb.DedicatedColumn"];
+    // repeated bytes dedicated_columns = 17 [(gogoproto.customtype) = "github.com/grafana/tempo/tempodb/backend/meta.DedicatedColumn"];
+    bytes dedicated_columns = 17 [(gogoproto.customtype) = "DedicatedColumns", (gogoproto.jsontag) = "dedicatedColumns,omitempty", (gogoproto.nullable) = false];
+    // bytes dedicated_columns = 17;
+    // repeated tempopb.DedicatedColumn dedicated_columns = 17[(gogoproto.jsontag) = "dedicatedColumns,omitempty"];
     uint32 replication_factor = 18[(gogoproto.jsontag) = "replicationFactor,omitempty"];
 }
 
