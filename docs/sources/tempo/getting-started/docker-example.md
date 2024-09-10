@@ -9,15 +9,7 @@ killercoda:
   details:
       intro:
          foreground: docker-compose-update.sh
-  preprocessing:
-    substitutions:
-      - regexp: ../../
-        replacement: /docs/tempo/latest/
-      - regexp: '{{< relref "./instrumentation" >}}'
-        replacement: https://grafana.com/docs/tempo/latest/getting-started/instrumentation/
-      - regexp: '{{< relref "../setup" >}}'
-        replacement: https://grafana.com/docs/tempo/latest/setup/
-  backend:
+    backend:
     imageid: ubuntu
 ---
 
