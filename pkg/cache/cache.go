@@ -2,7 +2,9 @@ package cache
 
 import (
 	"context"
+	"time"
 
+	instr "github.com/grafana/dskit/instrument"
 	"github.com/grafana/dskit/services"
 )
 
@@ -43,4 +45,12 @@ type Cache interface {
 	Fetch(ctx context.Context, keys []string) (found []string, bufs [][]byte, missing []string)
 	FetchKey(ctx context.Context, key string) (buf []byte, found bool)
 	Stop()
+}
+
+func measureRequest(ctx context.Context, method string, col instr.Collector, toStatusCode func(error) string, f func(context.Context) error) error {
+	start := time.Now()
+	col.Before(ctx, method, start)
+	err := f(ctx)
+	col.After(ctx, method, toStatusCode(err), start)
+	return err
 }
