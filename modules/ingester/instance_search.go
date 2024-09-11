@@ -119,7 +119,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	i.headBlockMtx.RLock()
 	span.AddEvent("acquired headblock mtx")
 	if includeBlock(i.headBlock.BlockMeta(), req) {
-		search(i.headBlock.BlockMeta().BlockID, i.headBlock, "headBlock")
+		search(i.headBlock.BlockMeta().BlockID.UUID, i.headBlock, "headBlock")
 	}
 	i.headBlockMtx.RUnlock()
 	if err := anyErr.Load(); err != nil {
@@ -150,7 +150,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		wg.Add(1)
 		go func(b common.WALBlock) {
 			defer wg.Done()
-			search(b.BlockMeta().BlockID, b, "completingBlock")
+			search(b.BlockMeta().BlockID.UUID, b, "completingBlock")
 		}(b)
 	}
 
@@ -161,7 +161,7 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		wg.Add(1)
 		go func(b *LocalBlock) {
 			defer wg.Done()
-			search(b.BlockMeta().BlockID, b, "completeBlock")
+			search(b.BlockMeta().BlockID.UUID, b, "completeBlock")
 		}(b)
 	}
 

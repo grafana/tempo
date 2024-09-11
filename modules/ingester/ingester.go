@@ -389,7 +389,7 @@ func (i *Ingester) replayWal() error {
 		// deleted (because it was rescanned above). This can happen for reasons
 		// such as a crash or restart. In this situation we err on the side of
 		// caution and replay the wal block.
-		err = instance.local.ClearBlock(b.BlockMeta().BlockID, tenantID)
+		err = instance.local.ClearBlock(b.BlockMeta().BlockID.UUID, tenantID)
 		if err != nil {
 			return err
 		}
@@ -398,7 +398,7 @@ func (i *Ingester) replayWal() error {
 		i.enqueue(&flushOp{
 			kind:    opKindComplete,
 			userID:  tenantID,
-			blockID: b.BlockMeta().BlockID,
+			blockID: b.BlockMeta().BlockID.UUID,
 		}, i.replayJitter)
 	}
 
@@ -445,7 +445,7 @@ func (i *Ingester) rediscoverLocalBlocks() error {
 				i.enqueue(&flushOp{
 					kind:    opKindFlush,
 					userID:  t,
-					blockID: b.BlockMeta().BlockID,
+					blockID: b.BlockMeta().BlockID.UUID,
 				}, i.replayJitter)
 			}
 		}

@@ -194,7 +194,7 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 		if int(b.TotalRecords)%p != 0 {
 			totalJobs++
 		}
-		totalBlockBytes += b.Size
+		totalBlockBytes += b.Size_
 	}
 
 	go func() {
@@ -259,7 +259,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				PagesToSearch: uint32(pages),
 				Version:       m.Version,
 				Encoding:      m.Encoding.String(),
-				Size_:         m.Size,
+				Size_:         m.Size_,
 				FooterSize:    m.FooterSize,
 				// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
 				Exemplars: exemplars,

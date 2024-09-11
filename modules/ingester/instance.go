@@ -14,7 +14,7 @@ import (
 
 	"github.com/go-kit/log/level"
 	"github.com/gogo/status"
-	"github.com/google/uuid"
+	google_uuid "github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/atomic"
@@ -25,6 +25,7 @@ import (
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -271,12 +272,12 @@ func (i *instance) CutCompleteTraces(cutoff time.Duration, immediate bool) error
 
 // CutBlockIfReady cuts a completingBlock from the HeadBlock if ready.
 // Returns the ID of a block if one was cut or a nil ID if one was not cut, along with the error (if any).
-func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes uint64, immediate bool) (uuid.UUID, error) {
+func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes uint64, immediate bool) (google_uuid.UUID, error) {
 	i.headBlockMtx.Lock()
 	defer i.headBlockMtx.Unlock()
 
 	if i.headBlock == nil || i.headBlock.DataLength() == 0 {
-		return uuid.Nil, nil
+		return google_uuid.Nil, nil
 	}
 
 	now := time.Now()
@@ -285,7 +286,7 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 		// Final flush
 		err := i.headBlock.Flush()
 		if err != nil {
-			return uuid.Nil, fmt.Errorf("failed to flush head block: %w", err)
+			return google_uuid.Nil, fmt.Errorf("failed to flush head block: %w", err)
 		}
 
 		completingBlock := i.headBlock
@@ -303,21 +304,21 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 
 		err = i.resetHeadBlock()
 		if err != nil {
-			return uuid.Nil, fmt.Errorf("failed to resetHeadBlock: %w", err)
+			return google_uuid.Nil, fmt.Errorf("failed to resetHeadBlock: %w", err)
 		}
 
-		return completingBlock.BlockMeta().BlockID, nil
+		return completingBlock.BlockMeta().BlockID.UUID, nil
 	}
 
-	return uuid.Nil, nil
+	return google_uuid.Nil, nil
 }
 
 // CompleteBlock moves a completingBlock to a completeBlock. The new completeBlock has the same ID.
-func (i *instance) CompleteBlock(blockID uuid.UUID) error {
+func (i *instance) CompleteBlock(blockID google_uuid.UUID) error {
 	i.blocksMtx.Lock()
 	var completingBlock common.WALBlock
 	for _, iterBlock := range i.completingBlocks {
-		if iterBlock.BlockMeta().BlockID == blockID {
+		if iterBlock.BlockMeta().BlockID.UUID == blockID {
 			completingBlock = iterBlock
 			break
 		}
@@ -344,13 +345,13 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	return nil
 }
 
-func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
+func (i *instance) ClearCompletingBlock(blockID google_uuid.UUID) error {
 	i.blocksMtx.Lock()
 	defer i.blocksMtx.Unlock()
 
 	var completingBlock common.WALBlock
 	for j, iterBlock := range i.completingBlocks {
-		if iterBlock.BlockMeta().BlockID == blockID {
+		if iterBlock.BlockMeta().BlockID.UUID == blockID {
 			completingBlock = iterBlock
 			i.completingBlocks = append(i.completingBlocks[:j], i.completingBlocks[j+1:]...)
 			break
@@ -365,12 +366,12 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 }
 
 // GetBlockToBeFlushed gets a list of blocks that can be flushed to the backend.
-func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *LocalBlock {
+func (i *instance) GetBlockToBeFlushed(blockID google_uuid.UUID) *LocalBlock {
 	i.blocksMtx.RLock()
 	defer i.blocksMtx.RUnlock()
 
 	for _, c := range i.completeBlocks {
-		if c.BlockMeta().BlockID == blockID && c.FlushedTime().IsZero() {
+		if c.BlockMeta().BlockID.UUID == blockID && c.FlushedTime().IsZero() {
 			return c
 		}
 	}
@@ -393,7 +394,7 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 		if flushedTime.Add(completeBlockTimeout).Before(time.Now()) {
 			i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
 
-			err = i.local.ClearBlock(b.BlockMeta().BlockID, i.instanceID)
+			err = i.local.ClearBlock(b.BlockMeta().BlockID.UUID, i.instanceID)
 			if err == nil {
 				metricBlocksClearedTotal.Inc()
 			}
@@ -585,11 +586,11 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*LocalBlock, er
 		return nil, err
 	}
 
-	hasWal := func(id uuid.UUID) bool {
+	hasWal := func(id google_uuid.UUID) bool {
 		i.blocksMtx.RLock()
 		defer i.blocksMtx.RUnlock()
 		for _, b := range i.completingBlocks {
-			if b.BlockMeta().BlockID == id {
+			if b.BlockMeta().BlockID.UUID == id {
 				return true
 			}
 		}

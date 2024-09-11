@@ -186,7 +186,7 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 		if int(b.TotalRecords)%p != 0 {
 			totalJobs++
 		}
-		totalBlockBytes += b.Size
+		totalBlockBytes += b.Size_
 	}
 
 	go func() {
@@ -329,7 +329,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 				TotalRecords:  m.TotalRecords,
 				DataEncoding:  m.DataEncoding,
 				Version:       m.Version,
-				Size_:         m.Size,
+				Size_:         m.Size_,
 				FooterSize:    m.FooterSize,
 				// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
 			}, dedColsJSON)
@@ -380,11 +380,11 @@ func hashForSearchRequest(searchRequest *tempopb.SearchRequest) uint64 {
 // that should be searched per query. This value is based on the target number of bytes
 // 0 is returned if there is no valid answer
 func pagesPerRequest(m *backend.BlockMeta, bytesPerRequest int) int {
-	if m.Size == 0 || m.TotalRecords == 0 {
+	if m.Size_ == 0 || m.TotalRecords == 0 {
 		return 0
 	}
 
-	bytesPerPage := m.Size / uint64(m.TotalRecords)
+	bytesPerPage := m.Size_ / uint64(m.TotalRecords)
 	if bytesPerPage == 0 {
 		return 0
 	}

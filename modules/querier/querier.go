@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
-	"github.com/google/uuid"
 	httpgrpc_server "github.com/grafana/dskit/httpgrpc/server"
 	"github.com/grafana/dskit/ring"
 	ring_client "github.com/grafana/dskit/ring/client"
@@ -40,6 +39,7 @@ import (
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -866,7 +866,7 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 		Version:          req.Version,
 		TenantID:         tenantID,
 		Encoding:         enc,
-		Size:             req.Size_,
+		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
@@ -929,7 +929,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 		Version:          req.Version,
 		TenantID:         tenantID,
 		Encoding:         enc,
-		Size:             req.Size_,
+		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
@@ -1017,7 +1017,7 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 		Version:          req.Version,
 		TenantID:         tenantID,
 		Encoding:         enc,
-		Size:             req.Size_,
+		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
@@ -1065,7 +1065,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		Version:          req.Version,
 		TenantID:         tenantID,
 		Encoding:         enc,
-		Size:             req.Size_,
+		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,

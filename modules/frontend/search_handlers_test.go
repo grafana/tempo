@@ -18,7 +18,6 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
-	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
@@ -34,6 +33,7 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -558,7 +558,7 @@ func TestSearchAccessesCache(t *testing.T) {
 	meta := &backend.BlockMeta{
 		StartTime:    time.Unix(15, 0),
 		EndTime:      time.Unix(16, 0),
-		Size:         defaultTargetBytesPerRequest,
+		Size_:        defaultTargetBytesPerRequest,
 		TotalRecords: 1,
 		BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000123"),
 	}
@@ -676,7 +676,7 @@ func BenchmarkSearchPipeline(b *testing.B) {
 		rdr.metas = append(rdr.metas, &backend.BlockMeta{
 			StartTime:    time.Unix(15, 0),
 			EndTime:      time.Unix(16, 0),
-			Size:         defaultTargetBytesPerRequest,
+			Size_:        defaultTargetBytesPerRequest,
 			TotalRecords: 1,
 			BlockID:      uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012d", i)),
 		})
@@ -735,14 +735,14 @@ func frontendWithSettings(t require.TestingT, next http.RoundTripper, rdr tempod
 				{
 					StartTime:    time.Unix(1100, 0),
 					EndTime:      time.Unix(1200, 0),
-					Size:         defaultTargetBytesPerRequest * 2,
+					Size_:        defaultTargetBytesPerRequest * 2,
 					TotalRecords: 2,
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 				{
 					StartTime:    time.Unix(1100, 0),
 					EndTime:      time.Unix(1200, 0),
-					Size:         defaultTargetBytesPerRequest * 2,
+					Size_:        defaultTargetBytesPerRequest * 2,
 					TotalRecords: 2,
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 				},
@@ -750,7 +750,7 @@ func frontendWithSettings(t require.TestingT, next http.RoundTripper, rdr tempod
 				{
 					StartTime:         time.Unix(1100, 0),
 					EndTime:           time.Unix(1200, 0),
-					Size:              defaultTargetBytesPerRequest * 2,
+					Size_:             defaultTargetBytesPerRequest * 2,
 					TotalRecords:      2,
 					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					ReplicationFactor: 1,
@@ -758,7 +758,7 @@ func frontendWithSettings(t require.TestingT, next http.RoundTripper, rdr tempod
 				{
 					StartTime:         time.Unix(1100, 0),
 					EndTime:           time.Unix(1200, 0),
-					Size:              defaultTargetBytesPerRequest * 2,
+					Size_:             defaultTargetBytesPerRequest * 2,
 					TotalRecords:      2,
 					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					ReplicationFactor: 1,

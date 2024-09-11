@@ -14,11 +14,11 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
-	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/segmentio/fasthash/fnv1a"
 	"github.com/stretchr/testify/require"
@@ -432,7 +432,7 @@ func TestSearchTagsV2AccessesCache(t *testing.T) {
 	meta := &backend.BlockMeta{
 		StartTime:    time.Unix(15, 0),
 		EndTime:      time.Unix(16, 0),
-		Size:         defaultTargetBytesPerRequest,
+		Size_:        defaultTargetBytesPerRequest,
 		TotalRecords: 1,
 		BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000123"),
 	}
