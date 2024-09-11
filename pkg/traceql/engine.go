@@ -27,7 +27,7 @@ func NewEngine() *Engine {
 	return &Engine{}
 }
 
-func (e *Engine) Compile(query string) (*RootExpr, SpansetFilterFunc, metricsFirstStageElement, *FetchSpansRequest, error) {
+func Compile(query string) (*RootExpr, SpansetFilterFunc, metricsFirstStageElement, *FetchSpansRequest, error) {
 	expr, err := Parse(query)
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -50,12 +50,10 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 	ctx, span := tracer.Start(ctx, "traceql.Engine.ExecuteSearch")
 	defer span.End()
 
-	rootExpr, err := e.parseQuery(searchReq)
+	rootExpr, _, _, fetchSpansRequest, err := Compile(searchReq.Query)
 	if err != nil {
 		return nil, err
 	}
-
-	fetchSpansRequest := e.createFetchSpansRequest(searchReq, rootExpr.Pipeline)
 
 	span.SetAttributes(attribute.String("pipeline", rootExpr.Pipeline.String()))
 	span.SetAttributes(attribute.String("fetchSpansRequest", fmt.Sprint(fetchSpansRequest)))
@@ -99,7 +97,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		return evalSS, nil
 	}
 
-	fetchSpansResponse, err := spanSetFetcher.Fetch(ctx, fetchSpansRequest)
+	fetchSpansResponse, err := spanSetFetcher.Fetch(ctx, *fetchSpansRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -202,30 +200,6 @@ func (e *Engine) ExecuteTagNames(
 	span.SetAttributes(attribute.String("autocompleteReq", fmt.Sprint(autocompleteReq)))
 
 	return fetcher.Fetch(ctx, autocompleteReq, cb)
-}
-
-func (e *Engine) parseQuery(searchReq *tempopb.SearchRequest) (*RootExpr, error) {
-	r, err := Parse(searchReq.Query)
-	if err != nil {
-		return nil, err
-	}
-	return r, r.validate()
-}
-
-// createFetchSpansRequest will flatten the SpansetFilter in simple conditions the storage layer
-// can work with.
-func (e *Engine) createFetchSpansRequest(searchReq *tempopb.SearchRequest, pipeline Pipeline) FetchSpansRequest {
-	// TODO handle SearchRequest.MinDurationMs and MaxDurationMs, this refers to the trace level duration which is not the same as the intrinsic duration
-
-	req := FetchSpansRequest{
-		StartTimeUnixNanos: unixSecToNano(searchReq.Start),
-		EndTimeUnixNanos:   unixSecToNano(searchReq.End),
-		Conditions:         nil,
-		AllConditions:      true,
-	}
-
-	pipeline.extractConditions(&req)
-	return req
 }
 
 func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) FetchTagValuesRequest {

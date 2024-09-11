@@ -17,6 +17,7 @@ import (
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/frontend/weights"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/api"
@@ -69,7 +70,7 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		return pipeline.NewBadRequest(err), nil
 	}
 
-	expr, _, _, _, err := traceql.NewEngine().Compile(req.Query)
+	expr, _, _, _, err := traceql.Compile(req.Query)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}
@@ -207,7 +208,15 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, metas []*backend.BlockMeta, targetBytesPerRequest int, reqCh chan<- pipeline.Request) {
 	defer close(reqCh)
 
-	queryHash := hashForQueryRangeRequest(&searchReq)
+	var queryHash uint64
+	var weight int
+
+	ast, _, _, fetchSpansRequest, err := traceql.Compile(searchReq.Query)
+	if err == nil {
+		queryHash = hashForQueryRangeRequest(&searchReq, ast)
+		weight = weights.FetchSpans(fetchSpansRequest)
+	}
+
 	colsToJSON := api.NewDedicatedColumnsToJSON()
 
 	exemplarsPerBlock := s.exemplarsPerShard(uint32(len(metas)))
@@ -275,6 +284,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 			if len(key) > 0 {
 				pipelineR.SetCacheKey(key)
 			}
+			pipelineR.SetWeight(weight)
 
 			select {
 			case reqCh <- pipelineR:
@@ -334,13 +344,8 @@ func (s *queryRangeSharder) jobSize(expr *traceql.RootExpr, allowUnsafe bool) in
 	return size
 }
 
-func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
+func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest, ast *traceql.RootExpr) uint64 {
 	if req.Query == "" {
-		return 0
-	}
-
-	ast, err := traceql.Parse(req.Query)
-	if err != nil { // this should never occur. if we've made this far we've already validated the query can parse. however, for sanity, just fail to cache if we can't parse
 		return 0
 	}
 

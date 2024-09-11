@@ -10,6 +10,7 @@ import (
 
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/tempo/modules/frontend/queue"
+	"github.com/grafana/tempo/modules/frontend/weights"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/attribute"
@@ -61,6 +62,11 @@ func (r retryWare) RoundTrip(req Request) (*http.Response, error) {
 
 		resp, err := r.next.RoundTrip(req)
 
+		// jpe test
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
 		if r.maxRetries == 0 {
 			return resp, err
 		}
@@ -95,6 +101,10 @@ func (r retryWare) RoundTrip(req Request) (*http.Response, error) {
 		if tries >= r.maxRetries {
 			return resp, err
 		}
+
+		// retries have their weight bumped. a common retry reason is the request was simply too large to process
+		// bumping weights should help spread the load
+		weights.RetryRequest(req)
 
 		statusCode := 0
 		if resp != nil {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/frontend/weights"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/blockboundary"
@@ -58,7 +59,9 @@ func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	}
 
 	return pipeline.NewAsyncSharderFunc(ctx, int(concurrentShards), len(reqs), func(i int) pipeline.Request {
-		return pipeline.NewHTTPRequest(reqs[i])
+		pipelineReq := pipeline.NewHTTPRequest(reqs[i])
+		pipelineReq.SetWeight(weights.TraceByID())
+		return pipelineReq
 	}, s.next), nil
 }
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/grafana/tempo/modules/frontend/weights"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -301,7 +302,15 @@ func backendRange(start, end uint32, queryBackendAfter time.Duration) (uint32, u
 func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, metas []*backend.BlockMeta, bytesPerRequest int, reqCh chan<- pipeline.Request, errFn func(error)) {
 	defer close(reqCh)
 
-	queryHash := hashForSearchRequest(searchReq)
+	var queryHash uint64
+	var weight int
+
+	ast, _, _, fetchSpansRequest, err := traceql.Compile(searchReq.Query)
+	if err == nil {
+		queryHash = hashForSearchRequest(searchReq, ast)
+		weight = weights.FetchSpans(fetchSpansRequest)
+	}
+
 	colsToJSON := api.NewDedicatedColumnsToJSON()
 
 	for _, m := range metas {
@@ -342,6 +351,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 			key := searchJobCacheKey(tenantID, queryHash, int64(searchReq.Start), int64(searchReq.End), m, startPage, pages)
 			pipelineR := pipeline.NewHTTPRequest(subR)
 			pipelineR.SetCacheKey(key)
+			pipelineR.SetWeight(weight)
 
 			select {
 			case reqCh <- pipelineR:
@@ -355,13 +365,8 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 
 // hashForSearchRequest returns a uint64 hash of the query. if the query is invalid it returns a 0 hash.
 // before hashing the query is forced into a canonical form so equivalent queries will hash to the same value.
-func hashForSearchRequest(searchRequest *tempopb.SearchRequest) uint64 {
+func hashForSearchRequest(searchRequest *tempopb.SearchRequest, ast *traceql.RootExpr) uint64 {
 	if searchRequest.Query == "" {
-		return 0
-	}
-
-	ast, err := traceql.Parse(searchRequest.Query)
-	if err != nil { // this should never occur. if we've made this far we've already validated the query can parse. however, for sanity, just fail to cache if we can't parse
 		return 0
 	}
 
