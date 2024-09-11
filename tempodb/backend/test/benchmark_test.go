@@ -12,8 +12,10 @@ import (
 )
 
 func BenchmarkIndexLoad(b *testing.B) {
-	ctx := context.Background()
-	tenant := "test"
+	var (
+		tenant = "benchmark-tenant"
+		ctx    = context.Background()
+	)
 
 	blockMeta := make([]*backend.BlockMeta, 1000)
 	for i := range len(blockMeta) {
@@ -41,7 +43,7 @@ func BenchmarkIndexLoad(b *testing.B) {
 	}
 
 	rr, rw, _, err := local.New(&local.Config{
-		Path: "/home/zach/go/src/github.com/grafana/tempo/tempodb/backend/testdata",
+		Path: "./test-data",
 	})
 	require.NoError(b, err)
 
