@@ -70,8 +70,13 @@ func (u UUID) MarshalJSON() ([]byte, error) {
 }
 
 func (u *UUID) UnmarshalJSON(data []byte) error {
-	uu := google_uuid.UUID{}
-	err := json.Unmarshal(data, &uu)
+	var s string
+	err := json.Unmarshal(data, &s)
+	if err != nil {
+		return err
+	}
+
+	uu, err := google_uuid.Parse(s)
 	if err != nil {
 		return err
 	}
