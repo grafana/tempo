@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/go-kit/log"
-	google_uuid "github.com/google/uuid"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/parquet-go/parquet-go"
 
@@ -114,7 +113,7 @@ func BenchmarkCompactorDupes(b *testing.B) {
 func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig, r backend.Reader, w backend.Writer, traceCount, batchCount, spanCount int) *backend.BlockMeta {
 	inMeta := &backend.BlockMeta{
 		TenantID:     tenantID,
-		BlockID:      uuid.UUID{UUID: google_uuid.New()},
+		BlockID:      uuid.New(),
 		TotalObjects: int32(traceCount),
 	}
 

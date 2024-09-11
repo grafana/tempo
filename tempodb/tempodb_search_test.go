@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	google_uuid "github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1621,7 +1620,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	// Write to wal
 	wal := w.WAL()
 
-	meta := &backend.BlockMeta{BlockID: uuid.UUID{UUID: google_uuid.New()}, TenantID: testTenantID, DedicatedColumns: dc}
+	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID, DedicatedColumns: dc}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -1737,7 +1736,7 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 	// Write to wal
 	wal := w.WAL()
 
-	meta := &backend.BlockMeta{BlockID: uuid.UUID{UUID: google_uuid.New()}, TenantID: testTenantID}
+	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -2208,7 +2207,7 @@ func TestWALBlockGetMetrics(t *testing.T) {
 	r.EnablePolling(ctx, &mockJobSharder{})
 
 	wal := w.WAL()
-	meta := &backend.BlockMeta{BlockID: uuid.UUID{UUID: google_uuid.New()}, TenantID: testTenantID}
+	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 
@@ -2266,7 +2265,7 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 
 	r.EnablePolling(context.Background(), &mockJobSharder{})
 
-	blockID := uuid.UUID{UUID: google_uuid.New()}
+	blockID := uuid.New()
 
 	wal := w.WAL()
 

@@ -132,7 +132,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	allIds := make([]common.ID, 0, blockCount*recordCount)
 
 	for i := 0; i < blockCount; i++ {
-		blockID := uuid.UUID{UUID: google_uuid.New()}
+		blockID := uuid.New()
 		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: model.CurrentEncoding}
 		head, err := wal.NewBlock(meta, model.CurrentEncoding)
 		require.NoError(t, err)
@@ -304,7 +304,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 
 	// and write them to different blocks
 	for i := 0; i < blockCount; i++ {
-		blockID := uuid.UUID{UUID: google_uuid.New()}
+		blockID := uuid.New()
 		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: v1.Encoding}
 		head, err := wal.NewBlock(meta, v1.Encoding)
 		require.NoError(t, err)
@@ -703,7 +703,7 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 	allIDs := make([]common.ID, 0, recordCount)
 
 	// write a bunch of dummy data
-	blockID := uuid.UUID{UUID: google_uuid.New()}
+	blockID := uuid.New()
 	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: v1.Encoding}
 	head, err := wal.NewBlock(meta, v1.Encoding)
 	require.NoError(t, err)
@@ -790,7 +790,7 @@ func cutTestBlockWithTraces(t testing.TB, w Writer, tenantID string, data []test
 
 	wal := w.WAL()
 
-	meta := &backend.BlockMeta{BlockID: uuid.UUID{UUID: google_uuid.New()}, TenantID: testTenantID}
+	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 
@@ -810,7 +810,7 @@ func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, reco
 
 	wal := w.WAL()
 	for i := 0; i < blockCount; i++ {
-		meta := &backend.BlockMeta{BlockID: uuid.UUID{UUID: google_uuid.New()}, TenantID: tenantID}
+		meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: tenantID}
 		head, err := wal.NewBlock(meta, model.CurrentEncoding)
 		require.NoError(t, err)
 

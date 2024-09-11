@@ -1045,7 +1045,7 @@ func newBlockMetas(count int) []*backend.BlockMeta {
 	metas := make([]*backend.BlockMeta, count)
 	for i := 0; i < count; i++ {
 		metas[i] = &backend.BlockMeta{
-			BlockID: uuid.UUID{UUID: google_uuid.New()},
+			BlockID: uuid.New(),
 		}
 	}
 
@@ -1057,7 +1057,7 @@ func newCompactedMetas(count int) []*backend.CompactedBlockMeta {
 	for i := 0; i < count; i++ {
 		metas[i] = &backend.CompactedBlockMeta{
 			BlockMeta: backend.BlockMeta{
-				BlockID: uuid.UUID{UUID: google_uuid.New()},
+				BlockID: uuid.New(),
 			},
 		}
 	}

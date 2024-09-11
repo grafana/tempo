@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	google_uuid "github.com/google/uuid"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/parquet-go/parquet-go"
 
@@ -157,7 +156,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		if currentBlock == nil {
 			// Start with a copy and then customize
 			newMeta := &backend.BlockMeta{
-				BlockID:           uuid.UUID{UUID: google_uuid.New()},
+				BlockID:           uuid.New(),
 				TenantID:          inputs[0].TenantID,
 				CompactionLevel:   nextCompactionLevel,
 				TotalObjects:      recordsPerBlock, // Just an estimate

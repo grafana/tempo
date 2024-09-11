@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	google_uuid "github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -54,7 +53,7 @@ func TestRetention(t *testing.T) {
 
 	r.EnablePolling(ctx, &mockJobSharder{})
 
-	blockID := uuid.UUID{UUID: google_uuid.New()}
+	blockID := uuid.New()
 
 	wal := w.WAL()
 	assert.NoError(t, err)
@@ -121,7 +120,7 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 	wal := w.WAL()
 	assert.NoError(t, err)
 
-	blockID := uuid.UUID{UUID: google_uuid.New()}
+	blockID := uuid.New()
 
 	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
