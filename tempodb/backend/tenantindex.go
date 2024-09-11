@@ -15,14 +15,6 @@ const (
 
 var _ proto.Message = &TenantIndex{}
 
-// tenantIndex holds a list of all metas and compacted metas for a given tenant
-// it is probably stored in /<tenantid>/blockindex.json.gz as a gzipped json file
-type tenantIndex struct {
-	CreatedAt     time.Time             `json:"created_at"`
-	Meta          []*BlockMeta          `json:"meta"`
-	CompactedMeta []*CompactedBlockMeta `json:"compacted"`
-}
-
 func newTenantIndex(meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) *TenantIndex {
 	return &TenantIndex{
 		CreatedAt:     time.Now(),

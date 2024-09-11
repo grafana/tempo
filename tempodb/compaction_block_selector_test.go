@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	google_uuid "github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"

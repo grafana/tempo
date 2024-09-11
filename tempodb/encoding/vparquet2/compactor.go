@@ -152,12 +152,12 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 			newMeta := &backend.BlockMeta{
 				BlockID:         uuid.New(),
 				TenantID:        inputs[0].TenantID,
-				CompactionLevel: uint32(nextCompactionLevel),
-				TotalObjects:    int32(recordsPerBlock), // Just an estimate
+				CompactionLevel: nextCompactionLevel,
+				TotalObjects:    recordsPerBlock, // Just an estimate
 			}
 
 			currentBlock = newStreamingBlock(ctx, &c.opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriter)
-			currentBlock.meta.CompactionLevel = uint32(nextCompactionLevel)
+			currentBlock.meta.CompactionLevel = nextCompactionLevel
 			newCompactedBlocks = append(newCompactedBlocks, currentBlock.meta)
 		}
 
@@ -190,7 +190,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		pool.Put(lowestObject)
 
 		// ship block to backend if done
-		if currentBlock.meta.TotalObjects >= int32(recordsPerBlock) {
+		if currentBlock.meta.TotalObjects >= recordsPerBlock {
 			currentBlockPtrCopy := currentBlock
 			currentBlockPtrCopy.meta.StartTime = minBlockStart
 			currentBlockPtrCopy.meta.EndTime = maxBlockEnd
