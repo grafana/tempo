@@ -125,7 +125,7 @@ func (f MiddlewareFunc) Wrap(w RoundTripper) RoundTripper {
 //
 
 // Build takes a slice of async, sync middleware and a http.RoundTripper and builds a request pipeline
-func Build(asyncMW []AsyncMiddleware[combiner.PipelineResponse], mw []Middleware, next http.RoundTripper) AsyncRoundTripper[combiner.PipelineResponse] {
+func Build(asyncMW []AsyncMiddleware[combiner.PipelineResponse], mw []Middleware, next RoundTripper) AsyncRoundTripper[combiner.PipelineResponse] {
 	asyncPipeline := AsyncMiddlewareFunc[combiner.PipelineResponse](func(next AsyncRoundTripper[combiner.PipelineResponse]) AsyncRoundTripper[combiner.PipelineResponse] {
 		for i := len(asyncMW) - 1; i >= 0; i-- {
 			next = asyncMW[i].Wrap(next)
@@ -143,7 +143,7 @@ func Build(asyncMW []AsyncMiddleware[combiner.PipelineResponse], mw []Middleware
 	// bridge the two pipelines
 	bridge := &pipelineBridge{
 		next: syncPipeline.Wrap(RoundTripperFunc(func(req Request) (*http.Response, error) {
-			return next.RoundTrip(req.HTTPRequest())
+			return next.RoundTrip(req)
 		})),
 		convert: NewHTTPToAsyncResponse,
 	}

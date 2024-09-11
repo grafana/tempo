@@ -2,13 +2,12 @@ package frontend
 
 import (
 	"flag"
-	"net/http"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/grafana/tempo/modules/frontend/transport"
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	v1 "github.com/grafana/tempo/modules/frontend/v1"
 	"github.com/grafana/tempo/pkg/usagestats"
 )
@@ -107,12 +106,12 @@ type CortexNoQuerierLimits struct{}
 // Returned RoundTripper can be wrapped in more round-tripper middlewares, and then eventually registered
 // into HTTP server using the Handler from this package. Returned RoundTripper is always non-nil
 // (if there are no errors), and it uses the returned frontend (if any).
-func InitFrontend(cfg v1.Config, log log.Logger, reg prometheus.Registerer) (http.RoundTripper, *v1.Frontend, error) {
+func InitFrontend(cfg v1.Config, log log.Logger, reg prometheus.Registerer) (pipeline.RoundTripper, *v1.Frontend, error) {
 	statVersion.Set("v1")
 	// No scheduler = use original frontend.
 	fr, err := v1.New(cfg, log, reg)
 	if err != nil {
 		return nil, nil, err
 	}
-	return transport.AdaptGrpcRoundTripperToHTTPRoundTripper(fr), fr, nil
+	return fr, fr, nil
 }

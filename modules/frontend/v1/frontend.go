@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"sync/atomic"
 	"time"
 
@@ -17,10 +18,10 @@ import (
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/tenant"
-	"github.com/grafana/tempo/pkg/util/httpgrpcutil"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/frontend/queue"
 	"github.com/grafana/tempo/modules/frontend/v1/frontendv1pb"
 	"github.com/grafana/tempo/pkg/util"
@@ -66,14 +67,22 @@ type Frontend struct {
 	actualBatchSize   prometheus.Histogram
 }
 
+// jpe - can i get rid of this?
 type request struct {
 	enqueueTime time.Time
 	queueSpan   trace.Span
-	originalCtx context.Context
 
-	request  *httpgrpc.HTTPRequest
+	request  pipeline.Request
 	err      chan error
-	response chan *httpgrpc.HTTPResponse
+	response chan *http.Response
+}
+
+func (r *request) Weight() int {
+	return r.request.Weight()
+}
+
+func (r *request) OriginalContext() context.Context {
+	return r.request.Context()
 }
 
 // New creates a new frontend. Frontend implements service, and must be started and stopped.
@@ -163,23 +172,27 @@ func (f *Frontend) cleanupInactiveUserMetrics(user string) {
 	f.discardedRequests.DeleteLabelValues(user)
 }
 
-// RoundTripGRPC round trips a proto (instead of a HTTP request).
-func (f *Frontend) RoundTripGRPC(ctx context.Context, req *httpgrpc.HTTPRequest) (*httpgrpc.HTTPResponse, error) {
+// jpe - convert to/from grpc madness her
+//   - rewrite modules/frontend code to take a pipeline.RoundTripper
+
+// func (f *Frontend) RoundTripGRPC(ctx context.Context, req *httpgrpc.HTTPRequest) (*httpgrpc.HTTPResponse, error) {
+func (f *Frontend) RoundTrip(req pipeline.Request) (*http.Response, error) {
 	// Propagate trace context in gRPC too - this will be ignored if using HTTP.
-	carrier := (*httpgrpcutil.HttpgrpcHeadersCarrier)(req)
-	otel.GetTextMapPropagator().Inject(ctx, carrier)
+	//  jpe - move this until after the conversion to httpgrpc.HTTPRequest
+	// carrier := (*httpgrpcutil.HttpgrpcHeadersCarrier)(req)
+	// otel.GetTextMapPropagator().Inject(ctx, carrier)
 
 	request := request{
-		request:     req,
-		originalCtx: ctx,
+		request: req,
 
 		// Buffer of 1 to ensure response can be written by the server side
 		// of the Process stream, even if this goroutine goes away due to
 		// client context cancellation.
 		err:      make(chan error, 1),
-		response: make(chan *httpgrpc.HTTPResponse, 1),
+		response: make(chan *http.Response, 1),
 	}
 
+	ctx := req.Context()
 	if err := f.queueRequest(ctx, &request); err != nil {
 		return nil, err
 	}
@@ -229,11 +242,14 @@ func (f *Frontend) Process(server frontendv1pb.Frontend_ProcessServer) error {
 			req.queueSpan.End()
 
 			// only add if not expired
-			if req.originalCtx.Err() != nil {
+			if req.OriginalContext().Err() != nil {
 				continue
 			}
 
-			reqBatch.add(req)
+			err = reqBatch.add(req)
+			if err != nil {
+				return fmt.Errorf("unexpected error adding request to batch: %w", err)
+			}
 		}
 
 		// if all requests are expired then continue requesting jobs for this user. this nicely

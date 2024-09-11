@@ -1,7 +1,10 @@
 package v1
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"net/http"
 
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/dskit/multierror"
@@ -14,14 +17,32 @@ type requestBatch struct {
 	wireRequests []*httpgrpc.HTTPRequest
 }
 
+// jpe - necessary?
+type buffer struct {
+	buff []byte
+	io.ReadCloser
+}
+
+func (b *buffer) Bytes() []byte {
+	return b.buff
+}
+
 func (b *requestBatch) clear() {
 	b.pipelineRequests = b.pipelineRequests[:0]
 	b.wireRequests = b.wireRequests[:0]
 }
 
-func (b *requestBatch) add(r *request) {
+func (b *requestBatch) add(r *request) error {
 	b.pipelineRequests = append(b.pipelineRequests, r)
-	b.wireRequests = append(b.wireRequests, r.request)
+
+	req, err := httpgrpc.FromHTTPRequest(r.request.HTTPRequest())
+	if err != nil {
+		return err
+	}
+
+	b.wireRequests = append(b.wireRequests, req)
+
+	return nil
 }
 
 func (b *requestBatch) httpGrpcRequests() []*httpgrpc.HTTPRequest {
@@ -36,7 +57,7 @@ func (b *requestBatch) contextError() error {
 	multiErr := multierror.New()
 
 	for _, r := range b.pipelineRequests {
-		if err := r.originalCtx.Err(); err != nil {
+		if err := r.OriginalContext().Err(); err != nil {
 			multiErr.Add(err)
 		}
 	}
@@ -52,7 +73,7 @@ func (b *requestBatch) contextError() error {
 // will belong to the same upstream http query.
 func (b *requestBatch) doneChan(stop <-chan struct{}) <-chan struct{} {
 	if len(b.pipelineRequests) == 1 {
-		return b.pipelineRequests[0].originalCtx.Done()
+		return b.pipelineRequests[0].OriginalContext().Done()
 	}
 
 	done := make(chan struct{})
@@ -63,7 +84,7 @@ func (b *requestBatch) doneChan(stop <-chan struct{}) <-chan struct{} {
 		// if all are done.
 		for _, r := range b.pipelineRequests {
 			select {
-			case <-r.originalCtx.Done():
+			case <-r.OriginalContext().Done():
 			case <-stop:
 				return
 			}
@@ -87,8 +108,23 @@ func (b *requestBatch) reportResultsToPipeline(responses []*httpgrpc.HTTPRespons
 	}
 
 	for i, r := range b.pipelineRequests {
-		r.response <- responses[i]
+		r.response <- httpGRPCResponseToHTTPResponse(responses[i])
 	}
 
 	return nil
+}
+
+func httpGRPCResponseToHTTPResponse(resp *httpgrpc.HTTPResponse) *http.Response {
+	// translate back
+	httpResp := &http.Response{
+		StatusCode:    int(resp.Code),
+		Body:          &buffer{buff: resp.Body, ReadCloser: io.NopCloser(bytes.NewReader(resp.Body))},
+		Header:        http.Header{},
+		ContentLength: int64(len(resp.Body)),
+	}
+	for _, h := range resp.Headers {
+		httpResp.Header[h.Key] = h.Values
+	}
+
+	return httpResp
 }
