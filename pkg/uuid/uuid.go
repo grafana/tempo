@@ -35,6 +35,10 @@ func Parse(s string) (UUID, error) {
 	return UUID{u}, nil
 }
 
+func From(u google_uuid.UUID) UUID {
+	return UUID{u}
+}
+
 func (u UUID) Marshal() ([]byte, error) {
 	return u.MarshalBinary()
 }
