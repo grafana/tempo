@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/google/uuid"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/user"
 	"github.com/mitchellh/mapstructure"
@@ -20,6 +19,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
+	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
@@ -95,7 +95,7 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		TotalRecords:     searchReq.TotalRecords,
 		BlockID:          blockID,
 		DataEncoding:     searchReq.DataEncoding,
-		Size:             searchReq.Size_,
+		Size_:            searchReq.Size_,
 		FooterSize:       searchReq.FooterSize,
 		DedicatedColumns: dc,
 	}
