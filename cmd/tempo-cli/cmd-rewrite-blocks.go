@@ -61,7 +61,7 @@ func (cmd *dropTraceCmd) Run(ctx *globalOptions) error {
 	// print out blocks that have the trace id
 	fmt.Println("\n\ntrace found in:")
 	for _, block := range blocks {
-		fmt.Printf("  %v sz: %d traces: %d\n", block.BlockID, block.Size, block.TotalObjects)
+		fmt.Printf("  %v sz: %d traces: %d\n", block.BlockID, block.Size_, block.TotalObjects)
 	}
 
 	if !cmd.DropTrace {
