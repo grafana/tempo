@@ -8,12 +8,13 @@ import (
 	"testing"
 
 	"github.com/go-kit/log"
-	"github.com/google/uuid"
+	google_uuid "github.com/google/uuid"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/parquet-go/parquet-go"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -113,8 +114,8 @@ func BenchmarkCompactorDupes(b *testing.B) {
 func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig, r backend.Reader, w backend.Writer, traceCount, batchCount, spanCount int) *backend.BlockMeta {
 	inMeta := &backend.BlockMeta{
 		TenantID:     tenantID,
-		BlockID:      uuid.New(),
-		TotalObjects: traceCount,
+		BlockID:      uuid.UUID{UUID: google_uuid.New()},
+		TotalObjects: int32(traceCount),
 	}
 
 	sb := newStreamingBlock(ctx, cfg, inMeta, r, w, tempo_io.NewBufferedWriter)

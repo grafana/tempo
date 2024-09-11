@@ -36,7 +36,7 @@ func NewBackendReaderAt(ctx context.Context, r backend.Reader, name string, meta
 
 func (b *BackendReaderAt) ReadAt(p []byte, off int64) (int, error) {
 	b.bytesRead.Add(uint64(len(p)))
-	err := b.r.ReadRange(b.ctx, b.name, b.meta.BlockID, b.meta.TenantID, uint64(off), p, nil)
+	err := b.r.ReadRange(b.ctx, b.name, b.meta.BlockID.UUID, b.meta.TenantID, uint64(off), p, nil)
 	if err != nil {
 		return 0, err
 	}
@@ -44,7 +44,7 @@ func (b *BackendReaderAt) ReadAt(p []byte, off int64) (int, error) {
 }
 
 func (b *BackendReaderAt) ReadAtWithCache(p []byte, off int64, role cache.Role) (int, error) {
-	err := b.r.ReadRange(b.ctx, b.name, b.meta.BlockID, b.meta.TenantID, uint64(off), p, &backend.CacheInfo{
+	err := b.r.ReadRange(b.ctx, b.name, b.meta.BlockID.UUID, b.meta.TenantID, uint64(off), p, &backend.CacheInfo{
 		Role: role,
 		Meta: b.meta,
 	})

@@ -32,7 +32,7 @@ func TestRawIteratorReadsAllRows(t *testing.T) {
 	require.NoError(t, err)
 	defer iter.Close()
 
-	actualCount := 0
+	actualCount := int32(0)
 	for {
 		_, tr, err := iter.Next(context.Background())
 		if tr == nil {

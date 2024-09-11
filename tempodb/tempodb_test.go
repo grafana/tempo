@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/golang/protobuf/proto" //nolint:all
-	"github.com/google/uuid"
+	google_uuid "github.com/google/uuid"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -25,6 +25,7 @@ import (
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -165,8 +166,8 @@ func TestBlockSharding(t *testing.T) {
 	assert.Len(t, blocks, 1)
 
 	// check if it respects the blockstart/blockend params - case1: hit
-	blockStart := uuid.MustParse(BlockIDMin).String()
-	blockEnd := uuid.MustParse(BlockIDMax).String()
+	blockStart := google_uuid.MustParse(BlockIDMin).String()
+	blockEnd := google_uuid.MustParse(BlockIDMax).String()
 	bFound, failedBlocks, err := r.Find(context.Background(), testTenantID, id, blockStart, blockEnd, 0, 0, common.DefaultSearchOptions())
 	assert.NoError(t, err)
 	assert.Nil(t, failedBlocks)
@@ -174,8 +175,8 @@ func TestBlockSharding(t *testing.T) {
 	assert.True(t, proto.Equal(bFound[0], req))
 
 	// check if it respects the blockstart/blockend params - case2: miss
-	blockStart = uuid.MustParse(BlockIDMin).String()
-	blockEnd = uuid.MustParse(BlockIDMin).String()
+	blockStart = google_uuid.MustParse(BlockIDMin).String()
+	blockEnd = google_uuid.MustParse(BlockIDMin).String()
 	bFound, failedBlocks, err = r.Find(context.Background(), testTenantID, id, blockStart, blockEnd, 0, 0, common.DefaultSearchOptions())
 	assert.NoError(t, err)
 	assert.Nil(t, failedBlocks)
@@ -231,13 +232,13 @@ func TestBlockCleanup(t *testing.T) {
 	assert.Equal(t, 0, len(m))
 }
 
-func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expectedCB int, rw *readerWriter) {
+func checkBlocklists(t *testing.T, expectedID google_uuid.UUID, expectedB int, expectedCB int, rw *readerWriter) {
 	rw.pollBlocklist()
 
 	blocklist := rw.blocklist.Metas(testTenantID)
 	require.Len(t, blocklist, expectedB)
-	if expectedB > 0 && expectedID != uuid.Nil {
-		assert.Equal(t, expectedID, blocklist[0].BlockID)
+	if expectedB > 0 && expectedID != google_uuid.Nil {
+		assert.Equal(t, expectedID, blocklist[0].BlockID.UUID)
 	}
 
 	// confirm blocklists are in starttime ascending order
@@ -249,8 +250,8 @@ func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expected
 
 	compactedBlocklist := rw.blocklist.CompactedMetas(testTenantID)
 	assert.Len(t, compactedBlocklist, expectedCB)
-	if expectedCB > 0 && expectedID != uuid.Nil {
-		assert.Equal(t, expectedID, compactedBlocklist[0].BlockID)
+	if expectedCB > 0 && expectedID != google_uuid.Nil {
+		assert.Equal(t, expectedID, compactedBlocklist[0].BlockID.UUID)
 	}
 
 	lastTime = time.Time{}
@@ -264,8 +265,8 @@ func TestIncludeBlock(t *testing.T) {
 	tests := []struct {
 		name       string
 		searchID   common.ID
-		blockStart uuid.UUID
-		blockEnd   uuid.UUID
+		blockStart google_uuid.UUID
+		blockEnd   google_uuid.UUID
 		start      int64
 		end        int64
 		meta       *backend.BlockMeta
@@ -275,8 +276,8 @@ func TestIncludeBlock(t *testing.T) {
 		{
 			name:       "include - duh",
 			searchID:   []byte{0x05},
-			blockStart: uuid.MustParse(BlockIDMin),
-			blockEnd:   uuid.MustParse(BlockIDMax),
+			blockStart: google_uuid.MustParse(BlockIDMin),
+			blockEnd:   google_uuid.MustParse(BlockIDMax),
 			meta: &backend.BlockMeta{
 				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			},
@@ -287,8 +288,8 @@ func TestIncludeBlock(t *testing.T) {
 		{
 			name:       "include - min id range",
 			searchID:   []byte{0x00},
-			blockStart: uuid.MustParse(BlockIDMin),
-			blockEnd:   uuid.MustParse(BlockIDMax),
+			blockStart: google_uuid.MustParse(BlockIDMin),
+			blockEnd:   google_uuid.MustParse(BlockIDMax),
 			meta: &backend.BlockMeta{
 				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			},
@@ -299,8 +300,8 @@ func TestIncludeBlock(t *testing.T) {
 		{
 			name:       "include - max id range",
 			searchID:   []byte{0x10},
-			blockStart: uuid.MustParse(BlockIDMin),
-			blockEnd:   uuid.MustParse(BlockIDMax),
+			blockStart: google_uuid.MustParse(BlockIDMin),
+			blockEnd:   google_uuid.MustParse(BlockIDMax),
 			meta: &backend.BlockMeta{
 				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			},
@@ -311,8 +312,8 @@ func TestIncludeBlock(t *testing.T) {
 		{
 			name:       "include - min block range",
 			searchID:   []byte{0x05},
-			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
-			blockEnd:   uuid.MustParse(BlockIDMax),
+			blockStart: google_uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockEnd:   google_uuid.MustParse(BlockIDMax),
 			meta: &backend.BlockMeta{
 				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			},
@@ -323,8 +324,8 @@ func TestIncludeBlock(t *testing.T) {
 		{
 			name:       "include - max block range",
 			searchID:   []byte{0x05},
-			blockStart: uuid.MustParse(BlockIDMin),
-			blockEnd:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockStart: google_uuid.MustParse(BlockIDMin),
+			blockEnd:   google_uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			meta: &backend.BlockMeta{
 				BlockID:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 				StartTime: time.Unix(10000, 0),
@@ -337,8 +338,8 @@ func TestIncludeBlock(t *testing.T) {
 		{
 			name:       "include - max block range",
 			searchID:   []byte{0x05},
-			blockStart: uuid.MustParse(BlockIDMin),
-			blockEnd:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockStart: google_uuid.MustParse(BlockIDMin),
+			blockEnd:   google_uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			meta: &backend.BlockMeta{
 				BlockID:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 				StartTime: time.Unix(1650285326, 0),
@@ -351,8 +352,8 @@ func TestIncludeBlock(t *testing.T) {
 		{
 			name:       "include - exact hit",
 			searchID:   []byte{0x05},
-			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
-			blockEnd:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockStart: google_uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockEnd:   google_uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			meta: &backend.BlockMeta{
 				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			},
@@ -364,8 +365,8 @@ func TestIncludeBlock(t *testing.T) {
 		{
 			name:       "exclude - duh",
 			searchID:   []byte{0x20},
-			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
-			blockEnd:   uuid.MustParse("51000000-0000-0000-0000-000000000000"),
+			blockStart: google_uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockEnd:   google_uuid.MustParse("51000000-0000-0000-0000-000000000000"),
 			meta: &backend.BlockMeta{
 				BlockID: uuid.MustParse("52000000-0000-0000-0000-000000000000"),
 			},
@@ -392,8 +393,8 @@ func TestIncludeBlock(t *testing.T) {
 		{
 			name:       "exclude - min block range",
 			searchID:   []byte{0x05},
-			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
-			blockEnd:   uuid.MustParse("51000000-0000-0000-0000-000000000000"),
+			blockStart: google_uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockEnd:   google_uuid.MustParse("51000000-0000-0000-0000-000000000000"),
 			meta: &backend.BlockMeta{
 				BlockID: uuid.MustParse("4FFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"),
 			},
@@ -401,8 +402,8 @@ func TestIncludeBlock(t *testing.T) {
 		{
 			name:       "exclude - max block range",
 			searchID:   []byte{0x05},
-			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
-			blockEnd:   uuid.MustParse("51000000-0000-0000-0000-000000000000"),
+			blockStart: google_uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockEnd:   google_uuid.MustParse("51000000-0000-0000-0000-000000000000"),
 			meta: &backend.BlockMeta{
 				BlockID: uuid.MustParse("51000000-0000-0000-0000-000000000001"),
 			},
@@ -426,8 +427,8 @@ func TestIncludeCompactedBlock(t *testing.T) {
 	tests := []struct {
 		name       string
 		searchID   common.ID
-		blockStart uuid.UUID
-		blockEnd   uuid.UUID
+		blockStart google_uuid.UUID
+		blockEnd   google_uuid.UUID
 		meta       *backend.CompactedBlockMeta
 		start      int64
 		end        int64
@@ -436,8 +437,8 @@ func TestIncludeCompactedBlock(t *testing.T) {
 		{
 			name:       "include recent",
 			searchID:   []byte{0x05},
-			blockStart: uuid.MustParse(BlockIDMin),
-			blockEnd:   uuid.MustParse(BlockIDMax),
+			blockStart: google_uuid.MustParse(BlockIDMin),
+			blockEnd:   google_uuid.MustParse(BlockIDMax),
 			start:      0,
 			end:        0,
 			meta: &backend.CompactedBlockMeta{
@@ -451,8 +452,8 @@ func TestIncludeCompactedBlock(t *testing.T) {
 		{
 			name:       "skip old",
 			searchID:   []byte{0x05},
-			blockStart: uuid.MustParse(BlockIDMin),
-			blockEnd:   uuid.MustParse(BlockIDMax),
+			blockStart: google_uuid.MustParse(BlockIDMin),
+			blockEnd:   google_uuid.MustParse(BlockIDMax),
 			start:      0,
 			end:        0,
 			meta: &backend.CompactedBlockMeta{
@@ -466,8 +467,8 @@ func TestIncludeCompactedBlock(t *testing.T) {
 		{
 			name:       "skip recent but out of range",
 			searchID:   []byte{0x05},
-			blockStart: uuid.MustParse("40000000-0000-0000-0000-000000000000"),
-			blockEnd:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockStart: google_uuid.MustParse("40000000-0000-0000-0000-000000000000"),
+			blockEnd:   google_uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			start:      0,
 			end:        0,
 			meta: &backend.CompactedBlockMeta{
@@ -588,7 +589,7 @@ func testCompleteBlock(t *testing.T, from, to string) {
 	rw := w.(*readerWriter)
 	rw.cfg.Block.Version = to // now set it back so we cut blocks in the "to" format
 
-	blockID := uuid.New()
+	blockID := google_uuid.New()
 
 	var dataEncoding string
 	if from == v2.VersionString {

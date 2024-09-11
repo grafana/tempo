@@ -11,11 +11,12 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/google/uuid"
+	google_uuid "github.com/google/uuid"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/parquet-go/parquet-go"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
+	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -30,8 +31,8 @@ type Compactor struct {
 
 func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w backend.Writer, inputs []*backend.BlockMeta) (newCompactedBlocks []*backend.BlockMeta, err error) {
 	var (
-		compactionLevel uint8
-		totalRecords    int
+		compactionLevel uint32
+		totalRecords    int32
 		minBlockStart   time.Time
 		maxBlockEnd     time.Time
 		bookmarks       = make([]*bookmark[parquet.Row], 0, len(inputs))
@@ -127,7 +128,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 	var (
 		m               = newMultiblockIterator(bookmarks, combine)
-		recordsPerBlock = (totalRecords / int(c.opts.OutputBlocks))
+		recordsPerBlock = (totalRecords / int32(c.opts.OutputBlocks))
 		currentBlock    *streamingBlock
 	)
 	defer m.Close()
@@ -150,14 +151,14 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		if currentBlock == nil {
 			// Start with a copy and then customize
 			newMeta := &backend.BlockMeta{
-				BlockID:         uuid.New(),
+				BlockID:         uuid.UUID{UUID: google_uuid.New()},
 				TenantID:        inputs[0].TenantID,
-				CompactionLevel: nextCompactionLevel,
-				TotalObjects:    recordsPerBlock, // Just an estimate
+				CompactionLevel: uint32(nextCompactionLevel),
+				TotalObjects:    int32(recordsPerBlock), // Just an estimate
 			}
 
 			currentBlock = newStreamingBlock(ctx, &c.opts.BlockConfig, newMeta, r, w, tempo_io.NewBufferedWriter)
-			currentBlock.meta.CompactionLevel = nextCompactionLevel
+			currentBlock.meta.CompactionLevel = uint32(nextCompactionLevel)
 			newCompactedBlocks = append(newCompactedBlocks, currentBlock.meta)
 		}
 
@@ -190,7 +191,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		pool.Put(lowestObject)
 
 		// ship block to backend if done
-		if currentBlock.meta.TotalObjects >= recordsPerBlock {
+		if currentBlock.meta.TotalObjects >= int32(recordsPerBlock) {
 			currentBlockPtrCopy := currentBlock
 			currentBlockPtrCopy.meta.StartTime = minBlockStart
 			currentBlockPtrCopy.meta.EndTime = maxBlockEnd

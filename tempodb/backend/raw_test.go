@@ -1,12 +1,10 @@
 package backend
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"testing"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -37,9 +35,6 @@ func TestWriter(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, m.closeAppendCalled)
 
-	// TODO: we want to check the json marshaling will unmarshal with jsonpb.
-	// TODO: we also want to check that we can round-trip with jsonpb.
-
 	meta := NewBlockMeta("test", uuid.New(), "blerg", EncGZIP, "glarg")
 	expected, err = json.Marshal(meta)
 	assert.NoError(t, err)
@@ -51,7 +46,7 @@ func TestWriter(t *testing.T) {
 	assert.NoError(t, err)
 
 	idx := &TenantIndex{}
-	err = json.Unmarshal(m.writeBuffer, idx)
+	err = idx.unmarshal(m.writeBuffer)
 	assert.NoError(t, err)
 
 	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idx.Meta))                  // using cmp.Equal to compare json datetimes
@@ -63,7 +58,7 @@ func TestWriter(t *testing.T) {
 	err = w.WriteTenantIndex(ctx, "test", nil, nil)
 	assert.NoError(t, err)
 
-	expectedDeleteMap := map[string]map[string]int{TenantIndexName: {"test": 1}, TenantIndexNameProto: {"test": 1}}
+	expectedDeleteMap := map[string]map[string]int{TenantIndexName: {"test": 1}}
 	assert.Equal(t, expectedDeleteMap, w.(*writer).w.(*MockRawWriter).deleteCalls)
 
 	// When a backend returns ErrDoesNotExist, the tenant index should be deleted, but no error should be returned if the tenant index does not exist
@@ -114,15 +109,7 @@ func TestReader(t *testing.T) {
 	assert.Nil(t, meta)
 
 	expectedMeta := NewBlockMeta("test", uuid.New(), "blerg", EncGZIP, "glarg")
-
-	var (
-		bb  = []byte{}
-		buf = bytes.NewBuffer(bb)
-	)
-	err = new(jsonpb.Marshaler).Marshal(buf, expectedMeta)
-	assert.NoError(t, err)
-	m.R = buf.Bytes()
-	t.Logf("meta: %v", string(m.R))
+	m.R, _ = json.Marshal(expectedMeta)
 	meta, err = r.BlockMeta(ctx, uuid.New(), "test")
 	assert.NoError(t, err)
 	assert.Equal(t, expectedMeta, meta)
@@ -131,6 +118,12 @@ func TestReader(t *testing.T) {
 	idx, err := r.TenantIndex(ctx, "test")
 	assert.Error(t, err)
 	assert.Nil(t, idx)
+
+	expectedIdx := newTenantIndex([]*BlockMeta{expectedMeta}, nil)
+	m.R, _ = expectedIdx.marshal()
+	idx, err = r.TenantIndex(ctx, "test")
+	assert.NoError(t, err)
+	assert.True(t, cmp.Equal(expectedIdx, idx))
 }
 
 func TestKeyPathForBlock(t *testing.T) {

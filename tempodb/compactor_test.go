@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-kit/log"
 	proto "github.com/gogo/protobuf/proto"
-	"github.com/google/uuid"
+	google_uuid "github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,6 +21,7 @@ import (
 	v1 "github.com/grafana/tempo/pkg/model/v1"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/blocklist"
@@ -131,7 +132,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	allIds := make([]common.ID, 0, blockCount*recordCount)
 
 	for i := 0; i < blockCount; i++ {
-		blockID := uuid.New()
+		blockID := uuid.UUID{UUID: google_uuid.New()}
 		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: model.CurrentEncoding}
 		head, err := wal.NewBlock(meta, model.CurrentEncoding)
 		require.NoError(t, err)
@@ -154,7 +155,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 
 	expectedBlockCount := blockCount
 	expectedCompactedCount := 0
-	checkBlocklists(t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
+	checkBlocklists(t, google_uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
 
 	blocksPerCompaction := (inputBlocks - outputBlocks)
 
@@ -178,7 +179,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 
 		expectedBlockCount -= blocksPerCompaction
 		expectedCompactedCount += inputBlocks
-		checkBlocklists(t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
+		checkBlocklists(t, google_uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
 	}
 
 	require.Equal(t, expectedCompactions, compactions)
@@ -186,7 +187,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	// do we have the right number of records
 	var records int
 	for _, meta := range rw.blocklist.Metas(testTenantID) {
-		records += meta.TotalObjects
+		records += int(meta.TotalObjects)
 	}
 	require.Equal(t, blockCount*recordCount, records)
 
@@ -303,7 +304,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 
 	// and write them to different blocks
 	for i := 0; i < blockCount; i++ {
-		blockID := uuid.New()
+		blockID := uuid.UUID{UUID: google_uuid.New()}
 		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: v1.Encoding}
 		head, err := wal.NewBlock(meta, v1.Encoding)
 		require.NoError(t, err)
@@ -325,7 +326,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	rw := r.(*readerWriter)
 
 	// check blocklists, force compaction and check again
-	checkBlocklists(t, uuid.Nil, blockCount, 0, rw)
+	checkBlocklists(t, google_uuid.Nil, blockCount, 0, rw)
 
 	var blocks []*backend.BlockMeta
 	list := rw.blocklist.Metas(testTenantID)
@@ -339,7 +340,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	err = rw.compact(ctx, blocks, testTenantID)
 	require.NoError(t, err)
 
-	checkBlocklists(t, uuid.Nil, 1, blockCount, rw)
+	checkBlocklists(t, google_uuid.Nil, 1, blockCount, rw)
 
 	// force clear compacted blocks to guarantee that we're only querying the new blocks that went through the combiner
 	metas := rw.blocklist.Metas(testTenantID)
@@ -426,8 +427,8 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	// New blocklist contains 1 compacted block with everything
 	blocks := rw.blocklist.Metas(testTenantID)
 	require.Equal(t, 1, len(blocks))
-	require.Equal(t, uint8(1), blocks[0].CompactionLevel)
-	require.Equal(t, blockCount*recordCount, blocks[0].TotalObjects)
+	require.Equal(t, uint32(1), blocks[0].CompactionLevel)
+	require.Equal(t, int32(blockCount*recordCount), blocks[0].TotalObjects)
 
 	// Compacted list contains all old blocks
 	require.Equal(t, blockCount, len(rw.blocklist.CompactedMetas(testTenantID)))
@@ -651,7 +652,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	// New blocklist contains 1 compacted block with min start and max end
 	blocks := rw.blocklist.Metas(testTenantID)
 	require.Equal(t, 1, len(blocks))
-	require.Equal(t, uint8(1), blocks[0].CompactionLevel)
+	require.Equal(t, uint32(1), blocks[0].CompactionLevel)
 	require.Equal(t, 100, int(blocks[0].StartTime.Unix()))
 	require.Equal(t, 107, int(blocks[0].EndTime.Unix()))
 }
@@ -702,7 +703,7 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 	allIDs := make([]common.ID, 0, recordCount)
 
 	// write a bunch of dummy data
-	blockID := uuid.New()
+	blockID := uuid.UUID{UUID: google_uuid.New()}
 	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: v1.Encoding}
 	head, err := wal.NewBlock(meta, v1.Encoding)
 	require.NoError(t, err)
@@ -789,7 +790,7 @@ func cutTestBlockWithTraces(t testing.TB, w Writer, tenantID string, data []test
 
 	wal := w.WAL()
 
-	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
+	meta := &backend.BlockMeta{BlockID: uuid.UUID{UUID: google_uuid.New()}, TenantID: testTenantID}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 
@@ -809,7 +810,7 @@ func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, reco
 
 	wal := w.WAL()
 	for i := 0; i < blockCount; i++ {
-		meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: tenantID}
+		meta := &backend.BlockMeta{BlockID: uuid.UUID{UUID: google_uuid.New()}, TenantID: tenantID}
 		head, err := wal.NewBlock(meta, model.CurrentEncoding)
 		require.NoError(t, err)
 

@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/google/uuid"
+	google_uuid "github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -29,6 +29,7 @@ import (
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/math"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -1620,7 +1621,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	// Write to wal
 	wal := w.WAL()
 
-	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID, DedicatedColumns: dc}
+	meta := &backend.BlockMeta{BlockID: uuid.UUID{UUID: google_uuid.New()}, TenantID: testTenantID, DedicatedColumns: dc}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -1736,7 +1737,7 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 	// Write to wal
 	wal := w.WAL()
 
-	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
+	meta := &backend.BlockMeta{BlockID: uuid.UUID{UUID: google_uuid.New()}, TenantID: testTenantID}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -2207,7 +2208,7 @@ func TestWALBlockGetMetrics(t *testing.T) {
 	r.EnablePolling(ctx, &mockJobSharder{})
 
 	wal := w.WAL()
-	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
+	meta := &backend.BlockMeta{BlockID: uuid.UUID{UUID: google_uuid.New()}, TenantID: testTenantID}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 
@@ -2265,7 +2266,7 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 
 	r.EnablePolling(context.Background(), &mockJobSharder{})
 
-	blockID := uuid.New()
+	blockID := uuid.UUID{UUID: google_uuid.New()}
 
 	wal := w.WAL()
 

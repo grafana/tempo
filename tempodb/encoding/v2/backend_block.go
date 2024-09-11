@@ -55,7 +55,7 @@ func (b *BackendBlock) find(ctx context.Context, id common.ID) ([]byte, error) {
 	tenantID := b.meta.TenantID
 
 	nameBloom := common.BloomName(shardKey)
-	bloomBytes, err := b.reader.Read(ctx, nameBloom, blockID, tenantID, &backend.CacheInfo{
+	bloomBytes, err := b.reader.Read(ctx, nameBloom, blockID.UUID, tenantID, &backend.CacheInfo{
 		Meta: b.meta,
 		Role: cache.RoleBloom,
 	})

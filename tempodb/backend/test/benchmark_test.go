@@ -1,0 +1,57 @@
+package test
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/grafana/tempo/pkg/uuid"
+	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/stretchr/testify/require"
+)
+
+func BenchmarkIndexLoad(b *testing.B) {
+	ctx := context.Background()
+	tenant := "test"
+
+	blockMeta := make([]*backend.BlockMeta, 1000)
+	for i := range len(blockMeta) {
+		blockMeta[i] = &backend.BlockMeta{
+			Version:         "vParquet3",
+			BlockID:         uuid.New(),
+			TenantID:        tenant,
+			StartTime:       time.Now().Add(-50 * time.Minute),
+			EndTime:         time.Now().Add(-40 * time.Minute),
+			TotalObjects:    10,
+			Size_:           12345,
+			CompactionLevel: 1,
+			Encoding:        backend.EncZstd,
+			IndexPageSize:   250000,
+			TotalRecords:    124356,
+			DataEncoding:    "",
+			BloomShardCount: 244,
+			FooterSize:      15775,
+			DedicatedColumns: backend.DedicatedColumns{
+				{Scope: "resource", Name: "namespace", Type: "string"},
+				{Scope: "span", Name: "http.method", Type: "string"},
+				{Scope: "span", Name: "namespace", Type: "string"},
+			},
+		}
+	}
+
+	rr, rw, _, err := local.New(&local.Config{
+		Path: "/home/zach/go/src/github.com/grafana/tempo/tempodb/backend/testdata",
+	})
+	require.NoError(b, err)
+
+	w := backend.NewWriter(rw)
+	w.WriteTenantIndex(ctx, tenant, blockMeta, nil)
+
+	r := backend.NewReader(rr)
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		r.TenantIndex(ctx, tenant)
+	}
+}

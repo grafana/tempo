@@ -66,7 +66,7 @@ func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string) {
 		default:
 			if b.EndTime.Before(cutoff) && rw.compactorSharder.Owns(b.BlockID.String()) {
 				level.Info(rw.logger).Log("msg", "marking block for deletion", "blockID", b.BlockID, "tenantID", tenantID)
-				err := rw.c.MarkBlockCompacted(b.BlockID, tenantID)
+				err := rw.c.MarkBlockCompacted(b.BlockID.UUID, tenantID)
 				if err != nil {
 					level.Error(rw.logger).Log("msg", "failed to mark block compacted during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
 					metricRetentionErrors.Inc()
@@ -95,7 +95,7 @@ func (rw *readerWriter) retainTenant(ctx context.Context, tenantID string) {
 			level.Debug(rw.logger).Log("owns", rw.compactorSharder.Owns(b.BlockID.String()), "blockID", b.BlockID, "tenantID", tenantID)
 			if b.CompactedTime.Before(cutoff) && rw.compactorSharder.Owns(b.BlockID.String()) {
 				level.Info(rw.logger).Log("msg", "deleting block", "blockID", b.BlockID, "tenantID", tenantID)
-				err := rw.c.ClearBlock(b.BlockID, tenantID)
+				err := rw.c.ClearBlock(b.BlockID.UUID, tenantID)
 				if err != nil {
 					level.Error(rw.logger).Log("msg", "failed to clear compacted block during retention", "blockID", b.BlockID, "tenantID", tenantID, "err", err)
 					metricRetentionErrors.Inc()

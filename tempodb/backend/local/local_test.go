@@ -11,10 +11,10 @@ import (
 
 	"github.com/grafana/tempo/pkg/io"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -38,7 +38,7 @@ func TestReadWrite(t *testing.T) {
 	}
 
 	fakeMeta := &backend.BlockMeta{
-		BlockId: []byte(blockID.String()),
+		BlockID: blockID,
 	}
 
 	fakeObject := make([]byte, 20)
@@ -46,29 +46,26 @@ func TestReadWrite(t *testing.T) {
 	_, err = crand.Read(fakeObject)
 	assert.NoError(t, err, "unexpected error creating fakeObject")
 
-	blockID, err = uuid.ParseBytes(fakeMeta.BlockId)
-	assert.NoError(t, err, "unexpected error parsing blockID")
-
 	ctx := context.Background()
 	for _, id := range tenantIDs {
-		fakeMeta.TenantId = id
-		err = w.Write(ctx, objectName, backend.KeyPathForBlock(blockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
+		fakeMeta.TenantID = id
+		err = w.Write(ctx, objectName, backend.KeyPathForBlock(fakeMeta.BlockID.UUID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
 		assert.NoError(t, err, "unexpected error writing")
 
-		err = w.Write(ctx, backend.MetaName, backend.KeyPathForBlock(blockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
+		err = w.Write(ctx, backend.MetaName, backend.KeyPathForBlock(fakeMeta.BlockID.UUID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
 		assert.NoError(t, err, "unexpected error meta.json")
-		err = w.Write(ctx, backend.CompactedMetaName, backend.KeyPathForBlock(blockID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
+		err = w.Write(ctx, backend.CompactedMetaName, backend.KeyPathForBlock(fakeMeta.BlockID.UUID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
 		assert.NoError(t, err, "unexpected error meta.compacted.json")
 	}
 
-	actualObject, size, err := r.Read(ctx, objectName, backend.KeyPathForBlock(blockID, tenantIDs[0]), nil)
+	actualObject, size, err := r.Read(ctx, objectName, backend.KeyPathForBlock(blockID.UUID, tenantIDs[0]), nil)
 	assert.NoError(t, err, "unexpected error reading")
 	actualObjectBytes, err := io.ReadAllWithEstimate(actualObject, size)
 	assert.NoError(t, err, "unexpected error reading")
 	assert.Equal(t, fakeObject, actualObjectBytes)
 
 	actualReadRange := make([]byte, 5)
-	err = r.ReadRange(ctx, objectName, backend.KeyPathForBlock(blockID, tenantIDs[0]), 5, actualReadRange, nil)
+	err = r.ReadRange(ctx, objectName, backend.KeyPathForBlock(blockID.UUID, tenantIDs[0]), 5, actualReadRange, nil)
 	assert.NoError(t, err, "unexpected error range")
 	assert.Equal(t, fakeObject[5:10], actualReadRange)
 
@@ -95,7 +92,7 @@ func TestShutdownLeavesTenantsWithBlocks(t *testing.T) {
 	tenant := "fake"
 
 	// write a "block"
-	err = w.Write(ctx, "test", backend.KeyPathForBlock(blockID, tenant), contents, contents.Size(), nil)
+	err = w.Write(ctx, "test", backend.KeyPathForBlock(blockID.UUID, tenant), contents, contents.Size(), nil)
 	require.NoError(t, err)
 
 	tenantExists(t, tenant, r)
@@ -120,14 +117,14 @@ func TestShutdownRemovesTenantsWithoutBlocks(t *testing.T) {
 	tenant := "tenant"
 
 	// write a "block"
-	err = w.Write(ctx, "test", backend.KeyPathForBlock(blockID, tenant), contents, contents.Size(), nil)
+	err = w.Write(ctx, "test", backend.KeyPathForBlock(blockID.UUID, tenant), contents, contents.Size(), nil)
 	require.NoError(t, err)
 
 	tenantExists(t, tenant, r)
 	blockExists(t, blockID, tenant, r)
 
 	// clear the block
-	err = c.ClearBlock(blockID, tenant)
+	err = c.ClearBlock(blockID.UUID, tenant)
 	require.NoError(t, err)
 
 	tenantExists(t, tenant, r)

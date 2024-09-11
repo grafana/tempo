@@ -5,12 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"path"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
 	google_uuid "github.com/google/uuid"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -21,9 +19,6 @@ const (
 	MetaName          = "meta.json"
 	CompactedMetaName = "meta.compacted.json"
 	TenantIndexName   = "index.json.gz"
-
-	// Proto
-	TenantIndexNameProto = "index"
 
 	// File name for the cluster seed file.
 	ClusterSeedFileName = "tempo_cluster_seed.json"
@@ -133,31 +128,17 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 		if err != nil && !errors.Is(err, ErrDoesNotExist) {
 			return err
 		}
-
-		err = w.w.Delete(ctx, TenantIndexNameProto, []string{tenantID}, nil)
-		if err != nil && !errors.Is(err, ErrDoesNotExist) {
-			return err
-		}
-
 		return nil
 	}
 
 	b := newTenantIndex(meta, compactedMeta)
 
-	// Hmm: the jsonpb call does not seem to respect the Version field on the BlockMeta being written as "format".
-	// buf = &bytes.Buffer{}
-	// err := new(jsonpb.Marshaler).Marshal(buf, b)
-	// if err != nil {
-	// 	return err
-	// }
-	// indexBytes := buf.Bytes()
-
-	indexBytes, err := json.Marshal(b)
+	indexBytes, err := b.marshal()
 	if err != nil {
 		return err
 	}
 
-	err = w.w.Write(ctx, TenantIndexNameProto, KeyPath([]string{tenantID}), bytes.NewReader(indexBytes), int64(len(indexBytes)), nil)
+	err = w.w.Write(ctx, TenantIndexName, KeyPath([]string{tenantID}), bytes.NewReader(indexBytes), int64(len(indexBytes)), nil)
 	if err != nil {
 		return err
 	}
@@ -223,14 +204,19 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]google_uuid.UUI
 
 // BlockMeta implements backend.Reader
 func (r *reader) BlockMeta(ctx context.Context, blockID google_uuid.UUID, tenantID string) (*BlockMeta, error) {
-	reader, _, err := r.r.Read(ctx, MetaName, KeyPathForBlock(blockID, tenantID), nil)
+	reader, size, err := r.r.Read(ctx, MetaName, KeyPathForBlock(blockID, tenantID), nil)
 	if err != nil {
 		return nil, err
 	}
 	defer reader.Close()
 
+	bytes, err := tempo_io.ReadAllWithEstimate(reader, size)
+	if err != nil {
+		return nil, err
+	}
+
 	out := &BlockMeta{}
-	err = jsonpb.Unmarshal(reader, out)
+	err = json.Unmarshal(bytes, out)
 	if err != nil {
 		return nil, err
 	}
@@ -240,12 +226,25 @@ func (r *reader) BlockMeta(ctx context.Context, blockID google_uuid.UUID, tenant
 
 // TenantIndex implements backend.Reader
 func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error) {
-	tenantIndex, err := r.tenantIndexProto(ctx, tenantID)
+	reader, size, err := r.r.Read(ctx, TenantIndexName, KeyPath([]string{tenantID}), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return tenantIndex, nil
+	defer reader.Close()
+
+	bytes, err := tempo_io.ReadAllWithEstimate(reader, size)
+	if err != nil {
+		return nil, err
+	}
+
+	i := &TenantIndex{}
+	err = i.unmarshal(bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return i, nil
 }
 
 // Find implements backend.Reader
@@ -256,23 +255,6 @@ func (r *reader) Find(ctx context.Context, keypath KeyPath, f FindFunc) error {
 // Shutdown implements backend.Reader
 func (r *reader) Shutdown() {
 	r.r.Shutdown()
-}
-
-func (r *reader) tenantIndexProto(ctx context.Context, tenantID string) (*TenantIndex, error) {
-	tenantIndexMessage := &TenantIndex{}
-
-	reader, _, err := r.r.Read(ctx, TenantIndexNameProto, KeyPath([]string{tenantID}), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer reader.Close()
-
-	err = jsonpb.Unmarshal(reader, tenantIndexMessage)
-	if err == nil {
-		return tenantIndexMessage, nil
-	}
-
-	return nil, fmt.Errorf("error reading tenant index proto: %w", err)
 }
 
 // KeyPathForBlock returns a correctly ordered keypath given a block id and tenantid

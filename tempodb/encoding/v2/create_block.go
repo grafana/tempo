@@ -19,7 +19,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 		meta.DataEncoding = model.CurrentEncoding
 	}
 
-	newBlock, err := NewStreamingBlock(cfg, meta.BlockID, meta.TenantID, []*backend.BlockMeta{meta}, meta.TotalObjects)
+	newBlock, err := NewStreamingBlock(cfg, meta.BlockID.UUID, meta.TenantID, []*backend.BlockMeta{meta}, int(meta.TotalObjects))
 	if err != nil {
 		return nil, fmt.Errorf("error creating streaming block: %w", err)
 	}
