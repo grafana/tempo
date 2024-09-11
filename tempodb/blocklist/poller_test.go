@@ -38,9 +38,9 @@ func (m *mockJobSharder) Owns(_ string) bool { return m.owns }
 
 func TestTenantIndexBuilder(t *testing.T) {
 	var (
-		one   = uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")}
-		two   = uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")}
-		three = uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000003")}
+		one   = uuid.MustParse("00000000-0000-0000-0000-000000000001")
+		two   = uuid.MustParse("00000000-0000-0000-0000-000000000002")
+		three = uuid.MustParse("00000000-0000-0000-0000-000000000003")
 	)
 
 	tests := []struct {
@@ -290,7 +290,7 @@ func TestTenantIndexFallback(t *testing.T) {
 }
 
 func TestPollBlock(t *testing.T) {
-	one := uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")}
+	one := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 
 	tests := []struct {
 		name                  string
@@ -659,9 +659,9 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 }
 
 func TestPollComparePreviousResults(t *testing.T) {
-	zero := uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000000")}
-	aaa := uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-00000000000A")}
-	eff := uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-00000000000F")}
+	zero := uuid.MustParse("00000000-0000-0000-0000-000000000000")
+	aaa := uuid.MustParse("00000000-0000-0000-0000-00000000000A")
+	eff := uuid.MustParse("00000000-0000-0000-0000-00000000000F")
 
 	testCases := []struct {
 		name string

@@ -100,7 +100,7 @@ func TestBlockMetaParsing(t *testing.T) {
 
 	meta := BlockMeta{
 		Version:         "vParquet3",
-		BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000000")},
+		BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 		TenantID:        "single-tenant",
 		StartTime:       timeParse("2021-01-01T00:00:00.0000000Z"),
 		EndTime:         timeParse("2021-01-02T00:00:00.0000000Z"),

@@ -41,21 +41,21 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			name: "only two",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000000")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime: now,
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
 				},
 			},
 			expected: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000000")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime: now,
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
 				},
 			},
@@ -65,17 +65,17 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			name: "choose smallest two",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					TotalObjects: 0,
 					EndTime:      now,
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000000")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					TotalObjects: 1,
 					EndTime:      now,
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					TotalObjects: 0,
 					EndTime:      now,
 				},
@@ -83,12 +83,12 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			maxInputBlocks: 2,
 			expected: []*backend.BlockMeta{
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					TotalObjects: 0,
 					EndTime:      now,
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					TotalObjects: 0,
 					EndTime:      now,
 				},
@@ -99,40 +99,40 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			name: "different windows",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000000")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime: now.Add(-timeWindow),
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000004")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime: now.Add(-timeWindow),
 				},
 			},
 			expected: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
 				},
 			},
 			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 			expectedSecond: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000000")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime: now.Add(-timeWindow),
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000004")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime: now.Add(-timeWindow),
 				},
 			},
@@ -142,22 +142,22 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			name: "different sizes",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000004")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime:      now,
 					TotalObjects: 15,
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime:      now,
 					TotalObjects: 1,
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000000")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime:      now,
 					TotalObjects: 3,
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime:      now,
 					TotalObjects: 12,
 				},
@@ -165,12 +165,12 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			maxInputBlocks: 2,
 			expected: []*backend.BlockMeta{
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime:      now,
 					TotalObjects: 1,
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000000")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime:      now,
 					TotalObjects: 3,
 				},
@@ -178,12 +178,12 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 			expectedSecond: []*backend.BlockMeta{
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime:      now,
 					TotalObjects: 12,
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000004")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime:      now,
 					TotalObjects: 15,
 				},
@@ -194,43 +194,43 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			name: "different compaction lvls",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime:         now,
 					CompactionLevel: 1,
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000000")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime: now,
 				},
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000003")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					EndTime:         now,
 					CompactionLevel: 1,
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
 				},
 			},
 			expected: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000000")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime: now,
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
 				},
 			},
 			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 			expectedSecond: []*backend.BlockMeta{
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime:         now,
 					CompactionLevel: 1,
 				},
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000003")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					EndTime:         now,
 					CompactionLevel: 1,
 				},
@@ -241,48 +241,48 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			name: "active time window vs not",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000000")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime: now,
 				},
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000004")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime:         now,
 					CompactionLevel: 1,
 				},
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000003")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					EndTime:         now.Add(-activeWindowDuration - time.Minute),
 					CompactionLevel: 1,
 				},
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime:         now.Add(-activeWindowDuration - time.Minute),
 					CompactionLevel: 0,
 				},
 			},
 			expected: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000000")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime: now,
 				},
 			},
 			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 			expectedSecond: []*backend.BlockMeta{
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime:         now.Add(-activeWindowDuration - time.Minute),
 					CompactionLevel: 0,
 				},
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000003")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					EndTime:         now.Add(-activeWindowDuration - time.Minute),
 					CompactionLevel: 1,
 				},
@@ -293,50 +293,50 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			name: "choose lowest compaction level",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000000")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime: now,
 				},
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000004")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime:         now,
 					CompactionLevel: 1,
 				},
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000004")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime:         now,
 					CompactionLevel: 1,
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000004")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime: now.Add(-timeWindow),
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000005")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000005"),
 					EndTime: now.Add(-timeWindow),
 				},
 			},
 			expected: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000000")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime: now,
 				},
 			},
 			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 			expectedSecond: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000004")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime: now.Add(-timeWindow),
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000005")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000005"),
 					EndTime: now.Add(-timeWindow),
 				},
 			},
@@ -346,11 +346,11 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			name: "doesn't choose across time windows",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now.Add(-timeWindow),
 				},
 			},
@@ -363,12 +363,12 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			name: "doesn't exceed max compaction objects",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					TotalObjects: 99,
 					EndTime:      now,
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					TotalObjects: 2,
 					EndTime:      now,
 				},
@@ -382,12 +382,12 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			name: "doesn't exceed max block size",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					Size_:   50,
 					EndTime: now,
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					Size_:   51,
 					EndTime: now,
 				},
@@ -402,29 +402,29 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			name: "Returns as many blocks as possible without exceeding max compaction objects",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					TotalObjects: 50,
 					EndTime:      now,
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					TotalObjects: 50,
 					EndTime:      now,
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000003")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					TotalObjects: 50,
 					EndTime:      now,
 				},
 			},
 			expected: []*backend.BlockMeta{
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					TotalObjects: 50,
 					EndTime:      now,
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					TotalObjects: 50,
 					EndTime:      now,
 				},
@@ -438,29 +438,29 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			maxBlockBytes: 100,
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					Size_:   50,
 					EndTime: now,
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					Size_:   50,
 					EndTime: now,
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000003")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					Size_:   1,
 					EndTime: now,
 				},
 			},
 			expected: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					Size_:   50,
 					EndTime: now,
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					Size_:   50,
 					EndTime: now,
 				},
@@ -475,44 +475,44 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			maxInputBlocks: 3,
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime:      now,
 					TotalObjects: 1,
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime:      now,
 					TotalObjects: 2,
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000003")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					EndTime:      now,
 					TotalObjects: 3,
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000004")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime:      now,
 					TotalObjects: 4,
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000005")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000005"),
 					EndTime:      now,
 					TotalObjects: 5,
 				},
 			},
 			expected: []*backend.BlockMeta{
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime:      now,
 					TotalObjects: 1,
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime:      now,
 					TotalObjects: 2,
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000003")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					EndTime:      now,
 					TotalObjects: 3,
 				},
@@ -520,12 +520,12 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 			expectedSecond: []*backend.BlockMeta{
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000004")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime:      now,
 					TotalObjects: 4,
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000005")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000005"),
 					EndTime:      now,
 					TotalObjects: 5,
 				},
@@ -536,11 +536,11 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			name: "honors minimum block count",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
 				},
 			},
@@ -555,22 +555,22 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			name: "can choose blocks not at the lowest compaction level",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime:         now,
 					CompactionLevel: 0,
 				},
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime:         now,
 					CompactionLevel: 1,
 				},
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000003")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					EndTime:         now,
 					CompactionLevel: 1,
 				},
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000004")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime:         now,
 					CompactionLevel: 1,
 				},
@@ -579,17 +579,17 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			maxInputBlocks: 3,
 			expected: []*backend.BlockMeta{
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime:         now,
 					CompactionLevel: 1,
 				},
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000003")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					EndTime:         now,
 					CompactionLevel: 1,
 				},
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000004")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime:         now,
 					CompactionLevel: 1,
 				},
@@ -602,12 +602,12 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			name: "doesn't select blocks in last active window",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime:         now.Add(-activeWindowDuration),
 					CompactionLevel: 0,
 				},
 				{
-					BlockID:         uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime:         now.Add(-activeWindowDuration),
 					CompactionLevel: 0,
 				},
@@ -617,12 +617,12 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			name: "don't compact across dataEncodings",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000000")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 					EndTime:      now,
 					DataEncoding: "bar",
 				},
 				{
-					BlockID:      uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime:      now,
 					DataEncoding: "foo",
 				},
@@ -633,12 +633,12 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			name: "ensures blocks of different versions are not compacted",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
 					Version: "v2",
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
 					Version: "vParquet3",
 				},
@@ -652,34 +652,34 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			name: "ensures blocks of the same version are compacted",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
 					Version: "v2",
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
 					Version: "vParquet3",
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000003")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					EndTime: now,
 					Version: "v2",
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000004")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime: now,
 					Version: "vParquet3",
 				},
 			},
 			expected: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
 					Version: "v2",
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000003")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					EndTime: now,
 					Version: "v2",
 				},
@@ -687,12 +687,12 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 			expectedSecond: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
 					Version: "vParquet3",
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000004")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime: now,
 					Version: "vParquet3",
 				},
@@ -703,28 +703,28 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			name: "blocks with different dedicated columns are not selected together",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
 					DedicatedColumns: backend.DedicatedColumns{
 						{Scope: "span", Name: "foo", Type: "int"},
 					},
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
 					DedicatedColumns: backend.DedicatedColumns{
 						{Scope: "span", Name: "foo", Type: "string"},
 					},
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000003")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					EndTime: now,
 					DedicatedColumns: backend.DedicatedColumns{
 						{Scope: "span", Name: "foo", Type: "int"},
 					},
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000004")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime: now,
 					DedicatedColumns: backend.DedicatedColumns{
 						{Scope: "span", Name: "foo", Type: "string"},
@@ -733,14 +733,14 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			},
 			expected: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime: now,
 					DedicatedColumns: backend.DedicatedColumns{
 						{Scope: "span", Name: "foo", Type: "int"},
 					},
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000003")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					EndTime: now,
 					DedicatedColumns: backend.DedicatedColumns{
 						{Scope: "span", Name: "foo", Type: "int"},
@@ -750,14 +750,14 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 0),
 			expectedSecond: []*backend.BlockMeta{
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime: now,
 					DedicatedColumns: backend.DedicatedColumns{
 						{Scope: "span", Name: "foo", Type: "string"},
 					},
 				},
 				{
-					BlockID: uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000004")},
+					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime: now,
 					DedicatedColumns: backend.DedicatedColumns{
 						{Scope: "span", Name: "foo", Type: "string"},
@@ -770,34 +770,34 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			name: "blocks are grouped by replication factor",
 			blocklist: []*backend.BlockMeta{
 				{
-					BlockID:           uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime:           now,
 					ReplicationFactor: 1,
 				},
 				{
-					BlockID:           uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime:           now,
 					ReplicationFactor: 3,
 				},
 				{
-					BlockID:           uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000003")},
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					EndTime:           now,
 					ReplicationFactor: 1,
 				},
 				{
-					BlockID:           uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000004")},
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime:           now,
 					ReplicationFactor: 3,
 				},
 			},
 			expected: []*backend.BlockMeta{
 				{
-					BlockID:           uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000001")},
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 					EndTime:           now,
 					ReplicationFactor: 1,
 				},
 				{
-					BlockID:           uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000003")},
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 					EndTime:           now,
 					ReplicationFactor: 1,
 				},
@@ -805,12 +805,12 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 			expectedHash: fmt.Sprintf("%v-%v-%v-%v", tenantID, 0, now.Unix(), 1),
 			expectedSecond: []*backend.BlockMeta{
 				{
-					BlockID:           uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000002")},
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 					EndTime:           now,
 					ReplicationFactor: 3,
 				},
 				{
-					BlockID:           uuid.UUID{UUID: google_uuid.MustParse("00000000-0000-0000-0000-000000000004")},
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000004"),
 					EndTime:           now,
 					ReplicationFactor: 3,
 				},
