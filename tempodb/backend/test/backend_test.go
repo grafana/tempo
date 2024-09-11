@@ -19,8 +19,9 @@ func TestFixtures(t *testing.T) {
 	// Create the fixtures, but commit them.
 	// metas := []*backend.BlockMeta{
 	// 	backend.NewBlockMeta(tenant, uuid.New().UUID, "v1", backend.EncGZIP, "adsf"),
-	// 	backend.NewBlockMeta(tenant, uuid.New().UUID, "v2", backend.EncNone, "adsf"),
+	//  backend.NewBlockMeta(tenant, uuid.New().UUID, "v2", backend.EncNone, "adsf"),
 	// 	backend.NewBlockMeta(tenant, uuid.New().UUID, "v3", backend.EncLZ4_4M, "adsf"),
+	//  backend.NewBlockMeta(tenant, uuid.New().UUID, "v4", backend.EncLZ4_1M, "adsf"),
 	// }
 
 	rr, rw, _, err := local.New(&local.Config{
@@ -41,19 +42,27 @@ func TestFixtures(t *testing.T) {
 	// 	require.NoError(t, err)
 	// }
 
-	metas, compactedMetas, err := rr.ListBlocks(ctx, tenant)
+	listMetas, listCompactedMetas, err := rr.ListBlocks(ctx, tenant)
 	require.NoError(t, err)
-	require.Len(t, compactedMetas, 0)
+	require.Len(t, listCompactedMetas, 0)
 
-	blockMetas := make([]*backend.BlockMeta, 0, len(metas))
-	for _, u := range metas {
+	for _, v := range listMetas {
+		t.Logf("listMetas: %v", v)
+	}
+
+	blockMetas := make([]*backend.BlockMeta, 0, len(listMetas))
+	for _, u := range listMetas {
 		meta, e := r.BlockMeta(ctx, u, tenant)
 		require.NoError(t, e)
 		blockMetas = append(blockMetas, meta)
+		require.Equal(t, tenant, meta.TenantID)
+		t.Logf("meta: %v", meta)
 	}
 
-	// err = backend.NewWriter(rw).WriteTenantIndex(ctx, tenant, blockMetas, nil)
-	// require.NoError(t, err)
+	nonZeroMeta(t, blockMetas)
+
+	err = backend.NewWriter(rw).WriteTenantIndex(ctx, tenant, blockMetas, nil)
+	require.NoError(t, err)
 
 	// for _, meta := range metas {
 	// 	m, e := r.BlockMeta(ctx, meta.BlockID.UUID, tenant)
@@ -65,5 +74,14 @@ func TestFixtures(t *testing.T) {
 	i, err = r.TenantIndex(ctx, tenant)
 	require.NoError(t, err)
 	require.Equal(t, blockMetas, i.Meta)
-	require.Len(t, i.Meta, len(metas))
+	require.Len(t, i.Meta, len(listMetas))
+}
+
+func nonZeroMeta(t *testing.T, m []*backend.BlockMeta) {
+	for _, v := range m {
+		assert.NotZero(t, v.BlockID, "blockid is zero, id: %v", v.BlockID)
+		assert.NotZero(t, v.BlockID, "blockid is zero, id: %v", v.BlockID)
+		assert.NotZero(t, v.BlockID, "blockid is zero, id: %v", v.BlockID)
+		assert.NotZero(t, v.BlockID, "blockid is zero, id: %v", v.BlockID)
+	}
 }
