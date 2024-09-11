@@ -82,7 +82,7 @@ func (cmd *dropTraceCmd) Run(ctx *globalOptions) error {
 	fmt.Println("marking old blocks compacted")
 	for _, block := range blocks {
 		fmt.Printf("  marking %v\n", block.BlockID)
-		err = c.MarkBlockCompacted(block.BlockID, block.TenantID)
+		err = c.MarkBlockCompacted(block.BlockID.UUID, block.TenantID)
 		if err != nil {
 			return err
 		}

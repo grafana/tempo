@@ -33,7 +33,7 @@ func (cmd *listColumnCmd) Run(ctx *globalOptions) error {
 	}
 
 	rr := vparquet3.NewBackendReaderAt(context.Background(), r, vparquet3.DataFileName, meta)
-	pf, err := parquet.OpenFile(rr, int64(meta.Size))
+	pf, err := parquet.OpenFile(rr, int64(meta.Size_))
 	if err != nil {
 		return err
 	}
