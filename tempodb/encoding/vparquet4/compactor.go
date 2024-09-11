@@ -13,6 +13,7 @@ import (
 	"github.com/go-kit/log/level"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/parquet-go/parquet-go"
+	"go.opentelemetry.io/otel/attribute"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/uuid"
@@ -261,6 +262,12 @@ func (c *Compactor) finishBlock(ctx context.Context, block *streamingBlock, l lo
 	}
 
 	level.Info(l).Log("msg", "wrote compacted block", "meta", fmt.Sprintf("%+v", block.meta))
+
+	span.AddEvent("wrote compacted block")
+	span.SetAttributes(
+		attribute.String("blockID", block.meta.BlockID.String()),
+	)
+
 	compactionLevel := int(block.meta.CompactionLevel) - 1
 	if c.opts.BytesWritten != nil {
 		c.opts.BytesWritten(compactionLevel, bytesFlushed)
