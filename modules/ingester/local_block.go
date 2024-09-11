@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/grafana/tempo/pkg/traceql"
 	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -52,6 +53,36 @@ func (c *LocalBlock) FindTraceByID(ctx context.Context, id common.ID, opts commo
 	ctx, span := tracer.Start(ctx, "LocalBlock.FindTraceByID")
 	defer span.End()
 	return c.BackendBlock.FindTraceByID(ctx, id, opts)
+}
+
+func (c *LocalBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error) {
+	ctx, span := tracer.Start(ctx, "LocalBlock.Search")
+	defer span.End()
+	return c.BackendBlock.Search(ctx, req, opts)
+}
+
+func (c *LocalBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, opts common.SearchOptions) error {
+	ctx, span := tracer.Start(ctx, "LocalBlock.SearchTagValuesV2")
+	defer span.End()
+	return c.BackendBlock.SearchTagValuesV2(ctx, tag, cb, opts)
+}
+
+func (c *LocalBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
+	ctx, span := tracer.Start(ctx, "LocalBlock.Fetch")
+	defer span.End()
+	return c.BackendBlock.Fetch(ctx, req, opts)
+}
+
+func (c *LocalBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, opts common.SearchOptions) error {
+	ctx, span := tracer.Start(ctx, "LocalBlock.FetchTagValues")
+	defer span.End()
+	return c.BackendBlock.FetchTagValues(ctx, req, cb, opts)
+}
+
+func (c *LocalBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, opts common.SearchOptions) error {
+	ctx, span := tracer.Start(ctx, "LocalBlock.FetchTagNames")
+	defer span.End()
+	return c.BackendBlock.FetchTagNames(ctx, req, cb, opts)
 }
 
 // FlushedTime returns the time the block was flushed.  Will return 0
