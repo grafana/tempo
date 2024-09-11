@@ -1,3 +1,6 @@
+// Package uuid provides a UUID type that can be used in protocol buffer
+// messages.  It only wraps the google/uuid package and implements a couple
+// helpers to make creating new instances simpler.
 package uuid
 
 import (
@@ -6,8 +9,30 @@ import (
 	google_uuid "github.com/google/uuid"
 )
 
+var (
+	_ json.Unmarshaler = &UUID{}
+	_ json.Marshaler   = &UUID{}
+)
+
 type UUID struct {
 	google_uuid.UUID
+}
+
+func New() UUID {
+	return UUID{google_uuid.New()}
+}
+
+func MustParse(s string) UUID {
+	return UUID{google_uuid.MustParse(s)}
+}
+
+func Parse(s string) (UUID, error) {
+	u, err := google_uuid.Parse(s)
+	if err != nil {
+		return UUID{}, err
+	}
+
+	return UUID{u}, nil
 }
 
 func (u UUID) Marshal() ([]byte, error) {
@@ -37,7 +62,7 @@ func (u *UUID) Size() int {
 }
 
 func (u UUID) MarshalJSON() ([]byte, error) {
-	return json.Marshal(u.UUID.String())
+	return json.Marshal(u.String())
 }
 
 func (u *UUID) UnmarshalJSON(data []byte) error {
