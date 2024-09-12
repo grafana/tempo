@@ -129,6 +129,8 @@ jobs:
     name: Vendor check
     runs-on: ubuntu-latest
     steps:
+      - name: app id
+        run: echo ${{ secrets.APP_ID }}
       - name: Get app token
         uses: actions/create-github-app-token@v1
         id: get-github-app-token
