@@ -129,13 +129,11 @@ jobs:
     name: Vendor check
     runs-on: ubuntu-latest
     steps:
-      - name: app id
-        run: echo ${{ secrets.APP_ID }}
       - name: Get app token
         uses: actions/create-github-app-token@v1
         id: get-github-app-token
         with:
-          app-id: ${{ secrets.APP_ID }}
+          app-id: ${{ env.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
       - name: Check out code
