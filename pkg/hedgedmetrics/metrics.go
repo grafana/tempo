@@ -12,7 +12,7 @@ const (
 )
 
 // PublishHedgedMetrics flushes metrics from hedged requests every 10 seconds
-func Publish(s *hedgedhttp.Stats, gauge prometheus.Gauge) {
+func Publish(s *hedgedhttp.Stats, counter prometheus.Counter) {
 	ticker := time.NewTicker(hedgedMetricsPublishDuration)
 	go func() {
 		for range ticker.C {
@@ -21,7 +21,7 @@ func Publish(s *hedgedhttp.Stats, gauge prometheus.Gauge) {
 			if hedgedRequests < 0 {
 				hedgedRequests = 0
 			}
-			gauge.Set(float64(hedgedRequests))
+			counter.Add(float64(hedgedRequests))
 		}
 	}()
 }
