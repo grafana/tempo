@@ -1,6 +1,7 @@
 package hedgedmetrics
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -65,11 +66,14 @@ func TestCounterWithValue(t *testing.T) {
 
 // MockStatsProvider is StatsProvider for testing
 type MockStatsProvider struct {
+	mu                  sync.Mutex
 	actualRoundTrips    uint64
 	requestedRoundTrips uint64
 }
 
 func (m *MockStatsProvider) Snapshot() hedgedhttp.StatsSnapshot {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return hedgedhttp.StatsSnapshot{
 		ActualRoundTrips:    m.actualRoundTrips,
 		RequestedRoundTrips: m.requestedRoundTrips,
@@ -77,6 +81,8 @@ func (m *MockStatsProvider) Snapshot() hedgedhttp.StatsSnapshot {
 }
 
 func (m *MockStatsProvider) SetStats(actual, requested uint64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.actualRoundTrips = actual
 	m.requestedRoundTrips = requested
 }
