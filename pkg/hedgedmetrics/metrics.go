@@ -1,6 +1,7 @@
 package hedgedmetrics
 
 import (
+	"sync"
 	"time"
 
 	"github.com/cristalhq/hedgedhttp"
@@ -8,12 +9,41 @@ import (
 )
 
 const (
-	hedgedMetricsPublishDuration = 10 * time.Second
+	PublishDuration = 10 * time.Second
 )
 
-// PublishHedgedMetrics flushes metrics from hedged requests every 10 seconds
-func Publish(s *hedgedhttp.Stats, counter prometheus.Counter) {
-	ticker := time.NewTicker(hedgedMetricsPublishDuration)
+// CounterWithValue wraps prometheus.Counter and keeps track of the current value.
+type CounterWithValue struct {
+	counter prometheus.Counter
+	value   int64
+	mu      sync.Mutex
+}
+
+func NewCounterWithValue(counter prometheus.Counter) *CounterWithValue {
+	return &CounterWithValue{counter: counter}
+}
+
+func (c *CounterWithValue) Add(v int64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.value += v
+	c.counter.Add(float64(v))
+}
+
+func (c *CounterWithValue) Value() int64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.value
+}
+
+// StatsProvider defines the interface that wraps hedgedhttp.Stats for ease of testing
+type StatsProvider interface {
+	Snapshot() hedgedhttp.StatsSnapshot
+}
+
+// Publish flushes metrics from hedged requests every tickerDur
+func Publish(s StatsProvider, counter *CounterWithValue, tickerDur time.Duration) {
+	ticker := time.NewTicker(tickerDur)
 	go func() {
 		for range ticker.C {
 			snap := s.Snapshot()
@@ -21,7 +51,13 @@ func Publish(s *hedgedhttp.Stats, counter prometheus.Counter) {
 			if hedgedRequests < 0 {
 				hedgedRequests = 0
 			}
-			counter.Add(float64(hedgedRequests))
+
+			// *hedgedhttp.Stats has counter but we need the delta for prometheus.Counter
+			delta := hedgedRequests - counter.Value()
+			if delta < 0 {
+				delta = 0
+			}
+			counter.Add(delta)
 		}
 	}()
 }
