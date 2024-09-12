@@ -239,6 +239,7 @@ func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attrib
 	if err != nil {
 		return fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
+	// TODO(suraj): push this BytesRead to SLO middleware
 	defer func() { span.SetAttributes(attribute.Int64("inspectedBytes", int64(rr.BytesRead()))) }()
 
 	return searchTagValues(derivedCtx, tag, cb, pf, b.meta.DedicatedColumns)

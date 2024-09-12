@@ -2,6 +2,7 @@ package ingester
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -28,6 +29,8 @@ type LocalBlock struct {
 }
 
 var _ common.Finder = (*LocalBlock)(nil)
+var _ common.Searcher = (*LocalBlock)(nil)
+var _ common.BlockCacher = (*LocalBlock)(nil)
 
 // NewLocalBlock creates a local block
 func NewLocalBlock(ctx context.Context, existingBlock common.BackendBlock, l *local.Backend) *LocalBlock {
@@ -120,4 +123,18 @@ func (c *LocalBlock) Write(ctx context.Context, w backend.Writer) error {
 
 	err = c.SetFlushed(ctx)
 	return err
+}
+
+func (c *LocalBlock) SetDiskCache(ctx context.Context, cacheKey string, data []byte) error {
+	return c.writer.Write(ctx, cacheKey, c.BlockMeta().BlockID, c.BlockMeta().TenantID, data, nil)
+}
+
+func (c *LocalBlock) GetDiskCache(ctx context.Context, cacheKey string) ([]byte, error) {
+	data, err := c.reader.Read(ctx, cacheKey, c.BlockMeta().BlockID, c.BlockMeta().TenantID, nil)
+	if errors.Is(err, backend.ErrDoesNotExist) {
+		// file doesn't exist, so it's a cache miss
+		return nil, nil
+	}
+
+	return data, err
 }
