@@ -345,30 +345,39 @@ func (c *CountOverTimeAggregator) Sample() float64 {
 // calculate the rate when given a multiplier.
 type OverTimeAggregator struct {
 	getSpanAttValue func(s Span) float64
-	agg             func(current, new float64) float64
+	agg             func(current *OverTimeAggregator, new float64)
 	val             float64
+	count           float64 // number of spans
+
+	// Only for computing the average
+	c float64 // compesation for Kahan summation
 }
 
 var _ VectorAggregator = (*OverTimeAggregator)(nil)
 
 func NewOverTimeAggregator(attr Attribute, op SimpleAggregationOp) *OverTimeAggregator {
 	var fn func(s Span) float64
-	var agg func(current, new float64) float64
+	var agg func(current *OverTimeAggregator, new float64)
 
 	switch op {
 	case maxAggregation:
-		agg = func(current, new float64) float64 {
-			if math.IsNaN(current) || new > current {
-				return new
+		agg = func(current *OverTimeAggregator, new float64) {
+			if math.IsNaN(current.val) || new > current.val {
+				current.val = new
 			}
-			return current
 		}
 	case minAggregation:
-		agg = func(current, new float64) float64 {
-			if math.IsNaN(current) || new < current {
-				return new
+		agg = func(current *OverTimeAggregator, new float64) {
+			if math.IsNaN(current.val) || new < current.val {
+				current.val = new
 			}
-			return current
+		}
+	case avgAggregation:
+		agg = func(current *OverTimeAggregator, inc float64) {
+			current.count++
+			mean, c := averageInc(current.val, inc, current.count, current.c)
+			current.c = c
+			current.val = mean
 		}
 	}
 
@@ -395,11 +404,52 @@ func NewOverTimeAggregator(attr Attribute, op SimpleAggregationOp) *OverTimeAggr
 }
 
 func (c *OverTimeAggregator) Observe(s Span) {
-	c.val = c.agg(c.val, c.getSpanAttValue(s))
+	c.agg(c, c.getSpanAttValue(s))
 }
 
 func (c *OverTimeAggregator) Sample() float64 {
 	return c.val
+}
+
+func averageInc(mean, inc, count, compensation float64) (float64, float64) {
+	if math.IsNaN(mean) && !math.IsNaN(inc) {
+		// When we have a proper value in the span we need to initialize to 0
+		mean = 0
+	}
+	if math.IsInf(mean, 0) {
+		if math.IsInf(inc, 0) && (mean > 0) == (inc > 0) {
+			// The `current.val` and `new` values are `Inf` of the same sign.  They
+			// can't be subtracted, but the value of `current.val` is correct
+			// already.
+			return mean, compensation
+		}
+		if !math.IsInf(inc, 0) && !math.IsNaN(inc) {
+			// At this stage, the current.val is an infinite. If the added
+			// value is neither an Inf or a Nan, we can keep that mean
+			// value.
+			// This is required because our calculation below removes
+			// the mean value, which would look like Inf += x - Inf and
+			// end up as a NaN.
+			return mean, compensation
+		}
+	}
+	mean, c := kahanSumInc(inc/count-mean/count, mean, compensation)
+	return mean, c
+}
+
+func kahanSumInc(inc, sum, c float64) (newSum, newC float64) {
+	t := sum + inc
+	switch {
+	case math.IsInf(t, 0):
+		c = 0
+
+	// Using Neumaier improvement, swap if next term larger than sum.
+	case math.Abs(sum) >= math.Abs(inc):
+		c += (sum - t) + inc
+	default:
+		c += (inc - t) + sum
+	}
+	return t, c
 }
 
 // StepAggregator sorts spans into time slots using a step interval like 30s or 1m
@@ -1096,43 +1146,67 @@ const (
 	sumAggregation SimpleAggregationOp = iota
 	minAggregation
 	maxAggregation
+	avgAggregation
 )
 
 type SimpleAggregator struct {
 	ss               SeriesSet
 	exemplarBuckets  *bucketSet
 	len              int
-	aggregationFunc  func(existingValue float64, newValue float64) float64
+	aggregationFunc  func(b *SimpleAggregator, serie string, pos int, newValue float64)
 	start, end, step uint64
 	initWithNaN      bool
+
+	// Only for average
+	initAvg        bool
+	ssCounter      map[string]map[int]float64 // Counter of processed elements to calculate median
+	ssCompensation map[string]map[int]float64 // Avg compensation
 }
 
 func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *SimpleAggregator {
 	l := IntervalCount(req.Start, req.End, req.Step)
 	var initWithNaN bool
-	var f func(existingValue float64, newValue float64) float64
+	var f func(b *SimpleAggregator, serie string, pos int, newValue float64)
 	switch op {
 	case minAggregation:
 		// Simple min aggregator. It calculates the minimum between existing values and a new sample
-		f = func(existingValue float64, newValue float64) float64 {
+		f = func(b *SimpleAggregator, serie string, pos int, newValue float64) {
+			existingValue := b.ss[serie].Values[pos]
 			if math.IsNaN(existingValue) || newValue < existingValue {
-				return newValue
+				b.ss[serie].Values[pos] = newValue
 			}
-			return existingValue
 		}
 		initWithNaN = true
 	case maxAggregation:
 		// Simple max aggregator. It calculates the maximum between existing values and a new sample
-		f = func(existingValue float64, newValue float64) float64 {
+		f = func(b *SimpleAggregator, serie string, pos int, newValue float64) {
+			existingValue := b.ss[serie].Values[pos]
 			if math.IsNaN(existingValue) || newValue > existingValue {
-				return newValue
+				b.ss[serie].Values[pos] = newValue
 			}
-			return existingValue
 		}
 		initWithNaN = true
+
+	case avgAggregation:
+		// Simple average aggregator. It calculates the average between existing values and a new sample
+		f = func(b *SimpleAggregator, serie string, pos int, inc float64) {
+			b.ssCounter[serie][pos]++
+			mean := b.ss[serie].Values[pos]
+			count := b.ssCounter[serie][pos]
+			compensation := b.ssCompensation[serie][pos]
+
+			mean, c := averageInc(mean, inc, count, compensation)
+
+			b.ssCompensation[serie][pos] = c
+			b.ss[serie].Values[pos] = mean
+		}
+		initWithNaN = true
+
 	default:
 		// Simple addition aggregator. It adds existing values with the new sample.
-		f = func(existingValue float64, newValue float64) float64 { return existingValue + newValue }
+		f = func(b *SimpleAggregator, serie string, pos int, newValue float64) {
+			b.ss[serie].Values[pos] += newValue
+		}
 		initWithNaN = false
 
 	}
@@ -1145,6 +1219,7 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *
 		step:            req.Step,
 		aggregationFunc: f,
 		initWithNaN:     initWithNaN,
+		initAvg:         (op == avgAggregation),
 	}
 }
 
@@ -1175,12 +1250,21 @@ func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
 			}
 
 			b.ss[ts.PromLabels] = existing
+			if b.initAvg {
+				if b.ssCounter == nil {
+					b.ssCounter = map[string]map[int]float64{}
+					b.ssCompensation = map[string]map[int]float64{}
+				}
+
+				b.ssCounter[ts.PromLabels] = make(map[int]float64, b.len)
+				b.ssCompensation[ts.PromLabels] = make(map[int]float64, b.len)
+			}
 		}
 
 		for _, sample := range ts.Samples {
 			j := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
 			if j >= 0 && j < len(existing.Values) {
-				existing.Values[j] = b.aggregationFunc(existing.Values[j], sample.Value)
+				b.aggregationFunc(b, ts.PromLabels, j, sample.Value)
 			}
 		}
 
