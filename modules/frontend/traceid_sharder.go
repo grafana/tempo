@@ -59,8 +59,8 @@ func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		concurrentShards = uint(s.cfg.ConcurrentShards)
 	}
 
-	// having more concurrent shards than query shards should not happen because then
-	// we would be creating more goroutines then the jobs to send these jobs to queriers
+	// concurrent_shards grater then query_shards should not be allowed because it would create
+	// more goroutines then the jobs to send these jobs to queriers.
 	if concurrentShards > uint(s.cfg.QueryShards) {
 		// set the concurrent shards to the total shards
 		concurrentShards = uint(s.cfg.QueryShards)
