@@ -325,3 +325,25 @@ func (dcs DedicatedColumns) MarshalTo(data []byte) (n int, err error) {
 func (dcs DedicatedColumns) Unmarshal(data []byte) error {
 	return json.Unmarshal(data, &dcs)
 }
+
+func (b *CompactedBlockMeta) UnmarshalJSON(data []byte) error {
+	var msg interface{}
+	err := json.Unmarshal(data, &msg)
+	if err != nil {
+		return err
+	}
+	msgMap := msg.(map[string]interface{})
+
+	if v, ok := msgMap["compactedTime"]; ok {
+		b.CompactedTime, err = time.Parse(time.RFC3339, v.(string))
+		if err != nil {
+			return fmt.Errorf("failed to parse time at compactedTime: %w", err)
+		}
+	}
+
+	if err := json.Unmarshal(data, &b.BlockMeta); err != nil {
+		return fmt.Errorf("failed at unmarshal for dedicated columns: %w", err)
+	}
+
+	return nil
+}
