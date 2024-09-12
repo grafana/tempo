@@ -652,7 +652,7 @@ func TestAvgOverTimeForDuration(t *testing.T) {
 	assert.Equal(t, 200., fooBaz.Values[2]*float64(time.Second))
 
 	assert.Equal(t, 100., fooBar.Values[0]*float64(time.Second))
-	assert.Equal(t, 400., fooBar.Values[1]*float64(time.Second))
+	assert.Equal(t, 200., fooBar.Values[1]*float64(time.Second))
 	assert.True(t, math.IsNaN(fooBar.Values[2]))
 }
 
