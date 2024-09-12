@@ -129,11 +129,6 @@ jobs:
     name: Vendor check
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.22
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: "go.mod"
-
       - name: Get app token
         uses: actions/create-github-app-token@v1
         id: get-github-app-token
@@ -141,9 +136,13 @@ jobs:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          
       - name: Check out code
         uses: actions/checkout@v4
+
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
