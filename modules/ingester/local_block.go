@@ -28,9 +28,11 @@ type LocalBlock struct {
 	flushedTime atomic.Int64 // protecting flushedTime b/c it's accessed from the store on flush and from the ingester instance checking flush time
 }
 
-var _ common.Finder = (*LocalBlock)(nil)
-var _ common.Searcher = (*LocalBlock)(nil)
-var _ common.BlockCacher = (*LocalBlock)(nil)
+var (
+	_ common.Finder      = (*LocalBlock)(nil)
+	_ common.Searcher    = (*LocalBlock)(nil)
+	_ common.BlockCacher = (*LocalBlock)(nil)
+)
 
 // NewLocalBlock creates a local block
 func NewLocalBlock(ctx context.Context, existingBlock common.BackendBlock, l *local.Backend) *LocalBlock {
