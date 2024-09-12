@@ -15,7 +15,7 @@ killercoda:
 ---
 
 <!-- INTERACTIVE page intro.md START -->
-
+ 
 # Quick start for Tempo
 
 The Tempo repository provides [multiple examples](https://github.com/grafana/tempo/tree/main/example/docker-compose) to help you quickly get started using Tempo and distributed tracing data.
