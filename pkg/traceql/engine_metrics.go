@@ -1153,7 +1153,7 @@ type SimpleAggregator struct {
 	ss               SeriesSet
 	exemplarBuckets  *bucketSet
 	len              int
-	aggregationFunc  func(b *SimpleAggregator, serie string, pos int, newValue float64)
+	aggregationFunc  func(b *SimpleAggregator, promLabel string, pos int, newValue float64)
 	start, end, step uint64
 	initWithNaN      bool
 
@@ -1166,46 +1166,46 @@ type SimpleAggregator struct {
 func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *SimpleAggregator {
 	l := IntervalCount(req.Start, req.End, req.Step)
 	var initWithNaN bool
-	var f func(b *SimpleAggregator, serie string, pos int, newValue float64)
+	var f func(b *SimpleAggregator, promLabel string, pos int, newValue float64)
 	switch op {
 	case minAggregation:
 		// Simple min aggregator. It calculates the minimum between existing values and a new sample
-		f = func(b *SimpleAggregator, serie string, pos int, newValue float64) {
-			existingValue := b.ss[serie].Values[pos]
+		f = func(b *SimpleAggregator, promLabel string, pos int, newValue float64) {
+			existingValue := b.ss[promLabel].Values[pos]
 			if math.IsNaN(existingValue) || newValue < existingValue {
-				b.ss[serie].Values[pos] = newValue
+				b.ss[promLabel].Values[pos] = newValue
 			}
 		}
 		initWithNaN = true
 	case maxAggregation:
 		// Simple max aggregator. It calculates the maximum between existing values and a new sample
-		f = func(b *SimpleAggregator, serie string, pos int, newValue float64) {
-			existingValue := b.ss[serie].Values[pos]
+		f = func(b *SimpleAggregator, promLabel string, pos int, newValue float64) {
+			existingValue := b.ss[promLabel].Values[pos]
 			if math.IsNaN(existingValue) || newValue > existingValue {
-				b.ss[serie].Values[pos] = newValue
+				b.ss[promLabel].Values[pos] = newValue
 			}
 		}
 		initWithNaN = true
 
 	case avgAggregation:
 		// Simple average aggregator. It calculates the average between existing values and a new sample
-		f = func(b *SimpleAggregator, serie string, pos int, inc float64) {
-			b.ssCounter[serie][pos]++
-			mean := b.ss[serie].Values[pos]
-			count := b.ssCounter[serie][pos]
-			compensation := b.ssCompensation[serie][pos]
+		f = func(b *SimpleAggregator, promLabel string, pos int, inc float64) {
+			b.ssCounter[promLabel][pos]++
+			mean := b.ss[promLabel].Values[pos]
+			count := b.ssCounter[promLabel][pos]
+			compensation := b.ssCompensation[promLabel][pos]
 
 			mean, c := averageInc(mean, inc, count, compensation)
 
-			b.ssCompensation[serie][pos] = c
-			b.ss[serie].Values[pos] = mean
+			b.ssCompensation[promLabel][pos] = c
+			b.ss[promLabel].Values[pos] = mean
 		}
 		initWithNaN = true
 
 	default:
 		// Simple addition aggregator. It adds existing values with the new sample.
-		f = func(b *SimpleAggregator, serie string, pos int, newValue float64) {
-			b.ss[serie].Values[pos] += newValue
+		f = func(b *SimpleAggregator, promLabel string, pos int, newValue float64) {
+			b.ss[promLabel].Values[pos] += newValue
 		}
 		initWithNaN = false
 
