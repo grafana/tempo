@@ -173,7 +173,8 @@ FindQueue:
 			batchBuffer[i] = <-queue
 			actuallyInBatch++
 
-			weight := batchBuffer[i].Weight() // jpe - test
+			// PRTODO: add tests that take weight into account
+			weight := batchBuffer[i].Weight()
 			if weight <= 0 {
 				weight = 1
 			}

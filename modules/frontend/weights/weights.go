@@ -2,8 +2,7 @@ package weights
 
 import "github.com/grafana/tempo/pkg/traceql"
 
-// jpe - test
-
+// PRTODO: test weight calculation
 type WeightRequest interface {
 	SetWeight(int)
 	Weight() int

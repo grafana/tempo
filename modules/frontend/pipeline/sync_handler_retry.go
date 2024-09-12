@@ -62,7 +62,6 @@ func (r retryWare) RoundTrip(req Request) (*http.Response, error) {
 
 		resp, err := r.next.RoundTrip(req)
 
-		// jpe test
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}

@@ -8,6 +8,9 @@ import (
 
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/dskit/multierror"
+	"github.com/grafana/tempo/pkg/util/httpgrpcutil"
+
+	"go.opentelemetry.io/otel"
 )
 
 type requestBatch struct {
@@ -17,7 +20,6 @@ type requestBatch struct {
 	wireRequests []*httpgrpc.HTTPRequest
 }
 
-// jpe - necessary?
 type buffer struct {
 	buff []byte
 	io.ReadCloser
@@ -39,6 +41,10 @@ func (b *requestBatch) add(r *request) error {
 	if err != nil {
 		return err
 	}
+
+	// Propagate trace context in gRPC too - this will be ignored if using HTTP.
+	carrier := (*httpgrpcutil.HttpgrpcHeadersCarrier)(req)
+	otel.GetTextMapPropagator().Inject(r.OriginalContext(), carrier)
 
 	b.wireRequests = append(b.wireRequests, req)
 

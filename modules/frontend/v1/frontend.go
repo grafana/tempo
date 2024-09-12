@@ -67,7 +67,6 @@ type Frontend struct {
 	actualBatchSize   prometheus.Histogram
 }
 
-// jpe - can i get rid of this?
 type request struct {
 	enqueueTime time.Time
 	queueSpan   trace.Span
@@ -172,16 +171,8 @@ func (f *Frontend) cleanupInactiveUserMetrics(user string) {
 	f.discardedRequests.DeleteLabelValues(user)
 }
 
-// jpe - convert to/from grpc madness her
-//   - rewrite modules/frontend code to take a pipeline.RoundTripper
-
 // func (f *Frontend) RoundTripGRPC(ctx context.Context, req *httpgrpc.HTTPRequest) (*httpgrpc.HTTPResponse, error) {
 func (f *Frontend) RoundTrip(req pipeline.Request) (*http.Response, error) {
-	// Propagate trace context in gRPC too - this will be ignored if using HTTP.
-	//  jpe - move this until after the conversion to httpgrpc.HTTPRequest
-	// carrier := (*httpgrpcutil.HttpgrpcHeadersCarrier)(req)
-	// otel.GetTextMapPropagator().Inject(ctx, carrier)
-
 	request := request{
 		request: req,
 
