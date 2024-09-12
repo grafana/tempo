@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/go-kit/log" //nolint:all //deprecated
-	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/user"
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
@@ -64,7 +63,6 @@ func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	if concurrentShards > uint(s.cfg.QueryShards) {
 		// set the concurrent shards to the total shards
 		concurrentShards = uint(s.cfg.QueryShards)
-		_ = level.Warn(s.logger).Log("concurrent_shards greater than query_shards is invalid, setting concurrent shards equal to query shards")
 	}
 
 	return pipeline.NewAsyncSharderFunc(ctx, int(concurrentShards), len(reqs), func(i int) pipeline.Request {
