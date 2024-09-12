@@ -22,23 +22,29 @@ jobs:
         with:
           go-version: 1.22.4
 
+      - name: Get app token
+        uses: actions/create-github-app-token@v1
+        id: get-github-app-token
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
       - name: Check out code
         uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref }}
-          token: ${{ secrets.GH_BOT_ACCESS_TOKEN }}
+          token: ${{ steps.get-github-app-token.outputs.token }}
 
       - name: Update serverless gomod
         run: make -C cmd/tempo-serverless update-mod
 
       - name: Commit serverless gomod changes
         env:
-          USER: grafanabot
-          TOKEN: ${{ secrets.GH_BOT_ACCESS_TOKEN }}
+          USER: x-access-token
+          TOKEN: ${{ steps.get-github-app-token.outputs.token }}
         run: |
           git config --global url."https://${USER}:${TOKEN}@github.com/grafana/tempo".insteadOf "https://github.com/grafana/tempo"
-          git config user.name grafanabot
-          git config user.email bot@grafana.com
           git add cmd/tempo-serverless/lambda/go.mod
           git add cmd/tempo-serverless/lambda/go.sum
           git add cmd/tempo-serverless/cloud-run/go.mod

@@ -10,6 +10,13 @@ jobs:
     if: github.repository == 'grafana/tempo'
     runs-on: ubuntu-latest
     steps:
+      - name: Get app token
+        uses: actions/create-github-app-token@v1
+        id: get-github-app-token
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
       - name: Checkout Actions
         uses: actions/checkout@v4
         with:
@@ -22,4 +29,4 @@ jobs:
         uses: ./actions/metrics-collector
         with:
           metricsWriteAPIKey: ${{secrets.GRAFANA_MISC_STATS_API_KEY}}
-          token: ${{secrets.GH_BOT_ACCESS_TOKEN}}
+          token: ${{ steps.get-github-app-token.outputs.token }}
