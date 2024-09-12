@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [BUGFIX] Correctly publish the hedgedmetrics counter with delta [#4078](https://github.com/grafana/tempo/pull/4078) (@electron0zero)
+* [BUGFIX] Replace hedged requests roundtrips total with a counter. [#4063](https://github.com/grafana/tempo/pull/4063) (@galalen)
 * [CHANGE] TraceByID: don't allow concurrent_shards greater than query_shards. [#4074](https://github.com/grafana/tempo/pull/4074) (@electron0zero)
 * **BREAKING CHANGE** tempo-query is no longer a jaeger instance with grpcPlugin. Its now a standalone server. Serving a grpc api for jaeger on `0.0.0.0:7777` by default. [#3840](https://github.com/grafana/tempo/issues/3840) (@frzifus)
 * [CHANGE] **BREAKING CHANGE** The dynamic injection of X-Scope-OrgID header for metrics generator remote-writes is changed. If the header is aleady set in per-tenant overrides or global tempo configuration, then it is honored and not overwritten. [#4021](https://github.com/grafana/tempo/pull/4021) (@mdisibio)
@@ -96,7 +98,6 @@
 * [BUGFIX] Correct block end time when the ingested traces are outside the ingestion slack [#3954](https://github.com/grafana/tempo/pull/3954) (@javiermolinar)
 * [BUGFIX] Fix race condition where a streaming response could be marshalled while being modified in the combiner resulting in a panic. [#3961](https://github.com/grafana/tempo/pull/3961) (@joe-elliott)
 * [BUGFIX] Pass search options to the backend for SearchTagValuesBlocksV2 requests [#3971](https://github.com/grafana/tempo/pull/3971) (@javiermolinar)
-* [BUGFIX] Replace hedged requests roundtrips total with a counter. [#4063](https://github.com/grafana/tempo/pull/4063) (@galalen)
 
 ## v2.5.0
 
