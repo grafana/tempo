@@ -81,6 +81,7 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 		require.NoError(t, err)
 
 		// cmp.Equal used due to time marshalling: https://github.com/stretchr/testify/issues/502
+		// assert.Equal(t, tc.idx, actual)
 		assert.True(t, cmp.Equal(tc.idx, actual))
 	}
 }

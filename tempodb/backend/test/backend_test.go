@@ -24,7 +24,7 @@ func TestFixtures(t *testing.T) {
 	//  backend.NewBlockMeta(tenant, uuid.New().UUID, "v4", backend.EncLZ4_1M, "adsf"),
 	// }
 
-	rr, rw, _, err := local.New(&local.Config{
+	rr, rw, rc, err := local.New(&local.Config{
 		Path: "./test-data",
 	})
 	require.NoError(t, err)
@@ -33,6 +33,9 @@ func TestFixtures(t *testing.T) {
 		_ = backend.NewWriter(rw)
 		r = backend.NewReader(rr)
 	)
+
+	// err = rc.MarkBlockCompacted(uuid.MustParse("05d4e1b5-bed7-42fe-a392-ca807fdb0214"), tenant)
+	// assert.NoError(t, err)
 
 	_, err = r.TenantIndex(ctx, tenant)
 	assert.NoError(t, err)
@@ -44,7 +47,7 @@ func TestFixtures(t *testing.T) {
 
 	listMetas, listCompactedMetas, err := rr.ListBlocks(ctx, tenant)
 	require.NoError(t, err)
-	require.Len(t, listCompactedMetas, 0)
+	require.Len(t, listCompactedMetas, 1)
 
 	for _, v := range listMetas {
 		t.Logf("listMetas: %v", v)
@@ -52,14 +55,22 @@ func TestFixtures(t *testing.T) {
 
 	blockMetas := make([]*backend.BlockMeta, 0, len(listMetas))
 	for _, u := range listMetas {
-		meta, e := r.BlockMeta(ctx, u, tenant)
+		m, e := r.BlockMeta(ctx, u, tenant)
 		require.NoError(t, e)
-		blockMetas = append(blockMetas, meta)
-		require.Equal(t, tenant, meta.TenantID)
-		t.Logf("meta: %v", meta)
+		blockMetas = append(blockMetas, m)
+		assert.Equal(t, tenant, m.TenantID)
+	}
+
+	compactedBlockMetas := make([]*backend.CompactedBlockMeta, 0, len(listCompactedMetas))
+	for _, u := range listCompactedMetas {
+		m, e := rc.CompactedBlockMeta(u, tenant)
+		assert.NoError(t, e)
+		compactedBlockMetas = append(compactedBlockMetas, m)
+		assert.Equal(t, tenant, m.TenantID)
 	}
 
 	nonZeroMeta(t, blockMetas)
+	nonZeroCompactedMeta(t, compactedBlockMetas)
 
 	err = backend.NewWriter(rw).WriteTenantIndex(ctx, tenant, blockMetas, nil)
 	require.NoError(t, err)
@@ -80,8 +91,11 @@ func TestFixtures(t *testing.T) {
 func nonZeroMeta(t *testing.T, m []*backend.BlockMeta) {
 	for _, v := range m {
 		assert.NotZero(t, v.BlockID, "blockid is zero, id: %v", v.BlockID)
-		assert.NotZero(t, v.BlockID, "blockid is zero, id: %v", v.BlockID)
-		assert.NotZero(t, v.BlockID, "blockid is zero, id: %v", v.BlockID)
+	}
+}
+
+func nonZeroCompactedMeta(t *testing.T, m []*backend.CompactedBlockMeta) {
+	for _, v := range m {
 		assert.NotZero(t, v.BlockID, "blockid is zero, id: %v", v.BlockID)
 	}
 }

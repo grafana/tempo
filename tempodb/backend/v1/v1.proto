@@ -27,12 +27,12 @@ message BlockMeta {
 }
 
 message CompactedBlockMeta {
-    BlockMeta block_meta = 1[(gogoproto.embed) = true, (gogoproto.nullable) = false];
+    BlockMeta block_meta = 1[(gogoproto.embed) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = ""];
     google.protobuf.Timestamp compacted_time = 2[(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "compactedTime"];
 }
 
 message TenantIndex {
-    google.protobuf.Timestamp created_at = 1[(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    google.protobuf.Timestamp created_at = 1[(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "createdAt"];
     repeated BlockMeta meta = 2;
     repeated CompactedBlockMeta compacted_meta = 3;
 }
