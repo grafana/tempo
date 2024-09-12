@@ -649,11 +649,10 @@ func TestAvgOverTimeForDuration(t *testing.T) {
 	// We cannot compare with require.Equal because NaN != NaN
 	assert.True(t, math.IsNaN(fooBaz.Values[0]))
 	assert.True(t, math.IsNaN(fooBaz.Values[1]))
-	// assert.Equal(t, 300/float64(time.Second), fooBaz.Values[2])
+	assert.Equal(t, 200., fooBaz.Values[2]*float64(time.Second))
 
-	// foo.bar = (0.000000128, 0.000000128, NaN)
-	// assert.Equal(t, 100/float64(time.Second), fooBar.Values[0])
-	// assert.Equal(t, 400/float64(time.Second), fooBar.Values[1])
+	assert.Equal(t, 100., fooBar.Values[0]*float64(time.Second))
+	assert.Equal(t, 400., fooBar.Values[1]*float64(time.Second))
 	assert.True(t, math.IsNaN(fooBar.Values[2]))
 }
 
