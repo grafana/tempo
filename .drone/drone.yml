@@ -569,22 +569,22 @@ kind: secret
 name: gpg_passphrase
 ---
 get:
-  name: tempo-app-id
+  name: app-id
   path: ci/data/repo/grafana/tempo/github-app
 kind: secret
-name: app-id
+name: tempo-app-id
 ---
 get:
-  name: tempo-app-installation-id
+  name: app-installation-id
   path: ci/data/repo/grafana/tempo/github-app
 kind: secret
-name: app-installation-id
+name: tempo-app-installation-id
 ---
 get:
-  name: tempo-app-private-key
+  name: app-private-key
   path: ci/data/repo/grafana/tempo/github-app
 kind: secret
-name: app-private-key
+name: tempo-app-private-key
 ---
 kind: signature
 hmac: bee5601dffa0f46559f5d8734ebda1261ec9171a3dca7add1a23188f6f162945
