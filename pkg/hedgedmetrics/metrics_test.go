@@ -96,7 +96,8 @@ func TestPublish(t *testing.T) {
 	counter := NewCounterWithValue(promCounter)
 	stats := &MockStatsProvider{}
 
-	go Publish(stats, counter, 10*time.Millisecond)
+	// start the Publishing every 10ms
+	Publish(stats, counter, 10*time.Millisecond)
 
 	assert.Equal(t, int64(0), counter.Value())
 

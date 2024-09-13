@@ -1,7 +1,7 @@
 package hedgedmetrics
 
 import (
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/cristalhq/hedgedhttp"
@@ -15,8 +15,7 @@ const (
 // CounterWithValue wraps prometheus.Counter and keeps track of the current value.
 type CounterWithValue struct {
 	counter prometheus.Counter
-	value   int64
-	mu      sync.Mutex
+	value   atomic.Int64
 }
 
 func NewCounterWithValue(counter prometheus.Counter) *CounterWithValue {
@@ -24,16 +23,12 @@ func NewCounterWithValue(counter prometheus.Counter) *CounterWithValue {
 }
 
 func (c *CounterWithValue) Add(v int64) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.value += v
+	c.value.Add(v)
 	c.counter.Add(float64(v))
 }
 
 func (c *CounterWithValue) Value() int64 {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.value
+	return c.value.Load()
 }
 
 // StatsProvider defines the interface that wraps hedgedhttp.Stats for ease of testing
