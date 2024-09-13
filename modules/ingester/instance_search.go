@@ -469,11 +469,10 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 				// TODO: will this panic??
 				stop := valueCollector.Collect(*v)
 				if stop {
-					return nil
+					break
 				}
-				// return because we are done
-				return nil
 			}
+			return nil
 		}
 
 		// results not in cache, so we search and set the cache
@@ -484,6 +483,9 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		// if the query is empty, use the old search
 		if traceql.IsEmptyQuery(query) {
 			localErr = s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(localCol.Collect), common.DefaultSearchOptions())
+			if localErr != nil {
+				return localErr
+			}
 		}
 
 		// otherwise use the filtered search
