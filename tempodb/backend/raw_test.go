@@ -74,7 +74,7 @@ func TestWriter(t *testing.T) {
 	assert.Equal(t, expectedPb, m.writeBuffer[len(m.writeBuffer)-2])
 	assert.Equal(t, expected, m.writeBuffer[len(m.writeBuffer)-1])
 
-	// Write teh tenant index to the backend and validate the payloads.
+	// Write the tenant index to the backend and validate the payloads.
 	err = w.WriteTenantIndex(ctx, "test", []*BlockMeta{meta}, nil)
 	assert.NoError(t, err)
 
