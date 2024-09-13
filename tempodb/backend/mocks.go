@@ -72,7 +72,7 @@ func (m *MockRawReader) Shutdown() {}
 
 // MockRawWriter
 type MockRawWriter struct {
-	writeBuffer       []byte
+	writeBuffer       [][]byte
 	appendBuffer      []byte
 	closeAppendCalled bool
 	deleteCalls       map[string]map[string]int
@@ -80,8 +80,13 @@ type MockRawWriter struct {
 }
 
 func (m *MockRawWriter) Write(_ context.Context, _ string, _ KeyPath, data io.Reader, size int64, _ *CacheInfo) error {
-	var err error
-	m.writeBuffer, err = tempo_io.ReadAllWithEstimate(data, size)
+	if m.writeBuffer == nil {
+		m.writeBuffer = make([][]byte, 0)
+	}
+
+	writeBuffer, err := tempo_io.ReadAllWithEstimate(data, size)
+	m.writeBuffer = append(m.writeBuffer, writeBuffer)
+
 	return err
 }
 
