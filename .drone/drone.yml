@@ -320,6 +320,17 @@ platform:
   arch: amd64
   os: linux
 steps:
+- name: get app token
+  image: rssnyder/drone-github-app
+  pull: if-not-exists
+  settings:
+    app_id:
+      from_secret: app_id
+    installation:
+      from_secret: app_installation
+    pem:
+      from_secret: app_private_key
+    token_file: .app_token
 - commands:
   - apk --update --no-cache add bash
   - git fetch origin --tags
@@ -359,7 +370,7 @@ steps:
         ]
       }
     github_token:
-      from_secret: gh_token
+      from_secret: .app_token
 trigger:
   ref:
   - refs/heads/main
