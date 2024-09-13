@@ -9,6 +9,7 @@ import (
 	"path"
 	"time"
 
+	proto "github.com/gogo/protobuf/proto"
 	google_uuid "github.com/google/uuid"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -19,6 +20,11 @@ const (
 	MetaName          = "meta.json"
 	CompactedMetaName = "meta.compacted.json"
 	TenantIndexName   = "index.json.gz"
+
+	// Proto
+	MetaNamePb          = "meta.pb"
+	CompactedMetaNamePb = "meta.compacted.pb"
+	TenantIndexNamePb   = "index.pb"
 
 	// File name for the cluster seed file.
 	ClusterSeedFileName = "tempo_cluster_seed.json"
@@ -101,6 +107,18 @@ func (w *writer) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
 		tenantID = meta.TenantID
 	)
 
+	// marshal and write proto to the backend
+	mPb, err := proto.Marshal(meta)
+	if err != nil {
+		return err
+	}
+
+	err = w.w.Write(ctx, MetaNamePb, KeyPathForBlock(blockID, tenantID), bytes.NewReader(mPb), int64(len(mPb)), nil)
+	if err != nil {
+		return err
+	}
+
+	// marshal and write json to the backend
 	bMeta, err := json.Marshal(meta)
 	if err != nil {
 		return err
@@ -128,22 +146,33 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 		if err != nil && !errors.Is(err, ErrDoesNotExist) {
 			return err
 		}
+
+		err = w.w.Delete(ctx, TenantIndexNamePb, []string{tenantID}, nil)
+		if err != nil && !errors.Is(err, ErrDoesNotExist) {
+			return err
+		}
+
 		return nil
 	}
 
 	b := newTenantIndex(meta, compactedMeta)
+
+	indexBytesPb, err := proto.Marshal(b)
+	if err != nil {
+		return err
+	}
+
+	err = w.w.Write(ctx, TenantIndexNamePb, KeyPath([]string{tenantID}), bytes.NewReader(indexBytesPb), int64(len(indexBytesPb)), nil)
+	if err != nil {
+		return err
+	}
 
 	indexBytes, err := b.marshal()
 	if err != nil {
 		return err
 	}
 
-	err = w.w.Write(ctx, TenantIndexName, KeyPath([]string{tenantID}), bytes.NewReader(indexBytes), int64(len(indexBytes)), nil)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return w.w.Write(ctx, TenantIndexName, KeyPath([]string{tenantID}), bytes.NewReader(indexBytes), int64(len(indexBytes)), nil)
 }
 
 // Delete implements backend.Writer
@@ -204,6 +233,16 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]google_uuid.UUI
 
 // BlockMeta implements backend.Reader
 func (r *reader) BlockMeta(ctx context.Context, blockID google_uuid.UUID, tenantID string) (*BlockMeta, error) {
+	ctx, span := tracer.Start(ctx, "reader.BlockMeta")
+	defer span.End()
+
+	outPb, err := r.blockMetaPb(ctx, blockID, tenantID)
+	if err == nil {
+		return outPb, nil
+	}
+
+	span.AddEvent(EventJSONFallback)
+
 	reader, size, err := r.r.Read(ctx, MetaName, KeyPathForBlock(blockID, tenantID), nil)
 	if err != nil {
 		return nil, err
@@ -224,27 +263,79 @@ func (r *reader) BlockMeta(ctx context.Context, blockID google_uuid.UUID, tenant
 	return out, nil
 }
 
-// TenantIndex implements backend.Reader
-func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error) {
-	reader, size, err := r.r.Read(ctx, TenantIndexName, KeyPath([]string{tenantID}), nil)
+func (r *reader) blockMetaPb(ctx context.Context, blockID google_uuid.UUID, tenantID string) (*BlockMeta, error) {
+	// Read proto first, and fall back to json
+	readerPb, size, err := r.r.Read(ctx, MetaNamePb, KeyPathForBlock(blockID, tenantID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer readerPb.Close()
+
+	bytesPb, err := tempo_io.ReadAllWithEstimate(readerPb, size)
 	if err != nil {
 		return nil, err
 	}
 
-	defer reader.Close()
+	outPb := &BlockMeta{}
+	err = outPb.Unmarshal(bytesPb)
+	if err != nil {
+		return nil, err
+	}
 
-	bytes, err := tempo_io.ReadAllWithEstimate(reader, size)
+	return outPb, nil
+}
+
+// TenantIndex implements backend.Reader
+func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error) {
+	ctx, span := tracer.Start(ctx, "reader.TenantIndex")
+	defer span.End()
+
+	outPb, err := r.tenantIndexProto(ctx, tenantID)
+	if err == nil {
+		return outPb, nil
+	}
+
+	span.AddEvent(EventJSONFallback)
+
+	readerJ, size, err := r.r.Read(ctx, TenantIndexName, KeyPath([]string{tenantID}), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer readerJ.Close()
+
+	bytesJ, err := tempo_io.ReadAllWithEstimate(readerJ, size)
 	if err != nil {
 		return nil, err
 	}
 
 	i := &TenantIndex{}
-	err = i.unmarshal(bytes)
+	err = i.unmarshal(bytesJ)
 	if err != nil {
 		return nil, err
 	}
 
 	return i, nil
+}
+
+func (r *reader) tenantIndexProto(ctx context.Context, tenantID string) (*TenantIndex, error) {
+	readerPb, size, err := r.r.Read(ctx, TenantIndexNamePb, KeyPath([]string{tenantID}), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer readerPb.Close()
+
+	bytesPb, err := tempo_io.ReadAllWithEstimate(readerPb, size)
+	if err != nil {
+		return nil, err
+	}
+
+	out := &TenantIndex{}
+	err = out.Unmarshal(bytesPb)
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
 }
 
 // Find implements backend.Reader
@@ -281,9 +372,17 @@ func MetaFileName(blockID google_uuid.UUID, tenantID, prefix string) string {
 	return path.Join(prefix, tenantID, blockID.String(), MetaName)
 }
 
+func MetaFileNamePb(blockID google_uuid.UUID, tenantID, prefix string) string {
+	return path.Join(prefix, tenantID, blockID.String(), MetaNamePb)
+}
+
 // CompactedMetaFileName returns the object name for the compacted block meta given a block id and tenantid
 func CompactedMetaFileName(blockID google_uuid.UUID, tenantID, prefix string) string {
 	return path.Join(prefix, tenantID, blockID.String(), CompactedMetaName)
+}
+
+func CompactedMetaFileNamePb(blockID google_uuid.UUID, tenantID, prefix string) string {
+	return path.Join(prefix, tenantID, blockID.String(), CompactedMetaNamePb)
 }
 
 // RootPath returns the root path for a block given a block id and tenantid

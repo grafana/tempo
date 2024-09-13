@@ -297,23 +297,24 @@ func (dcs DedicatedColumns) Hash() uint64 {
 }
 
 func (dcs DedicatedColumns) Size() int {
-	// FIXME: I don't think this is right.  Since we're not marshaling to proto.
-
-	var s int
-	pb, err := dcs.ToTempopb()
-	if err != nil {
+	if len(dcs) == 0 {
 		return 0
 	}
 
-	for _, i := range pb {
-		s += i.Size()
+	b, _ := dcs.Marshal()
+	return len(b)
+}
+
+func (dcs DedicatedColumns) Marshal() ([]byte, error) {
+	if len(dcs) == 0 {
+		return nil, nil
 	}
 
-	return s
+	return json.Marshal(dcs)
 }
 
 func (dcs DedicatedColumns) MarshalTo(data []byte) (n int, err error) {
-	bb, err := json.Marshal(dcs)
+	bb, err := dcs.Marshal()
 	if err != nil {
 		return 0, err
 	}
@@ -322,7 +323,11 @@ func (dcs DedicatedColumns) MarshalTo(data []byte) (n int, err error) {
 	return len(bb), nil
 }
 
-func (dcs DedicatedColumns) Unmarshal(data []byte) error {
+func (dcs *DedicatedColumns) Unmarshal(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+
 	return json.Unmarshal(data, &dcs)
 }
 

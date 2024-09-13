@@ -23,6 +23,7 @@ message BlockMeta {
     uint32 bloom_shard_count = 15[(gogoproto.jsontag) = "bloomShards"];
     uint32 footer_size = 16[(gogoproto.jsontag) = "footerSize"];
     bytes dedicated_columns = 17 [(gogoproto.customtype) = "DedicatedColumns", (gogoproto.jsontag) = "dedicatedColumns,omitempty", (gogoproto.nullable) = false];
+    // repeated bytes dedicated_columns = 17 [(gogoproto.customtype) = "DedicatedColumn", (gogoproto.jsontag) = "dedicatedColumns,omitempty", (gogoproto.nullable) = false];
     uint32 replication_factor = 18[(gogoproto.jsontag) = "replicationFactor,omitempty"];
 }
 

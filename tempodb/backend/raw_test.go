@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	proto "github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -25,7 +26,7 @@ func TestWriter(t *testing.T) {
 
 	err := w.Write(ctx, "test", uuid.New(), "test", expected, nil)
 	assert.NoError(t, err)
-	assert.Equal(t, expected, m.writeBuffer)
+	assert.Equal(t, expected, m.writeBuffer[len(m.writeBuffer)-1])
 
 	_, err = w.Append(ctx, "test", uuid.New(), "test", nil, expected)
 	assert.NoError(t, err)
@@ -36,17 +37,52 @@ func TestWriter(t *testing.T) {
 	assert.True(t, m.closeAppendCalled)
 
 	meta := NewBlockMeta("test", uuid.New(), "blerg", EncGZIP, "glarg")
+
+	// RoundTrip with empty DedicatedColumns
+	expectedPb, err := meta.Marshal()
+	assert.NoError(t, err)
+	expectedPb2 := &BlockMeta{}
+	err = expectedPb2.Unmarshal(expectedPb)
+	assert.NoError(t, err)
+	assert.Equal(t, meta, expectedPb2)
+
+	// RoundTrip with non-empty DedicatedColumns
+	meta.DedicatedColumns = DedicatedColumns{
+		{Scope: "resource", Name: "namespace", Type: "string"},
+		{Scope: "span", Name: "http.method", Type: "string"},
+		{Scope: "span", Name: "namespace", Type: "string"},
+	}
+
+	expectedPb, err = meta.Marshal()
+	assert.NoError(t, err)
+	expectedPb3 := &BlockMeta{}
+	err = expectedPb3.Unmarshal(expectedPb)
+	assert.NoError(t, err)
+	assert.Equal(t, meta, expectedPb3)
+
+	// Round trip the json
 	expected, err = json.Marshal(meta)
 	assert.NoError(t, err)
+	expected2 := &BlockMeta{}
+	err = json.Unmarshal(expected, expected2)
+	assert.NoError(t, err)
+	assert.Equal(t, meta, expected2)
+
+	// Write the block meta to the backend and validate the payloads.
 	err = w.WriteBlockMeta(ctx, meta)
 	assert.NoError(t, err)
-	assert.Equal(t, expected, m.writeBuffer)
+	assert.Equal(t, expectedPb, m.writeBuffer[len(m.writeBuffer)-2])
+	assert.Equal(t, expected, m.writeBuffer[len(m.writeBuffer)-1])
 
+	// Write teh tenant index to the backend and validate the payloads.
 	err = w.WriteTenantIndex(ctx, "test", []*BlockMeta{meta}, nil)
 	assert.NoError(t, err)
 
+	idxPb := &TenantIndex{}
+	err = proto.Unmarshal(m.writeBuffer[len(m.writeBuffer)-2], idxPb)
+	assert.NoError(t, err)
 	idx := &TenantIndex{}
-	err = idx.unmarshal(m.writeBuffer)
+	err = idx.unmarshal(m.writeBuffer[len(m.writeBuffer)-1])
 	assert.NoError(t, err)
 
 	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idx.Meta))                  // using cmp.Equal to compare json datetimes
@@ -58,7 +94,7 @@ func TestWriter(t *testing.T) {
 	err = w.WriteTenantIndex(ctx, "test", nil, nil)
 	assert.NoError(t, err)
 
-	expectedDeleteMap := map[string]map[string]int{TenantIndexName: {"test": 1}}
+	expectedDeleteMap := map[string]map[string]int{TenantIndexName: {"test": 1}, TenantIndexNamePb: {"test": 1}}
 	assert.Equal(t, expectedDeleteMap, w.(*writer).w.(*MockRawWriter).deleteCalls)
 
 	// When a backend returns ErrDoesNotExist, the tenant index should be deleted, but no error should be returned if the tenant index does not exist

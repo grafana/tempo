@@ -23,16 +23,19 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/cristalhq/hedgedhttp"
+	gkLog "github.com/go-kit/log"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	google_http "google.golang.org/api/transport/http"
 
 	"github.com/grafana/tempo/pkg/blockboundary"
 	tempo_io "github.com/grafana/tempo/pkg/io"
+	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type readerWriter struct {
+	logger       gkLog.Logger
 	cfg          *Config
 	bucket       *storage.BucketHandle
 	hedgedBucket *storage.BucketHandle
@@ -100,6 +103,7 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 	}
 
 	rw := &readerWriter{
+		logger:       log.Logger,
 		cfg:          cfg,
 		bucket:       bucket,
 		hedgedBucket: hedgedBucket,

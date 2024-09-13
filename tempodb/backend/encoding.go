@@ -106,7 +106,7 @@ func (e Encoding) MarshalJSON() ([]byte, error) {
 }
 
 func (e Encoding) Marshal() ([]byte, error) {
-	return e.MarshalJSON()
+	return []byte{byte(e)}, nil
 }
 
 func (e *Encoding) MarshalTo(data []byte) (n int, err error) {
@@ -119,7 +119,14 @@ func (e *Encoding) MarshalTo(data []byte) (n int, err error) {
 }
 
 func (e *Encoding) Unmarshal(data []byte) error {
-	return e.UnmarshalJSON(data)
+	if len(data) != 1 {
+		return fmt.Errorf("invalid data: %s", data)
+	}
+
+	x := Encoding(data[0])
+	*e = x
+
+	return nil
 }
 
 func (e *Encoding) Size() int {

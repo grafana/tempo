@@ -16,14 +16,6 @@ func TestFixtures(t *testing.T) {
 		ctx    = context.Background()
 	)
 
-	// Create the fixtures, but commit them.
-	// metas := []*backend.BlockMeta{
-	// 	backend.NewBlockMeta(tenant, uuid.New().UUID, "v1", backend.EncGZIP, "adsf"),
-	//  backend.NewBlockMeta(tenant, uuid.New().UUID, "v2", backend.EncNone, "adsf"),
-	// 	backend.NewBlockMeta(tenant, uuid.New().UUID, "v3", backend.EncLZ4_4M, "adsf"),
-	//  backend.NewBlockMeta(tenant, uuid.New().UUID, "v4", backend.EncLZ4_1M, "adsf"),
-	// }
-
 	rr, rw, rc, err := local.New(&local.Config{
 		Path: "./test-data",
 	})
@@ -34,16 +26,24 @@ func TestFixtures(t *testing.T) {
 		r = backend.NewReader(rr)
 	)
 
-	// err = rc.MarkBlockCompacted(uuid.MustParse("05d4e1b5-bed7-42fe-a392-ca807fdb0214"), tenant)
-	// assert.NoError(t, err)
-
 	_, err = r.TenantIndex(ctx, tenant)
 	assert.NoError(t, err)
 
+	// To regenerate the fixtures, uncomment the write path.
+	// metas := []*backend.BlockMeta{
+	// 	backend.NewBlockMeta(tenant, uuid.New().UUID, "v1", backend.EncGZIP, "adsf"),
+	// 	backend.NewBlockMeta(tenant, uuid.New().UUID, "v2", backend.EncNone, "adsf"),
+	// 	backend.NewBlockMeta(tenant, uuid.New().UUID, "v3", backend.EncLZ4_4M, "adsf"),
+	// 	backend.NewBlockMeta(tenant, uuid.New().UUID, "v4", backend.EncLZ4_1M, "adsf"),
+	// }
+	//
 	// for _, meta := range metas {
 	// 	err = w.WriteBlockMeta(ctx, meta)
 	// 	require.NoError(t, err)
 	// }
+	//
+	// err = rc.MarkBlockCompacted(metas[0].BlockID.UUID, tenant)
+	// assert.NoError(t, err)
 
 	listMetas, listCompactedMetas, err := rr.ListBlocks(ctx, tenant)
 	require.NoError(t, err)
@@ -72,8 +72,8 @@ func TestFixtures(t *testing.T) {
 	nonZeroMeta(t, blockMetas)
 	nonZeroCompactedMeta(t, compactedBlockMetas)
 
-	err = backend.NewWriter(rw).WriteTenantIndex(ctx, tenant, blockMetas, nil)
-	require.NoError(t, err)
+	// err = backend.NewWriter(rw).WriteTenantIndex(ctx, tenant, blockMetas, compactedBlockMetas)
+	// require.NoError(t, err)
 
 	// for _, meta := range metas {
 	// 	m, e := r.BlockMeta(ctx, meta.BlockID.UUID, tenant)

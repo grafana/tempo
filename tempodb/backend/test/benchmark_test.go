@@ -52,6 +52,7 @@ func BenchmarkIndexLoad(b *testing.B) {
 	require.NoError(b, err)
 
 	r := backend.NewReader(rr)
+	_, _ = r.TenantIndex(ctx, tenant) // read the index once to prime the cache
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {

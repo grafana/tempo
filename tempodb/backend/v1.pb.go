@@ -29,22 +29,23 @@ var _ = time.Kitchen
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 type BlockMeta struct {
-	Version           string                                 `protobuf:"bytes,1,opt,name=version,proto3" json:"format"`
-	BlockID           github_com_grafana_tempo_pkg_uuid.UUID `protobuf:"bytes,2,opt,name=block_id,json=blockId,proto3,customtype=github.com/grafana/tempo/pkg/uuid.UUID" json:"blockID"`
-	TenantID          string                                 `protobuf:"bytes,5,opt,name=tenant_id,json=tenantId,proto3" json:"tenantID"`
-	StartTime         time.Time                              `protobuf:"bytes,6,opt,name=start_time,json=startTime,proto3,stdtime" json:"startTime"`
-	EndTime           time.Time                              `protobuf:"bytes,7,opt,name=end_time,json=endTime,proto3,stdtime" json:"endTime"`
-	TotalObjects      int32                                  `protobuf:"varint,8,opt,name=total_objects,json=totalObjects,proto3" json:"totalObjects"`
-	Size_             uint64                                 `protobuf:"varint,9,opt,name=size,proto3" json:"size,omitempty"`
-	CompactionLevel   uint32                                 `protobuf:"varint,10,opt,name=compaction_level,json=compactionLevel,proto3" json:"compactionLevel"`
-	Encoding          Encoding                               `protobuf:"bytes,11,opt,name=encoding,proto3,customtype=Encoding" json:"encoding"`
-	IndexPageSize     uint32                                 `protobuf:"varint,12,opt,name=index_page_size,json=indexPageSize,proto3" json:"indexPageSize"`
-	TotalRecords      uint32                                 `protobuf:"varint,13,opt,name=total_records,json=totalRecords,proto3" json:"totalRecords"`
-	DataEncoding      string                                 `protobuf:"bytes,14,opt,name=data_encoding,json=dataEncoding,proto3" json:"dataEncoding"`
-	BloomShardCount   uint32                                 `protobuf:"varint,15,opt,name=bloom_shard_count,json=bloomShardCount,proto3" json:"bloomShards"`
-	FooterSize        uint32                                 `protobuf:"varint,16,opt,name=footer_size,json=footerSize,proto3" json:"footerSize"`
-	DedicatedColumns  DedicatedColumns                       `protobuf:"bytes,17,opt,name=dedicated_columns,json=dedicatedColumns,proto3,customtype=DedicatedColumns" json:"dedicatedColumns,omitempty"`
-	ReplicationFactor uint32                                 `protobuf:"varint,18,opt,name=replication_factor,json=replicationFactor,proto3" json:"replicationFactor,omitempty"`
+	Version          string                                 `protobuf:"bytes,1,opt,name=version,proto3" json:"format"`
+	BlockID          github_com_grafana_tempo_pkg_uuid.UUID `protobuf:"bytes,2,opt,name=block_id,json=blockId,proto3,customtype=github.com/grafana/tempo/pkg/uuid.UUID" json:"blockID"`
+	TenantID         string                                 `protobuf:"bytes,5,opt,name=tenant_id,json=tenantId,proto3" json:"tenantID"`
+	StartTime        time.Time                              `protobuf:"bytes,6,opt,name=start_time,json=startTime,proto3,stdtime" json:"startTime"`
+	EndTime          time.Time                              `protobuf:"bytes,7,opt,name=end_time,json=endTime,proto3,stdtime" json:"endTime"`
+	TotalObjects     int32                                  `protobuf:"varint,8,opt,name=total_objects,json=totalObjects,proto3" json:"totalObjects"`
+	Size_            uint64                                 `protobuf:"varint,9,opt,name=size,proto3" json:"size,omitempty"`
+	CompactionLevel  uint32                                 `protobuf:"varint,10,opt,name=compaction_level,json=compactionLevel,proto3" json:"compactionLevel"`
+	Encoding         Encoding                               `protobuf:"bytes,11,opt,name=encoding,proto3,customtype=Encoding" json:"encoding"`
+	IndexPageSize    uint32                                 `protobuf:"varint,12,opt,name=index_page_size,json=indexPageSize,proto3" json:"indexPageSize"`
+	TotalRecords     uint32                                 `protobuf:"varint,13,opt,name=total_records,json=totalRecords,proto3" json:"totalRecords"`
+	DataEncoding     string                                 `protobuf:"bytes,14,opt,name=data_encoding,json=dataEncoding,proto3" json:"dataEncoding"`
+	BloomShardCount  uint32                                 `protobuf:"varint,15,opt,name=bloom_shard_count,json=bloomShardCount,proto3" json:"bloomShards"`
+	FooterSize       uint32                                 `protobuf:"varint,16,opt,name=footer_size,json=footerSize,proto3" json:"footerSize"`
+	DedicatedColumns DedicatedColumns                       `protobuf:"bytes,17,opt,name=dedicated_columns,json=dedicatedColumns,proto3,customtype=DedicatedColumns" json:"dedicatedColumns,omitempty"`
+	// repeated bytes dedicated_columns = 17 [(gogoproto.customtype) = "DedicatedColumn", (gogoproto.jsontag) = "dedicatedColumns,omitempty", (gogoproto.nullable) = false];
+	ReplicationFactor uint32 `protobuf:"varint,18,opt,name=replication_factor,json=replicationFactor,proto3" json:"replicationFactor,omitempty"`
 }
 
 func (m *BlockMeta) Reset()         { *m = BlockMeta{} }
