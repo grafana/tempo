@@ -129,6 +129,11 @@ jobs:
     name: Vendor check
     runs-on: ubuntu-latest
     steps:
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          
       - name: Get app token
         uses: actions/create-github-app-token@v1
         id: get-github-app-token
@@ -136,6 +141,7 @@ jobs:
           app-id: ${{ env.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+
       - name: Check out code
         uses: actions/checkout@v4
 
