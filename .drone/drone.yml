@@ -359,7 +359,7 @@ steps:
         ]
       }
     github_app_id:
-      rom_secret: tempo-app-id
+      from_secret: tempo-app-id
     github_app_installation_id:
       from_secret: tempo-app-installation-id
     github_app_private_key:
