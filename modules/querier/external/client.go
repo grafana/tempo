@@ -37,7 +37,6 @@ var (
 			Help:      "Total number of hedged external requests.",
 		},
 	)
-	metricExternalHedgedRequestsWithValue = hedgedmetrics.NewCounterWithValue(metricExternalHedgedRequests)
 )
 
 type Config struct {
@@ -126,7 +125,7 @@ func newClientWithOpts(cfg *commonConfig, opts ...option) (*Client, error) {
 		if err != nil {
 			return nil, err
 		}
-		hedgedmetrics.Publish(stats, metricExternalHedgedRequestsWithValue, hedgedmetrics.PublishDuration)
+		hedgedmetrics.Publish(stats, metricExternalHedgedRequests)
 	}
 
 	c := &Client{

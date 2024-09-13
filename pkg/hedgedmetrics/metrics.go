@@ -1,7 +1,6 @@
 package hedgedmetrics
 
 import (
-	"sync/atomic"
 	"time"
 
 	"github.com/cristalhq/hedgedhttp"
@@ -9,50 +8,43 @@ import (
 )
 
 const (
-	PublishDuration = 10 * time.Second
+	hedgedMetricsPublishDuration = 10 * time.Second
 )
 
-// CounterWithValue wraps prometheus.Counter and keeps track of the current value.
-type CounterWithValue struct {
-	counter prometheus.Counter
-	value   atomic.Int64
+type diffCounter struct {
+	previous uint64
+	counter  prometheus.Counter
 }
 
-func NewCounterWithValue(counter prometheus.Counter) *CounterWithValue {
-	return &CounterWithValue{counter: counter}
+func (d *diffCounter) addAbsoluteToCounter(value uint64) {
+	diff := float64(value - d.previous)
+	if value < d.previous {
+		diff = float64(value)
+	}
+	d.counter.Add(diff)
+	d.previous = value
 }
 
-func (c *CounterWithValue) Add(v int64) {
-	c.value.Add(v)
-	c.counter.Add(float64(v))
-}
-
-func (c *CounterWithValue) Value() int64 {
-	return c.value.Load()
-}
-
-// StatsProvider defines the interface that wraps hedgedhttp.Stats for ease of testing
-type StatsProvider interface {
+// statsProvider defines the interface that wraps hedgedhttp.Stats for ease of testing
+type statsProvider interface {
 	Snapshot() hedgedhttp.StatsSnapshot
 }
 
 // Publish flushes metrics from hedged requests every tickerDur
-func Publish(s StatsProvider, counter *CounterWithValue, tickerDur time.Duration) {
-	ticker := time.NewTicker(tickerDur)
+func Publish(s *hedgedhttp.Stats, counter prometheus.Counter) {
+	publishWithDuration(s, counter, hedgedMetricsPublishDuration)
+}
+
+func publishWithDuration(s statsProvider, counter prometheus.Counter, duration time.Duration) {
+	ticker := time.NewTicker(duration)
+	diff := &diffCounter{previous: 0, counter: counter}
+
 	go func() {
 		for range ticker.C {
 			snap := s.Snapshot()
-			hedgedRequests := int64(snap.ActualRoundTrips) - int64(snap.RequestedRoundTrips)
-			if hedgedRequests < 0 {
-				hedgedRequests = 0
-			}
 
-			// *hedgedhttp.Stats has counter but we need the delta for prometheus.Counter
-			delta := hedgedRequests - counter.Value()
-			if delta < 0 {
-				delta = 0
-			}
-			counter.Add(delta)
+			hedgedRequests := snap.ActualRoundTrips - snap.RequestedRoundTrips
+			diff.addAbsoluteToCounter(hedgedRequests)
 		}
 	}()
 }
