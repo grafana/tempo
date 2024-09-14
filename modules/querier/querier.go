@@ -16,10 +16,11 @@ import (
 	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
-	"github.com/opentracing/opentracing-go"
-	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/multierr"
 	"golang.org/x/sync/semaphore"
 
@@ -42,6 +43,8 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
+
+var tracer = otel.Tracer("modules/querier")
 
 var (
 	metricIngesterClients = promauto.NewGauge(prometheus.GaugeOpts{
@@ -231,13 +234,13 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		return nil, fmt.Errorf("error extracting org id in Querier.FindTraceByID: %w", err)
 	}
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.FindTraceByID")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "Querier.FindTraceByID")
+	defer span.End()
 
-	span.SetTag("queryMode", req.QueryMode)
+	span.SetAttributes(attribute.String("queryMode", req.QueryMode))
 
 	maxBytes := q.limits.MaxBytesPerTrace(userID)
-	combiner := trace.NewCombiner(maxBytes)
+	combiner := trace.NewCombiner(maxBytes, req.AllowPartialTrace)
 
 	var spanCount, spanCountTotal, traceCountTotal int
 	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
@@ -250,7 +253,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		}
 
 		// get responses from all ingesters in parallel
-		span.LogFields(ot_log.String("msg", "searching ingesters"))
+		span.AddEvent("searching ingesters")
 		responses, err := q.forIngesterRings(ctx, userID, getRSFn, func(funcCtx context.Context, client tempopb.QuerierClient) (interface{}, error) {
 			return client.FindTraceByID(funcCtx, req)
 		})
@@ -272,23 +275,24 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 				found = true
 			}
 		}
-		span.LogFields(ot_log.String("msg", "done searching ingesters"),
-			ot_log.Bool("found", found),
-			ot_log.Int("combinedSpans", spanCountTotal),
-			ot_log.Int("combinedTraces", traceCountTotal))
+		span.AddEvent("done searching ingesters", oteltrace.WithAttributes(
+			attribute.Bool("found", found),
+			attribute.Int("combinedSpans", spanCountTotal),
+			attribute.Int("combinedTraces", traceCountTotal)))
 	}
 
 	if req.QueryMode == QueryModeBlocks || req.QueryMode == QueryModeAll {
-		span.LogFields(ot_log.String("msg", "searching store"))
-		span.LogFields(ot_log.String("timeStart", fmt.Sprint(timeStart)))
-		span.LogFields(ot_log.String("timeEnd", fmt.Sprint(timeEnd)))
+		span.AddEvent("searching store", oteltrace.WithAttributes(
+			attribute.Int64("timeStart", timeStart),
+			attribute.Int64("timeEnd", timeEnd),
+		))
 
 		opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
 		opts.BlockReplicationFactor = backend.DefaultReplicationFactor
 		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req.TraceID, req.BlockStart, req.BlockEnd, timeStart, timeEnd, opts)
 		if err != nil {
 			retErr := fmt.Errorf("error querying store in Querier.FindTraceByID: %w", err)
-			ot_log.Error(retErr)
+			span.RecordError(retErr)
 			return nil, retErr
 		}
 
@@ -296,9 +300,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			return nil, multierr.Combine(blockErrs...)
 		}
 
-		span.LogFields(
-			ot_log.String("msg", "done searching store"),
-			ot_log.Int("foundPartialTraces", len(partialTraces)))
+		span.AddEvent("done searching store", oteltrace.WithAttributes(
+			attribute.Int("foundPartialTraces", len(partialTraces))))
 
 		for _, partialTrace := range partialTraces {
 			_, err = combiner.Consume(partialTrace)
@@ -309,11 +312,17 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	}
 
 	completeTrace, _ := combiner.Result()
-
-	return &tempopb.TraceByIDResponse{
+	resp := &tempopb.TraceByIDResponse{
 		Trace:   completeTrace,
 		Metrics: &tempopb.TraceByIDMetrics{},
-	}, nil
+	}
+
+	if combiner.IsPartialTrace() {
+		resp.Status = tempopb.TraceByIDResponse_PARTIAL
+		resp.Message = fmt.Sprintf("Trace exceeds maximum size of %d bytes, a partial trace is returned", maxBytes)
+	}
+
+	return resp, nil
 }
 
 type (
@@ -391,8 +400,8 @@ func (q *Querier) forIngesterRings(ctx context.Context, userID string, getReplic
 }
 
 func forOneIngesterRing(ctx context.Context, replicationSet ring.ReplicationSet, f forEachFn, pool *ring_client.Pool, extraQueryDelay time.Duration) ([]interface{}, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.forOneIngester")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "Querier.forOneIngester")
+	defer span.End()
 
 	doFunc := func(funcCtx context.Context, ingester *ring.InstanceDesc) (interface{}, error) {
 		if funcCtx.Err() != nil {
@@ -427,8 +436,8 @@ func (q *Querier) forGivenGenerators(
 		return nil, ctx.Err()
 	}
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Querier.forGivenGenerators")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "Querier.forGivenGenerators")
+	defer span.End()
 
 	doFunc := func(funcCtx context.Context, generator *ring.InstanceDesc) (interface{}, error) {
 		if funcCtx.Err() != nil {
@@ -710,35 +719,36 @@ func (q *Querier) SpanMetricsSummary(
 	}
 
 	// Combine the results
-	yyy := make(map[traceqlmetrics.MetricSeries]*traceqlmetrics.LatencyHistogram)
-	xxx := make(map[traceqlmetrics.MetricSeries]*tempopb.SpanMetricsSummary)
+	yyy := make(map[traceqlmetrics.MetricKeys]*traceqlmetrics.LatencyHistogram)
+	xxx := make(map[traceqlmetrics.MetricKeys]*tempopb.SpanMetricsSummary)
 
 	var h *traceqlmetrics.LatencyHistogram
 	var s traceqlmetrics.MetricSeries
 	for _, r := range results {
 		for _, m := range r.Metrics {
 			s = protoToMetricSeries(m.Series)
+			k := s.MetricKeys()
 
-			if _, ok := xxx[s]; !ok {
-				xxx[s] = &tempopb.SpanMetricsSummary{Series: m.Series}
+			if _, ok := xxx[k]; !ok {
+				xxx[k] = &tempopb.SpanMetricsSummary{Series: m.Series}
 			}
 
-			xxx[s].ErrorSpanCount += m.Errors
+			xxx[k].ErrorSpanCount += m.Errors
 
 			var b [64]int
 			for _, l := range m.GetLatencyHistogram() {
 				// Reconstitude the bucket
 				b[l.Bucket] += int(l.Count)
 				// Add to the total
-				xxx[s].SpanCount += l.Count
+				xxx[k].SpanCount += l.Count
 			}
 
 			// Combine the histogram
 			h = traceqlmetrics.New(b)
-			if _, ok := yyy[s]; !ok {
-				yyy[s] = h
+			if _, ok := yyy[k]; !ok {
+				yyy[k] = h
 			} else {
-				yyy[s].Combine(*h)
+				yyy[k].Combine(*h)
 			}
 		}
 	}
@@ -1030,7 +1040,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 
 	query := traceql.ExtractMatchers(req.SearchReq.Query)
 	if traceql.IsEmptyQuery(query) {
-		return q.store.SearchTagValuesV2(ctx, meta, req.SearchReq, common.DefaultSearchOptions())
+		return q.store.SearchTagValuesV2(ctx, meta, req.SearchReq, opts)
 	}
 
 	tag, err := traceql.ParseIdentifier(req.SearchReq.TagName)
@@ -1039,7 +1049,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 	}
 
 	fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
-		return q.store.FetchTagValues(ctx, meta, req, cb, common.DefaultSearchOptions())
+		return q.store.FetchTagValues(ctx, meta, req, cb, opts)
 	})
 
 	valueCollector := collector.NewDistinctValue(q.limits.MaxBytesPerTagValuesQuery(tenantID), func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
@@ -1095,18 +1105,30 @@ func protoToMetricSeries(proto []*tempopb.KeyValue) traceqlmetrics.MetricSeries 
 	return r
 }
 
-func protoToTraceQLStatic(proto *tempopb.KeyValue) traceqlmetrics.KeyValue {
+func protoToTraceQLStatic(kv *tempopb.KeyValue) traceqlmetrics.KeyValue {
+	var val traceql.Static
+
+	switch traceql.StaticType(kv.Value.Type) {
+	case traceql.TypeInt:
+		val = traceql.NewStaticInt(int(kv.Value.N))
+	case traceql.TypeFloat:
+		val = traceql.NewStaticFloat(kv.Value.F)
+	case traceql.TypeString:
+		val = traceql.NewStaticString(kv.Value.S)
+	case traceql.TypeBoolean:
+		val = traceql.NewStaticBool(kv.Value.B)
+	case traceql.TypeDuration:
+		val = traceql.NewStaticDuration(time.Duration(kv.Value.D))
+	case traceql.TypeStatus:
+		val = traceql.NewStaticStatus(traceql.Status(kv.Value.Status))
+	case traceql.TypeKind:
+		val = traceql.NewStaticKind(traceql.Kind(kv.Value.Kind))
+	default:
+		val = traceql.NewStaticNil()
+	}
+
 	return traceqlmetrics.KeyValue{
-		Key: proto.Key,
-		Value: traceql.Static{
-			Type:   traceql.StaticType(proto.Value.Type),
-			N:      int(proto.Value.N),
-			F:      proto.Value.F,
-			S:      proto.Value.S,
-			B:      proto.Value.B,
-			D:      time.Duration(proto.Value.D),
-			Status: traceql.Status(proto.Value.Status),
-			Kind:   traceql.Kind(proto.Value.Kind),
-		},
+		Key:   kv.Key,
+		Value: val,
 	}
 }

@@ -60,8 +60,8 @@ func TestSearchCompleteBlock(t *testing.T) {
 			)
 		})
 		if vers == vparquet4.VersionString {
-			t.Run("event/link query", func(t *testing.T) {
-				runEventLinkSearchTest(t, vers)
+			t.Run("event/link/instrumentation query", func(t *testing.T) {
+				runEventLinkInstrumentationSearchTest(t, vers)
 			})
 		}
 	}
@@ -154,7 +154,7 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 		fmt.Sprintf("rootName=`%s`", wantMeta.RootTraceName),
 	}
 	totalSpans := 0
-	for _, b := range wantTr.Batches {
+	for _, b := range wantTr.ResourceSpans {
 		trueResourceC, falseResourceC := conditionsForAttributes(b.Resource.Attributes, "resource")
 		falseConditions = append(falseConditions, falseResourceC...)
 
@@ -1469,7 +1469,8 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 			actualMap := valueCollector.Strings()
 
 			if (bm.Version == vparquet4.VersionString) && (tc.name == "resource match" || tc.name == "span match") {
-				// v4 has events and links
+				// v4 has scope, events, and links
+				tc.expected["instrumentation"] = []string{"scope-attr-str"}
 				tc.expected["event"] = []string{"exception.message"}
 				tc.expected["link"] = []string{"relation"}
 			}
@@ -1657,7 +1658,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 	// todo: do some compaction and then call runner again
 }
 
-func runEventLinkSearchTest(t *testing.T, blockVersion string) {
+func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 	// only run this test for vparquet4
 	if blockVersion != vparquet4.VersionString {
 		return
@@ -1713,10 +1714,22 @@ func runEventLinkSearchTest(t *testing.T, blockVersion string) {
 			Query: "{ event:name = `event name` }",
 		},
 		{
+			Query: "{ event:timeSinceStart > 10ms }",
+		},
+		{
 			Query: "{ link.relation = `child-of` }",
 		},
 		{
 			Query: "{ link:traceID = `" + wantIDText + "` }",
+		},
+		{
+			Query: "{ instrumentation:name = `scope-1` }",
+		},
+		{
+			Query: "{ instrumentation:version = `version-1` }",
+		},
+		{
+			Query: "{ instrumentation.scope-attr-str = `scope-attr-1` }",
 		},
 	}
 
@@ -1868,7 +1881,7 @@ func makeExpectedTrace() (
 	end = 1001
 
 	tr = &tempopb.Trace{
-		Batches: []*v1.ResourceSpans{
+		ResourceSpans: []*v1.ResourceSpans{
 			{
 				Resource: &v1_resource.Resource{
 					Attributes: []*v1_common.KeyValue{
@@ -1889,6 +1902,14 @@ func makeExpectedTrace() (
 				},
 				ScopeSpans: []*v1.ScopeSpans{
 					{
+						Scope: &v1_common.InstrumentationScope{
+							Name:                   "scope-1",
+							Version:                "version-1",
+							DroppedAttributesCount: 1,
+							Attributes: []*v1_common.KeyValue{
+								stringKV("scope-attr-str", "scope-attr-1"),
+							},
+						},
 						Spans: []*v1.Span{
 							{
 								TraceId:           id,
@@ -1911,7 +1932,7 @@ func makeExpectedTrace() (
 								},
 								Events: []*v1.Span_Event{
 									{
-										TimeUnixNano: uint64(1000*time.Second) + 100,
+										TimeUnixNano: uint64(1000*time.Second) + uint64(500*time.Millisecond),
 										Name:         "event name",
 										Attributes: []*v1_common.KeyValue{
 											stringKV("exception.message", "random error"),
@@ -2192,7 +2213,7 @@ func TestWALBlockGetMetrics(t *testing.T) {
 
 	// Write to wal
 	err = head.AppendTrace(common.ID{0x01}, &tempopb.Trace{
-		Batches: []*v1.ResourceSpans{
+		ResourceSpans: []*v1.ResourceSpans{
 			{
 				ScopeSpans: []*v1.ScopeSpans{
 					{
@@ -2218,14 +2239,17 @@ func TestWALBlockGetMetrics(t *testing.T) {
 	require.NoError(t, err)
 
 	one := traceqlmetrics.MetricSeries{traceqlmetrics.KeyValue{Key: "name", Value: traceql.NewStaticString("1")}}
+	oneK := one.MetricKeys()
+
 	two := traceqlmetrics.MetricSeries{traceqlmetrics.KeyValue{Key: "name", Value: traceql.NewStaticString("2")}}
+	twoK := two.MetricKeys()
 
 	require.Equal(t, 2, len(res.Series))
 	require.Equal(t, 2, res.SpanCount)
-	require.Equal(t, 1, res.Series[one].Count())
-	require.Equal(t, 1, res.Series[two].Count())
-	require.Equal(t, uint64(1), res.Series[one].Percentile(1.0)) // The only span was 1ns
-	require.Equal(t, uint64(2), res.Series[two].Percentile(1.0)) // The only span was 2ns
+	require.Equal(t, 1, res.Series[oneK].Histogram.Count())
+	require.Equal(t, 1, res.Series[twoK].Histogram.Count())
+	require.Equal(t, uint64(1), res.Series[oneK].Histogram.Percentile(1.0)) // The only span was 1ns
+	require.Equal(t, uint64(2), res.Series[twoK].Histogram.Percentile(1.0)) // The only span was 2ns
 }
 
 func TestSearchForTagsAndTagValues(t *testing.T) {

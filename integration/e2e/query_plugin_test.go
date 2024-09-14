@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/grafana/e2e"
-	util "github.com/grafana/tempo/integration"
+	"github.com/grafana/tempo/integration/util"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,9 +28,11 @@ func TestSearchUsingJaegerPlugin(t *testing.T) {
 
 	tempo := util.NewTempoAllInOne()
 	tempoQuery := util.NewTempoQuery()
+	jaegerQuery := util.NewJaegerQuery()
 
 	require.NoError(t, s.StartAndWaitReady(tempo))
 	require.NoError(t, s.StartAndWaitReady(tempoQuery))
+	require.NoError(t, s.StartAndWaitReady(jaegerQuery))
 
 	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
 	require.NoError(t, err)
@@ -45,7 +47,7 @@ func TestSearchUsingJaegerPlugin(t *testing.T) {
 	// Wait for the traces to be written to the WAL
 	time.Sleep(time.Second * 3)
 
-	callJaegerQuerySearchServicesAssert(t, tempoQuery, servicesOrOpJaegerQueryResponse{
+	callJaegerQuerySearchServicesAssert(t, jaegerQuery, servicesOrOpJaegerQueryResponse{
 		Data: []string{
 			"frontend",
 			"backend",
@@ -53,7 +55,7 @@ func TestSearchUsingJaegerPlugin(t *testing.T) {
 		Total: 2,
 	})
 
-	callJaegerQuerySearchOperationAssert(t, tempoQuery, "frontend", servicesOrOpJaegerQueryResponse{
+	callJaegerQuerySearchOperationAssert(t, jaegerQuery, "frontend", servicesOrOpJaegerQueryResponse{
 		Data: []string{
 			"execute",
 			"request",
@@ -61,7 +63,7 @@ func TestSearchUsingJaegerPlugin(t *testing.T) {
 		Total: 2,
 	})
 
-	callJaegerQuerySearchOperationAssert(t, tempoQuery, "backend", servicesOrOpJaegerQueryResponse{
+	callJaegerQuerySearchOperationAssert(t, jaegerQuery, "backend", servicesOrOpJaegerQueryResponse{
 		Data: []string{
 			"execute",
 			"request",
@@ -69,8 +71,8 @@ func TestSearchUsingJaegerPlugin(t *testing.T) {
 		Total: 2,
 	})
 
-	callJaegerQuerySearchTraceAssert(t, tempoQuery, "request", "frontend")
-	callJaegerQuerySearchTraceAssert(t, tempoQuery, "execute", "backend")
+	callJaegerQuerySearchTraceAssert(t, jaegerQuery, "request", "frontend")
+	callJaegerQuerySearchTraceAssert(t, jaegerQuery, "execute", "backend")
 }
 
 func TestSearchUsingBackendTagsService(t *testing.T) {
@@ -83,9 +85,11 @@ func TestSearchUsingBackendTagsService(t *testing.T) {
 
 	tempo := util.NewTempoAllInOne()
 	tempoQuery := util.NewTempoQuery()
+	jaegerQuery := util.NewJaegerQuery()
 
 	require.NoError(t, s.StartAndWaitReady(tempo))
 	require.NoError(t, s.StartAndWaitReady(tempoQuery))
+	require.NoError(t, s.StartAndWaitReady(jaegerQuery))
 
 	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
 	require.NoError(t, err)
@@ -100,11 +104,11 @@ func TestSearchUsingBackendTagsService(t *testing.T) {
 	// Wait for the traces to be written to the WAL
 	time.Sleep(time.Second * 3)
 
-	callFlush(t, tempo)
+	util.CallFlush(t, tempo)
 	time.Sleep(time.Second * 1)
-	callFlush(t, tempo)
+	util.CallFlush(t, tempo)
 
-	callJaegerQuerySearchServicesAssert(t, tempoQuery, servicesOrOpJaegerQueryResponse{
+	callJaegerQuerySearchServicesAssert(t, jaegerQuery, servicesOrOpJaegerQueryResponse{
 		Data: []string{
 			"frontend",
 			"backend",

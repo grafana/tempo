@@ -53,12 +53,12 @@ func NewCache(cfgBloom *BloomConfig, nextReader backend.RawReader, nextWriter ba
 	}
 
 	level.Info(logger).Log("msg", "caches available to storage backend",
-		"footer", rw.footerCache != nil,
-		"bloom", rw.bloomCache != nil,
-		"offset_idx", rw.offsetIdxCache != nil,
-		"column_idx", rw.columnIdxCache != nil,
-		"trace_id_idx", rw.traceIDIdxCache != nil,
-		"page", rw.pageCache != nil,
+		cache.RoleParquetFooter, rw.footerCache != nil,
+		cache.RoleBloom, rw.bloomCache != nil,
+		cache.RoleParquetOffsetIdx, rw.offsetIdxCache != nil,
+		cache.RoleParquetColumnIdx, rw.columnIdxCache != nil,
+		cache.RoleTraceIDIdx, rw.traceIDIdxCache != nil,
+		cache.RoleParquetPage, rw.pageCache != nil,
 	)
 
 	return rw, rw, nil
@@ -84,9 +84,9 @@ func (r *readerWriter) Read(ctx context.Context, name string, keypath backend.Ke
 	cache := r.cacheFor(cacheInfo)
 	if cache != nil {
 		k = key(keypath, name)
-		found, vals, _ := cache.Fetch(ctx, []string{k})
-		if len(found) > 0 {
-			return io.NopCloser(bytes.NewReader(vals[0])), int64(len(vals[0])), nil
+		b, found := cache.FetchKey(ctx, k)
+		if found {
+			return io.NopCloser(bytes.NewReader(b)), int64(len(b)), nil
 		}
 	}
 
@@ -115,9 +115,9 @@ func (r *readerWriter) ReadRange(ctx context.Context, name string, keypath backe
 		keyGen := keypath
 		keyGen = append(keyGen, strconv.Itoa(int(offset)), strconv.Itoa(len(buffer)))
 		k = strings.Join(keyGen, ":")
-		found, vals, _ := cache.Fetch(ctx, []string{k})
-		if len(found) > 0 {
-			copy(buffer, vals[0])
+		b, found := cache.FetchKey(ctx, k)
+		if found {
+			copy(buffer, b)
 			return nil
 		}
 	}

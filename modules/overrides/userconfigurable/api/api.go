@@ -13,7 +13,9 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/services"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/opentracing/opentracing-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
@@ -23,6 +25,8 @@ import (
 )
 
 var errConflictingRuntimeOverrides = errors.New("tenant has conflicting overrides set in runtime config, contact your system administrator to perform changes through the API")
+
+var tracer = otel.Tracer("modules/overrides/userconfigurable/api")
 
 type Validator interface {
 	Validate(limits *client.Limits) error
@@ -71,22 +75,22 @@ func (a *UserConfigOverridesAPI) stopping(_ error) error {
 
 // get the Limits. Can return backend.ErrDoesNotExist
 func (a *UserConfigOverridesAPI) get(ctx context.Context, userID string) (*client.Limits, backend.Version, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "UserConfigOverridesAPI.get", opentracing.Tags{
-		"userID": userID,
-	})
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "UserConfigOverridesAPI.get", trace.WithAttributes(
+		attribute.String("userID", userID),
+	))
+	defer span.End()
 
 	return a.client.Get(ctx, userID)
 }
 
 // set the Limits. Can return backend.ErrVersionDoesNotMatch, validationError
 func (a *UserConfigOverridesAPI) set(ctx context.Context, userID string, limits *client.Limits, version backend.Version, skipConflictingOverridesCheck bool) (backend.Version, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "UserConfigOverridesAPI.set", opentracing.Tags{
-		"userID":  userID,
-		"version": version,
-		"limits":  logLimits(limits),
-	})
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "UserConfigOverridesAPI.set", trace.WithAttributes(
+		attribute.String("userID", userID),
+		attribute.String("version", string(version)),
+		attribute.String("limits", logLimits(limits)),
+	))
+	defer span.End()
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	err := a.validator.Validate(limits)
@@ -110,10 +114,10 @@ func (a *UserConfigOverridesAPI) set(ctx context.Context, userID string, limits 
 }
 
 func (a *UserConfigOverridesAPI) update(ctx context.Context, userID string, patch []byte, skipConflictingOverridesCheck bool) (*client.Limits, backend.Version, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "UserConfigOverridesAPI.update", opentracing.Tags{
-		"userID": userID,
-	})
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "UserConfigOverridesAPI.update", trace.WithAttributes(
+		attribute.String("userID", userID),
+	))
+	defer span.End()
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	currLimits, currVersion, err := a.client.Get(ctx, userID)
@@ -157,11 +161,11 @@ func (a *UserConfigOverridesAPI) update(ctx context.Context, userID string, patc
 }
 
 func (a *UserConfigOverridesAPI) delete(ctx context.Context, userID string, version backend.Version) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "UserConfigOverridesAPI.delete", opentracing.Tags{
-		"userID":  userID,
-		"version": version,
-	})
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "UserConfigOverridesAPI.delete", trace.WithAttributes(
+		attribute.String("userID", userID),
+		attribute.String("version", string(version)),
+	))
+	defer span.End()
 	traceID, _ := tracing.ExtractTraceID(ctx)
 
 	level.Info(a.logger).Log("traceID", traceID, "msg", "deleting user-configurable overrides", "userID", userID, "version", version)

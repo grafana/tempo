@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/exp/maps"
+
 	kitlog "github.com/go-kit/log"
 	"github.com/gogo/status"
 	"github.com/golang/protobuf/proto" // nolint: all  //ProtoReflect
@@ -53,7 +55,7 @@ var ctx = user.InjectOrgID(context.Background(), "test")
 func batchesToTraces(t *testing.T, batches []*v1.ResourceSpans) ptrace.Traces {
 	t.Helper()
 
-	trace := tempopb.Trace{Batches: batches}
+	trace := tempopb.Trace{ResourceSpans: batches}
 
 	m, err := trace.Marshal()
 	require.NoError(t, err)
@@ -127,7 +129,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							ScopeSpans: []*v1.ScopeSpans{
 								{
@@ -175,7 +177,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							ScopeSpans: []*v1.ScopeSpans{
 								{
@@ -192,7 +194,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							ScopeSpans: []*v1.ScopeSpans{
 								{
@@ -255,7 +257,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 3,
@@ -275,7 +277,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 4,
@@ -330,7 +332,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 1,
@@ -350,7 +352,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 1,
@@ -405,7 +407,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDA), util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							ScopeSpans: []*v1.ScopeSpans{
 								{
@@ -425,7 +427,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							ScopeSpans: []*v1.ScopeSpans{
 								{
@@ -485,7 +487,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			expectedKeys: []uint32{util.TokenFor(util.FakeTenantID, traceIDB)},
 			expectedTraces: []*tempopb.Trace{
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 3,
@@ -589,7 +591,7 @@ func TestRequestsByTraceID(t *testing.T) {
 			},
 			expectedTraces: []*tempopb.Trace{
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 3,
@@ -639,7 +641,7 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 				{
-					Batches: []*v1.ResourceSpans{
+					ResourceSpans: []*v1.ResourceSpans{
 						{
 							Resource: &v1_resource.Resource{
 								DroppedAttributesCount: 3,
@@ -733,7 +735,7 @@ func BenchmarkTestsByRequestID(b *testing.B) {
 
 	for i := 0; i < batches; i++ {
 		for _, t := range traces {
-			ils[i] = append(ils[i], t.Batches[i].ScopeSpans...)
+			ils[i] = append(ils[i], t.ResourceSpans[i].ScopeSpans...)
 		}
 	}
 
@@ -771,7 +773,7 @@ func TestDistributor(t *testing.T) {
 			limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 			// todo:  test limits
-			d := prepare(t, limits, nil)
+			d, _ := prepare(t, limits, nil)
 
 			b := test.MakeBatch(tc.lines, []byte{})
 			traces := batchesToTraces(t, []*v1.ResourceSpans{b})
@@ -783,7 +785,7 @@ func TestDistributor(t *testing.T) {
 	}
 }
 
-func TestLogSpans(t *testing.T) {
+func TestLogReceivedSpans(t *testing.T) {
 	for i, tc := range []struct {
 		LogReceivedSpansEnabled bool
 		filterByStatusError     bool
@@ -947,15 +949,15 @@ func TestLogSpans(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(fmt.Sprintf("[%d] TestLogSpans LogReceivedSpansEnabled=%v filterByStatusError=%v includeAllAttributes=%v", i, tc.LogReceivedSpansEnabled, tc.filterByStatusError, tc.includeAllAttributes), func(t *testing.T) {
+		t.Run(fmt.Sprintf("[%d] TestLogReceivedSpans LogReceivedSpansEnabled=%v filterByStatusError=%v includeAllAttributes=%v", i, tc.LogReceivedSpansEnabled, tc.filterByStatusError, tc.includeAllAttributes), func(t *testing.T) {
 			limits := overrides.Config{}
 			limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 			buf := &bytes.Buffer{}
 			logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
 
-			d := prepare(t, limits, logger)
-			d.cfg.LogReceivedSpans = LogReceivedSpansConfig{
+			d, _ := prepare(t, limits, logger)
+			d.cfg.LogReceivedSpans = LogSpansConfig{
 				Enabled:              tc.LogReceivedSpansEnabled,
 				FilterByStatusError:  tc.filterByStatusError,
 				IncludeAllAttributes: tc.includeAllAttributes,
@@ -967,19 +969,214 @@ func TestLogSpans(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			bufJSON := "[" + strings.TrimRight(strings.ReplaceAll(buf.String(), "\n", ","), ",") + "]"
-			var actualLogsSpan []testLogSpan
-			err = json.Unmarshal([]byte(bufJSON), &actualLogsSpan)
+			assert.ElementsMatch(t, tc.expectedLogsSpan, actualLogSpan(t, buf))
+		})
+	}
+}
+
+func TestLogDiscardedSpansWhenContextCancelled(t *testing.T) {
+	for i, tc := range []struct {
+		LogDiscardedSpansEnabled bool
+		filterByStatusError      bool
+		includeAllAttributes     bool
+		batches                  []*v1.ResourceSpans
+		expectedLogsSpan         []testLogSpan
+	}{
+		{
+			LogDiscardedSpansEnabled: false,
+			batches: []*v1.ResourceSpans{
+				makeResourceSpans("test", []*v1.ScopeSpans{
+					makeScope(
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span", nil)),
+				}),
+			},
+			expectedLogsSpan: []testLogSpan{},
+		},
+		{
+			LogDiscardedSpansEnabled: true,
+			batches: []*v1.ResourceSpans{
+				makeResourceSpans("test", []*v1.ScopeSpans{
+					makeScope(
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span", nil)),
+				}),
+			},
+			expectedLogsSpan: []testLogSpan{
+				{
+					Msg:     "discarded",
+					Level:   "info",
+					Tenant:  "test",
+					TraceID: "0a0102030405060708090a0b0c0d0e0f",
+					SpanID:  "dad44adc9a83b370",
+				},
+			},
+		},
+		{
+			LogDiscardedSpansEnabled: true,
+			includeAllAttributes:     true,
+			batches: []*v1.ResourceSpans{
+				makeResourceSpans("test-service2", []*v1.ScopeSpans{
+					makeScope(
+						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
+				}, makeAttribute("resource_attribute2", "value2")),
+			},
+			expectedLogsSpan: []testLogSpan{
+				{
+					Name:               "Test Span",
+					Msg:                "discarded",
+					Level:              "info",
+					Tenant:             "test",
+					TraceID:            "b1c792dea27d511c145df8402bdd793a",
+					SpanID:             "56afb9fe18b6c2d6",
+					SpanServiceName:    "test-service2",
+					SpanStatus:         "STATUS_CODE_ERROR",
+					SpanKind:           "SPAN_KIND_SERVER",
+					ResourceAttribute2: "value2",
+				},
+			},
+		},
+		{
+			LogDiscardedSpansEnabled: true,
+			filterByStatusError:      true,
+			batches: []*v1.ResourceSpans{
+				makeResourceSpans("test-service", []*v1.ScopeSpans{
+					makeScope(
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span1", nil),
+						makeSpan("e3210a2b38097332d1fe43083ea93d29", "6c21c48da4dbd1a7", "Test Span2", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
+					makeScope(
+						makeSpan("bb42ec04df789ff04b10ea5274491685", "1b3a296034f4031e", "Test Span3", nil)),
+				}),
+				makeResourceSpans("test-service2", []*v1.ScopeSpans{
+					makeScope(
+						makeSpan("b1c792dea27d511c145df8402bdd793a", "56afb9fe18b6c2d6", "Test Span", &v1.Status{Code: v1.Status_STATUS_CODE_ERROR})),
+				}),
+			},
+			expectedLogsSpan: []testLogSpan{
+				{
+					Msg:     "discarded",
+					Level:   "info",
+					Tenant:  "test",
+					TraceID: "e3210a2b38097332d1fe43083ea93d29",
+					SpanID:  "6c21c48da4dbd1a7",
+				},
+				{
+					Msg:     "discarded",
+					Level:   "info",
+					Tenant:  "test",
+					TraceID: "b1c792dea27d511c145df8402bdd793a",
+					SpanID:  "56afb9fe18b6c2d6",
+				},
+			},
+		},
+	} {
+		t.Run(fmt.Sprintf("[%d] TestLogDiscardedSpansWhenContextCancelled LogDiscardedSpansEnabled=%v filterByStatusError=%v includeAllAttributes=%v", i, tc.LogDiscardedSpansEnabled, tc.filterByStatusError, tc.includeAllAttributes), func(t *testing.T) {
+			limits := overrides.Config{}
+			limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+			buf := &bytes.Buffer{}
+			logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
+
+			d, _ := prepare(t, limits, logger)
+			d.cfg.LogDiscardedSpans = LogSpansConfig{
+				Enabled:              tc.LogDiscardedSpansEnabled,
+				FilterByStatusError:  tc.filterByStatusError,
+				IncludeAllAttributes: tc.includeAllAttributes,
+			}
+
+			traces := batchesToTraces(t, tc.batches)
+			ctx, cancelFunc := context.WithCancel(ctx)
+			cancelFunc() // cancel to force all spans to be discarded
+
+			_, err := d.PushTraces(ctx, traces)
+			assert.ErrorContains(t, err, "context canceled")
+
+			assert.ElementsMatch(t, tc.expectedLogsSpan, actualLogSpan(t, buf))
+		})
+	}
+}
+
+func TestLogDiscardedSpansWhenPushToIngesterFails(t *testing.T) {
+	for i, tc := range []struct {
+		LogDiscardedSpansEnabled bool
+		filterByStatusError      bool
+		includeAllAttributes     bool
+		batches                  []*v1.ResourceSpans
+		expectedLogsSpan         []testLogSpan
+		pushErrorByTrace         []tempopb.PushErrorReason
+	}{
+		{
+			LogDiscardedSpansEnabled: false,
+			batches: []*v1.ResourceSpans{
+				makeResourceSpans("test", []*v1.ScopeSpans{
+					makeScope(
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span", nil)),
+				}),
+			},
+			pushErrorByTrace: []tempopb.PushErrorReason{traceTooLargeError},
+			expectedLogsSpan: []testLogSpan{},
+		},
+		{
+			LogDiscardedSpansEnabled: true,
+			batches: []*v1.ResourceSpans{
+				makeResourceSpans("test", []*v1.ScopeSpans{
+					makeScope(
+						makeSpan("0a0102030405060708090a0b0c0d0e0f", "dad44adc9a83b370", "Test Span", nil)),
+				}),
+			},
+			pushErrorByTrace: []tempopb.PushErrorReason{traceTooLargeError},
+			expectedLogsSpan: []testLogSpan{
+				{
+					Msg:             "discarded",
+					Level:           "info",
+					PushErrorReason: "TRACE_TOO_LARGE",
+					Tenant:          "test",
+					TraceID:         "0a0102030405060708090a0b0c0d0e0f",
+					SpanID:          "dad44adc9a83b370",
+				},
+			},
+		},
+	} {
+		t.Run(fmt.Sprintf("[%d] TestLogDiscardedSpansWhenPushToIngesterFails LogDiscardedSpansEnabled=%v filterByStatusError=%v includeAllAttributes=%v", i, tc.LogDiscardedSpansEnabled, tc.filterByStatusError, tc.includeAllAttributes), func(t *testing.T) {
+			limits := overrides.Config{}
+			limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+			buf := &bytes.Buffer{}
+			logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
+
+			d, ingesters := prepare(t, limits, logger)
+			d.cfg.LogDiscardedSpans = LogSpansConfig{
+				Enabled:              tc.LogDiscardedSpansEnabled,
+				FilterByStatusError:  tc.filterByStatusError,
+				IncludeAllAttributes: tc.includeAllAttributes,
+			}
+
+			// mock ingester errors
+			for _, ingester := range maps.Values(ingesters) {
+				ingester.pushBytesV2 = func(_ context.Context, _ *tempopb.PushBytesRequest, _ ...grpc.CallOption) (*tempopb.PushResponse, error) {
+					return &tempopb.PushResponse{
+						ErrorsByTrace: tc.pushErrorByTrace,
+					}, nil
+				}
+			}
+
+			traces := batchesToTraces(t, tc.batches)
+
+			_, err := d.PushTraces(ctx, traces)
 			if err != nil {
 				t.Fatal(err)
 			}
-
-			assert.Equal(t, len(tc.expectedLogsSpan), len(actualLogsSpan))
-			for i, expectedLogSpan := range tc.expectedLogsSpan {
-				assert.EqualValues(t, expectedLogSpan, actualLogsSpan[i])
-			}
+			assert.ElementsMatch(t, tc.expectedLogsSpan, actualLogSpan(t, buf))
 		})
 	}
+}
+
+func actualLogSpan(t *testing.T, buf *bytes.Buffer) []testLogSpan {
+	bufJSON := "[" + strings.TrimRight(strings.ReplaceAll(buf.String(), "\n", ","), ",") + "]"
+	var actualLogsSpan []testLogSpan
+	err := json.Unmarshal([]byte(bufJSON), &actualLogsSpan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return actualLogsSpan
 }
 
 func TestRateLimitRespected(t *testing.T) {
@@ -995,7 +1192,7 @@ func TestRateLimitRespected(t *testing.T) {
 	}
 	buf := &bytes.Buffer{}
 	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
-	d := prepare(t, overridesConfig, logger)
+	d, _ := prepare(t, overridesConfig, logger)
 	batches := []*v1.ResourceSpans{
 		makeResourceSpans("test-service", []*v1.ScopeSpans{
 			makeScope(
@@ -1173,7 +1370,7 @@ func TestDiscardCountReplicationFactor(t *testing.T) {
 				}
 			}
 
-			liveTraceDiscardedCount, traceTooLongDiscardedCount, _ := countDiscaredSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traceByID, tc.replicationFactor)
+			liveTraceDiscardedCount, traceTooLongDiscardedCount, _ := countDiscardedSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traceByID, tc.replicationFactor)
 
 			require.Equal(t, tc.expectedLiveTracesDiscardedCount, liveTraceDiscardedCount)
 			require.Equal(t, tc.expectedTraceTooLargeDiscardedCount, traceTooLongDiscardedCount)
@@ -1225,7 +1422,7 @@ func TestProcessIngesterPushByteResponse(t *testing.T) {
 	overridesConfig := overrides.Config{}
 	buf := &bytes.Buffer{}
 	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
-	d := prepare(t, overridesConfig, logger)
+	d, _ := prepare(t, overridesConfig, logger)
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1246,7 +1443,7 @@ func TestIngesterPushBytes(t *testing.T) {
 	overridesConfig := overrides.Config{}
 	buf := &bytes.Buffer{}
 	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(buf))
-	d := prepare(t, overridesConfig, logger)
+	d, _ := prepare(t, overridesConfig, logger)
 
 	traces := []*rebatchedTrace{
 		{
@@ -1299,7 +1496,7 @@ func TestIngesterPushBytes(t *testing.T) {
 		d.processPushResponse(pushResponse, numSuccessByTraceIndex, lastErrorReasonByTraceIndex, numOfTraces, indexes)
 	}
 
-	maxLiveDiscardedCount, traceTooLargeDiscardedCount, _ := countDiscaredSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traces, 3)
+	maxLiveDiscardedCount, traceTooLargeDiscardedCount, _ := countDiscardedSpans(numSuccessByTraceIndex, lastErrorReasonByTraceIndex, traces, 3)
 	assert.Equal(t, traceTooLargeDiscardedCount, 6)
 	assert.Equal(t, maxLiveDiscardedCount, 35)
 }
@@ -1307,6 +1504,8 @@ func TestIngesterPushBytes(t *testing.T) {
 type testLogSpan struct {
 	Msg                string `json:"msg"`
 	Level              string `json:"level"`
+	PushErrorReason    string `json:"push_error_reason,omitempty"`
+	Tenant             string `json:"tenant,omitempty"`
 	TraceID            string `json:"traceid"`
 	SpanID             string `json:"spanid"`
 	Name               string `json:"span_name"`
@@ -1382,7 +1581,7 @@ func makeResourceSpans(serviceName string, ils []*v1.ScopeSpans, attributes ...*
 	return rs
 }
 
-func prepare(t *testing.T, limits overrides.Config, logger kitlog.Logger) *Distributor {
+func prepare(t *testing.T, limits overrides.Config, logger kitlog.Logger) (*Distributor, map[string]*mockIngester) {
 	if logger == nil {
 		logger = kitlog.NewNopLogger()
 	}
@@ -1399,7 +1598,10 @@ func prepare(t *testing.T, limits overrides.Config, logger kitlog.Logger) *Distr
 	// Mock the ingesters ring
 	ingesters := map[string]*mockIngester{}
 	for i := 0; i < numIngesters; i++ {
-		ingesters[fmt.Sprintf("ingester%d", i)] = &mockIngester{}
+		ingesters[fmt.Sprintf("ingester%d", i)] = &mockIngester{
+			pushBytes:   pushBytesNoOp,
+			pushBytesV2: pushBytesNoOp,
+		}
 	}
 
 	ingestersRing := &mockRing{
@@ -1425,21 +1627,29 @@ func prepare(t *testing.T, limits overrides.Config, logger kitlog.Logger) *Distr
 	d, err := New(distributorConfig, clientConfig, ingestersRing, generator_client.Config{}, nil, overrides, mw, logger, l, prometheus.NewPedanticRegistry())
 	require.NoError(t, err)
 
-	return d
+	return d, ingesters
 }
 
 type mockIngester struct {
 	grpc_health_v1.HealthClient
+	// pushBytes mock to be overridden in test scenarios if needed
+	pushBytes func(ctx context.Context, in *tempopb.PushBytesRequest, opts ...grpc.CallOption) (*tempopb.PushResponse, error)
+	// pushBytesV2 mock to be overridden in test scenarios if needed
+	pushBytesV2 func(ctx context.Context, in *tempopb.PushBytesRequest, opts ...grpc.CallOption) (*tempopb.PushResponse, error)
+}
+
+func pushBytesNoOp(context.Context, *tempopb.PushBytesRequest, ...grpc.CallOption) (*tempopb.PushResponse, error) {
+	return &tempopb.PushResponse{}, nil
 }
 
 var _ tempopb.PusherClient = (*mockIngester)(nil)
 
-func (i *mockIngester) PushBytes(context.Context, *tempopb.PushBytesRequest, ...grpc.CallOption) (*tempopb.PushResponse, error) {
-	return &tempopb.PushResponse{}, nil
+func (i *mockIngester) PushBytes(ctx context.Context, in *tempopb.PushBytesRequest, opts ...grpc.CallOption) (*tempopb.PushResponse, error) {
+	return i.pushBytes(ctx, in, opts...)
 }
 
-func (i *mockIngester) PushBytesV2(context.Context, *tempopb.PushBytesRequest, ...grpc.CallOption) (*tempopb.PushResponse, error) {
-	return &tempopb.PushResponse{}, nil
+func (i *mockIngester) PushBytesV2(ctx context.Context, in *tempopb.PushBytesRequest, opts ...grpc.CallOption) (*tempopb.PushResponse, error) {
+	return i.pushBytesV2(ctx, in, opts...)
 }
 
 func (i *mockIngester) Close() error {
@@ -1500,6 +1710,10 @@ func (r mockRing) InstancesCount() int {
 	return len(r.ingesters)
 }
 
+func (r mockRing) InstancesWithTokensCount() int {
+	return len(r.ingesters)
+}
+
 func (r mockRing) HasInstance(string) bool {
 	return true
 }
@@ -1512,6 +1726,10 @@ func (r mockRing) GetInstanceState(string) (ring.InstanceState, error) {
 }
 
 func (r mockRing) InstancesInZoneCount(string) int {
+	return 0
+}
+
+func (r mockRing) InstancesWithTokensInZoneCount(_ string) int {
 	return 0
 }
 

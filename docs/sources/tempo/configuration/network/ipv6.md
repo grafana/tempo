@@ -36,7 +36,6 @@ metrics_generator:
 
 ingester:
   lifecycler:
-    address: '::'
     enable_inet6: true
 
 server:

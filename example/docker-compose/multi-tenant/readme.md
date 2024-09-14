@@ -2,7 +2,7 @@
 In this example all data is stored locally in the `tempo-data` folder. Local storage is fine for experimenting with Tempo
 or when using the single binary, but does not work in a distributed/microservices scenario.
 
-1. First start up the local stack.
+1. Start up the local stack.
 
 ```console
 $ docker compose up -d
@@ -12,7 +12,7 @@ Starting multi-tenant_k6-tracing-2_1 ... done
 Starting multi-tenant_k6-tracing_1   ... done
 ```
 
-At this point, the following containers should be spun up -
+At this point, the following containers should be spun up:
 
 ```console
 $ docker compose ps

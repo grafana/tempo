@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/go-kit/log"
 	"github.com/grafana/tempo/modules/cache/memcached"
 	"github.com/grafana/tempo/modules/cache/redis"
 	"github.com/grafana/tempo/pkg/cache"
@@ -146,5 +147,44 @@ func TestCacheConfigName(t *testing.T) {
 	for _, tc := range tcs {
 		actual := tc.cfg.Name()
 		require.Equal(t, tc.expected, actual)
+	}
+}
+
+func TestMaxItemSize(t *testing.T) {
+	tcs := []struct {
+		cfg      *CacheConfig
+		expected int
+	}{
+		{
+			cfg: &CacheConfig{
+				Role: []cache.Role{cache.RoleBloom, cache.RoleParquetColumnIdx},
+				MemcachedConfig: &memcached.Config{
+					ClientConfig: cache.MemcachedClientConfig{
+						MaxItemSize: 123,
+					},
+				},
+			},
+			expected: 123,
+		},
+		{
+			cfg: &CacheConfig{
+				Role:        []cache.Role{cache.RoleBloom, cache.RoleFrontendSearch},
+				RedisConfig: &redis.Config{},
+			},
+			expected: 0, // redis does not support max item size
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run("", func(t *testing.T) {
+			p, err := NewProvider(&Config{
+				Caches:     []CacheConfig{*tc.cfg},
+				Background: &cache.BackgroundConfig{},
+			}, log.NewNopLogger())
+			require.NoError(t, err)
+
+			cache := p.CacheFor(cache.RoleBloom)
+			require.Equal(t, tc.expected, cache.MaxItemSize())
+		})
 	}
 }

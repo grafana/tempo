@@ -9,7 +9,6 @@ import (
 	"io"
 	"math/rand"
 	"os"
-	"path"
 	"path/filepath"
 	"testing"
 	"time"
@@ -28,30 +27,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
-
-const (
-	testTenantID = "fake"
-)
-
-func TestCompletedDirIsRemoved(t *testing.T) {
-	// Create /completed/testfile and verify it is removed.
-	tempDir := t.TempDir()
-
-	err := os.MkdirAll(path.Join(tempDir, completedDir), os.ModePerm)
-	require.NoError(t, err, "unexpected error creating completedDir")
-
-	_, err = os.Create(path.Join(tempDir, completedDir, "testfile"))
-	require.NoError(t, err, "unexpected error creating testfile")
-
-	_, err = New(&Config{
-		Filepath: tempDir,
-		Version:  encoding.DefaultEncoding().Version(),
-	})
-	require.NoError(t, err, "unexpected error creating temp wal")
-
-	_, err = os.Stat(path.Join(tempDir, completedDir))
-	require.Error(t, err, "completedDir should not exist")
-}
 
 func TestAppendBlockStartEnd(t *testing.T) {
 	for _, e := range encoding.AllEncodings() {
@@ -158,7 +133,7 @@ func testIngestionSlack(t *testing.T, e encoding.VersionedEncoding) {
 	blockEnd := uint32(block.BlockMeta().EndTime.Unix())
 
 	require.Equal(t, uint32(appendTime.Unix()), blockStart)
-	require.Equal(t, traceEnd, blockEnd)
+	require.Equal(t, uint32(appendTime.Unix()), blockEnd)
 }
 
 func TestFindByTraceID(t *testing.T) {
@@ -318,7 +293,7 @@ func testFetch(t *testing.T, e encoding.VersionedEncoding) {
 }
 
 func findFirstAttribute(obj *tempopb.Trace) (string, string) {
-	for _, b := range obj.Batches {
+	for _, b := range obj.ResourceSpans {
 		for _, s := range b.ScopeSpans {
 			for _, span := range s.Spans {
 				for _, a := range span.Attributes {
@@ -488,7 +463,7 @@ func BenchmarkFindUnknownTraceID(b *testing.B) {
 	for _, enc := range encoding.AllEncodings() {
 		version := enc.Version()
 		b.Run(version, func(b *testing.B) {
-			runWALBenchmark(b, version, 1, func(ids [][]byte, objs []*tempopb.Trace, block common.WALBlock) {
+			runWALBenchmark(b, version, 1, func(_ [][]byte, _ []*tempopb.Trace, block common.WALBlock) {
 				for i := 0; i < b.N; i++ {
 					_, err := block.FindTraceByID(context.Background(), common.ID{}, common.DefaultSearchOptions())
 					require.NoError(b, err)

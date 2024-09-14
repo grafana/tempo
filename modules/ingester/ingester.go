@@ -13,10 +13,11 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
-	"github.com/opentracing/opentracing-go"
-	ot_log "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 
@@ -44,6 +45,8 @@ var metricFlushQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
 	Name:      "ingester_flush_queue_length",
 	Help:      "The total number of series pending in the flush queue.",
 })
+
+var tracer = otel.Tracer("modules/ingester")
 
 const (
 	ingesterRingKey = "ring"
@@ -274,8 +277,8 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequ
 	}
 
 	// tracing instrumentation
-	span, ctx := opentracing.StartSpanFromContext(ctx, "Ingester.FindTraceByID")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "Ingester.FindTraceByID")
+	defer span.End()
 
 	instanceID, err := user.ExtractOrgID(ctx)
 	if err != nil {
@@ -286,12 +289,12 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequ
 		return &tempopb.TraceByIDResponse{}, nil
 	}
 
-	trace, err := inst.FindTraceByID(ctx, req.TraceID)
+	trace, err := inst.FindTraceByID(ctx, req.TraceID, req.AllowPartialTrace)
 	if err != nil {
 		return nil, err
 	}
 
-	span.LogFields(ot_log.Bool("trace found", trace != nil))
+	span.AddEvent("trace found", oteltrace.WithAttributes(attribute.Bool("found", trace != nil)))
 
 	res = &tempopb.TraceByIDResponse{
 		Trace: trace,

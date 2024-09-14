@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/collector"
+	"go.opentelemetry.io/otel/attribute"
 
 	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
@@ -45,10 +45,13 @@ const (
 
 var (
 	metricRetentionDuration = promauto.NewHistogram(prometheus.HistogramOpts{
-		Namespace: "tempodb",
-		Name:      "retention_duration_seconds",
-		Help:      "Records the amount of time to perform retention tasks.",
-		Buckets:   prometheus.ExponentialBuckets(.25, 2, 6),
+		Namespace:                       "tempodb",
+		Name:                            "retention_duration_seconds",
+		Help:                            "Records the amount of time to perform retention tasks.",
+		Buckets:                         prometheus.ExponentialBuckets(.25, 2, 6),
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 	metricRetentionErrors = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "tempodb",
@@ -105,6 +108,7 @@ type CompactorSharder interface {
 
 type CompactorOverrides interface {
 	BlockRetentionForTenant(tenantID string) time.Duration
+	CompactionDisabledForTenant(tenantID string) bool
 	MaxBytesPerTraceForTenant(tenantID string) int
 	MaxCompactionRangeForTenant(tenantID string) time.Duration
 }
@@ -275,8 +279,8 @@ func (rw *readerWriter) BlockMetas(tenantID string) []*backend.BlockMeta {
 func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64, opts common.SearchOptions) ([]*tempopb.Trace, []error, error) {
 	// tracing instrumentation
 	logger := log.WithContext(ctx, log.Logger)
-	span, ctx := opentracing.StartSpanFromContext(ctx, "store.Find")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "store.Find")
+	defer span.End()
 
 	blockStartUUID, err := uuid.Parse(blockStart)
 	if err != nil {
@@ -343,11 +347,11 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 		partialTraceObjs[i] = partialTraces[i].(*tempopb.Trace)
 	}
 
-	span.SetTag("blockErrs", len(funcErrs))
-	span.SetTag("liveBlocks", len(blocklist))
-	span.SetTag("liveBlocksSearched", blocksSearched)
-	span.SetTag("compactedBlocks", len(compactedBlocklist))
-	span.SetTag("compactedBlocksSearched", compactedBlocksSearched)
+	span.SetAttributes(attribute.Int("blockErrs", len(funcErrs)))
+	span.SetAttributes(attribute.Int("liveBlocks", len(blocklist)))
+	span.SetAttributes(attribute.Int("liveBlocksSearched", blocksSearched))
+	span.SetAttributes(attribute.Int("compactedBlocks", len(compactedBlocklist)))
+	span.SetAttributes(attribute.Int("compactedBlocksSearched", compactedBlocksSearched))
 
 	return partialTraceObjs, funcErrs, err
 }
@@ -525,6 +529,10 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 		rw.cfg.BlocklistPollConcurrency = DefaultBlocklistPollConcurrency
 	}
 
+	if rw.cfg.BlocklistPollTenantConcurrency == 0 {
+		rw.cfg.BlocklistPollTenantConcurrency = DefaultBlocklistPollTenantConcurrency
+	}
+
 	if rw.cfg.BlocklistPollTenantIndexBuilders <= 0 {
 		rw.cfg.BlocklistPollTenantIndexBuilders = DefaultTenantIndexBuilders
 	}
@@ -542,6 +550,8 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 		StaleTenantIndex:           rw.cfg.BlocklistPollStaleTenantIndex,
 		PollJitterMs:               rw.cfg.BlocklistPollJitterMs,
 		TolerateConsecutiveErrors:  rw.cfg.BlocklistPollTolerateConsecutiveErrors,
+		TolerateTenantFailures:     rw.cfg.BlocklistPollTolerateTenantFailures,
+		TenantPollConcurrency:      rw.cfg.BlocklistPollTenantConcurrency,
 		EmptyTenantDeletionAge:     rw.cfg.EmptyTenantDeletionAge,
 		EmptyTenantDeletionEnabled: rw.cfg.EmptyTenantDeletionEnabled,
 	}, sharder, rw.r, rw.c, rw.w, rw.logger)
@@ -600,7 +610,7 @@ func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart, blockEnd []byte
 		return false
 	}
 
-	return b.ReplicationFactor == uint32(replicationFactor)
+	return b.ReplicationFactor == uint8(replicationFactor)
 }
 
 // if block is compacted within lookback period, and is within shard ranges, include it in search

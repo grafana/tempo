@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/prometheus/util/strutil"
+	"go.opentelemetry.io/otel"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
@@ -25,6 +25,8 @@ const (
 	targetInfo            = "traces_target_info"
 )
 
+var tracer = otel.Tracer("modules/generator/processor/spanmetrics")
+
 type Processor struct {
 	Cfg Config
 
@@ -43,7 +45,7 @@ type Processor struct {
 	now func() time.Time
 }
 
-func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.Counter) (gen.Processor, error) {
+func New(cfg Config, reg registry.Registry, spanDiscardCounter prometheus.Counter) (gen.Processor, error) {
 	labels := make([]string, 0, 4+len(cfg.Dimensions))
 
 	if cfg.IntrinsicDimensions.Service {
@@ -72,21 +74,21 @@ func New(cfg Config, registry registry.Registry, spanDiscardCounter prometheus.C
 
 	p := &Processor{
 		Cfg:                   cfg,
-		registry:              registry,
-		spanMetricsTargetInfo: registry.NewGauge(targetInfo),
+		registry:              reg,
+		spanMetricsTargetInfo: reg.NewGauge(targetInfo),
 		now:                   time.Now,
 		labels:                labels,
 		filteredSpansCounter:  spanDiscardCounter,
 	}
 
 	if cfg.Subprocessors[Latency] {
-		p.spanMetricsDurationSeconds = registry.NewHistogram(metricDurationSeconds, cfg.HistogramBuckets)
+		p.spanMetricsDurationSeconds = reg.NewHistogram(metricDurationSeconds, cfg.HistogramBuckets, cfg.HistogramOverride)
 	}
 	if cfg.Subprocessors[Count] {
-		p.spanMetricsCallsTotal = registry.NewCounter(metricCallsTotal)
+		p.spanMetricsCallsTotal = reg.NewCounter(metricCallsTotal)
 	}
 	if cfg.Subprocessors[Size] {
-		p.spanMetricsSizeTotal = registry.NewCounter(metricSizeTotal)
+		p.spanMetricsSizeTotal = reg.NewCounter(metricSizeTotal)
 	}
 
 	filter, err := spanfilter.NewSpanFilter(cfg.FilterPolicies)
@@ -104,8 +106,8 @@ func (p *Processor) Name() string {
 }
 
 func (p *Processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "spanmetrics.PushSpans")
-	defer span.Finish()
+	_, span := tracer.Start(ctx, "spanmetrics.PushSpans")
+	defer span.End()
 
 	p.aggregateMetrics(req.Batches)
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/tempo/modules/frontend"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/stretchr/testify/assert"
 
@@ -45,8 +46,17 @@ func TestConfig_CheckConfig(t *testing.T) {
 					},
 				},
 				Distributor: distributor.Config{
-					LogReceivedSpans: distributor.LogReceivedSpansConfig{
+					LogReceivedSpans: distributor.LogSpansConfig{
 						Enabled: true,
+					},
+					LogDiscardedSpans: distributor.LogSpansConfig{
+						Enabled: true,
+					},
+				},
+				Frontend: frontend.Config{
+					TraceByID: frontend.TraceByIDConfig{
+						QueryShards:      100,
+						ConcurrentShards: 200,
 					},
 				},
 			},
@@ -57,8 +67,10 @@ func TestConfig_CheckConfig(t *testing.T) {
 				warnStorageTraceBackendS3,
 				warnBlocklistPollConcurrency,
 				warnLogReceivedTraces,
+				warnLogDiscardedTraces,
 				warnNativeAWSAuthEnabled,
 				warnConfiguredLegacyCache,
+				warnTraceByIDConcurrentShards,
 			},
 		},
 		{

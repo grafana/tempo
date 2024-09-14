@@ -13,15 +13,12 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/opentracing/opentracing-go"
 	"github.com/parquet-go/parquet-go"
 
-	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/parquetquery"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
-	"github.com/grafana/tempo/pkg/util/traceidboundary"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -142,25 +139,25 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 		if attr := find(a, s.resourceAttrs); attr != nil {
 			return *attr, true
 		}
-		return traceql.Static{}, false
+		return traceql.NewStaticNil(), false
 	}
 
 	if a.Scope == traceql.AttributeScopeSpan {
 		if attr := find(a, s.spanAttrs); attr != nil {
 			return *attr, true
 		}
-		return traceql.Static{}, false
+		return traceql.NewStaticNil(), false
 	}
 
 	if a.Intrinsic != traceql.IntrinsicNone {
 		if a.Intrinsic == traceql.IntrinsicNestedSetLeft {
-			return traceql.Static{Type: traceql.TypeInt, N: int(s.nestedSetLeft)}, true
+			return traceql.NewStaticInt(int(s.nestedSetLeft)), true
 		}
 		if a.Intrinsic == traceql.IntrinsicNestedSetRight {
-			return traceql.Static{Type: traceql.TypeInt, N: int(s.nestedSetRight)}, true
+			return traceql.NewStaticInt(int(s.nestedSetRight)), true
 		}
 		if a.Intrinsic == traceql.IntrinsicNestedSetParent {
-			return traceql.Static{Type: traceql.TypeInt, N: int(s.nestedSetParent)}, true
+			return traceql.NewStaticInt(int(s.nestedSetParent)), true
 		}
 
 		// intrinsics are always on the span or trace ... for now
@@ -183,7 +180,7 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 		return *attr, true
 	}
 
-	return traceql.Static{}, false
+	return traceql.NewStaticNil(), false
 }
 
 func (s *span) ID() []byte {
@@ -747,7 +744,7 @@ func putSpanset(ss *traceql.Spanset) {
 	ss.DurationNanos = 0
 	ss.RootServiceName = ""
 	ss.RootSpanName = ""
-	ss.Scalar = traceql.Static{}
+	ss.Scalar = traceql.NewStaticNil()
 	ss.StartTimeUnixNanos = 0
 	ss.TraceID = nil
 	ss.Spans = ss.Spans[:0]
@@ -815,10 +812,11 @@ const (
 	otherEntrySpanKey    = "span"
 
 	// a fake intrinsic scope at the trace lvl
-	intrinsicScopeTrace = -1
-	intrinsicScopeSpan  = -2
-	intrinsicScopeEvent = -3
-	intrinsicScopeLink  = -4
+	intrinsicScopeTrace           = -1
+	intrinsicScopeSpan            = -2
+	intrinsicScopeEvent           = -3
+	intrinsicScopeLink            = -4
+	intrinsicScopeInstrumentation = -5
 )
 
 // todo: scope is the only field used here. either remove the other fields or use them.
@@ -848,10 +846,12 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicTraceStartTime:   {intrinsicScopeTrace, traceql.TypeDuration, columnPathStartTimeUnixNano},
 
 	// Not used in vparquet2, the following entries are only used to assign the default scope
-	traceql.IntrinsicEventName:    {intrinsicScopeEvent, traceql.TypeNil, ""},
-	traceql.IntrinsicLinkTraceID:  {intrinsicScopeLink, traceql.TypeNil, ""},
-	traceql.IntrinsicLinkSpanID:   {intrinsicScopeLink, traceql.TypeNil, ""},
-	traceql.IntrinsicServiceStats: {intrinsicScopeTrace, traceql.TypeNil, ""},
+	traceql.IntrinsicEventName:              {intrinsicScopeEvent, traceql.TypeNil, ""},
+	traceql.IntrinsicLinkTraceID:            {intrinsicScopeLink, traceql.TypeNil, ""},
+	traceql.IntrinsicLinkSpanID:             {intrinsicScopeLink, traceql.TypeNil, ""},
+	traceql.IntrinsicServiceStats:           {intrinsicScopeTrace, traceql.TypeNil, ""},
+	traceql.IntrinsicInstrumentationName:    {intrinsicScopeInstrumentation, traceql.TypeNil, ""},
+	traceql.IntrinsicInstrumentationVersion: {intrinsicScopeInstrumentation, traceql.TypeNil, ""},
 }
 
 // Lookup table of all well-known attributes with dedicated columns
@@ -893,15 +893,7 @@ func (b *backendBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest,
 		return traceql.FetchSpansResponse{}, err
 	}
 
-	var rgs []parquet.RowGroup
-	if req.ShardCount > 0 {
-		rgs, err = b.rowGroupsForShard(ctx, pf, *b.meta, req.ShardID, req.ShardCount)
-		if err != nil {
-			return traceql.FetchSpansResponse{}, err
-		}
-	} else {
-		rgs = rowGroupsFromFile(pf, opts)
-	}
+	rgs := rowGroupsFromFile(pf, opts)
 
 	iter, err := fetch(ctx, req, pf, rgs, b.meta.DedicatedColumns)
 	if err != nil {
@@ -940,11 +932,13 @@ func checkConditions(conditions []traceql.Condition) error {
 		// Check for conditions that are not supported in vParquet3
 		if cond.Attribute.Intrinsic == traceql.IntrinsicEventName ||
 			cond.Attribute.Intrinsic == traceql.IntrinsicLinkTraceID ||
-			cond.Attribute.Intrinsic == traceql.IntrinsicLinkSpanID {
+			cond.Attribute.Intrinsic == traceql.IntrinsicLinkSpanID ||
+			cond.Attribute.Intrinsic == traceql.IntrinsicInstrumentationName ||
+			cond.Attribute.Intrinsic == traceql.IntrinsicInstrumentationVersion {
 
 			return fmt.Errorf("intrinsic '%s' not supported in vParquet3: %w", cond.Attribute.Intrinsic, common.ErrUnsupported)
 		}
-		if cond.Attribute.Scope == traceql.AttributeScopeEvent || cond.Attribute.Scope == traceql.AttributeScopeLink {
+		if cond.Attribute.Scope == traceql.AttributeScopeEvent || cond.Attribute.Scope == traceql.AttributeScopeLink || cond.Attribute.Scope == traceql.AttributeScopeInstrumentation {
 			return fmt.Errorf("scope '%s' not supported in vParquet3: %w", cond.Attribute.Scope, common.ErrUnsupported)
 		}
 
@@ -1350,7 +1344,7 @@ func (i *mergeSpansetIterator) Close() {
 //                                                            V
 
 func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File, rowGroups []parquet.RowGroup, dc backend.DedicatedColumns) (*spansetIterator, error) {
-	iter, err := createAllIterator(ctx, nil, req.Conditions, req.AllConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, req.ShardID, req.ShardCount, rowGroups, pf, dc, false)
+	iter, err := createAllIterator(ctx, nil, req.Conditions, req.AllConditions, req.StartTimeUnixNanos, req.EndTimeUnixNanos, rowGroups, pf, dc, false)
 	if err != nil {
 		return nil, fmt.Errorf("error creating iterator: %w", err)
 	}
@@ -1358,7 +1352,7 @@ func fetch(ctx context.Context, req traceql.FetchSpansRequest, pf *parquet.File,
 	if req.SecondPass != nil {
 		iter = newBridgeIterator(newRebatchIterator(iter), req.SecondPass)
 
-		iter, err = createAllIterator(ctx, iter, req.SecondPassConditions, false, 0, 0, req.ShardID, req.ShardCount, rowGroups, pf, dc, req.SecondPassSelectAll)
+		iter, err = createAllIterator(ctx, iter, req.SecondPassConditions, false, 0, 0, rowGroups, pf, dc, req.SecondPassSelectAll)
 		if err != nil {
 			return nil, fmt.Errorf("error creating second pass iterator: %w", err)
 		}
@@ -1406,7 +1400,7 @@ func categorizeConditions(conditions []traceql.Condition) (mingled bool, spanCon
 }
 
 func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, conds []traceql.Condition, allConditions bool, start, end uint64,
-	shardID, shardCount uint32, rgs []parquet.RowGroup, pf *parquet.File, dc backend.DedicatedColumns, selectAll bool,
+	rgs []parquet.RowGroup, pf *parquet.File, dc backend.DedicatedColumns, selectAll bool,
 ) (parquetquery.Iterator, error) {
 	// categorizeConditions conditions into span-level or resource-level
 	mingledConditions, spanConditions, resourceConditions, traceConditions, err := categorizeConditions(conds)
@@ -1445,7 +1439,7 @@ func createAllIterator(ctx context.Context, primaryIter parquetquery.Iterator, c
 		return nil, fmt.Errorf("creating resource iterator: %w", err)
 	}
 
-	return createTraceIterator(makeIter, resourceIter, traceConditions, start, end, shardID, shardCount, allConditions, selectAll)
+	return createTraceIterator(makeIter, resourceIter, traceConditions, start, end, allConditions, selectAll)
 }
 
 // createSpanIterator iterates through all span-level columns, groups them into rows representing
@@ -1858,10 +1852,8 @@ func createResourceIterator(makeIter makeIterFn, spanIterator parquetquery.Itera
 	return parquetquery.NewLeftJoinIterator(DefinitionLevelResourceSpans, required, iters, batchCol, parquetquery.WithPool(pqSpansetPool))
 }
 
-func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64, _, _ uint32, allConditions bool, selectAll bool) (parquetquery.Iterator, error) {
-	traceIters := make([]parquetquery.Iterator, 0, 3)
-
-	var err error
+func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator, conds []traceql.Condition, start, end uint64, allConditions bool, selectAll bool) (parquetquery.Iterator, error) {
+	iters := make([]parquetquery.Iterator, 0, 3)
 
 	// add conditional iterators first. this way if someone searches for { traceDuration > 1s && span.foo = "bar"} the query will
 	// be sped up by searching for traceDuration first. note that we can only set the predicates if all conditions is true.
@@ -1869,45 +1861,33 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 	for _, cond := range conds {
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicTraceID:
-			var pred parquetquery.Predicate
-			if allConditions {
-				pred, err = createBytesPredicate(cond.Op, cond.Operands, false)
-				if err != nil {
-					return nil, err
-				}
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
+			if err != nil {
+				return nil, err
 			}
-			traceIters = append(traceIters, makeIter(columnPathTraceID, pred, columnPathTraceID))
+			iters = append(iters, makeIter(columnPathTraceID, pred, columnPathTraceID))
 		case traceql.IntrinsicTraceDuration:
-			var pred parquetquery.Predicate
-			if allConditions {
-				pred, err = createIntPredicate(cond.Op, cond.Operands)
-				if err != nil {
-					return nil, err
-				}
+			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
 			}
-			traceIters = append(traceIters, makeIter(columnPathDurationNanos, pred, columnPathDurationNanos))
+			iters = append(iters, makeIter(columnPathDurationNanos, pred, columnPathDurationNanos))
 		case traceql.IntrinsicTraceStartTime:
 			if start == 0 && end == 0 {
-				traceIters = append(traceIters, makeIter(columnPathStartTimeUnixNano, nil, columnPathStartTimeUnixNano))
+				iters = append(iters, makeIter(columnPathStartTimeUnixNano, nil, columnPathStartTimeUnixNano))
 			}
 		case traceql.IntrinsicTraceRootSpan:
-			var pred parquetquery.Predicate
-			if allConditions {
-				pred, err = createStringPredicate(cond.Op, cond.Operands)
-				if err != nil {
-					return nil, err
-				}
+			pred, err := createStringPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
 			}
-			traceIters = append(traceIters, makeIter(columnPathRootSpanName, pred, columnPathRootSpanName))
+			iters = append(iters, makeIter(columnPathRootSpanName, pred, columnPathRootSpanName))
 		case traceql.IntrinsicTraceRootService:
-			var pred parquetquery.Predicate
-			if allConditions {
-				pred, err = createStringPredicate(cond.Op, cond.Operands)
-				if err != nil {
-					return nil, err
-				}
+			pred, err := createStringPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
 			}
-			traceIters = append(traceIters, makeIter(columnPathRootServiceName, pred, columnPathRootServiceName))
+			iters = append(iters, makeIter(columnPathRootServiceName, pred, columnPathRootServiceName))
 		}
 	}
 
@@ -1922,13 +1902,22 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 				traceql.IntrinsicServiceStats:
 				continue
 			}
-			traceIters = append(traceIters, makeIter(entry.columnPath, nil, entry.columnPath))
+			iters = append(iters, makeIter(entry.columnPath, nil, entry.columnPath))
 		}
+	}
+
+	var required []parquetquery.Iterator
+
+	// This is an optimization for when all of the conditions must be met.
+	// We simply move all iterators into the required list.
+	if allConditions {
+		required = append(required, iters...)
+		iters = nil
 	}
 
 	// order is interesting here. would it be more efficient to grab the span/resource conditions first
 	// or the time range filtering first?
-	traceIters = append(traceIters, resourceIter)
+	required = append(required, resourceIter)
 
 	// evaluate time range
 	// Time range filtering?
@@ -1940,14 +1929,14 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 		startFilter = parquetquery.NewIntBetweenPredicate(0, int64(end))
 		endFilter = parquetquery.NewIntBetweenPredicate(int64(start), math.MaxInt64)
 
-		traceIters = append(traceIters, makeIter(columnPathStartTimeUnixNano, startFilter, columnPathStartTimeUnixNano))
-		traceIters = append(traceIters, makeIter(columnPathEndTimeUnixNano, endFilter, columnPathEndTimeUnixNano))
+		required = append(required, makeIter(columnPathStartTimeUnixNano, startFilter, columnPathStartTimeUnixNano))
+		required = append(required, makeIter(columnPathEndTimeUnixNano, endFilter, columnPathEndTimeUnixNano))
 	}
 
 	// Final trace iterator
 	// Join iterator means it requires matching resources to have been found
 	// TraceCollor adds trace-level data to the spansets
-	return parquetquery.NewJoinIterator(DefinitionLevelTrace, traceIters, newTraceCollector(), parquetquery.WithPool(pqTracePool)), nil
+	return parquetquery.NewLeftJoinIterator(DefinitionLevelTrace, required, iters, newTraceCollector(), parquetquery.WithPool(pqTracePool))
 }
 
 func createPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
@@ -1974,13 +1963,10 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 		return nil, nil
 	}
 
-	for _, op := range operands {
-		if op.Type != traceql.TypeString {
-			return nil, fmt.Errorf("operand is not string: %+v", op)
-		}
+	s := operands[0].EncodeToString(false)
+	if operands[0].Type != traceql.TypeString {
+		return nil, fmt.Errorf("operand is not string: %s", s)
 	}
-
-	s := operands[0].S
 
 	switch op {
 	case traceql.OpEqual:
@@ -2000,7 +1986,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 	case traceql.OpLessEqual:
 		return parquetquery.NewStringLessEqualPredicate([]byte(s)), nil
 	default:
-		return nil, fmt.Errorf("operand not supported for strings: %+v", op)
+		return nil, fmt.Errorf("operator not supported for strings: %+v", op)
 	}
 }
 
@@ -2009,13 +1995,10 @@ func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan
 		return nil, nil
 	}
 
-	for _, op := range operands {
-		if op.Type != traceql.TypeString {
-			return nil, fmt.Errorf("operand is not string: %+v", op)
-		}
+	s := operands[0].EncodeToString(false)
+	if operands[0].Type != traceql.TypeString {
+		return nil, fmt.Errorf("operand is not string: %s", s)
 	}
-
-	s := operands[0].S
 
 	var id []byte
 	id, err := util.HexStringToTraceID(s)
@@ -2035,7 +2018,7 @@ func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan
 	case traceql.OpNotEqual:
 		return parquetquery.NewByteNotEqualPredicate(id), nil
 	default:
-		return nil, fmt.Errorf("operand not supported for IDs: %+v", op)
+		return nil, fmt.Errorf("operator not supported for IDs: %+v", op)
 	}
 }
 
@@ -2047,15 +2030,19 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquet
 	var i int64
 	switch operands[0].Type {
 	case traceql.TypeInt:
-		i = int64(operands[0].N)
+		n, _ := operands[0].Int()
+		i = int64(n)
 	case traceql.TypeDuration:
-		i = operands[0].D.Nanoseconds()
+		d, _ := operands[0].Duration()
+		i = d.Nanoseconds()
 	case traceql.TypeStatus:
-		i = int64(StatusCodeMapping[operands[0].Status.String()])
+		st, _ := operands[0].Status()
+		i = int64(StatusCodeMapping[st.String()])
 	case traceql.TypeKind:
-		i = int64(KindMapping[operands[0].Kind.String()])
+		k, _ := operands[0].Kind()
+		i = int64(KindMapping[k.String()])
 	default:
-		return nil, fmt.Errorf("operand is not int, duration, status or kind: %+v", operands[0])
+		return nil, fmt.Errorf("operand is not int, duration, status or kind: %s", operands[0].EncodeToString(false))
 	}
 
 	switch op {
@@ -2072,7 +2059,7 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquet
 	case traceql.OpLessEqual:
 		return parquetquery.NewIntLessEqualPredicate(i), nil
 	default:
-		return nil, fmt.Errorf("operand not supported for integers: %+v", op)
+		return nil, fmt.Errorf("operator not supported for integers: %+v", op)
 	}
 }
 
@@ -2083,26 +2070,26 @@ func createFloatPredicate(op traceql.Operator, operands traceql.Operands) (parqu
 
 	// Ensure operand is float
 	if operands[0].Type != traceql.TypeFloat {
-		return nil, fmt.Errorf("operand is not float: %+v", operands[0])
+		return nil, fmt.Errorf("operand is not float: %s", operands[0].EncodeToString(false))
 	}
 
-	i := operands[0].F
+	f := operands[0].Float()
 
 	switch op {
 	case traceql.OpEqual:
-		return parquetquery.NewFloatEqualPredicate(i), nil
+		return parquetquery.NewFloatEqualPredicate(f), nil
 	case traceql.OpNotEqual:
-		return parquetquery.NewFloatNotEqualPredicate(i), nil
+		return parquetquery.NewFloatNotEqualPredicate(f), nil
 	case traceql.OpGreater:
-		return parquetquery.NewFloatGreaterPredicate(i), nil
+		return parquetquery.NewFloatGreaterPredicate(f), nil
 	case traceql.OpGreaterEqual:
-		return parquetquery.NewFloatGreaterEqualPredicate(i), nil
+		return parquetquery.NewFloatGreaterEqualPredicate(f), nil
 	case traceql.OpLess:
-		return parquetquery.NewFloatLessPredicate(i), nil
+		return parquetquery.NewFloatLessPredicate(f), nil
 	case traceql.OpLessEqual:
-		return parquetquery.NewFloatLessEqualPredicate(i), nil
+		return parquetquery.NewFloatLessEqualPredicate(f), nil
 	default:
-		return nil, fmt.Errorf("operand not supported for floats: %+v", op)
+		return nil, fmt.Errorf("operator not supported for floats: %+v", op)
 	}
 }
 
@@ -2112,17 +2099,18 @@ func createBoolPredicate(op traceql.Operator, operands traceql.Operands) (parque
 	}
 
 	// Ensure operand is bool
-	if operands[0].Type != traceql.TypeBoolean {
-		return nil, fmt.Errorf("operand is not bool: %+v", operands[0])
+	b, ok := operands[0].Bool()
+	if !ok {
+		return nil, fmt.Errorf("oparand is not bool: %+v", operands[0].EncodeToString(false))
 	}
 
 	switch op {
 	case traceql.OpEqual:
-		return parquetquery.NewBoolEqualPredicate(operands[0].B), nil
+		return parquetquery.NewBoolEqualPredicate(b), nil
 	case traceql.OpNotEqual:
-		return parquetquery.NewBoolNotEqualPredicate(operands[0].B), nil
+		return parquetquery.NewBoolNotEqualPredicate(b), nil
 	default:
-		return nil, fmt.Errorf("operand not supported for booleans: %+v", op)
+		return nil, fmt.Errorf("operator not supported for booleans: %+v", op)
 	}
 }
 
@@ -2615,69 +2603,4 @@ func unsafeToString(b []byte) string {
 		return ""
 	}
 	return unsafe.String(unsafe.SliceData(b), len(b))
-}
-
-// NewTraceIDShardingPredicate creates a predicate for the TraceID column to match only IDs
-// within the shard.  If sharding isn't present, returns nil meaning no predicate.
-func NewTraceIDShardingPredicate(shardID, shardCount uint32) parquetquery.Predicate {
-	if shardCount <= 1 || shardID <= 0 {
-		return nil
-	}
-
-	isMatch, withinRange := traceidboundary.Funcs(shardID, shardCount)
-	extract := func(v parquet.Value) []byte { return v.ByteArray() }
-
-	return parquetquery.NewGenericPredicate(isMatch, withinRange, extract)
-}
-
-// rowGroupsForShard uses the block trace ID index to more efficiently find the row
-// groups that contain trace IDs within the given shard.  Reading the trace ID index
-// is a single read and typically comes from cache.   Without this we have to test every
-// row group in the file which would be N reads.
-func (b *backendBlock) rowGroupsForShard(ctx context.Context, pf *parquet.File, m backend.BlockMeta, shardID, shardCount uint32) ([]parquet.RowGroup, error) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "parquet.rowGroupsForShard")
-	defer span.Finish()
-
-	cacheInfo := &backend.CacheInfo{
-		Meta: &m,
-		Role: cache.RoleTraceIDIdx,
-	}
-
-	indexBytes, err := b.r.Read(ctx, common.NameIndex, b.meta.BlockID, b.meta.TenantID, cacheInfo)
-	if errors.Is(err, backend.ErrDoesNotExist) {
-		// No index, check all groups
-		return pf.RowGroups(), nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	index, err := unmarshalIndex(indexBytes)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing index (%s, %s): %w", b.meta.TenantID, b.meta.BlockID, err)
-	}
-
-	_, testRange := traceidboundary.Funcs(shardID, shardCount)
-
-	rgs := pf.RowGroups()
-	matches := []parquet.RowGroup{}
-	for i := 0; i < len(index.RowGroups); i++ {
-		if i == 0 {
-			// The index contains the max trace ID for each row
-			// group.  So to determine the min/max for the first
-			// entry we use the minimum ID from block meta.
-			if testRange(m.MinID, index.RowGroups[i]) {
-				matches = append(matches, rgs[i])
-			}
-		} else {
-			if testRange(index.RowGroups[i-1], index.RowGroups[i]) {
-				matches = append(matches, rgs[i])
-			}
-		}
-	}
-
-	span.SetTag("totalRowGroups", len(rgs))
-	span.SetTag("matchedRowGroups", len(matches))
-
-	return matches, nil
 }

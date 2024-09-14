@@ -41,15 +41,20 @@ var ErrTraceTooLarge = fmt.Errorf("trace exceeds max size")
 // * Only sort the final result once and if needed.
 // * Don't scan/hash the spans for the last input (final=true).
 type Combiner struct {
-	result       *tempopb.Trace
-	spans        map[token]struct{}
-	combined     bool
-	maxSizeBytes int
+	result              *tempopb.Trace
+	spans               map[token]struct{}
+	combined            bool
+	maxSizeBytes        int
+	allowPartialTrace   bool
+	maxTraceSizeReached bool
 }
 
-func NewCombiner(maxSizeBytes int) *Combiner {
+// It creates a new Trace combiner. If maxSizeBytes is 0, the final trace size is not checked
+// when allowPartialTrace is set to true a partial trace that exceed the max size may be returned
+func NewCombiner(maxSizeBytes int, allowPartialTrace bool) *Combiner {
 	return &Combiner{
-		maxSizeBytes: maxSizeBytes,
+		maxSizeBytes:      maxSizeBytes,
+		allowPartialTrace: allowPartialTrace,
 	}
 }
 
@@ -62,8 +67,8 @@ func (c *Combiner) Consume(tr *tempopb.Trace) (int, error) {
 // it is known that this is the last expected input trace.
 func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) {
 	var spanCount int
-	if tr == nil {
-		return spanCount, c.sizeError()
+	if tr == nil || c.IsPartialTrace() {
+		return spanCount, nil
 	}
 
 	h := newHash()
@@ -76,25 +81,30 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 		// Pre-alloc map with input size. This saves having to grow the
 		// map from the small starting size.
 		n := 0
-		for _, b := range c.result.Batches {
+		for _, b := range c.result.ResourceSpans {
 			for _, ils := range b.ScopeSpans {
 				n += len(ils.Spans)
 			}
 		}
 		c.spans = make(map[token]struct{}, n)
 
-		for _, b := range c.result.Batches {
+		for _, b := range c.result.ResourceSpans {
 			for _, ils := range b.ScopeSpans {
 				for _, s := range ils.Spans {
 					c.spans[tokenForID(h, buffer, int32(s.Kind), s.SpanId)] = struct{}{}
 				}
 			}
 		}
-		return spanCount, c.sizeError()
+
+		maxSizeErr := c.sizeError()
+		if c.IsPartialTrace() {
+			return spanCount, nil
+		}
+		return spanCount, maxSizeErr
 	}
 
 	// loop through every span and copy spans in B that don't exist to A
-	for _, b := range tr.Batches {
+	for _, b := range tr.ResourceSpans {
 		notFoundILS := b.ScopeSpans[:0]
 
 		for _, ils := range b.ScopeSpans {
@@ -124,12 +134,17 @@ func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) 
 		// if there were some spans not found in A, add everything left in the batch
 		if len(notFoundILS) > 0 {
 			b.ScopeSpans = notFoundILS
-			c.result.Batches = append(c.result.Batches, b)
+			c.result.ResourceSpans = append(c.result.ResourceSpans, b)
 		}
 	}
 
 	c.combined = true
-	return spanCount, c.sizeError()
+	maxSizeErr := c.sizeError()
+	if c.IsPartialTrace() {
+		return spanCount, nil
+	}
+
+	return spanCount, maxSizeErr
 }
 
 func (c *Combiner) sizeError() error {
@@ -138,6 +153,7 @@ func (c *Combiner) sizeError() error {
 	}
 
 	if c.result.Size() > c.maxSizeBytes {
+		c.maxTraceSizeReached = true
 		return fmt.Errorf("%w (max bytes: %d)", ErrTraceTooLarge, c.maxSizeBytes)
 	}
 
@@ -155,4 +171,9 @@ func (c *Combiner) Result() (*tempopb.Trace, int) {
 	}
 
 	return c.result, spanCount
+}
+
+// Returns true if the combined trace is a partial one if partal trace is enabled
+func (c *Combiner) IsPartialTrace() bool {
+	return c.maxTraceSizeReached && c.allowPartialTrace
 }

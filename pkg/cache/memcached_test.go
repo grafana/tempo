@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/grafana/gomemcache/memcache"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
@@ -18,17 +19,7 @@ func TestMemcached(t *testing.T) {
 	t.Run("unbatched", func(t *testing.T) {
 		client := newMockMemcache()
 		memcache := cache.NewMemcached(cache.MemcachedConfig{}, client,
-			"test", nil, log.NewNopLogger())
-
-		testMemcache(t, memcache)
-	})
-
-	t.Run("batched", func(t *testing.T) {
-		client := newMockMemcache()
-		memcache := cache.NewMemcached(cache.MemcachedConfig{
-			BatchSize:   10,
-			Parallelism: 5,
-		}, client, "test", nil, log.NewNopLogger())
+			"test", 0, nil, log.NewNopLogger())
 
 		testMemcache(t, memcache)
 	})
@@ -67,6 +58,12 @@ func testMemcache(t *testing.T, memcache *cache.Memcached) {
 		found = found[1:]
 		bufs = bufs[1:]
 	}
+
+	_, foundKey := memcache.FetchKey(ctx, "1")
+	assert.True(t, foundKey)
+
+	_, foundKey = memcache.FetchKey(ctx, "5")
+	assert.False(t, foundKey)
 }
 
 // mockMemcache whose calls fail 1/3rd of the time.
@@ -94,17 +91,7 @@ func TestMemcacheFailure(t *testing.T) {
 	t.Run("unbatched", func(t *testing.T) {
 		client := newMockMemcacheFailing()
 		memcache := cache.NewMemcached(cache.MemcachedConfig{}, client,
-			"test", nil, log.NewNopLogger())
-
-		testMemcacheFailing(t, memcache)
-	})
-
-	t.Run("batched", func(t *testing.T) {
-		client := newMockMemcacheFailing()
-		memcache := cache.NewMemcached(cache.MemcachedConfig{
-			BatchSize:   10,
-			Parallelism: 5,
-		}, client, "test", nil, log.NewNopLogger())
+			"test", 0, nil, log.NewNopLogger())
 
 		testMemcacheFailing(t, memcache)
 	})
@@ -161,17 +148,7 @@ func TestMemcacheStop(t *testing.T) {
 	t.Run("unbatched", func(_ *testing.T) {
 		client := newMockMemcacheFailing()
 		memcache := cache.NewMemcached(cache.MemcachedConfig{}, client,
-			"test", nil, log.NewNopLogger())
-
-		testMemcachedStopping(memcache)
-	})
-
-	t.Run("batched", func(_ *testing.T) {
-		client := newMockMemcacheFailing()
-		memcache := cache.NewMemcached(cache.MemcachedConfig{
-			BatchSize:   10,
-			Parallelism: 5,
-		}, client, "test", nil, log.NewNopLogger())
+			"test", 0, nil, log.NewNopLogger())
 
 		testMemcachedStopping(memcache)
 	})

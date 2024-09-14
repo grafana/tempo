@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel"
 
 	"github.com/grafana/tempo/pkg/dataquality"
 	"github.com/grafana/tempo/pkg/util/tracing"
@@ -30,6 +30,8 @@ const (
 	DefaultFlushSizeBytes     uint32 = 20 * 1024 * 1024 // 20 MiB
 	DefaultIteratorBufferSize        = 1000
 )
+
+var tracer = otel.Tracer("tempodb/compactor")
 
 var (
 	metricCompactionBlocks = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -104,6 +106,12 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 
 	// Select the next tenant to run compaction for
 	tenantID := tenants[rw.compactorTenantOffset]
+
+	// Skip compaction for tenants which have it disabled.
+	if rw.compactorOverrides.CompactionDisabledForTenant(tenantID) {
+		return
+	}
+
 	// Get the meta file of all non-compacted blocks for the given tenant
 	blocklist := rw.blocklist.Metas(tenantID)
 
@@ -172,8 +180,8 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 	level.Debug(rw.logger).Log("msg", "beginning compaction", "num blocks compacting", len(blockMetas))
 
 	// todo - add timeout?
-	span, ctx := opentracing.StartSpanFromContext(ctx, "rw.compact")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "rw.compact")
+	defer span.End()
 
 	traceID, _ := tracing.ExtractTraceID(ctx)
 	if traceID != "" {

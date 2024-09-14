@@ -13,7 +13,6 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/services"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/exp/maps"
@@ -151,8 +150,8 @@ func (o *userConfigurableOverridesManager) stopping(error) error {
 }
 
 func (o *userConfigurableOverridesManager) reloadAllTenantLimits(ctx context.Context) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "userConfigurableOverridesManager.reloadAllTenantLimits")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "userConfigurableOverridesManager.reloadAllTenantLimits")
+	defer span.End()
 
 	traceID, _ := tracing.ExtractTraceID(ctx)
 	level.Info(o.logger).Log("msg", "reloading all tenant limits", "traceID", traceID)

@@ -31,22 +31,6 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (Combiner, e
 				}
 			}
 
-			samplingRate := resp.AdditionalData()
-			if samplingRate != nil {
-				fRate := samplingRate.(float64)
-
-				if fRate <= 1.0 {
-					// Set final sampling rate after integer rounding
-					// Multiply up the sampling rate
-					for _, series := range partial.Series {
-						for i, sample := range series.Samples {
-							sample.Value *= 1.0 / fRate
-							series.Samples[i] = sample
-						}
-					}
-				}
-			}
-
 			combiner.Combine(partial)
 
 			return nil
@@ -87,6 +71,9 @@ func sortResponse(res *tempopb.QueryRangeResponse) {
 	for _, series := range res.Series {
 		sort.Slice(series.Samples, func(i, j int) bool {
 			return series.Samples[i].TimestampMs < series.Samples[j].TimestampMs
+		})
+		sort.Slice(series.Exemplars, func(i, j int) bool {
+			return series.Exemplars[i].TimestampMs < series.Exemplars[j].TimestampMs
 		})
 	}
 }

@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"math"
 	"math/rand"
-	"os"
 	"path"
 	"strconv"
 	"testing"
@@ -21,7 +19,6 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/pkg/util/traceidboundary"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -581,6 +578,10 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `tempo-gateway` }"},
 		{"resourceAttIntrinsicMatch", "{ resource.service.name = `does-not-exit-6c2408325a45` }"},
 
+		// trace
+		{"traceOrMatch", "{ rootServiceName = `tempo-gateway` && (status = error || span.http.status_code = 500)}"},
+		{"traceOrNoMatch", "{ rootServiceName = `doesntexist` && (status = error || span.http.status_code = 500)}"},
+
 		// mixed
 		{"mixedValNoMatch", "{ .bloom = `does-not-exit-6c2408325a45` }"},
 		{"mixedValMixedMatchAnd", "{ resource.foo = `bar` && name = `gcs.ReadRange` }"},
@@ -752,15 +753,13 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 					}
 
 					req := &tempopb.QueryRangeRequest{
-						Query:      tc,
-						Step:       uint64(time.Minute),
-						Start:      uint64(st.UnixNano()),
-						End:        uint64(end.UnixNano()),
-						ShardID:    30,
-						ShardCount: 65,
+						Query: tc,
+						Step:  uint64(time.Minute),
+						Start: uint64(st.UnixNano()),
+						End:   uint64(end.UnixNano()),
 					}
 
-					eval, err := e.CompileMetricsQueryRange(req, false, 0, false)
+					eval, err := e.CompileMetricsQueryRange(req, 4, 0, false)
 					require.NoError(b, err)
 
 					b.ResetTimer()
@@ -775,124 +774,6 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 					b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
 				})
 			}
-		})
-	}
-}
-
-func TestTraceIDShardingQuality(t *testing.T) {
-	// Use debug=1 go test -v -run=TestTraceIDShardingQuality
-	if os.Getenv("debug") != "1" {
-		t.Skip()
-	}
-
-	var (
-		ctx      = context.TODO()
-		opts     = common.DefaultSearchOptions()
-		tenantID = "1"
-		// blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-		blockID = uuid.MustParse("18364616-f80d-45a6-b2a3-cb63e203edff")
-		path    = "/Users/marty/src/tmp/"
-	)
-
-	r, _, _, err := local.New(&local.Config{
-		Path: path,
-	})
-	require.NoError(t, err)
-
-	rr := backend.NewReader(r)
-	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
-	require.NoError(t, err)
-	require.Equal(t, VersionString, meta.Version)
-
-	block := newBackendBlock(meta, rr)
-	pf, _, err := block.openForSearch(ctx, opts)
-	require.NoError(t, err)
-
-	fetchReq := traceql.FetchSpansRequest{
-		AllConditions: true,
-		Conditions: []traceql.Condition{
-			{Attribute: traceql.IntrinsicTraceIDAttribute},
-		},
-	}
-
-	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		return block.Fetch(ctx, req, opts)
-	})
-
-	summarizeCounts := func(prefix string, cs []int) {
-		count := len(cs)
-		sum := 0
-		l := math.MaxInt
-		h := math.MinInt
-		for _, v := range cs {
-			sum += v
-			l = min(l, v)
-			h = max(h, v)
-		}
-		fmt.Printf("Shards:%d %s: Min:%d Max:%d Total:%d Avg:%.1f Quality:%.1f %%\n",
-			count, prefix, l, h, sum, float64(sum)/float64(count), float64(l)/float64(h)*100.0)
-	}
-
-	shardsToTest := []int{10, 100, 1000}
-
-	for _, shards := range shardsToTest {
-		t.Run(strconv.Itoa(shards), func(t *testing.T) {
-			var (
-				rgCounts = make([]int, shards)
-				trCounts = make([]int, shards)
-				pairs    = make([][]traceidboundary.Boundary, shards)
-				funcs    = make([]func([]byte) bool, shards)
-			)
-
-			for s := 1; s <= shards; s++ {
-				pairs[s-1], _ = traceidboundary.Pairs(uint32(s), uint32(shards))
-				funcs[s-1], _ = traceidboundary.Funcs(uint32(s), uint32(shards))
-
-				rgs, err := block.rowGroupsForShard(ctx, pf, *meta, uint32(s), uint32(shards))
-				require.NoError(t, err)
-				rgCounts[s-1] = len(rgs)
-			}
-
-			resp, err := f.Fetch(ctx, fetchReq)
-			require.NoError(t, err)
-			defer resp.Results.Close()
-
-			for {
-				ss, err := resp.Results.Next(ctx)
-				require.NoError(t, err)
-
-				if ss == nil {
-					break
-				}
-
-				// Match the trace ID against every shard
-				matched := []int{}
-				for i := 0; i < shards; i++ {
-					if funcs[i](ss.TraceID) {
-						trCounts[i]++
-						matched = append(matched, i)
-					}
-				}
-
-				// Check for missing or overlapping ranges
-				if len(matched) > 1 {
-					fmt.Printf("TraceID %X matched %d shards\n", ss.TraceID, len(matched))
-					for _, s := range matched {
-						for i, b := range pairs[s] {
-							fmt.Printf("  Bucket %d %d: %X %X\n", s, i, b.Min, b.Max)
-						}
-					}
-					panic("trace matched multiple shards")
-				} else if len(matched) == 0 {
-					fmt.Println("TraceID not matched by any shard:", ss.TraceID)
-					panic("trace id not matched by any shard")
-				}
-
-				ss.Release()
-			}
-
-			summarizeCounts("Traces", trCounts)
-			summarizeCounts("RowGroups", rgCounts)
 		})
 	}
 }

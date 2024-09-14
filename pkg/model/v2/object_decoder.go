@@ -48,7 +48,7 @@ func (d *ObjectDecoder) PrepareForRead(obj []byte) (*tempopb.Trace, error) {
 			return nil, err
 		}
 
-		trace.Batches = append(trace.Batches, innerTrace.Batches...)
+		trace.ResourceSpans = append(trace.ResourceSpans, innerTrace.ResourceSpans...)
 	}
 	return trace, nil
 }
@@ -57,7 +57,7 @@ func (d *ObjectDecoder) Combine(objs ...[]byte) ([]byte, error) {
 	var minStart, maxEnd uint32
 	minStart = math.MaxUint32
 
-	c := trace.NewCombiner(0)
+	c := trace.NewCombiner(0, false)
 	for i, obj := range objs {
 		t, err := d.PrepareForRead(obj)
 		if err != nil {

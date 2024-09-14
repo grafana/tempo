@@ -12,10 +12,16 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
-	util "github.com/grafana/tempo/integration"
 	"github.com/grafana/tempo/integration/e2e/backend"
+	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/httpclient"
+)
+
+const (
+	configAllInOneS3      = "deployments/config-all-in-one-s3.yaml"
+	configAllInOneAzurite = "deployments/config-all-in-one-azurite.yaml"
+	configAllInOneGCS     = "deployments/config-all-in-one-gcs.yaml"
 )
 
 func TestOverrides(t *testing.T) {

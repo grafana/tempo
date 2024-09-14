@@ -30,14 +30,14 @@ func (g GroupOperation) evaluate(ss []*Spanset) ([]*Spanset, error) {
 			}
 
 			// Check if the result already has a group in the map
-			group, ok := groups[result]
+			group, ok := groups[result.MapKey()]
 			if !ok {
 				// If not, create a new group and add it to the map
 				group = &Spanset{}
 				// copy all existing attributes forward
 				group.Attributes = append(group.Attributes, spanset.Attributes...)
 				group.AddAttribute(g.String(), result)
-				groups[result] = group
+				groups[result.MapKey()] = group
 			}
 
 			// Add the current spanset to the group
@@ -256,7 +256,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				if sum == nil {
 					sum = &val
 				} else {
-					sum.sumInto(val)
+					sum.sumInto(&val)
 				}
 				count++
 			}
@@ -267,34 +267,34 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 			output = append(output, cpy)
 
 		case aggregateMax:
-			var max *Static
+			var maxS *Static
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
 				if err != nil {
 					return nil, err
 				}
-				if max == nil || val.compare(max) == 1 {
-					max = &val
+				if maxS == nil || val.compare(maxS) > 0 {
+					maxS = &val
 				}
 			}
 			cpy := ss.clone()
-			cpy.Scalar = *max
+			cpy.Scalar = *maxS
 			cpy.AddAttribute(a.String(), cpy.Scalar)
 			output = append(output, cpy)
 
 		case aggregateMin:
-			var min *Static
+			var minS *Static
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
 				if err != nil {
 					return nil, err
 				}
-				if min == nil || val.compare(min) == -1 {
-					min = &val
+				if minS == nil || val.compare(minS) == -1 {
+					minS = &val
 				}
 			}
 			cpy := ss.clone()
-			cpy.Scalar = *min
+			cpy.Scalar = *minS
 			cpy.AddAttribute(a.String(), cpy.Scalar)
 			output = append(output, cpy)
 
@@ -308,7 +308,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				if sum == nil {
 					sum = &val
 				} else {
-					sum.sumInto(val)
+					sum.sumInto(&val)
 				}
 			}
 			cpy := ss.clone()
@@ -336,8 +336,8 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	}
 
 	// Ensure the resolved types are still valid
-	lhsT := lhs.impliedType()
-	rhsT := rhs.impliedType()
+	lhsT := lhs.Type
+	rhsT := rhs.Type
 	if !lhsT.isMatchingOperand(rhsT) {
 		return NewStaticBool(false), nil
 	}
@@ -356,86 +356,148 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) < 0), nil
 		case OpLessEqual:
 			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) <= 0), nil
+		case OpRegex:
+			if o.compiledExpression == nil {
+				o.compiledExpression, err = regexp.Compile(rhs.EncodeToString(false))
+				if err != nil {
+					return NewStaticNil(), err
+				}
+			}
+
+			matched := o.compiledExpression.MatchString(lhs.EncodeToString(false))
+			return NewStaticBool(matched), err
+		case OpNotRegex:
+			if o.compiledExpression == nil {
+				o.compiledExpression, err = regexp.Compile(rhs.EncodeToString(false))
+				if err != nil {
+					return NewStaticNil(), err
+				}
+			}
+
+			matched := o.compiledExpression.MatchString(lhs.EncodeToString(false))
+			return NewStaticBool(!matched), err
 		default:
 		}
 	}
 
 	// if both sides are integers then do integer math, otherwise we can drop to the
-	// catch all below
+	// catch-all below
 	if lhsT == TypeInt && rhsT == TypeInt {
+		lhsN, _ := lhs.Int()
+		rhsN, _ := rhs.Int()
+
 		switch o.Op {
 		case OpAdd:
-			return NewStaticInt(lhs.N + rhs.N), nil
+			return NewStaticInt(lhsN + rhsN), nil
 		case OpSub:
-			return NewStaticInt(lhs.N - rhs.N), nil
+			return NewStaticInt(lhsN - rhsN), nil
 		case OpDiv:
-			return NewStaticInt(lhs.N / rhs.N), nil
+			return NewStaticInt(lhsN / rhsN), nil
 		case OpMod:
-			return NewStaticInt(lhs.N % rhs.N), nil
+			return NewStaticInt(lhsN % rhsN), nil
 		case OpMult:
-			return NewStaticInt(lhs.N * rhs.N), nil
+			return NewStaticInt(lhsN * rhsN), nil
 		case OpGreater:
-			return NewStaticBool(lhs.N > rhs.N), nil
+			return NewStaticBool(lhsN > rhsN), nil
 		case OpGreaterEqual:
-			return NewStaticBool(lhs.N >= rhs.N), nil
+			return NewStaticBool(lhsN >= rhsN), nil
 		case OpLess:
-			return NewStaticBool(lhs.N < rhs.N), nil
+			return NewStaticBool(lhsN < rhsN), nil
 		case OpLessEqual:
-			return NewStaticBool(lhs.N <= rhs.N), nil
+			return NewStaticBool(lhsN <= rhsN), nil
 		case OpPower:
-			return NewStaticInt(intPow(rhs.N, lhs.N)), nil
+			return NewStaticInt(intPow(rhsN, lhsN)), nil
 		}
+	}
+
+	if lhsT == TypeBoolean && rhsT == TypeBoolean {
+		lhsB, _ := lhs.Bool()
+		rhsB, _ := rhs.Bool()
+
+		switch o.Op {
+		case OpAnd:
+			return NewStaticBool(lhsB && rhsB), nil
+		case OpOr:
+			return NewStaticBool(lhsB || rhsB), nil
+		}
+	}
+
+	if lhsT.isMatchingArrayElement(rhsT) {
+		// we only support boolean op in the arrays
+		if !o.Op.isBoolean() {
+			return NewStaticNil(), errors.ErrUnsupported
+		}
+
+		elemOp := &BinaryOperation{Op: o.Op, LHS: lhs, RHS: rhs}
+		arraySide := lhs
+		// to support symmetric operations
+		if rhsT.isArray() {
+			// for regex operations, TraceQL makes an assumption that RHS is the regex, and compiles it.
+			// we can support symmetric array operations by flipping the sides and executing the binary operation.
+			elemOp = &BinaryOperation{Op: getFlippedOp(o.Op), LHS: rhs, RHS: lhs}
+			arraySide = rhs
+		}
+
+		var res Static
+		err := arraySide.GetElements(func(elem Static) bool {
+			elemOp.LHS = elem
+			res, err = elemOp.execute(span)
+			if err != nil {
+				return false // stop iteration early if there's an error
+			}
+			match, ok := res.Bool()
+			return !(ok && match) // stop if a match is found
+		})
+		if err != nil {
+			return NewStaticNil(), err
+		}
+
+		return res, err
 	}
 
 	switch o.Op {
 	case OpAdd:
-		return NewStaticFloat(lhs.asFloat() + rhs.asFloat()), nil
+		return NewStaticFloat(lhs.Float() + rhs.Float()), nil
 	case OpSub:
-		return NewStaticFloat(lhs.asFloat() - rhs.asFloat()), nil
+		return NewStaticFloat(lhs.Float() - rhs.Float()), nil
 	case OpDiv:
-		return NewStaticFloat(lhs.asFloat() / rhs.asFloat()), nil
+		return NewStaticFloat(lhs.Float() / rhs.Float()), nil
 	case OpMod:
-		return NewStaticFloat(math.Mod(lhs.asFloat(), rhs.asFloat())), nil
+		return NewStaticFloat(math.Mod(lhs.Float(), rhs.Float())), nil
 	case OpMult:
-		return NewStaticFloat(lhs.asFloat() * rhs.asFloat()), nil
+		return NewStaticFloat(lhs.Float() * rhs.Float()), nil
 	case OpGreater:
-		return NewStaticBool(lhs.asFloat() > rhs.asFloat()), nil
+		return NewStaticBool(lhs.Float() > rhs.Float()), nil
 	case OpGreaterEqual:
-		return NewStaticBool(lhs.asFloat() >= rhs.asFloat()), nil
+		return NewStaticBool(lhs.Float() >= rhs.Float()), nil
 	case OpLess:
-		return NewStaticBool(lhs.asFloat() < rhs.asFloat()), nil
+		return NewStaticBool(lhs.Float() < rhs.Float()), nil
 	case OpLessEqual:
-		return NewStaticBool(lhs.asFloat() <= rhs.asFloat()), nil
+		return NewStaticBool(lhs.Float() <= rhs.Float()), nil
 	case OpPower:
-		return NewStaticFloat(math.Pow(lhs.asFloat(), rhs.asFloat())), nil
+		return NewStaticFloat(math.Pow(lhs.Float(), rhs.Float())), nil
 	case OpEqual:
-		return NewStaticBool(lhs.Equals(rhs)), nil
+		return NewStaticBool(lhs.Equals(&rhs)), nil
 	case OpNotEqual:
-		return NewStaticBool(!lhs.Equals(rhs)), nil
-	case OpRegex:
-		if o.compiledExpression == nil {
-			o.compiledExpression, err = regexp.Compile(rhs.S)
-			if err != nil {
-				return NewStaticNil(), err
-			}
-		}
-		matched := o.compiledExpression.MatchString(lhs.S)
-		return NewStaticBool(matched), err
-	case OpNotRegex:
-		if o.compiledExpression == nil {
-			o.compiledExpression, err = regexp.Compile(rhs.S)
-			if err != nil {
-				return NewStaticNil(), err
-			}
-		}
-		matched := o.compiledExpression.MatchString(lhs.S)
-		return NewStaticBool(!matched), err
-	case OpAnd:
-		return NewStaticBool(lhs.B && rhs.B), nil
-	case OpOr:
-		return NewStaticBool(lhs.B || rhs.B), nil
+		return NewStaticBool(!lhs.Equals(&rhs)), nil
 	default:
 		return NewStaticNil(), errors.New("unexpected operator " + o.Op.String())
+	}
+}
+
+// getFlippedOp will return the flipped op, used when flipping the LHS and RHS of a BinaryOperation
+func getFlippedOp(op Operator) Operator {
+	switch op {
+	case OpGreater:
+		return OpLess
+	case OpGreaterEqual:
+		return OpLessEqual
+	case OpLess:
+		return OpGreater
+	case OpLessEqual:
+		return OpGreaterEqual
+	default:
+		return op
 	}
 }
 
@@ -451,23 +513,31 @@ func binOp(op Operator, lhs, rhs Static) (bool, error) {
 		return false, nil
 	}
 
+	if lhsT == TypeBoolean && rhsT == TypeBoolean {
+		lhsB, _ := lhs.Bool()
+		rhsB, _ := rhs.Bool()
+
+		switch op {
+		case OpAnd:
+			return lhsB && rhsB, nil
+		case OpOr:
+			return lhsB || rhsB, nil
+		}
+	}
+
 	switch op {
 	case OpGreater:
-		return lhs.asFloat() > rhs.asFloat(), nil
+		return lhs.Float() > rhs.Float(), nil
 	case OpGreaterEqual:
-		return lhs.asFloat() >= rhs.asFloat(), nil
+		return lhs.Float() >= rhs.Float(), nil
 	case OpLess:
-		return lhs.asFloat() < rhs.asFloat(), nil
+		return lhs.Float() < rhs.Float(), nil
 	case OpLessEqual:
-		return lhs.asFloat() <= rhs.asFloat(), nil
+		return lhs.Float() <= rhs.Float(), nil
 	case OpEqual:
-		return lhs.Equals(rhs), nil
+		return lhs.Equals(&rhs), nil
 	case OpNotEqual:
-		return !lhs.Equals(rhs), nil
-	case OpAnd:
-		return lhs.B && rhs.B, nil
-	case OpOr:
-		return lhs.B || rhs.B, nil
+		return !lhs.Equals(&rhs), nil
 	}
 
 	return false, errors.New("unexpected operator " + op.String())
@@ -483,7 +553,8 @@ func (o UnaryOperation) execute(span Span) (Static, error) {
 		if static.Type != TypeBoolean {
 			return NewStaticNil(), fmt.Errorf("expression (%v) expected a boolean, but got %v", o, static.Type)
 		}
-		return NewStaticBool(!static.B), nil
+		b, _ := static.Bool()
+		return NewStaticBool(!b), nil
 	}
 	if o.Op == OpSub {
 		if !static.Type.isNumeric() {
@@ -491,11 +562,13 @@ func (o UnaryOperation) execute(span Span) (Static, error) {
 		}
 		switch static.Type {
 		case TypeInt:
-			return NewStaticInt(-1 * static.N), nil
+			n, _ := static.Int()
+			return NewStaticInt(-1 * n), nil
 		case TypeFloat:
-			return NewStaticFloat(-1 * static.F), nil
+			return NewStaticFloat(-1 * static.Float()), nil
 		case TypeDuration:
-			return NewStaticDuration(-1 * static.D), nil
+			d, _ := static.Duration()
+			return NewStaticDuration(-1 * d), nil
 		}
 	}
 

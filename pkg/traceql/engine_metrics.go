@@ -2,11 +2,8 @@ package traceql
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
-	"hash"
-	"hash/fnv"
 	"math"
 	"sort"
 	"sync"
@@ -19,7 +16,13 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 )
 
-const internalLabelBucket = "__bucket"
+const (
+	internalLabelBucket   = "__bucket"
+	maxExemplars          = 100
+	maxExemplarsPerBucket = 2
+	// NormalNaN is a quiet NaN. This is also math.NaN().
+	normalNaN uint64 = 0x7ff8000000000001
+)
 
 func DefaultQueryRangeStep(start, end uint64) uint64 {
 	delta := time.Duration(end - start)
@@ -65,19 +68,86 @@ func IntervalOf(ts, start, end, step uint64) int {
 	return int((ts - start) / step)
 }
 
-// IntervalOfMs is the same as IntervalOf except the input timestamp is in unix milliseconds.
+// IntervalOfMs is the same as IntervalOf except the input and calculations are in unix milliseconds.
 func IntervalOfMs(tsmills int64, start, end, step uint64) int {
 	ts := uint64(time.Duration(tsmills) * time.Millisecond)
+	start -= start % uint64(time.Millisecond)
+	end -= end % uint64(time.Millisecond)
 	return IntervalOf(ts, start, end, step)
 }
 
-// TrimToOverlap returns the aligned overlap between the two given time ranges.
-func TrimToOverlap(start1, end1, step, start2, end2 uint64) (uint64, uint64) {
+// TrimToOverlap returns the aligned overlap between the two given time ranges. If the request
+// is instant, then will return and updated step to match to the new time range.
+func TrimToOverlap(start1, end1, step, start2, end2 uint64) (uint64, uint64, uint64) {
+	wasInstant := end1-start1 == step
+
 	start1 = max(start1, start2)
 	end1 = min(end1, end2)
-	start1 = (start1 / step) * step
-	end1 = (end1/step)*step + step
-	return start1, end1
+
+	if wasInstant {
+		// Alter step to maintain instant nature
+		step = end1 - start1
+	} else {
+		// Realign after trimming
+		start1 = (start1 / step) * step
+		end1 = (end1/step)*step + step
+	}
+
+	return start1, end1, step
+}
+
+// TrimToBefore shortens the query window to only include before the given time.
+// Request must be in unix nanoseconds already.
+func TrimToBefore(req *tempopb.QueryRangeRequest, before time.Time) {
+	wasInstant := IsInstant(*req)
+	beforeNs := uint64(before.UnixNano())
+
+	req.Start = min(req.Start, beforeNs)
+	req.End = min(req.End, beforeNs)
+
+	if wasInstant {
+		// Maintain instant nature of the request
+		req.Step = req.End - req.Start
+	} else {
+		// Realign after trimming
+		AlignRequest(req)
+	}
+}
+
+// TrimToAfter shortens the query window to only include after the given time.
+// Request must be in unix nanoseconds already.
+func TrimToAfter(req *tempopb.QueryRangeRequest, before time.Time) {
+	wasInstant := IsInstant(*req)
+	beforeNs := uint64(before.UnixNano())
+
+	req.Start = max(req.Start, beforeNs)
+	req.End = max(req.End, beforeNs)
+
+	if wasInstant {
+		// Maintain instant nature of the request
+		req.Step = req.End - req.Start
+	} else {
+		// Realign after trimming
+		AlignRequest(req)
+	}
+}
+
+func IsInstant(req tempopb.QueryRangeRequest) bool {
+	return req.End-req.Start == req.Step
+}
+
+// AlignRequest shifts the start and end times of the request to align with the step
+// interval.  This gives more consistent results across refreshes of queries like "last 1 hour".
+// Without alignment each refresh is shifted by seconds or even milliseconds and the time series
+// calculations are sublty different each time. It's not wrong, but less preferred behavior.
+func AlignRequest(req *tempopb.QueryRangeRequest) {
+	if IsInstant(*req) {
+		return
+	}
+
+	// It doesn't really matter but the request fields are expected to be in nanoseconds.
+	req.Start = req.Start / req.Step * req.Step
+	req.End = req.End / req.Step * req.Step
 }
 
 type Label struct {
@@ -104,8 +174,13 @@ func (ls Labels) String() string {
 		switch {
 		case l.Value.Type == TypeNil:
 			promValue = "<nil>"
-		case l.Value.Type == TypeString && l.Value.S == "":
-			promValue = "<empty>"
+		case l.Value.Type == TypeString:
+			s := l.Value.EncodeToString(false)
+			if s != "" {
+				promValue = s
+			} else {
+				promValue = "<empty>"
+			}
 		default:
 			promValue = l.Value.EncodeToString(false)
 		}
@@ -115,9 +190,16 @@ func (ls Labels) String() string {
 	return promLabels.Labels().String()
 }
 
+type Exemplar struct {
+	Labels      Labels
+	Value       float64
+	TimestampMs uint64
+}
+
 type TimeSeries struct {
-	Labels Labels
-	Values []float64
+	Labels    Labels
+	Values    []float64
+	Exemplars []Exemplar
 }
 
 // SeriesSet is a set of unique timeseries. They are mapped by the "Prometheus"-style
@@ -159,7 +241,7 @@ func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels 
 
 			// todo: this loop should be able to be restructured to directly pass over
 			// the desired intervals
-			if ts < start || ts > end {
+			if ts < start || ts > end || math.IsNaN(value) {
 				continue
 			}
 
@@ -168,11 +250,37 @@ func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels 
 				Value:       value,
 			})
 		}
+		// Do not include empty TimeSeries
+		if len(samples) == 0 {
+			continue
+		}
+
+		var exemplars []tempopb.Exemplar
+		if len(s.Exemplars) > 0 {
+			exemplars = make([]tempopb.Exemplar, 0, len(s.Exemplars))
+		}
+		for _, e := range s.Exemplars {
+			labels := make([]commonv1proto.KeyValue, 0, len(e.Labels))
+			for _, label := range e.Labels {
+				labels = append(labels,
+					commonv1proto.KeyValue{
+						Key:   label.Name,
+						Value: label.Value.AsAnyValue(),
+					},
+				)
+			}
+			exemplars = append(exemplars, tempopb.Exemplar{
+				Labels:      labels,
+				Value:       e.Value,
+				TimestampMs: int64(e.TimestampMs),
+			})
+		}
 
 		ss := &tempopb.TimeSeries{
 			PromLabels: promLabels,
 			Labels:     labels,
 			Samples:    samples,
+			Exemplars:  exemplars,
 		}
 
 		resp = append(resp, ss)
@@ -191,12 +299,15 @@ type VectorAggregator interface {
 // TODO - for efficiency we probably combine this with VectorAggregator (see todo about CountOverTimeAggregator)
 type RangeAggregator interface {
 	Observe(s Span)
+	ObserveExemplar(float64, uint64, Labels)
 	Samples() []float64
+	Exemplars() []Exemplar
 }
 
 // SpanAggregator sorts spans into series
 type SpanAggregator interface {
 	Observe(Span)
+	ObserveExemplar(Span, float64, uint64)
 	Series() SeriesSet
 }
 
@@ -230,12 +341,74 @@ func (c *CountOverTimeAggregator) Sample() float64 {
 	return c.count * c.rateMult
 }
 
+// MinOverTimeAggregator it calculates the mininum value over time. It can also
+// calculate the rate when given a multiplier.
+type OverTimeAggregator struct {
+	getSpanAttValue func(s Span) float64
+	agg             func(current, new float64) float64
+	val             float64
+}
+
+var _ VectorAggregator = (*OverTimeAggregator)(nil)
+
+func NewOverTimeAggregator(attr Attribute, op SimpleAggregationOp) *OverTimeAggregator {
+	var fn func(s Span) float64
+	var agg func(current, new float64) float64
+
+	switch op {
+	case maxAggregation:
+		agg = func(current, new float64) float64 {
+			if math.IsNaN(current) || new > current {
+				return new
+			}
+			return current
+		}
+	case minAggregation:
+		agg = func(current, new float64) float64 {
+			if math.IsNaN(current) || new < current {
+				return new
+			}
+			return current
+		}
+	}
+
+	switch attr {
+	case IntrinsicDurationAttribute:
+		fn = func(s Span) float64 {
+			return float64(s.DurationNanos()) / float64(time.Second)
+		}
+	default:
+		fn = func(s Span) float64 {
+			f, a := FloatizeAttribute(s, attr)
+			if a == TypeNil {
+				return math.Float64frombits(normalNaN)
+			}
+			return f
+		}
+	}
+
+	return &OverTimeAggregator{
+		getSpanAttValue: fn,
+		agg:             agg,
+		val:             math.Float64frombits(normalNaN),
+	}
+}
+
+func (c *OverTimeAggregator) Observe(s Span) {
+	c.val = c.agg(c.val, c.getSpanAttValue(s))
+}
+
+func (c *OverTimeAggregator) Sample() float64 {
+	return c.val
+}
+
 // StepAggregator sorts spans into time slots using a step interval like 30s or 1m
 type StepAggregator struct {
-	start   uint64
-	end     uint64
-	step    uint64
-	vectors []VectorAggregator
+	start, end, step uint64
+	intervals        int
+	vectors          []VectorAggregator
+	exemplars        []Exemplar
+	exemplarBuckets  *bucketSet
 }
 
 var _ RangeAggregator = (*StepAggregator)(nil)
@@ -247,11 +420,16 @@ func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator
 		vectors[i] = innerAgg()
 	}
 
+	exemplars := make([]Exemplar, 0, maxExemplars)
+
 	return &StepAggregator{
-		start:   start,
-		end:     end,
-		step:    step,
-		vectors: vectors,
+		start:           start,
+		end:             end,
+		step:            step,
+		intervals:       intervals,
+		vectors:         vectors,
+		exemplars:       exemplars,
+		exemplarBuckets: newBucketSet(intervals),
 	}
 }
 
@@ -263,12 +441,32 @@ func (s *StepAggregator) Observe(span Span) {
 	s.vectors[interval].Observe(span)
 }
 
+func (s *StepAggregator) ObserveExemplar(value float64, ts uint64, lbls Labels) {
+	if s.exemplarBuckets.testTotal() {
+		return
+	}
+	interval := IntervalOfMs(int64(ts), s.start, s.end, s.step)
+	if s.exemplarBuckets.addAndTest(interval) {
+		return
+	}
+
+	s.exemplars = append(s.exemplars, Exemplar{
+		Labels:      lbls,
+		Value:       value,
+		TimestampMs: ts,
+	})
+}
+
 func (s *StepAggregator) Samples() []float64 {
 	ss := make([]float64, len(s.vectors))
 	for i, v := range s.vectors {
 		ss[i] = v.Sample()
 	}
 	return ss
+}
+
+func (s *StepAggregator) Exemplars() []Exemplar {
+	return s.exemplars
 }
 
 const maxGroupBys = 5 // TODO - This isn't ideal but see comment below.
@@ -280,15 +478,31 @@ const maxGroupBys = 5 // TODO - This isn't ideal but see comment below.
 // the maximum number of values.
 
 type (
-	FastValues1 [1]Static
-	FastValues2 [2]Static
-	FastValues3 [3]Static
-	FastValues4 [4]Static
-	FastValues5 [5]Static
+	FastStatic1 [1]StaticMapKey
+	FastStatic2 [2]StaticMapKey
+	FastStatic3 [3]StaticMapKey
+	FastStatic4 [4]StaticMapKey
+	FastStatic5 [5]StaticMapKey
 )
 
+type FastStatic interface {
+	FastStatic1 | FastStatic2 | FastStatic3 | FastStatic4 | FastStatic5
+}
+
+type (
+	StaticVals1 [1]Static
+	StaticVals2 [2]Static
+	StaticVals3 [3]Static
+	StaticVals4 [4]Static
+	StaticVals5 [5]Static
+)
+
+type StaticVals interface {
+	StaticVals1 | StaticVals2 | StaticVals3 | StaticVals4 | StaticVals5
+}
+
 // GroupingAggregator groups spans into series based on attribute values.
-type GroupingAggregator[FV FastValues1 | FastValues2 | FastValues3 | FastValues4 | FastValues5] struct {
+type GroupingAggregator[F FastStatic, S StaticVals] struct {
 	// Config
 	by          []Attribute               // Original attributes: .foo
 	byLookups   [][]Attribute             // Lookups: span.foo resource.foo
@@ -297,13 +511,23 @@ type GroupingAggregator[FV FastValues1 | FastValues2 | FastValues3 | FastValues4
 	innerAgg    func() RangeAggregator
 
 	// Data
-	series     map[FV]RangeAggregator
-	lastSeries RangeAggregator
-	buf        FV
-	lastBuf    FV
+	series     map[F]aggregatorWitValues[S]
+	lastSeries aggregatorWitValues[S]
+	buf        fastStaticWithValues[F, S]
+	lastBuf    fastStaticWithValues[F, S]
 }
 
-var _ SpanAggregator = (*GroupingAggregator[FastValues5])(nil)
+type aggregatorWitValues[S StaticVals] struct {
+	agg  RangeAggregator
+	vals S
+}
+
+type fastStaticWithValues[F FastStatic, S StaticVals] struct {
+	fast F
+	vals S
+}
+
+var _ SpanAggregator = (*GroupingAggregator[FastStatic1, StaticVals1])(nil)
 
 func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by []Attribute, byFunc func(Span) (Static, bool), byFuncLabel string) SpanAggregator {
 	if len(by) == 0 && byFunc == nil {
@@ -334,23 +558,23 @@ func NewGroupingAggregator(aggName string, innerAgg func() RangeAggregator, by [
 
 	switch aggNum {
 	case 1:
-		return newGroupingAggregator[FastValues1](innerAgg, by, byFunc, byFuncLabel, lookups)
+		return newGroupingAggregator[FastStatic1, StaticVals1](innerAgg, by, byFunc, byFuncLabel, lookups)
 	case 2:
-		return newGroupingAggregator[FastValues2](innerAgg, by, byFunc, byFuncLabel, lookups)
+		return newGroupingAggregator[FastStatic2, StaticVals2](innerAgg, by, byFunc, byFuncLabel, lookups)
 	case 3:
-		return newGroupingAggregator[FastValues3](innerAgg, by, byFunc, byFuncLabel, lookups)
+		return newGroupingAggregator[FastStatic3, StaticVals3](innerAgg, by, byFunc, byFuncLabel, lookups)
 	case 4:
-		return newGroupingAggregator[FastValues4](innerAgg, by, byFunc, byFuncLabel, lookups)
+		return newGroupingAggregator[FastStatic4, StaticVals4](innerAgg, by, byFunc, byFuncLabel, lookups)
 	case 5:
-		return newGroupingAggregator[FastValues5](innerAgg, by, byFunc, byFuncLabel, lookups)
+		return newGroupingAggregator[FastStatic5, StaticVals5](innerAgg, by, byFunc, byFuncLabel, lookups)
 	default:
 		panic("unsupported number of group-bys")
 	}
 }
 
-func newGroupingAggregator[FV FastValues1 | FastValues2 | FastValues3 | FastValues4 | FastValues5](innerAgg func() RangeAggregator, by []Attribute, byFunc func(Span) (Static, bool), byFuncLabel string, lookups [][]Attribute) SpanAggregator {
-	return &GroupingAggregator[FV]{
-		series:      map[FV]RangeAggregator{},
+func newGroupingAggregator[F FastStatic, S StaticVals](innerAgg func() RangeAggregator, by []Attribute, byFunc func(Span) (Static, bool), byFuncLabel string, lookups [][]Attribute) SpanAggregator {
+	return &GroupingAggregator[F, S]{
+		series:      map[F]aggregatorWitValues[S]{},
 		by:          by,
 		byFunc:      byFunc,
 		byFuncLabel: byFuncLabel,
@@ -359,15 +583,17 @@ func newGroupingAggregator[FV FastValues1 | FastValues2 | FastValues3 | FastValu
 	}
 }
 
-// Observe the span by looking up its group-by attributes, mapping to the series,
-// and passing to the inner aggregate.  This is a critical hot path.
-func (g *GroupingAggregator[FV]) Observe(span Span) {
+// getGroupingValues gets the grouping values for the span and stores them in the buffer.
+// Returns false if the span should be dropped.
+func (g *GroupingAggregator[F, S]) getGroupingValues(span Span) bool {
 	// Get grouping values
 	// Reuse same buffer
 	// There is no need to reset, the number of group-by attributes
 	// is fixed after creation.
 	for i, lookups := range g.byLookups {
-		g.buf[i] = lookup(lookups, span)
+		val := lookup(lookups, span)
+		g.buf.vals[i] = val
+		g.buf.fast[i] = val.MapKey()
 	}
 
 	// If dynamic label exists calculate and append it
@@ -375,25 +601,60 @@ func (g *GroupingAggregator[FV]) Observe(span Span) {
 		v, ok := g.byFunc(span)
 		if !ok {
 			// Totally drop this span
-			return
+			return false
 		}
-		g.buf[len(g.byLookups)] = v
+		g.buf.vals[len(g.byLookups)] = v
+		g.buf.fast[len(g.byLookups)] = v.MapKey()
 	}
 
-	if g.lastSeries != nil && g.lastBuf == g.buf {
-		g.lastSeries.Observe(span)
-		return
+	return true
+}
+
+// getSeries gets the series for the current span.
+// It will reuse the last series if possible.
+func (g *GroupingAggregator[F, S]) getSeries() aggregatorWitValues[S] {
+	// Fast path
+	if g.lastSeries.agg != nil && g.lastBuf.fast == g.buf.fast {
+		return g.lastSeries
 	}
 
-	agg, ok := g.series[g.buf]
+	s, ok := g.series[g.buf.fast]
 	if !ok {
-		agg = g.innerAgg()
-		g.series[g.buf] = agg
+		s.agg = g.innerAgg()
+		s.vals = g.buf.vals
+		g.series[g.buf.fast] = s
 	}
 
 	g.lastBuf = g.buf
-	g.lastSeries = agg
-	agg.Observe(span)
+	g.lastSeries = s
+	return s
+}
+
+// Observe the span by looking up its group-by attributes, mapping to the series,
+// and passing to the inner aggregate.  This is a critical hot path.
+func (g *GroupingAggregator[F, S]) Observe(span Span) {
+	if !g.getGroupingValues(span) {
+		return
+	}
+
+	s := g.getSeries()
+	s.agg.Observe(span)
+}
+
+func (g *GroupingAggregator[F, S]) ObserveExemplar(span Span, value float64, ts uint64) {
+	if !g.getGroupingValues(span) {
+		return
+	}
+
+	s := g.getSeries()
+
+	// Observe exemplar
+	all := span.AllAttributes()
+	lbls := make(Labels, 0, len(all))
+	for k, v := range span.AllAttributes() {
+		lbls = append(lbls, Label{k.String(), v})
+	}
+	s.agg.ObserveExemplar(value, ts, lbls)
 }
 
 // labelsFor gives the final labels for the series. Slower and not on the hot path.
@@ -425,7 +686,7 @@ func (g *GroupingAggregator[FV]) Observe(span Span) {
 //
 //	Ex: rate() by (x,y,z) and all nil yields:
 //	{x="nil"}
-func (g *GroupingAggregator[FV]) labelsFor(vals FV) (Labels, string) {
+func (g *GroupingAggregator[F, S]) labelsFor(vals S) (Labels, string) {
 	labels := make(Labels, 0, len(g.by)+1)
 	for i := range g.by {
 		if vals[i].Type == TypeNil {
@@ -445,15 +706,16 @@ func (g *GroupingAggregator[FV]) labelsFor(vals FV) (Labels, string) {
 	return labels, labels.String()
 }
 
-func (g *GroupingAggregator[FV]) Series() SeriesSet {
+func (g *GroupingAggregator[F, S]) Series() SeriesSet {
 	ss := SeriesSet{}
 
-	for vals, agg := range g.series {
-		labels, promLabels := g.labelsFor(vals)
+	for _, s := range g.series {
+		labels, promLabels := g.labelsFor(s.vals)
 
 		ss[promLabels] = TimeSeries{
-			Labels: labels,
-			Values: agg.Samples(),
+			Labels:    labels,
+			Values:    s.agg.Samples(),
+			Exemplars: s.agg.Exemplars(),
 		}
 	}
 
@@ -472,6 +734,15 @@ func (u *UngroupedAggregator) Observe(span Span) {
 	u.innerAgg.Observe(span)
 }
 
+func (u *UngroupedAggregator) ObserveExemplar(span Span, value float64, ts uint64) {
+	all := span.AllAttributes()
+	lbls := make(Labels, 0, len(all))
+	for k, v := range all {
+		lbls = append(lbls, Label{k.String(), v})
+	}
+	u.innerAgg.ObserveExemplar(value, ts, lbls)
+}
+
 // Series output.
 // This is tweaked to match what prometheus does.  For ungrouped metrics we
 // fill in a placeholder metric name with the name of the aggregation.
@@ -480,8 +751,9 @@ func (u *UngroupedAggregator) Series() SeriesSet {
 	l := labels.FromStrings(labels.MetricName, u.name)
 	return SeriesSet{
 		l.String(): {
-			Labels: []Label{{labels.MetricName, NewStaticString(u.name)}},
-			Values: u.innerAgg.Samples(),
+			Labels:    []Label{{labels.MetricName, NewStaticString(u.name)}},
+			Values:    u.innerAgg.Samples(),
+			Exemplars: u.innerAgg.Exemplars(),
 		},
 	}
 }
@@ -516,11 +788,11 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 	}, nil
 }
 
-// CompileMetricsQueryRange returns an evalulator that can be reused across multiple data sources.
+// CompileMetricsQueryRange returns an evaluator that can be reused across multiple data sources.
 // Dedupe spans parameter is an indicator of whether to expect duplicates in the datasource. For
 // example if the datasource is replication factor=1 or only a single block then we know there
-// aren't duplicates and we can make some optimizations.
-func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupeSpans bool, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvalulator, error) {
+// aren't duplicates, and we can make some optimizations.
+func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exemplars int, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvalulator, error) {
 	if req.Start <= 0 {
 		return nil, fmt.Errorf("start required")
 	}
@@ -543,8 +815,8 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 		return nil, fmt.Errorf("not a metrics query")
 	}
 
-	if v, ok := expr.Hints.GetBool(HintDedupe, allowUnsafeQueryHints); ok {
-		dedupeSpans = v
+	if v, ok := expr.Hints.GetInt(HintExemplars, allowUnsafeQueryHints); ok {
+		exemplars = v
 	}
 
 	// This initializes all step buffers, counters, etc
@@ -553,27 +825,9 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	me := &MetricsEvalulator{
 		storageReq:        storageReq,
 		metricsPipeline:   metricsPipeline,
-		dedupeSpans:       dedupeSpans,
 		timeOverlapCutoff: timeOverlapCutoff,
-	}
-
-	// TraceID (optional)
-	if req.ShardCount > 1 {
-		// For sharding it must be in the first pass so that we only evalulate our traces.
-		storageReq.ShardID = req.ShardID
-		storageReq.ShardCount = req.ShardCount
-		if !storageReq.HasAttribute(IntrinsicTraceIDAttribute) {
-			storageReq.Conditions = append(storageReq.Conditions, Condition{Attribute: IntrinsicTraceIDAttribute})
-		}
-	}
-
-	if dedupeSpans {
-		// For dedupe we only need the trace ID on matching spans, so it can go in the second pass.
-		// This is a no-op if we are already sharding and it's in the first pass.
-		// Finally, this is often optimized back to the first pass when it lets us avoid a second pass altogether.
-		if !storageReq.HasAttribute(IntrinsicTraceIDAttribute) {
-			storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, Condition{Attribute: IntrinsicTraceIDAttribute})
-		}
+		maxExemplars:      exemplars,
+		exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 	}
 
 	// Span start time (always required)
@@ -600,6 +854,11 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, dedupe
 	me.start = req.Start
 	me.end = req.End
 
+	if me.maxExemplars > 0 {
+		cb := func() bool { return me.exemplarCount < me.maxExemplars }
+		meta := ExemplarMetaConditionsWithout(cb, storageReq.SecondPassConditions, storageReq.AllConditions)
+		storageReq.SecondPassConditions = append(storageReq.SecondPassConditions, meta...)
+	}
 	// Setup second pass callback.  It might be optimized away
 	storageReq.SecondPass = func(s *Spanset) ([]*Spanset, error) {
 		// The traceql engine isn't thread-safe.
@@ -680,21 +939,19 @@ func lookup(needles []Attribute, haystack Span) Static {
 		}
 	}
 
-	return Static{}
+	return NewStaticNil()
 }
 
 type MetricsEvalulator struct {
-	start, end        uint64
-	checkTime         bool
-	dedupeSpans       bool
-	deduper           *SpanDeduper2
-	timeOverlapCutoff float64
-	storageReq        *FetchSpansRequest
-	metricsPipeline   metricsFirstStageElement
-	spansTotal        uint64
-	spansDeduped      uint64
-	bytes             uint64
-	mtx               sync.Mutex
+	start, end                      uint64
+	checkTime                       bool
+	maxExemplars, exemplarCount     int
+	exemplarMap                     map[string]struct{}
+	timeOverlapCutoff               float64
+	storageReq                      *FetchSpansRequest
+	metricsPipeline                 metricsFirstStageElement
+	spansTotal, spansDeduped, bytes uint64
+	mtx                             sync.Mutex
 }
 
 func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
@@ -743,10 +1000,6 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 		return err
 	}
 
-	if e.dedupeSpans && e.deduper == nil {
-		e.deduper = NewSpanDeduper2()
-	}
-
 	defer fetch.Results.Close()
 
 	for {
@@ -768,15 +1021,15 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 				}
 			}
 
-			if e.dedupeSpans && e.deduper.Skip(ss.TraceID, s.StartTimeUnixNanos()) {
-				e.spansDeduped++
-				continue
-			}
-
 			e.spansTotal++
-			e.metricsPipeline.observe(s)
 
+			e.metricsPipeline.observe(s)
 		}
+
+		if len(ss.Spans) > 0 && e.sampleExemplar(ss.TraceID) {
+			e.metricsPipeline.observeExemplar(ss.Spans[0]) // Randomly sample the first span
+		}
+
 		e.mtx.Unlock()
 		ss.Release()
 	}
@@ -799,54 +1052,23 @@ func (e *MetricsEvalulator) Results() SeriesSet {
 	return e.metricsPipeline.result()
 }
 
-// SpanDeduper2 is EXTREMELY LAZY. It attempts to dedupe spans for metrics
-// without requiring any new data fields.  It uses trace ID and span start time
-// which are already loaded. This of course terrible, but did I mention that
-// this is extremely lazy?  Additionally it uses sharded maps by the lowest byte
-// of the trace ID to reduce the pressure on any single map.  Maybe it's good enough.  Let's find out!
-type SpanDeduper2 struct {
-	m       []map[uint32]struct{}
-	h       hash.Hash32
-	buf     []byte
-	traceID Attribute
-}
-
-func NewSpanDeduper2() *SpanDeduper2 {
-	maps := make([]map[uint32]struct{}, 256)
-	for i := range maps {
-		maps[i] = make(map[uint32]struct{}, 1000)
+func (e *MetricsEvalulator) sampleExemplar(id []byte) bool {
+	if len(e.exemplarMap) >= e.maxExemplars {
+		return false
 	}
-	return &SpanDeduper2{
-		m:       maps,
-		h:       fnv.New32a(),
-		buf:     make([]byte, 8),
-		traceID: NewIntrinsic(IntrinsicTraceID),
-	}
-}
-
-func (d *SpanDeduper2) Skip(tid []byte, startTime uint64) bool {
-	d.h.Reset()
-	d.h.Write(tid)
-	binary.BigEndian.PutUint64(d.buf, startTime)
-	d.h.Write(d.buf)
-
-	v := d.h.Sum32()
-
-	// Use last byte of the trace to choose the submap.
-	// Empty ID uses submap 0.
-	mapIdx := byte(0)
-	if len(tid) > 0 {
-		mapIdx = tid[len(tid)-1]
+	if len(id) == 0 {
+		return false
 	}
 
-	m := d.m[mapIdx]
-
-	if _, ok := m[v]; ok {
-		return true
+	// Avoid sampling exemplars for the same trace
+	// Check does zero allocs
+	if _, ok := e.exemplarMap[string(id)]; ok {
+		return false
 	}
 
-	m[v] = struct{}{}
-	return false
+	e.exemplarMap[string(id)] = struct{}{}
+	e.exemplarCount++
+	return true
 }
 
 // MetricsFrontendEvaluator pipes the sharded job results back into the engine for the rest
@@ -868,23 +1090,67 @@ type SeriesAggregator interface {
 	Results() SeriesSet
 }
 
-type SimpleAdditionAggregator struct {
+type SimpleAggregationOp int
+
+const (
+	sumAggregation SimpleAggregationOp = iota
+	minAggregation
+	maxAggregation
+)
+
+type SimpleAggregator struct {
 	ss               SeriesSet
+	exemplarBuckets  *bucketSet
 	len              int
+	aggregationFunc  func(existingValue float64, newValue float64) float64
 	start, end, step uint64
+	initWithNaN      bool
 }
 
-func NewSimpleAdditionCombiner(req *tempopb.QueryRangeRequest) *SimpleAdditionAggregator {
-	return &SimpleAdditionAggregator{
-		ss:    make(SeriesSet),
-		len:   IntervalCount(req.Start, req.End, req.Step),
-		start: req.Start,
-		end:   req.End,
-		step:  req.Step,
+func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *SimpleAggregator {
+	l := IntervalCount(req.Start, req.End, req.Step)
+	var initWithNaN bool
+	var f func(existingValue float64, newValue float64) float64
+	switch op {
+	case minAggregation:
+		// Simple min aggregator. It calculates the minimum between existing values and a new sample
+		f = func(existingValue float64, newValue float64) float64 {
+			if math.IsNaN(existingValue) || newValue < existingValue {
+				return newValue
+			}
+			return existingValue
+		}
+		initWithNaN = true
+	case maxAggregation:
+		// Simple max aggregator. It calculates the maximum between existing values and a new sample
+		f = func(existingValue float64, newValue float64) float64 {
+			if math.IsNaN(existingValue) || newValue > existingValue {
+				return newValue
+			}
+			return existingValue
+		}
+		initWithNaN = true
+	default:
+		// Simple addition aggregator. It adds existing values with the new sample.
+		f = func(existingValue float64, newValue float64) float64 { return existingValue + newValue }
+		initWithNaN = false
+
+	}
+	return &SimpleAggregator{
+		ss:              make(SeriesSet),
+		exemplarBuckets: newBucketSet(l),
+		len:             l,
+		start:           req.Start,
+		end:             req.End,
+		step:            req.Step,
+		aggregationFunc: f,
+		initWithNaN:     initWithNaN,
 	}
 }
 
-func (b *SimpleAdditionAggregator) Combine(in []*tempopb.TimeSeries) {
+func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
+	nan := math.Float64frombits(normalNaN)
+
 	for _, ts := range in {
 		existing, ok := b.ss[ts.PromLabels]
 		if !ok {
@@ -898,22 +1164,61 @@ func (b *SimpleAdditionAggregator) Combine(in []*tempopb.TimeSeries) {
 			}
 
 			existing = TimeSeries{
-				Labels: labels,
-				Values: make([]float64, b.len),
+				Labels:    labels,
+				Values:    make([]float64, b.len),
+				Exemplars: make([]Exemplar, 0, len(ts.Exemplars)),
 			}
+			if b.initWithNaN {
+				for i := range existing.Values {
+					existing.Values[i] = nan
+				}
+			}
+
 			b.ss[ts.PromLabels] = existing
 		}
 
 		for _, sample := range ts.Samples {
 			j := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
 			if j >= 0 && j < len(existing.Values) {
-				existing.Values[j] += sample.Value
+				existing.Values[j] = b.aggregationFunc(existing.Values[j], sample.Value)
 			}
 		}
+
+		b.aggregateExemplars(ts, &existing)
+
+		b.ss[ts.PromLabels] = existing
 	}
 }
 
-func (b *SimpleAdditionAggregator) Results() SeriesSet {
+func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *TimeSeries) {
+	for _, exemplar := range ts.Exemplars {
+		if b.exemplarBuckets.testTotal() {
+			break
+		}
+		interval := IntervalOfMs(exemplar.TimestampMs, b.start, b.end, b.step)
+		if b.exemplarBuckets.addAndTest(interval) {
+			continue // Skip this exemplar and continue, next exemplar might fit in a different bucket	}
+		}
+		labels := make(Labels, 0, len(exemplar.Labels))
+		for _, l := range exemplar.Labels {
+			labels = append(labels, Label{
+				Name:  l.Key,
+				Value: StaticFromAnyValue(l.Value),
+			})
+		}
+		value := exemplar.Value
+		if math.IsNaN(value) {
+			value = 0 // TODO: Use the value of the series at the same timestamp
+		}
+		existing.Exemplars = append(existing.Exemplars, Exemplar{
+			Labels:      labels,
+			Value:       value,
+			TimestampMs: uint64(exemplar.TimestampMs),
+		})
+	}
+}
+
+func (b *SimpleAggregator) Results() SeriesSet {
 	return b.ss
 }
 
@@ -950,16 +1255,20 @@ type HistogramAggregator struct {
 	qs               []float64
 	len              int
 	start, end, step uint64
+	exemplars        []Exemplar
+	exemplarBuckets  *bucketSet
 }
 
 func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64) *HistogramAggregator {
+	l := IntervalCount(req.Start, req.End, req.Step)
 	return &HistogramAggregator{
-		qs:    qs,
-		ss:    make(map[string]histSeries),
-		len:   IntervalCount(req.Start, req.End, req.Step),
-		start: req.Start,
-		end:   req.End,
-		step:  req.Step,
+		qs:              qs,
+		ss:              make(map[string]histSeries),
+		len:             l,
+		start:           req.Start,
+		end:             req.End,
+		step:            req.Step,
+		exemplarBuckets: newBucketSet(l),
 	}
 }
 
@@ -999,7 +1308,7 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			h.ss[withoutBucketStr] = existing
 		}
 
-		b := bucket.asFloat()
+		b := bucket.Float()
 
 		for _, sample := range ts.Samples {
 			if sample.Value == 0 {
@@ -1009,6 +1318,29 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			if j >= 0 && j < len(existing.hist) {
 				existing.hist[j].Record(b, int(sample.Value))
 			}
+		}
+
+		for _, exemplar := range ts.Exemplars {
+			if h.exemplarBuckets.testTotal() {
+				break
+			}
+			interval := IntervalOfMs(exemplar.TimestampMs, h.start, h.end, h.step)
+			if h.exemplarBuckets.addAndTest(interval) {
+				continue // Skip this exemplar and continue, next exemplar might fit in a different bucket
+			}
+
+			labels := make(Labels, 0, len(exemplar.Labels))
+			for _, l := range exemplar.Labels {
+				labels = append(labels, Label{
+					Name:  l.Key,
+					Value: StaticFromAnyValue(l.Value),
+				})
+			}
+			h.exemplars = append(h.exemplars, Exemplar{
+				Labels:      labels,
+				Value:       exemplar.Value,
+				TimestampMs: uint64(exemplar.TimestampMs),
+			})
 		}
 	}
 }
@@ -1025,8 +1357,9 @@ func (h *HistogramAggregator) Results() SeriesSet {
 			s := labels.String()
 
 			ts := TimeSeries{
-				Labels: labels,
-				Values: make([]float64, len(in.hist)),
+				Labels:    labels,
+				Values:    make([]float64, len(in.hist)),
+				Exemplars: h.exemplars,
 			}
 			for i := range in.hist {
 
@@ -1123,6 +1456,19 @@ func Log2Quantile(p float64, buckets []HistogramBucket) float64 {
 }
 
 var (
-	_ SeriesAggregator = (*SimpleAdditionAggregator)(nil)
+	_ SeriesAggregator = (*SimpleAggregator)(nil)
 	_ SeriesAggregator = (*HistogramAggregator)(nil)
 )
+
+func FloatizeAttribute(s Span, a Attribute) (float64, StaticType) {
+	v, ok := s.AttributeFor(a)
+	if !ok {
+		return 0, TypeNil
+	}
+
+	f := v.Float()
+	if math.IsNaN(f) {
+		return 0, TypeNil
+	}
+	return f, v.Type
+}

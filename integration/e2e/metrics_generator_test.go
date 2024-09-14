@@ -12,14 +12,13 @@ import (
 	"time"
 
 	"github.com/grafana/e2e"
+	"github.com/grafana/tempo/integration/util"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	util "github.com/grafana/tempo/integration"
 )
 
 const (

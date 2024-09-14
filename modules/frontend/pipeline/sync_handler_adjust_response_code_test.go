@@ -9,8 +9,8 @@ import (
 )
 
 func TestAdjustsResponseCode(t *testing.T) {
-	nextFn := func(status int) http.RoundTripper {
-		return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+	nextFn := func(status int) RoundTripper {
+		return RoundTripperFunc(func(_ Request) (*http.Response, error) {
 			return &http.Response{StatusCode: status}, nil
 		})
 	}
@@ -30,7 +30,7 @@ func TestAdjustsResponseCode(t *testing.T) {
 		retryWare := NewStatusCodeAdjustWare()
 		handler := retryWare.Wrap(nextFn(tc.actualCode))
 		req := httptest.NewRequest("GET", "http://example.com", nil)
-		res, err := handler.RoundTrip(req)
+		res, err := handler.RoundTrip(NewHTTPRequest(req))
 
 		require.NoError(t, err)
 		require.Equal(t, res.StatusCode, tc.expectedCode)
@@ -38,8 +38,8 @@ func TestAdjustsResponseCode(t *testing.T) {
 }
 
 func TestAdjustsResponseCodeTeapotAllowed(t *testing.T) {
-	nextFn := func(status int) http.RoundTripper {
-		return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+	nextFn := func(status int) RoundTripper {
+		return RoundTripperFunc(func(_ Request) (*http.Response, error) {
 			return &http.Response{StatusCode: status}, nil
 		})
 	}
@@ -59,7 +59,7 @@ func TestAdjustsResponseCodeTeapotAllowed(t *testing.T) {
 		retryWare := NewStatusCodeAdjustWareWithAllowedCode(418)
 		handler := retryWare.Wrap(nextFn(tc.actualCode))
 		req := httptest.NewRequest("GET", "http://example.com", nil)
-		res, err := handler.RoundTrip(req)
+		res, err := handler.RoundTrip(NewHTTPRequest(req))
 
 		require.NoError(t, err)
 		require.Equal(t, res.StatusCode, tc.expectedCode)

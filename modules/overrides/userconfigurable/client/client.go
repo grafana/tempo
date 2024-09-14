@@ -11,14 +11,15 @@ import (
 
 	"github.com/go-kit/log/level"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	azure "github.com/grafana/tempo/tempodb/backend/azure"
-	azureconfig "github.com/grafana/tempo/tempodb/backend/azure/config"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/backend/s3"
@@ -28,6 +29,8 @@ const (
 	OverridesKeyPath  = "overrides"
 	OverridesFileName = "overrides.json"
 )
+
+var tracer = otel.Tracer("modules/overrides/userconfigurable/client")
 
 var (
 	metricList = promauto.NewCounter(prometheus.CounterOpts{
@@ -54,10 +57,10 @@ type Config struct {
 	// checks against concurrent writes will be performed.
 	ConfirmVersioning bool `yaml:"confirm_versioning"`
 
-	Local *local.Config       `yaml:"local"`
-	GCS   *gcs.Config         `yaml:"gcs"`
-	S3    *s3.Config          `yaml:"s3"`
-	Azure *azureconfig.Config `yaml:"azure"`
+	Local *local.Config `yaml:"local"`
+	GCS   *gcs.Config   `yaml:"gcs"`
+	S3    *s3.Config    `yaml:"s3"`
+	Azure *azure.Config `yaml:"azure"`
 }
 
 func (c *Config) RegisterFlagsAndApplyDefaults(*flag.FlagSet) {
@@ -72,7 +75,7 @@ func (c *Config) RegisterFlagsAndApplyDefaults(*flag.FlagSet) {
 	c.GCS.RegisterFlagsAndApplyDefaults("", dummyFlagSet)
 	c.S3 = &s3.Config{}
 	c.S3.RegisterFlagsAndApplyDefaults("", dummyFlagSet)
-	c.Azure = &azureconfig.Config{}
+	c.Azure = &azure.Config{}
 	c.Azure.RegisterFlagsAndApplyDefaults("", dummyFlagSet)
 }
 
@@ -144,8 +147,8 @@ func initBackend(cfg *Config) (rw backend.VersionedReaderWriter, err error) {
 }
 
 func (o *clientImpl) List(ctx context.Context) ([]string, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "clientImpl.List")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "clientImpl.List")
+	defer span.End()
 
 	metricList.Inc()
 
@@ -153,8 +156,8 @@ func (o *clientImpl) List(ctx context.Context) ([]string, error) {
 }
 
 func (o *clientImpl) Get(ctx context.Context, userID string) (tenantLimits *Limits, version backend.Version, err error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "clientImpl.Get", opentracing.Tag{Key: "tenant", Value: userID})
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "clientImpl.Get", trace.WithAttributes(attribute.String("tenant", userID)))
+	defer span.End()
 
 	metricFetch.WithLabelValues(userID).Inc()
 	defer func() {
@@ -175,8 +178,8 @@ func (o *clientImpl) Get(ctx context.Context, userID string) (tenantLimits *Limi
 }
 
 func (o *clientImpl) Set(ctx context.Context, userID string, limits *Limits, version backend.Version) (backend.Version, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "clientImpl.Set", opentracing.Tag{Key: "tenant", Value: userID})
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "clientImpl.Set", trace.WithAttributes(attribute.String("tenant", userID)))
+	defer span.End()
 
 	data, err := jsoniter.Marshal(limits)
 	if err != nil {
@@ -187,8 +190,8 @@ func (o *clientImpl) Set(ctx context.Context, userID string, limits *Limits, ver
 }
 
 func (o *clientImpl) Delete(ctx context.Context, userID string, version backend.Version) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "clientImpl.Delete", opentracing.Tag{Key: "tenant", Value: userID})
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "clientImpl.Delete", trace.WithAttributes(attribute.String("tenant", userID)))
+	defer span.End()
 
 	return o.rw.DeleteVersioned(ctx, OverridesFileName, []string{OverridesKeyPath, userID}, version)
 }

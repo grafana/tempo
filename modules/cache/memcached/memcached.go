@@ -28,11 +28,9 @@ func NewClient(cfg *Config, cfgBackground *cache.BackgroundConfig, name string, 
 
 	client := cache.NewMemcachedClient(cfg.ClientConfig, name, prometheus.DefaultRegisterer, logger)
 	memcachedCfg := cache.MemcachedConfig{
-		Expiration:  cfg.TTL,
-		BatchSize:   0, // we are currently only requesting one key at a time, which is bad.  we could restructure Find() to batch request all blooms at once
-		Parallelism: 0,
+		Expiration: cfg.TTL,
 	}
-	c := cache.NewMemcached(memcachedCfg, client, name, prometheus.DefaultRegisterer, logger)
+	c := cache.NewMemcached(memcachedCfg, client, name, cfg.ClientConfig.MaxItemSize, prometheus.DefaultRegisterer, logger)
 
 	return cache.NewBackground(name, *cfgBackground, c, prometheus.DefaultRegisterer)
 }

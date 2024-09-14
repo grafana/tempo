@@ -5,8 +5,9 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/grafana/tempo/modules/frontend/combiner"
 	"go.uber.org/atomic"
+
+	"github.com/grafana/tempo/modules/frontend/combiner"
 )
 
 type httpCollector struct {
@@ -34,7 +35,7 @@ func (r httpCollector) RoundTrip(req *http.Request) (*http.Response, error) {
 	defer cancel()
 	req = req.WithContext(ctx)
 
-	resps, err := r.next.RoundTrip(req)
+	resps, err := r.next.RoundTrip(NewHTTPRequest(req))
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +44,6 @@ func (r httpCollector) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return r.combiner.HTTPFinal()
 }
 

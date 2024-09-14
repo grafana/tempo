@@ -14,10 +14,8 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
-	"github.com/opentracing/opentracing-go"
 	prom_client "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"go.opencensus.io/stats/view"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/consumer"
@@ -28,7 +26,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
-	metricnoop "go.opentelemetry.io/otel/metric/noop"
+	"go.opentelemetry.io/otel"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -49,10 +47,13 @@ const (
 
 var (
 	metricPushDuration = promauto.NewHistogram(prom_client.HistogramOpts{
-		Namespace: "tempo",
-		Name:      "distributor_push_duration_seconds",
-		Help:      "Records the amount of time to push a batch to the ingester.",
-		Buckets:   prom_client.DefBuckets,
+		Namespace:                       "tempo",
+		Name:                            "distributor_push_duration_seconds",
+		Help:                            "Records the amount of time to push a batch to the ingester.",
+		Buckets:                         prom_client.DefBuckets,
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	})
 
 	statReceiverOtlp       = usagestats.NewInt("receiver_enabled_otlp")
@@ -61,6 +62,8 @@ var (
 	statReceiverOpencensus = usagestats.NewInt("receiver_enabled_opencensus")
 	statReceiverKafka      = usagestats.NewInt("receiver_enabled_kafka")
 )
+
+var tracer = otel.Tracer("modules/distributor/receiver")
 
 type RetryableError struct {
 	err error
@@ -113,12 +116,11 @@ var _ services.Service = (*receiversShim)(nil)
 type receiversShim struct {
 	services.Service
 
-	retryDelay  *durationpb.Duration
-	receivers   []receiver.Traces
-	pusher      TracesPusher
-	logger      *log.RateLimitedLogger
-	metricViews []*view.View
-	fatal       chan error
+	retryDelay *durationpb.Duration
+	receivers  []receiver.Traces
+	pusher     TracesPusher
+	logger     *log.RateLimitedLogger
+	fatal      chan error
 }
 
 func (r *receiversShim) Capabilities() consumer.Capabilities {
@@ -153,11 +155,6 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 
 	// shim otel observability
 	zapLogger := newLogger(logLevel)
-	views, err := newMetricViews()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create metric traceReceiverViews: %w", err)
-	}
-	shim.metricViews = views
 
 	// load config
 	receiverFactories, err := receiver.MakeFactoryMap(
@@ -236,19 +233,13 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 		return nil, err
 	}
 
+	nopType := component.MustNewType("tempo")
+	traceProvider := tracenoop.NewTracerProvider()
+	meterProvider := NewMeterProvider()
 	// todo: propagate a real context?  translate our log configuration into zap?
 	ctx := context.Background()
-	params := receiver.CreateSettings{
-		TelemetrySettings: component.TelemetrySettings{
-			Logger:         zapLogger,
-			TracerProvider: tracenoop.NewTracerProvider(),
-			MeterProvider:  metricnoop.NewMeterProvider(),
-			ReportStatus: func(*component.StatusEvent) {
-			},
-		},
-	}
-
 	for componentID, cfg := range conf.Receivers {
+
 		factoryBase := receiverFactories[componentID.Type()]
 		if factoryBase == nil {
 			return nil, fmt.Errorf("receiver factory not found for type: %s", componentID.Type())
@@ -280,6 +271,16 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 			cfg = jaegerRecvCfg
 		}
 
+		params := receiver.CreateSettings{
+			ID: component.NewIDWithName(nopType, fmt.Sprintf("%s_receiver", componentID.Type().String())),
+			TelemetrySettings: component.TelemetrySettings{
+				Logger:         zapLogger,
+				TracerProvider: traceProvider,
+				MeterProvider:  meterProvider,
+				ReportStatus: func(*component.StatusEvent) {
+				},
+			},
+		}
 		receiver, err := factoryBase.CreateTracesReceiver(ctx, params, cfg, middleware.Wrap(shim))
 		if err != nil {
 			return nil, err
@@ -336,8 +337,8 @@ func (r *receiversShim) stopping(_ error) error {
 
 // ConsumeTraces implements consumer.Trace
 func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) error {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "distributor.ConsumeTraces")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "distributor.ConsumeTraces")
+	defer span.End()
 
 	var err error
 

@@ -31,6 +31,7 @@ import (
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
@@ -402,15 +403,18 @@ func TestSearchLimitHonored(t *testing.T) {
 			}
 
 			// grpc
-			var actualResp *tempopb.SearchResponse
+			combiner := traceql.NewMetadataCombiner()
 			err = f.streamingSearch(tc.request, newMockStreamingServer(tenant, func(i int, sr *tempopb.SearchResponse) {
-				actualResp = sr
+				// combine
+				for _, t := range sr.Traces {
+					combiner.AddMetadata(t)
+				}
 			}))
 			if tc.badRequest {
 				require.Equal(t, status.Error(codes.InvalidArgument, "adjust limit: limit 20 exceeds max limit 15"), err)
 			} else {
 				require.NoError(t, err)
-				require.Len(t, actualResp.Traces, tc.expectedTraces)
+				require.Equal(t, combiner.Count(), tc.expectedTraces)
 			}
 		})
 	}
@@ -564,7 +568,7 @@ func TestSearchAccessesCache(t *testing.T) {
 	}
 
 	// setup mock cache
-	c := cache.NewMockCache()
+	c := test.NewMockClient()
 	p := test.NewMockProvider()
 	err := p.AddCache(cache.RoleFrontendSearch, c)
 	require.NoError(t, err)
@@ -660,9 +664,52 @@ func cacheResponsesEqual(t *testing.T, cacheResponse *tempopb.SearchResponse, pi
 	require.Equal(t, pipelineResp, cacheResponse)
 }
 
+func BenchmarkSearchPipeline(b *testing.B) {
+	tenant := "foo"
+
+	// create 500 blocks. each is forces one job
+	totalBlocks := 500
+	rdr := &mockReader{
+		metas: make([]*backend.BlockMeta, 0, totalBlocks),
+	}
+	for i := 0; i < totalBlocks; i++ {
+		rdr.metas = append(rdr.metas, &backend.BlockMeta{
+			StartTime:    time.Unix(15, 0),
+			EndTime:      time.Unix(16, 0),
+			Size:         defaultTargetBytesPerRequest,
+			TotalRecords: 1,
+			BlockID:      uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012d", i)),
+		})
+	}
+
+	f := frontendWithSettings(b, nil, rdr, nil, nil)
+
+	// setup query
+	query := "{}"
+
+	start := uint32(10)
+	end := uint32(20)
+
+	// execute query
+	path := fmt.Sprintf("/?start=%d&end=%d&q=%s&limit=3&spss=2", start, end, query) // encapsulates block above
+	req := httptest.NewRequest("GET", path, nil)
+	ctx := req.Context()
+	ctx = user.InjectOrgID(ctx, tenant)
+	req = req.WithContext(ctx)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		respWriter := httptest.NewRecorder()
+		f.SearchHandler.ServeHTTP(respWriter, req)
+
+		resp := respWriter.Result()
+		require.Equal(b, 200, resp.StatusCode)
+	}
+}
+
 // frontendWithSettings returns a new frontend with the given settings. any nil options
 // are given "happy path" defaults
-func frontendWithSettings(t *testing.T, next http.RoundTripper, rdr tempodb.Reader, cfg *Config, cacheProvider cache.Provider,
+func frontendWithSettings(t require.TestingT, next http.RoundTripper, rdr tempodb.Reader, cfg *Config, cacheProvider cache.Provider,
 	opts ...func(*Config),
 ) *QueryFrontend {
 	if next == nil {
@@ -698,6 +745,23 @@ func frontendWithSettings(t *testing.T, next http.RoundTripper, rdr tempodb.Read
 					Size:         defaultTargetBytesPerRequest * 2,
 					TotalRecords: 2,
 					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+				},
+				// These are RF1 metrics blocks
+				{
+					StartTime:         time.Unix(1100, 0),
+					EndTime:           time.Unix(1200, 0),
+					Size:              defaultTargetBytesPerRequest * 2,
+					TotalRecords:      2,
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					ReplicationFactor: 1,
+				},
+				{
+					StartTime:         time.Unix(1100, 0),
+					EndTime:           time.Unix(1200, 0),
+					Size:              defaultTargetBytesPerRequest * 2,
+					TotalRecords:      2,
+					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					ReplicationFactor: 1,
 				},
 			},
 		}

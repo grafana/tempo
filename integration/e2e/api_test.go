@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/grafana/e2e"
-	util "github.com/grafana/tempo/integration"
+	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 )
@@ -48,10 +48,10 @@ func TestSearchTagsV2(t *testing.T) {
 	firstBatch := batchTmpl{spanCount: 2, name: "foo", resourceAttVal: "bar", spanAttVal: "bar", resourceAttr: "firstRes", SpanAttr: "firstSpan"}
 	secondBatch := batchTmpl{spanCount: 2, name: "baz", resourceAttVal: "qux", spanAttVal: "qux", resourceAttr: "secondRes", SpanAttr: "secondSpan"}
 
-	batch := makeThriftBatchWithSpanCountAttributeAndName(firstBatch.spanCount, firstBatch.name, firstBatch.resourceAttVal, firstBatch.spanAttVal, firstBatch.resourceAttr, firstBatch.SpanAttr)
+	batch := util.MakeThriftBatchWithSpanCountAttributeAndName(firstBatch.spanCount, firstBatch.name, firstBatch.resourceAttVal, firstBatch.spanAttVal, firstBatch.resourceAttr, firstBatch.SpanAttr)
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
-	batch = makeThriftBatchWithSpanCountAttributeAndName(secondBatch.spanCount, secondBatch.name, secondBatch.resourceAttVal, secondBatch.spanAttVal, secondBatch.resourceAttr, secondBatch.SpanAttr)
+	batch = util.MakeThriftBatchWithSpanCountAttributeAndName(secondBatch.spanCount, secondBatch.name, secondBatch.resourceAttVal, secondBatch.spanAttVal, secondBatch.resourceAttr, secondBatch.SpanAttr)
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
 	// Wait for the traces to be written to the WAL
@@ -237,9 +237,9 @@ func TestSearchTagsV2(t *testing.T) {
 
 	// Wait to block flushed to backend, 20 seconds is the complete_block_timeout configuration on all in one, we add
 	// 2s for security.
-	callFlush(t, tempo)
+	util.CallFlush(t, tempo)
 	time.Sleep(time.Second * 22)
-	callFlush(t, tempo)
+	util.CallFlush(t, tempo)
 
 	// test metrics
 	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
@@ -290,10 +290,10 @@ func TestSearchTagValuesV2(t *testing.T) {
 	firstBatch := batchTmpl{spanCount: 2, name: "foo", resourceAttVal: "bar", spanAttVal: "bar"}
 	secondBatch := batchTmpl{spanCount: 2, name: "baz", resourceAttVal: "qux", spanAttVal: "qux"}
 
-	batch := makeThriftBatchWithSpanCountAttributeAndName(firstBatch.spanCount, firstBatch.name, firstBatch.resourceAttVal, firstBatch.spanAttVal, "xx", "x")
+	batch := util.MakeThriftBatchWithSpanCountAttributeAndName(firstBatch.spanCount, firstBatch.name, firstBatch.resourceAttVal, firstBatch.spanAttVal, "xx", "x")
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
-	batch = makeThriftBatchWithSpanCountAttributeAndName(secondBatch.spanCount, secondBatch.name, secondBatch.resourceAttVal, secondBatch.spanAttVal, "xx", "x")
+	batch = util.MakeThriftBatchWithSpanCountAttributeAndName(secondBatch.spanCount, secondBatch.name, secondBatch.resourceAttVal, secondBatch.spanAttVal, "xx", "x")
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
 	// Wait for the traces to be written to the WAL
@@ -410,9 +410,9 @@ func TestSearchTagValuesV2(t *testing.T) {
 
 	// Wait to block flushed to backend, 20 seconds is the complete_block_timeout configuration on all in one, we add
 	// 2s for security.
-	callFlush(t, tempo)
+	util.CallFlush(t, tempo)
 	time.Sleep(time.Second * 22)
-	callFlush(t, tempo)
+	util.CallFlush(t, tempo)
 
 	// test metrics
 	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
@@ -455,16 +455,16 @@ func TestSearchTags(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
-	batch := makeThriftBatch()
+	batch := util.MakeThriftBatch()
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
 	// Wait for the traces to be written to the WAL
 	time.Sleep(time.Second * 3)
 	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: []string{"service.name", "x", "xx"}}, 0, 0)
 
-	callFlush(t, tempo)
+	util.CallFlush(t, tempo)
 	time.Sleep(time.Second * 30)
-	callFlush(t, tempo)
+	util.CallFlush(t, tempo)
 
 	// test metrics
 	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
@@ -496,16 +496,16 @@ func TestSearchTagValues(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, jaegerClient)
 
-	batch := makeThriftBatch()
+	batch := util.MakeThriftBatch()
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
 	// Wait for the traces to be written to the WAL
 	time.Sleep(time.Second * 3)
 	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{TagValues: []string{"my-service"}}, 0, 0)
 
-	callFlush(t, tempo)
+	util.CallFlush(t, tempo)
 	time.Sleep(time.Second * 22)
-	callFlush(t, tempo)
+	util.CallFlush(t, tempo)
 
 	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 	require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
@@ -596,7 +596,7 @@ func callSearchTagsV2AndAssert(t *testing.T, svc *e2e.HTTPService, scope, query 
 	if scope == "none" || scope == "" || scope == "intrinsic" {
 		expected.Scopes = append(expected.Scopes, &tempopb.SearchTagsV2Scope{
 			Name: "intrinsic",
-			Tags: []string{"duration", "event:name", "kind", "name", "rootName", "rootServiceName", "span:duration", "span:kind", "span:name", "span:status", "span:statusMessage", "status", "statusMessage", "trace:duration", "trace:rootName", "trace:rootService", "traceDuration"},
+			Tags: []string{"duration", "event:name", "event:timeSinceStart", "instrumentation:name", "instrumentation:version", "kind", "name", "rootName", "rootServiceName", "span:duration", "span:kind", "span:name", "span:status", "span:statusMessage", "status", "statusMessage", "trace:duration", "trace:rootName", "trace:rootService", "traceDuration"},
 		})
 	}
 	sort.Slice(expected.Scopes, func(i, j int) bool { return expected.Scopes[i].Name < expected.Scopes[j].Name })

@@ -2,13 +2,17 @@ package cache
 
 import (
 	"context"
+	"errors"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/go-redis/redis/v8"
 	instr "github.com/grafana/dskit/instrument"
-	otlog "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	util_log "github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/util/spanlogger"
@@ -31,11 +35,14 @@ func NewRedisCache(name string, redisClient *RedisClient, reg prometheus.Registe
 		logger: logger,
 		requestDuration: instr.NewHistogramCollector(
 			promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
-				Namespace:   "tempo",
-				Name:        "rediscache_request_duration_seconds",
-				Help:        "Total time spent in seconds doing Redis requests.",
-				Buckets:     prometheus.ExponentialBuckets(0.000016, 4, 8),
-				ConstLabels: prometheus.Labels{"name": name},
+				Namespace:                       "tempo",
+				Name:                            "rediscache_request_duration_seconds",
+				Help:                            "Total time spent in seconds doing Redis requests.",
+				Buckets:                         prometheus.ExponentialBuckets(0.000016, 4, 8),
+				NativeHistogramBucketFactor:     1.1,
+				NativeHistogramMaxBucketNumber:  100,
+				NativeHistogramMinResetDuration: 1 * time.Hour,
+				ConstLabels:                     prometheus.Labels{"name": name},
 			}, []string{"method", "status_code"}),
 		),
 	}
@@ -60,11 +67,8 @@ func (c *RedisCache) Fetch(ctx context.Context, keys []string) (found []string, 
 	const method = "RedisCache.MGet"
 	var items [][]byte
 	// Run a tracked request, using c.requestDuration to monitor requests.
-	err := instr.CollectedRequest(ctx, method, c.requestDuration, redisStatusCode, func(ctx context.Context) error {
-		log, _ := spanlogger.New(ctx, method)
-		defer log.Finish()
-		log.LogFields(otlog.Int("keys requested", len(keys)))
-
+	err := measureRequest(ctx, method, c.requestDuration, redisStatusCode, func(ctx context.Context) error {
+		log := spanlogger.FromContext(ctx)
 		var err error
 		items, err = c.redis.MGet(ctx, keys)
 		if err != nil {
@@ -73,9 +77,7 @@ func (c *RedisCache) Fetch(ctx context.Context, keys []string) (found []string, 
 			level.Error(c.logger).Log("msg", "failed to get from redis", "name", c.name, "err", err)
 			return err
 		}
-
-		log.LogFields(otlog.Int("keys found", len(items)))
-
+		log.AddEvent("cache.keys.found", trace.WithAttributes(attribute.Int("keys", len(keys))))
 		return nil
 	})
 	if err != nil {
@@ -94,6 +96,36 @@ func (c *RedisCache) Fetch(ctx context.Context, keys []string) (found []string, 
 	return
 }
 
+// Fetch gets a single keys from the cache
+func (c *RedisCache) FetchKey(ctx context.Context, key string) (buf []byte, found bool) {
+	const method = "RedisCache.Get"
+	// Run a tracked request, using c.requestDuration to monitor requests.
+	err := measureRequest(ctx, method, c.requestDuration, redisStatusCode, func(ctx context.Context) error {
+		log := spanlogger.FromContext(ctx)
+		var err error
+		buf, err = c.redis.Get(ctx, key)
+		if err != nil {
+			// nolint:errcheck
+			log.Error(err)
+			if errors.Is(err, redis.Nil) {
+				level.Debug(c.logger).Log("msg", "failed to get key from redis", "name", c.name, "err", err, "key", key)
+				log.AddEvent("cache.key.missed", trace.WithAttributes(attribute.String("key", key)))
+			} else {
+				level.Error(c.logger).Log("msg", "error requesting key from redis", "name", c.name, "err", err, "key", key)
+			}
+
+			return err
+		}
+		log.AddEvent("cache.key.found", trace.WithAttributes(attribute.String("key", key)))
+		return nil
+	})
+	if err != nil {
+		return buf, false
+	}
+
+	return buf, true
+}
+
 // Store stores the key in the cache.
 func (c *RedisCache) Store(ctx context.Context, keys []string, bufs [][]byte) {
 	err := c.redis.MSet(ctx, keys, bufs)
@@ -105,4 +137,9 @@ func (c *RedisCache) Store(ctx context.Context, keys []string, bufs [][]byte) {
 // Stop stops the redis client.
 func (c *RedisCache) Stop() {
 	_ = c.redis.Close()
+}
+
+// redis doesn't have a max item size. todo: add
+func (c *RedisCache) MaxItemSize() int {
+	return 0
 }

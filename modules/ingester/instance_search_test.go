@@ -407,6 +407,24 @@ func testSearchTagsAndValuesV2(
 	sort.Strings(expectedLinkTagValues)
 	assert.Contains(t, tagsResp.TagNames, tagName)
 	assert.Equal(t, expectedLinkTagValues, tagValues)
+
+	// instrumentation scope attr
+
+	tagValuesResp, err = i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
+		TagName: fmt.Sprintf("instrumentation.%s", tagName),
+		Query:   query,
+	})
+	require.NoError(t, err)
+
+	tagValues = make([]string, 0, len(tagValuesResp.TagValues))
+	for _, v := range tagValuesResp.TagValues {
+		tagValues = append(tagValues, v.Value)
+	}
+
+	sort.Strings(tagValues)
+	sort.Strings(expectedTagValues)
+	assert.Contains(t, tagsResp.TagNames, tagName)
+	assert.Equal(t, expectedTagValues, tagValues)
 }
 
 // TestInstanceSearchTagsSpecialCases tess that SearchTags errors on an unknown scope and
@@ -424,8 +442,11 @@ func TestInstanceSearchTagsSpecialCases(t *testing.T) {
 	require.Equal(
 		t,
 		[]string{
-			"duration", "event:name", "kind", "name", "rootName", "rootServiceName",
-			"span:duration", "span:kind", "span:name", "span:status", "span:statusMessage", "status", "statusMessage",
+			"duration", "event:name", "event:timeSinceStart",
+			"instrumentation:name", "instrumentation:version",
+			"kind", "name", "rootName", "rootServiceName",
+			"span:duration", "span:kind", "span:name",
+			"span:status", "span:statusMessage", "status", "statusMessage",
 			"trace:duration", "trace:rootName", "trace:rootService", "traceDuration",
 		},
 		resp.TagNames,
@@ -560,8 +581,13 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 
 		testTrace := test.MakeTrace(10, id)
 		// add the time
-		for _, batch := range testTrace.Batches {
+		for _, batch := range testTrace.ResourceSpans {
 			for _, ils := range batch.ScopeSpans {
+				ils.Scope = &v1.InstrumentationScope{
+					Name:       "scope-name",
+					Version:    "scope-version",
+					Attributes: []*v1.KeyValue{kv},
+				}
 				for _, span := range ils.Spans {
 					span.Name = spanName
 					span.StartTimeUnixNano = uint64(now.UnixNano())
@@ -569,12 +595,12 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 				}
 			}
 		}
-		testTrace.Batches[0].ScopeSpans[0].Spans[0].Attributes = append(testTrace.Batches[0].ScopeSpans[0].Spans[0].Attributes, kv)
+		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes, kv)
 		// add link and event
 		event := &trace_v1.Span_Event{Name: "event-name", Attributes: []*v1.KeyValue{eventKv}}
 		link := &trace_v1.Span_Link{TraceId: id, SpanId: id, Attributes: []*v1.KeyValue{linkKv}}
-		testTrace.Batches[0].ScopeSpans[0].Spans[0].Events = append(testTrace.Batches[0].ScopeSpans[0].Spans[0].Events, event)
-		testTrace.Batches[0].ScopeSpans[0].Spans[0].Links = append(testTrace.Batches[0].ScopeSpans[0].Spans[0].Links, link)
+		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events, event)
+		testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links = append(testTrace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links, link)
 
 		trace.SortTrace(testTrace)
 
@@ -664,7 +690,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		_, err := i.FindTraceByID(context.Background(), []byte{0x01})
+		_, err := i.FindTraceByID(context.Background(), []byte{0x01}, false)
 		assert.NoError(t, err, "error finding trace by id")
 	})
 

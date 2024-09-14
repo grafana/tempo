@@ -85,6 +85,7 @@ func TestInstance(t *testing.T) {
 	mockServer.refuseRequests.Store(false)
 
 	// Shutdown the instance - even though previous requests failed, remote.Storage should flush pending data
+	cancel()
 	err = instance.Close()
 	assert.NoError(t, err)
 
@@ -156,6 +157,7 @@ func TestInstance_multiTenancy(t *testing.T) {
 	})
 	require.NoError(t, err, "timed out while waiting for accepted requests")
 
+	cancel()
 	for _, instance := range instances {
 		// Shutdown the instance - remote write should flush pending data
 		err = instance.Close()
@@ -204,7 +206,7 @@ func TestInstance_remoteWriteHeaders(t *testing.T) {
 
 	headers := map[string]string{user.OrgIDHeaderName: "my-other-tenant"}
 
-	instance, err := New(&cfg, &mockOverrides{headers, string(overrides.HistogramMethodClassic)}, "test-tenant", &noopRegisterer{}, logger)
+	instance, err := New(&cfg, &mockOverrides{headers, overrides.HistogramMethodClassic}, "test-tenant", &noopRegisterer{}, logger)
 	require.NoError(t, err)
 
 	// Refuse requests - the WAL should buffer data until requests succeed
@@ -231,7 +233,8 @@ func TestInstance_remoteWriteHeaders(t *testing.T) {
 			return
 		}
 
-		assert.NoError(t, appender.Commit())
+		err = appender.Commit()
+		assert.NoError(t, err)
 	})
 
 	// Wait until remote.Storage has tried at least once to send data
@@ -247,6 +250,7 @@ func TestInstance_remoteWriteHeaders(t *testing.T) {
 	mockServer.refuseRequests.Store(false)
 
 	// Shutdown the instance - even though previous requests failed, remote.Storage should flush pending data
+	cancel()
 	err = instance.Close()
 	assert.NoError(t, err)
 
@@ -332,6 +336,7 @@ func (m *mockPrometheusRemoteWriteServer) close() {
 // poll executes f every interval until ctx is done or cancelled.
 func poll(ctx context.Context, interval time.Duration, f func()) {
 	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 
 	for {
 		select {
@@ -363,14 +368,14 @@ var _ Overrides = (*mockOverrides)(nil)
 
 type mockOverrides struct {
 	headers          map[string]string
-	nativeHistograms string
+	nativeHistograms overrides.HistogramMethod
 }
 
 func (m *mockOverrides) MetricsGeneratorRemoteWriteHeaders(string) map[string]string {
 	return m.headers
 }
 
-func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(string) string {
+func (m *mockOverrides) MetricsGeneratorGenerateNativeHistograms(string) overrides.HistogramMethod {
 	return m.nativeHistograms
 }
 

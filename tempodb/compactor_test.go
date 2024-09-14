@@ -48,12 +48,17 @@ func (m *mockJobSharder) Owns(string) bool { return true }
 
 type mockOverrides struct {
 	blockRetention      time.Duration
+	disabled            bool
 	maxBytesPerTrace    int
 	maxCompactionWindow time.Duration
 }
 
 func (m *mockOverrides) BlockRetentionForTenant(_ string) time.Duration {
 	return m.blockRetention
+}
+
+func (m *mockOverrides) CompactionDisabledForTenant(_ string) bool {
+	return m.disabled
 }
 
 func (m *mockOverrides) MaxBytesPerTraceForTenant(_ string) int {
@@ -192,7 +197,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 		require.Nil(t, failedBlocks)
 		require.NotNil(t, trs)
 
-		c := trace.NewCombiner(0)
+		c := trace.NewCombiner(0, false)
 		for _, tr := range trs {
 			_, err = c.Consume(tr)
 			require.NoError(t, err)
@@ -346,7 +351,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)
 
-		c := trace.NewCombiner(0)
+		c := trace.NewCombiner(0, false)
 		for _, tr := range trs {
 			_, err = c.Consume(tr)
 			require.NoError(t, err)

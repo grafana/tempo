@@ -29,5 +29,5 @@ func TestBuildShardedRequests(t *testing.T) {
 	require.Len(t, shardedReqs, queryShards)
 
 	require.Equal(t, "/querier?mode=ingesters", shardedReqs[0].RequestURI)
-	require.Equal(t, "/querier?blockEnd=ffffffffffffffffffffffffffffffff&blockStart=00000000000000000000000000000000&mode=blocks", shardedReqs[1].RequestURI)
+	urisEqual(t, []string{"/querier?blockEnd=ffffffffffffffffffffffffffffffff&blockStart=00000000000000000000000000000000&mode=blocks"}, []string{shardedReqs[1].RequestURI})
 }

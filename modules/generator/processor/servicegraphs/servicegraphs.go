@@ -10,10 +10,10 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/util/strutil"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 
@@ -26,6 +26,8 @@ import (
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
 )
+
+var tracer = otel.Tracer("modules/generator/processor/servicegraphs")
 
 var (
 	metricDroppedSpans = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -88,7 +90,7 @@ type Processor struct {
 	logger             log.Logger
 }
 
-func New(cfg Config, tenant string, registry registry.Registry, logger log.Logger) gen.Processor {
+func New(cfg Config, tenant string, reg registry.Registry, logger log.Logger) gen.Processor {
 	labels := []string{"client", "server", "connection_type"}
 
 	if cfg.EnableVirtualNodeLabel {
@@ -112,15 +114,15 @@ func New(cfg Config, tenant string, registry registry.Registry, logger log.Logge
 
 	p := &Processor{
 		Cfg:      cfg,
-		registry: registry,
+		registry: reg,
 		labels:   labels,
 		closeCh:  make(chan struct{}, 1),
 
-		serviceGraphRequestTotal:                           registry.NewCounter(metricRequestTotal),
-		serviceGraphRequestFailedTotal:                     registry.NewCounter(metricRequestFailedTotal),
-		serviceGraphRequestServerSecondsHistogram:          registry.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets),
-		serviceGraphRequestClientSecondsHistogram:          registry.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets),
-		serviceGraphRequestMessagingSystemSecondsHistogram: registry.NewHistogram(metricRequestMessagingSystemSeconds, cfg.HistogramBuckets),
+		serviceGraphRequestTotal:                           reg.NewCounter(metricRequestTotal),
+		serviceGraphRequestFailedTotal:                     reg.NewCounter(metricRequestFailedTotal),
+		serviceGraphRequestServerSecondsHistogram:          reg.NewHistogram(metricRequestServerSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
+		serviceGraphRequestClientSecondsHistogram:          reg.NewHistogram(metricRequestClientSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
+		serviceGraphRequestMessagingSystemSecondsHistogram: reg.NewHistogram(metricRequestMessagingSystemSeconds, cfg.HistogramBuckets, cfg.HistogramOverride),
 
 		metricDroppedSpans: metricDroppedSpans.WithLabelValues(tenant),
 		metricTotalEdges:   metricTotalEdges.WithLabelValues(tenant),
@@ -154,8 +156,8 @@ func (p *Processor) Name() string {
 }
 
 func (p *Processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "servicegraphs.PushSpans")
-	defer span.Finish()
+	_, span := tracer.Start(ctx, "servicegraphs.PushSpans")
+	defer span.End()
 
 	if err := p.consume(req.Batches); err != nil {
 		var tmsErr *tooManySpansError

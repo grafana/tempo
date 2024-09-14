@@ -4,7 +4,7 @@ package registry
 type Registry interface {
 	NewLabelValueCombo(labels []string, values []string) *LabelValueCombo
 	NewCounter(name string) Counter
-	NewHistogram(name string, buckets []float64) Histogram
+	NewHistogram(name string, buckets []float64, histogramOverride HistogramMode) Histogram
 	NewGauge(name string) Gauge
 }
 
@@ -35,6 +35,26 @@ type Gauge interface {
 	Set(labelValueCombo *LabelValueCombo, value float64)
 	Inc(labelValueCombo *LabelValueCombo, value float64)
 	SetForTargetInfo(labelValueCombo *LabelValueCombo, value float64)
+}
+
+type HistogramMode int
+
+const (
+	HistogramModeClassic HistogramMode = iota
+	HistogramModeNative
+	HistogramModeBoth
+)
+
+var HistogramModeToString = map[HistogramMode]string{
+	HistogramModeClassic: "classic",
+	HistogramModeNative:  "native",
+	HistogramModeBoth:    "both",
+}
+
+var HistogramModeToValue = map[string]HistogramMode{
+	"classic": HistogramModeClassic,
+	"native":  HistogramModeNative,
+	"both":    HistogramModeBoth,
 }
 
 // LabelValueCombo is a wrapper around a slice of label values. It has the ability to cache the hash of

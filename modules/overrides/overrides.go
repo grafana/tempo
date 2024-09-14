@@ -2,9 +2,12 @@ package overrides
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel"
 )
 
 const wildcardTenant = "*"
+
+var tracer = otel.Tracer("modules/overrides")
 
 var metricOverridesLimitsDesc = prometheus.NewDesc(
 	"tempo_limits_overrides",
@@ -18,15 +21,15 @@ var metricOverridesLimitsDesc = prometheus.NewDesc(
 // are defaulted to those values.  As such, the last call to NewOverrides will
 // become the new global defaults.
 func NewOverrides(cfg Config, validator Validator, registerer prometheus.Registerer) (Service, error) {
-	overrides, err := newRuntimeConfigOverrides(cfg, validator, registerer)
+	o, err := newRuntimeConfigOverrides(cfg, validator, registerer)
 	if err != nil {
 		return nil, err
 	}
 
 	if cfg.UserConfigurableOverridesConfig.Enabled {
 		// Wrap runtime config with user-config overrides module
-		overrides, err = newUserConfigOverrides(&cfg.UserConfigurableOverridesConfig, overrides)
+		o, err = newUserConfigOverrides(&cfg.UserConfigurableOverridesConfig, o)
 	}
 
-	return overrides, err
+	return o, err
 }

@@ -3,19 +3,18 @@ package pipeline
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/cache"
 )
 
 func NewCachingWare(cacheProvider cache.Provider, role cache.Role, logger log.Logger) Middleware {
-	return MiddlewareFunc(func(next http.RoundTripper) http.RoundTripper {
+	return MiddlewareFunc(func(next RoundTripper) RoundTripper {
 		return cachingWare{
 			next:  next,
 			cache: newFrontendCache(cacheProvider, role, logger),
@@ -24,21 +23,21 @@ func NewCachingWare(cacheProvider cache.Provider, role cache.Role, logger log.Lo
 }
 
 type cachingWare struct {
-	next  http.RoundTripper
+	next  RoundTripper
 	cache *frontendCache
 }
 
 // RoundTrip implements http.RoundTripper
-func (c cachingWare) RoundTrip(req *http.Request) (*http.Response, error) {
+func (c cachingWare) RoundTrip(req Request) (*http.Response, error) {
 	// short circuit everything if there cache is no cache
 	if c.cache == nil {
 		return c.next.RoundTrip(req)
 	}
 
 	// extract cache key
-	key, ok := req.Context().Value(contextCacheKey).(string)
-	if ok && len(key) > 0 {
-		body := c.cache.fetchBytes(key)
+	key := req.CacheKey()
+	if len(key) > 0 {
+		body := c.cache.fetchBytes(req.Context(), key)
 		if len(body) > 0 {
 			resp := &http.Response{
 				Header:     http.Header{},
@@ -75,21 +74,27 @@ func (c cachingWare) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	if len(key) > 0 {
+		// don't bother caching if the response is too large
+		maxItemSize := c.cache.c.MaxItemSize()
+		if maxItemSize > 0 && resp.ContentLength > int64(maxItemSize) {
+			return resp, nil
+		}
+
+		buffer, err := api.ReadBodyToBuffer(resp)
+		if err != nil {
+			return resp, fmt.Errorf("failed to cache: %w", err)
+		}
+
+		// reset the body so the caller can read it
+		resp.Body = io.NopCloser(buffer)
+
 		// cache the response
 		//  todo: currently this is blindly caching any 200 status codes. it would be a bug, but it's possible for a querier
 		//  to return a 200 status code with a response that does not parse as the expected type in the combiner.
 		//  technically this should never happen...
 		//  long term we should migrate the sync part of the pipeline to use generics so we can do the parsing early in the pipeline
 		//  and be confident it's cacheable.
-		b, err := io.ReadAll(resp.Body)
-
-		// reset the body so the caller can read it
-		resp.Body = io.NopCloser(bytes.NewBuffer(b))
-		if err != nil {
-			return resp, nil
-		}
-
-		c.cache.store(req.Context(), key, b)
+		c.cache.store(req.Context(), key, buffer.Bytes())
 	}
 
 	return resp, nil
@@ -138,26 +143,7 @@ func (c *frontendCache) store(ctx context.Context, key string, buffer []byte) {
 }
 
 // fetch fetches the response body from the cache. the caller assumes the responsibility of closing the response body.
-func (c *frontendCache) fetch(key string, pb proto.Message) bool {
-	if c.c == nil {
-		return false
-	}
-
-	if len(key) == 0 {
-		return false
-	}
-
-	_, bufs, _ := c.c.Fetch(context.Background(), []string{key})
-	if len(bufs) != 1 {
-		return false
-	}
-
-	err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(bufs[0]), pb)
-	return err == nil
-}
-
-// fetch fetches the response body from the cache. the caller assumes the responsibility of closing the response body.
-func (c *frontendCache) fetchBytes(key string) []byte {
+func (c *frontendCache) fetchBytes(ctx context.Context, key string) []byte {
 	if c.c == nil {
 		return nil
 	}
@@ -166,10 +152,10 @@ func (c *frontendCache) fetchBytes(key string) []byte {
 		return nil
 	}
 
-	_, bufs, _ := c.c.Fetch(context.Background(), []string{key})
-	if len(bufs) != 1 {
+	buf, found := c.c.FetchKey(ctx, key)
+	if !found {
 		return nil
 	}
 
-	return bufs[0]
+	return buf
 }

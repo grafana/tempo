@@ -10,8 +10,9 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
-	"github.com/opentracing/opentracing-go"
 	"github.com/parquet-go/parquet-go"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var translateTagToAttribute = map[string]traceql.Attribute{
@@ -44,19 +45,19 @@ var nonTraceQLAttributes = map[string]string{
 }
 
 func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagsCallback, opts common.SearchOptions) error {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTags",
-		opentracing.Tags{
-			"blockID":   b.meta.BlockID,
-			"tenantID":  b.meta.TenantID,
-			"blockSize": b.meta.Size,
-		})
-	defer span.Finish()
+	derivedCtx, span := tracer.Start(ctx, "parquet.backendBlock.SearchTags",
+		trace.WithAttributes(
+			attribute.String("blockID", b.meta.BlockID.String()),
+			attribute.String("tenantID", b.meta.TenantID),
+			attribute.Int64("blockSize", int64(b.meta.Size)),
+		))
+	defer span.End()
 
 	pf, rr, err := b.openForSearch(derivedCtx, opts)
 	if err != nil {
 		return fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
-	defer func() { span.SetTag("inspectedBytes", rr.BytesRead()) }()
+	defer func() { span.SetAttributes(attribute.Int64("inspectedBytes", int64(rr.BytesRead()))) }()
 
 	return searchTags(derivedCtx, scope, cb, pf, b.meta.DedicatedColumns)
 }
@@ -177,6 +178,13 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsC
 			return err
 		}
 	}
+	// scope
+	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeInstrumentation {
+		err := scanColumns(columnPathInstrumentationAttrKey, nil, dedicatedColumnMapping{}, cb, traceql.AttributeScopeInstrumentation)
+		if err != nil {
+			return err
+		}
+	}
 	// span
 	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeSpan {
 		columnMapping := dedicatedColumnsToColumnMapping(dc, backend.DedicatedColumnScopeSpan)
@@ -192,7 +200,6 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsC
 			return err
 		}
 	}
-
 	// link
 	if scope == traceql.AttributeScopeNone || scope == traceql.AttributeScopeLink {
 		err := scanColumns(columnPathLinkAttrKey, nil, dedicatedColumnMapping{}, cb, traceql.AttributeScopeLink)
@@ -220,19 +227,19 @@ func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 }
 
 func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, opts common.SearchOptions) error {
-	span, derivedCtx := opentracing.StartSpanFromContext(ctx, "parquet.backendBlock.SearchTagValuesV2",
-		opentracing.Tags{
-			"blockID":   b.meta.BlockID,
-			"tenantID":  b.meta.TenantID,
-			"blockSize": b.meta.Size,
-		})
-	defer span.Finish()
+	derivedCtx, span := tracer.Start(ctx, "parquet.backendBlock.SearchTagValuesV2",
+		trace.WithAttributes(
+			attribute.String("blockID", b.meta.BlockID.String()),
+			attribute.String("tenantID", b.meta.TenantID),
+			attribute.Int64("blockSize", int64(b.meta.Size)),
+		))
+	defer span.End()
 
 	pf, rr, err := b.openForSearch(derivedCtx, opts)
 	if err != nil {
 		return fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
-	defer func() { span.SetTag("inspectedBytes", rr.BytesRead()) }()
+	defer func() { span.SetAttributes(attribute.Int64("inspectedBytes", int64(rr.BytesRead()))) }()
 
 	return searchTagValues(derivedCtx, tag, cb, pf, b.meta.DedicatedColumns)
 }
@@ -328,6 +335,19 @@ func searchStandardTagValues(ctx context.Context, tag traceql.Attribute, pf *par
 			makeIter, keyPred, cb)
 		if err != nil {
 			return fmt.Errorf("search span key values: %w", err)
+		}
+	}
+
+	if tag.Scope == traceql.AttributeScopeNone || tag.Scope == traceql.AttributeScopeInstrumentation {
+		err := searchKeyValues(DefinitionLevelInstrumentationScopeAttrs,
+			columnPathInstrumentationAttrKey,
+			columnPathInstrumentationAttrString,
+			columnPathInstrumentationAttrInt,
+			columnPathInstrumentationAttrDouble,
+			columnPathInstrumentationAttrBool,
+			makeIter, keyPred, cb)
+		if err != nil {
+			return fmt.Errorf("search instrumentation key values: %w", err)
 		}
 	}
 

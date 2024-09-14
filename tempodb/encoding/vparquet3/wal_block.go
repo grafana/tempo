@@ -135,7 +135,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 				switch e.Key {
 				case columnPathTraceID:
 					traceID := e.Value.ByteArray()
-					b.meta.ObjectAdded(traceID, 0, 0)
+					b.meta.ObjectAdded(0, 0)
 					page.ids.Set(traceID, int64(match.RowNumber[0])) // Save rownumber for the trace ID
 				}
 			}
@@ -339,7 +339,7 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 		dataquality.WarnRootlessTrace(b.meta.TenantID, dataquality.PhaseTraceFlushedToWal)
 	}
 
-	start, end = b.adjustTimeRangeForSlack(start, end, 0)
+	start, end = b.adjustTimeRangeForSlack(start, end)
 
 	// add to current
 	_, err := b.writer.Write([]*Trace{b.buffer})
@@ -347,7 +347,7 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 		return fmt.Errorf("error writing row: %w", err)
 	}
 
-	b.meta.ObjectAdded(id, start, end)
+	b.meta.ObjectAdded(start, end)
 	b.ids.Set(id, int64(b.ids.Len())) // Next row number
 
 	b.unflushedSize += int64(estimateMarshalledSizeFromTrace(b.buffer))
@@ -355,9 +355,9 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 	return nil
 }
 
-func (b *walBlock) adjustTimeRangeForSlack(start, end uint32, additionalStartSlack time.Duration) (uint32, uint32) {
+func (b *walBlock) adjustTimeRangeForSlack(start, end uint32) (uint32, uint32) {
 	now := time.Now()
-	startOfRange := uint32(now.Add(-b.ingestionSlack).Add(-additionalStartSlack).Unix())
+	startOfRange := uint32(now.Add(-b.ingestionSlack).Unix())
 	endOfRange := uint32(now.Add(b.ingestionSlack).Unix())
 
 	warn := false
@@ -365,7 +365,7 @@ func (b *walBlock) adjustTimeRangeForSlack(start, end uint32, additionalStartSla
 		warn = true
 		start = uint32(now.Unix())
 	}
-	if end > endOfRange {
+	if end > endOfRange || end < start {
 		warn = true
 		end = uint32(now.Unix())
 	}
@@ -545,7 +545,7 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.
 		}
 	}
 
-	combiner := trace.NewCombiner(opts.MaxBytes)
+	combiner := trace.NewCombiner(opts.MaxBytes, false)
 	for i, tr := range trs {
 		_, err := combiner.ConsumeWithFinal(tr, i == len(trs)-1)
 		if err != nil {

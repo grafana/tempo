@@ -233,6 +233,13 @@ func autocompleteIter(ctx context.Context, tr tagRequest, pf *parquet.File, opts
 		}
 	}
 
+	if len(catConditions.instrumentation) > 0 || tr.keysRequested(traceql.AttributeScopeInstrumentation) {
+		currentIter, err = createDistinctScopeIterator(makeIter, tr, currentIter, catConditions.instrumentation)
+		if err != nil {
+			return nil, errors.Wrap(err, "creating instrumentation iterator")
+		}
+	}
+
 	if len(catConditions.resource) > 0 || tr.keysRequested(traceql.AttributeScopeResource) {
 		currentIter, err = createDistinctResourceIterator(makeIter, tr, currentIter, catConditions.resource, dc)
 		if err != nil {
@@ -656,15 +663,7 @@ func createDistinctAttributeIterator(
 		valueIters = append(valueIters, makeIter(boolPath, orIfNeeded(boolPreds), "bool"))
 	}
 
-	scope := scopeFromDefinitionLevel(definitionLevel)
-	if definitionLevel == DefinitionLevelResourceSpansILSSpanEventAttrs {
-		switch keyPath {
-		case columnPathEventAttrKey:
-			scope = traceql.AttributeScopeEvent
-		case columnPathLinkAttrKey:
-			scope = traceql.AttributeScopeLink
-		}
-	}
+	scope := scopeFromDefinitionLevel(definitionLevel, keyPath)
 	if len(valueIters) > 0 || len(iters) > 0 || tr.keysRequested(scope) {
 		if len(valueIters) > 0 {
 			tagIter, err := parquetquery.NewLeftJoinIterator(
@@ -694,16 +693,7 @@ func createDistinctAttributeIterator(
 }
 
 func keyNameIterator(makeIter makeIterFn, definitionLevel int, keyPath string, attrIters []parquetquery.Iterator) (parquetquery.Iterator, error) {
-	scope := scopeFromDefinitionLevel(definitionLevel)
-	if definitionLevel == DefinitionLevelResourceSpansILSSpanEventAttrs {
-		switch keyPath {
-		case columnPathEventAttrKey:
-			scope = traceql.AttributeScopeEvent
-		case columnPathLinkAttrKey:
-			scope = traceql.AttributeScopeLink
-		}
-	}
-
+	scope := scopeFromDefinitionLevel(definitionLevel, keyPath)
 	if len(attrIters) == 0 {
 		return parquetquery.NewJoinIterator(
 			oneLevelUp(definitionLevel),
@@ -731,6 +721,71 @@ func oneLevelUp(definitionLevel int) int {
 
 	}
 	return definitionLevel
+}
+
+func createDistinctScopeIterator(
+	makeIter makeIterFn,
+	tr tagRequest,
+	primaryIter parquetquery.Iterator,
+	conditions []traceql.Condition,
+) (parquetquery.Iterator, error) {
+	var (
+		iters             []parquetquery.Iterator
+		genericConditions []traceql.Condition
+	)
+
+	for _, cond := range conditions {
+		// Intrinsic?
+		switch cond.Attribute.Intrinsic {
+		case traceql.IntrinsicInstrumentationName:
+			pred, err := createStringPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			selectAs := ""
+			if tr.tag == cond.Attribute {
+				selectAs = columnPathInstrumentationName
+			}
+			iters = append(iters, makeIter(columnPathInstrumentationName, pred, selectAs))
+			continue
+		case traceql.IntrinsicInstrumentationVersion:
+			pred, err := createStringPredicate(cond.Op, cond.Operands)
+			if err != nil {
+				return nil, err
+			}
+			selectAs := ""
+			if tr.tag == cond.Attribute {
+				selectAs = columnPathInstrumentationVersion
+			}
+			iters = append(iters, makeIter(columnPathInstrumentationVersion, pred, selectAs))
+			continue
+		}
+		// Else: generic attribute lookup
+		genericConditions = append(genericConditions, cond)
+	}
+
+	attrIter, err := createDistinctAttributeIterator(makeIter, tr, genericConditions, DefinitionLevelInstrumentationScopeAttrs,
+		columnPathInstrumentationAttrKey, columnPathInstrumentationAttrString, columnPathInstrumentationAttrInt, columnPathInstrumentationAttrDouble, columnPathInstrumentationAttrBool)
+	if err != nil {
+		return nil, errors.Wrap(err, "creating instrumentation attribute iterator")
+	}
+
+	// if no intrinsics and no events then we can just return the attribute iterator
+	if len(iters) == 0 && primaryIter == nil {
+		return attrIter, nil
+	}
+
+	if attrIter != nil {
+		iters = append(iters, attrIter)
+	}
+
+	if primaryIter != nil {
+		iters = append(iters, primaryIter)
+	}
+
+	instrumentationCol := newDistinctValueCollector(mapInstrumentationAttr, "instrumentation")
+
+	return parquetquery.NewJoinIterator(DefinitionLevelInstrumentationScope, iters, instrumentationCol), nil
 }
 
 func createDistinctResourceIterator(
@@ -901,14 +956,14 @@ type distinctAttrCollector struct {
 	scope     traceql.AttributeScope
 	attrNames bool
 
-	sentVals map[traceql.Static]struct{}
+	sentVals map[traceql.StaticMapKey]struct{}
 	sentKeys map[string]struct{}
 }
 
 func newDistinctAttrCollector(scope traceql.AttributeScope, attrNames bool) *distinctAttrCollector {
 	return &distinctAttrCollector{
 		scope:     scope,
-		sentVals:  make(map[traceql.Static]struct{}),
+		sentVals:  make(map[traceql.StaticMapKey]struct{}),
 		sentKeys:  make(map[string]struct{}),
 		attrNames: attrNames,
 	}
@@ -950,11 +1005,11 @@ func (d *distinctAttrCollector) KeepGroup(result *parquetquery.IteratorResult) b
 		}
 	}
 
-	var empty traceql.Static
-	if val != empty {
-		if _, ok := d.sentVals[val]; !ok {
+	if val.Type != traceql.TypeNil {
+		mk := val.MapKey()
+		if _, ok := d.sentVals[mk]; !ok {
 			result.AppendOtherValue("", val)
-			d.sentVals[val] = struct{}{}
+			d.sentVals[mk] = struct{}{}
 		}
 	}
 
@@ -972,14 +1027,14 @@ var _ parquetquery.GroupPredicate = (*distinctValueCollector)(nil)
 
 type distinctValueCollector struct {
 	mapToStatic func(entry) traceql.Static
-	sentVals    map[traceql.Static]struct{}
+	sentVals    map[traceql.StaticMapKey]struct{}
 	name        string
 }
 
 func newDistinctValueCollector(mapToStatic func(entry) traceql.Static, name string) *distinctValueCollector {
 	return &distinctValueCollector{
 		mapToStatic: mapToStatic,
-		sentVals:    make(map[traceql.Static]struct{}),
+		sentVals:    make(map[traceql.StaticMapKey]struct{}),
 		name:        name,
 	}
 }
@@ -993,9 +1048,10 @@ func (d distinctValueCollector) KeepGroup(result *parquetquery.IteratorResult) b
 		}
 		static := d.mapToStatic(e)
 
-		if _, ok := d.sentVals[static]; !ok {
+		mk := static.MapKey()
+		if _, ok := d.sentVals[mk]; !ok {
 			result.AppendOtherValue("", static)
-			d.sentVals[static] = struct{}{}
+			d.sentVals[mk] = struct{}{}
 		}
 	}
 	result.Entries = result.Entries[:0]
@@ -1074,6 +1130,14 @@ func mapSpanAttr(e entry) traceql.Static {
 			return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 		}
 	}
+	return traceql.NewStaticNil()
+}
+
+func mapInstrumentationAttr(e entry) traceql.Static {
+	switch e.Key {
+	case columnPathInstrumentationName, columnPathInstrumentationVersion:
+		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
+	}
 	return traceql.Static{}
 }
 
@@ -1088,7 +1152,7 @@ func mapResourceAttr(e entry) traceql.Static {
 	case parquet.ByteArray, parquet.FixedLenByteArray:
 		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	default:
-		return traceql.Static{}
+		return traceql.NewStaticNil()
 	}
 }
 
@@ -1102,17 +1166,24 @@ func mapTraceAttr(e entry) traceql.Static {
 	case columnPathRootServiceName:
 		return traceql.NewStaticString(unsafeToString(e.Value.ByteArray()))
 	}
-	return traceql.Static{}
+	return traceql.NewStaticNil()
 }
 
-func scopeFromDefinitionLevel(lvl int) traceql.AttributeScope {
+func scopeFromDefinitionLevel(lvl int, keyPath string) traceql.AttributeScope {
 	switch lvl {
-	case DefinitionLevelResourceSpansILSSpan,
-		DefinitionLevelResourceSpansILSSpanAttrs:
+	case DefinitionLevelResourceSpansILSSpanAttrs:
 		return traceql.AttributeScopeSpan
-	case DefinitionLevelResourceAttrs,
-		DefinitionLevelResourceSpans:
+	case DefinitionLevelResourceAttrs:
 		return traceql.AttributeScopeResource
+	case DefinitionLevelInstrumentationScopeAttrs:
+		return traceql.AttributeScopeInstrumentation
+	case DefinitionLevelResourceSpansILSSpanEventAttrs:
+		switch keyPath {
+		case columnPathEventAttrKey:
+			return traceql.AttributeScopeEvent
+		default: // columnPathLinkAttrKey
+			return traceql.AttributeScopeLink
+		}
 	default:
 		return traceql.AttributeScopeNone
 	}

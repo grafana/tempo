@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/util"
 )
 
 const (
@@ -40,8 +39,6 @@ func TestBlockMetaObjectAdded(t *testing.T) {
 		ids             [][]byte
 		starts          []uint32
 		ends            []uint32
-		expectedMaxID   []byte
-		expectedMinID   []byte
 		expectedStart   time.Time
 		expectedEnd     time.Time
 		expectedObjects int
@@ -57,8 +54,6 @@ func TestBlockMetaObjectAdded(t *testing.T) {
 			ends: []uint32{
 				uint32(now.Add(time.Minute).Unix()),
 			},
-			expectedMaxID:   []byte{0x01},
-			expectedMinID:   []byte{0x01},
 			expectedStart:   now,
 			expectedEnd:     now.Add(time.Minute),
 			expectedObjects: 1,
@@ -76,8 +71,6 @@ func TestBlockMetaObjectAdded(t *testing.T) {
 				uint32(now.Add(time.Hour).Unix()),
 				uint32(now.Add(time.Minute).Unix()),
 			},
-			expectedMaxID:   []byte{0x02},
-			expectedMinID:   []byte{0x01},
 			expectedStart:   now.Add(-time.Minute),
 			expectedEnd:     now.Add(time.Hour),
 			expectedObjects: 2,
@@ -88,11 +81,9 @@ func TestBlockMetaObjectAdded(t *testing.T) {
 		b := &BlockMeta{}
 
 		for i := 0; i < len(tc.ids); i++ {
-			b.ObjectAdded(tc.ids[i], tc.starts[i], tc.ends[i])
+			b.ObjectAdded(tc.starts[i], tc.ends[i])
 		}
 
-		assert.Equal(t, tc.expectedMaxID, b.MaxID)
-		assert.Equal(t, tc.expectedMinID, b.MinID)
 		assert.Equal(t, tc.expectedStart, b.StartTime)
 		assert.Equal(t, tc.expectedEnd, b.EndTime)
 		assert.Equal(t, tc.expectedObjects, b.TotalObjects)
@@ -106,14 +97,9 @@ func TestBlockMetaParsing(t *testing.T) {
 		return date
 	}
 
-	minID, _ := util.HexStringToTraceID("00203ff2da512a3b4fab11d7243ac1cc")
-	maxID, _ := util.HexStringToTraceID("f12b7a1ad3115ff207734fab0d0ab235")
-
 	meta := BlockMeta{
 		Version:         "vParquet3",
 		BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
-		MinID:           minID,
-		MaxID:           maxID,
 		TenantID:        "single-tenant",
 		StartTime:       timeParse("2021-01-01T00:00:00.0000000Z"),
 		EndTime:         timeParse("2021-01-02T00:00:00.0000000Z"),
@@ -136,8 +122,6 @@ func TestBlockMetaParsing(t *testing.T) {
 	expectedJSON := `{
     	"format": "vParquet3",
     	"blockID": "00000000-0000-0000-0000-000000000000",
-    	"minID": "ACA/8tpRKjtPqxHXJDrBzA==",
-    	"maxID": "8St6GtMRX/IHc0+rDQqyNQ==",
     	"tenantID": "single-tenant",
 		"startTime": "2021-01-01T00:00:00Z",
     	"endTime": "2021-01-02T00:00:00Z",
