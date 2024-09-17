@@ -335,7 +335,7 @@ steps:
       {
         "destination_branch": "master",
         "pull_request_branch_prefix": "cd-tempo-dev",
-        "pull_request_enabled": false,
+        "pull_request_enabled": true,
         "pull_request_team_reviewers": [
           "tempo"
         ],
@@ -359,11 +359,11 @@ steps:
         ]
       }
     github_app_id:
-      from_secret: tempo-app-id
+      from_secret: tempo_app_id_secret
     github_app_installation_id:
-      from_secret: tempo-app-installation-id
+      from_secret: tempo_app_installation_id_secret
     github_app_private_key:
-      from_secret: tempo-app-private-key
+      from_secret: tempo_app_private_key_secret
 trigger:
   ref:
   - refs/heads/main
@@ -480,8 +480,6 @@ steps:
 - commands:
   - make release
   environment:
-    GITHUB_TOKEN:
-      from_secret: gh_token
     NFPM_DEFAULT_PASSPHRASE:
       from_secret: gpg_passphrase
     NFPM_SIGNING_KEY_FILE: /drone/src/private-key.key
@@ -527,6 +525,24 @@ kind: secret
 name: gh_token
 ---
 get:
+  name: app_id
+  path: ci/data/repo/grafana/tempo/github-app
+kind: secret
+name: tempo_app_id_secret
+---
+get:
+  name: installation_id
+  path: ci/data/repo/grafana/tempo/github-app
+kind: secret
+name: tempo_app_installation_id_secret
+---
+get:
+  name: private_key
+  path: ci/data/repo/grafana/tempo/github-app
+kind: secret
+name: tempo_app_private_key_secret
+---
+get:
   name: credentials.json
   path: infra/data/ci/tempo-ops-tools-function-upload
 kind: secret
@@ -568,25 +584,7 @@ get:
 kind: secret
 name: gpg_passphrase
 ---
-get:
-  name: app-id
-  path: ci/data/repo/grafana/tempo/github-app
-kind: secret
-name: tempo-app-id
----
-get:
-  name: app-installation-id
-  path: ci/data/repo/grafana/tempo/github-app
-kind: secret
-name: tempo-app-installation-id
----
-get:
-  name: app-private-key
-  path: ci/data/repo/grafana/tempo/github-app
-kind: secret
-name: tempo-app-private-key
----
 kind: signature
-hmac: bee5601dffa0f46559f5d8734ebda1261ec9171a3dca7add1a23188f6f162945
+hmac: 874f5743a31335aeffef05d822492dcfbec4f9ca8bc5d8bed32f9f336cfb1a80
 
 ...
