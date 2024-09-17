@@ -45,8 +45,8 @@ local docker_config_json_secret = secret('dockerconfigjson', 'secret/data/common
 // secret needed for dep-tools
 local gh_token_secret = secret('gh_token', 'infra/data/ci/github/grafanabot', 'pat');
 local tempo_app_id_secret = secret('tempo_app_id_secret', 'ci/data/repo/grafana/tempo/github-app', 'app-id');
-local tempo_app_installation_id_secret = secret('tempo_app_installation_id_secret', 'ci/data/repo/grafana/tempo/github-app', 'installation-id');
-local tempo_app_private_key_secret = secret('tempo_app_private_key_secret', 'ci/data/repo/grafana/tempo/github-app', 'private-key');
+local tempo_app_installation_id_secret = secret('tempo_app_installation_id_secret', 'ci/data/repo/grafana/tempo/github-app', 'app-installation-id');
+local tempo_app_private_key_secret = secret('tempo_app_private_key_secret', 'ci/data/repo/grafana/tempo/github-app', 'app-private-key');
 
 // secret to sign linux packages
 local gpg_passphrase = secret('gpg_passphrase', 'infra/data/ci/packages-publish/gpg', 'passphrase');
