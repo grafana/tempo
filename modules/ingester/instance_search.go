@@ -421,11 +421,23 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	}
 
 	query := traceql.ExtractMatchers(req.Query)
-	// cacheKey will be same for the request so only compute it once
+	// cacheKey will be same for all blocks in a request so only compute it once
 	cacheKey := searchTagValuesV2CacheKey(req, limit, "cache_search_tagvaluesv2")
 
-	// take diskCache as a bool arg here??
-	// maybePass the Cacher Interface here, that implements Set and Get on the LocalBlock??
+	// helper functions as closures, to access local variables
+	performSearch := func(ctx context.Context, s common.Searcher, collector *collector.DistinctValue[tempopb.TagValue]) error {
+		if traceql.IsEmptyQuery(query) {
+			return s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(collector.Collect), common.DefaultSearchOptions())
+		}
+
+		// Otherwise, use the filtered search
+		fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
+			return s.FetchTagValues(ctx, req, cb, common.DefaultSearchOptions())
+		})
+
+		return engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(collector.Collect), fetcher)
+	}
+
 	searchBlock := func(ctx context.Context, s common.Searcher, bc common.BlockCacher) error {
 		if anyErr.Load() != nil {
 			return nil // Early exit if any error has occurred
@@ -435,80 +447,54 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			return nil
 		}
 
-		// if no cacher is provided, execute the search...this does duplicate few lines but it's fine for now...
+		// cacher not provided, just search the block
 		if bc == nil {
-			// if the query is empty, use the old search
-			if traceql.IsEmptyQuery(query) {
-				return s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(valueCollector.Collect), common.DefaultSearchOptions())
-			}
-
-			// otherwise use the filtered search
-			fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
-				return s.FetchTagValues(ctx, req, cb, common.DefaultSearchOptions())
-			})
-
-			return engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
+			return performSearch(ctx, s, valueCollector)
 		}
 
+		// we have a cacher, so we check the cache first
 		data, err := bc.GetDiskCache(ctx, cacheKey)
-		// unmarshall these bytes and return append the values into the central collector
 		if err != nil {
-			fmt.Printf("GetDiskCache failed with err: %s\n", err)
-			return err
+			// just log the error and move on...we will search the block
+			_ = level.Warn(log.Logger).Log("msg", "GetDiskCache failed", "err", err)
 		}
 
-		// we got data...unmarshall, add to collector and return
-		// TODO: is this data size check required???
-		if len(data) > 0 {
+		// we got data...unmarshall, and add values to central collector
+		if len(data) > 0 && err == nil {
 			resp := &tempopb.SearchTagValuesV2Response{}
 			err = proto.Unmarshal(data, resp)
 			if err != nil {
 				return err
 			}
 			for _, v := range resp.TagValues {
-				// TODO: will this panic??
-				stop := valueCollector.Collect(*v)
-				if stop {
-					break
+				if valueCollector.Collect(*v) {
+					break // we have reached the limit, so stop
 				}
 			}
 			return nil
 		}
 
-		// results not in cache, so we search and set the cache
-		// create our own collector so we can cache the results
-		var localErr error
+		// results not in cache, so search the block
+		// using a local collector to collect values from the block and set cache
 		localCol := collector.NewDistinctValue[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
-
-		// if the query is empty, use the old search
-		if traceql.IsEmptyQuery(query) {
-			localErr = s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(localCol.Collect), common.DefaultSearchOptions())
-			if localErr != nil {
-				return localErr
-			}
-		}
-
-		// otherwise use the filtered search
-		fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
-			return s.FetchTagValues(ctx, req, cb, common.DefaultSearchOptions())
-		})
-
-		localErr = engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(localCol.Collect), fetcher)
+		localErr := performSearch(ctx, s, localCol)
 		if localErr != nil {
 			return localErr
 		}
 
-		// set the cache here?? and ignore the errors all during setting cache
-		data, _ = valuesToTagValuesV2RespProto(localCol)
-		_ = bc.SetDiskCache(ctx, cacheKey, data)
+		// marshal the local collector and set the cache
+		valuesProto, err := valuesToTagValuesV2RespProto(localCol.Values())
+		if err == nil && len(data) > 0 {
+			err2 := bc.SetDiskCache(ctx, cacheKey, valuesProto)
+			if err2 != nil {
+				_ = level.Warn(log.Logger).Log("msg", "SetDiskCache failed", "err", err2)
+			}
+		}
 
-		// FIXME: this slows down the lookup for the headBlock and the completingBlocks
-		// maybe I should Take this caching stuff out in it's own func??
-		// now iterate over the localCol and add the values to the central collector
+		// add values to the central collector
 		for _, v := range localCol.Values() {
-			stop := valueCollector.Collect(v)
-			if stop {
-				return nil
+			if valueCollector.Collect(v) {
+				break // we have reached the limit, so stop
 			}
 		}
 		return nil
@@ -547,6 +533,8 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			defer span.End()
 			defer wg.Done()
 			if err := searchBlock(ctx, b, b); err != nil {
+				// this error is showing up in the e2e test logs?
+				// 13:00:36 tempo: level=warn ts=2024-09-17T13:00:36.927220863Z caller=server.go:2166 msg="GET /querier/api/v2/search/tag/span.x/values?start=0&end=0&q=span.x+%3D+bar (500) 394.157µs Response: \"error querying ingesters in Querier.SearchTagValues: failed to execute f() for 127.0.0.1:9095: rpc error: code = Unknown desc = unexpected error searching complete block (26cb018e-03e0-4e26-8c1d-da9469fddfa1): read /var/tempo/wal/blocks/single-tenant/26cb018e-03e0-4e26-8c1d-da9469fddfa1: is a directory\\n\" ws: false; Accept: application/protobuf; Accept-Encoding: gzip; User-Agent: Go-http-client/1.1; X-Scope-Orgid: single-tenant; "
 				anyErr.Store(fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err))
 			}
 		}(b)
@@ -617,13 +605,15 @@ func searchTagValuesV2CacheKey(req *tempopb.SearchTagValuesRequest, limit int, p
 	return fmt.Sprintf("%s_%v.buf", prefix, h)
 }
 
-// use this or duplicate this func for marshaling and unmarshalling the values into the object and then caching it??
-// this is slightly modified version of valuesToV2Response in the querier.go
-func valuesToTagValuesV2RespProto(distinctValues *collector.DistinctValue[tempopb.TagValue]) ([]byte, error) {
+// valuesToTagValuesV2RespProto converts TagValues to a protobuf marshalled bytes
+// this is slightly modified version of valuesToV2Response from querier.go
+func valuesToTagValuesV2RespProto(tagValues []tempopb.TagValue) ([]byte, error) {
 	resp := &tempopb.SearchTagValuesV2Response{}
-	for _, v := range distinctValues.Values() {
-		v2 := v
-		resp.TagValues = append(resp.TagValues, &v2)
+	resp.TagValues = make([]*tempopb.TagValue, 0, len(tagValues))
+
+	for _, v := range tagValues {
+		v2 := &v
+		resp.TagValues = append(resp.TagValues, v2)
 	}
 
 	data, err := proto.Marshal(resp)
