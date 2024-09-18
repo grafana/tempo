@@ -150,7 +150,7 @@ local deploy_to_dev() = {
     config_json: std.manifestJsonEx(
       {
         destination_branch: 'master',
-        pull_request_branch_prefix: 'cd-tempo-dev',
+        pull_request_branch_prefix: 'auto-merge/cd-tempo-dev',
         pull_request_enabled: true,
         pull_request_existing_strategy: "ignore",
         repo_name: 'deployment_tools',
