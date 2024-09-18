@@ -128,18 +128,10 @@ func (c *LocalBlock) Write(ctx context.Context, w backend.Writer) error {
 }
 
 func (c *LocalBlock) SetDiskCache(ctx context.Context, cacheKey string, data []byte) error {
-	if cacheKey == "" {
-		return errors.New("cacheKey is empty")
-	}
-
 	return c.writer.Write(ctx, cacheKey, c.BlockMeta().BlockID, c.BlockMeta().TenantID, data, nil)
 }
 
 func (c *LocalBlock) GetDiskCache(ctx context.Context, cacheKey string) ([]byte, error) {
-	if cacheKey == "" {
-		return nil, errors.New("cacheKey is empty")
-	}
-
 	data, err := c.reader.Read(ctx, cacheKey, c.BlockMeta().BlockID, c.BlockMeta().TenantID, nil)
 	if errors.Is(err, backend.ErrDoesNotExist) {
 		// file doesn't exist, so it's a cache miss

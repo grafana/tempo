@@ -438,7 +438,10 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(collector.Collect), fetcher)
 	}
 
-	searchBlock := func(ctx context.Context, s common.Searcher, bc common.BlockCacher) error {
+	searchBlock := func(ctx context.Context, s common.Searcher, bc common.BlockCacher, spanName string) error {
+		ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2."+spanName)
+		defer span.End()
+
 		if anyErr.Load() != nil {
 			return nil // Early exit if any error has occurred
 		}
@@ -453,19 +456,20 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		}
 
 		// we have a cacher, so we check the cache first
-		data, err := bc.GetDiskCache(ctx, cacheKey)
+		cacheData, err := bc.GetDiskCache(ctx, cacheKey)
 		if err != nil {
 			// just log the error and move on...we will search the block
 			_ = level.Warn(log.Logger).Log("msg", "GetDiskCache failed", "err", err)
 		}
 
 		// we got data...unmarshall, and add values to central collector
-		if len(data) > 0 && err == nil {
+		if len(cacheData) > 0 && err == nil {
 			resp := &tempopb.SearchTagValuesV2Response{}
-			err = proto.Unmarshal(data, resp)
+			err = proto.Unmarshal(cacheData, resp)
 			if err != nil {
 				return err
 			}
+			span.SetAttributes(attribute.Bool("cached", true))
 			for _, v := range resp.TagValues {
 				if valueCollector.Collect(*v) {
 					break // we have reached the limit, so stop
@@ -474,6 +478,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			return nil
 		}
 
+		span.SetAttributes(attribute.Bool("cached", false))
 		// results not in cache, so search the block
 		// using a local collector to collect values from the block and set cache
 		localCol := collector.NewDistinctValue[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
@@ -484,7 +489,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 		// marshal the local collector and set the cache
 		valuesProto, err := valuesToTagValuesV2RespProto(localCol.Values())
-		if err == nil && len(data) > 0 {
+		if err == nil && len(valuesProto) > 0 {
 			err2 := bc.SetDiskCache(ctx, cacheKey, valuesProto)
 			if err2 != nil {
 				_ = level.Warn(log.Logger).Log("msg", "SetDiskCache failed", "err", err2)
@@ -511,11 +516,9 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	if i.headBlock != nil {
 		wg.Add(1)
 		go func() {
-			ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2.headBlock")
-			defer span.End()
 			defer i.headBlockMtx.RUnlock()
 			defer wg.Done()
-			if err := searchBlock(ctx, i.headBlock, nil); err != nil {
+			if err := searchBlock(ctx, i.headBlock, nil, "headBlock"); err != nil {
 				anyErr.Store(fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err))
 			}
 		}()
@@ -529,12 +532,8 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	for _, b := range i.completeBlocks {
 		wg.Add(1)
 		go func(b *LocalBlock) {
-			ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2.completedBlock")
-			defer span.End()
 			defer wg.Done()
-			if err := searchBlock(ctx, b, b); err != nil {
-				// this error is showing up in the e2e test logs?
-				// 13:00:36 tempo: level=warn ts=2024-09-17T13:00:36.927220863Z caller=server.go:2166 msg="GET /querier/api/v2/search/tag/span.x/values?start=0&end=0&q=span.x+%3D+bar (500) 394.157µs Response: \"error querying ingesters in Querier.SearchTagValues: failed to execute f() for 127.0.0.1:9095: rpc error: code = Unknown desc = unexpected error searching complete block (26cb018e-03e0-4e26-8c1d-da9469fddfa1): read /var/tempo/wal/blocks/single-tenant/26cb018e-03e0-4e26-8c1d-da9469fddfa1: is a directory\\n\" ws: false; Accept: application/protobuf; Accept-Encoding: gzip; User-Agent: Go-http-client/1.1; X-Scope-Orgid: single-tenant; "
+			if err := searchBlock(ctx, b, b, "completeBlocks"); err != nil {
 				anyErr.Store(fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err))
 			}
 		}(b)
@@ -544,10 +543,8 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	for _, b := range i.completingBlocks {
 		wg.Add(1)
 		go func(b common.WALBlock) {
-			ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2.completingBlock")
-			defer span.End()
 			defer wg.Done()
-			if err := searchBlock(ctx, b, nil); err != nil {
+			if err := searchBlock(ctx, b, nil, "completingBlocks"); err != nil {
 				anyErr.Store(fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err))
 			}
 		}(b)
