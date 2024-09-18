@@ -152,9 +152,7 @@ local deploy_to_dev() = {
         destination_branch: 'master',
         pull_request_branch_prefix: 'cd-tempo-dev',
         pull_request_enabled: true,
-        pull_request_team_reviewers: [
-          'tempo',
-        ],
+        pull_request_existing_strategy: "ignore",
         repo_name: 'deployment_tools',
         update_jsonnet_attribute_configs: [
           {

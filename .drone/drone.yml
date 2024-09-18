@@ -336,9 +336,7 @@ steps:
         "destination_branch": "master",
         "pull_request_branch_prefix": "cd-tempo-dev",
         "pull_request_enabled": true,
-        "pull_request_team_reviewers": [
-          "tempo"
-        ],
+        "pull_request_existing_strategy": "ignore",
         "repo_name": "deployment_tools",
         "update_jsonnet_attribute_configs": [
           {
@@ -585,6 +583,6 @@ kind: secret
 name: gpg_passphrase
 ---
 kind: signature
-hmac: 86621a37e6586a03a0c16ee7bc0a5a9d70db753663cac5f811978b1fdfcf3ab6
+hmac: fa32f6c72b1b62254ed9b8568d3b9cb202d82f5ac03e96a1b5548b0e3cf11139
 
 ...
