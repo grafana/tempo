@@ -180,6 +180,10 @@ type StorageOverrides struct {
 	DedicatedColumns backend.DedicatedColumns `yaml:"parquet_dedicated_columns" json:"parquet_dedicated_columns"`
 }
 
+type CostAttributionOverrides struct {
+	Dimensions []string `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
+}
+
 type Overrides struct {
 	// Ingestion enforced overrides.
 	Ingestion IngestionOverrides `yaml:"ingestion,omitempty" json:"ingestion,omitempty"`
@@ -194,7 +198,8 @@ type Overrides struct {
 	// Global enforced overrides.
 	Global GlobalOverrides `yaml:"global,omitempty" json:"global,omitempty"`
 	// Storage enforced overrides.
-	Storage StorageOverrides `yaml:"storage,omitempty" json:"storage,omitempty"`
+	Storage         StorageOverrides         `yaml:"storage,omitempty" json:"storage,omitempty"`
+	CostAttribution CostAttributionOverrides `yaml:"cost_attribution,omitempty" json:"cost_attribution,omitempty"`
 }
 
 type Config struct {

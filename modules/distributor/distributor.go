@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
+	"net/http"
 	"sync"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 
 	"github.com/grafana/tempo/modules/distributor/forwarder"
 	"github.com/grafana/tempo/modules/distributor/receiver"
+	"github.com/grafana/tempo/modules/distributor/usage"
 	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
@@ -154,6 +156,8 @@ type Distributor struct {
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
 
+	usage *usage.Tracker
+
 	logger log.Logger
 }
 
@@ -212,6 +216,14 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		overrides:            o,
 		traceEncoder:         model.MustNewSegmentDecoder(model.CurrentEncoding),
 		logger:               logger,
+	}
+
+	if cfg.Usage.Enabled {
+		usage, err := usage.NewTracker(cfg.Usage, "cost-attribution", o.CostAttributionDimensions)
+		if err != nil {
+			return nil, fmt.Errorf("creating usage tracker: %w", err)
+		}
+		d.usage = usage
 	}
 
 	var generatorsPoolFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {
@@ -328,6 +340,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		return &tempopb.PushResponse{}, nil
 	}
 	// check limits
+	// todo - usage tracker include discarded bytes?
 	err = d.checkForRateLimits(size, spanCount, userID)
 	if err != nil {
 		return nil, err
@@ -359,6 +372,11 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	metricSpansIngested.WithLabelValues(userID).Add(float64(spanCount))
 	statBytesReceived.Inc(int64(size))
 	statSpansReceived.Inc(int64(spanCount))
+
+	// Usage tracking
+	if d.usage != nil {
+		d.usage.Observe(userID, batches)
+	}
 
 	keys, rebatchedTraces, err := requestsByTraceID(batches, userID, spanCount)
 	if err != nil {
@@ -496,6 +514,14 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys 
 // Check implements the grpc healthcheck
 func (*Distributor) Check(_ context.Context, _ *grpc_health_v1.HealthCheckRequest) (*grpc_health_v1.HealthCheckResponse, error) {
 	return &grpc_health_v1.HealthCheckResponse{Status: grpc_health_v1.HealthCheckResponse_SERVING}, nil
+}
+
+func (d *Distributor) UsageTrackerHandler() http.Handler {
+	if d.usage != nil {
+		return d.usage.Handler()
+	} else {
+		return nil
+	}
 }
 
 // requestsByTraceID takes an incoming tempodb.PushRequest and creates a set of keys for the hash ring

@@ -243,6 +243,8 @@ func (t *App) initDistributor() (services.Service, error) {
 		t.Server.HTTPRouter().Handle("/distributor/ring", distributor.DistributorRing)
 	}
 
+	t.Server.HTTPRouter().Handle("/usage_metrics", distributor.UsageTrackerHandler())
+
 	return t.distributor, nil
 }
 

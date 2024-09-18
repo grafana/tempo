@@ -222,6 +222,13 @@ func (o *userConfigurableOverridesManager) Forwarders(userID string) []string {
 	return o.Interface.Forwarders(userID)
 }
 
+func (o *userConfigurableOverridesManager) CostAttributionDimensions(userID string) []string {
+	if dims, ok := o.getTenantLimits(userID).GetCostAttribution().GetDimensions(); ok {
+		return dims
+	}
+	return o.Interface.CostAttributionDimensions(userID)
+}
+
 func (o *userConfigurableOverridesManager) MetricsGeneratorProcessors(userID string) map[string]struct{} {
 	// We merge settings from both layers meaning if a processor is enabled on any layer it will be always enabled (OR logic)
 	processorsUserConfigurable, _ := o.getTenantLimits(userID).GetMetricsGenerator().GetProcessors()

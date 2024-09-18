@@ -8,8 +8,8 @@ import (
 )
 
 type Limits struct {
-	Forwarders *[]string `yaml:"forwarders,omitempty" json:"forwarders,omitempty"`
-
+	Forwarders       *[]string              `yaml:"forwarders,omitempty" json:"forwarders,omitempty"`
+	CostAttribution  CostAttribution        `yaml:"cost_attribution,omitempty" json:"cost_attribution,omitempty"`
 	MetricsGenerator LimitsMetricsGenerator `yaml:"metrics_generator,omitempty" json:"metrics_generator,omitempty"`
 }
 
@@ -23,6 +23,13 @@ func (l *Limits) GetForwarders() ([]string, bool) {
 func (l *Limits) GetMetricsGenerator() *LimitsMetricsGenerator {
 	if l != nil {
 		return &l.MetricsGenerator
+	}
+	return nil
+}
+
+func (l *Limits) GetCostAttribution() *CostAttribution {
+	if l != nil {
+		return &l.CostAttribution
 	}
 	return nil
 }
@@ -165,6 +172,17 @@ func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetHistogramBuckets() ([]fl
 func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetTargetInfoExcludedDimensions() ([]string, bool) {
 	if l != nil && l.TargetInfoExcludedDimensions != nil {
 		return *l.TargetInfoExcludedDimensions, true
+	}
+	return nil, false
+}
+
+type CostAttribution struct {
+	Dimensions *[]string `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
+}
+
+func (l *CostAttribution) GetDimensions() ([]string, bool) {
+	if l != nil && l.Dimensions != nil {
+		return *l.Dimensions, true
 	}
 	return nil, false
 }
