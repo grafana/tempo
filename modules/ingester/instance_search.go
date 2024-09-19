@@ -438,25 +438,39 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(collector.Collect), fetcher)
 	}
 
-	searchBlock := func(ctx context.Context, s common.Searcher, bc common.BlockCacher, spanName string) error {
-		ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2."+spanName)
-		defer span.End()
-
+	exitEarly := func() bool {
 		if anyErr.Load() != nil {
-			return nil // Early exit if any error has occurred
+			return true // Early exit if any error has occurred
 		}
 
 		if maxBlocks > 0 && inspectedBlocks.Inc() > maxBlocks {
+			return true
+		}
+
+		return false // Continue searching
+	}
+
+	searchBlock := func(ctx context.Context, s common.Searcher, spanName string) error {
+		ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2."+spanName)
+		defer span.End()
+
+		if exitEarly() {
 			return nil
 		}
 
-		// cacher not provided, just search the block
-		if bc == nil {
-			return performSearch(ctx, s, valueCollector)
+		return performSearch(ctx, s, valueCollector)
+	}
+
+	searchBlockWithCache := func(ctx context.Context, b *LocalBlock, spanName string) error {
+		ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2."+spanName)
+		defer span.End()
+
+		if exitEarly() {
+			return nil
 		}
 
-		// we have a cacher, so we check the cache first
-		cacheData, err := bc.GetDiskCache(ctx, cacheKey)
+		// check the cache first
+		cacheData, err := b.GetDiskCache(ctx, cacheKey)
 		if err != nil {
 			// just log the error and move on...we will search the block
 			_ = level.Warn(log.Logger).Log("msg", "GetDiskCache failed", "err", err)
@@ -482,22 +496,23 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		// results not in cache, so search the block
 		// using a local collector to collect values from the block and set cache
 		localCol := collector.NewDistinctValue[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
-		localErr := performSearch(ctx, s, localCol)
+		localErr := performSearch(ctx, b, localCol)
 		if localErr != nil {
 			return localErr
 		}
 
 		// marshal the local collector and set the cache
-		valuesProto, err := valuesToTagValuesV2RespProto(localCol.Values())
+		values := localCol.Values()
+		valuesProto, err := valuesToTagValuesV2RespProto(values)
 		if err == nil && len(valuesProto) > 0 {
-			err2 := bc.SetDiskCache(ctx, cacheKey, valuesProto)
+			err2 := b.SetDiskCache(ctx, cacheKey, valuesProto)
 			if err2 != nil {
 				_ = level.Warn(log.Logger).Log("msg", "SetDiskCache failed", "err", err2)
 			}
 		}
 
 		// add values to the central collector
-		for _, v := range localCol.Values() {
+		for _, v := range values {
 			if valueCollector.Collect(v) {
 				break // we have reached the limit, so stop
 			}
@@ -518,7 +533,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		go func() {
 			defer i.headBlockMtx.RUnlock()
 			defer wg.Done()
-			if err := searchBlock(ctx, i.headBlock, nil, "headBlock"); err != nil {
+			if err := searchBlock(ctx, i.headBlock, "headBlock"); err != nil {
 				anyErr.Store(fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err))
 			}
 		}()
@@ -533,7 +548,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		wg.Add(1)
 		go func(b *LocalBlock) {
 			defer wg.Done()
-			if err := searchBlock(ctx, b, b, "completeBlocks"); err != nil {
+			if err := searchBlockWithCache(ctx, b, "completeBlocks"); err != nil {
 				anyErr.Store(fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err))
 			}
 		}(b)
@@ -544,7 +559,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		wg.Add(1)
 		go func(b common.WALBlock) {
 			defer wg.Done()
-			if err := searchBlock(ctx, b, nil, "completingBlocks"); err != nil {
+			if err := searchBlock(ctx, b, "completingBlocks"); err != nil {
 				anyErr.Store(fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err))
 			}
 		}(b)

@@ -29,9 +29,8 @@ type LocalBlock struct {
 }
 
 var (
-	_ common.Finder      = (*LocalBlock)(nil)
-	_ common.Searcher    = (*LocalBlock)(nil)
-	_ common.BlockCacher = (*LocalBlock)(nil)
+	_ common.Finder   = (*LocalBlock)(nil)
+	_ common.Searcher = (*LocalBlock)(nil)
 )
 
 // NewLocalBlock creates a local block

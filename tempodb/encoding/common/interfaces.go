@@ -32,11 +32,6 @@ type Searcher interface {
 	FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, SearchOptions) error
 }
 
-type BlockCacher interface {
-	SetDiskCache(ctx context.Context, name string, data []byte) error
-	GetDiskCache(ctx context.Context, name string) ([]byte, error)
-}
-
 type SearchOptions struct {
 	ChunkSizeBytes         uint32 // Buffer size to read from backend storage.
 	StartPage              int    // Controls searching only a subset of the block. Which page to begin searching at.
