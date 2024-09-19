@@ -422,6 +422,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 	query := traceql.ExtractMatchers(req.Query)
 	// cacheKey will be same for all blocks in a request so only compute it once
+	// NOTE: cacheKey tag name and query, so if we start respecting start and end, add them to the cacheKey
 	cacheKey := searchTagValuesV2CacheKey(req, limit, "cache_search_tagvaluesv2")
 
 	// helper functions as closures, to access local variables
@@ -608,10 +609,10 @@ func searchTagValuesV2CacheKey(req *tempopb.SearchTagValuesRequest, limit int, p
 		query = ast.String()
 	}
 
+	// NOTE: we are not adding req.Start and req.End to the cache key because we don't respect the start and end
+	// please add them to cacheKey if we start respecting them
 	h := fnv1a.HashString64(req.TagName)
 	h = fnv1a.AddString64(h, query)
-	h = fnv1a.AddUint64(h, uint64(req.Start))
-	h = fnv1a.AddUint64(h, uint64(req.End))
 	h = fnv1a.AddUint64(h, uint64(limit))
 
 	return fmt.Sprintf("%s_%v.buf", prefix, h)
