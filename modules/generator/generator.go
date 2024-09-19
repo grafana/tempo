@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"sync"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -168,6 +169,8 @@ func (g *Generator) stopping(_ error) error {
 			level.Error(g.logger).Log("msg", "failed to stop metrics-generator dependencies", "err", err)
 		}
 	}
+
+	time.Sleep(5 * time.Second) // let the ring propagate the shutdown
 
 	// Mark as read-only after we have removed ourselves from the ring
 	g.stopIncomingRequests()
