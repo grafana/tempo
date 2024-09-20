@@ -307,7 +307,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 
 	ast, _, _, fetchSpansRequest, err := traceql.Compile(searchReq.Query)
 	if err == nil {
-		queryHash = hashForSearchRequest(searchReq, ast)
+		queryHash = hashForSearchRequest(ast.String(), searchReq.Limit, searchReq.SpansPerSpanSet)
 		weight = weights.FetchSpans(fetchSpansRequest)
 	}
 
@@ -365,18 +365,15 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 
 // hashForSearchRequest returns a uint64 hash of the query. if the query is invalid it returns a 0 hash.
 // before hashing the query is forced into a canonical form so equivalent queries will hash to the same value.
-func hashForSearchRequest(searchRequest *tempopb.SearchRequest, ast *traceql.RootExpr) uint64 {
-	if searchRequest.Query == "" {
+func hashForSearchRequest(query string, limit, spansPerSpanSet uint32) uint64 {
+	if query == "" {
 		return 0
 	}
 
-	// forces the query into a canonical form
-	query := ast.String()
-
 	// add the query, limit and spss to the hash
 	hash := fnv1a.HashString64(query)
-	hash = fnv1a.AddUint64(hash, uint64(searchRequest.Limit))
-	hash = fnv1a.AddUint64(hash, uint64(searchRequest.SpansPerSpanSet))
+	hash = fnv1a.AddUint64(hash, uint64(limit))
+	hash = fnv1a.AddUint64(hash, uint64(spansPerSpanSet))
 
 	return hash
 }

@@ -1,12 +1,16 @@
 package v1
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 
 	"github.com/grafana/dskit/httpgrpc"
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,10 +20,9 @@ func TestRequestBatchBasics(t *testing.T) {
 	const totalRequests = 3
 
 	for i := byte(0); i < totalRequests; i++ {
-		rb.add(&request{
-			request: &httpgrpc.HTTPRequest{
-				Body: []byte{i},
-			},
+		req := httptest.NewRequest("GET", "http://example.com", bytes.NewReader([]byte{i}))
+		_ = rb.add(&request{
+			request: pipeline.NewHTTPRequest(req),
 		})
 	}
 
@@ -43,21 +46,23 @@ func TestRequestBatchBasics(t *testing.T) {
 
 func TestRequestBatchContextError(t *testing.T) {
 	rb := &requestBatch{}
-
+	ctx := context.Background()
 	const totalRequests = 3
 
-	ctx := context.Background()
+	req := httptest.NewRequest("GET", "http://example.com", nil)
+	prequest := pipeline.NewHTTPRequest(req)
+	prequest.WithContext(ctx)
+
 	for i := 0; i < totalRequests-1; i++ {
-		rb.add(&request{
-			originalCtx: ctx,
-		})
+		_ = rb.add(&request{request: prequest})
 	}
 
 	// add a cancel context
 	cancelCtx, cancel := context.WithCancel(ctx)
-	rb.add(&request{
-		originalCtx: cancelCtx,
-	})
+	prequest = pipeline.NewHTTPRequest(req)
+	prequest.WithContext(cancelCtx)
+
+	_ = rb.add(&request{request: prequest})
 
 	// confirm ok
 	require.NoError(t, rb.contextError())
@@ -74,10 +79,13 @@ func TestDoneChanCloses(_ *testing.T) {
 
 	ctx := context.Background()
 	cancelCtx, cancel := context.WithCancel(ctx)
+
+	req := httptest.NewRequest("GET", "http://example.com", nil)
+	prequest := pipeline.NewHTTPRequest(req)
+	prequest.WithContext(cancelCtx)
+
 	for i := 0; i < totalRequests-1; i++ {
-		rb.add(&request{
-			originalCtx: cancelCtx,
-		})
+		_ = rb.add(&request{request: prequest})
 	}
 
 	wg := &sync.WaitGroup{}
@@ -98,11 +106,8 @@ func TestDoneChanClosesOnStop(_ *testing.T) {
 
 	const totalRequests = 3
 
-	ctx := context.Background()
 	for i := 0; i < totalRequests-1; i++ {
-		rb.add(&request{
-			originalCtx: ctx,
-		})
+		_ = rb.add(&request{})
 	}
 
 	stop := make(chan struct{})
@@ -135,7 +140,7 @@ func TestErrorsPropagateUpstream(t *testing.T) {
 			wg.Done()
 		}()
 
-		rb.add(&request{
+		_ = rb.add(&request{
 			err: errChan,
 		})
 	}
@@ -152,16 +157,16 @@ func TestResponsesPropagateUpstream(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
 	for i := int32(0); i < totalRequests; i++ {
-		responseChan := make(chan *httpgrpc.HTTPResponse)
+		responseChan := make(chan *http.Response)
 
 		wg.Add(1)
 		go func(expectedCode int32) {
 			resp := <-responseChan
-			require.Equal(t, expectedCode, resp.Code)
+			require.Equal(t, expectedCode, resp.StatusCode)
 			wg.Done()
 		}(i)
 
-		rb.add(&request{
+		_ = rb.add(&request{
 			response: responseChan,
 		})
 	}

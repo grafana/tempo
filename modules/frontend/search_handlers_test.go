@@ -26,6 +26,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/cache"
@@ -38,7 +39,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-var _ http.RoundTripper = &mockRoundTripper{}
+var _ pipeline.RoundTripper = &mockRoundTripper{}
 
 type mockRoundTripper struct {
 	err           error
@@ -49,7 +50,7 @@ type mockRoundTripper struct {
 	responseFn func() proto.Message
 }
 
-func (s *mockRoundTripper) RoundTrip(_ *http.Request) (*http.Response, error) {
+func (s *mockRoundTripper) RoundTrip(_ pipeline.Request) (*http.Response, error) {
 	// only return errors once, then do a good response to make sure that the combiner is handling the error correctly
 	var err error
 	var errResponse *http.Response
@@ -576,7 +577,7 @@ func TestSearchAccessesCache(t *testing.T) {
 
 	// setup query
 	query := "{}"
-	hash := hashForSearchRequest(&tempopb.SearchRequest{Query: query, Limit: 3, SpansPerSpanSet: 2})
+	hash := hashForSearchRequest(query, 3, 2)
 	start := uint32(10)
 	end := uint32(20)
 	cacheKey := searchJobCacheKey(tenant, hash, int64(start), int64(end), meta, 0, 1)
@@ -709,7 +710,7 @@ func BenchmarkSearchPipeline(b *testing.B) {
 
 // frontendWithSettings returns a new frontend with the given settings. any nil options
 // are given "happy path" defaults
-func frontendWithSettings(t require.TestingT, next http.RoundTripper, rdr tempodb.Reader, cfg *Config, cacheProvider cache.Provider,
+func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr tempodb.Reader, cfg *Config, cacheProvider cache.Provider,
 	opts ...func(*Config),
 ) *QueryFrontend {
 	if next == nil {
