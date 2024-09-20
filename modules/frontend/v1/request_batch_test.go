@@ -11,6 +11,7 @@ import (
 
 	"github.com/grafana/dskit/httpgrpc"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -142,9 +143,10 @@ func TestErrorsPropagateUpstream(t *testing.T) {
 			require.ErrorContains(t, err, "foo")
 			wg.Done()
 		}()
-
+		req := httptest.NewRequest("GET", "http://example.com", nil)
 		_ = rb.add(&request{
-			err: errChan,
+			request: pipeline.NewHTTPRequest(req),
+			err:     errChan,
 		})
 	}
 
@@ -165,11 +167,13 @@ func TestResponsesPropagateUpstream(t *testing.T) {
 		wg.Add(1)
 		go func(expectedCode int32) {
 			resp := <-responseChan
-			require.Equal(t, expectedCode, resp.StatusCode)
+			assert.Equal(t, expectedCode, int32(resp.StatusCode))
 			wg.Done()
 		}(i)
 
+		req := httptest.NewRequest("GET", "http://example.com", nil)
 		_ = rb.add(&request{
+			request:  pipeline.NewHTTPRequest(req),
 			response: responseChan,
 		})
 	}
