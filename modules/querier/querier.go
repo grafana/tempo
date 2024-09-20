@@ -393,7 +393,6 @@ func (q *Querier) forIngesterRings(ctx context.Context, userID string, getReplic
 		go func() {
 			defer wg.Done()
 			err := forOneIngesterRing(ctx, replicationSet, f, pool, q.cfg.ExtraQueryDelay)
-
 			if err != nil {
 				// this response is generic?
 				mtx.Lock()
