@@ -41,7 +41,7 @@ func BenchmarkCollect(b *testing.B) {
 		tagValues := make([]tempopb.TagValue, numTagValuesPerIngester)
 		for j := 0; j < numTagValuesPerIngester; j++ {
 			tagValues[j] = tempopb.TagValue{
-				Type:  fmt.Sprintf("string"),
+				Type:  "string",
 				Value: fmt.Sprintf("value_%d_%d", i, j),
 			}
 		}
