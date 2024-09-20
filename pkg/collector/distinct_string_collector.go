@@ -24,6 +24,8 @@ func NewDistinctString(maxDataSize int) *DistinctString {
 	}
 }
 
+// Collect adds a new value to the distinct string collector.
+// return indicates if the value was added or not.
 func (d *DistinctString) Collect(s string) bool {
 	if _, ok := d.values[s]; ok {
 		// Already present
