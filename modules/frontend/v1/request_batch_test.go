@@ -105,9 +105,12 @@ func TestDoneChanClosesOnStop(_ *testing.T) {
 	rb := &requestBatch{}
 
 	const totalRequests = 3
+	req := httptest.NewRequest("GET", "http://example.com", nil)
 
 	for i := 0; i < totalRequests-1; i++ {
-		_ = rb.add(&request{})
+		_ = rb.add(&request{
+			request: pipeline.NewHTTPRequest(req),
+		})
 	}
 
 	stop := make(chan struct{})
