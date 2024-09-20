@@ -11,7 +11,7 @@ import (
 )
 
 func TestDistinctValueCollectorDiff(t *testing.T) {
-	d := NewDistinctValue[string](0, func(s string) int { return len(s) })
+	d := NewDistinctValueWithDiff[string](0, func(s string) int { return len(s) })
 
 	d.Collect("123")
 	d.Collect("4567")

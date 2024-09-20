@@ -58,7 +58,7 @@ func (d *DistinctValue[T]) Collect(v T) (exceeded bool) {
 	// note: we will stop adding values slightly before the limit is reached
 	if d.maxLen > 0 && d.currLen+valueLen >= d.maxLen {
 		// No, it can't fit
-		exceeded = true
+		d.limExceeded = true
 		return true
 	}
 
@@ -90,8 +90,8 @@ func (d *DistinctValue[T]) Values() []T {
 	return ss
 }
 
-// Exceeded indicates that
-// if we get rid of totalLen, then Exceeded won't work as expected
+// Exceeded indicates that we have exceeded the limit
+// can be used to stop early and to avoid collecting further values
 func (d *DistinctValue[T]) Exceeded() bool {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
