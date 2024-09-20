@@ -84,7 +84,11 @@ vParquet4 format is now the default block format.
 It's production ready and we highly recommend switching to it for improved query performance. [PR [3810](https://github.com/grafana/tempo/pull/3810)]
 
 Upgrading to Tempo 2.6 modifies the Parquet block format.
-Although you can use Tempo 2.6 with vParquet2 or vParquet3, you can only use Tempo 2.6 with vParquet3.
+You don't need to do anything with Parquet to go from 2.5 to 2.6.
+All of your old blocks remain vParquet3, which 2.6 reads.
+Tempo 2.6 creates vParquet4 blocks by default, which enables the new TraceQL features.
+
+Although you can use Tempo 2.6 with vParquet2 or vParquet3, you can only use vParquet4 with Tempo 2.6 and newer.
 
 You can also use the `tempo-cli analyse blocks` command to query vParquet4 blocks. [PR 3868](https://github.com/grafana/tempo/pull/3868)].
 Refer to the [Tempo CLI ](https://grafana.com/docs/tempo/next/operations/tempo_cli/#analyse-blocks)documentation for more information.
