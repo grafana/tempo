@@ -78,11 +78,10 @@ func (d *DistinctValue[T]) Collect(v T) (exceeded bool) {
 
 // Values returns the final list of distinct values collected and sorted.
 func (d *DistinctValue[T]) Values() []T {
-	ss := make([]T, 0, len(d.values))
-
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
+	ss := make([]T, 0, len(d.values))
 	for k := range d.values {
 		ss = append(ss, k)
 	}
@@ -95,6 +94,7 @@ func (d *DistinctValue[T]) Values() []T {
 func (d *DistinctValue[T]) Exceeded() bool {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
+
 	return d.limExceeded
 }
 
@@ -102,21 +102,21 @@ func (d *DistinctValue[T]) Exceeded() bool {
 func (d *DistinctValue[T]) Size() int {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
+
 	return d.currLen
 }
 
 // Diff returns all new strings collected since the last time diff was called
 // returns nil if diff is not enabled
 func (d *DistinctValue[T]) Diff() []T {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	if !d.diffEnabled {
 		return nil
 	}
 
 	ss := make([]T, 0, len(d.new))
-
-	d.mtx.Lock()
-	defer d.mtx.Unlock()
-
 	for k := range d.new {
 		ss = append(ss, k)
 	}
