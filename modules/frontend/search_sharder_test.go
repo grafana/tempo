@@ -833,38 +833,49 @@ func TestMaxDuration(t *testing.T) {
 
 func TestHashTraceQLQuery(t *testing.T) {
 	// exact same queries should have the same hash
-	h1 := hashForSearchRequest("{ span.foo = `bar` }", 0, 0)
-	h2 := hashForSearchRequest("{ span.foo = `bar` }", 0, 0)
+	a1, _, _, _, _ := traceql.Compile("{ span.foo = `bar` }")
+
+	h1 := hashForSearchRequest(a1, 0, 0)
+	h2 := hashForSearchRequest(a1, 0, 0)
 	require.Equal(t, h1, h2)
 
 	// equivalent queries should have the same hash
-	h1 = hashForSearchRequest("{ span.foo = `bar`     }", 0, 0)
-	h2 = hashForSearchRequest("{ span.foo = `bar` }", 0, 0)
+	a1, _, _, _, _ = traceql.Compile("{ span.foo = `bar`     }")
+	a2, _, _, _, _ := traceql.Compile("{ span.foo = `bar` }")
+	h1 = hashForSearchRequest(a1, 0, 0)
+	h2 = hashForSearchRequest(a2, 0, 0)
 	require.Equal(t, h1, h2)
 
-	h1 = hashForSearchRequest("{ (span.foo = `bar`) || (span.bar = `foo`) }", 0, 0)
-	h2 = hashForSearchRequest("{ span.foo = `bar` || span.bar = `foo` }", 0, 0)
+	a1, _, _, _, _ = traceql.Compile("{ (span.foo = `bar`) || (span.bar = `foo`) }")
+	a2, _, _, _, _ = traceql.Compile("{ span.foo = `bar` || span.bar = `foo` }")
+	h1 = hashForSearchRequest(a1, 0, 0)
+	h2 = hashForSearchRequest(a2, 0, 0)
 	require.Equal(t, h1, h2)
 
 	// different queries should have different hashes
-	h1 = hashForSearchRequest("{ span.foo = `bar` }", 0, 0)
-	h2 = hashForSearchRequest("{ span.foo = `baz` }", 0, 0)
+	a1, _, _, _, _ = traceql.Compile("{ span.foo = `bar` }")
+	a2, _, _, _, _ = traceql.Compile("{ span.foo = `baz` }")
+	h1 = hashForSearchRequest(a1, 0, 0)
+	h2 = hashForSearchRequest(a2, 0, 0)
 	require.NotEqual(t, h1, h2)
 
 	// invalid queries should return 0
-	h1 = hashForSearchRequest("{ span.foo = `bar` ", 0, 0)
+	a1, _, _, _, _ = traceql.Compile("{ span.foo = `bar` ")
+	h1 = hashForSearchRequest(a1, 0, 0)
 	require.Equal(t, uint64(0), h1)
 
-	h1 = hashForSearchRequest("", 0, 0)
+	a1, _, _, _, _ = traceql.Compile("")
+	h1 = hashForSearchRequest(a1, 0, 0)
 	require.Equal(t, uint64(0), h1)
 
 	// same queries with different spss and limit should have the different hash
-	h1 = hashForSearchRequest("{ span.foo = `bar` }", 1, 0)
-	h2 = hashForSearchRequest("{ span.foo = `bar` }", 2, 0)
+	a1, _, _, _, _ = traceql.Compile("{ span.foo = `bar` }")
+	h1 = hashForSearchRequest(a1, 1, 0)
+	h2 = hashForSearchRequest(a1, 2, 0)
 	require.NotEqual(t, h1, h2)
 
-	h1 = hashForSearchRequest("{ span.foo = `bar` }", 0, 1)
-	h2 = hashForSearchRequest("{ span.foo = `bar` }", 0, 2)
+	h1 = hashForSearchRequest(a1, 0, 1)
+	h2 = hashForSearchRequest(a1, 0, 2)
 	require.NotEqual(t, h1, h2)
 }
 

@@ -306,8 +306,9 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 	var weight int
 
 	ast, _, _, fetchSpansRequest, err := traceql.Compile(searchReq.Query)
+
 	if err == nil {
-		queryHash = hashForSearchRequest(ast.String(), searchReq.Limit, searchReq.SpansPerSpanSet)
+		queryHash = hashForSearchRequest(ast, searchReq.Limit, searchReq.SpansPerSpanSet)
 		weight = weights.FetchSpans(fetchSpansRequest)
 	}
 
@@ -365,7 +366,11 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 
 // hashForSearchRequest returns a uint64 hash of the query. if the query is invalid it returns a 0 hash.
 // before hashing the query is forced into a canonical form so equivalent queries will hash to the same value.
-func hashForSearchRequest(query string, limit, spansPerSpanSet uint32) uint64 {
+func hashForSearchRequest(ast *traceql.RootExpr, limit, spansPerSpanSet uint32) uint64 {
+	if ast == nil {
+		return 0
+	}
+	query := ast.String()
 	if query == "" {
 		return 0
 	}
