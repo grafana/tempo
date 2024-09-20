@@ -218,6 +218,9 @@ func (q *Querier) stopping(_ error) error {
 	return nil
 }
 
+// FIXME: most of the methods in this file are not tested,
+//  and should be tested to make sure we don't break them.
+
 // FindTraceByID implements tempopb.Querier.
 func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequest, timeStart int64, timeEnd int64) (*tempopb.TraceByIDResponse, error) {
 	if !validation.ValidTraceID(req.TraceID) {
