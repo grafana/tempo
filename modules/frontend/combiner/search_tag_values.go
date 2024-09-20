@@ -43,8 +43,8 @@ func NewTypedSearchTagValues(limitBytes int) GRPCCombiner[*tempopb.SearchTagValu
 }
 
 func NewSearchTagValuesV2(limitBytes int) Combiner {
-	// Distinct collector with no limit
-	d := collector.NewDistinctValue(limitBytes, func(tv tempopb.TagValue) int { return len(tv.Type) + len(tv.Value) })
+	// Distinct collector with no limit and diff enabled
+	d := collector.NewDistinctValueWithDiff(limitBytes, func(tv tempopb.TagValue) int { return len(tv.Type) + len(tv.Value) })
 
 	return &genericCombiner[*tempopb.SearchTagValuesV2Response]{
 		httpStatusCode: 200,
