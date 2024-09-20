@@ -161,33 +161,8 @@ FindQueue:
 	queue, userID, idx := q.queues.getNextQueueForQuerier(last.last)
 	last.last = idx
 	if queue != nil {
-		guaranteedInQueue := requestedCount
 		// this is all threadsafe b/c all users queues are blocked by q.mtx
-		if len(queue) < requestedCount {
-			guaranteedInQueue = len(queue)
-		}
-
-		totalWeight := 0
-		actuallyInBatch := 0
-		for i := 0; i < guaranteedInQueue; i++ {
-			batchBuffer[i] = <-queue
-			actuallyInBatch++
-
-			// PRTODO: add tests that take weight into account
-			weight := batchBuffer[i].Weight()
-			if weight <= 0 {
-				weight = 1
-			}
-			totalWeight += weight
-
-			if totalWeight >= requestedCount {
-				break
-			}
-		}
-		batchBuffer = batchBuffer[:actuallyInBatch]
-
-		q.queueLength.WithLabelValues(userID).Set(float64(len(queue)))
-
+		batchBuffer := q.getBatchBuffer(batchBuffer, userID, queue)
 		return batchBuffer, last, nil
 	}
 
@@ -195,6 +170,31 @@ FindQueue:
 	// and wait for more requests.
 	querierWait = true
 	goto FindQueue
+}
+
+func (q *RequestQueue) getBatchBuffer(batchBuffer []Request, userID string, queue chan Request) []Request {
+	requestedCount := len(batchBuffer)
+	guaranteedInQueue := requestedCount
+
+	if len(queue) < requestedCount {
+		guaranteedInQueue = len(queue)
+	}
+
+	totalWeight := 0
+	actuallyInBatch := 0
+	for i := 0; i < guaranteedInQueue; i++ {
+		batchBuffer[i] = <-queue
+		actuallyInBatch++
+		totalWeight += batchBuffer[i].Weight()
+
+		if totalWeight >= requestedCount {
+			break
+		}
+	}
+	batchBuffer = batchBuffer[:actuallyInBatch]
+
+	q.queueLength.WithLabelValues(userID).Set(float64(len(queue)))
+	return batchBuffer
 }
 
 func (q *RequestQueue) cleanupQueues(_ context.Context) error {

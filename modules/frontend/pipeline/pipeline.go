@@ -70,6 +70,9 @@ func (r *HTTPRequest) ResponseData() any {
 }
 
 func (r *HTTPRequest) Weight() int {
+	if r.weight == 0 {
+		return 1
+	}
 	return r.weight
 }
 

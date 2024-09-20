@@ -16,10 +16,17 @@ import (
 
 const messages = 50_000
 
-type mockRequest struct{}
+type mockRequest struct {
+	weight int
+}
 
 func (r *mockRequest) Invalid() bool { return false }
-func (r *mockRequest) Weight() int   { return 1 }
+func (r *mockRequest) Weight() int {
+	if r.weight > 0 {
+		return r.weight
+	}
+	return 1
+}
 
 func TestGetNextForQuerierOneUser(t *testing.T) {
 	messages := 10
@@ -29,7 +36,7 @@ func TestGetNextForQuerierOneUser(t *testing.T) {
 	stop := make(chan struct{})
 	requestsPulled := atomic.NewInt32(0)
 
-	q, start := queueWithListeners(ctx, 100, 1, func(r []Request) {
+	q, start := queueWithListeners(ctx, 100, 1, func(_ []Request) {
 		i := requestsPulled.Inc()
 		if i == int32(messages) {
 			close(stop)
@@ -58,7 +65,7 @@ func TestGetNextForQuerierRandomUsers(t *testing.T) {
 	stop := make(chan struct{})
 	requestsPulled := atomic.NewInt32(0)
 
-	q, start := queueWithListeners(ctx, 100, 1, func(r []Request) {
+	q, start := queueWithListeners(ctx, 100, 1, func(_ []Request) {
 		if requestsPulled.Inc() == int32(messages) {
 			close(stop)
 		}
@@ -126,7 +133,7 @@ func benchmarkGetNextForQuerier(b *testing.B, listeners int, messages int) {
 	stop := make(chan struct{})
 	requestsPulled := atomic.NewInt32(0)
 
-	q, start := queueWithListeners(ctx, listeners, 1, func(r []Request) {
+	q, start := queueWithListeners(ctx, listeners, 1, func(_ []Request) {
 		if requestsPulled.Inc() == int32(messages) {
 			stop <- struct{}{}
 		}
@@ -322,6 +329,66 @@ func TestContextCond(t *testing.T) {
 			return len(doneWaiting) == goroutines
 		}, time.Second, 10*time.Millisecond)
 	})
+}
+
+func TestGetBatchBuffer(t *testing.T) {
+	tests := []struct {
+		name           string
+		queueContents  []Request
+		requestedCount int
+		expectedCount  int
+	}{
+		{
+			name:           "exactly requested count",
+			queueContents:  []Request{&mockRequest{}, &mockRequest{}, &mockRequest{}},
+			requestedCount: 3,
+			expectedCount:  3,
+		},
+		{
+			name:           "less than requested count",
+			queueContents:  []Request{&mockRequest{}, &mockRequest{}},
+			requestedCount: 3,
+			expectedCount:  2,
+		},
+		{
+			name:           "more than requested count",
+			queueContents:  []Request{&mockRequest{}, &mockRequest{}, &mockRequest{}, &mockRequest{}},
+			requestedCount: 3,
+			expectedCount:  3,
+		},
+		{
+			name:           "less than requested count due to biggest weight",
+			queueContents:  []Request{&mockRequest{10}},
+			requestedCount: 3,
+			expectedCount:  1,
+		},
+		{
+			name:           "empty queue",
+			queueContents:  []Request{},
+			requestedCount: 3,
+			expectedCount:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			queue := make(chan Request, len(tt.queueContents))
+			for _, req := range tt.queueContents {
+				queue <- req
+			}
+
+			q := &RequestQueue{
+				queueLength: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+					Name: "test_len",
+				}, []string{"user"}),
+			}
+
+			batchBuffer := make([]Request, tt.requestedCount)
+			result := q.getBatchBuffer(batchBuffer, "user", queue)
+
+			assert.Equal(t, tt.expectedCount, len(result))
+		})
+	}
 }
 
 func assertChanReceived(t *testing.T, c chan struct{}, timeout time.Duration, msg string) {
