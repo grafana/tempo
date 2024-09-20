@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -20,11 +21,7 @@ func TestUsageTracker(t *testing.T) {
 	}
 
 	// Reused for all test cases
-	cfg := Config{
-		MaxCardinality: defaultMaxCardinality,
-		StaleDuration:  defaultStaleDuration,
-		PurgePeriod:    defaultPurgePeriod,
-	}
+	cfg := DefaultConfig()
 	data := []*v1.ResourceSpans{
 		{
 			Resource: &v1resource.Resource{
@@ -101,11 +98,11 @@ func TestUsageTracker(t *testing.T) {
 	expected = make(map[uint64]*bucket)
 	expected[hash(labels, []string{"1"})] = &bucket{
 		labels: []string{"1"},
-		bytes:  uint64(float64(data[0].Size()) * 0.75),
+		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.75)),
 	}
 	expected[hash(labels, []string{"2"})] = &bucket{
 		labels: []string{"2"},
-		bytes:  uint64(float64(data[0].Size()) * 0.25),
+		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.25)),
 	}
 	testCases = append(testCases, testcase{
 		name:       name,
@@ -142,11 +139,11 @@ func TestUsageTracker(t *testing.T) {
 	expected = make(map[uint64]*bucket)
 	expected[hash(labels, []string{"1"})] = &bucket{
 		labels: []string{"1"},
-		bytes:  uint64(float64(data[0].Size()) * 0.75), // attr=1 is encountered first and record, with 75% of spans
+		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.75)), // attr=1 is encountered first and record, with 75% of spans
 	}
 	expected[hash(labels, nil)] = &bucket{
 		labels: nil,
-		bytes:  uint64(float64(data[0].Size()) * 0.25), // attr=2 doesn't fit within cardinality and those 25% of spans go into the unlabled series.
+		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.25)), // attr=2 doesn't fit within cardinality and those 25% of spans go into the unlabled series.
 	}
 	testCases = append(testCases, testcase{
 		name:       name,
@@ -174,9 +171,9 @@ func TestUsageTracker(t *testing.T) {
 
 func BenchmarkUsageTracker(b *testing.B) {
 	tr := test.MakeTrace(10, nil)
-	dims := []string{"service.name"}
+	dims := []string{"service.name"} // Allocation outside the benchmark to reduce noise
 
-	u, err := NewTracker(Config{}, "test", func(s string) []string { return dims })
+	u, err := NewTracker(DefaultConfig(), "test", func(s string) []string { return dims })
 	require.NoError(b, err)
 
 	for i := 0; i < b.N; i++ {

@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"math"
 	"math/bits"
 	"net/http"
 	"sync"
@@ -15,14 +16,17 @@ import (
 )
 
 const (
-	tenantLabel = "tenant"
+	tenantLabel  = "tenant"
+	trackerLabel = "tracker"
 )
+
+var emptyHash = hash(nil, nil)
 
 type tenantLabelsFunc func(string) []string
 
 type bucket struct {
 	// Configuration
-	descr  *prometheus.Desc
+	descr  *prometheus.Desc // Configuration can change over time so it is captured with the bucket.
 	labels []string
 
 	// Runtime data
@@ -36,14 +40,17 @@ func (b *bucket) Inc(bytes uint64, unix int64) {
 }
 
 type tenantUsage struct {
-	series map[uint64]*bucket
+	series      map[uint64]*bucket
+	constLabels prometheus.Labels
 
 	// Buffers for Observe
 	dimensions []string // Originally configured dimensions
 	labels     []string // Sanitized dimensions => final labels
-	values     []string
+	values     []string // Used to capture values and guaranteed to be a matching length.
 }
 
+// GetBuffersForDimensions takes advantage of the fact that the configuration for a tracker
+// changes slowly.  Reuses buffers from the previous call when the dimensions are the same.
 func (t *tenantUsage) GetBuffersForDimensions(dimensions []string) ([]string, []string) {
 	reset := false
 
@@ -71,6 +78,35 @@ func (t *tenantUsage) GetBuffersForDimensions(dimensions []string) ([]string, []
 	return t.labels, t.values
 }
 
+func (t *tenantUsage) getSeries(labels, values []string, maxCardinality int) *bucket {
+	h := hash(labels, values)
+
+	b := t.series[h]
+	if b == nil {
+		// Before creating a new series, check for cardinality limit.
+		if len(t.series) >= maxCardinality {
+			// Overflow
+			// It goes into the unlabeled bucket
+			// TODO - Do we want to do something else?
+			clear(values)
+			h = emptyHash
+			b = t.series[h]
+		}
+	}
+
+	if b == nil {
+		// First encounter with this series. Initialize it.
+		l, v := nonEmpties(labels, values)
+		b = &bucket{
+			// Metric description - constant for this pass now that the dimensions are known
+			descr:  prometheus.NewDesc("tempo_usage_tracker_bytes_received_total", "bytes total received with these attributes", l, t.constLabels),
+			labels: v,
+		}
+		t.series[h] = b
+	}
+	return b
+}
+
 type Tracker struct {
 	mtx     sync.Mutex
 	name    string
@@ -78,19 +114,15 @@ type Tracker struct {
 	fn      tenantLabelsFunc
 	reg     *prometheus.Registry
 	cfg     Config
-
-	// Buffers
-	spanCounts map[uint64]uint64
 }
 
 func NewTracker(cfg Config, name string, fn tenantLabelsFunc) (*Tracker, error) {
 	u := &Tracker{
-		cfg:        cfg,
-		name:       name,
-		tenants:    make(map[string]*tenantUsage),
-		fn:         fn,
-		reg:        prometheus.NewRegistry(),
-		spanCounts: make(map[uint64]uint64),
+		cfg:     cfg,
+		name:    name,
+		tenants: make(map[string]*tenantUsage),
+		fn:      fn,
+		reg:     prometheus.NewRegistry(),
 	}
 
 	err := u.reg.Register(u)
@@ -101,6 +133,22 @@ func NewTracker(cfg Config, name string, fn tenantLabelsFunc) (*Tracker, error) 
 	go u.PurgeRoutine()
 
 	return u, nil
+}
+
+// getTenant must be called under lock.
+func (u *Tracker) getTenant(tenant string) *tenantUsage {
+	data := u.tenants[tenant]
+	if data == nil {
+		data = &tenantUsage{
+			series: make(map[uint64]*bucket),
+			constLabels: prometheus.Labels{
+				tenantLabel:  tenant,
+				trackerLabel: u.name,
+			},
+		}
+		u.tenants[tenant] = data
+	}
+	return data
 }
 
 func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
@@ -114,28 +162,33 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 		return
 	}
 
-	now := time.Now().Unix()
-	spanCounts := u.spanCounts
-
-	data := u.tenants[tenant]
-	if data == nil {
-		data = &tenantUsage{
-			series: make(map[uint64]*bucket),
-		}
-		u.tenants[tenant] = data
-	}
-
-	labels, buffer := data.GetBuffersForDimensions(dimensions)
+	var (
+		now            = time.Now().Unix()
+		data           = u.getTenant(tenant)
+		labels, values = data.GetBuffersForDimensions(dimensions)
+	)
 
 	for _, batch := range batches {
-		unaccountedForBatchData := nonSpanDataLength(batch)
-		totalSpanCount := 0
+		unaccountedForBatchData, totalSpanCount := nonSpanDataLength(batch)
 
-		// Reset spancounts for batch proportioning at the end
-		clear(spanCounts)
+		if totalSpanCount == 0 {
+			// Mainly to prevent a panic below, but is this even possible?
+			continue
+		}
+
+		// This is 1/Nth of the unaccounted for batch data that gets added to each span.
+		// Adding this incrementally as we go through the spans is the fastest method, but
+		// loses some precision. The other (original) implementation is to record span counts
+		// per series into a map and reconcile at the end. That method has more accurate data because
+		// it performs the floating point math once on the total, instead of accumulating 1/N + 1/N ... errors.
+		batchPortion := int(math.RoundToEven(float64(unaccountedForBatchData) / float64(totalSpanCount)))
+
+		// To account for the accumulated error we dump the remaining delta onto the first span, which can be negative.
+		// The result ensures the total recorded bytes matches the input.
+		firstSpanPortion := unaccountedForBatchData - batchPortion*totalSpanCount
 
 		// Reset value buffer to be empties
-		clear(buffer)
+		clear(values)
 
 		if batch.Resource != nil {
 			for _, a := range batch.Resource.Attributes {
@@ -145,16 +198,20 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 				}
 				for i, d := range dimensions {
 					if d == a.Key {
-						buffer[i] = v
+						values[i] = v
 					}
 				}
 			}
 		}
 
-		for _, ss := range batch.ScopeSpans {
-			for _, s := range ss.Spans {
+		for i, ss := range batch.ScopeSpans {
+			for j, s := range ss.Spans {
 				sz := s.Size()
 				sz += protoLengthMath(sz)
+				sz += batchPortion // Incrementally add 1/Nth worth of the unaccounted for batch data
+				if i == 0 && j == 0 {
+					sz += firstSpanPortion
+				}
 
 				for _, a := range s.Attributes {
 					v := a.Value.GetStringValue()
@@ -163,53 +220,17 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 					}
 					for i, d := range dimensions {
 						if d == a.Key {
-							buffer[i] = v
+							values[i] = v
 						}
 					}
 				}
 
-				//  Update trackers after every span
-				h := hash(labels, buffer)
-				b := data.series[h]
-				if b == nil {
-					// Before creating a new series, check for cardinality limit.
-					if len(data.series) >= int(u.cfg.MaxCardinality) {
-						// Overflow
-						// It goes into the unlabeled bucket
-						// TODO - Do we want to do something else?
-						clear(buffer)
-						h = hash(labels, buffer)
-						b = data.series[h]
-					}
-				}
-
-				if b == nil {
-					// First encounter with this series. Initialize it.
-					l, v := nonEmpties(labels, buffer)
-					b = &bucket{
-						// m:
-						// Metric description - constant for this pass now that the dimensions are known
-						descr: prometheus.NewDesc("tempo_usage_tracker_bytes_received_total", "bytes total received with these attributes", l, prometheus.Labels{
-							tenantLabel: tenant,
-						}),
-						labels: v,
-					}
-					data.series[h] = b
-				}
+				// Update after every span because each span
+				// can be a different series.
+				// TODO - See if we can determine if the buffers
+				// haven't changed and avoid hashing again.
+				b := data.getSeries(labels, values, int(u.cfg.MaxCardinality))
 				b.Inc(uint64(sz), now)
-				spanCounts[h]++
-				totalSpanCount++
-			}
-		}
-
-		// This is all non-span data that must be split proportionally
-		if unaccountedForBatchData > 0 {
-			// Each series that came out of this batch
-			// gets a proportion of the batch-level data
-			// based on the proportion of spans.
-			for h, count := range spanCounts {
-				bytes := uint64(float64(count) / float64(totalSpanCount) * float64(unaccountedForBatchData))
-				data.series[h].Inc(bytes, now)
 			}
 		}
 	}
@@ -292,14 +313,15 @@ func nonEmpties(labels, values []string) ([]string, []string) {
 }
 
 // nonSpanDataLength returns the number of proto bytes in the batch
-// that aren't attributable to specific spans.  Please don't hate me,
-// it's complicated but much faster to do this manually.  The easiest way is to
-// call batch.Size() and then subtract each encountered span.  But this measures
-// spans twice, which is significant.  Therefore this eliminates a ton of work.
-// Hopefully isn't too brittle.  It must be updated for new fields above the
-// span level.
-func nonSpanDataLength(batch *v1.ResourceSpans) int {
+// that aren't attributable to specific spans.  It's complicated but much faster
+// to do this because it ensures we only measure each part of the proto once.
+// The first (and simplier) approach was to call batch.Size() and then subtract
+// each encountered span.  But this measures spans twice, which is already the slowest
+// part by far. Hopefully isn't too brittle.  It must be updated for new fields above the
+// span level.  Also returns the count of spans while we're here so we don't have to loop again.
+func nonSpanDataLength(batch *v1.ResourceSpans) (int, int) {
 	total := 0
+	spans := 0
 
 	if batch.Resource != nil {
 		sz := batch.Resource.Size()
@@ -324,9 +346,11 @@ func nonSpanDataLength(batch *v1.ResourceSpans) int {
 			sz := ss.Scope.Size()
 			total += sz + protoLengthMath(sz)
 		}
+
+		spans += len(ss.Spans)
 	}
 
-	return total
+	return total, spans
 }
 
 // Bookkeeping data to encode a length in proto.

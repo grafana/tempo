@@ -24,3 +24,12 @@ func (c *Config) RegisterFlagsAndApplyDefaults(_ string, _ *flag.FlagSet) {
 	c.StaleDuration = defaultStaleDuration
 	c.PurgePeriod = defaultPurgePeriod
 }
+
+func DefaultConfig() Config {
+	return Config{
+		Enabled:        true,
+		MaxCardinality: defaultMaxCardinality,
+		StaleDuration:  defaultStaleDuration,
+		PurgePeriod:    defaultPurgePeriod,
+	}
+}
