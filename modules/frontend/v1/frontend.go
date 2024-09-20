@@ -171,7 +171,7 @@ func (f *Frontend) cleanupInactiveUserMetrics(user string) {
 	f.discardedRequests.DeleteLabelValues(user)
 }
 
-// func (f *Frontend) RoundTripGRPC(ctx context.Context, req *httpgrpc.HTTPRequest) (*httpgrpc.HTTPResponse, error) {
+// RoundTrip a HTTP request
 func (f *Frontend) RoundTrip(req pipeline.Request) (*http.Response, error) {
 	request := request{
 		request: req,
