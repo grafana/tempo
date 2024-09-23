@@ -30,6 +30,7 @@ const (
 
 type weightRequestWare struct {
 	requestType RequestType
+	enabled     bool
 	next        AsyncRoundTripper[combiner.PipelineResponse]
 }
 
@@ -39,10 +40,11 @@ func IncrementRetriedRequestWeight(r WeightRequest) {
 }
 
 // It returns a new weight request middleware
-func NewWeightRequestWare(rt RequestType) AsyncMiddleware[combiner.PipelineResponse] {
+func NewWeightRequestWare(rt RequestType, enabled bool) AsyncMiddleware[combiner.PipelineResponse] {
 	return AsyncMiddlewareFunc[combiner.PipelineResponse](func(next AsyncRoundTripper[combiner.PipelineResponse]) AsyncRoundTripper[combiner.PipelineResponse] {
 		return &weightRequestWare{
 			requestType: rt,
+			enabled:     enabled,
 			next:        next,
 		}
 	})
@@ -54,6 +56,10 @@ func (c weightRequestWare) RoundTrip(req Request) (Responses[combiner.PipelineRe
 }
 
 func (c weightRequestWare) setWeight(req Request) {
+	if !c.enabled {
+		req.SetWeight(DefaultWeight)
+		return
+	}
 	switch c.requestType {
 	case TraceByID:
 		req.SetWeight(TraceByIDWeight)

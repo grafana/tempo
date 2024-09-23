@@ -20,21 +20,28 @@ var nextRequest = AsyncRoundTripperFunc[combiner.PipelineResponse](func(_ Reques
 })
 
 func TestWeightMiddlewareForTraceByIDRequest(t *testing.T) {
-	roundTrip := NewWeightRequestWare(TraceByID).Wrap(nextRequest)
+	roundTrip := NewWeightRequestWare(TraceByID, true).Wrap(nextRequest)
 	req := DoWeightedRequest(t, "http://localhost:8080/api/v2/traces/123345", roundTrip)
 
 	assert.Equal(t, TraceByIDWeight, req.Weight())
 }
 
+func TestDisabledWeightMiddlewareForTraceByIDRequest(t *testing.T) {
+	roundTrip := NewWeightRequestWare(TraceByID, false).Wrap(nextRequest)
+	req := DoWeightedRequest(t, "http://localhost:8080/api/v2/traces/123345", roundTrip)
+
+	assert.Equal(t, DefaultWeight, req.Weight())
+}
+
 func TestWeightMiddlewareForDefaultRequest(t *testing.T) {
-	roundTrip := NewWeightRequestWare(Default).Wrap(nextRequest)
+	roundTrip := NewWeightRequestWare(Default, true).Wrap(nextRequest)
 	req := DoWeightedRequest(t, "http://localhost:8080/api/v2/search/tags", roundTrip)
 
 	assert.Equal(t, DefaultWeight, req.Weight())
 }
 
 func TestWeightMiddlewareForTraceQLRequest(t *testing.T) {
-	roundTrip := NewWeightRequestWare(TraceQLSearch).Wrap(nextRequest)
+	roundTrip := NewWeightRequestWare(TraceQLSearch, true).Wrap(nextRequest)
 	cases := []struct {
 		req      string
 		expected int

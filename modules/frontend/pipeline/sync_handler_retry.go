@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func NewRetryWare(maxRetries int, registerer prometheus.Registerer) Middleware {
+func NewRetryWare(maxRetries int, incrementRetriedRequestWeight bool, registerer prometheus.Registerer) Middleware {
 	retriesCount := promauto.With(registerer).NewHistogram(prometheus.HistogramOpts{
 		Namespace:                       "tempo",
 		Name:                            "query_frontend_retries",
@@ -29,17 +29,19 @@ func NewRetryWare(maxRetries int, registerer prometheus.Registerer) Middleware {
 
 	return MiddlewareFunc(func(next RoundTripper) RoundTripper {
 		return retryWare{
-			next:         next,
-			maxRetries:   maxRetries,
-			retriesCount: retriesCount,
+			next:                          next,
+			maxRetries:                    maxRetries,
+			retriesCount:                  retriesCount,
+			incrementRetriedRequestWeight: incrementRetriedRequestWeight,
 		}
 	})
 }
 
 type retryWare struct {
-	next         RoundTripper
-	maxRetries   int
-	retriesCount prometheus.Histogram
+	next                          RoundTripper
+	maxRetries                    int
+	incrementRetriedRequestWeight bool
+	retriesCount                  prometheus.Histogram
 }
 
 // RoundTrip implements http.RoundTripper
@@ -102,7 +104,9 @@ func (r retryWare) RoundTrip(req Request) (*http.Response, error) {
 
 		// retries have their weight bumped. a common retry reason is the request was simply too large to process
 		// bumping weights should help spread the load
-		IncrementRetriedRequestWeight(req)
+		if r.incrementRetriedRequestWeight {
+			IncrementRetriedRequestWeight(req)
+		}
 
 		statusCode := 0
 		if resp != nil {
