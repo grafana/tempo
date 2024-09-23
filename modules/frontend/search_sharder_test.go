@@ -833,49 +833,38 @@ func TestMaxDuration(t *testing.T) {
 
 func TestHashTraceQLQuery(t *testing.T) {
 	// exact same queries should have the same hash
-	a1, _, _, _, _ := traceql.Compile("{ span.foo = `bar` }")
-
-	h1 := hashForSearchRequest(a1, 0, 0)
-	h2 := hashForSearchRequest(a1, 0, 0)
+	h1 := hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }"})
+	h2 := hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }"})
 	require.Equal(t, h1, h2)
 
 	// equivalent queries should have the same hash
-	a1, _, _, _, _ = traceql.Compile("{ span.foo = `bar`     }")
-	a2, _, _, _, _ := traceql.Compile("{ span.foo = `bar` }")
-	h1 = hashForSearchRequest(a1, 0, 0)
-	h2 = hashForSearchRequest(a2, 0, 0)
+	h1 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar`     }"})
+	h2 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }"})
 	require.Equal(t, h1, h2)
 
-	a1, _, _, _, _ = traceql.Compile("{ (span.foo = `bar`) || (span.bar = `foo`) }")
-	a2, _, _, _, _ = traceql.Compile("{ span.foo = `bar` || span.bar = `foo` }")
-	h1 = hashForSearchRequest(a1, 0, 0)
-	h2 = hashForSearchRequest(a2, 0, 0)
+	h1 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ (span.foo = `bar`) || (span.bar = `foo`) }"})
+	h2 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` || span.bar = `foo` }"})
 	require.Equal(t, h1, h2)
 
 	// different queries should have different hashes
-	a1, _, _, _, _ = traceql.Compile("{ span.foo = `bar` }")
-	a2, _, _, _, _ = traceql.Compile("{ span.foo = `baz` }")
-	h1 = hashForSearchRequest(a1, 0, 0)
-	h2 = hashForSearchRequest(a2, 0, 0)
+	h1 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }"})
+	h2 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `baz` }"})
 	require.NotEqual(t, h1, h2)
 
 	// invalid queries should return 0
-	a1, _, _, _, _ = traceql.Compile("{ span.foo = `bar` ")
-	h1 = hashForSearchRequest(a1, 0, 0)
+	h1 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` "})
 	require.Equal(t, uint64(0), h1)
 
-	a1, _, _, _, _ = traceql.Compile("")
-	h1 = hashForSearchRequest(a1, 0, 0)
+	h1 = hashForSearchRequest(&tempopb.SearchRequest{Query: ""})
 	require.Equal(t, uint64(0), h1)
 
 	// same queries with different spss and limit should have the different hash
-	a1, _, _, _, _ = traceql.Compile("{ span.foo = `bar` }")
-	h1 = hashForSearchRequest(a1, 1, 0)
-	h2 = hashForSearchRequest(a1, 2, 0)
+	h1 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }", Limit: 1})
+	h2 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }", Limit: 2})
 	require.NotEqual(t, h1, h2)
 
-	h1 = hashForSearchRequest(a1, 0, 1)
-	h2 = hashForSearchRequest(a1, 0, 2)
+	h1 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }", SpansPerSpanSet: 1})
+	h2 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }", SpansPerSpanSet: 2})
 	require.NotEqual(t, h1, h2)
 }
 

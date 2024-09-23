@@ -301,15 +301,7 @@ func backendRange(start, end uint32, queryBackendAfter time.Duration) (uint32, u
 func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq *tempopb.SearchRequest, metas []*backend.BlockMeta, bytesPerRequest int, reqCh chan<- pipeline.Request, errFn func(error)) {
 	defer close(reqCh)
 
-	var queryHash uint64
-	var weight int
-
-	ast, err := traceql.Parse(searchReq.Query)
-
-	if err == nil {
-		queryHash = hashForSearchRequest(ast, searchReq.Limit, searchReq.SpansPerSpanSet)
-	}
-
+	queryHash := hashForSearchRequest(searchReq)
 	colsToJSON := api.NewDedicatedColumnsToJSON()
 
 	for _, m := range metas {
@@ -350,7 +342,6 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 			key := searchJobCacheKey(tenantID, queryHash, int64(searchReq.Start), int64(searchReq.End), m, startPage, pages)
 			pipelineR := pipeline.NewHTTPRequest(subR)
 			pipelineR.SetCacheKey(key)
-			pipelineR.SetWeight(weight)
 
 			select {
 			case reqCh <- pipelineR:
@@ -364,19 +355,23 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent *http.Req
 
 // hashForSearchRequest returns a uint64 hash of the query. if the query is invalid it returns a 0 hash.
 // before hashing the query is forced into a canonical form so equivalent queries will hash to the same value.
-func hashForSearchRequest(ast *traceql.RootExpr, limit, spansPerSpanSet uint32) uint64 {
-	if ast == nil {
-		return 0
-	}
-	query := ast.String()
-	if query == "" {
+func hashForSearchRequest(searchRequest *tempopb.SearchRequest) uint64 {
+	if searchRequest.Query == "" {
 		return 0
 	}
 
+	ast, err := traceql.Parse(searchRequest.Query)
+	if err != nil { // this should never occur. if we've made this far we've already validated the query can parse. however, for sanity, just fail to cache if we can't parse
+		return 0
+	}
+
+	// forces the query into a canonical form
+	query := ast.String()
+
 	// add the query, limit and spss to the hash
 	hash := fnv1a.HashString64(query)
-	hash = fnv1a.AddUint64(hash, uint64(limit))
-	hash = fnv1a.AddUint64(hash, uint64(spansPerSpanSet))
+	hash = fnv1a.AddUint64(hash, uint64(searchRequest.Limit))
+	hash = fnv1a.AddUint64(hash, uint64(searchRequest.SpansPerSpanSet))
 
 	return hash
 }

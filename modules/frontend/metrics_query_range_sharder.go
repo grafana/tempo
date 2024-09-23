@@ -207,14 +207,7 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, metas []*backend.BlockMeta, targetBytesPerRequest int, reqCh chan<- pipeline.Request) {
 	defer close(reqCh)
 
-	var queryHash uint64
-	var weight int
-
-	ast, err := traceql.Parse(searchReq.Query)
-	if err == nil {
-		queryHash = hashForQueryRangeRequest(&searchReq, ast)
-	}
-
+	queryHash := hashForQueryRangeRequest(&searchReq)
 	colsToJSON := api.NewDedicatedColumnsToJSON()
 
 	exemplarsPerBlock := s.exemplarsPerShard(uint32(len(metas)))
@@ -282,7 +275,6 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 			if len(key) > 0 {
 				pipelineR.SetCacheKey(key)
 			}
-			pipelineR.SetWeight(weight)
 
 			select {
 			case reqCh <- pipelineR:
@@ -342,8 +334,13 @@ func (s *queryRangeSharder) jobSize(expr *traceql.RootExpr, allowUnsafe bool) in
 	return size
 }
 
-func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest, ast *traceql.RootExpr) uint64 {
+func hashForQueryRangeRequest(req *tempopb.QueryRangeRequest) uint64 {
 	if req.Query == "" {
+		return 0
+	}
+
+	ast, err := traceql.Parse(req.Query)
+	if err != nil { // this should never occur. if we've made this far we've already validated the query can parse. however, for sanity, just fail to cache if we can't parse
 		return 0
 	}
 
