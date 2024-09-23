@@ -1,4 +1,4 @@
-package uuid
+package backend
 
 import (
 	"testing"
@@ -9,7 +9,7 @@ import (
 )
 
 func Test_roundTrip(t *testing.T) {
-	u := New()
+	u := NewUUID()
 	t.Logf("u %x", u)
 
 	require.Equal(t, 16, u.Size())
@@ -51,10 +51,10 @@ func Test_helpers(t *testing.T) {
 	s := MustParse(u.String())
 	require.Equal(t, u, (google_uuid.UUID)(s))
 
-	s2, err := Parse(u.String())
+	s2, err := ParseUUID(u.String())
 	require.NoError(t, err)
 	require.Equal(t, u, (google_uuid.UUID)(s2))
 
-	_, err = Parse("x")
+	_, err = ParseUUID("x")
 	require.Error(t, err)
 }

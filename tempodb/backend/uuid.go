@@ -1,7 +1,7 @@
 // Package uuid provides a UUID type that can be used in protocol buffer
 // messages.  It only wraps the google/uuid package and implements a couple
 // helpers to make creating new instances simpler.
-package uuid
+package backend
 
 import (
 	"encoding/json"
@@ -16,7 +16,7 @@ var (
 
 type UUID google_uuid.UUID
 
-func New() UUID {
+func NewUUID() UUID {
 	return UUID(google_uuid.New())
 }
 
@@ -24,7 +24,7 @@ func MustParse(s string) UUID {
 	return UUID(google_uuid.MustParse(s))
 }
 
-func Parse(s string) (UUID, error) {
+func ParseUUID(s string) (UUID, error) {
 	u, err := google_uuid.Parse(s)
 	if err != nil {
 		return UUID{}, err
