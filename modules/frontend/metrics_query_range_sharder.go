@@ -17,7 +17,6 @@ import (
 
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
-	"github.com/grafana/tempo/modules/frontend/weights"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/pkg/api"
@@ -211,10 +210,9 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 	var queryHash uint64
 	var weight int
 
-	ast, _, _, fetchSpansRequest, err := traceql.Compile(searchReq.Query)
+	ast, err := traceql.Parse(searchReq.Query)
 	if err == nil {
 		queryHash = hashForQueryRangeRequest(&searchReq, ast)
-		weight = weights.FetchSpans(fetchSpansRequest)
 	}
 
 	colsToJSON := api.NewDedicatedColumnsToJSON()
