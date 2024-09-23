@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	google_uuid "github.com/google/uuid"
+	"github.com/google/uuid"
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/integration/util"
 	"github.com/stretchr/testify/assert"
@@ -22,7 +22,6 @@ import (
 	"github.com/grafana/tempo/cmd/tempo/app"
 	e2eBackend "github.com/grafana/tempo/integration/e2e/backend"
 	"github.com/grafana/tempo/pkg/blockboundary"
-	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
@@ -162,7 +161,7 @@ func TestPollerOwnership(t *testing.T) {
 				bb := blockboundary.CreateBlockBoundaries(listBlockConcurrency)
 
 				tenantCount := 250
-				tenantExpected := map[string][]google_uuid.UUID{}
+				tenantExpected := map[string][]uuid.UUID{}
 
 				// Push some data to a few tenants
 				for i := 0; i < tenantCount; i++ {
@@ -189,9 +188,9 @@ func TestPollerOwnership(t *testing.T) {
 				for testTenant, expected := range tenantExpected {
 					metas := l.Metas(testTenant)
 
-					actual := []google_uuid.UUID{}
+					actual := []uuid.UUID{}
 					for _, m := range metas {
-						actual = append(actual, m.BlockID.UUID)
+						actual = append(actual, (uuid.UUID)(m.BlockID))
 					}
 
 					sort.Slice(actual, func(i, j int) bool { return actual[i].String() < actual[j].String() })
@@ -370,9 +369,9 @@ func TestTenantDeletion(t *testing.T) {
 	}
 }
 
-func found(id google_uuid.UUID, blockMetas []*backend.BlockMeta) bool {
+func found(id uuid.UUID, blockMetas []*backend.BlockMeta) bool {
 	for _, b := range blockMetas {
-		if b.BlockID.UUID == id {
+		if (uuid.UUID)(b.BlockID) == id {
 			return true
 		}
 	}
@@ -380,11 +379,11 @@ func found(id google_uuid.UUID, blockMetas []*backend.BlockMeta) bool {
 	return false
 }
 
-func writeTenantBlocks(t *testing.T, w backend.Writer, tenant string, blockIDs []google_uuid.UUID) {
+func writeTenantBlocks(t *testing.T, w backend.Writer, tenant string, blockIDs []uuid.UUID) {
 	var err error
 	for _, b := range blockIDs {
 		meta := &backend.BlockMeta{
-			BlockID:  uuid.From(b),
+			BlockID:  backend.UUID(b),
 			TenantID: tenant,
 		}
 
@@ -447,43 +446,43 @@ func writeBadBlockFiles(t *testing.T, ww backend.RawWriter, rr backend.RawReader
 	t.Logf("items: %v", found)
 }
 
-func pushBlocksToTenant(t *testing.T, tenant string, bb [][]byte, w backend.Writer) []google_uuid.UUID {
+func pushBlocksToTenant(t *testing.T, tenant string, bb [][]byte, w backend.Writer) []uuid.UUID {
 	// Randomly pick a block boundary
 	r := mathrand.IntN(len(bb))
 
 	base := bb[r]
 	t.Logf("base: %v", base)
-	expected := []google_uuid.UUID{}
+	expected := []uuid.UUID{}
 
 	// Include the min and max in each tenant for testing
-	expected = append(expected, google_uuid.MustParse("00000000-0000-0000-0000-000000000000"))
-	expected = append(expected, google_uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff"))
+	expected = append(expected, uuid.MustParse("00000000-0000-0000-0000-000000000000"))
+	expected = append(expected, uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff"))
 
 	// If we are above zero, then we have room to decrement
 	if r > 0 {
 		decrementUUIDBytes(base)
-		expected = append(expected, google_uuid.UUID(base))
+		expected = append(expected, uuid.UUID(base))
 	}
 
 	// If we are n-1 then we have room to increment
 	if r < len(bb)-1 {
 		// Grab the one after the boundary
 		incrementUUIDBytes(base)
-		expected = append(expected, google_uuid.UUID(base))
+		expected = append(expected, uuid.UUID(base))
 	}
 
 	// If we are n-2 then we have room to increment again
 	if r < len(bb)-2 {
 		// Grab the one after the boundary
 		incrementUUIDBytes(base)
-		expected = append(expected, google_uuid.UUID(base))
+		expected = append(expected, uuid.UUID(base))
 	}
 
 	// If we are n-3 then we have room to increment again
 	if r < len(bb)-3 {
 		// Grab the one after the boundary
 		incrementUUIDBytes(base)
-		expected = append(expected, google_uuid.UUID(base))
+		expected = append(expected, uuid.UUID(base))
 	}
 
 	// Write the blocks using the expectaed block IDs
