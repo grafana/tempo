@@ -2,10 +2,11 @@ package collector
 
 import "sync"
 
-// GenericCollector is a generic collector using Go generics.
+// GenericCollector is a safe collector to collect values
+// and retrieve them later when needed.
 type GenericCollector[T comparable] struct {
-	values []T        // A slice of generic type T to store the collected values
-	mu     sync.Mutex // A mutex for thread-safe access to values
+	values []T
+	mtx    sync.Mutex
 }
 
 // NewGenericCollector initializes a new GenericCollector for type T.
@@ -16,18 +17,17 @@ func NewGenericCollector[T comparable]() *GenericCollector[T] {
 }
 
 // Collect adds the values to the collector.
-// Collect now works with generic types.
 func (c *GenericCollector[T]) Collect(value T) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
 
 	c.values = append(c.values, value)
 }
 
 // Values returns the collected values.
 func (c *GenericCollector[T]) Values() []T {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
 
 	return c.values
 }
