@@ -55,6 +55,9 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		return nil, err
 	}
 
+	fetchSpansRequest.StartTimeUnixNanos = unixSecToNano(searchReq.Start)
+	fetchSpansRequest.EndTimeUnixNanos = unixSecToNano(searchReq.End)
+
 	span.SetAttributes(attribute.String("pipeline", rootExpr.Pipeline.String()))
 	span.SetAttributes(attribute.String("fetchSpansRequest", fmt.Sprint(fetchSpansRequest)))
 
