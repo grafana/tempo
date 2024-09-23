@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/golang/protobuf/proto" //nolint:all
-	google_uuid "github.com/google/uuid"
+	"github.com/google/uuid"
 	v2 "github.com/grafana/tempo/tempodb/encoding/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -25,7 +25,6 @@ import (
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -88,7 +87,7 @@ func TestDB(t *testing.T) {
 
 	r.EnablePolling(context.Background(), &mockJobSharder{})
 
-	blockID := uuid.New()
+	blockID := backend.NewUUID()
 
 	wal := w.WAL()
 
@@ -141,7 +140,7 @@ func TestBlockSharding(t *testing.T) {
 	r.EnablePolling(context.Background(), &mockJobSharder{})
 
 	// create block with known ID
-	blockID := uuid.New()
+	blockID := backend.NewUUID()
 	wal := w.WAL()
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -166,8 +165,8 @@ func TestBlockSharding(t *testing.T) {
 	assert.Len(t, blocks, 1)
 
 	// check if it respects the blockstart/blockend params - case1: hit
-	blockStart := google_uuid.MustParse(BlockIDMin).String()
-	blockEnd := google_uuid.MustParse(BlockIDMax).String()
+	blockStart := uuid.MustParse(BlockIDMin).String()
+	blockEnd := uuid.MustParse(BlockIDMax).String()
 	bFound, failedBlocks, err := r.Find(context.Background(), testTenantID, id, blockStart, blockEnd, 0, 0, common.DefaultSearchOptions())
 	assert.NoError(t, err)
 	assert.Nil(t, failedBlocks)
@@ -175,8 +174,8 @@ func TestBlockSharding(t *testing.T) {
 	assert.True(t, proto.Equal(bFound[0], req))
 
 	// check if it respects the blockstart/blockend params - case2: miss
-	blockStart = google_uuid.MustParse(BlockIDMin).String()
-	blockEnd = google_uuid.MustParse(BlockIDMin).String()
+	blockStart = uuid.MustParse(BlockIDMin).String()
+	blockEnd = uuid.MustParse(BlockIDMin).String()
 	bFound, failedBlocks, err = r.Find(context.Background(), testTenantID, id, blockStart, blockEnd, 0, 0, common.DefaultSearchOptions())
 	assert.NoError(t, err)
 	assert.Nil(t, failedBlocks)
@@ -205,7 +204,7 @@ func TestBlockCleanup(t *testing.T) {
 
 	r.EnablePolling(context.Background(), &mockJobSharder{})
 
-	blockID := uuid.New()
+	blockID := backend.NewUUID()
 
 	wal := w.WAL()
 
@@ -232,13 +231,13 @@ func TestBlockCleanup(t *testing.T) {
 	assert.Equal(t, 0, len(m))
 }
 
-func checkBlocklists(t *testing.T, expectedID google_uuid.UUID, expectedB int, expectedCB int, rw *readerWriter) {
+func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expectedCB int, rw *readerWriter) {
 	rw.pollBlocklist()
 
 	blocklist := rw.blocklist.Metas(testTenantID)
 	require.Len(t, blocklist, expectedB)
-	if expectedB > 0 && expectedID != google_uuid.Nil {
-		assert.Equal(t, expectedID, blocklist[0].BlockID.UUID)
+	if expectedB > 0 && expectedID != uuid.Nil {
+		assert.Equal(t, expectedID, (uuid.UUID)(blocklist[0].BlockID))
 	}
 
 	// confirm blocklists are in starttime ascending order
@@ -250,8 +249,8 @@ func checkBlocklists(t *testing.T, expectedID google_uuid.UUID, expectedB int, e
 
 	compactedBlocklist := rw.blocklist.CompactedMetas(testTenantID)
 	assert.Len(t, compactedBlocklist, expectedCB)
-	if expectedCB > 0 && expectedID != google_uuid.Nil {
-		assert.Equal(t, expectedID, compactedBlocklist[0].BlockID.UUID)
+	if expectedCB > 0 && expectedID != uuid.Nil {
+		assert.Equal(t, expectedID, (uuid.UUID)(compactedBlocklist[0].BlockID))
 	}
 
 	lastTime = time.Time{}
@@ -265,8 +264,8 @@ func TestIncludeBlock(t *testing.T) {
 	tests := []struct {
 		name       string
 		searchID   common.ID
-		blockStart google_uuid.UUID
-		blockEnd   google_uuid.UUID
+		blockStart uuid.UUID
+		blockEnd   uuid.UUID
 		start      int64
 		end        int64
 		meta       *backend.BlockMeta
@@ -276,10 +275,10 @@ func TestIncludeBlock(t *testing.T) {
 		{
 			name:       "include - duh",
 			searchID:   []byte{0x05},
-			blockStart: google_uuid.MustParse(BlockIDMin),
-			blockEnd:   google_uuid.MustParse(BlockIDMax),
+			blockStart: uuid.MustParse(BlockIDMin),
+			blockEnd:   uuid.MustParse(BlockIDMax),
 			meta: &backend.BlockMeta{
-				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				BlockID: backend.MustParse("50000000-0000-0000-0000-000000000000"),
 			},
 			start:    0,
 			end:      0,
@@ -288,10 +287,10 @@ func TestIncludeBlock(t *testing.T) {
 		{
 			name:       "include - min id range",
 			searchID:   []byte{0x00},
-			blockStart: google_uuid.MustParse(BlockIDMin),
-			blockEnd:   google_uuid.MustParse(BlockIDMax),
+			blockStart: uuid.MustParse(BlockIDMin),
+			blockEnd:   uuid.MustParse(BlockIDMax),
 			meta: &backend.BlockMeta{
-				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				BlockID: backend.MustParse("50000000-0000-0000-0000-000000000000"),
 			},
 			start:    0,
 			end:      0,
@@ -300,10 +299,10 @@ func TestIncludeBlock(t *testing.T) {
 		{
 			name:       "include - max id range",
 			searchID:   []byte{0x10},
-			blockStart: google_uuid.MustParse(BlockIDMin),
-			blockEnd:   google_uuid.MustParse(BlockIDMax),
+			blockStart: uuid.MustParse(BlockIDMin),
+			blockEnd:   uuid.MustParse(BlockIDMax),
 			meta: &backend.BlockMeta{
-				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				BlockID: backend.MustParse("50000000-0000-0000-0000-000000000000"),
 			},
 			start:    0,
 			end:      0,
@@ -312,10 +311,10 @@ func TestIncludeBlock(t *testing.T) {
 		{
 			name:       "include - min block range",
 			searchID:   []byte{0x05},
-			blockStart: google_uuid.MustParse("50000000-0000-0000-0000-000000000000"),
-			blockEnd:   google_uuid.MustParse(BlockIDMax),
+			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockEnd:   uuid.MustParse(BlockIDMax),
 			meta: &backend.BlockMeta{
-				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				BlockID: backend.MustParse("50000000-0000-0000-0000-000000000000"),
 			},
 			start:    0,
 			end:      0,
@@ -324,10 +323,10 @@ func TestIncludeBlock(t *testing.T) {
 		{
 			name:       "include - max block range",
 			searchID:   []byte{0x05},
-			blockStart: google_uuid.MustParse(BlockIDMin),
-			blockEnd:   google_uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockStart: uuid.MustParse(BlockIDMin),
+			blockEnd:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			meta: &backend.BlockMeta{
-				BlockID:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				BlockID:   backend.MustParse("50000000-0000-0000-0000-000000000000"),
 				StartTime: time.Unix(10000, 0),
 				EndTime:   time.Unix(20000, 0),
 			},
@@ -338,10 +337,10 @@ func TestIncludeBlock(t *testing.T) {
 		{
 			name:       "include - max block range",
 			searchID:   []byte{0x05},
-			blockStart: google_uuid.MustParse(BlockIDMin),
-			blockEnd:   google_uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockStart: uuid.MustParse(BlockIDMin),
+			blockEnd:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			meta: &backend.BlockMeta{
-				BlockID:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				BlockID:   backend.MustParse("50000000-0000-0000-0000-000000000000"),
 				StartTime: time.Unix(1650285326, 0),
 				EndTime:   time.Unix(1650288990, 0),
 			},
@@ -352,10 +351,10 @@ func TestIncludeBlock(t *testing.T) {
 		{
 			name:       "include - exact hit",
 			searchID:   []byte{0x05},
-			blockStart: google_uuid.MustParse("50000000-0000-0000-0000-000000000000"),
-			blockEnd:   google_uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockEnd:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			meta: &backend.BlockMeta{
-				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				BlockID: backend.MustParse("50000000-0000-0000-0000-000000000000"),
 			},
 			start:    0,
 			end:      0,
@@ -365,10 +364,10 @@ func TestIncludeBlock(t *testing.T) {
 		{
 			name:       "exclude - duh",
 			searchID:   []byte{0x20},
-			blockStart: google_uuid.MustParse("50000000-0000-0000-0000-000000000000"),
-			blockEnd:   google_uuid.MustParse("51000000-0000-0000-0000-000000000000"),
+			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockEnd:   uuid.MustParse("51000000-0000-0000-0000-000000000000"),
 			meta: &backend.BlockMeta{
-				BlockID: uuid.MustParse("52000000-0000-0000-0000-000000000000"),
+				BlockID: backend.MustParse("52000000-0000-0000-0000-000000000000"),
 			},
 		},
 		// todo: restore when this is fixed: https://github.com/grafana/tempo/issues/1903
@@ -393,19 +392,19 @@ func TestIncludeBlock(t *testing.T) {
 		{
 			name:       "exclude - min block range",
 			searchID:   []byte{0x05},
-			blockStart: google_uuid.MustParse("50000000-0000-0000-0000-000000000000"),
-			blockEnd:   google_uuid.MustParse("51000000-0000-0000-0000-000000000000"),
+			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockEnd:   uuid.MustParse("51000000-0000-0000-0000-000000000000"),
 			meta: &backend.BlockMeta{
-				BlockID: uuid.MustParse("4FFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"),
+				BlockID: backend.MustParse("4FFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"),
 			},
 		},
 		{
 			name:       "exclude - max block range",
 			searchID:   []byte{0x05},
-			blockStart: google_uuid.MustParse("50000000-0000-0000-0000-000000000000"),
-			blockEnd:   google_uuid.MustParse("51000000-0000-0000-0000-000000000000"),
+			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockEnd:   uuid.MustParse("51000000-0000-0000-0000-000000000000"),
 			meta: &backend.BlockMeta{
-				BlockID: uuid.MustParse("51000000-0000-0000-0000-000000000001"),
+				BlockID: backend.MustParse("51000000-0000-0000-0000-000000000001"),
 			},
 		},
 	}
@@ -427,8 +426,8 @@ func TestIncludeCompactedBlock(t *testing.T) {
 	tests := []struct {
 		name       string
 		searchID   common.ID
-		blockStart google_uuid.UUID
-		blockEnd   google_uuid.UUID
+		blockStart uuid.UUID
+		blockEnd   uuid.UUID
 		meta       *backend.CompactedBlockMeta
 		start      int64
 		end        int64
@@ -437,13 +436,13 @@ func TestIncludeCompactedBlock(t *testing.T) {
 		{
 			name:       "include recent",
 			searchID:   []byte{0x05},
-			blockStart: google_uuid.MustParse(BlockIDMin),
-			blockEnd:   google_uuid.MustParse(BlockIDMax),
+			blockStart: uuid.MustParse(BlockIDMin),
+			blockEnd:   uuid.MustParse(BlockIDMax),
 			start:      0,
 			end:        0,
 			meta: &backend.CompactedBlockMeta{
 				BlockMeta: backend.BlockMeta{
-					BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+					BlockID: backend.MustParse("50000000-0000-0000-0000-000000000000"),
 				},
 				CompactedTime: time.Now().Add(-(1 * blocklistPoll)),
 			},
@@ -452,13 +451,13 @@ func TestIncludeCompactedBlock(t *testing.T) {
 		{
 			name:       "skip old",
 			searchID:   []byte{0x05},
-			blockStart: google_uuid.MustParse(BlockIDMin),
-			blockEnd:   google_uuid.MustParse(BlockIDMax),
+			blockStart: uuid.MustParse(BlockIDMin),
+			blockEnd:   uuid.MustParse(BlockIDMax),
 			start:      0,
 			end:        0,
 			meta: &backend.CompactedBlockMeta{
 				BlockMeta: backend.BlockMeta{
-					BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+					BlockID: backend.MustParse("50000000-0000-0000-0000-000000000000"),
 				},
 				CompactedTime: time.Now().Add(-(3 * blocklistPoll)),
 			},
@@ -467,13 +466,13 @@ func TestIncludeCompactedBlock(t *testing.T) {
 		{
 			name:       "skip recent but out of range",
 			searchID:   []byte{0x05},
-			blockStart: google_uuid.MustParse("40000000-0000-0000-0000-000000000000"),
-			blockEnd:   google_uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+			blockStart: uuid.MustParse("40000000-0000-0000-0000-000000000000"),
+			blockEnd:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			start:      0,
 			end:        0,
 			meta: &backend.CompactedBlockMeta{
 				BlockMeta: backend.BlockMeta{
-					BlockID: uuid.MustParse("51000000-0000-0000-0000-000000000000"),
+					BlockID: backend.MustParse("51000000-0000-0000-0000-000000000000"),
 				},
 				CompactedTime: time.Now().Add(-(1 * blocklistPoll)),
 			},
@@ -508,7 +507,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 	wal := w.WAL()
 
-	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
+	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	assert.NoError(t, err)
 
@@ -589,7 +588,7 @@ func testCompleteBlock(t *testing.T, from, to string) {
 	rw := w.(*readerWriter)
 	rw.cfg.Block.Version = to // now set it back so we cut blocks in the "to" format
 
-	blockID := google_uuid.New()
+	blockID := uuid.New()
 
 	var dataEncoding string
 	if from == v2.VersionString {
@@ -669,7 +668,7 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 	oneHourAgo := now.Add(-1 * time.Hour).Unix()
 	oneHour := now.Add(time.Hour).Unix()
 
-	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
+	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
 	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
 
@@ -738,7 +737,7 @@ func benchmarkCompleteBlock(b *testing.B, e encoding.VersionedEncoding) {
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	wal := w.WAL()
-	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
+	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
 	blk, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(b, err)
 

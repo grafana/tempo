@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/stretchr/testify/require"
@@ -21,7 +20,7 @@ func BenchmarkIndexLoad(b *testing.B) {
 	for i := range len(blockMeta) {
 		blockMeta[i] = &backend.BlockMeta{
 			Version:         "vParquet3",
-			BlockID:         uuid.New(),
+			BlockID:         backend.NewUUID(),
 			TenantID:        tenant,
 			StartTime:       time.Now().Add(-50 * time.Minute),
 			EndTime:         time.Now().Add(-40 * time.Minute),

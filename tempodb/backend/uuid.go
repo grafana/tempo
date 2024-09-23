@@ -33,10 +33,6 @@ func ParseUUID(s string) (UUID, error) {
 	return UUID(u), nil
 }
 
-func From(u google_uuid.UUID) UUID {
-	return UUID(u)
-}
-
 func (u UUID) String() string {
 	return ((google_uuid.UUID)(u)).String()
 }

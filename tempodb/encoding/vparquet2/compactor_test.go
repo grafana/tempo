@@ -13,7 +13,6 @@ import (
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -113,7 +112,7 @@ func BenchmarkCompactorDupes(b *testing.B) {
 func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig, r backend.Reader, w backend.Writer, traceCount, batchCount, spanCount int) *backend.BlockMeta {
 	inMeta := &backend.BlockMeta{
 		TenantID:     tenantID,
-		BlockID:      uuid.New(),
+		BlockID:      backend.NewUUID(),
 		TotalObjects: int32(traceCount),
 	}
 

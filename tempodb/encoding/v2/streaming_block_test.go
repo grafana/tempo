@@ -253,7 +253,7 @@ func streamingBlock(t *testing.T, cfg *common.BlockConfig, w backend.Writer) (*S
 		dataReader,
 		NewObjectReaderWriter())
 
-	block, err := NewStreamingBlock(cfg, originatingMeta.BlockID.UUID, originatingMeta.TenantID, []*backend.BlockMeta{originatingMeta}, int(originatingMeta.TotalObjects))
+	block, err := NewStreamingBlock(cfg, (uuid.UUID)(originatingMeta.BlockID), originatingMeta.TenantID, []*backend.BlockMeta{originatingMeta}, int(originatingMeta.TotalObjects))
 	require.NoError(t, err, "unexpected error completing block")
 
 	expectedBloomShards := block.bloom.GetShardCount()

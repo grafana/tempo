@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -53,7 +53,7 @@ func TestRetention(t *testing.T) {
 
 	r.EnablePolling(ctx, &mockJobSharder{})
 
-	blockID := uuid.New()
+	blockID := backend.NewUUID()
 
 	wal := w.WAL()
 	assert.NoError(t, err)
@@ -68,15 +68,15 @@ func TestRetention(t *testing.T) {
 
 	rw := r.(*readerWriter)
 	// poll
-	checkBlocklists(t, blockID.UUID, 1, 0, rw)
+	checkBlocklists(t, (uuid.UUID)(blockID), 1, 0, rw)
 
 	// retention should mark it compacted
 	r.(*readerWriter).doRetention(ctx)
-	checkBlocklists(t, blockID.UUID, 0, 1, rw)
+	checkBlocklists(t, (uuid.UUID)(blockID), 0, 1, rw)
 
 	// retention again should clear it
 	r.(*readerWriter).doRetention(ctx)
-	checkBlocklists(t, blockID.UUID, 0, 0, rw)
+	checkBlocklists(t, (uuid.UUID)(blockID), 0, 0, rw)
 }
 
 func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
@@ -120,7 +120,7 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 	wal := w.WAL()
 	assert.NoError(t, err)
 
-	blockID := uuid.New()
+	blockID := backend.NewUUID()
 
 	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)

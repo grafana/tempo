@@ -9,7 +9,7 @@ option go_package = "tempodb/backend";
 
 message BlockMeta {
     string version = 1[(gogoproto.jsontag) = "format"];
-    bytes block_id = 2[(gogoproto.jsontag) = "blockID", (gogoproto.customname) = "BlockID", (gogoproto.customtype) = "github.com/grafana/tempo/pkg/uuid.UUID", (gogoproto.nullable) = false];
+    bytes block_id = 2[(gogoproto.jsontag) = "blockID", (gogoproto.customname) = "BlockID", (gogoproto.customtype) = "UUID", (gogoproto.nullable) = false];
     string tenant_id = 5[(gogoproto.jsontag) = "tenantID", (gogoproto.customname) = "TenantID"];
     google.protobuf.Timestamp start_time = 6[(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "startTime"];
     google.protobuf.Timestamp end_time = 7[(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "endTime"];

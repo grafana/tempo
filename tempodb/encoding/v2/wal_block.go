@@ -54,7 +54,7 @@ func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, inge
 	}
 
 	h := &walBlock{
-		meta:           backend.NewBlockMeta(meta.TenantID, meta.BlockID.UUID, meta.Version, meta.Encoding, dataEncoding),
+		meta:           backend.NewBlockMeta(meta.TenantID, (uuid.UUID)(meta.BlockID), meta.Version, meta.Encoding, dataEncoding),
 		filepath:       filepath,
 		ingestionSlack: ingestionSlack,
 		encoder:        enc,

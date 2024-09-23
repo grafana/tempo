@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go"
 	"github.com/willf/bloom"
 	"go.opentelemetry.io/otel/attribute"
@@ -45,7 +46,7 @@ func (b *backendBlock) checkBloom(ctx context.Context, id common.ID) (found bool
 	nameBloom := common.BloomName(shardKey)
 	span.SetAttributes(attribute.String("bloom", nameBloom))
 
-	bloomBytes, err := b.r.Read(derivedCtx, nameBloom, b.meta.BlockID.UUID, b.meta.TenantID, &backend.CacheInfo{
+	bloomBytes, err := b.r.Read(derivedCtx, nameBloom, (uuid.UUID)(b.meta.BlockID), b.meta.TenantID, &backend.CacheInfo{
 		Meta: b.meta,
 		Role: cache.RoleBloom,
 	})
@@ -75,7 +76,7 @@ func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int,
 		))
 	defer span.End()
 
-	indexBytes, err := b.r.Read(derivedCtx, common.NameIndex, b.meta.BlockID.UUID, b.meta.TenantID, &backend.CacheInfo{
+	indexBytes, err := b.r.Read(derivedCtx, common.NameIndex, (uuid.UUID)(b.meta.BlockID), b.meta.TenantID, &backend.CacheInfo{
 		Meta: b.meta,
 		Role: cache.RoleTraceIDIdx,
 	})

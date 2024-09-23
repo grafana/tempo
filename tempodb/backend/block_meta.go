@@ -7,11 +7,10 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash/v2"
-	google_uuid "github.com/google/uuid"
+	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/uuid"
 )
 
 // DedicatedColumnType is the type of the values in the dedicated attribute column. Only 'string' is supported.
@@ -150,14 +149,14 @@ func (dcs *DedicatedColumns) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func NewBlockMeta(tenantID string, blockID google_uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {
+func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string) *BlockMeta {
 	return NewBlockMetaWithDedicatedColumns(tenantID, blockID, version, encoding, dataEncoding, nil)
 }
 
-func NewBlockMetaWithDedicatedColumns(tenantID string, blockID google_uuid.UUID, version string, encoding Encoding, dataEncoding string, dc DedicatedColumns) *BlockMeta {
+func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dc DedicatedColumns) *BlockMeta {
 	b := &BlockMeta{
 		Version:          version,
-		BlockID:          uuid.UUID{UUID: blockID},
+		BlockID:          UUID(blockID),
 		TenantID:         tenantID,
 		Encoding:         encoding,
 		DataEncoding:     dataEncoding,

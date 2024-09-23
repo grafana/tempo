@@ -131,8 +131,8 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 	matchedRemovals := make(map[uuid.UUID]struct{})
 	for _, b := range blocklist {
 		for _, rem := range remove {
-			if b.BlockID.UUID == rem.BlockID.UUID {
-				matchedRemovals[rem.BlockID.UUID] = struct{}{}
+			if b.BlockID == rem.BlockID {
+				matchedRemovals[(uuid.UUID)(rem.BlockID)] = struct{}{}
 				break
 			}
 		}
@@ -142,14 +142,14 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 	newblocklist := make([]*backend.BlockMeta, 0, len(blocklist)-len(matchedRemovals)+len(add))
 	// rebuild the blocklist dropping all removals
 	for _, b := range blocklist {
-		existingMetas[b.BlockID.UUID] = struct{}{}
-		if _, ok := matchedRemovals[b.BlockID.UUID]; !ok {
+		existingMetas[(uuid.UUID)(b.BlockID)] = struct{}{}
+		if _, ok := matchedRemovals[(uuid.UUID)(b.BlockID)]; !ok {
 			newblocklist = append(newblocklist, b)
 		}
 	}
 	// add new blocks (only if they don't already exist)
 	for _, b := range add {
-		if _, ok := existingMetas[b.BlockID.UUID]; !ok {
+		if _, ok := existingMetas[(uuid.UUID)(b.BlockID)]; !ok {
 			newblocklist = append(newblocklist, b)
 		}
 	}
@@ -162,8 +162,8 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 	compactedRemovals := map[uuid.UUID]struct{}{}
 	for _, c := range compactedBlocklist {
 		for _, rem := range compactedRemove {
-			if c.BlockID.UUID == rem.BlockID.UUID {
-				compactedRemovals[rem.BlockID.UUID] = struct{}{}
+			if c.BlockID == rem.BlockID {
+				compactedRemovals[(uuid.UUID)(rem.BlockID)] = struct{}{}
 				break
 			}
 		}
@@ -173,13 +173,13 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 	newCompactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(compactedBlocklist)-len(compactedRemovals)+len(compactedAdd))
 	// rebuild the blocklist dropping all removals
 	for _, b := range compactedBlocklist {
-		existingMetas[b.BlockID.UUID] = struct{}{}
-		if _, ok := compactedRemovals[b.BlockID.UUID]; !ok {
+		existingMetas[(uuid.UUID)(b.BlockID)] = struct{}{}
+		if _, ok := compactedRemovals[(uuid.UUID)(b.BlockID)]; !ok {
 			newCompactedBlocklist = append(newCompactedBlocklist, b)
 		}
 	}
 	for _, b := range compactedAdd {
-		if _, ok := existingMetas[b.BlockID.UUID]; !ok {
+		if _, ok := existingMetas[(uuid.UUID)(b.BlockID)]; !ok {
 			newCompactedBlocklist = append(newCompactedBlocklist, b)
 		}
 	}

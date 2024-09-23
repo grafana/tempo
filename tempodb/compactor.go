@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
@@ -201,7 +202,7 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 		totalRecords += int(blockMeta.TotalObjects)
 
 		// Make sure block still exists
-		_, err = rw.r.BlockMeta(ctx, blockMeta.BlockID.UUID, tenantID)
+		_, err = rw.r.BlockMeta(ctx, (uuid.UUID)(blockMeta.BlockID), tenantID)
 		if err != nil {
 			return err
 		}
@@ -283,7 +284,7 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks, newBlocks []*ba
 	var errCount int
 	for _, meta := range oldBlocks {
 		// Mark in the backend
-		if err := rw.c.MarkBlockCompacted(meta.BlockID.UUID, tenantID); err != nil {
+		if err := rw.c.MarkBlockCompacted((uuid.UUID)(meta.BlockID), tenantID); err != nil {
 			errCount++
 			level.Error(rw.logger).Log("msg", "unable to mark block compacted", "blockID", meta.BlockID, "tenantID", tenantID, "err", err)
 			metricCompactionErrors.Inc()

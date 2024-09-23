@@ -16,7 +16,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
-	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -157,7 +156,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		if currentBlock == nil {
 			// Start with a copy and then customize
 			newMeta := &backend.BlockMeta{
-				BlockID:           uuid.New(),
+				BlockID:           backend.NewUUID(),
 				TenantID:          inputs[0].TenantID,
 				CompactionLevel:   nextCompactionLevel,
 				TotalObjects:      recordsPerBlock, // Just an estimate

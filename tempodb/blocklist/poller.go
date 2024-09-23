@@ -13,7 +13,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	google_uuid "github.com/google/uuid"
+	uuid "github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
@@ -320,28 +320,28 @@ func (p *Poller) pollTenantBlocks(
 	var (
 		metas                 = previous.Metas(tenantID)
 		compactedMetas        = previous.CompactedMetas(tenantID)
-		mm                    = make(map[google_uuid.UUID]*backend.BlockMeta, len(metas))
-		cm                    = make(map[google_uuid.UUID]*backend.CompactedBlockMeta, len(compactedMetas))
+		mm                    = make(map[backend.UUID]*backend.BlockMeta, len(metas))
+		cm                    = make(map[backend.UUID]*backend.CompactedBlockMeta, len(compactedMetas))
 		newBlockList          = make([]*backend.BlockMeta, 0, len(currentBlockIDs))
 		newCompactedBlocklist = make([]*backend.CompactedBlockMeta, 0, len(currentCompactedBlockIDs))
-		unknownBlockIDs       = make(map[google_uuid.UUID]bool, 1000)
+		unknownBlockIDs       = make(map[uuid.UUID]bool, 1000)
 	)
 
 	span.SetAttributes(attribute.Int("metas", len(metas)))
 	span.SetAttributes(attribute.Int("compactedMetas", len(compactedMetas)))
 
 	for _, i := range metas {
-		mm[i.BlockID.UUID] = i
+		mm[i.BlockID] = i
 	}
 
 	for _, i := range compactedMetas {
-		cm[i.BlockID.UUID] = i
+		cm[i.BlockID] = i
 	}
 
 	// The boolean here to track if we know the block has been compacted
 	for _, blockID := range currentBlockIDs {
 		// if we already have this block id in our previous list, use the existing data.
-		if v, ok := mm[blockID]; ok {
+		if v, ok := mm[backend.UUID(blockID)]; ok {
 			newBlockList = append(newBlockList, v)
 			continue
 		}
@@ -351,7 +351,7 @@ func (p *Poller) pollTenantBlocks(
 
 	for _, blockID := range currentCompactedBlockIDs {
 		// if we already have this block id in our previous list, use the existing data.
-		if v, ok := cm[blockID]; ok {
+		if v, ok := cm[backend.UUID(blockID)]; ok {
 			newCompactedBlocklist = append(newCompactedBlocklist, v)
 			continue
 		}
@@ -385,7 +385,7 @@ func (p *Poller) pollTenantBlocks(
 
 func (p *Poller) pollUnknown(
 	ctx context.Context,
-	unknownBlocks map[google_uuid.UUID]bool,
+	unknownBlocks map[uuid.UUID]bool,
 	tenantID string,
 ) ([]*backend.BlockMeta, []*backend.CompactedBlockMeta, error) {
 	derivedCtx, span := tracer.Start(ctx, "pollUnknown", trace.WithAttributes(
@@ -412,7 +412,7 @@ func (p *Poller) pollUnknown(
 		mtx.Unlock()
 
 		bg.Add(1)
-		go func(id google_uuid.UUID, compacted bool) {
+		go func(id uuid.UUID, compacted bool) {
 			defer bg.Done()
 
 			if p.cfg.PollJitterMs > 0 {
@@ -455,7 +455,7 @@ func (p *Poller) pollUnknown(
 func (p *Poller) pollBlock(
 	ctx context.Context,
 	tenantID string,
-	blockID google_uuid.UUID,
+	blockID uuid.UUID,
 	compacted bool,
 ) (*backend.BlockMeta, *backend.CompactedBlockMeta, error) {
 	derivedCtx, span := tracer.Start(ctx, "Poller.pollBlock")

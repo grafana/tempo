@@ -6,12 +6,11 @@ import (
 	"testing"
 	"time"
 
-	google_uuid "github.com/google/uuid"
+	uuid "github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/uuid"
 )
 
 const (
@@ -23,10 +22,10 @@ func TestNewBlockMeta(t *testing.T) {
 	testEncoding := EncLZ4_256k
 	testDataEncoding := "blarg"
 
-	id := google_uuid.New()
+	id := uuid.New()
 	b := NewBlockMeta(testTenantID, id, testVersion, testEncoding, testDataEncoding)
 
-	assert.Equal(t, id, b.BlockID.UUID)
+	assert.Equal(t, id, (uuid.UUID)(b.BlockID))
 	assert.Equal(t, testTenantID, b.TenantID)
 	assert.Equal(t, testVersion, b.Version)
 	assert.Equal(t, testEncoding, b.Encoding)
@@ -100,7 +99,7 @@ func TestBlockMetaParsing(t *testing.T) {
 
 	meta := BlockMeta{
 		Version:         "vParquet3",
-		BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+		BlockID:         MustParse("00000000-0000-0000-0000-000000000000"),
 		TenantID:        "single-tenant",
 		StartTime:       timeParse("2021-01-01T00:00:00.0000000Z"),
 		EndTime:         timeParse("2021-01-02T00:00:00.0000000Z"),

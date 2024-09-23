@@ -9,12 +9,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/io"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -38,7 +38,7 @@ func TestReadWrite(t *testing.T) {
 	}
 
 	fakeMeta := &backend.BlockMeta{
-		BlockID: blockID,
+		BlockID: backend.UUID(blockID),
 	}
 
 	fakeObject := make([]byte, 20)
@@ -49,23 +49,23 @@ func TestReadWrite(t *testing.T) {
 	ctx := context.Background()
 	for _, id := range tenantIDs {
 		fakeMeta.TenantID = id
-		err = w.Write(ctx, objectName, backend.KeyPathForBlock(fakeMeta.BlockID.UUID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
+		err = w.Write(ctx, objectName, backend.KeyPathForBlock((uuid.UUID)(fakeMeta.BlockID), id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
 		assert.NoError(t, err, "unexpected error writing")
 
-		err = w.Write(ctx, backend.MetaName, backend.KeyPathForBlock(fakeMeta.BlockID.UUID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
+		err = w.Write(ctx, backend.MetaName, backend.KeyPathForBlock((uuid.UUID)(fakeMeta.BlockID), id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
 		assert.NoError(t, err, "unexpected error meta.json")
-		err = w.Write(ctx, backend.CompactedMetaName, backend.KeyPathForBlock(fakeMeta.BlockID.UUID, id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
+		err = w.Write(ctx, backend.CompactedMetaName, backend.KeyPathForBlock((uuid.UUID)(fakeMeta.BlockID), id), bytes.NewReader(fakeObject), int64(len(fakeObject)), nil)
 		assert.NoError(t, err, "unexpected error meta.compacted.json")
 	}
 
-	actualObject, size, err := r.Read(ctx, objectName, backend.KeyPathForBlock(blockID.UUID, tenantIDs[0]), nil)
+	actualObject, size, err := r.Read(ctx, objectName, backend.KeyPathForBlock(blockID, tenantIDs[0]), nil)
 	assert.NoError(t, err, "unexpected error reading")
 	actualObjectBytes, err := io.ReadAllWithEstimate(actualObject, size)
 	assert.NoError(t, err, "unexpected error reading")
 	assert.Equal(t, fakeObject, actualObjectBytes)
 
 	actualReadRange := make([]byte, 5)
-	err = r.ReadRange(ctx, objectName, backend.KeyPathForBlock(blockID.UUID, tenantIDs[0]), 5, actualReadRange, nil)
+	err = r.ReadRange(ctx, objectName, backend.KeyPathForBlock(blockID, tenantIDs[0]), 5, actualReadRange, nil)
 	assert.NoError(t, err, "unexpected error range")
 	assert.Equal(t, fakeObject[5:10], actualReadRange)
 
@@ -87,12 +87,12 @@ func TestShutdownLeavesTenantsWithBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	blockID := uuid.New()
+	blockID := backend.NewUUID()
 	contents := bytes.NewReader([]byte("test"))
 	tenant := "fake"
 
 	// write a "block"
-	err = w.Write(ctx, "test", backend.KeyPathForBlock(blockID.UUID, tenant), contents, contents.Size(), nil)
+	err = w.Write(ctx, "test", backend.KeyPathForBlock((uuid.UUID)(blockID), tenant), contents, contents.Size(), nil)
 	require.NoError(t, err)
 
 	tenantExists(t, tenant, r)
@@ -112,19 +112,19 @@ func TestShutdownRemovesTenantsWithoutBlocks(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	blockID := uuid.New()
+	blockID := backend.NewUUID()
 	contents := bytes.NewReader([]byte("test"))
 	tenant := "tenant"
 
 	// write a "block"
-	err = w.Write(ctx, "test", backend.KeyPathForBlock(blockID.UUID, tenant), contents, contents.Size(), nil)
+	err = w.Write(ctx, "test", backend.KeyPathForBlock((uuid.UUID)(blockID), tenant), contents, contents.Size(), nil)
 	require.NoError(t, err)
 
 	tenantExists(t, tenant, r)
 	blockExists(t, blockID, tenant, r)
 
 	// clear the block
-	err = c.ClearBlock(blockID.UUID, tenant)
+	err = c.ClearBlock((uuid.UUID)(blockID), tenant)
 	require.NoError(t, err)
 
 	tenantExists(t, tenant, r)
@@ -150,7 +150,7 @@ func tenantExists(t *testing.T, tenant string, r backend.RawReader) {
 	require.Equal(t, tenant, tenants[0])
 }
 
-func blockExists(t *testing.T, blockID uuid.UUID, tenant string, r backend.RawReader) {
+func blockExists(t *testing.T, blockID backend.UUID, tenant string, r backend.RawReader) {
 	blocks, err := r.List(context.Background(), backend.KeyPath{tenant})
 	require.NoError(t, err)
 	require.Len(t, blocks, 1)
