@@ -57,10 +57,7 @@ func (c weightRequestWare) setWeight(req Request) {
 	switch c.requestType {
 	case TraceByID:
 		req.SetWeight(TraceByIDWeight)
-
-	case TraceQLSearch:
-		setTraceQLWeight(req)
-	case TraceQLMetrics:
+	case TraceQLSearch, TraceQLMetrics:
 		setTraceQLWeight(req)
 	default:
 		req.SetWeight(DefaultWeight)
