@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
-	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -41,7 +41,7 @@ func getMeta(meta *backend.BlockMeta, compactedMeta *backend.CompactedBlockMeta,
 
 	return unifiedBlockMeta{
 		BlockMeta: backend.BlockMeta{
-			BlockID:         uuid.UUID{},
+			BlockID:         backend.UUID{},
 			CompactionLevel: 0,
 			TotalObjects:    -1,
 		},
@@ -71,7 +71,7 @@ func loadBucket(r backend.Reader, c backend.Compactor, tenantID string, windowRa
 	for blockNum, id := range blockIDs {
 		wg.Add(1)
 
-		go func(id2 uuid.UUID, blockNum2 int) {
+		go func(id2 backend.UUID, blockNum2 int) {
 			defer wg.Done()
 
 			b, err := loadBlock(r, c, tenantID, id2, blockNum2, windowRange, includeCompacted)
@@ -83,7 +83,7 @@ func loadBucket(r backend.Reader, c backend.Compactor, tenantID string, windowRa
 			if b != nil {
 				resultsCh <- *b
 			}
-		}(uuid.From(id), blockNum)
+		}(backend.UUID(id), blockNum)
 	}
 
 	wg.Wait()
@@ -101,20 +101,20 @@ func loadBucket(r backend.Reader, c backend.Compactor, tenantID string, windowRa
 	return results, nil
 }
 
-func loadBlock(r backend.Reader, c backend.Compactor, tenantID string, id uuid.UUID, blockNum int, windowRange time.Duration, includeCompacted bool) (*blockStats, error) {
+func loadBlock(r backend.Reader, c backend.Compactor, tenantID string, id backend.UUID, blockNum int, windowRange time.Duration, includeCompacted bool) (*blockStats, error) {
 	fmt.Print(".")
 	if blockNum%100 == 0 {
 		fmt.Print(strconv.Itoa(blockNum))
 	}
 
-	meta, err := r.BlockMeta(context.Background(), id.UUID, tenantID)
+	meta, err := r.BlockMeta(context.Background(), (uuid.UUID)(id), tenantID)
 	if errors.Is(err, backend.ErrDoesNotExist) && !includeCompacted {
 		return nil, nil
 	} else if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return nil, err
 	}
 
-	compactedMeta, err := c.CompactedBlockMeta(id.UUID, tenantID)
+	compactedMeta, err := c.CompactedBlockMeta((uuid.UUID)(id), tenantID)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return nil, err
 	}

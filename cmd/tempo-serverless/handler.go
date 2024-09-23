@@ -19,7 +19,6 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/azure"
@@ -71,7 +70,7 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		return nil, httpError("extracting org id", err, http.StatusBadRequest)
 	}
 
-	blockID, err := uuid.Parse(searchReq.BlockID)
+	blockID, err := backend.ParseUUID(searchReq.BlockID)
 	if err != nil {
 		return nil, httpError("parsing uuid", err, http.StatusBadRequest)
 	}

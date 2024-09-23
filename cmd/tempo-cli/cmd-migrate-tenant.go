@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/dustin/go-humanize"
+	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -49,7 +50,7 @@ blocks:
 	for _, sourceBlockMeta := range sourceTenantIndex.Meta {
 		// check for collisions
 		for _, uuidDest := range blocksDest {
-			if sourceBlockMeta.BlockID.UUID == uuidDest {
+			if (uuid.UUID)(sourceBlockMeta.BlockID) == uuidDest {
 				fmt.Printf("UUID %s exists in source and destination, skipping block\n", sourceBlockMeta.BlockID)
 				continue blocks
 			}
