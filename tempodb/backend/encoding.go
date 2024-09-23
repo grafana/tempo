@@ -110,12 +110,8 @@ func (e Encoding) Marshal() ([]byte, error) {
 }
 
 func (e *Encoding) MarshalTo(data []byte) (n int, err error) {
-	b, err := e.Marshal()
-	if err != nil {
-		return 0, err
-	}
-
-	return copy(data, b), nil
+	data[0] = byte(*e)
+	return 1, nil
 }
 
 func (e *Encoding) Unmarshal(data []byte) error {
