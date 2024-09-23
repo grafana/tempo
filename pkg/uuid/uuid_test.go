@@ -24,7 +24,7 @@ func Test_roundTrip(t *testing.T) {
 	u2 := UUID{}
 	err = u2.Unmarshal(b)
 	require.NoError(t, err)
-	assert.Equal(t, u.UUID, u2.UUID)
+	assert.Equal(t, u, u2)
 
 	// Marshal
 	b2, err := u2.Marshal()
@@ -34,7 +34,7 @@ func Test_roundTrip(t *testing.T) {
 	u3 := UUID{}
 	err = u3.Unmarshal(b2)
 	require.NoError(t, err)
-	assert.Equal(t, u.UUID, u2.UUID, u3.UUID)
+	assert.Equal(t, u, u2, u3)
 
 	// MarshalJSON
 	b3, err := u3.MarshalJSON()
@@ -43,17 +43,17 @@ func Test_roundTrip(t *testing.T) {
 	u4 := UUID{}
 	err = u4.UnmarshalJSON(b3)
 	require.NoError(t, err)
-	assert.Equal(t, u.UUID, u2.UUID, u3.UUID, u4.UUID)
+	assert.Equal(t, u, u2, u3, u4)
 }
 
 func Test_helpers(t *testing.T) {
 	u := google_uuid.New()
 	s := MustParse(u.String())
-	require.Equal(t, u, s.UUID)
+	require.Equal(t, u, (google_uuid.UUID)(s))
 
 	s2, err := Parse(u.String())
 	require.NoError(t, err)
-	require.Equal(t, u, s2.UUID)
+	require.Equal(t, u, (google_uuid.UUID)(s2))
 
 	_, err = Parse("x")
 	require.Error(t, err)

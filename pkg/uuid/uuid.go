@@ -14,16 +14,14 @@ var (
 	_ json.Marshaler   = &UUID{}
 )
 
-type UUID struct {
-	google_uuid.UUID
-}
+type UUID google_uuid.UUID
 
 func New() UUID {
-	return UUID{google_uuid.New()}
+	return UUID(google_uuid.New())
 }
 
 func MustParse(s string) UUID {
-	return UUID{google_uuid.MustParse(s)}
+	return UUID(google_uuid.MustParse(s))
 }
 
 func Parse(s string) (UUID, error) {
@@ -32,28 +30,27 @@ func Parse(s string) (UUID, error) {
 		return UUID{}, err
 	}
 
-	return UUID{u}, nil
+	return UUID(u), nil
 }
 
 func From(u google_uuid.UUID) UUID {
-	return UUID{u}
+	return UUID(u)
+}
+
+func (u UUID) String() string {
+	return ((google_uuid.UUID)(u)).String()
 }
 
 func (u UUID) Marshal() ([]byte, error) {
-	return u.MarshalBinary()
+	return ((google_uuid.UUID)(u)).MarshalBinary()
 }
 
-func (u *UUID) MarshalTo(data []byte) (n int, err error) {
-	b, err := u.MarshalBinary()
-	if err != nil {
-		return 0, err
-	}
-
-	return copy(data, b), nil
+func (u UUID) MarshalTo(data []byte) (n int, err error) {
+	return copy(data, u[:]), nil
 }
 
 func (u *UUID) Unmarshal(data []byte) error {
-	err := u.UnmarshalBinary(data)
+	err := ((*google_uuid.UUID)(u)).UnmarshalBinary(data)
 	if err != nil {
 		return err
 	}
@@ -66,7 +63,7 @@ func (u *UUID) Size() int {
 }
 
 func (u UUID) MarshalJSON() ([]byte, error) {
-	return json.Marshal(u.String())
+	return json.Marshal(((google_uuid.UUID)(u)).String())
 }
 
 func (u *UUID) UnmarshalJSON(data []byte) error {
@@ -81,7 +78,7 @@ func (u *UUID) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	u.UUID = uu
+	*u = UUID(uu)
 
 	return nil
 }
