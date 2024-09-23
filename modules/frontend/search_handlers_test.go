@@ -577,8 +577,7 @@ func TestSearchAccessesCache(t *testing.T) {
 
 	// setup query
 	query := "{}"
-	ast, _, _, _, _ := traceql.Compile(query)
-	hash := hashForSearchRequest(ast, 3, 2)
+	hash := hashForSearchRequest(&tempopb.SearchRequest{Query: query, Limit: 3, SpansPerSpanSet: 2})
 	start := uint32(10)
 	end := uint32(20)
 	cacheKey := searchJobCacheKey(tenant, hash, int64(start), int64(end), meta, 0, 1)

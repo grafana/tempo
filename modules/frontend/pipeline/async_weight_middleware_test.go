@@ -40,22 +40,32 @@ func TestWeightMiddlewareForTraceQLRequest(t *testing.T) {
 		expected int
 	}{
 		{
+			// Wrong query, this will be catched by the validator middlware
+			req:      "http://localhost:3200/api/search?q={ span.http.status_code }",
+			expected: TraceQLSearchWeight,
+		},
+		{
+			// Simple query
 			req:      "http://localhost:3200/api/search?q={ span.http.status_code >= 200 }",
 			expected: TraceQLSearchWeight,
 		},
 		{
+			// Simple query
 			req:      "http://localhost:3200/api/search?q={ span.http.status_code >= 200 || span.http.status_code < 300 }",
 			expected: TraceQLSearchWeight,
 		},
 		{
+			// Regex, complex query
 			req:      "http://localhost:8080/api/search?query={span.a =~ \"postgresql|mysql\"}",
 			expected: TraceQLSearchWeight + 1,
 		},
 		{
+			// Regex, complex query
 			req:      "http://localhost:8080/api/search?query={span.a !~ \"postgresql|mysql\"}",
 			expected: TraceQLSearchWeight + 1,
 		},
 		{
+			// 4 conditions, complex query
 			req:      "http://localhost:8080/api/search?query={span.http.method = \"DELETE\" || status != ok || span.http.status_code >= 200 || span.http.status_code < 300 }",
 			expected: TraceQLSearchWeight + 1,
 		},

@@ -91,7 +91,8 @@ func setTraceQLWeight(req Request) {
 				regexConditions++
 			}
 		}
-		if regexConditions >= maxRegexConditions || conditions >= maxTraceQLConditions {
+		complexQuery := regexConditions >= maxRegexConditions || conditions >= maxTraceQLConditions
+		if complexQuery {
 			req.SetWeight(TraceQLSearchWeight + 1)
 			return
 		}
