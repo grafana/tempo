@@ -13,7 +13,7 @@ import (
 	kitlog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/golang/groupcache/lru"
-	google_uuid "github.com/google/uuid"
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/tempodb"
@@ -26,7 +26,6 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -60,8 +59,8 @@ type Processor struct {
 
 	blocksMtx      sync.RWMutex
 	headBlock      common.WALBlock
-	walBlocks      map[google_uuid.UUID]common.WALBlock
-	completeBlocks map[google_uuid.UUID]*ingester.LocalBlock
+	walBlocks      map[uuid.UUID]common.WALBlock
+	completeBlocks map[uuid.UUID]*ingester.LocalBlock
 	lastCutTime    time.Time
 
 	flushqueue *flushqueues.PriorityQueue
@@ -97,8 +96,8 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 		walW:           backend.NewWriter(wal.LocalBackend()),
 		overrides:      overrides,
 		enc:            enc,
-		walBlocks:      map[google_uuid.UUID]common.WALBlock{},
-		completeBlocks: map[google_uuid.UUID]*ingester.LocalBlock{},
+		walBlocks:      map[uuid.UUID]common.WALBlock{},
+		completeBlocks: map[uuid.UUID]*ingester.LocalBlock{},
 		flushqueue:     flushqueues.NewPriorityQueue(metricFlushQueueSize.WithLabelValues(tenant)),
 		liveTraces:     newLiveTraces(),
 		traceSizes:     newTraceSizes(),
@@ -352,11 +351,11 @@ func (p *Processor) completeBlock() error {
 	p.blocksMtx.Lock()
 	defer p.blocksMtx.Unlock()
 
-	p.completeBlocks[newMeta.BlockID.UUID] = ingester.NewLocalBlock(ctx, newBlock, p.wal.LocalBackend())
+	p.completeBlocks[(uuid.UUID)(newMeta.BlockID)] = ingester.NewLocalBlock(ctx, newBlock, p.wal.LocalBackend())
 	metricCompletedBlocks.WithLabelValues(p.tenant).Inc()
 
 	// Queue for flushing
-	if _, err := p.flushqueue.Enqueue(newFlushOp(newMeta.BlockID.UUID)); err != nil {
+	if _, err := p.flushqueue.Enqueue(newFlushOp((uuid.UUID)(newMeta.BlockID))); err != nil {
 		_ = level.Error(p.logger).Log("msg", "local blocks processor failed to enqueue block for flushing", "err", err)
 	}
 
@@ -364,12 +363,12 @@ func (p *Processor) completeBlock() error {
 	if err != nil {
 		return err
 	}
-	delete(p.walBlocks, b.BlockMeta().BlockID.UUID)
+	delete(p.walBlocks, (uuid.UUID)(b.BlockMeta().BlockID))
 
 	return nil
 }
 
-func (p *Processor) flushBlock(id google_uuid.UUID) error {
+func (p *Processor) flushBlock(id uuid.UUID) error {
 	p.blocksMtx.RLock()
 	completeBlock := p.completeBlocks[id]
 	p.blocksMtx.RUnlock()
@@ -645,7 +644,7 @@ func (p *Processor) writeHeadBlock(id common.ID, tr *tempopb.Trace) error {
 
 func (p *Processor) resetHeadBlock() error {
 	meta := &backend.BlockMeta{
-		BlockID:           uuid.New(),
+		BlockID:           backend.NewUUID(),
 		TenantID:          p.tenant,
 		DedicatedColumns:  p.overrides.DedicatedColumns(p.tenant),
 		ReplicationFactor: backend.MetricsGeneratorReplicationFactor,
@@ -680,7 +679,7 @@ func (p *Processor) cutBlocks(immediate bool) error {
 		return fmt.Errorf("failed to flush head block: %w", err)
 	}
 
-	p.walBlocks[p.headBlock.BlockMeta().BlockID.UUID] = p.headBlock
+	p.walBlocks[(uuid.UUID)(p.headBlock.BlockMeta().BlockID)] = p.headBlock
 	metricCutBlocks.WithLabelValues(p.tenant).Inc()
 
 	err = p.resetHeadBlock()
@@ -711,7 +710,7 @@ func (p *Processor) reloadBlocks() error {
 		meta := blk.BlockMeta()
 		if meta.TenantID == p.tenant {
 			level.Info(p.logger).Log("msg", "reloading wal block", "block", meta.BlockID.String())
-			p.walBlocks[blk.BlockMeta().BlockID.UUID] = blk
+			p.walBlocks[(uuid.UUID)(blk.BlockMeta().BlockID)] = blk
 		}
 	}
 	level.Info(p.logger).Log("msg", "reloaded wal blocks", "count", len(p.walBlocks))
@@ -879,13 +878,13 @@ func filterBatches(batches []*v1.ResourceSpans) []*v1.ResourceSpans {
 }
 
 type flushOp struct {
-	blockID  google_uuid.UUID
+	blockID  uuid.UUID
 	at       time.Time // When to execute
 	attempts int
 	bo       time.Duration
 }
 
-func newFlushOp(blockID google_uuid.UUID) *flushOp {
+func newFlushOp(blockID uuid.UUID) *flushOp {
 	return &flushOp{
 		blockID: blockID,
 		at:      time.Now(),

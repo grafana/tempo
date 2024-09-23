@@ -16,6 +16,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
@@ -28,7 +29,6 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
-	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/blocklist"
@@ -96,7 +96,7 @@ func TestBuildBackendRequests(t *testing.T) {
 		{
 			metas: []*backend.BlockMeta{
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 			},
 			expectedURIs: []string{},
@@ -106,7 +106,7 @@ func TestBuildBackendRequests(t *testing.T) {
 			metas: []*backend.BlockMeta{
 				{
 					Size_:   1000,
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 			},
 			expectedURIs: []string{},
@@ -118,7 +118,7 @@ func TestBuildBackendRequests(t *testing.T) {
 				{
 					Size_:         1000,
 					TotalRecords:  100,
-					BlockID:       uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:       backend.MustParse("00000000-0000-0000-0000-000000000000"),
 					DataEncoding:  "json",
 					Encoding:      backend.EncGZIP,
 					IndexPageSize: 13,
@@ -136,7 +136,7 @@ func TestBuildBackendRequests(t *testing.T) {
 				{
 					Size_:         1000,
 					TotalRecords:  10,
-					BlockID:       uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:       backend.MustParse("00000000-0000-0000-0000-000000000000"),
 					Encoding:      backend.EncNone,
 					IndexPageSize: 13,
 					Version:       "vParquet3",
@@ -156,7 +156,7 @@ func TestBuildBackendRequests(t *testing.T) {
 				{
 					Size_:        1000,
 					TotalRecords: 3,
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 			},
 			expectedURIs: []string{
@@ -172,7 +172,7 @@ func TestBuildBackendRequests(t *testing.T) {
 				{
 					Size_:        1000,
 					TotalRecords: 100,
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 			},
 			expectedURIs: []string{
@@ -186,7 +186,7 @@ func TestBuildBackendRequests(t *testing.T) {
 				{
 					Size_:        1000,
 					TotalRecords: 100,
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 			},
 			expectedURIs: []string{
@@ -201,12 +201,12 @@ func TestBuildBackendRequests(t *testing.T) {
 				{
 					Size_:        1000,
 					TotalRecords: 100,
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 				{
 					Size_:        1000,
 					TotalRecords: 200,
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000001"),
 				},
 			},
 			expectedURIs: []string{
@@ -244,7 +244,7 @@ func TestBuildBackendRequests(t *testing.T) {
 }
 
 func TestBackendRequests(t *testing.T) {
-	bm := backend.NewBlockMeta("test", uuid.New().UUID, "wdwad", backend.EncGZIP, "asdf")
+	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad", backend.EncGZIP, "asdf")
 	bm.StartTime = time.Unix(100, 0)
 	bm.EndTime = time.Unix(200, 0)
 	bm.Size_ = defaultTargetBytesPerRequest * 2
@@ -665,7 +665,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 				EndTime:      time.Unix(now, 0),
 				Size_:        defaultTargetBytesPerRequest * 2,
 				TotalRecords: 2,
-				BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+				BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000000"),
 			},
 		},
 	}, o, SearchSharderConfig{

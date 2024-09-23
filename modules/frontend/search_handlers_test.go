@@ -33,7 +33,6 @@ import (
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -560,7 +559,7 @@ func TestSearchAccessesCache(t *testing.T) {
 		EndTime:      time.Unix(16, 0),
 		Size_:        defaultTargetBytesPerRequest,
 		TotalRecords: 1,
-		BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+		BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000123"),
 	}
 
 	rdr := &mockReader{
@@ -678,7 +677,7 @@ func BenchmarkSearchPipeline(b *testing.B) {
 			EndTime:      time.Unix(16, 0),
 			Size_:        defaultTargetBytesPerRequest,
 			TotalRecords: 1,
-			BlockID:      uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012d", i)),
+			BlockID:      backend.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012d", i)),
 		})
 	}
 
@@ -737,14 +736,14 @@ func frontendWithSettings(t require.TestingT, next http.RoundTripper, rdr tempod
 					EndTime:      time.Unix(1200, 0),
 					Size_:        defaultTargetBytesPerRequest * 2,
 					TotalRecords: 2,
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 				{
 					StartTime:    time.Unix(1100, 0),
 					EndTime:      time.Unix(1200, 0),
 					Size_:        defaultTargetBytesPerRequest * 2,
 					TotalRecords: 2,
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000001"),
 				},
 				// These are RF1 metrics blocks
 				{
@@ -752,7 +751,7 @@ func frontendWithSettings(t require.TestingT, next http.RoundTripper, rdr tempod
 					EndTime:           time.Unix(1200, 0),
 					Size_:             defaultTargetBytesPerRequest * 2,
 					TotalRecords:      2,
-					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					BlockID:           backend.MustParse("00000000-0000-0000-0000-000000000002"),
 					ReplicationFactor: 1,
 				},
 				{
@@ -760,7 +759,7 @@ func frontendWithSettings(t require.TestingT, next http.RoundTripper, rdr tempod
 					EndTime:           time.Unix(1200, 0),
 					Size_:             defaultTargetBytesPerRequest * 2,
 					TotalRecords:      2,
-					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					BlockID:           backend.MustParse("00000000-0000-0000-0000-000000000003"),
 					ReplicationFactor: 1,
 				},
 			},

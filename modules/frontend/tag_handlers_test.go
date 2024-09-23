@@ -18,7 +18,6 @@ import (
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/segmentio/fasthash/fnv1a"
 	"github.com/stretchr/testify/require"
@@ -434,7 +433,7 @@ func TestSearchTagsV2AccessesCache(t *testing.T) {
 		EndTime:      time.Unix(16, 0),
 		Size_:        defaultTargetBytesPerRequest,
 		TotalRecords: 1,
-		BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+		BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000123"),
 	}
 
 	rdr := &mockReader{

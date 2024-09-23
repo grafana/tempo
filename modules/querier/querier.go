@@ -39,7 +39,6 @@ import (
 	"github.com/grafana/tempo/pkg/traceqlmetrics"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -847,7 +846,7 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 		return nil, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}
 
-	blockID, err := uuid.Parse(req.BlockID)
+	blockID, err := backend.ParseUUID(req.BlockID)
 	if err != nil {
 		return nil, err
 	}
@@ -910,7 +909,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 		return nil, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}
 
-	blockID, err := uuid.Parse(req.BlockID)
+	blockID, err := backend.ParseUUID(req.BlockID)
 	if err != nil {
 		return nil, err
 	}
@@ -998,7 +997,7 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 		return &tempopb.SearchTagValuesResponse{}, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}
 
-	blockID, err := uuid.Parse(req.BlockID)
+	blockID, err := backend.ParseUUID(req.BlockID)
 	if err != nil {
 		return &tempopb.SearchTagValuesResponse{}, err
 	}
@@ -1046,7 +1045,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		return &tempopb.SearchTagValuesV2Response{}, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}
 
-	blockID, err := uuid.Parse(req.BlockID)
+	blockID, err := backend.ParseUUID(req.BlockID)
 	if err != nil {
 		return &tempopb.SearchTagValuesV2Response{}, err
 	}

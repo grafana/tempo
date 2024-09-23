@@ -12,7 +12,6 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/pkg/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -62,7 +61,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		return nil, fmt.Errorf("error extracting org id in Querier.queryBlock: %w", err)
 	}
 
-	blockID, err := uuid.Parse(req.BlockID)
+	blockID, err := backend.ParseUUID(req.BlockID)
 	if err != nil {
 		return nil, err
 	}
