@@ -7,6 +7,7 @@ import (
 
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/klauspost/compress/gzip"
+	"github.com/klauspost/compress/zstd"
 )
 
 const (
@@ -61,9 +62,41 @@ func (b *TenantIndex) unmarshal(buffer []byte) error {
 }
 
 func (b *TenantIndex) marshalPb() ([]byte, error) {
-	return proto.Marshal(b)
+	buffer := &bytes.Buffer{}
+
+	z, err := zstd.NewWriter(buffer)
+	if err != nil {
+		return nil, err
+	}
+
+	pbBytes, err := proto.Marshal(b)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err = z.Write(pbBytes); err != nil {
+		return nil, err
+	}
+	if err = z.Flush(); err != nil {
+		return nil, err
+	}
+	if err = z.Close(); err != nil {
+		return nil, err
+	}
+
+	return buffer.Bytes(), nil
 }
 
 func (b *TenantIndex) unmarshalPb(buffer []byte) error {
-	return b.Unmarshal(buffer)
+	decoder, err := zstd.NewReader(nil, zstd.WithDecoderConcurrency(0))
+	if err != nil {
+		return err
+	}
+
+	bb, err := decoder.DecodeAll(buffer, nil)
+	if err != nil {
+		return err
+	}
+
+	return b.Unmarshal(bb)
 }

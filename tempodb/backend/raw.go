@@ -21,7 +21,7 @@ const (
 	TenantIndexName   = "index.json.gz"
 
 	// Proto
-	TenantIndexNamePb = "index.pb"
+	TenantIndexNamePb = "index.pb.zst"
 
 	// File name for the cluster seed file.
 	ClusterSeedFileName = "tempo_cluster_seed.json"
