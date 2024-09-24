@@ -476,14 +476,17 @@ func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) 
 		return nil, fmt.Errorf("error extracting org id in Querier.Search: %w", err)
 	}
 
-	coll := collector.NewGenericCollector[*tempopb.SearchResponse]()
+	var results []*tempopb.SearchResponse
+	mtx := sync.Mutex{}
 
 	forEach := func(ctx context.Context, client tempopb.QuerierClient) error {
 		resp, err := client.SearchRecent(ctx, req)
 		if err != nil {
 			return err
 		}
-		coll.Collect(resp)
+		mtx.Lock()
+		defer mtx.Unlock()
+		results = append(results, resp)
 		return nil
 	}
 	err = q.forIngesterRings(ctx, userID, nil, forEach)
@@ -491,7 +494,7 @@ func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) 
 		return nil, fmt.Errorf("error querying ingesters in Querier.Search: %w", err)
 	}
 
-	return q.postProcessIngesterSearchResults(req, coll.Values()), nil
+	return q.postProcessIngesterSearchResults(req, results), nil
 }
 
 func (q *Querier) SearchTagsBlocks(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsResponse, error) {
@@ -1101,14 +1104,14 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 	return valuesToV2Response(valueCollector), nil
 }
 
-func (q *Querier) postProcessIngesterSearchResults(req *tempopb.SearchRequest, collResp []*tempopb.SearchResponse) *tempopb.SearchResponse {
+func (q *Querier) postProcessIngesterSearchResults(req *tempopb.SearchRequest, results []*tempopb.SearchResponse) *tempopb.SearchResponse {
 	response := &tempopb.SearchResponse{
 		Metrics: &tempopb.SearchMetrics{},
 	}
 
 	traces := map[string]*tempopb.TraceSearchMetadata{}
 
-	for _, sr := range collResp {
+	for _, sr := range results {
 		for _, t := range sr.Traces {
 			// Just simply take first result for each trace
 			if _, ok := traces[t.TraceID]; !ok {
