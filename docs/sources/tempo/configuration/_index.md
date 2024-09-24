@@ -178,7 +178,7 @@ distributor:
           tls:
 
             # Optional.
-            # Disables TSL if set to true.
+            # Disables TLS if set to true.
             [insecure: <boolean> | default = false]
 
             # Optional.

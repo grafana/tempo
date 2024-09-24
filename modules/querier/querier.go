@@ -504,6 +504,9 @@ func (q *Querier) SearchTagsBlocks(ctx context.Context, req *tempopb.SearchTagsB
 
 		for _, t := range s.Tags {
 			distinctValues.Collect(t)
+			if distinctValues.Exceeded() {
+				break // stop early
+			}
 		}
 	}
 
@@ -539,9 +542,14 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 	if err != nil {
 		return nil, fmt.Errorf("error querying ingesters in Querier.SearchTags: %w", err)
 	}
+
+outerLoop:
 	for _, resp := range lookupResults {
 		for _, res := range resp.response.(*tempopb.SearchTagsResponse).TagNames {
 			distinctValues.Collect(res)
+			if distinctValues.Exceeded() {
+				break outerLoop // break out of all loops
+			}
 		}
 	}
 
@@ -573,10 +581,14 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewScopedDistinctString(limit)
 
+outerLoop:
 	for _, resp := range lookupResults {
 		for _, res := range resp.response.(*tempopb.SearchTagsV2Response).Scopes {
 			for _, tag := range res.Tags {
 				distinctValues.Collect(res.Name, tag)
+				if distinctValues.Exceeded() {
+					break outerLoop // break out of all loops
+				}
 			}
 		}
 	}
@@ -610,6 +622,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 
 	// Virtual tags values. Get these first.
 	for _, v := range search.GetVirtualTagValues(req.TagName) {
+		// virtual tags are small so no need to stop early here
 		distinctValues.Collect(v)
 	}
 
@@ -619,9 +632,14 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	if err != nil {
 		return nil, fmt.Errorf("error querying ingesters in Querier.SearchTagValues: %w", err)
 	}
+
+outerLoop:
 	for _, resp := range lookupResults {
 		for _, res := range resp.response.(*tempopb.SearchTagValuesResponse).TagValues {
 			distinctValues.Collect(res)
+			if distinctValues.Exceeded() {
+				break outerLoop // break out of all loops
+			}
 		}
 	}
 
@@ -648,6 +666,7 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 	// Virtual tags values. Get these first.
 	virtualVals := search.GetVirtualTagValuesV2(req.TagName)
 	for _, v := range virtualVals {
+		// no need to stop early here, virtual tags are small
 		distinctValues.Collect(v)
 	}
 
@@ -664,14 +683,18 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 	if err != nil {
 		return nil, fmt.Errorf("error querying ingesters in Querier.SearchTagValues: %w", err)
 	}
+
+outerLoop:
 	for _, resp := range lookupResults {
 		for _, res := range resp.response.(*tempopb.SearchTagValuesV2Response).TagValues {
-			distinctValues.Collect(*res)
+			if distinctValues.Collect(*res) {
+				break outerLoop // break out of all loops
+			}
 		}
 	}
 
 	if distinctValues.Exceeded() {
-		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "limit", limit, "total", distinctValues.TotalDataSize())
+		_ = level.Warn(log.Logger).Log("msg", "size of tag values exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "limit", limit, "size", distinctValues.Size())
 	}
 
 	return valuesToV2Response(distinctValues), nil
