@@ -103,10 +103,10 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	reqCh := make(chan pipeline.Request, 2) // buffer of 2 allows us to insert generatorReq and metrics
 
 	if generatorReq != nil {
-		reqCh <- pipeline.NewHTTPRequest(generatorReq)
+		reqCh <- pipelineRequest.FromHTTPRequest(generatorReq)
 	}
 
-	totalJobs, totalBlocks, totalBlockBytes := s.backendRequests(ctx, tenantID, r, *req, cutoff, targetBytesPerRequest, reqCh)
+	totalJobs, totalBlocks, totalBlockBytes := s.backendRequests(ctx, tenantID, pipelineRequest, *req, cutoff, targetBytesPerRequest, reqCh)
 
 	span.SetAttributes(attribute.Int64("totalJobs", int64(totalJobs)))
 	span.SetAttributes(attribute.Int64("totalBlocks", int64(totalBlocks)))
@@ -158,7 +158,7 @@ func (s *queryRangeSharder) exemplarsPerShard(total uint32) uint32 {
 	return uint32(math.Ceil(float64(s.cfg.MaxExemplars)*1.2)) / total
 }
 
-func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, targetBytesPerRequest int, reqCh chan pipeline.Request) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
+func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, targetBytesPerRequest int, reqCh chan pipeline.Request) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
 	// request without start or end, search only in generator
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		close(reqCh)
@@ -204,7 +204,7 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 	return
 }
 
-func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, metas []*backend.BlockMeta, targetBytesPerRequest int, reqCh chan<- pipeline.Request) {
+func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, metas []*backend.BlockMeta, targetBytesPerRequest int, reqCh chan<- pipeline.Request) {
 	defer close(reqCh)
 
 	queryHash := hashForQueryRangeRequest(&searchReq)
@@ -230,7 +230,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 		}
 
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
-			subR := parent.Clone(ctx)
+			subR := parent.HTTPRequest().Clone(ctx)
 
 			dedColsJSON, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
 			if err != nil {
@@ -268,7 +268,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 			subR = api.BuildQueryRangeRequest(subR, queryRangeReq, dedColsJSON)
 
 			prepareRequestForQueriers(subR, tenantID)
-			pipelineR := pipeline.NewHTTPRequest(subR)
+			pipelineR := parent.FromHTTPRequest(subR)
 
 			// TODO: Handle sampling rate
 			key := queryRangeCacheKey(tenantID, queryHash, int64(queryRangeReq.Start), int64(queryRangeReq.End), m, int(queryRangeReq.StartPage), int(queryRangeReq.PagesToSearch))

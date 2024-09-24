@@ -23,6 +23,7 @@ type Request interface {
 
 	SetResponseData(any) // add data that will be sent back with this requests response
 	ResponseData() any
+	FromHTTPRequest(request *http.Request) *HTTPRequest
 }
 
 type HTTPRequest struct {
@@ -75,6 +76,10 @@ func (r *HTTPRequest) Weight() int {
 
 func (r *HTTPRequest) SetWeight(w int) {
 	r.weight = w
+}
+
+func (r *HTTPRequest) FromHTTPRequest(request *http.Request) *HTTPRequest {
+	return &HTTPRequest{req: request, weight: r.weight}
 }
 
 //
