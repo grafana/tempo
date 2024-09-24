@@ -330,6 +330,20 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		return NewStaticNil(), err
 	}
 
+	// Look for cases where we don't even need to evalulate the RHS
+	if lhsB, ok := lhs.Bool(); ok {
+		if o.Op == OpAnd && !lhsB {
+			// x && y
+			// x is false so we don't need to evalulate y
+			return StaticFalse, nil
+		}
+		if o.Op == OpOr && lhsB {
+			// x || y
+			// x is true so we don't need to evalulate y
+			return StaticTrue, nil
+		}
+	}
+
 	rhs, err := o.RHS.execute(span)
 	if err != nil {
 		return NewStaticNil(), err
