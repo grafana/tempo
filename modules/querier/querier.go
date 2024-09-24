@@ -392,7 +392,7 @@ func (q *Querier) forIngesterRings(ctx context.Context, userID string, getReplic
 }
 
 func forOneIngesterRing(ctx context.Context, replicationSet ring.ReplicationSet, f forEachFn, pool *ring_client.Pool, extraQueryDelay time.Duration) error {
-	ctx, span := tracer.Start(ctx, "Querier.forOneIngester")
+	ctx, span := tracer.Start(ctx, "Querier.forOneIngesterRing")
 	defer span.End()
 
 	doFunc := func(funcCtx context.Context, ingester *ring.InstanceDesc) (interface{}, error) {
