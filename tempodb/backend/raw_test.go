@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	proto "github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +25,7 @@ func TestWriter(t *testing.T) {
 
 	err := w.Write(ctx, "test", uuid.New(), "test", expected, nil)
 	assert.NoError(t, err)
-	assert.Equal(t, expected, m.writeBuffer[len(m.writeBuffer)-1])
+	assert.Equal(t, expected, m.writeBuffer)
 
 	_, err = w.Append(ctx, "test", uuid.New(), "test", nil, expected)
 	assert.NoError(t, err)
@@ -37,54 +36,23 @@ func TestWriter(t *testing.T) {
 	assert.True(t, m.closeAppendCalled)
 
 	meta := NewBlockMeta("test", uuid.New(), "blerg", EncGZIP, "glarg")
-
-	// RoundTrip with empty DedicatedColumns
-	expectedPb, err := meta.Marshal()
+	jsonBytes, err := json.Marshal(meta)
 	assert.NoError(t, err)
-	expectedPb2 := &BlockMeta{}
-	err = expectedPb2.Unmarshal(expectedPb)
-	assert.NoError(t, err)
-	assert.Equal(t, meta, expectedPb2)
-
-	// RoundTrip with non-empty DedicatedColumns
-	meta.DedicatedColumns = DedicatedColumns{
-		{Scope: "resource", Name: "namespace", Type: "string"},
-		{Scope: "span", Name: "http.method", Type: "string"},
-		{Scope: "span", Name: "namespace", Type: "string"},
-	}
-
-	expectedPb, err = meta.Marshal()
-	assert.NoError(t, err)
-	expectedPb3 := &BlockMeta{}
-	err = expectedPb3.Unmarshal(expectedPb)
-	assert.NoError(t, err)
-	assert.Equal(t, meta, expectedPb3)
-
-	// Round trip the json
-	expected, err = json.Marshal(meta)
-	assert.NoError(t, err)
-	expected2 := &BlockMeta{}
-	err = json.Unmarshal(expected, expected2)
-	assert.NoError(t, err)
-	assert.Equal(t, meta, expected2)
 
 	// Write the block meta to the backend and validate the payloads.
 	err = w.WriteBlockMeta(ctx, meta)
 	assert.NoError(t, err)
-	assert.Equal(t, expectedPb, m.writeBuffer[len(m.writeBuffer)-2])
-	assert.Equal(t, expected, m.writeBuffer[len(m.writeBuffer)-1])
+	assert.Equal(t, jsonBytes, m.writeBuffer)
 
 	// Write the tenant index to the backend and validate the payloads.
 	err = w.WriteTenantIndex(ctx, "test", []*BlockMeta{meta}, nil)
 	assert.NoError(t, err)
 
-	idxPb := &TenantIndex{}
-	err = proto.Unmarshal(m.writeBuffer[len(m.writeBuffer)-2], idxPb)
-	assert.NoError(t, err)
 	idx := &TenantIndex{}
-	err = idx.unmarshal(m.writeBuffer[len(m.writeBuffer)-1])
+	err = idx.unmarshalPb(m.writeBuffer)
 	assert.NoError(t, err)
 
+	assert.Equal(t, []*BlockMeta{meta}, idx.Meta)
 	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idx.Meta))                  // using cmp.Equal to compare json datetimes
 	assert.True(t, cmp.Equal([]*CompactedBlockMeta(nil), idx.CompactedMeta)) // using cmp.Equal to compare json datetimes
 
@@ -216,4 +184,41 @@ func TestRootPath(t *testing.T) {
 	rootPath = RootPath(b, tid, prefix)
 
 	assert.Equal(t, prefix+"/"+tid+"/"+b.String(), rootPath)
+}
+
+func TestRoundTripMeta(t *testing.T) {
+	// RoundTrip with empty DedicatedColumns
+	meta := NewBlockMeta("test", uuid.New(), "blerg", EncGZIP, "glarg")
+	// RoundTrip with empty DedicatedColumns
+	expectedPb, err := meta.Marshal()
+	assert.NoError(t, err)
+	expectedPb2 := &BlockMeta{}
+	err = expectedPb2.Unmarshal(expectedPb)
+	assert.NoError(t, err)
+	assert.Equal(t, meta, expectedPb2)
+
+	// RoundTrip with non-empty DedicatedColumns
+	meta.DedicatedColumns = DedicatedColumns{
+		{Scope: "resource", Name: "namespace", Type: "string"},
+		{Scope: "span", Name: "http.method", Type: "string"},
+		{Scope: "span", Name: "namespace", Type: "string"},
+	}
+
+	expectedPb, err = meta.Marshal()
+	assert.NoError(t, err)
+	expectedPb3 := &BlockMeta{}
+	err = expectedPb3.Unmarshal(expectedPb)
+	assert.NoError(t, err)
+	assert.Equal(t, meta, expectedPb3)
+
+	// Round trip the json
+	jsonBytes, err := json.Marshal(meta)
+	assert.NoError(t, err)
+	expected2 := &BlockMeta{}
+	err = json.Unmarshal(jsonBytes, expected2)
+	assert.NoError(t, err)
+	assert.Equal(t, meta, expected2)
+
+	// Does json have the same object as proto?
+	assert.Equal(t, meta, expected2, expectedPb2, expectedPb3)
 }

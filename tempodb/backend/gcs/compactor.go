@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"cloud.google.com/go/storage"
-	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/googleapis/gax-go/v2"
 	"google.golang.org/api/iterator"
@@ -16,28 +15,7 @@ import (
 )
 
 func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
-	// move meta files to a new location
-
-	metaFilenamePb := backend.MetaFileNamePb(blockID, tenantID, rw.cfg.Prefix)
-	compactedMetaFilenamePb := backend.CompactedMetaFileNamePb(blockID, tenantID, rw.cfg.Prefix)
-
-	srcPb := rw.bucket.Object(metaFilenamePb)
-	dstPb := rw.bucket.Object(compactedMetaFilenamePb).Retryer(
-		storage.WithBackoff(gax.Backoff{}),
-		storage.WithPolicy(storage.RetryAlways),
-	)
-
-	ctx := context.TODO()
-	_, err := dstPb.CopierFrom(srcPb).Run(ctx)
-	if err != nil {
-		level.Error(rw.logger).Log("msg", "error copying obj meta.pb to compacted.pb, is this block from previous Tempo version?", "err", err)
-	} else {
-		err = srcPb.Delete(ctx)
-		if err != nil {
-			return err
-		}
-	}
-
+	// move meta file to a new location
 	metaFilename := backend.MetaFileName(blockID, tenantID, rw.cfg.Prefix)
 	compactedMetaFilename := backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix)
 
@@ -47,7 +25,8 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 		storage.WithPolicy(storage.RetryAlways),
 	)
 
-	_, err = dst.CopierFrom(src).Run(ctx)
+	ctx := context.TODO()
+	_, err := dst.CopierFrom(src).Run(ctx)
 	if err != nil {
 		return err
 	}
@@ -90,13 +69,6 @@ func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
 }
 
 func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
-	outPb, err := rw.compactedBlockMetaPb(blockID, tenantID)
-	if err == nil {
-		return outPb, nil
-	}
-
-	// TODO: record a note about fallback
-
 	name := backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix)
 
 	bytes, attrs, err := rw.readAll(context.Background(), name)
@@ -106,24 +78,6 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 
 	out := &backend.CompactedBlockMeta{}
 	err = json.Unmarshal(bytes, out)
-	if err != nil {
-		return nil, err
-	}
-	out.CompactedTime = attrs.LastModified
-
-	return out, nil
-}
-
-func (rw *readerWriter) compactedBlockMetaPb(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
-	name := backend.CompactedMetaFileNamePb(blockID, tenantID, rw.cfg.Prefix)
-
-	bytes, attrs, err := rw.readAll(context.Background(), name)
-	if err != nil {
-		return nil, readError(err)
-	}
-
-	out := &backend.CompactedBlockMeta{}
-	err = out.Unmarshal(bytes)
 	if err != nil {
 		return nil, err
 	}

@@ -21,33 +21,11 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	}
 
 	putObjectOptions := getPutObjectOptions(rw)
-	ctx := context.TODO()
-
-	metaFileNamePb := backend.MetaFileNamePb(blockID, tenantID, rw.cfg.Prefix)
-	// copy meta.json to meta.compacted.json
-	_, err := rw.core.CopyObject(
-		ctx,
-		rw.cfg.Bucket,
-		metaFileNamePb,
-		rw.cfg.Bucket,
-		backend.CompactedMetaFileNamePb(blockID, tenantID, rw.cfg.Prefix),
-		nil,
-		minio.CopySrcOptions{},
-		putObjectOptions,
-	)
-	if err != nil {
-		level.Error(rw.logger).Log("msg", "error copying obj meta.pb to compacted.pb, is this block from previous Tempo version?", "err", err)
-	} else {
-		err = rw.core.RemoveObject(ctx, rw.cfg.Bucket, metaFileNamePb, minio.RemoveObjectOptions{})
-		if err != nil {
-			return err
-		}
-	}
 
 	metaFileName := backend.MetaFileName(blockID, tenantID, rw.cfg.Prefix)
 	// copy meta.json to meta.compacted.json
-	_, err = rw.core.CopyObject(
-		ctx,
+	_, err := rw.core.CopyObject(
+		context.TODO(),
 		rw.cfg.Bucket,
 		metaFileName,
 		rw.cfg.Bucket,
@@ -61,7 +39,7 @@ func (rw *readerWriter) MarkBlockCompacted(blockID uuid.UUID, tenantID string) e
 	}
 
 	// delete meta.json
-	return rw.core.RemoveObject(ctx, rw.cfg.Bucket, metaFileName, minio.RemoveObjectOptions{})
+	return rw.core.RemoveObject(context.TODO(), rw.cfg.Bucket, metaFileName, minio.RemoveObjectOptions{})
 }
 
 func (rw *readerWriter) ClearBlock(blockID uuid.UUID, tenantID string) error {
@@ -100,13 +78,6 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 		return nil, backend.ErrEmptyBlockID
 	}
 
-	outPb, err := rw.compactedBlockMetaPb(blockID, tenantID)
-	if err == nil {
-		return outPb, nil
-	}
-
-	// TODO: record a note about fallback
-
 	compactedMetaFileName := backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix)
 	bytes, info, err := rw.readAllWithObjInfo(context.TODO(), compactedMetaFileName)
 	if err != nil {
@@ -115,23 +86,6 @@ func (rw *readerWriter) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (
 
 	out := &backend.CompactedBlockMeta{}
 	err = json.Unmarshal(bytes, out)
-	if err != nil {
-		return nil, err
-	}
-	out.CompactedTime = info.LastModified
-
-	return out, nil
-}
-
-func (rw *readerWriter) compactedBlockMetaPb(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
-	compactedMetaFileNamePb := backend.CompactedMetaFileNamePb(blockID, tenantID, rw.cfg.Prefix)
-	bytes, info, err := rw.readAllWithObjInfo(context.TODO(), compactedMetaFileNamePb)
-	if err != nil {
-		return nil, readError(err)
-	}
-
-	out := &backend.CompactedBlockMeta{}
-	err = out.Unmarshal(bytes)
 	if err != nil {
 		return nil, err
 	}

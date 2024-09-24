@@ -307,10 +307,6 @@ func (rw *Backend) metaFileName(blockID uuid.UUID, tenantID string) string {
 	return filepath.Join(rw.rootPath(backend.KeyPathForBlock(blockID, tenantID)), backend.MetaName)
 }
 
-func (rw *Backend) metaFileNamePb(blockID uuid.UUID, tenantID string) string {
-	return filepath.Join(rw.rootPath(backend.KeyPathForBlock(blockID, tenantID)), backend.MetaNamePb)
-}
-
 func (rw *Backend) rootPath(keypath backend.KeyPath) string {
 	return filepath.Join(rw.cfg.Path, filepath.Join(keypath...))
 }

@@ -103,6 +103,8 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 		return nil, fmt.Errorf("config is nil")
 	}
 
+	l := log.Logger
+
 	core, err := createCore(cfg, false)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error creating core: %w", err)
@@ -122,7 +124,7 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 	}
 
 	rw := &readerWriter{
-		logger:     log.Logger,
+		logger:     l,
 		cfg:        cfg,
 		core:       core,
 		hedgedCore: hedgedCore,

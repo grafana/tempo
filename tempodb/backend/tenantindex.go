@@ -59,3 +59,11 @@ func (b *TenantIndex) unmarshal(buffer []byte) error {
 	d := json.NewDecoder(gzipReader)
 	return d.Decode(b)
 }
+
+func (b *TenantIndex) marshalPb() ([]byte, error) {
+	return proto.Marshal(b)
+}
+
+func (b *TenantIndex) unmarshalPb(buffer []byte) error {
+	return b.Unmarshal(buffer)
+}

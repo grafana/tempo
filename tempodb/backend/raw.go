@@ -9,7 +9,6 @@ import (
 	"path"
 	"time"
 
-	proto "github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -22,9 +21,7 @@ const (
 	TenantIndexName   = "index.json.gz"
 
 	// Proto
-	MetaNamePb          = "meta.pb"
-	CompactedMetaNamePb = "meta.compacted.pb"
-	TenantIndexNamePb   = "index.pb"
+	TenantIndexNamePb = "index.pb"
 
 	// File name for the cluster seed file.
 	ClusterSeedFileName = "tempo_cluster_seed.json"
@@ -107,18 +104,6 @@ func (w *writer) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
 		tenantID = meta.TenantID
 	)
 
-	// marshal and write proto to the backend
-	mPb, err := proto.Marshal(meta)
-	if err != nil {
-		return err
-	}
-
-	err = w.w.Write(ctx, MetaNamePb, KeyPathForBlock((uuid.UUID)(blockID), tenantID), bytes.NewReader(mPb), int64(len(mPb)), nil)
-	if err != nil {
-		return err
-	}
-
-	// marshal and write json to the backend
 	bMeta, err := json.Marshal(meta)
 	if err != nil {
 		return err
@@ -157,22 +142,12 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 
 	b := newTenantIndex(meta, compactedMeta)
 
-	indexBytesPb, err := proto.Marshal(b)
+	indexBytesPb, err := b.marshalPb()
 	if err != nil {
 		return err
 	}
 
-	err = w.w.Write(ctx, TenantIndexNamePb, KeyPath([]string{tenantID}), bytes.NewReader(indexBytesPb), int64(len(indexBytesPb)), nil)
-	if err != nil {
-		return err
-	}
-
-	indexBytes, err := b.marshal()
-	if err != nil {
-		return err
-	}
-
-	return w.w.Write(ctx, TenantIndexName, KeyPath([]string{tenantID}), bytes.NewReader(indexBytes), int64(len(indexBytes)), nil)
+	return w.w.Write(ctx, TenantIndexNamePb, KeyPath([]string{tenantID}), bytes.NewReader(indexBytesPb), int64(len(indexBytesPb)), nil)
 }
 
 // Delete implements backend.Writer
@@ -233,16 +208,6 @@ func (r *reader) Blocks(ctx context.Context, tenantID string) ([]uuid.UUID, []uu
 
 // BlockMeta implements backend.Reader
 func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
-	ctx, span := tracer.Start(ctx, "reader.BlockMeta")
-	defer span.End()
-
-	outPb, err := r.blockMetaPb(ctx, blockID, tenantID)
-	if err == nil {
-		return outPb, nil
-	}
-
-	span.AddEvent(EventJSONFallback)
-
 	reader, size, err := r.r.Read(ctx, MetaName, KeyPathForBlock(blockID, tenantID), nil)
 	if err != nil {
 		return nil, err
@@ -261,28 +226,6 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 	}
 
 	return out, nil
-}
-
-func (r *reader) blockMetaPb(ctx context.Context, blockID uuid.UUID, tenantID string) (*BlockMeta, error) {
-	// Read proto first, and fall back to json
-	readerPb, size, err := r.r.Read(ctx, MetaNamePb, KeyPathForBlock(blockID, tenantID), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer readerPb.Close()
-
-	bytesPb, err := tempo_io.ReadAllWithEstimate(readerPb, size)
-	if err != nil {
-		return nil, err
-	}
-
-	outPb := &BlockMeta{}
-	err = outPb.Unmarshal(bytesPb)
-	if err != nil {
-		return nil, err
-	}
-
-	return outPb, nil
 }
 
 // TenantIndex implements backend.Reader
@@ -330,7 +273,7 @@ func (r *reader) tenantIndexProto(ctx context.Context, tenantID string) (*Tenant
 	}
 
 	out := &TenantIndex{}
-	err = out.Unmarshal(bytesPb)
+	err = out.unmarshalPb(bytesPb)
 	if err != nil {
 		return nil, err
 	}
@@ -372,17 +315,9 @@ func MetaFileName(blockID uuid.UUID, tenantID, prefix string) string {
 	return path.Join(prefix, tenantID, blockID.String(), MetaName)
 }
 
-func MetaFileNamePb(blockID uuid.UUID, tenantID, prefix string) string {
-	return path.Join(prefix, tenantID, blockID.String(), MetaNamePb)
-}
-
 // CompactedMetaFileName returns the object name for the compacted block meta given a block id and tenantid
 func CompactedMetaFileName(blockID uuid.UUID, tenantID, prefix string) string {
 	return path.Join(prefix, tenantID, blockID.String(), CompactedMetaName)
-}
-
-func CompactedMetaFileNamePb(blockID uuid.UUID, tenantID, prefix string) string {
-	return path.Join(prefix, tenantID, blockID.String(), CompactedMetaNamePb)
 }
 
 // RootPath returns the root path for a block given a block id and tenantid

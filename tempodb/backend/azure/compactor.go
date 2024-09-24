@@ -8,7 +8,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
-	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -30,30 +29,10 @@ func (rw *Azure) MarkBlockCompacted(blockID uuid.UUID, tenantID string) error {
 		return backend.ErrEmptyBlockID
 	}
 
-	ctx := context.TODO()
-
-	// move meta files to a new location
-	metaFilenamePb := backend.MetaFileNamePb(blockID, tenantID, rw.cfg.Prefix)
-	compactedMetaFilenamePb := backend.CompactedMetaFileNamePb(blockID, tenantID, rw.cfg.Prefix)
-
-	srcPb, _, err := rw.readAll(ctx, metaFilenamePb)
-	if err != nil {
-		level.Error(rw.logger).Log("msg", "error copying obj meta.pb to compacted.pb, is this block from previous Tempo version?", "err", err)
-	} else {
-		err = rw.writeAll(ctx, compactedMetaFilenamePb, srcPb)
-		if err != nil {
-			return err
-		}
-
-		// delete the old file
-		err = rw.Delete(ctx, metaFilenamePb, []string{}, nil)
-		if err != nil {
-			return err
-		}
-	}
-
+	// move meta file to a new location
 	metaFilename := backend.MetaFileName(blockID, tenantID, rw.cfg.Prefix)
 	compactedMetaFilename := backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix)
+	ctx := context.TODO()
 
 	src, _, err := rw.readAll(ctx, metaFilename)
 	if err != nil {
@@ -117,14 +96,6 @@ func (rw *Azure) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backen
 	if blockID == uuid.Nil {
 		return nil, backend.ErrEmptyBlockID
 	}
-
-	outPb, err := rw.compactedBlockMetaPb(blockID, tenantID)
-	if err == nil {
-		return outPb, nil
-	}
-
-	// TODO: record a note about the fallback
-
 	name := backend.CompactedMetaFileName(blockID, tenantID, rw.cfg.Prefix)
 
 	bytes, modTime, err := rw.readAllWithModTime(context.Background(), name)
@@ -134,24 +105,6 @@ func (rw *Azure) CompactedBlockMeta(blockID uuid.UUID, tenantID string) (*backen
 
 	out := &backend.CompactedBlockMeta{}
 	err = json.Unmarshal(bytes, out)
-	if err != nil {
-		return nil, err
-	}
-	out.CompactedTime = modTime
-
-	return out, nil
-}
-
-func (rw *Azure) compactedBlockMetaPb(blockID uuid.UUID, tenantID string) (*backend.CompactedBlockMeta, error) {
-	name := backend.CompactedMetaFileNamePb(blockID, tenantID, rw.cfg.Prefix)
-
-	bytes, modTime, err := rw.readAllWithModTime(context.Background(), name)
-	if err != nil {
-		return nil, readError(err)
-	}
-
-	out := &backend.CompactedBlockMeta{}
-	err = out.Unmarshal(bytes)
 	if err != nil {
 		return nil, err
 	}

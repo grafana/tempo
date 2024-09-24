@@ -19,7 +19,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
-	gkLog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/util/log"
@@ -37,7 +36,6 @@ const (
 )
 
 type Azure struct {
-	logger                gkLog.Logger
 	cfg                   *Config
 	containerClient       *container.Client
 	hedgedContainerClient *container.Client
@@ -97,7 +95,6 @@ func internalNew(cfg *Config, confirm bool) (*Azure, error) {
 	}
 
 	rw := &Azure{
-		logger:                log.Logger,
 		cfg:                   cfg,
 		containerClient:       c,
 		hedgedContainerClient: hedgedContainer,
