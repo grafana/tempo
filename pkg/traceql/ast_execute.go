@@ -339,7 +339,7 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	lhsT := lhs.Type
 	rhsT := rhs.Type
 	if !lhsT.isMatchingOperand(rhsT) {
-		return NewStaticBool(false), nil
+		return StaticFalse, nil
 	}
 
 	if !o.Op.binaryTypesValid(lhsT, rhsT) {
@@ -585,7 +585,7 @@ func (a Attribute) execute(span Span) (Static, error) {
 		return static, nil
 	}
 
-	return NewStaticNil(), nil
+	return StaticNil, nil
 }
 
 func uniqueSpans(ss1 []*Spanset, ss2 []*Spanset) []Span {
