@@ -174,6 +174,7 @@ func (k Kind) String() string {
 }
 
 var (
+	StaticNil   = NewStaticNil()
 	StaticTrue  = NewStaticBool(true)
 	StaticFalse = NewStaticBool(false)
 )
