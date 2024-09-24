@@ -1,6 +1,8 @@
 package collector
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -32,4 +34,22 @@ func TestDistinctStringCollectorDiff(t *testing.T) {
 
 	require.Equal(t, []string{"890"}, d.Diff())
 	require.Equal(t, []string{}, d.Diff())
+}
+
+func TestDistinctStringCollectorIsSafe(t *testing.T) {
+	d := NewDistinctString(0) // no limit
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for j := 0; j < 100; j++ {
+				d.Collect(fmt.Sprintf("goroutine-%d-string-%d", id, j))
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	require.Equal(t, len(d.Strings()), 10*100)
+	require.False(t, d.Exceeded())
 }
