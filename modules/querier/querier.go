@@ -590,16 +590,14 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 		if err != nil {
 			return err
 		}
-	outerLoop:
 		for _, res := range resp.Scopes {
 			for _, tag := range res.Tags {
 				distinctValues.Collect(res.Name, tag)
 				if distinctValues.Exceeded() {
-					break outerLoop // break out of all loops
+					return nil
 				}
 			}
 		}
-
 		return nil
 	}
 
@@ -646,11 +644,10 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 		if err != nil {
 			return err
 		}
-	outerLoop:
 		for _, res := range resp.TagValues {
 			distinctValues.Collect(res)
 			if distinctValues.Exceeded() {
-				break outerLoop // break out of all loops
+				return nil
 			}
 		}
 
