@@ -222,7 +222,7 @@ PROTOC = docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PRO
 PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
 PROTO_INCLUDES = -I$(PROTO_INTERMEDIATE_DIR)
 PROTO_GEN = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc,paths=source_relative:$(2) $(1)
-PROTO_GEN_WITH_VENDOR = $(PROTOC) $(PROTO_INCLUDES) -Ivendor -Ivendor/github.com/gogo/protobuf -Ipkg/tempopb --gogofaster_out=plugins=grpc,paths=source_relative:$(2) $(1)
+PROTO_GEN_WITH_VENDOR = $(PROTOC) $(PROTO_INCLUDES) -Ivendor -Ivendor/github.com/gogo/protobuf --gogofaster_out=plugins=grpc,paths=source_relative:$(2) $(1)
 PROTO_GEN_WITHOUT_RELATIVE = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc:$(2) $(1)
 
 .PHONY: gen-proto
