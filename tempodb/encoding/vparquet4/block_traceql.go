@@ -122,6 +122,7 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 			if attrs[0].a == a {
 				return &attrs[0].s
 			}
+			return nil
 		}
 		if len(attrs) == 2 {
 			if attrs[0].a == a {
@@ -130,11 +131,12 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 			if attrs[1].a == a {
 				return &attrs[1].s
 			}
+			return nil
 		}
 
-		for _, st := range attrs {
-			if st.a == a {
-				return &st.s
+		for i := range attrs {
+			if attrs[i].a == a {
+				return &attrs[i].s
 			}
 		}
 		return nil
@@ -144,6 +146,7 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 			if attrs[0].a.Name == s {
 				return &attrs[0].s
 			}
+			return nil
 		}
 		if len(attrs) == 2 {
 			if attrs[0].a.Name == s {
@@ -152,47 +155,53 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 			if attrs[1].a.Name == s {
 				return &attrs[1].s
 			}
+			return nil
 		}
 
-		for _, st := range attrs {
-			if st.a.Name == s {
-				return &st.s
+		for i := range attrs {
+			if attrs[i].a.Name == s {
+				return &attrs[i].s
 			}
 		}
 		return nil
 	}
 
-	if a.Scope == traceql.AttributeScopeResource {
-		if attr := find(a, s.resourceAttrs); attr != nil {
-			return *attr, true
+	switch a.Scope {
+	case traceql.AttributeScopeResource:
+		if len(s.resourceAttrs) > 0 {
+			if attr := find(a, s.resourceAttrs); attr != nil {
+				return *attr, true
+			}
 		}
-		return traceql.NewStaticNil(), false
-	}
-
-	if a.Scope == traceql.AttributeScopeSpan {
-		if attr := find(a, s.spanAttrs); attr != nil {
-			return *attr, true
+		return traceql.StaticNil, false
+	case traceql.AttributeScopeSpan:
+		if len(s.spanAttrs) > 0 {
+			if attr := find(a, s.spanAttrs); attr != nil {
+				return *attr, true
+			}
 		}
-		return traceql.NewStaticNil(), false
-	}
-
-	if a.Scope == traceql.AttributeScopeEvent {
-		if attr := find(a, s.eventAttrs); attr != nil {
-			return *attr, true
+		return traceql.StaticNil, false
+	case traceql.AttributeScopeEvent:
+		if len(s.eventAttrs) > 0 {
+			if attr := find(a, s.eventAttrs); attr != nil {
+				return *attr, true
+			}
 		}
-		return traceql.NewStaticNil(), false
-	}
-	if a.Scope == traceql.AttributeScopeLink {
-		if attr := find(a, s.linkAttrs); attr != nil {
-			return *attr, true
+		return traceql.StaticNil, false
+	case traceql.AttributeScopeLink:
+		if len(s.linkAttrs) > 0 {
+			if attr := find(a, s.linkAttrs); attr != nil {
+				return *attr, true
+			}
 		}
-		return traceql.NewStaticNil(), false
-	}
-	if a.Scope == traceql.AttributeScopeInstrumentation {
-		if attr := find(a, s.instrumentationAttrs); attr != nil {
-			return *attr, true
+		return traceql.StaticNil, false
+	case traceql.AttributeScopeInstrumentation:
+		if len(s.instrumentationAttrs) > 0 {
+			if attr := find(a, s.instrumentationAttrs); attr != nil {
+				return *attr, true
+			}
 		}
-		return traceql.NewStaticNil(), false
+		return traceql.StaticNil, false
 	}
 
 	if a.Intrinsic != traceql.IntrinsicNone {
@@ -230,27 +239,37 @@ func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
 
 	// name search in span, resource, link, and event to give precedence to span
 	// we don't need to do a name search at the trace level b/c it is intrinsics only
-	if attr := findName(a.Name, s.spanAttrs); attr != nil {
-		return *attr, true
+	if len(s.spanAttrs) > 0 {
+		if attr := findName(a.Name, s.spanAttrs); attr != nil {
+			return *attr, true
+		}
 	}
 
-	if attr := findName(a.Name, s.resourceAttrs); attr != nil {
-		return *attr, true
+	if len(s.resourceAttrs) > 0 {
+		if attr := findName(a.Name, s.resourceAttrs); attr != nil {
+			return *attr, true
+		}
 	}
 
-	if attr := findName(a.Name, s.eventAttrs); attr != nil {
-		return *attr, true
+	if len(s.eventAttrs) > 0 {
+		if attr := findName(a.Name, s.eventAttrs); attr != nil {
+			return *attr, true
+		}
 	}
 
-	if attr := findName(a.Name, s.linkAttrs); attr != nil {
-		return *attr, true
+	if len(s.linkAttrs) > 0 {
+		if attr := findName(a.Name, s.linkAttrs); attr != nil {
+			return *attr, true
+		}
 	}
 
-	if attr := findName(a.Name, s.instrumentationAttrs); attr != nil {
-		return *attr, true
+	if len(s.instrumentationAttrs) > 0 {
+		if attr := findName(a.Name, s.instrumentationAttrs); attr != nil {
+			return *attr, true
+		}
 	}
 
-	return traceql.NewStaticNil(), false
+	return traceql.StaticNil, false
 }
 
 func (s *span) ID() []byte {
