@@ -3,6 +3,7 @@ package collector
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -147,4 +148,63 @@ func TestScopedDistinctStringCollectorIsSafe(t *testing.T) {
 	}
 	require.Equal(t, totalStrings, 10*100)
 	require.False(t, d.Exceeded())
+}
+
+func BenchmarkScopedDistinctStringCollect(b *testing.B) {
+	// simulate 100 ingesters, each returning 10_000 tags with various scopes
+	numIngesters := 100
+	numTagsPerIngester := 10_000
+	ingesterTags := make([]map[string][]string, numIngesters)
+	scopeTypes := []string{"resource", "span", "event", "instrumentation"}
+
+	for i := 0; i < numIngesters; i++ {
+		tags := make(map[string][]string)
+		for j := 0; j < numTagsPerIngester; j++ {
+			scope := scopeTypes[j%len(scopeTypes)]
+			value := fmt.Sprintf("tag_%d_%d", i, j)
+			tags[scope] = append(tags[scope], value)
+		}
+		ingesterTags[i] = tags
+	}
+
+	limits := []int{
+		0,          // no limit
+		100_000,    // 100KB
+		1_000_000,  // 1MB
+		10_000_000, // 10MB
+	}
+
+	b.ResetTimer() // to exclude the setup time for generating tags
+	for _, lim := range limits {
+		b.Run("uniques_limit:"+strconv.Itoa(lim), func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				scopedDistinctStrings := NewScopedDistinctString(lim)
+				for _, tags := range ingesterTags {
+					for scope, values := range tags {
+						for _, v := range values {
+							scopedDistinctStrings.Collect(scope, v)
+							if scopedDistinctStrings.Exceeded() {
+								break // stop early if limit is reached
+							}
+						}
+					}
+				}
+			}
+		})
+
+		b.Run("duplicates_limit:"+strconv.Itoa(lim), func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				scopedDistinctStrings := NewScopedDistinctString(lim)
+				for i := 0; i < numIngesters; i++ {
+					for scope := range ingesterTags[i] {
+						// collect first item to simulate duplicates
+						scopedDistinctStrings.Collect(scope, ingesterTags[i][scope][0])
+						if scopedDistinctStrings.Exceeded() {
+							break // stop early if limit is reached
+						}
+					}
+				}
+			}
+		})
+	}
 }
