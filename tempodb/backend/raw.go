@@ -231,7 +231,34 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 
 // TenantIndex implements backend.Reader
 func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error) {
-	return r.tenantIndexProto(ctx, tenantID)
+	ctx, span := tracer.Start(ctx, "reader.TenantIndex")
+	defer span.End()
+
+	outPb, err := r.tenantIndexProto(ctx, tenantID)
+	if err == nil {
+		return outPb, nil
+	}
+
+	span.AddEvent(EventJSONFallback)
+
+	readerJ, size, err := r.r.Read(ctx, TenantIndexName, KeyPath([]string{tenantID}), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer readerJ.Close()
+
+	bytesJ, err := tempo_io.ReadAllWithEstimate(readerJ, size)
+	if err != nil {
+		return nil, err
+	}
+
+	i := &TenantIndex{}
+	err = i.unmarshal(bytesJ)
+	if err != nil {
+		return nil, err
+	}
+
+	return i, nil
 }
 
 func (r *reader) tenantIndexProto(ctx context.Context, tenantID string) (*TenantIndex, error) {
