@@ -84,6 +84,20 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 		// assert.Equal(t, tc.idx, actual)
 		assert.True(t, cmp.Equal(tc.idx, actual))
 	}
+
+	for _, tc := range tests {
+		// proto
+		buff, err := tc.idx.marshalPb()
+		require.NoError(t, err)
+
+		actual := &TenantIndex{}
+		err = actual.unmarshalPb(buff)
+		require.NoError(t, err)
+
+		// cmp.Equal used due to time marshalling: https://github.com/stretchr/testify/issues/502
+		// assert.Equal(t, tc.idx, actual)
+		assert.True(t, cmp.Equal(tc.idx, actual))
+	}
 }
 
 func TestIndexUnmarshalErrors(t *testing.T) {
