@@ -265,8 +265,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 		})
 
 		return engine.ExecuteTagNames(ctx, attributeScope, query, func(tag string, scope traceql.AttributeScope) bool {
-			distinctValues.Collect(scope.String(), tag)
-			return distinctValues.Exceeded()
+			return distinctValues.Collect(scope.String(), tag)
 		}, fetcher)
 	}
 

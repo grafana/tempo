@@ -61,14 +61,18 @@ func TestScopedDistinct(t *testing.T) {
 		}
 		slices.Sort(keys)
 
+		var stop bool
 		for _, k := range keys {
 			v := tc.in[k]
 			for _, val := range v {
-				c.Collect(k, val)
+				stop = c.Collect(k, val)
 			}
 		}
 
+		// check if we exceeded the limit, and Collect and Exceeded return the same value
 		require.Equal(t, tc.exceeded, c.Exceeded())
+		require.Equal(t, tc.exceeded, stop)
+		require.Equal(t, stop, c.Exceeded())
 
 		actual := c.Strings()
 		assertMaps(t, tc.expected, actual)
@@ -195,8 +199,7 @@ func BenchmarkScopedDistinctStringCollect(b *testing.B) {
 				for _, tags := range ingesterTags {
 					for scope, values := range tags {
 						for _, v := range values {
-							scopedDistinctStrings.Collect(scope, v)
-							if scopedDistinctStrings.Exceeded() {
+							if scopedDistinctStrings.Collect(scope, v) {
 								break // stop early if limit is reached
 							}
 						}
@@ -211,8 +214,7 @@ func BenchmarkScopedDistinctStringCollect(b *testing.B) {
 				for i := 0; i < numIngesters; i++ {
 					for scope := range ingesterTags[i] {
 						// collect first item to simulate duplicates
-						scopedDistinctStrings.Collect(scope, ingesterTags[i][scope][0])
-						if scopedDistinctStrings.Exceeded() {
+						if scopedDistinctStrings.Collect(scope, ingesterTags[i][scope][0]) {
 							break // stop early if limit is reached
 						}
 					}
