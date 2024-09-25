@@ -21,7 +21,7 @@ func TestDistinctStringCollector(t *testing.T) {
 }
 
 func TestDistinctStringCollectorDiff(t *testing.T) {
-	d := NewDistinctString(0)
+	d := NewDistinctStringWithDiff(0)
 
 	d.Collect("123")
 	d.Collect("4567")

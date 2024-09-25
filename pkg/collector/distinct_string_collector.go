@@ -7,12 +7,13 @@ import (
 )
 
 type DistinctString struct {
-	values   map[string]struct{}
-	new      map[string]struct{}
-	maxLen   int
-	currLen  int
-	totalLen int
-	mtx      sync.Mutex
+	values      map[string]struct{}
+	new         map[string]struct{}
+	maxLen      int
+	currLen     int
+	diffEnabled bool
+	limExceeded bool
+	mtx         sync.Mutex
 }
 
 // NewDistinctString with the given maximum data size. This is calculated
@@ -20,11 +21,25 @@ type DistinctString struct {
 // is interpreted as unlimited.
 func NewDistinctString(maxDataSize int) *DistinctString {
 	return &DistinctString{
-		values: make(map[string]struct{}),
-		new:    make(map[string]struct{}),
-		maxLen: maxDataSize,
+		values:      make(map[string]struct{}),
+		new:         make(map[string]struct{}),
+		maxLen:      maxDataSize,
+		diffEnabled: false, // disable diff to make it faster
 	}
 }
+
+// NewDistinctStringWithDiff is like NewDistinctString but with diff support enabled.
+func NewDistinctStringWithDiff(maxDataSize int) *DistinctString {
+	return &DistinctString{
+		values:      make(map[string]struct{}),
+		new:         make(map[string]struct{}),
+		maxLen:      maxDataSize,
+		diffEnabled: true,
+	}
+}
+
+// FIXME: also add a benchmark for this to show it goes faster without diff support
+// FIXME: replaces the places where Diff is used with NewDistinctStringWithDiff
 
 // Collect adds a new value to the distinct string collector.
 // return indicates if the value was added or not.
@@ -32,26 +47,31 @@ func (d *DistinctString) Collect(s string) bool {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
+	if d.limExceeded {
+		return false
+	}
+
 	if _, ok := d.values[s]; ok {
 		// Already present
 		return false
 	}
 
-	// New entry
-	d.totalLen += len(s)
-
+	valueLen := len(s)
 	// Can it fit?
-	if d.maxLen > 0 && d.currLen+len(s) > d.maxLen {
-		// No
+	if d.maxLen > 0 && d.currLen+valueLen > d.maxLen {
+		// No, it can't fit
+		d.limExceeded = true
 		return false
 	}
 
 	// Clone instead of referencing original
 	s = strings.Clone(s)
 
-	d.new[s] = struct{}{}
+	if d.diffEnabled {
+		d.new[s] = struct{}{}
+	}
 	d.values[s] = struct{}{}
-	d.currLen += len(s)
+	d.currLen += valueLen
 
 	return true
 }
@@ -76,21 +96,26 @@ func (d *DistinctString) Exceeded() bool {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	return d.totalLen > d.currLen
+	return d.limExceeded
 }
 
-// TotalDataSize is the total size of all distinct strings encountered.
-func (d *DistinctString) TotalDataSize() int {
+// Size is the total size of all distinct strings encountered.
+func (d *DistinctString) Size() int {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	return d.totalLen
+	return d.currLen
 }
 
 // Diff returns all new strings collected since the last time diff was called
 func (d *DistinctString) Diff() []string {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
+
+	// TODO: return error if Diff is called on diffEnabled=false collector
+	if !d.diffEnabled {
+		return nil
+	}
 
 	ss := make([]string, 0, len(d.new))
 
