@@ -143,12 +143,24 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 
 	b := newTenantIndex(meta, compactedMeta)
 
+	// Marshal and write the proto object.
 	indexBytesPb, err := b.marshalPb()
 	if err != nil {
 		return err
 	}
 
-	return w.w.Write(ctx, TenantIndexNamePb, KeyPath([]string{tenantID}), bytes.NewReader(indexBytesPb), int64(len(indexBytesPb)), nil)
+	err = w.w.Write(ctx, TenantIndexNamePb, KeyPath([]string{tenantID}), bytes.NewReader(indexBytesPb), int64(len(indexBytesPb)), nil)
+	if err != nil {
+		return err
+	}
+
+	// Marshal and write the JSON object.
+	indexBytesJSON, err := b.marshal()
+	if err != nil {
+		return err
+	}
+
+	return w.w.Write(ctx, TenantIndexName, KeyPath([]string{tenantID}), bytes.NewReader(indexBytesJSON), int64(len(indexBytesJSON)), nil)
 }
 
 // Delete implements backend.Writer

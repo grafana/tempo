@@ -25,7 +25,7 @@ func TestWriter(t *testing.T) {
 
 	err := w.Write(ctx, "test", uuid.New(), "test", expected, nil)
 	assert.NoError(t, err)
-	assert.Equal(t, expected, m.writeBuffer)
+	assert.Equal(t, expected, m.writeBuffer[len(m.writeBuffer)-1])
 
 	_, err = w.Append(ctx, "test", uuid.New(), "test", nil, expected)
 	assert.NoError(t, err)
@@ -38,23 +38,34 @@ func TestWriter(t *testing.T) {
 	meta := NewBlockMeta("test", uuid.New(), "blerg", EncGZIP, "glarg")
 	jsonBytes, err := json.Marshal(meta)
 	assert.NoError(t, err)
+	assert.NoError(t, err)
 
 	// Write the block meta to the backend and validate the payloads.
 	err = w.WriteBlockMeta(ctx, meta)
 	assert.NoError(t, err)
-	assert.Equal(t, jsonBytes, m.writeBuffer)
+	assert.Equal(t, jsonBytes, m.writeBuffer[len(m.writeBuffer)-1])
 
 	// Write the tenant index to the backend and validate the payloads.
 	err = w.WriteTenantIndex(ctx, "test", []*BlockMeta{meta}, nil)
 	assert.NoError(t, err)
 
-	idx := &TenantIndex{}
-	err = idx.unmarshalPb(m.writeBuffer)
+	// proto
+	idxP := &TenantIndex{}
+	err = idxP.unmarshalPb(m.writeBuffer[len(m.writeBuffer)-2])
 	assert.NoError(t, err)
 
-	assert.Equal(t, []*BlockMeta{meta}, idx.Meta)
-	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idx.Meta))                  // using cmp.Equal to compare json datetimes
-	assert.True(t, cmp.Equal([]*CompactedBlockMeta(nil), idx.CompactedMeta)) // using cmp.Equal to compare json datetimes
+	assert.Equal(t, []*BlockMeta{meta}, idxP.Meta)
+	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idxP.Meta))                  // using cmp.Equal to compare json datetimes
+	assert.True(t, cmp.Equal([]*CompactedBlockMeta(nil), idxP.CompactedMeta)) // using cmp.Equal to compare json datetimes
+
+	// json
+	idxJ := &TenantIndex{}
+	err = idxJ.unmarshal(m.writeBuffer[len(m.writeBuffer)-1])
+	assert.NoError(t, err)
+
+	assert.Equal(t, []*BlockMeta{meta}, idxJ.Meta)
+	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idxJ.Meta))                  // using cmp.Equal to compare json datetimes
+	assert.True(t, cmp.Equal([]*CompactedBlockMeta(nil), idxJ.CompactedMeta)) // using cmp.Equal to compare json datetimes
 
 	// When there are no blocks, the tenant index should be deleted
 	assert.Equal(t, map[string]map[string]int(nil), w.(*writer).w.(*MockRawWriter).deleteCalls)
