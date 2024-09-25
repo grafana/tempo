@@ -13,7 +13,7 @@ var (
 
 func NewSearchTagValues(limitBytes int) Combiner {
 	// Distinct collector with no limit
-	d := collector.NewDistinctString(limitBytes)
+	d := collector.NewDistinctStringWithDiff(limitBytes)
 
 	c := &genericCombiner[*tempopb.SearchTagValuesResponse]{
 		httpStatusCode: 200,
