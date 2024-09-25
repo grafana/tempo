@@ -88,23 +88,26 @@ func (d *ScopedDistinctString) Exceeded() bool {
 }
 
 // Diff returns all new strings collected since the last time Diff was called
-func (d *ScopedDistinctString) Diff() map[string][]string {
+func (d *ScopedDistinctString) Diff() (map[string][]string, error) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	// TODO: return error if Diff is called on diffEnabled=false collector
 	if !d.diffEnabled {
-		return nil
+		return nil, errDiffNotEnabled
 	}
 
 	ss := map[string][]string{}
 
 	for k, v := range d.cols {
-		diff := v.Diff()
+		diff, err := v.Diff()
+		if err != nil {
+			return nil, err
+		}
+
 		if len(diff) > 0 {
 			ss[k] = diff
 		}
 	}
 
-	return ss
+	return ss, nil
 }

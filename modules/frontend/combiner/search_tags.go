@@ -32,7 +32,12 @@ func NewSearchTags(limitBytes int) Combiner {
 			return d.Exceeded()
 		},
 		diff: func(response *tempopb.SearchTagsResponse) (*tempopb.SearchTagsResponse, error) {
-			response.TagNames = d.Diff()
+			resp, err := d.Diff()
+			if err != nil {
+				return nil, err
+			}
+
+			response.TagNames = resp
 			return response, nil
 		},
 	}
@@ -76,7 +81,10 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 			return distinctValues.Exceeded()
 		},
 		diff: func(response *tempopb.SearchTagsV2Response) (*tempopb.SearchTagsV2Response, error) {
-			collected := distinctValues.Diff()
+			collected, err := distinctValues.Diff()
+			if err != nil {
+				return nil, err
+			}
 			response.Scopes = make([]*tempopb.SearchTagsV2Scope, 0, len(collected))
 
 			for scope, vals := range collected {
