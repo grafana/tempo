@@ -1,10 +1,13 @@
 package collector
 
+import "sync"
+
 type ScopedDistinctString struct {
 	cols     map[string]*DistinctString
 	maxLen   int
 	curLen   int
 	exceeded bool
+	mtx      sync.Mutex
 }
 
 func NewScopedDistinctString(sz int) *ScopedDistinctString {
@@ -15,6 +18,9 @@ func NewScopedDistinctString(sz int) *ScopedDistinctString {
 }
 
 func (d *ScopedDistinctString) Collect(scope string, val string) {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	// can it fit?
 	if d.maxLen > 0 && d.curLen+len(val) > d.maxLen {
 		d.exceeded = true
@@ -37,6 +43,9 @@ func (d *ScopedDistinctString) Collect(scope string, val string) {
 
 // Strings returns the final list of distinct values collected and sorted.
 func (d *ScopedDistinctString) Strings() map[string][]string {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	ss := map[string][]string{}
 
 	for k, v := range d.cols {
@@ -48,11 +57,17 @@ func (d *ScopedDistinctString) Strings() map[string][]string {
 
 // Exceeded indicates if some values were lost because the maximum size limit was met.
 func (d *ScopedDistinctString) Exceeded() bool {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	return d.exceeded
 }
 
 // Diff returns all new strings collected since the last time diff was called
 func (d *ScopedDistinctString) Diff() map[string][]string {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	ss := map[string][]string{}
 
 	for k, v := range d.cols {
