@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"path"
 	"time"
@@ -236,19 +237,19 @@ func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex
 func (r *reader) tenantIndexProto(ctx context.Context, tenantID string) (*TenantIndex, error) {
 	readerPb, size, err := r.r.Read(ctx, TenantIndexNamePb, KeyPath([]string{tenantID}), nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read tenant index proto: %w", err)
 	}
 	defer readerPb.Close()
 
 	bytesPb, err := tempo_io.ReadAllWithEstimate(readerPb, size)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read all with estimate: %w", err)
 	}
 
 	out := &TenantIndex{}
 	err = out.unmarshalPb(bytesPb)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal tenant index proto: %w", err)
 	}
 
 	return out, nil

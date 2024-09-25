@@ -124,7 +124,7 @@ func TestReader(t *testing.T) {
 	assert.Nil(t, idx)
 
 	expectedIdx := newTenantIndex([]*BlockMeta{expectedMeta}, nil)
-	m.R, _ = expectedIdx.marshal()
+	m.R, _ = expectedIdx.marshalPb()
 	idx, err = r.TenantIndex(ctx, "test")
 	assert.NoError(t, err)
 	assert.True(t, cmp.Equal(expectedIdx, idx))

@@ -3,6 +3,7 @@ package backend
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	proto "github.com/gogo/protobuf/proto"
@@ -90,12 +91,12 @@ func (b *TenantIndex) marshalPb() ([]byte, error) {
 func (b *TenantIndex) unmarshalPb(buffer []byte) error {
 	decoder, err := zstd.NewReader(nil, zstd.WithDecoderConcurrency(0))
 	if err != nil {
-		return err
+		return fmt.Errorf("error creating zstd decoder: %w", err)
 	}
 
 	bb, err := decoder.DecodeAll(buffer, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("error decoding zstd: %w", err)
 	}
 
 	return b.Unmarshal(bb)
