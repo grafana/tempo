@@ -42,6 +42,7 @@ func NewDistinctStringWithDiff(maxDataSize int) *DistinctString {
 
 // Collect adds a new value to the distinct string collector.
 // return indicates if the value was added or not.
+// FIXME: return an exceeded flag to stop early
 func (d *DistinctString) Collect(s string) bool {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()

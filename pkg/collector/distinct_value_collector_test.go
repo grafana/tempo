@@ -32,7 +32,7 @@ func stringsSlicesEqual(t *testing.T, a, b []string) {
 	require.Equal(t, a, b)
 }
 
-func BenchmarkCollect(b *testing.B) {
+func BenchmarkDistinctValueCollect(b *testing.B) {
 	// simulate 100 ingesters, each returning 10_000 tag values
 	numIngesters := 100
 	numTagValuesPerIngester := 10_000
@@ -45,7 +45,6 @@ func BenchmarkCollect(b *testing.B) {
 				Value: fmt.Sprintf("value_%d_%d", i, j),
 			}
 		}
-		ingesterTagValues[i] = tagValues
 	}
 
 	limits := []int{
@@ -57,13 +56,26 @@ func BenchmarkCollect(b *testing.B) {
 
 	b.ResetTimer() // to exclude the setup time for generating tag values
 	for _, lim := range limits {
-		b.Run("limit:"+strconv.Itoa(lim), func(b *testing.B) {
+		b.Run("uniques_limit:"+strconv.Itoa(lim), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
-				// NewDistinctValue is collecting tag values without diff support
 				distinctValues := NewDistinctValue(lim, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 				for _, tagValues := range ingesterTagValues {
 					for _, v := range tagValues {
 						if distinctValues.Collect(v) {
+							break // stop early if limit is reached
+						}
+					}
+				}
+			}
+		})
+
+		b.Run("duplicates_limit:"+strconv.Itoa(lim), func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				distinctValues := NewDistinctValue(lim, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+				for i := 0; i < numIngesters; i++ {
+					for j := 0; j < numTagValuesPerIngester; j++ {
+						// collect first item to simulate duplicates
+						if distinctValues.Collect(ingesterTagValues[i][0]) {
 							break // stop early if limit is reached
 						}
 					}

@@ -112,6 +112,7 @@ func (d *DistinctValue[T]) Diff() []T {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
+	// TODO: return error if Diff is called on diffEnabled=false collector
 	if !d.diffEnabled {
 		return nil
 	}
