@@ -38,11 +38,13 @@ func NewDistinctStringWithDiff(maxDataSize int) *DistinctString {
 	}
 }
 
-// FIXME: also add a benchmark for this to show it goes faster without diff support
-
 // Collect adds a new value to the distinct string collector.
-// return indicates if the value was added or not.
-// FIXME: return an exceeded flag to stop early
+// returns a bool to indicate if the value was added or not.
+// you need to call Exceeded to check if the limit was reached
+//
+// Note: Collect doesn't return exceeded bool like other collectors,
+// changing it to be consistent with other collectors requires changes in Searcher interface.
+// callbacks because Collect is used in Searcher interface callbacks.
 func (d *DistinctString) Collect(s string) bool {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
