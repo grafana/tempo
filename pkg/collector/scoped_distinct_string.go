@@ -1,6 +1,8 @@
 package collector
 
-import "sync"
+import (
+	"sync"
+)
 
 type ScopedDistinctString struct {
 	cols        map[string]*DistinctString
