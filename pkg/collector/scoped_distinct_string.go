@@ -32,16 +32,15 @@ func NewScopedDistinctStringWithDiff(maxDataSize int) *ScopedDistinctString {
 	}
 }
 
-// FIXME: also add a benchmark for this to show it goes faster without diff support
-
 // Collect adds a new value to the distinct string collector.
-// FIXME: return an exceeded flag to stop early
-func (d *ScopedDistinctString) Collect(scope string, val string) {
+// returns true when it reaches the limits and can't fit more values.
+// can be used to stop early during Collect without calling Exceeded.
+func (d *ScopedDistinctString) Collect(scope string, val string) (exceeded bool) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
 	if d.limExceeded {
-		return
+		return true
 	}
 
 	valueLen := len(val)
@@ -49,7 +48,7 @@ func (d *ScopedDistinctString) Collect(scope string, val string) {
 	if d.maxLen > 0 && d.curLen+valueLen > d.maxLen {
 		// No
 		d.limExceeded = true
-		return
+		return true
 	}
 
 	// get or create collector
@@ -63,6 +62,7 @@ func (d *ScopedDistinctString) Collect(scope string, val string) {
 	if col.Collect(val) {
 		d.curLen += valueLen
 	}
+	return false
 }
 
 // Strings returns the final list of distinct values collected and sorted.

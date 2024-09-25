@@ -591,8 +591,7 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 		}
 		for _, res := range resp.Scopes {
 			for _, tag := range res.Tags {
-				distinctValues.Collect(res.Name, tag)
-				if distinctValues.Exceeded() {
+				if distinctValues.Collect(res.Name, tag) {
 					return nil
 				}
 			}
@@ -970,8 +969,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 
 	valueCollector := collector.NewScopedDistinctString(q.limits.MaxBytesPerTagValuesQuery(tenantID))
 	err = q.engine.ExecuteTagNames(ctx, scope, query, func(tag string, scope traceql.AttributeScope) bool {
-		valueCollector.Collect(scope.String(), tag)
-		return valueCollector.Exceeded()
+		return valueCollector.Collect(scope.String(), tag)
 	}, fetcher)
 	if err != nil {
 		return nil, err
