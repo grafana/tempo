@@ -75,7 +75,7 @@ func TestScopedDistinct(t *testing.T) {
 }
 
 func TestScopedDistinctDiff(t *testing.T) {
-	c := NewScopedDistinctString(0)
+	c := NewScopedDistinctStringWithDiff(0)
 
 	c.Collect("scope1", "val1")
 	expected := map[string][]string{

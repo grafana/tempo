@@ -3,41 +3,62 @@ package collector
 import "sync"
 
 type ScopedDistinctString struct {
-	cols     map[string]*DistinctString
-	maxLen   int
-	curLen   int
-	exceeded bool
-	mtx      sync.Mutex
+	cols        map[string]*DistinctString
+	newCol      func(int) *DistinctString
+	maxLen      int
+	curLen      int
+	limExceeded bool
+	diffEnabled bool
+	mtx         sync.Mutex
 }
 
-func NewScopedDistinctString(sz int) *ScopedDistinctString {
+func NewScopedDistinctString(maxDataSize int) *ScopedDistinctString {
 	return &ScopedDistinctString{
-		cols:   map[string]*DistinctString{},
-		maxLen: sz,
+		cols:        map[string]*DistinctString{},
+		newCol:      NewDistinctString,
+		maxLen:      maxDataSize,
+		diffEnabled: false,
 	}
 }
 
+func NewScopedDistinctStringWithDiff(maxDataSize int) *ScopedDistinctString {
+	return &ScopedDistinctString{
+		cols:        map[string]*DistinctString{},
+		newCol:      NewDistinctStringWithDiff,
+		maxLen:      maxDataSize,
+		diffEnabled: true,
+	}
+}
+
+// FIXME: also add a benchmark for this to show it goes faster without diff support
+
+// Collect adds a new value to the distinct string collector.
 func (d *ScopedDistinctString) Collect(scope string, val string) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
+	if d.limExceeded {
+		return
+	}
+
+	valueLen := len(val)
 	// can it fit?
-	if d.maxLen > 0 && d.curLen+len(val) > d.maxLen {
-		d.exceeded = true
+	if d.maxLen > 0 && d.curLen+valueLen > d.maxLen {
 		// No
+		d.limExceeded = true
 		return
 	}
 
 	// get or create collector
 	col, ok := d.cols[scope]
 	if !ok {
-		col = NewDistinctString(0)
+		col = d.newCol(0)
 		d.cols[scope] = col
 	}
 
-	added := col.Collect(val)
-	if added {
-		d.curLen += len(val)
+	// add valueLen if we successfully added the value
+	if col.Collect(val) {
+		d.curLen += valueLen
 	}
 }
 
@@ -60,13 +81,18 @@ func (d *ScopedDistinctString) Exceeded() bool {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	return d.exceeded
+	return d.limExceeded
 }
 
-// Diff returns all new strings collected since the last time diff was called
+// Diff returns all new strings collected since the last time Diff was called
 func (d *ScopedDistinctString) Diff() map[string][]string {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
+
+	// TODO: return error if Diff is called on diffEnabled=false collector
+	if !d.diffEnabled {
+		return nil
+	}
 
 	ss := map[string][]string{}
 

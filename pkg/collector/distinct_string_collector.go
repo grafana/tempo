@@ -39,7 +39,6 @@ func NewDistinctStringWithDiff(maxDataSize int) *DistinctString {
 }
 
 // FIXME: also add a benchmark for this to show it goes faster without diff support
-// FIXME: replaces the places where Diff is used with NewDistinctStringWithDiff
 
 // Collect adds a new value to the distinct string collector.
 // return indicates if the value was added or not.
