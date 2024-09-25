@@ -13,11 +13,16 @@ import (
 func TestDistinctValueCollector(t *testing.T) {
 	d := NewDistinctValue[string](10, func(s string) int { return len(s) })
 
-	d.Collect("123")
-	d.Collect("4567")
-	d.Collect("890")
+	var stop bool
+	stop = d.Collect("123")
+	require.False(t, stop)
+	stop = d.Collect("4567")
+	require.False(t, stop)
+	stop = d.Collect("890")
+	require.True(t, stop)
 
 	require.True(t, d.Exceeded())
+	require.Equal(t, stop, d.Exceeded()) // final stop should be same as Exceeded
 	require.Equal(t, []string{"123", "4567"}, d.Values())
 
 	// diff fails when diff is not enabled
