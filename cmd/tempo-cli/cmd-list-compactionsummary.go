@@ -61,9 +61,9 @@ func displayCompactionSummary(results []blockStats) {
 		sizeSum := uint64(0)
 		sizeMin := uint64(0)
 		sizeMax := uint64(0)
-		countSum := int32(0)
-		countMin := int32(0)
-		countMax := int32(0)
+		countSum := int64(0)
+		countMin := int64(0)
+		countMax := int64(0)
 		countBloomShards := 0
 
 		var newest time.Time

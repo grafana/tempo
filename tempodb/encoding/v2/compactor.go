@@ -39,7 +39,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	}()
 
 	var compactionLevel uint32
-	var totalRecords int32
+	var totalRecords int64
 	for _, blockMeta := range inputs {
 		totalRecords += blockMeta.TotalObjects
 
@@ -63,7 +63,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 	nextCompactionLevel := compactionLevel + 1
 
-	recordsPerBlock := (totalRecords / int32(c.opts.OutputBlocks))
+	recordsPerBlock := (totalRecords / int64(c.opts.OutputBlocks))
 
 	combiner := c.opts.Combiner
 	if combiner == nil {

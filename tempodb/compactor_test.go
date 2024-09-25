@@ -427,7 +427,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	blocks := rw.blocklist.Metas(testTenantID)
 	require.Equal(t, 1, len(blocks))
 	require.Equal(t, uint32(1), blocks[0].CompactionLevel)
-	require.Equal(t, int32(blockCount*recordCount), blocks[0].TotalObjects)
+	require.Equal(t, int64(blockCount*recordCount), blocks[0].TotalObjects)
 
 	// Compacted list contains all old blocks
 	require.Equal(t, blockCount, len(rw.blocklist.CompactedMetas(testTenantID)))

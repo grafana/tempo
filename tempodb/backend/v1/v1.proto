@@ -13,7 +13,7 @@ message BlockMeta {
     string tenant_id = 5[(gogoproto.jsontag) = "tenantID", (gogoproto.customname) = "TenantID"];
     google.protobuf.Timestamp start_time = 6[(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "startTime"];
     google.protobuf.Timestamp end_time = 7[(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "endTime"];
-    int32 total_objects = 8[(gogoproto.jsontag) = "totalObjects"];
+    int64 total_objects = 8[(gogoproto.jsontag) = "totalObjects"];
     uint64 size = 9;
     uint32 compaction_level = 10[(gogoproto.jsontag) = "compactionLevel"];
     bytes encoding = 11[(gogoproto.customtype) = "Encoding", (gogoproto.nullable) = false];

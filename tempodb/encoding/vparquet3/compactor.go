@@ -30,7 +30,7 @@ type Compactor struct {
 func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w backend.Writer, inputs []*backend.BlockMeta) (newCompactedBlocks []*backend.BlockMeta, err error) {
 	var (
 		compactionLevel uint32
-		totalRecords    int32
+		totalRecords    int64
 		minBlockStart   time.Time
 		maxBlockEnd     time.Time
 		bookmarks       = make([]*bookmark[parquet.Row], 0, len(inputs))
@@ -132,7 +132,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 	var (
 		m               = newMultiblockIterator(bookmarks, combine)
-		recordsPerBlock = (totalRecords / int32(c.opts.OutputBlocks))
+		recordsPerBlock = (totalRecords / int64(c.opts.OutputBlocks))
 		currentBlock    *streamingBlock
 	)
 	defer m.Close()

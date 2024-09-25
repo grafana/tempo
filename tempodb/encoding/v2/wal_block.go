@@ -132,7 +132,7 @@ func openWALBlock(filename, path string, ingestionSlack, additionalStartSlack ti
 	}
 
 	b.appender = NewRecordAppender(records)
-	b.meta.TotalObjects = int32(b.appender.Length())
+	b.meta.TotalObjects = int64(b.appender.Length())
 	b.meta.StartTime = time.Unix(int64(blockStart), 0)
 	b.meta.EndTime = time.Unix(int64(blockEnd), 0)
 

@@ -115,7 +115,7 @@ func TestStreamingBlockAddObject(t *testing.T) {
 	assert.Equal(t, time.Unix(10000, 0), meta.StartTime)
 	assert.Equal(t, time.Unix(25000, 0), meta.EndTime)
 	assert.Equal(t, testTenantID, meta.TenantID)
-	assert.Equal(t, int32(numObjects), meta.TotalObjects)
+	assert.Equal(t, int64(numObjects), meta.TotalObjects)
 	assert.Greater(t, meta.Size_, uint64(0))
 	assert.Greater(t, cb.bloom.GetShardCount(), 0)
 
@@ -244,7 +244,7 @@ func streamingBlock(t *testing.T, cfg *common.BlockConfig, w backend.Writer) (*S
 	originatingMeta.StartTime = time.Now().Add(-5 * time.Minute)
 	originatingMeta.EndTime = time.Now().Add(5 * time.Minute)
 	originatingMeta.DataEncoding = "foo"
-	originatingMeta.TotalObjects = int32(numMsgs)
+	originatingMeta.TotalObjects = int64(numMsgs)
 
 	// calc expected records
 	dataReader, err := NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(buffer.Bytes())), backend.EncNone)

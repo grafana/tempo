@@ -41,7 +41,7 @@ func TestBlockMetaObjectAdded(t *testing.T) {
 		ends            []uint32
 		expectedStart   time.Time
 		expectedEnd     time.Time
-		expectedObjects int32
+		expectedObjects int64
 	}{
 		{},
 		{

@@ -113,7 +113,7 @@ func createTestBlock(t testing.TB, ctx context.Context, cfg *common.BlockConfig,
 	inMeta := &backend.BlockMeta{
 		TenantID:     tenantID,
 		BlockID:      backend.NewUUID(),
-		TotalObjects: int32(traceCount),
+		TotalObjects: int64(traceCount),
 	}
 
 	sb := newStreamingBlock(ctx, cfg, inMeta, r, w, tempo_io.NewBufferedWriter)
