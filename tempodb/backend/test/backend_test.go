@@ -31,10 +31,10 @@ func TestFixtures(t *testing.T) {
 
 	// To regenerate the fixtures, uncomment the write path.
 	// metas := []*backend.BlockMeta{
-	// 	backend.NewBlockMeta(tenant, uuid.New().UUID, "v1", backend.EncGZIP, "adsf"),
-	// 	backend.NewBlockMeta(tenant, uuid.New().UUID, "v2", backend.EncNone, "adsf"),
-	// 	backend.NewBlockMeta(tenant, uuid.New().UUID, "v3", backend.EncLZ4_4M, "adsf"),
-	// 	backend.NewBlockMeta(tenant, uuid.New().UUID, "v4", backend.EncLZ4_1M, "adsf"),
+	// 	backend.NewBlockMeta(tenant, uuid.New(), "v1", backend.EncGZIP, "adsf"),
+	// 	backend.NewBlockMeta(tenant, uuid.New(), "v2", backend.EncNone, "adsf"),
+	// 	backend.NewBlockMeta(tenant, uuid.New(), "v3", backend.EncLZ4_4M, "adsf"),
+	// 	backend.NewBlockMeta(tenant, uuid.New(), "v4", backend.EncLZ4_1M, "adsf"),
 	// }
 	//
 	// for _, meta := range metas {
@@ -42,7 +42,7 @@ func TestFixtures(t *testing.T) {
 	// 	require.NoError(t, err)
 	// }
 	//
-	// err = rc.MarkBlockCompacted(metas[0].BlockID.UUID, tenant)
+	// err = rc.MarkBlockCompacted((uuid.UUID)(metas[0].BlockID), tenant)
 	// assert.NoError(t, err)
 
 	listMetas, listCompactedMetas, err := rr.ListBlocks(ctx, tenant)
