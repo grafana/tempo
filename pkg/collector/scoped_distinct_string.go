@@ -33,6 +33,7 @@ func NewScopedDistinctStringWithDiff(maxDataSize int) *ScopedDistinctString {
 // FIXME: also add a benchmark for this to show it goes faster without diff support
 
 // Collect adds a new value to the distinct string collector.
+// FIXME: return an exceeded flag to stop early
 func (d *ScopedDistinctString) Collect(scope string, val string) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
