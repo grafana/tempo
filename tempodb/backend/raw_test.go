@@ -218,7 +218,4 @@ func TestRoundTripMeta(t *testing.T) {
 	err = json.Unmarshal(jsonBytes, expected2)
 	assert.NoError(t, err)
 	assert.Equal(t, meta, expected2)
-
-	// Does json have the same object as proto?
-	assert.Equal(t, meta, expected2, expectedPb2, expectedPb3)
 }

@@ -42,7 +42,7 @@ var (
 	metricBackendBytes = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempodb",
 		Name:      "backend_bytes_total",
-		Help:      "Total number of bytes in the ",
+		Help:      "Total number of bytes in the backend",
 	}, []string{"tenant", "status"})
 	metricBlocklistErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
