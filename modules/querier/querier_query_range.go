@@ -3,6 +3,7 @@ package querier
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/go-kit/log/level"
@@ -31,26 +32,27 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 	if err != nil {
 		return nil, fmt.Errorf("error finding generators in Querier.queryRangeRecent: %w", err)
 	}
-	lookupResults, err := q.forGivenGenerators(
-		ctx,
-		replicationSet,
-		func(ctx context.Context, client tempopb.MetricsGeneratorClient) (interface{}, error) {
-			return client.QueryRange(ctx, req)
-		},
-	)
-	if err != nil {
-		_ = level.Error(log.Logger).Log("error querying generators in Querier.queryRangeRecent", "err", err)
-
-		return nil, fmt.Errorf("error querying generators in Querier.queryRangeRecent: %w", err)
-	}
 
 	c, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeSum, false)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, result := range lookupResults {
-		c.Combine(result.response.(*tempopb.QueryRangeResponse))
+	mtx := sync.Mutex{} // combiner doesn't lock, so take lock before calling Combine to make is safe
+	forEach := func(ctx context.Context, client tempopb.MetricsGeneratorClient) error {
+		resp, err := client.QueryRange(ctx, req)
+		if err != nil {
+			return err
+		}
+		mtx.Lock()
+		defer mtx.Unlock()
+		c.Combine(resp)
+		return nil
+	}
+	err = q.forGivenGenerators(ctx, replicationSet, forEach)
+	if err != nil {
+		_ = level.Error(log.Logger).Log("error querying generators in Querier.queryRangeRecent", "err", err)
+		return nil, fmt.Errorf("error querying generators in Querier.queryRangeRecent: %w", err)
 	}
 
 	return c.Response(), nil

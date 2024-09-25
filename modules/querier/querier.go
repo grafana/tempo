@@ -60,6 +60,12 @@ var (
 	})
 )
 
+type (
+	forEachFn          func(ctx context.Context, client tempopb.QuerierClient) error
+	forEachGeneratorFn func(ctx context.Context, client tempopb.MetricsGeneratorClient) error
+	replicationSetFn   func(r ring.ReadRing) (ring.ReplicationSet, error)
+)
+
 // Querier handlers queries.
 type Querier struct {
 	services.Service
@@ -82,11 +88,6 @@ type Querier struct {
 
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
-}
-
-type responseFromGenerators struct {
-	addr     string
-	response interface{}
 }
 
 // New makes a new Querier.
@@ -323,11 +324,6 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	return resp, nil
 }
 
-type (
-	forEachFn        func(ctx context.Context, client tempopb.QuerierClient) error
-	replicationSetFn func(r ring.ReadRing) (ring.ReplicationSet, error)
-)
-
 // forIngesterRings runs f, in parallel, for given ingesters
 func (q *Querier) forIngesterRings(ctx context.Context, userID string, getReplicationSet replicationSetFn, f forEachFn) error {
 	if ctx.Err() != nil {
@@ -425,14 +421,10 @@ func forOneIngesterRing(ctx context.Context, replicationSet ring.ReplicationSet,
 }
 
 // forGivenGenerators runs f, in parallel, for given generators
-func (q *Querier) forGivenGenerators(
-	ctx context.Context,
-	replicationSet ring.ReplicationSet,
-	f func(ctx context.Context, client tempopb.MetricsGeneratorClient) (interface{}, error),
-) ([]responseFromGenerators, error) {
+func (q *Querier) forGivenGenerators(ctx context.Context, replicationSet ring.ReplicationSet, f forEachGeneratorFn) error {
 	if ctx.Err() != nil {
 		_ = level.Debug(log.Logger).Log("foreGivenGenerators context error", "ctx.Err()", ctx.Err().Error())
-		return nil, ctx.Err()
+		return ctx.Err()
 	}
 
 	ctx, span := tracer.Start(ctx, "Querier.forGivenGenerators")
@@ -449,25 +441,25 @@ func (q *Querier) forGivenGenerators(
 			return nil, fmt.Errorf("failed to get client for %s: %w", generator.Addr, err)
 		}
 
-		resp, err := f(funcCtx, client.(tempopb.MetricsGeneratorClient))
+		err = f(funcCtx, client.(tempopb.MetricsGeneratorClient))
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute f() for %s: %w", generator.Addr, err)
 		}
 
-		return responseFromGenerators{generator.Addr, resp}, nil
+		// we are returning the empty response here because response is collected by
+		// the collector inside forEachGeneratorFn
+		return nil, nil
 	}
 
-	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, doFunc)
+	// ignore response because it's nil, and we are using a collector inside forEachGeneratorFn to
+	// collect the actual response. we need to return nil here and ignore it
+	// because doFunc expects us to return a response
+	_, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, doFunc)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get response from generators: %w", err)
+		return fmt.Errorf("failed to get response from generators: %w", err)
 	}
 
-	responses := make([]responseFromGenerators, 0, len(results))
-	for _, result := range results {
-		responses = append(responses, result.(responseFromGenerators))
-	}
-
-	return responses, nil
+	return nil
 }
 
 func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
@@ -741,21 +733,24 @@ func (q *Querier) SpanMetricsSummary(
 	if err != nil {
 		return nil, fmt.Errorf("error finding generators in Querier.SpanMetricsSummary: %w", err)
 	}
-	lookupResults, err := q.forGivenGenerators(
-		ctx,
-		replicationSet,
-		func(ctx context.Context, client tempopb.MetricsGeneratorClient) (interface{}, error) {
-			return client.GetMetrics(ctx, genReq)
-		},
-	)
+
+	var results []*tempopb.SpanMetricsResponse
+	mtx := sync.Mutex{}
+
+	forEach := func(ctx context.Context, client tempopb.MetricsGeneratorClient) error {
+		resp, err := client.GetMetrics(ctx, genReq)
+		if err != nil {
+			return err
+		}
+		// collect the results from the generators in the pool
+		mtx.Lock()
+		defer mtx.Unlock()
+		results = append(results, resp)
+		return nil
+	}
+	err = q.forGivenGenerators(ctx, replicationSet, forEach)
 	if err != nil {
 		return nil, fmt.Errorf("error querying generators in Querier.SpanMetricsSummary: %w", err)
-	}
-
-	// Assemble the results from the generators in the pool
-	results := make([]*tempopb.SpanMetricsResponse, 0, len(lookupResults))
-	for _, result := range lookupResults {
-		results = append(results, result.response.(*tempopb.SpanMetricsResponse))
 	}
 
 	// Combine the results
