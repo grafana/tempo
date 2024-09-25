@@ -329,7 +329,7 @@ func (dcs *DedicatedColumns) Unmarshal(data []byte) error {
 		return nil
 	}
 
-	// NOTE: See UnmarshalJSON for a performance optomization to record the json
+	// NOTE: See UnmarshalJSON for a performance optimization to record the json
 	// bytes for reuse.
 	return json.Unmarshal(data, &dcs)
 }
