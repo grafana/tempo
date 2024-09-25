@@ -12,7 +12,7 @@ var (
 )
 
 func NewSearchTags(limitBytes int) Combiner {
-	d := collector.NewDistinctString(limitBytes)
+	d := collector.NewDistinctStringWithDiff(limitBytes)
 
 	c := &genericCombiner[*tempopb.SearchTagsResponse]{
 		httpStatusCode: 200,
@@ -46,7 +46,7 @@ func NewTypedSearchTags(limitBytes int) GRPCCombiner[*tempopb.SearchTagsResponse
 
 func NewSearchTagsV2(limitBytes int) Combiner {
 	// Distinct collector map to collect scopes and scope values
-	distinctValues := collector.NewScopedDistinctString(limitBytes)
+	distinctValues := collector.NewScopedDistinctStringWithDiff(limitBytes)
 
 	c := &genericCombiner[*tempopb.SearchTagsV2Response]{
 		httpStatusCode: 200,
