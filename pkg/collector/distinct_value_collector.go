@@ -1,8 +1,11 @@
 package collector
 
 import (
+	"errors"
 	"sync"
 )
+
+var errDiffNotEnabled = errors.New("diff not enabled")
 
 type DistinctValue[T comparable] struct {
 	values      map[T]struct{}
@@ -108,13 +111,12 @@ func (d *DistinctValue[T]) Size() int {
 
 // Diff returns all new strings collected since the last time diff was called
 // returns nil if diff is not enabled
-func (d *DistinctValue[T]) Diff() []T {
+func (d *DistinctValue[T]) Diff() ([]T, error) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	// TODO: return error if Diff is called on diffEnabled=false collector
 	if !d.diffEnabled {
-		return nil
+		return nil, errDiffNotEnabled
 	}
 
 	ss := make([]T, 0, len(d.new))
@@ -123,5 +125,5 @@ func (d *DistinctValue[T]) Diff() []T {
 	}
 
 	clear(d.new)
-	return ss
+	return ss, nil
 }

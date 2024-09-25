@@ -108,13 +108,12 @@ func (d *DistinctString) Size() int {
 }
 
 // Diff returns all new strings collected since the last time diff was called
-func (d *DistinctString) Diff() []string {
+func (d *DistinctString) Diff() ([]string, error) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	// TODO: return error if Diff is called on diffEnabled=false collector
 	if !d.diffEnabled {
-		return nil
+		return nil, errDiffNotEnabled
 	}
 
 	ss := make([]string, 0, len(d.new))
@@ -125,5 +124,5 @@ func (d *DistinctString) Diff() []string {
 
 	clear(d.new)
 	sort.Strings(ss)
-	return ss
+	return ss, nil
 }

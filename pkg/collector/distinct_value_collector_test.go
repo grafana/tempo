@@ -10,20 +10,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestDistinctValueCollector(t *testing.T) {
+	d := NewDistinctValue[string](10, func(s string) int { return len(s) })
+
+	d.Collect("123")
+	d.Collect("4567")
+	d.Collect("890")
+
+	require.True(t, d.Exceeded())
+	require.Equal(t, []string{"123", "4567"}, d.Values())
+
+	// diff fails when diff is not enabled
+	res, err := d.Diff()
+	require.Nil(t, res)
+	require.Error(t, err, errDiffNotEnabled)
+}
+
 func TestDistinctValueCollectorDiff(t *testing.T) {
 	d := NewDistinctValueWithDiff[string](0, func(s string) int { return len(s) })
 
 	d.Collect("123")
 	d.Collect("4567")
 
-	stringsSlicesEqual(t, []string{"123", "4567"}, d.Diff())
-	stringsSlicesEqual(t, []string{}, d.Diff())
+	stringsSlicesEqual(t, []string{"123", "4567"}, readDistinctValueDiff(t, d))
+	stringsSlicesEqual(t, []string{}, readDistinctValueDiff(t, d))
 
 	d.Collect("123")
 	d.Collect("890")
 
-	stringsSlicesEqual(t, []string{"890"}, d.Diff())
-	stringsSlicesEqual(t, []string{}, d.Diff())
+	stringsSlicesEqual(t, []string{"890"}, readDistinctValueDiff(t, d))
+	stringsSlicesEqual(t, []string{}, readDistinctValueDiff(t, d))
+}
+
+func readDistinctValueDiff(t *testing.T, d *DistinctValue[string]) []string {
+	res, err := d.Diff()
+	require.NoError(t, err)
+	return res
 }
 
 func stringsSlicesEqual(t *testing.T, a, b []string) {

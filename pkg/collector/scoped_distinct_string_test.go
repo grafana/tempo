@@ -82,29 +82,29 @@ func TestScopedDistinctDiff(t *testing.T) {
 	expected := map[string][]string{
 		"scope1": {"val1"},
 	}
-	assertMaps(t, expected, c.Diff())
+	assertMaps(t, expected, readScopedDistinctStringDiff(t, c))
 
 	// no diff
 	c.Collect("scope1", "val1")
 	expected = map[string][]string{}
-	assertMaps(t, expected, c.Diff())
-	assertMaps(t, map[string][]string{}, c.Diff())
+	assertMaps(t, expected, readScopedDistinctStringDiff(t, c))
+	assertMaps(t, map[string][]string{}, readScopedDistinctStringDiff(t, c))
 
 	// new value
 	c.Collect("scope1", "val2")
 	expected = map[string][]string{
 		"scope1": {"val2"},
 	}
-	assertMaps(t, expected, c.Diff())
-	assertMaps(t, map[string][]string{}, c.Diff())
+	assertMaps(t, expected, readScopedDistinctStringDiff(t, c))
+	assertMaps(t, map[string][]string{}, readScopedDistinctStringDiff(t, c))
 
 	// new scope
 	c.Collect("scope2", "val1")
 	expected = map[string][]string{
 		"scope2": {"val1"},
 	}
-	assertMaps(t, expected, c.Diff())
-	assertMaps(t, map[string][]string{}, c.Diff())
+	assertMaps(t, expected, readScopedDistinctStringDiff(t, c))
+	assertMaps(t, map[string][]string{}, readScopedDistinctStringDiff(t, c))
 
 	// all
 	c.Collect("scope2", "val1")
@@ -114,8 +114,21 @@ func TestScopedDistinctDiff(t *testing.T) {
 		"scope1": {"val3"},
 		"scope2": {"val2"},
 	}
-	assertMaps(t, expected, c.Diff())
-	assertMaps(t, map[string][]string{}, c.Diff())
+	assertMaps(t, expected, readScopedDistinctStringDiff(t, c))
+	assertMaps(t, map[string][]string{}, readScopedDistinctStringDiff(t, c))
+
+	// diff should error when diff is not enabled
+	col := NewScopedDistinctString(0)
+	col.Collect("scope1", "val1")
+	res, err := col.Diff()
+	require.Nil(t, res)
+	require.Error(t, err, errDiffNotEnabled)
+}
+
+func readScopedDistinctStringDiff(t *testing.T, d *ScopedDistinctString) map[string][]string {
+	res, err := d.Diff()
+	require.NoError(t, err)
+	return res
 }
 
 func assertMaps(t *testing.T, expected, actual map[string][]string) {
