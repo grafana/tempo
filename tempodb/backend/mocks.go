@@ -80,13 +80,8 @@ type MockRawWriter struct {
 }
 
 func (m *MockRawWriter) Write(_ context.Context, _ string, _ KeyPath, data io.Reader, size int64, _ *CacheInfo) error {
-	if m.writeBuffer == nil {
-		m.writeBuffer = make([]byte, 0)
-	}
-
-	writeBuffer, err := tempo_io.ReadAllWithEstimate(data, size)
-	m.writeBuffer = writeBuffer
-
+	var err error
+	m.writeBuffer, err = tempo_io.ReadAllWithEstimate(data, size)
 	return err
 }
 
