@@ -35,5 +35,6 @@ jobs:
       - name: Run backport
         uses: ./actions/backport
         with:
+          token: ${{ steps.get-github-app-token.outputs.token }}
           labelsToAdd: "backport"
           title: "[{{base}}] {{originalTitle}}"
