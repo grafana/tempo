@@ -96,11 +96,11 @@ func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 	}
 
 	marshallingFormat := applicationJSON
-	if strings.Contains(url, QueryTraceEndpoint) {
+	if strings.Contains(url, QueryTraceEndpoint) || strings.Contains(url, QueryTraceV2Endpoint) {
 		marshallingFormat = applicationProtobuf
 	}
 	// Set 'Accept' header to 'application/protobuf'.
-	// This is required for the /api/traces endpoint to return a protobuf response.
+	// This is required for the /api/traces and /api/v2/traces endpoint to return a protobuf response.
 	// JSON lost backwards compatibility with the upgrade to `opentelemetry-proto` v0.18.0.
 	req.Header.Set(acceptHeader, marshallingFormat)
 
