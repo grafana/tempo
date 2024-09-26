@@ -15,7 +15,7 @@ jobs:
   dependabot:
     name: Serverless gomod update
     runs-on: ubuntu-latest
-    if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
+    if: ${{ github.event.pull_request.user.login == 'tempo-gh-bot[bot]' }}
     steps:
       - name: Set up Go 1.22
         uses: actions/setup-go@v5
