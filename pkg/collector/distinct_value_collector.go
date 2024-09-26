@@ -25,7 +25,6 @@ type DistinctValue[T comparable] struct {
 func NewDistinctValue[T comparable](maxDataSize int, len func(T) int) *DistinctValue[T] {
 	return &DistinctValue[T]{
 		values:      make(map[T]struct{}),
-		new:         make(map[T]struct{}),
 		maxLen:      maxDataSize,
 		diffEnabled: false, // disable diff to make it faster
 		len:         len,

@@ -22,7 +22,6 @@ type DistinctString struct {
 func NewDistinctString(maxDataSize int) *DistinctString {
 	return &DistinctString{
 		values:      make(map[string]struct{}),
-		new:         make(map[string]struct{}),
 		maxLen:      maxDataSize,
 		diffEnabled: false, // disable diff to make it faster
 	}
