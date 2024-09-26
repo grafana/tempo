@@ -1,6 +1,7 @@
 package combiner
 
 import (
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -13,7 +14,7 @@ var (
 func NewSearchTags(limitBytes int) Combiner {
 	d := collector.NewDistinctString(limitBytes)
 
-	return &genericCombiner[*tempopb.SearchTagsResponse]{
+	c := &genericCombiner[*tempopb.SearchTagsResponse]{
 		httpStatusCode: 200,
 		new:            func() *tempopb.SearchTagsResponse { return &tempopb.SearchTagsResponse{} },
 		current:        &tempopb.SearchTagsResponse{TagNames: make([]string, 0)},
@@ -35,10 +36,14 @@ func NewSearchTags(limitBytes int) Combiner {
 			return response, nil
 		},
 	}
+	initHTTPCombiner(c, api.HeaderAcceptJSON)
+	return c
 }
 
 func NewTypedSearchTags(limitBytes int) GRPCCombiner[*tempopb.SearchTagsResponse] {
-	return NewSearchTags(limitBytes).(GRPCCombiner[*tempopb.SearchTagsResponse])
+	c := NewSearchTags(limitBytes).(GRPCCombiner[*tempopb.SearchTagsResponse])
+	initHTTPCombiner(c.(*genericCombiner[*tempopb.SearchTagsResponse]), api.HeaderAcceptJSON)
+	return c
 }
 
 func NewSearchTagsV2(limitBytes int) Combiner {
@@ -89,5 +94,7 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 }
 
 func NewTypedSearchTagsV2(limitBytes int) GRPCCombiner[*tempopb.SearchTagsV2Response] {
-	return NewSearchTagsV2(limitBytes).(GRPCCombiner[*tempopb.SearchTagsV2Response])
+	c := NewSearchTagsV2(limitBytes).(GRPCCombiner[*tempopb.SearchTagsV2Response])
+	initHTTPCombiner(c.(*genericCombiner[*tempopb.SearchTagsV2Response]), api.HeaderAcceptJSON)
+	return c
 }

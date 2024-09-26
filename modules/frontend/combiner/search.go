@@ -3,6 +3,7 @@ package combiner
 import (
 	"sort"
 
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -107,5 +108,7 @@ func addRootSpanNotReceivedText(results []*tempopb.TraceSearchMetadata) {
 }
 
 func NewTypedSearch(limit int) GRPCCombiner[*tempopb.SearchResponse] {
-	return NewSearch(limit).(GRPCCombiner[*tempopb.SearchResponse])
+	c := NewSearch(limit).(GRPCCombiner[*tempopb.SearchResponse])
+	initHTTPCombiner(c.(*genericCombiner[*tempopb.SearchResponse]), api.HeaderAcceptJSON)
+	return c
 }

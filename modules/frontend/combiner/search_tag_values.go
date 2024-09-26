@@ -1,6 +1,7 @@
 package combiner
 
 import (
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -14,7 +15,7 @@ func NewSearchTagValues(limitBytes int) Combiner {
 	// Distinct collector with no limit
 	d := collector.NewDistinctString(limitBytes)
 
-	return &genericCombiner[*tempopb.SearchTagValuesResponse]{
+	c := &genericCombiner[*tempopb.SearchTagValuesResponse]{
 		httpStatusCode: 200,
 		new:            func() *tempopb.SearchTagValuesResponse { return &tempopb.SearchTagValuesResponse{} },
 		current:        &tempopb.SearchTagValuesResponse{TagValues: make([]string, 0)},
@@ -36,17 +37,21 @@ func NewSearchTagValues(limitBytes int) Combiner {
 			return response, nil
 		},
 	}
+	initHTTPCombiner(c, api.HeaderAcceptJSON)
+	return c
 }
 
 func NewTypedSearchTagValues(limitBytes int) GRPCCombiner[*tempopb.SearchTagValuesResponse] {
-	return NewSearchTagValues(limitBytes).(GRPCCombiner[*tempopb.SearchTagValuesResponse])
+	c := NewSearchTagValues(limitBytes).(GRPCCombiner[*tempopb.SearchTagValuesResponse])
+	initHTTPCombiner(c.(*genericCombiner[*tempopb.SearchTagValuesResponse]), api.HeaderAcceptJSON)
+	return c
 }
 
 func NewSearchTagValuesV2(limitBytes int) Combiner {
 	// Distinct collector with no limit and diff enabled
 	d := collector.NewDistinctValueWithDiff(limitBytes, func(tv tempopb.TagValue) int { return len(tv.Type) + len(tv.Value) })
 
-	return &genericCombiner[*tempopb.SearchTagValuesV2Response]{
+	c := &genericCombiner[*tempopb.SearchTagValuesV2Response]{
 		httpStatusCode: 200,
 		current:        &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{}},
 		new:            func() *tempopb.SearchTagValuesV2Response { return &tempopb.SearchTagValuesV2Response{} },
@@ -78,8 +83,12 @@ func NewSearchTagValuesV2(limitBytes int) Combiner {
 			return response, nil
 		},
 	}
+	initHTTPCombiner(c, api.HeaderAcceptJSON)
+	return c
 }
 
 func NewTypedSearchTagValuesV2(limitBytes int) GRPCCombiner[*tempopb.SearchTagValuesV2Response] {
-	return NewSearchTagValuesV2(limitBytes).(GRPCCombiner[*tempopb.SearchTagValuesV2Response])
+	c := NewSearchTagValuesV2(limitBytes).(GRPCCombiner[*tempopb.SearchTagValuesV2Response])
+	initHTTPCombiner(c.(*genericCombiner[*tempopb.SearchTagValuesV2Response]), api.HeaderAcceptJSON)
+	return c
 }
