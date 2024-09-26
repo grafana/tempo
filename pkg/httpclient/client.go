@@ -26,7 +26,8 @@ import (
 const (
 	orgIDHeader = "X-Scope-OrgID"
 
-	QueryTraceEndpoint = "/api/traces"
+	QueryTraceEndpoint   = "/api/traces"
+	QueryTraceV2Endpoint = "/api/v2/traces"
 
 	acceptHeader        = "Accept"
 	applicationProtobuf = "application/protobuf"
@@ -253,7 +254,18 @@ func (c *Client) QueryTrace(id string) (*tempopb.Trace, error) {
 		}
 		return nil, err
 	}
+	return m, nil
+}
 
+func (c *Client) QueryTraceV2(id string) (*tempopb.TraceByIDResponse, error) {
+	m := &tempopb.TraceByIDResponse{}
+	resp, err := c.getFor(c.BaseURL+QueryTraceV2Endpoint+"/"+id, m)
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return nil, util.ErrTraceNotFound
+		}
+		return nil, err
+	}
 	return m, nil
 }
 
