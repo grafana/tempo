@@ -27,9 +27,9 @@ func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
 		}
 		// log the Message and trace field
 		if traceResp.Message != "" {
-			// print error message to stderr if there is one.
-			// this allows use to get a clean trace on the stdout that can be piped to a file or another commands.
-			fmt.Fprintf(os.Stderr, "status: %s , message: %s\n", traceResp.Status, traceResp.Message)
+			// print message and status to stderr if there is one.
+			// allows users to get a clean trace on the stdout, and pipe it to a file or another commands.
+			_, _ = fmt.Fprintf(os.Stderr, "status: %s , message: %s\n", traceResp.Status, traceResp.Message)
 		}
 		// only print the trace field
 		return printAsJSON(traceResp.Trace)
