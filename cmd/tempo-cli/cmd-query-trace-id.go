@@ -40,5 +40,4 @@ func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
 	}
 	// only print the trace field
 	return printAsJSON(traceResp.Trace)
-
 }
