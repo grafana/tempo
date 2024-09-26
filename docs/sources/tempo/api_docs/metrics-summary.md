@@ -7,8 +7,6 @@ title: Metrics summary API
 weight: 600
 ---
 
-// just need to trigger job, will remove
-
 # Metrics summary API
 
 {{< admonition type="warning" >}}
