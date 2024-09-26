@@ -94,7 +94,7 @@ func main() {
 	ctx := kong.Parse(&cli,
 		kong.UsageOnError(),
 		kong.ConfigureHelp(kong.HelpOptions{
-			// Compact: true,
+			Compact: true,
 		}),
 	)
 	err := ctx.Run(&cli.globalOptions)
