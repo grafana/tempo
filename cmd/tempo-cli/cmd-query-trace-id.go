@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/tempo/pkg/httpclient"
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 type queryTraceIDCmd struct {
@@ -25,19 +27,28 @@ func (cmd *queryTraceIDCmd) Run(_ *globalOptions) error {
 		if err != nil {
 			return err
 		}
-		return printAsJSON(trace)
+		return printTrace(trace)
 	}
 
 	traceResp, err := client.QueryTraceV2(cmd.TraceID)
 	if err != nil {
 		return err
 	}
-	// log the Message and trace field
 	if traceResp.Message != "" {
 		// print message and status to stderr if there is one.
 		// allows users to get a clean trace on the stdout, and pipe it to a file or another commands.
 		_, _ = fmt.Fprintf(os.Stderr, "status: %s , message: %s\n", traceResp.Status, traceResp.Message)
 	}
-	// only print the trace field
-	return printAsJSON(traceResp.Trace)
+	return printTrace(traceResp.Trace)
+}
+
+func printTrace(trace *tempopb.Trace) error {
+	// tracebyid endpoints are protobuf, we are using 'gogo/protobuf/jsonpb' to marshal the
+	// trace to json because 'encoding/json' package can't handle +Inf, -Inf, NaN
+	marshaller := &jsonpb.Marshaler{}
+	err := marshaller.Marshal(os.Stdout, trace)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to marshal trace: %v\n", err)
+	}
+	return nil
 }
