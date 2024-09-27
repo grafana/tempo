@@ -51,7 +51,7 @@ The current team members are:
 - Javi Molina - [javiermolinar](https://github.com/javiermolinar) ([Grafana Labs](https://grafana.com/))
 - Joe Elliott - [joe-elliott](https://github.com/joe-elliott) ([Grafana Labs](https://grafana.com/))
 - Kim Nylander - [knylander-grafana](https://github.com/knylander-grafana) ([Grafana Labs](https://grafana.com/))
-- Koenraad Verheyden - [kvrhdn](https://github.com/kvrhdn) ([Grafana Labs](https://grafana.com/))
+- Yuna Verheyden - [yvhrdn](https://github.com/yvhrdn) ([Grafana Labs](https://grafana.com/))
 - Mario Rodriguez - [mapno](https://github.com/mapno) ([Grafana Labs](https://grafana.com/))
 - Marty Disibio - [mdisibio](https://github.com/mdisibio) ([Grafana Labs](https://grafana.com/))
 - Adrian Stoewer - [stoewer](https://github.com/stoewer) ([Grafana Labs](https://grafana.com/))
