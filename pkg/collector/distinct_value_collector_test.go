@@ -23,7 +23,7 @@ func TestDistinctValueCollector(t *testing.T) {
 
 	require.True(t, d.Exceeded())
 	require.Equal(t, stop, d.Exceeded()) // final stop should be same as Exceeded
-	require.Equal(t, []string{"123", "4567"}, d.Values())
+	stringsSlicesEqual(t, []string{"123", "4567"}, d.Values())
 
 	// diff fails when diff is not enabled
 	res, err := d.Diff()

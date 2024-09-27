@@ -18,7 +18,7 @@ func TestDistinctStringCollector(t *testing.T) {
 	d.Collect("11")
 
 	require.True(t, d.Exceeded())
-	require.Equal(t, []string{"123", "4567", "890"}, d.Strings())
+	stringsSlicesEqual(t, []string{"123", "4567", "890"}, d.Strings())
 
 	// diff fails when diff is not enabled
 	res, err := d.Diff()
@@ -32,14 +32,14 @@ func TestDistinctStringCollectorDiff(t *testing.T) {
 	d.Collect("123")
 	d.Collect("4567")
 
-	require.Equal(t, []string{"123", "4567"}, readDistinctStringDiff(t, d))
-	require.Equal(t, []string{}, readDistinctStringDiff(t, d))
+	stringsSlicesEqual(t, []string{"123", "4567"}, readDistinctStringDiff(t, d))
+	stringsSlicesEqual(t, []string{}, readDistinctStringDiff(t, d))
 
 	d.Collect("123")
 	d.Collect("890")
 
-	require.Equal(t, []string{"890"}, readDistinctStringDiff(t, d))
-	require.Equal(t, []string{}, readDistinctStringDiff(t, d))
+	stringsSlicesEqual(t, []string{"890"}, readDistinctStringDiff(t, d))
+	stringsSlicesEqual(t, []string{}, readDistinctStringDiff(t, d))
 }
 
 func readDistinctStringDiff(t *testing.T, d *DistinctString) []string {
