@@ -3,6 +3,7 @@ package combiner
 import (
 	"sort"
 
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -15,7 +16,7 @@ func NewSearch(limit int) Combiner {
 	metadataCombiner := traceql.NewMetadataCombiner()
 	diffTraces := map[string]struct{}{}
 
-	return &genericCombiner[*tempopb.SearchResponse]{
+	c := &genericCombiner[*tempopb.SearchResponse]{
 		httpStatusCode: 200,
 		new:            func() *tempopb.SearchResponse { return &tempopb.SearchResponse{} },
 		current:        &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
@@ -96,6 +97,8 @@ func NewSearch(limit int) Combiner {
 			return metadataCombiner.Count() >= limit
 		},
 	}
+	initHTTPCombiner(c, api.HeaderAcceptJSON)
+	return c
 }
 
 func addRootSpanNotReceivedText(results []*tempopb.TraceSearchMetadata) {
