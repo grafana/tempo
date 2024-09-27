@@ -16,7 +16,7 @@ func NewSearch(limit int) Combiner {
 	metadataCombiner := traceql.NewMetadataCombiner()
 	diffTraces := map[string]struct{}{}
 
-	return &genericCombiner[*tempopb.SearchResponse]{
+	c := &genericCombiner[*tempopb.SearchResponse]{
 		httpStatusCode: 200,
 		new:            func() *tempopb.SearchResponse { return &tempopb.SearchResponse{} },
 		current:        &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
@@ -97,6 +97,8 @@ func NewSearch(limit int) Combiner {
 			return metadataCombiner.Count() >= limit
 		},
 	}
+	initHTTPCombiner(c, api.HeaderAcceptJSON)
+	return c
 }
 
 func addRootSpanNotReceivedText(results []*tempopb.TraceSearchMetadata) {
@@ -108,7 +110,5 @@ func addRootSpanNotReceivedText(results []*tempopb.TraceSearchMetadata) {
 }
 
 func NewTypedSearch(limit int) GRPCCombiner[*tempopb.SearchResponse] {
-	c := NewSearch(limit).(GRPCCombiner[*tempopb.SearchResponse])
-	initHTTPCombiner(c.(*genericCombiner[*tempopb.SearchResponse]), api.HeaderAcceptJSON)
-	return c
+	return NewSearch(limit).(GRPCCombiner[*tempopb.SearchResponse])
 }

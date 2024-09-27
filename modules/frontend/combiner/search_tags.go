@@ -41,16 +41,14 @@ func NewSearchTags(limitBytes int) Combiner {
 }
 
 func NewTypedSearchTags(limitBytes int) GRPCCombiner[*tempopb.SearchTagsResponse] {
-	c := NewSearchTags(limitBytes).(GRPCCombiner[*tempopb.SearchTagsResponse])
-	initHTTPCombiner(c.(*genericCombiner[*tempopb.SearchTagsResponse]), api.HeaderAcceptJSON)
-	return c
+	return NewSearchTags(limitBytes).(GRPCCombiner[*tempopb.SearchTagsResponse])
 }
 
 func NewSearchTagsV2(limitBytes int) Combiner {
 	// Distinct collector map to collect scopes and scope values
 	distinctValues := collector.NewScopedDistinctString(limitBytes)
 
-	return &genericCombiner[*tempopb.SearchTagsV2Response]{
+	c := &genericCombiner[*tempopb.SearchTagsV2Response]{
 		httpStatusCode: 200,
 		new:            func() *tempopb.SearchTagsV2Response { return &tempopb.SearchTagsV2Response{} },
 		current:        &tempopb.SearchTagsV2Response{Scopes: make([]*tempopb.SearchTagsV2Scope, 0)},
@@ -91,10 +89,10 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 			return response, nil
 		},
 	}
+	initHTTPCombiner(c, api.HeaderAcceptJSON)
+	return c
 }
 
 func NewTypedSearchTagsV2(limitBytes int) GRPCCombiner[*tempopb.SearchTagsV2Response] {
-	c := NewSearchTagsV2(limitBytes).(GRPCCombiner[*tempopb.SearchTagsV2Response])
-	initHTTPCombiner(c.(*genericCombiner[*tempopb.SearchTagsV2Response]), api.HeaderAcceptJSON)
-	return c
+	return NewSearchTagsV2(limitBytes).(GRPCCombiner[*tempopb.SearchTagsV2Response])
 }

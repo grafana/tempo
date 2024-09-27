@@ -18,7 +18,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (Combiner, e
 		return nil, err
 	}
 
-	return &genericCombiner[*tempopb.QueryRangeResponse]{
+	c := &genericCombiner[*tempopb.QueryRangeResponse]{
 		httpStatusCode: 200,
 		new:            func() *tempopb.QueryRangeResponse { return &tempopb.QueryRangeResponse{} },
 		current:        &tempopb.QueryRangeResponse{Metrics: &tempopb.SearchMetrics{}},
@@ -52,7 +52,11 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (Combiner, e
 			sortResponse(resp)
 			return resp, nil
 		},
-	}, nil
+	}
+
+	initHTTPCombiner(c, api.HeaderAcceptJSON)
+
+	return c, nil
 }
 
 func NewTypedQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (GRPCCombiner[*tempopb.QueryRangeResponse], error) {
@@ -60,8 +64,6 @@ func NewTypedQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (GRPCCo
 	if err != nil {
 		return nil, err
 	}
-
-	initHTTPCombiner(c.(*genericCombiner[*tempopb.QueryRangeResponse]), api.HeaderAcceptJSON)
 	return c.(GRPCCombiner[*tempopb.QueryRangeResponse]), nil
 }
 

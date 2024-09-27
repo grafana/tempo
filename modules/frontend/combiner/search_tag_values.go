@@ -42,9 +42,7 @@ func NewSearchTagValues(limitBytes int) Combiner {
 }
 
 func NewTypedSearchTagValues(limitBytes int) GRPCCombiner[*tempopb.SearchTagValuesResponse] {
-	c := NewSearchTagValues(limitBytes).(GRPCCombiner[*tempopb.SearchTagValuesResponse])
-	initHTTPCombiner(c.(*genericCombiner[*tempopb.SearchTagValuesResponse]), api.HeaderAcceptJSON)
-	return c
+	return NewSearchTagValues(limitBytes).(GRPCCombiner[*tempopb.SearchTagValuesResponse])
 }
 
 func NewSearchTagValuesV2(limitBytes int) Combiner {
@@ -88,7 +86,5 @@ func NewSearchTagValuesV2(limitBytes int) Combiner {
 }
 
 func NewTypedSearchTagValuesV2(limitBytes int) GRPCCombiner[*tempopb.SearchTagValuesV2Response] {
-	c := NewSearchTagValuesV2(limitBytes).(GRPCCombiner[*tempopb.SearchTagValuesV2Response])
-	initHTTPCombiner(c.(*genericCombiner[*tempopb.SearchTagValuesV2Response]), api.HeaderAcceptJSON)
-	return c
+	return NewSearchTagValuesV2(limitBytes).(GRPCCombiner[*tempopb.SearchTagValuesV2Response])
 }
