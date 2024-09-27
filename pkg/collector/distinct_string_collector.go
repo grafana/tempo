@@ -37,14 +37,10 @@ func NewDistinctStringWithDiff(maxDataSize int) *DistinctString {
 	}
 }
 
-// Collect adds a new value to the distinct string collector.
-// returns a bool to indicate if the value was added or not.
-// you need to call Exceeded to check if the limit was reached
-//
-// Note: Collect doesn't return exceeded bool like other collectors,
-// changing it to be consistent with other collectors requires changes in Searcher interface.
-// callbacks because Collect is used in Searcher interface callbacks.
-func (d *DistinctString) Collect(s string) bool {
+// Collect adds a new value to the distinct string collector
+// and returns a boolean indicating whether the value was successfully added or not.
+// To check if the limit has been reached, you must call the Exceeded method separately.
+func (d *DistinctString) Collect(s string) (added bool) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
