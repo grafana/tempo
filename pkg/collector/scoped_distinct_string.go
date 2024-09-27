@@ -89,12 +89,12 @@ func (d *ScopedDistinctString) Exceeded() bool {
 
 // Diff returns all new strings collected since the last time Diff was called
 func (d *ScopedDistinctString) Diff() (map[string][]string, error) {
-	d.mtx.Lock()
-	defer d.mtx.Unlock()
-
 	if !d.diffEnabled {
 		return nil, errDiffNotEnabled
 	}
+
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
 
 	ss := map[string][]string{}
 

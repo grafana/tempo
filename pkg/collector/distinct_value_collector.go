@@ -111,12 +111,13 @@ func (d *DistinctValue[T]) Size() int {
 // Diff returns all new strings collected since the last time diff was called
 // returns nil if diff is not enabled
 func (d *DistinctValue[T]) Diff() ([]T, error) {
-	d.mtx.Lock()
-	defer d.mtx.Unlock()
-
+	// can check diffEnabled without lock because it is not modified after creation
 	if !d.diffEnabled {
 		return nil, errDiffNotEnabled
 	}
+
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
 
 	ss := make([]T, 0, len(d.new))
 	for k := range d.new {
