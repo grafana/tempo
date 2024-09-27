@@ -61,6 +61,7 @@ func GetJobValue(attributes []*v1_common.KeyValue) string {
 }
 
 func GetTargetInfoAttributesValues(attributes []*v1_common.KeyValue, exclude []string) ([]string, []string) {
+	// TODO allocate with known length, or take new params for existing buffers
 	keys := make([]string, 0)
 	values := make([]string, 0)
 	for _, attrs := range attributes {

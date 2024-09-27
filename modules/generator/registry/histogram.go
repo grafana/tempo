@@ -161,6 +161,7 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 	lb := labels.NewBuilder(lbls)
 
 	// set external labels
+	// TODO - Verify if external labels can change at runtime, if not then scan this map once elsewhere
 	for name, value := range externalLabels {
 		lb.Set(name, value)
 	}
@@ -172,6 +173,8 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 		}
 
 		// sum
+		// TODO labels dont' change throughout the life of a series
+		//      investigate building once
 		lb.Set(labels.MetricName, h.nameSum)
 		_, err = appender.Append(0, lb.Labels(), timeMs, s.sum.Load())
 		if err != nil {
@@ -189,6 +192,8 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 		lb.Set(labels.MetricName, h.nameBucket)
 
 		for i, bucketLabel := range h.bucketLabels {
+			// TODO we are just overwriting the known le label, so investigate
+			// reusing the same slice
 			lb.Set(labels.BucketLabel, bucketLabel)
 			ref, err := appender.Append(0, lb.Labels(), timeMs, s.buckets[i].Load())
 			if err != nil {

@@ -46,7 +46,7 @@ func TestManagedRegistry_concurrency(*testing.T) {
 	})
 
 	go accessor(func() {
-		registry.collectMetrics(context.Background())
+		registry.CollectMetrics(context.Background())
 	})
 
 	go accessor(func() {
@@ -213,7 +213,7 @@ func TestManagedRegistry_disableCollection(t *testing.T) {
 	// active series are still tracked
 	assert.Equal(t, uint32(1), registry.activeSeries.Load())
 	// but no samples are collected and sent out
-	registry.collectMetrics(context.Background())
+	registry.CollectMetrics(context.Background())
 	assert.Empty(t, appender.samples)
 	assert.Empty(t, appender.exemplars)
 }
@@ -294,7 +294,7 @@ func TestHistogramOverridesConfig(t *testing.T) {
 
 func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender *capturingAppender, expectedSamples []sample) {
 	collectionTimeMs := time.Now().UnixMilli()
-	r.collectMetrics(context.Background())
+	r.CollectMetrics(context.Background())
 
 	// Ignore the collection time on expected samples, since we won't know when the collection will actually take place.
 	for i := range expectedSamples {
