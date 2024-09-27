@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -195,6 +196,12 @@ func BenchmarkPushSpans(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		inst.pushSpans(ctx, req)
 	}
+
+	b.StopTimer()
+	runtime.GC()
+	mem := runtime.MemStats{}
+	runtime.ReadMemStats(&mem)
+	println("Final inuse space:", mem.HeapInuse, "bytes")
 }
 
 func BenchmarkCollect(b *testing.B) {
@@ -257,4 +264,10 @@ func BenchmarkCollect(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		inst.registry.CollectMetrics(ctx)
 	}
+
+	b.StopTimer()
+	runtime.GC()
+	mem := runtime.MemStats{}
+	runtime.ReadMemStats(&mem)
+	println("Final inuse space:", mem.HeapInuse, "bytes")
 }
