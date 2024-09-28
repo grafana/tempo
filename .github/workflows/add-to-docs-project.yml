@@ -6,7 +6,7 @@ on:
     types: [labeled]
 jobs:
   main:
-    if: ${{ github.event.label.name == 'type/docs' }}
+    if: ${{ github.event.label.name == 'type/docs' }} && { github.repository == 'grafana/tempo' }}
     permissions:
       contents: read
       id-token: write
