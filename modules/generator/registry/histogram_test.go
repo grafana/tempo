@@ -27,12 +27,15 @@ func Test_histogram(t *testing.T) {
 	assert.Equal(t, 2, seriesAdded)
 
 	collectionTimeMs := time.Now().UnixMilli()
+	collectionTimeWithOffsetMs := collectionTimeMs - 1
 	expectedSamples := []sample{
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, collectionTimeWithOffsetMs, 0), // Zero entry for value-1 series
 		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2"}, collectionTimeWithOffsetMs, 0), // Zero entry for value-2 series
 		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-2"}, collectionTimeMs, 1.5),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1"}, collectionTimeMs, 0),
@@ -70,6 +73,7 @@ func Test_histogram(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1"}, collectionTimeMs, 0),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "2"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "+Inf"}, collectionTimeMs, 2),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-3"}, collectionTimeWithOffsetMs, 0), // Zero entry for value-3 series
 		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-3"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-3"}, collectionTimeMs, 3),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-3", "le": "1"}, collectionTimeMs, 0),
@@ -150,12 +154,15 @@ func Test_histogram_cantAdd(t *testing.T) {
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
 
 	collectionTimeMs := time.Now().UnixMilli()
+	collectionTimeWithOffsetMs := collectionTimeMs - 1
 	expectedSamples := []sample{
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, collectionTimeWithOffsetMs, 0),
 		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2"}, collectionTimeWithOffsetMs, 0),
 		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-2"}, collectionTimeMs, 1.5),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1"}, collectionTimeMs, 0),
@@ -204,12 +211,15 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 	assert.Equal(t, 0, removedSeries)
 
 	collectionTimeMs := time.Now().UnixMilli()
+	collectionTimeWithOffsetMs := collectionTimeMs - 1
 	expectedSamples := []sample{
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, collectionTimeWithOffsetMs, 0),
 		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2"}, collectionTimeWithOffsetMs, 0),
 		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-2"}, collectionTimeMs, 1.5),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1"}, collectionTimeMs, 0),
@@ -246,12 +256,15 @@ func Test_histogram_externalLabels(t *testing.T) {
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 1.5, "", 1.0)
 
 	collectionTimeMs := time.Now().UnixMilli()
+	collectionTimeWithOffsetMs := collectionTimeMs - 1
 	expectedSamples := []sample{
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1", "external_label": "external_value"}, collectionTimeWithOffsetMs, 0),
 		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1", "external_label": "external_value"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1", "external_label": "external_value"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1", "external_label": "external_value"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2", "external_label": "external_value"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf", "external_label": "external_value"}, collectionTimeMs, 1),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2", "external_label": "external_value"}, collectionTimeWithOffsetMs, 0),
 		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-2", "external_label": "external_value"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-2", "external_label": "external_value"}, collectionTimeMs, 1.5),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-2", "le": "1", "external_label": "external_value"}, collectionTimeMs, 0),
@@ -337,7 +350,9 @@ func Test_histogram_concurrencyCorrectness(t *testing.T) {
 	wg.Wait()
 
 	collectionTimeMs := time.Now().UnixMilli()
+	collectionTimeWithOffsetMs := collectionTimeMs - 1
 	expectedSamples := []sample{
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, collectionTimeWithOffsetMs, 0),
 		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, collectionTimeMs, float64(totalCount.Load())),
 		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, collectionTimeMs, 2*float64(totalCount.Load())),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"}, collectionTimeMs, 0),
@@ -353,9 +368,11 @@ func Test_histogram_span_multiplier(t *testing.T) {
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 2.0, "", 5)
 
 	collectionTimeMs := time.Now().UnixMilli()
+	collectionTimeWithOffsetMs := collectionTimeMs - 1
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, collectionTimeMs, 11.5),
+		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, collectionTimeWithOffsetMs, 0),
 		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, collectionTimeMs, 6.5),
+		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, collectionTimeMs, 11.5),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "1"}, collectionTimeMs, 1.5),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "2"}, collectionTimeMs, 6.5),
 		newSample(map[string]string{"__name__": "my_histogram_bucket", "label": "value-1", "le": "+Inf"}, collectionTimeMs, 6.5),

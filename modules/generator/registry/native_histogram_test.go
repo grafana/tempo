@@ -48,6 +48,7 @@ func Test_Histograms(t *testing.T) {
 	}
 
 	collectionTimeMs := time.Now().UnixMilli()
+	collectionTimeWithOffsetMs := collectionTimeMs - 1
 
 	cases := []struct {
 		name        string
@@ -70,6 +71,7 @@ func Test_Histograms(t *testing.T) {
 						},
 					},
 					expectedSamples: []sample{
+						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeWithOffsetMs, 0), // zero count at the beginning
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-1", "le": "1"}, collectionTimeMs, 1),
@@ -106,11 +108,13 @@ func Test_Histograms(t *testing.T) {
 						},
 					},
 					expectedSamples: []sample{
+						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeWithOffsetMs, 0), // zero count at the beginning
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-1", "le": "1"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-1", "le": "2"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-1", "le": "+Inf"}, collectionTimeMs, 1),
+						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-2"}, collectionTimeWithOffsetMs, 0), // zero count at the beginning
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-2"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-2"}, collectionTimeMs, 1.5),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-2", "le": "1"}, collectionTimeMs, 0),
@@ -152,11 +156,13 @@ func Test_Histograms(t *testing.T) {
 						},
 					},
 					expectedSamples: []sample{
+						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeWithOffsetMs, 0), // zero count at the beginning
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-1", "le": "1"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-1", "le": "2"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-1", "le": "+Inf"}, collectionTimeMs, 1),
+						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-2"}, collectionTimeWithOffsetMs, 0), // zero count at the beginning
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-2"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-2"}, collectionTimeMs, 1.5),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-2", "le": "1"}, collectionTimeMs, 0),
@@ -202,6 +208,7 @@ func Test_Histograms(t *testing.T) {
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-2", "le": "1"}, collectionTimeMs, 0),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-2", "le": "2"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-2", "le": "+Inf"}, collectionTimeMs, 2),
+						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-3"}, collectionTimeWithOffsetMs, 0), // zero count at the beginning
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-3"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-3"}, collectionTimeMs, 3),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-3", "le": "1"}, collectionTimeMs, 0),
@@ -243,11 +250,13 @@ func Test_Histograms(t *testing.T) {
 						},
 					},
 					expectedSamples: []sample{
+						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeWithOffsetMs, 0), // zero count at the beginning
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeMs, 20),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-1"}, collectionTimeMs, 20*1.5),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-1", "le": "1"}, collectionTimeMs, 0),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-1", "le": "2"}, collectionTimeMs, 20),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-1", "le": "+Inf"}, collectionTimeMs, 20),
+						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-2"}, collectionTimeWithOffsetMs, 0), // zero count at the beginning
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-2"}, collectionTimeMs, 13),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-2"}, collectionTimeMs, 13*3),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-2", "le": "1"}, collectionTimeMs, 0),
@@ -290,11 +299,13 @@ func Test_Histograms(t *testing.T) {
 						},
 					},
 					expectedSamples: []sample{
+						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeWithOffsetMs, 0), // zero count at the beginning
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-1", "le": "1"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-1", "le": "2"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-1", "le": "+Inf"}, collectionTimeMs, 1),
+						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-2"}, collectionTimeWithOffsetMs, 0), // zero count at the beginning
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-2"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-2"}, collectionTimeMs, 1.5),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-2", "le": "1"}, collectionTimeMs, 0),
@@ -340,6 +351,7 @@ func Test_Histograms(t *testing.T) {
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-2", "le": "1"}, collectionTimeMs, 0),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-2", "le": "2"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-2", "le": "+Inf"}, collectionTimeMs, 2),
+						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-3"}, collectionTimeWithOffsetMs, 0), // zero count at the beginning
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-3"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-3"}, collectionTimeMs, 3),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-3", "le": "1"}, collectionTimeMs, 0),
@@ -427,7 +439,7 @@ func Test_Histograms(t *testing.T) {
 				h.ObserveWithExemplar(obs.labelValueCombo, obs.value, obs.traceID, obs.multiplier)
 			}
 
-			collectMetricsAndAssertSeries(t, h, collectionTimeMs, len(c.expectedSamples), appender)
+			collectMetricsAndAssertSeries(t, h, collectionTimeMs, expectedSeriesLen(c.expectedSamples), appender)
 			if len(c.expectedSamples) > 0 {
 				assertAppenderSamples(t, appender, c.expectedSamples)
 			}
@@ -441,11 +453,7 @@ func Test_Histograms(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Run("classic", func(t *testing.T) {
-				var seriesAdded int
-				onAdd := func(count uint32) bool {
-					seriesAdded += int(count)
-					return true
-				}
+				onAdd := func(count uint32) bool { return true }
 				h := newHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id")
 				testHistogram(t, h, tc.collections)
 			})
@@ -454,12 +462,7 @@ func Test_Histograms(t *testing.T) {
 					t.SkipNow()
 				}
 
-				var seriesAdded int
-				onAdd := func(count uint32) bool {
-					seriesAdded += int(count)
-					return true
-				}
-
+				onAdd := func(count uint32) bool { return true }
 				h := newNativeHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", HistogramModeBoth)
 				testHistogram(t, h, tc.collections)
 			})
@@ -532,4 +535,12 @@ func assertAppenderExemplars(t *testing.T, appender *capturingAppender, expected
 			}
 		}
 	})
+}
+
+func expectedSeriesLen(samples []sample) int {
+	series := make(map[string]struct{})
+	for _, s := range samples {
+		series[s.l.String()] = struct{}{}
+	}
+	return len(series)
 }
