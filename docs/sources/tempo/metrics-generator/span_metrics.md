@@ -21,7 +21,7 @@ but it has distributed tracing implemented.
 You get out-of-the-box metrics from your tracing pipeline.
 
 {{< admonition type="note" >}}
-Metrics generation is disabled by default. Contact Grafana Support to enable metrics generation in your organization.
+Metrics generation is disabled by default. You can enable it for use with Application Observability defaults in Application Observability, or contact Grafana Support to enable metrics-generation for your organization with custom settings.
 {{% /admonition %}}
 
 Even if you already have metrics, span metrics can provide in-depth monitoring of your system.
