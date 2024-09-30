@@ -309,8 +309,7 @@ func (dcs DedicatedColumns) Marshal() ([]byte, error) {
 		return nil, nil
 	}
 
-	// NOTE: This is a performance optimization to avoid re-unmarshalling the
-	// same data multiple times on the read.
+	// NOTE: The json bytes interned in a map to avoid re-unmarshalling the same byte slice.
 	return json.Marshal(dcs)
 }
 
@@ -329,8 +328,7 @@ func (dcs *DedicatedColumns) Unmarshal(data []byte) error {
 		return nil
 	}
 
-	// NOTE: See UnmarshalJSON for a performance optimization to record the json
-	// bytes for reuse.
+	// NOTE: The json bytes interned in a map to avoid re-unmarshalling the same byte slice.
 	return json.Unmarshal(data, &dcs)
 }
 
