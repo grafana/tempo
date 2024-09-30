@@ -51,4 +51,4 @@ These visualizations test Kubernetes with Tanka and Linux procedures. They do no
 
 Explore Tempo's features by learning about [available features and configurations]({{< relref "../configuration" >}}).
 
-If you would to see a simplied, annotated example configuration for Tempo, the [Introduction To MLT](https://github.com/grafana/intro-to-mlt) example repository contains a [configuration](https://github.com/grafana/intro-to-mlt/blob/main/tempo/tempo.yaml) for a monolithic instance.
+If you would like to see a simplified, annotated example configuration for Tempo, the [Introduction To MLT](https://github.com/grafana/intro-to-mlt) example repository contains a [configuration](https://github.com/grafana/intro-to-mlt/blob/main/tempo/tempo.yaml) for a monolithic instance.
