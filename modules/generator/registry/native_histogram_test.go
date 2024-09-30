@@ -453,7 +453,7 @@ func Test_Histograms(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Run("classic", func(t *testing.T) {
-				onAdd := func(count uint32) bool { return true }
+				onAdd := func(uint32) bool { return true }
 				h := newHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id")
 				testHistogram(t, h, tc.collections)
 			})
@@ -462,7 +462,7 @@ func Test_Histograms(t *testing.T) {
 					t.SkipNow()
 				}
 
-				onAdd := func(count uint32) bool { return true }
+				onAdd := func(uint32) bool { return true }
 				h := newNativeHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", HistogramModeBoth)
 				testHistogram(t, h, tc.collections)
 			})
