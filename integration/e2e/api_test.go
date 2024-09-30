@@ -18,6 +18,8 @@ import (
 	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -520,6 +522,42 @@ func TestSearchTagValues(t *testing.T) {
 	start := now.Add(-2 * time.Hour)
 	end := now.Add(2 * time.Hour)
 	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{TagValues: []string{"my-service"}}, start.Unix(), end.Unix())
+}
+
+func TestStreamingSearch_badRequest(t *testing.T) {
+	s, err := e2e.NewScenario("tempo_e2e_tags")
+	require.NoError(t, err)
+	defer s.Close()
+
+	require.NoError(t, util.CopyFileToSharedDir(s, configAllInOneLocal, "config.yaml"))
+	tempo := util.NewTempoAllInOne()
+	require.NoError(t, s.StartAndWaitReady(tempo))
+
+	jaegerClient, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
+	require.NoError(t, err)
+	require.NotNil(t, jaegerClient)
+
+	batch := util.MakeThriftBatch()
+	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
+
+	// Wait for the traces to be written to the WAL
+	time.Sleep(time.Second * 3)
+
+	// Create gRPC client
+	c, err := util.NewSearchGRPCClient(context.Background(), tempo.Endpoint(3200))
+	require.NoError(t, err)
+
+	res, err := c.Search(context.Background(), &tempopb.SearchRequest{
+		Query: "{resource.service.name=article}",
+	})
+	require.NoError(t, err)
+
+	_, err = res.Recv()
+	require.Error(t, err)
+
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	require.Equal(t, codes.InvalidArgument, st.Code())
 }
 
 func callSearchTagValuesV2AndAssert(t *testing.T, svc *e2e.HTTPService, tagName, query string, expected searchTagValuesV2Response, start, end int64) {

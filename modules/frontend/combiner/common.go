@@ -212,8 +212,10 @@ func (c *genericCombiner[T]) erroredResponse() (*http.Response, error) {
 		grpcErr = status.Error(codes.Internal, c.httpRespBody)
 	} else if c.httpStatusCode == http.StatusTooManyRequests {
 		grpcErr = status.Error(codes.ResourceExhausted, c.httpRespBody)
-	} else {
+	} else if c.httpStatusCode == http.StatusBadRequest {
 		grpcErr = status.Error(codes.InvalidArgument, c.httpRespBody)
+	} else {
+		grpcErr = status.Error(codes.Unknown, c.httpRespBody)
 	}
 	httpResp := &http.Response{
 		StatusCode: c.httpStatusCode,
