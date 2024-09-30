@@ -271,8 +271,8 @@ gen-proto:  ## Generate proto files
 ##@ Gen Traceql
 
 .PHONY: gen-traceql 
-gen-traceql: ## Generate traceql 
-	docker run --rm -v${PWD}:/src/loki ${LOKI_BUILD_IMAGE} gen-traceql-local
+gen-traceql: ## Generate traceql
+	$(TOOLS_CMD) $(MAKE) gen-traceql-local
 
 .PHONY: gen-traceql-local 
 gen-traceql-local: ## Generate traceq local
@@ -291,7 +291,7 @@ vendor-check: gen-proto update-mod gen-traceql gen-parquet-query ## Keep up to d
 	git diff --exit-code -- **/go.sum **/go.mod vendor/ pkg/tempopb/ pkg/traceql/
 
 ### Tidy dependencies for tempo and tempo-serverless modules
-.PHONY: update-mod 
+.PHONY: update-mod
 update-mod: tools-update-mod ## Update module
 	go mod vendor
 	go mod tidy -e
@@ -355,7 +355,7 @@ drone: ## Run Drone targets
 	# piggyback on Loki's build image, this image contains a newer version of drone-cli than is
 	# released currently (1.4.0). The newer version of drone-clie keeps drone.yml human-readable.
 	# This will run 'make drone-jsonnet' from within the container
-	docker run -e DRONE_SERVER -e DRONE_TOKEN --rm -v $(shell pwd):/src/loki ${LOKI_BUILD_IMAGE} drone-jsonnet drone-signature
+	docker run -e DRONE_SERVER -e DRONE_TOKEN --rm -v $(shell pwd):/tools $(TOOLS_IMAGE):$(TOOLS_IMAGE_TAG) $(MAKE) drone-jsonnet drone-signature
 
 	drone lint .drone/drone.yml --trusted
 
