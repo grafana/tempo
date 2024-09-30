@@ -15,7 +15,7 @@ const (
 	internalFilename = "index.json"
 )
 
-var _ proto.Message = &TenantIndex{}
+var _ proto.Message = (*TenantIndex)(nil)
 
 func newTenantIndex(meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) *TenantIndex {
 	return &TenantIndex{
