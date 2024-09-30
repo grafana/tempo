@@ -872,7 +872,7 @@ storage:
 
             # Optional. Default is false.
             # Example: "insecure: true"
-            # Set to true to enable authentication and certificate checks on gcs requests
+            # Set to true to disable authentication and certificate checks on gcs requests
             [insecure: <bool>]
 
             # The number of list calls to make in parallel to the backend per instance.
