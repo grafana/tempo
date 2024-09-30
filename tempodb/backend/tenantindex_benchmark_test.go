@@ -10,12 +10,12 @@ import (
 
 func BenchmarkIndexMarshal(b *testing.B) {
 	idx := &TenantIndex{
-		Meta: []*BlockMeta{
+		Metas: []*BlockMeta{
 			NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
 			NewBlockMeta("test", uuid.New(), "v2", EncNone, "adsf"),
 			NewBlockMeta("test", uuid.New(), "v3", EncLZ4_4M, "adsf"),
 		},
-		CompactedMeta: []*CompactedBlockMeta{
+		CompactedMetas: []*CompactedBlockMeta{
 			{
 				BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
 				CompactedTime: time.Now(),
@@ -31,8 +31,8 @@ func BenchmarkIndexMarshal(b *testing.B) {
 		},
 	}
 
-	for i := range idx.Meta {
-		idx.Meta[i].DedicatedColumns = DedicatedColumns{
+	for i := range idx.Metas {
+		idx.Metas[i].DedicatedColumns = DedicatedColumns{
 			{Scope: "resource", Name: "namespace", Type: "string"},
 			{Scope: "span", Name: "http.method", Type: "string"},
 			{Scope: "span", Name: "namespace", Type: "string"},
@@ -47,12 +47,12 @@ func BenchmarkIndexMarshal(b *testing.B) {
 
 func BenchmarkIndexUnmarshal(b *testing.B) {
 	idx := &TenantIndex{
-		Meta: []*BlockMeta{
+		Metas: []*BlockMeta{
 			NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
 			NewBlockMeta("test", uuid.New(), "v2", EncNone, "adsf"),
 			NewBlockMeta("test", uuid.New(), "v3", EncLZ4_4M, "adsf"),
 		},
-		CompactedMeta: []*CompactedBlockMeta{
+		CompactedMetas: []*CompactedBlockMeta{
 			{
 				BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
 				CompactedTime: time.Now(),
@@ -68,8 +68,8 @@ func BenchmarkIndexUnmarshal(b *testing.B) {
 		},
 	}
 
-	for i := range idx.Meta {
-		idx.Meta[i].DedicatedColumns = DedicatedColumns{
+	for i := range idx.Metas {
+		idx.Metas[i].DedicatedColumns = DedicatedColumns{
 			{Scope: "resource", Name: "namespace", Type: "string"},
 			{Scope: "span", Name: "http.method", Type: "string"},
 			{Scope: "span", Name: "namespace", Type: "string"},

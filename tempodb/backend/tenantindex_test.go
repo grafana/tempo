@@ -20,7 +20,7 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 		{
 			idx: &TenantIndex{
 				CreatedAt: time.Now(),
-				Meta: []*BlockMeta{
+				Metas: []*BlockMeta{
 					NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
 					NewBlockMeta("test", uuid.New(), "v2", EncNone, "adsf"),
 					NewBlockMeta("test", uuid.New(), "v3", EncLZ4_4M, "adsf"),
@@ -30,7 +30,7 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 		{
 			idx: &TenantIndex{
 				CreatedAt: time.Now(),
-				CompactedMeta: []*CompactedBlockMeta{
+				CompactedMetas: []*CompactedBlockMeta{
 					{
 						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
 						CompactedTime: time.Now(),
@@ -48,12 +48,12 @@ func TestIndexMarshalUnmarshal(t *testing.T) {
 		},
 		{
 			idx: &TenantIndex{
-				Meta: []*BlockMeta{
+				Metas: []*BlockMeta{
 					NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
 					NewBlockMeta("test", uuid.New(), "v2", EncNone, "adsf"),
 					NewBlockMeta("test", uuid.New(), "v3", EncLZ4_4M, "adsf"),
 				},
-				CompactedMeta: []*CompactedBlockMeta{
+				CompactedMetas: []*CompactedBlockMeta{
 					{
 						BlockMeta:     *NewBlockMeta("test", uuid.New(), "v1", EncGZIP, "adsf"),
 						CompactedTime: time.Now(),

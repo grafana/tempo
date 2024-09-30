@@ -34,7 +34,7 @@ func (cmd *migrateTenantCmd) Run(opts *globalOptions) error {
 	if err != nil {
 		return fmt.Errorf("reading source tenant index: %w", err)
 	}
-	fmt.Printf("Blocks in source: %d, compacted: %d\n", len(sourceTenantIndex.Meta), len(sourceTenantIndex.CompactedMeta))
+	fmt.Printf("Blocks in source: %d, compacted: %d\n", len(sourceTenantIndex.Metas), len(sourceTenantIndex.CompactedMetas))
 
 	// TODO create dest directory if it doesn't exist yet?
 
@@ -47,7 +47,7 @@ func (cmd *migrateTenantCmd) Run(opts *globalOptions) error {
 	var copiedBlocks, copiedSize uint64
 
 blocks:
-	for _, sourceBlockMeta := range sourceTenantIndex.Meta {
+	for _, sourceBlockMeta := range sourceTenantIndex.Metas {
 		// check for collisions
 		for _, uuidDest := range blocksDest {
 			if (uuid.UUID)(sourceBlockMeta.BlockID) == uuidDest {
