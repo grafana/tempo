@@ -285,7 +285,7 @@ func TestTenantIndexFallback(t *testing.T) {
 	assert.Nil(t, idx)
 
 	// Remove all indexes and error check
-	mr.ReadFn = func(_ context.Context, name string, _ KeyPath, _ *CacheInfo) (io.ReadCloser, int64, error) {
+	mr.ReadFn = func(_ context.Context, _ string, _ KeyPath, _ *CacheInfo) (io.ReadCloser, int64, error) {
 		return nil, 0, fmt.Errorf("meow: %w", ErrDoesNotExist)
 	}
 
