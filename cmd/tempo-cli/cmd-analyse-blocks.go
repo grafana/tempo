@@ -14,6 +14,8 @@ type analyseBlocksCmd struct {
 	backendOptions
 
 	Jsonnet            bool   `help:"output Jsonnet necessary for overrides"`
+	SimpleSummary      bool   `help:"Print only single line of top attributes" default:"false"`
+	PrintFullSummary   bool   `help:"Print full summary of the analysed block" default:"true"`
 	TenantID           string `arg:"" help:"tenant-id within the bucket"`
 	MinCompactionLevel int    `help:"Min compaction level to analyse" default:"3"`
 	MaxBlocks          int    `help:"Max number of blocks to analyse" default:"10"`
@@ -101,5 +103,5 @@ func (cmd *analyseBlocksCmd) Run(ctx *globalOptions) error {
 			totalBytes: totalResourceBytes,
 			attributes: topResourceAttrs,
 		},
-	}).print(cmd.NumAttr, cmd.Jsonnet)
+	}).print(cmd.NumAttr, cmd.Jsonnet, cmd.SimpleSummary, cmd.PrintFullSummary)
 }

@@ -82,10 +82,12 @@ func dedicatedColPathForVersion(i int, scope backend.DedicatedColumnScope, v str
 type analyseBlockCmd struct {
 	backendOptions
 
-	TenantID        string `arg:"" help:"tenant-id within the bucket"`
-	BlockID         string `arg:"" help:"block ID to list"`
-	NumAttr         int    `help:"Number of attributes to display" default:"15"`
-	GenerateJsonnet bool   `help:"Generate overrides Jsonnet for dedicated columns"`
+	TenantID         string `arg:"" help:"tenant-id within the bucket"`
+	BlockID          string `arg:"" help:"block ID to list"`
+	NumAttr          int    `help:"Number of attributes to display" default:"15"`
+	GenerateJsonnet  bool   `help:"Generate overrides Jsonnet for dedicated columns"`
+	SimpleSummary    bool   `help:"Print only single line of top attributes" default:"false"`
+	PrintFullSummary bool   `help:"Print full summary of the analysed block" default:"true"`
 }
 
 func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
@@ -106,7 +108,7 @@ func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
 		return errors.New("failed to process block")
 	}
 
-	return blockSum.print(cmd.NumAttr, cmd.GenerateJsonnet)
+	return blockSum.print(cmd.NumAttr, cmd.GenerateJsonnet, cmd.SimpleSummary, cmd.PrintFullSummary)
 }
 
 func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minStartTime time.Time, minCompactionLvl uint8) (*blockSummary, error) {
@@ -198,13 +200,25 @@ type blockSummary struct {
 	spanSummary, resourceSummary genericAttrSummary
 }
 
-func (s *blockSummary) print(maxAttr int, generateJsonnet bool) error {
-	if err := printSummary("span", maxAttr, s.spanSummary); err != nil {
-		return err
+func (s *blockSummary) print(maxAttr int, generateJsonnet, simpleSummary, printFullSummary bool) error {
+	if printFullSummary {
+		if err := printSummary("span", maxAttr, s.spanSummary, false); err != nil {
+			return err
+		}
+
+		if err := printSummary("resource", maxAttr, s.resourceSummary, false); err != nil {
+			return err
+		}
 	}
 
-	if err := printSummary("resource", maxAttr, s.resourceSummary); err != nil {
-		return err
+	if simpleSummary {
+		if err := printSummary("span", maxAttr, s.spanSummary, true); err != nil {
+			return err
+		}
+
+		if err := printSummary("resource", maxAttr, s.resourceSummary, true); err != nil {
+			return err
+		}
 	}
 
 	if generateJsonnet {
@@ -324,7 +338,7 @@ func aggregateColumn(pf *parquet.File, colName string) (uint64, error) {
 	return totalBytes, nil
 }
 
-func printSummary(scope string, max int, summary genericAttrSummary) error {
+func printSummary(scope string, max int, summary genericAttrSummary, simple bool) error {
 	// TODO: Support more output formats
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 
@@ -332,19 +346,28 @@ func printSummary(scope string, max int, summary genericAttrSummary) error {
 		max = len(summary.attributes)
 	}
 
-	fmt.Printf("Top %d %s attributes by size\n", max, scope)
+	fmt.Println("")
 	attrList := topN(max, summary.attributes)
-	for _, a := range attrList {
-
-		name := a.name
-		if _, ok := summary.dedicated[a.name]; ok {
-			name = a.name + " (dedicated)"
+	if simple {
+		fmt.Printf("%s attributes: ", scope)
+		for _, a := range attrList {
+			fmt.Printf("\"%s\", ", a.name)
 		}
+		fmt.Println("")
+	} else {
+		fmt.Printf("Top %d %s attributes by size\n", max, scope)
+		for _, a := range attrList {
 
-		percentage := float64(a.bytes) / float64(summary.totalBytes) * 100
-		_, err := fmt.Fprintf(w, "name: %s\t size: %s\t (%s%%)\n", name, humanize.Bytes(a.bytes), strconv.FormatFloat(percentage, 'f', 2, 64))
-		if err != nil {
-			return err
+			name := a.name
+			if _, ok := summary.dedicated[a.name]; ok {
+				name = a.name + " (dedicated)"
+			}
+
+			percentage := float64(a.bytes) / float64(summary.totalBytes) * 100
+			_, err := fmt.Fprintf(w, "name: %s\t size: %s\t (%s%%)\n", name, humanize.Bytes(a.bytes), strconv.FormatFloat(percentage, 'f', 2, 64))
+			if err != nil {
+				return err
+			}
 		}
 	}
 
