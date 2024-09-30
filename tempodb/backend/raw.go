@@ -251,6 +251,10 @@ func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex
 		return outPb, nil
 	}
 
+	if !errors.Is(err, ErrDoesNotExist) {
+		return nil, err
+	}
+
 	span.AddEvent(EventJSONFallback)
 
 	readerJ, size, err := r.r.Read(ctx, TenantIndexName, KeyPath([]string{tenantID}), nil)

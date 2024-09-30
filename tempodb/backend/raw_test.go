@@ -1,8 +1,11 @@
 package backend
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"path/filepath"
 	"testing"
 
@@ -235,4 +238,58 @@ func TestRoundTripMeta(t *testing.T) {
 	err = json.Unmarshal(jsonBytes, expected2)
 	assert.NoError(t, err)
 	assert.Equal(t, meta, expected2)
+}
+
+func TestTenantIndexFallback(t *testing.T) {
+	var (
+		mr       = &MockRawReader{}
+		r        = NewReader(mr)
+		mw       = &MockRawWriter{}
+		w        = NewWriter(mw)
+		ctx      = context.Background()
+		tenantID = "test"
+
+		u           = uuid.New()
+		meta        = NewBlockMeta(tenantID, u, "blerg", EncGZIP, "glarg")
+		expectedIdx = newTenantIndex([]*BlockMeta{meta}, nil)
+	)
+
+	err := w.WriteTenantIndex(ctx, tenantID, []*BlockMeta{meta}, nil)
+	assert.NoError(t, err)
+
+	mr.R, err = expectedIdx.marshal()
+	assert.NoError(t, err)
+	mr.ReadFn = func(_ context.Context, name string, _ KeyPath, _ *CacheInfo) (io.ReadCloser, int64, error) {
+		if name == TenantIndexNamePb {
+			return nil, 0, fmt.Errorf("meow: %w", ErrDoesNotExist)
+		}
+
+		return io.NopCloser(bytes.NewReader(mr.R)), int64(len(mr.R)), nil
+	}
+
+	idx, err := r.TenantIndex(ctx, tenantID)
+	assert.NoError(t, err)
+	assert.True(t, cmp.Equal(expectedIdx, idx))
+
+	// Corrupt the proto to ensure we don't fall back
+	mr.ReadFn = func(_ context.Context, name string, _ KeyPath, _ *CacheInfo) (io.ReadCloser, int64, error) {
+		if name == TenantIndexNamePb {
+			return io.NopCloser(bytes.NewReader([]byte{0x00})), int64(1), nil
+		}
+
+		return io.NopCloser(bytes.NewReader(mr.R)), int64(len(mr.R)), nil
+	}
+
+	idx, err = r.TenantIndex(ctx, tenantID)
+	assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	assert.Nil(t, idx)
+
+	// Remove all indexes and error check
+	mr.ReadFn = func(_ context.Context, name string, _ KeyPath, _ *CacheInfo) (io.ReadCloser, int64, error) {
+		return nil, 0, fmt.Errorf("meow: %w", ErrDoesNotExist)
+	}
+
+	idx, err = r.TenantIndex(ctx, tenantID)
+	assert.ErrorIs(t, err, ErrDoesNotExist)
+	assert.Nil(t, idx)
 }
