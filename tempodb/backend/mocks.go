@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/davecgh/go-spew/spew"
 	tempo_io "github.com/grafana/tempo/pkg/io"
 
 	"github.com/google/uuid"
@@ -86,7 +85,6 @@ func (m *MockRawWriter) Write(_ context.Context, object string, keypath KeyPath,
 	}
 
 	path := strings.Join(keypath, "/") + "/" + object
-	spew.Dump(path)
 
 	writeBuffer, err := tempo_io.ReadAllWithEstimate(data, size)
 	m.writeBuffer[path] = writeBuffer
