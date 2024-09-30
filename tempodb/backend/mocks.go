@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/davecgh/go-spew/spew"
 	tempo_io "github.com/grafana/tempo/pkg/io"
 
 	"github.com/google/uuid"
@@ -72,20 +73,23 @@ func (m *MockRawReader) Shutdown() {}
 
 // MockRawWriter
 type MockRawWriter struct {
-	writeBuffer       [][]byte
+	writeBuffer       map[string][]byte
 	appendBuffer      []byte
 	closeAppendCalled bool
 	deleteCalls       map[string]map[string]int
 	err               error
 }
 
-func (m *MockRawWriter) Write(_ context.Context, _ string, _ KeyPath, data io.Reader, size int64, _ *CacheInfo) error {
+func (m *MockRawWriter) Write(_ context.Context, object string, keypath KeyPath, data io.Reader, size int64, _ *CacheInfo) error {
 	if m.writeBuffer == nil {
-		m.writeBuffer = make([][]byte, 0)
+		m.writeBuffer = make(map[string][]byte, 0)
 	}
 
+	path := strings.Join(keypath, "/") + "/" + object
+	spew.Dump(path)
+
 	writeBuffer, err := tempo_io.ReadAllWithEstimate(data, size)
-	m.writeBuffer = append(m.writeBuffer, writeBuffer)
+	m.writeBuffer[path] = writeBuffer
 
 	return err
 }

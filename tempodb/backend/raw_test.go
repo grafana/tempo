@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -23,9 +24,10 @@ func TestWriter(t *testing.T) {
 
 	expected := []byte{0x01, 0x02, 0x03, 0x04}
 
-	err := w.Write(ctx, "test", uuid.New(), "test", expected, nil)
+	u := uuid.New()
+	err := w.Write(ctx, "test", u, "test", expected, nil)
 	assert.NoError(t, err)
-	assert.Equal(t, expected, m.writeBuffer[len(m.writeBuffer)-1])
+	assert.Equal(t, expected, m.writeBuffer["test/"+u.String()+"/test"])
 
 	_, err = w.Append(ctx, "test", uuid.New(), "test", nil, expected)
 	assert.NoError(t, err)
@@ -35,7 +37,9 @@ func TestWriter(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, m.closeAppendCalled)
 
-	meta := NewBlockMeta("test", uuid.New(), "blerg", EncGZIP, "glarg")
+	u = uuid.New()
+	expectedPath := filepath.Join("test", u.String(), MetaName)
+	meta := NewBlockMeta("test", u, "blerg", EncGZIP, "glarg")
 	jsonBytes, err := json.Marshal(meta)
 	assert.NoError(t, err)
 	assert.NoError(t, err)
@@ -43,15 +47,17 @@ func TestWriter(t *testing.T) {
 	// Write the block meta to the backend and validate the payloads.
 	err = w.WriteBlockMeta(ctx, meta)
 	assert.NoError(t, err)
-	assert.Equal(t, jsonBytes, m.writeBuffer[len(m.writeBuffer)-1])
+	assert.Equal(t, jsonBytes, m.writeBuffer[expectedPath])
 
+	tenantIndexPath := filepath.Join("test", TenantIndexName)
+	tenantIndexPathPb := filepath.Join("test", TenantIndexNamePb)
 	// Write the tenant index to the backend and validate the payloads.
 	err = w.WriteTenantIndex(ctx, "test", []*BlockMeta{meta}, nil)
 	assert.NoError(t, err)
 
 	// proto
 	idxP := &TenantIndex{}
-	err = idxP.unmarshalPb(m.writeBuffer[len(m.writeBuffer)-2])
+	err = idxP.unmarshalPb(m.writeBuffer[tenantIndexPathPb])
 	assert.NoError(t, err)
 
 	assert.Equal(t, []*BlockMeta{meta}, idxP.Meta)
@@ -60,7 +66,7 @@ func TestWriter(t *testing.T) {
 
 	// json
 	idxJ := &TenantIndex{}
-	err = idxJ.unmarshal(m.writeBuffer[len(m.writeBuffer)-1])
+	err = idxJ.unmarshal(m.writeBuffer[tenantIndexPath])
 	assert.NoError(t, err)
 
 	assert.Equal(t, []*BlockMeta{meta}, idxJ.Meta)
