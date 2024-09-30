@@ -163,6 +163,6 @@ func TestBadRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, 1.0, actualAll)
-	require.Equal(t, 0.0, actualSLO)
+	require.Equal(t, 1.0, actualSLO)
 
 }
