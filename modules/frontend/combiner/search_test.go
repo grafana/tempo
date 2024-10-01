@@ -153,7 +153,7 @@ func TestSearchResponseCombiner(t *testing.T) {
 			response1:         toHTTPResponse(t, nil, 404),
 			response2:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
 			expectedStatus:    404,
-			expectedGRPCError: status.Error(codes.InvalidArgument, ""),
+			expectedGRPCError: status.Error(codes.NotFound, ""),
 		},
 		{
 			name:              "200+400",
@@ -181,7 +181,7 @@ func TestSearchResponseCombiner(t *testing.T) {
 			response1:         toHTTPResponse(t, nil, 404),
 			response2:         toHTTPResponse(t, nil, 500),
 			expectedStatus:    404,
-			expectedGRPCError: status.Error(codes.InvalidArgument, ""),
+			expectedGRPCError: status.Error(codes.NotFound, ""),
 		},
 		{
 			name:              "500+200",

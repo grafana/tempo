@@ -208,14 +208,19 @@ func (c *genericCombiner[T]) erroredResponse() (*http.Response, error) {
 
 	// build grpc error and http response
 	var grpcErr error
-	if c.httpStatusCode/100 == 5 {
-		grpcErr = status.Error(codes.Internal, c.httpRespBody)
-	} else if c.httpStatusCode == http.StatusTooManyRequests {
+	switch c.httpStatusCode {
+	case http.StatusNotFound:
+		grpcErr = status.Error(codes.NotFound, c.httpRespBody)
+	case http.StatusTooManyRequests:
 		grpcErr = status.Error(codes.ResourceExhausted, c.httpRespBody)
-	} else if c.httpStatusCode == http.StatusBadRequest {
+	case http.StatusBadRequest:
 		grpcErr = status.Error(codes.InvalidArgument, c.httpRespBody)
-	} else {
-		grpcErr = status.Error(codes.Unknown, c.httpRespBody)
+	default:
+		if c.httpStatusCode/100 == 5 {
+			grpcErr = status.Error(codes.Internal, c.httpRespBody)
+		} else {
+			grpcErr = status.Error(codes.Unknown, c.httpRespBody)
+		}
 	}
 	httpResp := &http.Response{
 		StatusCode: c.httpStatusCode,
