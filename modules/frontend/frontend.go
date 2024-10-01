@@ -164,13 +164,13 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTraceByID, logger)
 	tracesV2 := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTraceByIDV2, logger)
 	search := newSearchHTTPHandler(cfg, searchPipeline, logger)
-	searchTags := newTagHTTPHandler(cfg, searchTagsPipeline, o, combiner.NewSearchTags, logger)
-	searchTagsV2 := newTagHTTPHandler(cfg, searchTagsPipeline, o, combiner.NewSearchTagsV2, logger)
-	searchTagValues := newTagHTTPHandler(cfg, searchTagValuesPipeline, o, combiner.NewSearchTagValues, logger)
-	searchTagValuesV2 := newTagHTTPHandler(cfg, searchTagValuesPipeline, o, combiner.NewSearchTagValuesV2, logger)
+	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, logger)
+	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger)
+	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, logger)
+	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesPipeline, o, logger)
 	metrics := newMetricsSummaryHandler(metricsPipeline, logger)
 	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryRangePipeline, logger) // Reuses the same pipeline
-	queryrange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger)
+	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger)
 
 	return &QueryFrontend{
 		// http/discrete
@@ -183,7 +183,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		SearchTagsValuesV2Handler:  newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValuesV2, logger),
 		MetricsSummaryHandler:      newHandler(cfg.Config.LogQueryRequestHeaders, metrics, logger),
 		MetricsQueryInstantHandler: newHandler(cfg.Config.LogQueryRequestHeaders, queryInstant, logger),
-		MetricsQueryRangeHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, queryrange, logger),
+		MetricsQueryRangeHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, queryRange, logger),
 
 		// grpc/streaming
 		streamingSearch:       newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
