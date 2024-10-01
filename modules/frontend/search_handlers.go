@@ -139,6 +139,8 @@ func logResult(logger log.Logger, tenantID string, durationSeconds float64, req 
 	statusCode := -1
 	if httpResp != nil {
 		statusCode = httpResp.StatusCode
+	} else if st, ok := status.FromError(err); ok {
+		statusCode = int(st.Code())
 	}
 
 	if resp == nil {
