@@ -200,10 +200,12 @@ message SearchTagValuesBlockRequest {
 
 message SearchTagsResponse {
   repeated string tagNames = 1;
+  SearchTagMetrics metrics = 2;
 }
 
 message SearchTagsV2Response {
   repeated SearchTagsV2Scope scopes = 1;
+  SearchTagMetrics metrics = 2;
 }
 
 message SearchTagsV2Scope {
@@ -220,6 +222,7 @@ message SearchTagValuesRequest {
 
 message SearchTagValuesResponse {
   repeated string tagValues = 1;
+  SearchTagMetrics metrics = 2;
 }
 
 message TagValue {
@@ -229,6 +232,17 @@ message TagValue {
 
 message SearchTagValuesV2Response {
   repeated TagValue tagValues = 1;
+  SearchTagMetrics metrics = 2;
+}
+
+// TODO: I might just use inspectedBytes directly inside the response messages or have SearchTagMetrics with single atrribute??
+// do we need other metrics? if not then why have them?
+message SearchTagMetrics {
+  uint32 totalJobs = 1;
+  uint32 completedJobs = 2;
+  uint32 totalBlocks = 3;
+  uint64 totalBlockBytes = 4;
+  uint64 inspectedBytes = 5;
 }
 
 message Trace {
