@@ -34,8 +34,7 @@ exporter_sent_spans_ratio_total
 exporter_send_failed_spans_ratio_total
 ```
 
-If you are using Grafana Alloy to send traces to Grafana Cloud, the metrics are visible at
-`http://localhost:12345/metrics`.
+Alloy has a Prometheus scrape endpoint, `/metrics`, that you can use to check metrics locally by opening a browser to `http://localhost:12345/metrics`.
 The `/metrics` HTTP endpoint of the Alloy HTTP server exposes the Alloy component and controller metrics.
 Refer to the [Monitor the Grafana Alloy component controller](https://grafana.com/docs/alloy/latest/troubleshoot/controller_metrics/) documentation for more information.
 
