@@ -4,6 +4,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"go.uber.org/atomic"
 )
 
 var (
@@ -13,6 +14,8 @@ var (
 
 func NewSearchTags(limitBytes int) Combiner {
 	d := collector.NewDistinctStringWithDiff(limitBytes)
+	// TODO: can we just use a regular int? do we need atomic int here??
+	inspectedBytes := atomic.NewUint64(0)
 
 	c := &genericCombiner[*tempopb.SearchTagsResponse]{
 		httpStatusCode: 200,
@@ -22,10 +25,13 @@ func NewSearchTags(limitBytes int) Combiner {
 			for _, v := range partial.TagNames {
 				d.Collect(v)
 			}
+			inspectedBytes.Add(partial.Metrics.InspectedBytes)
 			return nil
 		},
 		finalize: func(response *tempopb.SearchTagsResponse) (*tempopb.SearchTagsResponse, error) {
 			response.TagNames = d.Strings()
+			// return metrics with final results
+			response.Metrics.InspectedBytes = inspectedBytes.Load()
 			return response, nil
 		},
 		quit: func(_ *tempopb.SearchTagsResponse) bool {
@@ -38,6 +44,8 @@ func NewSearchTags(limitBytes int) Combiner {
 			}
 
 			response.TagNames = resp
+			// also return metrics with diff results
+			response.Metrics.InspectedBytes = inspectedBytes.Load()
 			return response, nil
 		},
 	}
@@ -52,6 +60,7 @@ func NewTypedSearchTags(limitBytes int) GRPCCombiner[*tempopb.SearchTagsResponse
 func NewSearchTagsV2(limitBytes int) Combiner {
 	// Distinct collector map to collect scopes and scope values
 	distinctValues := collector.NewScopedDistinctStringWithDiff(limitBytes)
+	inspectedBytes := atomic.NewUint64(0)
 
 	c := &genericCombiner[*tempopb.SearchTagsV2Response]{
 		httpStatusCode: 200,
@@ -63,6 +72,7 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 					distinctValues.Collect(res.Name, tag)
 				}
 			}
+			inspectedBytes.Add(partial.Metrics.InspectedBytes)
 			return nil
 		},
 		finalize: func(final *tempopb.SearchTagsV2Response) (*tempopb.SearchTagsV2Response, error) {
@@ -75,6 +85,8 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 					Tags: vals,
 				})
 			}
+			// return metrics with final results
+			final.Metrics.InspectedBytes = inspectedBytes.Load()
 			return final, nil
 		},
 		quit: func(_ *tempopb.SearchTagsV2Response) bool {
@@ -93,7 +105,8 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 					Tags: vals,
 				})
 			}
-
+			// also return metrics with diff results
+			response.Metrics.InspectedBytes = inspectedBytes.Load()
 			return response, nil
 		},
 	}
