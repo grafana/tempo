@@ -62,6 +62,7 @@ func Test_histogram(t *testing.T) {
 	assert.Equal(t, 3, seriesAdded)
 
 	collectionTimeMs = time.Now().UnixMilli()
+	collectionTimeWithOffsetMs = collectionTimeMs - 1
 	expectedSamples = []sample{
 		newSample(map[string]string{"__name__": "my_histogram_count", "label": "value-1"}, collectionTimeMs, 1),
 		newSample(map[string]string{"__name__": "my_histogram_sum", "label": "value-1"}, collectionTimeMs, 1),
