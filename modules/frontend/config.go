@@ -38,6 +38,8 @@ type SearchConfig struct {
 	Timeout time.Duration       `yaml:"timeout,omitempty"`
 	Sharder SearchSharderConfig `yaml:",inline"`
 	SLO     SLOConfig           `yaml:",inline"`
+	// TODO: can we reuse the search config? do we need another set of config here?? decide
+	MetadataSLO SLOConfig `yaml:"metadata_slo,omitempty"`
 }
 
 type TraceByIDConfig struct {
