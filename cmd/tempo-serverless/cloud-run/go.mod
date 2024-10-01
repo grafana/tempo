@@ -1,6 +1,6 @@
 module github.com/grafana/tempo/cmd/tempo-serverless/cloud-run
 
-go 1.22.4
+go 1.23.1
 
 require (
 	github.com/gogo/protobuf v1.3.2
