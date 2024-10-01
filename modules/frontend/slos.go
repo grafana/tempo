@@ -84,7 +84,8 @@ func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec
 			// however, if this is a grpc resource exhausted error (429) or invalid argument (400) then we are within SLO
 			switch status.Code(err) {
 			case codes.ResourceExhausted,
-				codes.InvalidArgument:
+				codes.InvalidArgument,
+				codes.NotFound:
 				withinSLOByTenantCounter.WithLabelValues(tenant).Inc()
 			}
 			return
