@@ -256,11 +256,11 @@ func (p *Poller) pollTenantAndCreateIndex(
 		if err == nil {
 			// success! return the retrieved index
 			metricTenantIndexAgeSeconds.WithLabelValues(tenantID).Set(float64(time.Since(i.CreatedAt) / time.Second))
-			level.Info(p.logger).Log("msg", "successfully pulled tenant index", "tenant", tenantID, "createdAt", i.CreatedAt, "metas", len(i.Metas), "compactedMetas", len(i.CompactedMetas))
+			level.Info(p.logger).Log("msg", "successfully pulled tenant index", "tenant", tenantID, "createdAt", i.CreatedAt, "metas", len(i.Meta), "compactedMetas", len(i.CompactedMeta))
 
-			span.SetAttributes(attribute.Int("metas", len(i.Metas)))
-			span.SetAttributes(attribute.Int("compactedMetas", len(i.CompactedMetas)))
-			return i.Metas, i.CompactedMetas, nil
+			span.SetAttributes(attribute.Int("metas", len(i.Meta)))
+			span.SetAttributes(attribute.Int("compactedMetas", len(i.CompactedMeta)))
+			return i.Meta, i.CompactedMeta, nil
 		}
 
 		metricTenantIndexErrors.WithLabelValues(tenantID).Inc()

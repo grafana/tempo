@@ -84,8 +84,8 @@ func TestFixtures(t *testing.T) {
 	var i *backend.TenantIndex
 	i, err = r.TenantIndex(ctx, tenant)
 	require.NoError(t, err)
-	require.Equal(t, blockMetas, i.Metas)
-	require.Len(t, i.Metas, len(listMetas))
+	require.Equal(t, blockMetas, i.Meta)
+	require.Len(t, i.Meta, len(listMetas))
 }
 
 func nonZeroMeta(t *testing.T, m []*backend.BlockMeta) {

@@ -19,9 +19,9 @@ var _ proto.Message = (*TenantIndex)(nil)
 
 func newTenantIndex(meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) *TenantIndex {
 	return &TenantIndex{
-		CreatedAt:      time.Now(),
-		Metas:          meta,
-		CompactedMetas: compactedMeta,
+		CreatedAt:     time.Now(),
+		Meta:          meta,
+		CompactedMeta: compactedMeta,
 	}
 }
 

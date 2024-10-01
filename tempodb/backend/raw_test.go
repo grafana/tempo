@@ -63,18 +63,18 @@ func TestWriter(t *testing.T) {
 	err = idxP.unmarshalPb(m.writeBuffer[tenantIndexPathPb])
 	assert.NoError(t, err)
 
-	assert.Equal(t, []*BlockMeta{meta}, idxP.Metas)
-	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idxP.Metas))                  // using cmp.Equal to compare json datetimes
-	assert.True(t, cmp.Equal([]*CompactedBlockMeta(nil), idxP.CompactedMetas)) // using cmp.Equal to compare json datetimes
+	assert.Equal(t, []*BlockMeta{meta}, idxP.Meta)
+	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idxP.Meta))                  // using cmp.Equal to compare json datetimes
+	assert.True(t, cmp.Equal([]*CompactedBlockMeta(nil), idxP.CompactedMeta)) // using cmp.Equal to compare json datetimes
 
 	// json
 	idxJ := &TenantIndex{}
 	err = idxJ.unmarshal(m.writeBuffer[tenantIndexPath])
 	assert.NoError(t, err)
 
-	assert.Equal(t, []*BlockMeta{meta}, idxJ.Metas)
-	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idxJ.Metas))                  // using cmp.Equal to compare json datetimes
-	assert.True(t, cmp.Equal([]*CompactedBlockMeta(nil), idxJ.CompactedMetas)) // using cmp.Equal to compare json datetimes
+	assert.Equal(t, []*BlockMeta{meta}, idxJ.Meta)
+	assert.True(t, cmp.Equal([]*BlockMeta{meta}, idxJ.Meta))                  // using cmp.Equal to compare json datetimes
+	assert.True(t, cmp.Equal([]*CompactedBlockMeta(nil), idxJ.CompactedMeta)) // using cmp.Equal to compare json datetimes
 
 	// When there are no blocks, the tenant index should be deleted
 	assert.Equal(t, map[string]map[string]int(nil), w.(*writer).w.(*MockRawWriter).deleteCalls)
