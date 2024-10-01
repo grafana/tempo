@@ -111,6 +111,7 @@ func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
 	prepareRequestForQueriers(httpReq, tenant)
 
 	c := fnCombiner(o.MaxBytesPerTagValuesQuery(tenant))
+	// FIXME: capture the final response and the bytesProcessed here like we do in newSearchStreamingGRPCHandler in the search_handlers.go
 	collector := pipeline.NewGRPCCollector[TResp](next, cfg.ResponseConsumers, c, fnSend)
 
 	start := time.Now()
@@ -121,25 +122,147 @@ func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
 	return err
 }
 
-// newTagHTTPHandler returns a handler that returns a single response from the HTTP handler
-func newTagHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, fnCombiner func(int) combiner.Combiner, logger log.Logger) http.RoundTripper {
+func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger) http.RoundTripper {
+	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-		tenant, err := user.ExtractOrgID(req.Context())
+		// if error is not nil, return error Response but suppress the error
+		tenant, err, errResp := extractTenantWithError(req, logger)
 		if err != nil {
-			level.Error(logger).Log("msg", "tags failed to extract orgid", "err", err)
-			return &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Status:     http.StatusText(http.StatusBadRequest),
-				Body:       io.NopCloser(strings.NewReader(err.Error())),
-			}, nil
+			return errResp, nil
 		}
 
-		// build and use roundtripper
-		combiner := fnCombiner(o.MaxBytesPerTagValuesQuery(tenant))
-		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, combiner)
+		// build and use round tripper
+		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant))
+		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
+		start := time.Now()
 
-		return rt.RoundTrip(req)
+		resp, err := rt.RoundTrip(req)
+		// ask for the typed diff and use that for the SLO hook. it will have up to date metrics
+		var bytesProcessed uint64
+		searchResp, _ := comb.GRPCDiff()
+		if searchResp != nil && searchResp.Metrics != nil {
+			bytesProcessed = searchResp.Metrics.InspectedBytes
+		}
+
+		duration := time.Since(start)
+		postSLOHook(resp, tenant, bytesProcessed, duration, err)
+		logHttpResult(logger, tenant, req.URL.Path, duration.Seconds(), err)
+
+		return resp, err
 	})
+}
+
+func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger) http.RoundTripper {
+	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
+	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		// if error is not nil, return error Response but suppress the error
+		tenant, err, errResp := extractTenantWithError(req, logger)
+		if err != nil {
+			return errResp, nil
+		}
+
+		// build and use round tripper
+		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant))
+		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
+		start := time.Now()
+
+		resp, err := rt.RoundTrip(req)
+		// ask for the typed diff and use that for the SLO hook. it will have up to date metrics
+		var bytesProcessed uint64
+		searchResp, _ := comb.GRPCDiff()
+		if searchResp != nil && searchResp.Metrics != nil {
+			bytesProcessed = searchResp.Metrics.InspectedBytes
+		}
+
+		duration := time.Since(start)
+		postSLOHook(resp, tenant, bytesProcessed, duration, err)
+		logHttpResult(logger, tenant, req.URL.Path, duration.Seconds(), err)
+
+		return resp, err
+	})
+}
+
+func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger) http.RoundTripper {
+	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
+	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		// if error is not nil, return error Response but suppress the error
+		tenant, err, errResp := extractTenantWithError(req, logger)
+		if err != nil {
+			return errResp, nil
+		}
+
+		// build and use round tripper
+		comb := combiner.NewTypedSearchTagValues(o.MaxBytesPerTagValuesQuery(tenant))
+		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
+		start := time.Now()
+
+		resp, err := rt.RoundTrip(req)
+		// ask for the typed diff and use that for the SLO hook. it will have up to date metrics
+		var bytesProcessed uint64
+		searchResp, _ := comb.GRPCDiff()
+		if searchResp != nil && searchResp.Metrics != nil {
+			bytesProcessed = searchResp.Metrics.InspectedBytes
+		}
+
+		duration := time.Since(start)
+		postSLOHook(resp, tenant, bytesProcessed, duration, err)
+		logHttpResult(logger, tenant, req.URL.Path, duration.Seconds(), err)
+
+		return resp, err
+	})
+}
+
+func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger) http.RoundTripper {
+	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
+	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		// if error is not nil, return error Response but suppress the error
+		tenant, err, errResp := extractTenantWithError(req, logger)
+		if err != nil {
+			return errResp, nil
+		}
+
+		// build and use round tripper
+		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant))
+		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
+		start := time.Now()
+
+		resp, err := rt.RoundTrip(req)
+
+		// ask for the typed diff and use that for the SLO hook. it will have up to date metrics
+		var bytesProcessed uint64
+		searchResp, _ := comb.GRPCDiff()
+		if searchResp != nil && searchResp.Metrics != nil {
+			bytesProcessed = searchResp.Metrics.InspectedBytes
+		}
+
+		duration := time.Since(start)
+		postSLOHook(resp, tenant, bytesProcessed, duration, err)
+
+		logHttpResult(logger, tenant, req.URL.Path, duration.Seconds(), err)
+		return resp, err
+	})
+}
+
+func extractTenantWithError(req *http.Request, logger log.Logger) (string, error, *http.Response) {
+	tenant, err := user.ExtractOrgID(req.Context())
+	if err != nil {
+		level.Error(logger).Log("msg", "tags failed to extract orgid", "err", err)
+		return "", err, &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Status:     http.StatusText(http.StatusBadRequest),
+			Body:       io.NopCloser(strings.NewReader(err.Error())),
+		}
+	}
+	return tenant, err, nil
+}
+
+func logHttpResult(logger log.Logger, tenantID, path string, durationSeconds float64, err error) {
+	level.Info(logger).Log(
+		"msg", "search tags response",
+		"tenant", tenantID,
+		"path", path,
+		"duration_seconds", durationSeconds,
+		"err", err)
 }
 
 func logTagsResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.SearchTagsRequest, err error) {
