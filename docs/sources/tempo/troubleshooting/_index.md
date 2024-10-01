@@ -16,18 +16,18 @@ In addition, the [Tempo runbook](https://github.com/grafana/tempo/blob/main/oper
 
 ## Sending traces
 
-- [Spans are being refused with "pusher failed to consume trace data"]({{< relref "./max-trace-limit-reached" >}})
-- [Is Grafana Alloy sending to the backend?]({{< relref "./agent" >}})
+- [Spans are being refused with "pusher failed to consume trace data"](https://grafana.com/docs/tempo/<TEMMPO_VERSION>/troubleshooting/max-trace-limit-reached/)
+- [Is Grafana Alloy sending to the backend?](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/alloy/)
 
 ## Querying
 
-- [Unable to find my traces in Tempo]({{< relref "./unable-to-see-trace" >}})
-- [Error message "Too many jobs in the queue"]({{< relref "./too-many-jobs-in-queue" >}})
-- [Queries fail with 500 and "error using pageFinder"]({{< relref "./bad-blocks" >}})
-- [I can search traces, but there are no service name or span name values available]({{< relref "./search-tag" >}})
-- [Error message `response larger than the max (<number> vs <limit>)`]({{< relref "./response-too-large" >}})
-- [Search results don't match trace lookup results with long-running traces]({{< relref "./long-running-traces" >}})
+- [Unable to find my traces in Tempo](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/unable-to-see-trace/)
+- [Error message "Too many jobs in the queue"](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/too-many-jobs-in-queue/)
+- [Queries fail with 500 and "error using pageFinder"](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/bad-blocks/)
+- [I can search traces, but there are no service name or span name values available](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/search-tag)
+- [Error message `response larger than the max (<number> vs <limit>)`](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/response-too-large/)
+- [Search results don't match trace lookup results with long-running traces](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/long-running-traces/)
 
 ## Metrics-generator
 
-- [Metrics or service graphs seem incomplete]({{< relref "./metrics-generator" >}})
+- [Metrics or service graphs seem incomplete](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/metrics-generator/)
