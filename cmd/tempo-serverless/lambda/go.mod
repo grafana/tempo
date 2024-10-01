@@ -1,6 +1,6 @@
 module github.com/grafana/tempo/cmd/tempo-serverless/lambda
 
-go 1.22.4
+go 1.23.1
 
 require (
 	github.com/aws/aws-lambda-go v1.28.0
