@@ -1,7 +1,6 @@
 ---
 aliases:
-  - /docs/tempo/latest/server_side_metrics/span_metrics/
-  - /docs/tempo/latest/metrics-generator/span_metrics/
+  - ../server_side_metrics/span_metrics/ # /docs/tempo/latest/server_side_metrics/span_metrics/
 title: Span metrics
 description: The span metrics processor generates metrics from ingested tracing data, including request, error, and duration (RED) metrics.
 weight: 200
@@ -20,10 +19,6 @@ Span metrics are of particular interest if your system is not monitored with met
 but it has distributed tracing implemented.
 You get out-of-the-box metrics from your tracing pipeline.
 
-{{< admonition type="note" >}}
-Metrics generation is disabled by default. Contact Grafana Support to enable metrics generation in your organization.
-{{% /admonition %}}
-
 Even if you already have metrics, span metrics can provide in-depth monitoring of your system.
 The generated metrics will show application level insight into your monitoring,
 as far as tracing gets propagated through your applications.
@@ -35,7 +30,10 @@ exemplars can be automatically added, providing additional value to these metric
 
 ## How to run
 
-To enable span metrics in Tempo/GET, enable the metrics generator and add an overrides section which enables the `span-metrics` generator. See [here for configuration details]({{< relref "../configuration#metrics-generator" >}}).
+To enable span metrics in Tempo or Grafana Enterprise Traces, enable the metrics generator and add an overrides section which enables the `span-metrics` generator.
+Refer to [the configuration details]({{< relref "../configuration#metrics-generator" >}}).
+
+If you want to enable metrics-generator for your Grafana Cloud account, refer to the [Metrics-generator in Grafana Cloud](https://grafana.com/docs/grafana-cloud/send-data/traces/metrics-generator/) documentation.
 
 ## How it works
 
