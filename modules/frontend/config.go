@@ -32,7 +32,8 @@ type Config struct {
 	// A list of regexes for black listing requests, these will apply for every request regardless the endpoint
 	URLDenyList []string `yaml:"url_deny_list,omitempty"`
 
-	RequestWeights bool `yaml:"requests_weights,omitempty"`
+	RequestWithWeights bool `yaml:"request_with_weights,omitempty"`
+	RetryWithWeights   bool `yaml:"retry_with_weights,omitempty"`
 }
 
 type SearchConfig struct {
@@ -62,7 +63,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 		DurationSLO:        0,
 		ThroughputBytesSLO: 0,
 	}
-	cfg.RequestWeights = true
+	cfg.RequestWithWeights = true
+	cfg.RetryWithWeights = true
 	cfg.Config.MaxOutstandingPerTenant = 2000
 	cfg.Config.MaxBatchSize = 5
 	cfg.MaxRetries = 2

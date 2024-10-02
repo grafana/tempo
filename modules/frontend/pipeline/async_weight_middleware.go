@@ -79,31 +79,31 @@ func setTraceQLWeight(req Request) {
 	if query.Has("query") {
 		traceQLQuery = query.Get("query")
 	}
-	if traceQLQuery != "" {
-		_, _, _, spanRequest, err := traceql.Compile(traceQLQuery)
-		if err != nil || spanRequest == nil {
-			req.SetWeight(TraceQLSearchWeight)
-			return
-		}
-
-		conditions := 0
-		regexConditions := 0
-
-		for _, c := range spanRequest.Conditions {
-			if c.Op != traceql.OpNone {
-				conditions++
-			}
-			if c.Op == traceql.OpRegex || c.Op == traceql.OpNotRegex {
-				regexConditions++
-			}
-		}
-		complexQuery := regexConditions >= maxRegexConditions || conditions >= maxTraceQLConditions
-		if complexQuery {
-			req.SetWeight(TraceQLSearchWeight + 1)
-			return
-		}
-
-	}
 
 	req.SetWeight(TraceQLSearchWeight)
+
+	if traceQLQuery == "" {
+		return
+	}
+
+	_, _, _, spanRequest, err := traceql.Compile(traceQLQuery)
+	if err != nil || spanRequest == nil {
+		return
+	}
+
+	conditions := 0
+	regexConditions := 0
+
+	for _, c := range spanRequest.Conditions {
+		if c.Op != traceql.OpNone {
+			conditions++
+		}
+		if c.Op == traceql.OpRegex || c.Op == traceql.OpNotRegex {
+			regexConditions++
+		}
+	}
+	complexQuery := regexConditions >= maxRegexConditions || conditions >= maxTraceQLConditions
+	if complexQuery {
+		req.SetWeight(TraceQLSearchWeight + 1)
+	}
 }
