@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash"
 	"hash/fnv"
+	"sync"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -41,6 +42,7 @@ var ErrTraceTooLarge = fmt.Errorf("trace exceeds max size")
 // * Only sort the final result once and if needed.
 // * Don't scan/hash the spans for the last input (final=true).
 type Combiner struct {
+	mtx                 sync.Mutex
 	result              *tempopb.Trace
 	spans               map[token]struct{}
 	combined            bool
@@ -53,6 +55,7 @@ type Combiner struct {
 // when allowPartialTrace is set to true a partial trace that exceed the max size may be returned
 func NewCombiner(maxSizeBytes int, allowPartialTrace bool) *Combiner {
 	return &Combiner{
+		mtx:               sync.Mutex{},
 		maxSizeBytes:      maxSizeBytes,
 		allowPartialTrace: allowPartialTrace,
 	}
@@ -66,6 +69,9 @@ func (c *Combiner) Consume(tr *tempopb.Trace) (int, error) {
 // ConsumeWithFinal consumes the trace, but allows for performance savings when
 // it is known that this is the last expected input trace.
 func (c *Combiner) ConsumeWithFinal(tr *tempopb.Trace, final bool) (int, error) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
 	var spanCount int
 	if tr == nil || c.IsPartialTrace() {
 		return spanCount, nil
