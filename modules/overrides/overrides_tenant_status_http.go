@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/gorilla/mux"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
 	"github.com/grafana/tempo/pkg/util"
