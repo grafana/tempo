@@ -52,7 +52,7 @@ func testLegacyBlock(t *testing.T, ids [][]byte, objs [][]byte, meta *backend.Bl
 	require.NoError(t, err, "error creating backend")
 
 	reader := backend.NewReader(r)
-	meta, err = reader.BlockMeta(context.Background(), meta.BlockID, meta.TenantID)
+	meta, err = reader.BlockMeta(context.Background(), (uuid.UUID)(meta.BlockID), meta.TenantID)
 	require.NoError(t, err, "error retrieving meta")
 
 	backendBlock, err := NewBackendBlock(meta, reader)

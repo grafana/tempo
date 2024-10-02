@@ -351,11 +351,11 @@ func (p *Processor) completeBlock() error {
 	p.blocksMtx.Lock()
 	defer p.blocksMtx.Unlock()
 
-	p.completeBlocks[newMeta.BlockID] = ingester.NewLocalBlock(ctx, newBlock, p.wal.LocalBackend())
+	p.completeBlocks[(uuid.UUID)(newMeta.BlockID)] = ingester.NewLocalBlock(ctx, newBlock, p.wal.LocalBackend())
 	metricCompletedBlocks.WithLabelValues(p.tenant).Inc()
 
 	// Queue for flushing
-	if _, err := p.flushqueue.Enqueue(newFlushOp(newMeta.BlockID)); err != nil {
+	if _, err := p.flushqueue.Enqueue(newFlushOp((uuid.UUID)(newMeta.BlockID))); err != nil {
 		_ = level.Error(p.logger).Log("msg", "local blocks processor failed to enqueue block for flushing", "err", err)
 	}
 
@@ -363,7 +363,7 @@ func (p *Processor) completeBlock() error {
 	if err != nil {
 		return err
 	}
-	delete(p.walBlocks, b.BlockMeta().BlockID)
+	delete(p.walBlocks, (uuid.UUID)(b.BlockMeta().BlockID))
 
 	return nil
 }
@@ -644,7 +644,7 @@ func (p *Processor) writeHeadBlock(id common.ID, tr *tempopb.Trace) error {
 
 func (p *Processor) resetHeadBlock() error {
 	meta := &backend.BlockMeta{
-		BlockID:           uuid.New(),
+		BlockID:           backend.NewUUID(),
 		TenantID:          p.tenant,
 		DedicatedColumns:  p.overrides.DedicatedColumns(p.tenant),
 		ReplicationFactor: backend.MetricsGeneratorReplicationFactor,
@@ -679,7 +679,7 @@ func (p *Processor) cutBlocks(immediate bool) error {
 		return fmt.Errorf("failed to flush head block: %w", err)
 	}
 
-	p.walBlocks[p.headBlock.BlockMeta().BlockID] = p.headBlock
+	p.walBlocks[(uuid.UUID)(p.headBlock.BlockMeta().BlockID)] = p.headBlock
 	metricCutBlocks.WithLabelValues(p.tenant).Inc()
 
 	err = p.resetHeadBlock()
@@ -710,7 +710,7 @@ func (p *Processor) reloadBlocks() error {
 		meta := blk.BlockMeta()
 		if meta.TenantID == p.tenant {
 			level.Info(p.logger).Log("msg", "reloading wal block", "block", meta.BlockID.String())
-			p.walBlocks[blk.BlockMeta().BlockID] = blk
+			p.walBlocks[(uuid.UUID)(blk.BlockMeta().BlockID)] = blk
 		}
 	}
 	level.Info(p.logger).Log("msg", "reloaded wal blocks", "count", len(p.walBlocks))
@@ -795,7 +795,7 @@ func (p *Processor) recordBlockBytes() {
 		sum += b.DataLength()
 	}
 	for _, b := range p.completeBlocks {
-		sum += b.BlockMeta().Size
+		sum += b.BlockMeta().Size_
 	}
 
 	metricBlockSize.WithLabelValues(p.tenant).Set(float64(sum))

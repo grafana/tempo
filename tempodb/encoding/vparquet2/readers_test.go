@@ -49,7 +49,7 @@ func TestParquetGoSetsMetadataSections(t *testing.T) {
 
 	br := NewBackendReaderAt(ctx, r, DataFileName, meta)
 	dr := &dummyReader{r: br}
-	_, err = parquet.OpenFile(dr, int64(meta.Size))
+	_, err = parquet.OpenFile(dr, int64(meta.Size_))
 	require.NoError(t, err)
 
 	require.True(t, dr.footer)

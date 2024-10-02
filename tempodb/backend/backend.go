@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
 
 	"github.com/grafana/tempo/pkg/cache"
 )
@@ -24,6 +25,9 @@ var (
 	ErrBadSeedFile   = fmt.Errorf("bad seed file")
 
 	GlobalMaxBlockID = uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff")
+
+	tracer            = otel.Tracer("backend")
+	EventJSONFallback = "falling back to json"
 )
 
 type CacheInfo struct {

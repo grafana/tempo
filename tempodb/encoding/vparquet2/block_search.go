@@ -80,22 +80,22 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	if opts.ReadBufferSize > 0 {
 		//   only use buffered reader at if the block is small, otherwise it's far more effective to use larger
 		//   buffers in the parquet sdk
-		if opts.ReadBufferCount*opts.ReadBufferSize > int(b.meta.Size) {
-			readerAt = tempo_io.NewBufferedReaderAt(readerAt, int64(b.meta.Size), opts.ReadBufferSize, opts.ReadBufferCount)
+		if opts.ReadBufferCount*opts.ReadBufferSize > int(b.meta.Size_) {
+			readerAt = tempo_io.NewBufferedReaderAt(readerAt, int64(b.meta.Size_), opts.ReadBufferSize, opts.ReadBufferCount)
 		} else {
 			o = append(o, parquet.ReadBufferSize(opts.ReadBufferSize))
 		}
 	}
 
 	// optimized reader
-	readerAt = newParquetOptimizedReaderAt(readerAt, int64(b.meta.Size), b.meta.FooterSize)
+	readerAt = newParquetOptimizedReaderAt(readerAt, int64(b.meta.Size_), b.meta.FooterSize)
 
 	// cached reader
 	readerAt = newCachedReaderAt(readerAt, backendReaderAt)
 
 	_, span := tracer.Start(ctx, "parquet.OpenFile")
 	defer span.End()
-	pf, err := parquet.OpenFile(readerAt, int64(b.meta.Size), o...)
+	pf, err := parquet.OpenFile(readerAt, int64(b.meta.Size_), o...)
 
 	return pf, backendReaderAt, err
 }
@@ -105,7 +105,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 		trace.WithAttributes(
 			attribute.String("blockID", b.meta.BlockID.String()),
 			attribute.String("tenantID", b.meta.TenantID),
-			attribute.Int64("blockSize", int64(b.meta.Size)),
+			attribute.Int64("blockSize", int64(b.meta.Size_)),
 		))
 	defer span.End()
 

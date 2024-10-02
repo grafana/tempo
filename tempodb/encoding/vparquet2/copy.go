@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -13,25 +14,25 @@ import (
 func CopyBlock(ctx context.Context, fromMeta, toMeta *backend.BlockMeta, from backend.Reader, to backend.Writer) error {
 	// Copy streams, efficient but can't cache.
 	copyStream := func(name string) error {
-		reader, size, err := from.StreamReader(ctx, name, fromMeta.BlockID, fromMeta.TenantID)
+		reader, size, err := from.StreamReader(ctx, name, (uuid.UUID)(fromMeta.BlockID), fromMeta.TenantID)
 		if err != nil {
 			return fmt.Errorf("error reading %s: %w", name, err)
 		}
 		defer reader.Close()
 
-		return to.StreamWriter(ctx, name, toMeta.BlockID, toMeta.TenantID, reader, size)
+		return to.StreamWriter(ctx, name, (uuid.UUID)(toMeta.BlockID), toMeta.TenantID, reader, size)
 	}
 
 	// Read entire object and attempt to cache
 	cpy := func(name string, cacheInfo *backend.CacheInfo) error {
 		cacheInfo.Meta = fromMeta
-		b, err := from.Read(ctx, name, fromMeta.BlockID, fromMeta.TenantID, cacheInfo)
+		b, err := from.Read(ctx, name, (uuid.UUID)(fromMeta.BlockID), fromMeta.TenantID, cacheInfo)
 		if err != nil {
 			return fmt.Errorf("error reading %s: %w", name, err)
 		}
 
 		cacheInfo.Meta = toMeta
-		return to.Write(ctx, name, toMeta.BlockID, toMeta.TenantID, b, cacheInfo)
+		return to.Write(ctx, name, (uuid.UUID)(toMeta.BlockID), toMeta.TenantID, b, cacheInfo)
 	}
 
 	// Data
@@ -72,7 +73,7 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 	}
 	for i, bloom := range blooms {
 		nameBloom := common.BloomName(i)
-		err := w.Write(ctx, nameBloom, meta.BlockID, meta.TenantID, bloom, cacheInfo)
+		err := w.Write(ctx, nameBloom, (uuid.UUID)(meta.BlockID), meta.TenantID, bloom, cacheInfo)
 		if err != nil {
 			return fmt.Errorf("unexpected error writing bloom-%d: %w", i, err)
 		}
@@ -83,7 +84,7 @@ func writeBlockMeta(ctx context.Context, w backend.Writer, meta *backend.BlockMe
 	if err != nil {
 		return err
 	}
-	err = w.Write(ctx, common.NameIndex, meta.BlockID, meta.TenantID, i, &backend.CacheInfo{
+	err = w.Write(ctx, common.NameIndex, (uuid.UUID)(meta.BlockID), meta.TenantID, i, &backend.CacheInfo{
 		Meta: meta,
 		Role: cache.RoleTraceIDIdx,
 	})

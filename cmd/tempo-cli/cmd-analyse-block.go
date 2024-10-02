@@ -111,7 +111,7 @@ func (cmd *analyseBlockCmd) Run(ctx *globalOptions) error {
 	return blockSum.print(cmd.NumAttr, cmd.GenerateJsonnet, cmd.SimpleSummary, cmd.PrintFullSummary)
 }
 
-func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minStartTime time.Time, minCompactionLvl uint8) (*blockSummary, error) {
+func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minStartTime time.Time, minCompactionLvl uint32) (*blockSummary, error) {
 	id := uuid.MustParse(blockID)
 
 	meta, err := r.BlockMeta(context.TODO(), id, tenantID)
@@ -143,9 +143,9 @@ func processBlock(r backend.Reader, tenantID, blockID string, maxStartTime, minS
 		return nil, nil
 	}
 
-	br := tempo_io.NewBufferedReaderAt(reader, int64(meta.Size), 2*1024*1024, 64) // 128 MB memory buffering
+	br := tempo_io.NewBufferedReaderAt(reader, int64(meta.Size_), 2*1024*1024, 64) // 128 MB memory buffering
 
-	pf, err := parquet.OpenFile(br, int64(meta.Size), parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true))
+	pf, err := parquet.OpenFile(br, int64(meta.Size_), parquet.SkipBloomFilters(true), parquet.SkipPageIndex(true))
 	if err != nil {
 		return nil, err
 	}

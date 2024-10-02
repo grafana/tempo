@@ -60,7 +60,7 @@ func (cmd *analyseBlocksCmd) Run(ctx *globalOptions) error {
 			continue
 		}
 
-		blockSum, err := processBlock(r, cmd.TenantID, block.String(), maxStartTime, minStartTime, uint8(cmd.MinCompactionLevel))
+		blockSum, err := processBlock(r, cmd.TenantID, block.String(), maxStartTime, minStartTime, uint32(cmd.MinCompactionLevel))
 		if err != nil {
 			if !errors.Is(err, backend.ErrDoesNotExist) {
 				return err

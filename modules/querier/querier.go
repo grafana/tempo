@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
-	"github.com/google/uuid"
 	httpgrpc_server "github.com/grafana/dskit/httpgrpc/server"
 	"github.com/grafana/dskit/ring"
 	ring_client "github.com/grafana/dskit/ring/client"
@@ -847,7 +846,7 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 		return nil, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}
 
-	blockID, err := uuid.Parse(req.BlockID)
+	blockID, err := backend.ParseUUID(req.BlockID)
 	if err != nil {
 		return nil, err
 	}
@@ -866,7 +865,7 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 		Version:          req.Version,
 		TenantID:         tenantID,
 		Encoding:         enc,
-		Size:             req.Size_,
+		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
@@ -910,7 +909,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 		return nil, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}
 
-	blockID, err := uuid.Parse(req.BlockID)
+	blockID, err := backend.ParseUUID(req.BlockID)
 	if err != nil {
 		return nil, err
 	}
@@ -929,7 +928,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 		Version:          req.Version,
 		TenantID:         tenantID,
 		Encoding:         enc,
-		Size:             req.Size_,
+		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
@@ -998,7 +997,7 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 		return &tempopb.SearchTagValuesResponse{}, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}
 
-	blockID, err := uuid.Parse(req.BlockID)
+	blockID, err := backend.ParseUUID(req.BlockID)
 	if err != nil {
 		return &tempopb.SearchTagValuesResponse{}, err
 	}
@@ -1017,7 +1016,7 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 		Version:          req.Version,
 		TenantID:         tenantID,
 		Encoding:         enc,
-		Size:             req.Size_,
+		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
@@ -1046,7 +1045,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		return &tempopb.SearchTagValuesV2Response{}, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}
 
-	blockID, err := uuid.Parse(req.BlockID)
+	blockID, err := backend.ParseUUID(req.BlockID)
 	if err != nil {
 		return &tempopb.SearchTagValuesV2Response{}, err
 	}
@@ -1065,7 +1064,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		Version:          req.Version,
 		TenantID:         tenantID,
 		Encoding:         enc,
-		Size:             req.Size_,
+		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,

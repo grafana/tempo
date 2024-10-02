@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/gogo/protobuf/proto"
@@ -152,7 +153,7 @@ func (p *Processor) queryRangeWALBlock(ctx context.Context, b common.WALBlock, e
 	m := b.BlockMeta()
 	ctx, span := tracer.Start(ctx, "Processor.QueryRange.WALBlock", trace.WithAttributes(
 		attribute.String("block", m.BlockID.String()),
-		attribute.Int64("blockSize", int64(m.Size)),
+		attribute.Int64("blockSize", int64(m.Size_)),
 	))
 	defer span.End()
 
@@ -167,7 +168,7 @@ func (p *Processor) queryRangeCompleteBlock(ctx context.Context, b *ingester.Loc
 	m := b.BlockMeta()
 	ctx, span := tracer.Start(ctx, "Processor.QueryRange.CompleteBlock", trace.WithAttributes(
 		attribute.String("block", m.BlockID.String()),
-		attribute.Int64("blockSize", int64(m.Size)),
+		attribute.Int64("blockSize", int64(m.Size_)),
 	))
 	defer span.End()
 
@@ -224,7 +225,7 @@ func (p *Processor) queryRangeCacheGet(ctx context.Context, m *backend.BlockMeta
 
 	name := fmt.Sprintf("cache_query_range_%v.buf", hash)
 
-	data, err := p.walR.Read(ctx, name, m.BlockID, m.TenantID, nil)
+	data, err := p.walR.Read(ctx, name, (uuid.UUID)(m.BlockID), m.TenantID, nil)
 	if err != nil {
 		if errors.Is(err, backend.ErrDoesNotExist) {
 			// Not cached, but return the name/keypath so it can be set after
@@ -248,7 +249,7 @@ func (p *Processor) queryRangeCacheSet(ctx context.Context, m *backend.BlockMeta
 		return err
 	}
 
-	return p.walW.Write(ctx, name, m.BlockID, m.TenantID, data, nil)
+	return p.walW.Write(ctx, name, (uuid.UUID)(m.BlockID), m.TenantID, data, nil)
 }
 
 func queryRangeHashForBlock(req tempopb.QueryRangeRequest) uint64 {

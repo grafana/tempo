@@ -96,7 +96,7 @@ func TestBuildBackendRequests(t *testing.T) {
 		{
 			metas: []*backend.BlockMeta{
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 			},
 			expectedURIs: []string{},
@@ -105,8 +105,8 @@ func TestBuildBackendRequests(t *testing.T) {
 		{
 			metas: []*backend.BlockMeta{
 				{
-					Size:    1000,
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					Size_:   1000,
+					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 			},
 			expectedURIs: []string{},
@@ -116,9 +116,9 @@ func TestBuildBackendRequests(t *testing.T) {
 			targetBytesPerRequest: 1000,
 			metas: []*backend.BlockMeta{
 				{
-					Size:          1000,
+					Size_:         1000,
 					TotalRecords:  100,
-					BlockID:       uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:       backend.MustParse("00000000-0000-0000-0000-000000000000"),
 					DataEncoding:  "json",
 					Encoding:      backend.EncGZIP,
 					IndexPageSize: 13,
@@ -134,9 +134,9 @@ func TestBuildBackendRequests(t *testing.T) {
 			targetBytesPerRequest: 1000,
 			metas: []*backend.BlockMeta{
 				{
-					Size:          1000,
+					Size_:         1000,
 					TotalRecords:  10,
-					BlockID:       uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:       backend.MustParse("00000000-0000-0000-0000-000000000000"),
 					Encoding:      backend.EncNone,
 					IndexPageSize: 13,
 					Version:       "vParquet3",
@@ -154,9 +154,9 @@ func TestBuildBackendRequests(t *testing.T) {
 			targetBytesPerRequest: 1,
 			metas: []*backend.BlockMeta{
 				{
-					Size:         1000,
+					Size_:        1000,
 					TotalRecords: 3,
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 			},
 			expectedURIs: []string{
@@ -170,9 +170,9 @@ func TestBuildBackendRequests(t *testing.T) {
 			targetBytesPerRequest: 1000,
 			metas: []*backend.BlockMeta{
 				{
-					Size:         1000,
+					Size_:        1000,
 					TotalRecords: 100,
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 			},
 			expectedURIs: []string{
@@ -184,9 +184,9 @@ func TestBuildBackendRequests(t *testing.T) {
 			targetBytesPerRequest: 900,
 			metas: []*backend.BlockMeta{
 				{
-					Size:         1000,
+					Size_:        1000,
 					TotalRecords: 100,
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 			},
 			expectedURIs: []string{
@@ -199,14 +199,14 @@ func TestBuildBackendRequests(t *testing.T) {
 			targetBytesPerRequest: 900,
 			metas: []*backend.BlockMeta{
 				{
-					Size:         1000,
+					Size_:        1000,
 					TotalRecords: 100,
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 				{
-					Size:         1000,
+					Size_:        1000,
 					TotalRecords: 200,
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000001"),
 				},
 			},
 			expectedURIs: []string{
@@ -247,7 +247,7 @@ func TestBackendRequests(t *testing.T) {
 	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad", backend.EncGZIP, "asdf")
 	bm.StartTime = time.Unix(100, 0)
 	bm.EndTime = time.Unix(200, 0)
-	bm.Size = defaultTargetBytesPerRequest * 2
+	bm.Size_ = defaultTargetBytesPerRequest * 2
 	bm.TotalRecords = 2
 
 	s := &asyncSearchSharder{
@@ -663,9 +663,9 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 			{
 				StartTime:    time.Unix(now, 0),
 				EndTime:      time.Unix(now, 0),
-				Size:         defaultTargetBytesPerRequest * 2,
+				Size_:        defaultTargetBytesPerRequest * 2,
 				TotalRecords: 2,
-				BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+				BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000000"),
 			},
 		},
 	}, o, SearchSharderConfig{

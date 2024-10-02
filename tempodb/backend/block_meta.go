@@ -82,53 +82,10 @@ func (s DedicatedColumnScope) ToTempopb() (tempopb.DedicatedColumn_Scope, error)
 	}
 }
 
-type CompactedBlockMeta struct {
-	CompactedTime time.Time `json:"compactedTime"`
-	BlockMeta
-}
-
 const (
 	DefaultReplicationFactor          = 0 // Replication factor for blocks from the ingester. This is the default value to indicate RF3.
 	MetricsGeneratorReplicationFactor = 1
 )
-
-// The BlockMeta data that is stored for each individual block.
-type BlockMeta struct {
-	// A Version that indicates the block format. This includes specifics of how the indexes and data is stored.
-	Version string `json:"format"`
-	// BlockID is a unique identifier of the block.
-	BlockID uuid.UUID `json:"blockID"`
-	// A TenantID that defines the tenant to which this block belongs.
-	TenantID string `json:"tenantID"`
-	// StartTime roughly matches when the first obj was written to this block. It is used to determine block.
-	// age for different purposes (caching, etc)
-	StartTime time.Time `json:"startTime"`
-	// EndTime roughly matches to the time the last obj was written to this block. Is currently mostly meaningless.
-	EndTime time.Time `json:"endTime"`
-	// TotalObjects counts the number of objects in this block.
-	TotalObjects int `json:"totalObjects"`
-	// The Size in bytes of the block.
-	Size uint64 `json:"size"`
-	// CompactionLevel defines the number of times this block has been compacted.
-	CompactionLevel uint8 `json:"compactionLevel"`
-	// Encoding and compression format (used only in v2)
-	Encoding Encoding `json:"encoding"`
-	// IndexPageSize holds the size of each index page in bytes (used only in v2)
-	IndexPageSize uint32 `json:"indexPageSize"`
-	// TotalRecords holds the total Records stored in the index file (used only in v2)
-	TotalRecords uint32 `json:"totalRecords"`
-	// DataEncoding is tracked by tempodb and indicates the way the bytes are encoded.
-	DataEncoding string `json:"dataEncoding"`
-	// BloomShardCount represents the number of bloom filter shards.
-	BloomShardCount uint16 `json:"bloomShards"`
-	// FooterSize contains the size of the footer in bytes (used by parquet)
-	FooterSize uint32 `json:"footerSize"`
-	// DedicatedColumns configuration for attributes (used by vParquet3)
-	DedicatedColumns DedicatedColumns `json:"dedicatedColumns,omitempty"`
-	// ReplicationFactor is the number of times the data written in this block has been replicated.
-	// It's left unset if replication factor is 3. Default is 0 (RF3).
-	ReplicationFactor uint8 `json:"replicationFactor,omitempty"`
-}
 
 // DedicatedColumn contains the configuration for a single attribute with the given name that should
 // be stored in a dedicated column instead of the generic attribute column.
@@ -199,7 +156,7 @@ func NewBlockMeta(tenantID string, blockID uuid.UUID, version string, encoding E
 func NewBlockMetaWithDedicatedColumns(tenantID string, blockID uuid.UUID, version string, encoding Encoding, dataEncoding string, dc DedicatedColumns) *BlockMeta {
 	b := &BlockMeta{
 		Version:          version,
-		BlockID:          blockID,
+		BlockID:          UUID(blockID),
 		TenantID:         tenantID,
 		Encoding:         encoding,
 		DataEncoding:     dataEncoding,
@@ -336,4 +293,63 @@ func (dcs DedicatedColumns) Hash() uint64 {
 		_, _ = h.WriteString(string(c.Type))
 	}
 	return h.Sum64()
+}
+
+func (dcs DedicatedColumns) Size() int {
+	if len(dcs) == 0 {
+		return 0
+	}
+
+	b, _ := dcs.Marshal()
+	return len(b)
+}
+
+func (dcs DedicatedColumns) Marshal() ([]byte, error) {
+	if len(dcs) == 0 {
+		return nil, nil
+	}
+
+	// NOTE: The json bytes interned in a map to avoid re-unmarshalling the same byte slice.
+	return json.Marshal(dcs)
+}
+
+func (dcs DedicatedColumns) MarshalTo(data []byte) (n int, err error) {
+	bb, err := dcs.Marshal()
+	if err != nil {
+		return 0, err
+	}
+	copy(data, bb)
+
+	return len(bb), nil
+}
+
+func (dcs *DedicatedColumns) Unmarshal(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+
+	// NOTE: The json bytes interned in a map to avoid re-unmarshalling the same byte slice.
+	return json.Unmarshal(data, &dcs)
+}
+
+func (b *CompactedBlockMeta) UnmarshalJSON(data []byte) error {
+	var msg interface{}
+	err := json.Unmarshal(data, &msg)
+	if err != nil {
+		return err
+	}
+	msgMap := msg.(map[string]interface{})
+
+	if v, ok := msgMap["compactedTime"]; ok {
+		b.CompactedTime, err = time.Parse(time.RFC3339, v.(string))
+		if err != nil {
+			return fmt.Errorf("failed to parse time at compactedTime: %w", err)
+		}
+	}
+
+	if err := json.Unmarshal(data, &b.BlockMeta); err != nil {
+		return fmt.Errorf("failed at unmarshal for dedicated columns: %w", err)
+	}
+
+	return nil
 }

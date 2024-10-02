@@ -115,8 +115,8 @@ func TestStreamingBlockAddObject(t *testing.T) {
 	assert.Equal(t, time.Unix(10000, 0), meta.StartTime)
 	assert.Equal(t, time.Unix(25000, 0), meta.EndTime)
 	assert.Equal(t, testTenantID, meta.TenantID)
-	assert.Equal(t, numObjects, meta.TotalObjects)
-	assert.Greater(t, meta.Size, uint64(0))
+	assert.Equal(t, int64(numObjects), meta.TotalObjects)
+	assert.Greater(t, meta.Size_, uint64(0))
 	assert.Greater(t, cb.bloom.GetShardCount(), 0)
 
 	// bloom
@@ -244,7 +244,7 @@ func streamingBlock(t *testing.T, cfg *common.BlockConfig, w backend.Writer) (*S
 	originatingMeta.StartTime = time.Now().Add(-5 * time.Minute)
 	originatingMeta.EndTime = time.Now().Add(5 * time.Minute)
 	originatingMeta.DataEncoding = "foo"
-	originatingMeta.TotalObjects = numMsgs
+	originatingMeta.TotalObjects = int64(numMsgs)
 
 	// calc expected records
 	dataReader, err := NewDataReader(backend.NewContextReaderWithAllReader(bytes.NewReader(buffer.Bytes())), backend.EncNone)
@@ -253,7 +253,7 @@ func streamingBlock(t *testing.T, cfg *common.BlockConfig, w backend.Writer) (*S
 		dataReader,
 		NewObjectReaderWriter())
 
-	block, err := NewStreamingBlock(cfg, originatingMeta.BlockID, originatingMeta.TenantID, []*backend.BlockMeta{originatingMeta}, originatingMeta.TotalObjects)
+	block, err := NewStreamingBlock(cfg, (uuid.UUID)(originatingMeta.BlockID), originatingMeta.TenantID, []*backend.BlockMeta{originatingMeta}, int(originatingMeta.TotalObjects))
 	require.NoError(t, err, "unexpected error completing block")
 
 	expectedBloomShards := block.bloom.GetShardCount()
@@ -286,7 +286,7 @@ func streamingBlock(t *testing.T, cfg *common.BlockConfig, w backend.Writer) (*S
 	require.Equal(t, expectedBloomShards, int(block.BlockMeta().BloomShardCount))
 
 	// Verify block size was written
-	require.Greater(t, block.BlockMeta().Size, uint64(0))
+	require.Greater(t, block.BlockMeta().Size_, uint64(0))
 
 	return block, ids, reqs
 }
@@ -386,7 +386,7 @@ func benchmarkCompressBlock(b *testing.B, encoding backend.Encoding, indexDownsa
 		Encoding:             encoding,
 		IndexPageSizeBytes:   10 * 1024 * 1024,
 		BloomShardSizeBytes:  100000,
-	}, uuid.New(), meta.TenantID, []*backend.BlockMeta{meta}, meta.TotalObjects)
+	}, uuid.New(), meta.TenantID, []*backend.BlockMeta{meta}, int(meta.TotalObjects))
 	require.NoError(b, err, "unexpected error completing block")
 
 	ctx := context.Background()
