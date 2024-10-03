@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// FIXME: add tests that metrics are combined
 func TestTagsCombiner(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -158,6 +159,7 @@ func TestTagsCombiner(t *testing.T) {
 	}
 }
 
+// FIXME: add tests that metrics are combined
 func TestTagsGRPCCombiner(t *testing.T) {
 	c := NewTypedSearchTags(0)
 	res1 := &tempopb.SearchTagsResponse{TagNames: []string{"tag1"}}
@@ -168,6 +170,7 @@ func TestTagsGRPCCombiner(t *testing.T) {
 	testGRPCCombiner(t, c, res1, res2, diff1, diff2, expectedFinal, func(r *tempopb.SearchTagsResponse) { sort.Strings(r.TagNames) })
 }
 
+// FIXME: add tests that metrics are combined
 func TestTagsV2GRPCCombiner(t *testing.T) {
 	c := NewTypedSearchTagsV2(0)
 	res1 := &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"tag1"}}}}
@@ -185,6 +188,7 @@ func TestTagsV2GRPCCombiner(t *testing.T) {
 	})
 }
 
+// FIXME: add tests that metrics are combined
 func TestTagValuesGRPCCombiner(t *testing.T) {
 	c := NewTypedSearchTagValues(0)
 	res1 := &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1"}}
@@ -195,6 +199,7 @@ func TestTagValuesGRPCCombiner(t *testing.T) {
 	testGRPCCombiner(t, c, res1, res2, diff1, diff2, expectedFinal, func(r *tempopb.SearchTagValuesResponse) { sort.Strings(r.TagValues) })
 }
 
+// FIXME: add tests that metrics are combined
 func TestTagValuesV2GRPCCombiner(t *testing.T) {
 	c := NewTypedSearchTagValuesV2(0)
 	res1 := &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}}}

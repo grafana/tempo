@@ -25,13 +25,17 @@ func NewSearchTags(limitBytes int) Combiner {
 			for _, v := range partial.TagNames {
 				d.Collect(v)
 			}
-			inspectedBytes.Add(partial.Metrics.InspectedBytes)
+			if partial.Metrics != nil {
+				inspectedBytes.Add(partial.Metrics.InspectedBytes)
+			}
 			return nil
 		},
 		finalize: func(response *tempopb.SearchTagsResponse) (*tempopb.SearchTagsResponse, error) {
 			response.TagNames = d.Strings()
 			// return metrics with final results
-			response.Metrics.InspectedBytes = inspectedBytes.Load()
+			if response.Metrics != nil {
+				response.Metrics.InspectedBytes = inspectedBytes.Load()
+			}
 			return response, nil
 		},
 		quit: func(_ *tempopb.SearchTagsResponse) bool {
@@ -44,8 +48,10 @@ func NewSearchTags(limitBytes int) Combiner {
 			}
 
 			response.TagNames = resp
-			// also return metrics with diff results
-			response.Metrics.InspectedBytes = inspectedBytes.Load()
+			if response.Metrics != nil {
+				// also return metrics with diff results
+				response.Metrics.InspectedBytes = inspectedBytes.Load()
+			}
 			return response, nil
 		},
 	}
@@ -72,7 +78,9 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 					distinctValues.Collect(res.Name, tag)
 				}
 			}
-			inspectedBytes.Add(partial.Metrics.InspectedBytes)
+			if partial.Metrics != nil {
+				inspectedBytes.Add(partial.Metrics.InspectedBytes)
+			}
 			return nil
 		},
 		finalize: func(final *tempopb.SearchTagsV2Response) (*tempopb.SearchTagsV2Response, error) {
@@ -85,8 +93,10 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 					Tags: vals,
 				})
 			}
-			// return metrics with final results
-			final.Metrics.InspectedBytes = inspectedBytes.Load()
+			if final.Metrics != nil {
+				// return metrics with final results
+				final.Metrics.InspectedBytes = inspectedBytes.Load()
+			}
 			return final, nil
 		},
 		quit: func(_ *tempopb.SearchTagsV2Response) bool {
@@ -105,8 +115,10 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 					Tags: vals,
 				})
 			}
-			// also return metrics with diff results
-			response.Metrics.InspectedBytes = inspectedBytes.Load()
+			if response.Metrics != nil {
+				// also return metrics with diff results
+				response.Metrics.InspectedBytes = inspectedBytes.Load()
+			}
 			return response, nil
 		},
 	}
