@@ -235,8 +235,6 @@ message SearchTagValuesV2Response {
   SearchTagMetrics metrics = 2;
 }
 
-// TODO: I might just use inspectedBytes directly inside the response messages or have SearchTagMetrics with single atrribute??
-// do we need other metrics? if not then why have them?
 message SearchTagMetrics {
   uint32 totalJobs = 1;
   uint32 completedJobs = 2;
