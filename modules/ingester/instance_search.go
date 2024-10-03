@@ -198,6 +198,7 @@ func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.Searc
 
 	return &tempopb.SearchTagsResponse{
 		TagNames: distinctValues.Strings(),
+		Metrics:  v2Response.Metrics, // send metrics with response
 	}, nil
 }
 
@@ -232,6 +233,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewScopedDistinctString(limit)
+	mc := collector.NewMetricsCollector()
 
 	engine := traceql.NewEngine()
 	query := traceql.ExtractMatchers(req.Query)
@@ -249,9 +251,10 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 
 		// if the query is empty, use the old search
 		if traceql.IsEmptyQuery(query) {
+			// FIXME: not capturing metrics in old search???
 			err = s.SearchTags(ctx, attributeScope, func(t string, scope traceql.AttributeScope) {
 				distinctValues.Collect(scope.String(), t)
-			}, common.DefaultSearchOptions())
+			}, mc.Add, common.DefaultSearchOptions())
 			if err != nil && !errors.Is(err, common.ErrUnsupported) {
 				return fmt.Errorf("unexpected error searching tags: %w", err)
 			}
@@ -261,7 +264,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 
 		// otherwise use the filtered search
 		fetcher := traceql.NewTagNamesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback) error {
-			return s.FetchTagNames(ctx, req, cb, common.DefaultSearchOptions())
+			return s.FetchTagNames(ctx, req, cb, mc.Add, common.DefaultSearchOptions())
 		})
 
 		return engine.ExecuteTagNames(ctx, attributeScope, query, func(tag string, scope traceql.AttributeScope) bool {
@@ -299,6 +302,9 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	collected := distinctValues.Strings()
 	resp := &tempopb.SearchTagsV2Response{
 		Scopes: make([]*tempopb.SearchTagsV2Scope, 0, len(collected)+1), // +1 for intrinsic below
+		Metrics: &tempopb.SearchTagMetrics{
+			InspectedBytes: mc.TotalValue(), // capture metrics
+		},
 	}
 	for scope, vals := range collected {
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
@@ -326,13 +332,14 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewDistinctString(limit)
+	mc := collector.NewMetricsCollector()
 
 	var inspectedBlocks, maxBlocks int
 	if limit := i.limiter.limits.MaxBlocksPerTagValuesQuery(userID); limit > 0 {
 		maxBlocks = limit
 	}
 
-	search := func(s common.Searcher, dv *collector.DistinctString) error {
+	searchBlock := func(s common.Searcher, dv *collector.DistinctString) error {
 		if maxBlocks > 0 && inspectedBlocks >= maxBlocks {
 			return nil
 		}
@@ -345,7 +352,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 		}
 
 		inspectedBlocks++
-		err = s.SearchTagValues(ctx, tagName, dv.Collect, common.DefaultSearchOptions())
+		err = s.SearchTagValues(ctx, tagName, dv.Collect, mc.Add, common.DefaultSearchOptions())
 		if err != nil && !errors.Is(err, common.ErrUnsupported) {
 			return fmt.Errorf("unexpected error searching tag values (%s): %w", tagName, err)
 		}
@@ -354,7 +361,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	}
 
 	i.headBlockMtx.RLock()
-	err = search(i.headBlock, distinctValues)
+	err = searchBlock(i.headBlock, distinctValues)
 	i.headBlockMtx.RUnlock()
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
@@ -364,12 +371,12 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	defer i.blocksMtx.RUnlock()
 
 	for _, b := range i.completingBlocks {
-		if err = search(b, distinctValues); err != nil {
+		if err = searchBlock(b, distinctValues); err != nil {
 			return nil, fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err)
 		}
 	}
 	for _, b := range i.completeBlocks {
-		if err = search(b, distinctValues); err != nil {
+		if err = searchBlock(b, distinctValues); err != nil {
 			return nil, fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err)
 		}
 	}
@@ -380,6 +387,9 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 
 	return &tempopb.SearchTagValuesResponse{
 		TagValues: distinctValues.Strings(),
+		Metrics: &tempopb.SearchTagMetrics{
+			InspectedBytes: mc.TotalValue(),
+		},
 	}, nil
 }
 
@@ -391,9 +401,11 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 	ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2")
 	defer span.End()
+	// return metrics back to the caller??
 
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
 	valueCollector := collector.NewDistinctValue[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	mc := collector.NewMetricsCollector() // to collect bytesRead metric
 
 	engine := traceql.NewEngine()
 
@@ -427,12 +439,12 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	// helper functions as closures, to access local variables
 	performSearch := func(ctx context.Context, s common.Searcher, collector *collector.DistinctValue[tempopb.TagValue]) error {
 		if traceql.IsEmptyQuery(query) {
-			return s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(collector.Collect), common.DefaultSearchOptions())
+			return s.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(collector.Collect), mc.Add, common.DefaultSearchOptions())
 		}
 
 		// Otherwise, use the filtered search
 		fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
-			return s.FetchTagValues(ctx, req, cb, common.DefaultSearchOptions())
+			return s.FetchTagValues(ctx, req, cb, mc.Add, common.DefaultSearchOptions())
 		})
 
 		return engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(collector.Collect), fetcher)
@@ -575,7 +587,12 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		_ = level.Warn(log.Logger).Log("msg", "size of tag values exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "limit", limit, "size", valueCollector.Size())
 	}
 
-	resp := &tempopb.SearchTagValuesV2Response{}
+	resp := &tempopb.SearchTagValuesV2Response{
+		Metrics: &tempopb.SearchTagMetrics{
+			InspectedBytes: mc.TotalValue(), // attach metrics to the response
+		},
+	}
+	resp.Metrics = &tempopb.SearchTagMetrics{}
 
 	for _, v := range valueCollector.Values() {
 		v2 := v

@@ -118,7 +118,6 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
 
-	// these pipelines are calling the code?
 	searchTagsPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
