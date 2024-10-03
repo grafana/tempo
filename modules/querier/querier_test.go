@@ -184,3 +184,5 @@ func TestVirtualTagsDoesntHitBackend(t *testing.T) {
 	})
 	require.Error(t, err)
 }
+
+// TODO: add test for all endpoints to ensure they come back with metrics?? maybe do it in e2e tests instead of testing here??
