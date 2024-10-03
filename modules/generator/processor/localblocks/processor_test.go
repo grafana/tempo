@@ -336,15 +336,15 @@ func (m *mockBlock) Search(context.Context, *tempopb.SearchRequest, common.Searc
 	return nil, nil
 }
 
-func (m *mockBlock) SearchTags(context.Context, traceql.AttributeScope, common.TagsCallback, common.SearchOptions) error {
+func (m *mockBlock) SearchTags(context.Context, traceql.AttributeScope, common.TagsCallback, common.MetricsCallback, common.SearchOptions) error {
 	return nil
 }
 
-func (m *mockBlock) SearchTagValues(context.Context, string, common.TagValuesCallback, common.SearchOptions) error {
+func (m *mockBlock) SearchTagValues(context.Context, string, common.TagValuesCallback, common.MetricsCallback, common.SearchOptions) error {
 	return nil
 }
 
-func (m *mockBlock) SearchTagValuesV2(context.Context, traceql.Attribute, common.TagValuesCallbackV2, common.SearchOptions) error {
+func (m *mockBlock) SearchTagValuesV2(context.Context, traceql.Attribute, common.TagValuesCallbackV2, common.MetricsCallback, common.SearchOptions) error {
 	return nil
 }
 
@@ -352,11 +352,11 @@ func (m *mockBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.Sea
 	return traceql.FetchSpansResponse{}, nil
 }
 
-func (m *mockBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.SearchOptions) error {
+func (m *mockBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.MetricsCallback, common.SearchOptions) error {
 	return nil
 }
 
-func (m *mockBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.SearchOptions) error {
+func (m *mockBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.MetricsCallback, common.SearchOptions) error {
 	return nil
 }
 
