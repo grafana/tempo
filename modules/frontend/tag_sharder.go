@@ -223,10 +223,17 @@ func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.
 		reqCh <- ingesterReq
 	}
 
+	// get totalJob, totalBlocks, totalBlockBytes metrics from this call
 	s.backendRequests(ctx, tenantID, r, searchReq, reqCh, func(err error) {
 		// todo: actually find a way to return this error to the user
 		s.logger.Log("msg", "failed to build backend requests", "err", err)
 	})
+
+	// if we want to pass on totalJobs, totalBlocks, totalBlockBytes metrics, we need to send a metrics message here like
+	// we do it in asyncSearchSharder.RoundTrip method, where we send out a pipeline Message with the metrics??
+	// SKIP that for now and focus only on the inspected bytes as of now.
+	// send jobMetricsResponse like we send in asyncSearchSharder.RoundTrip and accumulate these
+	// metrics in the combiners, and log these metrics in the logger
 
 	// execute requests
 	return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, reqCh, nil, s.next), nil
@@ -318,6 +325,7 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 // that covers the ingesters. If nil is returned for the http.Request then there is no ingesters query.
 // we should do a copy of the searchReq before use this function, as it is an interface, we cannot guaranteed  be passed
 // by value.
+// FIXME: return the metrics like we return it in asyncSearchSharder
 func (s searchTagSharder) ingesterRequest(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tagSearchReq) (*pipeline.HTTPRequest, error) {
 	// request without start or end, search only in ingester
 	if searchReq.start() == 0 || searchReq.end() == 0 {

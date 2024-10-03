@@ -13,9 +13,8 @@ import (
 const (
 	traceByIDOp = "traces"
 	searchOp    = "search"
-	// TODO: decide if we want a single op or multiple for metadataV1 vs metadataV2
-	metadataOp = "metadata"
-	metricsOp  = "metrics"
+	metadataOp  = "metadata"
+	metricsOp   = "metrics"
 )
 
 var (

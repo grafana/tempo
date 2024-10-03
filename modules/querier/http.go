@@ -293,6 +293,7 @@ func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Reques
 	ctx, span := tracer.Start(ctx, "Querier.SearchTagValuesV2Handler")
 	defer span.End()
 
+	// response is being built here? should have metrics??
 	var resp *tempopb.SearchTagValuesV2Response
 	var err error
 
