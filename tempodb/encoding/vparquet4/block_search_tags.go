@@ -44,7 +44,7 @@ var nonTraceQLAttributes = map[string]string{
 	LabelRootSpanName:    columnPathRootSpanName,
 }
 
-func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagsCallback, opts common.SearchOptions) error {
+func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagsCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
 	derivedCtx, span := tracer.Start(ctx, "parquet.backendBlock.SearchTags",
 		trace.WithAttributes(
 			attribute.String("blockID", b.meta.BlockID.String()),
@@ -57,11 +57,15 @@ func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeSc
 	if err != nil {
 		return fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
-	defer func() { span.SetAttributes(attribute.Int64("inspectedBytes", int64(rr.BytesRead()))) }()
+	defer func() {
+		mcb(rr.BytesRead()) // call the metrics callback
+		span.SetAttributes(attribute.Int64("inspectedBytes", int64(rr.BytesRead())))
+	}()
 
 	return searchTags(derivedCtx, scope, cb, pf, b.meta.DedicatedColumns)
 }
 
+// modify cb signature to also take in the
 func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsCallback, pf *parquet.File, dc backend.DedicatedColumns) error {
 	scanColumns := func(standardKeyPath string, specialMappings map[string]string, columnMapping dedicatedColumnMapping, cb common.TagsCallback, scope traceql.AttributeScope) error {
 		specialAttrIdxs := map[int]string{}
@@ -211,7 +215,7 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsC
 	return nil
 }
 
-func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagValuesCallback, opts common.SearchOptions) error {
+func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
 	att, ok := translateTagToAttribute[tag]
 	if !ok {
 		att = traceql.NewAttribute(tag)
@@ -223,10 +227,10 @@ func (b *backendBlock) SearchTagValues(ctx context.Context, tag string, cb commo
 		return false
 	}
 
-	return b.SearchTagValuesV2(ctx, att, cb2, opts)
+	return b.SearchTagValuesV2(ctx, att, cb2, mcb, opts)
 }
 
-func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, opts common.SearchOptions) error {
+func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, mcb common.MetricsCallback, opts common.SearchOptions) error {
 	derivedCtx, span := tracer.Start(ctx, "parquet.backendBlock.SearchTagValuesV2",
 		trace.WithAttributes(
 			attribute.String("blockID", b.meta.BlockID.String()),
@@ -239,8 +243,11 @@ func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attrib
 	if err != nil {
 		return fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
-	// TODO(suraj): push this BytesRead to SLO middleware
-	defer func() { span.SetAttributes(attribute.Int64("inspectedBytes", int64(rr.BytesRead()))) }()
+	// capture bytes read into metrics callback and span
+	defer func() {
+		mcb(rr.BytesRead())
+		span.SetAttributes(attribute.Int64("inspectedBytes", int64(rr.BytesRead())))
+	}()
 
 	return searchTagValues(derivedCtx, tag, cb, pf, b.meta.DedicatedColumns)
 }
