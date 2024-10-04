@@ -279,13 +279,11 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 	require.NoError(t, err)
 	assert.Contains(t, sr.TagNames, tagName)
 	require.NotZero(t, sr.Metrics.InspectedBytes)
-	fmt.Printf("sr.Metrics.InspectedBytes: %d\n", sr.Metrics.InspectedBytes)
 
 	sr, err = i.SearchTags(ctx, "span")
 	require.NoError(t, err)
 	assert.Contains(t, sr.TagNames, tagName)
 	require.NotZero(t, sr.Metrics.InspectedBytes)
-	fmt.Printf("sr.Metrics.InspectedBytes: %d\n", sr.Metrics.InspectedBytes)
 
 	sr, err = i.SearchTags(ctx, "resource")
 	require.NoError(t, err)
@@ -295,26 +293,22 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 		tagName,
 	) // tags are added to h the spans and not resources so they should not be returned
 	require.NotZero(t, sr.Metrics.InspectedBytes)
-	fmt.Printf("sr.Metrics.InspectedBytes: %d\n", sr.Metrics.InspectedBytes)
 
 	// added the same span tag to both event and link
 	sr, err = i.SearchTags(ctx, "event")
 	require.NoError(t, err)
 	assert.Contains(t, sr.TagNames, tagName)
 	require.NotZero(t, sr.Metrics.InspectedBytes)
-	fmt.Printf("sr.Metrics.InspectedBytes: %d\n", sr.Metrics.InspectedBytes)
 
 	sr, err = i.SearchTags(ctx, "link")
 	require.NoError(t, err)
 	assert.Contains(t, sr.TagNames, tagName)
 	require.NotZero(t, sr.Metrics.InspectedBytes)
-	fmt.Printf("sr.Metrics.InspectedBytes: %d\n", sr.Metrics.InspectedBytes)
 
 	srv, err := i.SearchTagValues(ctx, tagName)
 	require.NoError(t, err)
 
 	require.NotZero(t, srv.Metrics.InspectedBytes)
-	fmt.Printf("sr.Metrics.InspectedBytes: %d\n", sr.Metrics.InspectedBytes)
 	sort.Strings(expectedTagValues)
 	sort.Strings(srv.TagValues)
 	assert.Equal(t, expectedTagValues, srv.TagValues)
@@ -384,6 +378,7 @@ func testSearchTagsAndValuesV2(
 ) {
 	tagsResp, err := i.SearchTags(ctx, "none")
 	require.NoError(t, err)
+	require.NotZero(t, tagsResp.Metrics.InspectedBytes)
 
 	tagValuesResp, err := i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
 		TagName: fmt.Sprintf("span.%s", tagName),
@@ -391,7 +386,6 @@ func testSearchTagsAndValuesV2(
 	})
 	require.NoError(t, err)
 	require.NotZero(t, tagValuesResp.Metrics.InspectedBytes)
-	fmt.Printf("tagValuesResp.Metrics.InspectedBytes: %d\n", tagValuesResp.Metrics.InspectedBytes)
 
 	tagValues := make([]string, 0, len(tagValuesResp.TagValues))
 	for _, v := range tagValuesResp.TagValues {
@@ -404,14 +398,12 @@ func testSearchTagsAndValuesV2(
 	assert.Equal(t, expectedTagValues, tagValues)
 
 	// Test with event and link
-
 	tagValuesResp, err = i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
 		TagName: fmt.Sprintf("event.%s", tagName),
 		Query:   query,
 	})
 	require.NoError(t, err)
 	require.NotZero(t, tagValuesResp.Metrics.InspectedBytes)
-	fmt.Printf("tagValuesResp.Metrics.InspectedBytes: %d\n", tagValuesResp.Metrics.InspectedBytes)
 
 	tagValues = make([]string, 0, len(tagValuesResp.TagValues))
 	for _, v := range tagValuesResp.TagValues {
@@ -429,7 +421,6 @@ func testSearchTagsAndValuesV2(
 	})
 	require.NoError(t, err)
 	require.NotZero(t, tagValuesResp.Metrics.InspectedBytes)
-	fmt.Printf("tagValuesResp.Metrics.InspectedBytes: %d\n", tagValuesResp.Metrics.InspectedBytes)
 
 	tagValues = make([]string, 0, len(tagValuesResp.TagValues))
 	for _, v := range tagValuesResp.TagValues {
@@ -442,14 +433,12 @@ func testSearchTagsAndValuesV2(
 	assert.Equal(t, expectedLinkTagValues, tagValues)
 
 	// instrumentation scope attr
-
 	tagValuesResp, err = i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
 		TagName: fmt.Sprintf("instrumentation.%s", tagName),
 		Query:   query,
 	})
 	require.NoError(t, err)
 	require.NotZero(t, tagValuesResp.Metrics.InspectedBytes)
-	fmt.Printf("tagValuesResp.Metrics.InspectedBytes: %d\n", tagValuesResp.Metrics.InspectedBytes)
 
 	tagValues = make([]string, 0, len(tagValuesResp.TagValues))
 	for _, v := range tagValuesResp.TagValues {

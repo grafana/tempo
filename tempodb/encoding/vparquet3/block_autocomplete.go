@@ -87,6 +87,7 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 	}
 
 	tagNamesForSpecialColumns(req.Scope, pf, b.meta.DedicatedColumns, cb)
+	// FIXME: fix this in case of early stop, use defer??
 	mcb(rr.BytesRead()) // metrics callback
 
 	return nil
@@ -164,10 +165,11 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 		return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
 	}
 
-	pf, _, err := b.openForSearch(ctx, opts)
+	pf, rr, err := b.openForSearch(ctx, opts)
 	if err != nil {
 		return err
 	}
+	defer mcb(rr.BytesRead()) // report metrics via callback
 
 	tr := tagRequest{
 		conditions: req.Conditions,

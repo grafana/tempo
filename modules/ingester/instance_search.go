@@ -401,7 +401,6 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 	ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2")
 	defer span.End()
-	// return metrics back to the caller??
 
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
 	valueCollector := collector.NewDistinctValue[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
@@ -496,6 +495,12 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 				return err
 			}
 			span.SetAttributes(attribute.Bool("cached", true))
+			// instead of the reporting the InspectedBytes of the cached response,
+			// report the size of cacheData as the Inspected bytes
+			// because it's incorrect the report the metrics of the cachedResponse so
+			// we report the size of the cacheData to give an idea of how much data was read.
+			mc.Add(uint64(len(cacheData)))
+
 			for _, v := range resp.TagValues {
 				if valueCollector.Collect(*v) {
 					break // we have reached the limit, so stop
@@ -515,9 +520,9 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 
 		// marshal the local collector and set the cache
 		values := localCol.Values()
-		valuesProto, err := valuesToTagValuesV2RespProto(values)
-		if err == nil && len(valuesProto) > 0 {
-			err2 := b.SetDiskCache(ctx, cacheKey, valuesProto)
+		v2RespProto, err := valuesToTagValuesV2RespProto(values)
+		if err == nil && len(v2RespProto) > 0 {
+			err2 := b.SetDiskCache(ctx, cacheKey, v2RespProto)
 			if err2 != nil {
 				_ = level.Warn(log.Logger).Log("msg", "SetDiskCache failed", "err", err2)
 			}
@@ -592,7 +597,6 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			InspectedBytes: mc.TotalValue(), // attach metrics to the response
 		},
 	}
-	resp.Metrics = &tempopb.SearchTagMetrics{}
 
 	for _, v := range valueCollector.Values() {
 		v2 := v
@@ -637,6 +641,7 @@ func searchTagValuesV2CacheKey(req *tempopb.SearchTagValuesRequest, limit int, p
 // valuesToTagValuesV2RespProto converts TagValues to a protobuf marshalled bytes
 // this is slightly modified version of valuesToV2Response from querier.go
 func valuesToTagValuesV2RespProto(tagValues []tempopb.TagValue) ([]byte, error) {
+	// we only store values and don't Marshal Metrics
 	resp := &tempopb.SearchTagValuesV2Response{}
 	resp.TagValues = make([]*tempopb.TagValue, 0, len(tagValues))
 

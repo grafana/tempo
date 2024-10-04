@@ -1,8 +1,6 @@
 package collector
 
 import (
-	"fmt"
-
 	"go.uber.org/atomic"
 )
 
@@ -21,7 +19,6 @@ func NewMetricsCollector() *MetricsCollector {
 // Add adds new bytes read to TotalValue. this method is thread safe and
 // satisfies the common.MetricsCallback type so it's used as callback at a lot of places
 func (mc *MetricsCollector) Add(value uint64) {
-	fmt.Printf("Adding value to totalValue: %d\n", value)
 	mc.totalValue.Add(value)
 }
 
