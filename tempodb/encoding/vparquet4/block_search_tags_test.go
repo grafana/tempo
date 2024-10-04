@@ -24,10 +24,12 @@ func TestBackendBlockSearchTags(t *testing.T) {
 		cb := func(s string, _ traceql.AttributeScope) {
 			foundAttrs[s] = struct{}{}
 		}
+		mc := collector.NewMetricsCollector()
 
 		ctx := context.Background()
-		err := block.SearchTags(ctx, scope, cb, common.DefaultSearchOptions())
+		err := block.SearchTags(ctx, scope, cb, mc.Add, common.DefaultSearchOptions())
 		require.NoError(t, err)
+		require.NotZero(t, mc.TotalValue())
 
 		// test that all attrs are in found attrs
 		for k := range attrs {
@@ -71,10 +73,12 @@ func TestBackendBlockSearchTagValues(t *testing.T) {
 			assert.Equal(t, val, s, tag)
 			return true
 		}
+		mc := collector.NewMetricsCollector()
 
-		err := block.SearchTagValues(ctx, tag, cb, common.DefaultSearchOptions())
+		err := block.SearchTagValues(ctx, tag, cb, mc.Add, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.True(t, wasCalled, tag)
+		require.NotZero(t, mc.TotalValue())
 	}
 }
 
@@ -171,10 +175,12 @@ func TestBackendBlockSearchTagValuesV2(t *testing.T) {
 			got = append(got, v)
 			return false
 		}
+		mc := collector.NewMetricsCollector()
 
-		err := block.SearchTagValuesV2(ctx, tc.tag, cb, common.DefaultSearchOptions())
+		err := block.SearchTagValuesV2(ctx, tc.tag, cb, mc.Add, common.DefaultSearchOptions())
 		require.NoError(t, err, tc.tag)
 		require.Equal(t, tc.vals, got, "tag=%v", tc.tag)
+		require.NotZero(t, mc.TotalValue())
 	}
 }
 
@@ -195,12 +201,14 @@ func BenchmarkBackendBlockSearchTags(b *testing.B) {
 	block := newBackendBlock(meta, rr)
 	opts := common.DefaultSearchOptions()
 	d := collector.NewDistinctString(1_000_000)
+	mc := collector.NewMetricsCollector()
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		err := block.SearchTags(ctx, traceql.AttributeScopeNone, func(s string, _ traceql.AttributeScope) { d.Collect(s) }, opts)
+		err := block.SearchTags(ctx, traceql.AttributeScopeNone, func(s string, _ traceql.AttributeScope) { d.Collect(s) }, mc.Add, opts)
 		require.NoError(b, err)
+		require.NotZero(b, mc.TotalValue())
 	}
 }
 
@@ -229,10 +237,12 @@ func BenchmarkBackendBlockSearchTagValues(b *testing.B) {
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
 			d := collector.NewDistinctString(1_000_000)
+			mc := collector.NewMetricsCollector()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				err := block.SearchTagValues(ctx, tc, d.Collect, opts)
+				err := block.SearchTagValues(ctx, tc, d.Collect, mc.Add, opts)
 				require.NoError(b, err)
+				require.NotZero(b, mc.TotalValue())
 			}
 		})
 	}
