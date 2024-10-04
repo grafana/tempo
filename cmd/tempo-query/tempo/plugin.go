@@ -323,7 +323,7 @@ type jobResult struct {
 	err     error
 }
 
-func worker(b *Backend, jobs <-chan job, results chan<- jobResult, wg *sync.WaitGroup) {
+func worker(b *Backend, jobs <-chan job, results chan<- jobResult) {
 	for job := range jobs {
 		jaegerTrace, err := b.getTrace(job.ctx, job.traceID)
 		if err != nil {
@@ -334,7 +334,6 @@ func worker(b *Backend, jobs <-chan job, results chan<- jobResult, wg *sync.Wait
 			trace:   jaegerTrace,
 			err:     err,
 		}
-		wg.Done()
 	}
 }
 
@@ -353,12 +352,12 @@ func (b *Backend) FindTraces(req *storage_v1.FindTracesRequest, stream storage_v
 	numWorkers := b.findTracesConcurrentRequests
 	jobs := make(chan job, len(resp.TraceIDs))
 	results := make(chan jobResult, len(resp.TraceIDs))
-	var wg sync.WaitGroup
+	var workersDone sync.WaitGroup
 	// Start workers
 	for w := 0; w < numWorkers; w++ {
-		go worker(b, jobs, results, &wg)
+		workersDone.Add(1)
+		go func() { defer workersDone.Done(); worker(b, jobs, results) }()
 	}
-	wg.Add(len(resp.TraceIDs))
 
 	// for every traceID, get the full trace
 	var jaegerTraces []*jaeger.Trace
@@ -369,7 +368,7 @@ func (b *Backend) FindTraces(req *storage_v1.FindTracesRequest, stream storage_v
 		}
 	}
 	close(jobs)
-	wg.Wait()
+	workersDone.Wait()
 
 	var failedTraces []jobResult
 	// Collecting results
