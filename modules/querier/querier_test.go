@@ -111,14 +111,14 @@ func TestVirtualTagsDoesntHitBackend(t *testing.T) {
 		TagName: "duration",
 	})
 	require.NoError(t, err)
-	require.Equal(t, &tempopb.SearchTagValuesV2Response{}, resp)
+	require.Equal(t, &tempopb.SearchTagValuesV2Response{Metrics: &tempopb.SearchTagMetrics{}}, resp)
 
 	// traceDuration should return nothing
 	resp, err = q.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
 		TagName: "traceDuration",
 	})
 	require.NoError(t, err)
-	require.Equal(t, &tempopb.SearchTagValuesV2Response{}, resp)
+	require.Equal(t, &tempopb.SearchTagValuesV2Response{Metrics: &tempopb.SearchTagMetrics{}}, resp)
 
 	// status should return a static list
 	resp, err = q.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
@@ -141,6 +141,7 @@ func TestVirtualTagsDoesntHitBackend(t *testing.T) {
 				Value: "unset",
 			},
 		},
+		Metrics: &tempopb.SearchTagMetrics{},
 	}, resp)
 
 	// kind should return a static list
@@ -176,13 +177,16 @@ func TestVirtualTagsDoesntHitBackend(t *testing.T) {
 				Value: "unspecified",
 			},
 		},
+		Metrics: &tempopb.SearchTagMetrics{},
 	}, resp)
 
-	// this should error b/c it will attempt to hit the unconfigured backend
-	_, err = q.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
+	// this should error b/c it will attempt to hit the un-configured backend
+	resp, err = q.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
 		TagName: ".foo",
 	})
 	require.Error(t, err)
+	require.Nil(t, resp)
 }
 
+// FIXME:?? do this??
 // TODO: add test for all endpoints to ensure they come back with metrics?? maybe do it in e2e tests instead of testing here??

@@ -126,7 +126,7 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		// if error is not nil, return error Response but suppress the error
-		tenant, err, errResp := extractTenantWithError(req, logger)
+		tenant, errResp, err := extractTenantWithError(req, logger)
 		if err != nil {
 			return errResp, nil
 		}
@@ -146,7 +146,7 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
-		logHttpResult(logger, tenant, req.URL.Path, duration.Seconds(), err)
+		logHTTPResult(logger, tenant, req.URL.Path, duration.Seconds(), err)
 
 		return resp, err
 	})
@@ -156,7 +156,7 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		// if error is not nil, return error Response but suppress the error
-		tenant, err, errResp := extractTenantWithError(req, logger)
+		tenant, errResp, err := extractTenantWithError(req, logger)
 		if err != nil {
 			return errResp, nil
 		}
@@ -176,7 +176,7 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
-		logHttpResult(logger, tenant, req.URL.Path, duration.Seconds(), err)
+		logHTTPResult(logger, tenant, req.URL.Path, duration.Seconds(), err)
 
 		return resp, err
 	})
@@ -186,7 +186,7 @@ func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combine
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		// if error is not nil, return error Response but suppress the error
-		tenant, err, errResp := extractTenantWithError(req, logger)
+		tenant, errResp, err := extractTenantWithError(req, logger)
 		if err != nil {
 			return errResp, nil
 		}
@@ -206,7 +206,7 @@ func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combine
 
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
-		logHttpResult(logger, tenant, req.URL.Path, duration.Seconds(), err)
+		logHTTPResult(logger, tenant, req.URL.Path, duration.Seconds(), err)
 
 		return resp, err
 	})
@@ -216,7 +216,7 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		// if error is not nil, return error Response but suppress the error
-		tenant, err, errResp := extractTenantWithError(req, logger)
+		tenant, errResp, err := extractTenantWithError(req, logger)
 		if err != nil {
 			return errResp, nil
 		}
@@ -238,25 +238,25 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
 
-		logHttpResult(logger, tenant, req.URL.Path, duration.Seconds(), err)
+		logHTTPResult(logger, tenant, req.URL.Path, duration.Seconds(), err)
 		return resp, err
 	})
 }
 
-func extractTenantWithError(req *http.Request, logger log.Logger) (string, error, *http.Response) {
+func extractTenantWithError(req *http.Request, logger log.Logger) (string, *http.Response, error) {
 	tenant, err := user.ExtractOrgID(req.Context())
 	if err != nil {
 		level.Error(logger).Log("msg", "tags failed to extract orgid", "err", err)
-		return "", err, &http.Response{
+		return "", &http.Response{
 			StatusCode: http.StatusBadRequest,
 			Status:     http.StatusText(http.StatusBadRequest),
 			Body:       io.NopCloser(strings.NewReader(err.Error())),
-		}
+		}, err
 	}
-	return tenant, err, nil
+	return tenant, nil, err
 }
 
-func logHttpResult(logger log.Logger, tenantID, path string, durationSeconds float64, err error) {
+func logHTTPResult(logger log.Logger, tenantID, path string, durationSeconds float64, err error) {
 	level.Info(logger).Log(
 		"msg", "search tags response",
 		"tenant", tenantID,

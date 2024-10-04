@@ -1454,8 +1454,9 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
+			mc := collector.NewMetricsCollector()
 			fetcher := traceql.NewTagNamesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback) error {
-				return bb.FetchTagNames(ctx, req, cb, common.DefaultSearchOptions())
+				return bb.FetchTagNames(ctx, req, cb, mc.Add, common.DefaultSearchOptions())
 			})
 
 			valueCollector := collector.NewScopedDistinctString(0)
@@ -1484,6 +1485,8 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 				slices.Sort(expected)
 				require.Equal(t, expected, actual, "key: %s", k)
 			}
+			// FIXME: check the actual bytes read??
+			require.NotZero(t, mc.TotalValue())
 		})
 	}
 }
@@ -2301,23 +2304,23 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	sort.Strings(actualTags)
 	assert.Equal(t, expectedTags, actualTags)
 
-	values, bytesRead, err := r.SearchTagValues(context.Background(), block.BlockMeta(), "service.name", common.DefaultSearchOptions())
-	require.NotZero(t, bytesRead)
+	respValues, err := r.SearchTagValues(context.Background(), block.BlockMeta(), "service.name", common.DefaultSearchOptions())
+	require.NotZero(t, respValues.Metrics.InspectedBytes)
 	require.NoError(t, err)
 
 	expectedTagsValues := []string{"test-service", "test-service-2"}
 	sort.Strings(expectedTagsValues)
-	sort.Strings(values)
-	assert.Equal(t, expectedTagsValues, values)
+	sort.Strings(respValues.TagValues)
+	assert.Equal(t, expectedTagsValues, respValues.TagValues)
 
-	values, bytesRead, err = r.SearchTagValues(context.Background(), block.BlockMeta(), "intTag", common.DefaultSearchOptions())
-	require.NotZero(t, bytesRead)
+	respValues, err = r.SearchTagValues(context.Background(), block.BlockMeta(), "intTag", common.DefaultSearchOptions())
+	require.NotZero(t, respValues.Metrics.InspectedBytes)
 	require.NoError(t, err)
 
 	expectedTagsValues = []string{"2", "3"}
 	sort.Strings(expectedTagsValues)
-	sort.Strings(values)
-	assert.Equal(t, expectedTagsValues, values)
+	sort.Strings(respValues.TagValues)
+	assert.Equal(t, expectedTagsValues, respValues.TagValues)
 
 	tagValues, err := r.SearchTagValuesV2(context.Background(), block.BlockMeta(), &tempopb.SearchTagValuesRequest{
 		TagName: ".service.name",
@@ -2383,6 +2386,5 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 
 	actual := valueCollector.Values()
 	assert.Equal(t, []tempopb.TagValue{{Type: "int", Value: "3"}}, actual)
-	// FIXME: find out why this is 0
-	// assert.NotZero(t, mc.TotalValue())
+	assert.NotZero(t, mc.TotalValue())
 }
