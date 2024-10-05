@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
@@ -133,7 +132,7 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 	for _, b := range blocklist {
 		for _, rem := range remove {
 			if b.BlockID == rem.BlockID {
-				matchedRemovals[rem.BlockID] = struct{}{}
+				matchedRemovals[(uuid.UUID)(rem.BlockID)] = struct{}{}
 				break
 			}
 		}
@@ -143,14 +142,14 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 	newblocklist := make([]*backend.BlockMeta, 0, len(blocklist)-len(matchedRemovals)+len(add))
 	// rebuild the blocklist dropping all removals
 	for _, b := range blocklist {
-		existingMetas[b.BlockID] = struct{}{}
-		if _, ok := matchedRemovals[b.BlockID]; !ok {
+		existingMetas[(uuid.UUID)(b.BlockID)] = struct{}{}
+		if _, ok := matchedRemovals[(uuid.UUID)(b.BlockID)]; !ok {
 			newblocklist = append(newblocklist, b)
 		}
 	}
 	// add new blocks (only if they don't already exist)
 	for _, b := range add {
-		if _, ok := existingMetas[b.BlockID]; !ok {
+		if _, ok := existingMetas[(uuid.UUID)(b.BlockID)]; !ok {
 			newblocklist = append(newblocklist, b)
 		}
 	}
@@ -164,7 +163,7 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 	for _, c := range compactedBlocklist {
 		for _, rem := range compactedRemove {
 			if c.BlockID == rem.BlockID {
-				compactedRemovals[rem.BlockID] = struct{}{}
+				compactedRemovals[(uuid.UUID)(rem.BlockID)] = struct{}{}
 				break
 			}
 		}
@@ -174,13 +173,13 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 	newCompactedBlocklist := make([]*backend.CompactedBlockMeta, 0, len(compactedBlocklist)-len(compactedRemovals)+len(compactedAdd))
 	// rebuild the blocklist dropping all removals
 	for _, b := range compactedBlocklist {
-		existingMetas[b.BlockID] = struct{}{}
-		if _, ok := compactedRemovals[b.BlockID]; !ok {
+		existingMetas[(uuid.UUID)(b.BlockID)] = struct{}{}
+		if _, ok := compactedRemovals[(uuid.UUID)(b.BlockID)]; !ok {
 			newCompactedBlocklist = append(newCompactedBlocklist, b)
 		}
 	}
 	for _, b := range compactedAdd {
-		if _, ok := existingMetas[b.BlockID]; !ok {
+		if _, ok := existingMetas[(uuid.UUID)(b.BlockID)]; !ok {
 			newCompactedBlocklist = append(newCompactedBlocklist, b)
 		}
 	}

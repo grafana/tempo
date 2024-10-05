@@ -75,7 +75,7 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 	})
 
 	meta := backend.NewBlockMeta("fake", uuid.New(), VersionString, backend.EncNone, "")
-	meta.TotalObjects = len(traces)
+	meta.TotalObjects = int64(len(traces))
 	s := newStreamingBlock(ctx, cfg, meta, r, w, tempo_io.NewBufferedWriter)
 
 	// Write test data, occasionally flushing (cutting new row group)

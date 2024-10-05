@@ -114,11 +114,11 @@ server:
 
     # Max gRPC message size that can be received
     # This value may need to be increased if you have large traces
-    [grpc_server_max_recv_msg_size: <int> | default = 4194304]
+    [grpc_server_max_recv_msg_size: <int> | default = 16777216]
 
     # Max gRPC message size that can be sent
     # This value may need to be increased if you have large traces
-    [grpc_server_max_send_msg_size: <int> | default = 4194304]
+    [grpc_server_max_send_msg_size: <int> | default = 16777216]
 ```
 
 ## Distributor
@@ -872,7 +872,7 @@ storage:
 
             # Optional. Default is false.
             # Example: "insecure: true"
-            # Set to true to enable authentication and certificate checks on gcs requests
+            # Set to true to disable authentication and certificate checks on gcs requests
             [insecure: <bool>]
 
             # The number of list calls to make in parallel to the backend per instance.

@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/require"
@@ -31,7 +30,7 @@ func TestCacheKeyForJob(t *testing.T) {
 				End:   20,
 			},
 			meta: &backend.BlockMeta{
-				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+				BlockID:   backend.MustParse("00000000-0000-0000-0000-000000000123"),
 				StartTime: time.Unix(15, 0),
 				EndTime:   time.Unix(16, 0),
 			},
@@ -47,7 +46,7 @@ func TestCacheKeyForJob(t *testing.T) {
 				End:   20,
 			},
 			meta: &backend.BlockMeta{
-				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+				BlockID:   backend.MustParse("00000000-0000-0000-0000-000000000123"),
 				StartTime: time.Unix(15, 0),
 				EndTime:   time.Unix(16, 0),
 			},
@@ -63,7 +62,7 @@ func TestCacheKeyForJob(t *testing.T) {
 				End:   20,
 			},
 			meta: &backend.BlockMeta{
-				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+				BlockID:   backend.MustParse("00000000-0000-0000-0000-000000000123"),
 				StartTime: time.Unix(5, 0),
 				EndTime:   time.Unix(6, 0),
 			},
@@ -79,7 +78,7 @@ func TestCacheKeyForJob(t *testing.T) {
 				End:   20,
 			},
 			meta: &backend.BlockMeta{
-				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+				BlockID:   backend.MustParse("00000000-0000-0000-0000-000000000123"),
 				StartTime: time.Unix(5, 0),
 				EndTime:   time.Unix(15, 0),
 			},
@@ -95,7 +94,7 @@ func TestCacheKeyForJob(t *testing.T) {
 				End:   20,
 			},
 			meta: &backend.BlockMeta{
-				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+				BlockID:   backend.MustParse("00000000-0000-0000-0000-000000000123"),
 				StartTime: time.Unix(15, 0),
 				EndTime:   time.Unix(25, 0),
 			},
@@ -111,7 +110,7 @@ func TestCacheKeyForJob(t *testing.T) {
 				End:   20,
 			},
 			meta: &backend.BlockMeta{
-				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+				BlockID:   backend.MustParse("00000000-0000-0000-0000-000000000123"),
 				StartTime: time.Unix(25, 0),
 				EndTime:   time.Unix(30, 0),
 			},
@@ -127,7 +126,7 @@ func TestCacheKeyForJob(t *testing.T) {
 				End:   20,
 			},
 			meta: &backend.BlockMeta{
-				BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+				BlockID:   backend.MustParse("00000000-0000-0000-0000-000000000123"),
 				StartTime: time.Unix(5, 0),
 				EndTime:   time.Unix(30, 0),
 			},
@@ -151,7 +150,7 @@ func BenchmarkCacheKeyForJob(b *testing.B) {
 		End:   20,
 	}
 	meta := &backend.BlockMeta{
-		BlockID:   uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+		BlockID:   backend.MustParse("00000000-0000-0000-0000-000000000123"),
 		StartTime: time.Unix(15, 0),
 		EndTime:   time.Unix(16, 0),
 	}

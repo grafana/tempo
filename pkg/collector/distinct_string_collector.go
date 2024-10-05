@@ -3,6 +3,7 @@ package collector
 import (
 	"sort"
 	"strings"
+	"sync"
 )
 
 type DistinctString struct {
@@ -11,6 +12,7 @@ type DistinctString struct {
 	maxLen   int
 	currLen  int
 	totalLen int
+	mtx      sync.Mutex
 }
 
 // NewDistinctString with the given maximum data size. This is calculated
@@ -27,6 +29,9 @@ func NewDistinctString(maxDataSize int) *DistinctString {
 // Collect adds a new value to the distinct string collector.
 // return indicates if the value was added or not.
 func (d *DistinctString) Collect(s string) bool {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	if _, ok := d.values[s]; ok {
 		// Already present
 		return false
@@ -53,6 +58,9 @@ func (d *DistinctString) Collect(s string) bool {
 
 // Strings returns the final list of distinct values collected and sorted.
 func (d *DistinctString) Strings() []string {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	ss := make([]string, 0, len(d.values))
 
 	for k := range d.values {
@@ -65,16 +73,25 @@ func (d *DistinctString) Strings() []string {
 
 // Exceeded indicates if some values were lost because the maximum size limit was met.
 func (d *DistinctString) Exceeded() bool {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	return d.totalLen > d.currLen
 }
 
 // TotalDataSize is the total size of all distinct strings encountered.
 func (d *DistinctString) TotalDataSize() int {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	return d.totalLen
 }
 
 // Diff returns all new strings collected since the last time diff was called
 func (d *DistinctString) Diff() []string {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	ss := make([]string, 0, len(d.new))
 
 	for k := range d.new {

@@ -13,7 +13,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/google/uuid"
+	uuid "github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
@@ -42,7 +42,7 @@ var (
 	metricBackendBytes = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempodb",
 		Name:      "backend_bytes_total",
-		Help:      "Total number of bytes in the backend.",
+		Help:      "Total number of bytes in the backend",
 	}, []string{"tenant", "status"})
 	metricBlocklistErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempodb",
@@ -314,14 +314,14 @@ func (p *Poller) pollTenantBlocks(
 
 	currentBlockIDs, currentCompactedBlockIDs, err := p.reader.Blocks(derivedCtx, tenantID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed listing tenant blocks: %w", err)
 	}
 
 	var (
 		metas                 = previous.Metas(tenantID)
 		compactedMetas        = previous.CompactedMetas(tenantID)
-		mm                    = make(map[uuid.UUID]*backend.BlockMeta, len(metas))
-		cm                    = make(map[uuid.UUID]*backend.CompactedBlockMeta, len(compactedMetas))
+		mm                    = make(map[backend.UUID]*backend.BlockMeta, len(metas))
+		cm                    = make(map[backend.UUID]*backend.CompactedBlockMeta, len(compactedMetas))
 		newBlockList          = make([]*backend.BlockMeta, 0, len(currentBlockIDs))
 		newCompactedBlocklist = make([]*backend.CompactedBlockMeta, 0, len(currentCompactedBlockIDs))
 		unknownBlockIDs       = make(map[uuid.UUID]bool, 1000)
@@ -341,7 +341,7 @@ func (p *Poller) pollTenantBlocks(
 	// The boolean here to track if we know the block has been compacted
 	for _, blockID := range currentBlockIDs {
 		// if we already have this block id in our previous list, use the existing data.
-		if v, ok := mm[blockID]; ok {
+		if v, ok := mm[backend.UUID(blockID)]; ok {
 			newBlockList = append(newBlockList, v)
 			continue
 		}
@@ -351,7 +351,7 @@ func (p *Poller) pollTenantBlocks(
 
 	for _, blockID := range currentCompactedBlockIDs {
 		// if we already have this block id in our previous list, use the existing data.
-		if v, ok := cm[blockID]; ok {
+		if v, ok := cm[backend.UUID(blockID)]; ok {
 			newCompactedBlocklist = append(newCompactedBlocklist, v)
 			continue
 		}
@@ -366,7 +366,7 @@ func (p *Poller) pollTenantBlocks(
 
 	newM, newCm, err := p.pollUnknown(derivedCtx, unknownBlockIDs, tenantID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed reading unknown blocks: %w", err)
 	}
 
 	newBlockList = append(newBlockList, newM...)
@@ -587,13 +587,13 @@ func sumTotalBackendMetaMetrics(
 	var sumTotalBytesCBM uint64
 
 	for _, bm := range blockMeta {
-		sumTotalObjectsBM += bm.TotalObjects
-		sumTotalBytesBM += bm.Size
+		sumTotalObjectsBM += int(bm.TotalObjects)
+		sumTotalBytesBM += bm.Size_
 	}
 
 	for _, cbm := range compactedBlockMeta {
-		sumTotalObjectsCBM += cbm.TotalObjects
-		sumTotalBytesCBM += cbm.Size
+		sumTotalObjectsCBM += int(cbm.TotalObjects)
+		sumTotalBytesCBM += cbm.Size_
 	}
 
 	return backendMetaMetrics{

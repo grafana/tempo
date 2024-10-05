@@ -1,7 +1,9 @@
 package collector
 
 import (
+	"fmt"
 	"slices"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -121,4 +123,28 @@ func assertMaps(t *testing.T, expected, actual map[string][]string) {
 	for k, v := range expected {
 		require.Equal(t, v, actual[k])
 	}
+}
+
+func TestScopedDistinctStringCollectorIsSafe(t *testing.T) {
+	d := NewScopedDistinctString(0) // no limit
+
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for j := 0; j < 100; j++ {
+				d.Collect(fmt.Sprintf("scope-%d", id), fmt.Sprintf("goroutine-%d-string-%d", id, j))
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	totalStrings := 0
+	for _, strings := range d.Strings() {
+		totalStrings += len(strings)
+	}
+	require.Equal(t, totalStrings, 10*100)
+	require.False(t, d.Exceeded())
 }

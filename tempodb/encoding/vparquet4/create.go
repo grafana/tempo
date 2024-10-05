@@ -107,7 +107,7 @@ type streamingBlock struct {
 }
 
 func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, r backend.Reader, to backend.Writer, createBufferedWriter func(w io.Writer) tempo_io.BufferedWriteFlusher) *streamingBlock {
-	newMeta := backend.NewBlockMetaWithDedicatedColumns(meta.TenantID, meta.BlockID, VersionString, backend.EncNone, "", meta.DedicatedColumns)
+	newMeta := backend.NewBlockMetaWithDedicatedColumns(meta.TenantID, (uuid.UUID)(meta.BlockID), VersionString, backend.EncNone, "", meta.DedicatedColumns)
 	newMeta.StartTime = meta.StartTime
 	newMeta.EndTime = meta.EndTime
 	newMeta.ReplicationFactor = meta.ReplicationFactor
@@ -116,7 +116,7 @@ func newStreamingBlock(ctx context.Context, cfg *common.BlockConfig, meta *backe
 	// The real number of objects is tracked below.
 	bloom := common.NewBloom(cfg.BloomFP, uint(cfg.BloomShardSizeBytes), uint(meta.TotalObjects))
 
-	w := &backendWriter{ctx, to, DataFileName, meta.BlockID, meta.TenantID, nil}
+	w := &backendWriter{ctx, to, DataFileName, (uuid.UUID)(meta.BlockID), meta.TenantID, nil}
 	bw := createBufferedWriter(w)
 	pw := parquet.NewGenericWriter[*Trace](bw)
 
@@ -181,7 +181,7 @@ func (b *streamingBlock) Flush() (int, error) {
 	}
 
 	n := b.bw.Len()
-	b.meta.Size += uint64(n)
+	b.meta.Size_ += uint64(n)
 	b.meta.TotalRecords++
 	b.currentBufferedTraces = 0
 	b.currentBufferedBytes = 0
@@ -207,7 +207,7 @@ func (b *streamingBlock) Complete() (int, error) {
 
 	// Now Flush and close out in-memory buffer
 	n := b.bw.Len()
-	b.meta.Size += uint64(n)
+	b.meta.Size_ += uint64(n)
 	err = b.bw.Flush()
 	if err != nil {
 		return 0, err
@@ -225,7 +225,7 @@ func (b *streamingBlock) Complete() (int, error) {
 
 	// Read the footer size out of the parquet footer
 	buf := make([]byte, 8)
-	err = b.r.ReadRange(b.ctx, DataFileName, b.meta.BlockID, b.meta.TenantID, b.meta.Size-8, buf, nil)
+	err = b.r.ReadRange(b.ctx, DataFileName, (uuid.UUID)(b.meta.BlockID), b.meta.TenantID, b.meta.Size_-8, buf, nil)
 	if err != nil {
 		return 0, fmt.Errorf("error reading parquet file footer: %w", err)
 	}
@@ -234,7 +234,7 @@ func (b *streamingBlock) Complete() (int, error) {
 	}
 	b.meta.FooterSize = binary.LittleEndian.Uint32(buf[0:4])
 
-	b.meta.BloomShardCount = uint16(b.bloom.GetShardCount())
+	b.meta.BloomShardCount = uint32(b.bloom.GetShardCount())
 
 	return n, writeBlockMeta(b.ctx, b.to, b.meta, b.bloom, b.index)
 }

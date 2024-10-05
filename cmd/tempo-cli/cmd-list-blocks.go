@@ -56,9 +56,9 @@ func displayResults(results []blockStats, windowDuration time.Duration, includeC
 			case "lvl":
 				s = strconv.Itoa(int(r.CompactionLevel))
 			case "objects":
-				s = strconv.Itoa(r.TotalObjects)
+				s = strconv.Itoa(int(r.TotalObjects))
 			case "size":
-				s = fmt.Sprintf("%v", humanize.Bytes(r.Size))
+				s = fmt.Sprintf("%v", humanize.Bytes(r.Size_))
 			case "encoding":
 				s = r.Encoding.String()
 			case "vers":
@@ -89,8 +89,8 @@ func displayResults(results []blockStats, windowDuration time.Duration, includeC
 		}
 
 		out = append(out, line)
-		totalObjects += r.TotalObjects
-		totalBytes += r.Size
+		totalObjects += int(r.TotalObjects)
+		totalBytes += r.Size_
 	}
 
 	footer := make([]string, 0)

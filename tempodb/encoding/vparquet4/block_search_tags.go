@@ -49,7 +49,7 @@ func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeSc
 		trace.WithAttributes(
 			attribute.String("blockID", b.meta.BlockID.String()),
 			attribute.String("tenantID", b.meta.TenantID),
-			attribute.Int64("blockSize", int64(b.meta.Size)),
+			attribute.Int64("blockSize", int64(b.meta.Size_)),
 		))
 	defer span.End()
 
@@ -231,7 +231,7 @@ func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attrib
 		trace.WithAttributes(
 			attribute.String("blockID", b.meta.BlockID.String()),
 			attribute.String("tenantID", b.meta.TenantID),
-			attribute.Int64("blockSize", int64(b.meta.Size)),
+			attribute.Int64("blockSize", int64(b.meta.Size_)),
 		))
 	defer span.End()
 

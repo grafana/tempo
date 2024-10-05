@@ -290,7 +290,7 @@ func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Reques
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
 
-	ctx, span := tracer.Start(ctx, "Querier.SearchTagValuesHandler")
+	ctx, span := tracer.Start(ctx, "Querier.SearchTagValuesV2Handler")
 	defer span.End()
 
 	var resp *tempopb.SearchTagValuesV2Response
