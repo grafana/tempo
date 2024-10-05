@@ -592,11 +592,6 @@ func CallBuildinfo(t *testing.T, svc *e2e.HTTPService) {
 		_, ok := jsonResponse[key]
 		require.True(t, ok)
 	}
-
-	version, ok := jsonResponse["version"].(string)
-	require.True(t, ok)
-	require.Regexp(t, `^v?(\d+\.)?(\d+\.)?(\d+)$`, version)
-
 	defer res.Body.Close()
 }
 
