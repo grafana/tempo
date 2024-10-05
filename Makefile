@@ -6,7 +6,7 @@ help:  ## Display this help
 .DEFAULT_GOAL:=help
 
 # Version number
-VERSION=$(shell ./tools/image-tag | cut -d, -f 1)
+VERSION=$(shell ./tools/version-tag.sh | cut -d, -f 1)
 
 GIT_REVISION := $(shell git rev-parse --short HEAD)
 GIT_BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
