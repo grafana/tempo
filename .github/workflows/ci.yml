@@ -80,7 +80,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          fetch-tags: true
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
