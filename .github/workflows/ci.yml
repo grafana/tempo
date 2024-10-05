@@ -79,8 +79,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v4
-        with:
-          fetch-tags: true
+      - name: Fetch tags
+        run: git fetch --prune --unshallow --tags
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
