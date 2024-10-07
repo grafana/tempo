@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -19,7 +20,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 		meta.DataEncoding = model.CurrentEncoding
 	}
 
-	newBlock, err := NewStreamingBlock(cfg, meta.BlockID, meta.TenantID, []*backend.BlockMeta{meta}, meta.TotalObjects)
+	newBlock, err := NewStreamingBlock(cfg, (uuid.UUID)(meta.BlockID), meta.TenantID, []*backend.BlockMeta{meta}, int(meta.TotalObjects))
 	if err != nil {
 		return nil, fmt.Errorf("error creating streaming block: %w", err)
 	}

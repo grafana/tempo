@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	willf_bloom "github.com/willf/bloom"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -55,7 +56,7 @@ func (b *BackendBlock) find(ctx context.Context, id common.ID) ([]byte, error) {
 	tenantID := b.meta.TenantID
 
 	nameBloom := common.BloomName(shardKey)
-	bloomBytes, err := b.reader.Read(ctx, nameBloom, blockID, tenantID, &backend.CacheInfo{
+	bloomBytes, err := b.reader.Read(ctx, nameBloom, (uuid.UUID)(blockID), tenantID, &backend.CacheInfo{
 		Meta: b.meta,
 		Role: cache.RoleBloom,
 	})

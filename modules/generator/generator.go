@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"sync"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -162,15 +163,17 @@ func (g *Generator) running(ctx context.Context) error {
 }
 
 func (g *Generator) stopping(_ error) error {
-	// Mark as read-only
-	g.stopIncomingRequests()
-
 	if g.subservices != nil {
 		err := services.StopManagerAndAwaitStopped(context.Background(), g.subservices)
 		if err != nil {
 			level.Error(g.logger).Log("msg", "failed to stop metrics-generator dependencies", "err", err)
 		}
 	}
+
+	time.Sleep(5 * time.Second) // let the ring propagate the shutdown
+
+	// Mark as read-only after we have removed ourselves from the ring
+	g.stopIncomingRequests()
 
 	var wg sync.WaitGroup
 	wg.Add(len(g.instances))

@@ -73,7 +73,7 @@ func dumpBlock(r tempodb_backend.Reader, c tempodb_backend.Compactor, tenantID s
 	fmt.Println("ID            : ", unifiedMeta.BlockID)
 	fmt.Println("Version       : ", unifiedMeta.Version)
 	fmt.Println("Total Objects : ", unifiedMeta.TotalObjects)
-	fmt.Println("Data Size     : ", humanize.Bytes(unifiedMeta.Size))
+	fmt.Println("Data Size     : ", humanize.Bytes(unifiedMeta.Size_))
 	fmt.Println("Encoding      : ", unifiedMeta.Encoding)
 	fmt.Println("Level         : ", unifiedMeta.CompactionLevel)
 	fmt.Println("Window        : ", unifiedMeta.window)

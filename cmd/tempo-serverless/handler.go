@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/google/uuid"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/user"
 	"github.com/mitchellh/mapstructure"
@@ -71,7 +70,7 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		return nil, httpError("extracting org id", err, http.StatusBadRequest)
 	}
 
-	blockID, err := uuid.Parse(searchReq.BlockID)
+	blockID, err := backend.ParseUUID(searchReq.BlockID)
 	if err != nil {
 		return nil, httpError("parsing uuid", err, http.StatusBadRequest)
 	}
@@ -95,7 +94,7 @@ func Handler(r *http.Request) (*tempopb.SearchResponse, *HTTPError) {
 		TotalRecords:     searchReq.TotalRecords,
 		BlockID:          blockID,
 		DataEncoding:     searchReq.DataEncoding,
-		Size:             searchReq.Size_,
+		Size_:            searchReq.Size_,
 		FooterSize:       searchReq.FooterSize,
 		DedicatedColumns: dc,
 	}

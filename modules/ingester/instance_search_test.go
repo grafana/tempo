@@ -343,6 +343,21 @@ func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 	require.NoError(t, i.ClearCompletingBlock(blockID)) // Clear the completing block
 
 	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues, expectedEventTagValues, expectedLinkTagValues)
+
+	// test that we are creating cache files for search tag values v2
+	// check that we have cache files for all complete blocks for all the cache keys
+	limit := i.limiter.limits.MaxBytesPerTagValuesQuery("fake")
+	cacheKeys := cacheKeysForTestSearchTagValuesV2(tagKey, queryThatMatches, limit)
+	for _, cacheKey := range cacheKeys {
+		for _, b := range i.completeBlocks {
+			cache, err := b.GetDiskCache(context.Background(), cacheKey)
+			require.NoError(t, err)
+			require.NotEmpty(t, cache)
+		}
+	}
+
+	// test search is returning same results with cache
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues, expectedEventTagValues, expectedLinkTagValues)
 }
 
 // nolint:revive,unparam
@@ -425,6 +440,22 @@ func testSearchTagsAndValuesV2(
 	sort.Strings(expectedTagValues)
 	assert.Contains(t, tagsResp.TagNames, tagName)
 	assert.Equal(t, expectedTagValues, tagValues)
+}
+
+func cacheKeysForTestSearchTagValuesV2(tagKey, query string, limit int) []string {
+	scopes := []string{"span", "event", "link", "instrumentation"}
+	cacheKeys := make([]string, 0, len(scopes))
+
+	for _, prefix := range scopes {
+		req := &tempopb.SearchTagValuesRequest{
+			TagName: fmt.Sprintf("%s.%s", prefix, tagKey),
+			Query:   query,
+		}
+		cacheKey := searchTagValuesV2CacheKey(req, limit, "cache_search_tagvaluesv2")
+		cacheKeys = append(cacheKeys, cacheKey)
+	}
+
+	return cacheKeys
 }
 
 // TestInstanceSearchTagsSpecialCases tess that SearchTags errors on an unknown scope and

@@ -44,6 +44,9 @@ local docker_config_json_secret = secret('dockerconfigjson', 'secret/data/common
 
 // secret needed for dep-tools
 local gh_token_secret = secret('gh_token', 'infra/data/ci/github/grafanabot', 'pat');
+local tempo_app_id_secret = secret('tempo_app_id_secret', 'ci/data/repo/grafana/tempo/github-app', 'app-id');
+local tempo_app_installation_id_secret = secret('tempo_app_installation_id_secret', 'ci/data/repo/grafana/tempo/github-app', 'app-installation-id');
+local tempo_app_private_key_secret = secret('tempo_app_private_key_secret', 'ci/data/repo/grafana/tempo/github-app', 'app-private-key');
 
 // secret to sign linux packages
 local gpg_passphrase = secret('gpg_passphrase', 'infra/data/ci/packages-publish/gpg', 'passphrase');
@@ -105,7 +108,7 @@ local image_tag_for_cd() = {
 
 local build_binaries(arch) = {
   name: 'build-tempo-binaries',
-  image: 'golang:1.22-alpine',
+  image: 'golang:1.23-alpine',
   commands: [
     'apk --update --no-cache add make git bash',
   ] + [
@@ -147,11 +150,9 @@ local deploy_to_dev() = {
     config_json: std.manifestJsonEx(
       {
         destination_branch: 'master',
-        pull_request_branch_prefix: 'cd-tempo-dev',
-        pull_request_enabled: false,
-        pull_request_team_reviewers: [
-          'tempo',
-        ],
+        pull_request_branch_prefix: 'auto-merge/cd-tempo-dev',
+        pull_request_enabled: true,
+        pull_request_existing_strategy: "ignore",
         repo_name: 'deployment_tools',
         update_jsonnet_attribute_configs: [
           {
@@ -164,8 +165,14 @@ local deploy_to_dev() = {
       },
       '  '
     ),
-    github_token: {
-      from_secret: gh_token_secret.name,
+    github_app_id: {
+      from_secret: tempo_app_id_secret.name,
+    },
+    github_app_installation_id: {
+      from_secret: tempo_app_installation_id_secret.name,
+    },
+    github_app_private_key: {
+      from_secret: tempo_app_private_key_secret.name,
     },
   },
 };
@@ -251,7 +258,7 @@ local deploy_to_dev() = {
     steps+: [
               {
                 name: 'build-tempo-serverless',
-                image: 'golang:1.22-alpine',
+                image: 'golang:1.23-alpine',
                 commands: [
                   'apk add make git zip bash',
                   './tools/image-tag | cut -d, -f 1 | tr A-Z a-z > .tags',  // values in .tags are used by the next step when pushing the image
@@ -348,7 +355,7 @@ local deploy_to_dev() = {
       },
       {
         name: 'write-key',
-        image: 'golang:1.22',
+        image: 'golang:1.23',
         commands: ['printf "%s" "$NFPM_SIGNING_KEY" > $NFPM_SIGNING_KEY_FILE'],
         environment: {
           NFPM_SIGNING_KEY: { from_secret: gpg_private_key.name },
@@ -357,7 +364,7 @@ local deploy_to_dev() = {
       },
       {
         name: 'test release',
-        image: 'golang:1.22',
+        image: 'golang:1.23',
         commands: ['make release-snapshot'],
         environment: {
           NFPM_DEFAULT_PASSPHRASE: { from_secret: gpg_passphrase.name },
@@ -390,10 +397,9 @@ local deploy_to_dev() = {
       },
       {
         name: 'release',
-        image: 'golang:1.22',
+        image: 'golang:1.23',
         commands: ['make release'],
         environment: {
-          GITHUB_TOKEN: { from_secret: gh_token_secret.name },
           NFPM_DEFAULT_PASSPHRASE: { from_secret: gpg_passphrase.name },
           NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
         },
@@ -408,6 +414,9 @@ local deploy_to_dev() = {
   docker_password_secret,
   docker_config_json_secret,
   gh_token_secret,
+  tempo_app_id_secret,
+  tempo_app_installation_id_secret,
+  tempo_app_private_key_secret,
   image_upload_ops_tools_secret,
   aws_dev_access_key_id,
   aws_dev_secret_access_key,

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/tempo/modules/frontend"
 	"github.com/grafana/tempo/tempodb/backend/s3"
 	"github.com/stretchr/testify/assert"
 
@@ -52,6 +53,12 @@ func TestConfig_CheckConfig(t *testing.T) {
 						Enabled: true,
 					},
 				},
+				Frontend: frontend.Config{
+					TraceByID: frontend.TraceByIDConfig{
+						QueryShards:      100,
+						ConcurrentShards: 200,
+					},
+				},
 			},
 			expect: []ConfigWarning{
 				warnCompleteBlockTimeout,
@@ -63,6 +70,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 				warnLogDiscardedTraces,
 				warnNativeAWSAuthEnabled,
 				warnConfiguredLegacyCache,
+				warnTraceByIDConcurrentShards,
 			},
 		},
 		{

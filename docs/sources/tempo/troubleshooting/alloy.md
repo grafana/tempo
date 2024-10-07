@@ -5,6 +5,7 @@ description: Gain visibility on how many traces are being pushed to Grafana Allo
 weight: 472
 aliases:
 - ../operations/troubleshooting/agent/
+- ./agent.md # /docs/tempo/<TEMPO_VERSION>/troubleshooting/agent.md
 ---
 
 # Troubleshoot Grafana Alloy
@@ -32,6 +33,23 @@ From the [`otelcol.exporter.otlp`](https://grafana.com/docs/alloy/<ALLOY_LATEST>
 exporter_sent_spans_ratio_total
 exporter_send_failed_spans_ratio_total
 ```
+
+Alloy has a Prometheus scrape endpoint, `/metrics`, that you can use to check metrics locally by opening a browser to `http://localhost:12345/metrics`.
+The `/metrics` HTTP endpoint of the Alloy HTTP server exposes the Alloy component and controller metrics.
+Refer to the [Monitor the Grafana Alloy component controller](https://grafana.com/docs/alloy/latest/troubleshoot/controller_metrics/) documentation for more information.
+
+### Check metrics in Grafana Cloud
+
+In your Grafana Cloud instance, you can check metrics using the `grafanacloud-usage` data source.
+To view the metrics, use the following steps:
+
+1. From your Grafana instance, select **Explore** in the left menu.
+1. Change the data source to `grafanacloud-usage`.
+1. Type the metric to verify in the text box. If you start with `grafanacloud_traces_`, you can  use autocomplete to browse the list of available metrics.
+
+Refer to [Cloud Traces usage metrics](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/understand-your-invoice/usage-limits/#cloud-traces-usage) for a list of metrics related to tracing usage.
+
+![Use Explore to check the metrics for traces sent to Grafana Cloud](/media/docs/tempo/screenshot-tempo-trouble-metrics-search.png)
 
 ## Trace span logging
 

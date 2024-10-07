@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/google/uuid"
+	uuid "github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -36,6 +36,12 @@ type mockJobSharder struct {
 func (m *mockJobSharder) Owns(_ string) bool { return m.owns }
 
 func TestTenantIndexBuilder(t *testing.T) {
+	var (
+		one   = backend.MustParse("00000000-0000-0000-0000-000000000001")
+		two   = backend.MustParse("00000000-0000-0000-0000-000000000002")
+		three = backend.MustParse("00000000-0000-0000-0000-000000000003")
+	)
+
 	tests := []struct {
 		name                  string
 		list                  PerTenant
@@ -54,7 +60,7 @@ func TestTenantIndexBuilder(t *testing.T) {
 			list: PerTenant{
 				"test": []*backend.BlockMeta{
 					{
-						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+						BlockID: one,
 					},
 				},
 			},
@@ -65,14 +71,14 @@ func TestTenantIndexBuilder(t *testing.T) {
 			list: PerTenant{
 				"test": []*backend.BlockMeta{
 					{
-						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+						BlockID: one,
 					},
 				},
 			},
 			expectedList: PerTenant{
 				"test": []*backend.BlockMeta{
 					{
-						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+						BlockID: one,
 					},
 				},
 			},
@@ -86,7 +92,7 @@ func TestTenantIndexBuilder(t *testing.T) {
 				"test": []*backend.CompactedBlockMeta{
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+							BlockID: one,
 						},
 					},
 				},
@@ -98,7 +104,7 @@ func TestTenantIndexBuilder(t *testing.T) {
 				"test": []*backend.CompactedBlockMeta{
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+							BlockID: one,
 						},
 					},
 				},
@@ -109,12 +115,12 @@ func TestTenantIndexBuilder(t *testing.T) {
 			list: PerTenant{
 				"test2": []*backend.BlockMeta{
 					{
-						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+						BlockID: three,
 					},
 				},
 				"test": []*backend.BlockMeta{
 					{
-						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+						BlockID: two,
 					},
 				},
 			},
@@ -122,7 +128,7 @@ func TestTenantIndexBuilder(t *testing.T) {
 				"test": []*backend.CompactedBlockMeta{
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+							BlockID: one,
 						},
 					},
 				},
@@ -130,12 +136,12 @@ func TestTenantIndexBuilder(t *testing.T) {
 			expectedList: PerTenant{
 				"test2": []*backend.BlockMeta{
 					{
-						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+						BlockID: three,
 					},
 				},
 				"test": []*backend.BlockMeta{
 					{
-						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+						BlockID: two,
 					},
 				},
 			},
@@ -143,7 +149,7 @@ func TestTenantIndexBuilder(t *testing.T) {
 				"test": []*backend.CompactedBlockMeta{
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+							BlockID: one,
 						},
 					},
 				},
@@ -283,12 +289,14 @@ func TestTenantIndexFallback(t *testing.T) {
 }
 
 func TestPollBlock(t *testing.T) {
+	one := backend.MustParse("00000000-0000-0000-0000-000000000001")
+
 	tests := []struct {
 		name                  string
 		list                  PerTenant
 		compactedList         PerTenantCompacted
 		pollTenantID          string
-		pollBlockID           uuid.UUID
+		pollBlockID           backend.UUID
 		expectedMeta          *backend.BlockMeta
 		expectedCompactedMeta *backend.CompactedBlockMeta
 		expectsError          bool
@@ -296,51 +304,51 @@ func TestPollBlock(t *testing.T) {
 		{
 			name:         "block and tenant don't exist",
 			pollTenantID: "test",
-			pollBlockID:  uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+			pollBlockID:  one,
 		},
 		{
 			name:         "block exists",
 			pollTenantID: "test",
-			pollBlockID:  uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+			pollBlockID:  one,
 			list: PerTenant{
 				"test": []*backend.BlockMeta{
 					{
-						BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+						BlockID: one,
 					},
 				},
 			},
 			expectedMeta: &backend.BlockMeta{
-				BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+				BlockID: one,
 			},
 		},
 		{
 			name:         "compactedblock exists",
 			pollTenantID: "test",
-			pollBlockID:  uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+			pollBlockID:  one,
 			compactedList: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+							BlockID: one,
 						},
 					},
 				},
 			},
 			expectedCompactedMeta: &backend.CompactedBlockMeta{
 				BlockMeta: backend.BlockMeta{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					BlockID: one,
 				},
 			},
 		},
 		{
 			name:         "errors",
 			pollTenantID: "test",
-			pollBlockID:  uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+			pollBlockID:  one,
 			compactedList: PerTenantCompacted{
 				"test": []*backend.CompactedBlockMeta{
 					{
 						BlockMeta: backend.BlockMeta{
-							BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+							BlockID: one,
 						},
 					},
 				},
@@ -361,7 +369,7 @@ func TestPollBlock(t *testing.T) {
 				PollFallback:          testPollFallback,
 				TenantIndexBuilders:   testBuilders,
 			}, &mockJobSharder{}, r, c, w, log.NewNopLogger())
-			actualMeta, actualCompactedMeta, err := poller.pollBlock(context.Background(), tc.pollTenantID, tc.pollBlockID, false)
+			actualMeta, actualCompactedMeta, err := poller.pollBlock(context.Background(), tc.pollTenantID, (uuid.UUID)(tc.pollBlockID), false)
 
 			assert.Equal(t, tc.expectedMeta, actualMeta)
 			assert.Equal(t, tc.expectedCompactedMeta, actualCompactedMeta)
@@ -461,13 +469,13 @@ func TestBlockListBackendMetrics(t *testing.T) {
 			list: PerTenant{
 				"test": []*backend.BlockMeta{
 					{
-						Size: 250,
+						Size_: 250,
 					},
 					{
-						Size: 500,
+						Size_: 500,
 					},
 					{
-						Size: 250,
+						Size_: 250,
 					},
 				},
 			},
@@ -475,22 +483,22 @@ func TestBlockListBackendMetrics(t *testing.T) {
 				"test": []*backend.CompactedBlockMeta{
 					{
 						BlockMeta: backend.BlockMeta{
-							Size: 300,
+							Size_: 300,
 						},
 					},
 					{
 						BlockMeta: backend.BlockMeta{
-							Size: 200,
+							Size_: 200,
 						},
 					},
 					{
 						BlockMeta: backend.BlockMeta{
-							Size: 250,
+							Size_: 250,
 						},
 					},
 					{
 						BlockMeta: backend.BlockMeta{
-							Size: 500,
+							Size_: 500,
 						},
 					},
 				},
@@ -650,9 +658,9 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 }
 
 func TestPollComparePreviousResults(t *testing.T) {
-	zero := uuid.MustParse("00000000-0000-0000-0000-000000000000")
-	aaa := uuid.MustParse("00000000-0000-0000-0000-00000000000A")
-	eff := uuid.MustParse("00000000-0000-0000-0000-00000000000F")
+	zero := backend.MustParse("00000000-0000-0000-0000-000000000000")
+	aaa := backend.MustParse("00000000-0000-0000-0000-00000000000A")
+	eff := backend.MustParse("00000000-0000-0000-0000-00000000000F")
 
 	testCases := []struct {
 		name string
@@ -701,12 +709,12 @@ func TestPollComparePreviousResults(t *testing.T) {
 			},
 			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{
 				"test": {
-					zero: 1,
+					(uuid.UUID)(zero): 1,
 				},
 			},
 			expectedCompactedBlockMetaCalls: map[string]map[uuid.UUID]int{
 				"test": {
-					eff: 1,
+					(uuid.UUID)(eff): 1,
 				},
 			},
 		},
@@ -770,13 +778,13 @@ func TestPollComparePreviousResults(t *testing.T) {
 			},
 			expectedBlockMetaCalls: map[string]map[uuid.UUID]int{
 				"test": {
-					eff: 1,
+					(uuid.UUID)(eff): 1,
 				},
 			},
 			expectedCompactedBlockMetaCalls: map[string]map[uuid.UUID]int{
 				"test": {
-					aaa:  1,
-					zero: 1,
+					(uuid.UUID)(aaa):  1,
+					(uuid.UUID)(zero): 1,
 				},
 			},
 		},
@@ -1036,7 +1044,7 @@ func newBlockMetas(count int) []*backend.BlockMeta {
 	metas := make([]*backend.BlockMeta, count)
 	for i := 0; i < count; i++ {
 		metas[i] = &backend.BlockMeta{
-			BlockID: uuid.New(),
+			BlockID: backend.NewUUID(),
 		}
 	}
 
@@ -1048,7 +1056,7 @@ func newCompactedMetas(count int) []*backend.CompactedBlockMeta {
 	for i := 0; i < count; i++ {
 		metas[i] = &backend.CompactedBlockMeta{
 			BlockMeta: backend.BlockMeta{
-				BlockID: uuid.New(),
+				BlockID: backend.NewUUID(),
 			},
 		}
 	}
@@ -1105,7 +1113,7 @@ func newMockCompactor(list PerTenantCompacted, expectsError bool) backend.Compac
 			}
 
 			for _, m := range l {
-				if m.BlockID == blockID {
+				if (uuid.UUID)(m.BlockID) == blockID {
 					return m, nil
 				}
 			}
@@ -1140,11 +1148,11 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 			uuids := []uuid.UUID{}
 			compactedUUIDs := []uuid.UUID{}
 			for _, b := range blocks {
-				uuids = append(uuids, b.BlockID)
+				uuids = append(uuids, (uuid.UUID)(b.BlockID))
 			}
 			compactedBlocks := compactedList[tenantID]
 			for _, b := range compactedBlocks {
-				compactedUUIDs = append(compactedUUIDs, b.BlockID)
+				compactedUUIDs = append(compactedUUIDs, (uuid.UUID)(b.BlockID))
 			}
 
 			return uuids, compactedUUIDs, nil
@@ -1161,7 +1169,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 			}
 
 			for _, m := range l {
-				if m.BlockID == blockID {
+				if (uuid.UUID)(m.BlockID) == blockID {
 					return m, nil
 				}
 			}

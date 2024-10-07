@@ -104,7 +104,7 @@ func (cmd *convertParquet3to4) Run() error {
 		return err
 	}
 
-	fmt.Printf("Successfully created block with size=%d and footerSize=%d\n", outMeta.Size, outMeta.FooterSize)
+	fmt.Printf("Successfully created block with size=%d and footerSize=%d\n", outMeta.Size_, outMeta.FooterSize)
 	return nil
 }
 
