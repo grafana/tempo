@@ -325,28 +325,48 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 }
 
 func (o *BinaryOperation) execute(span Span) (Static, error) {
+	recording := o.b.Recording
+	if recording {
+		o.b.Start()
+	}
+
 	lhs, err := o.LHS.execute(span)
 	if err != nil {
 		return NewStaticNil(), err
 	}
 
+	if recording {
+		o.b.Finish(0)
+	}
+
 	// Look for cases where we don't even need to evalulate the RHS
-	if lhsB, ok := lhs.Bool(); ok {
-		if o.Op == OpAnd && !lhsB {
-			// x && y
-			// x is false so we don't need to evalulate y
-			return StaticFalse, nil
+	// But wait until we have enough samples so we can optimize
+	if !recording {
+		if lhsB, ok := lhs.Bool(); ok {
+			if o.Op == OpAnd && !lhsB {
+				// x && y
+				// x is false so we don't need to evalulate y
+				return StaticFalse, nil
+			}
+			if o.Op == OpOr && lhsB {
+				// x || y
+				// x is true so we don't need to evalulate y
+				return StaticTrue, nil
+			}
 		}
-		if o.Op == OpOr && lhsB {
-			// x || y
-			// x is true so we don't need to evalulate y
-			return StaticTrue, nil
-		}
+	}
+
+	if recording {
+		o.b.Start()
 	}
 
 	rhs, err := o.RHS.execute(span)
 	if err != nil {
 		return NewStaticNil(), err
+	}
+
+	if recording {
+		o.b.Finish(1)
 	}
 
 	// Ensure the resolved types are still valid
@@ -428,10 +448,40 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		lhsB, _ := lhs.Bool()
 		rhsB, _ := rhs.Bool()
 
+		if recording {
+			if done := o.b.Sampled(); done {
+				if o.b.OptimalBranch() == 1 {
+					// RHS is the optimal starting branch,
+					// so swap the elements now.
+					o.LHS, o.RHS = o.RHS, o.LHS
+				}
+			}
+		}
+
 		switch o.Op {
 		case OpAnd:
+			if recording {
+				if !lhsB {
+					// Record cost of wasted rhs execution
+					o.b.Penalize(1)
+				}
+				if !rhsB {
+					// Record cost of wasted lhs execution
+					o.b.Penalize(0)
+				}
+			}
 			return NewStaticBool(lhsB && rhsB), nil
 		case OpOr:
+			if recording {
+				if rhsB {
+					// Record cost of wasted lhs execution
+					o.b.Penalize(0)
+				}
+				if lhsB {
+					// Record cost of wasated rhs execution
+					o.b.Penalize(1)
+				}
+			}
 			return NewStaticBool(lhsB || rhsB), nil
 		}
 	}
