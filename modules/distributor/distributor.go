@@ -519,9 +519,9 @@ func (*Distributor) Check(_ context.Context, _ *grpc_health_v1.HealthCheckReques
 func (d *Distributor) UsageTrackerHandler() http.Handler {
 	if d.usage != nil {
 		return d.usage.Handler()
-	} else {
-		return nil
 	}
+
+	return nil
 }
 
 // requestsByTraceID takes an incoming tempodb.PushRequest and creates a set of keys for the hash ring

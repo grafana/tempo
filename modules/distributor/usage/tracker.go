@@ -326,7 +326,7 @@ func nonEmpties(labels, values []string) ([]string, []string) {
 // nonSpanDataLength returns the number of proto bytes in the batch
 // that aren't attributable to specific spans.  It's complicated but much faster
 // to do this because it ensures we only measure each part of the proto once.
-// The first (and simplier) approach was to call batch.Size() and then subtract
+// The first (and simpler) approach was to call batch.Size() and then subtract
 // each encountered span.  But this measures spans twice, which is already the slowest
 // part by far. Hopefully isn't too brittle.  It must be updated for new fields above the
 // span level.  Also returns the count of spans while we're here so we don't have to loop again.

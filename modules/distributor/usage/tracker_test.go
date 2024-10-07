@@ -153,7 +153,7 @@ func TestUsageTracker(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			u, err := NewTracker(tc.cfg, "test", func(s string) []string { return tc.dimensions })
+			u, err := NewTracker(tc.cfg, "test", func(_ string) []string { return tc.dimensions })
 			require.NoError(t, err)
 
 			u.Observe("test", data)
@@ -172,7 +172,7 @@ func BenchmarkUsageTracker(b *testing.B) {
 	tr := test.MakeTrace(10, nil)
 	dims := []string{"service.name"} // Allocation outside the benchmark to reduce noise
 
-	u, err := NewTracker(DefaultConfig(), "test", func(s string) []string { return dims })
+	u, err := NewTracker(DefaultConfig(), "test", func(_ string) []string { return dims })
 	require.NoError(b, err)
 
 	for i := 0; i < b.N; i++ {
