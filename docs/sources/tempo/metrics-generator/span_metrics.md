@@ -30,7 +30,7 @@ exemplars can be automatically added, providing additional value to these metric
 
 ## How to run
 
-To enable span metrics in Tempo or Grafana Enterprise Traces, enable the metrics generator and add an overrides section which enables the `span-metrics` generator.
+To enable span metrics in Tempo or Grafana Enterprise Traces, enable the metrics generator and add an overrides section which enables the `span-metrics` processor.
 Refer to [the configuration details]({{< relref "../configuration#metrics-generator" >}}).
 
 If you want to enable metrics-generator for your Grafana Cloud account, refer to the [Metrics-generator in Grafana Cloud](https://grafana.com/docs/grafana-cloud/send-data/traces/metrics-generator/) documentation.
