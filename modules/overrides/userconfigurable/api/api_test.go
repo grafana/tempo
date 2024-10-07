@@ -62,7 +62,7 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 			name:           "GET",
 			handler:        overridesAPI.GetHandler,
 			req:            prepareRequest(tenant, "GET", nil),
-			expResp:        `{"forwarders":["my-other-forwarder"],"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`,
+			expResp:        `{"forwarders":["my-other-forwarder"],"cost_attribution":{},"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`,
 			expContentType: api.HeaderAcceptJSON,
 			expStatusCode:  200,
 		},
@@ -149,7 +149,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 			name:           "PATCH - no values stored yet",
 			patch:          `{"forwarders":["my-other-forwarder"]}`,
 			current:        ``,
-			expResp:        `{"forwarders":["my-other-forwarder"],"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`,
+			expResp:        `{"forwarders":["my-other-forwarder"],"cost_attribution":{},"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`,
 			expContentType: api.HeaderAcceptJSON,
 			expStatusCode:  200,
 		},
@@ -157,7 +157,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 			name:           "PATCH - empty overrides are merged",
 			patch:          `{"forwarders":["my-other-forwarder"]}`,
 			current:        `{}`,
-			expResp:        `{"forwarders":["my-other-forwarder"],"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`,
+			expResp:        `{"forwarders":["my-other-forwarder"],"cost_attribution":{},"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`,
 			expContentType: api.HeaderAcceptJSON,
 			expStatusCode:  200,
 		},
@@ -165,7 +165,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 			name:           "PATCH - overwrite",
 			patch:          `{"forwarders":["my-other-forwarder"]}`,
 			current:        `{"forwarders":["previous-forwarder"]}`,
-			expResp:        `{"forwarders":["my-other-forwarder"],"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`,
+			expResp:        `{"forwarders":["my-other-forwarder"],"cost_attribution":{},"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`,
 			expContentType: api.HeaderAcceptJSON,
 			expStatusCode:  200,
 		},
@@ -247,7 +247,7 @@ func TestUserConfigOverridesAPI_patchOverridesHandler_noVersionConflict(t *testi
 	overridesAPI.PatchHandler(w, r)
 
 	data := w.Body.String()
-	assert.Equal(t, `{"forwarders":["f"],"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`, data)
+	assert.Equal(t, `{"forwarders":["f"],"cost_attribution":{},"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`, data)
 
 	res := w.Result()
 	assert.Equal(t, "2", res.Header.Get(headerEtag))
