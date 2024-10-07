@@ -33,9 +33,8 @@ func NewSearchTagValues(limitBytes int) Combiner {
 		finalize: func(final *tempopb.SearchTagValuesResponse) (*tempopb.SearchTagValuesResponse, error) {
 			final.TagValues = d.Strings()
 			// return metrics in final response
-			if final.Metrics != nil {
-				final.Metrics.InspectedBytes = inspectedBytes.Load()
-			}
+			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
+			final.Metrics = &tempopb.SearchTagMetrics{InspectedBytes: inspectedBytes.Load()}
 			return final, nil
 		},
 		quit: func(_ *tempopb.SearchTagValuesResponse) bool {
@@ -48,9 +47,8 @@ func NewSearchTagValues(limitBytes int) Combiner {
 			}
 			response.TagValues = resp
 			// also return latest metrics along with diff
-			if response.Metrics != nil {
-				response.Metrics.InspectedBytes = inspectedBytes.Load()
-			}
+			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
+			response.Metrics = &tempopb.SearchTagMetrics{InspectedBytes: inspectedBytes.Load()}
 			return response, nil
 		},
 	}
@@ -88,9 +86,8 @@ func NewSearchTagValuesV2(limitBytes int) Combiner {
 				final.TagValues = append(final.TagValues, &v2)
 			}
 			// load Inspected Bytes here and return along with final response
-			if final.Metrics != nil {
-				final.Metrics.InspectedBytes = inspectedBytes.Load()
-			}
+			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
+			final.Metrics = &tempopb.SearchTagMetrics{InspectedBytes: inspectedBytes.Load()}
 			return final, nil
 		},
 		quit: func(_ *tempopb.SearchTagValuesV2Response) bool {
@@ -107,9 +104,8 @@ func NewSearchTagValuesV2(limitBytes int) Combiner {
 				response.TagValues = append(response.TagValues, &v2)
 			}
 			// also return metrics along with diffs
-			if response.Metrics != nil {
-				response.Metrics.InspectedBytes = inspectedBytes.Load()
-			}
+			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
+			response.Metrics = &tempopb.SearchTagMetrics{InspectedBytes: inspectedBytes.Load()}
 			return response, nil
 		},
 	}

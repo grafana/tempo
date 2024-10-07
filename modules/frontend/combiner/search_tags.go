@@ -14,7 +14,6 @@ var (
 
 func NewSearchTags(limitBytes int) Combiner {
 	d := collector.NewDistinctStringWithDiff(limitBytes)
-	// TODO: can we just use a regular int? do we need atomic int here??
 	inspectedBytes := atomic.NewUint64(0)
 
 	c := &genericCombiner[*tempopb.SearchTagsResponse]{
@@ -33,9 +32,8 @@ func NewSearchTags(limitBytes int) Combiner {
 		finalize: func(response *tempopb.SearchTagsResponse) (*tempopb.SearchTagsResponse, error) {
 			response.TagNames = d.Strings()
 			// return metrics with final results
-			if response.Metrics != nil {
-				response.Metrics.InspectedBytes = inspectedBytes.Load()
-			}
+			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now ??
+			response.Metrics = &tempopb.SearchTagMetrics{InspectedBytes: inspectedBytes.Load()}
 			return response, nil
 		},
 		quit: func(_ *tempopb.SearchTagsResponse) bool {
@@ -48,10 +46,9 @@ func NewSearchTags(limitBytes int) Combiner {
 			}
 
 			response.TagNames = resp
-			if response.Metrics != nil {
-				// also return metrics with diff results
-				response.Metrics.InspectedBytes = inspectedBytes.Load()
-			}
+			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
+			// return metrics with diff results
+			response.Metrics = &tempopb.SearchTagMetrics{InspectedBytes: inspectedBytes.Load()}
 			return response, nil
 		},
 	}
@@ -93,10 +90,9 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 					Tags: vals,
 				})
 			}
-			if final.Metrics != nil {
-				// return metrics with final results
-				final.Metrics.InspectedBytes = inspectedBytes.Load()
-			}
+			// return metrics with final results
+			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
+			final.Metrics = &tempopb.SearchTagMetrics{InspectedBytes: inspectedBytes.Load()}
 			return final, nil
 		},
 		quit: func(_ *tempopb.SearchTagsV2Response) bool {
@@ -115,10 +111,9 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 					Tags: vals,
 				})
 			}
-			if response.Metrics != nil {
-				// also return metrics with diff results
-				response.Metrics.InspectedBytes = inspectedBytes.Load()
-			}
+			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
+			// also return metrics with diff results
+			response.Metrics = &tempopb.SearchTagMetrics{InspectedBytes: inspectedBytes.Load()}
 			return response, nil
 		},
 	}
