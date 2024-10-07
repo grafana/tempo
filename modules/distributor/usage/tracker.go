@@ -204,6 +204,11 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 			}
 		}
 
+		var (
+			bucket      *bucket
+			bucketDirty = false
+		)
+
 		for i, ss := range batch.ScopeSpans {
 			for j, s := range ss.Spans {
 				sz := s.Size()
@@ -219,18 +224,24 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 						continue
 					}
 					for i, d := range dimensions {
-						if d == a.Key {
+						if d == a.Key && values[i] != v {
 							values[i] = v
+							bucketDirty = true
 						}
 					}
 				}
 
-				// Update after every span because each span
-				// can be a different series.
-				// TODO - See if we can determine if the buffers
-				// haven't changed and avoid hashing again.
-				b := data.getSeries(labels, values, int(u.cfg.MaxCardinality))
-				b.Inc(uint64(sz), now)
+				// Every span can be a different series.
+				// If the values buffer hasn't changed then we
+				// know it's the same bucket and avoid hashing again.
+				// This shows up in 2 common cases:
+				//  - Dimensions are only resource attributes
+				//  - Runs of spans with the same attributes
+				if bucket == nil || bucketDirty {
+					bucket = data.getSeries(labels, values, int(u.cfg.MaxCardinality))
+					bucketDirty = false
+				}
+				bucket.Inc(uint64(sz), now)
 			}
 		}
 	}

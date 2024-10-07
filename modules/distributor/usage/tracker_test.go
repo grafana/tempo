@@ -90,7 +90,7 @@ func TestUsageTracker(t *testing.T) {
 	})
 
 	// -------------------------------------------------------------
-	// Test case 2 - Group by foo Batch is split 75%/25%
+	// Test case 2 - Group by attr, batch is split 75%/25%
 	// -------------------------------------------------------------
 	name = "splitbatch"
 	dimensions = []string{"attr"}
@@ -116,9 +116,8 @@ func TestUsageTracker(t *testing.T) {
 	// -------------------------------------------------------------
 	name = "missing"
 	dimensions = []string{"foo"}
-	labels = []string{"foo"}
 	expected = make(map[uint64]*bucket)
-	expected[hash(labels, []string{})] = &bucket{
+	expected[emptyHash] = &bucket{
 		labels: nil, // No spans have "foo" so they all go into an unlabeled series
 		bytes:  uint64(float64(data[0].Size())),
 	}
@@ -141,7 +140,7 @@ func TestUsageTracker(t *testing.T) {
 		labels: []string{"1"},
 		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.75)), // attr=1 is encountered first and record, with 75% of spans
 	}
-	expected[hash(labels, nil)] = &bucket{
+	expected[emptyHash] = &bucket{
 		labels: nil,
 		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.25)), // attr=2 doesn't fit within cardinality and those 25% of spans go into the unlabled series.
 	}
