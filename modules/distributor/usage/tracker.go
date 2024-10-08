@@ -22,7 +22,10 @@ const (
 
 var emptyHash = hash(nil, nil)
 
-type tenantLabelsFunc func(string) []string
+type (
+	tenantLabelsFunc func(string) []string
+	tenantMaxFunc    func(string) uint64
+)
 
 type bucket struct {
 	// Configuration
@@ -78,13 +81,13 @@ func (t *tenantUsage) GetBuffersForDimensions(dimensions []string) ([]string, []
 	return t.labels, t.values
 }
 
-func (t *tenantUsage) getSeries(labels, values []string, maxCardinality int) *bucket {
+func (t *tenantUsage) getSeries(labels, values []string, maxCardinality uint64) *bucket {
 	h := hash(labels, values)
 
 	b := t.series[h]
 	if b == nil {
 		// Before creating a new series, check for cardinality limit.
-		if len(t.series) >= maxCardinality {
+		if uint64(len(t.series)) >= maxCardinality {
 			// Overflow
 			// It goes into the unlabeled bucket
 			// TODO - Do we want to do something else?
@@ -108,21 +111,23 @@ func (t *tenantUsage) getSeries(labels, values []string, maxCardinality int) *bu
 }
 
 type Tracker struct {
-	mtx     sync.Mutex
-	name    string
-	tenants map[string]*tenantUsage
-	fn      tenantLabelsFunc
-	reg     *prometheus.Registry
-	cfg     Config
+	mtx      sync.Mutex
+	name     string
+	tenants  map[string]*tenantUsage
+	labelsFn tenantLabelsFunc
+	maxFn    tenantMaxFunc
+	reg      *prometheus.Registry
+	cfg      Config
 }
 
-func NewTracker(cfg Config, name string, fn tenantLabelsFunc) (*Tracker, error) {
+func NewTracker(cfg Config, name string, labelsFn tenantLabelsFunc, maxFn tenantMaxFunc) (*Tracker, error) {
 	u := &Tracker{
-		cfg:     cfg,
-		name:    name,
-		tenants: make(map[string]*tenantUsage),
-		fn:      fn,
-		reg:     prometheus.NewRegistry(),
+		cfg:      cfg,
+		name:     name,
+		tenants:  make(map[string]*tenantUsage),
+		labelsFn: labelsFn,
+		maxFn:    maxFn,
+		reg:      prometheus.NewRegistry(),
 	}
 
 	err := u.reg.Register(u)
@@ -155,11 +160,16 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 	u.mtx.Lock()
 	defer u.mtx.Unlock()
 
-	dimensions := u.fn(tenant)
+	dimensions := u.labelsFn(tenant)
 	if len(dimensions) == 0 {
 		// Not configured
 		// TODO - Should we put it all in the unattributed bucket instead?
 		return
+	}
+
+	max := u.maxFn(tenant)
+	if max == 0 {
+		max = uint64(u.cfg.MaxCardinality)
 	}
 
 	var (
@@ -238,7 +248,7 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 				//  - Dimensions are only resource attributes
 				//  - Runs of spans with the same attributes
 				if bucket == nil || bucketDirty {
-					bucket = data.getSeries(labels, values, int(u.cfg.MaxCardinality))
+					bucket = data.getSeries(labels, values, max)
 					bucketDirty = false
 				}
 				bucket.Inc(uint64(sz), now)

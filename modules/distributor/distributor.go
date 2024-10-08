@@ -219,7 +219,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 	}
 
 	if cfg.Usage.Enabled {
-		usage, err := usage.NewTracker(cfg.Usage, "cost-attribution", o.CostAttributionDimensions)
+		usage, err := usage.NewTracker(cfg.Usage, "cost-attribution", o.CostAttributionDimensions, o.CostAttributionMaxCardinality)
 		if err != nil {
 			return nil, fmt.Errorf("creating usage tracker: %w", err)
 		}

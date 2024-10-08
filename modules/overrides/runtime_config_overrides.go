@@ -348,6 +348,10 @@ func (o *runtimeConfigOverridesManager) UnsafeQueryHints(userID string) bool {
 	return o.getOverridesForUser(userID).Read.UnsafeQueryHints
 }
 
+func (o *runtimeConfigOverridesManager) CostAttributionMaxCardinality(userID string) uint64 {
+	return o.getOverridesForUser(userID).CostAttribution.MaxCardinality
+}
+
 func (o *runtimeConfigOverridesManager) CostAttributionDimensions(userID string) []string {
 	return o.getOverridesForUser(userID).CostAttribution.Dimensions
 }
