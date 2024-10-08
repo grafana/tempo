@@ -84,6 +84,11 @@ func (b *bucketSet) addAndTest(i int) bool {
 	return false
 }
 
+const (
+	leftBranch  = 0
+	rightBranch = 1
+)
+
 type branchOptimizer struct {
 	start            time.Time
 	last             []time.Duration

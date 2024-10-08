@@ -336,7 +336,7 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	}
 
 	if recording {
-		o.b.Finish(0)
+		o.b.Finish(leftBranch)
 	}
 
 	// Look for cases where we don't even need to evalulate the RHS
@@ -366,7 +366,7 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	}
 
 	if recording {
-		o.b.Finish(1)
+		o.b.Finish(rightBranch)
 	}
 
 	// Ensure the resolved types are still valid
@@ -449,8 +449,29 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		rhsB, _ := rhs.Bool()
 
 		if recording {
+			switch o.Op {
+			case OpAnd:
+				if !lhsB {
+					// Record cost of wasted rhs execution
+					o.b.Penalize(rightBranch)
+				}
+				if !rhsB {
+					// Record cost of wasted lhs execution
+					o.b.Penalize(leftBranch)
+				}
+			case OpOr:
+				if rhsB {
+					// Record cost of wasted lhs execution
+					o.b.Penalize(rightBranch)
+				}
+				if lhsB {
+					// Record cost of wasated rhs execution
+					o.b.Penalize(leftBranch)
+				}
+			}
+
 			if done := o.b.Sampled(); done {
-				if o.b.OptimalBranch() == 1 {
+				if o.b.OptimalBranch() == rightBranch {
 					// RHS is the optimal starting branch,
 					// so swap the elements now.
 					o.LHS, o.RHS = o.RHS, o.LHS
@@ -460,28 +481,8 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 
 		switch o.Op {
 		case OpAnd:
-			if recording {
-				if !lhsB {
-					// Record cost of wasted rhs execution
-					o.b.Penalize(1)
-				}
-				if !rhsB {
-					// Record cost of wasted lhs execution
-					o.b.Penalize(0)
-				}
-			}
 			return NewStaticBool(lhsB && rhsB), nil
 		case OpOr:
-			if recording {
-				if rhsB {
-					// Record cost of wasted lhs execution
-					o.b.Penalize(0)
-				}
-				if lhsB {
-					// Record cost of wasated rhs execution
-					o.b.Penalize(1)
-				}
-			}
 			return NewStaticBool(lhsB || rhsB), nil
 		}
 	}
