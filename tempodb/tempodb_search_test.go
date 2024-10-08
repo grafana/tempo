@@ -1457,8 +1457,7 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 
 			valueCollector := collector.NewScopedDistinctString(0)
 			err := e.ExecuteTagNames(ctx, traceql.AttributeScopeFromString(tc.scope), tc.query, func(tag string, scope traceql.AttributeScope) bool {
-				valueCollector.Collect(scope.String(), tag)
-				return valueCollector.Exceeded()
+				return valueCollector.Collect(scope.String(), tag)
 			}, fetcher)
 			if errors.Is(err, common.ErrUnsupported) {
 				return

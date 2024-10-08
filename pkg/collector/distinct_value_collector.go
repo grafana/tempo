@@ -1,8 +1,11 @@
 package collector
 
 import (
+	"errors"
 	"sync"
 )
+
+var errDiffNotEnabled = errors.New("diff not enabled")
 
 type DistinctValue[T comparable] struct {
 	values      map[T]struct{}
@@ -22,7 +25,6 @@ type DistinctValue[T comparable] struct {
 func NewDistinctValue[T comparable](maxDataSize int, len func(T) int) *DistinctValue[T] {
 	return &DistinctValue[T]{
 		values:      make(map[T]struct{}),
-		new:         make(map[T]struct{}),
 		maxLen:      maxDataSize,
 		diffEnabled: false, // disable diff to make it faster
 		len:         len,
@@ -108,13 +110,14 @@ func (d *DistinctValue[T]) Size() int {
 
 // Diff returns all new strings collected since the last time diff was called
 // returns nil if diff is not enabled
-func (d *DistinctValue[T]) Diff() []T {
+func (d *DistinctValue[T]) Diff() ([]T, error) {
+	// can check diffEnabled without lock because it is not modified after creation
+	if !d.diffEnabled {
+		return nil, errDiffNotEnabled
+	}
+
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
-
-	if !d.diffEnabled {
-		return nil
-	}
 
 	ss := make([]T, 0, len(d.new))
 	for k := range d.new {
@@ -122,5 +125,5 @@ func (d *DistinctValue[T]) Diff() []T {
 	}
 
 	clear(d.new)
-	return ss
+	return ss, nil
 }
