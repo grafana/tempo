@@ -374,10 +374,10 @@ func (b *Backend) FindTraces(req *storage_v1.FindTracesRequest, stream storage_v
 	// Collecting results
 	for i := 0; i < len(resp.TraceIDs); i++ {
 		result := <-results
-		//// TODO this seems to be an internal inconsistency error, ignore so we can still show the rest
-		span.AddEvent(fmt.Sprintf("could not get trace for traceID %v", result.traceID))
-		span.RecordError(err)
 		if result.err != nil {
+			//// TODO this seems to be an internal inconsistency error, ignore so we can still show the rest
+			span.AddEvent(fmt.Sprintf("could not get trace for traceID %v", result.traceID))
+			span.RecordError(err)
 			failedTraces = append(failedTraces, result)
 		} else {
 			jaegerTraces = append(jaegerTraces, result.trace)
