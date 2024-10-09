@@ -7,12 +7,12 @@ import (
 // MetricsCollector is a simple collector that can be used to accumulate a metric
 // we primarily use it to collect the total bytes read from a reader across a request
 type MetricsCollector struct {
-	totalValue atomic.Uint64
+	totalValue *atomic.Uint64
 }
 
 func NewMetricsCollector() *MetricsCollector {
 	return &MetricsCollector{
-		totalValue: *atomic.NewUint64(0),
+		totalValue: atomic.NewUint64(0),
 	}
 }
 
