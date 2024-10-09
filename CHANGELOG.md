@@ -1,6 +1,7 @@
 ## main / unreleased
 
 * [ENHANCEMENT] Send semver version in api/stattus/buildinfo for cloud deployments [#4110](https://github.com/grafana/tempo/pull/4110) [@Aki0x137]
+* [ENHANCEMENT] Speedup tempo-query trace search by allowing parallel queries [#4159](https://github.com/grafana/tempo/pull/4159) (@pavolloffay)
 * [CHANGE] tempo-cli: add support for /api/v2/traces endpoint [#4127](https://github.com/grafana/tempo/pull/4127) (@electron0zero)
   **BREAKING CHANGE** The `tempo-cli` now uses the `/api/v2/traces` endpoint by default, 
   please use `--v1` flag to use `/api/traces` endpoint, which was the default in previous versions.
