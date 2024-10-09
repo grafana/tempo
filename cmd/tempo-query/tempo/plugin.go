@@ -326,9 +326,6 @@ type jobResult struct {
 func worker(b *Backend, jobs <-chan job, results chan<- jobResult) {
 	for job := range jobs {
 		jaegerTrace, err := b.getTrace(job.ctx, job.traceID)
-		if err != nil {
-			b.logger.Info("failed trace", zap.Error(err), zap.String("traceid", job.traceID.String()))
-		}
 		results <- jobResult{
 			traceID: job.traceID,
 			trace:   jaegerTrace,
@@ -376,6 +373,7 @@ func (b *Backend) FindTraces(req *storage_v1.FindTracesRequest, stream storage_v
 		result := <-results
 		if result.err != nil {
 			//// TODO this seems to be an internal inconsistency error, ignore so we can still show the rest
+			b.logger.Info("failed to get a trace", zap.Error(err), zap.String("traceid", result.traceID.String()))
 			span.AddEvent(fmt.Sprintf("could not get trace for traceID %v", result.traceID))
 			span.RecordError(err)
 			failedTraces = append(failedTraces, result)
