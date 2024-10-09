@@ -33,13 +33,13 @@ type bucket struct {
 	labels []string
 
 	// Runtime data
-	bytes uint64
-	unix  int64
+	bytes       uint64
+	lastUpdated int64
 }
 
 func (b *bucket) Inc(bytes uint64, unix int64) {
 	b.bytes += bytes
-	b.unix = unix
+	b.lastUpdated = unix
 }
 
 type tenantUsage struct {
@@ -169,7 +169,7 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 
 	max := u.maxFn(tenant)
 	if max == 0 {
-		max = uint64(u.cfg.MaxCardinality)
+		max = u.cfg.MaxCardinality
 	}
 
 	var (
@@ -272,7 +272,7 @@ func (u *Tracker) purge() {
 
 	for t, data := range u.tenants {
 		for h, s := range data.series {
-			if s.unix <= stale {
+			if s.lastUpdated <= stale {
 				delete(data.series, h)
 			}
 		}
