@@ -427,7 +427,7 @@ func handleError(w http.ResponseWriter, err error) {
 
 	// todo: better understand all errors returned from queriers and categorize more as 4XX
 	if errors.Is(err, trace.ErrTraceTooLarge) {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusRequestEntityTooLarge)
 		return
 	}
 
