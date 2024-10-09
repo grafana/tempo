@@ -137,7 +137,7 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 		start := time.Now()
 
 		resp, err := rt.RoundTrip(req)
-		// ask for the typed diff and use that for the SLO hook. it will have up to date metrics
+		// ask for the typed diff and use that for the SLO hook. it will have up-to-date metrics
 		var bytesProcessed uint64
 		searchResp, _ := comb.GRPCDiff()
 		if searchResp != nil && searchResp.Metrics != nil {
@@ -146,7 +146,7 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
-		logHTTPResult(logger, tenant, req.URL.Path, duration.Seconds(), err)
+		logHTTPResult(logger, tenant, "SearchTags", req.URL.Path, duration.Seconds(), bytesProcessed, err)
 
 		return resp, err
 	})
@@ -167,7 +167,7 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		start := time.Now()
 
 		resp, err := rt.RoundTrip(req)
-		// ask for the typed diff and use that for the SLO hook. it will have up to date metrics
+		// ask for the typed diff and use that for the SLO hook. it will have up-to-date metrics
 		var bytesProcessed uint64
 		searchResp, _ := comb.GRPCDiff()
 		if searchResp != nil && searchResp.Metrics != nil {
@@ -176,7 +176,7 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
-		logHTTPResult(logger, tenant, req.URL.Path, duration.Seconds(), err)
+		logHTTPResult(logger, tenant, "SearchTagsV2", req.URL.Path, duration.Seconds(), bytesProcessed, err)
 
 		return resp, err
 	})
@@ -197,7 +197,7 @@ func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combine
 		start := time.Now()
 
 		resp, err := rt.RoundTrip(req)
-		// ask for the typed diff and use that for the SLO hook. it will have up to date metrics
+		// ask for the typed diff and use that for the SLO hook. it will have up-to-date metrics
 		var bytesProcessed uint64
 		searchResp, _ := comb.GRPCDiff()
 		if searchResp != nil && searchResp.Metrics != nil {
@@ -206,7 +206,7 @@ func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combine
 
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
-		logHTTPResult(logger, tenant, req.URL.Path, duration.Seconds(), err)
+		logHTTPResult(logger, tenant, "SearchTagValues", req.URL.Path, duration.Seconds(), bytesProcessed, err)
 
 		return resp, err
 	})
@@ -228,7 +228,7 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 
 		resp, err := rt.RoundTrip(req)
 
-		// ask for the typed diff and use that for the SLO hook. it will have up to date metrics
+		// ask for the typed diff and use that for the SLO hook. it will have up-to-date metrics
 		var bytesProcessed uint64
 		searchResp, _ := comb.GRPCDiff()
 		if searchResp != nil && searchResp.Metrics != nil {
@@ -238,7 +238,7 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 		duration := time.Since(start)
 		postSLOHook(resp, tenant, bytesProcessed, duration, err)
 
-		logHTTPResult(logger, tenant, req.URL.Path, duration.Seconds(), err)
+		logHTTPResult(logger, tenant, "SearchTagValuesV2", req.URL.Path, duration.Seconds(), bytesProcessed, err)
 		return resp, err
 	})
 }
@@ -256,12 +256,14 @@ func extractTenantWithError(req *http.Request, logger log.Logger) (string, *http
 	return tenant, nil, err
 }
 
-func logHTTPResult(logger log.Logger, tenantID, path string, durationSeconds float64, err error) {
+func logHTTPResult(logger log.Logger, tenantID, handler, path string, durationSeconds float64, inspectedBytes uint64, err error) {
 	level.Info(logger).Log(
-		"msg", "search tags response",
+		"msg", "metadata response result",
+		"handler", handler,
 		"tenant", tenantID,
 		"path", path,
 		"duration_seconds", durationSeconds,
+		"inspected_bytes", inspectedBytes,
 		"err", err)
 }
 
