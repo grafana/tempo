@@ -19,17 +19,8 @@ type Config struct {
 }
 
 func (c *Config) RegisterFlagsAndApplyDefaults(_ string, _ *flag.FlagSet) {
-	c.Enabled = true
+	c.Enabled = false
 	c.MaxCardinality = defaultMaxCardinality
 	c.StaleDuration = defaultStaleDuration
 	c.PurgePeriod = defaultPurgePeriod
-}
-
-func DefaultConfig() Config {
-	return Config{
-		Enabled:        true,
-		MaxCardinality: defaultMaxCardinality,
-		StaleDuration:  defaultStaleDuration,
-		PurgePeriod:    defaultPurgePeriod,
-	}
 }

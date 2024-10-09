@@ -12,6 +12,15 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
+func testConfig() Config {
+	return Config{
+		Enabled:        true,
+		MaxCardinality: defaultMaxCardinality,
+		StaleDuration:  defaultStaleDuration,
+		PurgePeriod:    defaultPurgePeriod,
+	}
+}
+
 func TestUsageTracker(t *testing.T) {
 	type testcase struct {
 		name       string
@@ -21,7 +30,7 @@ func TestUsageTracker(t *testing.T) {
 	}
 
 	// Reused for all test cases
-	cfg := DefaultConfig()
+	cfg := testConfig()
 	data := []*v1.ResourceSpans{
 		{
 			Resource: &v1resource.Resource{
@@ -176,7 +185,7 @@ func BenchmarkUsageTracker(b *testing.B) {
 		maxFn    = func(_ string) uint64 { return 0 }
 	)
 
-	u, err := NewTracker(DefaultConfig(), "test", labelsFn, maxFn)
+	u, err := NewTracker(testConfig(), "test", labelsFn, maxFn)
 	require.NoError(b, err)
 
 	for i := 0; i < b.N; i++ {
