@@ -340,7 +340,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 		maxBlocks = limit
 	}
 
-	searchBlock := func(s common.Searcher, dv *collector.DistinctString) error {
+	search := func(s common.Searcher, dv *collector.DistinctString) error {
 		if maxBlocks > 0 && inspectedBlocks >= maxBlocks {
 			return nil
 		}
@@ -362,7 +362,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	}
 
 	i.headBlockMtx.RLock()
-	err = searchBlock(i.headBlock, distinctValues)
+	err = search(i.headBlock, distinctValues)
 	i.headBlockMtx.RUnlock()
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
@@ -372,12 +372,12 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	defer i.blocksMtx.RUnlock()
 
 	for _, b := range i.completingBlocks {
-		if err = searchBlock(b, distinctValues); err != nil {
+		if err = search(b, distinctValues); err != nil {
 			return nil, fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err)
 		}
 	}
 	for _, b := range i.completeBlocks {
-		if err = searchBlock(b, distinctValues); err != nil {
+		if err = search(b, distinctValues); err != nil {
 			return nil, fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err)
 		}
 	}

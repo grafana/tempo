@@ -1123,13 +1123,13 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 	}
 
 	valueCollector := collector.NewDistinctValue(q.limits.MaxBytesPerTagValuesQuery(tenantID), func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
-	mc := collector.NewMetricsCollector() // this sends out the bytesRead
+	mc := collector.NewMetricsCollector()
 
 	fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
 		return q.store.FetchTagValues(ctx, meta, req, cb, mc.Add, opts)
 	})
 
-	// FIXME: are we not collecting bytesRead here correctly??
+	// FIXME: are we not collecting bytesRead here correctly?? this can be true audit all the branches and make sure we are collecting metrics in all cases?
 	err = q.engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
 	if err != nil {
 		return nil, err
