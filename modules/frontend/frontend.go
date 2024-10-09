@@ -164,8 +164,6 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTraceByID, logger)
 	tracesV2 := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTraceByIDV2, logger)
 	search := newSearchHTTPHandler(cfg, searchPipeline, logger)
-	// TODO: can we do this without splitting the handlers? maybe we can? if we can find a way to pass the typed combiner
-	//  and then access metrics in the handler, but I am going with the split for now??
 	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, logger)
 	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger)
 	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, logger)

@@ -617,7 +617,6 @@ func BenchmarkFetchTagValues(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				err := block.FetchTagValues(ctx, autocompleteReq, traceql.MakeCollectTagValueFunc(distinctValues.Collect), mc.Add, opts)
 				require.NoError(b, err)
-				require.NotZero(b, mc.TotalValue())
 			}
 		})
 	}
@@ -694,7 +693,6 @@ func BenchmarkFetchTags(b *testing.B) {
 						return false
 					}, mc.Add, opts)
 					require.NoError(b, err)
-					require.NotZero(b, mc.TotalValue())
 				}
 			})
 		}

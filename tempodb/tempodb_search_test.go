@@ -1405,7 +1405,7 @@ func tagValuesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetad
 			})
 
 			require.Equal(t, expected, actual)
-			// FIXME: find and assert the actual bytes read
+			// FIXME: maybe check for at-least some bytes read instead of non zero? maybe > 100 or something. this can be done for all assertions
 			require.NotZero(t, mc.TotalValue())
 		})
 	}
@@ -2369,8 +2369,8 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	sort.SliceStable(tagValues.TagValues, func(i, j int) bool {
 		return tagValues.TagValues[i].Value < tagValues.TagValues[j].Value
 	})
-	assert.Equal(t, expected, tagValues.TagValues)
-	assert.NotZero(t, tagValues.Metrics.InspectedBytes)
+	require.Equal(t, expected, tagValues.TagValues)
+	require.NotZero(t, tagValues.Metrics.InspectedBytes)
 
 	valueCollector := collector.NewDistinctValue[tempopb.TagValue](0, func(_ tempopb.TagValue) int { return 0 })
 	mc := collector.NewMetricsCollector()
@@ -2385,6 +2385,6 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	require.NoError(t, err)
 
 	actual := valueCollector.Values()
-	assert.Equal(t, []tempopb.TagValue{{Type: "int", Value: "3"}}, actual)
-	assert.NotZero(t, mc.TotalValue())
+	require.Equal(t, []tempopb.TagValue{{Type: "int", Value: "3"}}, actual)
+	require.NotZero(t, mc.TotalValue())
 }

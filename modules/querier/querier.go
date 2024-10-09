@@ -544,15 +544,16 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 		if err != nil {
 			return err
 		}
+		// collect metrics first because we stop early with return
+		if resp.Metrics != nil {
+			mc.Add(resp.Metrics.InspectedBytes)
+		}
+
 		for _, tag := range resp.TagNames {
 			distinctValues.Collect(tag)
 			if distinctValues.Exceeded() {
-				break // stop early
+				return nil // stop early
 			}
-		}
-		// collect metrics
-		if resp.Metrics != nil {
-			mc.Add(resp.Metrics.InspectedBytes)
 		}
 		return nil
 	}
@@ -567,9 +568,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 
 	return &tempopb.SearchTagsResponse{
 		TagNames: distinctValues.Strings(),
-		Metrics: &tempopb.SearchTagMetrics{
-			InspectedBytes: mc.TotalValue(),
-		},
+		Metrics:  &tempopb.SearchTagMetrics{InspectedBytes: mc.TotalValue()},
 	}, nil
 }
 
@@ -589,10 +588,11 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 		if err != nil {
 			return err
 		}
-		// collect metrics first because we stop early with 'return nil'
+		// collect metrics first because we stop early with return
 		if resp.Metrics != nil {
 			mc.Add(resp.Metrics.InspectedBytes)
 		}
+
 		for _, res := range resp.Scopes {
 			for _, tag := range res.Tags {
 				if distinctValues.Collect(res.Name, tag) {
@@ -614,10 +614,8 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 
 	collected := distinctValues.Strings()
 	resp := &tempopb.SearchTagsV2Response{
-		Scopes: make([]*tempopb.SearchTagsV2Scope, 0, len(collected)),
-		Metrics: &tempopb.SearchTagMetrics{
-			InspectedBytes: mc.TotalValue(),
-		},
+		Scopes:  make([]*tempopb.SearchTagsV2Scope, 0, len(collected)),
+		Metrics: &tempopb.SearchTagMetrics{InspectedBytes: mc.TotalValue()}, // send metrics with response
 	}
 	for scope, vals := range collected {
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
@@ -650,10 +648,11 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 		if err != nil {
 			return err
 		}
-		// add metrics first because we stop early with return nil
+		// add metrics first because we stop early with return
 		if resp.Metrics != nil {
 			mc.Add(resp.Metrics.InspectedBytes)
 		}
+
 		for _, res := range resp.TagValues {
 			distinctValues.Collect(res)
 			if distinctValues.Exceeded() {
@@ -674,9 +673,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 
 	return &tempopb.SearchTagValuesResponse{
 		TagValues: distinctValues.Strings(),
-		Metrics: &tempopb.SearchTagMetrics{
-			InspectedBytes: mc.TotalValue(),
-		},
+		Metrics:   &tempopb.SearchTagMetrics{InspectedBytes: mc.TotalValue()},
 	}, nil
 }
 
@@ -710,15 +707,16 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 		if err != nil {
 			return err
 		}
+		// collect metrics first, we stop early with return
+		if resp.Metrics != nil {
+			mc.Add(resp.Metrics.InspectedBytes)
+		}
+
 		for _, res := range resp.TagValues {
 			distinctValues.Collect(*res)
 			if distinctValues.Exceeded() {
-				break // stop early
+				return nil // stop early
 			}
-		}
-		// collect inspected bytes
-		if resp.Metrics != nil {
-			mc.Add(resp.Metrics.InspectedBytes)
 		}
 		return nil
 	}
@@ -830,9 +828,7 @@ func (q *Querier) SpanMetricsSummary(
 
 func valuesToV2Response(distinctValues *collector.DistinctValue[tempopb.TagValue], bytesRead uint64) *tempopb.SearchTagValuesV2Response {
 	resp := &tempopb.SearchTagValuesV2Response{
-		Metrics: &tempopb.SearchTagMetrics{
-			InspectedBytes: bytesRead,
-		},
+		Metrics: &tempopb.SearchTagMetrics{InspectedBytes: bytesRead},
 	}
 	for _, v := range distinctValues.Values() {
 		v2 := v
@@ -925,6 +921,8 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 					Tags: search.GetVirtualIntrinsicValues(),
 				},
 			},
+			// no bytes were scanned to return the intrinsic values
+			Metrics: &tempopb.SearchTagMetrics{InspectedBytes: 0},
 		}, nil
 	}
 
@@ -967,8 +965,6 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 
 	query := traceql.ExtractMatchers(req.SearchReq.Query)
 	if traceql.IsEmptyQuery(query) {
-		// search tags on an empty query is a special case, we need to send metrics back here as well??
-		// we should get the metrics back in the resp.
 		resp, err := q.store.SearchTags(ctx, meta, req.SearchReq.Scope, opts)
 		if err != nil {
 			return nil, err
@@ -1008,7 +1004,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 	resp := &tempopb.SearchTagsV2Response{
 		Scopes: make([]*tempopb.SearchTagsV2Scope, 0, len(scopedVals)),
 		Metrics: &tempopb.SearchTagMetrics{
-			InspectedBytes: mc.TotalValue(), // add metrics in the response
+			InspectedBytes: mc.TotalValue(), // send metrics with response
 		},
 	}
 	for scope, vals := range scopedVals {
@@ -1116,13 +1112,12 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 	}
 
 	valueCollector := collector.NewDistinctValue(q.limits.MaxBytesPerTagValuesQuery(tenantID), func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
-	mc := collector.NewMetricsCollector() // this sends out the bytesRead
+	mc := collector.NewMetricsCollector()
 
 	fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
 		return q.store.FetchTagValues(ctx, meta, req, cb, mc.Add, opts)
 	})
 
-	// FIXME: are we not collecting bytesRead here correctly??
 	err = q.engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
 	if err != nil {
 		return nil, err

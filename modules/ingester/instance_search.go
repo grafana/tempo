@@ -222,6 +222,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 					Tags: search.GetVirtualIntrinsicValues(),
 				},
 			},
+			Metrics: &tempopb.SearchTagMetrics{InspectedBytes: 0}, // no bytes read for intrinsics
 		}, nil
 	}
 
@@ -251,7 +252,6 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 
 		// if the query is empty, use the old search
 		if traceql.IsEmptyQuery(query) {
-			// FIXME: not capturing metrics in old search???
 			err = s.SearchTags(ctx, attributeScope, func(t string, scope traceql.AttributeScope) {
 				distinctValues.Collect(scope.String(), t)
 			}, mc.Add, common.DefaultSearchOptions())
@@ -339,7 +339,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 		maxBlocks = limit
 	}
 
-	searchBlock := func(s common.Searcher, dv *collector.DistinctString) error {
+	search := func(s common.Searcher, dv *collector.DistinctString) error {
 		if maxBlocks > 0 && inspectedBlocks >= maxBlocks {
 			return nil
 		}
@@ -361,7 +361,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	}
 
 	i.headBlockMtx.RLock()
-	err = searchBlock(i.headBlock, distinctValues)
+	err = search(i.headBlock, distinctValues)
 	i.headBlockMtx.RUnlock()
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error searching head block (%s): %w", i.headBlock.BlockMeta().BlockID, err)
@@ -371,12 +371,12 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	defer i.blocksMtx.RUnlock()
 
 	for _, b := range i.completingBlocks {
-		if err = searchBlock(b, distinctValues); err != nil {
+		if err = search(b, distinctValues); err != nil {
 			return nil, fmt.Errorf("unexpected error searching completing block (%s): %w", b.BlockMeta().BlockID, err)
 		}
 	}
 	for _, b := range i.completeBlocks {
-		if err = searchBlock(b, distinctValues); err != nil {
+		if err = search(b, distinctValues); err != nil {
 			return nil, fmt.Errorf("unexpected error searching complete block (%s): %w", b.BlockMeta().BlockID, err)
 		}
 	}
@@ -387,9 +387,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 
 	return &tempopb.SearchTagValuesResponse{
 		TagValues: distinctValues.Strings(),
-		Metrics: &tempopb.SearchTagMetrics{
-			InspectedBytes: mc.TotalValue(),
-		},
+		Metrics:   &tempopb.SearchTagMetrics{InspectedBytes: mc.TotalValue()},
 	}, nil
 }
 
@@ -487,7 +485,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			_ = level.Warn(log.Logger).Log("msg", "GetDiskCache failed", "err", err)
 		}
 
-		// we got data...unmarshall, and add values to central collector
+		// we got data...unmarshall, and add values to central collector and add bytesRead
 		if len(cacheData) > 0 && err == nil {
 			resp := &tempopb.SearchTagValuesV2Response{}
 			err = proto.Unmarshal(cacheData, resp)
@@ -495,10 +493,12 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 				return err
 			}
 			span.SetAttributes(attribute.Bool("cached", true))
-			// instead of the reporting the InspectedBytes of the cached response,
-			// report the size of cacheData as the Inspected bytes
-			// because it's incorrect the report the metrics of the cachedResponse so
-			// we report the size of the cacheData to give an idea of how much data was read.
+			// Instead of the reporting the InspectedBytes of the cached response.
+			// we report the size of cacheData as the Inspected bytes in case we hit disk cache.
+			// we do this because, because it's incorrect and misleading to report the metrics of cachedResponse
+			// we report the size of the cacheData as the amount of data was read to search this block.
+			// this can skew our metrics because this will be lower than the data read to search the block.
+			// we can remove this if this becomes an issue but leave it in for now to more accurate.
 			mc.Add(uint64(len(cacheData)))
 
 			for _, v := range resp.TagValues {
@@ -509,16 +509,16 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			return nil
 		}
 
+		// cache miss, search the block. We will cache the results if we find any.
 		span.SetAttributes(attribute.Bool("cached", false))
-		// results not in cache, so search the block
-		// using a local collector to collect values from the block and set cache
+		// using local collector to collect values from the block and cache them.
 		localCol := collector.NewDistinctValue[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 		localErr := performSearch(ctx, b, localCol)
 		if localErr != nil {
 			return localErr
 		}
 
-		// marshal the local collector and set the cache
+		// marshal the values local collector and set the cache
 		values := localCol.Values()
 		v2RespProto, err := valuesToTagValuesV2RespProto(values)
 		if err == nil && len(v2RespProto) > 0 {
@@ -528,7 +528,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 			}
 		}
 
-		// add values to the central collector
+		// now add values to the central collector to make sure they are included in the response.
 		for _, v := range values {
 			if valueCollector.Collect(v) {
 				break // we have reached the limit, so stop
@@ -593,9 +593,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	}
 
 	resp := &tempopb.SearchTagValuesV2Response{
-		Metrics: &tempopb.SearchTagMetrics{
-			InspectedBytes: mc.TotalValue(), // attach metrics to the response
-		},
+		Metrics: &tempopb.SearchTagMetrics{InspectedBytes: mc.TotalValue()}, // include metrics in response
 	}
 
 	for _, v := range valueCollector.Values() {
@@ -641,7 +639,7 @@ func searchTagValuesV2CacheKey(req *tempopb.SearchTagValuesRequest, limit int, p
 // valuesToTagValuesV2RespProto converts TagValues to a protobuf marshalled bytes
 // this is slightly modified version of valuesToV2Response from querier.go
 func valuesToTagValuesV2RespProto(tagValues []tempopb.TagValue) ([]byte, error) {
-	// we only store values and don't Marshal Metrics
+	// NOTE: we only cache TagValues and don't Marshal Metrics
 	resp := &tempopb.SearchTagValuesV2Response{}
 	resp.TagValues = make([]*tempopb.TagValue, 0, len(tagValues))
 

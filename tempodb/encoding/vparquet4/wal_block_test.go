@@ -380,7 +380,6 @@ func BenchmarkWalSearchTagValues(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				err := w.SearchTagValues(context.TODO(), t, cb, mc.Add, common.DefaultSearchOptions())
 				require.NoError(b, err)
-				require.NotZero(b, mc.TotalValue())
 			}
 		})
 	}

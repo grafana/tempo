@@ -32,7 +32,7 @@ func NewSearchTags(limitBytes int) Combiner {
 		finalize: func(response *tempopb.SearchTagsResponse) (*tempopb.SearchTagsResponse, error) {
 			response.TagNames = d.Strings()
 			// return metrics with final results
-			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now ??
+			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
 			response.Metrics = &tempopb.SearchTagMetrics{InspectedBytes: inspectedBytes.Load()}
 			return response, nil
 		},

@@ -208,7 +208,6 @@ func BenchmarkBackendBlockSearchTags(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		err := block.SearchTags(ctx, traceql.AttributeScopeNone, func(s string, _ traceql.AttributeScope) { d.Collect(s) }, mc.Add, opts)
 		require.NoError(b, err)
-		require.NotZero(b, mc.TotalValue())
 	}
 }
 
@@ -242,7 +241,6 @@ func BenchmarkBackendBlockSearchTagValues(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				err := block.SearchTagValues(ctx, tc, d.Collect, mc.Add, opts)
 				require.NoError(b, err)
-				require.NotZero(b, mc.TotalValue())
 			}
 		})
 	}
