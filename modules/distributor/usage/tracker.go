@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/bits"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -55,21 +56,7 @@ type tenantUsage struct {
 // GetBuffersForDimensions takes advantage of the fact that the configuration for a tracker
 // changes slowly.  Reuses buffers from the previous call when the dimensions are the same.
 func (t *tenantUsage) GetBuffersForDimensions(dimensions []string) ([]string, []string) {
-	reset := false
-
-	if len(dimensions) == len(t.dimensions) {
-		// Any change to dimensions?
-		for i := range dimensions {
-			if dimensions[i] != t.dimensions[i] {
-				reset = true
-				break
-			}
-		}
-	} else {
-		reset = true
-	}
-
-	if reset {
+	if !slices.Equal(t.dimensions, dimensions) {
 		t.dimensions = dimensions
 		t.labels = make([]string, len(dimensions))
 		t.values = make([]string, len(dimensions))
