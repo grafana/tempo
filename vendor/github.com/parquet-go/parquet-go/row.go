@@ -700,6 +700,9 @@ func reconstructFuncOfMap(columnIndex int16, node Node) (int16, reconstructFunc)
 		values := make([][]Value, len(columns))
 		column := columns[0]
 		t := value.Type()
+		if t.Kind() == reflect.Interface {
+			t = reflect.TypeOf((map[string]any)(nil))
+		}
 		k := t.Key()
 		v := t.Elem()
 		n := 0
@@ -718,7 +721,9 @@ func reconstructFuncOfMap(columnIndex int16, node Node) (int16, reconstructFunc)
 		}
 
 		if value.IsNil() {
-			value.Set(reflect.MakeMapWithSize(t, n))
+			m := reflect.MakeMapWithSize(t, n)
+			value.Set(m)
+			value = m // track map instead of interface{} for read[any]()
 		}
 
 		elem := reflect.New(keyValueElem).Elem()

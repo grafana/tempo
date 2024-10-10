@@ -11,7 +11,7 @@ func encodeFloat(dst, src []byte) {
 	b2 := dst[2*n : 3*n]
 	b3 := dst[3*n : 4*n]
 
-	for i, v := range unsafecast.BytesToUint32(src) {
+	for i, v := range unsafecast.Slice[uint32](src) {
 		b0[i] = byte(v >> 0)
 		b1[i] = byte(v >> 8)
 		b2[i] = byte(v >> 16)
@@ -30,7 +30,7 @@ func encodeDouble(dst, src []byte) {
 	b6 := dst[6*n : 7*n]
 	b7 := dst[7*n : 8*n]
 
-	for i, v := range unsafecast.BytesToUint64(src) {
+	for i, v := range unsafecast.Slice[uint64](src) {
 		b0[i] = byte(v >> 0)
 		b1[i] = byte(v >> 8)
 		b2[i] = byte(v >> 16)
@@ -49,7 +49,7 @@ func decodeFloat(dst, src []byte) {
 	b2 := src[2*n : 3*n]
 	b3 := src[3*n : 4*n]
 
-	dst32 := unsafecast.BytesToUint32(dst)
+	dst32 := unsafecast.Slice[uint32](dst)
 	for i := range dst32 {
 		dst32[i] = uint32(b0[i]) |
 			uint32(b1[i])<<8 |
@@ -69,7 +69,7 @@ func decodeDouble(dst, src []byte) {
 	b6 := src[6*n : 7*n]
 	b7 := src[7*n : 8*n]
 
-	dst64 := unsafecast.BytesToUint64(dst)
+	dst64 := unsafecast.Slice[uint64](dst)
 	for i := range dst64 {
 		dst64[i] = uint64(b0[i]) |
 			uint64(b1[i])<<8 |

@@ -3,9 +3,35 @@
 package aeshash
 
 import (
-	"github.com/parquet-go/parquet-go/sparse"
+	"math/rand"
+	"unsafe"
+
 	"golang.org/x/sys/cpu"
+
+	"github.com/parquet-go/parquet-go/sparse"
 )
+
+// hashRandomBytes is 48 since this is what the assembly code depends on.
+const hashRandomBytes = 48
+
+var aeskeysched [hashRandomBytes]byte
+
+func init() {
+	for _, v := range aeskeysched {
+		if v != 0 {
+			// aeskeysched was initialized somewhere else (e.g. tests), so we
+			// can skip initialization. No synchronization is needed since init
+			// functions are called sequentially in a single goroutine (see
+			// https://go.dev/ref/spec#Package_initialization).
+			return
+		}
+	}
+
+	key := (*[hashRandomBytes / 8]uint64)(unsafe.Pointer(&aeskeysched))
+	for i := range key {
+		key[i] = rand.Uint64()
+	}
+}
 
 // Enabled returns true if AES hash is available on the system.
 //

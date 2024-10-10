@@ -1,6 +1,10 @@
 package parquet
 
-import "github.com/parquet-go/parquet-go/internal/unsafecast"
+import (
+	"unsafe"
+
+	"github.com/parquet-go/parquet-go/internal/unsafecast"
+)
 
 type allocator struct{ buffer []byte }
 
@@ -31,7 +35,7 @@ func (a *allocator) copyBytes(v []byte) []byte {
 func (a *allocator) copyString(v string) string {
 	b := a.makeBytes(len(v))
 	copy(b, v)
-	return unsafecast.BytesToString(b)
+	return unsafecast.String(b)
 }
 
 func (a *allocator) reset() {
@@ -54,7 +58,7 @@ func (a *rowAllocator) capture(row Row) {
 	for i, v := range row {
 		switch v.Kind() {
 		case ByteArray, FixedLenByteArray:
-			row[i].ptr = unsafecast.AddressOfBytes(a.copyBytes(v.byteArray()))
+			row[i].ptr = unsafe.SliceData(a.copyBytes(v.byteArray()))
 		}
 	}
 }

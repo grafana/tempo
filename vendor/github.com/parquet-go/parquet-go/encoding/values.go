@@ -82,27 +82,27 @@ func (v *Values) Boolean() []byte {
 
 func (v *Values) Int32() []int32 {
 	v.assertKind(Int32)
-	return unsafecast.BytesToInt32(v.data)
+	return unsafecast.Slice[int32](v.data)
 }
 
 func (v *Values) Int64() []int64 {
 	v.assertKind(Int64)
-	return unsafecast.BytesToInt64(v.data)
+	return unsafecast.Slice[int64](v.data)
 }
 
 func (v *Values) Int96() []deprecated.Int96 {
 	v.assertKind(Int96)
-	return deprecated.BytesToInt96(v.data)
+	return unsafecast.Slice[deprecated.Int96](v.data)
 }
 
 func (v *Values) Float() []float32 {
 	v.assertKind(Float)
-	return unsafecast.BytesToFloat32(v.data)
+	return unsafecast.Slice[float32](v.data)
 }
 
 func (v *Values) Double() []float64 {
 	v.assertKind(Double)
-	return unsafecast.BytesToFloat64(v.data)
+	return unsafecast.Slice[float64](v.data)
 }
 
 func (v *Values) ByteArray() (data []byte, offsets []uint32) {
@@ -117,123 +117,86 @@ func (v *Values) FixedLenByteArray() (data []byte, size int) {
 
 func (v *Values) Uint32() []uint32 {
 	v.assertKind(Int32)
-	return unsafecast.BytesToUint32(v.data)
+	return unsafecast.Slice[uint32](v.data)
 }
 
 func (v *Values) Uint64() []uint64 {
 	v.assertKind(Int64)
-	return unsafecast.BytesToUint64(v.data)
+	return unsafecast.Slice[uint64](v.data)
 }
 
 func (v *Values) Uint128() [][16]byte {
 	v.assertKind(FixedLenByteArray)
 	v.assertSize(16)
-	return unsafecast.BytesToUint128(v.data)
+	return unsafecast.Slice[[16]byte](v.data)
+}
+
+func makeValues[T any](kind Kind, values []T) Values {
+	return Values{kind: kind, data: unsafecast.Slice[byte](values)}
 }
 
 func BooleanValues(values []byte) Values {
-	return Values{
-		kind: Boolean,
-		data: values,
-	}
+	return makeValues(Boolean, values)
 }
 
 func Int32Values(values []int32) Values {
-	return Values{
-		kind: Int32,
-		data: unsafecast.Int32ToBytes(values),
-	}
+	return makeValues(Int32, values)
 }
 
 func Int64Values(values []int64) Values {
-	return Values{
-		kind: Int64,
-		data: unsafecast.Int64ToBytes(values),
-	}
+	return makeValues(Int64, values)
 }
 
 func Int96Values(values []deprecated.Int96) Values {
-	return Values{
-		kind: Int96,
-		data: deprecated.Int96ToBytes(values),
-	}
+	return makeValues(Int96, values)
 }
 
 func FloatValues(values []float32) Values {
-	return Values{
-		kind: Float,
-		data: unsafecast.Float32ToBytes(values),
-	}
+	return makeValues(Float, values)
 }
 
 func DoubleValues(values []float64) Values {
-	return Values{
-		kind: Double,
-		data: unsafecast.Float64ToBytes(values),
-	}
+	return makeValues(Double, values)
 }
 
 func ByteArrayValues(values []byte, offsets []uint32) Values {
-	return Values{
-		kind:    ByteArray,
-		data:    values,
-		offsets: offsets,
-	}
+	return Values{kind: ByteArray, data: values, offsets: offsets}
 }
 
 func FixedLenByteArrayValues(values []byte, size int) Values {
-	return Values{
-		kind: FixedLenByteArray,
-		size: int32(size),
-		data: values,
-	}
+	return Values{kind: FixedLenByteArray, size: int32(size), data: values}
 }
 
 func Uint32Values(values []uint32) Values {
-	return Int32Values(unsafecast.Uint32ToInt32(values))
+	return Int32Values(unsafecast.Slice[int32](values))
 }
 
 func Uint64Values(values []uint64) Values {
-	return Int64Values(unsafecast.Uint64ToInt64(values))
+	return Int64Values(unsafecast.Slice[int64](values))
 }
 
 func Uint128Values(values [][16]byte) Values {
-	return FixedLenByteArrayValues(unsafecast.Uint128ToBytes(values), 16)
+	return FixedLenByteArrayValues(unsafecast.Slice[byte](values), 16)
 }
 
 func Int32ValuesFromBytes(values []byte) Values {
-	return Values{
-		kind: Int32,
-		data: values,
-	}
+	return Values{kind: Int32, data: values}
 }
 
 func Int64ValuesFromBytes(values []byte) Values {
-	return Values{
-		kind: Int64,
-		data: values,
-	}
+	return Values{kind: Int64, data: values}
 }
 
 func Int96ValuesFromBytes(values []byte) Values {
-	return Values{
-		kind: Int96,
-		data: values,
-	}
+	return Values{kind: Int96, data: values}
 }
 
 func FloatValuesFromBytes(values []byte) Values {
-	return Values{
-		kind: Float,
-		data: values,
-	}
+	return Values{kind: Float, data: values}
 }
 
 func DoubleValuesFromBytes(values []byte) Values {
-	return Values{
-		kind: Double,
-		data: values,
-	}
+	return Values{kind: Double, data: values}
 }
 
 func EncodeBoolean(dst []byte, src Values, enc Encoding) ([]byte, error) {

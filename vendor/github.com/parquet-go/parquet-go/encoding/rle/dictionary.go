@@ -31,9 +31,9 @@ func (e *DictionaryEncoding) DecodeInt32(dst []int32, src []byte) ([]int32, erro
 	if len(src) == 0 {
 		return dst[:0], nil
 	}
-	buf := unsafecast.Int32ToBytes(dst)
+	buf := unsafecast.Slice[byte](dst)
 	buf, err := decodeInt32(buf[:0], src[1:], uint(src[0]))
-	return unsafecast.BytesToInt32(buf), e.wrap(err)
+	return unsafecast.Slice[int32](buf), e.wrap(err)
 }
 
 func (e *DictionaryEncoding) wrap(err error) error {

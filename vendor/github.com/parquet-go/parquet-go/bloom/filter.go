@@ -3,7 +3,8 @@ package bloom
 import (
 	"io"
 	"sync"
-	"unsafe"
+
+	"github.com/parquet-go/parquet-go/internal/unsafecast"
 )
 
 // Filter is an interface representing read-only bloom filters where programs
@@ -21,9 +22,7 @@ type SplitBlockFilter []Block
 // MakeSplitBlockFilter constructs a SplitBlockFilter value from the data byte
 // slice.
 func MakeSplitBlockFilter(data []byte) SplitBlockFilter {
-	p := *(*unsafe.Pointer)(unsafe.Pointer(&data))
-	n := len(data) / BlockSize
-	return unsafe.Slice((*Block)(p), n)
+	return unsafecast.Slice[Block](data)
 }
 
 // NumSplitBlocksOf returns the number of blocks in a filter intended to hold
@@ -64,7 +63,7 @@ func (f SplitBlockFilter) Check(x uint64) bool { return filterCheck(f, x) }
 // The returned slice shares the memory of f. The method is intended to be used
 // to serialize the bloom filter to a storage medium.
 func (f SplitBlockFilter) Bytes() []byte {
-	return unsafe.Slice(*(**byte)(unsafe.Pointer(&f)), len(f)*BlockSize)
+	return unsafecast.Slice[byte](f)
 }
 
 // CheckSplitBlock is similar to bloom.SplitBlockFilter.Check but reads the

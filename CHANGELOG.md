@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [ENHANCEMENT] Support Tempo on IBM s390x [#4172](https://github.com/grafana/tempo/pull/4172) (@pavolloffay)
 * [FEATURE] TraceQL support for instrumentation scope [#3967](https://github.com/grafana/tempo/pull/3967) (@ie-pham)
 * [ENHANCEMENT] Add bytes and spans received to usage stats [#3983](https://github.com/grafana/tempo/pull/3983) (@joe-elliott)
 

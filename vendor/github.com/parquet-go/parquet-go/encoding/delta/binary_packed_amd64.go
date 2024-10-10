@@ -230,7 +230,7 @@ func decodeMiniBlockInt32(dst []int32, src []uint32, bitWidth uint) {
 	case hasAVX2 && bitWidth <= 31:
 		decodeMiniBlockInt32x27to31bitsAVX2(dst, src, bitWidth)
 	case bitWidth == 32:
-		copy(dst, unsafecast.Uint32ToInt32(src))
+		copy(dst, unsafecast.Slice[int32](src))
 	default:
 		decodeMiniBlockInt32Default(dst, src, bitWidth)
 	}
@@ -249,7 +249,7 @@ func decodeMiniBlockInt64Default(dst []int64, src []uint32, bitWidth uint)
 func decodeMiniBlockInt64(dst []int64, src []uint32, bitWidth uint) {
 	switch {
 	case bitWidth == 64:
-		copy(dst, unsafecast.Uint32ToInt64(src))
+		copy(dst, unsafecast.Slice[int64](src))
 	default:
 		decodeMiniBlockInt64Default(dst, src, bitWidth)
 	}

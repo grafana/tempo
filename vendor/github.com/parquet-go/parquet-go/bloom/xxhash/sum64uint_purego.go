@@ -51,10 +51,3 @@ func MultiSum64Uint128(h []uint64, v [][16]byte) int {
 	}
 	return n
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

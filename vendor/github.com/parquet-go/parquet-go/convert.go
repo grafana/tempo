@@ -11,9 +11,12 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sys/cpu"
+
 	"github.com/parquet-go/parquet-go/deprecated"
 	"github.com/parquet-go/parquet-go/encoding"
 	"github.com/parquet-go/parquet-go/format"
+	"github.com/parquet-go/parquet-go/internal/unsafecast"
 )
 
 // ConvertError is an error type returned by calls to Convert when the conversion
@@ -912,7 +915,15 @@ func convertStringToInt96(v Value) (Value, error) {
 	b := i.Bytes()
 	c := make([]byte, 12)
 	copy(c, b)
-	i96 := deprecated.BytesToInt96(c)
+	if cpu.IsBigEndian {
+		bufLen := len(c)
+		for idx := 0; idx < bufLen; idx = idx + 4 {
+			for m, n := (idx + 0), (idx + 3); m < n; m, n = m+1, n-1 {
+				c[m], c[n] = c[n], c[m]
+			}
+		}
+	}
+	i96 := unsafecast.Slice[deprecated.Int96](c)
 	return v.convertToInt96(i96[0]), nil
 }
 

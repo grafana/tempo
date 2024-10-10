@@ -12,7 +12,6 @@ import (
 	"github.com/parquet-go/parquet-go/deprecated"
 	"github.com/parquet-go/parquet-go/encoding"
 	"github.com/parquet-go/parquet-go/format"
-	"github.com/parquet-go/parquet-go/internal/unsafecast"
 )
 
 // Kind is an enumeration type representing the physical types supported by the
@@ -901,7 +900,7 @@ func (t fixedLenByteArrayType) AssignValue(dst reflect.Value, src Value) error {
 			// overhead we instead convert the reflect.Value holding the
 			// destination array into a byte slice which allows us to use
 			// a more efficient call to copy.
-			d := unsafe.Slice((*byte)(unsafecast.PointerOfValue(dst)), len(v))
+			d := unsafe.Slice((*byte)(reflectValueData(dst)), len(v))
 			copy(d, v)
 			return nil
 		}
@@ -913,6 +912,10 @@ func (t fixedLenByteArrayType) AssignValue(dst reflect.Value, src Value) error {
 	val := reflect.ValueOf(copyBytes(v))
 	dst.Set(val)
 	return nil
+}
+
+func reflectValueData(v reflect.Value) unsafe.Pointer {
+	return (*[2]unsafe.Pointer)(unsafe.Pointer(&v))[1]
 }
 
 func (t fixedLenByteArrayType) ConvertValue(val Value, typ Type) (Value, error) {

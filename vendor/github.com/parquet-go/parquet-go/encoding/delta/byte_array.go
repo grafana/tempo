@@ -81,7 +81,7 @@ func (e *ByteArrayEncoding) EncodeFixedLenByteArray(dst []byte, src []byte, size
 	// The parquet specs say that this encoding is only supported for BYTE_ARRAY
 	// values, but the reference Java implementation appears to support
 	// FIXED_LEN_BYTE_ARRAY as well:
-	// https://github.com/apache/parquet-mr/blob/5608695f5777de1eb0899d9075ec9411cfdf31d3/parquet-column/src/main/java/org/apache/parquet/column/Encoding.java#L211
+	// https://github.com/apache/parquet-java/blob/5608695f5777de1eb0899d9075ec9411cfdf31d3/parquet-column/src/main/java/org/apache/parquet/column/Encoding.java#L211
 	if size < 0 || size > encoding.MaxFixedLenByteArraySize {
 		return dst[:0], encoding.Error(e, encoding.ErrInvalidArgument)
 	}

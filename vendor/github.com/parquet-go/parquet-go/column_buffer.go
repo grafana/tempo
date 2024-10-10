@@ -16,7 +16,11 @@ import (
 	"github.com/parquet-go/parquet-go/internal/bitpack"
 	"github.com/parquet-go/parquet-go/internal/unsafecast"
 	"github.com/parquet-go/parquet-go/sparse"
+	"golang.org/x/sys/cpu"
 )
+
+const offsetOfU64 = unsafe.Offsetof(Value{}.u64)
+const offsetOfPtr = unsafe.Offsetof(Value{}.ptr)
 
 // ColumnBuffer is an interface representing columns of a row group.
 //
@@ -101,6 +105,29 @@ func columnIndexOfNullable(base ColumnBuffer, maxDefinitionLevel byte, definitio
 		maxDefinitionLevel: maxDefinitionLevel,
 		definitionLevels:   definitionLevels,
 	}, nil
+}
+
+// On a big endian system, a boolean/byte value, which is in little endian byte format, is byte aligned
+// to the 7th byte in a u64 (8 bytes) variable.. Hence the data will be available at 7th byte when
+// interpreted as a little endian byte format. So, in order to access a boolean/byte value out of u64 variable,
+// we need to add an offset of "7"...
+// In the same way, an int32/uint32/float value, which is in little endian byte format, is byte aligned
+// to the 4th byte in a u64 (8 bytes) variable.. Hence the data will be available at 4th byte when
+// interpreted as a little endian byte format. So, in order to access an int32/uint32/float value out of u64 variable,
+// we need to add an offset of "4"
+func getOffset(colDict interface{}) uintptr {
+	var offset uintptr = 0
+
+	if cpu.IsBigEndian {
+		switch colDict.(type) {
+		case booleanColumnBuffer, booleanDictionary:
+			offset = 7
+
+		case int32ColumnBuffer, uint32ColumnBuffer, floatColumnBuffer, int32Dictionary, floatDictionary, uint32Dictionary:
+			offset = 4
+		}
+	}
+	return offset
 }
 
 type nullableColumnIndex struct {
@@ -828,8 +855,8 @@ func (col *booleanColumnBuffer) WriteBooleans(values []bool) (int, error) {
 }
 
 func (col *booleanColumnBuffer) WriteValues(values []Value) (int, error) {
-	var model Value
-	col.writeValues(makeArrayValue(values, unsafe.Offsetof(model.u64)), columnLevels{})
+	offset := getOffset(*col)
+	col.writeValues(makeArrayValue(values, offsetOfU64+offset), columnLevels{})
 	return len(values), nil
 }
 
@@ -958,7 +985,7 @@ func (col *int32ColumnBuffer) Write(b []byte) (int, error) {
 	if (len(b) % 4) != 0 {
 		return 0, fmt.Errorf("cannot write INT32 values from input of size %d", len(b))
 	}
-	col.values = append(col.values, unsafecast.BytesToInt32(b)...)
+	col.values = append(col.values, unsafecast.Slice[int32](b)...)
 	return len(b), nil
 }
 
@@ -968,8 +995,8 @@ func (col *int32ColumnBuffer) WriteInt32s(values []int32) (int, error) {
 }
 
 func (col *int32ColumnBuffer) WriteValues(values []Value) (int, error) {
-	var model Value
-	col.writeValues(makeArrayValue(values, unsafe.Offsetof(model.u64)), columnLevels{})
+	offset := getOffset(*col)
+	col.writeValues(makeArrayValue(values, offsetOfU64+offset), columnLevels{})
 	return len(values), nil
 }
 
@@ -1057,7 +1084,7 @@ func (col *int64ColumnBuffer) Write(b []byte) (int, error) {
 	if (len(b) % 8) != 0 {
 		return 0, fmt.Errorf("cannot write INT64 values from input of size %d", len(b))
 	}
-	col.values = append(col.values, unsafecast.BytesToInt64(b)...)
+	col.values = append(col.values, unsafecast.Slice[int64](b)...)
 	return len(b), nil
 }
 
@@ -1067,8 +1094,7 @@ func (col *int64ColumnBuffer) WriteInt64s(values []int64) (int, error) {
 }
 
 func (col *int64ColumnBuffer) WriteValues(values []Value) (int, error) {
-	var model Value
-	col.writeValues(makeArrayValue(values, unsafe.Offsetof(model.u64)), columnLevels{})
+	col.writeValues(makeArrayValue(values, offsetOfU64), columnLevels{})
 	return len(values), nil
 }
 
@@ -1155,7 +1181,7 @@ func (col *int96ColumnBuffer) Write(b []byte) (int, error) {
 	if (len(b) % 12) != 0 {
 		return 0, fmt.Errorf("cannot write INT96 values from input of size %d", len(b))
 	}
-	col.values = append(col.values, deprecated.BytesToInt96(b)...)
+	col.values = append(col.values, unsafecast.Slice[deprecated.Int96](b)...)
 	return len(b), nil
 }
 
@@ -1252,7 +1278,7 @@ func (col *floatColumnBuffer) Write(b []byte) (int, error) {
 	if (len(b) % 4) != 0 {
 		return 0, fmt.Errorf("cannot write FLOAT values from input of size %d", len(b))
 	}
-	col.values = append(col.values, unsafecast.BytesToFloat32(b)...)
+	col.values = append(col.values, unsafecast.Slice[float32](b)...)
 	return len(b), nil
 }
 
@@ -1262,8 +1288,8 @@ func (col *floatColumnBuffer) WriteFloats(values []float32) (int, error) {
 }
 
 func (col *floatColumnBuffer) WriteValues(values []Value) (int, error) {
-	var model Value
-	col.writeValues(makeArrayValue(values, unsafe.Offsetof(model.u64)), columnLevels{})
+	offset := getOffset(*col)
+	col.writeValues(makeArrayValue(values, offsetOfU64+offset), columnLevels{})
 	return len(values), nil
 }
 
@@ -1350,7 +1376,7 @@ func (col *doubleColumnBuffer) Write(b []byte) (int, error) {
 	if (len(b) % 8) != 0 {
 		return 0, fmt.Errorf("cannot write DOUBLE values from input of size %d", len(b))
 	}
-	col.values = append(col.values, unsafecast.BytesToFloat64(b)...)
+	col.values = append(col.values, unsafecast.Slice[float64](b)...)
 	return len(b), nil
 }
 
@@ -1360,8 +1386,7 @@ func (col *doubleColumnBuffer) WriteDoubles(values []float64) (int, error) {
 }
 
 func (col *doubleColumnBuffer) WriteValues(values []Value) (int, error) {
-	var model Value
-	col.writeValues(makeArrayValue(values, unsafe.Offsetof(model.u64)), columnLevels{})
+	col.writeValues(makeArrayValue(values, offsetOfU64), columnLevels{})
 	return len(values), nil
 }
 
@@ -1505,7 +1530,7 @@ func (col *byteArrayColumnBuffer) writeByteArrays(values []byte) (count, bytes i
 	baseBytes := len(col.values) + (plain.ByteArrayLengthSize * len(col.lengths))
 
 	err = plain.RangeByteArray(values, func(value []byte) error {
-		col.append(unsafecast.BytesToString(value))
+		col.append(unsafecast.String(value))
 		return nil
 	})
 
@@ -1515,8 +1540,7 @@ func (col *byteArrayColumnBuffer) writeByteArrays(values []byte) (count, bytes i
 }
 
 func (col *byteArrayColumnBuffer) WriteValues(values []Value) (int, error) {
-	var model Value
-	col.writeValues(makeArrayValue(values, unsafe.Offsetof(model.ptr)), columnLevels{})
+	col.writeValues(makeArrayValue(values, offsetOfPtr), columnLevels{})
 	return len(values), nil
 }
 
@@ -1742,7 +1766,7 @@ func (col *uint32ColumnBuffer) Write(b []byte) (int, error) {
 	if (len(b) % 4) != 0 {
 		return 0, fmt.Errorf("cannot write INT32 values from input of size %d", len(b))
 	}
-	col.values = append(col.values, unsafecast.BytesToUint32(b)...)
+	col.values = append(col.values, unsafecast.Slice[uint32](b)...)
 	return len(b), nil
 }
 
@@ -1752,8 +1776,8 @@ func (col *uint32ColumnBuffer) WriteUint32s(values []uint32) (int, error) {
 }
 
 func (col *uint32ColumnBuffer) WriteValues(values []Value) (int, error) {
-	var model Value
-	col.writeValues(makeArrayValue(values, unsafe.Offsetof(model.u64)), columnLevels{})
+	offset := getOffset(*col)
+	col.writeValues(makeArrayValue(values, offsetOfU64+offset), columnLevels{})
 	return len(values), nil
 }
 
@@ -1840,7 +1864,7 @@ func (col *uint64ColumnBuffer) Write(b []byte) (int, error) {
 	if (len(b) % 8) != 0 {
 		return 0, fmt.Errorf("cannot write INT64 values from input of size %d", len(b))
 	}
-	col.values = append(col.values, unsafecast.BytesToUint64(b)...)
+	col.values = append(col.values, unsafecast.Slice[uint64](b)...)
 	return len(b), nil
 }
 
@@ -1850,8 +1874,7 @@ func (col *uint64ColumnBuffer) WriteUint64s(values []uint64) (int, error) {
 }
 
 func (col *uint64ColumnBuffer) WriteValues(values []Value) (int, error) {
-	var model Value
-	col.writeValues(makeArrayValue(values, unsafe.Offsetof(model.u64)), columnLevels{})
+	col.writeValues(makeArrayValue(values, offsetOfU64), columnLevels{})
 	return len(values), nil
 }
 
@@ -2356,8 +2379,8 @@ func writeRowsFuncOfMap(t reflect.Type, schema *Schema, path columnPath) writeRo
 					mapKey.SetIterKey(it)
 					mapValue.SetIterValue(it)
 
-					k := makeArray(unsafecast.PointerOfValue(mapKey), 1, keySize)
-					v := makeArray(unsafecast.PointerOfValue(mapValue), 1, valueSize)
+					k := makeArray(reflectValueData(mapKey), 1, keySize)
+					v := makeArray(reflectValueData(mapValue), 1, valueSize)
 
 					if err := writeKeyValues(columns, k, v, elemLevels); err != nil {
 						return err
@@ -2440,7 +2463,7 @@ func writeRowsFuncOfTime(_ reflect.Type, schema *Schema, path columnPath) writeR
 				val = t.UnixNano()
 			}
 
-			a := makeArray(unsafecast.PointerOfValue(reflect.ValueOf(val)), 1, elemSize)
+			a := makeArray(reflectValueData(reflect.ValueOf(val)), 1, elemSize)
 			if err := writeRows(columns, a, levels); err != nil {
 				return err
 			}

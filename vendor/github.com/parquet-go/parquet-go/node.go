@@ -424,6 +424,13 @@ func listElementOf(node Node) Node {
 			if elem := fieldByName(list, "element"); elem != nil {
 				return elem
 			}
+			// TODO: It should not be named "item", but some versions of pyarrow
+			//       and some versions of polars used that instead of "element".
+			//       https://issues.apache.org/jira/browse/ARROW-11497
+			//       https://github.com/pola-rs/polars/issues/17100
+			if elem := fieldByName(list, "item"); elem != nil {
+				return elem
+			}
 		}
 	}
 	panic("node with logical type LIST is not composed of a repeated .list.element")

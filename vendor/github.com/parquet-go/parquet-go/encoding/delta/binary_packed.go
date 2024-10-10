@@ -34,15 +34,15 @@ func (e *BinaryPackedEncoding) EncodeInt64(dst []byte, src []int64) ([]byte, err
 }
 
 func (e *BinaryPackedEncoding) DecodeInt32(dst []int32, src []byte) ([]int32, error) {
-	buf := unsafecast.Int32ToBytes(dst)
+	buf := unsafecast.Slice[byte](dst)
 	buf, _, err := decodeInt32(buf[:0], src)
-	return unsafecast.BytesToInt32(buf), e.wrap(err)
+	return unsafecast.Slice[int32](buf), e.wrap(err)
 }
 
 func (e *BinaryPackedEncoding) DecodeInt64(dst []int64, src []byte) ([]int64, error) {
-	buf := unsafecast.Int64ToBytes(dst)
+	buf := unsafecast.Slice[byte](dst)
 	buf, _, err := decodeInt64(buf[:0], src)
-	return unsafecast.BytesToInt64(buf), e.wrap(err)
+	return unsafecast.Slice[int64](buf), e.wrap(err)
 }
 
 func (e *BinaryPackedEncoding) wrap(err error) error {
@@ -290,7 +290,7 @@ func decodeInt32(dst, src []byte) ([]byte, []byte, error) {
 
 	writeOffset := len(dst)
 	dst = resize(dst, len(dst)+4*totalValues)
-	out := unsafecast.BytesToInt32(dst)
+	out := unsafecast.Slice[int32](dst)
 	out[writeOffset] = int32(firstValue)
 	writeOffset++
 	totalValues--
@@ -354,7 +354,7 @@ func decodeInt64(dst, src []byte) ([]byte, []byte, error) {
 
 	writeOffset := len(dst)
 	dst = resize(dst, len(dst)+8*totalValues)
-	out := unsafecast.BytesToInt64(dst)
+	out := unsafecast.Slice[int64](dst)
 	out[writeOffset] = firstValue
 	writeOffset++
 	totalValues--

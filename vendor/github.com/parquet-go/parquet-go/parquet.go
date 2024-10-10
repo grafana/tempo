@@ -103,20 +103,6 @@ func atLeast(size, least int) int {
 	return size
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 func typeNameOf(t reflect.Type) string {
 	s1 := t.String()
 	s2 := t.Kind().String()

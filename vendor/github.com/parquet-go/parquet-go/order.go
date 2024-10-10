@@ -36,14 +36,14 @@ func orderOfBool(data []bool) int {
 }
 
 func streakOfTrue(data []bool) int {
-	if i := bytes.IndexByte(unsafecast.BoolToBytes(data), 0); i >= 0 {
+	if i := bytes.IndexByte(unsafecast.Slice[byte](data), 0); i >= 0 {
 		return i
 	}
 	return len(data)
 }
 
 func streakOfFalse(data []bool) int {
-	if i := bytes.IndexByte(unsafecast.BoolToBytes(data), 1); i >= 0 {
+	if i := bytes.IndexByte(unsafecast.Slice[byte](data), 1); i >= 0 {
 		return i
 	}
 	return len(data)

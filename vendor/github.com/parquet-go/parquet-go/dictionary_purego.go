@@ -5,6 +5,7 @@ package parquet
 import (
 	"unsafe"
 
+	"github.com/parquet-go/parquet-go/internal/unsafecast"
 	"github.com/parquet-go/parquet-go/sparse"
 )
 
@@ -39,16 +40,14 @@ func (d *doubleDictionary) lookup(indexes []int32, rows sparse.Array) {
 func (d *byteArrayDictionary) lookupString(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
 	for i, j := range indexes {
-		v := d.index(int(j))
-		*(*string)(rows.Index(i)) = *(*string)(unsafe.Pointer(&v))
+		*(*string)(rows.Index(i)) = unsafecast.String(d.index(int(j)))
 	}
 }
 
 func (d *fixedLenByteArrayDictionary) lookupString(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
 	for i, j := range indexes {
-		v := d.index(j)
-		*(*string)(rows.Index(i)) = *(*string)(unsafe.Pointer(&v))
+		*(*string)(rows.Index(i)) = unsafecast.String(d.index(j))
 	}
 }
 

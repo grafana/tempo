@@ -20,8 +20,8 @@ func (buf *int32Buffer) resize(size int) {
 }
 
 func (buf *int32Buffer) decode(src []byte) ([]byte, error) {
-	values, remain, err := decodeInt32(unsafecast.Int32ToBytes(buf.values[:0]), src)
-	buf.values = unsafecast.BytesToInt32(values)
+	values, remain, err := decodeInt32(unsafecast.Slice[byte](buf.values[:0]), src)
+	buf.values = unsafecast.Slice[int32](values)
 	return remain, err
 }
 
@@ -80,13 +80,6 @@ func grow(buf []byte, size int) []byte {
 	newBuf := make([]byte, size, newCap)
 	copy(newBuf, buf)
 	return newBuf
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func errPrefixAndSuffixLengthMismatch(prefixLength, suffixLength int) error {

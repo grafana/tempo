@@ -9,9 +9,9 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 
-	"github.com/segmentio/encoding/thrift"
-
+	"github.com/parquet-go/parquet-go/encoding/thrift"
 	"github.com/parquet-go/parquet-go/format"
 )
 
@@ -391,8 +391,8 @@ func (g *fileRowGroup) init(file *File, schema *Schema, columns []*Column, rowGr
 
 		if file.hasIndexes() {
 			j := (int(rowGroup.Ordinal) * len(columns)) + i
-			fileColumnChunks[i].columnIndex = &file.columnIndexes[j]
-			fileColumnChunks[i].offsetIndex = &file.offsetIndexes[j]
+			fileColumnChunks[i].columnIndex.Store(&file.columnIndexes[j])
+			fileColumnChunks[i].offsetIndex.Store(&file.offsetIndexes[j])
 		}
 
 		g.columns[i] = &fileColumnChunks[i]
@@ -442,8 +442,8 @@ type fileColumnChunk struct {
 	column      *Column
 	bloomFilter *bloomFilter
 	rowGroup    *format.RowGroup
-	columnIndex *format.ColumnIndex
-	offsetIndex *format.OffsetIndex
+	columnIndex atomic.Pointer[format.ColumnIndex]
+	offsetIndex atomic.Pointer[format.OffsetIndex]
 	chunk       *format.ColumnChunk
 }
 
@@ -462,23 +462,25 @@ func (c *fileColumnChunk) Pages() Pages {
 }
 
 func (c *fileColumnChunk) ColumnIndex() (ColumnIndex, error) {
-	if err := c.readColumnIndex(); err != nil {
+	index, err := c.readColumnIndex()
+	if err != nil {
 		return nil, err
 	}
-	if c.columnIndex == nil || c.chunk.ColumnIndexOffset == 0 {
+	if index == nil || c.chunk.ColumnIndexOffset == 0 {
 		return nil, ErrMissingColumnIndex
 	}
 	return fileColumnIndex{c}, nil
 }
 
 func (c *fileColumnChunk) OffsetIndex() (OffsetIndex, error) {
-	if err := c.readOffsetIndex(); err != nil {
+	index, err := c.readOffsetIndex()
+	if err != nil {
 		return nil, err
 	}
-	if c.offsetIndex == nil || c.chunk.OffsetIndexOffset == 0 {
+	if index == nil || c.chunk.OffsetIndexOffset == 0 {
 		return nil, ErrMissingOffsetIndex
 	}
-	return (*fileOffsetIndex)(c.offsetIndex), nil
+	return (*fileOffsetIndex)(index), nil
 }
 
 func (c *fileColumnChunk) BloomFilter() BloomFilter {
@@ -492,48 +494,59 @@ func (c *fileColumnChunk) NumValues() int64 {
 	return c.chunk.MetaData.NumValues
 }
 
-func (c *fileColumnChunk) readColumnIndex() error {
-	if c.columnIndex != nil {
-		return nil
+func (c *fileColumnChunk) readColumnIndex() (*format.ColumnIndex, error) {
+	if index := c.columnIndex.Load(); index != nil {
+		return index, nil
 	}
 	chunkMeta := c.file.metadata.RowGroups[c.rowGroup.Ordinal].Columns[c.Column()]
 	offset, length := chunkMeta.ColumnIndexOffset, chunkMeta.ColumnIndexLength
 	if offset == 0 {
-		return nil
+		return nil, nil
 	}
 
 	indexData := make([]byte, int(length))
 	var columnIndex format.ColumnIndex
 	if _, err := readAt(c.file.reader, indexData, offset); err != nil {
-		return fmt.Errorf("read %d bytes column index at offset %d: %w", length, offset, err)
+		return nil, fmt.Errorf("read %d bytes column index at offset %d: %w", length, offset, err)
 	}
 	if err := thrift.Unmarshal(&c.file.protocol, indexData, &columnIndex); err != nil {
-		return fmt.Errorf("decode column index: rowGroup=%d columnChunk=%d/%d: %w", c.rowGroup.Ordinal, c.Column(), len(c.rowGroup.Columns), err)
+		return nil, fmt.Errorf("decode column index: rowGroup=%d columnChunk=%d/%d: %w", c.rowGroup.Ordinal, c.Column(), len(c.rowGroup.Columns), err)
 	}
-	c.columnIndex = &columnIndex
-	return nil
+	index := &columnIndex
+	// We do a CAS (and Load on CAS failure) instead of a simple Store for
+	// the nice property that concurrent calling goroutines will only ever
+	// observe a single pointer value for the result.
+	if !c.columnIndex.CompareAndSwap(nil, index) {
+		// another goroutine populated it since we last read the pointer
+		return c.columnIndex.Load(), nil
+	}
+	return index, nil
 }
 
-func (c *fileColumnChunk) readOffsetIndex() error {
-	if c.offsetIndex != nil {
-		return nil
+func (c *fileColumnChunk) readOffsetIndex() (*format.OffsetIndex, error) {
+	if index := c.offsetIndex.Load(); index != nil {
+		return index, nil
 	}
 	chunkMeta := c.file.metadata.RowGroups[c.rowGroup.Ordinal].Columns[c.Column()]
 	offset, length := chunkMeta.OffsetIndexOffset, chunkMeta.OffsetIndexLength
 	if offset == 0 {
-		return nil
+		return nil, nil
 	}
 
 	indexData := make([]byte, int(length))
 	var offsetIndex format.OffsetIndex
 	if _, err := readAt(c.file.reader, indexData, offset); err != nil {
-		return fmt.Errorf("read %d bytes offset index at offset %d: %w", length, offset, err)
+		return nil, fmt.Errorf("read %d bytes offset index at offset %d: %w", length, offset, err)
 	}
 	if err := thrift.Unmarshal(&c.file.protocol, indexData, &offsetIndex); err != nil {
-		return fmt.Errorf("decode offset index: rowGroup=%d columnChunk=%d/%d: %w", c.rowGroup.Ordinal, c.Column(), len(c.rowGroup.Columns), err)
+		return nil, fmt.Errorf("decode offset index: rowGroup=%d columnChunk=%d/%d: %w", c.rowGroup.Ordinal, c.Column(), len(c.rowGroup.Columns), err)
 	}
-	c.offsetIndex = &offsetIndex
-	return nil
+	index := &offsetIndex
+	if !c.offsetIndex.CompareAndSwap(nil, index) {
+		// another goroutine populated it since we last read the pointer
+		return c.offsetIndex.Load(), nil
+	}
+	return index, nil
 }
 
 type filePages struct {
@@ -745,7 +758,7 @@ func (f *filePages) SeekToRow(rowIndex int64) (err error) {
 	if f.chunk == nil {
 		return io.ErrClosedPipe
 	}
-	if f.chunk.offsetIndex == nil {
+	if index := f.chunk.offsetIndex.Load(); index == nil {
 		_, err = f.section.Seek(f.dataOffset-f.baseOffset, io.SeekStart)
 		f.skip = rowIndex
 		f.index = 0
@@ -753,7 +766,7 @@ func (f *filePages) SeekToRow(rowIndex int64) (err error) {
 			f.index = 1
 		}
 	} else {
-		pages := f.chunk.offsetIndex.PageLocations
+		pages := index.PageLocations
 		index := sort.Search(len(pages), func(i int) bool {
 			return pages[i].FirstRowIndex > rowIndex
 		}) - 1

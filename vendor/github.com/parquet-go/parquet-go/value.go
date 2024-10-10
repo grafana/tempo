@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/parquet-go/parquet-go/deprecated"
 	"github.com/parquet-go/parquet-go/format"
-	"github.com/parquet-go/parquet-go/internal/unsafecast"
 )
 
 const (
@@ -419,11 +418,11 @@ func makeValueDouble(value float64) Value {
 }
 
 func makeValueBytes(kind Kind, value []byte) Value {
-	return makeValueByteArray(kind, unsafecast.AddressOfBytes(value), len(value))
+	return makeValueByteArray(kind, unsafe.SliceData(value), len(value))
 }
 
 func makeValueString(kind Kind, value string) Value {
-	return makeValueByteArray(kind, unsafecast.AddressOfString(value), len(value))
+	return makeValueByteArray(kind, unsafe.StringData(value), len(value))
 }
 
 func makeValueFixedLenByteArray(v reflect.Value) Value {
@@ -463,8 +462,8 @@ func (v *Value) float() float32          { return math.Float32frombits(uint32(v.
 func (v *Value) double() float64         { return math.Float64frombits(uint64(v.u64)) }
 func (v *Value) uint32() uint32          { return uint32(v.u64) }
 func (v *Value) uint64() uint64          { return v.u64 }
-func (v *Value) byteArray() []byte       { return unsafecast.Bytes(v.ptr, int(v.u64)) }
-func (v *Value) string() string          { return unsafecast.BytesToString(v.byteArray()) }
+func (v *Value) byteArray() []byte       { return unsafe.Slice(v.ptr, v.u64) }
+func (v *Value) string() string          { return unsafe.String(v.ptr, v.u64) }
 func (v *Value) be128() *[16]byte        { return (*[16]byte)(unsafe.Pointer(v.ptr)) }
 func (v *Value) column() int             { return int(^v.columnIndex) }
 
@@ -516,14 +515,14 @@ func (v Value) convertToDouble(x float64) Value {
 
 func (v Value) convertToByteArray(x []byte) Value {
 	v.kind = ^int8(ByteArray)
-	v.ptr = unsafecast.AddressOfBytes(x)
+	v.ptr = unsafe.SliceData(x)
 	v.u64 = uint64(len(x))
 	return v
 }
 
 func (v Value) convertToFixedLenByteArray(x []byte) Value {
 	v.kind = ^int8(FixedLenByteArray)
-	v.ptr = unsafecast.AddressOfBytes(x)
+	v.ptr = unsafe.SliceData(x)
 	v.u64 = uint64(len(x))
 	return v
 }
@@ -787,7 +786,7 @@ func (v Value) Level(repetitionLevel, definitionLevel, columnIndex int) Value {
 func (v Value) Clone() Value {
 	switch k := v.Kind(); k {
 	case ByteArray, FixedLenByteArray:
-		v.ptr = unsafecast.AddressOfBytes(copyBytes(v.byteArray()))
+		v.ptr = unsafe.SliceData(copyBytes(v.byteArray()))
 	}
 	return v
 }

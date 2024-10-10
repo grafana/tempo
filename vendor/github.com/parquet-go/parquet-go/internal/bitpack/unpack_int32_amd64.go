@@ -29,7 +29,7 @@ func unpackInt32(dst []int32, src []byte, bitWidth uint) {
 	case hasAVX2 && bitWidth <= 31:
 		unpackInt32x27to31bitsAVX2(dst, src, bitWidth)
 	case bitWidth == 32:
-		copy(dst, unsafecast.BytesToInt32(src))
+		copy(dst, unsafecast.Slice[int32](src))
 	default:
 		unpackInt32Default(dst, src, bitWidth)
 	}

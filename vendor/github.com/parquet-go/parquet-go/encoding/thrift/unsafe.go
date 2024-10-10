@@ -18,7 +18,3 @@ func makeTypeID(t reflect.Type) typeID {
 		ptr: (*[2]unsafe.Pointer)(unsafe.Pointer(&t))[1],
 	}
 }
-
-func unsafeBytesToString(b []byte) string {
-	return *(*string)(unsafe.Pointer(&b))
-}
