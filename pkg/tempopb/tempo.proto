@@ -200,10 +200,12 @@ message SearchTagValuesBlockRequest {
 
 message SearchTagsResponse {
   repeated string tagNames = 1;
+  MetadataMetrics metrics = 2;
 }
 
 message SearchTagsV2Response {
   repeated SearchTagsV2Scope scopes = 1;
+  MetadataMetrics metrics = 2;
 }
 
 message SearchTagsV2Scope {
@@ -220,6 +222,7 @@ message SearchTagValuesRequest {
 
 message SearchTagValuesResponse {
   repeated string tagValues = 1;
+  MetadataMetrics metrics = 2;
 }
 
 message TagValue {
@@ -229,6 +232,15 @@ message TagValue {
 
 message SearchTagValuesV2Response {
   repeated TagValue tagValues = 1;
+  MetadataMetrics metrics = 2;
+}
+
+message MetadataMetrics {
+  uint64 inspectedBytes = 1;
+  uint32 totalJobs = 2;
+  uint32 completedJobs = 3;
+  uint32 totalBlocks = 4;
+  uint64 totalBlockBytes = 5;
 }
 
 message Trace {

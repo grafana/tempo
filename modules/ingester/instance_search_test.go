@@ -275,37 +275,31 @@ func TestInstanceSearchTags(t *testing.T) {
 
 // nolint:revive,unparam
 func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tagName string, expectedTagValues []string) {
-	sr, err := i.SearchTags(ctx, "")
-	require.NoError(t, err)
-	assert.Contains(t, sr.TagNames, tagName)
+	checkSearchTags := func(scope string, contains bool) {
+		sr, err := i.SearchTags(ctx, scope)
+		require.NoError(t, err)
+		require.Greater(t, sr.Metrics.InspectedBytes, uint64(100)) // at least 100 bytes are inspected
+		if contains {
+			require.Contains(t, sr.TagNames, tagName)
+		} else {
+			require.NotContains(t, sr.TagNames, tagName)
+		}
+	}
 
-	sr, err = i.SearchTags(ctx, "span")
-	require.NoError(t, err)
-	assert.Contains(t, sr.TagNames, tagName)
-
-	sr, err = i.SearchTags(ctx, "resource")
-	require.NoError(t, err)
-	assert.NotContains(
-		t,
-		sr.TagNames,
-		tagName,
-	) // tags are added to h the spans and not resources so they should not be returned
-
-	// added the same span tag to both event and link
-	sr, err = i.SearchTags(ctx, "event")
-	require.NoError(t, err)
-	assert.Contains(t, sr.TagNames, tagName)
-
-	sr, err = i.SearchTags(ctx, "link")
-	require.NoError(t, err)
-	assert.Contains(t, sr.TagNames, tagName)
+	checkSearchTags("", true)
+	checkSearchTags("span", true)
+	// tags are added to the spans and not resources so they should not be present on resource
+	checkSearchTags("resource", false)
+	checkSearchTags("event", true)
+	checkSearchTags("link", true)
 
 	srv, err := i.SearchTagValues(ctx, tagName)
 	require.NoError(t, err)
+	require.Greater(t, srv.Metrics.InspectedBytes, uint64(100)) // we scanned at-least 100 bytes
 
 	sort.Strings(expectedTagValues)
 	sort.Strings(srv.TagValues)
-	assert.Equal(t, expectedTagValues, srv.TagValues)
+	require.Equal(t, expectedTagValues, srv.TagValues)
 }
 
 func TestInstanceSearchTagAndValuesV2(t *testing.T) {
@@ -372,74 +366,32 @@ func testSearchTagsAndValuesV2(
 ) {
 	tagsResp, err := i.SearchTags(ctx, "none")
 	require.NoError(t, err)
+	require.Greater(t, tagsResp.Metrics.InspectedBytes, uint64(100))
 
-	tagValuesResp, err := i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
-		TagName: fmt.Sprintf("span.%s", tagName),
-		Query:   query,
-	})
-	require.NoError(t, err)
+	checkTagValues := func(scope string, expectedValues []string) {
+		tagValuesResp, err := i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
+			TagName: fmt.Sprintf("%s.%s", scope, tagName),
+			Query:   query,
+		})
+		require.NoError(t, err)
+		// we scanned at-least 100 bytes
+		require.Greater(t, tagValuesResp.Metrics.InspectedBytes, uint64(100))
 
-	tagValues := make([]string, 0, len(tagValuesResp.TagValues))
-	for _, v := range tagValuesResp.TagValues {
-		tagValues = append(tagValues, v.Value)
+		tagValues := make([]string, 0, len(tagValuesResp.TagValues))
+		for _, v := range tagValuesResp.TagValues {
+			tagValues = append(tagValues, v.Value)
+		}
+
+		sort.Strings(tagValues)
+		sort.Strings(expectedValues)
+		require.Contains(t, tagsResp.TagNames, tagName)
+		require.Equal(t, expectedValues, tagValues)
 	}
 
-	sort.Strings(tagValues)
-	sort.Strings(expectedTagValues)
-	assert.Contains(t, tagsResp.TagNames, tagName)
-	assert.Equal(t, expectedTagValues, tagValues)
-
-	// Test with event and link
-
-	tagValuesResp, err = i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
-		TagName: fmt.Sprintf("event.%s", tagName),
-		Query:   query,
-	})
-	require.NoError(t, err)
-
-	tagValues = make([]string, 0, len(tagValuesResp.TagValues))
-	for _, v := range tagValuesResp.TagValues {
-		tagValues = append(tagValues, v.Value)
-	}
-
-	sort.Strings(tagValues)
-	sort.Strings(expectedEventTagValues)
-	assert.Contains(t, tagsResp.TagNames, tagName)
-	assert.Equal(t, expectedEventTagValues, tagValues)
-
-	tagValuesResp, err = i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
-		TagName: fmt.Sprintf("link.%s", tagName),
-		Query:   query,
-	})
-	require.NoError(t, err)
-
-	tagValues = make([]string, 0, len(tagValuesResp.TagValues))
-	for _, v := range tagValuesResp.TagValues {
-		tagValues = append(tagValues, v.Value)
-	}
-
-	sort.Strings(tagValues)
-	sort.Strings(expectedLinkTagValues)
-	assert.Contains(t, tagsResp.TagNames, tagName)
-	assert.Equal(t, expectedLinkTagValues, tagValues)
-
-	// instrumentation scope attr
-
-	tagValuesResp, err = i.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
-		TagName: fmt.Sprintf("instrumentation.%s", tagName),
-		Query:   query,
-	})
-	require.NoError(t, err)
-
-	tagValues = make([]string, 0, len(tagValuesResp.TagValues))
-	for _, v := range tagValuesResp.TagValues {
-		tagValues = append(tagValues, v.Value)
-	}
-
-	sort.Strings(tagValues)
-	sort.Strings(expectedTagValues)
-	assert.Contains(t, tagsResp.TagNames, tagName)
-	assert.Equal(t, expectedTagValues, tagValues)
+	checkTagValues("span", expectedTagValues)
+	checkTagValues("event", expectedEventTagValues)
+	checkTagValues("link", expectedLinkTagValues)
+	checkTagValues("instrumentation", expectedTagValues)
 }
 
 func cacheKeysForTestSearchTagValuesV2(tagKey, query string, limit int) []string {

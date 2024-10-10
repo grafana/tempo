@@ -587,7 +587,7 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, _ com
 	return results, nil
 }
 
-func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagsCallback, _ common.SearchOptions) error {
+func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagsCallback, mcb common.MetricsCallback, _ common.SearchOptions) error {
 	for i, blockFlush := range b.readFlushes() {
 		file, err := blockFlush.file(ctx)
 		if err != nil {
@@ -601,12 +601,13 @@ func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope,
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
+		mcb(file.r.BytesRead()) // record bytes read
 	}
 
 	return nil
 }
 
-func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagValuesCallback, opts common.SearchOptions) error {
+func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
 	att, ok := translateTagToAttribute[tag]
 	if !ok {
 		att = traceql.NewAttribute(tag)
@@ -618,10 +619,10 @@ func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.Ta
 		return false
 	}
 
-	return b.SearchTagValuesV2(ctx, att, cb2, opts)
+	return b.SearchTagValuesV2(ctx, att, cb2, mcb, opts)
 }
 
-func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, _ common.SearchOptions) error {
+func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, mcb common.MetricsCallback, _ common.SearchOptions) error {
 	for i, blockFlush := range b.readFlushes() {
 		file, err := blockFlush.file(ctx)
 		if err != nil {
@@ -635,6 +636,7 @@ func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute,
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
+		mcb(file.r.BytesRead()) // record bytes read
 	}
 
 	return nil
@@ -685,7 +687,7 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, _ c
 	}, nil
 }
 
-func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, opts common.SearchOptions) error {
+func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return fmt.Errorf("conditions invalid: %w", err)
@@ -697,7 +699,7 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 	}
 
 	if len(req.Conditions) <= 1 || mingledConditions { // Last check. No conditions, use old path. It's much faster.
-		return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), common.DefaultSearchOptions())
+		return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
 	}
 
 	blockFlushes := b.readFlushes()
@@ -733,18 +735,20 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 				v := oe.Value.(traceql.Static)
 				if cb(v) {
 					iter.Close()
-					return nil // We have enough values
+					mcb(file.r.BytesRead()) // record bytes read
+					return nil              // We have enough values
 				}
 			}
 		}
 		iter.Close()
+		mcb(file.r.BytesRead()) // record bytes read
 	}
 
 	// combine iters?
 	return nil
 }
 
-func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, opts common.SearchOptions) error {
+func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return fmt.Errorf("conditions invalid: %w", err)
@@ -758,7 +762,7 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 	if len(req.Conditions) < 1 || mingledConditions {
 		return b.SearchTags(ctx, req.Scope, func(t string, scope traceql.AttributeScope) {
 			cb(t, scope)
-		}, opts)
+		}, mcb, opts)
 	}
 
 	blockFlushes := b.readFlushes()
@@ -792,11 +796,13 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 			for _, oe := range res.OtherEntries {
 				if cb(oe.Key, oe.Value.(traceql.AttributeScope)) {
 					iter.Close()
-					return nil // We have enough values
+					mcb(file.r.BytesRead()) // record bytes read
+					return nil              // We have enough values
 				}
 			}
 		}
 		iter.Close()
+		mcb(file.r.BytesRead()) // record bytes read
 
 		// add well known
 		tagNamesForSpecialColumns(req.Scope, file.parquetFile, b.meta.DedicatedColumns, cb)

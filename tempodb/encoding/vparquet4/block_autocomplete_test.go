@@ -327,12 +327,15 @@ func TestFetchTagNames(t *testing.T) {
 					Conditions: req.Conditions,
 					Scope:      scope,
 				}
+				mc := collector.NewMetricsCollector()
 
 				err = block.FetchTagNames(ctx, autocompleteReq, func(t string, scope traceql.AttributeScope) bool {
 					distinctAttrNames.Collect(scope.String(), t)
 					return false
-				}, opts)
+				}, mc.Add, opts)
 				require.NoError(t, err)
+				// test that callback is recording bytes read
+				require.Greater(t, mc.TotalValue(), uint64(100))
 
 				actualValues := distinctAttrNames.Strings()
 
@@ -634,9 +637,12 @@ func TestFetchTagValues(t *testing.T) {
 				Attribute: tagAtrr,
 				Op:        traceql.OpNone,
 			})
+			mc := collector.NewMetricsCollector()
 
-			err = block.FetchTagValues(ctx, autocompleteReq, traceql.MakeCollectTagValueFunc(distinctValues.Collect), opts)
+			err = block.FetchTagValues(ctx, autocompleteReq, traceql.MakeCollectTagValueFunc(distinctValues.Collect), mc.Add, opts)
 			require.NoError(t, err)
+			// test that callback is recording bytes read
+			require.Greater(t, mc.TotalValue(), uint64(100))
 
 			expectedValues := tc.expectedValues
 			actualValues := distinctValues.Values()
@@ -731,10 +737,11 @@ func BenchmarkFetchTagValues(b *testing.B) {
 				Conditions: req.Conditions,
 				TagName:    tag,
 			}
+			mc := collector.NewMetricsCollector()
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				err := block.FetchTagValues(ctx, autocompleteReq, traceql.MakeCollectTagValueFunc(distinctValues.Collect), opts)
+				err := block.FetchTagValues(ctx, autocompleteReq, traceql.MakeCollectTagValueFunc(distinctValues.Collect), mc.Add, opts)
 				require.NoError(b, err)
 			}
 		})
@@ -803,13 +810,14 @@ func BenchmarkFetchTags(b *testing.B) {
 					Conditions: req.Conditions,
 					Scope:      scope,
 				}
+				mc := collector.NewMetricsCollector()
 				b.ResetTimer()
 
 				for i := 0; i < b.N; i++ {
 					err := block.FetchTagNames(ctx, autocompleteReq, func(t string, scope traceql.AttributeScope) bool {
 						distinctStrings.Collect(scope.String(), t)
 						return false
-					}, opts)
+					}, mc.Add, opts)
 					require.NoError(b, err)
 				}
 			})

@@ -35,9 +35,10 @@ type Config struct {
 }
 
 type SearchConfig struct {
-	Timeout time.Duration       `yaml:"timeout,omitempty"`
-	Sharder SearchSharderConfig `yaml:",inline"`
-	SLO     SLOConfig           `yaml:",inline"`
+	Timeout     time.Duration       `yaml:"timeout,omitempty"`
+	Sharder     SearchSharderConfig `yaml:",inline"`
+	SLO         SLOConfig           `yaml:",inline"`
+	MetadataSLO SLOConfig           `yaml:"metadata_slo,omitempty"`
 }
 
 type TraceByIDConfig struct {

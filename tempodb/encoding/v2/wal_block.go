@@ -241,7 +241,7 @@ func (a *walBlock) Clear() error {
 	return os.Remove(name)
 }
 
-// Find implements common.Finder
+// FindTraceByID Find implements common.Finder
 func (a *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
 	_, span := tracer.Start(ctx, "v2WalBlock.FindTraceByID")
 	defer span.End()
@@ -286,17 +286,17 @@ func (a *walBlock) Search(context.Context, *tempopb.SearchRequest, common.Search
 	return nil, common.ErrUnsupported
 }
 
-// Search implements common.Searcher
-func (a *walBlock) SearchTags(context.Context, traceql.AttributeScope, common.TagsCallback, common.SearchOptions) error {
+// SearchTags implements common.Searcher
+func (a *walBlock) SearchTags(context.Context, traceql.AttributeScope, common.TagsCallback, common.MetricsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
 // SearchTagValues implements common.Searcher
-func (a *walBlock) SearchTagValues(context.Context, string, common.TagValuesCallback, common.SearchOptions) error {
+func (a *walBlock) SearchTagValues(context.Context, string, common.TagValuesCallback, common.MetricsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
-func (a *walBlock) SearchTagValuesV2(context.Context, traceql.Attribute, common.TagValuesCallbackV2, common.SearchOptions) error {
+func (a *walBlock) SearchTagValuesV2(context.Context, traceql.Attribute, common.TagValuesCallbackV2, common.MetricsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
@@ -305,13 +305,13 @@ func (a *walBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.Sear
 	return traceql.FetchSpansResponse{}, common.ErrUnsupported
 }
 
-// FetchTagValues implements traceql.Searcher
-func (a *walBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.SearchOptions) error {
+// FetchTagValues implements common.Searcher
+func (a *walBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.MetricsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
-// FetchTagNames implements traceql.Searcher
-func (a *walBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.SearchOptions) error {
+// FetchTagNames implements common.Searcher
+func (a *walBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.MetricsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 

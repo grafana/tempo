@@ -19,17 +19,19 @@ type (
 	TagsCallback        func(t string, scope traceql.AttributeScope)
 	TagValuesCallback   func(t string) bool
 	TagValuesCallbackV2 func(traceql.Static) (stop bool)
+	MetricsCallback     func(bytesRead uint64) // callback for accumulating bytesRead
 )
 
 type Searcher interface {
 	Search(ctx context.Context, req *tempopb.SearchRequest, opts SearchOptions) (*tempopb.SearchResponse, error)
-	SearchTags(ctx context.Context, scope traceql.AttributeScope, cb TagsCallback, opts SearchOptions) error
-	SearchTagValues(ctx context.Context, tag string, cb TagValuesCallback, opts SearchOptions) error
-	SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb TagValuesCallbackV2, opts SearchOptions) error
+	SearchTags(ctx context.Context, scope traceql.AttributeScope, cb TagsCallback, mcb MetricsCallback, opts SearchOptions) error
+	SearchTagValues(ctx context.Context, tag string, cb TagValuesCallback, mcb MetricsCallback, opts SearchOptions) error
+	SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb TagValuesCallbackV2, mcb MetricsCallback, opts SearchOptions) error
 
+	// TODO(suraj): use MetricsCallback in Fetch and remove the Bytes callback from FetchSpansResponse
 	Fetch(context.Context, traceql.FetchSpansRequest, SearchOptions) (traceql.FetchSpansResponse, error)
-	FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, SearchOptions) error
-	FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, SearchOptions) error
+	FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, MetricsCallback, SearchOptions) error
+	FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, MetricsCallback, SearchOptions) error
 }
 
 type SearchOptions struct {
