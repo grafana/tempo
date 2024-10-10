@@ -146,6 +146,47 @@ func (g *AvgAggregator[F, S]) Observe(span Span) {
 	s.compensation[interval] = c
 }
 
+func averageInc(mean, inc, count, compensation float64) (float64, float64) {
+	if math.IsNaN(mean) && !math.IsNaN(inc) {
+		// When we have a proper value in the span we need to initialize to 0
+		mean = 0
+	}
+	if math.IsInf(mean, 0) {
+		if math.IsInf(inc, 0) && (mean > 0) == (inc > 0) {
+			// The `current.val` and `new` values are `Inf` of the same sign.  They
+			// can't be subtracted, but the value of `current.val` is correct
+			// already.
+			return mean, compensation
+		}
+		if !math.IsInf(inc, 0) && !math.IsNaN(inc) {
+			// At this stage, the current.val is an infinite. If the added
+			// value is neither an Inf or a Nan, we can keep that mean
+			// value.
+			// This is required because our calculation below removes
+			// the mean value, which would look like Inf += x - Inf and
+			// end up as a NaN.
+			return mean, compensation
+		}
+	}
+	mean, c := kahanSumInc(inc/count-mean/count, mean, compensation)
+	return mean, c
+}
+
+func kahanSumInc(inc, sum, c float64) (newSum, newC float64) {
+	t := sum + inc
+	switch {
+	case math.IsInf(t, 0):
+		c = 0
+
+	// Using Neumaier improvement, swap if next term larger than sum.
+	case math.Abs(sum) >= math.Abs(inc):
+		c += (sum - t) + inc
+	default:
+		c += (inc - t) + sum
+	}
+	return t, c
+}
+
 func (g *AvgAggregator[F, S]) ObserveExemplar(_ Span, _ float64, _ uint64) {
 }
 
