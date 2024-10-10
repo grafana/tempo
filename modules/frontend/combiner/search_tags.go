@@ -33,7 +33,7 @@ func NewSearchTags(limitBytes int) Combiner {
 			response.TagNames = d.Strings()
 			// return metrics with final results
 			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
-			response.Metrics = &tempopb.SearchTagMetrics{InspectedBytes: inspectedBytes.Load()}
+			response.Metrics = &tempopb.MetadataMetrics{InspectedBytes: inspectedBytes.Load()}
 			return response, nil
 		},
 		quit: func(_ *tempopb.SearchTagsResponse) bool {
@@ -48,7 +48,7 @@ func NewSearchTags(limitBytes int) Combiner {
 			response.TagNames = resp
 			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
 			// return metrics with diff results
-			response.Metrics = &tempopb.SearchTagMetrics{InspectedBytes: inspectedBytes.Load()}
+			response.Metrics = &tempopb.MetadataMetrics{InspectedBytes: inspectedBytes.Load()}
 			return response, nil
 		},
 	}
@@ -92,7 +92,7 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 			}
 			// return metrics with final results
 			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
-			final.Metrics = &tempopb.SearchTagMetrics{InspectedBytes: inspectedBytes.Load()}
+			final.Metrics = &tempopb.MetadataMetrics{InspectedBytes: inspectedBytes.Load()}
 			return final, nil
 		},
 		quit: func(_ *tempopb.SearchTagsV2Response) bool {
@@ -113,7 +113,7 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 			}
 			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
 			// also return metrics with diff results
-			response.Metrics = &tempopb.SearchTagMetrics{InspectedBytes: inspectedBytes.Load()}
+			response.Metrics = &tempopb.MetadataMetrics{InspectedBytes: inspectedBytes.Load()}
 			return response, nil
 		},
 	}

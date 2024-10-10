@@ -396,7 +396,7 @@ func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta,
 	collected := distinctValues.Strings()
 	resp := &tempopb.SearchTagsV2Response{
 		Scopes:  make([]*tempopb.SearchTagsV2Scope, 0, len(collected)),
-		Metrics: &tempopb.SearchTagMetrics{InspectedBytes: mc.TotalValue()},
+		Metrics: &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()},
 	}
 	for scope, vals := range collected {
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
@@ -421,7 +421,7 @@ func (rw *readerWriter) SearchTagValues(ctx context.Context, meta *backend.Block
 
 	return &tempopb.SearchTagValuesResponse{
 		TagValues: dv.Strings(),
-		Metrics:   &tempopb.SearchTagMetrics{InspectedBytes: mc.TotalValue()},
+		Metrics:   &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()},
 	}, err
 }
 
@@ -445,7 +445,7 @@ func (rw *readerWriter) SearchTagValuesV2(ctx context.Context, meta *backend.Blo
 	}
 
 	resp := &tempopb.SearchTagValuesV2Response{
-		Metrics: &tempopb.SearchTagMetrics{InspectedBytes: mc.TotalValue()},
+		Metrics: &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()},
 	}
 	for _, v := range dv.Values() {
 		v2 := v

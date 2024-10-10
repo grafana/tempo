@@ -222,7 +222,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 					Tags: search.GetVirtualIntrinsicValues(),
 				},
 			},
-			Metrics: &tempopb.SearchTagMetrics{InspectedBytes: 0}, // no bytes read for intrinsics
+			Metrics: &tempopb.MetadataMetrics{InspectedBytes: 0}, // no bytes read for intrinsics
 		}, nil
 	}
 
@@ -302,7 +302,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	collected := distinctValues.Strings()
 	resp := &tempopb.SearchTagsV2Response{
 		Scopes: make([]*tempopb.SearchTagsV2Scope, 0, len(collected)+1), // +1 for intrinsic below
-		Metrics: &tempopb.SearchTagMetrics{
+		Metrics: &tempopb.MetadataMetrics{
 			InspectedBytes: mc.TotalValue(), // capture metrics
 		},
 	}
@@ -387,7 +387,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 
 	return &tempopb.SearchTagValuesResponse{
 		TagValues: distinctValues.Strings(),
-		Metrics:   &tempopb.SearchTagMetrics{InspectedBytes: mc.TotalValue()},
+		Metrics:   &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()},
 	}, nil
 }
 
@@ -593,7 +593,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	}
 
 	resp := &tempopb.SearchTagValuesV2Response{
-		Metrics: &tempopb.SearchTagMetrics{InspectedBytes: mc.TotalValue()}, // include metrics in response
+		Metrics: &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()}, // include metrics in response
 	}
 
 	for _, v := range valueCollector.Values() {

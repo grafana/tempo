@@ -111,14 +111,14 @@ func TestVirtualTagsDoesntHitBackend(t *testing.T) {
 		TagName: "duration",
 	})
 	require.NoError(t, err)
-	require.Equal(t, &tempopb.SearchTagValuesV2Response{Metrics: &tempopb.SearchTagMetrics{}}, resp)
+	require.Equal(t, &tempopb.SearchTagValuesV2Response{Metrics: &tempopb.MetadataMetrics{}}, resp)
 
 	// traceDuration should return nothing
 	resp, err = q.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
 		TagName: "traceDuration",
 	})
 	require.NoError(t, err)
-	require.Equal(t, &tempopb.SearchTagValuesV2Response{Metrics: &tempopb.SearchTagMetrics{}}, resp)
+	require.Equal(t, &tempopb.SearchTagValuesV2Response{Metrics: &tempopb.MetadataMetrics{}}, resp)
 
 	// status should return a static list
 	resp, err = q.SearchTagValuesV2(ctx, &tempopb.SearchTagValuesRequest{
@@ -141,7 +141,7 @@ func TestVirtualTagsDoesntHitBackend(t *testing.T) {
 				Value: "unset",
 			},
 		},
-		Metrics: &tempopb.SearchTagMetrics{},
+		Metrics: &tempopb.MetadataMetrics{},
 	}, resp)
 
 	// kind should return a static list
@@ -177,7 +177,7 @@ func TestVirtualTagsDoesntHitBackend(t *testing.T) {
 				Value: "unspecified",
 			},
 		},
-		Metrics: &tempopb.SearchTagMetrics{},
+		Metrics: &tempopb.MetadataMetrics{},
 	}, resp)
 
 	// this should error b/c it will attempt to hit the un-configured backend

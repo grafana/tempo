@@ -568,7 +568,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 
 	return &tempopb.SearchTagsResponse{
 		TagNames: distinctValues.Strings(),
-		Metrics:  &tempopb.SearchTagMetrics{InspectedBytes: mc.TotalValue()},
+		Metrics:  &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()},
 	}, nil
 }
 
@@ -615,7 +615,7 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 	collected := distinctValues.Strings()
 	resp := &tempopb.SearchTagsV2Response{
 		Scopes:  make([]*tempopb.SearchTagsV2Scope, 0, len(collected)),
-		Metrics: &tempopb.SearchTagMetrics{InspectedBytes: mc.TotalValue()}, // send metrics with response
+		Metrics: &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()}, // send metrics with response
 	}
 	for scope, vals := range collected {
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
@@ -673,7 +673,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 
 	return &tempopb.SearchTagValuesResponse{
 		TagValues: distinctValues.Strings(),
-		Metrics:   &tempopb.SearchTagMetrics{InspectedBytes: mc.TotalValue()},
+		Metrics:   &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()},
 	}, nil
 }
 
@@ -828,7 +828,7 @@ func (q *Querier) SpanMetricsSummary(
 
 func valuesToV2Response(distinctValues *collector.DistinctValue[tempopb.TagValue], bytesRead uint64) *tempopb.SearchTagValuesV2Response {
 	resp := &tempopb.SearchTagValuesV2Response{
-		Metrics: &tempopb.SearchTagMetrics{InspectedBytes: bytesRead},
+		Metrics: &tempopb.MetadataMetrics{InspectedBytes: bytesRead},
 	}
 	for _, v := range distinctValues.Values() {
 		v2 := v
@@ -922,7 +922,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 				},
 			},
 			// no bytes were scanned to return the intrinsic values
-			Metrics: &tempopb.SearchTagMetrics{InspectedBytes: 0},
+			Metrics: &tempopb.MetadataMetrics{InspectedBytes: 0},
 		}, nil
 	}
 
@@ -1002,10 +1002,8 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 
 	scopedVals := valueCollector.Strings()
 	resp := &tempopb.SearchTagsV2Response{
-		Scopes: make([]*tempopb.SearchTagsV2Scope, 0, len(scopedVals)),
-		Metrics: &tempopb.SearchTagMetrics{
-			InspectedBytes: mc.TotalValue(), // send metrics with response
-		},
+		Scopes:  make([]*tempopb.SearchTagsV2Scope, 0, len(scopedVals)),
+		Metrics: &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()}, // send metrics with response
 	}
 	for scope, vals := range scopedVals {
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
