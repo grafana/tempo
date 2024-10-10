@@ -584,10 +584,10 @@ func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope,
 		pf := file.parquetFile
 
 		err = searchTags(ctx, scope, cb, pf)
-		mcb(file.r.BytesRead()) // call the metrics callback
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
+		mcb(file.r.BytesRead()) // record bytes read
 	}
 
 	return nil
@@ -619,10 +619,10 @@ func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute,
 		pf := file.parquetFile
 
 		err = searchTagValues(ctx, tag, cb, pf)
-		mcb(file.r.BytesRead()) // call the metrics callback
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
+		mcb(file.r.BytesRead()) // record bytes read
 	}
 
 	return nil

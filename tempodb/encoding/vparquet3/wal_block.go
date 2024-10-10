@@ -598,10 +598,10 @@ func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope,
 		pf := file.parquetFile
 
 		err = searchTags(ctx, scope, cb, pf, b.meta.DedicatedColumns)
-		mcb(file.r.BytesRead()) // metrics callback
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
+		mcb(file.r.BytesRead()) // record bytes read
 	}
 
 	return nil
@@ -633,10 +633,10 @@ func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute,
 		pf := file.parquetFile
 
 		err = searchTagValues(ctx, tag, cb, pf, b.meta.DedicatedColumns)
-		mcb(file.r.BytesRead())
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
+		mcb(file.r.BytesRead()) // record bytes read
 	}
 
 	return nil
@@ -735,12 +735,13 @@ func (b *walBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValue
 				v := oe.Value.(traceql.Static)
 				if cb(v) {
 					iter.Close()
-					return nil // We have enough values
+					mcb(file.r.BytesRead()) // record bytes read
+					return nil              // We have enough values
 				}
 			}
 		}
 		iter.Close()
-		mcb(file.r.BytesRead()) // call the metrics callback
+		mcb(file.r.BytesRead()) // record bytes read
 	}
 
 	// combine iters?
@@ -795,12 +796,13 @@ func (b *walBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsReque
 			for _, oe := range res.OtherEntries {
 				if cb(oe.Key, oe.Value.(traceql.AttributeScope)) {
 					iter.Close()
-					return nil // We have enough values
+					mcb(file.r.BytesRead()) // record bytes read
+					return nil              // We have enough values
 				}
 			}
 		}
 		iter.Close()
-		mcb(file.r.BytesRead()) // call the metrics callback
+		mcb(file.r.BytesRead()) // record bytes read
 
 		// add well known
 		tagNamesForSpecialColumns(req.Scope, file.parquetFile, b.meta.DedicatedColumns, cb)

@@ -58,7 +58,7 @@ func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeSc
 		return fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
 	defer func() {
-		mcb(rr.BytesRead()) // metrics callback
+		mcb(rr.BytesRead()) // capture bytes read
 		span.SetAttributes(attribute.Int64("inspectedBytes", int64(rr.BytesRead())))
 	}()
 
@@ -221,9 +221,8 @@ func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attrib
 	if err != nil {
 		return fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
-	// capture metrics in span and metrics callback
 	defer func() {
-		mcb(rr.BytesRead())
+		mcb(rr.BytesRead()) // capture bytes read
 		span.SetAttributes(attribute.Int64("inspectedBytes", int64(rr.BytesRead())))
 	}()
 

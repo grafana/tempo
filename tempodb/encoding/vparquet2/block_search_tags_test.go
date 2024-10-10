@@ -29,7 +29,8 @@ func TestBackendBlockSearchTags(t *testing.T) {
 		ctx := context.Background()
 		err := block.SearchTags(ctx, scope, cb, mc.Add, common.DefaultSearchOptions())
 		require.NoError(t, err)
-		require.NotZero(t, mc.TotalValue())
+		// test that callback is recording bytes read
+		require.Greater(t, mc.TotalValue(), uint64(100))
 
 		// test that all attrs are in found attrs
 		for k := range attrs {
@@ -78,7 +79,8 @@ func TestBackendBlockSearchTagValues(t *testing.T) {
 		err := block.SearchTagValues(ctx, tag, cb, mc.Add, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.True(t, wasCalled, tag)
-		require.NotZero(t, mc.TotalValue())
+		// test that callback is recording bytes read
+		require.Greater(t, mc.TotalValue(), uint64(100))
 	}
 }
 
@@ -154,7 +156,8 @@ func TestBackendBlockSearchTagValuesV2(t *testing.T) {
 		err := block.SearchTagValuesV2(ctx, tc.tag, cb, mc.Add, common.DefaultSearchOptions())
 		require.NoError(t, err, tc.tag)
 		require.Equal(t, tc.vals, got, "tag=%v", tc.tag)
-		require.NotZero(t, mc.TotalValue())
+		// test that callback is recording bytes read
+		require.Greater(t, mc.TotalValue(), uint64(100))
 	}
 }
 
