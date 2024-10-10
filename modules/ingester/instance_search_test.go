@@ -300,7 +300,6 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 	sort.Strings(expectedTagValues)
 	sort.Strings(srv.TagValues)
 	require.Equal(t, expectedTagValues, srv.TagValues)
-
 }
 
 func TestInstanceSearchTagAndValuesV2(t *testing.T) {

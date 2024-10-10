@@ -512,6 +512,7 @@ func TestSearchTagsV2AccessesCache(t *testing.T) {
 				Tags: []string{"blarg", "blerg"},
 			},
 		},
+		Metrics: &tempopb.MetadataMetrics{},
 	}
 	overwriteString, err := (&jsonpb.Marshaler{}).MarshalToString(overwriteResp)
 	require.NoError(t, err)
