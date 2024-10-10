@@ -109,7 +109,7 @@ func TestRetry(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			try.Store(0)
 
-			retryWare := NewRetryWare(tc.maxRetries, prometheus.NewRegistry())
+			retryWare := NewRetryWare(tc.maxRetries, true, prometheus.NewRegistry())
 			handler := retryWare.Wrap(tc.handler)
 
 			req := httptest.NewRequest("GET", "http://example.com", nil)
@@ -133,7 +133,7 @@ func TestRetry_CancelledRequest(t *testing.T) {
 	req, err := http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 	require.NoError(t, err)
 
-	_, err = NewRetryWare(5, prometheus.NewRegistry()).
+	_, err = NewRetryWare(5, false, prometheus.NewRegistry()).
 		Wrap(RoundTripperFunc(func(_ Request) (*http.Response, error) {
 			try.Inc()
 			return nil, ctx.Err()
@@ -148,7 +148,7 @@ func TestRetry_CancelledRequest(t *testing.T) {
 	req, err = http.NewRequestWithContext(ctx, "GET", "http://example.com", nil)
 	require.NoError(t, err)
 
-	_, err = NewRetryWare(5, prometheus.NewRegistry()).
+	_, err = NewRetryWare(5, false, prometheus.NewRegistry()).
 		Wrap(RoundTripperFunc(func(_ Request) (*http.Response, error) {
 			try.Inc()
 			cancel()

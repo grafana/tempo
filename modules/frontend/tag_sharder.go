@@ -220,7 +220,7 @@ func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.
 
 	reqCh := make(chan pipeline.Request, 1) // buffer of 1 allows us to insert ingestReq if it exists
 	if ingesterReq != nil {
-		reqCh <- pipeline.NewHTTPRequest(ingesterReq)
+		reqCh <- pipelineRequest.FromHTTPRequest(ingesterReq)
 	}
 
 	s.backendRequests(ctx, tenantID, r, searchReq, reqCh, func(err error) {
