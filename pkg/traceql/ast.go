@@ -402,6 +402,8 @@ type BinaryOperation struct {
 	RHS FieldExpression
 
 	compiledExpression *regexp.Regexp
+
+	b branchOptimizer
 }
 
 func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
@@ -415,6 +417,10 @@ func newBinaryOperation(op Operator, lhs, rhs FieldExpression) FieldExpression {
 		if simplified, err := binop.execute(nil); err == nil {
 			return simplified
 		}
+	}
+
+	if (op == OpAnd || op == OpOr) && binop.referencesSpan() {
+		binop.b = newBranchPredictor(2, 1000)
 	}
 
 	return binop
