@@ -656,7 +656,7 @@ func TestAvgOverTimeForDuration(t *testing.T) {
 	assert.True(t, math.IsNaN(fooBar.Values[2]))
 }
 
-func TestAvgOverTimeForDuration2(t *testing.T) {
+func TestAvgOverTimeForDurationWithoutAggregation(t *testing.T) {
 	req := &tempopb.QueryRangeRequest{
 		Start: uint64(1 * time.Second),
 		End:   uint64(3 * time.Second),
@@ -677,22 +677,15 @@ func TestAvgOverTimeForDuration2(t *testing.T) {
 
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(100),
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(200),
-		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(300),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "bar").WithDuration(300),
 	}
 
 	result := runTraceQLMetric(t, req, in)
+	avg := result[`{__name__="avg_over_time"}`]
 
-	fooBaz := result[`{span.foo="baz"}`]
-	fooBar := result[`{span.foo="bar"}`]
-
-	// We cannot compare with require.Equal because NaN != NaN
-	assert.True(t, math.IsNaN(fooBaz.Values[0]))
-	assert.True(t, math.IsNaN(fooBaz.Values[1]))
-	assert.Equal(t, 200., fooBaz.Values[2]*float64(time.Second))
-
-	assert.Equal(t, 100., fooBar.Values[0]*float64(time.Second))
-	assert.Equal(t, 200., fooBar.Values[1]*float64(time.Second))
-	assert.True(t, math.IsNaN(fooBar.Values[2]))
+	assert.Equal(t, 100., avg.Values[0]*float64(time.Second))
+	assert.Equal(t, 200., avg.Values[1]*float64(time.Second))
+	assert.Equal(t, 200., avg.Values[2]*float64(time.Second))
 }
 
 func TestAvgOverTimeForSpanAttribute(t *testing.T) {
@@ -794,6 +787,81 @@ func TestAvgOverTimeWithNoMatch(t *testing.T) {
 	ts := result.ToProto(req)
 
 	assert.True(t, len(ts) == 0)
+}
+
+func TestObserveSeriesAverageOverTimeForSpanAttribute(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(1 * time.Second),
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | avg_over_time(span.http.status_code) by (span.foo)",
+	}
+
+	// A variety of spans across times, durations, and series. All durations are powers of 2 for simplicity
+	in := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 300),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 400),
+
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 100),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 100),
+
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 200),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 400),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 500),
+	}
+
+	in2 := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 100),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 300),
+
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 400),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200),
+
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 100),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 100),
+	}
+
+	e := NewEngine()
+	layer1A, _ := e.CompileMetricsQueryRange(req, 0, 0, false)
+	layer1B, _ := e.CompileMetricsQueryRange(req, 0, 0, false)
+	layer2A, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
+	layer2B, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
+	layer3, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
+
+	for _, s := range in {
+		layer1A.metricsPipeline.observe(s)
+	}
+
+	layer2A.ObserveSeries(layer1A.Results().ToProto(req))
+
+	for _, s := range in2 {
+		layer1B.metricsPipeline.observe(s)
+	}
+
+	layer2B.ObserveSeries(layer1B.Results().ToProto(req))
+
+	layer3.ObserveSeries(layer2A.Results().ToProto(req))
+	layer3.ObserveSeries(layer2B.Results().ToProto(req))
+
+	result := layer3.Results()
+
+	fooBaz := result[`{span.foo="baz"}`]
+	fooBar := result[`{span.foo="bar"}`]
+
+	// Alas,we cannot compare with require.Equal because NaN != NaN
+	// foo.baz = (NaN, NaN, 300)
+	assert.True(t, math.IsNaN(fooBaz.Values[0]))
+	assert.True(t, math.IsNaN(fooBaz.Values[1]))
+	// 300 = (200 + 400 + 500 + 100) / 4
+	assert.Equal(t, 300.0, fooBaz.Values[2])
+
+	// foo.bar = (260,200, 100)
+	assert.Equal(t, 260.0, fooBar.Values[0])
+	assert.Equal(t, 200.0, fooBar.Values[1])
+	assert.Equal(t, 100.0, fooBar.Values[2])
 }
 
 func TestMaxOverTimeForDuration(t *testing.T) {
@@ -1008,67 +1076,6 @@ func TestHistogramOverTime(t *testing.T) {
 
 	result := runTraceQLMetric(t, req, in)
 	require.Equal(t, out, result)
-}
-
-func TestObserveSeriesAverageOverTimeForSpanAttribute(t *testing.T) {
-	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
-		End:   uint64(3 * time.Second),
-		Step:  uint64(1 * time.Second),
-		Query: "{ } | avg_over_time(span.http.status_code) by (span.foo)",
-	}
-
-	// A variety of spans across times, durations, and series. All durations are powers of 2 for simplicity
-	in := []Span{
-		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200),
-		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 300),
-		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 400),
-
-		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200),
-		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200),
-		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 100),
-		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 100),
-
-		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 201),
-		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 401),
-		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 500),
-	}
-
-	in2 := []Span{
-		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 100),
-		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 300),
-
-		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 400),
-		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200),
-
-		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 400),
-		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 100),
-	}
-
-	e := NewEngine()
-	layer1A, _ := e.CompileMetricsQueryRange(req, 0, 0, false)
-	layer1B, _ := e.CompileMetricsQueryRange(req, 0, 0, false)
-	layer2A, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
-	layer2B, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
-	layer3, _ := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
-
-	for _, s := range in {
-		layer1A.metricsPipeline.observe(s)
-	}
-
-	layer2A.ObserveSeries(layer1A.Results().ToProto(req))
-
-	for _, s := range in2 {
-		layer1B.metricsPipeline.observe(s)
-	}
-
-	layer2B.ObserveSeries(layer1B.Results().ToProto(req))
-
-	layer3.ObserveSeries(layer2A.Results().ToProto(req))
-	layer3.ObserveSeries(layer2B.Results().ToProto(req))
-
-	res := layer3.Results().ToProto(req)
-	assert.NotNil(t, res)
 }
 
 func runTraceQLMetric(t *testing.T, req *tempopb.QueryRangeRequest, inSpans ...[]Span) SeriesSet {

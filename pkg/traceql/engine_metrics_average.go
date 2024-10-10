@@ -11,44 +11,123 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 )
 
-type AvgSeries[S StaticVals] struct {
-	avg          []float64
-	count        []float64
-	compensation []float64
-	init         bool
-	vals         S
+// Average over time aggregator
+type AverageOverTimeAggregator struct {
+	by   []Attribute
+	attr Attribute
+	// Average over time span aggregator
+	agg SpanAggregator
+	// Average over time series aggregator
+	seriesAgg  SeriesAggregator
+	exemplarFn getExemplar
+	mode       AggregateMode
 }
 
-type AvgAggregator[F FastStatic, S StaticVals] struct {
-	// Config
-	by              []Attribute   // Original attributes: .foo
-	byLookups       [][]Attribute // Lookups: span.foo resource.foo
-	getSpanAttValue func(s Span) float64
-	start           uint64
-	end             uint64
-	step            uint64
+var _ metricsFirstStageElement = (*AverageOverTimeAggregator)(nil)
 
-	// Data
-	series     map[F]AvgSeries[S]
-	lastSeries AvgSeries[S]
-	buf        fastStaticWithValues[F, S]
-	lastBuf    fastStaticWithValues[F, S]
+func newAverageOverTimeMetricsAggregator(attr Attribute, by []Attribute) *AverageOverTimeAggregator {
+	return &AverageOverTimeAggregator{
+		attr: attr,
+		by:   by,
+	}
 }
 
-type SimpleAverageSeriesAggregator struct {
+func (a *AverageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
+	exemplarFn := func(s Span) (float64, uint64) {
+		return math.NaN(), a.spanStartTimeMs(s)
+	}
+
+	a.seriesAgg = &SpanSetsAverageOverTimeAggregator{
+		ss:        make(SeriesSet),
+		countProm: make(map[string]string),
+		len:       IntervalCount(q.Start, q.End, q.Step),
+		start:     q.Start,
+		end:       q.End,
+		step:      q.Step,
+	}
+
+	if mode == AggregateModeRaw {
+		a.agg = NewAvgOverTimeSpanAggregator(a.attr, a.by, q.Start, q.End, q.Step)
+	}
+
+	a.exemplarFn = exemplarFn
+	a.mode = mode
+}
+
+func (a *AverageOverTimeAggregator) observe(span Span) {
+	a.agg.Observe(span)
+}
+
+func (a *AverageOverTimeAggregator) observeExemplar(span Span) {
+	v, ts := a.exemplarFn(span)
+	a.agg.ObserveExemplar(span, v, ts)
+}
+
+func (a *AverageOverTimeAggregator) observeSeries(ss []*tempopb.TimeSeries) {
+	a.seriesAgg.Combine(ss)
+}
+
+func (a *AverageOverTimeAggregator) result() SeriesSet {
+	if a.agg != nil {
+		return a.agg.Series()
+	}
+
+	// In the frontend-version the results come from
+	// the job-level aggregator
+	ss := a.seriesAgg.Results()
+	if a.mode == AggregateModeFinal {
+		for i := range ss {
+			if strings.Contains(i, "_type") {
+				delete(ss, i)
+			}
+		}
+	}
+	return ss
+}
+
+func (a *AverageOverTimeAggregator) extractConditions(request *FetchSpansRequest) {
+	// For metrics aggregators based on a span attribute we have to include it
+	includeAttribute := a.attr != (Attribute{}) && !request.HasAttribute(a.attr)
+	if includeAttribute {
+		request.SecondPassConditions = append(request.SecondPassConditions, Condition{
+			Attribute: a.attr,
+		})
+	}
+
+	for _, b := range a.by {
+		if !request.HasAttribute(b) {
+			request.SecondPassConditions = append(request.SecondPassConditions, Condition{
+				Attribute: b,
+			})
+		}
+	}
+}
+
+func (a *AverageOverTimeAggregator) validate() error {
+	if len(a.by) >= maxGroupBys {
+		return newUnsupportedError(fmt.Sprintf("metrics group by %v values", len(a.by)))
+	}
+	return nil
+}
+
+func (a *AverageOverTimeAggregator) spanStartTimeMs(s Span) uint64 {
+	return s.StartTimeUnixNanos() / uint64(time.Millisecond)
+}
+
+func (a *AverageOverTimeAggregator) String() string {
+	return "avg(" + a.attr.String() + ")"
+}
+
+type SpanSetsAverageOverTimeAggregator struct {
 	ss               SeriesSet
 	countProm        map[string]string
 	len              int
 	start, end, step uint64
 }
 
-var (
-	_ SpanAggregator           = (*AvgAggregator[FastStatic1, StaticVals1])(nil)
-	_ metricsFirstStageElement = (*MetricsAverageAggregate)(nil)
-	_ SeriesAggregator         = (*SimpleAverageSeriesAggregator)(nil)
-)
+var _ SeriesAggregator = (*SpanSetsAverageOverTimeAggregator)(nil)
 
-func (b *SimpleAverageSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
+func (b *SpanSetsAverageOverTimeAggregator) Combine(in []*tempopb.TimeSeries) {
 	newCountersTS := make(map[string][]float64)
 	nan := math.Float64frombits(normalNaN)
 
@@ -122,11 +201,100 @@ func getLabels(vals []v1.KeyValue, skipKey string) Labels {
 	return labels
 }
 
-func (b *SimpleAverageSeriesAggregator) Results() SeriesSet {
+func (b *SpanSetsAverageOverTimeAggregator) Results() SeriesSet {
 	return b.ss
 }
 
-func (g *AvgAggregator[F, S]) Observe(span Span) {
+// Accumulated results of average over time
+type AvgOverTimeSeries[S StaticVals] struct {
+	avg          []float64
+	count        []float64
+	compensation []float64
+	init         bool
+	vals         S
+}
+
+// In charge of calculating the average over time for a set of spans
+// First aggregation layer
+type AvgOverTimeSpanAggregator[F FastStatic, S StaticVals] struct {
+	// Config
+	by              []Attribute   // Original attributes: .foo
+	byLookups       [][]Attribute // Lookups: span.foo resource.foo
+	getSpanAttValue func(s Span) float64
+	start           uint64
+	end             uint64
+	step            uint64
+
+	// Data
+	series     map[F]AvgOverTimeSeries[S]
+	lastSeries AvgOverTimeSeries[S]
+	buf        fastStaticWithValues[F, S]
+	lastBuf    fastStaticWithValues[F, S]
+}
+
+var _ SpanAggregator = (*AvgOverTimeSpanAggregator[FastStatic1, StaticVals1])(nil)
+
+func NewAvgOverTimeSpanAggregator(attr Attribute, by []Attribute, start, end, step uint64) SpanAggregator {
+	lookups := make([][]Attribute, len(by))
+	for i, attr := range by {
+		if attr.Intrinsic == IntrinsicNone && attr.Scope == AttributeScopeNone {
+			// Unscoped attribute. Check span-level, then resource-level.
+			// TODO - Is this taken care of by span.AttributeFor now?
+			lookups[i] = []Attribute{
+				NewScopedAttribute(AttributeScopeSpan, false, attr.Name),
+				NewScopedAttribute(AttributeScopeResource, false, attr.Name),
+			}
+		} else {
+			lookups[i] = []Attribute{attr}
+		}
+	}
+
+	aggNum := len(lookups)
+
+	switch aggNum {
+	case 2:
+		return newAvgAggregator[FastStatic2, StaticVals2](attr, by, lookups, start, end, step)
+	case 3:
+		return newAvgAggregator[FastStatic3, StaticVals3](attr, by, lookups, start, end, step)
+	case 4:
+		return newAvgAggregator[FastStatic4, StaticVals4](attr, by, lookups, start, end, step)
+	case 5:
+		return newAvgAggregator[FastStatic5, StaticVals5](attr, by, lookups, start, end, step)
+	default:
+		return newAvgAggregator[FastStatic1, StaticVals1](attr, by, lookups, start, end, step)
+	}
+}
+
+func newAvgAggregator[F FastStatic, S StaticVals](attr Attribute, by []Attribute, lookups [][]Attribute, start, end, step uint64) SpanAggregator {
+	var fn func(s Span) float64
+
+	switch attr {
+	case IntrinsicDurationAttribute:
+		fn = func(s Span) float64 {
+			return float64(s.DurationNanos()) / float64(time.Second)
+		}
+	default:
+		fn = func(s Span) float64 {
+			f, a := FloatizeAttribute(s, attr)
+			if a == TypeNil {
+				return math.Float64frombits(normalNaN)
+			}
+			return f
+		}
+	}
+
+	return &AvgOverTimeSpanAggregator[F, S]{
+		series:          map[F]AvgOverTimeSeries[S]{},
+		getSpanAttValue: fn,
+		by:              by,
+		byLookups:       lookups,
+		start:           start,
+		end:             end,
+		step:            step,
+	}
+}
+
+func (g *AvgOverTimeSpanAggregator[F, S]) Observe(span Span) {
 	if !g.getGroupingValues(span) {
 		return
 	}
@@ -187,15 +355,15 @@ func kahanSumInc(inc, sum, c float64) (newSum, newC float64) {
 	return t, c
 }
 
-func (g *AvgAggregator[F, S]) ObserveExemplar(_ Span, _ float64, _ uint64) {
+func (g *AvgOverTimeSpanAggregator[F, S]) ObserveExemplar(_ Span, _ float64, _ uint64) {
 }
 
-func (g *AvgAggregator[F, S]) labelsFor(vals S, t string) (Labels, string) {
+func (g *AvgOverTimeSpanAggregator[F, S]) labelsFor(vals S, t string) (Labels, string) {
 	if g.by == nil {
-		serieLabel := make(Labels, 2)
+		serieLabel := make(Labels, 1, 2)
 		serieLabel[0] = Label{labels.MetricName, NewStaticString(metricsAggregateAvgOverTime.String())}
 		if t != "" {
-			serieLabel[1] = Label{"_type", NewStaticString(t)}
+			serieLabel = append(serieLabel, Label{"_type", NewStaticString(t)})
 		}
 		return serieLabel, serieLabel.String()
 	}
@@ -219,18 +387,18 @@ func (g *AvgAggregator[F, S]) labelsFor(vals S, t string) (Labels, string) {
 	return labels, labels.String()
 }
 
-func (g *AvgAggregator[F, S]) Series() SeriesSet {
+func (g *AvgOverTimeSpanAggregator[F, S]) Series() SeriesSet {
 	ss := SeriesSet{}
 
 	for _, s := range g.series {
+		// First, get the regular series
 		labels, promLabelsAvg := g.labelsFor(s.vals, "")
-
 		ss[promLabelsAvg] = TimeSeries{
 			Labels:    labels,
 			Values:    s.avg,
 			Exemplars: []Exemplar{},
 		}
-
+		// Second, get the "count" series
 		labels, promLabelsCount := g.labelsFor(s.vals, "count")
 		ss[promLabelsCount] = TimeSeries{
 			Labels:    labels,
@@ -242,7 +410,7 @@ func (g *AvgAggregator[F, S]) Series() SeriesSet {
 	return ss
 }
 
-func (g *AvgAggregator[F, S]) getGroupingValues(span Span) bool {
+func (g *AvgOverTimeSpanAggregator[F, S]) getGroupingValues(span Span) bool {
 	for i, lookups := range g.byLookups {
 		val := lookup(lookups, span)
 		g.buf.vals[i] = val
@@ -253,7 +421,7 @@ func (g *AvgAggregator[F, S]) getGroupingValues(span Span) bool {
 
 // getSeries gets the series for the current span.
 // It will reuse the last series if possible.
-func (g *AvgAggregator[F, S]) getSeries() AvgSeries[S] {
+func (g *AvgOverTimeSpanAggregator[F, S]) getSeries() AvgOverTimeSeries[S] {
 	// Fast path
 	if g.lastSeries.init && g.lastBuf.fast == g.buf.fast {
 		return g.lastSeries
@@ -262,7 +430,7 @@ func (g *AvgAggregator[F, S]) getSeries() AvgSeries[S] {
 	s, ok := g.series[g.buf.fast]
 	if !ok {
 		intervals := IntervalCount(g.start, g.end, g.step)
-		s = AvgSeries[S]{
+		s = AvgOverTimeSeries[S]{
 			init:         true,
 			vals:         g.buf.vals,
 			count:        make([]float64, intervals),
@@ -279,168 +447,4 @@ func (g *AvgAggregator[F, S]) getSeries() AvgSeries[S] {
 	g.lastBuf = g.buf
 	g.lastSeries = s
 	return s
-}
-
-func NewAvgAggregator(attr Attribute, by []Attribute, start, end, step uint64) SpanAggregator {
-	lookups := make([][]Attribute, len(by))
-	for i, attr := range by {
-		if attr.Intrinsic == IntrinsicNone && attr.Scope == AttributeScopeNone {
-			// Unscoped attribute. Check span-level, then resource-level.
-			// TODO - Is this taken care of by span.AttributeFor now?
-			lookups[i] = []Attribute{
-				NewScopedAttribute(AttributeScopeSpan, false, attr.Name),
-				NewScopedAttribute(AttributeScopeResource, false, attr.Name),
-			}
-		} else {
-			lookups[i] = []Attribute{attr}
-		}
-	}
-
-	aggNum := len(lookups)
-
-	switch aggNum {
-	case 2:
-		return newAvgAggregator[FastStatic2, StaticVals2](attr, by, lookups, start, end, step)
-	case 3:
-		return newAvgAggregator[FastStatic3, StaticVals3](attr, by, lookups, start, end, step)
-	case 4:
-		return newAvgAggregator[FastStatic4, StaticVals4](attr, by, lookups, start, end, step)
-	case 5:
-		return newAvgAggregator[FastStatic5, StaticVals5](attr, by, lookups, start, end, step)
-	default:
-		return newAvgAggregator[FastStatic1, StaticVals1](attr, by, lookups, start, end, step)
-	}
-}
-
-func newAvgAggregator[F FastStatic, S StaticVals](attr Attribute, by []Attribute, lookups [][]Attribute, start, end, step uint64) SpanAggregator {
-	var fn func(s Span) float64
-
-	switch attr {
-	case IntrinsicDurationAttribute:
-		fn = func(s Span) float64 {
-			return float64(s.DurationNanos()) / float64(time.Second)
-		}
-	default:
-		fn = func(s Span) float64 {
-			f, a := FloatizeAttribute(s, attr)
-			if a == TypeNil {
-				return math.Float64frombits(normalNaN)
-			}
-			return f
-		}
-	}
-
-	return &AvgAggregator[F, S]{
-		series:          map[F]AvgSeries[S]{},
-		getSpanAttValue: fn,
-		by:              by,
-		byLookups:       lookups,
-		start:           start,
-		end:             end,
-		step:            step,
-	}
-}
-
-type MetricsAverageAggregate struct {
-	by         []Attribute
-	attr       Attribute
-	agg        SpanAggregator
-	seriesAgg  SeriesAggregator
-	exemplarFn getExemplar
-	mode       AggregateMode
-}
-
-var _ metricsFirstStageElement = (*MetricsAverageAggregate)(nil)
-
-func newMetricsAverageAggregateWithAttr(attr Attribute, by []Attribute) *MetricsAverageAggregate {
-	return &MetricsAverageAggregate{
-		attr: attr,
-		by:   by,
-	}
-}
-
-func (a *MetricsAverageAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
-	exemplarFn := func(s Span) (float64, uint64) {
-		return math.NaN(), a.spanStartTimeMs(s)
-	}
-
-	a.seriesAgg = &SimpleAverageSeriesAggregator{
-		ss:        make(SeriesSet),
-		countProm: make(map[string]string),
-		len:       IntervalCount(q.Start, q.End, q.Step),
-		start:     q.Start,
-		end:       q.End,
-		step:      q.Step,
-	}
-
-	if mode == AggregateModeRaw {
-		a.agg = NewAvgAggregator(a.attr, a.by, q.Start, q.End, q.Step)
-	}
-
-	a.exemplarFn = exemplarFn
-	a.mode = mode
-}
-
-func (a *MetricsAverageAggregate) observe(span Span) {
-	a.agg.Observe(span)
-}
-
-func (a *MetricsAverageAggregate) observeExemplar(span Span) {
-	v, ts := a.exemplarFn(span)
-	a.agg.ObserveExemplar(span, v, ts)
-}
-
-func (a *MetricsAverageAggregate) observeSeries(ss []*tempopb.TimeSeries) {
-	a.seriesAgg.Combine(ss)
-}
-
-func (a *MetricsAverageAggregate) result() SeriesSet {
-	if a.agg != nil {
-		return a.agg.Series()
-	}
-
-	// In the frontend-version the results come from
-	// the job-level aggregator
-	ss := a.seriesAgg.Results()
-	if a.mode == AggregateModeFinal {
-		for i := range ss {
-			if strings.Contains(i, "_type") {
-				delete(ss, i)
-			}
-		}
-	}
-	return ss
-}
-
-func (a *MetricsAverageAggregate) extractConditions(request *FetchSpansRequest) {
-	// For metrics aggregators based on a span attribute we have to include it
-	includeAttribute := a.attr != (Attribute{}) && !request.HasAttribute(a.attr)
-	if includeAttribute {
-		request.SecondPassConditions = append(request.SecondPassConditions, Condition{
-			Attribute: a.attr,
-		})
-	}
-
-	for _, b := range a.by {
-		if !request.HasAttribute(b) {
-			request.SecondPassConditions = append(request.SecondPassConditions, Condition{
-				Attribute: b,
-			})
-		}
-	}
-}
-
-func (a *MetricsAverageAggregate) validate() error {
-	if len(a.by) >= maxGroupBys {
-		return newUnsupportedError(fmt.Sprintf("metrics group by %v values", len(a.by)))
-	}
-	return nil
-}
-
-func (a *MetricsAverageAggregate) spanStartTimeMs(s Span) uint64 {
-	return s.StartTimeUnixNanos() / uint64(time.Millisecond)
-}
-
-func (a *MetricsAverageAggregate) String() string {
-	return "avg(" + a.attr.String() + ")"
 }

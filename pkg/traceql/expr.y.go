@@ -1613,13 +1613,13 @@ yydefault:
 		yyDollar = yyS[yypt-4 : yypt+1]
 //line pkg/traceql/expr.y:305
 		{
-			yyVAL.metricsAggregation = newMetricsAverageAggregateWithAttr(yyDollar[3].attribute, nil)
+			yyVAL.metricsAggregation = newAverageOverTimeMetricsAggregator(yyDollar[3].attribute, nil)
 		}
 	case 115:
 		yyDollar = yyS[yypt-8 : yypt+1]
 //line pkg/traceql/expr.y:306
 		{
-			yyVAL.metricsAggregation = newMetricsAverageAggregateWithAttr(yyDollar[3].attribute, yyDollar[7].attributeList)
+			yyVAL.metricsAggregation = newAverageOverTimeMetricsAggregator(yyDollar[3].attribute, yyDollar[7].attributeList)
 		}
 	case 116:
 		yyDollar = yyS[yypt-6 : yypt+1]
