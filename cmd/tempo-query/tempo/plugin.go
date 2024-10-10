@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logfmt/logfmt"
@@ -19,9 +20,10 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
-	"github.com/opentracing/opentracing-go"
-	ot_log "github.com/opentracing/opentracing-go/log"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/metadata"
 
 	jaeger "github.com/jaegertracing/jaeger/model"
@@ -59,16 +61,20 @@ var (
 	_ storage_v1.SpanWriterPluginServer         = (*Backend)(nil)
 )
 
+var tracer = otel.Tracer("cmd/tempo-query/tempo")
+
 type Backend struct {
-	tempoBackend          string
-	tlsEnabled            bool
-	tls                   tlsCfg.ClientConfig
-	httpClient            *http.Client
-	tenantHeaderKey       string
-	QueryServicesDuration *time.Duration
+	logger                       *zap.Logger
+	tempoBackend                 string
+	tlsEnabled                   bool
+	tls                          tlsCfg.ClientConfig
+	httpClient                   *http.Client
+	tenantHeaderKey              string
+	QueryServicesDuration        *time.Duration
+	findTracesConcurrentRequests int
 }
 
-func New(cfg *Config) (*Backend, error) {
+func New(logger *zap.Logger, cfg *Config) (*Backend, error) {
 	httpClient, err := createHTTPClient(cfg)
 	if err != nil {
 		return nil, err
@@ -86,12 +92,14 @@ func New(cfg *Config) (*Backend, error) {
 	}
 
 	return &Backend{
-		tempoBackend:          cfg.Backend,
-		tlsEnabled:            cfg.TLSEnabled,
-		tls:                   cfg.TLS,
-		httpClient:            httpClient,
-		tenantHeaderKey:       cfg.TenantHeaderKey,
-		QueryServicesDuration: queryServiceDuration,
+		logger:                       logger,
+		tempoBackend:                 cfg.Backend,
+		tlsEnabled:                   cfg.TLSEnabled,
+		tls:                          cfg.TLS,
+		httpClient:                   httpClient,
+		tenantHeaderKey:              cfg.TenantHeaderKey,
+		QueryServicesDuration:        queryServiceDuration,
+		findTracesConcurrentRequests: cfg.FindTracesConcurrentRequests,
 	}, nil
 }
 
@@ -202,10 +210,10 @@ func (b *Backend) GetTrace(req *storage_v1.GetTraceRequest, stream storage_v1.Sp
 func (b *Backend) getTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger.Trace, error) {
 	url := fmt.Sprintf("%s://%s/api/traces/%s", b.apiSchema(), b.tempoBackend, traceID)
 
-	span, ctx := opentracing.StartSpanFromContext(ctx, "tempo-query.GetTrace")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "tempo-query.GetTrace")
+	defer span.End()
 
-	req, err := b.newGetRequest(ctx, url, span)
+	req, err := b.newGetRequest(ctx, url)
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +255,7 @@ func (b *Backend) getTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		ProcessMap: []jaeger.Trace_ProcessMapping{},
 	}
 
-	span.LogFields(ot_log.String("msg", "build process map"))
+	span.AddEvent("build process map")
 	// otel proto conversion doesn't set jaeger processes
 	for _, batch := range jaegerBatches {
 		for _, s := range batch.Spans {
@@ -271,10 +279,10 @@ func (b *Backend) calculateTimeRange() (int64, int64) {
 }
 
 func (b *Backend) GetServices(ctx context.Context, _ *storage_v1.GetServicesRequest) (*storage_v1.GetServicesResponse, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "tempo-query.GetOperations")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "tempo-query.GetOperations")
+	defer span.End()
 
-	services, err := b.lookupTagValues(ctx, span, serviceSearchTag)
+	services, err := b.lookupTagValues(ctx, serviceSearchTag)
 	if err != nil {
 		return nil, err
 	}
@@ -282,10 +290,10 @@ func (b *Backend) GetServices(ctx context.Context, _ *storage_v1.GetServicesRequ
 }
 
 func (b *Backend) GetOperations(ctx context.Context, _ *storage_v1.GetOperationsRequest) (*storage_v1.GetOperationsResponse, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "tempo-query.GetOperations")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "tempo-query.GetOperations")
+	defer span.End()
 
-	tagValues, err := b.lookupTagValues(ctx, span, operationSearchTag)
+	tagValues, err := b.lookupTagValues(ctx, operationSearchTag)
 	if err != nil {
 		return nil, err
 	}
@@ -304,31 +312,81 @@ func (b *Backend) GetOperations(ctx context.Context, _ *storage_v1.GetOperations
 	}, nil
 }
 
+type job struct {
+	ctx     context.Context
+	traceID jaeger.TraceID
+}
+
+type jobResult struct {
+	traceID jaeger.TraceID
+	trace   *jaeger.Trace
+	err     error
+}
+
+func worker(b *Backend, jobs <-chan job, results chan<- jobResult) {
+	for job := range jobs {
+		jaegerTrace, err := b.getTrace(job.ctx, job.traceID)
+		results <- jobResult{
+			traceID: job.traceID,
+			trace:   jaegerTrace,
+			err:     err,
+		}
+	}
+}
+
 func (b *Backend) FindTraces(req *storage_v1.FindTracesRequest, stream storage_v1.SpanReaderPlugin_FindTracesServer) error {
-	span, ctx := opentracing.StartSpanFromContext(stream.Context(), "tempo-query.FindTraces")
-	defer span.Finish()
+	ctx, span := tracer.Start(stream.Context(), "tempo-query.FindTraces")
+	defer span.End()
 
 	resp, err := b.FindTraceIDs(ctx, &storage_v1.FindTraceIDsRequest{Query: req.Query})
 	if err != nil {
 		return err
 	}
 
-	span.LogFields(ot_log.String("msg", fmt.Sprintf("Found %d trace IDs", len(resp.TraceIDs))))
+	span.AddEvent(fmt.Sprintf("Found %d trace IDs", len(resp.TraceIDs)))
+	b.logger.Info("FindTraces: fetching traces", zap.Int("traceids", len(resp.TraceIDs)))
+
+	numWorkers := b.findTracesConcurrentRequests
+	jobs := make(chan job, len(resp.TraceIDs))
+	results := make(chan jobResult, len(resp.TraceIDs))
+	var workersDone sync.WaitGroup
+	// Start workers
+	for w := 0; w < numWorkers; w++ {
+		workersDone.Add(1)
+		go func() { defer workersDone.Done(); worker(b, jobs, results) }()
+	}
 
 	// for every traceID, get the full trace
 	var jaegerTraces []*jaeger.Trace
 	for _, traceID := range resp.TraceIDs {
-		trace, err := b.getTrace(ctx, traceID)
-		if err != nil {
-			// TODO this seems to be an internal inconsistency error, ignore so we can still show the rest
-			span.LogFields(ot_log.Error(fmt.Errorf("could not get trace for traceID %v: %w", traceID, err)))
-			continue
+		jobs <- job{
+			ctx:     ctx,
+			traceID: traceID,
 		}
+	}
+	close(jobs)
+	workersDone.Wait()
 
-		jaegerTraces = append(jaegerTraces, trace)
+	var failedTraces []jobResult
+	// Collecting results
+	for i := 0; i < len(resp.TraceIDs); i++ {
+		result := <-results
+		if result.err != nil {
+			//// TODO this seems to be an internal inconsistency error, ignore so we can still show the rest
+			b.logger.Info("failed to get a trace", zap.Error(err), zap.String("traceid", result.traceID.String()))
+			span.AddEvent(fmt.Sprintf("could not get trace for traceID %v", result.traceID))
+			span.RecordError(err)
+			failedTraces = append(failedTraces, result)
+		} else {
+			jaegerTraces = append(jaegerTraces, result.trace)
+		}
+	}
+	close(results)
+	if len(failedTraces) > 0 {
+		b.logger.Info("FindTraces: failed to find traces, getTrace failed", zap.Int32("limit", req.Query.NumTraces), zap.Int("failed", len(failedTraces)))
 	}
 
-	span.LogFields(ot_log.String("msg", fmt.Sprintf("Returning %d traces", len(jaegerTraces))))
+	span.AddEvent(fmt.Sprintf("Returning %d traces", len(jaegerTraces)))
 
 	for _, jt := range jaegerTraces {
 		spans := make([]jaeger.Span, len(jt.Spans))
@@ -343,8 +401,8 @@ func (b *Backend) FindTraces(req *storage_v1.FindTracesRequest, stream storage_v
 }
 
 func (b *Backend) FindTraceIDs(ctx context.Context, r *storage_v1.FindTraceIDsRequest) (*storage_v1.FindTraceIDsResponse, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "tempo-query.FindTraceIDs")
-	defer span.Finish()
+	ctx, span := tracer.Start(ctx, "tempo-query.FindTraceIDs")
+	defer span.End()
 
 	url := url.URL{
 		Scheme: b.apiSchema(),
@@ -370,7 +428,7 @@ func (b *Backend) FindTraceIDs(ctx context.Context, r *storage_v1.FindTraceIDsRe
 
 	url.RawQuery = urlQuery.Encode()
 
-	req, err := b.newGetRequest(ctx, url.String(), span)
+	req, err := b.newGetRequest(ctx, url.String())
 	if err != nil {
 		return nil, err
 	}
@@ -435,7 +493,7 @@ func createTagsQueryParam(service string, operation string, tags map[string]stri
 	return tagsBuilder.String(), nil
 }
 
-func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, tagName string) ([]string, error) {
+func (b *Backend) lookupTagValues(ctx context.Context, tagName string) ([]string, error) {
 	var url string
 
 	if b.QueryServicesDuration == nil {
@@ -445,7 +503,7 @@ func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, ta
 		url = fmt.Sprintf("%s://%s/api/search/tag/%s/values?start=%d&end=%d", b.apiSchema(), b.tempoBackend, tagName, startTime, endTime)
 	}
 
-	req, err := b.newGetRequest(ctx, url, span)
+	req, err := b.newGetRequest(ctx, url)
 	if err != nil {
 		return nil, err
 	}
@@ -486,20 +544,13 @@ func (b *Backend) Close(context.Context, *storage_v1.CloseWriterRequest) (*stora
 	return nil, nil
 }
 
-func (b *Backend) newGetRequest(ctx context.Context, url string, span opentracing.Span) (*http.Request, error) {
+func (b *Backend) newGetRequest(ctx context.Context, url string) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	if tracer := opentracing.GlobalTracer(); tracer != nil {
-		carrier := make(opentracing.TextMapCarrier, len(req.Header))
-		for k, v := range req.Header {
-			carrier.Set(k, v[0])
-		}
-		// this is not really loggable or anything we can react to.  just ignoring this error
-		_ = tracer.Inject(span.Context(), opentracing.TextMap, carrier)
-	}
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
 
 	// currently Jaeger Query will only propagate bearer token to the grpc backend and no other headers
 	// so we are going to extract the tenant id from the header, if it exists and use it
