@@ -37,3 +37,19 @@ func (m *mockMemcache) Set(item *memcache.Item) error {
 	m.contents[item.Key] = item.Value
 	return nil
 }
+
+func (m *mockMemcache) Get(key string, _ ...memcache.Option) (*memcache.Item, error) {
+	m.RLock()
+	defer m.RUnlock()
+
+	if c, ok := m.contents[key]; ok {
+		return &memcache.Item{
+			Value: c,
+		}, nil
+	}
+
+	return nil, memcache.ErrCacheMiss
+}
+
+func (m *mockMemcache) Close() {
+}

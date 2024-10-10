@@ -219,6 +219,10 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnConfiguredLegacyCache)
 	}
 
+	if c.Frontend.TraceByID.ConcurrentShards > c.Frontend.TraceByID.QueryShards {
+		warnings = append(warnings, warnTraceByIDConcurrentShards)
+	}
+
 	return warnings
 }
 
@@ -292,6 +296,11 @@ var (
 	warnConfiguredLegacyCache = ConfigWarning{
 		Message: "c.StorageConfig.Trace.Cache is deprecated and will be removed in a future release.",
 		Explain: "Please migrate to the top level cache settings config.",
+	}
+
+	warnTraceByIDConcurrentShards = ConfigWarning{
+		Message: "c.Frontend.TraceByID.ConcurrentShards greater than query_shards is invalid. concurrent_shards will be set to query_shards",
+		Explain: "Please remove ConcurrentShards or set it to a value less than or equal to QueryShards",
 	}
 )
 

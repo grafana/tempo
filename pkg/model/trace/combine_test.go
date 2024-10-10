@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -102,6 +103,23 @@ func TestCombinerReturnsAPartialTrace(t *testing.T) {
 			require.NoError(t, err)
 		}
 	}
+}
+
+func TestCombinerParallel(t *testing.T) {
+	// Ensure that the combiner is safe for parallel use.
+	c := NewCombiner(0, false)
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 100; j++ {
+				_, err := c.Consume(test.MakeTraceWithSpanCount(1, 1, []byte{0x01}))
+				require.NoError(t, err)
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func TestTokenForIDCollision(t *testing.T) {

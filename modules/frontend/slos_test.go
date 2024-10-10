@@ -2,7 +2,9 @@ package frontend
 
 import (
 	"errors"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -135,4 +137,31 @@ func TestSLOHook(t *testing.T) {
 			require.Equal(t, tc.expectedWithSLO, actualSLO)
 		})
 	}
+}
+
+func TestBadRequest(t *testing.T) {
+	allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{"tenant"})
+	sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{"tenant"})
+	throughputVec := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "throughput"}, []string{"tenant"})
+
+	hook := sloHook(allCounter, sloCounter, throughputVec, SLOConfig{
+		DurationSLO:        10 * time.Second,
+		ThroughputBytesSLO: 100,
+	})
+
+	res := &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Status:     http.StatusText(http.StatusBadRequest),
+		Body:       io.NopCloser(strings.NewReader("foo")),
+	}
+
+	hook(res, "tenant", 0, 0, nil)
+
+	actualAll, err := test.GetCounterValue(allCounter.WithLabelValues("tenant"))
+	require.NoError(t, err)
+	actualSLO, err := test.GetCounterValue(sloCounter.WithLabelValues("tenant"))
+	require.NoError(t, err)
+
+	require.Equal(t, 1.0, actualAll)
+	require.Equal(t, 1.0, actualSLO)
 }

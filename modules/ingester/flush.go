@@ -327,7 +327,7 @@ func (i *Ingester) handleFlush(ctx context.Context, userID string, blockID uuid.
 		start := time.Now()
 		err = i.store.WriteBlock(ctx, block)
 		metricFlushDuration.Observe(time.Since(start).Seconds())
-		metricFlushSize.Observe(float64(block.BlockMeta().Size))
+		metricFlushSize.Observe(float64(block.BlockMeta().Size_))
 		if err != nil {
 			sp.SetStatus(codes.Error, "")
 			sp.RecordError(err)

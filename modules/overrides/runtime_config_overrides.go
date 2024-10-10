@@ -5,12 +5,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/drone/envsubst"
 	"github.com/go-kit/log/level"
-	"golang.org/x/exp/maps"
 
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
@@ -277,7 +278,8 @@ func (o *runtimeConfigOverridesManager) GetTenantIDs() []string {
 		return nil
 	}
 
-	return maps.Keys(tenantOverrides.TenantLimits)
+	limits := tenantOverrides.TenantLimits
+	return slices.AppendSeq(make([]string, 0, len(limits)), maps.Keys(limits))
 }
 
 func (o *runtimeConfigOverridesManager) GetRuntimeOverridesFor(userID string) *Overrides {

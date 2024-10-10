@@ -330,6 +330,20 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 		return NewStaticNil(), err
 	}
 
+	// Look for cases where we don't even need to evalulate the RHS
+	if lhsB, ok := lhs.Bool(); ok {
+		if o.Op == OpAnd && !lhsB {
+			// x && y
+			// x is false so we don't need to evalulate y
+			return StaticFalse, nil
+		}
+		if o.Op == OpOr && lhsB {
+			// x || y
+			// x is true so we don't need to evalulate y
+			return StaticTrue, nil
+		}
+	}
+
 	rhs, err := o.RHS.execute(span)
 	if err != nil {
 		return NewStaticNil(), err
@@ -339,7 +353,7 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 	lhsT := lhs.Type
 	rhsT := rhs.Type
 	if !lhsT.isMatchingOperand(rhsT) {
-		return NewStaticBool(false), nil
+		return StaticFalse, nil
 	}
 
 	if !o.Op.binaryTypesValid(lhsT, rhsT) {
@@ -585,7 +599,7 @@ func (a Attribute) execute(span Span) (Static, error) {
 		return static, nil
 	}
 
-	return NewStaticNil(), nil
+	return StaticNil, nil
 }
 
 func uniqueSpans(ss1 []*Spanset, ss2 []*Spanset) []Span {

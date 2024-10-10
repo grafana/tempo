@@ -49,7 +49,7 @@ func (b *backendBlock) SearchTags(ctx context.Context, scope traceql.AttributeSc
 		trace.WithAttributes(
 			attribute.String("blockID", b.meta.BlockID.String()),
 			attribute.String("tenantID", b.meta.TenantID),
-			attribute.Int64("blockSize", int64(b.meta.Size)),
+			attribute.Int64("blockSize", int64(b.meta.Size_)),
 		))
 	defer span.End()
 
@@ -231,7 +231,7 @@ func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attrib
 		trace.WithAttributes(
 			attribute.String("blockID", b.meta.BlockID.String()),
 			attribute.String("tenantID", b.meta.TenantID),
-			attribute.Int64("blockSize", int64(b.meta.Size)),
+			attribute.Int64("blockSize", int64(b.meta.Size_)),
 		))
 	defer span.End()
 
@@ -239,6 +239,7 @@ func (b *backendBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attrib
 	if err != nil {
 		return fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
+	// TODO(suraj): push this BytesRead to SLO middleware
 	defer func() { span.SetAttributes(attribute.Int64("inspectedBytes", int64(rr.BytesRead()))) }()
 
 	return searchTagValues(derivedCtx, tag, cb, pf, b.meta.DedicatedColumns)

@@ -7,6 +7,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -37,7 +38,7 @@ func (b *BackendReaderAt) ReadAt(p []byte, off int64) (int, error) {
 }
 
 func (b *BackendReaderAt) ReadAtWithCache(p []byte, off int64, role cache.Role) (int, error) {
-	err := b.r.ReadRange(b.ctx, b.name, b.meta.BlockID, b.meta.TenantID, uint64(off), p, &backend.CacheInfo{
+	err := b.r.ReadRange(b.ctx, b.name, (uuid.UUID)(b.meta.BlockID), b.meta.TenantID, uint64(off), p, &backend.CacheInfo{
 		Role: role,
 		Meta: b.meta,
 	})

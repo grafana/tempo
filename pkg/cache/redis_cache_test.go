@@ -8,6 +8,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/go-kit/log"
 	"github.com/go-redis/redis/v8"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -40,6 +41,9 @@ func TestRedisCache(t *testing.T) {
 		require.Equal(t, bufs[i], data[i])
 	}
 
+	_, foundKey := c.FetchKey(ctx, "key1")
+	assert.True(t, foundKey)
+
 	// test misses
 	found, _, missed = c.Fetch(ctx, miss)
 
@@ -48,6 +52,9 @@ func TestRedisCache(t *testing.T) {
 	for i := 0; i < nMiss; i++ {
 		require.Equal(t, miss[i], missed[i])
 	}
+
+	_, foundKey = c.FetchKey(ctx, miss[0])
+	assert.False(t, foundKey)
 }
 
 func mockRedisCache() (*RedisCache, error) {

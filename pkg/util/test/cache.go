@@ -36,6 +36,16 @@ func (m *mockClient) Fetch(_ context.Context, keys []string) (found []string, bu
 	return
 }
 
+func (m *mockClient) FetchKey(_ context.Context, key string) (buf []byte, found bool) {
+	m.Lock()
+	defer m.Unlock()
+	buf, ok := m.cache[key]
+	if ok {
+		return buf, true
+	}
+	return buf, false
+}
+
 func (m *mockClient) MaxItemSize() int {
 	return 0
 }

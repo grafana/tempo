@@ -87,7 +87,7 @@ func TestDB(t *testing.T) {
 
 	r.EnablePolling(context.Background(), &mockJobSharder{})
 
-	blockID := uuid.New()
+	blockID := backend.NewUUID()
 
 	wal := w.WAL()
 
@@ -140,7 +140,7 @@ func TestBlockSharding(t *testing.T) {
 	r.EnablePolling(context.Background(), &mockJobSharder{})
 
 	// create block with known ID
-	blockID := uuid.New()
+	blockID := backend.NewUUID()
 	wal := w.WAL()
 
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
@@ -204,7 +204,7 @@ func TestBlockCleanup(t *testing.T) {
 
 	r.EnablePolling(context.Background(), &mockJobSharder{})
 
-	blockID := uuid.New()
+	blockID := backend.NewUUID()
 
 	wal := w.WAL()
 
@@ -237,7 +237,7 @@ func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expected
 	blocklist := rw.blocklist.Metas(testTenantID)
 	require.Len(t, blocklist, expectedB)
 	if expectedB > 0 && expectedID != uuid.Nil {
-		assert.Equal(t, expectedID, blocklist[0].BlockID)
+		assert.Equal(t, expectedID, (uuid.UUID)(blocklist[0].BlockID))
 	}
 
 	// confirm blocklists are in starttime ascending order
@@ -250,7 +250,7 @@ func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expected
 	compactedBlocklist := rw.blocklist.CompactedMetas(testTenantID)
 	assert.Len(t, compactedBlocklist, expectedCB)
 	if expectedCB > 0 && expectedID != uuid.Nil {
-		assert.Equal(t, expectedID, compactedBlocklist[0].BlockID)
+		assert.Equal(t, expectedID, (uuid.UUID)(compactedBlocklist[0].BlockID))
 	}
 
 	lastTime = time.Time{}
@@ -278,7 +278,7 @@ func TestIncludeBlock(t *testing.T) {
 			blockStart: uuid.MustParse(BlockIDMin),
 			blockEnd:   uuid.MustParse(BlockIDMax),
 			meta: &backend.BlockMeta{
-				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				BlockID: backend.MustParse("50000000-0000-0000-0000-000000000000"),
 			},
 			start:    0,
 			end:      0,
@@ -290,7 +290,7 @@ func TestIncludeBlock(t *testing.T) {
 			blockStart: uuid.MustParse(BlockIDMin),
 			blockEnd:   uuid.MustParse(BlockIDMax),
 			meta: &backend.BlockMeta{
-				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				BlockID: backend.MustParse("50000000-0000-0000-0000-000000000000"),
 			},
 			start:    0,
 			end:      0,
@@ -302,7 +302,7 @@ func TestIncludeBlock(t *testing.T) {
 			blockStart: uuid.MustParse(BlockIDMin),
 			blockEnd:   uuid.MustParse(BlockIDMax),
 			meta: &backend.BlockMeta{
-				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				BlockID: backend.MustParse("50000000-0000-0000-0000-000000000000"),
 			},
 			start:    0,
 			end:      0,
@@ -314,7 +314,7 @@ func TestIncludeBlock(t *testing.T) {
 			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			blockEnd:   uuid.MustParse(BlockIDMax),
 			meta: &backend.BlockMeta{
-				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				BlockID: backend.MustParse("50000000-0000-0000-0000-000000000000"),
 			},
 			start:    0,
 			end:      0,
@@ -326,7 +326,7 @@ func TestIncludeBlock(t *testing.T) {
 			blockStart: uuid.MustParse(BlockIDMin),
 			blockEnd:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			meta: &backend.BlockMeta{
-				BlockID:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				BlockID:   backend.MustParse("50000000-0000-0000-0000-000000000000"),
 				StartTime: time.Unix(10000, 0),
 				EndTime:   time.Unix(20000, 0),
 			},
@@ -340,7 +340,7 @@ func TestIncludeBlock(t *testing.T) {
 			blockStart: uuid.MustParse(BlockIDMin),
 			blockEnd:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			meta: &backend.BlockMeta{
-				BlockID:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				BlockID:   backend.MustParse("50000000-0000-0000-0000-000000000000"),
 				StartTime: time.Unix(1650285326, 0),
 				EndTime:   time.Unix(1650288990, 0),
 			},
@@ -354,7 +354,7 @@ func TestIncludeBlock(t *testing.T) {
 			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			blockEnd:   uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			meta: &backend.BlockMeta{
-				BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+				BlockID: backend.MustParse("50000000-0000-0000-0000-000000000000"),
 			},
 			start:    0,
 			end:      0,
@@ -367,7 +367,7 @@ func TestIncludeBlock(t *testing.T) {
 			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			blockEnd:   uuid.MustParse("51000000-0000-0000-0000-000000000000"),
 			meta: &backend.BlockMeta{
-				BlockID: uuid.MustParse("52000000-0000-0000-0000-000000000000"),
+				BlockID: backend.MustParse("52000000-0000-0000-0000-000000000000"),
 			},
 		},
 		// todo: restore when this is fixed: https://github.com/grafana/tempo/issues/1903
@@ -395,7 +395,7 @@ func TestIncludeBlock(t *testing.T) {
 			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			blockEnd:   uuid.MustParse("51000000-0000-0000-0000-000000000000"),
 			meta: &backend.BlockMeta{
-				BlockID: uuid.MustParse("4FFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"),
+				BlockID: backend.MustParse("4FFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"),
 			},
 		},
 		{
@@ -404,7 +404,7 @@ func TestIncludeBlock(t *testing.T) {
 			blockStart: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
 			blockEnd:   uuid.MustParse("51000000-0000-0000-0000-000000000000"),
 			meta: &backend.BlockMeta{
-				BlockID: uuid.MustParse("51000000-0000-0000-0000-000000000001"),
+				BlockID: backend.MustParse("51000000-0000-0000-0000-000000000001"),
 			},
 		},
 	}
@@ -442,7 +442,7 @@ func TestIncludeCompactedBlock(t *testing.T) {
 			end:        0,
 			meta: &backend.CompactedBlockMeta{
 				BlockMeta: backend.BlockMeta{
-					BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+					BlockID: backend.MustParse("50000000-0000-0000-0000-000000000000"),
 				},
 				CompactedTime: time.Now().Add(-(1 * blocklistPoll)),
 			},
@@ -457,7 +457,7 @@ func TestIncludeCompactedBlock(t *testing.T) {
 			end:        0,
 			meta: &backend.CompactedBlockMeta{
 				BlockMeta: backend.BlockMeta{
-					BlockID: uuid.MustParse("50000000-0000-0000-0000-000000000000"),
+					BlockID: backend.MustParse("50000000-0000-0000-0000-000000000000"),
 				},
 				CompactedTime: time.Now().Add(-(3 * blocklistPoll)),
 			},
@@ -472,7 +472,7 @@ func TestIncludeCompactedBlock(t *testing.T) {
 			end:        0,
 			meta: &backend.CompactedBlockMeta{
 				BlockMeta: backend.BlockMeta{
-					BlockID: uuid.MustParse("51000000-0000-0000-0000-000000000000"),
+					BlockID: backend.MustParse("51000000-0000-0000-0000-000000000000"),
 				},
 				CompactedTime: time.Now().Add(-(1 * blocklistPoll)),
 			},
@@ -507,7 +507,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 
 	wal := w.WAL()
 
-	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
+	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	assert.NoError(t, err)
 
@@ -668,7 +668,7 @@ func testCompleteBlockHonorsStartStopTimes(t *testing.T, targetBlockVersion stri
 	oneHourAgo := now.Add(-1 * time.Hour).Unix()
 	oneHour := now.Add(time.Hour).Unix()
 
-	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
+	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
 	block, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err, "unexpected error creating block")
 
@@ -737,7 +737,7 @@ func benchmarkCompleteBlock(b *testing.B, e encoding.VersionedEncoding) {
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	wal := w.WAL()
-	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
+	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
 	blk, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(b, err)
 

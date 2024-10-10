@@ -6,7 +6,7 @@ help:  ## Display this help
 .DEFAULT_GOAL:=help
 
 # Version number
-VERSION=$(shell ./tools/image-tag | cut -d, -f 1)
+VERSION=$(shell ./tools/version-tag.sh | cut -d, -f 1)
 
 GIT_REVISION := $(shell git rev-parse --short HEAD)
 GIT_BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
@@ -223,6 +223,7 @@ PROTO_INTERMEDIATE_DIR = pkg/.patched-proto
 PROTO_INCLUDES = -I$(PROTO_INTERMEDIATE_DIR)
 PROTO_GEN = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc,paths=source_relative:$(2) $(1)
 PROTO_GEN_WITH_VENDOR = $(PROTOC) $(PROTO_INCLUDES) -Ivendor -Ivendor/github.com/gogo/protobuf --gogofaster_out=plugins=grpc,paths=source_relative:$(2) $(1)
+PROTO_GEN_WITHOUT_RELATIVE = $(PROTOC) $(PROTO_INCLUDES) --gogofaster_out=plugins=grpc:$(2) $(1)
 
 .PHONY: gen-proto
 gen-proto:  ## Generate proto files
@@ -264,6 +265,7 @@ gen-proto:  ## Generate proto files
 	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/resource/v1/resource.proto,./pkg/tempopb/)
 	$(call PROTO_GEN,$(PROTO_INTERMEDIATE_DIR)/trace/v1/trace.proto,./pkg/tempopb/)
 	$(call PROTO_GEN,pkg/tempopb/tempo.proto,./)
+	$(call PROTO_GEN_WITHOUT_RELATIVE,tempodb/backend/v1/v1.proto,./)
 	$(call PROTO_GEN_WITH_VENDOR,modules/frontend/v1/frontendv1pb/frontend.proto,./)
 
 	rm -rf $(PROTO_INTERMEDIATE_DIR)

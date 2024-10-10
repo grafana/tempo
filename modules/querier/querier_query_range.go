@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
-	"github.com/google/uuid"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -62,7 +61,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		return nil, fmt.Errorf("error extracting org id in Querier.queryBlock: %w", err)
 	}
 
-	blockID, err := uuid.Parse(req.BlockID)
+	blockID, err := backend.ParseUUID(req.BlockID)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +86,7 @@ func (q *Querier) queryBlock(ctx context.Context, req *tempopb.QueryRangeRequest
 		// TotalRecords:     req.TotalRecords,
 		BlockID: blockID,
 		// DataEncoding:     req.DataEncoding,
-		Size:             req.Size_,
+		Size_:            req.Size_,
 		FooterSize:       req.FooterSize,
 		DedicatedColumns: dc,
 	}
