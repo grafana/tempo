@@ -74,6 +74,7 @@ func searchSLOPostHook(cfg SLOConfig) handlerPostHook {
 	return sloHook(searchCounter, sloSearchCounter, searchThroughput, cfg)
 }
 
+// FIXME: bytesProcessed can be zero in case of a request for an intrinsics tag?? handle that??
 func metadataSLOPostHook(cfg SLOConfig) handlerPostHook {
 	return sloHook(metadataCounter, sloMetadataCounter, metadataThroughput, cfg)
 }
