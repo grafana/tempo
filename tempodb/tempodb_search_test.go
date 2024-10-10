@@ -1405,8 +1405,8 @@ func tagValuesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetad
 			})
 
 			require.Equal(t, expected, actual)
-			// FIXME: maybe check for at-least some bytes read instead of non zero? maybe > 100 or something. this can be done for all assertions
-			require.NotZero(t, mc.TotalValue())
+			// test that callback is recording bytes read
+			require.Greater(t, mc.TotalValue(), uint64(100))
 		})
 	}
 }
@@ -1485,8 +1485,8 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 				slices.Sort(expected)
 				require.Equal(t, expected, actual, "key: %s", k)
 			}
-			// FIXME: check the actual bytes read??
-			require.NotZero(t, mc.TotalValue())
+			// test that callback is recording bytes read
+			require.Greater(t, mc.TotalValue(), uint64(100))
 		})
 	}
 }
@@ -2386,5 +2386,6 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 
 	actual := valueCollector.Values()
 	require.Equal(t, []tempopb.TagValue{{Type: "int", Value: "3"}}, actual)
-	require.NotZero(t, mc.TotalValue())
+	// test that callback is recording bytes read
+	require.Greater(t, mc.TotalValue(), uint64(100))
 }

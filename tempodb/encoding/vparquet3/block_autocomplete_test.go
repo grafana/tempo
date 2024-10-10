@@ -227,7 +227,8 @@ func TestFetchTagNames(t *testing.T) {
 					return false
 				}, mc.Add, opts)
 				require.NoError(t, err)
-				require.NotZero(t, mc.TotalValue())
+				// test that callback is recording bytes read
+				require.Greater(t, mc.TotalValue(), uint64(100))
 
 				actualValues := distinctAttrNames.Strings()
 
@@ -516,7 +517,8 @@ func TestFetchTagValues(t *testing.T) {
 			mc := collector.NewMetricsCollector()
 			err = block.FetchTagValues(ctx, autocompleteReq, traceql.MakeCollectTagValueFunc(distinctValues.Collect), mc.Add, opts)
 			require.NoError(t, err)
-			require.NotZero(t, mc.TotalValue())
+			// test that callback is recording bytes read
+			require.Greater(t, mc.TotalValue(), uint64(100))
 
 			expectedValues := tc.expectedValues
 			actualValues := distinctValues.Values()
