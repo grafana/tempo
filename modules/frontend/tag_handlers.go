@@ -12,7 +12,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
 	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/user"
@@ -26,107 +25,161 @@ import (
 
 //nolint:all //deprecated
 
-// newTagStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newTagStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagsHandler {
+// streaming grpc handlers
+
+// newTagsStreamingGRPCHandler returns a handler that streams results from the HTTP handler
+func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagsHandler {
 	downstreamPath := path.Join(apiPrefix, api.PathSearchTags)
+	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsServer) error {
-		return streamingTags(srv.Context(), cfg, next, req, downstreamPath, "", o, api.BuildSearchTagsRequest, srv.Send, combiner.NewTypedSearchTags, logTagsRequest, logTagsResult, logger)
+		httpReq, tenant, err := buildTagsRequestAndExtractTenant(srv.Context(), req, downstreamPath, logger)
+		if err != nil {
+			return err
+		}
+		prepareRequestForQueriers(httpReq, tenant)
+
+		var finalResponse *tempopb.SearchTagsResponse
+		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant))
+		collector := pipeline.NewGRPCCollector[*tempopb.SearchTagsResponse](next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagsResponse) error {
+			finalResponse = res // to get the bytes processed for SLO calculations
+			return srv.Send(res)
+		})
+
+		start := time.Now()
+		logTagsRequest(logger, tenant, "SearchTagsStreaming", req)
+		err = collector.RoundTrip(httpReq)
+
+		duration := time.Since(start)
+		bytesProcessed := uint64(0)
+		if finalResponse != nil && finalResponse.Metrics != nil {
+			bytesProcessed = finalResponse.Metrics.InspectedBytes
+		}
+		postSLOHook(nil, tenant, bytesProcessed, duration, err)
+		logTagsResult(logger, tenant, "SearchTagsStreaming", duration.Seconds(), bytesProcessed, req, err)
+
+		return err
 	}
 }
 
-// newTagStreamingGRPCHandler returns a handler that streams results from the HTTP handler
-func newTagV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagsV2Handler {
+// newTagsV2StreamingGRPCHandler returns a handler that streams results from the HTTP handler
+func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagsV2Handler {
 	downstreamPath := path.Join(apiPrefix, api.PathSearchTagsV2)
+	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
 
 	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsV2Server) error {
-		return streamingTags(srv.Context(), cfg, next, req, downstreamPath, "", o, api.BuildSearchTagsRequest, srv.Send, combiner.NewTypedSearchTagsV2, logTagsRequest, logTagsResult, logger)
+		httpReq, tenant, err := buildTagsRequestAndExtractTenant(srv.Context(), req, downstreamPath, logger)
+		if err != nil {
+			return err
+		}
+		prepareRequestForQueriers(httpReq, tenant)
+
+		var finalResponse *tempopb.SearchTagsV2Response
+		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant))
+		collector := pipeline.NewGRPCCollector[*tempopb.SearchTagsV2Response](next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagsV2Response) error {
+			finalResponse = res // to get the bytes processed for SLO calculations
+			return srv.Send(res)
+		})
+
+		start := time.Now()
+		logTagsRequest(logger, tenant, "SearchTagsV2Streaming", req)
+		err = collector.RoundTrip(httpReq)
+
+		duration := time.Since(start)
+		bytesProcessed := uint64(0)
+		if finalResponse != nil && finalResponse.Metrics != nil {
+			bytesProcessed = finalResponse.Metrics.InspectedBytes
+		}
+		postSLOHook(nil, tenant, bytesProcessed, duration, err)
+		logTagsResult(logger, tenant, "SearchTagsV2Streaming", duration.Seconds(), bytesProcessed, req, err)
+
+		return err
 	}
 }
 
 func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagValuesHandler {
+	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
+
 	return func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesServer) error {
 		// we have to interpolate the tag name into the path so that when it is routed to the queriers
 		// they will parse it correctly. see also the mux.SetUrlVars discussion below.
 		pathWithValue := strings.Replace(api.PathSearchTagValues, "{"+api.MuxVarTagName+"}", req.TagName, 1)
 		downstreamPath := path.Join(apiPrefix, pathWithValue)
 
-		return streamingTags(srv.Context(), cfg, next, req, downstreamPath, req.TagName, o, api.BuildSearchTagValuesRequest, srv.Send, combiner.NewTypedSearchTagValues, logTagValuesRequest, logTagValuesResult, logger)
+		httpReq, tenant, err := buildTagValuesRequestAndExtractTenant(srv.Context(), req, downstreamPath, logger)
+		if err != nil {
+			return err
+		}
+		prepareRequestForQueriers(httpReq, tenant)
+
+		var finalResponse *tempopb.SearchTagValuesResponse
+		comb := combiner.NewTypedSearchTagValues(o.MaxBytesPerTagValuesQuery(tenant))
+		collector := pipeline.NewGRPCCollector[*tempopb.SearchTagValuesResponse](next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagValuesResponse) error {
+			finalResponse = res // to get the bytes processed for SLO calculations
+			return srv.Send(res)
+		})
+
+		start := time.Now()
+		logTagValuesRequest(logger, tenant, "SearchTagValuesStreaming", req)
+		err = collector.RoundTrip(httpReq)
+
+		duration := time.Since(start)
+		bytesProcessed := uint64(0)
+		if finalResponse != nil && finalResponse.Metrics != nil {
+			bytesProcessed = finalResponse.Metrics.InspectedBytes
+		}
+		postSLOHook(nil, tenant, bytesProcessed, duration, err)
+		logTagValuesResult(logger, tenant, "SearchTagValuesStreaming", duration.Seconds(), bytesProcessed, req, err)
+
+		return err
 	}
 }
 
 func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, o overrides.Interface, logger log.Logger) streamingTagValuesV2Handler {
+	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
+
 	return func(req *tempopb.SearchTagValuesRequest, srv tempopb.StreamingQuerier_SearchTagValuesV2Server) error {
 		// we have to interpolate the tag name into the path so that when it is routed to the queriers
 		// they will parse it correctly. see also the mux.SetUrlVars discussion below.
 		pathWithValue := strings.Replace(api.PathSearchTagValuesV2, "{"+api.MuxVarTagName+"}", req.TagName, 1)
 		downstreamPath := path.Join(apiPrefix, pathWithValue)
 
-		return streamingTags(srv.Context(), cfg, next, req, downstreamPath, req.TagName, o, api.BuildSearchTagValuesRequest, srv.Send, combiner.NewTypedSearchTagValuesV2, logTagValuesRequest, logTagValuesResult, logger)
+		httpReq, tenant, err := buildTagValuesRequestAndExtractTenant(srv.Context(), req, downstreamPath, logger)
+		if err != nil {
+			return err
+		}
+		prepareRequestForQueriers(httpReq, tenant)
+
+		var finalResponse *tempopb.SearchTagValuesV2Response
+		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant))
+		collector := pipeline.NewGRPCCollector[*tempopb.SearchTagValuesV2Response](next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagValuesV2Response) error {
+			finalResponse = res // to get the bytes processed for SLO calculations
+			return srv.Send(res)
+		})
+
+		start := time.Now()
+		logTagValuesRequest(logger, tenant, "SearchTagValuesV2Streaming", req)
+		err = collector.RoundTrip(httpReq)
+
+		duration := time.Since(start)
+		bytesProcessed := uint64(0)
+		if finalResponse != nil && finalResponse.Metrics != nil {
+			bytesProcessed = finalResponse.Metrics.InspectedBytes
+		}
+		postSLOHook(nil, tenant, bytesProcessed, duration, err)
+		logTagValuesResult(logger, tenant, "SearchTagValuesV2Streaming", duration.Seconds(), bytesProcessed, req, err)
+
+		return err
 	}
 }
 
-// streamingTags abstracts the boilerplate for streaming tags and tag values
-func streamingTags[TReq proto.Message, TResp proto.Message](ctx context.Context,
-	cfg Config,
-	next pipeline.AsyncRoundTripper[combiner.PipelineResponse],
-	req TReq,
-	downstreamPath string,
-	tagName string,
-	o overrides.Interface,
-	fnBuild func(*http.Request, TReq) (*http.Request, error),
-	fnSend func(TResp) error,
-	fnCombiner func(int) combiner.GRPCCombiner[TResp],
-	logRequest func(log.Logger, string, TReq),
-	logResult func(log.Logger, string, float64, TReq, error),
-	logger log.Logger,
-) error {
-	httpReq, err := fnBuild(&http.Request{
-		URL: &url.URL{
-			Path: downstreamPath,
-		},
-		Header: http.Header{},
-		Body:   io.NopCloser(bytes.NewReader([]byte{})),
-	}, req)
-	if err != nil {
-		level.Error(logger).Log("msg", "search tags: build tags request failed", "err", err)
-		return status.Errorf(codes.InvalidArgument, "build tags request failed: %s", err.Error())
-	}
-
-	httpReq = httpReq.WithContext(ctx)
-
-	if tagName != "" {
-		// the functions that parse an http request in the api package expect the tagName
-		// to be parsed out of the path so we're injecting it here. this is a hack and
-		// could be removed if the pipeline were swapped to be a proto.Message pipeline instead of
-		// an *http.Request pipeline.
-		httpReq = mux.SetURLVars(httpReq, map[string]string{api.MuxVarTagName: tagName})
-	}
-	tenant, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		level.Error(logger).Log("msg", "search tags: ", "err", err)
-		return status.Error(codes.InvalidArgument, err.Error())
-	}
-
-	prepareRequestForQueriers(httpReq, tenant)
-
-	c := fnCombiner(o.MaxBytesPerTagValuesQuery(tenant))
-	// FIXME: capture the final response and the bytesProcessed here like we do in newSearchStreamingGRPCHandler in the search_handlers.go
-	collector := pipeline.NewGRPCCollector[TResp](next, cfg.ResponseConsumers, c, fnSend)
-
-	start := time.Now()
-	logRequest(logger, tenant, req)
-	err = collector.RoundTrip(httpReq)
-	logResult(logger, tenant, time.Since(start).Seconds(), req, err)
-
-	return err
-}
-
+// HTTP Handlers
 func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger) http.RoundTripper {
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
+
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		// if error is not nil, return error Response but suppress the error
-		tenant, errResp, err := extractTenantWithError(req, logger)
+		tenant, errResp, err := extractTenantWithErrorResp(req, logger)
 		if err != nil {
 			return errResp, nil
 		}
@@ -154,9 +207,10 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 
 func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger) http.RoundTripper {
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
+
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		// if error is not nil, return error Response but suppress the error
-		tenant, errResp, err := extractTenantWithError(req, logger)
+		tenant, errResp, err := extractTenantWithErrorResp(req, logger)
 		if err != nil {
 			return errResp, nil
 		}
@@ -184,9 +238,10 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 
 func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger) http.RoundTripper {
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
+
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		// if error is not nil, return error Response but suppress the error
-		tenant, errResp, err := extractTenantWithError(req, logger)
+		tenant, errResp, err := extractTenantWithErrorResp(req, logger)
 		if err != nil {
 			return errResp, nil
 		}
@@ -214,9 +269,10 @@ func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combine
 
 func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], o overrides.Interface, logger log.Logger) http.RoundTripper {
 	postSLOHook := metadataSLOPostHook(cfg.Search.MetadataSLO)
+
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		// if error is not nil, return error Response but suppress the error
-		tenant, errResp, err := extractTenantWithError(req, logger)
+		tenant, errResp, err := extractTenantWithErrorResp(req, logger)
 		if err != nil {
 			return errResp, nil
 		}
@@ -243,7 +299,8 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 	})
 }
 
-func extractTenantWithError(req *http.Request, logger log.Logger) (string, *http.Response, error) {
+// helpers
+func extractTenantWithErrorResp(req *http.Request, logger log.Logger) (string, *http.Response, error) {
 	tenant, err := user.ExtractOrgID(req.Context())
 	if err != nil {
 		level.Error(logger).Log("msg", "tags failed to extract orgid", "err", err)
@@ -256,50 +313,104 @@ func extractTenantWithError(req *http.Request, logger log.Logger) (string, *http
 	return tenant, nil, err
 }
 
+func buildTagsRequestAndExtractTenant(ctx context.Context, req *tempopb.SearchTagsRequest, downstreamPath string, logger log.Logger) (*http.Request, string, error) {
+	httpReq, err := api.BuildSearchTagsRequest(&http.Request{
+		URL:    &url.URL{Path: downstreamPath},
+		Header: http.Header{},
+		Body:   io.NopCloser(bytes.NewReader([]byte{})),
+	}, req)
+	if err != nil {
+		_ = level.Error(logger).Log("msg", "search tags: build tags request failed", "err", err)
+		return nil, "", status.Errorf(codes.InvalidArgument, "build tags request failed: %s", err.Error())
+	}
+	httpReq = httpReq.WithContext(ctx)
+
+	tenant, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		_ = level.Error(logger).Log("msg", "search tags: ", "err", err)
+		return nil, "", status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	return httpReq, tenant, nil
+}
+
+func buildTagValuesRequestAndExtractTenant(ctx context.Context, req *tempopb.SearchTagValuesRequest, downstreamPath string, logger log.Logger) (*http.Request, string, error) {
+	httpReq, err := api.BuildSearchTagValuesRequest(&http.Request{
+		URL:    &url.URL{Path: downstreamPath},
+		Header: http.Header{},
+		Body:   io.NopCloser(bytes.NewReader([]byte{})),
+	}, req)
+	if err != nil {
+		_ = level.Error(logger).Log("msg", "search tag values: build tags values request failed", "err", err)
+		return nil, "", status.Errorf(codes.InvalidArgument, "build tag values request failed: %s", err.Error())
+	}
+	httpReq = httpReq.WithContext(ctx)
+
+	// the functions that parse a http request in the api package expect the tagName
+	// to be parsed out of the path so we're injecting it here. this is a hack and
+	// could be removed if the pipeline were swapped to be a proto.Message pipeline instead of
+	// an *http.Request pipeline.
+	httpReq = mux.SetURLVars(httpReq, map[string]string{api.MuxVarTagName: req.TagName})
+
+	tenant, err := user.ExtractOrgID(ctx)
+	if err != nil {
+		_ = level.Error(logger).Log("msg", "search tag values: ", "err", err)
+		return nil, "", status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	return httpReq, tenant, nil
+}
+
 func logHTTPResult(logger log.Logger, tenantID, handler, path string, durationSeconds float64, inspectedBytes uint64, err error) {
 	level.Info(logger).Log(
 		"msg", "metadata response result",
-		"handler", handler,
 		"tenant", tenantID,
+		"handler", handler,
 		"path", path,
 		"duration_seconds", durationSeconds,
 		"inspected_bytes", inspectedBytes,
 		"err", err)
 }
 
-func logTagsResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.SearchTagsRequest, err error) {
+func logTagsResult(logger log.Logger, tenantID, handler string, durationSeconds float64, inspectedBytes uint64, req *tempopb.SearchTagsRequest, err error) {
 	level.Info(logger).Log(
 		"msg", "search tag results",
 		"tenant", tenantID,
+		"handler", handler,
 		"scope", req.Scope,
 		"range_seconds", req.End-req.Start,
 		"duration_seconds", durationSeconds,
+		"inspected_bytes", inspectedBytes,
 		"error", err)
 }
 
-func logTagsRequest(logger log.Logger, tenantID string, req *tempopb.SearchTagsRequest) {
+func logTagsRequest(logger log.Logger, tenantID, handler string, req *tempopb.SearchTagsRequest) {
 	level.Info(logger).Log(
 		"msg", "search tag request",
 		"tenant", tenantID,
+		"handler", handler,
 		"scope", req.Scope,
 		"range_seconds", req.End-req.Start)
 }
 
-func logTagValuesResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.SearchTagValuesRequest, err error) {
+func logTagValuesResult(logger log.Logger, tenantID, handler string, durationSeconds float64, inspectedBytes uint64, req *tempopb.SearchTagValuesRequest, err error) {
 	level.Info(logger).Log(
 		"msg", "search tag results",
 		"tenant", tenantID,
+		"handler", handler,
 		"tag", req.TagName,
 		"query", req.Query,
 		"range_seconds", req.End-req.Start,
 		"duration_seconds", durationSeconds,
+		"inspected_bytes", inspectedBytes,
 		"error", err)
 }
 
-func logTagValuesRequest(logger log.Logger, tenantID string, req *tempopb.SearchTagValuesRequest) {
+func logTagValuesRequest(logger log.Logger, tenantID, handler string, req *tempopb.SearchTagValuesRequest) {
 	level.Info(logger).Log(
 		"msg", "search tag request",
 		"tenant", tenantID,
+		"handler", handler,
 		"tag", req.TagName,
 		"query", req.Query,
 		"range_seconds", req.End-req.Start)
