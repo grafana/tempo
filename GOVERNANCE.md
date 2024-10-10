@@ -49,6 +49,7 @@ The current team members are:
 - Annanay Agarwal - [annanay25](https://github.com/annanay25) ([Grafana Labs](https://grafana.com/))
 - Suraj Nath - [electron0zero](https://github.com/electron0zero) ([Grafana Labs](https://grafana.com/))
 - Jennie Pham - [ie-pham](https://github.com/ie-pham) ([Grafana Labs](https://grafana.com/))
+- Javi Molina - [javiermolinar](https://github.com/javiermolinar) ([Grafana Labs](https://grafana.com/))
 - Joe Elliott - [joe-elliott](https://github.com/joe-elliott) ([Grafana Labs](https://grafana.com/))
 - Kim Nylander - [knylander-grafana](https://github.com/knylander-grafana) ([Grafana Labs](https://grafana.com/))
 - Koenraad Verheyden - [kvrhdn](https://github.com/kvrhdn) ([Grafana Labs](https://grafana.com/))
