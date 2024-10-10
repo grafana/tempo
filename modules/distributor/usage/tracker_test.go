@@ -74,12 +74,10 @@ func TestUsageTracker(t *testing.T) {
 	}
 
 	var (
-		testCases []testcase
-		name      string
-		// dimensions []string
+		testCases  []testcase
+		name       string
 		dimensions map[string]string
-		// labels     []string
-		expected map[uint64]*bucket
+		expected   map[uint64]*bucket
 	)
 
 	// -------------------------------------------------------------
@@ -224,7 +222,7 @@ func BenchmarkUsageTrackerCollect(b *testing.B) {
 		labelsFn = func(_ string) map[string]string { return dims } // Allocation outside the function to not influence benchmark
 		maxFn    = func(_ string) uint64 { return 0 }
 		req      = httptest.NewRequest("", "/", nil)
-		resp     = &NoopHttpResponseWriter{}
+		resp     = &NoopHTTPResponseWriter{}
 	)
 
 	u, err := NewTracker(testConfig(), "test", labelsFn, maxFn)
@@ -238,17 +236,17 @@ func BenchmarkUsageTrackerCollect(b *testing.B) {
 	}
 }
 
-type NoopHttpResponseWriter struct {
+type NoopHTTPResponseWriter struct {
 	headers map[string][]string
 }
 
-var _ http.ResponseWriter = (*NoopHttpResponseWriter)(nil)
+var _ http.ResponseWriter = (*NoopHTTPResponseWriter)(nil)
 
-func (n *NoopHttpResponseWriter) Header() http.Header {
+func (n *NoopHTTPResponseWriter) Header() http.Header {
 	if n.headers == nil {
 		n.headers = make(map[string][]string)
 	}
 	return n.headers
 }
-func (NoopHttpResponseWriter) Write(buf []byte) (int, error) { return len(buf), nil }
-func (NoopHttpResponseWriter) WriteHeader(_ int)             {}
+func (NoopHTTPResponseWriter) Write(buf []byte) (int, error) { return len(buf), nil }
+func (NoopHTTPResponseWriter) WriteHeader(_ int)             {}
