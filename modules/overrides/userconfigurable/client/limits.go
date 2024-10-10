@@ -177,10 +177,10 @@ func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetTargetInfoExcludedDimens
 }
 
 type CostAttribution struct {
-	Dimensions *[]string `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
+	Dimensions *map[string]string `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
 }
 
-func (l *CostAttribution) GetDimensions() ([]string, bool) {
+func (l *CostAttribution) GetDimensions() (map[string]string, bool) {
 	if l != nil && l.Dimensions != nil {
 		return *l.Dimensions, true
 	}

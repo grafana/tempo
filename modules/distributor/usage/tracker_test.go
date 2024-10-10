@@ -2,6 +2,8 @@ package usage
 
 import (
 	"math"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,13 +26,12 @@ func testConfig() Config {
 func TestUsageTracker(t *testing.T) {
 	type testcase struct {
 		name       string
-		cfg        Config
-		dimensions []string
+		max        int
+		dimensions map[string]string
 		expected   map[uint64]*bucket
 	}
 
 	// Reused for all test cases
-	cfg := testConfig()
 	data := []*v1.ResourceSpans{
 		{
 			Resource: &v1resource.Resource{
@@ -73,27 +74,26 @@ func TestUsageTracker(t *testing.T) {
 	}
 
 	var (
-		testCases  []testcase
-		name       string
-		dimensions []string
-		labels     []string
-		expected   map[uint64]*bucket
+		testCases []testcase
+		name      string
+		// dimensions []string
+		dimensions map[string]string
+		// labels     []string
+		expected map[uint64]*bucket
 	)
 
 	// -------------------------------------------------------------
 	// Test case 1 - Group by service.name, entire batch is 1 series
 	// -------------------------------------------------------------
 	name = "standard"
-	dimensions = []string{"service.name"}
-	labels = []string{"service_name"}
+	dimensions = map[string]string{"service.name": ""}
 	expected = make(map[uint64]*bucket)
-	expected[hash(labels, []string{"svc"})] = &bucket{
+	expected[hash([]string{"service_name"}, map[string]string{"service_name": "svc"})] = &bucket{
 		labels: []string{"svc"},
 		bytes:  uint64(data[0].Size()),
 	}
 	testCases = append(testCases, testcase{
 		name:       name,
-		cfg:        cfg,
 		dimensions: dimensions,
 		expected:   expected,
 	})
@@ -102,20 +102,18 @@ func TestUsageTracker(t *testing.T) {
 	// Test case 2 - Group by attr, batch is split 75%/25%
 	// -------------------------------------------------------------
 	name = "splitbatch"
-	dimensions = []string{"attr"}
-	labels = []string{"attr"}
+	dimensions = map[string]string{"attr": ""}
 	expected = make(map[uint64]*bucket)
-	expected[hash(labels, []string{"1"})] = &bucket{
+	expected[hash([]string{"attr"}, map[string]string{"attr": "1"})] = &bucket{
 		labels: []string{"1"},
 		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.75)),
 	}
-	expected[hash(labels, []string{"2"})] = &bucket{
+	expected[hash([]string{"attr"}, map[string]string{"attr": "2"})] = &bucket{
 		labels: []string{"2"},
 		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.25)),
 	}
 	testCases = append(testCases, testcase{
 		name:       name,
-		cfg:        cfg,
 		dimensions: dimensions,
 		expected:   expected,
 	})
@@ -124,7 +122,7 @@ func TestUsageTracker(t *testing.T) {
 	// Test case 3 - Missing values go into series without that label
 	// -------------------------------------------------------------
 	name = "missing"
-	dimensions = []string{"foo"}
+	dimensions = map[string]string{"foo": ""}
 	expected = make(map[uint64]*bucket)
 	expected[emptyHash] = &bucket{
 		labels: nil, // No spans have "foo" so they all go into an unlabeled series
@@ -132,7 +130,6 @@ func TestUsageTracker(t *testing.T) {
 	}
 	testCases = append(testCases, testcase{
 		name:       name,
-		cfg:        cfg,
 		dimensions: dimensions,
 		expected:   expected,
 	})
@@ -141,13 +138,11 @@ func TestUsageTracker(t *testing.T) {
 	// Test case 4 - Max cardinality
 	// -------------------------------------------------------------
 	name = "maxcardinality"
-	dimensions = []string{"attr"}
-	labels = []string{"attr"}
-	cfg.MaxCardinality = 1
+	dimensions = map[string]string{"attr": ""}
 	expected = make(map[uint64]*bucket)
-	expected[hash(labels, []string{"1"})] = &bucket{
+	expected[hash([]string{"attr"}, map[string]string{"attr": "1"})] = &bucket{
 		labels: []string{"1"},
-		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.75)), // attr=1 is encountered first and record, with 75% of spans
+		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.75)), // attr=1 is encountered first and recorded, with 75% of spans
 	}
 	expected[emptyHash] = &bucket{
 		labels: nil,
@@ -155,14 +150,43 @@ func TestUsageTracker(t *testing.T) {
 	}
 	testCases = append(testCases, testcase{
 		name:       name,
-		cfg:        cfg,
+		max:        1,
+		dimensions: dimensions,
+		expected:   expected,
+	})
+
+	// -------------------------------------------------------------
+	// Test case 5 - Multiple labels with rename
+	// Multiple dimensions are renamed into the same output label
+	// -------------------------------------------------------------
+	name = "maxcardinality"
+	dimensions = map[string]string{
+		"service.name": "foo",
+		"attr":         "foo",
+	}
+	expected = make(map[uint64]*bucket)
+	expected[hash([]string{"foo"}, map[string]string{"foo": "1"})] = &bucket{
+		labels: []string{"1"},
+		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.75)), // attr=1 is encountered first and recorded, with 75% of spans
+	}
+	expected[hash([]string{"foo"}, map[string]string{"foo": "2"})] = &bucket{
+		labels: []string{"2"},
+		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.25)), // attr=2 doesn't fit within cardinality and those 25% of spans go into the unlabled series.
+	}
+	testCases = append(testCases, testcase{
+		name:       name,
 		dimensions: dimensions,
 		expected:   expected,
 	})
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			u, err := NewTracker(tc.cfg, "test", func(_ string) []string { return tc.dimensions }, func(_ string) uint64 { return 0 })
+			cfg := testConfig()
+			if tc.max > 0 {
+				cfg.MaxCardinality = uint64(tc.max)
+			}
+
+			u, err := NewTracker(cfg, "test", func(_ string) map[string]string { return tc.dimensions }, func(_ string) uint64 { return 0 })
 			require.NoError(t, err)
 
 			u.Observe("test", data)
@@ -177,11 +201,11 @@ func TestUsageTracker(t *testing.T) {
 	}
 }
 
-func BenchmarkUsageTracker(b *testing.B) {
+func BenchmarkUsageTrackerObserve(b *testing.B) {
 	var (
 		tr       = test.MakeTrace(10, nil)
-		dims     = []string{"service.name"}
-		labelsFn = func(_ string) []string { return dims } // Allocation outside the function to not influence benchmark
+		dims     = map[string]string{"service.name": "service_name"}
+		labelsFn = func(_ string) map[string]string { return dims } // Allocation outside the function to not influence benchmark
 		maxFn    = func(_ string) uint64 { return 0 }
 	)
 
@@ -192,3 +216,39 @@ func BenchmarkUsageTracker(b *testing.B) {
 		u.Observe("test", tr.ResourceSpans)
 	}
 }
+
+func BenchmarkUsageTrackerCollect(b *testing.B) {
+	var (
+		tr       = test.MakeTrace(10, nil)
+		dims     = map[string]string{"service.name": ""}
+		labelsFn = func(_ string) map[string]string { return dims } // Allocation outside the function to not influence benchmark
+		maxFn    = func(_ string) uint64 { return 0 }
+		req      = httptest.NewRequest("", "/", nil)
+		resp     = &NoopHttpResponseWriter{}
+	)
+
+	u, err := NewTracker(testConfig(), "test", labelsFn, maxFn)
+	require.NoError(b, err)
+
+	u.Observe("test", tr.ResourceSpans)
+
+	handler := u.Handler()
+	for i := 0; i < b.N; i++ {
+		handler.ServeHTTP(resp, req)
+	}
+}
+
+type NoopHttpResponseWriter struct {
+	headers map[string][]string
+}
+
+var _ http.ResponseWriter = (*NoopHttpResponseWriter)(nil)
+
+func (n *NoopHttpResponseWriter) Header() http.Header {
+	if n.headers == nil {
+		n.headers = make(map[string][]string)
+	}
+	return n.headers
+}
+func (NoopHttpResponseWriter) Write(buf []byte) (int, error) { return len(buf), nil }
+func (NoopHttpResponseWriter) WriteHeader(_ int)             {}

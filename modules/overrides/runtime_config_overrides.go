@@ -354,7 +354,7 @@ func (o *runtimeConfigOverridesManager) CostAttributionMaxCardinality(userID str
 	return o.getOverridesForUser(userID).CostAttribution.MaxCardinality
 }
 
-func (o *runtimeConfigOverridesManager) CostAttributionDimensions(userID string) []string {
+func (o *runtimeConfigOverridesManager) CostAttributionDimensions(userID string) map[string]string {
 	return o.getOverridesForUser(userID).CostAttribution.Dimensions
 }
 

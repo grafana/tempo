@@ -181,8 +181,8 @@ type StorageOverrides struct {
 }
 
 type CostAttributionOverrides struct {
-	MaxCardinality uint64   `yaml:"max_cardinality,omitempty" json:"max_cardinality,omitempty"`
-	Dimensions     []string `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
+	MaxCardinality uint64            `yaml:"max_cardinality,omitempty" json:"max_cardinality,omitempty"`
+	Dimensions     map[string]string `yaml:"dimensions,omitempty" json:"dimensions,omitempty"`
 }
 
 type Overrides struct {

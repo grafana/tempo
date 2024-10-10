@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"maps"
 	"math"
 	"math/bits"
 	"net/http"
@@ -21,10 +22,11 @@ const (
 	trackerLabel = "tracker"
 )
 
+// var emptyHash = hash(nil, nil)
 var emptyHash = hash(nil, nil)
 
 type (
-	tenantLabelsFunc func(string) []string
+	tenantLabelsFunc func(string) map[string]string
 	tenantMaxFunc    func(string) uint64
 )
 
@@ -43,33 +45,66 @@ func (b *bucket) Inc(bytes uint64, unix int64) {
 	b.lastUpdated = unix
 }
 
+type mapping struct {
+	from string
+	to   string
+}
+
 type tenantUsage struct {
 	series      map[uint64]*bucket
 	constLabels prometheus.Labels
 
 	// Buffers for Observe
-	dimensions []string // Originally configured dimensions
-	labels     []string // Sanitized dimensions => final labels
-	values     []string // Used to capture values and guaranteed to be a matching length.
+	dimensions map[string]string // Originally configured dimensions
+	mapping    []mapping         // Mapping from attribute => final sanitized label. Typically few values and slice is faster than map
+	sortedKeys []string          // So we can always iterate the buffer in order, this can be precomputed up front
+	buffer     map[string]string
 }
 
 // GetBuffersForDimensions takes advantage of the fact that the configuration for a tracker
 // changes slowly.  Reuses buffers from the previous call when the dimensions are the same.
-func (t *tenantUsage) GetBuffersForDimensions(dimensions []string) ([]string, []string) {
-	if !slices.Equal(t.dimensions, dimensions) {
-		t.dimensions = dimensions
-		t.labels = make([]string, len(dimensions))
-		t.values = make([]string, len(dimensions))
-		for i, d := range dimensions {
-			t.labels[i] = strutil.SanitizeFullLabelName(d)
-		}
-	}
+func (t *tenantUsage) GetBuffersForDimensions(dimensions map[string]string) ([]mapping, map[string]string) {
+	if !maps.Equal(dimensions, t.dimensions) {
+		// The configuration changed.
 
-	return t.labels, t.values
+		// Save new config and reset all buffers
+		t.dimensions = dimensions
+		distinctKeys := make(map[string]struct{}, len(dimensions))
+		t.mapping = t.mapping[:0]
+		t.sortedKeys = t.sortedKeys[:0]
+		t.buffer = make(map[string]string, len(dimensions))
+
+		for k, v := range dimensions {
+			// Get the final sanitized output label for this
+			// dimension.  Dimensions are key-value pairs with
+			// optional value.  If value is empty string, then
+			// we use the just the key.  Regardless the output
+			// is always the sanitized version.
+			// Example:
+			//    service.name="" 			=> "service_name"
+			//    service.name="foo.bar"	=> "foo_bar"
+			var sanitized string
+			if v == "" {
+				// The dimension is using default mapping
+				v = k
+			}
+			sanitized = strutil.SanitizeFullLabelName(v)
+			t.mapping = append(t.mapping, mapping{from: k, to: sanitized})
+			distinctKeys[sanitized] = struct{}{}
+		}
+
+		// This is the sorted listed of final distinct output labels
+		for k := range distinctKeys {
+			t.sortedKeys = append(t.sortedKeys, k)
+		}
+		slices.Sort(t.sortedKeys)
+	}
+	return t.mapping, t.buffer
 }
 
-func (t *tenantUsage) getSeries(labels, values []string, maxCardinality uint64) *bucket {
-	h := hash(labels, values)
+// func (t *tenantUsage) getSeries(labels, values []string, maxCardinality uint64) *bucket {
+func (t *tenantUsage) getSeries(buffer map[string]string, maxCardinality uint64) *bucket {
+	h := hash(t.sortedKeys, buffer)
 
 	b := t.series[h]
 	if b == nil {
@@ -78,7 +113,7 @@ func (t *tenantUsage) getSeries(labels, values []string, maxCardinality uint64) 
 			// Overflow
 			// It goes into the unlabeled bucket
 			// TODO - Do we want to do something else?
-			clear(values)
+			clear(buffer)
 			h = emptyHash
 			b = t.series[h]
 		}
@@ -86,7 +121,7 @@ func (t *tenantUsage) getSeries(labels, values []string, maxCardinality uint64) 
 
 	if b == nil {
 		// First encounter with this series. Initialize it.
-		l, v := nonEmpties(labels, values)
+		l, v := nonEmpties(t.sortedKeys, buffer)
 		b = &bucket{
 			// Metric description - constant for this pass now that the dimensions are known
 			descr:  prometheus.NewDesc("tempo_usage_tracker_bytes_received_total", "bytes total received with these attributes", l, t.constLabels),
@@ -160,9 +195,9 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 	}
 
 	var (
-		now            = time.Now().Unix()
-		data           = u.getTenant(tenant)
-		labels, values = data.GetBuffersForDimensions(dimensions)
+		now             = time.Now().Unix()
+		data            = u.getTenant(tenant)
+		mapping, buffer = data.GetBuffersForDimensions(dimensions)
 	)
 
 	for _, batch := range batches {
@@ -184,8 +219,8 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 		// The result ensures the total recorded bytes matches the input.
 		firstSpanPortion := unaccountedForBatchData - batchPortion*totalSpanCount
 
-		// Reset value buffer to be empties
-		clear(values)
+		// Reset value buffer for every batch.
+		clear(buffer)
 
 		if batch.Resource != nil {
 			for _, a := range batch.Resource.Attributes {
@@ -193,9 +228,9 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 				if v == "" {
 					continue
 				}
-				for i, d := range dimensions {
-					if d == a.Key {
-						values[i] = v
+				for _, m := range mapping {
+					if m.from == a.Key {
+						buffer[m.to] = v
 					}
 				}
 			}
@@ -220,9 +255,9 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 					if v == "" {
 						continue
 					}
-					for i, d := range dimensions {
-						if d == a.Key && values[i] != v {
-							values[i] = v
+					for _, m := range mapping {
+						if m.from == a.Key && buffer[m.to] != v {
+							buffer[m.to] = v
 							bucketDirty = true
 						}
 					}
@@ -235,7 +270,7 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 				//  - Dimensions are only resource attributes
 				//  - Runs of spans with the same attributes
 				if bucket == nil || bucketDirty {
-					bucket = data.getSeries(labels, values, max)
+					bucket = data.getSeries(buffer, max)
 					bucketDirty = false
 				}
 				bucket.Inc(uint64(sz), now)
@@ -289,15 +324,17 @@ func (u *Tracker) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func hash(labels, values []string) uint64 {
+// hash the given key-value pairs buffer. sortedKeys slice is provided to ensure that
+// map is always iterated in the same order.
+func hash(sortedKeys []string, buffer map[string]string) uint64 {
 	h := xxhash.New()
 
-	for i := range values {
-		// Only include labels where we got a value
-		if values[i] != "" {
-			_, _ = h.WriteString(labels[i])
+	for _, k := range sortedKeys {
+		v := buffer[k]
+		if v != "" {
+			_, _ = h.WriteString(k)
 			_, _ = h.Write([]byte{255})
-			_, _ = h.WriteString(values[i])
+			_, _ = h.WriteString(buffer[k])
 			_, _ = h.Write([]byte{255})
 		}
 	}
@@ -305,15 +342,15 @@ func hash(labels, values []string) uint64 {
 	return h.Sum64()
 }
 
-func nonEmpties(labels, values []string) ([]string, []string) {
+func nonEmpties(sortedKeys []string, buffer map[string]string) ([]string, []string) {
 	var outLabels []string
 	var outValues []string
 
-	for i := range values {
-		// Only include labels where we got a value
-		if values[i] != "" {
-			outLabels = append(outLabels, labels[i])
-			outValues = append(outValues, values[i])
+	for _, k := range sortedKeys {
+		v := buffer[k]
+		if v != "" {
+			outLabels = append(outLabels, k)
+			outValues = append(outValues, v)
 		}
 	}
 

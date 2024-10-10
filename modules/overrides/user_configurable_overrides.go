@@ -223,7 +223,7 @@ func (o *userConfigurableOverridesManager) Forwarders(userID string) []string {
 	return o.Interface.Forwarders(userID)
 }
 
-func (o *userConfigurableOverridesManager) CostAttributionDimensions(userID string) []string {
+func (o *userConfigurableOverridesManager) CostAttributionDimensions(userID string) map[string]string {
 	if dims, ok := o.getTenantLimits(userID).GetCostAttribution().GetDimensions(); ok {
 		return dims
 	}
