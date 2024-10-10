@@ -1394,6 +1394,18 @@ func TestMetrics(t *testing.T) {
 			),
 		},
 		{
+			in: `{ } | avg_over_time(duration) by(name, span.http.status_code)`,
+			expected: newRootExprWithMetrics(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregateWithAttr(metricsAggregateAvgOverTime,
+					NewIntrinsic(IntrinsicDuration),
+					[]Attribute{
+						NewIntrinsic(IntrinsicName),
+						NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
+					}),
+			),
+		},
+		{
 			in: `{ } | quantile_over_time(duration, 0, 0.90, 0.95, 1) by(name, span.http.status_code)`,
 			expected: newRootExprWithMetrics(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
