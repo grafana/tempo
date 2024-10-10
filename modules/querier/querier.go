@@ -1009,10 +1009,8 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 
 	scopedVals := valueCollector.Strings()
 	resp := &tempopb.SearchTagsV2Response{
-		Scopes: make([]*tempopb.SearchTagsV2Scope, 0, len(scopedVals)),
-		Metrics: &tempopb.MetadataMetrics{
-			InspectedBytes: mc.TotalValue(), // send metrics with response
-		},
+		Scopes:  make([]*tempopb.SearchTagsV2Scope, 0, len(scopedVals)),
+		Metrics: &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()}, // send metrics with response
 	}
 	for scope, vals := range scopedVals {
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{

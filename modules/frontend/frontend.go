@@ -181,8 +181,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		MetricsQueryRangeHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, queryRange, logger),
 
 		// grpc/streaming
-		streamingSearch: newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
-		// FIXME: add postSLOHook for streaming tags endpoints??
+		streamingSearch:       newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
 		streamingTags:         newTagStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
 		streamingTagsV2:       newTagV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
 		streamingTagValues:    newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger),

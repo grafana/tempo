@@ -295,7 +295,7 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 
 	srv, err := i.SearchTagValues(ctx, tagName)
 	require.NoError(t, err)
-	require.Greater(t, srv.Metrics.InspectedBytes, uint64(100)) // at-lest 100 bytes are inspected
+	require.Greater(t, srv.Metrics.InspectedBytes, uint64(100)) // we scanned at-least 100 bytes
 
 	sort.Strings(expectedTagValues)
 	sort.Strings(srv.TagValues)
