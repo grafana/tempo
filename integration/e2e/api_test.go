@@ -592,8 +592,7 @@ func callSearchTagValuesV2AndAssert(t *testing.T, svc *e2e.HTTPService, tagName,
 	require.NoError(t, json.Unmarshal(body, &response))
 	sort.Slice(response.TagValues, func(i, j int) bool { return response.TagValues[i].Value < response.TagValues[j].Value })
 	require.Equal(t, expected.TagValues, response.TagValues)
-	// fmt.Printf("== urlPath: %s, callSearchTagValuesV2AndAssert: %v\n", urlPath, response)
-	assertMetrics(t, response.Metrics)
+	assertMetrics(t, response.Metrics, len(expected.TagValues))
 
 	// streaming
 	grpcReq := &tempopb.SearchTagValuesRequest{
@@ -626,8 +625,10 @@ func callSearchTagValuesV2AndAssert(t *testing.T, svc *e2e.HTTPService, tagName,
 	}
 	sort.Slice(actualGrpcResp.TagValues, func(i, j int) bool { return grpcResp.TagValues[i].Value < grpcResp.TagValues[j].Value })
 	require.Equal(t, expected.TagValues, actualGrpcResp.TagValues)
-	// assert metrics, and make sure it's non-zero
-	require.Greater(t, grpcResp.Metrics.InspectedBytes, uint64(100))
+	// assert metrics, and make sure it's non-zero when response is non-empty
+	if len(grpcResp.TagValues) > 0 {
+		require.Greater(t, grpcResp.Metrics.InspectedBytes, uint64(100))
+	}
 }
 
 func callSearchTagsV2AndAssert(t *testing.T, svc *e2e.HTTPService, scope, query string, expected searchTagsV2Response, start, end int64) {
@@ -676,8 +677,7 @@ func callSearchTagsV2AndAssert(t *testing.T, svc *e2e.HTTPService, scope, query 
 
 	prepTagsResponse(&response)
 	require.Equal(t, expected.Scopes, response.Scopes)
-	// fmt.Printf("== urlPath: %s, searchTagValuesV2Response: %v\n", urlPath, response)
-	assertMetrics(t, response.Metrics)
+	assertMetrics(t, response.Metrics, lenWithoutIntrinsic(response))
 
 	// streaming
 	grpcReq := &tempopb.SearchTagsRequest{
@@ -708,8 +708,10 @@ func callSearchTagsV2AndAssert(t *testing.T, svc *e2e.HTTPService, scope, query 
 
 	prepTagsResponse(&response)
 	require.Equal(t, expected.Scopes, response.Scopes)
-	// assert metrics, and make sure it's non-zero
-	require.Greater(t, grpcResp.Metrics.InspectedBytes, uint64(100))
+	// assert metrics, and make sure it's non-zero when response is non-empty
+	if lenWithoutIntrinsic(response) > 0 {
+		require.Greater(t, grpcResp.Metrics.InspectedBytes, uint64(100))
+	}
 }
 
 func prepTagsResponse(resp *searchTagsV2Response) {
@@ -759,8 +761,7 @@ func callSearchTagsAndAssert(t *testing.T, svc *e2e.HTTPService, expected search
 	sort.Strings(response.TagNames)
 	sort.Strings(expected.TagNames)
 	require.Equal(t, expected.TagNames, response.TagNames)
-	// fmt.Printf("== urlPath: %s, callSearchTagsAndAssert: %v\n", urlPath, response)
-	assertMetrics(t, response.Metrics)
+	assertMetrics(t, response.Metrics, len(response.TagNames))
 
 	// streaming
 	grpcReq := &tempopb.SearchTagsRequest{
@@ -791,8 +792,10 @@ func callSearchTagsAndAssert(t *testing.T, svc *e2e.HTTPService, expected search
 	}
 	sort.Slice(grpcResp.TagNames, func(i, j int) bool { return grpcResp.TagNames[i] < grpcResp.TagNames[j] })
 	require.Equal(t, expected.TagNames, grpcResp.TagNames)
-	// assert metrics, and make sure it's non-zero
-	require.Greater(t, grpcResp.Metrics.InspectedBytes, uint64(100))
+	// assert metrics, and make sure it's non-zero when response is non-empty
+	if len(grpcResp.TagNames) > 0 {
+		require.Greater(t, grpcResp.Metrics.InspectedBytes, uint64(100))
+	}
 }
 
 func callSearchTagValuesAndAssert(t *testing.T, svc *e2e.HTTPService, tagName string, expected searchTagValuesResponse, start, end int64) {
@@ -829,23 +832,39 @@ func callSearchTagValuesAndAssert(t *testing.T, svc *e2e.HTTPService, tagName st
 	sort.Strings(expected.TagValues)
 
 	require.Equal(t, expected.TagValues, response.TagValues)
-	// fmt.Printf("== urlPath: %s, callSearchTagValuesAndAssert: %v\n", urlPath, response)
-	assertMetrics(t, response.Metrics)
+	assertMetrics(t, response.Metrics, len(response.TagValues))
 }
 
-func assertMetrics(t *testing.T, metrics MetadataMetrics) {
-	// fmt.Printf("== assertMetrics: metrics: %v\n", metrics)
+func assertMetrics(t *testing.T, metrics MetadataMetrics, respLen int) {
+	// metrics are not present when response is empty, so return
+	if respLen == 0 {
+		return
+	}
+
 	require.NotNil(t, metrics)
-	// require.NotEmpty(t, metrics.InspectedBytes)
+	require.NotEmpty(t, metrics.InspectedBytes)
 	inspectedBytes, err := strconv.ParseUint(metrics.InspectedBytes, 10, 64)
 	require.NoError(t, err)
+	// if response len is empty, then the inspected bytes should be 0
 	// assert metrics, and make sure it's non-zero
-	require.Greater(t, inspectedBytes, uint64(100))
+	require.Greater(t, inspectedBytes, uint64(300))
 }
 
 type searchTagsV2Response struct {
 	Scopes  []ScopedTags    `json:"scopes"`
 	Metrics MetadataMetrics `json:"metrics"`
+}
+
+func lenWithoutIntrinsic(resp searchTagsV2Response) int {
+	size := 0
+	for _, scope := range resp.Scopes {
+		// we don't count intrinsics as results for testing
+		if scope.Name == "intrinsic" {
+			continue
+		}
+		size += len(scope.Tags)
+	}
+	return size
 }
 
 type ScopedTags struct {
