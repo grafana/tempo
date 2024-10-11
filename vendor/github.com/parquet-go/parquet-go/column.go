@@ -352,6 +352,8 @@ func (cl *columnLoader) open(file *File, path []string) (*Column, error) {
 	c.typ = &groupType{}
 	if lt := c.schema.LogicalType; lt != nil && lt.Map != nil {
 		c.typ = &mapType{}
+	} else if lt != nil && lt.List != nil {
+		c.typ = &listType{}
 	}
 	c.columns = make([]*Column, numChildren)
 
@@ -691,7 +693,7 @@ func (c *Column) decodeDataPage(header DataPageHeader, numValues int, repetition
 	if pageType.Kind() == ByteArray && !isDictionaryEncoding(pageEncoding) {
 		obuf = buffers.get(4 * (numValues + 1))
 		defer obuf.unref()
-		pageOffsets = unsafecast.BytesToUint32(obuf.data)
+		pageOffsets = unsafecast.Slice[uint32](obuf.data)
 	}
 
 	values := pageType.NewValues(pageValues, pageOffsets)

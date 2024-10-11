@@ -1,21 +1,21 @@
 package sparse
 
-import "unsafe"
+import "github.com/parquet-go/parquet-go/internal/unsafecast"
 
 func GatherInt32(dst []int32, src Int32Array) int {
-	return GatherUint32(*(*[]uint32)(unsafe.Pointer(&dst)), src.Uint32Array())
+	return GatherUint32(unsafecast.Slice[uint32](dst), src.Uint32Array())
 }
 
 func GatherInt64(dst []int64, src Int64Array) int {
-	return GatherUint64(*(*[]uint64)(unsafe.Pointer(&dst)), src.Uint64Array())
+	return GatherUint64(unsafecast.Slice[uint64](dst), src.Uint64Array())
 }
 
 func GatherFloat32(dst []float32, src Float32Array) int {
-	return GatherUint32(*(*[]uint32)(unsafe.Pointer(&dst)), src.Uint32Array())
+	return GatherUint32(unsafecast.Slice[uint32](dst), src.Uint32Array())
 }
 
 func GatherFloat64(dst []float64, src Float64Array) int {
-	return GatherUint64(*(*[]uint64)(unsafe.Pointer(&dst)), src.Uint64Array())
+	return GatherUint64(unsafecast.Slice[uint64](dst), src.Uint64Array())
 }
 
 func GatherBits(dst []byte, src Uint8Array) int { return gatherBits(dst, src) }
