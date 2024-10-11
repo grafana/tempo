@@ -12,7 +12,7 @@ var (
 )
 
 func NewSearchTags(limitBytes int) Combiner {
-	d := collector.NewDistinctString(limitBytes)
+	d := collector.NewDistinctStringWithDiff(limitBytes)
 
 	c := &genericCombiner[*tempopb.SearchTagsResponse]{
 		httpStatusCode: 200,
@@ -32,7 +32,12 @@ func NewSearchTags(limitBytes int) Combiner {
 			return d.Exceeded()
 		},
 		diff: func(response *tempopb.SearchTagsResponse) (*tempopb.SearchTagsResponse, error) {
-			response.TagNames = d.Diff()
+			resp, err := d.Diff()
+			if err != nil {
+				return nil, err
+			}
+
+			response.TagNames = resp
 			return response, nil
 		},
 	}
@@ -46,7 +51,7 @@ func NewTypedSearchTags(limitBytes int) GRPCCombiner[*tempopb.SearchTagsResponse
 
 func NewSearchTagsV2(limitBytes int) Combiner {
 	// Distinct collector map to collect scopes and scope values
-	distinctValues := collector.NewScopedDistinctString(limitBytes)
+	distinctValues := collector.NewScopedDistinctStringWithDiff(limitBytes)
 
 	c := &genericCombiner[*tempopb.SearchTagsV2Response]{
 		httpStatusCode: 200,
@@ -76,7 +81,10 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 			return distinctValues.Exceeded()
 		},
 		diff: func(response *tempopb.SearchTagsV2Response) (*tempopb.SearchTagsV2Response, error) {
-			collected := distinctValues.Diff()
+			collected, err := distinctValues.Diff()
+			if err != nil {
+				return nil, err
+			}
 			response.Scopes = make([]*tempopb.SearchTagsV2Scope, 0, len(collected))
 
 			for scope, vals := range collected {
