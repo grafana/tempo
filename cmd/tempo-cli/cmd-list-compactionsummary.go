@@ -61,24 +61,24 @@ func displayCompactionSummary(results []blockStats) {
 		sizeSum := uint64(0)
 		sizeMin := uint64(0)
 		sizeMax := uint64(0)
-		countSum := 0
-		countMin := 0
-		countMax := 0
+		countSum := int64(0)
+		countMin := int64(0)
+		countMax := int64(0)
 		countBloomShards := 0
 
 		var newest time.Time
 		var oldest time.Time
 
 		for _, r := range resultsByLevel[l] {
-			sizeSum += r.Size
+			sizeSum += r.Size_
 			countSum += r.TotalObjects
 			countBloomShards += int(r.BloomShardCount)
 
-			if r.Size < sizeMin || sizeMin == 0 {
-				sizeMin = r.Size
+			if r.Size_ < sizeMin || sizeMin == 0 {
+				sizeMin = r.Size_
 			}
-			if r.Size > sizeMax {
-				sizeMax = r.Size
+			if r.Size_ > sizeMax {
+				sizeMax = r.Size_
 			}
 			if r.TotalObjects < countMin || countMin == 0 {
 				countMin = r.TotalObjects

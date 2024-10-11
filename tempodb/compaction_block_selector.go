@@ -164,7 +164,7 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 func totalObjects(entries []timeWindowBlockEntry) int {
 	totalObjects := 0
 	for _, b := range entries {
-		totalObjects += b.meta.TotalObjects
+		totalObjects += int(b.meta.TotalObjects)
 	}
 	return totalObjects
 }
@@ -172,7 +172,7 @@ func totalObjects(entries []timeWindowBlockEntry) int {
 func totalSize(entries []timeWindowBlockEntry) uint64 {
 	sz := uint64(0)
 	for _, b := range entries {
-		sz += b.meta.Size
+		sz += b.meta.Size_
 	}
 	return sz
 }

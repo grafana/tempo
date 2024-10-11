@@ -603,14 +603,14 @@ func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart, blockEnd []byte
 		}
 	}
 
-	blockIDBytes, _ := b.BlockID.MarshalBinary()
+	blockIDBytes, _ := b.BlockID.Marshal()
 	// check block is in shard boundaries
 	// blockStartBytes <= blockIDBytes <= blockEndBytes
 	if bytes.Compare(blockIDBytes, blockStart) == -1 || bytes.Compare(blockIDBytes, blockEnd) == 1 {
 		return false
 	}
 
-	return b.ReplicationFactor == uint8(replicationFactor)
+	return b.ReplicationFactor == uint32(replicationFactor)
 }
 
 // if block is compacted within lookback period, and is within shard ranges, include it in search

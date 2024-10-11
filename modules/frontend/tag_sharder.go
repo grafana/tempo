@@ -66,7 +66,7 @@ func (r *tagsSearchRequest) buildTagSearchBlockRequest(subR *http.Request, block
 		TotalRecords:  m.TotalRecords,
 		DataEncoding:  m.DataEncoding,
 		Version:       m.Version,
-		Size_:         m.Size,
+		Size_:         m.Size_,
 		FooterSize:    m.FooterSize,
 	})
 }
@@ -121,7 +121,7 @@ func (r *tagValueSearchRequest) buildTagSearchBlockRequest(subR *http.Request, b
 		TotalRecords:  m.TotalRecords,
 		DataEncoding:  m.DataEncoding,
 		Version:       m.Version,
-		Size_:         m.Size,
+		Size_:         m.Size_,
 		FooterSize:    m.FooterSize,
 	})
 }

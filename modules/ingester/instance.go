@@ -306,7 +306,7 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 			return uuid.Nil, fmt.Errorf("failed to resetHeadBlock: %w", err)
 		}
 
-		return completingBlock.BlockMeta().BlockID, nil
+		return (uuid.UUID)(completingBlock.BlockMeta().BlockID), nil
 	}
 
 	return uuid.Nil, nil
@@ -317,7 +317,7 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
 	var completingBlock common.WALBlock
 	for _, iterBlock := range i.completingBlocks {
-		if iterBlock.BlockMeta().BlockID == blockID {
+		if (uuid.UUID)(iterBlock.BlockMeta().BlockID) == blockID {
 			completingBlock = iterBlock
 			break
 		}
@@ -350,7 +350,7 @@ func (i *instance) ClearCompletingBlock(blockID uuid.UUID) error {
 
 	var completingBlock common.WALBlock
 	for j, iterBlock := range i.completingBlocks {
-		if iterBlock.BlockMeta().BlockID == blockID {
+		if (uuid.UUID)(iterBlock.BlockMeta().BlockID) == blockID {
 			completingBlock = iterBlock
 			i.completingBlocks = append(i.completingBlocks[:j], i.completingBlocks[j+1:]...)
 			break
@@ -370,7 +370,7 @@ func (i *instance) GetBlockToBeFlushed(blockID uuid.UUID) *LocalBlock {
 	defer i.blocksMtx.RUnlock()
 
 	for _, c := range i.completeBlocks {
-		if c.BlockMeta().BlockID == blockID && c.FlushedTime().IsZero() {
+		if (uuid.UUID)(c.BlockMeta().BlockID) == blockID && c.FlushedTime().IsZero() {
 			return c
 		}
 	}
@@ -393,7 +393,7 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 		if flushedTime.Add(completeBlockTimeout).Before(time.Now()) {
 			i.completeBlocks = append(i.completeBlocks[:idx], i.completeBlocks[idx+1:]...)
 
-			err = i.local.ClearBlock(b.BlockMeta().BlockID, i.instanceID)
+			err = i.local.ClearBlock((uuid.UUID)(b.BlockMeta().BlockID), i.instanceID)
 			if err == nil {
 				metricBlocksClearedTotal.Inc()
 			}
@@ -517,7 +517,7 @@ func (i *instance) resetHeadBlock() error {
 	dedicatedColumns := i.getDedicatedColumns()
 
 	meta := &backend.BlockMeta{
-		BlockID:          uuid.New(),
+		BlockID:          backend.NewUUID(),
 		TenantID:         i.instanceID,
 		DedicatedColumns: dedicatedColumns,
 	}
@@ -589,7 +589,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*LocalBlock, er
 		i.blocksMtx.RLock()
 		defer i.blocksMtx.RUnlock()
 		for _, b := range i.completingBlocks {
-			if b.BlockMeta().BlockID == id {
+			if (uuid.UUID)(b.BlockMeta().BlockID) == id {
 				return true
 			}
 		}

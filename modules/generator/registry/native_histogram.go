@@ -11,6 +11,7 @@ import (
 	promhistogram "github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
+	"go.uber.org/atomic"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -46,6 +47,20 @@ type nativeHistogramSeries struct {
 	promHistogram prometheus.Histogram
 	lastUpdated   int64
 	histogram     *dto.Histogram
+
+	// firstSeries is used to track if this series is new to the counter.
+	// This is used in classic histograms to ensure that new counters begin with 0.
+	// This avoids Prometheus throwing away the first value in the series,
+	// due to the transition from null -> x.
+	firstSeries *atomic.Bool
+}
+
+func (hs *nativeHistogramSeries) isNew() bool {
+	return hs.firstSeries.Load()
+}
+
+func (hs *nativeHistogramSeries) registerSeenSeries() {
+	hs.firstSeries.Store(false)
 }
 
 var (
@@ -112,6 +127,7 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 			NativeHistogramMinResetDuration: 15 * time.Minute,
 		}),
 		lastUpdated: 0,
+		firstSeries: atomic.NewBool(true),
 	}
 
 	h.updateSeries(newSeries, value, traceID, multiplier)
@@ -267,6 +283,15 @@ func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lb *labels
 }
 
 func (h *nativeHistogram) classicHistograms(appender storage.Appender, lb *labels.Builder, timeMs int64, s *nativeHistogramSeries) (activeSeries int, err error) {
+	if s.isNew() {
+		lb.Set(labels.MetricName, h.metricName+"_count")
+		_, err = appender.Append(0, lb.Labels(), timeMs-1, 0)
+		if err != nil {
+			return activeSeries, err
+		}
+		s.registerSeenSeries()
+	}
+
 	// sum
 	lb.Set(labels.MetricName, h.metricName+"_sum")
 	_, err = appender.Append(0, lb.Labels(), timeMs, s.histogram.GetSampleSum())

@@ -81,11 +81,11 @@ func (b *backendBlock) openForSearch(ctx context.Context, opts common.SearchOpti
 	o = append(o, parquet.ReadBufferSize(readBufferSize))
 
 	// cached reader
-	cachedReaderAt := newCachedReaderAt(backendReaderAt, readBufferSize, int64(b.meta.Size), b.meta.FooterSize) // most reads to the backend are going to be readbuffersize so use it as our "page cache" size
+	cachedReaderAt := newCachedReaderAt(backendReaderAt, readBufferSize, int64(b.meta.Size_), b.meta.FooterSize) // most reads to the backend are going to be readbuffersize so use it as our "page cache" size
 
 	_, span := tracer.Start(ctx, "parquet.OpenFile")
 	defer span.End()
-	pf, err := parquet.OpenFile(cachedReaderAt, int64(b.meta.Size), o...)
+	pf, err := parquet.OpenFile(cachedReaderAt, int64(b.meta.Size_), o...)
 
 	return pf, backendReaderAt, err
 }
@@ -95,7 +95,7 @@ func (b *backendBlock) Search(ctx context.Context, req *tempopb.SearchRequest, o
 		trace.WithAttributes(
 			attribute.String("blockID", b.meta.BlockID.String()),
 			attribute.String("tenantID", b.meta.TenantID),
-			attribute.Int64("blockSize", int64(b.meta.Size)),
+			attribute.Int64("blockSize", int64(b.meta.Size_)),
 		))
 	defer span.End()
 

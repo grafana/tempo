@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	uuid "github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -25,7 +25,7 @@ func TestNewBlockMeta(t *testing.T) {
 	id := uuid.New()
 	b := NewBlockMeta(testTenantID, id, testVersion, testEncoding, testDataEncoding)
 
-	assert.Equal(t, id, b.BlockID)
+	assert.Equal(t, id, (uuid.UUID)(b.BlockID))
 	assert.Equal(t, testTenantID, b.TenantID)
 	assert.Equal(t, testVersion, b.Version)
 	assert.Equal(t, testEncoding, b.Encoding)
@@ -41,7 +41,7 @@ func TestBlockMetaObjectAdded(t *testing.T) {
 		ends            []uint32
 		expectedStart   time.Time
 		expectedEnd     time.Time
-		expectedObjects int
+		expectedObjects int64
 	}{
 		{},
 		{
@@ -99,12 +99,12 @@ func TestBlockMetaParsing(t *testing.T) {
 
 	meta := BlockMeta{
 		Version:         "vParquet3",
-		BlockID:         uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+		BlockID:         MustParse("00000000-0000-0000-0000-000000000000"),
 		TenantID:        "single-tenant",
 		StartTime:       timeParse("2021-01-01T00:00:00.0000000Z"),
 		EndTime:         timeParse("2021-01-02T00:00:00.0000000Z"),
 		TotalObjects:    10,
-		Size:            12345,
+		Size_:           12345,
 		CompactionLevel: 1,
 		Encoding:        EncZstd,
 		IndexPageSize:   250000,

@@ -131,7 +131,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	allIds := make([]common.ID, 0, blockCount*recordCount)
 
 	for i := 0; i < blockCount; i++ {
-		blockID := uuid.New()
+		blockID := backend.NewUUID()
 		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: model.CurrentEncoding}
 		head, err := wal.NewBlock(meta, model.CurrentEncoding)
 		require.NoError(t, err)
@@ -186,7 +186,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	// do we have the right number of records
 	var records int
 	for _, meta := range rw.blocklist.Metas(testTenantID) {
-		records += meta.TotalObjects
+		records += int(meta.TotalObjects)
 	}
 	require.Equal(t, blockCount*recordCount, records)
 
@@ -303,7 +303,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 
 	// and write them to different blocks
 	for i := 0; i < blockCount; i++ {
-		blockID := uuid.New()
+		blockID := backend.NewUUID()
 		meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: v1.Encoding}
 		head, err := wal.NewBlock(meta, v1.Encoding)
 		require.NoError(t, err)
@@ -426,8 +426,8 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	// New blocklist contains 1 compacted block with everything
 	blocks := rw.blocklist.Metas(testTenantID)
 	require.Equal(t, 1, len(blocks))
-	require.Equal(t, uint8(1), blocks[0].CompactionLevel)
-	require.Equal(t, blockCount*recordCount, blocks[0].TotalObjects)
+	require.Equal(t, uint32(1), blocks[0].CompactionLevel)
+	require.Equal(t, int64(blockCount*recordCount), blocks[0].TotalObjects)
 
 	// Compacted list contains all old blocks
 	require.Equal(t, blockCount, len(rw.blocklist.CompactedMetas(testTenantID)))
@@ -651,7 +651,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	// New blocklist contains 1 compacted block with min start and max end
 	blocks := rw.blocklist.Metas(testTenantID)
 	require.Equal(t, 1, len(blocks))
-	require.Equal(t, uint8(1), blocks[0].CompactionLevel)
+	require.Equal(t, uint32(1), blocks[0].CompactionLevel)
 	require.Equal(t, 100, int(blocks[0].StartTime.Unix()))
 	require.Equal(t, 107, int(blocks[0].EndTime.Unix()))
 }
@@ -702,7 +702,7 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 	allIDs := make([]common.ID, 0, recordCount)
 
 	// write a bunch of dummy data
-	blockID := uuid.New()
+	blockID := backend.NewUUID()
 	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: v1.Encoding}
 	head, err := wal.NewBlock(meta, v1.Encoding)
 	require.NoError(t, err)
@@ -789,7 +789,7 @@ func cutTestBlockWithTraces(t testing.TB, w Writer, tenantID string, data []test
 
 	wal := w.WAL()
 
-	meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: testTenantID}
+	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: testTenantID}
 	head, err := wal.NewBlock(meta, model.CurrentEncoding)
 	require.NoError(t, err)
 
@@ -809,7 +809,7 @@ func cutTestBlocks(t testing.TB, w Writer, tenantID string, blockCount int, reco
 
 	wal := w.WAL()
 	for i := 0; i < blockCount; i++ {
-		meta := &backend.BlockMeta{BlockID: uuid.New(), TenantID: tenantID}
+		meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: tenantID}
 		head, err := wal.NewBlock(meta, model.CurrentEncoding)
 		require.NoError(t, err)
 
