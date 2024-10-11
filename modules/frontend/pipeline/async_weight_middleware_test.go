@@ -19,29 +19,49 @@ var nextRequest = AsyncRoundTripperFunc[combiner.PipelineResponse](func(_ Reques
 	}), nil
 })
 
+const (
+	DefaultWeight       int = 1
+	TraceQLSearchWeight int = 1
+	TraceByIDWeight     int = 2
+)
+
 func TestWeightMiddlewareForTraceByIDRequest(t *testing.T) {
-	roundTrip := NewWeightRequestWare(TraceByID, true).Wrap(nextRequest)
+	config := WeightsConfig{
+		RequestWithWeights: true,
+	}
+	roundTrip := NewWeightRequestWare(TraceByID, config).Wrap(nextRequest)
 	req := DoWeightedRequest(t, "http://localhost:8080/api/v2/traces/123345", roundTrip)
 
 	assert.Equal(t, TraceByIDWeight, req.Weight())
 }
 
 func TestDisabledWeightMiddlewareForTraceByIDRequest(t *testing.T) {
-	roundTrip := NewWeightRequestWare(TraceByID, false).Wrap(nextRequest)
+	config := WeightsConfig{
+		RequestWithWeights: false,
+	}
+	roundTrip := NewWeightRequestWare(TraceByID, config).Wrap(nextRequest)
 	req := DoWeightedRequest(t, "http://localhost:8080/api/v2/traces/123345", roundTrip)
 
 	assert.Equal(t, DefaultWeight, req.Weight())
 }
 
 func TestWeightMiddlewareForDefaultRequest(t *testing.T) {
-	roundTrip := NewWeightRequestWare(Default, true).Wrap(nextRequest)
+	config := WeightsConfig{
+		RequestWithWeights: true,
+	}
+	roundTrip := NewWeightRequestWare(Default, config).Wrap(nextRequest)
 	req := DoWeightedRequest(t, "http://localhost:8080/api/v2/search/tags", roundTrip)
 
 	assert.Equal(t, DefaultWeight, req.Weight())
 }
 
 func TestWeightMiddlewareForTraceQLRequest(t *testing.T) {
-	roundTrip := NewWeightRequestWare(TraceQLSearch, true).Wrap(nextRequest)
+	config := WeightsConfig{
+		RequestWithWeights:   true,
+		MaxTraceQLConditions: 4,
+		MaxRegexConditions:   1,
+	}
+	roundTrip := NewWeightRequestWare(TraceQLSearch, config).Wrap(nextRequest)
 	cases := []struct {
 		req      string
 		expected int

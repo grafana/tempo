@@ -15,14 +15,14 @@ import (
 var statVersion = usagestats.NewString("frontend_version")
 
 type Config struct {
-	Config                    v1.Config       `yaml:",inline"`
-	MaxRetries                int             `yaml:"max_retries,omitempty"`
-	Search                    SearchConfig    `yaml:"search"`
-	TraceByID                 TraceByIDConfig `yaml:"trace_by_id"`
-	Metrics                   MetricsConfig   `yaml:"metrics"`
-	MultiTenantQueriesEnabled bool            `yaml:"multi_tenant_queries_enabled"`
-	ResponseConsumers         int             `yaml:"response_consumers"`
-
+	Config                    v1.Config              `yaml:",inline"`
+	MaxRetries                int                    `yaml:"max_retries,omitempty"`
+	Search                    SearchConfig           `yaml:"search"`
+	TraceByID                 TraceByIDConfig        `yaml:"trace_by_id"`
+	Metrics                   MetricsConfig          `yaml:"metrics"`
+	MultiTenantQueriesEnabled bool                   `yaml:"multi_tenant_queries_enabled"`
+	ResponseConsumers         int                    `yaml:"response_consumers"`
+	Weights                   pipeline.WeightsConfig `yaml:"weights"`
 	// the maximum time limit that tempo will work on an api request. this includes both
 	// grpc and http requests and applies to all "api" frontend query endpoints such as
 	// traceql, tag search, tag value search, trace by id and all streaming gRPC endpoints.
@@ -63,8 +63,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 		DurationSLO:        0,
 		ThroughputBytesSLO: 0,
 	}
-	cfg.RequestWithWeights = true
-	cfg.RetryWithWeights = true
+
 	cfg.Config.MaxOutstandingPerTenant = 2000
 	cfg.Config.MaxBatchSize = 5
 	cfg.MaxRetries = 2
@@ -97,6 +96,12 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 			MaxExemplars:          100,
 		},
 		SLO: slo,
+	}
+	cfg.Weights = pipeline.WeightsConfig{
+		RequestWithWeights:   true,
+		RetryWithWeights:     true,
+		MaxRegexConditions:   1,
+		MaxTraceQLConditions: 4,
 	}
 
 	// enable multi tenant queries by default
