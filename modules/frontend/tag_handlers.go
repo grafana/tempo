@@ -25,6 +25,12 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+// regex patterns for tag values endpoints, precompile for performance
+var (
+	tagNameRegexV1 = regexp.MustCompile(`.*/api/search/tag/([^/]+)/values`)
+	tagNameRegexV2 = regexp.MustCompile(`.*/api/v2/search/tag/([^/]+)/values`)
+)
+
 //nolint:all //deprecated
 
 // streaming grpc handlers
@@ -441,10 +447,6 @@ func parseParams(req *http.Request) (string, string, uint32) {
 	}
 	return scope, q, uint32(duration)
 }
-
-// regex patterns for tag values endpoints, precompile for performance
-var tagNameRegexV1 = regexp.MustCompile(`.*/api/search/tag/([^/]+)/values`)
-var tagNameRegexV2 = regexp.MustCompile(`.*/api/v2/search/tag/([^/]+)/values`)
 
 // extractTagName extracts the tagName based on the provided regex pattern
 func extractTagName(path string, pattern *regexp.Regexp) string {
