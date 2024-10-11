@@ -623,6 +623,17 @@ query_frontend:
 
         # The number of shards to break ingester queries into.
         [ingester_shards]: <int> | default = 1]
+        
+        # SLO configuration for Metadata (tags and tag values) endpoints.
+        metadata_slo:
+            # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
+            # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
+            # NOTE: `duration_slo` and `throughput_bytes_slo` both must be configured for it to work
+            [duration_slo: <duration> | default = 0s ]
+    
+            # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
+            # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
+            [throughput_bytes_slo: <float> | default = 0 ]
 
     # Trace by ID lookup configuration
     trace_by_id:
