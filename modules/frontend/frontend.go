@@ -59,7 +59,7 @@ type QueryFrontend struct {
 var tracer = otel.Tracer("modules/frontend")
 
 // New returns a new QueryFrontend
-func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempodb.Reader, cacheProvider cache.Provider, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
+func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader tempodb.Reader, cacheProvider cache.Provider, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
 	level.Info(logger).Log("msg", "creating middleware in query frontend")
 
 	if cfg.TraceByID.QueryShards < minQueryShards || cfg.TraceByID.QueryShards > maxQueryShards {
@@ -90,8 +90,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		return nil, fmt.Errorf("frontend metrics interval should be greater than 0")
 	}
 
-	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, registerer)
-
+	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, cfg.Weights.RetryWithWeights, registerer)
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()
 	traceIDStatusCodeWare := pipeline.NewStatusCodeAdjustWareWithAllowedCode(http.StatusNotFound)
@@ -101,6 +100,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	tracePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
+			pipeline.NewWeightRequestWare(pipeline.TraceByID, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTraceIDSharder(&cfg.TraceByID, logger),
 		},
@@ -111,6 +111,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
 			queryValidatorWare,
+			pipeline.NewWeightRequestWare(pipeline.TraceQLSearch, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, logger),
 		},
@@ -120,6 +121,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	searchTagsPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
+			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagsRequest, logger),
 		},
@@ -129,6 +131,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	searchTagValuesPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
+			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequest, logger),
 		},
@@ -140,6 +143,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
 			queryValidatorWare,
+			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantUnsupportedMiddleware(cfg, logger),
 		},
 		[]pipeline.Middleware{statusCodeWare, retryWare},
@@ -150,6 +154,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
 			queryValidatorWare,
+			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, logger),
 		},
