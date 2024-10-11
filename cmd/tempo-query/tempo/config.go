@@ -11,6 +11,7 @@ type Config struct {
 	Address               string           `yaml:"address"`
 	Backend               string           `yaml:"backend"`
 	TLSEnabled            bool             `yaml:"tls_enabled" category:"advanced"`
+	TLSServerEnabeld      bool             `yaml:"tls_server_enabled" category:"advanced"`
 	TLS                   tls.ClientConfig `yaml:",inline"`
 	TenantHeaderKey       string           `yaml:"tenant_header_key"`
 	QueryServicesDuration string           `yaml:"services_query_duration"`
@@ -27,6 +28,7 @@ func (c *Config) InitFromViper(v *viper.Viper) {
 	c.Address = address
 	c.Backend = v.GetString("backend")
 	c.TLSEnabled = v.GetBool("tls_enabled")
+	c.TLSServerEnabeld = v.GetBool("tls_server_enabled")
 	c.TLS.CertPath = v.GetString("tls_cert_path")
 	c.TLS.KeyPath = v.GetString("tls_key_path")
 	c.TLS.CAPath = v.GetString("tls_ca_path")
