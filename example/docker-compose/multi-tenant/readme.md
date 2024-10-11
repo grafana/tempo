@@ -1,6 +1,7 @@
 ## Local Storage
-In this example all data is stored locally in the `tempo-data` folder. Local storage is fine for experimenting with Tempo
-or when using the single binary, but does not work in a distributed/microservices scenario.
+
+In this example, all data is stored locally in the `tempo-data` folder. Local storage is fine for experimenting with Tempo
+or when using the single binary, but doesn't work in a distributed/microservices scenario.
 
 1. Start up the local stack.
 
@@ -16,7 +17,7 @@ At this point, the following containers should be spun up:
 
 ```console
 $ docker compose ps
-           Name                          Command               State                                                                     Ports                                                                  
+           Name                          Command               State                                                                     Ports
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
 multi-tenant_grafana_1        /run.sh                          Up      0.0.0.0:3000->3000/tcp,:::3000->3000/tcp
 multi-tenant_k6-tracing-2_1   /k6-tracing run /example-s ...   Up
@@ -27,7 +28,7 @@ multi-tenant_tempo_1          /tempo -config.file=/etc/t ...   Up      0.0.0.0:1
 
 ```
 
-2. If you're interested you can see the wal/blocks as they are being created.
+2. If you're interested, you can see the wal/blocks as they are being created.
 
 ```console
 $ ls tempo-data/
@@ -48,11 +49,10 @@ $ docker logs multi-tenant_tempo_1 -f
 docker compose down -v
 ```
 
-## streaming and multi-tenant search
+## Streaming and multi-tenant search
 
-- needs `traceQLStreaming` feature flag set in Grafana, see `docker-compose.yaml`
-- needs `stream_over_http_enabled: true`, `multitenancy_enabled: true`,
-and `query_frontend.multi_tenant_queries_enabled: true` in the tempo config file, see `tempo.yaml`
+- Needs `stream_over_http_enabled: true`, `multitenancy_enabled: true`,
+and `query_frontend.multi_tenant_queries_enabled: true` in the Tempo configuration file, see `tempo.yaml`
 
 You can use Grafana or tempo-cli to make a query.
 

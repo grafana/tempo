@@ -49,7 +49,7 @@ services:
       - tempo
 
   grafana:
-    image: grafana/grafana:11.0.0
+    image: grafana/grafana:11.2.0
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:
@@ -57,6 +57,6 @@ services:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
       - GF_AUTH_DISABLE_LOGIN_FORM=true
-      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor traceQLStreaming metricsSummary
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor metricsSummary
     ports:
       - "3000:3000"
