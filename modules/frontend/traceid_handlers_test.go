@@ -14,6 +14,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -159,11 +160,11 @@ func TestTraceIDHandler(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc // copy the test case to prevent race on the loop variable
 		t.Run(tc.name, func(t *testing.T) {
-			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			next := pipeline.RoundTripperFunc(func(r pipeline.Request) (*http.Response, error) {
 				var testTrace *tempopb.Trace
 				var statusCode int
 				var err error
-				if r.RequestURI == "/querier/api/traces/1234?mode=ingesters" {
+				if r.HTTPRequest().RequestURI == "/querier/api/traces/1234?mode=ingesters" {
 					testTrace = tc.trace1
 					statusCode = tc.status1
 					err = tc.err1
@@ -236,7 +237,7 @@ func TestTraceIDHandler(t *testing.T) {
 }
 
 func TestTraceIDHandlerForJSONResponse(t *testing.T) {
-	next := RoundTripperFunc(func(_ *http.Request) (*http.Response, error) {
+	next := pipeline.RoundTripperFunc(func(_ pipeline.Request) (*http.Response, error) {
 		testTrace := test.MakeTrace(2, []byte{0x01, 0x02})
 		resBytes, _ := proto.Marshal(&tempopb.TraceByIDResponse{
 			Trace:   testTrace,
@@ -354,11 +355,11 @@ func TestTraceIDHandlerV2(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc // copy the test case to prevent race on the loop variable
 		t.Run(tc.name, func(t *testing.T) {
-			next := RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+			next := pipeline.RoundTripperFunc(func(r pipeline.Request) (*http.Response, error) {
+				var err error
 				var testTrace *tempopb.Trace
 				var statusCode int
-				var err error
-				if r.RequestURI == "/querier/api/v2/traces/1234?mode=ingesters" {
+				if r.HTTPRequest().RequestURI == "/querier/api/v2/traces/1234?mode=ingesters" {
 					testTrace = tc.trace1
 					statusCode = tc.status1
 					err = tc.err1
@@ -447,7 +448,7 @@ func TestTraceIDHandlerV2WithJSONResponse(t *testing.T) {
 		}
 	}
 
-	next := RoundTripperFunc(func(_ *http.Request) (*http.Response, error) {
+	next := pipeline.RoundTripperFunc(func(_ pipeline.Request) (*http.Response, error) {
 		var err error
 		resBytes, err := proto.Marshal(&tempopb.TraceByIDResponse{
 			Trace:   splitTrace,

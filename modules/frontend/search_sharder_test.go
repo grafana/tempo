@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -227,7 +226,7 @@ func TestBuildBackendRequests(t *testing.T) {
 		reqCh := make(chan pipeline.Request)
 
 		go func() {
-			buildBackendRequests(ctx, "test", req, searchReq, tc.metas, tc.targetBytesPerRequest, reqCh, cancelCause)
+			buildBackendRequests(ctx, "test", pipeline.NewHTTPRequest(req), searchReq, tc.metas, tc.targetBytesPerRequest, reqCh, cancelCause)
 		}()
 
 		actualURIs := []string{}
@@ -317,8 +316,8 @@ func TestBackendRequests(t *testing.T) {
 			reqCh := make(chan pipeline.Request)
 
 			ctx, cancelCause := context.WithCancelCause(context.Background())
-
-			jobs, blocks, blockBytes := s.backendRequests(ctx, "test", r, searchReq, reqCh, cancelCause)
+			pipelineRequest := pipeline.NewHTTPRequest(r)
+			jobs, blocks, blockBytes := s.backendRequests(ctx, "test", pipelineRequest, searchReq, reqCh, cancelCause)
 			require.Equal(t, tc.expectedJobs, jobs)
 			require.Equal(t, tc.expectedBlocks, blocks)
 			require.Equal(t, tc.expectedBlockBytes, blockBytes)
@@ -493,8 +492,9 @@ func TestIngesterRequests(t *testing.T) {
 		reqChan := make(chan pipeline.Request, tc.ingesterShards)
 		defer close(reqChan)
 
-		copyReq := searchReq
-		err = s.ingesterRequests(context.Background(), "test", req, *searchReq, reqChan)
+		pr := pipeline.NewHTTPRequest(req)
+		pr.SetWeight(2)
+		err = s.ingesterRequests(context.Background(), "test", pr, *searchReq, reqChan)
 		if tc.expectedError != nil {
 			assert.Equal(t, tc.expectedError, err)
 			continue
@@ -541,13 +541,8 @@ func TestIngesterRequests(t *testing.T) {
 				}
 
 				require.Equal(t, v, values[k])
+				require.Equal(t, 2, req.Weight())
 			}
-
-			/* require.Equal(t, expectedURI, req.RequestURI) */
-
-			// it may seem odd to test that the searchReq is not modified, but this is to prevent an issue that
-			// occurs if the ingesterRequest method is changed to take a searchReq pointer
-			require.True(t, reflect.DeepEqual(copyReq, searchReq))
 		}
 	}
 }
