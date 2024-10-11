@@ -339,7 +339,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.
 
 			prepareRequestForQueriers(subR, tenantID)
 			key := searchJobCacheKey(tenantID, queryHash, int64(searchReq.Start), int64(searchReq.End), m, startPage, pages)
-			pipelineR := parent.FromHTTPRequest(subR)
+			pipelineR := parent.CloneFromHTTPRequest(subR)
 			pipelineR.SetCacheKey(key)
 
 			select {
@@ -404,6 +404,6 @@ func buildIngesterRequest(ctx context.Context, tenantID string, parent pipeline.
 	}
 
 	prepareRequestForQueriers(subR, tenantID)
-	reqCh <- parent.FromHTTPRequest(subR)
+	reqCh <- parent.CloneFromHTTPRequest(subR)
 	return nil
 }
