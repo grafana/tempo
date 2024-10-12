@@ -8,9 +8,11 @@ import (
 
 // Config holds the configuration for redbull.
 type Config struct {
-	Address               string           `yaml:"address"`
-	Backend               string           `yaml:"backend"`
-	TLSEnabled            bool             `yaml:"tls_enabled" category:"advanced"`
+	Address string `yaml:"address"`
+	Backend string `yaml:"backend"`
+	// TLSEnabled enables tls outgoing requests from tempo-query to tempo.
+	TLSEnabled bool `yaml:"tls_enabled" category:"advanced"`
+	// TLSServerEnabeld enables tls for incoming requests to the tempo-query API.
 	TLSServerEnabeld      bool             `yaml:"tls_server_enabled" category:"advanced"`
 	TLS                   tls.ClientConfig `yaml:",inline"`
 	TenantHeaderKey       string           `yaml:"tenant_header_key"`
