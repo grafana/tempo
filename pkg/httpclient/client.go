@@ -65,6 +65,7 @@ type Client struct {
 	BaseURL string
 	OrgID   string
 	client  *http.Client
+	headers map[string]string
 }
 
 func New(baseURL, orgID string) *Client {
@@ -79,6 +80,13 @@ func NewWithCompression(baseURL, orgID string) *Client {
 	c := New(baseURL, orgID)
 	c.WithTransport(gzhttp.Transport(http.DefaultTransport))
 	return c
+}
+
+func (c *Client) SetHeader(key string, value string) {
+	if c.headers == nil {
+		c.headers = make(map[string]string)
+	}
+	c.headers[key] = value
 }
 
 func (c *Client) WithTransport(t http.RoundTripper) {
@@ -128,6 +136,12 @@ func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 func (c *Client) doRequest(req *http.Request) (*http.Response, []byte, error) {
 	if len(c.OrgID) > 0 {
 		req.Header.Set(orgIDHeader, c.OrgID)
+	}
+
+	if c.headers != nil {
+		for k, v := range c.headers {
+			req.Header.Set(k, v)
+		}
 	}
 
 	resp, err := http.DefaultClient.Do(req)
