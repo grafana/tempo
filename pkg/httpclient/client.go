@@ -50,6 +50,7 @@ type TempoHTTPClient interface {
 	QueryTraceWithRange(id string, start int64, end int64) (*tempopb.Trace, error)
 	SearchTraceQL(query string) (*tempopb.SearchResponse, error)
 	SearchTraceQLWithRange(query string, start int64, end int64) (*tempopb.SearchResponse, error)
+	SearchTraceQLWithRangeAndLimit(query string, start int64, end int64, limit int64, spss int64) (*tempopb.SearchResponse, error)
 	MetricsSummary(query string, groupBy string, start int64, end int64) (*tempopb.SpanMetricsSummaryResponse, error)
 	GetOverrides() (*userconfigurableoverrides.Limits, string, error)
 	SetOverrides(limits *userconfigurableoverrides.Limits, version string) (string, error)
@@ -225,7 +226,7 @@ func (c *Client) SearchTagValuesV2WithRange(tag string, start int64, end int64) 
 // Search Tempo. tags must be in logfmt format, that is "key1=value1 key2=value2"
 func (c *Client) Search(tags string) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.buildSearchQueryURL("tags", tags, 0, 0), m)
+	_, err := c.getFor(c.buildSearchQueryURL("tags", tags, 0, 0, 0, 0), m)
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +238,7 @@ func (c *Client) Search(tags string) (*tempopb.SearchResponse, error) {
 // epoch timestamps in seconds.
 func (c *Client) SearchWithRange(tags string, start int64, end int64) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.buildSearchQueryURL("tags", tags, start, end), m)
+	_, err := c.getFor(c.buildSearchQueryURL("tags", tags, start, end, 0, 0), m)
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +292,7 @@ func (c *Client) QueryTraceWithRange(id string, start int64, end int64) (*tempop
 
 func (c *Client) SearchTraceQL(query string) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.buildSearchQueryURL("q", query, 0, 0), m)
+	_, err := c.getFor(c.buildSearchQueryURL("q", query, 0, 0, 0, 0), m)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +302,17 @@ func (c *Client) SearchTraceQL(query string) (*tempopb.SearchResponse, error) {
 
 func (c *Client) SearchTraceQLWithRange(query string, start int64, end int64) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.buildSearchQueryURL("q", query, start, end), m)
+	_, err := c.getFor(c.buildSearchQueryURL("q", query, start, end, 0, 0), m)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
+func (c *Client) SearchTraceQLWithRangeAndLimit(query string, start int64, end int64, limit int64, spss int64) (*tempopb.SearchResponse, error) {
+	m := &tempopb.SearchResponse{}
+	_, err := c.getFor(c.buildSearchQueryURL("q", query, start, end, limit, spss), m)
 	if err != nil {
 		return nil, err
 	}
@@ -329,12 +340,18 @@ func (c *Client) MetricsSummary(query string, groupBy string, start int64, end i
 	return m, nil
 }
 
-func (c *Client) buildSearchQueryURL(queryType string, query string, start int64, end int64) string {
+func (c *Client) buildSearchQueryURL(queryType string, query string, start int64, end int64, limit int64, spss int64) string {
 	joinURL, _ := url.Parse(c.BaseURL + "/api/search?")
 	q := joinURL.Query()
 	if start != 0 && end != 0 {
 		q.Set("start", strconv.FormatInt(start, 10))
 		q.Set("end", strconv.FormatInt(end, 10))
+	}
+	if limit != 0 {
+		q.Set("limit", strconv.FormatInt(limit, 10))
+	}
+	if spss != 0 {
+		q.Set("spss", strconv.FormatInt(spss, 10))
 	}
 	q.Set(queryType, query)
 	joinURL.RawQuery = q.Encode()
