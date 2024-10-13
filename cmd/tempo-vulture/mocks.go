@@ -149,6 +149,11 @@ func (m *MockHTTPClient) SearchTraceQL(query string) (*tempopb.SearchResponse, e
 }
 
 //nolint:all
+func (m *MockHTTPClient) SearchTraceQLWithRangeAndLimit(query string, start int64, end int64, limit int64, spss int64) (*tempopb.SearchResponse, error) {
+	panic("unimplemented")
+}
+
+//nolint:all
 func (m *MockHTTPClient) SearchTraceQLWithRange(query string, start int64, end int64) (*tempopb.SearchResponse, error) {
 	if m.err != nil {
 		return nil, m.err
