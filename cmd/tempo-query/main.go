@@ -59,7 +59,7 @@ func main() {
 		google_grpc.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(opentracing.GlobalTracer())),
 	}
 
-	if cfg.TLSEnabled {
+	if cfg.TLSServerEnabeld {
 		creds, err := credentials.NewClientTLSFromFile(cfg.TLS.CertPath, cfg.TLS.ServerName)
 		if err != nil {
 			logger.Error("failed to load TLS credentials", zap.Error(err))
