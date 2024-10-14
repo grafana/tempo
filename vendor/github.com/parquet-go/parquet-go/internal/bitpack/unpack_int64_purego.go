@@ -11,9 +11,10 @@ import (
 )
 
 func unpackInt64(dst []int64, src []byte, bitWidth uint) {
-	srcLen := (len(src) / 4)
-	bits := make([]uint32, srcLen)
+	var bits []uint32
 	if cpu.IsBigEndian {
+		srcLen := (len(src) / 4)
+		bits = make([]uint32, srcLen)
 		idx := 0
 		for k := range srcLen {
 			bits[k] = binary.LittleEndian.Uint32((src)[idx:(4 + idx)])

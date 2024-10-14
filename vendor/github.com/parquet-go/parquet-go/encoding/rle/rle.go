@@ -153,9 +153,9 @@ func encodeBytes(dst, src []byte, bitWidth uint) ([]byte, error) {
 	}
 
 	if len(src) >= 8 {
-		srcLen := (len(src) / 8)
 		words := unsafecast.Slice[uint64](src)
 		if cpu.IsBigEndian {
+			srcLen := (len(src) / 8)
 			idx := 0
 			for k := range srcLen {
 				words[k] = binary.LittleEndian.Uint64((src)[idx:(8 + idx)])
