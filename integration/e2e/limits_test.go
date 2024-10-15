@@ -244,7 +244,7 @@ func TestQueryLimits(t *testing.T) {
 	time.Sleep(15 * time.Second)
 	_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
 	require.ErrorContains(t, err, "trace exceeds max size")
-	require.ErrorContains(t, err, "failed with response: 500") // confirm frontend returns 500
+	require.ErrorContains(t, err, "failed with response: 413") // confirm frontend returns 500
 
 	_, err = querierClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
 	require.ErrorContains(t, err, "trace exceeds max size")
