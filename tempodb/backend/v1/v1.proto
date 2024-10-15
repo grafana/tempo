@@ -33,7 +33,7 @@ message CompactedBlockMeta {
 }
 
 message TenantIndex {
-    google.protobuf.Timestamp created_at = 1[(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "createdAt"];
+    google.protobuf.Timestamp created_at = 1[(gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "created_at"];
     repeated BlockMeta meta = 2[(gogoproto.jsontag) = "meta"];
     repeated CompactedBlockMeta compacted_meta = 3[(gogoproto.jsontag) = "compacted"];
 }
