@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"math"
+
+	"github.com/parquet-go/parquet-go/internal/unsafecast"
 )
 
 // BinaryProtocol is a Protocol implementation for the binary thrift protocol.
@@ -96,7 +98,7 @@ func (r *binaryReader) ReadBytes() ([]byte, error) {
 
 func (r *binaryReader) ReadString() (string, error) {
 	b, err := r.ReadBytes()
-	return unsafeBytesToString(b), err
+	return unsafecast.String(b), err
 }
 
 func (r *binaryReader) ReadLength() (int, error) {
@@ -126,7 +128,7 @@ func (r *binaryReader) ReadMessage() (Message, error) {
 		if err != nil {
 			return m, dontExpectEOF(err)
 		}
-		m.Name = unsafeBytesToString(s)
+		m.Name = unsafecast.String(s)
 
 		t, err := r.ReadInt8()
 		if err != nil {
