@@ -1,6 +1,8 @@
 ## main / unreleased
 
 * [ENHANCEMENT] Support Tempo on IBM s390x [#4172](https://github.com/grafana/tempo/pull/4175) (@pavolloffay)
+* [ENHANCEMENT] Changed log level from INFO to DEBUG for the TempoDB Find operation using traceId to reduce excessive/unwanted logs in log search. [#4179](https://github.com/grafana/tempo/pull/4179) (@Aki0x137)
+* [ENHANCEMENT] tempo-query: separate tls settings for server and client [#4177](https://github.com/grafana/tempo/pull/4177) (@frzifus)
 * [ENHANCEMENT] Pushdown collection of results from generators in the querier [#4119](https://github.com/grafana/tempo/pull/4119) (@electron0zero)
 * [ENHANCEMENT] Send semver version in api/stattus/buildinfo for cloud deployments [#4110](https://github.com/grafana/tempo/pull/4110) [@Aki0x137]
 * [ENHANCEMENT] Speedup tempo-query trace search by allowing parallel queries [#4159](https://github.com/grafana/tempo/pull/4159) (@pavolloffay)
