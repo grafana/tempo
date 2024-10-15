@@ -19,7 +19,7 @@ func unpackInt64(dst []int64, src []byte, bitWidth uint) {
 	case hasAVX2 && bitWidth <= 32:
 		unpackInt64x1to32bitsAVX2(dst, src, bitWidth)
 	case bitWidth == 64:
-		copy(dst, unsafecast.BytesToInt64(src))
+		copy(dst, unsafecast.Slice[int64](src))
 	default:
 		unpackInt64Default(dst, src, bitWidth)
 	}

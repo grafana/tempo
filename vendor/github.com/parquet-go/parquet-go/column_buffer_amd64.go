@@ -10,7 +10,7 @@ import (
 )
 
 func broadcastValueInt32(dst []int32, src int8) {
-	bytealg.Broadcast(unsafecast.Int32ToBytes(dst), byte(src))
+	bytealg.Broadcast(unsafecast.Slice[byte](dst), byte(src))
 }
 
 //go:noescape
