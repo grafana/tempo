@@ -239,6 +239,18 @@ func (m *mergedRowReader) ReadRows(rows []Row) (n int, err error) {
 
 	for n < len(rows) && len(m.readers) != 0 {
 		r := m.readers[0]
+		if r.end == r.off { // This readers buffer has been exhausted, repopulate it.
+			if err := r.read(); err != nil {
+				if err == io.EOF {
+					heap.Pop(m)
+					continue
+				}
+				return n, err
+			} else {
+				heap.Fix(m, 0)
+				continue
+			}
+		}
 
 		rows[n] = append(rows[n][:0], r.head()...)
 		n++
@@ -247,7 +259,7 @@ func (m *mergedRowReader) ReadRows(rows []Row) (n int, err error) {
 			if err != io.EOF {
 				return n, err
 			}
-			heap.Pop(m)
+			return n, nil
 		} else {
 			heap.Fix(m, 0)
 		}
@@ -298,7 +310,9 @@ func (r *bufferedRowReader) next() error {
 	if r.off++; r.off == r.end {
 		r.off = 0
 		r.end = 0
-		return r.read()
+		// We need to read more rows, however it is unsafe to do so here because we haven't
+		// returned the current rows to the caller yet which may cause buffer corruption.
+		return io.EOF
 	}
 	return nil
 }

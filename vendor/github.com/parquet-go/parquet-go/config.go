@@ -213,6 +213,7 @@ type WriterConfig struct {
 	BloomFilters         []BloomFilterColumn
 	Compression          compress.Codec
 	Sorting              SortingConfig
+	SkipPageBounds       [][]string
 }
 
 // DefaultWriterConfig returns a new WriterConfig value initialized with the
@@ -270,8 +271,8 @@ func (c *WriterConfig) ConfigureWriter(config *WriterConfig) {
 		PageBufferSize:       coalesceInt(c.PageBufferSize, config.PageBufferSize),
 		WriteBufferSize:      coalesceInt(c.WriteBufferSize, config.WriteBufferSize),
 		DataPageVersion:      coalesceInt(c.DataPageVersion, config.DataPageVersion),
-		DataPageStatistics:   config.DataPageStatistics,
-		MaxRowsPerRowGroup:   config.MaxRowsPerRowGroup,
+		DataPageStatistics:   coalesceBool(c.DataPageStatistics, config.DataPageStatistics),
+		MaxRowsPerRowGroup:   coalesceInt64(c.MaxRowsPerRowGroup, config.MaxRowsPerRowGroup),
 		KeyValueMetadata:     keyValueMetadata,
 		Schema:               coalesceSchema(c.Schema, config.Schema),
 		BloomFilters:         coalesceBloomFilters(c.BloomFilters, config.BloomFilters),
@@ -623,6 +624,15 @@ func SortingWriterConfig(options ...SortingOption) WriterOption {
 	return writerOption(func(config *WriterConfig) { config.Sorting.Apply(options...) })
 }
 
+// SkipPageBounds lists the path to a column that shouldn't have bounds written to the
+// footer of the parquet file. This is useful for data blobs, like a raw html file,
+// where the bounds are not meaningful.
+//
+// This option is additive, it may be used multiple times to skip multiple columns.
+func SkipPageBounds(path ...string) WriterOption {
+	return writerOption(func(config *WriterConfig) { config.SkipPageBounds = append(config.SkipPageBounds, path) })
+}
+
 // ColumnBufferCapacity creates a configuration option which defines the size of
 // row group column buffers.
 //
@@ -691,6 +701,10 @@ func (opt rowGroupOption) ConfigureRowGroup(config *RowGroupConfig) { opt(config
 type sortingOption func(*SortingConfig)
 
 func (opt sortingOption) ConfigureSorting(config *SortingConfig) { opt(config) }
+
+func coalesceBool(i1, i2 bool) bool {
+	return i1 || i2
+}
 
 func coalesceInt(i1, i2 int) int {
 	if i1 != 0 {

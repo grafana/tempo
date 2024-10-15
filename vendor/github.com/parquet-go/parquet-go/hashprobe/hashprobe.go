@@ -98,7 +98,7 @@ func (t *Int32Table) Len() int { return t.len }
 func (t *Int32Table) Cap() int { return t.size() }
 
 func (t *Int32Table) Probe(keys, values []int32) int {
-	return t.probe(unsafecast.Int32ToUint32(keys), values)
+	return t.probe(unsafecast.Slice[uint32](keys), values)
 }
 
 func (t *Int32Table) ProbeArray(keys sparse.Int32Array, values []int32) int {
@@ -118,7 +118,7 @@ func (t *Float32Table) Len() int { return t.len }
 func (t *Float32Table) Cap() int { return t.size() }
 
 func (t *Float32Table) Probe(keys []float32, values []int32) int {
-	return t.probe(unsafecast.Float32ToUint32(keys), values)
+	return t.probe(unsafecast.Slice[uint32](keys), values)
 }
 
 func (t *Float32Table) ProbeArray(keys sparse.Float32Array, values []int32) int {
@@ -342,7 +342,7 @@ func (t *Int64Table) Len() int { return t.len }
 func (t *Int64Table) Cap() int { return t.size() }
 
 func (t *Int64Table) Probe(keys []int64, values []int32) int {
-	return t.probe(unsafecast.Int64ToUint64(keys), values)
+	return t.probe(unsafecast.Slice[uint64](keys), values)
 }
 
 func (t *Int64Table) ProbeArray(keys sparse.Int64Array, values []int32) int {
@@ -362,7 +362,7 @@ func (t *Float64Table) Len() int { return t.len }
 func (t *Float64Table) Cap() int { return t.size() }
 
 func (t *Float64Table) Probe(keys []float64, values []int32) int {
-	return t.probe(unsafecast.Float64ToUint64(keys), values)
+	return t.probe(unsafecast.Slice[uint64](keys), values)
 }
 
 func (t *Float64Table) ProbeArray(keys sparse.Float64Array, values []int32) int {
@@ -639,7 +639,7 @@ func (t *table128) init(cap int, maxLoad float64) {
 
 func (t *table128) kv() (keys [][16]byte, values []int32) {
 	i := t.cap * 16
-	return unsafecast.BytesToUint128(t.table[:i]), unsafecast.BytesToInt32(t.table[i:])
+	return unsafecast.Slice[[16]byte](t.table[:i]), unsafecast.Slice[int32](t.table[i:])
 }
 
 func (t *table128) grow(totalValues int) {
@@ -753,8 +753,8 @@ func (t *table128) probeArray(keys sparse.Uint128Array, values []int32) int {
 func multiProbe128Default(table []byte, tableCap, tableLen int, hashes []uintptr, keys sparse.Uint128Array, values []int32) int {
 	modulo := uintptr(tableCap) - 1
 	offset := uintptr(tableCap) * 16
-	tableKeys := unsafecast.BytesToUint128(table[:offset])
-	tableValues := unsafecast.BytesToInt32(table[offset:])
+	tableKeys := unsafecast.Slice[[16]byte](table[:offset])
+	tableValues := unsafecast.Slice[int32](table[offset:])
 
 	for i, hash := range hashes {
 		key := keys.Index(i)
