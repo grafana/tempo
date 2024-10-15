@@ -32,6 +32,7 @@ var (
 	errCanceled              = httpgrpc.Errorf(StatusClientClosedRequest, context.Canceled.Error())
 	errDeadlineExceeded      = httpgrpc.Errorf(http.StatusGatewayTimeout, context.DeadlineExceeded.Error())
 	errRequestEntityTooLarge = httpgrpc.Errorf(http.StatusRequestEntityTooLarge, "http: request body too large")
+	errTraceTooLarge         = httpgrpc.Errorf(http.StatusRequestEntityTooLarge, "body: trace too large")
 )
 
 // handler exists to wrap a roundtripper with an HTTP handler. It wraps all
@@ -163,6 +164,8 @@ func writeError(w http.ResponseWriter, err error) error {
 		err = errDeadlineExceeded
 	} else if isRequestBodyTooLarge(err) {
 		err = errRequestEntityTooLarge
+	} else if isTraceTooLarge(err) {
+		err = errTraceTooLarge
 	}
 	httpgrpc.WriteError(w, err)
 	return err
@@ -171,4 +174,8 @@ func writeError(w http.ResponseWriter, err error) error {
 // isRequestBodyTooLarge returns true if the error is "http: request body too large".
 func isRequestBodyTooLarge(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "http: request body too large")
+}
+
+func isTraceTooLarge(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "body: trace exceeds max size")
 }

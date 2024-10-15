@@ -234,11 +234,11 @@ func TestQueryLimits(t *testing.T) {
 
 	_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
 	require.ErrorContains(t, err, "trace exceeds max size")
-	require.ErrorContains(t, err, "failed with response: 500") // confirm frontend returns 500
+	require.ErrorContains(t, err, "failed with response: 413") // confirm frontend returns 413
 
 	_, err = querierClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
 	require.ErrorContains(t, err, "trace exceeds max size")
-	require.ErrorContains(t, err, "failed with response: 500") // todo: this should return 400 ideally so the frontend does not retry, but does not currently
+	require.ErrorContains(t, err, "failed with response: 413")
 
 	// complete block timeout  is 10 seconds
 	time.Sleep(15 * time.Second)
@@ -248,7 +248,7 @@ func TestQueryLimits(t *testing.T) {
 
 	_, err = querierClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
 	require.ErrorContains(t, err, "trace exceeds max size")
-	require.ErrorContains(t, err, "failed with response: 400") // confirm querier returns 400
+	require.ErrorContains(t, err, "failed with response: 413") // confirm querier returns 400
 }
 
 func TestLimitsPartialSuccess(t *testing.T) {
