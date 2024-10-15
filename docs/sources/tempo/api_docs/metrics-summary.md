@@ -31,7 +31,7 @@ overrides:
       processors: [..., 'local-blocks']
 ```
 
-In Grafana and Grafana Cloudl, the Metrics summary API is an [experimental feature]({{< relref "/docs/release-life-cycle" >}}) that is disabled by default.
+In Grafana and Grafana Cloudl, the Metrics summary API is an [experimental feature](https://grafana.com/docs/release-life-cycle/) that is disabled by default.
 To enable it in Grafana Cloud, contact Grafana Support.
 
 ## Request
