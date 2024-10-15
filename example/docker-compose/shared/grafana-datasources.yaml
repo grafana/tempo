@@ -28,3 +28,6 @@ datasources:
     httpMethod: GET
     serviceMap:
       datasourceUid: prometheus
+    streamingEnabled:
+      search: true
+
