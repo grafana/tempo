@@ -18,7 +18,7 @@ go run ./cmd/tempo --storage.trace.backend=local --storage.trace.local.path=/var
 ## Complete configuration
 
 {{< admonition type="note" >}}
-This manifest was generated on 2023-11-13.
+This manifest was generated on 2024-10-11.
 {{% /admonition %}}
 
 ```yaml
@@ -33,6 +33,7 @@ server:
     grpc_listen_address: ""
     grpc_listen_port: 9095
     grpc_listen_conn_limit: 0
+    proxy_protocol_enabled: false
     tls_cipher_suites: ""
     tls_min_version: ""
     http_tls_config:
@@ -70,6 +71,8 @@ server:
     grpc_server_min_time_between_pings: 10s
     grpc_server_ping_without_stream_allowed: true
     grpc_server_num_workers: 0
+    grpc_server_stats_tracking_enabled: true
+    grpc_server_recv_buffer_pools_enabled: false
     log_format: logfmt
     log_level: info
     log_source_ips_enabled: false
@@ -89,6 +92,7 @@ internal_server:
     grpc_listen_address: ""
     grpc_listen_port: 0
     grpc_listen_conn_limit: 0
+    proxy_protocol_enabled: false
     tls_cipher_suites: ""
     tls_min_version: ""
     http_tls_config:
@@ -126,6 +130,8 @@ internal_server:
     grpc_server_min_time_between_pings: 0s
     grpc_server_ping_without_stream_allowed: false
     grpc_server_num_workers: 0
+    grpc_server_stats_tracking_enabled: false
+    grpc_server_recv_buffer_pools_enabled: false
     log_format: logfmt
     log_level: info
     log_source_ips_enabled: false
@@ -314,7 +320,9 @@ query_frontend:
         max_duration: 3h0m0s
         query_backend_after: 30m0s
         interval: 5m0s
+        max_exemplars: 100
     multi_tenant_queries_enabled: true
+    response_consumers: 10
 compactor:
     ring:
         kvstore:
@@ -582,7 +590,7 @@ metrics_generator:
         path: ""
         v2_encoding: none
         search_encoding: none
-        ingestion_time_range_slack: 0s
+        ingestion_time_range_slack: 2m0s
         version: vParquet4
     metrics_ingestion_time_range_slack: 30s
     query_timeout: 30s
@@ -620,11 +628,13 @@ storage:
                 offset_index: false
         blocklist_poll: 5m0s
         blocklist_poll_concurrency: 50
+        blocklist_poll_tenant_concurrency: 0
         blocklist_poll_fallback: true
         blocklist_poll_tenant_index_builders: 2
         blocklist_poll_stale_tenant_index: 0s
         blocklist_poll_jitter_ms: 0
         blocklist_poll_tolerate_consecutive_errors: 1
+        blocklist_poll_tolerate_tenant_failures: 1
         empty_tenant_deletion_enabled: false
         empty_tenant_deletion_age: 0s
         backend: local
@@ -699,6 +709,9 @@ overrides:
             max_traces_per_user: 10000
         read:
             max_bytes_per_tag_values_query: 5000000
+        metrics_generator:
+            generate_native_histograms: classic
+            ingestion_time_range_slack: 0s
         global:
             max_bytes_per_trace: 5000000
     per_tenant_override_config: ""
@@ -788,6 +801,7 @@ memberlist:
     rejoin_interval: 0s
     left_ingesters_timeout: 5m0s
     leave_timeout: 20s
+    broadcast_timeout_for_local_updates_on_shutdown: 10s
     message_history_buffer_bytes: 0
     bind_addr: []
     bind_port: 7946

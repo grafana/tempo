@@ -13,6 +13,7 @@ import (
 const (
 	traceByIDOp = "traces"
 	searchOp    = "search"
+	metadataOp  = "metadata"
 	metricsOp   = "metrics"
 )
 
@@ -28,6 +29,7 @@ var (
 
 	sloTraceByIDCounter = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
 	sloSearchCounter    = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
+	sloMetadataCounter  = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": metadataOp})
 	sloMetricsCounter   = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": metricsOp})
 
 	// be careful about adding or removing labels from this metric. this, along with the
@@ -41,6 +43,7 @@ var (
 
 	traceByIDCounter = queriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
 	searchCounter    = queriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
+	metadataCounter  = queriesPerTenant.MustCurryWith(prometheus.Labels{"op": metadataOp})
 	metricsCounter   = queriesPerTenant.MustCurryWith(prometheus.Labels{"op": metricsOp})
 
 	queryThroughput = promauto.NewHistogramVec(prometheus.HistogramOpts{
@@ -53,8 +56,9 @@ var (
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{"tenant", "op"})
 
-	searchThroughput  = queryThroughput.MustCurryWith(prometheus.Labels{"op": searchOp})
-	metricsThroughput = queryThroughput.MustCurryWith(prometheus.Labels{"op": metricsOp})
+	searchThroughput   = queryThroughput.MustCurryWith(prometheus.Labels{"op": searchOp})
+	metadataThroughput = queryThroughput.MustCurryWith(prometheus.Labels{"op": metadataOp})
+	metricsThroughput  = queryThroughput.MustCurryWith(prometheus.Labels{"op": metricsOp})
 )
 
 type (
@@ -68,6 +72,10 @@ func traceByIDSLOPostHook(cfg SLOConfig) handlerPostHook {
 
 func searchSLOPostHook(cfg SLOConfig) handlerPostHook {
 	return sloHook(searchCounter, sloSearchCounter, searchThroughput, cfg)
+}
+
+func metadataSLOPostHook(cfg SLOConfig) handlerPostHook {
+	return sloHook(metadataCounter, sloMetadataCounter, metadataThroughput, cfg)
 }
 
 func metricsSLOPostHook(cfg SLOConfig) handlerPostHook {

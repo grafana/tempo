@@ -228,6 +228,9 @@ func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.
 		s.logger.Log("msg", "failed to build backend requests", "err", err)
 	})
 
+	// TODO(suraj): send jobMetricsResponse like we send in asyncSearchSharder.RoundTrip and accumulate these metrics in the
+	// combiners, and log these metrics in the logger like we do in search_handlers.go
+
 	// execute requests
 	return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, reqCh, nil, s.next), nil
 }

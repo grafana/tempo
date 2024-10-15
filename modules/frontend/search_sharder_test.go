@@ -45,7 +45,7 @@ func (m *mockReader) SearchTags(context.Context, *backend.BlockMeta, string, com
 	return nil, nil
 }
 
-func (m *mockReader) SearchTagValues(context.Context, *backend.BlockMeta, string, common.SearchOptions) ([]string, error) {
+func (m *mockReader) SearchTagValues(context.Context, *backend.BlockMeta, string, common.SearchOptions) (*tempopb.SearchTagValuesResponse, error) {
 	return nil, nil
 }
 
@@ -53,7 +53,7 @@ func (m *mockReader) SearchTagValuesV2(context.Context, *backend.BlockMeta, *tem
 	return nil, nil
 }
 
-func (m *mockReader) FetchTagValues(context.Context, *backend.BlockMeta, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.SearchOptions) error {
+func (m *mockReader) FetchTagValues(context.Context, *backend.BlockMeta, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.MetricsCallback, common.SearchOptions) error {
 	return nil
 }
 
@@ -73,7 +73,7 @@ func (m *mockReader) Fetch(context.Context, *backend.BlockMeta, traceql.FetchSpa
 	return traceql.FetchSpansResponse{}, nil
 }
 
-func (m *mockReader) FetchTagNames(_ context.Context, _ *backend.BlockMeta, _ traceql.FetchTagsRequest, _ traceql.FetchTagsCallback, _ common.SearchOptions) error {
+func (m *mockReader) FetchTagNames(context.Context, *backend.BlockMeta, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.MetricsCallback, common.SearchOptions) error {
 	return nil
 }
 
