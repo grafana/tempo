@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"math"
+
+	"github.com/parquet-go/parquet-go/internal/unsafecast"
 )
 
 // CompactProtocol is a Protocol implementation for the compact thrift protocol.
@@ -77,7 +79,7 @@ func (r *compactReader) ReadBytes() ([]byte, error) {
 
 func (r *compactReader) ReadString() (string, error) {
 	b, err := r.ReadBytes()
-	return unsafeBytesToString(b), err
+	return unsafecast.String(b), err
 }
 
 func (r *compactReader) ReadLength() (int, error) {

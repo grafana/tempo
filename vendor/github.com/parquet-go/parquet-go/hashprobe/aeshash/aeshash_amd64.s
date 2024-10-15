@@ -7,9 +7,9 @@ TEXT ·Hash32(SB), NOSPLIT, $0-24
     MOVL value+0(FP), AX
     MOVQ seed+8(FP), BX
 
-    MOVOU runtime·aeskeysched+0(SB), X1
-    MOVOU runtime·aeskeysched+16(SB), X2
-    MOVOU runtime·aeskeysched+32(SB), X3
+    MOVOU ·aeskeysched+0(SB), X1
+    MOVOU ·aeskeysched+16(SB), X2
+    MOVOU ·aeskeysched+32(SB), X3
 
     MOVQ BX, X0
     PINSRD $2, AX, X0
@@ -26,9 +26,9 @@ TEXT ·Hash64(SB), NOSPLIT, $0-24
     MOVQ value+0(FP), AX
     MOVQ seed+8(FP), BX
 
-    MOVOU runtime·aeskeysched+0(SB), X1
-    MOVOU runtime·aeskeysched+16(SB), X2
-    MOVOU runtime·aeskeysched+32(SB), X3
+    MOVOU ·aeskeysched+0(SB), X1
+    MOVOU ·aeskeysched+16(SB), X2
+    MOVOU ·aeskeysched+32(SB), X3
 
     MOVQ BX, X0
     PINSRQ $1, AX, X0
@@ -49,7 +49,7 @@ TEXT ·Hash128(SB), NOSPLIT, $0-32
     MOVQ BX, X0                      // 64 bits of per-table hash seed
     PINSRW $4, CX, X0                // 16 bits of length
     PSHUFHW $0, X0, X0               // repeat length 4 times total
-    PXOR runtime·aeskeysched(SB), X0 // xor in per-process seed
+    PXOR ·aeskeysched(SB), X0        // xor in per-process seed
     AESENC X0, X0                    // scramble seed
 
     MOVOU (AX), X1
@@ -69,9 +69,9 @@ TEXT ·MultiHashUint32Array(SB), NOSPLIT, $0-56
     MOVQ values_array_off+40(FP), R8
     MOVQ seed+48(FP), DX
 
-    MOVOU runtime·aeskeysched+0(SB), X1
-    MOVOU runtime·aeskeysched+16(SB), X2
-    MOVOU runtime·aeskeysched+32(SB), X3
+    MOVOU ·aeskeysched+0(SB), X1
+    MOVOU ·aeskeysched+16(SB), X2
+    MOVOU ·aeskeysched+32(SB), X3
 
     XORQ SI, SI
     JMP test
@@ -99,9 +99,9 @@ TEXT ·MultiHashUint64Array(SB), NOSPLIT, $0-56
     MOVQ values_array_off+40(FP), R8
     MOVQ seed+48(FP), DX
 
-    MOVOU runtime·aeskeysched+0(SB), X1
-    MOVOU runtime·aeskeysched+16(SB), X2
-    MOVOU runtime·aeskeysched+32(SB), X3
+    MOVOU ·aeskeysched+0(SB), X1
+    MOVOU ·aeskeysched+16(SB), X2
+    MOVOU ·aeskeysched+32(SB), X3
 
     XORQ SI, SI
     JMP test
@@ -133,7 +133,7 @@ TEXT ·MultiHashUint128Array(SB), NOSPLIT, $0-56
     MOVQ DX, X0
     PINSRW $4, DI, X0
     PSHUFHW $0, X0, X0
-    PXOR runtime·aeskeysched(SB), X0
+    PXOR ·aeskeysched(SB), X0
     AESENC X0, X0
 
     XORQ SI, SI
