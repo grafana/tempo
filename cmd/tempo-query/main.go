@@ -15,6 +15,8 @@ import (
 	"go.uber.org/zap/zapcore"
 	google_grpc "google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/grafana/tempo/cmd/tempo-query/tempo"
 )
@@ -71,6 +73,10 @@ func main() {
 	storage_v1.RegisterSpanReaderPluginServer(srv, backend)
 	storage_v1.RegisterDependenciesReaderPluginServer(srv, backend)
 	storage_v1.RegisterSpanWriterPluginServer(srv, backend)
+
+	healthServer := health.NewServer()
+	grpc_health_v1.RegisterHealthServer(srv, healthServer)
+	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 
 	lis, err := net.Listen("tcp", cfg.Address)
 	if err != nil {
