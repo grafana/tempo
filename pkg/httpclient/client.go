@@ -50,6 +50,7 @@ type TempoHTTPClient interface {
 	QueryTraceWithRange(id string, start int64, end int64) (*tempopb.Trace, error)
 	SearchTraceQL(query string) (*tempopb.SearchResponse, error)
 	SearchTraceQLWithRange(query string, start int64, end int64) (*tempopb.SearchResponse, error)
+	SearchTraceQLWithRangeAndLimit(query string, start int64, end int64, limit int64, spss int64) (*tempopb.SearchResponse, error)
 	MetricsSummary(query string, groupBy string, start int64, end int64) (*tempopb.SpanMetricsSummaryResponse, error)
 	GetOverrides() (*userconfigurableoverrides.Limits, string, error)
 	SetOverrides(limits *userconfigurableoverrides.Limits, version string) (string, error)
@@ -64,6 +65,7 @@ type Client struct {
 	BaseURL string
 	OrgID   string
 	client  *http.Client
+	headers map[string]string
 }
 
 func New(baseURL, orgID string) *Client {
@@ -78,6 +80,13 @@ func NewWithCompression(baseURL, orgID string) *Client {
 	c := New(baseURL, orgID)
 	c.WithTransport(gzhttp.Transport(http.DefaultTransport))
 	return c
+}
+
+func (c *Client) SetHeader(key string, value string) {
+	if c.headers == nil {
+		c.headers = make(map[string]string)
+	}
+	c.headers[key] = value
 }
 
 func (c *Client) WithTransport(t http.RoundTripper) {
@@ -127,6 +136,12 @@ func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 func (c *Client) doRequest(req *http.Request) (*http.Response, []byte, error) {
 	if len(c.OrgID) > 0 {
 		req.Header.Set(orgIDHeader, c.OrgID)
+	}
+
+	if c.headers != nil {
+		for k, v := range c.headers {
+			req.Header.Set(k, v)
+		}
 	}
 
 	resp, err := http.DefaultClient.Do(req)
@@ -225,7 +240,7 @@ func (c *Client) SearchTagValuesV2WithRange(tag string, start int64, end int64) 
 // Search Tempo. tags must be in logfmt format, that is "key1=value1 key2=value2"
 func (c *Client) Search(tags string) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.buildSearchQueryURL("tags", tags, 0, 0), m)
+	_, err := c.getFor(c.buildSearchQueryURL("tags", tags, 0, 0, 0, 0), m)
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +252,7 @@ func (c *Client) Search(tags string) (*tempopb.SearchResponse, error) {
 // epoch timestamps in seconds.
 func (c *Client) SearchWithRange(tags string, start int64, end int64) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.buildSearchQueryURL("tags", tags, start, end), m)
+	_, err := c.getFor(c.buildSearchQueryURL("tags", tags, start, end, 0, 0), m)
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +306,7 @@ func (c *Client) QueryTraceWithRange(id string, start int64, end int64) (*tempop
 
 func (c *Client) SearchTraceQL(query string) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.buildSearchQueryURL("q", query, 0, 0), m)
+	_, err := c.getFor(c.buildSearchQueryURL("q", query, 0, 0, 0, 0), m)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +316,17 @@ func (c *Client) SearchTraceQL(query string) (*tempopb.SearchResponse, error) {
 
 func (c *Client) SearchTraceQLWithRange(query string, start int64, end int64) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.buildSearchQueryURL("q", query, start, end), m)
+	_, err := c.getFor(c.buildSearchQueryURL("q", query, start, end, 0, 0), m)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
+func (c *Client) SearchTraceQLWithRangeAndLimit(query string, start int64, end int64, limit int64, spss int64) (*tempopb.SearchResponse, error) {
+	m := &tempopb.SearchResponse{}
+	_, err := c.getFor(c.buildSearchQueryURL("q", query, start, end, limit, spss), m)
 	if err != nil {
 		return nil, err
 	}
@@ -329,12 +354,18 @@ func (c *Client) MetricsSummary(query string, groupBy string, start int64, end i
 	return m, nil
 }
 
-func (c *Client) buildSearchQueryURL(queryType string, query string, start int64, end int64) string {
+func (c *Client) buildSearchQueryURL(queryType string, query string, start int64, end int64, limit int64, spss int64) string {
 	joinURL, _ := url.Parse(c.BaseURL + "/api/search?")
 	q := joinURL.Query()
 	if start != 0 && end != 0 {
 		q.Set("start", strconv.FormatInt(start, 10))
 		q.Set("end", strconv.FormatInt(end, 10))
+	}
+	if limit != 0 {
+		q.Set("limit", strconv.FormatInt(limit, 10))
+	}
+	if spss != 0 {
+		q.Set("spss", strconv.FormatInt(spss, 10))
 	}
 	q.Set(queryType, query)
 	joinURL.RawQuery = q.Encode()
