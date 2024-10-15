@@ -40,11 +40,11 @@
 
 # v2.6.1
 
-* [CHANGE] **BREAKING CHANGE** tempo-query is no longer a jaeger instance with grpcPlugin. Its now a standalone server. Serving a grpc api for jaeger on `0.0.0.0:7777` by default. [#3840](https://github.com/grafana/tempo/issues/3840) (@frzifus)
-* [ENHANCEMENT] Register gRPC health server to tempo-query [#4178](https://github.com/grafana/tempo/pull/4178) (@frzifus)
-* [ENHANCEMENT] Support Tempo on IBM s390x [#4175](https://github.com/grafana/tempo/pull/4175) (@pavolloffay)
-* [ENHANCEMENT] tempo-query: separate tls settings for server and client [#4177](https://github.com/grafana/tempo/pull/4177) (@frzifus)
-* [ENHANCEMENT] Speedup tempo-query trace search by allowing parallel queries [#4159](https://github.com/grafana/tempo/pull/4159) (@pavolloffay)
+* [CHANGE] **BREAKING CHANGE** tempo-query is no longer a Jaeger instance with grpcPlugin. It's now a standalone server. Serving a gRPC API for Jaeger on `0.0.0.0:7777` by default. [#3840](https://github.com/grafana/tempo/issues/3840) (@frzifus)
+* [ENHANCEMENT] Register gRPC health server to tempo-query. [#4178](https://github.com/grafana/tempo/pull/4178) (@frzifus)
+* [ENHANCEMENT] Support Tempo on IBM s390x. [#4175](https://github.com/grafana/tempo/pull/4175) (@pavolloffay)
+* [ENHANCEMENT] tempo-query: Separate TLS settings for server and client. [#4177](https://github.com/grafana/tempo/pull/4177) (@frzifus)
+* [ENHANCEMENT] Speedup tempo-query trace search by allowing parallel queries. [#4159](https://github.com/grafana/tempo/pull/4159) (@pavolloffay)
 * [BUGFIX] Bring back application-json content-type header. [#4123](https://github.com/grafana/tempo/pull/4123) (@javiermolinar)
 
 # v2.6.0
