@@ -2,6 +2,7 @@ package combiner
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -83,6 +84,12 @@ func (c *traceByIDCombiner) AddResponse(r PipelineResponse) error {
 
 	// Consume the trace
 	_, err = c.c.Consume(resp.Trace)
+
+	if errors.Is(err, trace.ErrTraceTooLarge) {
+		c.code = http.StatusRequestEntityTooLarge
+		c.statusMessage = trace.ErrTraceTooLarge.Error()
+	}
+
 	return err
 }
 
@@ -153,6 +160,11 @@ func (c *traceByIDCombiner) shouldQuit() bool {
 
 	// test special case for 404
 	if c.code == http.StatusNotFound {
+		return false
+	}
+
+	// test special case for 413
+	if c.code == http.StatusRequestEntityTooLarge {
 		return false
 	}
 
