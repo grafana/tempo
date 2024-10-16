@@ -310,6 +310,9 @@ local deploy_to_dev() = {
     trigger: {
       event: ['tag', 'pull_request'],
     },
+    image_pull_secrets: [
+      docker_config_json_secret.name,
+    ],
     volumes+: [
       {
         name: 'cgroup',
