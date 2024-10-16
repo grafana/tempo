@@ -418,6 +418,8 @@ trigger:
   - refs/heads/r???
 ---
 depends_on: []
+image_pull_secrets:
+- dockerconfigjson
 kind: pipeline
 name: release
 platform:
@@ -577,6 +579,6 @@ kind: secret
 name: gpg_passphrase
 ---
 kind: signature
-hmac: b2ebadc4e273784cf13a6ca549c6e7f66f99c0af5e294f5283d1e138cb4323e1
+hmac: 123492f41e48b294e4a5f98c3d253da393da808d6ea4193189b5308d5fabf1f6
 
 ...
