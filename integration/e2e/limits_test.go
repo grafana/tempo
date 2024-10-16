@@ -26,6 +26,7 @@ import (
 
 	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/httpclient"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -233,21 +234,21 @@ func TestQueryLimits(t *testing.T) {
 	querierClient := httpclient.New("http://"+tempo.Endpoint(3200)+"/querier", tempoUtil.FakeTenantID)
 
 	_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
-	require.ErrorContains(t, err, "trace exceeds max size")
+	require.ErrorContains(t, err, trace.ErrTraceTooLarge.Error())
 	require.ErrorContains(t, err, "failed with response: 413") // confirm frontend returns 413
 
 	_, err = querierClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
-	require.ErrorContains(t, err, "trace exceeds max size")
+	require.ErrorContains(t, err, trace.ErrTraceTooLarge.Error())
 	require.ErrorContains(t, err, "failed with response: 413")
 
 	// complete block timeout  is 10 seconds
 	time.Sleep(15 * time.Second)
 	_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
-	require.ErrorContains(t, err, "trace exceeds max size")
+	require.ErrorContains(t, err, trace.ErrTraceTooLarge.Error())
 	require.ErrorContains(t, err, "failed with response: 413") // confirm frontend returns 500
 
 	_, err = querierClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
-	require.ErrorContains(t, err, "trace exceeds max size")
+	require.ErrorContains(t, err, trace.ErrTraceTooLarge.Error())
 	require.ErrorContains(t, err, "failed with response: 413") // confirm querier returns 400
 }
 
