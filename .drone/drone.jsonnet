@@ -302,6 +302,8 @@ local deploy_to_dev() = {
               for d in aws_serverless_deployments
             ],
   },
+
+  local ghTokenFilename = '/drone/src/gh-token.txt';
   // Build and release packages
   // Tested by installing the packages on a systemd container
   pipeline('release') {
@@ -354,6 +356,18 @@ local deploy_to_dev() = {
         commands: ['git fetch --tags'],
       },
       {
+        name: 'Generate GitHub token',
+        image: 'us.gcr.io/kubernetes-dev/github-app-secret-writer:latest',
+        environment: {
+          GITHUB_APP_ID: { from_secret:  tempo_app_id_secret.name},
+          GITHUB_APP_INSTALLATION_ID: { from_secret:  tempo_app_installation_id_secret.name },
+          GITHUB_APP_PRIVATE_KEY: { from_secret: tempo_app_private_key_secret.name },
+        },
+        commands: [
+          '/usr/bin/github-app-external-token > %s' % ghTokenFilename,
+        ],
+      },
+      {
         name: 'write-key',
         image: 'golang:1.23',
         commands: ['printf "%s" "$NFPM_SIGNING_KEY" > $NFPM_SIGNING_KEY_FILE'],
@@ -398,7 +412,10 @@ local deploy_to_dev() = {
       {
         name: 'release',
         image: 'golang:1.23',
-        commands: ['make release'],
+        commands: [
+          'export GITHUB_TOKEN=$(cat %s)' % ghTokenFilename,
+          'make release'
+        ],
         environment: {
           NFPM_DEFAULT_PASSPHRASE: { from_secret: gpg_passphrase.name },
           NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
