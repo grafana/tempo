@@ -10,7 +10,7 @@ weight: 600
 # Metrics summary API
 
 {{< admonition type="warning" >}}
-The metrics summary API is deprecated in Tempo 2.7. Features powered by the metrics summary API, like the Aggregate by table, are also deprecated in Grafana Cloud and Grafana 11.3 and later.
+The metrics summary API is deprecated as of Tempo 2.7. Features powered by the metrics summary API, like the Aggregate by table, are also deprecated in Grafana Cloud and Grafana 11.3 and later.
 It will be removed in a future release.
 {{% /admonition %}}
 
@@ -21,7 +21,7 @@ This API returns RED metrics (span count, erroring span count, and latency infor
 
 ## Activate metrics summary
 
-To enable the experimental metrics summary API, you must turn on the local blocks processor in the metrics generator.
+To enable the (deprecated) metrics summary API, you must turn on the local blocks processor in the metrics generator.
 Be aware that the generator uses considerably more resources, including disk space, if it's enabled:
 
 ```yaml
@@ -31,7 +31,7 @@ overrides:
       processors: [..., 'local-blocks']
 ```
 
-In Grafana and Grafana Cloudl, the Metrics summary API is an [experimental feature](https://grafana.com/docs/release-life-cycle/) that is disabled by default.
+In Grafana and Grafana Cloud, the Metrics summary API is disabled by default.
 To enable it in Grafana Cloud, contact Grafana Support.
 
 ## Request
