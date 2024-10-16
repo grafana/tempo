@@ -10,7 +10,7 @@ weight: 600
 # Metrics summary API
 
 {{< admonition type="warning" >}}
-Metrics summary API is deprecated in Grafana Cloud and Grafana 11.3 and later.
+The metrics summary API is deprecated in Tempo 2.7. Features powered by the metrics summary API, like the Aggregate by table, are also deprecated in Grafana Cloud and Grafana 11.3 and later.
 It will be removed in a future release.
 {{% /admonition %}}
 
