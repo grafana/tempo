@@ -538,19 +538,19 @@ name: gh_token
 ---
 get:
   name: app-id
-  path: ci/data/repo/grafana/tempo/github-app
+  path: infra/data/ci/tempo/github-app
 kind: secret
 name: tempo_app_id_secret
 ---
 get:
   name: app-installation-id
-  path: ci/data/repo/grafana/tempo/github-app
+  path: infra/data/ci/tempo/github-app
 kind: secret
 name: tempo_app_installation_id_secret
 ---
 get:
   name: app-private-key
-  path: ci/data/repo/grafana/tempo/github-app
+  path: infra/data/ci/tempo/github-app
 kind: secret
 name: tempo_app_private_key_secret
 ---
@@ -597,6 +597,6 @@ kind: secret
 name: gpg_passphrase
 ---
 kind: signature
-hmac: 123492f41e48b294e4a5f98c3d253da393da808d6ea4193189b5308d5fabf1f6
+hmac: 0265cd585d8c7fc444bebc8aa1164ec6aa7893c2aa16f3beb61503102b00a798
 
 ...
