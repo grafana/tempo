@@ -418,6 +418,8 @@ trigger:
   - refs/heads/r???
 ---
 depends_on: []
+image_pull_secrets:
+- dockerconfigjson
 kind: pipeline
 name: release
 platform:
@@ -441,6 +443,17 @@ steps:
   - git fetch --tags
   image: docker:git
   name: fetch
+- commands:
+  - /usr/bin/github-app-external-token > /drone/src/gh-token.txt
+  environment:
+    GITHUB_APP_ID:
+      from_secret: tempo_app_id_secret
+    GITHUB_APP_INSTALLATION_ID:
+      from_secret: tempo_app_installation_id_secret
+    GITHUB_APP_PRIVATE_KEY:
+      from_secret: tempo_app_private_key_secret
+  image: us.gcr.io/kubernetes-dev/github-app-secret-writer:latest
+  name: Generate GitHub token
 - commands:
   - printf "%s" "$NFPM_SIGNING_KEY" > $NFPM_SIGNING_KEY_FILE
   environment:
@@ -474,6 +487,7 @@ steps:
   - name: docker
     path: /var/run/docker.sock
 - commands:
+  - export GITHUB_TOKEN=$(cat /drone/src/gh-token.txt)
   - make release
   environment:
     GITHUB_TOKEN:
@@ -523,6 +537,24 @@ kind: secret
 name: gh_token
 ---
 get:
+  name: app-id
+  path: infra/data/ci/tempo/github-app
+kind: secret
+name: tempo_app_id_secret
+---
+get:
+  name: app-installation-id
+  path: infra/data/ci/tempo/github-app
+kind: secret
+name: tempo_app_installation_id_secret
+---
+get:
+  name: app-private-key
+  path: infra/data/ci/tempo/github-app
+kind: secret
+name: tempo_app_private_key_secret
+---
+get:
   name: credentials.json
   path: infra/data/ci/tempo-ops-tools-function-upload
 kind: secret
@@ -565,6 +597,6 @@ kind: secret
 name: gpg_passphrase
 ---
 kind: signature
-hmac: bee5601dffa0f46559f5d8734ebda1261ec9171a3dca7add1a23188f6f162945
+hmac: 0265cd585d8c7fc444bebc8aa1164ec6aa7893c2aa16f3beb61503102b00a798
 
 ...
