@@ -48,15 +48,15 @@ func TestTraceByIDShouldQuit(t *testing.T) {
 	should = c.ShouldQuit()
 	require.False(t, should)
 
-	// trace too large, should not quit but should return an error
+	// trace too large, should quit and should not return an error
 	c = NewTraceByID(1, api.HeaderAcceptJSON)
 	err = c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{
 		Trace:   test.MakeTrace(1, nil),
 		Metrics: &tempopb.TraceByIDMetrics{},
 	}, 200))
-	require.Error(t, err)
+	require.NoError(t, err)
 	should = c.ShouldQuit()
-	require.False(t, should)
+	require.True(t, should)
 }
 
 func TestTraceByIDHonorsContentType(t *testing.T) {

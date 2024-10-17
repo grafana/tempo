@@ -44,8 +44,9 @@ func (c statusCodeAdjustWare) RoundTrip(req Request) (*http.Response, error) {
 	// if the frontend issues a bad request then externally we need to represent that as an
 	// internal error
 	// exceptions
+	//   422 - unprocessable entity
 	//   429 - too many requests
-	if resp.StatusCode >= 400 && resp.StatusCode < 500 && resp.StatusCode != 429 {
+	if resp.StatusCode >= 400 && resp.StatusCode < 500 && resp.StatusCode != 429 && resp.StatusCode != 422 {
 		resp.StatusCode = http.StatusInternalServerError
 		resp.Status = http.StatusText(http.StatusInternalServerError)
 		// leave the body alone. it will preserve the original error message
