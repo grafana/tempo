@@ -116,7 +116,26 @@ func (a *AverageOverTimeAggregator) spanStartTimeMs(s Span) uint64 {
 }
 
 func (a *AverageOverTimeAggregator) String() string {
-	return "avg(" + a.attr.String() + ")"
+	s := strings.Builder{}
+
+	s.WriteString(metricsAggregateAvgOverTime.String())
+	s.WriteString("(")
+	if a.attr != (Attribute{}) {
+		s.WriteString(a.attr.String())
+	}
+	s.WriteString(")")
+
+	if len(a.by) > 0 {
+		s.WriteString("by(")
+		for i, b := range a.by {
+			s.WriteString(b.String())
+			if i < len(a.by)-1 {
+				s.WriteString(",")
+			}
+		}
+		s.WriteString(")")
+	}
+	return s.String()
 }
 
 type SpanSetsAverageOverTimeAggregator struct {
