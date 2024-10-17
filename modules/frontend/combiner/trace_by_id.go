@@ -88,6 +88,7 @@ func (c *traceByIDCombiner) AddResponse(r PipelineResponse) error {
 	if errors.Is(err, trace.ErrTraceTooLarge) {
 		c.code = http.StatusRequestEntityTooLarge
 		c.statusMessage = trace.ErrTraceTooLarge.Error()
+		return nil
 	}
 
 	return err
@@ -165,7 +166,7 @@ func (c *traceByIDCombiner) shouldQuit() bool {
 
 	// test special case for 413
 	if c.code == http.StatusRequestEntityTooLarge {
-		return false
+		return true
 	}
 
 	// bail on other 400s
