@@ -429,7 +429,7 @@ func handleError(w http.ResponseWriter, err error) {
 	// TODO: better understand all errors returned from queriers and categorize more as 4XX
 	// NOTE: we receive a GRPC error from the ingesters, and so we need to check the string content of error as well.
 	if errors.Is(err, trace.ErrTraceTooLarge) || strings.Contains(err.Error(), trace.ErrTraceTooLarge.Error()) {
-		http.Error(w, err.Error(), http.StatusRequestEntityTooLarge)
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		return
 	}
 

@@ -235,21 +235,21 @@ func TestQueryLimits(t *testing.T) {
 
 	_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
 	require.ErrorContains(t, err, trace.ErrTraceTooLarge.Error())
-	require.ErrorContains(t, err, "failed with response: 413") // confirm frontend returns 413
+	require.ErrorContains(t, err, "failed with response: 422") // confirm frontend returns 422
 
 	_, err = querierClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
 	require.ErrorContains(t, err, trace.ErrTraceTooLarge.Error())
-	require.ErrorContains(t, err, "failed with response: 413")
+	require.ErrorContains(t, err, "failed with response: 422")
 
 	// complete block timeout  is 10 seconds
 	time.Sleep(15 * time.Second)
 	_, err = client.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
 	require.ErrorContains(t, err, trace.ErrTraceTooLarge.Error())
-	require.ErrorContains(t, err, "failed with response: 413") // confirm frontend returns 500
+	require.ErrorContains(t, err, "failed with response: 422") // confirm frontend returns 422
 
 	_, err = querierClient.QueryTrace(tempoUtil.TraceIDToHexString(traceID[:]))
 	require.ErrorContains(t, err, trace.ErrTraceTooLarge.Error())
-	require.ErrorContains(t, err, "failed with response: 413") // confirm querier returns 400
+	require.ErrorContains(t, err, "failed with response: 422") // confirm querier returns 422
 }
 
 func TestLimitsPartialSuccess(t *testing.T) {

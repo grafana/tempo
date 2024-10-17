@@ -86,7 +86,7 @@ func (c *traceByIDCombiner) AddResponse(r PipelineResponse) error {
 	_, err = c.c.Consume(resp.Trace)
 
 	if errors.Is(err, trace.ErrTraceTooLarge) {
-		c.code = http.StatusRequestEntityTooLarge
+		c.code = http.StatusUnprocessableEntity
 		c.statusMessage = trace.ErrTraceTooLarge.Error()
 		return nil
 	}
@@ -164,8 +164,8 @@ func (c *traceByIDCombiner) shouldQuit() bool {
 		return false
 	}
 
-	// test special case for 413
-	if c.code == http.StatusRequestEntityTooLarge {
+	// test special case for 422
+	if c.code == http.StatusUnprocessableEntity {
 		return true
 	}
 
