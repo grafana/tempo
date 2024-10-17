@@ -38,12 +38,13 @@ func (a *AverageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode Aggr
 	}
 
 	a.seriesAgg = &SpanSetsAverageOverTimeAggregator{
-		ss:        make(SeriesSet),
-		countProm: make(map[string]string),
-		len:       IntervalCount(q.Start, q.End, q.Step),
-		start:     q.Start,
-		end:       q.End,
-		step:      q.Step,
+		ss:              make(SeriesSet),
+		countProm:       make(map[string]string),
+		len:             IntervalCount(q.Start, q.End, q.Step),
+		start:           q.Start,
+		end:             q.End,
+		step:            q.Step,
+		exemplarBuckets: newBucketSet(IntervalCount(q.Start, q.End, q.Step)),
 	}
 
 	if mode == AggregateModeRaw {
@@ -123,14 +124,53 @@ type SpanSetsAverageOverTimeAggregator struct {
 	countProm        map[string]string
 	len              int
 	start, end, step uint64
+	exemplarBuckets  *bucketSet
 }
 
-var _ SeriesAggregator = (*SpanSetsAverageOverTimeAggregator)(nil)
+var (
+	_   SeriesAggregator = (*SpanSetsAverageOverTimeAggregator)(nil)
+	nan                  = math.Float64frombits(normalNaN)
+)
 
 func (b *SpanSetsAverageOverTimeAggregator) Combine(in []*tempopb.TimeSeries) {
 	newCountersTS := make(map[string][]float64)
-	nan := math.Float64frombits(normalNaN)
 
+	b.initSeriesAggregator(in, newCountersTS)
+	for _, ts := range in {
+		counterLabel, ok := b.countProm[ts.PromLabels]
+		if !ok {
+			// This is a counter label, we can skip it
+			continue
+		}
+		existing := b.ss[ts.PromLabels]
+		for _, sample := range ts.Samples {
+			pos := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
+			if pos < 0 || pos > len(b.ss[ts.PromLabels].Values) {
+				continue
+			}
+
+			currentAvg := b.ss[ts.PromLabels].Values[pos]
+			newAvg := sample.Value
+			currentCount := b.ss[counterLabel].Values[pos]
+			newCount := newCountersTS[ts.PromLabels][pos]
+
+			if math.IsNaN(currentAvg) && !math.IsNaN(newAvg) {
+				b.ss[ts.PromLabels].Values[pos] = newAvg
+				b.ss[counterLabel].Values[pos] = newCount
+			} else if !math.IsNaN(newAvg) {
+				// Weighted mean
+				avg := (currentAvg*currentCount + newAvg*newCount) / (currentCount + newCount)
+				b.ss[ts.PromLabels].Values[pos] = avg
+				b.ss[counterLabel].Values[pos] = currentCount + newCount
+			}
+		}
+
+		b.aggregateExemplars(ts, &existing)
+		b.ss[ts.PromLabels] = existing
+	}
+}
+
+func (b *SpanSetsAverageOverTimeAggregator) initSeriesAggregator(in []*tempopb.TimeSeries, newCountersTS map[string][]float64) {
 	for _, ts := range in {
 		counterPromLabel := ""
 		if strings.Contains(ts.PromLabels, "_type") {
@@ -158,32 +198,33 @@ func (b *SpanSetsAverageOverTimeAggregator) Combine(in []*tempopb.TimeSeries) {
 			b.ss[ts.PromLabels] = n
 		}
 	}
-	for _, ts := range in {
-		counterLabel, ok := b.countProm[ts.PromLabels]
-		if !ok {
-			// This is a counter label, we can skip it
-			continue
-		}
-		for _, sample := range ts.Samples {
-			pos := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
-			if pos < 0 || pos > len(b.ss[ts.PromLabels].Values) {
-				continue
-			}
+}
 
-			currentAvg := b.ss[ts.PromLabels].Values[pos]
-			newAvg := sample.Value
-			currentCount := b.ss[counterLabel].Values[pos]
-			newCount := newCountersTS[ts.PromLabels][pos]
-
-			if math.IsNaN(currentAvg) && !math.IsNaN(newAvg) {
-				b.ss[ts.PromLabels].Values[pos] = newAvg
-				b.ss[counterLabel].Values[pos] = newCount
-			} else if !math.IsNaN(newAvg) {
-				avg := (currentAvg*currentCount + newAvg*newCount) / (currentCount + newCount)
-				b.ss[ts.PromLabels].Values[pos] = avg
-				b.ss[counterLabel].Values[pos] = currentCount + newCount
-			}
+func (b *SpanSetsAverageOverTimeAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *TimeSeries) {
+	for _, exemplar := range ts.Exemplars {
+		if b.exemplarBuckets.testTotal() {
+			break
 		}
+		interval := IntervalOfMs(exemplar.TimestampMs, b.start, b.end, b.step)
+		if b.exemplarBuckets.addAndTest(interval) {
+			continue // Skip this exemplar and continue, next exemplar might fit in a different bucket	}
+		}
+		labels := make(Labels, 0, len(exemplar.Labels))
+		for _, l := range exemplar.Labels {
+			labels = append(labels, Label{
+				Name:  l.Key,
+				Value: StaticFromAnyValue(l.Value),
+			})
+		}
+		value := exemplar.Value
+		if math.IsNaN(value) {
+			value = 0 // TODO: Use the value of the series at the same timestamp
+		}
+		existing.Exemplars = append(existing.Exemplars, Exemplar{
+			Labels:      labels,
+			Value:       value,
+			TimestampMs: uint64(exemplar.TimestampMs),
+		})
 	}
 }
 
@@ -207,11 +248,13 @@ func (b *SpanSetsAverageOverTimeAggregator) Results() SeriesSet {
 
 // Accumulated results of average over time
 type AvgOverTimeSeries[S StaticVals] struct {
-	avg          []float64
-	count        []float64
-	compensation []float64
-	init         bool
-	vals         S
+	avg             []float64
+	count           []float64
+	compensation    []float64
+	exemplars       []Exemplar
+	exemplarBuckets *bucketSet
+	init            bool
+	vals            S
 }
 
 // In charge of calculating the average over time for a set of spans
@@ -355,7 +398,33 @@ func kahanSumInc(inc, sum, c float64) (newSum, newC float64) {
 	return t, c
 }
 
-func (g *AvgOverTimeSpanAggregator[F, S]) ObserveExemplar(_ Span, _ float64, _ uint64) {
+func (g *AvgOverTimeSpanAggregator[F, S]) ObserveExemplar(span Span, value float64, ts uint64) {
+	if !g.getGroupingValues(span) {
+		return
+	}
+
+	// Observe exemplar
+	all := span.AllAttributes()
+	lbls := make(Labels, 0, len(all))
+	for k, v := range span.AllAttributes() {
+		lbls = append(lbls, Label{k.String(), v})
+	}
+	s := g.getSeries()
+
+	if s.exemplarBuckets.testTotal() {
+		return
+	}
+	interval := IntervalOfMs(int64(ts), g.start, g.end, g.step)
+	if s.exemplarBuckets.addAndTest(interval) {
+		return
+	}
+
+	s.exemplars = append(s.exemplars, Exemplar{
+		Labels:      lbls,
+		Value:       value,
+		TimestampMs: ts,
+	})
+	g.series[g.buf.fast] = s
 }
 
 func (g *AvgOverTimeSpanAggregator[F, S]) labelsFor(vals S, t string) (Labels, string) {
@@ -396,7 +465,7 @@ func (g *AvgOverTimeSpanAggregator[F, S]) Series() SeriesSet {
 		ss[promLabelsAvg] = TimeSeries{
 			Labels:    labels,
 			Values:    s.avg,
-			Exemplars: []Exemplar{},
+			Exemplars: s.exemplars,
 		}
 		// Second, get the "count" series
 		labels, promLabelsCount := g.labelsFor(s.vals, "count")
@@ -431,11 +500,13 @@ func (g *AvgOverTimeSpanAggregator[F, S]) getSeries() AvgOverTimeSeries[S] {
 	if !ok {
 		intervals := IntervalCount(g.start, g.end, g.step)
 		s = AvgOverTimeSeries[S]{
-			init:         true,
-			vals:         g.buf.vals,
-			count:        make([]float64, intervals),
-			avg:          make([]float64, intervals),
-			compensation: make([]float64, intervals),
+			init:            true,
+			vals:            g.buf.vals,
+			count:           make([]float64, intervals),
+			avg:             make([]float64, intervals),
+			compensation:    make([]float64, intervals),
+			exemplars:       make([]Exemplar, 0, maxExemplars),
+			exemplarBuckets: newBucketSet(intervals),
 		}
 		for i := 0; i < intervals; i++ {
 			s.avg[i] = math.Float64frombits(normalNaN)
