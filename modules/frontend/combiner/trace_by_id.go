@@ -87,7 +87,7 @@ func (c *traceByIDCombiner) AddResponse(r PipelineResponse) error {
 
 	if errors.Is(err, trace.ErrTraceTooLarge) {
 		c.code = http.StatusUnprocessableEntity
-		c.statusMessage = trace.ErrTraceTooLarge.Error()
+		c.statusMessage =  fmt.Sprint(err)
 		return nil
 	}
 
