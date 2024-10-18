@@ -3,10 +3,10 @@ package localblocks
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -742,8 +742,7 @@ func (p *Processor) reloadBlocks() error {
 
 		var clearBlock bool
 		if err != nil {
-			var vv *json.SyntaxError
-			if errors.Is(err, backend.ErrDoesNotExist) || errors.As(err, &vv) {
+			if errors.Is(err, backend.ErrDoesNotExist) || strings.Contains(err.Error(), "error found in") {
 				clearBlock = true
 			}
 		}
