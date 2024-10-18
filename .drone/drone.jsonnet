@@ -152,7 +152,7 @@ local deploy_to_dev() = {
         destination_branch: 'master',
         pull_request_branch_prefix: 'auto-merge/cd-tempo-dev',
         pull_request_enabled: true,
-        pull_request_existing_strategy: "ignore",
+        pull_request_existing_strategy: 'ignore',
         repo_name: 'deployment_tools',
         update_jsonnet_attribute_configs: [
           {
@@ -254,129 +254,129 @@ local deploy_to_dev() = {
   },
 ] + [
 
-local ghTokenFilename = '/drone/src/gh-token.txt';
-// Build and release packages
-// Tested by installing the packages on a systemd container
-pipeline('release') {
-  trigger: {
-    event: ['tag'],
+  local ghTokenFilename = '/drone/src/gh-token.txt';
+  // Build and release packages
+  // Tested by installing the packages on a systemd container
+  pipeline('release') {
+    trigger: {
+      event: ['tag'],
+    },
+    image_pull_secrets: [
+      docker_config_json_secret.name,
+    ],
+    volumes+: [
+      {
+        name: 'cgroup',
+        host: {
+          path: '/sys/fs/cgroup',
+        },
+      },
+      {
+        name: 'docker',
+        host: {
+          path: '/var/run/docker.sock',
+        },
+      },
+    ],
+    // Launch systemd containers to test the packages
+    services: [
+      {
+        name: 'systemd-debian',
+        image: 'jrei/systemd-debian:12',
+        volumes: [
+          {
+            name: 'cgroup',
+            path: '/sys/fs/cgroup',
+          },
+        ],
+        privileged: true,
+      },
+      {
+        name: 'systemd-centos',
+        image: 'jrei/systemd-centos:8',
+        volumes: [
+          {
+            name: 'cgroup',
+            path: '/sys/fs/cgroup',
+          },
+        ],
+        privileged: true,
+      },
+    ],
+    steps+: [
+      {
+        name: 'fetch',
+        image: 'docker:git',
+        commands: ['git fetch --tags'],
+      },
+      {
+        name: 'Generate GitHub token',
+        image: 'us.gcr.io/kubernetes-dev/github-app-secret-writer:latest',
+        environment: {
+          GITHUB_APP_ID: { from_secret: tempo_app_id_secret.name },
+          GITHUB_APP_INSTALLATION_ID: { from_secret: tempo_app_installation_id_secret.name },
+          GITHUB_APP_PRIVATE_KEY: { from_secret: tempo_app_private_key_secret.name },
+        },
+        commands: [
+          '/usr/bin/github-app-external-token > %s' % ghTokenFilename,
+        ],
+      },
+      {
+        name: 'write-key',
+        image: 'golang:1.23',
+        commands: ['printf "%s" "$NFPM_SIGNING_KEY" > $NFPM_SIGNING_KEY_FILE'],
+        environment: {
+          NFPM_SIGNING_KEY: { from_secret: gpg_private_key.name },
+          NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
+        },
+      },
+      {
+        name: 'test release',
+        image: 'golang:1.23',
+        commands: ['make release-snapshot'],
+        environment: {
+          NFPM_DEFAULT_PASSPHRASE: { from_secret: gpg_passphrase.name },
+          NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
+        },
+      },
+      {
+        name: 'test deb package',
+        image: 'docker',
+        commands: ['./tools/packaging/verify-deb-install.sh'],
+        volumes: [
+          {
+            name: 'docker',
+            path: '/var/run/docker.sock',
+          },
+        ],
+        privileged: true,
+      },
+      {
+        name: 'test rpm package',
+        image: 'docker',
+        commands: ['./tools/packaging/verify-rpm-install.sh'],
+        volumes: [
+          {
+            name: 'docker',
+            path: '/var/run/docker.sock',
+          },
+        ],
+        privileged: true,
+      },
+      {
+        name: 'release',
+        image: 'golang:1.23',
+        commands: [
+          'export GITHUB_TOKEN=$(cat %s)' % ghTokenFilename,
+          'make release',
+        ],
+        environment: {
+          NFPM_DEFAULT_PASSPHRASE: { from_secret: gpg_passphrase.name },
+          NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
+        },
+      },
+    ],
   },
-  image_pull_secrets: [
-    docker_config_json_secret.name,
-  ],
-  volumes+: [
-    {
-      name: 'cgroup',
-      host: {
-        path: '/sys/fs/cgroup',
-      },
-    },
-    {
-      name: 'docker',
-      host: {
-        path: '/var/run/docker.sock',
-      },
-    },
-  ],
-  // Launch systemd containers to test the packages
-  services: [
-    {
-      name: 'systemd-debian',
-      image: 'jrei/systemd-debian:12',
-      volumes: [
-        {
-          name: 'cgroup',
-          path: '/sys/fs/cgroup',
-        },
-      ],
-      privileged: true,
-    },
-    {
-      name: 'systemd-centos',
-      image: 'jrei/systemd-centos:8',
-      volumes: [
-        {
-          name: 'cgroup',
-          path: '/sys/fs/cgroup',
-        },
-      ],
-      privileged: true,
-    },
-  ],
-  steps+: [
-    {
-      name: 'fetch',
-      image: 'docker:git',
-      commands: ['git fetch --tags'],
-    },
-    {
-      name: 'Generate GitHub token',
-      image: 'us.gcr.io/kubernetes-dev/github-app-secret-writer:latest',
-      environment: {
-        GITHUB_APP_ID: { from_secret:  tempo_app_id_secret.name },
-        GITHUB_APP_INSTALLATION_ID: { from_secret:  tempo_app_installation_id_secret.name },
-        GITHUB_APP_PRIVATE_KEY: { from_secret: tempo_app_private_key_secret.name },
-      },
-      commands: [
-        '/usr/bin/github-app-external-token > %s' % ghTokenFilename,
-      ],
-    },
-    {
-      name: 'write-key',
-      image: 'golang:1.23',
-      commands: ['printf "%s" "$NFPM_SIGNING_KEY" > $NFPM_SIGNING_KEY_FILE'],
-      environment: {
-        NFPM_SIGNING_KEY: { from_secret: gpg_private_key.name },
-        NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
-      },
-    },
-    {
-      name: 'test release',
-      image: 'golang:1.23',
-      commands: ['make release-snapshot'],
-      environment: {
-        NFPM_DEFAULT_PASSPHRASE: { from_secret: gpg_passphrase.name },
-        NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
-      },
-    },
-    {
-      name: 'test deb package',
-      image: 'docker',
-      commands: ['./tools/packaging/verify-deb-install.sh'],
-      volumes: [
-        {
-          name: 'docker',
-          path: '/var/run/docker.sock',
-        },
-      ],
-      privileged: true,
-    },
-    {
-      name: 'test rpm package',
-      image: 'docker',
-      commands: ['./tools/packaging/verify-rpm-install.sh'],
-      volumes: [
-        {
-          name: 'docker',
-          path: '/var/run/docker.sock',
-        },
-      ],
-      privileged: true,
-    },
-    {
-      name: 'release',
-      image: 'golang:1.23',
-      commands: [
-        'export GITHUB_TOKEN=$(cat %s)' % ghTokenFilename,
-        'make release'
-      ],
-      environment: {
-        NFPM_DEFAULT_PASSPHRASE: { from_secret: gpg_passphrase.name },
-        NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
-      },
-    },
-  ],
-},
 ] + [
   docker_username_secret,
   docker_password_secret,
