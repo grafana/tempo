@@ -8,14 +8,16 @@ import (
 
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/klauspost/compress/gzip"
-	"github.com/klauspost/compress/zstd"
 )
 
 const (
 	internalFilename = "index.json"
 )
 
-var _ proto.Message = (*TenantIndex)(nil)
+var (
+	_    proto.Message = (*TenantIndex)(nil)
+	Zstd               = &ZstdCodec{}
+)
 
 func newTenantIndex(meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) *TenantIndex {
 	return &TenantIndex{
@@ -63,38 +65,17 @@ func (b *TenantIndex) unmarshal(buffer []byte) error {
 }
 
 func (b *TenantIndex) marshalPb() ([]byte, error) {
-	buffer := &bytes.Buffer{}
-
-	z, err := zstd.NewWriter(buffer)
-	if err != nil {
-		return nil, err
-	}
-
 	pbBytes, err := proto.Marshal(b)
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err = z.Write(pbBytes); err != nil {
-		return nil, err
-	}
-	if err = z.Flush(); err != nil {
-		return nil, err
-	}
-	if err = z.Close(); err != nil {
-		return nil, err
-	}
-
-	return buffer.Bytes(), nil
+	buffer := []byte{}
+	return Zstd.Encode(pbBytes, buffer)
 }
 
 func (b *TenantIndex) unmarshalPb(buffer []byte) error {
-	decoder, err := zstd.NewReader(nil, zstd.WithDecoderConcurrency(0))
-	if err != nil {
-		return fmt.Errorf("error creating zstd decoder: %w", err)
-	}
-
-	bb, err := decoder.DecodeAll(buffer, nil)
+	bb, err := Zstd.Decode(buffer)
 	if err != nil {
 		return fmt.Errorf("error decoding zstd: %w", err)
 	}
