@@ -253,182 +253,130 @@ local deploy_to_dev() = {
     ],
   },
 ] + [
-  // Build and deploy serverless code packages
-  pipeline('build-deploy-serverless') {
-    steps+: [
-              {
-                name: 'build-tempo-serverless',
-                image: 'golang:1.23-alpine',
-                commands: [
-                  'apk add make git zip bash',
-                  './tools/image-tag | cut -d, -f 1 | tr A-Z a-z > .tags',  // values in .tags are used by the next step when pushing the image
-                  'cd ./cmd/tempo-serverless',
-                  'make build-docker-gcr-binary',
-                  'make build-lambda-zip',
-                ],
-              },
-              {
-                name: 'deploy-tempo-serverless-gcr',
-                image: 'plugins/gcr',
-                settings: {
-                  repo: 'ops-tools-1203/tempo-serverless',
-                  context: './cmd/tempo-serverless/cloud-run',
-                  dockerfile: './cmd/tempo-serverless/cloud-run/Dockerfile',
-                  json_key: {
-                    from_secret: image_upload_ops_tools_secret.name,
-                  },
-                },
-              },
-            ] +
-            [
-              {
-                name: 'deploy-tempo-%s-serverless-lambda' % d.env,
-                image: 'amazon/aws-cli',
-                environment: {
-                  AWS_DEFAULT_REGION: 'us-east-2',
-                  AWS_ACCESS_KEY_ID: {
-                    from_secret: d.access_key_id,
-                  },
-                  AWS_SECRET_ACCESS_KEY: {
-                    from_secret: d.secret_access_key,
-                  },
-                },
-                commands: [
-                  'cd ./cmd/tempo-serverless/lambda',
-                  'aws s3 cp tempo-serverless*.zip s3://%s' % d.bucket,
-                ],
-              }
 
-              for d in aws_serverless_deployments
-            ],
+local ghTokenFilename = '/drone/src/gh-token.txt';
+// Build and release packages
+// Tested by installing the packages on a systemd container
+pipeline('release') {
+  trigger: {
+    event: ['tag'],
   },
-
-  local ghTokenFilename = '/drone/src/gh-token.txt';
-  // Build and release packages
-  // Tested by installing the packages on a systemd container
-  pipeline('release') {
-    trigger: {
-      event: ['tag', 'pull_request'],
+  image_pull_secrets: [
+    docker_config_json_secret.name,
+  ],
+  volumes+: [
+    {
+      name: 'cgroup',
+      host: {
+        path: '/sys/fs/cgroup',
+      },
     },
-    image_pull_secrets: [
-      docker_config_json_secret.name,
-    ],
-    volumes+: [
-      {
-        name: 'cgroup',
-        host: {
+    {
+      name: 'docker',
+      host: {
+        path: '/var/run/docker.sock',
+      },
+    },
+  ],
+  // Launch systemd containers to test the packages
+  services: [
+    {
+      name: 'systemd-debian',
+      image: 'jrei/systemd-debian:12',
+      volumes: [
+        {
+          name: 'cgroup',
           path: '/sys/fs/cgroup',
         },
+      ],
+      privileged: true,
+    },
+    {
+      name: 'systemd-centos',
+      image: 'jrei/systemd-centos:8',
+      volumes: [
+        {
+          name: 'cgroup',
+          path: '/sys/fs/cgroup',
+        },
+      ],
+      privileged: true,
+    },
+  ],
+  steps+: [
+    {
+      name: 'fetch',
+      image: 'docker:git',
+      commands: ['git fetch --tags'],
+    },
+    {
+      name: 'Generate GitHub token',
+      image: 'us.gcr.io/kubernetes-dev/github-app-secret-writer:latest',
+      environment: {
+        GITHUB_APP_ID: { from_secret:  tempo_app_id_secret.name },
+        GITHUB_APP_INSTALLATION_ID: { from_secret:  tempo_app_installation_id_secret.name },
+        GITHUB_APP_PRIVATE_KEY: { from_secret: tempo_app_private_key_secret.name },
       },
-      {
-        name: 'docker',
-        host: {
+      commands: [
+        '/usr/bin/github-app-external-token > %s' % ghTokenFilename,
+      ],
+    },
+    {
+      name: 'write-key',
+      image: 'golang:1.23',
+      commands: ['printf "%s" "$NFPM_SIGNING_KEY" > $NFPM_SIGNING_KEY_FILE'],
+      environment: {
+        NFPM_SIGNING_KEY: { from_secret: gpg_private_key.name },
+        NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
+      },
+    },
+    {
+      name: 'test release',
+      image: 'golang:1.23',
+      commands: ['make release-snapshot'],
+      environment: {
+        NFPM_DEFAULT_PASSPHRASE: { from_secret: gpg_passphrase.name },
+        NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
+      },
+    },
+    {
+      name: 'test deb package',
+      image: 'docker',
+      commands: ['./tools/packaging/verify-deb-install.sh'],
+      volumes: [
+        {
+          name: 'docker',
           path: '/var/run/docker.sock',
         },
-      },
-    ],
-    // Launch systemd containers to test the packages
-    services: [
-      {
-        name: 'systemd-debian',
-        image: 'jrei/systemd-debian:12',
-        volumes: [
-          {
-            name: 'cgroup',
-            path: '/sys/fs/cgroup',
-          },
-        ],
-        privileged: true,
-      },
-      {
-        name: 'systemd-centos',
-        image: 'jrei/systemd-centos:8',
-        volumes: [
-          {
-            name: 'cgroup',
-            path: '/sys/fs/cgroup',
-          },
-        ],
-        privileged: true,
-      },
-    ],
-    steps+: [
-      {
-        name: 'fetch',
-        image: 'docker:git',
-        commands: ['git fetch --tags'],
-      },
-      {
-        name: 'Generate GitHub token',
-        image: 'us.gcr.io/kubernetes-dev/github-app-secret-writer:latest',
-        environment: {
-          GITHUB_APP_ID: { from_secret:  tempo_app_id_secret.name },
-          GITHUB_APP_INSTALLATION_ID: { from_secret:  tempo_app_installation_id_secret.name },
-          GITHUB_APP_PRIVATE_KEY: { from_secret: tempo_app_private_key_secret.name },
+      ],
+      privileged: true,
+    },
+    {
+      name: 'test rpm package',
+      image: 'docker',
+      commands: ['./tools/packaging/verify-rpm-install.sh'],
+      volumes: [
+        {
+          name: 'docker',
+          path: '/var/run/docker.sock',
         },
-        commands: [
-          '/usr/bin/github-app-external-token > %s' % ghTokenFilename,
-        ],
+      ],
+      privileged: true,
+    },
+    {
+      name: 'release',
+      image: 'golang:1.23',
+      commands: [
+        'export GITHUB_TOKEN=$(cat %s)' % ghTokenFilename,
+        'make release'
+      ],
+      environment: {
+        NFPM_DEFAULT_PASSPHRASE: { from_secret: gpg_passphrase.name },
+        NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
       },
-      {
-        name: 'write-key',
-        image: 'golang:1.23',
-        commands: ['printf "%s" "$NFPM_SIGNING_KEY" > $NFPM_SIGNING_KEY_FILE'],
-        environment: {
-          NFPM_SIGNING_KEY: { from_secret: gpg_private_key.name },
-          NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
-        },
-      },
-      {
-        name: 'test release',
-        image: 'golang:1.23',
-        commands: ['make release-snapshot'],
-        environment: {
-          NFPM_DEFAULT_PASSPHRASE: { from_secret: gpg_passphrase.name },
-          NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
-        },
-      },
-      {
-        name: 'test deb package',
-        image: 'docker',
-        commands: ['./tools/packaging/verify-deb-install.sh'],
-        volumes: [
-          {
-            name: 'docker',
-            path: '/var/run/docker.sock',
-          },
-        ],
-        privileged: true,
-      },
-      {
-        name: 'test rpm package',
-        image: 'docker',
-        commands: ['./tools/packaging/verify-rpm-install.sh'],
-        volumes: [
-          {
-            name: 'docker',
-            path: '/var/run/docker.sock',
-          },
-        ],
-        privileged: true,
-      },
-      {
-        name: 'release',
-        image: 'golang:1.23',
-        commands: [
-          'export GITHUB_TOKEN=$(cat %s)' % ghTokenFilename,
-          'make release'
-        ],
-        environment: {
-          NFPM_DEFAULT_PASSPHRASE: { from_secret: gpg_passphrase.name },
-          NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
-        },
-        when: {
-          event: ['tag'],
-        },
-      },
-    ],
-  },
+    },
+  ],
+},
 ] + [
   docker_username_secret,
   docker_password_secret,
