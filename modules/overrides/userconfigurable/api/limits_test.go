@@ -63,6 +63,7 @@ func Test_limitsFromOverrides(t *testing.T) {
   "forwarders": [
     "my-forwarder"
   ],
+  "cost_attribution": {},
   "metrics_generator": {
     "processors": [
       "service-graphs"
