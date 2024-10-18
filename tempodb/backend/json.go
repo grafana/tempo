@@ -1,10 +1,15 @@
 package backend
 
-import "sync"
+import (
+	"sync"
+
+	jsoniter "github.com/json-iterator/go"
+)
 
 var (
 	dedicatedColumnsKeeper = map[string]*DedicatedColumns{}
 	dedicatedColumnsMtx    = sync.Mutex{}
+	jsonCompat             = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
 func getDedicatedColumns(b string) *DedicatedColumns {

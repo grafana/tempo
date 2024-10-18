@@ -3,7 +3,6 @@ package backend
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -105,7 +104,7 @@ func (w *writer) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
 		tenantID = meta.TenantID
 	)
 
-	bMeta, err := json.Marshal(meta)
+	bMeta, err := jsonCompat.Marshal(meta)
 	if err != nil {
 		return err
 	}
@@ -233,7 +232,7 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 	}
 
 	out := &BlockMeta{}
-	err = json.Unmarshal(bytes, out)
+	err = jsonCompat.Unmarshal(bytes, out)
 	if err != nil {
 		return nil, err
 	}

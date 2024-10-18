@@ -2,7 +2,6 @@ package backend
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -86,7 +85,7 @@ func (e Encoding) MarshalYAML() (interface{}, error) {
 // UnmarshalJSON implements the Unmarshaler interface of the json pkg.
 func (e *Encoding) UnmarshalJSON(b []byte) error {
 	var encString string
-	err := json.Unmarshal(b, &encString)
+	err := jsonCompat.Unmarshal(b, &encString)
 	if err != nil {
 		return err
 	}

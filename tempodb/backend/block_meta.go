@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -108,13 +107,13 @@ func (dc *DedicatedColumn) MarshalJSON() ([]byte, error) {
 	if cpy.Type == DefaultDedicatedColumnType {
 		cpy.Type = ""
 	}
-	return json.Marshal(&cpy)
+	return jsonCompat.Marshal(&cpy)
 }
 
 func (dc *DedicatedColumn) UnmarshalJSON(b []byte) error {
 	type dcAlias DedicatedColumn // alias required to avoid recursive calls of UnmarshalJSON
 
-	err := json.Unmarshal(b, (*dcAlias)(dc))
+	err := jsonCompat.Unmarshal(b, (*dcAlias)(dc))
 	if err != nil {
 		return err
 	}
@@ -139,7 +138,7 @@ func (dcs *DedicatedColumns) UnmarshalJSON(b []byte) error {
 	}
 
 	type dcsAlias DedicatedColumns // alias required to avoid recursive calls of UnmarshalJSON
-	err := json.Unmarshal(b, (*dcsAlias)(dcs))
+	err := jsonCompat.Unmarshal(b, (*dcsAlias)(dcs))
 	if err != nil {
 		return err
 	}
@@ -310,7 +309,7 @@ func (dcs DedicatedColumns) Marshal() ([]byte, error) {
 	}
 
 	// NOTE: The json bytes interned in a map to avoid re-unmarshalling the same byte slice.
-	return json.Marshal(dcs)
+	return jsonCompat.Marshal(dcs)
 }
 
 func (dcs DedicatedColumns) MarshalTo(data []byte) (n int, err error) {
@@ -329,12 +328,12 @@ func (dcs *DedicatedColumns) Unmarshal(data []byte) error {
 	}
 
 	// NOTE: The json bytes interned in a map to avoid re-unmarshalling the same byte slice.
-	return json.Unmarshal(data, &dcs)
+	return jsonCompat.Unmarshal(data, &dcs)
 }
 
 func (b *CompactedBlockMeta) UnmarshalJSON(data []byte) error {
 	var msg interface{}
-	err := json.Unmarshal(data, &msg)
+	err := jsonCompat.Unmarshal(data, &msg)
 	if err != nil {
 		return err
 	}
@@ -347,7 +346,7 @@ func (b *CompactedBlockMeta) UnmarshalJSON(data []byte) error {
 		}
 	}
 
-	if err := json.Unmarshal(data, &b.BlockMeta); err != nil {
+	if err := jsonCompat.Unmarshal(data, &b.BlockMeta); err != nil {
 		return fmt.Errorf("failed at unmarshal for dedicated columns: %w", err)
 	}
 
