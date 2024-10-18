@@ -59,12 +59,12 @@ func (u *UUID) Size() int {
 }
 
 func (u UUID) MarshalJSON() ([]byte, error) {
-	return json.Marshal(((google_uuid.UUID)(u)).String())
+	return jsonCompat.Marshal(((google_uuid.UUID)(u)).String())
 }
 
 func (u *UUID) UnmarshalJSON(data []byte) error {
 	var s string
-	err := json.Unmarshal(data, &s)
+	err := jsonCompat.Unmarshal(data, &s)
 	if err != nil {
 		return err
 	}
