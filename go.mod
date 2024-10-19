@@ -100,6 +100,12 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.102.0
 	github.com/parquet-go/parquet-go v0.23.1-0.20241011155651-6446d1d0d2fe
 	github.com/stoewer/parquet-cli v0.0.9
+	github.com/twmb/franz-go v1.17.1
+	github.com/twmb/franz-go/pkg/kadm v1.13.0
+	github.com/twmb/franz-go/pkg/kfake v0.0.0-20241015013301-cea7aa5d8037
+	github.com/twmb/franz-go/pkg/kmsg v1.8.0
+	github.com/twmb/franz-go/plugin/kotel v1.5.0
+	github.com/twmb/franz-go/plugin/kprom v1.1.0
 	go.opentelemetry.io/collector/config/configgrpc v0.102.1
 	go.opentelemetry.io/collector/config/confighttp v0.102.1
 	go.opentelemetry.io/collector/config/configtls v1.18.0

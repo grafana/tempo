@@ -232,7 +232,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 		return nil, fmt.Errorf("unknown scope: %s", scope)
 	}
 
-	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
+	limit := i.limiter.Limits().MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewScopedDistinctString(limit)
 	mc := collector.NewMetricsCollector()
 
@@ -330,12 +330,12 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 		return nil, err
 	}
 
-	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
+	limit := i.limiter.Limits().MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewDistinctString(limit)
 	mc := collector.NewMetricsCollector()
 
 	var inspectedBlocks, maxBlocks int
-	if limit := i.limiter.limits.MaxBlocksPerTagValuesQuery(userID); limit > 0 {
+	if limit := i.limiter.Limits().MaxBlocksPerTagValuesQuery(userID); limit > 0 {
 		maxBlocks = limit
 	}
 
@@ -400,7 +400,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2")
 	defer span.End()
 
-	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
+	limit := i.limiter.Limits().MaxBytesPerTagValuesQuery(userID)
 	valueCollector := collector.NewDistinctValue[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 	mc := collector.NewMetricsCollector() // to collect bytesRead metric
 
@@ -412,7 +412,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	var anyErr atomic.Error
 	var inspectedBlocks atomic.Int32
 	var maxBlocks int32
-	if limit := i.limiter.limits.MaxBlocksPerTagValuesQuery(userID); limit > 0 {
+	if limit := i.limiter.Limits().MaxBlocksPerTagValuesQuery(userID); limit > 0 {
 		maxBlocks = int32(limit)
 	}
 
