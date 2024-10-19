@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/limiter"
 	dslog "github.com/grafana/dskit/log"
@@ -18,10 +20,12 @@ import (
 	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/util/strutil"
 	"github.com/segmentio/fasthash/fnv1a"
+	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc/codes"
@@ -149,6 +153,10 @@ type Distributor struct {
 	// Generic Forwarder
 	forwardersManager *forwarder.Manager
 
+	// Kafka
+	kafkaProducer *ingest.Producer
+	partitionRing ring.PartitionRingReader
+
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
 
@@ -162,7 +170,19 @@ type Distributor struct {
 }
 
 // New a distributor creates.
-func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, generatorClientCfg generator_client.Config, generatorsRing ring.ReadRing, o overrides.Interface, middleware receiver.Middleware, logger log.Logger, loggingLevel dslog.Level, reg prometheus.Registerer) (*Distributor, error) {
+func New(
+	cfg Config,
+	clientCfg ingester_client.Config,
+	ingestersRing ring.ReadRing,
+	generatorClientCfg generator_client.Config,
+	generatorsRing ring.ReadRing,
+	partitionRing ring.PartitionRingReader,
+	o overrides.Interface,
+	middleware receiver.Middleware,
+	logger log.Logger,
+	loggingLevel dslog.Level,
+	reg prometheus.Registerer,
+) (*Distributor, error) {
 	factory := cfg.factory
 	if factory == nil {
 		factory = func(addr string) (ring_client.PoolClient, error) {
@@ -213,6 +233,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		ingestionRateLimiter: limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
 		generatorClientCfg:   generatorClientCfg,
 		generatorsRing:       generatorsRing,
+		partitionRing:        partitionRing,
 		overrides:            o,
 		traceEncoder:         model.MustNewSegmentDecoder(model.CurrentEncoding),
 		logger:               logger,
@@ -261,6 +282,14 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		return nil, err
 	}
 	subservices = append(subservices, receivers)
+
+	if cfg.KafkaWritePathEnabled {
+		client, err := ingest.NewWriterClient(cfg.KafkaConfig, 10, logger, reg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create kafka writer client: %w", err)
+		}
+		d.kafkaProducer = ingest.NewProducer(client, d.cfg.KafkaConfig.ProducerMaxBufferedBytes, reg)
+	}
 
 	d.subservices, err = services.NewManager(subservices...)
 	if err != nil {
@@ -328,7 +357,7 @@ func (d *Distributor) extractBasicInfo(ctx context.Context, traces ptrace.Traces
 
 // PushTraces pushes a batch of traces
 func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*tempopb.PushResponse, error) {
-	ctx, span := tracer.Start(ctx, "distributor.PushTraces")
+	ctx, span := tracer.Start(ctx, "distributor.PushBytes")
 	defer span.End()
 
 	userID, spanCount, size, err := d.extractBasicInfo(ctx, traces)
@@ -396,6 +425,14 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 
 	if err := d.forwardersManager.ForTenant(userID).ForwardTraces(ctx, traces); err != nil {
 		_ = level.Warn(d.logger).Log("msg", "failed to forward batches for tenant=%s: %w", userID, err)
+	}
+
+	if d.cfg.KafkaWritePathEnabled {
+		err := d.sendWriteRequestsToPartitions(ctx, userID, keys, rebatchedTraces)
+		if err != nil {
+			// TODO: Handle error
+			level.Error(d.logger).Log("msg", "failed to write to kafka", "err", err)
+		}
 	}
 
 	return nil, nil // PushRequest is ignored, so no reason to create one
@@ -521,6 +558,79 @@ func (d *Distributor) UsageTrackerHandler() http.Handler {
 	}
 
 	return nil
+}
+
+func (d *Distributor) sendWriteRequestsToPartitions(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) error {
+	marshalledTraces := make([][]byte, len(traces))
+	for i, t := range traces {
+		b, err := proto.Marshal(t.trace)
+		if err != nil {
+			return fmt.Errorf("failed to marshal trace: %w", err)
+		}
+		marshalledTraces[i] = b
+	}
+
+	partitionRing := d.partitionRing.PartitionRing() // TODO - Use shuffle sharding
+	return ring.DoBatchWithOptions(ctx, ring.Write, ring.NewActivePartitionBatchRing(partitionRing), keys, func(partition ring.InstanceDesc, indexes []int) error {
+		localCtx, cancel := context.WithTimeout(ctx, d.clientCfg.RemoteTimeout)
+		defer cancel()
+		localCtx = user.InjectOrgID(localCtx, userID)
+
+		req := &tempopb.PushBytesRequest{
+			Traces: make([]tempopb.PreallocBytes, len(indexes)),
+			Ids:    make([]tempopb.PreallocBytes, len(indexes)),
+		}
+
+		for i, j := range indexes {
+			req.Traces[i].Slice = marshalledTraces[j][0:]
+			req.Ids[i].Slice = traces[j].id
+		}
+
+		// The partition ID is stored in the ring.InstanceDesc ID.
+		partitionID, err := strconv.ParseInt(partition.Id, 10, 31)
+		if err != nil {
+			return err
+		}
+
+		records, err := ingest.Encode(int32(partitionID), userID, req, d.cfg.KafkaConfig.ProducerMaxRecordSizeBytes)
+		if err != nil {
+			return fmt.Errorf("failed to encode PushSpansRequest: %w", err)
+		}
+
+		// d.kafkaRecordsPerRequest.Observe(float64(len(records)))
+
+		produceResults := d.kafkaProducer.ProduceSync(ctx, records)
+
+		if count, sizeBytes := successfulProduceRecordsStats(produceResults); count > 0 {
+			// d.kafkaWriteLatency.Observe(time.Since(startTime).Seconds())
+			// d.kafkaWriteBytesTotal.Add(float64(sizeBytes))
+			_ = level.Debug(d.logger).Log("msg", "kafka write success stats", "count", count, "size_bytes", sizeBytes)
+		}
+
+		var finalErr error
+		for _, result := range produceResults {
+			if result.Err != nil {
+				_ = level.Error(d.logger).Log("msg", "failed to write to kafka", "err", result.Err)
+				// d.kafkaAppends.WithLabelValues(fmt.Sprintf("partition_%d", partitionID), "fail").Inc()
+				finalErr = result.Err
+			} else {
+				// d.kafkaAppends.WithLabelValues(fmt.Sprintf("partition_%d", partitionID), "success").Inc()
+			}
+		}
+
+		return finalErr
+	}, ring.DoBatchOptions{})
+}
+
+func successfulProduceRecordsStats(results kgo.ProduceResults) (count, sizeBytes int) {
+	for _, res := range results {
+		if res.Err == nil && res.Record != nil {
+			count++
+			sizeBytes += len(res.Record.Value)
+		}
+	}
+
+	return count, sizeBytes
 }
 
 // requestsByTraceID takes an incoming tempodb.PushRequest and creates a set of keys for the hash ring

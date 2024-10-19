@@ -1236,6 +1236,30 @@ github.com/tklauser/go-sysconf
 # github.com/tklauser/numcpus v0.6.1
 ## explicit; go 1.13
 github.com/tklauser/numcpus
+# github.com/twmb/franz-go v1.17.1
+## explicit; go 1.21
+github.com/twmb/franz-go/pkg/kbin
+github.com/twmb/franz-go/pkg/kerr
+github.com/twmb/franz-go/pkg/kgo
+github.com/twmb/franz-go/pkg/kgo/internal/sticky
+github.com/twmb/franz-go/pkg/kversion
+github.com/twmb/franz-go/pkg/sasl
+# github.com/twmb/franz-go/pkg/kadm v1.13.0
+## explicit; go 1.21
+github.com/twmb/franz-go/pkg/kadm
+# github.com/twmb/franz-go/pkg/kfake v0.0.0-20241015013301-cea7aa5d8037
+## explicit; go 1.21
+github.com/twmb/franz-go/pkg/kfake
+# github.com/twmb/franz-go/pkg/kmsg v1.8.0
+## explicit; go 1.19
+github.com/twmb/franz-go/pkg/kmsg
+github.com/twmb/franz-go/pkg/kmsg/internal/kbin
+# github.com/twmb/franz-go/plugin/kotel v1.5.0
+## explicit; go 1.21
+github.com/twmb/franz-go/plugin/kotel
+# github.com/twmb/franz-go/plugin/kprom v1.1.0
+## explicit; go 1.18
+github.com/twmb/franz-go/plugin/kprom
 # github.com/uber-go/atomic v1.4.0
 ## explicit
 github.com/uber-go/atomic
@@ -1541,6 +1565,7 @@ go.opentelemetry.io/otel/internal/baggage
 go.opentelemetry.io/otel/internal/global
 go.opentelemetry.io/otel/propagation
 go.opentelemetry.io/otel/semconv/v1.17.0
+go.opentelemetry.io/otel/semconv/v1.18.0
 go.opentelemetry.io/otel/semconv/v1.20.0
 go.opentelemetry.io/otel/semconv/v1.21.0
 go.opentelemetry.io/otel/semconv/v1.25.0

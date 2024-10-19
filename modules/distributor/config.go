@@ -6,6 +6,7 @@ import (
 
 	"github.com/grafana/dskit/flagext"
 	ring_client "github.com/grafana/dskit/ring/client"
+	"github.com/grafana/tempo/pkg/ingest"
 
 	"github.com/grafana/tempo/modules/distributor/forwarder"
 	"github.com/grafana/tempo/modules/distributor/usage"
@@ -40,6 +41,10 @@ type Config struct {
 	MetricReceivedSpans MetricReceivedSpansConfig `yaml:"metric_received_spans,omitempty"`
 	Forwarders          forwarder.ConfigList      `yaml:"forwarders"`
 	Usage               usage.Config              `yaml:"usage,omitempty"`
+
+	// Kafka
+	KafkaWritePathEnabled bool               `yaml:"kafka_write_path_enabled"`
+	KafkaConfig           ingest.KafkaConfig `yaml:"kafka_config"`
 
 	// disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
 	//  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica

@@ -8,6 +8,8 @@ import (
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv/memberlist"
 	"github.com/grafana/dskit/server"
+	"github.com/grafana/tempo/modules/blockbuilder"
+	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/grafana/tempo/modules/cache"
@@ -49,6 +51,8 @@ type Config struct {
 	Compactor       compactor.Config        `yaml:"compactor,omitempty"`
 	Ingester        ingester.Config         `yaml:"ingester,omitempty"`
 	Generator       generator.Config        `yaml:"metrics_generator,omitempty"`
+	Ingest          ingest.Config           `yaml:"ingest,omitempty"`
+	BlockBuilder    blockbuilder.Config     `yaml:"block_builder,omitempty"`
 	StorageConfig   storage.Config          `yaml:"storage,omitempty"`
 	Overrides       overrides.Config        `yaml:"overrides,omitempty"`
 	MemberlistKV    memberlist.KVConfig     `yaml:"memberlist,omitempty"`
@@ -124,6 +128,8 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	c.Distributor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "distributor"), f)
 	c.Ingester.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "ingester"), f)
 	c.Generator.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "generator"), f)
+	c.Ingest.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "ingest"), f)
+	c.BlockBuilder.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "block-builder"), f)
 	c.Querier.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "querier"), f)
 	c.Frontend.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "frontend"), f)
 	c.Compactor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "compactor"), f)
