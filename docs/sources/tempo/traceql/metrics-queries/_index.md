@@ -22,29 +22,33 @@ Do you want to know how many database calls across all systems are downstream of
 What services beneath a given endpoint are currently failing?
 What services beneath an endpoint are currently slow? TraceQL metrics can answer all these questions by parsing your traces in aggregate.
 
-TraceQL metrics are powered by the TraceQL metrics API.
+TraceQL metrics are powered by the [TraceQL metrics API](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics).
 
 ![Metrics visualization in Grafana](/media/docs/tempo/metrics-explore-sample-2.4.png)
 
 ## Enable and use TraceQL metrics
 
-You can use the TraceQL metrics in Grafana with any existing or new Tempo data source.
-This capability is available in Grafana Cloud and Grafana (10.4 and newer).
 
-To enable TraceQL metrics, refer to [Configure TraceQL metrics](https://grafana.com/docs/tempo/latest/operations/traceql-metrics/) for more information.
+To use TraceQL metrics, you need to enable them on your Tempo database.
+Refer to [Configure TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/traceql-metrics/) for more information.
+
+From there, you can either query the TraceQL metrics API directly (for example, with `curl`) or using Grafana 
+(recommended).
+To run TraceQL metrics queries in Grafana, you need Grafana Cloud or Grafana 10.4 or later.
+No extra configuration is needed. 
+Use a Tempo data source that points to a Tempo database with TraceQL metrics enabled. 
 
 ## RED metrics, TraceQL, and PromQL
 
-RED metrics represent:
+RED is an acronym for three types of metrics:
 
 - Rate, the number of requests per second
 - Errors, the number of those requests that are failing
 - Duration, the amount of time those requests take
 
-For more information about RED method, refer to [The RED Method: how to instrument your services](/blog/2018/08/02/the-red-method-how-to-instrument-your-services/).
+For more information about the RED method, refer to [The RED Method: how to instrument your services](/blog/2018/08/02/the-red-method-how-to-instrument-your-services/).
 
-RED span metrics are created by the metrics-generator.
-TraceQL metrics can expose the same RED metrics that would otherwise be queried using PromQL.
+You can write TraceQL metrics queries to compute rate, errors, and durations over different groups of spans.
 
 For more information on how to use TraceQL metrics to investigate issues, refer to [Solve problems with metrics queries](./solve-problems-metrics-queries).
 
@@ -59,12 +63,12 @@ To get exemplars, you need to configure it in the query-frontend with the parame
 or pass a query hint in your query.
 
 ```
-{ name = "GET /:endpoint" } | quantile_over_time(duration, .99) by (span.http.target) with (exemplars=true)
+{ span:name = "GET /:endpoint" } | quantile_over_time(duration, .99) by (span.http.target) with (exemplars=true)
 ```
 
 ## Functions
 
-TraceQL supports include `rate`, `count_over_time`, `quantile_over_time`, `histogram_over_time`, and `compare` functions.
+TraceQL metrics queries currently include the following functions for aggregating over groups of spans: `rate`, `count_over_time`, `quantile_over_time`, `histogram_over_time`, and `compare`.
 These functions can be added as an operator at the end of any TraceQL query.
 
 For detailed information, refer to [TraceQL metrics functions](./functions).

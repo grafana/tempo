@@ -12,7 +12,7 @@ keywords:
 
 <!-- If you add a new function to this page, make sure you also add it to the _index.md/functions section.-->
 
-TraceQL supports include `rate`, `count_over_time`, `quantile_over_time`, `histogram_over_time`, and `compare` functions.
+TraceQL supports `rate`, `count_over_time`, `quantile_over_time`, `histogram_over_time`, and `compare` functions.
 
 ## Available functions
 
@@ -79,11 +79,12 @@ spans than `/api/happy`, for example.
 
 ## The `count_over_time` function
 
-The `count_over_time()` let you counts the number of matching spans per time interval.
-For more information, refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics).
+The `count_over_time()` function counts the number of matching spans per time interval.
+The time interval that the count will be computed over is set by the `step` parameter. For more information, refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics).
 
 
 ### Example
+This example counts the number of spans with name `"GET /:endpoint"` broken down by status code. You might see that there are 10 `"GET /:endpoint"` spans with status code 200 and 15 `"GET /:endpoint"` spans with status code 400.
 
 ```
 { name = "GET /:endpoint" } | count_over_time() by (span.http.status_code)
@@ -92,7 +93,8 @@ For more information, refer to the [`step` API parameter](https://grafana.com/do
 
 ## The `min_over_time` function
 
-The `min_over_time()` let you aggregate numerical values by computing the minimum value of them, such as the all important span duration.
+The `min_over_time()` lets you aggregate numerical attributes by calculating their minimum value. For example, you could choose to calculate the minimum duration of a group of spans, or you could choose to calculate the minimum value of a custom attribute you've attached to your spans, like `span.shopping.cart.entries`. 
+The time interval that the minimum is computed over is set by the `step` parameter.
 For more information, refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics).
 
 ### Parameters
@@ -103,12 +105,14 @@ None.
 
 ```
 { name = "GET /:endpoint" } | min_over_time(duration) by (span.http.target)
+This example computes the minimum duration for each `http.target` of all spans named `"GET /:endpoint"`
 ```
 
 Any numerical attribute on the span is fair game.
 
 ```
 { name = "GET /:endpoint" } | min_over_time(span.http.status_code)
+This example computes the minimum status code value of all spans named `"GET /:endpoint"`.
 ```
 
 ## The `max_over_time` function
@@ -118,7 +122,7 @@ For more information, refer to the [`step` API parameter](https://grafana.com/do
 
 ### Parameters
 
-None.
+Numerical field that you want to calculate the maximum of.  
 
 ### Examples
 
@@ -127,13 +131,15 @@ None.
 ```
 
 ```
-{ name = "GET /:endpoint" } | max_over_time(span.http.status_code)
+{ name = "GET /:endpoint" } | max_over_time(span.http.response.size)
 ```
 
 ## The `quantile_over_time` and `histogram_over_time` functions
 
 The `quantile_over_time()` and `histogram_over_time()` functions let you aggregate numerical values, such as the all important span duration.
 You can specify multiple quantiles in the same query.
+
+The example below computes the 99th, 90th, and 50th percentile of the duration attribute on all spans with name  `GET /:endpoint`. 
 
 ```
 { name = "GET /:endpoint" } | quantile_over_time(duration, .99, .9, .5)
@@ -157,11 +163,11 @@ To demonstrate this flexibility, consider this nonsensical quantile on `span.htt
 
 ## The `compare` function
 
-The `compare` function is used to split the stream of spans into two groups: a selection and a baseline.
+The `compare` function is used to split a set of spans into two groups: a selection and a baseline.
 It returns time-series for all attributes found on the spans to highlight the differences between the two groups.
 This is a powerful function that is best understood by looking at example outputs below.
 
-The function is used like other metrics functions: when it's placed after any search query, and converts it into a metrics query:
+The function is used like other metrics functions: when it's placed after any trace query, it converts the query into a metrics query:
 `...any spanset pipeline... | compare({subset filters}, <topN>, <start timestamp>, <end timestamp>)`
 
 Example:
@@ -171,7 +177,7 @@ Example:
 ```
 
 This function is generally run as an instant query.
-It may return may exceed gRPC payloads when run as a query range.
+It may return may exceed gRPC payloads when run as a range query.
 
 ### Parameters
 
