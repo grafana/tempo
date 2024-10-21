@@ -357,19 +357,18 @@ func newAvgAggregator[F FastStatic, S StaticVals](attr Attribute, by []Attribute
 }
 
 func (g *avgOverTimeSpanAggregator[F, S]) Observe(span Span) {
-	if !g.getGroupingValues(span) {
-		return
-	}
-
-	s := g.getSeries()
 	interval := IntervalOf(span.StartTimeUnixNanos(), g.start, g.end, g.step)
 	if interval == -1 {
 		return
 	}
+
 	inc := g.getSpanAttValue(span)
 	if math.IsNaN(inc) {
 		return
 	}
+
+	s := g.getSeries(span)
+
 	s.count[interval]++
 	mean, c := averageInc(s.avg[interval], inc, s.count[interval], s.compensation[interval])
 	s.avg[interval] = mean
@@ -418,17 +417,14 @@ func kahanSumInc(inc, sum, c float64) (newSum, newC float64) {
 }
 
 func (g *avgOverTimeSpanAggregator[F, S]) ObserveExemplar(span Span, value float64, ts uint64) {
-	if !g.getGroupingValues(span) {
-		return
-	}
-
 	// Observe exemplar
 	all := span.AllAttributes()
 	lbls := make(Labels, 0, len(all))
 	for k, v := range span.AllAttributes() {
 		lbls = append(lbls, Label{k.String(), v})
 	}
-	s := g.getSeries()
+
+	s := g.getSeries(span)
 
 	if s.exemplarBuckets.testTotal() {
 		return
@@ -498,18 +494,16 @@ func (g *avgOverTimeSpanAggregator[F, S]) Series() SeriesSet {
 	return ss
 }
 
-func (g *avgOverTimeSpanAggregator[F, S]) getGroupingValues(span Span) bool {
+// getSeries gets the series for the current span.
+// It will reuse the last series if possible.
+func (g *avgOverTimeSpanAggregator[F, S]) getSeries(span Span) avgOverTimeSeries[S] {
+	// Get Grouping values
 	for i, lookups := range g.byLookups {
 		val := lookup(lookups, span)
 		g.buf.vals[i] = val
 		g.buf.fast[i] = val.MapKey()
 	}
-	return true
-}
 
-// getSeries gets the series for the current span.
-// It will reuse the last series if possible.
-func (g *avgOverTimeSpanAggregator[F, S]) getSeries() avgOverTimeSeries[S] {
 	// Fast path
 	if g.lastSeries.init && g.lastBuf.fast == g.buf.fast {
 		return g.lastSeries
