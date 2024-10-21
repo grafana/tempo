@@ -39,6 +39,7 @@
 * [ENHANCEMENT] Support exporting internal Tempo traces via OTLP exporter when `use_otel_tracer` is enabled. Use the OpenTelemetry SDK environment variables to configure the span exporter. [#4028](https://github.com/grafana/tempo/pull/4028) (@andreasgerstmayr)
 * [ENHANCEMENT] TraceQL metrics queries: add min_over_time  [#3975](https://github.com/grafana/tempo/pull/3975) (@javiermolinar)
 * [ENHANCEMENT] Write tenantindex as proto and json with a prefernce for proto [#4072](https://github.com/grafana/tempo/pull/4072) (@zalegrala)
+* [ENHANCEMENT] Pool zstd encoding/decoding for tmepodb/backend [#4208](https://github.com/grafana/tempo/pull/4208) (@zalegrala)
 
 # v2.6.1
 
