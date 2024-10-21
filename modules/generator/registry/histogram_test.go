@@ -363,7 +363,7 @@ func Test_histogram_concurrencyCorrectness(t *testing.T) {
 	collectMetricAndAssert(t, h, collectionTimeMs, nil, 5, expectedSamples, nil)
 }
 
-func Test_histogram_span_multiplier(t *testing.T) {
+func Test_histogram_multiplier(t *testing.T) {
 	h := newHistogram("my_histogram", []float64{1.0, 2.0}, nil, nil, "")
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.5)
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 2.0, "", 5)

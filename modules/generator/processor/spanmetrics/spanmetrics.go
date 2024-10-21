@@ -201,16 +201,16 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		labelValues = append(labelValues, instanceID)
 	}
 
-	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span)
+	multiplier := processor_util.GetMultiplier(p.Cfg.MultiplierKey, span, rs)
 
 	registryLabelValues := p.registry.NewLabelValueCombo(labels, labelValues)
 
 	if p.Cfg.Subprocessors[Count] {
-		p.spanMetricsCallsTotal.Inc(registryLabelValues, 1*spanMultiplier)
+		p.spanMetricsCallsTotal.Inc(registryLabelValues, 1*multiplier)
 	}
 
 	if p.Cfg.Subprocessors[Latency] {
-		p.spanMetricsDurationSeconds.ObserveWithExemplar(registryLabelValues, latencySeconds, tempo_util.TraceIDToHexString(span.TraceId), spanMultiplier)
+		p.spanMetricsDurationSeconds.ObserveWithExemplar(registryLabelValues, latencySeconds, tempo_util.TraceIDToHexString(span.TraceId), multiplier)
 	}
 
 	if p.Cfg.Subprocessors[Size] {

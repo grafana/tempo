@@ -505,7 +505,7 @@ metrics_generator:
                 - peer.service
                 - db.name
                 - db.system
-            span_multiplier_key: ""
+            multiplier_key: ""
             enable_virtual_node_label: false
         span_metrics:
             histogram_buckets:
@@ -531,7 +531,7 @@ metrics_generator:
             dimensions: []
             dimension_mappings: []
             enable_target_info: false
-            span_multiplier_key: ""
+            multiplier_key: ""
             subprocessors:
                 0: true
                 1: true

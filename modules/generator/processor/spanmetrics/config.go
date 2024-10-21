@@ -45,7 +45,7 @@ type Config struct {
 	EnableTargetInfo bool `yaml:"enable_target_info"`
 
 	// If enabled attribute value will be used for metric calculation
-	SpanMultiplierKey string `yaml:"span_multiplier_key"`
+	MultiplierKey string `yaml:"multiplier_key"`
 
 	// Subprocessor options for this Processor include Latency, Count, Size
 	// These are metrics categories that exist under the umbrella of Span Metrics

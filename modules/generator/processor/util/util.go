@@ -4,6 +4,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	v1_resource "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
 )
@@ -31,19 +32,19 @@ func FindAttributeValue(key string, attributes ...[]*v1_common.KeyValue) (string
 	return "", false
 }
 
-func GetSpanMultiplier(ratioKey string, span *v1.Span) float64 {
-	spanMultiplier := 1.0
+func GetMultiplier(ratioKey string, span *v1.Span, rs *v1_resource.Resource) float64 {
+	multiplier := 1.0
 	if ratioKey != "" {
-		for _, kv := range span.Attributes {
+		for _, kv := range append(span.Attributes, rs.Attributes...) {
 			if kv.Key == ratioKey {
 				v := kv.Value.GetDoubleValue()
 				if v > 0 {
-					spanMultiplier = 1.0 / v
+					multiplier = 1.0 / v
 				}
 			}
 		}
 	}
-	return spanMultiplier
+	return multiplier
 }
 
 func GetJobValue(attributes []*v1_common.KeyValue) string {

@@ -184,7 +184,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
 				connectionType := store.Unknown
-				spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span)
+				multiplier := processor_util.GetMultiplier(p.Cfg.MultiplierKey, span, rs.Resource)
 				switch span.Kind {
 				case v1_trace.Span_SPAN_KIND_PRODUCER:
 					// override connection type and continue processing as span kind client
@@ -200,7 +200,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						e.ClientEndTimeUnixNano = span.EndTimeUnixNano
 						e.Failed = e.Failed || p.spanFailed(span)
 						p.upsertDimensions("client_", e.Dimensions, rs.Resource.Attributes, span.Attributes)
-						e.SpanMultiplier = spanMultiplier
+						e.Multiplier = multiplier
 						p.upsertPeerNode(e, span.Attributes)
 						p.upsertDatabaseRequest(e, rs.Resource.Attributes, span)
 					})
@@ -219,7 +219,7 @@ func (p *Processor) consume(resourceSpans []*v1_trace.ResourceSpans) (err error)
 						e.ServerStartTimeUnixNano = span.StartTimeUnixNano
 						e.Failed = e.Failed || p.spanFailed(span)
 						p.upsertDimensions("server_", e.Dimensions, rs.Resource.Attributes, span.Attributes)
-						e.SpanMultiplier = spanMultiplier
+						e.Multiplier = multiplier
 						p.upsertPeerNode(e, span.Attributes)
 					})
 				default:
@@ -369,20 +369,20 @@ func (p *Processor) onComplete(e *store.Edge) {
 
 	registryLabelValues := p.registry.NewLabelValueCombo(labels, labelValues)
 
-	p.serviceGraphRequestTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
+	p.serviceGraphRequestTotal.Inc(registryLabelValues, 1*e.Multiplier)
 	if e.Failed {
-		p.serviceGraphRequestFailedTotal.Inc(registryLabelValues, 1*e.SpanMultiplier)
+		p.serviceGraphRequestFailedTotal.Inc(registryLabelValues, 1*e.Multiplier)
 	}
 
-	p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID, e.SpanMultiplier)
-	p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID, e.SpanMultiplier)
+	p.serviceGraphRequestServerSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ServerLatencySec, e.TraceID, e.Multiplier)
+	p.serviceGraphRequestClientSecondsHistogram.ObserveWithExemplar(registryLabelValues, e.ClientLatencySec, e.TraceID, e.Multiplier)
 
 	if p.Cfg.EnableMessagingSystemLatencyHistogram && e.ConnectionType == store.MessagingSystem {
 		messagingSystemLatencySec := unixNanosDiffSec(e.ClientEndTimeUnixNano, e.ServerStartTimeUnixNano)
 		if messagingSystemLatencySec == 0 {
 			level.Warn(p.logger).Log("msg", "producerSpanEndTime must be smaller than consumerSpanStartTime. maybe the peers clocks are not synced", "messagingSystemLatencySec", messagingSystemLatencySec, "traceID", e.TraceID)
 		} else {
-			p.serviceGraphRequestMessagingSystemSecondsHistogram.ObserveWithExemplar(registryLabelValues, messagingSystemLatencySec, e.TraceID, e.SpanMultiplier)
+			p.serviceGraphRequestMessagingSystemSecondsHistogram.ObserveWithExemplar(registryLabelValues, messagingSystemLatencySec, e.TraceID, e.Multiplier)
 		}
 	}
 }

@@ -34,8 +34,8 @@ type Edge struct {
 	// expiration is the time at which the Edge expires, expressed as Unix time
 	expiration int64
 
-	// Span multiplier is used for multiplying metrics
-	SpanMultiplier float64
+	// Multiplier is used for multiplying metrics
+	Multiplier float64
 }
 
 // resetEdge resets the Edge to its zero state.
@@ -50,7 +50,7 @@ func resetEdge(e *Edge) {
 	e.Failed = false
 	clear(e.Dimensions)
 	e.PeerNode = ""
-	e.SpanMultiplier = 1
+	e.Multiplier = 1
 }
 
 // isComplete returns true if the corresponding client and server
