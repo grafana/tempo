@@ -40,6 +40,7 @@
 * [ENHANCEMENT] TraceQL metrics queries: add min_over_time  [#3975](https://github.com/grafana/tempo/pull/3975) (@javiermolinar)
 * [ENHANCEMENT] TraceQL metrics queries: add max_over_time  [#4065](https://github.com/grafana/tempo/pull/4065) (@javiermolinar)
 * [ENHANCEMENT] Write tenantindex as proto and json with a prefernce for proto [#4072](https://github.com/grafana/tempo/pull/4072) (@zalegrala)
+* [ENHANCEMENT] Pool zstd encoding/decoding for tmepodb/backend [#4208](https://github.com/grafana/tempo/pull/4208) (@zalegrala)
 
 # v2.6.1
 
