@@ -196,6 +196,10 @@ func (b *averageOverTimeSeriesAggregator) initSeriesAggregator(in []*tempopb.Tim
 			counterPromLabel = getLabels(ts.Labels, internalLabelMetaType).String()
 			newCountersTS[counterPromLabel] = make([]float64, b.len)
 			for i, sample := range ts.Samples {
+				pos := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
+				if pos < 0 || pos > len(b.ss[ts.PromLabels].Values) {
+					continue
+				}
 				newCountersTS[counterPromLabel][i] = sample.Value
 			}
 		}
