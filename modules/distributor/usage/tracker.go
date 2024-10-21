@@ -57,13 +57,14 @@ type tenantUsage struct {
 	dimensions map[string]string // Originally configured dimensions
 	mapping    []mapping         // Mapping from attribute => final sanitized label. Typically few values and slice is faster than map
 	sortedKeys []string          // So we can always iterate the buffer in order, this can be precomputed up front
-	buffer     map[string]string
+	buffer1    map[string]string
+	buffer2    map[string]string
 	overflow   uint64
 }
 
 // GetBuffersForDimensions takes advantage of the fact that the configuration for a tracker
 // changes slowly.  Reuses buffers from the previous call when the dimensions are the same.
-func (t *tenantUsage) GetBuffersForDimensions(dimensions map[string]string) ([]mapping, map[string]string) {
+func (t *tenantUsage) GetBuffersForDimensions(dimensions map[string]string) ([]mapping, map[string]string, map[string]string) {
 	if !maps.Equal(dimensions, t.dimensions) {
 		// The configuration changed.
 
@@ -99,13 +100,15 @@ func (t *tenantUsage) GetBuffersForDimensions(dimensions map[string]string) ([]m
 		slices.Sort(t.sortedKeys)
 
 		// Prepopulate the buffer and precompute the overflow bucket
-		t.buffer = make(map[string]string, len(t.sortedKeys))
+		t.buffer1 = make(map[string]string, len(t.sortedKeys))
+		t.buffer2 = make(map[string]string, len(t.sortedKeys))
 		for _, k := range t.sortedKeys {
-			t.buffer[k] = overflowLabel
+			t.buffer1[k] = overflowLabel
+			t.buffer2[k] = missingLabel
 		}
-		t.overflow = hash(t.sortedKeys, t.buffer)
+		t.overflow = hash(t.sortedKeys, t.buffer1)
 	}
-	return t.mapping, t.buffer
+	return t.mapping, t.buffer1, t.buffer2
 }
 
 // func (t *tenantUsage) getSeries(labels, values []string, maxCardinality uint64) *bucket {
@@ -204,9 +207,9 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 	}
 
 	var (
-		now             = time.Now().Unix()
-		data            = u.getTenant(tenant)
-		mapping, buffer = data.GetBuffersForDimensions(dimensions)
+		now                       = time.Now().Unix()
+		data                      = u.getTenant(tenant)
+		mapping, buffer1, buffer2 = data.GetBuffersForDimensions(dimensions)
 	)
 
 	for _, batch := range batches {
@@ -229,8 +232,8 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 		firstSpanPortion := unaccountedForBatchData - batchPortion*totalSpanCount
 
 		// Reset value buffer for every batch.
-		for k := range buffer {
-			buffer[k] = missingLabel
+		for k := range buffer1 {
+			buffer1[k] = missingLabel
 		}
 
 		if batch.Resource != nil {
@@ -241,7 +244,7 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 				}
 				for _, m := range mapping {
 					if m.from == a.Key {
-						buffer[m.to] = v
+						buffer1[m.to] = v
 					}
 				}
 			}
@@ -261,14 +264,22 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 					sz += firstSpanPortion
 				}
 
+				// Every span can be in a different series and needs to be reset to the batch
+				for k, v := range buffer1 {
+					if buffer2[k] != v {
+						buffer2[k] = v
+						bucketDirty = true
+					}
+				}
+
 				for _, a := range s.Attributes {
 					v := a.Value.GetStringValue()
 					if v == "" {
 						continue
 					}
 					for _, m := range mapping {
-						if m.from == a.Key && buffer[m.to] != v {
-							buffer[m.to] = v
+						if m.from == a.Key && buffer2[m.to] != v {
+							buffer2[m.to] = v
 							bucketDirty = true
 						}
 					}
@@ -281,7 +292,7 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 				//  - Dimensions are only resource attributes
 				//  - Runs of spans with the same attributes
 				if bucket == nil || bucketDirty {
-					bucket = data.getSeries(buffer, max)
+					bucket = data.getSeries(buffer2, max)
 					bucketDirty = false
 				}
 				bucket.Inc(uint64(sz), now)

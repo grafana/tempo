@@ -48,6 +48,7 @@ func TestUsageTracker(t *testing.T) {
 						{
 							Attributes: []*v1common.KeyValue{
 								{Key: "attr", Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "1"}}},
+								{Key: "attr2", Value: &v1common.AnyValue{Value: &v1common.AnyValue_StringValue{StringValue: "attr2Value"}}},
 							},
 						},
 						{
@@ -72,6 +73,18 @@ func TestUsageTracker(t *testing.T) {
 			SchemaUrl: "test",
 		},
 	}
+	nonSpanSize, _ := nonSpanDataLength(data[0])
+
+	// Helper functions for dividing up data sizes
+	nonSpanRatio := func(r float64) uint64 {
+		return uint64(math.RoundToEven(float64(nonSpanSize) * r))
+	}
+
+	spanSize := func(i int) uint64 {
+		sz := data[0].ScopeSpans[0].Spans[i].Size()
+		sz += protoLengthMath(sz)
+		return uint64(sz)
+	}
 
 	var (
 		testCases  []testcase
@@ -88,7 +101,7 @@ func TestUsageTracker(t *testing.T) {
 	expected = make(map[uint64]*bucket)
 	expected[hash([]string{"service_name"}, map[string]string{"service_name": "svc"})] = &bucket{
 		labels: []string{"svc"},
-		bytes:  uint64(data[0].Size()),
+		bytes:  uint64(data[0].Size()), // The entire batch is included, with the exact number of bytes
 	}
 	testCases = append(testCases, testcase{
 		name:       name,
@@ -104,11 +117,11 @@ func TestUsageTracker(t *testing.T) {
 	expected = make(map[uint64]*bucket)
 	expected[hash([]string{"attr"}, map[string]string{"attr": "1"})] = &bucket{
 		labels: []string{"1"},
-		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.75)),
+		bytes:  nonSpanRatio(0.75) + spanSize(0) + spanSize(1) + spanSize(3),
 	}
 	expected[hash([]string{"attr"}, map[string]string{"attr": "2"})] = &bucket{
 		labels: []string{"2"},
-		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.25)),
+		bytes:  nonSpanRatio(0.25) + spanSize(2),
 	}
 	testCases = append(testCases, testcase{
 		name:       name,
@@ -140,11 +153,11 @@ func TestUsageTracker(t *testing.T) {
 	expected = make(map[uint64]*bucket)
 	expected[hash([]string{"attr"}, map[string]string{"attr": "1"})] = &bucket{
 		labels: []string{"1"},
-		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.75)), // attr=1 is encountered first and recorded, with 75% of spans
+		bytes:  nonSpanRatio(0.75) + spanSize(0) + spanSize(1) + spanSize(3), // attr=1 is encountered first and recorded, with 75% of spans
 	}
 	expected[hash([]string{"attr"}, map[string]string{"attr": overflowLabel})] = &bucket{
 		labels: []string{overflowLabel},
-		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.25)), // attr=2 doesn't fit within cardinality and those 25% of spans go into the overflow series.
+		bytes:  nonSpanRatio(0.25) + spanSize(2), // attr=2 doesn't fit within cardinality and those 25% of spans go into the overflow series.
 	}
 	testCases = append(testCases, testcase{
 		name:       name,
@@ -165,11 +178,35 @@ func TestUsageTracker(t *testing.T) {
 	expected = make(map[uint64]*bucket)
 	expected[hash([]string{"foo"}, map[string]string{"foo": "1"})] = &bucket{
 		labels: []string{"1"},
-		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.75)),
+		bytes:  nonSpanRatio(0.75) + spanSize(0) + spanSize(1) + spanSize(3),
 	}
 	expected[hash([]string{"foo"}, map[string]string{"foo": "2"})] = &bucket{
 		labels: []string{"2"},
-		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.25)),
+		bytes:  nonSpanRatio(0.25) + spanSize(2),
+	}
+	testCases = append(testCases, testcase{
+		name:       name,
+		dimensions: dimensions,
+		expected:   expected,
+	})
+
+	// -------------------------------------------------------------
+	// Test case 6 - Some spans missing value
+	// Some spans within the same batch are missing values and
+	// should continue to inherit the batch value
+	// -------------------------------------------------------------
+	name = "partially_missing"
+	dimensions = map[string]string{
+		"attr2": "",
+	}
+	expected = make(map[uint64]*bucket)
+	expected[hash([]string{"attr2"}, map[string]string{"attr2": "attr2Value"})] = &bucket{
+		labels: []string{"attr2Value"},
+		bytes:  nonSpanRatio(0.25) + spanSize(0),
+	}
+	expected[hash([]string{"attr2"}, map[string]string{"attr2": missingLabel})] = &bucket{
+		labels: []string{missingLabel},
+		bytes:  nonSpanRatio(0.75) + spanSize(1) + spanSize(2) + spanSize(3),
 	}
 	testCases = append(testCases, testcase{
 		name:       name,
@@ -191,9 +228,19 @@ func TestUsageTracker(t *testing.T) {
 			actual := u.tenants["test"].series
 
 			require.Equal(t, len(tc.expected), len(actual))
+
+			// Ensure total bytes recorded exactly matches the batch
+			total := 0
+			for _, b := range actual {
+				total += int(b.bytes)
+			}
+			require.Equal(t, data[0].Size(), total, "total")
+
 			for expectedHash, expectedBucket := range tc.expected {
 				require.Equal(t, expectedBucket.labels, actual[expectedHash].labels)
-				require.Equal(t, expectedBucket.bytes, actual[expectedHash].bytes)
+				// To make testing less brittle from rounding, just ensure that each series
+				// is within 1 byte of expected. We already ensured the total is 100% accurate above.
+				require.InDelta(t, expectedBucket.bytes, actual[expectedHash].bytes, 1.0)
 			}
 		})
 	}
