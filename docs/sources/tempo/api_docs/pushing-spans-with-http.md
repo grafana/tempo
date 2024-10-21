@@ -72,7 +72,7 @@ curl -X POST -H 'Content-Type: application/json' http://localhost:4318/v1/traces
 }'
 ```
 
-Note that the `startTimeUnixNano` field is in nanoseconds and can be obtained by any tool that provides the epoch date in nanoseconds (for example, under Linux, `date +%s%8N`). The `endTimeUnixNano` field is also in nanoseconds, where 100000000 nanoseconds is 100 milliseconds.
+Note that the `startTimeUnixNano` field is in nanoseconds and can be obtained by any tool that provides the epoch date in nanoseconds (for example, under Linux, `date +%s%N`). The `endTimeUnixNano` field is also in nanoseconds, where 100000000 nanoseconds is 100 milliseconds.
 
 1. Copy and paste the curl command into a text editor.
 

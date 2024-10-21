@@ -6,7 +6,9 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -15,8 +17,6 @@ import (
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
@@ -212,7 +212,8 @@ func (o *userConfigurableOverridesManager) setTenantLimit(userID string, limits 
 }
 
 func (o *userConfigurableOverridesManager) GetTenantIDs() []string {
-	return maps.Keys(o.getAllTenantLimits())
+	limits := o.getAllTenantLimits()
+	return slices.AppendSeq(make([]string, 0, len(limits)), maps.Keys(limits))
 }
 
 func (o *userConfigurableOverridesManager) Forwarders(userID string) []string {

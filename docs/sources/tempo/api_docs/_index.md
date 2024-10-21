@@ -343,6 +343,9 @@ $ curl -G -s http://localhost:3200/api/search/tags?scope=span  | jq
     "starter",
     "version"
   ]
+  "metrics": {
+    "inspectedBytes": "630188"
+  }
 }
 ```
 
@@ -391,11 +394,9 @@ $ curl -G -s http://localhost:3200/api/v2/search/tags  | jq
 {
   "scopes": [
     {
-      "name": "span",
+      "name": "link",
       "tags": [
-        "article.count",
-        "http.flavor",
-        "http.method",
+        "link-type"
       ]
     },
     {
@@ -406,15 +407,69 @@ $ curl -G -s http://localhost:3200/api/v2/search/tags  | jq
       ]
     },
     {
+      "name": "span",
+      "tags": [
+        "article.count",
+        "http.flavor",
+        "http.method",
+        "http.request.header.accept",
+        "http.request_content_length",
+        "http.response.header.content-type",
+        "http.response_content_length",
+        "http.scheme",
+        "http.status_code",
+        "http.target",
+        "http.url",
+        "net.host.name",
+        "net.host.port",
+        "net.peer.name",
+        "net.peer.port",
+        "net.sock.family",
+        "net.sock.host.addr",
+        "net.sock.peer.addr",
+        "net.transport",
+        "numbers",
+        "one"
+      ]
+    },
+    {
       "name": "intrinsic",
       "tags": [
         "duration",
+        "event:name",
+        "event:timeSinceStart",
+        "instrumentation:name",
+        "instrumentation:version",
         "kind",
         "name",
-        "status"
+        "rootName",
+        "rootServiceName",
+        "span:duration",
+        "span:kind",
+        "span:name",
+        "span:status",
+        "span:statusMessage",
+        "status",
+        "statusMessage",
+        "trace:duration",
+        "trace:rootName",
+        "trace:rootService",
+        "traceDuration"
+      ]
+    },
+    {
+      "name": "event",
+      "tags": [
+        "exception.escape",
+        "exception.message",
+        "exception.stacktrace",
+        "exception.type",
       ]
     }
-  ]
+  ],
+  "metrics": {
+    "inspectedBytes": "377046"
+  }
 }
 ```
 
@@ -440,13 +495,16 @@ This query returns all discovered values for the tag `service.name`.
 $ curl -G -s http://localhost:3200/api/search/tag/service.name/values  | jq
 {
   "tagValues": [
-    "adservice",
-    "cartservice",
-    "checkoutservice",
-    "frontend",
-    "productcatalogservice",
-    "recommendationservice"
-  ]
+    "article-service",
+    "auth-service",
+    "billing-service",
+    "cart-service",
+    "postgres",
+    "shop-backend"
+  ],
+  "metrics": {
+    "inspectedBytes": "431380"
+  }
 }
 ```
 
@@ -468,30 +526,37 @@ See [TraceQL]({{< relref "../traceql" >}}) documentation for more information.
 This example queries Tempo using curl and returns all discovered values for the tag `service.name`.
 
 ```bash
-$ curl http://localhost:3200/api/v2/search/tag/.service.name/values | jq .
+$ curl -G -s http://localhost:3200/api/v2/search/tag/.service.name/values | jq
 {
   "tagValues": [
     {
       "type": "string",
-      "value": "customer"
+      "value": "article-service"
     },
     {
       "type": "string",
-      "value": "mysql"
+      "value": "postgres"
     },
     {
       "type": "string",
-      "value": "driver"
+      "value": "cart-service"
     },
     {
       "type": "string",
-      "value": "frontend"
+      "value": "billing-service"
     },
     {
       "type": "string",
-      "value": "redis"
+      "value": "shop-backend"
+    },
+    {
+      "type": "string",
+      "value": "auth-service"
     }
-  ]
+  ],
+  "metrics": {
+    "inspectedBytes": "502756"
+  }
 }
 ```
 This endpoint can also receive `start` and `end` optional parameters. These parameters define the time range from which the tags are fetched

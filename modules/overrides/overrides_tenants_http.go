@@ -3,12 +3,12 @@ package overrides
 import (
 	_ "embed" // Used to embed html templates
 	"html/template"
+	"maps"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"time"
-
-	"golang.org/x/exp/maps"
 
 	"github.com/grafana/tempo/pkg/util"
 )
@@ -63,7 +63,7 @@ func TenantsHandler(o Interface) http.HandlerFunc {
 			}
 		}
 
-		tenantsList := maps.Values(tenants)
+		tenantsList := slices.AppendSeq(make([]*tenantsPageTenant, 0, len(tenants)), maps.Values(tenants))
 		sortTenantsPageTenant(tenantsList)
 
 		util.RenderHTTPResponse(w, tenantsPageContents{

@@ -2,10 +2,28 @@
 
 package bitpack
 
-import "github.com/parquet-go/parquet-go/internal/unsafecast"
+import (
+	"encoding/binary"
+
+	"golang.org/x/sys/cpu"
+
+	"github.com/parquet-go/parquet-go/internal/unsafecast"
+)
 
 func unpackInt64(dst []int64, src []byte, bitWidth uint) {
-	bits := unsafecast.BytesToUint32(src)
+	var bits []uint32
+	if cpu.IsBigEndian {
+		srcLen := (len(src) / 4)
+		bits = make([]uint32, srcLen)
+		idx := 0
+		for k := range srcLen {
+			bits[k] = binary.LittleEndian.Uint32((src)[idx:(4 + idx)])
+			idx += 4
+		}
+	} else {
+		bits = unsafecast.Slice[uint32](src)
+	}
+
 	bitMask := uint64(1<<bitWidth) - 1
 	bitOffset := uint(0)
 

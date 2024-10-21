@@ -592,6 +592,12 @@ func CallBuildinfo(t *testing.T, svc *e2e.HTTPService) {
 		_, ok := jsonResponse[key]
 		require.True(t, ok)
 	}
+
+	version, ok := jsonResponse["version"].(string)
+	require.True(t, ok)
+	semverRegex := `^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$`
+	require.Regexp(t, semverRegex, version)
+
 	defer res.Body.Close()
 }
 

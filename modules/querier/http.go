@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
@@ -425,9 +426,10 @@ func handleError(w http.ResponseWriter, err error) {
 		return
 	}
 
-	// todo: better understand all errors returned from queriers and categorize more as 4XX
-	if errors.Is(err, trace.ErrTraceTooLarge) {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	// TODO: better understand all errors returned from queriers and categorize more as 4XX
+	// NOTE: we receive a GRPC error from the ingesters, and so we need to check the string content of error as well.
+	if errors.Is(err, trace.ErrTraceTooLarge) || strings.Contains(err.Error(), trace.ErrTraceTooLarge.Error()) {
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		return
 	}
 

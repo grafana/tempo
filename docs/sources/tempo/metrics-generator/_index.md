@@ -13,10 +13,6 @@ Metrics-generator is an optional Tempo component that derives metrics from inges
 If present, the distributor writes received spans to both the ingester and the metrics-generator.
 The metrics-generator processes spans and writes metrics to a Prometheus data source using the Prometheus remote write protocol.
 
-{{< admonition type="note" >}}
-Enabling metrics generation and remote writing them to Grafana Cloud Metrics produces extra active series that could impact your billing. For more information on billing, refer to [Billing and usage](/docs/grafana-cloud/billing-and-usage/).
-{{% /admonition %}}
-
 ## Architecture
 
 Metrics-generator leverages the data available in the ingest path in Tempo to provide additional value by generating metrics from traces.
@@ -76,3 +72,10 @@ high-resolution data. Users must [update the receiving endpoint](https://grafana
 histograms, and [update histogram queries](https://grafana.com/docs/mimir/<MIMIR_VERSION>/visualize/native-histograms/) in their dashboards.
 
 To learn more about the configuration, refer to the [Metrics-generator]({{< relref "../configuration#metrics-generator" >}}) section of the Tempo Configuration documentation.
+
+## Use metrics-generator in Grafana Cloud
+
+If you want to enable metrics-generator for your Grafana Cloud account, refer to the [Metrics-generator in Grafana Cloud](https://grafana.com/docs/grafana-cloud/send-data/traces/metrics-generator/) documentation.
+
+Enabling metrics generation and remote writing them to Grafana Cloud Metrics produces extra active series that could impact your billing.
+For more information on billing, refer to [Billing and usage](/docs/grafana-cloud/billing-and-usage/).

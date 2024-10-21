@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
-	"github.com/google/uuid"
 	httpgrpc_server "github.com/grafana/dskit/httpgrpc/server"
 	"github.com/grafana/dskit/ring"
 	ring_client "github.com/grafana/dskit/ring/client"
@@ -60,6 +59,12 @@ var (
 	})
 )
 
+type (
+	forEachFn          func(ctx context.Context, client tempopb.QuerierClient) error
+	forEachGeneratorFn func(ctx context.Context, client tempopb.MetricsGeneratorClient) error
+	replicationSetFn   func(r ring.ReadRing) (ring.ReplicationSet, error)
+)
+
 // Querier handlers queries.
 type Querier struct {
 	services.Service
@@ -82,11 +87,6 @@ type Querier struct {
 
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
-}
-
-type responseFromGenerators struct {
-	addr     string
-	response interface{}
 }
 
 // New makes a new Querier.
@@ -323,11 +323,6 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	return resp, nil
 }
 
-type (
-	forEachFn        func(ctx context.Context, client tempopb.QuerierClient) error
-	replicationSetFn func(r ring.ReadRing) (ring.ReplicationSet, error)
-)
-
 // forIngesterRings runs f, in parallel, for given ingesters
 func (q *Querier) forIngesterRings(ctx context.Context, userID string, getReplicationSet replicationSetFn, f forEachFn) error {
 	if ctx.Err() != nil {
@@ -425,14 +420,10 @@ func forOneIngesterRing(ctx context.Context, replicationSet ring.ReplicationSet,
 }
 
 // forGivenGenerators runs f, in parallel, for given generators
-func (q *Querier) forGivenGenerators(
-	ctx context.Context,
-	replicationSet ring.ReplicationSet,
-	f func(ctx context.Context, client tempopb.MetricsGeneratorClient) (interface{}, error),
-) ([]responseFromGenerators, error) {
+func (q *Querier) forGivenGenerators(ctx context.Context, replicationSet ring.ReplicationSet, f forEachGeneratorFn) error {
 	if ctx.Err() != nil {
 		_ = level.Debug(log.Logger).Log("foreGivenGenerators context error", "ctx.Err()", ctx.Err().Error())
-		return nil, ctx.Err()
+		return ctx.Err()
 	}
 
 	ctx, span := tracer.Start(ctx, "Querier.forGivenGenerators")
@@ -449,25 +440,25 @@ func (q *Querier) forGivenGenerators(
 			return nil, fmt.Errorf("failed to get client for %s: %w", generator.Addr, err)
 		}
 
-		resp, err := f(funcCtx, client.(tempopb.MetricsGeneratorClient))
+		err = f(funcCtx, client.(tempopb.MetricsGeneratorClient))
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute f() for %s: %w", generator.Addr, err)
 		}
 
-		return responseFromGenerators{generator.Addr, resp}, nil
+		// we are returning the empty response here because response is collected by
+		// the collector inside forEachGeneratorFn
+		return nil, nil
 	}
 
-	results, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, doFunc)
+	// ignore response because it's nil, and we are using a collector inside forEachGeneratorFn to
+	// collect the actual response. we need to return nil here and ignore it
+	// because doFunc expects us to return a response
+	_, err := replicationSet.Do(ctx, q.cfg.ExtraQueryDelay, doFunc)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get response from generators: %w", err)
+		return fmt.Errorf("failed to get response from generators: %w", err)
 	}
 
-	responses := make([]responseFromGenerators, 0, len(results))
-	for _, result := range results {
-		responses = append(responses, result.(responseFromGenerators))
-	}
-
-	return responses, nil
+	return nil
 }
 
 func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
@@ -522,6 +513,7 @@ func (q *Querier) SearchTagsBlocks(ctx context.Context, req *tempopb.SearchTagsB
 
 	return &tempopb.SearchTagsResponse{
 		TagNames: distinctValues.Strings(),
+		Metrics:  v2Response.Metrics,
 	}, nil
 }
 
@@ -545,16 +537,22 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewDistinctString(limit)
+	mc := collector.NewMetricsCollector()
 
 	forEach := func(ctx context.Context, client tempopb.QuerierClient) error {
 		resp, err := client.SearchTags(ctx, req)
 		if err != nil {
 			return err
 		}
+		// collect metrics first because we stop early with return
+		if resp.Metrics != nil {
+			mc.Add(resp.Metrics.InspectedBytes)
+		}
+
 		for _, tag := range resp.TagNames {
 			distinctValues.Collect(tag)
 			if distinctValues.Exceeded() {
-				break // stop early
+				return nil // stop early
 			}
 		}
 		return nil
@@ -565,14 +563,13 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 	}
 
 	if distinctValues.Exceeded() {
-		level.Warn(log.Logger).Log("msg", "size of tags in instance exceeded limit, reduce cardinality or size of tags", "userID", userID, "limit", limit, "total", distinctValues.TotalDataSize())
+		level.Warn(log.Logger).Log("msg", "size of tags in instance exceeded limit, reduce cardinality or size of tags", "userID", userID, "limit", limit, "size", distinctValues.Size())
 	}
 
-	resp := &tempopb.SearchTagsResponse{
+	return &tempopb.SearchTagsResponse{
 		TagNames: distinctValues.Strings(),
-	}
-
-	return resp, nil
+		Metrics:  &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()},
+	}, nil
 }
 
 func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequest) (*tempopb.SearchTagsV2Response, error) {
@@ -583,6 +580,7 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewScopedDistinctString(limit)
+	mc := collector.NewMetricsCollector()
 
 	// Get results from all ingesters
 	forEach := func(ctx context.Context, client tempopb.QuerierClient) error {
@@ -590,10 +588,14 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 		if err != nil {
 			return err
 		}
+		// collect metrics first because we stop early with return
+		if resp.Metrics != nil {
+			mc.Add(resp.Metrics.InspectedBytes)
+		}
+
 		for _, res := range resp.Scopes {
 			for _, tag := range res.Tags {
-				distinctValues.Collect(res.Name, tag)
-				if distinctValues.Exceeded() {
+				if distinctValues.Collect(res.Name, tag) {
 					return nil
 				}
 			}
@@ -612,7 +614,8 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 
 	collected := distinctValues.Strings()
 	resp := &tempopb.SearchTagsV2Response{
-		Scopes: make([]*tempopb.SearchTagsV2Scope, 0, len(collected)),
+		Scopes:  make([]*tempopb.SearchTagsV2Scope, 0, len(collected)),
+		Metrics: &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()}, // send metrics with response
 	}
 	for scope, vals := range collected {
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
@@ -632,6 +635,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewDistinctString(limit)
+	mc := collector.NewMetricsCollector()
 
 	// Virtual tags values. Get these first.
 	for _, v := range search.GetVirtualTagValues(req.TagName) {
@@ -644,13 +648,17 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 		if err != nil {
 			return err
 		}
+		// add metrics first because we stop early with return
+		if resp.Metrics != nil {
+			mc.Add(resp.Metrics.InspectedBytes)
+		}
+
 		for _, res := range resp.TagValues {
 			distinctValues.Collect(res)
 			if distinctValues.Exceeded() {
 				return nil
 			}
 		}
-
 		return nil
 	}
 
@@ -660,14 +668,13 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	}
 
 	if distinctValues.Exceeded() {
-		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "limit", limit, "total", distinctValues.TotalDataSize())
+		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "limit", limit, "size", distinctValues.Size())
 	}
 
-	resp := &tempopb.SearchTagValuesResponse{
+	return &tempopb.SearchTagValuesResponse{
 		TagValues: distinctValues.Strings(),
-	}
-
-	return resp, nil
+		Metrics:   &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()},
+	}, nil
 }
 
 func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagValuesRequest) (*tempopb.SearchTagValuesV2Response, error) {
@@ -678,6 +685,7 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 
 	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewDistinctValue(limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	mc := collector.NewMetricsCollector()
 
 	// Virtual tags values. Get these first.
 	virtualVals := search.GetVirtualTagValuesV2(req.TagName)
@@ -689,18 +697,25 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 	// with v2 search we can confidently bail if GetVirtualTagValuesV2 gives us any hits. this doesn't work
 	// in v1 search b/c intrinsic tags like "status" are conflated with attributes named "status"
 	if virtualVals != nil {
-		return valuesToV2Response(distinctValues), nil
+		// no data was read to collect virtual tags so 0 bytesRead
+		return valuesToV2Response(distinctValues, 0), nil
 	}
 
 	forEach := func(ctx context.Context, client tempopb.QuerierClient) error {
+		// combine metrics as we get results from ingesters
 		resp, err := client.SearchTagValuesV2(ctx, req)
 		if err != nil {
 			return err
 		}
+		// collect metrics first, we stop early with return
+		if resp.Metrics != nil {
+			mc.Add(resp.Metrics.InspectedBytes)
+		}
+
 		for _, res := range resp.TagValues {
 			distinctValues.Collect(*res)
 			if distinctValues.Exceeded() {
-				break // stop early
+				return nil // stop early
 			}
 		}
 		return nil
@@ -714,7 +729,7 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 		_ = level.Warn(log.Logger).Log("msg", "size of tag values exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "limit", limit, "size", distinctValues.Size())
 	}
 
-	return valuesToV2Response(distinctValues), nil
+	return valuesToV2Response(distinctValues, mc.TotalValue()), nil
 }
 
 func (q *Querier) SpanMetricsSummary(
@@ -741,21 +756,24 @@ func (q *Querier) SpanMetricsSummary(
 	if err != nil {
 		return nil, fmt.Errorf("error finding generators in Querier.SpanMetricsSummary: %w", err)
 	}
-	lookupResults, err := q.forGivenGenerators(
-		ctx,
-		replicationSet,
-		func(ctx context.Context, client tempopb.MetricsGeneratorClient) (interface{}, error) {
-			return client.GetMetrics(ctx, genReq)
-		},
-	)
+
+	var results []*tempopb.SpanMetricsResponse
+	mtx := sync.Mutex{}
+
+	forEach := func(ctx context.Context, client tempopb.MetricsGeneratorClient) error {
+		resp, err := client.GetMetrics(ctx, genReq)
+		if err != nil {
+			return err
+		}
+		// collect the results from the generators in the pool
+		mtx.Lock()
+		defer mtx.Unlock()
+		results = append(results, resp)
+		return nil
+	}
+	err = q.forGivenGenerators(ctx, replicationSet, forEach)
 	if err != nil {
 		return nil, fmt.Errorf("error querying generators in Querier.SpanMetricsSummary: %w", err)
-	}
-
-	// Assemble the results from the generators in the pool
-	results := make([]*tempopb.SpanMetricsResponse, 0, len(lookupResults))
-	for _, result := range lookupResults {
-		results = append(results, result.response.(*tempopb.SpanMetricsResponse))
 	}
 
 	// Combine the results
@@ -808,13 +826,14 @@ func (q *Querier) SpanMetricsSummary(
 	return resp, nil
 }
 
-func valuesToV2Response(distinctValues *collector.DistinctValue[tempopb.TagValue]) *tempopb.SearchTagValuesV2Response {
-	resp := &tempopb.SearchTagValuesV2Response{}
+func valuesToV2Response(distinctValues *collector.DistinctValue[tempopb.TagValue], bytesRead uint64) *tempopb.SearchTagValuesV2Response {
+	resp := &tempopb.SearchTagValuesV2Response{
+		Metrics: &tempopb.MetadataMetrics{InspectedBytes: bytesRead},
+	}
 	for _, v := range distinctValues.Values() {
 		v2 := v
 		resp.TagValues = append(resp.TagValues, &v2)
 	}
-
 	return resp
 }
 
@@ -847,7 +866,7 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 		return nil, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}
 
-	blockID, err := uuid.Parse(req.BlockID)
+	blockID, err := backend.ParseUUID(req.BlockID)
 	if err != nil {
 		return nil, err
 	}
@@ -866,7 +885,7 @@ func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBl
 		Version:          req.Version,
 		TenantID:         tenantID,
 		Encoding:         enc,
-		Size:             req.Size_,
+		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
@@ -902,6 +921,8 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 					Tags: search.GetVirtualIntrinsicValues(),
 				},
 			},
+			// no bytes were scanned to return the intrinsic values
+			Metrics: &tempopb.MetadataMetrics{InspectedBytes: 0},
 		}, nil
 	}
 
@@ -910,7 +931,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 		return nil, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}
 
-	blockID, err := uuid.Parse(req.BlockID)
+	blockID, err := backend.ParseUUID(req.BlockID)
 	if err != nil {
 		return nil, err
 	}
@@ -929,7 +950,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 		Version:          req.Version,
 		TenantID:         tenantID,
 		Encoding:         enc,
-		Size:             req.Size_,
+		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
@@ -960,8 +981,11 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 		return resp, nil
 	}
 
+	valueCollector := collector.NewScopedDistinctString(q.limits.MaxBytesPerTagValuesQuery(tenantID))
+	mc := collector.NewMetricsCollector()
+
 	fetcher := traceql.NewTagNamesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback) error {
-		return q.store.FetchTagNames(ctx, meta, req, cb, common.DefaultSearchOptions())
+		return q.store.FetchTagNames(ctx, meta, req, cb, mc.Add, common.DefaultSearchOptions())
 	})
 
 	scope := traceql.AttributeScopeFromString(req.SearchReq.Scope)
@@ -969,10 +993,8 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 		return nil, fmt.Errorf("unknown scope: %s", req.SearchReq.Scope)
 	}
 
-	valueCollector := collector.NewScopedDistinctString(q.limits.MaxBytesPerTagValuesQuery(tenantID))
 	err = q.engine.ExecuteTagNames(ctx, scope, query, func(tag string, scope traceql.AttributeScope) bool {
-		valueCollector.Collect(scope.String(), tag)
-		return valueCollector.Exceeded()
+		return valueCollector.Collect(scope.String(), tag)
 	}, fetcher)
 	if err != nil {
 		return nil, err
@@ -980,7 +1002,8 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 
 	scopedVals := valueCollector.Strings()
 	resp := &tempopb.SearchTagsV2Response{
-		Scopes: make([]*tempopb.SearchTagsV2Scope, 0, len(scopedVals)),
+		Scopes:  make([]*tempopb.SearchTagsV2Scope, 0, len(scopedVals)),
+		Metrics: &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()}, // send metrics with response
 	}
 	for scope, vals := range scopedVals {
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
@@ -998,7 +1021,7 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 		return &tempopb.SearchTagValuesResponse{}, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}
 
-	blockID, err := uuid.Parse(req.BlockID)
+	blockID, err := backend.ParseUUID(req.BlockID)
 	if err != nil {
 		return &tempopb.SearchTagValuesResponse{}, err
 	}
@@ -1017,7 +1040,7 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 		Version:          req.Version,
 		TenantID:         tenantID,
 		Encoding:         enc,
-		Size:             req.Size_,
+		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
@@ -1030,14 +1053,12 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
 
-	values, err := q.store.SearchTagValues(ctx, meta, req.SearchReq.TagName, opts)
+	resp, err := q.store.SearchTagValues(ctx, meta, req.SearchReq.TagName, opts)
 	if err != nil {
 		return &tempopb.SearchTagValuesResponse{}, err
 	}
 
-	return &tempopb.SearchTagValuesResponse{
-		TagValues: values,
-	}, nil
+	return resp, nil
 }
 
 func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempopb.SearchTagValuesBlockRequest) (*tempopb.SearchTagValuesV2Response, error) {
@@ -1046,7 +1067,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		return &tempopb.SearchTagValuesV2Response{}, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}
 
-	blockID, err := uuid.Parse(req.BlockID)
+	blockID, err := backend.ParseUUID(req.BlockID)
 	if err != nil {
 		return &tempopb.SearchTagValuesV2Response{}, err
 	}
@@ -1065,7 +1086,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		Version:          req.Version,
 		TenantID:         tenantID,
 		Encoding:         enc,
-		Size:             req.Size_,
+		Size_:            req.Size_,
 		IndexPageSize:    req.IndexPageSize,
 		TotalRecords:     req.TotalRecords,
 		BlockID:          blockID,
@@ -1088,17 +1109,19 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		return nil, err
 	}
 
+	valueCollector := collector.NewDistinctValue(q.limits.MaxBytesPerTagValuesQuery(tenantID), func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	mc := collector.NewMetricsCollector()
+
 	fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
-		return q.store.FetchTagValues(ctx, meta, req, cb, opts)
+		return q.store.FetchTagValues(ctx, meta, req, cb, mc.Add, opts)
 	})
 
-	valueCollector := collector.NewDistinctValue(q.limits.MaxBytesPerTagValuesQuery(tenantID), func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 	err = q.engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
 	if err != nil {
 		return nil, err
 	}
 
-	return valuesToV2Response(valueCollector), nil
+	return valuesToV2Response(valueCollector, mc.TotalValue()), nil
 }
 
 func (q *Querier) postProcessIngesterSearchResults(req *tempopb.SearchRequest, results []*tempopb.SearchResponse) *tempopb.SearchResponse {

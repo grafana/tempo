@@ -18,7 +18,6 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
-	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
@@ -26,6 +25,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/cache"
@@ -38,7 +38,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
-var _ http.RoundTripper = &mockRoundTripper{}
+var _ pipeline.RoundTripper = &mockRoundTripper{}
 
 type mockRoundTripper struct {
 	err           error
@@ -49,7 +49,7 @@ type mockRoundTripper struct {
 	responseFn func() proto.Message
 }
 
-func (s *mockRoundTripper) RoundTrip(_ *http.Request) (*http.Response, error) {
+func (s *mockRoundTripper) RoundTrip(_ pipeline.Request) (*http.Response, error) {
 	// only return errors once, then do a good response to make sure that the combiner is handling the error correctly
 	var err error
 	var errResponse *http.Response
@@ -558,9 +558,9 @@ func TestSearchAccessesCache(t *testing.T) {
 	meta := &backend.BlockMeta{
 		StartTime:    time.Unix(15, 0),
 		EndTime:      time.Unix(16, 0),
-		Size:         defaultTargetBytesPerRequest,
+		Size_:        defaultTargetBytesPerRequest,
 		TotalRecords: 1,
-		BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+		BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000123"),
 	}
 
 	rdr := &mockReader{
@@ -676,9 +676,9 @@ func BenchmarkSearchPipeline(b *testing.B) {
 		rdr.metas = append(rdr.metas, &backend.BlockMeta{
 			StartTime:    time.Unix(15, 0),
 			EndTime:      time.Unix(16, 0),
-			Size:         defaultTargetBytesPerRequest,
+			Size_:        defaultTargetBytesPerRequest,
 			TotalRecords: 1,
-			BlockID:      uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012d", i)),
+			BlockID:      backend.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012d", i)),
 		})
 	}
 
@@ -709,7 +709,7 @@ func BenchmarkSearchPipeline(b *testing.B) {
 
 // frontendWithSettings returns a new frontend with the given settings. any nil options
 // are given "happy path" defaults
-func frontendWithSettings(t require.TestingT, next http.RoundTripper, rdr tempodb.Reader, cfg *Config, cacheProvider cache.Provider,
+func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr tempodb.Reader, cfg *Config, cacheProvider cache.Provider,
 	opts ...func(*Config),
 ) *QueryFrontend {
 	if next == nil {
@@ -735,32 +735,32 @@ func frontendWithSettings(t require.TestingT, next http.RoundTripper, rdr tempod
 				{
 					StartTime:    time.Unix(1100, 0),
 					EndTime:      time.Unix(1200, 0),
-					Size:         defaultTargetBytesPerRequest * 2,
+					Size_:        defaultTargetBytesPerRequest * 2,
 					TotalRecords: 2,
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 				{
 					StartTime:    time.Unix(1100, 0),
 					EndTime:      time.Unix(1200, 0),
-					Size:         defaultTargetBytesPerRequest * 2,
+					Size_:        defaultTargetBytesPerRequest * 2,
 					TotalRecords: 2,
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000001"),
 				},
 				// These are RF1 metrics blocks
 				{
 					StartTime:         time.Unix(1100, 0),
 					EndTime:           time.Unix(1200, 0),
-					Size:              defaultTargetBytesPerRequest * 2,
+					Size_:             defaultTargetBytesPerRequest * 2,
 					TotalRecords:      2,
-					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+					BlockID:           backend.MustParse("00000000-0000-0000-0000-000000000002"),
 					ReplicationFactor: 1,
 				},
 				{
 					StartTime:         time.Unix(1100, 0),
 					EndTime:           time.Unix(1200, 0),
-					Size:              defaultTargetBytesPerRequest * 2,
+					Size_:             defaultTargetBytesPerRequest * 2,
 					TotalRecords:      2,
-					BlockID:           uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+					BlockID:           backend.MustParse("00000000-0000-0000-0000-000000000003"),
 					ReplicationFactor: 1,
 				},
 			},

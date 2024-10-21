@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: "0"
-      - name: Set up Go 1.22
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
@@ -55,7 +55,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Set up Go 1.22
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
@@ -79,7 +79,9 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v4
-      - name: Set up Go 1.22
+      - name: Fetch tags
+        run: git fetch --prune --unshallow --tags
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
@@ -93,7 +95,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Set up Go 1.22
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
@@ -117,7 +119,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Set up Go 1.22
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
@@ -132,7 +134,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Set up Go 1.22
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
@@ -150,7 +152,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Set up Go 1.22
+      - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"

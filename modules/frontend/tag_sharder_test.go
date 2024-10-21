@@ -89,7 +89,7 @@ func TestTagsBackendRequests(t *testing.T) {
 	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad", backend.EncGZIP, "asdf")
 	bm.StartTime = time.Unix(100, 0)
 	bm.EndTime = time.Unix(200, 0)
-	bm.Size = defaultTargetBytesPerRequest * 2
+	bm.Size_ = defaultTargetBytesPerRequest * 2
 	bm.TotalRecords = 2
 
 	s := &searchTagSharder{
@@ -257,6 +257,7 @@ func TestTagsIngesterRequest(t *testing.T) {
 		}
 
 		req := httptest.NewRequest("GET", tc.request, nil)
+		pipelineReq := pipeline.NewHTTPRequest(req)
 
 		searchReq := fakeReq{
 			startValue: uint32(tc.start),
@@ -264,7 +265,7 @@ func TestTagsIngesterRequest(t *testing.T) {
 		}
 
 		copyReq := searchReq
-		actualReq, err := s.ingesterRequest(context.Background(), "test", req, &searchReq)
+		actualReq, err := s.ingesterRequest(context.Background(), "test", pipelineReq, &searchReq)
 		if tc.expectedError != nil {
 			assert.Equal(t, tc.expectedError, err)
 			continue
@@ -273,7 +274,7 @@ func TestTagsIngesterRequest(t *testing.T) {
 		if tc.expectedURI == "" {
 			assert.Nil(t, actualReq)
 		} else {
-			assert.Equal(t, tc.expectedURI, actualReq.RequestURI)
+			assert.Equal(t, tc.expectedURI, actualReq.HTTPRequest().RequestURI)
 		}
 
 		// it may seem odd to test that the searchReq is not modified, but this is to prevent an issue that

@@ -50,8 +50,8 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		}
 
 		var finalResponse *tempopb.SearchResponse
-		c := combiner.NewTypedSearch(int(limit))
-		collector := pipeline.NewGRPCCollector[*tempopb.SearchResponse](next, cfg.ResponseConsumers, c, func(sr *tempopb.SearchResponse) error {
+		comb := combiner.NewTypedSearch(int(limit))
+		collector := pipeline.NewGRPCCollector[*tempopb.SearchResponse](next, cfg.ResponseConsumers, comb, func(sr *tempopb.SearchResponse) error {
 			finalResponse = sr // sadly we can't srv.Send directly into the collector. we need bytesProcessed for the SLO calculations
 			return srv.Send(sr)
 		})
@@ -103,14 +103,14 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		logRequest(logger, tenant, searchReq)
 
 		// build and use roundtripper
-		combiner := combiner.NewTypedSearch(int(limit))
-		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, combiner)
+		comb := combiner.NewTypedSearch(int(limit))
+		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 
 		resp, err := rt.RoundTrip(req)
 
 		// ask for the typed diff and use that for the SLO hook. it will have up to date metrics
 		var bytesProcessed uint64
-		searchResp, _ := combiner.GRPCDiff()
+		searchResp, _ := comb.GRPCDiff()
 		if searchResp != nil && searchResp.Metrics != nil {
 			bytesProcessed = searchResp.Metrics.InspectedBytes
 		}
@@ -139,6 +139,8 @@ func logResult(logger log.Logger, tenantID string, durationSeconds float64, req 
 	statusCode := -1
 	if httpResp != nil {
 		statusCode = httpResp.StatusCode
+	} else if st, ok := status.FromError(err); ok {
+		statusCode = int(st.Code())
 	}
 
 	if resp == nil {
