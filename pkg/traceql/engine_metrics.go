@@ -17,6 +17,8 @@ import (
 )
 
 const (
+	internalLabelMetaType = "__meta_type"
+	internalMetaTypeCount = "__count"
 	internalLabelBucket   = "__bucket"
 	maxExemplars          = 100
 	maxExemplarsPerBucket = 2

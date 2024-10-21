@@ -78,7 +78,7 @@ func (a *AverageOverTimeAggregator) result() SeriesSet {
 	ss := a.seriesAgg.Results()
 	if a.mode == AggregateModeFinal {
 		for i := range ss {
-			if strings.Contains(i, "_type") {
+			if strings.Contains(i, internalLabelMetaType) {
 				delete(ss, i)
 			}
 		}
@@ -192,8 +192,8 @@ func (b *SpanSetsAverageOverTimeAggregator) Combine(in []*tempopb.TimeSeries) {
 func (b *SpanSetsAverageOverTimeAggregator) initSeriesAggregator(in []*tempopb.TimeSeries, newCountersTS map[string][]float64) {
 	for _, ts := range in {
 		counterPromLabel := ""
-		if strings.Contains(ts.PromLabels, "_type") {
-			counterPromLabel = getLabels(ts.Labels, "_type").String()
+		if strings.Contains(ts.PromLabels, internalLabelMetaType) {
+			counterPromLabel = getLabels(ts.Labels, internalLabelMetaType).String()
 			newCountersTS[counterPromLabel] = make([]float64, b.len)
 			for i, sample := range ts.Samples {
 				newCountersTS[counterPromLabel][i] = sample.Value
@@ -451,7 +451,7 @@ func (g *AvgOverTimeSpanAggregator[F, S]) labelsFor(vals S, t string) (Labels, s
 		serieLabel := make(Labels, 1, 2)
 		serieLabel[0] = Label{labels.MetricName, NewStaticString(metricsAggregateAvgOverTime.String())}
 		if t != "" {
-			serieLabel = append(serieLabel, Label{"_type", NewStaticString(t)})
+			serieLabel = append(serieLabel, Label{internalLabelMetaType, NewStaticString(t)})
 		}
 		return serieLabel, serieLabel.String()
 	}
@@ -469,7 +469,7 @@ func (g *AvgOverTimeSpanAggregator[F, S]) labelsFor(vals S, t string) (Labels, s
 	}
 
 	if t != "" {
-		labels = append(labels, Label{"_type", NewStaticString(t)})
+		labels = append(labels, Label{internalLabelMetaType, NewStaticString(t)})
 	}
 
 	return labels, labels.String()
@@ -487,7 +487,7 @@ func (g *AvgOverTimeSpanAggregator[F, S]) Series() SeriesSet {
 			Exemplars: s.exemplars,
 		}
 		// Second, get the "count" series
-		labels, promLabelsCount := g.labelsFor(s.vals, "count")
+		labels, promLabelsCount := g.labelsFor(s.vals, internalMetaTypeCount)
 		ss[promLabelsCount] = TimeSeries{
 			Labels:    labels,
 			Values:    s.count,
