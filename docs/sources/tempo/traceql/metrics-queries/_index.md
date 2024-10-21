@@ -18,25 +18,18 @@ Metric queries extend trace queries by applying a function to trace query result
 This powerful feature allows for ad-hoc aggregation of any existing TraceQL query by any dimension available in your traces, much in the same way that LogQL metric queries create metrics from logs.
 
 Traces are a unique observability signal that contain causal relationships between the components in your system.
-Do you want to know how many database calls across all systems are downstream of your application?
-What services beneath a given endpoint are currently failing?
-What services beneath an endpoint are currently slow? TraceQL metrics can answer all these questions by parsing your traces in aggregate.
+
+TraceQL metrics can help answer questions like this:
+
+* How many database calls across all systems are downstream of your application?
+* What services beneath a given endpoint are currently failing?
+* What services beneath an endpoint are currently slow?
+
+TraceQL metrics can help you answer these questions by parsing your traces in aggregate.
 
 TraceQL metrics are powered by the [TraceQL metrics API](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics).
 
 ![Metrics visualization in Grafana](/media/docs/tempo/metrics-explore-sample-2.4.png)
-
-## Enable and use TraceQL metrics
-
-
-To use TraceQL metrics, you need to enable them on your Tempo database.
-Refer to [Configure TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/traceql-metrics/) for more information.
-
-From there, you can either query the TraceQL metrics API directly (for example, with `curl`) or using Grafana 
-(recommended).
-To run TraceQL metrics queries in Grafana, you need Grafana Cloud or Grafana 10.4 or later.
-No extra configuration is needed. 
-Use a Tempo data source that points to a Tempo database with TraceQL metrics enabled. 
 
 ## RED metrics, TraceQL, and PromQL
 
@@ -52,7 +45,27 @@ You can write TraceQL metrics queries to compute rate, errors, and durations ove
 
 For more information on how to use TraceQL metrics to investigate issues, refer to [Solve problems with metrics queries](./solve-problems-metrics-queries).
 
-## Exemplars
+## Enable and use TraceQL metrics
+
+To use TraceQL metrics, you need to enable them on your Tempo database.
+Refer to [Configure TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/traceql-metrics/) for more information.
+
+From there, you can either query the TraceQL metrics API directly (for example, with `curl`) or using Grafana
+(recommended).
+To run TraceQL metrics queries in Grafana, you need Grafana Cloud or Grafana 10.4 or later.
+No extra configuration is needed.
+Use a Tempo data source that points to a Tempo database with TraceQL metrics enabled.
+
+Refer to [Solve problems using metrics queries](./solve-problems-metrics-queries/) for some real-world examples.
+
+### Functions
+
+TraceQL metrics queries currently include the following functions for aggregating over groups of spans: `rate`, `count_over_time`, `quantile_over_time`, `histogram_over_time`, and `compare`.
+These functions can be added as an operator at the end of any TraceQL query.
+
+For detailed information and example queries for each function, refer to [TraceQL metrics functions](./functions).
+
+### Exemplars
 
 Exemplars are a powerful feature of TraceQL metrics.
 They allow you to see an exact trace that contributed to a given metric value.
@@ -65,10 +78,3 @@ or pass a query hint in your query.
 ```
 { span:name = "GET /:endpoint" } | quantile_over_time(duration, .99) by (span.http.target) with (exemplars=true)
 ```
-
-## Functions
-
-TraceQL metrics queries currently include the following functions for aggregating over groups of spans: `rate`, `count_over_time`, `quantile_over_time`, `histogram_over_time`, and `compare`.
-These functions can be added as an operator at the end of any TraceQL query.
-
-For detailed information, refer to [TraceQL metrics functions](./functions).
