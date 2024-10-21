@@ -99,7 +99,7 @@ func TestUsageTracker(t *testing.T) {
 	name = "standard"
 	dimensions = map[string]string{"service.name": ""}
 	expected = make(map[uint64]*bucket)
-	expected[hash([]string{"service_name"}, map[string]string{"service_name": "svc"})] = &bucket{
+	expected[hash([]string{"service_name"}, []string{"svc"})] = &bucket{
 		labels: []string{"svc"},
 		bytes:  uint64(data[0].Size()), // The entire batch is included, with the exact number of bytes
 	}
@@ -115,11 +115,11 @@ func TestUsageTracker(t *testing.T) {
 	name = "splitbatch"
 	dimensions = map[string]string{"attr": ""}
 	expected = make(map[uint64]*bucket)
-	expected[hash([]string{"attr"}, map[string]string{"attr": "1"})] = &bucket{
+	expected[hash([]string{"attr"}, []string{"1"})] = &bucket{
 		labels: []string{"1"},
 		bytes:  nonSpanRatio(0.75) + spanSize(0) + spanSize(1) + spanSize(3),
 	}
-	expected[hash([]string{"attr"}, map[string]string{"attr": "2"})] = &bucket{
+	expected[hash([]string{"attr"}, []string{"2"})] = &bucket{
 		labels: []string{"2"},
 		bytes:  nonSpanRatio(0.25) + spanSize(2),
 	}
@@ -135,7 +135,7 @@ func TestUsageTracker(t *testing.T) {
 	name = "missing"
 	dimensions = map[string]string{"foo": ""}
 	expected = make(map[uint64]*bucket)
-	expected[hash([]string{"foo"}, map[string]string{"foo": missingLabel})] = &bucket{
+	expected[hash([]string{"foo"}, []string{missingLabel})] = &bucket{
 		labels: []string{missingLabel}, // No spans have "foo" so it is assigned to the missingvalue
 		bytes:  uint64(data[0].Size()),
 	}
@@ -151,11 +151,11 @@ func TestUsageTracker(t *testing.T) {
 	name = "maxcardinality"
 	dimensions = map[string]string{"attr": ""}
 	expected = make(map[uint64]*bucket)
-	expected[hash([]string{"attr"}, map[string]string{"attr": "1"})] = &bucket{
+	expected[hash([]string{"attr"}, []string{"1"})] = &bucket{
 		labels: []string{"1"},
 		bytes:  nonSpanRatio(0.75) + spanSize(0) + spanSize(1) + spanSize(3), // attr=1 is encountered first and recorded, with 75% of spans
 	}
-	expected[hash([]string{"attr"}, map[string]string{"attr": overflowLabel})] = &bucket{
+	expected[hash([]string{"attr"}, []string{overflowLabel})] = &bucket{
 		labels: []string{overflowLabel},
 		bytes:  nonSpanRatio(0.25) + spanSize(2), // attr=2 doesn't fit within cardinality and those 25% of spans go into the overflow series.
 	}
@@ -176,11 +176,11 @@ func TestUsageTracker(t *testing.T) {
 		"attr":         "foo",
 	}
 	expected = make(map[uint64]*bucket)
-	expected[hash([]string{"foo"}, map[string]string{"foo": "1"})] = &bucket{
+	expected[hash([]string{"foo"}, []string{"1"})] = &bucket{
 		labels: []string{"1"},
 		bytes:  nonSpanRatio(0.75) + spanSize(0) + spanSize(1) + spanSize(3),
 	}
-	expected[hash([]string{"foo"}, map[string]string{"foo": "2"})] = &bucket{
+	expected[hash([]string{"foo"}, []string{"2"})] = &bucket{
 		labels: []string{"2"},
 		bytes:  nonSpanRatio(0.25) + spanSize(2),
 	}
@@ -200,11 +200,11 @@ func TestUsageTracker(t *testing.T) {
 		"attr2": "",
 	}
 	expected = make(map[uint64]*bucket)
-	expected[hash([]string{"attr2"}, map[string]string{"attr2": "attr2Value"})] = &bucket{
+	expected[hash([]string{"attr2"}, []string{"attr2Value"})] = &bucket{
 		labels: []string{"attr2Value"},
 		bytes:  nonSpanRatio(0.25) + spanSize(0),
 	}
-	expected[hash([]string{"attr2"}, map[string]string{"attr2": missingLabel})] = &bucket{
+	expected[hash([]string{"attr2"}, []string{missingLabel})] = &bucket{
 		labels: []string{missingLabel},
 		bytes:  nonSpanRatio(0.75) + spanSize(1) + spanSize(2) + spanSize(3),
 	}
@@ -248,8 +248,9 @@ func TestUsageTracker(t *testing.T) {
 
 func BenchmarkUsageTrackerObserve(b *testing.B) {
 	var (
-		tr       = test.MakeTrace(10, nil)
-		dims     = map[string]string{"service.name": "service_name"}
+		tr   = test.MakeTrace(10, nil)
+		dims = map[string]string{"service.name": "service_name"}
+		// dims     = map[string]string{"key": ""} // To benchmark span-level attribute
 		labelsFn = func(_ string) map[string]string { return dims } // Allocation outside the function to not influence benchmark
 		maxFn    = func(_ string) uint64 { return 0 }
 	)
