@@ -117,14 +117,14 @@ func TestUsageTracker(t *testing.T) {
 	})
 
 	// -------------------------------------------------------------
-	// Test case 3 - Missing values go into series without that label
+	// Test case 3 - Missing labels are set to __missing__
 	// -------------------------------------------------------------
 	name = "missing"
 	dimensions = map[string]string{"foo": ""}
 	expected = make(map[uint64]*bucket)
-	expected[emptyHash] = &bucket{
-		labels: nil, // No spans have "foo" so they all go into an unlabeled series
-		bytes:  uint64(float64(data[0].Size())),
+	expected[hash([]string{"foo"}, map[string]string{"foo": missingLabel})] = &bucket{
+		labels: []string{missingLabel}, // No spans have "foo" so it is assigned to the missingvalue
+		bytes:  uint64(data[0].Size()),
 	}
 	testCases = append(testCases, testcase{
 		name:       name,
@@ -142,9 +142,9 @@ func TestUsageTracker(t *testing.T) {
 		labels: []string{"1"},
 		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.75)), // attr=1 is encountered first and recorded, with 75% of spans
 	}
-	expected[emptyHash] = &bucket{
-		labels: nil,
-		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.25)), // attr=2 doesn't fit within cardinality and those 25% of spans go into the unlabled series.
+	expected[hash([]string{"attr"}, map[string]string{"attr": overflowLabel})] = &bucket{
+		labels: []string{overflowLabel},
+		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.25)), // attr=2 doesn't fit within cardinality and those 25% of spans go into the overflow series.
 	}
 	testCases = append(testCases, testcase{
 		name:       name,
@@ -157,7 +157,7 @@ func TestUsageTracker(t *testing.T) {
 	// Test case 5 - Multiple labels with rename
 	// Multiple dimensions are renamed into the same output label
 	// -------------------------------------------------------------
-	name = "maxcardinality"
+	name = "rename"
 	dimensions = map[string]string{
 		"service.name": "foo",
 		"attr":         "foo",
@@ -165,11 +165,11 @@ func TestUsageTracker(t *testing.T) {
 	expected = make(map[uint64]*bucket)
 	expected[hash([]string{"foo"}, map[string]string{"foo": "1"})] = &bucket{
 		labels: []string{"1"},
-		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.75)), // attr=1 is encountered first and recorded, with 75% of spans
+		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.75)),
 	}
 	expected[hash([]string{"foo"}, map[string]string{"foo": "2"})] = &bucket{
 		labels: []string{"2"},
-		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.25)), // attr=2 doesn't fit within cardinality and those 25% of spans go into the unlabled series.
+		bytes:  uint64(math.RoundToEven(float64(data[0].Size()) * 0.25)),
 	}
 	testCases = append(testCases, testcase{
 		name:       name,

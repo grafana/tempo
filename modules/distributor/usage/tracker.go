@@ -18,12 +18,11 @@ import (
 )
 
 const (
-	tenantLabel  = "tenant"
-	trackerLabel = "tracker"
+	tenantLabel   = "tenant"
+	trackerLabel  = "tracker"
+	missingLabel  = "__missing__"
+	overflowLabel = "__overflow__"
 )
-
-// var emptyHash = hash(nil, nil)
-var emptyHash = hash(nil, nil)
 
 type (
 	tenantLabelsFunc func(string) map[string]string
@@ -59,6 +58,7 @@ type tenantUsage struct {
 	mapping    []mapping         // Mapping from attribute => final sanitized label. Typically few values and slice is faster than map
 	sortedKeys []string          // So we can always iterate the buffer in order, this can be precomputed up front
 	buffer     map[string]string
+	overflow   uint64
 }
 
 // GetBuffersForDimensions takes advantage of the fact that the configuration for a tracker
@@ -72,7 +72,6 @@ func (t *tenantUsage) GetBuffersForDimensions(dimensions map[string]string) ([]m
 		distinctKeys := make(map[string]struct{}, len(dimensions))
 		t.mapping = t.mapping[:0]
 		t.sortedKeys = t.sortedKeys[:0]
-		t.buffer = make(map[string]string, len(dimensions))
 
 		for k, v := range dimensions {
 			// Get the final sanitized output label for this
@@ -98,6 +97,13 @@ func (t *tenantUsage) GetBuffersForDimensions(dimensions map[string]string) ([]m
 			t.sortedKeys = append(t.sortedKeys, k)
 		}
 		slices.Sort(t.sortedKeys)
+
+		// Prepopulate the buffer and precompute the overflow bucket
+		t.buffer = make(map[string]string, len(t.sortedKeys))
+		for _, k := range t.sortedKeys {
+			t.buffer[k] = overflowLabel
+		}
+		t.overflow = hash(t.sortedKeys, t.buffer)
 	}
 	return t.mapping, t.buffer
 }
@@ -111,20 +117,23 @@ func (t *tenantUsage) getSeries(buffer map[string]string, maxCardinality uint64)
 		// Before creating a new series, check for cardinality limit.
 		if uint64(len(t.series)) >= maxCardinality {
 			// Overflow
-			// It goes into the unlabeled bucket
-			// TODO - Do we want to do something else?
-			clear(buffer)
-			h = emptyHash
+			// This tenant is at the maximum number of series.  In this case all data
+			// goes into the final overflow bucket. It has the same dimensions as the
+			// current configuration, except every label is overridden to the special overflow value.
+			for k := range buffer {
+				buffer[k] = overflowLabel
+			}
+			h = t.overflow
 			b = t.series[h]
 		}
 	}
 
 	if b == nil {
 		// First encounter with this series. Initialize it.
-		l, v := nonEmpties(t.sortedKeys, buffer)
+		v := flatten(t.sortedKeys, buffer)
 		b = &bucket{
 			// Metric description - constant for this pass now that the dimensions are known
-			descr:  prometheus.NewDesc("tempo_usage_tracker_bytes_received_total", "bytes total received with these attributes", l, t.constLabels),
+			descr:  prometheus.NewDesc("tempo_usage_tracker_bytes_received_total", "bytes total received with these attributes", t.sortedKeys, t.constLabels),
 			labels: v,
 		}
 		t.series[h] = b
@@ -220,7 +229,9 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 		firstSpanPortion := unaccountedForBatchData - batchPortion*totalSpanCount
 
 		// Reset value buffer for every batch.
-		clear(buffer)
+		for k := range buffer {
+			buffer[k] = missingLabel
+		}
 
 		if batch.Resource != nil {
 			for _, a := range batch.Resource.Attributes {
@@ -342,19 +353,15 @@ func hash(sortedKeys []string, buffer map[string]string) uint64 {
 	return h.Sum64()
 }
 
-func nonEmpties(sortedKeys []string, buffer map[string]string) ([]string, []string) {
-	var outLabels []string
-	var outValues []string
+// flatten the buffer map values into a slice, iterating in the given order.
+func flatten(sortedKeys []string, buffer map[string]string) []string {
+	outValues := make([]string, len(sortedKeys))
 
-	for _, k := range sortedKeys {
-		v := buffer[k]
-		if v != "" {
-			outLabels = append(outLabels, k)
-			outValues = append(outValues, v)
-		}
+	for i, k := range sortedKeys {
+		outValues[i] = buffer[k]
 	}
 
-	return outLabels, outValues
+	return outValues
 }
 
 // nonSpanDataLength returns the number of proto bytes in the batch
