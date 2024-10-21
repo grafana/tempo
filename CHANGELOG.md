@@ -1,5 +1,5 @@
 ## main / unreleased
-
+* [ENHANCEMENT] The property previously named span_multiplier_key is now renamed to multiplier_key, utilizing the resource attributes. [#4210](https://github.com/grafana/tempo/pull/4210)
 * [ENHANCEMENT] Changed log level from INFO to DEBUG for the TempoDB Find operation using traceId to reduce excessive/unwanted logs in log search. [#4179](https://github.com/grafana/tempo/pull/4179) (@Aki0x137)
 * [ENHANCEMENT] Pushdown collection of results from generators in the querier [#4119](https://github.com/grafana/tempo/pull/4119) (@electron0zero)
 * [CHANGE] Add throughput and SLO metrics in the tags and tag values endpoints [#4148](https://github.com/grafana/tempo/pull/4148) (@electron0zero)
