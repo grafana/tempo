@@ -209,12 +209,9 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 			"size", blockMeta.Size_,
 			"compactionLevel", blockMeta.CompactionLevel,
 			"encoding", blockMeta.Encoding.String(),
-			"indexPageSize", blockMeta.IndexPageSize,
 			"totalRecords", blockMeta.TotalObjects,
-			"dataEncoding", blockMeta.DataEncoding,
 			"bloomShardCount", blockMeta.BloomShardCount,
 			"footerSize", blockMeta.FooterSize,
-			"dedicatedColumns", fmt.Sprintf("%+v", blockMeta.DedicatedColumns),
 			"replicationFactor", blockMeta.ReplicationFactor,
 		)
 		totalRecords += int(blockMeta.TotalObjects)

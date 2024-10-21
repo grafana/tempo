@@ -270,12 +270,9 @@ func (c *Compactor) finishBlock(ctx context.Context, block *streamingBlock, l lo
 		"size", block.meta.Size_,
 		"compactionLevel", block.meta.CompactionLevel,
 		"encoding", block.meta.Encoding.String(),
-		"indexPageSize", block.meta.IndexPageSize,
 		"totalRecords", block.meta.TotalObjects,
-		"dataEncoding", block.meta.DataEncoding,
 		"bloomShardCount", block.meta.BloomShardCount,
 		"footerSize", block.meta.FooterSize,
-		"dedicatedColumns", fmt.Sprintf("%+v", block.meta.DedicatedColumns),
 		"replicationFactor", block.meta.ReplicationFactor,
 	)
 
