@@ -3,6 +3,7 @@
 .idea
 .vscode
 *.test
+*.out
 /bin
 /cmd/tempo-cli/tempo-cli
 /cmd/tempo-query/tempo-query
