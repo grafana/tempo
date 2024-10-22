@@ -63,14 +63,14 @@ func TestSearchTagsV2(t *testing.T) {
 		name     string
 		query    string
 		scope    string
-		expected tempopb.SearchTagsV2Response
+		expected searchTagsV2Response
 	}{
 		{
 			name:  "no filtering",
 			query: "",
 			scope: "none",
-			expected: tempopb.SearchTagsV2Response{
-				Scopes: []*tempopb.SearchTagsV2Scope{
+			expected: searchTagsV2Response{
+				Scopes: []ScopedTags{
 					{
 						Name: "span",
 						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
@@ -86,8 +86,8 @@ func TestSearchTagsV2(t *testing.T) {
 			name:  "first batch - resource",
 			query: fmt.Sprintf(`{ name="%s" }`, firstBatch.name),
 			scope: "resource",
-			expected: tempopb.SearchTagsV2Response{
-				Scopes: []*tempopb.SearchTagsV2Scope{
+			expected: searchTagsV2Response{
+				Scopes: []ScopedTags{
 					{
 						Name: "resource",
 						Tags: []string{firstBatch.resourceAttr, "service.name"},
@@ -99,8 +99,8 @@ func TestSearchTagsV2(t *testing.T) {
 			name:  "second batch with incomplete query - span",
 			query: fmt.Sprintf(`{ name="%s" && span.x = }`, secondBatch.name),
 			scope: "span",
-			expected: tempopb.SearchTagsV2Response{
-				Scopes: []*tempopb.SearchTagsV2Scope{
+			expected: searchTagsV2Response{
+				Scopes: []ScopedTags{
 					{
 						Name: "span",
 						Tags: []string{secondBatch.SpanAttr},
@@ -112,8 +112,8 @@ func TestSearchTagsV2(t *testing.T) {
 			name:  "first batch - resource att - span",
 			query: fmt.Sprintf(`{ resource.%s="%s" }`, firstBatch.resourceAttr, firstBatch.resourceAttVal),
 			scope: "span",
-			expected: tempopb.SearchTagsV2Response{
-				Scopes: []*tempopb.SearchTagsV2Scope{
+			expected: searchTagsV2Response{
+				Scopes: []ScopedTags{
 					{
 						Name: "span",
 						Tags: []string{firstBatch.SpanAttr},
@@ -125,8 +125,8 @@ func TestSearchTagsV2(t *testing.T) {
 			name:  "first batch - resource att - resource",
 			query: fmt.Sprintf(`{ resource.%s="%s" }`, firstBatch.resourceAttr, firstBatch.resourceAttVal),
 			scope: "resource",
-			expected: tempopb.SearchTagsV2Response{
-				Scopes: []*tempopb.SearchTagsV2Scope{
+			expected: searchTagsV2Response{
+				Scopes: []ScopedTags{
 					{
 						Name: "resource",
 						Tags: []string{firstBatch.resourceAttr, "service.name"},
@@ -138,8 +138,8 @@ func TestSearchTagsV2(t *testing.T) {
 			name:  "second batch - resource attribute - span",
 			query: fmt.Sprintf(`{ resource.%s="%s" }`, secondBatch.resourceAttr, secondBatch.resourceAttVal),
 			scope: "span",
-			expected: tempopb.SearchTagsV2Response{
-				Scopes: []*tempopb.SearchTagsV2Scope{
+			expected: searchTagsV2Response{
+				Scopes: []ScopedTags{
 					{
 						Name: "span",
 						Tags: []string{secondBatch.SpanAttr},
@@ -151,8 +151,8 @@ func TestSearchTagsV2(t *testing.T) {
 			name:  "too restrictive query",
 			query: fmt.Sprintf(`{ resource.%s="%s" && resource.y="%s" }`, firstBatch.resourceAttr, firstBatch.resourceAttVal, secondBatch.resourceAttVal),
 			scope: "none",
-			expected: tempopb.SearchTagsV2Response{
-				Scopes: []*tempopb.SearchTagsV2Scope{
+			expected: searchTagsV2Response{
+				Scopes: []ScopedTags{
 					{
 						Name: "resource",
 						Tags: []string{"service.name"}, // well known column so included
@@ -165,8 +165,8 @@ func TestSearchTagsV2(t *testing.T) {
 			name:  "unscoped span attribute",
 			query: fmt.Sprintf(`{ .x="%s" }`, firstBatch.spanAttVal),
 			scope: "none",
-			expected: tempopb.SearchTagsV2Response{
-				Scopes: []*tempopb.SearchTagsV2Scope{
+			expected: searchTagsV2Response{
+				Scopes: []ScopedTags{
 					{
 						Name: "span",
 						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
@@ -182,8 +182,8 @@ func TestSearchTagsV2(t *testing.T) {
 			name:  "unscoped res attribute",
 			query: fmt.Sprintf(`{ .xx="%s" }`, firstBatch.resourceAttVal),
 			scope: "none",
-			expected: tempopb.SearchTagsV2Response{
-				Scopes: []*tempopb.SearchTagsV2Scope{
+			expected: searchTagsV2Response{
+				Scopes: []ScopedTags{
 					{
 						Name: "span",
 						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
@@ -199,8 +199,8 @@ func TestSearchTagsV2(t *testing.T) {
 			name:  "both batches - name and resource attribute",
 			query: `{ resource.service.name="my-service"}`,
 			scope: "none",
-			expected: tempopb.SearchTagsV2Response{
-				Scopes: []*tempopb.SearchTagsV2Scope{
+			expected: searchTagsV2Response{
+				Scopes: []ScopedTags{
 					{
 						Name: "span",
 						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
@@ -216,8 +216,8 @@ func TestSearchTagsV2(t *testing.T) {
 			name:  "bad query - unfiltered results",
 			query: fmt.Sprintf("%s = bar", spanX), // bad query, missing quotes
 			scope: "none",
-			expected: tempopb.SearchTagsV2Response{
-				Scopes: []*tempopb.SearchTagsV2Scope{
+			expected: searchTagsV2Response{
+				Scopes: []ScopedTags{
 					{
 						Name: "span",
 						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
@@ -251,7 +251,7 @@ func TestSearchTagsV2(t *testing.T) {
 	// Assert no more on the ingester
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			callSearchTagsV2AndAssert(t, tempo, tc.scope, tc.query, tempopb.SearchTagsV2Response{}, 0, 0)
+			callSearchTagsV2AndAssert(t, tempo, tc.scope, tc.query, searchTagsV2Response{}, 0, 0)
 		})
 	}
 
@@ -443,7 +443,6 @@ func TestSearchTagValuesV2(t *testing.T) {
 	}
 }
 
-// todo: add search tags v2
 func TestSearchTags(t *testing.T) {
 	s, err := e2e.NewScenario("tempo_e2e_tags")
 	require.NoError(t, err)
@@ -592,7 +591,8 @@ func callSearchTagValuesV2AndAssert(t *testing.T, svc *e2e.HTTPService, tagName,
 	var response searchTagValuesV2Response
 	require.NoError(t, json.Unmarshal(body, &response))
 	sort.Slice(response.TagValues, func(i, j int) bool { return response.TagValues[i].Value < response.TagValues[j].Value })
-	require.Equal(t, expected, response)
+	require.Equal(t, expected.TagValues, response.TagValues)
+	assertMetrics(t, response.Metrics, len(expected.TagValues))
 
 	// streaming
 	grpcReq := &tempopb.SearchTagValuesRequest{
@@ -624,15 +624,19 @@ func callSearchTagValuesV2AndAssert(t *testing.T, svc *e2e.HTTPService, tagName,
 		actualGrpcResp.TagValues = append(actualGrpcResp.TagValues, TagValue{Type: tagValue.Type, Value: tagValue.Value})
 	}
 	sort.Slice(actualGrpcResp.TagValues, func(i, j int) bool { return grpcResp.TagValues[i].Value < grpcResp.TagValues[j].Value })
-	require.Equal(t, expected, actualGrpcResp)
+	require.Equal(t, expected.TagValues, actualGrpcResp.TagValues)
+	// assert metrics, and make sure it's non-zero when response is non-empty
+	if len(grpcResp.TagValues) > 0 {
+		require.Greater(t, grpcResp.Metrics.InspectedBytes, uint64(100))
+	}
 }
 
-func callSearchTagsV2AndAssert(t *testing.T, svc *e2e.HTTPService, scope, query string, expected tempopb.SearchTagsV2Response, start, end int64) {
+func callSearchTagsV2AndAssert(t *testing.T, svc *e2e.HTTPService, scope, query string, expected searchTagsV2Response, start, end int64) {
 	urlPath := fmt.Sprintf(`/api/v2/search/tags?scope=%s&q=%s`, scope, url.QueryEscape(query))
 
 	// expected will not have the intrinsic scope since it's the same every time, add it here.
 	if scope == "none" || scope == "" || scope == "intrinsic" {
-		expected.Scopes = append(expected.Scopes, &tempopb.SearchTagsV2Scope{
+		expected.Scopes = append(expected.Scopes, ScopedTags{
 			Name: "intrinsic",
 			Tags: []string{"duration", "event:name", "event:timeSinceStart", "instrumentation:name", "instrumentation:version", "kind", "name", "rootName", "rootServiceName", "span:duration", "span:kind", "span:name", "span:status", "span:statusMessage", "status", "statusMessage", "trace:duration", "trace:rootName", "trace:rootService", "traceDuration"},
 		})
@@ -668,11 +672,12 @@ func callSearchTagsV2AndAssert(t *testing.T, svc *e2e.HTTPService, scope, query 
 	defer res.Body.Close()
 
 	// parse response
-	var response tempopb.SearchTagsV2Response
+	var response searchTagsV2Response
 	require.NoError(t, json.Unmarshal(body, &response))
 
 	prepTagsResponse(&response)
-	require.Equal(t, expected, response)
+	require.Equal(t, expected.Scopes, response.Scopes)
+	assertMetrics(t, response.Metrics, lenWithoutIntrinsic(response))
 
 	// streaming
 	grpcReq := &tempopb.SearchTagsRequest{
@@ -699,12 +704,17 @@ func callSearchTagsV2AndAssert(t *testing.T, svc *e2e.HTTPService, scope, query 
 		require.NoError(t, err)
 	}
 	require.NotNil(t, grpcResp)
+	require.NotNil(t, grpcResp.Metrics)
 
 	prepTagsResponse(&response)
-	require.Equal(t, expected, response)
+	require.Equal(t, expected.Scopes, response.Scopes)
+	// assert metrics, and make sure it's non-zero when response is non-empty
+	if lenWithoutIntrinsic(response) > 0 {
+		require.Greater(t, grpcResp.Metrics.InspectedBytes, uint64(100))
+	}
 }
 
-func prepTagsResponse(resp *tempopb.SearchTagsV2Response) {
+func prepTagsResponse(resp *searchTagsV2Response) {
 	if len(resp.Scopes) == 0 {
 		resp.Scopes = nil
 	}
@@ -750,7 +760,8 @@ func callSearchTagsAndAssert(t *testing.T, svc *e2e.HTTPService, expected search
 	require.NoError(t, json.Unmarshal(body, &response))
 	sort.Strings(response.TagNames)
 	sort.Strings(expected.TagNames)
-	require.Equal(t, expected, response)
+	require.Equal(t, expected.TagNames, response.TagNames)
+	assertMetrics(t, response.Metrics, len(response.TagNames))
 
 	// streaming
 	grpcReq := &tempopb.SearchTagsRequest{
@@ -781,6 +792,10 @@ func callSearchTagsAndAssert(t *testing.T, svc *e2e.HTTPService, expected search
 	}
 	sort.Slice(grpcResp.TagNames, func(i, j int) bool { return grpcResp.TagNames[i] < grpcResp.TagNames[j] })
 	require.Equal(t, expected.TagNames, grpcResp.TagNames)
+	// assert metrics, and make sure it's non-zero when response is non-empty
+	if len(grpcResp.TagNames) > 0 {
+		require.Greater(t, grpcResp.Metrics.InspectedBytes, uint64(100))
+	}
 }
 
 func callSearchTagValuesAndAssert(t *testing.T, svc *e2e.HTTPService, tagName string, expected searchTagValuesResponse, start, end int64) {
@@ -816,19 +831,68 @@ func callSearchTagValuesAndAssert(t *testing.T, svc *e2e.HTTPService, tagName st
 	sort.Strings(response.TagValues)
 	sort.Strings(expected.TagValues)
 
-	require.Equal(t, expected, response)
+	require.Equal(t, expected.TagValues, response.TagValues)
+	assertMetrics(t, response.Metrics, len(response.TagValues))
+}
+
+func assertMetrics(t *testing.T, metrics MetadataMetrics, respLen int) {
+	// metrics are not present when response is empty, so return
+	if respLen == 0 {
+		return
+	}
+
+	require.NotNil(t, metrics)
+	require.NotEmpty(t, metrics.InspectedBytes)
+	inspectedBytes, err := strconv.ParseUint(metrics.InspectedBytes, 10, 64)
+	require.NoError(t, err)
+	// if response len is empty, then the inspected bytes should be 0
+	// assert metrics, and make sure it's non-zero
+	require.Greater(t, inspectedBytes, uint64(300))
+}
+
+type searchTagsV2Response struct {
+	Scopes  []ScopedTags    `json:"scopes"`
+	Metrics MetadataMetrics `json:"metrics"`
+}
+
+func lenWithoutIntrinsic(resp searchTagsV2Response) int {
+	size := 0
+	for _, scope := range resp.Scopes {
+		// we don't count intrinsics as results for testing
+		if scope.Name == "intrinsic" {
+			continue
+		}
+		size += len(scope.Tags)
+	}
+	return size
+}
+
+type ScopedTags struct {
+	Name string   `json:"name"`
+	Tags []string `json:"tags"`
+}
+
+type MetadataMetrics struct {
+	InspectedBytes  string `json:"inspectedBytes"` // String to match JSON format
+	TotalJobs       string `json:"totalJobs"`
+	CompletedJobs   string `json:"completedJobs"`
+	TotalBlocks     string `json:"totalBlocks"`
+	TotalBlockBytes string `json:"totalBlockBytes"`
 }
 
 type searchTagValuesV2Response struct {
-	TagValues []TagValue `json:"tagValues"`
+	TagValues []TagValue      `json:"tagValues"`
+	Metrics   MetadataMetrics `json:"metrics"`
 }
 
 type searchTagValuesResponse struct {
-	TagValues []string `json:"tagValues"`
+	TagValues []string        `json:"tagValues"`
+	Metrics   MetadataMetrics `json:"metrics"`
 }
 
 type searchTagsResponse struct {
-	TagNames []string `json:"tagNames"`
+	TagNames []string        `json:"tagNames"`
+	Metrics  MetadataMetrics `json:"metrics"`
 }
 
 type TagValue struct {

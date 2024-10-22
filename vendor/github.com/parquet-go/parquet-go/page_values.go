@@ -149,7 +149,7 @@ type int32PageValues struct {
 }
 
 func (r *int32PageValues) Read(b []byte) (n int, err error) {
-	n, err = r.ReadInt32s(unsafecast.BytesToInt32(b))
+	n, err = r.ReadInt32s(unsafecast.Slice[int32](b))
 	return 4 * n, err
 }
 
@@ -180,7 +180,7 @@ type int64PageValues struct {
 }
 
 func (r *int64PageValues) Read(b []byte) (n int, err error) {
-	n, err = r.ReadInt64s(unsafecast.BytesToInt64(b))
+	n, err = r.ReadInt64s(unsafecast.Slice[int64](b))
 	return 8 * n, err
 }
 
@@ -211,7 +211,7 @@ type int96PageValues struct {
 }
 
 func (r *int96PageValues) Read(b []byte) (n int, err error) {
-	n, err = r.ReadInt96s(deprecated.BytesToInt96(b))
+	n, err = r.ReadInt96s(unsafecast.Slice[deprecated.Int96](b))
 	return 12 * n, err
 }
 
@@ -242,7 +242,7 @@ type floatPageValues struct {
 }
 
 func (r *floatPageValues) Read(b []byte) (n int, err error) {
-	n, err = r.ReadFloats(unsafecast.BytesToFloat32(b))
+	n, err = r.ReadFloats(unsafecast.Slice[float32](b))
 	return 4 * n, err
 }
 
@@ -273,7 +273,7 @@ type doublePageValues struct {
 }
 
 func (r *doublePageValues) Read(b []byte) (n int, err error) {
-	n, err = r.ReadDoubles(unsafecast.BytesToFloat64(b))
+	n, err = r.ReadDoubles(unsafecast.Slice[float64](b))
 	return 8 * n, err
 }
 
@@ -395,7 +395,7 @@ type uint32PageValues struct {
 }
 
 func (r *uint32PageValues) Read(b []byte) (n int, err error) {
-	n, err = r.ReadUint32s(unsafecast.BytesToUint32(b))
+	n, err = r.ReadUint32s(unsafecast.Slice[uint32](b))
 	return 4 * n, err
 }
 
@@ -426,7 +426,7 @@ type uint64PageValues struct {
 }
 
 func (r *uint64PageValues) Read(b []byte) (n int, err error) {
-	n, err = r.ReadUint64s(unsafecast.BytesToUint64(b))
+	n, err = r.ReadUint64s(unsafecast.Slice[uint64](b))
 	return 8 * n, err
 }
 

@@ -36,7 +36,7 @@ func (r tagRequest) keysRequested(scope traceql.AttributeScope) bool {
 	return r.scope == scope
 }
 
-func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, opts common.SearchOptions) error {
+func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return errors.Wrap(err, "conditions invalid")
@@ -51,13 +51,16 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 	if len(req.Conditions) < 1 || mingledConditions {
 		return b.SearchTags(ctx, req.Scope, func(t string, scope traceql.AttributeScope) {
 			cb(t, scope)
-		}, opts)
+		}, mcb, opts)
 	}
 
-	pf, _, err := b.openForSearch(ctx, opts)
+	pf, rr, err := b.openForSearch(ctx, opts)
 	if err != nil {
 		return err
 	}
+
+	// report metrics with defer to handle early exit
+	defer mcb(rr.BytesRead())
 
 	tr := tagRequest{
 		conditions: req.Conditions,
@@ -87,7 +90,6 @@ func (b *backendBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsR
 	}
 
 	tagNamesForSpecialColumns(req.Scope, pf, b.meta.DedicatedColumns, cb)
-
 	return nil
 }
 
@@ -147,7 +149,7 @@ func tagNamesForSpecialColumns(scope traceql.AttributeScope, pf *parquet.File, d
 	}
 }
 
-func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, opts common.SearchOptions) error {
+func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
 	err := checkConditions(req.Conditions)
 	if err != nil {
 		return errors.Wrap(err, "conditions invalid")
@@ -160,13 +162,15 @@ func (b *backendBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagV
 
 	// Last check. No conditions, use old path. It's much faster.
 	if len(req.Conditions) <= 1 || mingledConditions { // <= 1 because we always have a "OpNone" condition for the tag name
-		return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), common.DefaultSearchOptions())
+		return b.SearchTagValuesV2(ctx, req.TagName, common.TagValuesCallbackV2(cb), mcb, common.DefaultSearchOptions())
 	}
 
-	pf, _, err := b.openForSearch(ctx, opts)
+	pf, rr, err := b.openForSearch(ctx, opts)
 	if err != nil {
 		return err
 	}
+	// report metrics with defer to handle early exit
+	defer mcb(rr.BytesRead())
 
 	tr := tagRequest{
 		conditions: req.Conditions,

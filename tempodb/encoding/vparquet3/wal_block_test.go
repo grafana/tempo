@@ -9,6 +9,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -372,11 +373,12 @@ func BenchmarkWalSearchTagValues(b *testing.B) {
 	cb := func(_ string) bool {
 		return true
 	}
+	mc := collector.NewMetricsCollector()
 
 	for _, t := range tags {
 		b.Run(t, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				err := w.SearchTagValues(context.TODO(), t, cb, common.DefaultSearchOptions())
+				err := w.SearchTagValues(context.TODO(), t, cb, mc.Add, common.DefaultSearchOptions())
 				require.NoError(b, err)
 			}
 		})

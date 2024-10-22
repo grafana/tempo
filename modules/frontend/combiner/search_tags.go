@@ -4,6 +4,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"go.uber.org/atomic"
 )
 
 var (
@@ -12,7 +13,8 @@ var (
 )
 
 func NewSearchTags(limitBytes int) Combiner {
-	d := collector.NewDistinctString(limitBytes)
+	d := collector.NewDistinctStringWithDiff(limitBytes)
+	inspectedBytes := atomic.NewUint64(0)
 
 	c := &genericCombiner[*tempopb.SearchTagsResponse]{
 		httpStatusCode: 200,
@@ -22,17 +24,31 @@ func NewSearchTags(limitBytes int) Combiner {
 			for _, v := range partial.TagNames {
 				d.Collect(v)
 			}
+			if partial.Metrics != nil {
+				inspectedBytes.Add(partial.Metrics.InspectedBytes)
+			}
 			return nil
 		},
 		finalize: func(response *tempopb.SearchTagsResponse) (*tempopb.SearchTagsResponse, error) {
 			response.TagNames = d.Strings()
+			// return metrics with final results
+			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
+			response.Metrics = &tempopb.MetadataMetrics{InspectedBytes: inspectedBytes.Load()}
 			return response, nil
 		},
 		quit: func(_ *tempopb.SearchTagsResponse) bool {
 			return d.Exceeded()
 		},
 		diff: func(response *tempopb.SearchTagsResponse) (*tempopb.SearchTagsResponse, error) {
-			response.TagNames = d.Diff()
+			resp, err := d.Diff()
+			if err != nil {
+				return nil, err
+			}
+
+			response.TagNames = resp
+			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
+			// return metrics with diff results
+			response.Metrics = &tempopb.MetadataMetrics{InspectedBytes: inspectedBytes.Load()}
 			return response, nil
 		},
 	}
@@ -46,7 +62,8 @@ func NewTypedSearchTags(limitBytes int) GRPCCombiner[*tempopb.SearchTagsResponse
 
 func NewSearchTagsV2(limitBytes int) Combiner {
 	// Distinct collector map to collect scopes and scope values
-	distinctValues := collector.NewScopedDistinctString(limitBytes)
+	distinctValues := collector.NewScopedDistinctStringWithDiff(limitBytes)
+	inspectedBytes := atomic.NewUint64(0)
 
 	c := &genericCombiner[*tempopb.SearchTagsV2Response]{
 		httpStatusCode: 200,
@@ -57,6 +74,9 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 				for _, tag := range res.Tags {
 					distinctValues.Collect(res.Name, tag)
 				}
+			}
+			if partial.Metrics != nil {
+				inspectedBytes.Add(partial.Metrics.InspectedBytes)
 			}
 			return nil
 		},
@@ -70,13 +90,19 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 					Tags: vals,
 				})
 			}
+			// return metrics with final results
+			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
+			final.Metrics = &tempopb.MetadataMetrics{InspectedBytes: inspectedBytes.Load()}
 			return final, nil
 		},
 		quit: func(_ *tempopb.SearchTagsV2Response) bool {
 			return distinctValues.Exceeded()
 		},
 		diff: func(response *tempopb.SearchTagsV2Response) (*tempopb.SearchTagsV2Response, error) {
-			collected := distinctValues.Diff()
+			collected, err := distinctValues.Diff()
+			if err != nil {
+				return nil, err
+			}
 			response.Scopes = make([]*tempopb.SearchTagsV2Scope, 0, len(collected))
 
 			for scope, vals := range collected {
@@ -85,7 +111,9 @@ func NewSearchTagsV2(limitBytes int) Combiner {
 					Tags: vals,
 				})
 			}
-
+			// TODO: merge with other metrics as well, when we have them, return only InspectedBytes for now
+			// also return metrics with diff results
+			response.Metrics = &tempopb.MetadataMetrics{InspectedBytes: inspectedBytes.Load()}
 			return response, nil
 		},
 	}

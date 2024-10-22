@@ -66,10 +66,22 @@ func (c *LocalBlock) Search(ctx context.Context, req *tempopb.SearchRequest, opt
 	return c.BackendBlock.Search(ctx, req, opts)
 }
 
-func (c *LocalBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, opts common.SearchOptions) error {
+func (c *LocalBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagsCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
+	ctx, span := tracer.Start(ctx, "LocalBlock.SearchTags")
+	defer span.End()
+	return c.BackendBlock.SearchTags(ctx, scope, cb, mcb, opts)
+}
+
+func (c *LocalBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
+	ctx, span := tracer.Start(ctx, "LocalBlock.SearchTagValues")
+	defer span.End()
+	return c.BackendBlock.SearchTagValues(ctx, tag, cb, mcb, opts)
+}
+
+func (c *LocalBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, mcb common.MetricsCallback, opts common.SearchOptions) error {
 	ctx, span := tracer.Start(ctx, "LocalBlock.SearchTagValuesV2")
 	defer span.End()
-	return c.BackendBlock.SearchTagValuesV2(ctx, tag, cb, opts)
+	return c.BackendBlock.SearchTagValuesV2(ctx, tag, cb, mcb, opts)
 }
 
 func (c *LocalBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error) {
@@ -78,16 +90,16 @@ func (c *LocalBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, o
 	return c.BackendBlock.Fetch(ctx, req, opts)
 }
 
-func (c *LocalBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, opts common.SearchOptions) error {
+func (c *LocalBlock) FetchTagValues(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
 	ctx, span := tracer.Start(ctx, "LocalBlock.FetchTagValues")
 	defer span.End()
-	return c.BackendBlock.FetchTagValues(ctx, req, cb, opts)
+	return c.BackendBlock.FetchTagValues(ctx, req, cb, mcb, opts)
 }
 
-func (c *LocalBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, opts common.SearchOptions) error {
+func (c *LocalBlock) FetchTagNames(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
 	ctx, span := tracer.Start(ctx, "LocalBlock.FetchTagNames")
 	defer span.End()
-	return c.BackendBlock.FetchTagNames(ctx, req, cb, opts)
+	return c.BackendBlock.FetchTagNames(ctx, req, cb, mcb, opts)
 }
 
 // FlushedTime returns the time the block was flushed.  Will return 0

@@ -4,6 +4,7 @@
 .vscode
 *.test
 *.out
+*.pprof
 /bin
 /cmd/tempo-cli/tempo-cli
 /cmd/tempo-query/tempo-query
@@ -20,5 +21,6 @@
 /tempodb/encoding/benchmark_block
 private-key.key
 integration/e2e/e2e_integration_test[0-9]*
+integration/e2e/deployments/e2e_integration_test[0-9]*
 .tempo.yaml
 /tmp
