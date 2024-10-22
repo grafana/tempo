@@ -46,7 +46,6 @@ In case a member leaves, the [offboarding](#offboarding) procedure is applied.
 
 The current team members are:
 
-- Annanay Agarwal - [annanay25](https://github.com/annanay25) ([Grafana Labs](https://grafana.com/))
 - Suraj Nath - [electron0zero](https://github.com/electron0zero) ([Grafana Labs](https://grafana.com/))
 - Jennie Pham - [ie-pham](https://github.com/ie-pham) ([Grafana Labs](https://grafana.com/))
 - Javi Molina - [javiermolinar](https://github.com/javiermolinar) ([Grafana Labs](https://grafana.com/))
@@ -69,6 +68,10 @@ Maintainers are granted commit rights to all projects covered by this governance
 A maintainer or committer may resign by notifying the [team mailing list][team]. A maintainer with no project activity for a year is considered to have resigned. Maintainers that wish to resign are encouraged to propose another team member to take over the project.
 
 A project may have multiple maintainers, as long as the responsibilities are clearly agreed upon between them. This includes coordinating who handles which issues and pull requests.
+
+### Emeritus Maintainers
+
+Emeritus maintainers are former maintainers who no longer work directly on Tempo on a regular basis. We respect their former contributions by giving them the Emeritus Maintainer title. This is honorary only and confers no responsibilities or rights regarding the Tempo project.
 
 ### Technical decisions
 
