@@ -168,10 +168,10 @@ type Tracker struct {
 	labelsFn tenantLabelsFunc
 	maxFn    tenantMaxFunc
 	reg      *prometheus.Registry
-	cfg      Config
+	cfg      PerTrackerConfig
 }
 
-func NewTracker(cfg Config, name string, labelsFn tenantLabelsFunc, maxFn tenantMaxFunc) (*Tracker, error) {
+func NewTracker(cfg PerTrackerConfig, name string, labelsFn tenantLabelsFunc, maxFn tenantMaxFunc) (*Tracker, error) {
 	u := &Tracker{
 		cfg:      cfg,
 		name:     name,
@@ -318,7 +318,7 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 }
 
 func (u *Tracker) PurgeRoutine() {
-	purge := time.NewTicker(u.cfg.PurgePeriod)
+	purge := time.NewTicker(defaultPurgePeriod)
 	for range purge.C {
 		u.purge()
 	}

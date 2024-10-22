@@ -14,12 +14,11 @@ import (
 	"github.com/grafana/tempo/pkg/util/test"
 )
 
-func testConfig() Config {
-	return Config{
+func testConfig() PerTrackerConfig {
+	return PerTrackerConfig{
 		Enabled:        true,
 		MaxCardinality: defaultMaxCardinality,
 		StaleDuration:  defaultStaleDuration,
-		PurgePeriod:    defaultPurgePeriod,
 	}
 }
 

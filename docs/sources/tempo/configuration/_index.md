@@ -228,6 +228,19 @@ distributor:
     # defaults to 0 which means that by default ResourceExhausted is not retried. Set this to a duration such as `1s` to
     # instruct the client how to retry.
     [retry_after_on_resource_exhausted: <duration> | default = '0' ]
+
+    # Optional.
+    # Configures usage trackers in the distributor which expose metrics of ingested traffic grouped by configurable
+    # attributes exposed on /usage_metrics.
+    usage:
+        cost_attribution:
+            # Enables the "cost-attribution" usage tracker. Per-tenant attributes are configured in overrides.
+            [enabled: <boolean> | default = false]
+            # Maximum number of series per tenant.
+            [max_cardinality: <int> | default = 10000]
+            # Interval after which a series is considered stale and will be deleted from the registry.
+            # Once a metrics series is deleted it won't be emitted anymore, keeping active series low.
+            [stale_duration: <duration> | default = 15m0s]
 ```
 
 ## Ingester
@@ -1703,6 +1716,13 @@ overrides:
           type: <string>, # type of the attribute. options: string
           scope: <string> # scope of the attribute. options: resource, span
         ]
+
+    # Cost attribution usage tracker configuration
+    cost_attribution:
+      # List of attributes to group ingested data by.  Map value is optional. Can be used to rename and
+      # combine attributes. 
+      dimensions: <map string to string>
+
 
   # Tenant-specific overrides settings configuration file. The empty string (default
   # value) disables using an overrides file.

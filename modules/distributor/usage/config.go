@@ -11,16 +11,20 @@ const (
 	defaultPurgePeriod    = time.Minute
 )
 
-type Config struct {
+type PerTrackerConfig struct {
 	Enabled        bool          `yaml:"enabled,omitempty" json:"enabled,omitempty"`
 	MaxCardinality uint64        `yaml:"max_cardinality,omitempty" json:"max_cardinality,omitempty"`
 	StaleDuration  time.Duration `yaml:"stale_duration,omitempty" json:"stale_duration,omitempty"`
-	PurgePeriod    time.Duration `yaml:"purge_period,omitempty" json:"purge_period,omitempty"`
+}
+
+type Config struct {
+	CostAttribution PerTrackerConfig `yaml:"cost_attribution,omitempty" json:"cost_attribution,omitempty"`
 }
 
 func (c *Config) RegisterFlagsAndApplyDefaults(_ string, _ *flag.FlagSet) {
-	c.Enabled = false
-	c.MaxCardinality = defaultMaxCardinality
-	c.StaleDuration = defaultStaleDuration
-	c.PurgePeriod = defaultPurgePeriod
+	c.CostAttribution = PerTrackerConfig{
+		Enabled:        false,
+		MaxCardinality: defaultMaxCardinality,
+		StaleDuration:  defaultStaleDuration,
+	}
 }
