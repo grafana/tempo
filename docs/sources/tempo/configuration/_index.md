@@ -383,6 +383,8 @@ metrics_generator:
             [peer_attributes: <list of string> | default = ["peer.service", "db.name", "db.system"] ]
 
             # Attribute Key to multiply span metrics
+            # Note that the attribute name is searched for in both
+            # resouce and span level attributes
             [span_multiplier_key: <string> | default = ""]
 
             # Enables additional labels for services and virtual nodes.
@@ -426,6 +428,8 @@ metrics_generator:
             [enable_target_info: <bool> | default = false]
 
             # Attribute Key to multiply span metrics
+            # Note that the attribute name is searched for in both
+            # resouce and span level attributes
             [span_multiplier_key: <string> | default = ""]
 
             # List of policies that will be applied to spans for inclusion or exclusion.
