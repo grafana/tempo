@@ -195,12 +195,12 @@ func (b *averageOverTimeSeriesAggregator) initSeriesAggregator(in []*tempopb.Tim
 		if strings.Contains(ts.PromLabels, internalLabelMetaType) {
 			counterPromLabel = getLabels(ts.Labels, internalLabelMetaType).String()
 			newCountersTS[counterPromLabel] = make([]float64, b.len)
-			for i, sample := range ts.Samples {
+			for _, sample := range ts.Samples {
 				pos := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
-				if pos < 0 || pos > len(b.ss[ts.PromLabels].Values) {
+				if pos < 0 || pos > b.len {
 					continue
 				}
-				newCountersTS[counterPromLabel][i] = sample.Value
+				newCountersTS[counterPromLabel][pos] = sample.Value
 			}
 		}
 		_, ok := b.ss[ts.PromLabels]
@@ -421,21 +421,19 @@ func kahanSumInc(inc, sum, c float64) (newSum, newC float64) {
 }
 
 func (g *avgOverTimeSpanAggregator[F, S]) ObserveExemplar(span Span, value float64, ts uint64) {
-	// Observe exemplar
-	all := span.AllAttributes()
-	lbls := make(Labels, 0, len(all))
-	for k, v := range span.AllAttributes() {
-		lbls = append(lbls, Label{k.String(), v})
-	}
-
 	s := g.getSeries(span)
-
 	if s.exemplarBuckets.testTotal() {
 		return
 	}
 	interval := IntervalOfMs(int64(ts), g.start, g.end, g.step)
 	if s.exemplarBuckets.addAndTest(interval) {
 		return
+	}
+
+	all := span.AllAttributes()
+	lbls := make(Labels, 0, len(all))
+	for k, v := range span.AllAttributes() {
+		lbls = append(lbls, Label{k.String(), v})
 	}
 
 	s.exemplars = append(s.exemplars, Exemplar{
