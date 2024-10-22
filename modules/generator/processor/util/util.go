@@ -32,19 +32,26 @@ func FindAttributeValue(key string, attributes ...[]*v1_common.KeyValue) (string
 	return "", false
 }
 
-func GetMultiplier(ratioKey string, span *v1.Span, rs *v1_resource.Resource) float64 {
-	multiplier := 1.0
+func GetSpanMultiplier(ratioKey string, span *v1.Span, rs *v1_resource.Resource) float64 {
 	if ratioKey != "" {
-		for _, kv := range append(span.Attributes, rs.Attributes...) {
+		for _, kv := range span.Attributes {
 			if kv.Key == ratioKey {
 				v := kv.Value.GetDoubleValue()
 				if v > 0 {
-					multiplier = 1.0 / v
+					return 1.0 / v
+				}
+			}
+		}
+		for _, kv := range rs.Attributes {
+			if kv.Key == ratioKey {
+				v := kv.Value.GetDoubleValue()
+				if v > 0 {
+					return 1.0 / v
 				}
 			}
 		}
 	}
-	return multiplier
+	return 1.0
 }
 
 func GetJobValue(attributes []*v1_common.KeyValue) string {

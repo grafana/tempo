@@ -45,7 +45,7 @@ type Config struct {
 	PeerAttributes []string `yaml:"peer_attributes"`
 
 	// If enabled attribute value will be used for metric calculation
-	MultiplierKey string `yaml:"multiplier_key"`
+	SpanMultiplierKey string `yaml:"span_multiplier_key"`
 
 	// EnableVirtualNodeLabel enables additional labels for uninstrumented services
 	EnableVirtualNodeLabel bool `yaml:"enable_virtual_node_label"`
