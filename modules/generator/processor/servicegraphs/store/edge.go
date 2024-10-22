@@ -34,7 +34,7 @@ type Edge struct {
 	// expiration is the time at which the Edge expires, expressed as Unix time
 	expiration int64
 
-	// SpanMultiplier is used for multiplying metrics
+	// Span multiplier is used for multiplying metrics
 	SpanMultiplier float64
 }
 
