@@ -280,9 +280,7 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 				}
 
 				// Reset to batch values to for some spans having missing values.
-				for k, v := range buffer1 {
-					buffer2[k] = v
-				}
+				copy(buffer2, buffer1)
 
 				for _, a := range s.Attributes {
 					v := a.Value.GetStringValue()
