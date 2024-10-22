@@ -10,7 +10,7 @@ weight: 500
 # Metrics-generator
 
 Metrics-generator is an optional Tempo component that derives metrics from ingested traces.
-If present, the distributors write received spans to both the ingester and the metrics-generator.
+If present, the distributor writes received spans to both the ingester and the metrics-generator.
 The metrics-generator processes spans and writes metrics to a Prometheus data source using the Prometheus remote write protocol.
 
 ## Architecture
