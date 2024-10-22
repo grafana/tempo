@@ -88,7 +88,7 @@ Next, configure the `local-blocks` processor to record all spans for TraceQL met
 Here is an example configuration:
 
 ```yaml
- metrics_generator:
+metrics_generator:
   processor:
     local_blocks:
       filter_server_spans: false
@@ -103,6 +103,18 @@ Refer to the [Helm chart for an example](https://github.com/grafana/helm-charts/
 
 Refer to the [metrics-generator configuration](../configuration#metrics-generator) documentation for more information.
 
+```
+
+To run metrics queries on historical data, you must configure the local-blocks processor to flush RF1 blocks to object storage:
+
+```yaml
+metrics_generator:
+  processor:
+    local_blocks:
+      flush_to_storage: true
+```
+
+For more information about overrides, refer to [Standard overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides).
 
 ## Evaluate query timeouts
 
