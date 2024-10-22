@@ -11,15 +11,15 @@
 # In each subsection folders are ordered first by depth, then alphabetically.
 # This should make it easy to add new rules without breaking existing ones.
 
-* @joe-elliott @annanay25 @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar
+* @joe-elliott @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer @javiermolinar
 
-/docs/ @knylander-grafana @joe-elliott @annanay25 @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer
+/docs/ @knylander-grafana @joe-elliott @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer
 
-/.github/backport.yml           @jdbaldry @joe-elliott @annanay25 @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer
-/.github/update-make-docs.yml   @jdbaldry @joe-elliott @annanay25 @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer
-/.github/website-next.yml       @jdbaldry @joe-elliott @annanay25 @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer
-/.github/website-versioned.yml  @jdbaldry @joe-elliott @annanay25 @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer
-/docs/docs.mk                   @jdbaldry @knylander-grafana @joe-elliott @annanay25 @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer
-/docs/make-docs                 @jdbaldry @knylander-grafana @joe-elliott @annanay25 @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer
-/docs/Makefile                  @jdbaldry @knylander-grafana @joe-elliott @annanay25 @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer
-/docs/variables.mk              @jdbaldry @knylander-grafana @joe-elliott @annanay25 @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer
+/.github/backport.yml           @jdbaldry @joe-elliott @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer
+/.github/update-make-docs.yml   @jdbaldry @joe-elliott @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer
+/.github/website-next.yml       @jdbaldry @joe-elliott @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer
+/.github/website-versioned.yml  @jdbaldry @joe-elliott @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer
+/docs/docs.mk                   @jdbaldry @knylander-grafana @joe-elliott @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer
+/docs/make-docs                 @jdbaldry @knylander-grafana @joe-elliott @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer
+/docs/Makefile                  @jdbaldry @knylander-grafana @joe-elliott @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer
+/docs/variables.mk              @jdbaldry @knylander-grafana @joe-elliott @mdisibio @mapno @kvrhdn @zalegrala @electron0zero @ie-pham @stoewer
