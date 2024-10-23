@@ -360,6 +360,8 @@ func (u *Tracker) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
+var _ prometheus.Collector = (*Tracker)(nil)
+
 // hash the given key-value pairs buffers. Buffers must have the
 // same lengths
 func hash(keys []string, values []string) uint64 {
@@ -397,7 +399,7 @@ func nonSpanDataLength(batch *v1.ResourceSpans) (int, int) {
 	}
 
 	for _, ss := range batch.ScopeSpans {
-		// This is the data to store the prescence of this ss
+		// This is the data to store the presence of this ss
 		total += protoLengthMath(1)
 
 		l = len(ss.SchemaUrl)
