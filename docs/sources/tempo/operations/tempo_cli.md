@@ -70,6 +70,7 @@ Arguments:
 
 Options:
 - `--org-id <value>` Organization ID (for use in multi-tenant setup).
+- `--v1` use v1 API (use /api/traces endpoint to fetch traces, default: /api/v2/traces).
 
 **Example:**
 ```bash

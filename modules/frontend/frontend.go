@@ -59,7 +59,7 @@ type QueryFrontend struct {
 var tracer = otel.Tracer("modules/frontend")
 
 // New returns a new QueryFrontend
-func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempodb.Reader, cacheProvider cache.Provider, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
+func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader tempodb.Reader, cacheProvider cache.Provider, apiPrefix string, logger log.Logger, registerer prometheus.Registerer) (*QueryFrontend, error) {
 	level.Info(logger).Log("msg", "creating middleware in query frontend")
 
 	if cfg.TraceByID.QueryShards < minQueryShards || cfg.TraceByID.QueryShards > maxQueryShards {
@@ -90,8 +90,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		return nil, fmt.Errorf("frontend metrics interval should be greater than 0")
 	}
 
-	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, registerer)
-
+	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, cfg.Weights.RetryWithWeights, registerer)
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()
 	traceIDStatusCodeWare := pipeline.NewStatusCodeAdjustWareWithAllowedCode(http.StatusNotFound)
@@ -101,6 +100,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	tracePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
+			pipeline.NewWeightRequestWare(pipeline.TraceByID, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTraceIDSharder(&cfg.TraceByID, logger),
 		},
@@ -111,6 +111,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
 			queryValidatorWare,
+			pipeline.NewWeightRequestWare(pipeline.TraceQLSearch, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			newAsyncSearchSharder(reader, o, cfg.Search.Sharder, logger),
 		},
@@ -120,6 +121,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	searchTagsPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
+			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagsRequest, logger),
 		},
@@ -129,6 +131,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	searchTagValuesPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
+			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			newAsyncTagSharder(reader, o, cfg.Search.Sharder, parseTagValuesRequest, logger),
 		},
@@ -140,6 +143,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
 			queryValidatorWare,
+			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantUnsupportedMiddleware(cfg, logger),
 		},
 		[]pipeline.Middleware{statusCodeWare, retryWare},
@@ -150,6 +154,7 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
 			urlDenyListWare,
 			queryValidatorWare,
+			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
 			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, logger),
 		},
@@ -159,13 +164,13 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTraceByID, logger)
 	tracesV2 := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTraceByIDV2, logger)
 	search := newSearchHTTPHandler(cfg, searchPipeline, logger)
-	searchTags := newTagHTTPHandler(cfg, searchTagsPipeline, o, combiner.NewSearchTags, logger)
-	searchTagsV2 := newTagHTTPHandler(cfg, searchTagsPipeline, o, combiner.NewSearchTagsV2, logger)
-	searchTagValues := newTagHTTPHandler(cfg, searchTagValuesPipeline, o, combiner.NewSearchTagValues, logger)
-	searchTagValuesV2 := newTagHTTPHandler(cfg, searchTagValuesPipeline, o, combiner.NewSearchTagValuesV2, logger)
+	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, logger)
+	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger)
+	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, logger)
+	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesPipeline, o, logger)
 	metrics := newMetricsSummaryHandler(metricsPipeline, logger)
 	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryRangePipeline, logger) // Reuses the same pipeline
-	queryrange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger)
+	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger)
 
 	return &QueryFrontend{
 		// http/discrete
@@ -178,12 +183,12 @@ func New(cfg Config, next http.RoundTripper, o overrides.Interface, reader tempo
 		SearchTagsValuesV2Handler:  newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValuesV2, logger),
 		MetricsSummaryHandler:      newHandler(cfg.Config.LogQueryRequestHeaders, metrics, logger),
 		MetricsQueryInstantHandler: newHandler(cfg.Config.LogQueryRequestHeaders, queryInstant, logger),
-		MetricsQueryRangeHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, queryrange, logger),
+		MetricsQueryRangeHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, queryRange, logger),
 
 		// grpc/streaming
 		streamingSearch:       newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
-		streamingTags:         newTagStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
-		streamingTagsV2:       newTagV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
+		streamingTags:         newTagsStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
+		streamingTagsV2:       newTagsV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
 		streamingTagValues:    newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger),
 		streamingTagValuesV2:  newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger),
 		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger),

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"net/http"
 	"time"
 
 	"github.com/go-kit/log" //nolint:all deprecated
@@ -69,7 +68,7 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		return pipeline.NewBadRequest(err), nil
 	}
 
-	expr, _, _, _, err := traceql.NewEngine().Compile(req.Query)
+	expr, _, _, _, err := traceql.Compile(req.Query)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}
@@ -89,7 +88,7 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	// Note: this is checked after alignment for consistency.
 	maxDuration := s.maxDuration(tenantID)
 	if maxDuration != 0 && time.Duration(req.End-req.Start)*time.Nanosecond > maxDuration {
-		err = fmt.Errorf(fmt.Sprintf("range specified by start and end (%s) exceeds %s. received start=%d end=%d", time.Duration(req.End-req.Start), maxDuration, req.Start, req.End))
+		err = fmt.Errorf("range specified by start and end (%s) exceeds %s. received start=%d end=%d", time.Duration(req.End-req.Start), maxDuration, req.Start, req.End)
 		return pipeline.NewBadRequest(err), nil
 	}
 
@@ -99,14 +98,14 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		cutoff                = time.Now().Add(-s.cfg.QueryBackendAfter)
 	)
 
-	generatorReq := s.generatorRequest(*req, r, tenantID, cutoff)
+	generatorReq := s.generatorRequest(ctx, tenantID, pipelineRequest, *req, cutoff)
 	reqCh := make(chan pipeline.Request, 2) // buffer of 2 allows us to insert generatorReq and metrics
 
 	if generatorReq != nil {
-		reqCh <- pipeline.NewHTTPRequest(generatorReq)
+		reqCh <- generatorReq
 	}
 
-	totalJobs, totalBlocks, totalBlockBytes := s.backendRequests(ctx, tenantID, r, *req, cutoff, targetBytesPerRequest, reqCh)
+	totalJobs, totalBlocks, totalBlockBytes := s.backendRequests(ctx, tenantID, pipelineRequest, *req, cutoff, targetBytesPerRequest, reqCh)
 
 	span.SetAttributes(attribute.Int64("totalJobs", int64(totalJobs)))
 	span.SetAttributes(attribute.Int64("totalBlocks", int64(totalBlocks)))
@@ -158,7 +157,7 @@ func (s *queryRangeSharder) exemplarsPerShard(total uint32) uint32 {
 	return uint32(math.Ceil(float64(s.cfg.MaxExemplars)*1.2)) / total
 }
 
-func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, targetBytesPerRequest int, reqCh chan pipeline.Request) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
+func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, targetBytesPerRequest int, reqCh chan pipeline.Request) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
 	// request without start or end, search only in generator
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		close(reqCh)
@@ -194,7 +193,7 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 		if int(b.TotalRecords)%p != 0 {
 			totalJobs++
 		}
-		totalBlockBytes += b.Size
+		totalBlockBytes += b.Size_
 	}
 
 	go func() {
@@ -204,7 +203,7 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 	return
 }
 
-func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tempopb.QueryRangeRequest, metas []*backend.BlockMeta, targetBytesPerRequest int, reqCh chan<- pipeline.Request) {
+func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, metas []*backend.BlockMeta, targetBytesPerRequest int, reqCh chan<- pipeline.Request) {
 	defer close(reqCh)
 
 	queryHash := hashForQueryRangeRequest(&searchReq)
@@ -230,7 +229,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 		}
 
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
-			subR := parent.Clone(ctx)
+			subR := parent.HTTPRequest().Clone(ctx)
 
 			dedColsJSON, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
 			if err != nil {
@@ -259,7 +258,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				PagesToSearch: uint32(pages),
 				Version:       m.Version,
 				Encoding:      m.Encoding.String(),
-				Size_:         m.Size,
+				Size_:         m.Size_,
 				FooterSize:    m.FooterSize,
 				// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
 				Exemplars: exemplars,
@@ -268,7 +267,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 			subR = api.BuildQueryRangeRequest(subR, queryRangeReq, dedColsJSON)
 
 			prepareRequestForQueriers(subR, tenantID)
-			pipelineR := pipeline.NewHTTPRequest(subR)
+			pipelineR := parent.CloneFromHTTPRequest(subR)
 
 			// TODO: Handle sampling rate
 			key := queryRangeCacheKey(tenantID, queryHash, int64(queryRangeReq.Start), int64(queryRangeReq.End), m, int(queryRangeReq.StartPage), int(queryRangeReq.PagesToSearch))
@@ -292,9 +291,8 @@ func max(a, b uint32) uint32 {
 	return b
 }
 
-func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest, parent *http.Request, tenantID string, cutoff time.Time) *http.Request {
+func (s *queryRangeSharder) generatorRequest(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time) *pipeline.HTTPRequest {
 	traceql.TrimToAfter(&searchReq, cutoff)
-
 	// if start == end then we don't need to query it
 	if searchReq.Start == searchReq.End {
 		return nil
@@ -303,12 +301,12 @@ func (s *queryRangeSharder) generatorRequest(searchReq tempopb.QueryRangeRequest
 	searchReq.QueryMode = querier.QueryModeRecent
 	searchReq.Exemplars = uint32(s.cfg.MaxExemplars) // TODO: Review this
 
-	subR := parent.Clone(parent.Context())
+	subR := parent.HTTPRequest().Clone(ctx)
 	subR = api.BuildQueryRangeRequest(subR, &searchReq, "") // dedicated cols are never passed to the generators
 
 	prepareRequestForQueriers(subR, tenantID)
 
-	return subR
+	return parent.CloneFromHTTPRequest(subR)
 }
 
 // maxDuration returns the max search duration allowed for this tenant.

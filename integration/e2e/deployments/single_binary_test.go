@@ -125,7 +125,7 @@ func TestAllInOne(t *testing.T) {
 				// test metrics
 				require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 				require.NoError(t, tempo.WaitSumMetricsWithOptions(e2e.Equals(1), []string{"tempodb_blocklist_length"}, e2e.WaitMissingMetrics))
-				require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(3), "tempo_query_frontend_queries_total"))
+				require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(4), "tempo_query_frontend_queries_total"))
 
 				matchers := []*labels.Matcher{
 					{

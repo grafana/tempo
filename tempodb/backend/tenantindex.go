@@ -3,8 +3,10 @@ package backend
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"time"
 
+	proto "github.com/gogo/protobuf/proto"
 	"github.com/klauspost/compress/gzip"
 )
 
@@ -12,13 +14,10 @@ const (
 	internalFilename = "index.json"
 )
 
-// TenantIndex holds a list of all metas and compacted metas for a given tenant
-// it is probably stored in /<tenantid>/blockindex.json.gz as a gzipped json file
-type TenantIndex struct {
-	CreatedAt     time.Time             `json:"created_at"`
-	Meta          []*BlockMeta          `json:"meta"`
-	CompactedMeta []*CompactedBlockMeta `json:"compacted"`
-}
+var (
+	_    proto.Message = (*TenantIndex)(nil)
+	Zstd               = &ZstdCodec{}
+)
 
 func newTenantIndex(meta []*BlockMeta, compactedMeta []*CompactedBlockMeta) *TenantIndex {
 	return &TenantIndex{
@@ -63,4 +62,23 @@ func (b *TenantIndex) unmarshal(buffer []byte) error {
 
 	d := json.NewDecoder(gzipReader)
 	return d.Decode(b)
+}
+
+func (b *TenantIndex) marshalPb() ([]byte, error) {
+	pbBytes, err := proto.Marshal(b)
+	if err != nil {
+		return nil, err
+	}
+
+	buffer := []byte{}
+	return Zstd.Encode(pbBytes, buffer)
+}
+
+func (b *TenantIndex) unmarshalPb(buffer []byte) error {
+	bb, err := Zstd.Decode(buffer)
+	if err != nil {
+		return fmt.Errorf("error decoding zstd: %w", err)
+	}
+
+	return b.Unmarshal(bb)
 }

@@ -61,7 +61,7 @@ func (cmd *dropTraceCmd) Run(ctx *globalOptions) error {
 	// print out blocks that have the trace id
 	fmt.Println("\n\ntrace found in:")
 	for _, block := range blocks {
-		fmt.Printf("  %v sz: %d traces: %d\n", block.BlockID, block.Size, block.TotalObjects)
+		fmt.Printf("  %v sz: %d traces: %d\n", block.BlockID, block.Size_, block.TotalObjects)
 	}
 
 	if !cmd.DropTrace {
@@ -82,7 +82,7 @@ func (cmd *dropTraceCmd) Run(ctx *globalOptions) error {
 	fmt.Println("marking old blocks compacted")
 	for _, block := range blocks {
 		fmt.Printf("  marking %v\n", block.BlockID)
-		err = c.MarkBlockCompacted(block.BlockID, block.TenantID)
+		err = c.MarkBlockCompacted((uuid.UUID)(block.BlockID), block.TenantID)
 		if err != nil {
 			return err
 		}

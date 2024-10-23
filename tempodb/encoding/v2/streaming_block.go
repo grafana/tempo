@@ -144,13 +144,13 @@ func (c *StreamingBlock) Complete(ctx context.Context, tracker backend.AppendTra
 
 	meta.TotalRecords = uint32(len(records)) // casting
 	meta.IndexPageSize = uint32(c.cfg.IndexPageSizeBytes)
-	meta.BloomShardCount = uint16(c.bloom.GetShardCount())
+	meta.BloomShardCount = uint32(c.bloom.GetShardCount())
 
 	return bytesFlushed, writeBlockMeta(ctx, w, meta, indexBytes, c.bloom)
 }
 
 func (c *StreamingBlock) BlockMeta() *backend.BlockMeta {
 	meta := c.meta
-	meta.Size = c.appender.DataLength()
+	meta.Size_ = c.appender.DataLength()
 	return meta
 }

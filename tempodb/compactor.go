@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
@@ -197,11 +198,26 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 
 	var totalRecords int
 	for _, blockMeta := range blockMetas {
-		level.Info(rw.logger).Log("msg", "compacting block", "block", fmt.Sprintf("%+v", blockMeta))
-		totalRecords += blockMeta.TotalObjects
+		level.Info(rw.logger).Log(
+			"msg", "compacting block",
+			"version", blockMeta.Version,
+			"tenantID", blockMeta.TenantID,
+			"blockID", blockMeta.BlockID.String(),
+			"startTime", blockMeta.StartTime.String(),
+			"endTime", blockMeta.EndTime.String(),
+			"totalObjects", blockMeta.TotalObjects,
+			"size", blockMeta.Size_,
+			"compactionLevel", blockMeta.CompactionLevel,
+			"encoding", blockMeta.Encoding.String(),
+			"totalRecords", blockMeta.TotalObjects,
+			"bloomShardCount", blockMeta.BloomShardCount,
+			"footerSize", blockMeta.FooterSize,
+			"replicationFactor", blockMeta.ReplicationFactor,
+		)
+		totalRecords += int(blockMeta.TotalObjects)
 
 		// Make sure block still exists
-		_, err = rw.r.BlockMeta(ctx, blockMeta.BlockID, tenantID)
+		_, err = rw.r.BlockMeta(ctx, (uuid.UUID)(blockMeta.BlockID), tenantID)
 		if err != nil {
 			return err
 		}
@@ -271,7 +287,7 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 		time.Since(startTime),
 	}
 	for _, meta := range newCompactedBlocks {
-		logArgs = append(logArgs, "block", fmt.Sprintf("%+v", meta))
+		logArgs = append(logArgs, "blockID", meta.BlockID.String())
 	}
 	level.Info(rw.logger).Log(logArgs...)
 
@@ -283,7 +299,7 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks, newBlocks []*ba
 	var errCount int
 	for _, meta := range oldBlocks {
 		// Mark in the backend
-		if err := rw.c.MarkBlockCompacted(meta.BlockID, tenantID); err != nil {
+		if err := rw.c.MarkBlockCompacted((uuid.UUID)(meta.BlockID), tenantID); err != nil {
 			errCount++
 			level.Error(rw.logger).Log("msg", "unable to mark block compacted", "blockID", meta.BlockID, "tenantID", tenantID, "err", err)
 			metricCompactionErrors.Inc()
@@ -330,8 +346,8 @@ func compactionLevelForBlocks(blockMetas []*backend.BlockMeta) uint8 {
 	level := uint8(0)
 
 	for _, m := range blockMetas {
-		if m.CompactionLevel > level {
-			level = m.CompactionLevel
+		if m.CompactionLevel > uint32(level) {
+			level = uint8(m.CompactionLevel)
 		}
 	}
 

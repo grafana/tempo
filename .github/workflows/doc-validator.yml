@@ -9,13 +9,6 @@ jobs:
     container:
       image: "grafana/doc-validator:v5.2.0"
     steps:
-      - name: Get app token
-        uses: actions/create-github-app-token@v1
-        id: get-github-app-token
-        with:
-          app-id: ${{secrets.APP_ID}}
-          private-key: ${{secrets.APP_PRIVATE_KEY}}
-          owner: ${{ github.repository_owner }}
       - name: "Checkout code"
         uses: "actions/checkout@v4"
       - name: "Run doc-validator"
@@ -38,4 +31,4 @@ jobs:
               --name=doc-validator \
               --reporter=github-pr-review
         env:
-          REVIEWDOG_GITHUB_API_TOKEN: "${{ steps.get-github-app-token.outputs.token }}"
+          REVIEWDOG_GITHUB_API_TOKEN: "${{ secrets.GITHUB_TOKEN }}"

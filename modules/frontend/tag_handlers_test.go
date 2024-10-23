@@ -8,13 +8,14 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"regexp"
 	"testing"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
-	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -432,9 +433,9 @@ func TestSearchTagsV2AccessesCache(t *testing.T) {
 	meta := &backend.BlockMeta{
 		StartTime:    time.Unix(15, 0),
 		EndTime:      time.Unix(16, 0),
-		Size:         defaultTargetBytesPerRequest,
+		Size_:        defaultTargetBytesPerRequest,
 		TotalRecords: 1,
-		BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000123"),
+		BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000123"),
 	}
 
 	rdr := &mockReader{
@@ -513,6 +514,7 @@ func TestSearchTagsV2AccessesCache(t *testing.T) {
 				Tags: []string{"blarg", "blerg"},
 			},
 		},
+		Metrics: &tempopb.MetadataMetrics{},
 	}
 	overwriteString, err := (&jsonpb.Marshaler{}).MarshalToString(overwriteResp)
 	require.NoError(t, err)
@@ -532,4 +534,191 @@ func TestSearchTagsV2AccessesCache(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, overwriteResp, actualResp)
+}
+
+func TestParseParams(t *testing.T) {
+	tests := []struct {
+		name             string
+		queryParams      map[string]string
+		expectedScope    string
+		expectedQ        string
+		expectedDuration uint32
+	}{
+		{
+			name:             "all params present",
+			queryParams:      map[string]string{"start": "1723667082", "end": "1723839882", "scope": "resource", "q": "some_query"},
+			expectedScope:    "resource",
+			expectedQ:        "some_query",
+			expectedDuration: 172800,
+		},
+		{
+			name:             "missing start",
+			queryParams:      map[string]string{"end": "1723839882", "scope": "resource"},
+			expectedScope:    "resource",
+			expectedQ:        "",
+			expectedDuration: 0,
+		},
+		{
+			name:             "missing end",
+			queryParams:      map[string]string{"start": "1723667082", "scope": "resource"},
+			expectedScope:    "resource",
+			expectedQ:        "",
+			expectedDuration: 0,
+		},
+		{
+			name:             "missing scope",
+			queryParams:      map[string]string{"start": "1723667082", "end": "1723839882"},
+			expectedScope:    "",
+			expectedQ:        "",
+			expectedDuration: 172800,
+		},
+		{
+			name:             "missing q",
+			queryParams:      map[string]string{"start": "1723667082", "end": "1723839882", "scope": "resource"},
+			expectedScope:    "resource",
+			expectedQ:        "",
+			expectedDuration: 172800,
+		},
+		{
+			name:             "invalid start",
+			queryParams:      map[string]string{"start": "invalid", "end": "1723839882", "scope": "resource"},
+			expectedScope:    "resource",
+			expectedQ:        "",
+			expectedDuration: 0,
+		},
+		{
+			name:             "invalid end",
+			queryParams:      map[string]string{"start": "1723667082", "end": "invalid", "scope": "resource"},
+			expectedScope:    "resource",
+			expectedQ:        "",
+			expectedDuration: 0,
+		},
+		{
+			name:             "no params",
+			queryParams:      map[string]string{},
+			expectedScope:    "",
+			expectedQ:        "",
+			expectedDuration: 0,
+		},
+		{
+			name:             "negative start and end",
+			queryParams:      map[string]string{"start": "-1000", "end": "-2000", "scope": "negative_case"},
+			expectedScope:    "negative_case",
+			expectedQ:        "",
+			expectedDuration: 0,
+		},
+		{
+			name:             "end less than start",
+			queryParams:      map[string]string{"start": "1723839882", "end": "1723667082", "scope": "resource"},
+			expectedScope:    "resource",
+			expectedQ:        "",
+			expectedDuration: 0,
+		},
+		{
+			name:             "start and end are the same",
+			queryParams:      map[string]string{"start": "1723839882", "end": "1723839882", "scope": "zero_duration"},
+			expectedScope:    "zero_duration",
+			expectedQ:        "",
+			expectedDuration: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u := &url.URL{Path: "/my/test/path"}
+			query := u.Query()
+			for key, value := range tt.queryParams {
+				query.Add(key, value)
+			}
+			u.RawQuery = query.Encode()
+			req := &http.Request{URL: u}
+
+			scope, q, duration := parseParams(req)
+
+			require.Equal(t, tt.expectedScope, scope)
+			require.Equal(t, tt.expectedQ, q)
+			require.Equal(t, tt.expectedDuration, duration)
+		})
+	}
+}
+
+func TestExtractTagName(t *testing.T) {
+	// Define the base of our test cases table
+	var testCases []struct {
+		name     string
+		urlPath  string
+		pattern  *regexp.Regexp
+		expected string
+	}
+
+	prefixes := []string{
+		"/tempo",
+		"/otherprefix",
+		"", // No prefix
+	}
+	tagNames := []string{
+		".X-Ab-TraceID",
+		".__name__",
+		".action",
+		".app",
+		".application_id",
+		"span.name",
+		"hello",
+		"name",
+		"$tag_name",
+		"\u00E9:tag\\escaped_tag",
+	}
+	patterns := []struct {
+		name   string
+		regex  *regexp.Regexp
+		suffix string
+	}{
+		{"WithoutV2", tagNameRegexV1, "/api/search/tag/"},
+		{"WithV2", tagNameRegexV2, "/api/v2/search/tag/"},
+	}
+
+	// build test cases
+	for _, prefix := range prefixes {
+		for _, tagName := range tagNames {
+			for _, pattern := range patterns {
+				// Construct the full path
+				fullPath := prefix + pattern.suffix + tagName + "/values"
+
+				// Add the test case to the array
+				testCases = append(testCases, struct {
+					name     string
+					urlPath  string
+					pattern  *regexp.Regexp
+					expected string
+				}{
+					name:     "Prefix: " + prefix + ", Tag: " + tagName + ", Pattern: " + pattern.name,
+					urlPath:  fullPath,
+					pattern:  pattern.regex,
+					expected: tagName,
+				})
+			}
+		}
+	}
+
+	// Additional edge cases
+	edgeCases := []struct {
+		name     string
+		urlPath  string
+		pattern  *regexp.Regexp
+		expected string
+	}{
+		{"Missing tag name V1", "/api/search/tag//values", tagNameRegexV1, ""},
+		{"Missing tag name V2", "/api/v2/search/tag//values", tagNameRegexV2, ""},
+		{"Non-matching path V1", "/some/other/path/without/tag/values", tagNameRegexV1, ""},
+		{"Non-matching path V2", "/different/path/without/tag/values", tagNameRegexV2, ""},
+	}
+	testCases = append(testCases, edgeCases...)
+
+	// Run all test cases
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			extractedTagName := extractTagName(tt.urlPath, tt.pattern)
+			require.Equal(t, tt.expected, extractedTagName)
+		})
+	}
 }

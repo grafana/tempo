@@ -7,13 +7,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"maps"
 	"math/rand"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
-
-	"golang.org/x/exp/maps"
 
 	kitlog "github.com/go-kit/log"
 	"github.com/gogo/status"
@@ -1150,7 +1149,7 @@ func TestLogDiscardedSpansWhenPushToIngesterFails(t *testing.T) {
 			}
 
 			// mock ingester errors
-			for _, ingester := range maps.Values(ingesters) {
+			for ingester := range maps.Values(ingesters) {
 				ingester.pushBytesV2 = func(_ context.Context, _ *tempopb.PushBytesRequest, _ ...grpc.CallOption) (*tempopb.PushResponse, error) {
 					return &tempopb.PushResponse{
 						ErrorsByTrace: tc.pushErrorByTrace,

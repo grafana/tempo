@@ -114,11 +114,11 @@ server:
 
     # Max gRPC message size that can be received
     # This value may need to be increased if you have large traces
-    [grpc_server_max_recv_msg_size: <int> | default = 4194304]
+    [grpc_server_max_recv_msg_size: <int> | default = 16777216]
 
     # Max gRPC message size that can be sent
     # This value may need to be increased if you have large traces
-    [grpc_server_max_send_msg_size: <int> | default = 4194304]
+    [grpc_server_max_send_msg_size: <int> | default = 16777216]
 ```
 
 ## Distributor
@@ -287,6 +287,10 @@ For more information on the metrics-generator, refer to the [Metrics-generator d
 
 Metrics-generator processors are disabled by default. To enable it for a specific tenant, set `metrics_generator.processors` in the [overrides](#overrides) section.
 
+{{< admonition type="note" >}}
+If you want to enable metrics-generator for your Grafana Cloud account, refer to the [Metrics-generator in Grafana Cloud](https://grafana.com/docs/grafana-cloud/send-data/traces/metrics-generator/) documentation.
+{{< /admonition >}}
+
 You can limit spans with end times that occur within a configured duration to be considered in metrics generation using `metrics_ingestion_time_range_slack`.
 In Grafana Cloud, this value defaults to 30 seconds so all spans sent to the metrics-generation more than 30 seconds in the past are discarded or rejected.
 
@@ -366,6 +370,8 @@ metrics_generator:
             [peer_attributes: <list of string> | default = ["peer.service", "db.name", "db.system"] ]
 
             # Attribute Key to multiply span metrics
+            # Note that the attribute name is searched for in both
+            # resouce and span level attributes
             [span_multiplier_key: <string> | default = ""]
 
             # Enables additional labels for services and virtual nodes.
@@ -409,6 +415,8 @@ metrics_generator:
             [enable_target_info: <bool> | default = false]
 
             # Attribute Key to multiply span metrics
+            # Note that the attribute name is searched for in both
+            # resouce and span level attributes
             [span_multiplier_key: <string> | default = ""]
 
             # List of policies that will be applied to spans for inclusion or exclusion.
@@ -610,7 +618,7 @@ query_frontend:
 
         # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
-        # NOTE: `duration_slo` and `throughput_bytes_slo` both must be configured for it to work
+        # NOTE: Requires `duration_slo` AND `throughput_bytes_slo` to be configured.
         [duration_slo: <duration> | default = 0s ]
 
         # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
@@ -619,6 +627,17 @@ query_frontend:
 
         # The number of shards to break ingester queries into.
         [ingester_shards]: <int> | default = 1]
+        
+        # SLO configuration for Metadata (tags and tag values) endpoints.
+        metadata_slo:
+            # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
+            # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
+            # NOTE: Requires `duration_slo` AND `throughput_bytes_slo` to be configured.
+            [duration_slo: <duration> | default = 0s ]
+    
+            # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
+            # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
+            [throughput_bytes_slo: <float> | default = 0 ]
 
     # Trace by ID lookup configuration
     trace_by_id:
@@ -872,7 +891,7 @@ storage:
 
             # Optional. Default is false.
             # Example: "insecure: true"
-            # Set to true to enable authentication and certificate checks on gcs requests
+            # Set to true to disable authentication and certificate checks on gcs requests
             [insecure: <bool>]
 
             # The number of list calls to make in parallel to the backend per instance.

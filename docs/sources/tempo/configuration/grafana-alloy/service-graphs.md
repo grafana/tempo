@@ -18,7 +18,7 @@ This is more efficient and recommended for larger installations.
 For a deep look into service graphs, visit [this section](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/service_graphs).
 
 Service graphs are also used in the application performance management dashboard.
-For more information, refer to the [service graph view documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/service_graph-view).
+For more information, refer to the [service graph view documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/service-graph-view).
 
 ## Before you begin
 
