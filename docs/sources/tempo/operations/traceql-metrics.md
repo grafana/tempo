@@ -53,7 +53,7 @@ Example for per-tenant in the per-tenant overrides:
           - local-blocks
   ```
 
-By default, for all tenants in the main configuration:
+By default, for all tenants in the main configuration: 
 
   ```yaml
   overrides:
