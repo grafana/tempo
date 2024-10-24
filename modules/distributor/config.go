@@ -8,6 +8,7 @@ import (
 	ring_client "github.com/grafana/dskit/ring/client"
 
 	"github.com/grafana/tempo/modules/distributor/forwarder"
+	"github.com/grafana/tempo/modules/distributor/usage"
 	"github.com/grafana/tempo/pkg/util"
 )
 
@@ -37,8 +38,8 @@ type Config struct {
 	LogReceivedSpans    LogSpansConfig            `yaml:"log_received_spans,omitempty"`
 	LogDiscardedSpans   LogSpansConfig            `yaml:"log_discarded_spans,omitempty"`
 	MetricReceivedSpans MetricReceivedSpansConfig `yaml:"metric_received_spans,omitempty"`
-
-	Forwarders forwarder.ConfigList `yaml:"forwarders"`
+	Forwarders          forwarder.ConfigList      `yaml:"forwarders"`
+	Usage               usage.Config              `yaml:"usage,omitempty"`
 
 	// disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
 	//  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
@@ -80,4 +81,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.BoolVar(&cfg.LogDiscardedSpans.Enabled, util.PrefixConfig(prefix, "log-discarded-spans.enabled"), false, "Enable to log every discarded span to help debug ingestion or calculate span error distributions using the logs.")
 	f.BoolVar(&cfg.LogDiscardedSpans.IncludeAllAttributes, util.PrefixConfig(prefix, "log-discarded-spans.include-attributes"), false, "Enable to include span attributes in the logs.")
 	f.BoolVar(&cfg.LogDiscardedSpans.FilterByStatusError, util.PrefixConfig(prefix, "log-discarded-spans.filter-by-status-error"), false, "Enable to filter out spans without status error.")
+
+	cfg.Usage.RegisterFlagsAndApplyDefaults(prefix, f)
 }

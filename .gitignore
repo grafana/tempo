@@ -3,6 +3,7 @@
 .idea
 .vscode
 *.test
+*.out
 *.pprof
 /bin
 /cmd/tempo-cli/tempo-cli

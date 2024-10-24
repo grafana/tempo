@@ -134,6 +134,8 @@ type LegacyOverrides struct {
 	//  is not used when doing a trace by id lookup.
 	MaxBytesPerTrace int `yaml:"max_bytes_per_trace" json:"max_bytes_per_trace"`
 
+	CostAttribution CostAttributionOverrides `yaml:"cost_attribution,omitempty" json:"cost_attribution,omitempty"`
+
 	// tempodb limits
 	DedicatedColumns backend.DedicatedColumns `yaml:"parquet_dedicated_columns" json:"parquet_dedicated_columns"`
 }
@@ -208,6 +210,9 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 		},
 		Storage: StorageOverrides{
 			DedicatedColumns: l.DedicatedColumns,
+		},
+		CostAttribution: CostAttributionOverrides{
+			Dimensions: l.CostAttribution.Dimensions,
 		},
 	}
 }
