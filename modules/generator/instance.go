@@ -357,6 +357,8 @@ func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest)
 }
 
 func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
+	// TODO - uniqify all strings?
+	// Doesn't help allocs, but should greatly reduce inuse space
 	size := 0
 	spanCount := 0
 	expiredSpanCount := 0

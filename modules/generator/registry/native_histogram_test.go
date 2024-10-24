@@ -454,7 +454,7 @@ func Test_Histograms(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Run("classic", func(t *testing.T) {
 				onAdd := func(uint32) bool { return true }
-				h := newHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id")
+				h := newHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", nil)
 				testHistogram(t, h, tc.collections)
 			})
 			t.Run("native", func(t *testing.T) {

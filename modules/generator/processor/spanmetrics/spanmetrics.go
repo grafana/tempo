@@ -121,8 +121,8 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 		svcName, _ := processor_util.FindServiceName(rs.Resource.Attributes)
 		jobName := processor_util.GetJobValue(rs.Resource.Attributes)
 		instanceID, _ := processor_util.FindInstanceID(rs.Resource.Attributes)
-		resourceLabels := make([]string, 0)
-		resourceValues := make([]string, 0)
+		resourceLabels := make([]string, 0) // TODO move outside the loop and reuse?
+		resourceValues := make([]string, 0) // TODO don't allocate unless needed?
 
 		if p.Cfg.EnableTargetInfo {
 			resourceLabels, resourceValues = processor_util.GetTargetInfoAttributesValues(rs.Resource.Attributes, p.Cfg.TargetInfoExcludedDimensions)
@@ -219,6 +219,9 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 
 	// update target_info label values
 	if p.Cfg.EnableTargetInfo {
+		// TODO - The resource labels only need to be sanitized once
+		// TODO - attribute names are stable across applications
+		//        so let's cache the result of previous sanitizations
 		resourceAttributesCount := len(targetInfoLabels)
 		for index, label := range targetInfoLabels {
 			// sanitize label name
@@ -239,6 +242,7 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		targetInfoRegistryLabelValues := p.registry.NewLabelValueCombo(targetInfoLabels, targetInfoLabelValues)
 
 		// only register target info if at least (job or instance) AND one other attribute are present
+		// TODO - We can move this check to the top
 		if resourceAttributesCount > 0 && len(targetInfoLabels) > resourceAttributesCount {
 			p.spanMetricsTargetInfo.SetForTargetInfo(targetInfoRegistryLabelValues, 1)
 		}
