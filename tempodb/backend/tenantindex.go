@@ -2,7 +2,6 @@ package backend
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -34,7 +33,7 @@ func (b *TenantIndex) marshal() ([]byte, error) {
 	gzip := gzip.NewWriter(buffer)
 	gzip.Name = internalFilename
 
-	jsonBytes, err := json.Marshal(b)
+	jsonBytes, err := jsonCompat.Marshal(b)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +59,7 @@ func (b *TenantIndex) unmarshal(buffer []byte) error {
 	}
 	defer gzipReader.Close()
 
-	d := json.NewDecoder(gzipReader)
+	d := jsonCompat.NewDecoder(gzipReader)
 	return d.Decode(b)
 }
 
