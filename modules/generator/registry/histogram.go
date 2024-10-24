@@ -17,12 +17,13 @@ import (
 var _ metric = (*histogram)(nil)
 
 type histogram struct {
-	metricName   string
-	nameCount    string
-	nameSum      string
-	nameBucket   string
-	buckets      []float64
-	bucketLabels []string
+	metricName     string
+	nameCount      string
+	nameSum        string
+	nameBucket     string
+	buckets        []float64
+	bucketLabels   []string
+	externalLabels map[string]string
 
 	seriesMtx sync.Mutex
 	series    map[uint64]*histogramSeries
@@ -34,10 +35,12 @@ type histogram struct {
 }
 
 type histogramSeries struct {
-	// labelValueCombo should not be modified after creation
-	labels LabelPair
-	count  *atomic.Float64
-	sum    *atomic.Float64
+	countLabels  labels.Labels
+	sumLabels    labels.Labels
+	bucketLabels []labels.Labels
+
+	count *atomic.Float64
+	sum   *atomic.Float64
 	// buckets includes the +Inf bucket
 	buckets []*atomic.Float64
 	// exemplar is stored as a single traceID
@@ -64,7 +67,7 @@ var (
 	_ metric    = (*histogram)(nil)
 )
 
-func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string) *histogram {
+func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), traceIDLabelName string, externalLabels map[string]string) *histogram {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -97,6 +100,7 @@ func newHistogram(name string, buckets []float64, onAddSeries func(uint32) bool,
 		onAddSerie:       onAddSeries,
 		onRemoveSerie:    onRemoveSeries,
 		traceIDLabelName: traceIDLabelName,
+		externalLabels:   externalLabels,
 	}
 }
 
@@ -121,18 +125,45 @@ func (h *histogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, value 
 
 func (h *histogram) newSeries(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) *histogramSeries {
 	newSeries := &histogramSeries{
-		labels:      labelValueCombo.getLabelPair(),
-		count:       atomic.NewFloat64(0),
-		sum:         atomic.NewFloat64(0),
-		buckets:     nil,
-		exemplars:   nil,
-		lastUpdated: atomic.NewInt64(0),
-		firstSeries: atomic.NewBool(true),
+		count:          atomic.NewFloat64(0),
+		sum:            atomic.NewFloat64(0),
+		buckets:        make([]*atomic.Float64, 0, len(h.buckets)),
+		exemplars:      make([]*atomic.String, 0, len(h.buckets)),
+		exemplarValues: make([]*atomic.Float64, 0, len(h.buckets)),
+		lastUpdated:    atomic.NewInt64(0),
+		firstSeries:    atomic.NewBool(true),
 	}
 	for i := 0; i < len(h.buckets); i++ {
 		newSeries.buckets = append(newSeries.buckets, atomic.NewFloat64(0))
 		newSeries.exemplars = append(newSeries.exemplars, atomic.NewString(""))
 		newSeries.exemplarValues = append(newSeries.exemplarValues, atomic.NewFloat64(0))
+	}
+
+	// Precompute all labels for all sub-metrics upfront
+
+	// Create and populate label builder
+	lbls := labelValueCombo.getLabelPair()
+	lb := labels.NewBuilder(make(labels.Labels, 1+len(lbls.names)))
+	for i, name := range lbls.names {
+		lb.Set(name, lbls.values[i])
+	}
+	for name, value := range h.externalLabels {
+		lb.Set(name, value)
+	}
+
+	// _count
+	lb.Set(labels.MetricName, h.nameCount)
+	newSeries.countLabels = lb.Labels()
+
+	// _sum
+	lb.Set(labels.MetricName, h.nameSum)
+	newSeries.sumLabels = lb.Labels()
+
+	// _bucket
+	lb.Set(labels.MetricName, h.nameBucket)
+	for _, b := range h.bucketLabels {
+		lb.Set(labels.BucketLabel, b)
+		newSeries.bucketLabels = append(newSeries.bucketLabels, lb.Labels())
 	}
 
 	h.updateSeries(newSeries, value, traceID, multiplier)
@@ -161,7 +192,7 @@ func (h *histogram) name() string {
 	return h.metricName
 }
 
-func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
+func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, _ map[string]string) (activeSeries int, err error) {
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 
@@ -169,30 +200,11 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 
 	activeSeries = len(h.series) * int(h.activeSeriesPerHistogramSerie())
 
-	labelsCount := 0
-	if activeSeries > 0 && h.series[0] != nil {
-		labelsCount = len(h.series[0].labels.names)
-	}
-	lbls := make(labels.Labels, 1+len(externalLabels)+labelsCount)
-	lb := labels.NewBuilder(lbls)
-
-	// set external labels
-	// TODO - Verify if external labels can change at runtime, if not then scan this map once elsewhere
-	for name, value := range externalLabels {
-		lb.Set(name, value)
-	}
-
 	for _, s := range h.series {
-		// set series-specific labels
-		for i, name := range s.labels.names {
-			lb.Set(name, s.labels.values[i])
-		}
-
 		// If we are about to call Append for the first time on a series,
 		// we need to first insert a 0 value to allow Prometheus to start from a non-null value.
 		if s.isNew() {
-			lb.Set(labels.MetricName, h.nameCount)
-			_, err = appender.Append(0, lb.Labels(), t-1, 0) // t-1 to ensure that the next value is not at the same time
+			_, err = appender.Append(0, s.countLabels, t-1, 0) // t-1 to ensure that the next value is not at the same time
 			if err != nil {
 				return
 			}
@@ -200,36 +212,27 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 		}
 
 		// sum
-		// TODO labels dont' change throughout the life of a series
-		//      investigate building once
-		lb.Set(labels.MetricName, h.nameSum)
-		_, err = appender.Append(0, lb.Labels(), t, s.sum.Load())
+		_, err = appender.Append(0, s.sumLabels, t, s.sum.Load())
 		if err != nil {
 			return
 		}
 
 		// count
-		lb.Set(labels.MetricName, h.nameCount)
-		_, err = appender.Append(0, lb.Labels(), t, s.count.Load())
+		_, err = appender.Append(0, s.countLabels, t, s.count.Load())
 		if err != nil {
 			return
 		}
 
 		// bucket
-		lb.Set(labels.MetricName, h.nameBucket)
-
-		for i, bucketLabel := range h.bucketLabels {
-			// TODO we are just overwriting the known le label, so investigate
-			// reusing the same slice
-			lb.Set(labels.BucketLabel, bucketLabel)
-			ref, err := appender.Append(0, lb.Labels(), t, s.buckets[i].Load())
+		for i := range h.bucketLabels {
+			ref, err := appender.Append(0, s.bucketLabels[i], t, s.buckets[i].Load())
 			if err != nil {
 				return activeSeries, err
 			}
 
 			ex := s.exemplars[i].Load()
 			if ex != "" {
-				_, err = appender.AppendExemplar(ref, lb.Labels(), exemplar.Exemplar{
+				_, err = appender.AppendExemplar(ref, s.bucketLabels[i], exemplar.Exemplar{
 					Labels: []labels.Label{{
 						Name:  h.traceIDLabelName,
 						Value: ex,
@@ -244,8 +247,6 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 			// clear the exemplar so we don't emit it again
 			s.exemplars[i].Store("")
 		}
-
-		lb.Del(labels.BucketLabel)
 	}
 
 	return

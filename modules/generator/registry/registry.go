@@ -156,7 +156,7 @@ func (r *ManagedRegistry) NewHistogram(name string, buckets []float64, histogram
 	if hasNativeHistograms(histogramOverride) {
 		h = newNativeHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, histogramOverride)
 	} else {
-		h = newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName)
+		h = newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, r.externalLabels)
 	}
 
 	r.registerMetric(h)
