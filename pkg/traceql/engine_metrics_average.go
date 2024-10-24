@@ -479,6 +479,10 @@ func (g *avgOverTimeSpanAggregator[F, S]) Series() SeriesSet {
 	for _, s := range g.series {
 		// First, get the regular series
 		labels, promLabelsAvg := g.labelsFor(s.vals, "")
+		// Include the compensation at the end
+		for i := range s.avg {
+			s.avg[i] = s.avg[i] + s.compensation[i]
+		}
 		ss[promLabelsAvg] = TimeSeries{
 			Labels:    labels,
 			Values:    s.avg,
