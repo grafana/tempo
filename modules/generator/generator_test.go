@@ -167,6 +167,7 @@ func BenchmarkPushSpans(b *testing.B) {
 
 	inst, err := newInstance(cfg, tenant, o, wal, reg, log, nil, nil)
 	require.NoError(b, err)
+	defer inst.shutdown()
 
 	req := &tempopb.PushSpansRequest{
 		Batches: []*trace_v1.ResourceSpans{
@@ -201,7 +202,7 @@ func BenchmarkPushSpans(b *testing.B) {
 	runtime.GC()
 	mem := runtime.MemStats{}
 	runtime.ReadMemStats(&mem)
-	println("Final inuse space:", mem.HeapInuse, "bytes")
+	b.ReportMetric(float64(mem.HeapInuse), "heap_in_use")
 }
 
 func BenchmarkCollect(b *testing.B) {
@@ -234,6 +235,7 @@ func BenchmarkCollect(b *testing.B) {
 
 	inst, err := newInstance(cfg, tenant, o, wal, reg, log, nil, nil)
 	require.NoError(b, err)
+	defer inst.shutdown()
 
 	req := &tempopb.PushSpansRequest{
 		Batches: []*trace_v1.ResourceSpans{
@@ -269,5 +271,5 @@ func BenchmarkCollect(b *testing.B) {
 	runtime.GC()
 	mem := runtime.MemStats{}
 	runtime.ReadMemStats(&mem)
-	println("Final inuse space:", mem.HeapInuse, "bytes")
+	b.ReportMetric(float64(mem.HeapInuse), "heap_in_use")
 }
