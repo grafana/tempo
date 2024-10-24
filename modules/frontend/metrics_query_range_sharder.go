@@ -26,11 +26,12 @@ import (
 )
 
 type queryRangeSharder struct {
-	next      pipeline.AsyncRoundTripper[combiner.PipelineResponse]
-	reader    tempodb.Reader
-	overrides overrides.Interface
-	cfg       QueryRangeSharderConfig
-	logger    log.Logger
+	next        pipeline.AsyncRoundTripper[combiner.PipelineResponse]
+	reader      tempodb.Reader
+	overrides   overrides.Interface
+	cfg         QueryRangeSharderConfig
+	logger      log.Logger
+	instantMode bool
 }
 
 type QueryRangeSharderConfig struct {
@@ -39,28 +40,32 @@ type QueryRangeSharderConfig struct {
 	MaxDuration           time.Duration `yaml:"max_duration"`
 	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
 	Interval              time.Duration `yaml:"interval,omitempty"`
-	Exemplars             bool          `yaml:"exemplars,omitempty"`
 	MaxExemplars          int           `yaml:"max_exemplars,omitempty"`
 }
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search
-func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
+func newAsyncQueryRangeSharder(reader tempodb.Reader, o overrides.Interface, cfg QueryRangeSharderConfig, instantMode bool, logger log.Logger) pipeline.AsyncMiddleware[combiner.PipelineResponse] {
 	return pipeline.AsyncMiddlewareFunc[combiner.PipelineResponse](func(next pipeline.AsyncRoundTripper[combiner.PipelineResponse]) pipeline.AsyncRoundTripper[combiner.PipelineResponse] {
 		return queryRangeSharder{
-			next:      next,
-			reader:    reader,
-			overrides: o,
-
-			cfg:    cfg,
-			logger: logger,
+			next:        next,
+			reader:      reader,
+			overrides:   o,
+			instantMode: instantMode,
+			cfg:         cfg,
+			logger:      logger,
 		}
 	})
 }
 
 func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 	r := pipelineRequest.HTTPRequest()
+	spanName := "frontend.QueryRangeSharder.range"
 
-	ctx, span := tracer.Start(r.Context(), "frontend.QueryRangeSharder")
+	if s.instantMode {
+		spanName = "frontend.QueryRangeSharder.instant"
+	}
+
+	ctx, span := tracer.Start(r.Context(), spanName)
 	defer span.End()
 
 	req, err := api.ParseQueryRangeRequest(r)
@@ -91,6 +96,16 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		err = fmt.Errorf("range specified by start and end (%s) exceeds %s. received start=%d end=%d", time.Duration(req.End-req.Start), maxDuration, req.Start, req.End)
 		return pipeline.NewBadRequest(err), nil
 	}
+
+	var maxExemplars uint32
+	// Instant queries must not compute exemplars
+	if !s.instantMode && s.cfg.MaxExemplars > 0 {
+		maxExemplars = req.Exemplars
+		if maxExemplars == 0 || maxExemplars > uint32(s.cfg.MaxExemplars) {
+			maxExemplars = uint32(s.cfg.MaxExemplars) // Enforce configuration
+		}
+	}
+	req.Exemplars = maxExemplars
 
 	var (
 		allowUnsafe           = s.overrides.UnsafeQueryHints(tenantID)
@@ -150,11 +165,11 @@ func (s *queryRangeSharder) blockMetas(start, end int64, tenantID string) []*bac
 	return metas
 }
 
-func (s *queryRangeSharder) exemplarsPerShard(total uint32) uint32 {
-	if !s.cfg.Exemplars {
+func (s *queryRangeSharder) exemplarsPerShard(total uint32, exemplars uint32) uint32 {
+	if exemplars == 0 {
 		return 0
 	}
-	return uint32(math.Ceil(float64(s.cfg.MaxExemplars)*1.2)) / total
+	return uint32(math.Ceil(float64(exemplars)*1.2)) / total
 }
 
 func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time, targetBytesPerRequest int, reqCh chan pipeline.Request) (totalJobs, totalBlocks uint32, totalBlockBytes uint64) {
@@ -209,7 +224,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 	queryHash := hashForQueryRangeRequest(&searchReq)
 	colsToJSON := api.NewDedicatedColumnsToJSON()
 
-	exemplarsPerBlock := s.exemplarsPerShard(uint32(len(metas)))
+	exemplarsPerBlock := s.exemplarsPerShard(uint32(len(metas)), searchReq.Exemplars)
 	for _, m := range metas {
 		if m.EndTime.Before(m.StartTime) {
 			// Ignore blocks with bad timings from debugging
@@ -299,7 +314,6 @@ func (s *queryRangeSharder) generatorRequest(ctx context.Context, tenantID strin
 	}
 
 	searchReq.QueryMode = querier.QueryModeRecent
-	searchReq.Exemplars = uint32(s.cfg.MaxExemplars) // TODO: Review this
 
 	subR := parent.HTTPRequest().Clone(ctx)
 	subR = api.BuildQueryRangeRequest(subR, &searchReq, "") // dedicated cols are never passed to the generators

@@ -37,8 +37,8 @@ Exemplars are a powerful feature of TraceQL metrics.
 They allow you to see an exact trace that contributed to a given metric value.
 This is particularly useful when you want to understand why a given metric is high or low.
 
-Exemplars are available in TraceQL metrics for all functions.
-To get exemplars, you need to configure it in the query-frontend with the parameter `query_frontend.metrics.exemplars`,
+Exemplars are available in TraceQL metrics for all range queries.
+To get exemplars, you need to configure it in the query-frontend with the parameter `query_frontend.metrics.max_exemplars`,
 or pass a query hint in your query.
 
 ```
