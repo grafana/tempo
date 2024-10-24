@@ -15,7 +15,7 @@ keywords:
 TraceQL metrics is an experimental feature in Grafana Tempo that creates metrics from traces.
 
 Metric queries extend trace queries by applying a function to trace query results.
-This powerful feature allows for adhoc aggregation of any existing TraceQL query by any dimension available in your traces, much in the same way that LogQL metric queries create metrics from logs.
+This powerful feature allows for ad hoc aggregation of any existing TraceQL query by any dimension available in your traces, much in the same way that LogQL metric queries create metrics from logs.
 
 Traces are a unique observability signal that contain causal relationships between the components in your system.
 Do you want to know how many database calls across all systems are downstream of your application?
