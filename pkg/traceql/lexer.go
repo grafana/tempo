@@ -104,6 +104,7 @@ var tokens = map[string]int{
 	"count_over_time":     COUNT_OVER_TIME,
 	"min_over_time":       MIN_OVER_TIME,
 	"max_over_time":       MAX_OVER_TIME,
+	"avg_over_time":       AVG_OVER_TIME,
 	"quantile_over_time":  QUANTILE_OVER_TIME,
 	"histogram_over_time": HISTOGRAM_OVER_TIME,
 	"compare":             COMPARE,

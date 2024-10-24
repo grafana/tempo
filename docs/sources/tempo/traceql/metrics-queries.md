@@ -62,6 +62,9 @@ These functions can be added as an operator at the end of any TraceQL query.
 `max_over_time`
 : Returns the maximum value of matching spans values per time interval (see the `step` API parameter)
 
+`avg_over_time`
+: Returns the average value of matching spans values per time interval (see the `step` API parameter)
+
 `quantile_over_time`
 : The quantile of the values in the specified interval
 
@@ -97,7 +100,7 @@ down by HTTP route.
 This might let you determine that `/api/sad` had a higher rate of erroring
 spans than `/api/happy`, for example.
 
-### The `count_over_time`, `min_over_time` and `max_over_time` functions
+### The `count_over_time`, `min_over_time`, `max_over_time` and `avg_over_time` functions
 
 The `count_over_time()` let you counts the number of matching spans per time interval.
 
@@ -126,6 +129,16 @@ The `max_over_time()` let you aggregate numerical values by computing the maximu
 
 ```
 { name = "GET /:endpoint" } | max_over_time(span.http.status_code)
+```
+
+The `avg_over_time()` let you aggregate numerical values by computing the average value of them, such as the all important span duration.
+
+```
+{ name = "GET /:endpoint" } | avg_over_time(duration) by (span.http.target)
+```
+
+```
+{ name = "GET /:endpoint" } | avg_over_time(event:cpu_seconds_tota)
 ```
 
 ### The `quantile_over_time` and `histogram_over_time` functions
