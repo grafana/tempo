@@ -16,35 +16,92 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-func TestSearchProgressShouldQuit(t *testing.T) {
+func TestSearchProgressShouldQuitAny(t *testing.T) {
 	// new combiner should not quit
-	c := NewSearch(0)
+	c := NewSearch(0, false)
 	should := c.ShouldQuit()
 	require.False(t, should)
 
 	// 500 response should quit
-	c = NewSearch(0)
+	c = NewSearch(0, false)
 	err := c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{}, 500))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// 429 response should quit
-	c = NewSearch(0)
+	c = NewSearch(0, false)
 	err = c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{}, 429))
 	require.NoError(t, err)
 	should = c.ShouldQuit()
 	require.True(t, should)
 
 	// unparseable body should not quit, but should return an error
-	c = NewSearch(0)
+	c = NewSearch(0, false)
 	err = c.AddResponse(&testPipelineResponse{r: &http.Response{Body: io.NopCloser(strings.NewReader("foo")), StatusCode: 200}})
 	require.Error(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
 
 	// under limit should not quit
-	c = NewSearch(2)
+	c = NewSearch(2, false)
+	err = c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID: "1",
+			},
+		},
+	}, 200))
+	require.NoError(t, err)
+	should = c.ShouldQuit()
+	require.False(t, should)
+
+	// over limit should quit
+	c = NewSearch(1, false)
+	err = c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{
+		Traces: []*tempopb.TraceSearchMetadata{
+			{
+				TraceID: "1",
+			},
+			{
+				TraceID: "2",
+			},
+		},
+	}, 200))
+	require.NoError(t, err)
+	should = c.ShouldQuit()
+	require.True(t, should)
+}
+
+func TestSearchProgressShouldQuitMostRecent(t *testing.T) {
+	// new combiner should not quit
+	c := NewSearch(0, true)
+	should := c.ShouldQuit()
+	require.False(t, should)
+
+	// 500 response should quit
+	c = NewSearch(0, true)
+	err := c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{}, 500))
+	require.NoError(t, err)
+	should = c.ShouldQuit()
+	require.True(t, should)
+
+	// 429 response should quit
+	c = NewSearch(0, true)
+	err = c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{}, 429))
+	require.NoError(t, err)
+	should = c.ShouldQuit()
+	require.True(t, should)
+
+	// unparseable body should not quit, but should return an error
+	c = NewSearch(0, true)
+	err = c.AddResponse(&testPipelineResponse{r: &http.Response{Body: io.NopCloser(strings.NewReader("foo")), StatusCode: 200}})
+	require.Error(t, err)
+	should = c.ShouldQuit()
+	require.False(t, should)
+
+	// under limit should not quit
+	c = NewSearch(2, true)
 	err = c.AddResponse(toHTTPResponse(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
@@ -57,7 +114,7 @@ func TestSearchProgressShouldQuit(t *testing.T) {
 	require.False(t, should)
 
 	// over limit but no search job response, should not quit
-	c = NewSearch(1)
+	c = NewSearch(1, true)
 	err = c.AddResponse(toHTTPResponseWithResponseData(t, &tempopb.SearchResponse{
 		Traces: []*tempopb.TraceSearchMetadata{
 			{
@@ -111,238 +168,242 @@ func TestSearchProgressShouldQuit(t *testing.T) {
 }
 
 func TestSearchCombinesResults(t *testing.T) {
-	start := time.Date(1, 2, 3, 4, 5, 6, 7, time.UTC)
-	traceID := "traceID"
+	for _, keepMostRecent := range []bool{true, false} {
+		start := time.Date(1, 2, 3, 4, 5, 6, 7, time.UTC)
+		traceID := "traceID"
 
-	c := NewSearch(10)
-	sr := toHTTPResponse(t, &tempopb.SearchResponse{
-		Traces: []*tempopb.TraceSearchMetadata{
-			{
-				TraceID:           traceID,
-				StartTimeUnixNano: uint64(start.Add(time.Second).UnixNano()),
-				DurationMs:        uint32(time.Second.Milliseconds()),
-			}, // 1 second after start and shorter duration
-			{
-				TraceID:           traceID,
-				StartTimeUnixNano: uint64(start.UnixNano()),
-				DurationMs:        uint32(time.Hour.Milliseconds()),
-			}, // earliest start time and longer duration
-			{
-				TraceID:           traceID,
-				StartTimeUnixNano: uint64(start.Add(time.Hour).UnixNano()),
-				DurationMs:        uint32(time.Millisecond.Milliseconds()),
-			}, // 1 hour after start and shorter duration
-		},
-		Metrics: &tempopb.SearchMetrics{},
-	}, 200)
-	err := c.AddResponse(sr)
-	require.NoError(t, err)
-
-	expected := &tempopb.SearchResponse{
-		Traces: []*tempopb.TraceSearchMetadata{
-			{
-				TraceID:           traceID,
-				StartTimeUnixNano: uint64(start.UnixNano()),
-				DurationMs:        uint32(time.Hour.Milliseconds()),
-				RootServiceName:   search.RootSpanNotYetReceivedText,
+		c := NewSearch(10, keepMostRecent)
+		sr := toHTTPResponse(t, &tempopb.SearchResponse{
+			Traces: []*tempopb.TraceSearchMetadata{
+				{
+					TraceID:           traceID,
+					StartTimeUnixNano: uint64(start.Add(time.Second).UnixNano()),
+					DurationMs:        uint32(time.Second.Milliseconds()),
+				}, // 1 second after start and shorter duration
+				{
+					TraceID:           traceID,
+					StartTimeUnixNano: uint64(start.UnixNano()),
+					DurationMs:        uint32(time.Hour.Milliseconds()),
+				}, // earliest start time and longer duration
+				{
+					TraceID:           traceID,
+					StartTimeUnixNano: uint64(start.Add(time.Hour).UnixNano()),
+					DurationMs:        uint32(time.Millisecond.Milliseconds()),
+				}, // 1 hour after start and shorter duration
 			},
-		},
-		Metrics: &tempopb.SearchMetrics{
-			CompletedJobs: 1,
-		},
+			Metrics: &tempopb.SearchMetrics{},
+		}, 200)
+		err := c.AddResponse(sr)
+		require.NoError(t, err)
+
+		expected := &tempopb.SearchResponse{
+			Traces: []*tempopb.TraceSearchMetadata{
+				{
+					TraceID:           traceID,
+					StartTimeUnixNano: uint64(start.UnixNano()),
+					DurationMs:        uint32(time.Hour.Milliseconds()),
+					RootServiceName:   search.RootSpanNotYetReceivedText,
+				},
+			},
+			Metrics: &tempopb.SearchMetrics{
+				CompletedJobs: 1,
+			},
+		}
+
+		resp, err := c.HTTPFinal()
+		require.NoError(t, err)
+
+		actual := &tempopb.SearchResponse{}
+		fromHTTPResponse(t, resp, actual)
+
+		require.Equal(t, expected, actual)
 	}
-
-	resp, err := c.HTTPFinal()
-	require.NoError(t, err)
-
-	actual := &tempopb.SearchResponse{}
-	fromHTTPResponse(t, resp, actual)
-
-	require.Equal(t, expected, actual)
 }
 
 func TestSearchResponseCombiner(t *testing.T) {
-	tests := []struct {
-		name      string
-		response1 PipelineResponse
-		response2 PipelineResponse
+	for _, keepMostRecent := range []bool{true, false} {
+		tests := []struct {
+			name      string
+			response1 PipelineResponse
+			response2 PipelineResponse
 
-		expectedStatus    int
-		expectedResponse  *tempopb.SearchResponse
-		expectedHTTPError error
-		expectedGRPCError error
-	}{
-		{
-			name:           "empty returns",
-			response1:      toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
-			response2:      toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
-			expectedStatus: 200,
-			expectedResponse: &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{},
-				Metrics: &tempopb.SearchMetrics{
-					CompletedJobs: 2,
+			expectedStatus    int
+			expectedResponse  *tempopb.SearchResponse
+			expectedHTTPError error
+			expectedGRPCError error
+		}{
+			{
+				name:           "empty returns",
+				response1:      toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
+				response2:      toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
+				expectedStatus: 200,
+				expectedResponse: &tempopb.SearchResponse{
+					Traces: []*tempopb.TraceSearchMetadata{},
+					Metrics: &tempopb.SearchMetrics{
+						CompletedJobs: 2,
+					},
 				},
 			},
-		},
-		{
-			name:              "404+200",
-			response1:         toHTTPResponse(t, nil, 404),
-			response2:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
-			expectedStatus:    404,
-			expectedGRPCError: status.Error(codes.NotFound, ""),
-		},
-		{
-			name:              "200+400",
-			response1:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
-			response2:         toHTTPResponse(t, nil, 400),
-			expectedStatus:    400,
-			expectedGRPCError: status.Error(codes.InvalidArgument, ""),
-		},
-		{
-			name:              "200+429",
-			response1:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
-			response2:         toHTTPResponse(t, nil, 429),
-			expectedStatus:    429,
-			expectedGRPCError: status.Error(codes.ResourceExhausted, ""),
-		},
-		{
-			name:              "500+404",
-			response1:         toHTTPResponse(t, nil, 500),
-			response2:         toHTTPResponse(t, nil, 404),
-			expectedStatus:    500,
-			expectedGRPCError: status.Error(codes.Internal, ""),
-		},
-		{
-			name:              "404+500 - first bad response wins",
-			response1:         toHTTPResponse(t, nil, 404),
-			response2:         toHTTPResponse(t, nil, 500),
-			expectedStatus:    404,
-			expectedGRPCError: status.Error(codes.NotFound, ""),
-		},
-		{
-			name:              "500+200",
-			response1:         toHTTPResponse(t, nil, 500),
-			response2:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
-			expectedStatus:    500,
-			expectedGRPCError: status.Error(codes.Internal, ""),
-		},
-		{
-			name:              "200+500",
-			response1:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
-			response2:         toHTTPResponse(t, nil, 500),
-			expectedStatus:    500,
-			expectedGRPCError: status.Error(codes.Internal, ""),
-		},
-		{
-			name: "respects total blocks message",
-			response1: &SearchJobResponse{
-				TotalBlocks: 5,
-				TotalJobs:   10,
-				TotalBytes:  15,
+			{
+				name:              "404+200",
+				response1:         toHTTPResponse(t, nil, 404),
+				response2:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
+				expectedStatus:    404,
+				expectedGRPCError: status.Error(codes.NotFound, ""),
 			},
-			response2: toHTTPResponse(t, &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{
-					{
-						TraceID:           "5678",
-						StartTimeUnixNano: 0,
-					},
-				},
-				Metrics: &tempopb.SearchMetrics{
-					InspectedTraces: 5,
-					InspectedBytes:  7,
-				},
-			}, 200),
-			expectedStatus: 200,
-			expectedResponse: &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{
-					{
-						TraceID:           "5678",
-						StartTimeUnixNano: 0,
-						RootServiceName:   search.RootSpanNotYetReceivedText,
-					},
-				},
-				Metrics: &tempopb.SearchMetrics{
-					TotalBlocks:     5,
-					TotalJobs:       10,
-					TotalBlockBytes: 15,
-					InspectedTraces: 5,
-					InspectedBytes:  7,
-					CompletedJobs:   1,
-				},
+			{
+				name:              "200+400",
+				response1:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
+				response2:         toHTTPResponse(t, nil, 400),
+				expectedStatus:    400,
+				expectedGRPCError: status.Error(codes.InvalidArgument, ""),
 			},
-		},
-		{
-			name: "200+200",
-			response1: toHTTPResponse(t, &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{
-					{
-						TraceID:           "1234",
-						StartTimeUnixNano: 1,
+			{
+				name:              "200+429",
+				response1:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
+				response2:         toHTTPResponse(t, nil, 429),
+				expectedStatus:    429,
+				expectedGRPCError: status.Error(codes.ResourceExhausted, ""),
+			},
+			{
+				name:              "500+404",
+				response1:         toHTTPResponse(t, nil, 500),
+				response2:         toHTTPResponse(t, nil, 404),
+				expectedStatus:    500,
+				expectedGRPCError: status.Error(codes.Internal, ""),
+			},
+			{
+				name:              "404+500 - first bad response wins",
+				response1:         toHTTPResponse(t, nil, 404),
+				response2:         toHTTPResponse(t, nil, 500),
+				expectedStatus:    404,
+				expectedGRPCError: status.Error(codes.NotFound, ""),
+			},
+			{
+				name:              "500+200",
+				response1:         toHTTPResponse(t, nil, 500),
+				response2:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
+				expectedStatus:    500,
+				expectedGRPCError: status.Error(codes.Internal, ""),
+			},
+			{
+				name:              "200+500",
+				response1:         toHTTPResponse(t, &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}}, 200),
+				response2:         toHTTPResponse(t, nil, 500),
+				expectedStatus:    500,
+				expectedGRPCError: status.Error(codes.Internal, ""),
+			},
+			{
+				name: "respects total blocks message",
+				response1: &SearchJobResponse{
+					TotalBlocks: 5,
+					TotalJobs:   10,
+					TotalBytes:  15,
+				},
+				response2: toHTTPResponse(t, &tempopb.SearchResponse{
+					Traces: []*tempopb.TraceSearchMetadata{
+						{
+							TraceID:           "5678",
+							StartTimeUnixNano: 0,
+						},
 					},
-				},
-				Metrics: &tempopb.SearchMetrics{
-					InspectedTraces: 1,
-					TotalBlocks:     2,
-					InspectedBytes:  3,
-				},
-			}, 200),
-			response2: toHTTPResponse(t, &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{
-					{
-						TraceID:           "5678",
-						StartTimeUnixNano: 0,
+					Metrics: &tempopb.SearchMetrics{
+						InspectedTraces: 5,
+						InspectedBytes:  7,
 					},
-				},
-				Metrics: &tempopb.SearchMetrics{
-					InspectedTraces: 5,
-					TotalBlocks:     6,
-					InspectedBytes:  7,
-				},
-			}, 200),
-			expectedStatus: 200,
-			expectedResponse: &tempopb.SearchResponse{
-				Traces: []*tempopb.TraceSearchMetadata{
-					{
-						TraceID:           "1234",
-						StartTimeUnixNano: 1,
-						RootServiceName:   search.RootSpanNotYetReceivedText,
+				}, 200),
+				expectedStatus: 200,
+				expectedResponse: &tempopb.SearchResponse{
+					Traces: []*tempopb.TraceSearchMetadata{
+						{
+							TraceID:           "5678",
+							StartTimeUnixNano: 0,
+							RootServiceName:   search.RootSpanNotYetReceivedText,
+						},
 					},
-					{
-						TraceID:           "5678",
-						StartTimeUnixNano: 0,
-						RootServiceName:   search.RootSpanNotYetReceivedText,
+					Metrics: &tempopb.SearchMetrics{
+						TotalBlocks:     5,
+						TotalJobs:       10,
+						TotalBlockBytes: 15,
+						InspectedTraces: 5,
+						InspectedBytes:  7,
+						CompletedJobs:   1,
 					},
-				},
-				Metrics: &tempopb.SearchMetrics{
-					InspectedTraces: 6,
-					InspectedBytes:  10,
-					CompletedJobs:   2,
 				},
 			},
-		},
-	}
+			{
+				name: "200+200",
+				response1: toHTTPResponse(t, &tempopb.SearchResponse{
+					Traces: []*tempopb.TraceSearchMetadata{
+						{
+							TraceID:           "1234",
+							StartTimeUnixNano: 1,
+						},
+					},
+					Metrics: &tempopb.SearchMetrics{
+						InspectedTraces: 1,
+						TotalBlocks:     2,
+						InspectedBytes:  3,
+					},
+				}, 200),
+				response2: toHTTPResponse(t, &tempopb.SearchResponse{
+					Traces: []*tempopb.TraceSearchMetadata{
+						{
+							TraceID:           "5678",
+							StartTimeUnixNano: 0,
+						},
+					},
+					Metrics: &tempopb.SearchMetrics{
+						InspectedTraces: 5,
+						TotalBlocks:     6,
+						InspectedBytes:  7,
+					},
+				}, 200),
+				expectedStatus: 200,
+				expectedResponse: &tempopb.SearchResponse{
+					Traces: []*tempopb.TraceSearchMetadata{
+						{
+							TraceID:           "1234",
+							StartTimeUnixNano: 1,
+							RootServiceName:   search.RootSpanNotYetReceivedText,
+						},
+						{
+							TraceID:           "5678",
+							StartTimeUnixNano: 0,
+							RootServiceName:   search.RootSpanNotYetReceivedText,
+						},
+					},
+					Metrics: &tempopb.SearchMetrics{
+						InspectedTraces: 6,
+						InspectedBytes:  10,
+						CompletedJobs:   2,
+					},
+				},
+			},
+		}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			combiner := NewTypedSearch(20)
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				combiner := NewTypedSearch(20, keepMostRecent)
 
-			err := combiner.AddResponse(tc.response1)
-			require.NoError(t, err)
-			err = combiner.AddResponse(tc.response2)
-			require.NoError(t, err)
+				err := combiner.AddResponse(tc.response1)
+				require.NoError(t, err)
+				err = combiner.AddResponse(tc.response2)
+				require.NoError(t, err)
 
-			httpResp, err := combiner.HTTPFinal()
-			require.Equal(t, tc.expectedStatus, httpResp.StatusCode)
-			require.Equal(t, tc.expectedHTTPError, err)
+				httpResp, err := combiner.HTTPFinal()
+				require.Equal(t, tc.expectedStatus, httpResp.StatusCode)
+				require.Equal(t, tc.expectedHTTPError, err)
 
-			grpcresp, err := combiner.GRPCFinal()
-			require.Equal(t, tc.expectedGRPCError, err)
-			require.Equal(t, tc.expectedResponse, grpcresp)
-		})
+				grpcresp, err := combiner.GRPCFinal()
+				require.Equal(t, tc.expectedGRPCError, err)
+				require.Equal(t, tc.expectedResponse, grpcresp)
+			})
+		}
 	}
 }
 
-func TestCombinerDiffs(t *testing.T) {
+func TestCombinerShards(t *testing.T) {
 	tests := []struct {
 		name             string
 		pipelineResponse PipelineResponse
@@ -583,7 +644,8 @@ func TestCombinerDiffs(t *testing.T) {
 	}
 
 	// apply tests one at a time to the combiner and check expected results
-	combiner := NewTypedSearch(5)
+
+	combiner := NewTypedSearch(5, true)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.pipelineResponse != nil {

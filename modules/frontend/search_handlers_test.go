@@ -32,7 +32,6 @@ import (
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
@@ -140,14 +139,14 @@ func TestFrontendSearch(t *testing.T) {
 
 func runnerBadRequestOnOrgID(t *testing.T, f *QueryFrontend) {
 	// http
-	httpReq := httptest.NewRequest("GET", "/api/search", nil)
+	httpReq := httptest.NewRequest("GET", "/api/search?q={}", nil)
 	httpResp := httptest.NewRecorder()
 	f.SearchHandler.ServeHTTP(httpResp, httpReq)
 	require.Equal(t, "no org id", httpResp.Body.String())
 	require.Equal(t, http.StatusBadRequest, httpResp.Code)
 
 	// grpc
-	grpcReq := &tempopb.SearchRequest{}
+	grpcReq := &tempopb.SearchRequest{Query: "{}"}
 	err := f.streamingSearch(grpcReq, newMockStreamingServer[*tempopb.SearchResponse]("", nil))
 	require.Equal(t, status.Error(codes.InvalidArgument, "no org id"), err)
 }
@@ -273,7 +272,7 @@ func runnerRequests(t *testing.T, f *QueryFrontend) {
 
 func runnerClientCancelContext(t *testing.T, f *QueryFrontend) {
 	// http
-	httpReq := httptest.NewRequest("GET", "/api/search", nil)
+	httpReq := httptest.NewRequest("GET", "/api/search?q={}", nil)
 	httpResp := httptest.NewRecorder()
 
 	ctx, cancel := context.WithCancel(httpReq.Context())
@@ -296,7 +295,7 @@ func runnerClientCancelContext(t *testing.T, f *QueryFrontend) {
 		time.Sleep(50 * time.Millisecond)
 		cancel()
 	}()
-	grpcReq := &tempopb.SearchRequest{}
+	grpcReq := &tempopb.SearchRequest{Query: "{}"}
 	err := f.streamingSearch(grpcReq, srv)
 	require.Equal(t, status.Error(codes.Internal, "context canceled"), err)
 }
@@ -385,7 +384,7 @@ func TestSearchLimitHonored(t *testing.T) {
 			tenant := "1|2|3|4|5|6"
 
 			// due to the blocks we will have 4 trace ids normally
-			httpReq := httptest.NewRequest("GET", "/api/search", nil)
+			httpReq := httptest.NewRequest("GET", "/api/search?q={}", nil)
 			httpReq, err := api.BuildSearchRequest(httpReq, tc.request)
 			require.NoError(t, err)
 
@@ -406,18 +405,18 @@ func TestSearchLimitHonored(t *testing.T) {
 			}
 
 			// grpc
-			combiner := traceql.NewMetadataCombiner(100)
+			distinctTraces := map[string]struct{}{}
 			err = f.streamingSearch(tc.request, newMockStreamingServer(tenant, func(i int, sr *tempopb.SearchResponse) {
 				// combine
 				for _, t := range sr.Traces {
-					combiner.AddMetadata(t)
+					distinctTraces[t.TraceID] = struct{}{}
 				}
 			}))
 			if tc.badRequest {
-				require.Equal(t, status.Error(codes.InvalidArgument, "adjust limit: limit 20 exceeds max limit 15"), err)
+				require.Equal(t, status.Error(codes.InvalidArgument, "limit 20 exceeds max limit 15"), err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, tc.expectedTraces, combiner.Count())
+				require.Equal(t, tc.expectedTraces, len(distinctTraces))
 			}
 		})
 	}
@@ -503,7 +502,7 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 			},
 		}, nil)
 
-		httpReq := httptest.NewRequest("GET", "/api/search?start=1&end=10000", nil)
+		httpReq := httptest.NewRequest("GET", "/api/search?start=1&end=10000&q={}", nil)
 		httpResp := httptest.NewRecorder()
 
 		ctx := user.InjectOrgID(httpReq.Context(), "foo")
@@ -550,7 +549,7 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 
 		// grpc
 		srv := newMockStreamingServer[*tempopb.SearchResponse]("bar", nil)
-		grpcReq := &tempopb.SearchRequest{}
+		grpcReq := &tempopb.SearchRequest{Query: "{}"}
 		err := f.streamingSearch(grpcReq, srv)
 		require.Equal(t, tc.expectedErr, err)
 	}

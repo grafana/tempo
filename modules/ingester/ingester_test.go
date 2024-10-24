@@ -235,12 +235,10 @@ func TestSearchWAL(t *testing.T) {
 
 	// search WAL
 	ctx := user.InjectOrgID(context.Background(), "test")
-	searchReq := &tempopb.SearchRequest{Tags: map[string]string{
-		"foo": "bar",
-	}}
+	searchReq := &tempopb.SearchRequest{Query: "{ }"}
 	results, err := inst.Search(ctx, searchReq)
 	require.NoError(t, err)
-	require.Equal(t, uint32(1), results.Metrics.InspectedTraces)
+	require.Equal(t, 1, len(results.Traces))
 
 	// Shutdown
 	require.NoError(t, i.stopping(nil))
@@ -256,7 +254,7 @@ func TestSearchWAL(t *testing.T) {
 
 	results, err = inst.Search(ctx, searchReq)
 	require.NoError(t, err)
-	require.Equal(t, uint32(1), results.Metrics.InspectedTraces)
+	require.Equal(t, 1, len(results.Traces))
 }
 
 // TODO - This test is flaky and commented out until it's fixed

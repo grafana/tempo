@@ -273,7 +273,7 @@ func TestCombineResults(t *testing.T) {
 func TestCombinerKeepsMostRecent(t *testing.T) {
 	totalTraces := 10
 	keepMostRecent := 5
-	combiner := NewMetadataCombiner(keepMostRecent)
+	combiner := NewMetadataCombiner(keepMostRecent, true).(*mostRecentCombiner)
 
 	// make traces
 	traces := make([]*Spanset, totalTraces)
@@ -300,7 +300,7 @@ func TestCombinerKeepsMostRecent(t *testing.T) {
 
 	// add to combiner
 	for i := 0; i < totalTraces; i++ {
-		combiner.AddSpanset(traces[i])
+		combiner.addSpanset(traces[i])
 	}
 
 	// test that the most recent are kept

@@ -2,8 +2,6 @@ package combiner
 
 import (
 	"net/http"
-	"sort"
-	"time"
 
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/search"
@@ -40,8 +38,8 @@ func (s *SearchJobResponse) IsMetadata() bool {
 var _ GRPCCombiner[*tempopb.SearchResponse] = (*genericCombiner[*tempopb.SearchResponse])(nil)
 
 // NewSearch returns a search combiner
-func NewSearch(keepMostRecent int) Combiner {
-	metadataCombiner := traceql.NewMetadataCombiner(keepMostRecent)
+func NewSearch(limit int, keepMostRecent bool) Combiner {
+	metadataCombiner := traceql.NewMetadataCombiner(limit, keepMostRecent)
 	diffTraces := map[string]struct{}{}
 	completedThroughTracker := &ShardCompletionTracker{}
 
@@ -95,18 +93,25 @@ func NewSearch(keepMostRecent int) Combiner {
 				Metrics: current.Metrics,
 			}
 
-			completedThroughSeconds := completedThroughTracker.completedThroughSeconds
-			// if all jobs are completed then let's just return everything the combiner has
-			if current.Metrics.CompletedJobs == current.Metrics.TotalJobs && current.Metrics.TotalJobs > 0 {
-				completedThroughSeconds = 1
+			metadataFn := metadataCombiner.Metadata
+			if keepMostRecent {
+				metadataFn = func() []*tempopb.TraceSearchMetadata {
+					completedThroughSeconds := completedThroughTracker.completedThroughSeconds
+					// if all jobs are completed then let's just return everything the combiner has
+					if current.Metrics.CompletedJobs == current.Metrics.TotalJobs && current.Metrics.TotalJobs > 0 {
+						completedThroughSeconds = 1
+					}
+
+					// if we've not completed any shards, then return nothing
+					if completedThroughSeconds == 0 {
+						return nil
+					}
+
+					return metadataCombiner.MetadataAfter(completedThroughSeconds)
+				}
 			}
 
-			// if we've not completed any shards, then return nothing
-			if completedThroughSeconds == 0 {
-				return diff, nil
-			}
-
-			for _, tr := range metadataCombiner.MetadataAfter(completedThroughSeconds) {
+			for _, tr := range metadataFn() {
 				// if not in the map, skip. we haven't seen an update
 				if _, ok := diffTraces[tr.TraceID]; !ok {
 					continue
@@ -116,10 +121,6 @@ func NewSearch(keepMostRecent int) Combiner {
 				diff.Traces = append(diff.Traces, tr)
 			}
 
-			sort.Slice(diff.Traces, func(i, j int) bool {
-				return diff.Traces[i].StartTimeUnixNano > diff.Traces[j].StartTimeUnixNano
-			})
-
 			addRootSpanNotReceivedText(diff.Traces)
 
 			return diff, nil
@@ -127,24 +128,13 @@ func NewSearch(keepMostRecent int) Combiner {
 		// search combiner doesn't use current in the way i would have expected. it only tracks metrics through current and uses the results map for the actual traces.
 		//  should we change this?
 		quit: func(_ *tempopb.SearchResponse) bool {
-			// are we tracking a limit at all?
-			if keepMostRecent <= 0 {
-				return false
-			}
-
 			completedThroughSeconds := completedThroughTracker.completedThroughSeconds
 			// have we completed any shards?
 			if completedThroughSeconds == 0 {
-				return false
+				completedThroughSeconds = traceql.TimestampNever
 			}
 
-			// do we have enought?
-			if metadataCombiner.Count() < keepMostRecent {
-				return false
-			}
-
-			// is our oldest trace newer than the completedThrough?
-			return metadataCombiner.OldestTimestampNanos() > uint64(completedThroughSeconds)*uint64(time.Second)
+			return metadataCombiner.IsCompleteFor(completedThroughSeconds)
 		},
 	}
 	initHTTPCombiner(c, api.HeaderAcceptJSON)
@@ -159,8 +149,8 @@ func addRootSpanNotReceivedText(results []*tempopb.TraceSearchMetadata) {
 	}
 }
 
-func NewTypedSearch(limit int) GRPCCombiner[*tempopb.SearchResponse] {
-	return NewSearch(limit).(GRPCCombiner[*tempopb.SearchResponse])
+func NewTypedSearch(limit int, keepMostRecent bool) GRPCCombiner[*tempopb.SearchResponse] {
+	return NewSearch(limit, keepMostRecent).(GRPCCombiner[*tempopb.SearchResponse])
 }
 
 // ShardCompletionTracker

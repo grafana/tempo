@@ -55,6 +55,11 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		return nil, err
 	}
 
+	var mostRecent, ok bool
+	if mostRecent, ok = rootExpr.Hints.GetBool(HintMostRecent, false); !ok {
+		mostRecent = false
+	}
+
 	fetchSpansRequest.StartTimeUnixNanos = unixSecToNano(searchReq.Start)
 	fetchSpansRequest.EndTimeUnixNanos = unixSecToNano(searchReq.End)
 
@@ -111,7 +116,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		Traces:  nil,
 		Metrics: &tempopb.SearchMetrics{},
 	}
-	combiner := NewMetadataCombiner(int(searchReq.Limit))
+	combiner := NewMetadataCombiner(int(searchReq.Limit), mostRecent)
 	for {
 		spanset, err := iterator.Next(ctx)
 		if err != nil && !errors.Is(err, io.EOF) {
@@ -122,7 +127,10 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 			break
 		}
 
-		combiner.AddSpanset(spanset)
+		combiner.addSpanset(spanset)
+		if combiner.IsCompleteFor(TimestampNever) {
+			break
+		}
 	}
 	res.Traces = combiner.Metadata()
 

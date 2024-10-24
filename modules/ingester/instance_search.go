@@ -40,9 +40,19 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 
 	span.AddEvent("SearchRequest", trace.WithAttributes(attribute.String("request", req.String())))
 
+	rootExpr, err := traceql.Parse(req.Query)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing query: %w", err)
+	}
+
+	var mostRecent, ok bool
+	if mostRecent, ok = rootExpr.Hints.GetBool(traceql.HintMostRecent, false); !ok {
+		mostRecent = false
+	}
+
 	var (
 		resultsMtx = sync.Mutex{}
-		combiner   = traceql.NewMetadataCombiner(maxResults)
+		combiner   = traceql.NewMetadataCombiner(maxResults, mostRecent)
 		metrics    = &tempopb.SearchMetrics{}
 		opts       = common.DefaultSearchOptions()
 		anyErr     atomic.Error
@@ -58,12 +68,8 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 		var resp *tempopb.SearchResponse
 		var err error
 
-		// if blocks end time < the oldest entry in the combiner we can ignore b/c its impossible for a trace in this block
-		// to be more recent than our current results
-		// if endtime = 0 in means the block is not yet completed and we should always search it
-		if combiner.Count() >= maxResults &&
-			!blockMeta.EndTime.IsZero() &&
-			blockMeta.EndTime.Unix() < int64(combiner.OldestTimestampNanos()) {
+		// if the combiner is complete for the block's end time, we can skip searching it
+		if combiner.IsCompleteFor(uint32(blockMeta.EndTime.Unix())) {
 			return
 		}
 
@@ -105,6 +111,10 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 
 		for _, tr := range resp.Traces {
 			combiner.AddMetadata(tr)
+			if combiner.IsCompleteFor(traceql.TimestampNever) {
+				cancel()
+				return
+			}
 		}
 	}
 
@@ -123,12 +133,6 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 	i.headBlockMtx.RUnlock()
 	if err := anyErr.Load(); err != nil {
 		return nil, err
-	}
-	if combiner.Count() >= maxResults {
-		return &tempopb.SearchResponse{
-			Traces:  combiner.Metadata(),
-			Metrics: metrics,
-		}, nil
 	}
 
 	// Search all other blocks (concurrently)
