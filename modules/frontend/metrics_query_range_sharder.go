@@ -40,7 +40,6 @@ type QueryRangeSharderConfig struct {
 	MaxDuration           time.Duration `yaml:"max_duration"`
 	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
 	Interval              time.Duration `yaml:"interval,omitempty"`
-	Exemplars             bool          `yaml:"exemplars,omitempty"`
 	MaxExemplars          int           `yaml:"max_exemplars,omitempty"`
 }
 
@@ -99,13 +98,14 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	}
 
 	var maxExemplars uint32
-	if !s.instantMode && s.cfg.Exemplars {
+	// Instant queries must not compute exemplars
+	if !s.instantMode && s.cfg.MaxExemplars > 0 {
 		maxExemplars = req.Exemplars
 		if maxExemplars == 0 || maxExemplars > uint32(s.cfg.MaxExemplars) {
 			maxExemplars = uint32(s.cfg.MaxExemplars) // Enforce configuration
 		}
 	}
-	req.Exemplars = maxExemplars // Instant queries must not compute exemplars
+	req.Exemplars = maxExemplars
 
 	var (
 		allowUnsafe           = s.overrides.UnsafeQueryHints(tenantID)

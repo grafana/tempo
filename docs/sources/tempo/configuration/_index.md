@@ -663,10 +663,7 @@ query_frontend:
 
         # Maximun number of exemplars per range query. Limited to 100.
         [max_exemplars: <int> | default = 100 ]
-
-        # It enable or disable exemplars for range queries.
-        [exemplars: <bool> | default = false ]
-
+    
         # query_backend_after controls where the query-frontend searches for traces.
         # Time ranges older than query_backend_after will be searched in the backend/object storage only.
         # Time ranges between query_backend_after and now will be queried from the metrics-generators.

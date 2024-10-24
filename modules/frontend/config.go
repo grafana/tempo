@@ -93,7 +93,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 			ConcurrentRequests:    defaultConcurrentRequests,
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			Interval:              5 * time.Minute,
-			Exemplars:             false, // TODO: Remove?
 			MaxExemplars:          100,
 		},
 		SLO: slo,
