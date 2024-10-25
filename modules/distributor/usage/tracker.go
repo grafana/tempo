@@ -254,13 +254,13 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 		}
 
 		if batch.Resource != nil {
-			for _, a := range batch.Resource.Attributes {
-				v := a.Value.GetStringValue()
-				if v == "" {
-					continue
-				}
-				for _, m := range mapping {
-					if m.from == a.Key {
+			for _, m := range mapping {
+				for _, a := range batch.Resource.Attributes {
+					v := a.Value.GetStringValue()
+					if v == "" {
+						continue
+					}
+					if a.Key == m.from {
 						buffer1[m.to] = v
 						break
 					}
@@ -282,13 +282,13 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 				// Reset to batch values to for some spans having missing values.
 				copy(buffer2, buffer1)
 
-				for _, a := range s.Attributes {
-					v := a.Value.GetStringValue()
-					if v == "" {
-						continue
-					}
-					for _, m := range mapping {
-						if m.from == a.Key {
+				for _, m := range mapping {
+					for _, a := range s.Attributes {
+						v := a.Value.GetStringValue()
+						if v == "" {
+							continue
+						}
+						if a.Key == m.from {
 							buffer2[m.to] = v
 							break
 						}
