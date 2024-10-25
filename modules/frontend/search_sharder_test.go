@@ -979,7 +979,7 @@ func TestBackendShards(t *testing.T) {
 			fn := backendJobsFunc(metas, defaultTargetBytesPerRequest, tc.maxShards, tc.searchEnd)
 			actualShards := []combiner.SearchShards{}
 
-			fn(func(jobs int, sz uint64, completedThroughTime uint32) {
+			fn(func(jobs int, _ uint64, completedThroughTime uint32) {
 				actualShards = append(actualShards, combiner.SearchShards{
 					TotalJobs:               uint32(jobs),
 					CompletedThroughSeconds: completedThroughTime,
