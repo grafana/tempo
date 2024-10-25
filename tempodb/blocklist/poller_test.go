@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
 var (
@@ -1032,6 +1033,51 @@ func BenchmarkPoller10k(b *testing.B) {
 	}
 }
 
+func BenchmarkFullPoller(b *testing.B) {
+	s := &mockJobSharder{owns: true}
+
+	d := b.TempDir()
+	defer os.RemoveAll(d)
+
+	rr, ww, cc, err := local.New(&local.Config{
+		Path: d,
+	})
+	require.NoError(b, err)
+
+	var (
+		ctx = context.Background()
+		r   = backend.NewReader(rr)
+		w   = backend.NewWriter(ww)
+	)
+
+	poller := NewPoller(&PollerConfig{
+		PollConcurrency:       testPollConcurrency,
+		TenantPollConcurrency: testTenantPollConcurrency,
+		PollFallback:          testPollFallback,
+		TenantIndexBuilders:   testBuilders,
+	}, s, r, cc, w, log.NewNopLogger())
+
+	list := New()
+
+	for i := 0; i < 10; i++ {
+		var (
+			tenant = fmt.Sprintf("tenant-%d", i)
+			metas  = newBlockMetas(1000, tenant)
+		)
+
+		for _, m := range metas {
+			err = w.WriteBlockMeta(ctx, m)
+			require.NoError(b, err)
+		}
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _, _ = poller.Do(list)
+	}
+	b.StopTimer()
+}
+
 func benchmarkPollTenant(b *testing.B, poller *Poller, tenant string, previous *List) {
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
@@ -1040,11 +1086,12 @@ func benchmarkPollTenant(b *testing.B, poller *Poller, tenant string, previous *
 	}
 }
 
-func newBlockMetas(count int) []*backend.BlockMeta {
+func newBlockMetas(count int, tenantID string) []*backend.BlockMeta {
 	metas := make([]*backend.BlockMeta, count)
 	for i := 0; i < count; i++ {
 		metas[i] = &backend.BlockMeta{
-			BlockID: backend.NewUUID(),
+			BlockID:  backend.NewUUID(),
+			TenantID: tenantID,
 		}
 	}
 
@@ -1075,11 +1122,15 @@ func randString(n int) string {
 }
 
 func newPerTenant(tenantCount, blockCount int) PerTenant {
-	perTenant := make(PerTenant, tenantCount)
-	var metas []*backend.BlockMeta
-	var id string
+	var (
+		perTenant = make(PerTenant, tenantCount)
+		metas     []*backend.BlockMeta
+		id        string
+		tenant    string
+	)
 	for i := 0; i < tenantCount; i++ {
-		metas = newBlockMetas(blockCount)
+		tenant = fmt.Sprintf("tenant-%d", i)
+		metas = newBlockMetas(blockCount, tenant)
 		id = randString(5)
 		perTenant[id] = metas
 	}
