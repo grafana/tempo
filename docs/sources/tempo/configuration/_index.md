@@ -239,7 +239,7 @@ distributor:
             # Maximum number of series per tenant.
             [max_cardinality: <int> | default = 10000]
             # Interval after which a series is considered stale and will be deleted from the registry.
-            # Once a metrics series is deleted it won't be emitted anymore, keeping active series low.
+            # Once a metrics series is deleted, it won't be emitted anymore, keeping active series low.
             [stale_duration: <duration> | default = 15m0s]
 ```
 
@@ -485,7 +485,7 @@ metrics_generator:
         [collection_interval: <duration> | default = 15s]
 
         # Interval after which a series is considered stale and will be deleted from the registry.
-        # Once a metrics series is deleted it won't be emitted anymore, keeping active series low.
+        # Once a metrics series is deleted, it won't be emitted anymore, keeping active series low.
         [stale_duration: <duration> | default = 15m]
 
         # A list of labels that will be added to all generated metrics.

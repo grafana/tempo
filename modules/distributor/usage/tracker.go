@@ -208,9 +208,6 @@ func (u *Tracker) getTenant(tenant string) *tenantUsage {
 }
 
 func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
-	u.mtx.Lock()
-	defer u.mtx.Unlock()
-
 	dimensions := u.labelsFn(tenant)
 	if len(dimensions) == 0 {
 		// Not configured
@@ -222,6 +219,9 @@ func (u *Tracker) Observe(tenant string, batches []*v1.ResourceSpans) {
 	if max == 0 {
 		max = u.cfg.MaxCardinality
 	}
+
+	u.mtx.Lock()
+	defer u.mtx.Unlock()
 
 	var (
 		now                             = time.Now().Unix()
@@ -347,6 +347,8 @@ func (u *Tracker) Handler() http.Handler {
 }
 
 func (u *Tracker) Describe(chan<- *prometheus.Desc) {
+	// This runs on startup when registering the tracker. Therefore
+	// we will have nothing to describe, but it's also not required.
 }
 
 func (u *Tracker) Collect(ch chan<- prometheus.Metric) {
