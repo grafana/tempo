@@ -18,7 +18,7 @@ import (
 )
 
 func MakeSpan(traceID []byte) *v1_trace.Span {
-	return MakeSpanWithAttributeCount(traceID, rand.Int()%10+1)
+	return MakeSpanWithAttributeCount(traceID, rand.Int()%10+1) //#nosec G404 -- generation of test data does not require a CSPRNG
 }
 
 func MakeSpanWithAttributeCount(traceID []byte, count int) *v1_trace.Span {
@@ -44,8 +44,8 @@ func MakeSpanWithAttributeCount(traceID []byte, count int) *v1_trace.Span {
 		StartTimeUnixNano:      uint64(now.UnixNano()),
 		EndTimeUnixNano:        uint64(now.Add(time.Second).UnixNano()),
 		Attributes:             attributes,
-		DroppedLinksCount:      rand.Uint32(),
-		DroppedAttributesCount: rand.Uint32(),
+		DroppedLinksCount:      rand.Uint32(), //#nosec G404 -- generation of test data does not require a CSPRNG
+		DroppedAttributesCount: rand.Uint32(), //#nosec G404 -- generation of test data does not require a CSPRNG
 	}
 	_, err := crand.Read(s.SpanId)
 	if err != nil {
@@ -53,7 +53,7 @@ func MakeSpanWithAttributeCount(traceID []byte, count int) *v1_trace.Span {
 	}
 
 	// add link
-	if rand.Intn(5) == 0 {
+	if rand.Intn(5) == 0 { // #nosec G404 -- generation of test data does not require a CSPRNG
 		s.Links = append(s.Links, &v1_trace.Span_Link{
 			TraceId:    traceID,
 			SpanId:     make([]byte, 8),
@@ -72,7 +72,7 @@ func MakeSpanWithAttributeCount(traceID []byte, count int) *v1_trace.Span {
 	}
 
 	// add attr
-	if rand.Intn(2) == 0 {
+	if rand.Intn(2) == 0 { //#nosec G404 -- generation of test data does not require a CSPRNG
 		s.Attributes = append(s.Attributes, &v1_common.KeyValue{
 			Key: "key",
 			Value: &v1_common.AnyValue{
@@ -84,11 +84,11 @@ func MakeSpanWithAttributeCount(traceID []byte, count int) *v1_trace.Span {
 	}
 
 	// add event
-	if rand.Intn(3) == 0 {
+	if rand.Intn(3) == 0 { //#nosec G404 -- generation of test data does not require a CSPRNG
 		s.Events = append(s.Events, &v1_trace.Span_Event{
-			TimeUnixNano:           s.StartTimeUnixNano + uint64(rand.Intn(1*1000*1000)), // 1ms
+			TimeUnixNano:           s.StartTimeUnixNano + uint64(rand.Intn(1*1000*1000)), //#nosec G404 -- generation of test data does not require a CSPRNG // 1ms
 			Name:                   "event",
-			DroppedAttributesCount: rand.Uint32(),
+			DroppedAttributesCount: rand.Uint32(),//#nosec G404 -- generation of test data does not require a CSPRNG
 			Attributes: []*v1_common.KeyValue{
 				{
 					Key: "eventkey",
@@ -126,7 +126,7 @@ func MakeBatch(spans int, traceID []byte) *v1_trace.ResourceSpans {
 
 	for i := 0; i < spans; i++ {
 		// occasionally make a new ss
-		if ss == nil || rand.Int()%3 == 0 {
+		if ss == nil || rand.Int()%3 == 0 { //#nosec G404 -- generation of test data does not require a CSPRNG
 			ss = &v1_trace.ScopeSpans{
 				Scope: &v1_common.InstrumentationScope{
 					Name:    "super library",
@@ -150,7 +150,7 @@ func MakeTrace(requests int, traceID []byte) *tempopb.Trace {
 	}
 
 	for i := 0; i < requests; i++ {
-		trace.ResourceSpans = append(trace.ResourceSpans, MakeBatch(rand.Int()%20+1, traceID))
+		trace.ResourceSpans = append(trace.ResourceSpans, MakeBatch(rand.Int()%20+1, traceID)) //#nosec G404 -- generation of test data does not require a CSPRNG
 	}
 
 	return trace
@@ -274,7 +274,7 @@ func RandomString() string {
 
 	s := make([]rune, 10)
 	for i := range s {
-		s[i] = letters[rand.Intn(len(letters))]
+		s[i] = letters[rand.Intn(len(letters))] //#nosec G404 -- generation of test data does not require a CSPRNG
 	}
 	return string(s)
 }
@@ -345,8 +345,8 @@ func MakeTraceWithTags(traceID []byte, service string, intValue int64) *tempopb.
 						StartTimeUnixNano:      uint64(now.UnixNano()),
 						EndTimeUnixNano:        uint64(now.Add(time.Second).UnixNano()),
 						Attributes:             attributes,
-						DroppedLinksCount:      rand.Uint32(),
-						DroppedAttributesCount: rand.Uint32(),
+						DroppedLinksCount:      rand.Uint32(), //#nosec G404 -- generation of test data does not require a CSPRNG
+						DroppedAttributesCount: rand.Uint32(), //#nosec G404 -- generation of test data does not require a CSPRNG
 					},
 				},
 			},

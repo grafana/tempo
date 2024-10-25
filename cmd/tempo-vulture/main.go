@@ -330,7 +330,7 @@ func selectPastTimestamp(start, stop time.Time, interval, retention time.Duratio
 		newStart = start
 	}
 
-	ts = time.Unix(generateRandomInt(newStart.Unix(), stop.Unix(), r), 0)
+	ts = time.Unix(generateRandomInt(newStart.Unix(), stop.Unix(), r), 0) //#nosec G404 -- selecting a random past timestamp to start at does not require a CSPRNG
 
 	return newStart.Round(interval), ts.Round(interval)
 }

@@ -75,7 +75,7 @@ func (r *RandomBatcher) randomSpanGenerator(ctx context.Context) {
 	rising := true
 	length := min
 
-	rr := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rr := rand.New(rand.NewSource(time.Now().UnixNano())) //#nosec G404 -- generation of test data does not require a CSPRNG
 
 	for {
 		select {
@@ -120,7 +120,7 @@ func (r *RandomBatcher) randomSpanGenerator(ctx context.Context) {
 }
 
 func (r *RandomBatcher) randomAnyValueGenerator(ctx context.Context) {
-	rr := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rr := rand.New(rand.NewSource(time.Now().UnixNano())) //#nosec G404 -- generation of test data does not require a CSPRNG
 
 	var anyValue *v1_common.AnyValue
 
@@ -189,7 +189,7 @@ func (r *RandomBatcher) randomStringGenerator(ctx context.Context, min, max int)
 		default:
 			s := make([]rune, length)
 			for i := range s {
-				s[i] = letters[rand.Intn(len(letters))]
+				s[i] = letters[rand.Intn(len(letters))] //#nosec G404 -- generation of test data does not require a CSPRNG
 			}
 
 			r.stringReceiverChan <- string(s)

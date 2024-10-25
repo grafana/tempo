@@ -145,7 +145,7 @@ func newClientWithOpts(cfg *commonConfig, opts ...option) (*Client, error) {
 }
 
 func (s *Client) Search(ctx context.Context, maxBytes int, searchReq *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
-	endpoint := s.endpoints[rand.Intn(len(s.endpoints))]
+	endpoint := s.endpoints[rand.Intn(len(s.endpoints))] //#nosec G404 -- picking a random endpoint does not require a CSPRNG
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("external endpoint failed to make new request: %w", err)

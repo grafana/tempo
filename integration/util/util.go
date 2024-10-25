@@ -505,13 +505,13 @@ func MakeThriftBatchWithSpanCount(n int) *thrift.Batch {
 func MakeThriftBatchWithSpanCountAttributeAndName(n int, name, resourceValue, spanValue, resourceTag, spanTag string) *thrift.Batch {
 	var spans []*thrift.Span
 
-	traceIDLow := rand.Int63()
-	traceIDHigh := rand.Int63()
+	traceIDLow := rand.Int63() //#nosec G404 -- this is only used in generation of test data, does not require a CSPRNG
+	traceIDHigh := rand.Int63() //#nosec G404 -- this is only used in generation of test data, does not require a CSPRNG
 	for i := 0; i < n; i++ {
 		spans = append(spans, &thrift.Span{
 			TraceIdLow:    traceIDLow,
 			TraceIdHigh:   traceIDHigh,
-			SpanId:        rand.Int63(),
+			SpanId:        rand.Int63(), //#nosec G404 -- this is only used in generation of test data, does not require a CSPRNG
 			ParentSpanId:  0,
 			OperationName: name,
 			References:    nil,

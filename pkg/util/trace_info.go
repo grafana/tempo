@@ -311,7 +311,7 @@ func RandomAttrFromTrace(t *tempopb.Trace) *v1common.KeyValue {
 }
 
 func randFrom[T any](r *rand.Rand, s []T) T {
-	return s[r.Intn(len(s))]
+	return s[r.Intn(len(s))] // #nosec G404 sampling trace attributes does not require a CSPRNG
 }
 
 func newRand(t time.Time) *rand.Rand {
