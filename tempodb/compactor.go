@@ -198,7 +198,22 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 
 	var totalRecords int
 	for _, blockMeta := range blockMetas {
-		level.Info(rw.logger).Log("msg", "compacting block", "block", fmt.Sprintf("%+v", blockMeta))
+		level.Info(rw.logger).Log(
+			"msg", "compacting block",
+			"version", blockMeta.Version,
+			"tenantID", blockMeta.TenantID,
+			"blockID", blockMeta.BlockID.String(),
+			"startTime", blockMeta.StartTime.String(),
+			"endTime", blockMeta.EndTime.String(),
+			"totalObjects", blockMeta.TotalObjects,
+			"size", blockMeta.Size_,
+			"compactionLevel", blockMeta.CompactionLevel,
+			"encoding", blockMeta.Encoding.String(),
+			"totalRecords", blockMeta.TotalObjects,
+			"bloomShardCount", blockMeta.BloomShardCount,
+			"footerSize", blockMeta.FooterSize,
+			"replicationFactor", blockMeta.ReplicationFactor,
+		)
 		totalRecords += int(blockMeta.TotalObjects)
 
 		// Make sure block still exists
@@ -272,7 +287,7 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 		time.Since(startTime),
 	}
 	for _, meta := range newCompactedBlocks {
-		logArgs = append(logArgs, "block", fmt.Sprintf("%+v", meta))
+		logArgs = append(logArgs, "blockID", meta.BlockID.String())
 	}
 	level.Info(rw.logger).Log(logArgs...)
 

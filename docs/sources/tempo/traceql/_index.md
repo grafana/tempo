@@ -417,6 +417,12 @@ For example, find traces that have more than 3 spans with an attribute `http.sta
 { span.http.status_code = 200 } | count() > 3
 ```
 
+To find spans where the total of a made-up attribute `bytesProcessed` was more than 1 GB:
+
+```
+{ } | sum(span.bytesProcessed) > 1000000000
+```
+
 ## Grouping
 
 TraceQL supports a grouping pipeline operator that can be used to group by arbitrary attributes. This can be useful to

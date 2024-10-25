@@ -1,4 +1,3 @@
-* @annanay25
 * @electron0zero
 * @ie-pham
 * @javiermolinar
@@ -9,3 +8,8 @@
 * @mdisibio
 * @stoewer
 * @zalegrala
+
+Emeritus Maintainers
+
+* @annanay25
+* @dgzlopes

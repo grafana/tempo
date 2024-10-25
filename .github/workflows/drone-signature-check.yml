@@ -1,0 +1,17 @@
+name: Check Drone CI Signature
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - ".drone/drone.yml"
+  pull_request:
+    paths:
+      - ".drone/drone.yml"
+
+jobs:
+  drone-signature-check:
+    uses: grafana/shared-workflows/.github/workflows/check-drone-signature.yaml@main
+    with:
+      drone_config_path: .drone/drone.yml
