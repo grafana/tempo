@@ -38,6 +38,7 @@ For externally supported GRPC API, [see below](#tempo-grpc-api).
 | Memberlist | Distributor, Ingester, Querier, Compactor |  HTTP | `GET /memberlist` |
 | [Flush](#flush) | Ingester |  HTTP | `GET,POST /flush` |
 | [Shutdown](#shutdown) | Ingester |  HTTP | `GET,POST /shutdown` |
+| [Usage Metrics](#usage-metrics) | Distributor |  HTTP | `GET /usage_metrics` |
 | [Distributor ring status](#distributor-ring-status) (*) | Distributor |  HTTP | `GET /distributor/ring` |
 | [Ingesters ring status](#ingesters-ring-status) | Distributor, Querier |  HTTP | `GET /ingester/ring` |
 | [Metrics-generator ring status](#metrics-generator-ring-status) (*) | Distributor |  HTTP | `GET /metrics-generator/ring` |
@@ -686,6 +687,30 @@ ingester service.
 {{< admonition type="note" >}}
 This is usually used at the time of scaling down a cluster.
 {{% /admonition %}}
+
+### Usage metrics
+
+{{< admonition type="note" >}}
+This endpoint is only available when one or more usage trackers are enabled in [the distributor]({{< relref "../configuration#distributor" >}}).
+{{% /admonition %}}
+
+```
+GET /usage_metrics
+```
+
+Special metrics scrape endpoint that provides per-tenant metrics on ingested data. Per-tenant grouping rules are configured in [the per-tenant overrides]({{< relref "../configuration#overrides" >}})
+
+Example:
+```
+curl http://localhost:3200/usage_metrics
+# HELP tempo_usage_tracker_bytes_received_total bytes total received with these attributes
+# TYPE tempo_usage_tracker_bytes_received_total counter
+tempo_usage_tracker_bytes_received_total{service="auth-service",tenant="single-tenant",tracker="cost-attribution"} 96563
+tempo_usage_tracker_bytes_received_total{service="cache",tenant="single-tenant",tracker="cost-attribution"} 81904
+tempo_usage_tracker_bytes_received_total{service="gateway",tenant="single-tenant",tracker="cost-attribution"} 164751
+tempo_usage_tracker_bytes_received_total{service="identity-service",tenant="single-tenant",tracker="cost-attribution"} 85974
+tempo_usage_tracker_bytes_received_total{service="service-A",tenant="single-tenant",tracker="cost-attribution"} 92799
+```
 
 ### Distributor ring status
 
