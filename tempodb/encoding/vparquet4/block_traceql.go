@@ -361,7 +361,7 @@ func (s *span) DescendantOf(lhs, rhs []traceql.Span, falseForAll, invert, union 
 func descendantOfUnion(lhs, rhs []traceql.Span, invert bool, buffer []traceql.Span) []traceql.Span {
 	// union is harder b/c we have to find all matches on both the left and rhs
 	sort.Slice(lhs, func(i, j int) bool { return lhs[i].(*span).nestedSetLeft < lhs[j].(*span).nestedSetLeft })
-	if unsafe.SliceData(lhs) != unsafe.SliceData(rhs) { // if these are pointing to the same slice, no reason to sort again
+	if unsafe.SliceData(lhs) != unsafe.SliceData(rhs) { //#nosec G103 -- Checking that two objects have the same address is memory-safe.// if these are pointing to the same slice, no reason to sort again
 		sort.Slice(rhs, func(i, j int) bool { return rhs[i].(*span).nestedSetLeft < rhs[j].(*span).nestedSetLeft })
 	}
 
@@ -444,7 +444,7 @@ func (s *span) SiblingOf(lhs, rhs []traceql.Span, falseForAll, union bool, buffe
 	if union {
 		// union is more difficult b/c we have to find all matches on both the left and rhs
 		sort.Slice(lhs, func(i, j int) bool { return lhs[i].(*span).nestedSetParent < lhs[j].(*span).nestedSetParent })
-		if unsafe.SliceData(lhs) != unsafe.SliceData(rhs) { // if these are pointing to the same slice, no reason to sort again
+		if unsafe.SliceData(lhs) != unsafe.SliceData(rhs) { //#nosec G103 -- Checking that two objects have the same address is memory-safe.// if these are pointing to the same slice, no reason to sort again
 			sort.Slice(rhs, func(i, j int) bool { return rhs[i].(*span).nestedSetParent < rhs[j].(*span).nestedSetParent })
 		}
 
@@ -520,7 +520,7 @@ func (s *span) ChildOf(lhs, rhs []traceql.Span, falseForAll, invert, union bool,
 
 		// the engine will sometimes pass the same slice for both lhs and rhs. this occurs for {} > {}.
 		// if lhs is the same slice as rhs we need to make a copy of the slice to sort them by different values
-		if unsafe.SliceData(lhs) == unsafe.SliceData(rhs) {
+		if unsafe.SliceData(lhs) == unsafe.SliceData(rhs) {//#nosec G103 -- Checking that two objects have the same address is memory-safe.
 			rhs = append([]traceql.Span{}, rhs...)
 		}
 
