@@ -165,8 +165,6 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 
-	t := timeMs
-
 	activeSeries = len(h.series) * int(h.activeSeriesPerHistogramSerie())
 
 	labelsCount := 0
@@ -191,7 +189,10 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 		// we need to first insert a 0 value to allow Prometheus to start from a non-null value.
 		if s.isNew() {
 			lb.Set(labels.MetricName, h.nameCount)
-			_, err = appender.Append(0, lb.Labels(), t-1, 0) // t-1 to ensure that the next value is not at the same time
+			// We set the timestamp of the init serie at the end of the previous minute, that way we ensure it ends in a
+			// different aggregation interval to avoid be downsampled.
+			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
+			_, err = appender.Append(0, lb.Labels(), endOfLastMinuteMs, 0)
 			if err != nil {
 				return
 			}
@@ -200,14 +201,14 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 
 		// sum
 		lb.Set(labels.MetricName, h.nameSum)
-		_, err = appender.Append(0, lb.Labels(), t, s.sum.Load())
+		_, err = appender.Append(0, lb.Labels(), timeMs, s.sum.Load())
 		if err != nil {
 			return
 		}
 
 		// count
 		lb.Set(labels.MetricName, h.nameCount)
-		_, err = appender.Append(0, lb.Labels(), t, s.count.Load())
+		_, err = appender.Append(0, lb.Labels(), timeMs, s.count.Load())
 		if err != nil {
 			return
 		}
@@ -217,7 +218,7 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 
 		for i, bucketLabel := range h.bucketLabels {
 			lb.Set(labels.BucketLabel, bucketLabel)
-			ref, err := appender.Append(0, lb.Labels(), t, s.buckets[i].Load())
+			ref, err := appender.Append(0, lb.Labels(), timeMs, s.buckets[i].Load())
 			if err != nil {
 				return activeSeries, err
 			}
@@ -230,7 +231,7 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, exte
 						Value: ex,
 					}},
 					Value: s.exemplarValues[i].Load(),
-					Ts:    t,
+					Ts:    timeMs,
 				})
 				if err != nil {
 					return activeSeries, err

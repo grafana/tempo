@@ -9,8 +9,6 @@ import (
 	"go.uber.org/atomic"
 )
 
-var _ metric = (*counter)(nil)
-
 type counter struct {
 	//nolint unused
 	metric
@@ -39,8 +37,6 @@ var (
 	_ Counter = (*counter)(nil)
 	_ metric  = (*counter)(nil)
 )
-
-const insertOffsetDuration = 1 * time.Second
 
 func (co *counterSeries) isNew() bool {
 	return co.firstSeries.Load()
@@ -144,9 +140,6 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 	lb := labels.NewBuilder(baseLabels)
 
 	for _, s := range c.series {
-		t := time.UnixMilli(timeMs)
-
-		// reset labels for every series
 		lb.Reset(baseLabels)
 
 		// set series-specific labels
@@ -158,16 +151,17 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 		// to first insert a 0 value to allow Prometheus to start from a non-null
 		// value.
 		if s.isNew() {
-			_, err = appender.Append(0, lb.Labels(), timeMs, 0)
+			// We set the timestamp of the init serie at the end of the previous minute, that way we ensure it ends in a
+			// different aggregation interval to avoid be downsampled.
+			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
+			_, err = appender.Append(0, lb.Labels(), endOfLastMinuteMs, 0)
 			if err != nil {
 				return
 			}
-			// Increment timeMs to ensure that the next value is not at the same time.
-			t = t.Add(insertOffsetDuration)
 			s.registerSeenSeries()
 		}
 
-		_, err = appender.Append(0, lb.Labels(), t.UnixMilli(), s.value.Load())
+		_, err = appender.Append(0, lb.Labels(), timeMs, s.value.Load())
 		if err != nil {
 			return
 		}
