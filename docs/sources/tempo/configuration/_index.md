@@ -678,6 +678,9 @@ query_frontend:
         # 0 disables this limit.
         [max_duration: <duration> | default = 3h ]
 
+        # Maximun number of exemplars per range query. Limited to 100.
+        [max_exemplars: <int> | default = 100 ]
+    
         # query_backend_after controls where the query-frontend searches for traces.
         # Time ranges older than query_backend_after will be searched in the backend/object storage only.
         # Time ranges between query_backend_after and now will be queried from the metrics-generators.
@@ -694,6 +697,7 @@ query_frontend:
         # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         [throughput_bytes_slo: <float> | default = 0 ]
+
 ```
 
 ## Querier

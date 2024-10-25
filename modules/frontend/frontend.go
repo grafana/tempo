@@ -156,7 +156,18 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
-			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, logger),
+			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, false, logger),
+		},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
+		next)
+
+	queryInstantPipeline := pipeline.Build(
+		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
+			urlDenyListWare,
+			queryValidatorWare,
+			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
+			multiTenantMiddleware(cfg, logger),
+			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, true, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
@@ -169,7 +180,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, logger)
 	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesPipeline, o, logger)
 	metrics := newMetricsSummaryHandler(metricsPipeline, logger)
-	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryRangePipeline, logger) // Reuses the same pipeline
+	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, logger) // Reuses the same pipeline
 	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger)
 
 	return &QueryFrontend{
