@@ -22,7 +22,6 @@ type MetadataCombiner interface {
 }
 
 const TimestampNever = uint32(math.MaxUint32)
-const TimestampAllTime = uint32(1)
 
 func NewMetadataCombiner(limit int, keepMostRecent bool) MetadataCombiner {
 	if keepMostRecent {

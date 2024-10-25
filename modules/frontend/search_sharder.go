@@ -405,8 +405,10 @@ func buildIngesterRequestChan(ctx context.Context, tenantID string, parent pipel
 	return nil
 }
 
-type shardIterFn func(jobs int, sz uint64, completedThroughTime uint32)
-type jobIterFn func(m *backend.BlockMeta, shard, startPage, pages int)
+type (
+	shardIterFn func(jobs int, sz uint64, completedThroughTime uint32)
+	jobIterFn   func(m *backend.BlockMeta, shard, startPage, pages int)
+)
 
 // backendJobsFunc provides an iter func with 2 callbacks designed to be used once to calculate job and shard metrics and a second time
 // to generate actual jobs.
