@@ -87,7 +87,7 @@ type metric interface {
 	removeStaleSeries(staleTimeMs int64)
 }
 
-const HighestAggregationInterval = 1 * time.Minute
+const highestAggregationInterval = 1 * time.Minute
 
 var _ Registry = (*ManagedRegistry)(nil)
 
@@ -290,5 +290,5 @@ func hasClassicHistograms(s HistogramMode) bool {
 }
 
 func getEndOfLastMinuteMs(timeMs int64) int64 {
-	return time.UnixMilli(timeMs).Truncate(HighestAggregationInterval).Add(-1 * time.Second).UnixMilli()
+	return time.UnixMilli(timeMs).Truncate(highestAggregationInterval).Add(-1 * time.Second).UnixMilli()
 }
