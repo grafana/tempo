@@ -87,6 +87,8 @@ type metric interface {
 	removeStaleSeries(staleTimeMs int64)
 }
 
+const highestAggregationInterval = 1 * time.Minute
+
 var _ Registry = (*ManagedRegistry)(nil)
 
 // New creates a ManagedRegistry. This Registry will scrape itself, write samples into an appender
@@ -285,4 +287,8 @@ func hasNativeHistograms(s HistogramMode) bool {
 
 func hasClassicHistograms(s HistogramMode) bool {
 	return s == HistogramModeClassic || s == HistogramModeBoth
+}
+
+func getEndOfLastMinuteMs(timeMs int64) int64 {
+	return time.UnixMilli(timeMs).Truncate(highestAggregationInterval).Add(-1 * time.Second).UnixMilli()
 }

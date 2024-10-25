@@ -285,7 +285,8 @@ func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lb *labels
 func (h *nativeHistogram) classicHistograms(appender storage.Appender, lb *labels.Builder, timeMs int64, s *nativeHistogramSeries) (activeSeries int, err error) {
 	if s.isNew() {
 		lb.Set(labels.MetricName, h.metricName+"_count")
-		_, err = appender.Append(0, lb.Labels(), timeMs-1, 0)
+		endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
+		_, err = appender.Append(0, lb.Labels(), endOfLastMinuteMs, 0)
 		if err != nil {
 			return activeSeries, err
 		}

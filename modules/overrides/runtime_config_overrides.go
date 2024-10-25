@@ -350,6 +350,14 @@ func (o *runtimeConfigOverridesManager) UnsafeQueryHints(userID string) bool {
 	return o.getOverridesForUser(userID).Read.UnsafeQueryHints
 }
 
+func (o *runtimeConfigOverridesManager) CostAttributionMaxCardinality(userID string) uint64 {
+	return o.getOverridesForUser(userID).CostAttribution.MaxCardinality
+}
+
+func (o *runtimeConfigOverridesManager) CostAttributionDimensions(userID string) map[string]string {
+	return o.getOverridesForUser(userID).CostAttribution.Dimensions
+}
+
 // MaxSearchDuration is the duration of the max search duration for this tenant.
 func (o *runtimeConfigOverridesManager) MaxSearchDuration(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).Read.MaxSearchDuration)

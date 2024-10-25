@@ -196,15 +196,16 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, _ ma
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 
-	t := timeMs
-
 	activeSeries = len(h.series) * int(h.activeSeriesPerHistogramSerie())
 
 	for _, s := range h.series {
 		// If we are about to call Append for the first time on a series,
 		// we need to first insert a 0 value to allow Prometheus to start from a non-null value.
 		if s.isNew() {
-			_, err = appender.Append(0, s.countLabels, t-1, 0) // t-1 to ensure that the next value is not at the same time
+			// We set the timestamp of the init serie at the end of the previous minute, that way we ensure it ends in a
+			// different aggregation interval to avoid be downsampled.
+			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
+			_, err = appender.Append(0, s.countLabels, endOfLastMinuteMs, 0)
 			if err != nil {
 				return
 			}
@@ -212,20 +213,20 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, _ ma
 		}
 
 		// sum
-		_, err = appender.Append(0, s.sumLabels, t, s.sum.Load())
+		_, err = appender.Append(0, s.sumLabels, timeMs, s.sum.Load())
 		if err != nil {
 			return
 		}
 
 		// count
-		_, err = appender.Append(0, s.countLabels, t, s.count.Load())
+		_, err = appender.Append(0, s.countLabels, timeMs, s.count.Load())
 		if err != nil {
 			return
 		}
 
 		// bucket
 		for i := range h.bucketLabels {
-			ref, err := appender.Append(0, s.bucketLabels[i], t, s.buckets[i].Load())
+			ref, err := appender.Append(0, s.bucketLabels[i], timeMs, s.buckets[i].Load())
 			if err != nil {
 				return activeSeries, err
 			}
@@ -238,7 +239,7 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, _ ma
 						Value: ex,
 					}},
 					Value: s.exemplarValues[i].Load(),
-					Ts:    t,
+					Ts:    timeMs,
 				})
 				if err != nil {
 					return activeSeries, err

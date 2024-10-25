@@ -18,7 +18,7 @@ go run ./cmd/tempo --storage.trace.backend=local --storage.trace.local.path=/var
 ## Complete configuration
 
 {{< admonition type="note" >}}
-This manifest was generated on 2024-10-11.
+This manifest was generated on 2024-10-21.
 {{% /admonition %}}
 
 ```yaml
@@ -186,6 +186,11 @@ distributor:
     receivers: {}
     override_ring_key: distributor
     forwarders: []
+    usage:
+        cost_attribution:
+            enabled: false
+            max_cardinality: 10000
+            stale_duration: 15m0s
     extend_writes: true
     retry_after_on_resource_exhausted: 0s
 ingester_client:
