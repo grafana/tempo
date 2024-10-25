@@ -1,5 +1,8 @@
 ## main / unreleased
-
+* [ENHANCEMENT] The span multiplier now also sources its value from the resource attributes. [#4210](https://github.com/grafana/tempo/pull/4210)
+* [FEATURE] Export cost attribution usage metrics from distributor [#4162](https://github.com/grafana/tempo/pull/4162) (@mdisibio)
+* [ENHANCEMENT] Changed log level from INFO to DEBUG for the TempoDB Find operation using traceId to reduce excessive/unwanted logs in log search. [#4179](https://github.com/grafana/tempo/pull/4179) (@Aki0x137)
+* [ENHANCEMENT] Pushdown collection of results from generators in the querier [#4119](https://github.com/grafana/tempo/pull/4119) (@electron0zero)
 * [CHANGE] Add throughput and SLO metrics in the tags and tag values endpoints [#4148](https://github.com/grafana/tempo/pull/4148) (@electron0zero)
 * [CHANGE] tempo-cli: add support for /api/v2/traces endpoint [#4127](https://github.com/grafana/tempo/pull/4127) (@electron0zero)
   **BREAKING CHANGE** The `tempo-cli` now uses the `/api/v2/traces` endpoint by default, 
