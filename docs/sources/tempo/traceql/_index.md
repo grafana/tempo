@@ -421,7 +421,7 @@ To find spans where the total of a made-up attribute `bytesProcessed` was more t
 ```
 { } | sum(span.bytesProcessed) > 1000000000
 ```
-
+ 
 ## Grouping
 
 TraceQL supports a grouping pipeline operator that can be used to group by arbitrary attributes. This can be useful to
