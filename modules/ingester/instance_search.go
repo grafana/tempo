@@ -40,14 +40,17 @@ func (i *instance) Search(ctx context.Context, req *tempopb.SearchRequest) (*tem
 
 	span.AddEvent("SearchRequest", trace.WithAttributes(attribute.String("request", req.String())))
 
-	rootExpr, err := traceql.Parse(req.Query)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing query: %w", err)
-	}
+	mostRecent := false
+	if len(req.Query) > 0 {
+		rootExpr, err := traceql.Parse(req.Query)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing query: %w", err)
+		}
 
-	var mostRecent, ok bool
-	if mostRecent, ok = rootExpr.Hints.GetBool(traceql.HintMostRecent, false); !ok {
-		mostRecent = false
+		ok := false
+		if mostRecent, ok = rootExpr.Hints.GetBool(traceql.HintMostRecent, false); !ok {
+			mostRecent = false
+		}
 	}
 
 	var (

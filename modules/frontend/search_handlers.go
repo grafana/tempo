@@ -127,14 +127,17 @@ func newCombiner(req *tempopb.SearchRequest, cfg SearchSharderConfig) (combiner.
 		return nil, err
 	}
 
-	query, err := traceql.Parse(req.Query)
-	if err != nil {
-		return nil, fmt.Errorf("invalid TraceQL query: %s", err)
-	}
+	mostRecent := false
+	if len(req.Query) > 0 {
+		query, err := traceql.Parse(req.Query)
+		if err != nil {
+			return nil, fmt.Errorf("invalid TraceQL query: %s", err)
+		}
 
-	var mostRecent, ok bool
-	if mostRecent, ok = query.Hints.GetBool(traceql.HintMostRecent, false); !ok {
-		mostRecent = false
+		ok := false
+		if mostRecent, ok = query.Hints.GetBool(traceql.HintMostRecent, false); !ok {
+			mostRecent = false
+		}
 	}
 
 	return combiner.NewTypedSearch(int(limit), mostRecent), nil
