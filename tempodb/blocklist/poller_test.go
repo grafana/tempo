@@ -1071,9 +1071,27 @@ func BenchmarkFullPoller(b *testing.B) {
 		}
 	}
 
+	ml, cl, err := poller.Do(list)
+	require.NoError(b, err)
+	list.ApplyPollResults(ml, cl)
+
+	// Push another 10% of the blocks to discover
+	for i := 0; i < 10; i++ {
+		var (
+			tenant = fmt.Sprintf("tenant-%d", i)
+			metas  = newBlockMetas(100, tenant)
+		)
+
+		for _, m := range metas {
+			err = w.WriteBlockMeta(ctx, m)
+			require.NoError(b, err)
+		}
+	}
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _, _ = poller.Do(list)
+		ml, cl, _ = poller.Do(list)
+		list.ApplyPollResults(ml, cl)
 	}
 	b.StopTimer()
 }
