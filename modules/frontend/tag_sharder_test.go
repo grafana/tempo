@@ -161,7 +161,7 @@ func TestTagsBackendRequests(t *testing.T) {
 				req.endValue = uint32(tc.params.end)
 
 			}
-			s.backendRequests(context.TODO(), "test", r, &req, reqCh, func(err error) {
+			s.backendRequests(context.TODO(), "test", pipeline.NewHTTPRequest(r), &req, reqCh, func(err error) {
 				require.Equal(t, tc.expectedError, err)
 			})
 
