@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all //deprecated
@@ -290,7 +291,7 @@ func (q *Querier) SearchTagValuesV2Handler(w http.ResponseWriter, r *http.Reques
 	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(q.cfg.Search.QueryTimeout))
 	defer cancel()
 
-	ctx, span := tracer.Start(ctx, "Querier.SearchTagValuesHandler")
+	ctx, span := tracer.Start(ctx, "Querier.SearchTagValuesV2Handler")
 	defer span.End()
 
 	var resp *tempopb.SearchTagValuesV2Response
@@ -425,9 +426,10 @@ func handleError(w http.ResponseWriter, err error) {
 		return
 	}
 
-	// todo: better understand all errors returned from queriers and categorize more as 4XX
-	if errors.Is(err, trace.ErrTraceTooLarge) {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	// TODO: better understand all errors returned from queriers and categorize more as 4XX
+	// NOTE: we receive a GRPC error from the ingesters, and so we need to check the string content of error as well.
+	if errors.Is(err, trace.ErrTraceTooLarge) || strings.Contains(err.Error(), trace.ErrTraceTooLarge.Error()) {
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		return
 	}
 

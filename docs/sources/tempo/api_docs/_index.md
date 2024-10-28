@@ -38,6 +38,7 @@ For externally supported GRPC API, [see below](#tempo-grpc-api).
 | Memberlist | Distributor, Ingester, Querier, Compactor |  HTTP | `GET /memberlist` |
 | [Flush](#flush) | Ingester |  HTTP | `GET,POST /flush` |
 | [Shutdown](#shutdown) | Ingester |  HTTP | `GET,POST /shutdown` |
+| [Usage Metrics](#usage-metrics) | Distributor |  HTTP | `GET /usage_metrics` |
 | [Distributor ring status](#distributor-ring-status) (*) | Distributor |  HTTP | `GET /distributor/ring` |
 | [Ingesters ring status](#ingesters-ring-status) | Distributor, Querier |  HTTP | `GET /ingester/ring` |
 | [Metrics-generator ring status](#metrics-generator-ring-status) (*) | Distributor |  HTTP | `GET /metrics-generator/ring` |
@@ -343,6 +344,9 @@ $ curl -G -s http://localhost:3200/api/search/tags?scope=span  | jq
     "starter",
     "version"
   ]
+  "metrics": {
+    "inspectedBytes": "630188"
+  }
 }
 ```
 
@@ -391,11 +395,9 @@ $ curl -G -s http://localhost:3200/api/v2/search/tags  | jq
 {
   "scopes": [
     {
-      "name": "span",
+      "name": "link",
       "tags": [
-        "article.count",
-        "http.flavor",
-        "http.method",
+        "link-type"
       ]
     },
     {
@@ -406,15 +408,69 @@ $ curl -G -s http://localhost:3200/api/v2/search/tags  | jq
       ]
     },
     {
+      "name": "span",
+      "tags": [
+        "article.count",
+        "http.flavor",
+        "http.method",
+        "http.request.header.accept",
+        "http.request_content_length",
+        "http.response.header.content-type",
+        "http.response_content_length",
+        "http.scheme",
+        "http.status_code",
+        "http.target",
+        "http.url",
+        "net.host.name",
+        "net.host.port",
+        "net.peer.name",
+        "net.peer.port",
+        "net.sock.family",
+        "net.sock.host.addr",
+        "net.sock.peer.addr",
+        "net.transport",
+        "numbers",
+        "one"
+      ]
+    },
+    {
       "name": "intrinsic",
       "tags": [
         "duration",
+        "event:name",
+        "event:timeSinceStart",
+        "instrumentation:name",
+        "instrumentation:version",
         "kind",
         "name",
-        "status"
+        "rootName",
+        "rootServiceName",
+        "span:duration",
+        "span:kind",
+        "span:name",
+        "span:status",
+        "span:statusMessage",
+        "status",
+        "statusMessage",
+        "trace:duration",
+        "trace:rootName",
+        "trace:rootService",
+        "traceDuration"
+      ]
+    },
+    {
+      "name": "event",
+      "tags": [
+        "exception.escape",
+        "exception.message",
+        "exception.stacktrace",
+        "exception.type",
       ]
     }
-  ]
+  ],
+  "metrics": {
+    "inspectedBytes": "377046"
+  }
 }
 ```
 
@@ -440,13 +496,16 @@ This query returns all discovered values for the tag `service.name`.
 $ curl -G -s http://localhost:3200/api/search/tag/service.name/values  | jq
 {
   "tagValues": [
-    "adservice",
-    "cartservice",
-    "checkoutservice",
-    "frontend",
-    "productcatalogservice",
-    "recommendationservice"
-  ]
+    "article-service",
+    "auth-service",
+    "billing-service",
+    "cart-service",
+    "postgres",
+    "shop-backend"
+  ],
+  "metrics": {
+    "inspectedBytes": "431380"
+  }
 }
 ```
 
@@ -468,30 +527,37 @@ See [TraceQL]({{< relref "../traceql" >}}) documentation for more information.
 This example queries Tempo using curl and returns all discovered values for the tag `service.name`.
 
 ```bash
-$ curl http://localhost:3200/api/v2/search/tag/.service.name/values | jq .
+$ curl -G -s http://localhost:3200/api/v2/search/tag/.service.name/values | jq
 {
   "tagValues": [
     {
       "type": "string",
-      "value": "customer"
+      "value": "article-service"
     },
     {
       "type": "string",
-      "value": "mysql"
+      "value": "postgres"
     },
     {
       "type": "string",
-      "value": "driver"
+      "value": "cart-service"
     },
     {
       "type": "string",
-      "value": "frontend"
+      "value": "billing-service"
     },
     {
       "type": "string",
-      "value": "redis"
+      "value": "shop-backend"
+    },
+    {
+      "type": "string",
+      "value": "auth-service"
     }
-  ]
+  ],
+  "metrics": {
+    "inspectedBytes": "502756"
+  }
 }
 ```
 This endpoint can also receive `start` and `end` optional parameters. These parameters define the time range from which the tags are fetched
@@ -532,6 +598,8 @@ Parameters:
   Optional. Can be used instead of `start` and `end` to define the time range in relative values. For example `since=15m` will query the last 15 minutes.  Default is last 1 hour.
 - `step = (duration string)`
   Optional. Defines the granularity of the returned time-series. For example `step=15s` will return a data point every 15s within the time range.  If not specified then the default behavior will choose a dynamic step based on the time range.
+- `exemplars = (integer)`
+  Optional. Defines the maximun number of exemplars for the query. It will be trimmed to max_exemplars if exceed it.
 
 The API is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
@@ -543,7 +611,7 @@ Actual API parameters must be url-encoded. This example is left unencoded for re
 {{% /admonition %}}
 
 ```
-GET /api/metrics/query_range?q={resource.service.name="myservice"}|rate()&since=3h&step=1m
+GET /api/metrics/query_range?q={resource.service.name="myservice"} | min_over_time() with(exemplars=true) &since=3h&step=1m&exemplars=100
 ```
 
 #### Instant
@@ -618,6 +686,30 @@ ingester service.
 {{< admonition type="note" >}}
 This is usually used at the time of scaling down a cluster.
 {{% /admonition %}}
+
+### Usage metrics
+
+{{< admonition type="note" >}}
+This endpoint is only available when one or more usage trackers are enabled in [the distributor]({{< relref "../configuration#distributor" >}}).
+{{% /admonition %}}
+
+```
+GET /usage_metrics
+```
+
+Special metrics scrape endpoint that provides per-tenant metrics on ingested data. Per-tenant grouping rules are configured in [the per-tenant overrides]({{< relref "../configuration#overrides" >}})
+
+Example:
+```
+curl http://localhost:3200/usage_metrics
+# HELP tempo_usage_tracker_bytes_received_total bytes total received with these attributes
+# TYPE tempo_usage_tracker_bytes_received_total counter
+tempo_usage_tracker_bytes_received_total{service="auth-service",tenant="single-tenant",tracker="cost-attribution"} 96563
+tempo_usage_tracker_bytes_received_total{service="cache",tenant="single-tenant",tracker="cost-attribution"} 81904
+tempo_usage_tracker_bytes_received_total{service="gateway",tenant="single-tenant",tracker="cost-attribution"} 164751
+tempo_usage_tracker_bytes_received_total{service="identity-service",tenant="single-tenant",tracker="cost-attribution"} 85974
+tempo_usage_tracker_bytes_received_total{service="service-A",tenant="single-tenant",tracker="cost-attribution"} 92799
+```
 
 ### Distributor ring status
 

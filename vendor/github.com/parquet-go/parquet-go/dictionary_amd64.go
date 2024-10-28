@@ -47,25 +47,25 @@ func dictionaryLookupFixedLenByteArrayPointer(dict []byte, len int, indexes []in
 
 func (d *int32Dictionary) lookup(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
-	dict := unsafecast.Int32ToUint32(d.values)
+	dict := unsafecast.Slice[uint32](d.values)
 	dictionaryLookup32(dict, indexes, rows).check()
 }
 
 func (d *int64Dictionary) lookup(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
-	dict := unsafecast.Int64ToUint64(d.values)
+	dict := unsafecast.Slice[uint64](d.values)
 	dictionaryLookup64(dict, indexes, rows).check()
 }
 
 func (d *floatDictionary) lookup(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
-	dict := unsafecast.Float32ToUint32(d.values)
+	dict := unsafecast.Slice[uint32](d.values)
 	dictionaryLookup32(dict, indexes, rows).check()
 }
 
 func (d *doubleDictionary) lookup(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
-	dict := unsafecast.Float64ToUint64(d.values)
+	dict := unsafecast.Slice[uint64](d.values)
 	dictionaryLookup64(dict, indexes, rows).check()
 }
 
@@ -83,8 +83,7 @@ func (d *byteArrayDictionary) lookupString(indexes []int32, rows sparse.Array) {
 	//
 	//dictionaryLookupByteArrayString(d.offsets, d.values, indexes, rows).check()
 	for i, j := range indexes {
-		v := d.index(int(j))
-		*(*string)(rows.Index(i)) = *(*string)(unsafe.Pointer(&v))
+		*(*string)(rows.Index(i)) = unsafecast.String(d.index(int(j)))
 	}
 }
 
@@ -92,8 +91,7 @@ func (d *fixedLenByteArrayDictionary) lookupString(indexes []int32, rows sparse.
 	checkLookupIndexBounds(indexes, rows)
 	//dictionaryLookupFixedLenByteArrayString(d.data, d.size, indexes, rows).check()
 	for i, j := range indexes {
-		v := d.index(j)
-		*(*string)(rows.Index(i)) = *(*string)(unsafe.Pointer(&v))
+		*(*string)(rows.Index(i)) = unsafecast.String(d.index(j))
 	}
 }
 
@@ -109,7 +107,7 @@ func (d *uint64Dictionary) lookup(indexes []int32, rows sparse.Array) {
 
 func (d *be128Dictionary) lookupString(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
-	//dict := unsafecast.Uint128ToBytes(d.values)
+	//dict := unsafecast.Slice[byte](d.values)
 	//dictionaryLookupFixedLenByteArrayString(dict, 16, indexes, rows).check()
 	s := "0123456789ABCDEF"
 	for i, j := range indexes {
@@ -120,7 +118,7 @@ func (d *be128Dictionary) lookupString(indexes []int32, rows sparse.Array) {
 
 func (d *be128Dictionary) lookupPointer(indexes []int32, rows sparse.Array) {
 	checkLookupIndexBounds(indexes, rows)
-	//dict := unsafecast.Uint128ToBytes(d.values)
+	//dict := unsafecast.Slice[byte](d.values)
 	//dictionaryLookupFixedLenByteArrayPointer(dict, 16, indexes, rows).check()
 	for i, j := range indexes {
 		*(**[16]byte)(rows.Index(i)) = d.index(j)

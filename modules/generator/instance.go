@@ -3,6 +3,7 @@ package generator
 import (
 	"context"
 	"fmt"
+	"maps"
 	"reflect"
 	"strings"
 	"sync"
@@ -13,7 +14,6 @@ import (
 	"github.com/grafana/tempo/tempodb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"golang.org/x/exp/maps"
 
 	"github.com/grafana/tempo/modules/generator/processor"
 	"github.com/grafana/tempo/modules/generator/processor/localblocks"
@@ -357,6 +357,8 @@ func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest)
 }
 
 func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
+	// TODO - uniqify all strings?
+	// Doesn't help allocs, but should greatly reduce inuse space
 	size := 0
 	spanCount := 0
 	expiredSpanCount := 0

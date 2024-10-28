@@ -22,7 +22,7 @@ You can check your configuration options using the [`status` API endpoint]({{< r
 
 ## Upgrade to Tempo 2.6
 
-Tempo 2.5 has several considerations for any upgrade:
+Tempo 2.6 has several considerations for any upgrade:
 
 * Operational change for TraceQL metrics
 * vParquet4 is now the default block format
@@ -84,7 +84,12 @@ vParquet4 format is now the default block format.
 It's production ready and we highly recommend switching to it for improved query performance. [PR [3810](https://github.com/grafana/tempo/pull/3810)]
 
 Upgrading to Tempo 2.6 modifies the Parquet block format.
-Although you can use Tempo 2.6 with vParquet2 or vParquet3, you can only use Tempo 2.6 with vParquet3.
+You don't need to do anything with Parquet to go from 2.5 to 2.6.
+If you used vParquet2 or vParquet3, all of your old blocks remain and can be read by Tempo 2.6.
+Tempo 2.6 creates vParquet4 blocks by default, which enables the new TraceQL features.
+
+Although you can use Tempo 2.6 with vParquet2 or vParquet3, you can only use vParquet4 with Tempo 2.5 and later.
+If you are using 2.5 with vParquet4, you'll need to upgrade to Tempo 2.6 to use the new TraceQL features.
 
 You can also use the `tempo-cli analyse blocks` command to query vParquet4 blocks. [PR 3868](https://github.com/grafana/tempo/pull/3868)].
 Refer to the [Tempo CLI ](https://grafana.com/docs/tempo/next/operations/tempo_cli/#analyse-blocks)documentation for more information.
@@ -140,6 +145,11 @@ For information on upgrading, refer to [Upgrade to Tempo 2.6](https://grafana.co
   </tr>
 </table>
 
+### tempo-query is a standalone server
+
+With Tempo 2.6.1, tempo-query is no longer a Jaeger instance with grpcPlugin.
+It’s now a standalone server.
+Serving a gRPC API for Jaeger on 0.0.0.0:7777 by default. [PR 3840]
 
 ## Upgrade to Tempo 2.5
 

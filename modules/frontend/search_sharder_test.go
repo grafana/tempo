@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -46,7 +45,7 @@ func (m *mockReader) SearchTags(context.Context, *backend.BlockMeta, string, com
 	return nil, nil
 }
 
-func (m *mockReader) SearchTagValues(context.Context, *backend.BlockMeta, string, common.SearchOptions) ([]string, error) {
+func (m *mockReader) SearchTagValues(context.Context, *backend.BlockMeta, string, common.SearchOptions) (*tempopb.SearchTagValuesResponse, error) {
 	return nil, nil
 }
 
@@ -54,7 +53,7 @@ func (m *mockReader) SearchTagValuesV2(context.Context, *backend.BlockMeta, *tem
 	return nil, nil
 }
 
-func (m *mockReader) FetchTagValues(context.Context, *backend.BlockMeta, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.SearchOptions) error {
+func (m *mockReader) FetchTagValues(context.Context, *backend.BlockMeta, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.MetricsCallback, common.SearchOptions) error {
 	return nil
 }
 
@@ -74,7 +73,7 @@ func (m *mockReader) Fetch(context.Context, *backend.BlockMeta, traceql.FetchSpa
 	return traceql.FetchSpansResponse{}, nil
 }
 
-func (m *mockReader) FetchTagNames(_ context.Context, _ *backend.BlockMeta, _ traceql.FetchTagsRequest, _ traceql.FetchTagsCallback, _ common.SearchOptions) error {
+func (m *mockReader) FetchTagNames(context.Context, *backend.BlockMeta, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.MetricsCallback, common.SearchOptions) error {
 	return nil
 }
 
@@ -96,7 +95,7 @@ func TestBuildBackendRequests(t *testing.T) {
 		{
 			metas: []*backend.BlockMeta{
 				{
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 			},
 			expectedURIs: []string{},
@@ -105,8 +104,8 @@ func TestBuildBackendRequests(t *testing.T) {
 		{
 			metas: []*backend.BlockMeta{
 				{
-					Size:    1000,
-					BlockID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					Size_:   1000,
+					BlockID: backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 			},
 			expectedURIs: []string{},
@@ -116,9 +115,9 @@ func TestBuildBackendRequests(t *testing.T) {
 			targetBytesPerRequest: 1000,
 			metas: []*backend.BlockMeta{
 				{
-					Size:          1000,
+					Size_:         1000,
 					TotalRecords:  100,
-					BlockID:       uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:       backend.MustParse("00000000-0000-0000-0000-000000000000"),
 					DataEncoding:  "json",
 					Encoding:      backend.EncGZIP,
 					IndexPageSize: 13,
@@ -134,9 +133,9 @@ func TestBuildBackendRequests(t *testing.T) {
 			targetBytesPerRequest: 1000,
 			metas: []*backend.BlockMeta{
 				{
-					Size:          1000,
+					Size_:         1000,
 					TotalRecords:  10,
-					BlockID:       uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:       backend.MustParse("00000000-0000-0000-0000-000000000000"),
 					Encoding:      backend.EncNone,
 					IndexPageSize: 13,
 					Version:       "vParquet3",
@@ -154,9 +153,9 @@ func TestBuildBackendRequests(t *testing.T) {
 			targetBytesPerRequest: 1,
 			metas: []*backend.BlockMeta{
 				{
-					Size:         1000,
+					Size_:        1000,
 					TotalRecords: 3,
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 			},
 			expectedURIs: []string{
@@ -170,9 +169,9 @@ func TestBuildBackendRequests(t *testing.T) {
 			targetBytesPerRequest: 1000,
 			metas: []*backend.BlockMeta{
 				{
-					Size:         1000,
+					Size_:        1000,
 					TotalRecords: 100,
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 			},
 			expectedURIs: []string{
@@ -184,9 +183,9 @@ func TestBuildBackendRequests(t *testing.T) {
 			targetBytesPerRequest: 900,
 			metas: []*backend.BlockMeta{
 				{
-					Size:         1000,
+					Size_:        1000,
 					TotalRecords: 100,
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 			},
 			expectedURIs: []string{
@@ -199,14 +198,14 @@ func TestBuildBackendRequests(t *testing.T) {
 			targetBytesPerRequest: 900,
 			metas: []*backend.BlockMeta{
 				{
-					Size:         1000,
+					Size_:        1000,
 					TotalRecords: 100,
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000000"),
 				},
 				{
-					Size:         1000,
+					Size_:        1000,
 					TotalRecords: 200,
-					BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000001"),
 				},
 			},
 			expectedURIs: []string{
@@ -227,7 +226,7 @@ func TestBuildBackendRequests(t *testing.T) {
 		reqCh := make(chan pipeline.Request)
 
 		go func() {
-			buildBackendRequests(ctx, "test", req, searchReq, tc.metas, tc.targetBytesPerRequest, reqCh, cancelCause)
+			buildBackendRequests(ctx, "test", pipeline.NewHTTPRequest(req), searchReq, tc.metas, tc.targetBytesPerRequest, reqCh, cancelCause)
 		}()
 
 		actualURIs := []string{}
@@ -247,7 +246,7 @@ func TestBackendRequests(t *testing.T) {
 	bm := backend.NewBlockMeta("test", uuid.New(), "wdwad", backend.EncGZIP, "asdf")
 	bm.StartTime = time.Unix(100, 0)
 	bm.EndTime = time.Unix(200, 0)
-	bm.Size = defaultTargetBytesPerRequest * 2
+	bm.Size_ = defaultTargetBytesPerRequest * 2
 	bm.TotalRecords = 2
 
 	s := &asyncSearchSharder{
@@ -317,8 +316,8 @@ func TestBackendRequests(t *testing.T) {
 			reqCh := make(chan pipeline.Request)
 
 			ctx, cancelCause := context.WithCancelCause(context.Background())
-
-			jobs, blocks, blockBytes := s.backendRequests(ctx, "test", r, searchReq, reqCh, cancelCause)
+			pipelineRequest := pipeline.NewHTTPRequest(r)
+			jobs, blocks, blockBytes := s.backendRequests(ctx, "test", pipelineRequest, searchReq, reqCh, cancelCause)
 			require.Equal(t, tc.expectedJobs, jobs)
 			require.Equal(t, tc.expectedBlocks, blocks)
 			require.Equal(t, tc.expectedBlockBytes, blockBytes)
@@ -493,8 +492,9 @@ func TestIngesterRequests(t *testing.T) {
 		reqChan := make(chan pipeline.Request, tc.ingesterShards)
 		defer close(reqChan)
 
-		copyReq := searchReq
-		err = s.ingesterRequests(context.Background(), "test", req, *searchReq, reqChan)
+		pr := pipeline.NewHTTPRequest(req)
+		pr.SetWeight(2)
+		err = s.ingesterRequests(context.Background(), "test", pr, *searchReq, reqChan)
 		if tc.expectedError != nil {
 			assert.Equal(t, tc.expectedError, err)
 			continue
@@ -541,13 +541,8 @@ func TestIngesterRequests(t *testing.T) {
 				}
 
 				require.Equal(t, v, values[k])
+				require.Equal(t, 2, req.Weight())
 			}
-
-			/* require.Equal(t, expectedURI, req.RequestURI) */
-
-			// it may seem odd to test that the searchReq is not modified, but this is to prevent an issue that
-			// occurs if the ingesterRequest method is changed to take a searchReq pointer
-			require.True(t, reflect.DeepEqual(copyReq, searchReq))
 		}
 	}
 }
@@ -663,9 +658,9 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 			{
 				StartTime:    time.Unix(now, 0),
 				EndTime:      time.Unix(now, 0),
-				Size:         defaultTargetBytesPerRequest * 2,
+				Size_:        defaultTargetBytesPerRequest * 2,
 				TotalRecords: 2,
-				BlockID:      uuid.MustParse("00000000-0000-0000-0000-000000000000"),
+				BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000000"),
 			},
 		},
 	}, o, SearchSharderConfig{

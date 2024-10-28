@@ -5,12 +5,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/drone/envsubst"
 	"github.com/go-kit/log/level"
-	"golang.org/x/exp/maps"
 
 	"github.com/grafana/dskit/runtimeconfig"
 	"github.com/grafana/dskit/services"
@@ -277,7 +278,8 @@ func (o *runtimeConfigOverridesManager) GetTenantIDs() []string {
 		return nil
 	}
 
-	return maps.Keys(tenantOverrides.TenantLimits)
+	limits := tenantOverrides.TenantLimits
+	return slices.AppendSeq(make([]string, 0, len(limits)), maps.Keys(limits))
 }
 
 func (o *runtimeConfigOverridesManager) GetRuntimeOverridesFor(userID string) *Overrides {
@@ -346,6 +348,14 @@ func (o *runtimeConfigOverridesManager) MaxBlocksPerTagValuesQuery(userID string
 
 func (o *runtimeConfigOverridesManager) UnsafeQueryHints(userID string) bool {
 	return o.getOverridesForUser(userID).Read.UnsafeQueryHints
+}
+
+func (o *runtimeConfigOverridesManager) CostAttributionMaxCardinality(userID string) uint64 {
+	return o.getOverridesForUser(userID).CostAttribution.MaxCardinality
+}
+
+func (o *runtimeConfigOverridesManager) CostAttributionDimensions(userID string) map[string]string {
+	return o.getOverridesForUser(userID).CostAttribution.Dimensions
 }
 
 // MaxSearchDuration is the duration of the max search duration for this tenant.

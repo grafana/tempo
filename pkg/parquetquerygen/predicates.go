@@ -252,7 +252,7 @@ func (p {{ $structName }}) KeepValue(v pq.Value) bool {
 				{
 					Op:          "Equal",
 					CompareCond: `bytes.Equal(bytes.TrimLeft(vv, "\x00"), p.value)`,
-					RangeCond:   "", // benchmarks are generally better w/o a range condition? "bytes.Compare(p.value, min) >= 0 && bytes.Compare(p.value, max) <= 0",
+					RangeCond:   "bytes.Compare(p.value, min) >= 0 && bytes.Compare(p.value, max) <= 0",
 				},
 				{
 					Op:          "NotEqual",

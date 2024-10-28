@@ -39,7 +39,9 @@ func FirstUser() UserIndex {
 }
 
 // Request stored into the queue.
-type Request interface{}
+type Request interface {
+	Weight() int
+}
 
 // RequestQueue holds incoming requests in per-user queues.
 type RequestQueue struct {
@@ -160,18 +162,7 @@ FindQueue:
 	last.last = idx
 	if queue != nil {
 		// this is all threadsafe b/c all users queues are blocked by q.mtx
-		if len(queue) < requestedCount {
-			requestedCount = len(queue)
-		}
-
-		// Pick next requests from the queue.
-		batchBuffer = batchBuffer[:requestedCount]
-		for i := 0; i < requestedCount; i++ {
-			batchBuffer[i] = <-queue
-		}
-
-		q.queueLength.WithLabelValues(userID).Set(float64(len(queue)))
-
+		batchBuffer := q.getBatchBuffer(batchBuffer, userID, queue)
 		return batchBuffer, last, nil
 	}
 
@@ -179,6 +170,31 @@ FindQueue:
 	// and wait for more requests.
 	querierWait = true
 	goto FindQueue
+}
+
+func (q *RequestQueue) getBatchBuffer(batchBuffer []Request, userID string, queue chan Request) []Request {
+	requestedCount := len(batchBuffer)
+	guaranteedInQueue := requestedCount
+
+	if len(queue) < requestedCount {
+		guaranteedInQueue = len(queue)
+	}
+
+	totalWeight := 0
+	actuallyInBatch := 0
+	for i := 0; i < guaranteedInQueue; i++ {
+		batchBuffer[i] = <-queue
+		actuallyInBatch++
+		totalWeight += batchBuffer[i].Weight()
+
+		if totalWeight >= requestedCount {
+			break
+		}
+	}
+	batchBuffer = batchBuffer[:actuallyInBatch]
+
+	q.queueLength.WithLabelValues(userID).Set(float64(len(queue)))
+	return batchBuffer
 }
 
 func (q *RequestQueue) cleanupQueues(_ context.Context) error {

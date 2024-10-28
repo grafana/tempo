@@ -12,7 +12,7 @@ import (
 
 func Test_gaugeInc(t *testing.T) {
 	var seriesAdded int
-	onAdd := func(count uint32) bool {
+	onAdd := func(_ uint32) bool {
 		seriesAdded++
 		return true
 	}
@@ -47,7 +47,7 @@ func Test_gaugeInc(t *testing.T) {
 
 func TestGaugeDifferentLabels(t *testing.T) {
 	var seriesAdded int
-	onAdd := func(count uint32) bool {
+	onAdd := func(_ uint32) bool {
 		seriesAdded++
 		return true
 	}
@@ -69,7 +69,7 @@ func TestGaugeDifferentLabels(t *testing.T) {
 
 func Test_gaugeSet(t *testing.T) {
 	var seriesAdded int
-	onAdd := func(count uint32) bool {
+	onAdd := func(_ uint32) bool {
 		seriesAdded++
 		return true
 	}

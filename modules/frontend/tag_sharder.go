@@ -66,7 +66,7 @@ func (r *tagsSearchRequest) buildTagSearchBlockRequest(subR *http.Request, block
 		TotalRecords:  m.TotalRecords,
 		DataEncoding:  m.DataEncoding,
 		Version:       m.Version,
-		Size_:         m.Size,
+		Size_:         m.Size_,
 		FooterSize:    m.FooterSize,
 	})
 }
@@ -121,7 +121,7 @@ func (r *tagValueSearchRequest) buildTagSearchBlockRequest(subR *http.Request, b
 		TotalRecords:  m.TotalRecords,
 		DataEncoding:  m.DataEncoding,
 		Version:       m.Version,
-		Size_:         m.Size,
+		Size_:         m.Size_,
 		FooterSize:    m.FooterSize,
 	})
 }
@@ -213,20 +213,23 @@ func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.
 
 	// build request to search ingester based on query_ingesters_until config and time range
 	// pass subCtx in requests, so we can cancel and exit early
-	ingesterReq, err := s.ingesterRequest(ctx, tenantID, r, searchReq)
+	ingesterReq, err := s.ingesterRequest(ctx, tenantID, pipelineRequest, searchReq)
 	if err != nil {
 		return nil, err
 	}
 
 	reqCh := make(chan pipeline.Request, 1) // buffer of 1 allows us to insert ingestReq if it exists
 	if ingesterReq != nil {
-		reqCh <- pipeline.NewHTTPRequest(ingesterReq)
+		reqCh <- ingesterReq
 	}
 
 	s.backendRequests(ctx, tenantID, r, searchReq, reqCh, func(err error) {
 		// todo: actually find a way to return this error to the user
 		s.logger.Log("msg", "failed to build backend requests", "err", err)
 	})
+
+	// TODO(suraj): send jobMetricsResponse like we send in asyncSearchSharder.RoundTrip and accumulate these metrics in the
+	// combiners, and log these metrics in the logger like we do in search_handlers.go
 
 	// execute requests
 	return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, reqCh, nil, s.next), nil
@@ -318,7 +321,7 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 // that covers the ingesters. If nil is returned for the http.Request then there is no ingesters query.
 // we should do a copy of the searchReq before use this function, as it is an interface, we cannot guaranteed  be passed
 // by value.
-func (s searchTagSharder) ingesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq tagSearchReq) (*http.Request, error) {
+func (s searchTagSharder) ingesterRequest(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tagSearchReq) (*pipeline.HTTPRequest, error) {
 	// request without start or end, search only in ingester
 	if searchReq.start() == 0 || searchReq.end() == 0 {
 		return s.buildIngesterRequest(ctx, tenantID, parent, searchReq)
@@ -349,14 +352,14 @@ func (s searchTagSharder) ingesterRequest(ctx context.Context, tenantID string, 
 	return s.buildIngesterRequest(ctx, tenantID, parent, newSearchReq)
 }
 
-func (s searchTagSharder) buildIngesterRequest(ctx context.Context, tenantID string, parent *http.Request, searchReq tagSearchReq) (*http.Request, error) {
-	subR := parent.Clone(ctx)
+func (s searchTagSharder) buildIngesterRequest(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tagSearchReq) (*pipeline.HTTPRequest, error) {
+	subR := parent.HTTPRequest().Clone(ctx)
 	subR, err := searchReq.buildSearchTagRequest(subR)
 	if err != nil {
 		return nil, err
 	}
 	prepareRequestForQueriers(subR, tenantID)
-	return subR, nil
+	return parent.CloneFromHTTPRequest(subR), nil
 }
 
 // maxDuration returns the max search duration allowed for this tenant.

@@ -573,7 +573,7 @@ func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, _ com
 	return results, nil
 }
 
-func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagsCallback, _ common.SearchOptions) error {
+func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope, cb common.TagsCallback, mcb common.MetricsCallback, _ common.SearchOptions) error {
 	for i, blockFlush := range b.readFlushes() {
 		file, err := blockFlush.file(ctx)
 		if err != nil {
@@ -587,12 +587,13 @@ func (b *walBlock) SearchTags(ctx context.Context, scope traceql.AttributeScope,
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
+		mcb(file.r.BytesRead()) // record bytes read
 	}
 
 	return nil
 }
 
-func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagValuesCallback, opts common.SearchOptions) error {
+func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.TagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
 	att, ok := translateTagToAttribute[tag]
 	if !ok {
 		att = traceql.NewAttribute(tag)
@@ -604,10 +605,10 @@ func (b *walBlock) SearchTagValues(ctx context.Context, tag string, cb common.Ta
 		return false
 	}
 
-	return b.SearchTagValuesV2(ctx, att, cb2, opts)
+	return b.SearchTagValuesV2(ctx, att, cb2, mcb, opts)
 }
 
-func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, _ common.SearchOptions) error {
+func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute, cb common.TagValuesCallbackV2, mcb common.MetricsCallback, _ common.SearchOptions) error {
 	for i, blockFlush := range b.readFlushes() {
 		file, err := blockFlush.file(ctx)
 		if err != nil {
@@ -621,6 +622,7 @@ func (b *walBlock) SearchTagValuesV2(ctx context.Context, tag traceql.Attribute,
 		if err != nil {
 			return fmt.Errorf("error searching block [%s %d]: %w", b.meta.BlockID.String(), i, err)
 		}
+		mcb(file.r.BytesRead()) // record bytes read
 	}
 
 	return nil
@@ -671,11 +673,11 @@ func (b *walBlock) Fetch(ctx context.Context, req traceql.FetchSpansRequest, opt
 	}, nil
 }
 
-func (b *walBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.SearchOptions) error {
+func (b *walBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.MetricsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
-func (b *walBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.SearchOptions) error {
+func (b *walBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.MetricsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"path"
 	"time"
@@ -15,9 +16,14 @@ import (
 )
 
 const (
+	// JSON
 	MetaName          = "meta.json"
 	CompactedMetaName = "meta.compacted.json"
 	TenantIndexName   = "index.json.gz"
+
+	// Proto
+	TenantIndexNamePb = "index.pb.zst"
+
 	// File name for the cluster seed file.
 	ClusterSeedFileName = "tempo_cluster_seed.json"
 )
@@ -94,15 +100,17 @@ func (w *writer) StreamWriter(ctx context.Context, name string, blockID uuid.UUI
 
 // Write implements backend.Writer
 func (w *writer) WriteBlockMeta(ctx context.Context, meta *BlockMeta) error {
-	blockID := meta.BlockID
-	tenantID := meta.TenantID
+	var (
+		blockID  = meta.BlockID
+		tenantID = meta.TenantID
+	)
 
 	bMeta, err := json.Marshal(meta)
 	if err != nil {
 		return err
 	}
 
-	return w.w.Write(ctx, MetaName, KeyPathForBlock(blockID, tenantID), bytes.NewReader(bMeta), int64(len(bMeta)), nil)
+	return w.w.Write(ctx, MetaName, KeyPathForBlock((uuid.UUID)(blockID), tenantID), bytes.NewReader(bMeta), int64(len(bMeta)), nil)
 }
 
 // Write implements backend.Writer
@@ -124,22 +132,35 @@ func (w *writer) WriteTenantIndex(ctx context.Context, tenantID string, meta []*
 		if err != nil && !errors.Is(err, ErrDoesNotExist) {
 			return err
 		}
+
+		err = w.w.Delete(ctx, TenantIndexNamePb, []string{tenantID}, nil)
+		if err != nil && !errors.Is(err, ErrDoesNotExist) {
+			return err
+		}
+
 		return nil
 	}
 
 	b := newTenantIndex(meta, compactedMeta)
 
-	indexBytes, err := b.marshal()
+	// Marshal and write the proto object.
+	indexBytesPb, err := b.marshalPb()
 	if err != nil {
 		return err
 	}
 
-	err = w.w.Write(ctx, TenantIndexName, KeyPath([]string{tenantID}), bytes.NewReader(indexBytes), int64(len(indexBytes)), nil)
+	err = w.w.Write(ctx, TenantIndexNamePb, KeyPath([]string{tenantID}), bytes.NewReader(indexBytesPb), int64(len(indexBytesPb)), nil)
 	if err != nil {
 		return err
 	}
 
-	return nil
+	// Marshal and write the JSON object.
+	indexBytesJSON, err := b.marshal()
+	if err != nil {
+		return err
+	}
+
+	return w.w.Write(ctx, TenantIndexName, KeyPath([]string{tenantID}), bytes.NewReader(indexBytesJSON), int64(len(indexBytesJSON)), nil)
 }
 
 // Delete implements backend.Writer
@@ -222,25 +243,59 @@ func (r *reader) BlockMeta(ctx context.Context, blockID uuid.UUID, tenantID stri
 
 // TenantIndex implements backend.Reader
 func (r *reader) TenantIndex(ctx context.Context, tenantID string) (*TenantIndex, error) {
-	reader, size, err := r.r.Read(ctx, TenantIndexName, KeyPath([]string{tenantID}), nil)
-	if err != nil {
+	ctx, span := tracer.Start(ctx, "reader.TenantIndex")
+	defer span.End()
+
+	outPb, err := r.tenantIndexProto(ctx, tenantID)
+	if err == nil {
+		return outPb, nil
+	}
+
+	if !errors.Is(err, ErrDoesNotExist) {
 		return nil, err
 	}
 
-	defer reader.Close()
+	span.AddEvent(EventJSONFallback)
 
-	bytes, err := tempo_io.ReadAllWithEstimate(reader, size)
+	readerJ, size, err := r.r.Read(ctx, TenantIndexName, KeyPath([]string{tenantID}), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer readerJ.Close()
+
+	bytesJ, err := tempo_io.ReadAllWithEstimate(readerJ, size)
 	if err != nil {
 		return nil, err
 	}
 
 	i := &TenantIndex{}
-	err = i.unmarshal(bytes)
+	err = i.unmarshal(bytesJ)
 	if err != nil {
 		return nil, err
 	}
 
 	return i, nil
+}
+
+func (r *reader) tenantIndexProto(ctx context.Context, tenantID string) (*TenantIndex, error) {
+	readerPb, size, err := r.r.Read(ctx, TenantIndexNamePb, KeyPath([]string{tenantID}), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read tenant index proto: %w", err)
+	}
+	defer readerPb.Close()
+
+	bytesPb, err := tempo_io.ReadAllWithEstimate(readerPb, size)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read all with estimate: %w", err)
+	}
+
+	out := &TenantIndex{}
+	err = out.unmarshalPb(bytesPb)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal tenant index proto: %w", err)
+	}
+
+	return out, nil
 }
 
 // Find implements backend.Reader

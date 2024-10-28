@@ -190,7 +190,7 @@ func TestPollerOwnership(t *testing.T) {
 
 					actual := []uuid.UUID{}
 					for _, m := range metas {
-						actual = append(actual, m.BlockID)
+						actual = append(actual, (uuid.UUID)(m.BlockID))
 					}
 
 					sort.Slice(actual, func(i, j int) bool { return actual[i].String() < actual[j].String() })
@@ -371,7 +371,7 @@ func TestTenantDeletion(t *testing.T) {
 
 func found(id uuid.UUID, blockMetas []*backend.BlockMeta) bool {
 	for _, b := range blockMetas {
-		if b.BlockID == id {
+		if (uuid.UUID)(b.BlockID) == id {
 			return true
 		}
 	}
@@ -383,7 +383,7 @@ func writeTenantBlocks(t *testing.T, w backend.Writer, tenant string, blockIDs [
 	var err error
 	for _, b := range blockIDs {
 		meta := &backend.BlockMeta{
-			BlockID:  b,
+			BlockID:  backend.UUID(b),
 			TenantID: tenant,
 		}
 

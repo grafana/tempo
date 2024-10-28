@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/google/uuid"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/parquet-go/parquet-go"
 
@@ -30,8 +29,8 @@ type Compactor struct {
 
 func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader, w backend.Writer, inputs []*backend.BlockMeta) (newCompactedBlocks []*backend.BlockMeta, err error) {
 	var (
-		compactionLevel uint8
-		totalRecords    int
+		compactionLevel uint32
+		totalRecords    int64
 		minBlockStart   time.Time
 		maxBlockEnd     time.Time
 		bookmarks       = make([]*bookmark[parquet.Row], 0, len(inputs))
@@ -133,7 +132,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 	var (
 		m               = newMultiblockIterator(bookmarks, combine)
-		recordsPerBlock = (totalRecords / int(c.opts.OutputBlocks))
+		recordsPerBlock = (totalRecords / int64(c.opts.OutputBlocks))
 		currentBlock    *streamingBlock
 	)
 	defer m.Close()
@@ -156,7 +155,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		if currentBlock == nil {
 			// Start with a copy and then customize
 			newMeta := &backend.BlockMeta{
-				BlockID:           uuid.New(),
+				BlockID:           backend.NewUUID(),
 				TenantID:          inputs[0].TenantID,
 				CompactionLevel:   nextCompactionLevel,
 				TotalObjects:      recordsPerBlock, // Just an estimate
@@ -260,7 +259,22 @@ func (c *Compactor) finishBlock(ctx context.Context, block *streamingBlock, l lo
 		return fmt.Errorf("error completing block: %w", err)
 	}
 
-	level.Info(l).Log("msg", "wrote compacted block", "meta", fmt.Sprintf("%+v", block.meta))
+	level.Info(l).Log("msg", "wrote compacted block",
+		"version", block.meta.Version,
+		"tenantID", block.meta.TenantID,
+		"blockID", block.meta.BlockID.String(),
+		"startTime", block.meta.StartTime.String(),
+		"endTime", block.meta.EndTime.String(),
+		"totalObjects", block.meta.TotalObjects,
+		"size", block.meta.Size_,
+		"compactionLevel", block.meta.CompactionLevel,
+		"encoding", block.meta.Encoding.String(),
+		"totalRecords", block.meta.TotalObjects,
+		"bloomShardCount", block.meta.BloomShardCount,
+		"footerSize", block.meta.FooterSize,
+		"replicationFactor", block.meta.ReplicationFactor,
+	)
+
 	compactionLevel := int(block.meta.CompactionLevel) - 1
 	if c.opts.BytesWritten != nil {
 		c.opts.BytesWritten(compactionLevel, bytesFlushed)

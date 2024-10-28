@@ -15,11 +15,15 @@ type Request interface {
 	Context() context.Context
 	WithContext(context.Context)
 
+	Weight() int
+	SetWeight(int)
+
 	SetCacheKey(string)
 	CacheKey() string
 
 	SetResponseData(any) // add data that will be sent back with this requests response
 	ResponseData() any
+	CloneFromHTTPRequest(request *http.Request) *HTTPRequest
 }
 
 type HTTPRequest struct {
@@ -27,6 +31,7 @@ type HTTPRequest struct {
 
 	cacheKey     string
 	responseData any
+	weight       int
 }
 
 func NewHTTPRequest(req *http.Request) *HTTPRequest {
@@ -63,6 +68,18 @@ func (r *HTTPRequest) SetResponseData(data any) {
 
 func (r *HTTPRequest) ResponseData() any {
 	return r.responseData
+}
+
+func (r *HTTPRequest) Weight() int {
+	return r.weight
+}
+
+func (r *HTTPRequest) SetWeight(w int) {
+	r.weight = w
+}
+
+func (r *HTTPRequest) CloneFromHTTPRequest(request *http.Request) *HTTPRequest {
+	return &HTTPRequest{req: request, weight: r.weight}
 }
 
 //
@@ -125,7 +142,7 @@ func (f MiddlewareFunc) Wrap(w RoundTripper) RoundTripper {
 //
 
 // Build takes a slice of async, sync middleware and a http.RoundTripper and builds a request pipeline
-func Build(asyncMW []AsyncMiddleware[combiner.PipelineResponse], mw []Middleware, next http.RoundTripper) AsyncRoundTripper[combiner.PipelineResponse] {
+func Build(asyncMW []AsyncMiddleware[combiner.PipelineResponse], mw []Middleware, next RoundTripper) AsyncRoundTripper[combiner.PipelineResponse] {
 	asyncPipeline := AsyncMiddlewareFunc[combiner.PipelineResponse](func(next AsyncRoundTripper[combiner.PipelineResponse]) AsyncRoundTripper[combiner.PipelineResponse] {
 		for i := len(asyncMW) - 1; i >= 0; i-- {
 			next = asyncMW[i].Wrap(next)
@@ -143,7 +160,7 @@ func Build(asyncMW []AsyncMiddleware[combiner.PipelineResponse], mw []Middleware
 	// bridge the two pipelines
 	bridge := &pipelineBridge{
 		next: syncPipeline.Wrap(RoundTripperFunc(func(req Request) (*http.Response, error) {
-			return next.RoundTrip(req.HTTPRequest())
+			return next.RoundTrip(req)
 		})),
 		convert: NewHTTPToAsyncResponse,
 	}

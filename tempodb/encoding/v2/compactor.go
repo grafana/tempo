@@ -38,8 +38,8 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 	}()
 
-	var compactionLevel uint8
-	var totalRecords int
+	var compactionLevel uint32
+	var totalRecords int64
 	for _, blockMeta := range inputs {
 		totalRecords += blockMeta.TotalObjects
 
@@ -63,7 +63,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 	nextCompactionLevel := compactionLevel + 1
 
-	recordsPerBlock := (totalRecords / int(c.opts.OutputBlocks))
+	recordsPerBlock := (totalRecords / int64(c.opts.OutputBlocks))
 
 	combiner := c.opts.Combiner
 	if combiner == nil {
@@ -92,7 +92,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		// make a new block if necessary
 		if currentBlock == nil {
-			currentBlock, err = NewStreamingBlock(&c.opts.BlockConfig, uuid.New(), tenantID, inputs, recordsPerBlock)
+			currentBlock, err = NewStreamingBlock(&c.opts.BlockConfig, uuid.New(), tenantID, inputs, int(recordsPerBlock))
 			if err != nil {
 				return nil, fmt.Errorf("error making new compacted block: %w", err)
 			}
@@ -115,7 +115,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 		}
 
 		// ship block to backend if done
-		if currentBlock.Length() >= recordsPerBlock {
+		if currentBlock.Length() >= int(recordsPerBlock) {
 			err = c.finishBlock(ctx, w, tracker, currentBlock, l)
 			if err != nil {
 				return nil, fmt.Errorf("error shipping block to backend: %w", err)

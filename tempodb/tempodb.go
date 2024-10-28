@@ -83,12 +83,13 @@ type Reader interface {
 	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64, opts common.SearchOptions) ([]*tempopb.Trace, []error, error)
 	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error)
 	SearchTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsV2Response, error)
-	SearchTagValues(ctx context.Context, meta *backend.BlockMeta, tag string, opts common.SearchOptions) ([]string, error)
+	SearchTagValues(ctx context.Context, meta *backend.BlockMeta, tag string, opts common.SearchOptions) (*tempopb.SearchTagValuesResponse, error)
 	SearchTagValuesV2(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error)
 
+	// TODO(suraj): use common.MetricsCallback in Fetch and remove the Bytes callback from traceql.FetchSpansResponse
 	Fetch(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchSpansRequest, opts common.SearchOptions) (traceql.FetchSpansResponse, error)
-	FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, opts common.SearchOptions) error
-	FetchTagNames(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, opts common.SearchOptions) error
+	FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error
+	FetchTagNames(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, mcb common.MetricsCallback, opts common.SearchOptions) error
 
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
@@ -338,7 +339,7 @@ func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID,
 			return nil, fmt.Errorf("error finding trace by id, blockID: %s: %w", meta.BlockID.String(), err)
 		}
 
-		level.Info(logger).Log("msg", "searching for trace in block", "findTraceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject != nil)
+		level.Debug(logger).Log("msg", "searching for trace in block", "findTraceID", hex.EncodeToString(id), "block", meta.BlockID, "found", foundObject != nil)
 		return foundObject, nil
 	})
 
@@ -381,11 +382,12 @@ func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta,
 	}
 
 	distinctValues := collector.NewScopedDistinctString(0) // todo: propagate limit?
+	mc := collector.NewMetricsCollector()
 
 	rw.cfg.Search.ApplyToOptions(&opts)
 	err = block.SearchTags(ctx, attributeScope, func(s string, scope traceql.AttributeScope) {
 		distinctValues.Collect(scope.String(), s)
-	}, opts)
+	}, mc.Add, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -393,7 +395,8 @@ func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta,
 	// build response
 	collected := distinctValues.Strings()
 	resp := &tempopb.SearchTagsV2Response{
-		Scopes: make([]*tempopb.SearchTagsV2Scope, 0, len(collected)),
+		Scopes:  make([]*tempopb.SearchTagsV2Scope, 0, len(collected)),
+		Metrics: &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()},
 	}
 	for scope, vals := range collected {
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
@@ -405,17 +408,21 @@ func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta,
 	return resp, nil
 }
 
-func (rw *readerWriter) SearchTagValues(ctx context.Context, meta *backend.BlockMeta, tag string, opts common.SearchOptions) ([]string, error) {
+func (rw *readerWriter) SearchTagValues(ctx context.Context, meta *backend.BlockMeta, tag string, opts common.SearchOptions) (response *tempopb.SearchTagValuesResponse, err error) {
 	block, err := encoding.OpenBlock(meta, rw.r)
 	if err != nil {
-		return nil, err
+		return &tempopb.SearchTagValuesResponse{}, err
 	}
 
 	dv := collector.NewDistinctString(0)
+	mc := collector.NewMetricsCollector()
 	rw.cfg.Search.ApplyToOptions(&opts)
-	err = block.SearchTagValues(ctx, tag, dv.Collect, opts)
+	err = block.SearchTagValues(ctx, tag, dv.Collect, mc.Add, opts)
 
-	return dv.Strings(), err
+	return &tempopb.SearchTagValuesResponse{
+		TagValues: dv.Strings(),
+		Metrics:   &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()},
+	}, err
 }
 
 func (rw *readerWriter) SearchTagValuesV2(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error) {
@@ -430,13 +437,16 @@ func (rw *readerWriter) SearchTagValuesV2(ctx context.Context, meta *backend.Blo
 	}
 
 	dv := collector.NewDistinctValue[tempopb.TagValue](0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	mc := collector.NewMetricsCollector()
 	rw.cfg.Search.ApplyToOptions(&opts)
-	err = block.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(dv.Collect), opts)
+	err = block.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(dv.Collect), mc.Add, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	resp := &tempopb.SearchTagValuesV2Response{}
+	resp := &tempopb.SearchTagValuesV2Response{
+		Metrics: &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()},
+	}
 	for _, v := range dv.Values() {
 		v2 := v
 		resp.TagValues = append(resp.TagValues, &v2)
@@ -456,24 +466,24 @@ func (rw *readerWriter) Fetch(ctx context.Context, meta *backend.BlockMeta, req 
 	return block.Fetch(ctx, req, opts)
 }
 
-func (rw *readerWriter) FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, opts common.SearchOptions) error {
+func (rw *readerWriter) FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
 	block, err := encoding.OpenBlock(meta, rw.r)
 	if err != nil {
 		return err
 	}
 
 	rw.cfg.Search.ApplyToOptions(&opts)
-	return block.FetchTagValues(ctx, req, cb, opts)
+	return block.FetchTagValues(ctx, req, cb, mcb, opts)
 }
 
-func (rw *readerWriter) FetchTagNames(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, opts common.SearchOptions) error {
+func (rw *readerWriter) FetchTagNames(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, mcb common.MetricsCallback, opts common.SearchOptions) error {
 	block, err := encoding.OpenBlock(meta, rw.r)
 	if err != nil {
 		return err
 	}
 
 	rw.cfg.Search.ApplyToOptions(&opts)
-	return block.FetchTagNames(ctx, req, cb, opts)
+	return block.FetchTagNames(ctx, req, cb, mcb, opts)
 }
 
 func (rw *readerWriter) Shutdown() {
@@ -603,14 +613,14 @@ func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart, blockEnd []byte
 		}
 	}
 
-	blockIDBytes, _ := b.BlockID.MarshalBinary()
+	blockIDBytes, _ := b.BlockID.Marshal()
 	// check block is in shard boundaries
 	// blockStartBytes <= blockIDBytes <= blockEndBytes
 	if bytes.Compare(blockIDBytes, blockStart) == -1 || bytes.Compare(blockIDBytes, blockEnd) == 1 {
 		return false
 	}
 
-	return b.ReplicationFactor == uint8(replicationFactor)
+	return b.ReplicationFactor == uint32(replicationFactor)
 }
 
 // if block is compacted within lookback period, and is within shard ranges, include it in search

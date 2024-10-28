@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	willf_bloom "github.com/willf/bloom"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -55,7 +56,7 @@ func (b *BackendBlock) find(ctx context.Context, id common.ID) ([]byte, error) {
 	tenantID := b.meta.TenantID
 
 	nameBloom := common.BloomName(shardKey)
-	bloomBytes, err := b.reader.Read(ctx, nameBloom, blockID, tenantID, &backend.CacheInfo{
+	bloomBytes, err := b.reader.Read(ctx, nameBloom, (uuid.UUID)(blockID), tenantID, &backend.CacheInfo{
 		Meta: b.meta,
 		Role: cache.RoleBloom,
 	})
@@ -151,15 +152,15 @@ func (b *BackendBlock) Search(context.Context, *tempopb.SearchRequest, common.Se
 	return nil, common.ErrUnsupported
 }
 
-func (b *BackendBlock) SearchTags(context.Context, traceql.AttributeScope, common.TagsCallback, common.SearchOptions) error {
+func (b *BackendBlock) SearchTags(context.Context, traceql.AttributeScope, common.TagsCallback, common.MetricsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
-func (b *BackendBlock) SearchTagValues(context.Context, string, common.TagValuesCallback, common.SearchOptions) error {
+func (b *BackendBlock) SearchTagValues(context.Context, string, common.TagValuesCallback, common.MetricsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
-func (b *BackendBlock) SearchTagValuesV2(context.Context, traceql.Attribute, common.TagValuesCallbackV2, common.SearchOptions) error {
+func (b *BackendBlock) SearchTagValuesV2(context.Context, traceql.Attribute, common.TagValuesCallbackV2, common.MetricsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
@@ -167,10 +168,10 @@ func (b *BackendBlock) Fetch(context.Context, traceql.FetchSpansRequest, common.
 	return traceql.FetchSpansResponse{}, common.ErrUnsupported
 }
 
-func (b *BackendBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.SearchOptions) error {
+func (b *BackendBlock) FetchTagValues(context.Context, traceql.FetchTagValuesRequest, traceql.FetchTagValuesCallback, common.MetricsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
 
-func (b *BackendBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.SearchOptions) error {
+func (b *BackendBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.MetricsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }

@@ -10,8 +10,8 @@ type Config struct {
 	// Defaults to 15s.
 	CollectionInterval time.Duration `yaml:"collection_interval"`
 
-	// StaleDuration controls how quickly series become stale and are deleted from the registry. An active
-	// series is deleted if it hasn't been updated more stale duration.
+	// StaleDuration controls how quickly series become stale and are deleted from the registry.
+	// An active series is deleted if it hasn't been updated for a more than the stale duration.
 	// Defaults to 15m.
 	StaleDuration time.Duration `yaml:"stale_duration"`
 

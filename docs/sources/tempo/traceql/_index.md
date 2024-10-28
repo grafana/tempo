@@ -47,7 +47,8 @@ The [GRPC streaming API endpoint]({{< relref "../api_docs#tempo-grpc-api" >}}) i
 The `tempo-cli` also uses this streaming endpoint.
 For more information, refer to the [Tempo CLI documentation]({{< relref "../operations/tempo_cli#query-api-command" >}}).
 
-To use streaming in Grafana, you must first enable the `traceQLStreaming` feature toggle.
+To use streaming in Grafana, you must have `stream_over_http_enabled: true` enabled in Tempo.
+For information, refer to [Tempo GRPC API](https://grafana.com/docs/tempo/latest/api_docs/#tempo-grpc-api).
 
 ## Construct a TraceQL query
 
@@ -414,6 +415,12 @@ For example, find traces that have more than 3 spans with an attribute `http.sta
 
 ```
 { span.http.status_code = 200 } | count() > 3
+```
+
+To find spans where the total of a made-up attribute `bytesProcessed` was more than 1 GB:
+
+```
+{ } | sum(span.bytesProcessed) > 1000000000
 ```
 
 ## Grouping

@@ -46,7 +46,7 @@ func TestManagedRegistry_concurrency(*testing.T) {
 	})
 
 	go accessor(func() {
-		registry.collectMetrics(context.Background())
+		registry.CollectMetrics(context.Background())
 	})
 
 	go accessor(func() {
@@ -85,11 +85,12 @@ func TestManagedRegistry_histogram(t *testing.T) {
 	histogram.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0, "", 1.0)
 
 	expectedSamples := []sample{
-		newSample(map[string]string{"__name__": "histogram_count", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
-		newSample(map[string]string{"__name__": "histogram_sum", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
-		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "1"}, 0, 1.0),
-		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "2"}, 0, 1.0),
-		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "+Inf"}, 0, 1.0),
+		newSample(map[string]string{"__name__": "histogram_count", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
+		newSample(map[string]string{"__name__": "histogram_count", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 1, 1.0),
+		newSample(map[string]string{"__name__": "histogram_sum", "label": "value-1", "__metrics_gen_instance": mustGetHostname()}, 1, 1.0),
+		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "1"}, 1, 1.0),
+		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "2"}, 1, 1.0),
+		newSample(map[string]string{"__name__": "histogram_bucket", "label": "value-1", "__metrics_gen_instance": mustGetHostname(), "le": "+Inf"}, 1, 1.0),
 	}
 	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
@@ -213,7 +214,7 @@ func TestManagedRegistry_disableCollection(t *testing.T) {
 	// active series are still tracked
 	assert.Equal(t, uint32(1), registry.activeSeries.Load())
 	// but no samples are collected and sent out
-	registry.collectMetrics(context.Background())
+	registry.CollectMetrics(context.Background())
 	assert.Empty(t, appender.samples)
 	assert.Empty(t, appender.exemplars)
 }
@@ -236,11 +237,12 @@ func TestManagedRegistry_maxLabelNameLength(t *testing.T) {
 
 	expectedSamples := []sample{
 		newSample(map[string]string{"__name__": "counter", "very_len": "very_", "__metrics_gen_instance": mustGetHostname()}, 0, 0.0),
-		newSample(map[string]string{"__name__": "counter", "very_len": "very_", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
-		newSample(map[string]string{"__name__": "histogram_count", "another_": "anoth", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
-		newSample(map[string]string{"__name__": "histogram_sum", "another_": "anoth", "__metrics_gen_instance": mustGetHostname()}, 0, 1.0),
-		newSample(map[string]string{"__name__": "histogram_bucket", "another_": "anoth", "__metrics_gen_instance": mustGetHostname(), "le": "1"}, 0, 1.0),
-		newSample(map[string]string{"__name__": "histogram_bucket", "another_": "anoth", "__metrics_gen_instance": mustGetHostname(), "le": "+Inf"}, 0, 1.0),
+		newSample(map[string]string{"__name__": "counter", "very_len": "very_", "__metrics_gen_instance": mustGetHostname()}, 1, 1.0),
+		newSample(map[string]string{"__name__": "histogram_count", "another_": "anoth", "__metrics_gen_instance": mustGetHostname()}, 0, 0),
+		newSample(map[string]string{"__name__": "histogram_count", "another_": "anoth", "__metrics_gen_instance": mustGetHostname()}, 1, 1.0),
+		newSample(map[string]string{"__name__": "histogram_sum", "another_": "anoth", "__metrics_gen_instance": mustGetHostname()}, 1, 1.0),
+		newSample(map[string]string{"__name__": "histogram_bucket", "another_": "anoth", "__metrics_gen_instance": mustGetHostname(), "le": "1"}, 1, 1.0),
+		newSample(map[string]string{"__name__": "histogram_bucket", "another_": "anoth", "__metrics_gen_instance": mustGetHostname(), "le": "+Inf"}, 1, 1.0),
 	}
 	collectRegistryMetricsAndAssert(t, registry, appender, expectedSamples)
 }
@@ -294,7 +296,7 @@ func TestHistogramOverridesConfig(t *testing.T) {
 
 func collectRegistryMetricsAndAssert(t *testing.T, r *ManagedRegistry, appender *capturingAppender, expectedSamples []sample) {
 	collectionTimeMs := time.Now().UnixMilli()
-	r.collectMetrics(context.Background())
+	r.CollectMetrics(context.Background())
 
 	// Ignore the collection time on expected samples, since we won't know when the collection will actually take place.
 	for i := range expectedSamples {
