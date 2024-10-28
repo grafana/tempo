@@ -225,7 +225,7 @@ func BenchmarkCollect(b *testing.B) {
 			spanMetricsDimensions:                   []string{"k8s.cluster.name", "k8s.namespace.name"},
 			spanMetricsEnableTargetInfo:             true,
 			spanMetricsTargetInfoExcludedDimensions: []string{"excluded}"},
-			// nativeHistograms:                        overrides.HistogramMethodBoth,
+			nativeHistograms:                        overrides.HistogramMethodBoth,
 		}
 	)
 
