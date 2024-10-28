@@ -390,7 +390,7 @@ func logTagsRequest(logger log.Logger, tenantID, handler, scope string, rangeSec
 
 func logTagsResult(logger log.Logger, tenantID, handler, scope string, rangeSeconds uint32, durationSeconds float64, inspectedBytes uint64, err error) {
 	level.Info(logger).Log(
-		"msg", "search tag results",
+		"msg", "search tag response",
 		"tenant", tenantID,
 		"handler", handler,
 		"scope", scope,
@@ -413,7 +413,7 @@ func logTagValuesRequest(logger log.Logger, tenantID, handler, tagName, query st
 
 func logTagValuesResult(logger log.Logger, tenantID, handler, tagName, query string, rangeSeconds uint32, durationSeconds float64, inspectedBytes uint64, err error) {
 	level.Info(logger).Log(
-		"msg", "search tag values results",
+		"msg", "search tag values response",
 		"tenant", tenantID,
 		"handler", handler,
 		"tag", tagName,

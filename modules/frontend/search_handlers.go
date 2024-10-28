@@ -145,7 +145,7 @@ func logResult(logger log.Logger, tenantID string, durationSeconds float64, req 
 
 	if resp == nil {
 		level.Info(logger).Log(
-			"msg", "search results - no resp",
+			"msg", "search response - no resp",
 			"tenant", tenantID,
 			"duration_seconds", durationSeconds,
 			"status_code", statusCode,
@@ -156,7 +156,7 @@ func logResult(logger log.Logger, tenantID string, durationSeconds float64, req 
 
 	if resp.Metrics == nil {
 		level.Info(logger).Log(
-			"msg", "search results - no metrics",
+			"msg", "search response - no metrics",
 			"tenant", tenantID,
 			"query", req.Query,
 			"range_seconds", req.End-req.Start,
@@ -167,7 +167,7 @@ func logResult(logger log.Logger, tenantID string, durationSeconds float64, req 
 	}
 
 	level.Info(logger).Log(
-		"msg", "search results",
+		"msg", "search response",
 		"tenant", tenantID,
 		"query", req.Query,
 		"range_seconds", req.End-req.Start,
