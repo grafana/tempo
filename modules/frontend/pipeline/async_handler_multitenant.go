@@ -60,15 +60,13 @@ func (t *tenantRoundTripper) RoundTrip(req Request) (Responses[combiner.Pipeline
 // requestForTenant makes a copy of request and injects the tenant id into context and Header.
 // this allows us to keep all multi-tenant logic in query frontend and keep other components single tenant
 func requestForTenant(req Request, tenant string) Request {
-	clonedR := req.Clone()
-
-	r := clonedR.HTTPRequest()
-	r.Header.Set(user.OrgIDHeaderName, tenant)
-
+	r := req.HTTPRequest()
 	ctx := r.Context()
-	clonedR.WithContext(user.InjectOrgID(ctx, tenant))
 
-	return clonedR
+	ctx = user.InjectOrgID(ctx, tenant)
+	rCopy := r.Clone(ctx)
+	rCopy.Header.Set(user.OrgIDHeaderName, tenant)
+	return NewHTTPRequest(rCopy)
 }
 
 type unsupportedRoundTripper struct {
