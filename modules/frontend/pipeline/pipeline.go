@@ -14,7 +14,6 @@ type Request interface {
 	HTTPRequest() *http.Request
 	Context() context.Context
 
-	// jpe - combine somehow?
 	WithContext(context.Context)
 	CloneFromHTTPRequest(request *http.Request) Request
 

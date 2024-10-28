@@ -96,7 +96,7 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 
 	// build request to search ingesters based on query_ingesters_until config and time range
 	// pass subCtx in requests so we can cancel and exit early
-	err = s.ingesterRequests(ctx, tenantID, pipelineRequest, *searchReq, reqCh)
+	err = s.ingesterRequests(tenantID, pipelineRequest, *searchReq, reqCh)
 	if err != nil {
 		return nil, err
 	}
@@ -200,10 +200,10 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 // that covers the ingesters. If nil is returned for the http.Request then there is no ingesters query.
 // since this function modifies searchReq.Start and End we are taking a value instead of a pointer to prevent it from
 // unexpectedly changing the passed searchReq.
-func (s *asyncSearchSharder) ingesterRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.SearchRequest, reqCh chan pipeline.Request) error {
+func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.Request, searchReq tempopb.SearchRequest, reqCh chan pipeline.Request) error {
 	// request without start or end, search only in ingester
 	if searchReq.Start == 0 || searchReq.End == 0 {
-		return buildIngesterRequest(ctx, tenantID, parent, &searchReq, reqCh)
+		return buildIngesterRequest(tenantID, parent, &searchReq, reqCh)
 	}
 
 	ingesterUntil := uint32(time.Now().Add(-s.cfg.QueryIngestersUntil).Unix())
@@ -258,7 +258,7 @@ func (s *asyncSearchSharder) ingesterRequests(ctx context.Context, tenantID stri
 		subReq.Start = shardStart
 		subReq.End = shardEnd
 
-		err := buildIngesterRequest(ctx, tenantID, parent, &subReq, reqCh)
+		err := buildIngesterRequest(tenantID, parent, &subReq, reqCh)
 		if err != nil {
 			return err
 		}
@@ -319,7 +319,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.
 		}
 
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
-			pipelineR, err := cloneRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+			pipelineR, err := cloneChildRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
 				r, err = api.BuildSearchBlockRequest(r, &tempopb.SearchBlockRequest{
 					BlockID:       blockID,
 					StartPage:     uint32(startPage),
@@ -398,9 +398,8 @@ func pagesPerRequest(m *backend.BlockMeta, bytesPerRequest int) int {
 	return pagesPerQuery
 }
 
-// jpe - remove ctx?
-func buildIngesterRequest(ctx context.Context, tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, reqCh chan pipeline.Request) error {
-	subR, err := cloneRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+func buildIngesterRequest(tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, reqCh chan pipeline.Request) error {
+	subR, err := cloneChildRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
 		return api.BuildSearchRequest(r, searchReq)
 
 	})

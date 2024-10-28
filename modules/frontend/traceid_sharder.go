@@ -81,8 +81,8 @@ func (s *asyncTraceSharder) buildShardedRequests(ctx context.Context, parent pip
 	params := map[string]string{}
 	// build sharded block queries
 	for i := 0; i < len(s.blockBoundaries); i++ {
-		i := i // save the loop variable locally to make sure the closure grabs the correct var. jpe - needed?
-		pipelineR, _ := cloneRequest(parent, userID, func(r *http.Request) (*http.Request, error) {
+		i := i // save the loop variable locally to make sure the closure grabs the correct var.
+		pipelineR, _ := cloneChildRequest(parent, userID, func(r *http.Request) (*http.Request, error) {
 			if i == 0 {
 				// ingester query
 				params[querier.QueryModeKey] = querier.QueryModeIngesters

@@ -296,7 +296,7 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 
 		blockID := m.BlockID.String()
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
-			pipelineR, err := cloneRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+			pipelineR, err := cloneChildRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
 				return searchReq.buildTagSearchBlockRequest(r, blockID, startPage, pages, m)
 			})
 
@@ -353,7 +353,7 @@ func (s searchTagSharder) ingesterRequest(ctx context.Context, tenantID string, 
 }
 
 func (s searchTagSharder) buildIngesterRequest(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tagSearchReq) (pipeline.Request, error) {
-	subR, err := cloneRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+	subR, err := cloneChildRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
 		return searchReq.buildSearchTagRequest(r)
 	})
 	if err != nil {

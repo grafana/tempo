@@ -114,7 +114,7 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		cutoff                = time.Now().Add(-s.cfg.QueryBackendAfter)
 	)
 
-	generatorReq := s.generatorRequest(ctx, tenantID, pipelineRequest, *req, cutoff)
+	generatorReq := s.generatorRequest(tenantID, pipelineRequest, *req, cutoff)
 	reqCh := make(chan pipeline.Request, 2) // buffer of 2 allows us to insert generatorReq and metrics
 
 	if generatorReq != nil {
@@ -262,7 +262,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				continue
 			}
 
-			pipelineR, _ := cloneRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+			pipelineR, _ := cloneChildRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
 				queryRangeReq := &tempopb.QueryRangeRequest{
 					Query:     searchReq.Query,
 					Start:     start,
@@ -281,9 +281,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 					Exemplars: exemplars,
 				}
 
-				subR = api.BuildQueryRangeRequest(subR, queryRangeReq, dedColsJSON) // jpe - return http.Request from Build method?
-
-				return subR, nil
+				return api.BuildQueryRangeRequest(subR, queryRangeReq, dedColsJSON), nil
 			})
 
 			// TODO: Handle sampling rate
@@ -308,8 +306,7 @@ func max(a, b uint32) uint32 {
 	return b
 }
 
-// jpe - remove ctx?
-func (s *queryRangeSharder) generatorRequest(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time) pipeline.Request {
+func (s *queryRangeSharder) generatorRequest(tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time) pipeline.Request {
 	traceql.TrimToAfter(&searchReq, cutoff)
 	// if start == end then we don't need to query it
 	if searchReq.Start == searchReq.End {
@@ -318,7 +315,7 @@ func (s *queryRangeSharder) generatorRequest(ctx context.Context, tenantID strin
 
 	searchReq.QueryMode = querier.QueryModeRecent
 
-	subR, _ := cloneRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+	subR, _ := cloneChildRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
 		return api.BuildQueryRangeRequest(r, &searchReq, ""), nil
 	})
 
