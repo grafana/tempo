@@ -213,7 +213,7 @@ func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.
 
 	// build request to search ingester based on query_ingesters_until config and time range
 	// pass subCtx in requests, so we can cancel and exit early
-	ingesterReq, err := s.ingesterRequest(ctx, tenantID, pipelineRequest, searchReq)
+	ingesterReq, err := s.ingesterRequest(tenantID, pipelineRequest, searchReq)
 	if err != nil {
 		return nil, err
 	}
@@ -299,7 +299,6 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 			pipelineR, err := cloneChildRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
 				return searchReq.buildTagSearchBlockRequest(r, blockID, startPage, pages, m)
 			})
-
 			if err != nil {
 				errFn(err)
 				continue
@@ -321,10 +320,10 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 // that covers the ingesters. If nil is returned for the http.Request then there is no ingesters query.
 // we should do a copy of the searchReq before use this function, as it is an interface, we cannot guaranteed  be passed
 // by value.
-func (s searchTagSharder) ingesterRequest(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tagSearchReq) (pipeline.Request, error) {
+func (s searchTagSharder) ingesterRequest(tenantID string, parent pipeline.Request, searchReq tagSearchReq) (pipeline.Request, error) {
 	// request without start or end, search only in ingester
 	if searchReq.start() == 0 || searchReq.end() == 0 {
-		return s.buildIngesterRequest(ctx, tenantID, parent, searchReq)
+		return s.buildIngesterRequest(tenantID, parent, searchReq)
 	}
 
 	now := time.Now()
@@ -349,10 +348,10 @@ func (s searchTagSharder) ingesterRequest(ctx context.Context, tenantID string, 
 	}
 
 	newSearchReq := searchReq.newWithRange(ingesterStart, ingesterEnd)
-	return s.buildIngesterRequest(ctx, tenantID, parent, newSearchReq)
+	return s.buildIngesterRequest(tenantID, parent, newSearchReq)
 }
 
-func (s searchTagSharder) buildIngesterRequest(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tagSearchReq) (pipeline.Request, error) {
+func (s searchTagSharder) buildIngesterRequest(tenantID string, parent pipeline.Request, searchReq tagSearchReq) (pipeline.Request, error) {
 	subR, err := cloneChildRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
 		return searchReq.buildSearchTagRequest(r)
 	})

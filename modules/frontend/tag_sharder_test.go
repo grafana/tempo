@@ -265,7 +265,7 @@ func TestTagsIngesterRequest(t *testing.T) {
 		}
 
 		copyReq := searchReq
-		actualReq, err := s.ingesterRequest(context.Background(), "test", pipelineReq, &searchReq)
+		actualReq, err := s.ingesterRequest("test", pipelineReq, &searchReq)
 		if tc.expectedError != nil {
 			assert.Equal(t, tc.expectedError, err)
 			continue

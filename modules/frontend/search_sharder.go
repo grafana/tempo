@@ -401,9 +401,7 @@ func pagesPerRequest(m *backend.BlockMeta, bytesPerRequest int) int {
 func buildIngesterRequest(tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, reqCh chan pipeline.Request) error {
 	subR, err := cloneChildRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
 		return api.BuildSearchRequest(r, searchReq)
-
 	})
-
 	if err != nil {
 		return err
 	}
