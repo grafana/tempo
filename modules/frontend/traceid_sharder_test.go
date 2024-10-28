@@ -25,7 +25,7 @@ func TestBuildShardedRequests(t *testing.T) {
 	ctx := user.InjectOrgID(context.Background(), "blerg")
 	req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
 
-	shardedReqs, err := sharder.buildShardedRequests(ctx, pipeline.NewHTTPRequest(req))
+	shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req))
 	require.NoError(t, err)
 	require.Len(t, shardedReqs, queryShards)
 

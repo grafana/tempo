@@ -251,8 +251,6 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 		}
 
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
-			subR := parent.HTTPRequest().Clone(ctx)
-
 			// Trim and align the request for this block. I.e. if the request is "Last Hour" we don't want to
 			// cache the response for that, we want only the few minutes time range for this block. This has
 			// size savings but the main thing is that the response is reuseable for any overlapping query.
@@ -281,11 +279,11 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 					Exemplars: exemplars,
 				}
 
-				return api.BuildQueryRangeRequest(subR, queryRangeReq, dedColsJSON), nil
+				return api.BuildQueryRangeRequest(r, queryRangeReq, dedColsJSON), nil
 			})
 
 			// TODO: Handle sampling rate
-			key := queryRangeCacheKey(tenantID, queryHash, int64(start), int64(end), m, int(step), int(pages))
+			key := queryRangeCacheKey(tenantID, queryHash, int64(start), int64(end), m, int(step), pages)
 			if len(key) > 0 {
 				pipelineR.SetCacheKey(key)
 			}

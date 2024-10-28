@@ -1,7 +1,6 @@
 package frontend
 
 import (
-	"context"
 	"encoding/hex"
 	"net/http"
 
@@ -44,7 +43,7 @@ func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	defer span.End()
 	pipelineRequest.WithContext(ctx)
 
-	reqs, err := s.buildShardedRequests(ctx, pipelineRequest)
+	reqs, err := s.buildShardedRequests(pipelineRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +70,7 @@ func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 
 // buildShardedRequests returns a slice of requests sharded on the precalculated
 // block boundaries
-func (s *asyncTraceSharder) buildShardedRequests(ctx context.Context, parent pipeline.Request) ([]pipeline.Request, error) {
+func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request) ([]pipeline.Request, error) {
 	userID, err := user.ExtractOrgID(parent.Context())
 	if err != nil {
 		return nil, err
