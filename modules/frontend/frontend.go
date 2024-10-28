@@ -269,13 +269,41 @@ func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineR
 		resp, _, err := resps.Next(req.Context()) // metrics path will only ever have one response
 
 		level.Info(logger).Log(
-			"msg", "search tag response",
+			"msg", "metrics summary response",
 			"tenant", tenant,
 			"path", req.URL.Path,
 			"err", err)
 
 		return resp.HTTPResponse(), err
 	})
+}
+
+// jpe comment, rename to create child?
+// cloneRequest returns a cloned http.Request from the pipeline.Request.
+func cloneRequest(parent pipeline.Request, tenant string, modHTTP func(*http.Request) (*http.Request, error)) (pipeline.Request, error) {
+	// first clone the http request with headers nil'ed out. this prevents the headers from being copied saving allocs
+	// here and especially downstream in the httpgrpc bridge. prepareRequestForQueriers will add the only headers that
+	// the queriers actually need.
+	req := parent.HTTPRequest()
+	saveHeaders := req.Header
+	req.Header = nil
+	clonedHTTPReq := req.Clone(req.Context())
+
+	req.Header = saveHeaders
+	clonedHTTPReq.Header = make(http.Header, 2) // jpe - 2 b/c we know what prepareRequest is about to do
+
+	// give the caller a chance to modify the internal http request
+	if modHTTP != nil {
+		var err error
+		clonedHTTPReq, err = modHTTP(clonedHTTPReq)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	prepareRequestForQueriers(clonedHTTPReq, tenant)
+
+	return parent.CloneFromHTTPRequest(clonedHTTPReq), nil
 }
 
 // prepareRequestForQueriers modifies the request so they will be farmed correctly to the queriers

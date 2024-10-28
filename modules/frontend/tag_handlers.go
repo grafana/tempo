@@ -45,7 +45,6 @@ func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[com
 		if err != nil {
 			return err
 		}
-		prepareRequestForQueriers(httpReq, tenant)
 
 		var finalResponse *tempopb.SearchTagsResponse
 		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant))
@@ -79,7 +78,6 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		if err != nil {
 			return err
 		}
-		prepareRequestForQueriers(httpReq, tenant)
 
 		var finalResponse *tempopb.SearchTagsV2Response
 		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant))
@@ -117,7 +115,6 @@ func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrippe
 		if err != nil {
 			return err
 		}
-		prepareRequestForQueriers(httpReq, tenant)
 
 		var finalResponse *tempopb.SearchTagValuesResponse
 		comb := combiner.NewTypedSearchTagValues(o.MaxBytesPerTagValuesQuery(tenant))
@@ -155,7 +152,6 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 		if err != nil {
 			return err
 		}
-		prepareRequestForQueriers(httpReq, tenant)
 
 		var finalResponse *tempopb.SearchTagValuesV2Response
 		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant))

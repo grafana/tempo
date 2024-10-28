@@ -3,6 +3,7 @@ package frontend
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/go-kit/log" //nolint:all deprecated
@@ -310,36 +311,37 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.
 		}
 
 		blockID := m.BlockID.String()
+
+		dedColsJSON, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
+		if err != nil {
+			errFn(fmt.Errorf("failed to convert dedicated columns. block: %s tempopb: %w", blockID, err))
+			continue
+		}
+
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
-			subR := parent.HTTPRequest().Clone(ctx)
+			pipelineR, err := cloneRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+				r, err = api.BuildSearchBlockRequest(r, &tempopb.SearchBlockRequest{
+					BlockID:       blockID,
+					StartPage:     uint32(startPage),
+					PagesToSearch: uint32(pages),
+					Encoding:      m.Encoding.String(),
+					IndexPageSize: m.IndexPageSize,
+					TotalRecords:  m.TotalRecords,
+					DataEncoding:  m.DataEncoding,
+					Version:       m.Version,
+					Size_:         m.Size_,
+					FooterSize:    m.FooterSize,
+					// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
+				}, dedColsJSON)
 
-			dedColsJSON, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
-			if err != nil {
-				errFn(fmt.Errorf("failed to convert dedicated columns. block: %s tempopb: %w", blockID, err))
-				continue
-			}
-
-			subR, err = api.BuildSearchBlockRequest(subR, &tempopb.SearchBlockRequest{
-				BlockID:       blockID,
-				StartPage:     uint32(startPage),
-				PagesToSearch: uint32(pages),
-				Encoding:      m.Encoding.String(),
-				IndexPageSize: m.IndexPageSize,
-				TotalRecords:  m.TotalRecords,
-				DataEncoding:  m.DataEncoding,
-				Version:       m.Version,
-				Size_:         m.Size_,
-				FooterSize:    m.FooterSize,
-				// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
-			}, dedColsJSON)
+				return r, err
+			})
 			if err != nil {
 				errFn(fmt.Errorf("failed to build search block request. block: %s tempopb: %w", blockID, err))
 				continue
 			}
 
-			prepareRequestForQueriers(subR, tenantID)
 			key := searchJobCacheKey(tenantID, queryHash, int64(searchReq.Start), int64(searchReq.End), m, startPage, pages)
-			pipelineR := parent.CloneFromHTTPRequest(subR)
 			pipelineR.SetCacheKey(key)
 
 			select {
@@ -396,14 +398,17 @@ func pagesPerRequest(m *backend.BlockMeta, bytesPerRequest int) int {
 	return pagesPerQuery
 }
 
+// jpe - remove ctx?
 func buildIngesterRequest(ctx context.Context, tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, reqCh chan pipeline.Request) error {
-	subR := parent.HTTPRequest().Clone(ctx)
-	subR, err := api.BuildSearchRequest(subR, searchReq)
+	subR, err := cloneRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+		return api.BuildSearchRequest(r, searchReq)
+
+	})
+
 	if err != nil {
 		return err
 	}
 
-	prepareRequestForQueriers(subR, tenantID)
-	reqCh <- parent.CloneFromHTTPRequest(subR)
+	reqCh <- subR
 	return nil
 }

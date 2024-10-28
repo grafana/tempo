@@ -40,13 +40,11 @@ func newAsyncTraceIDSharder(cfg *TraceByIDConfig, logger log.Logger) pipeline.As
 
 // RoundTrip implements http.RoundTripper
 func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
-	r := pipelineRequest.HTTPRequest()
-
-	ctx, span := tracer.Start(r.Context(), "frontend.ShardQuery")
+	ctx, span := tracer.Start(pipelineRequest.Context(), "frontend.ShardQuery")
 	defer span.End()
-	r = r.WithContext(ctx)
+	pipelineRequest.WithContext(ctx)
 
-	reqs, err := s.buildShardedRequests(ctx, r)
+	reqs, err := s.buildShardedRequests(ctx, pipelineRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -66,35 +64,38 @@ func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	}
 
 	return pipeline.NewAsyncSharderFunc(ctx, int(concurrentShards), len(reqs), func(i int) pipeline.Request {
-		pipelineReq := pipelineRequest.CloneFromHTTPRequest(reqs[i])
+		pipelineReq := reqs[i]
 		return pipelineReq
 	}, s.next), nil
 }
 
 // buildShardedRequests returns a slice of requests sharded on the precalculated
 // block boundaries
-func (s *asyncTraceSharder) buildShardedRequests(ctx context.Context, parent *http.Request) ([]*http.Request, error) {
+func (s *asyncTraceSharder) buildShardedRequests(ctx context.Context, parent pipeline.Request) ([]pipeline.Request, error) {
 	userID, err := user.ExtractOrgID(parent.Context())
 	if err != nil {
 		return nil, err
 	}
 
-	reqs := make([]*http.Request, s.cfg.QueryShards)
+	reqs := make([]pipeline.Request, s.cfg.QueryShards)
 	params := map[string]string{}
 	// build sharded block queries
 	for i := 0; i < len(s.blockBoundaries); i++ {
-		reqs[i] = parent.Clone(ctx)
-		if i == 0 {
-			// ingester query
-			params[querier.QueryModeKey] = querier.QueryModeIngesters
-		} else {
-			// block queries
-			params[querier.BlockStartKey] = hex.EncodeToString(s.blockBoundaries[i-1])
-			params[querier.BlockEndKey] = hex.EncodeToString(s.blockBoundaries[i])
-			params[querier.QueryModeKey] = querier.QueryModeBlocks
-		}
-		reqs[i] = api.BuildQueryRequest(reqs[i], params)
-		prepareRequestForQueriers(reqs[i], userID)
+		i := i // save the loop variable locally to make sure the closure grabs the correct var. jpe - needed?
+		pipelineR, _ := cloneRequest(parent, userID, func(r *http.Request) (*http.Request, error) {
+			if i == 0 {
+				// ingester query
+				params[querier.QueryModeKey] = querier.QueryModeIngesters
+			} else {
+				// block queries
+				params[querier.BlockStartKey] = hex.EncodeToString(s.blockBoundaries[i-1])
+				params[querier.BlockEndKey] = hex.EncodeToString(s.blockBoundaries[i])
+				params[querier.QueryModeKey] = querier.QueryModeBlocks
+			}
+			return api.BuildQueryRequest(r, params), nil
+		})
+
+		reqs[i] = pipelineR
 	}
 
 	return reqs, nil
