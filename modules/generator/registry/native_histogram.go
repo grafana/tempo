@@ -113,8 +113,7 @@ func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, 
 		return
 	}
 
-	newSeries := h.newSeries(labelValueCombo, value, traceID, multiplier)
-	h.series[hash] = newSeries
+	h.series[hash] = h.newSeries(labelValueCombo, value, traceID, multiplier)
 }
 
 func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) *nativeHistogramSeries {
@@ -138,12 +137,17 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 	lbls := labelValueCombo.getLabelPair()
 	lb := labels.NewBuilder(make(labels.Labels, 1+len(lbls.names)))
 
-	lb.Set(labels.MetricName, h.metricName)
-
+	// set series labels
+	for i, name := range lbls.names {
+		lb.Set(name, lbls.values[i])
+	}
 	// set external labels
 	for name, value := range h.externalLabels {
 		lb.Set(name, value)
 	}
+
+	lb.Set(labels.MetricName, h.metricName)
+
 	newSeries.labels = lb.Labels()
 	newSeries.lb = lb
 
@@ -171,11 +175,6 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 	activeSeries = 0
 
 	for _, s := range h.series {
-		// Set series-specific labels
-		// for i, name := range s.labels.names {
-		// 	lb.Set(name, s.labels.values[i])
-		// }
-
 		// Extract histogram
 		encodedMetric := &dto.Metric{}
 
@@ -185,9 +184,10 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 			return activeSeries, err
 		}
 
-		// NOTE: Store the encoded histogram here so we can keep track of the exemplars
-		// that have been sent.  The value is updated here, but the pointers remain
-		// the same, and so Reset() call below can be used to clear the exemplars.
+		// NOTE: Store the encoded histogram here so we can keep track of the
+		// exemplars that have been sent.  The value is updated here, but the
+		// pointers remain the same, and so Reset() call below can be used to clear
+		// the exemplars.
 		s.histogram = encodedMetric.GetHistogram()
 
 		// If we are in "both" or "classic" mode, also emit classic histograms.
