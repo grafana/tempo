@@ -215,7 +215,7 @@ func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
 			// This is a counter label, we can skip it
 			continue
 		}
-		for _, sample := range ts.Samples {
+		for i, sample := range ts.Samples {
 			pos := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
 			if pos < 0 || pos >= len(b.weightedAverageSeries[ts.PromLabels].values) {
 				continue
@@ -225,7 +225,7 @@ func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
 			currentWeight := b.weightedAverageSeries[counterLabel].values[pos]
 
 			newAvg := sample.Value
-			newWeight := in[countPosMapper[counterLabel]].Samples[pos].Value
+			newWeight := in[countPosMapper[counterLabel]].Samples[i].Value
 
 			mean, weight := b.addWeigthedMean(currentMean, currentWeight, newAvg, newWeight)
 
@@ -419,18 +419,18 @@ func (g *avgOverTimeSpanAggregator[F, S]) Observe(span Span) {
 	}
 
 	s := g.getSeries(span)
-
-	s.count[interval]++
+	if math.IsNaN(s.avg[interval]) && !math.IsNaN(inc) {
+		// When we have a proper value in the span we need to initialize to 0
+		s.avg[interval] = 0
+		s.count[interval] = 1
+	}
 	mean, c := averageInc(s.avg[interval], inc, s.count[interval], s.compensation[interval])
+	s.count[interval]++
 	s.avg[interval] = mean
 	s.compensation[interval] = c
 }
 
 func averageInc(mean, inc, count, compensation float64) (float64, float64) {
-	if math.IsNaN(mean) && !math.IsNaN(inc) {
-		// When we have a proper value in the span we need to initialize to 0
-		mean = 0
-	}
 	if math.IsInf(mean, 0) {
 		if math.IsInf(inc, 0) && (mean > 0) == (inc > 0) {
 			// The `current.val` and `new` values are `Inf` of the same sign.  They
@@ -576,6 +576,7 @@ func (g *avgOverTimeSpanAggregator[F, S]) getSeries(span Span) avgOverTimeSeries
 		}
 		for i := 0; i < intervals; i++ {
 			s.avg[i] = math.Float64frombits(normalNaN)
+			s.count[i] = math.Float64frombits(normalNaN)
 		}
 
 		g.series[g.buf.fast] = s
