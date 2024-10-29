@@ -38,13 +38,13 @@ func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode Aggr
 	}
 
 	a.seriesAgg = &averageOverTimeSeriesAggregator{
-		ss:              make(SeriesSet),
-		countProm:       make(map[string]string),
-		len:             IntervalCount(q.Start, q.End, q.Step),
-		start:           q.Start,
-		end:             q.End,
-		step:            q.Step,
-		exemplarBuckets: newBucketSet(IntervalCount(q.Start, q.End, q.Step)),
+		weightedAverageSeries: make(map[string]*kahanSeries),
+		averageToCountMapper:  make(map[string]string),
+		len:                   IntervalCount(q.Start, q.End, q.Step),
+		start:                 q.Start,
+		end:                   q.End,
+		step:                  q.Step,
+		exemplarBuckets:       newBucketSet(IntervalCount(q.Start, q.End, q.Step)),
 	}
 
 	if mode == AggregateModeRaw {
@@ -139,11 +139,47 @@ func (a *averageOverTimeAggregator) String() string {
 }
 
 type averageOverTimeSeriesAggregator struct {
-	ss               SeriesSet
-	countProm        map[string]string
-	len              int
-	start, end, step uint64
-	exemplarBuckets  *bucketSet
+	weightedAverageSeries map[string]*kahanSeries
+	// mapping between average series with their weights
+	averageToCountMapper map[string]string
+	len                  int
+	start, end, step     uint64
+	exemplarBuckets      *bucketSet
+}
+
+type kahanValue struct {
+	sum          float64
+	compensation float64
+}
+type kahanSeries struct {
+	values    []kahanValue
+	labels    Labels
+	Exemplars []Exemplar
+}
+
+// it adds the compensation to the final value to retain precission
+func (k *kahanSeries) getFinal() []float64 {
+	final := make([]float64, len(k.values))
+	for i, v := range k.values {
+		final[i] = v.sum + v.compensation
+	}
+	return final
+}
+
+func newKahanSeries(len int, lenExemplars int, labels Labels, initToNan bool) *kahanSeries {
+	s := &kahanSeries{
+		values: make([]kahanValue, len),
+		labels: labels,
+	}
+	// Init the sum to discriminate between uninitialized values and 0
+	if initToNan {
+		s.Exemplars = make([]Exemplar, 0, lenExemplars)
+		for i := range s.values {
+			s.values[i].sum = nan
+		}
+	}
+
+	return s
 }
 
 var (
@@ -152,78 +188,80 @@ var (
 )
 
 func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
-	newCountersTS := make(map[string][]float64)
+	// We traverse the TimeSeries first to initialize and map the count series
+	countPosMapper := make(map[string]int, len(in)/2)
+	for i, ts := range in {
+		_, ok := b.weightedAverageSeries[ts.PromLabels]
+		isCountSeries := strings.Contains(ts.PromLabels, internalLabelMetaType)
 
-	b.initSeriesAggregator(in, newCountersTS)
+		if !ok {
+			promLabels := getLabels(ts.Labels, "")
+
+			if isCountSeries {
+				avgSeriesPromLabel := getLabels(ts.Labels, internalLabelMetaType).String()
+				// we need to map the average series with the count one for fast-seeking
+				b.averageToCountMapper[avgSeriesPromLabel] = ts.PromLabels
+			}
+			b.weightedAverageSeries[ts.PromLabels] = newKahanSeries(b.len, len(ts.Exemplars), promLabels, !isCountSeries)
+		}
+		if isCountSeries {
+			// mapping of the position of the count series in the time series array
+			countPosMapper[ts.PromLabels] = i
+		}
+	}
 	for _, ts := range in {
-		counterLabel, ok := b.countProm[ts.PromLabels]
+		counterLabel, ok := b.averageToCountMapper[ts.PromLabels]
 		if !ok {
 			// This is a counter label, we can skip it
 			continue
 		}
-		existing := b.ss[ts.PromLabels]
 		for _, sample := range ts.Samples {
 			pos := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
-			if pos < 0 || pos > len(b.ss[ts.PromLabels].Values) {
+			if pos < 0 || pos > len(b.weightedAverageSeries[ts.PromLabels].values) {
 				continue
 			}
 
-			currentAvg := b.ss[ts.PromLabels].Values[pos]
+			currentMean := b.weightedAverageSeries[ts.PromLabels].values[pos]
+			currentWeight := b.weightedAverageSeries[counterLabel].values[pos]
 			newAvg := sample.Value
-			currentCount := b.ss[counterLabel].Values[pos]
-			newCount := newCountersTS[ts.PromLabels][pos]
+			newWeight := in[countPosMapper[counterLabel]].Samples[pos].Value
 
-			if math.IsNaN(currentAvg) && !math.IsNaN(newAvg) {
-				b.ss[ts.PromLabels].Values[pos] = newAvg
-				b.ss[counterLabel].Values[pos] = newCount
-			} else if !math.IsNaN(newAvg) {
-				// Weighted mean
-				avg := (currentAvg*currentCount + newAvg*newCount) / (currentCount + newCount)
-				b.ss[ts.PromLabels].Values[pos] = avg
-				b.ss[counterLabel].Values[pos] = currentCount + newCount
-			}
-		}
+			mean, weight := b.addWeigthedMean(currentMean, currentWeight, newAvg, newWeight)
 
-		b.aggregateExemplars(ts, &existing)
-		b.ss[ts.PromLabels] = existing
-	}
-}
-
-func (b *averageOverTimeSeriesAggregator) initSeriesAggregator(in []*tempopb.TimeSeries, newCountersTS map[string][]float64) {
-	for _, ts := range in {
-		counterPromLabel := ""
-		if strings.Contains(ts.PromLabels, internalLabelMetaType) {
-			counterPromLabel = getLabels(ts.Labels, internalLabelMetaType).String()
-			newCountersTS[counterPromLabel] = make([]float64, b.len)
-			for _, sample := range ts.Samples {
-				pos := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
-				if pos < 0 || pos > b.len {
-					continue
-				}
-				newCountersTS[counterPromLabel][pos] = sample.Value
-			}
-		}
-		_, ok := b.ss[ts.PromLabels]
-		if !ok {
-			labels := getLabels(ts.Labels, "")
-			n := TimeSeries{
-				Labels:    labels,
-				Values:    make([]float64, b.len),
-				Exemplars: make([]Exemplar, 0, len(ts.Exemplars)),
-			}
-			if counterPromLabel != "" {
-				b.countProm[counterPromLabel] = ts.PromLabels
-			} else {
-				for i := range n.Values {
-					n.Values[i] = nan
-				}
-			}
-			b.ss[ts.PromLabels] = n
+			b.weightedAverageSeries[ts.PromLabels].values[pos] = mean
+			b.weightedAverageSeries[counterLabel].values[pos] = weight
+			b.aggregateExemplars(ts, b.weightedAverageSeries[ts.PromLabels])
 		}
 	}
 }
 
-func (b *averageOverTimeSeriesAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *TimeSeries) {
+// It calculates the weighted mean using kahan-neumaier summation and a delta approach.
+// By adding incremental values we prevent overflow
+func (b averageOverTimeSeriesAggregator) addWeigthedMean(currentMean kahanValue, currentWeight kahanValue, newMean float64, newWeight float64) (kahanValue, kahanValue) {
+	if math.IsNaN(currentMean.sum) && !math.IsNaN(newMean) {
+		return kahanValue{sum: newMean, compensation: 0}, kahanValue{sum: newWeight, compensation: 0}
+	}
+	if math.IsInf(currentMean.sum, 0) {
+		if math.IsInf(newMean, 0) && (currentMean.sum > 0) == (newMean > 0) {
+			return currentMean, currentWeight
+		}
+		if !math.IsInf(newMean, 0) && !math.IsNaN(newMean) {
+			return currentMean, currentWeight
+		}
+	}
+	weightDelta := newWeight - currentWeight.compensation
+	weight, weightCompensation := kahanSumInc(currentWeight.sum, weightDelta, currentWeight.compensation)
+
+	// Using a delta increment to avoid overflow
+	meanDelta := ((newMean - currentMean.sum) * newWeight) / weight
+	meanDelta -= currentMean.compensation
+
+	mean, meanCompensation := kahanSumInc(currentMean.sum, meanDelta, currentMean.compensation)
+
+	return kahanValue{sum: mean, compensation: meanCompensation}, kahanValue{sum: weight, compensation: weightCompensation}
+}
+
+func (b *averageOverTimeSeriesAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *kahanSeries) {
 	for _, exemplar := range ts.Exemplars {
 		if b.exemplarBuckets.testTotal() {
 			break
@@ -266,7 +304,15 @@ func getLabels(vals []v1.KeyValue, skipKey string) Labels {
 }
 
 func (b *averageOverTimeSeriesAggregator) Results() SeriesSet {
-	return b.ss
+	ss := SeriesSet{}
+	for k, v := range b.weightedAverageSeries {
+		ss[k] = TimeSeries{
+			Labels:    v.labels,
+			Values:    v.getFinal(),
+			Exemplars: v.Exemplars,
+		}
+	}
+	return ss
 }
 
 // Accumulated results of average over time
