@@ -217,12 +217,13 @@ func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
 		}
 		for _, sample := range ts.Samples {
 			pos := IntervalOfMs(sample.TimestampMs, b.start, b.end, b.step)
-			if pos < 0 || pos > len(b.weightedAverageSeries[ts.PromLabels].values) {
+			if pos < 0 || pos >= len(b.weightedAverageSeries[ts.PromLabels].values) {
 				continue
 			}
 
 			currentMean := b.weightedAverageSeries[ts.PromLabels].values[pos]
 			currentWeight := b.weightedAverageSeries[counterLabel].values[pos]
+
 			newAvg := sample.Value
 			newWeight := in[countPosMapper[counterLabel]].Samples[pos].Value
 
