@@ -15,6 +15,7 @@ func newQueryBuilder(init string) *queryBuilder {
 		builder: strings.Builder{},
 	}
 
+	qb.builder.Grow(100) // pre-allocate some space. ideally the caller could indicate roughly the expected size, but starting with 100 bytes significantly outperforms 0
 	qb.builder.WriteString(init)
 	return qb
 }
