@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -41,6 +42,11 @@ type nativeHistogram struct {
 	histogramOverride HistogramMode
 
 	externalLabels map[string]string
+
+	// classic
+	nameCount  string
+	nameSum    string
+	nameBucket string
 }
 
 type nativeHistogramSeries struct {
@@ -56,6 +62,11 @@ type nativeHistogramSeries struct {
 	// This avoids Prometheus throwing away the first value in the series,
 	// due to the transition from null -> x.
 	firstSeries *atomic.Bool
+
+	// classic
+	countLabels labels.Labels
+	sumLabels   labels.Labels
+	// bucketLabels []labels.Labels
 }
 
 func (hs *nativeHistogramSeries) isNew() bool {
@@ -94,6 +105,11 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 		buckets:           buckets,
 		histogramOverride: histogramOverride,
 		externalLabels:    externalLabels,
+
+		// classic
+		nameCount:  fmt.Sprintf("%s_count", name),
+		nameSum:    fmt.Sprintf("%s_sum", name),
+		nameBucket: fmt.Sprintf("%s_bucket", name),
 	}
 }
 
@@ -150,6 +166,14 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 
 	newSeries.labels = lb.Labels()
 	newSeries.lb = lb
+
+	// _count
+	lb.Set(labels.MetricName, h.nameCount)
+	newSeries.countLabels = lb.Labels()
+
+	// _sum
+	lb.Set(labels.MetricName, h.nameSum)
+	newSeries.sumLabels = lb.Labels()
 
 	return newSeries
 }
@@ -288,9 +312,8 @@ func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lbls label
 
 func (h *nativeHistogram) classicHistograms(appender storage.Appender, lb *labels.Builder, timeMs int64, s *nativeHistogramSeries) (activeSeries int, err error) {
 	if s.isNew() {
-		lb.Set(labels.MetricName, h.metricName+"_count")
 		endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
-		_, err = appender.Append(0, lb.Labels(), endOfLastMinuteMs, 0)
+		_, err = appender.Append(0, s.countLabels, endOfLastMinuteMs, 0)
 		if err != nil {
 			return activeSeries, err
 		}
@@ -298,16 +321,14 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, lb *label
 	}
 
 	// sum
-	lb.Set(labels.MetricName, h.metricName+"_sum")
-	_, err = appender.Append(0, lb.Labels(), timeMs, s.histogram.GetSampleSum())
+	_, err = appender.Append(0, s.sumLabels, timeMs, s.histogram.GetSampleSum())
 	if err != nil {
 		return activeSeries, err
 	}
 	activeSeries++
 
 	// count
-	lb.Set(labels.MetricName, h.metricName+"_count")
-	_, err = appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(s.histogram.GetSampleCountFloat(), s.histogram.GetSampleCount()))
+	_, err = appender.Append(0, s.countLabels, timeMs, getIfGreaterThenZeroOr(s.histogram.GetSampleCountFloat(), s.histogram.GetSampleCount()))
 	if err != nil {
 		return activeSeries, err
 	}
