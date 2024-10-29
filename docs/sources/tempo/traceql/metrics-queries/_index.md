@@ -75,6 +75,13 @@ Exemplars are available in TraceQL metrics for all functions.
 To get exemplars, you need to configure it in the query-frontend with the parameter `query_frontend.metrics.exemplars`,
 or pass a query hint in your query.
 
+Example:
+
 ```
 { span:name = "GET /:endpoint" } | quantile_over_time(duration, .99) by (span.http.target) with (exemplars=true)
 ```
+
+{{< admonition type="note" >}}
+TraceQL metric queries with exemplars aren't fully supported in Grafana Explore.
+They will be supported in a future Grafana release.
+{{< /admonition >}}
