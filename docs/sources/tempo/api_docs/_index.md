@@ -600,18 +600,20 @@ Parameters:
   Optional. Can be used instead of `start` and `end` to define the time range in relative values. For example, `since=15m` queries the last 15 minutes. Default is the last 1 hour.
 - `step = (duration string)`
   Optional. Defines the granularity of the returned time-series. For example, `step=15s` returns a data point every 15s within the time range. If not specified, then the default behavior chooses a dynamic step based on the time range.
+- `exemplars = (integer)`
+  Optional. Defines the maximun number of exemplars for the query. It will be trimmed to max_exemplars if exceed it.
 
 The API is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
 
-For example the following request computes the rate of spans received for `myservice` over the last three hours, at 1 minute intervals.
+For example, the following request computes the rate of spans received for `myservice` over the last three hours, at 1 minute intervals.
 
 {{< admonition type="note" >}}
-Actual API parameters must be URL-encoded. This example is left unencoded for readability.
+Actual API parameters must be url-encoded. This example is left unencoded for readability.
 {{< /admonition >}}
 
 ```
-GET /api/metrics/query_range?q={resource.service.name="myservice"}|rate()&since=3h&step=1m
+GET /api/metrics/query_range?q={resource.service.name="myservice"} | min_over_time() with(exemplars=true) &since=3h&step=1m&exemplars=100
 ```
 
 #### Instant
