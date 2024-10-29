@@ -19,7 +19,7 @@ jobs:
           app-id: ${{secrets.APP_ID}}
           private-key: ${{secrets.APP_PRIVATE_KEY}}
           owner: ${{ github.repository_owner }}
-      - uses: actions/add-to-project@v1.0.0
+      - uses: actions/add-to-project@v1.0.2
         with:
           project-url: https://github.com/orgs/grafana/projects/135
           github-token: ${{ steps.get-github-app-token.outputs.token }}
