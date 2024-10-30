@@ -56,14 +56,14 @@ To run TraceQL metrics queries in Grafana, you need Grafana Cloud or Grafana 10.
 No extra configuration is needed.
 Use a Tempo data source that points to a Tempo database with TraceQL metrics enabled.
 
-Refer to [Solve problems using metrics queries](./solve-problems-metrics-queries/) for some real-world examples.
+Refer to [Solve problems using metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/solve-problems-metrics-queries/) for some real-world examples.
 
 ### Functions
 
 TraceQL metrics queries currently include the following functions for aggregating over groups of spans: `rate`, `count_over_time`, `quantile_over_time`, `histogram_over_time`, and `compare`.
 These functions can be added as an operator at the end of any TraceQL query.
 
-For detailed information and example queries for each function, refer to [TraceQL metrics functions](./functions).
+For detailed information and example queries for each function, refer to [TraceQL metrics functions](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/functions/).
 
 ### Exemplars
 
