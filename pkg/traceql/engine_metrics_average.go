@@ -39,7 +39,6 @@ func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode Aggr
 
 	a.seriesAgg = &averageOverTimeSeriesAggregator{
 		weightedAverageSeries: make(map[string]averageSeries),
-		averageToCountMapper:  make(map[string]string),
 		len:                   IntervalCount(q.Start, q.End, q.Step),
 		start:                 q.Start,
 		end:                   q.End,
@@ -140,30 +139,36 @@ func (a *averageOverTimeAggregator) String() string {
 
 type averageOverTimeSeriesAggregator struct {
 	weightedAverageSeries map[string]averageSeries
-	// mapping between average series with their weights
-	averageToCountMapper map[string]string
-	len                  int
-	start, end, step     uint64
-	exemplarBuckets      *bucketSet
+	len                   int
+	start, end, step      uint64
+	exemplarBuckets       *bucketSet
 }
 
 type averageValue struct {
-	sum          float64
+	mean         float64
 	compensation float64
 	weight       float64
 }
 
+// Adds an increment to the existing mean using Kahan sumnmation algorithm.
+// The compensation is accumulated and not applied to reduce the error
 func (a *averageValue) add(inc float64) {
-	if math.IsInf(a.sum, 0) {
-		if math.IsInf(inc, 0) && (a.sum > 0) == (inc > 0) {
+	if math.IsInf(a.mean, 0) {
+		if math.IsInf(inc, 0) && (a.mean > 0) == (inc > 0) {
+			// The `mean` and `ic` values are `Inf` of the same sign.  They
+			// can't be subtracted, but the value of `mean` is correct
+			// already.
 			return
 		}
 		if !math.IsInf(inc, 0) && !math.IsNaN(inc) {
+			// At this stage, the mean is an infinite. If the added
+			// value is neither an Inf or a Nan, we can keep that mean
+			// value.
 			return
 		}
 	}
-	val, c := kahanSumInc(inc, a.sum, a.compensation)
-	a.sum = val
+	val, c := kahanSumInc(inc, a.mean, a.compensation)
+	a.mean = val
 	a.compensation = c
 }
 
@@ -194,9 +199,9 @@ func newAverageSeries(len int, lenExemplars int, labels Labels) averageSeries {
 		labels:    labels,
 		Exemplars: make([]Exemplar, 0, lenExemplars),
 	}
-
+	// Init to nan to discriminate uninitialized values from 0
 	for i := range s.values {
-		s.values[i].sum = nan
+		s.values[i].mean = nan
 		s.values[i].weight = nan
 	}
 	return s
@@ -211,7 +216,7 @@ func (k *averageSeries) getAvgSeries() TimeSeries {
 	}
 
 	for i, v := range k.values {
-		ts.Values[i] = v.sum + v.compensation
+		ts.Values[i] = v.mean + v.compensation
 	}
 	return ts
 }
@@ -228,15 +233,15 @@ func (k *averageSeries) getCountSeries() TimeSeries {
 	return ts
 }
 
-// It increments the average
-func (k *averageSeries) addMeanIncrement(interval int, inc float64) {
+// It increments the mean based on a new value
+func (k *averageSeries) addIncrementMean(interval int, inc float64) {
 	currentMean := k.values[interval]
-	if math.IsNaN(currentMean.sum) && !math.IsNaN(inc) {
-		k.values[interval] = averageValue{sum: inc, weight: 1}
+	if math.IsNaN(currentMean.mean) && !math.IsNaN(inc) {
+		k.values[interval] = averageValue{mean: inc, weight: 1}
 		return
 	}
 	currentMean.weight++
-	currentMean.add(inc/currentMean.weight - currentMean.sum/currentMean.weight)
+	currentMean.add(inc/currentMean.weight - currentMean.mean/currentMean.weight)
 	k.values[interval] = currentMean
 }
 
@@ -244,18 +249,16 @@ func (k *averageSeries) addMeanIncrement(interval int, inc float64) {
 // By adding incremental values we prevent overflow
 func (k *averageSeries) addWeigthedMean(interval int, mean float64, weight float64) {
 	currentMean := k.values[interval]
-	if math.IsNaN(currentMean.sum) && !math.IsNaN(mean) {
-		k.values[interval] = averageValue{sum: mean, weight: weight}
+	if math.IsNaN(currentMean.mean) && !math.IsNaN(mean) {
+		k.values[interval] = averageValue{mean: mean, weight: weight}
 		return
 	}
 
 	sumWeights := currentMean.weight + weight
-	// Using a delta increment to avoid overflow
-	meanDelta := ((mean - currentMean.sum) * weight) / sumWeights
+	meanDelta := ((mean - currentMean.mean) * weight) / sumWeights
 	meanDelta -= currentMean.compensation
 
 	currentMean.add(meanDelta)
-
 	k.values[interval] = currentMean
 }
 
@@ -265,7 +268,7 @@ var (
 )
 
 func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
-	// We traverse the TimeSeries first to initialize and map the count series
+	// We traverse the TimeSeries to initialize new TimeSeries and map the counter series with the position in the `in` array
 	countPosMapper := make(map[string]int, len(in)/2)
 	for i, ts := range in {
 		_, ok := b.weightedAverageSeries[ts.PromLabels]
@@ -282,7 +285,7 @@ func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
 	for _, ts := range in {
 		existing, ok := b.weightedAverageSeries[ts.PromLabels]
 		if !ok {
-			// This is a counter label, we can skip it
+			// This is a counter series, we can skip it
 			continue
 		}
 		for i, sample := range ts.Samples {
@@ -451,7 +454,7 @@ func (g *avgOverTimeSpanAggregator[F, S]) Observe(span Span) {
 	}
 
 	s := g.getSeries(span)
-	s.average.addMeanIncrement(interval, inc)
+	s.average.addIncrementMean(interval, inc)
 }
 
 func (g *avgOverTimeSpanAggregator[F, S]) ObserveExemplar(span Span, value float64, ts uint64) {
