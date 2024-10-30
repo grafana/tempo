@@ -167,6 +167,21 @@ func (a *averageValue) add(inc float64) {
 	a.compensation = c
 }
 
+func kahanSumInc(inc, sum, c float64) (newSum, newC float64) {
+	t := sum + inc
+	switch {
+	case math.IsInf(t, 0):
+		c = 0
+
+	// Using Neumaier improvement, swap if next term larger than sum.
+	case math.Abs(sum) >= math.Abs(inc):
+		c += (sum - t) + inc
+	default:
+		c += (inc - t) + sum
+	}
+	return t, c
+}
+
 type averageSeries struct {
 	values    []averageValue
 	labels    Labels
@@ -211,6 +226,18 @@ func (k *averageSeries) getCountSeries() TimeSeries {
 		ts.Values[i] = v.weight
 	}
 	return ts
+}
+
+// It increments the average
+func (k *averageSeries) addMeanIncrement(interval int, inc float64) {
+	currentMean := k.values[interval]
+	if math.IsNaN(currentMean.sum) && !math.IsNaN(inc) {
+		k.values[interval] = averageValue{sum: inc, weight: 1}
+		return
+	}
+	currentMean.weight++
+	currentMean.add(inc/currentMean.weight - currentMean.sum/currentMean.weight)
+	k.values[interval] = currentMean
 }
 
 // It calculates the incremental weighted mean using kahan-neumaier summation and a delta approach.
@@ -326,13 +353,10 @@ func (b *averageOverTimeSeriesAggregator) Results() SeriesSet {
 
 // Accumulated results of average over time
 type avgOverTimeSeries[S StaticVals] struct {
-	avg             []float64
-	count           []float64
-	compensation    []float64
-	exemplars       []Exemplar
+	average         averageSeries
 	exemplarBuckets *bucketSet
-	init            bool
 	vals            S
+	initialized     bool
 }
 
 // In charge of calculating the average over time for a set of spans
@@ -427,52 +451,7 @@ func (g *avgOverTimeSpanAggregator[F, S]) Observe(span Span) {
 	}
 
 	s := g.getSeries(span)
-	if math.IsNaN(s.avg[interval]) && !math.IsNaN(inc) {
-		// When we have a proper value in the span we need to initialize to 0
-		s.avg[interval] = 0
-		s.count[interval] = 0
-	}
-	s.count[interval]++
-	mean, c := averageInc(s.avg[interval], inc, s.count[interval], s.compensation[interval])
-	s.avg[interval] = mean
-	s.compensation[interval] = c
-}
-
-func averageInc(mean, inc, count, compensation float64) (float64, float64) {
-	if math.IsInf(mean, 0) {
-		if math.IsInf(inc, 0) && (mean > 0) == (inc > 0) {
-			// The `current.val` and `new` values are `Inf` of the same sign.  They
-			// can't be subtracted, but the value of `current.val` is correct
-			// already.
-			return mean, compensation
-		}
-		if !math.IsInf(inc, 0) && !math.IsNaN(inc) {
-			// At this stage, the current.val is an infinite. If the added
-			// value is neither an Inf or a Nan, we can keep that mean
-			// value.
-			// This is required because our calculation below removes
-			// the mean value, which would look like Inf += x - Inf and
-			// end up as a NaN.
-			return mean, compensation
-		}
-	}
-	mean, c := kahanSumInc(inc/count-mean/count, mean, compensation)
-	return mean, c
-}
-
-func kahanSumInc(inc, sum, c float64) (newSum, newC float64) {
-	t := sum + inc
-	switch {
-	case math.IsInf(t, 0):
-		c = 0
-
-	// Using Neumaier improvement, swap if next term larger than sum.
-	case math.Abs(sum) >= math.Abs(inc):
-		c += (sum - t) + inc
-	default:
-		c += (inc - t) + sum
-	}
-	return t, c
+	s.average.addMeanIncrement(interval, inc)
 }
 
 func (g *avgOverTimeSpanAggregator[F, S]) ObserveExemplar(span Span, value float64, ts uint64) {
@@ -491,7 +470,7 @@ func (g *avgOverTimeSpanAggregator[F, S]) ObserveExemplar(span Span, value float
 		lbls = append(lbls, Label{k.String(), v})
 	}
 
-	s.exemplars = append(s.exemplars, Exemplar{
+	s.average.Exemplars = append(s.average.Exemplars, Exemplar{
 		Labels:      lbls,
 		Value:       value,
 		TimestampMs: ts,
@@ -499,13 +478,10 @@ func (g *avgOverTimeSpanAggregator[F, S]) ObserveExemplar(span Span, value float
 	g.series[g.buf.fast] = s
 }
 
-func (g *avgOverTimeSpanAggregator[F, S]) labelsFor(vals S, t string) (Labels, string) {
+func (g *avgOverTimeSpanAggregator[F, S]) labelsFor(vals S) (Labels, string) {
 	if g.by == nil {
 		serieLabel := make(Labels, 1, 2)
 		serieLabel[0] = Label{labels.MetricName, NewStaticString(metricsAggregateAvgOverTime.String())}
-		if t != "" {
-			serieLabel = append(serieLabel, Label{internalLabelMetaType, NewStaticString(t)})
-		}
 		return serieLabel, serieLabel.String()
 	}
 	labels := make(Labels, 0, len(g.by)+1)
@@ -521,10 +497,6 @@ func (g *avgOverTimeSpanAggregator[F, S]) labelsFor(vals S, t string) (Labels, s
 		labels = append(labels, Label{g.by[0].String(), NewStaticNil()})
 	}
 
-	if t != "" {
-		labels = append(labels, Label{internalLabelMetaType, NewStaticString(t)})
-	}
-
 	return labels, labels.String()
 }
 
@@ -532,24 +504,15 @@ func (g *avgOverTimeSpanAggregator[F, S]) Series() SeriesSet {
 	ss := SeriesSet{}
 
 	for _, s := range g.series {
-		// First, get the regular series
-		labels, promLabelsAvg := g.labelsFor(s.vals, "")
-		// Include the compensation at the end
-		for i := range s.avg {
-			s.avg[i] = s.avg[i] + s.compensation[i]
-		}
-		ss[promLabelsAvg] = TimeSeries{
-			Labels:    labels,
-			Values:    s.avg,
-			Exemplars: s.exemplars,
-		}
-		// Second, get the "count" series
-		labels, promLabelsCount := g.labelsFor(s.vals, internalMetaTypeCount)
-		ss[promLabelsCount] = TimeSeries{
-			Labels:    labels,
-			Values:    s.count,
-			Exemplars: []Exemplar{},
-		}
+		labels, promLabelsAvg := g.labelsFor(s.vals)
+		s.average.labels = labels
+		// Average series
+		averageSeries := s.average.getAvgSeries()
+		// Count series
+		countSeries := s.average.getCountSeries()
+
+		ss[promLabelsAvg] = averageSeries
+		ss[countSeries.Labels.String()] = countSeries
 	}
 
 	return ss
@@ -566,7 +529,7 @@ func (g *avgOverTimeSpanAggregator[F, S]) getSeries(span Span) avgOverTimeSeries
 	}
 
 	// Fast path
-	if g.lastSeries.init && g.lastBuf.fast == g.buf.fast {
+	if g.lastBuf.fast == g.buf.fast && g.lastSeries.initialized {
 		return g.lastSeries
 	}
 
@@ -574,19 +537,11 @@ func (g *avgOverTimeSpanAggregator[F, S]) getSeries(span Span) avgOverTimeSeries
 	if !ok {
 		intervals := IntervalCount(g.start, g.end, g.step)
 		s = avgOverTimeSeries[S]{
-			init:            true,
 			vals:            g.buf.vals,
-			count:           make([]float64, intervals),
-			avg:             make([]float64, intervals),
-			compensation:    make([]float64, intervals),
-			exemplars:       make([]Exemplar, 0, maxExemplars),
+			average:         newAverageSeries(intervals, maxExemplars, nil),
 			exemplarBuckets: newBucketSet(intervals),
+			initialized:     true,
 		}
-		for i := 0; i < intervals; i++ {
-			s.avg[i] = math.Float64frombits(normalNaN)
-			s.count[i] = math.Float64frombits(normalNaN)
-		}
-
 		g.series[g.buf.fast] = s
 	}
 
