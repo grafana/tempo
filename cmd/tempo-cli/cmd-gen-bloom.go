@@ -29,7 +29,7 @@ type forEachRecord func(id common.ID) error
 
 func ReplayBlockAndDoForEachRecord(meta *backend.BlockMeta, filepath string, forEach forEachRecord) error {
 	// replay file to extract records
-	f, err := os.OpenFile(filepath, os.O_RDONLY, 0o644)
+	f, err := os.OpenFile(filepath, os.O_RDONLY, 0o600)
 	if err != nil {
 		return err
 	}

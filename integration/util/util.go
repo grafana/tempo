@@ -312,12 +312,12 @@ func writeFileToSharedDir(s *e2e.Scenario, dst string, content []byte) (string, 
 	dst = filepath.Join(s.SharedDir(), dst)
 
 	// Ensure the entire path of directories exists
-	err := os.MkdirAll(filepath.Dir(dst), os.ModePerm)
+	err := os.MkdirAll(filepath.Dir(dst), 0o700)
 	if err != nil {
 		return "", err
 	}
 
-	err = os.WriteFile(dst, content, os.ModePerm)
+	err = os.WriteFile(dst, content, 0o700)
 	if err != nil {
 		return "", err
 	}
