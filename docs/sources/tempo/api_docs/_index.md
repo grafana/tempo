@@ -31,7 +31,7 @@ For externally supported GRPC API, [see below](#tempo-grpc-api).
 | [Search tag names V2](#search-tags-v2) | Query-frontend | HTTP | `GET /api/v2/search/tags` |
 | [Search tag values](#search-tag-values) | Query-frontend | HTTP | `GET /api/search/tag/<tag>/values` |
 | [Search tag values V2](#search-tag-values-v2) | Query-frontend | HTTP | `GET /api/v2/search/tag/<tag>/values` |
-| [TraceQL Metrics](#traceql-metrics) | Query-frontend | HTTP | `GET /api/metrics/query_range` | 
+| [TraceQL Metrics](#traceql-metrics) | Query-frontend | HTTP | `GET /api/metrics/query_range` |
 | [TraceQL Metrics (instant)](#instant) | Query-frontend | HTTP | `GET /api/metrics/query` |
 | [Query Echo Endpoint](#query-echo-endpoint) | Query-frontend |  HTTP | `GET /api/echo` |
 | [Overrides API](#overrides-api) | Query-frontend | HTTP | `GET,POST,PATCH,DELETE /api/overrides` |
@@ -311,8 +311,9 @@ $ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.nam
 
 Ingester configuration `complete_block_timeout` affects how long tags are available for search.
 
-This endpoint retrieves all discovered tag names that can be used in search. The endpoint is available in the query frontend service in
-a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. The tags endpoint takes a scope that controls the kinds
+This endpoint retrieves all discovered tag names that can be used in search.
+The endpoint is available in the query frontend service in a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
+The tags endpoint takes a scope that controls the kinds
 of tags or attributes returned. If nothing is provided, the endpoint returns all resource and span tags.
 
 ```
@@ -518,7 +519,9 @@ If a particular service name (for example, `shopping-cart`) is only present on s
 
 ### TraceQL Metrics
 
-The TraceQL Metrics API returns Prometheus-like time-series for a given metrics query.  Metrics queries are those using metrics functions like `rate()` and `quantile_over_time()`.  See the [documentation]({{< relref "../traceql/metrics-queries" >}}) for the complete list.
+The TraceQL Metrics API returns Prometheus-like time-series for a given metrics query.
+Metrics queries are those using metrics functions like `rate()` and `quantile_over_time()`.
+Refer to the [TraceQL metrics documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/) for more information list.
 
 Parameters:
 
@@ -529,18 +532,20 @@ Parameters:
 - `end = (unix epoch seconds | unix epoch nanoseconds | RFC3339 string)`
   Optional. Along with `start` define the time range. Providing both `start` and `end` includes blocks for the specified time range only.
 - `since = (duration string)`
-  Optional. Can be used instead of `start` and `end` to define the time range in relative values. For example `since=15m` will query the last 15 minutes.  Default is last 1 hour.
+  Optional. Can be used instead of `start` and `end` to define the time range in relative values. For example, `since=15m` queries the last 15 minutes. Default is the last 1 hour.
 - `step = (duration string)`
-  Optional. Defines the granularity of the returned time-series. For example `step=15s` will return a data point every 15s within the time range.  If not specified then the default behavior will choose a dynamic step based on the time range.
+  Optional. Defines the granularity of the returned time-series. For example, `step=15s` returns a data point every 15s within the time range. If not specified, then the default behavior chooses a dynamic step based on the time range.
+- `exemplars = (integer)`
+  Optional. Defines the maximun number of exemplars for the query. It will be trimmed to max_exemplars if exceed it.
 
 The API is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
 
-For example the following request computes the rate of spans received for `myservice` over the last three hours, at 1 minute intervals. 
+For example, the following request computes the rate of spans received for `myservice` over the last three hours, at 1 minute intervals.
 
 {{< admonition type="note" >}}
 Actual API parameters must be url-encoded. This example is left unencoded for readability.
-{{% /admonition %}}
+{{< /admonition >}}
 
 ```
 GET /api/metrics/query_range?q={resource.service.name="myservice"}|rate()&since=3h&step=1m
@@ -763,6 +768,6 @@ service StreamingQuerier {
   rpc SearchTagsV2(SearchTagsRequest) returns (stream SearchTagsV2Response) {}
   rpc SearchTagValues(SearchTagValuesRequest) returns (stream SearchTagValuesResponse) {}
   rpc SearchTagValuesV2(SearchTagValuesRequest) returns (stream SearchTagValuesV2Response) {}
-  rpc MetricsQueryRange(QueryRangeRequest) returns (stream QueryRangeResponse) {} 
+  rpc MetricsQueryRange(QueryRangeRequest) returns (stream QueryRangeResponse) {}
 }
 ```
