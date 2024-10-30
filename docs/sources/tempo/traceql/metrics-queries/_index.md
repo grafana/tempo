@@ -43,7 +43,7 @@ For more information about the RED method, refer to [The RED Method: how to inst
 
 You can write TraceQL metrics queries to compute rate, errors, and durations over different groups of spans.
 
-For more information on how to use TraceQL metrics to investigate issues, refer to [Solve problems with metrics queries](./solve-problems-metrics-queries).
+For more information on how to use TraceQL metrics to investigate issues, refer to [Solve problems with metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/solve-problems-metrics-queries/).
 
 ## Enable and use TraceQL metrics
 
