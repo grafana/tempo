@@ -297,7 +297,7 @@ func (p *Processor) flushLoop() {
 
 		err := p.flushBlock(op.blockID)
 		if err != nil {
-			_ = level.Info(p.logger).Log("msg", "re-queueing block for flushing", "block", op.blockID, "attempts", op.attempts)
+			_ = level.Info(p.logger).Log("msg", "re-queueing block for flushing", "block", op.blockID, "attempts", op.attempts, "err", err)
 			metricFailedFlushes.Inc()
 
 			delay := op.backoff()
