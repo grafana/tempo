@@ -22,7 +22,7 @@ You can check your configuration options using the [`status` API endpoint]({{< r
 
 ## Upgrade to Tempo 2.6
 
-Tempo 2.5 has several considerations for any upgrade:
+Tempo 2.6 has several considerations for any upgrade:
 
 * Operational change for TraceQL metrics
 * vParquet4 is now the default block format
@@ -145,6 +145,11 @@ For information on upgrading, refer to [Upgrade to Tempo 2.6](https://grafana.co
   </tr>
 </table>
 
+### tempo-query is a standalone server
+
+With Tempo 2.6.1, tempo-query is no longer a Jaeger instance with grpcPlugin.
+It’s now a standalone server.
+Serving a gRPC API for Jaeger on 0.0.0.0:7777 by default. [PR 3840]
 
 ## Upgrade to Tempo 2.5
 

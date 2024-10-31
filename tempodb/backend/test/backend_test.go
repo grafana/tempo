@@ -126,6 +126,7 @@ func TestOriginalFixtures(t *testing.T) {
 	i, err := r.TenantIndex(ctx, tenant)
 	assert.NoError(t, err)
 	assert.NotNil(t, i)
+	assert.NotZero(t, i.CreatedAt)
 
 	assert.Equal(t, 22435, len(i.Meta))
 	assert.Equal(t, 3264, len(i.CompactedMeta))

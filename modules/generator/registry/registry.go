@@ -87,6 +87,8 @@ type metric interface {
 	removeStaleSeries(staleTimeMs int64)
 }
 
+const highestAggregationInterval = 1 * time.Minute
+
 var _ Registry = (*ManagedRegistry)(nil)
 
 // New creates a ManagedRegistry. This Registry will scrape itself, write samples into an appender
@@ -128,7 +130,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		metricFailedCollections:  metricFailedCollections.WithLabelValues(tenant),
 	}
 
-	go job(instanceCtx, r.collectMetrics, r.collectionInterval)
+	go job(instanceCtx, r.CollectMetrics, r.collectionInterval)
 	go job(instanceCtx, r.removeStaleSeries, constantInterval(5*time.Minute))
 
 	return r
@@ -156,7 +158,7 @@ func (r *ManagedRegistry) NewHistogram(name string, buckets []float64, histogram
 	if hasNativeHistograms(histogramOverride) {
 		h = newNativeHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, histogramOverride)
 	} else {
-		h = newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName)
+		h = newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, r.externalLabels)
 	}
 
 	r.registerMetric(h)
@@ -201,7 +203,7 @@ func (r *ManagedRegistry) onRemoveMetricSeries(count uint32) {
 	r.metricActiveSeries.Sub(float64(count))
 }
 
-func (r *ManagedRegistry) collectMetrics(ctx context.Context) {
+func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 	if r.overrides.MetricsGeneratorDisableCollection(r.tenant) {
 		return
 	}
@@ -285,4 +287,8 @@ func hasNativeHistograms(s HistogramMode) bool {
 
 func hasClassicHistograms(s HistogramMode) bool {
 	return s == HistogramModeClassic || s == HistogramModeBoth
+}
+
+func getEndOfLastMinuteMs(timeMs int64) int64 {
+	return time.UnixMilli(timeMs).Truncate(highestAggregationInterval).Add(-1 * time.Second).UnixMilli()
 }

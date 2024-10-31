@@ -152,7 +152,7 @@ func TestMicroservicesWithKVStores(t *testing.T) {
 				require.NoError(t, i.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
 			}
 			require.NoError(t, tempoQuerier.WaitSumMetrics(e2e.Equals(3), "tempodb_blocklist_length"))
-			require.NoError(t, tempoQueryFrontend.WaitSumMetrics(e2e.Equals(3), "tempo_query_frontend_queries_total"))
+			require.NoError(t, tempoQueryFrontend.WaitSumMetrics(e2e.Equals(4), "tempo_query_frontend_queries_total"))
 
 			// query trace - should fetch from backend
 			util.QueryAndAssertTrace(t, apiClient, info)

@@ -26,9 +26,13 @@ To use the metrics generated from traces, you need to:
 
 * Set the `local-blocks` processor to active in your `metrics-generator` configuration
 * Configure a Tempo data source in Grafana or Grafana Cloud
-* Access Grafana Cloud or Grafana version 10.4 or newer
+* Access Grafana Cloud or Grafana version 10.4 or later
 
 ## Activate and configure the `local-blocks` processor
+
+The local-blocks processor must be enabled to start using metrics queries like `{ } | rate()`.
+If not enabled, then the metrics queries fail with the error `localblocks processor not found`.
+Enabling the `local-blocks` processor can be done either per tenant or in all tenants.
 
 To activate the `local-blocks` processor for all users, add it to the list of processors in the `overrides` block of your Tempo configuration.
 
@@ -38,30 +42,87 @@ overrides:
   metrics_generator_processors: ['local-blocks']
 ```
 
-To configure the processor per tenant, use the `metrics_generator.processor` override. 
+To configure the processor per tenant, use the `metrics_generator_processor` override.
 
-For more information about overrides, refer to [Standard overrides]({{< relref "../configuration#standard-overrides" >}}).
+Example for per-tenant in the per-tenant overrides:
 
-### Configure the processor
+  ```yaml
+    overrides:
+      'tenantID':
+        metrics_generator_processors:
+          - local-blocks
+  ```
 
-Next, configure the `local-blocks` processor to record all spans for TraceQL metrics.
-Here is an example configuration:
+By default, for all tenants in the main configuration:
+
+  ```yaml
+  overrides:
+    defaults:
+      metrics_generator:
+        processors: [local-blocks]
+  ```
+
+Add this configuration to run TraceQL metrics queries against all spans (and not just server spans):
 
 ```yaml
- metrics_generator:
+metrics_generator:
   processor:
     local_blocks:
       filter_server_spans: false
-  storage:
-    path: /var/tempo/generator/wal
-  traces_storage:
-    path: /var/tempo/generator/traces
 ```
 
-If you configured Tempo using the `tempo-distributed` Helm chart, you can also set `traces_storage` using your `values.yaml` file. Refer to the [Helm chart for an example](https://github.com/grafana/helm-charts/blob/559ecf4a9c9eefac4521454e7a8066778e4eeff7/charts/tempo-distributed/values.yaml#L362).
+To run metrics queries on historical data, you must configure the local-blocks processor to flush RF1 blocks to object storage:
 
+```yaml
+metrics_generator:
+  processor:
+    local_blocks:
+      flush_to_storage: true
+```
 
-Refer to the [metrics-generator configuration]({{< relref "../configuration#metrics-generator" >}}) documentation for more information.
+Setting `flush_to_storage` to `true` ensures that metrics blocks are flushed to storage so TraceQL metrics queries against historical data.
+
+For more information about overrides, refer to [Standard overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides).
+
+  ```yaml
+    overrides:
+      'tenantID':
+        metrics_generator_processors:
+          - local-blocks
+  ```
+
+By default, for all tenants in the main configuration:
+
+  ```yaml
+  overrides:
+    defaults:
+      metrics_generator:
+        processors: [local-blocks]
+  ```
+
+Add this configuration to run TraceQL metrics queries against all spans (and not just server spans):
+
+```yaml
+metrics_generator:
+  processor:
+    local_blocks:
+      filter_server_spans: false
+```
+
+If you configured Tempo using the `tempo-distributed` Helm chart, you can also set `traces_storage` using your `values.yaml` file.
+Refer to the [Helm chart for an example](https://github.com/grafana/helm-charts/blob/559ecf4a9c9eefac4521454e7a8066778e4eeff7/charts/tempo-distributed/values.yaml#L362).
+
+```yaml
+metrics_generator:
+  processor:
+    local_blocks:
+      flush_to_storage: true
+```
+
+Setting `flush_to_storage` to `true` ensures that metrics blocks are flushed to storage so TraceQL metrics queries against historical data.
+
+For more information about overrides, refer to [Standard overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides).
+
 
 ## Evaluate query timeouts
 
