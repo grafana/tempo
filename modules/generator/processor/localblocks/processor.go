@@ -300,10 +300,15 @@ func (p *Processor) flushLoop() {
 			_ = level.Info(p.logger).Log("msg", "re-queueing block for flushing", "block", op.blockID, "attempts", op.attempts)
 			metricFailedFlushes.Inc()
 
-			op.at = time.Now().Add(op.backoff())
-			if _, err := p.flushqueue.Enqueue(op); err != nil {
-				_ = level.Error(p.logger).Log("msg", "failed to requeue block for flushing", "err", err)
-			}
+			delay := op.backoff()
+			op.at = time.Now().Add(delay)
+
+			go func() {
+				time.Sleep(delay)
+				if _, err := p.flushqueue.Enqueue(op); err != nil {
+					_ = level.Error(p.logger).Log("msg", "failed to requeue block for flushing", "err", err)
+				}
+			}()
 		}
 	}
 }
