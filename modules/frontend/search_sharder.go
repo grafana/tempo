@@ -319,7 +319,7 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.
 		}
 
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
-			pipelineR, err := cloneChildRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+			pipelineR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
 				r, err = api.BuildSearchBlockRequest(r, &tempopb.SearchBlockRequest{
 					BlockID:       blockID,
 					StartPage:     uint32(startPage),
@@ -399,7 +399,7 @@ func pagesPerRequest(m *backend.BlockMeta, bytesPerRequest int) int {
 }
 
 func buildIngesterRequest(tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, reqCh chan pipeline.Request) error {
-	subR, err := cloneChildRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+	subR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
 		return api.BuildSearchRequest(r, searchReq)
 	})
 	if err != nil {

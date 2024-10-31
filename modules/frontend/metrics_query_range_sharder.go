@@ -246,7 +246,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 
 		dedColsJSON, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
 		if err != nil {
-			// errFn(fmt.Errorf("failed to convert dedicated columns. block: %s tempopb: %w", blockID, err))
+			_ = level.Error(s.logger).Log("msg", "failed to convert dedicated columns in query range sharder. skipping", "block", m.BlockID, "err", err)
 			continue
 		}
 
@@ -260,7 +260,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				continue
 			}
 
-			pipelineR, _ := cloneChildRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+			pipelineR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
 				queryRangeReq := &tempopb.QueryRangeRequest{
 					Query:     searchReq.Query,
 					Start:     start,
@@ -281,6 +281,10 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 
 				return api.BuildQueryRangeRequest(r, queryRangeReq, dedColsJSON), nil
 			})
+			if err != nil {
+				_ = level.Error(s.logger).Log("msg", "failed to cloneRequestForQuerirs in the query range sharder. skipping", "block", m.BlockID, "err", err)
+				continue
+			}
 
 			// TODO: Handle sampling rate
 			key := queryRangeCacheKey(tenantID, queryHash, int64(start), int64(end), m, int(step), pages)
@@ -313,7 +317,7 @@ func (s *queryRangeSharder) generatorRequest(tenantID string, parent pipeline.Re
 
 	searchReq.QueryMode = querier.QueryModeRecent
 
-	subR, _ := cloneChildRequest(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+	subR, _ := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
 		return api.BuildQueryRangeRequest(r, &searchReq, ""), nil
 	})
 

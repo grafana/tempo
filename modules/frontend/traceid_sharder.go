@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/go-kit/log" //nolint:all //deprecated
-	"github.com/grafana/dskit/user"
 
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/querier"
@@ -78,19 +78,24 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request) ([]pip
 
 	reqs := make([]pipeline.Request, s.cfg.QueryShards)
 	params := map[string]string{}
+
+	reqs[0], err = cloneRequestforQueriers(parent, userID, func(r *http.Request) (*http.Request, error) {
+		params[querier.QueryModeKey] = querier.QueryModeIngesters
+		return api.BuildQueryRequest(r, params), nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	// build sharded block queries
-	for i := 0; i < len(s.blockBoundaries); i++ {
+	for i := 1; i < len(s.blockBoundaries); i++ {
 		i := i // save the loop variable locally to make sure the closure grabs the correct var.
-		pipelineR, _ := cloneChildRequest(parent, userID, func(r *http.Request) (*http.Request, error) {
-			if i == 0 {
-				// ingester query
-				params[querier.QueryModeKey] = querier.QueryModeIngesters
-			} else {
-				// block queries
-				params[querier.BlockStartKey] = hex.EncodeToString(s.blockBoundaries[i-1])
-				params[querier.BlockEndKey] = hex.EncodeToString(s.blockBoundaries[i])
-				params[querier.QueryModeKey] = querier.QueryModeBlocks
-			}
+		pipelineR, _ := cloneRequestforQueriers(parent, userID, func(r *http.Request) (*http.Request, error) {
+			// block queries
+			params[querier.BlockStartKey] = hex.EncodeToString(s.blockBoundaries[i-1])
+			params[querier.BlockEndKey] = hex.EncodeToString(s.blockBoundaries[i])
+			params[querier.QueryModeKey] = querier.QueryModeBlocks
+
 			return api.BuildQueryRequest(r, params), nil
 		})
 
