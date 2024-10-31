@@ -97,7 +97,7 @@ This example counts the number of spans with name `"GET /:endpoint"` broken down
 
 ```
 
-## The `min_over_time`, `max_over_time` and `avg_over_time`  functions
+## The `min_over_time`, `max_over_time`, and `avg_over_time`  functions
 
 The `min_over_time()` function lets you aggregate numerical attributes by calculating their minimum value.
 For example, you could choose to calculate the minimum duration of a group of spans, or you could choose to calculate the minimum value of a custom attribute you've attached to your spans, like `span.shopping.cart.entries`.
