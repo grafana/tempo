@@ -100,6 +100,7 @@ type BackendBlock interface {
 	Searcher
 
 	BlockMeta() *backend.BlockMeta
+	Validate(ctx context.Context) error
 }
 
 type WALBlock interface {
