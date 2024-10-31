@@ -846,3 +846,27 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkBlockSelector(b *testing.B) {
+	blockMetas := make([]*backend.BlockMeta, 100000)
+	for i := range blockMetas {
+		blockMetas[i] = &backend.BlockMeta{
+			Size_:         1000,
+			TotalRecords:  100,
+			BlockID:       backend.MustParse("00000000-0000-0000-0000-000000000000"),
+			DataEncoding:  "json",
+			Encoding:      backend.EncGZIP,
+			IndexPageSize: 13,
+			Version:       "glarg",
+			TotalObjects:  540,
+			DedicatedColumns: backend.DedicatedColumns{
+				{Scope: "span", Name: "foo", Type: "int"},
+			},
+		}
+	}
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_ = newTimeWindowBlockSelector(blockMetas, time.Second, 100, uint64(1024*1024), defaultMaxInputBlocks, defaultMinInputBlocks)
+	}
+}

@@ -1,8 +1,9 @@
 package tempodb
 
 import (
-	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -57,6 +58,9 @@ func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 	now := time.Now()
 	currWindow := twbs.windowForTime(now)
 	activeWindow := twbs.windowForTime(now.Add(-activeWindowDuration))
+	var builder strings.Builder
+	// Preallocate
+	twbs.entries = make([]timeWindowBlockEntry, 0, len(blocklist))
 
 	for _, b := range blocklist {
 		w := twbs.windowForBlock(b)
@@ -74,29 +78,82 @@ func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRan
 		}
 
 		age := currWindow - w
+		builder.Reset()
+
 		if activeWindow <= w {
+			// Grow size: 2+20+1+16+1+20
+			builder.Grow(60)
+			builder.WriteString("A-")
+			builder.WriteString(strconv.FormatUint(uint64(b.CompactionLevel), 10))
+			builder.WriteByte('-')
+			builder.WriteString(strconv.FormatInt(age, 16))
+			builder.WriteByte('-')
+			builder.WriteString(strconv.FormatUint(uint64(b.ReplicationFactor), 10))
 			// inside active window.
 			// Group by compaction level and window.
 			// Choose lowest compaction level and most recent windows first.
-			entry.group = fmt.Sprintf("A-%v-%016X-%v", b.CompactionLevel, age, b.ReplicationFactor)
+			entry.group = builder.String()
 
+			builder.Reset()
+			// Grow size: 16+1+version+1+16
+			builder.Grow(34 + len(entry.meta.Version))
+			builder.WriteString((strconv.FormatInt(entry.meta.TotalObjects, 16)))
+			builder.WriteByte('-')
+			builder.WriteString(entry.meta.Version)
+			builder.WriteByte('-')
+			builder.WriteString(strconv.FormatUint(entry.meta.DedicatedColumnsHash(), 16))
 			// Within group choose smallest blocks first.
 			// update after parquet: we want to make sure blocks of the same version end up together
 			// update afert vParquet3: we want to make sure blocks of the same dedicated columns end up together
-			entry.order = fmt.Sprintf("%016X-%v-%016X", entry.meta.TotalObjects, entry.meta.Version, entry.meta.DedicatedColumnsHash())
+			entry.order = builder.String()
 
-			entry.hash = fmt.Sprintf("%v-%v-%v-%v", b.TenantID, b.CompactionLevel, w, b.ReplicationFactor)
+			builder.Reset()
+			// Grow size: 36+1+20+1+19+1+20
+			builder.Grow(98)
+			builder.WriteString(b.TenantID)
+			builder.WriteByte('-')
+			builder.WriteString(strconv.FormatUint(uint64(b.CompactionLevel), 10))
+			builder.WriteByte('-')
+			builder.WriteString(strconv.FormatInt(w, 10))
+			builder.WriteByte('-')
+			builder.WriteString(strconv.FormatUint(uint64(b.ReplicationFactor), 10))
+			entry.hash = builder.String()
+
 		} else {
+			// Grow size: 2+16+1+20
+			builder.Grow(40)
+			builder.WriteString("B-")
+			builder.WriteString(strconv.FormatInt(age, 16))
+			builder.WriteByte('-')
+			builder.WriteString(strconv.FormatUint(uint64(b.ReplicationFactor), 10))
 			// outside active window.
 			// Group by window only.  Choose most recent windows first.
-			entry.group = fmt.Sprintf("B-%016X-%v", age, b.ReplicationFactor)
+			entry.group = builder.String()
 
+			builder.Reset()
+			// Grow size: 20+1+16+1+version+1+16
+			builder.Grow(55 + len(entry.meta.Version))
+			builder.WriteString((strconv.FormatUint(uint64(b.CompactionLevel), 10)))
+			builder.WriteByte('-')
+			builder.WriteString((strconv.FormatInt(entry.meta.TotalObjects, 16)))
+			builder.WriteByte('-')
+			builder.WriteString(entry.meta.Version)
+			builder.WriteByte('-')
+			builder.WriteString(strconv.FormatUint(entry.meta.DedicatedColumnsHash(), 16))
 			// Within group chose lowest compaction lvl and smallest blocks first.
 			// update after parquet: we want to make sure blocks of the same version end up together
 			// update afert vParquet3: we want to make sure blocks of the same dedicated columns end up together
-			entry.order = fmt.Sprintf("%v-%016X-%v-%016X", b.CompactionLevel, entry.meta.TotalObjects, entry.meta.Version, entry.meta.DedicatedColumnsHash())
+			entry.order = builder.String()
 
-			entry.hash = fmt.Sprintf("%v-%v-%v", b.TenantID, w, b.ReplicationFactor)
+			builder.Reset()
+			// Grow size: 36+1+19+1+20
+			builder.Grow(77)
+			builder.WriteString(b.TenantID)
+			builder.WriteByte('-')
+			builder.WriteString((strconv.FormatInt(w, 10)))
+			builder.WriteByte('-')
+			builder.WriteString(strconv.FormatUint(uint64(b.ReplicationFactor), 10))
+			entry.hash = builder.String()
 		}
 
 		twbs.entries = append(twbs.entries, entry)
