@@ -17,6 +17,8 @@ import (
 )
 
 const (
+	internalLabelMetaType = "__meta_type"
+	internalMetaTypeCount = "__count"
 	internalLabelBucket   = "__bucket"
 	maxExemplars          = 100
 	maxExemplarsPerBucket = 2
@@ -176,10 +178,12 @@ func (ls Labels) String() string {
 			promValue = "<nil>"
 		case l.Value.Type == TypeString:
 			s := l.Value.EncodeToString(false)
-			if s != "" {
-				promValue = s
-			} else {
+			if s == "nil" {
+				promValue = "<nil>"
+			} else if s == "" {
 				promValue = "<empty>"
+			} else {
+				promValue = s
 			}
 		default:
 			promValue = l.Value.EncodeToString(false)

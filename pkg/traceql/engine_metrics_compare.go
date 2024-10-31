@@ -10,7 +10,6 @@ import (
 )
 
 const (
-	internalLabelMetaType          = "__meta_type"
 	internalMetaTypeBaseline       = "baseline"
 	internalMetaTypeSelection      = "selection"
 	internalMetaTypeBaselineTotal  = "baseline_total"
