@@ -441,7 +441,7 @@ func TestParquetRowSizeEstimate(t *testing.T) {
 }
 
 func estimateRowSize(t *testing.T, name string) {
-	f, err := os.OpenFile(name, os.O_RDONLY, 0o644)
+	f, err := os.OpenFile(name, os.O_RDONLY, 0o600)
 	require.NoError(t, err)
 
 	fi, err := f.Stat()

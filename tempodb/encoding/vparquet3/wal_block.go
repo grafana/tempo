@@ -164,7 +164,7 @@ func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, inge
 	}
 
 	// build folder
-	err := os.MkdirAll(b.walPath(), os.ModePerm)
+	err := os.MkdirAll(b.walPath(), 0o700)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func (w *walBlockFlush) file(ctx context.Context) (*pageFile, error) {
 		return nil, err
 	}
 
-	file, err := os.OpenFile(w.path, os.O_RDONLY, 0o644)
+	file, err := os.OpenFile(w.path, os.O_RDONLY, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("error opening file: %w", err)
 	}
@@ -387,7 +387,7 @@ func (b *walBlock) openWriter() (err error) {
 	nextFile := len(b.flushed) + 1
 	filename := b.filepathOf(nextFile)
 
-	b.file, err = os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0o644)
+	b.file, err = os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("error opening file: %w", err)
 	}

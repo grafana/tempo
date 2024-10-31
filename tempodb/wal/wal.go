@@ -46,14 +46,14 @@ func New(c *Config) (*WAL, error) {
 	}
 
 	// make folder
-	err := os.MkdirAll(c.Filepath, os.ModePerm)
+	err := os.MkdirAll(c.Filepath, 0o700)
 	if err != nil {
 		return nil, err
 	}
 
 	// Setup local backend in /blocks/
 	blocksFolderPath := filepath.Join(c.Filepath, blocksDir)
-	err = os.MkdirAll(blocksFolderPath, os.ModePerm)
+	err = os.MkdirAll(blocksFolderPath, 0o700)
 	if err != nil {
 		return nil, err
 	}
