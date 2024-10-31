@@ -214,7 +214,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 
 		// If we are in "both" or "classic" mode, also emit classic histograms.
 		if hasClassicHistograms(h.histogramOverride) {
-			classicSeries, classicErr := h.classicHistograms(appender, s.lb, timeMs, s)
+			classicSeries, classicErr := h.classicHistograms(appender, timeMs, s)
 			if classicErr != nil {
 				return activeSeries, classicErr
 			}
@@ -308,7 +308,7 @@ func (h *nativeHistogram) nativeHistograms(appender storage.Appender, lbls label
 	return
 }
 
-func (h *nativeHistogram) classicHistograms(appender storage.Appender, lb *labels.Builder, timeMs int64, s *nativeHistogramSeries) (activeSeries int, err error) {
+func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs int64, s *nativeHistogramSeries) (activeSeries int, err error) {
 	if s.isNew() {
 		endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
 		_, err = appender.Append(0, s.countLabels, endOfLastMinuteMs, 0)
@@ -333,7 +333,7 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, lb *label
 	activeSeries++
 
 	// bucket
-	lb.Set(labels.MetricName, h.metricName+"_bucket")
+	s.lb.Set(labels.MetricName, h.metricName+"_bucket")
 
 	// the Prometheus histogram will sometimes add the +Inf bucket, it depends on whether there is an exemplar
 	// for that bucket or not. To avoid adding it twice, keep track of it with this boolean.
@@ -341,20 +341,20 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, lb *label
 
 	for _, bucket := range s.histogram.Bucket {
 		// add "le" label
-		lb.Set(labels.BucketLabel, formatFloat(bucket.GetUpperBound()))
+		s.lb.Set(labels.BucketLabel, formatFloat(bucket.GetUpperBound()))
 
 		if bucket.GetUpperBound() == math.Inf(1) {
 			infBucketWasAdded = true
 		}
 
-		ref, appendErr := appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(bucket.GetCumulativeCountFloat(), bucket.GetCumulativeCount()))
+		ref, appendErr := appender.Append(0, s.lb.Labels(), timeMs, getIfGreaterThenZeroOr(bucket.GetCumulativeCountFloat(), bucket.GetCumulativeCount()))
 		if appendErr != nil {
 			return activeSeries, appendErr
 		}
 		activeSeries++
 
 		if bucket.Exemplar != nil && len(bucket.Exemplar.Label) > 0 {
-			_, err = appender.AppendExemplar(ref, lb.Labels(), exemplar.Exemplar{
+			_, err = appender.AppendExemplar(ref, s.lb.Labels(), exemplar.Exemplar{
 				Labels: convertLabelPairToLabels(bucket.Exemplar.GetLabel()),
 				Value:  bucket.Exemplar.GetValue(),
 				Ts:     timeMs,
@@ -368,9 +368,9 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, lb *label
 
 	if !infBucketWasAdded {
 		// Add +Inf bucket
-		lb.Set(labels.BucketLabel, "+Inf")
+		s.lb.Set(labels.BucketLabel, "+Inf")
 
-		_, err = appender.Append(0, lb.Labels(), timeMs, getIfGreaterThenZeroOr(s.histogram.GetSampleCountFloat(), s.histogram.GetSampleCount()))
+		_, err = appender.Append(0, s.lb.Labels(), timeMs, getIfGreaterThenZeroOr(s.histogram.GetSampleCountFloat(), s.histogram.GetSampleCount()))
 		if err != nil {
 			return activeSeries, err
 		}
@@ -378,7 +378,7 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, lb *label
 	}
 
 	// drop "le" label again
-	lb.Del(labels.BucketLabel)
+	s.lb.Del(labels.BucketLabel)
 
 	return
 }
