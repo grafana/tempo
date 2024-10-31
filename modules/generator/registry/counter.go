@@ -137,6 +137,7 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 	// add metric name
 	baseLabels = append(baseLabels, labels.Label{Name: labels.MetricName, Value: c.metricName})
 
+	// TODO: avoid allocation on each collection
 	lb := labels.NewBuilder(baseLabels)
 
 	for _, s := range c.series {
@@ -166,7 +167,7 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 			return
 		}
 
-		// TODO support exemplars
+		// TODO: support exemplars
 	}
 
 	return
