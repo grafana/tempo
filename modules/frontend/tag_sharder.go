@@ -190,9 +190,9 @@ func newAsyncTagSharder(reader tempodb.Reader, o overrides.Interface, cfg Search
 // until limit results are found
 func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 	r := pipelineRequest.HTTPRequest()
-	requestCtx := pipelineRequest.Context()
+	ctx := pipelineRequest.Context()
 
-	tenantID, err := user.ExtractOrgID(requestCtx)
+	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}
@@ -201,8 +201,9 @@ func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}
-	ctx, span := tracer.Start(requestCtx, "frontend.ShardSearchTags")
+	ctx, span := tracer.Start(ctx, "frontend.ShardSearchTags")
 	defer span.End()
+	pipelineRequest.WithContext(ctx)
 
 	// calculate and enforce max search duration
 	maxDuration := s.maxDuration(tenantID)
