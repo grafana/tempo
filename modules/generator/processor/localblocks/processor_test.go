@@ -361,3 +361,5 @@ func (m *mockBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, tra
 }
 
 func (m *mockBlock) BlockMeta() *backend.BlockMeta { return m.meta }
+
+func (m *mockBlock) Validate(context.Context) error { return nil }
