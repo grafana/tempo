@@ -113,7 +113,7 @@ For more information, refer to the [`step` API parameter](https://grafana.com/do
 
 ### Parameters
 
-Numerical field that you want to calculate the minimum, maximum or average of.
+Numerical field that you want to calculate the minimum, maximum, or average of.
 
 ### Examples
 
