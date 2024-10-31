@@ -106,7 +106,7 @@ The time interval that the minimum is computed over is set by the `step` paramet
 The `max_over_time()` let you aggregate numerical values by computing the maximum value of them, such as the all important span duration.
 The time interval that the maximum is computer over is set by the `step` parameter.
 
-The `avg_over_time()` let you aggregate numerical values by computing the maximum value of them, such as the all important span duration.
+The `avg_over_time()` function lets you aggregate numerical values by computing the maximum value of them, such as the all important span duration.
 The time interval that the maximum is computer over is set by the `step` parameter.
 
 For more information, refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics).
