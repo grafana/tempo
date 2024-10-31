@@ -134,12 +134,10 @@ func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, 
 
 func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value float64, traceID string, multiplier float64) *nativeHistogramSeries {
 	newSeries := &nativeHistogramSeries{
-		// TODO move these labels in HistogramOpts.ConstLabels?
 		promHistogram: prometheus.NewHistogram(prometheus.HistogramOpts{
-			Name:    h.name(),
-			Help:    "Native histogram for metric " + h.name(),
-			Buckets: h.buckets,
-			// TODO check if these values are sensible and break them out
+			Name:                            h.name(),
+			Help:                            "Native histogram for metric " + h.name(),
+			Buckets:                         h.buckets,
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  100,
 			NativeHistogramMinResetDuration: 15 * time.Minute,
@@ -356,7 +354,6 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, lb *label
 		activeSeries++
 
 		if bucket.Exemplar != nil && len(bucket.Exemplar.Label) > 0 {
-			// TODO are we appending the same exemplar twice?
 			_, err = appender.AppendExemplar(ref, lb.Labels(), exemplar.Exemplar{
 				Labels: convertLabelPairToLabels(bucket.Exemplar.GetLabel()),
 				Value:  bucket.Exemplar.GetValue(),
