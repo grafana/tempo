@@ -50,7 +50,7 @@ func TestInstance(t *testing.T) {
 	require.NoError(t, err, "unexpected error cutting block")
 	require.NotEqual(t, blockID, uuid.Nil)
 
-	err = i.CompleteBlock(blockID)
+	err = i.CompleteBlock(context.Background(), blockID)
 	require.NoError(t, err, "unexpected error completing block")
 
 	block := i.GetBlockToBeFlushed(blockID)
@@ -103,7 +103,7 @@ func TestInstanceFind(t *testing.T) {
 
 	queryAll(t, i, ids, traces)
 
-	err = i.CompleteBlock(blockID)
+	err = i.CompleteBlock(context.Background(), blockID)
 	require.NoError(t, err)
 
 	queryAll(t, i, ids, traces)
@@ -185,7 +185,7 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	go concurrent(func() {
 		blockID, _ := i.CutBlockIfReady(0, 0, false)
 		if blockID != uuid.Nil {
-			err := i.CompleteBlock(blockID)
+			err := i.CompleteBlock(context.Background(), blockID)
 			require.NoError(t, err, "unexpected error completing block")
 			block := i.GetBlockToBeFlushed(blockID)
 			require.NotNil(t, block)
@@ -487,7 +487,7 @@ func TestInstanceCutBlockIfReady(t *testing.T) {
 			blockID, err := instance.CutBlockIfReady(tc.maxBlockLifetime, tc.maxBlockBytes, tc.immediate)
 			require.NoError(t, err)
 
-			err = instance.CompleteBlock(blockID)
+			err = instance.CompleteBlock(context.Background(), blockID)
 			if tc.expectedToCutBlock {
 				require.NoError(t, err, "unexpected error completing block")
 			}
@@ -738,7 +738,7 @@ func BenchmarkInstanceFindTraceByIDFromCompleteBlock(b *testing.B) {
 	require.NoError(b, err)
 	id, err := instance.CutBlockIfReady(0, 0, true)
 	require.NoError(b, err)
-	err = instance.CompleteBlock(id)
+	err = instance.CompleteBlock(context.Background(), id)
 	require.NoError(b, err)
 
 	require.Equal(b, 1, len(instance.completeBlocks))
@@ -776,7 +776,7 @@ func benchmarkInstanceSearch(b testing.TB) {
 	// force the traces to be in a complete block
 	id, err := instance.CutBlockIfReady(0, 0, true)
 	require.NoError(b, err)
-	err = instance.CompleteBlock(id)
+	err = instance.CompleteBlock(context.Background(), id)
 	require.NoError(b, err)
 
 	require.Equal(b, 1, len(instance.completeBlocks))
@@ -880,7 +880,7 @@ func BenchmarkInstanceContention(t *testing.B) {
 	go concurrent(func() {
 		blockID, _ := i.CutBlockIfReady(0, 0, false)
 		if blockID != uuid.Nil {
-			err := i.CompleteBlock(blockID)
+			err := i.CompleteBlock(context.Background(), blockID)
 			require.NoError(t, err, "unexpected error completing block")
 			err = i.ClearCompletingBlock(blockID)
 			require.NoError(t, err, "unexpected error clearing wal block")
