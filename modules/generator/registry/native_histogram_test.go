@@ -471,7 +471,7 @@ func Test_Histograms(t *testing.T) {
 }
 
 func collectMetricsAndAssertSeries(t *testing.T, m metric, collectionTimeMs int64, expectedSeries int, appender storage.Appender) {
-	activeSeries, err := m.collectMetrics(appender, collectionTimeMs, nil)
+	activeSeries, err := m.collectMetrics(appender, collectionTimeMs)
 	require.NoError(t, err)
 	require.Equal(t, expectedSeries, activeSeries)
 }

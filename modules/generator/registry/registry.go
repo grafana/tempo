@@ -83,7 +83,7 @@ type ManagedRegistry struct {
 // metric is the interface for a metric that is managed by ManagedRegistry.
 type metric interface {
 	name() string
-	collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error)
+	collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error)
 	removeStaleSeries(staleTimeMs int64)
 }
 
@@ -144,7 +144,7 @@ func (r *ManagedRegistry) NewLabelValueCombo(labels []string, values []string) *
 }
 
 func (r *ManagedRegistry) NewCounter(name string) Counter {
-	c := newCounter(name, r.onAddMetricSeries, r.onRemoveMetricSeries)
+	c := newCounter(name, r.onAddMetricSeries, r.onRemoveMetricSeries, r.externalLabels)
 	r.registerMetric(c)
 	return c
 }
@@ -166,7 +166,7 @@ func (r *ManagedRegistry) NewHistogram(name string, buckets []float64, histogram
 }
 
 func (r *ManagedRegistry) NewGauge(name string) Gauge {
-	g := newGauge(name, r.onAddMetricSeries, r.onRemoveMetricSeries)
+	g := newGauge(name, r.onAddMetricSeries, r.onRemoveMetricSeries, r.externalLabels)
 	r.registerMetric(g)
 	return g
 }
@@ -226,7 +226,7 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 	collectionTimeMs := time.Now().UnixMilli()
 
 	for _, m := range r.metrics {
-		active, err := m.collectMetrics(appender, collectionTimeMs, r.externalLabels)
+		active, err := m.collectMetrics(appender, collectionTimeMs)
 		if err != nil {
 			return
 		}
