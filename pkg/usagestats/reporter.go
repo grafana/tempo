@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/dskit/multierror"
 	"github.com/grafana/dskit/services"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel"
 
 	"github.com/grafana/tempo/cmd/tempo/build"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -36,6 +37,8 @@ var (
 
 	stabilityCheckInterval   = 5 * time.Second
 	stabilityMinimumRequired = 6
+
+	tracer = otel.Tracer("usagestats/Reporter")
 )
 
 type Reporter struct {
@@ -158,6 +161,9 @@ func ensureStableKey(ctx context.Context, kvClient kv.Client, logger log.Logger)
 }
 
 func (rep *Reporter) init(ctx context.Context) {
+	ctx, span := tracer.Start(ctx, "UsageReporter.init")
+	defer span.End()
+
 	if rep.conf.Leader {
 		rep.cluster = rep.initLeader(ctx)
 		return

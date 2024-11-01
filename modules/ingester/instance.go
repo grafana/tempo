@@ -313,7 +313,7 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 }
 
 // CompleteBlock moves a completingBlock to a completeBlock. The new completeBlock has the same ID.
-func (i *instance) CompleteBlock(blockID uuid.UUID) error {
+func (i *instance) CompleteBlock(ctx context.Context, blockID uuid.UUID) error {
 	i.blocksMtx.Lock()
 	var completingBlock common.WALBlock
 	for _, iterBlock := range i.completingBlocks {
@@ -327,8 +327,6 @@ func (i *instance) CompleteBlock(blockID uuid.UUID) error {
 	if completingBlock == nil {
 		return fmt.Errorf("error finding completingBlock")
 	}
-
-	ctx := context.Background()
 
 	backendBlock, err := i.writer.CompleteBlockWithBackend(ctx, completingBlock, i.localReader, i.localWriter)
 	if err != nil {

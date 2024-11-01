@@ -354,6 +354,9 @@ func (p *Processor) completeBlock() error {
 		b      = firstWalBlock
 	)
 
+	ctx, span := tracer.Start(ctx, "Processor.CompleteBlock")
+	defer span.End()
+
 	iter, err := b.Iterator()
 	if err != nil {
 		return err
