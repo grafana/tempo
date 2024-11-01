@@ -144,7 +144,7 @@ func (r *ManagedRegistry) NewLabelValueCombo(labels []string, values []string) *
 }
 
 func (r *ManagedRegistry) NewCounter(name string) Counter {
-	c := newCounter(name, r.onAddMetricSeries, r.onRemoveMetricSeries)
+	c := newCounter(name, r.onAddMetricSeries, r.onRemoveMetricSeries, r.externalLabels)
 	r.registerMetric(c)
 	return c
 }
