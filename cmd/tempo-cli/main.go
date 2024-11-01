@@ -3,8 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/grafana/dskit/flagext"
 	"os"
+
+	"github.com/grafana/dskit/flagext"
 
 	"github.com/alecthomas/kong"
 	"gopkg.in/yaml.v2"
