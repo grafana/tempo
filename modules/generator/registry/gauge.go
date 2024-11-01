@@ -149,6 +149,7 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64, external
 		baseLabels = append(baseLabels, labels.Label{Name: name, Value: value})
 	}
 
+	// TODO: avoid allocation on each collection
 	lb := labels.NewBuilder(baseLabels)
 
 	for _, s := range g.series {
@@ -166,7 +167,7 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64, external
 		if err != nil {
 			return
 		}
-		// TODO support exemplars
+		// TODO: support exemplars
 	}
 
 	return
