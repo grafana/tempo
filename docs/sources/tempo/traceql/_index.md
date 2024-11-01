@@ -116,7 +116,7 @@ The following table shows the current available scoped intrinsic fields:
 | `span:id`                | string      | span id using hex string                                        | `{ span:id = "0000000000000001" }`     |
 | `trace:duration`         | duration    | max(end) - min(start) time of the spans in the trace            | `{ trace:duration > 100ms }`           |
 | `trace:rootName`         | string      | if it exists the name of the root span in the trace             | `{ trace:rootName = "HTTP GET" }`      |
-| `trace:rootService`      | string      | if it exists the service name of the root span in the trace     | `{ trace:rootServiceName = "gateway" }`|
+| `trace:rootService`      | string      | if it exists the service name of the root span in the trace     | `{ trace:rootService = "gateway" }`    |
 | `trace:id`               | string      | trace id using hex string                                       | `{ trace:id = "1234567890abcde" }`     |
 | `event:name`             | string      | name of event                                                   | `{ event:name = "exception" }`         |
 | `event:timeSinceStart`   | duration    | time of event in relation to the span start time                | `{ event:timeSinceStart > 2ms}`        |
