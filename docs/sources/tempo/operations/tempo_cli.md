@@ -53,6 +53,7 @@ The backend can be configured in a few ways:
     * `--s3-endpoint <value>` The S3 API endpoint (i.e. s3.dualstack.us-east-2.amazonaws.com).
     * `--s3-user <value>`, `--s3-password <value>` The S3 user name and password (or access key and secret key).
       Optional, as Tempo CLI supports the same authentication mechanisms as Tempo. See [S3 permissions documentation]({{< relref "../configuration/hosted-storage/s3" >}}) for more information.
+    *  `--insecure-skip-verify` skip TLS verification, only applies to S3 and GCS.
 
 Each option applies only to the command in which it is used. For example, `--backend <value>` does not permanently change where Tempo stores data. It only changes it for command in which you apply the option.
 

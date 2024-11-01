@@ -30,9 +30,10 @@ type backendOptions struct {
 	Backend string `help:"backend to connect to (s3/gcs/local/azure), optional, overrides backend in config file" enum:",s3,gcs,local,azure" default:""`
 	Bucket  string `help:"bucket (or path on local backend) to scan, optional, overrides bucket in config file"`
 
-	S3Endpoint string `name:"s3-endpoint" help:"s3 endpoint (s3.dualstack.us-east-2.amazonaws.com), optional, overrides endpoint in config file"`
-	S3User     string `name:"s3-user" help:"s3 username, optional, overrides username in config file"`
-	S3Pass     string `name:"s3-pass" help:"s3 password, optional, overrides password in config file"`
+	S3Endpoint         string `name:"s3-endpoint" help:"s3 endpoint (s3.dualstack.us-east-2.amazonaws.com), optional, overrides endpoint in config file"`
+	S3User             string `name:"s3-user" help:"s3 username, optional, overrides username in config file"`
+	S3Pass             string `name:"s3-pass" help:"s3 password, optional, overrides password in config file"`
+	InsecureSkipVerify bool   `name:"insecure-skip-verify" help:"skip TLS verification, only applies to S3 and GCS" default:"false"`
 }
 
 var cli struct {
@@ -130,6 +131,9 @@ func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.W
 		cfg.StorageConfig.Trace.S3.Bucket = b.Bucket
 		cfg.StorageConfig.Trace.Azure.ContainerName = b.Bucket
 	}
+
+	cfg.StorageConfig.Trace.S3.InsecureSkipVerify = b.InsecureSkipVerify
+	cfg.StorageConfig.Trace.GCS.Insecure = b.InsecureSkipVerify
 
 	if b.S3Endpoint != "" {
 		cfg.StorageConfig.Trace.S3.Endpoint = b.S3Endpoint
