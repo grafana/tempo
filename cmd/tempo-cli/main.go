@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/grafana/dskit/flagext"
 	"os"
 
 	"github.com/alecthomas/kong"
@@ -134,6 +135,14 @@ func loadBackend(b *backendOptions, g *globalOptions) (backend.Reader, backend.W
 
 	cfg.StorageConfig.Trace.S3.InsecureSkipVerify = b.InsecureSkipVerify
 	cfg.StorageConfig.Trace.GCS.Insecure = b.InsecureSkipVerify
+
+	if b.S3User != "" {
+		cfg.StorageConfig.Trace.S3.AccessKey = b.S3User
+	}
+
+	if b.S3Pass != "" {
+		cfg.StorageConfig.Trace.S3.SecretKey = flagext.SecretWithValue(b.S3Pass)
+	}
 
 	if b.S3Endpoint != "" {
 		cfg.StorageConfig.Trace.S3.Endpoint = b.S3Endpoint
