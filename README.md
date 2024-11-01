@@ -8,7 +8,7 @@
   <a href="https://goreportcard.com/report/github.com/grafana/tempo"><img src="https://goreportcard.com/badge/github.com/grafana/tempo" alt="Go Report Card" /></a>
 </p>
 
-Grafana Tempo is an open source, easy-to-use, and high-scale distributed tracing backend. Tempo is cost-efficient, requiring only object storage to operate, and is deeply integrated with Grafana, Prometheus, and Loki.
+Grafana Tempo is an open source, easy-to-use, and high-scale distributed tracing backend. Tempo is cost-efficient, requiring only object storage to operate, and is deeply integrated with Grafana, Prometheus, and Loki. It is powered by [TraceQL](https://grafana.com/docs/tempo/latest/traceql/), a traces-first query language inspired by LogQL and PromQL which enables targeted queries or rich UI-driven analyses.
 
 Tempo is Jaeger, Zipkin, Kafka, OpenCensus, and OpenTelemetry compatible. It ingests batches in any of the mentioned formats, buffers them, and then writes them to Azure, GCS, S3, or local disk. As such, it is robust, cheap, and easy to operate!
 
@@ -16,7 +16,7 @@ Tempo is Jaeger, Zipkin, Kafka, OpenCensus, and OpenTelemetry compatible. It ing
 Distributed tracing helps teams quickly pinpoint performance issues and understand the flow of requests across services. The Explore Traces UI simplifies this process by offering a user-friendly interface to view and analyze trace data, making it easier to identify and resolve issues without needing to write complex queries.
 
 ## Explore Traces UI: A better way to get value from your tracing data
-We are excited to introduce the Explore Traces app as part of the Grafana Explore suite. This app provides a queryless and intuitive experience for analyzing tracing data, allowing teams to quickly identify performance issues, latency bottlenecks, and errors without needing to write complex queries or use TraceQL.
+We are excited to introduce the [Explore Traces app](https://github.com/grafana/explore-traces) as part of the Grafana Explore suite. This app provides a queryless and intuitive experience for analyzing tracing data, allowing teams to quickly identify performance issues, latency bottlenecks, and errors without needing to write complex queries or use TraceQL.
 
 Key Features:
 - **Intuitive Trace Analysis**: Spot slow or error-prone traces with easy, point-and-click interactions.
@@ -24,11 +24,15 @@ Key Features:
 - **Automated Comparison**: Identify problematic attributes with automatic trace comparison.
 - **Simplified Visualizations**: Access rich visual data without needing to construct TraceQL queries.
 
-![Explore Traces UI](docs/sources/tempo/explore-traces-ui.png)
+![image](https://github.com/user-attachments/assets/991205df-1b27-489f-8ef0-1a05ee158996)
 
-Tempo implements [TraceQL](https://grafana.com/docs/tempo/latest/traceql/), a traces-first query language inspired by LogQL and PromQL. These powerful querying capabilities power the Explore Traces UI behind the scense, but can also be used directly. 
+To learn more see the following links:
+- [Explore Traces repo](https://github.com/grafana/explore-traces)
+- [Explore Traces Documentation](https://grafana.com/docs/grafana/latest/explore/simplified-exploration/traces/)
+- [Demo video](https://github.com/user-attachments/assets/8103e173-6dcf-4659-b938-7614c8a5b52d
+)
 
-## Getting started
+## Getting started with Tempo
 
 - [Get started documentation](https://grafana.com/docs/tempo/latest/getting-started/)
 - [Deployment Examples](./example)
