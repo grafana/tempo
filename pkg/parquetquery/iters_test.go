@@ -24,6 +24,9 @@ var iterTestCases = []struct {
 	{"sync", func(pf *parquet.File, idx int, filter Predicate, selectAs string) Iterator {
 		return NewSyncIterator(context.TODO(), pf.RowGroups(), idx, selectAs, 1000, filter, selectAs)
 	}},
+	{"internSync", func(pf *parquet.File, idx int, filter Predicate, selectAs string) Iterator {
+		return NewSyncIterator(context.TODO(), pf.RowGroups(), idx, selectAs, 1000, filter, selectAs, SyncIteratorOptIntern())
+	}},
 }
 
 // TestNext compares the unrolled Next() with the original nextSlow() to
