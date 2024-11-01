@@ -3,6 +3,7 @@ package frontend
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/go-kit/log" //nolint:all deprecated
@@ -95,7 +96,7 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 
 	// build request to search ingesters based on query_ingesters_until config and time range
 	// pass subCtx in requests so we can cancel and exit early
-	err = s.ingesterRequests(ctx, tenantID, pipelineRequest, *searchReq, reqCh)
+	err = s.ingesterRequests(tenantID, pipelineRequest, *searchReq, reqCh)
 	if err != nil {
 		return nil, err
 	}
@@ -199,10 +200,10 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 // that covers the ingesters. If nil is returned for the http.Request then there is no ingesters query.
 // since this function modifies searchReq.Start and End we are taking a value instead of a pointer to prevent it from
 // unexpectedly changing the passed searchReq.
-func (s *asyncSearchSharder) ingesterRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.SearchRequest, reqCh chan pipeline.Request) error {
+func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.Request, searchReq tempopb.SearchRequest, reqCh chan pipeline.Request) error {
 	// request without start or end, search only in ingester
 	if searchReq.Start == 0 || searchReq.End == 0 {
-		return buildIngesterRequest(ctx, tenantID, parent, &searchReq, reqCh)
+		return buildIngesterRequest(tenantID, parent, &searchReq, reqCh)
 	}
 
 	ingesterUntil := uint32(time.Now().Add(-s.cfg.QueryIngestersUntil).Unix())
@@ -257,7 +258,7 @@ func (s *asyncSearchSharder) ingesterRequests(ctx context.Context, tenantID stri
 		subReq.Start = shardStart
 		subReq.End = shardEnd
 
-		err := buildIngesterRequest(ctx, tenantID, parent, &subReq, reqCh)
+		err := buildIngesterRequest(tenantID, parent, &subReq, reqCh)
 		if err != nil {
 			return err
 		}
@@ -310,36 +311,37 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.
 		}
 
 		blockID := m.BlockID.String()
+
+		dedColsJSON, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
+		if err != nil {
+			errFn(fmt.Errorf("failed to convert dedicated columns. block: %s tempopb: %w", blockID, err))
+			continue
+		}
+
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
-			subR := parent.HTTPRequest().Clone(ctx)
+			pipelineR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+				r, err = api.BuildSearchBlockRequest(r, &tempopb.SearchBlockRequest{
+					BlockID:       blockID,
+					StartPage:     uint32(startPage),
+					PagesToSearch: uint32(pages),
+					Encoding:      m.Encoding.String(),
+					IndexPageSize: m.IndexPageSize,
+					TotalRecords:  m.TotalRecords,
+					DataEncoding:  m.DataEncoding,
+					Version:       m.Version,
+					Size_:         m.Size_,
+					FooterSize:    m.FooterSize,
+					// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
+				}, dedColsJSON)
 
-			dedColsJSON, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
-			if err != nil {
-				errFn(fmt.Errorf("failed to convert dedicated columns. block: %s tempopb: %w", blockID, err))
-				continue
-			}
-
-			subR, err = api.BuildSearchBlockRequest(subR, &tempopb.SearchBlockRequest{
-				BlockID:       blockID,
-				StartPage:     uint32(startPage),
-				PagesToSearch: uint32(pages),
-				Encoding:      m.Encoding.String(),
-				IndexPageSize: m.IndexPageSize,
-				TotalRecords:  m.TotalRecords,
-				DataEncoding:  m.DataEncoding,
-				Version:       m.Version,
-				Size_:         m.Size_,
-				FooterSize:    m.FooterSize,
-				// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
-			}, dedColsJSON)
+				return r, err
+			})
 			if err != nil {
 				errFn(fmt.Errorf("failed to build search block request. block: %s tempopb: %w", blockID, err))
 				continue
 			}
 
-			prepareRequestForQueriers(subR, tenantID)
 			key := searchJobCacheKey(tenantID, queryHash, int64(searchReq.Start), int64(searchReq.End), m, startPage, pages)
-			pipelineR := parent.CloneFromHTTPRequest(subR)
 			pipelineR.SetCacheKey(key)
 
 			select {
@@ -396,14 +398,14 @@ func pagesPerRequest(m *backend.BlockMeta, bytesPerRequest int) int {
 	return pagesPerQuery
 }
 
-func buildIngesterRequest(ctx context.Context, tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, reqCh chan pipeline.Request) error {
-	subR := parent.HTTPRequest().Clone(ctx)
-	subR, err := api.BuildSearchRequest(subR, searchReq)
+func buildIngesterRequest(tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, reqCh chan pipeline.Request) error {
+	subR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+		return api.BuildSearchRequest(r, searchReq)
+	})
 	if err != nil {
 		return err
 	}
 
-	prepareRequestForQueriers(subR, tenantID)
-	reqCh <- parent.CloneFromHTTPRequest(subR)
+	reqCh <- subR
 	return nil
 }

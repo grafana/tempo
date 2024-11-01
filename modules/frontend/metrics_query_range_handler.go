@@ -113,7 +113,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds float64, req *tempopb.QueryRangeRequest, resp *tempopb.QueryRangeResponse, err error) {
 	if resp == nil {
 		level.Info(logger).Log(
-			"msg", "query range results - no resp",
+			"msg", "query range response - no resp",
 			"tenant", tenantID,
 			"duration_seconds", durationSeconds,
 			"error", err)
@@ -123,7 +123,7 @@ func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds flo
 
 	if resp.Metrics == nil {
 		level.Info(logger).Log(
-			"msg", "query range results - no metrics",
+			"msg", "query range response - no metrics",
 			"tenant", tenantID,
 			"query", req.Query,
 			"range_nanos", req.End-req.Start,
@@ -133,7 +133,7 @@ func logQueryRangeResult(logger log.Logger, tenantID string, durationSeconds flo
 	}
 
 	level.Info(logger).Log(
-		"msg", "query range results",
+		"msg", "query range response",
 		"tenant", tenantID,
 		"query", req.Query,
 		"range_nanos", req.End-req.Start,

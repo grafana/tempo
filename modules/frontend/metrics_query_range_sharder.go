@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"time"
 
 	"github.com/go-kit/log" //nolint:all deprecated
@@ -113,7 +114,7 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		cutoff                = time.Now().Add(-s.cfg.QueryBackendAfter)
 	)
 
-	generatorReq := s.generatorRequest(ctx, tenantID, pipelineRequest, *req, cutoff)
+	generatorReq := s.generatorRequest(tenantID, pipelineRequest, *req, cutoff)
 	reqCh := make(chan pipeline.Request, 2) // buffer of 2 allows us to insert generatorReq and metrics
 
 	if generatorReq != nil {
@@ -243,15 +244,13 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 			exemplars = max(uint32(float64(exemplars)*float64(m.TotalRecords)/float64(pages)), 1)
 		}
 
+		dedColsJSON, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
+		if err != nil {
+			_ = level.Error(s.logger).Log("msg", "failed to convert dedicated columns in query range sharder. skipping", "block", m.BlockID, "err", err)
+			continue
+		}
+
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
-			subR := parent.HTTPRequest().Clone(ctx)
-
-			dedColsJSON, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
-			if err != nil {
-				// errFn(fmt.Errorf("failed to convert dedicated columns. block: %s tempopb: %w", blockID, err))
-				continue
-			}
-
 			// Trim and align the request for this block. I.e. if the request is "Last Hour" we don't want to
 			// cache the response for that, we want only the few minutes time range for this block. This has
 			// size savings but the main thing is that the response is reuseable for any overlapping query.
@@ -261,31 +260,34 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				continue
 			}
 
-			queryRangeReq := &tempopb.QueryRangeRequest{
-				Query:     searchReq.Query,
-				Start:     start,
-				End:       end,
-				Step:      step,
-				QueryMode: searchReq.QueryMode,
-				// New RF1 fields
-				BlockID:       m.BlockID.String(),
-				StartPage:     uint32(startPage),
-				PagesToSearch: uint32(pages),
-				Version:       m.Version,
-				Encoding:      m.Encoding.String(),
-				Size_:         m.Size_,
-				FooterSize:    m.FooterSize,
-				// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
-				Exemplars: exemplars,
+			pipelineR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+				queryRangeReq := &tempopb.QueryRangeRequest{
+					Query:     searchReq.Query,
+					Start:     start,
+					End:       end,
+					Step:      step,
+					QueryMode: searchReq.QueryMode,
+					// New RF1 fields
+					BlockID:       m.BlockID.String(),
+					StartPage:     uint32(startPage),
+					PagesToSearch: uint32(pages),
+					Version:       m.Version,
+					Encoding:      m.Encoding.String(),
+					Size_:         m.Size_,
+					FooterSize:    m.FooterSize,
+					// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
+					Exemplars: exemplars,
+				}
+
+				return api.BuildQueryRangeRequest(r, queryRangeReq, dedColsJSON), nil
+			})
+			if err != nil {
+				_ = level.Error(s.logger).Log("msg", "failed to cloneRequestForQuerirs in the query range sharder. skipping", "block", m.BlockID, "err", err)
+				continue
 			}
 
-			subR = api.BuildQueryRangeRequest(subR, queryRangeReq, dedColsJSON)
-
-			prepareRequestForQueriers(subR, tenantID)
-			pipelineR := parent.CloneFromHTTPRequest(subR)
-
 			// TODO: Handle sampling rate
-			key := queryRangeCacheKey(tenantID, queryHash, int64(queryRangeReq.Start), int64(queryRangeReq.End), m, int(queryRangeReq.StartPage), int(queryRangeReq.PagesToSearch))
+			key := queryRangeCacheKey(tenantID, queryHash, int64(start), int64(end), m, int(step), pages)
 			if len(key) > 0 {
 				pipelineR.SetCacheKey(key)
 			}
@@ -306,7 +308,7 @@ func max(a, b uint32) uint32 {
 	return b
 }
 
-func (s *queryRangeSharder) generatorRequest(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time) *pipeline.HTTPRequest {
+func (s *queryRangeSharder) generatorRequest(tenantID string, parent pipeline.Request, searchReq tempopb.QueryRangeRequest, cutoff time.Time) pipeline.Request {
 	traceql.TrimToAfter(&searchReq, cutoff)
 	// if start == end then we don't need to query it
 	if searchReq.Start == searchReq.End {
@@ -315,12 +317,11 @@ func (s *queryRangeSharder) generatorRequest(ctx context.Context, tenantID strin
 
 	searchReq.QueryMode = querier.QueryModeRecent
 
-	subR := parent.HTTPRequest().Clone(ctx)
-	subR = api.BuildQueryRangeRequest(subR, &searchReq, "") // dedicated cols are never passed to the generators
+	subR, _ := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+		return api.BuildQueryRangeRequest(r, &searchReq, ""), nil
+	})
 
-	prepareRequestForQueriers(subR, tenantID)
-
-	return parent.CloneFromHTTPRequest(subR)
+	return subR
 }
 
 // maxDuration returns the max search duration allowed for this tenant.

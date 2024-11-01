@@ -8,6 +8,7 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/pkg/blockboundary"
 )
 
@@ -24,10 +25,10 @@ func TestBuildShardedRequests(t *testing.T) {
 	ctx := user.InjectOrgID(context.Background(), "blerg")
 	req := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
 
-	shardedReqs, err := sharder.buildShardedRequests(ctx, req)
+	shardedReqs, err := sharder.buildShardedRequests(pipeline.NewHTTPRequest(req))
 	require.NoError(t, err)
 	require.Len(t, shardedReqs, queryShards)
 
-	require.Equal(t, "/querier?mode=ingesters", shardedReqs[0].RequestURI)
-	urisEqual(t, []string{"/querier?blockEnd=ffffffffffffffffffffffffffffffff&blockStart=00000000000000000000000000000000&mode=blocks"}, []string{shardedReqs[1].RequestURI})
+	require.Equal(t, "/querier?mode=ingesters", shardedReqs[0].HTTPRequest().RequestURI)
+	urisEqual(t, []string{"/querier?blockEnd=ffffffffffffffffffffffffffffffff&blockStart=00000000000000000000000000000000&mode=blocks"}, []string{shardedReqs[1].HTTPRequest().RequestURI})
 }
