@@ -145,7 +145,7 @@ func (g *gauge) name() string {
 	return g.metricName
 }
 
-func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64, _ map[string]string) (activeSeries int, err error) {
+func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error) {
 	g.seriesMtx.RLock()
 	defer g.seriesMtx.RUnlock()
 

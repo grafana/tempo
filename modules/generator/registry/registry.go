@@ -83,7 +83,7 @@ type ManagedRegistry struct {
 // metric is the interface for a metric that is managed by ManagedRegistry.
 type metric interface {
 	name() string
-	collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error)
+	collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error)
 	removeStaleSeries(staleTimeMs int64)
 }
 
@@ -226,7 +226,7 @@ func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 	collectionTimeMs := time.Now().UnixMilli()
 
 	for _, m := range r.metrics {
-		active, err := m.collectMetrics(appender, collectionTimeMs, r.externalLabels)
+		active, err := m.collectMetrics(appender, collectionTimeMs)
 		if err != nil {
 			return
 		}
