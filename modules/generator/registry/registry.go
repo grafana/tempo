@@ -166,7 +166,7 @@ func (r *ManagedRegistry) NewHistogram(name string, buckets []float64, histogram
 }
 
 func (r *ManagedRegistry) NewGauge(name string) Gauge {
-	g := newGauge(name, r.onAddMetricSeries, r.onRemoveMetricSeries)
+	g := newGauge(name, r.onAddMetricSeries, r.onRemoveMetricSeries, r.externalLabels)
 	r.registerMetric(g)
 	return g
 }
