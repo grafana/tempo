@@ -38,7 +38,7 @@ Key Features:
 
 To learn more see the following links:
 - [Explore Traces repo](https://github.com/grafana/explore-traces)
-- [Explore Traces Documentation](https://grafana.com/docs/grafana/latest/explore/simplified-exploration/traces/)
+- [Explore Traces documentation](https://grafana.com/docs/grafana/latest/explore/simplified-exploration/traces/)
 - [Demo video](https://github.com/user-attachments/assets/8103e173-6dcf-4659-b938-7614c8a5b52d
 )
 
