@@ -25,7 +25,7 @@ type counter struct {
 }
 
 type counterSeries struct {
-	labels      LabelPair
+	labels      labels.Labels
 	value       *atomic.Float64
 	lastUpdated *atomic.Int64
 	// firstSeries is used to track if this series is new to the counter.  This
@@ -33,9 +33,6 @@ type counterSeries struct {
 	// to the desired value.  This avoids Prometheus throwing away the first
 	// value in the series, due to the transition from null -> x.
 	firstSeries *atomic.Bool
-
-	lb         *labels.Builder
-	baseLabels labels.Labels
 }
 
 var (
@@ -104,24 +101,24 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 }
 
 func (c *counter) newSeries(labelValueCombo *LabelValueCombo, value float64) *counterSeries {
-	// base labels
-	baseLabels := make(labels.Labels, 0, 1+len(c.externalLabels))
+	lbls := labelValueCombo.getLabelPair()
+	lb := labels.NewBuilder(make(labels.Labels, 1+len(lbls.names)+len(c.externalLabels)))
 
-	// add external labels
-	for name, value := range c.externalLabels {
-		baseLabels = append(baseLabels, labels.Label{Name: name, Value: value})
+	for i, name := range lbls.names {
+		lb.Set(name, lbls.values[i])
 	}
 
-	// add metric name
-	baseLabels = append(baseLabels, labels.Label{Name: labels.MetricName, Value: c.metricName})
+	for name, value := range c.externalLabels {
+		lb.Set(name, value)
+	}
+
+	lb.Set(labels.MetricName, c.metricName)
 
 	return &counterSeries{
-		labels:      labelValueCombo.getLabelPair(),
+		labels:      lb.Labels(),
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
 		firstSeries: atomic.NewBool(true),
-		lb:          labels.NewBuilder(baseLabels),
-		baseLabels:  baseLabels,
 	}
 }
 
@@ -141,13 +138,6 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) (activ
 	activeSeries = len(c.series)
 
 	for _, s := range c.series {
-		s.lb.Reset(s.baseLabels)
-
-		// set series-specific labels
-		for i, name := range s.labels.names {
-			s.lb.Set(name, s.labels.values[i])
-		}
-
 		// If we are about to call Append for the first time on a series, we need
 		// to first insert a 0 value to allow Prometheus to start from a non-null
 		// value.
@@ -155,14 +145,14 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) (activ
 			// We set the timestamp of the init serie at the end of the previous minute, that way we ensure it ends in a
 			// different aggregation interval to avoid be downsampled.
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
-			_, err = appender.Append(0, s.lb.Labels(), endOfLastMinuteMs, 0)
+			_, err = appender.Append(0, s.labels, endOfLastMinuteMs, 0)
 			if err != nil {
 				return
 			}
 			s.registerSeenSeries()
 		}
 
-		_, err = appender.Append(0, s.lb.Labels(), timeMs, s.value.Load())
+		_, err = appender.Append(0, s.labels, timeMs, s.value.Load())
 		if err != nil {
 			return
 		}

@@ -29,12 +29,9 @@ type gauge struct {
 }
 
 type gaugeSeries struct {
-	// labelValueCombo should not be modified after creation
-	labels      LabelPair
+	labels      labels.Labels
 	value       *atomic.Float64
 	lastUpdated *atomic.Int64
-	lb          *labels.Builder
-	baseLabels  labels.Labels
 }
 
 var (
@@ -112,23 +109,23 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 }
 
 func (g *gauge) newSeries(labelValueCombo *LabelValueCombo, value float64) *gaugeSeries {
-	// base labels
-	baseLabels := make(labels.Labels, 1+len(g.externalLabels))
+	lbls := labelValueCombo.getLabelPair()
+	lb := labels.NewBuilder(make(labels.Labels, 1+len(lbls.names)+len(g.externalLabels)))
 
-	// add metric name
-	baseLabels = append(baseLabels, labels.Label{Name: labels.MetricName, Value: g.metricName})
-
-	// add external labels
-	for name, value := range g.externalLabels {
-		baseLabels = append(baseLabels, labels.Label{Name: name, Value: value})
+	for i, name := range lbls.names {
+		lb.Set(name, lbls.values[i])
 	}
 
+	for name, value := range g.externalLabels {
+		lb.Set(name, value)
+	}
+
+	lb.Set(labels.MetricName, g.metricName)
+
 	return &gaugeSeries{
-		labels:      labelValueCombo.getLabelPair(),
+		labels:      lb.Labels(),
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
-		lb:          labels.NewBuilder(baseLabels),
-		baseLabels:  baseLabels,
 	}
 }
 
@@ -153,16 +150,7 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) (activeS
 
 	for _, s := range g.series {
 		t := time.UnixMilli(timeMs)
-
-		// reset labels for every series
-		s.lb.Reset(s.baseLabels)
-
-		// set series-specific labels
-		for i, name := range s.labels.names {
-			s.lb.Set(name, s.labels.values[i])
-		}
-
-		_, err = appender.Append(0, s.lb.Labels(), t.UnixMilli(), s.value.Load())
+		_, err = appender.Append(0, s.labels, t.UnixMilli(), s.value.Load())
 		if err != nil {
 			return
 		}
