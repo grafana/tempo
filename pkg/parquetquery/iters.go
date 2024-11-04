@@ -1261,10 +1261,6 @@ func (c *SyncIterator) Close() {
 	c.closeCurrRowGroup()
 
 	c.span.End()
-
-	if c.intern && c.interner != nil {
-		// c.interner.Close()
-	}
 }
 
 // ColumnIterator asynchronously iterates through the given row groups and column. Applies
