@@ -178,12 +178,7 @@ func (c *RedisClient) Close() error {
 	return c.rdb.Close()
 }
 
-// StringToBytes converts string to byte slice. (copied from vendor/github.com/go-redis/redis/v8/internal/util/unsafe.go)
+// StringToBytes reads the string header and returns a byte slice without copying.
 func StringToBytes(s string) []byte {
-	return *(*[]byte)(unsafe.Pointer(
-		&struct {
-			string
-			Cap int
-		}{s, len(s)},
-	))
+	return unsafe.Slice(unsafe.StringData(s), len(s))
 }

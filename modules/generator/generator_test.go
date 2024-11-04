@@ -53,7 +53,7 @@ overrides:
       collection_interval: 1s
       processors:
         - %s
-`, user1, spanmetrics.Name)), os.ModePerm))
+`, user1, spanmetrics.Name)), 0o700))
 
 	o, err := overrides.NewOverrides(overridesConfig, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
@@ -92,7 +92,7 @@ overrides:
       collection_interval: 1s
       processors:
         - %s
-`, user1, spanmetrics.Count.String())), os.ModePerm))
+`, user1, spanmetrics.Count.String())), 0o700))
 	time.Sleep(15 * time.Second) // Wait for overrides to be applied. Reload is hardcoded to 10s :(
 
 	// Only Count should be enabled for user1
@@ -225,7 +225,7 @@ func BenchmarkCollect(b *testing.B) {
 			spanMetricsDimensions:                   []string{"k8s.cluster.name", "k8s.namespace.name"},
 			spanMetricsEnableTargetInfo:             true,
 			spanMetricsTargetInfoExcludedDimensions: []string{"excluded}"},
-			// nativeHistograms:                        overrides.HistogramMethodBoth,
+			nativeHistograms:                        overrides.HistogramMethodBoth,
 		}
 	)
 
