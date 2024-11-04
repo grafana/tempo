@@ -414,11 +414,54 @@ func (e Expiration) MarshalXML(en *xml.Encoder, startElement xml.StartElement) e
 	return en.EncodeElement(expirationWrapper(e), startElement)
 }
 
+// DelMarkerExpiration represents DelMarkerExpiration actions element in an ILM policy
+type DelMarkerExpiration struct {
+	XMLName xml.Name `xml:"DelMarkerExpiration" json:"-"`
+	Days    int      `xml:"Days,omitempty" json:"Days,omitempty"`
+}
+
+// IsNull returns true if Days isn't specified and false otherwise.
+func (de DelMarkerExpiration) IsNull() bool {
+	return de.Days == 0
+}
+
+// MarshalXML avoids serializing an empty DelMarkerExpiration element
+func (de DelMarkerExpiration) MarshalXML(enc *xml.Encoder, start xml.StartElement) error {
+	if de.IsNull() {
+		return nil
+	}
+	type delMarkerExp DelMarkerExpiration
+	return enc.EncodeElement(delMarkerExp(de), start)
+}
+
+// AllVersionsExpiration represents AllVersionsExpiration actions element in an ILM policy
+type AllVersionsExpiration struct {
+	XMLName      xml.Name           `xml:"AllVersionsExpiration" json:"-"`
+	Days         int                `xml:"Days,omitempty" json:"Days,omitempty"`
+	DeleteMarker ExpireDeleteMarker `xml:"DeleteMarker,omitempty" json:"DeleteMarker,omitempty"`
+}
+
+// IsNull returns true if days field is 0
+func (e AllVersionsExpiration) IsNull() bool {
+	return e.Days == 0
+}
+
+// MarshalXML satisfies xml.Marshaler to provide custom encoding
+func (e AllVersionsExpiration) MarshalXML(enc *xml.Encoder, start xml.StartElement) error {
+	if e.IsNull() {
+		return nil
+	}
+	type allVersionsExp AllVersionsExpiration
+	return enc.EncodeElement(allVersionsExp(e), start)
+}
+
 // MarshalJSON customizes json encoding by omitting empty values
 func (r Rule) MarshalJSON() ([]byte, error) {
 	type rule struct {
 		AbortIncompleteMultipartUpload *AbortIncompleteMultipartUpload `json:"AbortIncompleteMultipartUpload,omitempty"`
 		Expiration                     *Expiration                     `json:"Expiration,omitempty"`
+		DelMarkerExpiration            *DelMarkerExpiration            `json:"DelMarkerExpiration,omitempty"`
+		AllVersionsExpiration          *AllVersionsExpiration          `json:"AllVersionsExpiration,omitempty"`
 		ID                             string                          `json:"ID"`
 		RuleFilter                     *Filter                         `json:"Filter,omitempty"`
 		NoncurrentVersionExpiration    *NoncurrentVersionExpiration    `json:"NoncurrentVersionExpiration,omitempty"`
@@ -442,6 +485,9 @@ func (r Rule) MarshalJSON() ([]byte, error) {
 	if !r.Expiration.IsNull() {
 		newr.Expiration = &r.Expiration
 	}
+	if !r.DelMarkerExpiration.IsNull() {
+		newr.DelMarkerExpiration = &r.DelMarkerExpiration
+	}
 	if !r.Transition.IsNull() {
 		newr.Transition = &r.Transition
 	}
@@ -450,6 +496,9 @@ func (r Rule) MarshalJSON() ([]byte, error) {
 	}
 	if !r.NoncurrentVersionTransition.isNull() {
 		newr.NoncurrentVersionTransition = &r.NoncurrentVersionTransition
+	}
+	if !r.AllVersionsExpiration.IsNull() {
+		newr.AllVersionsExpiration = &r.AllVersionsExpiration
 	}
 
 	return json.Marshal(newr)
@@ -460,6 +509,8 @@ type Rule struct {
 	XMLName                        xml.Name                       `xml:"Rule,omitempty" json:"-"`
 	AbortIncompleteMultipartUpload AbortIncompleteMultipartUpload `xml:"AbortIncompleteMultipartUpload,omitempty" json:"AbortIncompleteMultipartUpload,omitempty"`
 	Expiration                     Expiration                     `xml:"Expiration,omitempty" json:"Expiration,omitempty"`
+	DelMarkerExpiration            DelMarkerExpiration            `xml:"DelMarkerExpiration,omitempty" json:"DelMarkerExpiration,omitempty"`
+	AllVersionsExpiration          AllVersionsExpiration          `xml:"AllVersionsExpiration,omitempty" json:"AllVersionsExpiration,omitempty"`
 	ID                             string                         `xml:"ID" json:"ID"`
 	RuleFilter                     Filter                         `xml:"Filter,omitempty" json:"Filter,omitempty"`
 	NoncurrentVersionExpiration    NoncurrentVersionExpiration    `xml:"NoncurrentVersionExpiration,omitempty"  json:"NoncurrentVersionExpiration,omitempty"`
