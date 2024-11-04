@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/parquet-go/parquet-go"
 	"github.com/stoewer/parquet-cli/pkg/output"
@@ -11,6 +12,19 @@ import (
 
 var (
 	columnStatHeader = [...]any{
+		"Index",
+		"Name",
+		"Max Def",
+		"Max Rep",
+		"Size",
+		"Compressed size",
+		"Pages",
+		"Rows",
+		"Values",
+		"Nulls",
+		"Path",
+	}
+	columnStatHeaderFull = [...]any{
 		"Index",
 		"Name",
 		"Max Def",
@@ -27,59 +41,73 @@ var (
 		"Nulls",
 		"Page min nulls",
 		"Page max nulls",
+		"Path",
 	}
 )
 
 type ColumnStats struct {
 	Index          int    `json:"index"`
 	Name           string `json:"name"`
-	MaxDef         int    `json:"maxDef"`
-	MaxRep         int    `json:"maxRep"`
+	MaxDef         int    `json:"max_def"`
+	MaxRep         int    `json:"max_rep"`
 	Size           int64  `json:"size"`
-	CompressedSize int64  `json:"compressedSize"`
+	CompressedSize int64  `json:"compressed_size"`
 	Pages          int    `json:"pages"`
 	Rows           int64  `json:"rows"`
-	PageMinRows    int64  `json:"pageMinRows"`
-	PageMaxRows    int64  `json:"pageMaxRows"`
 	Values         int64  `json:"values"`
-	PageMinValues  int64  `json:"pageMinValues"`
-	PageMaxValues  int64  `json:"pageMaxValues"`
 	Nulls          int64  `json:"nulls"`
-	PageMinNulls   int64  `json:"pageMinNulls"`
-	PageMaxNulls   int64  `json:"pageMaxNulls"`
-
-	cells []any
-}
-
-func (rs *ColumnStats) Data() any {
-	return rs
+	Path           string `json:"path"`
 }
 
 func (rs *ColumnStats) Cells() []any {
-	if rs.cells == nil {
-		rs.cells = []any{
-			rs.Index,
-			rs.Name,
-			rs.MaxDef,
-			rs.MaxRep,
-			rs.Size,
-			rs.CompressedSize,
-			rs.Pages,
-			rs.Rows,
-			rs.PageMinRows,
-			rs.PageMaxRows,
-			rs.Values,
-			rs.PageMinValues,
-			rs.PageMaxValues,
-			rs.Nulls,
-			rs.PageMinNulls,
-			rs.PageMaxNulls,
-		}
+	return []any{
+		rs.Index,
+		rs.Name,
+		rs.MaxDef,
+		rs.MaxRep,
+		rs.Size,
+		rs.CompressedSize,
+		rs.Pages,
+		rs.Rows,
+		rs.Values,
+		rs.Nulls,
+		rs.Path,
 	}
-	return rs.cells
 }
 
-func NewColStatCalculator(file *parquet.File, selectedCols []int) (*ColStatCalculator, error) {
+type ColumnStatsFull struct {
+	ColumnStats
+	PageMinRows   int64 `json:"page_min_rows"`
+	PageMaxRows   int64 `json:"page_max_rows"`
+	PageMinValues int64 `json:"page_min_values"`
+	PageMaxValues int64 `json:"page_max_values"`
+	PageMinNulls  int64 `json:"page_min_nulls"`
+	PageMaxNulls  int64 `json:"page_max_nulls"`
+}
+
+func (rs *ColumnStatsFull) Cells() []any {
+	return []any{
+		rs.Index,
+		rs.Name,
+		rs.MaxDef,
+		rs.MaxRep,
+		rs.Size,
+		rs.CompressedSize,
+		rs.Pages,
+		rs.Rows,
+		rs.PageMinRows,
+		rs.PageMaxRows,
+		rs.Values,
+		rs.PageMinValues,
+		rs.PageMaxValues,
+		rs.Nulls,
+		rs.PageMinNulls,
+		rs.PageMaxNulls,
+		rs.Path,
+	}
+}
+
+func NewColStatCalculator(file *parquet.File, selectedCols []int, verbose bool) (*ColStatCalculator, error) {
 	all := LeafColumns(file)
 	var columns []*parquet.Column
 
@@ -95,16 +123,20 @@ func NewColStatCalculator(file *parquet.File, selectedCols []int) (*ColStatCalcu
 		}
 	}
 
-	return &ColStatCalculator{file: file, columns: columns}, nil
+	return &ColStatCalculator{file: file, columns: columns, verbose: verbose}, nil
 }
 
 type ColStatCalculator struct {
 	file    *parquet.File
+	verbose bool
 	columns []*parquet.Column
 	current int
 }
 
 func (cc *ColStatCalculator) Header() []any {
+	if cc.verbose {
+		return columnStatHeaderFull[:]
+	}
 	return columnStatHeader[:]
 }
 
@@ -115,11 +147,13 @@ func (cc *ColStatCalculator) NextRow() (output.TableRow, error) {
 
 	col := cc.columns[cc.current]
 	cc.current++
-	stats := ColumnStats{
-		Index:  col.Index(),
-		Name:   col.Name(),
-		MaxDef: col.MaxDefinitionLevel(),
-		MaxRep: col.MaxRepetitionLevel(),
+	stats := ColumnStatsFull{
+		ColumnStats: ColumnStats{
+			Index:  col.Index(),
+			Name:   PathToDisplayName(col.Path()),
+			MaxDef: col.MaxDefinitionLevel(),
+			MaxRep: col.MaxRepetitionLevel(),
+		},
 	}
 
 	for _, rg := range cc.file.RowGroups() {
@@ -135,26 +169,40 @@ func (cc *ColStatCalculator) NextRow() (output.TableRow, error) {
 			}
 		}
 
+		path := strings.Join(col.Path(), ".")
+
 		pages := chunk.Pages()
 		page, err := pages.ReadPage()
 		for err == nil {
 			stats.Pages++
 			stats.Size += page.Size()
 			stats.Rows += page.NumRows()
-			stats.PageMinRows = min(stats.PageMinRows, page.NumRows())
-			stats.PageMaxRows = max(stats.PageMaxRows, page.NumRows())
 			stats.Values += page.NumValues()
-			stats.PageMinValues = min(stats.PageMinValues, page.NumRows())
-			stats.PageMaxValues = max(stats.PageMaxValues, page.NumRows())
 			stats.Nulls += page.NumNulls()
+
 			stats.PageMinNulls = min(stats.PageMinNulls, page.NumNulls())
 			stats.PageMaxNulls = max(stats.PageMaxNulls, page.NumNulls())
+			stats.PageMinValues = min(stats.PageMinValues, page.NumRows())
+			stats.PageMaxValues = max(stats.PageMaxValues, page.NumRows())
+			stats.PageMinRows = min(stats.PageMinRows, page.NumRows())
+			stats.PageMaxRows = max(stats.PageMaxRows, page.NumRows())
+
+			stats.Path = path
+
 			page, err = pages.ReadPage()
 		}
+
 		if !errors.Is(err, io.EOF) {
 			return nil, fmt.Errorf("unable to read page rom column '%s': %w", col.Name(), err)
 		}
 	}
 
-	return &stats, nil
+	if cc.verbose {
+		return &stats, nil
+	}
+	return &stats.ColumnStats, nil
+}
+
+func (cc *ColStatCalculator) NextSerializable() (any, error) {
+	return cc.NextRow()
 }
