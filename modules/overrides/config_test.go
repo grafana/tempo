@@ -6,8 +6,8 @@ import (
 	"flag"
 	"reflect"
 	"testing"
+	"time"
 
-	"github.com/brianvoe/gofakeit/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -268,10 +268,16 @@ func rvCountFields(rv reflect.Value) int {
 }
 
 func TestOverrides_AssertUserConfigurableOverridesAreASubsetOfRuntimeOverrides(t *testing.T) {
-	userConfigurableOverrides := client.Limits{}
-
-	err := gofakeit.Struct(&userConfigurableOverrides)
-	assert.NoError(t, err)
+	userConfigurableOverrides := client.Limits{
+		Forwarders: &[]string{"test"},
+		CostAttribution: client.CostAttribution{
+			Dimensions: &map[string]string{"server": "192.168.1.1"},
+		},
+		MetricsGenerator: client.LimitsMetricsGenerator{
+			CollectionInterval: &client.Duration{Duration: 5 * time.Minute},
+			Processors:         map[string]struct{}{"service-graphs": {}},
+		},
+	}
 
 	// TODO clear out collection_interval because unmarshalling a time.Duration into overrides.Overrides
 	//  fails. The JSON decoder is not able to parse creations correctly, so e.g. a string like "30s" is
@@ -283,7 +289,7 @@ func TestOverrides_AssertUserConfigurableOverridesAreASubsetOfRuntimeOverrides(t
 	// encode to json
 	var buf bytes.Buffer
 	encoder := json.NewEncoder(&buf)
-	err = encoder.Encode(&userConfigurableOverrides)
+	err := encoder.Encode(&userConfigurableOverrides)
 	assert.NoError(t, err)
 
 	// and decode back to overrides.Overrides
