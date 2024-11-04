@@ -1368,8 +1368,8 @@ go.opentelemetry.io/collector/config/confighttp
 # go.opentelemetry.io/collector/config/confignet v0.102.1
 ## explicit; go 1.21.0
 go.opentelemetry.io/collector/config/confignet
-# go.opentelemetry.io/collector/config/configopaque v1.9.0
-## explicit; go 1.21.0
+# go.opentelemetry.io/collector/config/configopaque v1.18.0
+## explicit; go 1.22.0
 go.opentelemetry.io/collector/config/configopaque
 # go.opentelemetry.io/collector/config/configretry v0.102.1
 ## explicit; go 1.21.0
@@ -1377,8 +1377,8 @@ go.opentelemetry.io/collector/config/configretry
 # go.opentelemetry.io/collector/config/configtelemetry v0.102.1
 ## explicit; go 1.21.0
 go.opentelemetry.io/collector/config/configtelemetry
-# go.opentelemetry.io/collector/config/configtls v0.102.1
-## explicit; go 1.21.0
+# go.opentelemetry.io/collector/config/configtls v1.18.0
+## explicit; go 1.22.0
 go.opentelemetry.io/collector/config/configtls
 # go.opentelemetry.io/collector/config/internal v0.102.1
 ## explicit; go 1.21.0
