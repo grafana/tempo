@@ -26,7 +26,7 @@ type Aggregate struct {
 	Stats []AggregateCellStats `json:"stats"`
 }
 
-func (rs *Aggregate) Data() any {
+func (rs *Aggregate) SerializableData() any {
 	return rs
 }
 
