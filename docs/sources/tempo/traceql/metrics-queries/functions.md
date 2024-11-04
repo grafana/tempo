@@ -25,10 +25,10 @@ These functions can be added as an operator at the end of any TraceQL query.
 : Counts the number of matching spans per time interval (refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics)).
 
 `min_over_time`
-: Returns the minimum value of matching spans values per time interval (see the `step` API parameter)
+: Returns the minimum value for the specified attribute across all matching spans per time interval (refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics)).
 
 `max_over_time`
-: Returns the minimum value for the specified attribute across all matching spans per time interval (refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics)).
+: Returns the maximum value for the specified attribute across all matching spans per time interval (refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics)).
 
 `avg_over_time`
 : Returns the average value for the specified attribute across all matching spans per time interval (refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics)).
@@ -104,7 +104,7 @@ For example, you could choose to calculate the minimum duration of a group of sp
 The time interval that the minimum is computed over is set by the `step` parameter.
 
 The `max_over_time()` let you aggregate numerical values by computing the maximum value of them, such as the all important span duration.
-The time interval that the maximum is computer over is set by the `step` parameter.
+The time interval that the maximum is computed over is set by the `step` parameter.
 
 The `avg_over_time()` function lets you aggregate numerical values by computing the maximum value of them, such as the all important span duration.
 The time interval that the maximum is computer over is set by the `step` parameter.
