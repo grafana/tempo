@@ -102,7 +102,7 @@ require (
 	github.com/stoewer/parquet-cli v0.0.7
 	go.opentelemetry.io/collector/config/configgrpc v0.102.1
 	go.opentelemetry.io/collector/config/confighttp v0.102.1
-	go.opentelemetry.io/collector/config/configtls v0.102.1
+	go.opentelemetry.io/collector/config/configtls v1.18.0
 	go.opentelemetry.io/collector/exporter v0.102.1
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.102.1
 	go.opentelemetry.io/collector/extension v0.102.1
@@ -288,7 +288,7 @@ require (
 	go.opentelemetry.io/collector/config/configauth v0.102.1 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.9.0 // indirect
 	go.opentelemetry.io/collector/config/confignet v0.102.1 // indirect
-	go.opentelemetry.io/collector/config/configopaque v1.9.0 // indirect
+	go.opentelemetry.io/collector/config/configopaque v1.18.0 // indirect
 	go.opentelemetry.io/collector/config/configretry v0.102.1 // indirect
 	go.opentelemetry.io/collector/config/configtelemetry v0.102.1 // indirect
 	go.opentelemetry.io/collector/config/internal v0.102.1 // indirect
