@@ -88,7 +88,7 @@ require (
 	github.com/brianvoe/gofakeit/v6 v6.25.0
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
-	github.com/googleapis/gax-go/v2 v2.12.5
+	github.com/googleapis/gax-go/v2 v2.13.0
 	github.com/grafana/gomemcache v0.0.0-20240229205252-cd6a66d6fb56
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.102.0
@@ -117,7 +117,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.3.1
 	golang.org/x/net v0.27.0
 	golang.org/x/oauth2 v0.21.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240708141625-4ad9e859172b
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240711142825-46eb208f015d
 )
 
 require (
