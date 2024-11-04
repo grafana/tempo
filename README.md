@@ -22,8 +22,12 @@ Tempo implements [TraceQL](https://grafana.com/docs/tempo/latest/traceql/), a tr
 
 Tempo is Jaeger, Zipkin, Kafka, OpenCensus, and OpenTelemetry compatible. It ingests batches in any of the mentioned formats, buffers them, and then writes them to Azure, GCS, S3, or local disk. As such, it is robust, cheap, and easy to operate!
 
-## Business Value of Distributed Tracing
+## Business value of distributed tracing
+
 Distributed tracing helps teams quickly pinpoint performance issues and understand the flow of requests across services. The Explore Traces UI simplifies this process by offering a user-friendly interface to view and analyze trace data, making it easier to identify and resolve issues without needing to write complex queries.
+
+Refer to [Use traces to find solutions](https://grafana.com/docs/tempo/latest/introduction/solutions-with-traces/)t o learn more about how you can use distributed tracing to investigate and solve issues. 
+
 
 ## Explore Traces UI: A better way to get value from your tracing data
 We are excited to introduce the [Explore Traces app](https://github.com/grafana/explore-traces) as part of the Grafana Explore suite. This app provides a queryless and intuitive experience for analyzing tracing data, allowing teams to quickly identify performance issues, latency bottlenecks, and errors without needing to write complex queries or use TraceQL.
