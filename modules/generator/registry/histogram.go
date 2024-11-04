@@ -192,7 +192,7 @@ func (h *histogram) name() string {
 	return h.metricName
 }
 
-func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64, _ map[string]string) (activeSeries int, err error) {
+func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error) {
 	h.seriesMtx.Lock()
 	defer h.seriesMtx.Unlock()
 

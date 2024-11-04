@@ -190,9 +190,9 @@ func newAsyncTagSharder(reader tempodb.Reader, o overrides.Interface, cfg Search
 // until limit results are found
 func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 	r := pipelineRequest.HTTPRequest()
-	requestCtx := r.Context()
+	ctx := pipelineRequest.Context()
 
-	tenantID, err := user.ExtractOrgID(requestCtx)
+	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}
@@ -201,8 +201,9 @@ func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
 	}
-	ctx, span := tracer.Start(requestCtx, "frontend.ShardSearchTags")
+	ctx, span := tracer.Start(ctx, "frontend.ShardSearchTags")
 	defer span.End()
+	pipelineRequest.WithContext(ctx)
 
 	// calculate and enforce max search duration
 	maxDuration := s.maxDuration(tenantID)
@@ -213,7 +214,7 @@ func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.
 
 	// build request to search ingester based on query_ingesters_until config and time range
 	// pass subCtx in requests, so we can cancel and exit early
-	ingesterReq, err := s.ingesterRequest(ctx, tenantID, pipelineRequest, searchReq)
+	ingesterReq, err := s.ingesterRequest(tenantID, pipelineRequest, searchReq)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +224,7 @@ func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.
 		reqCh <- ingesterReq
 	}
 
-	s.backendRequests(ctx, tenantID, r, searchReq, reqCh, func(err error) {
+	s.backendRequests(ctx, tenantID, pipelineRequest, searchReq, reqCh, func(err error) {
 		// todo: actually find a way to return this error to the user
 		s.logger.Log("msg", "failed to build backend requests", "err", err)
 	})
@@ -252,7 +253,7 @@ func (s searchTagSharder) blockMetas(start, end int64, tenantID string) []*backe
 
 // backendRequest builds backend requests to search backend blocks. backendRequest takes ownership of reqCh and closes it.
 // it returns 3 int values: totalBlocks, totalBlockBytes, and estimated jobs
-func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, parent *http.Request, searchReq tagSearchReq, reqCh chan<- pipeline.Request, errFn func(error)) {
+func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tagSearchReq, reqCh chan<- pipeline.Request, errFn func(error)) {
 	var blocks []*backend.BlockMeta
 
 	// request without start or end, search only in ingester
@@ -282,7 +283,7 @@ func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, 
 
 // buildBackendRequests returns a slice of requests that cover all blocks in the store
 // that are covered by start/end.
-func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID string, parent *http.Request, metas []*backend.BlockMeta, bytesPerRequest int, reqCh chan<- pipeline.Request, errFn func(error), searchReq tagSearchReq) {
+func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.Request, metas []*backend.BlockMeta, bytesPerRequest int, reqCh chan<- pipeline.Request, errFn func(error), searchReq tagSearchReq) {
 	defer close(reqCh)
 
 	hash := searchReq.hash()
@@ -296,14 +297,13 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 
 		blockID := m.BlockID.String()
 		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
-			subR := parent.Clone(ctx)
-			subR, err := searchReq.buildTagSearchBlockRequest(subR, blockID, startPage, pages, m)
+			pipelineR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+				return searchReq.buildTagSearchBlockRequest(r, blockID, startPage, pages, m)
+			})
 			if err != nil {
 				errFn(err)
-				return
+				continue
 			}
-			prepareRequestForQueriers(subR, tenantID)
-			pipelineR := pipeline.NewHTTPRequest(subR)
 
 			key := cacheKey(keyPrefix, tenantID, hash, int64(searchReq.start()), int64(searchReq.end()), m, startPage, pages)
 			pipelineR.SetCacheKey(key)
@@ -321,10 +321,10 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 // that covers the ingesters. If nil is returned for the http.Request then there is no ingesters query.
 // we should do a copy of the searchReq before use this function, as it is an interface, we cannot guaranteed  be passed
 // by value.
-func (s searchTagSharder) ingesterRequest(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tagSearchReq) (*pipeline.HTTPRequest, error) {
+func (s searchTagSharder) ingesterRequest(tenantID string, parent pipeline.Request, searchReq tagSearchReq) (pipeline.Request, error) {
 	// request without start or end, search only in ingester
 	if searchReq.start() == 0 || searchReq.end() == 0 {
-		return s.buildIngesterRequest(ctx, tenantID, parent, searchReq)
+		return s.buildIngesterRequest(tenantID, parent, searchReq)
 	}
 
 	now := time.Now()
@@ -349,17 +349,17 @@ func (s searchTagSharder) ingesterRequest(ctx context.Context, tenantID string, 
 	}
 
 	newSearchReq := searchReq.newWithRange(ingesterStart, ingesterEnd)
-	return s.buildIngesterRequest(ctx, tenantID, parent, newSearchReq)
+	return s.buildIngesterRequest(tenantID, parent, newSearchReq)
 }
 
-func (s searchTagSharder) buildIngesterRequest(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tagSearchReq) (*pipeline.HTTPRequest, error) {
-	subR := parent.HTTPRequest().Clone(ctx)
-	subR, err := searchReq.buildSearchTagRequest(subR)
+func (s searchTagSharder) buildIngesterRequest(tenantID string, parent pipeline.Request, searchReq tagSearchReq) (pipeline.Request, error) {
+	subR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+		return searchReq.buildSearchTagRequest(r)
+	})
 	if err != nil {
 		return nil, err
 	}
-	prepareRequestForQueriers(subR, tenantID)
-	return parent.CloneFromHTTPRequest(subR), nil
+	return subR, nil
 }
 
 // maxDuration returns the max search duration allowed for this tenant.

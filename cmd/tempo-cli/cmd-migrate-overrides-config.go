@@ -68,7 +68,7 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 	}
 
 	if cmd.ConfigDest != "" {
-		if err := os.WriteFile(cmd.ConfigDest, configBytes, 0o644); err != nil {
+		if err := os.WriteFile(cmd.ConfigDest, configBytes, 0o600); err != nil {
 			return fmt.Errorf("failed to write config file: %w", err)
 		}
 	} else {
@@ -90,7 +90,7 @@ func (cmd *migrateOverridesConfigCmd) Run(*globalOptions) error {
 	}
 
 	if cmd.OverridesDest != "" {
-		if err := os.WriteFile(cmd.OverridesDest, overridesBytes, 0o644); err != nil {
+		if err := os.WriteFile(cmd.OverridesDest, overridesBytes, 0o600); err != nil {
 			return fmt.Errorf("failed to write overrides file: %w", err)
 		}
 	} else {

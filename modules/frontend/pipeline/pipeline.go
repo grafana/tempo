@@ -13,7 +13,9 @@ var tracer = otel.Tracer("modules/frontend/pipeline")
 type Request interface {
 	HTTPRequest() *http.Request
 	Context() context.Context
+
 	WithContext(context.Context)
+	CloneFromHTTPRequest(request *http.Request) Request
 
 	Weight() int
 	SetWeight(int)
@@ -23,7 +25,6 @@ type Request interface {
 
 	SetResponseData(any) // add data that will be sent back with this requests response
 	ResponseData() any
-	CloneFromHTTPRequest(request *http.Request) *HTTPRequest
 }
 
 type HTTPRequest struct {
@@ -78,8 +79,13 @@ func (r *HTTPRequest) SetWeight(w int) {
 	r.weight = w
 }
 
-func (r *HTTPRequest) CloneFromHTTPRequest(request *http.Request) *HTTPRequest {
-	return &HTTPRequest{req: request, weight: r.weight}
+func (r *HTTPRequest) CloneFromHTTPRequest(request *http.Request) Request {
+	return &HTTPRequest{
+		req:          request,
+		weight:       r.weight,
+		cacheKey:     r.cacheKey,
+		responseData: r.responseData,
+	}
 }
 
 //

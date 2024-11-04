@@ -178,7 +178,7 @@ func (ca *ca) writeCACertificate(path string) error {
 		return err
 	}
 
-	return writeExclusivePEMFile(path, "CERTIFICATE", 0o644, derBytes)
+	return writeExclusivePEMFile(path, "CERTIFICATE", 0o600, derBytes)
 }
 
 func (ca *ca) writeCertificate(template *x509.Certificate, certPath string, keyPath string) error {
@@ -208,5 +208,5 @@ func (ca *ca) writeCertificate(template *x509.Certificate, certPath string, keyP
 		return err
 	}
 
-	return writeExclusivePEMFile(certPath, "CERTIFICATE", 0o644, derBytes)
+	return writeExclusivePEMFile(certPath, "CERTIFICATE", 0o600, derBytes)
 }

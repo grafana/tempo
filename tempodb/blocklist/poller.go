@@ -149,7 +149,7 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	_, span := tracer.Start(ctx, "Poller.Do")
+	ctx, span := tracer.Start(ctx, "Poller.Do")
 	defer span.End()
 
 	tenants, err := p.reader.Tenants(ctx)

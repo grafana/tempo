@@ -20,7 +20,7 @@ func Test_ObserveWithExemplar_duplicate(t *testing.T) {
 		return true
 	}
 
-	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, onAdd, nil, "trace_id", HistogramModeBoth)
+	h := newNativeHistogram("my_histogram", []float64{0.1, 0.2}, onAdd, nil, "trace_id", HistogramModeBoth, nil)
 
 	lv := newLabelValueCombo([]string{"label"}, []string{"value-1"})
 
@@ -463,7 +463,7 @@ func Test_Histograms(t *testing.T) {
 				}
 
 				onAdd := func(uint32) bool { return true }
-				h := newNativeHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", HistogramModeBoth)
+				h := newNativeHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", HistogramModeBoth, nil)
 				testHistogram(t, h, tc.collections)
 			})
 		})
@@ -471,7 +471,7 @@ func Test_Histograms(t *testing.T) {
 }
 
 func collectMetricsAndAssertSeries(t *testing.T, m metric, collectionTimeMs int64, expectedSeries int, appender storage.Appender) {
-	activeSeries, err := m.collectMetrics(appender, collectionTimeMs, nil)
+	activeSeries, err := m.collectMetrics(appender, collectionTimeMs)
 	require.NoError(t, err)
 	require.Equal(t, expectedSeries, activeSeries)
 }

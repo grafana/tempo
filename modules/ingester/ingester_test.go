@@ -193,7 +193,7 @@ func TestWalDropsZeroLength(t *testing.T) {
 		blockID, err := instance.CutBlockIfReady(0, 0, true)
 		require.NoError(t, err)
 
-		err = instance.CompleteBlock(blockID)
+		err = instance.CompleteBlock(context.Background(), blockID)
 		require.NoError(t, err)
 
 		err = instance.ClearCompletingBlock(blockID)
@@ -408,7 +408,7 @@ func TestDedicatedColumns(t *testing.T) {
 	inst.blocksMtx.RUnlock()
 
 	// Complete block
-	err = inst.CompleteBlock(blockID)
+	err = inst.CompleteBlock(context.Background(), blockID)
 	require.NoError(t, err)
 
 	// TODO: This check should be included as part of the read path

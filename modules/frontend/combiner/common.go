@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 
+	tempo_io "github.com/grafana/tempo/pkg/io"
+
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
@@ -90,7 +92,7 @@ func (c *genericCombiner[T]) AddResponse(r PipelineResponse) error {
 
 	switch res.Header.Get(api.HeaderContentType) {
 	case api.HeaderAcceptProtobuf:
-		b, err := io.ReadAll(res.Body)
+		b, err := tempo_io.ReadAllWithEstimate(res.Body, res.ContentLength)
 		if err != nil {
 			return fmt.Errorf("error reading response body")
 		}
