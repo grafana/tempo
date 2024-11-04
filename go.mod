@@ -47,7 +47,7 @@ require (
 	github.com/prometheus/common v0.55.0
 	github.com/prometheus/prometheus v0.54.0
 	github.com/prometheus/statsd_exporter v0.26.0
-	github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
+	github.com/segmentio/fasthash v1.0.3
 	github.com/sony/gobreaker v0.4.1
 	github.com/spf13/viper v1.18.2
 	github.com/stretchr/testify v1.9.0
