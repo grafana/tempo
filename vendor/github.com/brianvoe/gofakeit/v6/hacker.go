@@ -71,7 +71,7 @@ func addHackerLookup() {
 	AddFuncLookup("hackerphrase", Info{
 		Display:     "Hacker Phrase",
 		Category:    "hacker",
-		Description: "Random hacker phrase",
+		Description: "Informal jargon and slang used in the hacking and cybersecurity community",
 		Example:     "If we calculate the program, we can get to the AI pixel through the redundant XSS matrix!",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -82,7 +82,7 @@ func addHackerLookup() {
 	AddFuncLookup("hackerabbreviation", Info{
 		Display:     "Hacker Abbreviation",
 		Category:    "hacker",
-		Description: "Random hacker abbreviation",
+		Description: "Abbreviations and acronyms commonly used in the hacking and cybersecurity community",
 		Example:     "ADP",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -93,7 +93,7 @@ func addHackerLookup() {
 	AddFuncLookup("hackeradjective", Info{
 		Display:     "Hacker Adjective",
 		Category:    "hacker",
-		Description: "Random hacker adjective",
+		Description: "Adjectives describing terms often associated with hackers and cybersecurity experts",
 		Example:     "wireless",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -104,7 +104,7 @@ func addHackerLookup() {
 	AddFuncLookup("hackernoun", Info{
 		Display:     "Hacker Noun",
 		Category:    "hacker",
-		Description: "Random hacker noun",
+		Description: "Noun representing an element, tool, or concept within the realm of hacking and cybersecurity",
 		Example:     "driver",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -115,7 +115,7 @@ func addHackerLookup() {
 	AddFuncLookup("hackerverb", Info{
 		Display:     "Hacker Verb",
 		Category:    "hacker",
-		Description: "Random hacker verb",
+		Description: "Verbs associated with actions and activities in the field of hacking and cybersecurity",
 		Example:     "synthesize",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -126,7 +126,7 @@ func addHackerLookup() {
 	AddFuncLookup("hackeringverb", Info{
 		Display:     "Hackering Verb",
 		Category:    "hacker",
-		Description: "Random hackering verb",
+		Description: "Verb describing actions and activities related to hacking, often involving computer systems and security",
 		Example:     "connecting",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {

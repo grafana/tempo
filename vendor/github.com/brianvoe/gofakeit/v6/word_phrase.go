@@ -109,7 +109,7 @@ func addWordPhraseLookup() {
 	AddFuncLookup("phrase", Info{
 		Display:     "Phrase",
 		Category:    "word",
-		Description: "Random phrase",
+		Description: "A small group of words standing together",
 		Example:     "time will tell",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -120,7 +120,7 @@ func addWordPhraseLookup() {
 	AddFuncLookup("phrasenoun", Info{
 		Display:     "Noun Phrase",
 		Category:    "word",
-		Description: "Random noun phrase",
+		Description: "Phrase with a noun as its head, functions within sentence like a noun",
 		Example:     "a tribe",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -131,7 +131,7 @@ func addWordPhraseLookup() {
 	AddFuncLookup("phraseverb", Info{
 		Display:     "Verb Phrase",
 		Category:    "word",
-		Description: "Random verb phrase",
+		Description: "Phrase that Consists of a verb and its modifiers, expressing an action or state",
 		Example:     "a tribe",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -142,7 +142,7 @@ func addWordPhraseLookup() {
 	AddFuncLookup("phraseadverb", Info{
 		Display:     "Adverb Phrase",
 		Category:    "word",
-		Description: "Random adverb phrase",
+		Description: "Phrase that modifies a verb, adjective, or another adverb, providing additional information.",
 		Example:     "fully gladly",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -153,7 +153,7 @@ func addWordPhraseLookup() {
 	AddFuncLookup("phrasepreposition", Info{
 		Display:     "Preposition Phrase",
 		Category:    "word",
-		Description: "Random preposition phrase",
+		Description: "Phrase starting with a preposition, showing relation between elements in a sentence.",
 		Example:     "out the black thing",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {

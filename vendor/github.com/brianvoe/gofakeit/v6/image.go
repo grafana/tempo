@@ -71,7 +71,7 @@ func addImageLookup() {
 	AddFuncLookup("imageurl", Info{
 		Display:     "Image URL",
 		Category:    "image",
-		Description: "Random image url",
+		Description: "Web address pointing to an image file that can be accessed and displayed online",
 		Example:     "https://picsum.photos/500/500",
 		Output:      "string",
 		Params: []Param{
@@ -102,7 +102,7 @@ func addImageLookup() {
 	AddFuncLookup("imagejpeg", Info{
 		Display:     "Image JPEG",
 		Category:    "image",
-		Description: "Random jpeg image",
+		Description: "Image file format known for its efficient compression and compatibility",
 		Example:     "file.jpeg - bytes",
 		Output:      "[]byte",
 		ContentType: "image/jpeg",
@@ -134,7 +134,7 @@ func addImageLookup() {
 	AddFuncLookup("imagepng", Info{
 		Display:     "Image PNG",
 		Category:    "image",
-		Description: "Random png image",
+		Description: "Image file format known for its lossless compression and support for transparency",
 		Example:     "file.png - bytes",
 		Output:      "[]byte",
 		ContentType: "image/png",

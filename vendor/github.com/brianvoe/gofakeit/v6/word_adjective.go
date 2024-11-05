@@ -95,7 +95,7 @@ func addWordAdjectiveLookup() {
 	AddFuncLookup("adjective", Info{
 		Display:     "Adjective",
 		Category:    "word",
-		Description: "Random adjective",
+		Description: "Word describing or modifying a noun",
 		Example:     "genuine",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -106,7 +106,7 @@ func addWordAdjectiveLookup() {
 	AddFuncLookup("adjectivedescriptive", Info{
 		Display:     "Descriptive Adjective",
 		Category:    "word",
-		Description: "Random descriptive adjective",
+		Description: "Adjective that provides detailed characteristics about a noun",
 		Example:     "brave",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -117,7 +117,7 @@ func addWordAdjectiveLookup() {
 	AddFuncLookup("adjectivequantitative", Info{
 		Display:     "Quantitative Adjective",
 		Category:    "word",
-		Description: "Random quantitative adjective",
+		Description: "Adjective that indicates the quantity or amount of something",
 		Example:     "a little",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -128,7 +128,7 @@ func addWordAdjectiveLookup() {
 	AddFuncLookup("adjectiveproper", Info{
 		Display:     "Proper Adjective",
 		Category:    "word",
-		Description: "Random proper adjective",
+		Description: "Adjective derived from a proper noun, often used to describe nationality or origin",
 		Example:     "Afghan",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -139,7 +139,7 @@ func addWordAdjectiveLookup() {
 	AddFuncLookup("adjectivedemonstrative", Info{
 		Display:     "Demonstrative Adjective",
 		Category:    "word",
-		Description: "Random demonstrative adjective",
+		Description: "Adjective used to point out specific things",
 		Example:     "this",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -150,7 +150,7 @@ func addWordAdjectiveLookup() {
 	AddFuncLookup("adjectivepossessive", Info{
 		Display:     "Possessive Adjective",
 		Category:    "word",
-		Description: "Random possessive adjective",
+		Description: "Adjective indicating ownership or possession",
 		Example:     "my",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -161,7 +161,7 @@ func addWordAdjectiveLookup() {
 	AddFuncLookup("adjectiveinterrogative", Info{
 		Display:     "Interrogative Adjective",
 		Category:    "word",
-		Description: "Random interrogative adjective",
+		Description: "Adjective used to ask questions",
 		Example:     "what",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -172,7 +172,7 @@ func addWordAdjectiveLookup() {
 	AddFuncLookup("adjectiveindefinite", Info{
 		Display:     "Indefinite Adjective",
 		Category:    "word",
-		Description: "Random indefinite adjective",
+		Description: "Adjective describing a non-specific noun",
 		Example:     "few",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {

@@ -32,7 +32,7 @@ func addCelebrityLookup() {
 	AddFuncLookup("celebrityactor", Info{
 		Display:     "Celebrity Actor",
 		Category:    "celebrity",
-		Description: "Random celebrity actor",
+		Description: "Famous person known for acting in films, television, or theater",
 		Example:     "Brad Pitt",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -43,7 +43,7 @@ func addCelebrityLookup() {
 	AddFuncLookup("celebritybusiness", Info{
 		Display:     "Celebrity Business",
 		Category:    "celebrity",
-		Description: "Random celebrity business person",
+		Description: "High-profile individual known for significant achievements in business or entrepreneurship",
 		Example:     "Elon Musk",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -54,7 +54,7 @@ func addCelebrityLookup() {
 	AddFuncLookup("celebritysport", Info{
 		Display:     "Celebrity Sport",
 		Category:    "celebrity",
-		Description: "Random celebrity sport person",
+		Description: "Famous athlete known for achievements in a particular sport",
 		Example:     "Michael Phelps",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {

@@ -97,7 +97,7 @@ func addHtmlLookup() {
 	AddFuncLookup("inputname", Info{
 		Display:     "Input Name",
 		Category:    "html",
-		Description: "Random HTML input field name",
+		Description: "Attribute used to define the name of an input element in web forms",
 		Example:     "first_name",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -108,8 +108,11 @@ func addHtmlLookup() {
 	AddFuncLookup("svg", Info{
 		Display:     "Image SVG",
 		Category:    "html",
-		Description: "Random svg and ",
-		Example:     `<svg width="369" height="289"><rect fill="#4f2958" /><polygon points="382,87 418,212 415,110" fill="#fffbb7" /></svg>`,
+		Description: "Scalable Vector Graphics used to display vector images in web content",
+		Example: `<svg width="369" height="289">
+	<rect fill="#4f2958" />
+	<polygon points="382,87 418,212 415,110" fill="#fffbb7" />
+</svg>`,
 		Output:      "string",
 		ContentType: "image/svg+xml",
 		Params: []Param{

@@ -123,7 +123,7 @@ func addStringLookup() {
 	AddFuncLookup("letter", Info{
 		Display:     "Letter",
 		Category:    "string",
-		Description: "Generate a single random lower case ASCII letter",
+		Description: "Character or symbol from the American Standard Code for Information Interchange (ASCII) character set",
 		Example:     "g",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -134,7 +134,7 @@ func addStringLookup() {
 	AddFuncLookup("lettern", Info{
 		Display:     "LetterN",
 		Category:    "string",
-		Description: "Generate a random ASCII string with length N",
+		Description: "ASCII string with length N",
 		Example:     "gbRMaRxHki",
 		Output:      "string",
 		Params: []Param{
@@ -153,7 +153,7 @@ func addStringLookup() {
 	AddFuncLookup("vowel", Info{
 		Display:     "Vowel",
 		Category:    "string",
-		Description: "Generate a single random lower case vowel",
+		Description: "Speech sound produced with an open vocal tract",
 		Example:     "a",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -164,7 +164,7 @@ func addStringLookup() {
 	AddFuncLookup("digit", Info{
 		Display:     "Digit",
 		Category:    "string",
-		Description: "Generate a single ASCII digit",
+		Description: "Numerical symbol used to represent numbers",
 		Example:     "0",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -175,7 +175,7 @@ func addStringLookup() {
 	AddFuncLookup("digitn", Info{
 		Display:     "DigitN",
 		Category:    "string",
-		Description: "Generate a random string of length N consists of ASCII digits",
+		Description: "string of length N consisting of ASCII digits",
 		Example:     "0136459948",
 		Output:      "string",
 		Params: []Param{
@@ -254,7 +254,7 @@ func addStringLookup() {
 	AddFuncLookup("randomstring", Info{
 		Display:     "Random String",
 		Category:    "string",
-		Description: "Randomly grab one string from array",
+		Description: "Return a random string from a string array",
 		Example:     "hello,world,whats,up => world",
 		Output:      "[]string",
 		Params: []Param{

@@ -28,7 +28,7 @@ func addWordGeneralLookup() {
 	AddFuncLookup("word", Info{
 		Display:     "Word",
 		Category:    "word",
-		Description: "Random word",
+		Description: "Basic unit of language representing a concept or thing, consisting of letters and having meaning",
 		Example:     "man",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {

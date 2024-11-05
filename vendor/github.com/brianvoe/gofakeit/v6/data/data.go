@@ -31,6 +31,7 @@ var Data = map[string]map[string][]string{
 	"book":      Books,
 	"movie":     Movies,
 	"school":    School,
+	"product":   Product,
 }
 
 func List() map[string][]string {

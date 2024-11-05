@@ -198,18 +198,18 @@ func addAddressLookup() {
 	AddFuncLookup("address", Info{
 		Display:     "Address",
 		Category:    "address",
-		Description: "Random set of address info",
+		Description: "Residential location including street, city, state, country and postal code",
 		Example: `{
-			address: "364 East Rapidsborough, Rutherfordstad, New Jersey 36906",
-			street: "364 East Rapidsborough",
-			city: "Rutherfordstad",
-			state: "New Jersey",
-			zip: "36906",
-			country: "South Africa",
-			latitude: "23.058758",
-			longitude: "89.022594"
-		}`,
-		Output:      "map[string]interface",
+	"address": "364 Unionsville, Norfolk, Ohio 99536",
+	"street": "364 Unionsville",
+	"city": "Norfolk",
+	"state": "Ohio",
+	"zip": "99536",
+	"country": "Lesotho",
+	"latitude": 88.792592,
+	"longitude": 174.504681
+}`,
+		Output:      "map[string]any",
 		ContentType: "application/json",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
 			return address(r), nil
@@ -219,7 +219,7 @@ func addAddressLookup() {
 	AddFuncLookup("city", Info{
 		Display:     "City",
 		Category:    "address",
-		Description: "Random city",
+		Description: "Part of a country with significant population, often a central hub for culture and commerce",
 		Example:     "Marcelside",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -230,7 +230,7 @@ func addAddressLookup() {
 	AddFuncLookup("country", Info{
 		Display:     "Country",
 		Category:    "address",
-		Description: "Random country",
+		Description: "Nation with its own government and defined territory",
 		Example:     "United States of America",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -241,7 +241,7 @@ func addAddressLookup() {
 	AddFuncLookup("countryabr", Info{
 		Display:     "Country Abbreviation",
 		Category:    "address",
-		Description: "Random 2 digit country abbreviation",
+		Description: "Shortened 2-letter form of a country's name",
 		Example:     "US",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -252,7 +252,7 @@ func addAddressLookup() {
 	AddFuncLookup("state", Info{
 		Display:     "State",
 		Category:    "address",
-		Description: "Random state",
+		Description: "Governmental division within a country, often having its own laws and government",
 		Example:     "Illinois",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -263,7 +263,7 @@ func addAddressLookup() {
 	AddFuncLookup("stateabr", Info{
 		Display:     "State Abbreviation",
 		Category:    "address",
-		Description: "Random 2 digit state abbreviation",
+		Description: "Shortened 2-letter form of a country's state",
 		Example:     "IL",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -274,7 +274,7 @@ func addAddressLookup() {
 	AddFuncLookup("street", Info{
 		Display:     "Street",
 		Category:    "address",
-		Description: "Random full street",
+		Description: "Public road in a city or town, typically with houses and buildings on each side",
 		Example:     "364 East Rapidsborough",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -285,7 +285,7 @@ func addAddressLookup() {
 	AddFuncLookup("streetname", Info{
 		Display:     "Street Name",
 		Category:    "address",
-		Description: "Random street name",
+		Description: "Name given to a specific road or street",
 		Example:     "View",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -296,7 +296,7 @@ func addAddressLookup() {
 	AddFuncLookup("streetnumber", Info{
 		Display:     "Street Number",
 		Category:    "address",
-		Description: "Random street number",
+		Description: "Numerical identifier assigned to a street",
 		Example:     "13645",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -307,7 +307,7 @@ func addAddressLookup() {
 	AddFuncLookup("streetprefix", Info{
 		Display:     "Street Prefix",
 		Category:    "address",
-		Description: "Random street prefix",
+		Description: "Directional or descriptive term preceding a street name, like 'East' or 'Main'",
 		Example:     "Lake",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -318,7 +318,7 @@ func addAddressLookup() {
 	AddFuncLookup("streetsuffix", Info{
 		Display:     "Street Suffix",
 		Category:    "address",
-		Description: "Random street suffix",
+		Description: "Designation at the end of a street name indicating type, like 'Avenue' or 'Street'",
 		Example:     "land",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -329,7 +329,7 @@ func addAddressLookup() {
 	AddFuncLookup("zip", Info{
 		Display:     "Zip",
 		Category:    "address",
-		Description: "Random street zip",
+		Description: "Numerical code for postal address sorting, specific to a geographic area",
 		Example:     "13645",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -340,7 +340,7 @@ func addAddressLookup() {
 	AddFuncLookup("latitude", Info{
 		Display:     "Latitude",
 		Category:    "address",
-		Description: "Random latitude",
+		Description: "Geographic coordinate specifying north-south position on Earth's surface",
 		Example:     "-73.534056",
 		Output:      "float",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -351,7 +351,7 @@ func addAddressLookup() {
 	AddFuncLookup("latituderange", Info{
 		Display:     "Latitude Range",
 		Category:    "address",
-		Description: "Random latitude between given range",
+		Description: "Latitude number between the given range (default min=0, max=90)",
 		Example:     "22.921026",
 		Output:      "float",
 		Params: []Param{
@@ -381,7 +381,7 @@ func addAddressLookup() {
 	AddFuncLookup("longitude", Info{
 		Display:     "Longitude",
 		Category:    "address",
-		Description: "Random longitude",
+		Description: "Geographic coordinate indicating east-west position on Earth's surface",
 		Example:     "-147.068112",
 		Output:      "float",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -392,7 +392,7 @@ func addAddressLookup() {
 	AddFuncLookup("longituderange", Info{
 		Display:     "Longitude Range",
 		Category:    "address",
-		Description: "Random longitude between given range",
+		Description: "Longitude number between the given range (default min=0, max=180)",
 		Example:     "-8.170450",
 		Output:      "float",
 		Params: []Param{

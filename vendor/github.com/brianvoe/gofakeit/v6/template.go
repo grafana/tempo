@@ -38,7 +38,6 @@ func (f *Faker) Template(template string, co *TemplateOptions) (string, error) {
 
 // MarkdownOptions defines values needed for markdown document generation
 type MarkdownOptions struct {
-	SectionsCount int `json:"sections" xml:"sections" fake:"{number:1,10}"`
 }
 
 // Template for Markdown
@@ -109,7 +108,6 @@ func (f *Faker) Markdown(co *MarkdownOptions) (string, error) {
 
 // EmailOptions defines values needed for email document generation
 type EmailOptions struct {
-	SectionsCount int `json:"sections" xml:"sections" fake:"{number:1,10}"`
 }
 
 // Template for email text
@@ -213,6 +211,7 @@ func templateFuncMap(r *rand.Rand, fm *template.FuncMap) *template.FuncMap {
 			if err != nil {
 				return 0
 			}
+
 			return i
 		case float64:
 			return int(v)
@@ -220,6 +219,29 @@ func templateFuncMap(r *rand.Rand, fm *template.FuncMap) *template.FuncMap {
 			return int(v)
 		case int:
 			return v
+
+		// Anything else return 0
+		default:
+			return 0
+		}
+	}
+
+	// enable passing any type to return a float64
+	funcMap["ToFloat"] = func(args any) float64 {
+		switch v := args.(type) {
+		case string:
+			i, err := strconv.ParseFloat(v, 64)
+			if err != nil {
+				return 0
+			}
+
+			return i
+		case float64:
+			return v
+		case float32:
+			return float64(v)
+		case int:
+			return float64(v)
 
 		// Anything else return 0
 		default:
@@ -279,6 +301,13 @@ func templateFuncMap(r *rand.Rand, fm *template.FuncMap) *template.FuncMap {
 		return args
 	}
 
+	// Add passed in function map to the function map
+	if fm != nil {
+		for k, v := range *fm {
+			funcMap[k] = v
+		}
+	}
+
 	return &funcMap
 }
 
@@ -311,12 +340,10 @@ func addTemplateLookup() {
 		Display:     "Template",
 		Category:    "template",
 		Description: "Generates document from template",
-		Example: `
-			{{Firstname}} {{Lastname}}
-			
-			// output
-			Markus Moen
-		`,
+		Example: `{{Firstname}} {{Lastname}}
+
+// output
+Markus Moen`,
 		Output:      "string",
 		ContentType: "text/plain",
 		Params: []Param{
@@ -346,19 +373,36 @@ func addTemplateLookup() {
 	AddFuncLookup("markdown", Info{
 		Display:     "Random markdown document",
 		Category:    "template",
-		Description: "Generates random markdown document",
-		Example:     "",
-		Output:      "string",
-		Params: []Param{
-			{Field: "sections_count", Display: "Body Sections", Type: "int", Default: "1", Optional: true, Description: "Number of content sections to generate"},
-		},
-		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
-			sections, err := info.GetInt(m, "sections_count")
-			if err != nil {
-				sections = 1
-			}
+		Description: "Lightweight markup language used for formatting plain text",
+		Example: `# PurpleSheep5
 
-			template_result, err := templateFunc(templateMarkdown, templateFuncMap(r, nil), &MarkdownOptions{SectionsCount: sections})
+*Author: Amie Feil*
+
+Quarterly without week it hungry thing someone. Him regularly today whomever this revolt hence. From his timing as quantity us these. Yours live these frantic not may another. How this ours his them those whose.
+
+Them batch its Iraqi most that few. Abroad cheese this whereas next how there. Gorgeous genetics time choir fiction therefore yourselves. Am those infrequently heap software quarterly rather. Punctuation yellow where several his orchard to.
+
+## Table of Contents
+- [Installation](#installation)
+- [Usage](#usage)
+- [License](#license)
+
+## Installation
+'''bash
+pip install PurpleSheep5
+'''
+
+## Usage
+'''python
+result = purplesheep5.process("funny request")
+print("purplesheep5 result:", "in progress")
+'''
+
+## License
+MIT`,
+		Output: "string",
+		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
+			template_result, err := templateFunc(templateMarkdown, templateFuncMap(r, nil), &MarkdownOptions{})
 			return string(template_result), err
 		},
 	})
@@ -366,19 +410,34 @@ func addTemplateLookup() {
 	AddFuncLookup("email_text", Info{
 		Display:     "Random text email Document",
 		Category:    "template",
-		Description: "Generates random email document.",
-		Example:     "",
-		Output:      "string",
-		Params: []Param{
-			{Field: "sections_count", Display: "Body Sections", Type: "int", Default: "1", Optional: true, Description: "Number of content sections to generate"},
-		},
-		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
-			sections, err := info.GetInt(m, "sections_count")
-			if err != nil {
-				sections = 1
-			}
+		Description: "Written content of an email message, including the sender's message to the recipient",
+		Example: `Subject: Greetings from Marcel!
 
-			template_result, err := templateFunc(templateEmail, templateFuncMap(r, nil), &EmailOptions{SectionsCount: sections})
+Dear Pagac,
+
+Hello there! Sending positive vibes your way.
+
+I hope you're doing great. May your week be filled with joy.
+
+Virtually woman where team late quarterly without week it hungry. Thing someone him regularly today whomever this revolt hence from. His timing as quantity us these yours live these frantic. Not may another how this ours his them those whose. Them batch its Iraqi most that few abroad cheese this.
+
+Whereas next how there gorgeous genetics time choir fiction therefore. Yourselves am those infrequently heap software quarterly rather punctuation yellow. Where several his orchard to frequently hence victorious boxers each. Does auspicious yourselves first soup tomorrow this that must conclude. Anyway some yearly who cough laugh himself both yet rarely.
+
+Me dolphin intensely block would leap plane us first then. Down them eager would hundred super throughout animal yet themselves. Been group flock shake part purchase up usually it her. None it hers boat what their there Turkmen moreover one. Lebanese to brace these shower in it everybody should whatever.
+
+I'm curious to know what you think about it. If you have a moment, please feel free to check out the project on Bitbucket
+
+I'm eager to hear what you think. Looking forward to your feedback!
+
+Thank you for your consideration! Thanks in advance for your time.
+
+Kind regards
+Milford Johnston
+jamelhaag@king.org
+(507)096-3058`,
+		Output: "string",
+		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
+			template_result, err := templateFunc(templateEmail, templateFuncMap(r, nil), &EmailOptions{})
 			return string(template_result), err
 		},
 	})

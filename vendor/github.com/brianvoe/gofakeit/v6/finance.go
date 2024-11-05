@@ -108,7 +108,7 @@ func addFinanceLookup() {
 	AddFuncLookup("cusip", Info{
 		Display:     "CUSIP",
 		Category:    "finance",
-		Description: "Random CUSIP",
+		Description: "Unique identifier for securities, especially bonds, in the United States and Canada",
 		Example:     "38259P508",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -118,8 +118,8 @@ func addFinanceLookup() {
 	AddFuncLookup("isin", Info{
 		Display:     "ISIN",
 		Category:    "finance",
-		Description: "Random ISIN",
-		Example:     "",
+		Description: "International standard code for uniquely identifying securities worldwide",
+		Example:     "CVLRQCZBXQ97",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
 			return isin(r), nil

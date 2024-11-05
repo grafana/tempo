@@ -17,7 +17,8 @@ import (
 const lowerStr = "abcdefghijklmnopqrstuvwxyz"
 const upperStr = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const numericStr = "0123456789"
-const specialStr = "!@#$%&*+-_=?:;,.|(){}<>"
+const specialStr = "@#$%&?|!(){}<>=*+-_:;,."
+const specialSafeStr = "@#$&?!-_*."
 const spaceStr = " "
 const allStr = lowerStr + upperStr + numericStr + specialStr + spaceStr
 const vowels = "aeiou"

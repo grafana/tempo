@@ -1,6 +1,6 @@
 ![alt text](https://raw.githubusercontent.com/brianvoe/gofakeit/master/logo.png)
 
-# Gofakeit [![Go Report Card](https://goreportcard.com/badge/github.com/brianvoe/gofakeit)](https://goreportcard.com/report/github.com/brianvoe/gofakeit) ![Test](https://github.com/brianvoe/gofakeit/workflows/Test/badge.svg?branch=master) [![codecov.io](https://codecov.io/github/brianvoe/gofakeit/branch/master/graph/badge.svg)](https://codecov.io/github/brianvoe/gofakeit) [![GoDoc](https://godoc.org/github.com/brianvoe/gofakeit/v6?status.svg)](https://godoc.org/github.com/brianvoe/gofakeit/v6) [![license](http://img.shields.io/badge/license-MIT-green.svg?style=flat)](https://raw.githubusercontent.com/brianvoe/gofakeit/master/LICENSE.txt)
+# Gofakeit [![Go Report Card](https://goreportcard.com/badge/github.com/brianvoe/gofakeit)](https://goreportcard.com/report/github.com/brianvoe/gofakeit) ![Test](https://github.com/brianvoe/gofakeit/workflows/Test/badge.svg?branch=master) [![GoDoc](https://godoc.org/github.com/brianvoe/gofakeit/v6?status.svg)](https://godoc.org/github.com/brianvoe/gofakeit/v6) [![license](http://img.shields.io/badge/license-MIT-green.svg?style=flat)](https://raw.githubusercontent.com/brianvoe/gofakeit/master/LICENSE.txt)
 
 Random data generator written in go
 
@@ -10,7 +10,7 @@ Random data generator written in go
 
 ## Features
 
-- [260+ Functions!!!](#functions)
+- [310+ Functions!!!](#functions)
 - [Random Sources](#random-sources)
 - [Global Rand](#global-rand-set)
 - [Struct Generator](#struct)
@@ -24,7 +24,7 @@ Random data generator written in go
 
 ## Contributors
 
-Thanks to everyone who has contributed to Gofakeit!
+Thank you to all our Gofakeit contributors!
 
 <a href="https://github.com/brianvoe/gofakeit/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=brianvoe/gofakeit" />
@@ -185,14 +185,14 @@ For example, this is useful when it is not possible to modify the struct that yo
 // or just return a static value
 type CustomString string
 
-func (c *CustomString) Fake(faker *gofakeit.Faker) any {
+func (c *CustomString) Fake(faker *gofakeit.Faker) (any, error) {
 	return CustomString("my custom string")
 }
 
 // Imagine a CustomTime type that is needed to support a custom JSON Marshaler
 type CustomTime time.Time
 
-func (c *CustomTime) Fake(faker *gofakeit.Faker) any {
+func (c *CustomTime) Fake(faker *gofakeit.Faker) (any, error) {
 	return CustomTime(time.Now())
 }
 
@@ -266,8 +266,6 @@ fmt.Printf("%s", f.FriendName) // bill
 fmt.Printf("%s", f.JumbleWord) // loredlowlh
 ```
 
-
-
 ## Templates
 
 Generate custom outputs using golang's template engine [https://pkg.go.dev/text/template](https://pkg.go.dev/text/template).
@@ -280,7 +278,7 @@ Additional Available Functions
 - ToLower(s string) string   // Make string lower case
 - ToString(s any)            // Convert to string
 - ToDate(s string) time.Time // Convert string to date
-- SpliceAny(args ...any) []any // Build a slice of interfaces, used with Weighted
+- SpliceAny(args ...any) []any // Build a slice of anys, used with Weighted
 - SpliceString(args ...string) []string // Build a slice of strings, used with Teams and RandomString
 - SpliceUInt(args ...uint) []uint // Build a slice of uint, used with Dice and RandomUint
 - SpliceInt(args ...int) []int // Build a slice of int, used with RandomInt
@@ -355,7 +353,7 @@ All functions also exist as methods on the Faker struct
 
 ### File
 
-Passing `nil` to `CSV`, `JSON` or `XML` will auto generate data using a random set of generators.
+Passing `nil` to `CSV`, `JSON` or `XML` will auto generate data using default values.
 
 ```go
 CSV(co *CSVOptions) ([]byte, error)
@@ -365,6 +363,27 @@ FileExtension() string
 FileMimeType() string
 ```
 
+### Template
+
+Passing `nil` will auto generate data using default values.
+
+```go
+Template(co *TemplateOptions) (string, error)
+Markdown(co *MarkdownOptions) (string, error)
+EmailText(co *EmailOptions) (string, error)
+FixedWidth(co *FixedWidthOptions) (string, error)
+```
+
+### Product
+
+```go
+Product() *ProductInfo
+ProductName() string
+ProductDescription() string
+ProductCategory() string
+ProductFeature() string
+ProductMaterial() string
+```
 
 ### Person
 
@@ -457,9 +476,8 @@ CarTransmissionType() string
 
 ### Words
 
-#### Noun
-
 ```go
+// Nouns
 Noun() string
 NounCommon() string
 NounConcrete() string
@@ -469,20 +487,14 @@ NounCollectiveAnimal() string
 NounCollectiveThing() string
 NounCountable() string
 NounUncountable() string
-```
 
-#### Verb
-
-```go
+// Verbs
 Verb() string
 VerbAction() string
 VerbLinking() string
 VerbHelping() string
-```
 
-#### Adverb
-
-```go
+// Adverbs
 Adverb() string
 AdverbManner() string
 AdverbDegree() string
@@ -491,20 +503,14 @@ AdverbTimeDefinite() string
 AdverbTimeIndefinite() string
 AdverbFrequencyDefinite() string
 AdverbFrequencyIndefinite() string
-```
 
-#### Proposition
-
-```go
+// Propositions
 Preposition() string
 PrepositionSimple() string
 PrepositionDouble() string
 PrepositionCompound() string
-```
 
-#### Adjective
-
-```go
+// Adjectives
 Adjective() string
 AdjectiveDescriptive() string
 AdjectiveQuantitative() string
@@ -513,11 +519,8 @@ AdjectiveDemonstrative() string
 AdjectivePossessive() string
 AdjectiveInterrogative() string
 AdjectiveIndefinite() string
-```
 
-#### Pronoun
-
-```go
+// Pronouns
 Pronoun() string
 PronounPersonal() string
 PronounObject() string
@@ -526,11 +529,8 @@ PronounReflective() string
 PronounDemonstrative() string
 PronounInterrogative() string
 PronounRelative() string
-```
 
-#### Connective
-
-```go
+// Connectives
 Connective() string
 ConnectiveTime() string
 ConnectiveComparative() string
@@ -538,17 +538,11 @@ ConnectiveComplaint() string
 ConnectiveListing() string
 ConnectiveCasual() string
 ConnectiveExamplify() string
-```
 
-#### Word
-
-```go
+// Words
 Word() string
-```
 
-#### Sentences
-
-```go
+// Sentences
 Sentence(wordCount int) string
 Paragraph(paragraphCount int, sentenceCount int, wordCount int, separator string) string
 LoremIpsumWord() string
@@ -576,7 +570,7 @@ Dessert() string
 ```go
 Bool() bool
 UUID() string
-Weighted(options []any, weights []float32)
+Weighted(options []any, weights []float32) (any, error)
 FlipACoin() string
 RandomMapKey(mapI any) any
 ShuffleAnySlice(v any)
@@ -633,6 +627,7 @@ Svg(options *SVGOptions) string
 
 ```go
 Date() time.Time
+PastDate() time.Time
 FutureDate() time.Time
 DateRange(start, end time.Time) time.Time
 NanoSecond() int
@@ -852,14 +847,5 @@ ErrorRuntime() error
 ### School
 
 ```go
-school() string
-```
-
-## Template
-
-```go
-Template(co *TemplateOptions) (string, error) // Generates custom documents
-Markdown(co *MarkdownOptions) (string, error) // Generates markdown documents
-EmailText(co *EmailOptions) (string, error)  // Generates email documents
-FixedWidth(co *FixedWidthOptions) (string, error)  // Generates fixed width documents
+School() string
 ```

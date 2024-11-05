@@ -91,7 +91,7 @@ func addFoodLookup() {
 	AddFuncLookup("fruit", Info{
 		Display:     "Fruit",
 		Category:    "food",
-		Description: "Random fruit",
+		Description: "Edible plant part, typically sweet, enjoyed as a natural snack or dessert",
 		Example:     "Peach",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -102,7 +102,7 @@ func addFoodLookup() {
 	AddFuncLookup("vegetable", Info{
 		Display:     "Vegetable",
 		Category:    "food",
-		Description: "Random vegetable",
+		Description: "Edible plant or part of a plant, often used in savory cooking or salads",
 		Example:     "Amaranth Leaves",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -113,7 +113,7 @@ func addFoodLookup() {
 	AddFuncLookup("breakfast", Info{
 		Display:     "Breakfast",
 		Category:    "food",
-		Description: "Random breakfast",
+		Description: "First meal of the day, typically eaten in the morning",
 		Example:     "Blueberry banana happy face pancakes",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -124,7 +124,7 @@ func addFoodLookup() {
 	AddFuncLookup("lunch", Info{
 		Display:     "Lunch",
 		Category:    "food",
-		Description: "Random lunch",
+		Description: "Midday meal, often lighter than dinner, eaten around noon",
 		Example:     "No bake hersheys bar pie",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -135,7 +135,7 @@ func addFoodLookup() {
 	AddFuncLookup("dinner", Info{
 		Display:     "Dinner",
 		Category:    "food",
-		Description: "Random dinner",
+		Description: "Evening meal, typically the day's main and most substantial meal",
 		Example:     "Wild addicting dip",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -146,7 +146,7 @@ func addFoodLookup() {
 	AddFuncLookup("drink", Info{
 		Display:     "Drink",
 		Category:    "food",
-		Description: "Random drink",
+		Description: "Liquid consumed for hydration, pleasure, or nutritional benefits",
 		Example:     "Soda",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -158,7 +158,7 @@ func addFoodLookup() {
 		Display:     "Snack",
 		Category:    "food",
 		Description: "Random snack",
-		Example:     "Hoisin marinated wing pieces",
+		Example:     "Small, quick food item eaten between meals",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
 			return snack(r), nil
@@ -168,7 +168,7 @@ func addFoodLookup() {
 	AddFuncLookup("dessert", Info{
 		Display:     "Dessert",
 		Category:    "food",
-		Description: "Random dessert",
+		Description: "Sweet treat often enjoyed after a meal",
 		Example:     "French napoleons",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {

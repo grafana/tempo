@@ -34,9 +34,13 @@ func addMovieLookup() {
 	AddFuncLookup("movie", Info{
 		Display:     "Movie",
 		Category:    "movie",
-		Description: "Random Movie data set",
-		Example:     `{name: "The Matrix", genre: "Action"}`,
+		Description: "A story told through moving pictures and sound",
+		Example: `{
+	"name": "Psycho",
+	"genre": "Mystery"
+}`,
 		Output:      "map[string]string",
+		ContentType: "application/json",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
 			return movie(r), nil
 		},
@@ -45,7 +49,7 @@ func addMovieLookup() {
 	AddFuncLookup("moviename", Info{
 		Display:     "Movie Name",
 		Category:    "movie",
-		Description: "Random movie name",
+		Description: "Title or name of a specific film used for identification and reference",
 		Example:     "The Matrix",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -56,7 +60,7 @@ func addMovieLookup() {
 	AddFuncLookup("moviegenre", Info{
 		Display:     "Genre",
 		Category:    "movie",
-		Description: "Random movie genre",
+		Description: "Category that classifies movies based on common themes, styles, and storytelling approaches",
 		Example:     "Action",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {

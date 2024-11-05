@@ -106,7 +106,7 @@ func addWordPronounLookup() {
 	AddFuncLookup("pronoun", Info{
 		Display:     "Pronoun",
 		Category:    "word",
-		Description: "Generates a random pronoun",
+		Description: "Word used in place of a noun to avoid repetition",
 		Example:     "me",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -117,7 +117,7 @@ func addWordPronounLookup() {
 	AddFuncLookup("pronounpersonal", Info{
 		Display:     "Pronoun Personal",
 		Category:    "word",
-		Description: "Generates a random personal pronoun",
+		Description: "Pronoun referring to a specific persons or things",
 		Example:     "it",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -128,7 +128,7 @@ func addWordPronounLookup() {
 	AddFuncLookup("pronounobject", Info{
 		Display:     "Pronoun Object",
 		Category:    "word",
-		Description: "Generates a random object pronoun",
+		Description: "Pronoun used as the object of a verb or preposition",
 		Example:     "it",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -139,7 +139,7 @@ func addWordPronounLookup() {
 	AddFuncLookup("pronounpossessive", Info{
 		Display:     "Pronoun Possessive",
 		Category:    "word",
-		Description: "Generates a random possessive pronoun",
+		Description: "Pronoun indicating ownership or belonging",
 		Example:     "mine",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -150,7 +150,7 @@ func addWordPronounLookup() {
 	AddFuncLookup("pronounreflective", Info{
 		Display:     "Pronoun Reflective",
 		Category:    "word",
-		Description: "Generates a random reflective pronoun",
+		Description: "Pronoun referring back to the subject of the sentence",
 		Example:     "myself",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -161,7 +161,7 @@ func addWordPronounLookup() {
 	AddFuncLookup("pronounindefinite", Info{
 		Display:     "Pronoun Indefinite",
 		Category:    "word",
-		Description: "Generates a random indefinite pronoun",
+		Description: "Pronoun that does not refer to a specific person or thing",
 		Example:     "few",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -172,7 +172,7 @@ func addWordPronounLookup() {
 	AddFuncLookup("pronoundemonstrative", Info{
 		Display:     "Pronoun Demonstrative",
 		Category:    "word",
-		Description: "Generates a random demonstrative pronoun",
+		Description: "Pronoun that points out specific people or things",
 		Example:     "this",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -183,7 +183,7 @@ func addWordPronounLookup() {
 	AddFuncLookup("pronouninterrogative", Info{
 		Display:     "Pronoun Interrogative",
 		Category:    "word",
-		Description: "Generates a random interrogative pronoun",
+		Description: "Pronoun used to ask questions",
 		Example:     "what",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -194,7 +194,7 @@ func addWordPronounLookup() {
 	AddFuncLookup("pronounrelative", Info{
 		Display:     "Pronoun Relative",
 		Category:    "word",
-		Description: "Generates a random relative pronoun",
+		Description: "Pronoun that introduces a clause, referring back to a noun or pronoun",
 		Example:     "as",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {

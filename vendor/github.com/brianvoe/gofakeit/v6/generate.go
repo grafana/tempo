@@ -499,13 +499,11 @@ func addGenerateLookup() {
 	AddFuncLookup("fixed_width", Info{
 		Display:     "Fixed Width",
 		Category:    "generate",
-		Description: "Generates fixed width output",
-		Example: `
-			Name               Email                          Password         Age
-			Markus Moen        sylvanmraz@murphy.net          6VlvH6qqXc7g     13
-			Alayna Wuckert     santinostanton@carroll.biz     g7sLrS0gEwLO     46
-			Lura Lockman       zacherykuhic@feil.name         S8gV7Z64KlHG     12
-		`,
+		Description: "Fixed width rows of output data based on input fields",
+		Example: `Name               Email                          Password         Age
+Markus Moen        sylvanmraz@murphy.net          6VlvH6qqXc7g     13
+Alayna Wuckert     santinostanton@carroll.biz     g7sLrS0gEwLO     46
+Lura Lockman       zacherykuhic@feil.name         S8gV7Z64KlHG     12`,
 		Output:      "[]byte",
 		ContentType: "text/plain",
 		Params: []Param{
@@ -550,7 +548,7 @@ func addGenerateLookup() {
 	AddFuncLookup("regex", Info{
 		Display:     "Regex",
 		Category:    "generate",
-		Description: "Random string generated from regex RE2 syntax string",
+		Description: "Pattern-matching tool used in text processing to search and manipulate strings",
 		Example:     "[abcdef]{5} - affec",
 		Output:      "string",
 		Params: []Param{
@@ -574,8 +572,14 @@ func addGenerateLookup() {
 	AddFuncLookup("map", Info{
 		Display:     "Map",
 		Category:    "generate",
-		Description: "Random map of generated data",
-		Example:     `map[consult:respond context:9285735]`,
+		Description: "Data structure that stores key-value pairs",
+		Example: `{
+	"software": 7518355,
+	"that": ["despite", "pack", "whereas", "recently", "there", "anyone", "time", "read"],
+	"use": 683598,
+	"whom": "innovate",
+	"yourselves": 1987784
+}`,
 		Output:      "map[string]any",
 		ContentType: "application/json",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {

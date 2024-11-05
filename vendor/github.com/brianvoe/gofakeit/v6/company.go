@@ -116,7 +116,7 @@ func addCompanyLookup() {
 	AddFuncLookup("company", Info{
 		Display:     "Company",
 		Category:    "company",
-		Description: "Random company name",
+		Description: "Designated official name of a business or organization",
 		Example:     "Moen, Pagac and Wuckert",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -127,7 +127,7 @@ func addCompanyLookup() {
 	AddFuncLookup("companysuffix", Info{
 		Display:     "Company Suffix",
 		Category:    "company",
-		Description: "Random company name suffix",
+		Description: "Suffix at the end of a company name, indicating business structure, like 'Inc.' or 'LLC'",
 		Example:     "Inc",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -149,7 +149,7 @@ func addCompanyLookup() {
 	AddFuncLookup("blurb", Info{
 		Display:     "Blurb",
 		Category:    "company",
-		Description: "Random company blurb",
+		Description: "Brief description or summary of a company's purpose, products, or services",
 		Example:     "word",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -160,7 +160,7 @@ func addCompanyLookup() {
 	AddFuncLookup("buzzword", Info{
 		Display:     "Buzzword",
 		Category:    "company",
-		Description: "Random company buzzwords",
+		Description: "Trendy or overused term often used in business to sound impressive",
 		Example:     "disintermediate",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -171,9 +171,15 @@ func addCompanyLookup() {
 	AddFuncLookup("job", Info{
 		Display:     "Job",
 		Category:    "company",
-		Description: "Random job data set",
-		Example:     `{company: "Moen, Pagac and Wuckert", title: "Director", descriptor: "Central", level: "Assurance"}`,
+		Description: "Position or role in employment, involving specific tasks and responsibilities",
+		Example: `{
+	"company": "ClearHealthCosts",
+	"title": "Agent",
+	"descriptor": "Future",
+	"level": "Tactics"
+}`,
 		Output:      "map[string]string",
+		ContentType: "application/json",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
 			return job(r), nil
 		},
@@ -182,7 +188,7 @@ func addCompanyLookup() {
 	AddFuncLookup("jobtitle", Info{
 		Display:     "Job Title",
 		Category:    "company",
-		Description: "Random job title",
+		Description: "Specific title for a position or role within a company or organization",
 		Example:     "Director",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -193,7 +199,7 @@ func addCompanyLookup() {
 	AddFuncLookup("jobdescriptor", Info{
 		Display:     "Job Descriptor",
 		Category:    "company",
-		Description: "Random job descriptor",
+		Description: "Word used to describe the duties, requirements, and nature of a job",
 		Example:     "Central",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -214,8 +220,8 @@ func addCompanyLookup() {
 
 	AddFuncLookup("slogan", Info{
 		Display:     "Slogan",
-		Category:    "comapny",
-		Description: "Random company slogan",
+		Category:    "company",
+		Description: "Catchphrase or motto used by a company to represent its brand or values",
 		Example:     "Universal seamless Focus, interactive.",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {

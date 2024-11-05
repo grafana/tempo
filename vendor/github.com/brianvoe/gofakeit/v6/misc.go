@@ -136,7 +136,7 @@ func addMiscLookup() {
 	AddFuncLookup("uuid", Info{
 		Display:     "UUID",
 		Category:    "misc",
-		Description: "Random uuid",
+		Description: "128-bit identifier used to uniquely identify objects or entities in computer systems",
 		Example:     "590c1440-9888-45b0-bd51-a817ee07c3f2",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -147,7 +147,7 @@ func addMiscLookup() {
 	AddFuncLookup("bool", Info{
 		Display:     "Boolean",
 		Category:    "misc",
-		Description: "Random boolean",
+		Description: "Data type that represents one of two possible values, typically true or false",
 		Example:     "true",
 		Output:      "bool",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
@@ -158,7 +158,7 @@ func addMiscLookup() {
 	AddFuncLookup("flipacoin", Info{
 		Display:     "Flip A Coin",
 		Category:    "misc",
-		Description: "Random Heads or Tails outcome",
+		Description: "Decision-making method involving the tossing of a coin to determine outcomes",
 		Example:     "Tails",
 		Output:      "string",
 		Generate: func(r *rand.Rand, m *MapParams, info *Info) (any, error) {
