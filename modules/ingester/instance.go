@@ -633,6 +633,8 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*LocalBlock, er
 		err = b.Validate(ctx)
 		if err != nil && !errors.Is(err, common.ErrUnsupported) {
 			level.Error(log.Logger).Log("msg", "local block failed validation, dropping", "tenantID", i.instanceID, "block", id.String(), "error", err)
+			metricReplayErrorsTotal.WithLabelValues(i.instanceID).Inc()
+
 			err = i.local.ClearBlock(id, i.instanceID)
 			if err != nil {
 				return nil, fmt.Errorf("deleting invalid local block tenant %v block %v: %w", i.instanceID, id.String(), err)
