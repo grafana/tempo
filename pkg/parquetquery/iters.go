@@ -9,8 +9,8 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
-	"unique"
 
+	"github.com/grafana/tempo/pkg/parquetquery/intern"
 	"github.com/grafana/tempo/pkg/util"
 	pq "github.com/parquet-go/parquet-go"
 	"go.opentelemetry.io/otel"
@@ -781,6 +781,7 @@ type SyncIteratorOpt func(*SyncIterator)
 func SyncIteratorOptIntern() SyncIteratorOpt {
 	return func(i *SyncIterator) {
 		i.intern = true
+		i.interner = intern.New()
 	}
 }
 
@@ -813,7 +814,8 @@ type SyncIterator struct {
 	currPageN       int
 	at              IteratorResult // Current value pointed at by iterator. Returned by call Next and SeekTo, valid until next call.
 
-	intern bool
+	intern   bool
+	interner *intern.Interner
 }
 
 var _ Iterator = (*SyncIterator)(nil)
@@ -1246,22 +1248,13 @@ func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
 	// always have length 0 or 1.
 	if len(c.at.Entries) == 1 {
 		if c.intern {
-			c.at.Entries[0].Value = pqValueIntern(v)
+			c.at.Entries[0].Value = c.interner.UnsafeClone(v)
 		} else {
 			c.at.Entries[0].Value = v.Clone()
 		}
 	}
 
 	return &c.at
-}
-
-func pqValueIntern(v *pq.Value) pq.Value {
-	switch v.Kind() {
-	case pq.ByteArray, pq.FixedLenByteArray:
-		return *unique.Make(v).Value()
-	default:
-		return *v
-	}
 }
 
 func (c *SyncIterator) Close() {
