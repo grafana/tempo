@@ -13,8 +13,8 @@ func TestInterner_UnsafeClone(t *testing.T) {
 	value1 := pq.ByteArrayValue([]byte("foo"))
 	value2 := pq.ByteArrayValue([]byte("foo"))
 
-	clone1 := i.UnsafeClone(&value1)
-	clone2 := i.UnsafeClone(&value2)
+	clone1 := i.Clone(&value1)
+	clone2 := i.Clone(&value2)
 
 	if clone1.ByteArray()[0] != clone2.ByteArray()[0] {
 		// Values are interned, so the memory address should be the same
@@ -65,7 +65,7 @@ func BenchmarkIntern(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				value := tc.valueFn(i)
-				_ = interner.UnsafeClone(&value)
+				_ = interner.Clone(&value)
 			}
 		})
 	}

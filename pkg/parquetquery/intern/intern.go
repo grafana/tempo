@@ -1,5 +1,4 @@
 // Package intern is a utility for interning byte slices for pq.Value's.
-// It is not safe for concurrent use.
 //
 // The Interner is used to intern byte slices for pq.Value's. This is useful
 // for reducing memory usage and improving performance when working with
@@ -18,7 +17,9 @@ func New() *Interner {
 	return &Interner{}
 }
 
-func (i *Interner) UnsafeClone(v *pq.Value) pq.Value {
+// Clone returns a unique shalow copy of the input pq.Value or derefernces the
+// received pointer.
+func (i *Interner) Clone(v *pq.Value) pq.Value {
 	switch v.Kind() {
 	case pq.ByteArray, pq.FixedLenByteArray:
 		return *unique.Make(v).Value()
