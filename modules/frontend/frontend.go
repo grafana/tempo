@@ -281,16 +281,8 @@ func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineR
 // cloneRequestforQueriers returns a cloned pipeline.Request from the passed pipeline.Request ready for queriers. The caller is given an opportunity
 // to modify the internal http.Request before it is returned using the modHTTP param. If modHTTP is nil, the internal http.Request is returned.
 func cloneRequestforQueriers(parent pipeline.Request, tenant string, modHTTP func(*http.Request) (*http.Request, error)) (pipeline.Request, error) {
-	// first clone the http request with headers nil'ed out. this prevents the headers from being copied saving allocs
-	// here and especially downstream in the httpgrpc bridge. prepareRequestForQueriers will add the only headers that
-	// the queriers actually need.
 	req := parent.HTTPRequest()
-	saveHeaders := req.Header
-	req.Header = nil
 	clonedHTTPReq := req.Clone(req.Context())
-
-	req.Header = saveHeaders
-	clonedHTTPReq.Header = make(http.Header, 2) // cheating here. alloc 2 b/c we know that's how many headers prepareRequestForQueriers will add
 
 	// give the caller a chance to modify the internal http request
 	if modHTTP != nil {
