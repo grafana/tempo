@@ -630,12 +630,15 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*LocalBlock, er
 
 		// validate the block before adding it to the list. if we drop a block here and its not in the wal this is data loss, but there is no way to recover. this is likely due to disk
 		// level corruption
-		if err := b.Validate(ctx); err != nil {
+		err = b.Validate(ctx)
+		if err != nil && !errors.Is(err, common.ErrUnsupported) {
 			level.Error(log.Logger).Log("msg", "local block failed validation, dropping", "tenantID", i.instanceID, "block", id.String(), "error", err)
 			err = i.local.ClearBlock(id, i.instanceID)
 			if err != nil {
 				return nil, fmt.Errorf("deleting invalid local block tenant %v block %v: %w", i.instanceID, id.String(), err)
 			}
+
+			continue
 		}
 
 		ib := NewLocalBlock(ctx, b, i.local)
