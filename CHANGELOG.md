@@ -1,6 +1,5 @@
 ## main / unreleased
-* [CHANGE] **BREAKING CHANGE** Change the AWS Lambda serverless build tooling output from "main" to "bootstrap". Refer to https://aws.amazon.com/blogs/compute/
-migrating-aws-lambda-functions-from-the-go1-x-runtime-to-the-custom-runtime-on-amazon-linux-2/ for migration steps [#3852](https://github.com/grafana/tempo/pull/3852) (@zatlodan)
+* [CHANGE] **BREAKING CHANGE** Change the AWS Lambda serverless build tooling output from "main" to "bootstrap". Refer to https://aws.amazon.com/blogs/compute/migrating-aws-lambda-functions-from-the-go1-x-runtime-to-the-custom-runtime-on-amazon-linux-2/ for migration steps [#3852](https://github.com/grafana/tempo/pull/3852) (@zatlodan)
 * [CHANGE] Add throughput and SLO metrics in the tags and tag values endpoints [#4148](https://github.com/grafana/tempo/pull/4148) (@electron0zero)
 * [CHANGE] tempo-cli: add support for /api/v2/traces endpoint [#4127](https://github.com/grafana/tempo/pull/4127) (@electron0zero)
   **BREAKING CHANGE** The `tempo-cli` now uses the `/api/v2/traces` endpoint by default, 
