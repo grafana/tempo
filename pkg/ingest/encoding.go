@@ -31,7 +31,8 @@ func Encode(partitionID int32, tenantID string, req *tempopb.PushBytesRequest, m
 
 	var records []*kgo.Record
 	batch := encoderPool.Get().(*tempopb.PushBytesRequest)
-	defer encoderPool.Put(req)
+	batch.Reset()
+	defer encoderPool.Put(batch)
 
 	if batch.Traces == nil {
 		batch.Traces = make([]tempopb.PreallocBytes, 0, 1024) // TODO - Why 1024? Lucky number?

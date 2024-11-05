@@ -16,6 +16,10 @@ type BlockConfig struct {
 	BlockCfg common.BlockConfig `yaml:"-,inline"`
 }
 
+func (c *BlockConfig) RegisterFlags(f *flag.FlagSet) {
+	c.RegisterFlagsAndApplyDefaults("", f)
+}
+
 func (c *BlockConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.Uint64Var(&c.MaxBlockBytes, prefix+".max-block-bytes", 20*1024*1024, "Maximum size of a block.") // TODO - Review default
 
@@ -36,6 +40,10 @@ type Config struct {
 
 func (c *Config) Validate() error {
 	return nil
+}
+
+func (c *Config) RegisterFlags(f *flag.FlagSet) {
+	c.RegisterFlagsAndApplyDefaults("", f)
 }
 
 func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {

@@ -5,26 +5,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/prometheus/model/labels"
+	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 )
 
 func TestEncoderDecoder(t *testing.T) {
 	tests := []struct {
 		name        string
-		stream      logproto.Stream
+		req         *tempopb.PushBytesRequest
 		maxSize     int
 		expectSplit bool
 	}{
 		{
 			name:        "Small trace, no split",
-			stream:      generateStream(10, 100),
+			req:         generateStream(10, 100),
 			maxSize:     1024 * 1024,
 			expectSplit: false,
 		},
 		{
 			name:        "Large trace, expect split",
-			stream:      generateStream(1000, 1000),
+			req:         generateStream(1000, 1000),
 			maxSize:     1024 * 10,
 			expectSplit: true,
 		},
@@ -32,10 +32,9 @@ func TestEncoderDecoder(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			decoder, err := NewDecoder()
-			require.NoError(t, err)
+			decoder := NewDecoder()
 
-			records, err := Encode(0, "test-tenant", tt.stream, tt.maxSize)
+			records, err := Encode(0, "test-tenant", tt.req, tt.maxSize)
 			require.NoError(t, err)
 
 			if tt.expectSplit {
@@ -44,26 +43,15 @@ func TestEncoderDecoder(t *testing.T) {
 				require.Equal(t, 1, len(records))
 			}
 
-			var decodedEntries []logproto.Entry
-			var decodedLabels labels.Labels
+			var decodedEntries []*tempopb.PushBytesRequest
 
 			for _, record := range records {
-				stream, ls, err := decoder.Decode(record.Value)
+				req, err := decoder.Decode(record.Value)
 				require.NoError(t, err)
-				decodedEntries = append(decodedEntries, stream.Entries...)
-				if decodedLabels == nil {
-					decodedLabels = ls
-				} else {
-					require.Equal(t, decodedLabels, ls)
-				}
+				decodedEntries = append(decodedEntries, req)
 			}
 
-			require.Equal(t, tt.stream.Labels, decodedLabels.String())
-			require.Equal(t, len(tt.stream.Entries), len(decodedEntries))
-			for i, entry := range tt.stream.Entries {
-				require.Equal(t, entry.Timestamp.UTC(), decodedEntries[i].Timestamp.UTC())
-				require.Equal(t, entry.Line, decodedEntries[i].Line)
-			}
+			require.Equal(t, len(tt.req.Traces), len(decodedEntries))
 		})
 	}
 }
@@ -77,8 +65,7 @@ func TestEncoderSingleEntryTooLarge(t *testing.T) {
 }
 
 func TestDecoderInvalidData(t *testing.T) {
-	decoder, err := NewDecoder()
-	require.NoError(t, err)
+	decoder := NewDecoder()
 
 	_, _, err = decoder.Decode([]byte("invalid data"))
 	require.Error(t, err)
@@ -122,8 +109,8 @@ func BenchmarkEncodeDecode(b *testing.B) {
 }
 
 // Helper function to generate a test trace
-func generateStream(entries, lineLength int) logproto.Stream {
-	stream := logproto.Stream{
+func generateStream(entries, lineLength int) *tempopb.PushBytesRequest {
+	req := logproto.Stream{
 		Labels:  `{app="test", env="prod"}`,
 		Entries: make([]logproto.Entry, entries),
 	}
