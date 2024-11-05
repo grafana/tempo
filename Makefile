@@ -287,10 +287,12 @@ gen-traceql-local: ## Generate traceq local
 gen-parquet-query:  ## Generate Parquet query 
 	go run ./pkg/parquetquerygen/predicates.go > ./pkg/parquetquery/predicates.gen.go
 
+##@ Tempo tools
 ### Check vendored and generated files are up to date
 .PHONY: vendor-check
 vendor-check: gen-proto update-mod gen-traceql gen-parquet-query ## Keep up to date vendorized files
 	git diff --exit-code -- **/go.sum **/go.mod vendor/ pkg/tempopb/ pkg/traceql/
+
 
 ### Tidy dependencies for tempo and tempo-serverless modules
 .PHONY: update-mod 
@@ -325,7 +327,7 @@ docs-test:
 
 ##@ jsonnet
 .PHONY: jsonnet jsonnet-check jsonnet-test
-jsonnet: tools-image ##  Generate jsonnet
+jsonnet: tools-image ## Generate jsonnet
 	$(TOOLS_CMD) $(MAKE) -C operations/jsonnet-compiled/util gen
 
 jsonnet-check: tools-image ## Check jsonnet
