@@ -68,7 +68,7 @@ func (i *FileInfo) Add(k string, v any) {
 	i.keys = append(i.keys, k)
 }
 
-func (i *FileInfo) Data() any {
+func (i *FileInfo) SerializableData() any {
 	return i.elem
 }
 

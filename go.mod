@@ -17,7 +17,7 @@ require (
 	github.com/go-kit/log v0.2.1
 	github.com/go-logfmt/logfmt v0.6.0
 	github.com/go-redis/redis/v8 v8.11.5
-	github.com/go-test/deep v1.0.8
+	github.com/go-test/deep v1.1.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/gogo/status v1.1.1
 	github.com/golang/protobuf v1.5.4
@@ -47,7 +47,7 @@ require (
 	github.com/prometheus/common v0.55.0
 	github.com/prometheus/prometheus v0.54.0
 	github.com/prometheus/statsd_exporter v0.26.0
-	github.com/segmentio/fasthash v0.0.0-20180216231524-a72b379d632e
+	github.com/segmentio/fasthash v1.0.3
 	github.com/sony/gobreaker v0.4.1
 	github.com/spf13/viper v1.18.2
 	github.com/stretchr/testify v1.9.0
@@ -85,9 +85,10 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.13.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.7.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.2.0
-	github.com/evanphx/json-patch v5.6.0+incompatible
+	github.com/brianvoe/gofakeit/v6 v6.25.0
+	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
-	github.com/googleapis/gax-go/v2 v2.12.5
+	github.com/googleapis/gax-go/v2 v2.13.0
 	github.com/grafana/gomemcache v0.0.0-20240229205252-cd6a66d6fb56
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.102.0
@@ -98,7 +99,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.102.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.102.0
 	github.com/parquet-go/parquet-go v0.23.1-0.20241011155651-6446d1d0d2fe
-	github.com/stoewer/parquet-cli v0.0.7
+	github.com/stoewer/parquet-cli v0.0.9
 	go.opentelemetry.io/collector/config/configgrpc v0.102.1
 	go.opentelemetry.io/collector/config/confighttp v0.102.1
 	go.opentelemetry.io/collector/config/configtls v1.18.0
@@ -116,7 +117,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.3.1
 	golang.org/x/net v0.27.0
 	golang.org/x/oauth2 v0.21.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240708141625-4ad9e859172b
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240711142825-46eb208f015d
 )
 
 require (

@@ -7,6 +7,21 @@ updates:
     directory: '/'
     schedule:
       interval: 'weekly'
+    open-pull-requests-limit: 10
+    groups:
+      opentelemetry-otel:
+        patterns:
+          - go.opentelemetry.io/otel/*
+      opentelemetry-contrib:
+        patterns:
+          - go.opentelemetry.io/contrib/*
+          - github.com/open-telemetry/opentelemetry-collector-contrib/*
+      opentelemetry-collector:
+        patterns:
+          - go.opentelemetry.io/collector/*
+      k8s.io:
+        patterns:
+          - k8s.io/*
 
   - package-ecosystem: 'docker'
     directory: '/'
