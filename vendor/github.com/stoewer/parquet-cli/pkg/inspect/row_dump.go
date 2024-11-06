@@ -12,10 +12,6 @@ type DumpLine struct {
 	Line      []*parquet.Value
 }
 
-func (d *DumpLine) Data() any {
-	return d.Line
-}
-
 func (d *DumpLine) Cells() []any {
 	cells := make([]any, 0, len(d.Line)+1)
 	if d.RowNumber == nil {
@@ -27,12 +23,10 @@ func (d *DumpLine) Cells() []any {
 	for _, v := range d.Line {
 		if v == nil {
 			cells = append(cells, "")
+		} else if v.IsNull() {
+			cells = append(cells, "null")
 		} else {
-			if v.IsNull() {
-				cells = append(cells, fmt.Sprintf("%v %d:%d", v, v.DefinitionLevel(), v.RepetitionLevel()))
-			} else {
-				cells = append(cells, fmt.Sprintf("'%v' %d:%d", v, v.DefinitionLevel(), v.RepetitionLevel()))
-			}
+			cells = append(cells, v.String())
 		}
 	}
 	return cells
@@ -74,7 +68,7 @@ func NewRowDump(file *parquet.File, options RowDumpOptions) (*RowDump, error) {
 			return nil, fmt.Errorf("unable to create row stats calculator: %w", err)
 		}
 		c.columnIter = append(c.columnIter, it)
-		c.header = append(c.header, col.Name()+" d:r")
+		c.header = append(c.header, col.Name())
 	}
 
 	return &c, nil

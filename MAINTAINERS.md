@@ -3,7 +3,7 @@
 * @javiermolinar
 * @joe-elliott
 * @knylander-grafana
-* @kvrhdn
+* @yvrhdn
 * @mapno
 * @mdisibio
 * @stoewer

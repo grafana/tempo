@@ -219,7 +219,7 @@ func TestRuntimeConfigOverrides(t *testing.T) {
 				buff, err := yaml.Marshal(legacyOverrides)
 				require.NoError(t, err)
 
-				err = os.WriteFile(overridesFile, buff, os.ModePerm)
+				err = os.WriteFile(overridesFile, buff, 0o700)
 				require.NoError(t, err)
 
 				cfg.PerTenantOverrideConfig = overridesFile
@@ -578,7 +578,7 @@ overrides:
 
 	overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
 
-	require.NoError(t, os.WriteFile(overridesFile, []byte(perTenantOverrides), os.ModePerm))
+	require.NoError(t, os.WriteFile(overridesFile, []byte(perTenantOverrides), 0o700))
 
 	cfg.PerTenantOverrideConfig = overridesFile
 	cfg.PerTenantOverridePeriod = model.Duration(time.Hour)
@@ -606,7 +606,7 @@ func createAndInitializeRuntimeOverridesManager(t *testing.T, defaultLimits Over
 	if perTenantOverrides != nil {
 		overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
 
-		err := os.WriteFile(overridesFile, perTenantOverrides, os.ModePerm)
+		err := os.WriteFile(overridesFile, perTenantOverrides, 0o700)
 		require.NoError(t, err)
 
 		cfg.PerTenantOverrideConfig = overridesFile

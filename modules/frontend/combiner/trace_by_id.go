@@ -11,6 +11,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/api"
+	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
@@ -67,7 +68,7 @@ func (c *traceByIDCombiner) AddResponse(r PipelineResponse) error {
 	}
 
 	// Read the body
-	buff, err := io.ReadAll(res.Body)
+	buff, err := tempo_io.ReadAllWithEstimate(res.Body, res.ContentLength)
 	if err != nil {
 		c.statusMessage = internalErrorMsg
 		return fmt.Errorf("error reading response body: %w", err)

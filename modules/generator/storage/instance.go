@@ -74,7 +74,7 @@ func New(cfg *Config, o Overrides, tenant string, reg prometheus.Registerer, log
 	// Create WAL directory with necessary permissions
 	// This creates both <walDir>/<tenant>/ and <walDir>/<tenant>/wal/. If we don't create the wal
 	// subdirectory remote storage logs a scary error.
-	err = os.MkdirAll(filepath.Join(walDir, "wal"), 0o755)
+	err = os.MkdirAll(filepath.Join(walDir, "wal"), 0o700)
 	if err != nil {
 		return nil, fmt.Errorf("could not create directory for metrics WAL: %w", err)
 	}

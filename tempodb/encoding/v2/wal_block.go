@@ -62,7 +62,7 @@ func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, inge
 
 	name := h.fullFilename()
 
-	f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	f, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return nil, err
 	}
@@ -350,7 +350,7 @@ func (a *walBlock) file() (*os.File, error) {
 		if a.readFile == nil {
 			name := a.fullFilename()
 
-			a.readFile, err = os.OpenFile(name, os.O_RDONLY, 0o644)
+			a.readFile, err = os.OpenFile(name, os.O_RDONLY, 0o600)
 		}
 	})
 

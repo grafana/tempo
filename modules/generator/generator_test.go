@@ -2,16 +2,24 @@ package generator
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
+	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/tempopb"
+	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
@@ -45,7 +53,7 @@ overrides:
       collection_interval: 1s
       processors:
         - %s
-`, user1, spanmetrics.Name)), os.ModePerm))
+`, user1, spanmetrics.Name)), 0o700))
 
 	o, err := overrides.NewOverrides(overridesConfig, nil, prometheus.NewRegistry())
 	require.NoError(t, err)
@@ -84,7 +92,7 @@ overrides:
       collection_interval: 1s
       processors:
         - %s
-`, user1, spanmetrics.Count.String())), os.ModePerm))
+`, user1, spanmetrics.Count.String())), 0o700))
 	time.Sleep(15 * time.Second) // Wait for overrides to be applied. Reload is hardcoded to 10s :(
 
 	// Only Count should be enabled for user1
@@ -128,4 +136,141 @@ func newTestLogger(t *testing.T) log.Logger {
 func (l testLogger) Log(keyvals ...interface{}) error {
 	l.t.Log(keyvals...)
 	return nil
+}
+
+func BenchmarkPushSpans(b *testing.B) {
+	var (
+		tenant = "test-tenant"
+		reg    = prometheus.NewRegistry()
+		ctx    = context.Background()
+		log    = log.NewNopLogger()
+		cfg    = &Config{}
+
+		walcfg = &storage.Config{
+			Path: b.TempDir(),
+		}
+
+		o = &mockOverrides{
+			processors: map[string]struct{}{
+				"span-metrics":   {},
+				"service-graphs": {},
+			},
+			spanMetricsEnableTargetInfo:             true,
+			spanMetricsTargetInfoExcludedDimensions: []string{"excluded}"},
+		}
+	)
+
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+
+	wal, err := storage.New(walcfg, o, tenant, reg, log)
+	require.NoError(b, err)
+
+	inst, err := newInstance(cfg, tenant, o, wal, reg, log, nil, nil)
+	require.NoError(b, err)
+	defer inst.shutdown()
+
+	req := &tempopb.PushSpansRequest{
+		Batches: []*trace_v1.ResourceSpans{
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+		},
+	}
+
+	// Add more resource attributes to get closer to real data
+	// Add integer to increase cardinality.
+	// Currently this is about 80 active series
+	// TODO - Get more series
+	for i, b := range req.Batches {
+		b.Resource.Attributes = append(b.Resource.Attributes, []*common_v1.KeyValue{
+			{Key: "k8s.cluster.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+			{Key: "k8s.namespace.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+			{Key: "k8s.node.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+			{Key: "k8s.pod.ip", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+			{Key: "k8s.pod.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+			{Key: "excluded", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+		}...)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		inst.pushSpans(ctx, req)
+	}
+
+	b.StopTimer()
+	runtime.GC()
+	mem := runtime.MemStats{}
+	runtime.ReadMemStats(&mem)
+	b.ReportMetric(float64(mem.HeapInuse), "heap_in_use")
+}
+
+func BenchmarkCollect(b *testing.B) {
+	var (
+		tenant = "test-tenant"
+		reg    = prometheus.NewRegistry()
+		ctx    = context.Background()
+		log    = log.NewNopLogger()
+		cfg    = &Config{}
+
+		walcfg = &storage.Config{
+			Path: b.TempDir(),
+		}
+
+		o = &mockOverrides{
+			processors: map[string]struct{}{
+				"span-metrics":   {},
+				"service-graphs": {},
+			},
+			spanMetricsDimensions:                   []string{"k8s.cluster.name", "k8s.namespace.name"},
+			spanMetricsEnableTargetInfo:             true,
+			spanMetricsTargetInfoExcludedDimensions: []string{"excluded}"},
+			nativeHistograms:                        overrides.HistogramMethodBoth,
+		}
+	)
+
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+
+	wal, err := storage.New(walcfg, o, tenant, reg, log)
+	require.NoError(b, err)
+
+	inst, err := newInstance(cfg, tenant, o, wal, reg, log, nil, nil)
+	require.NoError(b, err)
+	defer inst.shutdown()
+
+	req := &tempopb.PushSpansRequest{
+		Batches: []*trace_v1.ResourceSpans{
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+		},
+	}
+
+	// Add more resource attributes to get closer to real data
+	// Add integer to increase cardinality.
+	// Currently this is about 80 active series
+	// TODO - Get more series
+	for i, b := range req.Batches {
+		b.Resource.Attributes = append(b.Resource.Attributes, []*common_v1.KeyValue{
+			{Key: "k8s.cluster.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+			{Key: "k8s.namespace.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+			{Key: "k8s.node.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+			{Key: "k8s.pod.ip", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+			{Key: "k8s.pod.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+			{Key: "excluded", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+		}...)
+	}
+	inst.pushSpans(ctx, req)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		inst.registry.CollectMetrics(ctx)
+	}
+
+	b.StopTimer()
+	runtime.GC()
+	mem := runtime.MemStats{}
+	runtime.ReadMemStats(&mem)
+	b.ReportMetric(float64(mem.HeapInuse), "heap_in_use")
 }

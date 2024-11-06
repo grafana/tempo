@@ -20,10 +20,12 @@ type counter struct {
 
 	onAddSeries    func(count uint32) bool
 	onRemoveSeries func(count uint32)
+
+	externalLabels map[string]string
 }
 
 type counterSeries struct {
-	labels      LabelPair
+	labels      labels.Labels
 	value       *atomic.Float64
 	lastUpdated *atomic.Int64
 	// firstSeries is used to track if this series is new to the counter.  This
@@ -46,7 +48,7 @@ func (co *counterSeries) registerSeenSeries() {
 	co.firstSeries.Store(false)
 }
 
-func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32)) *counter {
+func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string) *counter {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -61,6 +63,7 @@ func newCounter(name string, onAddSeries func(uint32) bool, onRemoveSeries func(
 		series:         make(map[uint64]*counterSeries),
 		onAddSeries:    onAddSeries,
 		onRemoveSeries: onRemoveSeries,
+		externalLabels: externalLabels,
 	}
 }
 
@@ -98,8 +101,21 @@ func (c *counter) Inc(labelValueCombo *LabelValueCombo, value float64) {
 }
 
 func (c *counter) newSeries(labelValueCombo *LabelValueCombo, value float64) *counterSeries {
+	lbls := labelValueCombo.getLabelPair()
+	lb := labels.NewBuilder(make(labels.Labels, 1+len(lbls.names)+len(c.externalLabels)))
+
+	for i, name := range lbls.names {
+		lb.Set(name, lbls.values[i])
+	}
+
+	for name, value := range c.externalLabels {
+		lb.Set(name, value)
+	}
+
+	lb.Set(labels.MetricName, c.metricName)
+
 	return &counterSeries{
-		labels:      labelValueCombo.getLabelPair(),
+		labels:      lb.Labels(),
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
 		firstSeries: atomic.NewBool(true),
@@ -115,38 +131,13 @@ func (c *counter) name() string {
 	return c.metricName
 }
 
-func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
+func (c *counter) collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error) {
 	c.seriesMtx.RLock()
 	defer c.seriesMtx.RUnlock()
 
 	activeSeries = len(c.series)
 
-	labelsCount := 0
-	if activeSeries > 0 && c.series[0] != nil {
-		labelsCount = len(c.series[0].labels.names)
-	}
-
-	// base labels
-	baseLabels := make(labels.Labels, 0, 1+len(externalLabels)+labelsCount)
-
-	// add external labels
-	for name, value := range externalLabels {
-		baseLabels = append(baseLabels, labels.Label{Name: name, Value: value})
-	}
-
-	// add metric name
-	baseLabels = append(baseLabels, labels.Label{Name: labels.MetricName, Value: c.metricName})
-
-	lb := labels.NewBuilder(baseLabels)
-
 	for _, s := range c.series {
-		lb.Reset(baseLabels)
-
-		// set series-specific labels
-		for i, name := range s.labels.names {
-			lb.Set(name, s.labels.values[i])
-		}
-
 		// If we are about to call Append for the first time on a series, we need
 		// to first insert a 0 value to allow Prometheus to start from a non-null
 		// value.
@@ -154,19 +145,19 @@ func (c *counter) collectMetrics(appender storage.Appender, timeMs int64, extern
 			// We set the timestamp of the init serie at the end of the previous minute, that way we ensure it ends in a
 			// different aggregation interval to avoid be downsampled.
 			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
-			_, err = appender.Append(0, lb.Labels(), endOfLastMinuteMs, 0)
+			_, err = appender.Append(0, s.labels, endOfLastMinuteMs, 0)
 			if err != nil {
 				return
 			}
 			s.registerSeenSeries()
 		}
 
-		_, err = appender.Append(0, lb.Labels(), timeMs, s.value.Load())
+		_, err = appender.Append(0, s.labels, timeMs, s.value.Load())
 		if err != nil {
 			return
 		}
 
-		// TODO support exemplars
+		// TODO: support exemplars
 	}
 
 	return

@@ -30,7 +30,7 @@ var (
 )
 
 func NewBackend(cfg *Config) (*Backend, error) {
-	err := os.MkdirAll(cfg.Path, os.ModePerm)
+	err := os.MkdirAll(cfg.Path, 0o700)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func (rw *Backend) Write(ctx context.Context, name string, keypath backend.KeyPa
 	}
 
 	blockFolder := rw.rootPath(keypath)
-	err := os.MkdirAll(blockFolder, os.ModePerm)
+	err := os.MkdirAll(blockFolder, 0o700)
 	if err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func (rw *Backend) Append(ctx context.Context, name string, keypath backend.KeyP
 	var dst *os.File
 	if tracker == nil {
 		blockFolder := rw.rootPath(keypath)
-		err := os.MkdirAll(blockFolder, os.ModePerm)
+		err := os.MkdirAll(blockFolder, 0o700)
 		if err != nil {
 			return nil, err
 		}
@@ -234,7 +234,7 @@ func (rw *Backend) Read(ctx context.Context, name string, keypath backend.KeyPat
 
 	filename := rw.objectFileName(keypath, name)
 
-	f, err := os.OpenFile(filename, os.O_RDONLY, 0o644)
+	f, err := os.OpenFile(filename, os.O_RDONLY, 0o600)
 	if err != nil {
 		return nil, -1, readError(err)
 	}
@@ -262,7 +262,7 @@ func (rw *Backend) ReadRange(ctx context.Context, name string, keypath backend.K
 
 	filename := rw.objectFileName(keypath, name)
 
-	f, err := os.OpenFile(filename, os.O_RDONLY, 0o644)
+	f, err := os.OpenFile(filename, os.O_RDONLY, 0o600)
 	if err != nil {
 		return readError(err)
 	}

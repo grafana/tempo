@@ -496,7 +496,7 @@ func TestIngesterRequests(t *testing.T) {
 
 		pr := pipeline.NewHTTPRequest(req)
 		pr.SetWeight(2)
-		actualSearchResponse, err := s.ingesterRequests(context.Background(), "test", pr, *searchReq, reqChan)
+		actualSearchResponse, err := s.ingesterRequests("test", pr, *searchReq, reqChan)
 		if tc.expectedError != nil {
 			require.Equal(t, tc.expectedError, err)
 			continue

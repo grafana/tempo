@@ -311,6 +311,10 @@ func CopyTemplateToSharedDir(s *e2e.Scenario, src, dst string, data any) (string
 func writeFileToSharedDir(s *e2e.Scenario, dst string, content []byte) (string, error) {
 	dst = filepath.Join(s.SharedDir(), dst)
 
+	// NOTE: since the integration tests are setup outside of the container
+	// before container execution, the permissions within the container must be
+	// able to read the configuration.
+
 	// Ensure the entire path of directories exists
 	err := os.MkdirAll(filepath.Dir(dst), os.ModePerm)
 	if err != nil {

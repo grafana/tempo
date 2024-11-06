@@ -34,7 +34,10 @@ import (
 
 var tracer = otel.Tracer("modules/generator/processor/localblocks")
 
-const timeBuffer = 5 * time.Minute
+const (
+	timeBuffer       = 5 * time.Minute
+	maxFlushAttempts = 100
+)
 
 // ProcessorOverrides is just the set of overrides needed here.
 type ProcessorOverrides interface {
@@ -276,16 +279,36 @@ func (p *Processor) flushLoop() {
 
 		op := o.(*flushOp)
 		op.attempts++
+
+		if op.attempts > maxFlushAttempts {
+			_ = level.Error(p.logger).Log("msg", "failed to flush block after max attempts", "tenant", p.tenant, "block", op.blockID, "attempts", op.attempts)
+
+			// attempt to delete the block
+			p.blocksMtx.Lock()
+			err := p.wal.LocalBackend().ClearBlock(op.blockID, p.tenant)
+			if err != nil {
+				_ = level.Error(p.logger).Log("msg", "failed to clear corrupt block", "tenant", p.tenant, "block", op.blockID, "err", err)
+			}
+			delete(p.completeBlocks, op.blockID)
+			p.blocksMtx.Unlock()
+
+			continue
+		}
+
 		err := p.flushBlock(op.blockID)
 		if err != nil {
-			_ = level.Error(p.logger).Log("msg", "failed to flush a block", "err", err)
+			_ = level.Info(p.logger).Log("msg", "re-queueing block for flushing", "block", op.blockID, "attempts", op.attempts, "err", err)
+			metricFailedFlushes.Inc()
 
-			_ = level.Info(p.logger).Log("msg", "re-queueing block for flushing", "block", op.blockID, "attempts", op.attempts)
-			op.at = time.Now().Add(op.backoff())
+			delay := op.backoff()
+			op.at = time.Now().Add(delay)
 
-			if _, err := p.flushqueue.Enqueue(op); err != nil {
-				_ = level.Error(p.logger).Log("msg", "failed to requeue block for flushing", "err", err)
-			}
+			go func() {
+				time.Sleep(delay)
+				if _, err := p.flushqueue.Enqueue(op); err != nil {
+					_ = level.Error(p.logger).Log("msg", "failed to requeue block for flushing", "err", err)
+				}
+			}()
 		}
 	}
 }
@@ -330,6 +353,9 @@ func (p *Processor) completeBlock() error {
 		cfg    = p.Cfg.Block
 		b      = firstWalBlock
 	)
+
+	ctx, span := tracer.Start(ctx, "Processor.CompleteBlock")
+	defer span.End()
 
 	iter, err := b.Iterator()
 	if err != nil {

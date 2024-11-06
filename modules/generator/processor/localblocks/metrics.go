@@ -74,4 +74,10 @@ var (
 		Name:      "flush_queue_size",
 		Help:      "Size of the flush queue",
 	}, []string{"tenant"})
+	metricFailedFlushes = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: subsystem,
+		Name:      "failed_flushes_total",
+		Help:      "The total number of failed flushes",
+	})
 )

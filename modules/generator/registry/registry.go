@@ -83,7 +83,7 @@ type ManagedRegistry struct {
 // metric is the interface for a metric that is managed by ManagedRegistry.
 type metric interface {
 	name() string
-	collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error)
+	collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error)
 	removeStaleSeries(staleTimeMs int64)
 }
 
@@ -130,7 +130,7 @@ func New(cfg *Config, overrides Overrides, tenant string, appendable storage.App
 		metricFailedCollections:  metricFailedCollections.WithLabelValues(tenant),
 	}
 
-	go job(instanceCtx, r.collectMetrics, r.collectionInterval)
+	go job(instanceCtx, r.CollectMetrics, r.collectionInterval)
 	go job(instanceCtx, r.removeStaleSeries, constantInterval(5*time.Minute))
 
 	return r
@@ -144,7 +144,7 @@ func (r *ManagedRegistry) NewLabelValueCombo(labels []string, values []string) *
 }
 
 func (r *ManagedRegistry) NewCounter(name string) Counter {
-	c := newCounter(name, r.onAddMetricSeries, r.onRemoveMetricSeries)
+	c := newCounter(name, r.onAddMetricSeries, r.onRemoveMetricSeries, r.externalLabels)
 	r.registerMetric(c)
 	return c
 }
@@ -156,9 +156,9 @@ func (r *ManagedRegistry) NewHistogram(name string, buckets []float64, histogram
 	// are disabled, eventually the new implementation can handle all cases
 
 	if hasNativeHistograms(histogramOverride) {
-		h = newNativeHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, histogramOverride)
+		h = newNativeHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, histogramOverride, r.externalLabels)
 	} else {
-		h = newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName)
+		h = newHistogram(name, buckets, r.onAddMetricSeries, r.onRemoveMetricSeries, traceIDLabelName, r.externalLabels)
 	}
 
 	r.registerMetric(h)
@@ -166,7 +166,7 @@ func (r *ManagedRegistry) NewHistogram(name string, buckets []float64, histogram
 }
 
 func (r *ManagedRegistry) NewGauge(name string) Gauge {
-	g := newGauge(name, r.onAddMetricSeries, r.onRemoveMetricSeries)
+	g := newGauge(name, r.onAddMetricSeries, r.onRemoveMetricSeries, r.externalLabels)
 	r.registerMetric(g)
 	return g
 }
@@ -203,7 +203,7 @@ func (r *ManagedRegistry) onRemoveMetricSeries(count uint32) {
 	r.metricActiveSeries.Sub(float64(count))
 }
 
-func (r *ManagedRegistry) collectMetrics(ctx context.Context) {
+func (r *ManagedRegistry) CollectMetrics(ctx context.Context) {
 	if r.overrides.MetricsGeneratorDisableCollection(r.tenant) {
 		return
 	}
@@ -226,7 +226,7 @@ func (r *ManagedRegistry) collectMetrics(ctx context.Context) {
 	collectionTimeMs := time.Now().UnixMilli()
 
 	for _, m := range r.metrics {
-		active, err := m.collectMetrics(appender, collectionTimeMs, r.externalLabels)
+		active, err := m.collectMetrics(appender, collectionTimeMs)
 		if err != nil {
 			return
 		}

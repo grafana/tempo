@@ -296,7 +296,7 @@ func localUserConfigOverrides(t *testing.T, baseLimits Overrides, perTenantOverr
 	if perTenantOverrides != nil {
 		overridesFile := filepath.Join(t.TempDir(), "Overrides.yaml")
 
-		err := os.WriteFile(overridesFile, perTenantOverrides, os.ModePerm)
+		err := os.WriteFile(overridesFile, perTenantOverrides, 0o700)
 		require.NoError(t, err)
 
 		baseCfg.PerTenantOverrideConfig = overridesFile

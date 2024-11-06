@@ -64,7 +64,7 @@ func TestInstanceSearch(t *testing.T) {
 	checkEqual(t, ids, sr)
 
 	// Test after completing a block
-	err = i.CompleteBlock(blockID)
+	err = i.CompleteBlock(context.Background(), blockID)
 	require.NoError(t, err)
 
 	sr, err = i.Search(context.Background(), req)
@@ -132,7 +132,7 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 			checkEqual(t, ids, sr)
 
 			// Test after completing a block
-			err = i.CompleteBlock(blockID)
+			err = i.CompleteBlock(context.Background(), blockID)
 			require.NoError(t, err)
 
 			sr, err = i.Search(context.Background(), req)
@@ -217,7 +217,7 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 	searchAndAssert(req, uint32(100))
 
 	// Test after completing a block
-	err = i.CompleteBlock(blockID)
+	err = i.CompleteBlock(context.Background(), blockID)
 	require.NoError(t, err)
 	searchAndAssert(req, uint32(200))
 
@@ -262,7 +262,7 @@ func TestInstanceSearchTags(t *testing.T) {
 	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
 
 	// Test after completing a block
-	err = i.CompleteBlock(blockID)
+	err = i.CompleteBlock(context.Background(), blockID)
 	require.NoError(t, err)
 
 	testSearchTagsAndValues(t, userCtx, i, tagKey, expectedTagValues)
@@ -327,7 +327,7 @@ func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues, expectedEventTagValues, expectedLinkTagValues)
 
 	// Test after completing a block
-	err = i.CompleteBlock(blockID)
+	err = i.CompleteBlock(context.Background(), blockID)
 	require.NoError(t, err)
 	require.NoError(t, i.ClearCompletingBlock(blockID)) // Clear the completing block
 
@@ -676,7 +676,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 		// Cut wal, complete, delete wal, then flush
 		blockID, _ := i.CutBlockIfReady(0, 0, true)
 		if blockID != uuid.Nil {
-			err := i.CompleteBlock(blockID)
+			err := i.CompleteBlock(context.Background(), blockID)
 			require.NoError(t, err)
 			err = i.ClearCompletingBlock(blockID)
 			require.NoError(t, err)
@@ -826,7 +826,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 	require.Less(t, numBytes, m.InspectedBytes)
 
 	// Test after completing a block
-	err = i.CompleteBlock(blockID)
+	err = i.CompleteBlock(context.Background(), blockID)
 	require.NoError(t, err)
 	err = i.ClearCompletingBlock(blockID)
 	require.NoError(t, err)

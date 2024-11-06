@@ -24,11 +24,12 @@ type gauge struct {
 
 	onAddSeries    func(count uint32) bool
 	onRemoveSeries func(count uint32)
+
+	externalLabels map[string]string
 }
 
 type gaugeSeries struct {
-	// labelValueCombo should not be modified after creation
-	labels      LabelPair
+	labels      labels.Labels
 	value       *atomic.Float64
 	lastUpdated *atomic.Int64
 }
@@ -43,7 +44,7 @@ const (
 	set = "set"
 )
 
-func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32)) *gauge {
+func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string) *gauge {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -58,6 +59,7 @@ func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(co
 		series:         make(map[uint64]*gaugeSeries),
 		onAddSeries:    onAddSeries,
 		onRemoveSeries: onRemoveSeries,
+		externalLabels: externalLabels,
 	}
 }
 
@@ -107,8 +109,21 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 }
 
 func (g *gauge) newSeries(labelValueCombo *LabelValueCombo, value float64) *gaugeSeries {
+	lbls := labelValueCombo.getLabelPair()
+	lb := labels.NewBuilder(make(labels.Labels, 1+len(lbls.names)+len(g.externalLabels)))
+
+	for i, name := range lbls.names {
+		lb.Set(name, lbls.values[i])
+	}
+
+	for name, value := range g.externalLabels {
+		lb.Set(name, value)
+	}
+
+	lb.Set(labels.MetricName, g.metricName)
+
 	return &gaugeSeries{
-		labels:      labelValueCombo.getLabelPair(),
+		labels:      lb.Labels(),
 		value:       atomic.NewFloat64(value),
 		lastUpdated: atomic.NewInt64(time.Now().UnixMilli()),
 	}
@@ -127,46 +142,19 @@ func (g *gauge) name() string {
 	return g.metricName
 }
 
-func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64, externalLabels map[string]string) (activeSeries int, err error) {
+func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error) {
 	g.seriesMtx.RLock()
 	defer g.seriesMtx.RUnlock()
 
 	activeSeries = len(g.series)
 
-	labelsCount := 0
-	if activeSeries > 0 && g.series[0] != nil {
-		labelsCount = len(g.series[0].labels.names)
-	}
-
-	// base labels
-	baseLabels := make(labels.Labels, 1+len(externalLabels)+labelsCount)
-
-	// add metric name
-	baseLabels = append(baseLabels, labels.Label{Name: labels.MetricName, Value: g.metricName})
-
-	// add external labels
-	for name, value := range externalLabels {
-		baseLabels = append(baseLabels, labels.Label{Name: name, Value: value})
-	}
-
-	lb := labels.NewBuilder(baseLabels)
-
 	for _, s := range g.series {
 		t := time.UnixMilli(timeMs)
-
-		// reset labels for every series
-		lb.Reset(baseLabels)
-
-		// set series-specific labels
-		for i, name := range s.labels.names {
-			lb.Set(name, s.labels.values[i])
-		}
-
-		_, err = appender.Append(0, lb.Labels(), t.UnixMilli(), s.value.Load())
+		_, err = appender.Append(0, s.labels, t.UnixMilli(), s.value.Load())
 		if err != nil {
 			return
 		}
-		// TODO support exemplars
+		// TODO: support exemplars
 	}
 
 	return

@@ -120,7 +120,7 @@ func initBackend(cfg *Config) (rw backend.VersionedReaderWriter, err error) {
 			return nil, err
 		}
 		// Create overrides directory with necessary permissions
-		err = os.MkdirAll(path.Join(cfg.Local.Path, OverridesKeyPath), os.ModePerm)
+		err = os.MkdirAll(path.Join(cfg.Local.Path, OverridesKeyPath), 0o700)
 		if err != nil {
 			return nil, err
 		}

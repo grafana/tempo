@@ -156,7 +156,18 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
-			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, logger),
+			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, false, logger),
+		},
+		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
+		next)
+
+	queryInstantPipeline := pipeline.Build(
+		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
+			urlDenyListWare,
+			queryValidatorWare,
+			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
+			multiTenantMiddleware(cfg, logger),
+			newAsyncQueryRangeSharder(reader, o, cfg.Metrics.Sharder, true, logger),
 		},
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
@@ -169,7 +180,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, logger)
 	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesPipeline, o, logger)
 	metrics := newMetricsSummaryHandler(metricsPipeline, logger)
-	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryRangePipeline, logger) // Reuses the same pipeline
+	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, logger) // Reuses the same pipeline
 	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger)
 
 	return &QueryFrontend{
@@ -258,13 +269,33 @@ func newMetricsSummaryHandler(next pipeline.AsyncRoundTripper[combiner.PipelineR
 		resp, _, err := resps.Next(req.Context()) // metrics path will only ever have one response
 
 		level.Info(logger).Log(
-			"msg", "search tag response",
+			"msg", "metrics summary response",
 			"tenant", tenant,
 			"path", req.URL.Path,
 			"err", err)
 
 		return resp.HTTPResponse(), err
 	})
+}
+
+// cloneRequestforQueriers returns a cloned pipeline.Request from the passed pipeline.Request ready for queriers. The caller is given an opportunity
+// to modify the internal http.Request before it is returned using the modHTTP param. If modHTTP is nil, the internal http.Request is returned.
+func cloneRequestforQueriers(parent pipeline.Request, tenant string, modHTTP func(*http.Request) (*http.Request, error)) (pipeline.Request, error) {
+	req := parent.HTTPRequest()
+	clonedHTTPReq := req.Clone(req.Context())
+
+	// give the caller a chance to modify the internal http request
+	if modHTTP != nil {
+		var err error
+		clonedHTTPReq, err = modHTTP(clonedHTTPReq)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	prepareRequestForQueriers(clonedHTTPReq, tenant)
+
+	return parent.CloneFromHTTPRequest(clonedHTTPReq), nil
 }
 
 // prepareRequestForQueriers modifies the request so they will be farmed correctly to the queriers

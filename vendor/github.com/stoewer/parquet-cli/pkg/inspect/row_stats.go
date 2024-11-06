@@ -23,7 +23,7 @@ type RowStats struct {
 	Stats     []RowCellStats
 }
 
-func (rs *RowStats) Data() any {
+func (rs *RowStats) SerializableData() any {
 	return rs.Stats
 }
 

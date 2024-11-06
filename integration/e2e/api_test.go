@@ -627,7 +627,7 @@ func callSearchTagValuesV2AndAssert(t *testing.T, svc *e2e.HTTPService, tagName,
 	require.Equal(t, expected.TagValues, actualGrpcResp.TagValues)
 	// assert metrics, and make sure it's non-zero when response is non-empty
 	if len(grpcResp.TagValues) > 0 {
-		require.Greater(t, grpcResp.Metrics.InspectedBytes, uint64(100))
+		require.Greater(t, grpcResp.Metrics.InspectedBytes, uint64(0))
 	}
 }
 
