@@ -7,8 +7,9 @@ import (
 	pq "github.com/parquet-go/parquet-go"
 )
 
-func TestInterner_UnsafeClone(t *testing.T) {
+func TestInterner_Clone(t *testing.T) {
 	i := New()
+	defer i.Close()
 
 	value1 := pq.ByteArrayValue([]byte("foo"))
 	value2 := pq.ByteArrayValue([]byte("foo"))
@@ -61,6 +62,7 @@ func BenchmarkIntern(b *testing.B) {
 
 		b.Run(fmt.Sprintf("interning: %s", tc.name), func(b *testing.B) {
 			interner := New()
+			defer interner.Close()
 
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
