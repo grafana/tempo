@@ -9,6 +9,10 @@ type stripHeadersWare struct {
 	next    AsyncRoundTripper[combiner.PipelineResponse]
 }
 
+// NewStripHeadersWare creates a middleware that strips headers not in the allow list. This exists to reduce allocations further
+// down the pipeline. All request headers should be handled at the Combiner/Collector levels. Once the request is in the pipeline
+// nothing else needs HTTP headers. Stripping them out reduces allocations for copying, marshalling and unmashalling them to sometimes
+// 100s of thousands of subrequests.
 func NewStripHeadersWare(allowList []string) AsyncMiddleware[combiner.PipelineResponse] {
 	// build allowed map
 	allowed := make(map[string]struct{}, len(allowList))
