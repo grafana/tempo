@@ -25,8 +25,7 @@ import (
 const (
 	defaultTargetBytesPerRequest = 100 * 1024 * 1024
 	defaultConcurrentRequests    = 1000
-	// every search is broken into the same number of search shards. these shards are used to stream partial results back that are guaranteed to be latest results
-	maxSearchShards = 200
+	defaultMostRecentShards      = 200
 )
 
 type SearchSharderConfig struct {
@@ -38,6 +37,7 @@ type SearchSharderConfig struct {
 	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
 	QueryIngestersUntil   time.Duration `yaml:"query_ingesters_until,omitempty"`
 	IngesterShards        int           `yaml:"ingester_shards,omitempty"`
+	MostRecentShards      int           `yaml:"most_recent_shards,omitempty"`
 }
 
 type asyncSearchSharder struct {
@@ -157,7 +157,7 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 	// calculate metrics to return to the caller
 	resp.TotalBlocks = len(blocks)
 
-	blockIter := backendJobsFunc(blocks, s.cfg.TargetBytesPerRequest, maxSearchShards, searchReq.End)
+	blockIter := backendJobsFunc(blocks, s.cfg.TargetBytesPerRequest, s.cfg.MostRecentShards, searchReq.End)
 	blockIter(func(jobs int, sz uint64, completedThroughTime uint32) {
 		resp.TotalJobs += jobs
 		resp.TotalBytes += sz
@@ -179,7 +179,7 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 // unexpectedly changing the passed searchReq.
 func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.Request, searchReq tempopb.SearchRequest, reqCh chan pipeline.Request) (*combiner.SearchJobResponse, error) {
 	resp := &combiner.SearchJobResponse{
-		Shards: make([]combiner.SearchShards, 0, maxSearchShards+1), // +1 for the ingester shard
+		Shards: make([]combiner.SearchShards, 0, s.cfg.MostRecentShards+1), // +1 for the ingester shard
 	}
 
 	// request without start or end, search only in ingester

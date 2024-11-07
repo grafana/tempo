@@ -233,6 +233,7 @@ func TestSearchTagsV2FailurePropagatesFromQueriers(t *testing.T) {
 				Sharder: SearchSharderConfig{
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					MostRecentShards:      defaultMostRecentShards,
 				},
 				SLO: testSLOcfg,
 			},
@@ -278,6 +279,7 @@ func TestSearchTagsV2FailurePropagatesFromQueriers(t *testing.T) {
 				Sharder: SearchSharderConfig{
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					MostRecentShards:      defaultMostRecentShards,
 				},
 				SLO: testSLOcfg,
 			},
@@ -364,6 +366,7 @@ func TestSearchTagValuesV2FailurePropagatesFromQueriers(t *testing.T) {
 					Sharder: SearchSharderConfig{
 						ConcurrentRequests:    defaultConcurrentRequests,
 						TargetBytesPerRequest: defaultTargetBytesPerRequest,
+						MostRecentShards:      defaultMostRecentShards,
 					},
 					SLO: testSLOcfg,
 				},
@@ -410,6 +413,7 @@ func TestSearchTagValuesV2FailurePropagatesFromQueriers(t *testing.T) {
 					Sharder: SearchSharderConfig{
 						ConcurrentRequests:    defaultConcurrentRequests,
 						TargetBytesPerRequest: defaultTargetBytesPerRequest,
+						MostRecentShards:      defaultMostRecentShards,
 					},
 					SLO: testSLOcfg,
 				},

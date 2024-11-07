@@ -78,6 +78,10 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		return nil, fmt.Errorf("query backend after should be less than or equal to query ingester until")
 	}
 
+	if cfg.Search.Sharder.MostRecentShards <= 0 {
+		return nil, fmt.Errorf("most recent shards must be greater than 0")
+	}
+
 	if cfg.Metrics.Sharder.ConcurrentRequests <= 0 {
 		return nil, fmt.Errorf("frontend metrics concurrent requests should be greater than 0")
 	}

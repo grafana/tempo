@@ -639,8 +639,12 @@ query_frontend:
         [throughput_bytes_slo: <float> | default = 0 ]
 
         # The number of shards to break ingester queries into.
-        [ingester_shards]: <int> | default = 1]
-        
+        [ingester_shards: <int> | default = 1]
+
+        # The number of time windows to break a search up into when doing a most recent TraceQL search. This only impacts TraceQL
+        # searches with (most_recent=true)
+        [most_recent_shards: <int> | default = 200]
+
         # SLO configuration for Metadata (tags and tag values) endpoints.
         metadata_slo:
             # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.

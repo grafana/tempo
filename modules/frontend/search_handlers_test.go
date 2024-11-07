@@ -326,6 +326,7 @@ func TestSearchLimitHonored(t *testing.T) {
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				MostRecentShards:      defaultMostRecentShards,
 				DefaultLimit:          10,
 				MaxLimit:              15,
 			},
@@ -489,6 +490,7 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 				Sharder: SearchSharderConfig{
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					MostRecentShards:      defaultMostRecentShards,
 				},
 				SLO: testSLOcfg,
 			},
@@ -534,6 +536,7 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 				Sharder: SearchSharderConfig{
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					MostRecentShards:      defaultMostRecentShards,
 				},
 				SLO: testSLOcfg,
 			},
@@ -780,6 +783,7 @@ func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr te
 				Sharder: SearchSharderConfig{
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					MostRecentShards:      defaultMostRecentShards,
 				},
 				SLO: testSLOcfg,
 			},

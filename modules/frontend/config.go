@@ -79,6 +79,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 			ConcurrentRequests:    defaultConcurrentRequests,
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
 			IngesterShards:        1,
+			MostRecentShards:      defaultMostRecentShards,
 		},
 		SLO: slo,
 	}

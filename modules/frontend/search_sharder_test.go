@@ -225,7 +225,7 @@ func TestBuildBackendRequests(t *testing.T) {
 
 		ctx, cancelCause := context.WithCancelCause(context.Background())
 		reqCh := make(chan pipeline.Request)
-		iterFn := backendJobsFunc(tc.metas, tc.targetBytesPerRequest, maxSearchShards, math.MaxUint32)
+		iterFn := backendJobsFunc(tc.metas, tc.targetBytesPerRequest, defaultMostRecentShards, math.MaxUint32)
 
 		go func() {
 			buildBackendRequests(ctx, "test", pipeline.NewHTTPRequest(req), searchReq, iterFn, reqCh, cancelCause)
@@ -252,7 +252,9 @@ func TestBackendRequests(t *testing.T) {
 	bm.TotalRecords = 2
 
 	s := &asyncSearchSharder{
-		cfg:    SearchSharderConfig{},
+		cfg: SearchSharderConfig{
+			MostRecentShards: defaultMostRecentShards,
+		},
 		reader: &mockReader{metas: []*backend.BlockMeta{bm}},
 	}
 
@@ -682,6 +684,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 		QueryIngestersUntil:   15 * time.Minute,
 		ConcurrentRequests:    1, // 1 concurrent request to force order
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		MostRecentShards:      defaultMostRecentShards,
 		IngesterShards:        1,
 	}, log.NewNopLogger())
 	testRT := sharder.Wrap(next)
@@ -726,6 +729,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	sharder := newAsyncSearchSharder(&mockReader{}, o, SearchSharderConfig{
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		MostRecentShards:      defaultMostRecentShards,
 		MaxDuration:           5 * time.Minute,
 	}, log.NewNopLogger())
 	testRT := sharder.Wrap(next)
@@ -759,6 +763,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	sharder = newAsyncSearchSharder(&mockReader{}, o, SearchSharderConfig{
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		MostRecentShards:      defaultMostRecentShards,
 		MaxDuration:           5 * time.Minute,
 	}, log.NewNopLogger())
 	testRT = sharder.Wrap(next)
