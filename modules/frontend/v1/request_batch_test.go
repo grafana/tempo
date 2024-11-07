@@ -52,7 +52,7 @@ func TestRequestBatchContextError(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "http://example.com", nil)
 	prequest := pipeline.NewHTTPRequest(req)
-	prequest.WithContext(ctx)
+	prequest.SetContext(ctx)
 
 	for i := 0; i < totalRequests-1; i++ {
 		_ = rb.add(&request{request: prequest})
@@ -61,7 +61,7 @@ func TestRequestBatchContextError(t *testing.T) {
 	// add a cancel context
 	cancelCtx, cancel := context.WithCancel(ctx)
 	prequest = pipeline.NewHTTPRequest(req)
-	prequest.WithContext(cancelCtx)
+	prequest.SetContext(cancelCtx)
 
 	_ = rb.add(&request{request: prequest})
 
@@ -83,7 +83,7 @@ func TestDoneChanCloses(_ *testing.T) {
 
 	req := httptest.NewRequest("GET", "http://example.com", nil)
 	prequest := pipeline.NewHTTPRequest(req)
-	prequest.WithContext(cancelCtx)
+	prequest.SetContext(cancelCtx)
 
 	for i := 0; i < totalRequests-1; i++ {
 		_ = rb.add(&request{request: prequest})
