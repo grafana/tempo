@@ -141,6 +141,7 @@ func rewriteBlock(ctx context.Context, r backend.Reader, w backend.Writer, meta 
 		SpansDiscarded:    func(_, _, _ string, _ int) {},
 		DisconnectedTrace: func() {},
 		RootlessTrace:     func() {},
+		DedupedSpans:      func(_, _ int) {},
 	}
 
 	compactor := enc.NewCompactor(opts)
