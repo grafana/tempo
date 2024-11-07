@@ -355,6 +355,10 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 	return nil
 }
 
+func (b *walBlock) Validate(context.Context) error {
+	return common.ErrUnsupported
+}
+
 func (b *walBlock) adjustTimeRangeForSlack(start, end uint32) (uint32, uint32) {
 	now := time.Now()
 	startOfRange := uint32(now.Add(-b.ingestionSlack).Unix())

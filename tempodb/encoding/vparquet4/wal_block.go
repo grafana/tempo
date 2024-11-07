@@ -355,6 +355,11 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 	return nil
 }
 
+// TODO: potentially add validation to wal blocks and use in the wal replay code in the ingester.
+func (b *walBlock) Validate(context.Context) error {
+	return common.ErrUnsupported
+}
+
 // It controls the block start/end date as a sliding window.
 func (b *walBlock) adjustTimeRangeForSlack(start, end uint32) (uint32, uint32) {
 	now := time.Now()

@@ -315,6 +315,10 @@ func (a *walBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, trac
 	return common.ErrUnsupported
 }
 
+func (a *walBlock) Validate(context.Context) error {
+	return common.ErrUnsupported
+}
+
 func (a *walBlock) fullFilename() string {
 	filename := a.fullFilenameSeparator("+")
 	_, e1 := os.Stat(filename)
