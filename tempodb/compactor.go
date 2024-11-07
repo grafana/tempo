@@ -113,7 +113,7 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 		return
 	}
 
-	// Get the meta file of all non-compacted blocks for the given tenant
+	// Get the meta file of all non-compacted blocks for the given tenant,
 	blocklist := rw.blocklist.Metas(tenantID)
 
 	window := rw.compactorOverrides.MaxCompactionRangeForTenant(tenantID)

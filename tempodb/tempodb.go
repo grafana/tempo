@@ -589,13 +589,13 @@ func (rw *readerWriter) pollingLoop(ctx context.Context) {
 }
 
 func (rw *readerWriter) pollBlocklist() {
-	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do(rw.blocklist)
+	blocklist, compactedBlocklist, pollDurations, err := rw.blocklistPoller.Do(rw.blocklist)
 	if err != nil {
 		level.Error(rw.logger).Log("msg", "failed to poll blocklist", "err", err)
 		return
 	}
 
-	rw.blocklist.ApplyPollResults(blocklist, compactedBlocklist)
+	rw.blocklist.ApplyPollResults(blocklist, compactedBlocklist, pollDurations)
 }
 
 // includeBlock indicates whether a given block should be included in a backend search

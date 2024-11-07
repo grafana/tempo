@@ -173,7 +173,9 @@ func TestTenantIndexBuilder(t *testing.T) {
 			}, &mockJobSharder{
 				owns: true,
 			}, r, c, w, log.NewNopLogger())
-			actualList, actualCompactedList, err := poller.Do(b)
+			actualList, actualCompactedList, durations, err := poller.Do(b)
+
+			assert.Equal(t, nil, durations)
 
 			// confirm return as expected
 			assert.Equal(t, tc.expectedList, actualList)
@@ -279,7 +281,7 @@ func TestTenantIndexFallback(t *testing.T) {
 			}, &mockJobSharder{
 				owns: tc.isTenantIndexBuilder,
 			}, r, c, w, log.NewNopLogger())
-			_, _, err := poller.Do(b)
+			_, _, _, err := poller.Do(b)
 
 			assert.Equal(t, tc.expectsError, err != nil)
 			assert.Equal(t, tc.expectsTenantIndexWritten, w.IndexCompactedMeta != nil)
@@ -646,7 +648,7 @@ func TestPollTolerateConsecutiveErrors(t *testing.T) {
 				EmptyTenantDeletionAge:    testEmptyTenantIndexAge,
 			}, s, r, c, w, log.NewLogfmtLogger(os.Stdout))
 
-			_, _, err := poller.Do(b)
+			_, _, _, err := poller.Do(b)
 
 			if tc.expectedError != nil {
 				assert.ErrorContains(t, err, tc.expectedError.Error())
@@ -935,8 +937,10 @@ func TestPollComparePreviousResults(t *testing.T) {
 				TolerateTenantFailures:    tc.tollerateTenantFailures,
 			}, s, r, c, w, log.NewNopLogger())
 
-			metas, compactedMetas, err := poller.Do(previous)
+			metas, compactedMetas, durations, err := poller.Do(previous)
 			require.Equal(t, tc.err, err)
+
+			require.Equal(t, len(metas), len(durations))
 
 			require.Equal(t, len(tc.expectedPerTenant), len(metas))
 			for tenantID, expectedMetas := range tc.expectedPerTenant {
@@ -1182,7 +1186,7 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 func newBlocklist(metas PerTenant, compactedMetas PerTenantCompacted) *List {
 	l := New()
 
-	l.ApplyPollResults(metas, compactedMetas)
+	l.ApplyPollResults(metas, compactedMetas, nil)
 
 	return l
 }

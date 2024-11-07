@@ -137,7 +137,7 @@ func NewPoller(cfg *PollerConfig, sharder JobSharder, reader backend.Reader, com
 }
 
 // Do does the doing of getting a blocklist
-func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
+func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, PerTenantPollDuration, error) {
 	start := time.Now()
 	defer func() {
 		diff := time.Since(start).Seconds()
@@ -155,7 +155,7 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 	tenants, err := p.reader.Tenants(ctx)
 	if err != nil {
 		metricBlocklistErrors.WithLabelValues("").Inc()
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	var (
@@ -164,6 +164,7 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 
 		blocklist          = PerTenant{}
 		compactedBlocklist = PerTenantCompacted{}
+		pollDurations      = PerTenantPollDuration{}
 
 		tenantFailuresRemaining = atomic.NewInt32(int32(p.cfg.TolerateTenantFailures))
 	)
@@ -177,17 +178,35 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 
 		wg.Add(1)
 		go func(tenantID string) {
-			defer wg.Done()
-
 			var (
 				consecutiveErrorsRemaining = p.cfg.TolerateConsecutiveErrors
 				newBlockList               = make([]*backend.BlockMeta, 0)
 				newCompactedBlockList      = make([]*backend.CompactedBlockMeta, 0)
+				start                      = time.Now()
 				err                        error
 			)
 
+			funcCtx, funcSpan := tracer.Start(ctx, "Poller.Do.tenant",
+				trace.WithAttributes(
+					attribute.String("tenant", tenantID),
+					attribute.Int("newBlockList", len(newBlockList)),
+					attribute.Int("newCompactedBlockList", len(newCompactedBlockList)),
+				),
+				trace.WithLinks(trace.LinkFromContext(ctx)),
+			)
+			defer func() {
+				if err != nil {
+					funcSpan.RecordError(err)
+					funcSpan.SetStatus(codes.Error, "tenant poll failed")
+				} else {
+					funcSpan.SetStatus(codes.Error, "")
+				}
+				funcSpan.End()
+				wg.Done()
+			}()
+
 			for consecutiveErrorsRemaining >= 0 {
-				newBlockList, newCompactedBlockList, err = p.pollTenantAndCreateIndex(ctx, tenantID, previous)
+				newBlockList, newCompactedBlockList, err = p.pollTenantAndCreateIndex(funcCtx, tenantID, previous)
 				if err == nil {
 					break
 				}
@@ -202,6 +221,7 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 				level.Error(p.logger).Log("msg", "failed to poll or create index for tenant", "tenant", tenantID, "err", err)
 				blocklist[tenantID] = previous.Metas(tenantID)
 				compactedBlocklist[tenantID] = previous.CompactedMetas(tenantID)
+				pollDurations[tenantID] = time.Since(start)
 
 				tenantFailuresRemaining.Dec()
 
@@ -211,6 +231,7 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 			if len(newBlockList) > 0 || len(newCompactedBlockList) > 0 {
 				blocklist[tenantID] = newBlockList
 				compactedBlocklist[tenantID] = newCompactedBlockList
+				pollDurations[tenantID] = time.Since(start)
 
 				metricBlocklistLength.WithLabelValues(tenantID).Set(float64(len(newBlockList)))
 
@@ -231,10 +252,10 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 	wg.Wait()
 
 	if tenantFailuresRemaining.Load() < 0 {
-		return nil, nil, errors.New("too many tenant failures; abandoning polling cycle")
+		return nil, nil, nil, errors.New("too many tenant failures; abandoning polling cycle")
 	}
 
-	return blocklist, compactedBlocklist, nil
+	return blocklist, compactedBlocklist, pollDurations, nil
 }
 
 func (p *Poller) pollTenantAndCreateIndex(

@@ -178,12 +178,12 @@ func TestPollerOwnership(t *testing.T) {
 				}
 
 				l := blocklist.New()
-				mm, cm, err := blocklistPoller.Do(l)
+				mm, cm, durs, err := blocklistPoller.Do(l)
 				require.NoError(t, err)
 				// t.Logf("mm: %v", mm)
 				// t.Logf("cm: %v", cm)
 
-				l.ApplyPollResults(mm, cm)
+				l.ApplyPollResults(mm, cm, durs)
 
 				for testTenant, expected := range tenantExpected {
 					metas := l.Metas(testTenant)
@@ -321,7 +321,7 @@ func TestTenantDeletion(t *testing.T) {
 				}, OwnsEverythingSharder, r, cc, w, logger)
 
 				l := blocklist.New()
-				mm, cm, err := blocklistPoller.Do(l)
+				mm, cm, _, err := blocklistPoller.Do(l)
 				require.NoError(t, err)
 				t.Logf("mm: %v", mm)
 				t.Logf("cm: %v", cm)
@@ -339,7 +339,7 @@ func TestTenantDeletion(t *testing.T) {
 
 				time.Sleep(500 * time.Millisecond)
 
-				_, _, err = blocklistPoller.Do(l)
+				_, _, _, err = blocklistPoller.Do(l)
 				require.NoError(t, err)
 
 				tennants, err = r.Tenants(ctx)
@@ -357,7 +357,7 @@ func TestTenantDeletion(t *testing.T) {
 				}, OwnsEverythingSharder, r, cc, w, logger)
 
 				// Again
-				_, _, err = blocklistPoller.Do(l)
+				_, _, _, err = blocklistPoller.Do(l)
 				require.NoError(t, err)
 
 				tennants, err = r.Tenants(ctx)

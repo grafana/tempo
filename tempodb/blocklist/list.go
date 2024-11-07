@@ -2,6 +2,7 @@ package blocklist
 
 import (
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -13,11 +14,15 @@ type PerTenant map[string][]*backend.BlockMeta
 // PerTenantCompacted is a map of tenant ids to backend.CompactedBlockMetas
 type PerTenantCompacted map[string][]*backend.CompactedBlockMeta
 
+// PerTenantPollDuration is a map of tenant ids to duration of the last poll.
+type PerTenantPollDuration map[string]time.Duration
+
 // List controls access to a per tenant blocklist and compacted blocklist
 type List struct {
 	mtx            sync.Mutex
 	metas          PerTenant
 	compactedMetas PerTenantCompacted
+	pollDurations  PerTenantPollDuration
 
 	// used by the compactor to track local changes it is aware of
 	added            PerTenant
@@ -30,6 +35,7 @@ func New() *List {
 	return &List{
 		metas:          make(PerTenant),
 		compactedMetas: make(PerTenantCompacted),
+		pollDurations:  make(PerTenantPollDuration),
 
 		added:            make(PerTenant),
 		removed:          make(PerTenant),
@@ -81,7 +87,7 @@ func (l *List) CompactedMetas(tenantID string) []*backend.CompactedBlockMeta {
 // ApplyPollResults applies the PerTenant and PerTenantCompacted maps to this blocklist
 // Note that it also applies any known local changes and then wipes them out to be restored
 // in the next polling cycle.
-func (l *List) ApplyPollResults(m PerTenant, c PerTenantCompacted) {
+func (l *List) ApplyPollResults(m PerTenant, c PerTenantCompacted, pd PerTenantPollDuration) {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
@@ -91,6 +97,11 @@ func (l *List) ApplyPollResults(m PerTenant, c PerTenantCompacted) {
 	// now reapply all updates and clear
 	for tenantID := range l.added {
 		l.updateInternal(tenantID, l.added[tenantID], l.removed[tenantID], l.compactedAdded[tenantID], l.compactedRemoved[tenantID])
+
+		clear(l.pollDurations)
+		if v, ok := pd[tenantID]; ok {
+			l.pollDurations[tenantID] = v
+		}
 	}
 
 	clear(l.added)
