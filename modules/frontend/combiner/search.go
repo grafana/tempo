@@ -176,8 +176,7 @@ func (s *ShardCompletionTracker) addShards(shards []SearchShards) uint32 {
 		s.foundResponses = temp
 	}
 
-	for s.incrementCurShardIfComplete() {
-	}
+	s.incrementCurShardIfComplete()
 
 	return s.completedThroughSeconds
 }
@@ -205,23 +204,24 @@ func (s *ShardCompletionTracker) addShardIdx(shardIdx int) uint32 {
 	}
 
 	s.foundResponses[shardIdx]++
-	for s.incrementCurShardIfComplete() {
-	}
+	s.incrementCurShardIfComplete()
 
 	return s.completedThroughSeconds
 }
 
-func (s *ShardCompletionTracker) incrementCurShardIfComplete() bool {
-	if s.curShard >= len(s.shards) {
-		return false
+// incrementCurShardIfComplete tests to see if the current shard is complete and increments it if so.
+// it does this repeatedly until it finds a shard that is not complete.
+func (s *ShardCompletionTracker) incrementCurShardIfComplete() {
+	for {
+		if s.curShard >= len(s.shards) {
+			break
+		}
+
+		if s.foundResponses[s.curShard] == int(s.shards[s.curShard].TotalJobs) {
+			s.completedThroughSeconds = s.shards[s.curShard].CompletedThroughSeconds
+			s.curShard++
+		} else {
+			break
+		}
 	}
-
-	if s.foundResponses[s.curShard] == int(s.shards[s.curShard].TotalJobs) {
-		s.completedThroughSeconds = s.shards[s.curShard].CompletedThroughSeconds
-		s.curShard++
-
-		return true
-	}
-
-	return false
 }

@@ -46,7 +46,6 @@ func newAnyCombiner(limit int) *anyCombiner {
 // addSpanset adds a new spanset to the combiner. It only performs the asTraceSearchMetadata
 // conversion if the spanset will be added
 func (c *anyCombiner) addSpanset(new *Spanset) {
-	// else let's see if it's worth converting this to a metadata and adding it
 	// if it's already in the list, then we should add it
 	if _, ok := c.trs[util.TraceIDToHexString(new.TraceID)]; ok {
 		c.AddMetadata(asTraceSearchMetadata(new))

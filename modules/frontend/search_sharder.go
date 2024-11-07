@@ -105,7 +105,7 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	}
 
 	// pass subCtx in requests so we can cancel and exit early
-	jobMetrics = s.backendRequests(ctx, tenantID, pipelineRequest, searchReq, jobMetrics, reqCh, func(err error) {
+	s.backendRequests(ctx, tenantID, pipelineRequest, searchReq, jobMetrics, reqCh, func(err error) {
 		// todo: actually find a way to return this error to the user
 		s.logger.Log("msg", "search: failed to build backend requests", "err", err)
 	})
@@ -136,11 +136,11 @@ func (s *asyncSearchSharder) blockMetas(start, end uint32, tenantID string) []*b
 
 // backendRequest builds backend requests to search backend blocks. backendRequest takes ownership of reqCh and closes it.
 // it returns 3 int values: totalBlocks, totalBlockBytes, and estimated jobs
-func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, resp *combiner.SearchJobResponse, reqCh chan<- pipeline.Request, errFn func(error)) *combiner.SearchJobResponse {
+func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, resp *combiner.SearchJobResponse, reqCh chan<- pipeline.Request, errFn func(error)) {
 	// request without start or end, search only in ingester
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		close(reqCh)
-		return resp
+		return
 	}
 
 	// calculate duration (start and end) to search the backend blocks
@@ -149,7 +149,7 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 	// no need to search backend
 	if start == end {
 		close(reqCh)
-		return resp
+		return
 	}
 
 	blocks := s.blockMetas(start, end, tenantID)
@@ -171,8 +171,6 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 	go func() {
 		buildBackendRequests(ctx, tenantID, parent, searchReq, blockIter, reqCh, errFn)
 	}()
-
-	return resp
 }
 
 // ingesterRequest returns a new start and end time range for the backend as well as an http request

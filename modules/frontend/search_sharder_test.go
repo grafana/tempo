@@ -319,7 +319,9 @@ func TestBackendRequests(t *testing.T) {
 
 			ctx, cancelCause := context.WithCancelCause(context.Background())
 			pipelineRequest := pipeline.NewHTTPRequest(r)
-			searchJobResponse := s.backendRequests(ctx, "test", pipelineRequest, searchReq, &combiner.SearchJobResponse{}, reqCh, cancelCause)
+
+			searchJobResponse := &combiner.SearchJobResponse{}
+			s.backendRequests(ctx, "test", pipelineRequest, searchReq, searchJobResponse, reqCh, cancelCause)
 			require.Equal(t, tc.expectedJobs, searchJobResponse.TotalJobs)
 			require.Equal(t, tc.expectedBlocks, searchJobResponse.TotalBlocks)
 			require.Equal(t, tc.expectedBlockBytes, searchJobResponse.TotalBytes)
