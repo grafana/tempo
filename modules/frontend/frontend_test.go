@@ -234,5 +234,4 @@ func TestFrontendBadConfigFails(t *testing.T) {
 	}, nil, nil, nil, nil, "", log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "most recent shards must be greater than 0")
 	assert.Nil(t, f)
-
 }
