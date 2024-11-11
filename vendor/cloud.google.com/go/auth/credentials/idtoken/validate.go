@@ -40,7 +40,7 @@ const (
 )
 
 var (
-	defaultValidator = &Validator{client: newCachingClient(internal.CloneDefaultClient())}
+	defaultValidator = &Validator{client: newCachingClient(internal.DefaultClient())}
 	// now aliases time.Now for testing.
 	now = time.Now
 )
@@ -83,7 +83,7 @@ func NewValidator(opts *ValidatorOptions) (*Validator, error) {
 	if opts != nil && opts.Client != nil {
 		client = opts.Client
 	} else {
-		client = internal.CloneDefaultClient()
+		client = internal.DefaultClient()
 	}
 	return &Validator{client: newCachingClient(client)}, nil
 }
