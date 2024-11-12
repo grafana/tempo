@@ -43,7 +43,11 @@ func newPartitionProcessor(logger log.Logger, blockCfg BlockConfig, overrides Ov
 }
 
 func (p *writer) PushBytes(tenant string, req *tempopb.PushBytesRequest) error {
-	level.Info(p.logger).Log("msg", "pushing bytes", "tenant", tenant, "num_traces", len(req.Traces))
+	level.Info(p.logger).Log(
+		"msg", "pushing bytes",
+		"tenant", tenant,
+		"num_traces", len(req.Traces),
+	)
 
 	i, err := p.instanceForTenant(tenant)
 	if err != nil {

@@ -6,10 +6,8 @@ import (
 	"strconv"
 )
 
-var (
-	// Regular expression used to parse the ingester numeric ID.
-	ingesterIDRegexp = regexp.MustCompile("-([0-9]+)$")
-)
+// Regular expression used to parse the ingester numeric ID.
+var ingesterIDRegexp = regexp.MustCompile("-([0-9]+)$")
 
 // IngesterPartitionID returns the partition ID owner the the given ingester.
 func IngesterPartitionID(ingesterID string) (int32, error) {

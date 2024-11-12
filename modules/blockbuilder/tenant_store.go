@@ -12,6 +12,17 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Namespace: "tempo",
+		Subsystem: "block_builder",
+		Name:      "flushed_blocks",
+	},
+	[]string{"tenant_id"},
 )
 
 type tenantStore struct {
@@ -27,7 +38,6 @@ type tenantStore struct {
 }
 
 func newTenantStore(tenantID string, cfg BlockConfig, logger log.Logger, wal *wal.WAL, enc encoding.VersionedEncoding, o Overrides) (*tenantStore, error) {
-
 	i := &tenantStore{
 		tenantID:  tenantID,
 		cfg:       cfg,
@@ -49,14 +59,11 @@ func (i *tenantStore) cutHeadBlock() error {
 		i.walBlocks = append(i.walBlocks, i.headBlock)
 		i.headBlock = nil
 	}
+
 	return nil
 }
 
 func (i *tenantStore) resetHeadBlock() error {
-	if err := i.cutHeadBlock(); err != nil {
-		return err
-	}
-
 	meta := &backend.BlockMeta{
 		BlockID:           backend.NewUUID(), // TODO - Deterministic UUID
 		TenantID:          i.tenantID,
@@ -106,9 +113,13 @@ func (i *tenantStore) Flush(ctx context.Context, store tempodb.Writer) error {
 		if err := store.WriteBlock(ctx, block); err != nil {
 			return err
 		}
+		metricBlockBuilderFlushedBlocks.WithLabelValues(i.tenantID).Inc()
 	}
 
-	return nil
+	// Clear the blocks
+	i.walBlocks = i.walBlocks[:0]
+
+	return i.resetHeadBlock()
 }
 
 func (i *tenantStore) buildWriteableBlock(ctx context.Context, b common.WALBlock) (tempodb.WriteableBlock, error) {

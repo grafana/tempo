@@ -365,3 +365,18 @@ func MakeTraceWithTags(traceID []byte, service string, intValue int64) *tempopb.
 	})
 	return trace
 }
+
+func MakePushBytesRequest(t *testing.T, requests int, traceID []byte) *tempopb.PushBytesRequest {
+	trace := MakeTrace(requests, traceID)
+	b, err := proto.Marshal(trace)
+	require.NoError(t, err)
+
+	req := &tempopb.PushBytesRequest{
+		Traces: make([]tempopb.PreallocBytes, 0),
+		Ids:    make([]tempopb.PreallocBytes, 0),
+	}
+	req.Traces = append(req.Traces, tempopb.PreallocBytes{Slice: b})
+	req.Ids = append(req.Ids, tempopb.PreallocBytes{Slice: traceID})
+
+	return req
+}
