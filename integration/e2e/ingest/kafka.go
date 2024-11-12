@@ -39,7 +39,7 @@ func NewKafka() *e2e.HTTPService {
 		"kafka",
 		kafkaImage,
 		e2e.NewCommand("/etc/confluent/docker/run"),
-		//e2e.NewCmdReadinessProbe(e2e.NewCommand("kafka-topics", "--bootstrap-server", "broker:29092", "--list")),
+		// e2e.NewCmdReadinessProbe(e2e.NewCommand("kafka-topics", "--bootstrap-server", "broker:29092", "--list")),
 		e2e.NewCmdReadinessProbe(e2e.NewCommand("sh", "-c", "nc -z localhost 9092 || exit 1")), // TODO: A bit unstable, sometimes it fails
 		9092,
 		29092,

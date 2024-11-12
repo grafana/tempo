@@ -10,8 +10,7 @@ import (
 	"github.com/twmb/franz-go/plugin/kprom"
 )
 
-type Consumer struct {
-}
+type Consumer struct{}
 
 type PartitionsFn func(context.Context, *kgo.Client, map[string][]int32)
 

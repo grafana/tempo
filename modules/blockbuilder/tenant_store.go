@@ -16,15 +16,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-var (
-	metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "tempo",
-			Subsystem: "block_builder",
-			Name:      "flushed_blocks",
-		},
-		[]string{"tenant_id"},
-	)
+var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Namespace: "tempo",
+		Subsystem: "block_builder",
+		Name:      "flushed_blocks",
+	},
+	[]string{"tenant_id"},
 )
 
 type tenantStore struct {
@@ -40,7 +38,6 @@ type tenantStore struct {
 }
 
 func newTenantStore(tenantID string, cfg BlockConfig, logger log.Logger, wal *wal.WAL, enc encoding.VersionedEncoding, o Overrides) (*tenantStore, error) {
-
 	i := &tenantStore{
 		tenantID:  tenantID,
 		cfg:       cfg,
