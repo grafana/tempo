@@ -51,7 +51,7 @@ func (r retryWare) RoundTrip(req Request) (*http.Response, error) {
 	defer span.End()
 
 	// context propagation
-	req.WithContext(ctx)
+	req.SetContext(ctx)
 
 	tries := 0
 	defer func() { r.retriesCount.Observe(float64(tries)) }()

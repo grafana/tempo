@@ -96,9 +96,11 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	traceIDStatusCodeWare := pipeline.NewStatusCodeAdjustWareWithAllowedCode(http.StatusNotFound)
 	urlDenyListWare := pipeline.NewURLDenyListWare(cfg.URLDenyList)
 	queryValidatorWare := pipeline.NewQueryValidatorWare()
+	headerStripWare := pipeline.NewStripHeadersWare(cfg.AllowedHeaders)
 
 	tracePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
+			headerStripWare,
 			urlDenyListWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceByID, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
@@ -109,6 +111,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 
 	searchPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
+			headerStripWare,
 			urlDenyListWare,
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLSearch, cfg.Weights),
@@ -120,6 +123,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 
 	searchTagsPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
+			headerStripWare,
 			urlDenyListWare,
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
@@ -130,6 +134,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 
 	searchTagValuesPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
+			headerStripWare,
 			urlDenyListWare,
 			pipeline.NewWeightRequestWare(pipeline.Default, cfg.Weights),
 			multiTenantMiddleware(cfg, logger),
@@ -152,6 +157,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	// traceql metrics
 	queryRangePipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
+			headerStripWare,
 			urlDenyListWare,
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),
@@ -163,6 +169,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 
 	queryInstantPipeline := pipeline.Build(
 		[]pipeline.AsyncMiddleware[combiner.PipelineResponse]{
+			headerStripWare,
 			urlDenyListWare,
 			queryValidatorWare,
 			pipeline.NewWeightRequestWare(pipeline.TraceQLMetrics, cfg.Weights),

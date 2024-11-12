@@ -32,8 +32,8 @@ type Config struct {
 	// A list of regexes for black listing requests, these will apply for every request regardless the endpoint
 	URLDenyList []string `yaml:"url_deny_list,omitempty"`
 
-	RequestWithWeights bool `yaml:"request_with_weights,omitempty"`
-	RetryWithWeights   bool `yaml:"retry_with_weights,omitempty"`
+	// A list of headers allowed through the HTTP pipeline. Everything else will be stripped.
+	AllowedHeaders []string `yaml:"-"`
 }
 
 type SearchConfig struct {
