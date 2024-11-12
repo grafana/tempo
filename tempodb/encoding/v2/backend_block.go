@@ -175,3 +175,7 @@ func (b *BackendBlock) FetchTagValues(context.Context, traceql.FetchTagValuesReq
 func (b *BackendBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.MetricsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
+
+func (b *BackendBlock) Validate(_ context.Context) error {
+	return common.ErrUnsupported
+}

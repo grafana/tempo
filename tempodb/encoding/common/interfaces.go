@@ -88,6 +88,7 @@ type CompactionOptions struct {
 	SpansDiscarded    func(traceID string, rootSpanName string, rootServiceName string, spans int)
 	DisconnectedTrace func()
 	RootlessTrace     func()
+	DedupedSpans      func(replFactor, dedupedSpans int)
 }
 
 type Iterator interface {
@@ -100,6 +101,7 @@ type BackendBlock interface {
 	Searcher
 
 	BlockMeta() *backend.BlockMeta
+	Validate(ctx context.Context) error
 }
 
 type WALBlock interface {

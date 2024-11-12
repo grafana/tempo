@@ -1,6 +1,7 @@
 package vparquet3
 
 import (
+	"context"
 	"sync"
 
 	"github.com/grafana/tempo/tempodb/backend"
@@ -32,4 +33,8 @@ func newBackendBlock(meta *backend.BlockMeta, r backend.Reader) *backendBlock {
 
 func (b *backendBlock) BlockMeta() *backend.BlockMeta {
 	return b.meta
+}
+
+func (b *backendBlock) Validate(context.Context) error {
+	return common.ErrUnsupported
 }

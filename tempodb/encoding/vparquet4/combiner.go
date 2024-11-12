@@ -42,7 +42,8 @@ func (c *Combiner) Consume(tr *Trace) (spanCount int) {
 }
 
 // ConsumeWithFinal consumes the trace, but allows for performance savings when
-// it is known that this is the last expected input trace.
+// it is known that this is the last expected input trace. the spanCount returned
+// is the number of duplicate spans between the two traces
 func (c *Combiner) ConsumeWithFinal(tr *Trace, final bool) (spanCount int) {
 	if tr == nil {
 		return
@@ -110,9 +111,10 @@ func (c *Combiner) ConsumeWithFinal(tr *Trace, final bool) (spanCount int) {
 
 			if len(notFoundSpans) > 0 {
 				ils.Spans = notFoundSpans
-				spanCount += len(notFoundSpans)
 				notFoundILS = append(notFoundILS, ils)
 			}
+
+			spanCount += len(ils.Spans) - len(notFoundSpans)
 		}
 
 		// if there were some spans not found in A, add everything left in the batch

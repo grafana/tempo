@@ -18,6 +18,12 @@ func TestCombiner(t *testing.T) {
 			c.Consume(b)
 			return c.Result()
 		},
+		func(a, b *Trace) (*Trace, int, bool) {
+			c := NewCombiner()
+			c.Consume(a)
+			c.ConsumeWithFinal(b, true)
+			return c.Result()
+		},
 	}
 
 	tests := []struct {
@@ -365,6 +371,147 @@ func TestCombiner(t *testing.T) {
 					assert.Equal(t, tt.expectedTrace, actualTrace)
 				}
 			}
+		})
+	}
+}
+
+func TestCombinerReturnsDuplicates(t *testing.T) {
+	tests := []struct {
+		name          string
+		traceA        *Trace
+		traceB        *Trace
+		expectedDupes int
+	}{
+		{
+			name:          "nil traceA",
+			traceA:        nil,
+			traceB:        &Trace{},
+			expectedDupes: 0,
+		},
+		{
+			name:          "nil traceB",
+			traceA:        &Trace{},
+			traceB:        nil,
+			expectedDupes: 0,
+		},
+		{
+			name:          "empty traces",
+			traceA:        &Trace{},
+			traceB:        &Trace{},
+			expectedDupes: 0,
+		},
+		{
+			name: "no dupes",
+			traceA: &Trace{
+				TraceID:         []byte{0x00, 0x01},
+				RootServiceName: "serviceNameA",
+				ResourceSpans: []ResourceSpans{
+					{
+						Resource: Resource{
+							ServiceName: "serviceNameA",
+						},
+						ScopeSpans: []ScopeSpans{
+							{
+								Spans: []Span{
+									{
+										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+										StatusCode:     0,
+										NestedSetLeft:  1,
+										NestedSetRight: 2,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			traceB: &Trace{
+				TraceID:         []byte{0x00, 0x01},
+				RootServiceName: "serviceNameB",
+				ResourceSpans: []ResourceSpans{
+					{
+						Resource: Resource{
+							ServiceName: "serviceNameB",
+						},
+						ScopeSpans: []ScopeSpans{
+							{
+								Spans: []Span{
+									{
+										SpanID:       []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02},
+										ParentSpanID: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+										StatusCode:   0,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedDupes: 0,
+		},
+		{
+			name: "one dupe",
+			traceA: &Trace{
+				TraceID:         []byte{0x00, 0x01},
+				RootServiceName: "serviceNameA",
+				ResourceSpans: []ResourceSpans{
+					{
+						Resource: Resource{
+							ServiceName: "serviceNameA",
+						},
+						ScopeSpans: []ScopeSpans{
+							{
+								Spans: []Span{
+									{
+										SpanID:         []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+										StatusCode:     0,
+										NestedSetLeft:  1,
+										NestedSetRight: 2,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			traceB: &Trace{
+				TraceID:         []byte{0x00, 0x01},
+				RootServiceName: "serviceNameB",
+				ResourceSpans: []ResourceSpans{
+					{
+						Resource: Resource{
+							ServiceName: "serviceNameB",
+						},
+						ScopeSpans: []ScopeSpans{
+							{
+								Spans: []Span{
+									{
+										SpanID:     []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+										StatusCode: 0,
+									},
+									{
+										SpanID:       []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03},
+										ParentSpanID: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
+										StatusCode:   2,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedDupes: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmb := NewCombiner()
+
+			cmb.Consume(tt.traceA)
+			actualDupes := cmb.Consume(tt.traceB)
+
+			assert.Equal(t, tt.expectedDupes, actualDupes)
 		})
 	}
 }

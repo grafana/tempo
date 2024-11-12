@@ -44,3 +44,7 @@ func (b *backendBlock) FetchTagValues(context.Context, traceql.FetchTagValuesReq
 func (b *backendBlock) FetchTagNames(context.Context, traceql.FetchTagsRequest, traceql.FetchTagsCallback, common.MetricsCallback, common.SearchOptions) error {
 	return common.ErrUnsupported
 }
+
+func (b *backendBlock) Validate(context.Context) error {
+	return common.ErrUnsupported
+}
