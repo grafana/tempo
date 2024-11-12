@@ -36,7 +36,7 @@ func TestBlockbuilder(t *testing.T) {
 	t.Cleanup(k.Close)
 
 	kafkaCommits := atomic.NewInt32(0)
-	k.ControlKey(kmsg.OffsetCommit.Int16(), func(m kmsg.Request) (kmsg.Response, error, bool) {
+	k.ControlKey(kmsg.OffsetCommit.Int16(), func(kmsg.Request) (kmsg.Response, error, bool) {
 		kafkaCommits.Add(1)
 		return nil, nil, false
 	})
