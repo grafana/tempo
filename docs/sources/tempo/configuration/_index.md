@@ -739,6 +739,7 @@ querier:
         # Timeout for search requests
         [query_timeout: <duration> | default = 30s]
 
+        # NOTE: The Tempo serverless feature is now deprecated and will be removed in an upcoming release.
         # A list of external endpoints that the querier will use to offload backend search requests. They must
         # take and return the same value as /api/search endpoint on the querier. This is intended to be
         # used with serverless technologies for massive parallelization of the search path.
