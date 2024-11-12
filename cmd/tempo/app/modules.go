@@ -658,7 +658,7 @@ func (t *App) setupModuleManager() error {
 		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},
 		ScalableSingleBinary: {SingleBinary},
-		//GeneratorBuilder:     {MetricsGenerator, BlockBuilder},
+		// GeneratorBuilder:     {MetricsGenerator, BlockBuilder},
 	}
 
 	for mod, targets := range deps {
