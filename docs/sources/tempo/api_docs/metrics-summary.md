@@ -21,13 +21,13 @@ This API returns RED metrics (span count, erroring span count, and latency infor
 
 ## Deprecation in favor of TraceQL metrics
 
-Since TraceQL metrics is now available, the metrics summary API is redundant given.
-This API is being deprecated to reduce our maintenance burden.
+The metrics summary API is now redundant given the release of TraceQL metrics.
+This API is therefore being deprecated to reduce our maintenance burden.
 
 TraceQL metrics queries are significantly more powerful than what metrics summary API provides.
 TraceQL metrics can look at arbitrary time windows (not just the last hour), return time series information (rather than just a single instant value over the past hour), and can look at all spans (not just `kind=server`).
 
-To provide an example, if you were to aggregate by resource.cloud.region with the metrics summary API, you could get the same results with a couple TraceQL queries:
+To provide an example, if you were to aggregate by the attribute `resource.cloud.region` with the metrics summary API, you could get the same results with a couple TraceQL queries:
 
 Rate of requests by `resource.cloud.region`
 ```
@@ -35,17 +35,16 @@ Rate of requests by `resource.cloud.region`
 ```
 
 Error rate by `resource.cloud.region`
-
 ```
-{ status=error} | rate() by (resource.cloud.region)
+{ status=error } | rate() by (resource.cloud.region)
 ```
 
-The p99, p90, and p50 latency by `resource.cloud.region`
+The 50th, 90th, and 99th percentile latencies (for example, p99, p90, and p50) by `resource.cloud.region`:
 ```
 { } | quantile_over_time(duration, .99, .9, .5) by (resource.cloud.region)
 ```
 
-Instead of these queries, you can use [Explore Traces](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/), a queryless experience for navigating your trace data stored in Tempo and powered by TraceQL metrics queries under the hood.
+If you want something faster than typing these queries out in Explore's code mode, use [Explore Traces](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/), a queryless experience for navigating your trace data stored in Tempo and powered by TraceQL metrics queries under the hood.
 
 ## Activate metrics summary
 
