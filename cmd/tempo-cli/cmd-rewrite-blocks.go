@@ -111,8 +111,9 @@ func (cmd *dropTracesCmd) Run(opts *globalOptions) error {
 			return err
 		}
 	}
-
-	fmt.Println("successfully rewrote blocks dropping requested trace")
+	if cmd.DropTrace {
+		fmt.Printf("successfully rewrote blocks dropping requested traces: %v from tenant: %v\n", cmd.TraceIDs, cmd.TenantID)
+	}
 
 	return nil
 }
