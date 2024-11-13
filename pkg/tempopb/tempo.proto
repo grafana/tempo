@@ -163,6 +163,7 @@ message SearchTagsRequest {
   string query = 2; 
   uint32 start = 3;
   uint32 end = 4;
+  uint32 maxTagsPerScope = 5;
 }
 
 // SearchTagsBlockRequest takes SearchTagsRequest parameters as well as all information necessary
@@ -180,6 +181,7 @@ message SearchTagsBlockRequest {
   uint64 size = 10; // total size of data file
   uint32 footerSize = 11; // size of file footer (parquet)
   repeated DedicatedColumn dedicatedColumns = 12;
+  uint32 maxTagsPerScope = 13; // Limit of tags per scope
 }
 
 message SearchTagValuesBlockRequest {
@@ -195,6 +197,7 @@ message SearchTagValuesBlockRequest {
   uint64 size = 10; // total size of data file
   uint32 footerSize = 11; // size of file footer (parquet)
   repeated DedicatedColumn dedicatedColumns = 12;
+  uint32 maxTagValues = 13; // Limit of tags values
 }
 
 
@@ -218,6 +221,7 @@ message SearchTagValuesRequest {
   string query = 2; // TraceQL query
   uint32 start = 4;
   uint32 end = 5;
+  uint32 maxTagValues = 6;
 }
 
 message SearchTagValuesResponse {

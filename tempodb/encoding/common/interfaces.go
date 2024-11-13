@@ -43,6 +43,7 @@ type SearchOptions struct {
 	ReadBufferCount        int
 	ReadBufferSize         int
 	BlockReplicationFactor int // Only blocks with this replication factor will be searched. Set to 1 to search generator blocks (RF=1).
+	Limit                  uint32
 }
 
 // DefaultSearchOptions is used in a lot of places such as local ingester searches. It is important

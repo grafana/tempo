@@ -543,6 +543,7 @@ func TestParseParams(t *testing.T) {
 		expectedScope    string
 		expectedQ        string
 		expectedDuration uint32
+		expectedLimit    uint32
 	}{
 		{
 			name:             "all params present",
@@ -550,6 +551,7 @@ func TestParseParams(t *testing.T) {
 			expectedScope:    "resource",
 			expectedQ:        "some_query",
 			expectedDuration: 172800,
+			expectedLimit:    0,
 		},
 		{
 			name:             "missing start",
@@ -557,6 +559,7 @@ func TestParseParams(t *testing.T) {
 			expectedScope:    "resource",
 			expectedQ:        "",
 			expectedDuration: 0,
+			expectedLimit:    0,
 		},
 		{
 			name:             "missing end",
@@ -564,6 +567,7 @@ func TestParseParams(t *testing.T) {
 			expectedScope:    "resource",
 			expectedQ:        "",
 			expectedDuration: 0,
+			expectedLimit:    0,
 		},
 		{
 			name:             "missing scope",
@@ -571,6 +575,7 @@ func TestParseParams(t *testing.T) {
 			expectedScope:    "",
 			expectedQ:        "",
 			expectedDuration: 172800,
+			expectedLimit:    0,
 		},
 		{
 			name:             "missing q",
@@ -578,6 +583,7 @@ func TestParseParams(t *testing.T) {
 			expectedScope:    "resource",
 			expectedQ:        "",
 			expectedDuration: 172800,
+			expectedLimit:    0,
 		},
 		{
 			name:             "invalid start",
@@ -585,6 +591,7 @@ func TestParseParams(t *testing.T) {
 			expectedScope:    "resource",
 			expectedQ:        "",
 			expectedDuration: 0,
+			expectedLimit:    0,
 		},
 		{
 			name:             "invalid end",
@@ -592,6 +599,7 @@ func TestParseParams(t *testing.T) {
 			expectedScope:    "resource",
 			expectedQ:        "",
 			expectedDuration: 0,
+			expectedLimit:    0,
 		},
 		{
 			name:             "no params",
@@ -599,6 +607,7 @@ func TestParseParams(t *testing.T) {
 			expectedScope:    "",
 			expectedQ:        "",
 			expectedDuration: 0,
+			expectedLimit:    0,
 		},
 		{
 			name:             "negative start and end",
@@ -606,6 +615,7 @@ func TestParseParams(t *testing.T) {
 			expectedScope:    "negative_case",
 			expectedQ:        "",
 			expectedDuration: 0,
+			expectedLimit:    0,
 		},
 		{
 			name:             "end less than start",
@@ -613,6 +623,7 @@ func TestParseParams(t *testing.T) {
 			expectedScope:    "resource",
 			expectedQ:        "",
 			expectedDuration: 0,
+			expectedLimit:    0,
 		},
 		{
 			name:             "start and end are the same",
@@ -620,6 +631,31 @@ func TestParseParams(t *testing.T) {
 			expectedScope:    "zero_duration",
 			expectedQ:        "",
 			expectedDuration: 0,
+			expectedLimit:    0,
+		},
+		{
+			name:             "invalid limit",
+			queryParams:      map[string]string{"limit": "-1000"},
+			expectedScope:    "",
+			expectedQ:        "",
+			expectedDuration: 0,
+			expectedLimit:    0,
+		},
+		{
+			name:             "invalid too large limit",
+			queryParams:      map[string]string{"limit": "1000000000000000000"},
+			expectedScope:    "",
+			expectedQ:        "",
+			expectedDuration: 0,
+			expectedLimit:    0,
+		},
+		{
+			name:             "valid limit",
+			queryParams:      map[string]string{"limit": "100"},
+			expectedScope:    "",
+			expectedQ:        "",
+			expectedDuration: 0,
+			expectedLimit:    100,
 		},
 	}
 
@@ -633,11 +669,12 @@ func TestParseParams(t *testing.T) {
 			u.RawQuery = query.Encode()
 			req := &http.Request{URL: u}
 
-			scope, q, duration := parseParams(req)
+			scope, q, duration, limit := parseParams(req)
 
 			require.Equal(t, tt.expectedScope, scope)
 			require.Equal(t, tt.expectedQ, q)
 			require.Equal(t, tt.expectedDuration, duration)
+			require.Equal(t, tt.expectedLimit, limit)
 		})
 	}
 }

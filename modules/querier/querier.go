@@ -494,7 +494,7 @@ func (q *Querier) SearchTagsBlocks(ctx context.Context, req *tempopb.SearchTagsB
 		return nil, err
 	}
 
-	distinctValues := collector.NewDistinctString(0)
+	distinctValues := collector.NewDistinctString(0, 0)
 
 	// flatten v2 response
 	for _, s := range v2Response.Scopes {
@@ -535,8 +535,8 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchTags: %w", err)
 	}
 
-	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := collector.NewDistinctString(limit)
+	maxDataSize := q.limits.MaxBytesPerTagValuesQuery(userID)
+	distinctValues := collector.NewDistinctString(maxDataSize, req.MaxTagsPerScope)
 	mc := collector.NewMetricsCollector()
 
 	forEach := func(ctx context.Context, client tempopb.QuerierClient) error {
@@ -563,7 +563,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 	}
 
 	if distinctValues.Exceeded() {
-		level.Warn(log.Logger).Log("msg", "size of tags in instance exceeded limit, reduce cardinality or size of tags", "userID", userID, "limit", limit, "size", distinctValues.Size())
+		level.Warn(log.Logger).Log("msg", "size of tags in instance exceeded limit, reduce cardinality or size of tags", "userID", userID, "maxDataSize", maxDataSize, "size", distinctValues.Size())
 	}
 
 	return &tempopb.SearchTagsResponse{
@@ -578,8 +578,8 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchTags: %w", err)
 	}
 
-	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := collector.NewScopedDistinctString(limit)
+	maxBytesPerTag := q.limits.MaxBytesPerTagValuesQuery(userID)
+	distinctValues := collector.NewScopedDistinctString(maxBytesPerTag, req.MaxTagsPerScope)
 	mc := collector.NewMetricsCollector()
 
 	// Get results from all ingesters
@@ -609,7 +609,7 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 	}
 
 	if distinctValues.Exceeded() {
-		level.Warn(log.Logger).Log("msg", "size of tags in instance exceeded limit, reduce cardinality or size of tags", "userID", userID, "limit", limit)
+		level.Warn(log.Logger).Log("msg", "size of tags in instance exceeded limit, reduce cardinality or size of tags", "userID", userID, "maxBytesPerTag", maxBytesPerTag, "maxTagsPerScope", req.MaxTagsPerScope)
 	}
 
 	collected := distinctValues.Strings()
@@ -633,8 +633,8 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchTagValues: %w", err)
 	}
 
-	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := collector.NewDistinctString(limit)
+	maxDataSize := q.limits.MaxBytesPerTagValuesQuery(userID)
+	distinctValues := collector.NewDistinctString(maxDataSize, req.MaxTagValues)
 	mc := collector.NewMetricsCollector()
 
 	// Virtual tags values. Get these first.
@@ -668,7 +668,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	}
 
 	if distinctValues.Exceeded() {
-		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "limit", limit, "size", distinctValues.Size())
+		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "maxDataSize", maxDataSize, "maxTagsValues", req.MaxTagValues, "size", distinctValues.Size())
 	}
 
 	return &tempopb.SearchTagValuesResponse{
@@ -683,8 +683,8 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchTagValues: %w", err)
 	}
 
-	limit := q.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := collector.NewDistinctValue(limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	maxDataSize := q.limits.MaxBytesPerTagValuesQuery(userID)
+	distinctValues := collector.NewDistinctValue(maxDataSize, req.MaxTagValues, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 	mc := collector.NewMetricsCollector()
 
 	// Virtual tags values. Get these first.
@@ -726,7 +726,7 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 	}
 
 	if distinctValues.Exceeded() {
-		_ = level.Warn(log.Logger).Log("msg", "size of tag values exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "limit", limit, "size", distinctValues.Size())
+		_ = level.Warn(log.Logger).Log("msg", "size of tag values exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "userID", userID, "maxDataSize", maxDataSize, "maxTagsValues", req.MaxTagValues, "size", distinctValues.Size())
 	}
 
 	return valuesToV2Response(distinctValues, mc.TotalValue()), nil
@@ -981,7 +981,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 		return resp, nil
 	}
 
-	valueCollector := collector.NewScopedDistinctString(q.limits.MaxBytesPerTagValuesQuery(tenantID))
+	valueCollector := collector.NewScopedDistinctString(q.limits.MaxBytesPerTagValuesQuery(tenantID), req.MaxTagsPerScope)
 	mc := collector.NewMetricsCollector()
 
 	fetcher := traceql.NewTagNamesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback) error {
@@ -1052,6 +1052,7 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
+	opts.Limit = req.MaxTagValues
 
 	resp, err := q.store.SearchTagValues(ctx, meta, req.SearchReq.TagName, opts)
 	if err != nil {
@@ -1109,7 +1110,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		return nil, err
 	}
 
-	valueCollector := collector.NewDistinctValue(q.limits.MaxBytesPerTagValuesQuery(tenantID), func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	valueCollector := collector.NewDistinctValue(q.limits.MaxBytesPerTagValuesQuery(tenantID), req.MaxTagValues, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 	mc := collector.NewMetricsCollector()
 
 	fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {

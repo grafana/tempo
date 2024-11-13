@@ -10,7 +10,24 @@ import (
 )
 
 func TestDistinctStringCollector(t *testing.T) {
-	d := NewDistinctString(10)
+	d := NewDistinctString(10, 0)
+
+	d.Collect("123")
+	d.Collect("4567")
+	d.Collect("890")
+	d.Collect("11")
+
+	require.True(t, d.Exceeded())
+	stringsSlicesEqual(t, []string{"123", "4567", "890"}, d.Strings())
+
+	// diff fails when diff is not enabled
+	res, err := d.Diff()
+	require.Nil(t, res)
+	require.Error(t, err, errDiffNotEnabled)
+}
+
+func TestDistinctStringCollectorWithMaxItemsLimit(t *testing.T) {
+	d := NewDistinctString(0, 3)
 
 	d.Collect("123")
 	d.Collect("4567")
@@ -27,7 +44,7 @@ func TestDistinctStringCollector(t *testing.T) {
 }
 
 func TestDistinctStringCollectorDiff(t *testing.T) {
-	d := NewDistinctStringWithDiff(0)
+	d := NewDistinctStringWithDiff(0, 0)
 
 	d.Collect("123")
 	d.Collect("4567")
@@ -49,7 +66,7 @@ func readDistinctStringDiff(t *testing.T, d *DistinctString) []string {
 }
 
 func TestDistinctStringCollectorIsSafe(t *testing.T) {
-	d := NewDistinctString(0) // no limit
+	d := NewDistinctString(0, 0) // no limit
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
@@ -90,7 +107,7 @@ func BenchmarkDistinctStringCollect(b *testing.B) {
 	for _, lim := range limits {
 		b.Run("uniques_limit:"+strconv.Itoa(lim), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
-				distinctStrings := NewDistinctString(lim)
+				distinctStrings := NewDistinctString(lim, 0)
 				for _, values := range ingesterStrings {
 					for _, v := range values {
 						if distinctStrings.Collect(v) {
@@ -103,7 +120,7 @@ func BenchmarkDistinctStringCollect(b *testing.B) {
 
 		b.Run("duplicates_limit:"+strconv.Itoa(lim), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
-				distinctStrings := NewDistinctString(lim)
+				distinctStrings := NewDistinctString(lim, 0)
 				for i := 0; i < numIngesters; i++ {
 					for j := 0; j < numTagValuesPerIngester; j++ {
 						// collect first item to simulate duplicates

@@ -8,37 +8,41 @@ import (
 var errDiffNotEnabled = errors.New("diff not enabled")
 
 type DistinctValue[T comparable] struct {
-	values      map[T]struct{}
-	new         map[T]struct{}
-	len         func(T) int
-	maxLen      int
-	currLen     int
-	limExceeded bool
-	diffEnabled bool
-	mtx         sync.Mutex
+	values           map[T]struct{}
+	new              map[T]struct{}
+	len              func(T) int
+	maxDataSize      int
+	currDataSize     int
+	currentValuesLen uint32
+	maxValues        uint32
+	limExceeded      bool
+	diffEnabled      bool
+	mtx              sync.Mutex
 }
 
-// NewDistinctValue with the given maximum data size. This is calculated
-// as the total length of the recorded strings. For ease of use, maximum=0
-// is interpreted as unlimited.
+// NewDistinctValue with the given maximum data size and values limited.
+// maxDataSize is calculated as the total length of the recorded strings. For ease of use, maxDataSize=0 and maxValues
+// are interpreted as unlimited.
 // Use NewDistinctValueWithDiff to enable diff support, but that one is slightly slower.
-func NewDistinctValue[T comparable](maxDataSize int, len func(T) int) *DistinctValue[T] {
+func NewDistinctValue[T comparable](maxDataSize int, maxValues uint32, len func(T) int) *DistinctValue[T] {
 	return &DistinctValue[T]{
 		values:      make(map[T]struct{}),
-		maxLen:      maxDataSize,
+		maxDataSize: maxDataSize,
 		diffEnabled: false, // disable diff to make it faster
 		len:         len,
+		maxValues:   maxValues,
 	}
 }
 
 // NewDistinctValueWithDiff is like NewDistinctValue but with diff support enabled.
-func NewDistinctValueWithDiff[T comparable](maxDataSize int, len func(T) int) *DistinctValue[T] {
+func NewDistinctValueWithDiff[T comparable](maxDataSize int, maxValues uint32, len func(T) int) *DistinctValue[T] {
 	return &DistinctValue[T]{
 		values:      make(map[T]struct{}),
 		new:         make(map[T]struct{}),
-		maxLen:      maxDataSize,
+		maxDataSize: maxDataSize,
 		diffEnabled: true,
 		len:         len,
+		maxValues:   maxValues,
 	}
 }
 
@@ -58,7 +62,7 @@ func (d *DistinctValue[T]) Collect(v T) (exceeded bool) {
 
 	// Can it fit?
 	// note: we will stop adding values slightly before the limit is reached
-	if d.maxLen > 0 && d.currLen+valueLen >= d.maxLen {
+	if (d.maxDataSize > 0 && d.currDataSize+valueLen >= d.maxDataSize) || (d.maxValues > 0 && d.currentValuesLen >= d.maxValues) {
 		// No, it can't fit
 		d.limExceeded = true
 		return true
@@ -73,7 +77,8 @@ func (d *DistinctValue[T]) Collect(v T) (exceeded bool) {
 	}
 
 	d.values[v] = struct{}{}
-	d.currLen += valueLen
+	d.currDataSize += valueLen
+	d.currentValuesLen++
 
 	return false
 }
@@ -105,7 +110,7 @@ func (d *DistinctValue[T]) Size() int {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	return d.currLen
+	return d.currDataSize
 }
 
 // Diff returns all new strings collected since the last time diff was called

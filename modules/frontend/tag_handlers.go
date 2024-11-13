@@ -47,8 +47,8 @@ func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[com
 		}
 
 		var finalResponse *tempopb.SearchTagsResponse
-		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant))
-		collector := pipeline.NewGRPCCollector[*tempopb.SearchTagsResponse](next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagsResponse) error {
+		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagsPerScope)
+		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagsResponse) error {
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
 		})
@@ -80,8 +80,8 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		}
 
 		var finalResponse *tempopb.SearchTagsV2Response
-		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant))
-		collector := pipeline.NewGRPCCollector[*tempopb.SearchTagsV2Response](next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagsV2Response) error {
+		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagsPerScope)
+		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagsV2Response) error {
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
 		})
@@ -117,8 +117,8 @@ func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrippe
 		}
 
 		var finalResponse *tempopb.SearchTagValuesResponse
-		comb := combiner.NewTypedSearchTagValues(o.MaxBytesPerTagValuesQuery(tenant))
-		collector := pipeline.NewGRPCCollector[*tempopb.SearchTagValuesResponse](next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagValuesResponse) error {
+		comb := combiner.NewTypedSearchTagValues(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagValues)
+		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagValuesResponse) error {
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
 		})
@@ -154,8 +154,8 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 		}
 
 		var finalResponse *tempopb.SearchTagValuesV2Response
-		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant))
-		collector := pipeline.NewGRPCCollector[*tempopb.SearchTagValuesV2Response](next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagValuesV2Response) error {
+		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagValues)
+		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagValuesV2Response) error {
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
 		})
@@ -187,9 +187,9 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 			return errResp, nil
 		}
 
-		scope, _, rangeDur := parseParams(req)
+		scope, _, rangeDur, maxTagsPerScope := parseParams(req)
 		// build and use round tripper
-		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant))
+		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 		start := time.Now()
 		logTagsRequest(logger, tenant, "SearchTags", scope, rangeDur)
@@ -221,9 +221,9 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 			return errResp, nil
 		}
 
-		scope, _, rangeDur := parseParams(req)
+		scope, _, rangeDur, maxTagsPerScope := parseParams(req)
 		// build and use round tripper
-		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant))
+		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 		start := time.Now()
 		logTagsRequest(logger, tenant, "SearchTagsV2", scope, rangeDur)
@@ -255,11 +255,11 @@ func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combine
 			return errResp, nil
 		}
 
-		_, query, rangeDur := parseParams(req)
+		_, query, rangeDur, maxTagsValues := parseParams(req)
 		tagName := extractTagName(req.URL.Path, tagNameRegexV1)
 
 		// build and use round tripper
-		comb := combiner.NewTypedSearchTagValues(o.MaxBytesPerTagValuesQuery(tenant))
+		comb := combiner.NewTypedSearchTagValues(o.MaxBytesPerTagValuesQuery(tenant), maxTagsValues)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 		start := time.Now()
 		logTagValuesRequest(logger, tenant, "SearchTagValues", tagName, query, rangeDur)
@@ -291,11 +291,11 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 			return errResp, nil
 		}
 
-		_, query, rangeDur := parseParams(req)
+		_, query, rangeDur, maxTagsValues := parseParams(req)
 		tagName := extractTagName(req.URL.Path, tagNameRegexV2)
 
 		// build and use round tripper
-		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant))
+		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant), maxTagsValues)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 		start := time.Now()
 		logTagValuesRequest(logger, tenant, "SearchTagValuesV2", tagName, query, rangeDur)
@@ -427,21 +427,24 @@ func logTagValuesResult(logger log.Logger, tenantID, handler, tagName, query str
 
 // parseParams parses optional 'start', 'end', 'scope', and 'q' params from a http.Request
 // returns scope, query and duration (end - start). returns "", and 0 if these params are invalid or absent
-func parseParams(req *http.Request) (string, string, uint32) {
+func parseParams(req *http.Request) (scope string, q string, duration uint32, limit uint32) {
 	query := req.URL.Query()
-
-	scope := query.Get("scope")
-	q := query.Get("q")
+	scope = query.Get("scope")
+	q = query.Get("q")
 	// ignore errors, we default to 0 as params are not always present.
 	start, _ := strconv.ParseInt(query.Get("start"), 10, 64)
 	end, _ := strconv.ParseInt(query.Get("end"), 10, 64)
+	la := query.Get("limit")
+	l, err := strconv.ParseUint(la, 10, 32)
+	if err != nil {
+		l = 0
+	}
 
-	var duration int64
 	// duration only makes sense if start and end are present and end is greater than start
 	if start > 0 && end > 0 && end > start {
-		duration = end - start
+		duration = uint32(end - start)
 	}
-	return scope, q, uint32(duration)
+	return scope, q, duration, uint32(l)
 }
 
 // extractTagName extracts the tagName based on the provided regex pattern

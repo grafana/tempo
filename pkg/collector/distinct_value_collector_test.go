@@ -11,7 +11,28 @@ import (
 )
 
 func TestDistinctValueCollector(t *testing.T) {
-	d := NewDistinctValue[string](10, func(s string) int { return len(s) })
+	d := NewDistinctValue(10, 0, func(s string) int { return len(s) })
+
+	var stop bool
+	stop = d.Collect("123")
+	require.False(t, stop)
+	stop = d.Collect("4567")
+	require.False(t, stop)
+	stop = d.Collect("890")
+	require.True(t, stop)
+
+	require.True(t, d.Exceeded())
+	require.Equal(t, stop, d.Exceeded()) // final stop should be same as Exceeded
+	stringsSlicesEqual(t, []string{"123", "4567"}, d.Values())
+
+	// diff fails when diff is not enabled
+	res, err := d.Diff()
+	require.Nil(t, res)
+	require.Error(t, err, errDiffNotEnabled)
+}
+
+func TestDistinctValueCollectorWithMaxValuesLimited(t *testing.T) {
+	d := NewDistinctValue(0, 2, func(s string) int { return len(s) })
 
 	var stop bool
 	stop = d.Collect("123")
@@ -32,7 +53,7 @@ func TestDistinctValueCollector(t *testing.T) {
 }
 
 func TestDistinctValueCollectorDiff(t *testing.T) {
-	d := NewDistinctValueWithDiff[string](0, func(s string) int { return len(s) })
+	d := NewDistinctValueWithDiff(0, 0, func(s string) int { return len(s) })
 
 	d.Collect("123")
 	d.Collect("4567")
@@ -85,7 +106,7 @@ func BenchmarkDistinctValueCollect(b *testing.B) {
 	for _, lim := range limits {
 		b.Run("uniques_limit:"+strconv.Itoa(lim), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
-				distinctValues := NewDistinctValue(lim, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+				distinctValues := NewDistinctValue(lim, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 				for _, tagValues := range ingesterTagValues {
 					for _, v := range tagValues {
 						if distinctValues.Collect(v) {
@@ -98,7 +119,7 @@ func BenchmarkDistinctValueCollect(b *testing.B) {
 
 		b.Run("duplicates_limit:"+strconv.Itoa(lim), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
-				distinctValues := NewDistinctValue(lim, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+				distinctValues := NewDistinctValue(lim, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 				for i := 0; i < numIngesters; i++ {
 					for j := 0; j < numTagValuesPerIngester; j++ {
 						// collect first item to simulate duplicates

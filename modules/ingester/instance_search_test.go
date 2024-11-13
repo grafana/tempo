@@ -293,7 +293,7 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 	checkSearchTags("event", true)
 	checkSearchTags("link", true)
 
-	srv, err := i.SearchTagValues(ctx, tagName)
+	srv, err := i.SearchTagValues(ctx, tagName, 0)
 	require.NoError(t, err)
 	require.Greater(t, srv.Metrics.InspectedBytes, uint64(100)) // we scanned at-least 100 bytes
 
@@ -462,7 +462,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	_, _, _, _ = writeTracesForSearch(t, i, "", tagKey, tagValue, true, false)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
-	resp, err := i.SearchTagValues(userCtx, tagKey)
+	resp, err := i.SearchTagValues(userCtx, tagKey, 0)
 	require.NoError(t, err)
 	require.Equal(t, 2, len(resp.TagValues)) // Only two values of the form "bar123" fit in the 10 byte limit above.
 }
@@ -502,7 +502,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
 
-	respV1, err := i.SearchTagValues(userCtx, tagKey)
+	respV1, err := i.SearchTagValues(userCtx, tagKey, 0)
 	require.NoError(t, err)
 	assert.Equal(t, 100, len(respV1.TagValues))
 
@@ -516,7 +516,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 
 	i.limiter = NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	respV1, err = i.SearchTagValues(userCtx, tagKey)
+	respV1, err = i.SearchTagValues(userCtx, tagKey, 0)
 	require.NoError(t, err)
 	assert.Equal(t, 200, len(respV1.TagValues))
 
@@ -712,7 +712,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	go concurrent(func() {
 		// SearchTagValues queries now require userID in ctx
 		ctx := user.InjectOrgID(context.Background(), "test")
-		_, err := i.SearchTagValues(ctx, tagKey)
+		_, err := i.SearchTagValues(ctx, tagKey, 0)
 		require.NoError(t, err, "error getting search tag values")
 	})
 

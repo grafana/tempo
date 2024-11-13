@@ -7,33 +7,39 @@ import (
 )
 
 type DistinctString struct {
-	values      map[string]struct{}
-	new         map[string]struct{}
-	maxLen      int
-	currLen     int
-	diffEnabled bool
-	limExceeded bool
-	mtx         sync.Mutex
+	values           map[string]struct{}
+	new              map[string]struct{}
+	maxDataSize      int
+	currDataSize     int
+	currentValuesLen uint32
+	maxValues        uint32
+	diffEnabled      bool
+	limExceeded      bool
+	mtx              sync.Mutex
 }
 
-// NewDistinctString with the given maximum data size. This is calculated
-// as the total length of the recorded strings. For ease of use, maximum=0
-// is interpreted as unlimited.
-func NewDistinctString(maxDataSize int) *DistinctString {
+// NewDistinctString with the given maximum data size and max items.
+// MaxDataSize is calculated as the total length of the recorded strings.
+// For ease of use, maxDataSize=0 and maxItems=0 are interpreted as unlimited.
+func NewDistinctString(maxDataSize int, maxValues uint32) *DistinctString {
 	return &DistinctString{
 		values:      make(map[string]struct{}),
-		maxLen:      maxDataSize,
+		maxDataSize: maxDataSize,
 		diffEnabled: false, // disable diff to make it faster
+		maxValues:   maxValues,
 	}
 }
 
 // NewDistinctStringWithDiff is like NewDistinctString but with diff support enabled.
-func NewDistinctStringWithDiff(maxDataSize int) *DistinctString {
+// MaxDataSize is calculated as the total length of the recorded strings.
+// For ease of use, maxDataSize=0 and maxItems=0 are interpreted as unlimited.
+func NewDistinctStringWithDiff(maxDataSize int, maxValues uint32) *DistinctString {
 	return &DistinctString{
 		values:      make(map[string]struct{}),
 		new:         make(map[string]struct{}),
-		maxLen:      maxDataSize,
+		maxDataSize: maxDataSize,
 		diffEnabled: true,
+		maxValues:   maxValues,
 	}
 }
 
@@ -55,7 +61,7 @@ func (d *DistinctString) Collect(s string) (added bool) {
 
 	valueLen := len(s)
 	// Can it fit?
-	if d.maxLen > 0 && d.currLen+valueLen > d.maxLen {
+	if (d.maxDataSize > 0 && d.currDataSize+valueLen > d.maxDataSize) || (d.maxValues > 0 && d.currentValuesLen >= d.maxValues) {
 		// No, it can't fit
 		d.limExceeded = true
 		return false
@@ -68,7 +74,8 @@ func (d *DistinctString) Collect(s string) (added bool) {
 		d.new[s] = struct{}{}
 	}
 	d.values[s] = struct{}{}
-	d.currLen += valueLen
+	d.currDataSize += valueLen
+	d.currentValuesLen++
 
 	return true
 }
@@ -101,7 +108,7 @@ func (d *DistinctString) Size() int {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	return d.currLen
+	return d.currDataSize
 }
 
 // Diff returns all new strings collected since the last time diff was called
