@@ -360,6 +360,8 @@ Parameters:
   Optional. Along with `end`, defines a time range from which tags should be returned.
 - `end = (unix epoch seconds)`
   Optional. Along with `start`, defines a time range from which tags should be returned. Providing both `start` and `end` includes blocks for the specified time range only.
+- `limit = (integer)`
+  Optional. Limits the maximum number of tags
 
 
 ### Search tags V2
@@ -385,6 +387,8 @@ Parameters:
   Optional. Along with `end` define a time range from which tags should be returned.
 - `end = (unix epoch seconds)`
   Optional. Along with `start` define a time range from which tags should be returned. Providing both `start` and `end` includes blocks for the specified time range only.
+- `limit = (integer)`
+  Optional. Limits the maximum number of tags per scope
 
 #### Example
 
@@ -515,6 +519,8 @@ Parameters:
   Optional. Along with `end`, defines a time range from which tags should be returned.
 - `end = (unix epoch seconds)`
   Optional. Along with `start`, defines a time range from which tags should be returned. Providing both `start` and `end` includes blocks for the specified time range only.
+- `limit = (integer)`
+  Optional. Limits the maximum number of tags values
 
 
 ### Search tag values V2
@@ -561,7 +567,16 @@ $ curl -G -s http://localhost:3200/api/v2/search/tag/.service.name/values | jq
   }
 }
 ```
-This endpoint can also receive `start` and `end` optional parameters. These parameters define the time range from which the tags are fetched
+Parameters:
+- `start = (unix epoch seconds)`
+  Optional. Along with `end`, defines a time range from which tags values should be returned.
+- `end = (unix epoch seconds)`
+  Optional. Along with `start`, defines a time range from which tags values should be returned. Providing both `start` and `end` includes blocks for the specified time range only.
+- `q = (traceql query)`
+  Optional. A TraceQL query to filter tag values by. Currently only works for a single spanset of `&&`ed conditions. For example: `{ span.foo = "bar" && resource.baz = "bat" ...}`. See also [Filtered tag values](#filtered-tag-values).
+- `limit = (integer)`
+  Optional. Limits the maximum number of tags values
+
 
 #### Filtered tag values
 
