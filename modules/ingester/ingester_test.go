@@ -320,7 +320,8 @@ func TestIngesterStartingReadOnly(t *testing.T) {
 		defaultIngesterTestConfig(),
 		defaultIngesterStore(t, t.TempDir()),
 		limits,
-		prometheus.NewPedanticRegistry())
+		prometheus.NewPedanticRegistry(),
+		false)
 	require.NoError(t, err)
 
 	_, err = ingester.PushBytesV2(ctx, &tempopb.PushBytesRequest{})
@@ -455,7 +456,7 @@ func defaultIngesterWithOverrides(t testing.TB, tmpDir string, o overrides.Confi
 
 	s := defaultIngesterStore(t, tmpDir)
 
-	ingester, err := New(ingesterConfig, s, limits, prometheus.NewPedanticRegistry())
+	ingester, err := New(ingesterConfig, s, limits, prometheus.NewPedanticRegistry(), false)
 	require.NoError(t, err, "unexpected error creating ingester")
 	ingester.replayJitter = false
 

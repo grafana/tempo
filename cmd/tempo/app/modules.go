@@ -283,7 +283,12 @@ func (t *App) initIngester() (services.Service, error) {
 	t.cfg.Ingester.LifecyclerConfig.ListenPort = t.cfg.Server.GRPCListenPort
 	t.cfg.Ingester.DedicatedColumns = t.cfg.StorageConfig.Trace.Block.DedicatedColumns
 	t.cfg.Ingester.IngestStorageConfig = t.cfg.Ingest
-	ingester, err := ingester.New(t.cfg.Ingester, t.store, t.Overrides, prometheus.DefaultRegisterer)
+
+	// In SingleBinary mode don't try to discover parition from host name. Always use
+	// partition 0. This is for small installs or local/debugging setups.
+	singlePartition := t.cfg.Target == SingleBinary
+
+	ingester, err := ingester.New(t.cfg.Ingester, t.store, t.Overrides, prometheus.DefaultRegisterer, singlePartition)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ingester: %w", err)
 	}
@@ -327,6 +332,11 @@ func (t *App) initGenerator() (services.Service, error) {
 func (t *App) initBlockBuilder() (services.Service, error) {
 	t.cfg.BlockBuilder.IngestStorageConfig = t.cfg.Ingest
 	t.cfg.BlockBuilder.IngestStorageConfig.Kafka.ConsumerGroup = blockbuilder.ConsumerGroup
+
+	if t.cfg.Target == SingleBinary && len(t.cfg.BlockBuilder.AssignedPartitions) == 0 {
+		// In SingleBinary mode always use partition 0. This is for small installs or local/debugging setups.
+		t.cfg.BlockBuilder.AssignedPartitions = append(t.cfg.BlockBuilder.AssignedPartitions, 0)
+	}
 
 	t.blockBuilder = blockbuilder.New(t.cfg.BlockBuilder, log.Logger, t.partitionRing, t.Overrides, t.store)
 
@@ -658,7 +668,7 @@ func (t *App) setupModuleManager() error {
 		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},
 		ScalableSingleBinary: {SingleBinary},
-		//GeneratorBuilder:     {MetricsGenerator, BlockBuilder},
+		// GeneratorBuilder:     {MetricsGenerator, BlockBuilder},
 	}
 
 	for mod, targets := range deps {
