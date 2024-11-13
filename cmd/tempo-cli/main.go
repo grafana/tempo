@@ -79,7 +79,7 @@ var cli struct {
 	} `cmd:""`
 
 	RewriteBlocks struct {
-		DropTrace dropTraceCmd `cmd:"" help:"rewrite blocks with a given trace id redacted"`
+		DropTraces dropTracesCmd `cmd:"" help:"rewrite blocks with given trace ids redacted"`
 	} `cmd:""`
 
 	Parquet struct {
