@@ -2,6 +2,7 @@ package blockbuilder
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/require"
+	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
 	"go.uber.org/atomic"
@@ -71,6 +73,89 @@ func TestBlockbuilder(t *testing.T) {
 	}, time.Minute, time.Second)
 }
 
+// FIXME - Test is unstable and will fail if records cross two consumption cycles,
+//
+//	because it's asserting that there is exactly two commits, one of which fails.
+//	It can be 3 commits if the records cross two consumption cycles.
+//	🤷
+func TestBlockbuilderDeterministicComsumption(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+
+	k, address := testkafka.CreateClusterWithoutCustomConsumerGroupsSupport(t, 1, "test-topic")
+	t.Cleanup(k.Close)
+
+	kafkaCommits := atomic.NewInt32(0)
+	k.ControlKey(kmsg.OffsetCommit.Int16(), func(req kmsg.Request) (kmsg.Response, error, bool) {
+		k.KeepControl()
+		defer kafkaCommits.Add(1)
+
+		if kafkaCommits.Load() == 0 { // First commit fails
+			res := kmsg.NewOffsetCommitResponse()
+			res.Version = req.GetVersion()
+			res.Topics = []kmsg.OffsetCommitResponseTopic{
+				{
+					Topic: testTopic,
+					Partitions: []kmsg.OffsetCommitResponseTopicPartition{
+						{
+							Partition: 0,
+							ErrorCode: kerr.RebalanceInProgress.Code,
+						},
+					},
+				},
+			}
+			return &res, nil, true
+		}
+
+		return nil, nil, false
+	})
+
+	store := newStore(t)
+	store.EnablePolling(ctx, nil)
+	cfg := blockbuilderConfig(t, address)
+	logger := test.NewTestingLogger(t)
+
+	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
+	// Send for 1 second, <1 consumption cycles
+	timer := time.NewTimer(1 * time.Second)
+sendLoop:
+	for {
+		select {
+		case <-timer.C:
+			break sendLoop
+		default:
+			traceID := make([]byte, 16)
+			_, err := rand.Read(traceID)
+			require.NoError(t, err)
+
+			req := test.MakePushBytesRequest(t, 10, traceID)
+			records, err := ingest.Encode(0, util.FakeTenantID, req, 1_000_000)
+			require.NoError(t, err)
+
+			res := client.ProduceSync(ctx, records...)
+			require.NoError(t, res.FirstErr())
+
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+
+	b := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	})
+
+	// Wait for record to be consumed and committed.
+	require.Eventually(t, func() bool {
+		return kafkaCommits.Load() == 2 // First commit fails, second commit succeeds
+	}, time.Minute, time.Second)
+
+	// Wait for the block to be flushed.
+	require.Eventually(t, func() bool {
+		return len(store.BlockMetas(util.FakeTenantID)) == 1 // Only one block should be written
+	}, time.Minute, time.Second)
+}
+
 func blockbuilderConfig(_ *testing.T, address string) Config {
 	cfg := Config{}
 	flagext.DefaultValues(&cfg)
@@ -83,7 +168,7 @@ func blockbuilderConfig(_ *testing.T, address string) Config {
 	cfg.IngestStorageConfig.Kafka.ConsumerGroup = "test-consumer-group"
 
 	cfg.AssignedPartitions = []int32{0}
-	cfg.LookbackOnNoCommit = 1 * time.Minute
+	cfg.LookbackOnNoCommit = 15 * time.Second
 	cfg.ConsumeCycleDuration = 5 * time.Second
 
 	return cfg
@@ -108,7 +193,7 @@ func newStore(t *testing.T) storage.Store {
 			WAL: &wal.Config{
 				Filepath: tmpDir,
 			},
-			BlocklistPoll:         5 * time.Second,
+			BlocklistPoll:         50 * time.Second,
 			BlocklistPollFallback: true,
 		},
 	}, nil, test.NewTestingLogger(t))
