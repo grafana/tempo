@@ -199,8 +199,10 @@ tempo:
         client_ca_file: /tls/ca.crt
         key_file: /tls/tls.key
       http_tls_config:
+        cert_file: /tls/tls.crt
         client_auth_type: VerifyClientCertIfGiven
         client_ca_file: /tls/ca.crt
+        key_file: /tls/tls.key
 traces:
   otlp:
     grpc:
