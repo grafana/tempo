@@ -1896,7 +1896,7 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 			continue
 
 		case traceql.IntrinsicDuration:
-			pred, err := createIntPredicate(cond.Op, cond.Operands)
+			pred, err := createNumericPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, err
 			}
@@ -2494,6 +2494,19 @@ func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan
 	default:
 		return nil, fmt.Errorf("operator not supported for IDs: %+v", op)
 	}
+}
+
+func createNumericPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
+	if op == traceql.OpNone {
+		return nil, nil
+	}
+
+	if operands[0].Type == traceql.TypeFloat {
+		// The column is already indexed as int, so we need to convert the float to int
+		operands = traceql.Operands{traceql.NewStaticInt(int(operands[0].Float()))}
+	}
+
+	return createIntPredicate(op, operands)
 }
 
 func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
