@@ -51,7 +51,7 @@
 * [ENHANCEMENT] chore: remove gofakeit dependency [#4274](https://github.com/grafana/tempo/pull/4274) (@javiermolinar)
 * [ENHANCEMENT] Add a max flush attempts and metric to the metrics generator [#4254](https://github.com/grafana/tempo/pull/4254) (@joe-elliott)
 * [ENHANCEMENT] Collection of query-frontend changes to reduce allocs. [#4242](https://github.com/grafana/tempo/pull/4242) (@joe-elliott)
-* [ENHANCEMENT] Added `insecure-skip-verify` option in tempo-cli to skip SSL certificate validation when connecting to the S3 backend. [#44236](https://github.com/grafana/tempo/pull/4259) (@faridtmammadov)
+* [ENHANCEMENT] Added `insecure-skip-verify` option in tempo-cli to skip SSL certificate validation when connecting to the S3 backend. [#4259](https://github.com/grafana/tempo/pull/4259) (@faridtmammadov)
 * [ENHANCEMENT] Chore: delete spanlogger. [4312](https://github.com/grafana/tempo/pull/4312) (@javiermolinar)
 * [ENHANCEMENT] Add `invalid_utf8` to reasons spanmetrics will discard spans. [#4293](https://github.com/grafana/tempo/pull/4293) (@zalegrala)
 * [ENHANCEMENT] Reduce frontend and querier allocations by dropping HTTP headers early in the pipeline. [#4298](https://github.com/grafana/tempo/pull/4298) (@joe-elliott)
@@ -59,10 +59,11 @@
 * [BUGFIX] Metrics generators: Correctly drop from the ring before stopping ingestion to reduce drops during a rollout. [#4101](https://github.com/grafana/tempo/pull/4101) (@joe-elliott)
 * [BUGFIX] Correctly handle 400 Bad Request and 404 Not Found in gRPC streaming [#4144](https://github.com/grafana/tempo/pull/4144) (@mapno)
 * [BUGFIX] Pushes a 0 to classic histogram's counter when the series is new to allow Prometheus to start from a non-null value. [#4140](https://github.com/grafana/tempo/pull/4140) (@mapno)
-* [BUGFIX] Fix counter samples being downsampled by backdate to the previous minute the initial sample when the series is new [#44236](https://github.com/grafana/tempo/pull/4236) (@javiermolinar)
+* [BUGFIX] Fix counter samples being downsampled by backdate to the previous minute the initial sample when the series is new [#4236](https://github.com/grafana/tempo/pull/4236) (@javiermolinar)
+* [BUGFIX] Fix traceql metrics time range handling at the cutoff between recent and backend data [#4257](https://github.com/grafana/tempo/issues/4257) (@mdisibio)
 * [BUGFIX] Skip computing exemplars for instant queries. [#4204](https://github.com/grafana/tempo/pull/4204) (@javiermolinar)
 * [BUGFIX] Gave context to orphaned spans related to various maintenance processes. [#4260](https://github.com/grafana/tempo/pull/4260) (@joe-elliott)
-* [BUGFIX] Utilize S3Pass and S3User parameters in tempo-cli options, which were previously unused in the code. [#44236](https://github.com/grafana/tempo/pull/4259) (@faridtmammadov)
+* [BUGFIX] Utilize S3Pass and S3User parameters in tempo-cli options, which were previously unused in the code. [#4259](https://github.com/grafana/tempo/pull/4259) (@faridtmammadov)
 
 # v2.6.1
 
