@@ -99,7 +99,7 @@ The above structure can be set on the following receiver configurations:
 
 ### Configure TLS with Helm
 
-To configure TLS with the Helm chart, you must have a TLS key-pair and CA certificate stored in a Kubernetes secret. The following example mounts a secret called `tempo-distributed-tls` into the pods at `/tls` and modifies the configuration of Tempo to make use of them. Note that the `tls_server_name` configuration must match the certificate. In this example a single TLS certificate is shared among the Tempo components.
+To configure TLS with the Helm chart, you must have a TLS key-pair and CA certificate stored in a Kubernetes secret. The following example mounts a secret called `tempo-distributed-tls` into the pods at `/tls` and modifies the configuration of Tempo to make use of the files. In this example the Tempo components share a single TLS certificate. Note that the `tls_server_name` configuration must match the certificate.
 
 ```yaml
 compactor:
@@ -207,4 +207,16 @@ traces:
   otlp:
     grpc:
       enabled: true
+```
+
+See the [`prometheus.scrape` docs for Alloy](https://grafana.com/docs/alloy/latest/reference/components/prometheus/prometheus.scrape/) to configure TLS on the scrape. A relabel configuration like the following will do this configuration for you dynamically.
+
+```json
+{
+  source_labels: ['__meta_kubernetes_pod_annotation_prometheus_io_scheme'],
+  action: 'replace',
+  target_label: '__scheme__',
+  regex: '(https?)',
+  replacement: '$1',
+},
 ```
