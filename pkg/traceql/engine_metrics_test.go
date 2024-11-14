@@ -41,7 +41,7 @@ func TestStepRangeToIntervals(t *testing.T) {
 			start:    0,
 			end:      10,
 			step:     3,
-			expected: 4, // 0, 3, 6, 9
+			expected: 5, // 0, 3, 6, 9, 12
 		},
 	}
 
@@ -60,9 +60,9 @@ func TestTimestampOf(t *testing.T) {
 		},
 		{
 			interval: 2,
-			start:    10,
+			start:    10, // aligned to 9
 			step:     3,
-			expected: 16,
+			expected: 15, // 9, 12, 15 <-- intervals
 		},
 	}
 
@@ -104,21 +104,16 @@ func TestTrimToOverlap(t *testing.T) {
 		expectedStep               time.Duration
 	}{
 		{
-			// Inner range of 33 to 38
-			// gets rounded at 5m intervals to 30 to 40
+			// Fully overlapping
 			"2024-01-01 01:00:00", "2024-01-01 02:00:00", 5 * time.Minute,
 			"2024-01-01 01:33:00", "2024-01-01 01:38:00",
-			"2024-01-01 01:30:00", "2024-01-01 01:40:00", 5 * time.Minute,
+			"2024-01-01 01:33:00", "2024-01-01 01:38:00", 5 * time.Minute,
 		},
 		{
 			// Partially Overlapping
-			// Overlap between 1:01-2:01 and 1:31-2:31
-			// in 5m intervals is only 1:30-2:05
-			// Start is pushed back
-			// and end is pushed out
 			"2024-01-01 01:01:00", "2024-01-01 02:01:00", 5 * time.Minute,
 			"2024-01-01 01:31:00", "2024-01-01 02:31:00",
-			"2024-01-01 01:30:00", "2024-01-01 02:05:00", 5 * time.Minute,
+			"2024-01-01 01:31:00", "2024-01-01 02:01:00", 5 * time.Minute,
 		},
 		{
 			// Instant query
