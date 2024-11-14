@@ -185,9 +185,8 @@ func (b *BlockBuilder) consumeCycle(ctx context.Context, cycleEndTime time.Time)
 			continue
 		}
 
-		err = b.consumePartition(ctx, partition, partitionLag, cycleEndTime)
-		if err != nil {
-			return fmt.Errorf("failed to consume partition: %w", err)
+		if err = b.consumePartition(ctx, partition, partitionLag, cycleEndTime); err != nil {
+			_ = level.Error(b.logger).Log("msg", "failed to consume partition", "partition", partition, "err", err)
 		}
 	}
 	return nil
@@ -196,26 +195,41 @@ func (b *BlockBuilder) consumeCycle(ctx context.Context, cycleEndTime time.Time)
 func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, partitionLag kadm.GroupMemberLag, cycleEndTime time.Time) error {
 	level.Info(b.logger).Log("msg", "consuming partition", "partition", partition)
 
-	partitionProcessor := newPartitionProcessor(b.logger, b.cfg.blockConfig, b.overrides, b.wal, b.enc)
-
 	sectionEndTime := cycleEndTime
 	commitRecTs := time.UnixMilli(max(partitionLag.Commit.At, b.fallbackOffsetMillis))
 	if sectionEndTime.Sub(commitRecTs) > time.Duration(1.5*float64(b.cfg.ConsumeCycleDuration)) {
 		// We're lagging behind or there is no commit, we need to consume in smaller sections.
 		sectionEndTime, _ = nextCycleEnd(commitRecTs, b.cfg.ConsumeCycleDuration)
 	}
+	// Continue consuming in sections until we're caught up.
 	for !sectionEndTime.After(cycleEndTime) {
-		err := b.consumePartitionSection(ctx, partition, sectionEndTime, partitionLag, partitionProcessor)
+		newCommitAt, err := b.consumePartitionSection(ctx, partition, sectionEndTime, partitionLag)
 		if err != nil {
 			return fmt.Errorf("failed to consume partition section: %w", err)
 		}
 		sectionEndTime = sectionEndTime.Add(b.cfg.ConsumeCycleDuration)
+		if newCommitAt > partitionLag.Commit.At {
+			// We've committed a new offset, so we need to update the lag.
+			partitionLag.Commit.At = newCommitAt
+			partitionLag.Lag = partitionLag.End.Offset - newCommitAt
+		}
 	}
 	return nil
 }
 
-func (b *BlockBuilder) consumePartitionSection(ctx context.Context, partition int32, sectionEndTime time.Time, lag kadm.GroupMemberLag, p partitionWriter) error {
-	level.Info(b.logger).Log("msg", "consuming partition section", "partition", partition, "section_end", sectionEndTime)
+func (b *BlockBuilder) consumePartitionSection(ctx context.Context, partition int32, sectionEndTime time.Time, lag kadm.GroupMemberLag) (int64, error) {
+	level.Info(b.logger).Log(
+		"msg", "consuming partition section",
+		"partition", partition,
+		"section_end", sectionEndTime,
+		"commit_offset", lag.Commit.At,
+		"start_offset", lag.Start.Offset,
+		"end_offset", lag.End.Offset,
+		"lag", lag.Lag,
+	)
+
+	// TODO - Review what ts is used here
+	writer := newPartitionSectionWriter(b.logger, sectionEndTime.UnixMilli(), b.cfg.blockConfig, b.overrides, b.wal, b.enc)
 
 	// We always rewind the partition's offset to the commit offset by reassigning the partition to the client (this triggers partition assignment).
 	// This is so the cycle started exactly at the commit offset, and not at what was (potentially over-) consumed previously.
@@ -236,7 +250,7 @@ func (b *BlockBuilder) consumePartitionSection(ctx context.Context, partition in
 consumerLoop:
 	for recOffset := int64(-1); recOffset < lag.End.Offset-1; {
 		if err := context.Cause(ctx); err != nil {
-			return err
+			return lag.Commit.At, err
 		}
 
 		// PollFetches can return a non-failed fetch with zero records. In such a case, with only the fetches at hands,
@@ -253,6 +267,7 @@ consumerLoop:
 		for recIter := fetches.RecordIter(); !recIter.Done(); {
 			rec := recIter.Next()
 			recOffset = rec.Offset
+			level.Info(b.logger).Log("msg", "processing record", "partition", rec.Partition, "offset", rec.Offset, "timestamp", rec.Timestamp)
 
 			if firstRec == nil {
 				firstRec = rec
@@ -264,10 +279,10 @@ consumerLoop:
 				break consumerLoop
 			}
 
-			err := b.pushTraces(rec.Key, rec.Value, p) // TODO - Batch pushes by tenant
+			err := b.pushTraces(rec.Key, rec.Value, writer) // TODO - Batch pushes by tenant
 			if err != nil {
 				// All "non-terminal" errors are handled by the TSDBBuilder.
-				return fmt.Errorf("process record in partition %d at offset %d: %w", rec.Partition, rec.Offset, err)
+				return lag.Commit.At, fmt.Errorf("process record in partition %d at offset %d: %w", rec.Partition, rec.Offset, err)
 			}
 			lastRec = rec
 		}
@@ -276,17 +291,17 @@ consumerLoop:
 	// Nothing was consumed from Kafka at all.
 	if firstRec == nil {
 		level.Info(b.logger).Log("msg", "no records were consumed")
-		return nil
+		return lag.Commit.At, nil
 	}
 
 	// No records were processed for this cycle.
 	if lastRec == nil {
 		level.Info(b.logger).Log("msg", "nothing to commit due to first record has a timestamp greater than this section end", "first_rec_offset", firstRec.Offset, "first_rec_ts", firstRec.Timestamp)
-		return nil
+		return lag.Commit.At, nil
 	}
 
-	if err := p.Flush(ctx, b.writer); err != nil {
-		return fmt.Errorf("failed to flush partition to object storage: %w", err)
+	if err := writer.flush(ctx, b.writer); err != nil {
+		return lag.Commit.At, fmt.Errorf("failed to flush partition to object storage: %w", err)
 	}
 
 	commit := kadm.Offset{
@@ -295,7 +310,7 @@ consumerLoop:
 		At:          lastRec.Offset + 1, // offset+1 means everything up to (including) the offset was processed
 		LeaderEpoch: lastRec.LeaderEpoch,
 	}
-	return b.commitState(ctx, commit)
+	return commit.At, b.commitState(ctx, commit)
 }
 
 func (b *BlockBuilder) commitState(ctx context.Context, commit kadm.Offset) error {
@@ -304,26 +319,23 @@ func (b *BlockBuilder) commitState(ctx context.Context, commit kadm.Offset) erro
 
 	// TODO - Commit with backoff
 	adm := kadm.NewClient(b.kafkaClient)
-	res, err := adm.CommitOffsets(ctx, b.cfg.IngestStorageConfig.Kafka.ConsumerGroup, offsets)
+	err := adm.CommitAllOffsets(ctx, b.cfg.IngestStorageConfig.Kafka.ConsumerGroup, offsets)
 	if err != nil {
 		return fmt.Errorf("failed to commit offsets: %w", err)
-	}
-	if res.Error() != nil {
-		return fmt.Errorf("commit offsets error: %w", res.Error())
 	}
 	level.Info(b.logger).Log("msg", "successfully committed offset to kafka", "offset", commit.At)
 
 	return nil
 }
 
-func (b *BlockBuilder) pushTraces(tenantBytes, reqBytes []byte, p partitionWriter) error {
+func (b *BlockBuilder) pushTraces(tenantBytes, reqBytes []byte, p partitionSectionWriter) error {
 	req, err := b.decoder.Decode(reqBytes)
 	if err != nil {
 		return fmt.Errorf("failed to decode trace: %w", err)
 	}
 	defer b.decoder.Reset()
 
-	return p.PushBytes(string(tenantBytes), req)
+	return p.pushBytes(string(tenantBytes), req)
 }
 
 func (b *BlockBuilder) getAssignedActivePartitions() []int32 {

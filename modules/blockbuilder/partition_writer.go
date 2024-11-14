@@ -8,20 +8,22 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
-type partitionWriter interface {
-	PushBytes(tenant string, req *tempopb.PushBytesRequest) error
-	Flush(ctx context.Context, store tempodb.Writer) error
+type partitionSectionWriter interface {
+	pushBytes(tenant string, req *tempopb.PushBytesRequest) error
+	flush(ctx context.Context, store tempodb.Writer) error
 }
 
 type writer struct {
 	logger log.Logger
 
-	blockCfg BlockConfig
+	blockCfg   BlockConfig
+	cycleEndTs int64
 
 	overrides Overrides
 	wal       *wal.WAL
@@ -31,22 +33,24 @@ type writer struct {
 	m map[string]*tenantStore
 }
 
-func newPartitionProcessor(logger log.Logger, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
+func newPartitionSectionWriter(logger log.Logger, cycleEndTs int64, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
 	return &writer{
-		logger:    logger,
-		blockCfg:  blockCfg,
-		overrides: overrides,
-		wal:       wal,
-		enc:       enc,
-		m:         make(map[string]*tenantStore),
+		logger:     logger,
+		cycleEndTs: cycleEndTs,
+		blockCfg:   blockCfg,
+		overrides:  overrides,
+		wal:        wal,
+		enc:        enc,
+		m:          make(map[string]*tenantStore),
 	}
 }
 
-func (p *writer) PushBytes(tenant string, req *tempopb.PushBytesRequest) error {
+func (p *writer) pushBytes(tenant string, req *tempopb.PushBytesRequest) error {
 	level.Info(p.logger).Log(
 		"msg", "pushing bytes",
 		"tenant", tenant,
 		"num_traces", len(req.Traces),
+		"id", util.TraceIDToHexString(req.Ids[0].Slice),
 	)
 
 	i, err := p.instanceForTenant(tenant)
@@ -68,7 +72,7 @@ func (p *writer) PushBytes(tenant string, req *tempopb.PushBytesRequest) error {
 	return nil
 }
 
-func (p *writer) Flush(ctx context.Context, store tempodb.Writer) error {
+func (p *writer) flush(ctx context.Context, store tempodb.Writer) error {
 	// TODO - Retry with backoff?
 	for _, i := range p.m {
 		level.Info(p.logger).Log("msg", "flushing tenant", "tenant", i.tenantID)
@@ -84,7 +88,7 @@ func (p *writer) instanceForTenant(tenant string) (*tenantStore, error) {
 		return i, nil
 	}
 
-	i, err := newTenantStore(tenant, p.blockCfg, p.logger, p.wal, p.enc, p.overrides)
+	i, err := newTenantStore(tenant, p.cycleEndTs, p.blockCfg, p.logger, p.wal, p.enc, p.overrides)
 	if err != nil {
 		return nil, err
 	}
