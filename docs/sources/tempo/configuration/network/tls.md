@@ -151,7 +151,16 @@ queryFrontend:
       secret:
         secretName: tempo-distributed-tls
 tempo:
+  readinessProbe:
+    httpGet:
+      scheme: HTTPS
   structuredConfig:
+    memberlist:
+      tls_ca_path: /tls/ca.crt
+      tls_cert_path: /tls/tls.crt
+      tls_enabled: true
+      tls_key_path: /tls/tls.key
+      tls_server_name: t-dist.tempo-distributed.svc.cluster.znet
     distributor:
       receivers:
         otlp:
