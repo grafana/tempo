@@ -105,28 +105,28 @@ Attributes example:
 
 The following table shows the current available scoped intrinsic fields:
 
-| **Field**                | **Type**    | **Definition**                                                  | **Example**                            |
-| ------------------------ | ----------- | --------------------------------------------------------------- | -------------------------------------- |
-| `span:status`            | status enum | status: error, ok, or unset                                     | `{ span:status = ok }`                 |
-| `span:statusMessage`     | string      | optional text accompanying the span status                      | `{ span:statusMessage = "Forbidden" }` |
-| `span:duration`          | duration    | end - start time of the span                                    | `{ span:duration > 100ms }`            |
-| `span:name`              | string      | operation or span name                                          | `{ span:name = "HTTP POST" }`          |
-| `span:kind`              | kind enum   | kind: server, client, producer, consumer, internal, unspecified | `{ span:kind = server }`               |
-| `span:id`                | string      | span id using hex string                                        | `{ span:id = "0000000000000001" }`     |
-| `trace:duration`         | duration    | max(end) - min(start) time of the spans in the trace            | `{ trace:duration > 100ms }`           |
-| `trace:rootName`         | string      | if it exists the name of the root span in the trace             | `{ trace:rootName = "HTTP GET" }`      |
-| `trace:rootService`      | string      | if it exists the service name of the root span in the trace     | `{ trace:rootServiceName = "gateway" }`|
-| `trace:id`               | string      | trace id using hex string                                       | `{ trace:id = "1234567890abcde" }`     |
-| `event:name`             | string      | name of event                                                   | `{ event:name = "exception" }`         |
-| `event:timeSinceStart`   | duration    | time of event in relation to the span start time                | `{ event:timeSinceStart > 2ms}`        |
-| `link:spanID`            | string      | link span id using hex string                                   | `{ link:spanID = "0000000000000001" }` |
-| `link:traceID`           | string      | link trace id using hex string                                  | `{ link:traceID = "1234567890abcde" }` |
+| **Field**                | **Type**    | **Definition**                                                  | **Example**                             |
+| ------------------------ | ----------- | --------------------------------------------------------------- | --------------------------------------- |
+| `span:status`            | status enum | status: error, ok, or unset                                     | `{ span:status = ok }`                  |
+| `span:statusMessage`     | string      | optional text accompanying the span status                      | `{ span:statusMessage = "Forbidden" }`  |
+| `span:duration`          | duration    | end - start time of the span                                    | `{ span:duration > 100ms }`             |
+| `span:name`              | string      | operation or span name                                          | `{ span:name = "HTTP POST" }`           |
+| `span:kind`              | kind enum   | kind: server, client, producer, consumer, internal, unspecified | `{ span:kind = server }`                |
+| `span:id`                | string      | span id using hex string                                        | `{ span:id = "0000000000000001" }`      |
+| `trace:duration`         | duration    | max(end) - min(start) time of the spans in the trace            | `{ trace:duration > 100ms }`            |
+| `trace:rootName`         | string      | if it exists, the name of the root span in the trace            | `{ trace:rootName = "HTTP GET" }`       |
+| `trace:rootService`      | string      | if it exists, the service name of the root span in the trace    | `{ trace:rootService = "gateway" }`     |
+| `trace:id`               | string      | trace id using hex string                                       | `{ trace:id = "1234567890abcde" }`      |
+| `event:name`             | string      | name of event                                                   | `{ event:name = "exception" }`          |
+| `event:timeSinceStart`   | duration    | time of event in relation to the span start time                | `{ event:timeSinceStart > 2ms}`         |
+| `link:spanID`            | string      | link span id using hex string                                   | `{ link:spanID = "0000000000000001" }`  |
+| `link:traceID`           | string      | link trace id using hex string                                  | `{ link:traceID = "1234567890abcde" }`  |
 
 <!-- instrumentation scope isn't included in the 2.6 documentation
-| `instrumentation:name`   | string      | instrumentation scope name                                      | `{ instrumentation:name = "grpc" }`    |
-| `instrumentation:version`| string      | instrumentation scope version                                   | `{ instrumentation:version = "1.0.0" }`|
+| `instrumentation:name`   | string      | instrumentation scope name                                      | `{ instrumentation:name = "grpc" }`     |
+| `instrumentation:version`| string      | instrumentation scope version                                   | `{ instrumentation:version = "1.0.0" }` |
 -->
-
+ 
 The trace-level intrinsics, `trace:duration`, `trace:rootName`, and `trace:rootService`, are the same for all spans in the same trace.
 Additionally, these intrinsics are significantly more performant because they have to inspect much less data then a span-level intrinsic.
 They should be preferred whenever possible to span-level intrinsics.
