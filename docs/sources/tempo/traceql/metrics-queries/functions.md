@@ -26,7 +26,7 @@ These functions can be added as an operator at the end of any TraceQL query.
 
 `min_over_time`
 : Returns the minimum value for the specified attribute across all matching spans per time interval (refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics)).
-
+ 
 `max_over_time`
 : Returns the maximum value for the specified attribute across all matching spans per time interval (refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics)).
 
