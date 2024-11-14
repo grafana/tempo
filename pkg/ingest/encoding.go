@@ -17,6 +17,24 @@ var encoderPool = sync.Pool{
 	},
 }
 
+func encoderPoolGet() *tempopb.PushBytesRequest {
+	x := encoderPool.Get()
+	if x != nil {
+		return x.(*tempopb.PushBytesRequest)
+	}
+
+	return &tempopb.PushBytesRequest{
+		Traces: make([]tempopb.PreallocBytes, 0, 10),
+		Ids:    make([]tempopb.PreallocBytes, 0, 10),
+	}
+}
+
+func encoderPoolPut(req *tempopb.PushBytesRequest) {
+	req.Traces = req.Traces[:0]
+	req.Ids = req.Ids[:0]
+	encoderPool.Put(req)
+}
+
 func Encode(partitionID int32, tenantID string, req *tempopb.PushBytesRequest, maxSize int) ([]*kgo.Record, error) {
 	reqSize := req.Size()
 
@@ -30,16 +48,8 @@ func Encode(partitionID int32, tenantID string, req *tempopb.PushBytesRequest, m
 	}
 
 	var records []*kgo.Record
-	batch := encoderPool.Get().(*tempopb.PushBytesRequest)
-	batch.Reset()
-	defer encoderPool.Put(batch)
-
-	if batch.Traces == nil {
-		batch.Traces = make([]tempopb.PreallocBytes, 0, 1024) // TODO - Why 1024? Lucky number?
-		batch.Ids = make([]tempopb.PreallocBytes, 0, 1024)
-	}
-	batch.Traces = batch.Traces[:0]
-	batch.Ids = batch.Ids[:0]
+	batch := encoderPoolGet()
+	defer encoderPoolPut(batch)
 	currentSize := 0
 
 	for i, entry := range req.Traces {
