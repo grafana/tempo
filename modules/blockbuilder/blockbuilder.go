@@ -111,19 +111,16 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 }
 
 func (b *BlockBuilder) running(ctx context.Context) error {
-	cycleEndTime := cycleEndAtStartup(time.Now(), b.cfg.ConsumeCycleDuration)
-	err := b.consumeCycle(ctx, cycleEndTime)
-	if err != nil {
-		return fmt.Errorf("failed to consume cycle: %w", err)
-	}
-
 	cycleEndTime, waitTime := nextCycleEnd(time.Now(), b.cfg.ConsumeCycleDuration)
 	for {
 		select {
 		case <-time.After(waitTime):
-			err = b.consumeCycle(ctx, cycleEndTime)
+			err := b.consumeCycle(ctx, cycleEndTime)
 			if err != nil {
-				return fmt.Errorf("failed to consume cycle: %w", err)
+				b.logger.Log("msg", "consumeCycle failed", "err", err)
+
+				// Don't progress cycle forward, keep trying at this timestamp
+				continue
 			}
 
 			cycleEndTime = cycleEndTime.Add(b.cfg.ConsumeCycleDuration)
