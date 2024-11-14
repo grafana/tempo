@@ -1,0 +1,46 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/grafana/tempo/tempodb/encoding/vparquet4
+cpu: Apple M3 Pro
+BenchmarkBackendBlockTraceQL/plain-11         	      24	  49507866 ns/op	 267.32 MB/s	        13.23 MB_io/op	      1909 count_traces	14653052 B/op	  188990 allocs/op
+BenchmarkBackendBlockTraceQL/plain-11         	      24	  49321205 ns/op	 268.33 MB/s	        13.23 MB_io/op	      1909 count_traces	14271174 B/op	  188982 allocs/op
+BenchmarkBackendBlockTraceQL/plain-11         	      22	  49520822 ns/op	 267.25 MB/s	        13.23 MB_io/op	      1909 count_traces	14939133 B/op	  188998 allocs/op
+BenchmarkBackendBlockTraceQL/plain-11         	      22	  49353877 ns/op	 268.15 MB/s	        13.23 MB_io/op	      1909 count_traces	14710592 B/op	  188998 allocs/op
+BenchmarkBackendBlockTraceQL/plain-11         	      24	  49714656 ns/op	 266.20 MB/s	        13.23 MB_io/op	      1909 count_traces	14603296 B/op	  188995 allocs/op
+BenchmarkBackendBlockTraceQL/||ed-11          	      20	  60257285 ns/op	 219.63 MB/s	        13.23 MB_io/op	      2570 count_traces	24966869 B/op	  269249 allocs/op
+BenchmarkBackendBlockTraceQL/||ed-11          	      19	  60477419 ns/op	 218.83 MB/s	        13.23 MB_io/op	      2570 count_traces	25001749 B/op	  269247 allocs/op
+BenchmarkBackendBlockTraceQL/||ed-11          	      19	  58934090 ns/op	 224.56 MB/s	        13.23 MB_io/op	      2570 count_traces	25248229 B/op	  269262 allocs/op
+BenchmarkBackendBlockTraceQL/||ed-11          	      19	  59164143 ns/op	 223.69 MB/s	        13.23 MB_io/op	      2570 count_traces	25192988 B/op	  269257 allocs/op
+BenchmarkBackendBlockTraceQL/||ed-11          	      19	  60085724 ns/op	 220.26 MB/s	        13.23 MB_io/op	      2570 count_traces	25374623 B/op	  269264 allocs/op
+BenchmarkBackendBlockTraceQL/prefix-11        	      22	  51073839 ns/op	 259.12 MB/s	        13.23 MB_io/op	      1909 count_traces	14937038 B/op	  189007 allocs/op
+BenchmarkBackendBlockTraceQL/prefix-11        	      22	  51634650 ns/op	 256.30 MB/s	        13.23 MB_io/op	      1909 count_traces	15086022 B/op	  189013 allocs/op
+BenchmarkBackendBlockTraceQL/prefix-11        	      22	  50751064 ns/op	 260.77 MB/s	        13.23 MB_io/op	      1909 count_traces	14692427 B/op	  188997 allocs/op
+BenchmarkBackendBlockTraceQL/prefix-11        	      22	  50010581 ns/op	 264.63 MB/s	        13.23 MB_io/op	      1909 count_traces	14839815 B/op	  189010 allocs/op
+BenchmarkBackendBlockTraceQL/prefix-11        	      24	  50100198 ns/op	 264.15 MB/s	        13.23 MB_io/op	      1909 count_traces	14993736 B/op	  189008 allocs/op
+BenchmarkBackendBlockTraceQL/postfix-11       	      22	  50735852 ns/op	 260.85 MB/s	        13.23 MB_io/op	      1909 count_traces	14896658 B/op	  189005 allocs/op
+BenchmarkBackendBlockTraceQL/postfix-11       	      22	  50646581 ns/op	 261.30 MB/s	        13.23 MB_io/op	      1909 count_traces	15012682 B/op	  189007 allocs/op
+BenchmarkBackendBlockTraceQL/postfix-11       	      22	  50625157 ns/op	 261.42 MB/s	        13.23 MB_io/op	      1909 count_traces	15057025 B/op	  189005 allocs/op
+BenchmarkBackendBlockTraceQL/postfix-11       	      22	  50523064 ns/op	 261.94 MB/s	        13.23 MB_io/op	      1909 count_traces	14560599 B/op	  188989 allocs/op
+BenchmarkBackendBlockTraceQL/postfix-11       	      24	  52284766 ns/op	 253.12 MB/s	        13.23 MB_io/op	      1909 count_traces	14520102 B/op	  188993 allocs/op
+BenchmarkBackendBlockTraceQL/substring-11     	      22	  51301534 ns/op	 257.97 MB/s	        13.23 MB_io/op	      1909 count_traces	14879464 B/op	  189014 allocs/op
+BenchmarkBackendBlockTraceQL/substring-11     	      22	  51378318 ns/op	 257.58 MB/s	        13.23 MB_io/op	      1909 count_traces	14848390 B/op	  189017 allocs/op
+BenchmarkBackendBlockTraceQL/substring-11     	      22	  51291129 ns/op	 258.02 MB/s	        13.23 MB_io/op	      1909 count_traces	15162484 B/op	  189021 allocs/op
+BenchmarkBackendBlockTraceQL/substring-11     	      22	  51365038 ns/op	 257.65 MB/s	        13.23 MB_io/op	      1909 count_traces	15320967 B/op	  189023 allocs/op
+BenchmarkBackendBlockTraceQL/substring-11     	      22	  51417847 ns/op	 257.39 MB/s	        13.23 MB_io/op	      1909 count_traces	14891007 B/op	  189016 allocs/op
+BenchmarkBackendBlockTraceQL/rando-11         	      22	  51439102 ns/op	 257.28 MB/s	        13.23 MB_io/op	      1909 count_traces	15166610 B/op	  189030 allocs/op
+BenchmarkBackendBlockTraceQL/rando-11         	      22	  51507775 ns/op	 256.94 MB/s	        13.23 MB_io/op	      1909 count_traces	15162800 B/op	  189031 allocs/op
+BenchmarkBackendBlockTraceQL/rando-11         	      22	  51160506 ns/op	 258.68 MB/s	        13.23 MB_io/op	      1909 count_traces	14949706 B/op	  189029 allocs/op
+BenchmarkBackendBlockTraceQL/rando-11         	      22	  51234949 ns/op	 258.30 MB/s	        13.23 MB_io/op	      1909 count_traces	14889725 B/op	  189026 allocs/op
+BenchmarkBackendBlockTraceQL/rando-11         	      22	  52129146 ns/op	 253.87 MB/s	        13.23 MB_io/op	      1909 count_traces	14763520 B/op	  189019 allocs/op
+BenchmarkBackendBlockTraceQL/mixed-11         	      60	  18500931 ns/op	 669.90 MB/s	        12.39 MB_io/op	         6.000 count_traces	 6480897 B/op	   83553 allocs/op
+BenchmarkBackendBlockTraceQL/mixed-11         	      67	  17873664 ns/op	 693.41 MB/s	        12.39 MB_io/op	         6.000 count_traces	 6432750 B/op	   83552 allocs/op
+BenchmarkBackendBlockTraceQL/mixed-11         	      69	  18407347 ns/op	 673.30 MB/s	        12.39 MB_io/op	         6.000 count_traces	 6555614 B/op	   83557 allocs/op
+BenchmarkBackendBlockTraceQL/mixed-11         	      62	  18063715 ns/op	 686.11 MB/s	        12.39 MB_io/op	         6.000 count_traces	 6227092 B/op	   83547 allocs/op
+BenchmarkBackendBlockTraceQL/mixed-11         	      68	  17730117 ns/op	 699.02 MB/s	        12.39 MB_io/op	         6.000 count_traces	 6641418 B/op	   83559 allocs/op
+BenchmarkBackendBlockTraceQL/complex-11       	     246	   4942035 ns/op	 189.59 MB/s	         0.9370 MB_io/op	         0 count_traces	 5663057 B/op	   79609 allocs/op
+BenchmarkBackendBlockTraceQL/complex-11       	     240	   4991318 ns/op	 187.72 MB/s	         0.9370 MB_io/op	         0 count_traces	 5776329 B/op	   79612 allocs/op
+BenchmarkBackendBlockTraceQL/complex-11       	     234	   5182071 ns/op	 180.81 MB/s	         0.9370 MB_io/op	         0 count_traces	 5552751 B/op	   79606 allocs/op
+BenchmarkBackendBlockTraceQL/complex-11       	     240	   4952578 ns/op	 189.18 MB/s	         0.9370 MB_io/op	         0 count_traces	 5643774 B/op	   79609 allocs/op
+BenchmarkBackendBlockTraceQL/complex-11       	     237	   4931942 ns/op	 189.98 MB/s	         0.9370 MB_io/op	         0 count_traces	 5641988 B/op	   79608 allocs/op
+PASS
+ok  	github.com/grafana/tempo/tempodb/encoding/vparquet4	51.591s

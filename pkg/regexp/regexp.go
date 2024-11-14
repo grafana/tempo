@@ -7,7 +7,6 @@ import (
 	"github.com/prometheus/prometheus/model/labels"
 )
 
-// jpe - test
 type Regexp struct {
 	matchers    []*labels.FastRegexMatcher
 	matches     map[string]bool
@@ -26,7 +25,7 @@ func NewRegexp(regexps []string, shouldMatch bool) (*Regexp, error) {
 	}
 
 	// only memoize if there's a unoptimized matcher
-	// TODO: should we limit memoization?
+	// TODO: should we limit memoization to N values?
 	var matches map[string]bool
 	for _, m := range matchers {
 		if !m.IsOptimized() {
