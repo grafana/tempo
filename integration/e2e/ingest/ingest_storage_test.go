@@ -104,5 +104,4 @@ func TestIngest(t *testing.T) {
 	require.NoError(t, err)
 
 	util.SearchStreamAndAssertTrace(t, context.Background(), grpcClient, info, now.Add(-20*time.Minute).Unix(), now.Unix())
-
 }
