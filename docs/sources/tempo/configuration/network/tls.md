@@ -129,6 +129,18 @@ ingester:
     - name: tempo-distributed-tls
       secret:
         secretName: tempo-distributed-tls
+memcached:
+  extraArgs:
+    - -Z
+    - -o
+    - ssl_chain_cert=/tls/tls.crt,ssl_key=/tls/tls.key
+  extraVolumeMounts:
+    - mountPath: /tls
+      name: tempo-distributed-tls
+  extraVolumes:
+    - name: tempo-distributed-tls
+      secret:
+        secretName: tempo-distributed-tls
 metricsGenerator:
   extraVolumeMounts:
     - mountPath: /tls
@@ -180,6 +192,22 @@ tempo:
         tls_enabled: true
         tls_key_path: /tls/tls.key
         tls_server_name: tempo-distributed.trace.svc.cluster.local
+    cache:
+      caches:
+        - memcached:
+            consistent_hash: true
+            host: tempo-distributed-memcached
+            service: memcached-client
+            timeout: 500ms
+            tls_ca_path: /tls/ca.crt
+            tls_cert_path: /tls/tls.crt
+            tls_enabled: true
+            tls_key_path: /tls/tls.key
+            tls_server_name: tempo-distributed.trace.svc.cluster.local
+          roles:
+            - parquet-footer
+            - bloom
+            - frontend-search
     metrics_generator_client:
       grpc_client_config:
         tls_ca_path: /tls/ca.crt
