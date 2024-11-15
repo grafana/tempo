@@ -160,7 +160,7 @@ tempo:
       tls_cert_path: /tls/tls.crt
       tls_enabled: true
       tls_key_path: /tls/tls.key
-      tls_server_name: t-dist.tempo-distributed.svc.cluster.znet
+      tls_server_name: tempo-distributed.trace.svc.cluster.local
     distributor:
       receivers:
         otlp:
