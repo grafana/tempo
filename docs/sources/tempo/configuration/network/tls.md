@@ -212,7 +212,8 @@ traces:
       enabled: true
 ```
 
-See the [`prometheus.scrape` docs for Alloy](https://grafana.com/docs/alloy/latest/reference/components/prometheus/prometheus.scrape/) to configure TLS on the scrape. A relabel configuration like the following will do this configuration for you dynamically.
+Refer to the [`prometheus.scrape` docs for Alloy](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/prometheus/prometheus.scrape/) to configure TLS on the scrape.
+A relabel configuration like the following will do this configuration for you dynamically.
 
 ```json
 {
