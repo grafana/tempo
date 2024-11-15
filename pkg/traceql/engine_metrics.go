@@ -50,6 +50,9 @@ func DefaultQueryRangeStep(start, end uint64) uint64 {
 
 // IntervalCount is the number of intervals in the range with step.
 func IntervalCount(start, end, step uint64) int {
+	start = alignStart(start, step)
+	end = alignEnd(end, step)
+
 	intervals := (end - start) / step
 	intervals++
 	return int(intervals)
@@ -57,11 +60,15 @@ func IntervalCount(start, end, step uint64) int {
 
 // TimestampOf the given interval with the start and step.
 func TimestampOf(interval, start, step uint64) uint64 {
+	start = alignStart(start, step)
 	return start + interval*step
 }
 
 // IntervalOf the given timestamp within the range and step.
 func IntervalOf(ts, start, end, step uint64) int {
+	start = alignStart(start, step)
+	end = alignEnd(end, step) + step
+
 	if ts < start || ts > end || end == start || step == 0 {
 		// Invalid
 		return -1
@@ -89,10 +96,6 @@ func TrimToOverlap(start1, end1, step, start2, end2 uint64) (uint64, uint64, uin
 	if wasInstant {
 		// Alter step to maintain instant nature
 		step = end1 - start1
-	} else {
-		// Realign after trimming
-		start1 = (start1 / step) * step
-		end1 = (end1/step)*step + step
 	}
 
 	return start1, end1, step
@@ -110,9 +113,6 @@ func TrimToBefore(req *tempopb.QueryRangeRequest, before time.Time) {
 	if wasInstant {
 		// Maintain instant nature of the request
 		req.Step = req.End - req.Start
-	} else {
-		// Realign after trimming
-		AlignRequest(req)
 	}
 }
 
@@ -128,9 +128,6 @@ func TrimToAfter(req *tempopb.QueryRangeRequest, before time.Time) {
 	if wasInstant {
 		// Maintain instant nature of the request
 		req.Step = req.End - req.Start
-	} else {
-		// Realign after trimming
-		AlignRequest(req)
 	}
 }
 
@@ -148,8 +145,30 @@ func AlignRequest(req *tempopb.QueryRangeRequest) {
 	}
 
 	// It doesn't really matter but the request fields are expected to be in nanoseconds.
-	req.Start = req.Start / req.Step * req.Step
-	req.End = req.End / req.Step * req.Step
+	req.Start = alignStart(req.Start, req.Step)
+	req.End = alignEnd(req.End, req.Step)
+}
+
+// Start time is rounded down to next step
+func alignStart(start, step uint64) uint64 {
+	if step == 0 {
+		return 0
+	}
+	return start - start%step
+}
+
+// End time is rounded up to next step
+func alignEnd(end, step uint64) uint64 {
+	if step == 0 {
+		return 0
+	}
+
+	mod := end % step
+	if mod == 0 {
+		return end
+	}
+
+	return end + (step - mod)
 }
 
 type Label struct {
@@ -237,6 +256,9 @@ func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels 
 		if !include {
 			continue
 		}
+
+		start = alignStart(start, req.Step)
+		end = alignEnd(end, req.Step)
 
 		intervals := IntervalCount(start, end, req.Step)
 		samples := make([]tempopb.Sample, 0, intervals)
