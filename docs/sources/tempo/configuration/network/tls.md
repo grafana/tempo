@@ -99,7 +99,10 @@ The above structure can be set on the following receiver configurations:
 
 ### Configure TLS with Helm
 
-To configure TLS with the Helm chart, you must have a TLS key-pair and CA certificate stored in a Kubernetes secret. The following example mounts a secret called `tempo-distributed-tls` into the pods at `/tls` and modifies the configuration of Tempo to make use of the files. In this example the Tempo components share a single TLS certificate. Note that the `tls_server_name` configuration must match the certificate.
+To configure TLS with the Helm chart, you must have a TLS key-pair and CA certificate stored in a Kubernetes secret.
+The following example mounts a secret called `tempo-distributed-tls` into the pods at `/tls` and modifies the configuration of Tempo to make use of the files.
+In this example, the Tempo components share a single TLS certificate.
+Note that the `tls_server_name` configuration must match the certificate.
 
 ```yaml
 compactor:
