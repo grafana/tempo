@@ -9,8 +9,10 @@ import (
 )
 
 // in order to prevent building an enormous map on extremely high cardinality fields we institute a max
-// this number is not tuned
-const maxMemoize = 1000 // jpe - test perf on a high cardinality field
+// this number is not tuned. on extremely high cardinality fields memoization is wasteful b/c we rarely
+// see the same value 2x. this is all overhead. on lower cardinality fields with an expensive regex memoization
+// is very effective at speeding up queries.
+const maxMemoize = 1000
 
 type Regexp struct {
 	matchers    []*labels.FastRegexMatcher
