@@ -116,5 +116,5 @@ func shouldMemoize(m *labels.FastRegexMatcher) bool {
 		len(cheat.setMatches) == 0 && // setMatches definitively reject or accept. if len != 0 the regex will never be executed, but perhaps if there are a very large # of setMatches we prefer memoizing anyway?
 		cheat.prefix == "" && // prefix and suffix _do not_ prevent the regex from executing, but they are quick to evaluate and tend to nicely filter down.
 		cheat.suffix == "" // perhaps a length requirement would be an improvement? i.e. require a prefix or suffix of at least 3 chars?
-	//len(cheat.contains) == 0 // in testing, it was faster to memoize with a contains filter. perhaps if the filters are long enough we don't memoize?
+	// len(cheat.contains) == 0 // in testing, it was faster to memoize with a contains filter. perhaps if the filters are long enough we don't memoize?
 }
