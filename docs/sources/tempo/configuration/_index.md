@@ -232,6 +232,10 @@ distributor:
     # instruct the client how to retry.
     [retry_after_on_resource_exhausted: <duration> | default = '0' ]
 
+    # Optional
+    # Configures the max size a span attribute can be. Any span with at least one attribute over this limit would be discarded with reason "attribute_too_large"
+    [max_span_attr_size: <int> | default = '10000']
+
     # Optional.
     # Configures usage trackers in the distributor which expose metrics of ingested traffic grouped by configurable
     # attributes exposed on /usage_metrics.

@@ -532,7 +532,7 @@ func (d *Distributor) UsageTrackerHandler() http.Handler {
 
 // requestsByTraceID takes an incoming tempodb.PushRequest and creates a set of keys for the hash ring
 // and traces to pass onto the ingesters.
-func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, max_span_attr_size int) ([]uint32, []*rebatchedTrace, int, error) {
+func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, maxSpanAttrSize int) ([]uint32, []*rebatchedTrace, int, error) {
 	const tracesPerBatch = 20 // p50 of internal env
 	tracesByID := make(map[uint32]*rebatchedTrace, tracesPerBatch)
 	discardedSpans := 0
@@ -543,7 +543,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 		for _, ils := range b.ScopeSpans {
 			for _, span := range ils.Spans {
 				// drop spans with attributes that are too large
-				if spanContainsAttributeTooLarge(span, max_span_attr_size) {
+				if spanContainsAttributeTooLarge(span, maxSpanAttrSize) {
 					discardedSpans++
 					continue
 				}
