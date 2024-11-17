@@ -713,7 +713,7 @@ func TestRequestsByTraceID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			keys, rebatchedTraces, err := requestsByTraceID(tt.batches, util.FakeTenantID, 1)
+			keys, rebatchedTraces, _, err := requestsByTraceID(tt.batches, util.FakeTenantID, 1, 1000)
 			require.Equal(t, len(keys), len(rebatchedTraces))
 
 			for i, expectedKey := range tt.expectedKeys {
@@ -760,11 +760,11 @@ func BenchmarkTestsByRequestID(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		for _, blerg := range ils {
-			_, _, err := requestsByTraceID([]*v1.ResourceSpans{
+			_, _, _, err := requestsByTraceID([]*v1.ResourceSpans{
 				{
 					ScopeSpans: blerg,
 				},
-			}, "test", spansPer*len(traces))
+			}, "test", spansPer*len(traces), 1000)
 			require.NoError(b, err)
 		}
 	}

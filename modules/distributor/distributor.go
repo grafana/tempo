@@ -53,6 +53,8 @@ const (
 	reasonInternalError = "internal_error"
 	// reasonUnknown indicates a pushByte error at the ingester level not related to GRPC
 	reasonUnknown = "unknown_error"
+	// reasonAttrTooLarge indicates that at least one attribute in the span is too large
+	reasonAttrTooLarge = "attribute_too_large"
 
 	distributorRingKey = "distributor"
 )
@@ -378,11 +380,16 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		d.usage.Observe(userID, batches)
 	}
 
-	keys, rebatchedTraces, err := requestsByTraceID(batches, userID, spanCount)
+	keys, rebatchedTraces, discardedSpansWithLargeAttr, err := requestsByTraceID(batches, userID, spanCount, d.cfg.MaxSpanAttrSize)
 	if err != nil {
 		overrides.RecordDiscardedSpans(spanCount, reasonInternalError, userID)
 		logDiscardedResourceSpans(batches, userID, &d.cfg.LogDiscardedSpans, d.logger)
 		return nil, err
+	}
+
+	if discardedSpansWithLargeAttr > 0 {
+		overrides.RecordDiscardedSpans(discardedSpansWithLargeAttr, reasonAttrTooLarge, userID)
+		level.Warn(d.logger).Log("msg", fmt.Sprintf("discarded %d spans attribute key/value too large when adding to trace for tenant %s", discardedSpansWithLargeAttr, userID))
 	}
 
 	err = d.sendToIngestersViaBytes(ctx, userID, spanCount, rebatchedTraces, keys)
@@ -525,18 +532,24 @@ func (d *Distributor) UsageTrackerHandler() http.Handler {
 
 // requestsByTraceID takes an incoming tempodb.PushRequest and creates a set of keys for the hash ring
 // and traces to pass onto the ingesters.
-func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int) ([]uint32, []*rebatchedTrace, error) {
+func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, max_span_attr_size int) ([]uint32, []*rebatchedTrace, int, error) {
 	const tracesPerBatch = 20 // p50 of internal env
 	tracesByID := make(map[uint32]*rebatchedTrace, tracesPerBatch)
+	discardedSpans := 0
 
 	for _, b := range batches {
 		spansByILS := make(map[uint32]*v1.ScopeSpans)
 
 		for _, ils := range b.ScopeSpans {
 			for _, span := range ils.Spans {
+				// drop spans with attributes that are too large
+				if spanContainsAttributeTooLarge(span, max_span_attr_size) {
+					discardedSpans++
+					continue
+				}
 				traceID := span.TraceId
 				if !validation.ValidTraceID(traceID) {
-					return nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received %d bits", len(traceID)*8)
+					return nil, nil, 0, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received %d bits", len(traceID)*8)
 				}
 
 				traceKey := tempo_util.TokenFor(userID, traceID)
@@ -602,7 +615,16 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 		traces = append(traces, r)
 	}
 
-	return keys, traces, nil
+	return keys, traces, discardedSpans, nil
+}
+
+func spanContainsAttributeTooLarge(span *v1.Span, maxAttrSize int) bool {
+	for _, attr := range span.Attributes {
+		if len(attr.Key) > maxAttrSize || attr.Value.Size() > maxAttrSize {
+			return true
+		}
+	}
+	return false
 }
 
 // discardedPredicate determines if a trace is discarded based on the number of successful replications.

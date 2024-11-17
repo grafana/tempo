@@ -40,6 +40,7 @@ const (
 	configLimitsQuery        = "config-limits-query.yaml"
 	configLimitsPartialError = "config-limits-partial-success.yaml"
 	configLimits429          = "config-limits-429.yaml"
+	configLimitsSpanAttr     = "config-limits-span-attr.yaml"
 )
 
 func TestLimits(t *testing.T) {
@@ -98,6 +99,104 @@ func TestLimits(t *testing.T) {
 	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(10),
 		[]string{"tempo_discarded_spans_total"},
 		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "rate_limited")),
+	)
+	require.NoError(t, err)
+}
+
+func TestLimitsSpanAttrMaxSize(t *testing.T) {
+	s, err := e2e.NewScenario("tempo_e2e")
+	require.NoError(t, err)
+	defer s.Close()
+
+	require.NoError(t, util2.CopyFileToSharedDir(s, configLimitsSpanAttr, "config.yaml"))
+	tempo := util2.NewTempoAllInOne()
+	require.NoError(t, s.StartAndWaitReady(tempo))
+
+	// otel grpc exporter
+	exporter, err := util2.NewOtelGRPCExporter(tempo.Endpoint(4317))
+	require.NoError(t, err)
+
+	err = exporter.Start(context.Background(), componenttest.NewNopHost())
+	require.NoError(t, err)
+
+	// make request
+	traceIDs := make([][]byte, 3)
+	for index := range traceIDs {
+		traceID := make([]byte, 16)
+		_, err = crand.Read(traceID)
+		require.NoError(t, err)
+		traceIDs[index] = traceID
+	}
+
+	// traceIDs[0] = trace with default attributes
+	// traceIDs[1] = trace with attribute slightly less than limit to test boundary
+	// traceIDs[2] = trace with large attributes
+	spanCountsByTrace := []int{5, 5, 5}
+	req := test.MakeReqWithMultipleTraceWithSpanCount(spanCountsByTrace, traceIDs)
+
+	shortString := "" // limit in config is 2000
+	for i := 0; i < 1990; i++ {
+		shortString += "t"
+	}
+
+	longString := "" // limit in config is 2000
+	for i := 0; i < 2002; i++ {
+		longString += "t"
+	}
+
+	req.ResourceSpans[1].ScopeSpans[0].Spans[0].Attributes = append(req.ResourceSpans[1].ScopeSpans[0].Spans[0].Attributes, test.MakeAttribute("key", shortString))
+
+	req.ResourceSpans[2].ScopeSpans[0].Spans[0].Attributes = append(req.ResourceSpans[2].ScopeSpans[0].Spans[0].Attributes, test.MakeAttribute("key", longString))
+	req.ResourceSpans[2].ScopeSpans[0].Spans[1].Attributes = append(req.ResourceSpans[2].ScopeSpans[0].Spans[1].Attributes, test.MakeAttribute(longString, "value"))
+	spanIDShouldBeDiscared1 := req.ResourceSpans[2].ScopeSpans[0].Spans[0].SpanId
+	spanIDShouldBeDiscared2 := req.ResourceSpans[2].ScopeSpans[0].Spans[1].SpanId
+
+	b, err := req.Marshal()
+	require.NoError(t, err)
+
+	// unmarshal into otlp proto
+	traces, err := (&ptrace.ProtoUnmarshaler{}).UnmarshalTraces(b)
+	require.NoError(t, err)
+	require.NotNil(t, traces)
+
+	ctx := user.InjectOrgID(context.Background(), tempoUtil.FakeTenantID)
+	ctx, err = user.InjectIntoGRPCRequest(ctx)
+	require.NoError(t, err)
+
+	// send traces to tempo
+	// partial success = no error
+	err = exporter.ConsumeTraces(ctx, traces)
+	require.NoError(t, err)
+
+	// shutdown to ensure traces are flushed
+	require.NoError(t, exporter.Shutdown(context.Background()))
+
+	// query for the trace and make sure the two spans [0,1] did not get ingested
+	client := httpclient.New("http://"+tempo.Endpoint(3200), tempoUtil.FakeTenantID)
+	result, err := client.QueryTrace(tempoUtil.TraceIDToHexString(traceIDs[2]))
+	require.NoError(t, err)
+	found := false
+	numSpans := 0
+	for _, rs := range result.ResourceSpans {
+		for _, ss := range rs.ScopeSpans {
+			for _, span := range ss.Spans {
+				numSpans++
+				if bytes.Equal(span.SpanId, spanIDShouldBeDiscared1) || bytes.Equal(span.SpanId, spanIDShouldBeDiscared2) {
+					found = true
+					break
+				}
+			}
+		}
+	}
+
+	assert.False(t, found, "spans with large attributes should've been discarded")
+	assert.Equal(t, 3, numSpans, "only 3 spans should've been ingested")
+
+	// test limit metrics
+	// only the two spans with attr > 2000 bytes should be discarded
+	err = tempo.WaitSumMetricsWithOptions(e2e.Equals(2),
+		[]string{"tempo_discarded_spans_total"},
+		e2e.WithLabelMatchers(labels.MustNewMatcher(labels.MatchEqual, "reason", "attribute_too_large")),
 	)
 	require.NoError(t, err)
 }
