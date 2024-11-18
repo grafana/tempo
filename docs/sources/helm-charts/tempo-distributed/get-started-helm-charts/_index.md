@@ -12,20 +12,21 @@ keywords:
 
 # Get started with Grafana Tempo using the Helm chart
 
-The Grafana Tempo Helm chart allows you to configure, install, and upgrade Grafana Tempo within a Kubernetes cluster. Using this procedure, you will:
+The `tempo-distributed` Helm chart allows you to configure, install, and upgrade Grafana Tempo or Grafana Enterprise Traces (GET) within a Kubernetes cluster.
+Using this procedure, you will:
 
 - Create a custom namespace within your Kubernetes cluster
 - Install Helm and the Grafana `helm-charts` repository
 - Configure a storage option for traces
-- Install Tempo using Helm
+- Install Tempo or GET using Helm
 
 To learn more about Helm, read the [Helm documentation](https://helm.sh/).
 
-If you are using Helm to install Grafana Enterprise Traces (GET), then you also need to:
+If you are using Helm to install GET, then you also need to:
 
 - Install the GET license
 - Create an additional storage bucket for the `admin` resources
-- Disable the `gateway`
+- Disable the `gateway` used in open source Tempo
 - Enable the `enterpriseGateway`
 
 ## Before you begin
@@ -319,7 +320,7 @@ If you don't need to change the values, you can skip this section.
      rootPassword: minio123
    ```
 
-### Optional: Other storage options
+#### Optional: Other storage options
 
 Persistent storage is enabled in the Kubernetes cluster, which has a default storage class setup.
 You can change the default [StorageClass using Kubernetes documentation](https://kubernetes.io/docs/tasks/administer-cluster/change-default-storage-class/).
@@ -393,7 +394,7 @@ helm show values grafana/tempo-distributed
 Add the configuration sections to the `custom.yaml` file.
 Include this file when you install or upgrade the Helm chart.
 
-#### Optional: Configure an ingress
+### Optional: Configure an ingress
 
 An ingress lets you externally access a Kubernetes cluster.
 Replace `<ingress-host>` with a suitable hostname that DNS can resolve to the external IP address of the Kubernetes cluster.
@@ -420,6 +421,14 @@ On Linux systems, and if it's not possible for you set up local DNS resolution, 
    ```
 
 1. Save the changes.
+
+### Optional: Configure TLS with Helm
+
+Tempo and GET can be configured to communicate between the components using Transport Layer Security, or TLS.
+
+To configure TLS with the Helm chart, you must have a TLS key-pair and CA certificate stored in a Kubernetes secret.
+
+For instructions, refer to [Configure TLS with Helm](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/network/tls/).
 
 ## Install Grafana Tempo using the Helm chart
 
