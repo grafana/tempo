@@ -39,6 +39,24 @@ func TestPool(t *testing.T) {
 	}
 }
 
+func TestPool2(t *testing.T) {
+	testPool := New(500, 64000, 2, makeFunc)
+	cases := []struct {
+		size        int
+		expectedCap int
+	}{
+		{
+			size:        64,
+			expectedCap: 64,
+		},
+	}
+	for _, c := range cases {
+		ret := testPool.Get(c.size)
+		require.Equal(t, c.expectedCap, cap(ret))
+		testPool.Put(ret)
+	}
+}
+
 func TestPoolSlicesAreAlwaysLargeEnough(t *testing.T) {
 	testPool := New(1, 1024, 2, makeFunc)
 
