@@ -740,8 +740,8 @@ func TestRequestsByTraceID(t *testing.T) {
 }
 
 func BenchmarkTestsByRequestID(b *testing.B) {
-	spansPer := 100
-	batches := 10
+	spansPer := 1000
+	batches := 100
 	traces := []*tempopb.Trace{
 		test.MakeTraceWithSpanCount(batches, spansPer, []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}),
 		test.MakeTraceWithSpanCount(batches, spansPer, []byte{0x0B, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}),
@@ -1631,6 +1631,7 @@ func prepare(t *testing.T, limits overrides.Config, logger kitlog.Logger) (*Dist
 		})
 	}
 
+	distributorConfig.MaxSpanAttrSize = 1000
 	distributorConfig.DistributorRing.HeartbeatPeriod = 100 * time.Millisecond
 	distributorConfig.DistributorRing.InstanceID = strconv.Itoa(rand.Int())
 	distributorConfig.DistributorRing.KVStore.Mock = nil

@@ -392,6 +392,10 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		level.Warn(d.logger).Log("msg", fmt.Sprintf("discarded %d spans attribute key/value too large when adding to trace for tenant %s", discardedSpansWithLargeAttr, userID))
 	}
 
+	if discardedSpansWithLargeAttr >= spanCount {
+		return &tempopb.PushResponse{}, nil
+	}
+
 	err = d.sendToIngestersViaBytes(ctx, userID, spanCount, rebatchedTraces, keys)
 	if err != nil {
 		return nil, err
