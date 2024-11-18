@@ -46,7 +46,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.TracesWAL.IngestionSlack = 2 * time.Minute
 
 	// setting default for max span age before discarding to 30s
-	cfg.MetricsIngestionSlack = 30 * time.Second
+	cfg.MetricsIngestionSlack = 2 * time.Minute
 	cfg.QueryTimeout = 30 * time.Second
 	cfg.OverrideRingKey = generatorRingKey
 }
