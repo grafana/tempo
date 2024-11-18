@@ -532,7 +532,7 @@ metrics_generator:
     # This option only allows spans with end times that occur within the configured duration to be
     # considered in metrics generation.
     # This is to filter out spans that are outdated.
-    [metrics_ingestion_time_range_slack: <duration> | default = 30s]
+    [metrics_ingestion_time_range_slack: <duration> | default = 2m0s]
 
     # Timeout for metric requests
     [query_timeout: <duration> | default = 30s ]
@@ -639,7 +639,7 @@ query_frontend:
         [throughput_bytes_slo: <float> | default = 0 ]
 
         # The number of shards to break ingester queries into.
-        [ingester_shards]: <int> | default = 1]
+        [ingester_shards]: <int> | default = 3]
         
         # SLO configuration for Metadata (tags and tag values) endpoints.
         metadata_slo:
@@ -1571,7 +1571,7 @@ overrides:
       # tags with high cardinality or large values such as HTTP URLs or SQL queries.
       # This override limit is used by the ingester and the querier.
       # A value of 0 disables the limit.
-      [max_bytes_per_tag_values_query: <int> | default = 5000000 (5MB) ]
+      [max_bytes_per_tag_values_query: <int> | default = 1000000 (1MB) ]
 
       # Maximum number of blocks to be inspected for a tag values query. Tag-values
       # query is used mainly to populate the autocomplete dropdown. This limit
