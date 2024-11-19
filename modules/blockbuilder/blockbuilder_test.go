@@ -18,10 +18,12 @@ import (
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
+	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/require"
+	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
@@ -30,7 +32,7 @@ import (
 
 const testTopic = "test-topic"
 
-func TestBlockbuilder(t *testing.T) {
+func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
 
@@ -43,8 +45,7 @@ func TestBlockbuilder(t *testing.T) {
 		return nil, nil, false
 	})
 
-	store := newStore(t)
-	store.EnablePolling(ctx, nil)
+	store := newStore(t, ctx)
 	cfg := blockbuilderConfig(t, address)
 
 	b := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
@@ -53,14 +54,8 @@ func TestBlockbuilder(t *testing.T) {
 		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
 	})
 
-	req := test.MakePushBytesRequest(t, 10, nil)
-	records, err := ingest.Encode(0, util.FakeTenantID, req, 1_000_000)
-	require.NoError(t, err)
-
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
-
-	res := client.ProduceSync(ctx, records...)
-	require.NoError(t, res.FirstErr())
+	sendReq(t, ctx, client)
 
 	// Wait for record to be consumed and committed.
 	require.Eventually(t, func() bool {
@@ -73,12 +68,159 @@ func TestBlockbuilder(t *testing.T) {
 	}, time.Minute, time.Second)
 }
 
+func TestBlockbuilder_startWithCommit(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+
+	k, address := testkafka.CreateClusterWithoutCustomConsumerGroupsSupport(t, 1, "test-topic")
+	t.Cleanup(k.Close)
+
+	kafkaCommits := atomic.NewInt32(0)
+	k.ControlKey(kmsg.OffsetCommit.Int16(), func(kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Add(1)
+		return nil, nil, false
+	})
+
+	store := newStore(t, ctx)
+	cfg := blockbuilderConfig(t, address)
+
+	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
+	producedRecords := sendTracesFor(t, ctx, client, 5*time.Second, 100*time.Millisecond) // Send for 5 seconds
+
+	commitedAt := len(producedRecords) / 2
+	// Commit half of the records
+	offsets := make(kadm.Offsets)
+	offsets.Add(kadm.Offset{
+		Topic:     testTopic,
+		Partition: 0,
+		At:        producedRecords[commitedAt].Offset,
+	})
+	admClient := kadm.NewClient(client)
+	require.NoError(t, admClient.CommitAllOffsets(ctx, cfg.IngestStorageConfig.Kafka.ConsumerGroup, offsets))
+
+	b := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	})
+
+	records := sendTracesFor(t, ctx, client, 5*time.Second, 100*time.Millisecond) // Send for 5 seconds
+	producedRecords = append(producedRecords, records...)
+
+	// Wait for record to be consumed and committed.
+	require.Eventually(t, func() bool {
+		return kafkaCommits.Load() > 0
+	}, time.Minute, time.Second)
+
+	// Wait for the block to be flushed.
+	require.Eventually(t, func() bool {
+		return countFlushedTraces(store) == len(producedRecords)-commitedAt
+	}, time.Minute, time.Second)
+}
+
+func TestBlockbuilder_flushingFails(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+
+	k, address := testkafka.CreateClusterWithoutCustomConsumerGroupsSupport(t, 1, "test-topic")
+	t.Cleanup(k.Close)
+
+	kafkaCommits := atomic.NewInt32(0)
+	k.ControlKey(kmsg.OffsetCommit.Int16(), func(kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Add(1)
+		return nil, nil, false
+	})
+
+	storageWrites := atomic.NewInt32(0)
+	store := newStoreWrapper(newStore(t, ctx), func(ctx context.Context, block tempodb.WriteableBlock, store storage.Store) error {
+		// Fail the first block write
+		if storageWrites.Add(1) == 1 {
+			return errors.New("failed to write block")
+		}
+		return store.WriteBlock(ctx, block)
+	})
+	cfg := blockbuilderConfig(t, address)
+	logger := test.NewTestingLogger(t)
+
+	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
+	sendTracesFor(t, ctx, client, time.Second, 100*time.Millisecond) // Send for 1 second, <1 consumption cycles
+
+	b := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	})
+
+	// Wait for record to be consumed and committed.
+	require.Eventually(t, func() bool { return kafkaCommits.Load() == 1 }, time.Minute, time.Second)
+
+	// Wait for the block to be flushed.
+	require.Eventually(t, func() bool {
+		return len(store.BlockMetas(util.FakeTenantID)) == 1 // Only one block should have been written
+	}, time.Minute, time.Second)
+}
+
+func TestBlockbuilder_receivesOldRecords(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+
+	k, address := testkafka.CreateClusterWithoutCustomConsumerGroupsSupport(t, 1, "test-topic")
+	t.Cleanup(k.Close)
+
+	kafkaCommits := atomic.NewInt32(0)
+	k.ControlKey(kmsg.OffsetCommit.Int16(), func(kmsg.Request) (kmsg.Response, error, bool) {
+		k.KeepControl()
+		kafkaCommits.Add(1)
+		return nil, nil, false
+	})
+
+	store := newStore(t, ctx)
+	cfg := blockbuilderConfig(t, address)
+
+	b := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	})
+
+	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
+	producedRecords := sendReq(t, ctx, client)
+
+	// Wait for record to be consumed and committed.
+	require.Eventually(t, func() bool {
+		return kafkaCommits.Load() == 1
+	}, time.Minute, time.Second)
+
+	// Wait for the block to be flushed.
+	require.Eventually(t, func() bool {
+		return len(store.BlockMetas(util.FakeTenantID)) == 1
+	}, time.Minute, time.Second)
+
+	// Re-send the same records with an older timestamp
+	// They should be processed in the next cycle and written to a new block regardless of the timestamp
+	for _, record := range producedRecords {
+		record.Timestamp = record.Timestamp.Add(-time.Hour)
+	}
+	res := client.ProduceSync(ctx, producedRecords...)
+	require.NoError(t, res.FirstErr())
+
+	// Wait for record to be consumed and committed.
+	require.Eventually(t, func() bool {
+		return kafkaCommits.Load() == 2
+	}, time.Minute, time.Second)
+
+	// Wait for the block to be flushed.
+	require.Eventually(t, func() bool {
+		return len(store.BlockMetas(util.FakeTenantID)) == 2
+	}, time.Minute, time.Second)
+}
+
 // FIXME - Test is unstable and will fail if records cross two consumption cycles,
 //
 //	because it's asserting that there is exactly two commits, one of which fails.
 //	It can be 3 commits if the records cross two consumption cycles.
 //	🤷
-func TestBlockbuilderDeterministicComsumption(t *testing.T) {
+func TestBlockbuilder_committingFails(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
 
@@ -110,34 +252,12 @@ func TestBlockbuilderDeterministicComsumption(t *testing.T) {
 		return nil, nil, false
 	})
 
-	store := newStore(t)
-	store.EnablePolling(ctx, nil)
+	store := newStore(t, ctx)
 	cfg := blockbuilderConfig(t, address)
 	logger := test.NewTestingLogger(t)
 
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
-	// Send for 1 second, <1 consumption cycles
-	timer := time.NewTimer(1 * time.Second)
-sendLoop:
-	for {
-		select {
-		case <-timer.C:
-			break sendLoop
-		default:
-			traceID := make([]byte, 16)
-			_, err := rand.Read(traceID)
-			require.NoError(t, err)
-
-			req := test.MakePushBytesRequest(t, 10, traceID)
-			records, err := ingest.Encode(0, util.FakeTenantID, req, 1_000_000)
-			require.NoError(t, err)
-
-			res := client.ProduceSync(ctx, records...)
-			require.NoError(t, res.FirstErr())
-
-			time.Sleep(100 * time.Millisecond)
-		}
-	}
+	sendTracesFor(t, ctx, client, time.Second, 100*time.Millisecond) // Send for 1 second, <1 consumption cycles
 
 	b := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
@@ -152,8 +272,44 @@ sendLoop:
 
 	// Wait for the block to be flushed.
 	require.Eventually(t, func() bool {
-		return len(store.BlockMetas(util.FakeTenantID)) == 1 // Only one block should be written
+		return len(store.BlockMetas(util.FakeTenantID)) == 1 // Only one block should have been written
 	}, time.Minute, time.Second)
+}
+
+func TestCycleEndAtStartup(t *testing.T) {
+	now := time.Date(1995, 8, 26, 0, 0, 0, 0, time.UTC)
+
+	for _, tc := range []struct {
+		name                             string
+		now, cycleEnd, cycleEndAtStartup time.Time
+		waitDur, interval                time.Duration
+	}{
+		{
+			name:              "now doesn't need to be truncated",
+			now:               now,
+			cycleEnd:          now.Add(5 * time.Minute),
+			cycleEndAtStartup: now,
+			waitDur:           5 * time.Minute,
+			interval:          5 * time.Minute,
+		},
+		{
+			name:              "now needs to be truncated",
+			now:               now.Add(2 * time.Minute),
+			cycleEnd:          now.Truncate(5 * time.Minute).Add(5 * time.Minute),
+			cycleEndAtStartup: now.Truncate(5 * time.Minute),
+			waitDur:           3 * time.Minute,
+			interval:          5 * time.Minute,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cycleEndAtStartup := cycleEndAtStartup(tc.now, tc.interval)
+			require.Equal(t, tc.cycleEndAtStartup, cycleEndAtStartup)
+
+			cycleEnd, waitDur := nextCycleEnd(tc.now, tc.interval)
+			require.Equal(t, tc.cycleEnd, cycleEnd)
+			require.Equal(t, tc.waitDur, waitDur)
+		})
+	}
 }
 
 func blockbuilderConfig(_ *testing.T, address string) Config {
@@ -174,7 +330,13 @@ func blockbuilderConfig(_ *testing.T, address string) Config {
 	return cfg
 }
 
-func newStore(t *testing.T) storage.Store {
+var _ blocklist.JobSharder = (*ownEverythingSharder)(nil)
+
+type ownEverythingSharder struct{}
+
+func (o *ownEverythingSharder) Owns(string) bool { return true }
+
+func newStore(t *testing.T, ctx context.Context) storage.Store {
 	tmpDir := t.TempDir()
 	s, err := storage.NewStore(storage.Config{
 		Trace: tempodb.Config{
@@ -193,12 +355,34 @@ func newStore(t *testing.T) storage.Store {
 			WAL: &wal.Config{
 				Filepath: tmpDir,
 			},
-			BlocklistPoll:         50 * time.Second,
-			BlocklistPollFallback: true,
+			BlocklistPoll: 5 * time.Second,
 		},
 	}, nil, test.NewTestingLogger(t))
 	require.NoError(t, err)
+
+	s.EnablePolling(ctx, &ownEverythingSharder{})
 	return s
+}
+
+var _ storage.Store = (*storeWrapper)(nil)
+
+type storeWrapper struct {
+	storage.Store
+	writeBlock func(ctx context.Context, block tempodb.WriteableBlock, store storage.Store) error
+}
+
+func newStoreWrapper(s storage.Store, writeBlock func(ctx context.Context, block tempodb.WriteableBlock, store storage.Store) error) *storeWrapper {
+	return &storeWrapper{
+		Store:      s,
+		writeBlock: writeBlock,
+	}
+}
+
+func (m *storeWrapper) WriteBlock(ctx context.Context, block tempodb.WriteableBlock) error {
+	if m.writeBlock != nil {
+		return m.writeBlock(ctx, block, m.Store)
+	}
+	return m.Store.WriteBlock(ctx, block)
 }
 
 var _ ring.PartitionRingReader = (*mockPartitionRingReader)(nil)
@@ -241,4 +425,54 @@ func newKafkaClient(t *testing.T, config ingest.KafkaConfig) *kgo.Client {
 	t.Cleanup(writeClient.Close)
 
 	return writeClient
+}
+
+func countFlushedTraces(store storage.Store) int {
+	count := 0
+	for _, meta := range store.BlockMetas(util.FakeTenantID) {
+		count += int(meta.TotalObjects)
+	}
+	return count
+}
+
+func sendReq(t *testing.T, ctx context.Context, client *kgo.Client) []*kgo.Record {
+	traceID := generateTraceID(t)
+
+	req := test.MakePushBytesRequest(t, 10, traceID)
+	records, err := ingest.Encode(0, util.FakeTenantID, req, 1_000_000)
+	require.NoError(t, err)
+
+	res := client.ProduceSync(ctx, records...)
+	require.NoError(t, res.FirstErr())
+
+	return records
+}
+
+func sendTracesFor(t *testing.T, ctx context.Context, client *kgo.Client, dur, interval time.Duration) []*kgo.Record {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	timer := time.NewTimer(dur)
+	defer timer.Stop()
+
+	producedRecords := make([]*kgo.Record, 0)
+
+	for {
+		select {
+		case <-ctx.Done(): // Exit the function if the context is done
+			return producedRecords
+		case <-timer.C: // Exit the function when the timer is done
+			return producedRecords
+		case <-ticker.C:
+			records := sendReq(t, ctx, client)
+			producedRecords = append(producedRecords, records...)
+		}
+	}
+}
+
+func generateTraceID(t *testing.T) []byte {
+	traceID := make([]byte, 16)
+	_, err := rand.Read(traceID)
+	require.NoError(t, err)
+	return traceID
 }
