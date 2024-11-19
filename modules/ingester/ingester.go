@@ -89,7 +89,7 @@ type Ingester struct {
 }
 
 // New makes a new Ingester.
-func New(cfg Config, store storage.Store, overrides overrides.Interface, reg prometheus.Registerer) (*Ingester, error) {
+func New(cfg Config, store storage.Store, overrides overrides.Interface, reg prometheus.Registerer, singlePartition bool) (*Ingester, error) {
 	i := &Ingester{
 		cfg:          cfg,
 		instances:    map[string]*instance{},
@@ -110,9 +110,15 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 	i.lifecycler = lc
 
 	if ingestCfg := cfg.IngestStorageConfig; ingestCfg.Enabled {
-		i.ingestPartitionID, err = ingest.IngesterPartitionID(cfg.LifecyclerConfig.ID)
-		if err != nil {
-			return nil, fmt.Errorf("calculating ingester partition ID: %w", err)
+		if singlePartition {
+			// For single-binary don't require hostname to identify a partition.
+			// Assume partition 0.
+			i.ingestPartitionID = 0
+		} else {
+			i.ingestPartitionID, err = ingest.IngesterPartitionID(cfg.LifecyclerConfig.ID)
+			if err != nil {
+				return nil, fmt.Errorf("calculating ingester partition ID: %w", err)
+			}
 		}
 
 		partitionRingKV := cfg.IngesterPartitionRing.KVStore.Mock
