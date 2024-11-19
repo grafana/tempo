@@ -93,3 +93,13 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	cfg.Usage.RegisterFlagsAndApplyDefaults(prefix, f)
 }
+
+func (cfg *Config) Validate() error {
+	if cfg.KafkaWritePathEnabled {
+		if err := cfg.KafkaConfig.Validate(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

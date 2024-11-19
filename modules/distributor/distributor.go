@@ -189,6 +189,10 @@ func New(
 	loggingLevel dslog.Level,
 	reg prometheus.Registerer,
 ) (*Distributor, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
 	factory := cfg.factory
 	if factory == nil {
 		factory = func(addr string) (ring_client.PoolClient, error) {
@@ -429,19 +433,20 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		return nil, err
 	}
 
-	if len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
-		d.generatorForwarder.SendTraces(ctx, userID, keys, rebatchedTraces)
-	}
-
 	if err := d.forwardersManager.ForTenant(userID).ForwardTraces(ctx, traces); err != nil {
 		_ = level.Warn(d.logger).Log("msg", "failed to forward batches for tenant=%s: %w", userID, err)
 	}
 
-	if d.cfg.KafkaWritePathEnabled {
-		err := d.sendWriteRequestsToPartitions(ctx, userID, keys, rebatchedTraces)
+	if d.kafkaProducer != nil {
+		err := d.sendToKafka(ctx, userID, keys, rebatchedTraces)
 		if err != nil {
 			// TODO: Handle error
 			level.Error(d.logger).Log("msg", "failed to write to kafka", "err", err)
+		}
+	} else {
+		// See if we need to send to the generators
+		if len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
+			d.generatorForwarder.SendTraces(ctx, userID, keys, rebatchedTraces)
 		}
 	}
 
@@ -570,7 +575,7 @@ func (d *Distributor) UsageTrackerHandler() http.Handler {
 	return nil
 }
 
-func (d *Distributor) sendWriteRequestsToPartitions(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) error {
+func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) error {
 	marshalledTraces := make([][]byte, len(traces))
 	for i, t := range traces {
 		b, err := proto.Marshal(t.trace)

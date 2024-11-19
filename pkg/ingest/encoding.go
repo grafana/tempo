@@ -50,6 +50,7 @@ func Encode(partitionID int32, tenantID string, req *tempopb.PushBytesRequest, m
 	var records []*kgo.Record
 	batch := encoderPoolGet()
 	defer encoderPoolPut(batch)
+
 	currentSize := 0
 
 	for i, entry := range req.Traces {
