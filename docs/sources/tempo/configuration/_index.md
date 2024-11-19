@@ -532,7 +532,7 @@ metrics_generator:
     # This option only allows spans with end times that occur within the configured duration to be
     # considered in metrics generation.
     # This is to filter out spans that are outdated.
-    [metrics_ingestion_time_range_slack: <duration> | default = 2m0s]
+    [metrics_ingestion_time_range_slack: <duration> | default = 30s]
 
     # Timeout for metric requests
     [query_timeout: <duration> | default = 30s ]

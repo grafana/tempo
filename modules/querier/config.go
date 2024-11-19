@@ -72,7 +72,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Worker = worker.Config{
 		MatchMaxConcurrency:   true,
 		MaxConcurrentRequests: cfg.MaxConcurrentQueries,
-		Parallelism:           3,
+		Parallelism:           2,
 		GRPCClientConfig: grpcclient.Config{
 			MaxRecvMsgSize:  100 << 20,
 			MaxSendMsgSize:  16 << 20,

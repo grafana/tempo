@@ -273,7 +273,7 @@ querier:
     frontend_worker:
         frontend_address: 127.0.0.1:9095
         dns_lookup_duration: 10s
-        parallelism: 3
+        parallelism: 2
         match_max_concurrent: true
         id: ""
         grpc_client_config:
@@ -602,7 +602,7 @@ metrics_generator:
         search_encoding: none
         ingestion_time_range_slack: 2m0s
         version: vParquet4
-    metrics_ingestion_time_range_slack: 2m0s
+    metrics_ingestion_time_range_slack: 30s
     query_timeout: 30s
     override_ring_key: metrics-generator
 storage:
