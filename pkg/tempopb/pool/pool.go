@@ -8,36 +8,31 @@ import (
 	"sync"
 )
 
-// Pool is a bucketed pool for variably sized byte slices.
+// Pool is a linearly bucketed pool for variably sized byte slices.
 type Pool struct {
 	buckets []sync.Pool
-	sizes   []int
+	bktSize int
 	// make is the function used to create an empty slice when none exist yet.
 	make func(int) []byte
 }
 
 // New returns a new Pool with size buckets for minSize to maxSize
-// increasing by the given factor.
-func New(minSize, maxSize int, factor float64, makeFunc func(int) []byte) *Pool {
-	if minSize < 1 {
-		panic("invalid minimum pool size")
-	}
+func New(maxSize, bktSize int, makeFunc func(int) []byte) *Pool {
 	if maxSize < 1 {
 		panic("invalid maximum pool size")
 	}
-	if factor < 1 {
+	if bktSize < 1 {
 		panic("invalid factor")
 	}
-
-	var sizes []int
-
-	for s := minSize; s <= maxSize; s = int(float64(s) * factor) {
-		sizes = append(sizes, s)
+	if maxSize%bktSize != 0 {
+		panic("invalid bucket size")
 	}
 
+	bkts := maxSize / bktSize
+
 	p := &Pool{
-		buckets: make([]sync.Pool, len(sizes)),
-		sizes:   sizes,
+		buckets: make([]sync.Pool, bkts),
+		bktSize: bktSize,
 		make:    makeFunc,
 	}
 
@@ -46,29 +41,38 @@ func New(minSize, maxSize int, factor float64, makeFunc func(int) []byte) *Pool 
 
 // Get returns a new byte slices that fits the given size.
 func (p *Pool) Get(sz int) []byte {
-	for i, bktSize := range p.sizes {
-		if sz > bktSize {
-			continue
-		}
-		b := p.buckets[i].Get()
-		if b == nil {
-			b = p.make(bktSize)
-		}
-		return b.([]byte)
+	if sz < 0 {
+		sz = 0 // just panic?
 	}
-	return p.make(sz)
+
+	// Find the right bucket.
+	bkt := sz / p.bktSize
+
+	if bkt >= len(p.buckets) {
+		return p.make(sz)
+	}
+
+	b := p.buckets[bkt].Get()
+	if b == nil {
+		b = p.make((bkt + 1) * p.bktSize)
+	}
+	return b.([]byte)
 }
 
-// Put adds a slice to the right bucket in the pool. This method has been adjusted from its initial
-// implementation to ignore byte slices that dont have the correct size
+// Put adds a slice to the right bucket in the pool.
 func (p *Pool) Put(s []byte) {
 	c := cap(s)
-	for i, size := range p.sizes {
-		if c == size {
-			p.buckets[i].Put(s) // nolint: staticcheck
-		}
-		if c < size {
-			return
-		}
+
+	if c%p.bktSize != 0 {
+		return
 	}
+	bkt := (c / p.bktSize) - 1
+	if bkt < 0 {
+		return
+	}
+	if bkt >= len(p.buckets) {
+		return
+	}
+
+	p.buckets[bkt].Put(s) // nolint: staticcheck
 }
