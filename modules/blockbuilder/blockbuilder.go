@@ -111,7 +111,9 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 }
 
 func (b *BlockBuilder) running(ctx context.Context) error {
-	cycleEndTime, waitTime := nextCycleEnd(time.Now(), b.cfg.ConsumeCycleDuration)
+	// Initial polling and delay
+	cycleEndTime := cycleEndAtStartup(time.Now(), b.cfg.ConsumeCycleDuration)
+	waitTime := 2 * time.Second
 	for {
 		select {
 		case <-time.After(waitTime):
