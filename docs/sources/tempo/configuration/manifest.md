@@ -18,7 +18,7 @@ go run ./cmd/tempo --storage.trace.backend=local --storage.trace.local.path=/var
 ## Complete configuration
 
 {{< admonition type="note" >}}
-This manifest was generated on 2024-10-21.
+This manifest was generated on 2024-11-18.
 {{% /admonition %}}
 
 ```yaml
@@ -316,7 +316,7 @@ query_frontend:
         max_duration: 168h0m0s
         query_backend_after: 15m0s
         query_ingesters_until: 30m0s
-        ingester_shards: 1
+        ingester_shards: 3
     trace_by_id:
         query_shards: 50
     metrics:
@@ -328,6 +328,11 @@ query_frontend:
         max_exemplars: 100
     multi_tenant_queries_enabled: true
     response_consumers: 10
+    weights:
+        request_with_weights: true
+        retry_with_weights: true
+        max_traceql_conditions: 4
+        max_regex_conditions: 1
 compactor:
     ring:
         kvstore:
@@ -713,7 +718,7 @@ overrides:
             burst_size_bytes: 20000000
             max_traces_per_user: 10000
         read:
-            max_bytes_per_tag_values_query: 5000000
+            max_bytes_per_tag_values_query: 1000000
         metrics_generator:
             generate_native_histograms: classic
             ingestion_time_range_slack: 0s
