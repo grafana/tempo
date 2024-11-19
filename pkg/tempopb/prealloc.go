@@ -2,8 +2,7 @@ package tempopb
 
 import "github.com/grafana/tempo/pkg/tempopb/pool"
 
-// buckets: [0.5KiB, 1KiB, 2KiB, 4KiB, 8KiB, 16KiB] ...
-var bytePool = pool.New(64_000, 1000, func(size int) []byte { return make([]byte, 0, size) })
+var bytePool = pool.New(80_000, 400, func(size int) []byte { return make([]byte, 0, size) })
 
 // PreallocBytes is a (repeated bytes slices) which preallocs slices on Unmarshal.
 type PreallocBytes struct {
