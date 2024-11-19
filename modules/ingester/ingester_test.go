@@ -644,10 +644,8 @@ func pushBatchV1(t testing.TB, i *Ingester, batch *v1.ResourceSpans, id []byte) 
 				Slice: buffer,
 			},
 		},
-		Ids: []tempopb.PreallocBytes{
-			{
-				Slice: id,
-			},
+		Ids: [][]byte{
+			id,
 		},
 	})
 	require.NoError(t, err)
