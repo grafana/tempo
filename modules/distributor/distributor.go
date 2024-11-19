@@ -35,6 +35,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/usagestats"
 	tempo_util "github.com/grafana/tempo/pkg/util"
@@ -380,20 +381,15 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		d.usage.Observe(userID, batches)
 	}
 
-	keys, rebatchedTraces, discardedSpansWithLargeAttr, err := requestsByTraceID(batches, userID, spanCount, d.cfg.MaxSpanAttrSize)
+	keys, rebatchedTraces, truncatedAttributeCount, err := requestsByTraceID(batches, userID, spanCount, d.cfg.MaxSpanAttrByte)
 	if err != nil {
 		overrides.RecordDiscardedSpans(spanCount, reasonInternalError, userID)
 		logDiscardedResourceSpans(batches, userID, &d.cfg.LogDiscardedSpans, d.logger)
 		return nil, err
 	}
 
-	if discardedSpansWithLargeAttr > 0 {
-		overrides.RecordDiscardedSpans(discardedSpansWithLargeAttr, reasonAttrTooLarge, userID)
-		level.Warn(d.logger).Log("msg", fmt.Sprintf("discarded %d spans attribute key/value too large when adding to trace for tenant %s", discardedSpansWithLargeAttr, userID))
-	}
-
-	if discardedSpansWithLargeAttr >= spanCount {
-		return &tempopb.PushResponse{}, nil
+	if truncatedAttributeCount > 0 {
+		level.Warn(d.logger).Log("msg", fmt.Sprintf("truncated %d resource/span attributes when adding spans for tenant %s", truncatedAttributeCount, userID))
 	}
 
 	err = d.sendToIngestersViaBytes(ctx, userID, spanCount, rebatchedTraces, keys)
@@ -539,17 +535,20 @@ func (d *Distributor) UsageTrackerHandler() http.Handler {
 func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, maxSpanAttrSize int) ([]uint32, []*rebatchedTrace, int, error) {
 	const tracesPerBatch = 20 // p50 of internal env
 	tracesByID := make(map[uint32]*rebatchedTrace, tracesPerBatch)
-	discardedSpans := 0
+	truncatedAttributeCount := 0
 
 	for _, b := range batches {
 		spansByILS := make(map[uint32]*v1.ScopeSpans)
+		// check for large resources for large attributes
+		if b.Resource.Size() > maxSpanAttrSize {
+			processAttributes(b.Resource.Attributes, maxSpanAttrSize, &truncatedAttributeCount)
+		}
 
 		for _, ils := range b.ScopeSpans {
 			for _, span := range ils.Spans {
-				// drop spans with attributes that are too large
-				if spanContainsAttributeTooLarge(span, maxSpanAttrSize) {
-					discardedSpans++
-					continue
+				// check large spans for large attributes
+				if span.Size() > maxSpanAttrSize {
+					processAttributes(span.Attributes, maxSpanAttrSize, &truncatedAttributeCount)
 				}
 				traceID := span.TraceId
 				if !validation.ValidTraceID(traceID) {
@@ -619,16 +618,27 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 		traces = append(traces, r)
 	}
 
-	return keys, traces, discardedSpans, nil
+	return keys, traces, truncatedAttributeCount, nil
 }
 
-func spanContainsAttributeTooLarge(span *v1.Span, maxAttrSize int) bool {
-	for _, attr := range span.Attributes {
-		if len(attr.Key) > maxAttrSize || attr.Value.Size() > maxAttrSize {
-			return true
+// find and truncate the span attributes that are too large
+func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, count *int) {
+	for _, attr := range attributes {
+		if len(attr.Key) > maxAttrSize {
+			attr.Key = attr.Key[:maxAttrSize-10] + "_truncated"
+			*count++
+		}
+
+		switch value := attr.GetValue().Value.(type) {
+		case *v1_common.AnyValue_StringValue:
+			if len(value.StringValue) > maxAttrSize {
+				value.StringValue = value.StringValue[:maxAttrSize-10] + "_truncated"
+				*count++
+			}
+		default:
+			continue
 		}
 	}
-	return false
 }
 
 // discardedPredicate determines if a trace is discarded based on the number of successful replications.

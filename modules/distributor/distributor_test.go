@@ -739,6 +739,62 @@ func TestRequestsByTraceID(t *testing.T) {
 	}
 }
 
+func TestProcessAttributes(t *testing.T) {
+	spanCount := 10
+	batchCount := 3
+	trace := test.MakeTraceWithSpanCount(batchCount, spanCount, []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F})
+
+	maxAttrByte := 1000
+	longString := strings.Repeat("t", 1100)
+
+	// add long attributes to the resource level
+	trace.ResourceSpans[0].Resource.Attributes = append(trace.ResourceSpans[0].Resource.Attributes,
+		test.MakeAttribute("long value", longString),
+	)
+	trace.ResourceSpans[0].Resource.Attributes = append(trace.ResourceSpans[0].Resource.Attributes,
+		test.MakeAttribute(longString, "long key"),
+	)
+
+	// add long attributes to the span level
+	trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes,
+		test.MakeAttribute("long value", longString),
+	)
+	trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes,
+		test.MakeAttribute(longString, "long key"),
+	)
+
+	_, rebatchedTrace, truncatedCount, _ := requestsByTraceID(trace.ResourceSpans, "test", spanCount*batchCount, maxAttrByte)
+	assert.Equal(t, 4, truncatedCount)
+	for _, rT := range rebatchedTrace {
+		for _, resource := range rT.trace.ResourceSpans {
+			// find large resource attributes
+			for _, attr := range resource.Resource.Attributes {
+				if attr.Key == "long value" {
+					assert.Equal(t, longString[:990]+"_truncated", attr.Value.GetStringValue())
+				}
+				if attr.Value.GetStringValue() == "long key" {
+					assert.Equal(t, longString[:990]+"_truncated", attr.Key)
+				}
+			}
+			// find large span attributes
+			for _, scope := range resource.ScopeSpans {
+				for _, span := range scope.Spans {
+					for _, attr := range span.Attributes {
+						if attr.Key == "long value" {
+							assert.Equal(t, longString[:990]+"_truncated", attr.Value.GetStringValue())
+						}
+						if attr.Value.GetStringValue() == "long key" {
+							assert.Equal(t, longString[:990]+"_truncated", attr.Key)
+						}
+					}
+				}
+			}
+
+		}
+	}
+
+}
+
 func BenchmarkTestsByRequestID(b *testing.B) {
 	spansPer := 1000
 	batches := 100
@@ -1631,7 +1687,7 @@ func prepare(t *testing.T, limits overrides.Config, logger kitlog.Logger) (*Dist
 		})
 	}
 
-	distributorConfig.MaxSpanAttrSize = 1000
+	distributorConfig.MaxSpanAttrByte = 1000
 	distributorConfig.DistributorRing.HeartbeatPeriod = 100 * time.Millisecond
 	distributorConfig.DistributorRing.InstanceID = strconv.Itoa(rand.Int())
 	distributorConfig.DistributorRing.KVStore.Mock = nil
