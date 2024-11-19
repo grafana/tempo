@@ -11,13 +11,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-var (
-	metricAllocOutPool = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "ingester_prealloc_miss_bytes_total",
-		Help:      "The total number of alloc'ed bytes that missed the sync pools.",
-	})
-)
+var metricAllocOutPool = promauto.NewCounter(prometheus.CounterOpts{
+	Namespace: "tempo",
+	Name:      "ingester_prealloc_miss_bytes_total",
+	Help:      "The total number of alloc'ed bytes that missed the sync pools.",
+})
 
 // Pool is a linearly bucketed pool for variably sized byte slices.
 type Pool struct {
