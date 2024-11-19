@@ -67,6 +67,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 	}
 
 	var (
+		replicationFactor   = inputs[0].ReplicationFactor
 		nextCompactionLevel = compactionLevel + 1
 		sch                 = parquet.SchemaOf(new(Trace))
 	)
@@ -110,15 +111,17 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		// Time to combine.
 		cmb := NewCombiner()
+		dedupedSpans := 0
 		for i, row := range rows {
 			tr := new(Trace)
 			err := sch.Reconstruct(tr, row)
 			if err != nil {
 				return nil, err
 			}
-			cmb.ConsumeWithFinal(tr, i == len(rows)-1)
+			dedupedSpans += cmb.ConsumeWithFinal(tr, i == len(rows)-1)
 			pool.Put(row)
 		}
+		c.opts.DedupedSpans(int(replicationFactor), dedupedSpans)
 		tr, _, connected := cmb.Result()
 		if !connected {
 			c.opts.DisconnectedTrace()
@@ -160,7 +163,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 				TenantID:          inputs[0].TenantID,
 				CompactionLevel:   nextCompactionLevel,
 				TotalObjects:      recordsPerBlock, // Just an estimate
-				ReplicationFactor: inputs[0].ReplicationFactor,
+				ReplicationFactor: replicationFactor,
 				DedicatedColumns:  inputs[0].DedicatedColumns,
 			}
 

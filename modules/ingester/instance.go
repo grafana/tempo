@@ -597,7 +597,6 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*LocalBlock, er
 	var rediscoveredBlocks []*LocalBlock
 
 	for _, id := range ids {
-
 		// Ignore blocks that have a matching wal. The wal will be replayed and the local block recreated.
 		// NOTE - Wal replay must be done beforehand.
 		if hasWal(id) {
@@ -627,6 +626,21 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*LocalBlock, er
 		b, err := encoding.OpenBlock(meta, i.localReader)
 		if err != nil {
 			return nil, err
+		}
+
+		// validate the block before adding it to the list. if we drop a block here and its not in the wal this is data loss, but there is no way to recover. this is likely due to disk
+		// level corruption
+		err = b.Validate(ctx)
+		if err != nil && !errors.Is(err, common.ErrUnsupported) {
+			level.Error(log.Logger).Log("msg", "local block failed validation, dropping", "tenantID", i.instanceID, "block", id.String(), "error", err)
+			metricReplayErrorsTotal.WithLabelValues(i.instanceID).Inc()
+
+			err = i.local.ClearBlock(id, i.instanceID)
+			if err != nil {
+				return nil, fmt.Errorf("deleting invalid local block tenant %v block %v: %w", i.instanceID, id.String(), err)
+			}
+
+			continue
 		}
 
 		ib := NewLocalBlock(ctx, b, i.local)

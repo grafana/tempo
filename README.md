@@ -8,15 +8,43 @@
   <a href="https://goreportcard.com/report/github.com/grafana/tempo"><img src="https://goreportcard.com/badge/github.com/grafana/tempo" alt="Go Report Card" /></a>
 </p>
 
-Grafana Tempo is an open source, easy-to-use and high-scale distributed tracing backend. Tempo is cost-efficient, requiring only object storage to operate, and is deeply integrated with Grafana, Prometheus, and Loki.
+Grafana Tempo is an open source, easy-to-use, and high-scale distributed tracing backend. Tempo is cost-efficient, requiring only object storage to operate, and is deeply integrated with Grafana, Prometheus, and Loki. 
 
-Tempo is Jaeger, Zipkin, Kafka, OpenCensus and OpenTelemetry compatible.  It ingests batches in any of the mentioned formats, buffers them and then writes them to Azure, GCS, S3 or local disk. As such, it is robust, cheap and easy to operate!
 
-Tempo implements [TraceQL](https://grafana.com/docs/tempo/latest/traceql/), a traces-first query language inspired by LogQL and PromQL. This query language allows users to very precisely and easily select spans and jump directly to the spans fulfilling the specified conditions:
+## Business value of distributed tracing
 
-![Tempo data source query editor](https://grafana.com/media/docs/grafana/data-sources/tempo/query-editor/tempo-ds-query-ed-example-v11-a.png)
+Distributed tracing helps teams quickly pinpoint performance issues and understand the flow of requests across services. The Explore Traces UI simplifies this process by offering a user-friendly interface to view and analyze trace data, making it easier to identify and resolve issues without needing to write complex queries.
 
-## Getting started
+Refer to [Use traces to find solutions](https://grafana.com/docs/tempo/latest/introduction/solutions-with-traces/)t o learn more about how you can use distributed tracing to investigate and solve issues. 
+
+## Explore Traces UI: A better way to get value from your tracing data
+We are excited to introduce the [Explore Traces app](https://github.com/grafana/explore-traces) as part of the Grafana Explore suite. This app provides a queryless and intuitive experience for analyzing tracing data, allowing teams to quickly identify performance issues, latency bottlenecks, and errors without needing to write complex queries or use TraceQL.
+
+Key Features:
+- **Intuitive Trace Analysis**: Spot slow or error-prone traces with easy, point-and-click interactions.
+- **RED Metrics Overview**: Use Rate, Errors, and Duration metrics to highlight performance issues.
+- **Automated Comparison**: Identify problematic attributes with automatic trace comparison.
+- **Simplified Visualizations**: Access rich visual data without needing to construct TraceQL queries.
+
+![image](https://github.com/user-attachments/assets/991205df-1b27-489f-8ef0-1a05ee158996)
+
+To learn more see the following links:
+- [Explore Traces repo](https://github.com/grafana/explore-traces)
+- [Explore Traces documentation](https://grafana.com/docs/grafana/latest/explore/simplified-exploration/traces/)
+- [Demo video](https://github.com/user-attachments/assets/8103e173-6dcf-4659-b938-7614c8a5b52d
+)
+
+## TraceQL
+
+Tempo implements [TraceQL](https://grafana.com/docs/tempo/latest/traceql/), a traces-first query language inspired by LogQL and PromQL, which enables targeted queries or rich UI-driven analyses. 
+
+### TraceQL metrics 
+
+[TraceQL metrics](https://grafana.com/docs/tempo/latest/traceql/metrics-queries/) is an experimental feature in Grafana Tempo that creates metrics from traces. Metric queries extend trace queries by applying a function to trace query results. This powerful feature allows for ad hoc aggregation of any existing TraceQL query by any dimension available in your traces, much in the same way that LogQL metric queries create metrics from logs. 
+
+Tempo is Jaeger, Zipkin, Kafka, OpenCensus, and OpenTelemetry compatible. It ingests batches in any of the mentioned formats, buffers them, and then writes them to Azure, GCS, S3, or local disk. As such, it is robust, cheap, and easy to operate!
+
+## Getting started with Tempo
 
 - [Get started documentation](https://grafana.com/docs/tempo/latest/getting-started/)
 - [Deployment Examples](./example)

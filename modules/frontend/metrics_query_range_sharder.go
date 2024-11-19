@@ -88,15 +88,16 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		return pipeline.NewBadRequest(errors.New("step must be greater than 0")), nil
 	}
 
-	traceql.AlignRequest(req)
-
 	// calculate and enforce max search duration
-	// Note: this is checked after alignment for consistency.
+	// This is checked before alignment because we may need to read a larger
+	// range internally to satisfy the query.
 	maxDuration := s.maxDuration(tenantID)
 	if maxDuration != 0 && time.Duration(req.End-req.Start)*time.Nanosecond > maxDuration {
 		err = fmt.Errorf("range specified by start and end (%s) exceeds %s. received start=%d end=%d", time.Duration(req.End-req.Start), maxDuration, req.Start, req.End)
 		return pipeline.NewBadRequest(err), nil
 	}
+
+	traceql.AlignRequest(req)
 
 	var maxExemplars uint32
 	// Instant queries must not compute exemplars

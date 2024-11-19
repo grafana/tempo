@@ -1,5 +1,7 @@
 # tempo-serverless
 
+## NOTE: The Tempo serverless is now deprecated and will be removed in an upcoming release.
+
 This folder is intended to wrap a simple handler for searching backend storage for traces. Subfolders 
 `./cloud-run` and `./lambda` contain specific code necessary to run this handler in the respective
 environments.

@@ -65,6 +65,11 @@ var (
 		Name:      "compaction_outstanding_blocks",
 		Help:      "Number of blocks remaining to be compacted before next maintenance cycle",
 	}, []string{"tenant"})
+	metricDedupedSpans = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempodb",
+		Name:      "compaction_spans_combined_total",
+		Help:      "Number of spans that are deduped per replication factor.",
+	}, []string{"replication_factor"})
 )
 
 func (rw *readerWriter) compactionLoop(ctx context.Context) {
@@ -166,6 +171,10 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 				metricCompactionErrors.Inc()
 			}
 
+			if !rw.compactorSharder.Owns(hashString) {
+				level.Warn(rw.logger).Log("msg", "compaction complete but we no longer own the hash", "hashString", hashString)
+			}
+
 			// after a maintenance cycle bail out
 			if start.Add(rw.compactorCfg.MaxTimePerTenant).Before(time.Now()) {
 				measureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
@@ -262,6 +271,9 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 		},
 		RootlessTrace: func() {
 			dataquality.WarnRootlessTrace(tenantID, dataquality.PhaseTraceCompactorCombine)
+		},
+		DedupedSpans: func(replFactor, dedupedSpans int) {
+			metricDedupedSpans.WithLabelValues(strconv.Itoa(replFactor)).Add(float64(dedupedSpans))
 		},
 	}
 

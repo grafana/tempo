@@ -57,6 +57,8 @@ If spans are regularly exceeding this value you may want to consider reviewing y
 Note that increasing this value allows the generator to consume more spans, but does reduce the accuracy of metrics because spans farther
 away from "now" are included.
 
+Spans could also be discarded if the attributes are not valid UTF-8 characters when those attributes are converted to metric labels.
+
 ### Max active series
 
 The generator protects itself and your remote-write target by having a maximum number of series the generator produces.

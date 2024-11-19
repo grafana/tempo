@@ -2,7 +2,9 @@ package spanmetrics
 
 import (
 	"context"
+	"fmt"
 	"time"
+	"unicode/utf8"
 
 	"github.com/prometheus/prometheus/util/strutil"
 	"go.opentelemetry.io/otel"
@@ -40,12 +42,13 @@ type Processor struct {
 
 	filter               *spanfilter.SpanFilter
 	filteredSpansCounter prometheus.Counter
+	invalidUTF8Counter   prometheus.Counter
 
 	// for testing
 	now func() time.Time
 }
 
-func New(cfg Config, reg registry.Registry, spanDiscardCounter prometheus.Counter) (gen.Processor, error) {
+func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
 	labels := make([]string, 0, 4+len(cfg.Dimensions))
 
 	if cfg.IntrinsicDimensions.Service {
@@ -72,13 +75,19 @@ func New(cfg Config, reg registry.Registry, spanDiscardCounter prometheus.Counte
 		labels = append(labels, sanitizeLabelNameWithCollisions(m.Name))
 	}
 
+	err := validateLabelValues(labels)
+	if err != nil {
+		return nil, err
+	}
+
 	p := &Processor{
 		Cfg:                   cfg,
 		registry:              reg,
 		spanMetricsTargetInfo: reg.NewGauge(targetInfo),
 		now:                   time.Now,
 		labels:                labels,
-		filteredSpansCounter:  spanDiscardCounter,
+		filteredSpansCounter:  filteredSpansCounter,
+		invalidUTF8Counter:    invalidUTF8Counter,
 	}
 
 	if cfg.Subprocessors[Latency] {
@@ -96,7 +105,6 @@ func New(cfg Config, reg registry.Registry, spanDiscardCounter prometheus.Counte
 		return nil, err
 	}
 
-	p.filteredSpansCounter = spanDiscardCounter
 	p.filter = filter
 	return p, nil
 }
@@ -203,6 +211,12 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 
 	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs)
 
+	err := validateLabelValues(labelValues)
+	if err != nil {
+		p.invalidUTF8Counter.Inc()
+		return
+	}
+
 	registryLabelValues := p.registry.NewLabelValueCombo(labels, labelValues)
 
 	if p.Cfg.Subprocessors[Count] {
@@ -257,6 +271,16 @@ func sanitizeLabelNameWithCollisions(name string) string {
 	}
 
 	return sanitized
+}
+
+func validateLabelValues(v []string) error {
+	for _, value := range v {
+		if !utf8.ValidString(value) {
+			return fmt.Errorf("invalid utf8 string: %s", value)
+		}
+	}
+
+	return nil
 }
 
 func isIntrinsicDimension(name string) bool {
