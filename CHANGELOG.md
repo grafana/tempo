@@ -1,5 +1,6 @@
 ## main / unreleased
 * [FEATURE] tempo-cli: support dropping multiple traces in a single operation [#4266](https://github.com/grafana/tempo/pull/4266) (@ndk)
+* [CHANGE] fix deprecation warning by switching to DoBatchWithOptions [#4343](https://github.com/grafana/tempo/pull/4343) (@dastrobu)
 * [CHANGE] **BREAKING CHANGE** The Tempo serverless is now deprecated and will be removed in an upcoming release [#4017](https://github.com/grafana/tempo/pull/4017/) @electron0zero
 * [CHANGE] **BREAKING CHANGE** Change the AWS Lambda serverless build tooling output from "main" to "bootstrap". Refer to https://aws.amazon.com/blogs/compute/migrating-aws-lambda-functions-from-the-go1-x-runtime-to-the-custom-runtime-on-amazon-linux-2/ for migration steps [#3852](https://github.com/grafana/tempo/pull/3852) (@zatlodan)
 * [CHANGE] Add throughput and SLO metrics in the tags and tag values endpoints [#4148](https://github.com/grafana/tempo/pull/4148) (@electron0zero)
