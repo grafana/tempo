@@ -483,7 +483,7 @@ github.com/gorilla/handlers
 # github.com/gorilla/mux v1.8.1
 ## explicit; go 1.20
 github.com/gorilla/mux
-# github.com/grafana/dskit v0.0.0-20240801171758-736c44c85382
+# github.com/grafana/dskit v0.0.0-20241115082728-f2a7eb3aa0e9
 ## explicit; go 1.21
 github.com/grafana/dskit/backoff
 github.com/grafana/dskit/cancellation
@@ -499,7 +499,6 @@ github.com/grafana/dskit/grpcutil
 github.com/grafana/dskit/httpgrpc
 github.com/grafana/dskit/httpgrpc/server
 github.com/grafana/dskit/instrument
-github.com/grafana/dskit/internal/math
 github.com/grafana/dskit/internal/slices
 github.com/grafana/dskit/kv
 github.com/grafana/dskit/kv/codec
@@ -1880,7 +1879,6 @@ google.golang.org/grpc/credentials/oauth
 google.golang.org/grpc/encoding
 google.golang.org/grpc/encoding/gzip
 google.golang.org/grpc/encoding/proto
-google.golang.org/grpc/experimental
 google.golang.org/grpc/grpclog
 google.golang.org/grpc/health
 google.golang.org/grpc/health/grpc_health_v1

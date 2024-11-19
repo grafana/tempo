@@ -21,6 +21,7 @@
 * [FEATURE] TraceQL support for instrumentation scope [#3967](https://github.com/grafana/tempo/pull/3967) (@ie-pham)
 * [FEATURE] Export cost attribution usage metrics from distributor [#4162](https://github.com/grafana/tempo/pull/4162) (@mdisibio)
 * [FEATURE] TraceQL metrics: avg_over_time [#4073](https://github.com/grafana/tempo/pull/4073) (@javiermolinar)
+* [ENHANCEMENT] Update to the latest dskit [#4341](https://github.com/grafana/tempo/pull/4341) (@dastrobu)
 * [ENHANCEMENT] Changed log level from INFO to DEBUG for the TempoDB Find operation using traceId to reduce excessive/unwanted logs in log search. [#4179](https://github.com/grafana/tempo/pull/4179) (@Aki0x137)
 * [ENHANCEMENT] Pushdown collection of results from generators in the querier [#4119](https://github.com/grafana/tempo/pull/4119) (@electron0zero)
 * [ENHANCEMENT] The span multiplier now also sources its value from the resource attributes. [#4210](https://github.com/grafana/tempo/pull/4210)
