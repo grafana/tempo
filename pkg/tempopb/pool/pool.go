@@ -6,6 +6,17 @@ package pool
 
 import (
 	"sync"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	metricAllocOutPool = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "ingester_prealloc_miss_bytes_total",
+		Help:      "The total number of alloc'ed bytes that missed the sync pools.",
+	})
 )
 
 // Pool is a linearly bucketed pool for variably sized byte slices.
@@ -49,12 +60,14 @@ func (p *Pool) Get(sz int) []byte {
 	bkt := sz / p.bktSize
 
 	if bkt >= len(p.buckets) {
+		metricAllocOutPool.Add(float64(sz)) // track the number of bytes alloc'ed outside the pool for future tuning
 		return p.make(sz)
 	}
 
 	b := p.buckets[bkt].Get()
 	if b == nil {
-		b = p.make((bkt + 1) * p.bktSize)
+		sz := (bkt + 1) * p.bktSize
+		b = p.make(sz)
 	}
 	return b.([]byte)
 }
