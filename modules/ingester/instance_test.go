@@ -706,7 +706,7 @@ func BenchmarkInstancePush(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// Rotate trace ID
-		binary.LittleEndian.PutUint32(request.Ids[0].Slice, uint32(i))
+		binary.LittleEndian.PutUint32(request.Ids[0], uint32(i))
 		response := instance.PushBytesRequest(context.Background(), request)
 		errored, _, _ := CheckPushBytesError(response)
 		require.False(b, errored, "push failed: %w", response.ErrorsByTrace)
@@ -825,9 +825,9 @@ func makePushBytesRequest(traceID []byte, batch *v1_trace.ResourceSpans) *tempop
 	}
 
 	return &tempopb.PushBytesRequest{
-		Ids: []tempopb.PreallocBytes{{
-			Slice: traceID,
-		}},
+		Ids: [][]byte{
+			traceID,
+		},
 		Traces: []tempopb.PreallocBytes{{
 			Slice: buffer,
 		}},
@@ -965,7 +965,7 @@ func makePushBytesRequestMultiTraces(traceIDs [][]byte, maxBytes []int) *tempopb
 	}
 	traces := makeTraces(batches)
 
-	byteIDs := make([]tempopb.PreallocBytes, 0, len(traceIDs))
+	byteIDs := make([][]byte, 0, len(traceIDs))
 	byteTraces := make([]tempopb.PreallocBytes, 0, len(traceIDs))
 
 	for index, id := range traceIDs {
@@ -974,9 +974,7 @@ func makePushBytesRequestMultiTraces(traceIDs [][]byte, maxBytes []int) *tempopb
 			panic(err)
 		}
 
-		byteIDs = append(byteIDs, tempopb.PreallocBytes{
-			Slice: id,
-		})
+		byteIDs = append(byteIDs, id)
 		byteTraces = append(byteTraces, tempopb.PreallocBytes{
 			Slice: buffer,
 		})

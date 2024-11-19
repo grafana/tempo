@@ -269,15 +269,8 @@ message PushBytesRequest {
     (gogoproto.customtype) = "PreallocBytes"
   ];
   // trace ids. length must match traces
-  repeated bytes ids = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.customtype) = "PreallocBytes"
-  ];
-  // search data, length must match traces
-  repeated bytes searchData = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.customtype) = "PreallocBytes"
-  ];
+  repeated bytes ids = 3;
+  // id 4 previously claimed by SearchData
 }
 
 message PushSpansRequest {
