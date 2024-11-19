@@ -770,10 +770,10 @@ func TestProcessAttributes(t *testing.T) {
 			// find large resource attributes
 			for _, attr := range resource.Resource.Attributes {
 				if attr.Key == "long value" {
-					assert.Equal(t, longString[:990]+"_truncated", attr.Value.GetStringValue())
+					assert.Equal(t, longString[:maxAttrByte]+"_truncated", attr.Value.GetStringValue())
 				}
 				if attr.Value.GetStringValue() == "long key" {
-					assert.Equal(t, longString[:990]+"_truncated", attr.Key)
+					assert.Equal(t, longString[:maxAttrByte]+"_truncated", attr.Key)
 				}
 			}
 			// find large span attributes
@@ -781,10 +781,10 @@ func TestProcessAttributes(t *testing.T) {
 				for _, span := range scope.Spans {
 					for _, attr := range span.Attributes {
 						if attr.Key == "long value" {
-							assert.Equal(t, longString[:990]+"_truncated", attr.Value.GetStringValue())
+							assert.Equal(t, longString[:maxAttrByte]+"_truncated", attr.Value.GetStringValue())
 						}
 						if attr.Value.GetStringValue() == "long key" {
-							assert.Equal(t, longString[:990]+"_truncated", attr.Key)
+							assert.Equal(t, longString[:maxAttrByte]+"_truncated", attr.Key)
 						}
 					}
 				}
@@ -796,7 +796,7 @@ func TestProcessAttributes(t *testing.T) {
 }
 
 func BenchmarkTestsByRequestID(b *testing.B) {
-	spansPer := 1000
+	spansPer := 5000
 	batches := 100
 	traces := []*tempopb.Trace{
 		test.MakeTraceWithSpanCount(batches, spansPer, []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}),
@@ -820,7 +820,7 @@ func BenchmarkTestsByRequestID(b *testing.B) {
 				{
 					ScopeSpans: blerg,
 				},
-			}, "test", spansPer*len(traces), 1000)
+			}, "test", spansPer*len(traces), 5)
 			require.NoError(b, err)
 		}
 	}

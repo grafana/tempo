@@ -625,14 +625,14 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, count *int) {
 	for _, attr := range attributes {
 		if len(attr.Key) > maxAttrSize {
-			attr.Key = attr.Key[:maxAttrSize-10] + "_truncated"
+			attr.Key = attr.Key[:maxAttrSize] + "_truncated"
 			*count++
 		}
 
 		switch value := attr.GetValue().Value.(type) {
 		case *v1_common.AnyValue_StringValue:
 			if len(value.StringValue) > maxAttrSize {
-				value.StringValue = value.StringValue[:maxAttrSize-10] + "_truncated"
+				value.StringValue = value.StringValue[:maxAttrSize] + "_truncated"
 				*count++
 			}
 		default:
