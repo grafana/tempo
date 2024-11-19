@@ -424,7 +424,7 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 
 	writeRing := d.ingestersRing.ShuffleShard(userID, d.overrides.IngestionTenantShardSize(userID))
 
-	err := ring.DoBatch(ctx, op, writeRing, keys, func(ingester ring.InstanceDesc, indexes []int) error {
+	err := ring.DoBatchWithOptions(ctx, op, writeRing, keys, func(ingester ring.InstanceDesc, indexes []int) error {
 		localCtx, cancel := context.WithTimeout(ctx, d.clientCfg.RemoteTimeout)
 		defer cancel()
 		localCtx = user.InjectOrgID(localCtx, userID)
@@ -459,7 +459,7 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 		d.processPushResponse(pushResponse, numSuccessByTraceIndex, lastErrorReasonByTraceIndex, numOfTraces, indexes)
 
 		return nil
-	}, func() {})
+	}, ring.DoBatchOptions{})
 	// if err != nil, we discarded everything because of an internal error (like "context cancelled")
 	if err != nil {
 		overrides.RecordDiscardedSpans(totalSpanCount, reasonInternalError, userID)
@@ -482,7 +482,7 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys 
 
 	readRing := d.generatorsRing.ShuffleShard(userID, d.overrides.MetricsGeneratorRingSize(userID))
 
-	err := ring.DoBatch(ctx, op, readRing, keys, func(generator ring.InstanceDesc, indexes []int) error {
+	err := ring.DoBatchWithOptions(ctx, op, readRing, keys, func(generator ring.InstanceDesc, indexes []int) error {
 		localCtx, cancel := context.WithTimeout(ctx, d.generatorClientCfg.RemoteTimeout)
 		defer cancel()
 		localCtx = user.InjectOrgID(localCtx, userID)
@@ -506,7 +506,7 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys 
 			return fmt.Errorf("failed to push spans to generator: %w", err)
 		}
 		return nil
-	}, func() {})
+	}, ring.DoBatchOptions{})
 
 	return err
 }
