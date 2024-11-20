@@ -254,7 +254,8 @@ The implemented comparison operators are:
 - `=~` (regular expression)
 - `!~` (negated regular expression)
 
-TraceQL uses Golang regular expressions. Online regular expression testing sites like https://regex101.com/ are convenient to validate regular expressions used in TraceQL queries.
+TraceQL uses Golang regular expressions. Online regular expression testing sites like https://regex101.com/ are convenient to validate regular expressions used in TraceQL queries. All regular expressions
+are treated as fully anchored. For example, `span.foo =~ "bar"` is evaluated as `span.foo =~ "^bar$"`.
 
 For example, to find all traces where an `http.status_code` attribute in a span are greater than `400` but less than equal to `500`:
 

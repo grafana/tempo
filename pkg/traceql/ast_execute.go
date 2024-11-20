@@ -4,8 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"regexp"
 	"strings"
+
+	"github.com/grafana/tempo/pkg/regexp"
 )
 
 var errSpansetOperationMultiple = errors.New("spanset operators are not supported for multiple spansets per trace. consider using coalesce()")
@@ -392,7 +393,7 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 			return NewStaticBool(strings.Compare(lhs.String(), rhs.String()) <= 0), nil
 		case OpRegex:
 			if o.compiledExpression == nil {
-				o.compiledExpression, err = regexp.Compile(rhs.EncodeToString(false))
+				o.compiledExpression, err = regexp.NewRegexp([]string{rhs.EncodeToString(false)}, true)
 				if err != nil {
 					return NewStaticNil(), err
 				}
@@ -402,14 +403,14 @@ func (o *BinaryOperation) execute(span Span) (Static, error) {
 			return NewStaticBool(matched), err
 		case OpNotRegex:
 			if o.compiledExpression == nil {
-				o.compiledExpression, err = regexp.Compile(rhs.EncodeToString(false))
+				o.compiledExpression, err = regexp.NewRegexp([]string{rhs.EncodeToString(false)}, false)
 				if err != nil {
 					return NewStaticNil(), err
 				}
 			}
 
 			matched := o.compiledExpression.MatchString(lhs.EncodeToString(false))
-			return NewStaticBool(!matched), err
+			return NewStaticBool(matched), err
 		default:
 		}
 	}
