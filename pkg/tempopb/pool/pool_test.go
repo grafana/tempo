@@ -14,41 +14,47 @@ func makeFunc(size int) []byte {
 }
 
 func TestPool(t *testing.T) {
-	testPool := New(20, 4, makeFunc)
+	testPool := New(5, 2, 5, makeFunc)
 	cases := []struct {
 		size        int
 		expectedCap int
 	}{
-		{
-			size:        -5,
-			expectedCap: 4,
-		},
-		{
-			size:        0,
-			expectedCap: 4,
-		},
-		{
+		{ // under the smallest pool size, should return an unaligned slice
 			size:        3,
-			expectedCap: 4,
+			expectedCap: 3,
+		},
+		{
+			size:        5,
+			expectedCap: 10,
+		},
+		{
+			size:        6,
+			expectedCap: 10,
 		},
 		{
 			size:        10,
-			expectedCap: 12,
+			expectedCap: 15,
 		},
 		{
-			size:        23,
-			expectedCap: 23,
+			size:        15,
+			expectedCap: 15,
+		},
+		{ // over the largest pool size, should return an unaligned slice
+			size:        16,
+			expectedCap: 16,
 		},
 	}
 	for _, c := range cases {
-		ret := testPool.Get(c.size)
-		require.Equal(t, c.expectedCap, cap(ret))
-		testPool.Put(ret)
+		for i := 0; i < 10; i++ {
+			ret := testPool.Get(c.size)
+			require.Equal(t, c.expectedCap, cap(ret))
+			testPool.Put(ret)
+		}
 	}
 }
 
 func TestPoolSlicesAreAlwaysLargeEnough(t *testing.T) {
-	testPool := New(1025, 5, makeFunc)
+	testPool := New(100, 200, 5, makeFunc)
 
 	for i := 0; i < 10000; i++ {
 		size := rand.Intn(1000)
@@ -61,5 +67,42 @@ func TestPoolSlicesAreAlwaysLargeEnough(t *testing.T) {
 		require.True(t, cap(ret) >= size)
 
 		testPool.Put(ret)
+	}
+}
+
+func TestBucketFor(t *testing.T) {
+	testPool := New(5, 10, 5, makeFunc)
+	cases := []struct {
+		size     int
+		expected int
+	}{
+		{
+			size:     0,
+			expected: -1,
+		},
+		{
+			size:     5,
+			expected: 0,
+		},
+		{
+			size:     6,
+			expected: 0,
+		},
+		{
+			size:     10,
+			expected: 1,
+		},
+		{
+			size:     11,
+			expected: 1,
+		},
+		{
+			size:     15,
+			expected: 2,
+		},
+	}
+	for _, c := range cases {
+		ret := testPool.bucketFor(c.size)
+		require.Equal(t, c.expected, ret)
 	}
 }

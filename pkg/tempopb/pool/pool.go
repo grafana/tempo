@@ -11,79 +11,98 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-var metricAllocOutPool = promauto.NewCounter(prometheus.CounterOpts{
-	Namespace: "tempo",
-	Name:      "ingester_prealloc_miss_bytes_total",
-	Help:      "The total number of alloc'ed bytes that missed the sync pools.",
-})
+var metricMissOver prometheus.Counter
+var metricMissUnder prometheus.Counter
+
+func init() {
+	metricAllocOutPool := promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "ingester_prealloc_miss_bytes_total",
+		Help:      "The total number of alloc'ed bytes that missed the sync pools.",
+	}, []string{"direction"})
+
+	metricMissOver = metricAllocOutPool.WithLabelValues("over")
+	metricMissUnder = metricAllocOutPool.WithLabelValues("under")
+}
 
 // Pool is a linearly bucketed pool for variably sized byte slices.
 type Pool struct {
-	buckets []sync.Pool
-	bktSize int
+	buckets   []sync.Pool
+	bktSize   int
+	minBucket int
+
 	// make is the function used to create an empty slice when none exist yet.
 	make func(int) []byte
 }
 
 // New returns a new Pool with size buckets for minSize to maxSize
-func New(maxSize, bktSize int, makeFunc func(int) []byte) *Pool {
-	if maxSize < 1 {
-		panic("invalid maximum pool size")
+func New(minBucket, numBuckets, bktSize int, makeFunc func(int) []byte) *Pool {
+	if minBucket < 0 {
+		panic("invalid min bucket size")
 	}
 	if bktSize < 1 {
-		panic("invalid factor")
-	}
-	if maxSize%bktSize != 0 {
 		panic("invalid bucket size")
 	}
-
-	bkts := maxSize / bktSize
-
-	p := &Pool{
-		buckets: make([]sync.Pool, bkts),
-		bktSize: bktSize,
-		make:    makeFunc,
+	if numBuckets < 1 {
+		panic("invalid num buckets")
 	}
 
-	return p
+	return &Pool{
+		buckets:   make([]sync.Pool, numBuckets),
+		bktSize:   bktSize,
+		minBucket: minBucket,
+		make:      makeFunc,
+	}
 }
 
 // Get returns a new byte slices that fits the given size.
 func (p *Pool) Get(sz int) []byte {
 	if sz < 0 {
-		sz = 0 // just panic?
+		panic("requested negative size")
+	}
+
+	if sz < p.minBucket {
+		metricMissUnder.Add(float64(sz))
+		return p.make(sz)
 	}
 
 	// Find the right bucket.
-	bkt := sz / p.bktSize
+	bkt := p.bucketFor(sz)
 
 	if bkt >= len(p.buckets) {
-		metricAllocOutPool.Add(float64(sz)) // track the number of bytes alloc'ed outside the pool for future tuning
+		metricMissOver.Add(float64(sz))
 		return p.make(sz)
 	}
 
 	b := p.buckets[bkt].Get()
 	if b == nil {
-		sz := (bkt + 1) * p.bktSize
-		b = p.make(sz)
+		alignedSz := ((sz / p.bktSize) + 1) * p.bktSize // align to the next bucket up
+		b = p.make(alignedSz)
 	}
 	return b.([]byte)
 }
 
 // Put adds a slice to the right bucket in the pool.
-func (p *Pool) Put(s []byte) {
+func (p *Pool) Put(s []byte) int {
 	c := cap(s)
 
+	// valid slice?
 	if c%p.bktSize != 0 {
-		return
+		return -1
 	}
-	bkt := (c / p.bktSize) - 1
+	bkt := p.bucketFor(c) - 1 // -1 puts the slice in the pool below. it will be larger than all requested slices for this bucket
 	if bkt < 0 {
-		return
+		return -1
 	}
 	if bkt >= len(p.buckets) {
-		return
+		return -1
 	}
 
 	p.buckets[bkt].Put(s) // nolint: staticcheck
+
+	return bkt
+}
+
+func (p *Pool) bucketFor(sz int) int {
+	return (sz - p.minBucket) / p.bktSize
 }
