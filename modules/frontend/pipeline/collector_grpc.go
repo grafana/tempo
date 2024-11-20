@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -83,5 +84,11 @@ func grpcError(err error) error {
 		return err
 	}
 
+	// if this is context cancelled, we return a grpc cancelled error
+	if errors.Is(err, context.Canceled) {
+		return status.Error(codes.Canceled, err.Error())
+	}
+
+	// rest all fall into internal server error
 	return status.Error(codes.Internal, err.Error())
 }

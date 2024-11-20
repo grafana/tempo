@@ -13,6 +13,7 @@ import (
 	"github.com/gogo/status"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -54,6 +55,17 @@ func TestErroredResponse(t *testing.T) {
 				Body:       io.NopCloser(strings.NewReader("foo")),
 			},
 			expectedErr: status.Error(codes.InvalidArgument, "foo"),
+		},
+		{
+			name:       "499",
+			statusCode: util.StatusClientClosedRequest,
+			respBody:   "foo",
+			expectedResp: &http.Response{
+				StatusCode: util.StatusClientClosedRequest,
+				Status:     util.StatusTextClientClosedRequest,
+				Body:       io.NopCloser(strings.NewReader("foo")),
+			},
+			expectedErr: status.Error(codes.Canceled, "foo"),
 		},
 	}
 

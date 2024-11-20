@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
+	"github.com/grafana/tempo/pkg/util"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
@@ -217,6 +218,9 @@ func (c *genericCombiner[T]) erroredResponse() (*http.Response, error) {
 		grpcErr = status.Error(codes.ResourceExhausted, c.httpRespBody)
 	case http.StatusBadRequest:
 		grpcErr = status.Error(codes.InvalidArgument, c.httpRespBody)
+	case util.StatusClientClosedRequest:
+		// HTTP 499 is mapped to codes.Canceled grpc error
+		grpcErr = status.Error(codes.Canceled, c.httpRespBody)
 	default:
 		if c.httpStatusCode/100 == 5 {
 			grpcErr = status.Error(codes.Internal, c.httpRespBody)
@@ -226,7 +230,7 @@ func (c *genericCombiner[T]) erroredResponse() (*http.Response, error) {
 	}
 	httpResp := &http.Response{
 		StatusCode: c.httpStatusCode,
-		Status:     http.StatusText(c.httpStatusCode),
+		Status:     util.StatusText(c.httpStatusCode),
 		Body:       io.NopCloser(strings.NewReader(c.httpRespBody)),
 	}
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/flagext"
+	"github.com/grafana/tempo/pkg/util"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -22,14 +23,12 @@ import (
 )
 
 const (
-	// StatusClientClosedRequest is the status code for when a client request cancellation of an http request
-	StatusClientClosedRequest = 499
 	// nil response in ServeHTTP
 	NilResponseError = "nil resp in ServeHTTP"
 )
 
 var (
-	errCanceled              = httpgrpc.Errorf(StatusClientClosedRequest, context.Canceled.Error())
+	errCanceled              = httpgrpc.Errorf(util.StatusClientClosedRequest, context.Canceled.Error())
 	errDeadlineExceeded      = httpgrpc.Errorf(http.StatusGatewayTimeout, context.DeadlineExceeded.Error())
 	errRequestEntityTooLarge = httpgrpc.Errorf(http.StatusRequestEntityTooLarge, "http: request body too large")
 )
@@ -88,7 +87,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logMessage = append(
 			logMessage,
 			"status", statusCode,
-			"err", err.Error(),
+			"error", err.Error(),
 			"response_size", 0,
 		)
 		level.Info(f.logger).Log(logMessage...)

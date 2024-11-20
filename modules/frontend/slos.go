@@ -1,10 +1,13 @@
 package frontend
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/gogo/status"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"google.golang.org/grpc/codes"
@@ -89,11 +92,15 @@ func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec
 
 		// most errors are SLO violations
 		if err != nil {
-			// however, if this is a grpc resource exhausted error (429) or invalid argument (400) then we are within SLO
+			// However, gRPC resource exhausted error (429), invalid argument (400), not found (404) and
+			// request cancellations are considered within the SLO.
 			switch status.Code(err) {
-			case codes.ResourceExhausted,
-				codes.InvalidArgument,
-				codes.NotFound:
+			case codes.ResourceExhausted, codes.InvalidArgument, codes.NotFound, codes.Canceled:
+				withinSLOByTenantCounter.WithLabelValues(tenant).Inc()
+			}
+
+			// we don't always get a gRPC codes.Canceled status code, so check for context.Canceled and http 499 as well
+			if errors.Is(err, context.Canceled) || (resp != nil && resp.StatusCode == util.StatusClientClosedRequest) {
 				withinSLOByTenantCounter.WithLabelValues(tenant).Inc()
 			}
 			return
