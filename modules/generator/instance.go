@@ -358,6 +358,20 @@ func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest)
 	}
 }
 
+func (i *instance) pushSpansFromQueue(ctx context.Context, req *tempopb.PushSpansRequest) {
+	i.preprocessSpans(req)
+	i.processorsMtx.RLock()
+	defer i.processorsMtx.RUnlock()
+
+	for _, processor := range i.processors {
+		// Same as normal push except we skip the local blocks processor
+		if processor.Name() == localblocks.Name {
+			continue
+		}
+		processor.PushSpans(ctx, req)
+	}
+}
+
 func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 	// TODO - uniqify all strings?
 	// Doesn't help allocs, but should greatly reduce inuse space

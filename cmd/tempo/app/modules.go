@@ -308,7 +308,16 @@ func (t *App) initGenerator() (services.Service, error) {
 	}
 
 	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
-	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.store, log.Logger)
+
+	t.cfg.Generator.Ingest = t.cfg.Ingest
+	t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
+
+	if t.cfg.Target == SingleBinary && len(t.cfg.Generator.AssignedPartitions) == 0 {
+		// In SingleBinary mode always use partition 0. This is for small installs or local/debugging setups.
+		t.cfg.Generator.AssignedPartitions = append(t.cfg.Generator.AssignedPartitions, 0)
+	}
+
+	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRing, t.store, log.Logger)
 	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
 		level.Warn(log.Logger).Log("msg", "metrics-generator is not configured.", "err", err)
 		return services.NewIdleService(nil, nil), nil
@@ -660,7 +669,7 @@ func (t *App) setupModuleManager() error {
 		QueryFrontend:    {Common, Store, OverridesAPI},
 		Distributor:      {Common, IngesterRing, MetricsGeneratorRing, PartitionRing},
 		Ingester:         {Common, Store, MemberlistKV, PartitionRing},
-		MetricsGenerator: {Common, OptionalStore, MemberlistKV, BlockBuilder},
+		MetricsGenerator: {Common, OptionalStore, MemberlistKV, BlockBuilder, PartitionRing},
 		Querier:          {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
 		Compactor:        {Common, Store, MemberlistKV},
 		BlockBuilder:     {Common, Store, MemberlistKV, PartitionRing},
