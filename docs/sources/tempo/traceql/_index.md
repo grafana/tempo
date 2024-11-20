@@ -346,7 +346,7 @@ For example, to find a trace where a specific HTTP API interacted with a specifi
 ### Union structural
 
 These spanset operators look at the structure of a trace and the relationship between the spans. These operators are unique in that they
-return spans that match on both side of the operator.
+return spans that match on both sides of the operator.
 
 - `{condA} &>> {condB}` - The descendant operator (`>>`) looks for spans matching `{condB}` that are descendants of a span matching `{condA}`.
 - `{condA} &<< {condB}` - The ancestor operator (`<<`) looks for spans matching `{condB}` that are ancestor of a span matching `{condA}`.
