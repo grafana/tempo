@@ -32,6 +32,8 @@ import (
 
 const testTopic = "test-topic"
 
+// When the partition starts with no existing commit,
+// the block-builder looks back to consume all available records from the start and ensures they are committed and flushed into a block.
 func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
@@ -68,6 +70,9 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	}, time.Minute, time.Second)
 }
 
+// Starting with a pre-existing commit,
+// the block-builder resumes from the last known position, consuming new records,
+// and ensures all of them are properly committed and flushed into blocks.
 func TestBlockbuilder_startWithCommit(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
@@ -118,6 +123,7 @@ func TestBlockbuilder_startWithCommit(t *testing.T) {
 	}, time.Minute, time.Second)
 }
 
+// In case a block flush initially fails, the system retries until it succeeds.
 func TestBlockbuilder_flushingFails(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
@@ -160,6 +166,8 @@ func TestBlockbuilder_flushingFails(t *testing.T) {
 	}, time.Minute, time.Second)
 }
 
+// Receiving records with older timestamps the block-builder processes them in the current cycle,
+// ensuring they're written into a new block despite "belonging" to another cycle.
 func TestBlockbuilder_receivesOldRecords(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
@@ -219,7 +227,13 @@ func TestBlockbuilder_receivesOldRecords(t *testing.T) {
 //
 //	because it's asserting that there is exactly two commits, one of which fails.
 //	It can be 3 commits if the records cross two consumption cycles.
-//	🤷
+//
+// On encountering a commit failure, the block-builder retries the operation and eventually succeeds.
+//
+// This would cause two blocks to be written, one for each cycle (one cycle fails at commit, the other succeeds).
+// The block-builder deterministically generates the block ID based on the cycle end timestamp,
+// so the block ID for the failed cycle is the same from the block ID for the successful cycle,
+// and the failed block is overwritten by the successful one.
 func TestBlockbuilder_committingFails(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
