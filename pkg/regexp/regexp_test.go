@@ -45,7 +45,7 @@ func TestShouldMemoize(t *testing.T) {
 			shouldMemoize: false,
 		},
 		{
-			regex:         ".*bar.*", // creates a containsStringMatcher so shouldMemoize
+			regex:         ".*bar.*", // creates a containsStringMatcher so should not memoize
 			shouldMemoize: false,
 		},
 		{
