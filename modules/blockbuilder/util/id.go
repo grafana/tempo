@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/tempodb/backend"
+	"go.uber.org/atomic"
 )
 
 var (
@@ -12,19 +14,44 @@ var (
 	hash = sha1.New()
 )
 
-func NewDeterministicID(ts, seq int64) uuid.UUID {
-	b := int64ToBytes(ts, seq)
+type IDGenerator interface {
+	NewID() backend.UUID
+}
+
+var _ IDGenerator = (*DeterministicIDGenerator)(nil)
+
+type DeterministicIDGenerator struct {
+	seeds []int64
+	seq   *atomic.Int64
+}
+
+func NewDeterministicIDGenerator(seeds ...int64) *DeterministicIDGenerator {
+	return &DeterministicIDGenerator{
+		seeds: seeds,
+		seq:   atomic.NewInt64(0),
+	}
+}
+
+func (d *DeterministicIDGenerator) NewID() backend.UUID {
+	seq := d.seq.Inc()
+	seeds := append(d.seeds, seq)
+	return backend.UUID(newDeterministicID(seeds))
+}
+
+func newDeterministicID(seeds []int64) uuid.UUID {
+	b := int64ToBytes(seeds...)
 
 	return uuid.NewHash(hash, ns, b, 5)
 }
 
-func int64ToBytes(val1, val2 int64) []byte {
-	// 16 bytes = 8 bytes (int64) + 8 bytes (int64)
-	bytes := make([]byte, 16)
+func int64ToBytes(seeds ...int64) []byte {
+	l := len(seeds)
+	bytes := make([]byte, l*8)
 
 	// Use binary.LittleEndian or binary.BigEndian depending on your requirement
-	binary.LittleEndian.PutUint64(bytes[0:8], uint64(val1))
-	binary.LittleEndian.PutUint64(bytes[8:16], uint64(val2))
+	for i, seed := range seeds {
+		binary.LittleEndian.PutUint64(bytes[i*8:], uint64(seed))
+	}
 
 	return bytes
 }

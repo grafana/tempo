@@ -5,19 +5,23 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
-func TestDeterministicID(t *testing.T) {
+func TestDeterministicIDGenerator(t *testing.T) {
 	ts := time.Now().UnixMilli()
 
-	firstPassIDs := make(map[uuid.UUID]struct{})
+	gen := NewDeterministicIDGenerator(ts)
+
+	firstPassIDs := make(map[backend.UUID]struct{})
 	for seq := int64(0); seq < 10; seq++ {
-		id := NewDeterministicID(ts, seq)
+		id := gen.NewID()
 		firstPassIDs[id] = struct{}{}
 	}
 
+	gen = NewDeterministicIDGenerator(ts)
 	for seq := int64(0); seq < 10; seq++ {
-		id := NewDeterministicID(ts, seq)
+		id := gen.NewID()
 		if _, ok := firstPassIDs[id]; !ok {
 			t.Errorf("ID %s not found in first pass IDs", id)
 		}
@@ -26,8 +30,9 @@ func TestDeterministicID(t *testing.T) {
 
 func BenchmarkDeterministicID(b *testing.B) {
 	ts := time.Now().UnixMilli()
+	gen := NewDeterministicIDGenerator(ts)
 	for i := 0; i < b.N; i++ {
-		_ = NewDeterministicID(ts, int64(i))
+		_ = gen.NewID()
 	}
 }
 
