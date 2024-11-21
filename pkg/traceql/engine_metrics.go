@@ -1233,13 +1233,9 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 				Value: StaticFromAnyValue(l.Value),
 			})
 		}
-		value := exemplar.Value
-		/*if math.IsNaN(value) {
-			value = 0 // TODO: Use the value of the series at the same timestamp
-		}*/
 		existing.Exemplars = append(existing.Exemplars, Exemplar{
 			Labels:      labels,
-			Value:       value,
+			Value:       exemplar.Value,
 			TimestampMs: uint64(exemplar.TimestampMs),
 		})
 	}
