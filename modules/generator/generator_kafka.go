@@ -112,46 +112,37 @@ func (g *Generator) consumePartition(ctx context.Context, partition int32, lag k
 		}
 	})
 
-	for _, f := range fetches {
-		for _, t := range f.Topics {
-			for _, p := range t.Partitions {
-				if p.Partition != partition {
-					continue
-				}
+	for iter := fetches.RecordIter(); !iter.Done(); {
+		r := iter.Next()
 
-				for _, r := range p.Records {
-					tenant := string(r.Key)
+		tenant := string(r.Key)
 
-					i, err := g.getOrCreateInstance(tenant)
-					if err != nil {
-						return err
-					}
+		i, err := g.getOrCreateInstance(tenant)
+		if err != nil {
+			return err
+		}
 
-					d.Reset()
-					req, err := d.Decode(r.Value)
-					if err != nil {
-						return err
-					}
+		d.Reset()
+		req, err := d.Decode(r.Value)
+		if err != nil {
+			return err
+		}
 
-					for _, tr := range req.Traces {
-						trace := &tempopb.Trace{}
-						err = trace.Unmarshal(tr.Slice)
-						if err != nil {
-							return err
-						}
-
-						i.pushSpansFromQueue(ctx, &tempopb.PushSpansRequest{
-							Batches: trace.ResourceSpans,
-						})
-					}
-				}
+		for _, tr := range req.Traces {
+			trace := &tempopb.Trace{}
+			err = trace.Unmarshal(tr.Slice)
+			if err != nil {
+				return err
 			}
+
+			i.pushSpansFromQueue(ctx, &tempopb.PushSpansRequest{
+				Batches: trace.ResourceSpans,
+			})
 		}
 	}
 
 	offsets := kadm.OffsetsFromFetches(fetches)
-	adm := kadm.NewClient(g.kafkaClient)
-	err := adm.CommitAllOffsets(ctx, g.cfg.Ingest.Kafka.ConsumerGroup, offsets)
+	err := g.kafkaAdm.CommitAllOffsets(ctx, g.cfg.Ingest.Kafka.ConsumerGroup, offsets)
 	if err != nil {
 		return fmt.Errorf("generator failed to commit offsets: %w", err)
 	}

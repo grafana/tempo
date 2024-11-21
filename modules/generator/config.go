@@ -38,7 +38,7 @@ type Config struct {
 	QueryTimeout          time.Duration `yaml:"query_timeout"`
 	OverrideRingKey       string        `yaml:"override_ring_key"`
 
-	// This config is dynamically injected because defined outside the ingester config.
+	// This config is dynamically injected because defined outside the generator config.
 	Ingest             ingest.Config `yaml:"-"`
 	AssignedPartitions []int32       `yaml:"assigned_partitions" doc:"List of partitions assigned to this block builder."`
 }
