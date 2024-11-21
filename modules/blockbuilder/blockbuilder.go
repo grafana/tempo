@@ -227,8 +227,8 @@ func (b *BlockBuilder) consumePartitionSection(ctx context.Context, partition in
 		"lag", lag.Lag,
 	)
 
-	// TODO - Review what ts is used here
-	writer := newPartitionSectionWriter(b.logger, sectionEndTime.UnixMilli(), b.cfg.blockConfig, b.overrides, b.wal, b.enc)
+	// TODO - Review what endTimestamp is used here
+	writer := newPartitionSectionWriter(b.logger, int64(partition), sectionEndTime.UnixMilli(), b.cfg.blockConfig, b.overrides, b.wal, b.enc)
 
 	// We always rewind the partition's offset to the commit offset by reassigning the partition to the client (this triggers partition assignment).
 	// This is so the cycle started exactly at the commit offset, and not at what was (potentially over-) consumed previously.

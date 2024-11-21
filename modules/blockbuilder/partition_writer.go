@@ -3,6 +3,7 @@ package blockbuilder
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -22,25 +23,27 @@ type partitionSectionWriter interface {
 type writer struct {
 	logger log.Logger
 
-	blockCfg   BlockConfig
-	cycleEndTs int64
+	blockCfg              BlockConfig
+	partition, cycleEndTs int64
 
 	overrides Overrides
 	wal       *wal.WAL
 	enc       encoding.VersionedEncoding
 
-	// TODO - Lock
-	m map[string]*tenantStore
+	mtx sync.Mutex
+	m   map[string]*tenantStore
 }
 
-func newPartitionSectionWriter(logger log.Logger, cycleEndTs int64, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
+func newPartitionSectionWriter(logger log.Logger, partition, cycleEndTs int64, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
 	return &writer{
 		logger:     logger,
+		partition:  partition,
 		cycleEndTs: cycleEndTs,
 		blockCfg:   blockCfg,
 		overrides:  overrides,
 		wal:        wal,
 		enc:        enc,
+		mtx:        sync.Mutex{},
 		m:          make(map[string]*tenantStore),
 	}
 }
@@ -84,11 +87,14 @@ func (p *writer) flush(ctx context.Context, store tempodb.Writer) error {
 }
 
 func (p *writer) instanceForTenant(tenant string) (*tenantStore, error) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
 	if i, ok := p.m[tenant]; ok {
 		return i, nil
 	}
 
-	i, err := newTenantStore(tenant, p.cycleEndTs, p.blockCfg, p.logger, p.wal, p.enc, p.overrides)
+	i, err := newTenantStore(tenant, p.partition, p.cycleEndTs, p.blockCfg, p.logger, p.wal, p.enc, p.overrides)
 	if err != nil {
 		return nil, err
 	}
