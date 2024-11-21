@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/ingest"
+	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 
@@ -23,6 +24,7 @@ func (c *BlockConfig) RegisterFlags(f *flag.FlagSet) {
 func (c *BlockConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.Uint64Var(&c.MaxBlockBytes, prefix+".max-block-bytes", 20*1024*1024, "Maximum size of a block.") // TODO - Review default
 
+	c.BlockCfg.Version = encoding.DefaultEncoding().Version()
 	c.BlockCfg.RegisterFlagsAndApplyDefaults(prefix, f)
 }
 

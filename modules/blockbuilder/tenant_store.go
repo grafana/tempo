@@ -2,9 +2,11 @@ package blockbuilder
 
 import (
 	"context"
+	"sync"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/blockbuilder/util"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -28,53 +30,69 @@ var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
 
 // TODO - This needs locking
 type tenantStore struct {
-	tenantID string
-	ts       int64
+	tenantID    string
+	idGenerator util.IDGenerator
 
-	cfg    BlockConfig
-	logger log.Logger
-
+	cfg       BlockConfig
+	logger    log.Logger
 	overrides Overrides
-	wal       *wal.WAL
-	headBlock common.WALBlock
-	walBlocks []common.WALBlock
 	enc       encoding.VersionedEncoding
+
+	wal *wal.WAL
+
+	headBlockMtx sync.Mutex
+	headBlock    common.WALBlock
+
+	blocksMtx sync.Mutex
+	walBlocks []common.WALBlock
 }
 
-func newTenantStore(tenantID string, ts int64, cfg BlockConfig, logger log.Logger, wal *wal.WAL, enc encoding.VersionedEncoding, o Overrides) (*tenantStore, error) {
+func newTenantStore(tenantID string, partitionID, endTimestamp int64, cfg BlockConfig, logger log.Logger, wal *wal.WAL, enc encoding.VersionedEncoding, o Overrides) (*tenantStore, error) {
 	s := &tenantStore{
-		tenantID:  tenantID,
-		ts:        ts,
-		cfg:       cfg,
-		logger:    logger,
-		overrides: o,
-		wal:       wal,
-		enc:       enc,
+		tenantID:     tenantID,
+		idGenerator:  util.NewDeterministicIDGenerator(partitionID, endTimestamp),
+		cfg:          cfg,
+		logger:       logger,
+		overrides:    o,
+		wal:          wal,
+		headBlockMtx: sync.Mutex{},
+		blocksMtx:    sync.Mutex{},
+		enc:          enc,
 	}
 
 	return s, s.resetHeadBlock()
 }
 
-func (s *tenantStore) cutHeadBlock() error {
-	// Flush the current head block if it exists
-	if s.headBlock != nil {
-		if err := s.headBlock.Flush(); err != nil {
-			return err
-		}
-		s.walBlocks = append(s.walBlocks, s.headBlock)
-		s.headBlock = nil
+// TODO - periodically flush
+func (s *tenantStore) cutHeadBlock(immediate bool) error {
+	s.headBlockMtx.Lock()
+	defer s.headBlockMtx.Unlock()
+
+	dataLen := s.headBlock.DataLength()
+
+	if s.headBlock == nil || dataLen == 0 {
+		return nil
 	}
 
-	return nil
-}
+	if !immediate && dataLen < s.cfg.MaxBlockBytes {
+		return nil
+	}
 
-func (s *tenantStore) newUUID() backend.UUID {
-	return backend.UUID(util.NewDeterministicID(s.ts, int64(len(s.walBlocks))))
+	s.blocksMtx.Lock()
+	defer s.blocksMtx.Unlock()
+
+	if err := s.headBlock.Flush(); err != nil {
+		return err
+	}
+	s.walBlocks = append(s.walBlocks, s.headBlock)
+	s.headBlock = nil
+
+	return s.resetHeadBlock()
 }
 
 func (s *tenantStore) resetHeadBlock() error {
 	meta := &backend.BlockMeta{
-		BlockID:           s.newUUID(),
+		BlockID:           s.idGenerator.NewID(),
 		TenantID:          s.tenantID,
 		DedicatedColumns:  s.overrides.DedicatedColumns(s.tenantID),
 		ReplicationFactor: backend.MetricsGeneratorReplicationFactor,
@@ -88,11 +106,9 @@ func (s *tenantStore) resetHeadBlock() error {
 }
 
 func (s *tenantStore) AppendTrace(traceID []byte, tr *tempopb.Trace, start, end uint32) error {
-	// TODO - Do this async? This slows down consumption, but we need to be precise
-	if s.headBlock.DataLength() > s.cfg.MaxBlockBytes {
-		if err := s.resetHeadBlock(); err != nil {
-			return err
-		}
+	// TODO - Do this async, it slows down consumption
+	if err := s.cutHeadBlock(false); err != nil {
+		return err
 	}
 
 	return s.headBlock.AppendTrace(traceID, tr, start, end)
@@ -102,9 +118,13 @@ func (s *tenantStore) Flush(ctx context.Context, store tempodb.Writer) error {
 	// TODO - Advance some of this work if possible
 
 	// Cut head block
-	if err := s.cutHeadBlock(); err != nil {
+	if err := s.cutHeadBlock(true); err != nil {
 		return err
 	}
+
+	s.blocksMtx.Lock()
+	defer s.blocksMtx.Unlock()
+
 	completeBlocks := make([]tempodb.WriteableBlock, 0, len(s.walBlocks))
 	// Write all blocks
 	for _, block := range s.walBlocks {
@@ -126,9 +146,14 @@ func (s *tenantStore) Flush(ctx context.Context, store tempodb.Writer) error {
 	}
 
 	// Clear the blocks
+	for _, block := range s.walBlocks {
+		if err := s.wal.LocalBackend().ClearBlock((uuid.UUID)(block.BlockMeta().BlockID), s.tenantID); err != nil {
+			return err
+		}
+	}
 	s.walBlocks = s.walBlocks[:0]
 
-	return s.resetHeadBlock()
+	return nil
 }
 
 func (s *tenantStore) buildWriteableBlock(ctx context.Context, b common.WALBlock) (tempodb.WriteableBlock, error) {
