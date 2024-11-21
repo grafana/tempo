@@ -1,4 +1,4 @@
-package localblocks
+package tracesizes
 
 import (
 	"hash"
@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-type traceSizes struct {
+type Tracker struct {
 	mtx   sync.Mutex
 	hash  hash.Hash64
 	sizes map[uint64]*traceSize
@@ -18,14 +18,14 @@ type traceSize struct {
 	timestamp time.Time
 }
 
-func newTraceSizes() *traceSizes {
-	return &traceSizes{
+func New() *Tracker {
+	return &Tracker{
 		hash:  fnv.New64(),
 		sizes: make(map[uint64]*traceSize),
 	}
 }
 
-func (s *traceSizes) token(traceID []byte) uint64 {
+func (s *Tracker) token(traceID []byte) uint64 {
 	s.hash.Reset()
 	s.hash.Write(traceID)
 	return s.hash.Sum64()
@@ -34,7 +34,7 @@ func (s *traceSizes) token(traceID []byte) uint64 {
 // Allow returns true if the historical total plus incoming size is less than
 // or equal to the max.  The historical total is kept alive and incremented even
 // if not allowed, so that long-running traces are cutoff as expected.
-func (s *traceSizes) Allow(traceID []byte, sz, max int) bool {
+func (s *Tracker) Allow(traceID []byte, sz, max int) bool {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -53,7 +53,7 @@ func (s *traceSizes) Allow(traceID []byte, sz, max int) bool {
 	return tr.size <= max
 }
 
-func (s *traceSizes) ClearIdle(idleSince time.Time) {
+func (s *Tracker) ClearIdle(idleSince time.Time) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
