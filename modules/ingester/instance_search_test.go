@@ -115,7 +115,6 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 
 			// Test after appending to WAL
 			require.NoError(t, i.CutCompleteTraces(0, true))
-			assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 			sr, err = i.Search(context.Background(), req)
 			assert.NoError(t, err)
@@ -597,8 +596,6 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 		// searchData will be nil if not
 		err = i.PushBytes(context.Background(), id, traceBytes)
 		require.NoError(t, err)
-
-		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 	}
 
 	// traces have to be cut to show up in searches
@@ -805,8 +802,6 @@ func TestInstanceSearchMetrics(t *testing.T) {
 
 		err = i.PushBytes(context.Background(), id, traceBytes)
 		require.NoError(t, err)
-
-		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 	}
 
 	search := func() *tempopb.SearchMetrics {

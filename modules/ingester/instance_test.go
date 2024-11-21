@@ -40,11 +40,9 @@ func TestInstance(t *testing.T) {
 
 	response := i.PushBytesRequest(context.Background(), request)
 	require.NotNil(t, response)
-	require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 	err := i.CutCompleteTraces(0, true)
 	require.NoError(t, err)
-	require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 	blockID, err := i.CutBlockIfReady(0, 0, false)
 	require.NoError(t, err, "unexpected error cutting block")
@@ -71,8 +69,6 @@ func TestInstance(t *testing.T) {
 
 	err = i.resetHeadBlock()
 	require.NoError(t, err, "unexpected error resetting block")
-
-	require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 }
 
 func TestInstanceFind(t *testing.T) {
@@ -85,7 +81,6 @@ func TestInstanceFind(t *testing.T) {
 
 	err := i.CutCompleteTraces(0, true)
 	require.NoError(t, err)
-	require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 	for j := 0; j < numTraces; j++ {
 		traceBytes, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(traces[j], 0, 0)
@@ -140,7 +135,6 @@ func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.
 
 		err = i.PushBytes(context.Background(), id, traceBytes)
 		require.NoError(t, err)
-		require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 		ids = append(ids, id)
 		traces = append(traces, testTrace)
