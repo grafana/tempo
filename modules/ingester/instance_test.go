@@ -570,9 +570,26 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	_, _, traceTooLargeCount = CheckPushBytesError(response)
 	assert.Equal(t, true, traceTooLargeCount > 0)
 
-	// Cut block and then pushing works again
+	// Cut block and then pushing still fails b/c too large traces persist til they stop being pushed
 	_, err = i.CutBlockIfReady(0, 0, true)
 	require.NoError(t, err)
+	response = i.PushBytesRequest(ctx, req)
+	_, _, traceTooLargeCount = CheckPushBytesError(response)
+	assert.Equal(t, true, traceTooLargeCount > 0)
+
+	// Cut block 2x w/o while pushing other traces, but not the problematic trace! this will finally clear the trace
+	i.PushBytesRequest(ctx, makeRequestWithByteLimit(200, nil))
+	err = i.CutCompleteTraces(0, true)
+	require.NoError(t, err)
+	_, err = i.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err)
+
+	i.PushBytesRequest(ctx, makeRequestWithByteLimit(200, nil))
+	err = i.CutCompleteTraces(0, true)
+	require.NoError(t, err)
+	_, err = i.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err)
+
 	response = i.PushBytesRequest(ctx, req)
 	errored, _, _ = CheckPushBytesError(response)
 	require.False(t, errored, "push failed: %w", response.ErrorsByTrace)
@@ -814,11 +831,6 @@ func makeRequestWithByteLimit(maxBytes int, traceID []byte) *tempopb.PushBytesRe
 	batch := makeBatchWithMaxBytes(maxBytes, traceID)
 
 	pushReq := makePushBytesRequest(traceID, batch)
-
-	// doesn't need to actually be unmarshallable, so let's cut the byte slice at the exact size
-	if len(pushReq.Traces[0].Slice) > maxBytes {
-		pushReq.Traces[0].Slice = pushReq.Traces[0].Slice[:maxBytes]
-	}
 
 	return pushReq
 }
