@@ -598,6 +598,7 @@ func (p *Processor) cutIdleTraces(immediate bool) error {
 
 	// Record live traces before flushing so we know the high water mark
 	metricLiveTraces.WithLabelValues(p.tenant).Set(float64(len(p.liveTraces.traces)))
+	metricLiveTraceBytes.WithLabelValues(p.tenant).Set(float64(p.liveTraces.Size()))
 
 	since := time.Now().Add(-p.Cfg.TraceIdlePeriod)
 	tracesToCut := p.liveTraces.CutIdle(since, immediate)
