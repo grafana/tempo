@@ -10,6 +10,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/storage"
+	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -20,6 +21,8 @@ const (
 
 	// ringNameForServer is the name of the ring used by the metrics-generator server.
 	ringNameForServer = "metrics-generator"
+
+	ConsumerGroup = "metrics-generator"
 )
 
 // Config for a generator.
@@ -34,6 +37,10 @@ type Config struct {
 	MetricsIngestionSlack time.Duration `yaml:"metrics_ingestion_time_range_slack"`
 	QueryTimeout          time.Duration `yaml:"query_timeout"`
 	OverrideRingKey       string        `yaml:"override_ring_key"`
+
+	// This config is dynamically injected because defined outside the generator config.
+	Ingest             ingest.Config `yaml:"-"`
+	AssignedPartitions []int32       `yaml:"assigned_partitions" doc:"List of partitions assigned to this block builder."`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -49,6 +56,16 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MetricsIngestionSlack = 30 * time.Second
 	cfg.QueryTimeout = 30 * time.Second
 	cfg.OverrideRingKey = generatorRingKey
+}
+
+func (cfg *Config) Validate() error {
+	if cfg.Ingest.Enabled {
+		if err := cfg.Ingest.Kafka.Validate(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 type ProcessorConfig struct {
