@@ -42,7 +42,7 @@ func (s *Tracker) Allow(traceID []byte, sz, max int) bool {
 	tr := s.sizes[token]
 	if tr == nil {
 		tr = &traceSize{
-			size: sz,
+			size: 0, // size added below
 		}
 		s.sizes[token] = tr
 	}
