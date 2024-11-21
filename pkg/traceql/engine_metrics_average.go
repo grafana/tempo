@@ -33,12 +33,8 @@ func newAverageOverTimeMetricsAggregator(attr Attribute, by []Attribute) *averag
 }
 
 func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode AggregateMode) {
-	exemplarFn := func(s Span) (float64, uint64) {
-		return math.NaN(), a.spanStartTimeMs(s)
-	}
-
 	a.seriesAgg = &averageOverTimeSeriesAggregator{
-		weightedAverageSeries: make(map[string]averageSeries),
+		weightedAverageSeries: make(map[string]*averageSeries),
 		len:                   IntervalCount(q.Start, q.End, q.Step),
 		start:                 q.Start,
 		end:                   q.End,
@@ -50,8 +46,8 @@ func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode Aggr
 		a.agg = newAvgOverTimeSpanAggregator(a.attr, a.by, q.Start, q.End, q.Step)
 	}
 
-	a.exemplarFn = exemplarFn
 	a.mode = mode
+	a.exemplarFn = exemplarFnFor(a.attr)
 }
 
 func (a *averageOverTimeAggregator) observe(span Span) {
@@ -110,10 +106,6 @@ func (a *averageOverTimeAggregator) validate() error {
 	return nil
 }
 
-func (a *averageOverTimeAggregator) spanStartTimeMs(s Span) uint64 {
-	return s.StartTimeUnixNanos() / uint64(time.Millisecond)
-}
-
 func (a *averageOverTimeAggregator) String() string {
 	s := strings.Builder{}
 
@@ -138,7 +130,7 @@ func (a *averageOverTimeAggregator) String() string {
 }
 
 type averageOverTimeSeriesAggregator struct {
-	weightedAverageSeries map[string]averageSeries
+	weightedAverageSeries map[string]*averageSeries
 	len                   int
 	start, end, step      uint64
 	exemplarBuckets       *bucketSet
@@ -279,7 +271,8 @@ func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
 			countPosMapper[avgSeriesPromLabel] = i
 		} else if !ok {
 			promLabels := getLabels(ts.Labels, "")
-			b.weightedAverageSeries[ts.PromLabels] = newAverageSeries(b.len, len(ts.Exemplars), promLabels)
+			s := newAverageSeries(b.len, len(ts.Exemplars), promLabels)
+			b.weightedAverageSeries[ts.PromLabels] = &s
 		}
 	}
 	for _, ts := range in {
@@ -302,7 +295,7 @@ func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
 	}
 }
 
-func (b *averageOverTimeSeriesAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing averageSeries) {
+func (b *averageOverTimeSeriesAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *averageSeries) {
 	for _, exemplar := range ts.Exemplars {
 		if b.exemplarBuckets.testTotal() {
 			break
