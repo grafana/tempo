@@ -43,3 +43,11 @@ func (t *liveTrace) Push(_ context.Context, instanceID string, trace []byte) err
 
 	return nil
 }
+
+func (t *liveTrace) Size() uint64 {
+	size := uint64(0)
+	for _, batch := range t.batches {
+		size += uint64(len(batch))
+	}
+	return size
+}

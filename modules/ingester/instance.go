@@ -87,9 +87,10 @@ var (
 )
 
 type instance struct {
-	tracesMtx  sync.Mutex
-	traces     map[uint32]*liveTrace
-	traceSizes *tracesizes.Tracker
+	tracesMtx      sync.Mutex
+	traces         map[uint32]*liveTrace
+	traceSizes     *tracesizes.Tracker
+	traceSizeBytes uint64
 
 	headBlockMtx sync.RWMutex
 	headBlock    common.WALBlock
@@ -221,6 +222,9 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 	if err != nil {
 		return err
 	}
+
+	// increase live trace bytes (jpe test)
+	i.traceSizeBytes += uint64(reqSize)
 
 	return nil
 }
@@ -542,7 +546,7 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*liveTrac
 
 	// Set this before cutting to give a more accurate number.
 	metricLiveTraces.WithLabelValues(i.instanceID).Set(float64(len(i.traces)))
-	metricLiveTraceBytes.WithLabelValues(i.instanceID).Set(float64(0)) // jpe some val
+	metricLiveTraceBytes.WithLabelValues(i.instanceID).Set(float64(i.traceSizeBytes)) // jpe some val
 
 	cutoffTime := time.Now().Add(cutoff)
 	tracesToCut := make([]*liveTrace, 0, len(i.traces))
@@ -550,6 +554,10 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*liveTrac
 	for key, trace := range i.traces {
 		if cutoffTime.After(trace.lastAppend) || immediate {
 			tracesToCut = append(tracesToCut, trace)
+
+			// decrease live trace bytes
+			i.traceSizeBytes -= trace.Size()
+
 			delete(i.traces, key)
 		}
 	}
