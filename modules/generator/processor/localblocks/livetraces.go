@@ -20,7 +20,7 @@ type liveTraces struct {
 	hash   hash.Hash64
 	traces map[uint64]*liveTrace
 
-	sz uint64 // jpe - test
+	sz uint64
 }
 
 func newLiveTraces() *liveTraces {
