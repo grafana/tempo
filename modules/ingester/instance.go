@@ -17,13 +17,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"go.uber.org/atomic"
 	"google.golang.org/grpc/codes"
 
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/tracesizes"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/pkg/validation"
 	"github.com/grafana/tempo/tempodb"
@@ -64,6 +64,11 @@ var (
 		Name:      "ingester_live_traces",
 		Help:      "The current number of lives traces per tenant.",
 	}, []string{"tenant"})
+	metricLiveTraceBytes = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Name:      "ingester_live_trace_bytes",
+		Help:      "The current number of bytes consumed by lives traces per tenant.",
+	}, []string{"tenant"})
 	metricBlocksClearedTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "ingester_blocks_cleared_total",
@@ -82,10 +87,10 @@ var (
 )
 
 type instance struct {
-	tracesMtx  sync.Mutex
-	traces     map[uint32]*liveTrace
-	traceSizes map[uint32]uint32
-	traceCount atomic.Int32
+	tracesMtx      sync.Mutex
+	traces         map[uint32]*liveTrace
+	traceSizes     *tracesizes.Tracker
+	traceSizeBytes uint64
 
 	headBlockMtx sync.RWMutex
 	headBlock    common.WALBlock
@@ -115,7 +120,7 @@ type instance struct {
 func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverrides, writer tempodb.Writer, l *local.Backend, dedicatedColumns backend.DedicatedColumns) (*instance, error) {
 	i := &instance{
 		traces:     map[uint32]*liveTrace{},
-		traceSizes: map[uint32]uint32{},
+		traceSizes: tracesizes.New(),
 
 		instanceID:         instanceID,
 		tracesCreatedTotal: metricTracesCreatedTotal.WithLabelValues(instanceID),
@@ -190,12 +195,6 @@ func (i *instance) PushBytes(ctx context.Context, id, traceBytes []byte) error {
 		return status.Errorf(codes.InvalidArgument, "%s is not a valid traceid", hex.EncodeToString(id))
 	}
 
-	// check for max traces before grabbing the lock to better load shed
-	err := i.limiter.AssertMaxTracesPerUser(i.instanceID, int(i.traceCount.Load()))
-	if err != nil {
-		return newMaxLiveTracesError(i.instanceID, err.Error())
-	}
-
 	return i.push(ctx, id, traceBytes)
 }
 
@@ -203,27 +202,27 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
-	tkn := i.tokenForTraceID(id)
-	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
-
-	if maxBytes > 0 {
-		prevSize := int(i.traceSizes[tkn])
-		reqSize := len(traceBytes)
-		if prevSize+reqSize > maxBytes {
-			return newTraceTooLargeError(id, i.instanceID, maxBytes, reqSize)
-		}
+	err := i.limiter.AssertMaxTracesPerUser(i.instanceID, len(i.traces))
+	if err != nil {
+		return newMaxLiveTracesError(i.instanceID, err.Error())
 	}
 
-	trace := i.getOrCreateTrace(id, tkn, maxBytes)
+	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
+	reqSize := len(traceBytes)
 
-	err := trace.Push(ctx, i.instanceID, traceBytes)
+	if maxBytes > 0 && !i.traceSizes.Allow(id, reqSize, maxBytes) {
+		return newTraceTooLargeError(id, i.instanceID, maxBytes, reqSize)
+	}
+
+	tkn := i.tokenForTraceID(id)
+	trace := i.getOrCreateTrace(id, tkn)
+
+	err = trace.Push(ctx, i.instanceID, traceBytes)
 	if err != nil {
 		return err
 	}
 
-	if maxBytes > 0 {
-		i.traceSizes[tkn] += uint32(len(traceBytes))
-	}
+	i.traceSizeBytes += uint64(reqSize)
 
 	return nil
 }
@@ -281,6 +280,8 @@ func (i *instance) CutBlockIfReady(maxBlockLifetime time.Duration, maxBlockBytes
 
 	now := time.Now()
 	if i.lastBlockCut.Add(maxBlockLifetime).Before(now) || i.headBlock.DataLength() >= maxBlockBytes || immediate {
+		// Reset trace sizes when cutting block
+		i.traceSizes.ClearIdle(i.lastBlockCut)
 
 		// Final flush
 		err := i.headBlock.Flush()
@@ -485,15 +486,14 @@ func (i *instance) AddCompletingBlock(b common.WALBlock) {
 // getOrCreateTrace will return a new trace object for the given request
 //
 //	It must be called under the i.tracesMtx lock
-func (i *instance) getOrCreateTrace(traceID []byte, fp uint32, maxBytes int) *liveTrace {
+func (i *instance) getOrCreateTrace(traceID []byte, fp uint32) *liveTrace {
 	trace, ok := i.traces[fp]
 	if ok {
 		return trace
 	}
 
-	trace = newTrace(traceID, maxBytes)
+	trace = newTrace(traceID)
 	i.traces[fp] = trace
-	i.traceCount.Inc()
 
 	return trace
 }
@@ -507,11 +507,6 @@ func (i *instance) tokenForTraceID(id []byte) uint32 {
 
 // resetHeadBlock() should be called under lock
 func (i *instance) resetHeadBlock() error {
-	// Reset trace sizes when cutting block
-	i.tracesMtx.Lock()
-	i.traceSizes = make(map[uint32]uint32, len(i.traceSizes))
-	i.tracesMtx.Unlock()
-
 	dedicatedColumns := i.getDedicatedColumns()
 
 	meta := &backend.BlockMeta{
@@ -549,6 +544,7 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*liveTrac
 
 	// Set this before cutting to give a more accurate number.
 	metricLiveTraces.WithLabelValues(i.instanceID).Set(float64(len(i.traces)))
+	metricLiveTraceBytes.WithLabelValues(i.instanceID).Set(float64(i.traceSizeBytes))
 
 	cutoffTime := time.Now().Add(cutoff)
 	tracesToCut := make([]*liveTrace, 0, len(i.traces))
@@ -556,10 +552,13 @@ func (i *instance) tracesToCut(cutoff time.Duration, immediate bool) []*liveTrac
 	for key, trace := range i.traces {
 		if cutoffTime.After(trace.lastAppend) || immediate {
 			tracesToCut = append(tracesToCut, trace)
+
+			// decrease live trace bytes
+			i.traceSizeBytes -= trace.Size()
+
 			delete(i.traces, key)
 		}
 	}
-	i.traceCount.Store(int32(len(i.traces)))
 
 	return tracesToCut
 }
