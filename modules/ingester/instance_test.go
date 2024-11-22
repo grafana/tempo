@@ -35,14 +35,20 @@ func (m *ringCountMock) HealthyInstancesCount() int {
 
 func TestInstance(t *testing.T) {
 	request := makeRequest([]byte{})
+	requestSz := uint64(0)
+	for _, b := range request.Traces {
+		requestSz += uint64(len(b.Slice))
+	}
 
 	i, ingester := defaultInstance(t)
 
 	response := i.PushBytesRequest(context.Background(), request)
 	require.NotNil(t, response)
+	require.Equal(t, requestSz, i.traceSizeBytes)
 
 	err := i.CutCompleteTraces(0, true)
 	require.NoError(t, err)
+	require.Equal(t, uint64(0), i.traceSizeBytes)
 
 	blockID, err := i.CutBlockIfReady(0, 0, false)
 	require.NoError(t, err, "unexpected error cutting block")
@@ -235,20 +241,20 @@ func TestInstanceLimits(t *testing.T) {
 		name   string
 		pushes []push
 	}{
-		// {
-		// 	name: "bytes - succeeds",
-		// 	pushes: []push{
-		// 		{
-		// 			req: makeRequestWithByteLimit(300, []byte{}),
-		// 		},
-		// 		{
-		// 			req: makeRequestWithByteLimit(500, []byte{}),
-		// 		},
-		// 		{
-		// 			req: makeRequestWithByteLimit(100, []byte{}),
-		// 		},
-		// 	},
-		// },
+		{
+			name: "bytes - succeeds",
+			pushes: []push{
+				{
+					req: makeRequestWithByteLimit(300, []byte{}),
+				},
+				{
+					req: makeRequestWithByteLimit(500, []byte{}),
+				},
+				{
+					req: makeRequestWithByteLimit(100, []byte{}),
+				},
+			},
+		},
 		{
 			name: "bytes - one fails",
 			pushes: []push{
