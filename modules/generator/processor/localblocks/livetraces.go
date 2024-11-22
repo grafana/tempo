@@ -63,7 +63,7 @@ func (l *liveTraces) Push(traceID []byte, batch *v1.ResourceSpans, max uint64) b
 	}
 
 	sz := uint64(batch.Size())
-	tr.sz += uint64(batch.Size())
+	tr.sz += sz
 	l.sz += sz
 
 	tr.Batches = append(tr.Batches, batch)
