@@ -385,8 +385,11 @@ func Test_Histograms(t *testing.T) {
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-3"}, endOfLastMinuteMs, 0), // zero count at the beginning
 						newSample(map[string]string{"__name__": "test_histogram_count", "label": "value-3"}, collectionTimeMs, 1),
 						newSample(map[string]string{"__name__": "test_histogram_sum", "label": "value-3"}, collectionTimeMs, 3),
+						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-3", "le": "1"}, endOfLastMinuteMs, 0),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-3", "le": "1"}, collectionTimeMs, 0),
+						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-3", "le": "2"}, endOfLastMinuteMs, 0),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-3", "le": "2"}, collectionTimeMs, 0),
+						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-3", "le": "+Inf"}, endOfLastMinuteMs, 0),
 						newSample(map[string]string{"__name__": "test_histogram_bucket", "label": "value-3", "le": "+Inf"}, collectionTimeMs, 1),
 					},
 					expectedExemplars: []exemplarSample{
@@ -482,10 +485,6 @@ func Test_Histograms(t *testing.T) {
 
 	// Tests both classic and native histograms.
 	for _, tc := range cases {
-		if tc.skipNativeHistogram {
-			t.SkipNow()
-		}
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Run("classic", func(t *testing.T) {
 				onAdd := func(uint32) bool { return true }
