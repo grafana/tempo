@@ -202,7 +202,6 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
-	// check for max traces before grabbing the lock to better load shed
 	err := i.limiter.AssertMaxTracesPerUser(i.instanceID, len(i.traces))
 	if err != nil {
 		return newMaxLiveTracesError(i.instanceID, err.Error())
