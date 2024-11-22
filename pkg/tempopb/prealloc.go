@@ -14,7 +14,7 @@ func init() {
 	numBuckets := intFromEnv("PREALLOC_NUM_BUCKETS", 250)
 	minBucket := intFromEnv("PREALLOC_MIN_BUCKET", 0)
 
-	bytePool = pool.New(minBucket, numBuckets, bktSize, func(size int) []byte { return make([]byte, 0, size) })
+	bytePool = pool.New(minBucket, numBuckets, bktSize)
 }
 
 // PreallocBytes is a (repeated bytes slices) which preallocs slices on Unmarshal.
@@ -48,7 +48,7 @@ func (r *PreallocBytes) Size() (n int) {
 // ReuseByteSlices puts the byte slice back into bytePool for reuse.
 func ReuseByteSlices(buffs [][]byte) {
 	for _, b := range buffs {
-		_ = bytePool.Put(b[:0])
+		bytePool.Put(b[:0])
 	}
 }
 

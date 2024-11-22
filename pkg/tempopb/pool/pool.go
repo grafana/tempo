@@ -30,13 +30,10 @@ type Pool struct {
 	buckets   []sync.Pool
 	bktSize   int
 	minBucket int
-
-	// make is the function used to create an empty slice when none exist yet.
-	make func(int) []byte
 }
 
 // New returns a new Pool with size buckets for minSize to maxSize
-func New(minBucket, numBuckets, bktSize int, makeFunc func(int) []byte) *Pool {
+func New(minBucket, numBuckets, bktSize int) *Pool {
 	if minBucket < 0 {
 		panic("invalid min bucket size")
 	}
@@ -51,7 +48,6 @@ func New(minBucket, numBuckets, bktSize int, makeFunc func(int) []byte) *Pool {
 		buckets:   make([]sync.Pool, numBuckets),
 		bktSize:   bktSize,
 		minBucket: minBucket,
-		make:      makeFunc,
 	}
 }
 
@@ -61,48 +57,50 @@ func (p *Pool) Get(sz int) []byte {
 		panic("requested negative size")
 	}
 
-	if sz < p.minBucket {
-		metricMissUnder.Add(float64(sz))
-		return p.make(sz)
-	}
-
 	// Find the right bucket.
 	bkt := p.bucketFor(sz)
 
+	if bkt < 0 {
+		metricMissUnder.Add(float64(sz))
+		return make([]byte, 0, sz)
+	}
+
 	if bkt >= len(p.buckets) {
 		metricMissOver.Add(float64(sz))
-		return p.make(sz)
+		return make([]byte, 0, sz)
 	}
 
 	b := p.buckets[bkt].Get()
 	if b == nil {
-		alignedSz := ((sz / p.bktSize) + 1) * p.bktSize // align to the next bucket up
-		b = p.make(alignedSz)
+		alignedSz := (bkt+1)*p.bktSize + p.minBucket
+		b = make([]byte, 0, alignedSz)
 	}
 	return b.([]byte)
 }
 
 // Put adds a slice to the right bucket in the pool.
-func (p *Pool) Put(s []byte) int {
+func (p *Pool) Put(s []byte) {
 	c := cap(s)
 
 	// valid slice?
 	if c%p.bktSize != 0 {
-		return -1
+		return
 	}
-	bkt := p.bucketFor(c) - 1 // -1 puts the slice in the pool below. it will be larger than all requested slices for this bucket
+	bkt := p.bucketFor(c) // -1 puts the slice in the pool below. it will be larger than all requested slices for this bucket
 	if bkt < 0 {
-		return -1
+		return
 	}
 	if bkt >= len(p.buckets) {
-		return -1
+		return
 	}
 
 	p.buckets[bkt].Put(s) // nolint: staticcheck
-
-	return bkt
 }
 
 func (p *Pool) bucketFor(sz int) int {
-	return (sz - p.minBucket) / p.bktSize
+	if sz <= p.minBucket {
+		return -1
+	}
+
+	return (sz - p.minBucket - 1) / p.bktSize
 }
