@@ -79,22 +79,24 @@ func (p *Pool) Get(sz int) []byte {
 }
 
 // Put adds a slice to the right bucket in the pool.
-func (p *Pool) Put(s []byte) {
+func (p *Pool) Put(s []byte) int {
 	c := cap(s)
 
 	// valid slice?
-	if c%p.bktSize != 0 {
-		return
+	if (c-p.minBucket)%p.bktSize != 0 {
+		return -1
 	}
 	bkt := p.bucketFor(c) // -1 puts the slice in the pool below. it will be larger than all requested slices for this bucket
 	if bkt < 0 {
-		return
+		return -1
 	}
 	if bkt >= len(p.buckets) {
-		return
+		return -1
 	}
 
 	p.buckets[bkt].Put(s) // nolint: staticcheck
+
+	return bkt // for testing
 }
 
 func (p *Pool) bucketFor(sz int) int {

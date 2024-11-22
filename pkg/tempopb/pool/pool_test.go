@@ -10,10 +10,11 @@ import (
 )
 
 func TestPoolGet(t *testing.T) {
-	testPool := New(5, 2, 5)
+	testPool := New(5, 2, 7)
 	cases := []struct {
 		size        int
 		expectedCap int
+		tooLarge    bool
 	}{
 		{ // under the smallest pool size, should return an unaligned slice
 			size:        3,
@@ -25,26 +26,31 @@ func TestPoolGet(t *testing.T) {
 		},
 		{
 			size:        6,
-			expectedCap: 10,
+			expectedCap: 12,
 		},
 		{
-			size:        10,
-			expectedCap: 10,
+			size:        12,
+			expectedCap: 12,
 		},
 		{
 			size:        15,
-			expectedCap: 15,
+			expectedCap: 19,
 		},
 		{ // over the largest pool size, should return an unaligned slice
-			size:        16,
-			expectedCap: 16,
+			size:        20,
+			expectedCap: 20,
+			tooLarge:    true,
 		},
 	}
 	for _, c := range cases {
 		for i := 0; i < 10; i++ {
 			ret := testPool.Get(c.size)
 			require.Equal(t, c.expectedCap, cap(ret))
-			testPool.Put(ret)
+			putBucket := testPool.Put(ret)
+
+			if !c.tooLarge {
+				require.Equal(t, testPool.bucketFor(cap(ret)), putBucket)
+			}
 		}
 	}
 }
