@@ -486,9 +486,6 @@ func Test_Histograms(t *testing.T) {
 			t.SkipNow()
 		}
 
-		onAdd := func(uint32) bool { return true }
-		h := newNativeHistogram("test_histogram", tc.buckets, onAdd, nil, "trace_id", HistogramModeBoth, nil)
-		testHistogram(t, h, tc.collections)
 		t.Run(tc.name, func(t *testing.T) {
 			t.Run("classic", func(t *testing.T) {
 				onAdd := func(uint32) bool { return true }
