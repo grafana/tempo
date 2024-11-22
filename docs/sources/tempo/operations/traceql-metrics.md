@@ -82,47 +82,10 @@ metrics_generator:
 
 Setting `flush_to_storage` to `true` ensures that metrics blocks are flushed to storage so TraceQL metrics queries against historical data.
 
-For more information about overrides, refer to [Standard overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides).
-
-  ```yaml
-    overrides:
-      'tenantID':
-        metrics_generator_processors:
-          - local-blocks
-  ```
-
-By default, for all tenants in the main configuration:
-
-  ```yaml
-  overrides:
-    defaults:
-      metrics_generator:
-        processors: [local-blocks]
-  ```
-
-Add this configuration to run TraceQL metrics queries against all spans (and not just server spans):
-
-```yaml
-metrics_generator:
-  processor:
-    local_blocks:
-      filter_server_spans: false
-```
-
 If you configured Tempo using the `tempo-distributed` Helm chart, you can also set `traces_storage` using your `values.yaml` file.
 Refer to the [Helm chart for an example](https://github.com/grafana/helm-charts/blob/559ecf4a9c9eefac4521454e7a8066778e4eeff7/charts/tempo-distributed/values.yaml#L362).
 
-```yaml
-metrics_generator:
-  processor:
-    local_blocks:
-      flush_to_storage: true
-```
-
-Setting `flush_to_storage` to `true` ensures that metrics blocks are flushed to storage so TraceQL metrics queries against historical data.
-
 For more information about overrides, refer to [Standard overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides).
-
 
 ## Evaluate query timeouts
 

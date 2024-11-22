@@ -143,7 +143,7 @@ func (i *instance) PushBytesRequest(ctx context.Context, req *tempopb.PushBytesR
 	pr := &tempopb.PushResponse{}
 
 	for j := range req.Traces {
-		err := i.PushBytes(ctx, req.Ids[j].Slice, req.Traces[j].Slice)
+		err := i.PushBytes(ctx, req.Ids[j], req.Traces[j].Slice)
 		pr.ErrorsByTrace = i.addTraceError(pr.ErrorsByTrace, err, len(req.Traces), j)
 	}
 

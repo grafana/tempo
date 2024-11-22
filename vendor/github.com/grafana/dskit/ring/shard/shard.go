@@ -30,6 +30,9 @@ func ShuffleShardSeed(identifier, zone string) int64 {
 // zone when zone-aware replication is enabled. The algorithm expects the shard size to be divisible
 // by the number of zones, in order to have nodes balanced across zones. If it's not, we do round up.
 func ShuffleShardExpectedInstancesPerZone(shardSize, numZones int) int {
+	if shardSize == math.MaxInt {
+		return math.MaxInt
+	}
 	return int(math.Ceil(float64(shardSize) / float64(numZones)))
 }
 

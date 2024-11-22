@@ -24,7 +24,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
@@ -52,6 +51,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/cors"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/minio/minio-go/v7/pkg/encrypt"
 	"github.com/minio/minio-go/v7/pkg/notification"
@@ -83,7 +83,7 @@ func createHTTPTransport() (transport *http.Transport) {
 		return nil
 	}
 
-	if mustParseBool(os.Getenv(skipCERTValidation)) {
+	if mustParseBool(os.Getenv(enableHTTPS)) && mustParseBool(os.Getenv(skipCERTValidation)) {
 		transport.TLSClientConfig.InsecureSkipVerify = true
 	}
 
@@ -165,7 +165,7 @@ func logError(testName, function string, args map[string]interface{}, startTime 
 	}
 }
 
-// log failed test runs
+// Log failed test runs, do not call this directly, use logError instead, as that correctly stops the test run
 func logFailure(testName, function string, args map[string]interface{}, startTime time.Time, alert, message string, err error) {
 	l := baseLogger(testName, function, args, startTime).With(
 		"status", "FAIL",
@@ -1216,6 +1216,130 @@ func testPutObjectWithVersioning() {
 	logSuccess(testName, function, args, startTime)
 }
 
+func testListMultipartUpload() {
+	// initialize logging params
+	startTime := time.Now()
+	testName := getFuncName()
+	function := "GetObject()"
+	args := map[string]interface{}{}
+
+	// Instantiate new minio client object.
+	opts := &minio.Options{
+		Creds:     credentials.NewStaticV4(os.Getenv(accessKey), os.Getenv(secretKey), ""),
+		Transport: createHTTPTransport(),
+		Secure:    mustParseBool(os.Getenv(enableHTTPS)),
+	}
+	c, err := minio.New(os.Getenv(serverEndpoint), opts)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "MinIO client object creation failed", err)
+		return
+	}
+	core, err := minio.NewCore(os.Getenv(serverEndpoint), opts)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "MinIO core client object creation failed", err)
+		return
+	}
+
+	// Enable tracing, write to stderr.
+	// c.TraceOn(os.Stderr)
+
+	// Set user agent.
+	c.SetAppInfo("MinIO-go-FunctionalTest", appVersion)
+
+	// Generate a new random bucket name.
+	bucketName := randString(60, rand.NewSource(time.Now().UnixNano()), "minio-go-test-")
+	args["bucketName"] = bucketName
+
+	// Make a new bucket.
+	ctx := context.Background()
+	err = c.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{Region: "us-east-1", ObjectLocking: true})
+	if err != nil {
+		logError(testName, function, args, startTime, "", "Make bucket failed", err)
+		return
+	}
+	defer func() {
+		if err = cleanupVersionedBucket(bucketName, c); err != nil {
+			logError(testName, function, args, startTime, "", "CleanupBucket failed", err)
+		}
+	}()
+	objName := "prefix/objectName"
+
+	want := minio.ListMultipartUploadsResult{
+		Bucket:             bucketName,
+		KeyMarker:          "",
+		UploadIDMarker:     "",
+		NextKeyMarker:      "",
+		NextUploadIDMarker: "",
+		EncodingType:       "url",
+		MaxUploads:         1000,
+		IsTruncated:        false,
+		Prefix:             "prefix/objectName",
+		Delimiter:          "/",
+		CommonPrefixes:     nil,
+	}
+	for i := 0; i < 5; i++ {
+		uid, err := core.NewMultipartUpload(ctx, bucketName, objName, minio.PutObjectOptions{})
+		if err != nil {
+			logError(testName, function, args, startTime, "", "NewMultipartUpload failed", err)
+			return
+		}
+		want.Uploads = append(want.Uploads, minio.ObjectMultipartInfo{
+			Initiated:    time.Time{},
+			StorageClass: "",
+			Key:          objName,
+			Size:         0,
+			UploadID:     uid,
+			Err:          nil,
+		})
+
+		for j := 0; j < 5; j++ {
+			cmpGot := func(call string, got minio.ListMultipartUploadsResult) bool {
+				for i := range got.Uploads {
+					got.Uploads[i].Initiated = time.Time{}
+				}
+				if !reflect.DeepEqual(want, got) {
+					err := fmt.Errorf("want: %#v\ngot : %#v", want, got)
+					logError(testName, function, args, startTime, "", call+" failed", err)
+				}
+				return true
+			}
+			got, err := core.ListMultipartUploads(ctx, bucketName, objName, "", "", "/", 1000)
+			if err != nil {
+				logError(testName, function, args, startTime, "", "ListMultipartUploads failed", err)
+				return
+			}
+			if !cmpGot("ListMultipartUploads-prefix", got) {
+				return
+			}
+			got, err = core.ListMultipartUploads(ctx, bucketName, objName, objName, "", "/", 1000)
+			got.KeyMarker = ""
+			if err != nil {
+				logError(testName, function, args, startTime, "", "ListMultipartUploads failed", err)
+				return
+			}
+			if !cmpGot("ListMultipartUploads-marker", got) {
+				return
+			}
+		}
+		if i > 2 {
+			err = core.AbortMultipartUpload(ctx, bucketName, objName, uid)
+			if err != nil {
+				logError(testName, function, args, startTime, "", "AbortMultipartUpload failed", err)
+				return
+			}
+			want.Uploads = want.Uploads[:len(want.Uploads)-1]
+		}
+	}
+	for _, up := range want.Uploads {
+		err = core.AbortMultipartUpload(ctx, bucketName, objName, up.UploadID)
+		if err != nil {
+			logError(testName, function, args, startTime, "", "AbortMultipartUpload failed", err)
+			return
+		}
+	}
+	logSuccess(testName, function, args, startTime)
+}
+
 func testCopyObjectWithVersioning() {
 	// initialize logging params
 	startTime := time.Now()
@@ -2074,22 +2198,15 @@ func testPutObjectWithChecksums() {
 
 	defer cleanupBucket(bucketName, c)
 	tests := []struct {
-		header string
-		hasher hash.Hash
-
-		// Checksum values
-		ChecksumCRC32  string
-		ChecksumCRC32C string
-		ChecksumSHA1   string
-		ChecksumSHA256 string
+		cs minio.ChecksumType
 	}{
-		{header: "x-amz-checksum-crc32", hasher: crc32.NewIEEE()},
-		{header: "x-amz-checksum-crc32c", hasher: crc32.New(crc32.MakeTable(crc32.Castagnoli))},
-		{header: "x-amz-checksum-sha1", hasher: sha1.New()},
-		{header: "x-amz-checksum-sha256", hasher: sha256.New()},
+		{cs: minio.ChecksumCRC32C},
+		{cs: minio.ChecksumCRC32},
+		{cs: minio.ChecksumSHA1},
+		{cs: minio.ChecksumSHA256},
 	}
 
-	for i, test := range tests {
+	for _, test := range tests {
 		bufSize := dataFileMap["datafile-10-kB"]
 
 		// Save the data
@@ -2110,29 +2227,27 @@ func testPutObjectWithChecksums() {
 			logError(testName, function, args, startTime, "", "Read failed", err)
 			return
 		}
-		h := test.hasher
+		h := test.cs.Hasher()
 		h.Reset()
-		// Wrong CRC.
-		meta[test.header] = base64.StdEncoding.EncodeToString(h.Sum(nil))
+
+		// Test with Wrong CRC.
+		meta[test.cs.Key()] = base64.StdEncoding.EncodeToString(h.Sum(nil))
 		args["metadata"] = meta
 		args["range"] = "false"
+		args["checksum"] = test.cs.String()
 
 		resp, err := c.PutObject(context.Background(), bucketName, objectName, bytes.NewReader(b), int64(bufSize), minio.PutObjectOptions{
 			DisableMultipart: true,
 			UserMetadata:     meta,
 		})
 		if err == nil {
-			if i == 0 && resp.ChecksumCRC32 == "" {
-				logIgnored(testName, function, args, startTime, "Checksums does not appear to be supported by backend")
-				return
-			}
-			logError(testName, function, args, startTime, "", "PutObject failed", err)
+			logError(testName, function, args, startTime, "", "PutObject did not fail on wrong CRC", err)
 			return
 		}
 
 		// Set correct CRC.
 		h.Write(b)
-		meta[test.header] = base64.StdEncoding.EncodeToString(h.Sum(nil))
+		meta[test.cs.Key()] = base64.StdEncoding.EncodeToString(h.Sum(nil))
 		reader.Close()
 
 		resp, err = c.PutObject(context.Background(), bucketName, objectName, bytes.NewReader(b), int64(bufSize), minio.PutObjectOptions{
@@ -2219,7 +2334,7 @@ func testPutObjectWithChecksums() {
 }
 
 // Test PutObject with custom checksums.
-func testPutMultipartObjectWithChecksums() {
+func testPutObjectWithTrailingChecksums() {
 	// initialize logging params
 	startTime := time.Now()
 	testName := getFuncName()
@@ -2227,7 +2342,7 @@ func testPutMultipartObjectWithChecksums() {
 	args := map[string]interface{}{
 		"bucketName": "",
 		"objectName": "",
-		"opts":       "minio.PutObjectOptions{UserMetadata: metadata, Progress: progress}",
+		"opts":       "minio.PutObjectOptions{UserMetadata: metadata, Progress: progress, TrailChecksum: xxx}",
 	}
 
 	if !isFullMode() {
@@ -2241,9 +2356,201 @@ func testPutMultipartObjectWithChecksums() {
 	// Instantiate new minio client object.
 	c, err := minio.New(os.Getenv(serverEndpoint),
 		&minio.Options{
-			Creds:     credentials.NewStaticV4(os.Getenv(accessKey), os.Getenv(secretKey), ""),
-			Transport: createHTTPTransport(),
-			Secure:    mustParseBool(os.Getenv(enableHTTPS)),
+			Creds:           credentials.NewStaticV4(os.Getenv(accessKey), os.Getenv(secretKey), ""),
+			Transport:       createHTTPTransport(),
+			Secure:          mustParseBool(os.Getenv(enableHTTPS)),
+			TrailingHeaders: true,
+		})
+	if err != nil {
+		logError(testName, function, args, startTime, "", "MinIO client object creation failed", err)
+		return
+	}
+
+	// Enable tracing, write to stderr.
+	// c.TraceOn(os.Stderr)
+
+	// Set user agent.
+	c.SetAppInfo("MinIO-go-FunctionalTest", appVersion)
+
+	// Generate a new random bucket name.
+	bucketName := randString(60, rand.NewSource(time.Now().UnixNano()), "minio-go-test-")
+	args["bucketName"] = bucketName
+
+	// Make a new bucket.
+	err = c.MakeBucket(context.Background(), bucketName, minio.MakeBucketOptions{Region: "us-east-1"})
+	if err != nil {
+		logError(testName, function, args, startTime, "", "Make bucket failed", err)
+		return
+	}
+
+	defer cleanupBucket(bucketName, c)
+	tests := []struct {
+		cs minio.ChecksumType
+	}{
+		{cs: minio.ChecksumCRC32C},
+		{cs: minio.ChecksumCRC32},
+		{cs: minio.ChecksumSHA1},
+		{cs: minio.ChecksumSHA256},
+	}
+
+	for _, test := range tests {
+		function := "PutObject(bucketName, objectName, reader,size, opts)"
+		bufSize := dataFileMap["datafile-10-kB"]
+
+		// Save the data
+		objectName := randString(60, rand.NewSource(time.Now().UnixNano()), "")
+		args["objectName"] = objectName
+
+		cmpChecksum := func(got, want string) {
+			if want != got {
+				logError(testName, function, args, startTime, "", "checksum mismatch", fmt.Errorf("want %s, got %s", want, got))
+				return
+			}
+		}
+
+		meta := map[string]string{}
+		reader := getDataReader("datafile-10-kB")
+		b, err := io.ReadAll(reader)
+		if err != nil {
+			logError(testName, function, args, startTime, "", "Read failed", err)
+			return
+		}
+		h := test.cs.Hasher()
+		h.Reset()
+
+		// Test with Wrong CRC.
+		args["metadata"] = meta
+		args["range"] = "false"
+		args["checksum"] = test.cs.String()
+
+		resp, err := c.PutObject(context.Background(), bucketName, objectName, bytes.NewReader(b), int64(bufSize), minio.PutObjectOptions{
+			DisableMultipart:     true,
+			DisableContentSha256: true,
+			UserMetadata:         meta,
+			Checksum:             test.cs,
+		})
+		if err != nil {
+			logError(testName, function, args, startTime, "", "PutObject failed", err)
+			return
+		}
+
+		h.Write(b)
+		meta[test.cs.Key()] = base64.StdEncoding.EncodeToString(h.Sum(nil))
+
+		cmpChecksum(resp.ChecksumSHA256, meta["x-amz-checksum-sha256"])
+		cmpChecksum(resp.ChecksumSHA1, meta["x-amz-checksum-sha1"])
+		cmpChecksum(resp.ChecksumCRC32, meta["x-amz-checksum-crc32"])
+		cmpChecksum(resp.ChecksumCRC32C, meta["x-amz-checksum-crc32c"])
+
+		// Read the data back
+		gopts := minio.GetObjectOptions{Checksum: true}
+
+		function = "GetObject(...)"
+		r, err := c.GetObject(context.Background(), bucketName, objectName, gopts)
+		if err != nil {
+			logError(testName, function, args, startTime, "", "GetObject failed", err)
+			return
+		}
+
+		st, err := r.Stat()
+		if err != nil {
+			logError(testName, function, args, startTime, "", "Stat failed", err)
+			return
+		}
+		cmpChecksum(st.ChecksumSHA256, meta["x-amz-checksum-sha256"])
+		cmpChecksum(st.ChecksumSHA1, meta["x-amz-checksum-sha1"])
+		cmpChecksum(st.ChecksumCRC32, meta["x-amz-checksum-crc32"])
+		cmpChecksum(st.ChecksumCRC32C, meta["x-amz-checksum-crc32c"])
+
+		if st.Size != int64(bufSize) {
+			logError(testName, function, args, startTime, "", "Number of bytes returned by PutObject does not match GetObject, expected "+string(bufSize)+" got "+string(st.Size), err)
+			return
+		}
+
+		if err := r.Close(); err != nil {
+			logError(testName, function, args, startTime, "", "Object Close failed", err)
+			return
+		}
+		if err := r.Close(); err == nil {
+			logError(testName, function, args, startTime, "", "Object already closed, should respond with error", err)
+			return
+		}
+
+		function = "GetObject( Range...)"
+		args["range"] = "true"
+		err = gopts.SetRange(100, 1000)
+		if err != nil {
+			logError(testName, function, args, startTime, "", "SetRange failed", err)
+			return
+		}
+		r, err = c.GetObject(context.Background(), bucketName, objectName, gopts)
+		if err != nil {
+			logError(testName, function, args, startTime, "", "GetObject failed", err)
+			return
+		}
+
+		b, err = io.ReadAll(r)
+		if err != nil {
+			logError(testName, function, args, startTime, "", "Read failed", err)
+			return
+		}
+		st, err = r.Stat()
+		if err != nil {
+			logError(testName, function, args, startTime, "", "Stat failed", err)
+			return
+		}
+
+		// Range requests should return empty checksums...
+		cmpChecksum(st.ChecksumSHA256, "")
+		cmpChecksum(st.ChecksumSHA1, "")
+		cmpChecksum(st.ChecksumCRC32, "")
+		cmpChecksum(st.ChecksumCRC32C, "")
+
+		function = "GetObjectAttributes(...)"
+		s, err := c.GetObjectAttributes(context.Background(), bucketName, objectName, minio.ObjectAttributesOptions{})
+		if err != nil {
+			logError(testName, function, args, startTime, "", "GetObjectAttributes failed", err)
+			return
+		}
+		cmpChecksum(s.Checksum.ChecksumSHA256, meta["x-amz-checksum-sha256"])
+		cmpChecksum(s.Checksum.ChecksumSHA1, meta["x-amz-checksum-sha1"])
+		cmpChecksum(s.Checksum.ChecksumCRC32, meta["x-amz-checksum-crc32"])
+		cmpChecksum(s.Checksum.ChecksumCRC32C, meta["x-amz-checksum-crc32c"])
+
+		delete(args, "range")
+		delete(args, "metadata")
+	}
+
+	logSuccess(testName, function, args, startTime)
+}
+
+// Test PutObject with custom checksums.
+func testPutMultipartObjectWithChecksums(trailing bool) {
+	// initialize logging params
+	startTime := time.Now()
+	testName := getFuncName()
+	function := "PutObject(bucketName, objectName, reader,size, opts)"
+	args := map[string]interface{}{
+		"bucketName": "",
+		"objectName": "",
+		"opts":       fmt.Sprintf("minio.PutObjectOptions{UserMetadata: metadata, Progress: progress Checksum: %v}", trailing),
+	}
+
+	if !isFullMode() {
+		logIgnored(testName, function, args, startTime, "Skipping functional tests for short/quick runs")
+		return
+	}
+
+	// Seed random based on current time.
+	rand.Seed(time.Now().Unix())
+
+	// Instantiate new minio client object.
+	c, err := minio.New(os.Getenv(serverEndpoint),
+		&minio.Options{
+			Creds:           credentials.NewStaticV4(os.Getenv(accessKey), os.Getenv(secretKey), ""),
+			Transport:       createHTTPTransport(),
+			Secure:          mustParseBool(os.Getenv(enableHTTPS)),
+			TrailingHeaders: trailing,
 		})
 	if err != nil {
 		logError(testName, function, args, startTime, "", "MinIO client object creation failed", err)
@@ -2294,17 +2601,12 @@ func testPutMultipartObjectWithChecksums() {
 	}
 	defer cleanupBucket(bucketName, c)
 	tests := []struct {
-		header string
-		hasher hash.Hash
-
-		// Checksum values
-		ChecksumCRC32  string
-		ChecksumCRC32C string
-		ChecksumSHA1   string
-		ChecksumSHA256 string
+		cs minio.ChecksumType
 	}{
-		// Currently there is no way to override the checksum type.
-		{header: "x-amz-checksum-crc32c", hasher: crc32.New(crc32.MakeTable(crc32.Castagnoli)), ChecksumCRC32C: "OpEx0Q==-13"},
+		{cs: minio.ChecksumCRC32C},
+		{cs: minio.ChecksumCRC32},
+		{cs: minio.ChecksumSHA1},
+		{cs: minio.ChecksumSHA256},
 	}
 
 	for _, test := range tests {
@@ -2313,11 +2615,12 @@ func testPutMultipartObjectWithChecksums() {
 		// Save the data
 		objectName := randString(60, rand.NewSource(time.Now().UnixNano()), "")
 		args["objectName"] = objectName
+		args["checksum"] = test.cs.String()
 
 		cmpChecksum := func(got, want string) {
 			if want != got {
-				// logError(testName, function, args, startTime, "", "checksum mismatch", fmt.Errorf("want %s, got %s", want, got))
-				fmt.Printf("want %s, got %s\n", want, got)
+				logError(testName, function, args, startTime, "", "checksum mismatch", fmt.Errorf("want %s, got %s", want, got))
+				//fmt.Printf("want %s, got %s\n", want, got)
 				return
 			}
 		}
@@ -2330,26 +2633,57 @@ func testPutMultipartObjectWithChecksums() {
 			return
 		}
 		reader.Close()
-		h := test.hasher
+		h := test.cs.Hasher()
 		h.Reset()
-		test.ChecksumCRC32C = hashMultiPart(b, partSize, test.hasher)
+		want := hashMultiPart(b, partSize, test.cs.Hasher())
 
+		var cs minio.ChecksumType
+		rd := io.Reader(io.NopCloser(bytes.NewReader(b)))
+		if trailing {
+			cs = test.cs
+			rd = bytes.NewReader(b)
+		}
 		// Set correct CRC.
-
-		resp, err := c.PutObject(context.Background(), bucketName, objectName, io.NopCloser(bytes.NewReader(b)), int64(bufSize), minio.PutObjectOptions{
+		resp, err := c.PutObject(context.Background(), bucketName, objectName, rd, int64(bufSize), minio.PutObjectOptions{
 			DisableContentSha256: true,
 			DisableMultipart:     false,
 			UserMetadata:         nil,
 			PartSize:             partSize,
+			AutoChecksum:         test.cs,
+			Checksum:             cs,
 		})
 		if err != nil {
 			logError(testName, function, args, startTime, "", "PutObject failed", err)
 			return
 		}
-		cmpChecksum(resp.ChecksumSHA256, test.ChecksumSHA256)
-		cmpChecksum(resp.ChecksumSHA1, test.ChecksumSHA1)
-		cmpChecksum(resp.ChecksumCRC32, test.ChecksumCRC32)
-		cmpChecksum(resp.ChecksumCRC32C, test.ChecksumCRC32C)
+
+		switch test.cs {
+		case minio.ChecksumCRC32C:
+			cmpChecksum(resp.ChecksumCRC32C, want)
+		case minio.ChecksumCRC32:
+			cmpChecksum(resp.ChecksumCRC32, want)
+		case minio.ChecksumSHA1:
+			cmpChecksum(resp.ChecksumSHA1, want)
+		case minio.ChecksumSHA256:
+			cmpChecksum(resp.ChecksumSHA256, want)
+		}
+
+		s, err := c.GetObjectAttributes(context.Background(), bucketName, objectName, minio.ObjectAttributesOptions{})
+		if err != nil {
+			logError(testName, function, args, startTime, "", "GetObjectAttributes failed", err)
+			return
+		}
+		want = want[:strings.IndexByte(want, '-')]
+		switch test.cs {
+		case minio.ChecksumCRC32C:
+			cmpChecksum(s.Checksum.ChecksumCRC32C, want)
+		case minio.ChecksumCRC32:
+			cmpChecksum(s.Checksum.ChecksumCRC32, want)
+		case minio.ChecksumSHA1:
+			cmpChecksum(s.Checksum.ChecksumSHA1, want)
+		case minio.ChecksumSHA256:
+			cmpChecksum(s.Checksum.ChecksumSHA256, want)
+		}
 
 		// Read the data back
 		gopts := minio.GetObjectOptions{Checksum: true}
@@ -2371,18 +2705,17 @@ func testPutMultipartObjectWithChecksums() {
 		// Test part 2 checksum...
 		h.Reset()
 		h.Write(b[partSize : 2*partSize])
-		got := base64.StdEncoding.EncodeToString(h.Sum(nil))
-		if test.ChecksumSHA256 != "" {
-			cmpChecksum(st.ChecksumSHA256, got)
-		}
-		if test.ChecksumSHA1 != "" {
-			cmpChecksum(st.ChecksumSHA1, got)
-		}
-		if test.ChecksumCRC32 != "" {
-			cmpChecksum(st.ChecksumCRC32, got)
-		}
-		if test.ChecksumCRC32C != "" {
-			cmpChecksum(st.ChecksumCRC32C, got)
+		want = base64.StdEncoding.EncodeToString(h.Sum(nil))
+
+		switch test.cs {
+		case minio.ChecksumCRC32C:
+			cmpChecksum(st.ChecksumCRC32C, want)
+		case minio.ChecksumCRC32:
+			cmpChecksum(st.ChecksumCRC32, want)
+		case minio.ChecksumSHA1:
+			cmpChecksum(st.ChecksumSHA1, want)
+		case minio.ChecksumSHA256:
+			cmpChecksum(st.ChecksumSHA256, want)
 		}
 
 		delete(args, "metadata")
@@ -2847,8 +3180,8 @@ func testGetObjectAttributes() {
 		testFiles[i].UploadInfo, err = c.PutObject(context.Background(), v.Bucket, v.Object, reader, int64(bufSize), minio.PutObjectOptions{
 			ContentType:    v.ContentType,
 			SendContentMd5: v.SendContentMd5,
+			Checksum:       minio.ChecksumCRC32C,
 		})
-
 		if err != nil {
 			logError(testName, function, args, startTime, "", "PutObject failed", err)
 			return
@@ -2929,7 +3262,7 @@ func testGetObjectAttributes() {
 		test: objectAttributesTestOptions{
 			TestFileName:    "file1",
 			StorageClass:    "STANDARD",
-			HasFullChecksum: false,
+			HasFullChecksum: true,
 		},
 	}
 
@@ -3018,9 +3351,10 @@ func testGetObjectAttributesSSECEncryption() {
 
 	info, err := c.PutObject(context.Background(), bucketName, objectName, reader, int64(bufSize), minio.PutObjectOptions{
 		ContentType:          "content/custom",
-		SendContentMd5:       true,
+		SendContentMd5:       false,
 		ServerSideEncryption: sse,
 		PartSize:             uint64(bufSize) / 2,
+		Checksum:             minio.ChecksumCRC32C,
 	})
 	if err != nil {
 		logError(testName, function, args, startTime, "", "PutObject failed", err)
@@ -3040,9 +3374,9 @@ func testGetObjectAttributesSSECEncryption() {
 		ETag:             info.ETag,
 		NumberOfParts:    2,
 		ObjectSize:       int(info.Size),
-		HasFullChecksum:  false,
+		HasFullChecksum:  true,
 		HasParts:         true,
-		HasPartChecksums: false,
+		HasPartChecksums: true,
 	})
 	if err != nil {
 		logError(testName, function, args, startTime, "", "Validating GetObjectsAttributes response failed", err)
@@ -3231,16 +3565,10 @@ func validateObjectAttributeRequest(OA *minio.ObjectAttributes, opts *minio.Obje
 		}
 	}
 
-	hasFullObjectChecksum := true
-	if OA.Checksum.ChecksumCRC32 == "" {
-		if OA.Checksum.ChecksumCRC32C == "" {
-			if OA.Checksum.ChecksumSHA1 == "" {
-				if OA.Checksum.ChecksumSHA256 == "" {
-					hasFullObjectChecksum = false
-				}
-			}
-		}
-	}
+	hasFullObjectChecksum := (OA.Checksum.ChecksumCRC32 != "" ||
+		OA.Checksum.ChecksumCRC32C != "" ||
+		OA.Checksum.ChecksumSHA1 != "" ||
+		OA.Checksum.ChecksumSHA256 != "")
 
 	if test.HasFullChecksum {
 		if !hasFullObjectChecksum {
@@ -5460,18 +5788,12 @@ func testPresignedPostPolicy() {
 	}
 	writer.Close()
 
-	transport, err := minio.DefaultTransport(mustParseBool(os.Getenv(enableHTTPS)))
-	if err != nil {
-		logError(testName, function, args, startTime, "", "DefaultTransport failed", err)
-		return
-	}
-
 	httpClient := &http.Client{
 		// Setting a sensible time out of 30secs to wait for response
 		// headers. Request is pro-actively canceled after 30secs
 		// with no response.
 		Timeout:   30 * time.Second,
-		Transport: transport,
+		Transport: createHTTPTransport(),
 	}
 	args["url"] = presignedPostPolicyURL.String()
 
@@ -7088,7 +7410,6 @@ func testFunctional() {
 		"bucketName": bucketName,
 	}
 	exists, err = c.BucketExists(context.Background(), bucketName)
-
 	if err != nil {
 		logError(testName, function, args, startTime, "", "BucketExists failed", err)
 		return
@@ -7151,7 +7472,6 @@ func testFunctional() {
 		"bucketPolicy": writeOnlyPolicy,
 	}
 	err = c.SetBucketPolicy(context.Background(), bucketName, writeOnlyPolicy)
-
 	if err != nil {
 		logError(testName, function, args, startTime, "", "SetBucketPolicy failed", err)
 		return
@@ -7180,7 +7500,6 @@ func testFunctional() {
 		"bucketPolicy": readWritePolicy,
 	}
 	err = c.SetBucketPolicy(context.Background(), bucketName, readWritePolicy)
-
 	if err != nil {
 		logError(testName, function, args, startTime, "", "SetBucketPolicy failed", err)
 		return
@@ -7357,7 +7676,6 @@ func testFunctional() {
 		"fileName":   fileName + "-f",
 	}
 	err = c.FGetObject(context.Background(), bucketName, objectName, fileName+"-f", minio.GetObjectOptions{})
-
 	if err != nil {
 		logError(testName, function, args, startTime, "", "FGetObject failed", err)
 		return
@@ -7389,7 +7707,7 @@ func testFunctional() {
 		return
 	}
 
-	transport, err := minio.DefaultTransport(mustParseBool(os.Getenv(enableHTTPS)))
+	transport := createHTTPTransport()
 	if err != nil {
 		logError(testName, function, args, startTime, "", "DefaultTransport failed", err)
 		return
@@ -7489,7 +7807,6 @@ func testFunctional() {
 		"reqParams":  reqParams,
 	}
 	presignedGetURL, err = c.PresignedGetObject(context.Background(), bucketName, objectName, 3600*time.Second, reqParams)
-
 	if err != nil {
 		logError(testName, function, args, startTime, "", "PresignedGetObject failed", err)
 		return
@@ -7646,14 +7963,12 @@ func testFunctional() {
 		"objectName": objectName,
 	}
 	err = c.RemoveObject(context.Background(), bucketName, objectName, minio.RemoveObjectOptions{})
-
 	if err != nil {
 		logError(testName, function, args, startTime, "", "RemoveObject failed", err)
 		return
 	}
 	args["objectName"] = objectName + "-f"
 	err = c.RemoveObject(context.Background(), bucketName, objectName+"-f", minio.RemoveObjectOptions{})
-
 	if err != nil {
 		logError(testName, function, args, startTime, "", "RemoveObject failed", err)
 		return
@@ -7661,7 +7976,6 @@ func testFunctional() {
 
 	args["objectName"] = objectName + "-nolength"
 	err = c.RemoveObject(context.Background(), bucketName, objectName+"-nolength", minio.RemoveObjectOptions{})
-
 	if err != nil {
 		logError(testName, function, args, startTime, "", "RemoveObject failed", err)
 		return
@@ -7669,7 +7983,6 @@ func testFunctional() {
 
 	args["objectName"] = objectName + "-presigned"
 	err = c.RemoveObject(context.Background(), bucketName, objectName+"-presigned", minio.RemoveObjectOptions{})
-
 	if err != nil {
 		logError(testName, function, args, startTime, "", "RemoveObject failed", err)
 		return
@@ -7677,7 +7990,6 @@ func testFunctional() {
 
 	args["objectName"] = objectName + "-presign-custom"
 	err = c.RemoveObject(context.Background(), bucketName, objectName+"-presign-custom", minio.RemoveObjectOptions{})
-
 	if err != nil {
 		logError(testName, function, args, startTime, "", "RemoveObject failed", err)
 		return
@@ -7689,7 +8001,6 @@ func testFunctional() {
 		"bucketName": bucketName,
 	}
 	err = c.RemoveBucket(context.Background(), bucketName)
-
 	if err != nil {
 		logError(testName, function, args, startTime, "", "RemoveBucket failed", err)
 		return
@@ -12157,7 +12468,6 @@ func testFunctionalV2() {
 		"bucketPolicy": readWritePolicy,
 	}
 	err = c.SetBucketPolicy(context.Background(), bucketName, readWritePolicy)
-
 	if err != nil {
 		logError(testName, function, args, startTime, "", "SetBucketPolicy failed", err)
 		return
@@ -12328,18 +12638,12 @@ func testFunctionalV2() {
 		return
 	}
 
-	transport, err := minio.DefaultTransport(mustParseBool(os.Getenv(enableHTTPS)))
-	if err != nil {
-		logError(testName, function, args, startTime, "", "DefaultTransport failed", err)
-		return
-	}
-
 	httpClient := &http.Client{
 		// Setting a sensible time out of 30secs to wait for response
 		// headers. Request is pro-actively canceled after 30secs
 		// with no response.
 		Timeout:   30 * time.Second,
-		Transport: transport,
+		Transport: createHTTPTransport(),
 	}
 
 	req, err := http.NewRequest(http.MethodHead, presignedHeadURL.String(), nil)
@@ -12888,7 +13192,6 @@ func testGetObjectACLContext() {
 			ContentType:  "binary/octet-stream",
 			UserMetadata: metaData,
 		})
-
 	if err != nil {
 		logError(testName, function, args, startTime, "", "PutObject failed", err)
 		return
@@ -13367,6 +13670,844 @@ func testListObjects() {
 	logSuccess(testName, function, args, startTime)
 }
 
+// testCors is runnable against S3 itself.
+// Just provide the env var MINIO_GO_TEST_BUCKET_CORS with bucket that is public and WILL BE DELETED.
+// Recreate this manually each time. Minio-go SDK does not support calling
+// SetPublicBucket (put-public-access-block) on S3, otherwise we could script the whole thing.
+func testCors() {
+	ctx := context.Background()
+	startTime := time.Now()
+	testName := getFuncName()
+	function := "SetBucketCors(bucketName, cors)"
+	args := map[string]interface{}{
+		"bucketName": "",
+		"cors":       "",
+	}
+
+	// Instantiate new minio client object
+	c, err := minio.New(os.Getenv(serverEndpoint),
+		&minio.Options{
+			Creds:     credentials.NewStaticV4(os.Getenv(accessKey), os.Getenv(secretKey), ""),
+			Transport: createHTTPTransport(),
+			Secure:    mustParseBool(os.Getenv(enableHTTPS)),
+		})
+	if err != nil {
+		logError(testName, function, args, startTime, "", "MinIO client object creation failed", err)
+		return
+	}
+
+	// Enable tracing, write to stderr.
+	// c.TraceOn(os.Stderr)
+
+	// Set user agent.
+	c.SetAppInfo("MinIO-go-FunctionalTest", appVersion)
+
+	// Create or reuse a bucket that will get cors settings applied to it and deleted when done
+	bucketName := os.Getenv("MINIO_GO_TEST_BUCKET_CORS")
+	if bucketName == "" {
+		bucketName = randString(60, rand.NewSource(time.Now().UnixNano()), "minio-go-test-")
+		err = c.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{Region: "us-east-1"})
+		if err != nil {
+			logError(testName, function, args, startTime, "", "MakeBucket failed", err)
+			return
+		}
+	}
+	args["bucketName"] = bucketName
+	defer cleanupBucket(bucketName, c)
+
+	publicPolicy := `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:*"],"Resource":["arn:aws:s3:::` + bucketName + `", "arn:aws:s3:::` + bucketName + `/*"]}]}`
+	err = c.SetBucketPolicy(ctx, bucketName, publicPolicy)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "SetBucketPolicy failed", err)
+		return
+	}
+
+	// Upload an object for testing.
+	objectContents := `some-text-file-contents`
+	reader := strings.NewReader(objectContents)
+	bufSize := int64(len(objectContents))
+
+	objectName := randString(60, rand.NewSource(time.Now().UnixNano()), "")
+	args["objectName"] = objectName
+
+	_, err = c.PutObject(ctx, bucketName, objectName, reader, int64(bufSize), minio.PutObjectOptions{ContentType: "binary/octet-stream"})
+	if err != nil {
+		logError(testName, function, args, startTime, "", "PutObject call failed", err)
+		return
+	}
+	bucketURL := c.EndpointURL().String() + "/" + bucketName + "/"
+	objectURL := bucketURL + objectName
+
+	httpClient := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: createHTTPTransport(),
+	}
+
+	errStrAccessForbidden := `<Error><Code>AccessForbidden</Code><Message>CORSResponse: This CORS request is not allowed. This is usually because the evalution of Origin, request method / Access-Control-Request-Method or Access-Control-Request-Headers are not whitelisted`
+	testCases := []struct {
+		name string
+
+		// Cors rules to apply
+		applyCorsRules []cors.Rule
+
+		// Outbound request info
+		method  string
+		url     string
+		headers map[string]string
+
+		// Wanted response
+		wantStatus       int
+		wantHeaders      map[string]string
+		wantBodyContains string
+	}{
+		{
+			name: "apply bucket rules",
+			applyCorsRules: []cors.Rule{
+				{
+					AllowedOrigin: []string{"https"}, // S3 documents 'https' origin, but it does not actually work, see test below.
+					AllowedMethod: []string{"PUT"},
+					AllowedHeader: []string{"*"},
+				},
+				{
+					AllowedOrigin: []string{"http://www.example1.com"},
+					AllowedMethod: []string{"PUT"},
+					AllowedHeader: []string{"*"},
+					ExposeHeader:  []string{"x-amz-server-side-encryption", "x-amz-request-id"},
+					MaxAgeSeconds: 3600,
+				},
+				{
+					AllowedOrigin: []string{"http://www.example2.com"},
+					AllowedMethod: []string{"POST"},
+					AllowedHeader: []string{"X-My-Special-Header"},
+					ExposeHeader:  []string{"X-AMZ-Request-ID"},
+				},
+				{
+					AllowedOrigin: []string{"http://www.example3.com"},
+					AllowedMethod: []string{"PUT"},
+					AllowedHeader: []string{"X-Example-3-Special-Header"},
+					MaxAgeSeconds: 10,
+				},
+				{
+					AllowedOrigin: []string{"*"},
+					AllowedMethod: []string{"GET"},
+					AllowedHeader: []string{"*"},
+					ExposeHeader:  []string{"x-amz-request-id", "X-AMZ-server-side-encryption"},
+					MaxAgeSeconds: 3600,
+				},
+				{
+					AllowedOrigin: []string{"http://multiplemethodstest.com"},
+					AllowedMethod: []string{"POST", "PUT", "DELETE"},
+					AllowedHeader: []string{"x-abc-*", "x-def-*"},
+				},
+				{
+					AllowedOrigin: []string{"http://UPPERCASEEXAMPLE.com"},
+					AllowedMethod: []string{"DELETE"},
+				},
+				{
+					AllowedOrigin: []string{"https://*"},
+					AllowedMethod: []string{"DELETE"},
+					AllowedHeader: []string{"x-abc-*", "x-def-*"},
+				},
+			},
+		},
+		{
+			name:   "preflight to object url matches example1 rule",
+			method: http.MethodOptions,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                         "http://www.example1.com",
+				"Access-Control-Request-Method":  "PUT",
+				"Access-Control-Request-Headers": "x-another-header,x-could-be-anything",
+			},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Origin":      "http://www.example1.com",
+				"Access-Control-Allow-Methods":     "PUT",
+				"Access-Control-Allow-Headers":     "x-another-header,x-could-be-anything",
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Max-Age":           "3600",
+				"Content-Length":                   "0",
+				// S3 additionally sets the following headers here, MinIO follows fetch spec and does not:
+				// "Access-Control-Expose-Headers":    "",
+			},
+		},
+		{
+			name:   "preflight to bucket url matches example1 rule",
+			method: http.MethodOptions,
+			url:    bucketURL,
+			headers: map[string]string{
+				"Origin":                         "http://www.example1.com",
+				"Access-Control-Request-Method":  "PUT",
+				"Access-Control-Request-Headers": "x-another-header,x-could-be-anything",
+			},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Origin":      "http://www.example1.com",
+				"Access-Control-Allow-Methods":     "PUT",
+				"Access-Control-Allow-Headers":     "x-another-header,x-could-be-anything",
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Max-Age":           "3600",
+				"Content-Length":                   "0",
+			},
+		},
+		{
+			name:   "preflight matches example2 rule with header given",
+			method: http.MethodOptions,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                         "http://www.example2.com",
+				"Access-Control-Request-Method":  "POST",
+				"Access-Control-Request-Headers": "X-My-Special-Header",
+			},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Origin":      "http://www.example2.com",
+				"Access-Control-Allow-Methods":     "POST",
+				"Access-Control-Allow-Headers":     "x-my-special-header",
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Max-Age":           "",
+				"Content-Length":                   "0",
+			},
+		},
+		{
+			name:   "preflight matches example2 rule with no header given",
+			method: http.MethodOptions,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                        "http://www.example2.com",
+				"Access-Control-Request-Method": "POST",
+			},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Origin":      "http://www.example2.com",
+				"Access-Control-Allow-Methods":     "POST",
+				"Access-Control-Allow-Headers":     "",
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Max-Age":           "",
+				"Content-Length":                   "0",
+			},
+		},
+		{
+			name:   "preflight matches wildcard origin rule",
+			method: http.MethodOptions,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                         "http://www.couldbeanything.com",
+				"Access-Control-Request-Method":  "GET",
+				"Access-Control-Request-Headers": "x-custom-header,x-other-custom-header",
+			},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Origin":      "*",
+				"Access-Control-Allow-Methods":     "GET",
+				"Access-Control-Allow-Headers":     "x-custom-header,x-other-custom-header",
+				"Access-Control-Allow-Credentials": "",
+				"Access-Control-Max-Age":           "3600",
+				"Content-Length":                   "0",
+			},
+		},
+		{
+			name:   "preflight does not match any rule",
+			method: http.MethodOptions,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                        "http://www.couldbeanything.com",
+				"Access-Control-Request-Method": "DELETE",
+			},
+			wantStatus:       http.StatusForbidden,
+			wantBodyContains: errStrAccessForbidden,
+		},
+		{
+			name:   "preflight does not match example1 rule because of method",
+			method: http.MethodOptions,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                        "http://www.example1.com",
+				"Access-Control-Request-Method": "POST",
+			},
+			wantStatus:       http.StatusForbidden,
+			wantBodyContains: errStrAccessForbidden,
+		},
+		{
+			name:   "s3 processes cors rules even when request is not preflight if cors headers present test get",
+			method: http.MethodGet,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                         "http://www.example1.com",
+				"Access-Control-Request-Headers": "x-another-header,x-could-be-anything",
+				"Access-Control-Request-Method":  "PUT",
+			},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Allow-Origin":      "http://www.example1.com",
+				"Access-Control-Expose-Headers":    "x-amz-server-side-encryption,x-amz-request-id",
+				// S3 additionally sets the following headers here, MinIO follows fetch spec and does not:
+				// "Access-Control-Allow-Headers":     "x-another-header,x-could-be-anything",
+				// "Access-Control-Allow-Methods":     "PUT",
+				// "Access-Control-Max-Age":           "3600",
+			},
+		},
+		{
+			name:   "s3 processes cors rules even when request is not preflight if cors headers present test put",
+			method: http.MethodPut,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                        "http://www.example1.com",
+				"Access-Control-Request-Method": "GET",
+			},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Credentials": "",
+				"Access-Control-Allow-Origin":      "*",
+				"Access-Control-Expose-Headers":    "x-amz-request-id,x-amz-server-side-encryption",
+				// S3 additionally sets the following headers here, MinIO follows fetch spec and does not:
+				// "Access-Control-Allow-Headers":     "x-another-header,x-could-be-anything",
+				// "Access-Control-Allow-Methods":     "PUT",
+				// "Access-Control-Max-Age":           "3600",
+			},
+		},
+		{
+			name:   "s3 processes cors rules even when request is not preflight but there is no rule match",
+			method: http.MethodGet,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                         "http://www.example1.com",
+				"Access-Control-Request-Headers": "x-another-header,x-could-be-anything",
+				"Access-Control-Request-Method":  "DELETE",
+			},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Methods":     "",
+				"Access-Control-Allow-Origin":      "",
+				"Access-Control-Allow-Headers":     "",
+				"Access-Control-Allow-Credentials": "",
+				"Access-Control-Expose-Headers":    "",
+				"Access-Control-Max-Age":           "",
+			},
+		},
+		{
+			name:   "get request matches wildcard origin rule and returns cors headers",
+			method: http.MethodGet,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin": "http://www.example1.com",
+			},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Credentials": "",
+				"Access-Control-Allow-Origin":      "*",
+				"Access-Control-Allow-Headers":     "",
+				"Access-Control-Expose-Headers":    "x-amz-request-id,X-AMZ-server-side-encryption",
+				// S3 returns the following headers, MinIO follows fetch spec and does not:
+				// "Access-Control-Max-Age":           "3600",
+				// "Access-Control-Allow-Methods":     "GET",
+			},
+		},
+		{
+			name:   "head request does not match rule and returns no cors headers",
+			method: http.MethodHead,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin": "http://www.nomatchingdomainfound.com",
+			},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Credentials": "",
+				"Access-Control-Allow-Methods":     "",
+				"Access-Control-Allow-Origin":      "",
+				"Access-Control-Allow-Headers":     "",
+				"Access-Control-Expose-Headers":    "",
+				"Access-Control-Max-Age":           "",
+			},
+		},
+		{
+			name:   "put request with origin does not match rule and returns no cors headers",
+			method: http.MethodPut,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin": "http://www.nomatchingdomainfound.com",
+			},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Credentials": "",
+				"Access-Control-Allow-Methods":     "",
+				"Access-Control-Allow-Origin":      "",
+				"Access-Control-Allow-Headers":     "",
+				"Access-Control-Expose-Headers":    "",
+				"Access-Control-Max-Age":           "",
+			},
+		},
+		{
+			name:       "put request with no origin does not match rule and returns no cors headers",
+			method:     http.MethodPut,
+			url:        objectURL,
+			headers:    map[string]string{},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Credentials": "",
+				"Access-Control-Allow-Methods":     "",
+				"Access-Control-Allow-Origin":      "",
+				"Access-Control-Allow-Headers":     "",
+				"Access-Control-Expose-Headers":    "",
+				"Access-Control-Max-Age":           "",
+			},
+		},
+		{
+			name:   "preflight for delete request with wildcard origin does not match",
+			method: http.MethodOptions,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                        "http://www.notsecureexample.com",
+				"Access-Control-Request-Method": "DELETE",
+			},
+			wantStatus:       http.StatusForbidden,
+			wantBodyContains: errStrAccessForbidden,
+		},
+		{
+			name:   "preflight for delete request with wildcard https origin matches secureexample",
+			method: http.MethodOptions,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                        "https://www.secureexample.com",
+				"Access-Control-Request-Method": "DELETE",
+			},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Allow-Methods":     "DELETE",
+				"Access-Control-Allow-Origin":      "https://www.secureexample.com",
+				"Access-Control-Allow-Headers":     "",
+				"Access-Control-Expose-Headers":    "",
+				"Access-Control-Max-Age":           "",
+			},
+		},
+		{
+			name:   "preflight for delete request matches secureexample with wildcard https origin and request headers",
+			method: http.MethodOptions,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                         "https://www.secureexample.com",
+				"Access-Control-Request-Method":  "DELETE",
+				"Access-Control-Request-Headers": "x-abc-1,x-abc-second,x-def-1",
+			},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Allow-Methods":     "DELETE",
+				"Access-Control-Allow-Origin":      "https://www.secureexample.com",
+				"Access-Control-Allow-Headers":     "x-abc-1,x-abc-second,x-def-1",
+				"Access-Control-Expose-Headers":    "",
+				"Access-Control-Max-Age":           "",
+			},
+		},
+		{
+			name:   "preflight for delete request matches secureexample rejected because request header does not match",
+			method: http.MethodOptions,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                         "https://www.secureexample.com",
+				"Access-Control-Request-Method":  "DELETE",
+				"Access-Control-Request-Headers": "x-abc-1,x-abc-second,x-def-1,x-does-not-match",
+			},
+			wantStatus:       http.StatusForbidden,
+			wantBodyContains: errStrAccessForbidden,
+		},
+		{
+			name:   "preflight with https origin is documented by s3 as matching but it does not match",
+			method: http.MethodOptions,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                        "https://www.securebutdoesnotmatch.com",
+				"Access-Control-Request-Method": "PUT",
+			},
+			wantStatus:       http.StatusForbidden,
+			wantBodyContains: errStrAccessForbidden,
+		},
+		{
+			name:       "put no origin no match returns no cors headers",
+			method:     http.MethodPut,
+			url:        objectURL,
+			headers:    map[string]string{},
+			wantStatus: http.StatusOK,
+
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Credentials": "",
+				"Access-Control-Allow-Methods":     "",
+				"Access-Control-Allow-Origin":      "",
+				"Access-Control-Allow-Headers":     "",
+				"Access-Control-Expose-Headers":    "",
+				"Access-Control-Max-Age":           "",
+			},
+		},
+		{
+			name:   "put with origin match example1 returns cors headers",
+			method: http.MethodPut,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin": "http://www.example1.com",
+			},
+			wantStatus: http.StatusOK,
+
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Allow-Origin":      "http://www.example1.com",
+				"Access-Control-Allow-Headers":     "",
+				"Access-Control-Expose-Headers":    "x-amz-server-side-encryption,x-amz-request-id",
+				// S3 returns the following headers, MinIO follows fetch spec and does not:
+				// "Access-Control-Max-Age":           "3600",
+				// "Access-Control-Allow-Methods":     "PUT",
+			},
+		},
+		{
+			name:   "put with origin and header match example1 returns cors headers",
+			method: http.MethodPut,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":              "http://www.example1.com",
+				"x-could-be-anything": "myvalue",
+			},
+			wantStatus: http.StatusOK,
+
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Allow-Origin":      "http://www.example1.com",
+				"Access-Control-Allow-Headers":     "",
+				"Access-Control-Expose-Headers":    "x-amz-server-side-encryption,x-amz-request-id",
+				// S3 returns the following headers, MinIO follows fetch spec and does not:
+				// "Access-Control-Max-Age":           "3600",
+				// "Access-Control-Allow-Methods":     "PUT",
+			},
+		},
+		{
+			name:   "put no match found returns no cors headers",
+			method: http.MethodPut,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin": "http://www.unmatchingdomain.com",
+			},
+			wantStatus: http.StatusOK,
+
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Credentials": "",
+				"Access-Control-Allow-Methods":     "",
+				"Access-Control-Allow-Origin":      "",
+				"Access-Control-Allow-Headers":     "",
+				"Access-Control-Expose-Headers":    "",
+				"Access-Control-Max-Age":           "",
+			},
+		},
+		{
+			name:   "put with origin match example3 returns cors headers",
+			method: http.MethodPut,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":              "http://www.example3.com",
+				"X-My-Special-Header": "myvalue",
+			},
+			wantStatus: http.StatusOK,
+
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Allow-Origin":      "http://www.example3.com",
+				"Access-Control-Allow-Headers":     "",
+				"Access-Control-Expose-Headers":    "",
+				// S3 returns the following headers, MinIO follows fetch spec and does not:
+				// "Access-Control-Max-Age":           "10",
+				// "Access-Control-Allow-Methods":     "PUT",
+			},
+		},
+		{
+			name:   "preflight matches example1 rule headers case is incorrect",
+			method: http.MethodOptions,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                        "http://www.example1.com",
+				"Access-Control-Request-Method": "PUT",
+				// Fetch standard guarantees that these are sent lowercase, here we test what happens when they are not.
+				"Access-Control-Request-Headers": "X-Another-Header,X-Could-Be-Anything",
+			},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Origin":      "http://www.example1.com",
+				"Access-Control-Allow-Methods":     "PUT",
+				"Access-Control-Allow-Headers":     "x-another-header,x-could-be-anything",
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Max-Age":           "3600",
+				"Content-Length":                   "0",
+				// S3 returns the following headers, MinIO follows fetch spec and does not:
+				// "Access-Control-Expose-Headers":    "x-amz-server-side-encryption,x-amz-request-id",
+			},
+		},
+		{
+			name:   "preflight matches example1 rule headers are not sorted",
+			method: http.MethodOptions,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                        "http://www.example1.com",
+				"Access-Control-Request-Method": "PUT",
+				// Fetch standard guarantees that these are sorted, test what happens when they are not.
+				"Access-Control-Request-Headers": "a-customer-header,b-should-be-last",
+			},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Origin":      "http://www.example1.com",
+				"Access-Control-Allow-Methods":     "PUT",
+				"Access-Control-Allow-Headers":     "a-customer-header,b-should-be-last",
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Max-Age":           "3600",
+				"Content-Length":                   "0",
+				// S3 returns the following headers, MinIO follows fetch spec and does not:
+				// "Access-Control-Expose-Headers":    "x-amz-server-side-encryption,x-amz-request-id",
+			},
+		},
+		{
+			name:   "preflight with case sensitivity in origin matches uppercase",
+			method: http.MethodOptions,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                        "http://UPPERCASEEXAMPLE.com",
+				"Access-Control-Request-Method": "DELETE",
+			},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Allow-Methods":     "DELETE",
+				"Access-Control-Allow-Origin":      "http://UPPERCASEEXAMPLE.com",
+				"Access-Control-Allow-Headers":     "",
+				"Access-Control-Expose-Headers":    "",
+				"Access-Control-Max-Age":           "",
+			},
+		},
+		{
+			name:   "preflight with case sensitivity in origin does not match when lowercase",
+			method: http.MethodOptions,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                        "http://uppercaseexample.com",
+				"Access-Control-Request-Method": "DELETE",
+			},
+			wantStatus:       http.StatusForbidden,
+			wantBodyContains: errStrAccessForbidden,
+		},
+		{
+			name:   "preflight match upper case with unknown header but no header restrictions",
+			method: http.MethodOptions,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                         "http://UPPERCASEEXAMPLE.com",
+				"Access-Control-Request-Method":  "DELETE",
+				"Access-Control-Request-Headers": "x-unknown-1",
+			},
+			wantStatus:       http.StatusForbidden,
+			wantBodyContains: errStrAccessForbidden,
+		},
+		{
+			name:   "preflight for delete request matches multiplemethodstest.com origin and request headers",
+			method: http.MethodOptions,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin":                         "http://multiplemethodstest.com",
+				"Access-Control-Request-Method":  "DELETE",
+				"Access-Control-Request-Headers": "x-abc-1",
+			},
+			wantStatus: http.StatusOK,
+			wantHeaders: map[string]string{
+				"Access-Control-Allow-Credentials": "true",
+				"Access-Control-Allow-Origin":      "http://multiplemethodstest.com",
+				"Access-Control-Allow-Headers":     "x-abc-1",
+				"Access-Control-Expose-Headers":    "",
+				"Access-Control-Max-Age":           "",
+				// S3 returns POST, PUT, DELETE here, MinIO does not as spec does not require it.
+				// "Access-Control-Allow-Methods":     "DELETE",
+			},
+		},
+		{
+			name:   "delete request goes ahead because cors is only for browsers and does not block on the server side",
+			method: http.MethodDelete,
+			url:    objectURL,
+			headers: map[string]string{
+				"Origin": "http://www.justrandom.com",
+			},
+			wantStatus: http.StatusNoContent,
+		},
+	}
+
+	for i, test := range testCases {
+		testName := fmt.Sprintf("%s_%d_%s", testName, i+1, strings.ReplaceAll(test.name, " ", "_"))
+
+		// Apply the CORS rules
+		if test.applyCorsRules != nil {
+			corsConfig := &cors.Config{
+				CORSRules: test.applyCorsRules,
+			}
+			err = c.SetBucketCors(ctx, bucketName, corsConfig)
+			if err != nil {
+				logError(testName, function, args, startTime, "", "SetBucketCors failed to apply", err)
+				return
+			}
+		}
+
+		// Make request
+		if test.method != "" && test.url != "" {
+			req, err := http.NewRequestWithContext(ctx, test.method, test.url, nil)
+			if err != nil {
+				logError(testName, function, args, startTime, "", "HTTP request creation failed", err)
+				return
+			}
+			req.Header.Set("User-Agent", "MinIO-go-FunctionalTest/"+appVersion)
+
+			for k, v := range test.headers {
+				req.Header.Set(k, v)
+			}
+			resp, err := httpClient.Do(req)
+			if err != nil {
+				logError(testName, function, args, startTime, "", "HTTP request failed", err)
+				return
+			}
+			defer resp.Body.Close()
+
+			// Check returned status code
+			if resp.StatusCode != test.wantStatus {
+				errStr := fmt.Sprintf(" incorrect status code in response, want: %d, got: %d", test.wantStatus, resp.StatusCode)
+				logError(testName, function, args, startTime, "", errStr, nil)
+				return
+			}
+
+			// Check returned body
+			if test.wantBodyContains != "" {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					logError(testName, function, args, startTime, "", "Failed to read response body", err)
+					return
+				}
+				if !strings.Contains(string(body), test.wantBodyContains) {
+					errStr := fmt.Sprintf(" incorrect body in response, want: %s, in got: %s", test.wantBodyContains, string(body))
+					logError(testName, function, args, startTime, "", errStr, nil)
+					return
+				}
+			}
+
+			// Check returned response headers
+			for k, v := range test.wantHeaders {
+				gotVal := resp.Header.Get(k)
+				if k == "Access-Control-Expose-Headers" {
+					// MinIO returns this in canonical form, S3 does not.
+					gotVal = strings.ToLower(gotVal)
+					v = strings.ToLower(v)
+				}
+				// Remove all spaces, S3 adds spaces after CSV values in headers, MinIO does not.
+				gotVal = strings.ReplaceAll(gotVal, " ", "")
+				if gotVal != v {
+					errStr := fmt.Sprintf(" incorrect header in response, want: %s: '%s', got: '%s'", k, v, gotVal)
+					logError(testName, function, args, startTime, "", errStr, nil)
+					return
+				}
+			}
+		}
+		logSuccess(testName, function, args, startTime)
+	}
+	logSuccess(testName, function, args, startTime)
+}
+
+func testCorsSetGetDelete() {
+	ctx := context.Background()
+	startTime := time.Now()
+	testName := getFuncName()
+	function := "SetBucketCors(bucketName, cors)"
+	args := map[string]interface{}{
+		"bucketName": "",
+		"cors":       "",
+	}
+
+	// Instantiate new minio client object
+	c, err := minio.New(os.Getenv(serverEndpoint),
+		&minio.Options{
+			Creds:     credentials.NewStaticV4(os.Getenv(accessKey), os.Getenv(secretKey), ""),
+			Transport: createHTTPTransport(),
+			Secure:    mustParseBool(os.Getenv(enableHTTPS)),
+		})
+	if err != nil {
+		logError(testName, function, args, startTime, "", "MinIO client object creation failed", err)
+		return
+	}
+
+	// Enable tracing, write to stderr.
+	// c.TraceOn(os.Stderr)
+
+	// Set user agent.
+	c.SetAppInfo("MinIO-go-FunctionalTest", appVersion)
+
+	// Generate a new random bucket name.
+	bucketName := randString(60, rand.NewSource(time.Now().UnixNano()), "minio-go-test-")
+	args["bucketName"] = bucketName
+
+	// Make a new bucket.
+	err = c.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{Region: "us-east-1"})
+	if err != nil {
+		logError(testName, function, args, startTime, "", "MakeBucket failed", err)
+		return
+	}
+	defer cleanupBucket(bucketName, c)
+
+	// Set the CORS rules on the new bucket
+	corsRules := []cors.Rule{
+		{
+			AllowedOrigin: []string{"http://www.example1.com"},
+			AllowedMethod: []string{"PUT"},
+			AllowedHeader: []string{"*"},
+		},
+		{
+			AllowedOrigin: []string{"http://www.example2.com"},
+			AllowedMethod: []string{"POST"},
+			AllowedHeader: []string{"X-My-Special-Header"},
+		},
+		{
+			AllowedOrigin: []string{"*"},
+			AllowedMethod: []string{"GET"},
+			AllowedHeader: []string{"*"},
+		},
+	}
+	corsConfig := cors.NewConfig(corsRules)
+	err = c.SetBucketCors(ctx, bucketName, corsConfig)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "SetBucketCors failed to apply", err)
+		return
+	}
+
+	// Get the rules and check they match what we set
+	gotCorsConfig, err := c.GetBucketCors(ctx, bucketName)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "GetBucketCors failed", err)
+		return
+	}
+	if !reflect.DeepEqual(corsConfig, gotCorsConfig) {
+		msg := fmt.Sprintf("GetBucketCors returned unexpected rules, expected: %+v, got: %+v", corsConfig, gotCorsConfig)
+		logError(testName, function, args, startTime, "", msg, nil)
+		return
+	}
+
+	// Delete the rules
+	err = c.SetBucketCors(ctx, bucketName, nil)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "SetBucketCors failed to delete", err)
+		return
+	}
+
+	// Get the rules and check they are now empty
+	gotCorsConfig, err = c.GetBucketCors(ctx, bucketName)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "GetBucketCors failed", err)
+		return
+	}
+	if gotCorsConfig != nil {
+		logError(testName, function, args, startTime, "", "GetBucketCors returned unexpected rules", nil)
+		return
+	}
+
+	logSuccess(testName, function, args, startTime)
+}
+
 // Test deleting multiple objects with object retention set in Governance mode
 func testRemoveObjects() {
 	// initialize logging params
@@ -13503,6 +14644,245 @@ func testRemoveObjects() {
 	logSuccess(testName, function, args, startTime)
 }
 
+// Test get bucket tags
+func testGetBucketTagging() {
+	// initialize logging params
+	startTime := time.Now()
+	testName := getFuncName()
+	function := "GetBucketTagging(bucketName)"
+	args := map[string]interface{}{
+		"bucketName": "",
+	}
+	// Seed random based on current time.
+	rand.Seed(time.Now().Unix())
+
+	// Instantiate new minio client object.
+	c, err := minio.New(os.Getenv(serverEndpoint),
+		&minio.Options{
+			Creds:     credentials.NewStaticV4(os.Getenv(accessKey), os.Getenv(secretKey), ""),
+			Transport: createHTTPTransport(),
+			Secure:    mustParseBool(os.Getenv(enableHTTPS)),
+		})
+	if err != nil {
+		logError(testName, function, args, startTime, "", "MinIO client v4 object creation failed", err)
+		return
+	}
+
+	// Enable tracing, write to stderr.
+	// c.TraceOn(os.Stderr)
+
+	// Set user agent.
+	c.SetAppInfo("MinIO-go-FunctionalTest", appVersion)
+
+	// Generate a new random bucket name.
+	bucketName := randString(60, rand.NewSource(time.Now().UnixNano()), "minio-go-test-")
+	args["bucketName"] = bucketName
+
+	// Make a new bucket.
+	err = c.MakeBucket(context.Background(), bucketName, minio.MakeBucketOptions{Region: "us-east-1", ObjectLocking: true})
+	if err != nil {
+		logError(testName, function, args, startTime, "", "MakeBucket failed", err)
+		return
+	}
+
+	_, err = c.GetBucketTagging(context.Background(), bucketName)
+	if minio.ToErrorResponse(err).Code != "NoSuchTagSet" {
+		logError(testName, function, args, startTime, "", "Invalid error from server failed", err)
+		return
+	}
+
+	if err = cleanupVersionedBucket(bucketName, c); err != nil {
+		logError(testName, function, args, startTime, "", "CleanupBucket failed", err)
+		return
+	}
+
+	logSuccess(testName, function, args, startTime)
+}
+
+// Test setting tags for bucket
+func testSetBucketTagging() {
+	// initialize logging params
+	startTime := time.Now()
+	testName := getFuncName()
+	function := "SetBucketTagging(bucketName, tags)"
+	args := map[string]interface{}{
+		"bucketName": "",
+		"tags":       "",
+	}
+	// Seed random based on current time.
+	rand.Seed(time.Now().Unix())
+
+	// Instantiate new minio client object.
+	c, err := minio.New(os.Getenv(serverEndpoint),
+		&minio.Options{
+			Creds:     credentials.NewStaticV4(os.Getenv(accessKey), os.Getenv(secretKey), ""),
+			Transport: createHTTPTransport(),
+			Secure:    mustParseBool(os.Getenv(enableHTTPS)),
+		})
+	if err != nil {
+		logError(testName, function, args, startTime, "", "MinIO client v4 object creation failed", err)
+		return
+	}
+
+	// Enable tracing, write to stderr.
+	// c.TraceOn(os.Stderr)
+
+	// Set user agent.
+	c.SetAppInfo("MinIO-go-FunctionalTest", appVersion)
+
+	// Generate a new random bucket name.
+	bucketName := randString(60, rand.NewSource(time.Now().UnixNano()), "minio-go-test-")
+	args["bucketName"] = bucketName
+
+	// Make a new bucket.
+	err = c.MakeBucket(context.Background(), bucketName, minio.MakeBucketOptions{Region: "us-east-1", ObjectLocking: true})
+	if err != nil {
+		logError(testName, function, args, startTime, "", "MakeBucket failed", err)
+		return
+	}
+
+	_, err = c.GetBucketTagging(context.Background(), bucketName)
+	if minio.ToErrorResponse(err).Code != "NoSuchTagSet" {
+		logError(testName, function, args, startTime, "", "Invalid error from server", err)
+		return
+	}
+
+	tag := randString(60, rand.NewSource(time.Now().UnixNano()), "")
+	expectedValue := randString(60, rand.NewSource(time.Now().UnixNano()), "")
+
+	t, err := tags.MapToBucketTags(map[string]string{
+		tag: expectedValue,
+	})
+	args["tags"] = t.String()
+	if err != nil {
+		logError(testName, function, args, startTime, "", "tags.MapToBucketTags failed", err)
+		return
+	}
+
+	err = c.SetBucketTagging(context.Background(), bucketName, t)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "SetBucketTagging failed", err)
+		return
+	}
+
+	tagging, err := c.GetBucketTagging(context.Background(), bucketName)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "GetBucketTagging failed", err)
+		return
+	}
+
+	if tagging.ToMap()[tag] != expectedValue {
+		msg := fmt.Sprintf("Tag %s; got value %s; wanted %s", tag, tagging.ToMap()[tag], expectedValue)
+		logError(testName, function, args, startTime, "", msg, err)
+		return
+	}
+
+	// Delete all objects and buckets
+	if err = cleanupVersionedBucket(bucketName, c); err != nil {
+		logError(testName, function, args, startTime, "", "CleanupBucket failed", err)
+		return
+	}
+
+	logSuccess(testName, function, args, startTime)
+}
+
+// Test removing bucket tags
+func testRemoveBucketTagging() {
+	// initialize logging params
+	startTime := time.Now()
+	testName := getFuncName()
+	function := "RemoveBucketTagging(bucketName)"
+	args := map[string]interface{}{
+		"bucketName": "",
+	}
+	// Seed random based on current time.
+	rand.Seed(time.Now().Unix())
+
+	// Instantiate new minio client object.
+	c, err := minio.New(os.Getenv(serverEndpoint),
+		&minio.Options{
+			Creds:     credentials.NewStaticV4(os.Getenv(accessKey), os.Getenv(secretKey), ""),
+			Transport: createHTTPTransport(),
+			Secure:    mustParseBool(os.Getenv(enableHTTPS)),
+		})
+	if err != nil {
+		logError(testName, function, args, startTime, "", "MinIO client v4 object creation failed", err)
+		return
+	}
+
+	// Enable tracing, write to stderr.
+	// c.TraceOn(os.Stderr)
+
+	// Set user agent.
+	c.SetAppInfo("MinIO-go-FunctionalTest", appVersion)
+
+	// Generate a new random bucket name.
+	bucketName := randString(60, rand.NewSource(time.Now().UnixNano()), "minio-go-test-")
+	args["bucketName"] = bucketName
+
+	// Make a new bucket.
+	err = c.MakeBucket(context.Background(), bucketName, minio.MakeBucketOptions{Region: "us-east-1", ObjectLocking: true})
+	if err != nil {
+		logError(testName, function, args, startTime, "", "MakeBucket failed", err)
+		return
+	}
+
+	_, err = c.GetBucketTagging(context.Background(), bucketName)
+	if minio.ToErrorResponse(err).Code != "NoSuchTagSet" {
+		logError(testName, function, args, startTime, "", "Invalid error from server", err)
+		return
+	}
+
+	tag := randString(60, rand.NewSource(time.Now().UnixNano()), "")
+	expectedValue := randString(60, rand.NewSource(time.Now().UnixNano()), "")
+
+	t, err := tags.MapToBucketTags(map[string]string{
+		tag: expectedValue,
+	})
+	if err != nil {
+		logError(testName, function, args, startTime, "", "tags.MapToBucketTags failed", err)
+		return
+	}
+
+	err = c.SetBucketTagging(context.Background(), bucketName, t)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "SetBucketTagging failed", err)
+		return
+	}
+
+	tagging, err := c.GetBucketTagging(context.Background(), bucketName)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "GetBucketTagging failed", err)
+		return
+	}
+
+	if tagging.ToMap()[tag] != expectedValue {
+		msg := fmt.Sprintf("Tag %s; got value %s; wanted %s", tag, tagging.ToMap()[tag], expectedValue)
+		logError(testName, function, args, startTime, "", msg, err)
+		return
+	}
+
+	err = c.RemoveBucketTagging(context.Background(), bucketName)
+	if err != nil {
+		logError(testName, function, args, startTime, "", "RemoveBucketTagging failed", err)
+		return
+	}
+
+	_, err = c.GetBucketTagging(context.Background(), bucketName)
+	if minio.ToErrorResponse(err).Code != "NoSuchTagSet" {
+		logError(testName, function, args, startTime, "", "Invalid error from server", err)
+		return
+	}
+
+	// Delete all objects and buckets
+	if err = cleanupVersionedBucket(bucketName, c); err != nil {
+		logError(testName, function, args, startTime, "", "CleanupBucket failed", err)
+		return
+	}
+
+	logSuccess(testName, function, args, startTime)
+}
+
 // Convert string to bool and always return false if any error
 func mustParseBool(str string) bool {
 	b, err := strconv.ParseBool(str)
@@ -13536,6 +14916,9 @@ func main() {
 
 	// execute tests
 	if isFullMode() {
+		testCorsSetGetDelete()
+		testCors()
+		testListMultipartUpload()
 		testGetObjectAttributes()
 		testGetObjectAttributesErrorCases()
 		testMakeBucketErrorV2()
@@ -13551,7 +14934,9 @@ func main() {
 		testCompose10KSourcesV2()
 		testUserMetadataCopyingV2()
 		testPutObjectWithChecksums()
-		testPutMultipartObjectWithChecksums()
+		testPutObjectWithTrailingChecksums()
+		testPutMultipartObjectWithChecksums(false)
+		testPutMultipartObjectWithChecksums(true)
 		testPutObject0ByteV2()
 		testPutObjectNoLengthV2()
 		testPutObjectsUnknownV2()
@@ -13606,6 +14991,9 @@ func main() {
 		testObjectTaggingWithVersioning()
 		testTrailingChecksums()
 		testPutObjectWithAutomaticChecksums()
+		testGetBucketTagging()
+		testSetBucketTagging()
+		testRemoveBucketTagging()
 
 		// SSE-C tests will only work over TLS connection.
 		if tls {

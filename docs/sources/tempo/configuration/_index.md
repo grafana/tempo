@@ -639,7 +639,7 @@ query_frontend:
         [throughput_bytes_slo: <float> | default = 0 ]
 
         # The number of shards to break ingester queries into.
-        [ingester_shards]: <int> | default = 1]
+        [ingester_shards]: <int> | default = 3]
         
         # SLO configuration for Metadata (tags and tag values) endpoints.
         metadata_slo:
@@ -739,6 +739,7 @@ querier:
         # Timeout for search requests
         [query_timeout: <duration> | default = 30s]
 
+        # NOTE: The Tempo serverless feature is now deprecated and will be removed in an upcoming release.
         # A list of external endpoints that the querier will use to offload backend search requests. They must
         # take and return the same value as /api/search endpoint on the querier. This is intended to be
         # used with serverless technologies for massive parallelization of the search path.
@@ -1570,7 +1571,7 @@ overrides:
       # tags with high cardinality or large values such as HTTP URLs or SQL queries.
       # This override limit is used by the ingester and the querier.
       # A value of 0 disables the limit.
-      [max_bytes_per_tag_values_query: <int> | default = 5000000 (5MB) ]
+      [max_bytes_per_tag_values_query: <int> | default = 1000000 (1MB) ]
 
       # Maximum number of blocks to be inspected for a tag values query. Tag-values
       # query is used mainly to populate the autocomplete dropdown. This limit

@@ -575,7 +575,7 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 			},
 		},
 		{
-			"{ .foo =~ `ba` }", // match string array with regex
+			"{ .foo =~ `ba.*` }", // match string array with regex
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
@@ -591,7 +591,7 @@ func TestSpansetOperationEvaluateArray(t *testing.T) {
 			},
 		},
 		{
-			"{ .foo !~ `ba` }", // regex non-matching
+			"{ .foo !~ `ba.*` }", // regex non-matching
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"foo", "baz"})}},
@@ -953,7 +953,7 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 			},
 		},
 		{
-			"{ `ba` =~ .foo }", // Symmetric regex match for string array
+			"{ `ba.*` =~ .foo }", // Symmetric regex match for string array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"bar", "baz"})}},
@@ -969,7 +969,7 @@ func TestSpansetOperationEvaluateArraySymmetric(t *testing.T) {
 			},
 		},
 		{
-			"{ `ba` !~ .foo }", // Symmetric regex non-match for string array
+			"{ `ba.*` !~ .foo }", // Symmetric regex non-match for string array
 			[]*Spanset{
 				{Spans: []Span{
 					&mockSpan{id: []byte{1}, attributes: map[Attribute]Static{NewAttribute("foo"): NewStaticStringArray([]string{"foo", "baz"})}},

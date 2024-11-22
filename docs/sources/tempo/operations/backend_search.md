@@ -113,6 +113,10 @@ querier:
 
 With serverless technologies:
 
+{{< admonition type="caution" >}}
+The Tempo serverless feature is now deprecated and will be removed in an upcoming release.
+{{< /admonition >}}
+
 {{< admonition type="note" >}}
 Serverless can be a nice way to reduce cost by using it as spare query capacity.
 However, serverless tends to have higher variance then simply allowing the queriers to perform the searches themselves.
@@ -171,6 +175,10 @@ query_frontend:
 ```
 
 ### Serverless environment
+
+{{< admonition type="caution" >}}
+The Tempo serverless feature is now deprecated and will be removed in an upcoming release.
+{{< /admonition >}}
 
 Serverless isn't required, but with larger loads, serverless can be used to reduce costs.
 Tempo has support for Google Cloud Run and AWS Lambda.

@@ -254,7 +254,8 @@ The implemented comparison operators are:
 - `=~` (regular expression)
 - `!~` (negated regular expression)
 
-TraceQL uses Golang regular expressions. Online regular expression testing sites like https://regex101.com/ are convenient to validate regular expressions used in TraceQL queries.
+TraceQL uses Golang regular expressions. Online regular expression testing sites like https://regex101.com/ are convenient to validate regular expressions used in TraceQL queries. All regular expressions
+are treated as fully anchored. For example, `span.foo =~ "bar"` is evaluated as `span.foo =~ "^bar$"`.
 
 For example, to find all traces where an `http.status_code` attribute in a span are greater than `400` but less than equal to `500`:
 
@@ -346,7 +347,7 @@ For example, to find a trace where a specific HTTP API interacted with a specifi
 ### Union structural
 
 These spanset operators look at the structure of a trace and the relationship between the spans. These operators are unique in that they
-return spans that match on both side of the operator.
+return spans that match on both sides of the operator.
 
 - `{condA} &>> {condB}` - The descendant operator (`>>`) looks for spans matching `{condB}` that are descendants of a span matching `{condA}`.
 - `{condA} &<< {condB}` - The ancestor operator (`<<`) looks for spans matching `{condB}` that are ancestor of a span matching `{condA}`.

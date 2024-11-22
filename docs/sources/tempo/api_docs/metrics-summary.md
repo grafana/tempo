@@ -10,7 +10,7 @@ weight: 600
 # Metrics summary API
 
 {{< admonition type="warning" >}}
-The metrics summary API is deprecated as of Tempo 2.7. Features powered by the metrics summary API, like the Aggregate by table, are also deprecated in Grafana Cloud and Grafana 11.3 and later.
+The metrics summary API is deprecated as of Tempo 2.7. Features powered by the metrics summary API, like the [Aggregate by table](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/query-editor/traceql-search/#optional-use-aggregate-by), are also deprecated in Grafana Cloud and Grafana 11.3 and later.
 It will be removed in a future release.
 {{% /admonition %}}
 
@@ -18,6 +18,33 @@ This document explains how to use the metrics summary API in Tempo.
 This API returns RED metrics (span count, erroring span count, and latency information) for `kind=server` spans sent to Tempo in the last hour, grouped by a user-specified attribute.
 
 {{< youtube id="g97CjKOZqT4" >}}
+
+## Deprecation in favor of TraceQL metrics
+
+The metrics summary API is now redundant given the release of TraceQL metrics.
+This API is therefore being deprecated to reduce our maintenance burden.
+
+TraceQL metrics queries are significantly more powerful than what metrics summary API provides.
+TraceQL metrics can look at arbitrary time windows (not just the last hour), return time series information (rather than just a single instant value over the past hour), and can look at all spans (not just `kind=server`).
+
+To provide an example, if you were to aggregate by the attribute `resource.cloud.region` with the metrics summary API, you could get the same results with a couple TraceQL queries:
+
+Rate of requests by `resource.cloud.region`
+```
+{ } | rate() by (resource.cloud.region)
+```
+
+Error rate by `resource.cloud.region`
+```
+{ status=error } | rate() by (resource.cloud.region)
+```
+
+The 50th, 90th, and 99th percentile latencies (for example, p99, p90, and p50) by `resource.cloud.region`:
+```
+{ } | quantile_over_time(duration, .99, .9, .5) by (resource.cloud.region)
+```
+
+If you want something faster than typing these queries out in Explore's code mode, use [Explore Traces](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/), a queryless experience for navigating your trace data stored in Tempo and powered by TraceQL metrics queries under the hood.
 
 ## Activate metrics summary
 
