@@ -1,13 +1,18 @@
 package tempopb
 
-import "github.com/grafana/tempo/pkg/tempopb/pool"
+import (
+	"os"
+	"strconv"
+
+	"github.com/grafana/tempo/pkg/tempopb/pool"
+)
 
 var bytePool *pool.Pool
 
 func init() {
-	bktSize := 400
-	numBuckets := 250
-	minBucket := 0
+	bktSize := intFromEnv("PREALLOC_BKT_SIZE", 400)
+	numBuckets := intFromEnv("PREALLOC_NUM_BUCKETS", 250)
+	minBucket := intFromEnv("PREALLOC_MIN_BUCKET", 0)
 
 	bytePool = pool.New(minBucket, numBuckets, bktSize, func(size int) []byte { return make([]byte, 0, size) })
 }
@@ -45,4 +50,20 @@ func ReuseByteSlices(buffs [][]byte) {
 	for _, b := range buffs {
 		_ = bytePool.Put(b[:0])
 	}
+}
+
+func intFromEnv(env string, defaultValue int) int {
+	// get the value from the environment
+	val, ok := os.LookupEnv(env)
+	if !ok {
+		return defaultValue
+	}
+
+	// try to parse the value
+	intVal, err := strconv.Atoi(val)
+	if err != nil {
+		panic("failed to parse " + env + " as int")
+	}
+
+	return intVal
 }
