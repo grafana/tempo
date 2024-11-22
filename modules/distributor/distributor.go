@@ -551,8 +551,6 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 		for _, ils := range b.ScopeSpans {
 			for _, span := range ils.Spans {
 				// check large spans for large attributes
-				fmt.Printf("span size %d", span.Size())
-				fmt.Printf("maxSpanAttrSize %d", maxSpanAttrSize)
 				if span.Size() > maxSpanAttrSize {
 					processAttributes(span.Attributes, maxSpanAttrSize, &truncatedAttributeCount)
 				}
@@ -638,7 +636,6 @@ func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, count 
 		switch value := attr.GetValue().Value.(type) {
 		case *v1_common.AnyValue_StringValue:
 			if len(value.StringValue) > maxAttrSize {
-				fmt.Printf("size: %d", len(value.StringValue))
 				value.StringValue = value.StringValue[:maxAttrSize] + "_truncated"
 				*count++
 			}
