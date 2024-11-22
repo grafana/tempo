@@ -40,7 +40,6 @@ const (
 	configLimitsQuery        = "config-limits-query.yaml"
 	configLimitsPartialError = "config-limits-partial-success.yaml"
 	configLimits429          = "config-limits-429.yaml"
-	configLimitsSpanAttr     = "config-limits-span-attr.yaml"
 )
 
 func TestLimits(t *testing.T) {

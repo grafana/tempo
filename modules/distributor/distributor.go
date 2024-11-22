@@ -54,8 +54,6 @@ const (
 	reasonInternalError = "internal_error"
 	// reasonUnknown indicates a pushByte error at the ingester level not related to GRPC
 	reasonUnknown = "unknown_error"
-	// reasonAttrTooLarge indicates that at least one attribute in the span is too large
-	reasonAttrTooLarge = "attribute_too_large"
 
 	distributorRingKey = "distributor"
 )
@@ -115,6 +113,11 @@ var (
 		Name:      "distributor_metrics_generator_clients",
 		Help:      "The current number of metrics-generator clients.",
 	})
+	metricAttributesTruncated = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "distributor_attributes_truncated_total",
+		Help:      "The total number of proto bytes received per tenant",
+	}, []string{"tenant"})
 
 	statBytesReceived = usagestats.NewCounter("distributor_bytes_received")
 	statSpansReceived = usagestats.NewCounter("distributor_spans_received")
@@ -390,6 +393,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 
 	if truncatedAttributeCount > 0 {
 		level.Warn(d.logger).Log("msg", fmt.Sprintf("truncated %d resource/span attributes when adding spans for tenant %s", truncatedAttributeCount, userID))
+		metricAttributesTruncated.WithLabelValues(userID).Add(float64(truncatedAttributeCount))
 	}
 
 	err = d.sendToIngestersViaBytes(ctx, userID, spanCount, rebatchedTraces, keys)
@@ -547,6 +551,8 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 		for _, ils := range b.ScopeSpans {
 			for _, span := range ils.Spans {
 				// check large spans for large attributes
+				fmt.Printf("span size %d", span.Size())
+				fmt.Printf("maxSpanAttrSize %d", maxSpanAttrSize)
 				if span.Size() > maxSpanAttrSize {
 					processAttributes(span.Attributes, maxSpanAttrSize, &truncatedAttributeCount)
 				}
@@ -632,6 +638,7 @@ func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, count 
 		switch value := attr.GetValue().Value.(type) {
 		case *v1_common.AnyValue_StringValue:
 			if len(value.StringValue) > maxAttrSize {
+				fmt.Printf("size: %d", len(value.StringValue))
 				value.StringValue = value.StringValue[:maxAttrSize] + "_truncated"
 				*count++
 			}
