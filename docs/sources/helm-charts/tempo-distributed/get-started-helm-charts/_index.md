@@ -376,7 +376,7 @@ However, you can use a storage bucket like Amazon S3, Azure Blob Storage, or Goo
 
 Each storage provider has a different configuration stanza.
 You need to update your configuration based upon you storage provider.
-Refer to the [`storage` configuration block](httpe://docs/tempo/<TEMPO_VERSION>/configuration#storage) for information on storage options.
+Refer to the [`storage` configuration block](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration#storage) for information on storage options.
 
 Update the `storage` configuration options based upon your requirements:
 
