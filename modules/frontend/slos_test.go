@@ -136,6 +136,7 @@ func TestSLOHook(t *testing.T) {
 			require.Equal(t, 1.0, actualAll)
 
 			completedWithInSLO, err := test.GetCounterValue(sloCounter.WithLabelValues("test", resultCompleted))
+			require.NoError(t, err)
 			cancelledWithInSLO, err := test.GetCounterValue(sloCounter.WithLabelValues("test", resultCanceled))
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedWithInSLO, completedWithInSLO+cancelledWithInSLO)
@@ -167,6 +168,7 @@ func TestBadRequest(t *testing.T) {
 	require.Equal(t, 1.0, actualAll)
 
 	completedWithInSLO, err := test.GetCounterValue(sloCounter.WithLabelValues("test", resultCompleted))
+	require.NoError(t, err)
 	cancelledWithInSLO, err := test.GetCounterValue(sloCounter.WithLabelValues("test", resultCanceled))
 	require.NoError(t, err)
 	require.Equal(t, 1.0, completedWithInSLO+cancelledWithInSLO)
@@ -329,6 +331,7 @@ func TestCanceledRequest(t *testing.T) {
 			require.Equal(t, 1.0, actualAll)
 
 			completedWithInSLO, err := test.GetCounterValue(sloCounter.WithLabelValues("test", resultCompleted))
+			require.NoError(t, err)
 			cancelledWithInSLO, err := test.GetCounterValue(sloCounter.WithLabelValues("test", resultCanceled))
 			require.NoError(t, err)
 			require.Equal(t, tt.totalWithInSLO, completedWithInSLO+cancelledWithInSLO)
