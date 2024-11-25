@@ -593,12 +593,12 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 
 		req := &tempopb.PushBytesRequest{
 			Traces: make([]tempopb.PreallocBytes, len(indexes)),
-			Ids:    make([]tempopb.PreallocBytes, len(indexes)),
+			Ids:    make([][]byte, len(indexes)),
 		}
 
 		for i, j := range indexes {
 			req.Traces[i].Slice = marshalledTraces[j][0:]
-			req.Ids[i].Slice = traces[j].id
+			req.Ids[i] = traces[j].id
 		}
 
 		// The partition ID is stored in the ring.InstanceDesc ID.

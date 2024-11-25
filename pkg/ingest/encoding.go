@@ -25,7 +25,7 @@ func encoderPoolGet() *tempopb.PushBytesRequest {
 
 	return &tempopb.PushBytesRequest{
 		Traces: make([]tempopb.PreallocBytes, 0, 10),
-		Ids:    make([]tempopb.PreallocBytes, 0, 10),
+		Ids:    make([][]byte, 0, 10),
 	}
 }
 
@@ -54,7 +54,7 @@ func Encode(partitionID int32, tenantID string, req *tempopb.PushBytesRequest, m
 	currentSize := 0
 
 	for i, entry := range req.Traces {
-		l := entry.Size() + req.Ids[i].Size()
+		l := entry.Size() + len(req.Ids[i])
 		// Size of the entry in the req
 		entrySize := 1 + l + sovPush(uint64(l))
 
