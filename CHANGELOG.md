@@ -13,7 +13,7 @@
 * [CHANGE] **BREAKING CHANGE** Migrate from OpenTracing to OpenTelemetry instrumentation. Removed the `use_otel_tracer` configuration option. Use the OpenTelemetry environment variables to configure the span exporter [#3646](https://github.com/grafana/tempo/pull/3646) (@andreasgerstmayr)
   To continue using the Jaeger exporter, use the following environment variable: `OTEL_TRACES_EXPORTER=jaeger`.
 * [CHANGE] No longer send the final diff in GRPC streaming. Instead we rely on the streamed intermediate results. [#4062](https://github.com/grafana/tempo/pull/4062) (@joe-elliott)
-* [CHANGE] Update Go to 1.23.1 [#4146](https://github.com/grafana/tempo/pull/4146) [#4147](https://github.com/grafana/tempo/pull/4147) (@javiermolinar)
+* [CHANGE] Update Go to 1.23.3 [#4146](https://github.com/grafana/tempo/pull/4146) [#4147](https://github.com/grafana/tempo/pull/4147) [#4380](https://github.com/grafana/tempo/pull/4380) (@javiermolinar @mdisibio)
 * [CHANGE] TraceQL: Add range condition for byte predicates [#4198](https://github.com/grafana/tempo/pull/4198) (@ie-pham)
 * [CHANGE] Return 422 for TRACE_TOO_LARGE queries [#4160](https://github.com/grafana/tempo/pull/4160) (@zalegrala)
 * [CHANGE] Upgrade OTEL sdk to reduce allocs [#4243](https://github.com/grafana/tempo/pull/4243) (@joe-elliott)
