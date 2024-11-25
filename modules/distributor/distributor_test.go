@@ -792,7 +792,6 @@ func TestProcessAttributes(t *testing.T) {
 
 		}
 	}
-
 }
 
 func BenchmarkTestsByRequestID(b *testing.B) {
