@@ -11,8 +11,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-var metricMissOver prometheus.Counter
-var metricMissUnder prometheus.Counter
+var (
+	metricMissOver  prometheus.Counter
+	metricMissUnder prometheus.Counter
+)
 
 func init() {
 	metricAllocOutPool := promauto.NewCounterVec(prometheus.CounterOpts{
