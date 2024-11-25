@@ -126,6 +126,8 @@ func (c *genericCombiner[T]) AddResponse(r PipelineResponse) error {
 
 // HTTPFinal, GRPCComplete, and GRPCDiff are all responsible for returning something
 // usable in grpc streaming/http response.
+// NOTE: returning error is reserved for unexpected errors, HTTP errors will be returned
+// in the response body. callers should check the http status code.
 func (c *genericCombiner[T]) HTTPFinal() (*http.Response, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

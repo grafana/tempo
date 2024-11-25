@@ -231,6 +231,7 @@ func newTestResponse(t *testing.T) *testPipelineResponse {
 func newFailedTestResponse() *testPipelineResponse {
 	rec := httptest.NewRecorder()
 	rec.WriteHeader(http.StatusInternalServerError)
+	rec.Write([]byte("foo"))
 
 	return &testPipelineResponse{
 		r: rec.Result(),

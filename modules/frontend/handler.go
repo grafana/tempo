@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/flagext"
+	"github.com/grafana/dskit/grpcutil"
 	"github.com/grafana/tempo/pkg/util"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -156,7 +157,7 @@ func copyHeader(dst, src http.Header) {
 // httpgrpc errors can bubble up to here and should be translated to http errors. It returns
 // httpgrpc error.
 func writeError(w http.ResponseWriter, err error) error {
-	if errors.Is(err, context.Canceled) {
+	if grpcutil.IsCanceled(err) {
 		err = errCanceled
 	} else if errors.Is(err, context.DeadlineExceeded) {
 		err = errDeadlineExceeded
