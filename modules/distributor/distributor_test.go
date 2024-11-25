@@ -770,10 +770,10 @@ func TestProcessAttributes(t *testing.T) {
 			// find large resource attributes
 			for _, attr := range resource.Resource.Attributes {
 				if attr.Key == "long value" {
-					assert.Equal(t, longString[:maxAttrByte]+"_truncated", attr.Value.GetStringValue())
+					assert.Equal(t, longString[:maxAttrByte], attr.Value.GetStringValue())
 				}
 				if attr.Value.GetStringValue() == "long key" {
-					assert.Equal(t, longString[:maxAttrByte]+"_truncated", attr.Key)
+					assert.Equal(t, longString[:maxAttrByte], attr.Key)
 				}
 			}
 			// find large span attributes
@@ -781,10 +781,10 @@ func TestProcessAttributes(t *testing.T) {
 				for _, span := range scope.Spans {
 					for _, attr := range span.Attributes {
 						if attr.Key == "long value" {
-							assert.Equal(t, longString[:maxAttrByte]+"_truncated", attr.Value.GetStringValue())
+							assert.Equal(t, longString[:maxAttrByte], attr.Value.GetStringValue())
 						}
 						if attr.Value.GetStringValue() == "long key" {
-							assert.Equal(t, longString[:maxAttrByte]+"_truncated", attr.Key)
+							assert.Equal(t, longString[:maxAttrByte], attr.Key)
 						}
 					}
 				}
@@ -813,6 +813,7 @@ func BenchmarkTestsByRequestID(b *testing.B) {
 	}
 
 	b.ResetTimer()
+	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
 		for _, blerg := range ils {
