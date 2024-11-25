@@ -1,12 +1,11 @@
 package frontend
 
 import (
-	"context"
-	"errors"
 	"net/http"
 	"time"
 
 	"github.com/gogo/status"
+	"github.com/grafana/dskit/grpcutil"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -18,6 +17,9 @@ const (
 	searchOp    = "search"
 	metadataOp  = "metadata"
 	metricsOp   = "metrics"
+
+	resultCompleted = "completed"
+	resultCanceled  = "canceled"
 )
 
 var (
@@ -28,7 +30,7 @@ var (
 		Namespace: "tempo",
 		Name:      "query_frontend_queries_within_slo_total",
 		Help:      "Total Queries within SLO per tenant",
-	}, []string{"tenant", "op"})
+	}, []string{"tenant", "op", "result"})
 
 	sloTraceByIDCounter = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
 	sloSearchCounter    = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
@@ -95,14 +97,26 @@ func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec
 			// However, gRPC resource exhausted error (429), invalid argument (400), not found (404) and
 			// request cancellations are considered within the SLO.
 			switch status.Code(err) {
-			case codes.ResourceExhausted, codes.InvalidArgument, codes.NotFound, codes.Canceled:
-				withinSLOByTenantCounter.WithLabelValues(tenant).Inc()
+			case codes.ResourceExhausted, codes.InvalidArgument, codes.NotFound:
+				withinSLOByTenantCounter.WithLabelValues(tenant, resultCompleted).Inc()
+				return
 			}
 
-			// we don't always get a gRPC codes.Canceled status code, so check for context.Canceled and http 499 as well
-			if errors.Is(err, context.Canceled) || (resp != nil && resp.StatusCode == util.StatusClientClosedRequest) {
-				withinSLOByTenantCounter.WithLabelValues(tenant).Inc()
+			if grpcutil.IsCanceled(err) {
+				withinSLOByTenantCounter.WithLabelValues(tenant, resultCanceled).Inc()
+				return
 			}
+
+			// check for the response and 499 in the status code, can come from http pipeline along with error
+			if resp != nil && resp.StatusCode == util.StatusClientClosedRequest {
+				withinSLOByTenantCounter.WithLabelValues(tenant, resultCanceled).Inc()
+			}
+			return
+		}
+
+		// we don't always get error in case of http pipeline, check for 499 status code
+		if resp != nil && resp.StatusCode == util.StatusClientClosedRequest {
+			withinSLOByTenantCounter.WithLabelValues(tenant, resultCanceled).Inc()
 			return
 		}
 
@@ -138,6 +152,6 @@ func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec
 			return
 		}
 
-		withinSLOByTenantCounter.WithLabelValues(tenant).Inc()
+		withinSLOByTenantCounter.WithLabelValues(tenant, resultCompleted).Inc()
 	}
 }
