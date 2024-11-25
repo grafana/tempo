@@ -311,7 +311,7 @@ Before you run the Helm chart, you need to configure where to store trace data.
 The `storage` block defined in the `values.yaml` file configures the storage that Tempo uses for trace storage.
 
 The procedure below configures MinIO as the local storage option managed by the Helm chart.
-However, you can use a other storage provides.
+However, you can use another storage provider.
 Refer to the Optional storage section.
 
 {{< admonition type="note" >}}
@@ -413,7 +413,7 @@ For GET, the Enterprise Gateway is enabled by default, which only receives trace
 ### Optional: Add custom configurations
 
 There are many configuration options available in the `tempo-distributed` Helm chart.
-This procedure only covers the minimum required to launch GET or Tempo in a basic deployment.
+This procedure only covers the minimum configuration required to launch GET or Tempo in a basic deployment.
 
 You can add values to your `custom.yaml` file to set custom configuration options that override the defaults present in the Helm chart.
 The [`tempo-distributed` Helm chart's README](https://github.com/grafana/helm-charts/blob/main/charts/tempo-distributed/README.md) contains a list of available options.
@@ -435,7 +435,7 @@ Replace `<ingress-host>` with a suitable hostname that DNS can resolve to the ex
 For more information, refer to [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/).
 
 {{< admonition type="note" >}}
-If you are a Linux systems and it's not possible for you set up local DNS resolution, use the `--add-host=<ingress-host>:<kubernetes-cluster-external-address>` command-line flag to define the `<ingress-host>` local address for the Docker commands in the examples that follow.
+If you are using a Linux system and it's not possible for you set up local DNS resolution, use the `--add-host=<ingress-host>:<kubernetes-cluster-external-address>` command-line flag to define the `<ingress-host>` local address for the Docker commands in the examples that follow.
 {{< /admonition >}}
 
 1. Open your `custom.yaml` or create a YAML file of Helm values called `custom.yaml`.
