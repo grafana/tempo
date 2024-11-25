@@ -339,7 +339,7 @@ func (t *App) initGenerator() (services.Service, error) {
 }
 
 func (t *App) initBlockBuilder() (services.Service, error) {
-	if t.cfg.Ingest.Enabled {
+	if !t.cfg.Ingest.Enabled {
 		return services.NewIdleService(nil, nil), nil
 	}
 
