@@ -36,6 +36,8 @@ jobs:
           USER: grafanabot
           TOKEN: ${{secrets.GITHUB_TOKEN}}
         run: |
+          git config --global user.email "dependabot@grafana.com"
+          git config --global user.name "dependabot[bot]"
           git config --global url."https://${USER}:${TOKEN}@github.com/grafana/tempo".insteadOf "https://github.com/grafana/tempo"
           git add cmd/tempo-serverless/lambda/go.mod
           git add cmd/tempo-serverless/lambda/go.sum
