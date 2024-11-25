@@ -38,6 +38,12 @@ var (
 		Name:      "live_traces",
 		Help:      "Number of live traces",
 	}, []string{"tenant"})
+	metricLiveTraceBytes = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Subsystem: subsystem,
+		Name:      "live_trace_bytes",
+		Help:      "Total number of traces created",
+	}, []string{"tenant"})
 	metricDroppedTraces = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: subsystem,

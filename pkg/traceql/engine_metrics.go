@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/rand"
 	"sort"
 	"sync"
 	"time"
@@ -1053,7 +1054,7 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 		}
 
 		if len(ss.Spans) > 0 && e.sampleExemplar(ss.TraceID) {
-			e.metricsPipeline.observeExemplar(ss.Spans[0]) // Randomly sample the first span
+			e.metricsPipeline.observeExemplar(ss.Spans[rand.Intn(len(ss.Spans))])
 		}
 
 		e.mtx.Unlock()
@@ -1232,19 +1233,25 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 				Value: StaticFromAnyValue(l.Value),
 			})
 		}
-		value := exemplar.Value
-		if math.IsNaN(value) {
-			value = 0 // TODO: Use the value of the series at the same timestamp
-		}
 		existing.Exemplars = append(existing.Exemplars, Exemplar{
 			Labels:      labels,
-			Value:       value,
+			Value:       exemplar.Value,
 			TimestampMs: uint64(exemplar.TimestampMs),
 		})
 	}
 }
 
 func (b *SimpleAggregator) Results() SeriesSet {
+	// Attach placeholder exemplars to the output
+	for _, ts := range b.ss {
+		for i, e := range ts.Exemplars {
+			if math.IsNaN(e.Value) {
+				interval := IntervalOfMs(int64(e.TimestampMs), b.start, b.end, b.step)
+				ts.Exemplars[i].Value = ts.Values[interval]
+			}
+		}
+	}
+
 	return b.ss
 }
 

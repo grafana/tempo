@@ -3,8 +3,9 @@ package parquetquery
 import (
 	"bytes"
 	"fmt"
-	"regexp"
 	"strings"
+
+	"github.com/grafana/tempo/pkg/regexp"
 
 	pq "github.com/parquet-go/parquet-go"
 )
@@ -88,9 +89,7 @@ func (p *StringInPredicate) KeepPage(pq.Page) bool {
 }
 
 type regexPredicate struct {
-	regs        []*regexp.Regexp
-	matches     map[string]bool
-	shouldMatch bool
+	matcher *regexp.Regexp
 }
 
 var _ Predicate = (*regexPredicate)(nil)
@@ -108,27 +107,18 @@ func NewRegexNotInPredicate(regs []string) (Predicate, error) {
 }
 
 func newRegexPredicate(regs []string, shouldMatch bool) (Predicate, error) {
-	p := &regexPredicate{
-		regs:        make([]*regexp.Regexp, 0, len(regs)),
-		matches:     make(map[string]bool),
-		shouldMatch: shouldMatch,
+	m, err := regexp.NewRegexp(regs, shouldMatch)
+	if err != nil {
+		return nil, err
 	}
-	for _, reg := range regs {
-		r, err := regexp.Compile(reg)
-		if err != nil {
-			return nil, err
-		}
-		p.regs = append(p.regs, r)
-	}
-	return p, nil
+
+	return &regexPredicate{
+		matcher: m,
+	}, nil
 }
 
 func (p *regexPredicate) String() string {
-	var strings string
-	for _, s := range p.regs {
-		strings += fmt.Sprintf("%s, ", s.String())
-	}
-	return fmt.Sprintf("RegexInPredicate{%s}", strings)
+	return fmt.Sprintf("RegexPredicate{%s}", p.matcher.String())
 }
 
 func (p *regexPredicate) keep(v *pq.Value) bool {
@@ -136,38 +126,14 @@ func (p *regexPredicate) keep(v *pq.Value) bool {
 		return false
 	}
 
-	b := v.ByteArray()
-
-	// Check uses zero alloc optimization of map[string([]byte)]
-	if matched, ok := p.matches[string(b)]; ok {
-		return matched
-	}
-
-	matched := false
-	for _, r := range p.regs {
-		if r.Match(b) == p.shouldMatch {
-			matched = true
-			break
-		}
-	}
-
-	// Only alloc the string when updating the map
-	p.matches[string(b)] = matched
-
-	return matched
+	return p.matcher.Match(v.ByteArray())
 }
 
 func (p *regexPredicate) KeepColumnChunk(cc *ColumnChunkHelper) bool {
 	d := cc.Dictionary()
 
-	// Reset match cache on each row group change
-	// Use exact size of the incoming dictionary
-	// if present and larger.
-	count := len(p.matches)
-	if d != nil && d.Len() > count {
-		count = d.Len()
-	}
-	p.matches = make(map[string]bool, count)
+	// should we do this?
+	p.matcher.Reset()
 
 	if d != nil {
 		return keepDictionary(d, p.KeepValue)

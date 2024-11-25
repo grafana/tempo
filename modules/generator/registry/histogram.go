@@ -209,7 +209,6 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 			if err != nil {
 				return
 			}
-			s.registerSeenSeries()
 		}
 
 		// sum
@@ -226,6 +225,13 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 
 		// bucket
 		for i := range h.bucketLabels {
+			if s.isNew() {
+				endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
+				_, err = appender.Append(0, s.bucketLabels[i], endOfLastMinuteMs, 0)
+				if err != nil {
+					return
+				}
+			}
 			ref, err := appender.Append(0, s.bucketLabels[i], timeMs, s.buckets[i].Load())
 			if err != nil {
 				return activeSeries, err
@@ -247,6 +253,10 @@ func (h *histogram) collectMetrics(appender storage.Appender, timeMs int64) (act
 			}
 			// clear the exemplar so we don't emit it again
 			s.exemplars[i].Store("")
+		}
+
+		if s.isNew() {
+			s.registerSeenSeries()
 		}
 	}
 
