@@ -362,10 +362,10 @@ func MakePushBytesRequest(t *testing.T, requests int, traceID []byte) *tempopb.P
 
 	req := &tempopb.PushBytesRequest{
 		Traces: make([]tempopb.PreallocBytes, 0),
-		Ids:    make([]tempopb.PreallocBytes, 0),
+		Ids:    make([][]byte, 0),
 	}
 	req.Traces = append(req.Traces, tempopb.PreallocBytes{Slice: b})
-	req.Ids = append(req.Ids, tempopb.PreallocBytes{Slice: traceID})
+	req.Ids = append(req.Ids, traceID)
 
 	return req
 }

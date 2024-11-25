@@ -44,7 +44,7 @@ func TestEncoderDecoder(t *testing.T) {
 			}
 
 			var decodedEntries []tempopb.PreallocBytes
-			var decodedIDs []tempopb.PreallocBytes
+			var decodedIDs [][]byte
 
 			for _, record := range records {
 				decoder.Reset()
@@ -115,12 +115,12 @@ func BenchmarkEncodeDecode(b *testing.B) {
 func generateRequest(entries, lineLength int) *tempopb.PushBytesRequest {
 	stream := &tempopb.PushBytesRequest{
 		Traces: make([]tempopb.PreallocBytes, entries),
-		Ids:    make([]tempopb.PreallocBytes, entries),
+		Ids:    make([][]byte, entries),
 	}
 
 	for i := 0; i < entries; i++ {
 		stream.Traces[i].Slice = generateRandomString(lineLength)
-		stream.Ids[i].Slice = generateRandomString(lineLength)
+		stream.Ids[i] = generateRandomString(lineLength)
 	}
 
 	return stream

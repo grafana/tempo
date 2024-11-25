@@ -53,7 +53,7 @@ func (p *writer) pushBytes(tenant string, req *tempopb.PushBytesRequest) error {
 		"msg", "pushing bytes",
 		"tenant", tenant,
 		"num_traces", len(req.Traces),
-		"id", util.TraceIDToHexString(req.Ids[0].Slice),
+		"id", util.TraceIDToHexString(req.Ids[0]),
 	)
 
 	i, err := p.instanceForTenant(tenant)
@@ -67,7 +67,7 @@ func (p *writer) pushBytes(tenant string, req *tempopb.PushBytesRequest) error {
 			return fmt.Errorf("failed to unmarshal trace: %w", err)
 		}
 
-		if err := i.AppendTrace(req.Ids[j].Slice, tr, 0, 0); err != nil {
+		if err := i.AppendTrace(req.Ids[j], tr, 0, 0); err != nil {
 			return err
 		}
 	}
