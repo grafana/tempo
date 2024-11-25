@@ -172,7 +172,7 @@ The values in the example below provide configuration values for GET.
 These values include an additional `admin` bucket and specifies a license.
 The `enterpriseGateway` is automatically enabled as part of enabling the chart for installation of GET.
 
-Multitenancy is a requirement for GET so must also be enabled explicitly in the values file.
+GET requires multitenancy. It must also be enabled explicitly in the values file.
 For more information, refer to [Set up GET tenants](https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/setup/set-up-get-tenants/).
 
 {{< collapse title="GET example values file" >}}
