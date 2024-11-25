@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math"
-	"regexp"
 	"slices"
 	"time"
 	"unsafe"
 
+	"github.com/grafana/tempo/pkg/regexp"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
@@ -1106,33 +1106,23 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 	var innerAgg func() VectorAggregator
 	var byFunc func(Span) (Static, bool)
 	var byFuncLabel string
-	var exemplarFn getExemplar
 
 	switch a.op {
 	case metricsAggregateCountOverTime:
 		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
 		a.simpleAggregationOp = sumAggregation
-		exemplarFn = func(s Span) (float64, uint64) {
-			return math.NaN(), a.spanStartTimeMs(s)
-		}
+
 	case metricsAggregateMinOverTime:
 		innerAgg = func() VectorAggregator { return NewOverTimeAggregator(a.attr, minAggregation) }
 		a.simpleAggregationOp = minAggregation
-		exemplarFn = func(s Span) (float64, uint64) {
-			return math.NaN(), a.spanStartTimeMs(s)
-		}
+
 	case metricsAggregateMaxOverTime:
 		innerAgg = func() VectorAggregator { return NewOverTimeAggregator(a.attr, maxAggregation) }
 		a.simpleAggregationOp = maxAggregation
-		exemplarFn = func(s Span) (float64, uint64) {
-			return math.NaN(), a.spanStartTimeMs(s)
-		}
+
 	case metricsAggregateRate:
 		innerAgg = func() VectorAggregator { return NewRateAggregator(1.0 / time.Duration(q.Step).Seconds()) }
 		a.simpleAggregationOp = sumAggregation
-		exemplarFn = func(s Span) (float64, uint64) {
-			return math.NaN(), a.spanStartTimeMs(s)
-		}
 
 	case metricsAggregateHistogramOverTime, metricsAggregateQuantileOverTime:
 		// Histograms and quantiles are implemented as count_over_time() by(2^log2(attr)) for now
@@ -1144,16 +1134,9 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 		case IntrinsicDurationAttribute:
 			// Optimal implementation for duration attribute
 			byFunc = a.bucketizeSpanDuration
-			exemplarFn = func(s Span) (float64, uint64) {
-				return float64(s.DurationNanos()), a.spanStartTimeMs(s)
-			}
 		default:
 			// Basic implementation for all other attributes
 			byFunc = a.bucketizeAttribute
-			exemplarFn = func(s Span) (float64, uint64) {
-				v, _ := FloatizeAttribute(s, a.attr)
-				return v, a.spanStartTimeMs(s)
-			}
 		}
 	}
 
@@ -1170,11 +1153,7 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 	a.agg = NewGroupingAggregator(a.op.String(), func() RangeAggregator {
 		return NewStepAggregator(q.Start, q.End, q.Step, innerAgg)
 	}, a.by, byFunc, byFuncLabel)
-	a.exemplarFn = exemplarFn
-}
-
-func (a *MetricsAggregate) spanStartTimeMs(s Span) uint64 {
-	return s.StartTimeUnixNanos() / uint64(time.Millisecond)
+	a.exemplarFn = exemplarFnFor(a.attr)
 }
 
 func (a *MetricsAggregate) bucketizeSpanDuration(s Span) (Static, bool) {
@@ -1206,6 +1185,39 @@ func (a *MetricsAggregate) bucketizeAttribute(s Span) (Static, bool) {
 		// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
 		// Because of the range of floats, we need a native histogram approach.
 		return NewStaticNil(), false
+	}
+}
+
+func exemplarFnFor(a Attribute) func(Span) (float64, uint64) {
+	switch a {
+	case IntrinsicDurationAttribute:
+		return exemplarDuration
+	case Attribute{}:
+		// This records exemplars without a value, and they
+		// are attached to the series at the end.
+		return exemplarNaN
+	default:
+		return exemplarAttribute(a)
+	}
+}
+
+func exemplarNaN(s Span) (float64, uint64) {
+	return math.NaN(), s.StartTimeUnixNanos() / uint64(time.Millisecond)
+}
+
+func exemplarDuration(s Span) (float64, uint64) {
+	v := float64(s.DurationNanos()) / float64(time.Second)
+	t := s.StartTimeUnixNanos() / uint64(time.Millisecond)
+	return v, t
+}
+
+// exemplarAttribute captures a closure around the attribute so it doesn't have to be passed along with every span.
+// should be more efficient.
+func exemplarAttribute(a Attribute) func(Span) (float64, uint64) {
+	return func(s Span) (float64, uint64) {
+		v, _ := FloatizeAttribute(s, a)
+		t := s.StartTimeUnixNanos() / uint64(time.Millisecond)
+		return v, t
 	}
 }
 

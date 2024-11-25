@@ -221,6 +221,9 @@ func TestQueryLimits(t *testing.T) {
 		batch.Spans = allSpans[i : i+1]
 		require.NoError(t, c.EmitBatch(context.Background(), batch))
 		util.CallFlush(t, tempo)
+		// this push along with the double flush is required to forget the too large trace
+		require.NoError(t, c.EmitBatch(context.Background(), util.MakeThriftBatchWithSpanCount(1)))
+		util.CallFlush(t, tempo)
 		time.Sleep(2 * time.Second) // trace idle and flush time are both 1ms
 	}
 

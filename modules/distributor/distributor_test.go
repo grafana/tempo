@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"maps"
@@ -1082,11 +1083,12 @@ func TestLogDiscardedSpansWhenContextCancelled(t *testing.T) {
 			}
 
 			traces := batchesToTraces(t, tc.batches)
-			ctx, cancelFunc := context.WithCancel(ctx)
-			cancelFunc() // cancel to force all spans to be discarded
+			ctx, cancelFunc := context.WithCancelCause(ctx)
+			cause := errors.New("test cause")
+			cancelFunc(cause) // cancel to force all spans to be discarded
 
 			_, err := d.PushTraces(ctx, traces)
-			assert.ErrorContains(t, err, "context canceled")
+			assert.Equal(t, cause, err)
 
 			assert.ElementsMatch(t, tc.expectedLogsSpan, actualLogSpan(t, buf))
 		})
@@ -1662,6 +1664,14 @@ type mockRing struct {
 	prometheus.Counter
 	ingesters         []ring.InstanceDesc
 	replicationFactor uint32
+}
+
+func (r mockRing) WritableInstancesWithTokensCount() int {
+	panic("implement me if required for testing")
+}
+
+func (r mockRing) WritableInstancesWithTokensInZoneCount(string) int {
+	panic("implement me if required for testing")
 }
 
 var _ ring.ReadRing = (*mockRing)(nil)

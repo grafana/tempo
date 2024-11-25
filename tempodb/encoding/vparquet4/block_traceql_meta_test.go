@@ -579,7 +579,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 		{
 			"Event attribute lookup",
 			makeReq(
-				parse(t, `{event.message =~ "excepti"}`), //
+				parse(t, `{event.message =~ "excepti.*"}`), //
 			),
 			makeSpansets(
 				makeSpanset(
@@ -679,7 +679,7 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 		{
 			"Link attribute lookup",
 			makeReq(
-				parse(t, `{link.opentracing.ref_type =~ "child"}`), //
+				parse(t, `{link.opentracing.ref_type =~ "child.*"}`), //
 			),
 			makeSpansets(
 				makeSpanset(
