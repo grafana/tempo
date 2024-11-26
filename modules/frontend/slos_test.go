@@ -26,30 +26,37 @@ func TestSLOHook(t *testing.T) {
 		latency        time.Duration
 		err            error
 
+		totalRequests      float64
+		totalCancelled     float64
 		expectedWithInSLO  float64
 		cancelledWithinSLO float64
 	}{
 		{
 			name:              "no slo passes",
 			expectedWithInSLO: 1.0,
+			totalRequests:     1.0,
 		},
 		{
-			name: "no slo fails : error",
-			err:  errors.New("foo"),
+			name:          "no slo fails : error",
+			err:           errors.New("foo"),
+			totalRequests: 1.0,
 		},
 		{
 			name:              "no slo passes : resource exhausted grpc error",
 			err:               status.Error(codes.ResourceExhausted, "foo"),
 			expectedWithInSLO: 1.0,
+			totalRequests:     1.0,
 		},
 		{
 			name:           "no slo fails : 5XX status code",
 			httpStatusCode: http.StatusInternalServerError,
+			totalRequests:  1.0,
 		},
 		{
 			name:              "no slo passes : 4XX status code",
 			httpStatusCode:    http.StatusTooManyRequests,
 			expectedWithInSLO: 1.0,
+			totalRequests:     1.0,
 		},
 		{
 			name: "slo passes - both",
@@ -60,6 +67,7 @@ func TestSLOHook(t *testing.T) {
 			latency:           5 * time.Second,
 			bytesProcessed:    110,
 			expectedWithInSLO: 1.0,
+			totalRequests:     1.0,
 		},
 		{
 			name: "slo passes - latency",
@@ -70,6 +78,7 @@ func TestSLOHook(t *testing.T) {
 			latency:           5 * time.Second,
 			bytesProcessed:    90,
 			expectedWithInSLO: 1.0,
+			totalRequests:     1.0,
 		},
 		{
 			name: "slo passes - throughput",
@@ -80,6 +89,7 @@ func TestSLOHook(t *testing.T) {
 			latency:           15 * time.Second,
 			bytesProcessed:    1650, // 15s * 110 bytes/s
 			expectedWithInSLO: 1.0,
+			totalRequests:     1.0,
 		},
 		{
 			name: "slo passes - no throughput configured",
@@ -89,6 +99,7 @@ func TestSLOHook(t *testing.T) {
 			latency:           5 * time.Second,
 			bytesProcessed:    1,
 			expectedWithInSLO: 1.0,
+			totalRequests:     1.0,
 		},
 		{
 			name: "slo passes - no latency configured",
@@ -98,6 +109,7 @@ func TestSLOHook(t *testing.T) {
 			latency:           15 * time.Second,
 			bytesProcessed:    1650, // 15s * 110 bytes/s
 			expectedWithInSLO: 1.0,
+			totalRequests:     1.0,
 		},
 		{
 			name: "slo fails - no throughput configured",
@@ -106,6 +118,7 @@ func TestSLOHook(t *testing.T) {
 			},
 			latency:        15 * time.Second,
 			bytesProcessed: 1,
+			totalRequests:  1.0,
 		},
 		{
 			name: "slo fails - no latency configured",
@@ -114,12 +127,13 @@ func TestSLOHook(t *testing.T) {
 			},
 			latency:        1 * time.Second,
 			bytesProcessed: 90,
+			totalRequests:  1.0,
 		},
 	}
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{"tenant"})
+			allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{"tenant", "result"})
 			sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{"tenant", "result"})
 			throughputVec := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "throughput"}, []string{"tenant"})
 
@@ -131,9 +145,12 @@ func TestSLOHook(t *testing.T) {
 
 			hook(resp, "test", uint64(tc.bytesProcessed), tc.latency, tc.err)
 
-			actualAll, err := test.GetCounterValue(allCounter.WithLabelValues("test"))
+			actualCompleted, err := test.GetCounterValue(allCounter.WithLabelValues("test", resultCompleted))
 			require.NoError(t, err)
-			require.Equal(t, 1.0, actualAll)
+			actualCancelled, err := test.GetCounterValue(allCounter.WithLabelValues("test", resultCanceled))
+			require.NoError(t, err)
+			require.Equal(t, tc.totalCancelled, actualCancelled)
+			require.Equal(t, tc.totalRequests, actualCompleted+actualCancelled)
 
 			completedWithInSLO, err := test.GetCounterValue(sloCounter.WithLabelValues("test", resultCompleted))
 			require.NoError(t, err)
@@ -146,7 +163,7 @@ func TestSLOHook(t *testing.T) {
 }
 
 func TestBadRequest(t *testing.T) {
-	allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{"tenant"})
+	allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{"tenant", "result"})
 	sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{"tenant", "result"})
 	throughputVec := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "throughput"}, []string{"tenant"})
 
@@ -163,9 +180,13 @@ func TestBadRequest(t *testing.T) {
 
 	hook(res, "test", 0, 0, nil)
 
-	actualAll, err := test.GetCounterValue(allCounter.WithLabelValues("test"))
+	actualCompleted, err := test.GetCounterValue(allCounter.WithLabelValues("test", resultCompleted))
 	require.NoError(t, err)
-	require.Equal(t, 1.0, actualAll)
+	require.Equal(t, 1.0, actualCompleted)
+	actualCancelled, err := test.GetCounterValue(allCounter.WithLabelValues("test", resultCanceled))
+	require.NoError(t, err)
+	require.Equal(t, 0.0, actualCancelled)
+	require.Equal(t, 1.0, actualCompleted+actualCancelled)
 
 	completedWithInSLO, err := test.GetCounterValue(sloCounter.WithLabelValues("test", resultCompleted))
 	require.NoError(t, err)
@@ -177,10 +198,13 @@ func TestBadRequest(t *testing.T) {
 
 func TestCanceledRequest(t *testing.T) {
 	tests := []struct {
-		name               string
-		statusCode         int
-		latency            time.Duration
-		err                error
+		name       string
+		statusCode int
+		latency    time.Duration
+		err        error
+
+		totalRequests      float64
+		totalCancelled     float64
 		totalWithInSLO     float64
 		cancelledWithinSLO float64
 	}{
@@ -191,6 +215,8 @@ func TestCanceledRequest(t *testing.T) {
 			latency:            5 * time.Second,
 			totalWithInSLO:     1.0,
 			cancelledWithinSLO: 1.0,
+			totalRequests:      1.0,
+			totalCancelled:     1.0,
 		},
 		{
 			name:               "random error with http response has 499 status code and 15s latency",
@@ -199,6 +225,8 @@ func TestCanceledRequest(t *testing.T) {
 			latency:            15 * time.Second, // latency > DurationSLO shouldn't be impacted
 			totalWithInSLO:     1.0,
 			cancelledWithinSLO: 1.0,
+			totalRequests:      1.0,
+			totalCancelled:     1.0,
 		},
 		{
 			name:               "nil error with http response has 499 status code",
@@ -207,6 +235,8 @@ func TestCanceledRequest(t *testing.T) {
 			latency:            5 * time.Second,
 			totalWithInSLO:     1.0,
 			cancelledWithinSLO: 1.0,
+			totalRequests:      1.0,
+			totalCancelled:     1.0,
 		},
 		{
 			name:               "nil error with http response has 499 status code and 15s latency",
@@ -215,6 +245,8 @@ func TestCanceledRequest(t *testing.T) {
 			latency:            15 * time.Second,
 			totalWithInSLO:     1.0,
 			cancelledWithinSLO: 1.0,
+			totalRequests:      1.0,
+			totalCancelled:     1.0,
 		},
 		{
 			name:               "context.Canceled error with http response has 499 status code",
@@ -223,6 +255,8 @@ func TestCanceledRequest(t *testing.T) {
 			latency:            15 * time.Second,
 			totalWithInSLO:     1.0,
 			cancelledWithinSLO: 1.0,
+			totalRequests:      1.0,
+			totalCancelled:     1.0,
 		},
 		{
 			name:               "context.Canceled error with 500 status code",
@@ -231,6 +265,8 @@ func TestCanceledRequest(t *testing.T) {
 			latency:            15 * time.Second,
 			totalWithInSLO:     1.0,
 			cancelledWithinSLO: 1.0,
+			totalRequests:      1.0,
+			totalCancelled:     1.0,
 		},
 		{
 			name:               "context.Canceled error with 200 status code",
@@ -239,6 +275,8 @@ func TestCanceledRequest(t *testing.T) {
 			latency:            15 * time.Second,
 			totalWithInSLO:     1.0,
 			cancelledWithinSLO: 1.0,
+			totalRequests:      1.0,
+			totalCancelled:     1.0,
 		},
 		{
 			name:               "grpc codes.Canceled error with 500 status code",
@@ -247,6 +285,8 @@ func TestCanceledRequest(t *testing.T) {
 			latency:            15 * time.Second,
 			totalWithInSLO:     1.0,
 			cancelledWithinSLO: 1.0,
+			totalRequests:      1.0,
+			totalCancelled:     1.0,
 		},
 		{
 			name:           "grpc codes.ResourceExhausted error with 500 status code",
@@ -254,6 +294,7 @@ func TestCanceledRequest(t *testing.T) {
 			err:            status.Error(codes.ResourceExhausted, "foo"),
 			latency:        15 * time.Second,
 			totalWithInSLO: 1.0,
+			totalRequests:  1.0,
 		},
 		{
 			name:           "grpc codes.InvalidArgument error with 500 status code",
@@ -261,6 +302,7 @@ func TestCanceledRequest(t *testing.T) {
 			err:            status.Error(codes.InvalidArgument, "foo"),
 			latency:        15 * time.Second,
 			totalWithInSLO: 1.0,
+			totalRequests:  1.0,
 		},
 		{
 			name:           "grpc codes.NotFound error with 500 status code",
@@ -268,12 +310,14 @@ func TestCanceledRequest(t *testing.T) {
 			err:            status.Error(codes.NotFound, "foo"),
 			latency:        15 * time.Second,
 			totalWithInSLO: 1.0,
+			totalRequests:  1.0,
 		},
 		{
-			name:       "nil error with 500 status code and 15s latency",
-			statusCode: http.StatusInternalServerError,
-			err:        nil,
-			latency:    15 * time.Second,
+			name:          "nil error with 500 status code and 15s latency",
+			statusCode:    http.StatusInternalServerError,
+			err:           nil,
+			latency:       15 * time.Second,
+			totalRequests: 1.0,
 		},
 		{
 			name:               "nil error with http response has 499 status code",
@@ -282,6 +326,8 @@ func TestCanceledRequest(t *testing.T) {
 			latency:            15 * time.Second,
 			totalWithInSLO:     1.0,
 			cancelledWithinSLO: 1.0,
+			totalRequests:      1.0,
+			totalCancelled:     1.0,
 		},
 		{
 			name:               "grpc codes.Canceled error with 200 status code",
@@ -290,12 +336,15 @@ func TestCanceledRequest(t *testing.T) {
 			latency:            15 * time.Second,
 			totalWithInSLO:     1.0,
 			cancelledWithinSLO: 1.0,
+			totalRequests:      1.0,
+			totalCancelled:     1.0,
 		},
 		{
-			name:       "nil error with 200 status code and 15s latency",
-			statusCode: http.StatusOK,
-			err:        nil,
-			latency:    15 * time.Second,
+			name:          "nil error with 200 status code and 15s latency",
+			statusCode:    http.StatusOK,
+			err:           nil,
+			latency:       15 * time.Second,
+			totalRequests: 1.0,
 		},
 		{
 			name:           "nil error with 200 status code and 5s latency",
@@ -303,12 +352,13 @@ func TestCanceledRequest(t *testing.T) {
 			err:            nil,
 			latency:        5 * time.Second,
 			totalWithInSLO: 1.0,
+			totalRequests:  1.0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{"tenant"})
+			allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{"tenant", "result"})
 			sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{"tenant", "result"})
 			throughputVec := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "throughput"}, []string{"tenant"})
 
@@ -326,9 +376,12 @@ func TestCanceledRequest(t *testing.T) {
 
 			hook(res, "test", 0, tt.latency, tt.err)
 
-			actualAll, err := test.GetCounterValue(allCounter.WithLabelValues("test"))
+			actualCompleted, err := test.GetCounterValue(allCounter.WithLabelValues("test", resultCompleted))
 			require.NoError(t, err)
-			require.Equal(t, 1.0, actualAll)
+			actualCancelled, err := test.GetCounterValue(allCounter.WithLabelValues("test", resultCanceled))
+			require.NoError(t, err)
+			require.Equal(t, tt.totalRequests, actualCompleted+actualCancelled)
+			require.Equal(t, tt.totalCancelled, actualCancelled)
 
 			completedWithInSLO, err := test.GetCounterValue(sloCounter.WithLabelValues("test", resultCompleted))
 			require.NoError(t, err)
