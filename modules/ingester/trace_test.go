@@ -13,7 +13,7 @@ import (
 func TestTraceStartEndTime(t *testing.T) {
 	s := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
-	tr := newTrace(nil, 0)
+	tr := newTrace(nil)
 
 	// initial push
 	buff, err := s.PrepareForWrite(&tempopb.Trace{}, 10, 20)

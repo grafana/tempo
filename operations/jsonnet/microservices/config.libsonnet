@@ -4,7 +4,7 @@
     tempo_query: 'grafana/tempo-query:latest',
     tempo_vulture: 'grafana/tempo-vulture:latest',
     rollout_operator: 'grafana/rollout-operator:v0.1.1',
-    memcached: 'memcached:1.6.27-alpine',
+    memcached: 'memcached:1.6.32-alpine',
     memcachedExporter: 'prom/memcached-exporter:v0.14.3',
   },
 

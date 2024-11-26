@@ -12,11 +12,15 @@ type liveTrace struct {
 	id        []byte
 	timestamp time.Time
 	Batches   []*v1.ResourceSpans
+
+	sz uint64
 }
 
 type liveTraces struct {
 	hash   hash.Hash64
 	traces map[uint64]*liveTrace
+
+	sz uint64
 }
 
 func newLiveTraces() *liveTraces {
@@ -34,6 +38,10 @@ func (l *liveTraces) token(traceID []byte) uint64 {
 
 func (l *liveTraces) Len() uint64 {
 	return uint64(len(l.traces))
+}
+
+func (l *liveTraces) Size() uint64 {
+	return l.sz
 }
 
 func (l *liveTraces) Push(traceID []byte, batch *v1.ResourceSpans, max uint64) bool {
@@ -54,6 +62,10 @@ func (l *liveTraces) Push(traceID []byte, batch *v1.ResourceSpans, max uint64) b
 		l.traces[token] = tr
 	}
 
+	sz := uint64(batch.Size())
+	tr.sz += sz
+	l.sz += sz
+
 	tr.Batches = append(tr.Batches, batch)
 	tr.timestamp = time.Now()
 	return true
@@ -65,6 +77,7 @@ func (l *liveTraces) CutIdle(idleSince time.Time, immediate bool) []*liveTrace {
 	for k, tr := range l.traces {
 		if tr.timestamp.Before(idleSince) || immediate {
 			res = append(res, tr)
+			l.sz -= tr.sz
 			delete(l.traces, k)
 		}
 	}

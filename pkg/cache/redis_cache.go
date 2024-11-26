@@ -13,9 +13,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-
-	util_log "github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/pkg/util/spanlogger"
 )
 
 // RedisCache type caches chunks in redis
@@ -28,7 +25,6 @@ type RedisCache struct {
 
 // NewRedisCache creates a new RedisCache
 func NewRedisCache(name string, redisClient *RedisClient, reg prometheus.Registerer, logger log.Logger) *RedisCache {
-	util_log.WarnExperimentalUse("Redis cache")
 	cache := &RedisCache{
 		name:   name,
 		redis:  redisClient,
@@ -68,16 +64,14 @@ func (c *RedisCache) Fetch(ctx context.Context, keys []string) (found []string, 
 	var items [][]byte
 	// Run a tracked request, using c.requestDuration to monitor requests.
 	err := measureRequest(ctx, method, c.requestDuration, redisStatusCode, func(ctx context.Context) error {
-		log := spanlogger.FromContext(ctx)
+		t := trace.SpanFromContext(ctx)
 		var err error
 		items, err = c.redis.MGet(ctx, keys)
 		if err != nil {
-			// nolint:errcheck
-			log.Error(err)
 			level.Error(c.logger).Log("msg", "failed to get from redis", "name", c.name, "err", err)
 			return err
 		}
-		log.AddEvent("cache.keys.found", trace.WithAttributes(attribute.Int("keys", len(keys))))
+		t.AddEvent("cache.keys.found", trace.WithAttributes(attribute.Int("keys", len(keys))))
 		return nil
 	})
 	if err != nil {
@@ -101,22 +95,20 @@ func (c *RedisCache) FetchKey(ctx context.Context, key string) (buf []byte, foun
 	const method = "RedisCache.Get"
 	// Run a tracked request, using c.requestDuration to monitor requests.
 	err := measureRequest(ctx, method, c.requestDuration, redisStatusCode, func(ctx context.Context) error {
-		log := spanlogger.FromContext(ctx)
+		t := trace.SpanFromContext(ctx)
 		var err error
 		buf, err = c.redis.Get(ctx, key)
 		if err != nil {
-			// nolint:errcheck
-			log.Error(err)
 			if errors.Is(err, redis.Nil) {
 				level.Debug(c.logger).Log("msg", "failed to get key from redis", "name", c.name, "err", err, "key", key)
-				log.AddEvent("cache.key.missed", trace.WithAttributes(attribute.String("key", key)))
+				t.AddEvent("cache.key.missed", trace.WithAttributes(attribute.String("key", key)))
 			} else {
 				level.Error(c.logger).Log("msg", "error requesting key from redis", "name", c.name, "err", err, "key", key)
 			}
 
 			return err
 		}
-		log.AddEvent("cache.key.found", trace.WithAttributes(attribute.String("key", key)))
+		t.AddEvent("cache.key.found", trace.WithAttributes(attribute.String("key", key)))
 		return nil
 	})
 	if err != nil {

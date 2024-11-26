@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/flushqueues"
+	"github.com/grafana/tempo/pkg/tracesizes"
 	"github.com/grafana/tempo/tempodb"
 	"go.opentelemetry.io/otel"
 
@@ -70,7 +71,7 @@ type Processor struct {
 
 	liveTracesMtx sync.Mutex
 	liveTraces    *liveTraces
-	traceSizes    *traceSizes
+	traceSizes    *tracesizes.Tracker
 
 	writer tempodb.Writer
 }
@@ -103,7 +104,7 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 		completeBlocks: map[uuid.UUID]*ingester.LocalBlock{},
 		flushqueue:     flushqueues.NewPriorityQueue(metricFlushQueueSize.WithLabelValues(tenant)),
 		liveTraces:     newLiveTraces(),
-		traceSizes:     newTraceSizes(),
+		traceSizes:     tracesizes.New(),
 		closeCh:        make(chan struct{}),
 		wg:             sync.WaitGroup{},
 		cache:          lru.New(100),
@@ -597,6 +598,7 @@ func (p *Processor) cutIdleTraces(immediate bool) error {
 
 	// Record live traces before flushing so we know the high water mark
 	metricLiveTraces.WithLabelValues(p.tenant).Set(float64(len(p.liveTraces.traces)))
+	metricLiveTraceBytes.WithLabelValues(p.tenant).Set(float64(p.liveTraces.Size()))
 
 	since := time.Now().Add(-p.Cfg.TraceIdlePeriod)
 	tracesToCut := p.liveTraces.CutIdle(since, immediate)
