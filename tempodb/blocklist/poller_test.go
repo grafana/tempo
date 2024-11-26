@@ -1073,7 +1073,7 @@ func BenchmarkFullPoller(b *testing.B) {
 	}
 
 	for _, bc := range cases {
-		b.Run(fmt.Sprintf("%sTenants%dBlocks%dGrow%d", bc.name, bc.tenants, bc.blocksPerTenant, bc.blocksPer), func(b *testing.B) {
+		b.Run(fmt.Sprintf("%sTenants%dBlocks%dGrow%dCompactions%d", bc.name, bc.tenants, bc.blocksPerTenant, bc.blocksPer, bc.compactionsPer), func(b *testing.B) {
 			s := &mockJobSharder{owns: true}
 
 			d := b.TempDir()
