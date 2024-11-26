@@ -1034,72 +1034,150 @@ func BenchmarkPoller10k(b *testing.B) {
 }
 
 func BenchmarkFullPoller(b *testing.B) {
-	s := &mockJobSharder{owns: true}
+	cases := []struct {
+		name            string
+		tenants         int
+		blocksPerTenant int
+		iterations      int
+		blocksPer       int
+		compactionsPer  int
+	}{
+		{
+			name: "no tenants",
+		},
+		{
+			name:            "single tenant",
+			tenants:         1,
+			blocksPerTenant: 1000,
+		},
+		{
+			name:            "multi tenant",
+			tenants:         10,
+			blocksPerTenant: 1000,
+		},
+		{
+			name:            "multi tenant growth",
+			tenants:         10,
+			blocksPerTenant: 1000,
+			iterations:      10,
+			blocksPer:       100,
+		},
+		{
+			name:            "multi tenant growth and compactions",
+			tenants:         10,
+			blocksPerTenant: 1000,
+			iterations:      10,
+			blocksPer:       100,
+			compactionsPer:  10,
+		},
+	}
 
-	d := b.TempDir()
-	defer os.RemoveAll(d)
+	for _, bc := range cases {
+		b.Run(fmt.Sprintf("%sTenants%dBlocks%dGrow%d", bc.name, bc.tenants, bc.blocksPerTenant, bc.blocksPer), func(b *testing.B) {
+			s := &mockJobSharder{owns: true}
 
-	rr, ww, cc, err := local.New(&local.Config{
-		Path: d,
-	})
-	require.NoError(b, err)
+			d := b.TempDir()
+			defer os.RemoveAll(d)
 
-	var (
-		ctx = context.Background()
-		r   = backend.NewReader(rr)
-		w   = backend.NewWriter(ww)
-	)
-
-	poller := NewPoller(&PollerConfig{
-		PollConcurrency:       testPollConcurrency,
-		TenantPollConcurrency: testTenantPollConcurrency,
-		PollFallback:          testPollFallback,
-		TenantIndexBuilders:   testBuilders,
-	}, s, r, cc, w, log.NewNopLogger())
-
-	list := New()
-
-	for i := 0; i < 10; i++ {
-		var (
-			tenant = fmt.Sprintf("tenant-%d", i)
-			metas  = newBlockMetas(1000, tenant)
-		)
-
-		for _, m := range metas {
-			err = w.WriteBlockMeta(ctx, m)
+			rr, ww, cc, err := local.New(&local.Config{
+				Path: d,
+			})
 			require.NoError(b, err)
-		}
+
+			var (
+				ctx = context.Background()
+				r   = backend.NewReader(rr)
+				w   = backend.NewWriter(ww)
+				// c   = backend.NewCompactor(cc)
+			)
+
+			poller := NewPoller(&PollerConfig{
+				PollConcurrency:       testPollConcurrency,
+				TenantPollConcurrency: testTenantPollConcurrency,
+				PollFallback:          testPollFallback,
+				TenantIndexBuilders:   testBuilders,
+			}, s, r, cc, w, log.NewNopLogger())
+
+			// Create the tenants and push the initial blocks to them.
+			tenants := make([]string, bc.tenants)
+			for i := 0; i < bc.tenants; i++ {
+				tenant := fmt.Sprintf("tenant-%d", i)
+				tenants = append(tenants, tenant)
+				writeNewBlocksForTenant(ctx, b, w, tenant, bc.blocksPerTenant)
+			}
+
+			var (
+				ml   = PerTenant{}
+				cl   = PerTenantCompacted{}
+				list = New()
+			)
+
+			b.Run("initial", func(b *testing.B) {
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					ml, cl, _ = poller.Do(list)
+				}
+				b.StopTimer()
+
+				list.ApplyPollResults(ml, cl)
+			})
+
+			// No change to the list
+			b.Run("second", func(b *testing.B) {
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					ml, cl, _ = poller.Do(list)
+				}
+				b.StopTimer()
+
+				list.ApplyPollResults(ml, cl)
+			})
+
+			for i := 0; i < bc.iterations; i++ {
+				// push more blocks to the tenants
+				for _, tenant := range tenants {
+					writeNewBlocksForTenant(ctx, b, w, tenant, bc.blocksPer)
+				}
+
+				// Compact some blocks
+				for tenant, blocks := range ml {
+					blocksToCompact := blocks[:bc.compactionsPer]
+					for _, block := range blocksToCompact {
+						err := cc.MarkBlockCompacted(uuid.UUID(block.BlockID), tenant)
+						require.NoError(b, err)
+					}
+				}
+
+				b.Run(fmt.Sprintf("grow%d", i), func(b *testing.B) {
+					b.ResetTimer()
+					for i := 0; i < b.N; i++ {
+						ml, cl, _ = poller.Do(list)
+					}
+					b.StopTimer()
+
+					list.ApplyPollResults(ml, cl)
+				})
+			}
+		})
 	}
-
-	ml, cl, err := poller.Do(list)
-	require.NoError(b, err)
-	list.ApplyPollResults(ml, cl)
-
-	// Push another 10% of the blocks to discover
-	for i := 0; i < 10; i++ {
-		var (
-			tenant = fmt.Sprintf("tenant-%d", i)
-			metas  = newBlockMetas(100, tenant)
-		)
-
-		for _, m := range metas {
-			err = w.WriteBlockMeta(ctx, m)
-			require.NoError(b, err)
-		}
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		ml, cl, _ = poller.Do(list)
-		list.ApplyPollResults(ml, cl)
-	}
-	b.StopTimer()
 }
 
 func benchmarkPollTenant(b *testing.B, poller *Poller, tenant string, previous *List) {
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		_, _, err := poller.pollTenantBlocks(context.Background(), tenant, previous)
+		require.NoError(b, err)
+	}
+}
+
+func writeNewBlocksForTenant(ctx context.Context, b *testing.B, w backend.Writer, tenant string, count int) {
+	var (
+		err   error
+		metas = newBlockMetas(count, tenant)
+	)
+
+	for _, m := range metas {
+		err = w.WriteBlockMeta(ctx, m)
 		require.NoError(b, err)
 	}
 }
@@ -1209,19 +1287,19 @@ func newMockReader(list PerTenant, compactedList PerTenantCompacted, expectsErro
 
 	return &backend.MockReader{
 		T: tenants,
-		BlocksFn: func(_ context.Context, tenantID string) ([]uuid.UUID, []uuid.UUID, error) {
+		BlocksFn: func(_ context.Context, tenantID string) (map[uuid.UUID]time.Time, map[uuid.UUID]time.Time, error) {
 			if expectsError {
 				return nil, nil, errors.New("err")
 			}
 			blocks := list[tenantID]
-			uuids := []uuid.UUID{}
-			compactedUUIDs := []uuid.UUID{}
+			uuids := map[uuid.UUID]time.Time{}
+			compactedUUIDs := map[uuid.UUID]time.Time{}
 			for _, b := range blocks {
-				uuids = append(uuids, (uuid.UUID)(b.BlockID))
+				uuids[(uuid.UUID)(b.BlockID)] = time.Now()
 			}
 			compactedBlocks := compactedList[tenantID]
 			for _, b := range compactedBlocks {
-				compactedUUIDs = append(compactedUUIDs, (uuid.UUID)(b.BlockID))
+				compactedUUIDs[(uuid.UUID)(b.BlockID)] = time.Now()
 			}
 
 			return uuids, compactedUUIDs, nil
