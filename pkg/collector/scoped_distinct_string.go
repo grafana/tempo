@@ -79,6 +79,11 @@ func (d *ScopedDistinctString) Collect(scope string, val string) (exceeded bool)
 	if col.Collect(val) {
 		d.currDataSize += valueLen
 	}
+	if col.Exceeded() {
+		// we stop if one of the scopes exceed the limit
+		d.limExceeded = true
+		return true
+	}
 	return false
 }
 

@@ -59,7 +59,6 @@ func TestScopedDistinct(t *testing.T) {
 			expected: map[string][]string{
 				"intrinsic": {"val1", "val2"},
 				"scope2":    {"val1"},
-				"scope3":    {"val1"},
 			},
 			maxBytes:         0,
 			maxItemsPerScope: 1,
