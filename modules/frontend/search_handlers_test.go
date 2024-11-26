@@ -295,7 +295,7 @@ func runnerClientCancelContext(t *testing.T, f *QueryFrontend) {
 	}()
 	grpcReq := &tempopb.SearchRequest{}
 	err := f.streamingSearch(grpcReq, srv)
-	require.Equal(t, status.Error(codes.Internal, "context canceled"), err)
+	require.Equal(t, status.Error(codes.Canceled, "context canceled"), err)
 }
 
 func TestSearchLimitHonored(t *testing.T) {
