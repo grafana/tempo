@@ -361,7 +361,7 @@ Parameters:
 - `end = (unix epoch seconds)`
   Optional. Along with `start`, defines a time range from which tags should be returned. Providing both `start` and `end` includes blocks for the specified time range only.
 - `limit = (integer)`
-  Optional. Limits the maximum number of tags
+  Optional. Limits the maximum number of tags.
 
 
 ### Search tags V2
