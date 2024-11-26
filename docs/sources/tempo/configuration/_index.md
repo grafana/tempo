@@ -640,7 +640,10 @@ query_frontend:
 
         # The number of shards to break ingester queries into.
         [ingester_shards]: <int> | default = 3]
-        
+
+        # The maximum allowed value of spans per span set. 0 disables this limit.
+        [max_spans_per_span_set]: <int> | default = 100]
+
         # SLO configuration for Metadata (tags and tag values) endpoints.
         metadata_slo:
             # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.

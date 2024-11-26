@@ -717,6 +717,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MaxDuration:           5 * time.Minute,
+		MaxSpansPerSpanSet:    100,
 	}, log.NewNopLogger())
 	testRT := sharder.Wrap(next)
 
@@ -730,6 +731,12 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
 	resp, err = testRT.RoundTrip(pipeline.NewHTTPRequest(req))
 	testBadRequestFromResponses(t, resp, err, "range specified by start and end exceeds 5m0s. received start=1000 end=1500")
+
+	// spans per span set greater than maximum
+	req = httptest.NewRequest("GET", "/?spss=200", nil)
+	req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
+	resp, err = testRT.RoundTrip(pipeline.NewHTTPRequest(req))
+	testBadRequestFromResponses(t, resp, err, "spans per span set exceeds 100. received 200")
 
 	// bad request
 	req = httptest.NewRequest("GET", "/?start=asdf&end=1500", nil)
