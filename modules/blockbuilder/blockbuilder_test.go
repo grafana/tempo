@@ -337,7 +337,7 @@ func blockbuilderConfig(_ *testing.T, address string) Config {
 	cfg.IngestStorageConfig.Kafka.Topic = testTopic
 	cfg.IngestStorageConfig.Kafka.ConsumerGroup = "test-consumer-group"
 
-	cfg.AssignedPartitions = []int32{0}
+	cfg.AssignedPartitions = map[string][]int32{cfg.InstanceID: {0}}
 	cfg.LookbackOnNoCommit = 15 * time.Second
 	cfg.ConsumeCycleDuration = 5 * time.Second
 
