@@ -7,7 +7,7 @@ keywords:
 title: Diagnose errors with traces
 menuTitle: Diagnose errors with traces
 weight: 400
-ref:
+refs:
   traceql:
     - pattern: /docs/tempo/
       destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/

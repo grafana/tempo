@@ -6,7 +6,7 @@ weight: 600
 keywords:
   - metrics query
   - TraceQL metrics
-ref:
+refs:
   solve-problems-mq:
     - pattern: /docs/tempo/
       destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/solve-problems-metrics-queries/

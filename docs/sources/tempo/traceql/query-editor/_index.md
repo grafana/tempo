@@ -11,7 +11,7 @@ keywords:
   - Tempo query language
   - query editor
   - TraceQL
-ref:
+refs:
   traceql:
     - pattern: /docs/tempo/
       destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/

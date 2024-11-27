@@ -6,7 +6,7 @@ weight: 600
 keywords:
   - metrics query
   - TraceQL metrics
-ref:
+refs:
   metrics-generator:
     - pattern: /docs/tempo/
       destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/
@@ -24,8 +24,9 @@ This page provides an example of how you can investigate the rate of incoming re
 ## RED metrics and queries
 
 The Tempo metrics-generator emits metrics with pre-configured labels for Rate, Error, and Duration (RED) metrics and service graph edges.
-Generated metric labels vary, but always include the service name (in service graph metrics, as a client and/or a server type).
-For more information, refer to the [metrics-generator documentation](ref:metrics-generator/).
+Generated metric labels vary, but always include the service name.
+For example, in service graph metrics, as a client or a server type, or both.
+For more information, refer to the [metrics-generator documentation](ref:metrics-generator).
 
 You can use these metrics to get an overview of application performance.
 The metrics can be directly correlated to the trace spans that are available for querying.
