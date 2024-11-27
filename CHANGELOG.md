@@ -1,5 +1,6 @@
 ## main / unreleased
 * [FEATURE] tempo-cli: support dropping multiple traces in a single operation [#4266](https://github.com/grafana/tempo/pull/4266) (@ndk)
+* [CHANGE] **BREAKING CHANGE** Add maximum spans per span set. Users can set `max_spans_per_span_set` to 0 to obtain the old behavior. [#4275](https://github.com/grafana/tempo/pull/4383) (@carles-grafana)
 * [CHANGE] slo: include request cancellations within SLO [#4355] (https://github.com/grafana/tempo/pull/4355) (@electron0zero)
   request cancellations are exposed under `result` label in `tempo_query_frontend_queries_total` and `tempo_query_frontend_queries_within_slo_total` with `completed` or `canceled` values to differentiate between completed and canceled requests.
 * [CHANGE] update default config values to better align with production workloads [#4340](https://github.com/grafana/tempo/pull/4340) (@electron0zero)
