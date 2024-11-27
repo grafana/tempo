@@ -31,7 +31,7 @@ These functions can be added as an operator at the end of any TraceQL query.
 : Returns the maximum value for the specified attribute across all matching spans per time interval (refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics)).
 
 `avg_over_time`
-: Returns the average value for the specified attribute across all matching spans per time interval (refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs#traceql-metrics)).
+: Returns the average value for the specified attribute across all matching spans per time interval (refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics)).
 
 `quantile_over_time`
 : The quantile of the values in the specified interval
