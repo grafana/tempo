@@ -340,7 +340,7 @@ func (b *BlockBuilder) pushTraces(tenantBytes, reqBytes []byte, p partitionSecti
 func (b *BlockBuilder) getAssignedActivePartitions() []int32 {
 	activePartitionsCount := b.partitionRing.PartitionRing().ActivePartitionsCount()
 	assignedActivePartitions := make([]int32, 0, activePartitionsCount)
-	for _, partition := range b.cfg.AssignedPartitions {
+	for _, partition := range b.cfg.AssignedPartitions[b.cfg.InstanceID] {
 		if partition > int32(activePartitionsCount) {
 			break
 		}

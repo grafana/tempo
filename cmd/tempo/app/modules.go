@@ -313,7 +313,7 @@ func (t *App) initGenerator() (services.Service, error) {
 
 	if t.cfg.Target == SingleBinary && len(t.cfg.Generator.AssignedPartitions) == 0 {
 		// In SingleBinary mode always use partition 0. This is for small installs or local/debugging setups.
-		t.cfg.Generator.AssignedPartitions = append(t.cfg.Generator.AssignedPartitions, 0)
+		t.cfg.Generator.AssignedPartitions = map[string][]int32{t.cfg.Generator.InstanceID: {0}}
 	}
 
 	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRing, t.store, log.Logger)
@@ -347,7 +347,7 @@ func (t *App) initBlockBuilder() (services.Service, error) {
 
 	if t.cfg.Target == SingleBinary && len(t.cfg.BlockBuilder.AssignedPartitions) == 0 {
 		// In SingleBinary mode always use partition 0. This is for small installs or local/debugging setups.
-		t.cfg.BlockBuilder.AssignedPartitions = append(t.cfg.BlockBuilder.AssignedPartitions, 0)
+		t.cfg.BlockBuilder.AssignedPartitions = map[string][]int32{t.cfg.BlockBuilder.InstanceID: {0}}
 	}
 
 	t.blockBuilder = blockbuilder.New(t.cfg.BlockBuilder, log.Logger, t.partitionRing, t.Overrides, t.store)
