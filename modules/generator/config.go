@@ -1,8 +1,10 @@
 package generator
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/grafana/tempo/modules/generator/processor/localblocks"
@@ -39,8 +41,9 @@ type Config struct {
 	OverrideRingKey       string        `yaml:"override_ring_key"`
 
 	// This config is dynamically injected because defined outside the generator config.
-	Ingest             ingest.Config `yaml:"-"`
-	AssignedPartitions []int32       `yaml:"assigned_partitions" doc:"List of partitions assigned to this block builder."`
+	Ingest             ingest.Config      `yaml:"-"`
+	AssignedPartitions map[string][]int32 `yaml:"assigned_partitions" doc:"List of partitions assigned to this block builder."`
+	InstanceID         string             `yaml:"instance_id" doc:"default=<hostname>" category:"advanced"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -56,6 +59,14 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MetricsIngestionSlack = 30 * time.Second
 	cfg.QueryTimeout = 30 * time.Second
 	cfg.OverrideRingKey = generatorRingKey
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		fmt.Printf("failed to get hostname: %v", err)
+		os.Exit(1)
+	}
+	f.StringVar(&cfg.InstanceID, prefix+".instance-id", hostname, "Instance id.")
+	f.Var(newPartitionAssignmentVar(&cfg.AssignedPartitions), prefix+".assigned-partitions", "List of partitions assigned to this metrics generator.")
 }
 
 func (cfg *Config) Validate() error {
@@ -157,4 +168,30 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	copyCfg.SpanMetrics.Subprocessors = copySubprocessors
 
 	return copyCfg, nil
+}
+
+type partitionAssignmentVar struct {
+	p *map[string][]int32
+}
+
+func newPartitionAssignmentVar(p *map[string][]int32) *partitionAssignmentVar {
+	return &partitionAssignmentVar{p}
+}
+
+func (p *partitionAssignmentVar) Set(s string) error {
+	if s == "" {
+		return nil
+	}
+
+	val := make(map[string][]int32)
+	if err := json.Unmarshal([]byte(s), &val); err != nil {
+		return err
+	}
+	*p.p = val
+
+	return nil
+}
+
+func (p *partitionAssignmentVar) String() string {
+	return fmt.Sprintf("%v", *p.p)
 }

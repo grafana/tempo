@@ -212,7 +212,7 @@ func getGroupLag(ctx context.Context, admClient *kadm.Client, topic, group strin
 func (g *Generator) getAssignedActivePartitions() []int32 {
 	activePartitionsCount := g.partitionRing.PartitionRing().ActivePartitionsCount()
 	assignedActivePartitions := make([]int32, 0, activePartitionsCount)
-	for _, partition := range g.cfg.AssignedPartitions {
+	for _, partition := range g.cfg.AssignedPartitions[g.cfg.InstanceID] {
 		if partition > int32(activePartitionsCount) {
 			break
 		}

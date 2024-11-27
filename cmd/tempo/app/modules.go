@@ -314,7 +314,7 @@ func (t *App) initGenerator() (services.Service, error) {
 
 	if t.cfg.Target == SingleBinary && len(t.cfg.Generator.AssignedPartitions) == 0 {
 		// In SingleBinary mode always use partition 0. This is for small installs or local/debugging setups.
-		t.cfg.Generator.AssignedPartitions = append(t.cfg.Generator.AssignedPartitions, 0)
+		t.cfg.Generator.AssignedPartitions[t.cfg.Generator.InstanceID] = append(t.cfg.Generator.AssignedPartitions[t.cfg.Generator.InstanceID], 0)
 	}
 
 	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRing, t.store, log.Logger)
