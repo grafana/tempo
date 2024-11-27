@@ -463,7 +463,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	userCtx := user.InjectOrgID(context.Background(), "fake")
 	resp, err := i.SearchTagValues(userCtx, tagKey, 0, 0)
 	require.NoError(t, err)
-	require.Equal(t, 2, len(resp.TagValues)) // Only two values of the form "bar123" fit in the 10 byte limit above.
+	require.Equal(t, 2, len(resp.TagValues)) // Only two values of the form "bar123" fit in the 12 byte limit above.
 }
 
 // TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns
