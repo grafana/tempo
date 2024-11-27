@@ -7,6 +7,12 @@ keywords:
 title: Diagnose errors with traces
 menuTitle: Diagnose errors with traces
 weight: 400
+refs:
+  traceql:
+    - pattern: /docs/tempo/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/
+    - pattern: /docs/enterprise-traces/
+      destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/traceql/
 ---
 
 # Diagnose errors with traces
@@ -27,7 +33,7 @@ It’s imperative for the operations team at Handy Site to quickly troubleshoot 
 
 ## Use TraceQL to query data
 
-Tempo has a traces-first query language, [TraceQL](https://grafana.com/docs/tempo/latest/traceql/), that provides a unique toolset for selecting and searching tracing data. TraceQL can match traces based on span and resource attributes, duration, and ancestor<>descendant relationships. It also can compute aggregate statistics (e.g., `rate`) over a set of spans.
+Tempo has a traces-first query language, [TraceQL](ref:traceql), that provides a unique toolset for selecting and searching tracing data. TraceQL can match traces based on span and resource attributes, duration, and ancestor<>descendant relationships. It also can compute aggregate statistics (e.g., `rate`) over a set of spans.
 
 Handy Site’s services and applications are instrumented for tracing, so they can use TraceQL as a debugging tool. Using three TraceQL queries, the team identifies and validates the root cause of the issue.
 
@@ -50,7 +56,7 @@ Looking at the set of returned spans, the most concerning ones are those with th
 
 The team decides to use structural operators to follow an error chain from the top-level `mythical-requester` service to any descendant spans that also have an error status.
 Descendant spans can be any span that's descended from the parent span, such as a child or a further child at any depth.
-Using this query, the team can pinpoint the downstream service that might be causing the issue. The query below says "Find me spans where `status = error` that that are descendants of spans from the `mythical-requester` service that have status code `500`." 
+Using this query, the team can pinpoint the downstream service that might be causing the issue. The query below says "Find me spans where `status = error` that that are descendants of spans from the `mythical-requester` service that have status code `500`."
 
 ```traceql
 { resource.service.name = "mythical-requester" && span.http.status_code = 500 } >> { status = error }
@@ -68,7 +74,7 @@ Specifically, the service is passing a `null` value for a column in a database t
 After identifying the specific cause of this internal server error,
 the team wants to know if there are errors in any database operations other than the `null` `INSERT` error found above.
 Their updated query uses a negated regular expression to find any spans where the database statement either doesn’t exist, or doesn’t start with an `INSERT` clause.
-This should expose any other issues causing an internal server error and filter out the class of issues that they already diagnosed. 
+This should expose any other issues causing an internal server error and filter out the class of issues that they already diagnosed.
 
 ```traceql
 { resource.service.name = "mythical-requester" && span.http.status_code = 500 } >> { status = error && span.db.statement !~ "INSERT.*" }
@@ -76,6 +82,6 @@ This should expose any other issues causing an internal server error and filter 
 
 This query yields no results, suggesting that the root cause of the issues the operations team are seeing is exclusively due to the failing database `INSERT` statement.
 At this point, they can roll back to a known working version of the service, or deploy a fix to ensure that `null` data being passed to the service is rejected appropriately.
-Once that is complete, the issue can be marked resolved and the Handy team's error rate SLI should return back to acceptable levels. 
+Once that is complete, the issue can be marked resolved and the Handy team's error rate SLI should return back to acceptable levels.
 
 ![Empty query results](/media/docs/tempo/intro/traceql-no-results-handy-site.png)

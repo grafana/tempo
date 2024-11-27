@@ -22,7 +22,7 @@ These functions can be added as an operator at the end of any TraceQL query.
 : Calculates the number of matching spans per second
 
 `count_over_time`
-: Counts the number of matching spans per time interval (refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics)).
+: Counts the number of matching spans per time interval (refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs)).
 
 `min_over_time`
 : Returns the minimum value for the specified attribute across all matching spans per time interval (refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics)).
@@ -83,7 +83,6 @@ spans than `/api/happy`, for example.
 The `count_over_time()` function counts the number of matching spans per time interval.
 The time interval that the count will be computed over is set by the `step` parameter.
 For more information, refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics).
-
 
 ### Example
 
@@ -170,7 +169,7 @@ You could use a similar query to know what the 50th percentile and 95th percenti
 The `compare` function is used to split a set of spans into two groups: a selection and a baseline.
 It returns time-series for all attributes found on the spans to highlight the differences between the two groups.
 
-This is a powerful function that's best understood by using the [**Comparison** tab in Explore Traces](https://grafana.com/docs/grafana/<GRAFNA_VERSION>/explore/simplified-exploration/traces/investigate/#comparison).
+This is a powerful function that's best understood by using the [**Comparison** tab in Explore Traces](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/investigate/#comparison).
 You can also under this function by looking at example outputs below.
 
 The function is used like other metrics functions: when it's placed after any trace query, it converts the query into a metrics query:
