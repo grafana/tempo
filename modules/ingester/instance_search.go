@@ -616,15 +616,20 @@ func includeBlock(b *backend.BlockMeta, req *tempopb.SearchRequest) bool {
 	return b.StartTime.Unix() <= end && b.EndTime.Unix() >= start
 }
 
+// searchTagValuesV2CacheKey generates a cache key for the searchTagValuesV2 request
+// cache key is used as the filename to store the protobuf data on disk
 func searchTagValuesV2CacheKey(req *tempopb.SearchTagValuesRequest, limit int, prefix string) string {
 	query := req.Query
 	if req.Query != "" {
 		ast, err := traceql.Parse(req.Query)
-		if err != nil { // this should never happen but in case it happens
-			return ""
+		if err == nil {
+			// forces the query into a canonical form
+			query = ast.String()
+		} else {
+			// In case of a bad TraceQL query, we ignore the query and return unfiltered results.
+			// if we fail to parse the query, we will assume query is empty and compute the cache key.
+			query = ""
 		}
-		// forces the query into a canonical form
-		query = ast.String()
 	}
 
 	// NOTE: we are not adding req.Start and req.End to the cache key because we don't respect the start and end
