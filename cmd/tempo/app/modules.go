@@ -348,7 +348,7 @@ func (t *App) initBlockBuilder() (services.Service, error) {
 
 	if t.cfg.Target == SingleBinary && len(t.cfg.BlockBuilder.AssignedPartitions) == 0 {
 		// In SingleBinary mode always use partition 0. This is for small installs or local/debugging setups.
-		t.cfg.BlockBuilder.AssignedPartitions = append(t.cfg.BlockBuilder.AssignedPartitions, 0)
+		t.cfg.BlockBuilder.AssignedPartitions[t.cfg.BlockBuilder.InstanceID] = append(t.cfg.BlockBuilder.AssignedPartitions[t.cfg.BlockBuilder.InstanceID], 0)
 	}
 
 	t.blockBuilder = blockbuilder.New(t.cfg.BlockBuilder, log.Logger, t.partitionRing, t.Overrides, t.store)
