@@ -441,7 +441,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Config{
 		Defaults: overrides.Overrides{
 			Read: overrides.ReadOverrides{
-				MaxBytesPerTagValuesQuery: 10,
+				MaxBytesPerTagValuesQuery: 12,
 			},
 		},
 	}, nil, prometheus.DefaultRegisterer)
