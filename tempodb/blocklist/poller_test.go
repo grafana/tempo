@@ -1009,11 +1009,13 @@ func BenchmarkPoller10k(b *testing.B) {
 		currentPerTenantCompacted := maps.Clone(previousPerTenantCompacted)
 
 		var (
-			c        = newMockCompactor(currentPerTenantCompacted, false)
-			w        = &backend.MockWriter{}
-			s        = &mockJobSharder{owns: true}
-			r        = newMockReader(currentPerTenant, currentPerTenantCompacted, false)
-			previous = newBlocklist(previousPerTenant, previousPerTenantCompacted)
+			c                     = newMockCompactor(currentPerTenantCompacted, false)
+			w                     = &backend.MockWriter{}
+			s                     = &mockJobSharder{owns: true}
+			r                     = newMockReader(currentPerTenant, currentPerTenantCompacted, false)
+			previous              = newBlocklist(previousPerTenant, previousPerTenantCompacted)
+			newBlockList          = make([]*backend.BlockMeta, 0, tc.tenantCount*tc.blocksPerTenant)
+			newCompactedBlockList = make([]*backend.CompactedBlockMeta, 0, tc.tenantCount*tc.blocksPerTenant)
 		)
 
 		// This mock reader returns error or nil based on the tenant ID
@@ -1027,7 +1029,7 @@ func BenchmarkPoller10k(b *testing.B) {
 		runName := fmt.Sprintf("%d-%d", tc.tenantCount, tc.blocksPerTenant)
 		b.Run(runName, func(b *testing.B) {
 			for tenant := range previousPerTenant {
-				benchmarkPollTenant(b, poller, tenant, previous)
+				benchmarkPollTenant(b, poller, tenant, previous, &newBlockList, &newCompactedBlockList)
 			}
 		})
 	}
@@ -1162,10 +1164,10 @@ func BenchmarkFullPoller(b *testing.B) {
 	}
 }
 
-func benchmarkPollTenant(b *testing.B, poller *Poller, tenant string, previous *List) {
+func benchmarkPollTenant(b *testing.B, poller *Poller, tenant string, previous *List, newBlockList *[]*backend.BlockMeta, newCompactedBlockList *[]*backend.CompactedBlockMeta) {
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		_, _, err := poller.pollTenantBlocks(context.Background(), tenant, previous)
+		err := poller.pollTenantBlocks(context.Background(), tenant, previous, newBlockList, newCompactedBlockList)
 		require.NoError(b, err)
 	}
 }
