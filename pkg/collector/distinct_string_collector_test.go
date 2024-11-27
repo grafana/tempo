@@ -10,7 +10,7 @@ import (
 )
 
 func TestDistinctStringCollector(t *testing.T) {
-	d := NewDistinctString(10, 0, 0)
+	d := NewDistinctString(12, 0, 0)
 
 	d.Collect("123")
 	d.Collect("4567")
