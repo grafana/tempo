@@ -381,7 +381,7 @@ func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta,
 		return nil, err
 	}
 
-	distinctValues := collector.NewScopedDistinctString(0, opts.Limit) // todo: propagate limit?
+	distinctValues := collector.NewScopedDistinctString(0, opts.Limit, opts.StaleValueThreshold)
 	mc := collector.NewMetricsCollector()
 
 	rw.cfg.Search.ApplyToOptions(&opts)
@@ -414,7 +414,7 @@ func (rw *readerWriter) SearchTagValues(ctx context.Context, meta *backend.Block
 		return &tempopb.SearchTagValuesResponse{}, err
 	}
 
-	dv := collector.NewDistinctString(0, opts.Limit)
+	dv := collector.NewDistinctString(0, opts.Limit, opts.StaleValueThreshold)
 	mc := collector.NewMetricsCollector()
 	rw.cfg.Search.ApplyToOptions(&opts)
 	err = block.SearchTagValues(ctx, tag, dv.Collect, mc.Add, opts)
@@ -436,7 +436,7 @@ func (rw *readerWriter) SearchTagValuesV2(ctx context.Context, meta *backend.Blo
 		return nil, err
 	}
 
-	dv := collector.NewDistinctValue[tempopb.TagValue](0, opts.Limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	dv := collector.NewDistinctValue[tempopb.TagValue](0, opts.Limit, opts.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 	mc := collector.NewMetricsCollector()
 	rw.cfg.Search.ApplyToOptions(&opts)
 	err = block.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(dv.Collect), mc.Add, opts)

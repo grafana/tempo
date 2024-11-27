@@ -164,6 +164,7 @@ message SearchTagsRequest {
   uint32 start = 3;
   uint32 end = 4;
   uint32 maxTagsPerScope = 5;
+  uint32 staleValuesThreshold =6;
 }
 
 // SearchTagsBlockRequest takes SearchTagsRequest parameters as well as all information necessary
@@ -182,6 +183,7 @@ message SearchTagsBlockRequest {
   uint32 footerSize = 11; // size of file footer (parquet)
   repeated DedicatedColumn dedicatedColumns = 12;
   uint32 maxTagsPerScope = 13; // Limit of tags per scope
+  uint32 staleValueThreshold = 14; // Limit of stale values
 }
 
 message SearchTagValuesBlockRequest {
@@ -197,7 +199,6 @@ message SearchTagValuesBlockRequest {
   uint64 size = 10; // total size of data file
   uint32 footerSize = 11; // size of file footer (parquet)
   repeated DedicatedColumn dedicatedColumns = 12;
-  uint32 maxTagValues = 13; // Limit of tags values
 }
 
 
@@ -222,6 +223,7 @@ message SearchTagValuesRequest {
   uint32 start = 4;
   uint32 end = 5;
   uint32 maxTagValues = 6;
+  uint32 staleValueThreshold = 14; // Limit of stale values
 }
 
 message SearchTagValuesResponse {

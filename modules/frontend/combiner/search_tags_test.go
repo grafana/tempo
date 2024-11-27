@@ -13,8 +13,10 @@ import (
 func TestTagsCombiner(t *testing.T) {
 	tests := []struct {
 		name               string
-		factory            func(int, uint32) Combiner
+		factory            func(int, uint32, uint32) Combiner
 		limitBytes         int
+		maxTagsValues      uint32
+		maxCacheHits       uint32
 		result1            proto.Message
 		result2            proto.Message
 		expectedResult     proto.Message
@@ -132,6 +134,21 @@ func TestTagsCombiner(t *testing.T) {
 			expectedShouldQuit: true,
 			limitBytes:         10,
 		},
+		{
+			name:           "SearchTagValuesV2 - max values limited",
+			factory:        NewSearchTagValuesV2,
+			result1:        &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}}},
+			result2:        &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v2", Type: "string"}, {Value: "v3", Type: "string"}}},
+			expectedResult: &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}}, Metrics: &tempopb.MetadataMetrics{}},
+			actualResult:   &tempopb.SearchTagValuesV2Response{},
+			sort: func(m proto.Message) {
+				sort.Slice(m.(*tempopb.SearchTagValuesV2Response).TagValues, func(i, j int) bool {
+					return m.(*tempopb.SearchTagValuesV2Response).TagValues[i].Value < m.(*tempopb.SearchTagValuesV2Response).TagValues[j].Value
+				})
+			},
+			expectedShouldQuit: true,
+			maxTagsValues:      1,
+		},
 		// with metrics
 		{
 			name:           "SearchTags - metrics",
@@ -188,8 +205,7 @@ func TestTagsCombiner(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// TODO ADD LIMIT
-			combiner := tc.factory(tc.limitBytes, 0)
+			combiner := tc.factory(tc.limitBytes, tc.maxTagsValues, tc.maxCacheHits)
 
 			err := combiner.AddResponse(toHTTPResponse(t, tc.result1, 200))
 			assert.NoError(t, err)
@@ -229,7 +245,7 @@ func metrics(message proto.Message) *tempopb.MetadataMetrics {
 }
 
 func TestTagsGRPCCombiner(t *testing.T) {
-	c := NewTypedSearchTags(0, 0)
+	c := NewTypedSearchTags(0, 0, 0)
 	res1 := &tempopb.SearchTagsResponse{TagNames: []string{"tag1"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	res2 := &tempopb.SearchTagsResponse{TagNames: []string{"tag1", "tag2"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	diff1 := &tempopb.SearchTagsResponse{TagNames: []string{"tag1"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
@@ -239,7 +255,7 @@ func TestTagsGRPCCombiner(t *testing.T) {
 }
 
 func TestTagsV2GRPCCombiner(t *testing.T) {
-	c := NewTypedSearchTagsV2(0, 0)
+	c := NewTypedSearchTagsV2(0, 0, 0)
 	res1 := &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"tag1"}}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	res2 := &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"tag1", "tag2"}}, {Name: "scope2", Tags: []string{"tag3"}}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	diff1 := &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"tag1"}}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
@@ -256,7 +272,7 @@ func TestTagsV2GRPCCombiner(t *testing.T) {
 }
 
 func TestTagValuesGRPCCombiner(t *testing.T) {
-	c := NewTypedSearchTagValues(0, 0)
+	c := NewTypedSearchTagValues(0, 0, 0)
 	res1 := &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	res2 := &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1", "tag2"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	diff1 := &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
@@ -266,7 +282,7 @@ func TestTagValuesGRPCCombiner(t *testing.T) {
 }
 
 func TestTagValuesV2GRPCCombiner(t *testing.T) {
-	c := NewTypedSearchTagValuesV2(0, 0)
+	c := NewTypedSearchTagValuesV2(0, 0, 0)
 	res1 := &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	res2 := &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}, {Value: "v2", Type: "string"}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	diff1 := &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}

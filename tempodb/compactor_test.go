@@ -630,11 +630,11 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 
 	r.EnablePolling(ctx, &mockJobSharder{})
 
-	cutTestBlockWithTraces(t, w, testTenantID, []testData{
+	cutTestBlockWithTraces(t, w, []testData{
 		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 100, 101},
 		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 102, 103},
 	})
-	cutTestBlockWithTraces(t, w, testTenantID, []testData{
+	cutTestBlockWithTraces(t, w, []testData{
 		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 104, 105},
 		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 106, 107},
 	})
@@ -784,7 +784,7 @@ type testData struct {
 	start, end uint32
 }
 
-func cutTestBlockWithTraces(t testing.TB, w Writer, tenantID string, data []testData) common.BackendBlock {
+func cutTestBlockWithTraces(t testing.TB, w Writer, data []testData) common.BackendBlock {
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	wal := w.WAL()

@@ -13,6 +13,8 @@ type DistinctString struct {
 	currDataSize     int
 	currentValuesLen uint32
 	maxValues        uint32
+	maxCacheHits     uint32
+	currentCacheHits uint32
 	diffEnabled      bool
 	limExceeded      bool
 	mtx              sync.Mutex
@@ -21,25 +23,27 @@ type DistinctString struct {
 // NewDistinctString with the given maximum data size and max items.
 // MaxDataSize is calculated as the total length of the recorded strings.
 // For ease of use, maxDataSize=0 and maxItems=0 are interpreted as unlimited.
-func NewDistinctString(maxDataSize int, maxValues uint32) *DistinctString {
+func NewDistinctString(maxDataSize int, maxValues uint32, staleValueThreshold uint32) *DistinctString {
 	return &DistinctString{
-		values:      make(map[string]struct{}),
-		maxDataSize: maxDataSize,
-		diffEnabled: false, // disable diff to make it faster
-		maxValues:   maxValues,
+		values:       make(map[string]struct{}),
+		maxDataSize:  maxDataSize,
+		diffEnabled:  false, // disable diff to make it faster
+		maxValues:    maxValues,
+		maxCacheHits: staleValueThreshold,
 	}
 }
 
 // NewDistinctStringWithDiff is like NewDistinctString but with diff support enabled.
 // MaxDataSize is calculated as the total length of the recorded strings.
 // For ease of use, maxDataSize=0 and maxItems=0 are interpreted as unlimited.
-func NewDistinctStringWithDiff(maxDataSize int, maxValues uint32) *DistinctString {
+func NewDistinctStringWithDiff(maxDataSize int, maxValues uint32, staleValueThreshold uint32) *DistinctString {
 	return &DistinctString{
-		values:      make(map[string]struct{}),
-		new:         make(map[string]struct{}),
-		maxDataSize: maxDataSize,
-		diffEnabled: true,
-		maxValues:   maxValues,
+		values:       make(map[string]struct{}),
+		new:          make(map[string]struct{}),
+		maxDataSize:  maxDataSize,
+		diffEnabled:  true,
+		maxValues:    maxValues,
+		maxCacheHits: staleValueThreshold,
 	}
 }
 
@@ -53,19 +57,24 @@ func (d *DistinctString) Collect(s string) (added bool) {
 	if d.limExceeded {
 		return false
 	}
-
-	if _, ok := d.values[s]; ok {
-		// Already present
-		return false
-	}
-
 	valueLen := len(s)
-	// Can it fit?
-	if (d.maxDataSize > 0 && d.currDataSize+valueLen > d.maxDataSize) || (d.maxValues > 0 && d.currentValuesLen >= d.maxValues) {
+
+	dataSizeExceeded := d.maxDataSize > 0 && d.currDataSize+valueLen >= d.maxDataSize
+	valueCountExceeded := d.maxValues > 0 && d.currentValuesLen >= d.maxValues
+	cacheHitLimitReached := d.maxCacheHits > 0 && d.currentCacheHits >= d.maxCacheHits
+
+	if dataSizeExceeded || valueCountExceeded || cacheHitLimitReached {
 		// No, it can't fit
 		d.limExceeded = true
 		return false
 	}
+
+	if _, ok := d.values[s]; ok {
+		// Already present
+		d.currentCacheHits++
+		return false
+	}
+	d.currentCacheHits = 0 // CacheHits reset to 0 when a new value is found
 
 	// Clone instead of referencing original
 	s = strings.Clone(s)

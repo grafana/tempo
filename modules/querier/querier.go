@@ -494,7 +494,7 @@ func (q *Querier) SearchTagsBlocks(ctx context.Context, req *tempopb.SearchTagsB
 		return nil, err
 	}
 
-	distinctValues := collector.NewDistinctString(0, 0)
+	distinctValues := collector.NewDistinctString(0, 0, 0)
 
 	// flatten v2 response
 	for _, s := range v2Response.Scopes {
@@ -536,7 +536,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 	}
 
 	maxDataSize := q.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := collector.NewDistinctString(maxDataSize, req.MaxTagsPerScope)
+	distinctValues := collector.NewDistinctString(maxDataSize, req.MaxTagsPerScope, req.StaleValuesThreshold)
 	mc := collector.NewMetricsCollector()
 
 	forEach := func(ctx context.Context, client tempopb.QuerierClient) error {
@@ -579,7 +579,7 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 	}
 
 	maxBytesPerTag := q.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := collector.NewScopedDistinctString(maxBytesPerTag, req.MaxTagsPerScope)
+	distinctValues := collector.NewScopedDistinctString(maxBytesPerTag, req.MaxTagsPerScope, req.StaleValuesThreshold)
 	mc := collector.NewMetricsCollector()
 
 	// Get results from all ingesters
@@ -634,7 +634,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 	}
 
 	maxDataSize := q.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := collector.NewDistinctString(maxDataSize, req.MaxTagValues)
+	distinctValues := collector.NewDistinctString(maxDataSize, req.MaxTagValues, req.StaleValueThreshold)
 	mc := collector.NewMetricsCollector()
 
 	// Virtual tags values. Get these first.
@@ -684,7 +684,7 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 	}
 
 	maxDataSize := q.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := collector.NewDistinctValue(maxDataSize, req.MaxTagValues, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	distinctValues := collector.NewDistinctValue(maxDataSize, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 	mc := collector.NewMetricsCollector()
 
 	// Virtual tags values. Get these first.
@@ -981,7 +981,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 		return resp, nil
 	}
 
-	valueCollector := collector.NewScopedDistinctString(q.limits.MaxBytesPerTagValuesQuery(tenantID), req.MaxTagsPerScope)
+	valueCollector := collector.NewScopedDistinctString(q.limits.MaxBytesPerTagValuesQuery(tenantID), req.MaxTagsPerScope, req.StaleValueThreshold)
 	mc := collector.NewMetricsCollector()
 
 	fetcher := traceql.NewTagNamesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback) error {
@@ -1052,7 +1052,7 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
-	opts.Limit = req.MaxTagValues
+	opts.Limit = req.SearchReq.MaxTagValues
 
 	resp, err := q.store.SearchTagValues(ctx, meta, req.SearchReq.TagName, opts)
 	if err != nil {
@@ -1110,7 +1110,10 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		return nil, err
 	}
 
-	valueCollector := collector.NewDistinctValue(q.limits.MaxBytesPerTagValuesQuery(tenantID), req.MaxTagValues, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	valueCollector := collector.NewDistinctValue(q.limits.MaxBytesPerTagValuesQuery(tenantID),
+		req.SearchReq.MaxTagValues, req.SearchReq.StaleValueThreshold,
+		func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+
 	mc := collector.NewMetricsCollector()
 
 	fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {

@@ -361,7 +361,9 @@ Parameters:
 - `end = (unix epoch seconds)`
   Optional. Along with `start`, defines a time range from which tags should be returned. Providing both `start` and `end` includes blocks for the specified time range only.
 - `limit = (integer)`
-  Optional. Limits the maximum number of tags.
+  Optional. Limits the maximum number of tags values.
+- `maxStaleValues = (integer)`
+  Optional. Limits the search for tags names. If the number of stale (already known) values reaches or exceeds this limit, the search stops.
 
 
 ### Search tags V2
@@ -388,7 +390,9 @@ Parameters:
 - `end = (unix epoch seconds)`
   Optional. Along with `start` define a time range from which tags should be returned. Providing both `start` and `end` includes blocks for the specified time range only.
 - `limit = (integer)`
-  Optional. Limits the maximum number of tags per scope. When the limit is reached for any scope the query stops.
+  Optional. Sets the maximum number of tags names allowed per scope. The query stops once this limit is reached for any scope.
+- `maxStaleValues = (integer)`
+  Optional. Limits the search for tag values. If the number of stale (already known) values reaches or exceeds this limit, the search stops.
 
 #### Example
 
@@ -521,6 +525,8 @@ Parameters:
   Optional. Along with `start`, defines a time range from which tags should be returned. Providing both `start` and `end` includes blocks for the specified time range only.
 - `limit = (integer)`
   Optional. Limits the maximum number of tags values.
+- `maxStaleValues = (integer)`
+  Optional. Limits the search for tag values. If the number of stale (already known) values reaches or exceeds this limit, the search stops.
 
 
 ### Search tag values V2
@@ -576,7 +582,8 @@ Parameters:
   Optional. A TraceQL query to filter tag values by. Currently only works for a single spanset of `&&`ed conditions. For example: `{ span.foo = "bar" && resource.baz = "bat" ...}`. See also [Filtered tag values](#filtered-tag-values).
 - `limit = (integer)`
   Optional. Limits the maximum number of tags values
-
+- `maxStaleValues = (integer)`
+  Optional. Limits the search for tags values. If the number of stale (already known) values reaches or exceeds this limit, the search stops.
 
 #### Filtered tag values
 

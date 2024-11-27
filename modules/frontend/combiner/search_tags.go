@@ -12,8 +12,8 @@ var (
 	_ GRPCCombiner[*tempopb.SearchTagsV2Response] = (*genericCombiner[*tempopb.SearchTagsV2Response])(nil)
 )
 
-func NewSearchTags(maxDataBytes int, maxTagsPerScope uint32) Combiner {
-	d := collector.NewDistinctStringWithDiff(maxDataBytes, maxTagsPerScope)
+func NewSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32) Combiner {
+	d := collector.NewDistinctStringWithDiff(maxDataBytes, maxTagsPerScope, staleValueThreshold)
 	inspectedBytes := atomic.NewUint64(0)
 
 	c := &genericCombiner[*tempopb.SearchTagsResponse]{
@@ -56,13 +56,13 @@ func NewSearchTags(maxDataBytes int, maxTagsPerScope uint32) Combiner {
 	return c
 }
 
-func NewTypedSearchTags(maxDataBytes int, maxTagsPerScope uint32) GRPCCombiner[*tempopb.SearchTagsResponse] {
-	return NewSearchTags(maxDataBytes, maxTagsPerScope).(GRPCCombiner[*tempopb.SearchTagsResponse])
+func NewTypedSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32) GRPCCombiner[*tempopb.SearchTagsResponse] {
+	return NewSearchTags(maxDataBytes, maxTagsPerScope, staleValueThreshold).(GRPCCombiner[*tempopb.SearchTagsResponse])
 }
 
-func NewSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32) Combiner {
+func NewSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32) Combiner {
 	// Distinct collector map to collect scopes and scope values
-	distinctValues := collector.NewScopedDistinctStringWithDiff(maxDataBytes, maxTagsPerScope)
+	distinctValues := collector.NewScopedDistinctStringWithDiff(maxDataBytes, maxTagsPerScope, staleValueThreshold)
 	inspectedBytes := atomic.NewUint64(0)
 
 	c := &genericCombiner[*tempopb.SearchTagsV2Response]{
@@ -121,6 +121,6 @@ func NewSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32) Combiner {
 	return c
 }
 
-func NewTypedSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32) GRPCCombiner[*tempopb.SearchTagsV2Response] {
-	return NewSearchTagsV2(maxDataBytes, maxTagsPerScope).(GRPCCombiner[*tempopb.SearchTagsV2Response])
+func NewTypedSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32) GRPCCombiner[*tempopb.SearchTagsV2Response] {
+	return NewSearchTagsV2(maxDataBytes, maxTagsPerScope, staleValueThreshold).(GRPCCombiner[*tempopb.SearchTagsV2Response])
 }

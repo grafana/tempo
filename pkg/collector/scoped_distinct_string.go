@@ -8,10 +8,11 @@ const IntrinsicScope = "intrinsic"
 
 type ScopedDistinctString struct {
 	cols            map[string]*DistinctString
-	newCol          func(int, uint32) *DistinctString
+	newCol          func(int, uint32, uint32) *DistinctString
 	maxDataSize     int
 	currDataSize    int
 	limExceeded     bool
+	maxCacheHits    uint32
 	diffEnabled     bool
 	maxTagsPerScope uint32
 	mtx             sync.Mutex
@@ -21,13 +22,14 @@ type ScopedDistinctString struct {
 // MaxDataSize is calculated as the total length of the recorded strings.
 // MaxTagsPerScope controls how many tags can be added per scope. The intrinsic scope is unbounded.
 // For ease of use, maxDataSize=0 and maxTagsPerScope=0 are interpreted as unlimited.
-func NewScopedDistinctString(maxDataSize int, maxTagsPerScope uint32) *ScopedDistinctString {
+func NewScopedDistinctString(maxDataSize int, maxTagsPerScope uint32, staleValueThreshold uint32) *ScopedDistinctString {
 	return &ScopedDistinctString{
 		cols:            map[string]*DistinctString{},
 		newCol:          NewDistinctString,
 		maxDataSize:     maxDataSize,
 		diffEnabled:     false,
 		maxTagsPerScope: maxTagsPerScope,
+		maxCacheHits:    staleValueThreshold,
 	}
 }
 
@@ -35,13 +37,14 @@ func NewScopedDistinctString(maxDataSize int, maxTagsPerScope uint32) *ScopedDis
 // MaxDataSize is calculated as the total length of the recorded strings.
 // MaxTagsPerScope controls how many tags can be added per scope. The intrinsic scope is unbounded.
 // For ease of use, maxDataSize=0 and maxTagsPerScope=0 are interpreted as unlimited.
-func NewScopedDistinctStringWithDiff(maxDataSize int, maxTagsPerScope uint32) *ScopedDistinctString {
+func NewScopedDistinctStringWithDiff(maxDataSize int, maxTagsPerScope uint32, staleValueThreshold uint32) *ScopedDistinctString {
 	return &ScopedDistinctString{
 		cols:            map[string]*DistinctString{},
 		newCol:          NewDistinctStringWithDiff,
 		maxDataSize:     maxDataSize,
 		diffEnabled:     true,
 		maxTagsPerScope: maxTagsPerScope,
+		maxCacheHits:    staleValueThreshold,
 	}
 }
 
@@ -68,9 +71,9 @@ func (d *ScopedDistinctString) Collect(scope string, val string) (exceeded bool)
 	col, ok := d.cols[scope]
 	if !ok {
 		if scope == IntrinsicScope {
-			col = d.newCol(0, 0)
+			col = d.newCol(0, 0, 0)
 		} else {
-			col = d.newCol(0, d.maxTagsPerScope)
+			col = d.newCol(0, d.maxTagsPerScope, d.maxCacheHits)
 		}
 		d.cols[scope] = col
 	}
