@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/grafana/dskit/flagext"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
@@ -44,6 +45,7 @@ var (
 	ErrInconsistentConsumerLagAtStartup  = errors.New("the target and max consumer lag at startup must be either both set to 0 or to a value greater than 0")
 	ErrInvalidMaxConsumerLagAtStartup    = errors.New("the configured max consumer lag at startup must greater or equal than the configured target consumer lag")
 	ErrInvalidProducerMaxRecordSizeBytes = fmt.Errorf("the configured producer max record size bytes must be a value between %d and %d", minProducerRecordDataBytesLimit, maxProducerRecordDataBytesLimit)
+	ErrInconsistentSASLCredentials       = errors.New("the SASL username and password must be both configured to enable SASL authentication")
 )
 
 type Config struct {
@@ -71,6 +73,9 @@ type KafkaConfig struct {
 	DialTimeout  time.Duration `yaml:"dial_timeout"`
 	WriteTimeout time.Duration `yaml:"write_timeout"`
 
+	SASLUsername string         `yaml:"sasl_username"`
+	SASLPassword flagext.Secret `yaml:"sasl_password"`
+
 	ConsumerGroup                     string        `yaml:"consumer_group"`
 	ConsumerGroupOffsetCommitInterval time.Duration `yaml:"consumer_group_offset_commit_interval"`
 
@@ -96,6 +101,9 @@ func (cfg *KafkaConfig) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) 
 	f.StringVar(&cfg.ClientID, prefix+".client-id", "", "The Kafka client ID.")
 	f.DurationVar(&cfg.DialTimeout, prefix+".dial-timeout", 2*time.Second, "The maximum time allowed to open a connection to a Kafka broker.")
 	f.DurationVar(&cfg.WriteTimeout, prefix+".write-timeout", 10*time.Second, "How long to wait for an incoming write request to be successfully committed to the Kafka backend.")
+
+	f.StringVar(&cfg.SASLUsername, prefix+".sasl-username", "", "The SASL username for authentication.")
+	f.Var(&cfg.SASLPassword, prefix+".sasl-password", "The SASL password for authentication.")
 
 	f.StringVar(&cfg.ConsumerGroup, prefix+".consumer-group", "", "The consumer group used by the consumer to track the last consumed offset. The consumer group must be different for each ingester. If the configured consumer group contains the '<partition>' placeholder, it is replaced with the actual partition ID owned by the ingester. When empty (recommended), Mimir uses the ingester instance ID to guarantee uniqueness.")
 	f.DurationVar(&cfg.ConsumerGroupOffsetCommitInterval, prefix+".consumer-group-offset-commit-interval", time.Second, "How frequently a consumer should commit the consumed offset to Kafka. The last committed offset is used at startup to continue the consumption from where it was left.")
@@ -128,6 +136,10 @@ func (cfg *KafkaConfig) Validate() error {
 	}
 	if cfg.MaxConsumerLagAtStartup < cfg.TargetConsumerLagAtStartup {
 		return ErrInvalidMaxConsumerLagAtStartup
+	}
+
+	if (cfg.SASLUsername == "") != (cfg.SASLPassword.String() == "") {
+		return ErrInconsistentSASLCredentials
 	}
 
 	return nil
