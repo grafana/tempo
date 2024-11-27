@@ -4,6 +4,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/assert"
@@ -13,7 +14,7 @@ import (
 func TestTagsCombiner(t *testing.T) {
 	tests := []struct {
 		name               string
-		factory            func(int, uint32, uint32) Combiner
+		factory            func(int, uint32, uint32, log.Logger) Combiner
 		limitBytes         int
 		maxTagsValues      uint32
 		maxCacheHits       uint32
@@ -203,9 +204,11 @@ func TestTagsCombiner(t *testing.T) {
 			limitBytes: 100,
 		},
 	}
+	logger := log.NewNopLogger()
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			combiner := tc.factory(tc.limitBytes, tc.maxTagsValues, tc.maxCacheHits)
+			combiner := tc.factory(tc.limitBytes, tc.maxTagsValues, tc.maxCacheHits, logger)
 
 			err := combiner.AddResponse(toHTTPResponse(t, tc.result1, 200))
 			assert.NoError(t, err)
@@ -245,7 +248,8 @@ func metrics(message proto.Message) *tempopb.MetadataMetrics {
 }
 
 func TestTagsGRPCCombiner(t *testing.T) {
-	c := NewTypedSearchTags(0, 0, 0)
+	logger := log.NewNopLogger()
+	c := NewTypedSearchTags(0, 0, 0, logger)
 	res1 := &tempopb.SearchTagsResponse{TagNames: []string{"tag1"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	res2 := &tempopb.SearchTagsResponse{TagNames: []string{"tag1", "tag2"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	diff1 := &tempopb.SearchTagsResponse{TagNames: []string{"tag1"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
@@ -255,7 +259,8 @@ func TestTagsGRPCCombiner(t *testing.T) {
 }
 
 func TestTagsV2GRPCCombiner(t *testing.T) {
-	c := NewTypedSearchTagsV2(0, 0, 0)
+	logger := log.NewNopLogger()
+	c := NewTypedSearchTagsV2(0, 0, 0, logger)
 	res1 := &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"tag1"}}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	res2 := &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"tag1", "tag2"}}, {Name: "scope2", Tags: []string{"tag3"}}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	diff1 := &tempopb.SearchTagsV2Response{Scopes: []*tempopb.SearchTagsV2Scope{{Name: "scope1", Tags: []string{"tag1"}}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
@@ -272,7 +277,8 @@ func TestTagsV2GRPCCombiner(t *testing.T) {
 }
 
 func TestTagValuesGRPCCombiner(t *testing.T) {
-	c := NewTypedSearchTagValues(0, 0, 0)
+	logger := log.NewNopLogger()
+	c := NewTypedSearchTagValues(0, 0, 0, logger)
 	res1 := &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	res2 := &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1", "tag2"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	diff1 := &tempopb.SearchTagValuesResponse{TagValues: []string{"tag1"}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
@@ -282,7 +288,8 @@ func TestTagValuesGRPCCombiner(t *testing.T) {
 }
 
 func TestTagValuesV2GRPCCombiner(t *testing.T) {
-	c := NewTypedSearchTagValuesV2(0, 0, 0)
+	logger := log.NewNopLogger()
+	c := NewTypedSearchTagValuesV2(0, 0, 0, logger)
 	res1 := &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	res2 := &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}, {Value: "v2", Type: "string"}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}
 	diff1 := &tempopb.SearchTagValuesV2Response{TagValues: []*tempopb.TagValue{{Value: "v1", Type: "string"}}, Metrics: &tempopb.MetadataMetrics{InspectedBytes: 1}}

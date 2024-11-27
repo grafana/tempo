@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/integration/util"
@@ -207,9 +208,10 @@ func assertRequestCountMetric(t *testing.T, s *e2e.HTTPService, route string, re
 
 // getAttrsAndSpanNames returns trace attrs and span names
 func getAttrsAndSpanNames(trace *tempopb.Trace) traceStringsMap {
-	rAttrsKeys := collector.NewDistinctString(0, 0, 0)
-	rAttrsValues := collector.NewDistinctString(0, 0, 0)
-	spanNames := collector.NewDistinctString(0, 0, 0)
+	logger := log.NewNopLogger()
+	rAttrsKeys := collector.NewDistinctString(0, 0, 0, logger)
+	rAttrsValues := collector.NewDistinctString(0, 0, 0, logger)
+	spanNames := collector.NewDistinctString(0, 0, 0, logger)
 
 	for _, b := range trace.ResourceSpans {
 		for _, ss := range b.ScopeSpans {

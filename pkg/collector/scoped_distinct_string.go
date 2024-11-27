@@ -2,13 +2,15 @@ package collector
 
 import (
 	"sync"
+
+	"github.com/go-kit/log"
 )
 
 const IntrinsicScope = "intrinsic"
 
 type ScopedDistinctString struct {
 	cols            map[string]*DistinctString
-	newCol          func(int, uint32, uint32) *DistinctString
+	newCol          func(int, uint32, uint32, log.Logger) *DistinctString
 	maxDataSize     int
 	currDataSize    int
 	limExceeded     bool
@@ -16,13 +18,14 @@ type ScopedDistinctString struct {
 	diffEnabled     bool
 	maxTagsPerScope uint32
 	mtx             sync.Mutex
+	logger          log.Logger
 }
 
 // NewScopedDistinctString collects the tags per scope
 // MaxDataSize is calculated as the total length of the recorded strings.
 // MaxTagsPerScope controls how many tags can be added per scope. The intrinsic scope is unbounded.
 // For ease of use, maxDataSize=0 and maxTagsPerScope=0 are interpreted as unlimited.
-func NewScopedDistinctString(maxDataSize int, maxTagsPerScope uint32, staleValueThreshold uint32) *ScopedDistinctString {
+func NewScopedDistinctString(maxDataSize int, maxTagsPerScope uint32, staleValueThreshold uint32, logger log.Logger) *ScopedDistinctString {
 	return &ScopedDistinctString{
 		cols:            map[string]*DistinctString{},
 		newCol:          NewDistinctString,
@@ -30,6 +33,7 @@ func NewScopedDistinctString(maxDataSize int, maxTagsPerScope uint32, staleValue
 		diffEnabled:     false,
 		maxTagsPerScope: maxTagsPerScope,
 		maxCacheHits:    staleValueThreshold,
+		logger:          logger,
 	}
 }
 
@@ -37,7 +41,7 @@ func NewScopedDistinctString(maxDataSize int, maxTagsPerScope uint32, staleValue
 // MaxDataSize is calculated as the total length of the recorded strings.
 // MaxTagsPerScope controls how many tags can be added per scope. The intrinsic scope is unbounded.
 // For ease of use, maxDataSize=0 and maxTagsPerScope=0 are interpreted as unlimited.
-func NewScopedDistinctStringWithDiff(maxDataSize int, maxTagsPerScope uint32, staleValueThreshold uint32) *ScopedDistinctString {
+func NewScopedDistinctStringWithDiff(maxDataSize int, maxTagsPerScope uint32, staleValueThreshold uint32, logger log.Logger) *ScopedDistinctString {
 	return &ScopedDistinctString{
 		cols:            map[string]*DistinctString{},
 		newCol:          NewDistinctStringWithDiff,
@@ -45,6 +49,7 @@ func NewScopedDistinctStringWithDiff(maxDataSize int, maxTagsPerScope uint32, st
 		diffEnabled:     true,
 		maxTagsPerScope: maxTagsPerScope,
 		maxCacheHits:    staleValueThreshold,
+		logger:          logger,
 	}
 }
 
@@ -71,9 +76,9 @@ func (d *ScopedDistinctString) Collect(scope string, val string) (exceeded bool)
 	col, ok := d.cols[scope]
 	if !ok {
 		if scope == IntrinsicScope {
-			col = d.newCol(0, 0, 0)
+			col = d.newCol(0, 0, 0, d.logger)
 		} else {
-			col = d.newCol(0, d.maxTagsPerScope, d.maxCacheHits)
+			col = d.newCol(0, d.maxTagsPerScope, d.maxCacheHits, d.logger)
 		}
 		d.cols[scope] = col
 	}

@@ -7,6 +7,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/go-kit/log"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -316,9 +317,10 @@ func TestFetchTagNames(t *testing.T) {
 					expectedValues["instrumentation"] = append(expectedValues["instrumentation"], expectedInstrumentationValues...)
 				}
 			}
+			logger := log.NewNopLogger()
 
 			t.Run(fmt.Sprintf("query: %s %s-%s", tc.name, tc.query, scope), func(t *testing.T) {
-				distinctAttrNames := collector.NewScopedDistinctString(0, 0, 0)
+				distinctAttrNames := collector.NewScopedDistinctString(0, 0, 0, logger)
 				req, err := traceql.ExtractFetchSpansRequest(tc.query)
 				require.NoError(t, err)
 
@@ -614,10 +616,11 @@ func TestFetchTagValues(t *testing.T) {
 	block := makeBackendBlockWithTraces(t, []*Trace{fullyPopulatedTestTrace(common.ID{0})})
 
 	opts := common.DefaultSearchOptions()
+	logger := log.NewNopLogger()
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("tag: %s, query: %s", tc.tag, tc.query), func(t *testing.T) {
-			distinctValues := collector.NewDistinctValue[tempopb.TagValue](1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+			distinctValues := collector.NewDistinctValue[tempopb.TagValue](1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) }, logger)
 			req, err := traceql.ExtractFetchSpansRequest(tc.query)
 			require.NoError(t, err)
 
@@ -717,10 +720,11 @@ func BenchmarkFetchTagValues(b *testing.B) {
 
 	block := newBackendBlock(meta, rr)
 	opts := common.DefaultSearchOptions()
+	logger := log.NewNopLogger()
 
 	for _, tc := range testCases {
 		b.Run(fmt.Sprintf("tag: %s, query: %s", tc.tag, tc.query), func(b *testing.B) {
-			distinctValues := collector.NewDistinctValue[tempopb.TagValue](1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+			distinctValues := collector.NewDistinctValue[tempopb.TagValue](1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) }, logger)
 			req, err := traceql.ExtractFetchSpansRequest(tc.query)
 			require.NoError(b, err)
 
@@ -798,11 +802,12 @@ func BenchmarkFetchTags(b *testing.B) {
 
 	block := newBackendBlock(meta, rr)
 	opts := common.DefaultSearchOptions()
+	logger := log.NewNopLogger()
 
 	for _, tc := range testCases {
 		for _, scope := range []traceql.AttributeScope{traceql.AttributeScopeSpan, traceql.AttributeScopeResource, traceql.AttributeScopeNone} {
 			b.Run(fmt.Sprintf("query: %s %s", tc.query, scope), func(b *testing.B) {
-				distinctStrings := collector.NewScopedDistinctString(1_000_000, 0, 0)
+				distinctStrings := collector.NewScopedDistinctString(1_000_000, 0, 0, logger)
 				req, err := traceql.ExtractFetchSpansRequest(tc.query)
 				require.NoError(b, err)
 

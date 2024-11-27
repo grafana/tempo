@@ -6,11 +6,13 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/go-kit/log"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDistinctStringCollector(t *testing.T) {
-	d := NewDistinctString(12, 0, 0)
+	logger := log.NewNopLogger()
+	d := NewDistinctString(12, 0, 0, logger)
 
 	d.Collect("123")
 	d.Collect("4567")
@@ -27,7 +29,8 @@ func TestDistinctStringCollector(t *testing.T) {
 }
 
 func TestDistinctStringCollectorWithMaxItemsLimit(t *testing.T) {
-	d := NewDistinctString(0, 3, 0)
+	logger := log.NewNopLogger()
+	d := NewDistinctString(0, 3, 0, logger)
 
 	d.Collect("123")
 	d.Collect("4567")
@@ -44,7 +47,8 @@ func TestDistinctStringCollectorWithMaxItemsLimit(t *testing.T) {
 }
 
 func TestDistinctStringCollectorWitCacheHitsLimit(t *testing.T) {
-	d := NewDistinctString(0, 0, 3)
+	logger := log.NewNopLogger()
+	d := NewDistinctString(0, 0, 3, logger)
 
 	d.Collect("123")
 	d.Collect("4567")
@@ -66,7 +70,8 @@ func TestDistinctStringCollectorWitCacheHitsLimit(t *testing.T) {
 }
 
 func TestDistinctStringCollectorDiff(t *testing.T) {
-	d := NewDistinctStringWithDiff(0, 0, 0)
+	logger := log.NewNopLogger()
+	d := NewDistinctStringWithDiff(0, 0, 0, logger)
 
 	d.Collect("123")
 	d.Collect("4567")
@@ -88,7 +93,8 @@ func readDistinctStringDiff(t *testing.T, d *DistinctString) []string {
 }
 
 func TestDistinctStringCollectorIsSafe(t *testing.T) {
-	d := NewDistinctString(0, 0, 0) // no limit
+	logger := log.NewNopLogger()
+	d := NewDistinctString(0, 0, 0, logger) // no limit
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
@@ -107,6 +113,7 @@ func TestDistinctStringCollectorIsSafe(t *testing.T) {
 
 func BenchmarkDistinctStringCollect(b *testing.B) {
 	// simulate 100 ingesters, each returning 10_000 tag values
+	logger := log.NewNopLogger()
 	numIngesters := 100
 	numTagValuesPerIngester := 10_000
 	ingesterStrings := make([][]string, numIngesters)
@@ -129,7 +136,7 @@ func BenchmarkDistinctStringCollect(b *testing.B) {
 	for _, lim := range limits {
 		b.Run("uniques_limit:"+strconv.Itoa(lim), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
-				distinctStrings := NewDistinctString(lim, 0, 0)
+				distinctStrings := NewDistinctString(lim, 0, 0, logger)
 				for _, values := range ingesterStrings {
 					for _, v := range values {
 						if distinctStrings.Collect(v) {
@@ -142,7 +149,7 @@ func BenchmarkDistinctStringCollect(b *testing.B) {
 
 		b.Run("duplicates_limit:"+strconv.Itoa(lim), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
-				distinctStrings := NewDistinctString(lim, 0, 0)
+				distinctStrings := NewDistinctString(lim, 0, 0, logger)
 				for i := 0; i < numIngesters; i++ {
 					for j := 0; j < numTagValuesPerIngester; j++ {
 						// collect first item to simulate duplicates

@@ -5,6 +5,7 @@ import (
 	"path"
 	"testing"
 
+	"github.com/go-kit/log"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -203,7 +204,9 @@ func BenchmarkBackendBlockSearchTags(b *testing.B) {
 
 	block := newBackendBlock(meta, rr)
 	opts := common.DefaultSearchOptions()
-	d := collector.NewDistinctString(1_000_000, 0, 0)
+	logger := log.NewNopLogger()
+
+	d := collector.NewDistinctString(1_000_000, 0, 0, logger)
 	mc := collector.NewMetricsCollector()
 
 	b.ResetTimer()
@@ -235,10 +238,11 @@ func BenchmarkBackendBlockSearchTagValues(b *testing.B) {
 
 	block := newBackendBlock(meta, rr)
 	opts := common.DefaultSearchOptions()
+	logger := log.NewNopLogger()
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
-			d := collector.NewDistinctString(1_000_000, 0, 0)
+			d := collector.NewDistinctString(1_000_000, 0, 0, logger)
 			mc := collector.NewMetricsCollector()
 
 			b.ResetTimer()

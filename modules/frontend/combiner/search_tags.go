@@ -1,6 +1,7 @@
 package combiner
 
 import (
+	"github.com/go-kit/log"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -12,8 +13,8 @@ var (
 	_ GRPCCombiner[*tempopb.SearchTagsV2Response] = (*genericCombiner[*tempopb.SearchTagsV2Response])(nil)
 )
 
-func NewSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32) Combiner {
-	d := collector.NewDistinctStringWithDiff(maxDataBytes, maxTagsPerScope, staleValueThreshold)
+func NewSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32, logger log.Logger) Combiner {
+	d := collector.NewDistinctStringWithDiff(maxDataBytes, maxTagsPerScope, staleValueThreshold, logger)
 	inspectedBytes := atomic.NewUint64(0)
 
 	c := &genericCombiner[*tempopb.SearchTagsResponse]{
@@ -56,13 +57,13 @@ func NewSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold
 	return c
 }
 
-func NewTypedSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32) GRPCCombiner[*tempopb.SearchTagsResponse] {
-	return NewSearchTags(maxDataBytes, maxTagsPerScope, staleValueThreshold).(GRPCCombiner[*tempopb.SearchTagsResponse])
+func NewTypedSearchTags(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32, logger log.Logger) GRPCCombiner[*tempopb.SearchTagsResponse] {
+	return NewSearchTags(maxDataBytes, maxTagsPerScope, staleValueThreshold, logger).(GRPCCombiner[*tempopb.SearchTagsResponse])
 }
 
-func NewSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32) Combiner {
+func NewSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32, logger log.Logger) Combiner {
 	// Distinct collector map to collect scopes and scope values
-	distinctValues := collector.NewScopedDistinctStringWithDiff(maxDataBytes, maxTagsPerScope, staleValueThreshold)
+	distinctValues := collector.NewScopedDistinctStringWithDiff(maxDataBytes, maxTagsPerScope, staleValueThreshold, logger)
 	inspectedBytes := atomic.NewUint64(0)
 
 	c := &genericCombiner[*tempopb.SearchTagsV2Response]{
@@ -121,6 +122,6 @@ func NewSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThresho
 	return c
 }
 
-func NewTypedSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32) GRPCCombiner[*tempopb.SearchTagsV2Response] {
-	return NewSearchTagsV2(maxDataBytes, maxTagsPerScope, staleValueThreshold).(GRPCCombiner[*tempopb.SearchTagsV2Response])
+func NewTypedSearchTagsV2(maxDataBytes int, maxTagsPerScope uint32, staleValueThreshold uint32, logger log.Logger) GRPCCombiner[*tempopb.SearchTagsV2Response] {
+	return NewSearchTagsV2(maxDataBytes, maxTagsPerScope, staleValueThreshold, logger).(GRPCCombiner[*tempopb.SearchTagsV2Response])
 }
