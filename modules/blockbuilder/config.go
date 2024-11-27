@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"os"
 	"time"
 
+	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/ingest"
+	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -29,8 +32,9 @@ func (c *BlockConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagS
 }
 
 type Config struct {
-	AssignedPartitions   []int32       `yaml:"assigned_partitions" doc:"List of partitions assigned to this block builder."`
-	ConsumeCycleDuration time.Duration `yaml:"consume_cycle_duration" doc:"Interval between consumption cycles."`
+	InstanceID           string             `yaml:"instance_id" doc:"Instance id."`
+	AssignedPartitions   map[string][]int32 `yaml:"assigned_partitions" doc:"List of partitions assigned to this block builder."`
+	ConsumeCycleDuration time.Duration      `yaml:"consume_cycle_duration" doc:"Interval between consumption cycles."`
 
 	LookbackOnNoCommit time.Duration `yaml:"lookback_on_no_commit" category:"advanced"`
 
@@ -49,6 +53,13 @@ func (c *Config) RegisterFlags(f *flag.FlagSet) {
 }
 
 func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+	hostname, err := os.Hostname()
+	if err != nil {
+		level.Error(log.Logger).Log("msg", "failed to get hostname", "err", err)
+		os.Exit(1)
+	}
+
+	f.StringVar(&c.InstanceID, "block-builder.instance-id", hostname, "Instance id.")
 	f.Var(newPartitionAssignmentVar(&c.AssignedPartitions), prefix+".assigned-partitions", "List of partitions assigned to this block builder.")
 	f.DurationVar(&c.ConsumeCycleDuration, prefix+".consume-cycle-duration", 5*time.Minute, "Interval between consumption cycles.")
 	// TODO - Review default
@@ -58,19 +69,24 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 }
 
 type partitionAssignmentVar struct {
-	p *[]int32
+	p *map[string][]int32
 }
 
-func newPartitionAssignmentVar(p *[]int32) *partitionAssignmentVar {
+func newPartitionAssignmentVar(p *map[string][]int32) *partitionAssignmentVar {
 	return &partitionAssignmentVar{p}
 }
 
 func (p *partitionAssignmentVar) Set(s string) error {
-	var partitions []int32
-	if err := json.Unmarshal([]byte(s), &partitions); err != nil {
+	if s == "" {
+		return nil
+	}
+
+	val := make(map[string][]int32)
+	if err := json.Unmarshal([]byte(s), &val); err != nil {
 		return err
 	}
-	*p.p = partitions
+	*p.p = val
+
 	return nil
 }
 
