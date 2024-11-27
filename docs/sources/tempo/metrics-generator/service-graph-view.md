@@ -13,9 +13,9 @@ refs:
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/metrics-generator/service_graphs/enable-service-graphs/
   span-metrics:
     - pattern: /docs/tempo/
-      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/span-metrics/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/span_metrics/
     - pattern: /docs/enterprise-traces/
-      destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/metrics-generator/span-metrics/
+      destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/metrics-generator/span_metrics/
 ---
 
 # Service graph view
