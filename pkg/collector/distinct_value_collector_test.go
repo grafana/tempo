@@ -6,14 +6,12 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/go-kit/log"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDistinctValueCollector(t *testing.T) {
-	logger := log.NewNopLogger()
-	d := NewDistinctValue(10, 0, 0, func(s string) int { return len(s) }, logger)
+	d := NewDistinctValue(10, 0, 0, func(s string) int { return len(s) })
 
 	var stop bool
 	stop = d.Collect("123")
@@ -34,8 +32,7 @@ func TestDistinctValueCollector(t *testing.T) {
 }
 
 func TestDistinctValueCollectorWithMaxValuesLimited(t *testing.T) {
-	logger := log.NewNopLogger()
-	d := NewDistinctValue(0, 2, 0, func(s string) int { return len(s) }, logger)
+	d := NewDistinctValue(0, 2, 0, func(s string) int { return len(s) })
 
 	var stop bool
 	stop = d.Collect("123")
@@ -56,8 +53,7 @@ func TestDistinctValueCollectorWithMaxValuesLimited(t *testing.T) {
 }
 
 func TestDistinctValueCollectorWithCacheHitsLimits(t *testing.T) {
-	logger := log.NewNopLogger()
-	d := NewDistinctValue(0, 0, 2, func(s string) int { return len(s) }, logger)
+	d := NewDistinctValue(0, 0, 2, func(s string) int { return len(s) })
 
 	var stop bool
 	d.Collect("123")
@@ -77,8 +73,7 @@ func TestDistinctValueCollectorWithCacheHitsLimits(t *testing.T) {
 }
 
 func TestDistinctValueCollectorDiff(t *testing.T) {
-	logger := log.NewNopLogger()
-	d := NewDistinctValueWithDiff(0, 0, 0, func(s string) int { return len(s) }, logger)
+	d := NewDistinctValueWithDiff(0, 0, 0, func(s string) int { return len(s) })
 
 	d.Collect("123")
 	d.Collect("4567")
@@ -107,7 +102,6 @@ func stringsSlicesEqual(t *testing.T, a, b []string) {
 
 func BenchmarkDistinctValueCollect(b *testing.B) {
 	// simulate 100 ingesters, each returning 10_000 tag values
-	logger := log.NewNopLogger()
 	numIngesters := 100
 	numTagValuesPerIngester := 10_000
 	ingesterTagValues := make([][]tempopb.TagValue, numIngesters)
@@ -133,7 +127,7 @@ func BenchmarkDistinctValueCollect(b *testing.B) {
 	for _, lim := range limits {
 		b.Run("uniques_limit:"+strconv.Itoa(lim), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
-				distinctValues := NewDistinctValue(lim, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) }, logger)
+				distinctValues := NewDistinctValue(lim, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 				for _, tagValues := range ingesterTagValues {
 					for _, v := range tagValues {
 						if distinctValues.Collect(v) {
@@ -146,7 +140,7 @@ func BenchmarkDistinctValueCollect(b *testing.B) {
 
 		b.Run("duplicates_limit:"+strconv.Itoa(lim), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
-				distinctValues := NewDistinctValue(lim, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) }, logger)
+				distinctValues := NewDistinctValue(lim, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 				for i := 0; i < numIngesters; i++ {
 					for j := 0; j < numTagValuesPerIngester; j++ {
 						// collect first item to simulate duplicates

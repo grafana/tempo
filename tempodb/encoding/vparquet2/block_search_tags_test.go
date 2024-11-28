@@ -5,7 +5,6 @@ import (
 	"path"
 	"testing"
 
-	"github.com/go-kit/log"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -163,8 +162,6 @@ func TestBackendBlockSearchTagValuesV2(t *testing.T) {
 }
 
 func BenchmarkBackendBlockSearchTags(b *testing.B) {
-	logger := log.NewNopLogger()
-
 	ctx := context.TODO()
 	tenantID := "1"
 	blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
@@ -180,7 +177,7 @@ func BenchmarkBackendBlockSearchTags(b *testing.B) {
 
 	block := newBackendBlock(meta, rr)
 	opts := common.DefaultSearchOptions()
-	d := collector.NewDistinctString(1_000_000, 0, 0, logger)
+	d := collector.NewDistinctString(1_000_000, 0, 0)
 	mc := collector.NewMetricsCollector()
 
 	b.ResetTimer()
@@ -196,8 +193,6 @@ func BenchmarkBackendBlockSearchTagValues(b *testing.B) {
 		"foo",
 		"http.url",
 	}
-
-	logger := log.NewNopLogger()
 
 	ctx := context.TODO()
 	tenantID := "1"
@@ -217,7 +212,7 @@ func BenchmarkBackendBlockSearchTagValues(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
-			d := collector.NewDistinctString(1_000_000, 0, 0, logger)
+			d := collector.NewDistinctString(1_000_000, 0, 0)
 			mc := collector.NewMetricsCollector()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {

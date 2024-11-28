@@ -7,7 +7,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/go-kit/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -67,10 +66,9 @@ func TestScopedDistinct(t *testing.T) {
 			exceeded:         true,
 		},
 	}
-	logger := log.NewNopLogger()
 
 	for _, tc := range tcs {
-		c := NewScopedDistinctString(tc.maxBytes, tc.maxItemsPerScope, tc.staleValueThreshold, logger)
+		c := NewScopedDistinctString(tc.maxBytes, tc.maxItemsPerScope, tc.staleValueThreshold)
 
 		// get and sort keys so we can deterministically add values
 		keys := []string{}
@@ -95,8 +93,7 @@ func TestScopedDistinct(t *testing.T) {
 }
 
 func TestScopedDistinctDiff(t *testing.T) {
-	logger := log.NewNopLogger()
-	c := NewScopedDistinctStringWithDiff(0, 0, 0, logger)
+	c := NewScopedDistinctStringWithDiff(0, 0, 0)
 
 	c.Collect("scope1", "val1")
 	expected := map[string][]string{
@@ -138,7 +135,7 @@ func TestScopedDistinctDiff(t *testing.T) {
 	assertMaps(t, map[string][]string{}, readScopedDistinctStringDiff(t, c))
 
 	// diff should error when diff is not enabled
-	col := NewScopedDistinctString(0, 0, 0, logger)
+	col := NewScopedDistinctString(0, 0, 0)
 	col.Collect("scope1", "val1")
 	res, err := col.Diff()
 	require.Nil(t, res)
@@ -160,8 +157,7 @@ func assertMaps(t *testing.T, expected, actual map[string][]string) {
 }
 
 func TestScopedDistinctStringCollectorIsSafe(t *testing.T) {
-	logger := log.NewNopLogger()
-	d := NewScopedDistinctString(0, 0, 0, logger) // no limit
+	d := NewScopedDistinctString(0, 0, 0) // no limit
 
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
@@ -186,7 +182,6 @@ func TestScopedDistinctStringCollectorIsSafe(t *testing.T) {
 
 func BenchmarkScopedDistinctStringCollect(b *testing.B) {
 	// simulate 100 ingesters, each returning 10_000 tags with various scopes
-	logger := log.NewNopLogger()
 	numIngesters := 100
 	numTagsPerIngester := 10_000
 	ingesterTags := make([]map[string][]string, numIngesters)
@@ -213,7 +208,7 @@ func BenchmarkScopedDistinctStringCollect(b *testing.B) {
 	for _, lim := range limits {
 		b.Run("uniques_limit:"+strconv.Itoa(lim), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
-				scopedDistinctStrings := NewScopedDistinctString(lim, 0, 0, logger)
+				scopedDistinctStrings := NewScopedDistinctString(lim, 0, 0)
 				for _, tags := range ingesterTags {
 					for scope, values := range tags {
 						for _, v := range values {
@@ -228,7 +223,7 @@ func BenchmarkScopedDistinctStringCollect(b *testing.B) {
 
 		b.Run("duplicates_limit:"+strconv.Itoa(lim), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
-				scopedDistinctStrings := NewScopedDistinctString(lim, 0, 0, logger)
+				scopedDistinctStrings := NewScopedDistinctString(lim, 0, 0)
 				for i := 0; i < numIngesters; i++ {
 					for scope := range ingesterTags[i] {
 						// collect first item to simulate duplicates

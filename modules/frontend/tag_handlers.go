@@ -23,8 +23,6 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"google.golang.org/grpc/codes"
-
-	Logger "github.com/grafana/tempo/pkg/util/log"
 )
 
 // regex patterns for tag values endpoints, precompile for performance
@@ -48,10 +46,8 @@ func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[com
 			return err
 		}
 
-		logger := Logger.WithUserID(tenant, logger)
-
 		var finalResponse *tempopb.SearchTagsResponse
-		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagsPerScope, req.StaleValuesThreshold, logger)
+		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagsPerScope, req.StaleValuesThreshold)
 		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagsResponse) error {
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
@@ -79,14 +75,12 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 
 	return func(req *tempopb.SearchTagsRequest, srv tempopb.StreamingQuerier_SearchTagsV2Server) error {
 		httpReq, tenant, err := buildTagsRequestAndExtractTenant(srv.Context(), req, downstreamPath, logger)
-		logger := Logger.WithUserID(tenant, logger)
-
 		if err != nil {
 			return err
 		}
 
 		var finalResponse *tempopb.SearchTagsV2Response
-		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagsPerScope, req.StaleValuesThreshold, logger)
+		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagsPerScope, req.StaleValuesThreshold)
 		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagsV2Response) error {
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
@@ -118,14 +112,12 @@ func newTagValuesStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrippe
 		downstreamPath := path.Join(apiPrefix, pathWithValue)
 
 		httpReq, tenant, err := buildTagValuesRequestAndExtractTenant(srv.Context(), req, downstreamPath, logger)
-		logger := Logger.WithUserID(tenant, logger)
-
 		if err != nil {
 			return err
 		}
 
 		var finalResponse *tempopb.SearchTagValuesResponse
-		comb := combiner.NewTypedSearchTagValues(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagValues, req.StaleValueThreshold, logger)
+		comb := combiner.NewTypedSearchTagValues(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagValues, req.StaleValueThreshold)
 		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagValuesResponse) error {
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
@@ -157,14 +149,12 @@ func newTagValuesV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTrip
 		downstreamPath := path.Join(apiPrefix, pathWithValue)
 
 		httpReq, tenant, err := buildTagValuesRequestAndExtractTenant(srv.Context(), req, downstreamPath, logger)
-		logger := Logger.WithUserID(tenant, logger)
-
 		if err != nil {
 			return err
 		}
 
 		var finalResponse *tempopb.SearchTagValuesV2Response
-		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagValues, req.StaleValueThreshold, logger)
+		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant), req.MaxTagValues, req.StaleValueThreshold)
 		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, comb, func(res *tempopb.SearchTagValuesV2Response) error {
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
@@ -193,16 +183,13 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		// if error is not nil, return error Response but suppress the error
 		tenant, errResp, err := extractTenantWithErrorResp(req, logger)
-		logger := Logger.WithUserID(tenant, logger)
-
 		if err != nil {
 			return errResp, nil
 		}
 
 		scope, _, rangeDur, maxTagsPerScope, staleValueThreshold := parseParams(req)
 		// build and use round tripper
-		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope, staleValueThreshold, logger)
-
+		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope, staleValueThreshold)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 		start := time.Now()
 		logTagsRequest(logger, tenant, "SearchTags", scope, rangeDur)
@@ -230,15 +217,13 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		// if error is not nil, return error Response but suppress the error
 		tenant, errResp, err := extractTenantWithErrorResp(req, logger)
-		logger := Logger.WithUserID(tenant, logger)
-
 		if err != nil {
 			return errResp, nil
 		}
 
 		scope, _, rangeDur, maxTagsPerScope, staleValueThreshold := parseParams(req)
 		// build and use round tripper
-		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope, staleValueThreshold, logger)
+		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope, staleValueThreshold)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 		start := time.Now()
 		logTagsRequest(logger, tenant, "SearchTagsV2", scope, rangeDur)
@@ -266,8 +251,6 @@ func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combine
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		// if error is not nil, return error Response but suppress the error
 		tenant, errResp, err := extractTenantWithErrorResp(req, logger)
-		logger := Logger.WithUserID(tenant, logger)
-
 		if err != nil {
 			return errResp, nil
 		}
@@ -276,7 +259,7 @@ func newTagValuesHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combine
 		tagName := extractTagName(req.URL.Path, tagNameRegexV1)
 
 		// build and use round tripper
-		comb := combiner.NewTypedSearchTagValues(o.MaxBytesPerTagValuesQuery(tenant), maxTagsValues, staleValueThreshold, logger)
+		comb := combiner.NewTypedSearchTagValues(o.MaxBytesPerTagValuesQuery(tenant), maxTagsValues, staleValueThreshold)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 		start := time.Now()
 		logTagValuesRequest(logger, tenant, "SearchTagValues", tagName, query, rangeDur)
@@ -304,8 +287,6 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		// if error is not nil, return error Response but suppress the error
 		tenant, errResp, err := extractTenantWithErrorResp(req, logger)
-		logger := Logger.WithUserID(tenant, logger)
-
 		if err != nil {
 			return errResp, nil
 		}
@@ -314,7 +295,7 @@ func newTagValuesV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combi
 		tagName := extractTagName(req.URL.Path, tagNameRegexV2)
 
 		// build and use round tripper
-		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant), maxTagsValues, staleValueThreshold, logger)
+		comb := combiner.NewTypedSearchTagValuesV2(o.MaxBytesPerTagValuesQuery(tenant), maxTagsValues, staleValueThreshold)
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 		start := time.Now()
 		logTagValuesRequest(logger, tenant, "SearchTagValuesV2", tagName, query, rangeDur)

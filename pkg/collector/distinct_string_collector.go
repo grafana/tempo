@@ -4,9 +4,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level" //nolint:all //deprecated
 )
 
 type DistinctString struct {
@@ -21,27 +18,25 @@ type DistinctString struct {
 	diffEnabled      bool
 	limExceeded      bool
 	mtx              sync.Mutex
-	logger           log.Logger
 }
 
 // NewDistinctString with the given maximum data size and max items.
 // MaxDataSize is calculated as the total length of the recorded strings.
 // For ease of use, maxDataSize=0 and maxItems=0 are interpreted as unlimited.
-func NewDistinctString(maxDataSize int, maxValues uint32, staleValueThreshold uint32, logger log.Logger) *DistinctString {
+func NewDistinctString(maxDataSize int, maxValues uint32, staleValueThreshold uint32) *DistinctString {
 	return &DistinctString{
 		values:       make(map[string]struct{}),
 		maxDataSize:  maxDataSize,
 		diffEnabled:  false, // disable diff to make it faster
 		maxValues:    maxValues,
 		maxCacheHits: staleValueThreshold,
-		logger:       logger,
 	}
 }
 
 // NewDistinctStringWithDiff is like NewDistinctString but with diff support enabled.
 // MaxDataSize is calculated as the total length of the recorded strings.
 // For ease of use, maxDataSize=0 and maxItems=0 are interpreted as unlimited.
-func NewDistinctStringWithDiff(maxDataSize int, maxValues uint32, staleValueThreshold uint32, logger log.Logger) *DistinctString {
+func NewDistinctStringWithDiff(maxDataSize int, maxValues uint32, staleValueThreshold uint32) *DistinctString {
 	return &DistinctString{
 		values:       make(map[string]struct{}),
 		new:          make(map[string]struct{}),
@@ -49,7 +44,6 @@ func NewDistinctStringWithDiff(maxDataSize int, maxValues uint32, staleValueThre
 		diffEnabled:  true,
 		maxValues:    maxValues,
 		maxCacheHits: staleValueThreshold,
-		logger:       logger,
 	}
 }
 
@@ -65,20 +59,12 @@ func (d *DistinctString) Collect(s string) (added bool) {
 	}
 	valueLen := len(s)
 
-	if d.maxDataSize > 0 && d.currDataSize+valueLen >= d.maxDataSize {
-		level.Warn(d.logger).Log("msg", "Max data exceeded", "dataSize", d.currDataSize, "maxDataSize", d.maxDataSize)
-		d.limExceeded = true
-		return false
-	}
+	dataSizeExceeded := d.maxDataSize > 0 && d.currDataSize+valueLen >= d.maxDataSize
+	valueCountExceeded := d.maxValues > 0 && d.currentValuesLen >= d.maxValues
+	cacheHitLimitReached := d.maxCacheHits > 0 && d.currentCacheHits >= d.maxCacheHits
 
-	if d.maxValues > 0 && d.currentValuesLen >= d.maxValues {
-		level.Warn(d.logger).Log("msg", "Max values exceeded", "values", d.currentValuesLen, "maxValues", d.maxValues)
-		d.limExceeded = true
-		return false
-	}
-
-	if d.maxCacheHits > 0 && d.currentCacheHits >= d.maxCacheHits {
-		level.Warn(d.logger).Log("msg", "Max stale values exceeded", "cacheHits", d.currentCacheHits, "maxValues", d.maxCacheHits)
+	if dataSizeExceeded || valueCountExceeded || cacheHitLimitReached {
+		// No, it can't fit
 		d.limExceeded = true
 		return false
 	}

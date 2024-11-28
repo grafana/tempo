@@ -1380,11 +1380,10 @@ func tagValuesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetad
 			},
 		},
 	}
-	logger := log.NewNopLogger()
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			valueCollector := collector.NewDistinctValue[tempopb.TagValue](0, 0, 0, func(_ tempopb.TagValue) int { return 0 }, logger)
+			valueCollector := collector.NewDistinctValue[tempopb.TagValue](0, 0, 0, func(_ tempopb.TagValue) int { return 0 })
 			mc := collector.NewMetricsCollector()
 			fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
 				return bb.FetchTagValues(ctx, req, cb, mc.Add, common.DefaultSearchOptions())
@@ -1452,7 +1451,6 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 			},
 		},
 	}
-	logger := log.NewNopLogger()
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1461,7 +1459,7 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 				return bb.FetchTagNames(ctx, req, cb, mc.Add, common.DefaultSearchOptions())
 			})
 
-			valueCollector := collector.NewScopedDistinctString(0, 0, 0, logger)
+			valueCollector := collector.NewScopedDistinctString(0, 0, 0)
 			err := e.ExecuteTagNames(ctx, traceql.AttributeScopeFromString(tc.scope), tc.query, func(tag string, scope traceql.AttributeScope) bool {
 				return valueCollector.Collect(scope.String(), tag)
 			}, fetcher)
@@ -2373,9 +2371,8 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	})
 	require.Equal(t, expected, tagValues.TagValues)
 	require.NotZero(t, tagValues.Metrics.InspectedBytes)
-	logger := log.NewNopLogger()
 
-	valueCollector := collector.NewDistinctValue[tempopb.TagValue](0, 0, 0, func(_ tempopb.TagValue) int { return 0 }, logger)
+	valueCollector := collector.NewDistinctValue[tempopb.TagValue](0, 0, 0, func(_ tempopb.TagValue) int { return 0 })
 	mc := collector.NewMetricsCollector()
 	f := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
 		return r.FetchTagValues(ctx, block.BlockMeta(), req, cb, mc.Add, common.DefaultSearchOptions())

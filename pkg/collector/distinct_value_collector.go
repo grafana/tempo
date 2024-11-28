@@ -3,9 +3,6 @@ package collector
 import (
 	"errors"
 	"sync"
-
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 )
 
 var errDiffNotEnabled = errors.New("diff not enabled")
@@ -23,7 +20,6 @@ type DistinctValue[T comparable] struct {
 	limExceeded      bool
 	diffEnabled      bool
 	mtx              sync.Mutex
-	logger           log.Logger
 }
 
 // NewDistinctValue with the given maximum data size and values limited.
@@ -31,7 +27,7 @@ type DistinctValue[T comparable] struct {
 // staleValueThreshold introduces a stop condition that is triggered when the number of  found cache hits overcomes the limit
 // For ease of use, maxDataSize=0 and maxValues are interpreted as unlimited.
 // Use NewDistinctValueWithDiff to enable diff support, but that one is slightly slower.
-func NewDistinctValue[T comparable](maxDataSize int, maxValues uint32, staleValueThreshold uint32, len func(T) int, logger log.Logger) *DistinctValue[T] {
+func NewDistinctValue[T comparable](maxDataSize int, maxValues uint32, staleValueThreshold uint32, len func(T) int) *DistinctValue[T] {
 	return &DistinctValue[T]{
 		values:       make(map[T]struct{}),
 		maxDataSize:  maxDataSize,
@@ -39,12 +35,11 @@ func NewDistinctValue[T comparable](maxDataSize int, maxValues uint32, staleValu
 		len:          len,
 		maxValues:    maxValues,
 		maxCacheHits: staleValueThreshold,
-		logger:       logger,
 	}
 }
 
 // NewDistinctValueWithDiff is like NewDistinctValue but with diff support enabled.
-func NewDistinctValueWithDiff[T comparable](maxDataSize int, maxValues uint32, staleValueThreshold uint32, len func(T) int, logger log.Logger) *DistinctValue[T] {
+func NewDistinctValueWithDiff[T comparable](maxDataSize int, maxValues uint32, staleValueThreshold uint32, len func(T) int) *DistinctValue[T] {
 	return &DistinctValue[T]{
 		values:       make(map[T]struct{}),
 		new:          make(map[T]struct{}),
@@ -53,7 +48,6 @@ func NewDistinctValueWithDiff[T comparable](maxDataSize int, maxValues uint32, s
 		len:          len,
 		maxValues:    maxValues,
 		maxCacheHits: staleValueThreshold,
-		logger:       logger,
 	}
 }
 
@@ -69,20 +63,12 @@ func (d *DistinctValue[T]) Collect(v T) (exceeded bool) {
 	}
 	// Calculate length
 	valueLen := d.len(v)
-	if d.maxDataSize > 0 && d.currDataSize+valueLen >= d.maxDataSize {
-		level.Warn(d.logger).Log("msg", "Max data exceeded", "dataSize", d.currDataSize, "maxDataSize", d.maxDataSize)
-		d.limExceeded = true
-		return true
-	}
+	dataSizeExceeded := d.maxDataSize > 0 && d.currDataSize+valueLen >= d.maxDataSize
+	valueCountExceeded := d.maxValues > 0 && d.currentValuesLen >= d.maxValues
+	cacheHitLimitReached := d.maxCacheHits > 0 && d.currentCacheHits >= d.maxCacheHits
 
-	if d.maxValues > 0 && d.currentValuesLen >= d.maxValues {
-		level.Warn(d.logger).Log("msg", "Max values exceeded", "values", d.currentValuesLen, "maxValues", d.maxValues)
-		d.limExceeded = true
-		return true
-	}
-
-	if d.maxCacheHits > 0 && d.currentCacheHits >= d.maxCacheHits {
-		level.Warn(d.logger).Log("msg", "Max stale values exceeded", "cacheHits", d.currentCacheHits, "maxValues", d.maxCacheHits)
+	if dataSizeExceeded || valueCountExceeded || cacheHitLimitReached {
+		// No, it can't fit
 		d.limExceeded = true
 		return true
 	}

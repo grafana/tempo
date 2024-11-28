@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -570,7 +569,6 @@ func TestExecuteTagValues(t *testing.T) {
 	//  and doesn't actually test the ExecuteTagValues function
 	now := time.Now()
 	e := Engine{}
-	logger := log.NewNopLogger()
 
 	mockSpansetFetcher := func(query string) TagValuesFetcher {
 		return &MockAutocompleteFetcher{
@@ -670,7 +668,7 @@ func TestExecuteTagValues(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			distinctValues := collector.NewDistinctValue[tempopb.TagValue](100_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) }, logger)
+			distinctValues := collector.NewDistinctValue[tempopb.TagValue](100_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 
 			// Ugly hack to make the mock fetcher work with a bad query
 			fetcherQuery := tc.query
