@@ -223,7 +223,7 @@ message SearchTagValuesRequest {
   uint32 start = 4;
   uint32 end = 5;
   uint32 maxTagValues = 6;
-  uint32 staleValueThreshold = 14; // Limit of stale values
+  uint32 staleValueThreshold = 7; // Limit of stale values
 }
 
 message SearchTagValuesResponse {

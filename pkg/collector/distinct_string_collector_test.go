@@ -12,10 +12,10 @@ import (
 func TestDistinctStringCollector(t *testing.T) {
 	d := NewDistinctString(12, 0, 0)
 
-	d.Collect("123")
-	d.Collect("4567")
-	d.Collect("890")
-	d.Collect("11")
+	require.True(t, d.Collect("123"))
+	require.True(t, d.Collect("4567"))
+	require.True(t, d.Collect("890"))
+	require.False(t, d.Collect("11"))
 
 	require.True(t, d.Exceeded())
 	stringsSlicesEqual(t, []string{"123", "4567", "890"}, d.Strings())
@@ -29,10 +29,10 @@ func TestDistinctStringCollector(t *testing.T) {
 func TestDistinctStringCollectorWithMaxItemsLimit(t *testing.T) {
 	d := NewDistinctString(0, 3, 0)
 
-	d.Collect("123")
-	d.Collect("4567")
-	d.Collect("890")
-	d.Collect("11")
+	require.True(t, d.Collect("123"))
+	require.True(t, d.Collect("4567"))
+	require.True(t, d.Collect("890"))
+	require.False(t, d.Collect("11"))
 
 	require.True(t, d.Exceeded())
 	stringsSlicesEqual(t, []string{"123", "4567", "890"}, d.Strings())
@@ -46,15 +46,15 @@ func TestDistinctStringCollectorWithMaxItemsLimit(t *testing.T) {
 func TestDistinctStringCollectorWitCacheHitsLimit(t *testing.T) {
 	d := NewDistinctString(0, 0, 3)
 
-	d.Collect("123")
-	d.Collect("4567")
-	d.Collect("890")
-	d.Collect("890")
-	d.Collect("11") // The counter resets with every new value
-	d.Collect("890")
-	d.Collect("890")
-	d.Collect("890")
-	d.Collect("12")
+	require.True(t, d.Collect("123"))
+	require.True(t, d.Collect("4567"))
+	require.True(t, d.Collect("890"))
+	require.False(t, d.Collect("890"))
+	require.True(t, d.Collect("11")) // The counter resets with every new value
+	require.False(t, d.Collect("890"))
+	require.False(t, d.Collect("890"))
+	require.False(t, d.Collect("890"))
+	require.False(t, d.Collect("12"))
 
 	require.True(t, d.Exceeded())
 	stringsSlicesEqual(t, []string{"123", "4567", "890", "11"}, d.Strings())
@@ -68,14 +68,14 @@ func TestDistinctStringCollectorWitCacheHitsLimit(t *testing.T) {
 func TestDistinctStringCollectorDiff(t *testing.T) {
 	d := NewDistinctStringWithDiff(0, 0, 0)
 
-	d.Collect("123")
-	d.Collect("4567")
+	require.True(t, d.Collect("123"))
+	require.True(t, d.Collect("4567"))
 
 	stringsSlicesEqual(t, []string{"123", "4567"}, readDistinctStringDiff(t, d))
 	stringsSlicesEqual(t, []string{}, readDistinctStringDiff(t, d))
 
-	d.Collect("123")
-	d.Collect("890")
+	require.False(t, d.Collect("123"))
+	require.True(t, d.Collect("890"))
 
 	stringsSlicesEqual(t, []string{"890"}, readDistinctStringDiff(t, d))
 	stringsSlicesEqual(t, []string{}, readDistinctStringDiff(t, d))

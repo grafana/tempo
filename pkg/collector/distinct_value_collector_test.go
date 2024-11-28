@@ -13,16 +13,10 @@ import (
 func TestDistinctValueCollector(t *testing.T) {
 	d := NewDistinctValue(10, 0, 0, func(s string) int { return len(s) })
 
-	var stop bool
-	stop = d.Collect("123")
-	require.False(t, stop)
-	stop = d.Collect("4567")
-	require.False(t, stop)
-	stop = d.Collect("890")
-	require.True(t, stop)
-
+	require.False(t, d.Collect("123"))
+	require.False(t, d.Collect("4567"))
+	require.True(t, d.Collect("890"))
 	require.True(t, d.Exceeded())
-	require.Equal(t, stop, d.Exceeded()) // final stop should be same as Exceeded
 	stringsSlicesEqual(t, []string{"123", "4567"}, d.Values())
 
 	// diff fails when diff is not enabled
@@ -35,13 +29,9 @@ func TestDistinctValueCollectorWithMaxValuesLimited(t *testing.T) {
 	d := NewDistinctValue(0, 2, 0, func(s string) int { return len(s) })
 
 	var stop bool
-	stop = d.Collect("123")
-	require.False(t, stop)
-	stop = d.Collect("4567")
-	require.False(t, stop)
-	stop = d.Collect("890")
-	require.True(t, stop)
-
+	require.False(t, d.Collect("123"))
+	require.False(t, d.Collect("4567"))
+	require.True(t, d.Collect("890"))
 	require.True(t, d.Exceeded())
 	require.Equal(t, stop, d.Exceeded()) // final stop should be same as Exceeded
 	stringsSlicesEqual(t, []string{"123", "4567"}, d.Values())
@@ -54,15 +44,12 @@ func TestDistinctValueCollectorWithMaxValuesLimited(t *testing.T) {
 
 func TestDistinctValueCollectorWithCacheHitsLimits(t *testing.T) {
 	d := NewDistinctValue(0, 0, 2, func(s string) int { return len(s) })
-
-	var stop bool
-	d.Collect("123")
-	d.Collect("4567")
-	d.Collect("890")
-	d.Collect("890")
-	d.Collect("890")
-	stop = d.Collect("890")
-	require.True(t, stop)
+	require.False(t, d.Collect("123"))
+	require.False(t, d.Collect("4567"))
+	require.False(t, d.Collect("890"))
+	require.False(t, d.Collect("890"))
+	require.False(t, d.Collect("890"))
+	require.True(t, d.Collect("890"))
 	require.True(t, d.Exceeded())
 	stringsSlicesEqual(t, []string{"123", "4567", "890"}, d.Values())
 
@@ -75,14 +62,14 @@ func TestDistinctValueCollectorWithCacheHitsLimits(t *testing.T) {
 func TestDistinctValueCollectorDiff(t *testing.T) {
 	d := NewDistinctValueWithDiff(0, 0, 0, func(s string) int { return len(s) })
 
-	d.Collect("123")
-	d.Collect("4567")
+	require.False(t, d.Collect("123"))
+	require.False(t, d.Collect("4567"))
 
 	stringsSlicesEqual(t, []string{"123", "4567"}, readDistinctValueDiff(t, d))
 	stringsSlicesEqual(t, []string{}, readDistinctValueDiff(t, d))
 
-	d.Collect("123")
-	d.Collect("890")
+	require.False(t, d.Collect("123"))
+	require.False(t, d.Collect("890"))
 
 	stringsSlicesEqual(t, []string{"890"}, readDistinctValueDiff(t, d))
 	stringsSlicesEqual(t, []string{}, readDistinctValueDiff(t, d))
