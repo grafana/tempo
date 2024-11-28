@@ -855,6 +855,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		timeOverlapCutoff: timeOverlapCutoff,
 		maxExemplars:      exemplars,
 		exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
+		query:             req.Query,
 	}
 
 	// Span start time (always required)
@@ -976,6 +977,7 @@ type MetricsEvalulator struct {
 	exemplarMap                     map[string]struct{}
 	timeOverlapCutoff               float64
 	storageReq                      *FetchSpansRequest
+	query                           string
 	metricsPipeline                 metricsFirstStageElement
 	spansTotal, spansDeduped, bytes uint64
 	mtx                             sync.Mutex
@@ -1027,6 +1029,8 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 		return err
 	}
 
+	eval, _, _, _, err := Compile(e.query)
+
 	defer fetch.Results.Close()
 
 	for {
@@ -1037,6 +1041,15 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 		if ss == nil {
 			break
 		}
+
+		inSS, err := eval.Pipeline.evaluate([]*Spanset{ss})
+		if err != nil {
+			return err
+		}
+		if len(inSS) == 0 {
+			continue
+		}
+		ss = inSS[0]
 
 		e.mtx.Lock()
 

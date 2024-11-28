@@ -1205,6 +1205,7 @@ func TestBackendBlockQueryRange(t *testing.T) {
 			for _, s := range ss {
 				if s.Exemplars != nil && len(s.Exemplars) > 0 {
 					fmt.Println("series", s.Labels)
+					fmt.Println("values", s.Values)
 					fmt.Println("Exemplars", s.Exemplars)
 				}
 			}

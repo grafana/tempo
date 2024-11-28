@@ -83,7 +83,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 			return nil, nil
 		}
 
-		// reduce all evalSS to their max length to reduce meta data lookups
+		// reduce all evalSS to their max length to reduce metadata lookups
 		for i := range evalSS {
 			l := len(evalSS[i].Spans)
 			evalSS[i].AddAttribute(attributeMatched, NewStaticInt(l))
