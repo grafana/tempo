@@ -9,13 +9,15 @@ import (
 )
 
 type queryValidatorWare struct {
-	next AsyncRoundTripper[combiner.PipelineResponse]
+	next              AsyncRoundTripper[combiner.PipelineResponse]
+	maxQuerySizeBytes int
 }
 
-func NewQueryValidatorWare() AsyncMiddleware[combiner.PipelineResponse] {
+func NewQueryValidatorWare(maxQuerySizeBytes int) AsyncMiddleware[combiner.PipelineResponse] {
 	return AsyncMiddlewareFunc[combiner.PipelineResponse](func(next AsyncRoundTripper[combiner.PipelineResponse]) AsyncRoundTripper[combiner.PipelineResponse] {
 		return &queryValidatorWare{
-			next: next,
+			next:              next,
+			maxQuerySizeBytes: maxQuerySizeBytes,
 		}
 	})
 }
@@ -44,6 +46,11 @@ func (c queryValidatorWare) validateTraceQLQuery(queryParams url.Values) error {
 		}
 		if err != nil {
 			return fmt.Errorf("invalid TraceQL query: %w", err)
+		}
+
+		// reject query if the query expression size exceeds the maximum allowed size
+		if len(traceQLQuery) > c.maxQuerySizeBytes {
+			return fmt.Errorf("TraceQL expression exceeds the configured maximum size of %d bytes, reduce the query expression size or contact your system administrator", c.maxQuerySizeBytes)
 		}
 	}
 	return nil
