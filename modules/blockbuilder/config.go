@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/wal"
 )
 
 type BlockConfig struct {
@@ -38,13 +39,26 @@ type Config struct {
 
 	LookbackOnNoCommit time.Duration `yaml:"lookback_on_no_commit" category:"advanced"`
 
-	blockConfig BlockConfig `yaml:"block" doc:"Configuration for the block builder."`
+	BlockConfig BlockConfig `yaml:"block" doc:"Configuration for the block builder."`
+	WAL         wal.Config  `yaml:"wal" doc:"Configuration for the write ahead log."`
 
 	// This config is dynamically injected because defined outside the ingester config.
 	IngestStorageConfig ingest.Config `yaml:"-"`
 }
 
 func (c *Config) Validate() error {
+	if c.BlockConfig.BlockCfg.Version != c.WAL.Version {
+		return fmt.Errorf("block version %s does not match WAL version %s", c.BlockConfig.BlockCfg.Version, c.WAL.Version)
+	}
+
+	if err := common.ValidateConfig(&c.BlockConfig.BlockCfg); err != nil {
+		return fmt.Errorf("block config validation failed: %w", err)
+	}
+
+	if err := wal.ValidateConfig(&c.WAL); err != nil {
+		return fmt.Errorf("wal config validation failed: %w", err)
+	}
+
 	return nil
 }
 
@@ -65,7 +79,10 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	// TODO - Review default
 	f.DurationVar(&c.LookbackOnNoCommit, prefix+".lookback-on-no-commit", 12*time.Hour, "How much of the historical records to look back when there is no kafka commit for a partition.")
 
-	c.blockConfig.RegisterFlagsAndApplyDefaults(prefix+".block", f)
+	c.BlockConfig.RegisterFlagsAndApplyDefaults(prefix+".block", f)
+	c.WAL.RegisterFlags(f)
+	c.WAL.Version = c.BlockConfig.BlockCfg.Version
+	f.StringVar(&c.WAL.Filepath, prefix+".wal.path", "/var/tempo/block-builder/traces", "Path at which store WAL blocks.")
 }
 
 type partitionAssignmentVar struct {

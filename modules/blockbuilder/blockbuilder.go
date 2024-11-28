@@ -59,7 +59,6 @@ func New(
 		decoder:       ingest.NewDecoder(),
 		overrides:     overrides,
 		writer:        store,
-		wal:           store.WAL(),
 	}
 
 	b.Service = services.NewBasicService(b.starting, b.running, b.stopping)
@@ -70,11 +69,16 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 	level.Info(b.logger).Log("msg", "block builder starting")
 
 	b.enc = encoding.DefaultEncoding()
-	if b.cfg.blockConfig.BlockCfg.Version != "" {
-		b.enc, err = encoding.FromVersion(b.cfg.blockConfig.BlockCfg.Version)
+	if version := b.cfg.BlockConfig.BlockCfg.Version; version != "" {
+		b.enc, err = encoding.FromVersion(version)
 		if err != nil {
 			return fmt.Errorf("failed to create encoding: %w", err)
 		}
+	}
+
+	b.wal, err = wal.New(&b.cfg.WAL)
+	if err != nil {
+		return fmt.Errorf("failed to create WAL: %w", err)
 	}
 
 	// Fallback offset is a millisecond timestamp used to look up a real offset if partition doesn't have a commit.
@@ -228,7 +232,7 @@ func (b *BlockBuilder) consumePartitionSection(ctx context.Context, partition in
 	)
 
 	// TODO - Review what endTimestamp is used here
-	writer := newPartitionSectionWriter(b.logger, int64(partition), sectionEndTime.UnixMilli(), b.cfg.blockConfig, b.overrides, b.wal, b.enc)
+	writer := newPartitionSectionWriter(b.logger, int64(partition), sectionEndTime.UnixMilli(), b.cfg.BlockConfig, b.overrides, b.wal, b.enc)
 
 	// We always rewind the partition's offset to the commit offset by reassigning the partition to the client (this triggers partition assignment).
 	// This is so the cycle started exactly at the commit offset, and not at what was (potentially over-) consumed previously.
