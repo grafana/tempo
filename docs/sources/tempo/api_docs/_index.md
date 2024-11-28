@@ -363,7 +363,7 @@ Parameters:
 - `limit = (integer)`
   Optional. Limits the maximum number of tags values.
 - `maxStaleValues = (integer)`
-  Optional. Limits the search for tags names. If the number of stale (already known) values reaches or exceeds this limit, the search stops.
+  Optional. Limits the search for tags names. If the number of stale (already known) values reaches or exceeds this limit, the search stops. i.e. If Tempo processes `maxStaleValues` matches without finding a new tag name, the search is returned early.
 
 
 ### Search tags V2
