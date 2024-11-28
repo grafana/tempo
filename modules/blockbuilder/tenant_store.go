@@ -24,8 +24,7 @@ var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
 		Namespace: "tempo",
 		Subsystem: "block_builder",
 		Name:      "flushed_blocks",
-	},
-	[]string{"tenant_id"},
+	}, []string{"tenant_id"},
 )
 
 // TODO - This needs locking
