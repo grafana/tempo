@@ -17,6 +17,8 @@ import (
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -25,6 +27,35 @@ import (
 const (
 	blockBuilderServiceName = "block-builder"
 	ConsumerGroup           = "block-builder"
+)
+
+var (
+	metricPartitionLag = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Subsystem: "block_builder",
+		Name:      "partition_lag",
+		Help:      "Lag of a partition.",
+	}, []string{"partition"})
+	metricConsumeCycleDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace:                   "tempo",
+		Subsystem:                   "block_builder",
+		Name:                        "consume_cycle_duration_seconds",
+		Help:                        "Time spent consuming a full cycle.",
+		NativeHistogramBucketFactor: 1.1,
+	})
+	metricProcessPartitionSectionDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace:                   "tempo",
+		Subsystem:                   "block_builder",
+		Name:                        "process_partition_section_duration_seconds",
+		Help:                        "Time spent processing one partition section.",
+		NativeHistogramBucketFactor: 1.1,
+	}, []string{"partition"})
+	metricFetchErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Subsystem: "block_builder",
+		Name:      "fetch_errors_total",
+		Help:      "Total number of errors while fetching by the consumer.",
+	}, []string{"partition"})
 )
 
 type BlockBuilder struct {
@@ -142,6 +173,7 @@ func (b *BlockBuilder) stopping(err error) error {
 
 func (b *BlockBuilder) consumeCycle(ctx context.Context, cycleEndTime time.Time) error {
 	level.Info(b.logger).Log("msg", "starting consume cycle", "cycle_end", cycleEndTime)
+	defer func(t time.Time) { metricConsumeCycleDuration.Observe(time.Since(t).Seconds()) }(time.Now())
 
 	groupLag, err := getGroupLag(
 		ctx,
@@ -166,11 +198,13 @@ func (b *BlockBuilder) consumeCycle(ctx context.Context, cycleEndTime time.Time)
 			return fmt.Errorf("lag for partition %d not found", partition)
 		}
 
-		level.Info(b.logger).Log(
+		level.Debug(b.logger).Log(
 			"msg", "partition lag",
 			"partition", partition,
 			"lag", fmt.Sprintf("%+v", partitionLag),
-		) // TODO - Debug
+		)
+
+		metricPartitionLag.WithLabelValues(fmt.Sprintf("%d", partition)).Set(float64(partitionLag.Lag))
 
 		if partitionLag.Lag <= 0 {
 			level.Info(b.logger).Log(
@@ -227,6 +261,10 @@ func (b *BlockBuilder) consumePartitionSection(ctx context.Context, partition in
 		"lag", lag.Lag,
 	)
 
+	defer func(t time.Time) {
+		metricProcessPartitionSectionDuration.WithLabelValues(fmt.Sprintf("%d", partition)).Observe(time.Since(t).Seconds())
+	}(time.Now())
+
 	// TODO - Review what endTimestamp is used here
 	writer := newPartitionSectionWriter(b.logger, int64(partition), sectionEndTime.UnixMilli(), b.cfg.blockConfig, b.overrides, b.wal, b.enc)
 
@@ -260,6 +298,7 @@ consumerLoop:
 		fetches.EachError(func(_ string, _ int32, err error) {
 			if !errors.Is(err, context.Canceled) {
 				level.Error(b.logger).Log("msg", "failed to fetch records", "err", err)
+				metricFetchErrors.WithLabelValues(fmt.Sprintf("%d", partition)).Inc()
 			}
 		})
 

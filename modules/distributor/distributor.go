@@ -116,6 +116,30 @@ var (
 		Name:      "distributor_metrics_generator_clients",
 		Help:      "The current number of metrics-generator clients.",
 	})
+	metricKafkaRecordsPerRequest = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "tempo",
+		Subsystem: "distributor",
+		Name:      "kafka_records_per_request",
+		Help:      "The number of records in each kafka request",
+	})
+	metricKafkaWriteLatency = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "tempo",
+		Subsystem: "distributor",
+		Name:      "kafka_write_latency_seconds",
+		Help:      "The latency of writing to kafka",
+	})
+	metricKafkaWriteBytesTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Subsystem: "distributor",
+		Name:      "kafka_write_bytes_total",
+		Help:      "The total number of bytes written to kafka",
+	})
+	metricKafkaAppends = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Subsystem: "distributor",
+		Name:      "kafka_appends_total",
+		Help:      "The total number of appends sent to kafka",
+	}, []string{"partition", "status"})
 
 	statBytesReceived = usagestats.NewCounter("distributor_bytes_received")
 	statSpansReceived = usagestats.NewCounter("distributor_spans_received")
@@ -597,18 +621,20 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 			return err
 		}
 
+		startTime := time.Now()
+
 		records, err := ingest.Encode(int32(partitionID), userID, req, d.cfg.KafkaConfig.ProducerMaxRecordSizeBytes)
 		if err != nil {
 			return fmt.Errorf("failed to encode PushSpansRequest: %w", err)
 		}
 
-		// d.kafkaRecordsPerRequest.Observe(float64(len(records)))
+		metricKafkaRecordsPerRequest.Observe(float64(len(records)))
 
 		produceResults := d.kafkaProducer.ProduceSync(ctx, records)
 
 		if count, sizeBytes := successfulProduceRecordsStats(produceResults); count > 0 {
-			// d.kafkaWriteLatency.Observe(time.Since(startTime).Seconds())
-			// d.kafkaWriteBytesTotal.Add(float64(sizeBytes))
+			metricKafkaWriteLatency.Observe(time.Since(startTime).Seconds())
+			metricKafkaWriteBytesTotal.Add(float64(sizeBytes))
 			_ = level.Debug(d.logger).Log("msg", "kafka write success stats", "count", count, "size_bytes", sizeBytes)
 		}
 
@@ -616,10 +642,10 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 		for _, result := range produceResults {
 			if result.Err != nil {
 				_ = level.Error(d.logger).Log("msg", "failed to write to kafka", "err", result.Err)
-				// d.kafkaAppends.WithLabelValues(fmt.Sprintf("partition_%d", partitionID), "fail").Inc()
+				metricKafkaAppends.WithLabelValues(fmt.Sprintf("partition_%d", partitionID), "fail").Inc()
 				finalErr = result.Err
 			} else {
-				// d.kafkaAppends.WithLabelValues(fmt.Sprintf("partition_%d", partitionID), "success").Inc()
+				metricKafkaAppends.WithLabelValues(fmt.Sprintf("partition_%d", partitionID), "success").Inc()
 			}
 		}
 
