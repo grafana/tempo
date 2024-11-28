@@ -331,7 +331,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string, limit ui
 		return nil, err
 	}
 
-	logger := log.WithContext(ctx, log.Logger)
+	logger := log.WithUserID(tenantID, log.Logger)
 
 	maxBytesPerTagValues := i.limiter.limits.MaxBytesPerTagValuesQuery(tenantID)
 	distinctValues := collector.NewDistinctString(maxBytesPerTagValues, limit, staleValueThreshold, logger)
@@ -400,7 +400,8 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		return nil, err
 	}
 
-	logger := log.WithContext(ctx, log.Logger)
+	logger := log.WithUserID(tenantID, log.Logger)
+
 	ctx, span := tracer.Start(ctx, "instance.SearchTagValuesV2")
 	defer span.End()
 

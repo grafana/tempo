@@ -581,7 +581,7 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchTags: %w", err)
 	}
 
-	logger := log.WithContext(ctx, log.Logger)
+	logger := log.WithUserID(tenantID, log.Logger)
 	maxBytesPerTag := q.limits.MaxBytesPerTagValuesQuery(tenantID)
 	distinctValues := collector.NewScopedDistinctString(maxBytesPerTag, req.MaxTagsPerScope, req.StaleValuesThreshold, logger)
 	mc := collector.NewMetricsCollector()
@@ -637,7 +637,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchTagValues: %w", err)
 	}
 
-	logger := log.WithContext(ctx, log.Logger)
+	logger := log.WithUserID(userID, log.Logger)
 	maxDataSize := q.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewDistinctString(maxDataSize, req.MaxTagValues, req.StaleValueThreshold, logger)
 	mc := collector.NewMetricsCollector()
@@ -688,7 +688,7 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 		return nil, fmt.Errorf("error extracting org id in Querier.SearchTagValues: %w", err)
 	}
 
-	logger := log.WithContext(ctx, log.Logger)
+	logger := log.WithUserID(tenantID, log.Logger)
 	maxDataSize := q.limits.MaxBytesPerTagValuesQuery(tenantID)
 	distinctValues := collector.NewDistinctValue(maxDataSize, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) }, logger)
 	mc := collector.NewMetricsCollector()
@@ -987,7 +987,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 		return resp, nil
 	}
 
-	logger := log.WithContext(ctx, log.Logger)
+	logger := log.WithUserID(tenantID, log.Logger)
 	valueCollector := collector.NewScopedDistinctString(q.limits.MaxBytesPerTagValuesQuery(tenantID), req.MaxTagsPerScope, req.StaleValueThreshold, logger)
 	mc := collector.NewMetricsCollector()
 
@@ -1075,7 +1075,8 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		return &tempopb.SearchTagValuesV2Response{}, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
 	}
 
-	logger := log.WithContext(ctx, log.Logger)
+	logger := log.WithUserID(tenantID, log.Logger)
+
 	blockID, err := backend.ParseUUID(req.BlockID)
 	if err != nil {
 		return &tempopb.SearchTagValuesV2Response{}, err
