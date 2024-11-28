@@ -314,7 +314,8 @@ func TestSearchLimitHonored(t *testing.T) {
 			}
 		},
 	}, nil, &Config{
-		MultiTenantQueriesEnabled: true,
+		MultiTenantQueriesEnabled:   true,
+		MaxQueryExpressionSizeBytes: 10000,
 		TraceByID: TraceByIDConfig{
 			QueryShards: minQueryShards,
 			SLO:         testSLOcfg,
@@ -768,7 +769,8 @@ func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr te
 	}
 	if cfg == nil {
 		cfg = &Config{
-			MultiTenantQueriesEnabled: true,
+			MultiTenantQueriesEnabled:   true,
+			MaxQueryExpressionSizeBytes: 100000,
 			TraceByID: TraceByIDConfig{
 				QueryShards: minQueryShards,
 				SLO:         testSLOcfg,

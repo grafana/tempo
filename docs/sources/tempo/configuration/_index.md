@@ -593,6 +593,10 @@ query_frontend:
     # A list of regular expressions for refusing matching requests, these will apply for every request regardless of the endpoint.
     [url_deny_list: <list of strings> | default = <empty list>]]
 
+    # Max allowed TraceQL expression size, in bytes. queries bigger then this size will be rejected.
+    # (default: 128 KiB)
+    [max_query_expression_size_bytes: <int> | default = 131072]]
+
     search:
 
         # The number of concurrent jobs to execute when searching the backend.
