@@ -28,12 +28,11 @@ func TestDistinctValueCollector(t *testing.T) {
 func TestDistinctValueCollectorWithMaxValuesLimited(t *testing.T) {
 	d := NewDistinctValue(0, 2, 0, func(s string) int { return len(s) })
 
-	var stop bool
 	require.False(t, d.Collect("123"))
 	require.False(t, d.Collect("4567"))
 	require.True(t, d.Collect("890"))
 	require.True(t, d.Exceeded())
-	require.Equal(t, stop, d.Exceeded()) // final stop should be same as Exceeded
+
 	stringsSlicesEqual(t, []string{"123", "4567"}, d.Values())
 
 	// diff fails when diff is not enabled
