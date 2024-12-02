@@ -536,7 +536,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 			for _, span := range ils.Spans {
 				traceID := span.TraceId
 				if !validation.ValidTraceID(traceID) {
-					return nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit")
+					return nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received %d bits", len(traceID)*8)
 				}
 
 				traceKey := tempo_util.TokenFor(userID, traceID)
