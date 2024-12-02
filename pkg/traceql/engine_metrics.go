@@ -907,6 +907,14 @@ func optimize(req *FetchSpansRequest) {
 		return
 	}
 
+	// Unscoped attributes like .foo require the second pass to evaluate
+	for _, c := range req.Conditions {
+		if c.Attribute.Scope == AttributeScopeNone && c.Attribute.Intrinsic == IntrinsicNone {
+			// Unscoped (non-intrinsic) attribute
+			return
+		}
+	}
+
 	// There is an issue where multiple conditions &&'ed on the same
 	// attribute can look like AllConditions==true, but are implemented
 	// in the storage layer like ||'ed and require the second pass callback (engine).
