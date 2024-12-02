@@ -874,8 +874,8 @@ github.com/olekukonko/tablewriter
 ## explicit; go 1.22.0
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter/internal/metadata
-# github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.102.0
-## explicit; go 1.21.0
+# github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter v0.114.0
+## explicit; go 1.22.0
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter/internal/metadata
 # github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.114.0
