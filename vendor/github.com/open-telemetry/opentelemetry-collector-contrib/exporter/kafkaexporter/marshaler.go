@@ -65,7 +65,6 @@ func createTracesMarshaler(config Config) (TracesMarshaler, error) {
 	default:
 		return nil, errUnrecognizedEncoding
 	}
-
 }
 
 // creates MetricsMarshaler based on the provided config

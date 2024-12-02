@@ -83,12 +83,10 @@ const (
 	protobufFormat = "protobuf"
 )
 
-var (
-	acceptedThriftFormats = map[string]struct{}{
-		"application/x-thrift":                 {},
-		"application/vnd.apache.thrift.binary": {},
-	}
-)
+var acceptedThriftFormats = map[string]struct{}{
+	"application/x-thrift":                 {},
+	"application/vnd.apache.thrift.binary": {},
+}
 
 // newJaegerReceiver creates a TracesReceiver that receives traffic as a Jaeger collector, and
 // also as a Jaeger agent.
@@ -169,11 +167,13 @@ func consumeTraces(ctx context.Context, batch *jaeger.Batch, consumer consumer.T
 	return len(batch.Spans), consumer.ConsumeTraces(ctx, td)
 }
 
-var _ agent.Agent = (*agentHandler)(nil)
-var _ api_v2.CollectorServiceServer = (*jReceiver)(nil)
-var _ configmanager.ClientConfigManager = (*notImplementedConfigManager)(nil)
+var (
+	_ agent.Agent                       = (*agentHandler)(nil)
+	_ api_v2.CollectorServiceServer     = (*jReceiver)(nil)
+	_ configmanager.ClientConfigManager = (*notImplementedConfigManager)(nil)
+)
 
-var errNotImplemented = fmt.Errorf("not implemented")
+var errNotImplemented = errors.New("not implemented")
 
 type notImplementedConfigManager struct{}
 

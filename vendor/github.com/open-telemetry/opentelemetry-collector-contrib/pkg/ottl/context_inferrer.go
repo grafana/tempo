@@ -5,18 +5,16 @@ package ottl // import "github.com/open-telemetry/opentelemetry-collector-contri
 
 import "math"
 
-var (
-	defaultContextInferPriority = []string{
-		"log",
-		"metric",
-		"datapoint",
-		"spanevent",
-		"span",
-		"resource",
-		"scope",
-		"instrumentation_scope",
-	}
-)
+var defaultContextInferPriority = []string{
+	"log",
+	"metric",
+	"datapoint",
+	"spanevent",
+	"span",
+	"resource",
+	"scope",
+	"instrumentation_scope",
+}
 
 // contextInferrer is an interface used to infer the OTTL context from statements paths.
 type contextInferrer interface {

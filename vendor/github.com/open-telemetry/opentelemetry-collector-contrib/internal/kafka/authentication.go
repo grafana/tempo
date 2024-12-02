@@ -93,7 +93,6 @@ func configurePlaintext(config PlainTextConfig, saramaConfig *sarama.Config) {
 }
 
 func configureSASL(config SASLConfig, saramaConfig *sarama.Config) error {
-
 	if config.Username == "" {
 		return fmt.Errorf("username have to be provided")
 	}

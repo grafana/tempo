@@ -6,7 +6,6 @@ package filterottl // import "github.com/open-telemetry/opentelemetry-collector-
 import (
 	"go.opentelemetry.io/collector/component"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter/expr"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottldatapoint"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottllog"
@@ -20,7 +19,7 @@ import (
 // NewBoolExprForSpan creates a BoolExpr[ottlspan.TransformContext] that will return true if any of the given OTTL conditions evaluate to true.
 // The passed in functions should use the ottlspan.TransformContext.
 // If a function named `match` is not present in the function map it will be added automatically so that parsing works as expected
-func NewBoolExprForSpan(conditions []string, functions map[string]ottl.Factory[ottlspan.TransformContext], errorMode ottl.ErrorMode, set component.TelemetrySettings) (expr.BoolExpr[ottlspan.TransformContext], error) {
+func NewBoolExprForSpan(conditions []string, functions map[string]ottl.Factory[ottlspan.TransformContext], errorMode ottl.ErrorMode, set component.TelemetrySettings) (*ottl.ConditionSequence[ottlspan.TransformContext], error) {
 	parser, err := ottlspan.NewParser(functions, set)
 	if err != nil {
 		return nil, err
@@ -36,7 +35,7 @@ func NewBoolExprForSpan(conditions []string, functions map[string]ottl.Factory[o
 // NewBoolExprForSpanEvent creates a BoolExpr[ottlspanevent.TransformContext] that will return true if any of the given OTTL conditions evaluate to true.
 // The passed in functions should use the ottlspanevent.TransformContext.
 // If a function named `match` is not present in the function map it will be added automatically so that parsing works as expected
-func NewBoolExprForSpanEvent(conditions []string, functions map[string]ottl.Factory[ottlspanevent.TransformContext], errorMode ottl.ErrorMode, set component.TelemetrySettings) (expr.BoolExpr[ottlspanevent.TransformContext], error) {
+func NewBoolExprForSpanEvent(conditions []string, functions map[string]ottl.Factory[ottlspanevent.TransformContext], errorMode ottl.ErrorMode, set component.TelemetrySettings) (*ottl.ConditionSequence[ottlspanevent.TransformContext], error) {
 	parser, err := ottlspanevent.NewParser(functions, set)
 	if err != nil {
 		return nil, err
@@ -52,7 +51,7 @@ func NewBoolExprForSpanEvent(conditions []string, functions map[string]ottl.Fact
 // NewBoolExprForMetric creates a BoolExpr[ottlmetric.TransformContext] that will return true if any of the given OTTL conditions evaluate to true.
 // The passed in functions should use the ottlmetric.TransformContext.
 // If a function named `match` is not present in the function map it will be added automatically so that parsing works as expected
-func NewBoolExprForMetric(conditions []string, functions map[string]ottl.Factory[ottlmetric.TransformContext], errorMode ottl.ErrorMode, set component.TelemetrySettings) (expr.BoolExpr[ottlmetric.TransformContext], error) {
+func NewBoolExprForMetric(conditions []string, functions map[string]ottl.Factory[ottlmetric.TransformContext], errorMode ottl.ErrorMode, set component.TelemetrySettings) (*ottl.ConditionSequence[ottlmetric.TransformContext], error) {
 	parser, err := ottlmetric.NewParser(functions, set)
 	if err != nil {
 		return nil, err
@@ -68,7 +67,7 @@ func NewBoolExprForMetric(conditions []string, functions map[string]ottl.Factory
 // NewBoolExprForDataPoint creates a BoolExpr[ottldatapoint.TransformContext] that will return true if any of the given OTTL conditions evaluate to true.
 // The passed in functions should use the ottldatapoint.TransformContext.
 // If a function named `match` is not present in the function map it will be added automatically so that parsing works as expected
-func NewBoolExprForDataPoint(conditions []string, functions map[string]ottl.Factory[ottldatapoint.TransformContext], errorMode ottl.ErrorMode, set component.TelemetrySettings) (expr.BoolExpr[ottldatapoint.TransformContext], error) {
+func NewBoolExprForDataPoint(conditions []string, functions map[string]ottl.Factory[ottldatapoint.TransformContext], errorMode ottl.ErrorMode, set component.TelemetrySettings) (*ottl.ConditionSequence[ottldatapoint.TransformContext], error) {
 	parser, err := ottldatapoint.NewParser(functions, set)
 	if err != nil {
 		return nil, err
@@ -84,7 +83,7 @@ func NewBoolExprForDataPoint(conditions []string, functions map[string]ottl.Fact
 // NewBoolExprForLog creates a BoolExpr[ottllog.TransformContext] that will return true if any of the given OTTL conditions evaluate to true.
 // The passed in functions should use the ottllog.TransformContext.
 // If a function named `match` is not present in the function map it will be added automatically so that parsing works as expected
-func NewBoolExprForLog(conditions []string, functions map[string]ottl.Factory[ottllog.TransformContext], errorMode ottl.ErrorMode, set component.TelemetrySettings) (expr.BoolExpr[ottllog.TransformContext], error) {
+func NewBoolExprForLog(conditions []string, functions map[string]ottl.Factory[ottllog.TransformContext], errorMode ottl.ErrorMode, set component.TelemetrySettings) (*ottl.ConditionSequence[ottllog.TransformContext], error) {
 	parser, err := ottllog.NewParser(functions, set)
 	if err != nil {
 		return nil, err
@@ -100,7 +99,7 @@ func NewBoolExprForLog(conditions []string, functions map[string]ottl.Factory[ot
 // NewBoolExprForResource creates a BoolExpr[ottlresource.TransformContext] that will return true if any of the given OTTL conditions evaluate to true.
 // The passed in functions should use the ottlresource.TransformContext.
 // If a function named `match` is not present in the function map it will be added automatically so that parsing works as expected
-func NewBoolExprForResource(conditions []string, functions map[string]ottl.Factory[ottlresource.TransformContext], errorMode ottl.ErrorMode, set component.TelemetrySettings) (expr.BoolExpr[ottlresource.TransformContext], error) {
+func NewBoolExprForResource(conditions []string, functions map[string]ottl.Factory[ottlresource.TransformContext], errorMode ottl.ErrorMode, set component.TelemetrySettings) (*ottl.ConditionSequence[ottlresource.TransformContext], error) {
 	parser, err := ottlresource.NewParser(functions, set)
 	if err != nil {
 		return nil, err
@@ -116,7 +115,7 @@ func NewBoolExprForResource(conditions []string, functions map[string]ottl.Facto
 // NewBoolExprForScope creates a BoolExpr[ottlscope.TransformContext] that will return true if any of the given OTTL conditions evaluate to true.
 // The passed in functions should use the ottlresource.TransformContext.
 // If a function named `match` is not present in the function map it will be added automatically so that parsing works as expected
-func NewBoolExprForScope(conditions []string, functions map[string]ottl.Factory[ottlscope.TransformContext], errorMode ottl.ErrorMode, set component.TelemetrySettings) (expr.BoolExpr[ottlscope.TransformContext], error) {
+func NewBoolExprForScope(conditions []string, functions map[string]ottl.Factory[ottlscope.TransformContext], errorMode ottl.ErrorMode, set component.TelemetrySettings) (*ottl.ConditionSequence[ottlscope.TransformContext], error) {
 	parser, err := ottlscope.NewParser(functions, set)
 	if err != nil {
 		return nil, err

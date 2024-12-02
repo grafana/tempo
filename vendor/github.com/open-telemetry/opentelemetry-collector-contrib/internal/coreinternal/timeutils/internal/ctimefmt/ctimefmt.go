@@ -16,9 +16,11 @@ import (
 	"time"
 )
 
-var ctimeRegexp = regexp.MustCompile(`%.`)
-var invalidFractionalSecondsStrptime = regexp.MustCompile(`[^.,]%[Lfs]`)
-var decimalsRegexp = regexp.MustCompile(`\d`)
+var (
+	ctimeRegexp                      = regexp.MustCompile(`%.`)
+	invalidFractionalSecondsStrptime = regexp.MustCompile(`[^.,]%[Lfs]`)
+	decimalsRegexp                   = regexp.MustCompile(`\d`)
+)
 
 var ctimeSubstitutes = map[string]string{
 	"%Y": "2006",

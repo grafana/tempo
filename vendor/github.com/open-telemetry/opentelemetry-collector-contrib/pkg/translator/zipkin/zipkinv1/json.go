@@ -167,7 +167,6 @@ func jsonBinAnnotationsToSpanAttributes(span ptrace.Span, binAnnotations []*bina
 	sMapper := &statusMapper{}
 	var localComponent string
 	for _, binAnnotation := range binAnnotations {
-
 		if binAnnotation.Endpoint != nil && binAnnotation.Endpoint.ServiceName != "" {
 			fallbackServiceName = binAnnotation.Endpoint.ServiceName
 		}

@@ -172,7 +172,6 @@ func (m *mapGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
 		default:
 			evaluated[k] = t
 		}
-
 	}
 	result := pcommon.NewMap()
 	if err := result.FromRaw(evaluated); err != nil {

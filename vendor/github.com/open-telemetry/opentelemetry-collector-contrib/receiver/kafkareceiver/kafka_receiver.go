@@ -5,6 +5,7 @@ package kafkareceiver // import "github.com/open-telemetry/opentelemetry-collect
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -32,7 +33,7 @@ const (
 	attrPartition    = "partition"
 )
 
-var errInvalidInitialOffset = fmt.Errorf("invalid initial offset")
+var errInvalidInitialOffset = errors.New("invalid initial offset")
 
 // kafkaTracesConsumer uses sarama to consume and handle messages from kafka.
 type kafkaTracesConsumer struct {
@@ -100,9 +101,11 @@ type kafkaLogsConsumer struct {
 	maxFetchSize      int32
 }
 
-var _ receiver.Traces = (*kafkaTracesConsumer)(nil)
-var _ receiver.Metrics = (*kafkaMetricsConsumer)(nil)
-var _ receiver.Logs = (*kafkaLogsConsumer)(nil)
+var (
+	_ receiver.Traces  = (*kafkaTracesConsumer)(nil)
+	_ receiver.Metrics = (*kafkaMetricsConsumer)(nil)
+	_ receiver.Logs    = (*kafkaLogsConsumer)(nil)
+)
 
 func newTracesReceiver(config Config, set receiver.Settings, nextConsumer consumer.Traces) (*kafkaTracesConsumer, error) {
 	telemetryBuilder, err := metadata.NewTelemetryBuilder(set.TelemetrySettings)
@@ -514,9 +517,11 @@ type logsConsumerGroupHandler struct {
 	headerExtractor   HeaderExtractor
 }
 
-var _ sarama.ConsumerGroupHandler = (*tracesConsumerGroupHandler)(nil)
-var _ sarama.ConsumerGroupHandler = (*metricsConsumerGroupHandler)(nil)
-var _ sarama.ConsumerGroupHandler = (*logsConsumerGroupHandler)(nil)
+var (
+	_ sarama.ConsumerGroupHandler = (*tracesConsumerGroupHandler)(nil)
+	_ sarama.ConsumerGroupHandler = (*metricsConsumerGroupHandler)(nil)
+	_ sarama.ConsumerGroupHandler = (*logsConsumerGroupHandler)(nil)
+)
 
 func (c *tracesConsumerGroupHandler) Setup(session sarama.ConsumerGroupSession) error {
 	c.readyCloser.Do(func() {

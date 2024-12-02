@@ -19,9 +19,11 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/logging"
 )
 
-var _ internal.ResourceContext = (*TransformContext)(nil)
-var _ internal.InstrumentationScopeContext = (*TransformContext)(nil)
-var _ zapcore.ObjectMarshaler = (*TransformContext)(nil)
+var (
+	_ internal.ResourceContext             = (*TransformContext)(nil)
+	_ internal.InstrumentationScopeContext = (*TransformContext)(nil)
+	_ zapcore.ObjectMarshaler              = (*TransformContext)(nil)
+)
 
 type TransformContext struct {
 	spanEvent            ptrace.SpanEvent
@@ -179,8 +181,8 @@ func (pep *pathExpressionParser) parsePath(path ottl.Path[TransformContext]) (ot
 	default:
 		return nil, internal.FormatDefaultErrorMessage(path.Name(), path.String(), "Span Event", internal.SpanEventRef)
 	}
-
 }
+
 func accessCache() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
 		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {

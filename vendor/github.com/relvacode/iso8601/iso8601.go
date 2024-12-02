@@ -215,6 +215,9 @@ parse:
 			Y = c
 			M = 1
 			d = 1
+		case month:
+			M = c
+			d = 1
 		case day:
 			d = c
 		case hour:

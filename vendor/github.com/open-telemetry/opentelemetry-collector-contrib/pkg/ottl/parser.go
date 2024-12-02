@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/alecthomas/participle/v2"
 	"go.opentelemetry.io/collector/component"
@@ -195,12 +197,40 @@ func (p *Parser[K]) ParseCondition(condition string) (*Condition[K], error) {
 	}, nil
 }
 
-var parser = newParser[parsedStatement]()
-var conditionParser = newParser[booleanExpression]()
+// prependContextToStatementPaths changes the given OTTL statement adding the context name prefix
+// to all context-less paths. No modifications are performed for paths which [Path.Context]
+// value matches any WithPathContextNames value.
+// The context argument must be valid WithPathContextNames value, otherwise an error is returned.
+func (p *Parser[K]) prependContextToStatementPaths(context string, statement string) (string, error) {
+	if _, ok := p.pathContextNames[context]; !ok {
+		return statement, fmt.Errorf(`unknown context "%s" for parser %T, valid options are: %s`, context, p, p.buildPathContextNamesText(""))
+	}
+	parsed, err := parseStatement(statement)
+	if err != nil {
+		return "", err
+	}
+	paths := getParsedStatementPaths(parsed)
+	if len(paths) == 0 {
+		return statement, nil
+	}
+
+	var missingContextOffsets []int
+	for _, it := range paths {
+		if _, ok := p.pathContextNames[it.Context]; !ok {
+			missingContextOffsets = append(missingContextOffsets, it.Pos.Offset)
+		}
+	}
+
+	return insertContextIntoStatementOffsets(context, statement, missingContextOffsets)
+}
+
+var (
+	parser          = newParser[parsedStatement]()
+	conditionParser = newParser[booleanExpression]()
+)
 
 func parseStatement(raw string) (*parsedStatement, error) {
 	parsed, err := parser.ParseString("", raw)
-
 	if err != nil {
 		return nil, fmt.Errorf("statement has invalid syntax: %w", err)
 	}
@@ -214,7 +244,6 @@ func parseStatement(raw string) (*parsedStatement, error) {
 
 func parseCondition(raw string) (*booleanExpression, error) {
 	parsed, err := conditionParser.ParseString("", raw)
-
 	if err != nil {
 		return nil, fmt.Errorf("condition has invalid syntax: %w", err)
 	}
@@ -224,6 +253,30 @@ func parseCondition(raw string) (*booleanExpression, error) {
 	}
 
 	return parsed, nil
+}
+
+func insertContextIntoStatementOffsets(context string, statement string, offsets []int) (string, error) {
+	if len(offsets) == 0 {
+		return statement, nil
+	}
+
+	contextPrefix := context + "."
+	var sb strings.Builder
+	sb.Grow(len(statement) + (len(contextPrefix) * len(offsets)))
+
+	sort.Ints(offsets)
+	left := 0
+	for _, offset := range offsets {
+		if offset < 0 || offset > len(statement) {
+			return statement, fmt.Errorf(`failed to insert context "%s" into statement "%s": offset %d is out of range`, context, statement, offset)
+		}
+		sb.WriteString(statement[left:offset])
+		sb.WriteString(contextPrefix)
+		left = offset
+	}
+	sb.WriteString(statement[left:])
+
+	return sb.String(), nil
 }
 
 // newParser returns a parser that can be used to read a string into a parsedStatement. An error will be returned if the string

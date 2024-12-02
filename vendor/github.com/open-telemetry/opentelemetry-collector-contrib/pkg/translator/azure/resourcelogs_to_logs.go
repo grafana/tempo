@@ -37,9 +37,7 @@ const (
 	azureTenantID          = "azure.tenant.id"
 )
 
-var (
-	errMissingTimestamp = errors.New("missing timestamp")
-)
+var errMissingTimestamp = errors.New("missing timestamp")
 
 // azureRecords represents an array of Azure log records
 // as exported via an Azure Event Hub
@@ -167,7 +165,7 @@ func asSeverity(number json.Number) plog.SeverityNumber {
 	case "Critical":
 		return plog.SeverityNumberFatal
 	default:
-		var levelNumber, _ = number.Int64()
+		levelNumber, _ := number.Int64()
 		if levelNumber > 0 {
 			return plog.SeverityNumber(levelNumber)
 		}
@@ -177,7 +175,7 @@ func asSeverity(number json.Number) plog.SeverityNumber {
 }
 
 func extractRawAttributes(log azureLogRecord) map[string]any {
-	var attrs = map[string]any{}
+	attrs := map[string]any{}
 
 	attrs[azureCategory] = log.Category
 	setIf(attrs, azureCorrelationID, log.CorrelationID)

@@ -22,6 +22,7 @@ type TimeArguments[K any] struct {
 func NewTimeFactory[K any]() ottl.Factory[K] {
 	return ottl.NewFactory("Time", &TimeArguments[K]{}, createTimeFunction[K])
 }
+
 func createTimeFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
 	args, ok := oArgs.(*TimeArguments[K])
 

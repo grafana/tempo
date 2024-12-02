@@ -73,7 +73,6 @@ func toKeyValueString[K any](target ottl.PMapGetter[K], d ottl.Optional[string],
 
 // convertMapToKV converts a pcommon.Map to a key value string
 func convertMapToKV(target pcommon.Map, delimiter string, pairDelimiter string, sortOutput bool) string {
-
 	var kvStrings []string
 	if sortOutput {
 		var keyValues []struct {

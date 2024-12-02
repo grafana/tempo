@@ -140,7 +140,6 @@ func (p *pdataTracesMarshaler) Marshal(td ptrace.Traces, topic string) ([]*saram
 				Value: sarama.ByteEncoder(bts),
 				Key:   sarama.ByteEncoder(traceutil.TraceIDToHexOrEmptyString(trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID())),
 			})
-
 		}
 	} else {
 		bts, err := p.marshaler.MarshalTraces(td)

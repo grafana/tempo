@@ -5,7 +5,7 @@ package kafkareceiver // import "github.com/open-telemetry/opentelemetry-collect
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"time"
 
@@ -49,7 +49,7 @@ const (
 	defaultMaxFetchSize = int32(0)
 )
 
-var errUnrecognizedEncoding = fmt.Errorf("unrecognized encoding")
+var errUnrecognizedEncoding = errors.New("unrecognized encoding")
 
 // FactoryOption applies changes to kafkaExporterFactory.
 type FactoryOption func(factory *kafkaReceiverFactory)

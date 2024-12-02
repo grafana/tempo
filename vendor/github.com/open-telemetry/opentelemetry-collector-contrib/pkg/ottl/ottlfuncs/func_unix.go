@@ -19,6 +19,7 @@ type UnixArguments[K any] struct {
 func NewUnixFactory[K any]() ottl.Factory[K] {
 	return ottl.NewFactory("Unix", &UnixArguments[K]{}, createUnixFunction[K])
 }
+
 func createUnixFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
 	args, ok := oArgs.(*UnixArguments[K])
 

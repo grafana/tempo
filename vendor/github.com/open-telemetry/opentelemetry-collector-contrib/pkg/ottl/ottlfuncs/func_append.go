@@ -21,6 +21,7 @@ type AppendArguments[K any] struct {
 func NewAppendFactory[K any]() ottl.Factory[K] {
 	return ottl.NewFactory("append", &AppendArguments[K]{}, createAppendFunction[K])
 }
+
 func createAppendFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
 	args, ok := oArgs.(*AppendArguments[K])
 	if !ok {

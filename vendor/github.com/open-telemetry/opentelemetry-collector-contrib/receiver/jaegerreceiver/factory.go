@@ -47,7 +47,6 @@ var once sync.Once
 func logDeprecation(logger *zap.Logger) {
 	once.Do(func() {
 		logger.Warn("jaeger receiver will deprecate Thrift-gen and replace it with Proto-gen to be compatbible to jaeger 1.42.0 and higher. See https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/18485 for more details.")
-
 	})
 }
 

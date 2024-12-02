@@ -90,7 +90,6 @@ func resourceToJaegerProtoProcess(resource pcommon.Resource) *model.Process {
 	tags := make([]model.KeyValue, 0, attrsCount)
 	process.Tags = appendTagsFromResourceAttributes(tags, attrs)
 	return process
-
 }
 
 func appendTagsFromResourceAttributes(dest []model.KeyValue, attrs pcommon.Map) []model.KeyValue {
@@ -355,7 +354,6 @@ func getErrorTagFromStatusCode(statusCode ptrace.StatusCode) (model.KeyValue, bo
 		}, true
 	}
 	return model.KeyValue{}, false
-
 }
 
 func getTagFromStatusMsg(statusMsg string) (model.KeyValue, bool) {
