@@ -40,8 +40,6 @@
     statefulset.new(target_name, $._config.block_builder.replicas, $.tempo_block_builder_container, [], { app: target_name }) +
     statefulset.mixin.spec.withServiceName(target_name) +
     statefulset.spec.template.spec.securityContext.withFsGroup(10001) +  // 10001 is the UID of the tempo user
-    statefulset.mixin.spec.strategy.rollingUpdate.withMaxSurge(3) +
-    statefulset.mixin.spec.strategy.rollingUpdate.withMaxUnavailable(1) +
     statefulset.mixin.spec.template.metadata.withAnnotations({
       config_hash: std.md5(std.toString($.tempo_block_builder_configmap.data['tempo.yaml'])),
     }) +
