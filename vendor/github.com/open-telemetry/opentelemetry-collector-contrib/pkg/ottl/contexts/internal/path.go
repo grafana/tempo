@@ -12,6 +12,7 @@ import (
 var _ ottl.Path[any] = &TestPath[any]{}
 
 type TestPath[K any] struct {
+	C        string
 	N        string
 	KeySlice []ottl.Key[K]
 	NextPath *TestPath[K]
@@ -19,6 +20,10 @@ type TestPath[K any] struct {
 
 func (p *TestPath[K]) Name() string {
 	return p.N
+}
+
+func (p *TestPath[K]) Context() string {
+	return p.C
 }
 
 func (p *TestPath[K]) Next() ottl.Path[K] {

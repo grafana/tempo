@@ -6,74 +6,18 @@
 
 The following telemetry is emitted by this component.
 
-### processor_accepted_log_records
+### otelcol_processor_incoming_items
 
-Number of log records successfully pushed into the next component in the pipeline.
-
-| Unit | Metric Type | Value Type | Monotonic |
-| ---- | ----------- | ---------- | --------- |
-| 1 | Sum | Int | true |
-
-### processor_accepted_metric_points
-
-Number of metric points successfully pushed into the next component in the pipeline.
+Number of items passed to the processor. [alpha]
 
 | Unit | Metric Type | Value Type | Monotonic |
 | ---- | ----------- | ---------- | --------- |
-| 1 | Sum | Int | true |
+| {items} | Sum | Int | true |
 
-### processor_accepted_spans
+### otelcol_processor_outgoing_items
 
-Number of spans successfully pushed into the next component in the pipeline.
-
-| Unit | Metric Type | Value Type | Monotonic |
-| ---- | ----------- | ---------- | --------- |
-| 1 | Sum | Int | true |
-
-### processor_dropped_log_records
-
-Number of log records that were dropped.
+Number of items emitted from the processor. [alpha]
 
 | Unit | Metric Type | Value Type | Monotonic |
 | ---- | ----------- | ---------- | --------- |
-| 1 | Sum | Int | true |
-
-### processor_dropped_metric_points
-
-Number of metric points that were dropped.
-
-| Unit | Metric Type | Value Type | Monotonic |
-| ---- | ----------- | ---------- | --------- |
-| 1 | Sum | Int | true |
-
-### processor_dropped_spans
-
-Number of spans that were dropped.
-
-| Unit | Metric Type | Value Type | Monotonic |
-| ---- | ----------- | ---------- | --------- |
-| 1 | Sum | Int | true |
-
-### processor_refused_log_records
-
-Number of log records that were rejected by the next component in the pipeline.
-
-| Unit | Metric Type | Value Type | Monotonic |
-| ---- | ----------- | ---------- | --------- |
-| 1 | Sum | Int | true |
-
-### processor_refused_metric_points
-
-Number of metric points that were rejected by the next component in the pipeline.
-
-| Unit | Metric Type | Value Type | Monotonic |
-| ---- | ----------- | ---------- | --------- |
-| 1 | Sum | Int | true |
-
-### processor_refused_spans
-
-Number of spans that were rejected by the next component in the pipeline.
-
-| Unit | Metric Type | Value Type | Monotonic |
-| ---- | ----------- | ---------- | --------- |
-| 1 | Sum | Int | true |
+| {items} | Sum | Int | true |

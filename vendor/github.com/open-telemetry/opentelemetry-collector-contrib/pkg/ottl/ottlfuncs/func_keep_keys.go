@@ -42,7 +42,7 @@ func keepKeys[K any](target ottl.PMapGetter[K], keys []string) ottl.ExprFunc[K] 
 		if err != nil {
 			return nil, err
 		}
-		val.RemoveIf(func(key string, value pcommon.Value) bool {
+		val.RemoveIf(func(key string, _ pcommon.Value) bool {
 			_, ok := keySet[key]
 			return !ok
 		})

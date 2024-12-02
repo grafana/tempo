@@ -1,12 +1,9 @@
 type: zipkin
-scope_name: otelcol/zipkinreceiver
 
 status:
   class: receiver
   stability:
     beta: [traces]
-  distributions:
-  - core
-  - contrib
+  distributions: [core, contrib, k8s]
   codeowners:
     active: [MovieStoreGuy, andrzej-stencel, crobert-1]

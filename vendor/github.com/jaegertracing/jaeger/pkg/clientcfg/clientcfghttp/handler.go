@@ -1,17 +1,6 @@
 // Copyright (c) 2019 The Jaeger Authors.
 // Copyright (c) 2017 Uber Technologies, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package clientcfghttp
 
@@ -109,6 +98,17 @@ func (h *HTTPHandler) RegisterRoutes(router *mux.Router) {
 	}).Methods(http.MethodGet)
 }
 
+// RegisterRoutes registers configuration handlers with HTTP Router.
+func (h *HTTPHandler) RegisterRoutesWithHTTP(router *http.ServeMux) {
+	prefix := h.params.BasePath
+	router.HandleFunc(
+		prefix+"/",
+		func(w http.ResponseWriter, r *http.Request) {
+			h.serveSamplingHTTP(w, r, h.encodeThriftLegacy)
+		},
+	)
+}
+
 func (h *HTTPHandler) serviceFromRequest(w http.ResponseWriter, r *http.Request) (string, error) {
 	services := r.URL.Query()["service"]
 	if len(services) != 1 {
@@ -119,9 +119,9 @@ func (h *HTTPHandler) serviceFromRequest(w http.ResponseWriter, r *http.Request)
 	return services[0], nil
 }
 
-func (h *HTTPHandler) writeJSON(w http.ResponseWriter, json []byte) error {
+func (h *HTTPHandler) writeJSON(w http.ResponseWriter, jsonData []byte) error {
 	w.Header().Add("Content-Type", mimeTypeApplicationJSON)
-	if _, err := w.Write(json); err != nil {
+	if _, err := w.Write(jsonData); err != nil {
 		h.metrics.WriteFailures.Inc(1)
 		return err
 	}
@@ -213,8 +213,8 @@ var samplingStrategyTypes = []api_v2.SamplingStrategyType{
 //
 // Thrift 0.9.3 classes generate this JSON:
 // {"strategyType":"PROBABILISTIC","probabilisticSampling":{"samplingRate":0.5}}
-func (h *HTTPHandler) encodeThriftEnums092(json []byte) []byte {
-	str := string(json)
+func (*HTTPHandler) encodeThriftEnums092(jsonData []byte) []byte {
+	str := string(jsonData)
 	for _, strategyType := range samplingStrategyTypes {
 		str = strings.Replace(
 			str,

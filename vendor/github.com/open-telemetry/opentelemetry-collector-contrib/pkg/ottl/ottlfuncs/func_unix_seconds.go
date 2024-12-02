@@ -17,6 +17,7 @@ type UnixSecondsArguments[K any] struct {
 func NewUnixSecondsFactory[K any]() ottl.Factory[K] {
 	return ottl.NewFactory("UnixSeconds", &UnixSecondsArguments[K]{}, createUnixSecondsFunction[K])
 }
+
 func createUnixSecondsFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
 	args, ok := oArgs.(*UnixSecondsArguments[K])
 

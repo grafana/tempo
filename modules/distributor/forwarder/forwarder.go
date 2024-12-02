@@ -86,7 +86,7 @@ type FilterForwarder struct {
 func NewFilterForwarder(cfg FilterConfig, next Forwarder, logLevel dslog.Level) (*FilterForwarder, error) {
 	factory := filterprocessor.NewFactory()
 
-	set := processor.CreateSettings{
+	set := processor.Settings{
 		ID: component.ID{},
 		TelemetrySettings: component.TelemetrySettings{
 			Logger:         newLogger(logLevel),
@@ -102,7 +102,7 @@ func NewFilterForwarder(cfg FilterConfig, next Forwarder, logLevel dslog.Level) 
 			SpanEventConditions: cfg.Traces.SpanEventConditions,
 		},
 	}
-	fp, err := factory.CreateTracesProcessor(context.Background(), set, fpCfg, consumerToForwarderAdapter{forwarder: next})
+	fp, err := factory.CreateTraces(context.Background(), set, fpCfg, consumerToForwarderAdapter{forwarder: next})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create filter processor: %w", err)
 	}
@@ -170,11 +170,6 @@ func (f *FilterForwarder) GetFactory(component.Kind, component.Type) component.F
 
 // GetExtensions implements component.Host
 func (f *FilterForwarder) GetExtensions() map[component.ID]extension.Extension {
-	return nil
-}
-
-// GetExporters implements component.Host
-func (f *FilterForwarder) GetExporters() map[component.DataType]map[component.ID]component.Component {
 	return nil
 }
 

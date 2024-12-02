@@ -17,6 +17,7 @@ type UnixMicroArguments[K any] struct {
 func NewUnixMicroFactory[K any]() ottl.Factory[K] {
 	return ottl.NewFactory("UnixMicro", &UnixMicroArguments[K]{}, createUnixMicroFunction[K])
 }
+
 func createUnixMicroFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
 	args, ok := oArgs.(*UnixMicroArguments[K])
 

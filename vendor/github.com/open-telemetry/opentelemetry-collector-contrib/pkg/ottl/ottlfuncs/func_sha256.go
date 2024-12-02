@@ -31,7 +31,6 @@ func createSHA256Function[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (
 }
 
 func SHA256HashString[K any](target ottl.StringGetter[K]) (ottl.ExprFunc[K], error) {
-
 	return func(ctx context.Context, tCtx K) (any, error) {
 		val, err := target.Get(ctx, tCtx)
 		if err != nil {

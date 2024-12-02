@@ -6,3 +6,4 @@ status:
     alpha: [ traces, metrics, logs ]
   codeowners:
     active: [TylerHelmuth, kentquirk, bogdandrutu, evan-bradley]
+    seeking_new: true

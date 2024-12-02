@@ -14,14 +14,18 @@ import (
 	"google.golang.org/grpc"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/consumer/consumerprofiles"
 	"go.opentelemetry.io/collector/pdata/plog/plogotlp"
 	"go.opentelemetry.io/collector/pdata/pmetric/pmetricotlp"
+	"go.opentelemetry.io/collector/pdata/pprofile/pprofileotlp"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver/internal/logs"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver/internal/metrics"
+	"go.opentelemetry.io/collector/receiver/otlpreceiver/internal/profiles"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver/internal/trace"
 	"go.opentelemetry.io/collector/receiver/receiverhelper"
 )
@@ -32,27 +36,29 @@ type otlpReceiver struct {
 	serverGRPC *grpc.Server
 	serverHTTP *http.Server
 
-	nextTraces  consumer.Traces
-	nextMetrics consumer.Metrics
-	nextLogs    consumer.Logs
-	shutdownWG  sync.WaitGroup
+	nextTraces   consumer.Traces
+	nextMetrics  consumer.Metrics
+	nextLogs     consumer.Logs
+	nextProfiles consumerprofiles.Profiles
+	shutdownWG   sync.WaitGroup
 
 	obsrepGRPC *receiverhelper.ObsReport
 	obsrepHTTP *receiverhelper.ObsReport
 
-	settings *receiver.CreateSettings
+	settings *receiver.Settings
 }
 
 // newOtlpReceiver just creates the OpenTelemetry receiver services. It is the caller's
 // responsibility to invoke the respective Start*Reception methods as well
 // as the various Stop*Reception methods to end it.
-func newOtlpReceiver(cfg *Config, set *receiver.CreateSettings) (*otlpReceiver, error) {
+func newOtlpReceiver(cfg *Config, set *receiver.Settings) (*otlpReceiver, error) {
 	r := &otlpReceiver{
-		cfg:         cfg,
-		nextTraces:  nil,
-		nextMetrics: nil,
-		nextLogs:    nil,
-		settings:    set,
+		cfg:          cfg,
+		nextTraces:   nil,
+		nextMetrics:  nil,
+		nextLogs:     nil,
+		nextProfiles: nil,
+		settings:     set,
 	}
 
 	var err error
@@ -99,6 +105,10 @@ func (r *otlpReceiver) startGRPCServer(host component.Host) error {
 		plogotlp.RegisterGRPCServer(r.serverGRPC, logs.New(r.nextLogs, r.obsrepGRPC))
 	}
 
+	if r.nextProfiles != nil {
+		pprofileotlp.RegisterGRPCServer(r.serverGRPC, profiles.New(r.nextProfiles))
+	}
+
 	r.settings.Logger.Info("Starting GRPC server", zap.String("endpoint", r.cfg.GRPC.NetAddr.Endpoint))
 	var gln net.Listener
 	if gln, err = r.cfg.GRPC.NetAddr.Listen(context.Background()); err != nil {
@@ -110,7 +120,7 @@ func (r *otlpReceiver) startGRPCServer(host component.Host) error {
 		defer r.shutdownWG.Done()
 
 		if errGrpc := r.serverGRPC.Serve(gln); errGrpc != nil && !errors.Is(errGrpc, grpc.ErrServerStopped) {
-			r.settings.ReportStatus(component.NewFatalErrorEvent(errGrpc))
+			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(errGrpc))
 		}
 	}()
 	return nil
@@ -144,6 +154,13 @@ func (r *otlpReceiver) startHTTPServer(ctx context.Context, host component.Host)
 		})
 	}
 
+	if r.nextProfiles != nil {
+		httpProfilesReceiver := profiles.New(r.nextProfiles)
+		httpMux.HandleFunc(defaultProfilesURLPath, func(resp http.ResponseWriter, req *http.Request) {
+			handleProfiles(resp, req, httpProfilesReceiver)
+		})
+	}
+
 	var err error
 	if r.serverHTTP, err = r.cfg.HTTP.ToServer(ctx, host, r.settings.TelemetrySettings, httpMux, confighttp.WithErrorHandler(errorHandler)); err != nil {
 		return err
@@ -160,7 +177,7 @@ func (r *otlpReceiver) startHTTPServer(ctx context.Context, host component.Host)
 		defer r.shutdownWG.Done()
 
 		if errHTTP := r.serverHTTP.Serve(hln); errHTTP != nil && !errors.Is(errHTTP, http.ErrServerClosed) {
-			r.settings.ReportStatus(component.NewFatalErrorEvent(errHTTP))
+			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(errHTTP))
 		}
 	}()
 	return nil
@@ -208,4 +225,8 @@ func (r *otlpReceiver) registerMetricsConsumer(mc consumer.Metrics) {
 
 func (r *otlpReceiver) registerLogsConsumer(lc consumer.Logs) {
 	r.nextLogs = lc
+}
+
+func (r *otlpReceiver) registerProfilesConsumer(tc consumerprofiles.Profiles) {
+	r.nextProfiles = tc
 }

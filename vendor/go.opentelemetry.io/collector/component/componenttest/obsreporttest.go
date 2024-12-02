@@ -5,18 +5,19 @@ package componenttest // import "go.opentelemetry.io/collector/component/compone
 
 import (
 	"context"
+	"errors"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	"go.uber.org/multierr"
+	"go.uber.org/zap"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configtelemetry"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
 const (
@@ -30,102 +31,79 @@ const (
 	scraperTag   = "scraper"
 	transportTag = "transport"
 	exporterTag  = "exporter"
-	processorTag = "processor"
 )
 
 type TestTelemetry struct {
-	ts           component.TelemetrySettings
 	id           component.ID
+	ts           component.TelemetrySettings
 	SpanRecorder *tracetest.SpanRecorder
-
-	prometheusChecker *prometheusChecker
-	meterProvider     *sdkmetric.MeterProvider
+	reader       *sdkmetric.ManualReader
 }
 
 // CheckExporterTraces checks that for the current exported values for trace exporter metrics match given values.
-// When this function is called it is required to also call SetupTelemetry as first thing.
+// Note: SetupTelemetry must be called before this function.
 func (tts *TestTelemetry) CheckExporterTraces(sentSpans, sendFailedSpans int64) error {
-	return tts.prometheusChecker.checkExporterTraces(tts.id, sentSpans, sendFailedSpans)
+	return checkExporterTraces(tts.reader, tts.id, sentSpans, sendFailedSpans)
 }
 
 // CheckExporterMetrics checks that for the current exported values for metrics exporter metrics match given values.
-// When this function is called it is required to also call SetupTelemetry as first thing.
+// Note: SetupTelemetry must be called before this function.
 func (tts *TestTelemetry) CheckExporterMetrics(sentMetricsPoints, sendFailedMetricsPoints int64) error {
-	return tts.prometheusChecker.checkExporterMetrics(tts.id, sentMetricsPoints, sendFailedMetricsPoints)
+	return checkExporterMetrics(tts.reader, tts.id, sentMetricsPoints, sendFailedMetricsPoints)
 }
 
 func (tts *TestTelemetry) CheckExporterEnqueueFailedMetrics(enqueueFailed int64) error {
-	return tts.prometheusChecker.checkExporterEnqueueFailed(tts.id, "metric_points", enqueueFailed)
+	return checkExporterEnqueueFailed(tts.reader, tts.id, "metric_points", enqueueFailed)
 }
 
 func (tts *TestTelemetry) CheckExporterEnqueueFailedTraces(enqueueFailed int64) error {
-	return tts.prometheusChecker.checkExporterEnqueueFailed(tts.id, "spans", enqueueFailed)
+	return checkExporterEnqueueFailed(tts.reader, tts.id, "spans", enqueueFailed)
 }
 
 func (tts *TestTelemetry) CheckExporterEnqueueFailedLogs(enqueueFailed int64) error {
-	return tts.prometheusChecker.checkExporterEnqueueFailed(tts.id, "log_records", enqueueFailed)
+	return checkExporterEnqueueFailed(tts.reader, tts.id, "log_records", enqueueFailed)
 }
 
 // CheckExporterLogs checks that for the current exported values for logs exporter metrics match given values.
-// When this function is called it is required to also call SetupTelemetry as first thing.
+// Note: SetupTelemetry must be called before this function.
 func (tts *TestTelemetry) CheckExporterLogs(sentLogRecords, sendFailedLogRecords int64) error {
-	return tts.prometheusChecker.checkExporterLogs(tts.id, sentLogRecords, sendFailedLogRecords)
+	return checkExporterLogs(tts.reader, tts.id, sentLogRecords, sendFailedLogRecords)
 }
 
-func (tts *TestTelemetry) CheckExporterMetricGauge(metric string, val int64) error {
-	return tts.prometheusChecker.checkExporterMetricGauge(tts.id, metric, val)
-}
-
-// CheckProcessorTraces checks that for the current exported values for trace exporter metrics match given values.
-// When this function is called it is required to also call SetupTelemetry as first thing.
-func (tts *TestTelemetry) CheckProcessorTraces(acceptedSpans, refusedSpans, droppedSpans int64) error {
-	return tts.prometheusChecker.checkProcessorTraces(tts.id, acceptedSpans, refusedSpans, droppedSpans)
-}
-
-// CheckProcessorMetrics checks that for the current exported values for metrics exporter metrics match given values.
-// When this function is called it is required to also call SetupTelemetry as first thing.
-func (tts *TestTelemetry) CheckProcessorMetrics(acceptedMetricPoints, refusedMetricPoints, droppedMetricPoints int64) error {
-	return tts.prometheusChecker.checkProcessorMetrics(tts.id, acceptedMetricPoints, refusedMetricPoints, droppedMetricPoints)
-}
-
-// CheckProcessorLogs checks that for the current exported values for logs exporter metrics match given values.
-// When this function is called it is required to also call SetupTelemetry as first thing.
-func (tts *TestTelemetry) CheckProcessorLogs(acceptedLogRecords, refusedLogRecords, droppedLogRecords int64) error {
-	return tts.prometheusChecker.checkProcessorLogs(tts.id, acceptedLogRecords, refusedLogRecords, droppedLogRecords)
+func (tts *TestTelemetry) CheckExporterMetricGauge(metric string, val int64, extraAttrs ...attribute.KeyValue) error {
+	attrs := attributesForExporterMetrics(tts.id, extraAttrs...)
+	return checkIntGauge(tts.reader, metric, val, attrs)
 }
 
 // CheckReceiverTraces checks that for the current exported values for trace receiver metrics match given values.
-// When this function is called it is required to also call SetupTelemetry as first thing.
+// Note: SetupTelemetry must be called before this function.
 func (tts *TestTelemetry) CheckReceiverTraces(protocol string, acceptedSpans, droppedSpans int64) error {
-	return tts.prometheusChecker.checkReceiverTraces(tts.id, protocol, acceptedSpans, droppedSpans)
+	return checkReceiverTraces(tts.reader, tts.id, protocol, acceptedSpans, droppedSpans)
 }
 
 // CheckReceiverLogs checks that for the current exported values for logs receiver metrics match given values.
-// When this function is called it is required to also call SetupTelemetry as first thing.
+// Note: SetupTelemetry must be called before this function.
 func (tts *TestTelemetry) CheckReceiverLogs(protocol string, acceptedLogRecords, droppedLogRecords int64) error {
-	return tts.prometheusChecker.checkReceiverLogs(tts.id, protocol, acceptedLogRecords, droppedLogRecords)
+	return checkReceiverLogs(tts.reader, tts.id, protocol, acceptedLogRecords, droppedLogRecords)
 }
 
 // CheckReceiverMetrics checks that for the current exported values for metrics receiver metrics match given values.
-// When this function is called it is required to also call SetupTelemetry as first thing.
+// Note: SetupTelemetry must be called before this function.
 func (tts *TestTelemetry) CheckReceiverMetrics(protocol string, acceptedMetricPoints, droppedMetricPoints int64) error {
-	return tts.prometheusChecker.checkReceiverMetrics(tts.id, protocol, acceptedMetricPoints, droppedMetricPoints)
+	return checkReceiverMetrics(tts.reader, tts.id, protocol, acceptedMetricPoints, droppedMetricPoints)
 }
 
 // CheckScraperMetrics checks that for the current exported values for metrics scraper metrics match given values.
-// When this function is called it is required to also call SetupTelemetry as first thing.
+// Note: SetupTelemetry must be called before this function.
 func (tts *TestTelemetry) CheckScraperMetrics(receiver component.ID, scraper component.ID, scrapedMetricPoints, erroredMetricPoints int64) error {
-	return tts.prometheusChecker.checkScraperMetrics(receiver, scraper, scrapedMetricPoints, erroredMetricPoints)
+	return checkScraperMetrics(tts.reader, receiver, scraper, scrapedMetricPoints, erroredMetricPoints)
 }
 
 // Shutdown unregisters any views and shuts down the SpanRecorder
 func (tts *TestTelemetry) Shutdown(ctx context.Context) error {
-	var errs error
-	errs = multierr.Append(errs, tts.SpanRecorder.Shutdown(ctx))
-	if tts.meterProvider != nil {
-		errs = multierr.Append(errs, tts.meterProvider.Shutdown(ctx))
-	}
-	return errs
+	return errors.Join(
+		tts.ts.TracerProvider.(*sdktrace.TracerProvider).Shutdown(ctx),
+		tts.ts.MeterProvider.(*sdkmetric.MeterProvider).Shutdown(ctx))
 }
 
 // TelemetrySettings returns the TestTelemetry's TelemetrySettings
@@ -133,36 +111,30 @@ func (tts *TestTelemetry) TelemetrySettings() component.TelemetrySettings {
 	return tts.ts
 }
 
-// SetupTelemetry does setup the testing environment to check the metrics recorded by receivers, producers or exporters.
-// The caller must pass the ID of the component that intends to test, so the CreateSettings and Check methods will use.
-// The caller should defer a call to Shutdown the returned TestTelemetry.
+// SetupTelemetry sets up the testing environment to check the metrics recorded by receivers, producers, or exporters.
+// The caller must pass the ID of the component being tested. The ID will be used by the CreateSettings and Check methods.
+// The caller must defer a call to `Shutdown` on the returned TestTelemetry.
 func SetupTelemetry(id component.ID) (TestTelemetry, error) {
-	sr := new(tracetest.SpanRecorder)
-	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))
-
 	settings := TestTelemetry{
-		ts:           NewNopTelemetrySettings(),
 		id:           id,
-		SpanRecorder: sr,
-	}
-	settings.ts.TracerProvider = tp
-	settings.ts.MetricsLevel = configtelemetry.LevelNormal
-
-	promRegOtel := prometheus.NewRegistry()
-
-	exp, err := otelprom.New(otelprom.WithRegisterer(promRegOtel), otelprom.WithoutUnits(), otelprom.WithoutScopeInfo(), otelprom.WithoutCounterSuffixes())
-	if err != nil {
-		return settings, err
+		reader:       sdkmetric.NewManualReader(),
+		SpanRecorder: new(tracetest.SpanRecorder),
 	}
 
-	settings.meterProvider = sdkmetric.NewMeterProvider(
+	mp := sdkmetric.NewMeterProvider(
 		sdkmetric.WithResource(resource.Empty()),
-		sdkmetric.WithReader(exp),
+		sdkmetric.WithReader(settings.reader),
 	)
-	settings.ts.MeterProvider = settings.meterProvider
 
-	settings.prometheusChecker = &prometheusChecker{
-		otelHandler: promhttp.HandlerFor(promRegOtel, promhttp.HandlerOpts{}),
+	settings.ts = component.TelemetrySettings{
+		Logger:         zap.NewNop(),
+		TracerProvider: sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(settings.SpanRecorder)),
+		MeterProvider:  mp,
+		LeveledMeterProvider: func(_ configtelemetry.Level) metric.MeterProvider {
+			return mp
+		},
+		MetricsLevel: configtelemetry.LevelDetailed,
+		Resource:     pcommon.NewResource(),
 	}
 
 	return settings, nil
