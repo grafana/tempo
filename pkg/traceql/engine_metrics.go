@@ -296,6 +296,7 @@ func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels 
 					},
 				)
 			}
+
 			exemplars = append(exemplars, tempopb.Exemplar{
 				Labels:      labels,
 				Value:       e.Value,
@@ -1242,16 +1243,6 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 }
 
 func (b *SimpleAggregator) Results() SeriesSet {
-	// Attach placeholder exemplars to the output
-	for _, ts := range b.ss {
-		for i, e := range ts.Exemplars {
-			if math.IsNaN(e.Value) {
-				interval := IntervalOfMs(int64(e.TimestampMs), b.start, b.end, b.step)
-				ts.Exemplars[i].Value = ts.Values[interval]
-			}
-		}
-	}
-
 	return b.ss
 }
 
