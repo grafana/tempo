@@ -130,13 +130,16 @@ github.com/alecthomas/units
 # github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a
 ## explicit
 github.com/alicebob/gopher-json
-# github.com/alicebob/miniredis/v2 v2.21.0
-## explicit; go 1.14
+# github.com/alicebob/miniredis/v2 v2.33.0
+## explicit; go 1.17
 github.com/alicebob/miniredis/v2
+github.com/alicebob/miniredis/v2/fpconv
 github.com/alicebob/miniredis/v2/geohash
 github.com/alicebob/miniredis/v2/hyperloglog
 github.com/alicebob/miniredis/v2/metro
+github.com/alicebob/miniredis/v2/proto
 github.com/alicebob/miniredis/v2/server
+github.com/alicebob/miniredis/v2/size
 # github.com/andybalholm/brotli v1.1.1
 ## explicit; go 1.13
 github.com/andybalholm/brotli
@@ -1278,7 +1281,7 @@ github.com/xdg-go/scram
 # github.com/xdg-go/stringprep v1.0.4
 ## explicit; go 1.11
 github.com/xdg-go/stringprep
-# github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64
+# github.com/yuin/gopher-lua v1.1.1
 ## explicit; go 1.17
 github.com/yuin/gopher-lua
 github.com/yuin/gopher-lua/ast

@@ -5,7 +5,7 @@ go 1.23.3
 require (
 	cloud.google.com/go/storage v1.41.0
 	github.com/alecthomas/kong v0.8.0
-	github.com/alicebob/miniredis/v2 v2.21.0
+	github.com/alicebob/miniredis/v2 v2.33.0
 	github.com/aws/aws-sdk-go v1.55.5
 	github.com/cespare/xxhash v1.1.0
 	github.com/cespare/xxhash/v2 v2.3.0
@@ -279,7 +279,7 @@ require (
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
-	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.10 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.10 // indirect
