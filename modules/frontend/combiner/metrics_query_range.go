@@ -104,7 +104,7 @@ func attachExemplars(req *tempopb.QueryRangeRequest, res *tempopb.QueryRangeResp
 				// NOTE - Look for sample in same interval, not same value.
 				si := traceql.IntervalOfMs(s.TimestampMs, req.Start, req.End, req.Step)
 
-				// This returns negative, zero, or postive
+				// This returns negative, zero, or positive
 				return si - exemplarInterval
 			})
 			if ok {
