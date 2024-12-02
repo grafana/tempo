@@ -155,7 +155,7 @@ func BenchmarkPushSpans(b *testing.B) {
 				"span-metrics":   {},
 				"service-graphs": {},
 			},
-			spanMetricsEnableTargetInfo:             true,
+			spanMetricsEnableTargetInfo:             false,
 			spanMetricsTargetInfoExcludedDimensions: []string{"excluded}"},
 		}
 	)
@@ -175,6 +175,12 @@ func BenchmarkPushSpans(b *testing.B) {
 			test.MakeBatch(100, nil),
 			test.MakeBatch(100, nil),
 			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
 		},
 	}
 
@@ -189,11 +195,13 @@ func BenchmarkPushSpans(b *testing.B) {
 			{Key: "k8s.node.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
 			{Key: "k8s.pod.ip", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
 			{Key: "k8s.pod.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+			{Key: "service.instance.id", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
 			{Key: "excluded", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
 		}...)
 	}
 
 	b.ResetTimer()
+	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		inst.pushSpans(ctx, req)
 	}

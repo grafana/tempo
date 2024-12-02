@@ -6,7 +6,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/prometheus/prometheus/util/strutil"
 	"go.opentelemetry.io/otel"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
@@ -68,11 +67,11 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 	}
 
 	for _, d := range cfg.Dimensions {
-		labels = append(labels, sanitizeLabelNameWithCollisions(d))
+		labels = append(labels, processor_util.SanitizeLabelNameWithCollisions(d, intrinsicLabels))
 	}
 
 	for _, m := range cfg.DimensionMappings {
-		labels = append(labels, sanitizeLabelNameWithCollisions(m.Name))
+		labels = append(labels, processor_util.SanitizeLabelNameWithCollisions(m.Name, intrinsicLabels))
 	}
 
 	err := validateLabelValues(labels)
@@ -124,16 +123,15 @@ func (p *Processor) Shutdown(_ context.Context) {
 }
 
 func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
+	resourceLabels := make([]string, 0)
+	resourceValues := make([]string, 0)
 	for _, rs := range resourceSpans {
 		// already extract job name & instance id, so we only have to do it once per batch of spans
 		svcName, _ := processor_util.FindServiceName(rs.Resource.Attributes)
 		jobName := processor_util.GetJobValue(rs.Resource.Attributes)
 		instanceID, _ := processor_util.FindInstanceID(rs.Resource.Attributes)
-		resourceLabels := make([]string, 0) // TODO move outside the loop and reuse?
-		resourceValues := make([]string, 0) // TODO don't allocate unless needed?
-
 		if p.Cfg.EnableTargetInfo {
-			resourceLabels, resourceValues = processor_util.GetTargetInfoAttributesValues(rs.Resource.Attributes, p.Cfg.TargetInfoExcludedDimensions)
+			processor_util.GetTargetInfoAttributesValues(&resourceLabels, &resourceValues, rs.Resource.Attributes, p.Cfg.TargetInfoExcludedDimensions, intrinsicLabels)
 		}
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
@@ -237,10 +235,6 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		// TODO - attribute names are stable across applications
 		//        so let's cache the result of previous sanitizations
 		resourceAttributesCount := len(targetInfoLabels)
-		for index, label := range targetInfoLabels {
-			// sanitize label name
-			targetInfoLabels[index] = sanitizeLabelNameWithCollisions(label)
-		}
 
 		// add joblabel to target info only if job is not blank
 		if jobName != "" {
@@ -263,16 +257,6 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	}
 }
 
-func sanitizeLabelNameWithCollisions(name string) string {
-	sanitized := strutil.SanitizeLabelName(name)
-
-	if isIntrinsicDimension(sanitized) {
-		return "__" + sanitized
-	}
-
-	return sanitized
-}
-
 func validateLabelValues(v []string) error {
 	for _, value := range v {
 		if !utf8.ValidString(value) {
@@ -281,8 +265,4 @@ func validateLabelValues(v []string) error {
 	}
 
 	return nil
-}
-
-func isIntrinsicDimension(name string) bool {
-	return processor_util.Contains(name, []string{dimJob, dimSpanName, dimSpanKind, dimStatusCode, dimStatusMessage, dimInstance})
 }
