@@ -60,6 +60,6 @@
   // Service
 
   tempo_block_builder_service:
-    k.util.serviceFor($.tempo_block_builder_statefulset)
+    k.util.serviceFor($.tempo_block_builder_statefulset),
 
 }
