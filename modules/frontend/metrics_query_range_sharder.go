@@ -42,6 +42,7 @@ type QueryRangeSharderConfig struct {
 	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
 	Interval              time.Duration `yaml:"interval,omitempty"`
 	MaxExemplars          int           `yaml:"max_exemplars,omitempty"`
+	MaxTimeSeriesPerRequest   int           `yaml:"max_series_per_request,omitempty"`
 }
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search

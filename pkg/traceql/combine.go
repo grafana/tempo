@@ -150,6 +150,9 @@ type QueryRangeCombiner struct {
 	eval    *MetricsFrontendEvaluator
 	metrics *tempopb.SearchMetrics
 
+	// used to track the maximum number of series allowed in the response
+	maxSeriesCount int
+
 	// used to track which series were updated since the previous diff
 	// todo: it may not be worth it to track the diffs per series. it would be simpler (and possibly nearly as effective) to just calculate a global
 	//  max/min for all series

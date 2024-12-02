@@ -71,7 +71,6 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		tenant, _ := user.ExtractOrgID(req.Context())
 		start := time.Now()
-
 		// parse request
 		queryRangeReq, err := api.ParseQueryRangeRequest(req)
 		if err != nil {
