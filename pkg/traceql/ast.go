@@ -73,6 +73,19 @@ func (r *RootExpr) withHints(h *Hints) *RootExpr {
 	return r
 }
 
+func (r *RootExpr) IsNoop() bool {
+	if len(r.Pipeline.Elements) == 1 {
+		if f, ok := r.Pipeline.Elements[0].(*SpansetFilter); ok {
+			if !f.Expression.referencesSpan() {
+				if v, _ := f.Expression.execute(nil); v.Equals(&StaticFalse) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // **********************
 // Pipeline
 // **********************

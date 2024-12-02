@@ -79,6 +79,13 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		return pipeline.NewBadRequest(err), nil
 	}
 
+	if expr.IsNoop() {
+		// Empty response
+		ch := make(chan pipeline.Request, 2)
+		close(ch)
+		return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, ch, nil, s.next), nil
+	}
+
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return pipeline.NewBadRequest(err), nil
