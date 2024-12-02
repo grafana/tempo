@@ -1,16 +1,5 @@
 // Copyright (c) 2019 The Jaeger Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package grpcresolver
 
@@ -85,7 +74,7 @@ func New(
 }
 
 // Build returns itself for Resolver, because it's both a builder and a resolver.
-func (r *Resolver) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOptions) (resolver.Resolver, error) {
+func (r *Resolver) Build(_ resolver.Target, cc resolver.ClientConn, _ resolver.BuildOptions) (resolver.Resolver, error) {
 	r.cc = cc
 
 	// Update conn states if proactively updates already work
@@ -106,7 +95,7 @@ func (r *Resolver) Scheme() string {
 
 // ResolveNow is a noop for Resolver since resolver is already firing r.cc.UpdatesState every time
 // it receives updates of new instance from discoCh
-func (r *Resolver) ResolveNow(o resolver.ResolveNowOptions) {}
+func (*Resolver) ResolveNow(resolver.ResolveNowOptions) {}
 
 func (r *Resolver) watcher() {
 	defer r.closing.Done()

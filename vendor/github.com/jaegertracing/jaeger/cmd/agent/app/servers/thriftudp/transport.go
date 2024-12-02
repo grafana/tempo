@@ -1,17 +1,6 @@
 // Copyright (c) 2019 The Jaeger Authors.
 // Copyright (c) 2017 Uber Technologies, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package thriftudp
 
@@ -93,7 +82,7 @@ func NewTUDPServerTransport(hostPort string) (*TUDPTransport, error) {
 
 // Open does nothing as connection is opened on creation
 // Required to maintain thrift.TTransport interface
-func (p *TUDPTransport) Open() error {
+func (*TUDPTransport) Open() error {
 	return nil
 }
 
@@ -131,7 +120,7 @@ func (p *TUDPTransport) Read(buf []byte) (int, error) {
 
 // RemainingBytes returns the max number of bytes (same as Thrift's StreamTransport) as we
 // do not know how many bytes we have left.
-func (p *TUDPTransport) RemainingBytes() uint64 {
+func (*TUDPTransport) RemainingBytes() uint64 {
 	const maxSize = ^uint64(0)
 	return maxSize
 }

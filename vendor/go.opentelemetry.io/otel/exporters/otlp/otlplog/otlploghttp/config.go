@@ -143,8 +143,12 @@ func newConfig(options []Option) config {
 //
 // If the OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
 // environment variable is set, and this option is not passed, that variable
-// value will be used. If both are set, OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
-// will take precedence.
+// value will be used. If both environment variables are set,
+// OTEL_EXPORTER_OTLP_LOGS_ENDPOINT will take precedence. If an environment
+// variable is set, and this option is passed, this option will take precedence.
+//
+// If both this option and WithEndpointURL are used, the last used option will
+// take precedence.
 //
 // By default, if an environment variable is not set, and this option is not
 // passed, "localhost:4318" will be used.
@@ -159,8 +163,9 @@ func WithEndpoint(endpoint string) Option {
 //
 // If the OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
 // environment variable is set, and this option is not passed, that variable
-// value will be used. If both are set, OTEL_EXPORTER_OTLP_LOGS_ENDPOINT
-// will take precedence.
+// value will be used. If both environment variables are set,
+// OTEL_EXPORTER_OTLP_LOGS_ENDPOINT will take precedence. If an environment
+// variable is set, and this option is passed, this option will take precedence.
 //
 // If both this option and WithEndpoint are used, the last used option will
 // take precedence.
@@ -372,7 +377,7 @@ func (s setting[T]) Resolve(fn ...resolver[T]) setting[T] {
 	return s
 }
 
-// loadEnvTLS returns a resolver that loads a *tls.Config from files defeind by
+// loadEnvTLS returns a resolver that loads a *tls.Config from files defined by
 // the OTLP TLS environment variables. This will load both the rootCAs and
 // certificates used for mTLS.
 //

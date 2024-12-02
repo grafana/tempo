@@ -5,28 +5,40 @@ package ottlresource // import "github.com/open-telemetry/opentelemetry-collecto
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/logging"
 )
 
-var _ internal.ResourceContext = TransformContext{}
+var _ internal.ResourceContext = (*TransformContext)(nil)
+var _ zapcore.ObjectMarshaler = (*TransformContext)(nil)
 
 type TransformContext struct {
-	resource pcommon.Resource
-	cache    pcommon.Map
+	resource      pcommon.Resource
+	cache         pcommon.Map
+	schemaURLItem internal.SchemaURLItem
+}
+
+func (tCtx TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
+	err := encoder.AddObject("resource", logging.Resource(tCtx.resource))
+	err = errors.Join(err, encoder.AddObject("cache", logging.Map(tCtx.cache)))
+	return err
 }
 
 type Option func(*ottl.Parser[TransformContext])
 
-func NewTransformContext(resource pcommon.Resource) TransformContext {
+func NewTransformContext(resource pcommon.Resource, schemaURLItem internal.SchemaURLItem) TransformContext {
 	return TransformContext{
-		resource: resource,
-		cache:    pcommon.NewMap(),
+		resource:      resource,
+		cache:         pcommon.NewMap(),
+		schemaURLItem: schemaURLItem,
 	}
 }
 
@@ -36,6 +48,10 @@ func (tCtx TransformContext) GetResource() pcommon.Resource {
 
 func (tCtx TransformContext) getCache() pcommon.Map {
 	return tCtx.cache
+}
+
+func (tCtx TransformContext) GetResourceSchemaURLItem() internal.SchemaURLItem {
+	return tCtx.schemaURLItem
 }
 
 func NewParser(functions map[string]ottl.Factory[TransformContext], telemetrySettings component.TelemetrySettings, options ...Option) (ottl.Parser[TransformContext], error) {
@@ -112,10 +128,10 @@ func (pep *pathExpressionParser) parsePath(path ottl.Path[TransformContext]) (ot
 
 func accessCache() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.getCache(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if m, ok := val.(pcommon.Map); ok {
 				m.CopyTo(tCtx.getCache())
 			}

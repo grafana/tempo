@@ -55,7 +55,7 @@ func flatten[K any](target ottl.PMapGetter[K], p ottl.Optional[string], d ottl.O
 
 		result := pcommon.NewMap()
 		flattenHelper(m, result, prefix, 0, depth)
-		result.CopyTo(m)
+		result.MoveTo(m)
 
 		return nil, nil
 	}, nil

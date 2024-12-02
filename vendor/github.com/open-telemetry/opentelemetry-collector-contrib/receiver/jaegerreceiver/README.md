@@ -22,13 +22,12 @@ named under the `protocols` object for the jaeger receiver to start. The
 below protocols are supported, each supports an optional `endpoint`
 object configuration parameter.
 
-- `grpc` (default `endpoint` = 0.0.0.0:14250)
-- `thrift_binary` (default `endpoint` = 0.0.0.0:6832)
-- `thrift_compact` (default `endpoint` = 0.0.0.0:6831)
-- `thrift_http` (default `endpoint` = 0.0.0.0:14268)
+- `grpc` (default `endpoint` = localhost:14250)
+- `thrift_binary` (default `endpoint` = localhost:6832)
+- `thrift_compact` (default `endpoint` = localhost:6831)
+- `thrift_http` (default `endpoint` = localhost:14268)
 
-The `component.UseLocalHostAsDefaultHost` feature gate changes these endpoints to localhost:14250, localhost:6832, 
-localhost:6831 and localhost:14268. This will become the default in a future release.
+You can temporarily disable the `component.UseLocalHostAsDefaultHost` feature gate to change tgese endpoints to 0.0.0.0:14250, 0.0.0.0:6832, 0.0.0.0:6831 and 0.0.0.0:14268. This feature gate will be removed in a future release.
 
 Examples:
 

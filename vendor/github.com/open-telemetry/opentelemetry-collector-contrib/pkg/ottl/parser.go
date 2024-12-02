@@ -58,6 +58,7 @@ type Parser[K any] struct {
 	pathParser        PathExpressionParser[K]
 	enumParser        EnumParser
 	telemetrySettings component.TelemetrySettings
+	pathContextNames  map[string]struct{}
 }
 
 func NewParser[K any](
@@ -88,6 +89,22 @@ type Option[K any] func(*Parser[K])
 func WithEnumParser[K any](parser EnumParser) Option[K] {
 	return func(p *Parser[K]) {
 		p.enumParser = parser
+	}
+}
+
+// WithPathContextNames sets the context names to be considered when parsing a Path value.
+// When this option is empty or nil, all Path segments are considered fields, and the
+// Path.Context value is always empty.
+// When this option is configured, and the path's context is empty or is not present in
+// this context names list, it results into an error.
+func WithPathContextNames[K any](contexts []string) Option[K] {
+	return func(p *Parser[K]) {
+		pathContextNames := make(map[string]struct{}, len(contexts))
+		for _, ctx := range contexts {
+			pathContextNames[ctx] = struct{}{}
+		}
+
+		p.pathContextNames = pathContextNames
 	}
 }
 
@@ -262,8 +279,10 @@ func NewStatementSequence[K any](statements []*Statement[K], telemetrySettings c
 // When the ErrorMode of the StatementSequence is `ignore`, errors are logged and execution continues to the next statement.
 // When the ErrorMode of the StatementSequence is `silent`, errors are not logged and execution continues to the next statement.
 func (s *StatementSequence[K]) Execute(ctx context.Context, tCtx K) error {
+	s.telemetrySettings.Logger.Debug("initial TransformContext", zap.Any("TransformContext", tCtx))
 	for _, statement := range s.statements {
-		_, _, err := statement.Execute(ctx, tCtx)
+		_, condition, err := statement.Execute(ctx, tCtx)
+		s.telemetrySettings.Logger.Debug("TransformContext after statement execution", zap.String("statement", statement.origText), zap.Bool("condition matched", condition), zap.Any("TransformContext", tCtx))
 		if err != nil {
 			if s.errorMode == PropagateError {
 				err = fmt.Errorf("failed to execute statement: %v, %w", statement.origText, err)
@@ -333,6 +352,7 @@ func (c *ConditionSequence[K]) Eval(ctx context.Context, tCtx K) (bool, error) {
 	var atLeastOneMatch bool
 	for _, condition := range c.conditions {
 		match, err := condition.Eval(ctx, tCtx)
+		c.telemetrySettings.Logger.Debug("condition evaluation result", zap.String("condition", condition.origText), zap.Bool("match", match), zap.Any("TransformContext", tCtx))
 		if err != nil {
 			if c.errorMode == PropagateError {
 				err = fmt.Errorf("failed to eval condition: %v, %w", condition.origText, err)

@@ -1,22 +1,15 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package component outlines the abstraction of components within the OpenTelemetry Collector.  It provides details on the component
+// Package component outlines the abstraction of components within the OpenTelemetry Collector. It provides details on the component
 // lifecycle as well as defining the interface that components must fulfill.
 package component // import "go.opentelemetry.io/collector/component"
 
 import (
 	"context"
-	"errors"
 )
 
-var (
-	// ErrDataTypeIsNotSupported can be returned by receiver, exporter or processor factory funcs that create the
-	// Component if the particular telemetry data type is not supported by the receiver, exporter or processor.
-	ErrDataTypeIsNotSupported = errors.New("telemetry type is not supported")
-)
-
-// Component is either a receiver, exporter, processor, or an extension.
+// Component is either a receiver, exporter, processor, connector, or an extension.
 //
 // A component's lifecycle has the following phases:
 //
@@ -165,16 +158,13 @@ func (sl StabilityLevel) LogMessage() string {
 }
 
 // Factory is implemented by all Component factories.
-//
-// This interface cannot be directly implemented. Implementations must
-// use the factory helpers for the appropriate component type.
 type Factory interface {
 	// Type gets the type of the component created by this factory.
 	Type() Type
 
 	// CreateDefaultConfig creates the default configuration for the Component.
 	// This method can be called multiple times depending on the pipeline
-	// configuration and should not cause side-effects that prevent the creation
+	// configuration and should not cause side effects that prevent the creation
 	// of multiple instances of the Component.
 	// The object returned by this method needs to pass the checks implemented by
 	// 'componenttest.CheckConfigStruct'. It is recommended to have these checks in the
@@ -188,11 +178,4 @@ type CreateDefaultConfigFunc func() Config
 // CreateDefaultConfig implements Factory.CreateDefaultConfig().
 func (f CreateDefaultConfigFunc) CreateDefaultConfig() Config {
 	return f()
-}
-
-// InstanceID uniquely identifies a component instance
-type InstanceID struct {
-	ID          ID
-	Kind        Kind
-	PipelineIDs map[ID]struct{}
 }

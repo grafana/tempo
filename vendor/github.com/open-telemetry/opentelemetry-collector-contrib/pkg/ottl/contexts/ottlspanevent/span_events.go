@@ -5,20 +5,23 @@ package ottlspanevent // import "github.com/open-telemetry/opentelemetry-collect
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/logging"
 )
 
-var _ internal.ResourceContext = TransformContext{}
-var _ internal.InstrumentationScopeContext = TransformContext{}
-var _ internal.SpanContext = TransformContext{}
+var _ internal.ResourceContext = (*TransformContext)(nil)
+var _ internal.InstrumentationScopeContext = (*TransformContext)(nil)
+var _ zapcore.ObjectMarshaler = (*TransformContext)(nil)
 
 type TransformContext struct {
 	spanEvent            ptrace.SpanEvent
@@ -26,17 +29,30 @@ type TransformContext struct {
 	instrumentationScope pcommon.InstrumentationScope
 	resource             pcommon.Resource
 	cache                pcommon.Map
+	scopeSpans           ptrace.ScopeSpans
+	resouceSpans         ptrace.ResourceSpans
+}
+
+func (tCtx TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
+	err := encoder.AddObject("resource", logging.Resource(tCtx.resource))
+	err = errors.Join(err, encoder.AddObject("scope", logging.InstrumentationScope(tCtx.instrumentationScope)))
+	err = errors.Join(err, encoder.AddObject("span", logging.Span(tCtx.span)))
+	err = errors.Join(err, encoder.AddObject("spanevent", logging.SpanEvent(tCtx.spanEvent)))
+	err = errors.Join(err, encoder.AddObject("cache", logging.Map(tCtx.cache)))
+	return err
 }
 
 type Option func(*ottl.Parser[TransformContext])
 
-func NewTransformContext(spanEvent ptrace.SpanEvent, span ptrace.Span, instrumentationScope pcommon.InstrumentationScope, resource pcommon.Resource) TransformContext {
+func NewTransformContext(spanEvent ptrace.SpanEvent, span ptrace.Span, instrumentationScope pcommon.InstrumentationScope, resource pcommon.Resource, scopeSpans ptrace.ScopeSpans, resourceSpans ptrace.ResourceSpans) TransformContext {
 	return TransformContext{
 		spanEvent:            spanEvent,
 		span:                 span,
 		instrumentationScope: instrumentationScope,
 		resource:             resource,
 		cache:                pcommon.NewMap(),
+		scopeSpans:           scopeSpans,
+		resouceSpans:         resourceSpans,
 	}
 }
 
@@ -58,6 +74,14 @@ func (tCtx TransformContext) GetResource() pcommon.Resource {
 
 func (tCtx TransformContext) getCache() pcommon.Map {
 	return tCtx.cache
+}
+
+func (tCtx TransformContext) GetScopeSchemaURLItem() internal.SchemaURLItem {
+	return tCtx.scopeSpans
+}
+
+func (tCtx TransformContext) GetResourceSchemaURLItem() internal.SchemaURLItem {
+	return tCtx.resouceSpans
 }
 
 func NewParser(functions map[string]ottl.Factory[TransformContext], telemetrySettings component.TelemetrySettings, options ...Option) (ottl.Parser[TransformContext], error) {
@@ -159,10 +183,10 @@ func (pep *pathExpressionParser) parsePath(path ottl.Path[TransformContext]) (ot
 }
 func accessCache() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.getCache(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if m, ok := val.(pcommon.Map); ok {
 				m.CopyTo(tCtx.getCache())
 			}
@@ -184,10 +208,10 @@ func accessCacheKey(key []ottl.Key[TransformContext]) ottl.StandardGetSetter[Tra
 
 func accessSpanEventTimeUnixNano() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.GetSpanEvent().Timestamp().AsTime().UnixNano(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if newTimestamp, ok := val.(int64); ok {
 				tCtx.GetSpanEvent().SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, newTimestamp)))
 			}
@@ -198,10 +222,10 @@ func accessSpanEventTimeUnixNano() ottl.StandardGetSetter[TransformContext] {
 
 func accessSpanEventTime() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.GetSpanEvent().Timestamp().AsTime(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if newTimestamp, ok := val.(time.Time); ok {
 				tCtx.GetSpanEvent().SetTimestamp(pcommon.NewTimestampFromTime(newTimestamp))
 			}
@@ -212,10 +236,10 @@ func accessSpanEventTime() ottl.StandardGetSetter[TransformContext] {
 
 func accessSpanEventName() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.GetSpanEvent().Name(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if newName, ok := val.(string); ok {
 				tCtx.GetSpanEvent().SetName(newName)
 			}
@@ -226,10 +250,10 @@ func accessSpanEventName() ottl.StandardGetSetter[TransformContext] {
 
 func accessSpanEventAttributes() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.GetSpanEvent().Attributes(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if attrs, ok := val.(pcommon.Map); ok {
 				attrs.CopyTo(tCtx.GetSpanEvent().Attributes())
 			}
@@ -251,10 +275,10 @@ func accessSpanEventAttributesKey(key []ottl.Key[TransformContext]) ottl.Standar
 
 func accessSpanEventDroppedAttributeCount() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return int64(tCtx.GetSpanEvent().DroppedAttributesCount()), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if newCount, ok := val.(int64); ok {
 				tCtx.GetSpanEvent().SetDroppedAttributesCount(uint32(newCount))
 			}

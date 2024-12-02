@@ -17,6 +17,7 @@ import (
 )
 
 var ctimeRegexp = regexp.MustCompile(`%.`)
+var invalidFractionalSecondsStrptime = regexp.MustCompile(`[^.,]%[Lfs]`)
 var decimalsRegexp = regexp.MustCompile(`\d`)
 
 var ctimeSubstitutes = map[string]string{
@@ -121,10 +122,6 @@ func Parse(format, value string) (time.Time, error) {
 // ToNative converts ctime-like format string to Go native layout
 // (which is used by time.Time.Format() and time.Parse() functions).
 func ToNative(format string) (string, error) {
-	if match := decimalsRegexp.FindString(format); match != "" {
-		return "", errors.New("format string should not contain decimals")
-	}
-
 	var errs []error
 	replaceFunc := func(directive string) string {
 		if subst, ok := ctimeSubstitutes[directive]; ok {
@@ -140,4 +137,27 @@ func ToNative(format string) (string, error) {
 	}
 
 	return replaced, nil
+}
+
+func Validate(format string) error {
+	if match := decimalsRegexp.FindString(format); match != "" {
+		return errors.New("format string should not contain decimals")
+	}
+
+	if match := invalidFractionalSecondsStrptime.FindString(format); match != "" {
+		return fmt.Errorf("invalid fractional seconds directive: '%s'. must be preceded with '.' or ','", match)
+	}
+
+	directives := ctimeRegexp.FindAllString(format, -1)
+
+	var errs []error
+	for _, directive := range directives {
+		if _, ok := ctimeSubstitutes[directive]; !ok {
+			errs = append(errs, errors.New("unsupported ctimefmt.ToNative() directive: "+directive))
+		}
+	}
+	if len(errs) != 0 {
+		return fmt.Errorf("invalid strptime format: %v", errs)
+	}
+	return nil
 }

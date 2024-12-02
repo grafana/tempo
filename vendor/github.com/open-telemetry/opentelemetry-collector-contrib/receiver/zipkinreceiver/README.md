@@ -27,7 +27,7 @@ receivers:
 
 The following settings are configurable:
 
-- `endpoint` (default = 0.0.0.0:9411): host:port on which the receiver is going to receive data. The `component.UseLocalHostAsDefaultHost` feature gate changes this to localhost:9411. This will become the default in a future release.  For full list of `ServerConfig` refer [here](https://github.com/open-telemetry/opentelemetry-collector/tree/main/config/confighttp).
+- `endpoint` (default = localhost:9411): host:port on which the receiver is going to receive data.You can temporarily disable the `component.UseLocalHostAsDefaultHost` feature gate to change this to `0.0.0.0:9411`. This feature gate will be removed in a future release.  For full list of `ServerConfig` refer [here](https://github.com/open-telemetry/opentelemetry-collector/tree/main/config/confighttp).
 - `parse_string_tags` (default = false): if enabled, the receiver will attempt to parse string tags/binary annotations into int/bool/float.
 
 ## Advanced Configuration

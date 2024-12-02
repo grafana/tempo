@@ -69,6 +69,7 @@ The following types are supported for single-value parameters in OTTL functions:
 - `IntLikeGetter`
 - `BoolGetter`
 - `BoolLikeGetter`
+- `ByteSliceLikeGetter`
 - `Enum`
 - `string`
 - `float64`
@@ -113,6 +114,7 @@ Values are passed as function parameters or are used in a Boolean Expression. Va
 - [Enums](#enums)
 - [Converters](#converters)
 - [Math Expressions](#math-expressions)
+- [Maps](#maps)
 
 ### Paths
 
@@ -153,6 +155,16 @@ Example List Values:
 - `[1]`
 - `["1", "2", "3"]`
 - `["a", attributes["key"], Concat(["a", "b"], "-")]`
+
+### Maps
+
+A Map Value comprises a set of key Value pairs.
+
+Example Map Values:
+- `{}`
+- `{"foo": "bar"}`
+- `{"foo": {"a": 2}}`
+- `{"foo": {"a": attributes["key"]}}`
 
 ### Literals
 

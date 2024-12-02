@@ -20,7 +20,7 @@ import (
 
 const (
 	// Constants for OpenTelemetry Specs
-	scopeName = "otelcol/azureresourcelogs"
+	scopeName = "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/azure"
 
 	// Constants for Azure Log Records
 	azureCategory          = "azure.category"

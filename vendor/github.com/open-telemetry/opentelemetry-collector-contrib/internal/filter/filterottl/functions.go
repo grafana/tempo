@@ -14,13 +14,17 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottllog"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlmetric"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlresource"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlscope"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlspan"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlspanevent"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/ottlfuncs"
 )
 
 func StandardSpanFuncs() map[string]ottl.Factory[ottlspan.TransformContext] {
-	return ottlfuncs.StandardConverters[ottlspan.TransformContext]()
+	m := ottlfuncs.StandardConverters[ottlspan.TransformContext]()
+	isRootSpanFactory := ottlfuncs.NewIsRootSpanFactory()
+	m[isRootSpanFactory.Name()] = isRootSpanFactory
+	return m
 }
 
 func StandardSpanEventFuncs() map[string]ottl.Factory[ottlspanevent.TransformContext] {
@@ -38,6 +42,10 @@ func StandardMetricFuncs() map[string]ottl.Factory[ottlmetric.TransformContext] 
 
 func StandardDataPointFuncs() map[string]ottl.Factory[ottldatapoint.TransformContext] {
 	return ottlfuncs.StandardConverters[ottldatapoint.TransformContext]()
+}
+
+func StandardScopeFuncs() map[string]ottl.Factory[ottlscope.TransformContext] {
+	return ottlfuncs.StandardConverters[ottlscope.TransformContext]()
 }
 
 func StandardLogFuncs() map[string]ottl.Factory[ottllog.TransformContext] {
@@ -68,7 +76,7 @@ func createHasAttributeOnDatapointFunction(_ ottl.FunctionContext, oArgs ottl.Ar
 }
 
 func hasAttributeOnDatapoint(key string, expectedVal string) (ottl.ExprFunc[ottlmetric.TransformContext], error) {
-	return func(ctx context.Context, tCtx ottlmetric.TransformContext) (any, error) {
+	return func(_ context.Context, tCtx ottlmetric.TransformContext) (any, error) {
 		return checkDataPoints(tCtx, key, &expectedVal)
 	}, nil
 }
@@ -92,7 +100,7 @@ func createHasAttributeKeyOnDatapointFunction(_ ottl.FunctionContext, oArgs ottl
 }
 
 func hasAttributeKeyOnDatapoint(key string) (ottl.ExprFunc[ottlmetric.TransformContext], error) {
-	return func(ctx context.Context, tCtx ottlmetric.TransformContext) (any, error) {
+	return func(_ context.Context, tCtx ottlmetric.TransformContext) (any, error) {
 		return checkDataPoints(tCtx, key, nil)
 	}, nil
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottllog"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlmetric"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlresource"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlscope"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlspan"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlspanevent"
 )
@@ -109,5 +110,21 @@ func NewBoolExprForResource(conditions []string, functions map[string]ottl.Facto
 		return nil, err
 	}
 	c := ottlresource.NewConditionSequence(statements, set, ottlresource.WithConditionSequenceErrorMode(errorMode))
+	return &c, nil
+}
+
+// NewBoolExprForScope creates a BoolExpr[ottlscope.TransformContext] that will return true if any of the given OTTL conditions evaluate to true.
+// The passed in functions should use the ottlresource.TransformContext.
+// If a function named `match` is not present in the function map it will be added automatically so that parsing works as expected
+func NewBoolExprForScope(conditions []string, functions map[string]ottl.Factory[ottlscope.TransformContext], errorMode ottl.ErrorMode, set component.TelemetrySettings) (expr.BoolExpr[ottlscope.TransformContext], error) {
+	parser, err := ottlscope.NewParser(functions, set)
+	if err != nil {
+		return nil, err
+	}
+	statements, err := parser.ParseConditions(conditions)
+	if err != nil {
+		return nil, err
+	}
+	c := ottlscope.NewConditionSequence(statements, set, ottlscope.WithConditionSequenceErrorMode(errorMode))
 	return &c, nil
 }

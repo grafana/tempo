@@ -15,55 +15,67 @@ import (
 )
 
 type pdataLogsMarshaler struct {
-	marshaler plog.Marshaler
-	encoding  string
+	marshaler              plog.Marshaler
+	encoding               string
+	partitionedByResources bool
 }
 
 func (p pdataLogsMarshaler) Marshal(ld plog.Logs, topic string) ([]*sarama.ProducerMessage, error) {
-	bts, err := p.marshaler.MarshalLogs(ld)
-	if err != nil {
-		return nil, err
-	}
-	return []*sarama.ProducerMessage{
-		{
+	var msgs []*sarama.ProducerMessage
+	if p.partitionedByResources {
+		logs := ld.ResourceLogs()
+
+		for i := 0; i < logs.Len(); i++ {
+			resourceMetrics := logs.At(i)
+			var hash = pdatautil.MapHash(resourceMetrics.Resource().Attributes())
+
+			newLogs := plog.NewLogs()
+			resourceMetrics.CopyTo(newLogs.ResourceLogs().AppendEmpty())
+
+			bts, err := p.marshaler.MarshalLogs(newLogs)
+			if err != nil {
+				return nil, err
+			}
+			msgs = append(msgs, &sarama.ProducerMessage{
+				Topic: topic,
+				Value: sarama.ByteEncoder(bts),
+				Key:   sarama.ByteEncoder(hash[:]),
+			})
+		}
+	} else {
+		bts, err := p.marshaler.MarshalLogs(ld)
+		if err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, &sarama.ProducerMessage{
 			Topic: topic,
 			Value: sarama.ByteEncoder(bts),
-		},
-	}, nil
+		})
+	}
+	return msgs, nil
 }
 
 func (p pdataLogsMarshaler) Encoding() string {
 	return p.encoding
 }
 
-func newPdataLogsMarshaler(marshaler plog.Marshaler, encoding string) LogsMarshaler {
+func newPdataLogsMarshaler(marshaler plog.Marshaler, encoding string, partitionedByResources bool) LogsMarshaler {
 	return pdataLogsMarshaler{
-		marshaler: marshaler,
-		encoding:  encoding,
+		marshaler:              marshaler,
+		encoding:               encoding,
+		partitionedByResources: partitionedByResources,
 	}
 }
 
-// KeyableMetricsMarshaler is an extension of the MetricsMarshaler interface intended to provide partition key capabilities
-// for metrics messages
-type KeyableMetricsMarshaler interface {
-	MetricsMarshaler
-	Key()
-}
-
 type pdataMetricsMarshaler struct {
-	marshaler pmetric.Marshaler
-	encoding  string
-	keyed     bool
-}
-
-// Key configures the pdataMetricsMarshaler to set the message key on the kafka messages
-func (p *pdataMetricsMarshaler) Key() {
-	p.keyed = true
+	marshaler              pmetric.Marshaler
+	encoding               string
+	partitionedByResources bool
 }
 
 func (p pdataMetricsMarshaler) Marshal(ld pmetric.Metrics, topic string) ([]*sarama.ProducerMessage, error) {
 	var msgs []*sarama.ProducerMessage
-	if p.keyed {
+	if p.partitionedByResources {
 		metrics := ld.ResourceMetrics()
 
 		for i := 0; i < metrics.Len(); i++ {
@@ -101,29 +113,23 @@ func (p pdataMetricsMarshaler) Encoding() string {
 	return p.encoding
 }
 
-func newPdataMetricsMarshaler(marshaler pmetric.Marshaler, encoding string) MetricsMarshaler {
+func newPdataMetricsMarshaler(marshaler pmetric.Marshaler, encoding string, partitionedByResources bool) MetricsMarshaler {
 	return &pdataMetricsMarshaler{
-		marshaler: marshaler,
-		encoding:  encoding,
+		marshaler:              marshaler,
+		encoding:               encoding,
+		partitionedByResources: partitionedByResources,
 	}
 }
 
-// KeyableTracesMarshaler is an extension of the TracesMarshaler interface intended to provide partition key capabilities
-// for trace messages
-type KeyableTracesMarshaler interface {
-	TracesMarshaler
-	Key()
-}
-
 type pdataTracesMarshaler struct {
-	marshaler ptrace.Marshaler
-	encoding  string
-	keyed     bool
+	marshaler            ptrace.Marshaler
+	encoding             string
+	partitionedByTraceID bool
 }
 
 func (p *pdataTracesMarshaler) Marshal(td ptrace.Traces, topic string) ([]*sarama.ProducerMessage, error) {
 	var msgs []*sarama.ProducerMessage
-	if p.keyed {
+	if p.partitionedByTraceID {
 		for _, trace := range batchpersignal.SplitTraces(td) {
 			bts, err := p.marshaler.MarshalTraces(trace)
 			if err != nil {
@@ -154,14 +160,10 @@ func (p *pdataTracesMarshaler) Encoding() string {
 	return p.encoding
 }
 
-// Key configures the pdataTracesMarshaler to set the message key on the kafka messages
-func (p *pdataTracesMarshaler) Key() {
-	p.keyed = true
-}
-
-func newPdataTracesMarshaler(marshaler ptrace.Marshaler, encoding string) TracesMarshaler {
+func newPdataTracesMarshaler(marshaler ptrace.Marshaler, encoding string, partitionedByTraceID bool) TracesMarshaler {
 	return &pdataTracesMarshaler{
-		marshaler: marshaler,
-		encoding:  encoding,
+		marshaler:            marshaler,
+		encoding:             encoding,
+		partitionedByTraceID: partitionedByTraceID,
 	}
 }
