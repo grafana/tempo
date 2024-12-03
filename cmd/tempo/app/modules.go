@@ -81,8 +81,6 @@ const (
 	// composite targets
 	SingleBinary         string = "all"
 	ScalableSingleBinary string = "scalable-single-binary"
-	// GeneratorBuilder is a composite target that includes the metrics-generator and the block-builder
-	GeneratorBuilder string = "generator-builder"
 
 	// ring names
 	ringIngester          string = "ingester"
@@ -673,15 +671,14 @@ func (t *App) setupModuleManager() error {
 		QueryFrontend:    {Common, Store, OverridesAPI},
 		Distributor:      {Common, IngesterRing, MetricsGeneratorRing, PartitionRing},
 		Ingester:         {Common, Store, MemberlistKV, PartitionRing},
-		MetricsGenerator: {Common, OptionalStore, MemberlistKV, BlockBuilder, PartitionRing},
+		MetricsGenerator: {Common, OptionalStore, MemberlistKV, PartitionRing},
 		Querier:          {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
 		Compactor:        {Common, Store, MemberlistKV},
 		BlockBuilder:     {Common, Store, MemberlistKV, PartitionRing},
 
 		// composite targets
-		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},
+		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator, BlockBuilder},
 		ScalableSingleBinary: {SingleBinary},
-		// GeneratorBuilder:     {MetricsGenerator, BlockBuilder},
 	}
 
 	for mod, targets := range deps {

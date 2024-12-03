@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,6 +31,10 @@ type Config struct {
 	SearchEncoding backend.Encoding `yaml:"search_encoding"`
 	IngestionSlack time.Duration    `yaml:"ingestion_time_range_slack"`
 	Version        string           `yaml:"version,omitempty"`
+}
+
+func (c *Config) RegisterFlags(*flag.FlagSet) {
+	c.IngestionSlack = 2 * time.Minute
 }
 
 func ValidateConfig(c *Config) error {

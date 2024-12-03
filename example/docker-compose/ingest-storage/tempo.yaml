@@ -47,6 +47,9 @@ metrics_generator:
         send_exemplars: true
   traces_storage:
     path: /var/tempo/generator/traces
+  assigned_partitions:
+    metrics-generator-0: [0,2]
+    metrics-generator-1: [1]
 
 storage:
   trace:
@@ -77,3 +80,6 @@ ingest:
 block_builder:
   lookback_on_no_commit: 2m
   consume_cycle_duration: 30s
+  assigned_partitions:
+    block-builder-0: [0,2]
+    block-builder-1: [1]

@@ -112,7 +112,8 @@ services:
     image: *tempoImage
     depends_on:
       - kafka
-    command: "-target=metrics-generator -config.file=/etc/tempo.yaml -block-builder.assigned-partitions=[0,1,2]"
+    command: "-target=metrics-generator -config.file=/etc/tempo.yaml"
+    hostname: metrics-generator-0
     restart: always
     volumes:
       - ./tempo.yaml:/etc/tempo.yaml
@@ -122,19 +123,50 @@ services:
   #    environment:
   #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
-#  metrics-generator-1:
-#    image: *tempoImage
-#    depends_on:
-#      - kafka
-#    command: "-target=metrics-generator -config.file=/etc/tempo.yaml"
-#    restart: always
-#    volumes:
-#      - ./tempo.yaml:/etc/tempo.yaml
-#    ports:
-#      - "3200"   # tempo
-#  # Uncomment the following lines to enable tracing
-#  #    environment:
-#  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+  metrics-generator-1:
+    image: *tempoImage
+    depends_on:
+      - kafka
+    command: "-target=metrics-generator -config.file=/etc/tempo.yaml"
+    hostname: metrics-generator-1
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200"   # tempo
+  # Uncomment the following lines to enable tracing
+  #    environment:
+  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+
+  block-builder-0:
+    image: *tempoImage
+    depends_on:
+      - kafka
+    command: "-target=block-builder -config.file=/etc/tempo.yaml"
+    hostname: block-builder-0
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200"   # tempo
+  # Uncomment the following lines to enable tracing
+  #    environment:
+  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+
+  block-builder-1:
+    image: *tempoImage
+    depends_on:
+      - kafka
+    command: "-target=block-builder -config.file=/etc/tempo.yaml"
+    hostname: block-builder-1
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+        - "3200"   # tempo
+  # Uncomment the following lines to enable tracing
+  #    environment:
+  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
   minio:
     image: minio/minio:latest

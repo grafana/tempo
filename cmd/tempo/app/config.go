@@ -229,6 +229,10 @@ func (c *Config) CheckConfig() []ConfigWarning {
 		warnings = append(warnings, warnTraceByIDConcurrentShards)
 	}
 
+	if c.BlockBuilder.BlockConfig.BlockCfg.Version != c.BlockBuilder.WAL.Version {
+		warnings = append(warnings, warnBlockAndWALVersionMismatch)
+	}
+
 	return warnings
 }
 
@@ -307,6 +311,11 @@ var (
 	warnTraceByIDConcurrentShards = ConfigWarning{
 		Message: "c.Frontend.TraceByID.ConcurrentShards greater than query_shards is invalid. concurrent_shards will be set to query_shards",
 		Explain: "Please remove ConcurrentShards or set it to a value less than or equal to QueryShards",
+	}
+
+	warnBlockAndWALVersionMismatch = ConfigWarning{
+		Message: "c.BlockConfig.BlockCfg.Version != c.WAL.Version",
+		Explain: "Block version and WAL version must match. WAL version will be set to block version",
 	}
 )
 

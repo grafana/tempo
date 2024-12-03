@@ -26,17 +26,22 @@ minio + metrics + load + tempo {
     },
     distributor+: {
       receivers: {
-        opencensus: null,
-        jaeger: {
+        otlp: {
           protocols: {
-            thrift_http: null,
+            grpc: null,
           },
         },
       },
     },
     metrics_generator+: {
+      replicas: 1,
       ephemeral_storage_limit_size: '2Gi',
       ephemeral_storage_request_size: '1Gi',
+      pvc_size: '1Gi',
+      pvc_storage_class: 'local-path',
+    },
+    block_builder+:{
+      replicas: 1,
     },
     memcached+: {
       replicas: 1,
@@ -79,8 +84,7 @@ minio + metrics + load + tempo {
   tempo_distributor_container+::
     k.util.resourcesRequests('500m', '500Mi') +
     container.withPortsMixin([
-      containerPort.new('opencensus', 55678),
-      containerPort.new('jaeger-http', 14268),
+      containerPort.new('otlp-grpc', 4317),
     ]),
 
   tempo_ingester_container+::

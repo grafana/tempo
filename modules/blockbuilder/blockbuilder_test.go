@@ -326,11 +326,11 @@ func TestCycleEndAtStartup(t *testing.T) {
 	}
 }
 
-func blockbuilderConfig(_ *testing.T, address string) Config {
+func blockbuilderConfig(t *testing.T, address string) Config {
 	cfg := Config{}
 	flagext.DefaultValues(&cfg)
 
-	flagext.DefaultValues(&cfg.blockConfig)
+	flagext.DefaultValues(&cfg.BlockConfig)
 
 	flagext.DefaultValues(&cfg.IngestStorageConfig.Kafka)
 	cfg.IngestStorageConfig.Kafka.Address = address
@@ -340,6 +340,8 @@ func blockbuilderConfig(_ *testing.T, address string) Config {
 	cfg.AssignedPartitions = map[string][]int32{cfg.InstanceID: {0}}
 	cfg.LookbackOnNoCommit = 15 * time.Second
 	cfg.ConsumeCycleDuration = 5 * time.Second
+
+	cfg.WAL.Filepath = t.TempDir()
 
 	return cfg
 }
