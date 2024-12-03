@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -67,7 +68,24 @@ func (p *writer) pushBytes(tenant string, req *tempopb.PushBytesRequest) error {
 			return fmt.Errorf("failed to unmarshal trace: %w", err)
 		}
 
-		if err := i.AppendTrace(req.Ids[j], tr, 0, 0); err != nil {
+		var start, end uint64
+		for _, b := range tr.ResourceSpans {
+			for _, ss := range b.ScopeSpans {
+				for _, s := range ss.Spans {
+					if start == 0 || s.StartTimeUnixNano < start {
+						start = s.StartTimeUnixNano
+					}
+					if s.EndTimeUnixNano > end {
+						end = s.EndTimeUnixNano
+					}
+				}
+			}
+		}
+
+		startSeconds := uint32(start / uint64(time.Second))
+		endSeconds := uint32(end / uint64(time.Second))
+
+		if err := i.AppendTrace(req.Ids[j], tr, startSeconds, endSeconds); err != nil {
 			return err
 		}
 	}
