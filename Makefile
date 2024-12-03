@@ -340,7 +340,7 @@ jsonnet-test: tools-image ## Test jsonnet
 .PHONY: docker-serverless test-serverless
 docker-serverless: ## Build docker Tempo serverless
 	$(MAKE) -C cmd/tempo-serverless build-docker
- 
+
 test-serverless: ## Run Tempo serverless tests
 	$(MAKE) -C cmd/tempo-serverless test
 

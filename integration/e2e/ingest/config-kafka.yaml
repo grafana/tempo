@@ -11,7 +11,6 @@ query_frontend:
     query_ingesters_until: 0
 
 distributor:
-  kafka_write_path_enabled: true
   receivers:
     jaeger:
       protocols:
@@ -34,10 +33,10 @@ ingester:
       replication_factor: 1
     final_sleep: 0s
   trace_idle_period: 1s
-#  max_block_bytes: 1
-#  max_block_duration: 2s
-#  complete_block_timeout: 20s
-#  flush_check_period: 1s
+  max_block_bytes: 1
+  max_block_duration: 2s
+  complete_block_timeout: 20s
+  flush_check_period: 1s
   partition_ring:
     kvstore:
       store: inmemory
@@ -63,6 +62,10 @@ overrides:
       backend: local
       local:
         path: /var/tempo/overrides
+
+block_builder:
+  lookback_on_no_commit: 15m
+  consume_cycle_duration: 1m
 
 ingest:
   enabled: true
