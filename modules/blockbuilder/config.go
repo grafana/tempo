@@ -48,7 +48,7 @@ type Config struct {
 
 func (c *Config) Validate() error {
 	if c.BlockConfig.BlockCfg.Version != c.WAL.Version {
-		return fmt.Errorf("block version %s does not match WAL version %s", c.BlockConfig.BlockCfg.Version, c.WAL.Version)
+		c.WAL.Version = c.BlockConfig.BlockCfg.Version
 	}
 
 	if err := common.ValidateConfig(&c.BlockConfig.BlockCfg); err != nil {
