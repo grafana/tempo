@@ -3,7 +3,6 @@ package blockbuilder
 import (
 	"context"
 	"fmt"
-	"math"
 	"sync"
 	"time"
 
@@ -69,12 +68,16 @@ func (p *writer) pushBytes(tenant string, req *tempopb.PushBytesRequest) error {
 			return fmt.Errorf("failed to unmarshal trace: %w", err)
 		}
 
-		start, end := uint64(math.MaxUint64), uint64(0)
-		for _, rs := range tr.ResourceSpans {
-			for _, ss := range rs.ScopeSpans {
-				for _, span := range ss.Spans {
-					start = min(start, span.StartTimeUnixNano)
-					end = max(end, span.EndTimeUnixNano)
+		var start, end uint64
+		for _, b := range tr.ResourceSpans {
+			for _, ss := range b.ScopeSpans {
+				for _, s := range ss.Spans {
+					if start == 0 || s.StartTimeUnixNano < start {
+						start = s.StartTimeUnixNano
+					}
+					if s.EndTimeUnixNano > end {
+						end = s.EndTimeUnixNano
+					}
 				}
 			}
 		}
