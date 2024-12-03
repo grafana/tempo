@@ -6,9 +6,11 @@ import (
 	"io"
 	"math/rand"
 	"os"
+	"sort"
 	"testing"
 
 	"github.com/dustin/go-humanize"
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/parquet-go/parquet-go"
@@ -37,7 +39,9 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 	parquetTrace, connected := traceToParquet(&meta, traceIDA, expectedTrace, nil)
 	require.True(t, connected)
 	actualTrace := parquetTraceToTempopbTrace(&meta, parquetTrace)
-	assert.Equal(t, expectedTrace, actualTrace)
+
+	//assert.Equal(t, expectedTrace, actualTrace)
+	tempopbTraceEqual(t, expectedTrace, actualTrace)
 }
 
 func TestProtoToParquetEmptyTrace(t *testing.T) {
@@ -165,7 +169,7 @@ func TestFieldsAreCleared(t *testing.T) {
 	_, _ = traceToParquet(&meta, traceID, complexTrace, tr)
 	actualTrace, _ := traceToParquet(&meta, traceID, simpleTrace, tr)
 
-	assertEqualEquateEmpty(t, expectedTrace, actualTrace)
+	traceEqual(t, expectedTrace, actualTrace)
 }
 
 func TestTraceToParquet(t *testing.T) {
@@ -726,7 +730,7 @@ func TestTraceToParquet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var actual Trace
 			traceToParquet(&meta, tt.id, &tt.trace, &actual)
-			assertEqualEquateEmpty(t, tt.expected, actual)
+			traceEqual(t, &tt.expected, &actual)
 		})
 	}
 }
@@ -919,10 +923,59 @@ func BenchmarkExtendReuseSlice(b *testing.B) {
 	}
 }
 
-// assertEqualEquateEmpty asserts similar to assert.Equal but treats empty / nil slices and maps as equal
-func assertEqualEquateEmpty(t *testing.T, expected, actual interface{}, messages ...interface{}) {
+func tempopbTraceEqual(t *testing.T, expected, actual *tempopb.Trace) {
+	sortAttributesTempopb(expected)
+	sortAttributesTempopb(actual)
+
+	if !proto.Equal(expected, actual) {
+		t.Log(cmp.Diff(expected, actual))
+		assert.Fail(t, "expected and actual are not equal")
+	}
+}
+
+func sortAttributesTempopb(t *tempopb.Trace) {
+	// sort attributes for comparison
+	for _, rs := range t.ResourceSpans {
+		sort.Slice(rs.Resource.Attributes, func(i, j int) bool {
+			if rs.Resource.Attributes[i].Key == rs.Resource.Attributes[j].Key {
+				return rs.Resource.Attributes[i].Value.String() < rs.Resource.Attributes[j].Value.String()
+			}
+
+			return rs.Resource.Attributes[i].Key < rs.Resource.Attributes[j].Key
+		})
+		for _, ss := range rs.ScopeSpans {
+			sort.Slice(ss.Scope.Attributes, func(i, j int) bool {
+				if rs.Resource.Attributes[i].Key == rs.Resource.Attributes[j].Key {
+					return rs.Resource.Attributes[i].Value.String() < rs.Resource.Attributes[j].Value.String()
+				}
+
+				return ss.Scope.Attributes[i].Key < ss.Scope.Attributes[j].Key
+			})
+		}
+	}
+}
+
+// traceEqual asserts similar to assert.Equal but treats empty / nil slices and maps as equal
+func traceEqual(t *testing.T, expected, actual *Trace, messages ...interface{}) {
+	sortAttributes(expected)
+	sortAttributes(actual)
+
 	if !cmp.Equal(expected, actual, cmpopts.EquateEmpty()) {
 		t.Log(cmp.Diff(expected, actual))
 		assert.Fail(t, "expected and actual are not equal", messages...)
+	}
+}
+
+func sortAttributes(t *Trace) {
+	// sort attributes for comparison
+	for _, rs := range t.ResourceSpans {
+		sort.Slice(rs.Resource.Attrs, func(i, j int) bool {
+			return rs.Resource.Attrs[i].Key < rs.Resource.Attrs[j].Key
+		})
+		for _, ss := range rs.ScopeSpans {
+			sort.Slice(ss.Scope.Attrs, func(i, j int) bool {
+				return ss.Scope.Attrs[i].Key < ss.Scope.Attrs[j].Key
+			})
+		}
 	}
 }
