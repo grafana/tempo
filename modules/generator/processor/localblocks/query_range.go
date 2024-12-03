@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,7 +22,7 @@ import (
 )
 
 // QueryRange returns metrics.
-func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (traceql.SeriesSet, error) {
+func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest, rawEval *traceql.MetricsEvalulator, jobEval *traceql.MetricsFrontendEvaluator) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -32,12 +31,12 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 
 	cutoff := time.Now().Add(-p.Cfg.CompleteBlockTimeout).Add(-timeBuffer)
 	if req.Start < uint64(cutoff.UnixNano()) {
-		return nil, fmt.Errorf("time range must be within last %v", p.Cfg.CompleteBlockTimeout)
+		return fmt.Errorf("time range must be within last %v", p.Cfg.CompleteBlockTimeout)
 	}
 
 	expr, err := traceql.Parse(req.Query)
 	if err != nil {
-		return nil, fmt.Errorf("compiling query: %w", err)
+		return fmt.Errorf("compiling query: %w", err)
 	}
 
 	unsafe := p.overrides.UnsafeQueryHints(p.tenant)
@@ -50,25 +49,6 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	concurrency := p.Cfg.Metrics.ConcurrentBlocks
 	if v, ok := expr.Hints.GetInt(traceql.HintConcurrentBlocks, unsafe); ok && v > 0 && v < 100 {
 		concurrency = uint(v)
-	}
-
-	e := traceql.NewEngine()
-
-	// Compile the raw version of the query for wal blocks
-	// These aren't cached and we put them all into the same evaluator
-	// for efficiency.
-	eval, err := e.CompileMetricsQueryRange(req, int(req.Exemplars), timeOverlapCutoff, unsafe)
-	if err != nil {
-		return nil, err
-	}
-
-	// This is a summation version of the query for complete blocks
-	// which can be cached. But we need their results separately so they are
-	// computed separately.
-	overallEvalMtx := sync.Mutex{}
-	overallEval, err := traceql.NewEngine().CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeSum)
-	if err != nil {
-		return nil, err
 	}
 
 	withinRange := func(m *backend.BlockMeta) bool {
@@ -86,7 +66,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 		wg.Add(1)
 		go func(w common.WALBlock) {
 			defer wg.Done()
-			err := p.queryRangeWALBlock(ctx, w, eval)
+			err := p.queryRangeWALBlock(ctx, w, rawEval)
 			if err != nil {
 				jobErr.Store(err)
 			}
@@ -105,7 +85,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 		wg.Add(1)
 		go func(w common.WALBlock) {
 			defer wg.Done()
-			err := p.queryRangeWALBlock(ctx, w, eval)
+			err := p.queryRangeWALBlock(ctx, w, rawEval)
 			if err != nil {
 				jobErr.Store(err)
 			}
@@ -130,23 +110,17 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 				return
 			}
 
-			overallEvalMtx.Lock()
-			defer overallEvalMtx.Unlock()
-			overallEval.ObserveSeries(resp)
+			jobEval.ObserveSeries(resp)
 		}(b)
 	}
 
 	wg.Wait()
 
 	if err := jobErr.Load(); err != nil {
-		return nil, err
+		return err
 	}
 
-	// Combine the uncacheable results into the overall results
-	walResults := eval.Results().ToProto(req)
-	overallEval.ObserveSeries(walResults)
-
-	return overallEval.Results(), nil
+	return nil
 }
 
 func (p *Processor) queryRangeWALBlock(ctx context.Context, b common.WALBlock, eval *traceql.MetricsEvalulator) error {

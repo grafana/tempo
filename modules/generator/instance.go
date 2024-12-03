@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/wal"
 
 	"go.uber.org/atomic"
@@ -62,6 +63,8 @@ const (
 	reasonOutsideTimeRangeSlack = "outside_metrics_ingestion_slack"
 	reasonSpanMetricsFiltered   = "span_metrics_filtered"
 	reasonInvalidUTF8           = "invalid_utf8"
+
+	timeBuffer = 5 * time.Minute
 )
 
 type instance struct {
@@ -74,14 +77,16 @@ type instance struct {
 	registry *registry.ManagedRegistry
 	wal      storage.Storage
 
-	traceWAL *wal.WAL
-	writer   tempodb.Writer
+	traceWAL  *wal.WAL
+	traceWAL2 *wal.WAL
+	writer    tempodb.Writer
 
 	// processorsMtx protects the processors map, not the processors itself
 	processorsMtx sync.RWMutex
 	// processors is a map of processor name -> processor, only one instance of a processor can be
 	// active at any time
-	processors map[string]processor.Processor
+	processors            map[string]processor.Processor
+	queuebasedLocalBlocks *localblocks.Processor
 
 	shutdownCh chan struct{}
 
@@ -89,7 +94,7 @@ type instance struct {
 	logger log.Logger
 }
 
-func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, reg prometheus.Registerer, logger log.Logger, traceWAL *wal.WAL, writer tempodb.Writer) (*instance, error) {
+func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, reg prometheus.Registerer, logger log.Logger, traceWAL, traceWAL2 *wal.WAL, writer tempodb.Writer) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
 
 	i := &instance{
@@ -97,10 +102,11 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 		instanceID: instanceID,
 		overrides:  overrides,
 
-		registry: registry.New(&cfg.Registry, overrides, instanceID, wal, logger),
-		wal:      wal,
-		traceWAL: traceWAL,
-		writer:   writer,
+		registry:  registry.New(&cfg.Registry, overrides, instanceID, wal, logger),
+		wal:       wal,
+		traceWAL:  traceWAL,
+		traceWAL2: traceWAL2,
+		writer:    writer,
 
 		processors: make(map[string]processor.Processor),
 
@@ -304,6 +310,13 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 			return err
 		}
 		newProcessor = p
+
+		nonFlushingConfig := cfg.LocalBlocks
+		nonFlushingConfig.FlushToStorage = false
+		i.queuebasedLocalBlocks, err = localblocks.New(nonFlushingConfig, i.instanceID, i.traceWAL2, i.writer, i.overrides)
+		if err != nil {
+			return err
+		}
 	default:
 		level.Error(i.logger).Log(
 			"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(SupportedProcessors, ", ")),
@@ -335,6 +348,11 @@ func (i *instance) removeProcessor(processorName string) {
 	delete(i.processors, processorName)
 
 	deletedProcessor.Shutdown(context.Background())
+
+	if processorName == localblocks.Name && i.queuebasedLocalBlocks != nil {
+		i.queuebasedLocalBlocks.Shutdown(context.Background())
+		i.queuebasedLocalBlocks = nil
+	}
 }
 
 // updateProcessorMetrics updates the active processor metrics. Must be called under a read lock.
@@ -369,6 +387,11 @@ func (i *instance) pushSpansFromQueue(ctx context.Context, req *tempopb.PushSpan
 			continue
 		}
 		processor.PushSpans(ctx, req)
+	}
+
+	// Now we push to the non-flushing local blocks if present
+	if i.queuebasedLocalBlocks != nil {
+		i.queuebasedLocalBlocks.PushSpans(ctx, req)
 	}
 }
 
@@ -418,23 +441,74 @@ func (i *instance) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsReque
 }
 
 func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest) (resp *tempopb.QueryRangeResponse, err error) {
+	var processors []*localblocks.Processor
+
+	i.processorsMtx.RLock()
 	for _, processor := range i.processors {
 		switch p := processor.(type) {
 		case *localblocks.Processor:
-			r, err := p.QueryRange(ctx, req)
-			if err != nil {
-				return resp, err
-			}
-
-			rr := r.ToProto(req)
-			return &tempopb.QueryRangeResponse{
-				Series: rr,
-			}, nil
-		default:
+			processors = append(processors, p)
 		}
 	}
 
-	return resp, fmt.Errorf("localblocks processor not found")
+	if i.queuebasedLocalBlocks != nil {
+		processors = append(processors, i.queuebasedLocalBlocks)
+	}
+
+	i.processorsMtx.RUnlock()
+
+	if len(processors) == 0 {
+		return resp, fmt.Errorf("localblocks processor not found")
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	expr, err := traceql.Parse(req.Query)
+	if err != nil {
+		return nil, fmt.Errorf("compiling query: %w", err)
+	}
+
+	unsafe := i.overrides.UnsafeQueryHints(i.instanceID)
+
+	timeOverlapCutoff := i.cfg.Processor.LocalBlocks.Metrics.TimeOverlapCutoff
+	if v, ok := expr.Hints.GetFloat(traceql.HintTimeOverlapCutoff, unsafe); ok && v >= 0 && v <= 1.0 {
+		timeOverlapCutoff = v
+	}
+
+	e := traceql.NewEngine()
+
+	// Compile the raw version of the query for head and wal blocks
+	// These aren't cached and we put them all into the same evaluator
+	// for efficiency.
+	rawEval, err := e.CompileMetricsQueryRange(req, int(req.Exemplars), timeOverlapCutoff, unsafe)
+	if err != nil {
+		return nil, err
+	}
+
+	// This is a summation version of the query for complete blocks
+	// which can be cached. They are timeseries, so they need the job-level evaluator.
+	jobEval, err := traceql.NewEngine().CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeSum)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, p := range processors {
+		err = p.QueryRange(ctx, req, rawEval, jobEval)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Combine the raw results into the job results
+	walResults := rawEval.Results().ToProto(req)
+	jobEval.ObserveSeries(walResults)
+
+	r := jobEval.Results()
+	rr := r.ToProto(req)
+	return &tempopb.QueryRangeResponse{
+		Series: rr,
+	}, nil
 }
 
 func (i *instance) updatePushMetrics(bytesIngested int, spanCount int, expiredSpanCount int) {

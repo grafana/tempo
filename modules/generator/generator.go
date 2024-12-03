@@ -319,7 +319,7 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 	}
 
 	// Create traces wal if configured
-	var tracesWAL *tempodb_wal.WAL
+	var tracesWAL, tracesWAL2 *tempodb_wal.WAL
 
 	if g.cfg.TracesWAL.Filepath != "" {
 		// Create separate wals per tenant by prefixing path with tenant ID
@@ -332,9 +332,17 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 			_ = wal.Close()
 			return nil, err
 		}
+
+		tracesWALCfg2 := tracesWALCfg
+		tracesWALCfg2.Filepath += "2"
+		tracesWAL2, err = tempodb_wal.New(&tracesWALCfg2)
+		if err != nil {
+			_ = wal.Close()
+			return nil, err
+		}
 	}
 
-	inst, err := newInstance(g.cfg, id, g.overrides, wal, reg, g.logger, tracesWAL, g.store)
+	inst, err := newInstance(g.cfg, id, g.overrides, wal, reg, g.logger, tracesWAL, tracesWAL2, g.store)
 	if err != nil {
 		_ = wal.Close()
 		return nil, err

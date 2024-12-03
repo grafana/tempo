@@ -93,9 +93,22 @@ func TestProcessorDoesNotRace(t *testing.T) {
 			},
 		}
 		overrides = &mockOverrides{}
+		e         = traceql.NewEngine()
 	)
 
 	p, err := New(cfg, tenant, wal, &mockWriter{}, overrides)
+	require.NoError(t, err)
+
+	qr := &tempopb.QueryRangeRequest{
+		Query: "{} | rate() by (resource.service.name)",
+		Start: uint64(time.Now().Add(-5 * time.Minute).UnixNano()),
+		End:   uint64(time.Now().UnixNano()),
+		Step:  uint64(30 * time.Second),
+	}
+	me, err := e.CompileMetricsQueryRange(qr, 0, 0, false)
+	require.NoError(t, err)
+
+	je, err := e.CompileMetricsQueryRangeNonRaw(qr, traceql.AggregateModeSum)
 	require.NoError(t, err)
 
 	var (
@@ -176,12 +189,7 @@ func TestProcessorDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		_, err := p.QueryRange(ctx, &tempopb.QueryRangeRequest{
-			Query: "{} | rate() by (resource.service.name)",
-			Start: uint64(time.Now().Add(-5 * time.Minute).UnixNano()),
-			End:   uint64(time.Now().UnixNano()),
-			Step:  uint64(30 * time.Second),
-		})
+		err := p.QueryRange(ctx, qr, me, je)
 		require.NoError(t, err)
 	})
 
