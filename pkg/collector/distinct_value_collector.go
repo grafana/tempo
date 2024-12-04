@@ -69,19 +69,19 @@ func (d *DistinctValue[T]) Collect(v T) (exceeded bool) {
 	if d.maxDataSize > 0 && d.currDataSize+valueLen >= d.maxDataSize {
 		d.stopReason = fmt.Sprintf("Max data exceeded: dataSize %d, maxDataSize %d", d.currDataSize, d.maxDataSize)
 		d.limExceeded = true
-		return false
+		return true
 	}
 
 	if d.maxValues > 0 && d.currentValuesLen >= d.maxValues {
 		d.stopReason = fmt.Sprintf("Max values exceeded: values %d, maxValues %d", d.currentValuesLen, d.maxValues)
 		d.limExceeded = true
-		return false
+		return true
 	}
 
 	if d.maxCacheHits > 0 && d.currentCacheHits >= d.maxCacheHits {
 		d.stopReason = fmt.Sprintf("Max stale values exceeded: cacheHits %d, maxValues %d", d.currentValuesLen, d.maxCacheHits)
 		d.limExceeded = true
-		return false
+		return true
 	}
 	if _, ok := d.values[v]; ok {
 		d.currentCacheHits++
