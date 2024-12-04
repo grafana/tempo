@@ -41,11 +41,11 @@ type mockReader struct {
 	metas []*backend.BlockMeta
 }
 
-func (m *mockReader) SearchTags(context.Context, *backend.BlockMeta, string, common.SearchOptions) (*tempopb.SearchTagsV2Response, error) {
+func (m *mockReader) SearchTags(context.Context, *backend.BlockMeta, *tempopb.SearchTagsBlockRequest, common.SearchOptions) (*tempopb.SearchTagsV2Response, error) {
 	return nil, nil
 }
 
-func (m *mockReader) SearchTagValues(context.Context, *backend.BlockMeta, string, common.SearchOptions) (*tempopb.SearchTagValuesResponse, error) {
+func (m *mockReader) SearchTagValues(context.Context, *backend.BlockMeta, *tempopb.SearchTagValuesBlockRequest, common.SearchOptions) (*tempopb.SearchTagValuesResponse, error) {
 	return nil, nil
 }
 

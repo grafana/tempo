@@ -965,7 +965,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 
 	query := traceql.ExtractMatchers(req.SearchReq.Query)
 	if traceql.IsEmptyQuery(query) {
-		resp, err := q.store.SearchTags(ctx, meta, req.SearchReq.Scope, opts)
+		resp, err := q.store.SearchTags(ctx, meta, req, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -1056,9 +1056,8 @@ func (q *Querier) internalTagValuesSearchBlock(ctx context.Context, req *tempopb
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = int(req.StartPage)
 	opts.TotalPages = int(req.PagesToSearch)
-	opts.Limit = req.SearchReq.MaxTagValues
 
-	resp, err := q.store.SearchTagValues(ctx, meta, req.SearchReq.TagName, opts)
+	resp, err := q.store.SearchTagValues(ctx, meta, req, opts)
 	if err != nil {
 		return &tempopb.SearchTagValuesResponse{}, err
 	}

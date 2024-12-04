@@ -2293,7 +2293,13 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	block, err := w.CompleteBlock(context.Background(), head)
 	require.NoError(t, err)
 
-	resp, err := r.SearchTags(context.Background(), block.BlockMeta(), "", common.DefaultSearchOptions())
+	reqBlocks := &tempopb.SearchTagsBlockRequest{
+		SearchReq: &tempopb.SearchTagsRequest{
+			Scope: "",
+		},
+	}
+
+	resp, err := r.SearchTags(context.Background(), block.BlockMeta(), reqBlocks, common.DefaultSearchOptions())
 	require.NoError(t, err)
 	expectedTags := []string{"stringTag", "intTag", "service.name", "other"}
 	var actualTags []string
@@ -2304,7 +2310,13 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	sort.Strings(actualTags)
 	assert.Equal(t, expectedTags, actualTags)
 
-	respValues, err := r.SearchTagValues(context.Background(), block.BlockMeta(), "service.name", common.DefaultSearchOptions())
+	req := &tempopb.SearchTagValuesBlockRequest{
+		SearchReq: &tempopb.SearchTagValuesRequest{
+			TagName: "service.name",
+		},
+	}
+
+	respValues, err := r.SearchTagValues(context.Background(), block.BlockMeta(), req, common.DefaultSearchOptions())
 	require.NotZero(t, respValues.Metrics.InspectedBytes)
 	require.NoError(t, err)
 
@@ -2313,7 +2325,13 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	sort.Strings(respValues.TagValues)
 	assert.Equal(t, expectedTagsValues, respValues.TagValues)
 
-	respValues, err = r.SearchTagValues(context.Background(), block.BlockMeta(), "intTag", common.DefaultSearchOptions())
+	req = &tempopb.SearchTagValuesBlockRequest{
+		SearchReq: &tempopb.SearchTagValuesRequest{
+			TagName: "intTag",
+		},
+	}
+
+	respValues, err = r.SearchTagValues(context.Background(), block.BlockMeta(), req, common.DefaultSearchOptions())
 	require.NotZero(t, respValues.Metrics.InspectedBytes)
 	require.NoError(t, err)
 

@@ -83,8 +83,8 @@ type IterateObjectCallback func(id common.ID, obj []byte) bool
 type Reader interface {
 	Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64, opts common.SearchOptions) ([]*tempopb.Trace, []error, error)
 	Search(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchRequest, opts common.SearchOptions) (*tempopb.SearchResponse, error)
-	SearchTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsV2Response, error)
-	SearchTagValues(ctx context.Context, meta *backend.BlockMeta, tag string, opts common.SearchOptions) (*tempopb.SearchTagValuesResponse, error)
+	SearchTags(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagsBlockRequest, opts common.SearchOptions) (*tempopb.SearchTagsV2Response, error)
+	SearchTagValues(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesBlockRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesResponse, error)
 	SearchTagValuesV2(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesRequest, opts common.SearchOptions) (*tempopb.SearchTagValuesV2Response, error)
 
 	// TODO(suraj): use common.MetricsCallback in Fetch and remove the Bytes callback from traceql.FetchSpansResponse
@@ -370,7 +370,8 @@ func (rw *readerWriter) Search(ctx context.Context, meta *backend.BlockMeta, req
 	return block.Search(ctx, req, opts)
 }
 
-func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta, scope string, opts common.SearchOptions) (*tempopb.SearchTagsV2Response, error) {
+func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagsBlockRequest, opts common.SearchOptions) (*tempopb.SearchTagsV2Response, error) {
+	scope := req.SearchReq.Scope
 	attributeScope := traceql.AttributeScopeFromString(scope)
 
 	if attributeScope == traceql.AttributeScopeUnknown {
@@ -382,7 +383,7 @@ func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta,
 		return nil, err
 	}
 
-	distinctValues := collector.NewScopedDistinctString(0, opts.Limit, opts.StaleValueThreshold)
+	distinctValues := collector.NewScopedDistinctString(0, req.SearchReq.MaxTagsPerScope, req.SearchReq.StaleValuesThreshold)
 	mc := collector.NewMetricsCollector()
 
 	rw.cfg.Search.ApplyToOptions(&opts)
@@ -414,16 +415,16 @@ func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta,
 	return resp, nil
 }
 
-func (rw *readerWriter) SearchTagValues(ctx context.Context, meta *backend.BlockMeta, tag string, opts common.SearchOptions) (response *tempopb.SearchTagValuesResponse, err error) {
+func (rw *readerWriter) SearchTagValues(ctx context.Context, meta *backend.BlockMeta, req *tempopb.SearchTagValuesBlockRequest, opts common.SearchOptions) (response *tempopb.SearchTagValuesResponse, err error) {
 	block, err := encoding.OpenBlock(meta, rw.r)
 	if err != nil {
 		return &tempopb.SearchTagValuesResponse{}, err
 	}
 
-	dv := collector.NewDistinctString(0, opts.Limit, opts.StaleValueThreshold)
+	dv := collector.NewDistinctString(0, req.SearchReq.MaxTagValues, req.SearchReq.StaleValueThreshold)
 	mc := collector.NewMetricsCollector()
 	rw.cfg.Search.ApplyToOptions(&opts)
-	err = block.SearchTagValues(ctx, tag, dv.Collect, mc.Add, opts)
+	err = block.SearchTagValues(ctx, req.SearchReq.TagName, dv.Collect, mc.Add, opts)
 
 	orgID, _ := user.ExtractOrgID(ctx)
 	if dv.Exceeded() {
@@ -447,7 +448,7 @@ func (rw *readerWriter) SearchTagValuesV2(ctx context.Context, meta *backend.Blo
 		return nil, err
 	}
 
-	dv := collector.NewDistinctValue(0, opts.Limit, opts.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	dv := collector.NewDistinctValue(0, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 	mc := collector.NewMetricsCollector()
 	rw.cfg.Search.ApplyToOptions(&opts)
 	err = block.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(dv.Collect), mc.Add, opts)
