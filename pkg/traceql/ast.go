@@ -73,6 +73,49 @@ func (r *RootExpr) withHints(h *Hints) *RootExpr {
 	return r
 }
 
+// IsNoop detects trival noop queries like {false} which never return
+// results and can be used to exit early.
+func (r *RootExpr) IsNoop() bool {
+	isNoopFilter := func(x any) bool {
+		f, ok := x.(*SpansetFilter)
+		if !ok {
+			return false
+		}
+
+		if f.Expression.referencesSpan() {
+			return false
+		}
+
+		// Else check for static evaluation to false
+		v, _ := f.Expression.execute(nil)
+		return v.Equals(&StaticFalse)
+	}
+
+	// Any spanset filter that references the span or something other
+	// than static false means the expression isn't noop.
+	// This checks one layer deep which covers most expressions.
+	for _, e := range r.Pipeline.Elements {
+		switch x := e.(type) {
+		case SpansetOperation:
+			if !isNoopFilter(x.LHS) {
+				return false
+			}
+			if !isNoopFilter(x.RHS) {
+				return false
+			}
+		case *SpansetFilter:
+			if !isNoopFilter(x) {
+				return false
+			}
+		default:
+			// Lots of other expressions here which aren't checked
+			// for noops yet.
+			return false
+		}
+	}
+	return true
+}
+
 // **********************
 // Pipeline
 // **********************

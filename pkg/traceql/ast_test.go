@@ -10,6 +10,38 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestRootExprIsNoop(t *testing.T) {
+	noops := []string{
+		"{false}",
+		"{1=0}",
+		"({false})",
+		"{false} && {false}",
+		"{false} >> {false}",
+	}
+
+	for _, q := range noops {
+		expr, err := Parse(q)
+		require.NoError(t, err)
+		require.True(t, expr.IsNoop(), "Query should be noop: %v", q)
+	}
+
+	ops := []string{
+		"{true}",
+		"{1=1}",
+		"{.foo = 1}",
+		"{false} || {true}",
+
+		// This is a noop but not yet detected
+		"{false} && {true}",
+	}
+
+	for _, q := range ops {
+		expr, err := Parse(q)
+		require.NoError(t, err)
+		require.False(t, expr.IsNoop(), "Query should not be noop: %v", q)
+	}
+}
+
 func TestNewStaticNil(t *testing.T) {
 	s := NewStaticNil()
 	assert.Equal(t, TypeNil, s.Type)
