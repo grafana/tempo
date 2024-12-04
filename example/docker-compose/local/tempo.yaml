@@ -62,6 +62,10 @@ metrics_generator:
         send_exemplars: true
   traces_storage:
     path: /var/tempo/generator/traces
+  processor:
+    local_blocks:
+      filter_server_spans: false
+      flush_to_storage: true
 
 storage:
   trace:
@@ -76,3 +80,4 @@ overrides:
     metrics_generator:
       processors: [service-graphs, span-metrics, local-blocks] # enables metrics generator
       generate_native_histograms: both
+      
