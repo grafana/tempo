@@ -3,6 +3,7 @@ package util
 import (
 	"crypto/sha1"
 	"encoding/binary"
+	"unsafe"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -25,7 +26,8 @@ type DeterministicIDGenerator struct {
 	seq   *atomic.Int64
 }
 
-func NewDeterministicIDGenerator(seeds ...int64) *DeterministicIDGenerator {
+func NewDeterministicIDGenerator(tenantID string, seeds ...int64) *DeterministicIDGenerator {
+	seeds = append(seeds, int64(binary.LittleEndian.Uint64(stringToBytes(tenantID))))
 	return &DeterministicIDGenerator{
 		seeds: seeds,
 		seq:   atomic.NewInt64(0),
@@ -42,6 +44,10 @@ func newDeterministicID(seeds []int64) uuid.UUID {
 	b := int64ToBytes(seeds...)
 
 	return uuid.NewHash(hash, ns, b, 5)
+}
+
+func stringToBytes(s string) []byte {
+	return unsafe.Slice(unsafe.StringData(s), unsafe.Sizeof(s))
 }
 
 func int64ToBytes(seeds ...int64) []byte {

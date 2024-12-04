@@ -160,8 +160,7 @@ func (b *BlockBuilder) running(ctx context.Context) error {
 				continue
 			}
 
-			cycleEndTime = cycleEndTime.Add(b.cfg.ConsumeCycleDuration)
-			waitTime = time.Until(cycleEndTime)
+			cycleEndTime, waitTime = nextCycleEnd(cycleEndTime, b.cfg.ConsumeCycleDuration)
 		case <-ctx.Done():
 			return nil
 		}
@@ -230,14 +229,32 @@ func (b *BlockBuilder) consumeCycle(ctx context.Context, cycleEndTime time.Time)
 }
 
 func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, partitionLag kadm.GroupMemberLag, cycleEndTime time.Time) error {
-	level.Info(b.logger).Log("msg", "consuming partition", "partition", partition)
+	level.Info(b.logger).Log(
+		"msg", "consuming partition",
+		"partition", partition,
+		"cycle_end", cycleEndTime,
+	)
 
 	sectionEndTime := cycleEndTime
-	commitRecTs := time.UnixMilli(max(partitionLag.Commit.At, b.fallbackOffsetMillis))
+
+	lastCommitTs, err := unmarshallCommitMeta(partitionLag.Commit.Metadata)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal commit metadata: %w", err)
+	}
+	if lastCommitTs == 0 {
+		lastCommitTs = b.fallbackOffsetMillis // No commit yet, use fallback offset.
+	}
+	commitRecTs := time.UnixMilli(lastCommitTs)
+
 	if sectionEndTime.Sub(commitRecTs) > time.Duration(1.5*float64(b.cfg.ConsumeCycleDuration)) {
 		// We're lagging behind or there is no commit, we need to consume in smaller sections.
+		// We iterate through all the ConsumeInterval intervals, starting from the first one after the last commit until the cycleEndTime,
+		// i.e. [T, T+interval), [T+interval, T+2*interval), ... [T+S*interval, cycleEndTime)
+		// where T is the CommitRecordTimestamp, the timestamp of the record, whose offset we committed previously.
+		// When there is no kafka commit, we play safe and assume LastSeenOffset, and LastBlockEnd were 0 to not discard any samples unnecessarily.
 		sectionEndTime, _ = nextCycleEnd(commitRecTs, b.cfg.ConsumeCycleDuration)
 	}
+
 	// Continue consuming in sections until we're caught up.
 	for !sectionEndTime.After(cycleEndTime) {
 		newCommitAt, err := b.consumePartitionSection(ctx, partition, sectionEndTime, partitionLag)
@@ -309,7 +326,12 @@ consumerLoop:
 		for recIter := fetches.RecordIter(); !recIter.Done(); {
 			rec := recIter.Next()
 			recOffset = rec.Offset
-			level.Info(b.logger).Log("msg", "processing record", "partition", rec.Partition, "offset", rec.Offset, "timestamp", rec.Timestamp)
+			level.Debug(b.logger).Log(
+				"msg", "processing record",
+				"partition", rec.Partition,
+				"offset", rec.Offset,
+				"timestamp", rec.Timestamp,
+			)
 
 			if firstRec == nil {
 				firstRec = rec
@@ -351,6 +373,7 @@ consumerLoop:
 		Partition:   lastRec.Partition,
 		At:          lastRec.Offset + 1, // offset+1 means everything up to (including) the offset was processed
 		LeaderEpoch: lastRec.LeaderEpoch,
+		Metadata:    marshallCommitMeta(lastRec.Timestamp.UnixMilli()),
 	}
 	return commit.At, b.commitState(ctx, commit)
 }

@@ -326,6 +326,46 @@ func TestCycleEndAtStartup(t *testing.T) {
 	}
 }
 
+func TestNextCycleEnd(t *testing.T) {
+	tests := []struct {
+		name         string
+		t            time.Time
+		interval     time.Duration
+		expectedTime time.Time
+		expectedWait time.Duration
+	}{
+		{
+			name:         "ExactInterval",
+			t:            time.Date(2023, 10, 1, 12, 0, 0, 0, time.UTC),
+			interval:     time.Hour,
+			expectedTime: time.Date(2023, 10, 1, 13, 0, 0, 0, time.UTC),
+			expectedWait: time.Hour,
+		},
+		{
+			name:         "PastInterval",
+			t:            time.Date(2023, 10, 1, 12, 30, 0, 0, time.UTC),
+			interval:     time.Hour,
+			expectedTime: time.Date(2023, 10, 1, 13, 0, 0, 0, time.UTC),
+			expectedWait: 30 * time.Minute,
+		},
+		{
+			name:         "FutureInterval",
+			t:            time.Date(2023, 10, 1, 12, 0, 0, 1, time.UTC),
+			interval:     time.Hour,
+			expectedTime: time.Date(2023, 10, 1, 13, 0, 0, 0, time.UTC),
+			expectedWait: 59*time.Minute + 59*time.Second,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resultTime, resultWait := nextCycleEnd(tc.t, tc.interval)
+			require.Equal(t, tc.expectedTime, resultTime)
+			require.Equal(t, tc.expectedWait, resultWait)
+		})
+	}
+}
+
 func blockbuilderConfig(t *testing.T, address string) Config {
 	cfg := Config{}
 	flagext.DefaultValues(&cfg)

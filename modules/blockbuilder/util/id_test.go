@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/stretchr/testify/assert"
 )
@@ -12,7 +13,7 @@ import (
 func TestDeterministicIDGenerator(t *testing.T) {
 	ts := time.Now().UnixMilli()
 
-	gen := NewDeterministicIDGenerator(0, ts)
+	gen := NewDeterministicIDGenerator(util.FakeTenantID, 0, ts)
 
 	firstPassIDs := make(map[backend.UUID]struct{})
 	for seq := int64(0); seq < 10; seq++ {
@@ -26,7 +27,7 @@ func TestDeterministicIDGenerator(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	gen = NewDeterministicIDGenerator(0, ts)
+	gen = NewDeterministicIDGenerator(util.FakeTenantID, 0, ts)
 	for seq := int64(0); seq < 10; seq++ {
 		id := gen.NewID()
 		if _, ok := firstPassIDs[id]; !ok {
@@ -37,7 +38,7 @@ func TestDeterministicIDGenerator(t *testing.T) {
 
 func BenchmarkDeterministicID(b *testing.B) {
 	ts := time.Now().UnixMilli()
-	gen := NewDeterministicIDGenerator(ts)
+	gen := NewDeterministicIDGenerator(util.FakeTenantID, ts)
 	for i := 0; i < b.N; i++ {
 		_ = gen.NewID()
 	}
