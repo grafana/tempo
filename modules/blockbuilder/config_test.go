@@ -29,7 +29,7 @@ func TestConfig_validate(t *testing.T) {
 						BloomFP:              0.1,
 						BloomShardSizeBytes:  1,
 						DedicatedColumns: backend.DedicatedColumns{
-							{backend.DedicatedColumnScopeResource, "foo", backend.DedicatedColumnTypeString},
+							{Scope: backend.DedicatedColumnScopeResource, Name: "foo", Type: backend.DedicatedColumnTypeString},
 						},
 					},
 				},
