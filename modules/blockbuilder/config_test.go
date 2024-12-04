@@ -59,7 +59,6 @@ func TestConfig_validate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.cfg.Validate()
 			assert.Equal(t, tc.expectedErr, err != nil, "unexpected error: %v", err)
-
 		})
 	}
 }
