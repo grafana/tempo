@@ -251,7 +251,6 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, pa
 		// We iterate through all the ConsumeInterval intervals, starting from the first one after the last commit until the cycleEndTime,
 		// i.e. [T, T+interval), [T+interval, T+2*interval), ... [T+S*interval, cycleEndTime)
 		// where T is the CommitRecordTimestamp, the timestamp of the record, whose offset we committed previously.
-		// When there is no kafka commit, we play safe and assume LastSeenOffset, and LastBlockEnd were 0 to not discard any samples unnecessarily.
 		sectionEndTime, _ = nextCycleEnd(commitRecTs, b.cfg.ConsumeCycleDuration)
 	}
 
