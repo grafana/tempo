@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ type DistinctString struct {
 	diffEnabled      bool
 	limExceeded      bool
 	mtx              sync.Mutex
+	stopReason       string
 }
 
 // NewDistinctString with the given maximum data size and max items.
@@ -59,12 +61,20 @@ func (d *DistinctString) Collect(s string) (added bool) {
 	}
 	valueLen := len(s)
 
-	dataSizeExceeded := d.maxDataSize > 0 && d.currDataSize+valueLen >= d.maxDataSize
-	valueCountExceeded := d.maxValues > 0 && d.currentValuesLen >= d.maxValues
-	cacheHitLimitReached := d.maxCacheHits > 0 && d.currentCacheHits >= d.maxCacheHits
+	if d.maxDataSize > 0 && d.currDataSize+valueLen >= d.maxDataSize {
+		d.stopReason = fmt.Sprintf("Max data exceeded: dataSize %d, maxDataSize %d", d.currDataSize, d.maxDataSize)
+		d.limExceeded = true
+		return false
+	}
 
-	if dataSizeExceeded || valueCountExceeded || cacheHitLimitReached {
-		// No, it can't fit
+	if d.maxValues > 0 && d.currentValuesLen >= d.maxValues {
+		d.stopReason = fmt.Sprintf("Max values exceeded: values %d, maxValues %d", d.currentValuesLen, d.maxValues)
+		d.limExceeded = true
+		return false
+	}
+
+	if d.maxCacheHits > 0 && d.currentCacheHits >= d.maxCacheHits {
+		d.stopReason = fmt.Sprintf("Max stale values exceeded: cacheHits %d, maxValues %d", d.currentValuesLen, d.maxCacheHits)
 		d.limExceeded = true
 		return false
 	}
@@ -110,6 +120,10 @@ func (d *DistinctString) Exceeded() bool {
 	defer d.mtx.Unlock()
 
 	return d.limExceeded
+}
+
+func (d *DistinctString) StopReason() string {
+	return d.stopReason
 }
 
 // Size is the total size of all distinct strings encountered.

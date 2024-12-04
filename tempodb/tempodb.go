@@ -17,6 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/cache/memcached"
 	"github.com/grafana/tempo/modules/cache/redis"
 	"github.com/grafana/tempo/pkg/cache"
@@ -392,6 +393,11 @@ func (rw *readerWriter) SearchTags(ctx context.Context, meta *backend.BlockMeta,
 		return nil, err
 	}
 
+	orgID, _ := user.ExtractOrgID(ctx)
+	if distinctValues.Exceeded() {
+		level.Warn(log.Logger).Log("msg", "Search tags exceeded limit, reduce cardinality or size of tags", "orgID", orgID, "stopReason", distinctValues.StopReason())
+	}
+
 	// build response
 	collected := distinctValues.Strings()
 	resp := &tempopb.SearchTagsV2Response{
@@ -419,6 +425,11 @@ func (rw *readerWriter) SearchTagValues(ctx context.Context, meta *backend.Block
 	rw.cfg.Search.ApplyToOptions(&opts)
 	err = block.SearchTagValues(ctx, tag, dv.Collect, mc.Add, opts)
 
+	orgID, _ := user.ExtractOrgID(ctx)
+	if dv.Exceeded() {
+		level.Warn(log.Logger).Log("msg", "Search tags exceeded limit, reduce cardinality or size of tags", "orgID", orgID, "stopReason", dv.StopReason())
+	}
+
 	return &tempopb.SearchTagValuesResponse{
 		TagValues: dv.Strings(),
 		Metrics:   &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()},
@@ -436,12 +447,17 @@ func (rw *readerWriter) SearchTagValuesV2(ctx context.Context, meta *backend.Blo
 		return nil, err
 	}
 
-	dv := collector.NewDistinctValue[tempopb.TagValue](0, opts.Limit, opts.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	dv := collector.NewDistinctValue(0, opts.Limit, opts.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 	mc := collector.NewMetricsCollector()
 	rw.cfg.Search.ApplyToOptions(&opts)
 	err = block.SearchTagValuesV2(ctx, tag, traceql.MakeCollectTagValueFunc(dv.Collect), mc.Add, opts)
 	if err != nil {
 		return nil, err
+	}
+
+	orgID, _ := user.ExtractOrgID(ctx)
+	if dv.Exceeded() {
+		level.Warn(log.Logger).Log("msg", "Search tags exceeded limit, reduce cardinality or size of tags", "orgID", orgID, "stopReason", dv.StopReason())
 	}
 
 	resp := &tempopb.SearchTagValuesV2Response{

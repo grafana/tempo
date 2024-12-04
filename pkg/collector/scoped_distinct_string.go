@@ -15,6 +15,7 @@ type ScopedDistinctString struct {
 	maxCacheHits    uint32
 	diffEnabled     bool
 	maxTagsPerScope uint32
+	stopReason      string
 	mtx             sync.Mutex
 }
 
@@ -85,6 +86,7 @@ func (d *ScopedDistinctString) Collect(scope string, val string) (exceeded bool)
 	if col.Exceeded() {
 		// we stop if one of the scopes exceed the limit
 		d.limExceeded = true
+		d.stopReason = col.stopReason
 		return true
 	}
 	return false
@@ -120,6 +122,10 @@ func (d *ScopedDistinctString) Exceeded() bool {
 		}
 	}
 	return false
+}
+
+func (d *ScopedDistinctString) StopReason() string {
+	return d.stopReason
 }
 
 // Diff returns all new strings collected since the last time Diff was called

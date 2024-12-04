@@ -296,7 +296,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	}
 
 	if distinctValues.Exceeded() {
-		level.Warn(log.Logger).Log("msg", "size of tags in instance exceeded limit, reduce cardinality or size of tags", "tenant", userID, "maxBytesPerTag", maxBytestPerTags, "maxTagsPerScope", req.MaxTagsPerScope)
+		level.Warn(log.Logger).Log("msg", "Search of tags exceeded limit, reduce cardinality or size of tags", "orgID", userID, "stopReason", distinctValues.StopReason())
 	}
 
 	collected := distinctValues.Strings()
@@ -382,7 +382,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string, limit ui
 	}
 
 	if distinctValues.Exceeded() {
-		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", tagName, "tenant", userID, "limit", limit, "size", distinctValues.Size())
+		level.Warn(log.Logger).Log("msg", "Search of tags exceeded limit,  reduce cardinality or size of tags", "tag", tagName, "orgID", userID, "stopReason", distinctValues.StopReason())
 	}
 
 	return &tempopb.SearchTagValuesResponse{
