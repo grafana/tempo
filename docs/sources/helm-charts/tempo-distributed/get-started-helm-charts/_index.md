@@ -483,6 +483,11 @@ global_overrides:
     default:
         ingestion:
           rate_limit_bytes: 5 * 1000 * 1000
+          burst_size_bytes: 5 * 1000 * 1000
+          max_traces_per_user: 1000
+        global:
+          max_bytes_per_trace: 10 * 1000 * 1000
+
         metrics_generator:
           processors: ['service-graphs', 'span-metrics']
 
@@ -490,9 +495,19 @@ overrides:
     '1234':
         ingestion:
           rate_limit_bytes: 2 * 1000 * 1000
+          burst_size_bytes: 2 * 1000 * 1000
+          max_traces_per_user: 400
+        global:
+          max_bytes_per_trace: 5 * 1000 * 1000
 ```
 
-This configuration enables the Span Metrics and Service Graph metrics-generator processors and an ingestion rate limit of 5MB/s for all tenants, *apart* from tenant '1234' which is ingestion rate limited to 2MB/s.
+This configuration:
+
+* Enables the Span Metrics and Service Graph metrics-generator processors for all tenants
+* An ingestion rate and burst size limit of 5MB/s, a maximum trace size of 10MB and a maximum of 1000 live traces in an ingester for all tenants
+* Overrides the '1234' tenant with a rate and burst size limit of 2MB/s, a maximum trace size of 5MB and a maximum of 400 live traces in an ingester
+
+Note that runtime configurations should include all options for a specific tenant.
 
 ## Install Grafana Tempo using the Helm chart
 
