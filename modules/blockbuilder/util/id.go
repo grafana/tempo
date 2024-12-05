@@ -25,7 +25,8 @@ type DeterministicIDGenerator struct {
 	seq   *atomic.Int64
 }
 
-func NewDeterministicIDGenerator(seeds ...int64) *DeterministicIDGenerator {
+func NewDeterministicIDGenerator(tenantID string, seeds ...int64) *DeterministicIDGenerator {
+	seeds = append(seeds, int64(binary.LittleEndian.Uint64(stringToBytes(tenantID))))
 	return &DeterministicIDGenerator{
 		seeds: seeds,
 		seq:   atomic.NewInt64(0),
@@ -42,6 +43,11 @@ func newDeterministicID(seeds []int64) uuid.UUID {
 	b := int64ToBytes(seeds...)
 
 	return uuid.NewHash(hash, ns, b, 5)
+}
+
+// TODO - Try to avoid allocs here
+func stringToBytes(s string) []byte {
+	return []byte(s)
 }
 
 func int64ToBytes(seeds ...int64) []byte {

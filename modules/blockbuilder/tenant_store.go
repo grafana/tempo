@@ -24,7 +24,7 @@ var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
 		Namespace: "tempo",
 		Subsystem: "block_builder",
 		Name:      "flushed_blocks",
-	}, []string{"tenant_id"},
+	}, []string{"tenant"},
 )
 
 // TODO - This needs locking
@@ -49,7 +49,7 @@ type tenantStore struct {
 func newTenantStore(tenantID string, partitionID, endTimestamp int64, cfg BlockConfig, logger log.Logger, wal *wal.WAL, enc encoding.VersionedEncoding, o Overrides) (*tenantStore, error) {
 	s := &tenantStore{
 		tenantID:     tenantID,
-		idGenerator:  util.NewDeterministicIDGenerator(partitionID, endTimestamp),
+		idGenerator:  util.NewDeterministicIDGenerator(tenantID, partitionID, endTimestamp),
 		cfg:          cfg,
 		logger:       logger,
 		overrides:    o,
@@ -156,6 +156,8 @@ func (s *tenantStore) Flush(ctx context.Context, store tempodb.Writer) error {
 }
 
 func (s *tenantStore) buildWriteableBlock(ctx context.Context, b common.WALBlock) (tempodb.WriteableBlock, error) {
+	level.Debug(s.logger).Log("msg", "building writeable block", "block_id", b.BlockMeta().BlockID.String())
+
 	iter, err := b.Iterator()
 	if err != nil {
 		return nil, err

@@ -3,6 +3,7 @@ package blockbuilder
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -50,11 +51,11 @@ func newPartitionSectionWriter(logger log.Logger, partition, cycleEndTs int64, b
 }
 
 func (p *writer) pushBytes(tenant string, req *tempopb.PushBytesRequest) error {
-	level.Info(p.logger).Log(
+	level.Debug(p.logger).Log(
 		"msg", "pushing bytes",
 		"tenant", tenant,
 		"num_traces", len(req.Traces),
-		"id", util.TraceIDToHexString(req.Ids[0]),
+		"id", idsToString(req.Ids),
 	)
 
 	i, err := p.instanceForTenant(tenant)
@@ -120,4 +121,18 @@ func (p *writer) instanceForTenant(tenant string) (*tenantStore, error) {
 	p.m[tenant] = i
 
 	return i, nil
+}
+
+func idsToString(ids [][]byte) string {
+	b := strings.Builder{}
+	b.WriteString("[")
+	for i, id := range ids {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(util.TraceIDToHexString(id))
+	}
+	b.WriteString("]")
+
+	return b.String()
 }
