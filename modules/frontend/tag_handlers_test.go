@@ -538,88 +538,148 @@ func TestSearchTagsV2AccessesCache(t *testing.T) {
 
 func TestParseParams(t *testing.T) {
 	tests := []struct {
-		name             string
-		queryParams      map[string]string
-		expectedScope    string
-		expectedQ        string
-		expectedDuration uint32
+		name                   string
+		queryParams            map[string]string
+		expectedScope          string
+		expectedQ              string
+		expectedDuration       uint32
+		expectedLimit          uint32
+		expectedValueThreshold uint32
 	}{
 		{
-			name:             "all params present",
-			queryParams:      map[string]string{"start": "1723667082", "end": "1723839882", "scope": "resource", "q": "some_query"},
-			expectedScope:    "resource",
-			expectedQ:        "some_query",
-			expectedDuration: 172800,
+			name:                   "all params present",
+			queryParams:            map[string]string{"start": "1723667082", "end": "1723839882", "scope": "resource", "q": "some_query"},
+			expectedScope:          "resource",
+			expectedQ:              "some_query",
+			expectedDuration:       172800,
+			expectedLimit:          0,
+			expectedValueThreshold: 0,
 		},
 		{
-			name:             "missing start",
-			queryParams:      map[string]string{"end": "1723839882", "scope": "resource"},
-			expectedScope:    "resource",
-			expectedQ:        "",
-			expectedDuration: 0,
+			name:                   "missing start",
+			queryParams:            map[string]string{"end": "1723839882", "scope": "resource"},
+			expectedScope:          "resource",
+			expectedQ:              "",
+			expectedDuration:       0,
+			expectedLimit:          0,
+			expectedValueThreshold: 0,
 		},
 		{
-			name:             "missing end",
-			queryParams:      map[string]string{"start": "1723667082", "scope": "resource"},
-			expectedScope:    "resource",
-			expectedQ:        "",
-			expectedDuration: 0,
+			name:                   "missing end",
+			queryParams:            map[string]string{"start": "1723667082", "scope": "resource"},
+			expectedScope:          "resource",
+			expectedQ:              "",
+			expectedDuration:       0,
+			expectedLimit:          0,
+			expectedValueThreshold: 0,
 		},
 		{
-			name:             "missing scope",
-			queryParams:      map[string]string{"start": "1723667082", "end": "1723839882"},
-			expectedScope:    "",
-			expectedQ:        "",
-			expectedDuration: 172800,
+			name:                   "missing scope",
+			queryParams:            map[string]string{"start": "1723667082", "end": "1723839882"},
+			expectedScope:          "",
+			expectedQ:              "",
+			expectedDuration:       172800,
+			expectedLimit:          0,
+			expectedValueThreshold: 0,
 		},
 		{
-			name:             "missing q",
-			queryParams:      map[string]string{"start": "1723667082", "end": "1723839882", "scope": "resource"},
-			expectedScope:    "resource",
-			expectedQ:        "",
-			expectedDuration: 172800,
+			name:                   "missing q",
+			queryParams:            map[string]string{"start": "1723667082", "end": "1723839882", "scope": "resource"},
+			expectedScope:          "resource",
+			expectedQ:              "",
+			expectedDuration:       172800,
+			expectedLimit:          0,
+			expectedValueThreshold: 0,
 		},
 		{
-			name:             "invalid start",
-			queryParams:      map[string]string{"start": "invalid", "end": "1723839882", "scope": "resource"},
-			expectedScope:    "resource",
-			expectedQ:        "",
-			expectedDuration: 0,
+			name:                   "invalid start",
+			queryParams:            map[string]string{"start": "invalid", "end": "1723839882", "scope": "resource"},
+			expectedScope:          "resource",
+			expectedQ:              "",
+			expectedDuration:       0,
+			expectedLimit:          0,
+			expectedValueThreshold: 0,
 		},
 		{
-			name:             "invalid end",
-			queryParams:      map[string]string{"start": "1723667082", "end": "invalid", "scope": "resource"},
-			expectedScope:    "resource",
-			expectedQ:        "",
-			expectedDuration: 0,
+			name:                   "invalid end",
+			queryParams:            map[string]string{"start": "1723667082", "end": "invalid", "scope": "resource"},
+			expectedScope:          "resource",
+			expectedQ:              "",
+			expectedDuration:       0,
+			expectedLimit:          0,
+			expectedValueThreshold: 0,
 		},
 		{
-			name:             "no params",
-			queryParams:      map[string]string{},
-			expectedScope:    "",
-			expectedQ:        "",
-			expectedDuration: 0,
+			name:                   "no params",
+			queryParams:            map[string]string{},
+			expectedScope:          "",
+			expectedQ:              "",
+			expectedDuration:       0,
+			expectedLimit:          0,
+			expectedValueThreshold: 0,
 		},
 		{
-			name:             "negative start and end",
-			queryParams:      map[string]string{"start": "-1000", "end": "-2000", "scope": "negative_case"},
-			expectedScope:    "negative_case",
-			expectedQ:        "",
-			expectedDuration: 0,
+			name:                   "negative start and end",
+			queryParams:            map[string]string{"start": "-1000", "end": "-2000", "scope": "negative_case"},
+			expectedScope:          "negative_case",
+			expectedQ:              "",
+			expectedDuration:       0,
+			expectedLimit:          0,
+			expectedValueThreshold: 0,
 		},
 		{
-			name:             "end less than start",
-			queryParams:      map[string]string{"start": "1723839882", "end": "1723667082", "scope": "resource"},
-			expectedScope:    "resource",
-			expectedQ:        "",
-			expectedDuration: 0,
+			name:                   "end less than start",
+			queryParams:            map[string]string{"start": "1723839882", "end": "1723667082", "scope": "resource"},
+			expectedScope:          "resource",
+			expectedQ:              "",
+			expectedDuration:       0,
+			expectedLimit:          0,
+			expectedValueThreshold: 0,
 		},
 		{
-			name:             "start and end are the same",
-			queryParams:      map[string]string{"start": "1723839882", "end": "1723839882", "scope": "zero_duration"},
-			expectedScope:    "zero_duration",
-			expectedQ:        "",
-			expectedDuration: 0,
+			name:                   "start and end are the same",
+			queryParams:            map[string]string{"start": "1723839882", "end": "1723839882", "scope": "zero_duration"},
+			expectedScope:          "zero_duration",
+			expectedQ:              "",
+			expectedDuration:       0,
+			expectedLimit:          0,
+			expectedValueThreshold: 0,
+		},
+		{
+			name:                   "invalid limit",
+			queryParams:            map[string]string{"limit": "-1000"},
+			expectedScope:          "",
+			expectedQ:              "",
+			expectedDuration:       0,
+			expectedLimit:          0,
+			expectedValueThreshold: 0,
+		},
+		{
+			name:                   "invalid too large limit",
+			queryParams:            map[string]string{"limit": "1000000000000000000"},
+			expectedScope:          "",
+			expectedQ:              "",
+			expectedDuration:       0,
+			expectedLimit:          0,
+			expectedValueThreshold: 0,
+		},
+		{
+			name:                   "valid limit",
+			queryParams:            map[string]string{"limit": "100"},
+			expectedScope:          "",
+			expectedQ:              "",
+			expectedDuration:       0,
+			expectedLimit:          100,
+			expectedValueThreshold: 0,
+		},
+		{
+			name:                   "valid threshold",
+			queryParams:            map[string]string{"maxStaleValues": "100"},
+			expectedScope:          "",
+			expectedQ:              "",
+			expectedDuration:       0,
+			expectedLimit:          0,
+			expectedValueThreshold: 100,
 		},
 	}
 
@@ -633,11 +693,13 @@ func TestParseParams(t *testing.T) {
 			u.RawQuery = query.Encode()
 			req := &http.Request{URL: u}
 
-			scope, q, duration := parseParams(req)
+			scope, q, duration, limit, staleValueThreshold := parseParams(req)
 
 			require.Equal(t, tt.expectedScope, scope)
 			require.Equal(t, tt.expectedQ, q)
 			require.Equal(t, tt.expectedDuration, duration)
+			require.Equal(t, tt.expectedLimit, limit)
+			require.Equal(t, tt.expectedValueThreshold, staleValueThreshold)
 		})
 	}
 }

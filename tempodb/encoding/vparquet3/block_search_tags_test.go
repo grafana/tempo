@@ -203,7 +203,7 @@ func BenchmarkBackendBlockSearchTags(b *testing.B) {
 
 	block := newBackendBlock(meta, rr)
 	opts := common.DefaultSearchOptions()
-	d := collector.NewDistinctString(1_000_000)
+	d := collector.NewDistinctString(1_000_000, 0, 0)
 	mc := collector.NewMetricsCollector()
 
 	b.ResetTimer()
@@ -238,7 +238,7 @@ func BenchmarkBackendBlockSearchTagValues(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(tc, func(b *testing.B) {
-			d := collector.NewDistinctString(1_000_000)
+			d := collector.NewDistinctString(1_000_000, 0, 0)
 			mc := collector.NewMetricsCollector()
 
 			b.ResetTimer()

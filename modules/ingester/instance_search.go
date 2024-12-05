@@ -182,7 +182,7 @@ func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.Searc
 		return nil, err
 	}
 
-	distinctValues := collector.NewDistinctString(0) // search tags v2 enforces the limit
+	distinctValues := collector.NewDistinctString(0, 0, 0) // search tags v2 enforces the limit
 
 	// flatten v2 response
 	for _, s := range v2Response.Scopes {
@@ -232,8 +232,8 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 		return nil, fmt.Errorf("unknown scope: %s", scope)
 	}
 
-	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := collector.NewScopedDistinctString(limit)
+	maxBytestPerTags := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
+	distinctValues := collector.NewScopedDistinctString(maxBytestPerTags, req.MaxTagsPerScope, req.StaleValuesThreshold)
 	mc := collector.NewMetricsCollector()
 
 	engine := traceql.NewEngine()
@@ -296,7 +296,7 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	}
 
 	if distinctValues.Exceeded() {
-		level.Warn(log.Logger).Log("msg", "size of tags in instance exceeded limit, reduce cardinality or size of tags", "tenant", userID, "limit", limit)
+		level.Warn(log.Logger).Log("msg", "Search of tags exceeded limit, reduce cardinality or size of tags", "orgID", userID, "stopReason", distinctValues.StopReason())
 	}
 
 	collected := distinctValues.Strings()
@@ -324,14 +324,14 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	return resp, nil
 }
 
-func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempopb.SearchTagValuesResponse, error) {
+func (i *instance) SearchTagValues(ctx context.Context, tagName string, limit uint32, staleValueThreshold uint32) (*tempopb.SearchTagValuesResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
-	distinctValues := collector.NewDistinctString(limit)
+	maxBytesPerTagValues := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
+	distinctValues := collector.NewDistinctString(maxBytesPerTagValues, limit, staleValueThreshold)
 	mc := collector.NewMetricsCollector()
 
 	var inspectedBlocks, maxBlocks int
@@ -382,7 +382,7 @@ func (i *instance) SearchTagValues(ctx context.Context, tagName string) (*tempop
 	}
 
 	if distinctValues.Exceeded() {
-		level.Warn(log.Logger).Log("msg", "size of tag values in instance exceeded limit, reduce cardinality or size of tags", "tag", tagName, "tenant", userID, "limit", limit, "size", distinctValues.Size())
+		level.Warn(log.Logger).Log("msg", "Search of tags exceeded limit,  reduce cardinality or size of tags", "tag", tagName, "orgID", userID, "stopReason", distinctValues.StopReason())
 	}
 
 	return &tempopb.SearchTagValuesResponse{
@@ -401,7 +401,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	defer span.End()
 
 	limit := i.limiter.limits.MaxBytesPerTagValuesQuery(userID)
-	valueCollector := collector.NewDistinctValue[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+	valueCollector := collector.NewDistinctValue(limit, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 	mc := collector.NewMetricsCollector() // to collect bytesRead metric
 
 	engine := traceql.NewEngine()
@@ -512,7 +512,7 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 		// cache miss, search the block. We will cache the results if we find any.
 		span.SetAttributes(attribute.Bool("cached", false))
 		// using local collector to collect values from the block and cache them.
-		localCol := collector.NewDistinctValue[tempopb.TagValue](limit, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+		localCol := collector.NewDistinctValue[tempopb.TagValue](limit, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 		localErr := performSearch(ctx, b, localCol)
 		if localErr != nil {
 			return localErr
