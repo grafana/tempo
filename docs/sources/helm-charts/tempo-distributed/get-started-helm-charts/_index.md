@@ -507,7 +507,9 @@ This configuration:
 * An ingestion rate and burst size limit of 5MB/s, a maximum trace size of 10MB and a maximum of 1000 live traces in an ingester for all tenants
 * Overrides the '1234' tenant with a rate and burst size limit of 2MB/s, a maximum trace size of 5MB and a maximum of 400 live traces in an ingester
 
-Note that runtime configurations should include all options for a specific tenant.
+{{< admonition type="note" >}}
+Runtime configurations should include all options for a specific tenant.
+{{< /admonition >}}
 
 ## Install Grafana Tempo using the Helm chart
 
