@@ -63,8 +63,6 @@ const (
 	reasonOutsideTimeRangeSlack = "outside_metrics_ingestion_slack"
 	reasonSpanMetricsFiltered   = "span_metrics_filtered"
 	reasonInvalidUTF8           = "invalid_utf8"
-
-	timeBuffer = 5 * time.Minute
 )
 
 type instance struct {
@@ -77,9 +75,9 @@ type instance struct {
 	registry *registry.ManagedRegistry
 	wal      storage.Storage
 
-	traceWAL  *wal.WAL
-	traceWAL2 *wal.WAL
-	writer    tempodb.Writer
+	traceWAL      *wal.WAL
+	traceQueryWAL *wal.WAL
+	writer        tempodb.Writer
 
 	// processorsMtx protects the processors map, not the processors itself
 	processorsMtx sync.RWMutex
@@ -94,7 +92,7 @@ type instance struct {
 	logger log.Logger
 }
 
-func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, reg prometheus.Registerer, logger log.Logger, traceWAL, traceWAL2 *wal.WAL, writer tempodb.Writer) (*instance, error) {
+func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, reg prometheus.Registerer, logger log.Logger, traceWAL, rf1TraceWAL *wal.WAL, writer tempodb.Writer) (*instance, error) {
 	logger = log.With(logger, "tenant", instanceID)
 
 	i := &instance{
@@ -102,11 +100,11 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 		instanceID: instanceID,
 		overrides:  overrides,
 
-		registry:  registry.New(&cfg.Registry, overrides, instanceID, wal, logger),
-		wal:       wal,
-		traceWAL:  traceWAL,
-		traceWAL2: traceWAL2,
-		writer:    writer,
+		registry:      registry.New(&cfg.Registry, overrides, instanceID, wal, logger),
+		wal:           wal,
+		traceWAL:      traceWAL,
+		traceQueryWAL: rf1TraceWAL,
+		writer:        writer,
 
 		processors: make(map[string]processor.Processor),
 
@@ -311,11 +309,14 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 		}
 		newProcessor = p
 
-		nonFlushingConfig := cfg.LocalBlocks
-		nonFlushingConfig.FlushToStorage = false
-		i.queuebasedLocalBlocks, err = localblocks.New(nonFlushingConfig, i.instanceID, i.traceWAL2, i.writer, i.overrides)
-		if err != nil {
-			return err
+		// Add the non-flushing alternate if configured
+		if i.traceQueryWAL != nil {
+			nonFlushingConfig := cfg.LocalBlocks
+			nonFlushingConfig.FlushToStorage = false
+			i.queuebasedLocalBlocks, err = localblocks.New(nonFlushingConfig, i.instanceID, i.traceQueryWAL, i.writer, i.overrides)
+			if err != nil {
+				return err
+			}
 		}
 	default:
 		level.Error(i.logger).Log(

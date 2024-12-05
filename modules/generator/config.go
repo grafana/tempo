@@ -29,11 +29,12 @@ const (
 
 // Config for a generator.
 type Config struct {
-	Ring      RingConfig      `yaml:"ring"`
-	Processor ProcessorConfig `yaml:"processor"`
-	Registry  registry.Config `yaml:"registry"`
-	Storage   storage.Config  `yaml:"storage"`
-	TracesWAL wal.Config      `yaml:"traces_storage"`
+	Ring           RingConfig      `yaml:"ring"`
+	Processor      ProcessorConfig `yaml:"processor"`
+	Registry       registry.Config `yaml:"registry"`
+	Storage        storage.Config  `yaml:"storage"`
+	TracesWAL      wal.Config      `yaml:"traces_storage"`
+	TracesQueryWAL wal.Config      `yaml:"traces_query_storage"`
 	// MetricsIngestionSlack is the max amount of time passed since a span's end time
 	// for the span to be considered in metrics generation
 	MetricsIngestionSlack time.Duration `yaml:"metrics_ingestion_time_range_slack"`
@@ -72,6 +73,24 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 func (cfg *Config) Validate() error {
 	if cfg.Ingest.Enabled {
 		if err := cfg.Ingest.Kafka.Validate(); err != nil {
+			return err
+		}
+	}
+
+	// Only validate if being used
+	if cfg.TracesWAL.Filepath != "" {
+		if cfg.TracesWAL.Version == "" {
+			cfg.TracesWAL.Version = encoding.LatestEncoding().Version()
+		}
+		if err := cfg.TracesWAL.Validate(); err != nil {
+			return err
+		}
+	}
+	if cfg.TracesQueryWAL.Filepath != "" {
+		if cfg.TracesQueryWAL.Version == "" {
+			cfg.TracesQueryWAL.Version = encoding.LatestEncoding().Version()
+		}
+		if err := cfg.TracesQueryWAL.Validate(); err != nil {
 			return err
 		}
 	}

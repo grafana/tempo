@@ -37,7 +37,7 @@ func (c *Config) RegisterFlags(*flag.FlagSet) {
 	c.IngestionSlack = 2 * time.Minute
 }
 
-func ValidateConfig(c *Config) error {
+func (c *Config) Validate() error {
 	if _, err := encoding.FromVersion(c.Version); err != nil {
 		return fmt.Errorf("failed to validate block version %s: %w", c.Version, err)
 	}

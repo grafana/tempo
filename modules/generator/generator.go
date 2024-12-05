@@ -224,7 +224,7 @@ func (g *Generator) stopping(_ error) error {
 	// Mark as read-only after we have removed ourselves from the ring
 	g.stopIncomingRequests()
 
-	// Stop reading from queue and wait for oustanding data to be processed and committed
+	// Stop reading from queue and wait for outstanding data to be processed and committed
 	if g.cfg.Ingest.Enabled {
 		g.stopKafka()
 	}
@@ -319,30 +319,31 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 	}
 
 	// Create traces wal if configured
-	var tracesWAL, tracesWAL2 *tempodb_wal.WAL
+	var tracesWAL, tracesQueryWAL *tempodb_wal.WAL
 
 	if g.cfg.TracesWAL.Filepath != "" {
 		// Create separate wals per tenant by prefixing path with tenant ID
-
-		tracesWALCfg := g.cfg.TracesWAL
-		tracesWALCfg.Filepath = path.Join(tracesWALCfg.Filepath, id)
-
-		tracesWAL, err = tempodb_wal.New(&tracesWALCfg)
-		if err != nil {
-			_ = wal.Close()
-			return nil, err
-		}
-
-		tracesWALCfg2 := tracesWALCfg
-		tracesWALCfg2.Filepath += "2"
-		tracesWAL2, err = tempodb_wal.New(&tracesWALCfg2)
+		cfg := g.cfg.TracesWAL
+		cfg.Filepath = path.Join(cfg.Filepath, id)
+		tracesWAL, err = tempodb_wal.New(&cfg)
 		if err != nil {
 			_ = wal.Close()
 			return nil, err
 		}
 	}
 
-	inst, err := newInstance(g.cfg, id, g.overrides, wal, reg, g.logger, tracesWAL, tracesWAL2, g.store)
+	if g.cfg.TracesQueryWAL.Filepath != "" {
+		// Create separate wals per tenant by prefixing path with tenant ID
+		cfg := g.cfg.TracesQueryWAL
+		cfg.Filepath = path.Join(cfg.Filepath, id)
+		tracesQueryWAL, err = tempodb_wal.New(&cfg)
+		if err != nil {
+			_ = wal.Close()
+			return nil, err
+		}
+	}
+
+	inst, err := newInstance(g.cfg, id, g.overrides, wal, reg, g.logger, tracesWAL, tracesQueryWAL, g.store)
 	if err != nil {
 		_ = wal.Close()
 		return nil, err
