@@ -246,12 +246,23 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, pa
 	}
 	commitRecTs := time.UnixMilli(lastCommitTs)
 
-	if sectionEndTime.Sub(commitRecTs) > time.Duration(1.5*float64(b.cfg.ConsumeCycleDuration)) {
+	// We need to align the commit record timestamp to the section end time so we don't consume the same section again.
+	commitSectionEndTime := alignToSectionEndTime(commitRecTs, b.cfg.ConsumeCycleDuration)
+	if sectionEndTime.Sub(commitSectionEndTime) > time.Duration(1.5*float64(b.cfg.ConsumeCycleDuration)) {
 		// We're lagging behind or there is no commit, we need to consume in smaller sections.
 		// We iterate through all the ConsumeInterval intervals, starting from the first one after the last commit until the cycleEndTime,
 		// i.e. [T, T+interval), [T+interval, T+2*interval), ... [T+S*interval, cycleEndTime)
 		// where T is the CommitRecordTimestamp, the timestamp of the record, whose offset we committed previously.
-		sectionEndTime, _ = nextCycleEnd(commitRecTs, b.cfg.ConsumeCycleDuration)
+		sectionEndTime, _ = nextCycleEnd(commitSectionEndTime, b.cfg.ConsumeCycleDuration)
+
+		level.Debug(b.logger).Log(
+			"msg", "lagging behind, consuming in sections",
+			"partition", partition,
+			"section_end", sectionEndTime,
+			"commit_rec_ts", commitRecTs,
+			"commit_section_end", commitSectionEndTime,
+			"cycle_end", cycleEndTime,
+		)
 	}
 
 	// Continue consuming in sections until we're caught up.
@@ -527,4 +538,8 @@ func nextCycleEnd(t time.Time, interval time.Duration) (time.Time, time.Duration
 		waitTime -= interval
 	}
 	return cycleEnd, waitTime
+}
+
+func alignToSectionEndTime(t time.Time, interval time.Duration) time.Time {
+	return t.Truncate(interval).Add(interval)
 }

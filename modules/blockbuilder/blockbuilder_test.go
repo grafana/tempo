@@ -353,7 +353,7 @@ func TestNextCycleEnd(t *testing.T) {
 			t:            time.Date(2023, 10, 1, 12, 0, 0, 1, time.UTC),
 			interval:     time.Hour,
 			expectedTime: time.Date(2023, 10, 1, 13, 0, 0, 0, time.UTC),
-			expectedWait: 59*time.Minute + 59*time.Second,
+			expectedWait: 59*time.Minute + 59*time.Second + 999999999*time.Nanosecond,
 		},
 	}
 
