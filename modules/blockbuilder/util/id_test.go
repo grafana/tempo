@@ -36,9 +36,32 @@ func TestDeterministicIDGenerator(t *testing.T) {
 	}
 }
 
+func FuzzDeterministicIDGenerator(f *testing.F) {
+	f.Skip()
+
+	f.Add(util.FakeTenantID, int64(42))
+	f.Fuzz(func(t *testing.T, tenantID string, seed int64) {
+		gen := NewDeterministicIDGenerator(tenantID, seed)
+
+		for i := 0; i < 3; i++ {
+			if err := generateAndParse(gen); err != nil {
+				t.Errorf("Error generating and parsing ID: %v", err)
+			}
+		}
+	})
+}
+
+func generateAndParse(g IDGenerator) error {
+	id := g.NewID()
+	_, err := uuid.Parse(id.String())
+	return err
+}
+
 func BenchmarkDeterministicID(b *testing.B) {
+	tenant := util.FakeTenantID
 	ts := time.Now().UnixMilli()
-	gen := NewDeterministicIDGenerator(util.FakeTenantID, ts)
+	partitionID := int64(0)
+	gen := NewDeterministicIDGenerator(tenant, partitionID, ts)
 	for i := 0; i < b.N; i++ {
 		_ = gen.NewID()
 	}

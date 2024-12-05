@@ -21,43 +21,32 @@ type IDGenerator interface {
 var _ IDGenerator = (*DeterministicIDGenerator)(nil)
 
 type DeterministicIDGenerator struct {
-	seeds []int64
-	seq   *atomic.Int64
+	tenantBytes []byte
+	seeds       []int64
+	seq         *atomic.Int64
 }
 
 func NewDeterministicIDGenerator(tenantID string, seeds ...int64) *DeterministicIDGenerator {
-	seeds = append(seeds, int64(binary.LittleEndian.Uint64(stringToBytes(tenantID))))
 	return &DeterministicIDGenerator{
-		seeds: seeds,
-		seq:   atomic.NewInt64(0),
+		tenantBytes: []byte(tenantID),
+		seeds:       seeds,
+		seq:         atomic.NewInt64(0),
 	}
 }
 
 func (d *DeterministicIDGenerator) NewID() backend.UUID {
 	seq := d.seq.Inc()
-	seeds := append(d.seeds, seq)
-	return backend.UUID(newDeterministicID(seeds))
+	return backend.UUID(newDeterministicID(d.tenantBytes, append(d.seeds, seq)))
 }
 
-func newDeterministicID(seeds []int64) uuid.UUID {
-	b := int64ToBytes(seeds...)
+func newDeterministicID(b []byte, seeds []int64) uuid.UUID {
+	sl, dl := len(seeds), len(b)
+	data := make([]byte, dl+sl*8) // 8 bytes per int64
+	copy(b, data)
 
-	return uuid.NewHash(hash, ns, b, 5)
-}
-
-// TODO - Try to avoid allocs here
-func stringToBytes(s string) []byte {
-	return []byte(s)
-}
-
-func int64ToBytes(seeds ...int64) []byte {
-	l := len(seeds)
-	bytes := make([]byte, l*8)
-
-	// Use binary.LittleEndian or binary.BigEndian depending on your requirement
 	for i, seed := range seeds {
-		binary.LittleEndian.PutUint64(bytes[i*8:], uint64(seed))
+		binary.LittleEndian.PutUint64(data[dl+i*8:], uint64(seed))
 	}
 
-	return bytes
+	return uuid.NewHash(hash, ns, data, 5)
 }
