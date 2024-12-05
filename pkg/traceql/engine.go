@@ -55,6 +55,13 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		return nil, err
 	}
 
+	if rootExpr.IsNoop() {
+		return &tempopb.SearchResponse{
+			Traces:  nil,
+			Metrics: &tempopb.SearchMetrics{},
+		}, nil
+	}
+
 	fetchSpansRequest.StartTimeUnixNanos = unixSecToNano(searchReq.Start)
 	fetchSpansRequest.EndTimeUnixNanos = unixSecToNano(searchReq.End)
 

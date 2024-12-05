@@ -12,6 +12,8 @@ on:
 
 jobs:
   drone-signature-check:
+    # only run in grafana/tempo.
+    if: github.repository == 'grafana/tempo'    
     uses: grafana/shared-workflows/.github/workflows/check-drone-signature.yaml@main
     with:
       drone_config_path: .drone/drone.yml

@@ -593,6 +593,10 @@ query_frontend:
     # A list of regular expressions for refusing matching requests, these will apply for every request regardless of the endpoint.
     [url_deny_list: <list of strings> | default = <empty list>]]
 
+    # Max allowed TraceQL expression size, in bytes. queries bigger then this size will be rejected.
+    # (default: 128 KiB)
+    [max_query_expression_size_bytes: <int> | default = 131072]]
+
     search:
 
         # The number of concurrent jobs to execute when searching the backend.
@@ -640,7 +644,10 @@ query_frontend:
 
         # The number of shards to break ingester queries into.
         [ingester_shards]: <int> | default = 3]
-        
+
+        # The maximum allowed value of spans per span set. 0 disables this limit.
+        [max_spans_per_span_set]: <int> | default = 100]
+
         # SLO configuration for Metadata (tags and tag values) endpoints.
         metadata_slo:
             # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.

@@ -29,22 +29,39 @@ func NewHTTPCollector(next AsyncRoundTripper[combiner.PipelineResponse], consume
 	}
 }
 
-// Handle
+// RoundTrip implements the http.RoundTripper interface
 func (r httpCollector) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx, cancel := context.WithCancel(req.Context())
 	defer cancel()
+	ctx, span := tracer.Start(ctx, "httpCollector.RoundTrip")
+	defer span.End()
+
 	req = req.WithContext(ctx)
 
 	resps, err := r.next.RoundTrip(NewHTTPRequest(req))
 	if err != nil {
 		return nil, err
 	}
+	span.AddEvent("next.RoundTrip done")
 
 	err = consumeAndCombineResponses(ctx, r.consumers, resps, r.combiner, nil)
 	if err != nil {
 		return nil, err
 	}
-	return r.combiner.HTTPFinal()
+	span.AddEvent("consumeAndCombineResponses done")
+
+	resp, err := r.combiner.HTTPFinal()
+	if err != nil {
+		return nil, err
+	}
+	span.AddEvent("combiner.HTTPFinal done")
+
+	// we don't get context cancellation errors from the HTTPFinal,
+	// so we need to check, and return to downstream callers
+	if req.Context().Err() != nil {
+		return nil, req.Context().Err()
+	}
+	return resp, err
 }
 
 func consumeAndCombineResponses(ctx context.Context, consumers int, resps Responses[combiner.PipelineResponse], c combiner.Combiner, callback func() error) error {

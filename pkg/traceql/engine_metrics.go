@@ -296,6 +296,7 @@ func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels 
 					},
 				)
 			}
+
 			exemplars = append(exemplars, tempopb.Exemplar{
 				Labels:      labels,
 				Value:       e.Value,
@@ -907,6 +908,14 @@ func optimize(req *FetchSpansRequest) {
 		return
 	}
 
+	// Unscoped attributes like .foo require the second pass to evaluate
+	for _, c := range req.Conditions {
+		if c.Attribute.Scope == AttributeScopeNone && c.Attribute.Intrinsic == IntrinsicNone {
+			// Unscoped (non-intrinsic) attribute
+			return
+		}
+	}
+
 	// There is an issue where multiple conditions &&'ed on the same
 	// attribute can look like AllConditions==true, but are implemented
 	// in the storage layer like ||'ed and require the second pass callback (engine).
@@ -1242,16 +1251,6 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 }
 
 func (b *SimpleAggregator) Results() SeriesSet {
-	// Attach placeholder exemplars to the output
-	for _, ts := range b.ss {
-		for i, e := range ts.Exemplars {
-			if math.IsNaN(e.Value) {
-				interval := IntervalOfMs(int64(e.TimestampMs), b.start, b.end, b.step)
-				ts.Exemplars[i].Value = ts.Values[interval]
-			}
-		}
-	}
-
 	return b.ss
 }
 

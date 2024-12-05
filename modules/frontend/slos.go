@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/gogo/status"
+	"github.com/grafana/dskit/grpcutil"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"google.golang.org/grpc/codes"
@@ -15,6 +17,9 @@ const (
 	searchOp    = "search"
 	metadataOp  = "metadata"
 	metricsOp   = "metrics"
+
+	resultCompleted = "completed"
+	resultCanceled  = "canceled"
 )
 
 var (
@@ -25,7 +30,7 @@ var (
 		Namespace: "tempo",
 		Name:      "query_frontend_queries_within_slo_total",
 		Help:      "Total Queries within SLO per tenant",
-	}, []string{"tenant", "op"})
+	}, []string{"tenant", "op", "result"})
 
 	sloTraceByIDCounter = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
 	sloSearchCounter    = sloQueriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
@@ -39,7 +44,7 @@ var (
 		Namespace: "tempo",
 		Name:      "query_frontend_queries_total",
 		Help:      "Total queries received per tenant.",
-	}, []string{"tenant", "op"})
+	}, []string{"tenant", "op", "result"})
 
 	traceByIDCounter = queriesPerTenant.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
 	searchCounter    = queriesPerTenant.MustCurryWith(prometheus.Labels{"op": searchOp})
@@ -84,20 +89,45 @@ func metricsSLOPostHook(cfg SLOConfig) handlerPostHook {
 
 func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec, throughputVec prometheus.ObserverVec, cfg SLOConfig) handlerPostHook {
 	return func(resp *http.Response, tenant string, bytesProcessed uint64, latency time.Duration, err error) {
-		// first record all queries
-		allByTenantCounter.WithLabelValues(tenant).Inc()
-
-		// most errors are SLO violations
+		// most errors are SLO violations but we have few exceptions.
 		if err != nil {
-			// however, if this is a grpc resource exhausted error (429) or invalid argument (400) then we are within SLO
+			// However, gRPC resource exhausted error (429), invalid argument (400), not found (404) and
+			// request cancellations are considered within the SLO.
 			switch status.Code(err) {
-			case codes.ResourceExhausted,
-				codes.InvalidArgument,
-				codes.NotFound:
-				withinSLOByTenantCounter.WithLabelValues(tenant).Inc()
+			case codes.ResourceExhausted, codes.InvalidArgument, codes.NotFound:
+				allByTenantCounter.WithLabelValues(tenant, resultCompleted).Inc()
+				withinSLOByTenantCounter.WithLabelValues(tenant, resultCompleted).Inc()
+				return
 			}
+
+			if grpcutil.IsCanceled(err) {
+				allByTenantCounter.WithLabelValues(tenant, resultCanceled).Inc()
+				withinSLOByTenantCounter.WithLabelValues(tenant, resultCanceled).Inc()
+				return
+			}
+
+			// check for the response and 499 in the status code, can come from http pipeline along with error
+			if resp != nil && resp.StatusCode == util.StatusClientClosedRequest {
+				allByTenantCounter.WithLabelValues(tenant, resultCanceled).Inc()
+				withinSLOByTenantCounter.WithLabelValues(tenant, resultCanceled).Inc()
+				return
+			}
+
+			// in case we have error, that doesn't fall into the above categories, it's a SLO violation
+			// so only increment the allByTenantCounter
+			allByTenantCounter.WithLabelValues(tenant, resultCompleted).Inc()
 			return
 		}
+
+		// we don't always get error in case of http pipeline, check for 499 status code
+		if resp != nil && resp.StatusCode == util.StatusClientClosedRequest {
+			allByTenantCounter.WithLabelValues(tenant, resultCanceled).Inc()
+			withinSLOByTenantCounter.WithLabelValues(tenant, resultCanceled).Inc()
+			return
+		}
+
+		// record all queries
+		allByTenantCounter.WithLabelValues(tenant, resultCompleted).Inc()
 
 		// all 200s/300s/400s are success
 		if resp != nil && resp.StatusCode >= 500 {
@@ -131,6 +161,6 @@ func sloHook(allByTenantCounter, withinSLOByTenantCounter *prometheus.CounterVec
 			return
 		}
 
-		withinSLOByTenantCounter.WithLabelValues(tenant).Inc()
+		withinSLOByTenantCounter.WithLabelValues(tenant, resultCompleted).Inc()
 	}
 }

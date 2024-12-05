@@ -1,6 +1,10 @@
 ## main / unreleased
 * [FEATURE] tempo-cli: support dropping multiple traces in a single operation [#4266](https://github.com/grafana/tempo/pull/4266) (@ndk)
+* [CHANGE] **BREAKING CHANGE** Add maximum spans per span set. Users can set `max_spans_per_span_set` to 0 to obtain the old behavior. [#4275](https://github.com/grafana/tempo/pull/4383) (@carles-grafana)
+* [CHANGE] slo: include request cancellations within SLO [#4355] (https://github.com/grafana/tempo/pull/4355) (@electron0zero)
+  request cancellations are exposed under `result` label in `tempo_query_frontend_queries_total` and `tempo_query_frontend_queries_within_slo_total` with `completed` or `canceled` values to differentiate between completed and canceled requests.
 * [CHANGE] update default config values to better align with production workloads [#4340](https://github.com/grafana/tempo/pull/4340) (@electron0zero)
+* [CHANGE] Add query-frontend limit for max length of query expression [##4397](https://github.com/grafana/tempo/pull/4397) (@electron0zero)
 * [CHANGE] fix deprecation warning by switching to DoBatchWithOptions [#4343](https://github.com/grafana/tempo/pull/4343) (@dastrobu)
 * [CHANGE] **BREAKING CHANGE** The Tempo serverless is now deprecated and will be removed in an upcoming release [#4017](https://github.com/grafana/tempo/pull/4017/) @electron0zero
 * [CHANGE] **BREAKING CHANGE** Change the AWS Lambda serverless build tooling output from "main" to "bootstrap". Refer to https://aws.amazon.com/blogs/compute/migrating-aws-lambda-functions-from-the-go1-x-runtime-to-the-custom-runtime-on-amazon-linux-2/ for migration steps [#3852](https://github.com/grafana/tempo/pull/3852) (@zatlodan)
@@ -13,7 +17,7 @@
 * [CHANGE] **BREAKING CHANGE** Migrate from OpenTracing to OpenTelemetry instrumentation. Removed the `use_otel_tracer` configuration option. Use the OpenTelemetry environment variables to configure the span exporter [#3646](https://github.com/grafana/tempo/pull/3646) (@andreasgerstmayr)
   To continue using the Jaeger exporter, use the following environment variable: `OTEL_TRACES_EXPORTER=jaeger`.
 * [CHANGE] No longer send the final diff in GRPC streaming. Instead we rely on the streamed intermediate results. [#4062](https://github.com/grafana/tempo/pull/4062) (@joe-elliott)
-* [CHANGE] Update Go to 1.23.1 [#4146](https://github.com/grafana/tempo/pull/4146) [#4147](https://github.com/grafana/tempo/pull/4147) (@javiermolinar)
+* [CHANGE] Update Go to 1.23.3 [#4146](https://github.com/grafana/tempo/pull/4146) [#4147](https://github.com/grafana/tempo/pull/4147) [#4380](https://github.com/grafana/tempo/pull/4380) (@javiermolinar @mdisibio)
 * [CHANGE] TraceQL: Add range condition for byte predicates [#4198](https://github.com/grafana/tempo/pull/4198) (@ie-pham)
 * [CHANGE] Return 422 for TRACE_TOO_LARGE queries [#4160](https://github.com/grafana/tempo/pull/4160) (@zalegrala)
 * [CHANGE] Upgrade OTEL sdk to reduce allocs [#4243](https://github.com/grafana/tempo/pull/4243) (@joe-elliott)
@@ -22,6 +26,7 @@
 * [FEATURE] TraceQL support for instrumentation scope [#3967](https://github.com/grafana/tempo/pull/3967) (@ie-pham)
 * [FEATURE] Export cost attribution usage metrics from distributor [#4162](https://github.com/grafana/tempo/pull/4162) (@mdisibio)
 * [FEATURE] TraceQL metrics: avg_over_time [#4073](https://github.com/grafana/tempo/pull/4073) (@javiermolinar)
+* [ENHANCEMENT] distributor: return trace id length when it is invalid [#4407](https://github.com/grafana/tempo/pull/4407) (@carles-grafana)
 * [ENHANCEMENT] Update to the latest dskit [#4341](https://github.com/grafana/tempo/pull/4341) (@dastrobu)
 * [ENHANCEMENT] Changed log level from INFO to DEBUG for the TempoDB Find operation using traceId to reduce excessive/unwanted logs in log search. [#4179](https://github.com/grafana/tempo/pull/4179) (@Aki0x137)
 * [ENHANCEMENT] Pushdown collection of results from generators in the querier [#4119](https://github.com/grafana/tempo/pull/4119) (@electron0zero)
@@ -59,19 +64,22 @@
 * [ENHANCEMENT] Chore: delete spanlogger. [4312](https://github.com/grafana/tempo/pull/4312) (@javiermolinar)
 * [ENHANCEMENT] Add `invalid_utf8` to reasons spanmetrics will discard spans. [#4293](https://github.com/grafana/tempo/pull/4293) (@zalegrala)
 * [ENHANCEMENT] Reduce frontend and querier allocations by dropping HTTP headers early in the pipeline. [#4298](https://github.com/grafana/tempo/pull/4298) (@joe-elliott)
-* [ENHANCEMENT] Reduce ingester working set by improving prelloc behavior. [#4344](https://github.com/grafana/tempo/pull/4344)  (@joe-elliott)
-* [ENHANCEMENT] Use Promtheus fast regexp for TraceQL regular expression matchers. [#4329](https://github.com/grafana/tempo/pull/4329) (@joe-elliott)
+* [ENHANCEMENT] Reduce ingester working set by improving prelloc behavior. [#4344](https://github.com/grafana/tempo/pull/4344),[#4369](https://github.com/grafana/tempo/pull/4369)  (@joe-elliott)
+  Added tunable prealloc env vars PREALLOC_BKT_SIZE, PREALLOC_NUM_BUCKETS, PREALLOC_MIN_BUCKET and metric tempo_ingester_prealloc_miss_bytes_total to observe and tune prealloc behavior.
+* [ENHANCEMENT] Use Prometheus fast regexp for TraceQL regular expression matchers. [#4329](https://github.com/grafana/tempo/pull/4329) (@joe-elliott)
   **BREAKING CHANGE** All regular expression matchers will now be fully anchored. `span.foo =~ "bar"` will now be evaluated as `span.foo =~ "^bar$"`
 * [ENHANCEMENT] Reuse generator code to better refuse "too large" traces. [#4365](https://github.com/grafana/tempo/pull/4365) (@joe-elliott)
   This will cause the ingester to more aggressively and correctly refuse traces. Also added two metrics to better track bytes consumed per tenant in the ingester.
   `tempo_metrics_generator_live_trace_bytes` and `tempo_ingester_live_trace_bytes`.
+* [BUGFIX] Handle invalid TraceQL query filter in tag values v2 disk cache [#4392](https://github.com/grafana/tempo/pull/4392) (@electron0zero)
 * [BUGFIX] Replace hedged requests roundtrips total with a counter. [#4063](https://github.com/grafana/tempo/pull/4063) [#4078](https://github.com/grafana/tempo/pull/4078) (@galalen)
 * [BUGFIX] Metrics generators: Correctly drop from the ring before stopping ingestion to reduce drops during a rollout. [#4101](https://github.com/grafana/tempo/pull/4101) (@joe-elliott)
 * [BUGFIX] Correctly handle 400 Bad Request and 404 Not Found in gRPC streaming [#4144](https://github.com/grafana/tempo/pull/4144) (@mapno)
 * [BUGFIX] Pushes a 0 to classic histogram's counter when the series is new to allow Prometheus to start from a non-null value. [#4140](https://github.com/grafana/tempo/pull/4140) (@mapno)
 * [BUGFIX] Fix counter samples being downsampled by backdate to the previous minute the initial sample when the series is new [#4236](https://github.com/grafana/tempo/pull/4236) (@javiermolinar)
+* [BUGFIX] Fix traceql metrics returning incorrect data for falsey queries and unscoped attributes [#4409](https://github.com/grafana/tempo/pull/4409) (@mdisibio)
 * [BUGFIX] Fix traceql metrics time range handling at the cutoff between recent and backend data [#4257](https://github.com/grafana/tempo/issues/4257) (@mdisibio)
-* [BUGFIX] Fix several issues with exemplar values for traceql metrics [#4366](https://github.com/grafana/tempo/pull/4366) (@mdisibio)
+* [BUGFIX] Fix several issues with exemplar values for traceql metrics [#4366](https://github.com/grafana/tempo/pull/4366) [#4404](https://github.com/grafana/tempo/pull/4404) (@mdisibio)
 * [BUGFIX] Skip computing exemplars for instant queries. [#4204](https://github.com/grafana/tempo/pull/4204) (@javiermolinar)
 * [BUGFIX] Gave context to orphaned spans related to various maintenance processes. [#4260](https://github.com/grafana/tempo/pull/4260) (@joe-elliott)
 * [BUGFIX] Initialize histogram buckets to 0 to avoid downsampling. [#4366](https://github.com/grafana/tempo/pull/4366) (@javiermolinar)

@@ -16,9 +16,9 @@ These capabilities rely on a set of generated span metrics and service metrics.
 
 Any spans that are ingested by Tempo can create many metric series. However, this doesn't mean that every time a span is ingested that a new active series is created.
 
-The number of active series generated depends on the label pairs generated from span data that are associated with the metrics, similar to other Prometheus-formated data.
+The number of active series generated depends on the label pairs generated from span data that are associated with the metrics, similar to other Prometheus-formatted data.
 
-For additional information, refer to the [Active series and DPM documentation](/docs/grafana-cloud/billing-and-usage/active-series-and-dpm/#active-series).
+For additional information, refer to the [Active series and DPM documentation](https://grafana.com/docs/grafana-cloud/billing-and-usage/active-series-and-dpm/).
 
 ## Active series calculation
 

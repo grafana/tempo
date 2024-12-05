@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/flagext"
+	"github.com/grafana/dskit/grpcutil"
+	"github.com/grafana/tempo/pkg/util"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -22,16 +24,14 @@ import (
 )
 
 const (
-	// StatusClientClosedRequest is the status code for when a client request cancellation of an http request
-	StatusClientClosedRequest = 499
 	// nil response in ServeHTTP
 	NilResponseError = "nil resp in ServeHTTP"
 )
 
 var (
-	errCanceled              = httpgrpc.Errorf(StatusClientClosedRequest, context.Canceled.Error())
-	errDeadlineExceeded      = httpgrpc.Errorf(http.StatusGatewayTimeout, context.DeadlineExceeded.Error())
-	errRequestEntityTooLarge = httpgrpc.Errorf(http.StatusRequestEntityTooLarge, "http: request body too large")
+	errCanceled              = httpgrpc.Error(util.StatusClientClosedRequest, context.Canceled.Error())
+	errDeadlineExceeded      = httpgrpc.Error(http.StatusGatewayTimeout, context.DeadlineExceeded.Error())
+	errRequestEntityTooLarge = httpgrpc.Error(http.StatusRequestEntityTooLarge, "http: request body too large")
 )
 
 // handler exists to wrap a roundtripper with an HTTP handler. It wraps all
@@ -88,7 +88,7 @@ func (f *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logMessage = append(
 			logMessage,
 			"status", statusCode,
-			"err", err.Error(),
+			"error", err.Error(),
 			"response_size", 0,
 		)
 		level.Info(f.logger).Log(logMessage...)
@@ -157,18 +157,13 @@ func copyHeader(dst, src http.Header) {
 // httpgrpc errors can bubble up to here and should be translated to http errors. It returns
 // httpgrpc error.
 func writeError(w http.ResponseWriter, err error) error {
-	if errors.Is(err, context.Canceled) {
+	if grpcutil.IsCanceled(err) {
 		err = errCanceled
 	} else if errors.Is(err, context.DeadlineExceeded) {
 		err = errDeadlineExceeded
-	} else if isRequestBodyTooLarge(err) {
+	} else if util.IsRequestBodyTooLarge(err) {
 		err = errRequestEntityTooLarge
 	}
 	httpgrpc.WriteError(w, err)
 	return err
-}
-
-// isRequestBodyTooLarge returns true if the error is "http: request body too large".
-func isRequestBodyTooLarge(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "http: request body too large")
 }

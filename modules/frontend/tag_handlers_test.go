@@ -128,7 +128,7 @@ func runnerTagsV2ClientCancelContext(t *testing.T, f *QueryFrontend) {
 	}()
 	grpcReq := &tempopb.SearchTagsRequest{}
 	err := f.streamingTagsV2(grpcReq, srv)
-	require.Equal(t, status.Error(codes.Internal, "context canceled"), err)
+	require.Equal(t, status.Error(codes.Canceled, "context canceled"), err)
 }
 
 func runnerTagValuesV2ClientCancelContext(t *testing.T, f *QueryFrontend) {
@@ -160,7 +160,7 @@ func runnerTagValuesV2ClientCancelContext(t *testing.T, f *QueryFrontend) {
 		TagName: "foo",
 	}
 	err := f.streamingTagValuesV2(grpcReq, srv)
-	require.Equal(t, status.Error(codes.Internal, "context canceled"), err)
+	require.Equal(t, status.Error(codes.Canceled, "context canceled"), err)
 }
 
 // todo: a lot of code is replicated between all of these "failure propagates from queriers" tests. we should refactor
