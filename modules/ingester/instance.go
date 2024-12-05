@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	kitlog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/gogo/status"
 	"github.com/google/uuid"
@@ -38,19 +39,9 @@ var (
 	errMaxLiveTraces = errors.New(overrides.ErrorPrefixLiveTracesExceeded)
 )
 
-func newTraceTooLargeError(traceID common.ID, instanceID string, maxBytes, reqSize int) error {
-	level.Warn(log.Logger).Log("msg", fmt.Sprintf("%s: max size of trace (%d) exceeded while adding %d bytes to trace %s for tenant %s",
-		overrides.ErrorPrefixTraceTooLarge, maxBytes, reqSize, hex.EncodeToString(traceID), instanceID))
-	return errTraceTooLarge
-}
-
-func newMaxLiveTracesError(instanceID string, limit string) error {
-	level.Warn(log.Logger).Log("msg", fmt.Sprintf("%s: max live traces exceeded for tenant %s: %v", overrides.ErrorPrefixLiveTracesExceeded, instanceID, limit))
-	return errMaxLiveTraces
-}
-
 const (
-	traceDataType = "trace"
+	traceDataType             = "trace"
+	maxTraceLogLinesPerSecond = 10
 )
 
 var (
@@ -115,9 +106,14 @@ type instance struct {
 	localWriter backend.Writer
 
 	hash hash.Hash32
+
+	logger         kitlog.Logger
+	maxTraceLogger *log.RateLimitedLogger
 }
 
 func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverrides, writer tempodb.Writer, l *local.Backend, dedicatedColumns backend.DedicatedColumns) (*instance, error) {
+	logger := kitlog.With(log.Logger, "tenant", instanceID)
+
 	i := &instance{
 		traces:     map[uint32]*liveTrace{},
 		traceSizes: tracesizes.New(),
@@ -136,6 +132,9 @@ func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverride
 		localWriter: backend.NewWriter(l),
 
 		hash: fnv.New32(),
+
+		logger:         logger,
+		maxTraceLogger: log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, level.Warn(logger)),
 	}
 	err := i.resetHeadBlock()
 	if err != nil {
@@ -176,7 +175,7 @@ func (i *instance) addTraceError(errorsByTrace []tempopb.PushErrorReason, pushEr
 		}
 
 		// error is not either MaxLiveTraces or TraceTooLarge
-		level.Error(log.Logger).Log("msg", "Unexpected error during PushBytes", "tenant", i.instanceID, "error", pushError)
+		level.Error(i.logger).Log("msg", "Unexpected error during PushBytes", "error", pushError)
 		errorsByTrace = append(errorsByTrace, tempopb.PushErrorReason_UNKNOWN_ERROR)
 		return errorsByTrace
 
@@ -204,14 +203,15 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 
 	err := i.limiter.AssertMaxTracesPerUser(i.instanceID, len(i.traces))
 	if err != nil {
-		return newMaxLiveTracesError(i.instanceID, err.Error())
+		return errMaxLiveTraces
 	}
 
 	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
 	reqSize := len(traceBytes)
 
 	if maxBytes > 0 && !i.traceSizes.Allow(id, reqSize, maxBytes) {
-		return newTraceTooLargeError(id, i.instanceID, maxBytes, reqSize)
+		i.maxTraceLogger.Log("msg", overrides.ErrorPrefixTraceTooLarge, "max", maxBytes, "size", reqSize, "trace", hex.EncodeToString(id))
+		return errTraceTooLarge
 	}
 
 	tkn := i.tokenForTraceID(id)
@@ -529,7 +529,7 @@ func (i *instance) getDedicatedColumns() backend.DedicatedColumns {
 	if cols := i.overrides.DedicatedColumns(i.instanceID); cols != nil {
 		err := cols.Validate()
 		if err != nil {
-			level.Error(log.Logger).Log("msg", "Unable to apply overrides for dedicated attribute columns. Columns invalid.", "tenant", i.instanceID, "error", err)
+			level.Error(i.logger).Log("msg", "Unable to apply overrides for dedicated attribute columns. Columns invalid.", "error", err)
 			return i.dedicatedColumns
 		}
 
@@ -608,14 +608,14 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*LocalBlock, er
 		if err != nil {
 			if errors.Is(err, backend.ErrDoesNotExist) {
 				// Partial/incomplete block found, remove, it will be recreated from data in the wal.
-				level.Warn(log.Logger).Log("msg", "Unable to reload meta for local block. This indicates an incomplete block and will be deleted", "tenant", i.instanceID, "block", id.String())
+				level.Warn(i.logger).Log("msg", "Unable to reload meta for local block. This indicates an incomplete block and will be deleted", "block", id.String())
 				err = i.local.ClearBlock(id, i.instanceID)
 				if err != nil {
 					return nil, fmt.Errorf("deleting bad local block tenant %v block %v: %w", i.instanceID, id.String(), err)
 				}
 			} else {
 				// Block with unknown error
-				level.Error(log.Logger).Log("msg", "Unexpected error reloading meta for local block. Ignoring and continuing. This block should be investigated.", "tenant", i.instanceID, "block", id.String(), "error", err)
+				level.Error(i.logger).Log("msg", "Unexpected error reloading meta for local block. Ignoring and continuing. This block should be investigated.", "block", id.String(), "error", err)
 				metricReplayErrorsTotal.WithLabelValues(i.instanceID).Inc()
 			}
 
@@ -631,7 +631,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*LocalBlock, er
 		// level corruption
 		err = b.Validate(ctx)
 		if err != nil && !errors.Is(err, common.ErrUnsupported) {
-			level.Error(log.Logger).Log("msg", "local block failed validation, dropping", "tenantID", i.instanceID, "block", id.String(), "error", err)
+			level.Error(i.logger).Log("msg", "local block failed validation, dropping", "block", id.String(), "error", err)
 			metricReplayErrorsTotal.WithLabelValues(i.instanceID).Inc()
 
 			err = i.local.ClearBlock(id, i.instanceID)
@@ -645,7 +645,7 @@ func (i *instance) rediscoverLocalBlocks(ctx context.Context) ([]*LocalBlock, er
 		ib := NewLocalBlock(ctx, b, i.local)
 		rediscoveredBlocks = append(rediscoveredBlocks, ib)
 
-		level.Info(log.Logger).Log("msg", "reloaded local block", "tenantID", i.instanceID, "block", id.String(), "flushed", ib.FlushedTime())
+		level.Info(i.logger).Log("msg", "reloaded local block", "block", id.String(), "flushed", ib.FlushedTime())
 	}
 
 	i.blocksMtx.Lock()

@@ -22,6 +22,7 @@
 * [CHANGE] Return 422 for TRACE_TOO_LARGE queries [#4160](https://github.com/grafana/tempo/pull/4160) (@zalegrala)
 * [CHANGE] Upgrade OTEL sdk to reduce allocs [#4243](https://github.com/grafana/tempo/pull/4243) (@joe-elliott)
 * [CHANGE] Tighten file permissions [#4251](https://github.com/grafana/tempo/pull/4251) (@zalegrala)
+* [CHANGE] Drop max live traces log message and rate limit trace too large. [#4418](https://github.com/grafana/tempo/pull/4418) (@joe-elliott)
 * [FEATURE] tempo-cli: support dropping multiple traces in a single operation [#4266](https://github.com/grafana/tempo/pull/4266) (@ndk)
 * [FEATURE] Discarded span logging `log_discarded_spans` [#3957](https://github.com/grafana/tempo/issues/3957) (@dastrobu)
 * [FEATURE] TraceQL support for instrumentation scope [#3967](https://github.com/grafana/tempo/pull/3967) (@ie-pham)
