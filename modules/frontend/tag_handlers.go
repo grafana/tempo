@@ -332,9 +332,11 @@ func extractTenantWithErrorResp(req *http.Request, logger log.Logger) (string, *
 }
 
 func buildTagsRequestAndExtractTenant(ctx context.Context, req *tempopb.SearchTagsRequest, downstreamPath string, logger log.Logger) (*http.Request, string, error) {
+	headers := headersFromGrpcContext(ctx)
+
 	httpReq, err := api.BuildSearchTagsRequest(&http.Request{
 		URL:    &url.URL{Path: downstreamPath},
-		Header: http.Header{},
+		Header: headers,
 		Body:   io.NopCloser(bytes.NewReader([]byte{})),
 	}, req)
 	if err != nil {
@@ -353,9 +355,11 @@ func buildTagsRequestAndExtractTenant(ctx context.Context, req *tempopb.SearchTa
 }
 
 func buildTagValuesRequestAndExtractTenant(ctx context.Context, req *tempopb.SearchTagValuesRequest, downstreamPath string, logger log.Logger) (*http.Request, string, error) {
+	headers := headersFromGrpcContext(ctx)
+
 	httpReq, err := api.BuildSearchTagValuesRequest(&http.Request{
 		URL:    &url.URL{Path: downstreamPath},
-		Header: http.Header{},
+		Header: headers,
 		Body:   io.NopCloser(bytes.NewReader([]byte{})),
 	}, req)
 	if err != nil {

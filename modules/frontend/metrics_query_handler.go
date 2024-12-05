@@ -32,6 +32,8 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 			return err
 		}
 
+		headers := headersFromGrpcContext(ctx)
+
 		// --------------------------------------------------
 		// Rewrite into a query_range request.
 		// --------------------------------------------------
@@ -43,7 +45,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		}
 		httpReq := api.BuildQueryRangeRequest(&http.Request{
 			URL:    &url.URL{Path: downstreamPath},
-			Header: http.Header{},
+			Header: headers,
 			Body:   io.NopCloser(bytes.NewReader([]byte{})),
 		}, qr, "") // dedicated cols are never passed from the caller
 		httpReq = httpReq.Clone(ctx)
