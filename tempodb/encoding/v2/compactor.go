@@ -139,6 +139,10 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 func (c *Compactor) appendBlock(ctx context.Context, w backend.Writer, tracker backend.AppendTracker, block *StreamingBlock) (backend.AppendTracker, error) {
 	compactionLevel := int(block.BlockMeta().CompactionLevel - 1)
 
+	if !c.opts.Continue() {
+		return nil, backend.ErrCompactionAbandoned
+	}
+
 	if c.opts.ObjectsWritten != nil {
 		c.opts.ObjectsWritten(compactionLevel, block.CurrentBufferedObjects())
 	}
@@ -157,6 +161,10 @@ func (c *Compactor) appendBlock(ctx context.Context, w backend.Writer, tracker b
 
 func (c *Compactor) finishBlock(ctx context.Context, w backend.Writer, tracker backend.AppendTracker, block *StreamingBlock, l log.Logger) error {
 	level.Info(l).Log("msg", "writing compacted block", "block", fmt.Sprintf("%+v", block.BlockMeta()))
+
+	if !c.opts.Continue() {
+		return backend.ErrCompactionAbandoned
+	}
 
 	bytesFlushed, err := block.Complete(ctx, tracker, w)
 	if err != nil {

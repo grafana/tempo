@@ -173,7 +173,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 		require.Len(t, blocks, inputBlocks)
 
 		compactions++
-		err := rw.compact(context.Background(), blocks, testTenantID)
+		err := rw.compact(context.Background(), blocks, testTenantID, func() bool { return true })
 		require.NoError(t, err)
 
 		expectedBlockCount -= blocksPerCompaction
@@ -336,7 +336,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	combinedStart, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
 	require.NoError(t, err)
 
-	err = rw.compact(ctx, blocks, testTenantID)
+	err = rw.compact(ctx, blocks, testTenantID, func() bool { return true })
 	require.NoError(t, err)
 
 	checkBlocklists(t, uuid.Nil, 1, blockCount, rw)
@@ -420,7 +420,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	rw.pollBlocklist()
 
 	// compact everything
-	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
+	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID, func() bool { return true })
 	require.NoError(t, err)
 
 	// New blocklist contains 1 compacted block with everything
@@ -501,7 +501,7 @@ func TestCompactionMetrics(t *testing.T) {
 	assert.NoError(t, err)
 
 	// compact everything
-	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
+	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID, func() bool { return true })
 	assert.NoError(t, err)
 
 	// Check metric
@@ -643,7 +643,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	rw.pollBlocklist()
 
 	// compact everything
-	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
+	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID, func() bool { return true })
 	require.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond)
@@ -738,6 +738,8 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 		Combiner:           model.StaticCombiner,
 		MaxBytesPerTrace:   0,
 
+		Continue: func() bool { return true },
+
 		// hook to drop the trace
 		DropObject: func(id common.ID) bool {
 			return bytes.Equal(id, dropID)
@@ -776,6 +778,113 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 			require.NotNil(t, tr)
 		}
 	}
+}
+
+func TestCompactionHaltsAndReturnsError(t *testing.T) {
+	for _, enc := range encoding.AllEncodings() {
+		version := enc.Version()
+		t.Run(version, func(t *testing.T) {
+			testCompactionHaltsAndReturnsError(t, version)
+		})
+	}
+}
+
+func testCompactionHaltsAndReturnsError(t *testing.T, targetBlockVersion string) {
+	tempDir := t.TempDir()
+
+	r, w, _, err := New(&Config{
+		Backend: backend.Local,
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			IndexDownsampleBytes: 11,
+			BloomFP:              .01,
+			BloomShardSizeBytes:  100_000,
+			Version:              targetBlockVersion,
+			Encoding:             backend.EncSnappy,
+			IndexPageSizeBytes:   1000,
+			RowGroupSizeBytes:    30_000_000,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, nil, log.NewNopLogger())
+	require.NoError(t, err)
+
+	wal := w.WAL()
+	require.NoError(t, err)
+
+	dec := model.MustNewSegmentDecoder(v1.Encoding)
+
+	recordCount := 100
+	allIDs := make([]common.ID, 0, recordCount)
+
+	// write a bunch of dummy data
+	blockID := backend.NewUUID()
+	meta := &backend.BlockMeta{BlockID: blockID, TenantID: testTenantID, DataEncoding: v1.Encoding}
+	head, err := wal.NewBlock(meta, v1.Encoding)
+	require.NoError(t, err)
+
+	for j := 0; j < recordCount; j++ {
+		id := test.ValidTraceID(nil)
+		allIDs = append(allIDs, id)
+
+		obj, err := dec.PrepareForWrite(test.MakeTrace(1, id), 0, 0)
+		require.NoError(t, err)
+
+		obj2, err := dec.ToObject([][]byte{obj})
+		require.NoError(t, err)
+
+		err = head.Append(id, obj2, 0, 0)
+		require.NoError(t, err, "unexpected error writing req")
+	}
+
+	firstBlock, err := w.CompleteBlock(context.Background(), head)
+	require.NoError(t, err)
+
+	// choose a random id to drop
+	dropID := allIDs[rand.Intn(len(allIDs))]
+
+	rw := r.(*readerWriter)
+	// force compact to a new block
+	opts := common.CompactionOptions{
+		BlockConfig:        *rw.cfg.Block,
+		ChunkSizeBytes:     DefaultChunkSizeBytes,
+		FlushSizeBytes:     DefaultFlushSizeBytes,
+		IteratorBufferSize: DefaultIteratorBufferSize,
+		OutputBlocks:       1,
+		Combiner:           model.StaticCombiner,
+		MaxBytesPerTrace:   0,
+
+		Continue: func() bool { return false }, // ask compaction to stop
+
+		// hook to drop the trace
+		DropObject: func(id common.ID) bool {
+			return bytes.Equal(id, dropID)
+		},
+
+		// setting to prevent panics.
+		BytesWritten:      func(_, _ int) {},
+		ObjectsCombined:   func(_, _ int) {},
+		ObjectsWritten:    func(_, _ int) {},
+		SpansDiscarded:    func(_, _, _ string, _ int) {},
+		DisconnectedTrace: func() {},
+		RootlessTrace:     func() {},
+	}
+
+	enc, err := encoding.FromVersion(targetBlockVersion)
+	require.NoError(t, err)
+
+	compactor := enc.NewCompactor(opts)
+	_, err = compactor.Compact(context.Background(), log.NewNopLogger(), rw.r, rw.w, []*backend.BlockMeta{firstBlock.BlockMeta()})
+	require.Error(t, err)
+	require.ErrorIs(t, err, backend.ErrCompactionAbandoned)
 }
 
 type testData struct {
@@ -894,6 +1003,6 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 
 	b.ResetTimer()
 
-	err = rw.compact(ctx, metas, testTenantID)
+	err = rw.compact(ctx, metas, testTenantID, func() bool { return true })
 	require.NoError(b, err)
 }

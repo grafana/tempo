@@ -78,6 +78,10 @@ type CompactionOptions struct {
 	BlockConfig        BlockConfig
 	Combiner           model.ObjectCombiner
 
+	// Continue is a function that can be used to check if the compaction should continue. This should
+	// be checked regularly during the compaction process.
+	Continue func() bool
+
 	// DropObject can be used to drop a trace from the compaction process. Currently it only receives the ID
 	// of the trace to be compacted. If the function returns true, the trace will be dropped.
 	DropObject func(ID) bool
