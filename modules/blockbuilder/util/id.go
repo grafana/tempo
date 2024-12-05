@@ -3,7 +3,6 @@ package util
 import (
 	"crypto/sha1"
 	"encoding/binary"
-	"unsafe"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -46,8 +45,9 @@ func newDeterministicID(seeds []int64) uuid.UUID {
 	return uuid.NewHash(hash, ns, b, 5)
 }
 
+// TODO - Try to avoid allocs here
 func stringToBytes(s string) []byte {
-	return unsafe.Slice(unsafe.StringData(s), unsafe.Sizeof(s))
+	return []byte(s)
 }
 
 func int64ToBytes(seeds ...int64) []byte {
