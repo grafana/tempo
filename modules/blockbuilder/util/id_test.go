@@ -39,22 +39,18 @@ func TestDeterministicIDGenerator(t *testing.T) {
 func FuzzDeterministicIDGenerator(f *testing.F) {
 	f.Skip()
 
-	f.Add(util.FakeTenantID, int64(42))
-	f.Fuzz(func(t *testing.T, tenantID string, seed int64) {
-		gen := NewDeterministicIDGenerator(tenantID, seed)
+	f.Add(util.FakeTenantID, int64(42), int64(100))
+	f.Fuzz(func(t *testing.T, tenantID string, seed1, seed2 int64) {
+		gen := NewDeterministicIDGenerator(tenantID, seed1, seed2)
 
 		for i := 0; i < 3; i++ {
-			if err := generateAndParse(gen); err != nil {
-				t.Errorf("Error generating and parsing ID: %v", err)
+			id := gen.NewID()
+			_, err := uuid.Parse(id.String())
+			if err != nil {
+				t.Fatalf("failed to parse UUID: %v", err)
 			}
 		}
 	})
-}
-
-func generateAndParse(g IDGenerator) error {
-	id := g.NewID()
-	_, err := uuid.Parse(id.String())
-	return err
 }
 
 func BenchmarkDeterministicID(b *testing.B) {
