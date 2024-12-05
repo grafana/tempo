@@ -464,6 +464,53 @@ To configure TLS with the Helm chart, you must have a TLS key-pair and CA certif
 
 For instructions, refer to [Configure TLS with Helm](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/network/tls/).
 
+### Optional: Use global or per-tenant overrides
+
+The `tempo-distributed` Helm chart provides a module for users to set global or per-tenant override settings:
+
+* Global overrides come under the `global_overrides` property, which pertain to the standard overrides
+* Per-tenant overrides come under the `overrides` property, and allow specific tenants to alter configuration associated with them as per tenant-specific runtime overrides. The Helm chart generates a `/runtime/overrides.yaml` configuration file for all per-tenant configuration.
+
+These overrides correlate to the standard (global) and tenant-specific (`per_tenant_overide_config`)overrides in Tempo and GET configuration.
+For more information about overrides, refer to the [Overrides configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#overrides) documentation.
+
+Overrides can be used with both GET and Tempo.
+
+The following example configuration sets some global configuration options, as well as a set of options for a specific tenant:
+
+```yaml
+global_overrides:
+    default:
+        ingestion:
+          rate_limit_bytes: 5 * 1000 * 1000
+          burst_size_bytes: 5 * 1000 * 1000
+          max_traces_per_user: 1000
+        global:
+          max_bytes_per_trace: 10 * 1000 * 1000
+
+        metrics_generator:
+          processors: ['service-graphs', 'span-metrics']
+
+overrides:
+    '1234':
+        ingestion:
+          rate_limit_bytes: 2 * 1000 * 1000
+          burst_size_bytes: 2 * 1000 * 1000
+          max_traces_per_user: 400
+        global:
+          max_bytes_per_trace: 5 * 1000 * 1000
+```
+
+This configuration:
+
+* Enables the Span Metrics and Service Graph metrics-generator processors for all tenants
+* An ingestion rate and burst size limit of 5MB/s, a maximum trace size of 10MB and a maximum of 1000 live traces in an ingester for all tenants
+* Overrides the '1234' tenant with a rate and burst size limit of 2MB/s, a maximum trace size of 5MB and a maximum of 400 live traces in an ingester
+
+{{< admonition type="note" >}}
+Runtime configurations should include all options for a specific tenant.
+{{< /admonition >}}
+
 ## Install Grafana Tempo using the Helm chart
 
 Use the following command to install Tempo using the configuration options you've specified in the `custom.yaml` file:
