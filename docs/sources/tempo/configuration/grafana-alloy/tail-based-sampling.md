@@ -50,7 +50,7 @@ This overhead increases with the number of Alloy instances that share the same t
 
 ### Sampling load balancing
 
-Tail sampling load balancing is usually carried out by running two layers of collectors, the first layer receiving the telemetry data (in this case trace spans), and then distributing these to the second layer that carry out the sampling policies.
+Tail sampling load balancing is usually carried out by running two layers of collectors, the first layer receiving the telemetry data (in this case trace spans), and then distributing these to the second layer that carry out the sampling policies. 
 
 Alloy includes a [load balancing export](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.exporter.loadbalancing/) that can carry out routing to further collector targets based on a set number of keys (in the case of trace sampling, the `traceID` key).
 Alloy uses the OpenTelemetry load balancing exporter.
