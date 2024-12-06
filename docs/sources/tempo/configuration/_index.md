@@ -726,7 +726,7 @@ This field sets the maximum number of spans to return for each span set.
 The maximum value that you can set for the **Span Limit** value (or the spss query) is controlled by `max_spans_per_span_set`.
 If the **Span Limit** is set to `0`, then the capability is disabled.
 
-### Cap the maximum query length
+#### Cap the maximum query length
 
 You can set the maximum length of a query using `query_frontend.max_query_expression_size_bytes` configuration parameter for the query-frontend. The default value is 128 KB.
 
