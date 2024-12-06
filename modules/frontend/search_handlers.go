@@ -28,9 +28,13 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 	downstreamPath := path.Join(apiPrefix, api.PathSearch)
 
 	return func(req *tempopb.SearchRequest, srv tempopb.StreamingQuerier_SearchServer) error {
+		ctx := srv.Context()
+
+		headers := headersFromGrpcContext(ctx)
+
 		httpReq, err := api.BuildSearchRequest(&http.Request{
 			URL:    &url.URL{Path: downstreamPath},
-			Header: http.Header{},
+			Header: headers,
 			Body:   io.NopCloser(bytes.NewReader([]byte{})),
 		}, req)
 		if err != nil {
@@ -38,7 +42,6 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 			return status.Errorf(codes.InvalidArgument, "build search request failed: %s", err.Error())
 		}
 
-		ctx := srv.Context()
 		httpReq = httpReq.WithContext(ctx)
 		tenant, _ := user.ExtractOrgID(ctx)
 		start := time.Now()
