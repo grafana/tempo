@@ -719,10 +719,11 @@ In a similar manner, excessive queries result size can also negatively impact qu
 #### Limit the spans per spanset
 
 You can set the maximum spans per spanset by setting `max_spans_per_span_set` for the query-frontend.
-The default value is 100. Tempo and Grafana Enterprise Traces users can set this option in their configuration file.
+The default value is 100. 
 
-In Grafana or Grafana Cloud, you can set an equivalent option by using the **Span Limit** field in the [TraceQL query editor](https://grafana.com/docs/grafana-cloud/connect-externally-hosted/data-sources/tempo/query-editor/) in Grafana Explore.
+In Grafana or Grafana Cloud, you can use the **Span Limit** field in the [TraceQL query editor](https://grafana.com/docs/grafana-cloud/connect-externally-hosted/data-sources/tempo/query-editor/) in Grafana Explore.
 This field sets the maximum number of spans to return for each span set.
+The maximum value that you can set for the **Span Limit** value (or the spss query) is controlled by `max_spans_per_span_set`.
 If the **Span Limit** is set to `0`, then the capability is disabled.
 
 ### Cap the maximum query length
