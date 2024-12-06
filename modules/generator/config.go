@@ -55,6 +55,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Storage.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.TracesWAL.RegisterFlags(f)
 	cfg.TracesWAL.Version = encoding.DefaultEncoding().Version()
+	cfg.TracesQueryWAL.RegisterFlags(f)
+	cfg.TracesQueryWAL.Version = encoding.DefaultEncoding().Version()
 
 	// setting default for max span age before discarding to 30s
 	cfg.MetricsIngestionSlack = 30 * time.Second
@@ -79,17 +81,11 @@ func (cfg *Config) Validate() error {
 
 	// Only validate if being used
 	if cfg.TracesWAL.Filepath != "" {
-		if cfg.TracesWAL.Version == "" {
-			cfg.TracesWAL.Version = encoding.LatestEncoding().Version()
-		}
 		if err := cfg.TracesWAL.Validate(); err != nil {
 			return err
 		}
 	}
 	if cfg.TracesQueryWAL.Filepath != "" {
-		if cfg.TracesQueryWAL.Version == "" {
-			cfg.TracesQueryWAL.Version = encoding.LatestEncoding().Version()
-		}
 		if err := cfg.TracesQueryWAL.Validate(); err != nil {
 			return err
 		}
