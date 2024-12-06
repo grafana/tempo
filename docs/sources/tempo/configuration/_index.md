@@ -738,7 +738,7 @@ query_frontend:
   max_query_expression_size_bytes: 10000
 ```
 
-### Querier
+## Querier
 
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/querier/config.go).
 
