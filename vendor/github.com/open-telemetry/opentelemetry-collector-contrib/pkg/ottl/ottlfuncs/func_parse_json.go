@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	jsoniter "github.com/json-iterator/go"
+	"github.com/goccy/go-json"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
@@ -31,7 +31,7 @@ func createParseJSONFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments
 	return parseJSON(args.Target), nil
 }
 
-// parseJSON returns a `pcommon.Map` struct that is a result of parsing the target string as JSON
+// parseJSON returns a `pcommon.Map` or `pcommon.Slice` struct that is a result of parsing the target string as JSON
 // Each JSON type is converted into a `pdata.Value` using the following map:
 //
 //	JSON boolean -> bool
@@ -46,13 +46,22 @@ func parseJSON[K any](target ottl.StringGetter[K]) ottl.ExprFunc[K] {
 		if err != nil {
 			return nil, err
 		}
-		var parsedValue map[string]any
-		err = jsoniter.UnmarshalFromString(targetVal, &parsedValue)
+		var parsedValue any
+		err = json.Unmarshal([]byte(targetVal), &parsedValue)
 		if err != nil {
 			return nil, err
 		}
-		result := pcommon.NewMap()
-		err = result.FromRaw(parsedValue)
-		return result, err
+		switch v := parsedValue.(type) {
+		case []any:
+			result := pcommon.NewSlice()
+			err = result.FromRaw(v)
+			return result, err
+		case map[string]any:
+			result := pcommon.NewMap()
+			err = result.FromRaw(v)
+			return result, err
+		default:
+			return nil, fmt.Errorf("could not convert parsed value of type %T to JSON object", v)
+		}
 	}
 }

@@ -1,16 +1,5 @@
 // Copyright (c) 2020 The Jaeger Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package reporter
 
@@ -143,7 +132,7 @@ func (r *ClientMetricsReporter) expireClientMetricsLoop() {
 
 func (r *ClientMetricsReporter) expireClientMetrics(t time.Time) {
 	var size int64
-	r.lastReceivedClientStats.Range(func(k, v interface{}) bool {
+	r.lastReceivedClientStats.Range(func(k, v any) bool {
 		stats := v.(*lastReceivedClientStats)
 		stats.lock.Lock()
 		defer stats.lock.Unlock()
@@ -186,12 +175,12 @@ func (r *ClientMetricsReporter) updateClientMetrics(batch *jaeger.Batch) {
 func (s *lastReceivedClientStats) update(
 	batchSeqNo int64,
 	stats *jaeger.ClientStats,
-	metrics *clientMetrics,
+	cMetrics *clientMetrics,
 ) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	metrics.BatchesReceived.Inc(1)
+	cMetrics.BatchesReceived.Inc(1)
 
 	if s.batchSeqNo >= batchSeqNo {
 		// Ignore out of order batches. Once we receive a batch with a larger-than-seen number,
@@ -202,11 +191,11 @@ func (s *lastReceivedClientStats) update(
 	// do not update counters on the first batch, because it may cause a huge spike in totals
 	// if the client has been running for a while already, but the agent just started.
 	if s.batchSeqNo > 0 {
-		metrics.BatchesSent.Inc(batchSeqNo - s.batchSeqNo)
+		cMetrics.BatchesSent.Inc(batchSeqNo - s.batchSeqNo)
 		if stats != nil {
-			metrics.FailedToEmitSpans.Inc(stats.FailedToEmitSpans - s.failedToEmitSpans)
-			metrics.TooLargeDroppedSpans.Inc(stats.TooLargeDroppedSpans - s.tooLargeDroppedSpans)
-			metrics.FullQueueDroppedSpans.Inc(stats.FullQueueDroppedSpans - s.fullQueueDroppedSpans)
+			cMetrics.FailedToEmitSpans.Inc(stats.FailedToEmitSpans - s.failedToEmitSpans)
+			cMetrics.TooLargeDroppedSpans.Inc(stats.TooLargeDroppedSpans - s.tooLargeDroppedSpans)
+			cMetrics.FullQueueDroppedSpans.Inc(stats.FullQueueDroppedSpans - s.fullQueueDroppedSpans)
 		}
 	}
 

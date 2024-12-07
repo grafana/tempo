@@ -271,17 +271,15 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 			cfg = jaegerRecvCfg
 		}
 
-		params := receiver.CreateSettings{
+		params := receiver.Settings{
 			ID: component.NewIDWithName(nopType, fmt.Sprintf("%s_receiver", componentID.Type().String())),
 			TelemetrySettings: component.TelemetrySettings{
 				Logger:         zapLogger,
 				TracerProvider: traceProvider,
 				MeterProvider:  meterProvider,
-				ReportStatus: func(*component.StatusEvent) {
-				},
 			},
 		}
-		receiver, err := factoryBase.CreateTracesReceiver(ctx, params, cfg, middleware.Wrap(shim))
+		receiver, err := factoryBase.CreateTraces(ctx, params, cfg, middleware.Wrap(shim))
 		if err != nil {
 			return nil, err
 		}
@@ -366,10 +364,6 @@ func (r *receiversShim) GetFactory(component.Kind, component.Type) component.Fac
 
 // GetExtensions implements component.Host
 func (r *receiversShim) GetExtensions() map[component.ID]extension.Extension { return nil }
-
-func (r *receiversShim) GetExporters() map[component.DataType]map[component.ID]component.Component {
-	return nil
-}
 
 // observability shims
 func newLogger(level dslog.Level) *zap.Logger {

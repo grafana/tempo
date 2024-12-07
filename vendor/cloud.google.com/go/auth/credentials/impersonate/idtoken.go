@@ -103,7 +103,7 @@ func NewIDTokenCredentials(opts *IDTokenOptions) (*auth.Credentials, error) {
 		}
 	} else if opts.Client == nil {
 		creds = opts.Credentials
-		client = internal.CloneDefaultClient()
+		client = internal.DefaultClient()
 		if err := httptransport.AddAuthorizationMiddleware(client, opts.Credentials); err != nil {
 			return nil, err
 		}

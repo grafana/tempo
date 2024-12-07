@@ -1,17 +1,6 @@
 // Copyright (c) 2019 The Jaeger Authors.
 // Copyright (c) 2017 Uber Technologies, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package zipkin
 
@@ -69,7 +58,7 @@ func NewSpanDurationSanitizer() Sanitizer {
 
 type spanDurationSanitizer struct{}
 
-func (s *spanDurationSanitizer) Sanitize(span *zc.Span) *zc.Span {
+func (*spanDurationSanitizer) Sanitize(span *zc.Span) *zc.Span {
 	if span.Duration == nil {
 		duration := defaultDuration
 		if len(span.Annotations) >= 2 {
@@ -116,7 +105,7 @@ func NewSpanStartTimeSanitizer() Sanitizer {
 
 type spanStartTimeSanitizer struct{}
 
-func (s *spanStartTimeSanitizer) Sanitize(span *zc.Span) *zc.Span {
+func (*spanStartTimeSanitizer) Sanitize(span *zc.Span) *zc.Span {
 	if span.Timestamp != nil || len(span.Annotations) == 0 {
 		return span
 	}
@@ -143,7 +132,7 @@ func NewParentIDSanitizer() Sanitizer {
 
 type parentIDSanitizer struct{}
 
-func (s *parentIDSanitizer) Sanitize(span *zc.Span) *zc.Span {
+func (*parentIDSanitizer) Sanitize(span *zc.Span) *zc.Span {
 	if span.ParentID == nil || *span.ParentID != 0 {
 		return span
 	}
@@ -166,7 +155,7 @@ func NewErrorTagSanitizer() Sanitizer {
 
 type errorTagSanitizer struct{}
 
-func (s *errorTagSanitizer) Sanitize(span *zc.Span) *zc.Span {
+func (*errorTagSanitizer) Sanitize(span *zc.Span) *zc.Span {
 	for _, binAnno := range span.BinaryAnnotations {
 		if binAnno.AnnotationType != zc.AnnotationType_BOOL && strings.EqualFold("error", binAnno.Key) {
 			binAnno.AnnotationType = zc.AnnotationType_BOOL

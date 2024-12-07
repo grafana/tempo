@@ -5,7 +5,7 @@ package exportertest // import "go.opentelemetry.io/collector/exporter/exportert
 import (
 	"context"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"sync"
 
 	"google.golang.org/grpc/codes"
@@ -19,8 +19,10 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
-var errNonPermanent = status.Error(codes.DeadlineExceeded, "non Permanent error")
-var errPermanent = status.Error(codes.Internal, "Permanent error")
+var (
+	errNonPermanent = status.Error(codes.DeadlineExceeded, "non Permanent error")
+	errPermanent    = status.Error(codes.Internal, "Permanent error")
+)
 
 // // randomNonPermanentErrorConsumeDecision is a decision function that succeeds approximately
 // // half of the time and fails with a non-permanent error the rest of the time.

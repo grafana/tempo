@@ -1,16 +1,5 @@
 // Copyright (c) 2019 The Jaeger Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package shared
 
@@ -22,9 +11,12 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
+	_ "github.com/jaegertracing/jaeger/pkg/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -83,7 +75,7 @@ func NewGRPCHandlerWithPlugins(
 }
 
 // Register registers the server as gRPC methods handler.
-func (s *GRPCHandler) Register(ss *grpc.Server) error {
+func (s *GRPCHandler) Register(ss *grpc.Server, hs *health.Server) error {
 	storage_v1.RegisterSpanReaderPluginServer(ss, s)
 	storage_v1.RegisterSpanWriterPluginServer(ss, s)
 	storage_v1.RegisterArchiveSpanReaderPluginServer(ss, s)
@@ -91,6 +83,16 @@ func (s *GRPCHandler) Register(ss *grpc.Server) error {
 	storage_v1.RegisterPluginCapabilitiesServer(ss, s)
 	storage_v1.RegisterDependenciesReaderPluginServer(ss, s)
 	storage_v1.RegisterStreamingSpanWriterPluginServer(ss, s)
+
+	hs.SetServingStatus("jaeger.storage.v1.SpanReaderPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
+	hs.SetServingStatus("jaeger.storage.v1.SpanWriterPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
+	hs.SetServingStatus("jaeger.storage.v1.ArchiveSpanReaderPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
+	hs.SetServingStatus("jaeger.storage.v1.ArchiveSpanWriterPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
+	hs.SetServingStatus("jaeger.storage.v1.PluginCapabilities", grpc_health_v1.HealthCheckResponse_SERVING)
+	hs.SetServingStatus("jaeger.storage.v1.DependenciesReaderPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
+	hs.SetServingStatus("jaeger.storage.v1.StreamingSpanWriterPlugin", grpc_health_v1.HealthCheckResponse_SERVING)
+	grpc_health_v1.RegisterHealthServer(ss, hs)
+
 	return nil
 }
 
@@ -136,23 +138,22 @@ func (s *GRPCHandler) WriteSpan(ctx context.Context, r *storage_v1.WriteSpanRequ
 	return &storage_v1.WriteSpanResponse{}, nil
 }
 
-func (s *GRPCHandler) Close(ctx context.Context, r *storage_v1.CloseWriterRequest) (*storage_v1.CloseWriterResponse, error) {
+func (s *GRPCHandler) Close(context.Context, *storage_v1.CloseWriterRequest) (*storage_v1.CloseWriterResponse, error) {
 	if closer, ok := s.impl.SpanWriter().(io.Closer); ok {
 		if err := closer.Close(); err != nil {
 			return nil, err
 		}
 
 		return &storage_v1.CloseWriterResponse{}, nil
-	} else {
-		return nil, status.Error(codes.Unimplemented, "span writer does not support graceful shutdown")
 	}
+	return nil, status.Error(codes.Unimplemented, "span writer does not support graceful shutdown")
 }
 
 // GetTrace takes a traceID and streams a Trace associated with that traceID
 func (s *GRPCHandler) GetTrace(r *storage_v1.GetTraceRequest, stream storage_v1.SpanReaderPlugin_GetTraceServer) error {
 	trace, err := s.impl.SpanReader().GetTrace(stream.Context(), r.TraceID)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
-		return status.Errorf(codes.NotFound, spanstore.ErrTraceNotFound.Error())
+		return status.Error(codes.NotFound, spanstore.ErrTraceNotFound.Error())
 	}
 	if err != nil {
 		return err
@@ -167,7 +168,7 @@ func (s *GRPCHandler) GetTrace(r *storage_v1.GetTraceRequest, stream storage_v1.
 }
 
 // GetServices returns a list of all known services
-func (s *GRPCHandler) GetServices(ctx context.Context, r *storage_v1.GetServicesRequest) (*storage_v1.GetServicesResponse, error) {
+func (s *GRPCHandler) GetServices(ctx context.Context, _ *storage_v1.GetServicesRequest) (*storage_v1.GetServicesResponse, error) {
 	services, err := s.impl.SpanReader().GetServices(ctx)
 	if err != nil {
 		return nil, err
@@ -247,7 +248,7 @@ func (s *GRPCHandler) FindTraceIDs(ctx context.Context, r *storage_v1.FindTraceI
 	}, nil
 }
 
-func (s *GRPCHandler) sendSpans(spans []*model.Span, sendFn func(*storage_v1.SpansResponseChunk) error) error {
+func (*GRPCHandler) sendSpans(spans []*model.Span, sendFn func(*storage_v1.SpansResponseChunk) error) error {
 	chunk := make([]model.Span, 0, len(spans))
 	for i := 0; i < len(spans); i += spanBatchSize {
 		chunk = chunk[:0]
@@ -262,7 +263,7 @@ func (s *GRPCHandler) sendSpans(spans []*model.Span, sendFn func(*storage_v1.Spa
 	return nil
 }
 
-func (s *GRPCHandler) Capabilities(ctx context.Context, request *storage_v1.CapabilitiesRequest) (*storage_v1.CapabilitiesResponse, error) {
+func (s *GRPCHandler) Capabilities(context.Context, *storage_v1.CapabilitiesRequest) (*storage_v1.CapabilitiesResponse, error) {
 	return &storage_v1.CapabilitiesResponse{
 		ArchiveSpanReader:   s.impl.ArchiveSpanReader() != nil,
 		ArchiveSpanWriter:   s.impl.ArchiveSpanWriter() != nil,
@@ -277,7 +278,7 @@ func (s *GRPCHandler) GetArchiveTrace(r *storage_v1.GetTraceRequest, stream stor
 	}
 	trace, err := reader.GetTrace(stream.Context(), r.TraceID)
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
-		return status.Errorf(codes.NotFound, spanstore.ErrTraceNotFound.Error())
+		return status.Error(codes.NotFound, spanstore.ErrTraceNotFound.Error())
 	}
 	if err != nil {
 		return err

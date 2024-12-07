@@ -1,23 +1,13 @@
 // Copyright (c) 2019 The Jaeger Authors.
 // Copyright (c) 2018 Uber Technologies, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package model
 
 import (
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -87,23 +77,23 @@ func TraceIDFromBytes(data []byte) (TraceID, error) {
 	case len(data) == traceIDShortBytesLen:
 		t.Low = binary.BigEndian.Uint64(data)
 	default:
-		return TraceID{}, fmt.Errorf("invalid length for TraceID")
+		return TraceID{}, errors.New("invalid length for TraceID")
 	}
 	return t, nil
 }
 
 // MarshalText is called by encoding/json, which we do not want people to use.
-func (t TraceID) MarshalText() ([]byte, error) {
-	return nil, fmt.Errorf("unsupported method TraceID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
+func (TraceID) MarshalText() ([]byte, error) {
+	return nil, errors.New("unsupported method TraceID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
 }
 
 // UnmarshalText is called by encoding/json, which we do not want people to use.
-func (t *TraceID) UnmarshalText(text []byte) error {
-	return fmt.Errorf("unsupported method TraceID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
+func (*TraceID) UnmarshalText([]byte /* text */) error {
+	return errors.New("unsupported method TraceID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
 }
 
 // Size returns the size of this datum in protobuf. It is always 16 bytes.
-func (t *TraceID) Size() int {
+func (*TraceID) Size() int {
 	return 16
 }
 
@@ -124,7 +114,7 @@ func (t *TraceID) Unmarshal(data []byte) error {
 
 func marshalBytes(dst []byte, src []byte) (n int, err error) {
 	if len(dst) < len(src) {
-		return 0, fmt.Errorf("buffer is too short")
+		return 0, errors.New("buffer is too short")
 	}
 	return copy(dst, src), nil
 }
@@ -181,23 +171,23 @@ func SpanIDFromString(s string) (SpanID, error) {
 // SpanIDFromBytes creates a SpandID from list of bytes
 func SpanIDFromBytes(data []byte) (SpanID, error) {
 	if len(data) != traceIDShortBytesLen {
-		return SpanID(0), fmt.Errorf("invalid length for SpanID")
+		return SpanID(0), errors.New("invalid length for SpanID")
 	}
 	return NewSpanID(binary.BigEndian.Uint64(data)), nil
 }
 
 // MarshalText is called by encoding/json, which we do not want people to use.
-func (s SpanID) MarshalText() ([]byte, error) {
-	return nil, fmt.Errorf("unsupported method SpanID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
+func (SpanID) MarshalText() ([]byte, error) {
+	return nil, errors.New("unsupported method SpanID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
 }
 
 // UnmarshalText is called by encoding/json, which we do not want people to use.
-func (s *SpanID) UnmarshalText(text []byte) error {
-	return fmt.Errorf("unsupported method SpanID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
+func (*SpanID) UnmarshalText([]byte /* text */) error {
+	return errors.New("unsupported method SpanID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
 }
 
 // Size returns the size of this datum in protobuf. It is always 8 bytes.
-func (s *SpanID) Size() int {
+func (*SpanID) Size() int {
 	return 8
 }
 

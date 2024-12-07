@@ -1,16 +1,5 @@
 // Copyright (c) 2021 The Jaeger Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package gogocodec
 
@@ -22,6 +11,7 @@ import (
 	gogoproto "github.com/gogo/protobuf/proto"
 	"google.golang.org/grpc/encoding"
 	"google.golang.org/grpc/encoding/proto"
+	"google.golang.org/grpc/mem"
 )
 
 const (
@@ -29,7 +19,7 @@ const (
 	jaegerModelPkgPath    = "github.com/jaegertracing/jaeger/model"
 )
 
-var defaultCodec encoding.Codec
+var defaultCodec encoding.CodecV2
 
 // CustomType is an interface that Gogo expects custom types to implement.
 // https://github.com/gogo/protobuf/blob/master/custom_types.md
@@ -45,44 +35,45 @@ type CustomType interface {
 }
 
 func init() {
-	defaultCodec = encoding.GetCodec(proto.Name)
+	defaultCodec = encoding.GetCodecV2(proto.Name)
 	defaultCodec.Name() // ensure it's not nil
-	encoding.RegisterCodec(newCodec())
+	encoding.RegisterCodecV2(newCodec())
 }
 
 // gogoCodec forces the use of gogo proto marshalling/unmarshalling for
 // Jaeger proto types (package jaeger/gen-proto).
 type gogoCodec struct{}
 
-var _ encoding.Codec = (*gogoCodec)(nil)
+var _ encoding.CodecV2 = (*gogoCodec)(nil)
 
 func newCodec() *gogoCodec {
 	return &gogoCodec{}
 }
 
 // Name implements encoding.Codec
-func (c *gogoCodec) Name() string {
+func (*gogoCodec) Name() string {
 	return proto.Name
 }
 
 // Marshal implements encoding.Codec
-func (c *gogoCodec) Marshal(v interface{}) ([]byte, error) {
+func (*gogoCodec) Marshal(v any) (mem.BufferSlice, error) {
 	t := reflect.TypeOf(v)
 	elem := t.Elem()
 	// use gogo proto only for Jaeger types
 	if useGogo(elem) {
-		return gogoproto.Marshal(v.(gogoproto.Message))
+		bytes, err := gogoproto.Marshal(v.(gogoproto.Message))
+		return mem.BufferSlice{mem.SliceBuffer(bytes)}, err
 	}
 	return defaultCodec.Marshal(v)
 }
 
 // Unmarshal implements encoding.Codec
-func (c *gogoCodec) Unmarshal(data []byte, v interface{}) error {
+func (*gogoCodec) Unmarshal(data mem.BufferSlice, v any) error {
 	t := reflect.TypeOf(v)
 	elem := t.Elem() // only for collections
 	// use gogo proto only for Jaeger types
 	if useGogo(elem) {
-		return gogoproto.Unmarshal(data, v.(gogoproto.Message))
+		return gogoproto.Unmarshal(data.Materialize(), v.(gogoproto.Message))
 	}
 	return defaultCodec.Unmarshal(data, v)
 }

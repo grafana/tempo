@@ -18,6 +18,7 @@ func SplitString(input, delimiter string) ([]string, error) {
 	current := ""
 	delimiterLength := len(delimiter)
 	quoteChar := "" // "" means we are not in quotes
+	escaped := false
 
 	for i := 0; i < len(input); i++ {
 		if quoteChar == "" && i+delimiterLength <= len(input) && input[i:i+delimiterLength] == delimiter { // delimiter
@@ -31,13 +32,19 @@ func SplitString(input, delimiter string) ([]string, error) {
 			continue
 		}
 
-		if quoteChar == "" && (input[i] == '"' || input[i] == '\'') { // start of quote
-			quoteChar = string(input[i])
-			continue
-		}
-		if string(input[i]) == quoteChar { // end of quote
-			quoteChar = ""
-			continue
+		if !escaped { // consider quote termination so long as previous character wasn't backslash
+			if quoteChar == "" && (input[i] == '"' || input[i] == '\'') { // start of quote
+				quoteChar = string(input[i])
+				continue
+			}
+			if string(input[i]) == quoteChar { // end of quote
+				quoteChar = ""
+				continue
+			}
+			// Only if we weren't escaped could the next character result in escaped state
+			escaped = input[i] == '\\' // potentially escaping next character
+		} else {
+			escaped = false
 		}
 
 		current += string(input[i])

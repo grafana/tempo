@@ -21,7 +21,6 @@ import (
 
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/e2e"
-	"github.com/grafana/tempo/pkg/model/trace"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/stretchr/testify/assert"
@@ -39,6 +38,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/grafana/tempo/pkg/httpclient"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
@@ -348,9 +348,9 @@ func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
 		},
 	}
 	logger, _ := zap.NewDevelopment()
-	return factory.CreateTracesExporter(
+	return factory.CreateTraces(
 		context.Background(),
-		exporter.CreateSettings{
+		exporter.Settings{
 			TelemetrySettings: component.TelemetrySettings{
 				Logger:         logger,
 				TracerProvider: tnoop.NewTracerProvider(),
