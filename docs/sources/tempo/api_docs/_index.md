@@ -595,6 +595,8 @@ If provided, the tag values returned by the API are filtered to only return valu
 
 Queries can be incomplete: for example, `{ resource.cluster = }`.
 Tempo extracts only the valid matchers and builds a valid query.
+If an input is invalid, Tempo doesn't provide an error. Instead, 
+you'll see the whole list when a failure of parsing input. This behavior helps with backwards compatibility. 
 
 Only queries with a single selector `{}` and AND `&&` operators are supported.
   - Example supported: `{ resource.cluster = "us-east-1" && resource.service = "frontend" }`
