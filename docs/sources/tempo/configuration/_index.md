@@ -724,7 +724,9 @@ The default value is 100.
 In Grafana or Grafana Cloud, you can use the **Span Limit** field in the [TraceQL query editor](https://grafana.com/docs/grafana-cloud/connect-externally-hosted/data-sources/tempo/query-editor/) in Grafana Explore.
 This field sets the maximum number of spans to return for each span set.
 The maximum value that you can set for the **Span Limit** value (or the spss query) is controlled by `max_spans_per_span_set`.
-If the **Span Limit** is set to `0`, then the capability is disabled.
+To disable the maximum spans per span set limit, set `max_spans_per_span_set` to `0`.
+When set to `0`, there is no maximum and users can put any value in **Span Limit**. 
+However, this can only be set by a Tempo administrator, not by the user. 
 
 #### Cap the maximum query length
 
