@@ -19,11 +19,10 @@ const (
 )
 
 var (
-	ErrDoesNotExist        = fmt.Errorf("does not exist")
-	ErrEmptyTenantID       = fmt.Errorf("empty tenant id")
-	ErrEmptyBlockID        = fmt.Errorf("empty block id")
-	ErrBadSeedFile         = fmt.Errorf("bad seed file")
-	ErrCompactionAbandoned = fmt.Errorf("compaction abandoned b/c we no longer own the job")
+	ErrDoesNotExist  = fmt.Errorf("does not exist")
+	ErrEmptyTenantID = fmt.Errorf("empty tenant id")
+	ErrEmptyBlockID  = fmt.Errorf("empty block id")
+	ErrBadSeedFile   = fmt.Errorf("bad seed file")
 
 	GlobalMaxBlockID = uuid.MustParse("ffffffff-ffff-ffff-ffff-ffffffffffff")
 

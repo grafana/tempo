@@ -226,10 +226,6 @@ func (c *Compactor) appendBlock(ctx context.Context, block *streamingBlock, l lo
 	_, span := tracer.Start(ctx, "vparquet.compactor.appendBlock")
 	defer span.End()
 
-	if !c.opts.Continue() {
-		return backend.ErrCompactionAbandoned
-	}
-
 	var (
 		objs            = block.CurrentBufferedObjects()
 		vals            = block.EstimatedBufferedBytes()
@@ -257,10 +253,6 @@ func (c *Compactor) appendBlock(ctx context.Context, block *streamingBlock, l lo
 func (c *Compactor) finishBlock(ctx context.Context, block *streamingBlock, l log.Logger) error {
 	_, span := tracer.Start(ctx, "vparquet.compactor.finishBlock")
 	defer span.End()
-
-	if !c.opts.Continue() {
-		return backend.ErrCompactionAbandoned
-	}
 
 	bytesFlushed, err := block.Complete()
 	if err != nil {

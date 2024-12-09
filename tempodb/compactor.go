@@ -156,31 +156,23 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 				level.Debug(rw.logger).Log("msg", "compaction cycle complete. No more blocks to compact", "tenantID", tenantID)
 				return
 			}
-
-			ownsJob := func() bool {
-				return rw.compactorSharder.Owns(hashString)
-			}
-
-			if !ownsJob() {
+			if !rw.compactorSharder.Owns(hashString) {
 				// continue on this tenant until we find something we own
 				continue
 			}
 			level.Info(rw.logger).Log("msg", "Compacting hash", "hashString", hashString)
 			// Compact selected blocks into a larger one
-			err := rw.compact(ctx, toBeCompacted, tenantID, ownsJob)
+			err := rw.compact(ctx, toBeCompacted, tenantID)
 
 			if errors.Is(err, backend.ErrDoesNotExist) {
 				level.Warn(rw.logger).Log("msg", "unable to find meta during compaction.  trying again on this block list", "err", err)
-			} else if errors.Is(err, backend.ErrCompactionAbandoned) {
-				level.Warn(rw.logger).Log("msg", "compaction abandoned b/c we no longer own the job", "hashString", hashString)
 			} else if err != nil {
 				level.Error(rw.logger).Log("msg", "error during compaction cycle", "err", err)
 				metricCompactionErrors.Inc()
 			}
 
-			// double check here. this case should be quite exceptional. did we somehow finish the job even though we don't own it?
-			if !ownsJob() && !errors.Is(err, backend.ErrCompactionAbandoned) {
-				level.Warn(rw.logger).Log("msg", "compaction complete but we no longer own the hash", "hashString", hashString, "err", err)
+			if !rw.compactorSharder.Owns(hashString) {
+				level.Warn(rw.logger).Log("msg", "compaction complete but we no longer own the hash", "hashString", hashString)
 			}
 
 			// after a maintenance cycle bail out
@@ -194,7 +186,7 @@ func (rw *readerWriter) doCompaction(ctx context.Context) {
 	}
 }
 
-func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string, ownsJob func() bool) error {
+func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string) error {
 	level.Debug(rw.logger).Log("msg", "beginning compaction", "num blocks compacting", len(blockMetas))
 
 	// todo - add timeout?
@@ -262,7 +254,6 @@ func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.Block
 		OutputBlocks:       outputBlocks,
 		Combiner:           combiner,
 		MaxBytesPerTrace:   rw.compactorOverrides.MaxBytesPerTraceForTenant(tenantID),
-		Continue:           ownsJob,
 		BytesWritten: func(compactionLevel, bytes int) {
 			metricCompactionBytesWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(bytes))
 		},
