@@ -1,5 +1,19 @@
 ## main / unreleased
 
+* [CHANGE] Disable gRPC compression in the querier and distributor for performance reasons [#4429](https://github.com/grafana/tempo/pull/4429) (@carles-grafana)
+  If you would like to re-enable it, we recommend 'snappy'. Use the following settings:
+```
+ingester_client:
+    grpc_client_config:
+        grpc_compression: "snappy"
+metrics_generator_client:
+    grpc_client_config:
+        grpc_compression: "snappy"
+querier:
+    frontend_worker:
+        grpc_client_config:
+            grpc_compression: "snappy"
+```
 * [CHANGE] **BREAKING CHANGE** Add maximum spans per span set. Users can set `max_spans_per_span_set` to 0 to obtain the old behavior. [#4275](https://github.com/grafana/tempo/pull/4383) (@carles-grafana)
 * [CHANGE] slo: include request cancellations within SLO [#4355] (https://github.com/grafana/tempo/pull/4355) (@electron0zero)
   request cancellations are exposed under `result` label in `tempo_query_frontend_queries_total` and `tempo_query_frontend_queries_within_slo_total` with `completed` or `canceled` values to differentiate between completed and canceled requests.
