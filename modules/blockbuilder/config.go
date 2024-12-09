@@ -55,7 +55,7 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("block config validation failed: %w", err)
 	}
 
-	if err := wal.ValidateConfig(&c.WAL); err != nil {
+	if err := c.WAL.Validate(); err != nil {
 		return fmt.Errorf("wal config validation failed: %w", err)
 	}
 

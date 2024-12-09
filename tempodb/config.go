@@ -163,7 +163,7 @@ func validateConfig(cfg *Config) error {
 		cfg.WAL.Version = cfg.Block.Version
 	}
 
-	err := wal.ValidateConfig(cfg.WAL)
+	err := cfg.WAL.Validate()
 	if err != nil {
 		return fmt.Errorf("wal config validation failed: %w", err)
 	}
