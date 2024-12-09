@@ -1110,14 +1110,21 @@ func (e *MetricsEvalulator) sampleExemplar(id []byte) bool {
 // MetricsFrontendEvaluator pipes the sharded job results back into the engine for the rest
 // of the pipeline.  i.e. This evaluator is for the query-frontend.
 type MetricsFrontendEvaluator struct {
+	mtx             sync.Mutex
 	metricsPipeline metricsFirstStageElement
 }
 
 func (m *MetricsFrontendEvaluator) ObserveSeries(in []*tempopb.TimeSeries) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
 	m.metricsPipeline.observeSeries(in)
 }
 
 func (m *MetricsFrontendEvaluator) Results() SeriesSet {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
 	return m.metricsPipeline.result()
 }
 
