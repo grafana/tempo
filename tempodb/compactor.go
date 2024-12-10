@@ -190,10 +190,12 @@ func (rw *readerWriter) compactWhileOwns(ctx context.Context, blockMetas []*back
 	// that we can then test for
 	go func() {
 		ticker := time.NewTicker(1 * time.Second)
+		defer ticker.Stop()
 
 		for {
 			if !owns() {
 				cancel(errCompactionJobNoLongerOwned)
+				return
 			}
 
 			select {
@@ -433,6 +435,7 @@ func doForAtLeast(ctx context.Context, dur time.Duration, f func()) {
 
 	if elapsed < dur {
 		ticker := time.NewTicker(dur - elapsed)
+		defer ticker.Stop()
 
 		select {
 		case <-ticker.C:
