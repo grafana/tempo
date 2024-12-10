@@ -365,14 +365,16 @@ Parameters:
 - `maxStaleValues = (integer)`
   Optional. Limits the search for tags names. If the number of stale (already known) values reaches or exceeds this limit, the search stops. i.e. If Tempo processes `maxStaleValues` matches without finding a new tag name, the search is returned early.
 
-
 ### Search tags V2
 
-Ingester configuration `complete_block_timeout` affects how long tags are available for search.If start or end aren't specified, it only fetches blocks that wasn't flushed to backend.
+Ingester configuration `complete_block_timeout` affects how long tags are available for search.
+If the start or end aren't specified, it only fetches blocks that weren't flushed to backend.
 
-This endpoint retrieves all discovered tag names that can be used in search. The endpoint is available in the query frontend service in
-a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. The tags endpoint takes a scope that controls the kinds
-of tags or attributes returned. If nothing is provided, the endpoint returns all resource and span tags.
+This endpoint retrieves all discovered tag names that can be used in search.
+The endpoint is available in the query frontend service in
+a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
+The tags endpoint takes a scope that controls the kinds of tags or attributes returned.
+If nothing is provided, the endpoint returns all resource and span tags.
 
 ```bash
 GET /api/v2/search/tags?scope=<resource|span|intrinsic>
@@ -392,7 +394,7 @@ Parameters:
 - `limit = (integer)`
   Optional. Sets the maximum number of tags names allowed per scope. The query stops once this limit is reached for any scope.
 - `maxStaleValues = (integer)`
-  Optional. Limits the search for tag values. If the number of stale (already known) values reaches or exceeds this limit, the search stops.
+  Optional. Limits the search for tag values. The search stops if the number of stale (already known) values reaches or exceeds this limit.
 
 #### Example
 
@@ -591,16 +593,21 @@ You can pass an optional URL query parameter, `q`, to your request.
 The `q` parameter is a URL-encoded [TraceQL query]({{< relref "../traceql" >}}).
 If provided, the tag values returned by the API are filtered to only return values seen on spans matching your filter parameters.
 
-Queries can be incomplete: for example, `{ .cluster = }`. Tempo extracts only the valid matchers and build a valid query.
+Queries can be incomplete: for example, `{ resource.cluster = }`.
+Tempo extracts only the valid matchers and builds a valid query.
+If an input is invalid, Tempo doesn't provide an error. Instead, 
+you'll see the whole list when a failure of parsing input. This behavior helps with backwards compatibility. 
 
 Only queries with a single selector `{}` and AND `&&` operators are supported.
-  - Example supported: `{ .cluster = "us-east-1" && .service = "frontend" }`
-  - Example unsupported: `{ .cluster = "us-east-1" || .service = "frontend" } && { .cluster = "us-east-2" }`
+  - Example supported: `{ resource.cluster = "us-east-1" && resource.service = "frontend" }`
+  - Example unsupported: `{ resource.cluster = "us-east-1" || resource.service = "frontend" } && { resource.cluster = "us-east-2" }`
+
+Unscoped attributes aren't supported for filtered tag values.
 
 The following request returns all discovered service names on spans with `span.http.method=GET`:
 
 ```
-GET /api/v2/search/tag/.service.name/values?q="{span.http.method='GET'}"
+GET /api/v2/search/tag/resource.service.name/values?q="{span.http.method='GET'}"
 ```
 
 If a particular service name (for example, `shopping-cart`) is only present on spans with `span.http.method=POST`, it won't be included in the list of values returned.
