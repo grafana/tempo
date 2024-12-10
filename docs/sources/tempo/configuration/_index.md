@@ -22,7 +22,10 @@ The Tempo configuration options include:
   - [Ingester](#ingester)
   - [Metrics-generator](#metrics-generator)
   - [Query-frontend](#query-frontend)
-  - [Querier](#querier)
+    - [Limit query size to improve performance and stability](#limit-query-size-to-improve-performance-and-stability)
+      - [Limit the spans per spanset](#limit-the-spans-per-spanset)
+    - [Cap the maximum query length](#cap-the-maximum-query-length)
+    - [Querier](#querier)
   - [Compactor](#compactor)
   - [Storage](#storage)
     - [Local storage recommendations](#local-storage-recommendations)
@@ -654,7 +657,7 @@ query_frontend:
             # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
             # NOTE: Requires `duration_slo` AND `throughput_bytes_slo` to be configured.
             [duration_slo: <duration> | default = 0s ]
-    
+
             # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
             # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
             [throughput_bytes_slo: <float> | default = 0 ]
@@ -687,7 +690,7 @@ query_frontend:
 
         # Maximun number of exemplars per range query. Limited to 100.
         [max_exemplars: <int> | default = 100 ]
-    
+
         # query_backend_after controls where the query-frontend searches for traces.
         # Time ranges older than query_backend_after will be searched in the backend/object storage only.
         # Time ranges between query_backend_after and now will be queried from the metrics-generators.
@@ -705,6 +708,37 @@ query_frontend:
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         [throughput_bytes_slo: <float> | default = 0 ]
 
+```
+
+### Limit query size to improve performance and stability
+
+Querying large tracing data presents several challenges.
+Span sets with large number of spans impact query performance and stability.
+In a similar manner, excessive queries result size can also negatively impact query performance.
+
+#### Limit the spans per spanset
+
+You can set the maximum spans per spanset by setting `max_spans_per_span_set` for the query-frontend.
+The default value is 100. 
+
+In Grafana or Grafana Cloud, you can use the **Span Limit** field in the [TraceQL query editor](https://grafana.com/docs/grafana-cloud/connect-externally-hosted/data-sources/tempo/query-editor/) in Grafana Explore.
+This field sets the maximum number of spans to return for each span set.
+The maximum value that you can set for the **Span Limit** value (or the spss query) is controlled by `max_spans_per_span_set`.
+To disable the maximum spans per span set limit, set `max_spans_per_span_set` to `0`.
+When set to `0`, there is no maximum and users can put any value in **Span Limit**. 
+However, this can only be set by a Tempo administrator, not by the user. 
+
+#### Cap the maximum query length
+
+You can set the maximum length of a query using `query_frontend.max_query_expression_size_bytes` configuration parameter for the query-frontend. The default value is 128 KB.
+
+This limit is used to protect the system’s stability from potential abuse or mistakes, when running a large potentially expensive query.
+
+You can set the value lower of higher by setting it in the `query_frontend` configuration section, for example:
+
+```
+query_frontend:
+  max_query_expression_size_bytes: 10000
 ```
 
 ## Querier
@@ -1747,7 +1781,7 @@ overrides:
     # Cost attribution usage tracker configuration
     cost_attribution:
       # List of attributes to group ingested data by.  Map value is optional. Can be used to rename and
-      # combine attributes. 
+      # combine attributes.
       dimensions: <map string to string>
 
 
