@@ -21,6 +21,7 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
+
       - name: Check out code
         uses: actions/checkout@v4
         with:
@@ -29,6 +30,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
+
       - name: check-fmt
         run: make check-fmt
 
@@ -37,6 +39,9 @@ jobs:
 
       - name: lint
         run: make lint base=origin/${{github.base_ref}}
+
+      - name: generate-manifest
+        run: go run pkg/docsgen/generate_manifest.go
 
   unit-tests:
     name: Run Unit Tests
