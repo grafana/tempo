@@ -372,6 +372,9 @@ ifndef DRONE_TOKEN
 endif
 	DRONE_SERVER=https://drone.grafana.net drone sign --save grafana/tempo .drone/drone.yml
 
+.PHONY: generate-manifest
+generate-manifest:
+	go run pkg/docsgen/generate_manifest.go
 
 # Import fragments
 include build/tools.mk

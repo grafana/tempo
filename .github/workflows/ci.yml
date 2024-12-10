@@ -107,7 +107,7 @@ jobs:
         run: make tempo
 
       - name: generate-manifest
-        run: go run -v pkg/docsgen/generate_manifest.go
+        run: make generate-manifest
 
       - name: Build tempo-query
         run: make tempo-query
