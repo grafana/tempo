@@ -177,6 +177,14 @@ func (e *Engine) ExecuteTagValues(
 	span.SetAttributes(attribute.String("pipeline", rootExpr.Pipeline.String()))
 	span.SetAttributes(attribute.String("autocompleteReq", fmt.Sprint(autocompleteReq)))
 
+	// If the tag we are fetching is already filtered in the query, then this is a noop.
+	// I.e. we are autocompleting resource.service.name and the query was {resource.service.name="foo"}
+	for _, c := range autocompleteReq.Conditions {
+		if c.Attribute == tag && c.Op == OpEqual {
+			return nil
+		}
+	}
+
 	return fetcher.Fetch(ctx, autocompleteReq, cb)
 }
 
@@ -230,12 +238,6 @@ func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) Fet
 
 	pipeline.extractConditions(&req)
 
-	// TODO: remove other conditions for the wantAttr we're searching for
-	// for _, cond := range fetchSpansRequest.Conditions {
-	// 	if cond.Attribute == wantAttr {
-	// 		return fmt.Errorf("cannot search for tag values for tag that is already used in query")
-	// 	}
-	// }
 	req.Conditions = append(req.Conditions, Condition{
 		Attribute: tag,
 		Op:        OpNone,
