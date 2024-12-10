@@ -238,12 +238,6 @@ func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) Fet
 
 	pipeline.extractConditions(&req)
 
-	// TODO: remove other conditions for the wantAttr we're searching for
-	// for _, cond := range fetchSpansRequest.Conditions {
-	// 	if cond.Attribute == wantAttr {
-	// 		return fmt.Errorf("cannot search for tag values for tag that is already used in query")
-	// 	}
-	// }
 	req.Conditions = append(req.Conditions, Condition{
 		Attribute: tag,
 		Op:        OpNone,
