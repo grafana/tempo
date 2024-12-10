@@ -40,8 +40,6 @@ jobs:
       - name: lint
         run: make lint base=origin/${{github.base_ref}}
 
-      - name: generate-manifest
-        run: go run pkg/docsgen/generate_manifest.go
 
   unit-tests:
     name: Run Unit Tests
@@ -107,6 +105,9 @@ jobs:
 
       - name: Build Tempo
         run: make tempo
+
+      - name: generate-manifest
+        run: go run -v pkg/docsgen/generate_manifest.go
 
       - name: Build tempo-query
         run: make tempo-query
