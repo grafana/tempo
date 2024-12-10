@@ -35,8 +35,16 @@ jobs:
       - name: check-jsonnetfmt
         run: make check-jsonnetfmt
 
+      - name: cache golangci
+        uses: actions/cache@v4
+        with:
+          path: .cache/golangci-lint
+          key: ${{ runner.os }}-lint-${{ hashFiles('go.mod', 'go.sum', '.golangci.yml', 'Makefile') }}
+
       - name: lint
-        run: make lint base=origin/${{github.base_ref}}
+        run: |
+          make lint base=origin/${{github.base_ref}}
+          sudo chown -R $(id -u):$(id -g) .cache/golangci-lint  # needed to archive cache
 
   unit-tests:
     name: Run Unit Tests
