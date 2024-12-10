@@ -799,7 +799,6 @@ func TestDoForAtLeast(t *testing.T) {
 	}()
 	doForAtLeast(ctx, 2*time.Second, func() {})
 	require.WithinDuration(t, time.Now(), start.Add(time.Second), 100*time.Millisecond)
-
 }
 
 type testData struct {
