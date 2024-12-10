@@ -21,32 +21,36 @@ type IDGenerator interface {
 var _ IDGenerator = (*DeterministicIDGenerator)(nil)
 
 type DeterministicIDGenerator struct {
-	tenantBytes []byte
-	seeds       []int64
-	seq         *atomic.Int64
+	buf []byte
+	seq *atomic.Uint64
 }
 
-func NewDeterministicIDGenerator(tenantID string, seeds ...int64) *DeterministicIDGenerator {
+func NewDeterministicIDGenerator(tenantID string, seeds ...uint64) *DeterministicIDGenerator {
 	return &DeterministicIDGenerator{
-		tenantBytes: []byte(tenantID),
-		seeds:       seeds,
-		seq:         atomic.NewInt64(0),
+		buf: newBuf([]byte(tenantID), seeds),
+		seq: atomic.NewUint64(0),
 	}
+}
+
+func newBuf(tenantID []byte, seeds []uint64) []byte {
+	dl, sl := len(tenantID), len(seeds)
+	data := make([]byte, dl+sl*8+8) // tenantID bytes + 8 bytes per uint64 + 8 bytes for seq
+	copy(tenantID, data)
+
+	for i, seed := range seeds {
+		binary.LittleEndian.PutUint64(data[dl+i*8:], seed)
+	}
+
+	return data
 }
 
 func (d *DeterministicIDGenerator) NewID() backend.UUID {
-	seq := d.seq.Inc()
-	return backend.UUID(newDeterministicID(d.tenantBytes, append(d.seeds, seq)))
+	return backend.UUID(newDeterministicID(d.buf, d.seq.Inc()))
 }
 
-func newDeterministicID(b []byte, seeds []int64) uuid.UUID {
-	sl, dl := len(seeds), len(b)
-	data := make([]byte, dl+sl*8) // 8 bytes per int64
-	copy(b, data)
-
-	for i, seed := range seeds {
-		binary.LittleEndian.PutUint64(data[dl+i*8:], uint64(seed))
-	}
+func newDeterministicID(data []byte, seq uint64) uuid.UUID {
+	// update last 8 bytes of data with seq
+	binary.LittleEndian.PutUint64(data[len(data)-8:], seq)
 
 	return uuid.NewHash(hash, ns, data, 5)
 }
