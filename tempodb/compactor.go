@@ -84,7 +84,7 @@ func (rw *readerWriter) compactionLoop(ctx context.Context) {
 	ticker := time.NewTicker(compactionCycle)
 	defer ticker.Stop()
 	for {
-		doForAtLeast(compactionCycle, func() {
+		doForAtLeast(ctx, compactionCycle, func() {
 			rw.compactOneTenant(ctx)
 		})
 	}
@@ -423,14 +423,20 @@ func (i instrumentedObjectCombiner) Combine(dataEncoding string, objs ...[]byte)
 	return b, wasCombined, err
 }
 
-// doForAtLeast executes the function f. It blocks for at least the passed duration but can go longer
-func doForAtLeast(dur time.Duration, f func()) {
+// doForAtLeast executes the function f. It blocks for at least the passed duration but can go longer. if context is cancelled after
+// the function is done we will bail immediately. in the current use case this means that the process is shutting down
+// we don't force f() to cancel, we assume it also responds to the cancelled context
+func doForAtLeast(ctx context.Context, dur time.Duration, f func()) {
 	startTime := time.Now()
-
 	f()
 	elapsed := time.Since(startTime)
 
 	if elapsed < dur {
-		time.Sleep(dur - elapsed)
+		ticker := time.NewTicker(dur - elapsed)
+
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+		}
 	}
 }

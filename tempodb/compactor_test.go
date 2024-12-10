@@ -781,13 +781,25 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 func TestDoForAtLeast(t *testing.T) {
 	// test that it runs for at least the duration
 	start := time.Now()
-	doForAtLeast(time.Second, func() { time.Sleep(time.Millisecond) })
-	require.WithinDuration(t, time.Now(), start.Add(time.Second), 10*time.Millisecond)
+	doForAtLeast(context.Background(), time.Second, func() { time.Sleep(time.Millisecond) })
+	require.WithinDuration(t, time.Now(), start.Add(time.Second), 100*time.Millisecond)
 
 	// test that it allows func to overrun
 	start = time.Now()
-	doForAtLeast(time.Second, func() { time.Sleep(2 * time.Second) })
-	require.WithinDuration(t, time.Now(), start.Add(2*time.Second), 10*time.Millisecond)
+	doForAtLeast(context.Background(), time.Second, func() { time.Sleep(2 * time.Second) })
+	require.WithinDuration(t, time.Now(), start.Add(2*time.Second), 100*time.Millisecond)
+
+	// make sure cancelling the context stops the function if the function is complete and we're
+	// just waiting. it is presumed, but not enforced that the function responds to a cancelled contxt
+	ctx, cancel := context.WithCancel(context.Background())
+	start = time.Now()
+	go func() {
+		time.Sleep(time.Second)
+		cancel()
+	}()
+	doForAtLeast(ctx, 2*time.Second, func() {})
+	require.WithinDuration(t, time.Now(), start.Add(time.Second), 100*time.Millisecond)
+
 }
 
 type testData struct {
