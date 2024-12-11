@@ -17,6 +17,7 @@ TOOLS_IMAGE_TAG ?= main-e87b8d4
 GOTOOLS ?= $(shell cd $(TOOL_DIR) && go list -e -f '{{ .Imports }}' -tags tools |tr -d '[]')
 
 TOOLS_CMD = docker run --rm -t -v ${PWD}:/tools $(TOOLS_IMAGE):$(TOOLS_IMAGE_TAG)
+LINT_CMD =  docker run --rm -t -v ${PWD}:/tools -v ${PWD}/.cache/golangci-lint:/root/.cache/golangci-lint $(TOOLS_IMAGE):$(TOOLS_IMAGE_TAG)
 
 .PHONY: tools-image-build
 tools-image-build:

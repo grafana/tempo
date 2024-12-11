@@ -171,9 +171,9 @@ check-jsonnetfmt: jsonnetfmt
 .PHONY: lint
 lint: # linting
 ifneq ($(base),)
-	$(TOOLS_CMD) $(LINT) run --config .golangci.yml --new-from-rev=$(base)
+	$(LINT_CMD) $(LINT) run --config .golangci.yml --new-from-rev=$(base)
 else
-	$(TOOLS_CMD) $(LINT) run --config .golangci.yml
+	$(LINT_CMD) $(LINT) run --config .golangci.yml
 endif
 
 ##@ Docker Images
