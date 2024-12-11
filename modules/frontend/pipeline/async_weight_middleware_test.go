@@ -96,6 +96,11 @@ func TestWeightMiddlewareForTraceQLRequest(t *testing.T) {
 			req:      "http://localhost:8080/api/search?query={span.http.method = \"DELETE\" || status != ok || span.http.status_code >= 200 || span.http.status_code < 300 }",
 			expected: TraceQLSearchWeight + 1,
 		},
+		{
+			// unscoped query, complex query
+			req:      "http://localhost:8080/api/search?query={status != ok || .http.status_code >= 200 || .http.status_code < 300 }",
+			expected: TraceQLSearchWeight + 1,
+		},
 	}
 	for _, c := range cases {
 		actual := DoWeightedRequest(t, c.req, roundTrip)
