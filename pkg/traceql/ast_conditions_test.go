@@ -230,7 +230,7 @@ func TestSelect_extractConditions(t *testing.T) {
 			secondPassConditions: []Condition{
 				newCondition(NewScopedAttribute(AttributeScopeResource, false, "service.name"), OpNone),
 			},
-			allConditions: false,
+			allConditions: true,
 		},
 		{
 			query: `{ } | select(.name,name)`,
@@ -241,7 +241,7 @@ func TestSelect_extractConditions(t *testing.T) {
 				newCondition(NewAttribute("name"), OpNone),
 				newCondition(NewIntrinsic(IntrinsicName), OpNone),
 			},
-			allConditions: false,
+			allConditions: true,
 		},
 	}
 	for _, tt := range tests {

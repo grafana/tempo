@@ -159,10 +159,6 @@ func (p Pipeline) extractConditions(req *FetchSpansRequest) {
 	for _, element := range p.Elements {
 		element.extractConditions(req)
 	}
-	// TODO this needs to be fine-tuned a bit, e.g. { .foo = "bar" } | by(.namespace), AllConditions can still be true
-	if len(p.Elements) > 1 {
-		req.AllConditions = false
-	}
 }
 
 func (p Pipeline) evaluate(input []*Spanset) (result []*Spanset, err error) {
@@ -197,6 +193,7 @@ func newGroupOperation(e FieldExpression) GroupOperation {
 
 func (o GroupOperation) extractConditions(request *FetchSpansRequest) {
 	o.Expression.extractConditions(request)
+	request.AllConditions = false
 }
 
 type CoalesceOperation struct{}
@@ -265,7 +262,6 @@ func (o ScalarOperation) impliedType() StaticType {
 func (o ScalarOperation) extractConditions(request *FetchSpansRequest) {
 	o.LHS.extractConditions(request)
 	o.RHS.extractConditions(request)
-	request.AllConditions = false
 }
 
 type Aggregate struct {
@@ -292,6 +288,7 @@ func (a Aggregate) impliedType() StaticType {
 }
 
 func (a Aggregate) extractConditions(request *FetchSpansRequest) {
+	request.AllConditions = false
 	if a.e != nil {
 		a.e.extractConditions(request)
 	}
@@ -421,7 +418,6 @@ func (ScalarFilter) __spansetExpression() {}
 func (f ScalarFilter) extractConditions(request *FetchSpansRequest) {
 	f.lhs.extractConditions(request)
 	f.rhs.extractConditions(request)
-	request.AllConditions = false
 }
 
 // **********************
