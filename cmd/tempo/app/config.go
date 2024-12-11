@@ -56,7 +56,7 @@ type Config struct {
 	CacheProvider   cache.Config            `yaml:"cache,omitempty"`
 }
 
-func newDefaultConfig() *Config {
+func NewDefaultConfig() *Config {
 	defaultConfig := &Config{}
 	defaultFS := flag.NewFlagSet("", flag.PanicOnError)
 	defaultConfig.RegisterFlagsAndApplyDefaults("", defaultFS)

@@ -270,7 +270,7 @@ func (t *App) writeStatusConfig(w io.Writer, r *http.Request) error {
 	mode := r.URL.Query().Get("mode")
 	switch mode {
 	case "diff":
-		defaultCfg := newDefaultConfig()
+		defaultCfg := NewDefaultConfig()
 
 		defaultCfgYaml, err := util.YAMLMarshalUnmarshal(defaultCfg)
 		if err != nil {
@@ -287,7 +287,7 @@ func (t *App) writeStatusConfig(w io.Writer, r *http.Request) error {
 			return err
 		}
 	case "defaults":
-		output = newDefaultConfig()
+		output = NewDefaultConfig()
 	case "":
 		output = t.cfg
 	default:
