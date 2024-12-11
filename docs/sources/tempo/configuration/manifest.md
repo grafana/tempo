@@ -297,7 +297,7 @@ querier:
     query_relevant_ingesters: false
 query_frontend:
     max_outstanding_per_tenant: 2000
-    max_batch_size: 5
+    max_batch_size: 7
     log_query_request_headers: ""
     max_retries: 2
     search:

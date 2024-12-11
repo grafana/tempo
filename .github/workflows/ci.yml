@@ -106,8 +106,8 @@ jobs:
       - name: Build Tempo
         run: make tempo
 
-      - name: generate-manifest
-        run: make generate-manifest
+      - name: check-generated-files
+        run: make check-generated-files
 
       - name: Build tempo-query
         run: make tempo-query
