@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"gopkg.in/yaml.v3"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 const ManifestPath = "docs/sources/tempo/configuration/manifest.md"
@@ -53,12 +54,14 @@ func main() {
 	newManifest := Manifest + "```yaml\n" + string(newConfigBytes) + "```\n"
 
 	if *diff {
-		cmd := exec.Command("git", "diff", "--exit-code", newManifest)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err = cmd.Run()
+		b, err := os.ReadFile(ManifestPath)
 		if err != nil {
-			log.Fatalf("The manifest with the default Tempo configuration has changed. Please run '%s' and commit the changes.", Cmd)
+			panic(err)
+		}
+		manifest := string(b)
+		diff := cmp.Diff(newManifest, manifest)
+		if diff != "" {
+			log.Fatalf(`The manifest with the default Tempo configuration has changed. Please run "make generate-manifest" and commit the changes. Diff:\n%s`, diff)
 		}
 	} else {
 		err = os.WriteFile(ManifestPath, []byte(newManifest), 0o644)
