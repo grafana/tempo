@@ -141,6 +141,7 @@ func (rw *readerWriter) compactOneTenant(ctx context.Context) {
 		// this context is controlled by the service manager. it being cancelled means that the process is shutting down
 		if ctx.Err() != nil {
 			level.Info(rw.logger).Log("msg", "caught context cancelled at the top of the compaction loop. bailing.", "err", ctx.Err(), "cause", context.Cause(ctx))
+			return
 		}
 
 		// Pick up to defaultMaxInputBlocks (4) blocks to compact into a single one
