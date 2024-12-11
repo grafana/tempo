@@ -374,7 +374,7 @@ endif
 
 .PHONY: generate-manifest
 generate-manifest:
-	go run pkg/docsgen/generate_manifest.go
+	GO111MODULE=on CGO_ENABLED=0 go run -v pkg/docsgen/generate_manifest.go
 
 # Import fragments
 include build/tools.mk
