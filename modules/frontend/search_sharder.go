@@ -144,7 +144,7 @@ func (s *asyncSearchSharder) blockMetas(start, end int64, tenantID string) []*ba
 	for _, m := range allMetas {
 		if m.StartTime.Unix() <= end &&
 			m.EndTime.Unix() >= start &&
-			m.ReplicationFactor == backend.DefaultReplicationFactor { // This check skips generator blocks (RF=1)
+			m.ReplicationFactor == backend.MetricsGeneratorReplicationFactor { // This check skips generator blocks (RF=1)
 			metas = append(metas, m)
 		}
 	}
