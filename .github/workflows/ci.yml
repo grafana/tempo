@@ -35,11 +35,15 @@ jobs:
       - name: check-jsonnetfmt
         run: make check-jsonnetfmt
 
+      - name: Get year and week number
+        id: get-year-week-number
+        run: echo "date=$(date +"%Yweek%U")" >> $GITHUB_OUTPUT
+
       - name: cache golangci
         uses: actions/cache@v4
         with:
           path: .cache/golangci-lint
-          key: ${{ runner.os }}-lint-${{ hashFiles('go.mod', 'go.sum', '.golangci.yml', 'Makefile') }}
+          key: golangci-lint-${{ runner.os }}-${{ steps.get-year-week-number.outputs.date }}-${{ hashFiles('go.mod', '.golangci.yml') }}
 
       - name: lint
         run: |
