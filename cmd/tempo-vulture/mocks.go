@@ -198,3 +198,8 @@ func (m *MockHTTPClient) SetOverrides(limits *userconfigurableoverrides.Limits, 
 func (m *MockHTTPClient) WithTransport(t http.RoundTripper) {
 	panic("unimplemented")
 }
+
+//nolint:all
+func (m *MockHTTPClient) SearchQueryRange(query string, start int64, end int64, step int64) (*tempopb.QueryRangeResponse, error) {
+	panic("unimplemented")
+}
