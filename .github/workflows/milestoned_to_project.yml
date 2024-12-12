@@ -9,7 +9,7 @@ jobs:
   build:
     # only run in grafana/tempo.
     if: github.repository == 'grafana/tempo'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Get app token

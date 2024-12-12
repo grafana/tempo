@@ -14,7 +14,7 @@ permissions:
 jobs:
   dependabot:
     name: Serverless gomod update
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
     steps:
       - name: Set up Go 1.23
