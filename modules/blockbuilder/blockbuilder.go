@@ -67,6 +67,7 @@ type BlockBuilder struct {
 	fallbackOffsetMillis int64
 
 	kafkaClient   *kgo.Client
+	kadm          *kadm.Client
 	decoder       *ingest.Decoder
 	partitionRing ring.PartitionRingReader
 
@@ -142,10 +143,12 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to ping kafka: %w", err)
 	}
 
+	b.kadm = kadm.NewClient(b.kafkaClient)
+
 	return nil
 }
 
-func (b *BlockBuilder) running(ctx context.Context) error {
+func (b *BlockBuilder) runningOLd(ctx context.Context) error {
 	// Initial polling and delay
 	cycleEndTime := cycleEndAtStartup(time.Now(), b.cfg.ConsumeCycleDuration)
 	waitTime := 2 * time.Second
@@ -165,6 +168,141 @@ func (b *BlockBuilder) running(ctx context.Context) error {
 			return nil
 		}
 	}
+}
+
+func (b *BlockBuilder) running(ctx context.Context) error {
+	// Initial polling and delay
+	// cycleEndTime := cycleEndAtStartup(time.Now(), b.cfg.ConsumeCycleDuration)
+	// waitTime := 2 * time.Second
+	waitTime := 15 * time.Second
+	for {
+		select {
+		case <-time.After(waitTime):
+			err := b.consume(ctx)
+			if err != nil {
+				b.logger.Log("msg", "consumeCycle failed", "err", err)
+
+				// Don't progress cycle forward, keep trying at this timestamp
+				continue
+			}
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (b *BlockBuilder) consume(ctx context.Context) error {
+	var (
+		end        = time.Now()
+		partitions = b.getAssignedActivePartitions()
+	)
+
+	for _, partition := range partitions {
+		// Consume partition while data remains.
+		// TODO - round-robin one consumption per partition instead to equalize catch-up time.
+		for {
+			more, err := b.consumePartition2(ctx, partition, end)
+			if err != nil {
+				return err
+			}
+
+			if !more {
+				break
+			}
+		}
+	}
+
+	return nil
+}
+
+func (b *BlockBuilder) consumePartition2(ctx context.Context, partition int32, end time.Time) (bool, error) {
+	var (
+		dur         = b.cfg.ConsumeCycleDuration
+		topic       = b.cfg.IngestStorageConfig.Kafka.Topic
+		group       = b.cfg.IngestStorageConfig.Kafka.ConsumerGroup
+		startOffset kgo.Offset
+		writer      *writer
+		lastRec     *kgo.Record
+	)
+
+	commits, err := b.kadm.FetchOffsetsForTopics(ctx, group, topic)
+	if err != nil {
+		return false, err
+	}
+
+	lastCommit, ok := commits.Lookup(topic, partition)
+	if ok && lastCommit.At >= 0 {
+		startOffset = startOffset.At(lastCommit.At)
+	} else {
+		startOffset = startOffset.AfterMilli(end.Add(-b.cfg.LookbackOnNoCommit).UnixMilli())
+	}
+
+	// We always rewind the partition's offset to the commit offset by reassigning the partition to the client (this triggers partition assignment).
+	// This is so the cycle started exactly at the commit offset, and not at what was (potentially over-) consumed previously.
+	// In the end, we remove the partition from the client (refer to the defer below) to guarantee the client always consumes
+	// from one partition at a time. I.e. when this partition is consumed, we start consuming the next one.
+	b.kafkaClient.AddConsumePartitions(map[string]map[int32]kgo.Offset{
+		topic: {
+			partition: startOffset,
+		},
+	})
+	defer b.kafkaClient.RemoveConsumePartitions(map[string][]int32{topic: {partition}})
+
+outer:
+	for {
+		fetches := b.kafkaClient.PollFetches(ctx)
+		err := fetches.Err()
+		if err != nil {
+			return false, err
+		}
+
+		if fetches.Empty() {
+			break
+		}
+
+		for iter := fetches.RecordIter(); !iter.Done(); {
+			rec := iter.Next()
+
+			// Initialize if needed
+			if writer == nil {
+
+				// Determine real end time which is first record ts + cycle, or end whichever is earlier
+				if rec.Timestamp.Add(dur).Before(end) {
+					end = rec.Timestamp.Add(dur)
+				}
+
+				writer = newPartitionSectionWriter(b.logger, int64(partition), rec.Offset, b.cfg.BlockConfig, b.overrides, b.wal, b.enc)
+			}
+
+			if rec.Timestamp.After(end) {
+				break outer
+			}
+
+			err := b.pushTraces(rec.Key, rec.Value, writer)
+			if err != nil {
+				return false, err
+			}
+
+			lastRec = rec
+		}
+	}
+
+	if lastRec == nil {
+		// Received no data
+		return false, nil
+	}
+
+	err = writer.flush(ctx, b.writer)
+	if err != nil {
+		return false, err
+	}
+
+	_, err = b.kadm.CommitOffsets(ctx, group, kadm.OffsetsFromRecords(*lastRec))
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (b *BlockBuilder) stopping(err error) error {

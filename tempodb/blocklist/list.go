@@ -148,9 +148,25 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 		}
 	}
 	// add new blocks (only if they don't already exist)
-	for _, b := range add {
-		if _, ok := existingMetas[(uuid.UUID)(b.BlockID)]; !ok {
-			newblocklist = append(newblocklist, b)
+	for _, a := range add {
+		// Make sure not already compacted itself
+		skip := false
+		for _, c := range compactedAdd {
+			if a.BlockID == c.BlockID {
+				skip = true
+			}
+		}
+		for _, c := range compactedRemove {
+			if a.BlockID == c.BlockID {
+				skip = true
+			}
+		}
+		if skip {
+			continue
+		}
+
+		if _, ok := existingMetas[(uuid.UUID)(a.BlockID)]; !ok {
+			newblocklist = append(newblocklist, a)
 		}
 	}
 
