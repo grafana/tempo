@@ -610,7 +610,7 @@ func TestPipelineExtractConditions(t *testing.T) {
 					newCondition(NewAttribute("foo1"), OpEqual, NewStaticString("a")),
 					newCondition(NewAttribute("foo2"), OpEqual, NewStaticString("b")),
 				},
-				AllConditions: false,
+				AllConditions: true,
 			},
 		},
 		{
