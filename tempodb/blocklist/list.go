@@ -1,6 +1,7 @@
 package blocklist
 
 import (
+	"slices"
 	"sync"
 
 	"github.com/google/uuid"
@@ -147,11 +148,18 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 			newblocklist = append(newblocklist, b)
 		}
 	}
-	// add new blocks (only if they don't already exist)
+	// add new blocks (only if they don't already exist) and weren't also removed
 	for _, b := range add {
-		if _, ok := existingMetas[(uuid.UUID)(b.BlockID)]; !ok {
-			newblocklist = append(newblocklist, b)
+		if _, ok := existingMetas[(uuid.UUID)(b.BlockID)]; ok {
+			continue
 		}
+
+		if slices.ContainsFunc(remove, func(b2 *backend.BlockMeta) bool {
+			return b.BlockID == b2.BlockID
+		}) {
+			continue
+		}
+		newblocklist = append(newblocklist, b)
 	}
 
 	l.metas[tenantID] = newblocklist
@@ -179,9 +187,16 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 		}
 	}
 	for _, b := range compactedAdd {
-		if _, ok := existingMetas[(uuid.UUID)(b.BlockID)]; !ok {
-			newCompactedBlocklist = append(newCompactedBlocklist, b)
+		if _, ok := existingMetas[(uuid.UUID)(b.BlockID)]; ok {
+			continue
 		}
+
+		if slices.ContainsFunc(compactedRemove, func(b2 *backend.CompactedBlockMeta) bool {
+			return b.BlockID == b2.BlockID
+		}) {
+			continue
+		}
+		newCompactedBlocklist = append(newCompactedBlocklist, b)
 	}
 
 	l.compactedMetas[tenantID] = newCompactedBlocklist

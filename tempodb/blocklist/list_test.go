@@ -125,6 +125,12 @@ func TestApplyPollResults(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
+	meta := func(id string) *backend.BlockMeta {
+		return &backend.BlockMeta{
+			BlockID: backend.MustParse(id),
+		}
+	}
+
 	tests := []struct {
 		name     string
 		existing []*backend.BlockMeta
@@ -297,6 +303,21 @@ func TestUpdate(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "not added if also removed",
+			existing: []*backend.BlockMeta{
+				meta("00000000-0000-0000-0000-000000000001"),
+			},
+			add: []*backend.BlockMeta{
+				meta("00000000-0000-0000-0000-000000000002"),
+			},
+			remove: []*backend.BlockMeta{
+				meta("00000000-0000-0000-0000-000000000002"),
+			},
+			expected: []*backend.BlockMeta{
+				meta("00000000-0000-0000-0000-000000000001"),
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -306,16 +327,21 @@ func TestUpdate(t *testing.T) {
 			l.metas[testTenantID] = tt.existing
 			l.Update(testTenantID, tt.add, tt.remove, nil, nil)
 
-			assert.Equal(t, len(tt.expected), len(l.metas[testTenantID]))
-
-			for i := range tt.expected {
-				assert.Equal(t, tt.expected[i].BlockID, l.metas[testTenantID][i].BlockID)
-			}
+			require.Equal(t, len(tt.expected), len(l.metas[testTenantID]))
+			require.ElementsMatch(t, tt.expected, l.metas[testTenantID])
 		})
 	}
 }
 
 func TestUpdateCompacted(t *testing.T) {
+	meta := func(id string) *backend.CompactedBlockMeta {
+		return &backend.CompactedBlockMeta{
+			BlockMeta: backend.BlockMeta{
+				BlockID: backend.MustParse(id),
+			},
+		}
+	}
+
 	tests := []struct {
 		name     string
 		existing []*backend.CompactedBlockMeta
@@ -449,6 +475,21 @@ func TestUpdateCompacted(t *testing.T) {
 						BlockID: backend.MustParse("00000000-0000-0000-0000-000000000003"),
 					},
 				},
+			},
+		},
+		{
+			name: "not added if also removed",
+			existing: []*backend.CompactedBlockMeta{
+				meta("00000000-0000-0000-0000-000000000001"),
+			},
+			add: []*backend.CompactedBlockMeta{
+				meta("00000000-0000-0000-0000-000000000002"),
+			},
+			remove: []*backend.CompactedBlockMeta{
+				meta("00000000-0000-0000-0000-000000000002"),
+			},
+			expected: []*backend.CompactedBlockMeta{
+				meta("00000000-0000-0000-0000-000000000001"),
 			},
 		},
 	}
