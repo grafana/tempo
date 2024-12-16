@@ -27,6 +27,7 @@ import (
 const (
 	blockBuilderServiceName = "block-builder"
 	ConsumerGroup           = "block-builder"
+	pollTimeout             = 2 * time.Second
 )
 
 var (
@@ -171,20 +172,18 @@ func (b *BlockBuilder) runningOLd(ctx context.Context) error {
 }
 
 func (b *BlockBuilder) running(ctx context.Context) error {
-	// Initial polling and delay
-	// cycleEndTime := cycleEndAtStartup(time.Now(), b.cfg.ConsumeCycleDuration)
-	// waitTime := 2 * time.Second
-	waitTime := 15 * time.Second
+	// Initial delay
+	waitTime := 0 * time.Second
 	for {
 		select {
 		case <-time.After(waitTime):
 			err := b.consume(ctx)
 			if err != nil {
 				b.logger.Log("msg", "consumeCycle failed", "err", err)
-
-				// Don't progress cycle forward, keep trying at this timestamp
-				continue
 			}
+
+			// Real delay on subsequent
+			waitTime = b.cfg.ConsumeCycleDuration
 		case <-ctx.Done():
 			return nil
 		}
@@ -234,7 +233,7 @@ func (b *BlockBuilder) consumePartition2(ctx context.Context, partition int32, e
 	if ok && lastCommit.At >= 0 {
 		startOffset = startOffset.At(lastCommit.At)
 	} else {
-		startOffset = startOffset.AfterMilli(end.Add(-b.cfg.LookbackOnNoCommit).UnixMilli())
+		startOffset = kgo.NewOffset().AtStart()
 	}
 
 	// We always rewind the partition's offset to the commit offset by reassigning the partition to the client (this triggers partition assignment).
@@ -250,9 +249,17 @@ func (b *BlockBuilder) consumePartition2(ctx context.Context, partition int32, e
 
 outer:
 	for {
-		fetches := b.kafkaClient.PollFetches(ctx)
-		err := fetches.Err()
+		fetches := func() kgo.Fetches {
+			ctx2, cancel := context.WithTimeout(ctx, pollTimeout)
+			defer cancel()
+			return b.kafkaClient.PollFetches(ctx2)
+		}()
+		err = fetches.Err()
 		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				// No more data
+				break
+			}
 			return false, err
 		}
 
@@ -297,8 +304,11 @@ outer:
 		return false, err
 	}
 
-	_, err = b.kadm.CommitOffsets(ctx, group, kadm.OffsetsFromRecords(*lastRec))
+	resp, err := b.kadm.CommitOffsets(ctx, group, kadm.OffsetsFromRecords(*lastRec))
 	if err != nil {
+		return false, err
+	}
+	if err := resp.Error(); err != nil {
 		return false, err
 	}
 

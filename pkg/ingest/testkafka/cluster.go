@@ -109,7 +109,7 @@ func addSupportForConsumerGroups(t testing.TB, cluster *kfake.Cluster, topicName
 		// This mimics the real Kafka behaviour.
 		var partitionsResp []kmsg.OffsetFetchResponseGroupTopicPartition
 		if partitionID == allPartitions {
-			for i := int32(1); i < numPartitions+1; i++ {
+			for i := int32(0); i < numPartitions; i++ {
 				if committedOffsets[consumerGroup][i] >= 0 {
 					partitionsResp = append(partitionsResp, kmsg.OffsetFetchResponseGroupTopicPartition{
 						Partition: i,

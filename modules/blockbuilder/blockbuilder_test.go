@@ -38,14 +38,10 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
 
-	k, address := testkafka.CreateClusterWithoutCustomConsumerGroupsSupport(t, 1, "test-topic")
+	k, _ := testkafka.CreateCluster(t, 1, "test-topic")
 	t.Cleanup(k.Close)
 
-	kafkaCommits := atomic.NewInt32(0)
-	k.ControlKey(kmsg.OffsetCommit.Int16(), func(kmsg.Request) (kmsg.Response, error, bool) {
-		kafkaCommits.Add(1)
-		return nil, nil, false
-	})
+	address := k.ListenAddrs()[0]
 
 	store := newStore(ctx, t)
 	cfg := blockbuilderConfig(t, address)
@@ -59,14 +55,9 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
 	sendReq(t, ctx, client)
 
-	// Wait for record to be consumed and committed.
-	require.Eventually(t, func() bool {
-		return kafkaCommits.Load() > 0
-	}, time.Minute, time.Second)
-
 	// Wait for the block to be flushed.
 	require.Eventually(t, func() bool {
-		return len(store.BlockMetas(util.FakeTenantID)) == 1
+		return len(store.BlockMetas(util.FakeTenantID)) == 1 && store.BlockMetas(util.FakeTenantID)[0].TotalObjects == 1
 	}, time.Minute, time.Second)
 }
 
