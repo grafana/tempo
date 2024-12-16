@@ -59,7 +59,32 @@ jobs:
           docker build -f tools/Dockerfile -t $IMAGE_NAME:$TAG_ARCH .
           docker push $IMAGE_NAME:$TAG_ARCH
 
-  
+  manifest:
+    needs: ['get-image-tag', 'docker-ci-tools']
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.get-image-tag.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to DockerHub
+        uses: grafana/shared-workflows/actions/dockerhub-login@dockerhub-login-v1.0.0
+
+      - name: docker-manifest-create-and-push
+        run: |
+          docker manifest create \
+          	$IMAGE_NAME:$TAG               \
+          	--amend $IMAGE_NAME:$TAG-amd64  \
+          	--amend $IMAGE_NAME:$TAG-arm64 
+          docker manifest push $IMAGE_NAME:$TAG
+
+          # to test
+          #docker manifest create \
+          #	$IMAGE_NAME:latest            \
+          #	--amend $IMAGE_NAME:$TAG-amd64   \
+          #	--amend $IMAGE_NAME:$TAG-arm64 
+          #docker manifest push $IMAGE_NAME:latest
 
   lint:
     name: Lint
