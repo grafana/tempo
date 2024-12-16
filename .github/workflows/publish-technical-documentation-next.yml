@@ -13,7 +13,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: grafana/writers-toolkit/publish-technical-documentation@publish-technical-documentation/v1
