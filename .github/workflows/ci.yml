@@ -16,9 +16,9 @@ concurrency:
   group: "${{ github.ref_name }}-${{ github.head_ref }}"
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  id-token: write
+#permissions:
+#  contents: read
+#  id-token: write
 
 env:
   IMAGE_NAME: grafana/tempo-ci-tools
