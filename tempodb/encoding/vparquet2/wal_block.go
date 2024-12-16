@@ -344,6 +344,10 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 	return nil
 }
 
+func (b *walBlock) IngestionSlack() time.Duration {
+	return b.ingestionSlack
+}
+
 func (b *walBlock) Validate(context.Context) error {
 	return common.ErrUnsupported
 }

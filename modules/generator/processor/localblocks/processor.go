@@ -15,6 +15,7 @@ import (
 	"github.com/golang/groupcache/lru"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/ingester"
+	"github.com/grafana/tempo/pkg/dataquality"
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/pkg/tracesizes"
 	"github.com/grafana/tempo/tempodb"
@@ -662,12 +663,36 @@ func (p *Processor) writeHeadBlock(id common.ID, tr *tempopb.Trace) error {
 	startSeconds := uint32(start / uint64(time.Second))
 	endSeconds := uint32(end / uint64(time.Second))
 
+	startSeconds, endSeconds = p.adjustTimeRangeForSlack(startSeconds, endSeconds)
+
 	err := p.headBlock.AppendTrace(id, tr, startSeconds, endSeconds)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (p *Processor) adjustTimeRangeForSlack(start, end uint32) (uint32, uint32) {
+	now := time.Now()
+	startOfRange := uint32(-now.Add(p.headBlock.IngestionSlack()).Unix())
+	endOfRange := uint32(now.Add(p.headBlock.IngestionSlack()).Unix())
+
+	warn := false
+	if start < startOfRange {
+		warn = true
+		start = uint32(now.Unix())
+	}
+	if end > endOfRange || end < start {
+		warn = true
+		end = uint32(now.Unix())
+	}
+
+	if warn {
+		dataquality.WarnOutsideIngestionSlack(p.headBlock.BlockMeta().TenantID)
+	}
+
+	return start, end
 }
 
 func (p *Processor) resetHeadBlock() error {

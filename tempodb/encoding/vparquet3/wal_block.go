@@ -410,6 +410,10 @@ func (b *walBlock) openWriter() (err error) {
 	return nil
 }
 
+func (b *walBlock) IngestionSlack() time.Duration {
+	return b.ingestionSlack
+}
+
 func (b *walBlock) Flush() (err error) {
 	if b.ids.Len() == 0 {
 		return nil

@@ -241,6 +241,10 @@ func (a *walBlock) Clear() error {
 	return os.Remove(name)
 }
 
+func (a *walBlock) IngestionSlack() time.Duration {
+	return a.ingestionSlack
+}
+
 // FindTraceByID Find implements common.Finder
 func (a *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
 	_, span := tracer.Start(ctx, "v2WalBlock.FindTraceByID")

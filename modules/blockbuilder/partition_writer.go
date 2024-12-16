@@ -18,7 +18,7 @@ import (
 )
 
 type partitionSectionWriter interface {
-	pushBytes(tenant string, req *tempopb.PushBytesRequest) error
+	pushBytes(tenant string, req *tempopb.PushBytesRequest, startTime time.Time) error
 	flush(ctx context.Context, store tempodb.Writer) error
 }
 
@@ -50,7 +50,7 @@ func newPartitionSectionWriter(logger log.Logger, partition, cycleEndTs int64, b
 	}
 }
 
-func (p *writer) pushBytes(tenant string, req *tempopb.PushBytesRequest) error {
+func (p *writer) pushBytes(tenant string, req *tempopb.PushBytesRequest, startTime time.Time) error {
 	level.Debug(p.logger).Log(
 		"msg", "pushing bytes",
 		"tenant", tenant,
@@ -68,25 +68,7 @@ func (p *writer) pushBytes(tenant string, req *tempopb.PushBytesRequest) error {
 		if err := proto.Unmarshal(trace.Slice, tr); err != nil {
 			return fmt.Errorf("failed to unmarshal trace: %w", err)
 		}
-
-		var start, end uint64
-		for _, b := range tr.ResourceSpans {
-			for _, ss := range b.ScopeSpans {
-				for _, s := range ss.Spans {
-					if start == 0 || s.StartTimeUnixNano < start {
-						start = s.StartTimeUnixNano
-					}
-					if s.EndTimeUnixNano > end {
-						end = s.EndTimeUnixNano
-					}
-				}
-			}
-		}
-
-		startSeconds := uint32(start / uint64(time.Second))
-		endSeconds := uint32(end / uint64(time.Second))
-
-		if err := i.AppendTrace(req.Ids[j], tr, startSeconds, endSeconds); err != nil {
+		if err := i.AppendTrace(req.Ids[j], tr, startTime); err != nil {
 			return err
 		}
 	}

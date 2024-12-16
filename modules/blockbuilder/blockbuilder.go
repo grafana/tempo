@@ -267,7 +267,7 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, pa
 
 	// Continue consuming in sections until we're caught up.
 	for !sectionEndTime.After(cycleEndTime) {
-		newCommitAt, err := b.consumePartitionSection(ctx, partition, sectionEndTime, partitionLag)
+		newCommitAt, err := b.consumePartitionSection(ctx, partition, commitRecTs, sectionEndTime, partitionLag)
 		if err != nil {
 			return fmt.Errorf("failed to consume partition section: %w", err)
 		}
@@ -281,7 +281,7 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, pa
 	return nil
 }
 
-func (b *BlockBuilder) consumePartitionSection(ctx context.Context, partition int32, sectionEndTime time.Time, lag kadm.GroupMemberLag) (int64, error) {
+func (b *BlockBuilder) consumePartitionSection(ctx context.Context, partition int32, sectionStartTime time.Time, sectionEndTime time.Time, lag kadm.GroupMemberLag) (int64, error) {
 	level.Info(b.logger).Log(
 		"msg", "consuming partition section",
 		"partition", partition,
@@ -353,7 +353,7 @@ consumerLoop:
 				break consumerLoop
 			}
 
-			err := b.pushTraces(rec.Key, rec.Value, writer) // TODO - Batch pushes by tenant
+			err := b.pushTraces(rec.Key, rec.Value, writer, sectionStartTime) // TODO - Batch pushes by tenant
 			if err != nil {
 				// All "non-terminal" errors are handled by the TSDBBuilder.
 				return lag.Commit.At, fmt.Errorf("process record in partition %d at offset %d: %w", rec.Partition, rec.Offset, err)
@@ -403,14 +403,14 @@ func (b *BlockBuilder) commitState(ctx context.Context, commit kadm.Offset) erro
 	return nil
 }
 
-func (b *BlockBuilder) pushTraces(tenantBytes, reqBytes []byte, p partitionSectionWriter) error {
+func (b *BlockBuilder) pushTraces(tenantBytes, reqBytes []byte, p partitionSectionWriter, sectionStartTime time.Time) error {
 	req, err := b.decoder.Decode(reqBytes)
 	if err != nil {
 		return fmt.Errorf("failed to decode trace: %w", err)
 	}
 	defer b.decoder.Reset()
 
-	return p.pushBytes(string(tenantBytes), req)
+	return p.pushBytes(string(tenantBytes), req, sectionStartTime)
 }
 
 func (b *BlockBuilder) getAssignedActivePartitions() []int32 {
