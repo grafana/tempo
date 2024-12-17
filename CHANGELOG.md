@@ -104,6 +104,7 @@ querier:
 * [BUGFIX] Initialize histogram buckets to 0 to avoid downsampling. [#4366](https://github.com/grafana/tempo/pull/4366) (@javiermolinar)
 * [BUGFIX] Utilize S3Pass and S3User parameters in tempo-cli options, which were previously unused in the code. [#4259](https://github.com/grafana/tempo/pull/4259) (@faridtmammadov)
 * [BUGFIX] Fixed an issue in the generator where the first batch was counted 2x against a traces size. [#4365](https://github.com/grafana/tempo/pull/4365) (@joe-elliott)
+* [BUGFIX] Fix compaction bug in SingleBinaryMode that could lead to 2x, 3x, etc TraceQL metrics results [#4446](https://github.com/grafana/tempo/pull/4446) (@mdisibio)
 * [BUGFIX] Unstable compactors can occassionally duplicate data. Check for job ownership during compaction and cancel a job if ownership changes. [#4420](https://github.com/grafana/tempo/pull/4420) (@joe-elliott)
 
 # v2.6.1

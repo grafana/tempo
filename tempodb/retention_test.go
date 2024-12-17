@@ -46,8 +46,8 @@ func TestRetention(t *testing.T) {
 	err = c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
-		BlockRetention:          0,
-		CompactedBlockRetention: 0,
+		BlockRetention:          time.Hour,
+		CompactedBlockRetention: time.Hour,
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
@@ -71,10 +71,12 @@ func TestRetention(t *testing.T) {
 	checkBlocklists(t, (uuid.UUID)(blockID), 1, 0, rw)
 
 	// retention should mark it compacted
+	rw.compactorCfg.BlockRetention = 0
 	r.(*readerWriter).doRetention(ctx)
 	checkBlocklists(t, (uuid.UUID)(blockID), 0, 1, rw)
 
 	// retention again should clear it
+	rw.compactorCfg.CompactedBlockRetention = 0
 	r.(*readerWriter).doRetention(ctx)
 	checkBlocklists(t, (uuid.UUID)(blockID), 0, 0, rw)
 }
