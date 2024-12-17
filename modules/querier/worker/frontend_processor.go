@@ -73,8 +73,11 @@ func (fp *frontendProcessor) processQueriesOnSingleStream(ctx context.Context, c
 	for backoff.Ongoing() {
 		c, err := client.Process(ctx)
 		if err != nil {
-			level.Error(fp.log).Log("msg", "error contacting frontend", "address", address, "err", err)
-			backoff.Wait()
+			// Avoid logging and connection backoff in the case of a canceled context on the gRPC stream. This will allow queriers to reconnect and work more quickly.
+			if status.Code(err) != codes.Canceled {
+				level.Error(fp.log).Log("msg", "error contacting frontend", "address", address, "err", err)
+				backoff.Wait()
+			}
 			continue
 		}
 
