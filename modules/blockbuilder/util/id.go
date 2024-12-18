@@ -14,9 +14,7 @@ const (
 	sha1Version5 = 5
 )
 
-var (
-	ns = uuid.MustParse("28840903-6eb5-4ffb-8880-93a4fa98dbcb") // Random UUID
-)
+var ns = uuid.MustParse("28840903-6eb5-4ffb-8880-93a4fa98dbcb") // Random UUID
 
 type IDGenerator interface {
 	NewID() backend.UUID
