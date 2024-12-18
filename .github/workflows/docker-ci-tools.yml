@@ -17,6 +17,7 @@ permissions:
 jobs:
 
   get-image-tag:
+    if: github.repository == 'grafana/tempo'  # skip in forks
     runs-on: ubuntu-24.04
     outputs:
       tag: ${{ steps.get-tag.outputs.tag }}
@@ -29,6 +30,7 @@ jobs:
           echo "tag=$(./tools/image-tag)" >> "$GITHUB_OUTPUT"
 
   docker-ci-tools:
+    if: github.repository == 'grafana/tempo'
     needs: get-image-tag
     strategy:
       matrix:
@@ -50,6 +52,7 @@ jobs:
           docker push $IMAGE_NAME:$TAG_ARCH
 
   manifest:
+    if: github.repository == 'grafana/tempo'
     needs: ['get-image-tag', 'docker-ci-tools']
     runs-on: ubuntu-latest
     env:
