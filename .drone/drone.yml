@@ -269,59 +269,6 @@ trigger:
   - refs/heads/main
 ---
 depends_on: []
-kind: pipeline
-name: build-deploy-serverless
-platform:
-  arch: amd64
-  os: linux
-steps:
-- commands:
-  - apk add make git zip bash
-  - ./tools/image-tag | cut -d, -f 1 | tr A-Z a-z > .tags
-  - cd ./cmd/tempo-serverless
-  - make build-docker-gcr-binary
-  - make build-lambda-zip
-  image: golang:1.23-alpine
-  name: build-tempo-serverless
-- image: plugins/gcr
-  name: deploy-tempo-serverless-gcr
-  settings:
-    context: ./cmd/tempo-serverless/cloud-run
-    dockerfile: ./cmd/tempo-serverless/cloud-run/Dockerfile
-    json_key:
-      from_secret: ops_tools_img_upload
-    repo: ops-tools-1203/tempo-serverless
-- commands:
-  - cd ./cmd/tempo-serverless/lambda
-  - aws s3 cp tempo-serverless*.zip s3://dev-tempo-fn-source
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID-dev
-    AWS_DEFAULT_REGION: us-east-2
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY-dev
-  image: amazon/aws-cli
-  name: deploy-tempo-dev-serverless-lambda
-- commands:
-  - cd ./cmd/tempo-serverless/lambda
-  - aws s3 cp tempo-serverless*.zip s3://prod-tempo-fn-source
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID-prod
-    AWS_DEFAULT_REGION: us-east-2
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY-prod
-  image: amazon/aws-cli
-  name: deploy-tempo-prod-serverless-lambda
-trigger:
-  ref:
-  - refs/heads/main
-  - refs/tags/v*
-  - refs/heads/r?
-  - refs/heads/r??
-  - refs/heads/r???
----
-depends_on: []
 image_pull_secrets:
 - dockerconfigjson
 kind: pipeline
@@ -457,12 +404,6 @@ kind: secret
 name: tempo_app_private_key_secret
 ---
 get:
-  name: credentials.json
-  path: infra/data/ci/tempo-ops-tools-function-upload
-kind: secret
-name: ops_tools_img_upload
----
-get:
   name: access_key_id
   path: infra/data/ci/tempo-dev/aws-credentials-drone
 kind: secret
@@ -499,6 +440,6 @@ kind: secret
 name: gpg_passphrase
 ---
 kind: signature
-hmac: 13b44a917ac76c853b2c406c6302005f6de74ea58c78564f79a7baab606a84d8
+hmac: 549009bef21fd03b82e361c40ad6928b584e18ff762f0890f9302802b124c8b0
 
 ...
