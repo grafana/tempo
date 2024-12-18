@@ -5,6 +5,9 @@ This Nomad job will deploy Tempo in
 
 ## Usage
 
+### Prerequisites
+- S3 compatible storage
+
 Have a look at the job file and Tempo configuration file and change it to suite your environment.
 
 ### Run job
