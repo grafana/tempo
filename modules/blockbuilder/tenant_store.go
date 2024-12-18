@@ -46,7 +46,7 @@ type tenantStore struct {
 	walBlocks []common.WALBlock
 }
 
-func newTenantStore(tenantID string, partitionID, endTimestamp int64, cfg BlockConfig, logger log.Logger, wal *wal.WAL, enc encoding.VersionedEncoding, o Overrides) (*tenantStore, error) {
+func newTenantStore(tenantID string, partitionID, endTimestamp uint64, cfg BlockConfig, logger log.Logger, wal *wal.WAL, enc encoding.VersionedEncoding, o Overrides) (*tenantStore, error) {
 	s := &tenantStore{
 		tenantID:     tenantID,
 		idGenerator:  util.NewDeterministicIDGenerator(tenantID, partitionID, endTimestamp),
