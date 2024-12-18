@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/dskit/test"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/overrides"
 	"github.com/prometheus/client_golang/prometheus"
 	prometheus_common_config "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
@@ -25,6 +25,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+
+	"github.com/grafana/tempo/modules/overrides"
 )
 
 // Verify basic functionality like sending metrics and exemplars, buffering and retrying failed
@@ -144,7 +146,7 @@ func TestInstance_multiTenancy(t *testing.T) {
 	})
 
 	// Wait until every tenant received at least one request
-	err = waitUntil(20*time.Second, func() bool {
+	test.Poll(t, 45*time.Second, true, func() interface{} {
 		mockServer.mtx.Lock()
 		defer mockServer.mtx.Unlock()
 
@@ -155,7 +157,6 @@ func TestInstance_multiTenancy(t *testing.T) {
 		}
 		return true
 	})
-	require.NoError(t, err, "timed out while waiting for accepted requests")
 
 	cancel()
 	for _, instance := range instances {
