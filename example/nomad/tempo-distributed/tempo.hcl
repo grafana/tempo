@@ -118,7 +118,7 @@ job "tempo" {
       port = "http"
       tags = [
         "traefik.enable=true",
-        "traefik.http.routers.tempo-query-frontend.rule=Host(`tempo-query-frontend.service.consul`,`tempo-query-frontend.{{ data_center_name }}.test`)"
+        "traefik.http.routers.tempo-query-frontend.rule=Host(`tempo-query-frontend.service.consul`)"
       ]
     }
 
