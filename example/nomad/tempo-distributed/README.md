@@ -7,6 +7,7 @@ This Nomad job will deploy Tempo in
 
 ### Prerequisites
 - S3 compatible storage
+- [Nomad memory oversubscription](https://developer.hashicorp.com/nomad/tutorials/advanced-scheduling/memory-oversubscription)
 
 Have a look at the job file and Tempo configuration file and change it to suite your environment.
 
