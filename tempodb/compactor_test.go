@@ -173,7 +173,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 		require.Len(t, blocks, inputBlocks)
 
 		compactions++
-		err := rw.compact(context.Background(), blocks, testTenantID)
+		err := rw.compactOneJob(context.Background(), blocks, testTenantID)
 		require.NoError(t, err)
 
 		expectedBlockCount -= blocksPerCompaction
@@ -336,7 +336,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	combinedStart, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
 	require.NoError(t, err)
 
-	err = rw.compact(ctx, blocks, testTenantID)
+	err = rw.compactOneJob(ctx, blocks, testTenantID)
 	require.NoError(t, err)
 
 	checkBlocklists(t, uuid.Nil, 1, blockCount, rw)
@@ -420,7 +420,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	rw.pollBlocklist()
 
 	// compact everything
-	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
+	err = rw.compactOneJob(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
 	require.NoError(t, err)
 
 	// New blocklist contains 1 compacted block with everything
@@ -501,7 +501,7 @@ func TestCompactionMetrics(t *testing.T) {
 	assert.NoError(t, err)
 
 	// compact everything
-	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
+	err = rw.compactOneJob(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
 	assert.NoError(t, err)
 
 	// Check metric
@@ -570,12 +570,12 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 
 	// Verify that tenant 2 compacted, tenant 1 is not
 	// Compaction starts at index 1 for simplicity
-	rw.doCompaction(ctx)
+	rw.compactOneTenant(ctx)
 	assert.Equal(t, 2, len(rw.blocklist.Metas(testTenantID)))
 	assert.Equal(t, 1, len(rw.blocklist.Metas(testTenantID2)))
 
 	// Verify both tenants compacted after second run
-	rw.doCompaction(ctx)
+	rw.compactOneTenant(ctx)
 	assert.Equal(t, 1, len(rw.blocklist.Metas(testTenantID)))
 	assert.Equal(t, 1, len(rw.blocklist.Metas(testTenantID2)))
 }
@@ -630,11 +630,11 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 
 	r.EnablePolling(ctx, &mockJobSharder{})
 
-	cutTestBlockWithTraces(t, w, testTenantID, []testData{
+	cutTestBlockWithTraces(t, w, []testData{
 		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 100, 101},
 		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 102, 103},
 	})
-	cutTestBlockWithTraces(t, w, testTenantID, []testData{
+	cutTestBlockWithTraces(t, w, []testData{
 		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 104, 105},
 		{test.ValidTraceID(nil), test.MakeTrace(10, nil), 106, 107},
 	})
@@ -643,7 +643,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	rw.pollBlocklist()
 
 	// compact everything
-	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
+	err = rw.compactOneJob(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
 	require.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond)
@@ -778,13 +778,36 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 	}
 }
 
+func TestDoForAtLeast(t *testing.T) {
+	// test that it runs for at least the duration
+	start := time.Now()
+	doForAtLeast(context.Background(), time.Second, func() { time.Sleep(time.Millisecond) })
+	require.WithinDuration(t, time.Now(), start.Add(time.Second), 100*time.Millisecond)
+
+	// test that it allows func to overrun
+	start = time.Now()
+	doForAtLeast(context.Background(), time.Second, func() { time.Sleep(2 * time.Second) })
+	require.WithinDuration(t, time.Now(), start.Add(2*time.Second), 100*time.Millisecond)
+
+	// make sure cancelling the context stops the function if the function is complete and we're
+	// just waiting. it is presumed, but not enforced that the function responds to a cancelled contxt
+	ctx, cancel := context.WithCancel(context.Background())
+	start = time.Now()
+	go func() {
+		time.Sleep(time.Second)
+		cancel()
+	}()
+	doForAtLeast(ctx, 2*time.Second, func() {})
+	require.WithinDuration(t, time.Now(), start.Add(time.Second), 100*time.Millisecond)
+}
+
 type testData struct {
 	id         common.ID
 	t          *tempopb.Trace
 	start, end uint32
 }
 
-func cutTestBlockWithTraces(t testing.TB, w Writer, tenantID string, data []testData) common.BackendBlock {
+func cutTestBlockWithTraces(t testing.TB, w Writer, data []testData) common.BackendBlock {
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
 	wal := w.WAL()
@@ -894,6 +917,6 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 
 	b.ResetTimer()
 
-	err = rw.compact(ctx, metas, testTenantID)
+	err = rw.compactOneJob(ctx, metas, testTenantID)
 	require.NoError(b, err)
 }

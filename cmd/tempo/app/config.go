@@ -60,7 +60,7 @@ type Config struct {
 	CacheProvider   cache.Config            `yaml:"cache,omitempty"`
 }
 
-func newDefaultConfig() *Config {
+func NewDefaultConfig() *Config {
 	defaultConfig := &Config{}
 	defaultFS := flag.NewFlagSet("", flag.PanicOnError)
 	defaultConfig.RegisterFlagsAndApplyDefaults("", defaultFS)
@@ -120,9 +120,9 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 
 	// Everything else
 	flagext.DefaultValues(&c.IngesterClient)
-	c.IngesterClient.GRPCClientConfig.GRPCCompression = "snappy"
+	c.IngesterClient.GRPCClientConfig.GRPCCompression = ""
 	flagext.DefaultValues(&c.GeneratorClient)
-	c.GeneratorClient.GRPCClientConfig.GRPCCompression = "snappy"
+	c.GeneratorClient.GRPCClientConfig.GRPCCompression = ""
 	c.Overrides.RegisterFlagsAndApplyDefaults(f)
 
 	c.Distributor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "distributor"), f)

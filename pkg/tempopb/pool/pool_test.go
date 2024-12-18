@@ -9,23 +9,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func makeFunc(size int) []byte {
-	return make([]byte, 0, size)
-}
-
 func TestPool(t *testing.T) {
-	testPool := New(20, 4, makeFunc)
+	testPool := New(1, 8, 2)
 	cases := []struct {
 		size        int
 		expectedCap int
 	}{
 		{
-			size:        -5,
-			expectedCap: 4,
-		},
-		{
-			size:        0,
-			expectedCap: 4,
+			size:        -1,
+			expectedCap: 1,
 		},
 		{
 			size:        3,
@@ -33,11 +25,7 @@ func TestPool(t *testing.T) {
 		},
 		{
 			size:        10,
-			expectedCap: 12,
-		},
-		{
-			size:        23,
-			expectedCap: 23,
+			expectedCap: 10,
 		},
 	}
 	for _, c := range cases {
@@ -48,7 +36,7 @@ func TestPool(t *testing.T) {
 }
 
 func TestPoolSlicesAreAlwaysLargeEnough(t *testing.T) {
-	testPool := New(1025, 5, makeFunc)
+	testPool := New(1, 1024, 2)
 
 	for i := 0; i < 10000; i++ {
 		size := rand.Intn(1000)
@@ -59,7 +47,5 @@ func TestPoolSlicesAreAlwaysLargeEnough(t *testing.T) {
 		ret := testPool.Get(size)
 
 		require.True(t, cap(ret) >= size)
-
-		testPool.Put(ret)
 	}
 }

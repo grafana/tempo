@@ -95,7 +95,7 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()
 	traceIDStatusCodeWare := pipeline.NewStatusCodeAdjustWareWithAllowedCode(http.StatusNotFound)
 	urlDenyListWare := pipeline.NewURLDenyListWare(cfg.URLDenyList)
-	queryValidatorWare := pipeline.NewQueryValidatorWare()
+	queryValidatorWare := pipeline.NewQueryValidatorWare(cfg.MaxQueryExpressionSizeBytes)
 	headerStripWare := pipeline.NewStripHeadersWare(cfg.AllowedHeaders)
 
 	tracePipeline := pipeline.Build(

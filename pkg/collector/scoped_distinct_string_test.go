@@ -12,10 +12,12 @@ import (
 
 func TestScopedDistinct(t *testing.T) {
 	tcs := []struct {
-		in       map[string][]string
-		expected map[string][]string
-		limit    int
-		exceeded bool
+		in                  map[string][]string
+		expected            map[string][]string
+		maxBytes            int
+		maxItemsPerScope    uint32
+		staleValueThreshold uint32
+		exceeded            bool
 	}{
 		{
 			in: map[string][]string{
@@ -46,13 +48,27 @@ func TestScopedDistinct(t *testing.T) {
 				"scope1": {"val1", "val2"},
 				"scope2": {"val1"},
 			},
-			limit:    13,
+			maxBytes: 13,
 			exceeded: true,
+		},
+		{
+			in: map[string][]string{
+				"intrinsic": {"val1", "val2"},
+				"scope2":    {"val1", "val2"},
+				"scope3":    {"val1", "val2", "val3"},
+			},
+			expected: map[string][]string{
+				"intrinsic": {"val1", "val2"},
+				"scope2":    {"val1"},
+			},
+			maxBytes:         0,
+			maxItemsPerScope: 1,
+			exceeded:         true,
 		},
 	}
 
 	for _, tc := range tcs {
-		c := NewScopedDistinctString(tc.limit)
+		c := NewScopedDistinctString(tc.maxBytes, tc.maxItemsPerScope, tc.staleValueThreshold)
 
 		// get and sort keys so we can deterministically add values
 		keys := []string{}
@@ -61,18 +77,15 @@ func TestScopedDistinct(t *testing.T) {
 		}
 		slices.Sort(keys)
 
-		var stop bool
 		for _, k := range keys {
 			v := tc.in[k]
 			for _, val := range v {
-				stop = c.Collect(k, val)
+				c.Collect(k, val)
 			}
 		}
 
 		// check if we exceeded the limit, and Collect and Exceeded return the same value
 		require.Equal(t, tc.exceeded, c.Exceeded())
-		require.Equal(t, tc.exceeded, stop)
-		require.Equal(t, stop, c.Exceeded())
 
 		actual := c.Strings()
 		assertMaps(t, tc.expected, actual)
@@ -80,7 +93,7 @@ func TestScopedDistinct(t *testing.T) {
 }
 
 func TestScopedDistinctDiff(t *testing.T) {
-	c := NewScopedDistinctStringWithDiff(0)
+	c := NewScopedDistinctStringWithDiff(0, 0, 0)
 
 	c.Collect("scope1", "val1")
 	expected := map[string][]string{
@@ -122,7 +135,7 @@ func TestScopedDistinctDiff(t *testing.T) {
 	assertMaps(t, map[string][]string{}, readScopedDistinctStringDiff(t, c))
 
 	// diff should error when diff is not enabled
-	col := NewScopedDistinctString(0)
+	col := NewScopedDistinctString(0, 0, 0)
 	col.Collect("scope1", "val1")
 	res, err := col.Diff()
 	require.Nil(t, res)
@@ -144,7 +157,7 @@ func assertMaps(t *testing.T, expected, actual map[string][]string) {
 }
 
 func TestScopedDistinctStringCollectorIsSafe(t *testing.T) {
-	d := NewScopedDistinctString(0) // no limit
+	d := NewScopedDistinctString(0, 0, 0) // no limit
 
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
@@ -195,7 +208,7 @@ func BenchmarkScopedDistinctStringCollect(b *testing.B) {
 	for _, lim := range limits {
 		b.Run("uniques_limit:"+strconv.Itoa(lim), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
-				scopedDistinctStrings := NewScopedDistinctString(lim)
+				scopedDistinctStrings := NewScopedDistinctString(lim, 0, 0)
 				for _, tags := range ingesterTags {
 					for scope, values := range tags {
 						for _, v := range values {
@@ -210,7 +223,7 @@ func BenchmarkScopedDistinctStringCollect(b *testing.B) {
 
 		b.Run("duplicates_limit:"+strconv.Itoa(lim), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
-				scopedDistinctStrings := NewScopedDistinctString(lim)
+				scopedDistinctStrings := NewScopedDistinctString(lim, 0, 0)
 				for i := 0; i < numIngesters; i++ {
 					for scope := range ingesterTags[i] {
 						// collect first item to simulate duplicates

@@ -318,7 +318,7 @@ func TestFetchTagNames(t *testing.T) {
 			}
 
 			t.Run(fmt.Sprintf("query: %s %s-%s", tc.name, tc.query, scope), func(t *testing.T) {
-				distinctAttrNames := collector.NewScopedDistinctString(0)
+				distinctAttrNames := collector.NewScopedDistinctString(0, 0, 0)
 				req, err := traceql.ExtractFetchSpansRequest(tc.query)
 				require.NoError(t, err)
 
@@ -617,7 +617,7 @@ func TestFetchTagValues(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("tag: %s, query: %s", tc.tag, tc.query), func(t *testing.T) {
-			distinctValues := collector.NewDistinctValue[tempopb.TagValue](1_000_000, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+			distinctValues := collector.NewDistinctValue[tempopb.TagValue](1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 			req, err := traceql.ExtractFetchSpansRequest(tc.query)
 			require.NoError(t, err)
 
@@ -720,7 +720,7 @@ func BenchmarkFetchTagValues(b *testing.B) {
 
 	for _, tc := range testCases {
 		b.Run(fmt.Sprintf("tag: %s, query: %s", tc.tag, tc.query), func(b *testing.B) {
-			distinctValues := collector.NewDistinctValue[tempopb.TagValue](1_000_000, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+			distinctValues := collector.NewDistinctValue[tempopb.TagValue](1_000_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 			req, err := traceql.ExtractFetchSpansRequest(tc.query)
 			require.NoError(b, err)
 
@@ -802,7 +802,7 @@ func BenchmarkFetchTags(b *testing.B) {
 	for _, tc := range testCases {
 		for _, scope := range []traceql.AttributeScope{traceql.AttributeScopeSpan, traceql.AttributeScopeResource, traceql.AttributeScopeNone} {
 			b.Run(fmt.Sprintf("query: %s %s", tc.query, scope), func(b *testing.B) {
-				distinctStrings := collector.NewScopedDistinctString(1_000_000)
+				distinctStrings := collector.NewScopedDistinctString(1_000_000, 0, 0)
 				req, err := traceql.ExtractFetchSpansRequest(tc.query)
 				require.NoError(b, err)
 
