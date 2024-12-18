@@ -10,6 +10,9 @@ on:
     paths:
       - ".drone/drone.yml"
 
+permissions:
+  id-token: write
+
 jobs:
   drone-signature-check:
     # only run in grafana/tempo.
