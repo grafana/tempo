@@ -56,7 +56,6 @@ func New(minBucket, numBuckets, bktSize int) *Pool {
 // Get returns a new byte slices that fits the given size.
 func (p *Pool) Get(sz int) []byte {
 	if sz < 0 {
-
 		panic("requested negative size")
 	}
 

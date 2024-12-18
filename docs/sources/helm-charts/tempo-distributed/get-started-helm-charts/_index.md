@@ -13,11 +13,7 @@ keywords:
 # Get started with Grafana Tempo using the Helm chart
 
 The `tempo-distributed` Helm chart allows you to configure, install, and upgrade Grafana Tempo or Grafana Enterprise Traces (GET) within a Kubernetes cluster.
-<<<<<<< HEAD
-Using this procedure, you will:
-=======
 Using this procedure, you need to:
->>>>>>> origin/main
 
 - Create a custom namespace within your Kubernetes cluster
 - Install Helm and the Grafana `helm-charts` repository
@@ -31,11 +27,7 @@ If you are using Helm to install GET, then you also need to:
 - Install the GET license
 - Create an additional storage bucket for the `admin` resources
 - Disable the `gateway` used in open source Tempo
-<<<<<<< HEAD
-- Enable the `enterpriseGateway`
-=======
 - Enable the `enterpriseGateway`, which is activated when you specify Enterprise
->>>>>>> origin/main
 
 ## Before you begin
 
@@ -472,8 +464,6 @@ To configure TLS with the Helm chart, you must have a TLS key-pair and CA certif
 
 For instructions, refer to [Configure TLS with Helm](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/network/tls/).
 
-<<<<<<< HEAD
-=======
 ### Optional: Use global or per-tenant overrides
 
 The `tempo-distributed` Helm chart provides a module for users to set global or per-tenant override settings:
@@ -521,7 +511,6 @@ This configuration:
 Runtime configurations should include all options for a specific tenant.
 {{< /admonition >}}
 
->>>>>>> origin/main
 ## Install Grafana Tempo using the Helm chart
 
 Use the following command to install Tempo using the configuration options you've specified in the `custom.yaml` file:

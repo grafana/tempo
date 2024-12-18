@@ -14,13 +14,6 @@ and other [configuration documentation]({{< relref "../configuration" >}}). Most
 
 ## Complete configuration
 
-<<<<<<< HEAD
-{{< admonition type="note" >}}
-This manifest was generated on 2024-11-18.
-{{% /admonition %}}
-
-=======
->>>>>>> origin/main
 ```yaml
 target: all
 http_api_prefix: ""
@@ -190,6 +183,24 @@ distributor:
         cost_attribution:
             max_cardinality: 10000
             stale_duration: 15m0s
+    kafka_write_path_enabled: false
+    kafka_config:
+        address: ""
+        topic: ""
+        client_id: ""
+        dial_timeout: 0s
+        write_timeout: 0s
+        sasl_username: ""
+        sasl_password: ""
+        consumer_group: ""
+        consumer_group_offset_commit_interval: 0s
+        last_produced_offset_retry_timeout: 0s
+        auto_create_topic_enabled: false
+        auto_create_topic_default_partitions: 0
+        producer_max_record_size_bytes: 0
+        producer_max_buffered_bytes: 0
+        target_consumer_lag_at_startup: 0s
+        max_consumer_lag_at_startup: 0s
     extend_writes: true
     retry_after_on_resource_exhausted: 0s
 ingester_client:
@@ -316,10 +327,7 @@ query_frontend:
         query_backend_after: 15m0s
         query_ingesters_until: 30m0s
         ingester_shards: 3
-<<<<<<< HEAD
-=======
         max_spans_per_span_set: 100
->>>>>>> origin/main
     trace_by_id:
         query_shards: 50
     metrics:
@@ -336,10 +344,7 @@ query_frontend:
         retry_with_weights: true
         max_traceql_conditions: 4
         max_regex_conditions: 1
-<<<<<<< HEAD
-=======
     max_query_expression_size_bytes: 131072
->>>>>>> origin/main
 compactor:
     ring:
         kvstore:
@@ -451,6 +456,40 @@ ingester:
         address: ""
         port: 0
         id: hostname
+    partition_ring:
+        kvstore:
+            store: memberlist
+            prefix: collectors/
+            consul:
+                host: localhost:8500
+                acl_token: ""
+                http_client_timeout: 20s
+                consistent_reads: false
+                watch_rate_limit: 1
+                watch_burst_size: 1
+                cas_retry_delay: 1s
+            etcd:
+                endpoints: []
+                dial_timeout: 10s
+                max_retries: 10
+                tls_enabled: false
+                tls_cert_path: ""
+                tls_key_path: ""
+                tls_ca_path: ""
+                tls_server_name: ""
+                tls_insecure_skip_verify: false
+                tls_cipher_suites: ""
+                tls_min_version: ""
+                username: ""
+                password: ""
+            multi:
+                primary: ""
+                secondary: ""
+                mirror_enabled: false
+                mirror_timeout: 2s
+        min_partition_owners_count: 1
+        min_partition_owners_duration: 10s
+        delete_inactive_partition_after: 13h0m0s
     concurrent_flushes: 4
     flush_check_period: 10s
     flush_op_timeout: 5m0s
@@ -609,9 +648,59 @@ metrics_generator:
         search_encoding: none
         ingestion_time_range_slack: 2m0s
         version: vParquet4
+    traces_query_storage:
+        path: ""
+        v2_encoding: none
+        search_encoding: none
+        ingestion_time_range_slack: 2m0s
+        version: vParquet4
     metrics_ingestion_time_range_slack: 30s
     query_timeout: 30s
     override_ring_key: metrics-generator
+    assigned_partitions: {}
+    instance_id: hostname
+ingest:
+    enabled: false
+    kafka:
+        address: localhost:9092
+        topic: ""
+        client_id: ""
+        dial_timeout: 2s
+        write_timeout: 10s
+        sasl_username: ""
+        sasl_password: ""
+        consumer_group: ""
+        consumer_group_offset_commit_interval: 1s
+        last_produced_offset_retry_timeout: 10s
+        auto_create_topic_enabled: true
+        auto_create_topic_default_partitions: 1000
+        producer_max_record_size_bytes: 15983616
+        producer_max_buffered_bytes: 1073741824
+        target_consumer_lag_at_startup: 2s
+        max_consumer_lag_at_startup: 15s
+block_builder:
+    instance_id: hostname
+    assigned_partitions: {}
+    consume_cycle_duration: 5m0s
+    lookback_on_no_commit: 12h0m0s
+    block:
+        max_block_bytes: 20971520
+        bloom_filter_false_positive: 0.01
+        bloom_filter_shard_size_bytes: 102400
+        version: vParquet4
+        search_encoding: snappy
+        search_page_size_bytes: 1048576
+        v2_index_downsample_bytes: 1048576
+        v2_index_page_size_bytes: 256000
+        v2_encoding: zstd
+        parquet_row_group_size_bytes: 100000000
+        parquet_dedicated_columns: []
+    wal:
+        path: /var/tempo/block-builder/traces
+        v2_encoding: none
+        search_encoding: none
+        ingestion_time_range_slack: 2m0s
+        version: vParquet4
 storage:
     trace:
         pool:
