@@ -78,6 +78,8 @@ type Ingester struct {
 
 	limiter   *Limiter
 	overrides ingesterOverrides
+
+	subservicesWatcher *services.FailureWatcher
 }
 
 // New makes a new Ingester.
@@ -108,10 +110,10 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 	// which depends on it.
 	i.limiter = NewLimiter(overrides, i.lifecycler, cfg.LifecyclerConfig.RingConfig.ReplicationFactor)
 
-	subservicesWatcher := services.NewFailureWatcher()
-	subservicesWatcher.WatchService(i.lifecycler)
+	i.subservicesWatcher = services.NewFailureWatcher()
+	i.subservicesWatcher.WatchService(i.lifecycler)
 
-	i.Service = services.NewIdleService(i.starting, i.stopping)
+	i.Service = services.NewBasicService(i.starting, i.loop, i.stopping)
 	return i, nil
 }
 
@@ -142,10 +144,18 @@ func (i *Ingester) starting(ctx context.Context) error {
 
 	i.pushErr.Store(nil)
 
-	// signal all instances to start cutting to wal
 	close(i.cutToWalStart)
 
 	return nil
+}
+
+func (i *Ingester) loop(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-i.subservicesWatcher.Chan():
+		return fmt.Errorf("ingester subservice failed: %w", err)
+	}
 }
 
 // stopping is run when ingester is asked to stop
@@ -335,7 +345,7 @@ func (i *Ingester) getOrCreateInstance(instanceID string) (*instance, error) {
 		}
 		i.instances[instanceID] = inst
 
-		i.startCutToWal(inst)
+		i.cutToWalLoop(inst)
 	}
 	return inst, nil
 }
@@ -361,7 +371,7 @@ func (i *Ingester) getInstances() []*instance {
 
 // stopIncomingRequests implements ring.Lifecycler.
 func (i *Ingester) stopIncomingRequests() {
-	i.instancesMtx.Lock()
+	i.instancesMtx.Lock() // jpe - why locking?
 	defer i.instancesMtx.Unlock()
 
 	i.pushErr.Store(ErrShuttingDown)

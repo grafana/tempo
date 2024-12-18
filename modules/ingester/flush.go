@@ -151,9 +151,9 @@ func (o *flushOp) Priority() int64 {
 	return -o.at.Unix()
 }
 
-// startCutToWal kicks off a goroutine for the passed instance that will periodically cut traces to WAL.
+// cutToWalLoop kicks off a goroutine for the passed instance that will periodically cut traces to WAL.
 // it signals completion through cutToWalWg, waits for cutToWalStart and stops on cutToWalStop.
-func (i *Ingester) startCutToWal(instance *instance) {
+func (i *Ingester) cutToWalLoop(instance *instance) {
 	i.cutToWalWg.Add(1)
 
 	go func() {
@@ -161,7 +161,7 @@ func (i *Ingester) startCutToWal(instance *instance) {
 
 		level.Warn(log.Logger).Log("msg", "+++ flush loop created", "tenant", instance.instanceID)
 
-		// wait for the signal to start. we need the way to be completely replayed
+		// wait for the signal to start. we need the wal to be completely replayed
 		// before we start cutting to WAL
 		select {
 		case <-i.cutToWalStart:
@@ -240,6 +240,7 @@ func (i *Ingester) flushLoop(j int) {
 	for {
 		o := i.flushQueues.Dequeue(j)
 		if o == nil {
+			level.Warn(log.Logger).Log("msg", "+++ flush loop received nil and exiting")
 			return
 		}
 		op := o.(*flushOp)
