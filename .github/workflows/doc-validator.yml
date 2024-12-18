@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 jobs:
   doc-validator:
-    runs-on: "ubuntu-24.04"
+    runs-on: "ubuntu-latest"
     container:
       image: "grafana/doc-validator:v5.2.0"
     steps:
