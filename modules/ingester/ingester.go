@@ -71,11 +71,13 @@ type Ingester struct {
 	flushQueues     *flushqueues.ExclusiveQueues
 	flushQueuesDone sync.WaitGroup
 
-	limiter *Limiter
+	// manages synchronous behavior with startCutToWal
+	cutToWalWg    sync.WaitGroup
+	cutToWalStop  chan struct{}
+	cutToWalStart chan struct{}
 
+	limiter   *Limiter
 	overrides ingesterOverrides
-
-	subservicesWatcher *services.FailureWatcher
 }
 
 // New makes a new Ingester.
@@ -87,6 +89,9 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 		flushQueues:  flushqueues.New(cfg.ConcurrentFlushes, metricFlushQueueLength),
 		replayJitter: true,
 		overrides:    overrides,
+
+		cutToWalStart: make(chan struct{}),
+		cutToWalStop:  make(chan struct{}),
 	}
 
 	i.pushErr.Store(ErrStarting)
@@ -103,10 +108,10 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 	// which depends on it.
 	i.limiter = NewLimiter(overrides, i.lifecycler, cfg.LifecyclerConfig.RingConfig.ReplicationFactor)
 
-	i.subservicesWatcher = services.NewFailureWatcher()
-	i.subservicesWatcher.WatchService(i.lifecycler)
+	subservicesWatcher := services.NewFailureWatcher()
+	subservicesWatcher.WatchService(i.lifecycler)
 
-	i.Service = services.NewBasicService(i.starting, i.loop, i.stopping)
+	i.Service = services.NewIdleService(i.starting, i.stopping)
 	return i, nil
 }
 
@@ -137,25 +142,45 @@ func (i *Ingester) starting(ctx context.Context) error {
 
 	i.pushErr.Store(nil)
 
+	// signal all instances to start cutting to wal
+	close(i.cutToWalStart)
+
 	return nil
 }
 
-func (i *Ingester) loop(ctx context.Context) error {
-	flushTicker := time.NewTicker(i.cfg.FlushCheckPeriod)
-	defer flushTicker.Stop()
+// stopping is run when ingester is asked to stop
+func (i *Ingester) stopping(_ error) error {
+	level.Warn(log.Logger).Log("msg", "+++ begin stopping")
 
-	for {
-		select {
-		case <-flushTicker.C:
-			i.sweepAllInstances(false)
+	i.markUnavailable()
 
-		case <-ctx.Done():
-			return nil
+	level.Warn(log.Logger).Log("msg", "+++ mark unavailable done")
 
-		case err := <-i.subservicesWatcher.Chan():
-			return fmt.Errorf("ingester subservice failed: %w", err)
-		}
+	// signal all cutting to wal to stop and wait
+	close(i.cutToWalStop)
+	i.cutToWalWg.Wait()
+
+	level.Warn(log.Logger).Log("msg", "+++ cutting to wal done")
+
+	// flush any remaining traces
+	if i.cfg.FlushAllOnShutdown {
+		i.flushRemaining()
 	}
+
+	level.Warn(log.Logger).Log("msg", "+++ flush remaining done")
+
+	if i.flushQueues != nil {
+		i.flushQueues.Stop()
+		i.flushQueuesDone.Wait()
+	}
+
+	level.Warn(log.Logger).Log("msg", "+++ flush queues done")
+
+	i.local.Shutdown()
+
+	level.Warn(log.Logger).Log("msg", "+++ local backend done")
+
+	return nil
 }
 
 // complete the flushing
@@ -165,29 +190,10 @@ func (i *Ingester) loop(ctx context.Context) error {
 // ExclusiveQueues.activeKeys is cleared of a flush operation when a processing of flush operation is either successful or doesn't return retry signal
 // This ensures that i.flushQueues is empty only when all traces are flushed
 func (i *Ingester) flushRemaining() {
-	i.sweepAllInstances(true)
+	i.cutAllInstancesToWal()
 	for !i.flushQueues.IsEmpty() {
 		time.Sleep(100 * time.Millisecond)
 	}
-}
-
-// stopping is run when ingester is asked to stop
-func (i *Ingester) stopping(_ error) error {
-	i.markUnavailable()
-
-	// flush any remaining traces
-	if i.cfg.FlushAllOnShutdown {
-		i.flushRemaining()
-	}
-
-	if i.flushQueues != nil {
-		i.flushQueues.Stop()
-		i.flushQueuesDone.Wait()
-	}
-
-	i.local.Shutdown()
-
-	return nil
 }
 
 func (i *Ingester) markUnavailable() {
@@ -328,6 +334,8 @@ func (i *Ingester) getOrCreateInstance(instanceID string) (*instance, error) {
 			return nil, err
 		}
 		i.instances[instanceID] = inst
+
+		i.startCutToWal(inst)
 	}
 	return inst, nil
 }
