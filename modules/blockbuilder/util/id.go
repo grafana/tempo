@@ -3,15 +3,19 @@ package util
 import (
 	"crypto/sha1"
 	"encoding/binary"
+	"hash"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/tempodb/backend"
 	"go.uber.org/atomic"
 )
 
+const (
+	sha1Version5 = 5
+)
+
 var (
-	ns   = uuid.MustParse("28840903-6eb5-4ffb-8880-93a4fa98dbcb") // Random UUID
-	hash = sha1.New()
+	ns = uuid.MustParse("28840903-6eb5-4ffb-8880-93a4fa98dbcb") // Random UUID
 )
 
 type IDGenerator interface {
@@ -21,14 +25,16 @@ type IDGenerator interface {
 var _ IDGenerator = (*DeterministicIDGenerator)(nil)
 
 type DeterministicIDGenerator struct {
-	buf []byte
-	seq *atomic.Uint64
+	buf  []byte
+	seq  *atomic.Uint64
+	hash hash.Hash
 }
 
 func NewDeterministicIDGenerator(tenantID string, seeds ...uint64) *DeterministicIDGenerator {
 	return &DeterministicIDGenerator{
-		buf: newBuf([]byte(tenantID), seeds),
-		seq: atomic.NewUint64(0),
+		buf:  newBuf([]byte(tenantID), seeds),
+		seq:  atomic.NewUint64(0),
+		hash: sha1.New(),
 	}
 }
 
@@ -45,12 +51,12 @@ func newBuf(tenantID []byte, seeds []uint64) []byte {
 }
 
 func (d *DeterministicIDGenerator) NewID() backend.UUID {
-	return backend.UUID(newDeterministicID(d.buf, d.seq.Inc()))
+	return backend.UUID(newDeterministicID(d.hash, d.buf, d.seq.Inc()))
 }
 
-func newDeterministicID(data []byte, seq uint64) uuid.UUID {
+func newDeterministicID(hash hash.Hash, data []byte, seq uint64) uuid.UUID {
 	// update last 8 bytes of data with seq
 	binary.LittleEndian.PutUint64(data[len(data)-8:], seq)
 
-	return uuid.NewHash(hash, ns, data, 5)
+	return uuid.NewHash(hash, ns, data, sha1Version5)
 }
