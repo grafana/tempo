@@ -989,6 +989,8 @@ go.opentelemetry.io/collector/exporter v0.102.1 h1:4VURYgBNJscxfMhZWitzcwA1cig5a
 go.opentelemetry.io/collector/exporter v0.102.1/go.mod h1:1pmNxvrvvbWDW6PiGObICdj0eOSGV4Fzwpm5QA1GU54=
 go.opentelemetry.io/collector/exporter/otlpexporter v0.102.1 h1:bOXE7u1iy0SKwH2mnVyIMKkvFIR9bn9iIm1Cf/CJlZU=
 go.opentelemetry.io/collector/exporter/otlpexporter v0.102.1/go.mod h1:4ya6xaUYvcXq9MQW0TbsR4QWkOJI02d/2Vt8plwdozA=
+go.opentelemetry.io/collector/exporter/otlphttpexporter v0.102.1 h1:9TaxHrkVtEdssDAHqV5yU9PARkFph7CvfLqC1wS6m+c=
+go.opentelemetry.io/collector/exporter/otlphttpexporter v0.102.1/go.mod h1:auKlkLfuUriyZ2CmV2dudJaVGB7ycZ+tTpypy2JNFEc=
 go.opentelemetry.io/collector/extension v0.102.1 h1:gAvE3w15q+Vv0Tj100jzcDpeMTyc8dAiemHRtJbspLg=
 go.opentelemetry.io/collector/extension v0.102.1/go.mod h1:XBxUOXjZpwYLZYOK5u3GWlbBTOKmzStY5eU1R/aXkIo=
 go.opentelemetry.io/collector/extension/auth v0.102.1 h1:GP6oBmpFJjxuVruPb9X40bdf6PNu9779i8anxa+wW6U=
