@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -27,24 +28,33 @@ func NewGRPCCollector[T combiner.TResponse](next AsyncRoundTripper[combiner.Pipe
 	}
 }
 
-// Handle
+// RoundTrip implements the http.RoundTripper interface
 func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 	ctx := req.Context()
 	ctx, cancel := context.WithCancel(ctx) // create a new context with a cancel function
 	defer cancel()
+
+	ctx, span := tracer.Start(ctx, "GRPCCollector.RoundTrip")
+	defer span.End()
 
 	req = req.WithContext(ctx)
 	resps, err := c.next.RoundTrip(NewHTTPRequest(req))
 	if err != nil {
 		return grpcError(err)
 	}
+	span.AddEvent("next.RoundTrip done")
 
 	lastUpdate := time.Now()
-
-	err = consumeAndCombineResponses(ctx, c.consumers, resps, c.combiner, func() error {
+	// sendDiffCb should return an error if the context is cancelled,
+	// callback's error is used to exit early from the loop and return the error to the caller
+	sendDiffCb := func() error {
 		// check if we should send an update
 		if time.Since(lastUpdate) > 500*time.Millisecond {
 			lastUpdate = time.Now()
+			// check and return the context errors, like ctx cancelled, etc
+			if req.Context().Err() != nil {
+				return req.Context().Err()
+			}
 
 			// send a diff only during streaming
 			resp, err := c.combiner.GRPCDiff()
@@ -58,15 +68,23 @@ func (c GRPCCollector[T]) RoundTrip(req *http.Request) error {
 		}
 
 		return nil
-	})
+	}
+
+	err = consumeAndCombineResponses(ctx, c.consumers, resps, c.combiner, sendDiffCb)
 	if err != nil {
 		return grpcError(err)
 	}
+	span.AddEvent("consumeAndCombineResponses done")
 
 	// send the final diff if there is anything left
 	resp, err := c.combiner.GRPCDiff()
 	if err != nil {
 		return grpcError(err)
+	}
+	span.AddEvent("final combiner.GRPCDiff() done")
+	// check and return the context errors, like ctx cancelled, etc
+	if req.Context().Err() != nil {
+		return grpcError(req.Context().Err())
 	}
 	err = c.send(resp)
 	if err != nil {
@@ -83,5 +101,11 @@ func grpcError(err error) error {
 		return err
 	}
 
+	// if this is context cancelled, we return a grpc cancelled error
+	if errors.Is(err, context.Canceled) {
+		return status.Error(codes.Canceled, err.Error())
+	}
+
+	// rest all fall into internal server error
 	return status.Error(codes.Internal, err.Error())
 }

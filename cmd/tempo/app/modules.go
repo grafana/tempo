@@ -13,7 +13,6 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/dns"
 	"github.com/grafana/dskit/kv"
-	"github.com/grafana/dskit/kv/codec"
 	"github.com/grafana/dskit/kv/memberlist"
 	"github.com/grafana/dskit/middleware"
 	"github.com/grafana/dskit/modules"
@@ -535,11 +534,11 @@ func (t *App) initStore() (services.Service, error) {
 func (t *App) initMemberlistKV() (services.Service, error) {
 	reg := prometheus.DefaultRegisterer
 	t.cfg.MemberlistKV.MetricsNamespace = metricsNamespace
-	t.cfg.MemberlistKV.Codecs = []codec.Codec{
+	t.cfg.MemberlistKV.Codecs = append(t.cfg.MemberlistKV.Codecs,
 		ring.GetCodec(),
 		ring.GetPartitionRingCodec(),
 		usagestats.JSONCodec,
-	}
+	)
 
 	dnsProviderReg := prometheus.WrapRegistererWithPrefix(
 		"tempo_",

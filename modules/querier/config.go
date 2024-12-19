@@ -76,7 +76,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 		GRPCClientConfig: grpcclient.Config{
 			MaxRecvMsgSize:  100 << 20,
 			MaxSendMsgSize:  16 << 20,
-			GRPCCompression: "gzip",
+			GRPCCompression: "",
 			BackoffConfig: backoff.Config{ // the max possible backoff should be lesser than QueryTimeout, with room for actual query response time
 				MinBackoff: 100 * time.Millisecond,
 				MaxBackoff: 1 * time.Second,

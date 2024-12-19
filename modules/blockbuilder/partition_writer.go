@@ -26,7 +26,7 @@ type writer struct {
 	logger log.Logger
 
 	blockCfg                         BlockConfig
-	partition                        uint64
+	partition                        int64
 	startSectionTime, endSectionTime time.Time
 
 	overrides Overrides
@@ -37,7 +37,7 @@ type writer struct {
 	m   map[string]*tenantStore
 }
 
-func newPartitionSectionWriter(logger log.Logger, partition uint64, endSectionTime, startSectionTime time.Time, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
+func newPartitionSectionWriter(logger log.Logger, partition int64, endSectionTime, startSectionTime time.Time, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
 	return &writer{
 		logger:           logger,
 		partition:        partition,
@@ -97,7 +97,7 @@ func (p *writer) instanceForTenant(tenant string) (*tenantStore, error) {
 		return i, nil
 	}
 
-	i, err := newTenantStore(tenant, p.partition, uint64(p.endSectionTime.UnixMilli()), p.blockCfg, p.logger, p.wal, p.enc, p.overrides)
+	i, err := newTenantStore(tenant, p.partition, int64(p.endSectionTime.UnixMilli()), p.blockCfg, p.logger, p.wal, p.enc, p.overrides)
 	if err != nil {
 		return nil, err
 	}

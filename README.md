@@ -15,7 +15,7 @@ Grafana Tempo is an open source, easy-to-use, and high-scale distributed tracing
 
 Distributed tracing helps teams quickly pinpoint performance issues and understand the flow of requests across services. The Explore Traces UI simplifies this process by offering a user-friendly interface to view and analyze trace data, making it easier to identify and resolve issues without needing to write complex queries.
 
-Refer to [Use traces to find solutions](https://grafana.com/docs/tempo/latest/introduction/solutions-with-traces/)t o learn more about how you can use distributed tracing to investigate and solve issues. 
+Refer to [Use traces to find solutions](https://grafana.com/docs/tempo/latest/introduction/solutions-with-traces/) to learn more about how you can use distributed tracing to investigate and solve issues. 
 
 ## Explore Traces UI: A better way to get value from your tracing data
 We are excited to introduce the [Explore Traces app](https://github.com/grafana/explore-traces) as part of the Grafana Explore suite. This app provides a queryless and intuitive experience for analyzing tracing data, allowing teams to quickly identify performance issues, latency bottlenecks, and errors without needing to write complex queries or use TraceQL.

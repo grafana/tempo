@@ -183,10 +183,9 @@ func NewCluster(opts ...Opt) (*Cluster, error) {
 			bsIdx: len(c.bs),
 		}
 		c.bs = append(c.bs, b)
-		go b.listen()
+		defer func() { go b.listen() }()
 	}
 	c.controller = c.bs[len(c.bs)-1]
-	go c.run()
 
 	seedTopics := make(map[string]int32)
 	for _, sts := range cfg.seedTopics {
@@ -201,6 +200,9 @@ func NewCluster(opts ...Opt) (*Cluster, error) {
 	for t, p := range seedTopics {
 		c.data.mkt(t, int(p), -1, nil)
 	}
+
+	go c.run()
+
 	return c, nil
 }
 
