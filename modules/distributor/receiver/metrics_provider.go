@@ -26,6 +26,7 @@ import (
 )
 
 const (
+	// These metrics are defined here: https://github.com/open-telemetry/opentelemetry-collector/blob/release/v0.116.x/receiver/receiverhelper/internal/metadata/generated_telemetry.go
 	otelcolAcceptedSpansMetricName = "otelcol_receiver_accepted_spans"
 	otelcolRefusedSpansMetricName  = "otelcol_receiver_refused_spans"
 )
