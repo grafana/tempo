@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -34,8 +35,8 @@ var (
 	metricPartitionLag = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Subsystem: "block_builder",
-		Name:      "partition_lag",
-		Help:      "Lag of a partition.",
+		Name:      "partition_lag_s",
+		Help:      "Lag of a partition in seconds.",
 	}, []string{"partition"})
 	metricConsumeCycleDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace:                   "tempo",
@@ -149,7 +150,7 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 	return nil
 }
 
-func (b *BlockBuilder) runningOLd(ctx context.Context) error {
+func (b *BlockBuilder) runningOld(ctx context.Context) error {
 	// Initial polling and delay
 	cycleEndTime := cycleEndAtStartup(time.Now(), b.cfg.ConsumeCycleDuration)
 	waitTime := 2 * time.Second
@@ -196,6 +197,9 @@ func (b *BlockBuilder) consume(ctx context.Context) error {
 		partitions = b.getAssignedActivePartitions()
 	)
 
+	level.Info(b.logger).Log("msg", "starting consume cycle", "cycle_end", end, "active_partitions", partitions)
+	defer func(t time.Time) { metricConsumeCycleDuration.Observe(time.Since(t).Seconds()) }(time.Now())
+
 	for _, partition := range partitions {
 		// Consume partition while data remains.
 		// TODO - round-robin one consumption per partition instead to equalize catch-up time.
@@ -214,7 +218,11 @@ func (b *BlockBuilder) consume(ctx context.Context) error {
 	return nil
 }
 
-func (b *BlockBuilder) consumePartition2(ctx context.Context, partition int32, end time.Time) (bool, error) {
+func (b *BlockBuilder) consumePartition2(ctx context.Context, partition int32, end time.Time) (more bool, err error) {
+	defer func(t time.Time) {
+		metricProcessPartitionSectionDuration.WithLabelValues(strconv.Itoa(int(partition))).Observe(time.Since(t).Seconds())
+	}(time.Now())
+
 	var (
 		dur         = b.cfg.ConsumeCycleDuration
 		topic       = b.cfg.IngestStorageConfig.Kafka.Topic
@@ -222,6 +230,7 @@ func (b *BlockBuilder) consumePartition2(ctx context.Context, partition int32, e
 		startOffset kgo.Offset
 		writer      *writer
 		lastRec     *kgo.Record
+		begin       time.Time
 	)
 
 	commits, err := b.kadm.FetchOffsetsForTopics(ctx, group, topic)
@@ -258,12 +267,15 @@ outer:
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
 				// No more data
+				more = false
 				break
 			}
+			metricFetchErrors.WithLabelValues(strconv.Itoa(int(partition))).Inc()
 			return false, err
 		}
 
 		if fetches.Empty() {
+			more = false
 			break
 		}
 
@@ -273,15 +285,19 @@ outer:
 			// Initialize if needed
 			if writer == nil {
 
-				// Determine real end time which is first record ts + cycle, or end whichever is earlier
+				// Determine begin and end time range, which is -/+ cycle duration.
+				// But don't exceed the given overall end time.
+				begin = rec.Timestamp.Add(-dur)
 				if rec.Timestamp.Add(dur).Before(end) {
 					end = rec.Timestamp.Add(dur)
 				}
 
+				metricPartitionLag.WithLabelValues(strconv.Itoa(int(partition))).Set(time.Since(rec.Timestamp).Seconds())
+
 				writer = newPartitionSectionWriter(b.logger, int64(partition), rec.Offset, b.cfg.BlockConfig, b.overrides, b.wal, b.enc)
 			}
 
-			if rec.Timestamp.After(end) {
+			if rec.Timestamp.Before(begin) || rec.Timestamp.After(end) {
 				break outer
 			}
 
@@ -312,7 +328,7 @@ outer:
 		return false, err
 	}
 
-	return true, nil
+	return more, nil
 }
 
 func (b *BlockBuilder) stopping(err error) error {
