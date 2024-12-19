@@ -15,7 +15,8 @@ import (
 
 func getPartitionWriter(t *testing.T) *writer {
 	logger := log.NewNopLogger()
-	cycleEndTs := uint64(time.Now().Unix())
+	cycleEndTs := uint64(time.Now().Add(2 * time.Minute).Unix())
+	startTime := time.Now()
 	blockCfg := BlockConfig{}
 	tmpDir := t.TempDir()
 	w, err := wal.New(&wal.Config{
@@ -26,7 +27,7 @@ func getPartitionWriter(t *testing.T) *writer {
 	})
 	require.NoError(t, err)
 
-	return newPartitionSectionWriter(logger, 1, cycleEndTs, blockCfg, &mockOverrides{}, w, encoding.DefaultEncoding())
+	return newPartitionSectionWriter(logger, 1, cycleEndTs, startTime, blockCfg, &mockOverrides{}, w, encoding.DefaultEncoding())
 }
 
 func TestPushBytes(t *testing.T) {
@@ -39,7 +40,7 @@ func TestPushBytes(t *testing.T) {
 	endTime := uint64(now.Add(time.Second).UnixNano())
 	req := test.MakePushBytesRequest(t, 1, traceID, startTime, endTime)
 
-	err := pw.pushBytes(tenant, req, now)
+	err := pw.pushBytes(tenant, req)
 	require.NoError(t, err)
 }
 
@@ -53,7 +54,7 @@ func TestPushBytes_UnmarshalError(t *testing.T) {
 		Traces: []tempopb.PreallocBytes{{Slice: []byte{1, 2}}},
 	}
 
-	err := pw.pushBytes(tenant, req, time.Now())
+	err := pw.pushBytes(tenant, req)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to unmarshal trace")
 }

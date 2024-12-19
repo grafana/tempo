@@ -18,7 +18,7 @@ import (
 )
 
 type partitionSectionWriter interface {
-	pushBytes(tenant string, req *tempopb.PushBytesRequest, startTime time.Time) error
+	pushBytes(tenant string, req *tempopb.PushBytesRequest) error
 	flush(ctx context.Context, store tempodb.Writer) error
 }
 
@@ -27,6 +27,7 @@ type writer struct {
 
 	blockCfg              BlockConfig
 	partition, cycleEndTs uint64
+	startTime             time.Time
 
 	overrides Overrides
 	wal       *wal.WAL
@@ -36,11 +37,12 @@ type writer struct {
 	m   map[string]*tenantStore
 }
 
-func newPartitionSectionWriter(logger log.Logger, partition, cycleEndTs uint64, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
+func newPartitionSectionWriter(logger log.Logger, partition, cycleEndTs uint64, startTime time.Time, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
 	return &writer{
 		logger:     logger,
 		partition:  partition,
 		cycleEndTs: cycleEndTs,
+		startTime:  startTime,
 		blockCfg:   blockCfg,
 		overrides:  overrides,
 		wal:        wal,
@@ -50,7 +52,7 @@ func newPartitionSectionWriter(logger log.Logger, partition, cycleEndTs uint64, 
 	}
 }
 
-func (p *writer) pushBytes(tenant string, req *tempopb.PushBytesRequest, startTime time.Time) error {
+func (p *writer) pushBytes(tenant string, req *tempopb.PushBytesRequest) error {
 	level.Debug(p.logger).Log(
 		"msg", "pushing bytes",
 		"tenant", tenant,
@@ -68,7 +70,7 @@ func (p *writer) pushBytes(tenant string, req *tempopb.PushBytesRequest, startTi
 		if err := proto.Unmarshal(trace.Slice, tr); err != nil {
 			return fmt.Errorf("failed to unmarshal trace: %w", err)
 		}
-		if err := i.AppendTrace(req.Ids[j], tr, startTime); err != nil {
+		if err := i.AppendTrace(req.Ids[j], tr, p.startTime); err != nil {
 			return err
 		}
 	}
