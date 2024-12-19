@@ -90,7 +90,7 @@ querier:
   This will cause the ingester to more aggressively and correctly refuse traces. Also added two metrics to better track bytes consumed per tenant in the ingester.
   `tempo_metrics_generator_live_trace_bytes` and `tempo_ingester_live_trace_bytes`.
 * [ENHANCEMENT] Update Azurite image. [#4298](https://github.com/grafana/tempo/pull/4464) (@javiermolinar)
-* [ENHANCEMENT] Update golang.org/x/crypto [#4298](https://github.com/grafana/tempo/pull/4464) (@javiermolinar)
+* [ENHANCEMENT] Update golang.org/x/crypto [#4474](https://github.com/grafana/tempo/pull/4474) (@javiermolinar)
 * [BUGFIX] Handle invalid TraceQL query filter in tag values v2 disk cache [#4392](https://github.com/grafana/tempo/pull/4392) (@electron0zero)
 * [BUGFIX] Replace hedged requests roundtrips total with a counter. [#4063](https://github.com/grafana/tempo/pull/4063) [#4078](https://github.com/grafana/tempo/pull/4078) (@galalen)
 * [BUGFIX] Metrics generators: Correctly drop from the ring before stopping ingestion to reduce drops during a rollout. [#4101](https://github.com/grafana/tempo/pull/4101) (@joe-elliott)
