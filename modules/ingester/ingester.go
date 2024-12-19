@@ -100,7 +100,7 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 
 	i.local = store.WAL().LocalBackend()
 
-	lc, err := ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", cfg.OverrideRingKey, true, log.Logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
+	lc, err := ring.NewLifecycler(cfg.LifecyclerConfig, nil, "ingester", cfg.OverrideRingKey, true, log.Logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
 	if err != nil {
 		return nil, fmt.Errorf("NewLifecycler failed: %w", err)
 	}
@@ -142,8 +142,10 @@ func (i *Ingester) starting(ctx context.Context) error {
 		return fmt.Errorf("failed to start lifecycle: %w", err)
 	}
 
+	// accept traces
 	i.pushErr.Store(nil)
 
+	// start flushing traces to wal
 	close(i.cutToWalStart)
 
 	return nil
@@ -160,38 +162,26 @@ func (i *Ingester) loop(ctx context.Context) error {
 
 // stopping is run when ingester is asked to stop
 func (i *Ingester) stopping(_ error) error {
-	level.Warn(log.Logger).Log("msg", "+++ begin stopping")
-
 	i.markUnavailable()
-
-	level.Warn(log.Logger).Log("msg", "+++ mark unavailable done")
 
 	// signal all cutting to wal to stop and wait for all goroutines to finish
 	close(i.cutToWalStop)
 	i.cutToWalWg.Wait()
 
-	level.Warn(log.Logger).Log("msg", "+++ cutting to wal done")
-
 	if i.cfg.FlushAllOnShutdown {
-		// force all in memory traces to be flushed to disk AND flush them to the backend
+		// force all in memory traces to be flushed to disk AND fully flush them to the backend
 		i.flushRemaining()
 	} else {
 		// force all in memory traces to be flushed to disk
 		i.cutAllInstancesToWal()
 	}
 
-	level.Warn(log.Logger).Log("msg", "+++ flush remaining done")
-
 	if i.flushQueues != nil {
 		i.flushQueues.Stop()
 		i.flushQueuesDone.Wait()
 	}
 
-	level.Warn(log.Logger).Log("msg", "+++ flush queues done")
-
 	i.local.Shutdown()
-
-	level.Warn(log.Logger).Log("msg", "+++ local backend done")
 
 	return nil
 }
@@ -219,7 +209,7 @@ func (i *Ingester) markUnavailable() {
 	}
 
 	// This will prevent us accepting any more samples
-	i.stopIncomingRequests()
+	i.pushErr.Store(ErrShuttingDown)
 }
 
 // PushBytes implements tempopb.Pusher.PushBytes. Traces pushed to this endpoint are expected to be in the formats
@@ -370,19 +360,6 @@ func (i *Ingester) getInstances() []*instance {
 		instances = append(instances, instance)
 	}
 	return instances
-}
-
-// stopIncomingRequests implements ring.Lifecycler.
-func (i *Ingester) stopIncomingRequests() {
-	i.instancesMtx.Lock() // jpe - why locking?
-	defer i.instancesMtx.Unlock()
-
-	i.pushErr.Store(ErrShuttingDown)
-}
-
-// TransferOut implements ring.Lifecycler.
-func (i *Ingester) TransferOut(context.Context) error {
-	return ring.ErrTransferDisabled
 }
 
 func (i *Ingester) replayWal() error {

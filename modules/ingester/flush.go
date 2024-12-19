@@ -72,20 +72,6 @@ const (
 	opKindFlush
 )
 
-// Flush triggers a flush of all in memory traces to disk.  This is called
-// by the lifecycler on shutdown and will put our traces in the WAL to be
-// replayed.
-func (i *Ingester) Flush() {
-	instances := i.getInstances()
-
-	for _, instance := range instances {
-		err := instance.CutCompleteTraces(0, true)
-		if err != nil {
-			level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to cut complete traces on shutdown", "err", err)
-		}
-	}
-}
-
 // ShutdownHandler handles a graceful shutdown for an ingester. It does the following things in order
 // * Stop incoming writes by exiting from the ring
 // * Flush all blocks to backend
@@ -159,18 +145,13 @@ func (i *Ingester) cutToWalLoop(instance *instance) {
 	go func() {
 		defer i.cutToWalWg.Done()
 
-		level.Warn(log.Logger).Log("msg", "+++ flush loop created", "tenant", instance.instanceID)
-
 		// wait for the signal to start. we need the wal to be completely replayed
 		// before we start cutting to WAL
 		select {
 		case <-i.cutToWalStart:
 		case <-i.cutToWalStop:
-			level.Warn(log.Logger).Log("msg", "+++ flush loop stopped before started", "tenant", instance.instanceID)
 			return
 		}
-
-		level.Warn(log.Logger).Log("msg", "+++ flush loop started", "tenant", instance.instanceID)
 
 		// ticker
 		ticker := time.NewTicker(i.cfg.FlushCheckPeriod)
@@ -179,10 +160,8 @@ func (i *Ingester) cutToWalLoop(instance *instance) {
 		for {
 			select {
 			case <-ticker.C:
-				level.Warn(log.Logger).Log("msg", "+++ flush loop cutting instance", "tenant", instance.instanceID)
 				i.cutOneInstanceToWal(instance, false)
 			case <-i.cutToWalStop:
-				level.Warn(log.Logger).Log("msg", "+++ flush loop stopped", "tenant", instance.instanceID)
 				return
 			}
 		}
@@ -243,6 +222,7 @@ func (i *Ingester) flushLoop(j int) {
 			level.Warn(log.Logger).Log("msg", "+++ flush loop received nil and exiting")
 			return
 		}
+
 		op := o.(*flushOp)
 		op.attempts++
 
@@ -295,7 +275,6 @@ func (i *Ingester) handleComplete(ctx context.Context, op *flushOp) (retry bool,
 	}
 
 	start := time.Now()
-	level.Info(log.Logger).Log("msg", "completing block", "tenant", op.userID, "blockID", op.blockID)
 	instance, err := i.getOrCreateInstance(op.userID)
 	if err != nil {
 		return false, err
