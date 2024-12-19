@@ -166,15 +166,18 @@ func (i *Ingester) stopping(_ error) error {
 
 	level.Warn(log.Logger).Log("msg", "+++ mark unavailable done")
 
-	// signal all cutting to wal to stop and wait
+	// signal all cutting to wal to stop and wait for all goroutines to finish
 	close(i.cutToWalStop)
 	i.cutToWalWg.Wait()
 
 	level.Warn(log.Logger).Log("msg", "+++ cutting to wal done")
 
-	// flush any remaining traces
 	if i.cfg.FlushAllOnShutdown {
+		// force all in memory traces to be flushed to disk AND flush them to the backend
 		i.flushRemaining()
+	} else {
+		// force all in memory traces to be flushed to disk
+		i.cutAllInstancesToWal()
 	}
 
 	level.Warn(log.Logger).Log("msg", "+++ flush remaining done")
