@@ -237,25 +237,25 @@ func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expected
 	blocklist := rw.blocklist.Metas(testTenantID)
 	require.Len(t, blocklist, expectedB)
 	if expectedB > 0 && expectedID != uuid.Nil {
-		assert.Equal(t, expectedID, (uuid.UUID)(blocklist[0].BlockID))
+		require.Equal(t, expectedID, (uuid.UUID)(blocklist[0].BlockID))
 	}
 
 	// confirm blocklists are in starttime ascending order
 	lastTime := time.Time{}
 	for _, b := range blocklist {
-		assert.True(t, lastTime.Before(b.StartTime) || lastTime.Equal(b.StartTime))
+		require.True(t, lastTime.Before(b.StartTime) || lastTime.Equal(b.StartTime))
 		lastTime = b.StartTime
 	}
 
 	compactedBlocklist := rw.blocklist.CompactedMetas(testTenantID)
-	assert.Len(t, compactedBlocklist, expectedCB)
+	require.Len(t, compactedBlocklist, expectedCB)
 	if expectedCB > 0 && expectedID != uuid.Nil {
-		assert.Equal(t, expectedID, (uuid.UUID)(compactedBlocklist[0].BlockID))
+		require.Equal(t, expectedID, (uuid.UUID)(compactedBlocklist[0].BlockID))
 	}
 
 	lastTime = time.Time{}
 	for _, b := range compactedBlocklist {
-		assert.True(t, lastTime.Before(b.StartTime) || lastTime.Equal(b.StartTime))
+		require.True(t, lastTime.Before(b.StartTime) || lastTime.Equal(b.StartTime))
 		lastTime = b.StartTime
 	}
 }
@@ -547,7 +547,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	// compact
 	var blockMetas []*backend.BlockMeta
 	blockMetas = append(blockMetas, complete.BlockMeta())
-	require.NoError(t, rw.compact(ctx, blockMetas, testTenantID))
+	require.NoError(t, rw.compactOneJob(ctx, blockMetas, testTenantID))
 
 	// poll
 	rw.pollBlocklist()

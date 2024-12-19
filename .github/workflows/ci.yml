@@ -19,8 +19,9 @@ concurrency:
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
+
       - name: Check out code
         uses: actions/checkout@v4
         with:
@@ -29,18 +30,32 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
+
       - name: check-fmt
         run: make check-fmt
 
       - name: check-jsonnetfmt
         run: make check-jsonnetfmt
 
+      - name: Get year and week number
+        id: get-year-week-number
+        run: echo "date=$(date +"%Yweek%U")" >> $GITHUB_OUTPUT
+
+      - name: cache golangci
+        uses: actions/cache@v4
+        with:
+          path: .cache/golangci-lint
+          key: golangci-lint-${{ runner.os }}-${{ steps.get-year-week-number.outputs.date }}-${{ hashFiles('go.mod', '.golangci.yml') }}
+
       - name: lint
-        run: make lint base=origin/${{github.base_ref}}
+        run: |
+          make lint base=origin/${{github.base_ref}}
+          sudo chown -R $(id -u):$(id -g) .cache/golangci-lint  # needed to archive cache
+
 
   unit-tests:
     name: Run Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         test-target:
@@ -65,7 +80,7 @@ jobs:
 
   integration-tests:
     name: Run integration tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         test-target:
@@ -90,7 +105,7 @@ jobs:
 
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -103,6 +118,9 @@ jobs:
       - name: Build Tempo
         run: make tempo
 
+      - name: generate-manifest
+        run: make generate-manifest
+
       - name: Build tempo-query
         run: make tempo-query
 
@@ -114,7 +132,7 @@ jobs:
 
   benchmark:
     name: Benchmark
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -129,7 +147,7 @@ jobs:
 
   vendor-check:
     name: Vendor check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -147,7 +165,7 @@ jobs:
 
   tempo-jsonnet:
     name: Check jsonnet & tempo-mixin
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -168,7 +186,7 @@ jobs:
 
   build-technical-documentation:
     name: Build technical documentation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out code
         uses: actions/checkout@v4

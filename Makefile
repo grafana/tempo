@@ -171,9 +171,9 @@ check-jsonnetfmt: jsonnetfmt
 .PHONY: lint
 lint: # linting
 ifneq ($(base),)
-	$(TOOLS_CMD) $(LINT) run --config .golangci.yml --new-from-rev=$(base)
+	$(LINT_CMD) $(LINT) run --config .golangci.yml --new-from-rev=$(base)
 else
-	$(TOOLS_CMD) $(LINT) run --config .golangci.yml
+	$(LINT_CMD) $(LINT) run --config .golangci.yml
 endif
 
 ##@ Docker Images
@@ -372,6 +372,9 @@ ifndef DRONE_TOKEN
 endif
 	DRONE_SERVER=https://drone.grafana.net drone sign --save grafana/tempo .drone/drone.yml
 
+.PHONY: generate-manifest
+generate-manifest:
+	GO111MODULE=on CGO_ENABLED=0 go run -v pkg/docsgen/generate_manifest.go
 
 # Import fragments
 include build/tools.mk

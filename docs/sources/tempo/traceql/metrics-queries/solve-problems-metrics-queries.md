@@ -6,6 +6,12 @@ weight: 600
 keywords:
   - metrics query
   - TraceQL metrics
+refs:
+  metrics-generator:
+    - pattern: /docs/tempo/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/
+    - pattern: /docs/enterprise-traces/
+      destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/metrics-generator/
 ---
 
 # Solve problems with trace metrics queries
@@ -18,8 +24,9 @@ This page provides an example of how you can investigate the rate of incoming re
 ## RED metrics and queries
 
 The Tempo metrics-generator emits metrics with pre-configured labels for Rate, Error, and Duration (RED) metrics and service graph edges.
-Generated metric labels vary, but always include the service name (in service graph metrics, as a client and/or a server type).
-For more information, refer to the [metrics-generator documentation](../../metrics-generator/).
+Generated metric labels vary, but always include the service name.
+For example, in service graph metrics, as a client or a server type, or both.
+For more information, refer to the [metrics-generator documentation](ref:metrics-generator).
 
 You can use these metrics to get an overview of application performance.
 The metrics can be directly correlated to the trace spans that are available for querying.
@@ -27,7 +34,8 @@ The metrics can be directly correlated to the trace spans that are available for
 TraceQL metrics allow a user to query metrics from traces directly from Tempo instead of requiring the metrics-generator component and an accompanying TSDB.
 
 {{< admonition type="note" >}}
-TraceQL metrics are constrained to a 24-hour range window, and aren't available as a Grafana Managed Alerts source. For any metrics that you want to query over longer time ranges, use for alerting, or retain for more than 30 days, use the metrics-generator to store these metrics in Prometheus, Mimir, or other Prometheus-compatible TSDB and continue to use PromQL for querying.
+TraceQL metrics are constrained to a 24-hour range window, and aren't available as a Grafana Managed Alerts source.
+For any metrics that you want to query over longer time ranges, use for alerting, or retain for more than 30 days, use the metrics-generator to store these metrics in Prometheus, Mimir, or other Prometheus-compatible TSDB and continue to use PromQL for querying.
 {{< /admonition >}}
 
 ## Investigate the rate of incoming requests

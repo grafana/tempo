@@ -50,7 +50,7 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 	}
 	err = q.forGivenGenerators(ctx, replicationSet, forEach)
 	if err != nil {
-		_ = level.Error(log.Logger).Log("error querying generators in Querier.queryRangeRecent", "err", err)
+		_ = level.Error(log.Logger).Log("msg", "error querying generators in Querier.queryRangeRecent", "err", err)
 		return nil, fmt.Errorf("error querying generators in Querier.queryRangeRecent: %w", err)
 	}
 
