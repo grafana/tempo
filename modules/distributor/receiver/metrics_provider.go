@@ -75,7 +75,7 @@ func (mp *MeterProvider) Meter(string, ...metric.MeterOption) metric.Meter {
 
 // Meter is an OpenTelemetry No-Op Meter.
 type Meter struct {
-	// embed the noop Meter, this provides noop for all methods we don't implement ourselves
+	// embed the noop Meter, this provides noop implementations for all methods we don't implement ourselves
 	noop.Meter
 	metrics *metrics
 }
