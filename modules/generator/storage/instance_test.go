@@ -75,13 +75,12 @@ func TestInstance(t *testing.T) {
 	})
 
 	// Wait until remote.Storage has tried at least once to send data
-	err = waitUntil(20*time.Second, func() bool {
+	test.Poll(t, 30*time.Second, true, func() interface{} {
 		mockServer.mtx.Lock()
 		defer mockServer.mtx.Unlock()
 
 		return mockServer.refusedRequests > 0
 	})
-	require.NoError(t, err, "timed out while waiting for refused requests")
 
 	// Allow requests
 	mockServer.refuseRequests.Store(false)
@@ -239,13 +238,12 @@ func TestInstance_remoteWriteHeaders(t *testing.T) {
 	})
 
 	// Wait until remote.Storage has tried at least once to send data
-	err = waitUntil(20*time.Second, func() bool {
+	test.Poll(t, 30*time.Second, true, func() interface{} {
 		mockServer.mtx.Lock()
 		defer mockServer.mtx.Unlock()
 
 		return mockServer.refusedRequests > 0
 	})
-	require.NoError(t, err, "timed out while waiting for refused requests")
 
 	// Allow requests
 	mockServer.refuseRequests.Store(false)
@@ -346,22 +344,6 @@ func poll(ctx context.Context, interval time.Duration, f func()) {
 		case <-ticker.C:
 			f()
 		}
-	}
-}
-
-// waitUntil executes f until it returns true or timeout is reached.
-func waitUntil(timeout time.Duration, f func() bool) error {
-	start := time.Now()
-
-	for {
-		if f() {
-			return nil
-		}
-		if time.Since(start) > timeout {
-			return fmt.Errorf("timed out while waiting for condition")
-		}
-
-		time.Sleep(50 * time.Millisecond)
 	}
 }
 
