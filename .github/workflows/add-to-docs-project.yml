@@ -10,6 +10,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: grafana/writers-toolkit/add-to-docs-project@add-to-docs-project/v1

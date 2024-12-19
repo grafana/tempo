@@ -103,7 +103,7 @@ func (i *Ingester) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVa
 		return &tempopb.SearchTagValuesResponse{}, nil
 	}
 
-	res, err = inst.SearchTagValues(ctx, req.TagName)
+	res, err = inst.SearchTagValues(ctx, req.TagName, req.MaxTagValues, req.StaleValueThreshold)
 	if err != nil {
 		return nil, err
 	}

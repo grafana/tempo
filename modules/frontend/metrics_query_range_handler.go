@@ -25,13 +25,16 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
 
 	return func(req *tempopb.QueryRangeRequest, srv tempopb.StreamingQuerier_MetricsQueryRangeServer) error {
+		ctx := srv.Context()
+
+		headers := headersFromGrpcContext(ctx)
+
 		httpReq := api.BuildQueryRangeRequest(&http.Request{
 			URL:    &url.URL{Path: downstreamPath},
-			Header: http.Header{},
+			Header: headers,
 			Body:   io.NopCloser(bytes.NewReader([]byte{})),
 		}, req, "") // dedicated cols are never passed from the caller
 
-		ctx := srv.Context()
 		httpReq = httpReq.WithContext(ctx)
 		tenant, _ := user.ExtractOrgID(ctx)
 		start := time.Now()

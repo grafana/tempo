@@ -48,6 +48,23 @@ This overhead increases with the number of Alloy instances that share the same t
 
 <p align="center"><img src="../tempo-tail-based-sampling.svg" alt="Tail-based sampling overview"></p>
 
+### Sampling load balancing
+
+Tail sampling load balancing is usually carried out by running two layers of collectors, the first layer receiving the telemetry data (in this case trace spans), and then distributing these to the second layer that carry out the sampling policies.
+
+Alloy includes a [load balancing export](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.exporter.loadbalancing/) that can carry out routing to further collector targets based on a set number of keys (in the case of trace sampling, the `traceID` key).
+Alloy uses the OpenTelemetry load balancing exporter.
+
+The routing key ensures that a specific collector in the second layer always deals with spans from the same trace ID, ensuring that sampling decisions are made correctly.
+There is functionality to configure the exporter with targets via a few different methods.
+This includes static IPs, multi-IP DNS A record entries, and a Kubernetes headless service resolver.
+This has the advantage of allowing you to scale up/down the number of layer two collectors.
+
+There are some important points to note with the load balancer exporter around scaling and resilience, mostly around its eventual consistency model. For more infortmation, refer to [Resiliance and scaling considerations](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/loadbalancingexporter/README.md#resilience-and-scaling-considerations).
+The most important in terms of tail sampling is that routing occurs based on an algorithm taking into account the number of backends available to the load balancer, and this can affect the target for trace ID spans before eventual consistency occurs.
+
+For an example manifest for a two layer OTel Collector deployment based around Kubernetes services, refer to the [K8s resolver README](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/loadbalancingexporter/example/k8s-resolver/README.md).
+
 ## Configure tail-based sampling
 
 To start using tail-based sampling, define a sampling policy in your configuration file.

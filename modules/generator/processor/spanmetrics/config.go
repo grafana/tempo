@@ -22,6 +22,8 @@ const (
 	dimInstance      = "instance"
 )
 
+var intrinsicLabels = []string{dimService, dimSpanName, dimSpanKind, dimStatusCode, dimStatusMessage}
+
 type Config struct {
 	// Buckets for latency histogram in seconds.
 	HistogramBuckets []float64 `yaml:"histogram_buckets"`

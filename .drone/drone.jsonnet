@@ -208,29 +208,6 @@ local deploy_to_dev() = {
     ],
   },
 ] + [
-  // Publish tools Docker manifests
-  (
-    pipeline('docker-ci-tools-%s' % arch, arch) {
-      steps+: [
-        image_tag(arch),
-        docker_build(arch, 'tempo-ci-tools', dockerfile='tools/Dockerfile'),
-      ],
-    }
-  )
-  for arch in archs
-] + [
-  // Publish Docker manifests
-  pipeline('manifest-ci-tools') {
-    steps+: [
-      image_tag(),
-      docker_manifest('tempo-ci-tools'),
-    ],
-    depends_on+: [
-      'docker-ci-tools-%s' % arch
-      for arch in archs
-    ],
-  },
-] + [
   // Continuously Deploy to dev env
   pipeline('cd-to-dev-env') {
     trigger: {

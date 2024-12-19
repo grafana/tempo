@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/backend/local"
 )
 
 var (
@@ -1032,6 +1033,135 @@ func BenchmarkPoller10k(b *testing.B) {
 	}
 }
 
+func BenchmarkFullPoller(b *testing.B) {
+	cases := []struct {
+		name            string
+		tenants         int
+		blocksPerTenant int
+		iterations      int
+		blocksPer       int
+		compactionsPer  int
+	}{
+		{
+			name: "no tenants",
+		},
+		{
+			name:            "single tenant",
+			tenants:         1,
+			blocksPerTenant: 1000,
+		},
+		{
+			name:            "multi tenant",
+			tenants:         10,
+			blocksPerTenant: 1000,
+		},
+		{
+			name:            "multi tenant growth",
+			tenants:         10,
+			blocksPerTenant: 1000,
+			iterations:      10,
+			blocksPer:       100,
+		},
+		{
+			name:            "multi tenant growth and compactions",
+			tenants:         10,
+			blocksPerTenant: 1000,
+			iterations:      10,
+			blocksPer:       100,
+			compactionsPer:  10,
+		},
+	}
+
+	for _, bc := range cases {
+		b.Run(fmt.Sprintf("%sTenants%dBlocks%dGrow%dCompactions%d", bc.name, bc.tenants, bc.blocksPerTenant, bc.blocksPer, bc.compactionsPer), func(b *testing.B) {
+			s := &mockJobSharder{owns: true}
+
+			d := b.TempDir()
+			defer os.RemoveAll(d)
+
+			rr, ww, cc, err := local.New(&local.Config{
+				Path: d,
+			})
+			require.NoError(b, err)
+
+			var (
+				ctx = context.Background()
+				r   = backend.NewReader(rr)
+				w   = backend.NewWriter(ww)
+				// c   = backend.NewCompactor(cc)
+			)
+
+			poller := NewPoller(&PollerConfig{
+				PollConcurrency:       testPollConcurrency,
+				TenantPollConcurrency: testTenantPollConcurrency,
+				PollFallback:          testPollFallback,
+				TenantIndexBuilders:   testBuilders,
+			}, s, r, cc, w, log.NewNopLogger())
+
+			// Create the tenants and push the initial blocks to them.
+			tenants := make([]string, bc.tenants)
+			for i := 0; i < bc.tenants; i++ {
+				tenant := fmt.Sprintf("tenant-%d", i)
+				tenants = append(tenants, tenant)
+				writeNewBlocksForTenant(ctx, b, w, tenant, bc.blocksPerTenant)
+			}
+
+			var (
+				ml   = PerTenant{}
+				cl   = PerTenantCompacted{}
+				list = New()
+			)
+
+			b.Run("initial", func(b *testing.B) {
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					ml, cl, _ = poller.Do(list)
+				}
+				b.StopTimer()
+
+				list.ApplyPollResults(ml, cl)
+			})
+
+			// No change to the list
+			b.Run("second", func(b *testing.B) {
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					ml, cl, _ = poller.Do(list)
+				}
+				b.StopTimer()
+
+				list.ApplyPollResults(ml, cl)
+			})
+
+			for i := 0; i < bc.iterations; i++ {
+				// push more blocks to the tenants
+				for _, tenant := range tenants {
+					writeNewBlocksForTenant(ctx, b, w, tenant, bc.blocksPer)
+				}
+
+				// Compact some blocks
+				for tenant, blocks := range ml {
+					blocksToCompact := blocks[:bc.compactionsPer]
+					for _, block := range blocksToCompact {
+						err := cc.MarkBlockCompacted(uuid.UUID(block.BlockID), tenant)
+						require.NoError(b, err)
+					}
+				}
+
+				b.Run(fmt.Sprintf("grow%d", i), func(b *testing.B) {
+					b.ResetTimer()
+					for i := 0; i < b.N; i++ {
+						ml, cl, _ = poller.Do(list)
+					}
+					b.StopTimer()
+
+					list.ApplyPollResults(ml, cl)
+				})
+			}
+		})
+	}
+}
+
 func benchmarkPollTenant(b *testing.B, poller *Poller, tenant string, previous *List) {
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
@@ -1040,11 +1170,24 @@ func benchmarkPollTenant(b *testing.B, poller *Poller, tenant string, previous *
 	}
 }
 
-func newBlockMetas(count int) []*backend.BlockMeta {
+func writeNewBlocksForTenant(ctx context.Context, b *testing.B, w backend.Writer, tenant string, count int) {
+	var (
+		err   error
+		metas = newBlockMetas(count, tenant)
+	)
+
+	for _, m := range metas {
+		err = w.WriteBlockMeta(ctx, m)
+		require.NoError(b, err)
+	}
+}
+
+func newBlockMetas(count int, tenantID string) []*backend.BlockMeta {
 	metas := make([]*backend.BlockMeta, count)
 	for i := 0; i < count; i++ {
 		metas[i] = &backend.BlockMeta{
-			BlockID: backend.NewUUID(),
+			BlockID:  backend.NewUUID(),
+			TenantID: tenantID,
 		}
 	}
 
@@ -1075,11 +1218,15 @@ func randString(n int) string {
 }
 
 func newPerTenant(tenantCount, blockCount int) PerTenant {
-	perTenant := make(PerTenant, tenantCount)
-	var metas []*backend.BlockMeta
-	var id string
+	var (
+		perTenant = make(PerTenant, tenantCount)
+		metas     []*backend.BlockMeta
+		id        string
+		tenant    string
+	)
 	for i := 0; i < tenantCount; i++ {
-		metas = newBlockMetas(blockCount)
+		tenant = fmt.Sprintf("tenant-%d", i)
+		metas = newBlockMetas(blockCount, tenant)
 		id = randString(5)
 		perTenant[id] = metas
 	}
