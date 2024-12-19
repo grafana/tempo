@@ -4,8 +4,6 @@
 package otelzap // import "go.opentelemetry.io/contrib/bridges/otelzap"
 
 import (
-	"fmt"
-	"reflect"
 	"time"
 
 	"go.uber.org/zap/zapcore"
@@ -33,8 +31,8 @@ type objectEncoder struct {
 	cur *namespace
 }
 
-func newObjectEncoder(len int) *objectEncoder {
-	keyval := make([]log.KeyValue, 0, len)
+func newObjectEncoder(n int) *objectEncoder {
+	keyval := make([]log.KeyValue, 0, n)
 	m := &namespace{
 		attrs: keyval,
 	}
@@ -274,56 +272,3 @@ func (a *arrayEncoder) AppendUint32(v uint32)          { a.AppendInt64(int64(v))
 func (a *arrayEncoder) AppendUint16(v uint16)          { a.AppendInt64(int64(v)) }
 func (a *arrayEncoder) AppendUint8(v uint8)            { a.AppendInt64(int64(v)) }
 func (a *arrayEncoder) AppendUintptr(v uintptr)        { a.AppendUint64(uint64(v)) }
-
-func convertValue(v interface{}) log.Value {
-	switch v := v.(type) {
-	case bool:
-		return log.BoolValue(v)
-	case []byte:
-		return log.BytesValue(v)
-	case float64:
-		return log.Float64Value(v)
-	case int:
-		return log.IntValue(v)
-	case int64:
-		return log.Int64Value(v)
-	case string:
-		return log.StringValue(v)
-	}
-
-	t := reflect.TypeOf(v)
-	if t == nil {
-		return log.Value{}
-	}
-	val := reflect.ValueOf(v)
-	switch t.Kind() {
-	case reflect.Struct:
-		return log.StringValue(fmt.Sprintf("%+v", v))
-	case reflect.Slice, reflect.Array:
-		items := make([]log.Value, 0, val.Len())
-		for i := 0; i < val.Len(); i++ {
-			items = append(items, convertValue(val.Index(i).Interface()))
-		}
-		return log.SliceValue(items...)
-	case reflect.Map:
-		kvs := make([]log.KeyValue, 0, val.Len())
-		for _, k := range val.MapKeys() {
-			var key string
-			// If the key is a struct, use %+v to print the struct fields.
-			if k.Kind() == reflect.Struct {
-				key = fmt.Sprintf("%+v", k.Interface())
-			} else {
-				key = fmt.Sprintf("%v", k.Interface())
-			}
-			kvs = append(kvs, log.KeyValue{
-				Key:   key,
-				Value: convertValue(val.MapIndex(k).Interface()),
-			})
-		}
-		return log.MapValue(kvs...)
-	case reflect.Ptr, reflect.Interface:
-		return convertValue(val.Elem().Interface())
-	}
-
-	return log.StringValue(fmt.Sprintf("unhandled attribute type: (%s) %+v", t, v))
-}
