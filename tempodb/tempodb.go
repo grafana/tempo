@@ -622,10 +622,10 @@ func includeBlock(b *backend.BlockMeta, _ common.ID, blockStart, blockEnd []byte
 
 	if rf1After.IsZero() {
 		return b.ReplicationFactor == backend.DefaultReplicationFactor
-	} else {
-		return (b.StartTime.Before(rf1After) && b.ReplicationFactor == backend.DefaultReplicationFactor) ||
-			(b.StartTime.After(rf1After) && b.ReplicationFactor == 1)
 	}
+
+	return (b.StartTime.Before(rf1After) && b.ReplicationFactor == backend.DefaultReplicationFactor) ||
+		(b.StartTime.After(rf1After) && b.ReplicationFactor == 1)
 }
 
 // if block is compacted within lookback period, and is within shard ranges, include it in search
