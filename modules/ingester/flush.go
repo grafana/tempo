@@ -303,11 +303,13 @@ func (i *Ingester) handleComplete(ctx context.Context, op *flushOp) (retry bool,
 
 	// add a flushOp for the block we just completed
 	// No delay
-	i.enqueue(&flushOp{
-		kind:    opKindFlush,
-		userID:  instance.instanceID,
-		blockID: op.blockID,
-	}, false)
+	if i.cfg.FlushObjectStorage {
+		i.enqueue(&flushOp{
+			kind:    opKindFlush,
+			userID:  instance.instanceID,
+			blockID: op.blockID,
+		}, false)
+	}
 
 	return false, nil
 }

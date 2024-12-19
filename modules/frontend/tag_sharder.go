@@ -257,7 +257,7 @@ func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, 
 	// get block metadata of blocks in start, end duration
 	startT := time.Unix(int64(start), 0)
 	endT := time.Unix(int64(end), 0)
-	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), startT, endT, backend.DefaultReplicationFactor)
+	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), startT, endT, func(m *backend.BlockMeta) bool { return m.ReplicationFactor == backend.DefaultReplicationFactor })
 
 	targetBytesPerRequest := s.cfg.TargetBytesPerRequest
 
