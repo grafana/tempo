@@ -97,7 +97,7 @@ func (p *writer) instanceForTenant(tenant string) (*tenantStore, error) {
 		return i, nil
 	}
 
-	i, err := newTenantStore(tenant, p.partition, int64(p.endSectionTime.UnixMilli()), p.blockCfg, p.logger, p.wal, p.enc, p.overrides)
+	i, err := newTenantStore(tenant, p.partition, p.endSectionTime.UnixMilli(), p.blockCfg, p.logger, p.wal, p.enc, p.overrides)
 	if err != nil {
 		return nil, err
 	}
