@@ -106,13 +106,13 @@ func (s *tenantStore) resetHeadBlock() error {
 	return nil
 }
 
-func (s *tenantStore) AppendTrace(traceID []byte, tr *tempopb.Trace, startTime time.Time) error {
+func (s *tenantStore) AppendTrace(traceID []byte, tr *tempopb.Trace, startCicleTime, endCicleTime time.Time) error {
 	// TODO - Do this async, it slows down consumption
 	if err := s.cutHeadBlock(false); err != nil {
 		return err
 	}
 	start, end := getTraceTimeRange(tr)
-	start, end = s.adjustTimeRangeForSlack(startTime, start, end)
+	start, end = s.adjustTimeRangeForSlack(startCicleTime, endCicleTime, start, end)
 
 	return s.headBlock.AppendTrace(traceID, tr, uint32(start), uint32(end))
 }
@@ -136,18 +136,18 @@ func getTraceTimeRange(tr *tempopb.Trace) (startSeconds uint64, endSeconds uint6
 	return
 }
 
-func (s *tenantStore) adjustTimeRangeForSlack(startTime time.Time, start, end uint64) (uint64, uint64) {
-	startOfRange := uint64(startTime.Add(-s.headBlock.IngestionSlack()).Unix())
-	endOfRange := uint64(startTime.Add(s.headBlock.IngestionSlack()).Unix())
+func (s *tenantStore) adjustTimeRangeForSlack(startCicleTime, endCicleTime time.Time, start, end uint64) (uint64, uint64) {
+	startOfRange := uint64(startCicleTime.Add(-s.headBlock.IngestionSlack()).Unix())
+	endOfRange := uint64(endCicleTime.Add(s.headBlock.IngestionSlack()).Unix())
 
 	warn := false
 	if start < startOfRange {
 		warn = true
-		start = uint64(startTime.Unix())
+		start = uint64(startCicleTime.Unix())
 	}
 	if end > endOfRange || end < start {
 		warn = true
-		end = uint64(startTime.Unix())
+		end = uint64(endCicleTime.Unix())
 	}
 
 	if warn {
