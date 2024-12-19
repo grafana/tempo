@@ -35,6 +35,7 @@ type SearchSharderConfig struct {
 	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
 	QueryIngestersUntil   time.Duration `yaml:"query_ingesters_until,omitempty"`
 	IngesterShards        int           `yaml:"ingester_shards,omitempty"`
+	RF1After              time.Time     `yaml:"rf1_after"`
 }
 
 type asyncSearchSharder struct {
@@ -138,13 +139,25 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 
 // blockMetas returns all relevant blockMetas given a start/end
 func (s *asyncSearchSharder) blockMetas(start, end int64, tenantID string) []*backend.BlockMeta {
+	var rfCheck func(m *backend.BlockMeta) bool
+	if s.cfg.RF1After.IsZero() {
+		rfCheck = func(m *backend.BlockMeta) bool {
+			return m.ReplicationFactor == backend.DefaultReplicationFactor
+		}
+	} else {
+		rfCheck = func(m *backend.BlockMeta) bool {
+			return (m.ReplicationFactor == backend.DefaultReplicationFactor && m.StartTime.Before(s.cfg.RF1After)) ||
+				(m.ReplicationFactor == 1 && m.StartTime.After(s.cfg.RF1After))
+		}
+	}
+
 	// reduce metas to those in the requested range
 	allMetas := s.reader.BlockMetas(tenantID)
 	metas := make([]*backend.BlockMeta, 0, len(allMetas)/50) // divide by 50 for luck
 	for _, m := range allMetas {
 		if m.StartTime.Unix() <= end &&
 			m.EndTime.Unix() >= start &&
-			m.ReplicationFactor == backend.DefaultReplicationFactor { // This check skips generator blocks (RF=1)
+			rfCheck(m) {
 			metas = append(metas, m)
 		}
 	}
