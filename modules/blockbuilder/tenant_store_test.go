@@ -15,7 +15,7 @@ import (
 
 func getTenantStore(t *testing.T) (*tenantStore, error) {
 	logger := log.NewNopLogger()
-	cycleEndTs := time.Now().Unix()
+	cycleEndTs := uint64(time.Now().Unix())
 	blockCfg := BlockConfig{}
 	tmpDir := t.TempDir()
 	w, err := wal.New(&wal.Config{
