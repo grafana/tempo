@@ -28,9 +28,9 @@ import (
 var (
 	// Compile-time check this implements the OpenTelemetry API.
 
-	_ metric.MeterProvider = &MeterProvider{}
-	_ metric.Meter         = &Meter{}
-	_ metric.Int64Counter  = &Int64Counter{}
+	_ metric.MeterProvider = MeterProvider{}
+	_ metric.Meter         = Meter{}
+	_ metric.Int64Counter  = Int64Counter{}
 )
 
 type metrics struct {
@@ -60,14 +60,14 @@ type MeterProvider struct {
 }
 
 // NewMeterProvider returns a MeterProvider that does not record any telemetry.
-func NewMeterProvider(reg prometheus.Registerer) *MeterProvider {
-	return &MeterProvider{
+func NewMeterProvider(reg prometheus.Registerer) MeterProvider {
+	return MeterProvider{
 		metrics: newMetrics(reg),
 	}
 }
 
 // Meter returns an OpenTelemetry Meter that does not record any telemetry.
-func (mp *MeterProvider) Meter(string, ...metric.MeterOption) metric.Meter {
+func (mp MeterProvider) Meter(string, ...metric.MeterOption) metric.Meter {
 	return &Meter{
 		metrics: mp.metrics,
 	}
@@ -81,10 +81,10 @@ type Meter struct {
 }
 
 // Int64Counter returns a Counter used to record int64 measurements
-func (m *Meter) Int64Counter(name string, _ ...metric.Int64CounterOption) (metric.Int64Counter, error) {
+func (m Meter) Int64Counter(name string, _ ...metric.Int64CounterOption) (metric.Int64Counter, error) {
 	switch name {
 	case "receiver_accepted_spans", "receiver_refused_spans":
-		return &Int64Counter{Name: name, metrics: m.metrics}, nil
+		return Int64Counter{Name: name, metrics: m.metrics}, nil
 	default:
 		return noop.Int64Counter{}, nil
 	}
@@ -97,7 +97,7 @@ type Int64Counter struct {
 	metrics *metrics
 }
 
-func (r *Int64Counter) Add(_ context.Context, value int64, options ...metric.AddOption) {
+func (r Int64Counter) Add(_ context.Context, value int64, options ...metric.AddOption) {
 	// don't do anything for metrics that we don't care
 	if r.Name == "" {
 		return
