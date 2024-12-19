@@ -17,11 +17,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+
+  changes:
+    # This job is used to determine if the changes are only in the `.drone` directory.
+    runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: read
+    outputs:
+      not_only_github: ${{ steps.filter.outputs.not_only_github }}
+    steps:
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          predicate-quantifier: every
+          filters: |
+            not_only_github:
+              - '!.github/**'
+
   lint:
+    needs: changes
+    if: ${{ needs.changes.outputs.not_only_github == 'true' }}
     name: Lint
     runs-on: ubuntu-24.04
     steps:
-
       - name: Check out code
         uses: actions/checkout@v4
         with:
@@ -54,6 +72,7 @@ jobs:
 
 
   unit-tests:
+    needs: changes
     name: Run Unit Tests
     runs-on: ubuntu-24.04
     strategy:
@@ -76,9 +95,11 @@ jobs:
           go-version-file: "go.mod"
 
       - name: Run Tests
+        if: ${{ needs.changes.outputs.not_only_github == 'true' }}
         run: make ${{ matrix.test-target }}
 
   integration-tests:
+    needs: changes
     name: Run integration tests
     runs-on: ubuntu-24.04
     strategy:
@@ -101,9 +122,12 @@ jobs:
         with:
           go-version-file: "go.mod"
       - name: Run Tests
+        if: ${{ needs.changes.outputs.not_only_github == 'true' }}
         run: make ${{ matrix.test-target }}
 
   build:
+    needs: changes
+    if: ${{ needs.changes.outputs.not_only_github == 'true' }}
     name: Build
     runs-on: ubuntu-24.04
     steps:
@@ -131,6 +155,8 @@ jobs:
         run: make tempo-cli
 
   benchmark:
+    needs: changes
+    if: ${{ needs.changes.outputs.not_only_github == 'true' }}
     name: Benchmark
     runs-on: ubuntu-24.04
     steps:
@@ -146,6 +172,8 @@ jobs:
         run: make test-bench
 
   vendor-check:
+    needs: changes
+    if: ${{ needs.changes.outputs.not_only_github == 'true' }}
     name: Vendor check
     runs-on: ubuntu-24.04
     steps:
@@ -164,6 +192,8 @@ jobs:
         run: make vendor-check
 
   tempo-jsonnet:
+    needs: changes
+    if: ${{ needs.changes.outputs.not_only_github == 'true' }}
     name: Check jsonnet & tempo-mixin
     runs-on: ubuntu-24.04
     steps:
@@ -185,6 +215,8 @@ jobs:
         run: make jsonnet-test
 
   build-technical-documentation:
+    needs: changes
+    if: ${{ needs.changes.outputs.not_only_github == 'true' }}
     name: Build technical documentation
     runs-on: ubuntu-24.04
     steps:
