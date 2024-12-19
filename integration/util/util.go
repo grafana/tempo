@@ -47,7 +47,7 @@ const (
 	image       = "tempo:latest"
 	debugImage  = "tempo-debug:latest"
 	queryImage  = "tempo-query:latest"
-	jaegerImage = "jaegertracing/jaeger-query:1.60"
+	jaegerImage = "jaegertracing/jaeger-query:1.64.0"
 )
 
 // GetExtraArgs returns the extra args to pass to the Docker command used to run Tempo.
