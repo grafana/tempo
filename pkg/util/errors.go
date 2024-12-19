@@ -3,34 +3,26 @@ package util
 import (
 	"errors"
 	"fmt"
-
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"net/http"
 )
 
 var (
 	// ErrTraceNotFound can be used when we don't find a trace
 	ErrTraceNotFound = errors.New("trace not found")
 
-	// ErrSearchKeyValueNotFound is used to indicate the requested key/value pair was not found.
-	ErrSearchKeyValueNotFound = errors.New("key/value not found")
+	// StatusClientClosedRequest is the status code for when a client request cancellation of an http request
+	StatusClientClosedRequest     = 499
+	StatusTextClientClosedRequest = "Request Cancelled"
 
 	ErrUnsupported = fmt.Errorf("unsupported")
 )
 
-// IsConnCanceled returns true, if error is from a closed gRPC connection.
-// copied from https://github.com/etcd-io/etcd/blob/7f47de84146bdc9225d2080ec8678ca8189a2d2b/clientv3/client.go#L646
-func IsConnCanceled(err error) bool {
-	if err == nil {
-		return false
+func StatusText(code int) string {
+	switch code {
+	case StatusClientClosedRequest:
+		// 499 doesn't have status text in http package, so we define it here
+		return StatusTextClientClosedRequest
+	default:
+		return http.StatusText(code)
 	}
-
-	// >= gRPC v1.23.x
-	s, ok := status.FromError(err)
-	if ok {
-		// connection is canceled or server has already closed the connection
-		return s.Code() == codes.Canceled || s.Message() == "transport is closing"
-	}
-
-	return false
 }

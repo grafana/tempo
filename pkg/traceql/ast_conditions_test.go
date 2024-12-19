@@ -147,6 +147,21 @@ func TestScalarFilter_extractConditions(t *testing.T) {
 			},
 			allConditions: false,
 		},
+		{
+			query: `({ span.http.status_code = 200 } | count()) > ({ span.http.status_code = 500 } | count())`,
+			conditions: []Condition{
+				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"), OpEqual, NewStaticInt(200)),
+				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"), OpEqual, NewStaticInt(500)),
+			},
+			allConditions: false,
+		},
+		{
+			query: `{ .foo = "a" } | 3 > 2`,
+			conditions: []Condition{
+				newCondition(NewAttribute("foo"), OpEqual, NewStaticString("a")),
+			},
+			allConditions: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
@@ -230,7 +245,7 @@ func TestSelect_extractConditions(t *testing.T) {
 			secondPassConditions: []Condition{
 				newCondition(NewScopedAttribute(AttributeScopeResource, false, "service.name"), OpNone),
 			},
-			allConditions: false,
+			allConditions: true,
 		},
 		{
 			query: `{ } | select(.name,name)`,
@@ -241,7 +256,7 @@ func TestSelect_extractConditions(t *testing.T) {
 				newCondition(NewAttribute("name"), OpNone),
 				newCondition(NewIntrinsic(IntrinsicName), OpNone),
 			},
-			allConditions: false,
+			allConditions: true,
 		},
 	}
 	for _, tt := range tests {

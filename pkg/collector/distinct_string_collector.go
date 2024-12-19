@@ -1,39 +1,51 @@
 package collector
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
 )
 
 type DistinctString struct {
-	values      map[string]struct{}
-	new         map[string]struct{}
-	maxLen      int
-	currLen     int
-	diffEnabled bool
-	limExceeded bool
-	mtx         sync.Mutex
+	values           map[string]struct{}
+	new              map[string]struct{}
+	maxDataSize      int
+	currDataSize     int
+	currentValuesLen uint32
+	maxValues        uint32
+	maxCacheHits     uint32
+	currentCacheHits uint32
+	diffEnabled      bool
+	limExceeded      bool
+	mtx              sync.Mutex
+	stopReason       string
 }
 
-// NewDistinctString with the given maximum data size. This is calculated
-// as the total length of the recorded strings. For ease of use, maximum=0
-// is interpreted as unlimited.
-func NewDistinctString(maxDataSize int) *DistinctString {
+// NewDistinctString with the given maximum data size and max items.
+// MaxDataSize is calculated as the total length of the recorded strings.
+// For ease of use, maxDataSize=0 and maxItems=0 are interpreted as unlimited.
+func NewDistinctString(maxDataSize int, maxValues uint32, staleValueThreshold uint32) *DistinctString {
 	return &DistinctString{
-		values:      make(map[string]struct{}),
-		maxLen:      maxDataSize,
-		diffEnabled: false, // disable diff to make it faster
+		values:       make(map[string]struct{}),
+		maxDataSize:  maxDataSize,
+		diffEnabled:  false, // disable diff to make it faster
+		maxValues:    maxValues,
+		maxCacheHits: staleValueThreshold,
 	}
 }
 
 // NewDistinctStringWithDiff is like NewDistinctString but with diff support enabled.
-func NewDistinctStringWithDiff(maxDataSize int) *DistinctString {
+// MaxDataSize is calculated as the total length of the recorded strings.
+// For ease of use, maxDataSize=0 and maxItems=0 are interpreted as unlimited.
+func NewDistinctStringWithDiff(maxDataSize int, maxValues uint32, staleValueThreshold uint32) *DistinctString {
 	return &DistinctString{
-		values:      make(map[string]struct{}),
-		new:         make(map[string]struct{}),
-		maxLen:      maxDataSize,
-		diffEnabled: true,
+		values:       make(map[string]struct{}),
+		new:          make(map[string]struct{}),
+		maxDataSize:  maxDataSize,
+		diffEnabled:  true,
+		maxValues:    maxValues,
+		maxCacheHits: staleValueThreshold,
 	}
 }
 
@@ -47,19 +59,32 @@ func (d *DistinctString) Collect(s string) (added bool) {
 	if d.limExceeded {
 		return false
 	}
-
-	if _, ok := d.values[s]; ok {
-		// Already present
-		return false
-	}
-
 	valueLen := len(s)
-	// Can it fit?
-	if d.maxLen > 0 && d.currLen+valueLen > d.maxLen {
-		// No, it can't fit
+
+	if d.maxDataSize > 0 && d.currDataSize+valueLen >= d.maxDataSize {
+		d.stopReason = fmt.Sprintf("Max data exceeded: dataSize %d, maxDataSize %d", d.currDataSize, d.maxDataSize)
 		d.limExceeded = true
 		return false
 	}
+
+	if d.maxValues > 0 && d.currentValuesLen >= d.maxValues {
+		d.stopReason = fmt.Sprintf("Max values exceeded: values %d, maxValues %d", d.currentValuesLen, d.maxValues)
+		d.limExceeded = true
+		return false
+	}
+
+	if d.maxCacheHits > 0 && d.currentCacheHits >= d.maxCacheHits {
+		d.stopReason = fmt.Sprintf("Max stale values exceeded: cacheHits %d, maxValues %d", d.currentValuesLen, d.maxCacheHits)
+		d.limExceeded = true
+		return false
+	}
+
+	if _, ok := d.values[s]; ok {
+		// Already present
+		d.currentCacheHits++
+		return false
+	}
+	d.currentCacheHits = 0 // CacheHits reset to 0 when a new value is found
 
 	// Clone instead of referencing original
 	s = strings.Clone(s)
@@ -68,7 +93,8 @@ func (d *DistinctString) Collect(s string) (added bool) {
 		d.new[s] = struct{}{}
 	}
 	d.values[s] = struct{}{}
-	d.currLen += valueLen
+	d.currDataSize += valueLen
+	d.currentValuesLen++
 
 	return true
 }
@@ -96,12 +122,16 @@ func (d *DistinctString) Exceeded() bool {
 	return d.limExceeded
 }
 
+func (d *DistinctString) StopReason() string {
+	return d.stopReason
+}
+
 // Size is the total size of all distinct strings encountered.
 func (d *DistinctString) Size() int {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	return d.currLen
+	return d.currDataSize
 }
 
 // Diff returns all new strings collected since the last time diff was called

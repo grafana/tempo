@@ -1383,7 +1383,7 @@ func tagValuesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetad
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			valueCollector := collector.NewDistinctValue[tempopb.TagValue](0, func(_ tempopb.TagValue) int { return 0 })
+			valueCollector := collector.NewDistinctValue[tempopb.TagValue](0, 0, 0, func(_ tempopb.TagValue) int { return 0 })
 			mc := collector.NewMetricsCollector()
 			fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
 				return bb.FetchTagValues(ctx, req, cb, mc.Add, common.DefaultSearchOptions())
@@ -1459,7 +1459,7 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 				return bb.FetchTagNames(ctx, req, cb, mc.Add, common.DefaultSearchOptions())
 			})
 
-			valueCollector := collector.NewScopedDistinctString(0)
+			valueCollector := collector.NewScopedDistinctString(0, 0, 0)
 			err := e.ExecuteTagNames(ctx, traceql.AttributeScopeFromString(tc.scope), tc.query, func(tag string, scope traceql.AttributeScope) bool {
 				return valueCollector.Collect(scope.String(), tag)
 			}, fetcher)
@@ -2293,7 +2293,13 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	block, err := w.CompleteBlock(context.Background(), head)
 	require.NoError(t, err)
 
-	resp, err := r.SearchTags(context.Background(), block.BlockMeta(), "", common.DefaultSearchOptions())
+	reqBlocks := &tempopb.SearchTagsBlockRequest{
+		SearchReq: &tempopb.SearchTagsRequest{
+			Scope: "",
+		},
+	}
+
+	resp, err := r.SearchTags(context.Background(), block.BlockMeta(), reqBlocks, common.DefaultSearchOptions())
 	require.NoError(t, err)
 	expectedTags := []string{"stringTag", "intTag", "service.name", "other"}
 	var actualTags []string
@@ -2304,7 +2310,13 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	sort.Strings(actualTags)
 	assert.Equal(t, expectedTags, actualTags)
 
-	respValues, err := r.SearchTagValues(context.Background(), block.BlockMeta(), "service.name", common.DefaultSearchOptions())
+	req := &tempopb.SearchTagValuesBlockRequest{
+		SearchReq: &tempopb.SearchTagValuesRequest{
+			TagName: "service.name",
+		},
+	}
+
+	respValues, err := r.SearchTagValues(context.Background(), block.BlockMeta(), req, common.DefaultSearchOptions())
 	require.NotZero(t, respValues.Metrics.InspectedBytes)
 	require.NoError(t, err)
 
@@ -2313,7 +2325,13 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	sort.Strings(respValues.TagValues)
 	assert.Equal(t, expectedTagsValues, respValues.TagValues)
 
-	respValues, err = r.SearchTagValues(context.Background(), block.BlockMeta(), "intTag", common.DefaultSearchOptions())
+	req = &tempopb.SearchTagValuesBlockRequest{
+		SearchReq: &tempopb.SearchTagValuesRequest{
+			TagName: "intTag",
+		},
+	}
+
+	respValues, err = r.SearchTagValues(context.Background(), block.BlockMeta(), req, common.DefaultSearchOptions())
 	require.NotZero(t, respValues.Metrics.InspectedBytes)
 	require.NoError(t, err)
 
@@ -2372,7 +2390,7 @@ func TestSearchForTagsAndTagValues(t *testing.T) {
 	require.Equal(t, expected, tagValues.TagValues)
 	require.NotZero(t, tagValues.Metrics.InspectedBytes)
 
-	valueCollector := collector.NewDistinctValue[tempopb.TagValue](0, func(_ tempopb.TagValue) int { return 0 })
+	valueCollector := collector.NewDistinctValue[tempopb.TagValue](0, 0, 0, func(_ tempopb.TagValue) int { return 0 })
 	mc := collector.NewMetricsCollector()
 	f := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
 		return r.FetchTagValues(ctx, block.BlockMeta(), req, cb, mc.Add, common.DefaultSearchOptions())

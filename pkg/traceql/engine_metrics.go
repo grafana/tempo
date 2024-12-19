@@ -296,6 +296,7 @@ func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels 
 					},
 				)
 			}
+
 			exemplars = append(exemplars, tempopb.Exemplar{
 				Labels:      labels,
 				Value:       e.Value,
@@ -905,6 +906,14 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 func optimize(req *FetchSpansRequest) {
 	if !req.AllConditions || req.SecondPassSelectAll {
 		return
+	}
+
+	// Unscoped attributes like .foo require the second pass to evaluate
+	for _, c := range req.Conditions {
+		if c.Attribute.Scope == AttributeScopeNone && c.Attribute.Intrinsic == IntrinsicNone {
+			// Unscoped (non-intrinsic) attribute
+			return
+		}
 	}
 
 	// There is an issue where multiple conditions &&'ed on the same

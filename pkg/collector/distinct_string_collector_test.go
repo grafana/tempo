@@ -10,12 +10,12 @@ import (
 )
 
 func TestDistinctStringCollector(t *testing.T) {
-	d := NewDistinctString(10)
+	d := NewDistinctString(12, 0, 0)
 
-	d.Collect("123")
-	d.Collect("4567")
-	d.Collect("890")
-	d.Collect("11")
+	require.True(t, d.Collect("123"))
+	require.True(t, d.Collect("4567"))
+	require.True(t, d.Collect("890"))
+	require.False(t, d.Collect("11"))
 
 	require.True(t, d.Exceeded())
 	stringsSlicesEqual(t, []string{"123", "4567", "890"}, d.Strings())
@@ -26,17 +26,56 @@ func TestDistinctStringCollector(t *testing.T) {
 	require.Error(t, err, errDiffNotEnabled)
 }
 
-func TestDistinctStringCollectorDiff(t *testing.T) {
-	d := NewDistinctStringWithDiff(0)
+func TestDistinctStringCollectorWithMaxItemsLimit(t *testing.T) {
+	d := NewDistinctString(0, 3, 0)
 
-	d.Collect("123")
-	d.Collect("4567")
+	require.True(t, d.Collect("123"))
+	require.True(t, d.Collect("4567"))
+	require.True(t, d.Collect("890"))
+	require.False(t, d.Collect("11"))
+
+	require.True(t, d.Exceeded())
+	stringsSlicesEqual(t, []string{"123", "4567", "890"}, d.Strings())
+
+	// diff fails when diff is not enabled
+	res, err := d.Diff()
+	require.Nil(t, res)
+	require.Error(t, err, errDiffNotEnabled)
+}
+
+func TestDistinctStringCollectorWitCacheHitsLimit(t *testing.T) {
+	d := NewDistinctString(0, 0, 3)
+
+	require.True(t, d.Collect("123"))
+	require.True(t, d.Collect("4567"))
+	require.True(t, d.Collect("890"))
+	require.False(t, d.Collect("890"))
+	require.True(t, d.Collect("11")) // The counter resets with every new value
+	require.False(t, d.Collect("890"))
+	require.False(t, d.Collect("890"))
+	require.False(t, d.Collect("890"))
+	require.False(t, d.Collect("12"))
+
+	require.True(t, d.Exceeded())
+	stringsSlicesEqual(t, []string{"123", "4567", "890", "11"}, d.Strings())
+
+	// diff fails when diff is not enabled
+	res, err := d.Diff()
+	require.Nil(t, res)
+	require.Error(t, err, errDiffNotEnabled)
+}
+
+func TestDistinctStringCollectorDiff(t *testing.T) {
+	d := NewDistinctStringWithDiff(0, 0, 0)
+
+	require.True(t, d.Collect("123"))
+	require.True(t, d.Collect("4567"))
 
 	stringsSlicesEqual(t, []string{"123", "4567"}, readDistinctStringDiff(t, d))
 	stringsSlicesEqual(t, []string{}, readDistinctStringDiff(t, d))
 
-	d.Collect("123")
-	d.Collect("890")
+	require.False(t, d.Collect("123"))
+	require.True(t, d.Collect("890"))
 
 	stringsSlicesEqual(t, []string{"890"}, readDistinctStringDiff(t, d))
 	stringsSlicesEqual(t, []string{}, readDistinctStringDiff(t, d))
@@ -49,7 +88,7 @@ func readDistinctStringDiff(t *testing.T, d *DistinctString) []string {
 }
 
 func TestDistinctStringCollectorIsSafe(t *testing.T) {
-	d := NewDistinctString(0) // no limit
+	d := NewDistinctString(0, 0, 0) // no limit
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
@@ -90,7 +129,7 @@ func BenchmarkDistinctStringCollect(b *testing.B) {
 	for _, lim := range limits {
 		b.Run("uniques_limit:"+strconv.Itoa(lim), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
-				distinctStrings := NewDistinctString(lim)
+				distinctStrings := NewDistinctString(lim, 0, 0)
 				for _, values := range ingesterStrings {
 					for _, v := range values {
 						if distinctStrings.Collect(v) {
@@ -103,7 +142,7 @@ func BenchmarkDistinctStringCollect(b *testing.B) {
 
 		b.Run("duplicates_limit:"+strconv.Itoa(lim), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
-				distinctStrings := NewDistinctString(lim)
+				distinctStrings := NewDistinctString(lim, 0, 0)
 				for i := 0; i < numIngesters; i++ {
 					for j := 0; j < numTagValuesPerIngester; j++ {
 						// collect first item to simulate duplicates
