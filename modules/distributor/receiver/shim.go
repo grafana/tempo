@@ -14,6 +14,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
+	"github.com/prometheus/client_golang/prometheus"
 	prom_client "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/collector/component"
@@ -142,7 +143,7 @@ func (m *mapProvider) Scheme() string { return "mock" }
 
 func (m *mapProvider) Shutdown(context.Context) error { return nil }
 
-func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, retryAfterDuration time.Duration, logLevel dslog.Level) (services.Service, error) {
+func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, retryAfterDuration time.Duration, logLevel dslog.Level, reg prometheus.Registerer) (services.Service, error) {
 	shim := &receiversShim{
 		pusher: pusher,
 		logger: log.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
@@ -235,7 +236,7 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 
 	nopType := component.MustNewType("tempo")
 	traceProvider := tracenoop.NewTracerProvider()
-	meterProvider := NewMeterProvider()
+	meterProvider := NewMeterProvider(reg)
 	// todo: propagate a real context?  translate our log configuration into zap?
 	ctx := context.Background()
 	for componentID, cfg := range conf.Receivers {

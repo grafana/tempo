@@ -3,11 +3,14 @@ package receiver
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	dslog "github.com/grafana/dskit/log"
 	"github.com/grafana/dskit/services"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
@@ -35,10 +38,11 @@ func TestShim_integration(t *testing.T) {
 	randomTraces := testdata.GenerateTraces(5)
 
 	testCases := []struct {
-		name        string
-		receiverCfg map[string]interface{}
-		factory     exporter.Factory
-		exporterCfg component.Config
+		name              string
+		receiverCfg       map[string]interface{}
+		factory           exporter.Factory
+		exporterCfg       component.Config
+		expectedTransport string
 	}{
 		{
 			name: "otlpexporter",
@@ -58,6 +62,7 @@ func TestShim_integration(t *testing.T) {
 					},
 				},
 			},
+			expectedTransport: "grpc",
 		},
 		{
 			name: "otlphttpexporter - JSON encoding",
@@ -75,6 +80,7 @@ func TestShim_integration(t *testing.T) {
 				},
 				Encoding: otlphttpexporter.EncodingJSON,
 			},
+			expectedTransport: "http",
 		},
 		{
 			name: "otlphttpexporter - proto encoding",
@@ -92,13 +98,15 @@ func TestShim_integration(t *testing.T) {
 				},
 				Encoding: otlphttpexporter.EncodingProto,
 			},
+			expectedTransport: "http",
 		},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			pusher := &capturingPusher{}
+			reg := prometheus.NewPedanticRegistry()
 
-			stopShim := runReceiverShim(t, testCase.receiverCfg, pusher)
+			stopShim := runReceiverShim(t, testCase.receiverCfg, pusher, reg)
 			defer stopShim()
 
 			exporter, stopExporter := runOTelExporter(t, testCase.factory, testCase.exporterCfg)
@@ -112,15 +120,32 @@ func TestShim_integration(t *testing.T) {
 			require.Len(t, receivedTraces, 1)
 
 			assert.Equal(t, randomTraces, receivedTraces[0])
+
+			count, err := testutil.GatherAndCount(reg, "tempo_receiver_accepted_spans", "tempo_receiver_refused_spans")
+			assert.NoError(t, err)
+			assert.Equal(t, 2, count)
+
+			expected := `
+# HELP tempo_receiver_accepted_spans Number of spans successfully pushed into the pipeline.
+# TYPE tempo_receiver_accepted_spans counter
+tempo_receiver_accepted_spans{receiver="tempo/otlp_receiver", transport="<transport>"} 5
+# HELP tempo_receiver_refused_spans Number of spans that could not be pushed into the pipeline.
+# TYPE tempo_receiver_refused_spans counter
+tempo_receiver_refused_spans{receiver="tempo/otlp_receiver", transport="<transport>"} 0
+`
+			expectedWithTransport := strings.ReplaceAll(expected, "<transport>", testCase.expectedTransport)
+
+			err = testutil.GatherAndCompare(reg, strings.NewReader(expectedWithTransport), "tempo_receiver_accepted_spans", "tempo_receiver_refused_spans")
+			assert.NoError(t, err)
 		})
 	}
 }
 
-func runReceiverShim(t *testing.T, receiverCfg map[string]interface{}, pusher TracesPusher) func() {
+func runReceiverShim(t *testing.T, receiverCfg map[string]interface{}, pusher TracesPusher, reg prometheus.Registerer) func() {
 	level := dslog.Level{}
 	_ = level.Set("info")
 
-	shim, err := New(receiverCfg, pusher, FakeTenantMiddleware(), 0, level)
+	shim, err := New(receiverCfg, pusher, FakeTenantMiddleware(), 0, level, reg)
 	require.NoError(t, err)
 
 	err = services.StartAndAwaitRunning(context.Background(), shim)
