@@ -26,15 +26,21 @@ minio + metrics + load + tempo {
     },
     distributor+: {
       receivers: {
-        opencensus: null,
-        jaeger: {
+        otlp: {
           protocols: {
-            thrift_http: null,
+            grpc: {
+              endpoint: '0.0.0.0:55680',
+            },
+            http: {
+              endpoint: '0.0.0.0:4318',
+            },
           },
         },
       },
     },
     metrics_generator+: {
+      pvc_size: '5Gi',
+      pvc_storage_class: 'local-path',
       ephemeral_storage_limit_size: '2Gi',
       ephemeral_storage_request_size: '1Gi',
     },
@@ -79,12 +85,14 @@ minio + metrics + load + tempo {
   tempo_distributor_container+::
     k.util.resourcesRequests('500m', '500Mi') +
     container.withPortsMixin([
+      containerPort.new('otlp-http', 4318),
       containerPort.new('opencensus', 55678),
       containerPort.new('jaeger-http', 14268),
     ]),
 
   tempo_ingester_container+::
-    k.util.resourcesRequests('500m', '500Mi'),
+    k.util.resourcesRequests('500m', '500Mi') +
+    container.withImagePullPolicy('IfNotPresent'), // prevents ingester from pulling a new image in case you push a custom grafana/tempo:latest
 
   // clear affinity so we can run multiple ingesters on a single node
   tempo_ingester_statefulset+: {
