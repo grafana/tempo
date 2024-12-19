@@ -4,31 +4,48 @@ import (
 	"sync"
 )
 
+const IntrinsicScope = "intrinsic"
+
 type ScopedDistinctString struct {
-	cols        map[string]*DistinctString
-	newCol      func(int) *DistinctString
-	maxLen      int
-	curLen      int
-	limExceeded bool
-	diffEnabled bool
-	mtx         sync.Mutex
+	cols            map[string]*DistinctString
+	newCol          func(int, uint32, uint32) *DistinctString
+	maxDataSize     int
+	currDataSize    int
+	limExceeded     bool
+	maxCacheHits    uint32
+	diffEnabled     bool
+	maxTagsPerScope uint32
+	stopReason      string
+	mtx             sync.Mutex
 }
 
-func NewScopedDistinctString(maxDataSize int) *ScopedDistinctString {
+// NewScopedDistinctString collects the tags per scope
+// MaxDataSize is calculated as the total length of the recorded strings.
+// MaxTagsPerScope controls how many tags can be added per scope. The intrinsic scope is unbounded.
+// For ease of use, maxDataSize=0 and maxTagsPerScope=0 are interpreted as unlimited.
+func NewScopedDistinctString(maxDataSize int, maxTagsPerScope uint32, staleValueThreshold uint32) *ScopedDistinctString {
 	return &ScopedDistinctString{
-		cols:        map[string]*DistinctString{},
-		newCol:      NewDistinctString,
-		maxLen:      maxDataSize,
-		diffEnabled: false,
+		cols:            map[string]*DistinctString{},
+		newCol:          NewDistinctString,
+		maxDataSize:     maxDataSize,
+		diffEnabled:     false,
+		maxTagsPerScope: maxTagsPerScope,
+		maxCacheHits:    staleValueThreshold,
 	}
 }
 
-func NewScopedDistinctStringWithDiff(maxDataSize int) *ScopedDistinctString {
+// NewScopedDistinctStringWithDiff collects the tags per scope with diff
+// MaxDataSize is calculated as the total length of the recorded strings.
+// MaxTagsPerScope controls how many tags can be added per scope. The intrinsic scope is unbounded.
+// For ease of use, maxDataSize=0 and maxTagsPerScope=0 are interpreted as unlimited.
+func NewScopedDistinctStringWithDiff(maxDataSize int, maxTagsPerScope uint32, staleValueThreshold uint32) *ScopedDistinctString {
 	return &ScopedDistinctString{
-		cols:        map[string]*DistinctString{},
-		newCol:      NewDistinctStringWithDiff,
-		maxLen:      maxDataSize,
-		diffEnabled: true,
+		cols:            map[string]*DistinctString{},
+		newCol:          NewDistinctStringWithDiff,
+		maxDataSize:     maxDataSize,
+		diffEnabled:     true,
+		maxTagsPerScope: maxTagsPerScope,
+		maxCacheHits:    staleValueThreshold,
 	}
 }
 
@@ -45,7 +62,7 @@ func (d *ScopedDistinctString) Collect(scope string, val string) (exceeded bool)
 
 	valueLen := len(val)
 	// can it fit?
-	if d.maxLen > 0 && d.curLen+valueLen > d.maxLen {
+	if d.maxDataSize > 0 && d.currDataSize+valueLen > d.maxDataSize {
 		// No
 		d.limExceeded = true
 		return true
@@ -54,13 +71,23 @@ func (d *ScopedDistinctString) Collect(scope string, val string) (exceeded bool)
 	// get or create collector
 	col, ok := d.cols[scope]
 	if !ok {
-		col = d.newCol(0)
+		if scope == IntrinsicScope {
+			col = d.newCol(0, 0, 0)
+		} else {
+			col = d.newCol(0, d.maxTagsPerScope, d.maxCacheHits)
+		}
 		d.cols[scope] = col
 	}
 
 	// add valueLen if we successfully added the value
 	if col.Collect(val) {
-		d.curLen += valueLen
+		d.currDataSize += valueLen
+	}
+	if col.Exceeded() {
+		// we stop if one of the scopes exceed the limit
+		d.limExceeded = true
+		d.stopReason = col.stopReason
+		return true
 	}
 	return false
 }
@@ -80,11 +107,25 @@ func (d *ScopedDistinctString) Strings() map[string][]string {
 }
 
 // Exceeded indicates if some values were lost because the maximum size limit was met.
+// Or because one of the scopes max tags was reached.
 func (d *ScopedDistinctString) Exceeded() bool {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	return d.limExceeded
+	if d.limExceeded {
+		return true
+	}
+
+	for _, v := range d.cols {
+		if v.Exceeded() {
+			return true
+		}
+	}
+	return false
+}
+
+func (d *ScopedDistinctString) StopReason() string {
+	return d.stopReason
 }
 
 // Diff returns all new strings collected since the last time Diff was called

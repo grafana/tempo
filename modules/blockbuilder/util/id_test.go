@@ -13,7 +13,7 @@ import (
 func TestDeterministicIDGenerator(t *testing.T) {
 	ts := time.Now().UnixMilli()
 
-	gen := NewDeterministicIDGenerator(util.FakeTenantID, 0, uint64(ts))
+	gen := NewDeterministicIDGenerator(util.FakeTenantID, 0, ts)
 
 	firstPassIDs := make(map[backend.UUID]struct{})
 	for seq := int64(0); seq < 10; seq++ {
@@ -27,7 +27,7 @@ func TestDeterministicIDGenerator(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	gen = NewDeterministicIDGenerator(util.FakeTenantID, 0, uint64(ts))
+	gen = NewDeterministicIDGenerator(util.FakeTenantID, 0, ts)
 	for seq := int64(0); seq < 10; seq++ {
 		id := gen.NewID()
 		if _, ok := firstPassIDs[id]; !ok {
@@ -36,28 +36,9 @@ func TestDeterministicIDGenerator(t *testing.T) {
 	}
 }
 
-func FuzzDeterministicIDGenerator(f *testing.F) {
-	f.Skip()
-
-	f.Add(util.FakeTenantID, uint64(42), uint64(100))
-	f.Fuzz(func(t *testing.T, tenantID string, seed1, seed2 uint64) {
-		gen := NewDeterministicIDGenerator(tenantID, seed1, seed2)
-
-		for i := 0; i < 3; i++ {
-			id := gen.NewID()
-			_, err := uuid.Parse(id.String())
-			if err != nil {
-				t.Fatalf("failed to parse UUID: %v", err)
-			}
-		}
-	})
-}
-
 func BenchmarkDeterministicID(b *testing.B) {
-	tenant := util.FakeTenantID
 	ts := time.Now().UnixMilli()
-	partitionID := uint64(0)
-	gen := NewDeterministicIDGenerator(tenant, partitionID, uint64(ts))
+	gen := NewDeterministicIDGenerator(util.FakeTenantID, ts)
 	for i := 0; i < b.N; i++ {
 		_ = gen.NewID()
 	}

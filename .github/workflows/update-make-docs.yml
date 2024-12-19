@@ -6,7 +6,7 @@ on:
 jobs:
   main:
     if: github.repository == 'grafana/tempo'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: grafana/writers-toolkit/update-make-docs@update-make-docs/v1

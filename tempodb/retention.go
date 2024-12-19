@@ -12,6 +12,8 @@ import (
 )
 
 // retentionLoop watches a timer to clean up blocks that are past retention.
+// todo: correctly pass context all the way to the backend so a cancelled context can stop the retention loop.
+// see implementation of compactionLoop()
 func (rw *readerWriter) retentionLoop(ctx context.Context) {
 	ticker := time.NewTicker(rw.cfg.BlocklistPoll)
 	for {

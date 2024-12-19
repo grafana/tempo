@@ -25,7 +25,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 	}{
 		{
 			name:   "check default cfg and expect no warnings",
-			config: newDefaultConfig(),
+			config: NewDefaultConfig(),
 			expect: nil,
 		},
 		{
@@ -76,7 +76,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 		{
 			name: "hit local backend warnings",
 			config: func() *Config {
-				cfg := newDefaultConfig()
+				cfg := NewDefaultConfig()
 				cfg.StorageConfig.Trace = tempodb.Config{
 					Backend:                  backend.Local,
 					BlocklistPollConcurrency: 1,
@@ -92,7 +92,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 		{
 			name: "warnings for v2 settings when they drift from default",
 			config: func() *Config {
-				cfg := newDefaultConfig()
+				cfg := NewDefaultConfig()
 				cfg.StorageConfig.Trace.Block.Version = vparquet4.VersionString
 				cfg.StorageConfig.Trace.Block.IndexDownsampleBytes = 1
 				cfg.StorageConfig.Trace.Block.IndexPageSizeBytes = 1
@@ -112,7 +112,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 		{
 			name: "no warnings for v2 settings when they drift from default and v2 is the block version",
 			config: func() *Config {
-				cfg := newDefaultConfig()
+				cfg := NewDefaultConfig()
 				cfg.StorageConfig.Trace.Block.Version = v2.VersionString
 				cfg.StorageConfig.Trace.Block.IndexDownsampleBytes = 1
 				cfg.StorageConfig.Trace.Block.IndexPageSizeBytes = 1
@@ -126,7 +126,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 		{
 			name: "trace storage conflicts with overrides storage - local",
 			config: func() *Config {
-				cfg := newDefaultConfig()
+				cfg := NewDefaultConfig()
 				cfg.StorageConfig.Trace.Backend = backend.Local
 				cfg.StorageConfig.Trace.Local.Path = "/var/tempo"
 				cfg.Overrides.UserConfigurableOverridesConfig.Client.Backend = backend.Local
@@ -138,7 +138,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 		{
 			name: "trace storage conflicts with overrides storage - gcs",
 			config: func() *Config {
-				cfg := newDefaultConfig()
+				cfg := NewDefaultConfig()
 				cfg.StorageConfig.Trace.Backend = backend.GCS
 				cfg.StorageConfig.Trace.GCS.BucketName = "bucketname"
 				cfg.StorageConfig.Trace.GCS.Prefix = "tempo"
@@ -152,7 +152,7 @@ func TestConfig_CheckConfig(t *testing.T) {
 		{
 			name: "trace storage conflicts with overrides storage - different backends",
 			config: func() *Config {
-				cfg := newDefaultConfig()
+				cfg := NewDefaultConfig()
 				cfg.StorageConfig.Trace.Backend = backend.GCS
 				cfg.StorageConfig.Trace.GCS.BucketName = "my-bucket"
 				cfg.Overrides.UserConfigurableOverridesConfig.Client.Backend = backend.S3

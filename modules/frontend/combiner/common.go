@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	tempo_io "github.com/grafana/tempo/pkg/io"
+	"github.com/grafana/tempo/pkg/util"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
@@ -125,6 +126,8 @@ func (c *genericCombiner[T]) AddResponse(r PipelineResponse) error {
 
 // HTTPFinal, GRPCComplete, and GRPCDiff are all responsible for returning something
 // usable in grpc streaming/http response.
+// NOTE: returning error is reserved for unexpected errors, HTTP errors will be returned
+// in the response body. callers should check the http status code.
 func (c *genericCombiner[T]) HTTPFinal() (*http.Response, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -217,6 +220,9 @@ func (c *genericCombiner[T]) erroredResponse() (*http.Response, error) {
 		grpcErr = status.Error(codes.ResourceExhausted, c.httpRespBody)
 	case http.StatusBadRequest:
 		grpcErr = status.Error(codes.InvalidArgument, c.httpRespBody)
+	case util.StatusClientClosedRequest:
+		// HTTP 499 is mapped to codes.Canceled grpc error
+		grpcErr = status.Error(codes.Canceled, c.httpRespBody)
 	default:
 		if c.httpStatusCode/100 == 5 {
 			grpcErr = status.Error(codes.Internal, c.httpRespBody)
@@ -226,7 +232,7 @@ func (c *genericCombiner[T]) erroredResponse() (*http.Response, error) {
 	}
 	httpResp := &http.Response{
 		StatusCode: c.httpStatusCode,
-		Status:     http.StatusText(c.httpStatusCode),
+		Status:     util.StatusText(c.httpStatusCode),
 		Body:       io.NopCloser(strings.NewReader(c.httpRespBody)),
 	}
 

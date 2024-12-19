@@ -11,14 +11,25 @@ keywords:
   - Tempo query language
   - query editor
   - TraceQL
+refs:
+  traceql:
+    - pattern: /docs/tempo/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/
+    - pattern: /docs/enterprise-traces/
+      destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/traceql/
+  service-graph-view:
+    - pattern: /docs/tempo/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/service-graph-view/
+    - pattern: /docs/enterprise-traces/
+      destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/metrics-generator/service-graph-view/
 ---
 
 # Write TraceQL queries in Grafana
 
 The Tempo data source's query editor helps you query and display traces from Tempo in [Explore](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/).
-The queries use [TraceQL](/docs/tempo/latest/traceql), the query language designed specifically for tracing.
+The queries use [TraceQL](ref:traceql), the query language designed specifically for tracing.
 
-For general documentation on querying data sources in Grafana, refer to [Query and transform data](/docs/grafana/<GRAFANA_VERSION>/panels-visualizations/query-transform-data/).
+For general documentation on querying data sources in Grafana, refer to [Query and transform data](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/panels-visualizations/query-transform-data/).
 
 ## Before you begin
 
@@ -35,7 +46,7 @@ The three **Query types** are:
 
 - The **Search** query builder provides a user interface for building a TraceQL query.
 - The **TraceQL** query editor lets you write your own TraceQL query with assistance from autocomplete.
-- The **Service Graph** view displays a visual relationship between services. Refer to the [Service graph view](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/service-graph-view/) documentation for more information.
+- The **Service Graph** view displays a visual relationship between services. Refer to the [Service graph view](ref:service-graph-view) documentation for more information.
 
 ### Search query builder
 
@@ -68,7 +79,7 @@ Using the service graph view, you can:
 - Determine how long the slowest queries in your service take to complete
 - Examine all traces that contain spans of particular interest based on rate, error, and duration values (RED signals)
 
-For more information about the service graph, refer to [Service graph view](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/service-graph-view/).
+For more information about the service graph, refer to [Service graph view](ref:service-graph-view).
 
 ![Screenshot of the Service Graph view](/media/docs/grafana/data-sources/tempo/query-editor/tempo-ds-query-service-graph.png)
 
