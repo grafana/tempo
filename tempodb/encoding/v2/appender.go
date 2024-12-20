@@ -4,7 +4,7 @@ import (
 	"hash"
 	"sync"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
 

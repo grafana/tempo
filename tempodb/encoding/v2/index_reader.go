@@ -8,7 +8,7 @@ import (
 	"github.com/grafana/tempo/pkg/sort"
 	"go.opentelemetry.io/otel"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
