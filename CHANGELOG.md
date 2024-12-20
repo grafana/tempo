@@ -89,6 +89,7 @@ querier:
 * [ENHANCEMENT] Reuse generator code to better refuse "too large" traces. [#4365](https://github.com/grafana/tempo/pull/4365) (@joe-elliott)
   This will cause the ingester to more aggressively and correctly refuse traces. Also added two metrics to better track bytes consumed per tenant in the ingester.
   `tempo_metrics_generator_live_trace_bytes` and `tempo_ingester_live_trace_bytes`.
+* [ENHANCEMENT] Prevent queries in the ingester from blocking flushing traces to disk and memory spikes. [#4483](https://github.com/grafana/tempo/pull/4483) (@joe-elliott)
 * [ENHANCEMENT] Update Azurite image. [#4298](https://github.com/grafana/tempo/pull/4464) (@javiermolinar)
 * [ENHANCEMENT] Update golang.org/x/crypto [#4474](https://github.com/grafana/tempo/pull/4474) (@javiermolinar)
 * [BUGFIX] Handle invalid TraceQL query filter in tag values v2 disk cache [#4392](https://github.com/grafana/tempo/pull/4392) (@electron0zero)
