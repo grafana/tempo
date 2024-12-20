@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash"
+	"hash/fnv"
 	"sort"
 	"sync"
 	"time"
@@ -16,7 +18,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/segmentio/fasthash/fnv1a"
 	"google.golang.org/grpc/codes"
 
 	"github.com/grafana/tempo/modules/overrides"
@@ -104,6 +105,8 @@ type instance struct {
 	localReader backend.Reader
 	localWriter backend.Writer
 
+	hash hash.Hash32
+
 	logger         kitlog.Logger
 	maxTraceLogger *log.RateLimitedLogger
 }
@@ -127,6 +130,8 @@ func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverride
 		local:       l,
 		localReader: backend.NewReader(l),
 		localWriter: backend.NewWriter(l),
+
+		hash: fnv.New32(),
 
 		logger:         logger,
 		maxTraceLogger: log.NewRateLimitedLogger(maxTraceLogLinesPerSecond, level.Warn(logger)),
@@ -183,12 +188,16 @@ func (i *instance) addTraceError(errorsByTrace []tempopb.PushErrorReason, pushEr
 
 // PushBytes is used to push an unmarshalled tempopb.Trace to the instance
 func (i *instance) PushBytes(ctx context.Context, id, traceBytes []byte) error {
-	i.bytesReceivedTotal.WithLabelValues(i.instanceID, traceDataType).Add(float64(len(traceBytes)))
+	i.measureReceivedBytes(traceBytes)
 
 	if !validation.ValidTraceID(id) {
 		return status.Errorf(codes.InvalidArgument, "%s is not a valid traceid", hex.EncodeToString(id))
 	}
 
+	return i.push(ctx, id, traceBytes)
+}
+
+func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 	i.tracesMtx.Lock()
 	defer i.tracesMtx.Unlock()
 
@@ -216,6 +225,13 @@ func (i *instance) PushBytes(ctx context.Context, id, traceBytes []byte) error {
 	i.traceSizeBytes += uint64(reqSize)
 
 	return nil
+}
+
+func (i *instance) measureReceivedBytes(traceBytes []byte) {
+	// measure received bytes as sum of slice lengths
+	// type byte is guaranteed to be 1 byte in size
+	// ref: https://golang.org/ref/spec#Size_and_alignment_guarantees
+	i.bytesReceivedTotal.WithLabelValues(i.instanceID, traceDataType).Add(float64(len(traceBytes)))
 }
 
 // CutCompleteTraces moves any complete traces out of the map to complete traces.
@@ -482,9 +498,11 @@ func (i *instance) getOrCreateTrace(traceID []byte, fp uint32) *liveTrace {
 	return trace
 }
 
-// tokenForTraceID hash trace ID
+// tokenForTraceID hash trace ID, should be called under lock
 func (i *instance) tokenForTraceID(id []byte) uint32 {
-	return fnv1a.HashBytes32(id)
+	i.hash.Reset()
+	_, _ = i.hash.Write(id)
+	return i.hash.Sum32()
 }
 
 // resetHeadBlock() should be called under lock
