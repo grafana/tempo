@@ -219,7 +219,6 @@ func (i *Ingester) flushLoop(j int) {
 	for {
 		o := i.flushQueues.Dequeue(j)
 		if o == nil {
-			level.Warn(log.Logger).Log("msg", "+++ flush loop received nil and exiting")
 			return
 		}
 
