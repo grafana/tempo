@@ -325,7 +325,7 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 	if err != nil {
 		return fmt.Errorf("error preparing trace for read: %w", err)
 	}
-
+	start, end = b.adjustTimeRangeForSlack(start, end)
 	return b.AppendTrace(id, trace, start, end)
 }
 
@@ -338,8 +338,6 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 	if b.buffer != nil && b.buffer.RootSpanName == "" {
 		dataquality.WarnRootlessTrace(b.meta.TenantID, dataquality.PhaseTraceFlushedToWal)
 	}
-
-	start, end = b.adjustTimeRangeForSlack(start, end)
 
 	// add to current
 	_, err := b.writer.Write([]*Trace{b.buffer})
