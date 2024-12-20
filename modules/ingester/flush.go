@@ -204,7 +204,6 @@ func (i *Ingester) flushLoop(j int) {
 		if o == nil {
 			return
 		}
-
 		op := o.(*flushOp)
 		op.attempts++
 
