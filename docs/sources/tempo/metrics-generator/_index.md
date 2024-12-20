@@ -79,3 +79,8 @@ If you want to enable metrics-generator for your Grafana Cloud account, refer to
 
 Enabling metrics generation and remote writing them to Grafana Cloud Metrics produces extra active series that could impact your billing.
 For more information on billing, refer to [Billing and usage](/docs/grafana-cloud/billing-and-usage/).
+
+## Multitenancy
+
+Tempo supports multitenancy in the metrics-generator through the use of environment variables and per-tenant overrides.
+Refer to the [Multitenant Support for Metrics-Generator]({{< relref "multitenancy" >}}) documentation for more information.
