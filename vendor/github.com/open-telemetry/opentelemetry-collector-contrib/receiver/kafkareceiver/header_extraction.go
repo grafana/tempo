@@ -4,8 +4,6 @@
 package kafkareceiver // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
 
 import (
-	"fmt"
-
 	"github.com/IBM/sarama"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -14,7 +12,7 @@ import (
 )
 
 func getAttribute(key string) string {
-	return fmt.Sprintf("kafka.header.%s", key)
+	return "kafka.header." + key
 }
 
 type HeaderExtractor interface {

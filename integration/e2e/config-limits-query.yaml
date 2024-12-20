@@ -8,6 +8,7 @@ distributor:
     jaeger:
       protocols:
         grpc:
+          endpoint: "tempo:14250"
 
 compactor:
   compaction:

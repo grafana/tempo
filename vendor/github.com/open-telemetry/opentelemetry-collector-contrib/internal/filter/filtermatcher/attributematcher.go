@@ -37,7 +37,6 @@ func NewAttributesMatcher(config filterset.Config, attributes []filterconfig.Att
 	// Convert attribute values from mp representation to in-memory representation.
 	var rawAttributes []AttributeMatcher
 	for _, attribute := range attributes {
-
 		if attribute.Key == "" {
 			return nil, errors.New("can't have empty key in the list of attributes")
 		}
@@ -73,7 +72,6 @@ func NewAttributesMatcher(config filterset.Config, attributes []filterconfig.Att
 				}
 			default:
 				return nil, filterset.NewUnrecognizedMatchTypeError(config.MatchType)
-
 			}
 		}
 

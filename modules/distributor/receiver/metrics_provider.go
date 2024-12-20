@@ -25,6 +25,12 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 )
 
+const (
+	// These metrics are defined here: https://github.com/open-telemetry/opentelemetry-collector/blob/release/v0.116.x/receiver/receiverhelper/internal/metadata/generated_telemetry.go
+	otelcolAcceptedSpansMetricName = "otelcol_receiver_accepted_spans"
+	otelcolRefusedSpansMetricName  = "otelcol_receiver_refused_spans"
+)
+
 var (
 	// Compile-time check this implements the OpenTelemetry API.
 
@@ -83,7 +89,7 @@ type Meter struct {
 // Int64Counter returns a Counter used to record int64 measurements
 func (m Meter) Int64Counter(name string, _ ...metric.Int64CounterOption) (metric.Int64Counter, error) {
 	switch name {
-	case "receiver_accepted_spans", "receiver_refused_spans":
+	case otelcolAcceptedSpansMetricName, otelcolRefusedSpansMetricName:
 		return Int64Counter{Name: name, metrics: m.metrics}, nil
 	default:
 		return noop.Int64Counter{}, nil
@@ -118,9 +124,9 @@ func (r Int64Counter) Add(_ context.Context, value int64, options ...metric.AddO
 	}
 
 	switch r.Name {
-	case "receiver_accepted_spans":
+	case otelcolAcceptedSpansMetricName:
 		r.metrics.receiverAcceptedSpans.WithLabelValues(receiver, transport).Add(float64(value))
-	case "receiver_refused_spans":
+	case otelcolRefusedSpansMetricName:
 		r.metrics.receiverRefusedSpans.WithLabelValues(receiver, transport).Add(float64(value))
 	}
 }

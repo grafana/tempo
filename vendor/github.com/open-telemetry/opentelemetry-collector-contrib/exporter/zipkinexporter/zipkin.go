@@ -74,7 +74,7 @@ func (ze *zipkinExporter) pushTraces(ctx context.Context, td ptrace.Traces) erro
 		return consumererror.NewPermanent(fmt.Errorf("failed to push trace data via Zipkin exporter: %w", err))
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", ze.url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, ze.url, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("failed to push trace data via Zipkin exporter: %w", err)
 	}

@@ -13,8 +13,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 )
 
-type jaegerProtoSpanUnmarshaler struct {
-}
+type jaegerProtoSpanUnmarshaler struct{}
 
 var _ TracesUnmarshaler = (*jaegerProtoSpanUnmarshaler)(nil)
 
@@ -31,8 +30,7 @@ func (j jaegerProtoSpanUnmarshaler) Encoding() string {
 	return "jaeger_proto"
 }
 
-type jaegerJSONSpanUnmarshaler struct {
-}
+type jaegerJSONSpanUnmarshaler struct{}
 
 var _ TracesUnmarshaler = (*jaegerJSONSpanUnmarshaler)(nil)
 

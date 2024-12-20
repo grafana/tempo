@@ -8,7 +8,6 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/resource"
-	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
 )
 
 func keyVal(k string, v any) attribute.KeyValue {
@@ -50,14 +49,10 @@ func newResource(res *Resource) (*resource.Resource, error) {
 	if res == nil || res.Attributes == nil {
 		return resource.Default(), nil
 	}
-	attrs := []attribute.KeyValue{
-		semconv.ServiceName(*res.Attributes.ServiceName),
-	}
+	var attrs []attribute.KeyValue
 
-	if props, ok := res.Attributes.AdditionalProperties.(map[string]any); ok {
-		for k, v := range props {
-			attrs = append(attrs, keyVal(k, v))
-		}
+	for k, v := range res.Attributes {
+		attrs = append(attrs, keyVal(k, v))
 	}
 
 	return resource.Merge(resource.Default(),

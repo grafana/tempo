@@ -161,9 +161,9 @@ func runReceiverShim(t *testing.T, receiverCfg map[string]interface{}, pusher Tr
 }
 
 func runOTelExporter(t *testing.T, factory exporter.Factory, cfg component.Config) (exporter.Traces, func()) {
-	exporter, err := factory.CreateTracesExporter(
+	exporter, err := factory.CreateTraces(
 		context.Background(),
-		exporter.CreateSettings{
+		exporter.Settings{
 			ID: component.MustNewID("test"),
 			TelemetrySettings: component.TelemetrySettings{
 				Logger:         zap.NewNop(),

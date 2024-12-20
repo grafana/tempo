@@ -44,7 +44,7 @@ func TruncateAll[K any](target ottl.PMapGetter[K], limit int64) (ottl.ExprFunc[K
 		if err != nil {
 			return nil, err
 		}
-		val.Range(func(key string, value pcommon.Value) bool {
+		val.Range(func(_ string, value pcommon.Value) bool {
 			stringVal := value.Str()
 			if int64(len(stringVal)) > limit {
 				value.SetStr(stringVal[:limit])

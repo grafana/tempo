@@ -18,6 +18,7 @@ type DurationArguments[K any] struct {
 func NewDurationFactory[K any]() ottl.Factory[K] {
 	return ottl.NewFactory("Duration", &DurationArguments[K]{}, createDurationFunction[K])
 }
+
 func createDurationFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
 	args, ok := oArgs.(*DurationArguments[K])
 

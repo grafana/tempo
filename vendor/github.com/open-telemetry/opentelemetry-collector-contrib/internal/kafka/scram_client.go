@@ -34,7 +34,6 @@ func (x *XDGSCRAMClient) Begin(userName, password, authzID string) (err error) {
 // completes is also an error.
 func (x *XDGSCRAMClient) Step(challenge string) (response string, err error) {
 	return x.ClientConversation.Step(challenge)
-
 }
 
 // Done returns true if the conversation is completed or has errored.

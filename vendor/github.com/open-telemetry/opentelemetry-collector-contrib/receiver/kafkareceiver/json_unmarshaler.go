@@ -10,8 +10,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 )
 
-type jsonLogsUnmarshaler struct {
-}
+type jsonLogsUnmarshaler struct{}
 
 func newJSONLogsUnmarshaler() LogsUnmarshaler {
 	return &jsonLogsUnmarshaler{}

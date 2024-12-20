@@ -9,6 +9,7 @@ distributor:
     jaeger:
       protocols:
         grpc:
+          endpoint: "tempo:14250"
 
 overrides:
   defaults:

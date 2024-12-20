@@ -79,7 +79,7 @@ func NewCredentials(opts *CredentialsOptions) (*auth.Credentials, error) {
 		}
 	} else if opts.Credentials != nil {
 		creds = opts.Credentials
-		client = internal.CloneDefaultClient()
+		client = internal.DefaultClient()
 		if err := httptransport.AddAuthorizationMiddleware(client, opts.Credentials); err != nil {
 			return nil, err
 		}

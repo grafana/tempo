@@ -17,6 +17,7 @@ type UnixMilliArguments[K any] struct {
 func NewUnixMilliFactory[K any]() ottl.Factory[K] {
 	return ottl.NewFactory("UnixMilli", &UnixMilliArguments[K]{}, createUnixMilliFunction[K])
 }
+
 func createUnixMilliFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
 	args, ok := oArgs.(*UnixMilliArguments[K])
 

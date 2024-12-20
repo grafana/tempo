@@ -27,7 +27,7 @@ type Receiver struct {
 }
 
 // New creates a new ocmetrics.Receiver reference.
-func New(nextConsumer consumer.Metrics, set receiver.CreateSettings) (*Receiver, error) {
+func New(nextConsumer consumer.Metrics, set receiver.Settings) (*Receiver, error) {
 	obsrecv, err := receiverhelper.NewObsReport(receiverhelper.ObsReportSettings{
 		ReceiverID:             set.ID,
 		Transport:              receiverTransport,

@@ -262,11 +262,11 @@ func extractSingle(ctx context.Context, contextHeader string) (context.Context, 
 		case string(contextHeader[traceID64BitsWidth]) == "-":
 			// traceID must be 64 bits
 			pos += traceID64BitsWidth // {traceID}
-			traceID = b3TraceIDPadding + string(contextHeader[0:pos])
+			traceID = b3TraceIDPadding + contextHeader[0:pos]
 		case string(contextHeader[32]) == "-":
 			// traceID must be 128 bits
 			pos += traceID128BitsWidth // {traceID}
-			traceID = string(contextHeader[0:pos])
+			traceID = contextHeader[0:pos]
 		default:
 			return ctx, empty, errInvalidTraceIDValue
 		}
@@ -277,6 +277,9 @@ func extractSingle(ctx context.Context, contextHeader string) (context.Context, 
 		}
 		pos += separatorWidth // {traceID}-
 
+		if headerLen < pos+spanIDWidth {
+			return ctx, empty, errInvalidSpanIDValue
+		}
 		scc.SpanID, err = trace.SpanIDFromHex(contextHeader[pos : pos+spanIDWidth])
 		if err != nil {
 			return ctx, empty, errInvalidSpanIDValue
