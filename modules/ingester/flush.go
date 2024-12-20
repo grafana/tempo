@@ -204,7 +204,13 @@ func (i *Ingester) flushLoop(j int) {
 		if o == nil {
 			return
 		}
+
 		op := o.(*flushOp)
+		// if we're shutting down then abandon all work for the ingester to complete on startup
+		if i.flushQueues.IsStopped() {
+			handleAbandonedOp(op)
+			continue
+		}
 		op.attempts++
 
 		var retry bool
