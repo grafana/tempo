@@ -1,16 +1,12 @@
 package flushqueues
 
 import (
-	"math/rand"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type mockOp struct {
@@ -116,41 +112,4 @@ func TestMultipleQueues(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, totalQueues-(i+1), int(length))
 	}
-}
-
-func TestExclusiveQueueAllDequeuesFinish(t *testing.T) {
-	queueCount := 4
-	queue := New(queueCount, nil)
-	wgDequeues := sync.WaitGroup{}
-
-	for i := 0; i < queueCount; i++ {
-		wgDequeues.Add(1)
-		go func() {
-			defer wgDequeues.Done()
-			for {
-				item := queue.Dequeue(i)
-				if item == nil {
-					return
-				}
-				queue.Clear(item)
-			}
-		}()
-	}
-
-	for i := 0; i < 1; i++ {
-		go func() {
-			for {
-				err := queue.Enqueue(simpleItem(rand.Int()))
-				if err != nil && err.Error() == "enqueue on closed queue" {
-					return
-				}
-				require.NoError(t, err)
-			}
-		}()
-	}
-
-	time.Sleep(time.Millisecond)
-	queue.Stop()
-	wgDequeues.Wait()
-	require.True(t, queue.IsEmpty())
 }

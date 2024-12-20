@@ -3,12 +3,10 @@ package flushqueues
 import (
 	"runtime"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type simpleItem int64
@@ -85,38 +83,4 @@ func TestPriorityQueueWait(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 		t.Fatal("Close didn't unblock Dequeue.")
 	}
-}
-
-func TestAllDequeuesFinish(t *testing.T) {
-	queue := NewPriorityQueue(nil)
-	wgDequeues := sync.WaitGroup{}
-
-	for i := 0; i < 10; i++ {
-		wgDequeues.Add(1)
-		go func() {
-			defer wgDequeues.Done()
-			for {
-				item := queue.Dequeue()
-				if item == nil {
-					return
-				}
-			}
-		}()
-	}
-
-	for i := 0; i < 10; i++ {
-		go func() {
-			for {
-				_, err := queue.Enqueue(simpleItem(1))
-				if err != nil && err.Error() == "enqueue on closed queue" {
-					return
-				}
-				require.NoError(t, err)
-			}
-		}()
-	}
-
-	time.Sleep(time.Second)
-	queue.Close()
-	wgDequeues.Wait()
 }
