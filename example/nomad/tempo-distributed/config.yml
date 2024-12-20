@@ -1,0 +1,81 @@
+server:
+  log_level: info
+  http_listen_port: {{ env "NOMAD_PORT_http" }}
+  grpc_listen_port: {{ env "NOMAD_PORT_grpc" }}
+
+distributor:
+  ring:
+    kvstore:
+      store: consul
+      prefix: tempo/
+      consul:
+        host: {{ env "attr.unique.network.ip-address" }}:8500
+
+  receivers: # this configuration will listen on all ports and protocols that tempo is capable of.
+    otlp:
+      protocols:
+        http:
+        grpc:
+
+ingester:
+  max_block_duration: 5m
+  lifecycler:
+    ring:
+      kvstore:
+        store: consul
+        prefix: tempo/
+        consul:
+          host: {{ env "attr.unique.network.ip-address" }}:8500
+      replication_factor: 3
+
+compactor:
+  ring:
+    kvstore:
+      store: consul
+      prefix: tempo/
+      consul:
+        host: {{ env "attr.unique.network.ip-address" }}:8500
+
+  compaction:
+    block_retention: 336h  #Duration to keep blocks.  Default is 14 days (336h).
+
+querier:
+  frontend_worker:
+    frontend_address: tempo-query-frontend-grpc.service.consul:9095
+
+metrics_generator:
+  processor:
+    service_graphs:
+      max_items: 10000
+  ring:
+    kvstore:
+      store: consul
+      prefix: tempo/
+      consul:
+        host: {{ env "attr.unique.network.ip-address" }}:8500
+  storage:
+    path: {{ env "NOMAD_ALLOC_DIR" }}/tempo/wal
+    remote_write:
+      - url: http://prometheus.service.consul/api/v1/write
+        send_exemplars: true
+
+storage:
+  trace:
+    backend: s3
+    wal:
+      path: {{ env "NOMAD_ALLOC_DIR" }}/tempo/wal
+    local:
+      path: {{ env "NOMAD_ALLOC_DIR" }}/tempo/blocks
+    s3:
+      bucket: tempo # how to store data in s3
+      endpoint: seaweedfs-s3.service.consul
+      insecure: true
+      access_key: ${S3_ACCESS_KEY_ID}
+      secret_key: ${S3_SECRET_ACCESS_KEY}
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors:
+        - service-graphs
+        - span-metrics
