@@ -115,8 +115,8 @@ github.com/AzureAD/microsoft-authentication-library-for-go/apps/public
 # github.com/IBM/sarama v1.43.3
 ## explicit; go 1.19
 github.com/IBM/sarama
-# github.com/alecthomas/kong v0.8.0
-## explicit; go 1.18
+# github.com/alecthomas/kong v1.6.0
+## explicit; go 1.20
 github.com/alecthomas/kong
 # github.com/alecthomas/participle/v2 v2.1.1
 ## explicit; go 1.18
