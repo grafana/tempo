@@ -12,7 +12,7 @@ variable "s3_access_key_id" {
 
 variable "s3_secret_access_key" {
   type        = string
-  description = "S3 Secret Access Key ID"
+  description = "S3 Secret Access Key"
   default     = "any"
 }
 
@@ -30,10 +30,7 @@ job "tempo" {
     service {
       name = "tempo-metrics-generator"
       port = "http"
-      tags = [
-        "traefik.enable=true",
-        "traefik.http.routers.tempo-metrics-generator.rule=Host(`tempo-metrics-generator.service.consul`)"
-      ]
+      tags = []
       check {
         name     = "metrics-generator"
         port     = "http"
@@ -47,12 +44,7 @@ job "tempo" {
     service {
       name = "tempo-metrics-generator-grpc"
       port = "grpc"
-      tags = [
-        "grpc",
-        "traefik.enable=true",
-        "traefik.http.routers.tempo-metrics-generator-grpc.rule=Host(`tempo-metrics-generator-grpc.service.consul`)",
-        "traefik.http.services.tempo-metrics-generator-grpc.loadbalancer.server.scheme=h2c"
-      ]
+      tags = []
       check {
         port     = "grpc"
         type     = "grpc"
@@ -116,21 +108,13 @@ job "tempo" {
     service {
       name = "tempo-query-frontend"
       port = "http"
-      tags = [
-        "traefik.enable=true",
-        "traefik.http.routers.tempo-query-frontend.rule=Host(`tempo-query-frontend.service.consul`)"
-      ]
+      tags = []
     }
 
     service {
       name = "tempo-query-frontend-grpc"
       port = "grpc"
-      tags = [
-        "grpc",
-        "traefik.enable=true",
-        "traefik.http.routers.tempo-query-frontend-grpc.rule=Host(`tempo-query-frontend-grpc.service.consul`)",
-        "traefik.http.services.tempo-query-frontend-grpc.loadbalancer.server.scheme=h2c"
-      ]
+      tags = []
       check {
         port     = "grpc"
         type     = "grpc"
@@ -194,10 +178,7 @@ job "tempo" {
     service {
       name = "tempo-ingester"
       port = "http"
-      tags = [
-        "traefik.enable=true",
-        "traefik.http.routers.tempo-ingester.rule=Host(`tempo-ingester.service.consul`)"
-      ]
+      tags = []
       check {
         name     = "Tempo ingester"
         port     = "http"
@@ -211,12 +192,7 @@ job "tempo" {
     service {
       name = "tempo-ingester-grpc"
       port = "grpc"
-      tags = [
-        "grpc",
-        "traefik.enable=true",
-        "traefik.http.routers.tempo-ingester-grpc.rule=Host(`tempo-ingester-grpc.service.consul`)",
-        "traefik.http.services.tempo-ingester-grpc.loadbalancer.server.scheme=h2c"
-      ]
+      tags = []
       check {
         port     = "grpc"
         type     = "grpc"
@@ -286,10 +262,7 @@ job "tempo" {
     service {
       name = "tempo-compactor"
       port = "http"
-      tags = [
-        "traefik.enable=true",
-        "traefik.http.routers.tempo-compactor.rule=Host(`tempo-compactor.service.consul`)"
-      ]
+      tags = []
       check {
         name     = "Tempo compactor"
         port     = "http"
@@ -303,12 +276,7 @@ job "tempo" {
     service {
       name = "tempo-compactor-grpc"
       port = "grpc"
-      tags = [
-        "grpc",
-        "traefik.enable=true",
-        "traefik.http.routers.tempo-compactor-grpc.rule=Host(`tempo-compactor-grpc.service.consul`)",
-        "traefik.http.services.tempo-compactor-grpc.loadbalancer.server.scheme=h2c"
-      ]
+      tags = []
       check {
         port     = "grpc"
         type     = "grpc"
@@ -372,10 +340,7 @@ job "tempo" {
     service {
       name = "tempo-distributor"
       port = "http"
-      tags = [
-        "traefik.enable=true",
-        "traefik.http.routers.tempo-distributor.rule=Host(`tempo-distributor.service.consul`)"
-      ]
+      tags = []
       check {
         name     = "Tempo distributor"
         port     = "http"
@@ -389,23 +354,13 @@ job "tempo" {
     service {
       name = "tempo-distributor-otpl"
       port = "otpl"
-      tags = [
-        "grpc",
-        "traefik.enable=true",
-        "traefik.http.routers.tempo-distributor-otpl.rule=Host(`tempo-distributor-otpl.service.consul`)",
-        "traefik.http.services.tempo-distributor-otpl.loadbalancer.server.scheme=h2c"
-      ]
+      tags = []
     }
 
     service {
       name = "tempo-distributor-grpc"
       port = "grpc"
-      tags = [
-        "grpc",
-        "traefik.enable=true",
-        "traefik.http.routers.tempo-distributor-grpc.rule=Host(`tempo-distributor-grpc.service.consul`)",
-        "traefik.http.services.tempo-distributor-grpc.loadbalancer.server.scheme=h2c"
-      ]
+      tags = []
       check {
         port     = "grpc"
         type     = "grpc"
@@ -469,10 +424,7 @@ job "tempo" {
     service {
       name = "tempo-querier"
       port = "http"
-      tags = [
-        "traefik.enable=true",
-        "traefik.http.routers.tempo-querier.rule=Host(`tempo-querier.service.consul`)"
-      ]
+      tags = []
       check {
         name     = "Tempo querier"
         port     = "http"
@@ -486,12 +438,7 @@ job "tempo" {
     service {
       name = "tempo-querier-grpc"
       port = "grpc"
-      tags = [
-        "grpc",
-        "traefik.enable=true",
-        "traefik.http.routers.tempo-querier-grpc.rule=Host(`tempo-querier-grpc.service.consul`)",
-        "traefik.http.services.tempo-querier-grpc.loadbalancer.server.scheme=h2c"
-      ]
+      tags = []
       check {
         port     = "grpc"
         type     = "grpc"

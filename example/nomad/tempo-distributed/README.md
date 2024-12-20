@@ -7,9 +7,18 @@ This Nomad job will deploy Tempo in
 
 ### Prerequisites
 - S3 compatible storage
-- [Nomad memory oversubscription](https://developer.hashicorp.com/nomad/tutorials/advanced-scheduling/memory-oversubscription)
+- [Nomad memory oversubscription](https://developer.hashicorp.com/nomad/tutorials/advanced-scheduling/memory-oversubscription). If memory oversubscription is not enabled, remove `memory_max` from tempo.hcl
 
-Have a look at the job file and Tempo configuration file and change it to suite your environment.
+Have a look at the job file and Tempo configuration file and change it to suite your environment. (e.g. in `config.yml` change s3 endpoint to your s3 compatible storge, prometheus endpoint, etc...)
+
+Variables
+--------------
+
+| Name | Value | Description |
+|---|---|---|
+| version | Default = "2.3.1" | Tempo version |
+| s3_access_key_id | Default = "any" | S3 Access Key ID |
+| s3_secret_access_key | Default = "any" | S3 Secret Access Key |
 
 ### Run job
 
