@@ -38,6 +38,7 @@ querier:
 * [CHANGE] Tighten file permissions [#4251](https://github.com/grafana/tempo/pull/4251) (@zalegrala)
 * [CHANGE] Drop max live traces log message and rate limit trace too large. [#4418](https://github.com/grafana/tempo/pull/4418) (@joe-elliott)
 * [CHANGE] Update the Open-Telemetry dependencies to v0.116.0 [#4466](https://github.com/grafana/tempo/pull/4466) (@yvrhdn)
+* [CHANGE] Replace `cespare/xxhash` with `cespare/xxhash/v2` [#4485](https://github.com/grafana/tempo/pull/4485) (@Juneezee)
   **BREAKING CHANGE** After this update the Open-Telemetry Collector receiver will connect to `localhost` instead of all interfaces `0.0.0.0`.
   Due to this, Tempo installations running inside Docker have to update the address they listen.
   For more details on this change, see [#4465](https://github.com/grafana/tempo/issues/4465)
