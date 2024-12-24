@@ -22,11 +22,11 @@ package idtoken
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"os"
 
 	"cloud.google.com/go/auth"
+	"cloud.google.com/go/auth/credentials"
 	"cloud.google.com/go/auth/internal"
 	"cloud.google.com/go/auth/internal/credsfile"
 	"cloud.google.com/go/compute/metadata"
@@ -51,6 +51,17 @@ const (
 	ComputeTokenFormatFullWithLicense
 )
 
+var (
+	defaultScopes = []string{
+		"https://iamcredentials.googleapis.com/",
+		"https://www.googleapis.com/auth/cloud-platform",
+	}
+
+	errMissingOpts     = errors.New("idtoken: opts must be provided")
+	errMissingAudience = errors.New("idtoken: Audience must be provided")
+	errBothFileAndJSON = errors.New("idtoken: CredentialsFile and CredentialsJSON must not both be provided")
+)
+
 // Options for the configuration of creation of an ID token with
 // [NewCredentials].
 type Options struct {
@@ -64,14 +75,14 @@ type Options struct {
 	// Optional.
 	CustomClaims map[string]interface{}
 
-	// CredentialsFile overrides detection logic and sources a credential file
-	// from the provided filepath. Optional.
+	// CredentialsFile sources a JSON credential file from the provided
+	// filepath. If provided, do not provide CredentialsJSON. Optional.
 	CredentialsFile string
-	// CredentialsJSON overrides detection logic and uses the JSON bytes as the
-	// source for the credential. Optional.
+	// CredentialsJSON sources a JSON credential file from the provided bytes.
+	// If provided, do not provide CredentialsJSON. Optional.
 	CredentialsJSON []byte
 	// Client configures the underlying client used to make network requests
-	// when fetching tokens. If provided this should be a fully authenticated
+	// when fetching tokens. If provided this should be a fully-authenticated
 	// client. Optional.
 	Client *http.Client
 }
@@ -85,28 +96,42 @@ func (o *Options) client() *http.Client {
 
 func (o *Options) validate() error {
 	if o == nil {
-		return errors.New("idtoken: opts must be provided")
+		return errMissingOpts
 	}
 	if o.Audience == "" {
-		return errors.New("idtoken: audience must be specified")
+		return errMissingAudience
+	}
+	if o.CredentialsFile != "" && len(o.CredentialsJSON) > 0 {
+		return errBothFileAndJSON
 	}
 	return nil
 }
 
-// NewCredentials creates a [cloud.google.com/go/auth.Credentials] that
-// returns ID tokens configured by the opts provided. The parameter
-// opts.Audience may not be empty.
+// NewCredentials creates a [cloud.google.com/go/auth.Credentials] that returns
+// ID tokens configured by the opts provided. The parameter opts.Audience must
+// not be empty. If both opts.CredentialsFile and opts.CredentialsJSON are
+// empty, an attempt will be made to detect credentials from the environment
+// (see [cloud.google.com/go/auth/credentials.DetectDefault]). Only service
+// account, impersonated service account, external account and Compute
+// credentials are supported.
 func NewCredentials(opts *Options) (*auth.Credentials, error) {
 	if err := opts.validate(); err != nil {
 		return nil, err
 	}
-	if b := opts.jsonBytes(); b != nil {
-		return credsFromBytes(b, opts)
-	}
-	if metadata.OnGCE() {
+	b := opts.jsonBytes()
+	if b == nil && metadata.OnGCE() {
 		return computeCredentials(opts)
 	}
-	return nil, fmt.Errorf("idtoken: couldn't find any credentials")
+	creds, err := credentials.DetectDefault(&credentials.DetectOptions{
+		Scopes:           defaultScopes,
+		CredentialsJSON:  b,
+		Client:           opts.client(),
+		UseSelfSignedJWT: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return credsFromDefault(creds, opts)
 }
 
 func (o *Options) jsonBytes() []byte {

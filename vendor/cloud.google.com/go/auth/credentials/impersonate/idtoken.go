@@ -47,13 +47,13 @@ type IDTokenOptions struct {
 	// chain. Optional.
 	Delegates []string
 
-	// Credentials used to fetch the ID token. If not provided, and a Client is
-	// also not provided, base credentials will try to be detected from the
-	// environment. Optional.
+	// Credentials used in generating the impersonated ID token. If empty, an
+	// attempt will be made to detect credentials from the environment (see
+	// [cloud.google.com/go/auth/credentials.DetectDefault]). Optional.
 	Credentials *auth.Credentials
 	// Client configures the underlying client used to make network requests
-	// when fetching tokens. If provided the client should provide it's own
-	// base credentials at call time. Optional.
+	// when fetching tokens. If provided this should be a fully-authenticated
+	// client. Optional.
 	Client *http.Client
 }
 
@@ -83,17 +83,20 @@ func NewIDTokenCredentials(opts *IDTokenOptions) (*auth.Credentials, error) {
 	if err := opts.validate(); err != nil {
 		return nil, err
 	}
-	var client *http.Client
-	var creds *auth.Credentials
-	if opts.Client == nil && opts.Credentials == nil {
+
+	client := opts.Client
+	creds := opts.Credentials
+	if client == nil {
 		var err error
-		// TODO: test not signed jwt more
-		creds, err = credentials.DetectDefault(&credentials.DetectOptions{
-			Scopes:           []string{defaultScope},
-			UseSelfSignedJWT: true,
-		})
-		if err != nil {
-			return nil, err
+		if creds == nil {
+			// TODO: test not signed jwt more
+			creds, err = credentials.DetectDefault(&credentials.DetectOptions{
+				Scopes:           []string{defaultScope},
+				UseSelfSignedJWT: true,
+			})
+			if err != nil {
+				return nil, err
+			}
 		}
 		client, err = httptransport.NewClient(&httptransport.Options{
 			Credentials: creds,
@@ -101,14 +104,6 @@ func NewIDTokenCredentials(opts *IDTokenOptions) (*auth.Credentials, error) {
 		if err != nil {
 			return nil, err
 		}
-	} else if opts.Client == nil {
-		creds = opts.Credentials
-		client = internal.DefaultClient()
-		if err := httptransport.AddAuthorizationMiddleware(client, opts.Credentials); err != nil {
-			return nil, err
-		}
-	} else {
-		client = opts.Client
 	}
 
 	itp := impersonatedIDTokenProvider{

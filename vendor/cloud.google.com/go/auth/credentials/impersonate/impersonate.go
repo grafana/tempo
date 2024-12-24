@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/auth"
@@ -30,7 +31,9 @@ import (
 )
 
 var (
+	universeDomainPlaceholder                   = "UNIVERSE_DOMAIN"
 	iamCredentialsEndpoint                      = "https://iamcredentials.googleapis.com"
+	iamCredentialsUniverseDomainEndpoint        = "https://iamcredentials.UNIVERSE_DOMAIN"
 	oauth2Endpoint                              = "https://oauth2.googleapis.com"
 	errMissingTargetPrincipal                   = errors.New("impersonate: target service account must be provided")
 	errMissingScopes                            = errors.New("impersonate: scopes must be provided")
@@ -60,57 +63,45 @@ func NewCredentials(opts *CredentialsOptions) (*auth.Credentials, error) {
 		isStaticToken = true
 	}
 
-	var client *http.Client
-	var creds *auth.Credentials
-	if opts.Client == nil && opts.Credentials == nil {
+	client := opts.Client
+	creds := opts.Credentials
+	if client == nil {
 		var err error
-		creds, err = credentials.DetectDefault(&credentials.DetectOptions{
-			Scopes:           []string{defaultScope},
-			UseSelfSignedJWT: true,
-		})
+		if creds == nil {
+			creds, err = credentials.DetectDefault(&credentials.DetectOptions{
+				Scopes:           []string{defaultScope},
+				UseSelfSignedJWT: true,
+			})
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		client, err = httptransport.NewClient(transportOpts(opts, creds))
 		if err != nil {
 			return nil, err
 		}
-		client, err = httptransport.NewClient(&httptransport.Options{
-			Credentials: creds,
-		})
-		if err != nil {
-			return nil, err
-		}
-	} else if opts.Credentials != nil {
-		creds = opts.Credentials
-		client = internal.DefaultClient()
-		if err := httptransport.AddAuthorizationMiddleware(client, opts.Credentials); err != nil {
-			return nil, err
-		}
-	} else {
-		client = opts.Client
 	}
 
+	universeDomainProvider := resolveUniverseDomainProvider(creds)
 	// If a subject is specified a domain-wide delegation auth-flow is initiated
 	// to impersonate as the provided subject (user).
 	if opts.Subject != "" {
-		if !opts.isUniverseDomainGDU() {
-			return nil, errUniverseNotSupportedDomainWideDelegation
-		}
-		tp, err := user(opts, client, lifetime, isStaticToken)
+		tp, err := user(opts, client, lifetime, isStaticToken, universeDomainProvider)
 		if err != nil {
 			return nil, err
 		}
-		var udp auth.CredentialsPropertyProvider
-		if creds != nil {
-			udp = auth.CredentialsPropertyFunc(creds.UniverseDomain)
-		}
 		return auth.NewCredentials(&auth.CredentialsOptions{
 			TokenProvider:          tp,
-			UniverseDomainProvider: udp,
+			UniverseDomainProvider: universeDomainProvider,
 		}), nil
 	}
 
 	its := impersonatedTokenProvider{
-		client:          client,
-		targetPrincipal: opts.TargetPrincipal,
-		lifetime:        fmt.Sprintf("%.fs", lifetime.Seconds()),
+		client:                 client,
+		targetPrincipal:        opts.TargetPrincipal,
+		lifetime:               fmt.Sprintf("%.fs", lifetime.Seconds()),
+		universeDomainProvider: universeDomainProvider,
 	}
 	for _, v := range opts.Delegates {
 		its.delegates = append(its.delegates, formatIAMServiceAccountName(v))
@@ -125,14 +116,39 @@ func NewCredentials(opts *CredentialsOptions) (*auth.Credentials, error) {
 		}
 	}
 
-	var udp auth.CredentialsPropertyProvider
-	if creds != nil {
-		udp = auth.CredentialsPropertyFunc(creds.UniverseDomain)
-	}
 	return auth.NewCredentials(&auth.CredentialsOptions{
 		TokenProvider:          auth.NewCachedTokenProvider(its, tpo),
-		UniverseDomainProvider: udp,
+		UniverseDomainProvider: universeDomainProvider,
 	}), nil
+}
+
+// transportOpts returns options for httptransport.NewClient. If opts.UniverseDomain
+// is provided, it will be used in the transport for a validation ensuring that it
+// matches the universe domain in the base credentials. If opts.UniverseDomain
+// is not provided, this validation will be skipped.
+func transportOpts(opts *CredentialsOptions, creds *auth.Credentials) *httptransport.Options {
+	tOpts := &httptransport.Options{
+		Credentials: creds,
+	}
+	if opts.UniverseDomain == "" {
+		tOpts.InternalOptions = &httptransport.InternalOptions{
+			SkipUniverseDomainValidation: true,
+		}
+	} else {
+		tOpts.UniverseDomain = opts.UniverseDomain
+	}
+	return tOpts
+}
+
+// resolveUniverseDomainProvider returns the default service domain for a given
+// Cloud universe. This is the universe domain configured for the credentials,
+// which will be used in endpoint(s), and compared to the universe domain that
+// is separately configured for the client.
+func resolveUniverseDomainProvider(creds *auth.Credentials) auth.CredentialsPropertyProvider {
+	if creds != nil {
+		return auth.CredentialsPropertyFunc(creds.UniverseDomain)
+	}
+	return internal.StaticCredentialsProperty(internal.DefaultUniverseDomain)
 }
 
 // CredentialsOptions for generating an impersonated credential token.
@@ -158,16 +174,17 @@ type CredentialsOptions struct {
 	// wide delegation. Optional.
 	Subject string
 
-	// Credentials is the provider of the credentials used to fetch the ID
-	// token. If not provided, and a Client is also not provided, credentials
-	// will try to be detected from the environment. Optional.
+	// Credentials used in generating the impersonated token. If empty, an
+	// attempt will be made to detect credentials from the environment (see
+	// [cloud.google.com/go/auth/credentials.DetectDefault]). Optional.
 	Credentials *auth.Credentials
 	// Client configures the underlying client used to make network requests
-	// when fetching tokens. If provided the client should provide it's own
-	// credentials at call time. Optional.
+	// when fetching tokens. If provided this should be a fully-authenticated
+	// client. Optional.
 	Client *http.Client
 	// UniverseDomain is the default service domain for a given Cloud universe.
-	// The default value is "googleapis.com". Optional.
+	// This field has no default value, and only if provided will it be used to
+	// verify the universe domain from the credentials. Optional.
 	UniverseDomain string
 }
 
@@ -187,21 +204,6 @@ func (o *CredentialsOptions) validate() error {
 	return nil
 }
 
-// getUniverseDomain is the default service domain for a given Cloud universe.
-// The default value is "googleapis.com".
-func (o *CredentialsOptions) getUniverseDomain() string {
-	if o.UniverseDomain == "" {
-		return internal.DefaultUniverseDomain
-	}
-	return o.UniverseDomain
-}
-
-// isUniverseDomainGDU returns true if the universe domain is the default Google
-// universe.
-func (o *CredentialsOptions) isUniverseDomainGDU() bool {
-	return o.getUniverseDomain() == internal.DefaultUniverseDomain
-}
-
 func formatIAMServiceAccountName(name string) string {
 	return fmt.Sprintf("projects/-/serviceAccounts/%s", name)
 }
@@ -218,7 +220,8 @@ type generateAccessTokenResponse struct {
 }
 
 type impersonatedTokenProvider struct {
-	client *http.Client
+	client                 *http.Client
+	universeDomainProvider auth.CredentialsPropertyProvider
 
 	targetPrincipal string
 	lifetime        string
@@ -237,7 +240,12 @@ func (i impersonatedTokenProvider) Token(ctx context.Context) (*auth.Token, erro
 	if err != nil {
 		return nil, fmt.Errorf("impersonate: unable to marshal request: %w", err)
 	}
-	url := fmt.Sprintf("%s/v1/%s:generateAccessToken", iamCredentialsEndpoint, formatIAMServiceAccountName(i.targetPrincipal))
+	universeDomain, err := i.universeDomainProvider.GetProperty(ctx)
+	if err != nil {
+		return nil, err
+	}
+	endpoint := strings.Replace(iamCredentialsUniverseDomainEndpoint, universeDomainPlaceholder, universeDomain, 1)
+	url := fmt.Sprintf("%s/v1/%s:generateAccessToken", endpoint, formatIAMServiceAccountName(i.targetPrincipal))
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(b))
 	if err != nil {
 		return nil, fmt.Errorf("impersonate: unable to create request: %w", err)
