@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 // It marshal a Trace to an OTEL compatible JSON.
@@ -31,4 +32,50 @@ func UnmarshalFromJSONV1(data []byte, t *Trace) error {
 	jsonStr := strings.Replace(string(data), `"batches":`, `"resourceSpans":`, 1)
 	err := marshaler.Unmarshal(strings.NewReader(jsonStr), t)
 	return err
+}
+
+// ConvertFromOTLP creates a Trace from ptrace.Traces (OTLP). It does so by converting the trace to
+// bytes and unmarshaling it. This is unfortunate for efficiency, but it works around the OTel
+// Collector internalization of otel-proto.
+func ConvertFromOTLP(traces ptrace.Traces) (*Trace, error) {
+	b, err := (&ptrace.ProtoMarshaler{}).MarshalTraces(traces)
+	if err != nil {
+		return nil, err
+	}
+
+	var t Trace
+	err = t.Unmarshal(b)
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+// ConvertToOTLP creates a ptrace.Traces (OTLP) from Trace. It does so by converting the trace to
+// bytes and unmarshaling it. This is unfortunate for efficiency, but it works around the OTel
+// Collector internalization of otel-proto.
+func (t *Trace) ConvertToOTLP() (ptrace.Traces, error) {
+	b, err := t.Marshal()
+	if err != nil {
+		return ptrace.Traces{}, err
+	}
+
+	traces, err := (&ptrace.ProtoUnmarshaler{}).UnmarshalTraces(b)
+	if err != nil {
+		return ptrace.Traces{}, err
+	}
+	return traces, nil
+}
+
+func (t *Trace) SpanCount() int {
+	spanCount := 0
+	rss := t.GetResourceSpans()
+	for i := 0; i < len(rss); i++ {
+		rs := rss[i]
+		ilss := rs.GetScopeSpans()
+		for j := 0; j < len(ilss); j++ {
+			spanCount += len(ilss[j].GetSpans())
+		}
+	}
+	return spanCount
 }

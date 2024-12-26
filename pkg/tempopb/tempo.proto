@@ -6,6 +6,10 @@ import "common/v1/common.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "trace/v1/trace.proto";
 
+service Distributor {
+  rpc PushTempopbTraces(Trace) returns (PushResponse) {}
+}
+
 service Pusher {
   // different versions of PushBytes expect the trace data to be pushed in
   // different formats

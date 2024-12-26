@@ -57,10 +57,7 @@ func batchesToTraces(t *testing.T, batches []*v1.ResourceSpans) ptrace.Traces {
 
 	trace := tempopb.Trace{ResourceSpans: batches}
 
-	m, err := trace.Marshal()
-	require.NoError(t, err)
-
-	traces, err := (&ptrace.ProtoUnmarshaler{}).UnmarshalTraces(m)
+	traces, err := trace.ConvertToOTLP()
 	require.NoError(t, err)
 
 	return traces
@@ -772,32 +769,44 @@ func BenchmarkTestsByRequestID(b *testing.B) {
 
 func TestDistributor(t *testing.T) {
 	for i, tc := range []struct {
-		lines            int
+		spans            int
 		expectedResponse *tempopb.PushResponse
 		expectedError    error
 	}{
 		{
-			lines:            10,
-			expectedResponse: nil,
+			spans:            10,
+			expectedResponse: &tempopb.PushResponse{},
 		},
 		{
-			lines:            100,
-			expectedResponse: nil,
+			spans:            100,
+			expectedResponse: &tempopb.PushResponse{},
 		},
 	} {
-		t.Run(fmt.Sprintf("[%d](samples=%v)", i, tc.lines), func(t *testing.T) {
+		t.Run(fmt.Sprintf("[%d](spans=%v)", i, tc.spans), func(t *testing.T) {
 			limits := overrides.Config{}
 			limits.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
 
 			// todo:  test limits
 			d, _ := prepare(t, limits, nil)
 
-			b := test.MakeBatch(tc.lines, []byte{})
-			traces := batchesToTraces(t, []*v1.ResourceSpans{b})
-			response, err := d.PushTraces(ctx, traces)
+			b := test.MakeBatch(tc.spans, []byte{})
 
-			assert.True(t, proto.Equal(tc.expectedResponse, response))
-			assert.Equal(t, tc.expectedError, err)
+			t.Run("PushTraces", func(t *testing.T) {
+				traces := batchesToTraces(t, []*v1.ResourceSpans{b})
+				response, err := d.PushTraces(ctx, traces)
+
+				assert.True(t, proto.Equal(tc.expectedResponse, response))
+				assert.Equal(t, tc.expectedError, err)
+			})
+
+			t.Run("PushTempopbTraces", func(t *testing.T) {
+				trace := &tempopb.Trace{ResourceSpans: []*v1.ResourceSpans{b}}
+
+				response, err := d.PushTempopbTraces(ctx, trace)
+
+				assert.True(t, proto.Equal(tc.expectedResponse, response))
+				assert.Equal(t, tc.expectedError, err)
+			})
 		})
 	}
 }

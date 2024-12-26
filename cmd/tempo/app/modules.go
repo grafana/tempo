@@ -238,6 +238,8 @@ func (t *App) initDistributor() (services.Service, error) {
 	}
 	t.distributor = distributor
 
+	tempopb.RegisterDistributorServer(t.Server.GRPC(), t.distributor)
+
 	if distributor.DistributorRing != nil {
 		t.Server.HTTPRouter().Handle("/distributor/ring", distributor.DistributorRing)
 	}

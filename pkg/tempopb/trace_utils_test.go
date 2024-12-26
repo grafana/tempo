@@ -6,8 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/pdata/testdata"
+
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
 func TestMarshalToJSONV1(t *testing.T) {
@@ -35,4 +37,26 @@ func TestUnMarshalToJSONV1(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, "my.library", trace.ResourceSpans[0].ScopeSpans[0].Scope.Name)
+}
+
+func TestConvertOTLP(t *testing.T) {
+	otlp := testdata.GenerateTraces(20)
+
+	tempopb, err := ConvertFromOTLP(otlp)
+	assert.NoError(t, err)
+
+	convOTLP, err := tempopb.ConvertToOTLP()
+	assert.NoError(t, err)
+
+	assert.Equal(t, otlp, convOTLP)
+}
+
+func TestSpanCount(t *testing.T) {
+	otlp := testdata.GenerateTraces(20)
+
+	tempopb, err := ConvertFromOTLP(otlp)
+	assert.NoError(t, err)
+
+	assert.Equal(t, 20, tempopb.SpanCount())
+	assert.Equal(t, otlp.SpanCount(), tempopb.SpanCount())
 }

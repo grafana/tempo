@@ -22,7 +22,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/util/strutil"
 	"github.com/segmentio/fasthash/fnv1a"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -317,46 +316,26 @@ func (d *Distributor) checkForRateLimits(tracesSize, spanCount int, userID strin
 	return nil
 }
 
-func (d *Distributor) extractBasicInfo(ctx context.Context, traces ptrace.Traces) (userID string, spanCount, tracesSize int, err error) {
-	user, e := user.ExtractOrgID(ctx)
-	if e != nil {
-		return "", 0, 0, e
-	}
-
-	return user, traces.SpanCount(), (&ptrace.ProtoMarshaler{}).TracesSize(traces), nil
-}
-
-// PushTraces pushes a batch of traces
-func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*tempopb.PushResponse, error) {
+func (d *Distributor) pushTracesInternal(ctx context.Context, req pushRequest) (*tempopb.PushResponse, error) {
 	ctx, span := tracer.Start(ctx, "distributor.PushTraces")
 	defer span.End()
 
-	userID, spanCount, size, err := d.extractBasicInfo(ctx, traces)
+	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		// can't record discarded spans here b/c there's no tenant
-		return nil, err
+		return &tempopb.PushResponse{}, err
 	}
-	if spanCount == 0 {
+	if req.spanCount == 0 {
 		return &tempopb.PushResponse{}, nil
 	}
 	// check limits
 	// todo - usage tracker include discarded bytes?
-	err = d.checkForRateLimits(size, spanCount, userID)
+	err = d.checkForRateLimits(req.size, req.spanCount, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert to bytes and back. This is unfortunate for efficiency, but it works
-	// around the otel-collector internalization of otel-proto which Tempo also uses.
-	convert, err := (&ptrace.ProtoMarshaler{}).MarshalTraces(traces)
-	if err != nil {
-		return nil, err
-	}
-
-	// tempopb.Trace is wire-compatible with ExportTraceServiceRequest
-	// used by ToOtlpProtoBytes
-	trace := tempopb.Trace{}
-	err = trace.Unmarshal(convert)
+	trace, err := req.tempopbTrace()
 	if err != nil {
 		return nil, err
 	}
@@ -368,37 +347,44 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		metricSpans(batches, userID, &d.cfg.MetricReceivedSpans)
 	}
 
-	metricBytesIngested.WithLabelValues(userID).Add(float64(size))
-	metricSpansIngested.WithLabelValues(userID).Add(float64(spanCount))
-	statBytesReceived.Inc(int64(size))
-	statSpansReceived.Inc(int64(spanCount))
+	metricBytesIngested.WithLabelValues(userID).Add(float64(req.size))
+	metricSpansIngested.WithLabelValues(userID).Add(float64(req.spanCount))
+	statBytesReceived.Inc(int64(req.size))
+	statSpansReceived.Inc(int64(req.spanCount))
 
 	// Usage tracking
 	if d.usage != nil {
 		d.usage.Observe(userID, batches)
 	}
 
-	keys, rebatchedTraces, err := requestsByTraceID(batches, userID, spanCount)
+	keys, rebatchedTraces, err := requestsByTraceID(batches, userID, req.spanCount)
 	if err != nil {
-		overrides.RecordDiscardedSpans(spanCount, reasonInternalError, userID)
+		overrides.RecordDiscardedSpans(req.spanCount, reasonInternalError, userID)
 		logDiscardedResourceSpans(batches, userID, &d.cfg.LogDiscardedSpans, d.logger)
 		return nil, err
 	}
 
-	err = d.sendToIngestersViaBytes(ctx, userID, spanCount, rebatchedTraces, keys)
+	err = d.sendToIngestersViaBytes(ctx, userID, req.spanCount, rebatchedTraces, keys)
 	if err != nil {
-		return nil, err
+		return &tempopb.PushResponse{}, err
 	}
 
 	if len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
 		d.generatorForwarder.SendTraces(ctx, userID, keys, rebatchedTraces)
 	}
 
-	if err := d.forwardersManager.ForTenant(userID).ForwardTraces(ctx, traces); err != nil {
-		_ = level.Warn(d.logger).Log("msg", "failed to forward batches for tenant=%s: %w", userID, err)
+	if forwarders := d.forwardersManager.ForTenant(userID); len(forwarders) > 0 {
+		otlpTraces, err := req.otlpTrace()
+		if err != nil {
+			_ = level.Warn(d.logger).Log("msg", "failed to forward batches for tenant=%s: %w", userID, err)
+		}
+		err = forwarders.ForwardTraces(ctx, otlpTraces)
+		if err != nil {
+			_ = level.Warn(d.logger).Log("msg", "failed to forward batches for tenant=%s: %w", userID, err)
+		}
 	}
 
-	return nil, nil // PushRequest is ignored, so no reason to create one
+	return &tempopb.PushResponse{}, nil
 }
 
 func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, totalSpanCount int, traces []*rebatchedTrace, keys []uint32) error {
