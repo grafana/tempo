@@ -17,7 +17,7 @@ Variables
 | s3_url | Default = "s3.dummy.url.com" | S3 storage URL |
 | s3_access_key_id | Default = "any" | S3 Access Key ID |
 | s3_secret_access_key | Default = "any" | S3 Secret Access Key |
-| prometheus_remote_write_url | Default = "http://prometheus.dummyurl.com/api/v1/write" | Prometheus Remote Write URL |
+| prometheus_remote_write_url | Default = "http://prometheus.service.consul/api/v1/write" | Prometheus Remote Write URL |
 
 ### Run job
 
