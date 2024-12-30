@@ -24,7 +24,6 @@ require (
 	github.com/apache/thrift v0.21.0 // indirect
 	github.com/aws/aws-sdk-go v1.55.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/cristalhq/hedgedhttp v0.9.1 // indirect
