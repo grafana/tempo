@@ -13,7 +13,6 @@
 //
 // For direct use you can select a Redis database with either `s.Select(12);
 // s.Get("foo")` or `s.DB(12).Get("foo")`.
-//
 package miniredis
 
 import (
@@ -26,8 +25,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alicebob/miniredis/v2/proto"
 	"github.com/alicebob/miniredis/v2/server"
 )
+
+var DumpMaxLineLen = 60
 
 type hashKey map[string]string
 type listKey []string
@@ -46,6 +48,7 @@ type RedisDB struct {
 	sortedsetKeys map[string]sortedSet     // ZADD &c. keys
 	streamKeys    map[string]*streamKey    // XADD &c. keys
 	ttl           map[string]time.Duration // effective TTL values
+	lru           map[string]time.Time     // last recently used ( read or written to )
 	keyVersion    map[string]uint          // used to watch values
 }
 
@@ -75,6 +78,7 @@ type dbKey struct {
 }
 
 // connCtx has all state for a single connection.
+// (this struct was named before context.Context existed)
 type connCtx struct {
 	selectedDB       int            // selected DB
 	authenticated    bool           // auth enabled and a valid AUTH seen
@@ -83,6 +87,7 @@ type connCtx struct {
 	watch            map[dbKey]uint // WATCHed keys
 	subscriber       *Subscriber    // client is in PUBSUB mode if not nil
 	nested           bool           // this is called via Lua
+	nestedSHA        string         // set to the SHA of the nesting function
 }
 
 // NewMiniRedis makes a new, non-started, Miniredis object.
@@ -102,6 +107,7 @@ func newRedisDB(id int, m *Miniredis) RedisDB {
 		id:            id,
 		master:        m,
 		keys:          map[string]string{},
+		lru:           map[string]time.Time{},
 		stringKeys:    map[string]string{},
 		hashKeys:      map[string]hashKey{},
 		listKeys:      map[string]listKey{},
@@ -130,6 +136,7 @@ func RunTLS(cfg *tls.Config) (*Miniredis, error) {
 type Tester interface {
 	Fatalf(string, ...interface{})
 	Cleanup(func())
+	Logf(format string, args ...interface{})
 }
 
 // RunT start a new miniredis, pass it a testing.T. It also registers the cleanup after your test is done.
@@ -141,6 +148,22 @@ func RunT(t Tester) *Miniredis {
 	}
 	t.Cleanup(m.Close)
 	return m
+}
+
+func runWithClient(t Tester) (*Miniredis, *proto.Client) {
+	m := RunT(t)
+
+	c, err := proto.Dial(m.Addr())
+	if err != nil {
+		t.Fatalf("could not connect to miniredis: %s", err)
+	}
+	t.Cleanup(func() {
+		if err = c.Close(); err != nil {
+			t.Logf("error closing connection to miniredis: %s", err)
+		}
+	})
+
+	return m, c
 }
 
 // Start starts a server. It listens on a random port on localhost. See also
@@ -172,6 +195,15 @@ func (m *Miniredis) StartAddr(addr string) error {
 	return m.start(s)
 }
 
+// StartAddrTLS runs miniredis with a given addr, TLS version.
+func (m *Miniredis) StartAddrTLS(addr string, cfg *tls.Config) error {
+	s, err := server.NewServerTLS(addr, cfg)
+	if err != nil {
+		return err
+	}
+	return m.start(s)
+}
+
 func (m *Miniredis) start(s *server.Server) error {
 	m.Lock()
 	defer m.Unlock()
@@ -192,8 +224,9 @@ func (m *Miniredis) start(s *server.Server) error {
 	commandsScripting(m)
 	commandsGeo(m)
 	commandsCluster(m)
-	commandsCommand(m)
 	commandsHll(m)
+	commandsClient(m)
+	commandsObject(m)
 
 	return nil
 }
@@ -341,12 +374,19 @@ func (m *Miniredis) Server() *server.Server {
 }
 
 // Dump returns a text version of the selected DB, usable for debugging.
+//
+// Dump limits the maximum length of each key:value to "DumpMaxLineLen" characters.
+// To increase that, call something like:
+//
+//	miniredis.DumpMaxLineLen = 1024
+//	mr, _ = miniredis.Run()
+//	mr.Dump()
 func (m *Miniredis) Dump() string {
 	m.Lock()
 	defer m.Unlock()
 
 	var (
-		maxLen = 60
+		maxLen = DumpMaxLineLen
 		indent = "   "
 		db     = m.db(m.selectedDB)
 		r      = ""
@@ -359,6 +399,7 @@ func (m *Miniredis) Dump() string {
 			return fmt.Sprintf("%q%s", s, suffix)
 		}
 	)
+
 	for _, k := range db.allKeys() {
 		r += fmt.Sprintf("- %s\n", k)
 		t := db.t(k)
@@ -409,8 +450,10 @@ func (m *Miniredis) SetTime(t time.Time) {
 }
 
 // make every command return this message. For example:
-//   LOADING Redis is loading the dataset in memory
-//   MASTERDOWN Link with MASTER is down and replica-serve-stale-data is set to 'no'.
+//
+//	LOADING Redis is loading the dataset in memory
+//	MASTERDOWN Link with MASTER is down and replica-serve-stale-data is set to 'no'.
+//
 // Clear it with an empty string. Don't add newlines.
 func (m *Miniredis) SetError(msg string) {
 	cb := server.Hook(nil)
@@ -421,6 +464,18 @@ func (m *Miniredis) SetError(msg string) {
 		}
 	}
 	m.srv.SetPreHook(cb)
+}
+
+// isValidCMD returns true if command is valid and can be executed.
+func (m *Miniredis) isValidCMD(c *server.Peer, cmd string) bool {
+	if !m.handleAuth(c) {
+		return false
+	}
+	if m.checkPubsub(c, cmd) {
+		return false
+	}
+
+	return true
 }
 
 // handleAuth returns false if connection has no access. It sends the reply.
@@ -653,7 +708,7 @@ func (m *Miniredis) copy(
 	case "hash":
 		destDB.hashKeys[dst] = copyHashKey(srcDB.hashKeys[src])
 	case "list":
-		destDB.listKeys[dst] = srcDB.listKeys[src]
+		destDB.listKeys[dst] = copyListKey(srcDB.listKeys[src])
 	case "set":
 		destDB.setKeys[dst] = copySetKey(srcDB.setKeys[src])
 	case "zset":
@@ -666,7 +721,7 @@ func (m *Miniredis) copy(
 		panic("missing case")
 	}
 	destDB.keys[dst] = srcDB.keys[src]
-	destDB.keyVersion[dst]++
+	destDB.incr(dst)
 	if v, ok := srcDB.ttl[src]; ok {
 		destDB.ttl[dst] = v
 	}
@@ -678,6 +733,12 @@ func copyHashKey(orig hashKey) hashKey {
 	for k, v := range orig {
 		cpy[k] = v
 	}
+	return cpy
+}
+
+func copyListKey(orig listKey) listKey {
+	cpy := make(listKey, len(orig))
+	copy(cpy, orig)
 	return cpy
 }
 
