@@ -11,6 +11,23 @@ permissions:
 
 jobs:
 
+  asdf:
+    # This job deploys the latest main commit to the dev environment
+    if: github.repository == 'grafana/tempo' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+
+      - name: test release
+        run: make release-snapshot
+        env:
+          NFPM_DEFAULT_PASSPHRASE:
+            from_secret: gpg_passphrase
+          NFPM_SIGNING_KEY_FILE: /drone/src/private-key.key
+
   get-tag:
     if: github.repository == 'grafana/tempo'  # skip in forks
     runs-on: ubuntu-24.04
