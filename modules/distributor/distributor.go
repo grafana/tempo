@@ -392,7 +392,6 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	}
 
 	if truncatedAttributeCount > 0 {
-		level.Warn(d.logger).Log("msg", fmt.Sprintf("truncated %d resource/span attributes when adding spans for tenant %s", truncatedAttributeCount, userID))
 		metricAttributesTruncated.WithLabelValues(userID).Add(float64(truncatedAttributeCount))
 	}
 
