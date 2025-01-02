@@ -164,7 +164,7 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 	if g.cfg.Ingest.Enabled {
 		g.kafkaClient, err = ingest.NewReaderClient(
 			g.cfg.Ingest.Kafka,
-			ingest.NewReaderClientMetrics("generator", nil),
+			ingest.NewReaderClientMetrics("generator", prometheus.DefaultRegisterer),
 			g.logger,
 		)
 		if err != nil {
