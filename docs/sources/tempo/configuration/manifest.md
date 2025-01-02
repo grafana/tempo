@@ -185,6 +185,7 @@ distributor:
             stale_duration: 15m0s
     extend_writes: true
     retry_after_on_resource_exhausted: 0s
+    max_span_attr_byte: 2048
 ingester_client:
     pool_config:
         checkinterval: 15s
