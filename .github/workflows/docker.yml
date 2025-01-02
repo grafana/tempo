@@ -1,0 +1,141 @@
+name: docker-ci-tools
+on:
+  push:
+    branches:
+      - 'main'
+      - 'r[0-9]+'
+    tags:
+      - 'v*'
+
+# Needed to login to DockerHub
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+
+  get-tag:
+    if: github.repository == 'grafana/tempo'  # skip in forks
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.get-tag.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+
+      - id: get-tag
+        run: |
+          echo "tag=$(./tools/image-tag)" >> "$GITHUB_OUTPUT"
+
+  docker:
+    if: github.repository == 'grafana/tempo'
+    needs: get-tag
+    strategy:
+      matrix:
+        component: [ tempo, tempo-vulture, tempo-query, tempo-cli ]
+        runner_arch: [ { runner: ubuntu-24.04, arch: amd64 }, { runner: github-hosted-ubuntu-arm64, arch: arm64 } ]
+    runs-on: ${{ matrix.runner_arch.runner }}
+    env:
+      TAG: ${{ needs.get-tag.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+
+      - name: Login to DockerHub
+        uses: grafana/shared-workflows/actions/dockerhub-login@dockerhub-login-v1.0.0
+
+      - name: build-tempo-binaries
+        run: |
+          COMPONENT=${{ matrix.component }} GOARCH=${{ matrix.runner_arch.arch }} make exe
+
+      - name: docker-build-and-push-tempo
+        run: |
+          TAG_ARCH="$TAG-${{ matrix.runner_arch.arch }}"
+          docker build -f cmd/${{ matrix.component }}/Dockerfile -t grafana/${{ matrix.component }}:TAG_ARCH .
+          docker push grafana/${{ matrix.component }}:TAG_ARCH
+
+      - name: docker-manifest-create-and-push
+        run: |
+          docker manifest create \
+          	grafana/${{ matrix.component }}:$TAG               \
+          	--amend grafana/${{ matrix.component }}:$TAG-amd64  \
+          	--amend grafana/${{ matrix.component }}:$TAG-arm64 
+          docker manifest push grafana/${{ matrix.component }}:$TAG
+
+          docker manifest create \
+          	grafana/${{ matrix.component }}:latest            \
+          	--amend grafana/${{ matrix.component }}:$TAG-amd64   \
+          	--amend grafana/${{ matrix.component }}:$TAG-arm64 
+          docker manifest push grafana/${{ matrix.component }}:latest
+
+  cd-to-dev-env:
+    # This job deploys the latest main commit to the dev environment
+    if: github.repository == 'grafana/tempo' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+
+      - name: get-tag
+        run: |
+          echo "grafana/tempo:$(./tools/image-tag)" > .tags-for-cd-tempo
+          echo "grafana/tempo-query:$(./tools/image-tag)" > .tags-for-cd-tempo_query
+          echo "grafana/tempo-vulture:$(./tools/image-tag)" > .tags-for-cd-tempo_vulture
+
+      - name: Authenticate to GAR
+        uses: grafana/shared-workflows/actions/login-to-gar@main
+        id: login-to-gar
+        with:
+          registry: us-docker.pkg.dev
+          environment: prod
+
+      - name: Get Vault secrets
+        uses: grafana/shared-workflows/actions/get-vault-secrets@main
+        with:
+          common_secrets: |
+            GITHUB_APP_ID=updater-app:app-id
+            GITHUB_APP_INSTALLATION_ID=updater-app:app-installation-id
+            GITHUB_APP_PRIVATE_KEY=updater-app:private-key
+
+      - name: Update jsonnet
+        run: |
+          set -e -o pipefail
+
+          cat << EOF > config.json
+          {
+            "destination_branch": "master",
+            "pull_request_branch_prefix": "auto-merge/cd-tempo-dev",
+            "pull_request_enabled": true,
+            "pull_request_existing_strategy": "ignore",
+            "repo_name": "deployment_tools",
+            "update_jsonnet_attribute_configs": [
+              {
+                "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
+                "jsonnet_key": "tempo",
+                "jsonnet_value_file": ".tags-for-cd-tempo"
+              },
+              {
+                "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
+                "jsonnet_key": "tempo_query",
+                "jsonnet_value_file": ".tags-for-cd-tempo_query"
+              },
+              {
+                "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
+                "jsonnet_key": "tempo_vulture",
+                "jsonnet_value_file": ".tags-for-cd-tempo_vulture"
+              }
+            ]
+          }
+          EOF
+
+          docker run --rm \
+          -e GITHUB_APP_ID="$GITHUB_APP_ID" \
+          -e GITHUB_APP_INSTALLATION_ID="$GITHUB_APP_INSTALLATION_ID" \
+          -e GITHUB_APP_PRIVATE_KEY="$GITHUB_APP_PRIVATE_KEY" \
+          -e CONFIG_JSON="$(cat config.json)" us-docker.pkg.dev/grafanalabs-global/docker-deployment-tools-prod/updater
