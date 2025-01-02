@@ -120,7 +120,7 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 
 	b.kafkaClient, err = ingest.NewReaderClient(
 		b.cfg.IngestStorageConfig.Kafka,
-		ingest.NewReaderClientMetrics(blockBuilderServiceName, nil),
+		ingest.NewReaderClientMetrics(blockBuilderServiceName, prometheus.DefaultRegisterer),
 		b.logger,
 	)
 	if err != nil {
