@@ -267,7 +267,7 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, pa
 
 	// Continue consuming in sections until we're caught up.
 	for !sectionEndTime.After(cycleEndTime) {
-		newCommitAt, err := b.consumePartitionSection(ctx, partition, sectionEndTime, partitionLag)
+		newCommitAt, err := b.consumePartitionSection(ctx, partition, commitRecTs, sectionEndTime, partitionLag)
 		if err != nil {
 			return fmt.Errorf("failed to consume partition section: %w", err)
 		}
@@ -281,7 +281,7 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, pa
 	return nil
 }
 
-func (b *BlockBuilder) consumePartitionSection(ctx context.Context, partition int32, sectionEndTime time.Time, lag kadm.GroupMemberLag) (int64, error) {
+func (b *BlockBuilder) consumePartitionSection(ctx context.Context, partition int32, sectionStartTime time.Time, sectionEndTime time.Time, lag kadm.GroupMemberLag) (int64, error) {
 	level.Info(b.logger).Log(
 		"msg", "consuming partition section",
 		"partition", partition,
@@ -297,7 +297,7 @@ func (b *BlockBuilder) consumePartitionSection(ctx context.Context, partition in
 	}(time.Now())
 
 	// TODO - Review what endTimestamp is used here
-	writer := newPartitionSectionWriter(b.logger, int64(partition), sectionEndTime.UnixMilli(), b.cfg.BlockConfig, b.overrides, b.wal, b.enc)
+	writer := newPartitionSectionWriter(b.logger, int64(partition), sectionStartTime, sectionEndTime, b.cfg.BlockConfig, b.overrides, b.wal, b.enc)
 
 	// We always rewind the partition's offset to the commit offset by reassigning the partition to the client (this triggers partition assignment).
 	// This is so the cycle started exactly at the commit offset, and not at what was (potentially over-) consumed previously.

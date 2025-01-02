@@ -25,8 +25,9 @@ type partitionSectionWriter interface {
 type writer struct {
 	logger log.Logger
 
-	blockCfg              BlockConfig
-	partition, cycleEndTs int64
+	blockCfg                         BlockConfig
+	partition                        int64
+	startSectionTime, endSectionTime time.Time
 
 	overrides Overrides
 	wal       *wal.WAL
@@ -36,17 +37,18 @@ type writer struct {
 	m   map[string]*tenantStore
 }
 
-func newPartitionSectionWriter(logger log.Logger, partition, cycleEndTs int64, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
+func newPartitionSectionWriter(logger log.Logger, partition int64, startSectionTime, endSectionTime time.Time, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
 	return &writer{
-		logger:     logger,
-		partition:  partition,
-		cycleEndTs: cycleEndTs,
-		blockCfg:   blockCfg,
-		overrides:  overrides,
-		wal:        wal,
-		enc:        enc,
-		mtx:        sync.Mutex{},
-		m:          make(map[string]*tenantStore),
+		logger:           logger,
+		partition:        partition,
+		endSectionTime:   endSectionTime,
+		startSectionTime: startSectionTime,
+		blockCfg:         blockCfg,
+		overrides:        overrides,
+		wal:              wal,
+		enc:              enc,
+		mtx:              sync.Mutex{},
+		m:                make(map[string]*tenantStore),
 	}
 }
 
@@ -68,25 +70,7 @@ func (p *writer) pushBytes(tenant string, req *tempopb.PushBytesRequest) error {
 		if err := proto.Unmarshal(trace.Slice, tr); err != nil {
 			return fmt.Errorf("failed to unmarshal trace: %w", err)
 		}
-
-		var start, end uint64
-		for _, b := range tr.ResourceSpans {
-			for _, ss := range b.ScopeSpans {
-				for _, s := range ss.Spans {
-					if start == 0 || s.StartTimeUnixNano < start {
-						start = s.StartTimeUnixNano
-					}
-					if s.EndTimeUnixNano > end {
-						end = s.EndTimeUnixNano
-					}
-				}
-			}
-		}
-
-		startSeconds := uint32(start / uint64(time.Second))
-		endSeconds := uint32(end / uint64(time.Second))
-
-		if err := i.AppendTrace(req.Ids[j], tr, startSeconds, endSeconds); err != nil {
+		if err := i.AppendTrace(req.Ids[j], tr, p.startSectionTime, p.endSectionTime); err != nil {
 			return err
 		}
 	}
@@ -113,7 +97,7 @@ func (p *writer) instanceForTenant(tenant string) (*tenantStore, error) {
 		return i, nil
 	}
 
-	i, err := newTenantStore(tenant, p.partition, p.cycleEndTs, p.blockCfg, p.logger, p.wal, p.enc, p.overrides)
+	i, err := newTenantStore(tenant, p.partition, p.endSectionTime.UnixMilli(), p.blockCfg, p.logger, p.wal, p.enc, p.overrides)
 	if err != nil {
 		return nil, err
 	}
