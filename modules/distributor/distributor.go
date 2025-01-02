@@ -116,7 +116,7 @@ var (
 	metricAttributesTruncated = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "distributor_attributes_truncated_total",
-		Help:      "The total number of proto bytes received per tenant",
+		Help:      "The total number of attribute keys or values truncated per tenant",
 	}, []string{"tenant"})
 
 	statBytesReceived = usagestats.NewCounter("distributor_bytes_received")
@@ -544,15 +544,18 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 	for _, b := range batches {
 		spansByILS := make(map[uint32]*v1.ScopeSpans)
 		// check for large resources for large attributes
-		if b.Resource.Size() > maxSpanAttrSize {
-			processAttributes(b.Resource.Attributes, maxSpanAttrSize, &truncatedAttributeCount)
+		if maxSpanAttrSize > 0 {
+			fmt.Println("checking size")
+			resourceAttrTruncatedCount := processAttributes(b.Resource.Attributes, maxSpanAttrSize)
+			truncatedAttributeCount += resourceAttrTruncatedCount
 		}
 
 		for _, ils := range b.ScopeSpans {
 			for _, span := range ils.Spans {
 				// check large spans for large attributes
-				if span.Size() > maxSpanAttrSize {
-					processAttributes(span.Attributes, maxSpanAttrSize, &truncatedAttributeCount)
+				if maxSpanAttrSize > 0 {
+					spanAttrTruncatedCount := processAttributes(span.Attributes, maxSpanAttrSize)
+					truncatedAttributeCount += spanAttrTruncatedCount
 				}
 				traceID := span.TraceId
 				if !validation.ValidTraceID(traceID) {
@@ -626,23 +629,26 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 }
 
 // find and truncate the span attributes that are too large
-func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int, count *int) {
+func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int) int {
+	count := 0
 	for _, attr := range attributes {
 		if len(attr.Key) > maxAttrSize {
 			attr.Key = attr.Key[:maxAttrSize]
-			*count++
+			count++
 		}
 
 		switch value := attr.GetValue().Value.(type) {
 		case *v1_common.AnyValue_StringValue:
 			if len(value.StringValue) > maxAttrSize {
 				value.StringValue = value.StringValue[:maxAttrSize]
-				*count++
+				count++
 			}
 		default:
 			continue
 		}
 	}
+
+	return count
 }
 
 // discardedPredicate determines if a trace is discarded based on the number of successful replications.

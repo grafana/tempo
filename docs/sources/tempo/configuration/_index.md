@@ -234,6 +234,7 @@ distributor:
 
     # Optional
     # Configures the max size an attribute can be. Any key or value that exceeds this limit will be truncated before storing
+    # Setting this parameter to '0' would disable this check against attribute size
     [max_span_attr_byte: <int> | default = '2048']
 
     # Optional.
