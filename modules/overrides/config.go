@@ -158,6 +158,7 @@ type ReadOverrides struct {
 	// QueryFrontend enforced overrides
 	MaxSearchDuration  model.Duration `yaml:"max_search_duration,omitempty" json:"max_search_duration,omitempty"`
 	MaxMetricsDuration model.Duration `yaml:"max_metrics_duration,omitempty" json:"max_metrics_duration,omitempty"`
+    MaxMetricsTimeSeriesPerRequest int `yaml:"max_metrics_time_series_per_request,omitempty" json:"max_metrics_time_series_per_request,omitempty"`
 
 	UnsafeQueryHints bool `yaml:"unsafe_query_hints,omitempty" json:"unsafe_query_hints,omitempty"`
 }

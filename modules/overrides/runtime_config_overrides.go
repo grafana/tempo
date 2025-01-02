@@ -367,6 +367,10 @@ func (o *runtimeConfigOverridesManager) MaxMetricsDuration(userID string) time.D
 	return time.Duration(o.getOverridesForUser(userID).Read.MaxMetricsDuration)
 }
 
+func (o *runtimeConfigOverridesManager) MaxMetricsTimeSeriesPerRequest() int {
+	return o.defaultLimits.Read.MaxMetricsTimeSeriesPerRequest
+}
+
 // MetricsGeneratorIngestionSlack is the max amount of time passed since a span's end time
 // for the span to be considered in metrics generation
 func (o *runtimeConfigOverridesManager) MetricsGeneratorIngestionSlack(userID string) time.Duration {

@@ -365,7 +365,7 @@ func TestQueryRangeCombinerDiffs(t *testing.T) {
 		Step:  step,
 		Query: "{} | rate()", // simple aggregate
 	}
-	combiner, err := QueryRangeCombinerFor(req, AggregateModeFinal, true)
+	combiner, err := QueryRangeCombinerFor(req, AggregateModeFinal, true, 10000)
 	require.NoError(t, err)
 
 	for i, tc := range tcs {

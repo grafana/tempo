@@ -58,11 +58,7 @@ message TraceByIDRequest {
 message TraceByIDResponse {
   Trace trace = 1;
   TraceByIDMetrics metrics = 2;
-  enum Status {
-    COMPLETE = 0;
-    PARTIAL = 1;
-  }
-  Status status = 3;
+  PartialStatus status = 3;
   string message = 4;
 }
 
@@ -422,14 +418,15 @@ message QueryRangeRequest {
   uint32 exemplars = 16;
 }
 
+enum PartialStatus {
+  COMPLETE = 0;
+  PARTIAL = 1;
+}
+
 message QueryRangeResponse {
   repeated TimeSeries series = 1;
   SearchMetrics metrics = 2;
-    enum Status {
-    COMPLETE = 0;
-    PARTIAL = 1;
-  }
-  Status status = 3;
+  PartialStatus status = 3;
   string message = 4;
 }
 

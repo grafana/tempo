@@ -128,6 +128,7 @@ type LegacyOverrides struct {
 	// QueryFrontend enforced limits
 	MaxSearchDuration  model.Duration `yaml:"max_search_duration" json:"max_search_duration"`
 	MaxMetricsDuration model.Duration `yaml:"max_metrics_duration" json:"max_metrics_duration"`
+	MaxMetricsTimeSeriesPerRequest int `yaml:"max_metrics_time_series_per_request" json:"max_metrics_time_series_per_request"` 
 	UnsafeQueryHints   bool           `yaml:"unsafe_query_hints" json:"unsafe_query_hints"`
 
 	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search) and Serverless (Search). It
@@ -155,6 +156,7 @@ func (l *LegacyOverrides) toNewLimits() Overrides {
 			MaxBlocksPerTagValuesQuery: l.MaxBlocksPerTagValuesQuery,
 			MaxSearchDuration:          l.MaxSearchDuration,
 			MaxMetricsDuration:         l.MaxMetricsDuration,
+			MaxMetricsTimeSeriesPerRequest: l.MaxMetricsTimeSeriesPerRequest,
 			UnsafeQueryHints:           l.UnsafeQueryHints,
 		},
 		Compaction: CompactionOverrides{

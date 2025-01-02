@@ -151,7 +151,9 @@ type QueryRangeCombiner struct {
 	metrics *tempopb.SearchMetrics
 
 	// used to track the maximum number of series allowed in the response
-	maxSeriesCount int
+	maxSeries int
+	maxSeriesReached bool
+	enforceMaxSeries bool // shouldn't enforce max series for topk and bottomk during combine
 
 	// used to track which series were updated since the previous diff
 	// todo: it may not be worth it to track the diffs per series. it would be simpler (and possibly nearly as effective) to just calculate a global
@@ -159,7 +161,7 @@ type QueryRangeCombiner struct {
 	seriesUpdated map[string]tsRange
 }
 
-func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode, trackDiffs bool) (*QueryRangeCombiner, error) {
+func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode, trackDiffs bool, maxSeries int) (*QueryRangeCombiner, error) {
 	eval, err := NewEngine().CompileMetricsQueryRangeNonRaw(req, mode)
 	if err != nil {
 		return nil, err
@@ -175,6 +177,7 @@ func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode, t
 		eval:          eval,
 		metrics:       &tempopb.SearchMetrics{},
 		seriesUpdated: seriesUpdated,
+		maxSeries:     maxSeries,
 	}, nil
 }
 
@@ -198,6 +201,7 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 		q.metrics.InspectedSpans += resp.Metrics.InspectedSpans
 		q.metrics.CompletedJobs += resp.Metrics.CompletedJobs
 	}
+
 }
 
 func (q *QueryRangeCombiner) Response() *tempopb.QueryRangeResponse {
@@ -227,6 +231,10 @@ func (q *QueryRangeCombiner) Diff() *tempopb.QueryRangeResponse {
 	clear(q.seriesUpdated)
 
 	return resp
+}
+
+func (q *QueryRangeCombiner) IsPartialResponse() bool {
+	return true
 }
 
 func (q *QueryRangeCombiner) markUpdatedRanges(resp *tempopb.QueryRangeResponse) {
