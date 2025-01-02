@@ -35,6 +35,7 @@ querier:
 * [CHANGE] TraceQL: Add range condition for byte predicates [#4198](https://github.com/grafana/tempo/pull/4198) (@ie-pham)
 * [CHANGE] Return 422 for TRACE_TOO_LARGE queries [#4160](https://github.com/grafana/tempo/pull/4160) (@zalegrala)
 * [CHANGE] Upgrade OTEL sdk to reduce allocs [#4243](https://github.com/grafana/tempo/pull/4243) (@joe-elliott)
+* [CHANGE] Update Alpine image version to 3.21 [#4504](https://github.com/grafana/tempo/pull/4504) (@mdisibio)
 * [CHANGE] Tighten file permissions [#4251](https://github.com/grafana/tempo/pull/4251) (@zalegrala)
 * [CHANGE] Drop max live traces log message and rate limit trace too large. [#4418](https://github.com/grafana/tempo/pull/4418) (@joe-elliott)
 * [CHANGE] Update the Open-Telemetry dependencies to v0.116.0 [#4466](https://github.com/grafana/tempo/pull/4466) (@yvrhdn)
