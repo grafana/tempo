@@ -39,7 +39,7 @@ func NewReaderClient(kafkaCfg KafkaConfig, metrics *kprom.Metrics, logger log.Lo
 }
 
 func NewReaderClientMetrics(component string, reg prometheus.Registerer) *kprom.Metrics {
-	return kprom.NewMetrics("loki_ingest_storage_reader",
+	return kprom.NewMetrics("tempo_ingest_storage_reader",
 		kprom.Registerer(prometheus.WrapRegistererWith(prometheus.Labels{"component": component}, reg)),
 		// Do not export the client ID, because we use it to specify options to the backend.
 		kprom.FetchAndProduceDetail(kprom.Batches, kprom.Records, kprom.CompressedBytes, kprom.UncompressedBytes))
