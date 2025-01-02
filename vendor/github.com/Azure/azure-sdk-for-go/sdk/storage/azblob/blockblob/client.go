@@ -11,9 +11,6 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/sas"
 	"io"
 	"math"
 	"os"
@@ -22,16 +19,19 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/internal/log"
 	"github.com/Azure/azure-sdk-for-go/sdk/internal/uuid"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/internal/base"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/internal/exported"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/internal/generated"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/internal/shared"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/sas"
 )
 
 // ClientOptions contains the optional parameters when creating a Client.
@@ -45,11 +45,12 @@ type Client base.CompositeClient[generated.BlobClient, generated.BlockBlobClient
 //   - cred - an Azure AD credential, typically obtained via the azidentity module
 //   - options - client options; pass nil to accept the default values
 func NewClient(blobURL string, cred azcore.TokenCredential, options *ClientOptions) (*Client, error) {
-	authPolicy := shared.NewStorageChallengePolicy(cred)
+	audience := base.GetAudience((*base.ClientOptions)(options))
 	conOptions := shared.GetClientOptions(options)
+	authPolicy := shared.NewStorageChallengePolicy(cred, audience, conOptions.InsecureAllowCredentialWithHTTP)
 	plOpts := runtime.PipelineOptions{PerRetry: []policy.Policy{authPolicy}}
 
-	azClient, err := azcore.NewClient(shared.BlockBlobClient, exported.ModuleVersion, plOpts, &conOptions.ClientOptions)
+	azClient, err := azcore.NewClient(exported.ModuleName, exported.ModuleVersion, plOpts, &conOptions.ClientOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +64,7 @@ func NewClient(blobURL string, cred azcore.TokenCredential, options *ClientOptio
 func NewClientWithNoCredential(blobURL string, options *ClientOptions) (*Client, error) {
 	conOptions := shared.GetClientOptions(options)
 
-	azClient, err := azcore.NewClient(shared.BlockBlobClient, exported.ModuleVersion, runtime.PipelineOptions{}, &conOptions.ClientOptions)
+	azClient, err := azcore.NewClient(exported.ModuleName, exported.ModuleVersion, runtime.PipelineOptions{}, &conOptions.ClientOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +81,7 @@ func NewClientWithSharedKeyCredential(blobURL string, cred *blob.SharedKeyCreden
 	conOptions := shared.GetClientOptions(options)
 	plOpts := runtime.PipelineOptions{PerRetry: []policy.Policy{authPolicy}}
 
-	azClient, err := azcore.NewClient(shared.BlockBlobClient, exported.ModuleVersion, plOpts, &conOptions.ClientOptions)
+	azClient, err := azcore.NewClient(exported.ModuleName, exported.ModuleVersion, plOpts, &conOptions.ClientOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -363,8 +364,8 @@ func (bb *Client) GetAccountInfo(ctx context.Context, o *blob.GetAccountInfoOpti
 
 // SetHTTPHeaders changes a blob's HTTP headers.
 // For more information, see https://docs.microsoft.com/rest/api/storageservices/set-blob-properties.
-func (bb *Client) SetHTTPHeaders(ctx context.Context, HTTPHeaders blob.HTTPHeaders, o *blob.SetHTTPHeadersOptions) (blob.SetHTTPHeadersResponse, error) {
-	return bb.BlobClient().SetHTTPHeaders(ctx, HTTPHeaders, o)
+func (bb *Client) SetHTTPHeaders(ctx context.Context, httpHeaders blob.HTTPHeaders, o *blob.SetHTTPHeadersOptions) (blob.SetHTTPHeadersResponse, error) {
+	return bb.BlobClient().SetHTTPHeaders(ctx, httpHeaders, o)
 }
 
 // SetMetadata changes a blob's metadata.
@@ -473,7 +474,7 @@ func (bb *Client) uploadFromReader(ctx context.Context, reader io.ReaderAt, actu
 		OperationName: "uploadFromReader",
 		TransferSize:  actualSize,
 		ChunkSize:     o.BlockSize,
-		NumChunks:     uint16(((actualSize - 1) / o.BlockSize) + 1),
+		NumChunks:     uint64(((actualSize - 1) / o.BlockSize) + 1),
 		Concurrency:   o.Concurrency,
 		Operation: func(ctx context.Context, offset int64, chunkSize int64) error {
 			// This function is called once per block.
