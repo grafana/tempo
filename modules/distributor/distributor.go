@@ -544,8 +544,7 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 	for _, b := range batches {
 		spansByILS := make(map[uint32]*v1.ScopeSpans)
 		// check for large resources for large attributes
-		if maxSpanAttrSize > 0 {
-			fmt.Println("checking size")
+		if maxSpanAttrSize > 0 && b.Resource != nil {
 			resourceAttrTruncatedCount := processAttributes(b.Resource.Attributes, maxSpanAttrSize)
 			truncatedAttributeCount += resourceAttrTruncatedCount
 		}
