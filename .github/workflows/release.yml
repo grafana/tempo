@@ -1,0 +1,64 @@
+name: release
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Needed to login to DockerHub
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+
+  get-tag:
+    if: github.repository == 'grafana/tempo'  # skip in forks
+    runs-on: ubuntu-24.04
+    container:
+      image: jrei/systemd-debian:12
+      env:
+        NODE_ENV: development
+      ports:
+        - 80
+      volumes:
+        - my_docker_volume:/volume_mount
+      options: --cpus 1
+    steps:
+      - name: verify deb install
+        run: |
+          set -x
+          
+          # Install tempo and check it's running
+          dpkg -i ${dir}/dist/tempo*_amd64.deb
+          [ "\$(systemctl is-active tempo)" = "active" ] || (echo "tempo is inactive" && exit 1)
+
+          # Wait for tempo to be ready. 
+          apt update && apt install -y curl
+          ./tools/packaging/wait-for-ready.sh
+
+  centos:
+    if: github.repository == 'grafana/tempo'  # skip in forks
+    runs-on: ubuntu-24.04
+    container:
+      image: jrei/systemd-centos:8
+      env:
+        NODE_ENV: development
+      ports:
+        - 80
+      volumes:
+        - my_docker_volume:/volume_mount
+      options: --cpus 1
+    steps:
+      - name: verify rpm install
+        run: |
+          set -x
+      
+          # Import the Grafana GPG key
+          rpm --import https://packages.grafana.com/gpg.key
+      
+          # Install tempo and check it's running
+          rpm -i ./dist/tempo*_amd64.rpm
+          [ "\$(systemctl is-active tempo)" = "active" ] || (echo "tempo is inactive" && exit 1)
+      
+          # Wait for tempo to be ready. 
+          ./tools/packaging/wait-for-ready.sh
