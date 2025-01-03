@@ -70,6 +70,7 @@ func (c *Cluster) ensureConsumerGroupExists(consumerGroup string) {
 	}
 }
 
+// nolint: revive
 func (c *Cluster) offsetCommit(request kmsg.Request) (kmsg.Response, error, bool) {
 	c.fake.KeepControl()
 
@@ -103,6 +104,7 @@ func (c *Cluster) offsetCommit(request kmsg.Request) (kmsg.Response, error, bool
 	return resp, nil, true
 }
 
+// nolint: revive
 func (c *Cluster) offsetFetch(kreq kmsg.Request) (kmsg.Response, error, bool) {
 	c.fake.KeepControl()
 	req := kreq.(*kmsg.OffsetFetchRequest)

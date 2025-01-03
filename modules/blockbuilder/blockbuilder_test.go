@@ -503,6 +503,7 @@ func countFlushedTraces(store storage.Store) int {
 	return count
 }
 
+// nolint: revive
 func sendReq(t *testing.T, ctx context.Context, client *kgo.Client) []*kgo.Record {
 	traceID := generateTraceID(t)
 
@@ -516,6 +517,7 @@ func sendReq(t *testing.T, ctx context.Context, client *kgo.Client) []*kgo.Recor
 	return records
 }
 
+// nolint: revive
 func sendTracesFor(t *testing.T, ctx context.Context, client *kgo.Client, dur, interval time.Duration) []*kgo.Record {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -545,6 +547,7 @@ func generateTraceID(t *testing.T) []byte {
 	return traceID
 }
 
+// nolint: revive
 func requireLastCommitEquals(t testing.TB, ctx context.Context, client *kgo.Client, topic, consumerGroup string, partition int32, expectedOffset int64) {
 	offsets, err := kadm.NewClient(client).FetchOffsetsForTopics(ctx, consumerGroup, topic)
 	require.NoError(t, err)
