@@ -30,7 +30,11 @@ import (
 	"go.uber.org/atomic"
 )
 
-const testTopic = "test-topic"
+const (
+	testTopic         = "test-topic"
+	testConsumerGroup = "test-consumer-group"
+	testPartition     = int32(0)
+)
 
 // When the partition starts with no existing commit,
 // the block-builder looks back to consume all available records from the start and ensures they are committed and flushed into a block.
@@ -38,7 +42,7 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
 
-	k, address := testkafka.CreateCluster(t, 1, "test-topic")
+	k, address := testkafka.CreateCluster(t, 1, testTopic)
 
 	kafkaCommits := atomic.NewInt32(0)
 	k.ControlKey(kmsg.OffsetCommit, func(r kmsg.Request) (kmsg.Response, error, bool) {
@@ -56,7 +60,7 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	})
 
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
-	sendReq(t, ctx, client)
+	producedRecords := sendReq(t, ctx, client)
 
 	// Wait for record to be consumed and committed.
 	require.Eventually(t, func() bool {
@@ -67,6 +71,9 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return len(store.BlockMetas(util.FakeTenantID)) == 1 && countFlushedTraces(store) == 1
 	}, time.Minute, time.Second)
+
+	// Check committed offset
+	requireLastCommitEquals(t, ctx, client, testTopic, testConsumerGroup, testPartition, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
 // Starting with a pre-existing commit,
@@ -76,7 +83,7 @@ func TestBlockbuilder_startWithCommit(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
 
-	k, address := testkafka.CreateCluster(t, 1, "test-topic")
+	k, address := testkafka.CreateCluster(t, 1, testTopic)
 
 	kafkaCommits := atomic.NewInt32(0)
 	k.ControlKey(kmsg.OffsetCommit, func(r kmsg.Request) (kmsg.Response, error, bool) {
@@ -119,6 +126,9 @@ func TestBlockbuilder_startWithCommit(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return countFlushedTraces(store) == len(producedRecords)-commitedAt
 	}, time.Minute, time.Second)
+
+	// Check committed offset
+	requireLastCommitEquals(t, ctx, client, testTopic, testConsumerGroup, testPartition, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
 // In case a block flush initially fails, the system retries until it succeeds.
@@ -146,7 +156,7 @@ func TestBlockbuilder_flushingFails(t *testing.T) {
 	logger := test.NewTestingLogger(t)
 
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
-	sendTracesFor(t, ctx, client, time.Second, 100*time.Millisecond) // Send for 1 second, <1 consumption cycles
+	producedRecords := sendTracesFor(t, ctx, client, time.Second, 100*time.Millisecond) // Send for 1 second, <1 consumption cycles
 
 	b := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
@@ -161,6 +171,9 @@ func TestBlockbuilder_flushingFails(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return len(store.BlockMetas(util.FakeTenantID)) >= 1
 	}, time.Minute, time.Second)
+
+	// Check committed offset
+	requireLastCommitEquals(t, ctx, client, testTopic, testConsumerGroup, testPartition, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
 // Receiving records with older timestamps the block-builder processes them in the current cycle,
@@ -216,6 +229,9 @@ func TestBlockbuilder_receivesOldRecords(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return len(store.BlockMetas(util.FakeTenantID)) == 2
 	}, time.Minute, time.Second)
+
+	// Check committed offset
+	requireLastCommitEquals(t, ctx, client, testTopic, testConsumerGroup, testPartition, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
 // FIXME - Test is unstable and will fail if records cross two consumption cycles,
@@ -264,7 +280,7 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 	logger := test.NewTestingLogger(t)
 
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
-	sendTracesFor(t, ctx, client, time.Second, 100*time.Millisecond) // Send for 1 second, <1 consumption cycles
+	producedRecords := sendTracesFor(t, ctx, client, time.Second, 100*time.Millisecond) // Send for 1 second, <1 consumption cycles
 
 	b := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
@@ -281,6 +297,9 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return len(store.BlockMetas(util.FakeTenantID)) == 1 // Only one block should have been written
 	}, time.Minute, time.Second)
+
+	// Check committed offset
+	requireLastCommitEquals(t, ctx, client, testTopic, testConsumerGroup, testPartition, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
 func TestCycleEndAtStartup(t *testing.T) {
@@ -368,7 +387,7 @@ func blockbuilderConfig(t *testing.T, address string) Config {
 	flagext.DefaultValues(&cfg.IngestStorageConfig.Kafka)
 	cfg.IngestStorageConfig.Kafka.Address = address
 	cfg.IngestStorageConfig.Kafka.Topic = testTopic
-	cfg.IngestStorageConfig.Kafka.ConsumerGroup = "test-consumer-group"
+	cfg.IngestStorageConfig.Kafka.ConsumerGroup = testConsumerGroup
 
 	cfg.AssignedPartitions = map[string][]int32{cfg.InstanceID: {0}}
 	cfg.LookbackOnNoCommit = 15 * time.Second
@@ -524,4 +543,12 @@ func generateTraceID(t *testing.T) []byte {
 	_, err := rand.Read(traceID)
 	require.NoError(t, err)
 	return traceID
+}
+
+func requireLastCommitEquals(t testing.TB, ctx context.Context, client *kgo.Client, topic, consumerGroup string, partition int32, expectedOffset int64) {
+	offsets, err := kadm.NewClient(client).FetchOffsetsForTopics(ctx, consumerGroup, topic)
+	require.NoError(t, err)
+	offset, ok := offsets.Lookup(topic, partition)
+	require.True(t, ok)
+	require.Equal(t, expectedOffset, offset.At)
 }
