@@ -14,8 +14,7 @@ import (
 
 var errUnsupported = errors.New("unsupported serialization")
 
-type rawMarshaler struct {
-}
+type rawMarshaler struct{}
 
 func newRawMarshaler() rawMarshaler {
 	return rawMarshaler{}

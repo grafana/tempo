@@ -33,7 +33,8 @@ var predicates = map[string]struct {
 	"one":           {[]arg{expr, closure}},
 	"filter":        {[]arg{expr, closure}},
 	"map":           {[]arg{expr, closure}},
-	"count":         {[]arg{expr, closure}},
+	"count":         {[]arg{expr, closure | optional}},
+	"sum":           {[]arg{expr, closure | optional}},
 	"find":          {[]arg{expr, closure}},
 	"findIndex":     {[]arg{expr, closure}},
 	"findLast":      {[]arg{expr, closure}},
@@ -54,7 +55,7 @@ type parser struct {
 
 type Tree struct {
 	Node   Node
-	Source *file.Source
+	Source file.Source
 }
 
 func Parse(input string) (*Tree, error) {
@@ -83,14 +84,16 @@ func ParseWithConfig(input string, config *conf.Config) (*Tree, error) {
 		p.error("unexpected token %v", p.current)
 	}
 
-	if p.err != nil {
-		return nil, p.err.Bind(source)
-	}
-
-	return &Tree{
+	tree := &Tree{
 		Node:   node,
 		Source: source,
-	}, nil
+	}
+
+	if p.err != nil {
+		return tree, p.err.Bind(source)
+	}
+
+	return tree, nil
 }
 
 func (p *parser) error(format string, args ...any) {

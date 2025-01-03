@@ -28,6 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/consumer"
@@ -66,7 +67,7 @@ type jReceiver struct {
 
 	goroutines sync.WaitGroup
 
-	settings receiver.CreateSettings
+	settings receiver.Settings
 
 	grpcObsrecv *receiverhelper.ObsReport
 	httpObsrecv *receiverhelper.ObsReport
@@ -82,12 +83,10 @@ const (
 	protobufFormat = "protobuf"
 )
 
-var (
-	acceptedThriftFormats = map[string]struct{}{
-		"application/x-thrift":                 {},
-		"application/vnd.apache.thrift.binary": {},
-	}
-)
+var acceptedThriftFormats = map[string]struct{}{
+	"application/x-thrift":                 {},
+	"application/vnd.apache.thrift.binary": {},
+}
 
 // newJaegerReceiver creates a TracesReceiver that receives traffic as a Jaeger collector, and
 // also as a Jaeger agent.
@@ -95,7 +94,7 @@ func newJaegerReceiver(
 	id component.ID,
 	config *configuration,
 	nextConsumer consumer.Traces,
-	set receiver.CreateSettings,
+	set receiver.Settings,
 ) (*jReceiver, error) {
 	grpcObsrecv, err := receiverhelper.NewObsReport(receiverhelper.ObsReportSettings{
 		ReceiverID:             id,
@@ -125,7 +124,7 @@ func newJaegerReceiver(
 }
 
 func (jr *jReceiver) Start(ctx context.Context, host component.Host) error {
-	if err := jr.startAgent(); err != nil {
+	if err := jr.startAgent(host); err != nil {
 		return err
 	}
 
@@ -168,11 +167,13 @@ func consumeTraces(ctx context.Context, batch *jaeger.Batch, consumer consumer.T
 	return len(batch.Spans), consumer.ConsumeTraces(ctx, td)
 }
 
-var _ agent.Agent = (*agentHandler)(nil)
-var _ api_v2.CollectorServiceServer = (*jReceiver)(nil)
-var _ configmanager.ClientConfigManager = (*notImplementedConfigManager)(nil)
+var (
+	_ agent.Agent                       = (*agentHandler)(nil)
+	_ api_v2.CollectorServiceServer     = (*jReceiver)(nil)
+	_ configmanager.ClientConfigManager = (*notImplementedConfigManager)(nil)
+)
 
-var errNotImplemented = fmt.Errorf("not implemented")
+var errNotImplemented = errors.New("not implemented")
 
 type notImplementedConfigManager struct{}
 
@@ -222,7 +223,7 @@ func (jr *jReceiver) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) 
 	return &api_v2.PostSpansResponse{}, nil
 }
 
-func (jr *jReceiver) startAgent() error {
+func (jr *jReceiver) startAgent(host component.Host) error {
 	if jr.config == nil {
 		return nil
 	}
@@ -283,7 +284,7 @@ func (jr *jReceiver) startAgent() error {
 		go func() {
 			defer jr.goroutines.Done()
 			if err := jr.agentServer.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) && err != nil {
-				jr.settings.ReportStatus(component.NewFatalErrorEvent(fmt.Errorf("jaeger agent server error: %w", err)))
+				componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(fmt.Errorf("jaeger agent server error: %w", err)))
 			}
 		}()
 	}
@@ -391,7 +392,7 @@ func (jr *jReceiver) startCollector(ctx context.Context, host component.Host) er
 		go func() {
 			defer jr.goroutines.Done()
 			if errHTTP := jr.collectorServer.Serve(cln); !errors.Is(errHTTP, http.ErrServerClosed) && errHTTP != nil {
-				jr.settings.ReportStatus(component.NewFatalErrorEvent(errHTTP))
+				componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(errHTTP))
 			}
 		}()
 	}
@@ -414,7 +415,7 @@ func (jr *jReceiver) startCollector(ctx context.Context, host component.Host) er
 		go func() {
 			defer jr.goroutines.Done()
 			if errGrpc := jr.grpc.Serve(ln); !errors.Is(errGrpc, grpc.ErrServerStopped) && errGrpc != nil {
-				jr.settings.ReportStatus(component.NewFatalErrorEvent(errGrpc))
+				componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(errGrpc))
 			}
 		}()
 	}

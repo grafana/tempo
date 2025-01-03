@@ -5,84 +5,45 @@ package filterprocessor // import "github.com/open-telemetry/opentelemetry-colle
 
 import (
 	"context"
+	"fmt"
 
+	"go.opentelemetry.io/collector/pipeline"
 	"go.opentelemetry.io/collector/processor"
-	"go.opentelemetry.io/collector/processor/processorhelper"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor/internal/metadata"
 )
 
-type trigger int
-
-const (
-	triggerMetricDataPointsDropped trigger = iota
-	triggerLogsDropped
-	triggerSpansDropped
-)
-
-type filterProcessorTelemetry struct {
-	exportCtx context.Context
-
-	processorAttr []attribute.KeyValue
-
-	datapointsFiltered metric.Int64Counter
-	logsFiltered       metric.Int64Counter
-	spansFiltered      metric.Int64Counter
+type filterTelemetry struct {
+	attr    metric.MeasurementOption
+	counter metric.Int64Counter
 }
 
-func newfilterProcessorTelemetry(set processor.CreateSettings) (*filterProcessorTelemetry, error) {
-	processorID := set.ID.String()
-
-	fpt := &filterProcessorTelemetry{
-		processorAttr: []attribute.KeyValue{attribute.String(metadata.Type.String(), processorID)},
-		exportCtx:     context.Background(),
-	}
-
-	counter, err := metadata.Meter(set.TelemetrySettings).Int64Counter(
-		processorhelper.BuildCustomMetricName(metadata.Type.String(), "datapoints.filtered"),
-		metric.WithDescription("Number of metric data points dropped by the filter processor"),
-		metric.WithUnit("1"),
-	)
+func newFilterTelemetry(set processor.Settings, signal pipeline.Signal) (*filterTelemetry, error) {
+	telemetryBuilder, err := metadata.NewTelemetryBuilder(set.TelemetrySettings)
 	if err != nil {
 		return nil, err
 	}
-	fpt.datapointsFiltered = counter
 
-	counter, err = metadata.Meter(set.TelemetrySettings).Int64Counter(
-		processorhelper.BuildCustomMetricName(metadata.Type.String(), "logs.filtered"),
-		metric.WithDescription("Number of logs dropped by the filter processor"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, err
+	var counter metric.Int64Counter
+	switch signal {
+	case pipeline.SignalMetrics:
+		counter = telemetryBuilder.ProcessorFilterDatapointsFiltered
+	case pipeline.SignalLogs:
+		counter = telemetryBuilder.ProcessorFilterLogsFiltered
+	case pipeline.SignalTraces:
+		counter = telemetryBuilder.ProcessorFilterSpansFiltered
+	default:
+		return nil, fmt.Errorf("unsupported signal type: %v", signal)
 	}
-	fpt.logsFiltered = counter
 
-	counter, err = metadata.Meter(set.TelemetrySettings).Int64Counter(
-		processorhelper.BuildCustomMetricName(metadata.Type.String(), "spans.filtered"),
-		metric.WithDescription("Number of spans dropped by the filter processor"),
-		metric.WithUnit("1"),
-	)
-	if err != nil {
-		return nil, err
-	}
-	fpt.spansFiltered = counter
-
-	return fpt, nil
+	return &filterTelemetry{
+		attr:    metric.WithAttributeSet(attribute.NewSet(attribute.String(metadata.Type.String(), set.ID.String()))),
+		counter: counter,
+	}, nil
 }
 
-func (fpt *filterProcessorTelemetry) record(trigger trigger, dropped int64) {
-	var triggerMeasure metric.Int64Counter
-	switch trigger {
-	case triggerMetricDataPointsDropped:
-		triggerMeasure = fpt.datapointsFiltered
-	case triggerLogsDropped:
-		triggerMeasure = fpt.logsFiltered
-	case triggerSpansDropped:
-		triggerMeasure = fpt.spansFiltered
-	}
-
-	triggerMeasure.Add(fpt.exportCtx, dropped, metric.WithAttributes(fpt.processorAttr...))
+func (fpt *filterTelemetry) record(ctx context.Context, dropped int64) {
+	fpt.counter.Add(ctx, dropped, fpt.attr)
 }

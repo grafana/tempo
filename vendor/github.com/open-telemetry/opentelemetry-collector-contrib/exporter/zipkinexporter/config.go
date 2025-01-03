@@ -14,8 +14,8 @@ import (
 
 // Config defines configuration settings for the Zipkin exporter.
 type Config struct {
-	exporterhelper.QueueSettings `mapstructure:"sending_queue"`
-	configretry.BackOffConfig    `mapstructure:"retry_on_failure"`
+	QueueSettings             exporterhelper.QueueConfig `mapstructure:"sending_queue"`
+	configretry.BackOffConfig `mapstructure:"retry_on_failure"`
 
 	// Configures the exporter client.
 	// The Endpoint to send the Zipkin trace data to (e.g.: http://some.url:9411/api/v2/spans).

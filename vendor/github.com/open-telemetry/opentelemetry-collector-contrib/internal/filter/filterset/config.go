@@ -22,9 +22,7 @@ const (
 	MatchTypeFieldName = "match_type"
 )
 
-var (
-	validMatchTypes = []MatchType{Regexp, Strict}
-)
+var validMatchTypes = []MatchType{Regexp, Strict}
 
 // Config configures the matching behavior of a FilterSet.
 type Config struct {

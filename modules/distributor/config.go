@@ -56,6 +56,8 @@ type Config struct {
 
 	// For testing.
 	factory ring_client.PoolAddrFunc `yaml:"-"`
+
+	MaxSpanAttrByte int `yaml:"max_span_attr_byte"`
 }
 
 type LogSpansConfig struct {
@@ -78,6 +80,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.RetryAfterOnResourceExhausted = 0
 	cfg.OverrideRingKey = distributorRingKey
 	cfg.ExtendWrites = true
+
+	cfg.MaxSpanAttrByte = 2048 // 2KB
 
 	f.BoolVar(&cfg.LogReceivedSpans.Enabled, util.PrefixConfig(prefix, "log-received-spans.enabled"), false, "Enable to log every received span to help debug ingestion or calculate span error distributions using the logs.")
 	f.BoolVar(&cfg.LogReceivedSpans.IncludeAllAttributes, util.PrefixConfig(prefix, "log-received-spans.include-attributes"), false, "Enable to include span attributes in the logs.")

@@ -39,6 +39,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/usagestats"
 	tempo_util "github.com/grafana/tempo/pkg/util"
@@ -140,6 +141,11 @@ var (
 		Name:      "kafka_appends_total",
 		Help:      "The total number of appends sent to kafka",
 	}, []string{"partition", "status"})
+	metricAttributesTruncated = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "distributor_attributes_truncated_total",
+		Help:      "The total number of attribute keys or values truncated per tenant",
+	}, []string{"tenant"})
 
 	statBytesReceived = usagestats.NewCounter("distributor_bytes_received")
 	statSpansReceived = usagestats.NewCounter("distributor_spans_received")
@@ -305,7 +311,7 @@ func New(
 		cfgReceivers = defaultReceivers
 	}
 
-	receivers, err := receiver.New(cfgReceivers, d, middleware, cfg.RetryAfterOnResourceExhausted, loggingLevel)
+	receivers, err := receiver.New(cfgReceivers, d, middleware, cfg.RetryAfterOnResourceExhausted, loggingLevel, reg)
 	if err != nil {
 		return nil, err
 	}
@@ -435,11 +441,15 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		d.usage.Observe(userID, batches)
 	}
 
-	keys, rebatchedTraces, err := requestsByTraceID(batches, userID, spanCount)
+	keys, rebatchedTraces, truncatedAttributeCount, err := requestsByTraceID(batches, userID, spanCount, d.cfg.MaxSpanAttrByte)
 	if err != nil {
 		overrides.RecordDiscardedSpans(spanCount, reasonInternalError, userID)
 		logDiscardedResourceSpans(batches, userID, &d.cfg.LogDiscardedSpans, d.logger)
 		return nil, err
+	}
+
+	if truncatedAttributeCount > 0 {
+		metricAttributesTruncated.WithLabelValues(userID).Add(float64(truncatedAttributeCount))
 	}
 
 	err = d.sendToIngestersViaBytes(ctx, userID, spanCount, rebatchedTraces, keys)
@@ -666,18 +676,29 @@ func successfulProduceRecordsStats(results kgo.ProduceResults) (count, sizeBytes
 
 // requestsByTraceID takes an incoming tempodb.PushRequest and creates a set of keys for the hash ring
 // and traces to pass onto the ingesters.
-func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int) ([]uint32, []*rebatchedTrace, error) {
+func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, maxSpanAttrSize int) ([]uint32, []*rebatchedTrace, int, error) {
 	const tracesPerBatch = 20 // p50 of internal env
 	tracesByID := make(map[uint32]*rebatchedTrace, tracesPerBatch)
+	truncatedAttributeCount := 0
 
 	for _, b := range batches {
 		spansByILS := make(map[uint32]*v1.ScopeSpans)
+		// check for large resources for large attributes
+		if maxSpanAttrSize > 0 && b.Resource != nil {
+			resourceAttrTruncatedCount := processAttributes(b.Resource.Attributes, maxSpanAttrSize)
+			truncatedAttributeCount += resourceAttrTruncatedCount
+		}
 
 		for _, ils := range b.ScopeSpans {
 			for _, span := range ils.Spans {
+				// check large spans for large attributes
+				if maxSpanAttrSize > 0 {
+					spanAttrTruncatedCount := processAttributes(span.Attributes, maxSpanAttrSize)
+					truncatedAttributeCount += spanAttrTruncatedCount
+				}
 				traceID := span.TraceId
 				if !validation.ValidTraceID(traceID) {
-					return nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received %d bits", len(traceID)*8)
+					return nil, nil, 0, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received %d bits", len(traceID)*8)
 				}
 
 				traceKey := tempo_util.TokenFor(userID, traceID)
@@ -743,7 +764,30 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 		traces = append(traces, r)
 	}
 
-	return keys, traces, nil
+	return keys, traces, truncatedAttributeCount, nil
+}
+
+// find and truncate the span attributes that are too large
+func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int) int {
+	count := 0
+	for _, attr := range attributes {
+		if len(attr.Key) > maxAttrSize {
+			attr.Key = attr.Key[:maxAttrSize]
+			count++
+		}
+
+		switch value := attr.GetValue().Value.(type) {
+		case *v1_common.AnyValue_StringValue:
+			if len(value.StringValue) > maxAttrSize {
+				value.StringValue = value.StringValue[:maxAttrSize]
+				count++
+			}
+		default:
+			continue
+		}
+	}
+
+	return count
 }
 
 // discardedPredicate determines if a trace is discarded based on the number of successful replications.

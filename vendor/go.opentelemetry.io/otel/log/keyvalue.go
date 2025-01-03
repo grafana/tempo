@@ -76,7 +76,8 @@ func IntValue(v int) Value { return Int64Value(int64(v)) }
 
 // Int64Value returns a [Value] for an int64.
 func Int64Value(v int64) Value {
-	return Value{num: uint64(v), any: KindInt64}
+	// This can be later converted back to int64 (overflow not checked).
+	return Value{num: uint64(v), any: KindInt64} // nolint:gosec
 }
 
 // Float64Value returns a [Value] for a float64.
@@ -146,7 +147,10 @@ func (v Value) AsInt64() int64 {
 
 // asInt64 returns the value held by v as an int64. If v is not of KindInt64,
 // this will return garbage.
-func (v Value) asInt64() int64 { return int64(v.num) }
+func (v Value) asInt64() int64 {
+	// Assumes v.num was a valid int64 (overflow not checked).
+	return int64(v.num) // nolint: gosec
+}
 
 // AsBool returns the value held by v as a bool.
 func (v Value) AsBool() bool {
@@ -289,7 +293,8 @@ func (v Value) String() string {
 	case KindString:
 		return v.asString()
 	case KindInt64:
-		return strconv.FormatInt(int64(v.num), 10)
+		// Assumes v.num was a valid int64 (overflow not checked).
+		return strconv.FormatInt(int64(v.num), 10) // nolint: gosec
 	case KindFloat64:
 		return strconv.FormatFloat(v.asFloat64(), 'g', -1, 64)
 	case KindBool:
@@ -351,16 +356,19 @@ func Bool(key string, value bool) KeyValue {
 }
 
 // Bytes returns a KeyValue for a []byte value.
+// The passed slice must not be changed after it is passed.
 func Bytes(key string, value []byte) KeyValue {
 	return KeyValue{key, BytesValue(value)}
 }
 
 // Slice returns a KeyValue for a []Value value.
+// The passed slice must not be changed after it is passed.
 func Slice(key string, value ...Value) KeyValue {
 	return KeyValue{key, SliceValue(value...)}
 }
 
 // Map returns a KeyValue for a map value.
+// The passed slice must not be changed after it is passed.
 func Map(key string, value ...KeyValue) KeyValue {
 	return KeyValue{key, MapValue(value...)}
 }

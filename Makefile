@@ -328,7 +328,7 @@ docs-test:
 ##@ jsonnet
 .PHONY: jsonnet jsonnet-check jsonnet-test
 jsonnet: tools-image ## Generate jsonnet
-	$(TOOLS_CMD) $(MAKE) -C operations/jsonnet-compiled/util gen
+	$(TOOLS_CMD) make -C operations/jsonnet-compiled/util gen
 
 jsonnet-check: tools-image ## Check jsonnet
 	$(TOOLS_CMD) $(MAKE) -C operations/jsonnet-compiled/util check

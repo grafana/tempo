@@ -1,16 +1,5 @@
 // Copyright (c) 2020 The Jaeger Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package shared
 
@@ -44,7 +33,7 @@ type archiveWriter struct {
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID from Archive Storage
 func (r *archiveReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	stream, err := r.client.GetArchiveTrace(upgradeContext(ctx), &storage_v1.GetTraceRequest{
+	stream, err := r.client.GetArchiveTrace(ctx, &storage_v1.GetTraceRequest{
 		TraceID: traceID,
 	})
 	if status.Code(err) == codes.NotFound {
@@ -58,22 +47,22 @@ func (r *archiveReader) GetTrace(ctx context.Context, traceID model.TraceID) (*m
 }
 
 // GetServices not used in archiveReader
-func (r *archiveReader) GetServices(ctx context.Context) ([]string, error) {
+func (*archiveReader) GetServices(context.Context) ([]string, error) {
 	return nil, errors.New("GetServices not implemented")
 }
 
 // GetOperations not used in archiveReader
-func (r *archiveReader) GetOperations(ctx context.Context, query spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
+func (*archiveReader) GetOperations(context.Context, spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
 	return nil, errors.New("GetOperations not implemented")
 }
 
 // FindTraces not used in archiveReader
-func (r *archiveReader) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (*archiveReader) FindTraces(context.Context, *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
 	return nil, errors.New("FindTraces not implemented")
 }
 
 // FindTraceIDs not used in archiveReader
-func (r *archiveReader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+func (*archiveReader) FindTraceIDs(context.Context, *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
 	return nil, errors.New("FindTraceIDs not implemented")
 }
 

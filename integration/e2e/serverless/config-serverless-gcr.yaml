@@ -11,6 +11,7 @@ distributor:
     jaeger:
       protocols:
         grpc:
+          endpoint: "distributor:14250"
 
 ingester:
   lifecycler:

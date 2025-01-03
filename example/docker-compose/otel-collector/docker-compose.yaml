@@ -19,11 +19,8 @@ services:
       - ../shared/tempo.yaml:/etc/tempo.yaml
       - ./tempo-data:/var/tempo
     ports:
-      - "14268"  # jaeger ingest
-      - "3200"   # tempo
-      - "4317"  # otlp grpc
-      - "4318"  # otlp http
-      - "9411"   # zipkin
+      - "3200" # tempo
+      - "4317" # otlp grpc
     depends_on:
       - init
 

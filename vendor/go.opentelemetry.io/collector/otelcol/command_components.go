@@ -20,6 +20,7 @@ import (
 
 type componentWithStability struct {
 	Name      component.Type
+	Module    string
 	Stability map[string]string
 }
 
@@ -40,7 +41,6 @@ func newComponentsCommand(set CollectorSettings) *cobra.Command {
 		Long:  "Outputs available components in this collector distribution including their stability levels. The output format is not stable and can change between releases.",
 		Args:  cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-
 			factories, err := set.Factories()
 			if err != nil {
 				return fmt.Errorf("failed to initialize factories: %w", err)
@@ -49,7 +49,8 @@ func newComponentsCommand(set CollectorSettings) *cobra.Command {
 			components := componentsOutput{}
 			for _, con := range sortFactoriesByType[connector.Factory](factories.Connectors) {
 				components.Connectors = append(components.Connectors, componentWithStability{
-					Name: con.Type(),
+					Name:   con.Type(),
+					Module: factories.ConnectorModules[con.Type()],
 					Stability: map[string]string{
 						"logs-to-logs":    con.LogsToLogsStability().String(),
 						"logs-to-metrics": con.LogsToMetricsStability().String(),
@@ -67,39 +68,43 @@ func newComponentsCommand(set CollectorSettings) *cobra.Command {
 			}
 			for _, ext := range sortFactoriesByType[extension.Factory](factories.Extensions) {
 				components.Extensions = append(components.Extensions, componentWithStability{
-					Name: ext.Type(),
+					Name:   ext.Type(),
+					Module: factories.ExtensionModules[ext.Type()],
 					Stability: map[string]string{
-						"extension": ext.ExtensionStability().String(),
+						"extension": ext.Stability().String(),
 					},
 				})
 			}
 			for _, prs := range sortFactoriesByType[processor.Factory](factories.Processors) {
 				components.Processors = append(components.Processors, componentWithStability{
-					Name: prs.Type(),
+					Name:   prs.Type(),
+					Module: factories.ProcessorModules[prs.Type()],
 					Stability: map[string]string{
-						"logs":    prs.LogsProcessorStability().String(),
-						"metrics": prs.MetricsProcessorStability().String(),
-						"traces":  prs.TracesProcessorStability().String(),
+						"logs":    prs.LogsStability().String(),
+						"metrics": prs.MetricsStability().String(),
+						"traces":  prs.TracesStability().String(),
 					},
 				})
 			}
 			for _, rcv := range sortFactoriesByType[receiver.Factory](factories.Receivers) {
 				components.Receivers = append(components.Receivers, componentWithStability{
-					Name: rcv.Type(),
+					Name:   rcv.Type(),
+					Module: factories.ReceiverModules[rcv.Type()],
 					Stability: map[string]string{
-						"logs":    rcv.LogsReceiverStability().String(),
-						"metrics": rcv.MetricsReceiverStability().String(),
-						"traces":  rcv.TracesReceiverStability().String(),
+						"logs":    rcv.LogsStability().String(),
+						"metrics": rcv.MetricsStability().String(),
+						"traces":  rcv.TracesStability().String(),
 					},
 				})
 			}
 			for _, exp := range sortFactoriesByType[exporter.Factory](factories.Exporters) {
 				components.Exporters = append(components.Exporters, componentWithStability{
-					Name: exp.Type(),
+					Name:   exp.Type(),
+					Module: factories.ExporterModules[exp.Type()],
 					Stability: map[string]string{
-						"logs":    exp.LogsExporterStability().String(),
-						"metrics": exp.MetricsExporterStability().String(),
-						"traces":  exp.TracesExporterStability().String(),
+						"logs":    exp.LogsStability().String(),
+						"metrics": exp.MetricsStability().String(),
+						"traces":  exp.TracesStability().String(),
 					},
 				})
 			}

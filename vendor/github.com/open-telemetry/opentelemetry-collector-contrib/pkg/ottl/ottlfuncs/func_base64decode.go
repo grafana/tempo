@@ -30,7 +30,6 @@ func createBase64DecodeFunction[K any](_ ottl.FunctionContext, oArgs ottl.Argume
 }
 
 func Base64Decode[K any](target ottl.StringGetter[K]) (ottl.ExprFunc[K], error) {
-
 	return func(ctx context.Context, tCtx K) (any, error) {
 		val, err := target.Get(ctx, tCtx)
 		if err != nil {
