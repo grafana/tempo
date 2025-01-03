@@ -41,7 +41,7 @@ func CreateCluster(t testing.TB, numPartitions int32, topicName string) (*Cluste
 	}
 
 	// Add support for consumer groups
-	c.fake.ControlKey(kmsg.OffsetCommit.Int16(), c.OffsetCommit)
+	c.fake.ControlKey(kmsg.OffsetCommit.Int16(), c.offsetCommit)
 	c.fake.ControlKey(kmsg.OffsetFetch.Int16(), c.offsetFetch)
 
 	return c, addrs[0]
@@ -70,7 +70,7 @@ func (c *Cluster) ensureConsumerGroupExists(consumerGroup string) {
 	}
 }
 
-func (c *Cluster) OffsetCommit(request kmsg.Request) (kmsg.Response, error, bool) {
+func (c *Cluster) offsetCommit(request kmsg.Request) (kmsg.Response, error, bool) {
 	c.fake.KeepControl()
 
 	if fn := c.controlFuncs[kmsg.OffsetCommit]; fn != nil {
