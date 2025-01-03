@@ -1,5 +1,7 @@
 ## main / unreleased
 
+# v2.7.0-rc.0
+
 * [CHANGE] Disable gRPC compression in the querier and distributor for performance reasons [#4429](https://github.com/grafana/tempo/pull/4429) (@carles-grafana)
   If you would like to re-enable it, we recommend 'snappy'. Use the following settings:
 ```
