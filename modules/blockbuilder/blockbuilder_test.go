@@ -45,7 +45,7 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	k, address := testkafka.CreateCluster(t, 1, testTopic)
 
 	kafkaCommits := atomic.NewInt32(0)
-	k.ControlKey(kmsg.OffsetCommit, func(r kmsg.Request) (kmsg.Response, error, bool) {
+	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
 		kafkaCommits.Inc()
 		return nil, nil, false
 	})
@@ -73,7 +73,7 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	}, time.Minute, time.Second)
 
 	// Check committed offset
-	requireLastCommitEquals(t, ctx, client, testTopic, testConsumerGroup, testPartition, producedRecords[len(producedRecords)-1].Offset+1)
+	requireLastCommitEquals(t, ctx, client, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
 // Starting with a pre-existing commit,
@@ -86,7 +86,7 @@ func TestBlockbuilder_startWithCommit(t *testing.T) {
 	k, address := testkafka.CreateCluster(t, 1, testTopic)
 
 	kafkaCommits := atomic.NewInt32(0)
-	k.ControlKey(kmsg.OffsetCommit, func(r kmsg.Request) (kmsg.Response, error, bool) {
+	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
 		kafkaCommits.Inc()
 		return nil, nil, false
 	})
@@ -128,7 +128,7 @@ func TestBlockbuilder_startWithCommit(t *testing.T) {
 	}, time.Minute, time.Second)
 
 	// Check committed offset
-	requireLastCommitEquals(t, ctx, client, testTopic, testConsumerGroup, testPartition, producedRecords[len(producedRecords)-1].Offset+1)
+	requireLastCommitEquals(t, ctx, client, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
 // In case a block flush initially fails, the system retries until it succeeds.
@@ -139,7 +139,7 @@ func TestBlockbuilder_flushingFails(t *testing.T) {
 	k, address := testkafka.CreateCluster(t, 1, "test-topic")
 
 	kafkaCommits := atomic.NewInt32(0)
-	k.ControlKey(kmsg.OffsetCommit, func(r kmsg.Request) (kmsg.Response, error, bool) {
+	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
 		kafkaCommits.Inc()
 		return nil, nil, false
 	})
@@ -173,7 +173,7 @@ func TestBlockbuilder_flushingFails(t *testing.T) {
 	}, time.Minute, time.Second)
 
 	// Check committed offset
-	requireLastCommitEquals(t, ctx, client, testTopic, testConsumerGroup, testPartition, producedRecords[len(producedRecords)-1].Offset+1)
+	requireLastCommitEquals(t, ctx, client, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
 // Receiving records with older timestamps the block-builder processes them in the current cycle,
@@ -185,7 +185,7 @@ func TestBlockbuilder_receivesOldRecords(t *testing.T) {
 	k, address := testkafka.CreateCluster(t, 1, "test-topic")
 
 	kafkaCommits := atomic.NewInt32(0)
-	k.ControlKey(kmsg.OffsetCommit, func(r kmsg.Request) (kmsg.Response, error, bool) {
+	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
 		kafkaCommits.Inc()
 		return nil, nil, false
 	})
@@ -231,7 +231,7 @@ func TestBlockbuilder_receivesOldRecords(t *testing.T) {
 	}, time.Minute, time.Second)
 
 	// Check committed offset
-	requireLastCommitEquals(t, ctx, client, testTopic, testConsumerGroup, testPartition, producedRecords[len(producedRecords)-1].Offset+1)
+	requireLastCommitEquals(t, ctx, client, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
 // FIXME - Test is unstable and will fail if records cross two consumption cycles,
@@ -299,7 +299,7 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 	}, time.Minute, time.Second)
 
 	// Check committed offset
-	requireLastCommitEquals(t, ctx, client, testTopic, testConsumerGroup, testPartition, producedRecords[len(producedRecords)-1].Offset+1)
+	requireLastCommitEquals(t, ctx, client, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
 func TestCycleEndAtStartup(t *testing.T) {
@@ -548,10 +548,10 @@ func generateTraceID(t *testing.T) []byte {
 }
 
 // nolint: revive
-func requireLastCommitEquals(t testing.TB, ctx context.Context, client *kgo.Client, topic, consumerGroup string, partition int32, expectedOffset int64) {
-	offsets, err := kadm.NewClient(client).FetchOffsetsForTopics(ctx, consumerGroup, topic)
+func requireLastCommitEquals(t testing.TB, ctx context.Context, client *kgo.Client, expectedOffset int64) {
+	offsets, err := kadm.NewClient(client).FetchOffsetsForTopics(ctx, testConsumerGroup, testTopic)
 	require.NoError(t, err)
-	offset, ok := offsets.Lookup(topic, partition)
+	offset, ok := offsets.Lookup(testTopic, testPartition)
 	require.True(t, ok)
 	require.Equal(t, expectedOffset, offset.At)
 }
