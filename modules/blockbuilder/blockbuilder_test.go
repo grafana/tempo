@@ -38,12 +38,11 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
 
-	k, address := testkafka.CreateClusterWithoutCustomConsumerGroupsSupport(t, 1, "test-topic")
-	t.Cleanup(k.Close)
+	k, address := testkafka.CreateCluster(t, 1, "test-topic")
 
 	kafkaCommits := atomic.NewInt32(0)
-	k.ControlKey(kmsg.OffsetCommit.Int16(), func(kmsg.Request) (kmsg.Response, error, bool) {
-		kafkaCommits.Add(1)
+	k.ControlKey(kmsg.OffsetCommit, func(r kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Inc()
 		return nil, nil, false
 	})
 
@@ -66,7 +65,7 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 
 	// Wait for the block to be flushed.
 	require.Eventually(t, func() bool {
-		return len(store.BlockMetas(util.FakeTenantID)) == 1
+		return len(store.BlockMetas(util.FakeTenantID)) == 1 && countFlushedTraces(store) == 1
 	}, time.Minute, time.Second)
 }
 
@@ -77,12 +76,11 @@ func TestBlockbuilder_startWithCommit(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
 
-	k, address := testkafka.CreateClusterWithoutCustomConsumerGroupsSupport(t, 1, "test-topic")
-	t.Cleanup(k.Close)
+	k, address := testkafka.CreateCluster(t, 1, "test-topic")
 
 	kafkaCommits := atomic.NewInt32(0)
-	k.ControlKey(kmsg.OffsetCommit.Int16(), func(kmsg.Request) (kmsg.Response, error, bool) {
-		kafkaCommits.Add(1)
+	k.ControlKey(kmsg.OffsetCommit, func(r kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Inc()
 		return nil, nil, false
 	})
 
@@ -128,19 +126,18 @@ func TestBlockbuilder_flushingFails(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
 
-	k, address := testkafka.CreateClusterWithoutCustomConsumerGroupsSupport(t, 1, "test-topic")
-	t.Cleanup(k.Close)
+	k, address := testkafka.CreateCluster(t, 1, "test-topic")
 
 	kafkaCommits := atomic.NewInt32(0)
-	k.ControlKey(kmsg.OffsetCommit.Int16(), func(kmsg.Request) (kmsg.Response, error, bool) {
-		kafkaCommits.Add(1)
+	k.ControlKey(kmsg.OffsetCommit, func(r kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Inc()
 		return nil, nil, false
 	})
 
 	storageWrites := atomic.NewInt32(0)
 	store := newStoreWrapper(newStore(ctx, t), func(ctx context.Context, block tempodb.WriteableBlock, store storage.Store) error {
 		// Fail the first block write
-		if storageWrites.Add(1) == 1 {
+		if storageWrites.Inc() == 1 {
 			return errors.New("failed to write block")
 		}
 		return store.WriteBlock(ctx, block)
@@ -172,13 +169,11 @@ func TestBlockbuilder_receivesOldRecords(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
 
-	k, address := testkafka.CreateClusterWithoutCustomConsumerGroupsSupport(t, 1, "test-topic")
-	t.Cleanup(k.Close)
+	k, address := testkafka.CreateCluster(t, 1, "test-topic")
 
 	kafkaCommits := atomic.NewInt32(0)
-	k.ControlKey(kmsg.OffsetCommit.Int16(), func(kmsg.Request) (kmsg.Response, error, bool) {
-		k.KeepControl()
-		kafkaCommits.Add(1)
+	k.ControlKey(kmsg.OffsetCommit, func(r kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Inc()
 		return nil, nil, false
 	})
 
@@ -238,15 +233,13 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
 
-	k, address := testkafka.CreateClusterWithoutCustomConsumerGroupsSupport(t, 1, "test-topic")
-	t.Cleanup(k.Close)
+	k, address := testkafka.CreateCluster(t, 1, "test-topic")
 
 	kafkaCommits := atomic.NewInt32(0)
-	k.ControlKey(kmsg.OffsetCommit.Int16(), func(req kmsg.Request) (kmsg.Response, error, bool) {
-		k.KeepControl()
-		defer kafkaCommits.Add(1)
+	k.ControlKey(kmsg.OffsetCommit, func(req kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Inc()
 
-		if kafkaCommits.Load() == 0 { // First commit fails
+		if kafkaCommits.Load() == 1 { // First commit fails
 			res := kmsg.NewOffsetCommitResponse()
 			res.Version = req.GetVersion()
 			res.Topics = []kmsg.OffsetCommitResponseTopic{
