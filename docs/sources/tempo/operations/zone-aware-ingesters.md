@@ -1,5 +1,5 @@
 ---
-title: Zone-aware ingesters
+title: Zone-aware replication for ingesters
 menuTitle: Zone-aware ingesters
 description: Configure zone-aware ingesters for Tempo
 weight: 900
