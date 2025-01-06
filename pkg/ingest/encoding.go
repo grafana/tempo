@@ -1,4 +1,4 @@
-// Package kafka provides encoding and decoding functionality for Loki's Kafka integration.
+// Package kafka provides encoding and decoding functionality for Tempo's Kafka integration.
 package ingest
 
 import (

@@ -26,7 +26,7 @@ type writer struct {
 	logger log.Logger
 
 	blockCfg              BlockConfig
-	partition, cycleEndTs int64
+	partition, cycleEndTs uint64
 
 	overrides Overrides
 	wal       *wal.WAL
@@ -36,7 +36,7 @@ type writer struct {
 	m   map[string]*tenantStore
 }
 
-func newPartitionSectionWriter(logger log.Logger, partition, cycleEndTs int64, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
+func newPartitionSectionWriter(logger log.Logger, partition, cycleEndTs uint64, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
 	return &writer{
 		logger:     logger,
 		partition:  partition,
