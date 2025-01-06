@@ -187,7 +187,7 @@ func (b *BlockBuilder) running(ctx context.Context) error {
 		case <-time.After(waitTime):
 			err := b.consume(ctx)
 			if err != nil {
-				b.logger.Log("msg", "consumeCycle failed", "err", err)
+				level.Error(b.logger).Log("msg", "consumeCycle failed", "err", err)
 			}
 
 			// Real delay on subsequent
