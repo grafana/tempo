@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"html"
 	"strings"
+
+	"github.com/jedib0t/go-pretty/v6/text"
 )
 
 const (
@@ -13,49 +15,50 @@ const (
 )
 
 // RenderHTML renders the Table in HTML format. Example:
-//  <table class="go-pretty-table">
-//    <thead>
-//    <tr>
-//      <th align="right">#</th>
-//      <th>First Name</th>
-//      <th>Last Name</th>
-//      <th align="right">Salary</th>
-//      <th>&nbsp;</th>
-//    </tr>
-//    </thead>
-//    <tbody>
-//    <tr>
-//      <td align="right">1</td>
-//      <td>Arya</td>
-//      <td>Stark</td>
-//      <td align="right">3000</td>
-//      <td>&nbsp;</td>
-//    </tr>
-//    <tr>
-//      <td align="right">20</td>
-//      <td>Jon</td>
-//      <td>Snow</td>
-//      <td align="right">2000</td>
-//      <td>You know nothing, Jon Snow!</td>
-//    </tr>
-//    <tr>
-//      <td align="right">300</td>
-//      <td>Tyrion</td>
-//      <td>Lannister</td>
-//      <td align="right">5000</td>
-//      <td>&nbsp;</td>
-//    </tr>
-//    </tbody>
-//    <tfoot>
-//    <tr>
-//      <td align="right">&nbsp;</td>
-//      <td>&nbsp;</td>
-//      <td>Total</td>
-//      <td align="right">10000</td>
-//      <td>&nbsp;</td>
-//    </tr>
-//    </tfoot>
-//  </table>
+//
+//	<table class="go-pretty-table">
+//	  <thead>
+//	  <tr>
+//	    <th align="right">#</th>
+//	    <th>First Name</th>
+//	    <th>Last Name</th>
+//	    <th align="right">Salary</th>
+//	    <th>&nbsp;</th>
+//	  </tr>
+//	  </thead>
+//	  <tbody>
+//	  <tr>
+//	    <td align="right">1</td>
+//	    <td>Arya</td>
+//	    <td>Stark</td>
+//	    <td align="right">3000</td>
+//	    <td>&nbsp;</td>
+//	  </tr>
+//	  <tr>
+//	    <td align="right">20</td>
+//	    <td>Jon</td>
+//	    <td>Snow</td>
+//	    <td align="right">2000</td>
+//	    <td>You know nothing, Jon Snow!</td>
+//	  </tr>
+//	  <tr>
+//	    <td align="right">300</td>
+//	    <td>Tyrion</td>
+//	    <td>Lannister</td>
+//	    <td align="right">5000</td>
+//	    <td>&nbsp;</td>
+//	  </tr>
+//	  </tbody>
+//	  <tfoot>
+//	  <tr>
+//	    <td align="right">&nbsp;</td>
+//	    <td>&nbsp;</td>
+//	    <td>Total</td>
+//	    <td align="right">10000</td>
+//	    <td>&nbsp;</td>
+//	  </tr>
+//	  </tfoot>
+//	</table>
 func (t *Table) RenderHTML() string {
 	t.initForRender()
 
@@ -78,6 +81,22 @@ func (t *Table) RenderHTML() string {
 	return t.render(&out)
 }
 
+func (t *Table) htmlGetColStrAndTag(row rowStr, colIdx int, hint renderHint) (string, string) {
+	// get the column contents
+	var colStr string
+	if colIdx < len(row) {
+		colStr = row[colIdx]
+	}
+
+	// header uses "th" instead of "td"
+	colTagName := "td"
+	if hint.isHeaderRow {
+		colTagName = "th"
+	}
+
+	return colStr, colTagName
+}
+
 func (t *Table) htmlRenderCaption(out *strings.Builder) {
 	if t.caption != "" {
 		out.WriteString("  <caption class=\"caption\" style=\"caption-side: bottom;\">")
@@ -86,9 +105,19 @@ func (t *Table) htmlRenderCaption(out *strings.Builder) {
 	}
 }
 
-func (t *Table) htmlRenderColumnAttributes(out *strings.Builder, row rowStr, colIdx int, hint renderHint) {
+func (t *Table) htmlRenderColumn(out *strings.Builder, colStr string) {
+	if t.style.HTML.EscapeText {
+		colStr = html.EscapeString(colStr)
+	}
+	if t.style.HTML.Newline != "\n" {
+		colStr = strings.Replace(colStr, "\n", t.style.HTML.Newline, -1)
+	}
+	out.WriteString(colStr)
+}
+
+func (t *Table) htmlRenderColumnAttributes(out *strings.Builder, colIdx int, hint renderHint, alignOverride text.Align) {
 	// determine the HTML "align"/"valign" property values
-	align := t.getAlign(colIdx, hint).HTMLProperty()
+	align := alignOverride.HTMLProperty()
 	vAlign := t.getVAlign(colIdx, hint).HTMLProperty()
 	// determine the HTML "class" property values for the colors
 	class := t.getColumnColors(colIdx, hint).HTMLProperty()
@@ -131,37 +160,41 @@ func (t *Table) htmlRenderRow(out *strings.Builder, row rowStr, hint renderHint)
 			t.htmlRenderColumnAutoIndex(out, hint)
 		}
 
-		// get the column contents
-		var colStr string
-		if colIdx < len(row) {
-			colStr = row[colIdx]
+		align := t.getAlign(colIdx, hint)
+		rowConfig := t.getRowConfig(hint)
+		extraColumnsRendered := 0
+		if rowConfig.AutoMerge && !hint.isSeparatorRow {
+			// get the real row to consider all lines in each column instead of just
+			// looking at the current "line"
+			rowUnwrapped := t.getRow(hint.rowNumber-1, hint)
+			for idx := colIdx + 1; idx < len(rowUnwrapped); idx++ {
+				if rowUnwrapped[colIdx] != rowUnwrapped[idx] {
+					break
+				}
+				align = rowConfig.getAutoMergeAlign()
+				extraColumnsRendered++
+			}
 		}
 
-		// header uses "th" instead of "td"
-		colTagName := "td"
-		if hint.isHeaderRow {
-			colTagName = "th"
-		}
-
+		colStr, colTagName := t.htmlGetColStrAndTag(row, colIdx, hint)
 		// write the row
 		out.WriteString("    <")
 		out.WriteString(colTagName)
-		t.htmlRenderColumnAttributes(out, row, colIdx, hint)
+		t.htmlRenderColumnAttributes(out, colIdx, hint, align)
+		if extraColumnsRendered > 0 {
+			out.WriteString(" colspan=")
+			out.WriteString(fmt.Sprint(extraColumnsRendered + 1))
+		}
 		out.WriteString(">")
 		if len(colStr) == 0 {
 			out.WriteString(t.style.HTML.EmptyColumn)
 		} else {
-			if t.style.HTML.EscapeText {
-				colStr = html.EscapeString(colStr)
-			}
-			if t.style.HTML.Newline != "\n" {
-				colStr = strings.Replace(colStr, "\n", t.style.HTML.Newline, -1)
-			}
-			out.WriteString(colStr)
+			t.htmlRenderColumn(out, colStr)
 		}
 		out.WriteString("</")
 		out.WriteString(colTagName)
 		out.WriteString(">\n")
+		colIdx += extraColumnsRendered
 	}
 	out.WriteString("  </tr>\n")
 }

@@ -28,7 +28,7 @@ require (
 	github.com/grafana/e2e v0.1.1
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/jaegertracing/jaeger v1.63.0
-	github.com/jedib0t/go-pretty/v6 v6.2.4
+	github.com/jedib0t/go-pretty/v6 v6.6.5
 	github.com/json-iterator/go v1.1.12
 	github.com/jsternberg/zap-logfmt v1.2.0
 	github.com/klauspost/compress v1.17.11
