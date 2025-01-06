@@ -820,8 +820,8 @@ github.com/jcmturner/gokrb5/v8/types
 ## explicit; go 1.13
 github.com/jcmturner/rpc/v2/mstypes
 github.com/jcmturner/rpc/v2/ndr
-# github.com/jedib0t/go-pretty/v6 v6.2.4
-## explicit; go 1.13
+# github.com/jedib0t/go-pretty/v6 v6.6.5
+## explicit; go 1.17
 github.com/jedib0t/go-pretty/v6/table
 github.com/jedib0t/go-pretty/v6/text
 # github.com/jmespath/go-jmespath v0.4.0
@@ -1942,6 +1942,7 @@ golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
+golang.org/x/text/width
 # golang.org/x/time v0.8.0
 ## explicit; go 1.18
 golang.org/x/time/rate

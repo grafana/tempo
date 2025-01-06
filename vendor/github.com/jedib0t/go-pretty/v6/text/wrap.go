@@ -2,7 +2,6 @@ package text
 
 import (
 	"strings"
-	"unicode/utf8"
 )
 
 // WrapHard wraps a string to the given length using a newline. Handles strings
@@ -15,7 +14,7 @@ func WrapHard(str string, wrapLen int) string {
 		return ""
 	}
 	str = strings.Replace(str, "\t", "    ", -1)
-	sLen := utf8.RuneCountInString(str)
+	sLen := StringWidthWithoutEscSequences(str)
 	if sLen <= wrapLen {
 		return str
 	}
@@ -43,7 +42,7 @@ func WrapSoft(str string, wrapLen int) string {
 		return ""
 	}
 	str = strings.Replace(str, "\t", "    ", -1)
-	sLen := utf8.RuneCountInString(str)
+	sLen := StringWidthWithoutEscSequences(str)
 	if sLen <= wrapLen {
 		return str
 	}
@@ -69,32 +68,21 @@ func WrapText(str string, wrapLen int) string {
 	if wrapLen <= 0 {
 		return ""
 	}
+	str = strings.Replace(str, "\t", "    ", -1)
+	sLen := StringWidthWithoutEscSequences(str)
+	if sLen <= wrapLen {
+		return str
+	}
 
-	var out strings.Builder
-	sLen := utf8.RuneCountInString(str)
+	out := &strings.Builder{}
 	out.Grow(sLen + (sLen / wrapLen))
-	lineIdx, isEscSeq, lastEscSeq := 0, false, ""
-	for _, char := range str {
-		if char == EscapeStartRune {
-			isEscSeq = true
-			lastEscSeq = ""
+	for idx, line := range strings.Split(str, "\n") {
+		if idx > 0 {
+			out.WriteString("\n")
 		}
-		if isEscSeq {
-			lastEscSeq += string(char)
-		}
-
-		appendChar(char, wrapLen, &lineIdx, isEscSeq, lastEscSeq, &out)
-
-		if isEscSeq && char == EscapeStopRune {
-			isEscSeq = false
-		}
-		if lastEscSeq == EscapeReset {
-			lastEscSeq = ""
-		}
+		wrapHard(line, wrapLen, out)
 	}
-	if lastEscSeq != "" && lastEscSeq != EscapeReset {
-		out.WriteString(EscapeReset)
-	}
+
 	return out.String()
 }
 
@@ -122,7 +110,7 @@ func appendChar(char rune, wrapLen int, lineLen *int, inEscSeq bool, lastSeenEsc
 
 		// increment the line index if not in the middle of an escape sequence
 		if !inEscSeq {
-			*lineLen++
+			*lineLen += RuneWidth(char)
 		}
 	}
 }
@@ -149,26 +137,6 @@ func appendWord(word string, lineIdx *int, lastSeenEscSeq string, wrapLen int, o
 	}
 }
 
-func extractOpenEscapeSeq(str string) string {
-	escapeSeq, inEscSeq := "", false
-	for _, char := range str {
-		if char == EscapeStartRune {
-			inEscSeq = true
-			escapeSeq = ""
-		}
-		if inEscSeq {
-			escapeSeq += string(char)
-		}
-		if char == EscapeStopRune {
-			inEscSeq = false
-		}
-	}
-	if escapeSeq == EscapeReset {
-		escapeSeq = ""
-	}
-	return escapeSeq
-}
-
 func terminateLine(wrapLen int, lineLen *int, lastSeenEscSeq string, out *strings.Builder) {
 	if *lineLen < wrapLen {
 		out.WriteString(strings.Repeat(" ", wrapLen-*lineLen))
@@ -189,19 +157,19 @@ func terminateOutput(lastSeenEscSeq string, out *strings.Builder) {
 }
 
 func wrapHard(paragraph string, wrapLen int, out *strings.Builder) {
+	esp := escSeqParser{}
 	lineLen, lastSeenEscSeq := 0, ""
 	words := strings.Fields(paragraph)
 	for wordIdx, word := range words {
-		escSeq := extractOpenEscapeSeq(word)
-		if escSeq != "" {
-			lastSeenEscSeq = escSeq
+		if openEscSeq := esp.ParseString(word); openEscSeq != "" {
+			lastSeenEscSeq = openEscSeq
 		}
 		if lineLen > 0 {
 			out.WriteRune(' ')
 			lineLen++
 		}
 
-		wordLen := RuneCount(word)
+		wordLen := StringWidthWithoutEscSequences(word)
 		if lineLen+wordLen <= wrapLen { // word fits within the line
 			out.WriteString(word)
 			lineLen += wordLen
@@ -218,33 +186,22 @@ func wrapHard(paragraph string, wrapLen int, out *strings.Builder) {
 }
 
 func wrapSoft(paragraph string, wrapLen int, out *strings.Builder) {
+	esp := escSeqParser{}
 	lineLen, lastSeenEscSeq := 0, ""
 	words := strings.Fields(paragraph)
 	for wordIdx, word := range words {
-		escSeq := extractOpenEscapeSeq(word)
-		if escSeq != "" {
-			lastSeenEscSeq = escSeq
-		}
-		spacing, spacingLen := "", 0
-		if lineLen > 0 {
-			spacing, spacingLen = " ", 1
+		if openEscSeq := esp.ParseString(word); openEscSeq != "" {
+			lastSeenEscSeq = openEscSeq
 		}
 
-		wordLen := RuneCount(word)
+		spacing, spacingLen := wrapSoftSpacing(lineLen)
+		wordLen := StringWidthWithoutEscSequences(word)
 		if lineLen+spacingLen+wordLen <= wrapLen { // word fits within the line
 			out.WriteString(spacing)
 			out.WriteString(word)
 			lineLen += spacingLen + wordLen
 		} else { // word doesn't fit within the line
-			if lineLen > 0 { // something is already on the line; terminate it
-				terminateLine(wrapLen, &lineLen, lastSeenEscSeq, out)
-			}
-			if wordLen <= wrapLen { // word fits within a single line
-				out.WriteString(word)
-				lineLen = wordLen
-			} else { // word doesn't fit within a single line; hard-wrap
-				appendWord(word, &lineLen, lastSeenEscSeq, wrapLen, out)
-			}
+			lineLen = wrapSoftLastWordInLine(wrapLen, lineLen, lastSeenEscSeq, wordLen, word, out)
 		}
 
 		// end of line; but more words incoming
@@ -253,4 +210,25 @@ func wrapSoft(paragraph string, wrapLen int, out *strings.Builder) {
 		}
 	}
 	terminateOutput(lastSeenEscSeq, out)
+}
+
+func wrapSoftLastWordInLine(wrapLen int, lineLen int, lastSeenEscSeq string, wordLen int, word string, out *strings.Builder) int {
+	if lineLen > 0 { // something is already on the line; terminate it
+		terminateLine(wrapLen, &lineLen, lastSeenEscSeq, out)
+	}
+	if wordLen <= wrapLen { // word fits within a single line
+		out.WriteString(word)
+		lineLen = wordLen
+	} else { // word doesn't fit within a single line; hard-wrap
+		appendWord(word, &lineLen, lastSeenEscSeq, wrapLen, out)
+	}
+	return lineLen
+}
+
+func wrapSoftSpacing(lineLen int) (string, int) {
+	spacing, spacingLen := "", 0
+	if lineLen > 0 {
+		spacing, spacingLen = " ", 1
+	}
+	return spacing, spacingLen
 }
