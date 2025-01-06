@@ -235,9 +235,9 @@ func (b *BlockBuilder) consumePartition2(ctx context.Context, partition int32, o
 		topic       = b.cfg.IngestStorageConfig.Kafka.Topic
 		group       = b.cfg.IngestStorageConfig.Kafka.ConsumerGroup
 		startOffset kgo.Offset
+		init        bool
 		writer      *writer
 		lastRec     *kgo.Record
-		begin       time.Time
 		end         time.Time
 	)
 
@@ -289,18 +289,14 @@ outer:
 			rec := iter.Next()
 
 			// Initialize if needed
-			if writer == nil {
-
-				// Determine block begin and end time range, which is -/+ cycle duration.
-				begin = rec.Timestamp.Add(-dur)
-				end = rec.Timestamp.Add(dur)
-
+			if !init {
+				end = rec.Timestamp.Add(dur) // When block will be cut
 				metricPartitionLagSeconds.WithLabelValues(strconv.Itoa(int(partition))).Set(time.Since(rec.Timestamp).Seconds())
-
 				writer = newPartitionSectionWriter(b.logger, uint64(partition), uint64(rec.Offset), b.cfg.BlockConfig, b.overrides, b.wal, b.enc)
+				init = true
 			}
 
-			if rec.Timestamp.Before(begin) || rec.Timestamp.After(end) {
+			if rec.Timestamp.After(end) {
 				// Cut this block but continue only if we have at least another full cycle
 				if overallEnd.Sub(rec.Timestamp) >= dur {
 					more = true
