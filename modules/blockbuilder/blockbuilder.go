@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/go-kit/log"
@@ -33,6 +32,12 @@ const (
 
 var (
 	metricPartitionLag = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Subsystem: "block_builder",
+		Name:      "partition_lag",
+		Help:      "Lag of a partition.",
+	}, []string{"partition"})
+	metricPartitionLagSeconds = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Subsystem: "block_builder",
 		Name:      "partition_lag_s",
@@ -147,6 +152,8 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 
 	b.kadm = kadm.NewClient(b.kafkaClient)
 
+	go b.metricLag(ctx)
+
 	return nil
 }
 
@@ -218,7 +225,7 @@ func (b *BlockBuilder) consume(ctx context.Context) error {
 	return nil
 }
 
-func (b *BlockBuilder) consumePartition2(ctx context.Context, partition int32, end time.Time) (more bool, err error) {
+func (b *BlockBuilder) consumePartition2(ctx context.Context, partition int32, overallEnd time.Time) (more bool, err error) {
 	defer func(t time.Time) {
 		metricProcessPartitionSectionDuration.WithLabelValues(strconv.Itoa(int(partition))).Observe(time.Since(t).Seconds())
 	}(time.Now())
@@ -231,6 +238,7 @@ func (b *BlockBuilder) consumePartition2(ctx context.Context, partition int32, e
 		writer      *writer
 		lastRec     *kgo.Record
 		begin       time.Time
+		end         time.Time
 	)
 
 	commits, err := b.kadm.FetchOffsetsForTopics(ctx, group, topic)
@@ -267,7 +275,6 @@ outer:
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
 				// No more data
-				more = false
 				break
 			}
 			metricFetchErrors.WithLabelValues(strconv.Itoa(int(partition))).Inc()
@@ -275,7 +282,6 @@ outer:
 		}
 
 		if fetches.Empty() {
-			more = false
 			break
 		}
 
@@ -285,19 +291,24 @@ outer:
 			// Initialize if needed
 			if writer == nil {
 
-				// Determine begin and end time range, which is -/+ cycle duration.
-				// But don't exceed the given overall end time.
+				// Determine block begin and end time range, which is -/+ cycle duration.
 				begin = rec.Timestamp.Add(-dur)
-				if rec.Timestamp.Add(dur).Before(end) {
-					end = rec.Timestamp.Add(dur)
-				}
+				end = rec.Timestamp.Add(dur)
 
-				metricPartitionLag.WithLabelValues(strconv.Itoa(int(partition))).Set(time.Since(rec.Timestamp).Seconds())
+				metricPartitionLagSeconds.WithLabelValues(strconv.Itoa(int(partition))).Set(time.Since(rec.Timestamp).Seconds())
 
 				writer = newPartitionSectionWriter(b.logger, int64(partition), rec.Offset, b.cfg.BlockConfig, b.overrides, b.wal, b.enc)
 			}
 
 			if rec.Timestamp.Before(begin) || rec.Timestamp.After(end) {
+				// Cut this block but continue only if we have at least another full cycle
+				if overallEnd.Sub(rec.Timestamp) >= dur {
+					more = true
+				}
+				break outer
+			}
+
+			if rec.Timestamp.After(overallEnd) {
 				break outer
 			}
 
@@ -320,6 +331,7 @@ outer:
 		return false, err
 	}
 
+	// TOOD - Retry commit
 	resp, err := b.kadm.CommitOffsets(ctx, group, kadm.OffsetsFromRecords(*lastRec))
 	if err != nil {
 		return false, err
@@ -329,6 +341,35 @@ outer:
 	}
 
 	return more, nil
+}
+
+func (b *BlockBuilder) metricLag(ctx context.Context) {
+	var (
+		waitTime = time.Second * 15
+		topic    = b.cfg.IngestStorageConfig.Kafka.Topic
+		group    = b.cfg.IngestStorageConfig.Kafka.ConsumerGroup
+	)
+
+	for {
+		select {
+		case <-time.After(waitTime):
+			metricPartitionLag.Reset()
+
+			lag, err := getGroupLag(ctx, b.kadm, topic, group)
+			if err != nil {
+				level.Error(b.logger).Log("msg", "metric lag failed:", "err", err)
+				continue
+			}
+			for _, p := range b.getAssignedActivePartitions() {
+				l, ok := lag.Lookup(topic, p)
+				if ok {
+					metricPartitionLag.WithLabelValues(strconv.Itoa(int(p))).Set(float64(l.Lag))
+				}
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 func (b *BlockBuilder) stopping(err error) error {
@@ -347,7 +388,6 @@ func (b *BlockBuilder) consumeCycle(ctx context.Context, cycleEndTime time.Time)
 		kadm.NewClient(b.kafkaClient),
 		b.cfg.IngestStorageConfig.Kafka.Topic,
 		b.cfg.IngestStorageConfig.Kafka.ConsumerGroup,
-		b.fallbackOffsetMillis,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to get group lag: %w", err)
@@ -597,7 +637,7 @@ func (b *BlockBuilder) getAssignedActivePartitions() []int32 {
 // the lag is the difference between the last produced offset and the offset committed in the consumer group.
 // Otherwise, if the block builder didn't commit an offset for a given partition yet (e.g. block builder is
 // running for the first time), then the lag is the difference between the last produced offset and fallbackOffsetMillis.
-func getGroupLag(ctx context.Context, admClient *kadm.Client, topic, group string, fallbackOffsetMillis int64) (kadm.GroupLag, error) {
+func getGroupLag(ctx context.Context, admClient *kadm.Client, topic, group string) (kadm.GroupLag, error) {
 	offsets, err := admClient.FetchOffsets(ctx, group)
 	if err != nil {
 		if !errors.Is(err, kerr.GroupIDNotFound) {
@@ -615,40 +655,6 @@ func getGroupLag(ctx context.Context, admClient *kadm.Client, topic, group strin
 	endOffsets, err := admClient.ListEndOffsets(ctx, topic)
 	if err != nil {
 		return nil, err
-	}
-
-	resolveFallbackOffsets := sync.OnceValues(func() (kadm.ListedOffsets, error) {
-		if fallbackOffsetMillis < 0 {
-			return nil, fmt.Errorf("cannot resolve fallback offset for value %v", fallbackOffsetMillis)
-		}
-		return admClient.ListOffsetsAfterMilli(ctx, fallbackOffsetMillis, topic)
-	})
-	// If the group-partition in offsets doesn't have a commit, fall back depending on where fallbackOffsetMillis points at.
-	for topic, pt := range startOffsets.Offsets() {
-		for partition, startOffset := range pt {
-			if _, ok := offsets.Lookup(topic, partition); ok {
-				continue
-			}
-			fallbackOffsets, err := resolveFallbackOffsets()
-			if err != nil {
-				return nil, fmt.Errorf("resolve fallback offsets: %w", err)
-			}
-			o, ok := fallbackOffsets.Lookup(topic, partition)
-			if !ok {
-				return nil, fmt.Errorf("partition %d not found in fallback offsets for topic %s", partition, topic)
-			}
-			if o.Offset < startOffset.At {
-				// Skip the resolved fallback offset if it's before the partition's start offset (i.e. before the earliest offset of the partition).
-				// This should not happen in Kafka, but can happen in Kafka-compatible systems, e.g. Warpstream.
-				continue
-			}
-			offsets.Add(kadm.OffsetResponse{Offset: kadm.Offset{
-				Topic:       o.Topic,
-				Partition:   o.Partition,
-				At:          o.Offset,
-				LeaderEpoch: o.LeaderEpoch,
-			}})
-		}
 	}
 
 	descrGroup := kadm.DescribedGroup{
