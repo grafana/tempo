@@ -27,7 +27,7 @@ require (
 	github.com/grafana/dskit v0.0.0-20241115082728-f2a7eb3aa0e9
 	github.com/grafana/e2e v0.1.1
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
-	github.com/jaegertracing/jaeger v1.63.0
+	github.com/jaegertracing/jaeger v1.64.0
 	github.com/jedib0t/go-pretty/v6 v6.2.4
 	github.com/json-iterator/go v1.1.12
 	github.com/jsternberg/zap-logfmt v1.2.0
