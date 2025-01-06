@@ -288,7 +288,7 @@ outer:
 		for iter := fetches.RecordIter(); !iter.Done(); {
 			rec := iter.Next()
 
-			// Initialize if needed
+			// Initialize on first record
 			if !init {
 				end = rec.Timestamp.Add(dur) // When block will be cut
 				metricPartitionLagSeconds.WithLabelValues(strconv.Itoa(int(partition))).Set(time.Since(rec.Timestamp).Seconds())
