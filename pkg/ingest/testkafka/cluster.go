@@ -4,148 +4,166 @@ package testkafka
 
 import (
 	"testing"
-	"time"
 
-	"github.com/grafana/dskit/flagext"
-	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kfake"
 	"github.com/twmb/franz-go/pkg/kmsg"
 )
 
+type controlFn func(kmsg.Request) (kmsg.Response, error, bool)
+
+type Cluster struct {
+	t                testing.TB
+	fake             *kfake.Cluster
+	topic            string
+	numPartitions    int
+	committedOffsets map[string][]int64
+	controlFuncs     map[kmsg.Key]controlFn
+}
+
 // CreateCluster returns a fake Kafka cluster for unit testing.
-func CreateCluster(t testing.TB, numPartitions int32, topicName string) (*kfake.Cluster, ingest.KafkaConfig) {
-	cluster, addr := CreateClusterWithoutCustomConsumerGroupsSupport(t, numPartitions, topicName)
-	addSupportForConsumerGroups(t, cluster, topicName, numPartitions)
-
-	return cluster, createTestKafkaConfig(addr, topicName)
-}
-
-func createTestKafkaConfig(clusterAddr, topicName string) ingest.KafkaConfig {
-	cfg := ingest.KafkaConfig{}
-	flagext.DefaultValues(&cfg)
-
-	cfg.Address = clusterAddr
-	cfg.Topic = topicName
-	cfg.WriteTimeout = 2 * time.Second
-
-	return cfg
-}
-
-func CreateClusterWithoutCustomConsumerGroupsSupport(t testing.TB, numPartitions int32, topicName string) (*kfake.Cluster, string) {
-	cluster, err := kfake.NewCluster(kfake.NumBrokers(1), kfake.SeedTopics(numPartitions, topicName))
+func CreateCluster(t testing.TB, numPartitions int32, topicName string) (*Cluster, string) {
+	fake, err := kfake.NewCluster(kfake.NumBrokers(1), kfake.SeedTopics(numPartitions, topicName))
 	require.NoError(t, err)
-	t.Cleanup(cluster.Close)
+	t.Cleanup(fake.Close)
 
-	addrs := cluster.ListenAddrs()
+	addrs := fake.ListenAddrs()
 	require.Len(t, addrs, 1)
 
-	return cluster, addrs[0]
+	c := &Cluster{
+		t:                t,
+		fake:             fake,
+		topic:            topicName,
+		numPartitions:    int(numPartitions),
+		committedOffsets: map[string][]int64{},
+		controlFuncs:     map[kmsg.Key]controlFn{},
+	}
+
+	// Add support for consumer groups
+	c.fake.ControlKey(kmsg.OffsetCommit.Int16(), c.offsetCommit)
+	c.fake.ControlKey(kmsg.OffsetFetch.Int16(), c.offsetFetch)
+
+	return c, addrs[0]
 }
 
-// addSupportForConsumerGroups adds very bare-bones support for one consumer group.
-// It expects that only one partition is consumed at a time.
-func addSupportForConsumerGroups(t testing.TB, cluster *kfake.Cluster, topicName string, numPartitions int32) {
-	committedOffsets := map[string][]int64{}
+func (c *Cluster) ControlKey(key kmsg.Key, fn controlFn) {
+	switch key {
+	case kmsg.OffsetCommit:
+		// These are called by us for deterministic order
+		c.controlFuncs[key] = fn
+	default:
+		// These are passed through
+		c.fake.ControlKey(int16(key), fn)
+	}
+}
 
-	ensureConsumerGroupExists := func(consumerGroup string) {
-		if _, ok := committedOffsets[consumerGroup]; ok {
-			return
-		}
-		committedOffsets[consumerGroup] = make([]int64, numPartitions+1)
+func (c *Cluster) ensureConsumerGroupExists(consumerGroup string) {
+	if _, ok := c.committedOffsets[consumerGroup]; ok {
+		return
+	}
+	c.committedOffsets[consumerGroup] = make([]int64, c.numPartitions+1)
 
-		// Initialise the partition offsets with the special value -1 which means "no offset committed".
-		for i := 0; i < len(committedOffsets[consumerGroup]); i++ {
-			committedOffsets[consumerGroup][i] = -1
+	// Initialise the partition offsets with the special value -1 which means "no offset committed".
+	for i := 0; i < len(c.committedOffsets[consumerGroup]); i++ {
+		c.committedOffsets[consumerGroup][i] = -1
+	}
+}
+
+// nolint: revive
+func (c *Cluster) offsetCommit(request kmsg.Request) (kmsg.Response, error, bool) {
+	c.fake.KeepControl()
+
+	if fn := c.controlFuncs[kmsg.OffsetCommit]; fn != nil {
+		res, err, handled := fn(request)
+		if handled {
+			return res, err, handled
 		}
 	}
 
-	cluster.ControlKey(kmsg.OffsetCommit.Int16(), func(request kmsg.Request) (kmsg.Response, error, bool) {
-		cluster.KeepControl()
-		commitR := request.(*kmsg.OffsetCommitRequest)
-		consumerGroup := commitR.Group
-		ensureConsumerGroupExists(consumerGroup)
-		assert.Len(t, commitR.Topics, 1, "test only has support for one topic per request")
-		topic := commitR.Topics[0]
-		assert.Equal(t, topicName, topic.Topic)
-		assert.Len(t, topic.Partitions, 1, "test only has support for one partition per request")
+	commitR := request.(*kmsg.OffsetCommitRequest)
+	consumerGroup := commitR.Group
+	c.ensureConsumerGroupExists(consumerGroup)
+	require.Len(c.t, commitR.Topics, 1, "test only has support for one topic per request")
+	topic := commitR.Topics[0]
+	require.Equal(c.t, c.topic, topic.Topic)
+	require.Len(c.t, topic.Partitions, 1, "test only has support for one partition per request")
 
-		partitionID := topic.Partitions[0].Partition
-		committedOffsets[consumerGroup][partitionID] = topic.Partitions[0].Offset
+	partitionID := topic.Partitions[0].Partition
+	c.committedOffsets[consumerGroup][partitionID] = topic.Partitions[0].Offset
 
-		resp := request.ResponseKind().(*kmsg.OffsetCommitResponse)
-		resp.Default()
-		resp.Topics = []kmsg.OffsetCommitResponseTopic{
-			{
-				Topic:      topicName,
-				Partitions: []kmsg.OffsetCommitResponseTopicPartition{{Partition: partitionID}},
-			},
-		}
+	resp := request.ResponseKind().(*kmsg.OffsetCommitResponse)
+	resp.Default()
+	resp.Topics = []kmsg.OffsetCommitResponseTopic{
+		{
+			Topic:      c.topic,
+			Partitions: []kmsg.OffsetCommitResponseTopicPartition{{Partition: partitionID}},
+		},
+	}
 
-		return resp, nil, true
-	})
+	return resp, nil, true
+}
 
-	cluster.ControlKey(kmsg.OffsetFetch.Int16(), func(kreq kmsg.Request) (kmsg.Response, error, bool) {
-		cluster.KeepControl()
-		req := kreq.(*kmsg.OffsetFetchRequest)
-		assert.Len(t, req.Groups, 1, "test only has support for one consumer group per request")
-		consumerGroup := req.Groups[0].Group
-		ensureConsumerGroupExists(consumerGroup)
+// nolint: revive
+func (c *Cluster) offsetFetch(kreq kmsg.Request) (kmsg.Response, error, bool) {
+	c.fake.KeepControl()
+	req := kreq.(*kmsg.OffsetFetchRequest)
+	require.Len(c.t, req.Groups, 1, "test only has support for one consumer group per request")
+	consumerGroup := req.Groups[0].Group
+	c.ensureConsumerGroupExists(consumerGroup)
 
-		const allPartitions = -1
-		var partitionID int32
+	const allPartitions = -1
+	var partitionID int32
 
-		if len(req.Groups[0].Topics) == 0 {
-			// An empty request means fetch all topic-partitions for this group.
-			partitionID = allPartitions
-		} else {
-			partitionID = req.Groups[0].Topics[0].Partitions[0]
-			assert.Len(t, req.Groups[0].Topics, 1, "test only has support for one partition per request")
-			assert.Len(t, req.Groups[0].Topics[0].Partitions, 1, "test only has support for one partition per request")
-		}
+	if len(req.Groups[0].Topics) == 0 {
+		// An empty request means fetch all topic-partitions for this group.
+		partitionID = allPartitions
+	} else {
+		partitionID = req.Groups[0].Topics[0].Partitions[0]
+		assert.Len(c.t, req.Groups[0].Topics, 1, "test only has support for one partition per request")
+		assert.Len(c.t, req.Groups[0].Topics[0].Partitions, 1, "test only has support for one partition per request")
+	}
 
-		// Prepare the list of partitions for which the offset has been committed.
-		// This mimics the real Kafka behaviour.
-		var partitionsResp []kmsg.OffsetFetchResponseGroupTopicPartition
-		if partitionID == allPartitions {
-			for i := int32(0); i < numPartitions; i++ {
-				if committedOffsets[consumerGroup][i] >= 0 {
-					partitionsResp = append(partitionsResp, kmsg.OffsetFetchResponseGroupTopicPartition{
-						Partition: i,
-						Offset:    committedOffsets[consumerGroup][i],
-					})
-				}
-			}
-		} else {
-			if committedOffsets[consumerGroup][partitionID] >= 0 {
+	// Prepare the list of partitions for which the offset has been committed.
+	// This mimics the real Kafka behaviour.
+	var partitionsResp []kmsg.OffsetFetchResponseGroupTopicPartition
+	if partitionID == allPartitions {
+		for i := 0; i < c.numPartitions; i++ {
+			if c.committedOffsets[consumerGroup][i] >= 0 {
 				partitionsResp = append(partitionsResp, kmsg.OffsetFetchResponseGroupTopicPartition{
-					Partition: partitionID,
-					Offset:    committedOffsets[consumerGroup][partitionID],
+					Partition: int32(i),
+					Offset:    c.committedOffsets[consumerGroup][i],
 				})
 			}
 		}
-
-		// Prepare the list topics for which there are some committed offsets.
-		// This mimics the real Kafka behaviour.
-		var topicsResp []kmsg.OffsetFetchResponseGroupTopic
-		if len(partitionsResp) > 0 {
-			topicsResp = []kmsg.OffsetFetchResponseGroupTopic{
-				{
-					Topic:      topicName,
-					Partitions: partitionsResp,
-				},
-			}
+	} else {
+		if c.committedOffsets[consumerGroup][partitionID] >= 0 {
+			partitionsResp = append(partitionsResp, kmsg.OffsetFetchResponseGroupTopicPartition{
+				Partition: partitionID,
+				Offset:    c.committedOffsets[consumerGroup][partitionID],
+			})
 		}
+	}
 
-		resp := kreq.ResponseKind().(*kmsg.OffsetFetchResponse)
-		resp.Default()
-		resp.Groups = []kmsg.OffsetFetchResponseGroup{
+	// Prepare the list topics for which there are some committed offsets.
+	// This mimics the real Kafka behaviour.
+	var topicsResp []kmsg.OffsetFetchResponseGroupTopic
+	if len(partitionsResp) > 0 {
+		topicsResp = []kmsg.OffsetFetchResponseGroupTopic{
 			{
-				Group:  consumerGroup,
-				Topics: topicsResp,
+				Topic:      c.topic,
+				Partitions: partitionsResp,
 			},
 		}
-		return resp, nil, true
-	})
+	}
+
+	resp := kreq.ResponseKind().(*kmsg.OffsetFetchResponse)
+	resp.Default()
+	resp.Groups = []kmsg.OffsetFetchResponseGroup{
+		{
+			Group:  consumerGroup,
+			Topics: topicsResp,
+		},
+	}
+	return resp, nil, true
 }
