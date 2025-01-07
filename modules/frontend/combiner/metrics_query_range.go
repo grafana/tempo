@@ -1,6 +1,7 @@
 package combiner
 
 import (
+	"fmt"
 	"math"
 	"slices"
 	"sort"
@@ -14,7 +15,7 @@ import (
 var _ GRPCCombiner[*tempopb.QueryRangeResponse] = (*genericCombiner[*tempopb.QueryRangeResponse])(nil)
 
 // NewQueryRange returns a query range combiner.
-func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
+func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeries int) (Combiner, error) {
 	combiner, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeFinal)
 	if err != nil {
 		return nil, err
@@ -45,6 +46,11 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 			if resp == nil {
 				resp = &tempopb.QueryRangeResponse{}
 			}
+			if len(resp.Series) >= maxSeries {
+				resp.Series = resp.Series[:maxSeries]
+				resp.Status = tempopb.PartialStatus_PARTIAL
+				resp.Message = fmt.Sprintf("Response exceeds maximum series of %d, a partial response is returned", maxSeries)
+			}
 			sortResponse(resp)
 			attachExemplars(req, resp)
 
@@ -72,8 +78,8 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 	return c, nil
 }
 
-func NewTypedQueryRange(req *tempopb.QueryRangeRequest) (GRPCCombiner[*tempopb.QueryRangeResponse], error) {
-	c, err := NewQueryRange(req)
+func NewTypedQueryRange(req *tempopb.QueryRangeRequest, maxSeries int) (GRPCCombiner[*tempopb.QueryRangeResponse], error) {
+	c, err := NewQueryRange(req, maxSeries)
 	if err != nil {
 		return nil, err
 	}
