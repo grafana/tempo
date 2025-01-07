@@ -90,7 +90,7 @@ When using the same Grafana stack for multiple environments (for example, `produ
 
 ### Find traces having a particular outcome
 
-This example finds all traces on the operation `POST /api/orders` that have an erroneous root span:
+This example finds all traces on the operation `POST /api/orders` that have a span that has errored:
 
 ```
 {
