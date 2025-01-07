@@ -63,12 +63,127 @@ In this example, the search reduces traces to those spans where:
 * `http.status_code` is in the range of `200` to `299` and
 * the number of matching spans within a trace is greater than two.
 
-Queries select sets of spans and filter them through a pipeline of aggregators and conditions. If, for a given trace, this pipeline produces a spanset then it is included in the results of the query.
+Queries select sets of spans and filter them through a pipeline of aggregators and conditions.
+If, for a given trace, this pipeline produces a spanset then it's included in the results of the query.
+
+Refer to [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/) for examples of TraceQL metrics queries.
+
+### Find traces of a specific operation
+
+Let's say that you want to find traces of a specific operation, then both the operation name (the span attribute `name`) and the name of the service that holds this operation (the resource attribute `service.name`) should be specified for proper filtering.
+In the example below, traces are filtered on the `resource.service.name` value `frontend` and the span `name` value `POST /api/order`:
+
+```
+{resource.service.name = "frontend" && name = "POST /api/orders"}
+```
+
+When using the same Grafana stack for multiple environments (for example, `production` and `staging`) or having services that share the same name but are differentiated though their namespace, the query looks like:
+
+```
+{
+  resource.service.namespace = "ecommerce" &&
+  resource.service.name = "frontend" &&
+  resource.deployment.environment = "production" &&
+  name = "POST /api/orders"
+}
+```
+
+### Find traces having a particular outcome
+
+This example finds all traces on the operation `POST /api/orders` that have a span that has errored:
+
+```
+{
+  resource.service.name="frontend" &&
+  name = "POST /api/orders" &&
+  status = error
+}
+```
+
+This example finds all traces on the operation `POST /api/orders` that return with an HTTP 5xx error:
+
+```
+{
+  resource.service.name="frontend" &&
+  name = "POST /api/orders" &&
+  span.http.status_code >= 500
+}
+```
+
+### Find traces that have a particular behavior
+
+You can use query filtering on multiple spans of the traces.
+This example locates all the traces of the `GET /api/products/{id}` operation that access a database. It's a convenient request to identify abnormal access ratios to the database caused by caching problems.
+
+```
+{span.service.name="frontend" && name = "GET /api/products/{id}"} && {.db.system="postgresql"}
+```
+
+### Find traces going through `production` and `staging` instances
+
+This example finds traces that go through `production` and `staging` instances.
+It's a convenient request to identify misconfigurations and leaks across production and non-production environments.
+
+```
+{ resource.deployment.environment = "production" } && { resource.deployment.environment = "staging" }
+```
+
+### Use structural operators
+
+Find traces that include the `frontend` service, where either that service or a downstream service includes a span where an error is set.
+
+```
+{ resource.service.name="frontend" } >> { status = error }
+```
+
+Find all leaf spans that end in the `productcatalogservice`.
+
+```
+{ } !< { resource.service.name = "productcatalogservice" }
+```
+
+Find if `productcatalogservice` and `frontend` are siblings.
+
+```
+{ resource.service.name = "productcatalogservice" } ~ { resource.service.name="frontend" }
+```
+
+### Other examples
+
+Find the services where the http status is 200, and list the service name the span belongs to along with returned traces.
+
+```
+{ span.http.status_code = 200 } | select(resource.service.name)
+```
+
+Find any trace with an unscoped `deployment.environment` attribute set to `production` and `http.status_code` attribute set to `200`:
+
+```
+{ .deployment.environment = "production" && span.http.status_code = 200 }
+```
+
+Find any trace where spans within it have a `deployment.environment` resource attribute set to `production` and a span `http.status_code` attribute set to `200`. In previous examples, all conditions had to be true on one span. These conditions can be true on either different spans or the same spans.
+
+```
+{ resource.deployment.environment = "production" } && { span.http.status_code = 200 }
+```
+
+Find any trace where any span has an `http.method` attribute set to `GET` as well as a `status` attribute set to `ok`, and where any other span has an `http.method` attribute set to `DELETE`, but doesn't have a `status` attribute set to `ok`:
+
+```
+{ span.http.method = "GET" && status = ok } && { span.http.method = "DELETE" && status != ok }
+```
+
+Find any trace with a `deployment.environment` attribute that matches the regex `prod-.*` and `http.status_code` attribute set to `200`:
+
+```
+{ resource.deployment.environment =~ "prod-.*" && span.http.status_code = 200 }
+```
 
 ## Selecting spans
 
-In TraceQL, curly brackets `{}` always select a set of spans from the current trace.
-They are commonly paired with a condition to reduce the spans being passed in.
+In TraceQL, curly brackets `{}` always select a set of spans from available traces.
+Curly brackets are commonly paired with a condition to reduce the spans fetched.
 
 TraceQL differentiates between two types of span data: intrinsics, which are fundamental to spans, and attributes, which are customizable key-value pairs.
 You can use intrinsics and attributes to build filters and select spans.
@@ -92,6 +207,8 @@ Intrinsics example:
 Custom attributes are prefixed with `<scope>.`, such as `span.`,  `resource.` , `link.`, or `event`.
 Resource has no intrinsic values.
 It only has custom attributes.
+
+Attributes are separated by a period (`.`), and intrinsic fields use a colon (`:`).
 The `trace` scope is only an intrinsic and doesn't have any custom attributes at the trace level.
 
 Attributes example:
@@ -117,11 +234,11 @@ The following table shows the current available scoped intrinsic fields:
 | `trace:duration`         | duration    | max(end) - min(start) time of the spans in the trace            | `{ trace:duration > 100ms }`            |
 | `trace:rootName`         | string      | if it exists, the name of the root span in the trace            | `{ trace:rootName = "HTTP GET" }`       |
 | `trace:rootService`      | string      | if it exists, the service name of the root span in the trace    | `{ trace:rootService = "gateway" }`     |
-| `trace:id`               | string      | trace id using hex string                                       | `{ trace:id = "1234567890abcde" }`      |
+| `trace:id`               | string      | trace ID using hex string                                       | `{ trace:id = "1234567890abcde" }`      |
 | `event:name`             | string      | name of event                                                   | `{ event:name = "exception" }`          |
 | `event:timeSinceStart`   | duration    | time of event in relation to the span start time                | `{ event:timeSinceStart > 2ms}`         |
-| `link:spanID`            | string      | link span id using hex string                                   | `{ link:spanID = "0000000000000001" }`  |
-| `link:traceID`           | string      | link trace id using hex string                                  | `{ link:traceID = "1234567890abcde" }`  |
+| `link:spanID`            | string      | link span ID using hex string                                   | `{ link:spanID = "0000000000000001" }`  |
+| `link:traceID`           | string      | link trace ID using hex string                                  | `{ link:traceID = "1234567890abcde" }`  |
 
 <!-- instrumentation scope isn't included in the 2.6 documentation
 | `instrumentation:name`   | string      | instrumentation scope name                                      | `{ instrumentation:name = "grpc" }`     |
@@ -207,7 +324,8 @@ Find instrumentation scope programming language:
 ### Unscoped attribute fields
 
 Attributes can be unscoped if you are unsure if the requested attribute exists on the span or resource.
-When possible, use scoped instead of unscoped attributes. Scoped attributes provide faster query results.
+When possible, use scoped instead of unscoped attributes.
+Scoped attributes provide faster query results.
 
 For example, to find traces with an attribute of `sla` set to `critical`:
 ```
@@ -237,7 +355,7 @@ You can use quoted attributes syntax with non-quoted attribute syntax, the follo
 
 {{< admonition type="note" >}}
 Currently, only the `\"` and `\\` escape sequences are supported.
-{{% /admonition %}}
+{{< /admonition >}}
 
 ### Comparison operators
 
@@ -254,8 +372,10 @@ The implemented comparison operators are:
 - `=~` (regular expression)
 - `!~` (negated regular expression)
 
-TraceQL uses Golang regular expressions. Online regular expression testing sites like https://regex101.com/ are convenient to validate regular expressions used in TraceQL queries. All regular expressions
-are treated as fully anchored. For example, `span.foo =~ "bar"` is evaluated as `span.foo =~ "^bar$"`.
+TraceQL uses Golang regular expressions.
+Online regular expression testing sites like https://regex101.com/ are convenient to validate regular expressions used in TraceQL queries.
+All regular expressions are treated as fully anchored.
+For example, `span.foo =~ "bar"` is evaluated as `span.foo =~ "^bar$"`.
 
 For example, to find all traces where an `http.status_code` attribute in a span are greater than `400` but less than equal to `500`:
 
@@ -282,27 +402,29 @@ Find all traces where `any_attribute` is not `nil` or where `any_attribute` exis
 
 ### Field expressions
 
-Fields can also be combined in various ways to allow more flexible search criteria. A field expression is a composite of multiple fields that define all of the criteria that must be matched to return results.
+Fields can also be combined in various ways to allow more flexible search criteria.
+A field expression is a composite of multiple fields that define all of the criteria that must be matched to return results.
 
 #### Examples
 
-Find traces with "success" `http.status_code` codes:
+Find traces with `success` `http.status_code` codes:
 
 ```
 { span.http.status_code >= 200 && span.http.status_code < 300 }
 ```
 
-Find traces where a `DELETE` HTTP method was used and the intrinsic span status was not OK:
+Find traces where a `DELETE` HTTP method was used and the intrinsic span status wasn't OK:
 
 ```
 { span.http.method = "DELETE" && status != ok }
 ```
 
-Both expressions require all conditions to be true on the same span. The entire expression inside of a pair of `{}` must be evaluated as true on a single span for it to be included in the result set.
+Both expressions require all conditions to be true on the same span.
+The entire expression inside of a pair of `{}` must be evaluated as true on a single span for it to be included in the result set.
 
 In the above example, if a span includes an `.http.method` attribute set to `DELETE` where the span also includes a `status` attribute set to `ok`, the trace would not be included in the returned results.
 
-## Combining spansets
+## Combine spansets
 
 Spanset operators let you select different sets of spans from a trace and then make a determination between them.
 
@@ -325,7 +447,7 @@ Note the difference between the previous example and this one:
 { resource.cloud.region = "us-east-1" && resource.cloud.region = "us-west-1" }
 ```
 
-The second expression returns no traces because it's impossible for a single span to have a `resource.cloud.region` attribute that is set to both region values at the same time.
+The second expression returns no traces because it's impossible for a single span to have a `resource.cloud.region` attribute that's set to both region values at the same time.
 
 ### Structural
 
@@ -366,7 +488,6 @@ For example, to get a failing endpoint AND all descendant failing spans in one q
 These spanset operators look at the structure of a trace and the relationship between the spans.
 These operators are marked experimental because sometimes return false positives.
 However, the operators can be very useful (see examples below).
-We encourage users to try them and give feedback.
 
 - `{condA} !>> {condB}` - The not-descendant operator (`!>>`) looks for spans matching `{condB}` that are not descendant spans of a parent matching `{condA}`
 - `{condA} !<< {condB}` - The not-ancestor operator (`!<<`) looks for spans matching `{condB}` that are not ancestor spans of a child matching `{condA}`
@@ -426,7 +547,8 @@ To find spans where the total of a made-up attribute `bytesProcessed` was more t
 
 ## Grouping
 
-TraceQL supports a grouping pipeline operator that can be used to group by arbitrary attributes. This can be useful to
+TraceQL supports a grouping pipeline operator that can be used to group by arbitrary attributes.
+This can be useful to
 find something like a single service with more than 1 error:
 
 ```
@@ -434,7 +556,6 @@ find something like a single service with more than 1 error:
 ```
 
 {{< youtube id="fraepWra00Y" >}}
-
 
 ## Arithmetic
 
@@ -455,91 +576,3 @@ TraceQL can select arbitrary fields from spans. This is particularly performant 
 ## Experimental TraceQL metrics
 
 TraceQL metrics are experimental, but easy to get started with. Refer to [the TraceQL metrics]({{< relref "../operations/traceql-metrics.md" >}}) documentation for more information.
-
-## Examples
-
-### Find traces of a specific operation
-
-Let's say that you want to find traces of a specific operation, then both the operation name (the span attribute `name`) and the name of the service that holds this operation (the resource attribute `service.name`) should be specified for proper filtering.
-In the example below, traces are filtered on the `resource.service.name` value `frontend` and the span `name` value `POST /api/order`:
-
-```
-{resource.service.name = "frontend" && name = "POST /api/orders"}
-```
-
-When using the same Grafana stack for multiple environments (for example, `production` and `staging`) or having services that share the same name but are differentiated though their namespace, the query looks like:
-
-```
-{
-  resource.service.namespace = "ecommerce" &&
-  resource.service.name = "frontend" &&
-  resource.deployment.environment = "production" &&
-  name = "POST /api/orders"
-}
-```
-
-### Find traces having a particular outcome
-
-This example finds all traces on the operation `POST /api/orders` that have an erroneous root span:
-
-```
-{
-  resource.service.name="frontend" &&
-  name = "POST /api/orders" &&
-  status = error
-}
-```
-
-This example finds all traces on the operation `POST /api/orders` that return with an HTTP 5xx error:
-
-```
-{
-  resource.service.name="frontend" &&
-  name = "POST /api/orders" &&
-  span.http.status_code >= 500
-}
-```
-
-### Find traces that have a particuliar behavior
-
-You can use query filtering on multiple spans of the traces.
-This example locates all the traces of the `GET /api/products/{id}` operation that access a database. It's a convenient request to identify abnormal access ratios to the database caused by caching problems.
-
-```
-{span.service.name="frontend" && name = "GET /api/products/{id}"} && {.db.system="postgresql"}
-```
-
-### Find traces going through `production` and `staging` instances
-
-This example finds traces that go through `production` and `staging` instances.
-It's a convenient request to identify misconfigurations and leaks across production and non-production environments.
-
-```
-{ resource.deployment.environment = "production" } && { resource.deployment.environment = "staging" }
-```
-
-### Other examples
-
-Find any trace with a `deployment.environment` attribute set to `production` and `http.status_code` attribute set to `200`:
-
-```
-{ .deployment.environment = "production" && .http.status_code = 200 }
-```
-
-Find any trace where spans within it have a `deployment.environment` resource attribute set to `production` and a span `http.status_code` attribute set to `200`. In previous examples, all conditions had to be true on one span. These conditions can be true on either different spans or the same spans.
-
-```
-{ resource.deployment.environment = "production" } && { span.http.status_code = 200 }
-```
-
-Find any trace where any span has an `http.method` attribute set to `GET` as well as a `status` attribute set to `ok`, where any other span also exists that has an `http.method` attribute set to `DELETE`, but does not have a `status` attribute set to `ok`:
-
-```
-{ span.http.method = "GET" && status = ok } && { span.http.method = "DELETE" && status != ok }
-```
-
-Find any trace with a `deployment.environment` attribute that matches the regex `prod-.*` and `http.status_code` attribute set to `200`:
-
-```
-{ resource.deployment.environment =~ "prod-.*" && span.http.status_code = 200 }
-```
