@@ -441,7 +441,7 @@ func sendReq(t *testing.T, ctx context.Context, client *kgo.Client) []*kgo.Recor
 	return records
 }
 
-// nolint: revive
+// nolint: revive,unparam
 func sendTracesFor(t *testing.T, ctx context.Context, client *kgo.Client, dur, interval time.Duration) []*kgo.Record {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
