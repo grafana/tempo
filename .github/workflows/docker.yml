@@ -133,4 +133,8 @@ jobs:
           -e GITHUB_APP_ID \
           -e GITHUB_APP_INSTALLATION_ID \
           -e GITHUB_APP_PRIVATE_KEY \
-          -e CONFIG_JSON="$(cat config.json)" us-docker.pkg.dev/grafanalabs-global/docker-deployment-tools-prod/updater
+          -e CONFIG_JSON="$(cat config.json)" \
+          -v .tags-for-cd-tempo:/app/.tags-for-cd-tempo \
+          -v .tags-for-cd-tempo_query:/app/.tags-for-cd-tempo_query \ 
+          -v .tags-for-cd-tempo_vulture:/app/.tags-for-cd-tempo_vulture \ 
+          us-docker.pkg.dev/grafanalabs-global/docker-deployment-tools-prod/updater
