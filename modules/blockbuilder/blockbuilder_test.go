@@ -314,7 +314,6 @@ func blockbuilderConfig(t *testing.T, address string) Config {
 	cfg.IngestStorageConfig.Kafka.ConsumerGroup = testConsumerGroup
 
 	cfg.AssignedPartitions = map[string][]int32{cfg.InstanceID: {0}}
-	cfg.LookbackOnNoCommit = 15 * time.Second
 	cfg.ConsumeCycleDuration = 5 * time.Second
 
 	cfg.WAL.Filepath = t.TempDir()

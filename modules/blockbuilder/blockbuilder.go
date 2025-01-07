@@ -40,7 +40,7 @@ var (
 	metricPartitionLagSeconds = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Subsystem: "block_builder",
-		Name:      "partition_lag_s",
+		Name:      "partition_lag_seconds",
 		Help:      "Lag of a partition in seconds.",
 	}, []string{"partition"})
 	metricConsumeCycleDuration = promauto.NewHistogram(prometheus.HistogramOpts{
