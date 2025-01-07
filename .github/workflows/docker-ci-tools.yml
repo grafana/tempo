@@ -1,6 +1,7 @@
 name: docker-ci-tools
 on:
   push:
+    # If you define both branches/branches-ignore and paths/paths-ignore, the workflow will only run when both filters are satisfied.
     branches:
       - 'main'
     paths:

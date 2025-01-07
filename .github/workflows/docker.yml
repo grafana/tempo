@@ -1,4 +1,4 @@
-name: docker-ci-tools
+name: docker
 on:
   push:
     branches:
@@ -61,13 +61,15 @@ jobs:
 
       - name: docker-push
         run: |
-            docker push grafana/${{ matrix.component }}:$TAG_ARCH
+          TAG_ARCH="$TAG-${{ matrix.runner_arch.arch }}"          
+          docker push grafana/${{ matrix.component }}:$TAG_ARCH
 
 
   cd-to-dev-env:
     # This job deploys the latest main commit to the dev environment
     if: github.repository == 'grafana/tempo' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
+    needs: docker
     steps:
       - name: Checkout
         uses: actions/checkout@v4
