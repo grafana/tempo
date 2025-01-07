@@ -231,6 +231,13 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, ov
 		startOffset = kgo.NewOffset().AtStart()
 	}
 
+	level.Info(b.logger).Log(
+		"msg", "consuming partition",
+		"partition", partition,
+		"commit_offset", lastCommit.At,
+		"start_offset", startOffset,
+	)
+
 	// We always rewind the partition's offset to the commit offset by reassigning the partition to the client (this triggers partition assignment).
 	// This is so the cycle started exactly at the commit offset, and not at what was (potentially over-) consumed previously.
 	// In the end, we remove the partition from the client (refer to the defer below) to guarantee the client always consumes
@@ -266,6 +273,13 @@ outer:
 		for iter := fetches.RecordIter(); !iter.Done(); {
 			rec := iter.Next()
 
+			level.Debug(b.logger).Log(
+				"msg", "processing record",
+				"partition", rec.Partition,
+				"offset", rec.Offset,
+				"timestamp", rec.Timestamp,
+			)
+
 			// Initialize on first record
 			if !init {
 				end = rec.Timestamp.Add(dur) // When block will be cut
@@ -297,6 +311,10 @@ outer:
 
 	if lastRec == nil {
 		// Received no data
+		level.Info(b.logger).Log(
+			"msg", "no data",
+			"partition", partition,
+		)
 		return false, nil
 	}
 
@@ -313,6 +331,12 @@ outer:
 	if err := resp.Error(); err != nil {
 		return false, err
 	}
+
+	level.Info(b.logger).Log(
+		"msg", "successfully committed offset to kafka",
+		"partition", partition,
+		"last_record", lastRec.Offset,
+	)
 
 	return more, nil
 }
