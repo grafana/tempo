@@ -56,7 +56,7 @@ The querier finds the requested trace ID in either the ingesters or the backend 
 parameters, the querier queries the ingesters for recently ingested traces and pulls the bloom filters and indexes from the backend storage to efficiently locate the traces within object storage blocks.
 
 The querier exposes an HTTP endpoint at:
-`GET /querier/api/traces/<traceID>`, but it is not intended for direct use.
+`GET /querier/api/traces/<traceID>`, but it's not intended for direct use.
 
 Queries should be sent to the Query Frontend.
 
