@@ -23,4 +23,4 @@ Example:
     multi_zone_ingester_max_unavailable: 25,
 ```
 
-For an configuration, refer to the [JSonnet microservices operations example](https://github.com/grafana/tempo/blob/main/operations/jsonnet/microservices/README.md)
+For an configuration, refer to the [JSonnet microservices operations example](https://github.com/grafana/tempo/blob/main/operations/jsonnet/microservices/README.md).
