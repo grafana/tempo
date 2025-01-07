@@ -17,7 +17,7 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat string) Combiner {
 	var inspectedBytes uint64
 	gc := &genericCombiner[*tempopb.TraceByIDResponse]{
 		combine: func(partial *tempopb.TraceByIDResponse, _ *tempopb.TraceByIDResponse, _ PipelineResponse) error {
-			if partial.Status == tempopb.TraceByIDResponse_PARTIAL {
+			if partial.Status == tempopb.PartialStatus_PARTIAL {
 				partialTrace = true
 			}
 			if partial.Metrics != nil {
@@ -39,7 +39,7 @@ func NewTraceByIDV2(maxBytes int, marshalingFormat string) Combiner {
 			resp.Metrics = &tempopb.TraceByIDMetrics{InspectedBytes: inspectedBytes}
 
 			if partialTrace || combiner.IsPartialTrace() {
-				resp.Status = tempopb.TraceByIDResponse_PARTIAL
+				resp.Status = tempopb.PartialStatus_PARTIAL
 				resp.Message = fmt.Sprintf("Trace exceeds maximum size of %d bytes, a partial trace is returned", maxBytes)
 			}
 

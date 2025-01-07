@@ -83,9 +83,11 @@ const (
 	// PathOverrides user configurable overrides
 	PathOverrides = "/api/overrides"
 
-	PathSearchTagValuesV2 = "/api/v2/search/tag/{" + MuxVarTagName + "}/values"
-	PathSearchTagsV2      = "/api/v2/search/tags"
-	PathTracesV2          = "/api/v2/traces/{traceID}"
+	PathSearchTagValuesV2     = "/api/v2/search/tag/{" + MuxVarTagName + "}/values"
+	PathSearchTagsV2          = "/api/v2/search/tags"
+	PathTracesV2              = "/api/v2/traces/{traceID}"
+	PathMetricsQueryInstantV2 = "/api/v2/metrics/query"
+	PathMetricsQueryRangeV2   = "/api/v2/metrics/query_range"
 
 	QueryModeKey       = "mode"
 	QueryModeIngesters = "ingesters"

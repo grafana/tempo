@@ -46,17 +46,20 @@ type (
 )
 
 type QueryFrontend struct {
-	TraceByIDHandler, TraceByIDHandlerV2, SearchHandler, MetricsSummaryHandler, MetricsQueryInstantHandler, MetricsQueryRangeHandler http.Handler
-	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler                                       http.Handler
-	cacheProvider                                                                                                                    cache.Provider
-	streamingSearch                                                                                                                  streamingSearchHandler
-	streamingTags                                                                                                                    streamingTagsHandler
-	streamingTagsV2                                                                                                                  streamingTagsV2Handler
-	streamingTagValues                                                                                                               streamingTagValuesHandler
-	streamingTagValuesV2                                                                                                             streamingTagValuesV2Handler
-	streamingQueryRange                                                                                                              streamingQueryRangeHandler
-	streamingQueryInstant                                                                                                            streamingQueryInstantHandler
-	logger                                                                                                                           log.Logger
+	TraceByIDHandler, TraceByIDHandlerV2, SearchHandler, MetricsSummaryHandler                                     http.Handler
+	SearchTagsHandler, SearchTagsV2Handler, SearchTagsValuesHandler, SearchTagsValuesV2Handler                     http.Handler
+	MetricsQueryInstantHandler, MetricsQueryRangeHandler, MetricsQueryInstantV2Handler, MetricsQueryRangeV2Handler http.Handler
+	cacheProvider                                                                                                  cache.Provider
+	streamingSearch                                                                                                streamingSearchHandler
+	streamingTags                                                                                                  streamingTagsHandler
+	streamingTagsV2                                                                                                streamingTagsV2Handler
+	streamingTagValues                                                                                             streamingTagValuesHandler
+	streamingTagValuesV2                                                                                           streamingTagValuesV2Handler
+	streamingQueryRange                                                                                            streamingQueryRangeHandler
+	streamingQueryInstant                                                                                          streamingQueryInstantHandler
+	streamingQueryRangeV2                                                                                          streamingQueryRangeHandler
+	streamingQueryInstantV2                                                                                        streamingQueryInstantHandler
+	logger                                                                                                         log.Logger
 }
 
 var tracer = otel.Tracer("modules/frontend")
@@ -198,30 +201,36 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 	searchTagValues := newTagValuesHTTPHandler(cfg, searchTagValuesPipeline, o, logger)
 	searchTagValuesV2 := newTagValuesV2HTTPHandler(cfg, searchTagValuesPipeline, o, logger)
 	metrics := newMetricsSummaryHandler(metricsPipeline, logger)
-	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, logger) // Reuses the same pipeline
-	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger)
+	queryInstant := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, logger, false) // Reuses the same pipeline
+	queryRange := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger, false)
+	queryInstantV2 := newMetricsQueryInstantHTTPHandler(cfg, queryInstantPipeline, logger, true) // Reuses the same pipeline
+	queryRangeV2 := newMetricsQueryRangeHTTPHandler(cfg, queryRangePipeline, logger, true)
 
 	return &QueryFrontend{
 		// http/discrete
-		TraceByIDHandler:           newHandler(cfg.Config.LogQueryRequestHeaders, traces, logger),
-		TraceByIDHandlerV2:         newHandler(cfg.Config.LogQueryRequestHeaders, tracesV2, logger),
-		SearchHandler:              newHandler(cfg.Config.LogQueryRequestHeaders, search, logger),
-		SearchTagsHandler:          newHandler(cfg.Config.LogQueryRequestHeaders, searchTags, logger),
-		SearchTagsV2Handler:        newHandler(cfg.Config.LogQueryRequestHeaders, searchTagsV2, logger),
-		SearchTagsValuesHandler:    newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValues, logger),
-		SearchTagsValuesV2Handler:  newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValuesV2, logger),
-		MetricsSummaryHandler:      newHandler(cfg.Config.LogQueryRequestHeaders, metrics, logger),
-		MetricsQueryInstantHandler: newHandler(cfg.Config.LogQueryRequestHeaders, queryInstant, logger),
-		MetricsQueryRangeHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, queryRange, logger),
+		TraceByIDHandler:             newHandler(cfg.Config.LogQueryRequestHeaders, traces, logger),
+		TraceByIDHandlerV2:           newHandler(cfg.Config.LogQueryRequestHeaders, tracesV2, logger),
+		SearchHandler:                newHandler(cfg.Config.LogQueryRequestHeaders, search, logger),
+		SearchTagsHandler:            newHandler(cfg.Config.LogQueryRequestHeaders, searchTags, logger),
+		SearchTagsV2Handler:          newHandler(cfg.Config.LogQueryRequestHeaders, searchTagsV2, logger),
+		SearchTagsValuesHandler:      newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValues, logger),
+		SearchTagsValuesV2Handler:    newHandler(cfg.Config.LogQueryRequestHeaders, searchTagValuesV2, logger),
+		MetricsSummaryHandler:        newHandler(cfg.Config.LogQueryRequestHeaders, metrics, logger),
+		MetricsQueryInstantHandler:   newHandler(cfg.Config.LogQueryRequestHeaders, queryInstant, logger),
+		MetricsQueryRangeHandler:     newHandler(cfg.Config.LogQueryRequestHeaders, queryRange, logger),
+		MetricsQueryInstantV2Handler: newHandler(cfg.Config.LogQueryRequestHeaders, queryInstantV2, logger),
+		MetricsQueryRangeV2Handler:   newHandler(cfg.Config.LogQueryRequestHeaders, queryRangeV2, logger),
 
 		// grpc/streaming
-		streamingSearch:       newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
-		streamingTags:         newTagsStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
-		streamingTagsV2:       newTagsV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
-		streamingTagValues:    newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger),
-		streamingTagValuesV2:  newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger),
-		streamingQueryRange:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger),
-		streamingQueryInstant: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger), // Reuses the same pipeline
+		streamingSearch:         newSearchStreamingGRPCHandler(cfg, searchPipeline, apiPrefix, logger),
+		streamingTags:           newTagsStreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
+		streamingTagsV2:         newTagsV2StreamingGRPCHandler(cfg, searchTagsPipeline, apiPrefix, o, logger),
+		streamingTagValues:      newTagValuesStreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger),
+		streamingTagValuesV2:    newTagValuesV2StreamingGRPCHandler(cfg, searchTagValuesPipeline, apiPrefix, o, logger),
+		streamingQueryRange:     newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger, false),
+		streamingQueryInstant:   newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger, false), // Reuses the same pipeline
+		streamingQueryRangeV2:   newQueryRangeStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger, true),
+		streamingQueryInstantV2: newQueryInstantStreamingGRPCHandler(cfg, queryRangePipeline, apiPrefix, logger, true),
 
 		cacheProvider: cacheProvider,
 		logger:        logger,
