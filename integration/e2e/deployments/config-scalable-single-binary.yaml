@@ -6,6 +6,7 @@ distributor:
     jaeger:
       protocols:
         grpc:
+          endpoint: "0.0.0.0:14250"
 
 ingester:
   lifecycler:

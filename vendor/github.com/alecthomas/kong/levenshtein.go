@@ -31,7 +31,7 @@ func levenshtein(a, b string) int {
 	return f[len(f)-1]
 }
 
-func min(a, b int) int {
+func min(a, b int) int { //nolint:predeclared
 	if a <= b {
 		return a
 	}

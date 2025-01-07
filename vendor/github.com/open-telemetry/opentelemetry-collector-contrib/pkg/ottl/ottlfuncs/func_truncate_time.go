@@ -18,6 +18,7 @@ type TruncateTimeArguments[K any] struct {
 func NewTruncateTimeFactory[K any]() ottl.Factory[K] {
 	return ottl.NewFactory("TruncateTime", &TruncateTimeArguments[K]{}, createTruncateTimeFunction[K])
 }
+
 func createTruncateTimeFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
 	args, ok := oArgs.(*TruncateTimeArguments[K])
 

@@ -9,36 +9,50 @@ import (
 	"unicode/utf8"
 )
 
+// PassthroughMode indicates how parameters are passed through when "passthrough" is set.
+type PassthroughMode int
+
+const (
+	// PassThroughModeNone indicates passthrough mode is disabled.
+	PassThroughModeNone PassthroughMode = iota
+	// PassThroughModeAll indicates that all parameters, including flags, are passed through. It is the default.
+	PassThroughModeAll
+	// PassThroughModePartial will validate flags until the first positional argument is encountered, then pass through all remaining positional arguments.
+	PassThroughModePartial
+)
+
 // Tag represents the parsed state of Kong tags in a struct field tag.
 type Tag struct {
-	Ignored     bool // Field is ignored by Kong. ie. kong:"-"
-	Cmd         bool
-	Arg         bool
-	Required    bool
-	Optional    bool
-	Name        string
-	Help        string
-	Type        string
-	TypeName    string
-	HasDefault  bool
-	Default     string
-	Format      string
-	PlaceHolder string
-	Envs        []string
-	Short       rune
-	Hidden      bool
-	Sep         rune
-	MapSep      rune
-	Enum        string
-	Group       string
-	Xor         []string
-	Vars        Vars
-	Prefix      string // Optional prefix on anonymous structs. All sub-flags will have this prefix.
-	EnvPrefix   string
-	Embed       bool
-	Aliases     []string
-	Negatable   bool
-	Passthrough bool
+	Ignored         bool // Field is ignored by Kong. ie. kong:"-"
+	Cmd             bool
+	Arg             bool
+	Required        bool
+	Optional        bool
+	Name            string
+	Help            string
+	Type            string
+	TypeName        string
+	HasDefault      bool
+	Default         string
+	Format          string
+	PlaceHolder     string
+	Envs            []string
+	Short           rune
+	Hidden          bool
+	Sep             rune
+	MapSep          rune
+	Enum            string
+	Group           string
+	Xor             []string
+	And             []string
+	Vars            Vars
+	Prefix          string // Optional prefix on anonymous structs. All sub-flags will have this prefix.
+	EnvPrefix       string
+	Embed           bool
+	Aliases         []string
+	Negatable       string
+	Passthrough     bool // Deprecated: use PassthroughMode instead.
+	PassthroughMode PassthroughMode
 
 	// Storage for all tag keys for arbitrary lookups.
 	items map[string][]string
@@ -62,7 +76,7 @@ type tagChars struct {
 var kongChars = tagChars{sep: ',', quote: '\'', assign: '=', needsUnquote: false}
 var bareChars = tagChars{sep: ' ', quote: '"', assign: ':', needsUnquote: true}
 
-// nolint:gocyclo
+//nolint:gocyclo
 func parseTagItems(tagString string, chr tagChars) (map[string][]string, error) {
 	d := map[string][]string{}
 	key := []rune{}
@@ -203,7 +217,7 @@ func parseTag(parent reflect.Value, ft reflect.StructField) (*Tag, error) {
 	return t, nil
 }
 
-func hydrateTag(t *Tag, typ reflect.Type) error { // nolint: gocyclo
+func hydrateTag(t *Tag, typ reflect.Type) error { //nolint: gocyclo
 	var typeName string
 	var isBool bool
 	var isBoolPtr bool
@@ -249,14 +263,22 @@ func hydrateTag(t *Tag, typ reflect.Type) error { // nolint: gocyclo
 	for _, xor := range t.GetAll("xor") {
 		t.Xor = append(t.Xor, strings.FieldsFunc(xor, tagSplitFn)...)
 	}
+	for _, and := range t.GetAll("and") {
+		t.And = append(t.And, strings.FieldsFunc(and, tagSplitFn)...)
+	}
 	t.Prefix = t.Get("prefix")
 	t.EnvPrefix = t.Get("envprefix")
 	t.Embed = t.Has("embed")
-	negatable := t.Has("negatable")
-	if negatable && !isBool && !isBoolPtr {
-		return fmt.Errorf("negatable can only be set on booleans")
+	if t.Has("negatable") {
+		if !isBool && !isBoolPtr {
+			return fmt.Errorf("negatable can only be set on booleans")
+		}
+		negatable := t.Get("negatable")
+		if negatable == "" {
+			negatable = negatableDefault // placeholder for default negation of --no-<flag>
+		}
+		t.Negatable = negatable
 	}
-	t.Negatable = negatable
 	aliases := t.Get("aliases")
 	if len(aliases) > 0 {
 		t.Aliases = append(t.Aliases, strings.FieldsFunc(aliases, tagSplitFn)...)
@@ -280,6 +302,17 @@ func hydrateTag(t *Tag, typ reflect.Type) error { // nolint: gocyclo
 		return fmt.Errorf("passthrough only makes sense for positional arguments or commands")
 	}
 	t.Passthrough = passthrough
+	if t.Passthrough {
+		passthroughMode := t.Get("passthrough")
+		switch passthroughMode {
+		case "partial":
+			t.PassthroughMode = PassThroughModePartial
+		case "all", "":
+			t.PassthroughMode = PassThroughModeAll
+		default:
+			return fmt.Errorf("invalid passthrough mode %q, must be one of 'partial' or 'all'", passthroughMode)
+		}
+	}
 	return nil
 }
 

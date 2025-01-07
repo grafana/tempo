@@ -82,7 +82,7 @@ func (t Token) InferredType() TokenType {
 		return t.Type
 	}
 	if v, ok := t.Value.(string); ok {
-		if strings.HasPrefix(v, "--") { // nolint: gocritic
+		if strings.HasPrefix(v, "--") { //nolint: gocritic
 			return FlagToken
 		} else if v == "-" {
 			return PositionalArgumentToken
@@ -109,7 +109,7 @@ func (t Token) IsValue() bool {
 //
 // For example, the token "--foo=bar" will be split into the following by the parser:
 //
-// 		[{FlagToken, "foo"}, {FlagValueToken, "bar"}]
+//	[{FlagToken, "foo"}, {FlagValueToken, "bar"}]
 type Scanner struct {
 	args []Token
 }

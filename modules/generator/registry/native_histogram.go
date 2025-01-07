@@ -141,6 +141,8 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  100,
 			NativeHistogramMinResetDuration: 15 * time.Minute,
+			// TODO enable examplars on native histograms
+			NativeHistogramMaxExemplars: -1,
 		}),
 		lastUpdated: 0,
 		firstSeries: atomic.NewBool(true),
@@ -248,7 +250,6 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 				}
 			}
 		}
-
 	}
 
 	return

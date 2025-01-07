@@ -161,7 +161,7 @@ func (c *Context) Empty() bool {
 }
 
 // Validate the current context.
-func (c *Context) Validate() error { // nolint: gocyclo
+func (c *Context) Validate() error { //nolint: gocyclo
 	err := Visit(c.Model, func(node Visitable, next Next) error {
 		switch node := node.(type) {
 		case *Value:
@@ -201,15 +201,18 @@ func (c *Context) Validate() error { // nolint: gocyclo
 
 		case *Application:
 			value = node.Target
-			desc = node.Name
+			desc = ""
 
 		case *Node:
 			value = node.Target
 			desc = node.Path()
 		}
 		if validate := isValidatable(value); validate != nil {
-			if err := validate.Validate(); err != nil {
-				return fmt.Errorf("%s: %w", desc, err)
+			if err := validate.Validate(c); err != nil {
+				if desc != "" {
+					return fmt.Errorf("%s: %w", desc, err)
+				}
+				return err
 			}
 		}
 	}
@@ -256,7 +259,7 @@ func (c *Context) Validate() error { // nolint: gocyclo
 	if err := checkMissingPositionals(positionals, node.Positional); err != nil {
 		return err
 	}
-	if err := checkXorDuplicates(c.Path); err != nil {
+	if err := checkXorDuplicatedAndAndMissing(c.Path); err != nil {
 		return err
 	}
 
@@ -344,7 +347,8 @@ func (c *Context) endParsing() {
 	}
 }
 
-func (c *Context) trace(node *Node) (err error) { // nolint: gocyclo
+//nolint:maintidx
+func (c *Context) trace(node *Node) (err error) { //nolint: gocyclo
 	positional := 0
 	node.Active = true
 
@@ -374,14 +378,18 @@ func (c *Context) trace(node *Node) (err error) { // nolint: gocyclo
 				switch {
 				case v == "-":
 					fallthrough
-				default: // nolint
+				default: //nolint
 					c.scan.Pop()
 					c.scan.PushTyped(token.Value, PositionalArgumentToken)
 
 				// Indicates end of parsing. All remaining arguments are treated as positional arguments only.
 				case v == "--":
-					c.scan.Pop()
 					c.endParsing()
+
+					// Pop the -- token unless the next positional argument accepts passthrough arguments.
+					if !(positional < len(node.Positional) && node.Positional[positional].Passthrough) {
+						c.scan.Pop()
+					}
 
 				// Long flag.
 				case strings.HasPrefix(v, "--"):
@@ -417,12 +425,22 @@ func (c *Context) trace(node *Node) (err error) { // nolint: gocyclo
 
 		case FlagToken:
 			if err := c.parseFlag(flags, token.String()); err != nil {
-				return err
+				if isUnknownFlagError(err) && positional < len(node.Positional) && node.Positional[positional].PassthroughMode == PassThroughModeAll {
+					c.scan.Pop()
+					c.scan.PushTyped(token.String(), PositionalArgumentToken)
+				} else {
+					return err
+				}
 			}
 
 		case ShortFlagToken:
 			if err := c.parseFlag(flags, token.String()); err != nil {
-				return err
+				if isUnknownFlagError(err) && positional < len(node.Positional) && node.Positional[positional].PassthroughMode == PassThroughModeAll {
+					c.scan.Pop()
+					c.scan.PushTyped(token.String(), PositionalArgumentToken)
+				} else {
+					return err
+				}
 			}
 
 		case FlagValueToken:
@@ -681,20 +699,29 @@ func flipBoolValue(value reflect.Value) error {
 
 func (c *Context) parseFlag(flags []*Flag, match string) (err error) {
 	candidates := []string{}
+
 	for _, flag := range flags {
 		long := "--" + flag.Name
-		short := "-" + string(flag.Short)
-		neg := "--no-" + flag.Name
+		matched := long == match
 		candidates = append(candidates, long)
 		if flag.Short != 0 {
+			short := "-" + string(flag.Short)
+			matched = matched || (short == match)
 			candidates = append(candidates, short)
 		}
-		if short != match && long != match && !(match == neg && flag.Tag.Negatable) {
+		for _, alias := range flag.Aliases {
+			alias = "--" + alias
+			matched = matched || (alias == match)
+			candidates = append(candidates, alias)
+		}
+
+		neg := negatableFlagName(flag.Name, flag.Tag.Negatable)
+		if !matched && match != neg {
 			continue
 		}
 		// Found a matching flag.
 		c.scan.Pop()
-		if match == neg && flag.Tag.Negatable {
+		if match == neg && flag.Tag.Negatable != "" {
 			flag.Negated = true
 		}
 		err := flag.Parse(c.scan, c.getValue(flag.Value))
@@ -716,13 +743,23 @@ func (c *Context) parseFlag(flags []*Flag, match string) (err error) {
 		c.Path = append(c.Path, &Path{Flag: flag})
 		return nil
 	}
-	return findPotentialCandidates(match, candidates, "unknown flag %s", match)
+	return &unknownFlagError{Cause: findPotentialCandidates(match, candidates, "unknown flag %s", match)}
 }
+
+func isUnknownFlagError(err error) bool {
+	var unknown *unknownFlagError
+	return errors.As(err, &unknown)
+}
+
+type unknownFlagError struct{ Cause error }
+
+func (e *unknownFlagError) Unwrap() error { return e.Cause }
+func (e *unknownFlagError) Error() string { return e.Cause.Error() }
 
 // Call an arbitrary function filling arguments with bound values.
 func (c *Context) Call(fn any, binds ...interface{}) (out []interface{}, err error) {
 	fv := reflect.ValueOf(fn)
-	bindings := c.Kong.bindings.clone().add(binds...).add(c).merge(c.bindings) //nolint:govet
+	bindings := c.Kong.bindings.clone().add(binds...).add(c).merge(c.bindings)
 	return callAnyFunction(fv, bindings)
 }
 
@@ -745,6 +782,19 @@ func (c *Context) RunNode(node *Node, binds ...interface{}) (err error) {
 		methodBinds = methodBinds.clone()
 		for p := node; p != nil; p = p.Parent {
 			methodBinds = methodBinds.add(p.Target.Addr().Interface())
+			// Try value and pointer to value.
+			for _, p := range []reflect.Value{p.Target, p.Target.Addr()} {
+				t := p.Type()
+				for i := 0; i < p.NumMethod(); i++ {
+					methodt := t.Method(i)
+					if strings.HasPrefix(methodt.Name, "Provide") {
+						method := p.Method(i)
+						if err := methodBinds.addProvider(method.Interface()); err != nil {
+							return fmt.Errorf("%s.%s: %w", t.Name(), methodt.Name, err)
+						}
+					}
+				}
+			}
 		}
 		if method.IsValid() {
 			methods = append(methods, targetMethod{node, method, methodBinds})
@@ -759,7 +809,7 @@ func (c *Context) RunNode(node *Node, binds ...interface{}) (err error) {
 	}
 
 	for _, method := range methods {
-		if err = callMethod("Run", method.node.Target, method.method, method.binds); err != nil {
+		if err = callFunction(method.method, method.binds); err != nil {
 			return err
 		}
 	}
@@ -773,18 +823,22 @@ func (c *Context) RunNode(node *Node, binds ...interface{}) (err error) {
 func (c *Context) Run(binds ...interface{}) (err error) {
 	node := c.Selected()
 	if node == nil {
-		if len(c.Path) > 0 {
-			selected := c.Path[0].Node()
-			if selected.Type == ApplicationNode {
-				method := getMethod(selected.Target, "Run")
-				if method.IsValid() {
-					return c.RunNode(selected, binds...)
-				}
-			}
+		if len(c.Path) == 0 {
+			return fmt.Errorf("no command selected")
 		}
-		return fmt.Errorf("no command selected")
+		selected := c.Path[0].Node()
+		if selected.Type == ApplicationNode {
+			method := getMethod(selected.Target, "Run")
+			if method.IsValid() {
+				node = selected
+			}
+		} else {
+			return fmt.Errorf("no command selected")
+		}
 	}
-	return c.RunNode(node, binds...)
+	runErr := c.RunNode(node, binds...)
+	err = c.Kong.applyHook(c, "AfterRun")
+	return errors.Join(runErr, err)
 }
 
 // PrintUsage to Kong's stdout.
@@ -799,22 +853,34 @@ func (c *Context) PrintUsage(summary bool) error {
 func checkMissingFlags(flags []*Flag) error {
 	xorGroupSet := map[string]bool{}
 	xorGroup := map[string][]string{}
+	andGroupSet := map[string]bool{}
+	andGroup := map[string][]string{}
 	missing := []string{}
+	andGroupRequired := getRequiredAndGroupMap(flags)
 	for _, flag := range flags {
+		for _, and := range flag.And {
+			flag.Required = andGroupRequired[and]
+		}
 		if flag.Set {
 			for _, xor := range flag.Xor {
 				xorGroupSet[xor] = true
+			}
+			for _, and := range flag.And {
+				andGroupSet[and] = true
 			}
 		}
 		if !flag.Required || flag.Set {
 			continue
 		}
-		if len(flag.Xor) > 0 {
+		if len(flag.Xor) > 0 || len(flag.And) > 0 {
 			for _, xor := range flag.Xor {
 				if xorGroupSet[xor] {
 					continue
 				}
 				xorGroup[xor] = append(xorGroup[xor], flag.Summary())
+			}
+			for _, and := range flag.And {
+				andGroup[and] = append(andGroup[and], flag.Summary())
 			}
 		} else {
 			missing = append(missing, flag.Summary())
@@ -825,6 +891,11 @@ func checkMissingFlags(flags []*Flag) error {
 			missing = append(missing, strings.Join(flags, " or "))
 		}
 	}
+	for _, flags := range andGroup {
+		if len(flags) > 1 {
+			missing = append(missing, strings.Join(flags, " and "))
+		}
+	}
 
 	if len(missing) == 0 {
 		return nil
@@ -833,6 +904,18 @@ func checkMissingFlags(flags []*Flag) error {
 	sort.Strings(missing)
 
 	return fmt.Errorf("missing flags: %s", strings.Join(missing, ", "))
+}
+
+func getRequiredAndGroupMap(flags []*Flag) map[string]bool {
+	andGroupRequired := map[string]bool{}
+	for _, flag := range flags {
+		for _, and := range flag.And {
+			if flag.Required {
+				andGroupRequired[and] = true
+			}
+		}
+	}
+	return andGroupRequired
 }
 
 func checkMissingChildren(node *Node) error {
@@ -871,7 +954,7 @@ func checkMissingChildren(node *Node) error {
 	if len(missing) == 1 {
 		return fmt.Errorf("expected %s", missing[0])
 	}
-	return fmt.Errorf("expected one of %s", strings.Join(missing, ",  "))
+	return fmt.Errorf("expected one of %s", strings.Join(missing, ", "))
 }
 
 // If we're missing any positionals and they're required, return an error.
@@ -931,7 +1014,7 @@ func checkEnum(value *Value, target reflect.Value) error {
 			}
 			enums = append(enums, fmt.Sprintf("%q", enum))
 		}
-		return fmt.Errorf("%s must be one of %s but got %q", value.ShortSummary(), strings.Join(enums, ","), target.Interface())
+		return fmt.Errorf("%s must be one of %s but got %q", value.ShortSummary(), strings.Join(enums, ","), fmt.Sprintf("%v", target.Interface()))
 	}
 }
 
@@ -943,6 +1026,20 @@ func checkPassthroughArg(target reflect.Value) bool {
 	default:
 		return false
 	}
+}
+
+func checkXorDuplicatedAndAndMissing(paths []*Path) error {
+	errs := []string{}
+	if err := checkXorDuplicates(paths); err != nil {
+		errs = append(errs, err.Error())
+	}
+	if err := checkAndMissing(paths); err != nil {
+		errs = append(errs, err.Error())
+	}
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, ", "))
+	}
+	return nil
 }
 
 func checkXorDuplicates(paths []*Path) error {
@@ -958,6 +1055,38 @@ func checkXorDuplicates(paths []*Path) error {
 				}
 				seen[xor] = flag
 			}
+		}
+	}
+	return nil
+}
+
+func checkAndMissing(paths []*Path) error {
+	for _, path := range paths {
+		missingMsgs := []string{}
+		andGroups := map[string][]*Flag{}
+		for _, flag := range path.Flags {
+			for _, and := range flag.And {
+				andGroups[and] = append(andGroups[and], flag)
+			}
+		}
+		for _, flags := range andGroups {
+			oneSet := false
+			notSet := []*Flag{}
+			flagNames := []string{}
+			for _, flag := range flags {
+				flagNames = append(flagNames, flag.Name)
+				if flag.Set {
+					oneSet = true
+				} else {
+					notSet = append(notSet, flag)
+				}
+			}
+			if len(notSet) > 0 && oneSet {
+				missingMsgs = append(missingMsgs, fmt.Sprintf("--%s must be used together", strings.Join(flagNames, " and --")))
+			}
+		}
+		if len(missingMsgs) > 0 {
+			return fmt.Errorf("%s", strings.Join(missingMsgs, ", "))
 		}
 	}
 	return nil
@@ -983,12 +1112,23 @@ func findPotentialCandidates(needle string, haystack []string, format string, ar
 }
 
 type validatable interface{ Validate() error }
+type extendedValidatable interface {
+	Validate(kctx *Context) error
+}
 
-func isValidatable(v reflect.Value) validatable {
+// Proxy a validatable function to the extendedValidatable interface
+type validatableFunc func() error
+
+func (f validatableFunc) Validate(kctx *Context) error { return f() }
+
+func isValidatable(v reflect.Value) extendedValidatable {
 	if !v.IsValid() || (v.Kind() == reflect.Ptr || v.Kind() == reflect.Slice || v.Kind() == reflect.Map) && v.IsNil() {
 		return nil
 	}
 	if validate, ok := v.Interface().(validatable); ok {
+		return validatableFunc(validate.Validate)
+	}
+	if validate, ok := v.Interface().(extendedValidatable); ok {
 		return validate
 	}
 	if v.CanAddr() {

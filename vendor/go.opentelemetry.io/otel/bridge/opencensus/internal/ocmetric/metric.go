@@ -144,7 +144,7 @@ func convertHistogram(labelKeys []ocmetricdata.LabelKey, ts []*ocmetricdata.Time
 				Attributes:   attrs,
 				StartTime:    t.StartTime,
 				Time:         p.Time,
-				Count:        uint64(dist.Count),
+				Count:        uint64(max(0, dist.Count)), // nolint:gosec // A count should never be negative.
 				Sum:          dist.Sum,
 				Bounds:       dist.BucketOptions.Bounds,
 				BucketCounts: bucketCounts,
@@ -166,7 +166,7 @@ func convertBuckets(buckets []ocmetricdata.Bucket) ([]uint64, []metricdata.Exemp
 			err = errors.Join(err, fmt.Errorf("%w: %q", errNegativeBucketCount, bucket.Count))
 			continue
 		}
-		bucketCounts[i] = uint64(bucket.Count)
+		bucketCounts[i] = uint64(max(0, bucket.Count)) // nolint:gosec // A count should never be negative.
 
 		if bucket.Exemplar != nil {
 			exemplar, exemplarErr := convertExemplar(bucket.Exemplar)
@@ -233,7 +233,7 @@ func convertKV(key string, value any) attribute.KeyValue {
 	case uintptr:
 		return uint64KV(key, uint64(typedVal))
 	case uint64:
-		return uint64KV(key, uint64(typedVal))
+		return uint64KV(key, typedVal)
 	case float32:
 		return attribute.Float64(key, float64(typedVal))
 	case float64:
@@ -301,7 +301,7 @@ func uintKV(key string, val uint) attribute.KeyValue {
 	if val > uint(math.MaxInt) {
 		return attribute.String(key, strconv.FormatUint(uint64(val), 10))
 	}
-	return attribute.Int(key, int(val))
+	return attribute.Int(key, int(val)) // nolint: gosec  // Overflow checked above.
 }
 
 func uintSliceKV[N uint | uint8 | uint16 | uint32 | uint64 | uintptr](key string, val []N) attribute.KeyValue {
@@ -317,7 +317,7 @@ func uint64KV(key string, val uint64) attribute.KeyValue {
 	if val > maxInt64 {
 		return attribute.String(key, strconv.FormatUint(val, 10))
 	}
-	return attribute.Int64(key, int64(val))
+	return attribute.Int64(key, int64(val)) // nolint: gosec  // Overflow checked above.
 }
 
 func complexSliceKV[N complex64 | complex128](key string, val []N) attribute.KeyValue {
@@ -357,7 +357,7 @@ func convertSummary(labelKeys []ocmetricdata.LabelKey, ts []*ocmetricdata.TimeSe
 				Attributes:     attrs,
 				StartTime:      t.StartTime,
 				Time:           p.Time,
-				Count:          uint64(summary.Count),
+				Count:          uint64(max(0, summary.Count)), // nolint:gosec // A count should never be negative.
 				QuantileValues: convertQuantiles(summary.Snapshot),
 				Sum:            summary.Sum,
 			}

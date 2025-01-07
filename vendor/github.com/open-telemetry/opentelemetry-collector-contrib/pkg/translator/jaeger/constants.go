@@ -18,7 +18,5 @@ const (
 // https://github.com/open-telemetry/opentelemetry-specification/blob/34b907207f3dfe1635a35c4cdac6b6ab3a495e18/specification/trace/sdk_exporters/jaeger.md#events
 const eventNameAttr = "event"
 
-var (
-	// errType indicates that a value is not convertible to the target type.
-	errType = errors.New("invalid type")
-)
+// errType indicates that a value is not convertible to the target type.
+var errType = errors.New("invalid type")

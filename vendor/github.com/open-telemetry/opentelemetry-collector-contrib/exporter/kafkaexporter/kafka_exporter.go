@@ -19,6 +19,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/kafka"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/topic"
 )
 
 var errUnrecognizedEncoding = fmt.Errorf("unrecognized encoding")
@@ -40,8 +41,8 @@ func (ke kafkaErrors) Error() string {
 	return fmt.Sprintf("Failed to deliver %d messages due to %s", ke.count, ke.err)
 }
 
-func (e *kafkaTracesProducer) tracesPusher(_ context.Context, td ptrace.Traces) error {
-	messages, err := e.marshaler.Marshal(td, getTopic(&e.cfg, td.ResourceSpans()))
+func (e *kafkaTracesProducer) tracesPusher(ctx context.Context, td ptrace.Traces) error {
+	messages, err := e.marshaler.Marshal(td, getTopic(ctx, &e.cfg, td.ResourceSpans()))
 	if err != nil {
 		return consumererror.NewPermanent(err)
 	}
@@ -65,8 +66,24 @@ func (e *kafkaTracesProducer) Close(context.Context) error {
 	return e.producer.Close()
 }
 
-func (e *kafkaTracesProducer) start(_ context.Context, _ component.Host) error {
-	producer, err := newSaramaProducer(e.cfg)
+func (e *kafkaTracesProducer) start(ctx context.Context, host component.Host) error {
+	// extensions take precedence over internal encodings
+	if marshaler, errExt := loadEncodingExtension[ptrace.Marshaler](
+		host,
+		e.cfg.Encoding,
+	); errExt == nil {
+		e.marshaler = &tracesEncodingMarshaler{
+			marshaler: *marshaler,
+			encoding:  e.cfg.Encoding,
+		}
+	}
+	if marshaler, errInt := createTracesMarshaler(e.cfg); e.marshaler == nil && errInt == nil {
+		e.marshaler = marshaler
+	}
+	if e.marshaler == nil {
+		return errUnrecognizedEncoding
+	}
+	producer, err := newSaramaProducer(ctx, e.cfg)
 	if err != nil {
 		return err
 	}
@@ -82,8 +99,8 @@ type kafkaMetricsProducer struct {
 	logger    *zap.Logger
 }
 
-func (e *kafkaMetricsProducer) metricsDataPusher(_ context.Context, md pmetric.Metrics) error {
-	messages, err := e.marshaler.Marshal(md, getTopic(&e.cfg, md.ResourceMetrics()))
+func (e *kafkaMetricsProducer) metricsDataPusher(ctx context.Context, md pmetric.Metrics) error {
+	messages, err := e.marshaler.Marshal(md, getTopic(ctx, &e.cfg, md.ResourceMetrics()))
 	if err != nil {
 		return consumererror.NewPermanent(err)
 	}
@@ -107,8 +124,24 @@ func (e *kafkaMetricsProducer) Close(context.Context) error {
 	return e.producer.Close()
 }
 
-func (e *kafkaMetricsProducer) start(_ context.Context, _ component.Host) error {
-	producer, err := newSaramaProducer(e.cfg)
+func (e *kafkaMetricsProducer) start(ctx context.Context, host component.Host) error {
+	// extensions take precedence over internal encodings
+	if marshaler, errExt := loadEncodingExtension[pmetric.Marshaler](
+		host,
+		e.cfg.Encoding,
+	); errExt == nil {
+		e.marshaler = &metricsEncodingMarshaler{
+			marshaler: *marshaler,
+			encoding:  e.cfg.Encoding,
+		}
+	}
+	if marshaler, errInt := createMetricMarshaler(e.cfg); e.marshaler == nil && errInt == nil {
+		e.marshaler = marshaler
+	}
+	if e.marshaler == nil {
+		return errUnrecognizedEncoding
+	}
+	producer, err := newSaramaProducer(ctx, e.cfg)
 	if err != nil {
 		return err
 	}
@@ -124,8 +157,8 @@ type kafkaLogsProducer struct {
 	logger    *zap.Logger
 }
 
-func (e *kafkaLogsProducer) logsDataPusher(_ context.Context, ld plog.Logs) error {
-	messages, err := e.marshaler.Marshal(ld, getTopic(&e.cfg, ld.ResourceLogs()))
+func (e *kafkaLogsProducer) logsDataPusher(ctx context.Context, ld plog.Logs) error {
+	messages, err := e.marshaler.Marshal(ld, getTopic(ctx, &e.cfg, ld.ResourceLogs()))
 	if err != nil {
 		return consumererror.NewPermanent(err)
 	}
@@ -149,8 +182,24 @@ func (e *kafkaLogsProducer) Close(context.Context) error {
 	return e.producer.Close()
 }
 
-func (e *kafkaLogsProducer) start(_ context.Context, _ component.Host) error {
-	producer, err := newSaramaProducer(e.cfg)
+func (e *kafkaLogsProducer) start(ctx context.Context, host component.Host) error {
+	// extensions take precedence over internal encodings
+	if marshaler, errExt := loadEncodingExtension[plog.Marshaler](
+		host,
+		e.cfg.Encoding,
+	); errExt == nil {
+		e.marshaler = &logsEncodingMarshaler{
+			marshaler: *marshaler,
+			encoding:  e.cfg.Encoding,
+		}
+	}
+	if marshaler, errInt := createLogMarshaler(e.cfg); e.marshaler == nil && errInt == nil {
+		e.marshaler = marshaler
+	}
+	if e.marshaler == nil {
+		return errUnrecognizedEncoding
+	}
+	producer, err := newSaramaProducer(ctx, e.cfg)
 	if err != nil {
 		return err
 	}
@@ -158,7 +207,7 @@ func (e *kafkaLogsProducer) start(_ context.Context, _ component.Host) error {
 	return nil
 }
 
-func newSaramaProducer(config Config) (sarama.SyncProducer, error) {
+func newSaramaProducer(ctx context.Context, config Config) (sarama.SyncProducer, error) {
 	c := sarama.NewConfig()
 
 	c.ClientID = config.ClientID
@@ -168,7 +217,7 @@ func newSaramaProducer(config Config) (sarama.SyncProducer, error) {
 	c.Producer.Return.Errors = true
 	c.Producer.RequiredAcks = config.Producer.RequiredAcks
 	// Because sarama does not accept a Context for every message, set the Timeout here.
-	c.Producer.Timeout = config.Timeout
+	c.Producer.Timeout = config.TimeoutSettings.Timeout
 	c.Metadata.Full = config.Metadata.Full
 	c.Metadata.Retry.Max = config.Metadata.Retry.Max
 	c.Metadata.Retry.Backoff = config.Metadata.Retry.Backoff
@@ -187,7 +236,7 @@ func newSaramaProducer(config Config) (sarama.SyncProducer, error) {
 		c.Version = version
 	}
 
-	if err := kafka.ConfigureAuthentication(config.Authentication, c); err != nil {
+	if err := kafka.ConfigureAuthentication(ctx, config.Authentication, c); err != nil {
 		return nil, err
 	}
 
@@ -204,56 +253,26 @@ func newSaramaProducer(config Config) (sarama.SyncProducer, error) {
 	return producer, nil
 }
 
-func newMetricsExporter(config Config, set exporter.CreateSettings, marshalers map[string]MetricsMarshaler) (*kafkaMetricsProducer, error) {
-	marshaler := marshalers[config.Encoding]
-	if marshaler == nil {
-		return nil, errUnrecognizedEncoding
-	}
-	if config.PartitionMetricsByResourceAttributes {
-		if keyableMarshaler, ok := marshaler.(KeyableMetricsMarshaler); ok {
-			keyableMarshaler.Key()
-		}
-	}
-
+func newMetricsExporter(config Config, set exporter.Settings) *kafkaMetricsProducer {
 	return &kafkaMetricsProducer{
-		cfg:       config,
-		marshaler: marshaler,
-		logger:    set.Logger,
-	}, nil
-
+		cfg:    config,
+		logger: set.Logger,
+	}
 }
 
 // newTracesExporter creates Kafka exporter.
-func newTracesExporter(config Config, set exporter.CreateSettings, marshalers map[string]TracesMarshaler) (*kafkaTracesProducer, error) {
-	marshaler := marshalers[config.Encoding]
-	if marshaler == nil {
-		return nil, errUnrecognizedEncoding
-	}
-	if config.PartitionTracesByID {
-		if keyableMarshaler, ok := marshaler.(KeyableTracesMarshaler); ok {
-			keyableMarshaler.Key()
-		}
-	}
-
+func newTracesExporter(config Config, set exporter.Settings) *kafkaTracesProducer {
 	return &kafkaTracesProducer{
-		cfg:       config,
-		marshaler: marshaler,
-		logger:    set.Logger,
-	}, nil
+		cfg:    config,
+		logger: set.Logger,
+	}
 }
 
-func newLogsExporter(config Config, set exporter.CreateSettings, marshalers map[string]LogsMarshaler) (*kafkaLogsProducer, error) {
-	marshaler := marshalers[config.Encoding]
-	if marshaler == nil {
-		return nil, errUnrecognizedEncoding
-	}
-
+func newLogsExporter(config Config, set exporter.Settings) *kafkaLogsProducer {
 	return &kafkaLogsProducer{
-		cfg:       config,
-		marshaler: marshaler,
-		logger:    set.Logger,
-	}, nil
-
+		cfg:    config,
+		logger: set.Logger,
+	}
 }
 
 type resourceSlice[T any] interface {
@@ -265,15 +284,45 @@ type resource interface {
 	Resource() pcommon.Resource
 }
 
-func getTopic[T resource](cfg *Config, resources resourceSlice[T]) string {
-	if cfg.TopicFromAttribute == "" {
-		return cfg.Topic
-	}
-	for i := 0; i < resources.Len(); i++ {
-		rv, ok := resources.At(i).Resource().Attributes().Get(cfg.TopicFromAttribute)
-		if ok && rv.Str() != "" {
-			return rv.Str()
+func getTopic[T resource](ctx context.Context, cfg *Config, resources resourceSlice[T]) string {
+	if cfg.TopicFromAttribute != "" {
+		for i := 0; i < resources.Len(); i++ {
+			rv, ok := resources.At(i).Resource().Attributes().Get(cfg.TopicFromAttribute)
+			if ok && rv.Str() != "" {
+				return rv.Str()
+			}
 		}
 	}
+	contextTopic, ok := topic.FromContext(ctx)
+	if ok {
+		return contextTopic
+	}
 	return cfg.Topic
+}
+
+// loadEncodingExtension tries to load an available extension for the given encoding.
+func loadEncodingExtension[T any](host component.Host, encoding string) (*T, error) {
+	extensionID, err := encodingToComponentID(encoding)
+	if err != nil {
+		return nil, err
+	}
+	encodingExtension, ok := host.GetExtensions()[*extensionID]
+	if !ok {
+		return nil, fmt.Errorf("unknown encoding extension %q", encoding)
+	}
+	unmarshaler, ok := encodingExtension.(T)
+	if !ok {
+		return nil, fmt.Errorf("extension %q is not an unmarshaler", encoding)
+	}
+	return &unmarshaler, nil
+}
+
+// encodingToComponentID converts an encoding string to a component ID using the given encoding as type.
+func encodingToComponentID(encoding string) (*component.ID, error) {
+	componentType, err := component.NewType(encoding)
+	if err != nil {
+		return nil, fmt.Errorf("invalid component type: %w", err)
+	}
+	id := component.NewID(componentType)
+	return &id, nil
 }

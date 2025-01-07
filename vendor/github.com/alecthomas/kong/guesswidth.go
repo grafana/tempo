@@ -1,3 +1,4 @@
+//go:build appengine || (!linux && !freebsd && !darwin && !dragonfly && !netbsd && !openbsd)
 // +build appengine !linux,!freebsd,!darwin,!dragonfly,!netbsd,!openbsd
 
 package kong

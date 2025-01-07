@@ -15,9 +15,11 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal"
 )
 
-var _ internal.ResourceContext = TransformContext{}
-var _ internal.InstrumentationScopeContext = TransformContext{}
-var _ internal.MetricContext = TransformContext{}
+var (
+	_ internal.ResourceContext             = TransformContext{}
+	_ internal.InstrumentationScopeContext = TransformContext{}
+	_ internal.MetricContext               = TransformContext{}
+)
 
 type TransformContext struct {
 	metric               pmetric.Metric
@@ -25,17 +27,21 @@ type TransformContext struct {
 	instrumentationScope pcommon.InstrumentationScope
 	resource             pcommon.Resource
 	cache                pcommon.Map
+	scopeMetrics         pmetric.ScopeMetrics
+	resourceMetrics      pmetric.ResourceMetrics
 }
 
 type Option func(*ottl.Parser[TransformContext])
 
-func NewTransformContext(metric pmetric.Metric, metrics pmetric.MetricSlice, instrumentationScope pcommon.InstrumentationScope, resource pcommon.Resource) TransformContext {
+func NewTransformContext(metric pmetric.Metric, metrics pmetric.MetricSlice, instrumentationScope pcommon.InstrumentationScope, resource pcommon.Resource, scopeMetrics pmetric.ScopeMetrics, resourceMetrics pmetric.ResourceMetrics) TransformContext {
 	return TransformContext{
 		metric:               metric,
 		metrics:              metrics,
 		instrumentationScope: instrumentationScope,
 		resource:             resource,
 		cache:                pcommon.NewMap(),
+		scopeMetrics:         scopeMetrics,
+		resourceMetrics:      resourceMetrics,
 	}
 }
 
@@ -57,6 +63,14 @@ func (tCtx TransformContext) GetResource() pcommon.Resource {
 
 func (tCtx TransformContext) getCache() pcommon.Map {
 	return tCtx.cache
+}
+
+func (tCtx TransformContext) GetScopeSchemaURLItem() internal.SchemaURLItem {
+	return tCtx.scopeMetrics
+}
+
+func (tCtx TransformContext) GetResourceSchemaURLItem() internal.SchemaURLItem {
+	return tCtx.resourceMetrics
 }
 
 func NewParser(functions map[string]ottl.Factory[TransformContext], telemetrySettings component.TelemetrySettings, options ...Option) (ottl.Parser[TransformContext], error) {
@@ -145,10 +159,10 @@ func (pep *pathExpressionParser) parsePath(path ottl.Path[TransformContext]) (ot
 
 func accessCache() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.getCache(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if m, ok := val.(pcommon.Map); ok {
 				m.CopyTo(tCtx.getCache())
 			}
