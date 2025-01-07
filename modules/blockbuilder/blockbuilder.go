@@ -68,10 +68,8 @@ var (
 type BlockBuilder struct {
 	services.Service
 
-	logger               log.Logger
-	cfg                  Config
-	assignedPartitions   []int32 // TODO - Necessary?
-	fallbackOffsetMillis int64
+	logger log.Logger
+	cfg    Config
 
 	kafkaClient   *kgo.Client
 	kadm          *kadm.Client
@@ -119,9 +117,6 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to create WAL: %w", err)
 	}
-
-	// Fallback offset is a millisecond timestamp used to look up a real offset if partition doesn't have a commit.
-	b.fallbackOffsetMillis = time.Now().Add(-b.cfg.LookbackOnNoCommit).UnixMilli()
 
 	b.kafkaClient, err = ingest.NewReaderClient(
 		b.cfg.IngestStorageConfig.Kafka,
@@ -433,24 +428,4 @@ func getGroupLag(ctx context.Context, admClient *kadm.Client, topic, group strin
 		State: "Empty",
 	}
 	return kadm.CalculateGroupLagWithStartOffsets(descrGroup, offsets, startOffsets, endOffsets), nil
-}
-
-func (b *BlockBuilder) onRevoked(_ context.Context, _ *kgo.Client, revoked map[string][]int32) {
-	for topic, partitions := range revoked {
-		partitionsStr := fmt.Sprintf("%v", partitions)
-		level.Info(b.logger).Log("msg", "partitions revoked", "topic", topic, "partitions", partitionsStr)
-	}
-	b.assignedPartitions = revoked[b.cfg.IngestStorageConfig.Kafka.Topic]
-}
-
-func (b *BlockBuilder) onAssigned(_ context.Context, _ *kgo.Client, assigned map[string][]int32) {
-	// TODO - All partitions are assigned, not just the ones in use by the partition ring (ingesters).
-	for topic, partitions := range assigned {
-		var partitionsStr string
-		for _, partition := range partitions {
-			partitionsStr += fmt.Sprintf("%d, ", partition)
-		}
-		level.Info(b.logger).Log("msg", "partitions assigned", "topic", topic, "partitions", partitionsStr)
-	}
-	b.assignedPartitions = assigned[b.cfg.IngestStorageConfig.Kafka.Topic]
 }
