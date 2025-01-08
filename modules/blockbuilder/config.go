@@ -37,8 +37,6 @@ type Config struct {
 	AssignedPartitions   map[string][]int32 `yaml:"assigned_partitions" doc:"List of partitions assigned to this block builder."`
 	ConsumeCycleDuration time.Duration      `yaml:"consume_cycle_duration" doc:"Interval between consumption cycles."`
 
-	LookbackOnNoCommit time.Duration `yaml:"lookback_on_no_commit" category:"advanced"`
-
 	BlockConfig BlockConfig `yaml:"block" doc:"Configuration for the block builder."`
 	WAL         wal.Config  `yaml:"wal" doc:"Configuration for the write ahead log."`
 
@@ -76,8 +74,6 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.StringVar(&c.InstanceID, "block-builder.instance-id", hostname, "Instance id.")
 	f.Var(newPartitionAssignmentVar(&c.AssignedPartitions), prefix+".assigned-partitions", "List of partitions assigned to this block builder.")
 	f.DurationVar(&c.ConsumeCycleDuration, prefix+".consume-cycle-duration", 5*time.Minute, "Interval between consumption cycles.")
-	// TODO - Review default
-	f.DurationVar(&c.LookbackOnNoCommit, prefix+".lookback-on-no-commit", 12*time.Hour, "How much of the historical records to look back when there is no kafka commit for a partition.")
 
 	c.BlockConfig.RegisterFlagsAndApplyDefaults(prefix+".block", f)
 	c.WAL.RegisterFlags(f)

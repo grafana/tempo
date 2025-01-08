@@ -302,82 +302,6 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 	requireLastCommitEquals(t, ctx, client, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
-func TestCycleEndAtStartup(t *testing.T) {
-	now := time.Date(1995, 8, 26, 0, 0, 0, 0, time.UTC)
-
-	for _, tc := range []struct {
-		name                             string
-		now, cycleEnd, cycleEndAtStartup time.Time
-		waitDur, interval                time.Duration
-	}{
-		{
-			name:              "now doesn't need to be truncated",
-			now:               now,
-			cycleEnd:          now.Add(5 * time.Minute),
-			cycleEndAtStartup: now,
-			waitDur:           5 * time.Minute,
-			interval:          5 * time.Minute,
-		},
-		{
-			name:              "now needs to be truncated",
-			now:               now.Add(2 * time.Minute),
-			cycleEnd:          now.Truncate(5 * time.Minute).Add(5 * time.Minute),
-			cycleEndAtStartup: now.Truncate(5 * time.Minute),
-			waitDur:           3 * time.Minute,
-			interval:          5 * time.Minute,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			cycleEndAtStartup := cycleEndAtStartup(tc.now, tc.interval)
-			require.Equal(t, tc.cycleEndAtStartup, cycleEndAtStartup)
-
-			cycleEnd, waitDur := nextCycleEnd(tc.now, tc.interval)
-			require.Equal(t, tc.cycleEnd, cycleEnd)
-			require.Equal(t, tc.waitDur, waitDur)
-		})
-	}
-}
-
-func TestNextCycleEnd(t *testing.T) {
-	tests := []struct {
-		name         string
-		t            time.Time
-		interval     time.Duration
-		expectedTime time.Time
-		expectedWait time.Duration
-	}{
-		{
-			name:         "ExactInterval",
-			t:            time.Date(2023, 10, 1, 12, 0, 0, 0, time.UTC),
-			interval:     time.Hour,
-			expectedTime: time.Date(2023, 10, 1, 13, 0, 0, 0, time.UTC),
-			expectedWait: time.Hour,
-		},
-		{
-			name:         "PastInterval",
-			t:            time.Date(2023, 10, 1, 12, 30, 0, 0, time.UTC),
-			interval:     time.Hour,
-			expectedTime: time.Date(2023, 10, 1, 13, 0, 0, 0, time.UTC),
-			expectedWait: 30 * time.Minute,
-		},
-		{
-			name:         "FutureInterval",
-			t:            time.Date(2023, 10, 1, 12, 0, 0, 1, time.UTC),
-			interval:     time.Hour,
-			expectedTime: time.Date(2023, 10, 1, 13, 0, 0, 0, time.UTC),
-			expectedWait: 59*time.Minute + 59*time.Second + 999999999*time.Nanosecond,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			resultTime, resultWait := nextCycleEnd(tc.t, tc.interval)
-			require.Equal(t, tc.expectedTime, resultTime)
-			require.Equal(t, tc.expectedWait, resultWait)
-		})
-	}
-}
-
 func blockbuilderConfig(t *testing.T, address string) Config {
 	cfg := Config{}
 	flagext.DefaultValues(&cfg)
@@ -390,7 +314,6 @@ func blockbuilderConfig(t *testing.T, address string) Config {
 	cfg.IngestStorageConfig.Kafka.ConsumerGroup = testConsumerGroup
 
 	cfg.AssignedPartitions = map[string][]int32{cfg.InstanceID: {0}}
-	cfg.LookbackOnNoCommit = 15 * time.Second
 	cfg.ConsumeCycleDuration = 5 * time.Second
 
 	cfg.WAL.Filepath = t.TempDir()
@@ -517,7 +440,7 @@ func sendReq(t *testing.T, ctx context.Context, client *kgo.Client) []*kgo.Recor
 	return records
 }
 
-// nolint: revive
+// nolint: revive,unparam
 func sendTracesFor(t *testing.T, ctx context.Context, client *kgo.Client, dur, interval time.Duration) []*kgo.Record {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
