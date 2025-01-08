@@ -346,8 +346,6 @@ func (b *BlockBuilder) metricLag(ctx context.Context) {
 	for {
 		select {
 		case <-time.After(waitTime):
-			metricPartitionLag.Reset()
-
 			lag, err := getGroupLag(ctx, b.kadm, topic, group)
 			if err != nil {
 				level.Error(b.logger).Log("msg", "metric lag failed:", "err", err)
