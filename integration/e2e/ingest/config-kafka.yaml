@@ -64,7 +64,6 @@ overrides:
         path: /var/tempo/overrides
 
 block_builder:
-  lookback_on_no_commit: 15m
   consume_cycle_duration: 1m
 
 ingest:
