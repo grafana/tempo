@@ -79,9 +79,9 @@ jobs:
 
       - name: get-tag
         run: |
-          echo "grafana/tempo:$(./tools/image-tag)" > .tags-for-cd-tempo
-          echo "grafana/tempo-query:$(./tools/image-tag)" > .tags-for-cd-tempo_query
-          echo "grafana/tempo-vulture:$(./tools/image-tag)" > .tags-for-cd-tempo_vulture
+          echo "grafana/tempo:$(./tools/image-tag)" > tags_for_cd_tempo
+          echo "grafana/tempo-query:$(./tools/image-tag)" > tags_for_cd_tempo_query
+          echo "grafana/tempo-vulture:$(./tools/image-tag)" > tags_for_cd_tempo_vulture
 
       - name: Authenticate to GAR
         uses: grafana/shared-workflows/actions/login-to-gar@main
@@ -113,17 +113,17 @@ jobs:
               {
                 "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
                 "jsonnet_key": "tempo",
-                "jsonnet_value_file": ".tags-for-cd-tempo"
+                "jsonnet_value_file": "tags_for_cd_tempo"
               },
               {
                 "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
                 "jsonnet_key": "tempo_query",
-                "jsonnet_value_file": ".tags-for-cd-tempo_query"
+                "jsonnet_value_file": "tags_for_cd_tempo_query"
               },
               {
                 "file_path": "ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet",
                 "jsonnet_key": "tempo_vulture",
-                "jsonnet_value_file": ".tags-for-cd-tempo_vulture"
+                "jsonnet_value_file": "tags_for_cd_tempo_vulture"
               }
             ]
           }
@@ -134,6 +134,6 @@ jobs:
           -e GITHUB_APP_INSTALLATION_ID \
           -e GITHUB_APP_PRIVATE_KEY \
           -e CONFIG_JSON="$(cat config.json)" \
-          -v .tags-for-cd-tempo:/app/.tags-for-cd-tempo \
-          -v .tags-for-cd-tempo_query:/app/.tags-for-cd-tempo_query \
-          -v .tags-for-cd-tempo_vulture:/app/.tags-for-cd-tempo_vulture us-docker.pkg.dev/grafanalabs-global/docker-deployment-tools-prod/updater
+          -v ./tags_for_cd_tempo:/app/tags_for_cd_tempo \
+          -v ./tags_for_cd_tempo_query:/app/tags_for_cd_tempo_query \
+          -v ./tags_for_cd_tempo_vulture:/app/tags_for_cd_tempo_vulture us-docker.pkg.dev/grafanalabs-global/docker-deployment-tools-prod/updater
