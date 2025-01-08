@@ -19,11 +19,11 @@ import (
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/tempo/modules/blockbuilder"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
+	"github.com/grafana/tempo/modules/blockbuilder"
 	"github.com/grafana/tempo/modules/cache"
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
@@ -522,6 +522,13 @@ func (t *App) initOptionalStore() (services.Service, error) {
 }
 
 func (t *App) initStore() (services.Service, error) {
+	// the only component that needs a functioning tempodb pool are the queriers. all other components will just spin up
+	// hundreds of never used pool goroutines. set pool size to 0 here to avoid that.
+	if t.cfg.Target != Querier && t.cfg.Target != SingleBinary && t.cfg.Target != ScalableSingleBinary {
+		t.cfg.StorageConfig.Trace.Pool.MaxWorkers = 0
+		t.cfg.StorageConfig.Trace.Pool.QueueDepth = 0
+	}
+
 	store, err := tempo_storage.NewStore(t.cfg.StorageConfig, t.cacheProvider, log.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create store: %w", err)

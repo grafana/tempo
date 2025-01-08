@@ -17,6 +17,7 @@ type NanosecondsArguments[K any] struct {
 func NewNanosecondsFactory[K any]() ottl.Factory[K] {
 	return ottl.NewFactory("Nanoseconds", &NanosecondsArguments[K]{}, createNanosecondsFunction[K])
 }
+
 func createNanosecondsFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
 	args, ok := oArgs.(*NanosecondsArguments[K])
 

@@ -9,11 +9,13 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/internal/global"
 	"go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/log/embedded"
 	"go.opentelemetry.io/otel/log/noop"
 	"go.opentelemetry.io/otel/sdk/instrumentation"
+	"go.opentelemetry.io/otel/sdk/log/internal/x"
 	"go.opentelemetry.io/otel/sdk/resource"
 )
 
@@ -65,10 +67,15 @@ type LoggerProvider struct {
 	attributeCountLimit       int
 	attributeValueLengthLimit int
 
+	fltrProcessorsOnce sync.Once
+	fltrProcessors     []x.FilterProcessor
+
 	loggersMu sync.Mutex
 	loggers   map[instrumentation.Scope]*logger
 
 	stopped atomic.Bool
+
+	noCmp [0]func() //nolint: unused  // This is indeed used.
 }
 
 // Compile-time check LoggerProvider implements log.LoggerProvider.
@@ -90,6 +97,17 @@ func NewLoggerProvider(opts ...LoggerProviderOption) *LoggerProvider {
 	}
 }
 
+func (p *LoggerProvider) filterProcessors() []x.FilterProcessor {
+	p.fltrProcessorsOnce.Do(func() {
+		for _, proc := range p.processors {
+			if f, ok := proc.(x.FilterProcessor); ok {
+				p.fltrProcessors = append(p.fltrProcessors, f)
+			}
+		}
+	})
+	return p.fltrProcessors
+}
+
 // Logger returns a new [log.Logger] with the provided name and configuration.
 //
 // If p is shut down, a [noop.Logger] instance is returned.
@@ -106,9 +124,10 @@ func (p *LoggerProvider) Logger(name string, opts ...log.LoggerOption) log.Logge
 
 	cfg := log.NewLoggerConfig(opts...)
 	scope := instrumentation.Scope{
-		Name:      name,
-		Version:   cfg.InstrumentationVersion(),
-		SchemaURL: cfg.SchemaURL(),
+		Name:       name,
+		Version:    cfg.InstrumentationVersion(),
+		SchemaURL:  cfg.SchemaURL(),
+		Attributes: cfg.InstrumentationAttributes(),
 	}
 
 	p.loggersMu.Lock()
@@ -179,7 +198,11 @@ func (fn loggerProviderOptionFunc) apply(c providerConfig) providerConfig {
 // go.opentelemetry.io/otel/sdk/resource package will be used.
 func WithResource(res *resource.Resource) LoggerProviderOption {
 	return loggerProviderOptionFunc(func(cfg providerConfig) providerConfig {
-		cfg.resource = res
+		var err error
+		cfg.resource, err = resource.Merge(resource.Environment(), res)
+		if err != nil {
+			otel.Handle(err)
+		}
 		return cfg
 	})
 }
@@ -189,8 +212,8 @@ func WithResource(res *resource.Resource) LoggerProviderOption {
 // By default, if this option is not used, the LoggerProvider will perform no
 // operations; no data will be exported without a processor.
 //
-// Each WithProcessor creates a separate pipeline. Use custom decorators
-// for advanced scenarios such as enriching with attributes.
+// The SDK invokes the processors sequentially in the same order as they were
+// registered.
 //
 // For production, use [NewBatchProcessor] to batch log records before they are exported.
 // For testing and debugging, use [NewSimpleProcessor] to synchronously export log records.

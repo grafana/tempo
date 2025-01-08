@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 
+	"go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -35,6 +36,7 @@ func noopShutdown(context.Context) error {
 type SDK struct {
 	meterProvider  metric.MeterProvider
 	tracerProvider trace.TracerProvider
+	loggerProvider log.LoggerProvider
 	shutdown       shutdownFunc
 }
 
@@ -46,6 +48,11 @@ func (s *SDK) TracerProvider() trace.TracerProvider {
 // MeterProvider returns a configured metric.MeterProvider.
 func (s *SDK) MeterProvider() metric.MeterProvider {
 	return s.meterProvider
+}
+
+// LoggerProvider returns a configured log.LoggerProvider.
+func (s *SDK) LoggerProvider() log.LoggerProvider {
+	return s.loggerProvider
 }
 
 // Shutdown calls shutdown on all configured providers.
@@ -77,12 +84,17 @@ func NewSDK(opts ...ConfigurationOption) (SDK, error) {
 		return SDK{}, err
 	}
 
+	lp, lpShutdown, err := loggerProvider(o, r)
+	if err != nil {
+		return SDK{}, err
+	}
+
 	return SDK{
 		meterProvider:  mp,
 		tracerProvider: tp,
+		loggerProvider: lp,
 		shutdown: func(ctx context.Context) error {
-			err := mpShutdown(ctx)
-			return errors.Join(err, tpShutdown(ctx))
+			return errors.Join(mpShutdown(ctx), tpShutdown(ctx), lpShutdown(ctx))
 		},
 	}, nil
 }
@@ -118,6 +130,3 @@ func WithOpenTelemetryConfiguration(cfg OpenTelemetryConfiguration) Configuratio
 // TODO: implement parsing functionality:
 // - https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4373
 // - https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4412
-
-// TODO: create SDK from the model:
-// - https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4371

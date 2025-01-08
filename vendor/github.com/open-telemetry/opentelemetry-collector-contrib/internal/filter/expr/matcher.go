@@ -25,6 +25,16 @@ func Not[K any](matcher BoolExpr[K]) BoolExpr[K] {
 	return notMatcher[K]{matcher: matcher}
 }
 
+type alwaysTrueMatcher[K any] struct{}
+
+func (alm alwaysTrueMatcher[K]) Eval(_ context.Context, _ K) (bool, error) {
+	return true, nil
+}
+
+func AlwaysTrue[K any]() BoolExpr[K] {
+	return alwaysTrueMatcher[K]{}
+}
+
 type orMatcher[K any] struct {
 	matchers []BoolExpr[K]
 }

@@ -1,0 +1,6 @@
+type: topic
+
+status:
+  class: pkg
+  codeowners:
+    active: [pavolloffay, MovieStoreGuy]

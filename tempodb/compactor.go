@@ -81,9 +81,12 @@ func (rw *readerWriter) compactionLoop(ctx context.Context) {
 		compactionCycle = rw.compactorCfg.CompactionCycle
 	}
 
-	ticker := time.NewTicker(compactionCycle)
-	defer ticker.Stop()
 	for {
+		// if the context is cancelled, we're shutting down and need to stop compacting
+		if ctx.Err() != nil {
+			break
+		}
+
 		doForAtLeast(ctx, compactionCycle, func() {
 			rw.compactOneTenant(ctx)
 		})

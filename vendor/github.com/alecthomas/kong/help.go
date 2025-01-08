@@ -490,28 +490,24 @@ func formatFlag(haveShort bool, flag *Flag) string {
 	flagString := ""
 	name := flag.Name
 	isBool := flag.IsBool()
+	isCounter := flag.IsCounter()
+
+	short := ""
 	if flag.Short != 0 {
-		if isBool && flag.Tag.Negatable {
-			flagString += fmt.Sprintf("-%c, --[no-]%s", flag.Short, name)
-		} else {
-			flagString += fmt.Sprintf("-%c, --%s", flag.Short, name)
-		}
-	} else {
-		if isBool && flag.Tag.Negatable {
-			if haveShort {
-				flagString = fmt.Sprintf("    --[no-]%s", name)
-			} else {
-				flagString = fmt.Sprintf("--[no-]%s", name)
-			}
-		} else {
-			if haveShort {
-				flagString += fmt.Sprintf("    --%s", name)
-			} else {
-				flagString += fmt.Sprintf("--%s", name)
-			}
-		}
+		short = "-" + string(flag.Short) + ", "
+	} else if haveShort {
+		short = "    "
 	}
-	if !isBool {
+
+	if isBool && flag.Tag.Negatable == negatableDefault {
+		name = "[no-]" + name
+	} else if isBool && flag.Tag.Negatable != "" {
+		name += "/" + flag.Tag.Negatable
+	}
+
+	flagString += fmt.Sprintf("%s--%s", short, name)
+
+	if !isBool && !isCounter {
 		flagString += fmt.Sprintf("=%s", flag.FormatPlaceHolder())
 	}
 	return flagString

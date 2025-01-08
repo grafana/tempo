@@ -6,12 +6,13 @@ import (
 )
 
 // RenderMarkdown renders the Table in Markdown format. Example:
-//  | # | First Name | Last Name | Salary |  |
-//  | ---:| --- | --- | ---:| --- |
-//  | 1 | Arya | Stark | 3000 |  |
-//  | 20 | Jon | Snow | 2000 | You know nothing, Jon Snow! |
-//  | 300 | Tyrion | Lannister | 5000 |  |
-//  |  |  | Total | 10000 |  |
+//
+//	| # | First Name | Last Name | Salary |  |
+//	| ---:| --- | --- | ---:| --- |
+//	| 1 | Arya | Stark | 3000 |  |
+//	| 20 | Jon | Snow | 2000 | You know nothing, Jon Snow! |
+//	| 300 | Tyrion | Lannister | 5000 |  |
+//	|  |  | Total | 10000 |  |
 func (t *Table) RenderMarkdown() string {
 	t.initForRender()
 
@@ -44,16 +45,7 @@ func (t *Table) markdownRenderRow(out *strings.Builder, row rowStr, hint renderH
 	// render each column up to the max. columns seen in all the rows
 	out.WriteRune('|')
 	for colIdx := 0; colIdx < t.numColumns; colIdx++ {
-		// auto-index column
-		if colIdx == 0 && t.autoIndex {
-			out.WriteRune(' ')
-			if hint.isSeparatorRow {
-				out.WriteString("---:")
-			} else if hint.isRegularRow() {
-				out.WriteString(fmt.Sprintf("%d ", hint.rowNumber))
-			}
-			out.WriteRune('|')
-		}
+		t.markdownRenderRowAutoIndex(out, colIdx, hint)
 
 		if hint.isSeparatorRow {
 			out.WriteString(t.getAlign(colIdx, hint).MarkdownProperty())
@@ -63,14 +55,22 @@ func (t *Table) markdownRenderRow(out *strings.Builder, row rowStr, hint renderH
 				colStr = row[colIdx]
 			}
 			out.WriteRune(' ')
-			if strings.Contains(colStr, "|") {
-				colStr = strings.Replace(colStr, "|", "\\|", -1)
-			}
-			if strings.Contains(colStr, "\n") {
-				colStr = strings.Replace(colStr, "\n", "<br/>", -1)
-			}
+			colStr = strings.ReplaceAll(colStr, "|", "\\|")
+			colStr = strings.ReplaceAll(colStr, "\n", "<br/>")
 			out.WriteString(colStr)
 			out.WriteRune(' ')
+		}
+		out.WriteRune('|')
+	}
+}
+
+func (t *Table) markdownRenderRowAutoIndex(out *strings.Builder, colIdx int, hint renderHint) {
+	if colIdx == 0 && t.autoIndex {
+		out.WriteRune(' ')
+		if hint.isSeparatorRow {
+			out.WriteString("---:")
+		} else if hint.isRegularRow() {
+			out.WriteString(fmt.Sprintf("%d ", hint.rowNumber))
 		}
 		out.WriteRune('|')
 	}
@@ -91,7 +91,6 @@ func (t *Table) markdownRenderRows(out *strings.Builder, rows []rowStr, hint ren
 
 func (t *Table) markdownRenderRowsFooter(out *strings.Builder) {
 	t.markdownRenderRows(out, t.rowsFooter, renderHint{isFooterRow: true})
-
 }
 
 func (t *Table) markdownRenderRowsHeader(out *strings.Builder) {

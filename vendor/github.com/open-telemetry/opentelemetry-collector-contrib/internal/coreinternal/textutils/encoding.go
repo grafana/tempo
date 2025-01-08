@@ -74,7 +74,7 @@ var encodingOverrides = map[string]encoding.Encoding{
 }
 
 func lookupEncoding(enc string) (encoding.Encoding, error) {
-	if e, ok := encodingOverrides[strings.ToLower(enc)]; ok {
+	if e, ok := EncodingOverridesMap.Get(strings.ToLower(enc)); ok {
 		return e, nil
 	}
 	e, err := ianaindex.IANA.Encoding(enc)
@@ -93,4 +93,13 @@ func IsNop(enc string) bool {
 		return false
 	}
 	return e == encoding.Nop
+}
+
+var EncodingOverridesMap = encodingOverridesMap{}
+
+type encodingOverridesMap struct{}
+
+func (e *encodingOverridesMap) Get(key string) (encoding.Encoding, bool) {
+	v, ok := encodingOverrides[key]
+	return v, ok
 }

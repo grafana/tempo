@@ -14,7 +14,7 @@ distributor:
     jaeger:
       protocols:
         grpc:
-
+          endpoint: "tempo:14250"
 ingester:
   lifecycler:
     address: 127.0.0.1

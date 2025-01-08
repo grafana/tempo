@@ -2,10 +2,13 @@ compactor: null
 distributor:
     receivers:
         zipkin:
+          endpoint: "distributor:9411"
         jaeger:
             protocols:
-                thrift_http: null
-        opencensus: null
+                thrift_http:
+                  endpoint: "distributor:14268"
+        opencensus:
+          endpoint: "distributor:55678"
 ingester:
     trace_idle_period: 1s
     lifecycler:

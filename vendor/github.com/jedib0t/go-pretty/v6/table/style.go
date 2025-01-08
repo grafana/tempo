@@ -13,6 +13,7 @@ type Style struct {
 	Format  FormatOptions // formatting options for the rows and columns
 	HTML    HTMLOptions   // rendering options for HTML mode
 	Options Options       // misc. options for the table
+	Size    SizeOptions   // size (width) options for the table
 	Title   TitleOptions  // formation options for the title text
 }
 
@@ -34,6 +35,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsDefault,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsDefault,
 	}
 
@@ -54,6 +56,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsDefault,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsDefault,
 	}
 
@@ -67,6 +70,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsNoBordersAndSeparators,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsDark,
 	}
 
@@ -80,6 +84,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsNoBordersAndSeparators,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsBright,
 	}
 
@@ -93,6 +98,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsNoBordersAndSeparators,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsBlueOnBlack,
 	}
 
@@ -106,6 +112,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsNoBordersAndSeparators,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsCyanOnBlack,
 	}
 
@@ -119,6 +126,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsNoBordersAndSeparators,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsGreenOnBlack,
 	}
 
@@ -132,6 +140,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsNoBordersAndSeparators,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsMagentaOnBlack,
 	}
 
@@ -145,6 +154,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsNoBordersAndSeparators,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsYellowOnBlack,
 	}
 
@@ -158,6 +168,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsNoBordersAndSeparators,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsRedOnBlack,
 	}
 
@@ -171,6 +182,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsNoBordersAndSeparators,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsBlackOnBlue,
 	}
 
@@ -184,6 +196,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsNoBordersAndSeparators,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsBlackOnCyan,
 	}
 
@@ -197,6 +210,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsNoBordersAndSeparators,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsBlackOnGreen,
 	}
 
@@ -210,6 +224,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsNoBordersAndSeparators,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsBlackOnMagenta,
 	}
 
@@ -223,6 +238,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsNoBordersAndSeparators,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsBlackOnRed,
 	}
 
@@ -236,6 +252,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsNoBordersAndSeparators,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsBlackOnYellow,
 	}
 
@@ -256,6 +273,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsDefault,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsDefault,
 	}
 
@@ -276,6 +294,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsDefault,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsDefault,
 	}
 
@@ -296,6 +315,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsDefault,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsDefault,
 	}
 
@@ -316,6 +336,7 @@ var (
 		Format:  FormatOptionsDefault,
 		HTML:    DefaultHTMLOptions,
 		Options: OptionsDefault,
+		Size:    SizeOptionsDefault,
 		Title:   TitleOptionsDefault,
 	}
 )
@@ -358,7 +379,7 @@ var (
 		BottomLeft:       "+",
 		BottomRight:      "+",
 		BottomSeparator:  "+",
-		EmptySeparator:   text.RepeatAndTrim(" ", text.RuneCount("+")),
+		EmptySeparator:   " ",
 		Left:             "|",
 		LeftSeparator:    "+",
 		MiddleHorizontal: "-",
@@ -389,7 +410,7 @@ var (
 		BottomLeft:       "┗",
 		BottomRight:      "┛",
 		BottomSeparator:  "┻",
-		EmptySeparator:   text.RepeatAndTrim(" ", text.RuneCount("╋")),
+		EmptySeparator:   " ",
 		Left:             "┃",
 		LeftSeparator:    "┣",
 		MiddleHorizontal: "━",
@@ -420,7 +441,7 @@ var (
 		BottomLeft:       "╚",
 		BottomRight:      "╝",
 		BottomSeparator:  "╩",
-		EmptySeparator:   text.RepeatAndTrim(" ", text.RuneCount("╬")),
+		EmptySeparator:   " ",
 		Left:             "║",
 		LeftSeparator:    "╠",
 		MiddleHorizontal: "═",
@@ -451,7 +472,7 @@ var (
 		BottomLeft:       "└",
 		BottomRight:      "┘",
 		BottomSeparator:  "┴",
-		EmptySeparator:   text.RepeatAndTrim(" ", text.RuneCount("┼")),
+		EmptySeparator:   " ",
 		Left:             "│",
 		LeftSeparator:    "├",
 		MiddleHorizontal: "─",
@@ -482,7 +503,7 @@ var (
 		BottomLeft:       "╰",
 		BottomRight:      "╯",
 		BottomSeparator:  "┴",
-		EmptySeparator:   text.RepeatAndTrim(" ", text.RuneCount("┼")),
+		EmptySeparator:   " ",
 		Left:             "│",
 		LeftSeparator:    "├",
 		MiddleHorizontal: "─",
@@ -513,7 +534,7 @@ var (
 		BottomLeft:       "\\",
 		BottomRight:      "/",
 		BottomSeparator:  "v",
-		EmptySeparator:   text.RepeatAndTrim(" ", text.RuneCount("+")),
+		EmptySeparator:   " ",
 		Left:             "[",
 		LeftSeparator:    "{",
 		MiddleHorizontal: "--",
@@ -533,11 +554,13 @@ var (
 
 // ColorOptions defines the ANSI colors to use for parts of the Table.
 type ColorOptions struct {
-	IndexColumn  text.Colors // index-column colors (row #, etc.)
+	Border       text.Colors // borders (if nil, uses one of the below)
 	Footer       text.Colors // footer row(s) colors
 	Header       text.Colors // header row(s) colors
+	IndexColumn  text.Colors // index-column colors (row #, etc.)
 	Row          text.Colors // regular row(s) colors
 	RowAlternate text.Colors // regular row(s) colors for the even-numbered rows
+	Separator    text.Colors // separators (if nil, uses one of the above)
 }
 
 var (
@@ -552,18 +575,18 @@ var (
 
 	// ColorOptionsBlackOnBlueWhite renders Black text on Blue/White background.
 	ColorOptionsBlackOnBlueWhite = ColorOptions{
-		IndexColumn:  text.Colors{text.BgHiBlue, text.FgBlack},
 		Footer:       text.Colors{text.BgBlue, text.FgBlack},
 		Header:       text.Colors{text.BgHiBlue, text.FgBlack},
+		IndexColumn:  text.Colors{text.BgHiBlue, text.FgBlack},
 		Row:          text.Colors{text.BgHiWhite, text.FgBlack},
 		RowAlternate: text.Colors{text.BgWhite, text.FgBlack},
 	}
 
 	// ColorOptionsBlackOnCyanWhite renders Black text on Cyan/White background.
 	ColorOptionsBlackOnCyanWhite = ColorOptions{
-		IndexColumn:  text.Colors{text.BgHiCyan, text.FgBlack},
 		Footer:       text.Colors{text.BgCyan, text.FgBlack},
 		Header:       text.Colors{text.BgHiCyan, text.FgBlack},
+		IndexColumn:  text.Colors{text.BgHiCyan, text.FgBlack},
 		Row:          text.Colors{text.BgHiWhite, text.FgBlack},
 		RowAlternate: text.Colors{text.BgWhite, text.FgBlack},
 	}
@@ -571,9 +594,9 @@ var (
 	// ColorOptionsBlackOnGreenWhite renders Black text on Green/White
 	// background.
 	ColorOptionsBlackOnGreenWhite = ColorOptions{
-		IndexColumn:  text.Colors{text.BgHiGreen, text.FgBlack},
 		Footer:       text.Colors{text.BgGreen, text.FgBlack},
 		Header:       text.Colors{text.BgHiGreen, text.FgBlack},
+		IndexColumn:  text.Colors{text.BgHiGreen, text.FgBlack},
 		Row:          text.Colors{text.BgHiWhite, text.FgBlack},
 		RowAlternate: text.Colors{text.BgWhite, text.FgBlack},
 	}
@@ -581,18 +604,18 @@ var (
 	// ColorOptionsBlackOnMagentaWhite renders Black text on Magenta/White
 	// background.
 	ColorOptionsBlackOnMagentaWhite = ColorOptions{
-		IndexColumn:  text.Colors{text.BgHiMagenta, text.FgBlack},
 		Footer:       text.Colors{text.BgMagenta, text.FgBlack},
 		Header:       text.Colors{text.BgHiMagenta, text.FgBlack},
+		IndexColumn:  text.Colors{text.BgHiMagenta, text.FgBlack},
 		Row:          text.Colors{text.BgHiWhite, text.FgBlack},
 		RowAlternate: text.Colors{text.BgWhite, text.FgBlack},
 	}
 
 	// ColorOptionsBlackOnRedWhite renders Black text on Red/White background.
 	ColorOptionsBlackOnRedWhite = ColorOptions{
-		IndexColumn:  text.Colors{text.BgHiRed, text.FgBlack},
 		Footer:       text.Colors{text.BgRed, text.FgBlack},
 		Header:       text.Colors{text.BgHiRed, text.FgBlack},
+		IndexColumn:  text.Colors{text.BgHiRed, text.FgBlack},
 		Row:          text.Colors{text.BgHiWhite, text.FgBlack},
 		RowAlternate: text.Colors{text.BgWhite, text.FgBlack},
 	}
@@ -600,27 +623,27 @@ var (
 	// ColorOptionsBlackOnYellowWhite renders Black text on Yellow/White
 	// background.
 	ColorOptionsBlackOnYellowWhite = ColorOptions{
-		IndexColumn:  text.Colors{text.BgHiYellow, text.FgBlack},
 		Footer:       text.Colors{text.BgYellow, text.FgBlack},
 		Header:       text.Colors{text.BgHiYellow, text.FgBlack},
+		IndexColumn:  text.Colors{text.BgHiYellow, text.FgBlack},
 		Row:          text.Colors{text.BgHiWhite, text.FgBlack},
 		RowAlternate: text.Colors{text.BgWhite, text.FgBlack},
 	}
 
 	// ColorOptionsBlueWhiteOnBlack renders Blue/White text on Black background.
 	ColorOptionsBlueWhiteOnBlack = ColorOptions{
-		IndexColumn:  text.Colors{text.FgHiBlue, text.BgHiBlack},
 		Footer:       text.Colors{text.FgBlue, text.BgHiBlack},
 		Header:       text.Colors{text.FgHiBlue, text.BgHiBlack},
+		IndexColumn:  text.Colors{text.FgHiBlue, text.BgHiBlack},
 		Row:          text.Colors{text.FgHiWhite, text.BgBlack},
 		RowAlternate: text.Colors{text.FgWhite, text.BgBlack},
 	}
 
 	// ColorOptionsCyanWhiteOnBlack renders Cyan/White text on Black background.
 	ColorOptionsCyanWhiteOnBlack = ColorOptions{
-		IndexColumn:  text.Colors{text.FgHiCyan, text.BgHiBlack},
 		Footer:       text.Colors{text.FgCyan, text.BgHiBlack},
 		Header:       text.Colors{text.FgHiCyan, text.BgHiBlack},
+		IndexColumn:  text.Colors{text.FgHiCyan, text.BgHiBlack},
 		Row:          text.Colors{text.FgHiWhite, text.BgBlack},
 		RowAlternate: text.Colors{text.FgWhite, text.BgBlack},
 	}
@@ -628,9 +651,9 @@ var (
 	// ColorOptionsGreenWhiteOnBlack renders Green/White text on Black
 	// background.
 	ColorOptionsGreenWhiteOnBlack = ColorOptions{
-		IndexColumn:  text.Colors{text.FgHiGreen, text.BgHiBlack},
 		Footer:       text.Colors{text.FgGreen, text.BgHiBlack},
 		Header:       text.Colors{text.FgHiGreen, text.BgHiBlack},
+		IndexColumn:  text.Colors{text.FgHiGreen, text.BgHiBlack},
 		Row:          text.Colors{text.FgHiWhite, text.BgBlack},
 		RowAlternate: text.Colors{text.FgWhite, text.BgBlack},
 	}
@@ -638,18 +661,18 @@ var (
 	// ColorOptionsMagentaWhiteOnBlack renders Magenta/White text on Black
 	// background.
 	ColorOptionsMagentaWhiteOnBlack = ColorOptions{
-		IndexColumn:  text.Colors{text.FgHiMagenta, text.BgHiBlack},
 		Footer:       text.Colors{text.FgMagenta, text.BgHiBlack},
 		Header:       text.Colors{text.FgHiMagenta, text.BgHiBlack},
+		IndexColumn:  text.Colors{text.FgHiMagenta, text.BgHiBlack},
 		Row:          text.Colors{text.FgHiWhite, text.BgBlack},
 		RowAlternate: text.Colors{text.FgWhite, text.BgBlack},
 	}
 
 	// ColorOptionsRedWhiteOnBlack renders Red/White text on Black background.
 	ColorOptionsRedWhiteOnBlack = ColorOptions{
-		IndexColumn:  text.Colors{text.FgHiRed, text.BgHiBlack},
 		Footer:       text.Colors{text.FgRed, text.BgHiBlack},
 		Header:       text.Colors{text.FgHiRed, text.BgHiBlack},
+		IndexColumn:  text.Colors{text.FgHiRed, text.BgHiBlack},
 		Row:          text.Colors{text.FgHiWhite, text.BgBlack},
 		RowAlternate: text.Colors{text.FgWhite, text.BgBlack},
 	}
@@ -657,9 +680,9 @@ var (
 	// ColorOptionsYellowWhiteOnBlack renders Yellow/White text on Black
 	// background.
 	ColorOptionsYellowWhiteOnBlack = ColorOptions{
-		IndexColumn:  text.Colors{text.FgHiYellow, text.BgHiBlack},
 		Footer:       text.Colors{text.FgYellow, text.BgHiBlack},
 		Header:       text.Colors{text.FgHiYellow, text.BgHiBlack},
+		IndexColumn:  text.Colors{text.FgHiYellow, text.BgHiBlack},
 		Row:          text.Colors{text.FgHiWhite, text.BgBlack},
 		RowAlternate: text.Colors{text.FgWhite, text.BgBlack},
 	}
@@ -667,19 +690,30 @@ var (
 
 // FormatOptions defines the text-formatting to perform on parts of the Table.
 type FormatOptions struct {
-	Footer text.Format // footer row(s) text format
-	Header text.Format // header row(s) text format
-	Row    text.Format // (data) row(s) text format
+	Direction    text.Direction // (forced) BiDi direction for each Column
+	Footer       text.Format    // default text format
+	FooterAlign  text.Align     // default horizontal align
+	FooterVAlign text.VAlign    // default vertical align
+	Header       text.Format    // default text format
+	HeaderAlign  text.Align     // default horizontal align
+	HeaderVAlign text.VAlign    // default vertical align
+	Row          text.Format    // default text format
+	RowAlign     text.Align     // default horizontal align
+	RowVAlign    text.VAlign    // default vertical align
 }
 
-var (
-	// FormatOptionsDefault defines sensible formatting options.
-	FormatOptionsDefault = FormatOptions{
-		Footer: text.FormatUpper,
-		Header: text.FormatUpper,
-		Row:    text.FormatDefault,
-	}
-)
+// FormatOptionsDefault defines sensible formatting options.
+var FormatOptionsDefault = FormatOptions{
+	Footer:       text.FormatUpper,
+	FooterAlign:  text.AlignDefault,
+	FooterVAlign: text.VAlignDefault,
+	Header:       text.FormatUpper,
+	HeaderAlign:  text.AlignDefault,
+	HeaderVAlign: text.VAlignDefault,
+	Row:          text.FormatDefault,
+	RowAlign:     text.AlignDefault,
+	RowVAlign:    text.VAlignDefault,
+}
 
 // HTMLOptions defines the global options to control HTML rendering.
 type HTMLOptions struct {
@@ -689,19 +723,21 @@ type HTMLOptions struct {
 	Newline     string // string to replace "\n" characters with
 }
 
-var (
-	// DefaultHTMLOptions defines sensible HTML rendering defaults.
-	DefaultHTMLOptions = HTMLOptions{
-		CSSClass:    DefaultHTMLCSSClass,
-		EmptyColumn: "&nbsp;",
-		EscapeText:  true,
-		Newline:     "<br/>",
-	}
-)
+// DefaultHTMLOptions defines sensible HTML rendering defaults.
+var DefaultHTMLOptions = HTMLOptions{
+	CSSClass:    DefaultHTMLCSSClass,
+	EmptyColumn: "&nbsp;",
+	EscapeText:  true,
+	Newline:     "<br/>",
+}
 
 // Options defines the global options that determine how the Table is
 // rendered.
 type Options struct {
+	// DoNotColorBordersAndSeparators disables coloring all the borders and row
+	// or column separators.
+	DoNotColorBordersAndSeparators bool
+
 	// DrawBorder enables or disables drawing the border around the Table.
 	// Example of a table where it is disabled:
 	//     # │ FIRST NAME │ LAST NAME │ SALARY │
@@ -792,6 +828,26 @@ var (
 		SeparateFooter:  false,
 		SeparateHeader:  false,
 		SeparateRows:    false,
+	}
+)
+
+// SizeOptions defines the way to control the width of the table output.
+type SizeOptions struct {
+	// WidthMax is the maximum allotted width for the full row;
+	// any content beyond this will be truncated using the text
+	// in Style.Box.UnfinishedRow
+	WidthMax int
+	// WidthMin is the minimum allotted width for the full row;
+	// columns will be auto-expanded until the overall width
+	// is met
+	WidthMin int
+}
+
+var (
+	// SizeOptionsDefault defines sensible size options - basically NONE.
+	SizeOptionsDefault = SizeOptions{
+		WidthMax: 0,
+		WidthMin: 0,
 	}
 )
 
