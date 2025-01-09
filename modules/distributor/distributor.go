@@ -146,6 +146,11 @@ var (
 		Name:      "kafka_appends_total",
 		Help:      "The total number of appends sent to kafka",
 	}, []string{"partition", "status"})
+	metricAttributesTruncated = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "distributor_attributes_truncated_total",
+		Help:      "The total number of attribute keys or values truncated per tenant",
+	}, []string{"tenant"})
 
 	statBytesReceived = usagestats.NewCounter("distributor_bytes_received")
 	statSpansReceived = usagestats.NewCounter("distributor_spans_received")
@@ -640,7 +645,7 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 
 		metricKafkaRecordsPerRequest.Observe(float64(len(records)))
 
-		produceResults := d.kafkaProducer.ProduceSync(ctx, records)
+		produceResults := d.kafkaProducer.ProduceSync(localCtx, records)
 
 		if count, sizeBytes := successfulProduceRecordsStats(produceResults); count > 0 {
 			metricKafkaWriteLatency.Observe(time.Since(startTime).Seconds())
