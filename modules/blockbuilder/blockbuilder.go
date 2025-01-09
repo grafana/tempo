@@ -221,7 +221,7 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, ov
 
 	lastCommit, ok := commits.Lookup(topic, partition)
 	if ok && lastCommit.At >= 0 {
-		startOffset = startOffset.At(lastCommit.At)
+		startOffset = kgo.NewOffset().At(lastCommit.At)
 	} else {
 		startOffset = kgo.NewOffset().AtStart()
 	}
