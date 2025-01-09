@@ -1,5 +1,7 @@
 ## main / unreleased
 
+# v2.7.0-rc.0
+
 * [CHANGE] Disable gRPC compression in the querier and distributor for performance reasons [#4429](https://github.com/grafana/tempo/pull/4429) (@carles-grafana)
   If you would like to re-enable it, we recommend 'snappy'. Use the following settings:
 ```
@@ -24,7 +26,7 @@ querier:
 * [CHANGE] **BREAKING CHANGE** Change the AWS Lambda serverless build tooling output from "main" to "bootstrap". Refer to https://aws.amazon.com/blogs/compute/migrating-aws-lambda-functions-from-the-go1-x-runtime-to-the-custom-runtime-on-amazon-linux-2/ for migration steps [#3852](https://github.com/grafana/tempo/pull/3852) (@zatlodan)
 * [CHANGE] Add throughput and SLO metrics in the tags and tag values endpoints [#4148](https://github.com/grafana/tempo/pull/4148) (@electron0zero)
 * [CHANGE] tempo-cli: add support for /api/v2/traces endpoint [#4127](https://github.com/grafana/tempo/pull/4127) (@electron0zero)
-  **BREAKING CHANGE** The `tempo-cli` now uses the `/api/v2/traces` endpoint by default,
+  **BREAKING CHANGE** The `tempo-cli` now uses the `/api/v2/traces` endpoint by default, 
   please use `--v1` flag to use `/api/traces` endpoint, which was the default in previous versions.
 * [CHANGE] TraceByID: don't allow concurrent_shards greater than query_shards. [#4074](https://github.com/grafana/tempo/pull/4074) (@electron0zero)
 * [CHANGE] **BREAKING CHANGE** The dynamic injection of X-Scope-OrgID header for metrics generator remote-writes is changed. If the header is aleady set in per-tenant overrides or global tempo configuration, then it is honored and not overwritten. [#4021](https://github.com/grafana/tempo/pull/4021) (@mdisibio)
@@ -35,8 +37,15 @@ querier:
 * [CHANGE] TraceQL: Add range condition for byte predicates [#4198](https://github.com/grafana/tempo/pull/4198) (@ie-pham)
 * [CHANGE] Return 422 for TRACE_TOO_LARGE queries [#4160](https://github.com/grafana/tempo/pull/4160) (@zalegrala)
 * [CHANGE] Upgrade OTEL sdk to reduce allocs [#4243](https://github.com/grafana/tempo/pull/4243) (@joe-elliott)
+* [CHANGE] Update Alpine image version to 3.21 [#4504](https://github.com/grafana/tempo/pull/4504) (@mdisibio)
 * [CHANGE] Tighten file permissions [#4251](https://github.com/grafana/tempo/pull/4251) (@zalegrala)
 * [CHANGE] Drop max live traces log message and rate limit trace too large. [#4418](https://github.com/grafana/tempo/pull/4418) (@joe-elliott)
+* [CHANGE] Update the Open-Telemetry dependencies to v0.116.0 [#4466](https://github.com/grafana/tempo/pull/4466) (@yvrhdn)
+* [CHANGE] Replace `cespare/xxhash` with `cespare/xxhash/v2` [#4485](https://github.com/grafana/tempo/pull/4485) (@Juneezee)
+  **BREAKING CHANGE** After this update the Open-Telemetry Collector receiver will connect to `localhost` instead of all interfaces `0.0.0.0`.
+  Due to this, Tempo installations running inside Docker have to update the address they listen.
+  For more details on this change, see [#4465](https://github.com/grafana/tempo/issues/4465)
+  For more information about the security risk this change addresses, see https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/security-best-practices.md#safeguards-against-denial-of-service-attacks
 * [FEATURE] tempo-cli: support dropping multiple traces in a single operation [#4266](https://github.com/grafana/tempo/pull/4266) (@ndk)
 * [FEATURE] Discarded span logging `log_discarded_spans` [#3957](https://github.com/grafana/tempo/issues/3957) (@dastrobu)
 * [FEATURE] TraceQL support for instrumentation scope [#3967](https://github.com/grafana/tempo/pull/3967) (@ie-pham)
@@ -56,7 +65,7 @@ querier:
 * [ENHANCEMENT] Update metrics-generator config in Tempo distributed docker compose example to serve TraceQL metrics [#4003](https://github.com/grafana/tempo/pull/4003) (@javiermolinar)
 * [ENHANCEMENT] Reduce allocs related to marshalling dedicated columns repeatedly in the query frontend. [#4007](https://github.com/grafana/tempo/pull/4007) (@joe-elliott)
 * [ENHANCEMENT] Improve performance of TraceQL queries [#4114](https://github.com/grafana/tempo/pull/4114) (@mdisibio)
-* [ENHANCEMENT] Improve performance of TraceQL queries [#4163](https://github.com/grafana/tempo/pull/4163) (@mdisibio)
+* [ENHANCEMENT] Improve performance of TraceQL queries [#4163](https://github.com/grafana/tempo/pull/4163) (@mdisibio) 
 * [ENHANCEMENT] Improve performance of some TraceQL queries using select() operation [#4438](https://github.com/grafana/tempo/pull/4438) (@mdisibio)
 * [ENHANCEMENT] Reduce memory usage of classic histograms in the span-metrics and service-graphs processors [#4232](https://github.com/grafana/tempo/pull/4232) (@mdisibio)
 * [ENHANCEMENT] Implement simple Fetch by key for cache items  [#4032](https://github.com/grafana/tempo/pull/4032) (@javiermolinar)
@@ -90,6 +99,10 @@ querier:
   This will cause the ingester to more aggressively and correctly refuse traces. Also added two metrics to better track bytes consumed per tenant in the ingester.
   `tempo_metrics_generator_live_trace_bytes` and `tempo_ingester_live_trace_bytes`.
 * [ENHANCEMENT] Update Azurite image. [#4298](https://github.com/grafana/tempo/pull/4464) (@javiermolinar)
+* [ENHANCEMENT] Update golang.org/x/crypto [#4474](https://github.com/grafana/tempo/pull/4474) (@javiermolinar)
+* [ENHANCEMENT] Distributor shim: add test verifying receiver works (including metrics) [#4477](https://github.com/grafana/tempo/pull/4477) (@yvrhdn)
+* [ENHANCEMENT] Reduce goroutines in all non-querier components. [#4484](https://github.com/grafana/tempo/pull/4484) (@joe-elliott)
+* [ENHANCEMENT] Add option to enforce max span attribute size [#4335](https://github.com/grafana/tempo/pull/4335) (@ie-pham)
 * [BUGFIX] Handle invalid TraceQL query filter in tag values v2 disk cache [#4392](https://github.com/grafana/tempo/pull/4392) (@electron0zero)
 * [BUGFIX] Replace hedged requests roundtrips total with a counter. [#4063](https://github.com/grafana/tempo/pull/4063) [#4078](https://github.com/grafana/tempo/pull/4078) (@galalen)
 * [BUGFIX] Metrics generators: Correctly drop from the ring before stopping ingestion to reduce drops during a rollout. [#4101](https://github.com/grafana/tempo/pull/4101) (@joe-elliott)
@@ -204,7 +217,7 @@ querier:
   properly.  A jsonnet example of an init container is included with the PR.
   This impacts all users of the `grafana/tempo` Docker image.
 * [CHANGE] Remove vParquet encoding [#3663](https://github.com/grafana/tempo/pull/3663) (@mdisibio)
-  **BREAKING CHANGE** In the last release vParquet (the first version) was deprecated and blocked from writes. Now, it's
+  **BREAKING CHANGE** In the last release vParquet (the first version) was deprecated and blocked from writes. Now, it's 
   removed entirely.  It will no longer be recognized as a valid encoding and cannot read any remaining vParquet blocks. Installations
   running with historical defaults should not require any changes as the default has been migrated for several releases. Installations
   with storage settings pinned to vParquet must run a previous release configured for vParquet2 or higher until all existing vParquet (1) blocks
@@ -217,7 +230,7 @@ querier:
 * [CHANGE] Add golangci to the tools image and update `lint` make target [#3610](https://github.com/grafana/tempo/pull/3610) (@zalegrala)
 * [CHANGE] Update Alpine image version to 3.20 [#3710](https://github.com/grafana/tempo/pull/3710) (@joe-elliott)
 * [FEATURE] Add TLS support for Memcached Client [#3585](https://github.com/grafana/tempo/pull/3585) (@sonisr)
-* [FEATURE] TraceQL metrics queries: add quantile_over_time [#3605](https://github.com/grafana/tempo/pull/3605) [#3633](https://github.com/grafana/tempo/pull/3633) (@mdisibio)
+* [FEATURE] TraceQL metrics queries: add quantile_over_time [#3605](https://github.com/grafana/tempo/pull/3605) [#3633](https://github.com/grafana/tempo/pull/3633) (@mdisibio) 
 * [FEATURE] TraceQL metrics queries: add histogram_over_time [#3644](https://github.com/grafana/tempo/pull/3644) (@mdisibio)
 * [FEATURE] Added gRPC streaming endpoints for Tempo APIs.
   * Added gRPC streaming endpoints for all tag queries. [#3460](https://github.com/grafana/tempo/pull/3460) (@joe-elliott)
@@ -350,13 +363,13 @@ querier:
 * [CHANGE] Upgrade from deprecated [azure-storage-blob-go](https://github.com/Azure/azure-storage-blob-go) SDK to [azure-sdk-for-go](https://github.com/Azure/azure-sdk-for-go) [#2835](https://github.com/grafana/tempo/issues/2835) (@LasseHels)
 * [CHANGE] Metrics summary API validate the requested time range [#2902](https://github.com/grafana/tempo/pull/2902) (@mdisibio)
 * [CHANGE] Restructure Azure backends into versioned backends.  Introduce `use_v2_sdk` config option for switching. [#2952](https://github.com/grafana/tempo/issues/2952) (@zalegrala)
-  v1: [azure-storage-blob-go](https://github.com/Azure/azure-storage-blob-go) original (now deprecated) SDK
-  v2: [azure-sdk-for-go](https://github.com/Azure/azure-sdk-for-go)
+    v1: [azure-storage-blob-go](https://github.com/Azure/azure-storage-blob-go) original (now deprecated) SDK
+    v2: [azure-sdk-for-go](https://github.com/Azure/azure-sdk-for-go)
 * [CHANGE] Adjust trace size estimation to better honor row group size settings. [#3038](https://github.com/grafana/tempo/pull/3038) (@joe-elliott)
 * [CHANGE] Update alpine image version to 3.18 to patch CVE-2022-48174. [#3046](https://github.com/grafana/tempo/pull/3046) (@joe-elliott)
 * [CHANGE] Overrides module refactor [#2688](https://github.com/grafana/tempo/pull/2688) (@mapno)
-  Added new `defaults` block to the overrides' module. Overrides change to indented syntax.
-  Old config:
+    Added new `defaults` block to the overrides' module. Overrides change to indented syntax.
+    Old config:
 
 ```
 overrides:
@@ -411,7 +424,7 @@ defaults:
 * [ENHANCEMENT] Add histogram buckets to metrics-generator config in user-configurable overrides [#2928](https://github.com/grafana/tempo/pull/2928) (@mar4uk)
 * [ENHANCEMENT] Adds websocket support for search streaming. [#2971](https://github.com/grafana/tempo/pull/2840) (@joe-elliott)
 * [ENHANCEMENT] Add new config block to distributors to produce debug metrics. [#3008](https://github.com/grafana/tempo/pull/3008) (@joe-elliott)
-  **Breaking Change** Removed deprecated config option: distributor.log_received_spans
+   **Breaking Change** Removed deprecated config option: distributor.log_received_spans
 * [ENHANCEMENT] added a metrics generator config option to enable/disable X-Scope-OrgID headers on remote write. [#2974](https://github.com/grafana/tempo/pull/2974) (@vineetjp)
 * [ENHANCEMENT] Correctly return RetryInfo to Otel Collector/Grafana Agent on ResourceExhausted. This allows the agents to honor their own retry
   settings. [#3019](https://github.com/grafana/tempo/pull/3019) (@joe-elliott)
@@ -494,7 +507,7 @@ storage:
 * [FEATURE] New TraceQL structural operators descendant (>>), child (>), and sibling (~) [#2625](https://github.com/grafana/tempo/pull/2625) [#2660](https://github.com/grafana/tempo/pull/2660) (@mdisibio)
 * [FEATURE] Add user-configurable overrides module [#2543](https://github.com/grafana/tempo/pull/2543) [#2682](https://github.com/grafana/tempo/pull/2682) [#2681](https://github.com/grafana/tempo/pull/2681) (@electron0zero @kvrhdn)
 * [FEATURE] Add support for `q` query param in `/api/v2/search/<tag.name>/values` to filter results based on a TraceQL query [#2253](https://github.com/grafana/tempo/pull/2253) (@mapno)
-  To make use of filtering, configure `autocomplete_filtering_enabled`.
+To make use of filtering, configure `autocomplete_filtering_enabled`.
 * [FEATURE] Add support for `by()` and `coalesce()` to TraceQL. [#2490](https://github.com/grafana/tempo/pull/2490)
 * [FEATURE] Add a GRPC streaming endpoint for traceql search [#2366](https://github.com/grafana/tempo/pull/2366) (@joe-elliott)
 * [FEATURE] Add new API to summarize span metrics from generators [#2481](https://github.com/grafana/tempo/pull/2481) (@zalegrala)
@@ -619,7 +632,7 @@ storage:
 ## v2.0.0 / 2023-01-31
 
 * [CHANGE] **BREAKING CHANGE** Use snake case on Azure Storage config [#1879](https://github.com/grafana/tempo/issues/1879) (@faustodavid)
-  Example of using snake case on Azure Storage config:
+Example of using snake case on Azure Storage config:
 
 ```
 # config.yaml
@@ -637,7 +650,7 @@ storage:
 * [CHANGE] Update Go to 1.19 [#1665](https://github.com/grafana/tempo/pull/1665) (@ie-pham)
 * [CHANGE] Remove unsued scheduler frontend code [#1734](https://github.com/grafana/tempo/pull/1734) (@mapno)
 * [CHANGE] Deprecated `query-frontend.query_shards` in favor of `query_frontend.trace_by_id.query_shards`.
-  Old config will still work but will be removed in a future release. [#1735](https://github.com/grafana/tempo/pull/1735) (@mapno)
+Old config will still work but will be removed in a future release. [#1735](https://github.com/grafana/tempo/pull/1735) (@mapno)
 * [CHANGE] Update alpine image version to 3.16. [#1784](https://github.com/grafana/tempo/pull/1784) (@zalegrala)
 * [CHANGE] Delete TempoRequestErrors alert from mixin [#1810](https://github.com/grafana/tempo/pull/1810) (@zalegrala)
   * **BREAKING CHANGE** Any jsonnet users relying on this alert should copy this into their own environment.
@@ -707,7 +720,7 @@ storage:
 * [FEATURE] TraceQL support <https://grafana.com/docs/tempo/latest/traceql/>
 * [FEATURE] Parquet backend is GA and default
 * [FEATURE] Add generic forwarder and implement otlpgrpc forwarder [#1775](https://github.com/grafana/tempo/pull/1775) (@Blinkuu)
-  New config options and example configuration:
+    New config options and example configuration:
 
 ```
 # config.yaml
@@ -771,7 +784,7 @@ overrides:
 * [ENHANCEMENT] Add query parameter to search API for traceQL queries [#1729](https://github.com/grafana/tempo/pull/1729) (@kvrhdn)
 * [ENHANCEMENT] metrics-generator: filter out older spans before metrics are aggregated [#1612](https://github.com/grafana/tempo/pull/1612) (@ie-pham)
 * [ENHANCEMENT] Add hedging to trace by ID lookups created by the frontend. [#1735](https://github.com/grafana/tempo/pull/1735) (@mapno)
-  New config options and defaults:
+    New config options and defaults:
 
 ```
 query_frontend:
@@ -782,7 +795,7 @@ query_frontend:
 
 * [ENHANCEMENT] Vulture now has improved distribution of the random traces it searches. [#1763](https://github.com/grafana/tempo/pull/1763) (@rfratto)
 * [ENHANCEMENT] Upgrade opentelemetry-proto submodule to v0.18.0 Internal types are updated to use `scope` instead of `instrumentation_library`.
-  This is a breaking change in trace by ID queries if JSON is requested. [#1754](https://github.com/grafana/tempo/pull/1754) (@mapno)
+                This is a breaking change in trace by ID queries if JSON is requested. [#1754](https://github.com/grafana/tempo/pull/1754) (@mapno)
 * [ENHANCEMENT] Add TLS support to the vulture [#1874](https://github.com/grafana/tempo/pull/1874) (@zalegrala)
 * [ENHANCEMENT] metrics-generator: extract `status_message` field from spans [#1786](https://github.com/grafana/tempo/pull/1786), [#1794](https://github.com/grafana/tempo/pull/1794) (@stoewer)
 * [ENHANCEMENT] metrics-generator: handle collisions between user defined and default dimensions [#1794](https://github.com/grafana/tempo/pull/1794) (@stoewer)
@@ -816,7 +829,7 @@ query_frontend:
 * [CHANGE] Swapped out Google Cloud Functions serverless docs and build for Google Cloud Run. [#1483](https://github.com/grafana/tempo/pull/1483) (@joe-elliott)
 * [CHANGE] **BREAKING CHANGE** Change spanmetrics metric names and labels to match OTel conventions. [#1478](https://github.com/grafana/tempo/pull/1478) (@mapno)
 * [FEATURE] Add support for time picker in jaeger query plugin. [#1631](https://github.com/grafana/tempo/pull/1631) (@rubenvp8510)
-  Old metric names:
+Old metric names:
 
 ```
 traces_spanmetrics_duration_seconds_{sum,count,bucket}
@@ -843,19 +856,19 @@ Additionally, default label `span_status` is renamed to `status_code`.
   ```
 
 * [CHANGE] **BREAKING CHANGE** Include emptyDir for metrics generator wal storage in jsonnet [#1556](https://github.com/grafana/tempo/pull/1556) (@zalegrala)
-  Jsonnet users will now need to specify a storage request and limit for the generator wal.
-  _config+:: {
-  metrics_generator+: {
-  ephemeral_storage_request_size: '10Gi',
-  ephemeral_storage_limit_size: '11Gi',
-  },
-  }
+Jsonnet users will now need to specify a storage request and limit for the generator wal.
+    _config+:: {
+      metrics_generator+: {
+        ephemeral_storage_request_size: '10Gi',
+        ephemeral_storage_limit_size: '11Gi',
+      },
+    }
 * [CHANGE] Two additional latency buckets added to the default settings for generated spanmetrics. Note that this will increase cardinality when using the defaults. [#1593](https://github.com/grafana/tempo/pull/1593) (@fredr)
 * [CHANGE] Mark `log_received_traces` as deprecated. New flag is `log_received_spans`.
   Extend distributor spans logger with optional features to include span attributes and a filter by error status. [#1465](https://github.com/grafana/tempo/pull/1465) (@faustodavid)
 * [FEATURE] Add parquet block format [#1479](https://github.com/grafana/tempo/pull/1479) [#1531](https://github.com/grafana/tempo/pull/1531) [#1564](https://github.com/grafana/tempo/pull/1564) (@annanay25, @mdisibio)
 * [FEATURE] Add anonymous usage reporting, enabled by default. [#1481](https://github.com/grafana/tempo/pull/1481) (@zalegrala)
-  **BREAKING CHANGE** As part of the usage stats inclusion, the distributor will also require access to the store.  This is required so the distirbutor can know which cluster it should be reporting membership of.
+**BREAKING CHANGE** As part of the usage stats inclusion, the distributor will also require access to the store.  This is required so the distirbutor can know which cluster it should be reporting membership of.
 * [FEATURE] Include messaging systems and databases in service graphs. [#1576](https://github.com/grafana/tempo/pull/1576) (@kvrhdn)
 * [ENHANCEMENT] Added the ability to have a per tenant max search duration. [#1421](https://github.com/grafana/tempo/pull/1421) (@joe-elliott)
 * [ENHANCEMENT] metrics-generator: expose max_active_series as a metric [#1471](https://github.com/grafana/tempo/pull/1471) (@kvrhdn)

@@ -20,7 +20,7 @@ type Option interface {
 // OptionFunc is function that adheres to the Option interface.
 type OptionFunc func(k *Kong) error
 
-func (o OptionFunc) Apply(k *Kong) error { return o(k) } // nolint: revive
+func (o OptionFunc) Apply(k *Kong) error { return o(k) } //nolint: revive
 
 // Vars sets the variables to use for interpolation into help strings and default values.
 //
@@ -89,6 +89,10 @@ type dynamicCommand struct {
 // "tags" is a list of extra tag strings to parse, in the form <key>:"<value>".
 func DynamicCommand(name, help, group string, cmd interface{}, tags ...string) Option {
 	return OptionFunc(func(k *Kong) error {
+		if run := getMethod(reflect.Indirect(reflect.ValueOf(cmd)), "Run"); !run.IsValid() {
+			return fmt.Errorf("kong: DynamicCommand %q must be a type with a 'Run' method; got %T", name, cmd)
+		}
+
 		k.dynamicCommands = append(k.dynamicCommands, &dynamicCommand{
 			name:  name,
 			help:  help,
@@ -204,7 +208,11 @@ func BindTo(impl, iface interface{}) Option {
 	})
 }
 
-// BindToProvider allows binding of provider functions.
+// BindToProvider binds an injected value to a provider function.
+//
+// The provider function must have the signature:
+//
+//	func() (interface{}, error)
 //
 // This is useful when the Run() function of different commands require different values that may
 // not all be initialisable from the main() function.
@@ -287,7 +295,7 @@ func AutoGroup(format func(parent Visitable, flag *Flag) *Group) Option {
 // See also ExplicitGroups for a more structured alternative.
 type Groups map[string]string
 
-func (g Groups) Apply(k *Kong) error { // nolint: revive
+func (g Groups) Apply(k *Kong) error { //nolint: revive
 	for key, info := range g {
 		lines := strings.Split(info, "\n")
 		title := strings.TrimSpace(lines[0])

@@ -1,17 +1,6 @@
 // Copyright (c) 2019 The Jaeger Authors.
 // Copyright (c) 2017 Uber Technologies, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package jaeger
 
@@ -44,7 +33,7 @@ func FromDomainSpan(span *model.Span) *jaeger.Span {
 
 type domainToJaegerTransformer struct{}
 
-func (d domainToJaegerTransformer) keyValueToTag(kv *model.KeyValue) *jaeger.Tag {
+func (domainToJaegerTransformer) keyValueToTag(kv *model.KeyValue) *jaeger.Tag {
 	if kv.VType == model.StringType {
 		stringValue := kv.VStr
 		return &jaeger.Tag{
@@ -112,6 +101,7 @@ func (d domainToJaegerTransformer) convertLogs(logs []model.Log) []*jaeger.Log {
 	jaegerLogs := make([]*jaeger.Log, len(logs))
 	for idx, log := range logs {
 		jaegerLogs[idx] = &jaeger.Log{
+			//nolint: gosec // G115
 			Timestamp: int64(model.TimeAsEpochMicroseconds(log.Timestamp)),
 			Fields:    d.convertKeyValuesToTags(log.Fields),
 		}
@@ -119,9 +109,10 @@ func (d domainToJaegerTransformer) convertLogs(logs []model.Log) []*jaeger.Log {
 	return jaegerLogs
 }
 
-func (d domainToJaegerTransformer) convertSpanRefs(refs []model.SpanRef) []*jaeger.SpanRef {
+func (domainToJaegerTransformer) convertSpanRefs(refs []model.SpanRef) []*jaeger.SpanRef {
 	jaegerSpanRefs := make([]*jaeger.SpanRef, len(refs))
 	for idx, ref := range refs {
+		//nolint: gosec // G115
 		jaegerSpanRefs[idx] = &jaeger.SpanRef{
 			RefType:     jaeger.SpanRefType(ref.RefType),
 			TraceIdLow:  int64(ref.TraceID.Low),
@@ -137,6 +128,7 @@ func (d domainToJaegerTransformer) transformSpan(span *model.Span) *jaeger.Span 
 	logs := d.convertLogs(span.Logs)
 	refs := d.convertSpanRefs(span.References)
 
+	//nolint: gosec // G115
 	jaegerSpan := &jaeger.Span{
 		TraceIdLow:    int64(span.TraceID.Low),
 		TraceIdHigh:   int64(span.TraceID.High),

@@ -6,40 +6,77 @@ package ottllog // import "github.com/open-telemetry/opentelemetry-collector-con
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/ottlcommon"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/logging"
+	common "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/ottlcommon"
 )
 
 const (
 	contextName = "Log"
 )
 
-var _ internal.ResourceContext = TransformContext{}
-var _ internal.InstrumentationScopeContext = TransformContext{}
+var (
+	_ internal.ResourceContext             = (*TransformContext)(nil)
+	_ internal.InstrumentationScopeContext = (*TransformContext)(nil)
+	_ zapcore.ObjectMarshaler              = (*TransformContext)(nil)
+)
 
 type TransformContext struct {
 	logRecord            plog.LogRecord
 	instrumentationScope pcommon.InstrumentationScope
 	resource             pcommon.Resource
 	cache                pcommon.Map
+	scopeLogs            plog.ScopeLogs
+	resourceLogs         plog.ResourceLogs
+}
+
+type logRecord plog.LogRecord
+
+func (l logRecord) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
+	lr := plog.LogRecord(l)
+	spanID := lr.SpanID()
+	traceID := lr.TraceID()
+	err := encoder.AddObject("attributes", logging.Map(lr.Attributes()))
+	encoder.AddString("body", lr.Body().AsString())
+	encoder.AddUint32("dropped_attribute_count", lr.DroppedAttributesCount())
+	encoder.AddUint32("flags", uint32(lr.Flags()))
+	encoder.AddUint64("observed_time_unix_nano", uint64(lr.ObservedTimestamp()))
+	encoder.AddInt32("severity_number", int32(lr.SeverityNumber()))
+	encoder.AddString("severity_text", lr.SeverityText())
+	encoder.AddString("span_id", hex.EncodeToString(spanID[:]))
+	encoder.AddUint64("time_unix_nano", uint64(lr.Timestamp()))
+	encoder.AddString("trace_id", hex.EncodeToString(traceID[:]))
+	return err
+}
+
+func (tCtx TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
+	err := encoder.AddObject("resource", logging.Resource(tCtx.resource))
+	err = errors.Join(err, encoder.AddObject("scope", logging.InstrumentationScope(tCtx.instrumentationScope)))
+	err = errors.Join(err, encoder.AddObject("log_record", logRecord(tCtx.logRecord)))
+	err = errors.Join(err, encoder.AddObject("cache", logging.Map(tCtx.cache)))
+	return err
 }
 
 type Option func(*ottl.Parser[TransformContext])
 
-func NewTransformContext(logRecord plog.LogRecord, instrumentationScope pcommon.InstrumentationScope, resource pcommon.Resource) TransformContext {
+func NewTransformContext(logRecord plog.LogRecord, instrumentationScope pcommon.InstrumentationScope, resource pcommon.Resource, scopeLogs plog.ScopeLogs, resourceLogs plog.ResourceLogs) TransformContext {
 	return TransformContext{
 		logRecord:            logRecord,
 		instrumentationScope: instrumentationScope,
 		resource:             resource,
 		cache:                pcommon.NewMap(),
+		scopeLogs:            scopeLogs,
+		resourceLogs:         resourceLogs,
 	}
 }
 
@@ -57,6 +94,14 @@ func (tCtx TransformContext) GetResource() pcommon.Resource {
 
 func (tCtx TransformContext) getCache() pcommon.Map {
 	return tCtx.cache
+}
+
+func (tCtx TransformContext) GetScopeSchemaURLItem() internal.SchemaURLItem {
+	return tCtx.scopeLogs
+}
+
+func (tCtx TransformContext) GetResourceSchemaURLItem() internal.SchemaURLItem {
+	return tCtx.resourceLogs
 }
 
 func NewParser(functions map[string]ottl.Factory[TransformContext], telemetrySettings component.TelemetrySettings, options ...Option) (ottl.Parser[TransformContext], error) {
@@ -222,10 +267,10 @@ func (pep *pathExpressionParser) parsePath(path ottl.Path[TransformContext]) (ot
 
 func accessCache() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.getCache(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if m, ok := val.(pcommon.Map); ok {
 				m.CopyTo(tCtx.getCache())
 			}
@@ -247,10 +292,10 @@ func accessCacheKey(key []ottl.Key[TransformContext]) ottl.StandardGetSetter[Tra
 
 func accessTimeUnixNano() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.GetLogRecord().Timestamp().AsTime().UnixNano(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if i, ok := val.(int64); ok {
 				tCtx.GetLogRecord().SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, i)))
 			}
@@ -261,10 +306,10 @@ func accessTimeUnixNano() ottl.StandardGetSetter[TransformContext] {
 
 func accessObservedTimeUnixNano() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.GetLogRecord().ObservedTimestamp().AsTime().UnixNano(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if i, ok := val.(int64); ok {
 				tCtx.GetLogRecord().SetObservedTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, i)))
 			}
@@ -275,10 +320,10 @@ func accessObservedTimeUnixNano() ottl.StandardGetSetter[TransformContext] {
 
 func accessTime() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.GetLogRecord().Timestamp().AsTime(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if i, ok := val.(time.Time); ok {
 				tCtx.GetLogRecord().SetTimestamp(pcommon.NewTimestampFromTime(i))
 			}
@@ -289,10 +334,10 @@ func accessTime() ottl.StandardGetSetter[TransformContext] {
 
 func accessObservedTime() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.GetLogRecord().ObservedTimestamp().AsTime(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if i, ok := val.(time.Time); ok {
 				tCtx.GetLogRecord().SetObservedTimestamp(pcommon.NewTimestampFromTime(i))
 			}
@@ -303,10 +348,10 @@ func accessObservedTime() ottl.StandardGetSetter[TransformContext] {
 
 func accessSeverityNumber() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return int64(tCtx.GetLogRecord().SeverityNumber()), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if i, ok := val.(int64); ok {
 				tCtx.GetLogRecord().SetSeverityNumber(plog.SeverityNumber(i))
 			}
@@ -317,10 +362,10 @@ func accessSeverityNumber() ottl.StandardGetSetter[TransformContext] {
 
 func accessSeverityText() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.GetLogRecord().SeverityText(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if s, ok := val.(string); ok {
 				tCtx.GetLogRecord().SetSeverityText(s)
 			}
@@ -331,10 +376,10 @@ func accessSeverityText() ottl.StandardGetSetter[TransformContext] {
 
 func accessBody() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
-			return ottlcommon.GetValue(tCtx.GetLogRecord().Body()), nil
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
+			return common.GetValue(tCtx.GetLogRecord().Body()), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			return internal.SetValue(tCtx.GetLogRecord().Body(), val)
 		},
 	}
@@ -369,10 +414,10 @@ func accessBodyKey(key []ottl.Key[TransformContext]) ottl.StandardGetSetter[Tran
 
 func accessStringBody() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.GetLogRecord().Body().AsString(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if str, ok := val.(string); ok {
 				tCtx.GetLogRecord().Body().SetStr(str)
 			}
@@ -383,10 +428,10 @@ func accessStringBody() ottl.StandardGetSetter[TransformContext] {
 
 func accessAttributes() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.GetLogRecord().Attributes(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if attrs, ok := val.(pcommon.Map); ok {
 				attrs.CopyTo(tCtx.GetLogRecord().Attributes())
 			}
@@ -408,10 +453,10 @@ func accessAttributesKey(key []ottl.Key[TransformContext]) ottl.StandardGetSette
 
 func accessDroppedAttributesCount() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return int64(tCtx.GetLogRecord().DroppedAttributesCount()), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if i, ok := val.(int64); ok {
 				tCtx.GetLogRecord().SetDroppedAttributesCount(uint32(i))
 			}
@@ -422,10 +467,10 @@ func accessDroppedAttributesCount() ottl.StandardGetSetter[TransformContext] {
 
 func accessFlags() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return int64(tCtx.GetLogRecord().Flags()), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if i, ok := val.(int64); ok {
 				tCtx.GetLogRecord().SetFlags(plog.LogRecordFlags(i))
 			}
@@ -436,10 +481,10 @@ func accessFlags() ottl.StandardGetSetter[TransformContext] {
 
 func accessTraceID() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.GetLogRecord().TraceID(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if newTraceID, ok := val.(pcommon.TraceID); ok {
 				tCtx.GetLogRecord().SetTraceID(newTraceID)
 			}
@@ -450,11 +495,11 @@ func accessTraceID() ottl.StandardGetSetter[TransformContext] {
 
 func accessStringTraceID() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			id := tCtx.GetLogRecord().TraceID()
 			return hex.EncodeToString(id[:]), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if str, ok := val.(string); ok {
 				id, err := internal.ParseTraceID(str)
 				if err != nil {
@@ -469,10 +514,10 @@ func accessStringTraceID() ottl.StandardGetSetter[TransformContext] {
 
 func accessSpanID() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			return tCtx.GetLogRecord().SpanID(), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if newSpanID, ok := val.(pcommon.SpanID); ok {
 				tCtx.GetLogRecord().SetSpanID(newSpanID)
 			}
@@ -483,11 +528,11 @@ func accessSpanID() ottl.StandardGetSetter[TransformContext] {
 
 func accessStringSpanID() ottl.StandardGetSetter[TransformContext] {
 	return ottl.StandardGetSetter[TransformContext]{
-		Getter: func(ctx context.Context, tCtx TransformContext) (any, error) {
+		Getter: func(_ context.Context, tCtx TransformContext) (any, error) {
 			id := tCtx.GetLogRecord().SpanID()
 			return hex.EncodeToString(id[:]), nil
 		},
-		Setter: func(ctx context.Context, tCtx TransformContext, val any) error {
+		Setter: func(_ context.Context, tCtx TransformContext, val any) error {
 			if str, ok := val.(string); ok {
 				id, err := internal.ParseSpanID(str)
 				if err != nil {

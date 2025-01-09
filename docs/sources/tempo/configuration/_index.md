@@ -232,6 +232,11 @@ distributor:
     # instruct the client how to retry.
     [retry_after_on_resource_exhausted: <duration> | default = '0' ]
 
+    # Optional
+    # Configures the max size an attribute can be. Any key or value that exceeds this limit will be truncated before storing
+    # Setting this parameter to '0' would disable this check against attribute size
+    [max_span_attr_byte: <int> | default = '2048']
+
     # Optional.
     # Configures usage trackers in the distributor which expose metrics of ingested traffic grouped by configurable
     # attributes exposed on /usage_metrics.

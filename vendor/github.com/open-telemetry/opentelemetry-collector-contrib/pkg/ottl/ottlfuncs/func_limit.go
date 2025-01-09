@@ -64,7 +64,7 @@ func limit[K any](target ottl.PMapGetter[K], limit int64, priorityKeys []string)
 			}
 		}
 
-		val.RemoveIf(func(key string, value pcommon.Value) bool {
+		val.RemoveIf(func(key string, _ pcommon.Value) bool {
 			if _, ok := keep[key]; ok {
 				return false
 			}

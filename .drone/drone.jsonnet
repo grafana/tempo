@@ -36,9 +36,6 @@ local secret(name, vault_path, vault_key) = {
 local docker_username_secret = secret('docker_username', 'infra/data/ci/docker_hub', 'username');
 local docker_password_secret = secret('docker_password', 'infra/data/ci/docker_hub', 'password');
 
-// secrets for pushing serverless code packages
-local image_upload_ops_tools_secret = secret('ops_tools_img_upload', 'infra/data/ci/tempo-ops-tools-function-upload', 'credentials.json');
-
 // secret needed to access us.gcr.io in deploy_to_dev()
 local docker_config_json_secret = secret('dockerconfigjson', 'secret/data/common/gcr', '.dockerconfigjson');
 
@@ -57,229 +54,15 @@ local aws_dev_secret_access_key = secret('AWS_SECRET_ACCESS_KEY-dev', 'infra/dat
 local aws_prod_access_key_id = secret('AWS_ACCESS_KEY_ID-prod', 'infra/data/ci/tempo-prod/aws-credentials-drone', 'access_key_id');
 local aws_prod_secret_access_key = secret('AWS_SECRET_ACCESS_KEY-prod', 'infra/data/ci/tempo-prod/aws-credentials-drone', 'secret_access_key');
 
-local aws_serverless_deployments = [
-  {
-    env: 'dev',
-    bucket: 'dev-tempo-fn-source',
-    access_key_id: aws_dev_access_key_id.name,
-    secret_access_key: aws_dev_secret_access_key.name,
-  },
-  {
-    env: 'prod',
-    bucket: 'prod-tempo-fn-source',
-    access_key_id: aws_prod_access_key_id.name,
-    secret_access_key: aws_prod_secret_access_key.name,
-  },
-];
-
-
 //# Steps ##
 
 // the alpine/git image has apk errors when run on aarch64, this is the most recent image that does not have this issue
 // https://github.com/alpine-docker/git/issues/35
 local alpine_git_image = 'alpine/git:v2.30.2';
 
-local image_tag(arch='') = {
-  name: 'image-tag',
-  image: alpine_git_image,
-  commands: [
-    'apk --update --no-cache add bash',
-    'git fetch origin --tags',
-  ] + (
-    if arch == '' then [
-      'echo $(./tools/image-tag) > .tags',
-    ] else [
-      'echo $(./tools/image-tag)-%s > .tags' % arch,
-    ]
-  ),
-};
-
-local image_tag_for_cd() = {
-  name: 'image-tag-for-cd',
-  image: alpine_git_image,
-  commands: [
-    'apk --update --no-cache add bash',
-    'git fetch origin --tags',
-    'echo "grafana/tempo:$(./tools/image-tag)" > .tags-for-cd-tempo',
-    'echo "grafana/tempo-query:$(./tools/image-tag)" > .tags-for-cd-tempo_query',
-    'echo "grafana/tempo-vulture:$(./tools/image-tag)" > .tags-for-cd-tempo_vulture',
-  ],
-};
-
-local build_binaries(arch) = {
-  name: 'build-tempo-binaries',
-  image: 'golang:1.23-alpine',
-  commands: [
-    'apk --update --no-cache add make git bash',
-  ] + [
-    'COMPONENT=%s GOARCH=%s make exe' % [app, arch]
-    for app in apps
-  ],
-};
-
-local docker_build(arch, app, dockerfile='') = {
-  name: 'build-%s-image' % app,
-  image: 'plugins/docker',
-  settings: {
-    dockerfile: if dockerfile != '' then dockerfile else 'cmd/%s/Dockerfile' % app,
-    repo: 'grafana/%s' % app,
-    username: { from_secret: docker_username_secret.name },
-    password: { from_secret: docker_password_secret.name },
-    platform: '%s/%s' % ['linux', arch],
-    build_args: [
-      'TARGETARCH=' + arch,
-    ],
-  },
-};
-
-local docker_manifest(app) = {
-  name: 'manifest-%s' % app,
-  image: 'plugins/manifest:1.4.0',
-  settings: {
-    username: { from_secret: docker_username_secret.name },
-    password: { from_secret: docker_password_secret.name },
-    spec: '.drone/docker-manifest.tmpl',
-    target: app,
-  },
-};
-
-local deploy_to_dev() = {
-  image: 'us.gcr.io/kubernetes-dev/drone/plugins/updater',
-  name: 'update-dev-images',
-  settings: {
-    config_json: std.manifestJsonEx(
-      {
-        destination_branch: 'master',
-        pull_request_branch_prefix: 'auto-merge/cd-tempo-dev',
-        pull_request_enabled: true,
-        pull_request_existing_strategy: "ignore",
-        repo_name: 'deployment_tools',
-        update_jsonnet_attribute_configs: [
-          {
-            file_path: 'ksonnet/environments/tempo/dev-us-central-0.tempo-dev-01/images.libsonnet',
-            jsonnet_key: app,
-            jsonnet_value_file: '.tags-for-cd-' + app,
-          }
-          for app in ['tempo', 'tempo_query', 'tempo_vulture']
-        ],
-      },
-      '  '
-    ),
-    github_app_id: {
-      from_secret: tempo_app_id_secret.name,
-    },
-    github_app_installation_id: {
-      from_secret: tempo_app_installation_id_secret.name,
-    },
-    github_app_private_key: {
-      from_secret: tempo_app_private_key_secret.name,
-    },
-  },
-};
-
 //# Pipelines & resources
 
 [
-  // A pipeline to build Docker images for every app and for every arch
-  (
-    pipeline('docker-' + arch, arch) {
-      steps+: [
-        image_tag(arch),
-        build_binaries(arch),
-      ] + [
-        docker_build(arch, app)
-        for app in apps
-      ],
-    }
-  )
-  for arch in archs
-] + [
-  // Publish Docker manifests
-  pipeline('manifest') {
-    steps+: [
-      image_tag(),
-    ] + [
-      docker_manifest(app)
-      for app in apps
-    ],
-    depends_on+: [
-      'docker-%s' % arch
-      for arch in archs
-    ],
-  },
-] + [
-  // Continuously Deploy to dev env
-  pipeline('cd-to-dev-env') {
-    trigger: {
-      ref: [
-        // always deploy tip of main to dev
-        'refs/heads/main',
-      ],
-    },
-    image_pull_secrets: [
-      docker_config_json_secret.name,
-    ],
-    steps+: [
-      image_tag_for_cd(),
-    ] + [
-      deploy_to_dev(),
-    ],
-    depends_on+: [
-      // wait for images to be published on dockerhub
-      'manifest',
-    ],
-  },
-] + [
-  // Build and deploy serverless code packages
-  pipeline('build-deploy-serverless') {
-    steps+: [
-              {
-                name: 'build-tempo-serverless',
-                image: 'golang:1.23-alpine',
-                commands: [
-                  'apk add make git zip bash',
-                  './tools/image-tag | cut -d, -f 1 | tr A-Z a-z > .tags',  // values in .tags are used by the next step when pushing the image
-                  'cd ./cmd/tempo-serverless',
-                  'make build-docker-gcr-binary',
-                  'make build-lambda-zip',
-                ],
-              },
-              {
-                name: 'deploy-tempo-serverless-gcr',
-                image: 'plugins/gcr',
-                settings: {
-                  repo: 'ops-tools-1203/tempo-serverless',
-                  context: './cmd/tempo-serverless/cloud-run',
-                  dockerfile: './cmd/tempo-serverless/cloud-run/Dockerfile',
-                  json_key: {
-                    from_secret: image_upload_ops_tools_secret.name,
-                  },
-                },
-              },
-            ] +
-            [
-              {
-                name: 'deploy-tempo-%s-serverless-lambda' % d.env,
-                image: 'amazon/aws-cli',
-                environment: {
-                  AWS_DEFAULT_REGION: 'us-east-2',
-                  AWS_ACCESS_KEY_ID: {
-                    from_secret: d.access_key_id,
-                  },
-                  AWS_SECRET_ACCESS_KEY: {
-                    from_secret: d.secret_access_key,
-                  },
-                },
-                commands: [
-                  'cd ./cmd/tempo-serverless/lambda',
-                  'aws s3 cp tempo-serverless*.zip s3://%s' % d.bucket,
-                ],
-              }
-
-              for d in aws_serverless_deployments
-            ],
-  },
-
   local ghTokenFilename = '/drone/src/gh-token.txt';
   // Build and release packages
   // Tested by installing the packages on a systemd container
@@ -414,7 +197,6 @@ local deploy_to_dev() = {
   tempo_app_id_secret,
   tempo_app_installation_id_secret,
   tempo_app_private_key_secret,
-  image_upload_ops_tools_secret,
   aws_dev_access_key_id,
   aws_dev_secret_access_key,
   aws_prod_access_key_id,

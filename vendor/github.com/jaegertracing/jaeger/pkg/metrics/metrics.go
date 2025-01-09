@@ -1,17 +1,6 @@
 // Copyright (c) 2022 The Jaeger Authors.
 // Copyright (c) 2017 Uber Technologies, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package metrics
 
@@ -32,7 +21,7 @@ import (
 // of type Counter or Gauge or Timer.
 //
 // Errors during Init lead to a panic.
-func MustInit(metrics interface{}, factory Factory, globalTags map[string]string) {
+func MustInit(metrics any, factory Factory, globalTags map[string]string) {
 	if err := Init(metrics, factory, globalTags); err != nil {
 		panic(err.Error())
 	}
@@ -40,7 +29,7 @@ func MustInit(metrics interface{}, factory Factory, globalTags map[string]string
 
 // Init does the same as MustInit, but returns an error instead of
 // panicking.
-func Init(m interface{}, factory Factory, globalTags map[string]string) error {
+func Init(m any, factory Factory, globalTags map[string]string) error {
 	// Allow user to opt out of reporting metrics by passing in nil.
 	if factory == nil {
 		factory = NullFactory
@@ -101,7 +90,7 @@ func Init(m interface{}, factory Factory, globalTags map[string]string) error {
 			}
 		}
 		help := field.Tag.Get("help")
-		var obj interface{}
+		var obj any
 		switch {
 		case field.Type.AssignableTo(counterPtrType):
 			obj = factory.Counter(Options{

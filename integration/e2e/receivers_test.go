@@ -7,7 +7,6 @@ import (
 
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/e2e"
-	"github.com/grafana/tempo/integration/util"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,6 +22,7 @@ import (
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
+	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/pkg/httpclient"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -86,9 +86,9 @@ func TestReceivers(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// create exporter
 			logger, _ := zap.NewDevelopment()
-			exporter, err := tc.factory.CreateTracesExporter(
+			exporter, err := tc.factory.CreateTraces(
 				context.Background(),
-				exporter.CreateSettings{
+				exporter.Settings{
 					TelemetrySettings: component.TelemetrySettings{
 						Logger:         logger,
 						TracerProvider: tracenoop.NewTracerProvider(),

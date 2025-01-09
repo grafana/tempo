@@ -33,21 +33,9 @@ func main() {
 ## Benchmark
 
 ```
-BenchmarkParse-16        	13364954	        77.7 ns/op	       0 B/op	       0 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/relvacode/iso8601
+cpu: AMD Ryzen 7 7840U w/ Radeon 780M Graphics      
+BenchmarkParse-16               35880919                30.89 ns/op            0 B/op          0 allocs/op
 ```
-
-## Release History
-
-  - `1.3.0`
-
-  Allow a leading `+` sign in the year component [#11](https://github.com/relvacode/iso8601/issues/11)
-  - `1.2.0` 
-  
-  Time range validity checking equivalent to the standard library.
-  Note that previous versions would not validate that a given date string was in the expected range. Additionally, this version no longer accepts `0000-00-00T00:00:00` as a valid input which can be the zero time representation in other languages nor does it support leap seconds (such that the seconds field is `60`) as is the case in the [standard library](https://github.com/golang/go/issues/15247)
-  - `1.1.0` 
-  
-  Check for `-0` time zone
-  - `1.0.0` 
-  
-  Initial release

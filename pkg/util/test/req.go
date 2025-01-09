@@ -17,6 +17,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func MakeAttribute(key, value string) *v1_common.KeyValue {
+	return &v1_common.KeyValue{
+		Key: key,
+		Value: &v1_common.AnyValue{
+			Value: &v1_common.AnyValue_StringValue{
+				StringValue: value,
+			},
+		},
+	}
+}
+
 func MakeSpan(traceID []byte) *v1_trace.Span {
 	return MakeSpanWithAttributeCount(traceID, rand.Int()%10+1)
 }

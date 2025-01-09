@@ -24,76 +24,77 @@ func Tracer(settings component.TelemetrySettings) trace.Tracer {
 // TelemetryBuilder provides an interface for components to report telemetry
 // as defined in metadata and user config.
 type TelemetryBuilder struct {
+	meter                        metric.Meter
 	ReceiverAcceptedLogRecords   metric.Int64Counter
 	ReceiverAcceptedMetricPoints metric.Int64Counter
 	ReceiverAcceptedSpans        metric.Int64Counter
 	ReceiverRefusedLogRecords    metric.Int64Counter
 	ReceiverRefusedMetricPoints  metric.Int64Counter
 	ReceiverRefusedSpans         metric.Int64Counter
-	level                        configtelemetry.Level
 }
 
-// telemetryBuilderOption applies changes to default builder.
-type telemetryBuilderOption func(*TelemetryBuilder)
+// TelemetryBuilderOption applies changes to default builder.
+type TelemetryBuilderOption interface {
+	apply(*TelemetryBuilder)
+}
 
-// WithLevel sets the current telemetry level for the component.
-func WithLevel(lvl configtelemetry.Level) telemetryBuilderOption {
-	return func(builder *TelemetryBuilder) {
-		builder.level = lvl
-	}
+type telemetryBuilderOptionFunc func(mb *TelemetryBuilder)
+
+func (tbof telemetryBuilderOptionFunc) apply(mb *TelemetryBuilder) {
+	tbof(mb)
 }
 
 // NewTelemetryBuilder provides a struct with methods to update all internal telemetry
 // for a component
-func NewTelemetryBuilder(settings component.TelemetrySettings, options ...telemetryBuilderOption) (*TelemetryBuilder, error) {
-	builder := TelemetryBuilder{level: configtelemetry.LevelBasic}
+func NewTelemetryBuilder(settings component.TelemetrySettings, options ...TelemetryBuilderOption) (*TelemetryBuilder, error) {
+	builder := TelemetryBuilder{}
 	for _, op := range options {
-		op(&builder)
+		op.apply(&builder)
 	}
-	var (
-		err, errs error
-		meter     metric.Meter
-	)
-	if builder.level >= configtelemetry.LevelBasic {
-		meter = Meter(settings)
-	} else {
-		meter = noop.Meter{}
-	}
-	builder.ReceiverAcceptedLogRecords, err = meter.Int64Counter(
-		"receiver_accepted_log_records",
-		metric.WithDescription("Number of log records successfully pushed into the pipeline."),
-		metric.WithUnit("1"),
+	builder.meter = Meter(settings)
+	var err, errs error
+	builder.ReceiverAcceptedLogRecords, err = getLeveledMeter(builder.meter, configtelemetry.LevelBasic, settings.MetricsLevel).Int64Counter(
+		"otelcol_receiver_accepted_log_records",
+		metric.WithDescription("Number of log records successfully pushed into the pipeline. [alpha]"),
+		metric.WithUnit("{records}"),
 	)
 	errs = errors.Join(errs, err)
-	builder.ReceiverAcceptedMetricPoints, err = meter.Int64Counter(
-		"receiver_accepted_metric_points",
-		metric.WithDescription("Number of metric points successfully pushed into the pipeline."),
-		metric.WithUnit("1"),
+	builder.ReceiverAcceptedMetricPoints, err = getLeveledMeter(builder.meter, configtelemetry.LevelBasic, settings.MetricsLevel).Int64Counter(
+		"otelcol_receiver_accepted_metric_points",
+		metric.WithDescription("Number of metric points successfully pushed into the pipeline. [alpha]"),
+		metric.WithUnit("{datapoints}"),
 	)
 	errs = errors.Join(errs, err)
-	builder.ReceiverAcceptedSpans, err = meter.Int64Counter(
-		"receiver_accepted_spans",
-		metric.WithDescription("Number of spans successfully pushed into the pipeline."),
-		metric.WithUnit("1"),
+	builder.ReceiverAcceptedSpans, err = getLeveledMeter(builder.meter, configtelemetry.LevelBasic, settings.MetricsLevel).Int64Counter(
+		"otelcol_receiver_accepted_spans",
+		metric.WithDescription("Number of spans successfully pushed into the pipeline. [alpha]"),
+		metric.WithUnit("{spans}"),
 	)
 	errs = errors.Join(errs, err)
-	builder.ReceiverRefusedLogRecords, err = meter.Int64Counter(
-		"receiver_refused_log_records",
-		metric.WithDescription("Number of log records that could not be pushed into the pipeline."),
-		metric.WithUnit("1"),
+	builder.ReceiverRefusedLogRecords, err = getLeveledMeter(builder.meter, configtelemetry.LevelBasic, settings.MetricsLevel).Int64Counter(
+		"otelcol_receiver_refused_log_records",
+		metric.WithDescription("Number of log records that could not be pushed into the pipeline. [alpha]"),
+		metric.WithUnit("{records}"),
 	)
 	errs = errors.Join(errs, err)
-	builder.ReceiverRefusedMetricPoints, err = meter.Int64Counter(
-		"receiver_refused_metric_points",
-		metric.WithDescription("Number of metric points that could not be pushed into the pipeline."),
-		metric.WithUnit("1"),
+	builder.ReceiverRefusedMetricPoints, err = getLeveledMeter(builder.meter, configtelemetry.LevelBasic, settings.MetricsLevel).Int64Counter(
+		"otelcol_receiver_refused_metric_points",
+		metric.WithDescription("Number of metric points that could not be pushed into the pipeline. [alpha]"),
+		metric.WithUnit("{datapoints}"),
 	)
 	errs = errors.Join(errs, err)
-	builder.ReceiverRefusedSpans, err = meter.Int64Counter(
-		"receiver_refused_spans",
-		metric.WithDescription("Number of spans that could not be pushed into the pipeline."),
-		metric.WithUnit("1"),
+	builder.ReceiverRefusedSpans, err = getLeveledMeter(builder.meter, configtelemetry.LevelBasic, settings.MetricsLevel).Int64Counter(
+		"otelcol_receiver_refused_spans",
+		metric.WithDescription("Number of spans that could not be pushed into the pipeline. [alpha]"),
+		metric.WithUnit("{spans}"),
 	)
 	errs = errors.Join(errs, err)
 	return &builder, errs
+}
+
+func getLeveledMeter(meter metric.Meter, cfgLevel, srvLevel configtelemetry.Level) metric.Meter {
+	if cfgLevel <= srvLevel {
+		return meter
+	}
+	return noop.Meter{}
 }
