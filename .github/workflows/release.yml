@@ -3,7 +3,6 @@ on:
   push:
     tags:
       - 'v*'
-  pull_request:
 
 # Needed to login to DockerHub
 permissions:
@@ -58,7 +57,6 @@ jobs:
           podman rm -f systemd-centos
 
       - name: release
-        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: make release
