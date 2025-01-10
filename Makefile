@@ -183,6 +183,12 @@ docker-component: check-component exe # not intended to be used directly
 	docker build -t grafana/$(COMPONENT) --build-arg=TARGETARCH=$(GOARCH) -f ./cmd/$(COMPONENT)/Dockerfile .
 	docker tag grafana/$(COMPONENT) $(COMPONENT)
 
+.PHONY: docker-component-multi
+docker-component-multi: check-component # not intended to be used directly
+	GOOS=linux GOARCH=amd64 $(MAKE) $(COMPONENT)
+	GOOS=linux GOARCH=arm64 $(MAKE) $(COMPONENT)
+	docker buildx build -t grafana/$(COMPONENT) --platform linux/amd64,linux/arm64 --output type=docker -f ./cmd/$(COMPONENT)/Dockerfile .
+
 .PHONY: docker-component-debug
 docker-component-debug: check-component exe-debug 
 	docker build -t grafana/$(COMPONENT)-debug --build-arg=TARGETARCH=$(GOARCH) -f ./cmd/$(COMPONENT)/Dockerfile_debug .
@@ -191,6 +197,10 @@ docker-component-debug: check-component exe-debug
 .PHONY: docker-tempo 
 docker-tempo: ## Build tempo docker image
 	COMPONENT=tempo $(MAKE) docker-component
+
+.PHONY: docker-tempo-multi
+docker-tempo-multi: ## Build multiarch image locally, requires containerd image store
+	COMPONENT=tempo $(MAKE) docker-component-multi
 
 docker-tempo-debug: ## Build tempo debug docker image
 	COMPONENT=tempo $(MAKE) docker-component-debug
