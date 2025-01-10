@@ -190,11 +190,8 @@ distributor:
         client_id: ""
         dial_timeout: 0s
         write_timeout: 0s
-<<<<<<< HEAD
-=======
         sasl_username: ""
         sasl_password: ""
->>>>>>> 881888b9c (Update to e50f5d96b)
         consumer_group: ""
         consumer_group_offset_commit_interval: 0s
         last_produced_offset_retry_timeout: 0s
@@ -661,12 +658,8 @@ metrics_generator:
     metrics_ingestion_time_range_slack: 30s
     query_timeout: 30s
     override_ring_key: metrics-generator
-<<<<<<< HEAD
-    assigned_partitions: []
-=======
     assigned_partitions: {}
     instance_id: hostname
->>>>>>> 881888b9c (Update to e50f5d96b)
 ingest:
     enabled: false
     kafka:
@@ -675,11 +668,8 @@ ingest:
         client_id: ""
         dial_timeout: 2s
         write_timeout: 10s
-<<<<<<< HEAD
-=======
         sasl_username: ""
         sasl_password: ""
->>>>>>> 881888b9c (Update to e50f5d96b)
         consumer_group: ""
         consumer_group_offset_commit_interval: 1s
         last_produced_offset_retry_timeout: 10s
@@ -690,11 +680,6 @@ ingest:
         target_consumer_lag_at_startup: 2s
         max_consumer_lag_at_startup: 15s
 block_builder:
-<<<<<<< HEAD
-    assigned_partitions: []
-    consume_cycle_duration: 5m0s
-    lookback_on_no_commit: 12h0m0s
-=======
     instance_id: hostname
     assigned_partitions: {}
     consume_cycle_duration: 5m0s
@@ -716,7 +701,6 @@ block_builder:
         search_encoding: none
         ingestion_time_range_slack: 2m0s
         version: vParquet4
->>>>>>> 881888b9c (Update to e50f5d96b)
 storage:
     trace:
         pool:
