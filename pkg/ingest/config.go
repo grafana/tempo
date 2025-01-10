@@ -17,11 +17,6 @@ import (
 )
 
 const (
-	consumeFromLastOffset = "last-offset"
-	consumeFromStart      = "start"
-	consumeFromEnd        = "end"
-	consumeFromTimestamp  = "timestamp"
-
 	// writerRequestTimeoutOverhead is the overhead applied by the Writer to every Kafka timeout.
 	// You can think about this overhead as an extra time for requests sitting in the client's buffer
 	// before being sent on the wire and the actual time it takes to send it over the network and

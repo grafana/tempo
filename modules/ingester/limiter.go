@@ -107,10 +107,10 @@ func (l *limiter) minNonZero(first, second int) int {
 
 type partitionLimiter struct {
 	limits overrides.Interface
-	ring   ring.PartitionRingWatcher
+	ring   *ring.PartitionRingWatcher
 }
 
-func NewPartitionLimiter(limits overrides.Interface, ring ring.PartitionRingWatcher) Limiter {
+func NewPartitionLimiter(limits overrides.Interface, ring *ring.PartitionRingWatcher) Limiter {
 	return &partitionLimiter{
 		limits: limits,
 		ring:   ring,
