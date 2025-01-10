@@ -1973,6 +1973,51 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 				continue
 			}
 
+			// If the attribute is integer (most likely `span.http.status_code`),
+			// we also scan column float64 besides the dedicated column
+			// in case the attribute somehow was stored as a float.
+			if entry.typ == traceql.TypeInt &&
+				(operandType(cond.Operands) == traceql.TypeInt ||
+					operandType(cond.Operands) == traceql.TypeFloat) {
+
+				subIters := make([]parquetquery.Iterator, 0, 2)
+				{
+					var pred parquetquery.Predicate
+					var err error
+					if operandType(cond.Operands) == traceql.TypeInt {
+						pred, err = createIntPredicate(cond.Op, cond.Operands)
+					} else {
+						pred, err = createIntPredicateFromFloat(cond.Op, cond.Operands)
+					}
+					if err != nil {
+						return nil, fmt.Errorf("creating predicate: %w", err)
+					}
+					if pred != nil {
+						subIters = append(subIters, makeIter(entry.columnPath, pred, cond.Attribute.Name))
+					}
+				}
+				{
+					var pred parquetquery.Predicate
+					var err error
+					if operandType(cond.Operands) == traceql.TypeFloat {
+						pred, err = createFloatPredicate(cond.Op, cond.Operands)
+					} else if operandType(cond.Operands) == traceql.TypeInt {
+						pred, err = createFloatPredicateFromInt(cond.Op, cond.Operands)
+					}
+					if err != nil {
+						return nil, fmt.Errorf("creating predicate: %w", err)
+					}
+					if pred != nil {
+						subIters = append(subIters, makeIter(columnPathResourceAttrDouble, pred, cond.Attribute.Name))
+					}
+				}
+				if unionItr := unionIfNeeded(DefinitionLevelResourceSpansILSSpan, subIters, nil); unionItr != nil {
+					iters = append(iters, unionItr)
+				}
+
+				continue
+			}
+
 			// Compatible type?
 			if entry.typ == operandType(cond.Operands) {
 				pred, err := createPredicate(cond.Op, cond.Operands)
@@ -2537,6 +2582,154 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquet
 	}
 }
 
+// createIntPredicateFromFloat adapts a float-based query operand to an int column.
+// If the float is exactly representable as an int64 (e.g. 42.0), we compare the
+// column to that integer. Otherwise, if the float is non-integer or out of the
+// int64 range, we return a "trivial" outcome:
+//
+//   - "=" on a non-integer float returns nil, meaning "no filter"
+//   - "!=" on a non-integer float always matches, implemented as a predicate
+//     that returns true for every row.
+//   - For "<", "<=", ">", ">=", we shift the boundary to the nearest integer.
+//     For example, "x < 10.3" becomes "x <= 10" for the int column.
+//
+// Note: If returning nil, no column-level filtering is applied for this condition.
+func createIntPredicateFromFloat(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
+	if op == traceql.OpNone {
+		return nil, nil
+	}
+
+	if operands[0].Type != traceql.TypeFloat {
+		return nil, fmt.Errorf("operand is not float: %s", operands[0].EncodeToString(false))
+	}
+	f := operands[0].Float()
+
+	if math.IsNaN(f) {
+		return nil, nil
+	}
+
+	// Check if it's in [MinInt64, MaxInt64) range, and if so, see if it's an integer.
+	if float64(math.MinInt64) <= f && f < float64(math.MaxInt64) {
+		if intPart, frac := math.Modf(f); frac == 0 {
+			intOperands := traceql.Operands{traceql.NewStaticInt(int(intPart))}
+			return createIntPredicate(op, intOperands)
+		}
+	}
+
+	switch op {
+	case traceql.OpEqual:
+		return nil, nil
+	case traceql.OpNotEqual:
+		return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
+	case traceql.OpGreater, traceql.OpGreaterEqual:
+		if f < float64(math.MinInt64) {
+			return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
+		} else if float64(math.MaxInt64) <= f {
+			return nil, nil
+		} else if 0 < f {
+			// "x > 10.3" -> "x >= 11"
+			return parquetquery.NewIntGreaterEqualPredicate(int64(f) + 1), nil
+		}
+		// "x > -2.7" -> "x >= -2"
+		return parquetquery.NewIntGreaterEqualPredicate(int64(f)), nil
+	case traceql.OpLess, traceql.OpLessEqual:
+		if f < float64(math.MinInt64) {
+			return nil, nil
+		} else if float64(math.MaxInt64) <= f {
+			return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
+		} else if f < 0 {
+			// "x < -2.7" -> "x <= -3"
+			return parquetquery.NewIntLessEqualPredicate(int64(f) - 1), nil
+		}
+		// "x < 10.3" -> "x <= 10"
+		return parquetquery.NewIntLessEqualPredicate(int64(f)), nil
+	}
+
+	return nil, fmt.Errorf("operator not supported for integers: %v", op)
+}
+
+// createFloatPredicateFromInt adapts an integer-based query operand to a float column.
+// If the integer can be exactly represented as a float64, the float column is compared
+// to that exact float value. If the integer cannot be represented exactly,
+// the function uses math.Nextafter to determine two adjacent float64 values
+// (lowerBound and upperBound) around the nearest representable value.
+//
+// Behavior for non-representable integers:
+//   - = always false (returned predicate rejects all rows)
+//   - != always true (nil is returned, meaning "no filter")
+//   - < or > boundaries are shifted to the adjacent float64 value.
+//
+// Note on IEEE 754 binary64 ("double precision"):
+//   - Up to ±2^53, all integers are exactly representable.
+//   - Beyond that, the distance ("step") between adjacent float64 values is >= 2,
+//     so not every 64-bit integer can be represented exactly.
+//   - Converting int -> float64 in Go uses "round to nearest, ties to even."
+func createFloatPredicateFromInt(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
+	if op == traceql.OpNone {
+		return nil, nil
+	}
+
+	i, ok := operands[0].Int()
+	if !ok {
+		return nil, fmt.Errorf("operand is not int: %s", operands[0].EncodeToString(false))
+	}
+
+	// Convert int64 -> float64 -> int64 to check if it is exactly representable.
+	i64 := int64(i)
+	f := float64(i64)
+	roundTrip := int64(f)
+	isExact := roundTrip == i64
+
+	// Identify two adjacent float64 values around i64.
+	lowerBound, upperBound := f, f
+	switch {
+	case roundTrip < 0 && 0 < i64:
+		// If the sign flipped during cast, it effectively crossed 0.
+		lowerBound = math.Nextafter(f, math.Inf(-1))
+	case i64 < 0 && 0 < roundTrip:
+		// An impossible case becase math.MinInt exactly maps to float64, hence it cannot jump over 0. But just in case.
+		upperBound = math.Nextafter(f, math.Inf(+1))
+	case i64 < roundTrip:
+		// Integer became larger when cast to float, so move lowerBound downward.
+		lowerBound = math.Nextafter(f, math.Inf(-1))
+	case roundTrip < i64:
+		// Integer became smaller when cast to float, so move upperBound upward.
+		upperBound = math.Nextafter(f, math.Inf(+1))
+	}
+
+	switch op {
+	case traceql.OpEqual:
+		if isExact {
+			return parquetquery.NewFloatEqualPredicate(f), nil
+		}
+		// There's no float64 that exactly equals i, so filter always false.
+		return parquetquery.NewCallbackPredicate(func() bool { return false }), nil
+	case traceql.OpNotEqual:
+		if isExact {
+			return parquetquery.NewFloatNotEqualPredicate(f), nil
+		}
+		// If it's not exactly representable, it's always "!=", so no filter is needed.
+		return nil, nil
+	case traceql.OpGreater:
+		if isExact {
+			return parquetquery.NewFloatGreaterPredicate(f), nil
+		}
+		// Shift to upperBound for non-exact
+		return parquetquery.NewFloatGreaterEqualPredicate(upperBound), nil
+	case traceql.OpGreaterEqual:
+		return parquetquery.NewFloatGreaterEqualPredicate(upperBound), nil
+	case traceql.OpLess:
+		if isExact {
+			return parquetquery.NewFloatLessPredicate(f), nil
+		}
+		return parquetquery.NewFloatLessEqualPredicate(lowerBound), nil
+	case traceql.OpLessEqual:
+		return parquetquery.NewFloatLessEqualPredicate(lowerBound), nil
+	}
+
+	return nil, fmt.Errorf("operator not supported for ints: %+v", op)
+}
+
 func createFloatPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
 	if op == traceql.OpNone {
 		return nil, nil
@@ -2637,13 +2830,29 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 			attrStringPreds = append(attrStringPreds, pred)
 
 		case traceql.TypeInt:
+			// Create a predicate specifically for integer comparisons
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
 			attrIntPreds = append(attrIntPreds, pred)
 
+			// If the operand can be interpreted as a float, create an additional predicate
+			if pred, err := createFloatPredicateFromInt(cond.Op, cond.Operands); err != nil {
+				return nil, fmt.Errorf("creating float attribute predicate from int: %w", err)
+			} else if pred != nil {
+				attrFltPreds = append(attrFltPreds, pred)
+			}
+
 		case traceql.TypeFloat:
+			// Attempt to create a predicate for integer comparisons, if applicable
+			if pred, err := createIntPredicateFromFloat(cond.Op, cond.Operands); err != nil {
+				return nil, fmt.Errorf("creating int attribute predicate from float: %w", err)
+			} else if pred != nil {
+				attrIntPreds = append(attrIntPreds, pred)
+			}
+
+			// Create a predicate specifically for float comparisons
 			pred, err := createFloatPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)

@@ -1759,6 +1759,71 @@ func createIntPredicate(op traceql.Operator, operands traceql.Operands) (parquet
 	}
 }
 
+// createIntPredicateFromFloat adapts float-based queries to integer columns.
+// If the float operand has no fractional part, it's treated as an integer directly.
+// Otherwise, specific shifts are applied (e.g., floor or ceil) depending on the operator,
+// or conclude that equality is impossible.
+//
+// Example: { spanAttr > 3.5 } but 'spanAttr' is stored as int. We'll look for rows where 'spanAttr' >= 4.
+func createIntPredicateFromFloat(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
+	if op == traceql.OpNone {
+		return nil, nil
+	}
+
+	f := operands[0].Float()
+	// Check if f has a fractional part
+	if _, frac := math.Modf(f); frac == 0 {
+		// If it's an integer float, treat it purely as int
+		intOperands := traceql.Operands{traceql.NewStaticInt(int(f))}
+		return createIntPredicate(op, intOperands)
+	}
+
+	switch op {
+	case traceql.OpEqual:
+		// No integer can be strictly equal to a float with a fractional part
+		return nil, nil
+	case traceql.OpNotEqual:
+		// An integer will always differ from a float that has a fractional part
+		return parquetquery.NewCallbackPredicate(func() bool { return true }), nil
+	case traceql.OpGreater, traceql.OpGreaterEqual:
+		// For > 3.5 or >= 3.5, effectively we do >= 4
+		// For > -3.5 or >= -3.5, effectively we do >= -3
+		i := int(f)
+		if i > 0 {
+			i++
+		}
+		return createIntPredicate(traceql.OpGreaterEqual, traceql.Operands{traceql.NewStaticInt(i)})
+	case traceql.OpLess, traceql.OpLessEqual:
+		// For < 3.5 or <= 3.5, effectively we do <= 3
+		// For < -3.5 or <= -3.5, effectively we do <= -4
+		i := int(f)
+		if i < 0 {
+			i--
+		}
+		return createIntPredicate(traceql.OpLessEqual, traceql.Operands{traceql.NewStaticInt(i)})
+	default:
+		return nil, fmt.Errorf("unsupported operator for float to int conversion: %v", op)
+	}
+}
+
+// createFloatPredicateFromInt adapts integer-based queries to float columns.
+// If the operand can be interpreted as an integer, it's converted to float
+// and we delegate further processing to createFloatPredicate.
+//
+// Example: { spanAttr = 5 } but 'spanAttr' is stored as float. We'll look for rows where 'spanAttr' = 5.0.
+func createFloatPredicateFromInt(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
+	if op == traceql.OpNone {
+		return nil, nil
+	}
+
+	if i, ok := operands[0].Int(); ok {
+		floatOperands := traceql.Operands{traceql.NewStaticFloat(float64(i))}
+		return createFloatPredicate(op, floatOperands)
+	}
+
+	return nil, nil
+}
+
 func createFloatPredicate(op traceql.Operator, operands traceql.Operands) (parquetquery.Predicate, error) {
 	if op == traceql.OpNone {
 		return nil, nil
@@ -1846,13 +1911,29 @@ func createAttributeIterator(makeIter makeIterFn, conditions []traceql.Condition
 			attrStringPreds = append(attrStringPreds, pred)
 
 		case traceql.TypeInt:
+			// Create a predicate specifically for integer comparisons
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)
 			}
 			attrIntPreds = append(attrIntPreds, pred)
 
+			// If the operand can be interpreted as a float, create an additional predicate
+			if pred, err := createFloatPredicateFromInt(cond.Op, cond.Operands); err != nil {
+				return nil, fmt.Errorf("creating float attribute predicate from int: %w", err)
+			} else if pred != nil {
+				attrFltPreds = append(attrFltPreds, pred)
+			}
+
 		case traceql.TypeFloat:
+			// Attempt to create a predicate for integer comparisons, if applicable
+			if pred, err := createIntPredicateFromFloat(cond.Op, cond.Operands); err != nil {
+				return nil, fmt.Errorf("creating int attribute predicate from float: %w", err)
+			} else if pred != nil {
+				attrIntPreds = append(attrIntPreds, pred)
+			}
+
+			// Create a predicate specifically for float comparisons
 			pred, err := createFloatPredicate(cond.Op, cond.Operands)
 			if err != nil {
 				return nil, fmt.Errorf("creating attribute predicate: %w", err)

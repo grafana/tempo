@@ -56,6 +56,7 @@ func TestSearchCompleteBlock(t *testing.T) {
 				nestedSet,
 				tagValuesRunner,
 				tagNamesRunner,
+				traceQLCrossType,
 			)
 		})
 		if vers == vparquet4.VersionString {
@@ -120,6 +121,100 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 		{Query: fmt.Sprintf("{ .%q = %q }", attributeWithTerminalChars, "value mismatch")},
 		{Query: `{ ."unknow".attribute = "res-2a" }`},
 		{Query: `{ resource."resource attribute" = "unknown" }`},
+	}
+
+	searchesThatDontMatch = append(searchesThatDontMatch, quotedAttributesThaDonttMatch...)
+	for _, req := range searchesThatDontMatch {
+		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
+		})
+
+		res, err := e.ExecuteSearch(ctx, req, fetcher)
+		require.NoError(t, err, "search request: %+v", req)
+		require.Nil(t, actualForExpectedMeta(wantMeta, res), "search request: %v", req)
+	}
+}
+
+func traceQLCrossType(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearchMetadata, searchesThatMatch, searchesThatDontMatch []*tempopb.SearchRequest, meta *backend.BlockMeta, r Reader, _ common.BackendBlock) {
+	ctx := context.Background()
+	e := traceql.NewEngine()
+
+	quotedAttributesThatMatch := []*tempopb.SearchRequest{
+		{Query: `{ .floatAttr > 123.0 }`},
+		{Query: `{ .floatAttr >= 123.0 }`},
+		{Query: `{ .floatAttr <= 123.4 }`},
+		{Query: `{ .floatAttr = 123.4 }`},
+		{Query: `{ .floatAttr >= 123.4 }`},
+		{Query: `{ .floatAttr <= 123.9 }`},
+		{Query: `{ .floatAttr < 123.9 }`},
+		{Query: `{ .intAttr > 122 }`},
+		{Query: `{ .intAttr >= 122 }`},
+		{Query: `{ .intAttr <= 123 }`},
+		{Query: `{ .intAttr = 123 }`},
+		{Query: `{ .intAttr >= 123 }`},
+		{Query: `{ .intAttr <= 124 }`},
+		{Query: `{ .intAttr < 124 }`},
+		{Query: `{ .floatAttr > 123 }`},
+		{Query: `{ .floatAttr >= 123 }`},
+		{Query: `{ .floatAttr <= 124 }`},
+		{Query: `{ .floatAttr < 124 }`},
+		{Query: `{ .intAttr > 122.9 }`},
+		{Query: `{ .intAttr >= 122.9 }`},
+		{Query: `{ .intAttr <= 123.0 }`},
+		{Query: `{ .intAttr = 123.0 }`},
+		{Query: `{ .intAttr >= 123.0 }`},
+		{Query: `{ .intAttr <= 123.1 }`},
+		{Query: `{ .intAttr < 123.1 }`},
+		{Query: `{ .intAttr != 123.1 }`},
+	}
+
+	searchesThatMatch = append(searchesThatMatch, quotedAttributesThatMatch...)
+	for _, req := range searchesThatMatch {
+		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
+			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
+		})
+
+		res, err := e.ExecuteSearch(ctx, req, fetcher)
+		if errors.Is(err, common.ErrUnsupported) {
+			continue
+		}
+
+		require.NoError(t, err, "search request: %+v", req)
+		actual := actualForExpectedMeta(wantMeta, res)
+		require.NotNil(t, actual, "search request: %v", req)
+		actual.SpanSet = nil // todo: add the matching spansets to wantmeta
+		actual.SpanSets = nil
+		actual.ServiceStats = nil
+		require.Equal(t, wantMeta, actual, "search request: %v", req)
+	}
+
+	quotedAttributesThaDonttMatch := []*tempopb.SearchRequest{
+		{Query: `{ .floatAttr < 123.0 }`},
+		{Query: `{ .floatAttr <= 123.0 }`},
+		{Query: `{ .floatAttr < 123.4 }`},
+		{Query: `{ .floatAttr != 123.4 }`},
+		{Query: `{ .floatAttr > 123.4 }`},
+		{Query: `{ .floatAttr >= 123.9 }`},
+		{Query: `{ .floatAttr > 123.9 }`},
+		{Query: `{ .intAttr < 122 }`},
+		{Query: `{ .intAttr <= 122 }`},
+		{Query: `{ .intAttr < 123 }`},
+		{Query: `{ .intAttr != 123 }`},
+		{Query: `{ .intAttr > 123 }`},
+		{Query: `{ .intAttr >= 124 }`},
+		{Query: `{ .intAttr > 124 }`},
+		{Query: `{ .floatAttr < 123 }`},
+		{Query: `{ .floatAttr <= 123 }`},
+		{Query: `{ .floatAttr = 123 }`},
+		{Query: `{ .floatAttr >= 124 }`},
+		{Query: `{ .floatAttr > 124 }`},
+		{Query: `{ .intAttr < 122.9 }`},
+		{Query: `{ .intAttr <= 122.9 }`},
+		{Query: `{ .intAttr < 123.0 }`},
+		{Query: `{ .intAttr != 123.0 }`},
+		{Query: `{ .intAttr > 123.0 }`},
+		{Query: `{ .intAttr >= 123.1 }`},
+		{Query: `{ .intAttr > 123.1 }`},
 	}
 
 	searchesThatDontMatch = append(searchesThatDontMatch, quotedAttributesThaDonttMatch...)
@@ -1442,7 +1537,7 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 			query: "{ resource.cluster = `MyCluster` }",
 			expected: map[string][]string{
 				"span":     {"child", "foo", "http.method", "http.status_code", "http.url", "span-dedicated.01", "span-dedicated.02"},
-				"resource": {"bat", "{ } ( ) = ~ ! < > & | ^", "cluster", "container", "k8s.cluster.name", "k8s.container.name", "k8s.namespace.name", "k8s.pod.name", "namespace", "pod", "res-dedicated.01", "res-dedicated.02", "service.name"},
+				"resource": {"bat", "{ } ( ) = ~ ! < > & | ^", "intAttr", "floatAttr", "cluster", "container", "k8s.cluster.name", "k8s.container.name", "k8s.namespace.name", "k8s.pod.name", "namespace", "pod", "res-dedicated.01", "res-dedicated.02", "service.name"},
 			},
 		},
 		{
@@ -1451,7 +1546,7 @@ func tagNamesRunner(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMetada
 			query: "{ span.foo = `Bar` }",
 			expected: map[string][]string{
 				"span":     {"child", "parent", "{ } ( ) = ~ ! < > & | ^", "foo", "http.method", "http.status_code", "http.url", "span-dedicated.01", "span-dedicated.02"},
-				"resource": {"bat", "{ } ( ) = ~ ! < > & | ^", "cluster", "container", "k8s.cluster.name", "k8s.container.name", "k8s.namespace.name", "k8s.pod.name", "namespace", "pod", "res-dedicated.01", "res-dedicated.02", "service.name"},
+				"resource": {"bat", "{ } ( ) = ~ ! < > & | ^", "intAttr", "floatAttr", "cluster", "container", "k8s.cluster.name", "k8s.container.name", "k8s.namespace.name", "k8s.pod.name", "namespace", "pod", "res-dedicated.01", "res-dedicated.02", "service.name"},
 			},
 		},
 	}
@@ -1811,6 +1906,13 @@ func intKV(k string, v int) *v1_common.KeyValue {
 	}
 }
 
+func float64KV(k string, v float64) *v1_common.KeyValue {
+	return &v1_common.KeyValue{
+		Key:   k,
+		Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_DoubleValue{DoubleValue: v}},
+	}
+}
+
 func boolKV(k string) *v1_common.KeyValue {
 	return &v1_common.KeyValue{
 		Key:   k,
@@ -1906,6 +2008,8 @@ func makeExpectedTrace() (
 						stringKV("res-dedicated.01", "res-1a"),
 						stringKV("res-dedicated.02", "res-2a"),
 						stringKV(attributeWithTerminalChars, "foobar"),
+						intKV("intAttr", 123),
+						float64KV("floatAttr", 123.4),
 					},
 				},
 				ScopeSpans: []*v1.ScopeSpans{
