@@ -1,0 +1,54 @@
+rebatchIterator: 
+	LeftJoinIterator: 0: traceCollector()
+	required: 
+		LeftJoinIterator: 1: batchCollector(false, 0)
+		required: 
+			LeftJoinIterator: 2: instrumentationCollector(0)
+			required: 
+				LeftJoinIterator: 3: spanCollector(0)
+				required: 
+					bridgeIterator: 
+						rebatchIterator: 
+							LeftJoinIterator: 0: traceCollector()
+							required: 
+								LeftJoinIterator: 1: batchCollector(true, 0)
+								required: 
+									LeftJoinIterator: 2: instrumentationCollector(0)
+									required: 
+										LeftJoinIterator: 3: spanCollector(0)
+										required: 
+											SyncIterator: rs.list.element.ss.list.element.Spans.list.element.StatusCode : nil
+										optional: 
+											LeftJoinIterator: 4: attributeCollector{}
+											required: 
+												SyncIterator: rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.Key : StringInPredicate{crossfloat}
+											optional: 
+												SyncIterator: rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueDouble.list.element : FloatEqualPredicate{456.000000}
+												SyncIterator: rs.list.element.ss.list.element.Spans.list.element.Attrs.list.element.ValueInt.list.element : IntEqualPredicate{456}
+									optional: 
+								optional: 
+									LeftJoinIterator: 2: attributeCollector{}
+									required: 
+										SyncIterator: rs.list.element.Resource.Attrs.list.element.Key : StringInPredicate{crossfloat}
+									optional: 
+										SyncIterator: rs.list.element.Resource.Attrs.list.element.ValueDouble.list.element : FloatEqualPredicate{456.000000}
+										SyncIterator: rs.list.element.Resource.Attrs.list.element.ValueInt.list.element : IntEqualPredicate{456}
+								SyncIterator: StartTimeUnixNano : IntBetweenPredicate{0,1001000000000}
+								SyncIterator: EndTimeUnixNano : IntBetweenPredicate{1000000000000,9223372036854775807}
+							optional: 
+				optional: 
+					SyncIterator: rs.list.element.ss.list.element.Spans.list.element.DurationNano : nil
+					SyncIterator: rs.list.element.ss.list.element.Spans.list.element.SpanID : nil
+					SyncIterator: rs.list.element.ss.list.element.Spans.list.element.StartTimeUnixNano : nil
+			optional: 
+		optional: 
+	optional: 
+		JoinIterator: 1: serviceStatsCollector{}	
+			SyncIterator: ServiceStats.key_value.key : nil
+			SyncIterator: ServiceStats.key_value.value.SpanCount : nil
+			SyncIterator: ServiceStats.key_value.value.ErrorCount : nil)
+		SyncIterator: DurationNano : nil
+		SyncIterator: RootServiceName : nil
+		SyncIterator: RootSpanName : nil
+		SyncIterator: StartTimeUnixNano : nil
+		SyncIterator: TraceID : nil

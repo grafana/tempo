@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -1805,10 +1807,12 @@ func (j *LeftJoinIterator) String() string {
 	for _, r := range j.required {
 		srequired += "\n\t" + util.TabOut(r)
 	}
-	soptional := "optional: "
-	for _, o := range j.optional {
-		soptional += "\n\t" + util.TabOut(o)
+	optional := make([]string, len(j.optional))
+	for i, o := range j.optional {
+		optional[i] = "\n\t" + util.TabOut(o)
 	}
+	slices.Sort(optional)
+	soptional := "optional: " + strings.Join(optional, "")
 	return fmt.Sprintf("LeftJoinIterator: %d: %s\n%s\n%s", j.definitionLevel, j.pred, srequired, soptional)
 }
 
