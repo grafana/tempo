@@ -609,7 +609,7 @@ func AssertEcho(t *testing.T, url string) {
 	res, err := e2e.DoGet(url)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode)
-	defer res.Body.Close()
+	defer func() { require.NoError(t, res.Body.Close()) }()
 }
 
 func QueryAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo) {

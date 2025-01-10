@@ -8,7 +8,7 @@
           "subdir": "grafana"
         }
       },
-      "version": "84e49c8549fa472c963862f233422c8b368afabe",
+      "version": "57b0b85dc1d7ed5e30c2e41f3bd26744b8aef519",
       "sum": "Y5nheroSOIwmE+djEVPq4OvvTxKenzdHhpEwaR3Ebjs="
     },
     {
@@ -18,8 +18,8 @@
           "subdir": "grafana-builder"
         }
       },
-      "version": "84e49c8549fa472c963862f233422c8b368afabe",
-      "sum": "B49EzIY2WZsFxNMJcgRxE/gcZ9ltnS8pkOOV6Q5qioc="
+      "version": "57b0b85dc1d7ed5e30c2e41f3bd26744b8aef519",
+      "sum": "yxqWcq/N3E/a/XreeU6EuE6X7kYPnG0AspAQFKOjASo="
     },
     {
       "source": {
@@ -28,7 +28,7 @@
           "subdir": "ksonnet-util"
         }
       },
-      "version": "84e49c8549fa472c963862f233422c8b368afabe",
+      "version": "57b0b85dc1d7ed5e30c2e41f3bd26744b8aef519",
       "sum": "0y3AFX9LQSpfWTxWKSwoLgbt0Wc9nnCwhMH2szKzHv0="
     },
     {
@@ -38,7 +38,7 @@
           "subdir": "kube-state-metrics/"
         }
       },
-      "version": "84e49c8549fa472c963862f233422c8b368afabe",
+      "version": "57b0b85dc1d7ed5e30c2e41f3bd26744b8aef519",
       "sum": "q1YzD+I4InDdfQP6k93W9Lw5U1jpll3gVaS9rUzLR7U="
     },
     {
@@ -48,7 +48,7 @@
           "subdir": "memcached"
         }
       },
-      "version": "84e49c8549fa472c963862f233422c8b368afabe",
+      "version": "57b0b85dc1d7ed5e30c2e41f3bd26744b8aef519",
       "sum": "Cc715Y3rgTuimgDFIw+FaKzXSJGRYwt1pFTMbdrNBD8="
     },
     {
@@ -58,7 +58,7 @@
           "subdir": "prometheus"
         }
       },
-      "version": "84e49c8549fa472c963862f233422c8b368afabe",
+      "version": "57b0b85dc1d7ed5e30c2e41f3bd26744b8aef519",
       "sum": "b4scQI+UtFxkVgzzD3dfbPMwI7EVtyjv1uETEmizM8M="
     },
     {
@@ -68,7 +68,7 @@
           "subdir": "tanka-util"
         }
       },
-      "version": "84e49c8549fa472c963862f233422c8b368afabe",
+      "version": "57b0b85dc1d7ed5e30c2e41f3bd26744b8aef519",
       "sum": "ShSIissXdvCy1izTCDZX6tY7qxCoepE5L+WJ52Hw7ZQ="
     },
     {
@@ -88,7 +88,7 @@
           "subdir": "1.29"
         }
       },
-      "version": "bf9a62cfd32a58c071b8410bfcdec058475dd25e",
+      "version": "6ecbb7709baf27f44b2e48f3529741ae6754ae6a",
       "sum": "i2w3hGbgQmaB73t5LJHSioPOVdYv8ZBvivHiDwZJVyI="
     }
   ],

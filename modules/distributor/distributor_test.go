@@ -1699,7 +1699,7 @@ func prepare(t *testing.T, limits overrides.Config, logger kitlog.Logger) (*Dist
 	l := dslog.Level{}
 	_ = l.Set("error")
 	mw := receiver.MultiTenancyMiddleware()
-	d, err := New(distributorConfig, clientConfig, ingestersRing, generator_client.Config{}, nil, overrides, mw, logger, l, prometheus.NewPedanticRegistry())
+	d, err := New(distributorConfig, clientConfig, ingestersRing, generator_client.Config{}, nil, nil, overrides, mw, logger, l, prometheus.NewPedanticRegistry())
 	require.NoError(t, err)
 
 	return d, ingesters

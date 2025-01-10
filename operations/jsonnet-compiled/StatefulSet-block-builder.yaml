@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: block-builder
+  namespace: tracing
+spec:
+  podManagementPolicy: Parallel
+  replicas: 0
+  selector:
+    matchLabels:
+      app: block-builder
+      name: block-builder
+  serviceName: block-builder
+  template:
+    metadata:
+      annotations:
+        config_hash: 46188d18f0d8adfa8586e9dbeb744db2
+      labels:
+        app: block-builder
+        name: block-builder
+    spec:
+      containers:
+      - args:
+        - -config.file=/conf/tempo.yaml
+        - -mem-ballast-size-mbs=1024
+        - -target=block-builder
+        image: grafana/tempo:latest
+        imagePullPolicy: IfNotPresent
+        name: block-builder
+        ports:
+        - containerPort: 3200
+          name: prom-metrics
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3200
+          initialDelaySeconds: 15
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: "1"
+            memory: 2Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+        volumeMounts:
+        - mountPath: /conf
+          name: tempo-conf
+        - mountPath: /overrides
+          name: overrides
+      securityContext:
+        fsGroup: 10001
+      volumes:
+      - configMap:
+          name: tempo-block-builder
+        name: tempo-conf
+      - configMap:
+          name: tempo-overrides
+        name: overrides
+  updateStrategy:
+    type: RollingUpdate

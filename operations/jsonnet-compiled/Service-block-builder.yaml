@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    name: block-builder
+  name: block-builder
+  namespace: tracing
+spec:
+  ports:
+  - name: block-builder-prom-metrics
+    port: 3200
+    targetPort: 3200
+  selector:
+    app: block-builder
+    name: block-builder

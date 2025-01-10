@@ -1,0 +1,237 @@
+services:
+  # Tempo runs as user 10001, and docker compose creates the volume as root.
+  # As such, we need to chown the volume in order for Tempo to start correctly.
+  init:
+    image: &tempoImage grafana/tempo:latest
+    user: root
+    entrypoint:
+      - "chown"
+      - "10001:10001"
+      - "/var/tempo"
+    volumes:
+      - ./tempo-data:/var/tempo
+
+  distributor:
+    image: *tempoImage
+    depends_on:
+      - kafka
+    command: "-target=distributor -config.file=/etc/tempo.yaml"
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200"   # tempo
+  # Uncomment the following lines to enable tracing
+  #    environment:
+  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+
+  ingester-0:
+    image: *tempoImage
+    depends_on:
+      - kafka
+    command: "-target=ingester -config.file=/etc/tempo.yaml"
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200"   # tempo
+    hostname: ingester-0
+  # Uncomment the following lines to enable tracing
+  #    environment:
+  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+
+  ingester-1:
+    image: *tempoImage
+    depends_on:
+      - kafka
+    command: "-target=ingester -config.file=/etc/tempo.yaml"
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200"   # tempo
+    hostname: ingester-1
+  # Uncomment the following lines to enable tracing
+  #    environment:
+  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+
+  ingester-2:
+    image: *tempoImage
+    depends_on:
+      - kafka
+    command: "-target=ingester -config.file=/etc/tempo.yaml"
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200"   # tempo
+    hostname: ingester-2
+  # Uncomment the following lines to enable tracing
+  #    environment:
+  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+
+  query-frontend:
+    image: *tempoImage
+    command: "-target=query-frontend -config.file=/etc/tempo.yaml -log.level=debug"
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200:3200"   # tempo
+  # Uncomment the following lines to enable tracing
+  #    environment:
+  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+
+  querier:
+    image: *tempoImage
+    command: "-target=querier -config.file=/etc/tempo.yaml -log.level=debug"
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200"   # tempo
+  # Uncomment the following lines to enable tracing
+  #    environment:
+  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+
+  compactor:
+    image: *tempoImage
+    depends_on:
+      - kafka
+    command: "-target=compactor -config.file=/etc/tempo.yaml"
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200"   # tempo
+  # Uncomment the following lines to enable tracing
+  #    environment:
+  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+
+  metrics-generator-0:
+    image: *tempoImage
+    depends_on:
+      - kafka
+    command: "-target=metrics-generator -config.file=/etc/tempo.yaml"
+    hostname: metrics-generator-0
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200"   # tempo
+  # Uncomment the following lines to enable tracing
+  #    environment:
+  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+
+  metrics-generator-1:
+    image: *tempoImage
+    depends_on:
+      - kafka
+    command: "-target=metrics-generator -config.file=/etc/tempo.yaml"
+    hostname: metrics-generator-1
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200"   # tempo
+  # Uncomment the following lines to enable tracing
+  #    environment:
+  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+
+  block-builder-0:
+    image: *tempoImage
+    depends_on:
+      - kafka
+    command: "-target=block-builder -config.file=/etc/tempo.yaml"
+    hostname: block-builder-0
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200"   # tempo
+  # Uncomment the following lines to enable tracing
+  #    environment:
+  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+
+  block-builder-1:
+    image: *tempoImage
+    depends_on:
+      - kafka
+    command: "-target=block-builder -config.file=/etc/tempo.yaml"
+    hostname: block-builder-1
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+        - "3200"   # tempo
+  # Uncomment the following lines to enable tracing
+  #    environment:
+  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+
+  minio:
+    image: minio/minio:latest
+    environment:
+      - MINIO_ACCESS_KEY=tempo
+      - MINIO_SECRET_KEY=supersecret
+    ports:
+      - "9001:9001"
+    entrypoint:
+      - sh
+      - -euc
+      - mkdir -p /data/tempo && minio server /data --console-address ':9001'
+
+  k6-tracing:
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.5
+    environment:
+      - ENDPOINT=distributor:4317
+    restart: always
+    depends_on:
+      - distributor
+
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - --config.file=/etc/prometheus.yaml
+      - --web.enable-remote-write-receiver
+      - --enable-feature=exemplar-storage
+      - --enable-feature=native-histograms
+    volumes:
+      - ../shared/prometheus.yaml:/etc/prometheus.yaml
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.0.0
+    volumes:
+      - ../shared/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor traceQLStreaming metricsSummary
+    ports:
+      - "3000:3000"
+
+  "kafka":
+    "image": "confluentinc/cp-kafka:latest"
+    "environment":
+      - "CLUSTER_ID=zH1GDqcNTzGMDCXm5VZQdg"
+      - "KAFKA_BROKER_ID=1"
+      - "KAFKA_NUM_PARTITIONS=100"
+      - "KAFKA_PROCESS_ROLES=broker,controller"
+      - "KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:29092"
+      - "KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092"
+      - "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      - "KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT"
+      - "KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER"
+      - "KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093"
+      - "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1"
+      - "KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS=10000"
+    "healthcheck":
+      "interval": "1s"
+      "retries": 30
+      "start_period": "1s"
+      "test": "nc -z localhost 9092 || exit -1"
+      "timeout": "1s"
+    "ports":
+      - "29092:29092"

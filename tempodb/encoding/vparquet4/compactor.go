@@ -60,7 +60,7 @@ func (c *Compactor) Compact(ctx context.Context, l log.Logger, r backend.Reader,
 
 		iter, err := block.rawIter(derivedCtx, pool)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error creating iterator for block %s: %w", blockMeta.BlockID.String(), err)
 		}
 
 		bookmarks = append(bookmarks, newBookmark[parquet.Row](iter))

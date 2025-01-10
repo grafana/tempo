@@ -8,6 +8,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/ring"
+	"github.com/grafana/tempo/pkg/ingest"
 
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb"
@@ -16,7 +17,8 @@ import (
 
 // Config for an ingester.
 type Config struct {
-	LifecyclerConfig ring.LifecyclerConfig `yaml:"lifecycler,omitempty"`
+	LifecyclerConfig      ring.LifecyclerConfig `yaml:"lifecycler,omitempty"`
+	IngesterPartitionRing PartitionRingConfig   `yaml:"partition_ring" category:"experimental"`
 
 	ConcurrentFlushes    int           `yaml:"concurrent_flushes"`
 	FlushCheckPeriod     time.Duration `yaml:"flush_check_period"`
@@ -28,7 +30,9 @@ type Config struct {
 	OverrideRingKey      string        `yaml:"override_ring_key"`
 	FlushAllOnShutdown   bool          `yaml:"flush_all_on_shutdown"`
 
-	DedicatedColumns backend.DedicatedColumns `yaml:"-"`
+	// This config is dynamically injected because defined outside the ingester config.
+	DedicatedColumns    backend.DedicatedColumns `yaml:"-"`
+	IngestStorageConfig ingest.Config            `yaml:"-"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -38,6 +42,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.LifecyclerConfig.RingConfig.KVStore.Store = "memberlist"
 	cfg.LifecyclerConfig.RingConfig.ReplicationFactor = 1
 	cfg.LifecyclerConfig.RingConfig.HeartbeatTimeout = 5 * time.Minute
+
+	cfg.IngesterPartitionRing.RegisterFlags(f)
 
 	cfg.ConcurrentFlushes = 4
 	cfg.FlushCheckPeriod = 10 * time.Second
