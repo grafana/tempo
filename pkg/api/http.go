@@ -456,10 +456,15 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 		return req
 	}
 
+	step := searchReq.Step
+	if step == 0 {
+		step = uint64(traceql.DefaultQueryRangeStep(searchReq.Start, searchReq.End))
+	}
+
 	qb := newQueryBuilder("")
 	qb.addParam(urlParamStart, strconv.FormatUint(searchReq.Start, 10))
 	qb.addParam(urlParamEnd, strconv.FormatUint(searchReq.End, 10))
-	qb.addParam(urlParamStep, time.Duration(searchReq.Step).String())
+	qb.addParam(urlParamStep, time.Duration(step).String())
 	qb.addParam(QueryModeKey, searchReq.QueryMode)
 	// New RF1 params
 	qb.addParam(urlParamBlockID, searchReq.BlockID)
