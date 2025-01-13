@@ -66,7 +66,7 @@ In this example, the search reduces traces to those spans where:
 Queries select sets of spans and filter them through a pipeline of aggregators and conditions.
 If, for a given trace, this pipeline produces a spanset then it's included in the results of the query.
 
-Refer to [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/) for examples of TraceQL metrics queries.
+Refer to [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/) for examples of TraceQL metrics queries. 
 
 ### Find traces of a specific operation
 
