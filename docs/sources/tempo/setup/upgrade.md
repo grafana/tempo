@@ -87,10 +87,6 @@ The `use_otel_tracer` option is removed.
 Configure your spans via standard OpenTelemetry environment variables.
 For Jaeger exporting, set `OTEL_TRACES_EXPORTER=jaeger`.For more information, refer to the [OpenTelemetry documentation](https://www.google.com/url?q=https://opentelemetry.io/docs/languages/sdk-configuration/&sa=D&source=docs&ust=1736460391410238&usg=AOvVaw3bykVWwn34XfhrnFK73uM_). ([#3646](https://github.com/grafana/tempo/pull/3646))
 
-### Deprecation
-
-Tempo serverless is now officially deprecated and will be removed in an upcoming release. Prepare to migrate any serverless workflows to alternative deployments. ([#4017](https://github.com/grafana/tempo/pull/4017))
-
 ### Added, updated, removed, or renamed configuration parameters
 
 <table>
