@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. 
+
 # v2.7.0-rc.0
 
 * [CHANGE] Disable gRPC compression in the querier and distributor for performance reasons [#4429](https://github.com/grafana/tempo/pull/4429) (@carles-grafana)
