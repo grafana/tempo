@@ -3,7 +3,8 @@ title: Tag search
 description: Troubleshoot No options found in Grafana tag search
 weight: 476
 aliases:
-- ../operations/troubleshooting/search-tag/
+- ../../operations/troubleshooting/search-tag/
+- ../troubleshooting/search-tag/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/search-tag/
 ---
 
 # Tag search

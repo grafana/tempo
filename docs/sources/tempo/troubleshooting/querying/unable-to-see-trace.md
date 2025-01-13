@@ -3,15 +3,16 @@ title: Unable to find traces
 description: Troubleshoot missing traces
 weight: 473
 aliases:
-- ../operations/troubleshooting/missing-trace/
-- ../operations/troubleshooting/unable-to-see-trace/
+- ../../operations/troubleshooting/missing-trace/
+- ../../operations/troubleshooting/unable-to-see-trace/
+- ../troubleshooting/unable-to-see-trace/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/unable-to-see-trace/
 ---
 
 # Unable to find traces
 
 The two main causes of missing traces are:
 
-- Issues in ingestion of the data into Tempo. Spans are either not being sent correctly to Tempo or they are not getting sampled.
+- Issues in ingestion of the data into Tempo. Spans are either not sent correctly to Tempo or they aren't getting sampled.
 - Issues querying for traces that have been received by Tempo.
 
 ## Section 1: Diagnose and fix ingestion issues

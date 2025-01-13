@@ -19,13 +19,14 @@ The Tempo configuration options include:
   - [Use environment variables in the configuration](#use-environment-variables-in-the-configuration)
   - [Server](#server)
   - [Distributor](#distributor)
+    - [Set max attribute size to help control out of memory errors](#set-max-attribute-size-to-help-control-out-of-memory-errors)
   - [Ingester](#ingester)
   - [Metrics-generator](#metrics-generator)
   - [Query-frontend](#query-frontend)
     - [Limit query size to improve performance and stability](#limit-query-size-to-improve-performance-and-stability)
       - [Limit the spans per spanset](#limit-the-spans-per-spanset)
-    - [Cap the maximum query length](#cap-the-maximum-query-length)
-    - [Querier](#querier)
+      - [Cap the maximum query length](#cap-the-maximum-query-length)
+  - [Querier](#querier)
   - [Compactor](#compactor)
   - [Storage](#storage)
     - [Local storage recommendations](#local-storage-recommendations)
@@ -250,6 +251,18 @@ distributor:
             # Once a metrics series is deleted, it won't be emitted anymore, keeping active series low.
             [stale_duration: <duration> | default = 15m0s]
 ```
+
+### Set max attribute size to help control out of memory errors
+
+Tempo queriers can run out of memory when fetching traces that have spans with very large attributes.
+This issue has been observed when trying to fetch a single trace using the [`tracebyID` endpoint](https://grafana.com/docs/tempo/latest/api_docs/#query).
+While a trace might not have a lot of spans (roughly 500), it can have a larger size (approximately 250KB).
+Some of the spans in that trace had attributes whose values were very large in size.
+
+To avoid these out-of-memory crashes, use `max_span_attr_byte` to limit the maximum allowable size of any individual attribute.
+Any key or values that exceed the configured limit are truncated before storing.
+The default value is `2048`.
+
 
 ## Ingester
 
@@ -724,14 +737,14 @@ In a similar manner, excessive queries result size can also negatively impact qu
 #### Limit the spans per spanset
 
 You can set the maximum spans per spanset by setting `max_spans_per_span_set` for the query-frontend.
-The default value is 100. 
+The default value is 100.
 
 In Grafana or Grafana Cloud, you can use the **Span Limit** field in the [TraceQL query editor](https://grafana.com/docs/grafana-cloud/connect-externally-hosted/data-sources/tempo/query-editor/) in Grafana Explore.
 This field sets the maximum number of spans to return for each span set.
 The maximum value that you can set for the **Span Limit** value (or the spss query) is controlled by `max_spans_per_span_set`.
 To disable the maximum spans per span set limit, set `max_spans_per_span_set` to `0`.
-When set to `0`, there is no maximum and users can put any value in **Span Limit**. 
-However, this can only be set by a Tempo administrator, not by the user. 
+When set to `0`, there is no maximum and users can put any value in **Span Limit**.
+However, this can only be set by a Tempo administrator, not by the user.
 
 #### Cap the maximum query length
 

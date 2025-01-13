@@ -3,14 +3,15 @@ title: Distributor refusing spans
 description: Troubleshoot distributor refusing spans
 weight: 471
 aliases:
-- ../operations/troubleshooting/max-trace-limit-reached/
+- ../../operations/troubleshooting/max-trace-limit-reached/
+- ../max-trace-limit-reached/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/max-trace-limit-reached/
 ---
 
 # Distributor refusing spans
 
 The two most likely causes of refused spans are unhealthy ingesters or trace limits being exceeded.
 
-To log spans that are discarded, add the `--distributor.log_discarded_spans.enabled` flag to the distributor or 
+To log spans that are discarded, add the `--distributor.log_discarded_spans.enabled` flag to the distributor or
 adjust the [distributor config]({{< relref "../configuration#distributor" >}}):
 
 ```yaml
@@ -68,7 +69,7 @@ msg="pusher failed to consume trace data" err="context canceled"
 ```
 
 This issue needs to be fixed on the client side. To inspect which clients are causing the issue, logging discarded spans
-with `include_all_attributes: true` may help. 
+with `include_all_attributes: true` may help.
 
-Note that there may be other reasons for a closed context as well. Identifying the reason for a closed context is 
+Note that there may be other reasons for a closed context as well. Identifying the reason for a closed context is
 not straightforward and may require additional debugging.

@@ -16,8 +16,8 @@ In addition, the [Tempo runbook](https://github.com/grafana/tempo/blob/main/oper
 
 ## Sending traces
 
-- [Spans are being refused with "pusher failed to consume trace data"](https://grafana.com/docs/tempo/<TEMMPO_VERSION>/troubleshooting/max-trace-limit-reached/)
-- [Is Grafana Alloy sending to the backend?](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/alloy/)
+- [Spans are being refused with "pusher failed to consume trace data"](https://grafana.com/docs/tempo/<TEMMPO_VERSION>/troubleshooting/send-traces/max-trace-limit-reached/)
+- [Is Grafana Alloy sending to the backend?](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/send-traces/alloy/)
 
 ## Querying
 
