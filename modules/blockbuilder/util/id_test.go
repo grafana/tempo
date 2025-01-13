@@ -36,6 +36,18 @@ func TestDeterministicIDGenerator(t *testing.T) {
 	}
 }
 
+func TestDeterministicIDGeneratorWithDifferentTenants(t *testing.T) {
+	ts := time.Now().UnixMilli()
+	seed := uint64(42)
+
+	gen1 := NewDeterministicIDGenerator("tenant-1", seed, uint64(ts))
+	gen2 := NewDeterministicIDGenerator("tenant-2", seed, uint64(ts))
+
+	for i := 0; i < 10; i++ {
+		assert.NotEqualf(t, gen1.NewID(), gen2.NewID(), "IDs should be different")
+	}
+}
+
 func FuzzDeterministicIDGenerator(f *testing.F) {
 	f.Skip()
 
