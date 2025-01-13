@@ -3,7 +3,7 @@
 * [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. [#4546](https://github.com/grafana/tempo/pull/4546) (@joe-elliott)
   Fix an issue where the tempo-cli was not correctly dumping exemplar results.
 
-# v2.7.0-rc.0
+# v2.7.0
 
 * [CHANGE] Disable gRPC compression in the querier and distributor for performance reasons [#4429](https://github.com/grafana/tempo/pull/4429) (@carles-grafana)
   If you would like to re-enable it, we recommend 'snappy'. Use the following settings:
