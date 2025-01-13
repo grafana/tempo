@@ -7,7 +7,7 @@ weight: 900
 
 # Zone-aware replication for ingesters
 
-Zone awareness is a feature that ensures data is replicated across failure domains (which we refer to as “zones”) to provide greater reliability.
+Zone awareness is a feature that ensures data is replicated across failure domains (which we refer to as “zones”) to provide greater reliability. 
 A failure domain is whatever you define it to be, but commonly may be an availability zone, data center, or server rack.
 
 When zone awareness is enabled for ingesters, incoming trace data is guaranteed to be replicated to ingesters in different zones.
