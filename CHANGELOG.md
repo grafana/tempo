@@ -54,6 +54,8 @@ querier:
 * [FEATURE] Export cost attribution usage metrics from distributor [#4162](https://github.com/grafana/tempo/pull/4162) (@mdisibio)
 * [FEATURE] TraceQL metrics: avg_over_time [#4073](https://github.com/grafana/tempo/pull/4073) (@javiermolinar)
 * [FEATURE] Limit tags and tag values search [#4320](https://github.com/grafana/tempo/pull/4320) (@javiermolinar)
+* [FEATURE] TraceQL metrics queries: add min_over_time  [#3975](https://github.com/grafana/tempo/pull/3975) (@javiermolinar)
+* [FEATURE] TraceQL metrics queries: add max_over_time  [#4065](https://github.com/grafana/tempo/pull/4065) (@javiermolinar)
 * [ENHANCEMENT] TraceQL: Add range condition for byte predicates [#4198](https://github.com/grafana/tempo/pull/4198) (@ie-pham)
 * [ENHANCEMENT] Add throughput and SLO metrics in the tags and tag values endpoints [#4148](https://github.com/grafana/tempo/pull/4148) (@electron0zero)
 * [ENHANCEMENT] **BREAKING CHANGE** Add maximum spans per span set. Users can set `max_spans_per_span_set` to 0 to obtain the old behavior. [#4275](https://github.com/grafana/tempo/pull/4383) (@carles-grafana)
@@ -74,8 +76,6 @@ querier:
 * [ENHANCEMENT] Improve performance of some TraceQL queries using select() operation [#4438](https://github.com/grafana/tempo/pull/4438) (@mdisibio)
 * [ENHANCEMENT] Reduce memory usage of classic histograms in the span-metrics and service-graphs processors [#4232](https://github.com/grafana/tempo/pull/4232) (@mdisibio)
 * [ENHANCEMENT] Implement simple Fetch by key for cache items  [#4032](https://github.com/grafana/tempo/pull/4032) (@javiermolinar)
-* [ENHANCEMENT] TraceQL metrics queries: add min_over_time  [#3975](https://github.com/grafana/tempo/pull/3975) (@javiermolinar)
-* [ENHANCEMENT] TraceQL metrics queries: add max_over_time  [#4065](https://github.com/grafana/tempo/pull/4065) (@javiermolinar)
 * [ENHANCEMENT] Write tenantindex as proto and json with a preference for proto [#4072](https://github.com/grafana/tempo/pull/4072) (@zalegrala)
 * [ENHANCEMENT] Pool zstd encoding/decoding for tempodb/backend [#4208](https://github.com/grafana/tempo/pull/4208) (@zalegrala)
 * [ENHANCEMENT] Send semver version in api/stattus/buildinfo for cloud deployments [#4110](https://github.com/grafana/tempo/pull/4110) [@Aki0x137]
