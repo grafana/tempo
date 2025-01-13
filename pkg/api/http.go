@@ -459,7 +459,7 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 	// 0 is an invalid step, so we need to calculate it if it's not provided
 	step := searchReq.Step
 	if step == 0 {
-		step = uint64(traceql.DefaultQueryRangeStep(searchReq.Start, searchReq.End))
+		step = traceql.DefaultQueryRangeStep(searchReq.Start, searchReq.End)
 	}
 
 	qb := newQueryBuilder("")
