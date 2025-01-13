@@ -39,7 +39,7 @@ func NewDeterministicIDGenerator(tenantID string, seeds ...uint64) *Deterministi
 func newBuf(tenantID []byte, seeds []uint64) []byte {
 	dl, sl := len(tenantID), len(seeds)
 	data := make([]byte, dl+sl*8+8) // tenantID bytes + 8 bytes per uint64 + 8 bytes for seq
-	copy(tenantID, data)
+	copy(data, tenantID)
 
 	for i, seed := range seeds {
 		binary.LittleEndian.PutUint64(data[dl+i*8:], seed)
