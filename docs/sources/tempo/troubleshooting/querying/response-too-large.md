@@ -4,7 +4,7 @@ description: Troubleshoot response larger than the max error message
 weight: 477
 aliases:
 - ../operations/troubleshooting/response-too-large/
-- ../troubleshooting/response-too-large/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/response-too-large/
+- ../response-too-large/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/response-too-large/
 ---
 
 # Response larger than the max

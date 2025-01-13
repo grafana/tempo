@@ -6,7 +6,7 @@ weight: 472
 aliases:
 - ../operations/troubleshooting/agent/
 - ../agent.md # /docs/tempo/<TEMPO_VERSION>/troubleshooting/agent.md
-- ../troubleshooting/alloy/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/alloy/
+- ../alloy/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/alloy/
 ---
 
 # Troubleshoot Grafana Alloy

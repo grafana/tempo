@@ -4,7 +4,7 @@ description: Troubleshoot search results when using long-running traces
 weight: 479
 aliases:
   - ../../operations/troubleshooting/long-running-traces/
-  - ../troubleshooting/long-running-traces/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/long-running-traces/
+  - ../long-running-traces/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/long-running-traces/
 ---
 
 # Long-running traces

@@ -263,7 +263,6 @@ To avoid these out-of-memory crashes, use `max_span_attr_byte` to limit the maxi
 Any key or values that exceed the configured limit are truncated before storing.
 The default value is `2048`.
 
-
 ## Ingester
 
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/ingester/config.go).

@@ -4,7 +4,7 @@ description: Troubleshoot No options found in Grafana tag search
 weight: 476
 aliases:
 - ../../operations/troubleshooting/search-tag/
-- ../troubleshooting/search-tag/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/search-tag/
+- ../search-tag/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/search-tag/
 ---
 
 # Tag search
@@ -26,4 +26,4 @@ when a query exceeds the configured value.
 There are two main solutions to this issue:
 
 * Reduce the cardinality of tags pushed to Tempo. Reducing the number of unique tag values will reduce the size returned by a tag search query.
-* Increase the `max_bytes_per_tag_values_query` parameter in the [overrides]({{< relref "../configuration#overrides" >}}) block of your Tempo configuration to a value as high as 50MB.
+* Increase the `max_bytes_per_tag_values_query` parameter in the [overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#overrides) block of your Tempo configuration to a value as high as 50MB.

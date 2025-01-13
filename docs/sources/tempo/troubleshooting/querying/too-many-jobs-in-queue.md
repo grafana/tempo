@@ -4,7 +4,7 @@ description: Troubleshoot too many jobs in the queue
 weight: 474
 aliases:
 - ../operations/troubleshooting/too-many-jobs-in-queue/
-- ../troubleshooting/too-many-jobs-in-queue/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/too-many-jobs-in-queue/
+- ../too-many-jobs-in-queue/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/too-many-jobs-in-queue/
 ---
 
 # Too many jobs in the queue

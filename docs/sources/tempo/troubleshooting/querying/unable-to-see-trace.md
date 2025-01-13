@@ -5,7 +5,7 @@ weight: 473
 aliases:
 - ../../operations/troubleshooting/missing-trace/
 - ../../operations/troubleshooting/unable-to-see-trace/
-- ../troubleshooting/unable-to-see-trace/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/unable-to-see-trace/
+- ../unable-to-see-trace/ # htt/docs/tempo/<TEMPO_VERSION>/troubleshooting/unable-to-see-trace/
 ---
 
 # Unable to find traces
@@ -107,8 +107,8 @@ If the pipeline isn't reporting any dropped spans, check whether application spa
 - If you require a higher ingest volume, increase the configuration for the rate limiting by adjusting the `max_traces_per_user` property in the [configured override limits](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides).
 
 {{< admonition type="note" >}}
-Check the [ingestion limits page]({{< relref "../configuration#ingestion-limits" >}}) for further information on limits.
-{{% /admonition %}}
+Check the [ingestion limits page](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#overrides) for further information on limits.
+{{< /admonition >}}
 
 ## Section 3: Diagnose and fix issues with querying traces
 
