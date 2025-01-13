@@ -1,0 +1,22 @@
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCR
+        uses: grafana/deployment_tools/actions/auth-read-kubernetes-dev@master
+
+      - name: lint
+        run: docker pull us.gcr.io/kubernetes-dev/enterprise-traces-build-image:v0.0.29 
+
+
