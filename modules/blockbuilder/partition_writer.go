@@ -18,7 +18,7 @@ import (
 )
 
 type partitionSectionWriter interface {
-	pushBytes(tenant string, req *tempopb.PushBytesRequest) error
+	pushBytes(ts time.Time, tenant string, req *tempopb.PushBytesRequest) error
 	flush(ctx context.Context, store tempodb.Writer) error
 }
 
@@ -50,7 +50,7 @@ func newPartitionSectionWriter(logger log.Logger, partition, cycleEndTs uint64, 
 	}
 }
 
-func (p *writer) pushBytes(tenant string, req *tempopb.PushBytesRequest) error {
+func (p *writer) pushBytes(ts time.Time, tenant string, req *tempopb.PushBytesRequest) error {
 	level.Debug(p.logger).Log(
 		"msg", "pushing bytes",
 		"tenant", tenant,
@@ -63,7 +63,7 @@ func (p *writer) pushBytes(tenant string, req *tempopb.PushBytesRequest) error {
 		return err
 	}
 
-	for j, trace := range req.Traces {
+	/*for j, trace := range req.Traces {
 		tr := new(tempopb.Trace) // TODO - Pool?
 		if err := proto.Unmarshal(trace.Slice, tr); err != nil {
 			return fmt.Errorf("failed to unmarshal trace: %w", err)
@@ -89,8 +89,28 @@ func (p *writer) pushBytes(tenant string, req *tempopb.PushBytesRequest) error {
 		if err := i.AppendTrace(req.Ids[j], tr, startSeconds, endSeconds); err != nil {
 			return err
 		}
+	}*/
+
+	for j, trace := range req.Traces {
+		tr := new(tempopb.Trace) // TODO - Pool?
+		if err := proto.Unmarshal(trace.Slice, tr); err != nil {
+			return fmt.Errorf("failed to unmarshal trace: %w", err)
+		}
+
+		if err := i.AppendTrace(req.Ids[j], tr, 0, 0, ts); err != nil {
+			return err
+		}
 	}
 
+	return nil
+}
+
+func (p *writer) cutidle(since time.Time, immediate bool) error {
+	for _, i := range p.m {
+		if err := i.CutIdle(since, immediate); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
