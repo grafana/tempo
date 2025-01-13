@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [CHANGE] Enforce max series in response for metrics queries [#4525](https://github.com/grafana/tempo/pull/4525) (@ie-pham)
+
 # v2.7.0-rc.0
 
 * [CHANGE] Disable gRPC compression in the querier and distributor for performance reasons [#4429](https://github.com/grafana/tempo/pull/4429) (@carles-grafana)
