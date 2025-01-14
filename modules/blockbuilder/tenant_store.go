@@ -11,9 +11,11 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/blockbuilder/util"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/tracesizes"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -30,6 +32,8 @@ var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
 		Name:      "flushed_blocks",
 	}, []string{"tenant"},
 )
+
+const reasonTraceTooLarge = "trace_too_large"
 
 // TODO - This needs locking
 type tenantStore struct {
@@ -50,6 +54,7 @@ type tenantStore struct {
 	walBlocks []common.WALBlock
 
 	liveTraces *livetraces.LiveTraces
+	traceSizes *tracesizes.Tracker
 }
 
 func newTenantStore(tenantID string, partitionID, endTimestamp uint64, cfg BlockConfig, logger log.Logger, wal *wal.WAL, enc encoding.VersionedEncoding, o Overrides) (*tenantStore, error) {
@@ -64,6 +69,7 @@ func newTenantStore(tenantID string, partitionID, endTimestamp uint64, cfg Block
 		blocksMtx:    sync.Mutex{},
 		enc:          enc,
 		liveTraces:   livetraces.New(),
+		traceSizes:   tracesizes.New(),
 	}
 
 	return s, s.resetHeadBlock()
@@ -112,7 +118,19 @@ func (s *tenantStore) resetHeadBlock() error {
 }
 
 func (s *tenantStore) AppendTrace(traceID []byte, tr *tempopb.Trace, ts time.Time) error {
+	maxSz := s.overrides.MaxBytesPerTrace(s.tenantID)
+
 	for _, b := range tr.ResourceSpans {
+		if maxSz > 0 && !s.traceSizes.Allow(traceID, b.Size(), maxSz) {
+			// Record dropped spans due to trace too large
+			count := 0
+			for _, ss := range b.ScopeSpans {
+				count += len(ss.Spans)
+			}
+			overrides.RecordDiscardedSpans(count, reasonTraceTooLarge, s.tenantID)
+			continue
+		}
+
 		s.liveTraces.PushWithTimestamp(ts, traceID, b, 0)
 	}
 	return nil

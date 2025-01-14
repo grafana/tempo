@@ -402,6 +402,7 @@ type mockOverrides struct {
 	dc backend.DedicatedColumns
 }
 
+func (m *mockOverrides) MaxBytesPerTrace(_ string) int                      { return 0 }
 func (m *mockOverrides) DedicatedColumns(_ string) backend.DedicatedColumns { return m.dc }
 
 func newKafkaClient(t testing.TB, config ingest.KafkaConfig) *kgo.Client {
