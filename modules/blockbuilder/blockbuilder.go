@@ -32,6 +32,25 @@ const (
 )
 
 var (
+	metricFetchDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace:                   "tempo",
+		Subsystem:                   "block_builder",
+		Name:                        "fetch_duration_seconds",
+		Help:                        "Time spent fetching from Kafka.",
+		NativeHistogramBucketFactor: 1.1,
+	}, []string{"partition"})
+	metricFetchBytesTotal = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Subsystem: "block_builder",
+		Name:      "fetch_bytes_total",
+		Help:      "Total number of bytes fetched from Kafka",
+	}, []string{"partition"})
+	metricFetchRecordsTotal = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Subsystem: "block_builder",
+		Name:      "fetch_records_total",
+		Help:      "Total number of records fetched from Kafka",
+	}, []string{"partition"})
 	metricPartitionLag = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Subsystem: "block_builder",
@@ -214,6 +233,7 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, ov
 		dur         = b.cfg.ConsumeCycleDuration
 		topic       = b.cfg.IngestStorageConfig.Kafka.Topic
 		group       = b.cfg.IngestStorageConfig.Kafka.ConsumerGroup
+		partLabel   = strconv.Itoa(int(partition))
 		startOffset kgo.Offset
 		init        bool
 		writer      *writer
@@ -255,6 +275,7 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, ov
 outer:
 	for {
 		fetches := func() kgo.Fetches {
+			defer func(t time.Time) { metricFetchDuration.WithLabelValues(partLabel).Observe(time.Since(t).Seconds()) }(time.Now())
 			ctx2, cancel := context.WithTimeout(ctx, pollTimeout)
 			defer cancel()
 			return b.kafkaClient.PollFetches(ctx2)
@@ -265,7 +286,7 @@ outer:
 				// No more data
 				break
 			}
-			metricFetchErrors.WithLabelValues(strconv.Itoa(int(partition))).Inc()
+			metricFetchErrors.WithLabelValues(partLabel).Inc()
 			return false, err
 		}
 
@@ -275,18 +296,21 @@ outer:
 
 		for iter := fetches.RecordIter(); !iter.Done(); {
 			rec := iter.Next()
+			metricFetchBytesTotal.WithLabelValues(partLabel).Add(float64(len(rec.Value)))
+			metricFetchRecordsTotal.WithLabelValues(partLabel).Inc()
 
 			level.Debug(b.logger).Log(
 				"msg", "processing record",
 				"partition", rec.Partition,
 				"offset", rec.Offset,
 				"timestamp", rec.Timestamp,
+				"len", len(rec.Value),
 			)
 
 			// Initialize on first record
 			if !init {
 				end = rec.Timestamp.Add(dur) // When block will be cut
-				metricPartitionLagSeconds.WithLabelValues(strconv.Itoa(int(partition))).Set(time.Since(rec.Timestamp).Seconds())
+				metricPartitionLagSeconds.WithLabelValues(partLabel).Set(time.Since(rec.Timestamp).Seconds())
 				writer = newPartitionSectionWriter(b.logger, uint64(partition), uint64(rec.Offset), b.cfg.BlockConfig, b.overrides, b.wal, b.enc)
 				nextCut = rec.Timestamp.Add(cutTime)
 				init = true
