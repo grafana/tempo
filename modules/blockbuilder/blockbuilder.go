@@ -425,10 +425,6 @@ func (b *BlockBuilder) pushTraces(ts time.Time, tenantBytes, reqBytes []byte, p 
 	}
 	defer b.decoder.Reset()
 
-	//sort.Slice(req.Traces, func(i, j int) bool {
-	//	return bytes.Compare(req.Ids[i], req.Ids[j]) == -1
-	//})
-
 	return p.pushBytes(ts, string(tenantBytes), req)
 }
 
