@@ -480,7 +480,7 @@ The following example configuration sets some global configuration options, as w
 
 ```yaml
 global_overrides:
-    default:
+    defaults:
         ingestion:
           rate_limit_bytes: 5 * 1000 * 1000
           burst_size_bytes: 5 * 1000 * 1000
