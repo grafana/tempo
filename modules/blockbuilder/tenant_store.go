@@ -111,7 +111,7 @@ func (s *tenantStore) resetHeadBlock() error {
 	return nil
 }
 
-func (s *tenantStore) AppendTrace(traceID []byte, tr *tempopb.Trace, start, end uint32, ts time.Time) error {
+func (s *tenantStore) AppendTrace(traceID []byte, tr *tempopb.Trace, ts time.Time) error {
 	for _, b := range tr.ResourceSpans {
 		s.liveTraces.PushWithTimestamp(ts, traceID, b, 0)
 	}

@@ -63,41 +63,13 @@ func (p *writer) pushBytes(ts time.Time, tenant string, req *tempopb.PushBytesRe
 		return err
 	}
 
-	/*for j, trace := range req.Traces {
-		tr := new(tempopb.Trace) // TODO - Pool?
-		if err := proto.Unmarshal(trace.Slice, tr); err != nil {
-			return fmt.Errorf("failed to unmarshal trace: %w", err)
-		}
-
-		var start, end uint64
-		for _, b := range tr.ResourceSpans {
-			for _, ss := range b.ScopeSpans {
-				for _, s := range ss.Spans {
-					if start == 0 || s.StartTimeUnixNano < start {
-						start = s.StartTimeUnixNano
-					}
-					if s.EndTimeUnixNano > end {
-						end = s.EndTimeUnixNano
-					}
-				}
-			}
-		}
-
-		startSeconds := uint32(start / uint64(time.Second))
-		endSeconds := uint32(end / uint64(time.Second))
-
-		if err := i.AppendTrace(req.Ids[j], tr, startSeconds, endSeconds); err != nil {
-			return err
-		}
-	}*/
-
 	for j, trace := range req.Traces {
 		tr := new(tempopb.Trace) // TODO - Pool?
 		if err := proto.Unmarshal(trace.Slice, tr); err != nil {
 			return fmt.Errorf("failed to unmarshal trace: %w", err)
 		}
 
-		if err := i.AppendTrace(req.Ids[j], tr, 0, 0, ts); err != nil {
+		if err := i.AppendTrace(req.Ids[j], tr, ts); err != nil {
 			return err
 		}
 	}
