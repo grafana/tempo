@@ -265,6 +265,8 @@ The default value is `2048`.
 
 Use the `tempo_distributor_attributes_truncated_total` metric to track how many attributes are truncated.
 
+For additional information, refer to [Troubleshoot out-of-memory errors](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/out-of-memory-errors/).
+
 ## Ingester
 
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/ingester/config.go).
