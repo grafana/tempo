@@ -4,24 +4,24 @@ menuTitle: Metrics-generator
 description: Gain an understanding of how to debug metrics quality issues.
 weight: 500
 aliases:
-- ../operations/troubleshooting/metrics-generator/
+- ../operations/troubleshooting/metrics-generator/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/troubleshooting/metrics-generator/
 ---
 
 # Troubleshoot metrics-generator
 
 If you are concerned with data quality issues in the metrics-generator, we'd first recommend:
 
-- Reviewing your telemetry pipeline to determine the number of dropped spans. We are only looking for major issues here.
-- Reviewing the [service graph documentation]({{< relref "../metrics-generator/service_graphs" >}}) to understand how they are built.
+- Reviewing your telemetry pipeline to determine the number of dropped spans. You are only looking for major issues here.
+- Reviewing the [service graph documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/service_graphs/) to understand how they are built.
 
-If everything seems ok from these two perspectives, consider the following topics to help resolve general issues with all metrics and span metrics specifically.
+If everything seems acceptable from these two perspectives, consider the following topics to help resolve general issues with all metrics and span metrics specifically.
 
 ## All metrics
 
 ### Dropped spans in the distributor
 
-The distributor has a queue of outgoing spans to the metrics-generators. If that queue is full then the distributor
-will drop spans before they reach the generator. Use the following metric to determine if that is happening:
+The distributor has a queue of outgoing spans to the metrics-generators.
+If the queue is full, then the distributor drops spans before they reach the generator. Use the following metric to determine if that's happening:
 
 ```
 sum(rate(tempo_distributor_queue_pushes_failures_total{}[1m]))
