@@ -7,7 +7,7 @@ weight: 600
 
 # Troubleshoot out-of-memory errors
 
-Learn about out-of-memory (OOM) errors and how to troubleshoot them.
+Learn about out-of-memory (OOM) issues and how to troubleshoot them.
 
 ## Set the max attribute size to help control out of memory errors
 
