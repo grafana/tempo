@@ -4,6 +4,7 @@
 package jaegerreceiver // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver"
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -72,8 +73,10 @@ type Config struct {
 	RemoteSampling *RemoteSamplingConfig `mapstructure:"remote_sampling"`
 }
 
-var _ component.Config = (*Config)(nil)
-var _ confmap.Unmarshaler = (*Config)(nil)
+var (
+	_ component.Config    = (*Config)(nil)
+	_ confmap.Unmarshaler = (*Config)(nil)
+)
 
 // Validate checks the receiver configuration is valid
 func (cfg *Config) Validate() error {
@@ -81,7 +84,7 @@ func (cfg *Config) Validate() error {
 		cfg.ThriftHTTP == nil &&
 		cfg.ThriftBinary == nil &&
 		cfg.ThriftCompact == nil {
-		return fmt.Errorf("must specify at least one protocol when using the Jaeger receiver")
+		return errors.New("must specify at least one protocol when using the Jaeger receiver")
 	}
 
 	if cfg.GRPC != nil {
@@ -110,7 +113,7 @@ func (cfg *Config) Validate() error {
 
 	if cfg.RemoteSampling != nil {
 		if disableJaegerReceiverRemoteSampling.IsEnabled() {
-			return fmt.Errorf("remote sampling config detected in the Jaeger receiver; use the `jaegerremotesampling` extension instead")
+			return errors.New("remote sampling config detected in the Jaeger receiver; use the `jaegerremotesampling` extension instead")
 		}
 	}
 
@@ -120,7 +123,7 @@ func (cfg *Config) Validate() error {
 // Unmarshal a config.Parser into the config struct.
 func (cfg *Config) Unmarshal(componentParser *confmap.Conf) error {
 	if componentParser == nil || len(componentParser.AllKeys()) == 0 {
-		return fmt.Errorf("empty config for Jaeger receiver")
+		return errors.New("empty config for Jaeger receiver")
 	}
 
 	// UnmarshalExact will not set struct properties to nil even if no key is provided,
@@ -163,7 +166,7 @@ func checkPortFromEndpoint(endpoint string) error {
 		return fmt.Errorf("endpoint port is not a number: %w", err)
 	}
 	if port < 1 || port > 65535 {
-		return fmt.Errorf("port number must be between 1 and 65535")
+		return errors.New("port number must be between 1 and 65535")
 	}
 	return nil
 }

@@ -162,6 +162,16 @@ func (n *Node) Summary() string {
 	} else if len(n.Children) > 0 {
 		summary += " <command>"
 	}
+	allFlags := n.Flags
+	if n.Parent != nil {
+		allFlags = append(allFlags, n.Parent.Flags...)
+	}
+	for _, flag := range allFlags {
+		if !flag.Required {
+			summary += " [flags]"
+			break
+		}
+	}
 	return summary
 }
 
@@ -229,23 +239,24 @@ func (n *Node) ClosestGroup() *Group {
 
 // A Value is either a flag or a variable positional argument.
 type Value struct {
-	Flag         *Flag // Nil if positional argument.
-	Name         string
-	Help         string
-	OrigHelp     string // Original help string, without interpolated variables.
-	HasDefault   bool
-	Default      string
-	DefaultValue reflect.Value
-	Enum         string
-	Mapper       Mapper
-	Tag          *Tag
-	Target       reflect.Value
-	Required     bool
-	Set          bool   // Set to true when this value is set through some mechanism.
-	Format       string // Formatting directive, if applicable.
-	Position     int    // Position (for positional arguments).
-	Passthrough  bool   // Set to true to stop flag parsing when encountered.
-	Active       bool   // Denotes the value is part of an active branch in the CLI.
+	Flag            *Flag // Nil if positional argument.
+	Name            string
+	Help            string
+	OrigHelp        string // Original help string, without interpolated variables.
+	HasDefault      bool
+	Default         string
+	DefaultValue    reflect.Value
+	Enum            string
+	Mapper          Mapper
+	Tag             *Tag
+	Target          reflect.Value
+	Required        bool
+	Set             bool            // Set to true when this value is set through some mechanism.
+	Format          string          // Formatting directive, if applicable.
+	Position        int             // Position (for positional arguments).
+	Passthrough     bool            // Deprecated: Use PassthroughMode instead. Set to true to stop flag parsing when encountered.
+	PassthroughMode PassthroughMode //
+	Active          bool            // Denotes the value is part of an active branch in the CLI.
 }
 
 // EnumMap returns a map of the enums in this value.
@@ -368,9 +379,9 @@ func (v *Value) Reset() error {
 	v.Target.Set(reflect.Zero(v.Target.Type()))
 	if len(v.Tag.Envs) != 0 {
 		for _, env := range v.Tag.Envs {
-			envar := os.Getenv(env)
+			envar, ok := os.LookupEnv(env)
 			// Parse the first non-empty ENV in the list
-			if envar != "" {
+			if ok {
 				err := v.Parse(ScanFromTokens(Token{Type: FlagValueToken, Value: envar}), v.Target)
 				if err != nil {
 					return fmt.Errorf("%s (from envar %s=%q)", err, env, envar)
@@ -395,8 +406,10 @@ type Flag struct {
 	*Value
 	Group       *Group // Logical grouping when displaying. May also be used by configuration loaders to group options logically.
 	Xor         []string
+	And         []string
 	PlaceHolder string
 	Envs        []string
+	Aliases     []string
 	Short       rune
 	Hidden      bool
 	Negated     bool
@@ -490,6 +503,9 @@ func reflectValueIsZero(v reflect.Value) bool {
 	default:
 		// This should never happens, but will act as a safeguard for
 		// later, as a default value doesn't makes sense here.
-		panic(&reflect.ValueError{"reflect.Value.IsZero", v.Kind()})
+		panic(&reflect.ValueError{
+			Method: "reflect.Value.IsZero",
+			Kind:   v.Kind(),
+		})
 	}
 }

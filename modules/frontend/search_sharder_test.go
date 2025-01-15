@@ -42,11 +42,11 @@ type mockReader struct {
 	metas []*backend.BlockMeta
 }
 
-func (m *mockReader) SearchTags(context.Context, *backend.BlockMeta, string, common.SearchOptions) (*tempopb.SearchTagsV2Response, error) {
+func (m *mockReader) SearchTags(context.Context, *backend.BlockMeta, *tempopb.SearchTagsBlockRequest, common.SearchOptions) (*tempopb.SearchTagsV2Response, error) {
 	return nil, nil
 }
 
-func (m *mockReader) SearchTagValues(context.Context, *backend.BlockMeta, string, common.SearchOptions) (*tempopb.SearchTagValuesResponse, error) {
+func (m *mockReader) SearchTagValues(context.Context, *backend.BlockMeta, *tempopb.SearchTagValuesBlockRequest, common.SearchOptions) (*tempopb.SearchTagValuesResponse, error) {
 	return nil, nil
 }
 
@@ -731,6 +731,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
 		MostRecentShards:      defaultMostRecentShards,
 		MaxDuration:           5 * time.Minute,
+		MaxSpansPerSpanSet:    100,
 	}, log.NewNopLogger())
 	testRT := sharder.Wrap(next)
 
@@ -744,6 +745,12 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
 	resp, err = testRT.RoundTrip(pipeline.NewHTTPRequest(req))
 	testBadRequestFromResponses(t, resp, err, "range specified by start and end exceeds 5m0s. received start=1000 end=1500")
+
+	// spans per span set greater than maximum
+	req = httptest.NewRequest("GET", "/?spss=200", nil)
+	req = req.WithContext(user.InjectOrgID(req.Context(), "blerg"))
+	resp, err = testRT.RoundTrip(pipeline.NewHTTPRequest(req))
+	testBadRequestFromResponses(t, resp, err, "spans per span set exceeds 100. received 200")
 
 	// bad request
 	req = httptest.NewRequest("GET", "/?start=asdf&end=1500", nil)

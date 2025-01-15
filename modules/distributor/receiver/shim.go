@@ -14,6 +14,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver"
+	"github.com/prometheus/client_golang/prometheus"
 	prom_client "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/collector/component"
@@ -142,7 +143,7 @@ func (m *mapProvider) Scheme() string { return "mock" }
 
 func (m *mapProvider) Shutdown(context.Context) error { return nil }
 
-func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, retryAfterDuration time.Duration, logLevel dslog.Level) (services.Service, error) {
+func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Middleware, retryAfterDuration time.Duration, logLevel dslog.Level, reg prometheus.Registerer) (services.Service, error) {
 	shim := &receiversShim{
 		pusher: pusher,
 		logger: log.NewRateLimitedLogger(logsPerSecond, level.Error(log.Logger)),
@@ -235,7 +236,7 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 
 	nopType := component.MustNewType("tempo")
 	traceProvider := tracenoop.NewTracerProvider()
-	meterProvider := NewMeterProvider()
+	meterProvider := NewMeterProvider(reg)
 	// todo: propagate a real context?  translate our log configuration into zap?
 	ctx := context.Background()
 	for componentID, cfg := range conf.Receivers {
@@ -271,17 +272,15 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 			cfg = jaegerRecvCfg
 		}
 
-		params := receiver.CreateSettings{
+		params := receiver.Settings{
 			ID: component.NewIDWithName(nopType, fmt.Sprintf("%s_receiver", componentID.Type().String())),
 			TelemetrySettings: component.TelemetrySettings{
 				Logger:         zapLogger,
 				TracerProvider: traceProvider,
 				MeterProvider:  meterProvider,
-				ReportStatus: func(*component.StatusEvent) {
-				},
 			},
 		}
-		receiver, err := factoryBase.CreateTracesReceiver(ctx, params, cfg, middleware.Wrap(shim))
+		receiver, err := factoryBase.CreateTraces(ctx, params, cfg, middleware.Wrap(shim))
 		if err != nil {
 			return nil, err
 		}
@@ -366,10 +365,6 @@ func (r *receiversShim) GetFactory(component.Kind, component.Type) component.Fac
 
 // GetExtensions implements component.Host
 func (r *receiversShim) GetExtensions() map[component.ID]extension.Extension { return nil }
-
-func (r *receiversShim) GetExporters() map[component.DataType]map[component.ID]component.Component {
-	return nil
-}
 
 // observability shims
 func newLogger(level dslog.Level) *zap.Logger {

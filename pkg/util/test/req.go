@@ -17,6 +17,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func MakeAttribute(key, value string) *v1_common.KeyValue {
+	return &v1_common.KeyValue{
+		Key: key,
+		Value: &v1_common.AnyValue{
+			Value: &v1_common.AnyValue_StringValue{
+				StringValue: value,
+			},
+		},
+	}
+}
+
 func MakeSpan(traceID []byte) *v1_trace.Span {
 	return MakeSpanWithAttributeCount(traceID, rand.Int()%10+1)
 }
@@ -353,4 +364,19 @@ func MakeTraceWithTags(traceID []byte, service string, intValue int64) *tempopb.
 		},
 	})
 	return trace
+}
+
+func MakePushBytesRequest(t testing.TB, requests int, traceID []byte) *tempopb.PushBytesRequest {
+	trace := MakeTrace(requests, traceID)
+	b, err := proto.Marshal(trace)
+	require.NoError(t, err)
+
+	req := &tempopb.PushBytesRequest{
+		Traces: make([]tempopb.PreallocBytes, 0),
+		Ids:    make([][]byte, 0),
+	}
+	req.Traces = append(req.Traces, tempopb.PreallocBytes{Slice: b})
+	req.Ids = append(req.Ids, traceID)
+
+	return req
 }

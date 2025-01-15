@@ -281,6 +281,7 @@ Exit Code 1
 | AMXBF16            | Tile computational operations on BFLOAT16 numbers                                                                                                                                  |
 | AMXINT8            | Tile computational operations on 8-bit integers                                                                                                                                    |
 | AMXFP16            | Tile computational operations on FP16 numbers                                                                                                                                      |
+| AMXFP8             | Tile computational operations on FP8 numbers                                                                                                                                      |
 | AMXTILE            | Tile architecture                                                                                                                                                                  |
 | APX_F              | Intel APX                                                                                                                                                                          |
 | AVX                | AVX functions                                                                                                                                                                      |
@@ -310,6 +311,7 @@ Exit Code 1
 | AVXSLOW            | Indicates the CPU performs 2 128 bit operations instead of one                                                                                                                     |
 | AVXVNNI            | AVX (VEX encoded) VNNI neural network instructions                                                                                                                                 |
 | AVXVNNIINT8        | AVX-VNNI-INT8 instructions                                                                                                                                                         |
+| AVXVNNIINT16       | AVX-VNNI-INT16 instructions                                                                                                                                                        |
 | BHI_CTRL           | Branch History Injection and Intra-mode Branch Target Injection / CVE-2022-0001, CVE-2022-0002 / INTEL-SA-00598                                                                    |
 | BMI1               | Bit Manipulation Instruction Set 1                                                                                                                                                 |
 | BMI2               | Bit Manipulation Instruction Set 2                                                                                                                                                 |

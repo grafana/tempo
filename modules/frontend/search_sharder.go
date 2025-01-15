@@ -38,6 +38,7 @@ type SearchSharderConfig struct {
 	QueryIngestersUntil   time.Duration `yaml:"query_ingesters_until,omitempty"`
 	IngesterShards        int           `yaml:"ingester_shards,omitempty"`
 	MostRecentShards      int           `yaml:"most_recent_shards,omitempty"`
+	MaxSpansPerSpanSet    uint32        `yaml:"max_spans_per_span_set,omitempty"`
 }
 
 type asyncSearchSharder struct {
@@ -94,7 +95,11 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 		return pipeline.NewBadRequest(fmt.Errorf("range specified by start and end exceeds %s. received start=%d end=%d", maxDuration, searchReq.Start, searchReq.End)), nil
 	}
 
-	// buffer allows us to insert any ingester reqs non-blocking
+	if s.cfg.MaxSpansPerSpanSet != 0 && searchReq.SpansPerSpanSet > s.cfg.MaxSpansPerSpanSet {
+		return pipeline.NewBadRequest(fmt.Errorf("spans per span set exceeds %d. received %d", s.cfg.MaxSpansPerSpanSet, searchReq.SpansPerSpanSet)), nil
+	}
+
+	// buffer of shards+1 allows us to insert ingestReq and metrics
 	reqCh := make(chan pipeline.Request, s.cfg.IngesterShards+1)
 
 	// build request to search ingesters based on query_ingesters_until config and time range

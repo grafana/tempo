@@ -1,17 +1,6 @@
 // Copyright (c) 2019 The Jaeger Authors.
 // Copyright (c) 2017 Uber Technologies, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package customtransport
 
@@ -36,19 +25,19 @@ func NewTBufferedReadTransport(readBuf *bytes.Buffer) (*TBufferedReadTransport, 
 
 // IsOpen does nothing as transport is not maintaining the connection
 // Required to maintain thrift.TTransport interface
-func (p *TBufferedReadTransport) IsOpen() bool {
+func (*TBufferedReadTransport) IsOpen() bool {
 	return true
 }
 
 // Open does nothing as transport is not maintaining the connection
 // Required to maintain thrift.TTransport interface
-func (p *TBufferedReadTransport) Open() error {
+func (*TBufferedReadTransport) Open() error {
 	return nil
 }
 
 // Close does nothing as transport is not maintaining the connection
 // Required to maintain thrift.TTransport interface
-func (p *TBufferedReadTransport) Close() error {
+func (*TBufferedReadTransport) Close() error {
 	return nil
 }
 
@@ -60,6 +49,7 @@ func (p *TBufferedReadTransport) Read(buf []byte) (int, error) {
 
 // RemainingBytes returns the number of bytes left to be read from the readBuf
 func (p *TBufferedReadTransport) RemainingBytes() uint64 {
+	//nolint: gosec // G115
 	return uint64(p.readBuf.Len())
 }
 
@@ -72,6 +62,6 @@ func (p *TBufferedReadTransport) Write(buf []byte) (int, error) {
 
 // Flush does nothing as udp server does not write responses back
 // Required to maintain thrift.TTransport interface
-func (p *TBufferedReadTransport) Flush(_ context.Context) error {
+func (*TBufferedReadTransport) Flush(_ context.Context) error {
 	return nil
 }

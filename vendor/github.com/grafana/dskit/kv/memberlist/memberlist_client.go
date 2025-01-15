@@ -137,6 +137,7 @@ type KVConfig struct {
 	GossipToTheDeadTime time.Duration `yaml:"gossip_to_dead_nodes_time" category:"advanced"`
 	DeadNodeReclaimTime time.Duration `yaml:"dead_node_reclaim_time" category:"advanced"`
 	EnableCompression   bool          `yaml:"compression_enabled" category:"advanced"`
+	NotifyInterval      time.Duration `yaml:"notify_interval" category:"advanced"`
 
 	// ip:port to advertise other cluster members. Used for NAT traversal
 	AdvertiseAddr string `yaml:"advertise_addr"`
@@ -195,6 +196,7 @@ func (cfg *KVConfig) RegisterFlagsWithPrefix(f *flag.FlagSet, prefix string) {
 	f.DurationVar(&cfg.DeadNodeReclaimTime, prefix+"memberlist.dead-node-reclaim-time", mlDefaults.DeadNodeReclaimTime, "How soon can dead node's name be reclaimed with new address. 0 to disable.")
 	f.IntVar(&cfg.MessageHistoryBufferBytes, prefix+"memberlist.message-history-buffer-bytes", 0, "How much space to use for keeping received and sent messages in memory for troubleshooting (two buffers). 0 to disable.")
 	f.BoolVar(&cfg.EnableCompression, prefix+"memberlist.compression-enabled", mlDefaults.EnableCompression, "Enable message compression. This can be used to reduce bandwidth usage at the cost of slightly more CPU utilization.")
+	f.DurationVar(&cfg.NotifyInterval, prefix+"memberlist.notify-interval", 0, "How frequently to notify watchers when a key changes. Can reduce CPU activity in large memberlist deployments. 0 to notify without delay.")
 	f.StringVar(&cfg.AdvertiseAddr, prefix+"memberlist.advertise-addr", mlDefaults.AdvertiseAddr, "Gossip address to advertise to other members in the cluster. Used for NAT traversal.")
 	f.IntVar(&cfg.AdvertisePort, prefix+"memberlist.advertise-port", mlDefaults.AdvertisePort, "Gossip port to advertise to other members in the cluster. Used for NAT traversal.")
 	f.StringVar(&cfg.ClusterLabel, prefix+"memberlist.cluster-label", mlDefaults.Label, "The cluster label is an optional string to include in outbound packets and gossip streams. Other members in the memberlist cluster will discard any message whose label doesn't match the configured one, unless the 'cluster-label-verification-disabled' configuration option is set to true.")
@@ -250,6 +252,10 @@ type KV struct {
 	watchersMu     sync.Mutex
 	watchers       map[string][]chan string
 	prefixWatchers map[string][]chan string
+
+	// Delayed notifications for watchers
+	notifMu          sync.Mutex
+	keyNotifications map[string]struct{}
 
 	// Buffers with sent and received messages. Used for troubleshooting only.
 	// New messages are appended, old messages (based on configured size limit) removed from the front.
@@ -359,17 +365,18 @@ func NewKV(cfg KVConfig, logger log.Logger, dnsProvider DNSProvider, registerer 
 	cfg.TCPTransport.MetricsNamespace = cfg.MetricsNamespace
 
 	mlkv := &KV{
-		cfg:             cfg,
-		logger:          logger,
-		registerer:      registerer,
-		provider:        dnsProvider,
-		store:           make(map[string]ValueDesc),
-		codecs:          make(map[string]codec.Codec),
-		watchers:        make(map[string][]chan string),
-		prefixWatchers:  make(map[string][]chan string),
-		workersChannels: make(map[string]chan valueUpdate),
-		shutdown:        make(chan struct{}),
-		maxCasRetries:   maxCasRetries,
+		cfg:              cfg,
+		logger:           logger,
+		registerer:       registerer,
+		provider:         dnsProvider,
+		store:            make(map[string]ValueDesc),
+		codecs:           make(map[string]codec.Codec),
+		watchers:         make(map[string][]chan string),
+		keyNotifications: make(map[string]struct{}),
+		prefixWatchers:   make(map[string][]chan string),
+		workersChannels:  make(map[string]chan valueUpdate),
+		shutdown:         make(chan struct{}),
+		maxCasRetries:    maxCasRetries,
 	}
 
 	mlkv.createAndRegisterMetrics()
@@ -486,6 +493,13 @@ func (m *KV) running(ctx context.Context) error {
 		return errFailedToJoinCluster
 	}
 
+	if m.cfg.NotifyInterval > 0 {
+		// Start delayed key notifications.
+		notifTicker := time.NewTicker(m.cfg.NotifyInterval)
+		defer notifTicker.Stop()
+		go m.monitorKeyNotifications(ctx, notifTicker.C)
+	}
+
 	var tickerChan <-chan time.Time
 	if m.cfg.RejoinInterval > 0 && len(m.cfg.JoinMembers) > 0 {
 		t := time.NewTicker(m.cfg.RejoinInterval)
@@ -552,7 +566,7 @@ func (m *KV) fastJoinMembersOnStartup(ctx context.Context) {
 	for toJoin > 0 && len(nodes) > 0 && ctx.Err() == nil {
 		reached, err := m.memberlist.Join(nodes[0:1]) // Try to join single node only.
 		if err != nil {
-			level.Debug(m.logger).Log("msg", "fast-joining node failed", "node", nodes[0], "err", err)
+			level.Info(m.logger).Log("msg", "fast-joining node failed", "node", nodes[0], "err", err)
 		}
 
 		totalJoined += reached
@@ -905,7 +919,59 @@ func removeWatcherChannel(k string, w chan string, watchers map[string][]chan st
 	}
 }
 
+// notifyWatchers sends notification to all watchers of given key. If delay is
+// enabled, it accumulates them for later sending.
 func (m *KV) notifyWatchers(key string) {
+	if m.cfg.NotifyInterval <= 0 {
+		m.notifyWatchersSync(key)
+		return
+	}
+
+	m.notifMu.Lock()
+	defer m.notifMu.Unlock()
+	m.keyNotifications[key] = struct{}{}
+}
+
+// monitorKeyNotifications sends accumulated notifications to all watchers of
+// respective keys when the given channel ticks.
+func (m *KV) monitorKeyNotifications(ctx context.Context, tickChan <-chan time.Time) {
+	if m.cfg.NotifyInterval <= 0 {
+		panic("sendNotifications called with NotifyInterval <= 0")
+	}
+
+	for {
+		select {
+		case <-tickChan:
+			m.sendKeyNotifications()
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// sendKeyNotifications sends accumulated notifications to watchers of respective keys.
+func (m *KV) sendKeyNotifications() {
+	newNotifs := func() map[string]struct{} {
+		// Grab and clear accumulated notifications.
+		m.notifMu.Lock()
+		defer m.notifMu.Unlock()
+
+		if len(m.keyNotifications) == 0 {
+			return nil
+		}
+		newMap := make(map[string]struct{})
+		notifs := m.keyNotifications
+		m.keyNotifications = newMap
+		return notifs
+	}
+
+	for key := range newNotifs() {
+		m.notifyWatchersSync(key)
+	}
+}
+
+// notifyWatcherSync immediately sends notification to all watchers of given key.
+func (m *KV) notifyWatchersSync(key string) {
 	m.watchersMu.Lock()
 	defer m.watchersMu.Unlock()
 
@@ -1018,14 +1084,16 @@ func (m *KV) trySingleCas(key string, codec codec.Codec, f func(in interface{}) 
 	}
 
 	// Don't even try
-	r, ok := out.(Mergeable)
-	if !ok || r == nil {
+	incomingValue, ok := out.(Mergeable)
+	if !ok || incomingValue == nil {
 		return nil, 0, retry, fmt.Errorf("invalid type: %T, expected Mergeable", out)
 	}
 
 	// To support detection of removed items from value, we will only allow CAS operation to
 	// succeed if version hasn't changed, i.e. state hasn't changed since running 'f'.
-	change, newver, err := m.mergeValueForKey(key, r, ver, codec)
+	// Supplied function may have kept a reference to the returned "incoming value".
+	// If KV store will keep this value as well, it needs to make a clone.
+	change, newver, err := m.mergeValueForKey(key, incomingValue, true, ver, codec)
 	if err == errVersionMismatch {
 		return nil, 0, retry, err
 	}
@@ -1379,14 +1447,15 @@ func (m *KV) mergeBytesValueForKey(key string, incomingData []byte, codec codec.
 		return nil, 0, fmt.Errorf("expected Mergeable, got: %T", decodedValue)
 	}
 
-	return m.mergeValueForKey(key, incomingValue, 0, codec)
+	// No need to clone this "incomingValue", since we have just decoded it from bytes, and won't be using it.
+	return m.mergeValueForKey(key, incomingValue, false, 0, codec)
 }
 
 // Merges incoming value with value we have in our store. Returns "a change" that can be sent to other
 // cluster members to update their state, and new version of the value.
 // If CAS version is specified, then merging will fail if state has changed already, and errVersionMismatch is reported.
 // If no modification occurred, new version is 0.
-func (m *KV) mergeValueForKey(key string, incomingValue Mergeable, casVersion uint, codec codec.Codec) (Mergeable, uint, error) {
+func (m *KV) mergeValueForKey(key string, incomingValue Mergeable, incomingValueRequiresClone bool, casVersion uint, codec codec.Codec) (Mergeable, uint, error) {
 	m.storeMu.Lock()
 	defer m.storeMu.Unlock()
 
@@ -1398,7 +1467,7 @@ func (m *KV) mergeValueForKey(key string, incomingValue Mergeable, casVersion ui
 	if casVersion > 0 && curr.Version != casVersion {
 		return nil, 0, errVersionMismatch
 	}
-	result, change, err := computeNewValue(incomingValue, curr.value, casVersion > 0)
+	result, change, err := computeNewValue(incomingValue, incomingValueRequiresClone, curr.value, casVersion > 0)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -1441,8 +1510,16 @@ func (m *KV) mergeValueForKey(key string, incomingValue Mergeable, casVersion ui
 }
 
 // returns [result, change, error]
-func computeNewValue(incoming Mergeable, oldVal Mergeable, cas bool) (Mergeable, Mergeable, error) {
+func computeNewValue(incoming Mergeable, incomingValueRequiresClone bool, oldVal Mergeable, cas bool) (Mergeable, Mergeable, error) {
 	if oldVal == nil {
+		// It's OK to return the same value twice (once as result, once as change), because "change" will be cloned
+		// in mergeValueForKey if needed.
+
+		if incomingValueRequiresClone {
+			clone := incoming.Clone()
+			return clone, clone, nil
+		}
+
 		return incoming, incoming, nil
 	}
 

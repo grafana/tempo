@@ -1,9 +1,21 @@
 package tempopb
 
-import "github.com/grafana/tempo/pkg/tempopb/pool"
+import (
+	"os"
+	"strconv"
 
-// buckets: [0.5KiB, 1KiB, 2KiB, 4KiB, 8KiB, 16KiB] ...
-var bytePool = pool.New(500, 64_000, 2, func(size int) []byte { return make([]byte, 0, size) })
+	"github.com/grafana/tempo/pkg/tempopb/pool"
+)
+
+var bytePool *pool.Pool
+
+func init() {
+	bktSize := intFromEnv("PREALLOC_BKT_SIZE", 400)
+	numBuckets := intFromEnv("PREALLOC_NUM_BUCKETS", 250)
+	minBucket := intFromEnv("PREALLOC_MIN_BUCKET", 0)
+
+	bytePool = pool.New(minBucket, numBuckets, bktSize)
+}
 
 // PreallocBytes is a (repeated bytes slices) which preallocs slices on Unmarshal.
 type PreallocBytes struct {
@@ -36,6 +48,22 @@ func (r *PreallocBytes) Size() (n int) {
 // ReuseByteSlices puts the byte slice back into bytePool for reuse.
 func ReuseByteSlices(buffs [][]byte) {
 	for _, b := range buffs {
-		bytePool.Put(b[:0])
+		_ = bytePool.Put(b[:0])
 	}
+}
+
+func intFromEnv(env string, defaultValue int) int {
+	// get the value from the environment
+	val, ok := os.LookupEnv(env)
+	if !ok {
+		return defaultValue
+	}
+
+	// try to parse the value
+	intVal, err := strconv.Atoi(val)
+	if err != nil {
+		panic("failed to parse " + env + " as int")
+	}
+
+	return intVal
 }

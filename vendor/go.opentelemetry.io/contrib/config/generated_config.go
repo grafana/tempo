@@ -18,12 +18,7 @@ type AttributeLimits struct {
 	AdditionalProperties interface{}
 }
 
-type Attributes struct {
-	// ServiceName corresponds to the JSON schema field "service.name".
-	ServiceName *string `mapstructure:"service.name,omitempty"`
-
-	AdditionalProperties interface{}
-}
+type Attributes map[string]interface{}
 
 type BatchLogRecordProcessor struct {
 	// ExportTimeout corresponds to the JSON schema field "export_timeout".
@@ -101,9 +96,33 @@ type Common map[string]interface{}
 
 type Console map[string]interface{}
 
+type Detectors struct {
+	// Attributes corresponds to the JSON schema field "attributes".
+	Attributes *DetectorsAttributes `mapstructure:"attributes,omitempty"`
+}
+
+type DetectorsAttributes struct {
+	// Excluded corresponds to the JSON schema field "excluded".
+	Excluded []string `mapstructure:"excluded,omitempty"`
+
+	// Included corresponds to the JSON schema field "included".
+	Included []string `mapstructure:"included,omitempty"`
+}
+
 type Headers map[string]string
 
+type IncludeExclude struct {
+	// Excluded corresponds to the JSON schema field "excluded".
+	Excluded []string `mapstructure:"excluded,omitempty"`
+
+	// Included corresponds to the JSON schema field "included".
+	Included []string `mapstructure:"included,omitempty"`
+}
+
 type LogRecordExporter struct {
+	// Console corresponds to the JSON schema field "console".
+	Console Console `mapstructure:"console,omitempty"`
+
 	// OTLP corresponds to the JSON schema field "otlp".
 	OTLP *OTLP `mapstructure:"otlp,omitempty"`
 
@@ -186,6 +205,9 @@ type OTLP struct {
 	// Headers corresponds to the JSON schema field "headers".
 	Headers Headers `mapstructure:"headers,omitempty"`
 
+	// Insecure corresponds to the JSON schema field "insecure".
+	Insecure *bool `mapstructure:"insecure,omitempty"`
+
 	// Protocol corresponds to the JSON schema field "protocol".
 	Protocol string `mapstructure:"protocol"`
 
@@ -215,6 +237,9 @@ type OTLPMetric struct {
 
 	// Headers corresponds to the JSON schema field "headers".
 	Headers Headers `mapstructure:"headers,omitempty"`
+
+	// Insecure corresponds to the JSON schema field "insecure".
+	Insecure *bool `mapstructure:"insecure,omitempty"`
 
 	// Protocol corresponds to the JSON schema field "protocol".
 	Protocol string `mapstructure:"protocol"`
@@ -381,6 +406,10 @@ type Prometheus struct {
 	// Port corresponds to the JSON schema field "port".
 	Port *int `mapstructure:"port,omitempty"`
 
+	// WithResourceConstantLabels corresponds to the JSON schema field
+	// "with_resource_constant_labels".
+	WithResourceConstantLabels *IncludeExclude `mapstructure:"with_resource_constant_labels,omitempty"`
+
 	// WithoutScopeInfo corresponds to the JSON schema field "without_scope_info".
 	WithoutScopeInfo *bool `mapstructure:"without_scope_info,omitempty"`
 
@@ -423,7 +452,10 @@ func (j *PullMetricReader) UnmarshalJSON(b []byte) error {
 
 type Resource struct {
 	// Attributes corresponds to the JSON schema field "attributes".
-	Attributes *Attributes `mapstructure:"attributes,omitempty"`
+	Attributes Attributes `mapstructure:"attributes,omitempty"`
+
+	// Detectors corresponds to the JSON schema field "detectors".
+	Detectors *Detectors `mapstructure:"detectors,omitempty"`
 
 	// SchemaUrl corresponds to the JSON schema field "schema_url".
 	SchemaUrl *string `mapstructure:"schema_url,omitempty"`

@@ -114,7 +114,6 @@ func TestInstanceSearchTraceQL(t *testing.T) {
 
 			// Test after appending to WAL
 			require.NoError(t, i.CutCompleteTraces(0, true))
-			assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 			sr, err = i.Search(context.Background(), req)
 			assert.NoError(t, err)
@@ -288,7 +287,7 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 	checkSearchTags("event", true)
 	checkSearchTags("link", true)
 
-	srv, err := i.SearchTagValues(ctx, tagName)
+	srv, err := i.SearchTagValues(ctx, tagName, 0, 0)
 	require.NoError(t, err)
 	require.Greater(t, srv.Metrics.InspectedBytes, uint64(100)) // we scanned at-least 100 bytes
 
@@ -308,10 +307,13 @@ func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 		otherTagValue         = qux
 		queryThatMatches      = fmt.Sprintf(`{ name = "%s" }`, spanName)
 		queryThatDoesNotMatch = `{ resource.service.name = "aaaaa" }`
+		emptyQuery            = `{ }`
+		invalidQuery          = `{ not_a_traceql = query }`
+		partInvalidQuery      = fmt.Sprintf(`{ name = "%s" && not_a_traceql = query  }`, spanName)
 	)
 
 	_, expectedTagValues, expectedEventTagValues, expectedLinkTagValues := writeTracesForSearch(t, i, spanName, tagKey, tagValue, true, true)
-	_, _, _, _ = writeTracesForSearch(t, i, "other-"+spanName, tagKey, otherTagValue, true, false)
+	_, otherTagValues, otherEventTagValues, otherLinkTagValues := writeTracesForSearch(t, i, "other-"+spanName, tagKey, otherTagValue, true, true)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
 
@@ -335,7 +337,7 @@ func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 
 	// test that we are creating cache files for search tag values v2
 	// check that we have cache files for all complete blocks for all the cache keys
-	limit := i.limiter.limits.MaxBytesPerTagValuesQuery("fake")
+	limit := i.limiter.Limits().MaxBytesPerTagValuesQuery("fake")
 	cacheKeys := cacheKeysForTestSearchTagValuesV2(tagKey, queryThatMatches, limit)
 	for _, cacheKey := range cacheKeys {
 		for _, b := range i.completeBlocks {
@@ -347,6 +349,16 @@ func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 
 	// test search is returning same results with cache
 	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, queryThatMatches, expectedTagValues, expectedEventTagValues, expectedLinkTagValues)
+
+	// merge all tag values to test unfiltered query
+	expectedTagValues = append(expectedTagValues, otherTagValues...)
+	expectedEventTagValues = append(expectedEventTagValues, otherEventTagValues...)
+	expectedLinkTagValues = append(expectedLinkTagValues, otherLinkTagValues...)
+
+	// test un-filtered query and check that bad/invalid TraceQL query returns all tag values and is same as unfiltered query
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, emptyQuery, expectedTagValues, expectedEventTagValues, expectedLinkTagValues)
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, invalidQuery, expectedTagValues, expectedEventTagValues, expectedLinkTagValues)
+	testSearchTagsAndValuesV2(t, userCtx, i, tagKey, partInvalidQuery, expectedTagValues, expectedEventTagValues, expectedLinkTagValues)
 }
 
 // nolint:revive,unparam
@@ -437,7 +449,7 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Config{
 		Defaults: overrides.Overrides{
 			Read: overrides.ReadOverrides{
-				MaxBytesPerTagValuesQuery: 10,
+				MaxBytesPerTagValuesQuery: 12,
 			},
 		},
 	}, nil, prometheus.DefaultRegisterer)
@@ -457,9 +469,9 @@ func TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial(t *testing.T) {
 	_, _, _, _ = writeTracesForSearch(t, i, "", tagKey, tagValue, true, false)
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
-	resp, err := i.SearchTagValues(userCtx, tagKey)
+	resp, err := i.SearchTagValues(userCtx, tagKey, 0, 0)
 	require.NoError(t, err)
-	require.Equal(t, 2, len(resp.TagValues)) // Only two values of the form "bar123" fit in the 10 byte limit above.
+	require.Equal(t, 2, len(resp.TagValues)) // Only two values of the form "bar123" fit in the 12 byte limit above.
 }
 
 // TestInstanceSearchMaxBytesPerTagValuesQueryReturnsPartial confirms that SearchTagValues returns
@@ -497,7 +509,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 
 	userCtx := user.InjectOrgID(context.Background(), "fake")
 
-	respV1, err := i.SearchTagValues(userCtx, tagKey)
+	respV1, err := i.SearchTagValues(userCtx, tagKey, 0, 0)
 	require.NoError(t, err)
 	assert.Equal(t, 100, len(respV1.TagValues))
 
@@ -511,7 +523,7 @@ func TestInstanceSearchMaxBlocksPerTagValuesQueryReturnsPartial(t *testing.T) {
 
 	i.limiter = NewLimiter(limits, &ringCountMock{count: 1}, 1)
 
-	respV1, err = i.SearchTagValues(userCtx, tagKey)
+	respV1, err = i.SearchTagValues(userCtx, tagKey, 0, 0)
 	require.NoError(t, err)
 	assert.Equal(t, 200, len(respV1.TagValues))
 
@@ -592,8 +604,6 @@ func writeTracesForSearch(t *testing.T, i *instance, spanName, tagKey, tagValue 
 		// searchData will be nil if not
 		err = i.PushBytes(context.Background(), id, traceBytes)
 		require.NoError(t, err)
-
-		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 	}
 
 	// traces have to be cut to show up in searches
@@ -707,7 +717,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	go concurrent(func() {
 		// SearchTagValues queries now require userID in ctx
 		ctx := user.InjectOrgID(context.Background(), "test")
-		_, err := i.SearchTagValues(ctx, tagKey)
+		_, err := i.SearchTagValues(ctx, tagKey, 0, 0)
 		require.NoError(t, err, "error getting search tag values")
 	})
 
@@ -796,8 +806,6 @@ func TestInstanceSearchMetrics(t *testing.T) {
 
 		err = i.PushBytes(context.Background(), id, traceBytes)
 		require.NoError(t, err)
-
-		assert.Equal(t, int(i.traceCount.Load()), len(i.traces))
 	}
 
 	search := func() *tempopb.SearchMetrics {
@@ -997,6 +1005,67 @@ func TestIncludeBlock(t *testing.T) {
 			})
 
 			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func Test_searchTagValuesV2CacheKey(t *testing.T) {
+	tests := []struct {
+		name             string
+		req              *tempopb.SearchTagValuesRequest
+		limit            int
+		prefix           string
+		expectedCacheKey string
+	}{
+		{
+			name:             "prefix empty",
+			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: "{}"},
+			limit:            100,
+			prefix:           "",
+			expectedCacheKey: "_10963035328899851375.buf",
+		},
+		{
+			name:   "prefix not empty but same query",
+			req:    &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: "{}"},
+			limit:  100,
+			prefix: "my_amazing_prefix",
+			// hash should be same, only prefix should change
+			expectedCacheKey: "my_amazing_prefix_10963035328899851375.buf",
+		},
+		{
+			name:             "changing limit changes the cache key for same query",
+			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: "{}"},
+			limit:            500,
+			prefix:           "my_amazing_prefix",
+			expectedCacheKey: "my_amazing_prefix_10962052365504419966.buf",
+		},
+		{
+			name:             "different query generates different cache key",
+			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: "{ name = \"foo\" }"},
+			limit:            500,
+			prefix:           "my_amazing_prefix",
+			expectedCacheKey: "my_amazing_prefix_9241051696576633442.buf",
+		},
+		{
+			name:             "invalid query generates a valid cache key",
+			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: "{span.env=dev}"},
+			limit:            500,
+			prefix:           "my_amazing_prefix",
+			expectedCacheKey: "my_amazing_prefix_7849238702443650194.buf",
+		},
+		{
+			name:             "different invalid query generates the same valid cache key",
+			req:              &tempopb.SearchTagValuesRequest{TagName: "span.foo", Query: "{ <not valid traceql> && span.foo = \"bar\" }"},
+			limit:            500,
+			prefix:           "my_amazing_prefix",
+			expectedCacheKey: "my_amazing_prefix_7849238702443650194.buf",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cacheKey := searchTagValuesV2CacheKey(tt.req, tt.limit, tt.prefix)
+			require.Equal(t, tt.expectedCacheKey, cacheKey)
 		})
 	}
 }

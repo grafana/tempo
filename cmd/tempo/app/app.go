@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/signals"
+	"github.com/grafana/tempo/modules/blockbuilder"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
@@ -71,18 +72,21 @@ type App struct {
 	Server         TempoServer
 	InternalServer *server.Server
 
-	readRings     map[string]*ring.Ring
-	Overrides     overrides.Service
-	distributor   *distributor.Distributor
-	querier       *querier.Querier
-	frontend      *frontend_v1.Frontend
-	compactor     *compactor.Compactor
-	ingester      *ingester.Ingester
-	generator     *generator.Generator
-	store         storage.Store
-	usageReport   *usagestats.Reporter
-	cacheProvider cache.Provider
-	MemberlistKV  *memberlist.KVInitService
+	readRings            map[string]*ring.Ring
+	partitionRing        *ring.PartitionInstanceRing
+	partitionRingWatcher *ring.PartitionRingWatcher
+	Overrides            overrides.Service
+	distributor          *distributor.Distributor
+	querier              *querier.Querier
+	frontend             *frontend_v1.Frontend
+	compactor            *compactor.Compactor
+	ingester             *ingester.Ingester
+	generator            *generator.Generator
+	blockBuilder         *blockbuilder.BlockBuilder
+	store                storage.Store
+	usageReport          *usagestats.Reporter
+	cacheProvider        cache.Provider
+	MemberlistKV         *memberlist.KVInitService
 
 	HTTPAuthMiddleware       middleware.Interface
 	TracesConsumerMiddleware receiver.Middleware
@@ -270,7 +274,7 @@ func (t *App) writeStatusConfig(w io.Writer, r *http.Request) error {
 	mode := r.URL.Query().Get("mode")
 	switch mode {
 	case "diff":
-		defaultCfg := newDefaultConfig()
+		defaultCfg := NewDefaultConfig()
 
 		defaultCfgYaml, err := util.YAMLMarshalUnmarshal(defaultCfg)
 		if err != nil {
@@ -287,7 +291,7 @@ func (t *App) writeStatusConfig(w io.Writer, r *http.Request) error {
 			return err
 		}
 	case "defaults":
-		output = newDefaultConfig()
+		output = NewDefaultConfig()
 	case "":
 		output = t.cfg
 	default:

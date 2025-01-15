@@ -171,9 +171,9 @@ check-jsonnetfmt: jsonnetfmt
 .PHONY: lint
 lint: # linting
 ifneq ($(base),)
-	$(TOOLS_CMD) $(LINT) run --config .golangci.yml --new-from-rev=$(base)
+	$(LINT_CMD) $(LINT) run --config .golangci.yml --new-from-rev=$(base)
 else
-	$(TOOLS_CMD) $(LINT) run --config .golangci.yml
+	$(LINT_CMD) $(LINT) run --config .golangci.yml
 endif
 
 ##@ Docker Images
@@ -183,6 +183,12 @@ docker-component: check-component exe # not intended to be used directly
 	docker build -t grafana/$(COMPONENT) --build-arg=TARGETARCH=$(GOARCH) -f ./cmd/$(COMPONENT)/Dockerfile .
 	docker tag grafana/$(COMPONENT) $(COMPONENT)
 
+.PHONY: docker-component-multi
+docker-component-multi: check-component # not intended to be used directly
+	GOOS=linux GOARCH=amd64 $(MAKE) $(COMPONENT)
+	GOOS=linux GOARCH=arm64 $(MAKE) $(COMPONENT)
+	docker buildx build -t grafana/$(COMPONENT) --platform linux/amd64,linux/arm64 --output type=docker -f ./cmd/$(COMPONENT)/Dockerfile .
+
 .PHONY: docker-component-debug
 docker-component-debug: check-component exe-debug 
 	docker build -t grafana/$(COMPONENT)-debug --build-arg=TARGETARCH=$(GOARCH) -f ./cmd/$(COMPONENT)/Dockerfile_debug .
@@ -191,6 +197,10 @@ docker-component-debug: check-component exe-debug
 .PHONY: docker-tempo 
 docker-tempo: ## Build tempo docker image
 	COMPONENT=tempo $(MAKE) docker-component
+
+.PHONY: docker-tempo-multi
+docker-tempo-multi: ## Build multiarch image locally, requires containerd image store
+	COMPONENT=tempo $(MAKE) docker-component-multi
 
 docker-tempo-debug: ## Build tempo debug docker image
 	COMPONENT=tempo $(MAKE) docker-component-debug
@@ -340,7 +350,7 @@ jsonnet-test: tools-image ## Test jsonnet
 .PHONY: docker-serverless test-serverless
 docker-serverless: ## Build docker Tempo serverless
 	$(MAKE) -C cmd/tempo-serverless build-docker
- 
+
 test-serverless: ## Run Tempo serverless tests
 	$(MAKE) -C cmd/tempo-serverless test
 
@@ -352,26 +362,9 @@ tempo-mixin: tools-image
 tempo-mixin-check: tools-image
 	$(TOOLS_CMD) $(MAKE) -C operations/tempo-mixin check
 
-##@ drone
-.PHONY: drone drone-jsonnet drone-signature
-# this requires the drone-cli https://docs.drone.io/cli/install/
-drone: ## Run Drone targets
-	# piggyback on Loki's build image, this image contains a newer version of drone-cli than is
-	# released currently (1.4.0). The newer version of drone-clie keeps drone.yml human-readable.
-	# This will run 'make drone-jsonnet' from within the container
-	docker run -e DRONE_SERVER -e DRONE_TOKEN --rm -v $(shell pwd):/src/loki ${LOKI_BUILD_IMAGE} drone-jsonnet drone-signature
-
-	drone lint .drone/drone.yml --trusted
-
-drone-jsonnet:
-	drone jsonnet --stream --format --source .drone/drone.jsonnet --target .drone/drone.yml
-
-drone-signature:
-ifndef DRONE_TOKEN
-	$(error DRONE_TOKEN is not set, visit https://drone.grafana.net/account)
-endif
-	DRONE_SERVER=https://drone.grafana.net drone sign --save grafana/tempo .drone/drone.yml
-
+.PHONY: generate-manifest
+generate-manifest:
+	GO111MODULE=on CGO_ENABLED=0 go run -v pkg/docsgen/generate_manifest.go
 
 # Import fragments
 include build/tools.mk

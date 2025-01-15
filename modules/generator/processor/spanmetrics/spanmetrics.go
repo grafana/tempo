@@ -2,9 +2,10 @@ package spanmetrics
 
 import (
 	"context"
+	"fmt"
 	"time"
+	"unicode/utf8"
 
-	"github.com/prometheus/prometheus/util/strutil"
 	"go.opentelemetry.io/otel"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
@@ -40,12 +41,13 @@ type Processor struct {
 
 	filter               *spanfilter.SpanFilter
 	filteredSpansCounter prometheus.Counter
+	invalidUTF8Counter   prometheus.Counter
 
 	// for testing
 	now func() time.Time
 }
 
-func New(cfg Config, reg registry.Registry, spanDiscardCounter prometheus.Counter) (gen.Processor, error) {
+func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Counter prometheus.Counter) (gen.Processor, error) {
 	labels := make([]string, 0, 4+len(cfg.Dimensions))
 
 	if cfg.IntrinsicDimensions.Service {
@@ -65,11 +67,16 @@ func New(cfg Config, reg registry.Registry, spanDiscardCounter prometheus.Counte
 	}
 
 	for _, d := range cfg.Dimensions {
-		labels = append(labels, sanitizeLabelNameWithCollisions(d))
+		labels = append(labels, processor_util.SanitizeLabelNameWithCollisions(d, intrinsicLabels))
 	}
 
 	for _, m := range cfg.DimensionMappings {
-		labels = append(labels, sanitizeLabelNameWithCollisions(m.Name))
+		labels = append(labels, processor_util.SanitizeLabelNameWithCollisions(m.Name, intrinsicLabels))
+	}
+
+	err := validateLabelValues(labels)
+	if err != nil {
+		return nil, err
 	}
 
 	p := &Processor{
@@ -78,7 +85,8 @@ func New(cfg Config, reg registry.Registry, spanDiscardCounter prometheus.Counte
 		spanMetricsTargetInfo: reg.NewGauge(targetInfo),
 		now:                   time.Now,
 		labels:                labels,
-		filteredSpansCounter:  spanDiscardCounter,
+		filteredSpansCounter:  filteredSpansCounter,
+		invalidUTF8Counter:    invalidUTF8Counter,
 	}
 
 	if cfg.Subprocessors[Latency] {
@@ -96,7 +104,6 @@ func New(cfg Config, reg registry.Registry, spanDiscardCounter prometheus.Counte
 		return nil, err
 	}
 
-	p.filteredSpansCounter = spanDiscardCounter
 	p.filter = filter
 	return p, nil
 }
@@ -116,16 +123,15 @@ func (p *Processor) Shutdown(_ context.Context) {
 }
 
 func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
+	resourceLabels := make([]string, 0)
+	resourceValues := make([]string, 0)
 	for _, rs := range resourceSpans {
 		// already extract job name & instance id, so we only have to do it once per batch of spans
 		svcName, _ := processor_util.FindServiceName(rs.Resource.Attributes)
 		jobName := processor_util.GetJobValue(rs.Resource.Attributes)
 		instanceID, _ := processor_util.FindInstanceID(rs.Resource.Attributes)
-		resourceLabels := make([]string, 0) // TODO move outside the loop and reuse?
-		resourceValues := make([]string, 0) // TODO don't allocate unless needed?
-
 		if p.Cfg.EnableTargetInfo {
-			resourceLabels, resourceValues = processor_util.GetTargetInfoAttributesValues(rs.Resource.Attributes, p.Cfg.TargetInfoExcludedDimensions)
+			processor_util.GetTargetInfoAttributesValues(&resourceLabels, &resourceValues, rs.Resource.Attributes, p.Cfg.TargetInfoExcludedDimensions, intrinsicLabels)
 		}
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
@@ -203,6 +209,12 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 
 	spanMultiplier := processor_util.GetSpanMultiplier(p.Cfg.SpanMultiplierKey, span, rs)
 
+	err := validateLabelValues(labelValues)
+	if err != nil {
+		p.invalidUTF8Counter.Inc()
+		return
+	}
+
 	registryLabelValues := p.registry.NewLabelValueCombo(labels, labelValues)
 
 	if p.Cfg.Subprocessors[Count] {
@@ -223,10 +235,6 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 		// TODO - attribute names are stable across applications
 		//        so let's cache the result of previous sanitizations
 		resourceAttributesCount := len(targetInfoLabels)
-		for index, label := range targetInfoLabels {
-			// sanitize label name
-			targetInfoLabels[index] = sanitizeLabelNameWithCollisions(label)
-		}
 
 		// add joblabel to target info only if job is not blank
 		if jobName != "" {
@@ -249,16 +257,11 @@ func (p *Processor) aggregateMetricsForSpan(svcName string, jobName string, inst
 	}
 }
 
-func sanitizeLabelNameWithCollisions(name string) string {
-	sanitized := strutil.SanitizeLabelName(name)
-
-	if isIntrinsicDimension(sanitized) {
-		return "__" + sanitized
+func validateLabelValues(v []string) error {
+	for _, value := range v {
+		if !utf8.ValidString(value) {
+			return fmt.Errorf("invalid utf8 string: %s", value)
+		}
 	}
-
-	return sanitized
-}
-
-func isIntrinsicDimension(name string) bool {
-	return processor_util.Contains(name, []string{dimJob, dimSpanName, dimSpanKind, dimStatusCode, dimStatusMessage, dimInstance})
+	return nil
 }

@@ -297,7 +297,7 @@ func runnerClientCancelContext(t *testing.T, f *QueryFrontend) {
 	}()
 	grpcReq := &tempopb.SearchRequest{Query: "{}"}
 	err := f.streamingSearch(grpcReq, srv)
-	require.Equal(t, status.Error(codes.Internal, "context canceled"), err)
+	require.Equal(t, status.Error(codes.Canceled, "context canceled"), err)
 }
 
 func TestSearchLimitHonored(t *testing.T) {
@@ -317,7 +317,8 @@ func TestSearchLimitHonored(t *testing.T) {
 			}
 		},
 	}, nil, &Config{
-		MultiTenantQueriesEnabled: true,
+		MultiTenantQueriesEnabled:   true,
+		MaxQueryExpressionSizeBytes: 10000,
 		TraceByID: TraceByIDConfig{
 			QueryShards: minQueryShards,
 			SLO:         testSLOcfg,
@@ -480,8 +481,9 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 				}
 			},
 		}, nil, &Config{
-			MultiTenantQueriesEnabled: true,
-			MaxRetries:                0, // disable retries or it will try twice and get success. the querier response is designed to fail exactly once
+			MultiTenantQueriesEnabled:   true,
+			MaxQueryExpressionSizeBytes: 100000,
+			MaxRetries:                  0, // disable retries or it will try twice and get success. the querier response is designed to fail exactly once
 			TraceByID: TraceByIDConfig{
 				QueryShards: minQueryShards,
 				SLO:         testSLOcfg,
@@ -526,8 +528,9 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 				}
 			},
 		}, nil, &Config{
-			MultiTenantQueriesEnabled: true,
-			MaxRetries:                0, // disable retries or it will try twice and get success
+			MultiTenantQueriesEnabled:   true,
+			MaxQueryExpressionSizeBytes: 100000,
+			MaxRetries:                  0, // disable retries or it will try twice and get success
 			TraceByID: TraceByIDConfig{
 				QueryShards: minQueryShards,
 				SLO:         testSLOcfg,
@@ -774,7 +777,8 @@ func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr te
 	}
 	if cfg == nil {
 		cfg = &Config{
-			MultiTenantQueriesEnabled: true,
+			MultiTenantQueriesEnabled:   true,
+			MaxQueryExpressionSizeBytes: 100000,
 			TraceByID: TraceByIDConfig{
 				QueryShards: minQueryShards,
 				SLO:         testSLOcfg,

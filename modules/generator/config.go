@@ -1,8 +1,10 @@
 package generator
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/grafana/tempo/modules/generator/processor/localblocks"
@@ -10,6 +12,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/storage"
+	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
 )
@@ -20,20 +23,28 @@ const (
 
 	// ringNameForServer is the name of the ring used by the metrics-generator server.
 	ringNameForServer = "metrics-generator"
+
+	ConsumerGroup = "metrics-generator"
 )
 
 // Config for a generator.
 type Config struct {
-	Ring      RingConfig      `yaml:"ring"`
-	Processor ProcessorConfig `yaml:"processor"`
-	Registry  registry.Config `yaml:"registry"`
-	Storage   storage.Config  `yaml:"storage"`
-	TracesWAL wal.Config      `yaml:"traces_storage"`
+	Ring           RingConfig      `yaml:"ring"`
+	Processor      ProcessorConfig `yaml:"processor"`
+	Registry       registry.Config `yaml:"registry"`
+	Storage        storage.Config  `yaml:"storage"`
+	TracesWAL      wal.Config      `yaml:"traces_storage"`
+	TracesQueryWAL wal.Config      `yaml:"traces_query_storage"`
 	// MetricsIngestionSlack is the max amount of time passed since a span's end time
 	// for the span to be considered in metrics generation
 	MetricsIngestionSlack time.Duration `yaml:"metrics_ingestion_time_range_slack"`
 	QueryTimeout          time.Duration `yaml:"query_timeout"`
 	OverrideRingKey       string        `yaml:"override_ring_key"`
+
+	// This config is dynamically injected because defined outside the generator config.
+	Ingest             ingest.Config      `yaml:"-"`
+	AssignedPartitions map[string][]int32 `yaml:"assigned_partitions" doc:"List of partitions assigned to this block builder."`
+	InstanceID         string             `yaml:"instance_id" doc:"default=<hostname>" category:"advanced"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -42,13 +53,45 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Processor.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Registry.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.Storage.RegisterFlagsAndApplyDefaults(prefix, f)
+	cfg.TracesWAL.RegisterFlags(f)
 	cfg.TracesWAL.Version = encoding.DefaultEncoding().Version()
-	cfg.TracesWAL.IngestionSlack = 2 * time.Minute
+	cfg.TracesQueryWAL.RegisterFlags(f)
+	cfg.TracesQueryWAL.Version = encoding.DefaultEncoding().Version()
 
 	// setting default for max span age before discarding to 30s
 	cfg.MetricsIngestionSlack = 30 * time.Second
 	cfg.QueryTimeout = 30 * time.Second
 	cfg.OverrideRingKey = generatorRingKey
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		fmt.Printf("failed to get hostname: %v", err)
+		os.Exit(1)
+	}
+	f.StringVar(&cfg.InstanceID, prefix+".instance-id", hostname, "Instance id.")
+	f.Var(newPartitionAssignmentVar(&cfg.AssignedPartitions), prefix+".assigned-partitions", "List of partitions assigned to this metrics generator.")
+}
+
+func (cfg *Config) Validate() error {
+	if cfg.Ingest.Enabled {
+		if err := cfg.Ingest.Kafka.Validate(); err != nil {
+			return err
+		}
+	}
+
+	// Only validate if being used
+	if cfg.TracesWAL.Filepath != "" {
+		if err := cfg.TracesWAL.Validate(); err != nil {
+			return err
+		}
+	}
+	if cfg.TracesQueryWAL.Filepath != "" {
+		if err := cfg.TracesQueryWAL.Validate(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 type ProcessorConfig struct {
@@ -140,4 +183,30 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 	copyCfg.SpanMetrics.Subprocessors = copySubprocessors
 
 	return copyCfg, nil
+}
+
+type partitionAssignmentVar struct {
+	p *map[string][]int32
+}
+
+func newPartitionAssignmentVar(p *map[string][]int32) *partitionAssignmentVar {
+	return &partitionAssignmentVar{p}
+}
+
+func (p *partitionAssignmentVar) Set(s string) error {
+	if s == "" {
+		return nil
+	}
+
+	val := make(map[string][]int32)
+	if err := json.Unmarshal([]byte(s), &val); err != nil {
+		return err
+	}
+	*p.p = val
+
+	return nil
+}
+
+func (p *partitionAssignmentVar) String() string {
+	return fmt.Sprintf("%v", *p.p)
 }

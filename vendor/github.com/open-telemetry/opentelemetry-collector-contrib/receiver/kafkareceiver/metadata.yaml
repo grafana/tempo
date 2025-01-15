@@ -1,5 +1,4 @@
 type: kafka
-scope_name: otelcol/kafkareceiver
 
 status:
   class: receiver
@@ -14,8 +13,60 @@ status:
 # TODO: Update the receiver to pass the tests
 tests:
   skip_lifecycle: true
-  goleak:
-    ignore:
-      top:
-        # See https://github.com/census-instrumentation/opencensus-go/issues/1191 for more information.
-        - "go.opencensus.io/stats/view.(*worker).start"
+
+telemetry:
+  metrics:
+    kafka_receiver_messages:
+      enabled: true
+      description: Number of received messages
+      unit: "1"
+      sum:
+        value_type: int
+        monotonic: true
+    kafka_receiver_current_offset:
+      enabled: true
+      description: Current message offset
+      unit: "1"
+      gauge:
+        value_type: int
+    kafka_receiver_offset_lag:
+      enabled: true
+      description: Current offset lag
+      unit: "1"
+      gauge:
+        value_type: int
+    kafka_receiver_partition_start:
+      enabled: true
+      description: Number of started partitions
+      unit: "1"
+      sum:
+        value_type: int
+        monotonic: true
+    kafka_receiver_partition_close:
+      enabled: true
+      description: Number of finished partitions
+      unit: "1"
+      sum:
+        value_type: int
+        monotonic: true
+    kafka_receiver_unmarshal_failed_metric_points:
+      enabled: true
+      description: Number of metric points failed to be unmarshaled
+      unit: "1"
+      sum:
+        value_type: int
+        monotonic: true
+    kafka_receiver_unmarshal_failed_log_records:
+      enabled: true
+      description: Number of log records failed to be unmarshaled
+      unit: "1"
+      sum:
+        value_type: int
+        monotonic: true
+    kafka_receiver_unmarshal_failed_spans:
+      enabled: true
+      description: Number of spans failed to be unmarshaled
+      unit: "1"
+      sum:
+        value_type: int
+        monotonic: true

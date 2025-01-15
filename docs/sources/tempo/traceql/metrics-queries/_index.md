@@ -6,6 +6,17 @@ weight: 600
 keywords:
   - metrics query
   - TraceQL metrics
+refs:
+  solve-problems-mq:
+    - pattern: /docs/tempo/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/solve-problems-metrics-queries/
+    - pattern: /docs/enterprise-traces/
+      destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/traceql/metrics-queries/solve-problems-metrics-queries/
+  mq-functions:
+    - pattern: /docs/tempo/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/functions/
+    - pattern: /docs/enterprise-traces/
+      destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/traceql/metrics-queries/functions/
 ---
 
 # TraceQL metrics queries
@@ -43,7 +54,7 @@ For more information about the RED method, refer to [The RED Method: how to inst
 
 You can write TraceQL metrics queries to compute rate, errors, and durations over different groups of spans.
 
-For more information on how to use TraceQL metrics to investigate issues, refer to [Solve problems with metrics queries](./solve-problems-metrics-queries).
+For more information on how to use TraceQL metrics to investigate issues, refer to [Solve problems with metrics queries](ref:solve-problems-mq).
 
 ## Enable and use TraceQL metrics
 
@@ -56,14 +67,14 @@ To run TraceQL metrics queries in Grafana, you need Grafana Cloud or Grafana 10.
 No extra configuration is needed.
 Use a Tempo data source that points to a Tempo database with TraceQL metrics enabled.
 
-Refer to [Solve problems using metrics queries](./solve-problems-metrics-queries/) for some real-world examples.
+Refer to [Solve problems using metrics queries](ref:solve-problems-mq) for some real-world examples.
 
 ### Functions
 
 TraceQL metrics queries currently include the following functions for aggregating over groups of spans: `rate`, `count_over_time`, `max_over_time`, `min_over_time`, `avg_over_time`, `quantile_over_time`, `histogram_over_time`, and `compare`.
 These functions can be added as an operator at the end of any TraceQL query.
 
-For detailed information and example queries for each function, refer to [TraceQL metrics functions](./functions).
+For detailed information and example queries for each function, refer to [TraceQL metrics functions](ref:mq-functions).
 
 ### Exemplars
 

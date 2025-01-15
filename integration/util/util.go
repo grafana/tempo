@@ -21,7 +21,6 @@ import (
 
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/e2e"
-	"github.com/grafana/tempo/pkg/model/trace"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/stretchr/testify/assert"
@@ -39,6 +38,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/grafana/tempo/pkg/httpclient"
+	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 )
@@ -47,7 +47,7 @@ const (
 	image       = "tempo:latest"
 	debugImage  = "tempo-debug:latest"
 	queryImage  = "tempo-query:latest"
-	jaegerImage = "jaegertracing/jaeger-query:1.60"
+	jaegerImage = "jaegertracing/jaeger-query:1.64.0"
 )
 
 // GetExtraArgs returns the extra args to pass to the Docker command used to run Tempo.
@@ -348,9 +348,9 @@ func NewOtelGRPCExporter(endpoint string) (exporter.Traces, error) {
 		},
 	}
 	logger, _ := zap.NewDevelopment()
-	return factory.CreateTracesExporter(
+	return factory.CreateTraces(
 		context.Background(),
-		exporter.CreateSettings{
+		exporter.Settings{
 			TelemetrySettings: component.TelemetrySettings{
 				Logger:         logger,
 				TracerProvider: tnoop.NewTracerProvider(),
@@ -609,7 +609,7 @@ func AssertEcho(t *testing.T, url string) {
 	res, err := e2e.DoGet(url)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, res.StatusCode)
-	defer res.Body.Close()
+	defer func() { require.NoError(t, res.Body.Close()) }()
 }
 
 func QueryAndAssertTrace(t *testing.T, client *httpclient.Client, info *tempoUtil.TraceInfo) {

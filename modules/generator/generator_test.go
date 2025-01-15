@@ -63,7 +63,7 @@ overrides:
 	generatorConfig.Storage.Path = t.TempDir()
 	generatorConfig.Ring.KVStore.Store = "inmemory"
 	generatorConfig.Processor.SpanMetrics.RegisterFlagsAndApplyDefaults("", nil)
-	g, err := New(generatorConfig, o, prometheus.NewRegistry(), nil, newTestLogger(t))
+	g, err := New(generatorConfig, o, prometheus.NewRegistry(), nil, nil, newTestLogger(t))
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(context.Background(), g))
 
@@ -155,7 +155,7 @@ func BenchmarkPushSpans(b *testing.B) {
 				"span-metrics":   {},
 				"service-graphs": {},
 			},
-			spanMetricsEnableTargetInfo:             true,
+			spanMetricsEnableTargetInfo:             false,
 			spanMetricsTargetInfoExcludedDimensions: []string{"excluded}"},
 		}
 	)
@@ -165,12 +165,18 @@ func BenchmarkPushSpans(b *testing.B) {
 	wal, err := storage.New(walcfg, o, tenant, reg, log)
 	require.NoError(b, err)
 
-	inst, err := newInstance(cfg, tenant, o, wal, reg, log, nil, nil)
+	inst, err := newInstance(cfg, tenant, o, wal, reg, log, nil, nil, nil)
 	require.NoError(b, err)
 	defer inst.shutdown()
 
 	req := &tempopb.PushSpansRequest{
 		Batches: []*trace_v1.ResourceSpans{
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
 			test.MakeBatch(100, nil),
 			test.MakeBatch(100, nil),
 			test.MakeBatch(100, nil),
@@ -189,11 +195,13 @@ func BenchmarkPushSpans(b *testing.B) {
 			{Key: "k8s.node.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
 			{Key: "k8s.pod.ip", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
 			{Key: "k8s.pod.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+			{Key: "service.instance.id", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
 			{Key: "excluded", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
 		}...)
 	}
 
 	b.ResetTimer()
+	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		inst.pushSpans(ctx, req)
 	}
@@ -234,7 +242,7 @@ func BenchmarkCollect(b *testing.B) {
 	wal, err := storage.New(walcfg, o, tenant, reg, log)
 	require.NoError(b, err)
 
-	inst, err := newInstance(cfg, tenant, o, wal, reg, log, nil, nil)
+	inst, err := newInstance(cfg, tenant, o, wal, reg, log, nil, nil, nil)
 	require.NoError(b, err)
 	defer inst.shutdown()
 

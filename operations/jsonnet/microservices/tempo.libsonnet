@@ -7,6 +7,7 @@
 (import 'generator.libsonnet') +
 (import 'frontend.libsonnet') +
 (import 'querier.libsonnet') +
+(import 'block-builder.libsonnet') +
 (import 'vulture.libsonnet') +
 (import 'memcached.libsonnet') +
 (import 'multi-zone.libsonnet') +

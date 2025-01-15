@@ -1,6 +1,8 @@
 package combiner
 
 import (
+	"math"
+	"slices"
 	"sort"
 	"strings"
 
@@ -42,6 +44,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (Combiner, e
 				resp = &tempopb.QueryRangeResponse{}
 			}
 			sortResponse(resp)
+			attachExemplars(req, resp)
 			return resp, nil
 		},
 		diff: func(_ *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
@@ -79,5 +82,34 @@ func sortResponse(res *tempopb.QueryRangeResponse) {
 		sort.Slice(series.Exemplars, func(i, j int) bool {
 			return series.Exemplars[i].TimestampMs < series.Exemplars[j].TimestampMs
 		})
+	}
+}
+
+// attachExemplars to the final series outputs. Placeholder exemplars for things like rate()
+// have NaNs, and we can't attach them until the very end.
+func attachExemplars(req *tempopb.QueryRangeRequest, res *tempopb.QueryRangeResponse) {
+	for _, ss := range res.Series {
+		for i, e := range ss.Exemplars {
+
+			// Only needed for NaNs
+			if !math.IsNaN(e.Value) {
+				continue
+			}
+
+			exemplarInterval := traceql.IntervalOfMs(e.TimestampMs, req.Start, req.End, req.Step)
+
+			// Look for sample in the same slot.
+			// BinarySearch is possible because all samples were sorted previously.
+			j, ok := slices.BinarySearchFunc(ss.Samples, exemplarInterval, func(s tempopb.Sample, _ int) int {
+				// NOTE - Look for sample in same interval, not same value.
+				si := traceql.IntervalOfMs(s.TimestampMs, req.Start, req.End, req.Step)
+
+				// This returns negative, zero, or positive
+				return si - exemplarInterval
+			})
+			if ok {
+				ss.Exemplars[i].Value = ss.Samples[j].Value
+			}
+		}
 	}
 }

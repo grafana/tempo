@@ -214,10 +214,10 @@ func convertExponentialBuckets(bucketSpans []*dto.BucketSpan, deltas []int64) me
 	initialOffset := bucketSpans[0].GetOffset() - 1
 	// We will have one bucket count for each delta, and zeros for the offsets
 	// after the initial offset.
-	lenCounts := int32(len(deltas))
+	lenCounts := len(deltas)
 	for i, bs := range bucketSpans {
 		if i != 0 {
-			lenCounts += bs.GetOffset()
+			lenCounts += int(bs.GetOffset())
 		}
 	}
 	counts := make([]uint64, lenCounts)

@@ -35,16 +35,20 @@ func (m *ringCountMock) HealthyInstancesCount() int {
 
 func TestInstance(t *testing.T) {
 	request := makeRequest([]byte{})
+	requestSz := uint64(0)
+	for _, b := range request.Traces {
+		requestSz += uint64(len(b.Slice))
+	}
 
 	i, ingester := defaultInstance(t)
 
 	response := i.PushBytesRequest(context.Background(), request)
 	require.NotNil(t, response)
-	require.Equal(t, int(i.traceCount.Load()), len(i.traces))
+	require.Equal(t, requestSz, i.traceSizeBytes)
 
 	err := i.CutCompleteTraces(0, true)
 	require.NoError(t, err)
-	require.Equal(t, int(i.traceCount.Load()), len(i.traces))
+	require.Equal(t, uint64(0), i.traceSizeBytes)
 
 	blockID, err := i.CutBlockIfReady(0, 0, false)
 	require.NoError(t, err, "unexpected error cutting block")
@@ -71,8 +75,6 @@ func TestInstance(t *testing.T) {
 
 	err = i.resetHeadBlock()
 	require.NoError(t, err, "unexpected error resetting block")
-
-	require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 }
 
 func TestInstanceFind(t *testing.T) {
@@ -85,7 +87,6 @@ func TestInstanceFind(t *testing.T) {
 
 	err := i.CutCompleteTraces(0, true)
 	require.NoError(t, err)
-	require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 	for j := 0; j < numTraces; j++ {
 		traceBytes, err := model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForWrite(traces[j], 0, 0)
@@ -140,7 +141,6 @@ func pushTracesToInstance(t *testing.T, i *instance, numTraces int) ([]*tempopb.
 
 		err = i.PushBytes(context.Background(), id, traceBytes)
 		require.NoError(t, err)
-		require.Equal(t, int(i.traceCount.Load()), len(i.traces))
 
 		ids = append(ids, id)
 		traces = append(traces, testTrace)
@@ -570,9 +570,26 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	_, _, traceTooLargeCount = CheckPushBytesError(response)
 	assert.Equal(t, true, traceTooLargeCount > 0)
 
-	// Cut block and then pushing works again
+	// Cut block and then pushing still fails b/c too large traces persist til they stop being pushed
 	_, err = i.CutBlockIfReady(0, 0, true)
 	require.NoError(t, err)
+	response = i.PushBytesRequest(ctx, req)
+	_, _, traceTooLargeCount = CheckPushBytesError(response)
+	assert.Equal(t, true, traceTooLargeCount > 0)
+
+	// Cut block 2x w/o while pushing other traces, but not the problematic trace! this will finally clear the trace
+	i.PushBytesRequest(ctx, makeRequestWithByteLimit(200, nil))
+	err = i.CutCompleteTraces(0, true)
+	require.NoError(t, err)
+	_, err = i.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err)
+
+	i.PushBytesRequest(ctx, makeRequestWithByteLimit(200, nil))
+	err = i.CutCompleteTraces(0, true)
+	require.NoError(t, err)
+	_, err = i.CutBlockIfReady(0, 0, true)
+	require.NoError(t, err)
+
 	response = i.PushBytesRequest(ctx, req)
 	errored, _, _ = CheckPushBytesError(response)
 	require.False(t, errored, "push failed: %w", response.ErrorsByTrace)
@@ -706,7 +723,7 @@ func BenchmarkInstancePush(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// Rotate trace ID
-		binary.LittleEndian.PutUint32(request.Ids[0].Slice, uint32(i))
+		binary.LittleEndian.PutUint32(request.Ids[0], uint32(i))
 		response := instance.PushBytesRequest(context.Background(), request)
 		errored, _, _ := CheckPushBytesError(response)
 		require.False(b, errored, "push failed: %w", response.ErrorsByTrace)
@@ -813,7 +830,9 @@ func makeRequestWithByteLimit(maxBytes int, traceID []byte) *tempopb.PushBytesRe
 	traceID = test.ValidTraceID(traceID)
 	batch := makeBatchWithMaxBytes(maxBytes, traceID)
 
-	return makePushBytesRequest(traceID, batch)
+	pushReq := makePushBytesRequest(traceID, batch)
+
+	return pushReq
 }
 
 func makePushBytesRequest(traceID []byte, batch *v1_trace.ResourceSpans) *tempopb.PushBytesRequest {
@@ -825,9 +844,9 @@ func makePushBytesRequest(traceID []byte, batch *v1_trace.ResourceSpans) *tempop
 	}
 
 	return &tempopb.PushBytesRequest{
-		Ids: []tempopb.PreallocBytes{{
-			Slice: traceID,
-		}},
+		Ids: [][]byte{
+			traceID,
+		},
 		Traces: []tempopb.PreallocBytes{{
 			Slice: buffer,
 		}},
@@ -965,7 +984,7 @@ func makePushBytesRequestMultiTraces(traceIDs [][]byte, maxBytes []int) *tempopb
 	}
 	traces := makeTraces(batches)
 
-	byteIDs := make([]tempopb.PreallocBytes, 0, len(traceIDs))
+	byteIDs := make([][]byte, 0, len(traceIDs))
 	byteTraces := make([]tempopb.PreallocBytes, 0, len(traceIDs))
 
 	for index, id := range traceIDs {
@@ -974,9 +993,7 @@ func makePushBytesRequestMultiTraces(traceIDs [][]byte, maxBytes []int) *tempopb
 			panic(err)
 		}
 
-		byteIDs = append(byteIDs, tempopb.PreallocBytes{
-			Slice: id,
-		})
+		byteIDs = append(byteIDs, id)
 		byteTraces = append(byteTraces, tempopb.PreallocBytes{
 			Slice: buffer,
 		})

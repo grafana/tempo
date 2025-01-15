@@ -12,13 +12,13 @@ var tracer = otel.Tracer("modules/frontend/pipeline")
 
 type Request interface {
 	HTTPRequest() *http.Request
-	Context() context.Context
-
-	WithContext(context.Context)
 	CloneFromHTTPRequest(request *http.Request) Request
 
-	Weight() int
+	SetContext(context.Context)
+	Context() context.Context
+
 	SetWeight(int)
+	Weight() int
 
 	SetCacheKey(string)
 	CacheKey() string
@@ -51,7 +51,7 @@ func (r HTTPRequest) Context() context.Context {
 	return r.req.Context()
 }
 
-func (r *HTTPRequest) WithContext(ctx context.Context) {
+func (r *HTTPRequest) SetContext(ctx context.Context) {
 	r.req = r.req.WithContext(ctx)
 }
 

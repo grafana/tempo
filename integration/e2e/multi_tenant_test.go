@@ -207,9 +207,9 @@ func assertRequestCountMetric(t *testing.T, s *e2e.HTTPService, route string, re
 
 // getAttrsAndSpanNames returns trace attrs and span names
 func getAttrsAndSpanNames(trace *tempopb.Trace) traceStringsMap {
-	rAttrsKeys := collector.NewDistinctString(0)
-	rAttrsValues := collector.NewDistinctString(0)
-	spanNames := collector.NewDistinctString(0)
+	rAttrsKeys := collector.NewDistinctString(0, 0, 0)
+	rAttrsValues := collector.NewDistinctString(0, 0, 0)
+	spanNames := collector.NewDistinctString(0, 0, 0)
 
 	for _, b := range trace.ResourceSpans {
 		for _, ss := range b.ScopeSpans {

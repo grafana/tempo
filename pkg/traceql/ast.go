@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math"
-	"regexp"
 	"slices"
 	"time"
 	"unsafe"
 
+	"github.com/grafana/tempo/pkg/regexp"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
@@ -73,6 +73,49 @@ func (r *RootExpr) withHints(h *Hints) *RootExpr {
 	return r
 }
 
+// IsNoop detects trival noop queries like {false} which never return
+// results and can be used to exit early.
+func (r *RootExpr) IsNoop() bool {
+	isNoopFilter := func(x any) bool {
+		f, ok := x.(*SpansetFilter)
+		if !ok {
+			return false
+		}
+
+		if f.Expression.referencesSpan() {
+			return false
+		}
+
+		// Else check for static evaluation to false
+		v, _ := f.Expression.execute(nil)
+		return v.Equals(&StaticFalse)
+	}
+
+	// Any spanset filter that references the span or something other
+	// than static false means the expression isn't noop.
+	// This checks one layer deep which covers most expressions.
+	for _, e := range r.Pipeline.Elements {
+		switch x := e.(type) {
+		case SpansetOperation:
+			if !isNoopFilter(x.LHS) {
+				return false
+			}
+			if !isNoopFilter(x.RHS) {
+				return false
+			}
+		case *SpansetFilter:
+			if !isNoopFilter(x) {
+				return false
+			}
+		default:
+			// Lots of other expressions here which aren't checked
+			// for noops yet.
+			return false
+		}
+	}
+	return true
+}
+
 // **********************
 // Pipeline
 // **********************
@@ -116,10 +159,6 @@ func (p Pipeline) extractConditions(req *FetchSpansRequest) {
 	for _, element := range p.Elements {
 		element.extractConditions(req)
 	}
-	// TODO this needs to be fine-tuned a bit, e.g. { .foo = "bar" } | by(.namespace), AllConditions can still be true
-	if len(p.Elements) > 1 {
-		req.AllConditions = false
-	}
 }
 
 func (p Pipeline) evaluate(input []*Spanset) (result []*Spanset, err error) {
@@ -154,6 +193,7 @@ func newGroupOperation(e FieldExpression) GroupOperation {
 
 func (o GroupOperation) extractConditions(request *FetchSpansRequest) {
 	o.Expression.extractConditions(request)
+	request.AllConditions = false
 }
 
 type CoalesceOperation struct{}
@@ -222,7 +262,6 @@ func (o ScalarOperation) impliedType() StaticType {
 func (o ScalarOperation) extractConditions(request *FetchSpansRequest) {
 	o.LHS.extractConditions(request)
 	o.RHS.extractConditions(request)
-	request.AllConditions = false
 }
 
 type Aggregate struct {
@@ -249,6 +288,7 @@ func (a Aggregate) impliedType() StaticType {
 }
 
 func (a Aggregate) extractConditions(request *FetchSpansRequest) {
+	request.AllConditions = false
 	if a.e != nil {
 		a.e.extractConditions(request)
 	}
@@ -378,7 +418,6 @@ func (ScalarFilter) __spansetExpression() {}
 func (f ScalarFilter) extractConditions(request *FetchSpansRequest) {
 	f.lhs.extractConditions(request)
 	f.rhs.extractConditions(request)
-	request.AllConditions = false
 }
 
 // **********************
@@ -1106,55 +1145,41 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 	var innerAgg func() VectorAggregator
 	var byFunc func(Span) (Static, bool)
 	var byFuncLabel string
-	var exemplarFn getExemplar
 
 	switch a.op {
 	case metricsAggregateCountOverTime:
 		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
 		a.simpleAggregationOp = sumAggregation
-		exemplarFn = func(s Span) (float64, uint64) {
-			return math.NaN(), a.spanStartTimeMs(s)
-		}
+		a.exemplarFn = exemplarNaN
+
 	case metricsAggregateMinOverTime:
 		innerAgg = func() VectorAggregator { return NewOverTimeAggregator(a.attr, minAggregation) }
 		a.simpleAggregationOp = minAggregation
-		exemplarFn = func(s Span) (float64, uint64) {
-			return math.NaN(), a.spanStartTimeMs(s)
-		}
+		a.exemplarFn = exemplarFnFor(a.attr)
+
 	case metricsAggregateMaxOverTime:
 		innerAgg = func() VectorAggregator { return NewOverTimeAggregator(a.attr, maxAggregation) }
 		a.simpleAggregationOp = maxAggregation
-		exemplarFn = func(s Span) (float64, uint64) {
-			return math.NaN(), a.spanStartTimeMs(s)
-		}
+		a.exemplarFn = exemplarFnFor(a.attr)
+
 	case metricsAggregateRate:
 		innerAgg = func() VectorAggregator { return NewRateAggregator(1.0 / time.Duration(q.Step).Seconds()) }
 		a.simpleAggregationOp = sumAggregation
-		exemplarFn = func(s Span) (float64, uint64) {
-			return math.NaN(), a.spanStartTimeMs(s)
-		}
+		a.exemplarFn = exemplarNaN
 
-	case metricsAggregateHistogramOverTime, metricsAggregateQuantileOverTime:
-		// Histograms and quantiles are implemented as count_over_time() by(2^log2(attr)) for now
-		// I.e. a duration of 500ms will be in __bucket==0.512s
+	case metricsAggregateHistogramOverTime:
 		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
+		byFunc = bucketizeFnFor(a.attr)
 		byFuncLabel = internalLabelBucket
 		a.simpleAggregationOp = sumAggregation
-		switch a.attr {
-		case IntrinsicDurationAttribute:
-			// Optimal implementation for duration attribute
-			byFunc = a.bucketizeSpanDuration
-			exemplarFn = func(s Span) (float64, uint64) {
-				return float64(s.DurationNanos()), a.spanStartTimeMs(s)
-			}
-		default:
-			// Basic implementation for all other attributes
-			byFunc = a.bucketizeAttribute
-			exemplarFn = func(s Span) (float64, uint64) {
-				v, _ := FloatizeAttribute(s, a.attr)
-				return v, a.spanStartTimeMs(s)
-			}
-		}
+		a.exemplarFn = exemplarNaN // Histogram final series are counts so exemplars are placeholders
+
+	case metricsAggregateQuantileOverTime:
+		innerAgg = func() VectorAggregator { return NewCountOverTimeAggregator() }
+		byFunc = bucketizeFnFor(a.attr)
+		byFuncLabel = internalLabelBucket
+		a.simpleAggregationOp = sumAggregation
+		a.exemplarFn = exemplarFnFor(a.attr)
 	}
 
 	switch mode {
@@ -1170,14 +1195,20 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 	a.agg = NewGroupingAggregator(a.op.String(), func() RangeAggregator {
 		return NewStepAggregator(q.Start, q.End, q.Step, innerAgg)
 	}, a.by, byFunc, byFuncLabel)
-	a.exemplarFn = exemplarFn
 }
 
-func (a *MetricsAggregate) spanStartTimeMs(s Span) uint64 {
-	return s.StartTimeUnixNanos() / uint64(time.Millisecond)
+func bucketizeFnFor(attr Attribute) func(Span) (Static, bool) {
+	switch attr {
+	case IntrinsicDurationAttribute:
+		// Optimal implementation for duration attribute
+		return bucketizeDuration
+	default:
+		// Basic implementation for all other attributes
+		return bucketizeAttribute(attr)
+	}
 }
 
-func (a *MetricsAggregate) bucketizeSpanDuration(s Span) (Static, bool) {
+func bucketizeDuration(s Span) (Static, bool) {
 	d := s.DurationNanos()
 	if d < 2 {
 		return NewStaticNil(), false
@@ -1186,26 +1217,63 @@ func (a *MetricsAggregate) bucketizeSpanDuration(s Span) (Static, bool) {
 	return NewStaticFloat(Log2Bucketize(d) / float64(time.Second)), true
 }
 
-func (a *MetricsAggregate) bucketizeAttribute(s Span) (Static, bool) {
-	f, t := FloatizeAttribute(s, a.attr)
+// exemplarAttribute captures a closure around the attribute so it doesn't have to be passed along with every span.
+// should be more efficient.
+func bucketizeAttribute(a Attribute) func(Span) (Static, bool) {
+	return func(s Span) (Static, bool) {
+		f, t := FloatizeAttribute(s, a)
 
-	switch t {
-	case TypeInt:
-		if f < 2 {
+		switch t {
+		case TypeInt:
+			if f < 2 {
+				return NewStaticNil(), false
+			}
+			// Bucket is the value rounded up to the nearest power of 2
+			return NewStaticFloat(Log2Bucketize(uint64(f))), true
+		case TypeDuration:
+			if f < 2 {
+				return NewStaticNil(), false
+			}
+			// Bucket is log2(nanos) converted to float seconds
+			return NewStaticFloat(Log2Bucketize(uint64(f)) / float64(time.Second)), true
+		default:
+			// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
+			// Because of the range of floats, we need a native histogram approach.
 			return NewStaticNil(), false
 		}
-		// Bucket is the value rounded up to the nearest power of 2
-		return NewStaticFloat(Log2Bucketize(uint64(f))), true
-	case TypeDuration:
-		if f < 2 {
-			return NewStaticNil(), false
-		}
-		// Bucket is log2(nanos) converted to float seconds
-		return NewStaticFloat(Log2Bucketize(uint64(f)) / float64(time.Second)), true
+	}
+}
+
+func exemplarFnFor(a Attribute) func(Span) (float64, uint64) {
+	switch a {
+	case IntrinsicDurationAttribute:
+		return exemplarDuration
+	case Attribute{}:
+		// This records exemplars without a value, and they
+		// are attached to the series at the end.
+		return exemplarNaN
 	default:
-		// TODO(mdisibio) - Add support for floats, we need to map them into buckets.
-		// Because of the range of floats, we need a native histogram approach.
-		return NewStaticNil(), false
+		return exemplarAttribute(a)
+	}
+}
+
+func exemplarNaN(s Span) (float64, uint64) {
+	return math.NaN(), s.StartTimeUnixNanos() / uint64(time.Millisecond)
+}
+
+func exemplarDuration(s Span) (float64, uint64) {
+	v := float64(s.DurationNanos()) / float64(time.Second)
+	t := s.StartTimeUnixNanos() / uint64(time.Millisecond)
+	return v, t
+}
+
+// exemplarAttribute captures a closure around the attribute so it doesn't have to be passed along with every span.
+// should be more efficient.
+func exemplarAttribute(a Attribute) func(Span) (float64, uint64) {
+	return func(s Span) (float64, uint64) {
+		v, _ := FloatizeAttribute(s, a)
+		t := s.StartTimeUnixNanos() / uint64(time.Millisecond)
+		return v, t
 	}
 }
 

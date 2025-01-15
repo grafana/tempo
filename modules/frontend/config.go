@@ -32,8 +32,11 @@ type Config struct {
 	// A list of regexes for black listing requests, these will apply for every request regardless the endpoint
 	URLDenyList []string `yaml:"url_deny_list,omitempty"`
 
-	RequestWithWeights bool `yaml:"request_with_weights,omitempty"`
-	RetryWithWeights   bool `yaml:"retry_with_weights,omitempty"`
+	// Maximum allowed size of the raw TraceQL Query expression in bytes
+	MaxQueryExpressionSizeBytes int `yaml:"max_query_expression_size_bytes,omitempty"`
+
+	// A list of headers allowed through the HTTP pipeline. Everything else will be stripped.
+	AllowedHeaders []string `yaml:"-"`
 }
 
 type SearchConfig struct {
@@ -78,8 +81,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 			MaxDuration:           168 * time.Hour, // 1 week
 			ConcurrentRequests:    defaultConcurrentRequests,
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
-			IngesterShards:        1,
 			MostRecentShards:      defaultMostRecentShards,
+			IngesterShards:        3,
+			MaxSpansPerSpanSet:    100,
 		},
 		SLO: slo,
 	}
@@ -105,6 +109,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 		MaxTraceQLConditions: 4,
 	}
 
+	// set default max query size to 128 KiB, queries larger than this will be rejected
+	cfg.MaxQueryExpressionSizeBytes = 128 * 1024
 	// enable multi tenant queries by default
 	cfg.MultiTenantQueriesEnabled = true
 }

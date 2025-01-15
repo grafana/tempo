@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
+	"github.com/google/uuid"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/kv/consul"
 	"github.com/grafana/dskit/ring"
@@ -32,6 +33,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
+	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
 	"github.com/grafana/tempo/tempodb/wal"
 )
 
@@ -257,6 +259,96 @@ func TestSearchWAL(t *testing.T) {
 	require.Equal(t, 1, len(results.Traces))
 }
 
+func TestRediscoverLocalBlocks(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	ctx := user.InjectOrgID(context.Background(), "test")
+	ingester, traces, traceIDs := defaultIngester(t, tmpDir)
+
+	// force cut all traces
+	for _, instance := range ingester.instances {
+		err := instance.CutCompleteTraces(0, true)
+		require.NoError(t, err, "unexpected error cutting traces")
+	}
+
+	// force complete all blocks
+	for _, instance := range ingester.instances {
+		blockID, err := instance.CutBlockIfReady(0, 0, true)
+		require.NoError(t, err)
+
+		err = instance.CompleteBlock(context.Background(), blockID)
+		require.NoError(t, err)
+
+		err = instance.ClearCompletingBlock(blockID)
+		require.NoError(t, err)
+	}
+
+	// create new ingester.  this should rediscover local blocks
+	ingester, _, _ = defaultIngester(t, tmpDir)
+
+	// should be able to find old traces that were replayed
+	for i, traceID := range traceIDs {
+		foundTrace, err := ingester.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
+			TraceID: traceID,
+		})
+		require.NoError(t, err, "unexpected error querying")
+		require.NotNil(t, foundTrace.Trace)
+		trace.SortTrace(foundTrace.Trace)
+		equal := proto.Equal(traces[i], foundTrace.Trace)
+		require.True(t, equal)
+	}
+}
+
+func TestRediscoverDropsInvalidBlocks(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	ctx := user.InjectOrgID(context.Background(), "test")
+	ingester, _, _ := defaultIngester(t, tmpDir)
+
+	// force cut all traces
+	for _, instance := range ingester.instances {
+		err := instance.CutCompleteTraces(0, true)
+		require.NoError(t, err, "unexpected error cutting traces")
+	}
+
+	// force complete all blocks
+	for _, instance := range ingester.instances {
+		blockID, err := instance.CutBlockIfReady(0, 0, true)
+		require.NoError(t, err)
+
+		err = instance.CompleteBlock(context.Background(), blockID)
+		require.NoError(t, err)
+
+		err = instance.ClearCompletingBlock(blockID)
+		require.NoError(t, err)
+	}
+
+	// create new ingester. this should rediscover local blocks. there should be 1 block
+	ingester, _, _ = defaultIngester(t, tmpDir)
+
+	instance, ok := ingester.instances["test"]
+	require.True(t, ok)
+	require.Len(t, instance.completeBlocks, 1)
+
+	// now mangle a complete block
+	instance, ok = ingester.instances["test"]
+	require.True(t, ok)
+	require.Len(t, instance.completeBlocks, 1)
+
+	// this cheats by reaching into the internals of the block and overwriting the parquet file directly. if this test starts failing
+	// it could be b/c the block internals changed and this no longer breaks a block
+	block := instance.completeBlocks[0]
+	err := block.writer.Write(ctx, vparquet4.DataFileName, uuid.UUID(block.BlockMeta().BlockID), "test", []byte("mangled"), nil)
+	require.NoError(t, err)
+
+	// create new ingester. this should rediscover local blocks. there should be 0 blocks
+	ingester, _, _ = defaultIngester(t, tmpDir)
+
+	instance, ok = ingester.instances["test"]
+	require.True(t, ok)
+	require.Len(t, instance.completeBlocks, 0)
+}
+
 // TODO - This test is flaky and commented out until it's fixed
 // TestWalReplayDeletesLocalBlocks simulates the condition where an ingester restarts after a wal is completed
 // to the local disk, but before the wal is deleted. On startup both blocks exist, and the ingester now errs
@@ -318,7 +410,8 @@ func TestIngesterStartingReadOnly(t *testing.T) {
 		defaultIngesterTestConfig(),
 		defaultIngesterStore(t, t.TempDir()),
 		limits,
-		prometheus.NewPedanticRegistry())
+		prometheus.NewPedanticRegistry(),
+		false)
 	require.NoError(t, err)
 
 	_, err = ingester.PushBytesV2(ctx, &tempopb.PushBytesRequest{})
@@ -453,7 +546,7 @@ func defaultIngesterWithOverrides(t testing.TB, tmpDir string, o overrides.Confi
 
 	s := defaultIngesterStore(t, tmpDir)
 
-	ingester, err := New(ingesterConfig, s, limits, prometheus.NewPedanticRegistry())
+	ingester, err := New(ingesterConfig, s, limits, prometheus.NewPedanticRegistry(), false)
 	require.NoError(t, err, "unexpected error creating ingester")
 	ingester.replayJitter = false
 
@@ -550,10 +643,8 @@ func pushBatchV1(t testing.TB, i *Ingester, batch *v1.ResourceSpans, id []byte) 
 				Slice: buffer,
 			},
 		},
-		Ids: []tempopb.PreallocBytes{
-			{
-				Slice: id,
-			},
+		Ids: [][]byte{
+			id,
 		},
 	})
 	require.NoError(t, err)

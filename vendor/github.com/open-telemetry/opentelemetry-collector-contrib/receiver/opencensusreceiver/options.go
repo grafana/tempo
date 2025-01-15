@@ -36,6 +36,7 @@ func withGRPCServerSettings(settings configgrpc.ServerConfig) ocOption {
 	gsvOpts := grpcServerSettings(settings)
 	return gsvOpts
 }
+
 func (gsvo grpcServerSettings) withReceiver(ocr *ocReceiver) {
 	ocr.grpcServerSettings = configgrpc.ServerConfig(gsvo)
 }

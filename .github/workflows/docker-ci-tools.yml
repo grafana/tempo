@@ -1,0 +1,80 @@
+name: docker-ci-tools
+on:
+  push:
+    # If you define both branches/branches-ignore and paths/paths-ignore, the workflow will only run when both filters are satisfied.
+    branches:
+      - 'main'
+    paths:
+      - 'tools/**'
+
+env:
+  IMAGE_NAME: grafana/tempo-ci-tools
+
+# Needed to login to DockerHub
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+
+  get-image-tag:
+    if: github.repository == 'grafana/tempo'  # skip in forks
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.get-tag.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - id: get-tag
+        run: |
+          echo "tag=$(./tools/image-tag)" >> "$GITHUB_OUTPUT"
+
+  docker-ci-tools:
+    if: github.repository == 'grafana/tempo'
+    needs: get-image-tag
+    strategy:
+      matrix:
+        runner_arch: [ { runner: ubuntu-24.04, arch: amd64 }, { runner: github-hosted-ubuntu-arm64, arch: arm64 } ]
+    runs-on: ${{ matrix.runner_arch.runner }}
+    env:
+      TAG: ${{ needs.get-image-tag.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to DockerHub
+        uses: grafana/shared-workflows/actions/dockerhub-login@dockerhub-login-v1.0.0
+
+      - name: docker-build-and-push
+        run: |
+          TAG_ARCH="$TAG-${{ matrix.runner_arch.arch }}"
+          docker build -f tools/Dockerfile -t $IMAGE_NAME:$TAG_ARCH .
+          docker push $IMAGE_NAME:$TAG_ARCH
+
+  manifest:
+    if: github.repository == 'grafana/tempo'
+    needs: ['get-image-tag', 'docker-ci-tools']
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.get-image-tag.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to DockerHub
+        uses: grafana/shared-workflows/actions/dockerhub-login@dockerhub-login-v1.0.0
+
+      - name: docker-manifest-create-and-push
+        run: |
+          docker manifest create \
+          	$IMAGE_NAME:$TAG               \
+          	--amend $IMAGE_NAME:$TAG-amd64  \
+          	--amend $IMAGE_NAME:$TAG-arm64 
+          docker manifest push $IMAGE_NAME:$TAG
+
+          docker manifest create \
+          	$IMAGE_NAME:latest            \
+          	--amend $IMAGE_NAME:$TAG-amd64   \
+          	--amend $IMAGE_NAME:$TAG-arm64 
+          docker manifest push $IMAGE_NAME:latest

@@ -11,17 +11,21 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/twmb/franz-go/pkg/kadm"
+	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/atomic"
 
 	"github.com/grafana/tempo/modules/generator/storage"
 	objStorage "github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
 	tempodb_wal "github.com/grafana/tempo/tempodb/wal"
 )
@@ -65,12 +69,22 @@ type Generator struct {
 
 	reg    prometheus.Registerer
 	logger log.Logger
+
+	kafkaWG       sync.WaitGroup
+	kafkaStop     chan struct{}
+	kafkaClient   *kgo.Client
+	kafkaAdm      *kadm.Client
+	partitionRing ring.PartitionRingReader
 }
 
 // New makes a new Generator.
-func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Registerer, store objStorage.Store, logger log.Logger) (*Generator, error) {
+func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Registerer, partitionRing ring.PartitionRingReader, store objStorage.Store, logger log.Logger) (*Generator, error) {
 	if cfg.Storage.Path == "" {
 		return nil, ErrUnconfigured
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
 
 	err := os.MkdirAll(cfg.Storage.Path, 0o700)
@@ -84,10 +98,10 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 
 		instances: map[string]*instance{},
 
-		store: store,
-
-		reg:    reg,
-		logger: logger,
+		store:         store,
+		partitionRing: partitionRing,
+		reg:           reg,
+		logger:        logger,
 	}
 
 	// Lifecycler and ring
@@ -147,10 +161,45 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 		return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
 	}
 
+	if g.cfg.Ingest.Enabled {
+		g.kafkaClient, err = ingest.NewReaderClient(
+			g.cfg.Ingest.Kafka,
+			ingest.NewReaderClientMetrics("generator", prometheus.DefaultRegisterer),
+			g.logger,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create kafka reader client: %w", err)
+		}
+
+		boff := backoff.New(ctx, backoff.Config{
+			MinBackoff: 100 * time.Millisecond,
+			MaxBackoff: time.Minute, // If there is a network hiccup, we prefer to wait longer retrying, than fail the service.
+			MaxRetries: 10,
+		})
+
+		for boff.Ongoing() {
+			err := g.kafkaClient.Ping(ctx)
+			if err == nil {
+				break
+			}
+			level.Warn(g.logger).Log("msg", "ping kafka; will retry", "err", err)
+			boff.Wait()
+		}
+		if err := boff.ErrCause(); err != nil {
+			return fmt.Errorf("failed to ping kafka: %w", err)
+		}
+
+		g.kafkaAdm = kadm.NewClient(g.kafkaClient)
+	}
+
 	return nil
 }
 
 func (g *Generator) running(ctx context.Context) error {
+	if g.cfg.Ingest.Enabled {
+		g.startKafka()
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -174,6 +223,11 @@ func (g *Generator) stopping(_ error) error {
 
 	// Mark as read-only after we have removed ourselves from the ring
 	g.stopIncomingRequests()
+
+	// Stop reading from queue and wait for outstanding data to be processed and committed
+	if g.cfg.Ingest.Enabled {
+		g.stopKafka()
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(len(g.instances))
@@ -265,22 +319,31 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 	}
 
 	// Create traces wal if configured
-	var tracesWAL *tempodb_wal.WAL
+	var tracesWAL, tracesQueryWAL *tempodb_wal.WAL
 
 	if g.cfg.TracesWAL.Filepath != "" {
 		// Create separate wals per tenant by prefixing path with tenant ID
-
-		tracesWALCfg := g.cfg.TracesWAL
-		tracesWALCfg.Filepath = path.Join(tracesWALCfg.Filepath, id)
-
-		tracesWAL, err = tempodb_wal.New(&tracesWALCfg)
+		cfg := g.cfg.TracesWAL
+		cfg.Filepath = path.Join(cfg.Filepath, id)
+		tracesWAL, err = tempodb_wal.New(&cfg)
 		if err != nil {
 			_ = wal.Close()
 			return nil, err
 		}
 	}
 
-	inst, err := newInstance(g.cfg, id, g.overrides, wal, reg, g.logger, tracesWAL, g.store)
+	if g.cfg.TracesQueryWAL.Filepath != "" {
+		// Create separate wals per tenant by prefixing path with tenant ID
+		cfg := g.cfg.TracesQueryWAL
+		cfg.Filepath = path.Join(cfg.Filepath, id)
+		tracesQueryWAL, err = tempodb_wal.New(&cfg)
+		if err != nil {
+			_ = wal.Close()
+			return nil, err
+		}
+	}
+
+	inst, err := newInstance(g.cfg, id, g.overrides, wal, reg, g.logger, tracesWAL, tracesQueryWAL, g.store)
 	if err != nil {
 		_ = wal.Close()
 		return nil, err

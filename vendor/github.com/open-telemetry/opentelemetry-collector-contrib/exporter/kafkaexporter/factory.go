@@ -40,45 +40,16 @@ const (
 	defaultFluxMaxMessages = 0
 	// partitioning metrics by resource attributes is disabled by default
 	defaultPartitionMetricsByResourceAttributesEnabled = false
+	// partitioning logs by resource attributes is disabled by default
+	defaultPartitionLogsByResourceAttributesEnabled = false
 )
 
 // FactoryOption applies changes to kafkaExporterFactory.
 type FactoryOption func(factory *kafkaExporterFactory)
 
-// withTracesMarshalers adds tracesMarshalers.
-func withTracesMarshalers(tracesMarshalers ...TracesMarshaler) FactoryOption {
-	return func(factory *kafkaExporterFactory) {
-		for _, marshaler := range tracesMarshalers {
-			factory.tracesMarshalers[marshaler.Encoding()] = marshaler
-		}
-	}
-}
-
-// withMetricsMarshalers adds additional metric marshalers to the exporter factory.
-func withMetricsMarshalers(metricMarshalers ...MetricsMarshaler) FactoryOption {
-	return func(factory *kafkaExporterFactory) {
-		for _, marshaler := range metricMarshalers {
-			factory.metricsMarshalers[marshaler.Encoding()] = marshaler
-		}
-	}
-}
-
-// withLogsMarshalers adds additional log marshalers to the exporter factory.
-func withLogsMarshalers(logsMarshalers ...LogsMarshaler) FactoryOption {
-	return func(factory *kafkaExporterFactory) {
-		for _, marshaler := range logsMarshalers {
-			factory.logsMarshalers[marshaler.Encoding()] = marshaler
-		}
-	}
-}
-
 // NewFactory creates Kafka exporter factory.
 func NewFactory(options ...FactoryOption) exporter.Factory {
-	f := &kafkaExporterFactory{
-		tracesMarshalers:  tracesMarshalers(),
-		metricsMarshalers: metricsMarshalers(),
-		logsMarshalers:    logsMarshalers(),
-	}
+	f := &kafkaExporterFactory{}
 	for _, o := range options {
 		o(f)
 	}
@@ -93,15 +64,16 @@ func NewFactory(options ...FactoryOption) exporter.Factory {
 
 func createDefaultConfig() component.Config {
 	return &Config{
-		TimeoutSettings: exporterhelper.NewDefaultTimeoutSettings(),
+		TimeoutSettings: exporterhelper.NewDefaultTimeoutConfig(),
 		BackOffConfig:   configretry.NewDefaultBackOffConfig(),
-		QueueSettings:   exporterhelper.NewDefaultQueueSettings(),
+		QueueSettings:   exporterhelper.NewDefaultQueueConfig(),
 		Brokers:         []string{defaultBroker},
 		ClientID:        defaultClientID,
 		// using an empty topic to track when it has not been set by user, default is based on traces or metrics.
 		Topic:                                "",
 		Encoding:                             defaultEncoding,
 		PartitionMetricsByResourceAttributes: defaultPartitionMetricsByResourceAttributesEnabled,
+		PartitionLogsByResourceAttributes:    defaultPartitionLogsByResourceAttributesEnabled,
 		Metadata: Metadata{
 			Full: defaultMetadataFull,
 			Retry: MetadataRetry{
@@ -118,15 +90,11 @@ func createDefaultConfig() component.Config {
 	}
 }
 
-type kafkaExporterFactory struct {
-	tracesMarshalers  map[string]TracesMarshaler
-	metricsMarshalers map[string]MetricsMarshaler
-	logsMarshalers    map[string]LogsMarshaler
-}
+type kafkaExporterFactory struct{}
 
 func (f *kafkaExporterFactory) createTracesExporter(
 	ctx context.Context,
-	set exporter.CreateSettings,
+	set exporter.Settings,
 	cfg component.Config,
 ) (exporter.Traces, error) {
 	oCfg := *(cfg.(*Config)) // Clone the config
@@ -136,11 +104,8 @@ func (f *kafkaExporterFactory) createTracesExporter(
 	if oCfg.Encoding == "otlp_json" {
 		set.Logger.Info("otlp_json is considered experimental and should not be used in a production environment")
 	}
-	exp, err := newTracesExporter(oCfg, set, f.tracesMarshalers)
-	if err != nil {
-		return nil, err
-	}
-	return exporterhelper.NewTracesExporter(
+	exp := newTracesExporter(oCfg, set)
+	return exporterhelper.NewTraces(
 		ctx,
 		set,
 		&oCfg,
@@ -148,7 +113,7 @@ func (f *kafkaExporterFactory) createTracesExporter(
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
 		// Disable exporterhelper Timeout, because we cannot pass a Context to the Producer,
 		// and will rely on the sarama Producer Timeout logic.
-		exporterhelper.WithTimeout(exporterhelper.TimeoutSettings{Timeout: 0}),
+		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
 		exporterhelper.WithRetry(oCfg.BackOffConfig),
 		exporterhelper.WithQueue(oCfg.QueueSettings),
 		exporterhelper.WithStart(exp.start),
@@ -157,7 +122,7 @@ func (f *kafkaExporterFactory) createTracesExporter(
 
 func (f *kafkaExporterFactory) createMetricsExporter(
 	ctx context.Context,
-	set exporter.CreateSettings,
+	set exporter.Settings,
 	cfg component.Config,
 ) (exporter.Metrics, error) {
 	oCfg := *(cfg.(*Config)) // Clone the config
@@ -167,11 +132,8 @@ func (f *kafkaExporterFactory) createMetricsExporter(
 	if oCfg.Encoding == "otlp_json" {
 		set.Logger.Info("otlp_json is considered experimental and should not be used in a production environment")
 	}
-	exp, err := newMetricsExporter(oCfg, set, f.metricsMarshalers)
-	if err != nil {
-		return nil, err
-	}
-	return exporterhelper.NewMetricsExporter(
+	exp := newMetricsExporter(oCfg, set)
+	return exporterhelper.NewMetrics(
 		ctx,
 		set,
 		&oCfg,
@@ -179,7 +141,7 @@ func (f *kafkaExporterFactory) createMetricsExporter(
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
 		// Disable exporterhelper Timeout, because we cannot pass a Context to the Producer,
 		// and will rely on the sarama Producer Timeout logic.
-		exporterhelper.WithTimeout(exporterhelper.TimeoutSettings{Timeout: 0}),
+		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
 		exporterhelper.WithRetry(oCfg.BackOffConfig),
 		exporterhelper.WithQueue(oCfg.QueueSettings),
 		exporterhelper.WithStart(exp.start),
@@ -188,7 +150,7 @@ func (f *kafkaExporterFactory) createMetricsExporter(
 
 func (f *kafkaExporterFactory) createLogsExporter(
 	ctx context.Context,
-	set exporter.CreateSettings,
+	set exporter.Settings,
 	cfg component.Config,
 ) (exporter.Logs, error) {
 	oCfg := *(cfg.(*Config)) // Clone the config
@@ -198,11 +160,8 @@ func (f *kafkaExporterFactory) createLogsExporter(
 	if oCfg.Encoding == "otlp_json" {
 		set.Logger.Info("otlp_json is considered experimental and should not be used in a production environment")
 	}
-	exp, err := newLogsExporter(oCfg, set, f.logsMarshalers)
-	if err != nil {
-		return nil, err
-	}
-	return exporterhelper.NewLogsExporter(
+	exp := newLogsExporter(oCfg, set)
+	return exporterhelper.NewLogs(
 		ctx,
 		set,
 		&oCfg,
@@ -210,7 +169,7 @@ func (f *kafkaExporterFactory) createLogsExporter(
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
 		// Disable exporterhelper Timeout, because we cannot pass a Context to the Producer,
 		// and will rely on the sarama Producer Timeout logic.
-		exporterhelper.WithTimeout(exporterhelper.TimeoutSettings{Timeout: 0}),
+		exporterhelper.WithTimeout(exporterhelper.TimeoutConfig{Timeout: 0}),
 		exporterhelper.WithRetry(oCfg.BackOffConfig),
 		exporterhelper.WithQueue(oCfg.QueueSettings),
 		exporterhelper.WithStart(exp.start),

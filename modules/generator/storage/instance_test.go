@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/dskit/test"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/modules/overrides"
 	"github.com/prometheus/client_golang/prometheus"
 	prometheus_common_config "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
@@ -25,6 +25,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+
+	"github.com/grafana/tempo/modules/overrides"
 )
 
 // Verify basic functionality like sending metrics and exemplars, buffering and retrying failed
@@ -73,13 +75,12 @@ func TestInstance(t *testing.T) {
 	})
 
 	// Wait until remote.Storage has tried at least once to send data
-	err = waitUntil(20*time.Second, func() bool {
+	test.Poll(t, 30*time.Second, true, func() interface{} {
 		mockServer.mtx.Lock()
 		defer mockServer.mtx.Unlock()
 
 		return mockServer.refusedRequests > 0
 	})
-	require.NoError(t, err, "timed out while waiting for refused requests")
 
 	// Allow requests
 	mockServer.refuseRequests.Store(false)
@@ -144,7 +145,7 @@ func TestInstance_multiTenancy(t *testing.T) {
 	})
 
 	// Wait until every tenant received at least one request
-	err = waitUntil(20*time.Second, func() bool {
+	test.Poll(t, 45*time.Second, true, func() interface{} {
 		mockServer.mtx.Lock()
 		defer mockServer.mtx.Unlock()
 
@@ -155,7 +156,6 @@ func TestInstance_multiTenancy(t *testing.T) {
 		}
 		return true
 	})
-	require.NoError(t, err, "timed out while waiting for accepted requests")
 
 	cancel()
 	for _, instance := range instances {
@@ -238,13 +238,12 @@ func TestInstance_remoteWriteHeaders(t *testing.T) {
 	})
 
 	// Wait until remote.Storage has tried at least once to send data
-	err = waitUntil(20*time.Second, func() bool {
+	test.Poll(t, 30*time.Second, true, func() interface{} {
 		mockServer.mtx.Lock()
 		defer mockServer.mtx.Unlock()
 
 		return mockServer.refusedRequests > 0
 	})
-	require.NoError(t, err, "timed out while waiting for refused requests")
 
 	// Allow requests
 	mockServer.refuseRequests.Store(false)
@@ -345,22 +344,6 @@ func poll(ctx context.Context, interval time.Duration, f func()) {
 		case <-ticker.C:
 			f()
 		}
-	}
-}
-
-// waitUntil executes f until it returns true or timeout is reached.
-func waitUntil(timeout time.Duration, f func() bool) error {
-	start := time.Now()
-
-	for {
-		if f() {
-			return nil
-		}
-		if time.Since(start) > timeout {
-			return fmt.Errorf("timed out while waiting for condition")
-		}
-
-		time.Sleep(50 * time.Millisecond)
 	}
 }
 

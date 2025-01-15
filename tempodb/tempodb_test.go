@@ -237,13 +237,13 @@ func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expected
 	blocklist := rw.blocklist.Metas(testTenantID)
 	require.Len(t, blocklist, expectedB)
 	if expectedB > 0 && expectedID != uuid.Nil {
-		assert.Equal(t, expectedID, (uuid.UUID)(blocklist[0].BlockID))
+		require.Equal(t, expectedID, (uuid.UUID)(blocklist[0].BlockID))
 	}
 
 	compactedBlocklist := rw.blocklist.CompactedMetas(testTenantID)
-	assert.Len(t, compactedBlocklist, expectedCB)
+	require.Len(t, compactedBlocklist, expectedCB)
 	if expectedCB > 0 && expectedID != uuid.Nil {
-		assert.Equal(t, expectedID, (uuid.UUID)(compactedBlocklist[0].BlockID))
+		require.Equal(t, expectedID, (uuid.UUID)(compactedBlocklist[0].BlockID))
 	}
 }
 
@@ -534,7 +534,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	// compact
 	var blockMetas []*backend.BlockMeta
 	blockMetas = append(blockMetas, complete.BlockMeta())
-	require.NoError(t, rw.compact(ctx, blockMetas, testTenantID))
+	require.NoError(t, rw.compactOneJob(ctx, blockMetas, testTenantID))
 
 	// poll
 	rw.pollBlocklist()

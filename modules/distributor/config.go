@@ -6,6 +6,7 @@ import (
 
 	"github.com/grafana/dskit/flagext"
 	ring_client "github.com/grafana/dskit/ring/client"
+	"github.com/grafana/tempo/pkg/ingest"
 
 	"github.com/grafana/tempo/modules/distributor/forwarder"
 	"github.com/grafana/tempo/modules/distributor/usage"
@@ -41,6 +42,10 @@ type Config struct {
 	Forwarders          forwarder.ConfigList      `yaml:"forwarders"`
 	Usage               usage.Config              `yaml:"usage,omitempty"`
 
+	// Kafka
+	KafkaWritePathEnabled bool               `yaml:"kafka_write_path_enabled"`
+	KafkaConfig           ingest.KafkaConfig `yaml:"kafka_config"`
+
 	// disables write extension with inactive ingesters. Use this along with ingester.lifecycler.unregister_on_shutdown = true
 	//  note that setting these two config values reduces tolerance to failures on rollout b/c there is always one guaranteed to be failing replica
 	ExtendWrites bool `yaml:"extend_writes"`
@@ -51,6 +56,8 @@ type Config struct {
 
 	// For testing.
 	factory ring_client.PoolAddrFunc `yaml:"-"`
+
+	MaxSpanAttrByte int `yaml:"max_span_attr_byte"`
 }
 
 type LogSpansConfig struct {
@@ -74,6 +81,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.OverrideRingKey = distributorRingKey
 	cfg.ExtendWrites = true
 
+	cfg.MaxSpanAttrByte = 2048 // 2KB
+
 	f.BoolVar(&cfg.LogReceivedSpans.Enabled, util.PrefixConfig(prefix, "log-received-spans.enabled"), false, "Enable to log every received span to help debug ingestion or calculate span error distributions using the logs.")
 	f.BoolVar(&cfg.LogReceivedSpans.IncludeAllAttributes, util.PrefixConfig(prefix, "log-received-spans.include-attributes"), false, "Enable to include span attributes in the logs.")
 	f.BoolVar(&cfg.LogReceivedSpans.FilterByStatusError, util.PrefixConfig(prefix, "log-received-spans.filter-by-status-error"), false, "Enable to filter out spans without status error.")
@@ -83,4 +92,14 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.BoolVar(&cfg.LogDiscardedSpans.FilterByStatusError, util.PrefixConfig(prefix, "log-discarded-spans.filter-by-status-error"), false, "Enable to filter out spans without status error.")
 
 	cfg.Usage.RegisterFlagsAndApplyDefaults(prefix, f)
+}
+
+func (cfg *Config) Validate() error {
+	if cfg.KafkaWritePathEnabled {
+		if err := cfg.KafkaConfig.Validate(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

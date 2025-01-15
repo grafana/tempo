@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"maps"
@@ -106,7 +107,24 @@ func TestRequestsByTraceID(t *testing.T) {
 					},
 				},
 			},
-			expectedErr: status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit"),
+			expectedErr: status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received 8 bits"),
+		},
+		{
+			name: "empty trace id",
+			batches: []*v1.ResourceSpans{
+				{
+					ScopeSpans: []*v1.ScopeSpans{
+						{
+							Spans: []*v1.Span{
+								{
+									TraceId: []byte{},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received 0 bits"),
 		},
 		{
 			name: "one span",
@@ -695,7 +713,7 @@ func TestRequestsByTraceID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			keys, rebatchedTraces, err := requestsByTraceID(tt.batches, util.FakeTenantID, 1)
+			keys, rebatchedTraces, _, err := requestsByTraceID(tt.batches, util.FakeTenantID, 1, 1000)
 			require.Equal(t, len(keys), len(rebatchedTraces))
 
 			for i, expectedKey := range tt.expectedKeys {
@@ -721,9 +739,64 @@ func TestRequestsByTraceID(t *testing.T) {
 	}
 }
 
+func TestProcessAttributes(t *testing.T) {
+	spanCount := 10
+	batchCount := 3
+	trace := test.MakeTraceWithSpanCount(batchCount, spanCount, []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F})
+
+	maxAttrByte := 1000
+	longString := strings.Repeat("t", 1100)
+
+	// add long attributes to the resource level
+	trace.ResourceSpans[0].Resource.Attributes = append(trace.ResourceSpans[0].Resource.Attributes,
+		test.MakeAttribute("long value", longString),
+	)
+	trace.ResourceSpans[0].Resource.Attributes = append(trace.ResourceSpans[0].Resource.Attributes,
+		test.MakeAttribute(longString, "long key"),
+	)
+
+	// add long attributes to the span level
+	trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes,
+		test.MakeAttribute("long value", longString),
+	)
+	trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes = append(trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Attributes,
+		test.MakeAttribute(longString, "long key"),
+	)
+
+	_, rebatchedTrace, truncatedCount, _ := requestsByTraceID(trace.ResourceSpans, "test", spanCount*batchCount, maxAttrByte)
+	assert.Equal(t, 4, truncatedCount)
+	for _, rT := range rebatchedTrace {
+		for _, resource := range rT.trace.ResourceSpans {
+			// find large resource attributes
+			for _, attr := range resource.Resource.Attributes {
+				if attr.Key == "long value" {
+					assert.Equal(t, longString[:maxAttrByte], attr.Value.GetStringValue())
+				}
+				if attr.Value.GetStringValue() == "long key" {
+					assert.Equal(t, longString[:maxAttrByte], attr.Key)
+				}
+			}
+			// find large span attributes
+			for _, scope := range resource.ScopeSpans {
+				for _, span := range scope.Spans {
+					for _, attr := range span.Attributes {
+						if attr.Key == "long value" {
+							assert.Equal(t, longString[:maxAttrByte], attr.Value.GetStringValue())
+						}
+						if attr.Value.GetStringValue() == "long key" {
+							assert.Equal(t, longString[:maxAttrByte], attr.Key)
+						}
+					}
+				}
+			}
+
+		}
+	}
+}
+
 func BenchmarkTestsByRequestID(b *testing.B) {
-	spansPer := 100
-	batches := 10
+	spansPer := 5000
+	batches := 100
 	traces := []*tempopb.Trace{
 		test.MakeTraceWithSpanCount(batches, spansPer, []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}),
 		test.MakeTraceWithSpanCount(batches, spansPer, []byte{0x0B, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F}),
@@ -739,14 +812,15 @@ func BenchmarkTestsByRequestID(b *testing.B) {
 	}
 
 	b.ResetTimer()
+	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
 		for _, blerg := range ils {
-			_, _, err := requestsByTraceID([]*v1.ResourceSpans{
+			_, _, _, err := requestsByTraceID([]*v1.ResourceSpans{
 				{
 					ScopeSpans: blerg,
 				},
-			}, "test", spansPer*len(traces))
+			}, "test", spansPer*len(traces), 5)
 			require.NoError(b, err)
 		}
 	}
@@ -1082,11 +1156,12 @@ func TestLogDiscardedSpansWhenContextCancelled(t *testing.T) {
 			}
 
 			traces := batchesToTraces(t, tc.batches)
-			ctx, cancelFunc := context.WithCancel(ctx)
-			cancelFunc() // cancel to force all spans to be discarded
+			ctx, cancelFunc := context.WithCancelCause(ctx)
+			cause := errors.New("test cause")
+			cancelFunc(cause) // cancel to force all spans to be discarded
 
 			_, err := d.PushTraces(ctx, traces)
-			assert.ErrorContains(t, err, "context canceled")
+			assert.Equal(t, cause, err)
 
 			assert.ElementsMatch(t, tc.expectedLogsSpan, actualLogSpan(t, buf))
 		})
@@ -1612,6 +1687,7 @@ func prepare(t *testing.T, limits overrides.Config, logger kitlog.Logger) (*Dist
 		})
 	}
 
+	distributorConfig.MaxSpanAttrByte = 1000
 	distributorConfig.DistributorRing.HeartbeatPeriod = 100 * time.Millisecond
 	distributorConfig.DistributorRing.InstanceID = strconv.Itoa(rand.Int())
 	distributorConfig.DistributorRing.KVStore.Mock = nil
@@ -1623,7 +1699,7 @@ func prepare(t *testing.T, limits overrides.Config, logger kitlog.Logger) (*Dist
 	l := dslog.Level{}
 	_ = l.Set("error")
 	mw := receiver.MultiTenancyMiddleware()
-	d, err := New(distributorConfig, clientConfig, ingestersRing, generator_client.Config{}, nil, overrides, mw, logger, l, prometheus.NewPedanticRegistry())
+	d, err := New(distributorConfig, clientConfig, ingestersRing, generator_client.Config{}, nil, nil, overrides, mw, logger, l, prometheus.NewPedanticRegistry())
 	require.NoError(t, err)
 
 	return d, ingesters
@@ -1662,6 +1738,14 @@ type mockRing struct {
 	prometheus.Counter
 	ingesters         []ring.InstanceDesc
 	replicationFactor uint32
+}
+
+func (r mockRing) WritableInstancesWithTokensCount() int {
+	panic("implement me if required for testing")
+}
+
+func (r mockRing) WritableInstancesWithTokensInZoneCount(string) int {
+	panic("implement me if required for testing")
 }
 
 var _ ring.ReadRing = (*mockRing)(nil)

@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -32,7 +33,11 @@ type Config struct {
 	Version        string           `yaml:"version,omitempty"`
 }
 
-func ValidateConfig(c *Config) error {
+func (c *Config) RegisterFlags(*flag.FlagSet) {
+	c.IngestionSlack = 2 * time.Minute
+}
+
+func (c *Config) Validate() error {
 	if _, err := encoding.FromVersion(c.Version); err != nil {
 		return fmt.Errorf("failed to validate block version %s: %w", c.Version, err)
 	}
@@ -148,9 +153,8 @@ func (w *WAL) GetFilepath() string {
 	return w.c.Filepath
 }
 
-func (w *WAL) ClearFolder(dir string) error {
-	p := filepath.Join(w.c.Filepath, dir)
-	return os.RemoveAll(p)
+func (w *WAL) Clear() error {
+	return os.RemoveAll(w.c.Filepath)
 }
 
 func (w *WAL) LocalBackend() *local.Backend {

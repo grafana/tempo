@@ -14,13 +14,13 @@ permissions:
 jobs:
   dependabot:
     name: Serverless gomod update
-    runs-on: ubuntu-latest
-    if: ${{ github.event.pull_request.user.login == 'tempo-gh-bot[bot]' }}
+    runs-on: ubuntu-24.04
+    if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
     steps:
-      - name: Set up Go 1.22
+      - name: Set up Go 1.23
         uses: actions/setup-go@v5
         with:
-          go-version: 1.23.1
+          go-version: 1.23.3
 
       - name: Get app token
         uses: actions/create-github-app-token@v1
@@ -44,6 +44,8 @@ jobs:
           USER: x-access-token
           TOKEN: ${{ steps.get-github-app-token.outputs.token }}
         run: |
+          git config --global user.email "bot@grafana.com"
+          git config --global user.name "tempo-gh-bot[bot]"
           git config --global url."https://${USER}:${TOKEN}@github.com/grafana/tempo".insteadOf "https://github.com/grafana/tempo"
           git add cmd/tempo-serverless/lambda/go.mod
           git add cmd/tempo-serverless/lambda/go.sum

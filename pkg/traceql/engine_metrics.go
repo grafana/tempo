@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/rand"
 	"sort"
 	"sync"
 	"time"
@@ -50,6 +51,9 @@ func DefaultQueryRangeStep(start, end uint64) uint64 {
 
 // IntervalCount is the number of intervals in the range with step.
 func IntervalCount(start, end, step uint64) int {
+	start = alignStart(start, step)
+	end = alignEnd(end, step)
+
 	intervals := (end - start) / step
 	intervals++
 	return int(intervals)
@@ -57,11 +61,15 @@ func IntervalCount(start, end, step uint64) int {
 
 // TimestampOf the given interval with the start and step.
 func TimestampOf(interval, start, step uint64) uint64 {
+	start = alignStart(start, step)
 	return start + interval*step
 }
 
 // IntervalOf the given timestamp within the range and step.
 func IntervalOf(ts, start, end, step uint64) int {
+	start = alignStart(start, step)
+	end = alignEnd(end, step) + step
+
 	if ts < start || ts > end || end == start || step == 0 {
 		// Invalid
 		return -1
@@ -89,10 +97,6 @@ func TrimToOverlap(start1, end1, step, start2, end2 uint64) (uint64, uint64, uin
 	if wasInstant {
 		// Alter step to maintain instant nature
 		step = end1 - start1
-	} else {
-		// Realign after trimming
-		start1 = (start1 / step) * step
-		end1 = (end1/step)*step + step
 	}
 
 	return start1, end1, step
@@ -110,9 +114,6 @@ func TrimToBefore(req *tempopb.QueryRangeRequest, before time.Time) {
 	if wasInstant {
 		// Maintain instant nature of the request
 		req.Step = req.End - req.Start
-	} else {
-		// Realign after trimming
-		AlignRequest(req)
 	}
 }
 
@@ -128,9 +129,6 @@ func TrimToAfter(req *tempopb.QueryRangeRequest, before time.Time) {
 	if wasInstant {
 		// Maintain instant nature of the request
 		req.Step = req.End - req.Start
-	} else {
-		// Realign after trimming
-		AlignRequest(req)
 	}
 }
 
@@ -148,8 +146,30 @@ func AlignRequest(req *tempopb.QueryRangeRequest) {
 	}
 
 	// It doesn't really matter but the request fields are expected to be in nanoseconds.
-	req.Start = req.Start / req.Step * req.Step
-	req.End = req.End / req.Step * req.Step
+	req.Start = alignStart(req.Start, req.Step)
+	req.End = alignEnd(req.End, req.Step)
+}
+
+// Start time is rounded down to next step
+func alignStart(start, step uint64) uint64 {
+	if step == 0 {
+		return 0
+	}
+	return start - start%step
+}
+
+// End time is rounded up to next step
+func alignEnd(end, step uint64) uint64 {
+	if step == 0 {
+		return 0
+	}
+
+	mod := end % step
+	if mod == 0 {
+		return end
+	}
+
+	return end + (step - mod)
 }
 
 type Label struct {
@@ -238,6 +258,9 @@ func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels 
 			continue
 		}
 
+		start = alignStart(start, req.Step)
+		end = alignEnd(end, req.Step)
+
 		intervals := IntervalCount(start, end, req.Step)
 		samples := make([]tempopb.Sample, 0, intervals)
 		for i, value := range s.Values {
@@ -273,6 +296,7 @@ func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels 
 					},
 				)
 			}
+
 			exemplars = append(exemplars, tempopb.Exemplar{
 				Labels:      labels,
 				Value:       e.Value,
@@ -884,6 +908,14 @@ func optimize(req *FetchSpansRequest) {
 		return
 	}
 
+	// Unscoped attributes like .foo require the second pass to evaluate
+	for _, c := range req.Conditions {
+		if c.Attribute.Scope == AttributeScopeNone && c.Attribute.Intrinsic == IntrinsicNone {
+			// Unscoped (non-intrinsic) attribute
+			return
+		}
+	}
+
 	// There is an issue where multiple conditions &&'ed on the same
 	// attribute can look like AllConditions==true, but are implemented
 	// in the storage layer like ||'ed and require the second pass callback (engine).
@@ -1031,7 +1063,7 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 		}
 
 		if len(ss.Spans) > 0 && e.sampleExemplar(ss.TraceID) {
-			e.metricsPipeline.observeExemplar(ss.Spans[0]) // Randomly sample the first span
+			e.metricsPipeline.observeExemplar(ss.Spans[rand.Intn(len(ss.Spans))])
 		}
 
 		e.mtx.Unlock()
@@ -1078,14 +1110,21 @@ func (e *MetricsEvalulator) sampleExemplar(id []byte) bool {
 // MetricsFrontendEvaluator pipes the sharded job results back into the engine for the rest
 // of the pipeline.  i.e. This evaluator is for the query-frontend.
 type MetricsFrontendEvaluator struct {
+	mtx             sync.Mutex
 	metricsPipeline metricsFirstStageElement
 }
 
 func (m *MetricsFrontendEvaluator) ObserveSeries(in []*tempopb.TimeSeries) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
 	m.metricsPipeline.observeSeries(in)
 }
 
 func (m *MetricsFrontendEvaluator) Results() SeriesSet {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
 	return m.metricsPipeline.result()
 }
 
@@ -1210,13 +1249,9 @@ func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *
 				Value: StaticFromAnyValue(l.Value),
 			})
 		}
-		value := exemplar.Value
-		if math.IsNaN(value) {
-			value = 0 // TODO: Use the value of the series at the same timestamp
-		}
 		existing.Exemplars = append(existing.Exemplars, Exemplar{
 			Labels:      labels,
-			Value:       value,
+			Value:       exemplar.Value,
 			TimestampMs: uint64(exemplar.TimestampMs),
 		})
 	}

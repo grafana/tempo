@@ -141,6 +141,8 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  100,
 			NativeHistogramMinResetDuration: 15 * time.Minute,
+			// TODO enable examplars on native histograms
+			NativeHistogramMaxExemplars: -1,
 		}),
 		lastUpdated: 0,
 		firstSeries: atomic.NewBool(true),
@@ -248,7 +250,6 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 				}
 			}
 		}
-
 	}
 
 	return
@@ -315,7 +316,6 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 		if err != nil {
 			return activeSeries, err
 		}
-		s.registerSeenSeries()
 	}
 
 	// sum
@@ -346,6 +346,13 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 		if bucket.GetUpperBound() == math.Inf(1) {
 			infBucketWasAdded = true
 		}
+		if s.isNew() {
+			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
+			_, appendErr := appender.Append(0, s.lb.Labels(), endOfLastMinuteMs, 0)
+			if appendErr != nil {
+				return activeSeries, appendErr
+			}
+		}
 
 		ref, appendErr := appender.Append(0, s.lb.Labels(), timeMs, getIfGreaterThenZeroOr(bucket.GetCumulativeCountFloat(), bucket.GetCumulativeCount()))
 		if appendErr != nil {
@@ -369,7 +376,13 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 	if !infBucketWasAdded {
 		// Add +Inf bucket
 		s.lb.Set(labels.BucketLabel, "+Inf")
-
+		if s.isNew() {
+			endOfLastMinuteMs := getEndOfLastMinuteMs(timeMs)
+			_, err = appender.Append(0, s.lb.Labels(), endOfLastMinuteMs, 0)
+			if err != nil {
+				return activeSeries, err
+			}
+		}
 		_, err = appender.Append(0, s.lb.Labels(), timeMs, getIfGreaterThenZeroOr(s.histogram.GetSampleCountFloat(), s.histogram.GetSampleCount()))
 		if err != nil {
 			return activeSeries, err
@@ -379,6 +392,10 @@ func (h *nativeHistogram) classicHistograms(appender storage.Appender, timeMs in
 
 	// drop "le" label again
 	s.lb.Del(labels.BucketLabel)
+
+	if s.isNew() {
+		s.registerSeenSeries()
+	}
 
 	return
 }

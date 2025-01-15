@@ -41,7 +41,7 @@ func newAsyncTraceIDSharder(cfg *TraceByIDConfig, logger log.Logger) pipeline.As
 func (s asyncTraceSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.Responses[combiner.PipelineResponse], error) {
 	ctx, span := tracer.Start(pipelineRequest.Context(), "frontend.ShardQuery")
 	defer span.End()
-	pipelineRequest.WithContext(ctx)
+	pipelineRequest.SetContext(ctx)
 
 	reqs, err := s.buildShardedRequests(pipelineRequest)
 	if err != nil {

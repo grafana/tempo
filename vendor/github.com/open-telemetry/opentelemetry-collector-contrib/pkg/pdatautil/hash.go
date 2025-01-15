@@ -31,6 +31,31 @@ var (
 	emptyHash = [16]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 )
 
+// HashOption is a function that sets an option on the hash calculation.
+type HashOption func(*hashWriter)
+
+// WithMap adds a map to the hash calculation.
+func WithMap(m pcommon.Map) HashOption {
+	return func(hw *hashWriter) {
+		hw.writeMapHash(m)
+	}
+}
+
+// WithValue adds a value to the hash calculation.
+func WithValue(v pcommon.Value) HashOption {
+	return func(hw *hashWriter) {
+		hw.writeValueHash(v)
+	}
+}
+
+// WithString adds a string to the hash calculation.
+func WithString(s string) HashOption {
+	return func(hw *hashWriter) {
+		hw.byteBuf = append(hw.byteBuf, valStrPrefix...)
+		hw.byteBuf = append(hw.byteBuf, s...)
+	}
+}
+
 type hashWriter struct {
 	byteBuf []byte
 	keysBuf []string
@@ -45,6 +70,29 @@ func newHashWriter() *hashWriter {
 
 var hashWriterPool = &sync.Pool{
 	New: func() any { return newHashWriter() },
+}
+
+// Hash generates a hash for the provided options and returns the computed hash as a [16]byte.
+func Hash(opts ...HashOption) [16]byte {
+	if len(opts) == 0 {
+		return emptyHash
+	}
+
+	hw := hashWriterPool.Get().(*hashWriter)
+	defer hashWriterPool.Put(hw)
+	hw.byteBuf = hw.byteBuf[:0]
+
+	for _, o := range opts {
+		o(hw)
+	}
+
+	return hw.hashSum128()
+}
+
+// Hash64 generates a hash for the provided options and returns the computed hash as a uint64.
+func Hash64(opts ...HashOption) uint64 {
+	hash := Hash(opts...)
+	return xxhash.Sum64(hash[:])
 }
 
 // MapHash return a hash for the provided map.
@@ -105,8 +153,7 @@ func (hw *hashWriter) writeMapHash(m pcommon.Map) {
 func (hw *hashWriter) writeValueHash(v pcommon.Value) {
 	switch v.Type() {
 	case pcommon.ValueTypeStr:
-		hw.byteBuf = append(hw.byteBuf, valStrPrefix...)
-		hw.byteBuf = append(hw.byteBuf, v.Str()...)
+		hw.writeString(v.Str())
 	case pcommon.ValueTypeBool:
 		if v.Bool() {
 			hw.byteBuf = append(hw.byteBuf, valBoolTrue...)
@@ -136,6 +183,11 @@ func (hw *hashWriter) writeValueHash(v pcommon.Value) {
 	case pcommon.ValueTypeEmpty:
 		hw.byteBuf = append(hw.byteBuf, valEmpty...)
 	}
+}
+
+func (hw *hashWriter) writeString(s string) {
+	hw.byteBuf = append(hw.byteBuf, valStrPrefix...)
+	hw.byteBuf = append(hw.byteBuf, s...)
 }
 
 // hashSum128 returns a [16]byte hash sum.

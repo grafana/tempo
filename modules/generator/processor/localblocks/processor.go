@@ -16,10 +16,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/ingester"
 	"github.com/grafana/tempo/pkg/flushqueues"
+	"github.com/grafana/tempo/pkg/tracesizes"
 	"github.com/grafana/tempo/tempodb"
 	"go.opentelemetry.io/otel"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
+	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
@@ -69,8 +71,8 @@ type Processor struct {
 	flushqueue *flushqueues.PriorityQueue
 
 	liveTracesMtx sync.Mutex
-	liveTraces    *liveTraces
-	traceSizes    *traceSizes
+	liveTraces    *livetraces.LiveTraces
+	traceSizes    *tracesizes.Tracker
 
 	writer tempodb.Writer
 }
@@ -102,8 +104,8 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 		walBlocks:      map[uuid.UUID]common.WALBlock{},
 		completeBlocks: map[uuid.UUID]*ingester.LocalBlock{},
 		flushqueue:     flushqueues.NewPriorityQueue(metricFlushQueueSize.WithLabelValues(tenant)),
-		liveTraces:     newLiveTraces(),
-		traceSizes:     newTraceSizes(),
+		liveTraces:     livetraces.New(),
+		traceSizes:     tracesizes.New(),
 		closeCh:        make(chan struct{}),
 		wg:             sync.WaitGroup{},
 		cache:          lru.New(100),
@@ -130,7 +132,7 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 }
 
 func (*Processor) Name() string {
-	return "LocalBlocksProcessor"
+	return Name
 }
 
 func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) {
@@ -596,7 +598,8 @@ func (p *Processor) cutIdleTraces(immediate bool) error {
 	p.liveTracesMtx.Lock()
 
 	// Record live traces before flushing so we know the high water mark
-	metricLiveTraces.WithLabelValues(p.tenant).Set(float64(len(p.liveTraces.traces)))
+	metricLiveTraces.WithLabelValues(p.tenant).Set(float64(p.liveTraces.Len()))
+	metricLiveTraceBytes.WithLabelValues(p.tenant).Set(float64(p.liveTraces.Size()))
 
 	since := time.Now().Add(-p.Cfg.TraceIdlePeriod)
 	tracesToCut := p.liveTraces.CutIdle(since, immediate)
@@ -609,7 +612,7 @@ func (p *Processor) cutIdleTraces(immediate bool) error {
 
 	// Sort by ID
 	sort.Slice(tracesToCut, func(i, j int) bool {
-		return bytes.Compare(tracesToCut[i].id, tracesToCut[j].id) == -1
+		return bytes.Compare(tracesToCut[i].ID, tracesToCut[j].ID) == -1
 	})
 
 	for _, t := range tracesToCut {
@@ -618,7 +621,7 @@ func (p *Processor) cutIdleTraces(immediate bool) error {
 			ResourceSpans: t.Batches,
 		}
 
-		err := p.writeHeadBlock(t.id, tr)
+		err := p.writeHeadBlock(t.ID, tr)
 		if err != nil {
 			return err
 		}
