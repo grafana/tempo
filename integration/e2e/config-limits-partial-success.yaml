@@ -8,6 +8,7 @@ distributor:
     otlp:
       protocols:
         grpc:
+          endpoint: "tempo:4317"
 
 overrides:
   max_bytes_per_trace: 600

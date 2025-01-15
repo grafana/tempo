@@ -7,12 +7,22 @@ import (
 	"context"
 	"errors"
 
-	"go.opentelemetry.io/contrib/config"
 	"go.opentelemetry.io/contrib/propagators/b3"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/embedded"
+	"go.opentelemetry.io/otel/trace/noop"
+
+	"go.opentelemetry.io/collector/config/configtelemetry"
+	"go.opentelemetry.io/collector/featuregate"
 )
+
+var noopTracerProvider = featuregate.GlobalRegistry().MustRegister("service.noopTracerProvider",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterFromVersion("v0.107.0"),
+	featuregate.WithRegisterToVersion("v0.109.0"),
+	featuregate.WithRegisterDescription("Sets a Noop OpenTelemetry TracerProvider to reduce memory allocations. This featuregate is incompatible with the zPages extension."))
 
 const (
 	// supported trace propagators
@@ -20,44 +30,30 @@ const (
 	b3Propagator           = "b3"
 )
 
-var (
-	errUnsupportedPropagator = errors.New("unsupported trace propagator")
-)
+var errUnsupportedPropagator = errors.New("unsupported trace propagator")
 
-// New creates a new Telemetry from Config.
-func newTracerProvider(ctx context.Context, cfg Config) (trace.TracerProvider, error) {
-	sdk, err := config.NewSDK(
-		config.WithContext(ctx),
-		config.WithOpenTelemetryConfiguration(
-			config.OpenTelemetryConfiguration{
-				TracerProvider: &config.TracerProvider{
-					Processors: cfg.Traces.Processors,
-					// TODO: once https://github.com/open-telemetry/opentelemetry-configuration/issues/83 is resolved,
-					// configuration for sampler should be done here via something like the following:
-					//
-					// Sampler: &config.Sampler{
-					// 	ParentBased: &config.SamplerParentBased{
-					// 		LocalParentSampled: &config.Sampler{
-					// 			AlwaysOn: config.SamplerAlwaysOn{},
-					// 		},
-					// 		LocalParentNotSampled: &config.Sampler{
-					//	        RecordOnly: config.SamplerRecordOnly{},
-					//      },
-					// 		RemoteParentSampled: &config.Sampler{
-					// 			AlwaysOn: config.SamplerAlwaysOn{},
-					// 		},
-					// 		RemoteParentNotSampled: &config.Sampler{
-					//	        RecordOnly: config.SamplerRecordOnly{},
-					//      },
-					// 	},
-					// },
-				},
-			},
-		),
-	)
+type noopNoContextTracer struct {
+	embedded.Tracer
+}
 
-	if err != nil {
-		return nil, err
+var noopSpan = noop.Span{}
+
+func (n *noopNoContextTracer) Start(ctx context.Context, _ string, _ ...trace.SpanStartOption) (context.Context, trace.Span) {
+	return ctx, noopSpan
+}
+
+type noopNoContextTracerProvider struct {
+	embedded.TracerProvider
+}
+
+func (n *noopNoContextTracerProvider) Tracer(_ string, _ ...trace.TracerOption) trace.Tracer {
+	return &noopNoContextTracer{}
+}
+
+// newTracerProvider creates a new TracerProvider from Config.
+func newTracerProvider(set Settings, cfg Config) (trace.TracerProvider, error) {
+	if noopTracerProvider.IsEnabled() || cfg.Traces.Level == configtelemetry.LevelNone {
+		return &noopNoContextTracerProvider{}, nil
 	}
 
 	if tp, err := textMapPropagatorFromConfig(cfg.Traces.Propagators); err == nil {
@@ -66,7 +62,10 @@ func newTracerProvider(ctx context.Context, cfg Config) (trace.TracerProvider, e
 		return nil, err
 	}
 
-	return sdk.TracerProvider(), nil
+	if set.SDK != nil {
+		return set.SDK.TracerProvider(), nil
+	}
+	return nil, errors.New("no sdk set")
 }
 
 func textMapPropagatorFromConfig(props []string) (propagation.TextMapPropagator, error) {

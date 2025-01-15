@@ -3,7 +3,7 @@ package v2
 import (
 	"fmt"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 )
 
 type indexWriter struct {

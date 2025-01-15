@@ -1,0 +1,85 @@
+server:
+  http_listen_port: 3200
+  log_level: info
+
+distributor:
+  kafka_write_path_enabled: true
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+  log_received_spans:
+    enabled: true
+  log_discarded_spans:
+    enabled: true
+
+ingester:
+  max_block_duration: 5m               # cut the headblock when this much time passes. this is being set for demo purposes and should probably be left alone normally
+  partition_ring:
+    kvstore:
+      store: memberlist
+
+memberlist:
+  abort_if_cluster_join_fails: false
+  bind_port: 7946
+  join_members:
+    - ingester-0:7946
+    - ingester-1:7946
+    - ingester-2:7946
+
+compactor:
+  compaction:
+    block_retention: 1h               # overall Tempo trace retention. set for demo purposes
+
+querier:
+  frontend_worker:
+    frontend_address: query-frontend:9095
+
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: docker-compose
+  storage:
+    path: /var/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+  traces_storage:
+    path: /var/tempo/generator/traces
+  assigned_partitions:
+    metrics-generator-0: [0,2]
+    metrics-generator-1: [1]
+
+storage:
+  trace:
+    backend: s3
+    s3:
+      bucket: tempo
+      endpoint: minio:9000
+      access_key: tempo
+      secret_key: supersecret
+      insecure: true
+    wal:
+      path: /var/tempo/wal             # where to store the wal locally
+    local:
+      path: /var/tempo/blocks
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors: ['local-blocks']
+      generate_native_histograms: both
+
+ingest:
+  enabled: true
+  kafka:
+    address: kafka:9092
+    topic:   tempo-ingest
+
+block_builder:
+  lookback_on_no_commit: 2m
+  consume_cycle_duration: 30s
+  assigned_partitions:
+    block-builder-0: [0,2]
+    block-builder-1: [1]

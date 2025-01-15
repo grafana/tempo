@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
 	"github.com/grafana/dskit/limiter"
 	dslog "github.com/grafana/dskit/log"
@@ -18,10 +20,12 @@ import (
 	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/util/strutil"
 	"github.com/segmentio/fasthash/fnv1a"
+	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc/codes"
@@ -35,6 +39,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/usagestats"
 	tempo_util "github.com/grafana/tempo/pkg/util"
@@ -49,8 +54,6 @@ const (
 	reasonTraceTooLarge = "trace_too_large"
 	// reasonLiveTracesExceeded indicates that tempo is already tracking too many live traces in the ingesters for this user
 	reasonLiveTracesExceeded = "live_traces_exceeded"
-	// reasonInternalError indicates an unexpected error occurred processing these spans. analogous to a 500
-	reasonInternalError = "internal_error"
 	// reasonUnknown indicates a pushByte error at the ingester level not related to GRPC
 	reasonUnknown = "unknown_error"
 
@@ -112,6 +115,35 @@ var (
 		Name:      "distributor_metrics_generator_clients",
 		Help:      "The current number of metrics-generator clients.",
 	})
+	metricAttributesTruncated = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "distributor_attributes_truncated_total",
+		Help:      "The total number of attribute keys or values truncated per tenant",
+	}, []string{"tenant"})
+	metricKafkaRecordsPerRequest = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "tempo",
+		Subsystem: "distributor",
+		Name:      "kafka_records_per_request",
+		Help:      "The number of records in each kafka request",
+	})
+	metricKafkaWriteLatency = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: "tempo",
+		Subsystem: "distributor",
+		Name:      "kafka_write_latency_seconds",
+		Help:      "The latency of writing to kafka",
+	})
+	metricKafkaWriteBytesTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Subsystem: "distributor",
+		Name:      "kafka_write_bytes_total",
+		Help:      "The total number of bytes written to kafka",
+	})
+	metricKafkaAppends = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Subsystem: "distributor",
+		Name:      "kafka_appends_total",
+		Help:      "The total number of appends sent to kafka",
+	}, []string{"partition", "status"})
 
 	statBytesReceived = usagestats.NewCounter("distributor_bytes_received")
 	statSpansReceived = usagestats.NewCounter("distributor_spans_received")
@@ -149,6 +181,10 @@ type Distributor struct {
 	// Generic Forwarder
 	forwardersManager *forwarder.Manager
 
+	// Kafka
+	kafkaProducer *ingest.Producer
+	partitionRing ring.PartitionRingReader
+
 	// Per-user rate limiter.
 	ingestionRateLimiter *limiter.RateLimiter
 
@@ -162,7 +198,23 @@ type Distributor struct {
 }
 
 // New a distributor creates.
-func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRing, generatorClientCfg generator_client.Config, generatorsRing ring.ReadRing, o overrides.Interface, middleware receiver.Middleware, logger log.Logger, loggingLevel dslog.Level, reg prometheus.Registerer) (*Distributor, error) {
+func New(
+	cfg Config,
+	clientCfg ingester_client.Config,
+	ingestersRing ring.ReadRing,
+	generatorClientCfg generator_client.Config,
+	generatorsRing ring.ReadRing,
+	partitionRing ring.PartitionRingReader,
+	o overrides.Interface,
+	middleware receiver.Middleware,
+	logger log.Logger,
+	loggingLevel dslog.Level,
+	reg prometheus.Registerer,
+) (*Distributor, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
 	factory := cfg.factory
 	if factory == nil {
 		factory = func(addr string) (ring_client.PoolClient, error) {
@@ -213,6 +265,7 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		ingestionRateLimiter: limiter.NewRateLimiter(ingestionRateStrategy, 10*time.Second),
 		generatorClientCfg:   generatorClientCfg,
 		generatorsRing:       generatorsRing,
+		partitionRing:        partitionRing,
 		overrides:            o,
 		traceEncoder:         model.MustNewSegmentDecoder(model.CurrentEncoding),
 		logger:               logger,
@@ -256,11 +309,19 @@ func New(cfg Config, clientCfg ingester_client.Config, ingestersRing ring.ReadRi
 		cfgReceivers = defaultReceivers
 	}
 
-	receivers, err := receiver.New(cfgReceivers, d, middleware, cfg.RetryAfterOnResourceExhausted, loggingLevel)
+	receivers, err := receiver.New(cfgReceivers, d, middleware, cfg.RetryAfterOnResourceExhausted, loggingLevel, reg)
 	if err != nil {
 		return nil, err
 	}
 	subservices = append(subservices, receivers)
+
+	if cfg.KafkaWritePathEnabled {
+		client, err := ingest.NewWriterClient(cfg.KafkaConfig, 10, logger, reg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create kafka writer client: %w", err)
+		}
+		d.kafkaProducer = ingest.NewProducer(client, d.cfg.KafkaConfig.ProducerMaxBufferedBytes, reg)
+	}
 
 	d.subservices, err = services.NewManager(subservices...)
 	if err != nil {
@@ -328,7 +389,7 @@ func (d *Distributor) extractBasicInfo(ctx context.Context, traces ptrace.Traces
 
 // PushTraces pushes a batch of traces
 func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*tempopb.PushResponse, error) {
-	ctx, span := tracer.Start(ctx, "distributor.PushTraces")
+	ctx, span := tracer.Start(ctx, "distributor.PushBytes")
 	defer span.End()
 
 	userID, spanCount, size, err := d.extractBasicInfo(ctx, traces)
@@ -378,11 +439,14 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		d.usage.Observe(userID, batches)
 	}
 
-	keys, rebatchedTraces, err := requestsByTraceID(batches, userID, spanCount)
+	keys, rebatchedTraces, truncatedAttributeCount, err := requestsByTraceID(batches, userID, spanCount, d.cfg.MaxSpanAttrByte)
 	if err != nil {
-		overrides.RecordDiscardedSpans(spanCount, reasonInternalError, userID)
 		logDiscardedResourceSpans(batches, userID, &d.cfg.LogDiscardedSpans, d.logger)
 		return nil, err
+	}
+
+	if truncatedAttributeCount > 0 {
+		metricAttributesTruncated.WithLabelValues(userID).Add(float64(truncatedAttributeCount))
 	}
 
 	err = d.sendToIngestersViaBytes(ctx, userID, spanCount, rebatchedTraces, keys)
@@ -390,12 +454,21 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		return nil, err
 	}
 
-	if len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
-		d.generatorForwarder.SendTraces(ctx, userID, keys, rebatchedTraces)
-	}
-
 	if err := d.forwardersManager.ForTenant(userID).ForwardTraces(ctx, traces); err != nil {
 		_ = level.Warn(d.logger).Log("msg", "failed to forward batches for tenant=%s: %w", userID, err)
+	}
+
+	if d.kafkaProducer != nil {
+		err := d.sendToKafka(ctx, userID, keys, rebatchedTraces)
+		if err != nil {
+			// TODO: Handle error
+			level.Error(d.logger).Log("msg", "failed to write to kafka", "err", err)
+		}
+	} else {
+		// See if we need to send to the generators
+		if len(d.overrides.MetricsGeneratorProcessors(userID)) > 0 {
+			d.generatorForwarder.SendTraces(ctx, userID, keys, rebatchedTraces)
+		}
 	}
 
 	return nil, nil // PushRequest is ignored, so no reason to create one
@@ -461,7 +534,6 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	}, ring.DoBatchOptions{})
 	// if err != nil, we discarded everything because of an internal error (like "context cancelled")
 	if err != nil {
-		overrides.RecordDiscardedSpans(totalSpanCount, reasonInternalError, userID)
 		logDiscardedRebatchedSpans(traces, userID, &d.cfg.LogDiscardedSpans, d.logger)
 		return err
 	}
@@ -523,20 +595,106 @@ func (d *Distributor) UsageTrackerHandler() http.Handler {
 	return nil
 }
 
+func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) error {
+	marshalledTraces := make([][]byte, len(traces))
+	for i, t := range traces {
+		b, err := proto.Marshal(t.trace)
+		if err != nil {
+			return fmt.Errorf("failed to marshal trace: %w", err)
+		}
+		marshalledTraces[i] = b
+	}
+
+	partitionRing := d.partitionRing.PartitionRing() // TODO - Use shuffle sharding
+	return ring.DoBatchWithOptions(ctx, ring.Write, ring.NewActivePartitionBatchRing(partitionRing), keys, func(partition ring.InstanceDesc, indexes []int) error {
+		localCtx, cancel := context.WithTimeout(ctx, d.clientCfg.RemoteTimeout)
+		defer cancel()
+		localCtx = user.InjectOrgID(localCtx, userID)
+
+		req := &tempopb.PushBytesRequest{
+			Traces: make([]tempopb.PreallocBytes, len(indexes)),
+			Ids:    make([][]byte, len(indexes)),
+		}
+
+		for i, j := range indexes {
+			req.Traces[i].Slice = marshalledTraces[j][0:]
+			req.Ids[i] = traces[j].id
+		}
+
+		// The partition ID is stored in the ring.InstanceDesc ID.
+		partitionID, err := strconv.ParseInt(partition.Id, 10, 31)
+		if err != nil {
+			return err
+		}
+
+		startTime := time.Now()
+
+		records, err := ingest.Encode(int32(partitionID), userID, req, d.cfg.KafkaConfig.ProducerMaxRecordSizeBytes)
+		if err != nil {
+			return fmt.Errorf("failed to encode PushSpansRequest: %w", err)
+		}
+
+		metricKafkaRecordsPerRequest.Observe(float64(len(records)))
+
+		produceResults := d.kafkaProducer.ProduceSync(localCtx, records)
+
+		if count, sizeBytes := successfulProduceRecordsStats(produceResults); count > 0 {
+			metricKafkaWriteLatency.Observe(time.Since(startTime).Seconds())
+			metricKafkaWriteBytesTotal.Add(float64(sizeBytes))
+			_ = level.Debug(d.logger).Log("msg", "kafka write success stats", "count", count, "size_bytes", sizeBytes)
+		}
+
+		var finalErr error
+		for _, result := range produceResults {
+			if result.Err != nil {
+				_ = level.Error(d.logger).Log("msg", "failed to write to kafka", "err", result.Err)
+				metricKafkaAppends.WithLabelValues(fmt.Sprintf("partition_%d", partitionID), "fail").Inc()
+				finalErr = result.Err
+			} else {
+				metricKafkaAppends.WithLabelValues(fmt.Sprintf("partition_%d", partitionID), "success").Inc()
+			}
+		}
+
+		return finalErr
+	}, ring.DoBatchOptions{})
+}
+
+func successfulProduceRecordsStats(results kgo.ProduceResults) (count, sizeBytes int) {
+	for _, res := range results {
+		if res.Err == nil && res.Record != nil {
+			count++
+			sizeBytes += len(res.Record.Value)
+		}
+	}
+
+	return count, sizeBytes
+}
+
 // requestsByTraceID takes an incoming tempodb.PushRequest and creates a set of keys for the hash ring
 // and traces to pass onto the ingesters.
-func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int) ([]uint32, []*rebatchedTrace, error) {
+func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, maxSpanAttrSize int) ([]uint32, []*rebatchedTrace, int, error) {
 	const tracesPerBatch = 20 // p50 of internal env
 	tracesByID := make(map[uint32]*rebatchedTrace, tracesPerBatch)
+	truncatedAttributeCount := 0
 
 	for _, b := range batches {
 		spansByILS := make(map[uint32]*v1.ScopeSpans)
+		// check for large resources for large attributes
+		if maxSpanAttrSize > 0 && b.Resource != nil {
+			resourceAttrTruncatedCount := processAttributes(b.Resource.Attributes, maxSpanAttrSize)
+			truncatedAttributeCount += resourceAttrTruncatedCount
+		}
 
 		for _, ils := range b.ScopeSpans {
 			for _, span := range ils.Spans {
+				// check large spans for large attributes
+				if maxSpanAttrSize > 0 {
+					spanAttrTruncatedCount := processAttributes(span.Attributes, maxSpanAttrSize)
+					truncatedAttributeCount += spanAttrTruncatedCount
+				}
 				traceID := span.TraceId
 				if !validation.ValidTraceID(traceID) {
-					return nil, nil, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received %d bits", len(traceID)*8)
+					return nil, nil, 0, status.Errorf(codes.InvalidArgument, "trace ids must be 128 bit, received %d bits", len(traceID)*8)
 				}
 
 				traceKey := tempo_util.TokenFor(userID, traceID)
@@ -602,7 +760,30 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount int
 		traces = append(traces, r)
 	}
 
-	return keys, traces, nil
+	return keys, traces, truncatedAttributeCount, nil
+}
+
+// find and truncate the span attributes that are too large
+func processAttributes(attributes []*v1_common.KeyValue, maxAttrSize int) int {
+	count := 0
+	for _, attr := range attributes {
+		if len(attr.Key) > maxAttrSize {
+			attr.Key = attr.Key[:maxAttrSize]
+			count++
+		}
+
+		switch value := attr.GetValue().Value.(type) {
+		case *v1_common.AnyValue_StringValue:
+			if len(value.StringValue) > maxAttrSize {
+				value.StringValue = value.StringValue[:maxAttrSize]
+				count++
+			}
+		default:
+			continue
+		}
+	}
+
+	return count
 }
 
 // discardedPredicate determines if a trace is discarded based on the number of successful replications.

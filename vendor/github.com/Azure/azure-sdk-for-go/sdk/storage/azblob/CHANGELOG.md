@@ -1,5 +1,102 @@
 # Release History
 
+## 1.5.0 (2024-11-13)
+
+### Features Added
+* Fix compareHeaders custom sorting algorithm for String To Sign.
+* Added permissions & resourcetype parameters in listblob response.
+
+## 1.5.0-beta.1 (2024-10-22)
+
+### Other Changes
+* Updated `azcore` version to `1.16.0`
+* Updated `azidentity` version to `1.8.0`
+
+## 1.4.1 (2024-09-18)
+
+### Features Added
+* Added crc64 response header to Put Blob.
+* Upgraded service version to `2024-08-04`.
+
+## 1.4.1-beta.1 (2024-08-27)
+
+### Features Added
+* Upgraded service version to `2024-08-04`.
+
+### Other Changes
+* Updated `azcore` version to `1.14.0`
+
+## 1.4.0 (2024-07-18)
+
+### Other Changes
+* GetProperties() was called twice in DownloadFile method. Enhanced to call it only once, reducing latency.
+* Updated `azcore` version to `1.13.0`
+
+## 1.4.0-beta.1 (2024-06-14)
+
+### Features Added
+* Updated service version to `2024-05-04`.
+
+### Other Changes
+* Updated `azidentity` version to `1.6.0`
+* Updated `azcore` version to `1.12.0`
+
+## 1.3.2 (2024-04-09)
+
+### Bugs Fixed
+* Fixed an issue where GetSASURL() was providing HTTPS SAS, instead of the default http+https SAS. Fixes [#22448](https://github.com/Azure/azure-sdk-for-go/issues/22448)
+
+### Other Changes
+* Integrate `InsecureAllowCredentialWithHTTP` client options.
+* Update dependencies.
+
+## 1.3.1 (2024-02-28)
+
+### Bugs Fixed
+
+* Re-enabled `SharedKeyCredential` authentication mode for non TLS protected endpoints.
+* Use random write in `DownloadFile` method. Fixes [#22426](https://github.com/Azure/azure-sdk-for-go/issues/22426).
+
+## 1.3.0 (2024-02-12)
+
+### Bugs Fixed
+* Fix concurrency issue while Downloading File. Fixes [#22156](https://github.com/Azure/azure-sdk-for-go/issues/22156). 
+* Fix panic when nil options bag is passed to NewGetPageRangesPager. Fixes [22356](https://github.com/Azure/azure-sdk-for-go/issues/22356).
+* Fix file offset update after Download file. Fixes [#22297](https://github.com/Azure/azure-sdk-for-go/issues/22297).
+
+### Other Changes
+* Updated the version of `azcore` to `1.9.2`
+
+## 1.3.0-beta.1 (2024-01-09)
+
+### Features Added
+
+* Updated service version to `2023-11-03`.
+* Added support for Audience when OAuth is used.
+
+### Bugs Fixed
+
+* Block `SharedKeyCredential` authentication mode for non TLS protected endpoints. Fixes [#21841](https://github.com/Azure/azure-sdk-for-go/issues/21841).
+
+## 1.2.1 (2023-12-13)
+
+### Features Added
+
+* Exposed GetSASURL from specialized clients
+
+### Bugs Fixed
+
+* Fixed case in Blob Batch API when blob path has / in it. Fixes [#21649](https://github.com/Azure/azure-sdk-for-go/issues/21649).
+* Fixed SharedKeyMissingError when using client.BlobClient().GetSASURL() method
+* Fixed an issue that would cause metadata keys with empty values to be omitted when enumerating blobs.
+* Fixed an issue where passing empty map to set blob tags API was causing panic. Fixes [#21869](https://github.com/Azure/azure-sdk-for-go/issues/21869).
+* Fixed an issue where downloaded file has incorrect size when not a multiple of block size. Fixes [#21995](https://github.com/Azure/azure-sdk-for-go/issues/21995).
+* Fixed case where `io.ErrUnexpectedEOF` was treated as expected error in `UploadStream`. Fixes [#21837](https://github.com/Azure/azure-sdk-for-go/issues/21837).
+
+### Other Changes
+
+* Updated the version of `azcore` to `1.9.1` and `azidentity` to `1.4.0`.
+
 ## 1.2.0 (2023-10-11)
 
 ### Bugs Fixed

@@ -5,7 +5,7 @@
 - Push a semver tag to main on the merge commit above.  Something like:
   - `git tag -a v1.2.0-rc.0`
   - `git push origin v1.2.0-rc.0`
-- This will initiate the build process in Github Actions and Drone.  The tagged docker image should
+- This will initiate the build process in Github Actions.  The tagged docker image should
   be available here shortly: https://hub.docker.com/r/grafana/tempo/tags?page=1&ordering=last_updated
 - A Github Release Draft should also be available here:  https://github.com/grafana/tempo/releases
   - Copy over the CHANGELOG entries for the release

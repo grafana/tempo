@@ -1,6 +1,6 @@
 ## Grammar
 
-The OTTL grammar includes function invocations, Values and Boolean Expressions. These parts all fit into a Statement, which is the basis of execution in the OTTL.
+OTTL grammar includes function invocations, Values and Boolean Expressions. These parts all fit into a Statement, which is the basis of execution in OTTL.
 
 ### Design principles
 
@@ -18,9 +18,9 @@ An Editor is made up of 2 parts:
 - a string identifier. The string identifier must start with a lowercase letter.
 - zero or more Values (comma separated) surrounded by parentheses (`()`).
 
-**The OTTL has no built-in Editors.**
+**OTTL has no built-in Editors.**
 Users must supply a map between string identifiers and Editor implementations.
-The OTTL will use this map to determine which implementation to call when executing a Statement.
+OTTL will use this map to determine which implementation to call when executing a Statement.
 See [ottlfuncs](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/pkg/ottl/ottlfuncs#editors) for pre-made, usable Editors.
 
 ### Converters
@@ -32,9 +32,9 @@ Converters are made up of 3 parts:
 - zero or more Values (comma separated) surrounded by parentheses (`()`).
 - a combination of zero or more a string key (`["key"]`) or int key (`[0]`)
 
-**The OTTL has no built-in Converters.**
+**OTTL has no built-in Converters.**
 Users must include Converters in the same map that Editors are supplied.
-The OTTL will use this map and reflection to generate Converters that can then be invoked by the user.
+OTTL will use this map and reflection to generate Converters that can then be invoked by the user.
 See [ottlfuncs](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/pkg/ottl/ottlfuncs#converters) for pre-made, usable Converters.
 
 When keys are supplied the value returned by the Converter will be indexed by the keys in order.
@@ -69,6 +69,7 @@ The following types are supported for single-value parameters in OTTL functions:
 - `IntLikeGetter`
 - `BoolGetter`
 - `BoolLikeGetter`
+- `ByteSliceLikeGetter`
 - `Enum`
 - `string`
 - `float64`
@@ -88,7 +89,7 @@ For slice parameters, the following types are supported:
 - `string`
 - `float64`
 - `int64`
-- `uint8`. Byte slice literals are parsed as byte slices by the OTTL.
+- `uint8`. Byte slice literals are parsed as byte slices by OTTL.
 - `Getter`
 
 To make a parameter optional, use the `Optional` type, which takes a type argument for the underlying
@@ -113,10 +114,11 @@ Values are passed as function parameters or are used in a Boolean Expression. Va
 - [Enums](#enums)
 - [Converters](#converters)
 - [Math Expressions](#math-expressions)
+- [Maps](#maps)
 
 ### Paths
 
-A Path Value is a reference to a telemetry field.  Paths are made up of lowercase identifiers, dots (`.`), and square brackets combined with a string key (`["key"]`) or int key (`[0]`).  **The interpretation of a Path is NOT implemented by the OTTL.**  Instead, the user must provide a `PathExpressionParser` that the OTTL can use to interpret paths.  As a result, how the Path parts are used is up to the user.  However, it is recommended that the parts be used like so:
+A Path Value is a reference to a telemetry field.  Paths are made up of lowercase identifiers, dots (`.`), and square brackets combined with a string key (`["key"]`) or int key (`[0]`).  **The interpretation of a Path is NOT implemented by OTTL.**  Instead, the user must provide a `PathExpressionParser` that OTTL can use to interpret paths.  As a result, how the Path parts are used is up to the user.  However, it is recommended that the parts be used like so:
 
 - Identifiers are used to map to a telemetry field.
 - Dots (`.`) are used to separate nested fields.
@@ -154,13 +156,23 @@ Example List Values:
 - `["1", "2", "3"]`
 - `["a", attributes["key"], Concat(["a", "b"], "-")]`
 
+### Maps
+
+A Map Value comprises a set of key Value pairs.
+
+Example Map Values:
+- `{}`
+- `{"foo": "bar"}`
+- `{"foo": {"a": 2}}`
+- `{"foo": {"a": attributes["key"]}}`
+
 ### Literals
 
 Literals are literal interpretations of the Value into a Go value.  Accepted literals are:
 
 - Strings. Strings are represented as literals by surrounding the string in double quotes (`""`).
-- Ints.  Ints are represented by any digit, optionally prepended by plus (`+`) or minus (`-`). Internally the OTTL represents all ints as `int64`
-- Floats.  Floats are represented by digits separated by a dot (`.`), optionally prepended by plus (`+`) or minus (`-`). The leading digit is optional. Internally the OTTL represents all Floats as `float64`.
+- Ints.  Ints are represented by any digit, optionally prepended by plus (`+`) or minus (`-`). Internally OTTL represents all ints as `int64`
+- Floats.  Floats are represented by digits separated by a dot (`.`), optionally prepended by plus (`+`) or minus (`-`). The leading digit is optional. Internally OTTL represents all Floats as `float64`.
 - Bools.  Bools are represented by the exact strings `true` and `false`.
 - Nil.  Nil is represented by the exact string `nil`.
 - Byte slices.  Byte slices are represented via a hex string prefaced with `0x`
@@ -175,7 +187,7 @@ Example Literals
 
 ### Enums
 
-Enums are uppercase identifiers that get interpreted during parsing and converted to an `int64`. **The interpretation of an Enum is NOT implemented by the OTTL.** Instead, the user must provide a `EnumParser` that the OTTL can use to interpret the Enum.  The `EnumParser` returns an `int64` instead of a function, which means that the Enum's numeric value is retrieved during parsing instead of during execution.
+Enums are uppercase identifiers that get interpreted during parsing and converted to an `int64`. **The interpretation of an Enum is NOT implemented by OTTL.** Instead, the user must provide a `EnumParser` that OTTL can use to interpret the Enum.  The `EnumParser` returns an `int64` instead of a function, which means that the Enum's numeric value is retrieved during parsing instead of during execution.
 
 Within the grammar Enums are always used as `int64`.  As a result, the Enum's symbol can be used as if it is an Int value.
 
@@ -280,7 +292,7 @@ Examples:
 
 ## Accessing signal telemetry
 
-Access to signal telemetry is provided to OTTL functions through a `TransformContext` that is created by the user and passed during statement evaluation. To allow functions to operate on the `TransformContext`, the OTTL provides `Getter`, `Setter`, and `GetSetter` interfaces.
+Access to signal telemetry is provided to OTTL functions through a `TransformContext` that is created by the user and passed during statement evaluation. To allow functions to operate on the `TransformContext`, OTTL provides `Getter`, `Setter`, and `GetSetter` interfaces.
 
 ### Getters and Setters
 
@@ -293,6 +305,6 @@ Getters allow for reading the following types of data. See the respective sectio
 
 It is possible to update the Value in a telemetry field using a Setter. For read and write access, the `GetSetter` interface extends both interfaces.
 
-## Logging inside a OTTL function
+## Logging inside an OTTL function
 
-To emit logs inside a OTTL function, add a parameter of type [`component.TelemetrySettings`](https://pkg.go.dev/go.opentelemetry.io/collector/component#TelemetrySettings) to the function signature. The OTTL will then inject the TelemetrySettings that were passed to `NewParser` into the function.  TelemetrySettings can be used to emit logs.
+To emit logs inside an OTTL function, add a parameter of type [`component.TelemetrySettings`](https://pkg.go.dev/go.opentelemetry.io/collector/component#TelemetrySettings) to the function signature. OTTL will then inject the TelemetrySettings that were passed to `NewParser` into the function.  TelemetrySettings can be used to emit logs.

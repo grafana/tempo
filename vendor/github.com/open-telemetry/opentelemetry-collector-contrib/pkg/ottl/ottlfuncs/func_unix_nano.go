@@ -17,6 +17,7 @@ type UnixNanoArguments[K any] struct {
 func NewUnixNanoFactory[K any]() ottl.Factory[K] {
 	return ottl.NewFactory("UnixNano", &UnixNanoArguments[K]{}, createUnixNanoFunction[K])
 }
+
 func createUnixNanoFunction[K any](_ ottl.FunctionContext, oArgs ottl.Arguments) (ottl.ExprFunc[K], error) {
 	args, ok := oArgs.(*UnixNanoArguments[K])
 

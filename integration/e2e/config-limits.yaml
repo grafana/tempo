@@ -9,10 +9,13 @@ distributor:
     jaeger:
       protocols:
         grpc:
+          endpoint: "tempo:14250"
     otlp:
       protocols:
         grpc:
+          endpoint: "tempo:4317"
         http:
+          endpoint: "tempo:4318"
 
 overrides:
   defaults:

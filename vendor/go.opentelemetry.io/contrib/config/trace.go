@@ -83,7 +83,7 @@ func spanProcessor(ctx context.Context, processor SpanProcessor) (sdktrace.SpanP
 		}
 		return sdktrace.NewSimpleSpanProcessor(exp), nil
 	}
-	return nil, fmt.Errorf("unsupported span processor type %v", processor)
+	return nil, fmt.Errorf("unsupported span processor type, must be one of simple or batch")
 }
 
 func otlpGRPCSpanExporter(ctx context.Context, otlpConfig *OTLP) (sdktrace.SpanExporter, error) {

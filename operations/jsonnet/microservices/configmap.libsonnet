@@ -111,6 +111,7 @@
   },
 
   tempo_query_frontend_config:: $.tempo_config {},
+  tempo_block_builder_config:: $.tempo_config {},
 
   // This will be the single configmap that stores `overrides.yaml`.
   overrides_config:
@@ -149,6 +150,12 @@
     configMap.new('tempo-querier') +
     configMap.withData({
       'tempo.yaml': $.util.manifestYaml($.tempo_querier_config),
+    }),
+
+  tempo_block_builder_configmap:
+    configMap.new('tempo-block-builder') +
+    configMap.withData({
+      'tempo.yaml': $.util.manifestYaml($.tempo_block_builder_config),
     }),
 
   tempo_query_frontend_configmap:

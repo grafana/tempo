@@ -61,7 +61,6 @@ func (cmd *metricsQueryCmd) Run(_ *globalOptions) error {
 		Query: cmd.TraceQL,
 		Start: uint64(start),
 		End:   uint64(end),
-		Step:  uint64(5 * time.Second),
 	}
 
 	if cmd.UseGRPC {

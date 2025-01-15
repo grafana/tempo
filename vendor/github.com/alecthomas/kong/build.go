@@ -51,6 +51,9 @@ type flattenedField struct {
 
 func flattenedFields(v reflect.Value, ptag *Tag) (out []flattenedField, err error) {
 	v = reflect.Indirect(v)
+	if v.Kind() != reflect.Struct {
+		return out, nil
+	}
 	for i := 0; i < v.NumField(); i++ {
 		ft := v.Type().Field(i)
 		fv := v.Field(i)
@@ -170,6 +173,12 @@ MAIN:
 		if flag.Short != 0 {
 			delete(seenFlags, "-"+string(flag.Short))
 		}
+		if negFlag := negatableFlagName(flag.Name, flag.Tag.Negatable); negFlag != "" {
+			delete(seenFlags, negFlag)
+		}
+		for _, aflag := range flag.Aliases {
+			delete(seenFlags, "--"+aflag)
+		}
 	}
 
 	if err := validatePositionalArguments(node); err != nil {
@@ -272,17 +281,18 @@ func buildField(k *Kong, node *Node, v reflect.Value, ft reflect.StructField, fv
 	}
 
 	value := &Value{
-		Name:         name,
-		Help:         tag.Help,
-		OrigHelp:     tag.Help,
-		HasDefault:   tag.HasDefault,
-		Default:      tag.Default,
-		DefaultValue: reflect.New(fv.Type()).Elem(),
-		Mapper:       mapper,
-		Tag:          tag,
-		Target:       fv,
-		Enum:         tag.Enum,
-		Passthrough:  tag.Passthrough,
+		Name:            name,
+		Help:            tag.Help,
+		OrigHelp:        tag.Help,
+		HasDefault:      tag.HasDefault,
+		Default:         tag.Default,
+		DefaultValue:    reflect.New(fv.Type()).Elem(),
+		Mapper:          mapper,
+		Tag:             tag,
+		Target:          fv,
+		Enum:            tag.Enum,
+		Passthrough:     tag.Passthrough,
+		PassthroughMode: tag.PassthroughMode,
 
 		// Flags are optional by default, and args are required by default.
 		Required: (!tag.Arg && tag.Required) || (tag.Arg && !tag.Optional),
@@ -296,19 +306,35 @@ func buildField(k *Kong, node *Node, v reflect.Value, ft reflect.StructField, fv
 			return failField(v, ft, "duplicate flag --%s", value.Name)
 		}
 		seenFlags["--"+value.Name] = true
+		for _, alias := range tag.Aliases {
+			aliasFlag := "--" + alias
+			if seenFlags[aliasFlag] {
+				return failField(v, ft, "duplicate flag %s", aliasFlag)
+			}
+			seenFlags[aliasFlag] = true
+		}
 		if tag.Short != 0 {
 			if seenFlags["-"+string(tag.Short)] {
 				return failField(v, ft, "duplicate short flag -%c", tag.Short)
 			}
 			seenFlags["-"+string(tag.Short)] = true
 		}
+		if tag.Negatable != "" {
+			negFlag := negatableFlagName(value.Name, tag.Negatable)
+			if seenFlags[negFlag] {
+				return failField(v, ft, "duplicate negation flag %s", negFlag)
+			}
+			seenFlags[negFlag] = true
+		}
 		flag := &Flag{
 			Value:       value,
+			Aliases:     tag.Aliases,
 			Short:       tag.Short,
 			PlaceHolder: tag.PlaceHolder,
 			Envs:        tag.Envs,
 			Group:       buildGroupForKey(k, tag.Group),
 			Xor:         tag.Xor,
+			And:         tag.And,
 			Hidden:      tag.Hidden,
 		}
 		value.Flag = flag

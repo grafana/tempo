@@ -11,9 +11,11 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/gogo/status"
 	"github.com/google/uuid"
+	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
@@ -51,6 +53,10 @@ var tracer = otel.Tracer("modules/ingester")
 
 const (
 	ingesterRingKey = "ring"
+
+	// PartitionRingKey is the key under which we store the partitions ring used by the "ingest storage".
+	PartitionRingKey  = "ingester-partitions"
+	PartitionRingName = "ingester-partitions"
 )
 
 // Ingester builds blocks out of incoming traces
@@ -75,15 +81,19 @@ type Ingester struct {
 	cutToWalWg    sync.WaitGroup
 	cutToWalStop  chan struct{}
 	cutToWalStart chan struct{}
+	limiter       Limiter
 
-	limiter   *Limiter
+	// Used by ingest storage when enabled
+	ingestPartitionLifecycler *ring.PartitionInstanceLifecycler
+	ingestPartitionID         int32
+
 	overrides ingesterOverrides
 
 	subservicesWatcher *services.FailureWatcher
 }
 
 // New makes a new Ingester.
-func New(cfg Config, store storage.Store, overrides overrides.Interface, reg prometheus.Registerer) (*Ingester, error) {
+func New(cfg Config, store storage.Store, overrides overrides.Interface, reg prometheus.Registerer, singlePartition bool) (*Ingester, error) {
 	i := &Ingester{
 		cfg:          cfg,
 		instances:    map[string]*instance{},
@@ -105,6 +115,35 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 		return nil, fmt.Errorf("NewLifecycler failed: %w", err)
 	}
 	i.lifecycler = lc
+
+	if ingestCfg := cfg.IngestStorageConfig; ingestCfg.Enabled {
+		if singlePartition {
+			// For single-binary don't require hostname to identify a partition.
+			// Assume partition 0.
+			i.ingestPartitionID = 0
+		} else {
+			i.ingestPartitionID, err = ingest.IngesterPartitionID(cfg.LifecyclerConfig.ID)
+			if err != nil {
+				return nil, fmt.Errorf("calculating ingester partition ID: %w", err)
+			}
+		}
+
+		partitionRingKV := cfg.IngesterPartitionRing.KVStore.Mock
+		if partitionRingKV == nil {
+			partitionRingKV, err = kv.NewClient(cfg.IngesterPartitionRing.KVStore, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(reg, PartitionRingName+"-lifecycler"), log.Logger)
+			if err != nil {
+				return nil, fmt.Errorf("creating KV store for ingester partition ring: %w", err)
+			}
+		}
+
+		i.ingestPartitionLifecycler = ring.NewPartitionInstanceLifecycler(
+			i.cfg.IngesterPartitionRing.ToLifecyclerConfig(i.ingestPartitionID, cfg.LifecyclerConfig.ID),
+			PartitionRingName,
+			PartitionRingKey,
+			partitionRingKV,
+			log.Logger,
+			prometheus.WrapRegistererWithPrefix("cortex_", reg))
+	}
 
 	// Now that the lifecycler has been created, we can create the limiter
 	// which depends on it.
@@ -140,6 +179,15 @@ func (i *Ingester) starting(ctx context.Context) error {
 	}
 	if err := i.lifecycler.AwaitRunning(ctx); err != nil {
 		return fmt.Errorf("failed to start lifecycle: %w", err)
+	}
+
+	if i.ingestPartitionLifecycler != nil {
+		if err := i.ingestPartitionLifecycler.StartAsync(context.Background()); err != nil {
+			return fmt.Errorf("failed to start ingest partition lifecycler: %w", err)
+		}
+		if err := i.ingestPartitionLifecycler.AwaitRunning(ctx); err != nil {
+			return fmt.Errorf("failed to start ingest partition lifecycle: %w", err)
+		}
 	}
 
 	// accept traces

@@ -342,7 +342,7 @@ func TestInstanceSearchTagAndValuesV2(t *testing.T) {
 
 	// test that we are creating cache files for search tag values v2
 	// check that we have cache files for all complete blocks for all the cache keys
-	limit := i.limiter.limits.MaxBytesPerTagValuesQuery("fake")
+	limit := i.limiter.Limits().MaxBytesPerTagValuesQuery("fake")
 	cacheKeys := cacheKeysForTestSearchTagValuesV2(tagKey, queryThatMatches, limit)
 	for _, cacheKey := range cacheKeys {
 		for _, b := range i.completeBlocks {

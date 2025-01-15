@@ -12,6 +12,7 @@ import (
 	kitlog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/dns"
+	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/kv/memberlist"
 	"github.com/grafana/dskit/middleware"
 	"github.com/grafana/dskit/modules"
@@ -22,6 +23,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
+	"github.com/grafana/tempo/modules/blockbuilder"
 	"github.com/grafana/tempo/modules/cache"
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
@@ -64,6 +66,7 @@ const (
 	IngesterRing          string = "ring"
 	SecondaryIngesterRing string = "secondary-ring"
 	MetricsGeneratorRing  string = "metrics-generator-ring"
+	PartitionRing         string = "partition-ring"
 
 	// individual targets
 	Distributor      string = "distributor"
@@ -72,6 +75,7 @@ const (
 	Querier          string = "querier"
 	QueryFrontend    string = "query-frontend"
 	Compactor        string = "compactor"
+	BlockBuilder     string = "block-builder"
 
 	// composite targets
 	SingleBinary         string = "all"
@@ -179,6 +183,25 @@ func (t *App) initReadRing(cfg ring.Config, name, key string) (*ring.Ring, error
 	return ring, nil
 }
 
+func (t *App) initPartitionRing() (services.Service, error) {
+	if !t.cfg.Ingest.Enabled {
+		return nil, nil
+	}
+
+	kvClient, err := kv.NewClient(t.cfg.Ingester.IngesterPartitionRing.KVStore, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(prometheus.DefaultRegisterer, ingester.PartitionRingName+"-watcher"), util_log.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("creating KV store for ingester partitions ring watcher: %w", err)
+	}
+
+	t.partitionRingWatcher = ring.NewPartitionRingWatcher(ingester.PartitionRingName, ingester.PartitionRingKey, kvClient, util_log.Logger, prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer))
+	t.partitionRing = ring.NewPartitionInstanceRing(t.partitionRingWatcher, t.readRings[ringIngester], t.cfg.Ingester.LifecyclerConfig.RingConfig.HeartbeatTimeout)
+
+	// Expose a web page to view the partitions ring state.
+	t.Server.HTTPRouter().Path("/partition-ring").Methods("GET", "POST").Handler(ring.NewPartitionRingPageHandler(t.partitionRingWatcher, ring.NewPartitionRingEditor(ingester.PartitionRingKey, kvClient)))
+
+	return t.partitionRingWatcher, nil
+}
+
 func (t *App) initOverrides() (services.Service, error) {
 	o, err := overrides.NewOverrides(t.cfg.Overrides, newRuntimeConfigValidator(&t.cfg), prometheus.DefaultRegisterer)
 	if err != nil {
@@ -224,12 +247,16 @@ func (t *App) initOverridesAPI() (services.Service, error) {
 }
 
 func (t *App) initDistributor() (services.Service, error) {
+	t.cfg.Distributor.KafkaConfig = t.cfg.Ingest.Kafka
+	t.cfg.Distributor.KafkaWritePathEnabled = t.cfg.Ingest.Enabled // TODO: Don't mix config params
+
 	// todo: make ingester client a module instead of passing the config everywhere
 	distributor, err := distributor.New(t.cfg.Distributor,
 		t.cfg.IngesterClient,
 		t.readRings[ringIngester],
 		t.cfg.GeneratorClient,
 		t.readRings[ringMetricsGenerator],
+		t.partitionRing,
 		t.Overrides,
 		t.TracesConsumerMiddleware,
 		log.Logger, t.cfg.Server.LogLevel, prometheus.DefaultRegisterer)
@@ -252,7 +279,13 @@ func (t *App) initDistributor() (services.Service, error) {
 func (t *App) initIngester() (services.Service, error) {
 	t.cfg.Ingester.LifecyclerConfig.ListenPort = t.cfg.Server.GRPCListenPort
 	t.cfg.Ingester.DedicatedColumns = t.cfg.StorageConfig.Trace.Block.DedicatedColumns
-	ingester, err := ingester.New(t.cfg.Ingester, t.store, t.Overrides, prometheus.DefaultRegisterer)
+	t.cfg.Ingester.IngestStorageConfig = t.cfg.Ingest
+
+	// In SingleBinary mode don't try to discover parition from host name. Always use
+	// partition 0. This is for small installs or local/debugging setups.
+	singlePartition := t.cfg.Target == SingleBinary
+
+	ingester, err := ingester.New(t.cfg.Ingester, t.store, t.Overrides, prometheus.DefaultRegisterer, singlePartition)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ingester: %w", err)
 	}
@@ -272,7 +305,16 @@ func (t *App) initGenerator() (services.Service, error) {
 	}
 
 	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
-	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.store, log.Logger)
+
+	t.cfg.Generator.Ingest = t.cfg.Ingest
+	t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
+
+	if t.cfg.Target == SingleBinary && len(t.cfg.Generator.AssignedPartitions) == 0 {
+		// In SingleBinary mode always use partition 0. This is for small installs or local/debugging setups.
+		t.cfg.Generator.AssignedPartitions = map[string][]int32{t.cfg.Generator.InstanceID: {0}}
+	}
+
+	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRing, t.store, log.Logger)
 	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
 		level.Warn(log.Logger).Log("msg", "metrics-generator is not configured.", "err", err)
 		return services.NewIdleService(nil, nil), nil
@@ -291,6 +333,24 @@ func (t *App) initGenerator() (services.Service, error) {
 	tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC(), t.generator)
 
 	return t.generator, nil
+}
+
+func (t *App) initBlockBuilder() (services.Service, error) {
+	if !t.cfg.Ingest.Enabled {
+		return services.NewIdleService(nil, nil), nil
+	}
+
+	t.cfg.BlockBuilder.IngestStorageConfig = t.cfg.Ingest
+	t.cfg.BlockBuilder.IngestStorageConfig.Kafka.ConsumerGroup = blockbuilder.ConsumerGroup
+
+	if t.cfg.Target == SingleBinary && len(t.cfg.BlockBuilder.AssignedPartitions) == 0 {
+		// In SingleBinary mode always use partition 0. This is for small installs or local/debugging setups.
+		t.cfg.BlockBuilder.AssignedPartitions = map[string][]int32{t.cfg.BlockBuilder.InstanceID: {0}}
+	}
+
+	t.blockBuilder = blockbuilder.New(t.cfg.BlockBuilder, log.Logger, t.partitionRing, t.Overrides, t.store)
+
+	return t.blockBuilder, nil
 }
 
 func (t *App) initQuerier() (services.Service, error) {
@@ -462,6 +522,13 @@ func (t *App) initOptionalStore() (services.Service, error) {
 }
 
 func (t *App) initStore() (services.Service, error) {
+	// the only component that needs a functioning tempodb pool are the queriers. all other components will just spin up
+	// hundreds of never used pool goroutines. set pool size to 0 here to avoid that.
+	if t.cfg.Target != Querier && t.cfg.Target != SingleBinary && t.cfg.Target != ScalableSingleBinary {
+		t.cfg.StorageConfig.Trace.Pool.MaxWorkers = 0
+		t.cfg.StorageConfig.Trace.Pool.QueueDepth = 0
+	}
+
 	store, err := tempo_storage.NewStore(t.cfg.StorageConfig, t.cacheProvider, log.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create store: %w", err)
@@ -476,6 +543,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.MemberlistKV.MetricsNamespace = metricsNamespace
 	t.cfg.MemberlistKV.Codecs = append(t.cfg.MemberlistKV.Codecs,
 		ring.GetCodec(),
+		ring.GetPartitionRingCodec(),
 		usagestats.JSONCodec,
 	)
 
@@ -491,6 +559,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.MemberlistKV = memberlist.NewKVInitService(&t.cfg.MemberlistKV, log.Logger, dnsProvider, reg)
 
 	t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.cfg.Ingester.IngesterPartitionRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Generator.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
@@ -573,6 +642,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(IngesterRing, t.initIngesterRing, modules.UserInvisibleModule)
 	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
 	mm.RegisterModule(SecondaryIngesterRing, t.initSecondaryIngesterRing, modules.UserInvisibleModule)
+	mm.RegisterModule(PartitionRing, t.initPartitionRing, modules.UserInvisibleModule)
 
 	mm.RegisterModule(Common, nil, modules.UserInvisibleModule)
 
@@ -582,6 +652,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(QueryFrontend, t.initQueryFrontend)
 	mm.RegisterModule(Compactor, t.initCompactor)
 	mm.RegisterModule(MetricsGenerator, t.initGenerator)
+	mm.RegisterModule(BlockBuilder, t.initBlockBuilder)
 
 	mm.RegisterModule(SingleBinary, nil)
 	mm.RegisterModule(ScalableSingleBinary, nil)
@@ -598,18 +669,21 @@ func (t *App) setupModuleManager() error {
 		IngesterRing:          {Server, MemberlistKV},
 		SecondaryIngesterRing: {Server, MemberlistKV},
 		MetricsGeneratorRing:  {Server, MemberlistKV},
+		PartitionRing:         {MemberlistKV, Server, IngesterRing},
 
 		Common: {UsageReport, Server, Overrides},
 
 		// individual targets
 		QueryFrontend:    {Common, Store, OverridesAPI},
-		Distributor:      {Common, IngesterRing, MetricsGeneratorRing},
-		Ingester:         {Common, Store, MemberlistKV},
-		MetricsGenerator: {Common, OptionalStore, MemberlistKV},
+		Distributor:      {Common, IngesterRing, MetricsGeneratorRing, PartitionRing},
+		Ingester:         {Common, Store, MemberlistKV, PartitionRing},
+		MetricsGenerator: {Common, OptionalStore, MemberlistKV, PartitionRing},
 		Querier:          {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
 		Compactor:        {Common, Store, MemberlistKV},
+		BlockBuilder:     {Common, Store, MemberlistKV, PartitionRing},
+
 		// composite targets
-		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator},
+		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator, BlockBuilder},
 		ScalableSingleBinary: {SingleBinary},
 	}
 

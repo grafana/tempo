@@ -41,6 +41,8 @@ func main() {
 	newConfig.Ingester.LifecyclerConfig.ID = hostname
 	newConfig.Ingester.LifecyclerConfig.InfNames = []string{"eth0"}
 	newConfig.Generator.Ring.InstanceID = hostname
+	newConfig.Generator.InstanceID = hostname
+	newConfig.BlockBuilder.InstanceID = hostname
 
 	newConfigBytes, err := yaml.Marshal(newConfig)
 	if err != nil {

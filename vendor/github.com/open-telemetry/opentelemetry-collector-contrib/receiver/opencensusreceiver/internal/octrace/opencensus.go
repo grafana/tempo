@@ -32,8 +32,7 @@ type Receiver struct {
 }
 
 // New creates a new opencensus.Receiver reference.
-func New(nextConsumer consumer.Traces, set receiver.CreateSettings) (*Receiver, error) {
-
+func New(nextConsumer consumer.Traces, set receiver.Settings) (*Receiver, error) {
 	obsrecv, err := receiverhelper.NewObsReport(receiverhelper.ObsReportSettings{
 		ReceiverID:             set.ID,
 		Transport:              receiverTransport,

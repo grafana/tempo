@@ -4,14 +4,16 @@
 package ottl // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"reflect"
 	"strconv"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
+	"github.com/goccy/go-json"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/ottlcommon"
@@ -109,10 +111,35 @@ func (g exprGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
 				}
 				result = ottlcommon.GetValue(r.At(int(*k.Int)))
 			case []any:
-				if int(*k.Int) >= len(r) || int(*k.Int) < 0 {
-					return nil, fmt.Errorf("index %v out of bounds", *k.Int)
+				result, err = getElementByIndex(r, k.Int)
+				if err != nil {
+					return nil, err
 				}
-				result = r[*k.Int]
+			case []string:
+				result, err = getElementByIndex(r, k.Int)
+				if err != nil {
+					return nil, err
+				}
+			case []bool:
+				result, err = getElementByIndex(r, k.Int)
+				if err != nil {
+					return nil, err
+				}
+			case []float64:
+				result, err = getElementByIndex(r, k.Int)
+				if err != nil {
+					return nil, err
+				}
+			case []int64:
+				result, err = getElementByIndex(r, k.Int)
+				if err != nil {
+					return nil, err
+				}
+			case []byte:
+				result, err = getElementByIndex(r, k.Int)
+				if err != nil {
+					return nil, err
+				}
 			default:
 				return nil, fmt.Errorf("type, %T, does not support int indexing", result)
 			}
@@ -121,6 +148,13 @@ func (g exprGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
 		}
 	}
 	return result, nil
+}
+
+func getElementByIndex[T any](r []T, idx *int64) (any, error) {
+	if int(*idx) >= len(r) || int(*idx) < 0 {
+		return nil, fmt.Errorf("index %v out of bounds", *idx)
+	}
+	return r[*idx], nil
 }
 
 type listGetter[K any] struct {
@@ -139,6 +173,31 @@ func (l *listGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
 	}
 
 	return evaluated, nil
+}
+
+type mapGetter[K any] struct {
+	mapValues map[string]Getter[K]
+}
+
+func (m *mapGetter[K]) Get(ctx context.Context, tCtx K) (any, error) {
+	evaluated := map[string]any{}
+	for k, v := range m.mapValues {
+		val, err := v.Get(ctx, tCtx)
+		if err != nil {
+			return nil, err
+		}
+		switch t := val.(type) {
+		case pcommon.Map:
+			evaluated[k] = t.AsRaw()
+		default:
+			evaluated[k] = t
+		}
+	}
+	result := pcommon.NewMap()
+	if err := result.FromRaw(evaluated); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // TypeError represents that a value was not an expected type.
@@ -401,22 +460,25 @@ func (g StandardStringLikeGetter[K]) Get(ctx context.Context, tCtx K) (*string, 
 	case []byte:
 		result = hex.EncodeToString(v)
 	case pcommon.Map:
-		result, err = jsoniter.MarshalToString(v.AsRaw())
+		resultBytes, err := json.Marshal(v.AsRaw())
 		if err != nil {
 			return nil, err
 		}
+		result = string(resultBytes)
 	case pcommon.Slice:
-		result, err = jsoniter.MarshalToString(v.AsRaw())
+		resultBytes, err := json.Marshal(v.AsRaw())
 		if err != nil {
 			return nil, err
 		}
+		result = string(resultBytes)
 	case pcommon.Value:
 		result = v.AsString()
 	default:
-		result, err = jsoniter.MarshalToString(v)
+		resultBytes, err := json.Marshal(v)
 		if err != nil {
 			return nil, TypeError(fmt.Sprintf("unsupported type: %T", v))
 		}
+		result = string(resultBytes)
 	}
 	return &result, nil
 }
@@ -549,6 +611,81 @@ func (g StandardIntLikeGetter[K]) Get(ctx context.Context, tCtx K) (*int64, erro
 	return &result, nil
 }
 
+// ByteSliceLikeGetter is a Getter that returns []byte by converting the underlying value to an []byte if necessary
+type ByteSliceLikeGetter[K any] interface {
+	// Get retrieves []byte value.
+	// The expectation is that the underlying value is converted to []byte if possible.
+	// If the value cannot be converted to []byte, nil and an error are returned.
+	// If the value is nil, nil is returned without an error.
+	Get(ctx context.Context, tCtx K) ([]byte, error)
+}
+
+type StandardByteSliceLikeGetter[K any] struct {
+	Getter func(ctx context.Context, tCtx K) (any, error)
+}
+
+func (g StandardByteSliceLikeGetter[K]) Get(ctx context.Context, tCtx K) ([]byte, error) {
+	val, err := g.Getter(ctx, tCtx)
+	if err != nil {
+		return nil, fmt.Errorf("error getting value in %T: %w", g, err)
+	}
+	if val == nil {
+		return nil, nil
+	}
+	var result []byte
+	switch v := val.(type) {
+	case []byte:
+		result = v
+	case string:
+		result = []byte(v)
+	case float64, int64, bool:
+		result, err = valueToBytes(v)
+		if err != nil {
+			return nil, fmt.Errorf("error converting value %f of %T: %w", v, g, err)
+		}
+	case pcommon.Value:
+		switch v.Type() {
+		case pcommon.ValueTypeBytes:
+			result = v.Bytes().AsRaw()
+		case pcommon.ValueTypeInt:
+			result, err = valueToBytes(v.Int())
+			if err != nil {
+				return nil, fmt.Errorf("error converting value %d of int64: %w", v.Int(), err)
+			}
+		case pcommon.ValueTypeDouble:
+			result, err = valueToBytes(v.Double())
+			if err != nil {
+				return nil, fmt.Errorf("error converting value %f of float64: %w", v.Double(), err)
+			}
+		case pcommon.ValueTypeStr:
+			result = []byte(v.Str())
+		case pcommon.ValueTypeBool:
+			result, err = valueToBytes(v.Bool())
+			if err != nil {
+				return nil, fmt.Errorf("error converting value %s of bool: %w", v.Str(), err)
+			}
+		default:
+			return nil, TypeError(fmt.Sprintf("unsupported value type: %v", v.Type()))
+		}
+	default:
+		return nil, TypeError(fmt.Sprintf("unsupported type: %T", v))
+	}
+	return result, nil
+}
+
+// valueToBytes converts a value to a byte slice of length 8.
+func valueToBytes(n any) ([]byte, error) {
+	// Create a buffer to hold the bytes
+	buf := new(bytes.Buffer)
+	// Write the value to the buffer using binary.Write
+	err := binary.Write(buf, binary.BigEndian, n)
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
 // BoolLikeGetter is a Getter that returns a bool by converting the underlying value to a bool if necessary.
 type BoolLikeGetter[K any] interface {
 	// Get retrieves a bool value.
@@ -638,7 +775,7 @@ func (p *Parser[K]) newGetter(val value) (Getter[K], error) {
 			return &literal[K]{value: *i}, nil
 		}
 		if eL.Path != nil {
-			np, err := newPath[K](eL.Path.Fields)
+			np, err := p.newPath(eL.Path)
 			if err != nil {
 				return nil, err
 			}
@@ -659,6 +796,18 @@ func (p *Parser[K]) newGetter(val value) (Getter[K], error) {
 			lg.slice[i] = getter
 		}
 		return &lg, nil
+	}
+
+	if val.Map != nil {
+		mg := mapGetter[K]{mapValues: map[string]Getter[K]{}}
+		for _, kvp := range val.Map.Values {
+			getter, err := p.newGetter(*kvp.Value)
+			if err != nil {
+				return nil, err
+			}
+			mg.mapValues[*kvp.Key] = getter
+		}
+		return &mg, nil
 	}
 
 	if val.MathExpression == nil {

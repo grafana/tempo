@@ -2,7 +2,6 @@ package storage
 
 import (
 	"flag"
-	"time"
 
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/util"
@@ -35,10 +34,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.DurationVar(&cfg.Trace.BlocklistPoll, util.PrefixConfig(prefix, "trace.blocklist_poll"), tempodb.DefaultBlocklistPoll, "Period at which to run the maintenance cycle.")
 
 	cfg.Trace.WAL = &wal.Config{}
+	cfg.Trace.WAL.RegisterFlags(f)
 	f.StringVar(&cfg.Trace.WAL.Filepath, util.PrefixConfig(prefix, "trace.wal.path"), "/var/tempo/wal", "Path at which store WAL blocks.")
 	cfg.Trace.WAL.Encoding = backend.EncSnappy
 	cfg.Trace.WAL.SearchEncoding = backend.EncNone
-	cfg.Trace.WAL.IngestionSlack = 2 * time.Minute
 
 	cfg.Trace.Search = &tempodb.SearchConfig{}
 	cfg.Trace.Search.RegisterFlagsAndApplyDefaults(prefix, f)

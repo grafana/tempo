@@ -94,7 +94,6 @@ func (p *Parser[K]) newComparisonEvaluator(comparison *comparison) (BoolExpr[K],
 		}
 		return p.compare(a, b, comparison.Op), nil
 	}}, nil
-
 }
 
 func (p *Parser[K]) newBoolExpr(expr *booleanExpression) (BoolExpr[K], error) {

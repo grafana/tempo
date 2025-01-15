@@ -18,18 +18,17 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	tlsCfg "github.com/grafana/dskit/crypto/tls"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/pkg/tempopb"
+	jaeger "github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
+	jaeger_spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
+	ot_jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/metadata"
 
-	jaeger "github.com/jaegertracing/jaeger/model"
-	jaeger_spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
-
-	ot_jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 const (
@@ -245,10 +244,7 @@ func (b *Backend) getTrace(ctx context.Context, traceID jaeger.TraceID) (*jaeger
 		return nil, fmt.Errorf("error unmarshalling body to otlp trace %v: %w", traceID, err)
 	}
 
-	jaegerBatches, err := ot_jaeger.ProtoFromTraces(otTrace)
-	if err != nil {
-		return nil, fmt.Errorf("error translating to jaegerBatches %v: %w", traceID, err)
-	}
+	jaegerBatches := ot_jaeger.ProtoFromTraces(otTrace)
 
 	jaegerTrace := &jaeger.Trace{
 		Spans:      []*jaeger.Span{},
@@ -372,7 +368,7 @@ func (b *Backend) FindTraces(req *storage_v1.FindTracesRequest, stream storage_v
 	for i := 0; i < len(resp.TraceIDs); i++ {
 		result := <-results
 		if result.err != nil {
-			//// TODO this seems to be an internal inconsistency error, ignore so we can still show the rest
+			// TODO this seems to be an internal inconsistency error, ignore so we can still show the rest
 			b.logger.Info("failed to get a trace", zap.Error(err), zap.String("traceid", result.traceID.String()))
 			span.AddEvent(fmt.Sprintf("could not get trace for traceID %v", result.traceID))
 			span.RecordError(err)

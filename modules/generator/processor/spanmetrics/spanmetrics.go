@@ -263,6 +263,5 @@ func validateLabelValues(v []string) error {
 			return fmt.Errorf("invalid utf8 string: %s", value)
 		}
 	}
-
 	return nil
 }

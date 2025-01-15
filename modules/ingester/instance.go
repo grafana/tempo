@@ -95,7 +95,7 @@ type instance struct {
 	instanceID         string
 	tracesCreatedTotal prometheus.Counter
 	bytesReceivedTotal *prometheus.CounterVec
-	limiter            *Limiter
+	limiter            Limiter
 	writer             tempodb.Writer
 
 	dedicatedColumns backend.DedicatedColumns
@@ -111,9 +111,8 @@ type instance struct {
 	maxTraceLogger *log.RateLimitedLogger
 }
 
-func newInstance(instanceID string, limiter *Limiter, overrides ingesterOverrides, writer tempodb.Writer, l *local.Backend, dedicatedColumns backend.DedicatedColumns) (*instance, error) {
+func newInstance(instanceID string, limiter Limiter, overrides ingesterOverrides, writer tempodb.Writer, l *local.Backend, dedicatedColumns backend.DedicatedColumns) (*instance, error) {
 	logger := kitlog.With(log.Logger, "tenant", instanceID)
-
 	i := &instance{
 		traces:     map[uint32]*liveTrace{},
 		traceSizes: tracesizes.New(),
@@ -206,7 +205,7 @@ func (i *instance) push(ctx context.Context, id, traceBytes []byte) error {
 		return errMaxLiveTraces
 	}
 
-	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
+	maxBytes := i.limiter.Limits().MaxBytesPerTrace(i.instanceID)
 	reqSize := len(traceBytes)
 
 	if maxBytes > 0 && !i.traceSizes.Allow(id, reqSize, maxBytes) {
@@ -421,7 +420,7 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte, allowPartialTra
 	}
 	i.tracesMtx.Unlock()
 
-	maxBytes := i.limiter.limits.MaxBytesPerTrace(i.instanceID)
+	maxBytes := i.limiter.Limits().MaxBytesPerTrace(i.instanceID)
 	searchOpts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
 
 	combiner := trace.NewCombiner(maxBytes, allowPartialTrace)
