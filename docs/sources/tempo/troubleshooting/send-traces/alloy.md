@@ -4,8 +4,9 @@ menuTitle: Grafana Alloy
 description: Gain visibility on how many traces are being pushed to Grafana Alloy and if they are making it to the Tempo backend.
 weight: 472
 aliases:
-- ../operations/troubleshooting/agent/
-- ./agent.md # /docs/tempo/<TEMPO_VERSION>/troubleshooting/agent.md
+- ../operations/troubleshooting/agent/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/troubleshooting/agent/
+- ../agent/ # /docs/tempo/<TEMPO_VERSION>/troubleshooting/agent/
+- ../alloy/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/alloy/
 ---
 
 # Troubleshoot Grafana Alloy
@@ -22,13 +23,13 @@ If your logs are showing no obvious errors, one of the following suggestions may
 Alloy publishes a few Prometheus metrics that are useful to determine how much trace traffic it receives and successfully forwards.
 These metrics are a good place to start when diagnosing tracing Alloy issues.
 
-From the [`otelcol.receiver.otlp`](https://grafana.com/docs/alloy/<ALLOY_LATEST>/reference/components/otelcol/otelcol.receiver.otlp/) component:
+From the [`otelcol.receiver.otlp`](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.receiver.otlp/) component:
 ```
 receiver_accepted_spans_ratio_total
 receiver_refused_spans_ratio_total
 ```
 
-From the [`otelcol.exporter.otlp`](https://grafana.com/docs/alloy/<ALLOY_LATEST>/reference/components/otelcol/otelcol.exporter.otlp/) component:
+From the [`otelcol.exporter.otlp`](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.exporter.otlp/) component:
 ```
 exporter_sent_spans_ratio_total
 exporter_send_failed_spans_ratio_total
@@ -36,7 +37,7 @@ exporter_send_failed_spans_ratio_total
 
 Alloy has a Prometheus scrape endpoint, `/metrics`, that you can use to check metrics locally by opening a browser to `http://localhost:12345/metrics`.
 The `/metrics` HTTP endpoint of the Alloy HTTP server exposes the Alloy component and controller metrics.
-Refer to the [Monitor the Grafana Alloy component controller](https://grafana.com/docs/alloy/latest/troubleshoot/controller_metrics/) documentation for more information.
+Refer to the [Monitor the Grafana Alloy component controller](https://grafana.com/docs/alloy/<ALLOY_VERSION>/troubleshoot/controller_metrics/) documentation for more information.
 
 ### Check metrics in Grafana Cloud
 
