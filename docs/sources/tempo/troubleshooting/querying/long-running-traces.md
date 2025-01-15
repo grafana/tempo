@@ -3,7 +3,8 @@ title: Long-running traces
 description: Troubleshoot search results when using long-running traces
 weight: 479
 aliases:
-  - ../operations/troubleshooting/long-running-traces/
+  - ../../operations/troubleshooting/long-running-traces/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/troubleshooting/long-running-traces/
+  - ../long-running-traces/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/long-running-traces/
 ---
 
 # Long-running traces
@@ -20,7 +21,7 @@ different blocks, which can lead to inconsistency in a few ways:
    matching blocks, which yields greater accuracy when combined.
 
 1. When using [`spanset`
-   operators](https://grafana.com/docs/tempo/latest/traceql/#combining-spansets),
+   operators](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/#combine-spansets),
    Tempo only evaluates the contiguous trace of the current block. This means
    that for a single block the conditions may evaluate to false, but to
    consider all parts of the trace from all blocks would evaluate true.
