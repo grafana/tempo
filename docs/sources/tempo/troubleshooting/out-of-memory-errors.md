@@ -59,6 +59,8 @@ overrides:
         max_bytes_per_trace: 1.5e+07
 ```
 
+Refer to the [Overrides](# https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides) documentation for more information.
+
 ## Large attributes
 
 Very large attributes, 10KB or longer, can spike the memory usage of each component when they are encountered.
@@ -93,7 +95,7 @@ When writing these attributes, they can spike the memory usage of the write comp
 * compactor
 * metrics-generator
 
-You can [automatically limit attribute sizes](https://github.com/grafana/tempo/pull/4335) using `max_span_attr_byte`.
+You can [automatically limit attribute sizes](https://github.com/grafana/tempo/pull/4335) using [`max_span_attr_byte`]((https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#distributor).
 You can also use these options:
 
 * Manually update application instrumentation to remove or limit these attributes
