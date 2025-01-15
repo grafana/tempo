@@ -28,9 +28,29 @@ const (
 	blockBuilderServiceName = "block-builder"
 	ConsumerGroup           = "block-builder"
 	pollTimeout             = 2 * time.Second
+	cutTime                 = 10 * time.Second
 )
 
 var (
+	metricFetchDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace:                   "tempo",
+		Subsystem:                   "block_builder",
+		Name:                        "fetch_duration_seconds",
+		Help:                        "Time spent fetching from Kafka.",
+		NativeHistogramBucketFactor: 1.1,
+	}, []string{"partition"})
+	metricFetchBytesTotal = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Subsystem: "block_builder",
+		Name:      "fetch_bytes_total",
+		Help:      "Total number of bytes fetched from Kafka",
+	}, []string{"partition"})
+	metricFetchRecordsTotal = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Subsystem: "block_builder",
+		Name:      "fetch_records_total",
+		Help:      "Total number of records fetched from Kafka",
+	}, []string{"partition"})
 	metricPartitionLag = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Subsystem: "block_builder",
@@ -180,6 +200,12 @@ func (b *BlockBuilder) consume(ctx context.Context) error {
 	level.Info(b.logger).Log("msg", "starting consume cycle", "cycle_end", end, "active_partitions", partitions)
 	defer func(t time.Time) { metricConsumeCycleDuration.Observe(time.Since(t).Seconds()) }(time.Now())
 
+	// Clear all previous remnants
+	err := b.wal.Clear()
+	if err != nil {
+		return err
+	}
+
 	for _, partition := range partitions {
 		// Consume partition while data remains.
 		// TODO - round-robin one consumption per partition instead to equalize catch-up time.
@@ -207,10 +233,12 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, ov
 		dur         = b.cfg.ConsumeCycleDuration
 		topic       = b.cfg.IngestStorageConfig.Kafka.Topic
 		group       = b.cfg.IngestStorageConfig.Kafka.ConsumerGroup
+		partLabel   = strconv.Itoa(int(partition))
 		startOffset kgo.Offset
 		init        bool
 		writer      *writer
 		lastRec     *kgo.Record
+		nextCut     time.Time
 		end         time.Time
 	)
 
@@ -247,6 +275,7 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, ov
 outer:
 	for {
 		fetches := func() kgo.Fetches {
+			defer func(t time.Time) { metricFetchDuration.WithLabelValues(partLabel).Observe(time.Since(t).Seconds()) }(time.Now())
 			ctx2, cancel := context.WithTimeout(ctx, pollTimeout)
 			defer cancel()
 			return b.kafkaClient.PollFetches(ctx2)
@@ -257,7 +286,7 @@ outer:
 				// No more data
 				break
 			}
-			metricFetchErrors.WithLabelValues(strconv.Itoa(int(partition))).Inc()
+			metricFetchErrors.WithLabelValues(partLabel).Inc()
 			return false, err
 		}
 
@@ -267,19 +296,23 @@ outer:
 
 		for iter := fetches.RecordIter(); !iter.Done(); {
 			rec := iter.Next()
+			metricFetchBytesTotal.WithLabelValues(partLabel).Add(float64(len(rec.Value)))
+			metricFetchRecordsTotal.WithLabelValues(partLabel).Inc()
 
 			level.Debug(b.logger).Log(
 				"msg", "processing record",
 				"partition", rec.Partition,
 				"offset", rec.Offset,
 				"timestamp", rec.Timestamp,
+				"len", len(rec.Value),
 			)
 
 			// Initialize on first record
 			if !init {
 				end = rec.Timestamp.Add(dur) // When block will be cut
-				metricPartitionLagSeconds.WithLabelValues(strconv.Itoa(int(partition))).Set(time.Since(rec.Timestamp).Seconds())
+				metricPartitionLagSeconds.WithLabelValues(partLabel).Set(time.Since(rec.Timestamp).Seconds())
 				writer = newPartitionSectionWriter(b.logger, uint64(partition), uint64(rec.Offset), b.cfg.BlockConfig, b.overrides, b.wal, b.enc)
+				nextCut = rec.Timestamp.Add(cutTime)
 				init = true
 			}
 
@@ -295,7 +328,16 @@ outer:
 				break outer
 			}
 
-			err := b.pushTraces(rec.Key, rec.Value, writer)
+			if rec.Timestamp.After(nextCut) {
+				// Cut before appending this trace
+				err = writer.cutidle(rec.Timestamp.Add(-cutTime), false)
+				if err != nil {
+					return false, err
+				}
+				nextCut = rec.Timestamp.Add(cutTime)
+			}
+
+			err := b.pushTraces(rec.Timestamp, rec.Key, rec.Value, writer)
 			if err != nil {
 				return false, err
 			}
@@ -311,6 +353,12 @@ outer:
 			"partition", partition,
 		)
 		return false, nil
+	}
+
+	// Cut any remaining
+	err = writer.cutidle(time.Time{}, true)
+	if err != nil {
+		return false, err
 	}
 
 	err = writer.flush(ctx, b.writer)
@@ -370,14 +418,14 @@ func (b *BlockBuilder) stopping(err error) error {
 	return err
 }
 
-func (b *BlockBuilder) pushTraces(tenantBytes, reqBytes []byte, p partitionSectionWriter) error {
+func (b *BlockBuilder) pushTraces(ts time.Time, tenantBytes, reqBytes []byte, p partitionSectionWriter) error {
 	req, err := b.decoder.Decode(reqBytes)
 	if err != nil {
 		return fmt.Errorf("failed to decode trace: %w", err)
 	}
 	defer b.decoder.Reset()
 
-	return p.pushBytes(string(tenantBytes), req)
+	return p.pushBytes(ts, string(tenantBytes), req)
 }
 
 func (b *BlockBuilder) getAssignedActivePartitions() []int32 {

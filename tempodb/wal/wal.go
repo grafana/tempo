@@ -153,9 +153,8 @@ func (w *WAL) GetFilepath() string {
 	return w.c.Filepath
 }
 
-func (w *WAL) ClearFolder(dir string) error {
-	p := filepath.Join(w.c.Filepath, dir)
-	return os.RemoveAll(p)
+func (w *WAL) Clear() error {
+	return os.RemoveAll(w.c.Filepath)
 }
 
 func (w *WAL) LocalBackend() *local.Backend {

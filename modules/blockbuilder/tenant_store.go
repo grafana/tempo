@@ -1,15 +1,21 @@
 package blockbuilder
 
 import (
+	"bytes"
 	"context"
+	"slices"
 	"sync"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/blockbuilder/util"
+	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/tracesizes"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -26,6 +32,8 @@ var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
 		Name:      "flushed_blocks",
 	}, []string{"tenant"},
 )
+
+const reasonTraceTooLarge = "trace_too_large"
 
 // TODO - This needs locking
 type tenantStore struct {
@@ -44,6 +52,9 @@ type tenantStore struct {
 
 	blocksMtx sync.Mutex
 	walBlocks []common.WALBlock
+
+	liveTraces *livetraces.LiveTraces
+	traceSizes *tracesizes.Tracker
 }
 
 func newTenantStore(tenantID string, partitionID, endTimestamp uint64, cfg BlockConfig, logger log.Logger, wal *wal.WAL, enc encoding.VersionedEncoding, o Overrides) (*tenantStore, error) {
@@ -57,6 +68,8 @@ func newTenantStore(tenantID string, partitionID, endTimestamp uint64, cfg Block
 		headBlockMtx: sync.Mutex{},
 		blocksMtx:    sync.Mutex{},
 		enc:          enc,
+		liveTraces:   livetraces.New(),
+		traceSizes:   tracesizes.New(),
 	}
 
 	return s, s.resetHeadBlock()
@@ -104,13 +117,68 @@ func (s *tenantStore) resetHeadBlock() error {
 	return nil
 }
 
-func (s *tenantStore) AppendTrace(traceID []byte, tr *tempopb.Trace, start, end uint32) error {
-	// TODO - Do this async, it slows down consumption
-	if err := s.cutHeadBlock(false); err != nil {
+func (s *tenantStore) AppendTrace(traceID []byte, tr *tempopb.Trace, ts time.Time) error {
+	maxSz := s.overrides.MaxBytesPerTrace(s.tenantID)
+
+	for _, b := range tr.ResourceSpans {
+		if maxSz > 0 && !s.traceSizes.Allow(traceID, b.Size(), maxSz) {
+			// Record dropped spans due to trace too large
+			count := 0
+			for _, ss := range b.ScopeSpans {
+				count += len(ss.Spans)
+			}
+			overrides.RecordDiscardedSpans(count, reasonTraceTooLarge, s.tenantID)
+			continue
+		}
+
+		s.liveTraces.PushWithTimestamp(ts, traceID, b, 0)
+	}
+	return nil
+}
+
+func (s *tenantStore) CutIdle(since time.Time, immediate bool) error {
+	idle := s.liveTraces.CutIdle(since, immediate)
+
+	slices.SortFunc(idle, func(a, b *livetraces.LiveTrace) int {
+		return bytes.Compare(a.ID, b.ID)
+	})
+
+	for _, e := range idle {
+		tr := &tempopb.Trace{
+			ResourceSpans: e.Batches,
+		}
+
+		// Get trace timestamp bounds
+		var start, end uint64
+		for _, b := range tr.ResourceSpans {
+			for _, ss := range b.ScopeSpans {
+				for _, s := range ss.Spans {
+					if start == 0 || s.StartTimeUnixNano < start {
+						start = s.StartTimeUnixNano
+					}
+					if s.EndTimeUnixNano > end {
+						end = s.EndTimeUnixNano
+					}
+				}
+			}
+		}
+
+		// Convert from unix nanos to unix seconds
+		startSeconds := uint32(start / uint64(time.Second))
+		endSeconds := uint32(end / uint64(time.Second))
+
+		if err := s.headBlock.AppendTrace(e.ID, tr, startSeconds, endSeconds); err != nil {
+			return err
+		}
+	}
+
+	err := s.headBlock.Flush()
+	if err != nil {
 		return err
 	}
 
-	return s.headBlock.AppendTrace(traceID, tr, start, end)
+	// Cut head block if needed
+	return s.cutHeadBlock(false)
 }
 
 func (s *tenantStore) Flush(ctx context.Context, store tempodb.Writer) error {
@@ -131,6 +199,12 @@ func (s *tenantStore) Flush(ctx context.Context, store tempodb.Writer) error {
 		if err != nil {
 			return err
 		}
+
+		err = block.Clear()
+		if err != nil {
+			return err
+		}
+
 		completeBlocks = append(completeBlocks, completeBlock)
 	}
 
@@ -142,14 +216,13 @@ func (s *tenantStore) Flush(ctx context.Context, store tempodb.Writer) error {
 			return err
 		}
 		metricBlockBuilderFlushedBlocks.WithLabelValues(s.tenantID).Inc()
-	}
 
-	// Clear the blocks
-	for _, block := range s.walBlocks {
 		if err := s.wal.LocalBackend().ClearBlock((uuid.UUID)(block.BlockMeta().BlockID), s.tenantID); err != nil {
 			return err
 		}
 	}
+
+	// Clear the blocks
 	s.walBlocks = s.walBlocks[:0]
 
 	return nil

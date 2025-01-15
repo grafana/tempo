@@ -302,7 +302,7 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 	requireLastCommitEquals(t, ctx, client, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
-func blockbuilderConfig(t *testing.T, address string) Config {
+func blockbuilderConfig(t testing.TB, address string) Config {
 	cfg := Config{}
 	flagext.DefaultValues(&cfg)
 
@@ -327,7 +327,7 @@ type ownEverythingSharder struct{}
 
 func (o *ownEverythingSharder) Owns(string) bool { return true }
 
-func newStore(ctx context.Context, t *testing.T) storage.Store {
+func newStore(ctx context.Context, t testing.TB) storage.Store {
 	tmpDir := t.TempDir()
 	s, err := storage.NewStore(storage.Config{
 		Trace: tempodb.Config{
@@ -402,9 +402,10 @@ type mockOverrides struct {
 	dc backend.DedicatedColumns
 }
 
+func (m *mockOverrides) MaxBytesPerTrace(_ string) int                      { return 0 }
 func (m *mockOverrides) DedicatedColumns(_ string) backend.DedicatedColumns { return m.dc }
 
-func newKafkaClient(t *testing.T, config ingest.KafkaConfig) *kgo.Client {
+func newKafkaClient(t testing.TB, config ingest.KafkaConfig) *kgo.Client {
 	writeClient, err := kgo.NewClient(
 		kgo.SeedBrokers(config.Address),
 		kgo.AllowAutoTopicCreation(),
@@ -427,7 +428,7 @@ func countFlushedTraces(store storage.Store) int {
 }
 
 // nolint: revive
-func sendReq(t *testing.T, ctx context.Context, client *kgo.Client) []*kgo.Record {
+func sendReq(t testing.TB, ctx context.Context, client *kgo.Client) []*kgo.Record {
 	traceID := generateTraceID(t)
 
 	req := test.MakePushBytesRequest(t, 10, traceID)
@@ -463,7 +464,7 @@ func sendTracesFor(t *testing.T, ctx context.Context, client *kgo.Client, dur, i
 	}
 }
 
-func generateTraceID(t *testing.T) []byte {
+func generateTraceID(t testing.TB) []byte {
 	traceID := make([]byte, 16)
 	_, err := rand.Read(traceID)
 	require.NoError(t, err)
@@ -477,4 +478,45 @@ func requireLastCommitEquals(t testing.TB, ctx context.Context, client *kgo.Clie
 	offset, ok := offsets.Lookup(testTopic, testPartition)
 	require.True(t, ok)
 	require.Equal(t, expectedOffset, offset.At)
+}
+
+func BenchmarkBlockBuilder(b *testing.B) {
+	var (
+		ctx        = context.Background()
+		_, address = testkafka.CreateCluster(b, 1, testTopic)
+		store      = newStore(ctx, b)
+		cfg        = blockbuilderConfig(b, address)
+		client     = newKafkaClient(b, cfg.IngestStorageConfig.Kafka)
+	)
+
+	cfg.ConsumeCycleDuration = 1 * time.Hour
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+
+		var records []*kgo.Record
+
+		for i := 0; i < 1000; i++ {
+			records = append(records, sendReq(b, ctx, client)...)
+		}
+
+		var size int
+		for _, r := range records {
+			size += len(r.Value)
+		}
+
+		b.ResetTimer()
+
+		bb := New(cfg, test.NewTestingLogger(b), newPartitionRingReader(), &mockOverrides{}, store)
+
+		// Startup (without starting the background consume cycle)
+		err := bb.starting(ctx)
+		require.NoError(b, err)
+
+		err = bb.consume(ctx)
+		require.NoError(b, err)
+
+		b.SetBytes(int64(size))
+	}
 }

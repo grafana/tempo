@@ -15,6 +15,7 @@ import (
 
 // Overrides is just the set of overrides needed here.
 type Overrides interface {
+	MaxBytesPerTrace(string) int
 	DedicatedColumns(string) backend.DedicatedColumns
 }
 

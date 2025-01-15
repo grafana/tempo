@@ -20,9 +20,9 @@ For detailed information about any release, refer to the [Release notes](../rele
 You can check your configuration options using the [`status` API endpoint]({{< relref "../api_docs#status" >}}) in your Tempo installation.
 {{% /admonition %}}
 
-## Updrade to Tempo 2..7
+## Upgrade to Tempo 2.7
 
-When [upgrading](https://grafana.com/docs/tempo/latest/setup/upgrade/) to Tempo 2.7, be aware of these considerations and breaking changes.
+When [upgrading](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/upgrade/) to Tempo 2.7, be aware of these considerations and breaking changes.
 
 ### OpenTelemetry Collector receiver listens on `localhost` by default
 
@@ -61,7 +61,9 @@ You can also explicitly bind to `0.0.0.0` still, but this has potential security
 
 ### Maximum spans per span set
 
-A new `max_spans_per_span_set` limit is enabled by default and set to 100. Set it to 0 to restore the old behavior (unlimited). Otherwise, spans beyond the configured max are dropped. ([#4275](https://github.com/grafana/tempo/pull/4383))
+A new `max_spans_per_span_set` limit is enabled by default and set to 100.
+Set it to `0` to restore the old behavior (unlimited).
+Otherwise, spans beyond the configured max are dropped. ([#4275](https://github.com/grafana/tempo/pull/4383))
 
 ```
 query_frontend:
@@ -86,6 +88,25 @@ For more information, refer to the [Comparison operators TraceQL](http://localho
 The `use_otel_tracer` option is removed.
 Configure your spans via standard OpenTelemetry environment variables.
 For Jaeger exporting, set `OTEL_TRACES_EXPORTER=jaeger`.For more information, refer to the [OpenTelemetry documentation](https://www.google.com/url?q=https://opentelemetry.io/docs/languages/sdk-configuration/&sa=D&source=docs&ust=1736460391410238&usg=AOvVaw3bykVWwn34XfhrnFK73uM_). ([#3646](https://github.com/grafana/tempo/pull/3646))
+
+### gRPC compression disabled
+
+Disable gRPC compression in the querier and distributor for performance reasons. ([#4429](https://github.com/grafana/tempo/pull/4429)) Check the gRPC compression settings if you see network issues.
+If you would like to re-enable it, we recommend 'snappy'.
+Use the following settings:
+
+  ```
+  ingester_client:
+      grpc_client_config:
+          grpc_compression: "snappy"
+  metrics_generator_client:
+      grpc_client_config:
+          grpc_compression: "snappy"
+  querier:
+      frontend_worker:
+          grpc_client_config:
+              grpc_compression: "snappy"
+  ```
 
 ### Added, updated, removed, or renamed configuration parameters
 
@@ -127,19 +148,6 @@ For Jaeger exporting, set `OTEL_TRACES_EXPORTER=jaeger`.For more information, re
 * The Tempo CLI now targets the `/api/v2/traces` endpoint by default. Use the `--v1` flag if you still rely on the older `/api/traces` endpoint. ([#4127](https://github.com/grafana/tempo/pull/4127))
 * If you already set the `X-Scope-OrgID` header in per-tenant overrides or global Tempo config, it is now honored and not overwritten by Tempo. This may change behavior if you previously depended on automatic injection. ([#4021](https://github.com/grafana/tempo/pull/4021))
 * The AWS Lambda build output changes from main to bootstrap. Follow [AWS’s migration steps](https://aws.amazon.com/blogs/compute/migrating-aws-lambda-functions-from-the-go1-x-runtime-to-the-custom-runtime-on-amazon-linux-2/) to ensure your Lambda functions continue to work. ([#3852](https://github.com/grafana/tempo/pull/3852))
-* Disable gRPC compression in the querier and distributor for performance reasons. ([#4429](https://github.com/grafana/tempo/pull/4429)) Check the gRPC compression settings if you see network issues.  If you would like to re-enable it, we recommend 'snappy'. Use the following settings:
-  ```
-  ingester_client:
-      grpc_client_config:
-          grpc_compression: "snappy"
-  metrics_generator_client:
-      grpc_client_config:
-          grpc_compression: "snappy"
-  querier:
-      frontend_worker:
-          grpc_client_config:
-              grpc_compression: "snappy"
-  ```
 
 ## Upgrade to Tempo 2.6
 
