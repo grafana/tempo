@@ -34,4 +34,4 @@ In addition, the [Tempo runbook](https://github.com/grafana/tempo/blob/main/oper
 
 ## Out-of-memory errors
 
-- [Set the max attribute size to help control out of memory errors](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/ouit-of-memory-errors/)
+- [Set the max attribute size to help control out of memory errors](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/out-of-memory-errors/)
