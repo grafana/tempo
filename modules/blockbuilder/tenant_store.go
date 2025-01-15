@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/blockbuilder/util"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -23,6 +24,7 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.uber.org/atomic"
 )
 
 var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
@@ -33,7 +35,10 @@ var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
 	}, []string{"tenant"},
 )
 
-const reasonTraceTooLarge = "trace_too_large"
+const (
+	reasonTraceTooLarge = "trace_too_large"
+	flushConcurrency    = 4
+)
 
 // TODO - This needs locking
 type tenantStore struct {
@@ -192,34 +197,62 @@ func (s *tenantStore) Flush(ctx context.Context, store tempodb.Writer) error {
 	s.blocksMtx.Lock()
 	defer s.blocksMtx.Unlock()
 
-	completeBlocks := make([]tempodb.WriteableBlock, 0, len(s.walBlocks))
-	// Write all blocks
-	for _, block := range s.walBlocks {
-		completeBlock, err := s.buildWriteableBlock(ctx, block)
-		if err != nil {
-			return err
-		}
+	var (
+		completeBlocks = make([]tempodb.WriteableBlock, len(s.walBlocks))
+		jobErr         = atomic.NewError(nil)
+		wg             = boundedwaitgroup.New(flushConcurrency)
+	)
 
-		err = block.Clear()
-		if err != nil {
-			return err
-		}
+	// Convert WALs to backend blocks
+	for i, block := range s.walBlocks {
+		wg.Add(1)
+		go func(i int, block common.WALBlock) {
+			defer wg.Done()
 
-		completeBlocks = append(completeBlocks, completeBlock)
+			completeBlock, err := s.buildWriteableBlock(ctx, block)
+			if err != nil {
+				jobErr.Store(err)
+				return
+			}
+
+			err = block.Clear()
+			if err != nil {
+				jobErr.Store(err)
+				return
+			}
+
+			completeBlocks[i] = completeBlock
+		}(i, block)
 	}
 
-	level.Info(s.logger).Log("msg", "writing blocks to storage", "num_blocks", len(completeBlocks))
-	// Write all blocks to the store
-	for _, block := range completeBlocks {
-		level.Info(s.logger).Log("msg", "writing block to storage", "block_id", block.BlockMeta().BlockID.String())
-		if err := store.WriteBlock(ctx, block); err != nil {
-			return err
-		}
-		metricBlockBuilderFlushedBlocks.WithLabelValues(s.tenantID).Inc()
+	wg.Wait()
+	if err := jobErr.Load(); err != nil {
+		return err
+	}
 
-		if err := s.wal.LocalBackend().ClearBlock((uuid.UUID)(block.BlockMeta().BlockID), s.tenantID); err != nil {
-			return err
-		}
+	// Write all blocks to the store
+	level.Info(s.logger).Log("msg", "writing blocks to storage", "num_blocks", len(completeBlocks))
+	for _, block := range completeBlocks {
+		wg.Add(1)
+		go func(block tempodb.WriteableBlock) {
+			defer wg.Done()
+			level.Info(s.logger).Log("msg", "writing block to storage", "block_id", block.BlockMeta().BlockID.String())
+			if err := store.WriteBlock(ctx, block); err != nil {
+				jobErr.Store(err)
+				return
+			}
+
+			metricBlockBuilderFlushedBlocks.WithLabelValues(s.tenantID).Inc()
+
+			if err := s.wal.LocalBackend().ClearBlock((uuid.UUID)(block.BlockMeta().BlockID), s.tenantID); err != nil {
+				jobErr.Store(err)
+			}
+		}(block)
+	}
+
+	wg.Wait()
+	if err := jobErr.Load(); err != nil {
+		return err
 	}
 
 	// Clear the blocks

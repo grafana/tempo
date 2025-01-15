@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
@@ -328,7 +329,12 @@ type ownEverythingSharder struct{}
 func (o *ownEverythingSharder) Owns(string) bool { return true }
 
 func newStore(ctx context.Context, t testing.TB) storage.Store {
+	return newStoreWithLogger(ctx, t, test.NewTestingLogger(t))
+}
+
+func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger) storage.Store {
 	tmpDir := t.TempDir()
+
 	s, err := storage.NewStore(storage.Config{
 		Trace: tempodb.Config{
 			Backend: backend.Local,
@@ -348,7 +354,7 @@ func newStore(ctx context.Context, t testing.TB) storage.Store {
 			},
 			BlocklistPoll: 5 * time.Second,
 		},
-	}, nil, test.NewTestingLogger(t))
+	}, nil, log)
 	require.NoError(t, err)
 
 	s.EnablePolling(ctx, &ownEverythingSharder{})
@@ -483,13 +489,21 @@ func requireLastCommitEquals(t testing.TB, ctx context.Context, client *kgo.Clie
 func BenchmarkBlockBuilder(b *testing.B) {
 	var (
 		ctx        = context.Background()
+		logger     = log.NewNopLogger()
 		_, address = testkafka.CreateCluster(b, 1, testTopic)
-		store      = newStore(ctx, b)
+		store      = newStoreWithLogger(ctx, b, logger)
 		cfg        = blockbuilderConfig(b, address)
 		client     = newKafkaClient(b, cfg.IngestStorageConfig.Kafka)
 	)
 
 	cfg.ConsumeCycleDuration = 1 * time.Hour
+
+	bb := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
+	defer bb.stopping(nil)
+
+	// Startup (without starting the background consume cycle)
+	err := bb.starting(ctx)
+	require.NoError(b, err)
 
 	b.ResetTimer()
 
@@ -507,12 +521,6 @@ func BenchmarkBlockBuilder(b *testing.B) {
 		}
 
 		b.ResetTimer()
-
-		bb := New(cfg, test.NewTestingLogger(b), newPartitionRingReader(), &mockOverrides{}, store)
-
-		// Startup (without starting the background consume cycle)
-		err := bb.starting(ctx)
-		require.NoError(b, err)
 
 		err = bb.consume(ctx)
 		require.NoError(b, err)
