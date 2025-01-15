@@ -19,6 +19,11 @@ import (
 const (
 	// 170 x sizeof(Value) = 4KB
 	defaultValueBufferSize = 170
+
+	offsetOfPtr  = unsafe.Offsetof(Value{}.ptr)
+	offsetOfU64  = unsafe.Offsetof(Value{}.u64)
+	offsetOfU32  = offsetOfU64 + firstByteOffsetOf32BitsValue
+	offsetOfBool = offsetOfU64 + firstByteOffsetOfBooleanValue
 )
 
 // The Value type is similar to the reflect.Value abstraction of Go values, but

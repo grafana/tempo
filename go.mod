@@ -95,7 +95,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.116.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.116.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.116.0
-	github.com/parquet-go/parquet-go v0.23.1-0.20241011155651-6446d1d0d2fe
+	github.com/parquet-go/parquet-go v0.24.0
 	github.com/stoewer/parquet-cli v0.0.9
 	github.com/twmb/franz-go v1.18.0
 	github.com/twmb/franz-go/pkg/kadm v1.14.0
