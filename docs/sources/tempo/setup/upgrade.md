@@ -20,7 +20,7 @@ For detailed information about any release, refer to the [Release notes](../rele
 You can check your configuration options using the [`status` API endpoint]({{< relref "../api_docs#status" >}}) in your Tempo installation.
 {{% /admonition %}}
 
-## Updrade to Tempo 2.7
+## Updrade to Tempo 2.7 
 
 When [upgrading](https://grafana.com/docs/tempo/latest/setup/upgrade/) to Tempo 2.7, be aware of these considerations and breaking changes.
 
