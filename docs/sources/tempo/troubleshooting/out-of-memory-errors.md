@@ -26,7 +26,7 @@ Use the `tempo_distributor_attributes_truncated_total` metric to track how many 
     [max_span_attr_byte: <int> | default = '2048']
 ```
 
-Refer to the [configuration for distributors](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#distributor) documentation for more information.
+Refer to the [configuration for distributors](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#set-max-attribute-size-to-help-control-out-of-memory-errors) documentation for more information.
 
 ## Max trace size
 
@@ -51,7 +51,7 @@ With an average span size of 300 bytes, this allows for 50K spans per trace.
 
 Always ensure that the limit is configured, and the largest recommended limit is 60 MB.
 
-The limit is configured in the per-tenant overrides:
+Configure the limit in the per-tenant overrides:
 
 ```yaml
 overrides:
@@ -95,7 +95,7 @@ When writing these attributes, they can spike the memory usage of the write comp
 * compactor
 * metrics-generator
 
-You can [automatically limit attribute sizes](https://github.com/grafana/tempo/pull/4335) using [`max_span_attr_byte`]((https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#distributor).
+You can [automatically limit attribute sizes](https://github.com/grafana/tempo/pull/4335) using [`max_span_attr_byte`]((https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#set-max-attribute-size-to-help-control-out-of-memory-errors).
 You can also use these options:
 
 * Manually update application instrumentation to remove or limit these attributes
