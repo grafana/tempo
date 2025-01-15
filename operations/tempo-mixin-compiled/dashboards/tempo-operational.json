@@ -1809,7 +1809,7 @@
      "pluginVersion": "9.0.0-d373beebpre",
      "targets": [
       {
-       "expr": "sum(rate(tempo_request_duration_seconds_count{route=~\".*api_traces_traceid\", cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\"}[$__rate_interval])) by (status_code)",
+       "expr": "sum(rate(tempo_request_duration_seconds_count{route=~\".*traces_traceid\", cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\"}[$__rate_interval])) by (status_code)",
        "hide": false,
        "interval": "",
        "legendFormat": "{{status_code}}",
@@ -1907,19 +1907,19 @@
      "pluginVersion": "9.0.0-d373beebpre",
      "targets": [
       {
-       "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=~\".*api_traces_traceid\"}[$__rate_interval])) by (le))",
+       "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=~\".*traces_traceid\"}[$__rate_interval])) by (le))",
        "interval": "",
        "legendFormat": ".99",
        "refId": "A"
       },
       {
-       "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=~\".*api_traces_traceid\"}[$__rate_interval])) by (le))",
+       "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=~\".*traces_traceid\"}[$__rate_interval])) by (le))",
        "interval": "",
        "legendFormat": ".9",
        "refId": "B"
       },
       {
-       "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=~\".*api_traces_traceid\"}[$__rate_interval])) by (le))",
+       "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=~\"$namespace/cortex-gw(-internal)?\", route=~\".*traces_traceid\"}[$__rate_interval])) by (le))",
        "interval": "",
        "legendFormat": ".5",
        "refId": "C"
@@ -2233,7 +2233,7 @@
      "pluginVersion": "9.0.0-d373beebpre",
      "targets": [
       {
-       "expr": "sum(rate(tempo_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", route=~\".*api_traces_traceid\", job=\"$namespace/query-frontend\"}[$__rate_interval])) by (status_code)",
+       "expr": "sum(rate(tempo_request_duration_seconds_count{cluster=\"$cluster\", namespace=\"$namespace\", route=~\".*traces_traceid\", job=\"$namespace/query-frontend\"}[$__rate_interval])) by (status_code)",
        "hide": false,
        "interval": "",
        "legendFormat": "{{status_code}}",
@@ -2331,19 +2331,19 @@
      "pluginVersion": "9.0.0-d373beebpre",
      "targets": [
       {
-       "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/query-frontend\", route=~\".*api_traces_traceid\"}[$__rate_interval])) by (le))",
+       "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/query-frontend\", route=~\".*traces_traceid\"}[$__rate_interval])) by (le))",
        "interval": "",
        "legendFormat": ".99",
        "refId": "A"
       },
       {
-       "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/query-frontend\", route=~\".*api_traces_traceid\"}[$__rate_interval])) by (le))",
+       "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/query-frontend\", route=~\".*traces_traceid\"}[$__rate_interval])) by (le))",
        "interval": "",
        "legendFormat": ".9",
        "refId": "B"
       },
       {
-       "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/query-frontend\", route=~\".*api_traces_traceid\"}[$__rate_interval])) by (le))",
+       "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/query-frontend\", route=~\".*traces_traceid\"}[$__rate_interval])) by (le))",
        "interval": "",
        "legendFormat": ".5",
        "refId": "C"
@@ -2655,7 +2655,7 @@
      "pluginVersion": "9.0.0-d373beebpre",
      "targets": [
       {
-       "expr": "sum(rate(tempo_request_duration_seconds_count{route=~\"querier_.*api_traces_traceid\", cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/querier\"}[$__rate_interval])) by (status_code)",
+       "expr": "sum(rate(tempo_request_duration_seconds_count{route=~\"querier_.*traces_traceid\", cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/querier\"}[$__rate_interval])) by (status_code)",
        "hide": false,
        "interval": "",
        "legendFormat": "{{status_code}}",
@@ -2753,19 +2753,19 @@
      "pluginVersion": "9.0.0-d373beebpre",
      "targets": [
       {
-       "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/querier\", route=~\"querier_.*api_traces_traceid\"}[$__rate_interval])) by (le))",
+       "expr": "histogram_quantile(.99, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/querier\", route=~\"querier_.*traces_traceid\"}[$__rate_interval])) by (le))",
        "interval": "",
        "legendFormat": ".99",
        "refId": "A"
       },
       {
-       "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/querier\", route=~\"querier_.*api_traces_traceid\"}[$__rate_interval])) by (le))",
+       "expr": "histogram_quantile(.9, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/querier\", route=~\"querier_.*traces_traceid\"}[$__rate_interval])) by (le))",
        "interval": "",
        "legendFormat": ".9",
        "refId": "B"
       },
       {
-       "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/querier\", route=~\"querier_.*api_traces_traceid\"}[$__rate_interval])) by (le))",
+       "expr": "histogram_quantile(.5, sum(rate(tempo_request_duration_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", job=\"$namespace/querier\", route=~\"querier_.*traces_traceid\"}[$__rate_interval])) by (le))",
        "interval": "",
        "legendFormat": ".5",
        "refId": "C"
@@ -7364,7 +7364,7 @@
    "type": "row"
   }
  ],
- "refresh": "30s",
+ "refresh": "",
  "schemaVersion": 39,
  "tags": [
   "tempo"
@@ -7477,8 +7477,8 @@
     "allValue": ".*",
     "current": {
      "selected": false,
-     "text": "All",
-     "value": "$__all"
+     "text": "ingester",
+     "value": "ingester"
     },
     "hide": 0,
     "includeAll": true,
@@ -7486,9 +7486,14 @@
     "name": "component",
     "options": [
      {
-      "selected": true,
+      "selected": false,
       "text": "All",
       "value": "$__all"
+     },
+     {
+      "selected": false,
+      "text": "block-builder",
+      "value": "block-builder"
      },
      {
       "selected": false,
@@ -7501,7 +7506,7 @@
       "value": "distributor"
      },
      {
-      "selected": false,
+      "selected": true,
       "text": "ingester",
       "value": "ingester"
      },
@@ -7531,7 +7536,7 @@
       "value": "cortex-gw-internal"
      }
     ],
-    "query": "compactor,distributor,ingester,metrics-generator,query-frontend,querier,cortex-gw,cortex-gw-internal",
+    "query": "block-builder,compactor,distributor,ingester,metrics-generator,query-frontend,querier,cortex-gw,cortex-gw-internal",
     "queryValue": "",
     "skipUrlSync": false,
     "type": "custom"
