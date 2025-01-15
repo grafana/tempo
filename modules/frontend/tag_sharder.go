@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/go-kit/log"
@@ -247,6 +248,11 @@ func (s searchTagSharder) blockMetas(start, end int64, tenantID string) []*backe
 			metas = append(metas, m)
 		}
 	}
+
+	// search backwards in time
+	sort.Slice(metas, func(i, j int) bool {
+		return metas[i].EndTime.After(metas[j].EndTime)
+	})
 
 	return metas
 }

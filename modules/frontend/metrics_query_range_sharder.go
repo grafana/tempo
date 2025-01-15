@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/go-kit/log" //nolint:all deprecated
@@ -170,6 +171,11 @@ func (s *queryRangeSharder) blockMetas(start, end int64, tenantID string) []*bac
 			metas = append(metas, m)
 		}
 	}
+
+	// search backwards in time
+	sort.Slice(metas, func(i, j int) bool {
+		return metas[i].EndTime.After(metas[j].EndTime)
+	})
 
 	return metas
 }
