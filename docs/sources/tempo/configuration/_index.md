@@ -11,7 +11,7 @@ This document explains the configuration options for Tempo as well as the detail
 
 {{< admonition type="tip" >}}
 Instructions for configuring Tempo data sources are available in the [Grafana Cloud](/docs/grafana-cloud/send-data/traces/) and [Grafana](/docs/grafana/latest/datasources/tempo/) documentation.
-{{< /admonition >}}
+{{< /admonition >}} 
 
 The Tempo configuration options include:
 
