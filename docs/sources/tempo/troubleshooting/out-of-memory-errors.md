@@ -53,9 +53,11 @@ Always ensure that the limit is configured, and the largest recommended limit is
 
 The limit is configured in the per-tenant overrides:
 
+```yaml
 overrides:
     'tenant123':
         max_bytes_per_trace: 1.5e+07
+```
 
 ## Large attributes
 
