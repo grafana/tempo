@@ -3,6 +3,7 @@ package vparquet4
 import (
 	"bytes"
 	"context"
+	"embed"
 	"fmt"
 	"math/rand"
 	"os"
@@ -50,6 +51,65 @@ func TestOne(t *testing.T) {
 	fmt.Println(resp.Results.(*spansetIterator).iter)
 	fmt.Println("-----------")
 	fmt.Println(spanSet)
+}
+
+//go:embed testqt/intattr.txt testqt/floatattr.txt
+var testqt embed.FS
+
+func TestMixedTypesQuery(t *testing.T) {
+	t.Run("integer attribute with float", func(t *testing.T) {
+		wantTr := fullyPopulatedTestTrace(nil)
+		b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
+		ctx := context.Background()
+		q := `{.crossint > 122.9}`
+		req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
+
+		req.StartTimeUnixNanos = uint64(1000 * time.Second)
+		req.EndTimeUnixNanos = uint64(1001 * time.Second)
+
+		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+		require.NoError(t, err, "search request:", req)
+
+		spanSet, err := resp.Results.Next(ctx)
+		require.NoError(t, err, "search request:", req)
+
+		fmt.Println(q)
+		fmt.Println("-----------")
+		fmt.Println(resp.Results.(*spansetIterator).iter)
+		fmt.Println("-----------")
+		fmt.Println(spanSet)
+
+		queryTree, err := testqt.ReadFile("testqt/intattr.txt")
+		require.NoError(t, err)
+		require.Equal(t, string(queryTree), resp.Results.(*spansetIterator).iter.String())
+	})
+
+	t.Run("float attribute with integer", func(t *testing.T) {
+		wantTr := fullyPopulatedTestTrace(nil)
+		b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
+		ctx := context.Background()
+		q := `{.crossfloat = 456}`
+		req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
+
+		req.StartTimeUnixNanos = uint64(1000 * time.Second)
+		req.EndTimeUnixNanos = uint64(1001 * time.Second)
+
+		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+		require.NoError(t, err, "search request:", req)
+
+		spanSet, err := resp.Results.Next(ctx)
+		require.NoError(t, err, "search request:", req)
+
+		fmt.Println(q)
+		fmt.Println("-----------")
+		fmt.Println(resp.Results.(*spansetIterator).iter)
+		fmt.Println("-----------")
+		fmt.Println(spanSet)
+
+		queryTree, err := testqt.ReadFile("testqt/floatattr.txt")
+		require.NoError(t, err)
+		require.Equal(t, string(queryTree), resp.Results.(*spansetIterator).iter.String())
+	})
 }
 
 func TestBackendBlockSearchTraceQL(t *testing.T) {
