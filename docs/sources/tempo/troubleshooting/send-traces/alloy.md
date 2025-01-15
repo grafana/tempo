@@ -5,7 +5,7 @@ description: Gain visibility on how many traces are being pushed to Grafana Allo
 weight: 472
 aliases:
 - ../operations/troubleshooting/agent/
-- ../agent.md # /docs/tempo/<TEMPO_VERSION>/troubleshooting/agent.md
+- ../agent/ # /docs/tempo/<TEMPO_VERSION>/troubleshooting/agent/
 - ../alloy/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/alloy/
 ---
 

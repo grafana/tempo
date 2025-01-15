@@ -30,36 +30,38 @@ Refer to the [configuration for distributors](https://grafana.com/docs/tempo/<TE
 
 ## Max trace size
 
-Traces which are long-running (minutes or hours) or large (100K - 1M spans) will spike the memory usage of each component when it is encountered. This is because Tempo treats traces as single units, and keeps all data for a trace together to enable features like structural queries and analysis.
+Traces which are long-running (minutes or hours) or large (100K - 1M spans) will spike the memory usage of each component when it is encountered.
+This is because Tempo treats traces as single units, and keeps all data for a trace together to enable features like structural queries and analysis.
 
-When reading a large trace it can spike the memory usage of the read components:
+When reading a large trace, it can spike the memory usage of the read components:
 
 * query-frontend
 * querier
 * ingester
 * metrics-generator
 
-When writing a large trace it can spike the memory usage of the write components:
+When writing a large trace, it can spike the memory usage of the write components:
 
 * ingester
 * compactor
 * metrics-generator
 
-The recommendation is to start with a smaller trace size limit of 15MB, and increase it as needed.  With an average span size of 300 bytes, this allows for 50K spans per trace.
+Start with a smaller trace size limit of 15MB, and increase it as needed.
+With an average span size of 300 bytes, this allows for 50K spans per trace.
 
 Always ensure that the limit is configured, and the largest recommended limit is 60 MB.
 
 The limit is configured in the per-tenant overrides:
 
 overrides:
-
     'tenant123':
-
         max_bytes_per_trace: 1.5e+07
 
 ## Large attributes
 
-Very large attributes, 10KB or longer, can spike the memory usage of each component when they are encountered.  Tempo's Parquet format uses dictionary-encoded columns, which works well for repeated values. However for very large and high cardinality attributes, this can require a large amount of memory.
+Very large attributes, 10KB or longer, can spike the memory usage of each component when they are encountered.
+Tempo's Parquet format uses dictionary-encoded columns, which works well for repeated values.
+However, for very large and high cardinality attributes, this can require a large amount of memory.
 
 A common source of large attributes is auto-instrumentation in these areas:
 
@@ -77,19 +79,20 @@ A common source of large attributes is auto-instrumentation in these areas:
 * Queues
     * Message bodies
 
-When reading these attributes they can spike the memory usage of the read components:
+When reading these attributes, they can spike the memory usage of the read components:
 
 * query-frontend
 * querier
 * ingester
 * metrics-generator
 
-When writing these attributes they can spike the memory usage of the write components:
+When writing these attributes, they can spike the memory usage of the write components:
 * ingester
 * compactor
 * metrics-generator
 
-There is work to [automatically limit attribute sizes](https://github.com/grafana/tempo/pull/4335) in a future release, but for now these are the options:
+You can [automatically limit attribute sizes](https://github.com/grafana/tempo/pull/4335) using `max_span_attr_byte`.
+You can also use these options:
 
 * Manually update application instrumentation to remove or limit these attributes
 * Drop the attributes in the tracing pipeline using [attribute processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/attributesprocessor)

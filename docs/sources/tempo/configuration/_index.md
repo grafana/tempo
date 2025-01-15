@@ -255,7 +255,7 @@ distributor:
 ### Set max attribute size to help control out of memory errors
 
 Tempo queriers can run out of memory when fetching traces that have spans with very large attributes.
-This issue has been observed when trying to fetch a single trace using the [`tracebyID` endpoint](https://grafana.com/docs/tempo/latest/api_docs/#query).
+This issue has been observed when trying to fetch a single trace using the [`tracebyID` endpoint](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#query).
 While a trace might not have a lot of spans (roughly 500), it can have a larger size (approximately 250KB).
 Some of the spans in that trace had attributes whose values were very large in size.
 
@@ -329,7 +329,7 @@ If you want to enable metrics-generator for your Grafana Cloud account, refer to
 You can limit spans with end times that occur within a configured duration to be considered in metrics generation using `metrics_ingestion_time_range_slack`.
 In Grafana Cloud, this value defaults to 30 seconds so all spans sent to the metrics-generation more than 30 seconds in the past are discarded or rejected.
 
-For more information about the `local-blocks` configuration option, refer to [TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/traceql-metrics/#configure-the-local-blocks-processor).
+For more information about the `local-blocks` configuration option, refer to [TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/traceql-metrics/#activate-and-configure-the-local-blocks-processor).
 
 ```yaml
 # Metrics-generator configuration block
