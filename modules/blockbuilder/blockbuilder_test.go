@@ -499,7 +499,7 @@ func BenchmarkBlockBuilder(b *testing.B) {
 	cfg.ConsumeCycleDuration = 1 * time.Hour
 
 	bb := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
-	defer bb.stopping(nil)
+	defer func() { require.NoError(b, bb.stopping(nil)) }()
 
 	// Startup (without starting the background consume cycle)
 	err := bb.starting(ctx)
