@@ -14,10 +14,10 @@ Learn about out-of-memory (OOM) errors and how to troubleshoot them.
 Tempo queriers can run out of memory when fetching traces that have spans with very large attributes.
 This issue has been observed when trying to fetch a single trace using the [`tracebyID` endpoint](https://grafana.com/docs/tempo/latest/api_docs/#query).
 
-
 To avoid these out-of-memory crashes, use `max_span_attr_byte` to limit the maximum allowable size of any individual attribute.
 Any key or values that exceed the configured limit are truncated before storing.
-Use the `tempo_distributor_attributes_truncated_total` metric to track how many attributes are truncated. 
+
+Use the `tempo_distributor_attributes_truncated_total` metric to track how many attributes are truncated.
 
 ```yaml
    # Optional

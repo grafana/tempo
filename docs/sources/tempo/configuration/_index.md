@@ -263,7 +263,7 @@ To avoid these out-of-memory crashes, use `max_span_attr_byte` to limit the maxi
 Any key or values that exceed the configured limit are truncated before storing.
 The default value is `2048`.
 
-Use the `tempo_distributor_attributes_truncated_total` metric to track how many attributes are truncated. 
+Use the `tempo_distributor_attributes_truncated_total` metric to track how many attributes are truncated.
 
 ## Ingester
 
@@ -329,7 +329,7 @@ If you want to enable metrics-generator for your Grafana Cloud account, refer to
 You can limit spans with end times that occur within a configured duration to be considered in metrics generation using `metrics_ingestion_time_range_slack`.
 In Grafana Cloud, this value defaults to 30 seconds so all spans sent to the metrics-generation more than 30 seconds in the past are discarded or rejected.
 
-For more information about the `local-blocks` configuration option, refer to [TraceQL metrics](https://grafana.com/docs/tempo/latest/operations/traceql-metrics/#configure-the-local-blocks-processor).
+For more information about the `local-blocks` configuration option, refer to [TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/traceql-metrics/#configure-the-local-blocks-processor).
 
 ```yaml
 # Metrics-generator configuration block

@@ -31,7 +31,7 @@ If this metric is greater than zero (0), check the logs of the compactor for an 
 
 - Verify that the Compactor has the LIST, GET, PUT, and DELETE permissions on the bucket objects.
   - If these permissions are missing, assign them to the compactor container.
-  - For detailed information, check - https://grafana.com/docs/tempo/latest/configuration/s3/#permissions
+  - For detailed information, refer to the [Amazon S3 permissions](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/hosted-storage/s3/#permissions).
 - If there’s a compactor sitting idle while others are running, port-forward to the compactor’s http endpoint. Then go to `/compactor/ring` and click **Forget** on the inactive compactor.
 - Check the following configuration parameters to ensure that there are correct settings:
   - `max_block_bytes` to determine when the ingester cuts blocks. A good number is anywhere from 100MB to 2GB depending on the workload.
