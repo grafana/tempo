@@ -4,7 +4,7 @@ menuTitle: Grafana Alloy
 description: Gain visibility on how many traces are being pushed to Grafana Alloy and if they are making it to the Tempo backend.
 weight: 472
 aliases:
-- ../operations/troubleshooting/agent/
+- ../operations/troubleshooting/agent/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/troubleshooting/agent/
 - ../agent/ # /docs/tempo/<TEMPO_VERSION>/troubleshooting/agent/
 - ../alloy/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/alloy/
 ---

@@ -3,7 +3,7 @@ title: Distributor refusing spans
 description: Troubleshoot distributor refusing spans
 weight: 471
 aliases:
-- ../../operations/troubleshooting/max-trace-limit-reached/
+- ../../operations/troubleshooting/max-trace-limit-reached/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/troubleshooting/max-trace-limit-reached/
 - ../max-trace-limit-reached/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/max-trace-limit-reached/
 ---
 

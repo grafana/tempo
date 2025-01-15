@@ -3,7 +3,7 @@ title: Bad blocks
 description: Troubleshoot queries failing with an error message indicating bad blocks.
 weight: 475
 aliases:
-- ../../operations/troubleshooting/bad-blocks/
+- ../../operations/troubleshooting/bad-blocks/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/troubleshooting/bad-blocks/
 - ../bad-blocks/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/bad-blocks/
 ---
 

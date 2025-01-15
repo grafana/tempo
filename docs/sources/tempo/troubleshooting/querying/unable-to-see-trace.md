@@ -3,8 +3,8 @@ title: Unable to find traces
 description: Troubleshoot missing traces
 weight: 473
 aliases:
-- ../../operations/troubleshooting/missing-trace/
-- ../../operations/troubleshooting/unable-to-see-trace/
+- ../../operations/troubleshooting/missing-trace/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/troubleshooting/missing-trace/
+- ../../operations/troubleshooting/unable-to-see-trace/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/troubleshooting/unable-to-see-trace/
 - ../unable-to-see-trace/ # htt/docs/tempo/<TEMPO_VERSION>/troubleshooting/unable-to-see-trace/
 ---
 

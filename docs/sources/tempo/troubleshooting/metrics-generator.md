@@ -4,7 +4,7 @@ menuTitle: Metrics-generator
 description: Gain an understanding of how to debug metrics quality issues.
 weight: 500
 aliases:
-- ../operations/troubleshooting/metrics-generator/
+- ../operations/troubleshooting/metrics-generator/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/troubleshooting/metrics-generator/
 ---
 
 # Troubleshoot metrics-generator

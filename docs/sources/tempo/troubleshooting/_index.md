@@ -4,7 +4,7 @@ menuTitle: Troubleshoot
 description: Learn how to troubleshoot operational issues for Grafana Tempo.
 weight: 700
 aliases:
-  - ../operations/troubleshooting/
+  - ../operations/troubleshooting/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/troubleshooting/
 ---
 
 # Troubleshoot Tempo
