@@ -375,7 +375,11 @@ The implemented comparison operators are:
 TraceQL uses Golang regular expressions.
 Online regular expression testing sites like https://regex101.com/ are convenient to validate regular expressions used in TraceQL queries.
 All regular expressions are treated as fully anchored.
-For example, `span.foo =~ "bar"` is evaluated as `span.foo =~ "^bar$"`.
+Regular expressions are anchored at both ends. This anchoring makes the queries faster and matches the behavior of PromQL, where regular expressions are also fully anchored.
+
+An unanchored query, such as: { span.foo =~ "bar" } is now treated as: { span.foo =~ "^bar$" }.
+
+If you use TraceQL with regular expressions in your Grafana dashboards and you want the unanchored behavior, update the queries to use the unanchored version, such as { span.foo =~ ".*bar.*"}.
 
 For example, to find all traces where an `http.status_code` attribute in a span are greater than `400` but less than equal to `500`:
 

@@ -362,26 +362,6 @@ tempo-mixin: tools-image
 tempo-mixin-check: tools-image
 	$(TOOLS_CMD) $(MAKE) -C operations/tempo-mixin check
 
-##@ drone
-.PHONY: drone drone-jsonnet drone-signature
-# this requires the drone-cli https://docs.drone.io/cli/install/
-drone: ## Run Drone targets
-	# piggyback on Loki's build image, this image contains a newer version of drone-cli than is
-	# released currently (1.4.0). The newer version of drone-clie keeps drone.yml human-readable.
-	# This will run 'make drone-jsonnet' from within the container
-	docker run -e DRONE_SERVER -e DRONE_TOKEN --rm -v $(shell pwd):/src/loki ${LOKI_BUILD_IMAGE} drone-jsonnet drone-signature
-
-	drone lint .drone/drone.yml --trusted
-
-drone-jsonnet:
-	drone jsonnet --stream --format --source .drone/drone.jsonnet --target .drone/drone.yml
-
-drone-signature:
-ifndef DRONE_TOKEN
-	$(error DRONE_TOKEN is not set, visit https://drone.grafana.net/account)
-endif
-	DRONE_SERVER=https://drone.grafana.net drone sign --save grafana/tempo .drone/drone.yml
-
 .PHONY: generate-manifest
 generate-manifest:
 	GO111MODULE=on CGO_ENABLED=0 go run -v pkg/docsgen/generate_manifest.go
