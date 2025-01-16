@@ -1,10 +1,13 @@
-# parquet-go/parquet-go [![build status](https://github.com/parquet-go/parquet-go/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/parquet-go/parquet-go/actions) [![Go Report Card](https://goreportcard.com/badge/github.com/parquet-go/parquet-go)](https://goreportcard.com/report/github.com/parquet-go/parquet-go) [![Go Reference](https://pkg.go.dev/badge/github.com/parquet-go/parquet-go.svg)](https://pkg.go.dev/github.com/parquet-go/parquet-go)
-
-High-performance Go library to manipulate parquet files, initially developed at
-[Twilio Segment](https://segment.com/engineering).
-
-![parquet-go-logo](https://github.com/parquet-go/parquet-go/assets/96151026/5b1f043b-2cee-4a64-a3c3-40d3353fecc0)
-
+<div align="center">
+<img src="https://github.com/parquet-go/parquet-go/assets/96151026/5b1f043b-2cee-4a64-a3c3-40d3353fecc0" height= "auto" width="200" />
+<br />
+<h1>parquet-go/parquet-go </h1>
+<h3>
+High-performance Go library to manipulate parquet files, initially developed at<a href="https://segment.com/engineering">
+Twilio Segment</a>.
+</h3>
+<a href="https://github.com/parquet-go/parquet-go/blob/main/LICENSE"><img src="https://img.shields.io/github/license/parquet-go/parquet-go?color=0969da&style=flat-square" height="auto" width="auto" /></a> <a href="https://goreportcard.com/report/github.com/parquet-go/parquet-go"><img src="https://img.shields.io/badge/go%20report-A+-brightgreen.svg?style=flat-square" height="auto" width="auto" /></a> <a href="https://github.com/parquet-go/parquet-go/actions"><img src="https://github.com/parquet-go/parquet-go/actions/workflows/test.yml/badge.svg?branch=main" height="auto" width="auto" /></a> <a href="https://pkg.go.dev/github.com/parquet-go/parquet-go"><img src="https://pkg.go.dev/badge/github.com/parquet-go/parquet-go.svg?style=flat-square" height="auto" width="auto" /></a>
+</div>
 
 ## Motivation
 
@@ -35,7 +38,7 @@ using JSON or Protobuf. For more information, refer to the [Parquet Format Speci
 The package is distributed as a standard Go module that programs can take a
 dependency on and install with the following command:
 
-```
+```bash
 go get github.com/parquet-go/parquet-go
 ```
 
@@ -289,11 +292,11 @@ defined by the sorting columns of the groups.
 
 There are a few constraints when merging row groups:
 
-* The sorting columns of all the row groups must be the same, or the merge
+- The sorting columns of all the row groups must be the same, or the merge
   operation must be explicitly configured a set of sorting columns which are
   a prefix of the sorting columns of all merged row groups.
 
-* The schemas of row groups must all be equal, or the merge operation must
+- The schemas of row groups must all be equal, or the merge operation must
   be explicitly configured with a schema that all row groups can be converted
   to, in which case the limitations of schema conversions apply.
 

@@ -140,8 +140,7 @@ func (d *booleanDictionary) Index(i int32) Value { return d.makeValue(d.index(i)
 func (d *booleanDictionary) index(i int32) bool { return d.valueAt(int(i)) }
 
 func (d *booleanDictionary) Insert(indexes []int32, values []Value) {
-	offset := getOffset(*d)
-	d.insert(indexes, makeArrayValue(values, offsetOfU64+offset))
+	d.insert(indexes, makeArrayValue(values, offsetOfBool))
 }
 
 func (d *booleanDictionary) insert(indexes []int32, rows sparse.Array) {
@@ -238,8 +237,7 @@ func (d *int32Dictionary) Index(i int32) Value { return d.makeValue(d.index(i)) 
 func (d *int32Dictionary) index(i int32) int32 { return d.values[i] }
 
 func (d *int32Dictionary) Insert(indexes []int32, values []Value) {
-	offset := getOffset(*d)
-	d.insert(indexes, makeArrayValue(values, offsetOfU64+offset))
+	d.insert(indexes, makeArrayValue(values, offsetOfU32))
 }
 
 func (d *int32Dictionary) init(indexes []int32) {
@@ -291,8 +289,7 @@ func (d *int32Dictionary) insert(indexes []int32, rows sparse.Array) {
 func (d *int32Dictionary) Lookup(indexes []int32, values []Value) {
 	model := d.makeValue(0)
 	memsetValues(values, model)
-	offset := getOffset(*d)
-	d.lookup(indexes, makeArrayValue(values, offsetOfU64+offset))
+	d.lookup(indexes, makeArrayValue(values, offsetOfU32))
 }
 
 func (d *int32Dictionary) Bounds(indexes []int32) (min, max Value) {
@@ -520,8 +517,7 @@ func (d *floatDictionary) Index(i int32) Value { return d.makeValue(d.index(i)) 
 func (d *floatDictionary) index(i int32) float32 { return d.values[i] }
 
 func (d *floatDictionary) Insert(indexes []int32, values []Value) {
-	offset := getOffset(*d)
-	d.insert(indexes, makeArrayValue(values, offsetOfU64+offset))
+	d.insert(indexes, makeArrayValue(values, offsetOfU32))
 }
 
 func (d *floatDictionary) init(indexes []int32) {
@@ -560,8 +556,7 @@ func (d *floatDictionary) insert(indexes []int32, rows sparse.Array) {
 func (d *floatDictionary) Lookup(indexes []int32, values []Value) {
 	model := d.makeValue(0)
 	memsetValues(values, model)
-	offset := getOffset(*d)
-	d.lookup(indexes, makeArrayValue(values, offsetOfU64+offset))
+	d.lookup(indexes, makeArrayValue(values, offsetOfU32))
 }
 
 func (d *floatDictionary) Bounds(indexes []int32) (min, max Value) {
@@ -930,8 +925,7 @@ func (d *uint32Dictionary) Index(i int32) Value { return d.makeValue(d.index(i))
 func (d *uint32Dictionary) index(i int32) uint32 { return d.values[i] }
 
 func (d *uint32Dictionary) Insert(indexes []int32, values []Value) {
-	offset := getOffset(*d)
-	d.insert(indexes, makeArrayValue(values, offsetOfU64+offset))
+	d.insert(indexes, makeArrayValue(values, offsetOfU32))
 }
 
 func (d *uint32Dictionary) init(indexes []int32) {
@@ -970,8 +964,7 @@ func (d *uint32Dictionary) insert(indexes []int32, rows sparse.Array) {
 func (d *uint32Dictionary) Lookup(indexes []int32, values []Value) {
 	model := d.makeValue(0)
 	memsetValues(values, model)
-	offset := getOffset(*d)
-	d.lookup(indexes, makeArrayValue(values, offsetOfU64+offset))
+	d.lookup(indexes, makeArrayValue(values, offsetOfU32))
 }
 
 func (d *uint32Dictionary) Bounds(indexes []int32) (min, max Value) {

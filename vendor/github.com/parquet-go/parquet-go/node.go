@@ -438,15 +438,17 @@ func listElementOf(node Node) Node {
 
 func mapKeyValueOf(node Node) Node {
 	if !node.Leaf() && (node.Required() || node.Optional()) {
-		if keyValue := fieldByName(node, "key_value"); keyValue != nil && !keyValue.Leaf() && keyValue.Repeated() {
-			k := fieldByName(keyValue, "key")
-			v := fieldByName(keyValue, "value")
-			if k != nil && v != nil && k.Required() {
-				return keyValue
+		for _, kv_name := range []string{"key_value", "map"} {
+			if keyValue := fieldByName(node, kv_name); keyValue != nil && !keyValue.Leaf() && keyValue.Repeated() {
+				k := fieldByName(keyValue, "key")
+				v := fieldByName(keyValue, "value")
+				if k != nil && v != nil && k.Required() {
+					return keyValue
+				}
 			}
 		}
 	}
-	panic("node with logical type MAP is not composed of a repeated .key_value group with key and value fields")
+	panic("node with logical type MAP is not composed of a repeated .key_value group (or .map group) with key and value fields")
 }
 
 func encodingOf(node Node) encoding.Encoding {
