@@ -3,12 +3,13 @@ title: Response larger than the max
 description: Troubleshoot response larger than the max error message
 weight: 477
 aliases:
-- ../operations/troubleshooting/response-too-large/
+- ../operations/troubleshooting/response-too-large/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/troubleshooting/response-too-large/
+- ../response-too-large/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/response-too-large/
 ---
 
 # Response larger than the max
 
-The error message will take a similar form to the following:
+The error message is similar to the following:
 
 ```
 500 Internal Server Error Body: response larger than the max (<size> vs <limit>)
