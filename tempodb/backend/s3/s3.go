@@ -63,8 +63,21 @@ type overrideSignatureVersion struct {
 	useV2    bool
 }
 
+func (s *overrideSignatureVersion) RetrieveWithCredContext(cc *credentials.CredContext) (credentials.Value, error) {
+	v, err := s.upstream.RetrieveWithCredContext(cc)
+	if err != nil {
+		return v, err
+	}
+
+	if s.useV2 && !v.SignerType.IsAnonymous() {
+		v.SignerType = credentials.SignatureV2
+	}
+
+	return v, nil
+}
+
 func (s *overrideSignatureVersion) Retrieve() (credentials.Value, error) {
-	v, err := s.upstream.Retrieve()
+	v, err := s.upstream.RetrieveWithCredContext(&credentials.CredContext{Client: http.DefaultClient})
 	if err != nil {
 		return v, err
 	}
@@ -610,7 +623,7 @@ func fetchCreds(cfg *Config) (*credentials.Credentials, error) {
 	creds := credentials.NewChainCredentials(chain)
 
 	// error early if we cannot obtain credentials
-	if _, err := creds.Get(); err != nil {
+	if _, err := creds.GetWithContext(&credentials.CredContext{Client: http.DefaultClient}); err != nil {
 		return nil, fmt.Errorf("failed to get credentials: %w", err)
 	}
 
