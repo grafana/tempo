@@ -113,6 +113,7 @@ func newTokenSourceNewAuth(ctx context.Context, audience string, ds *internal.Di
 		CredentialsFile: ds.CredentialsFile,
 		CredentialsJSON: ds.CredentialsJSON,
 		Client:          oauth2.NewClient(ctx, nil),
+		Logger:          ds.Logger,
 	})
 	if err != nil {
 		return nil, err
