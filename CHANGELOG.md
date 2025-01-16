@@ -1,5 +1,7 @@
 ## main / unreleased
 
+* [ENHANCEMENT] Update minio to version [#4341](https://github.com/grafana/tempo/pull/4568) (@javiermolinar)
+
 # v2.7.0-rc.0
 
 * [CHANGE] Disable gRPC compression in the querier and distributor for performance reasons [#4429](https://github.com/grafana/tempo/pull/4429) (@carles-grafana)
