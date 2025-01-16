@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -28,11 +29,11 @@ import (
 	"cloud.google.com/go/auth/credentials"
 	"cloud.google.com/go/auth/httptransport"
 	"cloud.google.com/go/auth/internal"
+	"github.com/googleapis/gax-go/v2/internallog"
 )
 
 var (
 	universeDomainPlaceholder                   = "UNIVERSE_DOMAIN"
-	iamCredentialsEndpoint                      = "https://iamcredentials.googleapis.com"
 	iamCredentialsUniverseDomainEndpoint        = "https://iamcredentials.UNIVERSE_DOMAIN"
 	oauth2Endpoint                              = "https://oauth2.googleapis.com"
 	errMissingTargetPrincipal                   = errors.New("impersonate: target service account must be provided")
@@ -65,19 +66,21 @@ func NewCredentials(opts *CredentialsOptions) (*auth.Credentials, error) {
 
 	client := opts.Client
 	creds := opts.Credentials
+	logger := internallog.New(opts.Logger)
 	if client == nil {
 		var err error
 		if creds == nil {
 			creds, err = credentials.DetectDefault(&credentials.DetectOptions{
 				Scopes:           []string{defaultScope},
 				UseSelfSignedJWT: true,
+				Logger:           logger,
 			})
 			if err != nil {
 				return nil, err
 			}
 		}
 
-		client, err = httptransport.NewClient(transportOpts(opts, creds))
+		client, err = httptransport.NewClient(transportOpts(opts, creds, logger))
 		if err != nil {
 			return nil, err
 		}
@@ -102,9 +105,10 @@ func NewCredentials(opts *CredentialsOptions) (*auth.Credentials, error) {
 		targetPrincipal:        opts.TargetPrincipal,
 		lifetime:               fmt.Sprintf("%.fs", lifetime.Seconds()),
 		universeDomainProvider: universeDomainProvider,
+		logger:                 logger,
 	}
 	for _, v := range opts.Delegates {
-		its.delegates = append(its.delegates, formatIAMServiceAccountName(v))
+		its.delegates = append(its.delegates, internal.FormatIAMServiceAccountResource(v))
 	}
 	its.scopes = make([]string, len(opts.Scopes))
 	copy(its.scopes, opts.Scopes)
@@ -126,9 +130,10 @@ func NewCredentials(opts *CredentialsOptions) (*auth.Credentials, error) {
 // is provided, it will be used in the transport for a validation ensuring that it
 // matches the universe domain in the base credentials. If opts.UniverseDomain
 // is not provided, this validation will be skipped.
-func transportOpts(opts *CredentialsOptions, creds *auth.Credentials) *httptransport.Options {
+func transportOpts(opts *CredentialsOptions, creds *auth.Credentials, logger *slog.Logger) *httptransport.Options {
 	tOpts := &httptransport.Options{
 		Credentials: creds,
+		Logger:      logger,
 	}
 	if opts.UniverseDomain == "" {
 		tOpts.InternalOptions = &httptransport.InternalOptions{
@@ -186,6 +191,11 @@ type CredentialsOptions struct {
 	// This field has no default value, and only if provided will it be used to
 	// verify the universe domain from the credentials. Optional.
 	UniverseDomain string
+	// Logger is used for debug logging. If provided, logging will be enabled
+	// at the loggers configured level. By default logging is disabled unless
+	// enabled by setting GOOGLE_SDK_GO_LOGGING_LEVEL in which case a default
+	// logger will be used. Optional.
+	Logger *slog.Logger
 }
 
 func (o *CredentialsOptions) validate() error {
@@ -204,10 +214,6 @@ func (o *CredentialsOptions) validate() error {
 	return nil
 }
 
-func formatIAMServiceAccountName(name string) string {
-	return fmt.Sprintf("projects/-/serviceAccounts/%s", name)
-}
-
 type generateAccessTokenRequest struct {
 	Delegates []string `json:"delegates,omitempty"`
 	Lifetime  string   `json:"lifetime,omitempty"`
@@ -220,8 +226,10 @@ type generateAccessTokenResponse struct {
 }
 
 type impersonatedTokenProvider struct {
-	client                 *http.Client
+	client *http.Client
+	// universeDomain is used for endpoint construction.
 	universeDomainProvider auth.CredentialsPropertyProvider
+	logger                 *slog.Logger
 
 	targetPrincipal string
 	lifetime        string
@@ -245,16 +253,18 @@ func (i impersonatedTokenProvider) Token(ctx context.Context) (*auth.Token, erro
 		return nil, err
 	}
 	endpoint := strings.Replace(iamCredentialsUniverseDomainEndpoint, universeDomainPlaceholder, universeDomain, 1)
-	url := fmt.Sprintf("%s/v1/%s:generateAccessToken", endpoint, formatIAMServiceAccountName(i.targetPrincipal))
+	url := fmt.Sprintf("%s/v1/%s:generateAccessToken", endpoint, internal.FormatIAMServiceAccountResource(i.targetPrincipal))
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(b))
 	if err != nil {
 		return nil, fmt.Errorf("impersonate: unable to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	i.logger.DebugContext(ctx, "impersonated token request", "request", internallog.HTTPRequest(req, b))
 	resp, body, err := internal.DoRequest(i.client, req)
 	if err != nil {
 		return nil, fmt.Errorf("impersonate: unable to generate access token: %w", err)
 	}
+	i.logger.DebugContext(ctx, "impersonated token response", "response", internallog.HTTPResponse(resp, body))
 	if c := resp.StatusCode; c < 200 || c > 299 {
 		return nil, fmt.Errorf("impersonate: status code %d: %s", c, body)
 	}
