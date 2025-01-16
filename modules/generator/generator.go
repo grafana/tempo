@@ -71,7 +71,7 @@ type Generator struct {
 	logger log.Logger
 
 	kafkaWG       sync.WaitGroup
-	kafkaStop     chan struct{}
+	kafkaStop     func()
 	kafkaClient   *kgo.Client
 	kafkaAdm      *kadm.Client
 	partitionRing ring.PartitionRingReader
