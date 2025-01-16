@@ -54,6 +54,7 @@ valid:
   - '{ event.foo = "bar" }'
   - '{ link.foo = "bar" }'
   - '{ instrumentation.foo = "bar" }'
+  - '{ span.foo != 3.0 }'
   # scoped intrinsics
   - '{ trace:duration > 2s }'
   - '{ trace:rootName = "a" }'
@@ -151,7 +152,7 @@ valid:
   # undocumented - nested set
   - '{ nestedSetLeft > 3 }'
   - '{ } >> { kind = server } | select(nestedSetLeft, nestedSetRight, nestedSetParent)'
-  
+
 # parse_fails throw an error when parsing
 parse_fails:
   - 'true'
