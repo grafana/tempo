@@ -89,7 +89,12 @@ func (s Static) EncodeToString(quotes bool) string {
 		i, _ := s.Int()
 		return strconv.Itoa(i)
 	case TypeFloat:
-		return strconv.FormatFloat(s.Float(), 'g', -1, 64)
+		f := strconv.FormatFloat(s.Float(), 'g', -1, 64)
+		// if the float string doesn't contain e or ., then append .0 to distinguish it from an int
+		if !strings.ContainsAny(f, "e.") {
+			f = f + ".0"
+		}
+		return f
 	case TypeString:
 		var str string
 		if len(s.valBytes) > 0 {
