@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"sort"
 	"time"
 
 	"github.com/go-kit/log" //nolint:all deprecated
@@ -119,26 +118,6 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, reqCh, pipeline.NewAsyncResponse(jobMetrics), s.next), nil
 }
 
-func (s *asyncSearchSharder) blockMetas(start, end uint32, tenantID string) []*backend.BlockMeta {
-	// reduce metas to those in the requested range
-	allBlocks := s.reader.BlockMetas(tenantID)
-	blocks := make([]*backend.BlockMeta, 0, len(allBlocks)/50) // divide by 50 for luck
-	for _, m := range allBlocks {
-		if m.StartTime.Unix() <= int64(end) &&
-			m.EndTime.Unix() >= int64(start) &&
-			m.ReplicationFactor == backend.DefaultReplicationFactor { // This check skips generator blocks (RF=1)
-			blocks = append(blocks, m)
-		}
-	}
-
-	// search backwards in time
-	sort.Slice(blocks, func(i, j int) bool {
-		return blocks[i].EndTime.After(blocks[j].EndTime)
-	})
-
-	return blocks
-}
-
 // backendRequest builds backend requests to search backend blocks. backendRequest takes ownership of reqCh and closes it.
 // it returns 3 int values: totalBlocks, totalBlockBytes, and estimated jobs
 func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, resp *combiner.SearchJobResponse, reqCh chan<- pipeline.Request, errFn func(error)) {
@@ -157,7 +136,7 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 		return
 	}
 
-	blocks := s.blockMetas(start, end, tenantID)
+	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), start, end, backend.DefaultReplicationFactor)
 
 	// calculate metrics to return to the caller
 	resp.TotalBlocks = len(blocks)
