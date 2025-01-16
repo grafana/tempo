@@ -160,7 +160,6 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 
 	b.kadm = kadm.NewClient(b.kafkaClient)
 
-	// go b.metricLag(ctx)
 	ingest.ExportPartitionLagMetrics(
 		ctx,
 		b.kadm,
