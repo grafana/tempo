@@ -30,9 +30,20 @@ func (p pipelineResponse) RequestData() any {
 	return p.requestData
 }
 
+func (p pipelineResponse) IsMetadata() bool {
+	return false
+}
+
 // syncResponse is a single http.Response that implements the Responses[*http.Response] interface.
 type syncResponse struct {
 	r combiner.PipelineResponse
+}
+
+// NewAsyncResponse creates a new AsyncResponse that wraps a single http.Response.
+func NewAsyncResponse(r combiner.PipelineResponse) Responses[combiner.PipelineResponse] {
+	return syncResponse{
+		r: r,
+	}
 }
 
 // NewHTTPToAsyncResponse creates a new AsyncResponse that wraps a single http.Response.

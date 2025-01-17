@@ -328,6 +328,7 @@ query_frontend:
         query_backend_after: 15m0s
         query_ingesters_until: 30m0s
         ingester_shards: 3
+        most_recent_shards: 200
         max_spans_per_span_set: 100
     trace_by_id:
         query_shards: 50

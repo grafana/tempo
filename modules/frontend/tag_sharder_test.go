@@ -294,6 +294,7 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 	sharder := newAsyncTagSharder(&mockReader{}, o, SearchSharderConfig{
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		MostRecentShards:      defaultMostRecentShards,
 		MaxDuration:           5 * time.Minute,
 	}, parseTagsRequest, log.NewNopLogger())
 	testRT := sharder.Wrap(next)
@@ -328,6 +329,7 @@ func TestTagsSearchSharderRoundTripBadRequest(t *testing.T) {
 	sharder = newAsyncTagSharder(&mockReader{}, o, SearchSharderConfig{
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		MostRecentShards:      defaultMostRecentShards,
 		MaxDuration:           5 * time.Minute,
 	}, parseTagsRequest, log.NewNopLogger())
 	testRT = sharder.Wrap(next)

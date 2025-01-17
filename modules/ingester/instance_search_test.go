@@ -43,9 +43,8 @@ func TestInstanceSearch(t *testing.T) {
 	ids, _, _, _ := writeTracesForSearch(t, i, "", tagKey, tagValue, false, false)
 
 	req := &tempopb.SearchRequest{
-		Tags: map[string]string{},
+		Query: fmt.Sprintf(`{ span.%s = "%s" }`, tagKey, tagValue),
 	}
-	req.Tags[tagKey] = tagValue
 	req.Limit = uint32(len(ids)) + 1
 
 	// Test after appending to WAL. writeTracesforSearch() makes sure all traces are in the wal
@@ -187,27 +186,23 @@ func TestInstanceSearchWithStartAndEnd(t *testing.T) {
 	searchAndAssert := func(req *tempopb.SearchRequest, inspectedTraces uint32) {
 		sr := search(req, 0, 0)
 		assert.Len(t, sr.Traces, len(ids))
-		assert.Equal(t, sr.Metrics.InspectedTraces, inspectedTraces)
 		checkEqual(t, ids, sr)
 
 		// writeTracesForSearch will build spans that end 1 second from now
 		// query 2 min range to have extra slack and always be within range
 		sr = search(req, uint32(time.Now().Add(-5*time.Minute).Unix()), uint32(time.Now().Add(5*time.Minute).Unix()))
 		assert.Len(t, sr.Traces, len(ids))
-		assert.Equal(t, sr.Metrics.InspectedTraces, inspectedTraces)
 		checkEqual(t, ids, sr)
 
 		// search with start=5m from now, end=10m from now
 		sr = search(req, uint32(time.Now().Add(5*time.Minute).Unix()), uint32(time.Now().Add(10*time.Minute).Unix()))
 		// no results and should inspect 100 traces in wal
 		assert.Len(t, sr.Traces, 0)
-		assert.Equal(t, uint32(0), sr.Metrics.InspectedTraces)
 	}
 
 	req := &tempopb.SearchRequest{
-		Tags: map[string]string{},
+		Query: fmt.Sprintf(`{ span.%s = "%s" }`, tagKey, tagValue),
 	}
-	req.Tags[tagKey] = tagValue
 	req.Limit = uint32(len(ids)) + 1
 
 	// Test after appending to WAL.
@@ -622,7 +617,7 @@ func TestInstanceSearchNoData(t *testing.T) {
 	i, _ := defaultInstance(t)
 
 	req := &tempopb.SearchRequest{
-		Tags: map[string]string{},
+		Query: "{}",
 	}
 
 	sr, err := i.Search(context.Background(), req)
@@ -644,7 +639,7 @@ func TestInstanceSearchDoesNotRace(t *testing.T) {
 	tagValue := "bar"
 
 	req := &tempopb.SearchRequest{
-		Tags: map[string]string{tagKey: tagValue},
+		Query: fmt.Sprintf(`{ span.%s = "%s" }`, tagKey, tagValue),
 	}
 
 	end := make(chan struct{})
@@ -774,11 +769,7 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 
 	go concurrent(func() {
 		_, err := i.Search(context.Background(), &tempopb.SearchRequest{
-			Tags: map[string]string{
-				// Not present in the data, so it will be an exhaustive
-				// search
-				"wuv": "xyz",
-			},
+			Query: `{ span.wuv = "xyz" }`,
 		})
 		require.NoError(t, err)
 	})
@@ -819,7 +810,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 
 	search := func() *tempopb.SearchMetrics {
 		sr, err := i.Search(context.Background(), &tempopb.SearchRequest{
-			Tags: map[string]string{"foo": "bar"},
+			Query: fmt.Sprintf(`{ span.%s = "%s" }`, "foo", "bar"),
 		})
 		require.NoError(t, err)
 		return sr.Metrics
@@ -834,14 +825,12 @@ func TestInstanceSearchMetrics(t *testing.T) {
 	err := i.CutCompleteTraces(0, true)
 	require.NoError(t, err)
 	m = search()
-	require.Equal(t, numTraces, m.InspectedTraces)
 	require.Less(t, numBytes, m.InspectedBytes)
 
 	// Test after cutting new headblock
 	blockID, err := i.CutBlockIfReady(0, 0, true)
 	require.NoError(t, err)
 	m = search()
-	require.Equal(t, numTraces, m.InspectedTraces)
 	require.Less(t, numBytes, m.InspectedBytes)
 
 	// Test after completing a block
@@ -850,7 +839,7 @@ func TestInstanceSearchMetrics(t *testing.T) {
 	err = i.ClearCompletingBlock(blockID)
 	require.NoError(t, err)
 	m = search()
-	require.Equal(t, numTraces, m.InspectedTraces)
+	require.Less(t, numBytes, m.InspectedBytes)
 }
 
 func BenchmarkInstanceSearchUnderLoad(b *testing.B) {

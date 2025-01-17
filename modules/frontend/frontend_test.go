@@ -26,6 +26,7 @@ func TestFrontendTagSearchRequiresOrgID(t *testing.T) {
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				MostRecentShards:      defaultMostRecentShards,
 			},
 			SLO: testSLOcfg,
 		},
@@ -69,12 +70,12 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				MostRecentShards:      defaultMostRecentShards,
 			},
 			SLO: testSLOcfg,
 		},
 	}, nil, nil, nil, nil, "", log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend query shards should be between 2 and 100000 (both inclusive)")
-
 	assert.Nil(t, f)
 
 	f, err = New(Config{
@@ -86,6 +87,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				MostRecentShards:      defaultMostRecentShards,
 			},
 			SLO: testSLOcfg,
 		},
@@ -102,6 +104,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    0,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				MostRecentShards:      defaultMostRecentShards,
 			},
 			SLO: testSLOcfg,
 		},
@@ -118,6 +121,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: 0,
+				MostRecentShards:      defaultMostRecentShards,
 			},
 			SLO: testSLOcfg,
 		},
@@ -134,6 +138,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				MostRecentShards:      defaultMostRecentShards,
 				QueryIngestersUntil:   time.Minute,
 				QueryBackendAfter:     time.Hour,
 			},
@@ -151,6 +156,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				MostRecentShards:      defaultMostRecentShards,
 			},
 			SLO: testSLOcfg,
 		},
@@ -166,6 +172,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				MostRecentShards:      defaultMostRecentShards,
 			},
 			SLO: testSLOcfg,
 		},
@@ -188,6 +195,7 @@ func TestFrontendBadConfigFails(t *testing.T) {
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				MostRecentShards:      defaultMostRecentShards,
 			},
 			SLO: testSLOcfg,
 		},
@@ -201,5 +209,29 @@ func TestFrontendBadConfigFails(t *testing.T) {
 		},
 	}, nil, nil, nil, nil, "", log.NewNopLogger(), nil)
 	assert.EqualError(t, err, "frontend metrics interval should be greater than 0")
+	assert.Nil(t, f)
+
+	f, err = New(Config{
+		TraceByID: TraceByIDConfig{
+			QueryShards: maxQueryShards,
+		},
+		Search: SearchConfig{
+			Sharder: SearchSharderConfig{
+				ConcurrentRequests:    defaultConcurrentRequests,
+				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				MostRecentShards:      0,
+			},
+			SLO: testSLOcfg,
+		},
+		Metrics: MetricsConfig{
+			Sharder: QueryRangeSharderConfig{
+				ConcurrentRequests:    defaultConcurrentRequests,
+				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				Interval:              5 * time.Minute,
+			},
+			SLO: testSLOcfg,
+		},
+	}, nil, nil, nil, nil, "", log.NewNopLogger(), nil)
+	assert.EqualError(t, err, "most recent shards must be greater than 0")
 	assert.Nil(t, f)
 }

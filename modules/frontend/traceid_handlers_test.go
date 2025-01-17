@@ -33,6 +33,7 @@ var config = &Config{
 		Sharder: SearchSharderConfig{
 			ConcurrentRequests:    defaultConcurrentRequests,
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
+			MostRecentShards:      defaultMostRecentShards,
 		},
 		SLO: testSLOcfg,
 	},

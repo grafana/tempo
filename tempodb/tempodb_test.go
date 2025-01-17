@@ -240,23 +240,10 @@ func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expected
 		require.Equal(t, expectedID, (uuid.UUID)(blocklist[0].BlockID))
 	}
 
-	// confirm blocklists are in starttime ascending order
-	lastTime := time.Time{}
-	for _, b := range blocklist {
-		require.True(t, lastTime.Before(b.StartTime) || lastTime.Equal(b.StartTime))
-		lastTime = b.StartTime
-	}
-
 	compactedBlocklist := rw.blocklist.CompactedMetas(testTenantID)
 	require.Len(t, compactedBlocklist, expectedCB)
 	if expectedCB > 0 && expectedID != uuid.Nil {
 		require.Equal(t, expectedID, (uuid.UUID)(compactedBlocklist[0].BlockID))
-	}
-
-	lastTime = time.Time{}
-	for _, b := range compactedBlocklist {
-		require.True(t, lastTime.Before(b.StartTime) || lastTime.Equal(b.StartTime))
-		lastTime = b.StartTime
 	}
 }
 

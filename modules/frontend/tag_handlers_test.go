@@ -16,6 +16,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/status"
+	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -49,7 +50,7 @@ func runnerTagsBadRequestOnOrgID(t *testing.T, f *QueryFrontend) {
 	// http
 	httpReq := httptest.NewRequest("GET", "/api/search/tags", nil)
 	httpResp := httptest.NewRecorder()
-	f.SearchHandler.ServeHTTP(httpResp, httpReq)
+	f.SearchTagsHandler.ServeHTTP(httpResp, httpReq)
 	require.Equal(t, "no org id", httpResp.Body.String())
 	require.Equal(t, http.StatusBadRequest, httpResp.Code)
 
@@ -63,7 +64,7 @@ func runnerTagsV2BadRequestOnOrgID(t *testing.T, f *QueryFrontend) {
 	// http
 	httpReq := httptest.NewRequest("GET", "/api/v2/search/tags", nil)
 	httpResp := httptest.NewRecorder()
-	f.SearchHandler.ServeHTTP(httpResp, httpReq)
+	f.SearchTagsV2Handler.ServeHTTP(httpResp, httpReq)
 	require.Equal(t, "no org id", httpResp.Body.String())
 	require.Equal(t, http.StatusBadRequest, httpResp.Code)
 
@@ -76,8 +77,9 @@ func runnerTagsV2BadRequestOnOrgID(t *testing.T, f *QueryFrontend) {
 func runnerTagValuesBadRequestOnOrgID(t *testing.T, f *QueryFrontend) {
 	// http
 	httpReq := httptest.NewRequest("GET", "/api/search/tag/foo/values", nil)
+	httpReq = mux.SetURLVars(httpReq, map[string]string{"tagName": "foo"})
 	httpResp := httptest.NewRecorder()
-	f.SearchHandler.ServeHTTP(httpResp, httpReq)
+	f.SearchTagsValuesHandler.ServeHTTP(httpResp, httpReq)
 	require.Equal(t, "no org id", httpResp.Body.String())
 	require.Equal(t, http.StatusBadRequest, httpResp.Code)
 
@@ -90,8 +92,9 @@ func runnerTagValuesBadRequestOnOrgID(t *testing.T, f *QueryFrontend) {
 func runnerTagValuesV2BadRequestOnOrgID(t *testing.T, f *QueryFrontend) {
 	// http
 	httpReq := httptest.NewRequest("GET", "/api/v2/search/tag/foo/values", nil)
+	httpReq = mux.SetURLVars(httpReq, map[string]string{"tagName": "foo"})
 	httpResp := httptest.NewRecorder()
-	f.SearchHandler.ServeHTTP(httpResp, httpReq)
+	f.SearchTagsValuesV2Handler.ServeHTTP(httpResp, httpReq)
 	require.Equal(t, "no org id", httpResp.Body.String())
 	require.Equal(t, http.StatusBadRequest, httpResp.Code)
 
@@ -115,7 +118,7 @@ func runnerTagsV2ClientCancelContext(t *testing.T, f *QueryFrontend) {
 		cancel()
 	}()
 
-	f.SearchHandler.ServeHTTP(httpResp, httpReq)
+	f.SearchTagsV2Handler.ServeHTTP(httpResp, httpReq)
 	require.Equal(t, "context canceled", httpResp.Body.String())
 	require.Equal(t, 499, httpResp.Code) // todo: is this 499 valid?
 
@@ -134,6 +137,7 @@ func runnerTagsV2ClientCancelContext(t *testing.T, f *QueryFrontend) {
 func runnerTagValuesV2ClientCancelContext(t *testing.T, f *QueryFrontend) {
 	// http
 	httpReq := httptest.NewRequest("GET", "/api/v2/search/tag/foo/values", nil)
+	httpReq = mux.SetURLVars(httpReq, map[string]string{"tagName": "foo"})
 	httpResp := httptest.NewRecorder()
 
 	ctx, cancel := context.WithCancel(httpReq.Context())
@@ -145,7 +149,7 @@ func runnerTagValuesV2ClientCancelContext(t *testing.T, f *QueryFrontend) {
 		cancel()
 	}()
 
-	f.SearchHandler.ServeHTTP(httpResp, httpReq)
+	f.SearchTagsValuesV2Handler.ServeHTTP(httpResp, httpReq)
 	require.Equal(t, "context canceled", httpResp.Body.String())
 	require.Equal(t, 499, httpResp.Code) // todo: is this 499 valid?
 
@@ -229,6 +233,7 @@ func TestSearchTagsV2FailurePropagatesFromQueriers(t *testing.T) {
 				Sharder: SearchSharderConfig{
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					MostRecentShards:      defaultMostRecentShards,
 				},
 				SLO: testSLOcfg,
 			},
@@ -248,7 +253,7 @@ func TestSearchTagsV2FailurePropagatesFromQueriers(t *testing.T) {
 		ctx := user.InjectOrgID(httpReq.Context(), "foo")
 		httpReq = httpReq.WithContext(ctx)
 
-		f.SearchHandler.ServeHTTP(httpResp, httpReq)
+		f.SearchTagsV2Handler.ServeHTTP(httpResp, httpReq)
 		require.Equal(t, tc.expectedMessage, httpResp.Body.String())
 		require.Equal(t, tc.expectedCode, httpResp.Code)
 
@@ -274,6 +279,7 @@ func TestSearchTagsV2FailurePropagatesFromQueriers(t *testing.T) {
 				Sharder: SearchSharderConfig{
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					MostRecentShards:      defaultMostRecentShards,
 				},
 				SLO: testSLOcfg,
 			},
@@ -360,6 +366,7 @@ func TestSearchTagValuesV2FailurePropagatesFromQueriers(t *testing.T) {
 					Sharder: SearchSharderConfig{
 						ConcurrentRequests:    defaultConcurrentRequests,
 						TargetBytesPerRequest: defaultTargetBytesPerRequest,
+						MostRecentShards:      defaultMostRecentShards,
 					},
 					SLO: testSLOcfg,
 				},
@@ -373,13 +380,14 @@ func TestSearchTagValuesV2FailurePropagatesFromQueriers(t *testing.T) {
 				},
 			}, nil)
 
-			httpReq := httptest.NewRequest("GET", "/api/v2/search/tags?start=1&end=10000", nil)
+			httpReq := httptest.NewRequest("GET", "/api/v2/search/tag/foo/values?start=1&end=10000", nil)
+			httpReq = mux.SetURLVars(httpReq, map[string]string{"tagName": "foo"})
 			httpResp := httptest.NewRecorder()
 
 			ctx := user.InjectOrgID(httpReq.Context(), "foo")
 			httpReq = httpReq.WithContext(ctx)
 
-			f.SearchHandler.ServeHTTP(httpResp, httpReq)
+			f.SearchTagsValuesV2Handler.ServeHTTP(httpResp, httpReq)
 			require.Equal(t, tc.expectedMessage, httpResp.Body.String())
 			require.Equal(t, tc.expectedCode, httpResp.Code)
 
@@ -405,6 +413,7 @@ func TestSearchTagValuesV2FailurePropagatesFromQueriers(t *testing.T) {
 					Sharder: SearchSharderConfig{
 						ConcurrentRequests:    defaultConcurrentRequests,
 						TargetBytesPerRequest: defaultTargetBytesPerRequest,
+						MostRecentShards:      defaultMostRecentShards,
 					},
 					SLO: testSLOcfg,
 				},
