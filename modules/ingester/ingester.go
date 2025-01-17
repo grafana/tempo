@@ -152,7 +152,7 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 	i.subservicesWatcher = services.NewFailureWatcher()
 	i.subservicesWatcher.WatchService(i.lifecycler)
 
-	i.Service = services.NewBasicService(i.starting, i.loop, i.stopping)
+	i.Service = services.NewBasicService(i.starting, i.running, i.stopping)
 	return i, nil
 }
 
@@ -199,7 +199,7 @@ func (i *Ingester) starting(ctx context.Context) error {
 	return nil
 }
 
-func (i *Ingester) loop(ctx context.Context) error {
+func (i *Ingester) running(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		return nil
