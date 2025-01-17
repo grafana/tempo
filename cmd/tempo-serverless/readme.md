@@ -21,7 +21,7 @@ using the `_` character. Note that in the above example `TEMPO_BCS_BUCKET_NAME` 
 
 ### make build-docker
 
-Builds two docker images named `tempo-serverlesss` and `tempo-serverless-lambda` that are used for e2e testing.
+Builds two docker images named `tempo-serverless` and `tempo-serverless-lambda` that are used for e2e testing.
 
 ```
 docker run --rm -p 8080:8080 tempo-serverless
