@@ -87,7 +87,7 @@ func buildSeriesForExemplarTest(start, end, step uint64, include func(i int) boo
 	// populate series and expected series based on step
 	idx := 0
 	for i := start; i < end; i += step {
-		idx += 1
+		idx++
 		tsMS := int64(i / uint64(time.Millisecond))
 		val := float64(idx)
 
