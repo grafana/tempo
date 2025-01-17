@@ -125,10 +125,9 @@ func loadBlock(r backend.Reader, c backend.Compactor, tenantID string, id backen
 	}, nil
 }
 
-func printAsJSON(value proto.Message) error {
+func printAsJSON(pb proto.Message) error {
 	m := jsonpb.Marshaler{}
-
-	traceJSON, err := m.MarshalToString(value)
+	traceJSON, err := m.MarshalToString(pb)
 	if err != nil {
 		return err
 	}
