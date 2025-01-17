@@ -2,14 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
 	"strconv"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -125,10 +124,8 @@ func loadBlock(r backend.Reader, c backend.Compactor, tenantID string, id backen
 	}, nil
 }
 
-func printAsJSON(value proto.Message) error {
-	m := jsonpb.Marshaler{}
-
-	traceJSON, err := m.MarshalToString(value)
+func printAsJSON[T any](value T) error {
+	traceJSON, err := json.Marshal(value)
 	if err != nil {
 		return err
 	}

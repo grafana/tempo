@@ -10,7 +10,6 @@
 * [BUGFIX] Fix performance bottleneck and file cleanup in block builder [#4550](https://github.com/grafana/tempo/pull/4550) (@mdisibio)
 * [BUGFIX] TraceQL results caching bug for floats ending in .0 [#4539](https://github.com/grafana/tempo/pull/4539) (@carles-grafana)
 
-
 # v2.7.0
 
 * [CHANGE] Disable gRPC compression in the querier and distributor for performance reasons [#4429](https://github.com/grafana/tempo/pull/4429) (@carles-grafana)

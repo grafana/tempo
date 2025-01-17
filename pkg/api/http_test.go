@@ -704,9 +704,7 @@ func TestQueryRangeRoundtrip(t *testing.T) {
 	}{
 		{
 			name: "empty",
-			req: &tempopb.QueryRangeRequest{
-				Step: uint64(time.Second), // you can't actually roundtrip an empty query b/c Build/Parse will force a default step
-			},
+			req:  &tempopb.QueryRangeRequest{},
 		},
 		{
 			name: "not empty!",
