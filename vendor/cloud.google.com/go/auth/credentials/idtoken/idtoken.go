@@ -22,6 +22,7 @@ package idtoken
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -85,6 +86,16 @@ type Options struct {
 	// when fetching tokens. If provided this should be a fully-authenticated
 	// client. Optional.
 	Client *http.Client
+	// UniverseDomain is the default service domain for a given Cloud universe.
+	// The default value is "googleapis.com". This is the universe domain
+	// configured for the client, which will be compared to the universe domain
+	// that is separately configured for the credentials. Optional.
+	UniverseDomain string
+	// Logger is used for debug logging. If provided, logging will be enabled
+	// at the loggers configured level. By default logging is disabled unless
+	// enabled by setting GOOGLE_SDK_GO_LOGGING_LEVEL in which case a default
+	// logger will be used. Optional.
+	Logger *slog.Logger
 }
 
 func (o *Options) client() *http.Client {
