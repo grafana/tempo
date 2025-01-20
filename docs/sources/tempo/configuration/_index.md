@@ -145,7 +145,11 @@ distributor:
         otlp:
             protocols:
                 grpc:
+                  # connections to Tempo running in a Docker container
+                  # endpoint: "0.0.0.0:4317"
                 http:
+                  # connections to Tempo running in a Docker container
+                  # endpoint: "0.0.0.0:4318"
         jaeger:
             protocols:
                 thrift_http:
@@ -153,6 +157,8 @@ distributor:
                 thrift_binary:
                 thrift_compact:
         zipkin:
+          # connections to Tempo running in a Docker container
+          # endpoint: "0.0.0.0:9411"
         opencensus:
         kafka:
 
