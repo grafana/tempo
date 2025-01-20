@@ -3,6 +3,7 @@ package vparquet4
 import (
 	"bytes"
 	"context"
+	"embed"
 	"fmt"
 	"math/rand"
 	"os"
@@ -50,6 +51,65 @@ func TestOne(t *testing.T) {
 	fmt.Println(resp.Results.(*spansetIterator).iter)
 	fmt.Println("-----------")
 	fmt.Println(spanSet)
+}
+
+//go:embed testqt/intattr.txt testqt/floatattr.txt
+var testqt embed.FS
+
+func TestMixedTypesQuery(t *testing.T) {
+	t.Run("integer attribute with float", func(t *testing.T) {
+		wantTr := fullyPopulatedTestTrace(nil)
+		b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
+		ctx := context.Background()
+		q := `{.crossint > 122.9}`
+		req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
+
+		req.StartTimeUnixNanos = uint64(1000 * time.Second)
+		req.EndTimeUnixNanos = uint64(1001 * time.Second)
+
+		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+		require.NoError(t, err, "search request:", req)
+
+		spanSet, err := resp.Results.Next(ctx)
+		require.NoError(t, err, "search request:", req)
+
+		fmt.Println(q)
+		fmt.Println("-----------")
+		fmt.Println(resp.Results.(*spansetIterator).iter)
+		fmt.Println("-----------")
+		fmt.Println(spanSet)
+
+		queryTree, err := testqt.ReadFile("testqt/intattr.txt")
+		require.NoError(t, err)
+		require.Equal(t, string(queryTree), resp.Results.(*spansetIterator).iter.String())
+	})
+
+	t.Run("float attribute with integer", func(t *testing.T) {
+		wantTr := fullyPopulatedTestTrace(nil)
+		b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
+		ctx := context.Background()
+		q := `{.crossfloat = 456}`
+		req := traceql.MustExtractFetchSpansRequestWithMetadata(q)
+
+		req.StartTimeUnixNanos = uint64(1000 * time.Second)
+		req.EndTimeUnixNanos = uint64(1001 * time.Second)
+
+		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+		require.NoError(t, err, "search request:", req)
+
+		spanSet, err := resp.Results.Next(ctx)
+		require.NoError(t, err, "search request:", req)
+
+		fmt.Println(q)
+		fmt.Println("-----------")
+		fmt.Println(resp.Results.(*spansetIterator).iter)
+		fmt.Println("-----------")
+		fmt.Println(spanSet)
+
+		queryTree, err := testqt.ReadFile("testqt/floatattr.txt")
+		require.NoError(t, err)
+		require.Equal(t, string(queryTree), resp.Results.(*spansetIterator).iter.String())
+	})
 }
 
 func TestBackendBlockSearchTraceQL(t *testing.T) {
@@ -244,6 +304,39 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 				},
 			},
 		},
+		// Cross-type comparisons
+		{".crossint > 122.9", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossint > 122.9}`)},
+		{".crossint >= 122.9", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossint >= 122.9}`)},
+		{".crossint <= 123.0", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossint <= 123.0}`)},
+		{".crossint = 123.0", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossint = 123.0}`)},
+		{".crossint != 123.1", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossint != 123.1}`)},
+		{".crossint >= 123.0", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossint >= 123.0}`)},
+		{".crossint < 123.1", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossint < 123.1}`)},
+		{".crossint <= 123.1", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossint <= 123.1}`)},
+		{".crossnint > -123.9", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossnint > -123.9}`)},
+		{".crossnint >= -123.9", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossnint >= -123.9}`)},
+		{".crossnint <= -123.0", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossnint <= -123.0}`)},
+		{".crossnint = -123.0", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossnint = -123.0}`)},
+		{".crossnint != -123.1", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossnint != -123.1}`)},
+		{".crossnint >= -123.0", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossnint >= -123.0}`)},
+		{".crossnint < -122.1", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossnint < -122.1}`)},
+		{".crossnint <= -122.1", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossnint <= -122.1}`)},
+		{".crossfloat_nofrag > 455", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_nofrag > 455}`)},
+		{".crossfloat_nofrag >= 455", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_nofrag >= 455}`)},
+		{".crossfloat_nofrag <= 456", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_nofrag <= 456}`)},
+		{".crossfloat_nofrag = 456", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_nofrag = 456}`)},
+		{".crossfloat_nofrag != 457", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_nofrag != 457}`)},
+		{".crossfloat_nofrag >= 456", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_nofrag >= 456}`)},
+		{".crossfloat_nofrag <= 457", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_nofrag <= 457}`)},
+		{".crossfloat_nofrag < 457", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_nofrag < 457}`)},
+		{".crossfloat_frag != 455", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_frag != 455}`)},
+		{".crossfloat_frag > 455", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_frag > 455}`)},
+		{".crossfloat_frag >= 455", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_frag >= 455}`)},
+		{".crossfloat_frag > 456", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_frag > 456}`)},
+		{".crossfloat_frag >= 456", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_frag >= 456}`)},
+		{".crossfloat_frag <= 457", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_frag <= 457}`)},
+		{".crossfloat_frag < 457", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_frag < 457}`)},
+		{".crossfloat_frag != 457", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_frag != 457}`)},
 	}
 
 	for _, tc := range searchesThatMatch {
@@ -373,6 +466,41 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 				},
 			},
 		},
+		// Cross-type comparisons
+		{".crossint < 122.9", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossint < 122.9}`)},
+		{".crossint = 122.9", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossint = 122.9}`)},
+		{".crossint <= 122.9", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossint <= 122.9}`)},
+		{".crossint < 123.0", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossint < 123.0}`)},
+		{".crossint != 123.0", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossint != 123.0}`)},
+		{".crossint > 123.0", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossint > 123.0}`)},
+		{".crossint >= 123.1", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossint >= 123.1}`)},
+		{".crossint = 123.1", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossint = 123.1}`)},
+		{".crossint > 123.1", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossint > 123.1}`)},
+		{".crossnint < -123.9", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossnint < -123.9}`)},
+		{".crossnint = -122.9", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossnint = -122.9}`)},
+		{".crossnint = -123.9", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossnint = -123.9}`)},
+		{".crossnint <= -123.9", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossnint <= -123.9}`)},
+		{".crossnint < -123.0", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossnint < -123.0}`)},
+		{".crossnint != -123.0", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossnint != -123.0}`)},
+		{".crossnint > -123.0", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossnint > -123.0}`)},
+		{".crossnint >= -122.1", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossnint >= -122.1}`)},
+		{".crossnint = -122.1", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossnint = -122.1}`)},
+		{".crossnint > -122.1", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossnint > -122.1}`)},
+		{".crossfloat_nofrag < 455", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_nofrag < 455}`)},
+		{".crossfloat_nofrag = 455", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_nofrag = 455}`)},
+		{".crossfloat_nofrag <= 455", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_nofrag <= 455}`)},
+		{".crossfloat_nofrag < 456", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_nofrag < 456}`)},
+		{".crossfloat_nofrag != 456", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_nofrag != 456}`)},
+		{".crossfloat_nofrag > 456", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_nofrag > 456}`)},
+		{".crossfloat_nofrag >= 457", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_nofrag >= 457}`)},
+		{".crossfloat_nofrag = 457", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_nofrag = 457}`)},
+		{".crossfloat_nofrag > 457", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_nofrag > 457}`)},
+		{".crossfloat_frag < 456", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_frag < 456}`)},
+		{".crossfloat_frag = 456", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_frag = 456}`)},
+		{".crossfloat_frag <= 456", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_frag <= 456}`)},
+		{".crossfloat_frag >= 457", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_frag >= 457}`)},
+		{".crossfloat_frag = 457", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_frag = 457}`)},
+		{".crossfloat_frag > 457", traceql.MustExtractFetchSpansRequestWithMetadata(`{.crossfloat_frag > 457}`)},
 	}
 
 	for _, tc := range searchesThatDontMatch {
@@ -573,6 +701,12 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 									attr("foo", "def"),
 									attr("bar", 123),
 									attr("float", 456.78),
+									// For cross-type comparisons
+									attr("crossint", 123),
+									attr("crossnint", -123),
+									attr("crossfloat_nofrag", 456.0),
+									attr("crossfloat_frag", 456.78),
+									//
 									attr("bool", false),
 									attr("str-array", []string{"value-one", "value-two"}),
 									attr("int-array", []int64{111, 222, 333, 444}),
