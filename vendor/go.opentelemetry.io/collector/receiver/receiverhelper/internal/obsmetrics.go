@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package internal // import "go.opentelemetry.io/collector/receiver/internal"
+package internal // import "go.opentelemetry.io/collector/receiver/receiverhelper/internal"
 
 const (
 	// SpanNameSep is duplicate between receiver and exporter.
