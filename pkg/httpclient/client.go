@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/golang/protobuf/jsonpb" //nolint:all
 	"github.com/golang/protobuf/proto"  //nolint:all
@@ -52,6 +53,7 @@ type TempoHTTPClient interface {
 	SearchTraceQLWithRange(query string, start int64, end int64) (*tempopb.SearchResponse, error)
 	SearchTraceQLWithRangeAndLimit(query string, start int64, end int64, limit int64, spss int64) (*tempopb.SearchResponse, error)
 	MetricsSummary(query string, groupBy string, start int64, end int64) (*tempopb.SpanMetricsSummaryResponse, error)
+	SearchQueryRange(query string, start int64, end int64, step int64) (*tempopb.QueryRangeResponse, error)
 	GetOverrides() (*userconfigurableoverrides.Limits, string, error)
 	SetOverrides(limits *userconfigurableoverrides.Limits, version string) (string, error)
 	PatchOverrides(limits *userconfigurableoverrides.Limits) (*userconfigurableoverrides.Limits, string, error)
@@ -354,6 +356,16 @@ func (c *Client) MetricsSummary(query string, groupBy string, start int64, end i
 	return m, nil
 }
 
+func (c *Client) SearchQueryRange(query string, start int64, end int64, step int64) (*tempopb.QueryRangeResponse, error) {
+	m := &tempopb.QueryRangeResponse{}
+	_, err := c.getFor(c.buildQueryRangeURL("q", query, start, end, step), m)
+	if err != nil {
+		return m, err
+	}
+
+	return m, nil
+}
+
 func (c *Client) buildSearchQueryURL(queryType string, query string, start int64, end int64, limit int64, spss int64) string {
 	joinURL, _ := url.Parse(c.BaseURL + "/api/search?")
 	q := joinURL.Query()
@@ -392,6 +404,20 @@ func (c *Client) buildTagsV2QueryURL(start int64, end int64) string {
 		q.Set("start", strconv.FormatInt(start, 10))
 		q.Set("end", strconv.FormatInt(end, 10))
 	}
+	joinURL.RawQuery = q.Encode()
+
+	return fmt.Sprint(joinURL)
+}
+
+func (c *Client) buildQueryRangeURL(queryType string, query string, start int64, end int64, step int64) string {
+	joinURL, _ := url.Parse(c.BaseURL + api.PathMetricsQueryRange + "?")
+	q := joinURL.Query()
+	if start != 0 && end != 0 {
+		q.Set("start", strconv.FormatInt(start, 10))
+		q.Set("end", strconv.FormatInt(end, 10))
+		q.Set("step", time.Duration(step).String())
+	}
+	q.Set(queryType, query)
 	joinURL.RawQuery = q.Encode()
 
 	return fmt.Sprint(joinURL)

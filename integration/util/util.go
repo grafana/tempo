@@ -505,8 +505,7 @@ func MakeThriftBatch() *thrift.Batch {
 func MakeThriftBatchWithSpanCount(n int) *thrift.Batch {
 	return MakeThriftBatchWithSpanCountAttributeAndName(n, "my operation", "", "y", "xx", "x")
 }
-
-func MakeThriftBatchWithSpanCountAttributeAndName(n int, name, resourceValue, spanValue, resourceTag, spanTag string) *thrift.Batch {
+func MakeThriftBatchWithSpanCountResourceAndSpanAttr(n int, serviceName, spanName, resourceValue, spanValue, resourceTag, spanTag string) *thrift.Batch {
 	var spans []*thrift.Span
 
 	traceIDLow := rand.Int63()
@@ -517,7 +516,7 @@ func MakeThriftBatchWithSpanCountAttributeAndName(n int, name, resourceValue, sp
 			TraceIdHigh:   traceIDHigh,
 			SpanId:        rand.Int63(),
 			ParentSpanId:  0,
-			OperationName: name,
+			OperationName: spanName,
 			References:    nil,
 			Flags:         0,
 			StartTime:     time.Now().UnixNano() / 1000, // microsecconds
@@ -534,7 +533,7 @@ func MakeThriftBatchWithSpanCountAttributeAndName(n int, name, resourceValue, sp
 
 	return &thrift.Batch{
 		Process: &thrift.Process{
-			ServiceName: "my-service",
+			ServiceName: serviceName,
 			Tags: []*thrift.Tag{
 				{
 					Key:   resourceTag,
@@ -545,6 +544,9 @@ func MakeThriftBatchWithSpanCountAttributeAndName(n int, name, resourceValue, sp
 		},
 		Spans: spans,
 	}
+}
+func MakeThriftBatchWithSpanCountAttributeAndName(n int, name, resourceValue, spanValue, resourceTag, spanTag string) *thrift.Batch {
+	return MakeThriftBatchWithSpanCountResourceAndSpanAttr(n, "my-service", name, resourceValue, spanValue, resourceTag, spanTag)
 }
 
 func CallFlush(t *testing.T, ingester *e2e.HTTPService) {
