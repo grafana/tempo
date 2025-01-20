@@ -262,24 +262,37 @@ func (m *MetricsCompare) result() SeriesSet {
 	addTotals(internalLabelTypeSelectionTotal, m.selectionTotals)
 
 	// Add exemplars
-	addExemplar := func(prefix Label, e Exemplar) {
+	addExemplar := func(prefix Label, e Exemplar, usedExemplars map[string]bool) {
 		for _, l := range e.Labels {
 			seriesLabels := Labels{
 				prefix,
-				{Name: l.Name},
+				{Name: l.Name, Value: l.Value},
 			}
-			if ts, ok := ss[seriesLabels.String()]; ok {
+			seriesLabelsProm := seriesLabels.String()
+			usedExemplarKey := fmt.Sprintf("%s-%d", seriesLabelsProm, e.TimestampMs)
+
+			if usedExemplars[usedExemplarKey] {
+				continue
+			}
+			usedExemplars[usedExemplarKey] = true
+
+			if ts, ok := ss[seriesLabelsProm]; ok {
 				ts.Exemplars = append(ts.Exemplars, e)
-				ss[seriesLabels.String()] = ts
+				ss[seriesLabelsProm] = ts
 			}
 		}
 	}
 
+	alreadyUsedExemplars := make(map[string]bool, len(m.baselineExemplars)+len(m.selectionExemplars))
+
 	for _, e := range m.baselineExemplars {
-		addExemplar(internalLabelTypeBaselineTotal, e)
+		addExemplar(internalLabelTypeBaseline, e, alreadyUsedExemplars)
 	}
+
+	clear(alreadyUsedExemplars)
+
 	for _, e := range m.selectionExemplars {
-		addExemplar(internalLabelTypeSelectionTotal, e)
+		addExemplar(internalLabelTypeSelection, e, alreadyUsedExemplars)
 	}
 
 	return ss
