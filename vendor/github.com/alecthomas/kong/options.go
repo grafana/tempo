@@ -79,7 +79,7 @@ type dynamicCommand struct {
 	help  string
 	group string
 	tags  []string
-	cmd   interface{}
+	cmd   any
 }
 
 // DynamicCommand registers a dynamically constructed command with the root of the CLI.
@@ -87,7 +87,7 @@ type dynamicCommand struct {
 // This is useful for command-line structures that are extensible via user-provided plugins.
 //
 // "tags" is a list of extra tag strings to parse, in the form <key>:"<value>".
-func DynamicCommand(name, help, group string, cmd interface{}, tags ...string) Option {
+func DynamicCommand(name, help, group string, cmd any, tags ...string) Option {
 	return OptionFunc(func(k *Kong) error {
 		if run := getMethod(reflect.Indirect(reflect.ValueOf(cmd)), "Run"); !run.IsValid() {
 			return fmt.Errorf("kong: DynamicCommand %q must be a type with a 'Run' method; got %T", name, cmd)
@@ -156,7 +156,7 @@ func KindMapper(kind reflect.Kind, mapper Mapper) Option {
 }
 
 // ValueMapper registers a mapper to a field value.
-func ValueMapper(ptr interface{}, mapper Mapper) Option {
+func ValueMapper(ptr any, mapper Mapper) Option {
 	return OptionFunc(func(k *Kong) error {
 		k.registry.RegisterValue(ptr, mapper)
 		return nil
@@ -191,7 +191,7 @@ func Writers(stdout, stderr io.Writer) Option {
 //	  	AfterApply(...) error
 //
 // Called before validation/assignment, and immediately after validation/assignment, respectively.
-func Bind(args ...interface{}) Option {
+func Bind(args ...any) Option {
 	return OptionFunc(func(k *Kong) error {
 		k.bindings.add(args...)
 		return nil
@@ -201,7 +201,7 @@ func Bind(args ...interface{}) Option {
 // BindTo allows binding of implementations to interfaces.
 //
 //	BindTo(impl, (*iface)(nil))
-func BindTo(impl, iface interface{}) Option {
+func BindTo(impl, iface any) Option {
 	return OptionFunc(func(k *Kong) error {
 		k.bindings.addTo(impl, iface)
 		return nil
@@ -212,11 +212,11 @@ func BindTo(impl, iface interface{}) Option {
 //
 // The provider function must have the signature:
 //
-//	func() (interface{}, error)
+//	func() (any, error)
 //
 // This is useful when the Run() function of different commands require different values that may
 // not all be initialisable from the main() function.
-func BindToProvider(provider interface{}) Option {
+func BindToProvider(provider any) Option {
 	return OptionFunc(func(k *Kong) error {
 		return k.bindings.addProvider(provider)
 	})

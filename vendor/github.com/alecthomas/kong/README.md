@@ -5,40 +5,39 @@
 
 [![](https://godoc.org/github.com/alecthomas/kong?status.svg)](http://godoc.org/github.com/alecthomas/kong) [![CircleCI](https://img.shields.io/circleci/project/github/alecthomas/kong.svg)](https://circleci.com/gh/alecthomas/kong) [![Go Report Card](https://goreportcard.com/badge/github.com/alecthomas/kong)](https://goreportcard.com/report/github.com/alecthomas/kong) [![Slack chat](https://img.shields.io/static/v1?logo=slack&style=flat&label=slack&color=green&message=gophers)](https://gophers.slack.com/messages/CN9DS8YF3)
 
-- [Kong is a command-line parser for Go](#kong-is-a-command-line-parser-for-go)
-  - [Version 1.0.0 Release](#version-100-release)
-  - [Introduction](#introduction)
-  - [Help](#help)
-    - [Help as a user of a Kong application](#help-as-a-user-of-a-kong-application)
-    - [Defining help in Kong](#defining-help-in-kong)
-  - [Command handling](#command-handling)
-    - [Switch on the command string](#switch-on-the-command-string)
-    - [Attach a `Run(...) error` method to each command](#attach-a-run-error-method-to-each-command)
-  - [Hooks: BeforeReset(), BeforeResolve(), BeforeApply(), AfterApply() and the Bind() option](#hooks-beforereset-beforeresolve-beforeapply-afterapply-and-the-bind-option)
-  - [Flags](#flags)
-  - [Commands and sub-commands](#commands-and-sub-commands)
-  - [Branching positional arguments](#branching-positional-arguments)
-  - [Positional arguments](#positional-arguments)
-  - [Slices](#slices)
-  - [Maps](#maps)
-  - [Pointers](#pointers)
-  - [Nested data structure](#nested-data-structure)
-  - [Custom named decoders](#custom-named-decoders)
-  - [Supported field types](#supported-field-types)
-  - [Custom decoders (mappers)](#custom-decoders-mappers)
-  - [Supported tags](#supported-tags)
-  - [Plugins](#plugins)
-  - [Dynamic Commands](#dynamic-commands)
-  - [Variable interpolation](#variable-interpolation)
-  - [Validation](#validation)
-  - [Modifying Kong's behaviour](#modifying-kongs-behaviour)
-    - [`Name(help)` and `Description(help)` - set the application name description](#namehelp-and-descriptionhelp---set-the-application-name-description)
-    - [`Configuration(loader, paths...)` - load defaults from configuration files](#configurationloader-paths---load-defaults-from-configuration-files)
-    - [`Resolver(...)` - support for default values from external sources](#resolver---support-for-default-values-from-external-sources)
-    - [`*Mapper(...)` - customising how the command-line is mapped to Go values](#mapper---customising-how-the-command-line-is-mapped-to-go-values)
-    - [`ConfigureHelp(HelpOptions)` and `Help(HelpFunc)` - customising help](#configurehelphelpoptions-and-helphelpfunc---customising-help)
-    - [`Bind(...)` - bind values for callback hooks and Run() methods](#bind---bind-values-for-callback-hooks-and-run-methods)
-    - [Other options](#other-options)
+- [Version 1.0.0 Release](#version-100-release)
+- [Introduction](#introduction)
+- [Help](#help)
+  - [Help as a user of a Kong application](#help-as-a-user-of-a-kong-application)
+  - [Defining help in Kong](#defining-help-in-kong)
+- [Command handling](#command-handling)
+  - [Switch on the command string](#switch-on-the-command-string)
+  - [Attach a `Run(...) error` method to each command](#attach-a-run-error-method-to-each-command)
+- [Hooks: BeforeReset(), BeforeResolve(), BeforeApply(), AfterApply() and the Bind() option](#hooks-beforereset-beforeresolve-beforeapply-afterapply-and-the-bind-option)
+- [Flags](#flags)
+- [Commands and sub-commands](#commands-and-sub-commands)
+- [Branching positional arguments](#branching-positional-arguments)
+- [Positional arguments](#positional-arguments)
+- [Slices](#slices)
+- [Maps](#maps)
+- [Pointers](#pointers)
+- [Nested data structure](#nested-data-structure)
+- [Custom named decoders](#custom-named-decoders)
+- [Supported field types](#supported-field-types)
+- [Custom decoders (mappers)](#custom-decoders-mappers)
+- [Supported tags](#supported-tags)
+- [Plugins](#plugins)
+- [Dynamic Commands](#dynamic-commands)
+- [Variable interpolation](#variable-interpolation)
+- [Validation](#validation)
+- [Modifying Kong's behaviour](#modifying-kongs-behaviour)
+  - [`Name(help)` and `Description(help)` - set the application name description](#namehelp-and-descriptionhelp---set-the-application-name-description)
+  - [`Configuration(loader, paths...)` - load defaults from configuration files](#configurationloader-paths---load-defaults-from-configuration-files)
+  - [`Resolver(...)` - support for default values from external sources](#resolver---support-for-default-values-from-external-sources)
+  - [`*Mapper(...)` - customising how the command-line is mapped to Go values](#mapper---customising-how-the-command-line-is-mapped-to-go-values)
+  - [`ConfigureHelp(HelpOptions)` and `Help(HelpFunc)` - customising help](#configurehelphelpoptions-and-helphelpfunc---customising-help)
+  - [Injecting values into `Run()` methods](#injecting-values-into-run-methods)
+  - [Other options](#other-options)
 
 ## Version 1.0.0 Release
 
@@ -308,8 +307,8 @@ func main() {
 
 ## Hooks: BeforeReset(), BeforeResolve(), BeforeApply(), AfterApply() and the Bind() option
 
-If a node in the grammar has a `BeforeReset(...)`, `BeforeResolve
-(...)`, `BeforeApply(...) error` and/or `AfterApply(...) error` method, those
+If a node in the CLI, or any of its embedded fields, has a `BeforeReset(...) error`, `BeforeResolve
+(...) error`, `BeforeApply(...) error` and/or `AfterApply(...) error` method, those
 methods will be called before values are reset, before validation/assignment,
 and after validation/assignment, respectively.
 
@@ -339,40 +338,6 @@ func main() {
   ctx := kong.Parse(&cli, kong.Bind(logger))
 
   // ...
-}
-```
-
-Another example of using hooks is load the env-file:
-
-```go
-package main
-
-import (
-  "fmt"
-  "github.com/alecthomas/kong"
-  "github.com/joho/godotenv"
-)
-
-type EnvFlag string
-
-// BeforeResolve loads env file.
-func (c EnvFlag) BeforeReset(ctx *kong.Context, trace *kong.Path) error {
-  path := string(ctx.FlagValue(trace.Flag).(EnvFlag)) // nolint
-  path = kong.ExpandPath(path)
-  if err := godotenv.Load(path); err != nil {
-    return err
-  }
-  return nil
-}
-
-var CLI struct {
-  EnvFile EnvFlag
-  Flag `env:"FLAG"`
-}
-
-func main() {
-  _ = kong.Parse(&CLI)
-  fmt.Println(CLI.Flag)
 }
 ```
 
@@ -585,6 +550,7 @@ Both can coexist with standard Tag parsing.
 | `and:"X,Y,..."`      | AND groups for flags. All flags in the group must be used in the same command. When combined with `required`, all flags in the group will be required.                                                                                                                                                                         |
 | `prefix:"X"`         | Prefix for all sub-flags.                                                                                                                                                                                                                                                                                                      |
 | `envprefix:"X"`      | Envar prefix for all sub-flags.                                                                                                                                                                                                                                                                                                |
+| `xorprefix:"X"`      | Prefix for all sub-flags in XOR/AND groups.                                                                                                                                                                                                                                                                                  |
 | `set:"K=V"`          | Set a variable for expansion by child elements. Multiples can occur.                                                                                                                                                                                                                                                           |
 | `embed:""`           | If present, this field's children will be embedded in the parent. Useful for composition.                                                                                                                                                                                                                                      |
 | `passthrough:"<mode>"`[^1] | If present on a positional argument, it stops flag parsing when encountered, as if `--` was processed before. Useful for external command wrappers, like `exec`. On a command it requires that the command contains only one argument of type `[]string` which is then filled with everything following the command, unparsed. |
@@ -683,7 +649,7 @@ normal validation.
 
 ## Modifying Kong's behaviour
 
-Each Kong parser can be configured via functional options passed to `New(cli interface{}, options...Option)`.
+Each Kong parser can be configured via functional options passed to `New(cli any, options...Option)`.
 
 The full set of options can be found [here](https://godoc.org/github.com/alecthomas/kong#Option).
 
@@ -741,7 +707,7 @@ All builtin Go types (as well as a bunch of useful stdlib types like `time.Time`
 1. `NamedMapper(string, Mapper)` and using the tag key `type:"<name>"`.
 2. `KindMapper(reflect.Kind, Mapper)`.
 3. `TypeMapper(reflect.Type, Mapper)`.
-4. `ValueMapper(interface{}, Mapper)`, passing in a pointer to a field of the grammar.
+4. `ValueMapper(any, Mapper)`, passing in a pointer to a field of the grammar.
 
 ### `ConfigureHelp(HelpOptions)` and `Help(HelpFunc)` - customising help
 
