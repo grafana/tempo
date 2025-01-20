@@ -1,7 +1,7 @@
 package kong
 
 // ApplyDefaults if they are not already set.
-func ApplyDefaults(target interface{}, options ...Option) error {
+func ApplyDefaults(target any, options ...Option) error {
 	app, err := New(target, options...)
 	if err != nil {
 		return err

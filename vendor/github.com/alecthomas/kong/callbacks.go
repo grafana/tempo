@@ -19,7 +19,7 @@ func (b bindings) String() string {
 	return "bindings{" + strings.Join(out, ", ") + "}"
 }
 
-func (b bindings) add(values ...interface{}) bindings {
+func (b bindings) add(values ...any) bindings {
 	for _, v := range values {
 		v := v
 		b[reflect.TypeOf(v)] = func() (any, error) { return v, nil }
@@ -27,11 +27,11 @@ func (b bindings) add(values ...interface{}) bindings {
 	return b
 }
 
-func (b bindings) addTo(impl, iface interface{}) {
+func (b bindings) addTo(impl, iface any) {
 	b[reflect.TypeOf(iface).Elem()] = func() (any, error) { return impl, nil }
 }
 
-func (b bindings) addProvider(provider interface{}) error {
+func (b bindings) addProvider(provider any) error {
 	pv := reflect.ValueOf(provider)
 	t := pv.Type()
 	if t.Kind() != reflect.Func || t.NumOut() != 2 || t.Out(1) != reflect.TypeOf((*error)(nil)).Elem() {
@@ -66,6 +66,33 @@ func getMethod(value reflect.Value, name string) reflect.Value {
 		}
 	}
 	return method
+}
+
+// Get methods from the given value and any embedded fields.
+func getMethods(value reflect.Value, name string) []reflect.Value {
+	// Collect all possible receivers
+	receivers := []reflect.Value{value}
+	if value.Kind() == reflect.Ptr {
+		value = value.Elem()
+	}
+	if value.Kind() == reflect.Struct {
+		t := value.Type()
+		for i := 0; i < value.NumField(); i++ {
+			field := value.Field(i)
+			fieldType := t.Field(i)
+			if fieldType.IsExported() && fieldType.Anonymous {
+				receivers = append(receivers, field)
+			}
+		}
+	}
+	// Search all receivers for methods
+	var methods []reflect.Value
+	for _, receiver := range receivers {
+		if method := getMethod(receiver, name); method.IsValid() {
+			methods = append(methods, method)
+		}
+	}
+	return methods
 }
 
 func callFunction(f reflect.Value, bindings bindings) error {
