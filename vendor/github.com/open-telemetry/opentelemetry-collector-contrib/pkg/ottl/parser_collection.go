@@ -131,11 +131,13 @@ type parserCollectionParser struct {
 //
 // Experimental: *NOTE* this API is subject to change or removal in the future.
 type ParserCollection[R any] struct {
-	contextParsers           map[string]*parserCollectionParser
-	contextInferrer          contextInferrer
-	modifiedStatementLogging bool
-	Settings                 component.TelemetrySettings
-	ErrorMode                ErrorMode
+	contextParsers            map[string]*parserCollectionParser
+	contextInferrer           contextInferrer
+	contextInferrerCandidates map[string]*priorityContextInferrerCandidate
+	candidatesLowerContexts   map[string][]string
+	modifiedStatementLogging  bool
+	Settings                  component.TelemetrySettings
+	ErrorMode                 ErrorMode
 }
 
 // ParserCollectionOption is a configurable ParserCollection option.
@@ -150,10 +152,13 @@ func NewParserCollection[R any](
 	settings component.TelemetrySettings,
 	options ...ParserCollectionOption[R],
 ) (*ParserCollection[R], error) {
+	contextInferrerCandidates := map[string]*priorityContextInferrerCandidate{}
 	pc := &ParserCollection[R]{
-		Settings:        settings,
-		contextParsers:  map[string]*parserCollectionParser{},
-		contextInferrer: defaultPriorityContextInferrer(),
+		Settings:                  settings,
+		contextParsers:            map[string]*parserCollectionParser{},
+		contextInferrer:           newPriorityContextInferrer(contextInferrerCandidates),
+		contextInferrerCandidates: contextInferrerCandidates,
+		candidatesLowerContexts:   map[string][]string{},
 	}
 
 	for _, op := range options {
@@ -211,8 +216,30 @@ func WithParserCollectionContext[K any, R any](
 			ottlParser:          newParserWrapper[K](parser),
 			statementsConverter: newStatementsConverterWrapper(converter),
 		}
+
+		for lowerContext := range parser.pathContextNames {
+			if lowerContext != context {
+				mp.candidatesLowerContexts[lowerContext] = append(mp.candidatesLowerContexts[lowerContext], context)
+			}
+		}
+
+		mp.contextInferrerCandidates[context] = &priorityContextInferrerCandidate{
+			hasEnumSymbol: func(enum *EnumSymbol) bool {
+				_, err := parser.enumParser(enum)
+				return err == nil
+			},
+			hasFunctionName: func(name string) bool {
+				_, ok := parser.functions[name]
+				return ok
+			},
+			getLowerContexts: mp.getLowerContexts,
+		}
 		return nil
 	}
+}
+
+func (pc *ParserCollection[R]) getLowerContexts(context string) []string {
+	return pc.candidatesLowerContexts[context]
 }
 
 // WithParserCollectionErrorMode has no effect on the ParserCollection, but might be used
@@ -255,7 +282,12 @@ func (pc *ParserCollection[R]) ParseStatements(statements StatementsGetter) (R, 
 	}
 
 	if inferredContext == "" {
-		return *new(R), fmt.Errorf("unable to infer context from statements [%v], path's first segment must be a valid context name", statementsValues)
+		return *new(R), fmt.Errorf("unable to infer context from statements %+q, path's first segment must be a valid context name: %+q", statementsValues, pc.supportedContextNames())
+	}
+
+	_, ok := pc.contextParsers[inferredContext]
+	if !ok {
+		return *new(R), fmt.Errorf(`context "%s" inferred from the statements %+q is not a supported context: %+q`, inferredContext, statementsValues, pc.supportedContextNames())
 	}
 
 	return pc.ParseStatementsWithContext(inferredContext, statements, false)
@@ -331,4 +363,12 @@ func (pc *ParserCollection[R]) logModifiedStatements(originalStatements, modifie
 	if len(fields) > 0 {
 		pc.Settings.Logger.Info("one or more statements were modified to include their paths context, please rewrite them accordingly", zap.Dict("statements", fields...))
 	}
+}
+
+func (pc *ParserCollection[R]) supportedContextNames() []string {
+	contextsNames := make([]string, 0, len(pc.contextParsers))
+	for k := range pc.contextParsers {
+		contextsNames = append(contextsNames, k)
+	}
+	return contextsNames
 }

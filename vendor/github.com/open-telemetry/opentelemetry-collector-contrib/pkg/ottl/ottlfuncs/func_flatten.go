@@ -54,28 +54,45 @@ func flatten[K any](target ottl.PMapGetter[K], p ottl.Optional[string], d ottl.O
 		}
 
 		result := pcommon.NewMap()
-		flattenHelper(m, result, prefix, 0, depth)
+		flattenMap(m, result, prefix, 0, depth)
 		result.MoveTo(m)
 
 		return nil, nil
 	}, nil
 }
 
-func flattenHelper(m pcommon.Map, result pcommon.Map, prefix string, currentDepth, maxDepth int64) {
+func flattenMap(m pcommon.Map, result pcommon.Map, prefix string, currentDepth, maxDepth int64) {
 	if len(prefix) > 0 {
 		prefix += "."
 	}
 	m.Range(func(k string, v pcommon.Value) bool {
-		switch {
-		case v.Type() == pcommon.ValueTypeMap && currentDepth < maxDepth:
-			flattenHelper(v.Map(), result, prefix+k, currentDepth+1, maxDepth)
-		case v.Type() == pcommon.ValueTypeSlice && currentDepth < maxDepth:
-			for i := 0; i < v.Slice().Len(); i++ {
+		return flattenValue(k, v, currentDepth, maxDepth, result, prefix)
+	})
+}
+
+func flattenSlice(s pcommon.Slice, result pcommon.Map, prefix string, currentDepth int64, maxDepth int64) {
+	for i := 0; i < s.Len(); i++ {
+		flattenValue(fmt.Sprintf("%d", i), s.At(i), currentDepth+1, maxDepth, result, prefix)
+	}
+}
+
+func flattenValue(k string, v pcommon.Value, currentDepth int64, maxDepth int64, result pcommon.Map, prefix string) bool {
+	switch {
+	case v.Type() == pcommon.ValueTypeMap && currentDepth < maxDepth:
+		flattenMap(v.Map(), result, prefix+k, currentDepth+1, maxDepth)
+	case v.Type() == pcommon.ValueTypeSlice && currentDepth < maxDepth:
+		for i := 0; i < v.Slice().Len(); i++ {
+			switch {
+			case v.Slice().At(i).Type() == pcommon.ValueTypeMap && currentDepth+1 < maxDepth:
+				flattenMap(v.Slice().At(i).Map(), result, fmt.Sprintf("%v.%v", prefix+k, i), currentDepth+2, maxDepth)
+			case v.Slice().At(i).Type() == pcommon.ValueTypeSlice && currentDepth+1 < maxDepth:
+				flattenSlice(v.Slice().At(i).Slice(), result, fmt.Sprintf("%v.%v", prefix+k, i), currentDepth+2, maxDepth)
+			default:
 				v.Slice().At(i).CopyTo(result.PutEmpty(fmt.Sprintf("%v.%v", prefix+k, i)))
 			}
-		default:
-			v.CopyTo(result.PutEmpty(prefix + k))
 		}
-		return true
-	})
+	default:
+		v.CopyTo(result.PutEmpty(prefix + k))
+	}
+	return true
 }

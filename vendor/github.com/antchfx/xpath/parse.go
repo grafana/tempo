@@ -868,20 +868,18 @@ func (s *scanner) scanNumber() float64 {
 
 func (s *scanner) scanString() string {
 	var (
-		c   = 0
 		end = s.curr
 	)
 	s.nextChar()
 	i := s.pos - s.currSize
-	if s.currSize > 1 {
-		c++
-	}
+	c := s.currSize
 	for s.curr != end {
 		if !s.nextChar() {
 			panic(errors.New("xpath: scanString got unclosed string"))
 		}
 		c += s.currSize
 	}
+	c -= 1
 	s.nextChar()
 	return s.text[i : i+c]
 }

@@ -9,6 +9,7 @@ type grammarPathVisitor struct {
 }
 
 func (v *grammarPathVisitor) visitEditor(_ *editor)                   {}
+func (v *grammarPathVisitor) visitConverter(_ *converter)             {}
 func (v *grammarPathVisitor) visitValue(_ *value)                     {}
 func (v *grammarPathVisitor) visitMathExprLiteral(_ *mathExprLiteral) {}
 
