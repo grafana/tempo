@@ -1,9 +1,11 @@
 package xmlquery
 
 import (
+	"bufio"
 	"encoding/xml"
 	"fmt"
 	"html"
+	"io"
 	"strings"
 )
 
@@ -56,6 +58,7 @@ type outputConfiguration struct {
 	preserveSpaces         bool
 	emptyElementTagSupport bool
 	skipComments           bool
+	useIndentation         string
 }
 
 type OutputOption func(*outputConfiguration)
@@ -86,6 +89,13 @@ func WithoutComments() OutputOption {
 func WithPreserveSpace() OutputOption {
 	return func(oc *outputConfiguration) {
 		oc.preserveSpaces = true
+	}
+}
+
+// WithIndentation sets the indentation string used for formatting the output.
+func WithIndentation(indentation string) OutputOption {
+	return func(oc *outputConfiguration) {
+		oc.useIndentation = indentation
 	}
 }
 
@@ -141,92 +151,145 @@ func calculatePreserveSpaces(n *Node, pastValue bool) bool {
 	return pastValue
 }
 
-func outputXML(b *strings.Builder, n *Node, preserveSpaces bool, config *outputConfiguration) {
+type indentation struct {
+	level    int
+	hasChild bool
+	indent   string
+	w io.Writer
+}
+
+func newIndentation(indent string, w io.Writer) *indentation {
+	if indent == "" {
+		return nil
+	}
+	return &indentation{
+		indent: indent,
+		w:      w,
+	}
+}
+
+func (i *indentation) NewLine() {
+	if i == nil {
+		return
+	}
+	io.WriteString(i.w, "\n")
+}
+
+func (i *indentation) Open() {
+	if i == nil {
+		return
+	}
+
+	io.WriteString(i.w, "\n")
+	io.WriteString(i.w, strings.Repeat(i.indent, i.level))
+
+	i.level++
+	i.hasChild = false
+}
+
+func (i *indentation) Close() {
+	if i == nil {
+		return
+	}
+	i.level--
+	if i.hasChild {
+		io.WriteString(i.w, "\n")
+		io.WriteString(i.w, strings.Repeat(i.indent, i.level))
+	}
+	i.hasChild = true
+}
+
+func outputXML(w io.Writer, n *Node, preserveSpaces bool, config *outputConfiguration, indent *indentation) {
 	preserveSpaces = calculatePreserveSpaces(n, preserveSpaces)
 	switch n.Type {
 	case TextNode:
-		b.WriteString(html.EscapeString(n.sanitizedData(preserveSpaces)))
+		io.WriteString(w, html.EscapeString(n.sanitizedData(preserveSpaces)))
 		return
 	case CharDataNode:
-		b.WriteString("<![CDATA[")
-		b.WriteString(n.Data)
-		b.WriteString("]]>")
+		io.WriteString(w, "<![CDATA[")
+		io.WriteString(w, n.Data)
+		io.WriteString(w, "]]>")
 		return
 	case CommentNode:
 		if !config.skipComments {
-			b.WriteString("<!--")
-			b.WriteString(n.Data)
-			b.WriteString("-->")
+			io.WriteString(w, "<!--")
+			io.WriteString(w, n.Data)
+			io.WriteString(w, "-->")
 		}
 		return
 	case NotationNode:
-		fmt.Fprintf(b, "<!%s>", n.Data)
+		indent.NewLine()
+		fmt.Fprintf(w, "<!%s>", n.Data)
 		return
 	case DeclarationNode:
-		b.WriteString("<?" + n.Data)
+		io.WriteString(w, "<?" + n.Data)
 	default:
+		indent.Open()
 		if n.Prefix == "" {
-			b.WriteString("<" + n.Data)
+			io.WriteString(w, "<" + n.Data)
 		} else {
-			fmt.Fprintf(b, "<%s:%s", n.Prefix, n.Data)
+			fmt.Fprintf(w, "<%s:%s", n.Prefix, n.Data)
 		}
 	}
 
 	for _, attr := range n.Attr {
 		if attr.Name.Space != "" {
-			fmt.Fprintf(b, ` %s:%s=`, attr.Name.Space, attr.Name.Local)
+			fmt.Fprintf(w, ` %s:%s=`, attr.Name.Space, attr.Name.Local)
 		} else {
-			fmt.Fprintf(b, ` %s=`, attr.Name.Local)
+			fmt.Fprintf(w, ` %s=`, attr.Name.Local)
 		}
-		b.WriteByte('"')
-		b.WriteString(html.EscapeString(attr.Value))
-		b.WriteByte('"')
+
+		fmt.Fprintf(w, `"%v"`, html.EscapeString(attr.Value))
 	}
 	if n.Type == DeclarationNode {
-		b.WriteString("?>")
+		io.WriteString(w, "?>")
 	} else {
 		if n.FirstChild != nil || !config.emptyElementTagSupport {
-			b.WriteString(">")
+			io.WriteString(w, ">")
 		} else {
-			b.WriteString("/>")
+			io.WriteString(w, "/>")
+			indent.Close()
 			return
 		}
 	}
 	for child := n.FirstChild; child != nil; child = child.NextSibling {
-		outputXML(b, child, preserveSpaces, config)
+		outputXML(w, child, preserveSpaces, config, indent)
 	}
 	if n.Type != DeclarationNode {
+		indent.Close()
 		if n.Prefix == "" {
-			fmt.Fprintf(b, "</%s>", n.Data)
+			fmt.Fprintf(w, "</%s>", n.Data)
 		} else {
-			fmt.Fprintf(b, "</%s:%s>", n.Prefix, n.Data)
+			fmt.Fprintf(w, "</%s:%s>", n.Prefix, n.Data)
 		}
 	}
 }
 
 // OutputXML returns the text that including tags name.
 func (n *Node) OutputXML(self bool) string {
-
-	config := &outputConfiguration{
-		printSelf:              true,
-		emptyElementTagSupport: false,
+	if self {
+		return n.OutputXMLWithOptions(WithOutputSelf())
 	}
-	preserveSpaces := calculatePreserveSpaces(n, false)
-	var b strings.Builder
-	if self && n.Type != DocumentNode {
-		outputXML(&b, n, preserveSpaces, config)
-	} else {
-		for n := n.FirstChild; n != nil; n = n.NextSibling {
-			outputXML(&b, n, preserveSpaces, config)
-		}
-	}
-
-	return b.String()
+	return n.OutputXMLWithOptions()
 }
 
 // OutputXMLWithOptions returns the text that including tags name.
 func (n *Node) OutputXMLWithOptions(opts ...OutputOption) string {
+	var b strings.Builder
+	n.WriteWithOptions(&b, opts...)
+	return b.String()
+}
 
+// Write writes xml to given writer.
+func (n *Node) Write(writer io.Writer, self bool) {
+	if self {
+		n.WriteWithOptions(writer, WithOutputSelf())
+	}
+	n.WriteWithOptions(writer)
+}
+
+// WriteWithOptions writes xml with given options to given writer.
+func (n *Node) WriteWithOptions(writer io.Writer, opts ...OutputOption) {
 	config := &outputConfiguration{}
 	// Set the options
 	for _, opt := range opts {
@@ -234,16 +297,16 @@ func (n *Node) OutputXMLWithOptions(opts ...OutputOption) string {
 	}
 	pastPreserveSpaces := config.preserveSpaces
 	preserveSpaces := calculatePreserveSpaces(n, pastPreserveSpaces)
-	var b strings.Builder
+	b := bufio.NewWriter(writer)
+	defer b.Flush()
+
 	if config.printSelf && n.Type != DocumentNode {
-		outputXML(&b, n, preserveSpaces, config)
+		outputXML(b, n, preserveSpaces, config, newIndentation(config.useIndentation, b))
 	} else {
 		for n := n.FirstChild; n != nil; n = n.NextSibling {
-			outputXML(&b, n, preserveSpaces, config)
+			outputXML(b, n, preserveSpaces, config, newIndentation(config.useIndentation, b))
 		}
 	}
-
-	return b.String()
 }
 
 // AddAttr adds a new attribute specified by 'key' and 'val' to a node 'n'.
