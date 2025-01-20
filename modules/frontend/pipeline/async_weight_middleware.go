@@ -114,12 +114,17 @@ func (c weightRequestWare) setTraceQLWeight(req Request) {
 		if c.Op != traceql.OpNone {
 			conditions++
 		}
+
+		if c.Attribute.Intrinsic == traceql.IntrinsicNone && c.Attribute.Scope == traceql.AttributeScopeNone {
+			conditions++
+		}
+
 		if c.Op == traceql.OpRegex || c.Op == traceql.OpNotRegex {
 			regexConditions++
 		}
 	}
-	complexQuery := regexConditions >= c.weights.MaxRegexConditions || conditions >= c.weights.MaxTraceQLConditions
-	if complexQuery {
+	heavyQuery := regexConditions >= c.weights.MaxRegexConditions || conditions >= c.weights.MaxTraceQLConditions
+	if heavyQuery {
 		req.SetWeight(c.weights.TraceQLSearchWeight + 1)
 	}
 }
