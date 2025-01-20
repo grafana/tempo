@@ -57,7 +57,7 @@ jobs:
           docker build -f cmd/${{ matrix.component }}/Dockerfile -t grafana/${{ matrix.component }}:$TAG_ARCH .
 
       - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@dockerhub-login-v1.0.0
+        uses: grafana/shared-workflows/actions/dockerhub-login@dockerhub-login-v1.0
 
       - name: docker-push
         run: |
@@ -79,7 +79,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Login to DockerHub
-        uses: grafana/shared-workflows/actions/dockerhub-login@dockerhub-login-v1.0.0
+        uses: grafana/shared-workflows/actions/dockerhub-login@dockerhub-login-v1.0
 
       - name: docker-manifest-create-and-push
         run: |
