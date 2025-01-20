@@ -52,7 +52,7 @@ func agentDefaultOptions() agentOptions {
 		WALSegmentSize:    defaultOptions.WALSegmentSize,
 		WALCompression:    defaultOptions.WALCompression,
 		StripeSize:        defaultOptions.StripeSize,
-		TruncateFrequency: defaultOptions.TruncateFrequency,
+		TruncateFrequency: 15 * time.Minute, // the default truncate frequency is 2h which consumes a lot of standing memory to store all the series. this means we can incur at most a 15m network outage before data loss
 		MinWALTime:        defaultOptions.MinWALTime,
 		MaxWALTime:        defaultOptions.MaxWALTime,
 		NoLockfile:        defaultOptions.NoLockfile,
