@@ -4,7 +4,7 @@ go 1.23.3
 
 require (
 	cloud.google.com/go/storage v1.41.0
-	github.com/alecthomas/kong v1.6.0
+	github.com/alecthomas/kong v1.6.1
 	github.com/alicebob/miniredis/v2 v2.34.0
 	github.com/aws/aws-sdk-go v1.55.5
 	github.com/cespare/xxhash/v2 v2.3.0
@@ -71,9 +71,9 @@ require (
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/sync v0.10.0
-	golang.org/x/time v0.8.0
-	google.golang.org/api v0.211.0
-	google.golang.org/grpc v1.68.1
+	golang.org/x/time v0.9.0
+	google.golang.org/api v0.217.0
+	google.golang.org/grpc v1.69.4
 	google.golang.org/protobuf v1.36.3
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -123,16 +123,16 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.33.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.33.0
 	go.opentelemetry.io/proto/otlp v1.4.0
-	golang.org/x/net v0.33.0
-	golang.org/x/oauth2 v0.24.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20241209162323-e6fa225c2576
+	golang.org/x/net v0.34.0
+	golang.org/x/oauth2 v0.25.0
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250106144421-5f5ef82da422
 )
 
 require (
 	cloud.google.com/go v0.115.0 // indirect
-	cloud.google.com/go/auth v0.12.1 // indirect
-	cloud.google.com/go/auth/oauth2adapt v0.2.6 // indirect
-	cloud.google.com/go/compute/metadata v0.5.2 // indirect
+	cloud.google.com/go/auth v0.14.0 // indirect
+	cloud.google.com/go/auth/oauth2adapt v0.2.7 // indirect
+	cloud.google.com/go/compute/metadata v0.6.0 // indirect
 	cloud.google.com/go/iam v1.1.11 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.10.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.3 // indirect
@@ -197,7 +197,7 @@ require (
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/google/btree v1.1.2 // indirect
-	github.com/google/s2a-go v0.1.8 // indirect
+	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
 	github.com/gorilla/handlers v1.5.2 // indirect
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.8 // indirect
@@ -358,10 +358,10 @@ require (
 	go.opentelemetry.io/otel/log v0.9.0 // indirect
 	go.opentelemetry.io/otel/sdk/log v0.9.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.33.0 // indirect
-	golang.org/x/crypto v0.31.0 // indirect
+	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f // indirect
 	golang.org/x/mod v0.22.0 // indirect
-	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/tools v0.27.0 // indirect
 	gonum.org/v1/gonum v0.15.1 // indirect

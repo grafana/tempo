@@ -24,6 +24,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"strings"
@@ -31,6 +32,7 @@ import (
 
 	"cloud.google.com/go/auth/internal"
 	"cloud.google.com/go/auth/internal/jwt"
+	"github.com/googleapis/gax-go/v2/internallog"
 )
 
 const (
@@ -42,7 +44,7 @@ const (
 )
 
 var (
-	defaultValidator = &Validator{client: newCachingClient(internal.DefaultClient())}
+	defaultValidator = &Validator{client: newCachingClient(internal.DefaultClient(), internallog.New(nil))}
 	// now aliases time.Now for testing.
 	now = time.Now
 )
@@ -84,26 +86,27 @@ type ValidatorOptions struct {
 	// Custom certs URL for ES256 JWK to be used. If not provided, the default
 	// Google IAP endpoint will be used. Optional.
 	ES256CertsURL string
+	// Logger is used for debug logging. If provided, logging will be enabled
+	// at the loggers configured level. By default logging is disabled unless
+	// enabled by setting GOOGLE_SDK_GO_LOGGING_LEVEL in which case a default
+	// Logger will be used. Optional.
+	Logger *slog.Logger
 }
 
 // NewValidator creates a Validator that uses the options provided to configure
 // a the internal http.Client that will be used to make requests to fetch JWKs.
 func NewValidator(opts *ValidatorOptions) (*Validator, error) {
-	var client *http.Client
-	if opts != nil && opts.Client != nil {
-		client = opts.Client
-	} else {
+	if opts == nil {
+		opts = &ValidatorOptions{}
+	}
+	client := opts.Client
+	if client == nil {
 		client = internal.DefaultClient()
 	}
-	var rs256URL string
-	if opts != nil {
-		rs256URL = opts.RS256CertsURL
-	}
-	var es256URL string
-	if opts != nil {
-		es256URL = opts.ES256CertsURL
-	}
-	return &Validator{client: newCachingClient(client), rs256URL: rs256URL, es256URL: es256URL}, nil
+	rs256URL := opts.RS256CertsURL
+	es256URL := opts.ES256CertsURL
+	logger := internallog.New(opts.Logger)
+	return &Validator{client: newCachingClient(client, logger), rs256URL: rs256URL, es256URL: es256URL}, nil
 }
 
 // Validate is used to validate the provided idToken with a known Google cert

@@ -456,16 +456,12 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 		return req
 	}
 
-	// 0 is an invalid step, so we need to calculate it if it's not provided
-	step := searchReq.Step
-	if step == 0 {
-		step = traceql.DefaultQueryRangeStep(searchReq.Start, searchReq.End)
-	}
-
 	qb := newQueryBuilder("")
 	qb.addParam(urlParamStart, strconv.FormatUint(searchReq.Start, 10))
 	qb.addParam(urlParamEnd, strconv.FormatUint(searchReq.End, 10))
-	qb.addParam(urlParamStep, time.Duration(step).String())
+	if searchReq.Step != 0 { // if step != 0 leave the param out and Tempo will calculate it
+		qb.addParam(urlParamStep, time.Duration(searchReq.Step).String())
+	}
 	qb.addParam(QueryModeKey, searchReq.QueryMode)
 	// New RF1 params
 	qb.addParam(urlParamBlockID, searchReq.BlockID)

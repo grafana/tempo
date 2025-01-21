@@ -386,7 +386,7 @@ func newHelpWriter(ctx *Context, options HelpOptions) *helpWriter {
 	return w
 }
 
-func (h *helpWriter) Printf(format string, args ...interface{}) {
+func (h *helpWriter) Printf(format string, args ...any) {
 	h.Print(fmt.Sprintf(format, args...))
 }
 
