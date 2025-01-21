@@ -246,6 +246,9 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, ov
 	if err != nil {
 		return false, err
 	}
+	if err := commits.Error(); err != nil {
+		return false, err
+	}
 
 	lastCommit, ok := commits.Lookup(topic, partition)
 	if ok && lastCommit.At >= 0 {
