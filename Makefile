@@ -102,7 +102,7 @@ benchmark: tools ## Run benchmarks
 
 # Not used in CI, tests are split in pkg, tempodb, tempodb-wal and others in CI jobs
 .PHONY: test-with-cover 
-test-with-cover: tools test-serverless ## Run tests with code coverage
+test-with-cover: tools ## Run tests with code coverage
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
 
 # tests in pkg
@@ -122,18 +122,13 @@ test-with-cover-tempodb-wal: tools  ## Test tempodb/wal with code coverage
 
 # all other tests (excluding pkg & tempodb)
 .PHONY: test-with-cover-others
-test-with-cover-others: tools test-serverless ## Run other tests with code coverage
+test-with-cover-others: tools ## Run other tests with code coverage
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(OTHERS_SRC))))
 
 # runs e2e tests in the top level integration/e2e directory
 .PHONY: test-e2e
 test-e2e: tools docker-tempo docker-tempo-query  ## Run end to end tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e
-
-# runs only serverless e2e tests
-.PHONY: test-e2e-serverless
-test-e2e-serverless: tools docker-tempo docker-serverless ## Run serverless end to end tests
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/serverless
 
 # runs only deployment modes e2e tests
 .PHONY: test-e2e-deployments
@@ -147,7 +142,7 @@ test-integration-poller: tools ## Run poller integration tests
 
 # test-all/bench use a docker image so build it first to make sure we're up to date
 .PHONY: test-all ## Run all tests
-test-all: test-with-cover test-e2e test-e2e-serverless test-e2e-deployments test-integration-poller
+test-all: test-with-cover test-e2e test-e2e-deployments test-integration-poller
 
 .PHONY: test-bench
 test-bench: tools docker-tempo ## Run all benchmarks
@@ -304,12 +299,11 @@ vendor-check: gen-proto update-mod gen-traceql gen-parquet-query ## Keep up to d
 	git diff --exit-code -- **/go.sum **/go.mod vendor/ pkg/tempopb/ pkg/traceql/
 
 
-### Tidy dependencies for tempo and tempo-serverless modules
+### Tidy dependencies for tempo modules
 .PHONY: update-mod 
 update-mod: tools-update-mod ## Update module
 	go mod vendor
 	go mod tidy -e
-	$(MAKE) -C cmd/tempo-serverless update-mod
 
 
 ### Release (intended to be used in the .github/workflows/release.yml)
@@ -345,14 +339,6 @@ jsonnet-check: tools-image ## Check jsonnet
 
 jsonnet-test: tools-image ## Test jsonnet
 	$(TOOLS_CMD) $(MAKE) -C operations/jsonnet/microservices test
-
-##@ serverless
-.PHONY: docker-serverless test-serverless
-docker-serverless: ## Build docker Tempo serverless
-	$(MAKE) -C cmd/tempo-serverless build-docker
-
-test-serverless: ## Run Tempo serverless tests
-	$(MAKE) -C cmd/tempo-serverless test
 
 ### tempo-mixin
 .PHONY: tempo-mixin tempo-mixin-check
