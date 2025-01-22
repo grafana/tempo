@@ -13,7 +13,7 @@ aliases:
 {{< admonition type="note" >}}
 You need to enable `multitenancy_enabled: true` in the cluster for multi-tenant querying to work.
 Refer to [Enable multi-tenancy](/docs/tempo/latest/operations/multitenancy/) for more details and implications of `multitenancy_enabled: true`.
-{{% /admonition %}}
+{{< /admonition >}}
 
 Tempo supports multi-tenant queries for search, search-tags, and trace-by-ID search operations.
 

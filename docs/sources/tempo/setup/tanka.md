@@ -22,7 +22,7 @@ To set up Tempo using Kubernetes with Tanka, you need to:
 
 {{< admonition type="note" >}}
 This configuration is not suitable for a production environment but can provide a useful way to learn about Tempo.
-{{% /admonition %}}
+{{< /admonition >}}
 
 ## Before you begin
 
@@ -376,7 +376,7 @@ To change the resources requirements, follow these steps:
 
 {{< admonition type="note" >}}
 Lowering these requirements can impact overall performance.
-{{% /admonition %}}
+{{< /admonition >}}
 
 ## Deploy Tempo using Tanka
 
@@ -393,7 +393,7 @@ If the ingesters don’t start after deploying Tempo with the Tanka command, thi
       pvc_storage_class: 'standard',
     },
   ```
-{{% /admonition %}}
+{{< /admonition >}}
 
 ## Next steps
 

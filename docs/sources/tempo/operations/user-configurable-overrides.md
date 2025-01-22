@@ -19,7 +19,7 @@ User-configurable overrides are stored in an object store bucket managed by Temp
 {{< admonition type="note" >}}
 We recommend using a different bucket for overrides and traces storage, but they can share a bucket if needed.
 When sharing a bucket, make sure any lifecycle rules are scoped correctly to not remove data of user-configurable overrides module.
-{{% /admonition %}}
+{{< /admonition >}}
 
 Overrides of every tenant are stored at `/{tenant name}/overrides.json`:
 
@@ -44,7 +44,7 @@ When a field is set in both the user-configurable overrides and the runtime over
 
 {{< admonition type="note" >}}
 `processors` is an exception: Tempo will merge values from both user-configurable overrides and runtime overrides into a single list.
-{{% /admonition %}}
+{{< /admonition >}}
 
 ```yaml
 [forwarders: <list of strings>]

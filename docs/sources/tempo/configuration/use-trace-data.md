@@ -16,7 +16,7 @@ If you are using Grafana on-prem, you need to [set up the Tempo data source](/do
 
 {{< admonition type="tip" >}}
 If you want to explore tracing data in Grafana, try the [Intro to Metrics, Logs, Traces, and Profiling example]({{< relref "../getting-started/docker-example" >}}).
-{{% /admonition %}}
+{{< /admonition >}}
 
 This video explains how to add data sources, including Loki, Tempo, and Mimir, to Grafana and Grafana Cloud. Tempo data source set up starts at 4:58 in the video.
 
