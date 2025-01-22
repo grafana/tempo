@@ -3,7 +3,6 @@ package generator
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/ingest"
@@ -17,7 +16,6 @@ func (g *Generator) startKafka() {
 
 	g.kafkaWG.Add(1)
 	go g.listenKafka(ctx)
-	ingest.ExportPartitionLagMetrics(ctx, g.kafkaAdm, g.logger, g.cfg.Ingest, g.getAssignedActivePartitions)
 }
 
 func (g *Generator) stopKafka() {
@@ -31,23 +29,23 @@ func (g *Generator) listenKafka(ctx context.Context) {
 	level.Info(g.logger).Log("msg", "generator now listening to kafka")
 	for {
 		select {
-		case <-time.After(2 * time.Second):
+		case <-ctx.Done():
+			return
+		default:
 			if g.readOnly.Load() {
 				// Starting up or shutting down
 				continue
 			}
-			err := g.consumePartition(ctx)
+			err := g.readKafka(ctx)
 			if err != nil {
 				level.Error(g.logger).Log("msg", "readKafka failed", "err", err)
 				continue
 			}
-		case <-ctx.Done():
-			return
 		}
 	}
 }
 
-func (g *Generator) consumePartition(ctx context.Context) error {
+func (g *Generator) readKafka(ctx context.Context) error {
 	d := ingest.NewDecoder()
 
 	fetches := g.kafkaClient.PollFetches(ctx)
