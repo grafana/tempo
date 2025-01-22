@@ -134,9 +134,6 @@ func (d *Decoder) Decode(data []byte) (*tempopb.PushBytesRequest, error) {
 }
 
 func (d *Decoder) Reset() {
-	for _, b := range d.req.Traces {
-		tempopb.ReusePreallocBytes(b)
-	}
 	// Retain slice capacity
 	d.req.Ids = d.req.Ids[:0]
 	d.req.Traces = d.req.Traces[:0]

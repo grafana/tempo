@@ -58,7 +58,7 @@ type tenantStore struct {
 	blocksMtx sync.Mutex
 	walBlocks []common.WALBlock
 
-	liveTraces *livetraces.LiveTraces
+	liveTraces *livetraces.LiveTraces[[]byte]
 	traceSizes *tracesizes.Tracker
 }
 
@@ -73,7 +73,7 @@ func newTenantStore(tenantID string, partitionID, endTimestamp uint64, cfg Block
 		headBlockMtx: sync.Mutex{},
 		blocksMtx:    sync.Mutex{},
 		enc:          enc,
-		liveTraces:   livetraces.New(),
+		liveTraces:   livetraces.New[[]byte](func(b []byte) uint64 { return uint64(len(b)) }),
 		traceSizes:   tracesizes.New(),
 	}
 
@@ -122,59 +122,103 @@ func (s *tenantStore) resetHeadBlock() error {
 	return nil
 }
 
-func (s *tenantStore) AppendTrace(traceID []byte, tr *tempopb.Trace, ts time.Time) error {
+func (s *tenantStore) AppendTrace(traceID []byte, tr []byte, ts time.Time) error {
 	maxSz := s.overrides.MaxBytesPerTrace(s.tenantID)
 
-	for _, b := range tr.ResourceSpans {
-		if maxSz > 0 && !s.traceSizes.Allow(traceID, b.Size(), maxSz) {
-			// Record dropped spans due to trace too large
-			count := 0
+	if maxSz > 0 && !s.traceSizes.Allow(traceID, len(tr), maxSz) {
+		// Record dropped spans due to trace too large
+		// We have to unmarhal to count the number of spans.
+		// TODO - There might be a better way
+		t := &tempopb.Trace{}
+		if err := t.Unmarshal(tr); err != nil {
+			return err
+		}
+		count := 0
+		for _, b := range t.ResourceSpans {
 			for _, ss := range b.ScopeSpans {
 				count += len(ss.Spans)
 			}
-			overrides.RecordDiscardedSpans(count, reasonTraceTooLarge, s.tenantID)
-			continue
 		}
-
-		s.liveTraces.PushWithTimestamp(ts, traceID, b, 0)
+		overrides.RecordDiscardedSpans(count, reasonTraceTooLarge, s.tenantID)
+		return nil
 	}
+
+	s.liveTraces.PushWithTimestamp(ts, traceID, tr, 0)
+
 	return nil
 }
 
 func (s *tenantStore) CutIdle(since time.Time, immediate bool) error {
 	idle := s.liveTraces.CutIdle(since, immediate)
 
-	slices.SortFunc(idle, func(a, b *livetraces.LiveTrace) int {
+	slices.SortFunc(idle, func(a, b *livetraces.LiveTrace[[]byte]) int {
 		return bytes.Compare(a.ID, b.ID)
 	})
 
-	for _, e := range idle {
-		tr := &tempopb.Trace{
-			ResourceSpans: e.Batches,
-		}
+	var (
+		unmarshalWg  = sync.WaitGroup{}
+		unmarshalErr = atomic.NewError(nil)
+		unmarshaled  = make([]*tempopb.Trace, len(idle))
+		starts       = make([]uint32, len(idle))
+		ends         = make([]uint32, len(idle))
+	)
 
-		// Get trace timestamp bounds
-		var start, end uint64
-		for _, b := range tr.ResourceSpans {
-			for _, ss := range b.ScopeSpans {
-				for _, s := range ss.Spans {
-					if start == 0 || s.StartTimeUnixNano < start {
-						start = s.StartTimeUnixNano
-					}
-					if s.EndTimeUnixNano > end {
-						end = s.EndTimeUnixNano
+	// Unmarshal and process in parallel, each goroutine handles 1/Nth
+	for i := 0; i < len(idle) && i < flushConcurrency; i++ {
+		unmarshalWg.Add(1)
+		go func(i int) {
+			defer unmarshalWg.Done()
+
+			for j := i; j < len(idle); j += flushConcurrency {
+				tr := new(tempopb.Trace)
+
+				for _, b := range idle[j].Batches {
+					// This unmarshal appends the batches onto the existing tempopb.Trace
+					// so we don't need to allocate another container temporarily
+					err := tr.Unmarshal(b)
+					if err != nil {
+						unmarshalErr.Store(err)
+						return
 					}
 				}
+
+				// Get trace timestamp bounds
+				var start, end uint64
+				for _, b := range tr.ResourceSpans {
+					for _, ss := range b.ScopeSpans {
+						for _, s := range ss.Spans {
+							if start == 0 || s.StartTimeUnixNano < start {
+								start = s.StartTimeUnixNano
+							}
+							if s.EndTimeUnixNano > end {
+								end = s.EndTimeUnixNano
+							}
+						}
+					}
+				}
+
+				// Convert from unix nanos to unix seconds
+				starts[j] = uint32(start / uint64(time.Second))
+				ends[j] = uint32(end / uint64(time.Second))
+				unmarshaled[j] = tr
 			}
-		}
+		}(i)
+	}
 
-		// Convert from unix nanos to unix seconds
-		startSeconds := uint32(start / uint64(time.Second))
-		endSeconds := uint32(end / uint64(time.Second))
+	unmarshalWg.Wait()
+	if err := unmarshalErr.Load(); err != nil {
+		return err
+	}
 
-		if err := s.headBlock.AppendTrace(e.ID, tr, startSeconds, endSeconds); err != nil {
+	for i, tr := range unmarshaled {
+		if err := s.headBlock.AppendTrace(idle[i].ID, tr, starts[i], ends[i]); err != nil {
 			return err
 		}
+	}
+
+	// Return prealloc slices to the pool
+	for _, i := range idle {
+		tempopb.ReuseByteSlices(i.Batches)
 	}
 
 	err := s.headBlock.Flush()

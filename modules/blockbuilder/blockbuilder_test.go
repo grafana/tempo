@@ -510,7 +510,6 @@ func BenchmarkBlockBuilder(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 
 		var records []*kgo.Record
-
 		for i := 0; i < 1000; i++ {
 			records = append(records, sendReq(b, ctx, client)...)
 		}
@@ -519,8 +518,6 @@ func BenchmarkBlockBuilder(b *testing.B) {
 		for _, r := range records {
 			size += len(r.Value)
 		}
-
-		b.ResetTimer()
 
 		err = bb.consume(ctx)
 		require.NoError(b, err)

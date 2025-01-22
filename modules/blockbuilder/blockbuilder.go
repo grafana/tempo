@@ -255,6 +255,15 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, ov
 		startOffset = kgo.NewOffset().AtStart()
 	}
 
+	ends, err := b.kadm.ListEndOffsets(ctx, topic)
+	if err != nil {
+		return false, err
+	}
+	if err := ends.Error(); err != nil {
+		return false, err
+	}
+	lastPossibleMessage, lastPossibleMessageFound := ends.Lookup(topic, partition)
+
 	level.Info(b.logger).Log(
 		"msg", "consuming partition",
 		"partition", partition,
@@ -344,6 +353,11 @@ outer:
 			}
 
 			lastRec = rec
+
+			if lastPossibleMessageFound && lastRec.Offset >= lastPossibleMessage.Offset-1 {
+				// We reached the end so break now and avoid another poll which is expected to be empty.
+				break outer
+			}
 		}
 	}
 
