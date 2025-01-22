@@ -70,7 +70,7 @@ The JSON data can be downloaded via the Tempo API or the [Inspector panel](/docs
 
 {{< admonition type="note" >}}
 To perform this action on Grafana 10.1 or later, select a Tempo data source, select **Explore** from the main menu, and then select **Import trace**.
-{{% /admonition %}}
+{{< /admonition >}}
 
 ## Link tracing data with profiles
 

@@ -19,7 +19,7 @@ The following Kubernetes Custom Resource (CR) deploys a multi-tenant Tempo insta
 
 {{< admonition type="note" >}}
 Jaeger query is not tenant aware and therefore is not supported in this configuration.
-{{% /admonition %}}
+{{< /admonition >}}
 
 ```yaml
 apiVersion: tempo.grafana.com/v1alpha1
