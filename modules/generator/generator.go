@@ -18,7 +18,6 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/twmb/franz-go/pkg/kadm"
-	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/atomic"
@@ -72,7 +71,7 @@ type Generator struct {
 
 	kafkaWG       sync.WaitGroup
 	kafkaStop     func()
-	kafkaClient   *kgo.Client
+	kafkaClient   *ingest.Client
 	kafkaAdm      *kadm.Client
 	partitionRing ring.PartitionRingReader
 }
@@ -162,8 +161,9 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 	}
 
 	if g.cfg.Ingest.Enabled {
-		g.kafkaClient, err = ingest.NewReaderClient(
+		g.kafkaClient, err = ingest.NewGroupReaderClient(
 			g.cfg.Ingest.Kafka,
+			g.partitionRing,
 			ingest.NewReaderClientMetrics("generator", prometheus.DefaultRegisterer),
 			g.logger,
 		)
@@ -189,7 +189,7 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 			return fmt.Errorf("failed to ping kafka: %w", err)
 		}
 
-		g.kafkaAdm = kadm.NewClient(g.kafkaClient)
+		g.kafkaAdm = kadm.NewClient(g.kafkaClient.Client)
 	}
 
 	return nil

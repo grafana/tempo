@@ -1,0 +1,22 @@
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: [ 'localhost:9090' ]
+  - job_name: 'tempo'
+    static_configs:
+      - targets:
+          - 'distributor:3200'
+          - 'ingester-0:3200'
+          - 'ingester-1:3200'
+          - 'ingester-2:3200'
+          - 'compactor:3200'
+          - 'querier:3200'
+          - 'query-frontend:3200'
+          - 'metrics-generator-0:3200'
+          - 'metrics-generator-1:3200'
+          - 'block-builder-0:3200'
+          - 'block-builder-1:3200'
