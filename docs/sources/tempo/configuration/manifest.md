@@ -658,7 +658,6 @@ metrics_generator:
     metrics_ingestion_time_range_slack: 30s
     query_timeout: 30s
     override_ring_key: metrics-generator
-    assigned_partitions: {}
     instance_id: hostname
 ingest:
     enabled: false
