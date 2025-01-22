@@ -44,7 +44,7 @@ Finally, we get the following cardinality estimation:
   Sum: [([2 * #hb] + 2) * #hops] + [2 * #services]
 ```
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 If `enable_messaging_system_latency_histogram` configuration is set to `true`, another histogram is produced:
 
 ```
@@ -57,8 +57,8 @@ In that case, the estimation formula would be:
   Sum: [([3 * #hb] + 2) * #hops] + [2 * #services]
 ```
 
-{{% /admonition %}}
+{{< /admonition >}}
 
 {{< admonition type="note" >}}
 To estimate the number of metrics, refer to the [Dry run metrics generator]({{< relref "../cardinality" >}}) documentation.
-{{% /admonition %}}
+{{< /admonition >}}

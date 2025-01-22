@@ -12,7 +12,7 @@ aliases:
 # Troubleshoot Grafana Alloy
 
 Sometimes it can be difficult to tell what, if anything, Grafana Alloy is sending along to the backend.
-This document focuses on a few techniques to gain visibility on how many trace spans are pushed to Alloy and if they're making it to the backend.
+This document focuses on a few techniques to gain visibility on how many trace spans push to Alloy and if they're making it to the backend.
 [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector) form the basis of the tracing pipeline, which
 does a fantastic job of logging network and other issues.
 

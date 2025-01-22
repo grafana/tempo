@@ -595,8 +595,8 @@ If provided, the tag values returned by the API are filtered to only return valu
 
 Queries can be incomplete: for example, `{ resource.cluster = }`.
 Tempo extracts only the valid matchers and builds a valid query.
-If an input is invalid, Tempo doesn't provide an error. Instead, 
-you'll see the whole list when a failure of parsing input. This behavior helps with backwards compatibility. 
+If an input is invalid, Tempo doesn't provide an error. Instead,
+you'll see the whole list when a failure of parsing input. This behavior helps with backwards compatibility.
 
 Only queries with a single selector `{}` and AND `&&` operators are supported.
   - Example supported: `{ resource.cluster = "us-east-1" && resource.service = "frontend" }`
@@ -670,7 +670,7 @@ For example the following request computes the total number of failed spans over
 
 {{< admonition type="note" >}}
 Actual API parameters must be url-encoded. This example is left unencoded for readability.
-{{% /admonition %}}
+{{< /admonition >}}
 
 ```
 GET /api/metrics/query?q={status=error}|count_over_time()by(resource.service.name)
@@ -686,7 +686,7 @@ Returns status code 200 and body `echo` when the query frontend is up and ready 
 
 {{< admonition type="note" >}}
 Meant to be used in a Query Visualization UI like Grafana to test that the Tempo data source is working.
-{{% /admonition %}}
+{{< /admonition >}}
 
 ### Overrides API
 
@@ -717,13 +717,13 @@ ingester service.
 
 {{< admonition type="note" >}}
 This is usually used at the time of scaling down a cluster.
-{{% /admonition %}}
+{{< /admonition >}}
 
 ### Usage metrics
 
 {{< admonition type="note" >}}
 This endpoint is only available when one or more usage trackers are enabled in [the distributor]({{< relref "../configuration#distributor" >}}).
-{{% /admonition %}}
+{{< /admonition >}}
 
 ```
 GET /usage_metrics
@@ -747,7 +747,7 @@ tempo_usage_tracker_bytes_received_total{service="service-A",tenant="single-tena
 
 {{< admonition type="note" >}}
 This endpoint is only available when Tempo is configured with [the global override strategy]({{< relref "../configuration#overrides" >}}).
-{{% /admonition %}}
+{{< /admonition >}}
 
 ```
 GET /distributor/ring

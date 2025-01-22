@@ -24,7 +24,7 @@ Update any instructions in this document for your own deployment.
 
 If you use the [Kubernetes integration Grafana Alloy Helm chart](https://grafana.com/docs/alloy/<ALLOY_VERSION>/set-up/install/kubernetes/), you can use the Kubernetes scrape annotations to automatically scrape Tempo.
 You’ll need to add the labels to all of the deployed components.
-{{% /admonition %}}
+{{< /admonition >}}
 
 ## Before you begin
 
@@ -51,7 +51,7 @@ In addition, the test app instructions explain how to configure a Tempo data sou
 {{< admonition type="note" >}}
 If you already have a Tempo environment, then there is no need to create a test app.
 This guide assumes that the Tempo and Grafana Alloy configurations are the same as or based on [these instructions to create a test application](https://grafana.com/docs/tempo/latest/setup/set-up-test-app/), as you'll augment those configurations to enable Tempo metrics monitoring.
-{{% /admonition %}}
+{{< /admonition >}}
 
 In these examples, Tempo is installed in a namespace called `tempo`.
 Change this namespace name in the examples as needed to fit your own environment.
@@ -140,8 +140,8 @@ rule {
 This lets you create a configuration that scrapes metrics from Tempo components and writes the data to a Mimir instance of your choice.
 
 This example provides a Helm `values.yaml` file that you can use for [Alloy deployed on Kubernetes](https://grafana.com/docs/alloy/<ALLOY_VERSION>/configure/kubernetes/).
-The file configures the options Alloy uses to scrap a running instance of Tempo. 
-Refer to the comments in the example for details. 
+The file configures the options Alloy uses to scrap a running instance of Tempo.
+Refer to the comments in the example for details.
 
 ```yaml
 alloy:
@@ -265,7 +265,7 @@ This contains a compiled version of the alert and recording rules, as well as th
 If you want to change any of the mixins, make your updates in the `operations/tempo-mixin` directory.
 Use the instructions in the [README](https://github.com/grafana/tempo/tree/main/operations/tempo-mixin) in that directory to regenerate the files.
 The mixins are generated in the `operations/tempo-mixin-compiled` directory.
-{{% /admonition %}}
+{{< /admonition >}}
 
 ### Import the dashboards to Grafana
 
@@ -276,7 +276,7 @@ Refer to [Import a dashboard ](https://grafana.com/docs/grafana/latest/dashboard
 Install all six dashboards.
 You can only import one dashboard at a time.
 Create a new folder in the Dashboards area, for example “Tempo Monitoring”, as an easy location to save the imported dashboards.
-{{% /admonition %}}
+{{< /admonition >}}
 
 To create a folder:
 

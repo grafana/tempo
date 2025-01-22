@@ -11,7 +11,7 @@ Generic forwarding allows asynchronous replication of ingested traces. The distr
 
 {{< admonition type="warning" >}}
 Generic forwarding does not work retroactively. Once enabled, the distributor only replicates freshly ingested spans.
-{{% /admonition %}}
+{{< /admonition >}}
 
 
 ## Configure generic forwarding

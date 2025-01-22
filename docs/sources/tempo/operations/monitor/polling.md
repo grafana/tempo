@@ -28,7 +28,7 @@ During normal operation, it will stale by at most twice the configured `blocklis
 
 {{< admonition type="note" >}}
 For details about configuring polling, refer to [polling configuration]({{< relref "../../configuration/polling" >}}).
-{{% /admonition %}}
+{{< /admonition >}}
 
 ## Monitor polling with dashboards and alerts
 
