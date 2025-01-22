@@ -32,7 +32,7 @@ create and offload spans.
 
 {{< admonition type="note" >}}
 To learn more about instrumentation, read the [Instrument for tracing]({{< relref "./instrumentation" >}}) documentation to learn how to instrument your favorite language for distributed tracing.
-{{% /admonition %}}
+{{< /admonition >}}
 
 ## Pipeline (Grafana Alloy)
 
@@ -54,7 +54,7 @@ refer to [Grafana Alloy configuration for tracing]({{< relref "../configuration/
 The [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector) / [Jaeger Agent](https://www.jaegertracing.io/docs/latest/deployment/) can also be used at the agent layer.
 Refer to [this blog post](/blog/2021/04/13/how-to-send-traces-to-grafana-clouds-tempo-service-with-opentelemetry-collector/)
 to see how the OpenTelemetry Collector can be used with Tempo.
-{{% /admonition %}}
+{{< /admonition >}}
 
 ## Backend (Tempo)
 
@@ -72,7 +72,7 @@ Tempo offers different deployment options, depending upon your needs. Refer to t
 {{< admonition type="note" >}}
 Grafana Alloy is already set up to use Tempo.
 Refer to [Grafana Alloy configuration for tracing](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy).
-{{% /admonition %}}
+{{< /admonition >}}
 
 ## Visualization (Grafana)
 

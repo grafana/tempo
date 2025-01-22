@@ -26,7 +26,7 @@ Span metrics are of particular interest if your system is not monitored with met
 
 {{< admonition type="note" >}}
 Metrics generation is disabled by default. Contact Grafana Support to enable metrics generation in your organization.
-{{% /admonition %}}
+{{< /admonition >}}
 
 After the metrics-generator is enabled in your organization, refer to [Metrics-generator configuration]({{< relref "../configuration" >}}) for information about metrics-generator options.
 
