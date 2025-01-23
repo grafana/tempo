@@ -27,7 +27,6 @@ ALL_SRC := $(shell find . -name '*.go' \
 								-not -path './tools*/*' \
 								-not -path './vendor*/*' \
 								-not -path './integration/*' \
-								-not -path './cmd/tempo-serverless/*' \
                                 -type f | sort)
 
 # ALL_SRC but without pkg and tempodb packages
@@ -35,7 +34,6 @@ OTHERS_SRC := $(shell find . -name '*.go' \
 								-not -path './tools*/*' \
 								-not -path './vendor*/*' \
 								-not -path './integration/*' \
-								-not -path './cmd/tempo-serverless/*' \
 								-not -path './pkg*/*' \
 								-not -path './tempodb*/*' \
                                 -type f | sort)
