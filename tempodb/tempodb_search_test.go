@@ -239,6 +239,10 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 		// groupin' (.foo is a known attribute that is the same on both spans)
 		{Query: "{} | by(span.foo) | count() = 2"},
 		{Query: "{} | by(resource.service.name) | count() = 1"},
+		// Attribute == nil (current work-around version)
+		{Query: "{} | select(.missing) | { !(.missing != nil)}"},
+		{Query: "{} | select(span.missing) | { !(span.missing != nil)}"},
+		{Query: "{} | select(resource.missing) | { !(resource.missing != nil)}"},
 	}
 	searchesThatDontMatch := []*tempopb.SearchRequest{
 		// conditions
