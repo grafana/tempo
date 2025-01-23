@@ -269,12 +269,6 @@ metrics_generator_client:
 querier:
     search:
         query_timeout: 30s
-        prefer_self: 10
-        external_hedge_requests_at: 8s
-        external_hedge_requests_up_to: 2
-        external_backend: ""
-        google_cloud_run: null
-        external_endpoints: []
     trace_by_id:
         query_timeout: 10s
     metrics:
