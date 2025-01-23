@@ -3,6 +3,8 @@ title: Tune the consistent hash rings
 menuTitle: Tune the consistent hash rings
 description: Optimize the consistent hash rings for Tempo.
 weight: 40
+aliases:
+  - ../consistent_hash_ring/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/consistent_hash_ring/
 ---
 
 # Tune the consistent hash rings
@@ -22,7 +24,7 @@ Each hash ring exists for a distinct reason.
 
 Unless you are running with limits, this ring does not impact Tempo operation.
 
-This ring is only used when `global` rate limits are used. The distributors use it to count the other active distributors. Incoming traffic is assumed to be evenly spread across all distributors and (global_rate_limit / # of distributors) is used to rate limit locally.
+This ring is only used when `global` rate limits are used. The distributors use it to count the other active distributors. Incoming traffic is assumed to be evenly spread across all distributors and `(global_rate_limit / # of distributors)` is used to rate limit locally.
 
 ## Ingester
 
@@ -52,7 +54,7 @@ This ring is used by the compactors to shard compaction jobs. Jobs are hashed in
 ## Interacting with the rings
 
 Web pages are available at the following endpoints. They show every ring member, their tokens and includes the ability to "Forget" a ring member. "Forgetting" is useful when a
-ring member leaves the ring without properly shutting down (and therefore leaves its tokens in the ring).
+ring member leaves the ring without properly shutting down, and therefore leaves its tokens in the ring.
 
 ### Distributor
 
@@ -88,4 +90,4 @@ Unhealthy compactors will allow the blocklist to grow significantly. If the comp
 
 ## Configuring the rings
 
-Ring/Lifecycler configuration control how a component interacts with the ring. Refer to the [configuration]({{< relref "../configuration" >}}) topic for more details.
+Ring/Lifecycler configuration control how a component interacts with the ring. Refer to the [configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/) topic for more details.

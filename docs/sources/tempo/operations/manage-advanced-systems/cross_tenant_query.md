@@ -4,15 +4,15 @@ menuTitle: Cross-tenant query
 description: Cross-tenant query federation
 weight: 70
 aliases:
-- /docs/tempo/operations/cross-tenant-query
+- ../cross-tenant-query # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/cross-tenant-query/
+- ../cross_tenant_query # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/cross_tenant_query/
 ---
-
 
 # Cross-tenant query federation
 
 {{< admonition type="note" >}}
 You need to enable `multitenancy_enabled: true` in the cluster for multi-tenant querying to work.
-Refer to [Enable multi-tenancy](/docs/tempo/latest/operations/multitenancy/) for more details and implications of `multitenancy_enabled: true`.
+Refer to [Enable multi-tenancy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/multitenancy/) for more details and implications of `multitenancy_enabled: true`.
 {{< /admonition >}}
 
 Tempo supports multi-tenant queries for search, search-tags, and trace-by-ID search operations.
@@ -26,7 +26,7 @@ query_frontend:
    multi_tenant_queries_enabled: true
 ```
 
-For more information on configuration options, refer to [Enable multitenancy](https://grafana.com/docs/tempo/latest/operations/multitenancy/).
+For more information on configuration options, refer to [Enable multitenancy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/multitenancy/).
 
 ## TraceQL queries
 
@@ -40,4 +40,4 @@ TraceQL queries that compare multiple spansets may not correctly return all trac
 ```
 
 TraceQL evaluates a contiguously stored trace.
-If these two conditions are satisfied in separate tenants, then Tempo  doesn't correctly return the trace.
+If these two conditions are satisfied in separate tenants, then Tempo doesn't correctly return the trace.

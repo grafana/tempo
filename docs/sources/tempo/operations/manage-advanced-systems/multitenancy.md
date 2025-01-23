@@ -4,8 +4,8 @@ menuTitle: Enable multi-tenancy
 weight: 60
 description: Enable multi-tenancy in Tempo using the X-Scope-OrgID header.
 aliases:
-- /docs/tempo/configuratioon/multitenancy
-- /docs/tempo/operations/multitenancy
+- ../../configuration/multitenancy/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/multitenancy/
+- ../multitenancy/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/multitenancy/
 ---
 
 # Enable multi-tenancy

@@ -690,7 +690,7 @@ Meant to be used in a Query Visualization UI like Grafana to test that the Tempo
 
 ### Overrides API
 
-For more information about user-configurable overrides API, refer to the [user-configurable overrides]({{< relref "../operations/user-configurable-overrides#api" >}}) documentation.
+For more information about user-configurable overrides API, refer to the [user-configurable overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/user-configurable-overrides/#api) documentation.
 
 ### Flush
 
@@ -746,7 +746,7 @@ tempo_usage_tracker_bytes_received_total{service="service-A",tenant="single-tena
 ### Distributor ring status
 
 {{< admonition type="note" >}}
-This endpoint is only available when Tempo is configured with [the global override strategy]({{< relref "../configuration#overrides" >}}).
+This endpoint is only available when Tempo is configured with [the global override strategy](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#overrides).
 {{< /admonition >}}
 
 ```
@@ -756,7 +756,7 @@ GET /distributor/ring
 Displays a web page with the distributor hash ring status, including the state, healthy, and last heartbeat time of each
 distributor.
 
-_For more information, check the page on [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}})._
+For more information, refer to [consistent hash ring](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/consistent_hash_ring/).
 
 ### Ingesters ring status
 
@@ -766,7 +766,7 @@ GET /ingester/ring
 
 Displays a web page with the ingesters hash ring status, including the state, healthy, and last heartbeat time of each ingester.
 
-_For more information, check the page on [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}}).
+For more information, refer to [consistent hash ring](http://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/consistent_hash_ring/).
 
 ### Metrics-generator ring status
 
@@ -778,7 +778,7 @@ Displays a web page with the metrics-generator hash ring status, including the s
 
 This endpoint is only available when the metrics-generator is enabled. Refer to [metrics-generator]({{< relref "../configuration#metrics-generator" >}}).
 
-For more information, refer to [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}}).
+For more information, refer to [consistent hash ring](http://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/consistent_hash_ring/).
 
 ### Compactor ring status
 
@@ -788,7 +788,7 @@ GET /compactor/ring
 
 Displays a web page with the compactor hash ring status, including the state, healthy and last heartbeat time of each compactor.
 
-For more information, refer to [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}}).
+For more information, refer to [consistent hash ring](http://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/consistent_hash_ring/).
 
 ### Status
 
@@ -869,7 +869,7 @@ Tempo uses GRPC to internally communicate with itself, but only has one external
 The query-frontend component implements the streaming querier interface defined below.
 [See here](https://github.com/grafana/tempo/blob/main/pkg/tempopb/) for the complete proto definition and generated code.
 
-By default, this service is only offered over the GRPC port.
+By default, this service is only offered over the gRPC port.
 You can use streaming service over the HTTP port as well, which Grafana expects.
 
 To enable the streaming service over the HTTP port for use with Grafana, set the following:

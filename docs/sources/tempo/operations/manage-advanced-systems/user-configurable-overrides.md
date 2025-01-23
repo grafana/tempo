@@ -3,18 +3,20 @@ title: User-configurable overrides
 menuTitle: Configure Tempo overrides through the user-configurable overrides API
 description: Configure Tempo overrides through the user-configurable overrides API
 weight: 90
+aliases:
+  - ../use-configurable-overrides/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/user-configurable-overrides/
 ---
 
 # User-configurable overrides
 
 User-configurable overrides in Tempo let you change overrides for your tenant using an API.
-Instead of modifying a file or Kubernetes configmap, you (and other services relying on Tempo) can use this API to modify the overrides directly.
+Instead of modifying a file or Kubernetes `configmap`, you (and other services relying on Tempo) can use this API to modify the overrides directly.
 
-### Architecture
-
-![user-configurable-overrides-architecture.png](/media/docs/tempo/user-configurable-overrides-architecture.png)
+## Architecture
 
 User-configurable overrides are stored in an object store bucket managed by Tempo.
+
+![user-configurable-overrides-architecture.png](/media/docs/tempo/user-configurable-overrides-architecture.png)
 
 {{< admonition type="note" >}}
 We recommend using a different bucket for overrides and traces storage, but they can share a bucket if needed.
@@ -33,17 +35,17 @@ overrides/
 
 Tempo regularly polls this bucket and keeps a copy of the limits in-memory. When requesting the overrides for a tenant, the overrides module:
 
-1. Checks this override is set in the user-configurable overrides, if so return that value
-2. Checks if this override is set in the runtime config (configmap), if so return that value
-3. Returns the default value
+1. Checks this override is set in the user-configurable overrides, if so return that value.
+2. Checks if this override is set in the runtime configuration (`configmap`), if so return that value.
+3. Returns the default value.
 
 ### Supported fields
 
 User-configurable overrides are designed to be a subset of the runtime overrides. Refer to [Overrides]({{< relref "../configuration#overrides" >}}) for information about all overrides.
-When a field is set in both the user-configurable overrides and the runtime overrides, the value from the user-configurable overrides will take priority.
+When a field is set in both the user-configurable overrides and the runtime overrides, the value from the user-configurable overrides takes priority.
 
 {{< admonition type="note" >}}
-`processors` is an exception: Tempo will merge values from both user-configurable overrides and runtime overrides into a single list.
+`processors` is an exception: Tempo merges values from both user-configurable overrides and runtime overrides into a single list.
 {{< /admonition >}}
 
 ```yaml
@@ -81,7 +83,7 @@ metrics_generator:
       [target_info_excluded_dimensions: <list of string>]
 ```
 
-### API
+## API
 
 All API requests are handled on the `/api/overrides` endpoint. The module supports `GET`, `POST`, `PATCH`, and `DELETE` requests.
 
@@ -89,9 +91,9 @@ This endpoint is tenant-specific. If Tempo is run in multitenant mode, all reque
 
 If the tenant is run in distributed mode, only the query-frontend will accept API requests.
 
-#### Operations
+### Operations
 
-##### GET /api/overrides
+#### GET /api/overrides
 
 Returns the current overrides and it's version.
 
@@ -100,46 +102,47 @@ Query-parameters:
 
 Example:
 
-```
+```shell
 $ curl -X GET -v -H "X-Scope-OrgID: 3" http://localhost:3100/tempo/api/overrides\?scope=merged`
 ```
 
-##### POST /api/overrides
+#### POST /api/overrides
 
-Update the overrides with the given payload. Note this will overwrite any existing overrides.
+Update the overrides with the given payload. Note this overwrites any existing overrides.
 
 Example:
 
-```
+```shell
 curl -X POST -v -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data "{}"
 ```
 
-##### PATCH /api/overrides
+#### PATCH /api/overrides
 
-Update the existing overrides by patching it with the payload. It follows the JSON merge patch protocol ([RFC 7386](https://datatracker.ietf.org/doc/html/rfc7386)).
+Update the existing overrides by patching it with the payload.
+It follows the JSON merge patch protocol ([RFC 7386](https://datatracker.ietf.org/doc/html/rfc7386)).
 
 Example:
 
-```
+```shell
 curl -X PUT -v -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data "{\"forwarders\":null}"
 ```
 
-##### DELETE /api/overrides
+#### DELETE /api/overrides
 
 Delete the existing overrides.
 
 Example:
 
-```
+```shell
 curl -X DELETE -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides
 ```
 
-#### Versioning
+### Versioning
 
-To handle concurrent read and write operations, overrides are stored with a version in the backend.
-Whenever the overrides are returned, the response will have an Etag header with the current version.
+To handle concurrent read and write operations, the backend stores the overrides with a version.
+Whenever the overrides are returned, the response has an Etag header with the current version.
 
-```
+```shell
 $ curl -v http://localhost:3100/api/overrides
 ...
 < HTTP/1.1 200 OK
@@ -152,18 +155,19 @@ $ curl -v http://localhost:3100/api/overrides
 
 Requests that modify or delete overrides need to pass the current version using the `If-Match` header:
 
-```
+```shell
 $ curl -X POST -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data "..."
 ```
-This example uses uses overrides in the `overrides.json` file with the location in `pwd`:
 
-```
+This example uses overrides in the `overrides.json` file with the location in `pwd`:
+
+```shell
 $ curl -X POST -H "X-Scope-OrgID: 3" -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides --data @overrides.json
 ```
 
-If the version does not match the version in the backend, the request is rejected with HTTP error 412.
+If the version doesn't match the version in the backend, the request is rejected with HTTP error 412.
 
-#### Conflicting runtime overrides check
+### Conflicting runtime overrides check
 
 Overrides set through the user-configurable overrides take priority over runtime overrides.
 This can lead to misleading scenarios because a value set in the runtime overrides is not actively being used.
@@ -185,6 +189,6 @@ overrides:
 
 You can bypass this check by setting the query parameter `skip-conflicting-overrides-check=true`:
 
-```
+```shell
 $ curl -X POST -H "If-Match: 1697726795401423" http://localhost:3100/api/overrides?skip-conflicting-overrides-check=true --data "..."
 ```
