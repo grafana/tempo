@@ -2,14 +2,12 @@ package blockbuilder
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
@@ -64,12 +62,7 @@ func (p *writer) pushBytes(ts time.Time, tenant string, req *tempopb.PushBytesRe
 	}
 
 	for j, trace := range req.Traces {
-		tr := new(tempopb.Trace) // TODO - Pool?
-		if err := proto.Unmarshal(trace.Slice, tr); err != nil {
-			return fmt.Errorf("failed to unmarshal trace: %w", err)
-		}
-
-		if err := i.AppendTrace(req.Ids[j], tr, ts); err != nil {
+		if err := i.AppendTrace(req.Ids[j], trace.Slice, ts); err != nil {
 			return err
 		}
 	}
