@@ -45,6 +45,9 @@ Another way to increase parallelism is by increasing the size of the worker pool
 A theoretically ideal value for this config to avoid _any_ queueing would be (Size of blocklist / Max Concurrent Queries).
 But also factor in the resources provided to the querier.
 
+Our [documentation](https://grafana.com/docs/tempo/latest/operations/backend_search/#query-frontend)
+includes [a solid guide](https://grafana.com/docs/tempo/latest/operations/backend_search/#guidelines-on-key-configuration-parameters) on the various parameters with suggestions.
+
 ### Trace Lookup Failures
 
 If trace lookups are fail with the error: `error querying store in Querier.FindTraceByID: queue doesn't have room for <xyz> jobs`, this 
@@ -69,24 +72,6 @@ Consider the following resolutions:
 - Increase the number of queriers
 - Increase the queue_depth size to do more work per querier
 - Adjust compaction settings to reduce the number of blocks
-
-### Serverless/External Endpoints
-
-If the request latency issues are due to backend searches with serverless/external endpoints there may be additional configuration
-options that will help decrease latency. Before you get started know that serverless functionality only impacts the `/api/search` endpoint 
-if a `start` and `end` parameter are passed and `external_endpoints` are configured on the querier. One way to determine if external
-endpoints are getting hit is to check the Reads dashboard and look for the "Querier External Endpoint" row.
-
-Tuning serverless search can be difficult. Our [public documentation](https://grafana.com/docs/tempo/latest/operations/backend_search/#query-frontend)
-includes a solid guide on the various parameters with suggestions. The linked documentation is augmented with some suggestions here:
-
-- Consider provisioning more serverless functions and adding them to the `querier.search.external_endpoints` array. This will increase your 
-  baseline latency and your total throughput.
-- Decreasing `querier.search.hedge_requests_at` and increasing `querier.search.hedge_requests_up_to` will put more pressure on the serverless endpoints but will
-  result in lower latency.
-- Increasing `querier.search.prefer_self` and scaling up the queriers will cause more work to be performed by the queriers which will lower latencies.
-- Increasing `query_frontend.max_oustanding_per_tenant` and `query_frontend.search.concurrent_jobs` will increase the rate at which the
-  query_frontend tries to feed jobs to the queriers and can decrease latency.
 
 ## TempoCompactorUnhealthy
 
