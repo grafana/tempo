@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// Forked from https://github.com/grafana/loki/blob/fa6ef0a2caeeb4d31700287e9096e5f2c3c3a0d4/pkg/kafka/partitionring/consumer/client.go
 
 package ingest
 
@@ -54,6 +54,8 @@ func NewGroupReaderClient(kafkaCfg KafkaConfig, partitionRing ring.PartitionRing
 	opts = append(opts,
 		kgo.ConsumerGroup(kafkaCfg.ConsumerGroup),
 		kgo.ConsumeTopics(kafkaCfg.Topic),
+		kgo.SessionTimeout(3*time.Minute),
+		kgo.RebalanceTimeout(5*time.Minute),
 		kgo.Balancers(NewCooperativeActiveStickyBalancer(partitionRing)),
 		kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()),
 	)

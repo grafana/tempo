@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/twmb/franz-go/pkg/kadm"
+	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/atomic"
@@ -69,11 +70,13 @@ type Generator struct {
 	reg    prometheus.Registerer
 	logger log.Logger
 
-	kafkaWG       sync.WaitGroup
-	kafkaStop     func()
-	kafkaClient   *ingest.Client
-	kafkaAdm      *kadm.Client
-	partitionRing ring.PartitionRingReader
+	kafkaWG            sync.WaitGroup
+	kafkaStop          func()
+	kafkaClient        *ingest.Client
+	kafkaAdm           *kadm.Client
+	partitionRing      ring.PartitionRingReader
+	partitionMtx       sync.RWMutex
+	assignedPartitions []int32
 }
 
 // New makes a new Generator.
@@ -166,6 +169,13 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 			g.partitionRing,
 			ingest.NewReaderClientMetrics("generator", prometheus.DefaultRegisterer),
 			g.logger,
+			kgo.InstanceID(g.cfg.InstanceID),
+			kgo.OnPartitionsAssigned(func(_ context.Context, _ *kgo.Client, m map[string][]int32) {
+				g.handlePartitionsAssigned(m)
+			}),
+			kgo.OnPartitionsRevoked(func(_ context.Context, _ *kgo.Client, m map[string][]int32) {
+				g.handlePartitionsRevoked(m)
+			}),
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create kafka reader client: %w", err)
