@@ -11,7 +11,7 @@
           google_cloud_run: <string>
           external_endpoints: <array>
   ```
-  Tempo serverless related metric `tempo_querier_external_endpoint_duration_seconds` and `tempo_querier_external_endpoint_hedged_roundtrips_total` are being removed.
+  Tempo serverless related metric `tempo_querier_external_endpoint_duration_seconds`,  `tempo_querier_external_endpoint_hedged_roundtrips_total` and `tempo_feature_enabled` are being removed.
 
 * [CHANGE] **BREAKING CHANGE** Removed `internal_error` as a reason from `tempo_discarded_spans_total`. [#4554](https://github.com/grafana/tempo/pull/4554) (@joe-elliott)
 * [ENHANCEMENT] Update minio to version [#4341](https://github.com/grafana/tempo/pull/4568) (@javiermolinar)

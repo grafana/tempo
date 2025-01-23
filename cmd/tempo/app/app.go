@@ -23,7 +23,6 @@ import (
 	"github.com/grafana/dskit/signals"
 	"github.com/grafana/tempo/modules/blockbuilder"
 	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/version"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
@@ -54,14 +53,6 @@ const (
 )
 
 var (
-	// TODO: remove this metric?
-	metricConfigFeatDesc = prometheus.NewDesc(
-		"tempo_feature_enabled",
-		"Boolean for configuration variables",
-		[]string{"feature"},
-		nil,
-	)
-
 	statFeatureEnabledAuth         = usagestats.NewInt("feature_enabled_auth_stats")
 	statFeatureEnabledMultitenancy = usagestats.NewInt("feature_enabled_multitenancy")
 )
