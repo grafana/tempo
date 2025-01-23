@@ -652,8 +652,8 @@ github.com/grafana/regexp/syntax
 # github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 ## explicit; go 1.14
 github.com/grpc-ecosystem/go-grpc-middleware
-# github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
-## explicit; go 1.19
+# github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.2.0
+## explicit; go 1.21
 github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry
 github.com/grpc-ecosystem/go-grpc-middleware/v2/metadata
 # github.com/grpc-ecosystem/grpc-gateway/v2 v2.24.0
@@ -727,7 +727,7 @@ github.com/iancoleman/strcase
 # github.com/inconshreveable/mousetrap v1.1.0
 ## explicit; go 1.18
 github.com/inconshreveable/mousetrap
-# github.com/jaegertracing/jaeger v1.63.0
+# github.com/jaegertracing/jaeger v1.65.0
 ## explicit; go 1.22.7
 github.com/jaegertracing/jaeger/cmd/agent/app/configmanager
 github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/grpc
@@ -744,6 +744,7 @@ github.com/jaegertracing/jaeger/cmd/collector/app/sampling/samplingstrategy
 github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin
 github.com/jaegertracing/jaeger/cmd/internal/flags
 github.com/jaegertracing/jaeger/internal/metrics/metricsbuilder
+github.com/jaegertracing/jaeger/internal/metrics/otelmetrics
 github.com/jaegertracing/jaeger/internal/metrics/prometheus
 github.com/jaegertracing/jaeger/model
 github.com/jaegertracing/jaeger/model/converter/json
@@ -755,12 +756,12 @@ github.com/jaegertracing/jaeger/pkg/config/tlscfg
 github.com/jaegertracing/jaeger/pkg/discovery
 github.com/jaegertracing/jaeger/pkg/discovery/grpcresolver
 github.com/jaegertracing/jaeger/pkg/distributedlock
-github.com/jaegertracing/jaeger/pkg/fswatcher
 github.com/jaegertracing/jaeger/pkg/gogocodec
 github.com/jaegertracing/jaeger/pkg/healthcheck
 github.com/jaegertracing/jaeger/pkg/metrics
 github.com/jaegertracing/jaeger/pkg/netutils
 github.com/jaegertracing/jaeger/pkg/recoveryhandler
+github.com/jaegertracing/jaeger/pkg/telemetry
 github.com/jaegertracing/jaeger/pkg/version
 github.com/jaegertracing/jaeger/plugin/storage/grpc/shared
 github.com/jaegertracing/jaeger/ports
@@ -769,7 +770,7 @@ github.com/jaegertracing/jaeger/proto-gen/api_v2/metrics
 github.com/jaegertracing/jaeger/proto-gen/storage_v1
 github.com/jaegertracing/jaeger/storage
 github.com/jaegertracing/jaeger/storage/dependencystore
-github.com/jaegertracing/jaeger/storage/metricsstore
+github.com/jaegertracing/jaeger/storage/metricstore
 github.com/jaegertracing/jaeger/storage/samplingstore
 github.com/jaegertracing/jaeger/storage/spanstore
 github.com/jaegertracing/jaeger/thrift-gen/agent
