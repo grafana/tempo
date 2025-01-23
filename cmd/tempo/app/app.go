@@ -54,6 +54,7 @@ const (
 )
 
 var (
+	// TODO: remove this metric?
 	metricConfigFeatDesc = prometheus.NewDesc(
 		"tempo_feature_enabled",
 		"Boolean for configuration variables",

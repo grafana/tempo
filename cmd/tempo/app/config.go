@@ -241,14 +241,8 @@ func (c *Config) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c *Config) Collect(ch chan<- prometheus.Metric) {
-	features := map[string]int{
-		"search_external_endpoints": 0,
-	}
-
-	if len(c.Querier.Search.ExternalEndpoints) > 0 {
-		features["search_external_endpoints"] = 1
-	}
-
+	// no features to advertise for now, maybe remove this??
+	features := map[string]int{}
 	for label, value := range features {
 		ch <- prometheus.MustNewConstMetric(metricConfigFeatDesc, prometheus.GaugeValue, float64(value), label)
 	}
