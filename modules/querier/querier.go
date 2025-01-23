@@ -816,10 +816,6 @@ func valuesToV2Response(distinctValues *collector.DistinctValue[tempopb.TagValue
 
 // SearchBlock searches the specified subset of the block for the passed tags.
 func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
-	return q.internalSearchBlock(ctx, req)
-}
-
-func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
