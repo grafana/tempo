@@ -134,7 +134,9 @@ func (d *Decoder) Decode(data []byte) (*tempopb.PushBytesRequest, error) {
 }
 
 func (d *Decoder) Reset() {
-	d.req.Reset()
+	// Retain slice capacity
+	d.req.Ids = d.req.Ids[:0]
+	d.req.Traces = d.req.Traces[:0]
 }
 
 // sovPush calculates the size of varint-encoded uint64.
