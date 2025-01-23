@@ -11,14 +11,19 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 )
 
+const (
+	InstrumentationScopeContextName = "instrumentation_scope"
+	ScopeContextName                = "scope"
+)
+
 type InstrumentationScopeContext interface {
 	GetInstrumentationScope() pcommon.InstrumentationScope
 	GetScopeSchemaURLItem() SchemaURLItem
 }
 
-func ScopePathGetSetter[K InstrumentationScopeContext](path ottl.Path[K]) (ottl.GetSetter[K], error) {
+func ScopePathGetSetter[K InstrumentationScopeContext](lowerContext string, path ottl.Path[K]) (ottl.GetSetter[K], error) {
 	if path == nil {
-		return accessInstrumentationScope[K](), nil
+		return nil, FormatDefaultErrorMessage(InstrumentationScopeContextName, InstrumentationScopeContextName, "Instrumentation Scope", InstrumentationScopeRef)
 	}
 	switch path.Name() {
 	case "name":
@@ -35,22 +40,10 @@ func ScopePathGetSetter[K InstrumentationScopeContext](path ottl.Path[K]) (ottl.
 		return accessInstrumentationScopeDroppedAttributesCount[K](), nil
 	case "schema_url":
 		return accessInstrumentationScopeSchemaURLItem[K](), nil
+	case "cache":
+		return nil, FormatCacheErrorMessage(lowerContext, path.Context(), path.String())
 	default:
 		return nil, FormatDefaultErrorMessage(path.Name(), path.String(), "Instrumentation Scope", InstrumentationScopeRef)
-	}
-}
-
-func accessInstrumentationScope[K InstrumentationScopeContext]() ottl.StandardGetSetter[K] {
-	return ottl.StandardGetSetter[K]{
-		Getter: func(_ context.Context, tCtx K) (any, error) {
-			return tCtx.GetInstrumentationScope(), nil
-		},
-		Setter: func(_ context.Context, tCtx K, val any) error {
-			if newIl, ok := val.(pcommon.InstrumentationScope); ok {
-				newIl.CopyTo(tCtx.GetInstrumentationScope())
-			}
-			return nil
-		},
 	}
 }
 
