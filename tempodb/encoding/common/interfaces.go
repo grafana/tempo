@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-kit/log"
 
@@ -109,8 +110,8 @@ type WALBlock interface {
 
 	// Append the given trace to the block. Must be safe for concurrent use with read operations.
 	Append(id ID, b []byte, start, end uint32) error
-
 	AppendTrace(id ID, tr *tempopb.Trace, start, end uint32) error
+	IngestionSlack() time.Duration
 
 	// Flush any unbuffered data to disk.  Must be safe for concurrent use with read operations.
 	Flush() error

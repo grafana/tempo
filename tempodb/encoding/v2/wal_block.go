@@ -191,6 +191,10 @@ func (a *walBlock) BlockMeta() *backend.BlockMeta {
 	return a.meta
 }
 
+func (a *walBlock) IngestionSlack() time.Duration {
+	return a.ingestionSlack
+}
+
 // Iterator returns a common.Iterator that is secretly also a BytesIterator for use internally
 func (a *walBlock) Iterator() (common.Iterator, error) {
 	combiner := model.StaticCombiner

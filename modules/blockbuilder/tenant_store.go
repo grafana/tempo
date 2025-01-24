@@ -3,11 +3,13 @@ package blockbuilder
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/blockbuilder/util"
+	"github.com/grafana/tempo/pkg/dataquality"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb"
@@ -104,13 +106,55 @@ func (s *tenantStore) resetHeadBlock() error {
 	return nil
 }
 
-func (s *tenantStore) AppendTrace(traceID []byte, tr *tempopb.Trace, start, end uint32) error {
+func (s *tenantStore) AppendTrace(traceID []byte, tr *tempopb.Trace, startSectionTime time.Time) error {
 	// TODO - Do this async, it slows down consumption
 	if err := s.cutHeadBlock(false); err != nil {
 		return err
 	}
+	start, end := getTraceTimeRange(tr)
+	start, end = s.adjustTimeRangeForSlack(startSectionTime, start, end)
 
-	return s.headBlock.AppendTrace(traceID, tr, start, end)
+	return s.headBlock.AppendTrace(traceID, tr, uint32(start), uint32(end))
+}
+
+func (s *tenantStore) adjustTimeRangeForSlack(startSectionTime time.Time, start, end uint64) (uint64, uint64) {
+	startOfRange := uint64(startSectionTime.Add(-s.headBlock.IngestionSlack()).Unix())
+	endOfRange := uint64(startSectionTime.Add(s.headBlock.IngestionSlack()).Unix())
+
+	warn := false
+	if start < startOfRange {
+		warn = true
+		start = uint64(startSectionTime.Unix())
+	}
+	if end > endOfRange || end < start {
+		warn = true
+		end = uint64(startSectionTime.Unix())
+	}
+
+	if warn {
+		dataquality.WarnOutsideIngestionSlack(s.headBlock.BlockMeta().TenantID)
+	}
+
+	return start, end
+}
+
+func getTraceTimeRange(tr *tempopb.Trace) (startSeconds uint64, endSeconds uint64) {
+	for _, b := range tr.ResourceSpans {
+		for _, ss := range b.ScopeSpans {
+			for _, s := range ss.Spans {
+				if startSeconds == 0 || s.StartTimeUnixNano < startSeconds {
+					startSeconds = s.StartTimeUnixNano
+				}
+				if s.EndTimeUnixNano > endSeconds {
+					endSeconds = s.EndTimeUnixNano
+				}
+			}
+		}
+	}
+	startSeconds = startSeconds / uint64(time.Second)
+	endSeconds = endSeconds / uint64(time.Second)
+
+	return
 }
 
 func (s *tenantStore) Flush(ctx context.Context, store tempodb.Writer) error {
