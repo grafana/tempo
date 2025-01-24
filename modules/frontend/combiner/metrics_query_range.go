@@ -20,6 +20,8 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 		return nil, err
 	}
 
+	var prevResp *tempopb.QueryRangeResponse
+
 	c := &genericCombiner[*tempopb.QueryRangeResponse]{
 		httpStatusCode: 200,
 		new:            func() *tempopb.QueryRangeResponse { return &tempopb.QueryRangeResponse{} },
@@ -49,18 +51,20 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 			return resp, nil
 		},
 		diff: func(_ *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
-			// jpe - no longer diff in the combiner. store the previous response and return those data points that have changed
-			/*
-				resp := combiner.Diff()
-				if resp == nil {
-					resp = &tempopb.QueryRangeResponse{}
-				}
-				sortResponse(resp)
-				attachExemplars(req, resp)
+			resp := combiner.Response()
+			if resp == nil {
+				resp = &tempopb.QueryRangeResponse{}
+			}
+			sortResponse(resp)
 
-				return resp, nil
-			*/
-			return nil, nil
+			// compare with prev resp and only return diffs
+			diff := diffResponse(prevResp, resp)
+			// store resp for next diff
+			prevResp = resp
+
+			attachExemplars(req, diff)
+
+			return diff, nil
 		},
 	}
 
@@ -90,6 +94,66 @@ func sortResponse(res *tempopb.QueryRangeResponse) {
 			return series.Exemplars[i].TimestampMs < series.Exemplars[j].TimestampMs
 		})
 	}
+}
+
+// jpe - review below
+// ++benchmarks
+// can we do this in place? in current? we can't modify prev b/c we need it for next diff
+// if we attempt this its important that we have not previously returned a pointer to curr outside
+// the combiner. if we did it would be possible that the grpc layer is marshalling it while we modify it
+// assume sorted
+func diffResponse(prev, curr *tempopb.QueryRangeResponse) *tempopb.QueryRangeResponse {
+	if prev == nil {
+		// if we do the thing suggested above we need a full copy here
+		return curr
+	}
+
+	// everything is sorted
+	seriesIdx := 0
+	diff := &tempopb.QueryRangeResponse{}
+	for _, s := range curr.Series {
+		// is this a series that's new in curr that wasn't in prev? this check assumes that
+		// a series can not be removed from the output as the input series are combined
+		if seriesIdx >= len(prev.Series) || s.PromLabels != prev.Series[seriesIdx].PromLabels {
+			diff.Series = append(diff.Series, s)
+			continue
+		}
+
+		// promlabels are the same, have to check individual samples
+		// copy in labels and take any exemplars that exist
+		diffSeries := &tempopb.TimeSeries{
+			Labels:     s.Labels,
+			PromLabels: s.PromLabels,
+			Exemplars:  s.Exemplars, // taking all current exemplars. improve?
+		}
+
+		// samples are sorted, so we can do this in a single pass
+		dSamplesIdx := 0
+		for _, sample := range s.Samples {
+			// if this sample is not in the previous response, add it to the diff
+			if dSamplesIdx >= len(prev.Series[seriesIdx].Samples) || sample.TimestampMs != prev.Series[seriesIdx].Samples[dSamplesIdx].TimestampMs { // jpe use > or < instead of == to make the alg more robust?
+				diffSeries.Samples = append(diffSeries.Samples, sample)
+				continue
+			}
+
+			// if we get here, the sample is in both responses. only copy if the value is different
+			if sample.Value != prev.Series[seriesIdx].Samples[dSamplesIdx].Value {
+				diffSeries.Samples = append(diffSeries.Samples, sample)
+			}
+
+			dSamplesIdx++
+		}
+
+		if len(diffSeries.Samples) > 0 {
+			diff.Series = append(diff.Series, diffSeries)
+		}
+		seriesIdx++
+	}
+
+	// no need to diff metrics, just take current
+	diff.Metrics = curr.Metrics
+
+	return diff
 }
 
 // attachExemplars to the final series outputs. Placeholder exemplars for things like rate()

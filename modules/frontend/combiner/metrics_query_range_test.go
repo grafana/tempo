@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/stretchr/testify/require"
 )
@@ -120,4 +121,223 @@ func buildSeriesForExemplarTest(start, end, step uint64, include func(i int) boo
 	}
 
 	return resp, expectedSeries
+}
+
+func TestDiffSeries(t *testing.T) {
+	// jpe - metrics tc?
+	tcs := []struct {
+		name     string
+		prev     *tempopb.QueryRangeResponse
+		curr     *tempopb.QueryRangeResponse
+		expected *tempopb.QueryRangeResponse
+	}{
+		{
+			name: "copy through curr if no prev",
+			prev: nil,
+			curr: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts([]tempopb.Sample{
+						{1000, 1.0},
+						{2000, 3.0},
+						{3000, 4.0},
+					}, "foo", "bar"),
+				},
+			},
+			expected: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts([]tempopb.Sample{
+						{1000, 1.0},
+						{2000, 3.0},
+						{3000, 4.0},
+					}, "foo", "bar"),
+				},
+			},
+		},
+		{
+			name: "prev == curr so actual is empty",
+			prev: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts([]tempopb.Sample{
+						{1000, 1.0},
+						{2000, 3.0},
+						{3000, 4.0},
+					}, "foo", "bar"),
+				},
+			},
+			curr: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts([]tempopb.Sample{
+						{1000, 1.0},
+						{2000, 3.0},
+						{3000, 4.0},
+					}, "foo", "bar"),
+				},
+			},
+			expected: &tempopb.QueryRangeResponse{},
+		},
+		{
+			name: "add one series after",
+			prev: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts([]tempopb.Sample{
+						{1000, 1.0},
+						{2000, 3.0},
+						{3000, 4.0},
+					}, "foo", "bar"),
+				},
+			},
+			curr: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts([]tempopb.Sample{
+						{1000, 1.0},
+						{2000, 3.0},
+						{3000, 4.0},
+					}, "foo", "bar"),
+					ts([]tempopb.Sample{
+						{1500, 1.5},
+						{2500, 3.5},
+						{3500, 4.5},
+					}, "baz", "bat"),
+				},
+			},
+			expected: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts([]tempopb.Sample{
+						{1500, 1.5},
+						{2500, 3.5},
+						{3500, 4.5},
+					}, "baz", "bat"),
+				},
+			},
+		},
+		{
+			name: "add one series before",
+			prev: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts([]tempopb.Sample{
+						{1000, 1.0},
+						{2000, 3.0},
+						{3000, 4.0},
+					}, "foo", "bar"),
+				},
+			},
+			curr: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts([]tempopb.Sample{
+						{1500, 1.5},
+						{2500, 3.5},
+						{3500, 4.5},
+					}, "baz", "bat"),
+					ts([]tempopb.Sample{
+						{1000, 1.0},
+						{2000, 3.0},
+						{3000, 4.0},
+					}, "foo", "bar"),
+				},
+			},
+			expected: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts([]tempopb.Sample{
+						{1500, 1.5},
+						{2500, 3.5},
+						{3500, 4.5},
+					}, "baz", "bat"),
+				},
+			},
+		},
+		{
+			name: "add samples",
+			prev: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts([]tempopb.Sample{
+						{1000, 1.0},
+						{2000, 3.0},
+						{3000, 4.0},
+					}, "foo", "bar"),
+				},
+			},
+			curr: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts([]tempopb.Sample{
+						{500, .5},
+						{1000, 1.0},
+						{1500, 1.5},
+						{2000, 3.0},
+						{2500, 2.5},
+						{3000, 4.0},
+						{3500, 3.5},
+					}, "foo", "bar"),
+				},
+			},
+			expected: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts([]tempopb.Sample{
+						{500, .5},
+						{1500, 1.5},
+						{2500, 2.5},
+						{3500, 3.5},
+					}, "foo", "bar"),
+				},
+			},
+		},
+		{
+			name: "modify samples",
+			prev: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts([]tempopb.Sample{
+						{1000, 1.0},
+						{2000, 3.0},
+						{3000, 4.0},
+					}, "foo", "bar"),
+				},
+			},
+			curr: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts([]tempopb.Sample{
+						{1000, 1.5},
+						{2000, 3.5},
+						{3000, 4.5},
+					}, "foo", "bar"),
+				},
+			},
+			expected: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts([]tempopb.Sample{
+						{1000, 1.5},
+						{2000, 3.5},
+						{3000, 4.5},
+					}, "foo", "bar"),
+				},
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := diffResponse(tc.prev, tc.curr)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func ts(samples []tempopb.Sample, kvs ...string) *tempopb.TimeSeries {
+	ts := &tempopb.TimeSeries{
+		Samples: samples,
+		Labels:  []v1.KeyValue{},
+	}
+
+	for i := 0; i < len(kvs); i += 2 {
+		ts.Labels = append(ts.Labels, v1.KeyValue{
+			Key: kvs[i],
+			Value: &v1.AnyValue{
+				Value: &v1.AnyValue_StringValue{
+					StringValue: kvs[i+1],
+				},
+			},
+		})
+	}
+	ts.PromLabels = traceql.LabelsFromProto(ts.Labels).String()
+	ts.Samples = samples
+
+	return ts
 }
