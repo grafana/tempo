@@ -3,6 +3,9 @@ title: Tune search performance
 menutitle: Tune search performance
 description: How to tune Tempo to improve search performance.
 weight: 90
+aliases:
+  - ./serverless_aws/ # https://grafana.com/docs/tempo/next/operations/serverless_aws/
+  - ./serverless_gcp/ # https://grafana.com/docs/tempo/next/operations/serverless_gcp/
 ---
 
 # Tune search performance
