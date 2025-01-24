@@ -340,6 +340,14 @@ func attrToParquetTypeUnsupported(a *v1.KeyValue, p *Attribute) {
 // traceToParquet converts a tempopb.Trace to this schema's object model. Returns the new object and
 // a bool indicating if it's a connected trace or not
 func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot *Trace) (*Trace, bool) {
+	// Dedicated attribute column assignments
+	dedicatedResourceAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
+	dedicatedSpanAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
+
+	return traceToParquetWithMapping(id, tr, ot, dedicatedResourceAttributes, dedicatedSpanAttributes)
+}
+
+func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedicatedResourceAttributes, dedicatedSpanAttributes dedicatedColumnMapping) (*Trace, bool) {
 	if ot == nil {
 		ot = &Trace{}
 	}
@@ -352,10 +360,6 @@ func traceToParquet(meta *backend.BlockMeta, id common.ID, tr *tempopb.Trace, ot
 	traceEnd := uint64(0)
 	var rootSpan *v1_trace.Span
 	var rootBatch *v1_trace.ResourceSpans
-
-	// Dedicated attribute column assignments
-	dedicatedResourceAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
-	dedicatedSpanAttributes := dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
 
 	ot.ResourceSpans = extendReuseSlice(len(tr.ResourceSpans), ot.ResourceSpans)
 	for ib, b := range tr.ResourceSpans {
