@@ -2,7 +2,7 @@
 title: Manage advanced systems
 menuTitle: Manage advanced systems
 description: Learn how to manage and tune complex installations.
-weight: 450
+weight: 700
 ---
 
 # Manage advanced systems

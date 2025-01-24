@@ -2,7 +2,7 @@
 title: Cross-tenant query federation
 menuTitle: Cross-tenant query
 description: Cross-tenant query federation
-weight: 70
+weight: 300
 aliases:
 - ../cross-tenant-query # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/cross-tenant-query/
 - ../cross_tenant_query # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/cross_tenant_query/

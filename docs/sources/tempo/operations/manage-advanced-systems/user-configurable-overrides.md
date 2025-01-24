@@ -2,7 +2,7 @@
 title: User-configurable overrides
 menuTitle: Configure Tempo overrides through the user-configurable overrides API
 description: Configure Tempo overrides through the user-configurable overrides API
-weight: 90
+weight: 300
 aliases:
   - ../use-configurable-overrides/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/user-configurable-overrides/
 ---
@@ -41,11 +41,11 @@ Tempo regularly polls this bucket and keeps a copy of the limits in-memory. When
 
 ### Supported fields
 
-User-configurable overrides are designed to be a subset of the runtime overrides. Refer to [Overrides]({{< relref "../configuration#overrides" >}}) for information about all overrides.
-When a field is set in both the user-configurable overrides and the runtime overrides, the value from the user-configurable overrides takes priority.
+User-configurable overrides are designed to be a subset of the runtime overrides. Refer to [Overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#overrides) for information about all overrides.
+When you set a field in both the user-configurable overrides and the runtime overrides, the value from the user-configurable overrides takes priority.
 
 {{< admonition type="note" >}}
-`processors` is an exception: Tempo merges values from both user-configurable overrides and runtime overrides into a single list.
+Note that `processors` is an exception. Tempo merges values from both user-configurable overrides and runtime overrides into a single list.
 {{< /admonition >}}
 
 ```yaml

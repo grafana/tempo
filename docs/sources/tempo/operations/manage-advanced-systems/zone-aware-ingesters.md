@@ -2,7 +2,7 @@
 title: Zone-aware replication for ingesters
 menuTitle: Zone-aware ingesters
 description: Configure zone-aware ingesters for Tempo
-weight: 900
+weight: 600
 aliases:
   - ../zone-aware-ingesters/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/zone-aware-ingesters/
 ---

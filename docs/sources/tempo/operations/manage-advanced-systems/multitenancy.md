@@ -1,11 +1,11 @@
 ---
 title: Enable multi-tenancy
 menuTitle: Enable multi-tenancy
-weight: 60
+weight: 100
 description: Enable multi-tenancy in Tempo using the X-Scope-OrgID header.
 aliases:
-- ../../configuration/multitenancy/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/multitenancy/
-- ../multitenancy/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/multitenancy/
+  - ../../configuration/multitenancy/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/multitenancy/
+  - ../multitenancy/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/multitenancy/
 ---
 
 # Enable multi-tenancy
@@ -33,7 +33,7 @@ Multi-tenancy on ingestion is currently [only working](https://github.com/grafan
 
 1. Configure the Tempo data source in Grafana to pass the tenant with the same header:
 
-   ```
+   ```yaml
    - name: Tempo-Multitenant
      jsonData:
        httpHeaderName1: 'X-Scope-OrgID'
@@ -43,38 +43,14 @@ Multi-tenancy on ingestion is currently [only working](https://github.com/grafan
 
 1. Enable multi-tenancy on the Tempo backend by setting the following configuration value on all Tempo components:
 
-   ```
+   ```yaml
    multitenancy_enabled: true
    ```
 
    or from the command line:
 
-   ```
+   ```yaml
    --multitenancy.enabled=true
    ```
 
    This option forces all Tempo components to require the `X-Scope-OrgID` header.
-
-<!-- Commented out since 7.4 is no longer supported.
-### Grafana 7.4.x
-
-Grafana 7.4.x has the following configuration requirements:
-
-- Configure the Tempo data source in Grafana to pass the tenant as a bearer token. This is necessary because it is the only header that Jaeger can be configured to pass to its GRPC plugin.
-
-```
-- name: Tempo-Multitenant
-  jsonData:
-    httpHeaderName1: 'Authorization'
-  secureJsonData:
-    httpHeaderValue1: 'Bearer foo-bar-baz'
-```
-
-- Configure Jaeger Query to pass the bearer token to its backend.
-
-```
---query.bearer-token-propagation=true
-```
--->
-
-

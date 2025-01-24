@@ -4,7 +4,7 @@ description: Learn about Tempo architectural decisions and operational implicati
 aliases:
  - ../architecture/architecture # https://grafana.com/docs/tempo/<TEMPO_VERSION>/architecture/architecture/
  - ../architecture # https://grafana.com/docs/tempo/<TEMPO_VERSION>/architecture/
-weight: 10
+weight: 100
 ---
 
 # Tempo architecture

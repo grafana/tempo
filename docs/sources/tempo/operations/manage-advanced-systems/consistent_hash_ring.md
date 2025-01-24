@@ -2,7 +2,7 @@
 title: Tune the consistent hash rings
 menuTitle: Tune the consistent hash rings
 description: Optimize the consistent hash rings for Tempo.
-weight: 40
+weight: 500
 aliases:
   - ../consistent_hash_ring/ # https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/consistent_hash_ring/
 ---
