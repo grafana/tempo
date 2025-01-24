@@ -14,13 +14,13 @@ Grafana Tempo is an open source, easy-to-use, and high-scale distributed tracing
 Distributed tracing visualizes the lifecycle of a request as it passes through a set of applications.
 For more information about traces, refer to [Introduction to traces](https://grafana.com/docs/tempo/<TEMPO_VERSION>/introduction/).
 
-Getting started with Tempo is easy.
+Getting started with Tempo is follows these basic steps.
 
 First, check out the [examples](https://grafana.com/docs/tempo/<TEMPO_VERSION>/getting-started/example-demo-app/) for ideas on how to get started with Tempo.
 
 Next, review the [Setup documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/) for step-by-step instructions for setting up Tempo and creating a test application.
 
-Tempo offers different deployment options, depending upon your needs. Refer to the [plan your deployment](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/deployment/) section for more information
+Tempo offers different deployment options, depending on your needs. Refer to the [plan your deployment](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/deployment/) section for more information.
 
 {{< admonition type="note" >}}
 Grafana Alloy is already set up to use Tempo.
@@ -68,7 +68,7 @@ refer to [Grafana Alloy configuration for tracing](https://grafana.com/docs/temp
 {{< admonition type="note" >}}
 The [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector) / [Jaeger Agent](https://www.jaegertracing.io/docs/latest/deployment/) can also be used at the agent layer.
 Refer to [this blog post](/blog/2021/04/13/how-to-send-traces-to-grafana-clouds-tempo-service-with-opentelemetry-collector/)
-to see how the to use the OpenTelemetry Collector with Tempo.
+to see how to use the OpenTelemetry Collector with Tempo.
 {{< /admonition >}}
 
 ### Backend (Tempo)

@@ -18,7 +18,7 @@ This document outlines how to deploy and use multi-tenant Tempo with the Operato
 The following Kubernetes Custom Resource (CR) deploys a multi-tenant Tempo instance.
 
 {{< admonition type="note" >}}
-Jaeger query isn't tenant aware and therefore isn't supported in this configuration.
+Jaeger query isn't tenant-aware and, therefore, isn't supported in this configuration.
 {{< /admonition >}}
 
 ```yaml

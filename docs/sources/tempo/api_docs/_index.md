@@ -641,7 +641,7 @@ Parameters:
 - `step = (duration string)`
   Optional. Defines the granularity of the returned time-series. For example, `step=15s` returns a data point every 15s within the time range. If not specified, then the default behavior chooses a dynamic step based on the time range.
 - `exemplars = (integer)`
-  Optional. Defines the maximum number of exemplars for the query. It's trimmed to `max_exemplars` if exceeds it.
+  Optional. Defines the maximum number of exemplars for the query. It's trimmed to `max_exemplars` if it exceeds it.
 
 The API is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
