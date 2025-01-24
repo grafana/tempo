@@ -53,6 +53,17 @@ func buildOriginalKeysText(keys []key) string {
 			if k.String != nil {
 				builder.WriteString(*k.String)
 			}
+			if k.Expression != nil {
+				if k.Expression.Path != nil {
+					builder.WriteString(buildOriginalText(k.Expression.Path))
+				}
+				if k.Expression.Float != nil {
+					builder.WriteString(strconv.FormatFloat(*k.Expression.Float, 'f', 10, 64))
+				}
+				if k.Expression.Int != nil {
+					builder.WriteString(strconv.FormatInt(*k.Expression.Int, 10))
+				}
+			}
 			builder.WriteString("]")
 		}
 	}
@@ -72,10 +83,14 @@ func (p *Parser[K]) newPath(path *path) (*basePath[K], error) {
 	originalText := buildOriginalText(path)
 	var current *basePath[K]
 	for i := len(fields) - 1; i >= 0; i-- {
+		keys, err := p.newKeys(fields[i].Keys)
+		if err != nil {
+			return nil, err
+		}
 		current = &basePath[K]{
 			context:      pathContext,
 			name:         fields[i].Name,
-			keys:         newKeys[K](fields[i].Keys),
+			keys:         keys,
 			nextPath:     current,
 			originalText: originalText,
 		}
@@ -203,18 +218,36 @@ func (p *basePath[K]) isComplete() error {
 	return p.nextPath.isComplete()
 }
 
-func newKeys[K any](keys []key) []Key[K] {
+func (p *Parser[K]) newKeys(keys []key) ([]Key[K], error) {
 	if len(keys) == 0 {
-		return nil
+		return nil, nil
 	}
 	ks := make([]Key[K], len(keys))
 	for i := range keys {
+		var getter Getter[K]
+		if keys[i].Expression != nil {
+			if keys[i].Expression.Path != nil {
+				g, err := p.buildGetSetterFromPath(keys[i].Expression.Path)
+				if err != nil {
+					return nil, err
+				}
+				getter = g
+			}
+			if keys[i].Expression.Converter != nil {
+				g, err := p.newGetterFromConverter(*keys[i].Expression.Converter)
+				if err != nil {
+					return nil, err
+				}
+				getter = g
+			}
+		}
 		ks[i] = &baseKey[K]{
 			s: keys[i].String,
 			i: keys[i].Int,
+			g: getter,
 		}
 	}
-	return ks
+	return ks, nil
 }
 
 // Key represents a chain of keys in an OTTL statement, such as `attributes["foo"]["bar"]`.
@@ -230,6 +263,12 @@ type Key[K any] interface {
 	// If the Key does not have a int value the returned value is nil.
 	// If Key experiences an error retrieving the value it is returned.
 	Int(context.Context, K) (*int64, error)
+
+	// ExpressionGetter returns a Getter to the expression, that can be
+	// part of the path.
+	// If the Key does not have an expression the returned value is nil.
+	// If Key experiences an error retrieving the value it is returned.
+	ExpressionGetter(context.Context, K) (Getter[K], error)
 }
 
 var _ Key[any] = &baseKey[any]{}
@@ -237,6 +276,7 @@ var _ Key[any] = &baseKey[any]{}
 type baseKey[K any] struct {
 	s *string
 	i *int64
+	g Getter[K]
 }
 
 func (k *baseKey[K]) String(_ context.Context, _ K) (*string, error) {
@@ -245,6 +285,10 @@ func (k *baseKey[K]) String(_ context.Context, _ K) (*string, error) {
 
 func (k *baseKey[K]) Int(_ context.Context, _ K) (*int64, error) {
 	return k.i, nil
+}
+
+func (k *baseKey[K]) ExpressionGetter(_ context.Context, _ K) (Getter[K], error) {
+	return k.g, nil
 }
 
 func (p *Parser[K]) parsePath(ip *basePath[K]) (GetSetter[K], error) {
@@ -474,6 +518,18 @@ func (p *Parser[K]) buildSliceArg(argVal value, argType reflect.Type) (any, erro
 	}
 }
 
+func (p *Parser[K]) buildGetSetterFromPath(path *path) (GetSetter[K], error) {
+	np, err := p.newPath(path)
+	if err != nil {
+		return nil, err
+	}
+	arg, err := p.parsePath(np)
+	if err != nil {
+		return nil, err
+	}
+	return arg, nil
+}
+
 // Handle interfaces that can be passed as arguments to OTTL functions.
 func (p *Parser[K]) buildArg(argVal value, argType reflect.Type) (any, error) {
 	name := argType.Name()
@@ -481,18 +537,10 @@ func (p *Parser[K]) buildArg(argVal value, argType reflect.Type) (any, error) {
 	case strings.HasPrefix(name, "Setter"):
 		fallthrough
 	case strings.HasPrefix(name, "GetSetter"):
-		if argVal.Literal == nil || argVal.Literal.Path == nil {
-			return nil, fmt.Errorf("must be a path")
+		if argVal.Literal != nil && argVal.Literal.Path != nil {
+			return p.buildGetSetterFromPath(argVal.Literal.Path)
 		}
-		np, err := p.newPath(argVal.Literal.Path)
-		if err != nil {
-			return nil, err
-		}
-		arg, err := p.parsePath(np)
-		if err != nil {
-			return nil, err
-		}
-		return arg, nil
+		return nil, fmt.Errorf("must be a path")
 	case strings.HasPrefix(name, "Getter"):
 		arg, err := p.newGetter(argVal)
 		if err != nil {
