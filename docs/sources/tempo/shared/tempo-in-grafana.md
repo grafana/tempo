@@ -17,10 +17,11 @@ labels:
 [//]: # 'Any links should be fully qualified and not relative.'
 
 <!--  Use traces in Grafana -->
+## Query your data
 
 Using tracing data in Grafana and Grafana Cloud Traces, you can search for traces, generate metrics from spans, and link your tracing data with logs, metrics, and profiles.
 
-## Use Explore Traces to investigate tracing data
+### Use Explore Traces to investigate tracing data
 
 {{< docs/public-preview product="Explore Traces" >}}
 
@@ -36,14 +37,14 @@ Expand your observability journey and learn about [the Explore apps suite](https
 
 {{< youtube id="a3uB1C2oHA4" >}}
 
-## Search for traces
+### Search for traces
 
 Search for traces using common dimensions such as time range, duration, span tags, service names, etc.
 Use the Explore trace view to quickly diagnose errors and high latency events in your system.
 
 ![Sample search visualization](/static/img/docs/grafana-cloud/trace_search.png)
 
-### Use trace search results as panels in dashboards
+#### Use trace search results as panels in dashboards
 
 You can embed tracing panels and visualizations in dashboards.
 You can also save queries as panels.
@@ -54,7 +55,7 @@ For example dashboards, visit [`play.grafana.org`](https://play.grafana.org).
 - [Traces and basic operations](https://play.grafana.org/d/fab5705a-e213-4527-8c23-92cb7452e746/traces-and-basic-operations-on-them?orgId=1)
 - [Grafana Explore with a Tempo data source](https://play.grafana.org/explore?schemaVersion=1&panes=%7B%22cf2%22:%7B%22datasource%22:%22grafanacloud-traces%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22datasource%22:%7B%22type%22:%22tempo%22,%22uid%22:%22grafanacloud-traces%22%7D,%22queryType%22:%22traceqlSearch%22,%22limit%22:20,%22tableType%22:%22traces%22,%22filters%22:%5B%7B%22id%22:%22ab3bc4be%22,%22operator%22:%22%3D%22,%22scope%22:%22span%22%7D%5D%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D%7D&orgId=1)
 
-## Use TraceQL to query data and generate metrics
+### Use TraceQL to query data and generate metrics
 
 Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting traces.
 
@@ -67,7 +68,7 @@ You can construct queries using the [TraceQL query editor](https://grafana.com/d
 
 For details about constructing queries, refer to the [TraceQL documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/).
 
-### TraceQL metrics queries
+#### TraceQL metrics queries
 
 {{< docs/experimental product="TraceQL metrics" >}}
 
@@ -79,7 +80,7 @@ This powerful feature creates metrics from traces, much in the same way that Log
 
 For more information about available queries, refer to [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries).
 
-## Generate metrics from spans
+### Generate metrics from spans
 
 RED metrics can drive service graphs and other ready-to-go visualizations of your span data.
 RED metrics represent:
@@ -104,7 +105,7 @@ Metrics automatically generate exemplars as well which allows easy metrics to tr
 
 ![Trace Exemplars](/static/img/docs/grafana-cloud/trace_exemplars.png)
 
-### Service graph view
+#### Service graph view
 
 Service graph view displays a table of request rate, error rate, and duration metrics (RED) calculated from your incoming spans.
 It also includes a node graph view built from your spans.
@@ -116,7 +117,9 @@ Refer to the [service graph view documentation](https://docs/tempo/<TEMPO_VERSIO
 
 ![Service graph view overview](/static/img/docs/grafana-cloud/apm-overview.png)
 
-## Link traces and logs
+## Integrate other telemetry signals
+
+### Link traces and logs
 
 If you're already doing request/response logging with trace IDs, they can be easily extracted from logs to jump directly to your traces.
 
@@ -134,7 +137,7 @@ Cloud Traces supports these default tags: `cluster`, `hostname`, `namespace`, an
 Contact Support to add a custom tag.
 {{< /admonition >}}
 
-## Link traces and metrics
+### Link traces and metrics
 
 Grafana can correlate different signals by adding the functionality to link between traces and metrics. [Trace to metrics](/blog/2022/08/18/new-in-grafana-9.1-trace-to-metrics-allows-users-to-navigate-from-a-trace-span-to-a-selected-data-source/) lets you navigate from a trace span to a selected data source.
 Using trace to metrics, you can quickly see trends or aggregated data related to each span.
@@ -145,7 +148,7 @@ To set up Trace to metrics for your data source, refer to [Trace to metric confi
 
 {{< youtube id="xOolCpm2F8c" >}}
 
-## Link traces and profiles
+### Link traces and profiles
 
 Using Trace to profiles, you can correlate different signals by adding the functionality to link between traces and profiles.
 
