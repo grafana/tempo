@@ -7,6 +7,9 @@ weight: 800
 
 # Tempo HTTP API
 
+<!-- vale Grafana.GooglePassive = NO -->
+<!-- vale Grafana.Parentheses = NO -->
+
 Tempo exposes an API for pushing and querying traces, and operating the cluster itself.
 
 For the sake of clarity, API endpoints are grouped by service.
@@ -15,10 +18,11 @@ These endpoints are exposed both when running Tempo in microservices and monolit
 - **microservices**: each service exposes its own endpoints
 - **monolithic**: the Tempo process exposes all API endpoints for the services running internally
 
-For externally supported GRPC API, [see below](#tempo-grpc-api).
+For externally supported gRPC API, [refer to Tempo gRPC API](#tempo-grpc-api).
 
 ## Endpoints
 
+<!-- vale Grafana.Spelling = NO -->
 | API | Service | Type | Endpoint |
 | --- | ------- | ---- | -------- |
 | [Readiness probe](#readiness-probe) | _All services_ |  HTTP | `GET /ready` |
@@ -48,6 +52,8 @@ For externally supported GRPC API, [see below](#tempo-grpc-api).
 
 _(*) This endpoint isn't always available, check the specific section for more details._
 
+<!-- vale Grafana.Spelling = YES -->
+
 ### Readiness probe
 
 ```
@@ -63,8 +69,9 @@ GET /metrics
 ```
 
 Returns the metrics for the running Tempo service in the Prometheus exposition format.
-
+<!-- vale Grafana.Spelling = NO -->
 ### Pprof
+
 
 ```
 GET /debug/pprof/heap
@@ -78,7 +85,9 @@ GET /debug/pprof/mutex
 Returns the runtime profiling data in the format expected by the pprof visualization tool.
 There are many things which can be profiled using this including heap, trace, goroutine, etc.
 
-_For more information, please check out the official documentation of [pprof](https://golang.org/pkg/net/http/pprof/)._
+For more information, refer to the official documentation of [pprof](https://golang.org/pkg/net/http/pprof/).
+
+<!-- vale Grafana.Spelling = YES -->
 
 ### Ingest
 
@@ -88,12 +97,12 @@ Agent, OpenTelemetry Collector, or Jaeger Agent.
 
 |  Protocol | Type | Docs |
 |  -------- | ---- | ---- |
-|  OpenTelemetry | GRPC | [Link](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md) |
+|  OpenTelemetry | gRPC | [Link](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md) |
 |  OpenTelemetry | HTTP | [Link](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md) |
 |  Jaeger | Thrift Compact | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
 |  Jaeger | Thrift Binary | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
 |  Jaeger | Thrift HTTP |  [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
-|  Jaeger | GRPC | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
+|  Jaeger | gRPC | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
 |  Zipkin | HTTP | [Link](https://zipkin.io/zipkin-api/) |
 
 For information on how to use the Zipkin endpoint with curl (for debugging purposes), refer to [Pushing spans with HTTP]({{< relref "./pushing-spans-with-http" >}}).
@@ -240,7 +249,7 @@ Example of how to query Tempo using curl.
 This query returns all traces that have their status set to error.
 
 ```bash
-$ curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ status=error }' | jq
+curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ status=error }' | jq
 {
   "traces": [
     {
@@ -282,7 +291,7 @@ Example of how to query Tempo using curl.
 This query returns all traces that have a tag `service.name` containing `cartservice` and a minimum duration of 600 ms.
 
 ```bash
-$ curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.name=cartservice' --data-urlencode minDuration=600ms | jq
+curl -G -s http://localhost:3200/api/search --data-urlencode 'tags=service.name=cartservice' --data-urlencode minDuration=600ms | jq
 {
   "traces": [
     {
@@ -327,7 +336,7 @@ Example of how to query Tempo using curl.
 This query returns all discovered tag names.
 
 ```bash
-$ curl -G -s http://localhost:3200/api/search/tags?scope=span  | jq
+curl -G -s http://localhost:3200/api/search/tags?scope=span  | jq
 {
   "tagNames": [
     "host.name",
@@ -363,7 +372,7 @@ Parameters:
 - `limit = (integer)`
   Optional. Limits the maximum number of tags values.
 - `maxStaleValues = (integer)`
-  Optional. Limits the search for tags names. If the number of stale (already known) values reaches or exceeds this limit, the search stops. i.e. If Tempo processes `maxStaleValues` matches without finding a new tag name, the search is returned early.
+  Optional. Limits the search for tags names. If the number of stale (already known) values reaches or exceeds this limit, the search stops. If Tempo processes `maxStaleValues` matches without finding a new tag name, the search is returned early.
 
 ### Search tags V2
 
@@ -402,7 +411,7 @@ Example of how to query Tempo using curl.
 This query returns all discovered tag names.
 
 ```bash
-$ curl -G -s http://localhost:3200/api/v2/search/tags  | jq
+curl -G -s http://localhost:3200/api/v2/search/tags  | jq
 {
   "scopes": [
     {
@@ -504,7 +513,7 @@ Example of how to query Tempo using curl.
 This query returns all discovered values for the tag `service.name`.
 
 ```bash
-$ curl -G -s http://localhost:3200/api/search/tag/service.name/values  | jq
+curl -G -s http://localhost:3200/api/search/tag/service.name/values  | jq
 {
   "tagValues": [
     "article-service",
@@ -528,21 +537,21 @@ Parameters:
 - `limit = (integer)`
   Optional. Limits the maximum number of tags values.
 - `maxStaleValues = (integer)`
-  Optional. Limits the search for tags values. If the number of stale (already known) values reaches or exceeds this limit, the search stops. i.e. If Tempo processes `maxStaleValues` matches without finding a new tag name, the search is returned early.
+  Optional. Limits the search for tags values. If the number of stale (already known) values reaches or exceeds this limit, the search stops. If Tempo processes `maxStaleValues` matches without finding a new tag name, the search is returned early.
 
 
 ### Search tag values V2
 
 This endpoint retrieves all discovered values and their data types for the given TraceQL identifier.
 The endpoint is available in the query frontend service in a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. This endpoint is similar to `/api/search/tag/<tag>/values` but operates on TraceQL identifiers and types.
-See [TraceQL]({{< relref "../traceql" >}}) documentation for more information.
+Refer to [TraceQL]({{< relref "../traceql" >}}) documentation for more information.
 
 #### Example
 
 This example queries Tempo using curl and returns all discovered values for the tag `service.name`.
 
 ```bash
-$ curl -G -s http://localhost:3200/api/v2/search/tag/.service.name/values | jq
+curl -G -s http://localhost:3200/api/v2/search/tag/.service.name/values | jq
 {
   "tagValues": [
     {
@@ -575,17 +584,18 @@ $ curl -G -s http://localhost:3200/api/v2/search/tag/.service.name/values | jq
   }
 }
 ```
+
 Parameters:
 - `start = (unix epoch seconds)`
   Optional. Along with `end`, defines a time range from which tags values should be returned.
 - `end = (unix epoch seconds)`
   Optional. Along with `start`, defines a time range from which tags values should be returned. Providing both `start` and `end` includes blocks for the specified time range only.
 - `q = (traceql query)`
-  Optional. A TraceQL query to filter tag values by. Currently only works for a single spanset of `&&`ed conditions. For example: `{ span.foo = "bar" && resource.baz = "bat" ...}`. See also [Filtered tag values](#filtered-tag-values).
+  Optional. A TraceQL query to filter tag values by. Currently only works for a single spanset of `&&`ed conditions. For example: `{ span.foo = "bar" && resource.baz = "bat" ...}`. Refer to [Filtered tag values](#filtered-tag-values).
 - `limit = (integer)`
   Optional. Limits the maximum number of tags values
 - `maxStaleValues = (integer)`
-  Optional. Limits the search for tags values. If the number of stale (already known) values reaches or exceeds this limit, the search stops. i.e. If Tempo processes `maxStaleValues` matches without finding a new tag name, the search is returned early.
+  Optional. Limits the search for tags values. If the number of stale (already known) values reaches or exceeds this limit, the search stops. If Tempo processes `maxStaleValues` matches without finding a new tag name, the search is returned early.
 
 #### Filtered tag values
 
@@ -631,7 +641,7 @@ Parameters:
 - `step = (duration string)`
   Optional. Defines the granularity of the returned time-series. For example, `step=15s` returns a data point every 15s within the time range. If not specified, then the default behavior chooses a dynamic step based on the time range.
 - `exemplars = (integer)`
-  Optional. Defines the maximun number of exemplars for the query. It will be trimmed to max_exemplars if exceed it.
+  Optional. Defines the maximum number of exemplars for the query. It's trimmed to `max_exemplars` if exceeds it.
 
 The API is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
@@ -639,7 +649,7 @@ a microservices deployment, or the Tempo endpoint in a monolithic mode deploymen
 For example, the following request computes the rate of spans received for `myservice` over the last three hours, at 1 minute intervals.
 
 {{< admonition type="note" >}}
-Actual API parameters must be url-encoded. This example is left unencoded for readability.
+Actual API parameters must be URL-encoded. This example is left unencoded for readability.
 {{< /admonition >}}
 
 ```
@@ -661,7 +671,7 @@ Parameters:
 - `end = (unix epoch seconds | unix epoch nanoseconds | RFC3339 string)`
   Optional. Along with `start` define the time range. Providing both `start` and `end` includes blocks for the specified time range only.
 - `since = (duration string)`
-  Optional. Can be used instead of `start` and `end` to define the time range in relative values. For example `since=15m` will query the last 15 minutes.  Default is last 1 hour.
+  Optional. Can be used instead of `start` and `end` to define the time range in relative values. For example, `since=15m` queries the last 15 minutes. Default is last 1 hour.
 
 The API is available in the query frontend service in
 a microservices deployment, or the Tempo endpoint in a monolithic mode deployment.
@@ -669,7 +679,7 @@ a microservices deployment, or the Tempo endpoint in a monolithic mode deploymen
 For example the following request computes the total number of failed spans over the last hour per service.
 
 {{< admonition type="note" >}}
-Actual API parameters must be url-encoded. This example is left unencoded for readability.
+Actual API parameters must be URL-encoded. This example is left unencoded for readability.
 {{< /admonition >}}
 
 ```
@@ -786,7 +796,7 @@ For more information, refer to [consistent hash ring](http://grafana.com/docs/te
 GET /compactor/ring
 ```
 
-Displays a web page with the compactor hash ring status, including the state, healthy and last heartbeat time of each compactor.
+Displays a web page with the compactor hash ring status, including the state, healthy, and last heartbeat time of each compactor.
 
 For more information, refer to [consistent hash ring](http://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/consistent_hash_ring/).
 
@@ -822,7 +832,7 @@ GET /status/config
 Displays the configuration.
 
 Displays the configuration currently applied to Tempo (in YAML format), including default values and settings via CLI flags.
-Sensitive data is masked. Please be aware that the exported configuration **doesn't include the per-tenant overrides**.
+Sensitive data is masked. Be aware that the exported configuration **doesn't include the per-tenant overrides**.
 
 Optional query parameter:
 
@@ -863,18 +873,18 @@ GET /api/status/buildinfo
 ```
 Exposes the build information in a JSON object. The fields are `version`, `revision`, `branch`, `buildDate`, `buildUser`, and `goVersion`.
 
-## Tempo GRPC API
+## Tempo gRPC API
 
-Tempo uses GRPC to internally communicate with itself, but only has one externally supported client.
+Tempo uses [gRPC](https://grpc.io) to internally communicate with itself, but only has one externally supported client.
 The query-frontend component implements the streaming querier interface defined below.
-[See here](https://github.com/grafana/tempo/blob/main/pkg/tempopb/) for the complete proto definition and generated code.
+[Refer here](https://github.com/grafana/tempo/blob/main/pkg/tempopb/) for the complete proto definition and generated code.
 
 By default, this service is only offered over the gRPC port.
 You can use streaming service over the HTTP port as well, which Grafana expects.
 
 To enable the streaming service over the HTTP port for use with Grafana, set the following:
 
-```
+```yaml
 stream_over_http_enabled: true
 ```
 
@@ -890,3 +900,4 @@ service StreamingQuerier {
   rpc MetricsQueryRange(QueryRangeRequest) returns (stream QueryRangeResponse) {}
 }
 ```
+<!-- vale Grafana.GooglePassive = YES -->
