@@ -8,8 +8,6 @@ cloud.google.com/go/internal/version
 ## explicit; go 1.22
 cloud.google.com/go/auth
 cloud.google.com/go/auth/credentials
-cloud.google.com/go/auth/credentials/idtoken
-cloud.google.com/go/auth/credentials/impersonate
 cloud.google.com/go/auth/credentials/internal/externalaccount
 cloud.google.com/go/auth/credentials/internal/externalaccountuser
 cloud.google.com/go/auth/credentials/internal/gdch
@@ -2010,8 +2008,6 @@ gonum.org/v1/gonum/mat
 google.golang.org/api/googleapi
 google.golang.org/api/googleapi/transport
 google.golang.org/api/iamcredentials/v1
-google.golang.org/api/idtoken
-google.golang.org/api/impersonate
 google.golang.org/api/internal
 google.golang.org/api/internal/cert
 google.golang.org/api/internal/gensupport

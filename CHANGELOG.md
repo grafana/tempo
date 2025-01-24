@@ -1,4 +1,17 @@
 ## main / unreleased
+* [CHANGE] **BREAKING CHANGE** Remove tempo serverless [#4599](https://github.com/grafana/tempo/pull/4599/) @electron0zero
+  Following config options are no longer valid, please remove them if you are using these in your tempo config:
+  ```
+  querier:
+      search:
+          prefer_self: <int>
+          external_hedge_requests_at: <duration>
+          external_hedge_requests_up_to:  <duration>
+          external_backend: <string>
+          google_cloud_run: <string>
+          external_endpoints: <array>
+  ```
+  Tempo serverless related metric `tempo_querier_external_endpoint_duration_seconds`,  `tempo_querier_external_endpoint_hedged_roundtrips_total` and `tempo_feature_enabled` are being removed.
 
 * [CHANGE] **BREAKING CHANGE** Removed `internal_error` as a reason from `tempo_discarded_spans_total`. [#4554](https://github.com/grafana/tempo/pull/4554) (@joe-elliott)
 * [ENHANCEMENT] Update minio to version [#4341](https://github.com/grafana/tempo/pull/4568) (@javiermolinar)

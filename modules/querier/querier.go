@@ -22,12 +22,10 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
 	"go.uber.org/multierr"
-	"golang.org/x/sync/semaphore"
 
 	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
-	"github.com/grafana/tempo/modules/querier/external"
 	"github.com/grafana/tempo/modules/querier/worker"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
@@ -81,10 +79,6 @@ type Querier struct {
 	store  storage.Store
 	limits overrides.Interface
 
-	externalClient *external.Client
-
-	searchPreferSelf *semaphore.Weighted
-
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
 }
@@ -105,21 +99,6 @@ func New(
 
 	var generatorClientFactory ring_client.PoolAddrFunc = func(addr string) (ring_client.PoolClient, error) {
 		return generator_client.New(addr, generatorClientConfig)
-	}
-
-	externalClient, err := external.NewClient(&external.Config{
-		Backend:        cfg.Search.ExternalBackend,
-		CloudRunConfig: cfg.Search.CloudRun,
-
-		HedgeRequestsAt:   cfg.Search.HedgeRequestsAt,
-		HedgeRequestsUpTo: cfg.Search.HedgeRequestsUpTo,
-
-		HTTPConfig: &external.HTTPConfig{
-			Endpoints: cfg.Search.ExternalEndpoints,
-		},
-	})
-	if err != nil {
-		return nil, err
 	}
 
 	ingesterPools := make([]*ring_client.Pool, 0, len(ingesterRings))
@@ -144,11 +123,9 @@ func New(
 			generatorClientFactory,
 			metricMetricsGeneratorClients,
 			log.Logger),
-		engine:           traceql.NewEngine(),
-		store:            store,
-		limits:           limits,
-		searchPreferSelf: semaphore.NewWeighted(int64(cfg.Search.PreferSelf)),
-		externalClient:   externalClient,
+		engine: traceql.NewEngine(),
+		store:  store,
+		limits: limits,
 	}
 
 	q.Service = services.NewBasicService(q.starting, q.running, q.stopping)
@@ -839,28 +816,6 @@ func valuesToV2Response(distinctValues *collector.DistinctValue[tempopb.TagValue
 
 // SearchBlock searches the specified subset of the block for the passed tags.
 func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
-	// if we have no external configuration always search in the querier
-	if q.cfg.Search.ExternalBackend == "" && len(q.cfg.Search.ExternalEndpoints) == 0 {
-		return q.internalSearchBlock(ctx, req)
-	}
-
-	// if we have external configuration but there's an open slot locally then search in the querier
-	if q.searchPreferSelf.TryAcquire(1) {
-		defer q.searchPreferSelf.Release(1)
-		return q.internalSearchBlock(ctx, req)
-	}
-
-	// proxy externally!
-	tenantID, err := user.ExtractOrgID(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("error extracting org id for externalEndpoint: %w", err)
-	}
-	maxBytes := q.limits.MaxBytesPerTrace(tenantID)
-
-	return q.externalClient.Search(ctx, maxBytes, req)
-}
-
-func (q *Querier) internalSearchBlock(ctx context.Context, req *tempopb.SearchBlockRequest) (*tempopb.SearchResponse, error) {
 	tenantID, err := user.ExtractOrgID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error extracting org id in Querier.BackendSearch: %w", err)
