@@ -3,6 +3,9 @@ title: Tune search performance
 menutitle: Tune search performance
 description: How to tune Tempo to improve search performance.
 weight: 500
+aliases:
+  - ./serverless_aws/ # https://grafana.com/docs/tempo/next/operations/serverless_aws/
+  - ./serverless_gcp/ # https://grafana.com/docs/tempo/next/operations/serverless_gcp/
 ---
 
 # Tune search performance
@@ -109,34 +112,6 @@ querier:
   # Control the amount of work each querier will attempt. The total number of
   # jobs a querier will attempt this is this value * query_frontend.max_batch_size
   max_concurrent_queries: 20
-```
-
-With serverless technologies:
-
-{{< admonition type="caution" >}}
-The Tempo serverless feature is now deprecated and will be removed in an upcoming release.
-{{< /admonition >}}
-
-{{< admonition type="note" >}}
-Serverless can be a nice way to reduce cost by using it as spare query capacity.
-However, serverless tends to have higher variance then simply allowing the queriers to perform the searches themselves.
-{{< /admonition >}}
-
-```yaml
-querier:
-
-  search:
-    # A list of endpoints to query. Load will be spread evenly across
-    # these multiple serverless functions.
-    external_endpoints:
-    - https://<serverless endpoint>
-
-    # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
-    # be set to p99 of search requests to reduce long tail latency.
-    external_hedge_requests_at: 8s
-
-    # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
-    external_hedge_requests_up_to: 2
 ```
 
 ### Query-frontend
@@ -291,21 +266,6 @@ This option controls the upper limit on the size of a job, and can be used as a 
 * Setting this to a small value produces too many jobs, and results in more overhead, setting it too high produces big jobs. Queriers might struggle to finish those jobs and it can lead to high latency.
 * In testing at Grafana Labs, 100MB to 200MB is a good range for this configuration, and works across different sizes of clusters.
 * We recommend keeping this fixed within the recommended range.
-
-### `querier.search.prefer_self` parameter
-
-{{< admonition type="note" >}}
-This configuration only applies to `tempo-serverless`.
-{{< /admonition >}}
-
-This setting controls the number of job the querier will process before spilling over the `search_external_endpoints` (tempo-serverless).
-
-#### Guidelines
-
-* In testing at Grafana Labs, serverless suffered from cold starts problems. If your query load is predictable, serverless isn't recommended.
-* Increase the value of `prefer_self` if you want to process more jobs in the querier and spill out in extreme cases.
-* Setting this to a very big number is as good as turning it off because the querier tries to process all the jobs and it never spills over to serverless.
-* If we set this to a low value, we spill more jobs to serverless, even when queriers have capacity to process the job, and due to cold start, query latency increases.
 
 ### `querier.frontend_worker.parallelism` parameter
 

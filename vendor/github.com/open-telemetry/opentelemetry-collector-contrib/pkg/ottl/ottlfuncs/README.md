@@ -422,6 +422,7 @@ Available Converters:
 - [ExtractGrokPatterns](#extractgrokpatterns)
 - [FNV](#fnv)
 - [Format](#format)
+- [FormatTime](#formattime)
 - [GetXML](#getxml)
 - [Hex](#hex)
 - [Hour](#hour)
@@ -444,6 +445,7 @@ Available Converters:
 - [Minute](#minute)
 - [Minutes](#minutes)
 - [Month](#month)
+- [Nanosecond](#nanosecond)
 - [Nanoseconds](#nanoseconds)
 - [Now](#now)
 - [ParseCSV](#parsecsv)
@@ -452,6 +454,7 @@ Available Converters:
 - [ParseSimplifiedXML](#parsesimplifiedxml)
 - [ParseXML](#parsexml)
 - [RemoveXML](#removexml)
+- [Second](#second)
 - [Seconds](#seconds)
 - [SHA1](#sha1)
 - [SHA256](#sha256)
@@ -804,6 +807,62 @@ Examples:
 - `Format("%04d-%02d-%02d", [Year(Now()), Month(Now()), Day(Now())])`
 - `Format("%s/%s/%04d-%02d-%02d.log", [attributes["hostname"], body["program"], Year(Now()), Month(Now()), Day(Now())])`
 
+### FormatTime
+
+`FormatTime(time, format)`
+
+The `FormatTime` Converter takes a `time.Time` and converts it to a human-readable string representation of the time according to the specified format.
+
+`time` is `time.Time`. If `time` is another type an error is returned. `format` is a string.
+
+If either `time` or `format` are nil, an error is returned. The parser used is the parser at [internal/coreinternal/parser](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/internal/coreinternal/timeutils). If `format` does not follow the parsing rules used by this parser, an error is returned.
+
+`format` denotes a human-readable textual representation of the resulting time value formatted according to ctime-like format string. It follows [standard Go Layout formatting](https://pkg.go.dev/time#pkg-constants) with few additional substitutes:
+| substitution | description | examples |
+|-----|-----|-----|
+|`%Y` | Year as a zero-padded number | 0001, 0002, ..., 2019, 2020, ..., 9999 |
+|`%y` | Year, last two digits as a zero-padded number | 01, ..., 99 |
+|`%m` | Month as a zero-padded number | 01, 02, ..., 12 |
+|`%o` | Month as a space-padded number | 1, 2, ..., 12 |
+|`%q` | Month as an unpadded number | 1,2,...,12 |
+|`%b`, `%h` | Abbreviated month name | Jan, Feb, ... |
+|`%B` | Full month name | January, February, ... |
+|`%d` | Day of the month as a zero-padded number | 01, 02, ..., 31 |
+|`%e` | Day of the month as a space-padded number| 1, 2, ..., 31 |
+|`%g` | Day of the month as a unpadded number | 1,2,...,31 |
+|`%a` | Abbreviated weekday name | Sun, Mon, ... |
+|`%A` | Full weekday name | Sunday, Monday, ... |
+|`%H` | Hour (24-hour clock) as a zero-padded number | 00, ..., 24 |
+|`%I` | Hour (12-hour clock) as a zero-padded number | 00, ..., 12 |
+|`%l` | Hour 12-hour clock | 0, ..., 24 |
+|`%p` | Locale’s equivalent of either AM or PM | AM, PM |
+|`%P` | Locale’s equivalent of either am or pm | am, pm |
+|`%M` | Minute as a zero-padded number | 00, 01, ..., 59 |
+|`%S` | Second as a zero-padded number | 00, 01, ..., 59 |
+|`%L` | Millisecond as a zero-padded number | 000, 001, ..., 999 |
+|`%f` | Microsecond as a zero-padded number | 000000, ..., 999999 |
+|`%s` | Nanosecond as a zero-padded number | 00000000, ..., 99999999 |
+|`%z` | UTC offset in the form ±HHMM[SS[.ffffff]] or empty | +0000, -0400 |
+|`%Z` | Timezone name or abbreviation or empty | UTC, EST, CST |
+|`%i` | Timezone as +/-HH | -07 |
+|`%j` | Timezone as +/-HH:MM | -07:00 |
+|`%k` | Timezone as +/-HH:MM:SS | -07:00:00 |
+|`%w` | Timezone as +/-HHMMSS | -070000 |
+|`%D`, `%x` | Short MM/DD/YYYY date, equivalent to %m/%d/%y | 01/21/2031 |
+|`%F` | Short YYYY-MM-DD date, equivalent to %Y-%m-%d | 2031-01-21 |
+|`%T`,`%X` | ISO 8601 time format (HH:MM:SS), equivalent to %H:%M:%S | 02:55:02 |
+|`%r` | 12-hour clock time | 02:55:02 pm |
+|`%R` | 24-hour HH:MM time, equivalent to %H:%M | 13:55 |
+|`%n` | New-line character ('\n') | |
+|`%t` | Horizontal-tab character ('\t') | |
+|`%%` | A % sign | |
+|`%c` | Date and time representation | Mon Jan 02 15:04:05 2006 |
+
+Examples:
+
+- `FormatTime(Time("02/04/2023", "%m/%d/%Y"), "%A %h %e %Y")`
+- `FormatTime(UnixNano(attributes["time_nanoseconds"]), "%b %d %Y %H:%M:%S")`
+- `FormatTime(TruncateTime(time, Duration("10h 20m"))), "%Y-%m-%d %H:%M:%S")`
 
 ### GetXML
 
@@ -1237,6 +1296,20 @@ Examples:
 
 - `Month(Now())`
 
+### Nanosecond
+
+`Nanosecond(value)`
+
+The `Nanosecond` Converter returns the nanosecond component from the specified time using the Go stdlib [`time.Nanosecond` function](https://pkg.go.dev/time#Time.Nanosecond).
+
+`value` is a `time.Time`. If `value` is another type, an error is returned.
+
+The returned type is `int64`.
+
+Examples:
+
+- `Nanosecond(Now())`
+
 ### Nanoseconds
 
 `Nanoseconds(value)`
@@ -1611,6 +1684,20 @@ Delete text from nodes that contain the word "sensitive"
 
 - `RemoveXML(body, "//*[contains(text(), 'sensitive')]")`
 
+### Second
+
+`Second(value)`
+
+The `Second` Converter returns the second component from the specified time using the Go stdlib [`time.Second` function](https://pkg.go.dev/time#Time.Second).
+
+`value` is a `time.Time`. If `value` is another type, an error is returned.
+
+The returned type is `int64`.
+
+Examples:
+
+- `Second(Now())`
+
 ### Seconds
 
 `Seconds(value)`
@@ -1792,9 +1879,21 @@ The `Split` Converter separates a string by the delimiter, and returns an array 
 
 If the `target` is not a string or does not exist, the `Split` Converter will return an error.
 
+### Trim
+
+```Trim(target, Optional[replacement])```
+
+The `Trim` Converter removes the leading and trailing character (default: a space character).
+
+If the `target` is not a string or does not exist, the `Trim` Converter will return an error.
+
+`target` is a string.
+`replacement` is an optional string representing the character to replace with (default: a space character).
+
 Examples:
 
-- `Split("A|B|C", "|")`
+- `Trim(" this is a test ", " ")`
+- `Trim("!!this is a test!!", "!!")`
 
 ### String
 

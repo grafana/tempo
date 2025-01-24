@@ -170,7 +170,7 @@ type CompactionOverrides struct {
 }
 
 type GlobalOverrides struct {
-	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search) and Serverless (Search). It
+	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search). It
 	//  is not used when doing a trace by id lookup.
 	MaxBytesPerTrace int `yaml:"max_bytes_per_trace,omitempty" json:"max_bytes_per_trace,omitempty"`
 }

@@ -91,8 +91,6 @@ func (t *App) initServer() (services.Service, error) {
 	t.cfg.Server.MetricsNamespace = metricsNamespace
 	t.cfg.Server.ExcludeRequestInLog = true
 
-	prometheus.MustRegister(&t.cfg)
-
 	if t.cfg.EnableGoRuntimeMetrics {
 		// unregister default Go collector
 		prometheus.Unregister(collectors.NewGoCollector())

@@ -9,9 +9,6 @@ import (
 	"github.com/grafana/dskit/kv/memberlist"
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/tempo/modules/blockbuilder"
-	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/grafana/tempo/modules/cache"
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
@@ -23,6 +20,7 @@ import (
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/querier"
 	"github.com/grafana/tempo/modules/storage"
+	"github.com/grafana/tempo/pkg/ingest"
 	internalserver "github.com/grafana/tempo/pkg/server"
 	"github.com/grafana/tempo/pkg/usagestats"
 	"github.com/grafana/tempo/pkg/util"
@@ -234,24 +232,6 @@ func (c *Config) CheckConfig() []ConfigWarning {
 	}
 
 	return warnings
-}
-
-func (c *Config) Describe(ch chan<- *prometheus.Desc) {
-	ch <- metricConfigFeatDesc
-}
-
-func (c *Config) Collect(ch chan<- prometheus.Metric) {
-	features := map[string]int{
-		"search_external_endpoints": 0,
-	}
-
-	if len(c.Querier.Search.ExternalEndpoints) > 0 {
-		features["search_external_endpoints"] = 1
-	}
-
-	for label, value := range features {
-		ch <- prometheus.MustNewConstMetric(metricConfigFeatDesc, prometheus.GaugeValue, float64(value), label)
-	}
 }
 
 // ConfigWarning bundles message and explanation strings in one structure.

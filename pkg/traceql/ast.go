@@ -156,8 +156,37 @@ func (p Pipeline) impliedType() StaticType {
 }
 
 func (p Pipeline) extractConditions(req *FetchSpansRequest) {
+	forceSecondPass := false
+
 	for _, element := range p.Elements {
-		element.extractConditions(req)
+		if forceSecondPass {
+			extractToSecondPass(req, element)
+		} else {
+			element.extractConditions(req)
+		}
+
+		// If we just processed a select operation,
+		// then switch all remaining elements to the second pass.
+		if _, ok := element.(SelectOperation); ok {
+			forceSecondPass = true
+		}
+	}
+}
+
+func extractToSecondPass(req *FetchSpansRequest, element pipelineElement) {
+	req2 := &FetchSpansRequest{}
+	element.extractConditions(req2)
+
+	// Copy all to second pass, except if there is already an OpNone then it suffices for all cases.
+	for _, c := range req2.Conditions {
+		if !req.HasAttributeWithOp(c.Attribute, OpNone) {
+			req.SecondPassConditions = append(req.SecondPassConditions, c)
+		}
+	}
+	for _, c := range req2.SecondPassConditions {
+		if !req.HasAttributeWithOp(c.Attribute, OpNone) {
+			req.SecondPassConditions = append(req.SecondPassConditions, c)
+		}
 	}
 }
 

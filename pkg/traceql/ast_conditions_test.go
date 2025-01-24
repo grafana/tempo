@@ -258,6 +258,19 @@ func TestSelect_extractConditions(t *testing.T) {
 			},
 			allConditions: true,
 		},
+		{
+			// Pipleline elements after a select are always directed to the second pass
+			query: `{ } | select(span.foo) | { span.foo = "a" && span.bar = "b"}`,
+			conditions: []Condition{
+				newCondition(NewIntrinsic(IntrinsicSpanStartTime), OpNone),
+			},
+			secondPassConditions: []Condition{
+				// span.foo=a has no effect because it's already covered by the select statement
+				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "foo"), OpNone),
+				newCondition(NewScopedAttribute(AttributeScopeSpan, false, "bar"), OpEqual, NewStaticString("b")),
+			},
+			allConditions: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {

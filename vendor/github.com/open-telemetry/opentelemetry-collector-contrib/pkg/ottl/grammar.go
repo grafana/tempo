@@ -213,6 +213,7 @@ type converter struct {
 }
 
 func (c *converter) accept(v grammarVisitor) {
+	v.visitConverter(c)
 	if c.Arguments != nil {
 		for _, a := range c.Arguments {
 			a.accept(v)
@@ -244,6 +245,12 @@ type value struct {
 	List           *list            `parser:"| @@)"`
 }
 
+func (v *value) checkForCustomError() error {
+	validator := &grammarCustomErrorsVisitor{}
+	v.accept(validator)
+	return validator.join()
+}
+
 func (v *value) accept(vis grammarVisitor) {
 	vis.visitValue(v)
 	if v.Literal != nil {
@@ -269,15 +276,35 @@ type path struct {
 	Fields  []field `parser:"@@ ( '.' @@ )*"`
 }
 
+func (p *path) accept(v grammarVisitor) {
+	v.visitPath(p)
+	for _, field := range p.Fields {
+		field.accept(v)
+	}
+}
+
 // field is an item within a path.
 type field struct {
 	Name string `parser:"@Lowercase"`
 	Keys []key  `parser:"( @@ )*"`
 }
 
+func (f *field) accept(v grammarVisitor) {
+	for _, key := range f.Keys {
+		key.accept(v)
+	}
+}
+
 type key struct {
-	String *string `parser:"'[' (@String "`
-	Int    *int64  `parser:"| @Int) ']'"`
+	String     *string          `parser:"'[' (@String "`
+	Int        *int64           `parser:"| @Int"`
+	Expression *mathExprLiteral `parser:"| @@ ) ']'"`
+}
+
+func (k *key) accept(v grammarVisitor) {
+	if k.Expression != nil {
+		k.Expression.accept(v)
+	}
 }
 
 type list struct {
@@ -342,7 +369,7 @@ type mathExprLiteral struct {
 func (m *mathExprLiteral) accept(v grammarVisitor) {
 	v.visitMathExprLiteral(m)
 	if m.Path != nil {
-		v.visitPath(m.Path)
+		m.Path.accept(v)
 	}
 	if m.Editor != nil {
 		m.Editor.accept(v)
@@ -525,6 +552,7 @@ func (e *grammarCustomError) Unwrap() []error {
 type grammarVisitor interface {
 	visitPath(v *path)
 	visitEditor(v *editor)
+	visitConverter(v *converter)
 	visitValue(v *value)
 	visitMathExprLiteral(v *mathExprLiteral)
 }
@@ -548,6 +576,8 @@ func (g *grammarCustomErrorsVisitor) join() error {
 func (g *grammarCustomErrorsVisitor) visitPath(_ *path) {}
 
 func (g *grammarCustomErrorsVisitor) visitValue(_ *value) {}
+
+func (g *grammarCustomErrorsVisitor) visitConverter(_ *converter) {}
 
 func (g *grammarCustomErrorsVisitor) visitEditor(v *editor) {
 	if v.Keys != nil {

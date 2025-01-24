@@ -12,12 +12,11 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/testutil"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver/internal/metadata"
 )
 
-const grpcPort = 55678
+const grpcEndpoint = "localhost:55678"
 
 // NewFactory creates a new OpenCensus receiver factory.
 func NewFactory() receiver.Factory {
@@ -32,7 +31,7 @@ func createDefaultConfig() component.Config {
 	return &Config{
 		ServerConfig: configgrpc.ServerConfig{
 			NetAddr: confignet.AddrConfig{
-				Endpoint:  testutil.EndpointForPort(grpcPort),
+				Endpoint:  grpcEndpoint,
 				Transport: confignet.TransportTypeTCP,
 			},
 			// We almost write 0 bytes, so no need to tune WriteBufferSize.

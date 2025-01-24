@@ -22,7 +22,11 @@ func GetMapValue[K any](ctx context.Context, tCtx K, m pcommon.Map, keys []ottl.
 		return nil, err
 	}
 	if s == nil {
-		return nil, fmt.Errorf("non-string indexing is not supported")
+		resString, err := FetchValueFromExpression[K, string](ctx, tCtx, keys[0])
+		if err != nil {
+			return nil, fmt.Errorf("unable to resolve a string index in map: %w", err)
+		}
+		s = resString
 	}
 
 	val, ok := m.Get(*s)
@@ -43,7 +47,11 @@ func SetMapValue[K any](ctx context.Context, tCtx K, m pcommon.Map, keys []ottl.
 		return err
 	}
 	if s == nil {
-		return fmt.Errorf("non-string indexing is not supported")
+		resString, err := FetchValueFromExpression[K, string](ctx, tCtx, keys[0])
+		if err != nil {
+			return fmt.Errorf("unable to resolve a string index in map: %w", err)
+		}
+		s = resString
 	}
 
 	currentValue, ok := m.Get(*s)
@@ -51,4 +59,23 @@ func SetMapValue[K any](ctx context.Context, tCtx K, m pcommon.Map, keys []ottl.
 		currentValue = m.PutEmpty(*s)
 	}
 	return setIndexableValue[K](ctx, tCtx, currentValue, val, keys[1:])
+}
+
+func FetchValueFromExpression[K any, T int64 | string](ctx context.Context, tCtx K, key ottl.Key[K]) (*T, error) {
+	p, err := key.ExpressionGetter(ctx, tCtx)
+	if err != nil {
+		return nil, err
+	}
+	if p == nil {
+		return nil, fmt.Errorf("invalid key type")
+	}
+	res, err := p.Get(ctx, tCtx)
+	if err != nil {
+		return nil, err
+	}
+	resVal, ok := res.(T)
+	if !ok {
+		return nil, fmt.Errorf("could not resolve key for map/slice, expecting '%T' but got '%T'", resVal, res)
+	}
+	return &resVal, nil
 }

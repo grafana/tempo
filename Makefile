@@ -27,7 +27,6 @@ ALL_SRC := $(shell find . -name '*.go' \
 								-not -path './tools*/*' \
 								-not -path './vendor*/*' \
 								-not -path './integration/*' \
-								-not -path './cmd/tempo-serverless/*' \
                                 -type f | sort)
 
 # ALL_SRC but without pkg and tempodb packages
@@ -35,7 +34,6 @@ OTHERS_SRC := $(shell find . -name '*.go' \
 								-not -path './tools*/*' \
 								-not -path './vendor*/*' \
 								-not -path './integration/*' \
-								-not -path './cmd/tempo-serverless/*' \
 								-not -path './pkg*/*' \
 								-not -path './tempodb*/*' \
                                 -type f | sort)
@@ -84,11 +82,11 @@ tempo-vulture:
 
 .PHONY: exe  ## Build exe
 exe:
-	GOOS=linux $(MAKE) $(COMPONENT)
+	GOOS=linux make $(COMPONENT)
 
 .PHONY: exe-debug  ## Build exe-debug
 exe-debug:
-	BUILD_DEBUG=1 GOOS=linux $(MAKE) $(COMPONENT)
+	BUILD_DEBUG=1 GOOS=linux make $(COMPONENT)
 
 ##@  Testin' and Lintin'
 
@@ -180,8 +178,8 @@ docker-component: check-component exe # not intended to be used directly
 
 .PHONY: docker-component-multi
 docker-component-multi: check-component # not intended to be used directly
-	GOOS=linux GOARCH=amd64 $(MAKE) $(COMPONENT)
-	GOOS=linux GOARCH=arm64 $(MAKE) $(COMPONENT)
+	GOOS=linux GOARCH=amd64 make $(COMPONENT)
+	GOOS=linux GOARCH=arm64 make $(COMPONENT)
 	docker buildx build -t grafana/$(COMPONENT) --platform linux/amd64,linux/arm64 --output type=docker -f ./cmd/$(COMPONENT)/Dockerfile .
 
 .PHONY: docker-component-debug
@@ -191,26 +189,26 @@ docker-component-debug: check-component exe-debug
 
 .PHONY: docker-tempo 
 docker-tempo: ## Build tempo docker image
-	COMPONENT=tempo $(MAKE) docker-component
+	COMPONENT=tempo make docker-component
 
 .PHONY: docker-tempo-multi
 docker-tempo-multi: ## Build multiarch image locally, requires containerd image store
-	COMPONENT=tempo $(MAKE) docker-component-multi
+	COMPONENT=tempo make docker-component-multi
 
 docker-tempo-debug: ## Build tempo debug docker image
-	COMPONENT=tempo $(MAKE) docker-component-debug
+	COMPONENT=tempo make docker-component-debug
 
 .PHONY: docker-cli
 docker-tempo-cli: ## Build tempo cli docker image
-	COMPONENT=tempo-cli $(MAKE) docker-component
+	COMPONENT=tempo-cli make docker-component
 
 .PHONY: docker-tempo-query
 docker-tempo-query: ## Build tempo query docker image
-	COMPONENT=tempo-query $(MAKE) docker-component
+	COMPONENT=tempo-query make docker-component
 
 .PHONY: docker-tempo-vulture
 docker-tempo-vulture: ## Build tempo vulture docker image
-	COMPONENT=tempo-vulture $(MAKE) docker-component
+	COMPONENT=tempo-vulture make docker-component
 
 .PHONY: docker-images ## Build all docker images
 docker-images: docker-tempo docker-tempo-query docker-tempo-vulture
@@ -332,21 +330,21 @@ docs-test:
 ##@ jsonnet
 .PHONY: jsonnet jsonnet-check jsonnet-test
 jsonnet: tools-image ## Generate jsonnet
-	$(TOOLS_CMD) $(MAKE) -C operations/jsonnet-compiled/util gen
+	$(TOOLS_CMD) make -C operations/jsonnet-compiled/util gen
 
 jsonnet-check: tools-image ## Check jsonnet
-	$(TOOLS_CMD) $(MAKE) -C operations/jsonnet-compiled/util check
+	$(TOOLS_CMD) make -C operations/jsonnet-compiled/util check
 
 jsonnet-test: tools-image ## Test jsonnet
-	$(TOOLS_CMD) $(MAKE) -C operations/jsonnet/microservices test
+	$(TOOLS_CMD) make -C operations/jsonnet/microservices test
 
 ### tempo-mixin
 .PHONY: tempo-mixin tempo-mixin-check
 tempo-mixin: tools-image
-	$(TOOLS_CMD) $(MAKE) -C operations/tempo-mixin all
+	$(TOOLS_CMD) make -C operations/tempo-mixin all
 
 tempo-mixin-check: tools-image
-	$(TOOLS_CMD) $(MAKE) -C operations/tempo-mixin check
+	$(TOOLS_CMD) make -C operations/tempo-mixin check
 
 .PHONY: generate-manifest
 generate-manifest:

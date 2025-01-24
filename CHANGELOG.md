@@ -1,4 +1,17 @@
 ## main / unreleased
+* [CHANGE] **BREAKING CHANGE** Remove tempo serverless [#4599](https://github.com/grafana/tempo/pull/4599/) @electron0zero
+  Following config options are no longer valid, please remove them if you are using these in your tempo config:
+  ```
+  querier:
+      search:
+          prefer_self: <int>
+          external_hedge_requests_at: <duration>
+          external_hedge_requests_up_to:  <duration>
+          external_backend: <string>
+          google_cloud_run: <string>
+          external_endpoints: <array>
+  ```
+  Tempo serverless related metric `tempo_querier_external_endpoint_duration_seconds`,  `tempo_querier_external_endpoint_hedged_roundtrips_total` and `tempo_feature_enabled` are being removed.
 
 * [CHANGE] **BREAKING CHANGE** Removed `internal_error` as a reason from `tempo_discarded_spans_total`. [#4554](https://github.com/grafana/tempo/pull/4554) (@joe-elliott)
 * [ENHANCEMENT] Update minio to version [#4341](https://github.com/grafana/tempo/pull/4568) (@javiermolinar)
@@ -11,6 +24,7 @@
 * [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. [#4546](https://github.com/grafana/tempo/pull/4576) (@joe-elliott)
   Correctly copy exemplars for metrics like `| rate()` when gRPC streaming.
 * [BUGFIX] Fix performance bottleneck and file cleanup in block builder [#4550](https://github.com/grafana/tempo/pull/4550) (@mdisibio)
+* [BUGFIX] TraceQL incorrect results for additional spanset filters after a select operation [#4600](https://github.com/grafana/tempo/pull/4600) (@mdisibio)
 * [BUGFIX] TraceQL results caching bug for floats ending in .0 [#4539](https://github.com/grafana/tempo/pull/4539) (@carles-grafana)
 
 # v2.7.0
