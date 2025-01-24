@@ -14,8 +14,8 @@ import (
 var _ GRPCCombiner[*tempopb.QueryRangeResponse] = (*genericCombiner[*tempopb.QueryRangeResponse])(nil)
 
 // NewQueryRange returns a query range combiner.
-func NewQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (Combiner, error) {
-	combiner, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeFinal, trackDiffs)
+func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
+	combiner, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeFinal)
 	if err != nil {
 		return nil, err
 	}
@@ -49,14 +49,18 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (Combiner, e
 			return resp, nil
 		},
 		diff: func(_ *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
-			resp := combiner.Diff()
-			if resp == nil {
-				resp = &tempopb.QueryRangeResponse{}
-			}
-			sortResponse(resp)
-			attachExemplars(req, resp)
+			// jpe - no longer diff in the combiner. store the previous response and return those data points that have changed
+			/*
+				resp := combiner.Diff()
+				if resp == nil {
+					resp = &tempopb.QueryRangeResponse{}
+				}
+				sortResponse(resp)
+				attachExemplars(req, resp)
 
-			return resp, nil
+				return resp, nil
+			*/
+			return nil, nil
 		},
 	}
 
@@ -65,8 +69,8 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (Combiner, e
 	return c, nil
 }
 
-func NewTypedQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (GRPCCombiner[*tempopb.QueryRangeResponse], error) {
-	c, err := NewQueryRange(req, trackDiffs)
+func NewTypedQueryRange(req *tempopb.QueryRangeRequest) (GRPCCombiner[*tempopb.QueryRangeResponse], error) {
+	c, err := NewQueryRange(req)
 	if err != nil {
 		return nil, err
 	}
