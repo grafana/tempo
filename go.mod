@@ -82,7 +82,7 @@ require (
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.1
-	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.5.0
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.0
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
 	github.com/googleapis/gax-go/v2 v2.14.1
