@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
@@ -302,7 +303,7 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 	requireLastCommitEquals(t, ctx, client, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
-func blockbuilderConfig(t *testing.T, address string) Config {
+func blockbuilderConfig(t testing.TB, address string) Config {
 	cfg := Config{}
 	flagext.DefaultValues(&cfg)
 
@@ -327,8 +328,13 @@ type ownEverythingSharder struct{}
 
 func (o *ownEverythingSharder) Owns(string) bool { return true }
 
-func newStore(ctx context.Context, t *testing.T) storage.Store {
+func newStore(ctx context.Context, t testing.TB) storage.Store {
+	return newStoreWithLogger(ctx, t, test.NewTestingLogger(t))
+}
+
+func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger) storage.Store {
 	tmpDir := t.TempDir()
+
 	s, err := storage.NewStore(storage.Config{
 		Trace: tempodb.Config{
 			Backend: backend.Local,
@@ -348,7 +354,7 @@ func newStore(ctx context.Context, t *testing.T) storage.Store {
 			},
 			BlocklistPoll: 5 * time.Second,
 		},
-	}, nil, test.NewTestingLogger(t))
+	}, nil, log)
 	require.NoError(t, err)
 
 	s.EnablePolling(ctx, &ownEverythingSharder{})
@@ -402,9 +408,10 @@ type mockOverrides struct {
 	dc backend.DedicatedColumns
 }
 
+func (m *mockOverrides) MaxBytesPerTrace(_ string) int                      { return 0 }
 func (m *mockOverrides) DedicatedColumns(_ string) backend.DedicatedColumns { return m.dc }
 
-func newKafkaClient(t *testing.T, config ingest.KafkaConfig) *kgo.Client {
+func newKafkaClient(t testing.TB, config ingest.KafkaConfig) *kgo.Client {
 	writeClient, err := kgo.NewClient(
 		kgo.SeedBrokers(config.Address),
 		kgo.AllowAutoTopicCreation(),
@@ -427,7 +434,7 @@ func countFlushedTraces(store storage.Store) int {
 }
 
 // nolint: revive
-func sendReq(t *testing.T, ctx context.Context, client *kgo.Client) []*kgo.Record {
+func sendReq(t testing.TB, ctx context.Context, client *kgo.Client) []*kgo.Record {
 	traceID := generateTraceID(t)
 
 	now := time.Now()
@@ -466,7 +473,7 @@ func sendTracesFor(t *testing.T, ctx context.Context, client *kgo.Client, dur, i
 	}
 }
 
-func generateTraceID(t *testing.T) []byte {
+func generateTraceID(t testing.TB) []byte {
 	traceID := make([]byte, 16)
 	_, err := rand.Read(traceID)
 	require.NoError(t, err)
@@ -480,4 +487,68 @@ func requireLastCommitEquals(t testing.TB, ctx context.Context, client *kgo.Clie
 	offset, ok := offsets.Lookup(testTopic, testPartition)
 	require.True(t, ok)
 	require.Equal(t, expectedOffset, offset.At)
+}
+
+func BenchmarkBlockBuilder(b *testing.B) {
+	var (
+		ctx        = context.Background()
+		logger     = log.NewNopLogger()
+		_, address = testkafka.CreateCluster(b, 1, testTopic)
+		store      = newStoreWithLogger(ctx, b, logger)
+		cfg        = blockbuilderConfig(b, address)
+		client     = newKafkaClient(b, cfg.IngestStorageConfig.Kafka)
+		o          = &mockOverrides{
+			dc: backend.DedicatedColumns{
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res0", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res1", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res2", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res3", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res4", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res5", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res6", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res7", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res8", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res9", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span0", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span1", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span2", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span3", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span4", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span5", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span6", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span7", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span8", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span9", Type: backend.DedicatedColumnTypeString},
+			},
+		}
+	)
+
+	cfg.ConsumeCycleDuration = 1 * time.Hour
+
+	bb := New(cfg, logger, newPartitionRingReader(), o, store)
+	defer func() { require.NoError(b, bb.stopping(nil)) }()
+
+	// Startup (without starting the background consume cycle)
+	err := bb.starting(ctx)
+	require.NoError(b, err)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+
+		var records []*kgo.Record
+		for i := 0; i < 1000; i++ {
+			records = append(records, sendReq(b, ctx, client)...)
+		}
+
+		var size int
+		for _, r := range records {
+			size += len(r.Value)
+		}
+
+		err = bb.consume(ctx)
+		require.NoError(b, err)
+
+		b.SetBytes(int64(size))
+	}
 }

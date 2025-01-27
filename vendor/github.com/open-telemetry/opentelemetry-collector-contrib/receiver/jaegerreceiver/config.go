@@ -37,10 +37,10 @@ type RemoteSamplingConfig struct {
 
 // Protocols is the configuration for the supported protocols.
 type Protocols struct {
-	GRPC          *configgrpc.ServerConfig `mapstructure:"grpc"`
-	ThriftHTTP    *confighttp.ServerConfig `mapstructure:"thrift_http"`
-	ThriftBinary  *ProtocolUDP             `mapstructure:"thrift_binary"`
-	ThriftCompact *ProtocolUDP             `mapstructure:"thrift_compact"`
+	GRPC             *configgrpc.ServerConfig `mapstructure:"grpc"`
+	ThriftHTTP       *confighttp.ServerConfig `mapstructure:"thrift_http"`
+	ThriftBinaryUDP  *ProtocolUDP             `mapstructure:"thrift_binary"`
+	ThriftCompactUDP *ProtocolUDP             `mapstructure:"thrift_compact"`
 }
 
 // ProtocolUDP is the configuration for a UDP protocol.
@@ -82,8 +82,8 @@ var (
 func (cfg *Config) Validate() error {
 	if cfg.GRPC == nil &&
 		cfg.ThriftHTTP == nil &&
-		cfg.ThriftBinary == nil &&
-		cfg.ThriftCompact == nil {
+		cfg.ThriftBinaryUDP == nil &&
+		cfg.ThriftCompactUDP == nil {
 		return errors.New("must specify at least one protocol when using the Jaeger receiver")
 	}
 
@@ -99,14 +99,14 @@ func (cfg *Config) Validate() error {
 		}
 	}
 
-	if cfg.ThriftBinary != nil {
-		if err := checkPortFromEndpoint(cfg.ThriftBinary.Endpoint); err != nil {
+	if cfg.ThriftBinaryUDP != nil {
+		if err := checkPortFromEndpoint(cfg.ThriftBinaryUDP.Endpoint); err != nil {
 			return fmt.Errorf("invalid port number for the Thrift UDP Binary endpoint: %w", err)
 		}
 	}
 
-	if cfg.ThriftCompact != nil {
-		if err := checkPortFromEndpoint(cfg.ThriftCompact.Endpoint); err != nil {
+	if cfg.ThriftCompactUDP != nil {
+		if err := checkPortFromEndpoint(cfg.ThriftCompactUDP.Endpoint); err != nil {
 			return fmt.Errorf("invalid port number for the Thrift UDP Compact endpoint: %w", err)
 		}
 	}
@@ -145,10 +145,10 @@ func (cfg *Config) Unmarshal(componentParser *confmap.Conf) error {
 		cfg.ThriftHTTP = nil
 	}
 	if !protocols.IsSet(protoThriftBinary) {
-		cfg.ThriftBinary = nil
+		cfg.ThriftBinaryUDP = nil
 	}
 	if !protocols.IsSet(protoThriftCompact) {
-		cfg.ThriftCompact = nil
+		cfg.ThriftCompactUDP = nil
 	}
 
 	return nil

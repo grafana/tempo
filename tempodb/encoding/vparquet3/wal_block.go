@@ -339,8 +339,6 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 		dataquality.WarnRootlessTrace(b.meta.TenantID, dataquality.PhaseTraceFlushedToWal)
 	}
 
-	start, end = b.adjustTimeRangeForSlack(start, end)
-
 	// add to current
 	_, err := b.writer.Write([]*Trace{b.buffer})
 	if err != nil {

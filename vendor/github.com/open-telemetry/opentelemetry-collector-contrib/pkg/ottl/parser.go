@@ -232,8 +232,9 @@ func (p *Parser[K]) prependContextToStatementPaths(context string, statement str
 }
 
 var (
-	parser          = newParser[parsedStatement]()
-	conditionParser = newParser[booleanExpression]()
+	parser                = newParser[parsedStatement]()
+	conditionParser       = newParser[booleanExpression]()
+	valueExpressionParser = newParser[value]()
 )
 
 func parseStatement(raw string) (*parsedStatement, error) {
@@ -253,6 +254,19 @@ func parseCondition(raw string) (*booleanExpression, error) {
 	parsed, err := conditionParser.ParseString("", raw)
 	if err != nil {
 		return nil, fmt.Errorf("condition has invalid syntax: %w", err)
+	}
+	err = parsed.checkForCustomError()
+	if err != nil {
+		return nil, err
+	}
+
+	return parsed, nil
+}
+
+func parseValueExpression(raw string) (*value, error) {
+	parsed, err := valueExpressionParser.ParseString("", raw)
+	if err != nil {
+		return nil, fmt.Errorf("expression has invalid syntax: %w", err)
 	}
 	err = parsed.checkForCustomError()
 	if err != nil {
@@ -438,4 +452,34 @@ func (c *ConditionSequence[K]) Eval(ctx context.Context, tCtx K) (bool, error) {
 	// idea to return False when ANDing and everything errored. We use atLeastOneMatch here to return true if anything did match.
 	// It is not possible to get here if any condition during an AND explicitly failed.
 	return c.logicOp == And && atLeastOneMatch, nil
+}
+
+// ValueExpression represents an expression that resolves to a value. The returned value can be of any type,
+// and the expression can be either a literal value, a path value within the context, or the result of a converter and/or
+// a mathematical expression.
+// This allows other components using this library to extract data from the context of the incoming signal using OTTL.
+type ValueExpression[K any] struct {
+	getter Getter[K]
+}
+
+// Eval evaluates the given expression and returns the value the expression resolves to.
+func (e *ValueExpression[K]) Eval(ctx context.Context, tCtx K) (any, error) {
+	return e.getter.Get(ctx, tCtx)
+}
+
+// ParseValueExpression parses an expression string into a ValueExpression. The ValueExpression's Eval
+// method can then be used to extract the value from the context of the incoming signal.
+func (p *Parser[K]) ParseValueExpression(raw string) (*ValueExpression[K], error) {
+	parsed, err := parseValueExpression(raw)
+	if err != nil {
+		return nil, err
+	}
+	getter, err := p.newGetter(*parsed)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ValueExpression[K]{
+		getter: getter,
+	}, nil
 }

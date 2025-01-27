@@ -45,6 +45,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (Combiner, e
 			}
 			sortResponse(resp)
 			attachExemplars(req, resp)
+
 			return resp, nil
 		},
 		diff: func(_ *tempopb.QueryRangeResponse) (*tempopb.QueryRangeResponse, error) {
@@ -53,6 +54,8 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, trackDiffs bool) (Combiner, e
 				resp = &tempopb.QueryRangeResponse{}
 			}
 			sortResponse(resp)
+			attachExemplars(req, resp)
+
 			return resp, nil
 		},
 	}

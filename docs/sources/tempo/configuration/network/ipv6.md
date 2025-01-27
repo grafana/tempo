@@ -12,7 +12,7 @@ Tempo can be configured to communicate between the components using Internet Pro
 
 {{< admonition type="note" >}}
 The underlying infrastructure must support this address family. This configuration may be used in a single-stack IPv6 environment, or in a dual-stack environment where both IPv6 and IPv4 are present. In a dual-stack scenario, only one address family may be configured at a time, and all components must be configured for that address family.
-{{% /admonition %}}
+{{< /admonition >}}
 
 ## Protocol configuration
 

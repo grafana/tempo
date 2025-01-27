@@ -239,11 +239,8 @@ The following table shows the current available scoped intrinsic fields:
 | `event:timeSinceStart`   | duration    | time of event in relation to the span start time                | `{ event:timeSinceStart > 2ms}`         |
 | `link:spanID`            | string      | link span ID using hex string                                   | `{ link:spanID = "0000000000000001" }`  |
 | `link:traceID`           | string      | link trace ID using hex string                                  | `{ link:traceID = "1234567890abcde" }`  |
-
-<!-- instrumentation scope isn't included in the 2.6 documentation
 | `instrumentation:name`   | string      | instrumentation scope name                                      | `{ instrumentation:name = "grpc" }`     |
 | `instrumentation:version`| string      | instrumentation scope version                                   | `{ instrumentation:version = "1.0.0" }` |
--->
 
 The trace-level intrinsics, `trace:duration`, `trace:rootName`, and `trace:rootService`, are the same for all spans in the same trace.
 Additionally, these intrinsics are significantly more performant because they have to inspect much less data then a span-level intrinsic.
@@ -261,9 +258,7 @@ This example searches all Kubernetes clusters called `service-name` that have a 
 
 ### Attribute fields
 
-TraceQL has four different attribute scopes: span attributes, resource attributes, event attributes, and link attributes.
-<!-- instrumentation scope isn't in 2.6 >
-instrumentation scope attributes.  -->
+TraceQL supports these different attribute scopes: span attributes, resource attributes, event attributes, link attributes, and instrumentation scope attributes.
 
 By expanding a span in the Grafana UI, you can see both its span attributes (1 in the screenshot) and resource attributes (2 in the screenshot).
 
@@ -314,12 +309,21 @@ You can search for an attribute in your link:
 ```
 { link.opentracing.ref_type = "child_of" }
 ```
-<!-- instrumentation scope isn't included in the 2.6 release
+
+The instrumentation scope lets you query the [instrumentation scope](https://opentelemetry.io/docs/concepts/instrumentation-scope/) fields so you can filter and explore your traces based on where and how they were instrumented.
+The primary use of this scope is to query your trace data based on the various libraries and clients that are producing data.
+
 Find instrumentation scope programming language:
 ```
 { instrumentation.language = "java" }
 ```
--->
+
+Find the libraries producing instrumentation for a given service:
+```
+{ resource.service.name = "foo" } | rate() by (instrumentation:name)
+```
+
+The [Tempo 2.7 release video](https://www.youtube.com/watch?v=0jUEvY-pCdw) demos and explains the `instrumentation` scope, starting at 30 seconds.
 
 ### Unscoped attribute fields
 
@@ -375,7 +379,11 @@ The implemented comparison operators are:
 TraceQL uses Golang regular expressions.
 Online regular expression testing sites like https://regex101.com/ are convenient to validate regular expressions used in TraceQL queries.
 All regular expressions are treated as fully anchored.
-For example, `span.foo =~ "bar"` is evaluated as `span.foo =~ "^bar$"`.
+Regular expressions are anchored at both ends. This anchoring makes the queries faster and matches the behavior of PromQL, where regular expressions are also fully anchored.
+
+An unanchored query, such as: { span.foo =~ "bar" } is now treated as: { span.foo =~ "^bar$" }.
+
+If you use TraceQL with regular expressions in your Grafana dashboards and you want the unanchored behavior, update the queries to use the unanchored version, such as { span.foo =~ ".*bar.*"}.
 
 For example, to find all traces where an `http.status_code` attribute in a span are greater than `400` but less than equal to `500`:
 

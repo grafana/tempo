@@ -17,21 +17,24 @@ import (
 )
 
 func (g *Generator) startKafka() {
-	g.kafkaStop = make(chan struct{})
+	// Create context that will be used to stop the goroutines.
+	var ctx context.Context
+	ctx, g.kafkaStop = context.WithCancel(context.Background())
+
 	g.kafkaWG.Add(1)
-	go g.listenKafka()
+	go g.listenKafka(ctx)
+	ingest.ExportPartitionLagMetrics(ctx, g.kafkaAdm, g.logger, g.cfg.Ingest, g.getAssignedActivePartitions)
 }
 
 func (g *Generator) stopKafka() {
-	close(g.kafkaStop)
+	g.kafkaStop()
 	g.kafkaWG.Wait()
 }
 
-func (g *Generator) listenKafka() {
+func (g *Generator) listenKafka(ctx context.Context) {
 	defer g.kafkaWG.Done()
 
 	level.Info(g.logger).Log("msg", "generator now listening to kafka")
-	ctx := context.Background()
 	for {
 		select {
 		case <-time.After(2 * time.Second):
@@ -44,8 +47,6 @@ func (g *Generator) listenKafka() {
 				level.Error(g.logger).Log("msg", "readKafka failed", "err", err)
 				continue
 			}
-		case <-g.kafkaStop:
-			return
 		case <-ctx.Done():
 			return
 		}

@@ -22,7 +22,9 @@ import (
 )
 
 const (
-	contextName = "Log"
+	// Experimental: *NOTE* this constant is subject to change or removal in the future.
+	ContextName            = "log"
+	contextNameDescription = "Log"
 )
 
 var (
@@ -69,14 +71,29 @@ func (tCtx TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) err
 
 type Option func(*ottl.Parser[TransformContext])
 
-func NewTransformContext(logRecord plog.LogRecord, instrumentationScope pcommon.InstrumentationScope, resource pcommon.Resource, scopeLogs plog.ScopeLogs, resourceLogs plog.ResourceLogs) TransformContext {
-	return TransformContext{
+type TransformContextOption func(*TransformContext)
+
+func NewTransformContext(logRecord plog.LogRecord, instrumentationScope pcommon.InstrumentationScope, resource pcommon.Resource, scopeLogs plog.ScopeLogs, resourceLogs plog.ResourceLogs, options ...TransformContextOption) TransformContext {
+	tc := TransformContext{
 		logRecord:            logRecord,
 		instrumentationScope: instrumentationScope,
 		resource:             resource,
 		cache:                pcommon.NewMap(),
 		scopeLogs:            scopeLogs,
 		resourceLogs:         resourceLogs,
+	}
+	for _, opt := range options {
+		opt(&tc)
+	}
+	return tc
+}
+
+// Experimental: *NOTE* this option is subject to change or removal in the future.
+func WithCache(cache *pcommon.Map) TransformContextOption {
+	return func(p *TransformContext) {
+		if cache != nil {
+			p.cache = *cache
+		}
 	}
 }
 
@@ -119,6 +136,21 @@ func NewParser(functions map[string]ottl.Factory[TransformContext], telemetrySet
 		opt(&p)
 	}
 	return p, nil
+}
+
+// EnablePathContextNames enables the support to path's context names on statements.
+// When this option is configured, all statement's paths must have a valid context prefix,
+// otherwise an error is reported.
+//
+// Experimental: *NOTE* this option is subject to change or removal in the future.
+func EnablePathContextNames() Option {
+	return func(p *ottl.Parser[TransformContext]) {
+		ottl.WithPathContextNames[TransformContext]([]string{
+			ContextName,
+			internal.InstrumentationScopeContextName,
+			internal.ResourceContextName,
+		})(p)
+	}
 }
 
 type StatementSequenceOption func(*ottl.StatementSequence[TransformContext])
@@ -199,16 +231,21 @@ func (pep *pathExpressionParser) parsePath(path ottl.Path[TransformContext]) (ot
 	if path == nil {
 		return nil, fmt.Errorf("path cannot be nil")
 	}
+	// Higher contexts parsing
+	if path.Context() != "" && path.Context() != ContextName {
+		return pep.parseHigherContextPath(path.Context(), path)
+	}
+	// Backward compatibility with paths without context
+	if path.Context() == "" && (path.Name() == internal.ResourceContextName || path.Name() == internal.InstrumentationScopeContextName) {
+		return pep.parseHigherContextPath(path.Name(), path.Next())
+	}
+
 	switch path.Name() {
 	case "cache":
 		if path.Keys() == nil {
 			return accessCache(), nil
 		}
 		return accessCacheKey(path.Keys()), nil
-	case "resource":
-		return internal.ResourcePathGetSetter[TransformContext](path.Next())
-	case "instrumentation_scope":
-		return internal.ScopePathGetSetter[TransformContext](path.Next())
 	case "time_unix_nano":
 		return accessTimeUnixNano(), nil
 	case "observed_time_unix_nano":
@@ -227,7 +264,7 @@ func (pep *pathExpressionParser) parsePath(path ottl.Path[TransformContext]) (ot
 			if nextPath.Name() == "string" {
 				return accessStringBody(), nil
 			}
-			return nil, internal.FormatDefaultErrorMessage(nextPath.Name(), nextPath.String(), contextName, internal.LogRef)
+			return nil, internal.FormatDefaultErrorMessage(nextPath.Name(), nextPath.String(), contextNameDescription, internal.LogRef)
 		}
 		if path.Keys() == nil {
 			return accessBody(), nil
@@ -248,7 +285,7 @@ func (pep *pathExpressionParser) parsePath(path ottl.Path[TransformContext]) (ot
 			if nextPath.Name() == "string" {
 				return accessStringTraceID(), nil
 			}
-			return nil, internal.FormatDefaultErrorMessage(nextPath.Name(), nextPath.String(), contextName, internal.LogRef)
+			return nil, internal.FormatDefaultErrorMessage(nextPath.Name(), nextPath.String(), contextNameDescription, internal.LogRef)
 		}
 		return accessTraceID(), nil
 	case "span_id":
@@ -257,11 +294,26 @@ func (pep *pathExpressionParser) parsePath(path ottl.Path[TransformContext]) (ot
 			if nextPath.Name() == "string" {
 				return accessStringSpanID(), nil
 			}
-			return nil, internal.FormatDefaultErrorMessage(nextPath.Name(), path.String(), contextName, internal.LogRef)
+			return nil, internal.FormatDefaultErrorMessage(nextPath.Name(), path.String(), contextNameDescription, internal.LogRef)
 		}
 		return accessSpanID(), nil
 	default:
-		return nil, internal.FormatDefaultErrorMessage(path.Name(), path.String(), contextName, internal.LogRef)
+		return nil, internal.FormatDefaultErrorMessage(path.Name(), path.String(), contextNameDescription, internal.LogRef)
+	}
+}
+
+func (pep *pathExpressionParser) parseHigherContextPath(context string, path ottl.Path[TransformContext]) (ottl.GetSetter[TransformContext], error) {
+	switch context {
+	case internal.ResourceContextName:
+		return internal.ResourcePathGetSetter(ContextName, path)
+	case internal.InstrumentationScopeContextName:
+		return internal.ScopePathGetSetter(ContextName, path)
+	default:
+		var fullPath string
+		if path != nil {
+			fullPath = path.String()
+		}
+		return nil, internal.FormatDefaultErrorMessage(context, fullPath, contextNameDescription, internal.LogRef)
 	}
 }
 

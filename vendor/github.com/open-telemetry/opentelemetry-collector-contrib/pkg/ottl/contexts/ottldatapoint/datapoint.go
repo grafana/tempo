@@ -20,7 +20,9 @@ import (
 )
 
 const (
-	contextName = "DataPoint"
+	// Experimental: *NOTE* this constant is subject to change or removal in the future.
+	ContextName            = "datapoint"
+	contextNameDescription = "DataPoint"
 )
 
 var (
@@ -62,8 +64,10 @@ func (tCtx TransformContext) MarshalLogObject(encoder zapcore.ObjectEncoder) err
 
 type Option func(*ottl.Parser[TransformContext])
 
-func NewTransformContext(dataPoint any, metric pmetric.Metric, metrics pmetric.MetricSlice, instrumentationScope pcommon.InstrumentationScope, resource pcommon.Resource, scopeMetrics pmetric.ScopeMetrics, resourceMetrics pmetric.ResourceMetrics) TransformContext {
-	return TransformContext{
+type TransformContextOption func(*TransformContext)
+
+func NewTransformContext(dataPoint any, metric pmetric.Metric, metrics pmetric.MetricSlice, instrumentationScope pcommon.InstrumentationScope, resource pcommon.Resource, scopeMetrics pmetric.ScopeMetrics, resourceMetrics pmetric.ResourceMetrics, options ...TransformContextOption) TransformContext {
+	tc := TransformContext{
 		dataPoint:            dataPoint,
 		metric:               metric,
 		metrics:              metrics,
@@ -72,6 +76,19 @@ func NewTransformContext(dataPoint any, metric pmetric.Metric, metrics pmetric.M
 		cache:                pcommon.NewMap(),
 		scopeMetrics:         scopeMetrics,
 		resourceMetrics:      resourceMetrics,
+	}
+	for _, opt := range options {
+		opt(&tc)
+	}
+	return tc
+}
+
+// Experimental: *NOTE* this option is subject to change or removal in the future.
+func WithCache(cache *pcommon.Map) TransformContextOption {
+	return func(p *TransformContext) {
+		if cache != nil {
+			p.cache = *cache
+		}
 	}
 }
 
@@ -122,6 +139,22 @@ func NewParser(functions map[string]ottl.Factory[TransformContext], telemetrySet
 		opt(&p)
 	}
 	return p, nil
+}
+
+// EnablePathContextNames enables the support to path's context names on statements.
+// When this option is configured, all statement's paths must have a valid context prefix,
+// otherwise an error is reported.
+//
+// Experimental: *NOTE* this option is subject to change or removal in the future.
+func EnablePathContextNames() Option {
+	return func(p *ottl.Parser[TransformContext]) {
+		ottl.WithPathContextNames[TransformContext]([]string{
+			ContextName,
+			internal.ResourceContextName,
+			internal.InstrumentationScopeContextName,
+			internal.MetricContextName,
+		})(p)
+	}
 }
 
 type StatementSequenceOption func(*ottl.StatementSequence[TransformContext])
@@ -185,18 +218,23 @@ func (pep *pathExpressionParser) parsePath(path ottl.Path[TransformContext]) (ot
 	if path == nil {
 		return nil, fmt.Errorf("path cannot be nil")
 	}
+	// Higher contexts parsing
+	if path.Context() != "" && path.Context() != ContextName {
+		return pep.parseHigherContextPath(path.Context(), path)
+	}
+	// Backward compatibility with paths without context
+	if path.Context() == "" && (path.Name() == internal.ResourceContextName ||
+		path.Name() == internal.InstrumentationScopeContextName ||
+		path.Name() == internal.MetricContextName) {
+		return pep.parseHigherContextPath(path.Name(), path.Next())
+	}
+
 	switch path.Name() {
 	case "cache":
 		if path.Keys() == nil {
 			return accessCache(), nil
 		}
 		return accessCacheKey(path.Keys()), nil
-	case "resource":
-		return internal.ResourcePathGetSetter[TransformContext](path.Next())
-	case "instrumentation_scope":
-		return internal.ScopePathGetSetter[TransformContext](path.Next())
-	case "metric":
-		return internal.MetricPathGetSetter[TransformContext](path.Next())
 	case "attributes":
 		if path.Keys() == nil {
 			return accessAttributes(), nil
@@ -239,7 +277,7 @@ func (pep *pathExpressionParser) parsePath(path ottl.Path[TransformContext]) (ot
 			case "bucket_counts":
 				return accessPositiveBucketCounts(), nil
 			default:
-				return nil, internal.FormatDefaultErrorMessage(nextPath.Name(), path.String(), contextName, internal.DataPointRef)
+				return nil, internal.FormatDefaultErrorMessage(nextPath.Name(), path.String(), contextNameDescription, internal.DataPointRef)
 			}
 		}
 		return accessPositive(), nil
@@ -252,14 +290,31 @@ func (pep *pathExpressionParser) parsePath(path ottl.Path[TransformContext]) (ot
 			case "bucket_counts":
 				return accessNegativeBucketCounts(), nil
 			default:
-				return nil, internal.FormatDefaultErrorMessage(nextPath.Name(), path.String(), contextName, internal.DataPointRef)
+				return nil, internal.FormatDefaultErrorMessage(nextPath.Name(), path.String(), contextNameDescription, internal.DataPointRef)
 			}
 		}
 		return accessNegative(), nil
 	case "quantile_values":
 		return accessQuantileValues(), nil
 	default:
-		return nil, internal.FormatDefaultErrorMessage(path.Name(), path.String(), contextName, internal.DataPointRef)
+		return nil, internal.FormatDefaultErrorMessage(path.Name(), path.String(), contextNameDescription, internal.DataPointRef)
+	}
+}
+
+func (pep *pathExpressionParser) parseHigherContextPath(context string, path ottl.Path[TransformContext]) (ottl.GetSetter[TransformContext], error) {
+	switch context {
+	case internal.ResourceContextName:
+		return internal.ResourcePathGetSetter(ContextName, path)
+	case internal.InstrumentationScopeContextName:
+		return internal.ScopePathGetSetter(ContextName, path)
+	case internal.MetricContextName:
+		return internal.MetricPathGetSetter(path)
+	default:
+		var fullPath string
+		if path != nil {
+			fullPath = path.String()
+		}
+		return nil, internal.FormatDefaultErrorMessage(context, fullPath, contextNameDescription, internal.DataPointRef)
 	}
 }
 

@@ -94,6 +94,6 @@ You can consider breaking up the spans in several ways:
      - For long-running operations, you could create a new span for every predetermined interval of execution time.
         {{< admonition type="note" >}}
         This requires time-based tracking in your application's code and is more complex to implement.
-        {{% /admonition %}}
+        {{< /admonition >}}
 - Use span linking
      - Should data flow hit bottlenecks where further operations on that data might be batched at a later time, the use of [span links](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/overview.md#links-between-spans) can help keep traces constrained to an acceptable time range, while sharing context with other traces that work on the same data. This can also improve the readability of traces.

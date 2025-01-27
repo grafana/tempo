@@ -60,7 +60,7 @@ information from a client application with minimal manual instrumentation of the
 
 {{< admonition type="note" >}}
 Jaeger client libraries have been deprecated. For more information, refer to the [Deprecating Jaeger clients article](https://www.jaegertracing.io/docs/1.50/client-libraries/#deprecating-jaeger-clients). Jaeger now recommends using OpenTelemetry SDKs.
-{{% /admonition %}}
+{{< /admonition >}}
 
 - [Jaeger Language Specific Instrumentation](https://www.jaegertracing.io/docs/latest/client-libraries/)
 

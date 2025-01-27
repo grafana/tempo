@@ -54,8 +54,6 @@ const (
 	reasonTraceTooLarge = "trace_too_large"
 	// reasonLiveTracesExceeded indicates that tempo is already tracking too many live traces in the ingesters for this user
 	reasonLiveTracesExceeded = "live_traces_exceeded"
-	// reasonInternalError indicates an unexpected error occurred processing these spans. analogous to a 500
-	reasonInternalError = "internal_error"
 	// reasonUnknown indicates a pushByte error at the ingester level not related to GRPC
 	reasonUnknown = "unknown_error"
 
@@ -443,7 +441,6 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 
 	keys, rebatchedTraces, truncatedAttributeCount, err := requestsByTraceID(batches, userID, spanCount, d.cfg.MaxSpanAttrByte)
 	if err != nil {
-		overrides.RecordDiscardedSpans(spanCount, reasonInternalError, userID)
 		logDiscardedResourceSpans(batches, userID, &d.cfg.LogDiscardedSpans, d.logger)
 		return nil, err
 	}
@@ -537,7 +534,6 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	}, ring.DoBatchOptions{})
 	// if err != nil, we discarded everything because of an internal error (like "context cancelled")
 	if err != nil {
-		overrides.RecordDiscardedSpans(totalSpanCount, reasonInternalError, userID)
 		logDiscardedRebatchedSpans(traces, userID, &d.cfg.LogDiscardedSpans, d.logger)
 		return err
 	}

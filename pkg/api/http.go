@@ -40,7 +40,7 @@ const (
 	urlParamSince           = "since"
 	urlParamExemplars       = "exemplars"
 
-	// backend search (querier/serverless)
+	// backend search querier
 	urlParamStartPage        = "startPage"
 	urlParamPagesToSearch    = "pagesToSearch"
 	urlParamBlockID          = "blockID"
@@ -52,9 +52,6 @@ const (
 	urlParamSize             = "size"
 	urlParamFooterSize       = "footerSize"
 	urlParamDedicatedColumns = "dc"
-
-	// maxBytes (serverless only)
-	urlParamMaxBytes = "maxBytes"
 
 	// search tags
 	urlParamScope = "scope"
@@ -459,7 +456,9 @@ func BuildQueryRangeRequest(req *http.Request, searchReq *tempopb.QueryRangeRequ
 	qb := newQueryBuilder("")
 	qb.addParam(urlParamStart, strconv.FormatUint(searchReq.Start, 10))
 	qb.addParam(urlParamEnd, strconv.FormatUint(searchReq.End, 10))
-	qb.addParam(urlParamStep, time.Duration(searchReq.Step).String())
+	if searchReq.Step != 0 { // if step != 0 leave the param out and Tempo will calculate it
+		qb.addParam(urlParamStep, time.Duration(searchReq.Step).String())
+	}
 	qb.addParam(QueryModeKey, searchReq.QueryMode)
 	// New RF1 params
 	qb.addParam(urlParamBlockID, searchReq.BlockID)
@@ -677,37 +676,6 @@ func BuildSearchBlockRequest(req *http.Request, searchReq *tempopb.SearchBlockRe
 	req.URL.RawQuery = qb.query()
 
 	return req, nil
-}
-
-// AddServerlessParams takes an already existing http.Request and adds maxBytes
-// to it
-func AddServerlessParams(req *http.Request, maxBytes int) *http.Request {
-	if req == nil {
-		req = &http.Request{
-			URL: &url.URL{},
-		}
-	}
-
-	qb := newQueryBuilder(req.URL.RawQuery)
-	qb.addParam(urlParamMaxBytes, strconv.FormatInt(int64(maxBytes), 10))
-	req.URL.RawQuery = qb.query()
-
-	return req
-}
-
-// ExtractServerlessParams extracts params for the serverless functions from
-// an http.Request
-func ExtractServerlessParams(req *http.Request) (int, error) {
-	s, exists := extractQueryParam(req.URL.Query(), urlParamMaxBytes)
-	if !exists {
-		return 0, nil
-	}
-	maxBytes, err := strconv.ParseInt(s, 10, 32)
-	if err != nil {
-		return 0, fmt.Errorf("invalid maxBytes: %w", err)
-	}
-
-	return int(maxBytes), nil
 }
 
 func extractQueryParam(v url.Values, param string) (string, bool) {

@@ -82,6 +82,8 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 		path:           path,
 		ids:            common.NewIDMap[int64](),
 		ingestionSlack: ingestionSlack,
+		dedcolsRes:     dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource),
+		dedcolsSpan:    dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan),
 	}
 
 	// read all files in dir
@@ -161,6 +163,8 @@ func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, inge
 		path:           filepath,
 		ids:            common.NewIDMap[int64](),
 		ingestionSlack: ingestionSlack,
+		dedcolsRes:     dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource),
+		dedcolsSpan:    dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan),
 	}
 
 	// build folder
@@ -284,6 +288,8 @@ type walBlock struct {
 	meta           *backend.BlockMeta
 	path           string
 	ingestionSlack time.Duration
+	dedcolsRes     dedicatedColumnMapping
+	dedcolsSpan    dedicatedColumnMapping
 
 	// Unflushed data
 	buffer        *Trace
@@ -335,15 +341,13 @@ func (b *walBlock) IngestionSlack() time.Duration {
 
 func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end uint32) error {
 	var connected bool
-	b.buffer, connected = traceToParquet(b.meta, id, trace, b.buffer)
+	b.buffer, connected = traceToParquetWithMapping(id, trace, b.buffer, b.dedcolsRes, b.dedcolsSpan)
 	if !connected {
 		dataquality.WarnDisconnectedTrace(b.meta.TenantID, dataquality.PhaseTraceFlushedToWal)
 	}
 	if b.buffer != nil && b.buffer.RootSpanName == "" {
 		dataquality.WarnRootlessTrace(b.meta.TenantID, dataquality.PhaseTraceFlushedToWal)
 	}
-
-	start, end = b.adjustTimeRangeForSlack(start, end)
 
 	// add to current
 	_, err := b.writer.Write([]*Trace{b.buffer})

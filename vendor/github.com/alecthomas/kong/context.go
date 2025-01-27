@@ -102,7 +102,7 @@ func Trace(k *Kong, args []string) (*Context, error) {
 }
 
 // Bind adds bindings to the Context.
-func (c *Context) Bind(args ...interface{}) {
+func (c *Context) Bind(args ...any) {
 	c.bindings.add(args...)
 }
 
@@ -111,7 +111,7 @@ func (c *Context) Bind(args ...interface{}) {
 // This will typically have to be called like so:
 //
 //	BindTo(impl, (*MyInterface)(nil))
-func (c *Context) BindTo(impl, iface interface{}) {
+func (c *Context) BindTo(impl, iface any) {
 	c.bindings.addTo(impl, iface)
 }
 
@@ -119,7 +119,7 @@ func (c *Context) BindTo(impl, iface interface{}) {
 //
 // This is useful when the Run() function of different commands require different values that may
 // not all be initialisable from the main() function.
-func (c *Context) BindToProvider(provider interface{}) error {
+func (c *Context) BindToProvider(provider any) error {
 	return c.bindings.addProvider(provider)
 }
 
@@ -306,7 +306,7 @@ func (c *Context) AddResolver(resolver Resolver) {
 }
 
 // FlagValue returns the set value of a flag if it was encountered and exists, or its default value.
-func (c *Context) FlagValue(flag *Flag) interface{} {
+func (c *Context) FlagValue(flag *Flag) any {
 	for _, trace := range c.Path {
 		if trace.Flag == flag {
 			v, ok := c.values[trace.Flag.Value]
@@ -572,7 +572,7 @@ func (c *Context) Resolve() error {
 			}
 
 			// Pick the last resolved value.
-			var selected interface{}
+			var selected any
 			for _, resolver := range resolvers {
 				s, err := resolver.Resolve(c, path, flag)
 				if err != nil {
@@ -757,7 +757,7 @@ func (e *unknownFlagError) Unwrap() error { return e.Cause }
 func (e *unknownFlagError) Error() string { return e.Cause.Error() }
 
 // Call an arbitrary function filling arguments with bound values.
-func (c *Context) Call(fn any, binds ...interface{}) (out []interface{}, err error) {
+func (c *Context) Call(fn any, binds ...any) (out []any, err error) {
 	fv := reflect.ValueOf(fn)
 	bindings := c.Kong.bindings.clone().add(binds...).add(c).merge(c.bindings)
 	return callAnyFunction(fv, bindings)
@@ -769,7 +769,7 @@ func (c *Context) Call(fn any, binds ...interface{}) (out []interface{}, err err
 //
 // Any passed values will be bindable to arguments of the target Run() method. Additionally,
 // all parent nodes in the command structure will be bound.
-func (c *Context) RunNode(node *Node, binds ...interface{}) (err error) {
+func (c *Context) RunNode(node *Node, binds ...any) (err error) {
 	type targetMethod struct {
 		node   *Node
 		method reflect.Value
@@ -803,11 +803,6 @@ func (c *Context) RunNode(node *Node, binds ...interface{}) (err error) {
 	if len(methods) == 0 {
 		return fmt.Errorf("no Run() method found in hierarchy of %s", c.Selected().Summary())
 	}
-	_, err = c.Apply()
-	if err != nil {
-		return err
-	}
-
 	for _, method := range methods {
 		if err = callFunction(method.method, method.binds); err != nil {
 			return err
@@ -820,7 +815,7 @@ func (c *Context) RunNode(node *Node, binds ...interface{}) (err error) {
 //
 // Any passed values will be bindable to arguments of the target Run() method. Additionally,
 // all parent nodes in the command structure will be bound.
-func (c *Context) Run(binds ...interface{}) (err error) {
+func (c *Context) Run(binds ...any) (err error) {
 	node := c.Selected()
 	if node == nil {
 		if len(c.Path) == 0 {
@@ -832,7 +827,9 @@ func (c *Context) Run(binds ...interface{}) (err error) {
 			if method.IsValid() {
 				node = selected
 			}
-		} else {
+		}
+
+		if node == nil {
 			return fmt.Errorf("no command selected")
 		}
 	}
@@ -1092,7 +1089,7 @@ func checkAndMissing(paths []*Path) error {
 	return nil
 }
 
-func findPotentialCandidates(needle string, haystack []string, format string, args ...interface{}) error {
+func findPotentialCandidates(needle string, haystack []string, format string, args ...any) error {
 	if len(haystack) == 0 {
 		return fmt.Errorf(format, args...)
 	}

@@ -19,7 +19,7 @@ TraceQL supports `rate`, `count_over_time`, `min_over_time`, `avg_over_time`, `q
 These functions can be added as an operator at the end of any TraceQL query.
 
 `rate`
-: Calculates the number of matching spans per second
+: Calculates the number of matching spans per second.
 
 `count_over_time`
 : Counts the number of matching spans per time interval (refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs)).
@@ -34,10 +34,10 @@ These functions can be added as an operator at the end of any TraceQL query.
 : Returns the average value for the specified attribute across all matching spans per time interval (refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics)).
 
 `quantile_over_time`
-: The quantile of the values in the specified interval
+: The quantile of the values in the specified interval.
 
 `histogram_over_time`
-: Evaluate frequency distribution over time. Example: `histogram_over_time(duration) by (span.foo)`
+: Evaluate frequency distribution over time. Example: `histogram_over_time(duration) by (span.foo)`.
 
 `compare`
 : Used to split the stream of spans into two groups: a selection and a baseline. The function returns time-series for all attributes found on the spans to highlight the differences between the two groups.

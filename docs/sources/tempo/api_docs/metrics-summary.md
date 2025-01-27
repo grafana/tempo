@@ -12,7 +12,7 @@ weight: 600
 {{< admonition type="warning" >}}
 The metrics summary API is deprecated as of Tempo 2.7. Features powered by the metrics summary API, like the [Aggregate by table](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/query-editor/traceql-search/#optional-use-aggregate-by), are also deprecated in Grafana Cloud and Grafana 11.3 and later.
 It will be removed in a future release.
-{{% /admonition %}}
+{{< /admonition >}}
 
 This document explains how to use the metrics summary API in Tempo.
 This API returns RED metrics (span count, erroring span count, and latency information) for `kind=server` spans sent to Tempo in the last hour, grouped by a user-specified attribute.
@@ -122,7 +122,7 @@ The response is returned as JSON following [standard protobuf->JSON mapping rule
 
 {{< admonition type="note" >}}
 The `uint64` fields cannot be fully expressed by JSON numeric values so the fields are serialized as strings.
-{{% /admonition %}}
+{{< /admonition >}}
 
 Example:
 

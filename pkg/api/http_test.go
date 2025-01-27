@@ -638,33 +638,6 @@ func TestBuildSearchRequest(t *testing.T) {
 	}
 }
 
-func TestAddServerlessParams(t *testing.T) {
-	actualURL := AddServerlessParams(nil, 10)
-	assert.Equal(t, "?maxBytes=10", actualURL.URL.String())
-
-	req, err := http.NewRequest("GET", "http://example.com", nil)
-	require.NoError(t, err)
-
-	actualURL = AddServerlessParams(req, 10)
-	assert.Equal(t, "http://example.com?maxBytes=10", actualURL.URL.String())
-}
-
-func TestExtractServerlessParam(t *testing.T) {
-	r := httptest.NewRequest("GET", "http://example.com", nil)
-	maxBytes, err := ExtractServerlessParams(r)
-	require.NoError(t, err)
-	assert.Equal(t, 0, maxBytes)
-
-	r = httptest.NewRequest("GET", "http://example.com?maxBytes=13", nil)
-	maxBytes, err = ExtractServerlessParams(r)
-	require.NoError(t, err)
-	assert.Equal(t, 13, maxBytes)
-
-	r = httptest.NewRequest("GET", "http://example.com?maxBytes=blerg", nil)
-	_, err = ExtractServerlessParams(r)
-	assert.Error(t, err)
-}
-
 func Test_parseTimestamp(t *testing.T) {
 	now := time.Now()
 
@@ -704,7 +677,9 @@ func TestQueryRangeRoundtrip(t *testing.T) {
 	}{
 		{
 			name: "empty",
-			req:  &tempopb.QueryRangeRequest{},
+			req: &tempopb.QueryRangeRequest{
+				Step: uint64(time.Second), // you can't actually roundtrip an empty query b/c Build/Parse will force a default step
+			},
 		},
 		{
 			name: "not empty!",

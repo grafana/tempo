@@ -22,7 +22,11 @@ func GetSliceValue[K any](ctx context.Context, tCtx K, s pcommon.Slice, keys []o
 		return nil, err
 	}
 	if i == nil {
-		return nil, fmt.Errorf("non-integer indexing is not supported")
+		resInt, err := FetchValueFromExpression[K, int64](ctx, tCtx, keys[0])
+		if err != nil {
+			return nil, fmt.Errorf("unable to resolve an integer index in slice: %w", err)
+		}
+		i = resInt
 	}
 
 	idx := int(*i)
@@ -44,7 +48,11 @@ func SetSliceValue[K any](ctx context.Context, tCtx K, s pcommon.Slice, keys []o
 		return err
 	}
 	if i == nil {
-		return fmt.Errorf("non-integer indexing is not supported")
+		resInt, err := FetchValueFromExpression[K, int64](ctx, tCtx, keys[0])
+		if err != nil {
+			return fmt.Errorf("unable to resolve an integer index in slice: %w", err)
+		}
+		i = resInt
 	}
 
 	idx := int(*i)

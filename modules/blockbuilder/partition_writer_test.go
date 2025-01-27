@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -39,21 +38,6 @@ func TestPushBytes(t *testing.T) {
 	endTime := uint64(now.Add(time.Second).UnixNano())
 	req := test.MakePushBytesRequest(t, 1, traceID, startTime, endTime)
 
-	err := pw.pushBytes(tenant, req)
+	err := pw.pushBytes(now, tenant, req)
 	require.NoError(t, err)
-}
-
-func TestPushBytes_UnmarshalError(t *testing.T) {
-	pw := getPartitionWriter(t)
-
-	tenant := "test-tenant"
-	traceID := []byte{1, 2, 3, 4}
-	req := &tempopb.PushBytesRequest{
-		Ids:    [][]byte{traceID},
-		Traces: []tempopb.PreallocBytes{{Slice: []byte{1, 2}}},
-	}
-
-	err := pw.pushBytes(tenant, req)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to unmarshal trace")
 }

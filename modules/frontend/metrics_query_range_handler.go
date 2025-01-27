@@ -17,6 +17,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 )
 
 // newQueryRangeStreamingGRPCHandler returns a handler that streams results from the HTTP handler
@@ -28,6 +29,11 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		ctx := srv.Context()
 
 		headers := headersFromGrpcContext(ctx)
+
+		// default step if not set
+		if req.Step == 0 {
+			req.Step = traceql.DefaultQueryRangeStep(req.Start, req.End)
+		}
 
 		httpReq := api.BuildQueryRangeRequest(&http.Request{
 			URL:    &url.URL{Path: downstreamPath},

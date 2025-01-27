@@ -1,7 +1,9 @@
 package blockbuilder
 
 import (
+	"bytes"
 	"context"
+	"slices"
 	"sync"
 	"time"
 
@@ -9,9 +11,13 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/blockbuilder/util"
+	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/dataquality"
+	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/tracesizes"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
@@ -19,6 +25,7 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.uber.org/atomic"
 )
 
 var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
@@ -27,6 +34,11 @@ var metricBlockBuilderFlushedBlocks = promauto.NewCounterVec(
 		Subsystem: "block_builder",
 		Name:      "flushed_blocks",
 	}, []string{"tenant"},
+)
+
+const (
+	reasonTraceTooLarge = "trace_too_large"
+	flushConcurrency    = 4
 )
 
 // TODO - This needs locking
@@ -46,6 +58,9 @@ type tenantStore struct {
 
 	blocksMtx sync.Mutex
 	walBlocks []common.WALBlock
+
+	liveTraces *livetraces.LiveTraces[[]byte]
+	traceSizes *tracesizes.Tracker
 }
 
 func newTenantStore(tenantID string, partitionID, endTimestamp uint64, cfg BlockConfig, logger log.Logger, wal *wal.WAL, enc encoding.VersionedEncoding, o Overrides) (*tenantStore, error) {
@@ -59,6 +74,8 @@ func newTenantStore(tenantID string, partitionID, endTimestamp uint64, cfg Block
 		headBlockMtx: sync.Mutex{},
 		blocksMtx:    sync.Mutex{},
 		enc:          enc,
+		liveTraces:   livetraces.New[[]byte](func(b []byte) uint64 { return uint64(len(b)) }),
+		traceSizes:   tracesizes.New(),
 	}
 
 	return s, s.resetHeadBlock()
@@ -106,29 +123,127 @@ func (s *tenantStore) resetHeadBlock() error {
 	return nil
 }
 
-func (s *tenantStore) AppendTrace(traceID []byte, tr *tempopb.Trace, startSectionTime time.Time) error {
-	// TODO - Do this async, it slows down consumption
-	if err := s.cutHeadBlock(false); err != nil {
-		return err
-	}
-	start, end := getTraceTimeRange(tr)
-	start, end = s.adjustTimeRangeForSlack(startSectionTime, start, end)
+func (s *tenantStore) AppendTrace(traceID []byte, tr []byte, ts time.Time) error {
+	maxSz := s.overrides.MaxBytesPerTrace(s.tenantID)
 
-	return s.headBlock.AppendTrace(traceID, tr, uint32(start), uint32(end))
+	if maxSz > 0 && !s.traceSizes.Allow(traceID, len(tr), maxSz) {
+		// Record dropped spans due to trace too large
+		// We have to unmarhal to count the number of spans.
+		// TODO - There might be a better way
+		t := &tempopb.Trace{}
+		if err := t.Unmarshal(tr); err != nil {
+			return err
+		}
+		count := 0
+		for _, b := range t.ResourceSpans {
+			for _, ss := range b.ScopeSpans {
+				count += len(ss.Spans)
+			}
+		}
+		overrides.RecordDiscardedSpans(count, reasonTraceTooLarge, s.tenantID)
+		return nil
+	}
+
+	s.liveTraces.PushWithTimestamp(ts, traceID, tr, 0)
+
+	return nil
 }
 
-func (s *tenantStore) adjustTimeRangeForSlack(startSectionTime time.Time, start, end uint64) (uint64, uint64) {
-	startOfRange := uint64(startSectionTime.Add(-s.headBlock.IngestionSlack()).Unix())
-	endOfRange := uint64(startSectionTime.Add(s.headBlock.IngestionSlack()).Unix())
+func (s *tenantStore) CutIdle(startSectionTime time.Time, since time.Time, immediate bool) error {
+	idle := s.liveTraces.CutIdle(since, immediate)
+
+	slices.SortFunc(idle, func(a, b *livetraces.LiveTrace[[]byte]) int {
+		return bytes.Compare(a.ID, b.ID)
+	})
+
+	var (
+		unmarshalWg  = sync.WaitGroup{}
+		unmarshalErr = atomic.NewError(nil)
+		unmarshaled  = make([]*tempopb.Trace, len(idle))
+		starts       = make([]uint32, len(idle))
+		ends         = make([]uint32, len(idle))
+	)
+
+	// Unmarshal and process in parallel, each goroutine handles 1/Nth
+	for i := 0; i < len(idle) && i < flushConcurrency; i++ {
+		unmarshalWg.Add(1)
+		go func(i int) {
+			defer unmarshalWg.Done()
+
+			for j := i; j < len(idle); j += flushConcurrency {
+				tr := new(tempopb.Trace)
+
+				for _, b := range idle[j].Batches {
+					// This unmarshal appends the batches onto the existing tempopb.Trace
+					// so we don't need to allocate another container temporarily
+					err := tr.Unmarshal(b)
+					if err != nil {
+						unmarshalErr.Store(err)
+						return
+					}
+				}
+
+				// Get trace timestamp bounds
+				var start, end uint64
+				for _, b := range tr.ResourceSpans {
+					for _, ss := range b.ScopeSpans {
+						for _, s := range ss.Spans {
+							if start == 0 || s.StartTimeUnixNano < start {
+								start = s.StartTimeUnixNano
+							}
+							if s.EndTimeUnixNano > end {
+								end = s.EndTimeUnixNano
+							}
+						}
+					}
+				}
+
+				// Convert from unix nanos to unix seconds
+				starts[j] = uint32(start / uint64(time.Second))
+				ends[j] = uint32(end / uint64(time.Second))
+				unmarshaled[j] = tr
+			}
+		}(i)
+	}
+
+	unmarshalWg.Wait()
+	if err := unmarshalErr.Load(); err != nil {
+		return err
+	}
+
+	for i, tr := range unmarshaled {
+		start, end := s.adjustTimeRangeForSlack(startSectionTime, starts[i], ends[i])
+		if err := s.headBlock.AppendTrace(idle[i].ID, tr, start, end); err != nil {
+			return err
+		}
+	}
+
+	// Return prealloc slices to the pool
+	for _, i := range idle {
+		tempopb.ReuseByteSlices(i.Batches)
+	}
+
+	err := s.headBlock.Flush()
+	if err != nil {
+		return err
+	}
+
+	// Cut head block if needed
+	return s.cutHeadBlock(false)
+}
+
+func (s *tenantStore) adjustTimeRangeForSlack(startSectionTime time.Time, start, end uint32) (uint32, uint32) {
+	startOfRange := uint32(startSectionTime.Add(-s.headBlock.IngestionSlack()).Unix())
+	endOfRange := uint32(startSectionTime.Add(s.headBlock.IngestionSlack()).Unix())
 
 	warn := false
 	if start < startOfRange {
 		warn = true
-		start = uint64(startSectionTime.Unix())
+		start = uint32(startSectionTime.Unix())
 	}
 	if end > endOfRange || end < start {
 		warn = true
-		end = uint64(startSectionTime.Unix())
+		end = uint32(startSectionTime.Unix())
 	}
 
 	if warn {
@@ -136,25 +251,6 @@ func (s *tenantStore) adjustTimeRangeForSlack(startSectionTime time.Time, start,
 	}
 
 	return start, end
-}
-
-func getTraceTimeRange(tr *tempopb.Trace) (startSeconds uint64, endSeconds uint64) {
-	for _, b := range tr.ResourceSpans {
-		for _, ss := range b.ScopeSpans {
-			for _, s := range ss.Spans {
-				if startSeconds == 0 || s.StartTimeUnixNano < startSeconds {
-					startSeconds = s.StartTimeUnixNano
-				}
-				if s.EndTimeUnixNano > endSeconds {
-					endSeconds = s.EndTimeUnixNano
-				}
-			}
-		}
-	}
-	startSeconds = startSeconds / uint64(time.Second)
-	endSeconds = endSeconds / uint64(time.Second)
-
-	return
 }
 
 func (s *tenantStore) Flush(ctx context.Context, store tempodb.Writer) error {
@@ -168,32 +264,65 @@ func (s *tenantStore) Flush(ctx context.Context, store tempodb.Writer) error {
 	s.blocksMtx.Lock()
 	defer s.blocksMtx.Unlock()
 
-	completeBlocks := make([]tempodb.WriteableBlock, 0, len(s.walBlocks))
-	// Write all blocks
-	for _, block := range s.walBlocks {
-		completeBlock, err := s.buildWriteableBlock(ctx, block)
-		if err != nil {
-			return err
-		}
-		completeBlocks = append(completeBlocks, completeBlock)
+	var (
+		completeBlocks = make([]tempodb.WriteableBlock, len(s.walBlocks))
+		jobErr         = atomic.NewError(nil)
+		wg             = boundedwaitgroup.New(flushConcurrency)
+	)
+
+	// Convert WALs to backend blocks
+	for i, block := range s.walBlocks {
+		wg.Add(1)
+		go func(i int, block common.WALBlock) {
+			defer wg.Done()
+
+			completeBlock, err := s.buildWriteableBlock(ctx, block)
+			if err != nil {
+				jobErr.Store(err)
+				return
+			}
+
+			err = block.Clear()
+			if err != nil {
+				jobErr.Store(err)
+				return
+			}
+
+			completeBlocks[i] = completeBlock
+		}(i, block)
 	}
 
-	level.Info(s.logger).Log("msg", "writing blocks to storage", "num_blocks", len(completeBlocks))
+	wg.Wait()
+	if err := jobErr.Load(); err != nil {
+		return err
+	}
+
 	// Write all blocks to the store
+	level.Info(s.logger).Log("msg", "writing blocks to storage", "num_blocks", len(completeBlocks))
 	for _, block := range completeBlocks {
-		level.Info(s.logger).Log("msg", "writing block to storage", "block_id", block.BlockMeta().BlockID.String())
-		if err := store.WriteBlock(ctx, block); err != nil {
-			return err
-		}
-		metricBlockBuilderFlushedBlocks.WithLabelValues(s.tenantID).Inc()
+		wg.Add(1)
+		go func(block tempodb.WriteableBlock) {
+			defer wg.Done()
+			level.Info(s.logger).Log("msg", "writing block to storage", "block_id", block.BlockMeta().BlockID.String())
+			if err := store.WriteBlock(ctx, block); err != nil {
+				jobErr.Store(err)
+				return
+			}
+
+			metricBlockBuilderFlushedBlocks.WithLabelValues(s.tenantID).Inc()
+
+			if err := s.wal.LocalBackend().ClearBlock((uuid.UUID)(block.BlockMeta().BlockID), s.tenantID); err != nil {
+				jobErr.Store(err)
+			}
+		}(block)
+	}
+
+	wg.Wait()
+	if err := jobErr.Load(); err != nil {
+		return err
 	}
 
 	// Clear the blocks
-	for _, block := range s.walBlocks {
-		if err := s.wal.LocalBackend().ClearBlock((uuid.UUID)(block.BlockMeta().BlockID), s.tenantID); err != nil {
-			return err
-		}
-	}
 	s.walBlocks = s.walBlocks[:0]
 
 	return nil

@@ -18,7 +18,7 @@ in the repository. This example uses the following settings to achieve multi-ten
 
 {{< admonition type="note" >}}
 Multi-tenancy on ingestion is currently [only working](https://github.com/grafana/tempo/issues/495) with GPRC and this may never change. It's strongly recommended to use the OpenTelemetry Collector to support multi-tenancy.
-{{% /admonition %}}
+{{< /admonition >}}
 
 ## Configure multi-tenancy
 

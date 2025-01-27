@@ -422,7 +422,7 @@ func MakeTraceWithTags(traceID []byte, service string, intValue int64) *tempopb.
 	return trace
 }
 
-func MakePushBytesRequest(t *testing.T, requests int, traceID []byte, startTime, endTime uint64) *tempopb.PushBytesRequest {
+func MakePushBytesRequest(t testing.TB, requests int, traceID []byte, startTime, endTime uint64) *tempopb.PushBytesRequest {
 	trace := MakeTraceWithTimeRange(requests, traceID, startTime, endTime)
 	b, err := proto.Marshal(trace)
 	require.NoError(t, err)

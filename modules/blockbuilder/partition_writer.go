@@ -2,14 +2,12 @@ package blockbuilder
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
@@ -18,7 +16,7 @@ import (
 )
 
 type partitionSectionWriter interface {
-	pushBytes(tenant string, req *tempopb.PushBytesRequest) error
+	pushBytes(ts time.Time, tenant string, req *tempopb.PushBytesRequest) error
 	flush(ctx context.Context, store tempodb.Writer) error
 }
 
@@ -52,7 +50,7 @@ func newPartitionSectionWriter(logger log.Logger, partition, cycleTs uint64, sta
 	}
 }
 
-func (p *writer) pushBytes(tenant string, req *tempopb.PushBytesRequest) error {
+func (p *writer) pushBytes(ts time.Time, tenant string, req *tempopb.PushBytesRequest) error {
 	level.Debug(p.logger).Log(
 		"msg", "pushing bytes",
 		"tenant", tenant,
@@ -66,16 +64,20 @@ func (p *writer) pushBytes(tenant string, req *tempopb.PushBytesRequest) error {
 	}
 
 	for j, trace := range req.Traces {
-		tr := new(tempopb.Trace) // TODO - Pool?
-		if err := proto.Unmarshal(trace.Slice, tr); err != nil {
-			return fmt.Errorf("failed to unmarshal trace: %w", err)
-		}
-
-		if err := i.AppendTrace(req.Ids[j], tr, p.startSectionTime); err != nil {
+		if err := i.AppendTrace(req.Ids[j], trace.Slice, ts); err != nil {
 			return err
 		}
 	}
 
+	return nil
+}
+
+func (p *writer) cutidle(since time.Time, immediate bool) error {
+	for _, i := range p.m {
+		if err := i.CutIdle(p.startSectionTime, since, immediate); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

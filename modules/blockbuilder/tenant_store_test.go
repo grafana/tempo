@@ -37,7 +37,10 @@ func TestAppendTraceHonorCycleTime(t *testing.T) {
 	trace := test.MakeTraceWithTimeRange(1, traceID, uint64(start.UnixNano()), uint64(end.UnixNano()))
 	startTime := time.Now().Add(-1 * time.Hour)
 
-	err = store.AppendTrace(traceID, trace, startTime)
+	traceBytes, err := trace.Marshal()
+	require.NoError(t, err)
+
+	err = store.AppendTrace(traceID, traceBytes, startTime)
 	require.NoError(t, err)
 
 	assert.GreaterOrEqual(t, store.headBlock.BlockMeta().StartTime.Unix(), start.Unix())
@@ -52,38 +55,38 @@ func TestAdjustTimeRangeForSlack(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		start         uint64
-		end           uint64
-		expectedStart uint64
-		expectedEnd   uint64
+		start         uint32
+		end           uint32
+		expectedStart uint32
+		expectedEnd   uint32
 	}{
 		{
 			name:          "within slack range",
-			start:         uint64(startCycleTime.Add(-2 * time.Minute).Unix()),
-			end:           uint64(startCycleTime.Add(2 * time.Minute).Unix()),
-			expectedStart: uint64(startCycleTime.Add(-2 * time.Minute).Unix()),
-			expectedEnd:   uint64(startCycleTime.Add(2 * time.Minute).Unix()),
+			start:         uint32(startCycleTime.Add(-2 * time.Minute).Unix()),
+			end:           uint32(startCycleTime.Add(2 * time.Minute).Unix()),
+			expectedStart: uint32(startCycleTime.Add(-2 * time.Minute).Unix()),
+			expectedEnd:   uint32(startCycleTime.Add(2 * time.Minute).Unix()),
 		},
 		{
 			name:          "start before slack range",
-			start:         uint64(startCycleTime.Add(-10 * time.Minute).Unix()),
-			end:           uint64(startCycleTime.Add(2 * time.Minute).Unix()),
-			expectedStart: uint64(startCycleTime.Unix()),
-			expectedEnd:   uint64(startCycleTime.Add(2 * time.Minute).Unix()),
+			start:         uint32(startCycleTime.Add(-10 * time.Minute).Unix()),
+			end:           uint32(startCycleTime.Add(2 * time.Minute).Unix()),
+			expectedStart: uint32(startCycleTime.Unix()),
+			expectedEnd:   uint32(startCycleTime.Add(2 * time.Minute).Unix()),
 		},
 		{
 			name:          "end after slack range",
-			start:         uint64(startCycleTime.Add(-2 * time.Minute).Unix()),
-			end:           uint64(startCycleTime.Add(20 * time.Minute).Unix()),
-			expectedStart: uint64(startCycleTime.Add(-2 * time.Minute).Unix()),
-			expectedEnd:   uint64(startCycleTime.Unix()),
+			start:         uint32(startCycleTime.Add(-2 * time.Minute).Unix()),
+			end:           uint32(startCycleTime.Add(20 * time.Minute).Unix()),
+			expectedStart: uint32(startCycleTime.Add(-2 * time.Minute).Unix()),
+			expectedEnd:   uint32(startCycleTime.Unix()),
 		},
 		{
 			name:          "end before start",
-			start:         uint64(startCycleTime.Add(-2 * time.Minute).Unix()),
-			end:           uint64(startCycleTime.Add(-3 * time.Minute).Unix()),
-			expectedStart: uint64(startCycleTime.Add(-2 * time.Minute).Unix()),
-			expectedEnd:   uint64(startCycleTime.Unix()),
+			start:         uint32(startCycleTime.Add(-2 * time.Minute).Unix()),
+			end:           uint32(startCycleTime.Add(-3 * time.Minute).Unix()),
+			expectedStart: uint32(startCycleTime.Add(-2 * time.Minute).Unix()),
+			expectedEnd:   uint32(startCycleTime.Unix()),
 		},
 	}
 

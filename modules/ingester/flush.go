@@ -72,20 +72,6 @@ const (
 	opKindFlush
 )
 
-// Flush triggers a flush of all in memory traces to disk.  This is called
-// by the lifecycler on shutdown and will put our traces in the WAL to be
-// replayed.
-func (i *Ingester) Flush() {
-	instances := i.getInstances()
-
-	for _, instance := range instances {
-		err := instance.CutCompleteTraces(0, true)
-		if err != nil {
-			level.Error(log.WithUserID(instance.instanceID, log.Logger)).Log("msg", "failed to cut complete traces on shutdown", "err", err)
-		}
-	}
-}
-
 // ShutdownHandler handles a graceful shutdown for an ingester. It does the following things in order
 // * Stop incoming writes by exiting from the ring
 // * Flush all blocks to backend
@@ -124,9 +110,9 @@ func (i *Ingester) FlushHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		level.Info(log.Logger).Log("msg", "flushing instance", "instance", instance.instanceID)
-		i.sweepInstance(instance, true)
+		i.cutOneInstanceToWal(instance, true)
 	} else {
-		i.sweepAllInstances(true)
+		i.cutAllInstancesToWal()
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -151,16 +137,47 @@ func (o *flushOp) Priority() int64 {
 	return -o.at.Unix()
 }
 
-// sweepAllInstances periodically schedules series for flushing and garbage collects instances with no series
-func (i *Ingester) sweepAllInstances(immediate bool) {
+// cutToWalLoop kicks off a goroutine for the passed instance that will periodically cut traces to WAL.
+// it signals completion through cutToWalWg, waits for cutToWalStart and stops on cutToWalStop.
+func (i *Ingester) cutToWalLoop(instance *instance) {
+	i.cutToWalWg.Add(1)
+
+	go func() {
+		defer i.cutToWalWg.Done()
+
+		// wait for the signal to start. we need the wal to be completely replayed
+		// before we start cutting to WAL
+		select {
+		case <-i.cutToWalStart:
+		case <-i.cutToWalStop:
+			return
+		}
+
+		// ticker
+		ticker := time.NewTicker(i.cfg.FlushCheckPeriod)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				i.cutOneInstanceToWal(instance, false)
+			case <-i.cutToWalStop:
+				return
+			}
+		}
+	}()
+}
+
+// cutAllInstancesToWal periodically schedules series for flushing and garbage collects instances with no series
+func (i *Ingester) cutAllInstancesToWal() {
 	instances := i.getInstances()
 
 	for _, instance := range instances {
-		i.sweepInstance(instance, immediate)
+		i.cutOneInstanceToWal(instance, true)
 	}
 }
 
-func (i *Ingester) sweepInstance(instance *instance, immediate bool) {
+func (i *Ingester) cutOneInstanceToWal(instance *instance, immediate bool) {
 	// cut traces internally
 	err := instance.CutCompleteTraces(i.cfg.MaxTraceIdle, immediate)
 	if err != nil {
@@ -204,6 +221,7 @@ func (i *Ingester) flushLoop(j int) {
 		if o == nil {
 			return
 		}
+
 		op := o.(*flushOp)
 		op.attempts++
 
@@ -246,7 +264,7 @@ func handleAbandonedOp(op *flushOp) {
 func (i *Ingester) handleComplete(ctx context.Context, op *flushOp) (retry bool, err error) {
 	ctx, sp := tracer.Start(ctx, "ingester.Complete", trace.WithAttributes(attribute.String("tenant", op.userID), attribute.String("blockID", op.blockID.String())))
 	defer sp.End()
-	withSpan(level.Info(log.Logger), sp).Log("msg", "flushing block", "tenant", op.userID, "block", op.blockID.String())
+	withSpan(level.Info(log.Logger), sp).Log("msg", "completing block", "tenant", op.userID, "block", op.blockID.String())
 
 	// No point in proceeding if shutdown has been initiated since
 	// we won't be able to queue up the next flush op
@@ -256,7 +274,6 @@ func (i *Ingester) handleComplete(ctx context.Context, op *flushOp) (retry bool,
 	}
 
 	start := time.Now()
-	level.Info(log.Logger).Log("msg", "completing block", "tenant", op.userID, "blockID", op.blockID)
 	instance, err := i.getOrCreateInstance(op.userID)
 	if err != nil {
 		return false, err
