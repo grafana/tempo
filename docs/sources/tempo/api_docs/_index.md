@@ -900,4 +900,9 @@ service StreamingQuerier {
   rpc MetricsQueryRange(QueryRangeRequest) returns (stream QueryRangeResponse) {}
 }
 ```
+
+{{< admonition type="note" >}}
+gRPC compression is disabled by default.
+Refer to [gRPC compression configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#grpc-compression) for more information.
+{{< /admonition >}}
 <!-- vale Grafana.GooglePassive = YES -->
