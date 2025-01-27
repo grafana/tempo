@@ -9,9 +9,9 @@ labels:
 
 [//]: # 'This file documents the best practices for tracing for Tempo.'
 [//]: # 'This shared file is included in these locations:'
-[//]: # '/grafana/docs/sources/datasources/tempo/best-practices.md'
-[//]: # '/website/docs/grafana-cloud/data-configuration/traces/best-practices.md'
-[//]: # '/tempo/docs/sources/tempo/operations/best-practices.md'
+[//]: # '/grafana/docs/sources/datasources/tempo/tracing-best-practices.md'
+[//]: # '/website/docs/grafana-cloud/send-data/traces/tracing-best-practices.md'
+[//]: # '/tempo/docs/sources/tempo/getting-started/best-practices.md'
 [//]: #
 [//]: # 'If you make changes to this file, verify that the meaning and content are not changed in any place where the file is included.'
 [//]: # 'Any links should be fully qualified and not relative: /docs/grafana/ instead of ../grafana/.'

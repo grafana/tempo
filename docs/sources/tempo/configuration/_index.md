@@ -1890,7 +1890,7 @@ overrides:
 
 These tenant-specific overrides are stored in an object store and can be modified using API requests.
 User-configurable overrides have priority over runtime overrides.
-Refer to [user-configurable overrides]{{< relref "../operations/user-configurable-overrides" >}} for more details.
+Refer to [user-configurable overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/user-configurable-overrides/) for more details.
 
 #### Override strategies
 

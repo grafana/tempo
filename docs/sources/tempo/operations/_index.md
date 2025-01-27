@@ -3,6 +3,8 @@ title: Manage Tempo
 menuTitle: Manage
 description: Learn how to manage and tune Tempo.
 weight: 450
+aliases:
+  - ./ingester_pvcs/ # https://grafana.com/docs/tempo/next/operations/ingester_pvcs/
 ---
 
 # Manage Tempo
