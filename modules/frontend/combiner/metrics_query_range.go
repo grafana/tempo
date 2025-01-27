@@ -96,21 +96,20 @@ func sortResponse(res *tempopb.QueryRangeResponse) {
 	}
 }
 
-// jpe - review below
-// ++benchmarks
-// can we do this in place? in current? we can't modify prev b/c we need it for next diff
-// if we attempt this its important that we have not previously returned a pointer to curr outside
-// the combiner. if we did it would be possible that the grpc layer is marshalling it while we modify it
-// assume sorted
+// diffResponse takes two QueryRangeResponses and returns a new QueryRangeResponse that contains only the differences between the two.
+// it creates a completely new response, so the input responses are not modified. an in place diff would be nice for memory savings, but
+// the diffResponse is returned and marshalled into proto. if we modify an object while it's being marshalled this can cause a panic
 func diffResponse(prev, curr *tempopb.QueryRangeResponse) *tempopb.QueryRangeResponse {
 	if prev == nil {
-		// if we do the thing suggested above we need a full copy here
 		return curr
 	}
 
-	// everything is sorted
 	seriesIdx := 0
-	diff := &tempopb.QueryRangeResponse{}
+	diff := &tempopb.QueryRangeResponse{
+		Series: make([]*tempopb.TimeSeries, 0, len(curr.Series)/2), // prealloc half of series. untuned
+	}
+
+	// series are sorted, so we can do this in a single pass
 	for _, s := range curr.Series {
 		// is this a series that's new in curr that wasn't in prev? this check assumes that
 		// a series can not be removed from the output as the input series are combined
@@ -120,18 +119,20 @@ func diffResponse(prev, curr *tempopb.QueryRangeResponse) *tempopb.QueryRangeRes
 		}
 
 		// promlabels are the same, have to check individual samples
-		// copy in labels and take any exemplars that exist
+		// just copy forward labels and exemplars
 		diffSeries := &tempopb.TimeSeries{
 			Labels:     s.Labels,
 			PromLabels: s.PromLabels,
-			Exemplars:  s.Exemplars, // taking all current exemplars. improve?
+			Exemplars:  s.Exemplars,                                  // taking all current exemplars. improve?
+			Samples:    make([]tempopb.Sample, 0, len(s.Samples)/10), // prealloc 10% of samples. untuned
 		}
 
 		// samples are sorted, so we can do this in a single pass
 		dSamplesIdx := 0
+
 		for _, sample := range s.Samples {
 			// if this sample is not in the previous response, add it to the diff
-			if dSamplesIdx >= len(prev.Series[seriesIdx].Samples) || sample.TimestampMs != prev.Series[seriesIdx].Samples[dSamplesIdx].TimestampMs { // jpe use > or < instead of == to make the alg more robust?
+			if dSamplesIdx >= len(prev.Series[seriesIdx].Samples) || sample.TimestampMs != prev.Series[seriesIdx].Samples[dSamplesIdx].TimestampMs {
 				diffSeries.Samples = append(diffSeries.Samples, sample)
 				continue
 			}

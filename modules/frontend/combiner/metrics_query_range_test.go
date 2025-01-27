@@ -3,6 +3,7 @@ package combiner
 import (
 	"math"
 	"math/rand/v2"
+	"strconv"
 	"testing"
 	"time"
 
@@ -173,7 +174,9 @@ func TestDiffSeries(t *testing.T) {
 					}, "foo", "bar"),
 				},
 			},
-			expected: &tempopb.QueryRangeResponse{},
+			expected: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{},
+			},
 		},
 		{
 			name: "add one series after",
@@ -310,6 +313,78 @@ func TestDiffSeries(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "all things",
+			prev: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts([]tempopb.Sample{
+						{1000, 1.0},
+						{2000, 3.0},
+						{3000, 4.0},
+					}, "foo", "bar"),
+					ts([]tempopb.Sample{
+						{1000, 1.0},
+						{2000, 3.0},
+						{3000, 4.0},
+					}, "baz", "bat"),
+				},
+			},
+			curr: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts([]tempopb.Sample{ // add one before
+						{1000, 1.1},
+						{2000, 3.1},
+						{3000, 4.2},
+					}, "pre", "pre"),
+					ts([]tempopb.Sample{ // samples added and modified
+						{500, 0.5},
+						{1000, 1.0},
+						{2000, 3.5},
+						{3000, 4.0},
+						{3500, 3.5},
+					}, "foo", "bar"),
+					ts([]tempopb.Sample{ // add one between
+						{1000, 1.1},
+						{2000, 3.1},
+						{3000, 4.1},
+					}, "inter", "inter"),
+					ts([]tempopb.Sample{ // no change! should not appear in output
+						{1000, 1.0},
+						{2000, 3.0},
+						{3000, 4.0},
+					}, "baz", "bat"),
+					ts([]tempopb.Sample{ // add one after
+						{1000, 1.1},
+						{2000, 3.1},
+						{3000, 4.1},
+					}, "post", "post"),
+				},
+			},
+			expected: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts([]tempopb.Sample{ // add one before
+						{1000, 1.1},
+						{2000, 3.1},
+						{3000, 4.2},
+					}, "pre", "pre"),
+					ts([]tempopb.Sample{ // samples added and modified
+						{500, 0.5},
+						{2000, 3.5},
+						{3500, 3.5},
+					}, "foo", "bar"),
+					ts([]tempopb.Sample{ // add one between
+						{1000, 1.1},
+						{2000, 3.1},
+						{3000, 4.1},
+					}, "inter", "inter"),
+					ts([]tempopb.Sample{ // add one after
+						{1000, 1.1},
+						{2000, 3.1},
+						{3000, 4.1},
+					}, "post", "post"),
+				},
+			},
+		},
 	}
 
 	for _, tc := range tcs {
@@ -317,6 +392,68 @@ func TestDiffSeries(t *testing.T) {
 			actual := diffResponse(tc.prev, tc.curr)
 			require.Equal(t, tc.expected, actual)
 		})
+	}
+}
+
+func BenchmarkDiffSeriesAllSamplesSeriesEqual(b *testing.B) {
+	prev := &tempopb.QueryRangeResponse{}
+	curr := &tempopb.QueryRangeResponse{}
+
+	numSeries := 1000
+	numSamples := 1000
+
+	for s := range numSeries {
+		samples := make([]tempopb.Sample, numSamples)
+		for i := range 1000 {
+			samples[i] = tempopb.Sample{
+				TimestampMs: int64(i) * 1000,
+				Value:       rand.Float64(),
+			}
+		}
+
+		series := ts(samples, "foo"+strconv.Itoa(s), "bar")
+		prev.Series = append(prev.Series, series)
+		curr.Series = append(curr.Series, series)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		diffResponse(prev, curr)
+	}
+}
+
+func BenchmarkDiffSeriesAllSamplesSeriesRandom(b *testing.B) {
+	prev := &tempopb.QueryRangeResponse{}
+	curr := &tempopb.QueryRangeResponse{}
+
+	numSeries := 1000
+	numSamples := 1000
+
+	for s := range numSeries {
+		samples := make([]tempopb.Sample, numSamples)
+		for i := range 1000 {
+			samples[i] = tempopb.Sample{
+				TimestampMs: int64(i) * 1000,
+				Value:       rand.Float64(),
+			}
+		}
+
+		prev.Series = append(prev.Series, ts(samples, "foo"+strconv.Itoa(s), "bar"))
+
+		// create a new slice with different sample values
+		samples = make([]tempopb.Sample, numSamples)
+		for i := range 1000 {
+			samples[i] = tempopb.Sample{
+				TimestampMs: int64(i) * 1000,
+				Value:       rand.Float64(),
+			}
+		}
+		curr.Series = append(curr.Series, ts(samples, "foo"+strconv.Itoa(s), "bar"))
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		diffResponse(prev, curr)
 	}
 }
 
