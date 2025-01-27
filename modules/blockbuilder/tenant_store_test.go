@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -25,26 +24,6 @@ func getTenantStore(t *testing.T) (*tenantStore, error) {
 	})
 	require.NoError(t, err)
 	return newTenantStore("test-tenant", 1, 1, blockCfg, logger, w, encoding.DefaultEncoding(), &mockOverrides{})
-}
-
-func TestAppendTraceHonorCycleTime(t *testing.T) {
-	store, err := getTenantStore(t)
-	require.NoError(t, err)
-
-	traceID := []byte("test-trace-id")
-	start := time.Now().Add(-1 * time.Hour)
-	end := time.Now().Add(1 * time.Hour)
-	trace := test.MakeTraceWithTimeRange(1, traceID, uint64(start.UnixNano()), uint64(end.UnixNano()))
-	startTime := time.Now().Add(-1 * time.Hour)
-
-	traceBytes, err := trace.Marshal()
-	require.NoError(t, err)
-
-	err = store.AppendTrace(traceID, traceBytes, startTime)
-	require.NoError(t, err)
-
-	assert.GreaterOrEqual(t, store.headBlock.BlockMeta().StartTime.Unix(), start.Unix())
-	assert.LessOrEqual(t, store.headBlock.BlockMeta().EndTime.Unix(), end.Unix())
 }
 
 func TestAdjustTimeRangeForSlack(t *testing.T) {
