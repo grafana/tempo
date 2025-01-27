@@ -20,6 +20,7 @@ The Tempo configuration options include:
   - [Server](#server)
   - [Distributor](#distributor)
     - [Set max attribute size to help control out of memory errors](#set-max-attribute-size-to-help-control-out-of-memory-errors)
+    - [gRPC compression](#grpc-compression)
   - [Ingester](#ingester)
   - [Metrics-generator](#metrics-generator)
   - [Query-frontend](#query-frontend)
@@ -266,6 +267,31 @@ The default value is `2048`.
 Use the `tempo_distributor_attributes_truncated_total` metric to track how many attributes are truncated.
 
 For additional information, refer to [Troubleshoot out-of-memory errors](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/out-of-memory-errors/).
+
+### gRPC compression
+
+If you notice increased network traffic or issues, check the gRPC compression settings.
+
+Tempo 2.7 disabled gRPC compression in the querier and distributor for performance reasons. ([#4429](https://github.com/grafana/tempo/pull/4429))
+Benchmark testing suggested that without compression, queriers and distributors used less CPU and memory.
+
+However, you may notice an increase in ingester data and network traffic.
+
+You can configure the gRPC compression in the `querier`, `ingester`, and `metrics_generator` clients of the distributor.
+To re-enable the compression, use `snappy` with the following settings:
+
+  ```yaml
+  ingester_client:
+      grpc_client_config:
+          grpc_compression: "snappy"
+  metrics_generator_client:
+      grpc_client_config:
+          grpc_compression: "snappy"
+  querier:
+      frontend_worker:
+          grpc_client_config:
+              grpc_compression: "snappy"
+```
 
 ## Ingester
 
