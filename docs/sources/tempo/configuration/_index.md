@@ -275,7 +275,7 @@ If you notice increased network traffic or issues, check the gRPC compression se
 Tempo 2.7 disabled gRPC compression in the querier and distributor for performance reasons. ([#4429](https://github.com/grafana/tempo/pull/4429))
 Benchmark testing suggested that without compression, queriers and distributors used less CPU and memory.
 
-However, you may notice an increase in ingester data and network traffic.
+However, you may notice an increase in ingester data and network traffic especially for larger clusters.
 
 You can configure the gRPC compression in the `querier`, `ingester`, and `metrics_generator` clients of the distributor.
 To re-enable the compression, use `snappy` with the following settings:
