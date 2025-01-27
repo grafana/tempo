@@ -2,7 +2,7 @@
 title: Tempo CLI
 description: Guide to using tempo-cli
 keywords: ["tempo", "cli", "tempo-cli", "command line interface"]
-weight: 70
+weight: 800
 ---
 
 # Tempo CLI
