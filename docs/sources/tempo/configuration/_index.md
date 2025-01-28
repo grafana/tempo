@@ -494,7 +494,11 @@ metrics_generator:
             # If enabled, only parent spans or spans with the SpanKind of `server` will be retained
             [filter_server_spans: <bool> | default = true]
 
-            # Number of blocks that are allowed to be processed concurently
+            # Whether server spans should be flushed to storage.
+            # Setting `flush_to_storage` to `true` ensures that metrics blocks are flushed to storage so TraceQL metrics queries against historical data.
+            [flush_to_storage: <bool> | default = false]
+
+            # Number of blocks that are allowed to be processed concurrently.
             [concurrent_blocks: <uint> | default = 10]
 
             # A tuning factor that controls whether the trace-level timestamp columns are used in a metrics query.
