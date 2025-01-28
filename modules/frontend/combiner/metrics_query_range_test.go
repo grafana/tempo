@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -396,66 +397,61 @@ func TestDiffSeries(t *testing.T) {
 	}
 }
 
-func BenchmarkDiffSeriesAllSamplesSeriesEqual(b *testing.B) {
-	prev := &tempopb.QueryRangeResponse{}
-	curr := &tempopb.QueryRangeResponse{}
-
-	numSeries := 1000
-	numSamples := 1000
-
-	for s := range numSeries {
-		samples := make([]tempopb.Sample, numSamples)
-		for i := range 1000 {
-			samples[i] = tempopb.Sample{
-				TimestampMs: int64(i) * 1000,
-				Value:       rand.Float64(),
-			}
-		}
-
-		series := ts(samples, "foo"+strconv.Itoa(s), "bar")
-		prev.Series = append(prev.Series, series)
-		curr.Series = append(curr.Series, series)
-	}
+func BenchmarkDiffSeriesAndMarshal(b *testing.B) {
+	prev, curr := seriesWithTenPercentEqual()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		diffResponse(prev, curr)
+		diff := diffResponse(prev, curr)
+		_, err := proto.Marshal(diff)
+		require.NoError(b, err)
 	}
 }
 
-func BenchmarkDiffSeriesAllSamplesSeriesRandom(b *testing.B) {
-	prev := &tempopb.QueryRangeResponse{}
-	curr := &tempopb.QueryRangeResponse{}
+func BenchmarkMarshalOnly(b *testing.B) {
+	_, curr := seriesWithTenPercentEqual()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := proto.Marshal(curr)
+		require.NoError(b, err)
+	}
+}
+
+func seriesWithTenPercentEqual() (*tempopb.QueryRangeResponse, *tempopb.QueryRangeResponse) {
+	a := &tempopb.QueryRangeResponse{}
+	b := &tempopb.QueryRangeResponse{}
 
 	numSeries := 1000
 	numSamples := 1000
 
 	for s := range numSeries {
-		samples := make([]tempopb.Sample, numSamples)
+		aSamples := make([]tempopb.Sample, numSamples)
+		bSamples := make([]tempopb.Sample, numSamples)
+
 		for i := range 1000 {
-			samples[i] = tempopb.Sample{
+			aSamples[i] = tempopb.Sample{
 				TimestampMs: int64(i) * 1000,
 				Value:       rand.Float64(),
 			}
-		}
 
-		prev.Series = append(prev.Series, ts(samples, "foo"+strconv.Itoa(s), "bar"))
-
-		// create a new slice with different sample values
-		samples = make([]tempopb.Sample, numSamples)
-		for i := range 1000 {
-			samples[i] = tempopb.Sample{
-				TimestampMs: int64(i) * 1000,
-				Value:       rand.Float64(),
+			// 10% of samples are different
+			if i%10 == 0 {
+				bSamples[i] = tempopb.Sample{
+					TimestampMs: int64(i) * 1000,
+					Value:       rand.Float64(),
+				}
+			} else {
+				bSamples[i] = aSamples[i]
 			}
 		}
-		curr.Series = append(curr.Series, ts(samples, "foo"+strconv.Itoa(s), "bar"))
+
+		a.Series = append(a.Series, ts(aSamples, "foo"+strconv.Itoa(s), "bar"))
+		b.Series = append(b.Series, ts(bSamples, "foo"+strconv.Itoa(s), "bar"))
+
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		diffResponse(prev, curr)
-	}
+	return a, b
 }
 
 func ts(samples []tempopb.Sample, kvs ...string) *tempopb.TimeSeries {
