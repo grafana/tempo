@@ -237,7 +237,7 @@ distributor:
     # Optional
     # Configures the max size an attribute can be. Any key or value that exceeds this limit will be truncated before storing
     # Setting this parameter to '0' would disable this check against attribute size
-    [max_span_attr_byte: <int> | default = '2048']
+    [max_attribute_bytes: <int> | default = '2048']
 
     # Optional.
     # Configures usage trackers in the distributor which expose metrics of ingested traffic grouped by configurable
@@ -260,7 +260,7 @@ This issue has been observed when trying to fetch a single trace using the [`tra
 While a trace might not have a lot of spans (roughly 500), it can have a larger size (approximately 250KB).
 Some of the spans in that trace had attributes whose values were very large in size.
 
-To avoid these out-of-memory crashes, use `max_span_attr_byte` to limit the maximum allowable size of any individual attribute.
+To avoid these out-of-memory crashes, use `max_attribute_bytes` to limit the maximum allowable size of any individual attribute.
 Any key or values that exceed the configured limit are truncated before storing.
 The default value is `2048`.
 
@@ -1619,6 +1619,8 @@ overrides:
       # Shuffle sharding shards used for this user. A value of 0 uses all ingesters in the ring.
       # Should not be lower than RF.
       [tenant_shard_size: <int> | default = 0]
+
+      [max_attribute_bytes: <int> | default = 0]
 
     # Read related overrides
     read:

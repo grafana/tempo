@@ -439,7 +439,10 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		d.usage.Observe(userID, batches)
 	}
 
-	keys, rebatchedTraces, truncatedAttributeCount, err := requestsByTraceID(batches, userID, spanCount, d.cfg.MaxSpanAttrByte)
+	maxAttributeBytes := getMaxAttributeBytes(*d, userID)
+	fmt.Printf("**** maxAttributeBytes: %v\n", maxAttributeBytes)
+
+	keys, rebatchedTraces, truncatedAttributeCount, err := requestsByTraceID(batches, userID, spanCount, maxAttributeBytes)
 	if err != nil {
 		logDiscardedResourceSpans(batches, userID, &d.cfg.LogDiscardedSpans, d.logger)
 		return nil, err
@@ -679,18 +682,36 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 
 	for _, b := range batches {
 		spansByILS := make(map[uint32]*v1.ScopeSpans)
-		// check for large resources for large attributes
+		// check resource for large attributes
 		if maxSpanAttrSize > 0 && b.Resource != nil {
 			resourceAttrTruncatedCount := processAttributes(b.Resource.Attributes, maxSpanAttrSize)
 			truncatedAttributeCount += resourceAttrTruncatedCount
 		}
 
 		for _, ils := range b.ScopeSpans {
+
+			// check instrumentation for large attributes
+			if maxSpanAttrSize > 0 && ils.Scope != nil {
+				scopeAttrTruncatedCount := processAttributes(ils.Scope.Attributes, maxSpanAttrSize)
+				truncatedAttributeCount += scopeAttrTruncatedCount
+			}
+
 			for _, span := range ils.Spans {
-				// check large spans for large attributes
+				// check spans for large attributes
 				if maxSpanAttrSize > 0 {
 					spanAttrTruncatedCount := processAttributes(span.Attributes, maxSpanAttrSize)
 					truncatedAttributeCount += spanAttrTruncatedCount
+
+					// check large attributes for events and links
+					for _, event := range span.Events {
+						eventAttrTruncatedCount := processAttributes(event.Attributes, maxSpanAttrSize)
+						truncatedAttributeCount += eventAttrTruncatedCount
+					}
+
+					for _, link := range span.Links {
+						linkAttrTruncatedCount := processAttributes(link.Attributes, maxSpanAttrSize)
+						truncatedAttributeCount += linkAttrTruncatedCount
+					}
 				}
 				traceID := span.TraceId
 				if !validation.ValidTraceID(traceID) {
@@ -985,4 +1006,13 @@ func logSpan(s *v1.Span, allAttributes bool, logger log.Logger) {
 // startEndFromSpan returns a unix epoch timestamp in seconds for the start and end of a span
 func startEndFromSpan(span *v1.Span) (uint32, uint32) {
 	return uint32(span.StartTimeUnixNano / uint64(time.Second)), uint32(span.EndTimeUnixNano / uint64(time.Second))
+}
+
+func getMaxAttributeBytes(d Distributor, userID string) int {
+	fmt.Printf("**** overrides.IngestionMaxAttributeBytes: %v\n", d.overrides.IngestionMaxAttributeBytes(userID))
+	if tenantMaxAttrByte := d.overrides.IngestionMaxAttributeBytes(userID); tenantMaxAttrByte > 0 {
+		return tenantMaxAttrByte
+	}
+
+	return d.cfg.MaxAttributeBytes
 }

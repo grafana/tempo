@@ -763,13 +763,47 @@ func TestProcessAttributes(t *testing.T) {
 		test.MakeAttribute(longString, "long key"),
 	)
 
+	// add long attributes to the event level
+	trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events = append(trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Events,
+		&v1.Span_Event{
+			TimeUnixNano: 0,
+			Attributes: []*v1_common.KeyValue{
+				test.MakeAttribute("long value", longString),
+				test.MakeAttribute(longString, "long key"),
+			},
+		},
+	)
+	
+	// add long attributes to the link level
+	trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links = append(trace.ResourceSpans[0].ScopeSpans[0].Spans[0].Links,
+		&v1.Span_Link{
+			TraceId: []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F},
+			SpanId: []byte{0x0A, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F},
+			Attributes: []*v1_common.KeyValue{
+				test.MakeAttribute("long value", longString),
+				test.MakeAttribute(longString, "long key"),
+			},
+		},
+	)
+
+	// add long attributes to scope level
+	trace.ResourceSpans[0].ScopeSpans[0].Scope = &v1_common.InstrumentationScope{
+		Name: "scope scope",
+		Version: "1.0",
+		Attributes: []*v1_common.KeyValue{
+			test.MakeAttribute("long value", longString),
+			test.MakeAttribute(longString, "long key"),
+		}}
+
 	_, rebatchedTrace, truncatedCount, _ := requestsByTraceID(trace.ResourceSpans, "test", spanCount*batchCount, maxAttrByte)
-	assert.Equal(t, 4, truncatedCount)
+	// 2 at resource level, 2 at span level, 2 at event level, 2 at link level, 2 at scope level
+	assert.Equal(t, 10, truncatedCount)
 	for _, rT := range rebatchedTrace {
 		for _, resource := range rT.trace.ResourceSpans {
 			// find large resource attributes
 			for _, attr := range resource.Resource.Attributes {
 				if attr.Key == "long value" {
+					fmt.Printf("resource value: %s, longstring: %s\n", attr.Value.GetStringValue(), longString)
 					assert.Equal(t, longString[:maxAttrByte], attr.Value.GetStringValue())
 				}
 				if attr.Value.GetStringValue() == "long key" {
@@ -778,13 +812,49 @@ func TestProcessAttributes(t *testing.T) {
 			}
 			// find large span attributes
 			for _, scope := range resource.ScopeSpans {
+				for _, attr := range scope.Scope.Attributes {
+					if attr.Key == "long value" {
+						fmt.Printf("scope value: %s, longstring: %s\n", attr.Value.GetStringValue(), longString)
+						assert.Equal(t, longString[:maxAttrByte], attr.Value.GetStringValue())
+					}
+					if attr.Value.GetStringValue() == "long key" {
+						assert.Equal(t, longString[:maxAttrByte], attr.Key)
+					}
+				}
+
 				for _, span := range scope.Spans {
 					for _, attr := range span.Attributes {
 						if attr.Key == "long value" {
+							fmt.Printf("span value: %s, longstring: %s\n", attr.Value.GetStringValue(), longString)
 							assert.Equal(t, longString[:maxAttrByte], attr.Value.GetStringValue())
 						}
 						if attr.Value.GetStringValue() == "long key" {
 							assert.Equal(t, longString[:maxAttrByte], attr.Key)
+						}
+					}
+					// events
+					for _, event := range span.Events {
+						for _, attr := range event.Attributes {
+							if attr.Key == "long value" {
+								fmt.Printf("event value: %s, longstring: %s\n", attr.Value.GetStringValue(), longString)
+								assert.Equal(t, longString[:maxAttrByte], attr.Value.GetStringValue())
+							}
+							if attr.Value.GetStringValue() == "long key" {
+								assert.Equal(t, longString[:maxAttrByte], attr.Key)
+							}
+						}
+					}
+
+					// links
+					for _, link := range span.Links {
+						for _, attr := range link.Attributes {
+							if attr.Key == "long value" {
+								fmt.Printf("link value: %s, longstring: %s\n", attr.Value.GetStringValue(), longString)
+								assert.Equal(t, longString[:maxAttrByte], attr.Value.GetStringValue())
+							}
+							if attr.Value.GetStringValue() == "long key" {
+								assert.Equal(t, longString[:maxAttrByte], attr.Key)
+							}
 						}
 					}
 				}
@@ -1687,7 +1757,7 @@ func prepare(t *testing.T, limits overrides.Config, logger kitlog.Logger) (*Dist
 		})
 	}
 
-	distributorConfig.MaxSpanAttrByte = 1000
+	distributorConfig.MaxAttributeBytes = 1000
 	distributorConfig.DistributorRing.HeartbeatPeriod = 100 * time.Millisecond
 	distributorConfig.DistributorRing.InstanceID = strconv.Itoa(rand.Int())
 	distributorConfig.DistributorRing.KVStore.Mock = nil
