@@ -124,8 +124,8 @@ func buildSeriesForExemplarTest(start, end, step uint64, include func(i int) boo
 	return resp, expectedSeries
 }
 
+// nolint:govet # govet doesn't like the structs with unkeyed fields, but it's much cleaner in this test
 func TestDiffSeries(t *testing.T) {
-	// jpe - metrics tc?
 	tcs := []struct {
 		name     string
 		prev     *tempopb.QueryRangeResponse
