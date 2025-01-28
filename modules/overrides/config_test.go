@@ -44,6 +44,7 @@ ingestion_rate_strategy: global
 ingestion_rate_limit_bytes: 100_000
 ingestion_burst_size_bytes: 100_000
 ingestion_tenant_shard_size: 3
+ingestion_max_attribute_bytes: 1_000
 
 max_traces_per_user: 1000
 max_global_traces_per_user: 1000
@@ -66,6 +67,7 @@ max_search_duration: 5m
 	"ingestion_rate_limit_bytes": 100000,
 	"ingestion_burst_size_bytes": 100000,
 	"ingestion_tenant_shard_size": 3,
+	"ingestion_max_attribute_bytes": 1000,
 
 	"max_traces_per_user": 1000,
 	"max_global_traces_per_user": 1000,
@@ -100,6 +102,7 @@ ingestion_rate_strategy: local
 ingestion_rate_limit_bytes: 12345
 ingestion_burst_size_bytes: 67890
 ingestion_tenant_shard_size: 3
+ingestion_max_attribute_bytes: 1000
 max_traces_per_user: 1
 max_global_traces_per_user: 2
 forwarders: ['foo']
@@ -166,6 +169,7 @@ defaults:
     max_traces_per_user: 1
     max_global_traces_per_user: 2
     tenant_shard_size: 3
+    max_attribute_bytes: 1000
   read:
     max_bytes_per_tag_values_query: 15
     max_blocks_per_tag_values_query: 16

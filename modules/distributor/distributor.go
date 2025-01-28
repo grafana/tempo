@@ -439,7 +439,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		d.usage.Observe(userID, batches)
 	}
 
-	maxAttributeBytes := getMaxAttributeBytes(*d, userID)
+	maxAttributeBytes := d.getMaxAttributeBytes(userID)
 
 	keys, rebatchedTraces, truncatedAttributeCount, err := requestsByTraceID(batches, userID, spanCount, maxAttributeBytes)
 	if err != nil {
@@ -1007,7 +1007,7 @@ func startEndFromSpan(span *v1.Span) (uint32, uint32) {
 	return uint32(span.StartTimeUnixNano / uint64(time.Second)), uint32(span.EndTimeUnixNano / uint64(time.Second))
 }
 
-func getMaxAttributeBytes(d Distributor, userID string) int {
+func (d *Distributor) getMaxAttributeBytes(userID string) int {
 	if tenantMaxAttrByte := d.overrides.IngestionMaxAttributeBytes(userID); tenantMaxAttrByte > 0 {
 		return tenantMaxAttrByte
 	}
