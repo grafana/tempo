@@ -2,7 +2,7 @@
 title: Monitor Tempo
 menuTitle: Monitor Tempo
 description: Use polling, alerts, and dashboards to monitor Tempo in production.
-weight: 20
+weight: 200
 aliases:
 - ./monitoring ## https://grafana.com/docs/tempo/latest/operations/monitoring/
 ---
