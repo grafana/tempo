@@ -495,7 +495,7 @@ metrics_generator:
             [filter_server_spans: <bool> | default = true]
 
             # Whether server spans should be flushed to storage.
-            # Setting `flush_to_storage` to `true` ensures that metrics blocks are flushed to storage so TraceQL metrics queries against historical data.
+            # Setting `flush_to_storage` to `true` ensures that metrics blocks are flushed to storage so TraceQL metrics queries against historical data. 
             [flush_to_storage: <bool> | default = false]
 
             # Number of blocks that are allowed to be processed concurrently.
