@@ -42,7 +42,7 @@ Always consider which attributes will actually be useful as labels for querying 
 
 ## Dry-running the metrics-generator
 
-A good practice, before fully enabling metrics-generator, is to run the metrics-generator in dry-run mode.
+A good practice, before fully enabling metrics-generator, is to run the metrics-generator in dry-run mode. 
 Using the dry-run mode generates metrics but does not collect them, and thus will not write them to a metrics storage database.
 The override `metrics_generator.disable_collection` is defined for this use-case.
 
