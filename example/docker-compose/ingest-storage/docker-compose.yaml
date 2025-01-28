@@ -196,19 +196,19 @@ services:
       - --enable-feature=exemplar-storage
       - --enable-feature=native-histograms
     volumes:
-      - ../shared/prometheus.yaml:/etc/prometheus.yaml
+      - ./prometheus.yaml:/etc/prometheus.yaml
     ports:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:11.0.0
+    image: grafana/grafana:11.4.0
     volumes:
-      - ../shared/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ../distributed/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
       - GF_AUTH_DISABLE_LOGIN_FORM=true
-      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor traceQLStreaming metricsSummary
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor metricsSummary
     ports:
       - "3000:3000"
 
@@ -235,3 +235,14 @@ services:
       "timeout": "1s"
     "ports":
       - "29092:29092"
+
+  "redpanda-console":
+    "image": "docker.redpanda.com/redpandadata/console:v2.7.0@sha256:6ee7ed1203a7d4fd4181765929b28cb2450296402d82cd4d1c491c2d5191f45d"
+    "environment":
+      - "CONFIG_FILEPATH=/etc/redpanda/redpanda-console-config.yaml"
+    volumes:
+      - "../shared/redpanda-console.yaml:/etc/redpanda/redpanda-console-config.yaml"
+    "ports":
+      - "8080:8080"
+    "depends_on":
+      - "kafka"
