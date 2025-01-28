@@ -793,7 +793,8 @@ func TestProcessAttributes(t *testing.T) {
 		Attributes: []*v1_common.KeyValue{
 			test.MakeAttribute("long value", longString),
 			test.MakeAttribute(longString, "long key"),
-		}}
+		},
+	}
 
 	_, rebatchedTrace, truncatedCount, _ := requestsByTraceID(trace.ResourceSpans, "test", spanCount*batchCount, maxAttrByte)
 	// 2 at resource level, 2 at span level, 2 at event level, 2 at link level, 2 at scope level
