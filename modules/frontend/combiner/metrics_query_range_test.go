@@ -124,7 +124,8 @@ func buildSeriesForExemplarTest(start, end, step uint64, include func(i int) boo
 	return resp, expectedSeries
 }
 
-// nolint:govet # govet doesn't like the structs with unkeyed fields, but it's much cleaner in this test
+// TestDifSeries has govet disabled b/c the linter doesn't like the unkeyed structs, but the test reads a lot cleaner without them.
+// nolint:govet
 func TestDiffSeries(t *testing.T) {
 	tcs := []struct {
 		name     string
