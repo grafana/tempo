@@ -2,7 +2,7 @@
 title: Improve performance with caching
 menuTitle: Improve performance with caching
 description: Learn how to improve query performance by using caching.
-weight: 65
+weight: 600
 ---
 
 # Improve performance with caching
@@ -24,7 +24,7 @@ Refer to [Deploying Tempo]({{< relref "../setup/deployment" >}}).
 
 As a cluster grows in size, the number of instances of Tempo connecting to the cache servers also increases.
 By default, Memcached has a connection limit of 1024.
-Memcached refuses new connections when this limit is surpassed.
+Memcached refuses connections when this limit is surpassed.
 You can resolve this issue by increasing the connection limit of Memcached.
 
 You can use the `tempo_memcache_request_duration_seconds_count` metric to observe these errors.

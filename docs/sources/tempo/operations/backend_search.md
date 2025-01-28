@@ -2,7 +2,7 @@
 title: Tune search performance
 menutitle: Tune search performance
 description: How to tune Tempo to improve search performance.
-weight: 90
+weight: 500
 aliases:
   - ./serverless_aws/ # https://grafana.com/docs/tempo/next/operations/serverless_aws/
   - ./serverless_gcp/ # https://grafana.com/docs/tempo/next/operations/serverless_gcp/
@@ -155,7 +155,7 @@ Scaling up queriers is a safe way to add more query capacity.
 At Grafana Labs, we prefer to scale queries horizontally by adding more replicas.
 If you see out of memory (OOM) errors, it might be worth scaling the queriers vertically.
 
-We recommend running at least two replicates of query-frontend. These replicas should be scaled vertically instead of horizontally. 
+We recommend running at least two replicates of query-frontend. These replicas should be scaled vertically instead of horizontally.
 If you need to scale, scale query-frontends vertically by adding more CPU and RAM.
 Currently, query-frontends aren’t scaled horizontally, but this might change in the future.
 
