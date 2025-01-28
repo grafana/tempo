@@ -1620,6 +1620,7 @@ overrides:
       # Should not be lower than RF.
       [tenant_shard_size: <int> | default = 0]
 
+      # Maximum bytes any attribute can be for both keys and values. 
       [max_attribute_bytes: <int> | default = 0]
 
     # Read related overrides

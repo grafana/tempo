@@ -803,7 +803,6 @@ func TestProcessAttributes(t *testing.T) {
 			// find large resource attributes
 			for _, attr := range resource.Resource.Attributes {
 				if attr.Key == "long value" {
-					fmt.Printf("resource value: %s, longstring: %s\n", attr.Value.GetStringValue(), longString)
 					assert.Equal(t, longString[:maxAttrByte], attr.Value.GetStringValue())
 				}
 				if attr.Value.GetStringValue() == "long key" {
@@ -814,7 +813,6 @@ func TestProcessAttributes(t *testing.T) {
 			for _, scope := range resource.ScopeSpans {
 				for _, attr := range scope.Scope.Attributes {
 					if attr.Key == "long value" {
-						fmt.Printf("scope value: %s, longstring: %s\n", attr.Value.GetStringValue(), longString)
 						assert.Equal(t, longString[:maxAttrByte], attr.Value.GetStringValue())
 					}
 					if attr.Value.GetStringValue() == "long key" {
@@ -825,7 +823,6 @@ func TestProcessAttributes(t *testing.T) {
 				for _, span := range scope.Spans {
 					for _, attr := range span.Attributes {
 						if attr.Key == "long value" {
-							fmt.Printf("span value: %s, longstring: %s\n", attr.Value.GetStringValue(), longString)
 							assert.Equal(t, longString[:maxAttrByte], attr.Value.GetStringValue())
 						}
 						if attr.Value.GetStringValue() == "long key" {
@@ -836,7 +833,6 @@ func TestProcessAttributes(t *testing.T) {
 					for _, event := range span.Events {
 						for _, attr := range event.Attributes {
 							if attr.Key == "long value" {
-								fmt.Printf("event value: %s, longstring: %s\n", attr.Value.GetStringValue(), longString)
 								assert.Equal(t, longString[:maxAttrByte], attr.Value.GetStringValue())
 							}
 							if attr.Value.GetStringValue() == "long key" {
@@ -849,7 +845,6 @@ func TestProcessAttributes(t *testing.T) {
 					for _, link := range span.Links {
 						for _, attr := range link.Attributes {
 							if attr.Key == "long value" {
-								fmt.Printf("link value: %s, longstring: %s\n", attr.Value.GetStringValue(), longString)
 								assert.Equal(t, longString[:maxAttrByte], attr.Value.GetStringValue())
 							}
 							if attr.Value.GetStringValue() == "long key" {
