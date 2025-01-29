@@ -397,8 +397,9 @@ func (s *tenantStore2) Flush(ctx context.Context, store tempodb.Writer) error {
 	meta := backend.NewBlockMeta(s.tenantID, uuid.UUID(s.idGenerator.NewID()), s.enc.Version(), backend.EncNone, "")
 	meta.DedicatedColumns = s.overrides.DedicatedColumns(s.tenantID)
 	meta.ReplicationFactor = 1
+	meta.TotalObjects = int64(len(s.liveTraces.Traces))
 
-	newMeta, err := encoding.LatestEncoding().CreateBlock(ctx, &s.cfg.BlockCfg, meta, iter, reader, writer)
+	newMeta, err := s.enc.CreateBlock(ctx, &s.cfg.BlockCfg, meta, iter, reader, writer)
 	if err != nil {
 		return err
 	}
