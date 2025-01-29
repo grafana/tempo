@@ -155,17 +155,21 @@ func ownsWALBlock(entry fs.DirEntry) bool {
 
 // Append adds an id and object to this wal block. start/end should indicate the time range
 // associated with the past object. They are unix epoch seconds.
-func (a *walBlock) Append(id common.ID, b []byte, start, end uint32) error {
+func (a *walBlock) Append(id common.ID, b []byte, start, end uint32, adjustIngestionSlack bool) error {
 	err := a.appender.Append(id, b)
 	if err != nil {
 		return err
 	}
-	start, end = a.adjustTimeRangeForSlack(start, end, 0)
+
+	if adjustIngestionSlack {
+		start, end = a.adjustTimeRangeForSlack(start, end, 0)
+	}
+
 	a.meta.ObjectAdded(start, end)
 	return nil
 }
 
-func (a *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end uint32) error {
+func (a *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end uint32, adjustIngestionSlack bool) error {
 	buff, err := a.encoder.PrepareForWrite(trace, start, end)
 	if err != nil {
 		return err
@@ -176,7 +180,7 @@ func (a *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 		return err
 	}
 
-	return a.Append(id, buff2, start, end)
+	return a.Append(id, buff2, start, end, adjustIngestionSlack)
 }
 
 func (a *walBlock) Flush() error {
@@ -189,6 +193,10 @@ func (a *walBlock) DataLength() uint64 {
 
 func (a *walBlock) BlockMeta() *backend.BlockMeta {
 	return a.meta
+}
+
+func (a *walBlock) IngestionSlack() time.Duration {
+	return a.ingestionSlack
 }
 
 // Iterator returns a common.Iterator that is secretly also a BytesIterator for use internally

@@ -321,7 +321,7 @@ func (b *walBlock) BlockMeta() *backend.BlockMeta {
 	return b.meta
 }
 
-func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
+func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32, adjustIngestionSlack bool) error {
 	// if decoder = nil we were created with OpenWALBlock and will not accept writes
 	if b.decoder == nil {
 		return nil
@@ -332,10 +332,14 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 		return fmt.Errorf("error preparing trace for read: %w", err)
 	}
 
-	return b.AppendTrace(id, trace, start, end)
+	return b.AppendTrace(id, trace, start, end, adjustIngestionSlack)
 }
 
-func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end uint32) error {
+func (b *walBlock) IngestionSlack() time.Duration {
+	return b.ingestionSlack
+}
+
+func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end uint32, adjustIngestionSlack bool) error {
 	var connected bool
 	b.buffer, connected = traceToParquetWithMapping(id, trace, b.buffer, b.dedcolsRes, b.dedcolsSpan)
 	if !connected {
@@ -345,7 +349,9 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 		dataquality.WarnRootlessTrace(b.meta.TenantID, dataquality.PhaseTraceFlushedToWal)
 	}
 
-	start, end = b.adjustTimeRangeForSlack(start, end)
+	if adjustIngestionSlack {
+		start, end = common.AdjustTimeRangeForSlack(b.meta.TenantID, b.ingestionSlack, start, end)
+	}
 
 	// add to current
 	_, err := b.writer.Write([]*Trace{b.buffer})
@@ -364,29 +370,6 @@ func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end ui
 // TODO: potentially add validation to wal blocks and use in the wal replay code in the ingester.
 func (b *walBlock) Validate(context.Context) error {
 	return common.ErrUnsupported
-}
-
-// It controls the block start/end date as a sliding window.
-func (b *walBlock) adjustTimeRangeForSlack(start, end uint32) (uint32, uint32) {
-	now := time.Now()
-	startOfRange := uint32(now.Add(-b.ingestionSlack).Unix())
-	endOfRange := uint32(now.Add(b.ingestionSlack).Unix())
-
-	warn := false
-	if start < startOfRange {
-		warn = true
-		start = uint32(now.Unix())
-	}
-	if end > endOfRange || end < start {
-		warn = true
-		end = uint32(now.Unix())
-	}
-
-	if warn {
-		dataquality.WarnOutsideIngestionSlack(b.meta.TenantID)
-	}
-
-	return start, end
 }
 
 func (b *walBlock) filepathOf(page int) string {

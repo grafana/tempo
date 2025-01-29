@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-kit/log"
 
@@ -104,18 +105,46 @@ type BackendBlock interface {
 	Validate(ctx context.Context) error
 }
 
+// WALBlock represents a Write-Ahead Log (WAL) block interface that extends the BackendBlock interface.
+// It provides methods to append traces, manage ingestion slack, flush data, and iterate over the block's data.
 type WALBlock interface {
 	BackendBlock
 
-	// Append the given trace to the block. Must be safe for concurrent use with read operations.
-	Append(id ID, b []byte, start, end uint32) error
+	// Append adds the given trace to the block. This method must be safe for concurrent use with read operations.
+	// Parameters:
+	// - id: The ID of the trace.
+	// - b: The byte slice representing the trace data.
+	// - start: The start time of the trace.
+	// - end: The end time of the trace.
+	// - adjustIngestionSlack: If true, adjusts the ingestion slack based on the current time (now()).
+	// Returns an error if the append operation fails.
+	Append(id ID, b []byte, start, end uint32, adjustIngestionSlack bool) error
 
-	AppendTrace(id ID, tr *tempopb.Trace, start, end uint32) error
+	// AppendTrace adds the given trace to the block. This method must be safe for concurrent use with read operations.
+	// Parameters:
+	// - id: The ID of the trace.
+	// - tr: The trace object.
+	// - start: The start time of the trace.
+	// - end: The end time of the trace.
+	// - adjustIngestionSlack: If true, adjusts the ingestion slack based on the current time (now()).
+	// Returns an error if the append operation fails.
+	AppendTrace(id ID, tr *tempopb.Trace, start, end uint32, adjustIngestionSlack bool) error
 
-	// Flush any unbuffered data to disk.  Must be safe for concurrent use with read operations.
+	// IngestionSlack returns the duration of the ingestion slack.
+	IngestionSlack() time.Duration
+
+	// Flush writes any unbuffered data to disk. This method must be safe for concurrent use with read operations.
+	// Returns an error if the flush operation fails.
 	Flush() error
 
+	// DataLength returns the length of the data in the block.
 	DataLength() uint64
+
+	// Iterator returns an iterator for the block's data.
+	// Returns an error if the iterator creation fails.
 	Iterator() (Iterator, error)
+
+	// Clear clears the block's data.
+	// Returns an error if the clear operation fails.
 	Clear() error
 }

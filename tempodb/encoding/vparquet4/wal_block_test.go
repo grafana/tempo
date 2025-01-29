@@ -84,7 +84,7 @@ func TestPartialReplay(t *testing.T) {
 		b2, err := decoder.ToObject([][]byte{b1})
 		require.NoError(t, err)
 
-		err = w.Append(ids[i], b2, 0, 0)
+		err = w.Append(ids[i], b2, 0, 0, true)
 		require.NoError(t, err)
 
 		if i+1 == count/2 {
@@ -313,7 +313,7 @@ func testWalBlock(t *testing.T, f func(w *walBlock, ids []common.ID, trs []*temp
 		b2, err := decoder.ToObject([][]byte{b1})
 		require.NoError(t, err)
 
-		err = w.Append(ids[i], b2, 0, 0)
+		err = w.Append(ids[i], b2, 0, 0, true)
 		require.NoError(t, err)
 
 		if i%10 == 0 {

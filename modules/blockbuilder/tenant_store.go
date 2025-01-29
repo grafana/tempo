@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/tempo/modules/blockbuilder/util"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
+	"github.com/grafana/tempo/pkg/dataquality"
 	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -148,7 +149,7 @@ func (s *tenantStore) AppendTrace(traceID []byte, tr []byte, ts time.Time) error
 	return nil
 }
 
-func (s *tenantStore) CutIdle(since time.Time, immediate bool) error {
+func (s *tenantStore) CutIdle(startSectionTime time.Time, cycleDuration time.Duration, since time.Time, immediate bool) error {
 	idle := s.liveTraces.CutIdle(since, immediate)
 
 	slices.SortFunc(idle, func(a, b *livetraces.LiveTrace[[]byte]) int {
@@ -211,7 +212,8 @@ func (s *tenantStore) CutIdle(since time.Time, immediate bool) error {
 	}
 
 	for i, tr := range unmarshaled {
-		if err := s.headBlock.AppendTrace(idle[i].ID, tr, starts[i], ends[i]); err != nil {
+		start, end := s.adjustTimeRangeForSlack(startSectionTime, cycleDuration, starts[i], ends[i])
+		if err := s.headBlock.AppendTrace(idle[i].ID, tr, start, end, false); err != nil {
 			return err
 		}
 	}
@@ -228,6 +230,27 @@ func (s *tenantStore) CutIdle(since time.Time, immediate bool) error {
 
 	// Cut head block if needed
 	return s.cutHeadBlock(false)
+}
+
+func (s *tenantStore) adjustTimeRangeForSlack(startSectionTime time.Time, cycleDuration time.Duration, start, end uint32) (uint32, uint32) {
+	startOfRange := uint32(startSectionTime.Add(-s.headBlock.IngestionSlack()).Unix())
+	endOfRange := uint32(startSectionTime.Add(s.headBlock.IngestionSlack() + cycleDuration).Unix())
+
+	warn := false
+	if start < startOfRange {
+		warn = true
+		start = uint32(startSectionTime.Unix())
+	}
+	if end > endOfRange || end < start {
+		warn = true
+		end = uint32(startSectionTime.Unix())
+	}
+
+	if warn {
+		dataquality.WarnBlockBuilderOutsideIngestionSlack(s.headBlock.BlockMeta().TenantID)
+	}
+
+	return start, end
 }
 
 func (s *tenantStore) Flush(ctx context.Context, store tempodb.Writer) error {
