@@ -2,6 +2,8 @@
 title: Best practices for traces
 menuTitle: Best practices
 description: Learn about the best practices for traces
+aliases:
+  - ../operations/best-practices/ # https://grafana.com/docs/tempo/latest/operations/best-practices/
 weight: 20
 ---
 

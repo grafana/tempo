@@ -18,6 +18,8 @@ memberlist:
   - ingester-0:7946
   - ingester-1:7946
   - ingester-2:7946
+  - metrics-generator-0:7946
+  - metrics-generator-1:7946
 
 compactor:
   compaction:

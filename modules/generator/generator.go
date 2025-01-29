@@ -70,11 +70,13 @@ type Generator struct {
 	reg    prometheus.Registerer
 	logger log.Logger
 
-	kafkaWG       sync.WaitGroup
-	kafkaStop     func()
-	kafkaClient   *kgo.Client
-	kafkaAdm      *kadm.Client
-	partitionRing ring.PartitionRingReader
+	kafkaWG            sync.WaitGroup
+	kafkaStop          func()
+	kafkaClient        *ingest.Client
+	kafkaAdm           *kadm.Client
+	partitionRing      ring.PartitionRingReader
+	partitionMtx       sync.RWMutex
+	assignedPartitions []int32
 }
 
 // New makes a new Generator.
@@ -162,10 +164,18 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 	}
 
 	if g.cfg.Ingest.Enabled {
-		g.kafkaClient, err = ingest.NewReaderClient(
+		g.kafkaClient, err = ingest.NewGroupReaderClient(
 			g.cfg.Ingest.Kafka,
+			g.partitionRing,
 			ingest.NewReaderClientMetrics("generator", prometheus.DefaultRegisterer),
 			g.logger,
+			kgo.InstanceID(g.cfg.InstanceID),
+			kgo.OnPartitionsAssigned(func(_ context.Context, _ *kgo.Client, m map[string][]int32) {
+				g.handlePartitionsAssigned(m)
+			}),
+			kgo.OnPartitionsRevoked(func(_ context.Context, _ *kgo.Client, m map[string][]int32) {
+				g.handlePartitionsRevoked(m)
+			}),
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create kafka reader client: %w", err)
@@ -189,7 +199,7 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 			return fmt.Errorf("failed to ping kafka: %w", err)
 		}
 
-		g.kafkaAdm = kadm.NewClient(g.kafkaClient)
+		g.kafkaAdm = kadm.NewClient(g.kafkaClient.Client)
 	}
 
 	return nil

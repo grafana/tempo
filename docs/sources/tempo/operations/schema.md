@@ -2,7 +2,7 @@
 title: Apache Parquet schema
 menuTitle: Parquet schema
 description: This document describes the schema used with the Parquet block format.
-weight: 75
+weight: 900
 aliases:
 - /docs/tempo/parquet/schema
 ---
@@ -326,7 +326,7 @@ Parquet has robust support for many compression algorithms and data encodings. W
 
 1. Snappy Compression - Enable on all columns
 1. Dictionary encoding - Enable on all string columns (including byte array ParentSpanID). Most strings are very repetitive so this works well to optimize storage size. However we can greatly speed up search by inspecting the dictionary first and eliminating pages with no matches.
-1. Time and duration unix nanos - Delta encoding
+1. Time and duration UNIX nanos - Delta encoding
 1. Rarely used columns such as `DroppedAttributesCount` - These columns are usually all zeroes, RLE works well.
 
 ### Bloom filters
