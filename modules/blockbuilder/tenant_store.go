@@ -247,7 +247,7 @@ func (s *tenantStore) adjustTimeRangeForSlack(startSectionTime time.Time, cycleD
 	}
 
 	if warn {
-		dataquality.WarnOutsideIngestionSlack(s.headBlock.BlockMeta().TenantID)
+		dataquality.WarnBlockBuilderOutsideIngestionSlack(s.headBlock.BlockMeta().TenantID)
 	}
 
 	return start, end
