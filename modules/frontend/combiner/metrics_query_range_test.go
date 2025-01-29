@@ -143,7 +143,7 @@ func TestDiffSeries(t *testing.T) {
 						{1000, 1.0},
 						{2000, 3.0},
 						{3000, 4.0},
-					}, "foo", "bar"),
+					}, nil, "foo", "bar"),
 				},
 			},
 			expected: &tempopb.QueryRangeResponse{
@@ -152,7 +152,7 @@ func TestDiffSeries(t *testing.T) {
 						{1000, 1.0},
 						{2000, 3.0},
 						{3000, 4.0},
-					}, "foo", "bar"),
+					}, nil, "foo", "bar"),
 				},
 			},
 		},
@@ -164,7 +164,7 @@ func TestDiffSeries(t *testing.T) {
 						{1000, 1.0},
 						{2000, 3.0},
 						{3000, 4.0},
-					}, "foo", "bar"),
+					}, nil, "foo", "bar"),
 				},
 			},
 			curr: &tempopb.QueryRangeResponse{
@@ -173,7 +173,7 @@ func TestDiffSeries(t *testing.T) {
 						{1000, 1.0},
 						{2000, 3.0},
 						{3000, 4.0},
-					}, "foo", "bar"),
+					}, nil, "foo", "bar"),
 				},
 			},
 			expected: &tempopb.QueryRangeResponse{
@@ -188,7 +188,7 @@ func TestDiffSeries(t *testing.T) {
 						{1000, 1.0},
 						{2000, 3.0},
 						{3000, 4.0},
-					}, "foo", "bar"),
+					}, nil, "foo", "bar"),
 				},
 			},
 			curr: &tempopb.QueryRangeResponse{
@@ -197,12 +197,12 @@ func TestDiffSeries(t *testing.T) {
 						{1000, 1.0},
 						{2000, 3.0},
 						{3000, 4.0},
-					}, "foo", "bar"),
+					}, nil, "foo", "bar"),
 					ts([]tempopb.Sample{
 						{1500, 1.5},
 						{2500, 3.5},
 						{3500, 4.5},
-					}, "baz", "bat"),
+					}, nil, "baz", "bat"),
 				},
 			},
 			expected: &tempopb.QueryRangeResponse{
@@ -211,7 +211,7 @@ func TestDiffSeries(t *testing.T) {
 						{1500, 1.5},
 						{2500, 3.5},
 						{3500, 4.5},
-					}, "baz", "bat"),
+					}, nil, "baz", "bat"),
 				},
 			},
 		},
@@ -223,7 +223,7 @@ func TestDiffSeries(t *testing.T) {
 						{1000, 1.0},
 						{2000, 3.0},
 						{3000, 4.0},
-					}, "foo", "bar"),
+					}, nil, "foo", "bar"),
 				},
 			},
 			curr: &tempopb.QueryRangeResponse{
@@ -232,12 +232,12 @@ func TestDiffSeries(t *testing.T) {
 						{1500, 1.5},
 						{2500, 3.5},
 						{3500, 4.5},
-					}, "baz", "bat"),
+					}, nil, "baz", "bat"),
 					ts([]tempopb.Sample{
 						{1000, 1.0},
 						{2000, 3.0},
 						{3000, 4.0},
-					}, "foo", "bar"),
+					}, nil, "foo", "bar"),
 				},
 			},
 			expected: &tempopb.QueryRangeResponse{
@@ -246,7 +246,7 @@ func TestDiffSeries(t *testing.T) {
 						{1500, 1.5},
 						{2500, 3.5},
 						{3500, 4.5},
-					}, "baz", "bat"),
+					}, nil, "baz", "bat"),
 				},
 			},
 		},
@@ -258,7 +258,7 @@ func TestDiffSeries(t *testing.T) {
 						{1000, 1.0},
 						{2000, 3.0},
 						{3000, 4.0},
-					}, "foo", "bar"),
+					}, nil, "foo", "bar"),
 				},
 			},
 			curr: &tempopb.QueryRangeResponse{
@@ -271,7 +271,7 @@ func TestDiffSeries(t *testing.T) {
 						{2500, 2.5},
 						{3000, 4.0},
 						{3500, 3.5},
-					}, "foo", "bar"),
+					}, nil, "foo", "bar"),
 				},
 			},
 			expected: &tempopb.QueryRangeResponse{
@@ -281,7 +281,7 @@ func TestDiffSeries(t *testing.T) {
 						{1500, 1.5},
 						{2500, 2.5},
 						{3500, 3.5},
-					}, "foo", "bar"),
+					}, nil, "foo", "bar"),
 				},
 			},
 		},
@@ -293,7 +293,7 @@ func TestDiffSeries(t *testing.T) {
 						{1000, 1.0},
 						{2000, 3.0},
 						{3000, 4.0},
-					}, "foo", "bar"),
+					}, nil, "foo", "bar"),
 				},
 			},
 			curr: &tempopb.QueryRangeResponse{
@@ -302,7 +302,7 @@ func TestDiffSeries(t *testing.T) {
 						{1000, 1.5},
 						{2000, 3.5},
 						{3000, 4.5},
-					}, "foo", "bar"),
+					}, nil, "foo", "bar"),
 				},
 			},
 			expected: &tempopb.QueryRangeResponse{
@@ -311,7 +311,7 @@ func TestDiffSeries(t *testing.T) {
 						{1000, 1.5},
 						{2000, 3.5},
 						{3000, 4.5},
-					}, "foo", "bar"),
+					}, nil, "foo", "bar"),
 				},
 			},
 		},
@@ -323,12 +323,12 @@ func TestDiffSeries(t *testing.T) {
 						{1000, 1.0},
 						{2000, 3.0},
 						{3000, 4.0},
-					}, "foo", "bar"),
+					}, nil, "foo", "bar"),
 					ts([]tempopb.Sample{
 						{1000, 1.0},
 						{2000, 3.0},
 						{3000, 4.0},
-					}, "baz", "bat"),
+					}, nil, "baz", "bat"),
 				},
 			},
 			curr: &tempopb.QueryRangeResponse{
@@ -337,29 +337,29 @@ func TestDiffSeries(t *testing.T) {
 						{1000, 1.1},
 						{2000, 3.1},
 						{3000, 4.2},
-					}, "pre", "pre"),
+					}, nil, "pre", "pre"),
 					ts([]tempopb.Sample{ // samples added and modified
 						{500, 0.5},
 						{1000, 1.0},
 						{2000, 3.5},
 						{3000, 4.0},
 						{3500, 3.5},
-					}, "foo", "bar"),
+					}, nil, "foo", "bar"),
 					ts([]tempopb.Sample{ // add one between
 						{1000, 1.1},
 						{2000, 3.1},
 						{3000, 4.1},
-					}, "inter", "inter"),
+					}, nil, "inter", "inter"),
 					ts([]tempopb.Sample{ // no change! should not appear in output
 						{1000, 1.0},
 						{2000, 3.0},
 						{3000, 4.0},
-					}, "baz", "bat"),
+					}, nil, "baz", "bat"),
 					ts([]tempopb.Sample{ // add one after
 						{1000, 1.1},
 						{2000, 3.1},
 						{3000, 4.1},
-					}, "post", "post"),
+					}, nil, "post", "post"),
 				},
 			},
 			expected: &tempopb.QueryRangeResponse{
@@ -368,22 +368,139 @@ func TestDiffSeries(t *testing.T) {
 						{1000, 1.1},
 						{2000, 3.1},
 						{3000, 4.2},
-					}, "pre", "pre"),
+					}, nil, "pre", "pre"),
 					ts([]tempopb.Sample{ // samples added and modified
 						{500, 0.5},
 						{2000, 3.5},
 						{3500, 3.5},
-					}, "foo", "bar"),
+					}, nil, "foo", "bar"),
 					ts([]tempopb.Sample{ // add one between
 						{1000, 1.1},
 						{2000, 3.1},
 						{3000, 4.1},
-					}, "inter", "inter"),
+					}, nil, "inter", "inter"),
 					ts([]tempopb.Sample{ // add one after
 						{1000, 1.1},
 						{2000, 3.1},
 						{3000, 4.1},
-					}, "post", "post"),
+					}, nil, "post", "post"),
+				},
+			},
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := diffResponse(tc.prev, tc.curr)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestDiffExemplars(t *testing.T) {
+	tcs := []struct {
+		name     string
+		prev     *tempopb.QueryRangeResponse
+		curr     *tempopb.QueryRangeResponse
+		expected *tempopb.QueryRangeResponse
+	}{
+		{
+			name: "exemplar no change",
+			prev: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts(nil, []tempopb.Exemplar{
+						{TimestampMs: 1000, Value: 1.0},
+						{TimestampMs: 2000, Value: 2.0},
+					}, "foo", "bar"),
+				},
+			},
+			curr: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts(nil, []tempopb.Exemplar{
+						{TimestampMs: 1000, Value: 1.0},
+						{TimestampMs: 2000, Value: 2.0},
+					}, "foo", "bar"),
+				},
+			},
+			expected: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{},
+			},
+		},
+		{
+			name: "exemplar value changed",
+			prev: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts(nil, []tempopb.Exemplar{
+						{TimestampMs: 1000, Value: 1.0},
+					}, "foo", "bar"),
+				},
+			},
+			curr: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts(nil, []tempopb.Exemplar{
+						{TimestampMs: 1000, Value: 2.0},
+					}, "foo", "bar"),
+				},
+			},
+			expected: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts(nil, []tempopb.Exemplar{
+						{TimestampMs: 1000, Value: 2.0},
+					}, "foo", "bar"),
+				},
+			},
+		},
+		{
+			name: "exemplar added",
+			prev: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts(nil, nil, "foo", "bar"),
+				},
+			},
+			curr: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts(nil, []tempopb.Exemplar{
+						{TimestampMs: 1000, Value: 1.0},
+					}, "foo", "bar"),
+				},
+			},
+			expected: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts(nil, []tempopb.Exemplar{
+						{TimestampMs: 1000, Value: 1.0},
+					}, "foo", "bar"),
+				},
+			},
+		},
+		{
+			name: "several exemplars changes",
+			prev: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts(nil, []tempopb.Exemplar{
+						{TimestampMs: 1000, Value: 1.0},
+						{TimestampMs: 2000, Value: 2.0},
+					}, "foo", "bar"),
+				},
+			},
+			curr: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts(nil, []tempopb.Exemplar{
+						{TimestampMs: 500, Value: .5},   // add before
+						{TimestampMs: 1000, Value: 1.0}, // same
+						{TimestampMs: 1500, Value: 1.5}, // add between
+						{TimestampMs: 2000, Value: 2.1}, // modified
+						{TimestampMs: 2500, Value: 2.5}, // add after
+					}, "foo", "bar"),
+				},
+			},
+			expected: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					ts(nil, []tempopb.Exemplar{
+						{TimestampMs: 500, Value: .5},   // add before
+						{TimestampMs: 1500, Value: 1.5}, // add between
+						{TimestampMs: 2000, Value: 2.1}, // modified
+						{TimestampMs: 2500, Value: 2.5}, // add after
+					}, "foo", "bar"),
 				},
 			},
 		},
@@ -398,7 +515,7 @@ func TestDiffSeries(t *testing.T) {
 }
 
 func BenchmarkDiffSeriesAndMarshal(b *testing.B) {
-	prev, curr := seriesWithTenPercentEqual()
+	prev, curr := seriesWithTenPercentDiff()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -409,7 +526,7 @@ func BenchmarkDiffSeriesAndMarshal(b *testing.B) {
 }
 
 func BenchmarkMarshalOnly(b *testing.B) {
-	_, curr := seriesWithTenPercentEqual()
+	_, curr := seriesWithTenPercentDiff()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -418,7 +535,7 @@ func BenchmarkMarshalOnly(b *testing.B) {
 	}
 }
 
-func seriesWithTenPercentEqual() (*tempopb.QueryRangeResponse, *tempopb.QueryRangeResponse) {
+func seriesWithTenPercentDiff() (*tempopb.QueryRangeResponse, *tempopb.QueryRangeResponse) {
 	a := &tempopb.QueryRangeResponse{}
 	b := &tempopb.QueryRangeResponse{}
 
@@ -446,18 +563,19 @@ func seriesWithTenPercentEqual() (*tempopb.QueryRangeResponse, *tempopb.QueryRan
 			}
 		}
 
-		a.Series = append(a.Series, ts(aSamples, "foo"+strconv.Itoa(s), "bar"))
-		b.Series = append(b.Series, ts(bSamples, "foo"+strconv.Itoa(s), "bar"))
+		a.Series = append(a.Series, ts(aSamples, nil, "foo"+strconv.Itoa(s), "bar"))
+		b.Series = append(b.Series, ts(bSamples, nil, "foo"+strconv.Itoa(s), "bar"))
 
 	}
 
 	return a, b
 }
 
-func ts(samples []tempopb.Sample, kvs ...string) *tempopb.TimeSeries {
+func ts(samples []tempopb.Sample, exemplars []tempopb.Exemplar, kvs ...string) *tempopb.TimeSeries {
 	ts := &tempopb.TimeSeries{
-		Samples: samples,
-		Labels:  []v1.KeyValue{},
+		Samples:   samples,
+		Exemplars: exemplars,
+		Labels:    []v1.KeyValue{},
 	}
 
 	for i := 0; i < len(kvs); i += 2 {
@@ -471,7 +589,12 @@ func ts(samples []tempopb.Sample, kvs ...string) *tempopb.TimeSeries {
 		})
 	}
 	ts.PromLabels = traceql.LabelsFromProto(ts.Labels).String()
-	ts.Samples = samples
+	if samples == nil {
+		ts.Samples = []tempopb.Sample{}
+	}
+	if exemplars == nil {
+		ts.Exemplars = []tempopb.Exemplar{}
+	}
 
 	return ts
 }

@@ -56,13 +56,12 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 				resp = &tempopb.QueryRangeResponse{}
 			}
 			sortResponse(resp)
+			attachExemplars(req, resp)
 
 			// compare with prev resp and only return diffs
 			diff := diffResponse(prevResp, resp)
 			// store resp for next diff
 			prevResp = resp
-
-			attachExemplars(req, diff)
 
 			return diff, nil
 		},
@@ -123,8 +122,8 @@ func diffResponse(prev, curr *tempopb.QueryRangeResponse) *tempopb.QueryRangeRes
 		diffSeries := &tempopb.TimeSeries{
 			Labels:     s.Labels,
 			PromLabels: s.PromLabels,
-			Exemplars:  s.Exemplars,                                  // taking all current exemplars. improve?
-			Samples:    make([]tempopb.Sample, 0, len(s.Samples)/10), // prealloc 10% of samples. untuned
+			Exemplars:  make([]tempopb.Exemplar, 0, len(s.Exemplars)/10), // prealloc 10% of exemplars. untuned
+			Samples:    make([]tempopb.Sample, 0, len(s.Samples)/10),     // prealloc 10% of samples. untuned
 		}
 
 		// samples are sorted, so we can do this in a single pass
@@ -145,7 +144,26 @@ func diffResponse(prev, curr *tempopb.QueryRangeResponse) *tempopb.QueryRangeRes
 			dSamplesIdx++
 		}
 
-		if len(diffSeries.Samples) > 0 {
+		// diff exemplars
+		// exemplars are sorted, so we can do this in a single pass
+		dExemplarsIdx := 0
+		for _, exemplar := range s.Exemplars {
+			// if this exemplar is not in the previous response, add it to the diff. technically two exemplars could share the same timestamp, if they do AND are sorted in opposite order of the prev response
+			// then they will just both be marshalled into the output proto. this rare case seems preferable to always checking all exemplar labels for equality
+			if dExemplarsIdx >= len(prev.Series[seriesIdx].Exemplars) || exemplar.TimestampMs != prev.Series[seriesIdx].Exemplars[dExemplarsIdx].TimestampMs {
+				diffSeries.Exemplars = append(diffSeries.Exemplars, exemplar)
+				continue
+			}
+
+			// if we get here, the exemplar is in both responses. only copy if the value is different
+			if exemplar.Value != prev.Series[seriesIdx].Exemplars[dExemplarsIdx].Value {
+				diffSeries.Exemplars = append(diffSeries.Exemplars, exemplar)
+			}
+
+			dExemplarsIdx++
+		}
+
+		if len(diffSeries.Samples) > 0 || len(diffSeries.Exemplars) > 0 {
 			diff.Series = append(diff.Series, diffSeries)
 		}
 		seriesIdx++
