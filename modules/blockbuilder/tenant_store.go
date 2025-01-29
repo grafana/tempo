@@ -480,7 +480,7 @@ func (i *liveTracesIter) Next(ctx context.Context) (common.ID, *tempopb.Trace, e
 
 	for _, b := range entry.Batches {
 		// Decompress
-		decompressed, err := snappy.Decode(nil, b)
+		decompressed, err := snappy.Decode(snappyPool.Get(len(b)), b)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -492,6 +492,8 @@ func (i *liveTracesIter) Next(ctx context.Context) (common.ID, *tempopb.Trace, e
 		if err != nil {
 			return nil, nil, err
 		}
+
+		snappyPool.Put(decompressed)
 	}
 
 	// Update block timestamp bounds
@@ -507,6 +509,8 @@ func (i *liveTracesIter) Next(ctx context.Context) (common.ID, *tempopb.Trace, e
 			}
 		}
 	}
+
+	delete(i.liveTraces.Traces, nextHash)
 
 	return entry.ID, tr, nil
 }
