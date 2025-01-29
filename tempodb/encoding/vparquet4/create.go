@@ -37,55 +37,60 @@ func (b *backendWriter) Close() error {
 func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
 	s := newStreamingBlock(ctx, cfg, meta, r, to, tempo_io.NewBufferedWriter)
 
-	var next func(context.Context) (bool, error)
+	var next func(context.Context) error
 
 	if ii, ok := i.(*commonIterator); ok {
-		next = func(ctx context.Context) (bool, error) {
+		next = func(ctx context.Context) error {
 			// Use interal iterator and avoid translation to/from proto
 			id, row, err := ii.NextRow(ctx)
 			if errors.Is(err, io.EOF) || row == nil {
-				return true, nil
+				return io.EOF
 			}
 			if err != nil {
-				return false, err
+				return err
 			}
 			err = s.AddRaw(id, row, 0, 0) // start and end time of the wal meta are used.
 			if err != nil {
-				return false, err
+				return err
 			}
 
 			completeBlockRowPool.Put(row)
-			return false, nil
+			return nil
 		}
 	} else {
 		// Need to convert from proto->parquet obj
-		trp := &Trace{}
-		next = func(context.Context) (bool, error) {
+		buffer := &Trace{}
+		next = func(context.Context) error {
 			id, tr, err := i.Next(ctx)
 			if errors.Is(err, io.EOF) || tr == nil {
-				return true, nil
+				return io.EOF
 			}
 			if err != nil {
-				return false, err
+				return err
 			}
 
 			// Copy ID to allow it to escape the iterator.
 			id = append([]byte(nil), id...)
 
-			trp, _ = traceToParquet(meta, id, tr, trp) // this logic only executes when we are transitioning from one block version to another. just ignore connected here
+			// TODO - metric dataquality/connected
+			buffer, _ = traceToParquet(meta, id, tr, buffer) // this logic only executes when we are transitioning from one block version to another. just ignore connected here
 
-			err = s.Add(trp, 0, 0)
+			err = s.Add(buffer, 0, 0) // start and end time are set outside
 			if err != nil {
-				return true, err
+				return err
 			}
-			return false, err
+
+			return nil
 		}
 	}
 
 	for {
-		done, err := next(ctx)
-		if errors.Is(err, io.EOF) || done {
+		err := next(ctx)
+		if errors.Is(err, io.EOF) {
 			break
+		}
+		if err != nil {
+			return nil, err
 		}
 
 		if s.EstimatedBufferedBytes() > cfg.RowGroupSizeBytes {
