@@ -13,6 +13,7 @@ import (
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
+	"golang.org/x/sync/errgroup"
 )
 
 type partitionSectionWriter interface {
@@ -83,13 +84,19 @@ func (p *writer) cutidle(since time.Time, immediate bool) error {
 
 func (p *writer) flush(ctx context.Context, store tempodb.Writer) error {
 	// TODO - Retry with backoff?
+
+	// Flush tenants concurrently
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(flushConcurrency)
+
 	for _, i := range p.m {
-		level.Info(p.logger).Log("msg", "flushing tenant", "tenant", i.tenantID)
-		if err := i.Flush(ctx, store); err != nil {
-			return err
-		}
+		g.Go(func() error {
+			i := i
+			level.Info(p.logger).Log("msg", "flushing tenant", "tenant", i.tenantID)
+			return i.Flush(ctx, store)
+		})
 	}
-	return nil
+	return g.Wait()
 }
 
 func (p *writer) instanceForTenant(tenant string) (*tenantStore2, error) {
