@@ -46,7 +46,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		start := time.Now()
 
 		var finalResponse *tempopb.QueryRangeResponse
-		c, err := combiner.NewTypedQueryRange(req, true)
+		c, err := combiner.NewTypedQueryRange(req)
 		if err != nil {
 			return err
 		}
@@ -92,7 +92,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		logQueryRangeRequest(logger, tenant, queryRangeReq)
 
 		// build and use roundtripper
-		combiner, err := combiner.NewTypedQueryRange(queryRangeReq, false)
+		combiner, err := combiner.NewTypedQueryRange(queryRangeReq)
 		if err != nil {
 			level.Error(logger).Log("msg", "query range: query range combiner failed", "err", err)
 			return &http.Response{
@@ -106,6 +106,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 		resp, err := rt.RoundTrip(req)
 
 		// ask for the typed diff and use that for the SLO hook. it will have up to date metrics
+		// todo: is there a way to remove this? it can be costly for large responses
 		var bytesProcessed uint64
 		queryRangeResp, _ := combiner.GRPCDiff()
 		if queryRangeResp != nil && queryRangeResp.Metrics != nil {

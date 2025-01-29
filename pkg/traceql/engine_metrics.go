@@ -231,10 +231,6 @@ type TimeSeries struct {
 type SeriesSet map[string]TimeSeries
 
 func (set SeriesSet) ToProto(req *tempopb.QueryRangeRequest) []*tempopb.TimeSeries {
-	return set.ToProtoDiff(req, nil)
-}
-
-func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels func(string) (uint64, uint64, bool)) []*tempopb.TimeSeries {
 	resp := make([]*tempopb.TimeSeries, 0, len(set))
 
 	for promLabels, s := range set {
@@ -249,15 +245,6 @@ func (set SeriesSet) ToProtoDiff(req *tempopb.QueryRangeRequest, rangeForLabels 
 		}
 
 		start, end := req.Start, req.End
-		include := true
-		if rangeForLabels != nil {
-			start, end, include = rangeForLabels(promLabels)
-		}
-
-		if !include {
-			continue
-		}
-
 		start = alignStart(start, req.Step)
 		end = alignEnd(end, req.Step)
 
