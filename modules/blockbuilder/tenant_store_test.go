@@ -31,6 +31,7 @@ func TestAdjustTimeRangeForSlack(t *testing.T) {
 	require.NoError(t, err)
 
 	startCycleTime := time.Now()
+	cycleDuration := 1 * time.Minute
 
 	tests := []struct {
 		name          string
@@ -71,7 +72,7 @@ func TestAdjustTimeRangeForSlack(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			start, end := store.adjustTimeRangeForSlack(startCycleTime, tt.start, tt.end)
+			start, end := store.adjustTimeRangeForSlack(startCycleTime, cycleDuration, tt.start, tt.end)
 			assert.Equal(t, tt.expectedStart, start)
 			assert.Equal(t, tt.expectedEnd, end)
 		})

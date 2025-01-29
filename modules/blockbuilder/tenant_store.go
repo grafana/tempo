@@ -149,7 +149,7 @@ func (s *tenantStore) AppendTrace(traceID []byte, tr []byte, ts time.Time) error
 	return nil
 }
 
-func (s *tenantStore) CutIdle(startSectionTime time.Time, since time.Time, immediate bool) error {
+func (s *tenantStore) CutIdle(startSectionTime time.Time, cycleDuration time.Duration, since time.Time, immediate bool) error {
 	idle := s.liveTraces.CutIdle(since, immediate)
 
 	slices.SortFunc(idle, func(a, b *livetraces.LiveTrace[[]byte]) int {
@@ -212,7 +212,7 @@ func (s *tenantStore) CutIdle(startSectionTime time.Time, since time.Time, immed
 	}
 
 	for i, tr := range unmarshaled {
-		start, end := s.adjustTimeRangeForSlack(startSectionTime, starts[i], ends[i])
+		start, end := s.adjustTimeRangeForSlack(startSectionTime, cycleDuration, starts[i], ends[i])
 		if err := s.headBlock.AppendTrace(idle[i].ID, tr, start, end, false); err != nil {
 			return err
 		}
@@ -232,9 +232,9 @@ func (s *tenantStore) CutIdle(startSectionTime time.Time, since time.Time, immed
 	return s.cutHeadBlock(false)
 }
 
-func (s *tenantStore) adjustTimeRangeForSlack(startSectionTime time.Time, start, end uint32) (uint32, uint32) {
+func (s *tenantStore) adjustTimeRangeForSlack(startSectionTime time.Time, cycleDuration time.Duration, start, end uint32) (uint32, uint32) {
 	startOfRange := uint32(startSectionTime.Add(-s.headBlock.IngestionSlack()).Unix())
-	endOfRange := uint32(startSectionTime.Add(s.headBlock.IngestionSlack()).Unix())
+	endOfRange := uint32(startSectionTime.Add(s.headBlock.IngestionSlack() + cycleDuration).Unix())
 
 	warn := false
 	if start < startOfRange {

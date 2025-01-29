@@ -26,6 +26,7 @@ type writer struct {
 	blockCfg               BlockConfig
 	partition, firstOffset uint64
 	startSectionTime       time.Time
+	cycleDuration          time.Duration
 
 	overrides Overrides
 	wal       *wal.WAL
@@ -35,12 +36,13 @@ type writer struct {
 	m   map[string]*tenantStore
 }
 
-func newPartitionSectionWriter(logger log.Logger, partition, firstOffset uint64, startSectionTime time.Time, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
+func newPartitionSectionWriter(logger log.Logger, partition, firstOffset uint64, startSectionTime time.Time, cycleDuration time.Duration, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
 	return &writer{
 		logger:           logger,
 		partition:        partition,
 		firstOffset:      firstOffset,
 		startSectionTime: startSectionTime,
+		cycleDuration:    cycleDuration,
 		blockCfg:         blockCfg,
 		overrides:        overrides,
 		wal:              wal,
@@ -74,7 +76,7 @@ func (p *writer) pushBytes(ts time.Time, tenant string, req *tempopb.PushBytesRe
 
 func (p *writer) cutidle(since time.Time, immediate bool) error {
 	for _, i := range p.m {
-		if err := i.CutIdle(p.startSectionTime, since, immediate); err != nil {
+		if err := i.CutIdle(p.startSectionTime, p.cycleDuration, since, immediate); err != nil {
 			return err
 		}
 	}
