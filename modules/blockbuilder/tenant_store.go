@@ -213,7 +213,7 @@ func (s *tenantStore) CutIdle(startSectionTime time.Time, since time.Time, immed
 
 	for i, tr := range unmarshaled {
 		start, end := s.adjustTimeRangeForSlack(startSectionTime, starts[i], ends[i])
-		if err := s.headBlock.AppendTrace(idle[i].ID, tr, start, end); err != nil {
+		if err := s.headBlock.AppendTrace(idle[i].ID, tr, start, end, false); err != nil {
 			return err
 		}
 	}

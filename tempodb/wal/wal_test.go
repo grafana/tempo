@@ -68,7 +68,7 @@ func testAppendBlockStartEnd(t *testing.T, e encoding.VersionedEncoding) {
 		b2, err := enc.ToObject([][]byte{b1})
 		require.NoError(t, err)
 
-		err = block.Append(id, b2, blockStart, blockEnd)
+		err = block.Append(id, b2, blockStart, blockEnd, true)
 		require.NoError(t, err, "unexpected error writing req")
 	}
 
@@ -126,7 +126,7 @@ func testIngestionSlack(t *testing.T, e encoding.VersionedEncoding) {
 	require.NoError(t, err)
 
 	appendTime := time.Now()
-	err = block.Append(id, b2, traceStart, traceEnd)
+	err = block.Append(id, b2, traceStart, traceEnd, true)
 	require.NoError(t, err, "unexpected error writing req")
 
 	blockStart := uint32(block.BlockMeta().StartTime.Unix())
@@ -329,7 +329,7 @@ func TestInvalidFilesAndFoldersAreHandled(t *testing.T) {
 		require.NoError(t, err)
 		b2, err := model.MustNewSegmentDecoder(model.CurrentEncoding).ToObject([][]byte{b1})
 		require.NoError(t, err)
-		err = block.Append(id, b2, 0, 0)
+		err = block.Append(id, b2, 0, 0, true)
 		require.NoError(t, err)
 		err = block.Flush()
 		require.NoError(t, err)
@@ -393,7 +393,7 @@ func runWALTestWithAppendMode(t testing.TB, encoding string, appendTrace bool, r
 		objs = append(objs, obj)
 
 		if appendTrace {
-			err = block.AppendTrace(id, obj, 0, 0)
+			err = block.AppendTrace(id, obj, 0, 0, true)
 			require.NoError(t, err)
 		} else {
 			b1, err := enc.PrepareForWrite(obj, 0, 0)
@@ -402,7 +402,7 @@ func runWALTestWithAppendMode(t testing.TB, encoding string, appendTrace bool, r
 			b2, err := enc.ToObject([][]byte{b1})
 			require.NoError(t, err)
 
-			err = block.Append(id, b2, 0, 0)
+			err = block.Append(id, b2, 0, 0, true)
 			require.NoError(t, err)
 		}
 
@@ -556,9 +556,9 @@ func runWALBenchmarkWithAppendMode(b *testing.B, encoding string, flushCount int
 
 		for i := range traces {
 			if appendTrace {
-				require.NoError(b, block.AppendTrace(ids[i], traces[i], 0, 0))
+				require.NoError(b, block.AppendTrace(ids[i], traces[i], 0, 0, true))
 			} else {
-				require.NoError(b, block.Append(ids[i], objs[i], 0, 0))
+				require.NoError(b, block.Append(ids[i], objs[i], 0, 0, true))
 			}
 		}
 

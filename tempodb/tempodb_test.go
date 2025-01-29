@@ -694,7 +694,7 @@ func writeTraceToWal(t require.TestingT, b common.WALBlock, dec model.SegmentDec
 	b2, err := dec.ToObject([][]byte{b1})
 	require.NoError(t, err)
 
-	err = b.Append(id, b2, start, end)
+	err = b.Append(id, b2, start, end, true)
 	require.NoError(t, err, "unexpected error writing req")
 }
 

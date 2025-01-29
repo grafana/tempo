@@ -169,7 +169,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 
 		b2, err := dec.ToObject([][]byte{b1})
 		require.NoError(t, err)
-		err = head.Append(tid, b2, 0, 0)
+		err = head.Append(tid, b2, 0, 0, true)
 		require.NoError(t, err)
 	}
 
