@@ -59,7 +59,11 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 		}
 	} else {
 		// Need to convert from proto->parquet obj
-		buffer := &Trace{}
+		var (
+			buffer                      = &Trace{}
+			dedicatedResourceAttributes = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
+			dedicatedSpanAttributes     = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
+		)
 		next = func(context.Context) error {
 			id, tr, err := i.Next(ctx)
 			if errors.Is(err, io.EOF) || tr == nil {
@@ -73,7 +77,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			id = append([]byte(nil), id...)
 
 			// TODO - metric dataquality/connected
-			buffer, _ = traceToParquet(meta, id, tr, buffer) // this logic only executes when we are transitioning from one block version to another. just ignore connected here
+			buffer, _ = traceToParquetWithMapping(id, tr, buffer, dedicatedResourceAttributes, dedicatedSpanAttributes) // this logic only executes when we are transitioning from one block version to another. just ignore connected here
 
 			err = s.Add(buffer, 0, 0) // start and end time are set outside
 			if err != nil {

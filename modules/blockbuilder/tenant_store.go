@@ -16,12 +16,14 @@ import (
 	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/tempopb/pool"
 	"github.com/grafana/tempo/pkg/tracesizes"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/klauspost/compress/snappy"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/atomic"
@@ -359,6 +361,8 @@ func newTenantStore2(tenantID string, partitionID, endTimestamp uint64, cfg Bloc
 	return s, nil
 }
 
+var snappyPool = pool.New(0, 250, 400)
+
 func (s *tenantStore2) AppendTrace(traceID []byte, tr []byte, ts time.Time) error {
 	maxSz := s.overrides.MaxBytesPerTrace(s.tenantID)
 
@@ -380,7 +384,10 @@ func (s *tenantStore2) AppendTrace(traceID []byte, tr []byte, ts time.Time) erro
 		return nil
 	}
 
-	s.liveTraces.PushWithTimestamp(ts, traceID, tr, 0)
+	// Compress
+	compressed := snappy.Encode(snappyPool.Get(len(tr)), tr)
+
+	s.liveTraces.PushWithTimestamp(ts, traceID, compressed, 0)
 
 	return nil
 }
@@ -472,9 +479,16 @@ func (i *liveTracesIter) Next(ctx context.Context) (common.ID, *tempopb.Trace, e
 	tr := new(tempopb.Trace)
 
 	for _, b := range entry.Batches {
+		// Decompress
+		decompressed, err := snappy.Decode(nil, b)
+		if err != nil {
+			return nil, nil, err
+		}
+		snappyPool.Put(b)
+
 		// This unmarshal appends the batches onto the existing tempopb.Trace
 		// so we don't need to allocate another container temporarily
-		err := tr.Unmarshal(b)
+		err = tr.Unmarshal(decompressed)
 		if err != nil {
 			return nil, nil, err
 		}
