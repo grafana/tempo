@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"runtime"
 
 	"github.com/google/uuid"
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -102,6 +103,7 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			if err != nil {
 				return nil, err
 			}
+			runtime.GC()
 		}
 	}
 
