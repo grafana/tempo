@@ -36,7 +36,6 @@ cmd/
   tempo-cli/          - cli tool for directly inspecting blocks in the backend
   tempo-vulture/      - bird-themed consistency checker.  optional.
   tempo-query/        - jaeger-query GRPC plugin (Apache2 licensed)
-  tempo-serverless/   - serverless handler for searching backend storage for traces
 docs/
 example/              - great place to get started running Tempo
   docker-compose/
