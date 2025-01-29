@@ -31,7 +31,8 @@ type writer struct {
 	enc       encoding.VersionedEncoding
 
 	mtx sync.Mutex
-	m   map[string]*tenantStore
+	// m   map[string]*tenantStore
+	m map[string]*tenantStore2
 }
 
 func newPartitionSectionWriter(logger log.Logger, partition, cycleEndTs uint64, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
@@ -44,7 +45,8 @@ func newPartitionSectionWriter(logger log.Logger, partition, cycleEndTs uint64, 
 		wal:        wal,
 		enc:        enc,
 		mtx:        sync.Mutex{},
-		m:          make(map[string]*tenantStore),
+		// m:          make(map[string]*tenantStore),
+		m: make(map[string]*tenantStore2),
 	}
 }
 
@@ -71,11 +73,11 @@ func (p *writer) pushBytes(ts time.Time, tenant string, req *tempopb.PushBytesRe
 }
 
 func (p *writer) cutidle(since time.Time, immediate bool) error {
-	for _, i := range p.m {
+	/*for _, i := range p.m {
 		if err := i.CutIdle(since, immediate); err != nil {
 			return err
 		}
-	}
+	}*/
 	return nil
 }
 
@@ -90,7 +92,7 @@ func (p *writer) flush(ctx context.Context, store tempodb.Writer) error {
 	return nil
 }
 
-func (p *writer) instanceForTenant(tenant string) (*tenantStore, error) {
+func (p *writer) instanceForTenant(tenant string) (*tenantStore2, error) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
@@ -98,7 +100,7 @@ func (p *writer) instanceForTenant(tenant string) (*tenantStore, error) {
 		return i, nil
 	}
 
-	i, err := newTenantStore(tenant, p.partition, p.cycleEndTs, p.blockCfg, p.logger, p.wal, p.enc, p.overrides)
+	i, err := newTenantStore2(tenant, p.partition, p.cycleEndTs, p.blockCfg, p.wal, p.enc, p.logger, p.overrides)
 	if err != nil {
 		return nil, err
 	}

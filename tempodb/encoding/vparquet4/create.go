@@ -37,19 +37,36 @@ func (b *backendWriter) Close() error {
 func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
 	s := newStreamingBlock(ctx, cfg, meta, r, to, tempo_io.NewBufferedWriter)
 
-	var next func(context.Context) (common.ID, parquet.Row, error)
+	var next func(context.Context) (bool, error)
 
 	if ii, ok := i.(*commonIterator); ok {
-		// Use interal iterator and avoid translation to/from proto
-		next = ii.NextRow
+		next = func(ctx context.Context) (bool, error) {
+			// Use interal iterator and avoid translation to/from proto
+			id, row, err := ii.NextRow(ctx)
+			if errors.Is(err, io.EOF) || row == nil {
+				return true, nil
+			}
+			if err != nil {
+				return false, err
+			}
+			err = s.AddRaw(id, row, 0, 0) // start and end time of the wal meta are used.
+			if err != nil {
+				return false, err
+			}
+
+			completeBlockRowPool.Put(row)
+			return false, nil
+		}
 	} else {
 		// Need to convert from proto->parquet obj
 		trp := &Trace{}
-		sch := parquet.SchemaOf(trp)
-		next = func(context.Context) (common.ID, parquet.Row, error) {
+		next = func(context.Context) (bool, error) {
 			id, tr, err := i.Next(ctx)
 			if errors.Is(err, io.EOF) || tr == nil {
-				return id, nil, err
+				return true, nil
+			}
+			if err != nil {
+				return false, err
 			}
 
 			// Copy ID to allow it to escape the iterator.
@@ -57,23 +74,19 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 
 			trp, _ = traceToParquet(meta, id, tr, trp) // this logic only executes when we are transitioning from one block version to another. just ignore connected here
 
-			row := sch.Deconstruct(completeBlockRowPool.Get(), trp)
-
-			return id, row, nil
+			err = s.Add(trp, 0, 0)
+			if err != nil {
+				return true, err
+			}
+			return false, err
 		}
 	}
 
 	for {
-		id, row, err := next(ctx)
-		if errors.Is(err, io.EOF) || row == nil {
+		done, err := next(ctx)
+		if errors.Is(err, io.EOF) || done {
 			break
 		}
-
-		err = s.AddRaw(id, row, 0, 0) // start and end time of the wal meta are used.
-		if err != nil {
-			return nil, err
-		}
-		completeBlockRowPool.Put(row)
 
 		if s.EstimatedBufferedBytes() > cfg.RowGroupSizeBytes {
 			_, err = s.Flush()
