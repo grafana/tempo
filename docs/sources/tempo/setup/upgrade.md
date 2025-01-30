@@ -101,11 +101,13 @@ For Jaeger exporting, set `OTEL_TRACES_EXPORTER=jaeger`.For more information, re
 This release disables gRPC compression in the querier and distributor for performance reasons. ([#4429](https://github.com/grafana/tempo/pull/4429))
 Our benchmark suggests that without compression, queriers and distributors use less CPU and memory.
 
-However, you may notice an increase in ingester data and network traffic.
+{{< admonition type="note" >}}
+This change may increase data usage and network traffic, which can impact cloud billing.
+{{< /admonition >}}
 
 If you notice increased network traffic or issues, check the gRPC compression settings.
 
-Refer to [gRPC compression configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#grpc-compression) for more information.
+For instructions how to enable gRPC compression, refer to [gRPC compression configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#grpc-compression) for more information.
 
 ### Added, updated, removed, or renamed configuration parameters
 
