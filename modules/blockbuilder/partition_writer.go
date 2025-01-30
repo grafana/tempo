@@ -68,7 +68,7 @@ func (p *writer) pushBytes(ts time.Time, tenant string, req *tempopb.PushBytesRe
 		if err := i.AppendTrace(req.Ids[j], trace.Slice, ts); err != nil {
 			return err
 		}
-		tempopb.ReuseByteSlices([][]byte{trace.Slice})
+		// tempopb.ReuseByteSlices([][]byte{trace.Slice})
 	}
 
 	return nil

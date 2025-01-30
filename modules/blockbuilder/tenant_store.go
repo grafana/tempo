@@ -23,7 +23,6 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/klauspost/compress/snappy"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/atomic"
@@ -385,14 +384,21 @@ func (s *tenantStore2) AppendTrace(traceID []byte, tr []byte, ts time.Time) erro
 	}
 
 	// Compress
-	compressed := snappy.Encode(snappyPool.Get(len(tr)), tr)
+	// compressed := snappy.Encode(snappyPool.Get(len(tr)), tr)
+	// s.liveTraces.PushWithTimestamp(ts, traceID, compressed, 0)
 
-	s.liveTraces.PushWithTimestamp(ts, traceID, compressed, 0)
+	s.liveTraces.PushWithTimestamp(ts, traceID, tr, 0)
 
 	return nil
 }
 
 func (s *tenantStore2) Flush(ctx context.Context, store tempodb.Writer) error {
+	if s.liveTraces.Len() == 0 {
+		// This can happen if the tenant instance was created but
+		// no live traces were successfully pushed. i.e. all exceeded max trace size.
+		return nil
+	}
+
 	var (
 		l      = s.wal.LocalBackend()
 		reader = backend.NewReader(l)
@@ -404,7 +410,7 @@ func (s *tenantStore2) Flush(ctx context.Context, store tempodb.Writer) error {
 	meta := backend.NewBlockMeta(s.tenantID, uuid.UUID(s.idGenerator.NewID()), s.enc.Version(), backend.EncNone, "")
 	meta.DedicatedColumns = s.overrides.DedicatedColumns(s.tenantID)
 	meta.ReplicationFactor = 1
-	meta.TotalObjects = int64(len(s.liveTraces.Traces))
+	meta.TotalObjects = int64(s.liveTraces.Len())
 
 	newMeta, err := s.enc.CreateBlock(ctx, &s.cfg.BlockCfg, meta, iter, reader, writer)
 	if err != nil {
@@ -441,10 +447,19 @@ type entry struct {
 	hash uint64
 }
 
+type chEntry struct {
+	id  common.ID
+	tr  *tempopb.Trace
+	err error
+}
+
 type liveTracesIter struct {
 	i          int
 	entries    []entry
 	liveTraces *livetraces.LiveTraces[[]byte]
+	ch         chan []chEntry
+	chBuf      []chEntry
+	cancel     func()
 
 	start, end uint64
 }
@@ -460,13 +475,112 @@ func newLiveTracesIter(liveTraces *livetraces.LiveTraces[[]byte]) *liveTracesIte
 		return bytes.Compare(a.id, b.id)
 	})
 
-	return &liveTracesIter{
+	ctx, cancel := context.WithCancel(context.Background())
+
+	l := &liveTracesIter{
 		entries:    tids,
 		liveTraces: liveTraces,
+		ch:         make(chan []chEntry, 1),
+		cancel:     cancel,
 	}
+
+	go l.iter(ctx)
+
+	return l
 }
 
 func (i *liveTracesIter) Next(ctx context.Context) (common.ID, *tempopb.Trace, error) {
+	if len(i.chBuf) == 0 {
+		select {
+		case entries, ok := <-i.ch:
+			if !ok {
+				return nil, nil, nil
+			}
+			i.chBuf = entries
+		case <-ctx.Done():
+			return nil, nil, ctx.Err()
+		}
+	}
+
+	// Pop next entry
+	if len(i.chBuf) > 0 {
+		entry := i.chBuf[0]
+		i.chBuf = i.chBuf[1:]
+		return entry.id, entry.tr, entry.err
+	}
+
+	// Channel is open but buffer is empty?
+	return nil, nil, nil
+}
+
+func (i *liveTracesIter) iter(ctx context.Context) {
+	defer close(i.ch)
+
+	seq := slices.Chunk(i.entries, 10)
+	for entries := range seq {
+		output := make([]chEntry, 0, len(entries))
+
+		for _, e := range entries {
+
+			entry := i.liveTraces.Traces[e.hash]
+
+			tr := new(tempopb.Trace)
+
+			for _, b := range entry.Batches {
+				// Decompress
+				/*decompressed, err := snappy.Decode(snappyPool.Get(len(b)), b)
+				if err != nil {
+					i.ch <- []chEntry{{err: err}}
+					return
+				}
+				snappyPool.Put(b)
+
+				// This unmarshal appends the batches onto the existing tempopb.Trace
+				// so we don't need to allocate another container temporarily
+				err = tr.Unmarshal(decompressed)*/
+				err := tr.Unmarshal(b)
+				if err != nil {
+					i.ch <- []chEntry{{err: err}}
+					return
+				}
+
+				// snappyPool.Put(decompressed)
+			}
+
+			// Update block timestamp bounds
+			for _, b := range tr.ResourceSpans {
+				for _, ss := range b.ScopeSpans {
+					for _, s := range ss.Spans {
+						if i.start == 0 || s.StartTimeUnixNano < i.start {
+							i.start = s.StartTimeUnixNano
+						}
+						if s.EndTimeUnixNano > i.end {
+							i.end = s.EndTimeUnixNano
+						}
+					}
+				}
+			}
+
+			tempopb.ReuseByteSlices(entry.Batches)
+			delete(i.liveTraces.Traces, e.hash)
+
+			output = append(output, chEntry{
+				id:  entry.ID,
+				tr:  tr,
+				err: nil,
+			})
+		}
+
+		select {
+		case i.ch <- output:
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+/*
+func x() {
 	if i.i >= len(i.entries) {
 		return nil, nil, nil
 	}
@@ -513,5 +627,8 @@ func (i *liveTracesIter) Next(ctx context.Context) (common.ID, *tempopb.Trace, e
 	delete(i.liveTraces.Traces, nextHash)
 
 	return entry.ID, tr, nil
+}*/
+
+func (i *liveTracesIter) Close() {
+	i.cancel()
 }
-func (i *liveTracesIter) Close() {}
