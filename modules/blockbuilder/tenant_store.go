@@ -16,7 +16,6 @@ import (
 	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/tempopb/pool"
 	"github.com/grafana/tempo/pkg/tracesizes"
 	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -144,7 +143,7 @@ func (s *tenantStore) AppendTrace(traceID []byte, tr []byte, ts time.Time) error
 		return nil
 	}
 
-	s.liveTraces.PushWithTimestamp(ts, traceID, tr, 0)
+	s.liveTraces.PushWithTimestampAndLimits(ts, traceID, tr, 0, 0)
 
 	return nil
 }
@@ -341,7 +340,6 @@ type tenantStore2 struct {
 	wal       *wal.WAL
 
 	liveTraces *livetraces.LiveTraces[[]byte]
-	traceSizes *tracesizes.Tracker
 }
 
 func newTenantStore2(tenantID string, partitionID, endTimestamp uint64, cfg BlockConfig, wal *wal.WAL, enc encoding.VersionedEncoding, logger log.Logger, o Overrides) (*tenantStore2, error) {
@@ -354,18 +352,15 @@ func newTenantStore2(tenantID string, partitionID, endTimestamp uint64, cfg Bloc
 		wal:         wal,
 		enc:         enc,
 		liveTraces:  livetraces.New[[]byte](func(b []byte) uint64 { return uint64(len(b)) }),
-		traceSizes:  tracesizes.New(),
 	}
 
 	return s, nil
 }
 
-var snappyPool = pool.New(0, 250, 400)
-
 func (s *tenantStore2) AppendTrace(traceID []byte, tr []byte, ts time.Time) error {
 	maxSz := s.overrides.MaxBytesPerTrace(s.tenantID)
 
-	if maxSz > 0 && !s.traceSizes.Allow(traceID, len(tr), maxSz) {
+	if !s.liveTraces.PushWithTimestampAndLimits(ts, traceID, tr, 0, uint64(maxSz)) {
 		// Record dropped spans due to trace too large
 		// We have to unmarhal to count the number of spans.
 		// TODO - There might be a better way
@@ -380,14 +375,7 @@ func (s *tenantStore2) AppendTrace(traceID []byte, tr []byte, ts time.Time) erro
 			}
 		}
 		overrides.RecordDiscardedSpans(count, reasonTraceTooLarge, s.tenantID)
-		return nil
 	}
-
-	// Compress
-	// compressed := snappy.Encode(snappyPool.Get(len(tr)), tr)
-	// s.liveTraces.PushWithTimestamp(ts, traceID, compressed, 0)
-
-	s.liveTraces.PushWithTimestamp(ts, traceID, tr, 0)
 
 	return nil
 }
@@ -400,6 +388,7 @@ func (s *tenantStore2) Flush(ctx context.Context, store tempodb.Writer) error {
 	}
 
 	var (
+		st     = time.Now()
 		l      = s.wal.LocalBackend()
 		reader = backend.NewReader(l)
 		writer = backend.NewWriter(l)
@@ -411,6 +400,13 @@ func (s *tenantStore2) Flush(ctx context.Context, store tempodb.Writer) error {
 	meta.DedicatedColumns = s.overrides.DedicatedColumns(s.tenantID)
 	meta.ReplicationFactor = 1
 	meta.TotalObjects = int64(s.liveTraces.Len())
+
+	level.Info(s.logger).Log(
+		"msg", "Flushing block",
+		"tenant", s.tenantID,
+		"blockid", meta.BlockID,
+		"meta", meta,
+	)
 
 	newMeta, err := s.enc.CreateBlock(ctx, &s.cfg.BlockCfg, meta, iter, reader, writer)
 	if err != nil {
@@ -439,6 +435,14 @@ func (s *tenantStore2) Flush(ctx context.Context, store tempodb.Writer) error {
 		return err
 	}
 
+	level.Info(s.logger).Log(
+		"msg", "Flushed block",
+		"tenant", s.tenantID,
+		"blockid", newMeta.BlockID,
+		"elasped", time.Since(st),
+		"meta", newMeta,
+	)
+
 	return nil
 }
 
@@ -454,7 +458,6 @@ type chEntry struct {
 }
 
 type liveTracesIter struct {
-	i          int
 	entries    []entry
 	liveTraces *livetraces.LiveTraces[[]byte]
 	ch         chan []chEntry
@@ -527,24 +530,13 @@ func (i *liveTracesIter) iter(ctx context.Context) {
 			tr := new(tempopb.Trace)
 
 			for _, b := range entry.Batches {
-				// Decompress
-				/*decompressed, err := snappy.Decode(snappyPool.Get(len(b)), b)
-				if err != nil {
-					i.ch <- []chEntry{{err: err}}
-					return
-				}
-				snappyPool.Put(b)
-
 				// This unmarshal appends the batches onto the existing tempopb.Trace
 				// so we don't need to allocate another container temporarily
-				err = tr.Unmarshal(decompressed)*/
 				err := tr.Unmarshal(b)
 				if err != nil {
 					i.ch <- []chEntry{{err: err}}
 					return
 				}
-
-				// snappyPool.Put(decompressed)
 			}
 
 			// Update block timestamp bounds
@@ -578,56 +570,6 @@ func (i *liveTracesIter) iter(ctx context.Context) {
 		}
 	}
 }
-
-/*
-func x() {
-	if i.i >= len(i.entries) {
-		return nil, nil, nil
-	}
-
-	nextHash := i.entries[i.i].hash
-	i.i++
-
-	entry := i.liveTraces.Traces[nextHash]
-
-	tr := new(tempopb.Trace)
-
-	for _, b := range entry.Batches {
-		// Decompress
-		decompressed, err := snappy.Decode(snappyPool.Get(len(b)), b)
-		if err != nil {
-			return nil, nil, err
-		}
-		snappyPool.Put(b)
-
-		// This unmarshal appends the batches onto the existing tempopb.Trace
-		// so we don't need to allocate another container temporarily
-		err = tr.Unmarshal(decompressed)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		snappyPool.Put(decompressed)
-	}
-
-	// Update block timestamp bounds
-	for _, b := range tr.ResourceSpans {
-		for _, ss := range b.ScopeSpans {
-			for _, s := range ss.Spans {
-				if i.start == 0 || s.StartTimeUnixNano < i.start {
-					i.start = s.StartTimeUnixNano
-				}
-				if s.EndTimeUnixNano > i.end {
-					i.end = s.EndTimeUnixNano
-				}
-			}
-		}
-	}
-
-	delete(i.liveTraces.Traces, nextHash)
-
-	return entry.ID, tr, nil
-}*/
 
 func (i *liveTracesIter) Close() {
 	i.cancel()
