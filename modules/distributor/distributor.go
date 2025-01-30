@@ -132,12 +132,12 @@ var (
 		Name:      "kafka_write_latency_seconds",
 		Help:      "The latency of writing to kafka",
 	})
-	metricKafkaWriteBytesTotal = promauto.NewCounter(prometheus.CounterOpts{
+	metricKafkaWriteBytesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Subsystem: "distributor",
 		Name:      "kafka_write_bytes_total",
 		Help:      "The total number of bytes written to kafka",
-	})
+	}, []string{"partition"})
 	metricKafkaAppends = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Subsystem: "distributor",
@@ -316,7 +316,7 @@ func New(
 	subservices = append(subservices, receivers)
 
 	if cfg.KafkaWritePathEnabled {
-		client, err := ingest.NewWriterClient(cfg.KafkaConfig, 10, logger, reg)
+		client, err := ingest.NewWriterClient(cfg.KafkaConfig, 10, logger, prometheus.WrapRegistererWithPrefix("tempo_distributor_", reg))
 		if err != nil {
 			return nil, fmt.Errorf("failed to create kafka writer client: %w", err)
 		}
@@ -640,20 +640,21 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 
 		produceResults := d.kafkaProducer.ProduceSync(localCtx, records)
 
+		partitionLabel := fmt.Sprintf("partition_%d", partitionID)
 		if count, sizeBytes := successfulProduceRecordsStats(produceResults); count > 0 {
 			metricKafkaWriteLatency.Observe(time.Since(startTime).Seconds())
-			metricKafkaWriteBytesTotal.Add(float64(sizeBytes))
-			_ = level.Debug(d.logger).Log("msg", "kafka write success stats", "count", count, "size_bytes", sizeBytes)
+			metricKafkaWriteBytesTotal.WithLabelValues(partitionLabel).Add(float64(sizeBytes))
+			_ = level.Debug(d.logger).Log("msg", "kafka write success stats", "count", count, "size_bytes", sizeBytes, "partition", partitionLabel)
 		}
 
 		var finalErr error
 		for _, result := range produceResults {
 			if result.Err != nil {
 				_ = level.Error(d.logger).Log("msg", "failed to write to kafka", "err", result.Err)
-				metricKafkaAppends.WithLabelValues(fmt.Sprintf("partition_%d", partitionID), "fail").Inc()
+				metricKafkaAppends.WithLabelValues(partitionLabel, "fail").Inc()
 				finalErr = result.Err
 			} else {
-				metricKafkaAppends.WithLabelValues(fmt.Sprintf("partition_%d", partitionID), "success").Inc()
+				metricKafkaAppends.WithLabelValues(partitionLabel, "success").Inc()
 			}
 		}
 
