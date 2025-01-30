@@ -101,7 +101,11 @@ func New(
 	partitionRing ring.PartitionRingReader,
 	overrides Overrides,
 	store storage.Store,
-) *BlockBuilder {
+) (*BlockBuilder, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
 	b := &BlockBuilder{
 		logger:        logger,
 		cfg:           cfg,
@@ -112,7 +116,7 @@ func New(
 	}
 
 	b.Service = services.NewBasicService(b.starting, b.running, b.stopping)
-	return b
+	return b, nil
 }
 
 func (b *BlockBuilder) starting(ctx context.Context) (err error) {
