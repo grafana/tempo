@@ -44,11 +44,11 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 		next = func(ctx context.Context) error {
 			// Use interal iterator and avoid translation to/from proto
 			id, row, err := ii.NextRow(ctx)
-			if errors.Is(err, io.EOF) || row == nil {
-				return io.EOF
-			}
 			if err != nil {
 				return err
+			}
+			if row == nil {
+				return io.EOF
 			}
 			err = s.AddRaw(id, row, 0, 0) // start and end time of the wal meta are used.
 			if err != nil {
@@ -67,11 +67,11 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 		)
 		next = func(context.Context) error {
 			id, tr, err := i.Next(ctx)
-			if errors.Is(err, io.EOF) || tr == nil {
-				return io.EOF
-			}
 			if err != nil {
 				return err
+			}
+			if tr == nil {
+				return io.EOF
 			}
 
 			// Copy ID to allow it to escape the iterator.
