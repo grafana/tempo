@@ -47,8 +47,11 @@
       volume.fromConfigMap(tempo_config_volume, $.tempo_block_builder_configmap.metadata.name),
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
     ]) +
-    statefulset.mixin.spec.withPodManagementPolicy('Parallel'),
-
+    statefulset.mixin.spec.withPodManagementPolicy('Parallel') +
+    // Rollout strategy that ensures all pods are updated simultaneously:
+    // maxUnavailable=100% allows taking down all existing pods at once
+    statefulset.mixin.spec.updateStrategy.withType('RollingUpdate') +
+    statefulset.mixin.spec.updateStrategy.rollingUpdate.withMaxUnavailable('100%'),
   // Configmap
 
   tempo_block_builder_configmap:

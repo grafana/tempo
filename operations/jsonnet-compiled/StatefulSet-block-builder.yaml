@@ -58,4 +58,6 @@ spec:
           name: tempo-overrides
         name: overrides
   updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 100%
     type: RollingUpdate
