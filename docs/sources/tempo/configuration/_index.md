@@ -276,6 +276,7 @@ Tempo 2.7 disabled gRPC compression in the querier and distributor for performan
 Benchmark testing suggested that without compression, queriers and distributors used less CPU and memory.
 
 However, you may notice an increase in ingester data and network traffic especially for larger clusters.
+This increased data can impact billing for Grafana Cloud.
 
 You can configure the gRPC compression in the `querier`, `ingester`, and `metrics_generator` clients of the distributor.
 To re-enable the compression, use `snappy` with the following settings:
@@ -1620,7 +1621,7 @@ overrides:
       # Should not be lower than RF.
       [tenant_shard_size: <int> | default = 0]
 
-      # Maximum bytes any attribute can be for both keys and values. 
+      # Maximum bytes any attribute can be for both keys and values.
       [max_attribute_bytes: <int> | default = 0]
 
     # Read related overrides
