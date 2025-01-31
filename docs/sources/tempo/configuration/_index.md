@@ -11,7 +11,7 @@ This document explains the configuration options for Tempo as well as the detail
 
 {{< admonition type="tip" >}}
 Instructions for configuring Tempo data sources are available in the [Grafana Cloud](/docs/grafana-cloud/send-data/traces/) and [Grafana](/docs/grafana/latest/datasources/tempo/) documentation.
-{{< /admonition >}} 
+{{< /admonition >}}
 
 The Tempo configuration options include:
 
@@ -276,6 +276,7 @@ Tempo 2.7 disabled gRPC compression in the querier and distributor for performan
 Benchmark testing suggested that without compression, queriers and distributors used less CPU and memory.
 
 However, you may notice an increase in ingester data and network traffic especially for larger clusters.
+This increased data can impact billing for Grafana Cloud.
 
 You can configure the gRPC compression in the `querier`, `ingester`, and `metrics_generator` clients of the distributor.
 To re-enable the compression, use `snappy` with the following settings:
@@ -521,7 +522,7 @@ metrics_generator:
             [filter_server_spans: <bool> | default = true]
 
             # Whether server spans should be flushed to storage.
-            # Setting `flush_to_storage` to `true` ensures that metrics blocks are flushed to storage so TraceQL metrics queries against historical data. 
+            # Setting `flush_to_storage` to `true` ensures that metrics blocks are flushed to storage so TraceQL metrics queries against historical data.
             [flush_to_storage: <bool> | default = false]
 
             # Number of blocks that are allowed to be processed concurrently.
@@ -1655,6 +1656,9 @@ overrides:
       # Shuffle sharding shards used for this user. A value of 0 uses all ingesters in the ring.
       # Should not be lower than RF.
       [tenant_shard_size: <int> | default = 0]
+
+      # Maximum bytes any attribute can be for both keys and values.
+      [max_attribute_bytes: <int> | default = 0]
 
     # Read related overrides
     read:
