@@ -48,7 +48,7 @@ type tenantStore struct {
 	liveTraces *livetraces.LiveTraces[[]byte]
 }
 
-func newTenantStore(tenantID string, partitionID, endTimestamp uint64, cfg BlockConfig, wal *wal.WAL, enc encoding.VersionedEncoding, logger log.Logger, o Overrides) (*tenantStore, error) {
+func newTenantStore(tenantID string, partitionID, endTimestamp uint64, cfg BlockConfig, logger log.Logger, wal *wal.WAL, enc encoding.VersionedEncoding, o Overrides) (*tenantStore, error) {
 	s := &tenantStore{
 		tenantID:    tenantID,
 		idGenerator: util.NewDeterministicIDGenerator(tenantID, partitionID, endTimestamp),
