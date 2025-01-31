@@ -60,6 +60,14 @@ type Page interface {
 	// like parquet.Int32Reader. Applications should use type assertions on
 	// the returned reader to determine whether those optimizations are
 	// available.
+	//
+	// In the data page format version 1, it wasn't specified whether pages
+	// must start with a new row. Legacy writers have produced parquet files
+	// where row values were overlapping between two consecutive pages.
+	// As a result, the values read must not be assumed to start at the
+	// beginning of a row, unless the program knows that it is only working
+	// with parquet files that used the data page format version 2 (which is
+	// the default behavior for parquet-go).
 	Values() ValueReader
 
 	// Returns a new page which is as slice of the receiver between row indexes
@@ -204,9 +212,9 @@ func readPages(pages Pages, read chan<- asyncPage, seek <-chan int64, done <-cha
 	}()
 
 	version := int64(0)
+readPages:
 	for {
 		page, err := pages.ReadPage()
-
 		for {
 			select {
 			case <-done:
@@ -218,11 +226,12 @@ func readPages(pages Pages, read chan<- asyncPage, seek <-chan int64, done <-cha
 			}:
 			case rowIndex := <-seek:
 				version++
-				err = pages.SeekToRow(rowIndex)
+				Release(page)
+				if err = pages.SeekToRow(rowIndex); err != nil {
+					continue readPages
+				}
 			}
-			if err == nil {
-				break
-			}
+			break
 		}
 	}
 }
