@@ -108,7 +108,6 @@ This change may increase data usage and network traffic, which can impact cloud 
 If you notice increased network traffic or issues, check the gRPC compression settings.
 
 For instructions how to enable gRPC compression, refer to [gRPC compression configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#grpc-compression) for more information.
-For instructions how to enable gRPC compression, refer to [gRPC compression configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#grpc-compression) for more information.
 
 ### Added, updated, removed, or renamed configuration parameters
 
