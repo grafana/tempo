@@ -240,7 +240,6 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, ov
 		init        bool
 		writer      *writer
 		lastRec     *kgo.Record
-		nextCut     time.Time
 		end         time.Time
 	)
 
@@ -326,7 +325,6 @@ outer:
 				end = rec.Timestamp.Add(dur) // When block will be cut
 				metricPartitionLagSeconds.WithLabelValues(partLabel).Set(time.Since(rec.Timestamp).Seconds())
 				writer = newPartitionSectionWriter(b.logger, uint64(partition), uint64(rec.Offset), b.cfg.BlockConfig, b.overrides, b.wal, b.enc)
-				nextCut = rec.Timestamp.Add(cutTime)
 				init = true
 			}
 
@@ -340,15 +338,6 @@ outer:
 
 			if rec.Timestamp.After(overallEnd) {
 				break outer
-			}
-
-			if rec.Timestamp.After(nextCut) {
-				// Cut before appending this trace
-				err = writer.cutidle(rec.Timestamp.Add(-cutTime), false)
-				if err != nil {
-					return false, err
-				}
-				nextCut = rec.Timestamp.Add(cutTime)
 			}
 
 			err := b.pushTraces(rec.Timestamp, rec.Key, rec.Value, writer)
@@ -372,12 +361,6 @@ outer:
 			"partition", partition,
 		)
 		return false, nil
-	}
-
-	// Cut any remaining
-	err = writer.cutidle(time.Time{}, true)
-	if err != nil {
-		return false, err
 	}
 
 	err = writer.flush(ctx, b.writer)

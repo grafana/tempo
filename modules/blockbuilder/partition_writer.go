@@ -32,8 +32,7 @@ type writer struct {
 	enc       encoding.VersionedEncoding
 
 	mtx sync.Mutex
-	// m   map[string]*tenantStore
-	m map[string]*tenantStore2
+	m   map[string]*tenantStore
 }
 
 func newPartitionSectionWriter(logger log.Logger, partition, cycleEndTs uint64, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
@@ -46,8 +45,7 @@ func newPartitionSectionWriter(logger log.Logger, partition, cycleEndTs uint64, 
 		wal:        wal,
 		enc:        enc,
 		mtx:        sync.Mutex{},
-		// m:          make(map[string]*tenantStore),
-		m: make(map[string]*tenantStore2),
+		m:          make(map[string]*tenantStore),
 	}
 }
 
@@ -68,18 +66,8 @@ func (p *writer) pushBytes(ts time.Time, tenant string, req *tempopb.PushBytesRe
 		if err := i.AppendTrace(req.Ids[j], trace.Slice, ts); err != nil {
 			return err
 		}
-		// tempopb.ReuseByteSlices([][]byte{trace.Slice})
 	}
 
-	return nil
-}
-
-func (p *writer) cutidle(since time.Time, immediate bool) error {
-	/*for _, i := range p.m {
-		if err := i.CutIdle(since, immediate); err != nil {
-			return err
-		}
-	}*/
 	return nil
 }
 
@@ -93,14 +81,21 @@ func (p *writer) flush(ctx context.Context, store tempodb.Writer) error {
 	for _, i := range p.m {
 		g.Go(func() error {
 			i := i
+			st := time.Now()
+
 			level.Info(p.logger).Log("msg", "flushing tenant", "tenant", i.tenantID)
-			return i.Flush(ctx, store)
+			err := i.Flush(ctx, store)
+			if err != nil {
+				return err
+			}
+			level.Info(p.logger).Log("msg", "flushed tenant", "tenant", i.tenantID, "elapsed", time.Since(st))
+			return nil
 		})
 	}
 	return g.Wait()
 }
 
-func (p *writer) instanceForTenant(tenant string) (*tenantStore2, error) {
+func (p *writer) instanceForTenant(tenant string) (*tenantStore, error) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
@@ -108,7 +103,7 @@ func (p *writer) instanceForTenant(tenant string) (*tenantStore2, error) {
 		return i, nil
 	}
 
-	i, err := newTenantStore2(tenant, p.partition, p.cycleEndTs, p.blockCfg, p.wal, p.enc, p.logger, p.overrides)
+	i, err := newTenantStore(tenant, p.partition, p.cycleEndTs, p.blockCfg, p.wal, p.enc, p.logger, p.overrides)
 	if err != nil {
 		return nil, err
 	}
