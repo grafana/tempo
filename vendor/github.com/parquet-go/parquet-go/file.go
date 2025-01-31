@@ -445,7 +445,13 @@ func (g *fileRowGroup) Schema() *Schema                 { return g.schema }
 func (g *fileRowGroup) NumRows() int64                  { return g.rowGroup.NumRows }
 func (g *fileRowGroup) ColumnChunks() []ColumnChunk     { return g.columns }
 func (g *fileRowGroup) SortingColumns() []SortingColumn { return g.sorting }
-func (g *fileRowGroup) Rows() Rows                      { return NewRowGroupRowReader(g) }
+func (g *fileRowGroup) Rows() Rows {
+	rowGroup := RowGroup(g)
+	if g.config.ReadMode == ReadModeAsync {
+		rowGroup = AsyncRowGroup(rowGroup)
+	}
+	return NewRowGroupRowReader(rowGroup)
+}
 
 type fileSortingColumn struct {
 	column     *Column
