@@ -135,7 +135,9 @@ func getAllTraceIDs(t *testing.T, dir string, tenant string) []string {
 		for read := int64(0); read < r.NumRows(); {
 			rows := make([]parquet.Row, r.NumRows())
 			n, err := r.ReadRows(rows)
-			require.NoError(t, err)
+			if err != io.EOF {
+				require.NoError(t, err)
+			}
 			require.Greater(t, n, 0)
 			rows = rows[:n]
 			read += int64(n)
