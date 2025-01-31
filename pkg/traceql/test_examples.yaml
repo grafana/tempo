@@ -148,6 +148,10 @@ valid:
   - '{} | min_over_time(duration) by (span.http.path)'
   - '{} | max_over_time(duration) by (span.http.path)'
   - '{} | avg_over_time(duration) by (span.http.path)'
+  - '{} | rate() by (span.client_ip) | topk(10)'
+  - '{} | topk(10)' // illigal, topk and bottomk is only allowed with traceql metrics functions
+  - '{} | rate() by (span.client_ip) | bottomk(10)'
+  - '{} | bottomk(10)' // illigal?? parse_fails??
   - '{} | quantile_over_time(duration, 0, 0.9, 1) by (span.http.path)'
   # undocumented - nested set
   - '{ nestedSetLeft > 3 }'
