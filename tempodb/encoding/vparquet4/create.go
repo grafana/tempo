@@ -9,6 +9,7 @@ import (
 	"runtime"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/dataquality"
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -61,9 +62,10 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 	} else {
 		// Need to convert from proto->parquet obj
 		var (
-			buffer                      = &Trace{}
-			dedicatedResourceAttributes = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
-			dedicatedSpanAttributes     = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
+			buffer      = &Trace{}
+			connected   bool
+			resMapping  = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
+			spanMapping = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
 		)
 		next = func(context.Context) error {
 			id, tr, err := i.Next(ctx)
@@ -77,8 +79,13 @@ func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.Blo
 			// Copy ID to allow it to escape the iterator.
 			id = append([]byte(nil), id...)
 
-			// TODO - metric dataquality/connected
-			buffer, _ = traceToParquetWithMapping(id, tr, buffer, dedicatedResourceAttributes, dedicatedSpanAttributes) // this logic only executes when we are transitioning from one block version to another. just ignore connected here
+			buffer, connected = traceToParquetWithMapping(id, tr, buffer, resMapping, spanMapping)
+			if !connected {
+				dataquality.WarnDisconnectedTrace(meta.TenantID, dataquality.PhaseTraceWalToComplete)
+			}
+			if buffer.RootSpanName == "" {
+				dataquality.WarnRootlessTrace(meta.TenantID, dataquality.PhaseTraceWalToComplete)
+			}
 
 			err = s.Add(buffer, 0, 0) // start and end time are set outside
 			if err != nil {
