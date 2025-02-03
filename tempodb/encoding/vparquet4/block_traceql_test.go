@@ -950,12 +950,12 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	tenantID := "1"
 	// blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
 	// blockID := uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
-	blockID := uuid.MustParse("257e3a56-224a-4ebe-9696-1b304f456ac2")
+	blockID := uuid.MustParse("030c8c4f-9d47-4916-aadc-26b90b1d2bc4")
 
 	r, _, _, err := local.New(&local.Config{
 		// Path: path.Join("/Users/marty/src/tmp"),
 		// Path: path.Join("/Users/mapno/workspace/testblock"),
-		Path: path.Join("/Users/suraj/wd/grafana/testblock"),
+		Path: path.Join("/Users/joe/testblock"),
 	})
 	require.NoError(b, err)
 

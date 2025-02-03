@@ -1803,10 +1803,19 @@ func (u *nanosecond) TimeUnit() format.TimeUnit {
 }
 
 // Time constructs a leaf node of TIME logical type.
+// IsAdjustedToUTC is true by default.
 //
 // https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#time
 func Time(unit TimeUnit) Node {
-	return Leaf(&timeType{IsAdjustedToUTC: true, Unit: unit.TimeUnit()})
+	return TimeAdjusted(unit, true)
+}
+
+// TimeAdjusted constructs a leaf node of TIME logical type
+// with the IsAdjustedToUTC property explicitly set.
+//
+// https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#time
+func TimeAdjusted(unit TimeUnit, isAdjustedToUTC bool) Node {
+	return Leaf(&timeType{IsAdjustedToUTC: isAdjustedToUTC, Unit: unit.TimeUnit()})
 }
 
 type timeType format.TimeType
@@ -1919,10 +1928,19 @@ func (t *timeType) ConvertValue(val Value, typ Type) (Value, error) {
 }
 
 // Timestamp constructs of leaf node of TIMESTAMP logical type.
+// IsAdjustedToUTC is true by default.
 //
 // https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#timestamp
 func Timestamp(unit TimeUnit) Node {
-	return Leaf(&timestampType{IsAdjustedToUTC: true, Unit: unit.TimeUnit()})
+	return TimestampAdjusted(unit, true)
+}
+
+// TimestampAdjusted constructs a leaf node of TIMESTAMP logical type
+// with the IsAdjustedToUTC property explicitly set.
+//
+// https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#time
+func TimestampAdjusted(unit TimeUnit, isAdjustedToUTC bool) Node {
+	return Leaf(&timestampType{IsAdjustedToUTC: isAdjustedToUTC, Unit: unit.TimeUnit()})
 }
 
 type timestampType format.TimestampType

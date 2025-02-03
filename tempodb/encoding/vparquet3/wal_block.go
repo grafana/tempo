@@ -898,7 +898,7 @@ func (i *rowIterator) Next(context.Context) (common.ID, parquet.Row, error) {
 
 	rows := []parquet.Row{completeBlockRowPool.Get()}
 	_, err = i.reader.ReadRows(rows)
-	if err != nil {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, nil, err
 	}
 

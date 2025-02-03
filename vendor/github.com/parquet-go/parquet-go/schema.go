@@ -19,13 +19,35 @@ import (
 //
 // Schema implements the Node interface to represent the root node of a parquet
 // schema.
+//
+// Schema values are safe to use concurrently from multiple goroutines but must
+// be passed by referenced after being created because their internal state
+// contains synchronization primitives that are not safe to copy.
 type Schema struct {
-	name        string
-	root        Node
+	name  string
+	root  Node
+	funcs onceValue[schemaFuncs]
+	state onceValue[schemaState]
+}
+
+type schemaFuncs struct {
 	deconstruct deconstructFunc
 	reconstruct reconstructFunc
-	mapping     columnMapping
-	columns     [][]string
+}
+
+type schemaState struct {
+	mapping columnMapping
+	columns [][]string
+}
+
+type onceValue[T any] struct {
+	once  sync.Once
+	value *T
+}
+
+func (v *onceValue[T]) load(f func() *T) *T {
+	v.once.Do(func() { v.value = f() })
+	return v.value
 }
 
 // SchemaOf constructs a parquet schema from a Go value.
@@ -56,6 +78,7 @@ type Schema struct {
 //	uuid      | for string and [16]byte types, use the parquet UUID logical type
 //	decimal   | for int32, int64 and [n]byte types, use the parquet DECIMAL logical type
 //	date      | for int32 types use the DATE logical type
+//	time      | for int32 and int64 types use the TIME logical type
 //	timestamp | for int64 types use the TIMESTAMP logical type with, by default, millisecond precision
 //	split     | for float32/float64, use the BYTE_STREAM_SPLIT encoding
 //	id(n)     | where n is int denoting a column field id. Example id(2) for a column with field id of 2
@@ -123,15 +146,7 @@ func schemaOf(model reflect.Type) *Schema {
 // The function panics if Node contains more leaf columns than supported by the
 // package (see parquet.MaxColumnIndex).
 func NewSchema(name string, root Node) *Schema {
-	mapping, columns := columnMappingOf(root)
-	return &Schema{
-		name:        name,
-		root:        root,
-		deconstruct: makeDeconstructFunc(root),
-		reconstruct: makeReconstructFunc(root),
-		mapping:     mapping,
-		columns:     columns,
-	}
+	return &Schema{name: name, root: root}
 }
 
 func dereference(t reflect.Type) reflect.Type {
@@ -143,7 +158,7 @@ func dereference(t reflect.Type) reflect.Type {
 
 func makeDeconstructFunc(node Node) (deconstruct deconstructFunc) {
 	if schema, _ := node.(*Schema); schema != nil {
-		return schema.deconstruct
+		return schema.lazyLoadFuncs().deconstruct
 	}
 	if !node.Leaf() {
 		_, deconstruct = deconstructFuncOf(0, node)
@@ -153,12 +168,31 @@ func makeDeconstructFunc(node Node) (deconstruct deconstructFunc) {
 
 func makeReconstructFunc(node Node) (reconstruct reconstructFunc) {
 	if schema, _ := node.(*Schema); schema != nil {
-		return schema.reconstruct
+		return schema.lazyLoadFuncs().reconstruct
 	}
 	if !node.Leaf() {
 		_, reconstruct = reconstructFuncOf(0, node)
 	}
 	return reconstruct
+}
+
+func (s *Schema) lazyLoadFuncs() *schemaFuncs {
+	return s.funcs.load(func() *schemaFuncs {
+		return &schemaFuncs{
+			deconstruct: makeDeconstructFunc(s.root),
+			reconstruct: makeReconstructFunc(s.root),
+		}
+	})
+}
+
+func (s *Schema) lazyLoadState() *schemaState {
+	return s.state.load(func() *schemaState {
+		mapping, columns := columnMappingOf(s.root)
+		return &schemaState{
+			mapping: mapping,
+			columns: columns,
+		}
+	})
 }
 
 // ConfigureRowGroup satisfies the RowGroupOption interface, allowing Schema
@@ -218,26 +252,25 @@ func (s *Schema) GoType() reflect.Type { return s.root.GoType() }
 // The method panics is the structure of the go value does not match the
 // parquet schema.
 func (s *Schema) Deconstruct(row Row, value interface{}) Row {
-	columns := make([][]Value, len(s.columns))
-	values := make([]Value, len(s.columns))
+	state := s.lazyLoadState()
+	funcs := s.lazyLoadFuncs()
+	columns := make([][]Value, len(state.columns))
+	values := make([]Value, len(state.columns))
 
 	for i := range columns {
 		columns[i] = values[i : i : i+1]
 	}
 
-	s.deconstructValueToColumns(columns, reflect.ValueOf(value))
-	return appendRow(row, columns)
-}
-
-func (s *Schema) deconstructValueToColumns(columns [][]Value, value reflect.Value) {
-	for value.Kind() == reflect.Ptr || value.Kind() == reflect.Interface {
-		if value.IsNil() {
-			value = reflect.Value{}
+	v := reflect.ValueOf(value)
+	for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
+		if v.IsNil() {
+			v = reflect.Value{}
 			break
 		}
-		value = value.Elem()
+		v = v.Elem()
 	}
-	s.deconstruct(columns, levels{}, value)
+	funcs.deconstruct(columns, levels{}, v)
+	return appendRow(row, columns)
 }
 
 // Reconstruct reconstructs a Go value from a row.
@@ -267,7 +300,9 @@ func (s *Schema) Reconstruct(value interface{}, row Row) error {
 
 	b := valuesSliceBufferPool.Get().(*valuesSliceBuffer)
 
-	columns := b.reserve(len(s.columns))
+	state := s.lazyLoadState()
+	funcs := s.lazyLoadFuncs()
+	columns := b.reserve(len(state.columns))
 	row.Range(func(columnIndex int, columnValues []Value) bool {
 		if columnIndex < len(columns) {
 			columns[columnIndex] = columnValues
@@ -275,7 +310,7 @@ func (s *Schema) Reconstruct(value interface{}, row Row) error {
 		return true
 	})
 	// we avoid the defer penalty by releasing b manually
-	err := s.reconstruct(v, levels{}, columns)
+	err := funcs.reconstruct(v, levels{}, columns)
 	b.release()
 	return err
 }
@@ -320,7 +355,7 @@ var valuesSliceBufferPool = &sync.Pool{
 // If the path was not found in the mapping, or if it did not represent a
 // leaf column of the parquet schema, the boolean will be false.
 func (s *Schema) Lookup(path ...string) (LeafColumn, bool) {
-	leaf := s.mapping.lookup(path)
+	leaf := s.lazyLoadState().mapping.lookup(path)
 	return LeafColumn{
 		Node:               leaf.node,
 		Path:               leaf.path,
@@ -334,9 +369,7 @@ func (s *Schema) Lookup(path ...string) (LeafColumn, bool) {
 //
 // The method always returns the same slice value across calls to ColumnPaths,
 // applications should treat it as immutable.
-func (s *Schema) Columns() [][]string {
-	return s.columns
-}
+func (s *Schema) Columns() [][]string { return s.lazyLoadState().columns }
 
 // Comparator constructs a comparator function which orders rows according to
 // the list of sorting columns passed as arguments.
@@ -887,12 +920,36 @@ func makeNodeOf(t reflect.Type, name string, tag []string) Node {
 			default:
 				throwInvalidTag(t, name, option)
 			}
+		case "time":
+			switch t.Kind() {
+			case reflect.Int32:
+				timeUnit, err := parseTimestampArgs(args)
+				if err != nil || timeUnit.Duration() < time.Millisecond {
+					throwInvalidTag(t, name, option+args)
+				}
+				setNode(Time(timeUnit))
+			case reflect.Int64:
+				timeUnit, err := parseTimestampArgs(args)
+				if t == reflect.TypeOf(time.Duration(0)) {
+					if args == "()" {
+						timeUnit = Nanosecond
+					} else if timeUnit != Nanosecond {
+						throwInvalidTag(t, name, option+args)
+					}
+				}
+				if err != nil || timeUnit.Duration() == time.Millisecond {
+					throwInvalidTag(t, name, option+args)
+				}
+				setNode(Time(timeUnit))
+			default:
+				throwInvalidTag(t, name, option)
+			}
 		case "timestamp":
 			switch t.Kind() {
 			case reflect.Int64:
 				timeUnit, err := parseTimestampArgs(args)
 				if err != nil {
-					throwInvalidTag(t, name, option)
+					throwInvalidTag(t, name, option+args)
 				}
 				setNode(Timestamp(timeUnit))
 			default:
@@ -900,7 +957,7 @@ func makeNodeOf(t reflect.Type, name string, tag []string) Node {
 				case reflect.TypeOf(time.Time{}):
 					timeUnit, err := parseTimestampArgs(args)
 					if err != nil {
-						throwInvalidTag(t, name, option)
+						throwInvalidTag(t, name, option+args)
 					}
 					setNode(Timestamp(timeUnit))
 				default:

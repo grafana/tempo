@@ -3,6 +3,7 @@ package parquet
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"encoding/binary"
 	"fmt"
 	"hash/crc32"
@@ -12,7 +13,6 @@ import (
 	"os"
 	"reflect"
 	"slices"
-	"sort"
 
 	"github.com/parquet-go/parquet-go/compress"
 	"github.com/parquet-go/parquet-go/encoding"
@@ -247,6 +247,12 @@ func (w *GenericWriter[T]) writeAny(rows []T) (n int, err error) {
 	return n, nil
 }
 
+// File returns a FileView of the written parquet file.
+// Only available after Close is called.
+func (w *GenericWriter[T]) File() FileView {
+	return w.base.File()
+}
+
 var (
 	_ RowWriterWithSchema = (*GenericWriter[any])(nil)
 	_ RowReaderFrom       = (*GenericWriter[any])(nil)
@@ -415,7 +421,7 @@ func (w *Writer) WriteRowGroup(rowGroup RowGroup) (int64, error) {
 		return 0, ErrRowGroupSchemaMissing
 	case w.schema == nil:
 		w.configure(rowGroupSchema)
-	case !nodesAreEqual(w.schema, rowGroupSchema):
+	case !EqualNodes(w.schema, rowGroupSchema):
 		return 0, ErrRowGroupSchemaMismatch
 	}
 	if err := w.writer.flush(); err != nil {
@@ -478,6 +484,75 @@ func (w *Writer) SetKeyValueMetadata(key, value string) {
 	})
 }
 
+type writerFileView struct {
+	writer *writer
+	schema *Schema
+}
+
+// File returns a FileView of the written parquet file.
+// Only available after Close is called.
+func (w *Writer) File() FileView {
+	if w.writer == nil || w.schema == nil {
+		return nil
+	}
+	return &writerFileView{
+		w.writer,
+		w.schema,
+	}
+}
+
+func (w *writerFileView) Metadata() *format.FileMetaData {
+	return w.writer.fileMetaData
+}
+
+func (w *writerFileView) Schema() *Schema {
+	return w.schema
+}
+
+func (w *writerFileView) NumRows() int64 {
+	if w.writer.fileMetaData != nil {
+		return w.writer.fileMetaData.NumRows
+	}
+	return 0
+}
+
+func (w *writerFileView) Lookup(key string) (string, bool) {
+	if w.writer.fileMetaData != nil {
+		return lookupKeyValueMetadata(w.writer.fileMetaData.KeyValueMetadata, key)
+	}
+	return "", false
+}
+
+func (w *writerFileView) Size() int64 {
+	return w.writer.writer.offset
+}
+
+func (w *writerFileView) ColumnIndexes() []format.ColumnIndex {
+	return w.writer.columnIndex
+}
+
+func (w *writerFileView) OffsetIndexes() []format.OffsetIndex {
+	return w.writer.offsetIndex
+}
+
+func (w *writerFileView) Root() *Column {
+	if w.writer.fileMetaData != nil {
+		root, _ := openColumns(nil, w.writer.fileMetaData, w.writer.columnIndex, w.writer.offsetIndex)
+		return root
+	}
+	return nil
+}
+
+func (w *writerFileView) RowGroups() []RowGroup {
+	if w.writer.fileMetaData != nil {
+		columns := makeLeafColumns(w.Root())
+		file := &File{metadata: *w.writer.fileMetaData, schema: w.schema}
+		fileRowGroups := makeFileRowGroups(file, columns)
+		return makeRowGroups(fileRowGroups)
+	}
+	return nil
+}
+
 type writer struct {
 	buffer  *bufio.Writer
 	writer  offsetTrackingWriter
@@ -499,6 +574,8 @@ type writer struct {
 	columnIndexes  [][]format.ColumnIndex
 	offsetIndexes  [][]format.OffsetIndex
 	sortingColumns []format.SortingColumn
+
+	fileMetaData *format.FileMetaData
 }
 
 func newWriter(output io.Writer, config *WriterConfig) *writer {
@@ -703,6 +780,7 @@ func (w *writer) reset(writer io.Writer) {
 	w.rowGroups = w.rowGroups[:0]
 	w.columnIndexes = w.columnIndexes[:0]
 	w.offsetIndexes = w.offsetIndexes[:0]
+	w.fileMetaData = nil
 }
 
 func (w *writer) close() error {
@@ -761,6 +839,7 @@ func (w *writer) writeFileFooter() error {
 	protocol := new(thrift.CompactProtocol)
 	encoder := thrift.NewEncoder(protocol.NewWriter(&w.writer))
 
+	w.columnIndex = w.columnIndex[:0]
 	for i, columnIndexes := range w.columnIndexes {
 		rowGroup := &w.rowGroups[i]
 		for j := range columnIndexes {
@@ -771,8 +850,10 @@ func (w *writer) writeFileFooter() error {
 			}
 			column.ColumnIndexLength = int32(w.writer.offset - column.ColumnIndexOffset)
 		}
+		w.columnIndex = append(w.columnIndex, columnIndexes...)
 	}
 
+	w.offsetIndex = w.offsetIndex[:0]
 	for i, offsetIndexes := range w.offsetIndexes {
 		rowGroup := &w.rowGroups[i]
 		for j := range offsetIndexes {
@@ -783,6 +864,7 @@ func (w *writer) writeFileFooter() error {
 			}
 			column.OffsetIndexLength = int32(w.writer.offset - column.OffsetIndexOffset)
 		}
+		w.offsetIndex = append(w.offsetIndex, offsetIndexes...)
 	}
 
 	numRows := int64(0)
@@ -797,7 +879,7 @@ func (w *writer) writeFileFooter() error {
 	// https://github.com/apache/arrow/blob/70b9ef5/go/parquet/metadata/file.go#L122-L127
 	const parquetFileFormatVersion = 2
 
-	footer, err := thrift.Marshal(new(thrift.CompactProtocol), &format.FileMetaData{
+	w.fileMetaData = &format.FileMetaData{
 		Version:          parquetFileFormatVersion,
 		Schema:           w.schemaElements,
 		NumRows:          numRows,
@@ -805,7 +887,8 @@ func (w *writer) writeFileFooter() error {
 		KeyValueMetadata: w.metadata,
 		CreatedBy:        w.createdBy,
 		ColumnOrders:     w.columnOrders,
-	})
+	}
+	footer, err := thrift.Marshal(new(thrift.CompactProtocol), w.fileMetaData)
 	if err != nil {
 		return err
 	}
@@ -853,15 +936,6 @@ func (w *writer) writeRowGroup(rowGroupSchema *Schema, rowGroupSortingColumns []
 	}
 	fileOffset := w.writer.offset
 
-	for _, c := range w.columns {
-		if len(c.filter) > 0 {
-			c.columnChunk.MetaData.BloomFilterOffset = w.writer.offset
-			if err := c.writeBloomFilter(&w.writer); err != nil {
-				return 0, err
-			}
-		}
-	}
-
 	for i, c := range w.columns {
 		w.columnIndex[i] = format.ColumnIndex(c.columnIndex.ColumnIndex())
 
@@ -885,6 +959,15 @@ func (w *writer) writeRowGroup(rowGroupSchema *Schema, rowGroupSortingColumns []
 		}
 		if _, err := io.Copy(&w.writer, c.pageBuffer); err != nil {
 			return 0, fmt.Errorf("writing buffered pages of row group column %d: %w", i, err)
+		}
+	}
+
+	for _, c := range w.columns {
+		if len(c.filter) > 0 {
+			c.columnChunk.MetaData.BloomFilterOffset = w.writer.offset
+			if err := c.writeBloomFilter(&w.writer); err != nil {
+				return 0, err
+			}
 		}
 	}
 
@@ -1669,19 +1752,15 @@ addPages:
 }
 
 func sortPageEncodings(encodings []format.Encoding) {
-	sort.Slice(encodings, func(i, j int) bool {
-		return encodings[i] < encodings[j]
-	})
+	slices.Sort(encodings)
 }
 
 func sortPageEncodingStats(stats []format.PageEncodingStats) {
-	sort.Slice(stats, func(i, j int) bool {
-		s1 := &stats[i]
-		s2 := &stats[j]
-		if s1.PageType != s2.PageType {
-			return s1.PageType < s2.PageType
+	slices.SortFunc(stats, func(s1, s2 format.PageEncodingStats) int {
+		if k := cmp.Compare(s1.PageType, s2.PageType); k != 0 {
+			return k
 		}
-		return s1.Encoding < s2.Encoding
+		return cmp.Compare(s1.Encoding, s2.Encoding)
 	})
 }
 
