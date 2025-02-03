@@ -119,6 +119,9 @@ func (c *Context) BindTo(impl, iface any) {
 //
 // This is useful when the Run() function of different commands require different values that may
 // not all be initialisable from the main() function.
+//
+// "provider" must be a function with the signature func(...) (T, error) or func(...) T, where
+// ... will be recursively injected with bound values.
 func (c *Context) BindToProvider(provider any) error {
 	return c.bindings.addProvider(provider)
 }
