@@ -223,7 +223,8 @@ func TestBlockbuilder_receivesOldRecords(t *testing.T) {
 
 	// Wait for record to be consumed and committed.
 	require.Eventually(t, func() bool {
-		return kafkaCommits.Load() == 2
+		l := kafkaCommits.Load()
+		return l == 2
 	}, time.Minute, time.Second)
 
 	// Wait for the block to be flushed.
@@ -546,7 +547,7 @@ func BenchmarkBlockBuilder(b *testing.B) {
 			size += len(r.Value)
 		}
 
-		err = bb.consume(ctx)
+		_, err = bb.consume(ctx)
 		require.NoError(b, err)
 
 		b.SetBytes(int64(size))
