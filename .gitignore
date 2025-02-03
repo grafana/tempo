@@ -25,3 +25,6 @@ integration/e2e/deployments/e2e_integration_test[0-9]*
 /tmp
 gh-token.txt
 .cache
+.devcontainer
+testdata
+k6
