@@ -101,6 +101,7 @@ import (
                         BY COALESCE SELECT
                         END_ATTRIBUTE
                         RATE COUNT_OVER_TIME MIN_OVER_TIME MAX_OVER_TIME AVG_OVER_TIME QUANTILE_OVER_TIME HISTOGRAM_OVER_TIME COMPARE
+                        TOPK BOTTOMK
                         WITH
 
 // Operators are listed with increasing precedence.
@@ -121,8 +122,13 @@ root:
   | spansetPipelineExpression                   { yylex.(*lexer).expr = newRootExpr($1) }
   | scalarPipelineExpressionFilter              { yylex.(*lexer).expr = newRootExpr($1) } 
   | spansetPipeline PIPE metricsAggregation     { yylex.(*lexer).expr = newRootExprWithMetrics($1, $3) }
+  // this would only work for single metrics pipeline and not for multiple metrics pipelines before the fucntions
+  | spansetPipeline PIPE metricsAggregation PIPE metricsFunc    { yylex.(*lexer).expr = newRootExprWithMetricsFuncs($1, $3, $5) }
   | root hints                                  { yylex.(*lexer).expr.withHints($2) }
   ;
+
+// TODO: rename metricsAggregation -> metricsFirstPipeline
+// TODO: rename metricsFunc -> metricsSecondPipeline
 
 // **********************
 // Spanset Expressions
@@ -311,6 +317,14 @@ metricsAggregation:
     | COMPARE OPEN_PARENS spansetFilter CLOSE_PARENS                                                                    { $$ = newMetricsCompare($3, 10, 0, 0)}
     | COMPARE OPEN_PARENS spansetFilter COMMA INTEGER CLOSE_PARENS                                                      { $$ = newMetricsCompare($3, $5, 0, 0)}
     | COMPARE OPEN_PARENS spansetFilter COMMA INTEGER COMMA INTEGER COMMA INTEGER CLOSE_PARENS                          { $$ = newMetricsCompare($3, $5, $7, $9)}
+  ;
+
+// **********************
+// Metrics Functions
+// **********************
+metricsFunc:
+    TOPK OPEN_PARENS INTEGER CLOSE_PARENS                        { $$ = newMetricsTopK($3) }
+  | BOTTOMK OPEN_PARENS INTEGER CLOSE_PARENS                     { $$ = newMetricsBottomK($3) }
   ;
 
 // **********************
