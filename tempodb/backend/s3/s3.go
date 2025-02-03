@@ -3,6 +3,7 @@ package s3
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -26,6 +27,7 @@ import (
 	"github.com/go-kit/log/level"
 	minio "github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/minio/minio-go/v7/pkg/encrypt"
 
 	"github.com/grafana/tempo/pkg/blockboundary"
 	tempo_io "github.com/grafana/tempo/pkg/io"
@@ -39,6 +41,7 @@ type readerWriter struct {
 	cfg        *Config
 	core       *minio.Core
 	hedgedCore *minio.Core
+	sse        encrypt.ServerSide
 }
 
 var tracer = otel.Tracer("tempodb/backend/s3")
@@ -136,21 +139,35 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 		}
 	}
 
+	encryption, err := buildSSEConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("returned Error when trying to configure Server Side Encryption: %w", err)
+	}
+
 	rw := &readerWriter{
 		logger:     l,
 		cfg:        cfg,
 		core:       core,
 		hedgedCore: hedgedCore,
+		sse:        encryption,
 	}
+
 	return rw, nil
 }
 
 func getPutObjectOptions(rw *readerWriter) minio.PutObjectOptions {
 	return minio.PutObjectOptions{
-		PartSize:     rw.cfg.PartSize,
-		UserTags:     rw.cfg.Tags,
-		StorageClass: rw.cfg.StorageClass,
-		UserMetadata: rw.cfg.Metadata,
+		PartSize:             rw.cfg.PartSize,
+		UserTags:             rw.cfg.Tags,
+		StorageClass:         rw.cfg.StorageClass,
+		UserMetadata:         rw.cfg.Metadata,
+		ServerSideEncryption: rw.sse,
+	}
+}
+
+func getObjectOptions(rw *readerWriter) minio.GetObjectOptions {
+	return minio.GetObjectOptions{
+		ServerSideEncryption: rw.sse,
 	}
 }
 
@@ -540,7 +557,8 @@ func (rw *readerWriter) ReadVersioned(ctx context.Context, name string, keypath 
 }
 
 func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error) {
-	reader, info, _, err := rw.hedgedCore.GetObject(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
+	options := getObjectOptions(rw)
+	reader, info, _, err := rw.hedgedCore.GetObject(ctx, rw.cfg.Bucket, name, options)
 	if err != nil {
 		// do not change or wrap this error
 		// we need to compare the specific err message
@@ -552,7 +570,8 @@ func (rw *readerWriter) readAll(ctx context.Context, name string) ([]byte, error
 }
 
 func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]byte, minio.ObjectInfo, error) {
-	reader, info, _, err := rw.hedgedCore.GetObject(ctx, rw.cfg.Bucket, name, minio.GetObjectOptions{})
+	options := getObjectOptions(rw)
+	reader, info, _, err := rw.hedgedCore.GetObject(ctx, rw.cfg.Bucket, name, options)
 	if err != nil && minio.ToErrorResponse(err).Code == s3.ErrCodeNoSuchKey {
 		return nil, minio.ObjectInfo{}, backend.ErrDoesNotExist
 	} else if err != nil {
@@ -568,7 +587,7 @@ func (rw *readerWriter) readAllWithObjInfo(ctx context.Context, name string) ([]
 }
 
 func (rw *readerWriter) readRange(ctx context.Context, objName string, offset int64, buffer []byte) error {
-	options := minio.GetObjectOptions{}
+	options := getObjectOptions(rw)
 	err := options.SetRange(offset, offset+int64(len(buffer)))
 	if err != nil {
 		return fmt.Errorf("error setting headers for range read in s3: %w", err)
@@ -692,4 +711,40 @@ func readError(err error) error {
 		return backend.ErrDoesNotExist
 	}
 	return err
+}
+
+func parseKMSEncryptionContext(data string) (map[string]string, error) {
+	if data == "" {
+		return nil, nil
+	}
+
+	decoded := map[string]string{}
+	err := json.Unmarshal([]byte(data), &decoded)
+	return decoded, err
+}
+
+func buildSSEConfig(cfg *Config) (encrypt.ServerSide, error) {
+	switch cfg.SSE.Type {
+	case "":
+		return nil, nil
+	case SSEKMS:
+		if cfg.SSE.KMSKeyID == "" {
+			return nil, errors.New("KMSKeyID is missing")
+		} else {
+			encryptionCtx, err := parseKMSEncryptionContext(cfg.SSE.KMSEncryptionContext)
+			if err != nil {
+				return nil, err
+			}
+			if encryptionCtx == nil {
+				// To overcome a limitation in Minio which checks interface{} == nil.
+
+				return encrypt.NewSSEKMS(cfg.SSE.KMSKeyID, nil)
+			}
+			return encrypt.NewSSEKMS(cfg.SSE.KMSKeyID, encryptionCtx)
+		}
+	case SSES3:
+		return encrypt.NewSSE(), nil
+	default:
+		return nil, errUnsupportedSSEType
+	}
 }
