@@ -6,6 +6,7 @@ import (
 )
 
 var (
+	ErrMissingBloomFilter = errors.New("missing bloom filter")
 	ErrMissingColumnIndex = errors.New("missing column index")
 	ErrMissingOffsetIndex = errors.New("missing offset index")
 )

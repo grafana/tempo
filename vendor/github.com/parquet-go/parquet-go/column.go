@@ -103,16 +103,16 @@ func (c *Column) PagesFrom(reader io.ReaderAt) Pages {
 		return emptyPages{}
 	}
 	r := &columnPages{
-		pages: make([]filePages, len(c.file.rowGroups)),
+		pages: make([]FilePages, len(c.file.rowGroups)),
 	}
 	for i := range r.pages {
-		r.pages[i].init(c.file.rowGroups[i].(*fileRowGroup).columns[c.index].(*FileColumnChunk), reader)
+		r.pages[i].init(c.file.rowGroups[i].(*FileRowGroup).columns[c.index].(*FileColumnChunk), reader)
 	}
 	return r
 }
 
 type columnPages struct {
-	pages []filePages
+	pages []FilePages
 	index int
 }
 

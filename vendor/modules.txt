@@ -1057,7 +1057,7 @@ github.com/opentracing/opentracing-go/log
 github.com/openzipkin/zipkin-go/model
 github.com/openzipkin/zipkin-go/proto/zipkin_proto3
 github.com/openzipkin/zipkin-go/reporter
-# github.com/parquet-go/parquet-go v0.24.1-0.20250131222111-637a18596ad9 => ../parquet-go
+# github.com/parquet-go/parquet-go v0.24.1-0.20250203011650-a58243e6e9c1
 ## explicit; go 1.22
 github.com/parquet-go/parquet-go
 github.com/parquet-go/parquet-go/bloom
@@ -2187,4 +2187,3 @@ k8s.io/utils/clock
 # k8s.io/api => k8s.io/api v0.25.0
 # k8s.io/client-go => k8s.io/client-go v0.25.0
 # github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.3.1-0.20220708130638-bd88e10a3d91
-# github.com/parquet-go/parquet-go => ../parquet-go
