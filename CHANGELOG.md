@@ -1319,3 +1319,4 @@ Additionally, default label `span_status` is renamed to `status_code`.
 * [BUGFIX] Increase Prometheus `notfound` metric on tempo-vulture. [#301](https://github.com/grafana/tempo/pull/301)
 * [BUGFIX] Return 404 if searching for a tenant id that does not exist in the backend. [#321](https://github.com/grafana/tempo/pull/321)
 * [BUGFIX] Prune in-memory blocks from missing tenants. [#314](https://github.com/grafana/tempo/pull/314)
+* [ENHANCEMENT] Fix db.system.name attribute not being set in servicegraphs processor. [#4656](https://github.com/grafana/tempo/pull/4656)
