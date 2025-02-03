@@ -350,5 +350,8 @@ tempo-mixin-check: tools-image
 generate-manifest:
 	GO111MODULE=on CGO_ENABLED=0 go run -v pkg/docsgen/generate_manifest.go
 
+check-generated-files:
+	GO111MODULE=on CGO_ENABLED=0 go run -v pkg/docsgen/generate_manifest.go -diff
+
 # Import fragments
 include build/tools.mk
