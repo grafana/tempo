@@ -148,7 +148,7 @@ func (s *tenantStore) Flush(ctx context.Context, store tempodb.Writer) error {
 		"msg", "Flushed block",
 		"tenant", s.tenantID,
 		"blockid", newMeta.BlockID,
-		"elasped", time.Since(st),
+		"elapsed", time.Since(st),
 		"meta", newMeta,
 	)
 
