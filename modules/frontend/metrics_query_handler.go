@@ -20,7 +20,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger, setMaxSeries bool) streamingQueryInstantHandler {
+func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], apiPrefix string, logger log.Logger) streamingQueryInstantHandler {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 	downstreamPath := path.Join(apiPrefix, api.PathMetricsQueryRange)
 
@@ -59,11 +59,9 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, c, func(qrr *tempopb.QueryRangeResponse) error {
 			// Translate each diff into the instant version and send it
 			resp := translateQueryRangeToInstant(*qrr)
-			if setMaxSeries {
-				// series already limited by the query range combiner just need to copy the status and message
-				resp.Status = qrr.Status
-				resp.Message = qrr.Message
-			}
+			// series already limited by the query range combiner just need to copy the status and message
+			resp.Status = qrr.Status
+			resp.Message = qrr.Message
 			finalResponse = &resp // Save last response for bytesProcessed for the SLO calculations
 			return srv.Send(&resp)
 		})
@@ -84,7 +82,7 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 
 // newMetricsQueryInstantHTTPHandler handles instant queries.  Internally these are rewritten as query_range with single step
 // to make use of the existing pipeline.
-func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger, setMaxSeries bool) http.RoundTripper {
+func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.PipelineResponse], logger log.Logger) http.RoundTripper {
 	postSLOHook := metricsSLOPostHook(cfg.Metrics.SLO)
 
 	return RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
