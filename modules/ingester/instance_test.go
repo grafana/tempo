@@ -212,10 +212,11 @@ func TestInstanceDoesNotRace(t *testing.T) {
 }
 
 func TestInstanceLimits(t *testing.T) {
+	maxBytes := 1000
 	limits, err := overrides.NewOverrides(overrides.Config{
 		Defaults: overrides.Overrides{
 			Global: overrides.GlobalOverrides{
-				MaxBytesPerTrace: 1000,
+				MaxBytesPerTrace: maxBytes,
 			},
 			Ingestion: overrides.IngestionOverrides{
 				MaxLocalTracesPerUser: 4,
@@ -278,7 +279,7 @@ func TestInstanceLimits(t *testing.T) {
 					req: makeRequestWithByteLimit(500, []byte{0x01}),
 				},
 				{
-					req:          makeRequestWithByteLimit(700, []byte{0x01}),
+					req:          makeRequestWithByteLimit(maxBytes*2, []byte{0x01}),
 					expectsError: true,
 					errorReason:  traceTooLarge,
 				},
@@ -547,7 +548,7 @@ func TestInstanceFailsLargeTracesEvenAfterFlushing(t *testing.T) {
 	i, err := ingester.getOrCreateInstance(testTenantID)
 	require.NoError(t, err)
 
-	req := makeRequestWithByteLimit(maxTraceBytes-300, id)
+	req := makeRequestWithByteLimit(maxTraceBytes, id)
 	reqSize := 0
 	for _, b := range req.Traces {
 		reqSize += len(b.Slice)
@@ -629,7 +630,7 @@ func TestInstancePartialSuccess(t *testing.T) {
 	}
 
 	// one with no error [0], two with trace_too_large [1,2], one with no error [3], one should trigger live_traces_exceeded [4]
-	multiMaxBytes := []int{maxTraceBytes - 300, maxTraceBytes + 200, maxTraceBytes + 200, maxTraceBytes - 300, maxTraceBytes - 200}
+	multiMaxBytes := []int{maxTraceBytes - 300, maxTraceBytes * 2, maxTraceBytes * 2, maxTraceBytes - 300, maxTraceBytes - 200}
 	req := makePushBytesRequestMultiTraces(ids, multiMaxBytes)
 
 	// Pushing pass
@@ -637,32 +638,34 @@ func TestInstancePartialSuccess(t *testing.T) {
 	response := i.PushBytesRequest(ctx, req)
 	errored, maxLiveCount, traceTooLargeCount := CheckPushBytesError(response)
 
-	assert.True(t, errored)
-	assert.Equal(t, true, maxLiveCount > 0)
-	assert.Equal(t, true, traceTooLargeCount > 0)
+	require.True(t, errored)
+	require.Greater(t, maxLiveCount, 0)
+	require.Greater(t, traceTooLargeCount, 0)
 
 	// check that the two good ones actually made it
 	result, err := i.FindTraceByID(ctx, ids[0], false)
 	require.NoError(t, err, "error finding trace by id")
-	assert.Equal(t, 1, len(result.ResourceSpans))
+	require.NotNil(t, result)
+	require.Equal(t, 1, len(result.ResourceSpans))
 
 	result, err = i.FindTraceByID(ctx, ids[3], false)
 	require.NoError(t, err, "error finding trace by id")
-	assert.Equal(t, 1, len(result.ResourceSpans))
+	require.NotNil(t, result)
+	require.Equal(t, 1, len(result.ResourceSpans))
 
 	// check that the three traces that had errors did not actually make it
 	var expected *tempopb.Trace
 	result, err = i.FindTraceByID(ctx, ids[1], false)
 	require.NoError(t, err, "error finding trace by id")
-	assert.Equal(t, expected, result)
+	require.Equal(t, expected, result)
 
 	result, err = i.FindTraceByID(ctx, ids[2], false)
 	require.NoError(t, err, "error finding trace by id")
-	assert.Equal(t, expected, result)
+	require.Equal(t, expected, result)
 
 	result, err = i.FindTraceByID(ctx, ids[4], false)
 	require.NoError(t, err, "error finding trace by id")
-	assert.Equal(t, expected, result)
+	require.Equal(t, expected, result)
 }
 
 func TestSortByteSlices(t *testing.T) {
@@ -961,7 +964,13 @@ func makeBatchWithMaxBytes(maxBytes int, traceID []byte) *v1_trace.ResourceSpans
 	batch := test.MakeBatch(1, traceID)
 
 	for batch.Size() < maxBytes {
-		batch.ScopeSpans[0].Spans = append(batch.ScopeSpans[0].Spans, test.MakeSpan(traceID))
+		newSpan := test.MakeSpan(traceID)
+
+		// Ensure the next span fits before adding.  If not give up.
+		if batch.Size()+newSpan.Size() >= maxBytes {
+			break
+		}
+		batch.ScopeSpans[0].Spans = append(batch.ScopeSpans[0].Spans, newSpan)
 	}
 
 	return batch
