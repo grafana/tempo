@@ -326,6 +326,14 @@ type QueryRangeCombiner struct {
 	req     *tempopb.QueryRangeRequest
 	eval    *MetricsFrontendEvaluator
 	metrics *tempopb.SearchMetrics
+
+	maxSeries        int
+	maxSeriesReached bool
+
+	// used to track which series were updated since the previous diff
+	// todo: it may not be worth it to track the diffs per series. it would be simpler (and possibly nearly as effective) to just calculate a global
+	//  max/min for all series
+	seriesUpdated map[string]tsRange
 }
 
 func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode) (*QueryRangeCombiner, error) {
@@ -342,12 +350,16 @@ func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode) (
 }
 
 func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
-	if resp == nil {
+	if resp == nil || q.maxSeriesReached{
 		return
 	}
 
 	// Here is where the job results are reentered into the pipeline
 	q.eval.ObserveSeries(resp.Series)
+
+	if q.maxSeries > 0 && len(q.eval.Results()) >= q.maxSeries {
+		q.maxSeriesReached = true
+	}
 
 	if resp.Metrics != nil {
 		q.metrics.TotalJobs += resp.Metrics.TotalJobs
@@ -365,4 +377,8 @@ func (q *QueryRangeCombiner) Response() *tempopb.QueryRangeResponse {
 		Series:  q.eval.Results().ToProto(q.req),
 		Metrics: q.metrics,
 	}
+}
+
+func (q *QueryRangeCombiner) MaxSeriesReached() bool {
+	return q.maxSeriesReached
 }
