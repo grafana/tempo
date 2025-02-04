@@ -157,7 +157,7 @@ func TestQueryRangeHandlerV2MaxSeries(t *testing.T) {
 
 	tenant := "foo"
 
-	httpReq := httptest.NewRequest("GET", api.PathMetricsQueryRangeV2, nil)
+	httpReq := httptest.NewRequest("GET", api.PathMetricsQueryRange, nil)
 	httpReq = api.BuildQueryRangeRequest(httpReq, &tempopb.QueryRangeRequest{
 		Query: "{} | rate()",
 		Start: uint64(1100 * time.Second),
@@ -170,7 +170,7 @@ func TestQueryRangeHandlerV2MaxSeries(t *testing.T) {
 
 	httpResp := httptest.NewRecorder()
 
-	f.MetricsQueryRangeV2Handler.ServeHTTP(httpResp, httpReq)
+	f.MetricsQueryRangeHandler.ServeHTTP(httpResp, httpReq)
 
 	require.Equal(t, 200, httpResp.Code)
 
