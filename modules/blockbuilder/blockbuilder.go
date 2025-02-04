@@ -318,8 +318,7 @@ func (b *BlockBuilder) getWeightedPartitions(ctx context.Context, partitions []i
 
 func (b *BlockBuilder) getPartitionStatus(ctx context.Context, partition int32, commits kadm.OffsetResponses) (PartitionStatus, error) {
 	var (
-		topic = b.cfg.IngestStorageConfig.Kafka.Topic
-
+		topic           = b.cfg.IngestStorageConfig.Kafka.Topic
 		partitionStatus = PartitionStatus{partition: partition, startOffset: -1, endOffset: -1}
 	)
 
@@ -372,6 +371,7 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, ps PartitionStatus)
 		"partition", ps.partition,
 		"commit_offset", ps.startOffset,
 		"start_offset", startOffset,
+		"lag", ps.lag(),
 	)
 
 	// We always rewind the partition's offset to the commit offset by reassigning the partition to the client (this triggers partition assignment).
@@ -411,8 +411,6 @@ outer:
 			rec := iter.Next()
 			metricFetchBytesTotal.WithLabelValues(partLabel).Add(float64(len(rec.Value)))
 			metricFetchRecordsTotal.WithLabelValues(partLabel).Inc()
-
-			fmt.Printf("Record: %d\n", rec.Offset)
 
 			level.Debug(b.logger).Log(
 				"msg", "processing record",
