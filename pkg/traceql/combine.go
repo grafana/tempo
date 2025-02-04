@@ -350,7 +350,7 @@ func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode) (
 }
 
 func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
-	if resp == nil || q.maxSeriesReached{
+	if resp == nil || q.maxSeriesReached {
 		return
 	}
 
