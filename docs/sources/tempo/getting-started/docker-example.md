@@ -70,7 +70,7 @@ To learn more, read the [local storage example README](https://github.com/grafan
    cd tempo/example/docker-compose/local
    ```
 
-1. Create a new directory to store data:
+1. Create a new directory to store data: 
    ```bash
    mkdir tempo-data
    ```
