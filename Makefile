@@ -27,7 +27,6 @@ ALL_SRC := $(shell find . -name '*.go' \
 								-not -path './tools*/*' \
 								-not -path './vendor*/*' \
 								-not -path './integration/*' \
-								-not -path './cmd/tempo-serverless/*' \
                                 -type f | sort)
 
 # ALL_SRC but without pkg and tempodb packages
@@ -35,7 +34,6 @@ OTHERS_SRC := $(shell find . -name '*.go' \
 								-not -path './tools*/*' \
 								-not -path './vendor*/*' \
 								-not -path './integration/*' \
-								-not -path './cmd/tempo-serverless/*' \
 								-not -path './pkg*/*' \
 								-not -path './tempodb*/*' \
                                 -type f | sort)
@@ -84,11 +82,11 @@ tempo-vulture:
 
 .PHONY: exe  ## Build exe
 exe:
-	GOOS=linux $(MAKE) $(COMPONENT)
+	GOOS=linux make $(COMPONENT)
 
 .PHONY: exe-debug  ## Build exe-debug
 exe-debug:
-	BUILD_DEBUG=1 GOOS=linux $(MAKE) $(COMPONENT)
+	BUILD_DEBUG=1 GOOS=linux make $(COMPONENT)
 
 ##@  Testin' and Lintin'
 
@@ -102,7 +100,7 @@ benchmark: tools ## Run benchmarks
 
 # Not used in CI, tests are split in pkg, tempodb, tempodb-wal and others in CI jobs
 .PHONY: test-with-cover 
-test-with-cover: tools test-serverless ## Run tests with code coverage
+test-with-cover: tools ## Run tests with code coverage
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(ALL_PKGS)
 
 # tests in pkg
@@ -122,18 +120,13 @@ test-with-cover-tempodb-wal: tools  ## Test tempodb/wal with code coverage
 
 # all other tests (excluding pkg & tempodb)
 .PHONY: test-with-cover-others
-test-with-cover-others: tools test-serverless ## Run other tests with code coverage
+test-with-cover-others: tools ## Run other tests with code coverage
 	$(GOTEST) $(GOTEST_OPT_WITH_COVERAGE) $(shell go list $(sort $(dir $(OTHERS_SRC))))
 
 # runs e2e tests in the top level integration/e2e directory
 .PHONY: test-e2e
 test-e2e: tools docker-tempo docker-tempo-query  ## Run end to end tests
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e
-
-# runs only serverless e2e tests
-.PHONY: test-e2e-serverless
-test-e2e-serverless: tools docker-tempo docker-serverless ## Run serverless end to end tests
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/serverless
 
 # runs only deployment modes e2e tests
 .PHONY: test-e2e-deployments
@@ -147,7 +140,7 @@ test-integration-poller: tools ## Run poller integration tests
 
 # test-all/bench use a docker image so build it first to make sure we're up to date
 .PHONY: test-all ## Run all tests
-test-all: test-with-cover test-e2e test-e2e-serverless test-e2e-deployments test-integration-poller
+test-all: test-with-cover test-e2e test-e2e-deployments test-integration-poller
 
 .PHONY: test-bench
 test-bench: tools docker-tempo ## Run all benchmarks
@@ -185,8 +178,8 @@ docker-component: check-component exe # not intended to be used directly
 
 .PHONY: docker-component-multi
 docker-component-multi: check-component # not intended to be used directly
-	GOOS=linux GOARCH=amd64 $(MAKE) $(COMPONENT)
-	GOOS=linux GOARCH=arm64 $(MAKE) $(COMPONENT)
+	GOOS=linux GOARCH=amd64 make $(COMPONENT)
+	GOOS=linux GOARCH=arm64 make $(COMPONENT)
 	docker buildx build -t grafana/$(COMPONENT) --platform linux/amd64,linux/arm64 --output type=docker -f ./cmd/$(COMPONENT)/Dockerfile .
 
 .PHONY: docker-component-debug
@@ -196,26 +189,26 @@ docker-component-debug: check-component exe-debug
 
 .PHONY: docker-tempo 
 docker-tempo: ## Build tempo docker image
-	COMPONENT=tempo $(MAKE) docker-component
+	COMPONENT=tempo make docker-component
 
 .PHONY: docker-tempo-multi
 docker-tempo-multi: ## Build multiarch image locally, requires containerd image store
-	COMPONENT=tempo $(MAKE) docker-component-multi
+	COMPONENT=tempo make docker-component-multi
 
 docker-tempo-debug: ## Build tempo debug docker image
-	COMPONENT=tempo $(MAKE) docker-component-debug
+	COMPONENT=tempo make docker-component-debug
 
 .PHONY: docker-cli
 docker-tempo-cli: ## Build tempo cli docker image
-	COMPONENT=tempo-cli $(MAKE) docker-component
+	COMPONENT=tempo-cli make docker-component
 
 .PHONY: docker-tempo-query
 docker-tempo-query: ## Build tempo query docker image
-	COMPONENT=tempo-query $(MAKE) docker-component
+	COMPONENT=tempo-query make docker-component
 
 .PHONY: docker-tempo-vulture
 docker-tempo-vulture: ## Build tempo vulture docker image
-	COMPONENT=tempo-vulture $(MAKE) docker-component
+	COMPONENT=tempo-vulture make docker-component
 
 .PHONY: docker-images ## Build all docker images
 docker-images: docker-tempo docker-tempo-query docker-tempo-vulture
@@ -304,12 +297,11 @@ vendor-check: gen-proto update-mod gen-traceql gen-parquet-query ## Keep up to d
 	git diff --exit-code -- **/go.sum **/go.mod vendor/ pkg/tempopb/ pkg/traceql/
 
 
-### Tidy dependencies for tempo and tempo-serverless modules
+### Tidy dependencies for tempo modules
 .PHONY: update-mod 
 update-mod: tools-update-mod ## Update module
 	go mod vendor
 	go mod tidy -e
-	$(MAKE) -C cmd/tempo-serverless update-mod
 
 
 ### Release (intended to be used in the .github/workflows/release.yml)
@@ -338,29 +330,21 @@ docs-test:
 ##@ jsonnet
 .PHONY: jsonnet jsonnet-check jsonnet-test
 jsonnet: tools-image ## Generate jsonnet
-	$(TOOLS_CMD) $(MAKE) -C operations/jsonnet-compiled/util gen
+	$(TOOLS_CMD) make -C operations/jsonnet-compiled/util gen
 
 jsonnet-check: tools-image ## Check jsonnet
-	$(TOOLS_CMD) $(MAKE) -C operations/jsonnet-compiled/util check
+	$(TOOLS_CMD) make -C operations/jsonnet-compiled/util check
 
 jsonnet-test: tools-image ## Test jsonnet
-	$(TOOLS_CMD) $(MAKE) -C operations/jsonnet/microservices test
-
-##@ serverless
-.PHONY: docker-serverless test-serverless
-docker-serverless: ## Build docker Tempo serverless
-	$(MAKE) -C cmd/tempo-serverless build-docker
-
-test-serverless: ## Run Tempo serverless tests
-	$(MAKE) -C cmd/tempo-serverless test
+	$(TOOLS_CMD) make -C operations/jsonnet/microservices test
 
 ### tempo-mixin
 .PHONY: tempo-mixin tempo-mixin-check
 tempo-mixin: tools-image
-	$(TOOLS_CMD) $(MAKE) -C operations/tempo-mixin all
+	$(TOOLS_CMD) make -C operations/tempo-mixin all
 
 tempo-mixin-check: tools-image
-	$(TOOLS_CMD) $(MAKE) -C operations/tempo-mixin check
+	$(TOOLS_CMD) make -C operations/tempo-mixin check
 
 .PHONY: generate-manifest
 generate-manifest:

@@ -21,8 +21,8 @@ To set up Tempo using Kubernetes with Tanka, you need to:
 1. Deploy Tempo with the Tanka command
 
 {{< admonition type="note" >}}
-This configuration is not suitable for a production environment but can provide a useful way to learn about Tempo.
-{{% /admonition %}}
+This configuration isn't suitable for a production environment but can provide a useful way to learn about Tempo.
+{{< /admonition >}}
 
 ## Before you begin
 
@@ -62,7 +62,7 @@ Tanka requires the current context for your Kubernetes environment.
    kubectl config current-context
    ```
 
-1. Initialize Tanka. This will use the current Kubernetes context:
+1. Initialize Tanka. This uses the current Kubernetes context:
 
    ```bash
    tk init --k8s=false
@@ -376,7 +376,7 @@ To change the resources requirements, follow these steps:
 
 {{< admonition type="note" >}}
 Lowering these requirements can impact overall performance.
-{{% /admonition %}}
+{{< /admonition >}}
 
 ## Deploy Tempo using Tanka
 
@@ -393,7 +393,7 @@ If the ingesters don’t start after deploying Tempo with the Tanka command, thi
       pvc_storage_class: 'standard',
     },
   ```
-{{% /admonition %}}
+{{< /admonition >}}
 
 ## Next steps
 

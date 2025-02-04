@@ -9,9 +9,9 @@ labels:
 
 [//]: # 'This file documents the best practices for tracing for Tempo.'
 [//]: # 'This shared file is included in these locations:'
-[//]: # '/grafana/docs/sources/datasources/tempo/best-practices.md'
-[//]: # '/website/docs/grafana-cloud/data-configuration/traces/best-practices.md'
-[//]: # '/tempo/docs/sources/tempo/operations/best-practices.md'
+[//]: # '/grafana/docs/sources/datasources/tempo/tracing-best-practices.md'
+[//]: # '/website/docs/grafana-cloud/send-data/traces/tracing-best-practices.md'
+[//]: # '/tempo/docs/sources/tempo/getting-started/best-practices.md'
 [//]: #
 [//]: # 'If you make changes to this file, verify that the meaning and content are not changed in any place where the file is included.'
 [//]: # 'Any links should be fully qualified and not relative: /docs/grafana/ instead of ../grafana/.'
@@ -94,6 +94,6 @@ You can consider breaking up the spans in several ways:
      - For long-running operations, you could create a new span for every predetermined interval of execution time.
         {{< admonition type="note" >}}
         This requires time-based tracking in your application's code and is more complex to implement.
-        {{% /admonition %}}
+        {{< /admonition >}}
 - Use span linking
      - Should data flow hit bottlenecks where further operations on that data might be batched at a later time, the use of [span links](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/overview.md#links-between-spans) can help keep traces constrained to an acceptable time range, while sharing context with other traces that work on the same data. This can also improve the readability of traces.

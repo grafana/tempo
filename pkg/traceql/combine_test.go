@@ -1,12 +1,14 @@
 package traceql
 
 import (
+<<<<<<< HEAD
 	"fmt"
 	"math/rand/v2"
 	"slices"
 	"strings"
+=======
+>>>>>>> main
 	"testing"
-	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"

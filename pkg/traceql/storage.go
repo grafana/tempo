@@ -124,6 +124,22 @@ func (f *FetchSpansRequest) HasAttribute(a Attribute) bool {
 	return false
 }
 
+func (f *FetchSpansRequest) HasAttributeWithOp(a Attribute, o Operator) bool {
+	for _, cc := range f.Conditions {
+		if cc.Attribute == a && cc.Op == o {
+			return true
+		}
+	}
+
+	for _, cc := range f.SecondPassConditions {
+		if cc.Attribute == a && cc.Op == o {
+			return true
+		}
+	}
+
+	return false
+}
+
 type Span interface {
 	// AttributeFor returns the attribute for the given key. If the attribute is not found then
 	// the second return value will be false.

@@ -71,7 +71,7 @@ type Processor struct {
 	flushqueue *flushqueues.PriorityQueue
 
 	liveTracesMtx sync.Mutex
-	liveTraces    *livetraces.LiveTraces
+	liveTraces    *livetraces.LiveTraces[*v1.ResourceSpans]
 	traceSizes    *tracesizes.Tracker
 
 	writer tempodb.Writer
@@ -104,7 +104,7 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 		walBlocks:      map[uuid.UUID]common.WALBlock{},
 		completeBlocks: map[uuid.UUID]*ingester.LocalBlock{},
 		flushqueue:     flushqueues.NewPriorityQueue(metricFlushQueueSize.WithLabelValues(tenant)),
-		liveTraces:     livetraces.New(),
+		liveTraces:     livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }),
 		traceSizes:     tracesizes.New(),
 		closeCh:        make(chan struct{}),
 		wg:             sync.WaitGroup{},
@@ -663,7 +663,7 @@ func (p *Processor) writeHeadBlock(id common.ID, tr *tempopb.Trace) error {
 	startSeconds := uint32(start / uint64(time.Second))
 	endSeconds := uint32(end / uint64(time.Second))
 
-	err := p.headBlock.AppendTrace(id, tr, startSeconds, endSeconds)
+	err := p.headBlock.AppendTrace(id, tr, startSeconds, endSeconds, true)
 	if err != nil {
 		return err
 	}

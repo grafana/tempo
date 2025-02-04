@@ -40,17 +40,6 @@ dashboard_utils {
         )
       )
       .addRow(
-        g.row('Querier External Endpoint')
-        .addPanel(
-          $.panel('QPS') +
-          $.qpsPanel('tempo_querier_external_endpoint_duration_seconds_count{%s}' % [$.jobMatcher($._config.jobs.querier)])
-        )
-        .addPanel(
-          $.panel('Latency') +
-          $.latencyPanel('tempo_querier_external_endpoint_duration_seconds', '{%s}' % [$.jobMatcher($._config.jobs.querier)], additional_grouping='endpoint')
-        )
-      )
-      .addRow(
         g.row('Ingester')
         .addPanel(
           $.panel('QPS') +

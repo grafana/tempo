@@ -2,7 +2,10 @@
 title: Tune search performance
 menutitle: Tune search performance
 description: How to tune Tempo to improve search performance.
-weight: 90
+weight: 500
+aliases:
+  - ./serverless_aws/ # https://grafana.com/docs/tempo/next/operations/serverless_aws/
+  - ./serverless_gcp/ # https://grafana.com/docs/tempo/next/operations/serverless_gcp/
 ---
 
 # Tune search performance
@@ -111,34 +114,6 @@ querier:
   max_concurrent_queries: 20
 ```
 
-With serverless technologies:
-
-{{< admonition type="caution" >}}
-The Tempo serverless feature is now deprecated and will be removed in an upcoming release.
-{{< /admonition >}}
-
-{{< admonition type="note" >}}
-Serverless can be a nice way to reduce cost by using it as spare query capacity.
-However, serverless tends to have higher variance then simply allowing the queriers to perform the searches themselves.
-{{< /admonition >}}
-
-```yaml
-querier:
-
-  search:
-    # A list of endpoints to query. Load will be spread evenly across
-    # these multiple serverless functions.
-    external_endpoints:
-    - https://<serverless endpoint>
-
-    # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
-    # be set to p99 of search requests to reduce long tail latency.
-    external_hedge_requests_at: 8s
-
-    # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
-    external_hedge_requests_up_to: 2
-```
-
 ### Query-frontend
 
 [Query frontend]({{< relref "../configuration#query-frontend" >}}) lists all configuration
@@ -174,55 +149,13 @@ query_frontend:
     target_bytes_per_job: 50_000_000
 ```
 
-### Serverless environment
-
-{{< admonition type="caution" >}}
-The Tempo serverless feature is now deprecated and will be removed in an upcoming release.
-{{< /admonition >}}
-
-Serverless isn't required, but with larger loads, serverless can be used to reduce costs.
-Tempo has support for Google Cloud Run and AWS Lambda.
-In both cases, you can use the following
-settings to configure Tempo to use a serverless environment:
-
-```yaml
-querier:
-  search:
-    # A list of external endpoints that the querier will use to offload backend search requests. They must
-    # take and return the same value as /api/search endpoint on the querier. This is intended to be
-    # used with serverless technologies for massive parallelization of the search path.
-    # The default value of "" disables this feature.
-    [external_endpoints: <list of strings> | default = <empty list>]
-
-    # If external_endpoints is set then the querier will primarily act as a proxy for whatever serverless backend
-    # you have configured. This setting allows the operator to have the querier prefer itself for a configurable
-    # number of subqueries. In the default case of 2 the querier will process up to 2 search requests subqueries before starting
-    # to reach out to external_endpoints.
-    # Setting this to 0 will disable this feature and the querier will proxy all search subqueries to external_endpoints.
-    [prefer_self: <int> | default = 2 ]
-
-    # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
-    # be set to p99 of external search requests to reduce long tail latency.
-    # (default: 4s)
-    [external_hedge_requests_at: <duration>]
-
-    # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
-    # (default: 3)
-    [external_hedge_requests_up_to: <int>]
-```
-
-For cloud-specific details:
-
-- [AWS Lambda]({{< relref "./serverless_aws" >}})
-- [Google Cloud Run]({{< relref "./serverless_gcp" >}})
-
 ## Settings that are safe to increase without major impact.
 
 Scaling up queriers is a safe way to add more query capacity.
 At Grafana Labs, we prefer to scale queries horizontally by adding more replicas.
 If you see out of memory (OOM) errors, it might be worth scaling the queriers vertically.
 
-We recommend running at least two replicates of query-frontend. These replicas should be scaled vertically instead of horizontally. 
+We recommend running at least two replicates of query-frontend. These replicas should be scaled vertically instead of horizontally.
 If you need to scale, scale query-frontends vertically by adding more CPU and RAM.
 Currently, query-frontends aren’t scaled horizontally, but this might change in the future.
 
@@ -333,21 +266,6 @@ This option controls the upper limit on the size of a job, and can be used as a 
 * Setting this to a small value produces too many jobs, and results in more overhead, setting it too high produces big jobs. Queriers might struggle to finish those jobs and it can lead to high latency.
 * In testing at Grafana Labs, 100MB to 200MB is a good range for this configuration, and works across different sizes of clusters.
 * We recommend keeping this fixed within the recommended range.
-
-### `querier.search.prefer_self` parameter
-
-{{< admonition type="note" >}}
-This configuration only applies to `tempo-serverless`.
-{{< /admonition >}}
-
-This setting controls the number of job the querier will process before spilling over the `search_external_endpoints` (tempo-serverless).
-
-#### Guidelines
-
-* In testing at Grafana Labs, serverless suffered from cold starts problems. If your query load is predictable, serverless isn't recommended.
-* Increase the value of `prefer_self` if you want to process more jobs in the querier and spill out in extreme cases.
-* Setting this to a very big number is as good as turning it off because the querier tries to process all the jobs and it never spills over to serverless.
-* If we set this to a low value, we spill more jobs to serverless, even when queriers have capacity to process the job, and due to cold start, query latency increases.
 
 ### `querier.frontend_worker.parallelism` parameter
 

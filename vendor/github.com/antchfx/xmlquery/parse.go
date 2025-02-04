@@ -266,7 +266,7 @@ func (p *parser) parse() (*Node, error) {
 			for _, pair := range pairs {
 				pair = strings.TrimSpace(pair)
 				if i := strings.Index(pair, "="); i > 0 {
-					AddAttr(node, pair[:i], strings.Trim(pair[i+1:], `"`))
+					AddAttr(node, pair[:i], strings.Trim(pair[i+1:], `"'`))
 				}
 			}
 			if p.level == p.prev.level {

@@ -77,6 +77,8 @@ type IngestionOverrides struct {
 	MaxGlobalTracesPerUser int `yaml:"max_global_traces_per_user,omitempty" json:"max_global_traces_per_user,omitempty"`
 
 	TenantShardSize int `yaml:"tenant_shard_size,omitempty" json:"tenant_shard_size,omitempty"`
+
+	MaxAttributeBytes int `yaml:"max_attribute_bytes,omitempty" json:"max_attribute_bytes,omitempty"`
 }
 
 type ForwarderOverrides struct {
@@ -170,7 +172,7 @@ type CompactionOverrides struct {
 }
 
 type GlobalOverrides struct {
-	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search) and Serverless (Search). It
+	// MaxBytesPerTrace is enforced in the Ingester, Compactor, Querier (Search). It
 	//  is not used when doing a trace by id lookup.
 	MaxBytesPerTrace int `yaml:"max_bytes_per_trace,omitempty" json:"max_bytes_per_trace,omitempty"`
 }

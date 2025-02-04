@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/grafana/dskit/flagext"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
@@ -328,7 +329,12 @@ type ownEverythingSharder struct{}
 func (o *ownEverythingSharder) Owns(string) bool { return true }
 
 func newStore(ctx context.Context, t testing.TB) storage.Store {
+	return newStoreWithLogger(ctx, t, test.NewTestingLogger(t))
+}
+
+func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger) storage.Store {
 	tmpDir := t.TempDir()
+
 	s, err := storage.NewStore(storage.Config{
 		Trace: tempodb.Config{
 			Backend: backend.Local,
@@ -348,7 +354,7 @@ func newStore(ctx context.Context, t testing.TB) storage.Store {
 			},
 			BlocklistPoll: 5 * time.Second,
 		},
-	}, nil, test.NewTestingLogger(t))
+	}, nil, log)
 	require.NoError(t, err)
 
 	s.EnablePolling(ctx, &ownEverythingSharder{})
@@ -431,7 +437,10 @@ func countFlushedTraces(store storage.Store) int {
 func sendReq(t testing.TB, ctx context.Context, client *kgo.Client) []*kgo.Record {
 	traceID := generateTraceID(t)
 
-	req := test.MakePushBytesRequest(t, 10, traceID)
+	now := time.Now()
+	startTime := uint64(now.UnixNano())
+	endTime := uint64(now.Add(time.Second).UnixNano())
+	req := test.MakePushBytesRequest(t, 10, traceID, startTime, endTime)
 	records, err := ingest.Encode(0, util.FakeTenantID, req, 1_000_000)
 	require.NoError(t, err)
 
@@ -483,20 +492,51 @@ func requireLastCommitEquals(t testing.TB, ctx context.Context, client *kgo.Clie
 func BenchmarkBlockBuilder(b *testing.B) {
 	var (
 		ctx        = context.Background()
+		logger     = log.NewNopLogger()
 		_, address = testkafka.CreateCluster(b, 1, testTopic)
-		store      = newStore(ctx, b)
+		store      = newStoreWithLogger(ctx, b, logger)
 		cfg        = blockbuilderConfig(b, address)
 		client     = newKafkaClient(b, cfg.IngestStorageConfig.Kafka)
+		o          = &mockOverrides{
+			dc: backend.DedicatedColumns{
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res0", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res1", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res2", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res3", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res4", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res5", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res6", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res7", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res8", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeResource, Name: "res9", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span0", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span1", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span2", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span3", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span4", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span5", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span6", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span7", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span8", Type: backend.DedicatedColumnTypeString},
+				backend.DedicatedColumn{Scope: backend.DedicatedColumnScopeSpan, Name: "span9", Type: backend.DedicatedColumnTypeString},
+			},
+		}
 	)
 
 	cfg.ConsumeCycleDuration = 1 * time.Hour
+
+	bb := New(cfg, logger, newPartitionRingReader(), o, store)
+	defer func() { require.NoError(b, bb.stopping(nil)) }()
+
+	// Startup (without starting the background consume cycle)
+	err := bb.starting(ctx)
+	require.NoError(b, err)
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 
 		var records []*kgo.Record
-
 		for i := 0; i < 1000; i++ {
 			records = append(records, sendReq(b, ctx, client)...)
 		}
@@ -505,14 +545,6 @@ func BenchmarkBlockBuilder(b *testing.B) {
 		for _, r := range records {
 			size += len(r.Value)
 		}
-
-		b.ResetTimer()
-
-		bb := New(cfg, test.NewTestingLogger(b), newPartitionRingReader(), &mockOverrides{}, store)
-
-		// Startup (without starting the background consume cycle)
-		err := bb.starting(ctx)
-		require.NoError(b, err)
 
 		err = bb.consume(ctx)
 		require.NoError(b, err)

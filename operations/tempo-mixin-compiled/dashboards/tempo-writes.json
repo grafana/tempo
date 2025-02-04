@@ -276,7 +276,7 @@
      "steppedLine": false,
      "targets": [
       {
-       "expr": "sum by (grpc_status) (\n    rate(\n        label_replace(\n            {cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", __name__=~\"envoy_cluster_grpc_proto_collector_trace_v1_TraceService_[0-9]+\"},\n            \"grpc_status\", \"$1\", \"__name__\", \"envoy_cluster_grpc_proto_collector_trace_v1_TraceService_(.+)\"\n        )\n        [$__interval:$__interval]\n    )\n)\n",
+       "expr": "sum by (grpc_status) (\n    rate(\n        label_replace(\n            {cluster=~\"$cluster\", job=~\"($namespace)/cortex-gw(-internal)?\", __name__=~\"envoy_cluster_grpc_proto_collector_trace_v1_TraceService_[0-9]+\"},\n            \"grpc_status\", \"$1\", \"__name__\", \"envoy_cluster_grpc_proto_collector_trace_v1_TraceService_(.+)\"\n        )\n        [$__rate_interval:30s]\n    )\n)\n",
        "format": "time_series",
        "interval": "1m",
        "legendFormat": "{{grpc_status}}",

@@ -9,9 +9,9 @@ import (
 // Plugins are dynamically embedded command-line structures.
 //
 // Each element in the Plugins list *must* be a pointer to a structure.
-type Plugins []interface{}
+type Plugins []any
 
-func build(k *Kong, ast interface{}) (app *Application, err error) {
+func build(k *Kong, ast any) (app *Application, err error) {
 	v := reflect.ValueOf(ast)
 	iv := reflect.Indirect(v)
 	if v.Kind() != reflect.Ptr || iv.Kind() != reflect.Struct {
@@ -71,6 +71,7 @@ func flattenedFields(v reflect.Value, ptag *Tag) (out []flattenedField, err erro
 		// Accumulate prefixes.
 		tag.Prefix = ptag.Prefix + tag.Prefix
 		tag.EnvPrefix = ptag.EnvPrefix + tag.EnvPrefix
+		tag.XorPrefix = ptag.XorPrefix + tag.XorPrefix
 		// Combine parent vars.
 		tag.Vars = ptag.Vars.CloneWith(tag.Vars)
 		// Command and embedded structs can be pointers, so we hydrate them now.
@@ -111,7 +112,7 @@ func flattenedFields(v reflect.Value, ptag *Tag) (out []flattenedField, err erro
 // Build a Node in the Kong data model.
 //
 // "v" is the value to create the node from, "typ" is the output Node type.
-func buildNode(k *Kong, v reflect.Value, typ NodeType, tag *Tag, seenFlags map[string]bool) (*Node, error) {
+func buildNode(k *Kong, v reflect.Value, typ NodeType, tag *Tag, seenFlags map[string]bool) (*Node, error) { //nolint:gocyclo
 	node := &Node{
 		Type:   typ,
 		Target: v,
@@ -144,6 +145,18 @@ MAIN:
 		if len(tag.Envs) != 0 {
 			for i := range tag.Envs {
 				tag.Envs[i] = tag.EnvPrefix + tag.Envs[i]
+			}
+		}
+
+		if len(tag.Xor) != 0 {
+			for i := range tag.Xor {
+				tag.Xor[i] = tag.XorPrefix + tag.Xor[i]
+			}
+		}
+
+		if len(tag.And) != 0 {
+			for i := range tag.And {
+				tag.And[i] = tag.XorPrefix + tag.And[i]
 			}
 		}
 

@@ -2,7 +2,7 @@
 title: Tempo CLI
 description: Guide to using tempo-cli
 keywords: ["tempo", "cli", "tempo-cli", "command line interface"]
-weight: 70
+weight: 800
 ---
 
 # Tempo CLI
@@ -99,7 +99,7 @@ Options:
 
 {{< admonition type="note" >}}
 Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
-{{% /admonition %}}
+{{< /admonition >}}
 
 ### Search tags
 Call the Tempo API and search attribute names.
@@ -119,7 +119,7 @@ Options:
 
 {{< admonition type="note" >}}
 Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
-{{% /admonition %}}
+{{< /admonition >}}
 
 ### Search tag values
 Call the Tempo API and search attribute values.
@@ -140,7 +140,7 @@ Options:
 
 {{< admonition type="note" >}}
 Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
-{{% /admonition %}}
+{{< /admonition >}}
 
 ### Metrics
 Call the Tempo API and generate metrics from traces using TraceQL.
@@ -159,9 +159,9 @@ Options:
 - `--use-grpc`            Use GRPC streaming
 - `--path-prefix <value>` String to prefix search paths with
 
-{{% admonition type="note" %}}
+{{< admonition type="note" >}}
 Streaming over HTTP requires the `stream_over_http_enabled` flag to be set. For more information, refer to [Tempo GRPC API documentation]({{< relref "../api_docs" >}}).
-{{% /admonition %}}
+{{< /admonition >}}
 
 ## Query blocks command
 
@@ -172,7 +172,7 @@ tempo-cli query blocks <trace-id> <tenant-id>
 ```
 {{< admonition type="note" >}}
  This can be intense as it downloads every bloom filter and some percentage of indexes/trace data.
- {{% /admonition %}}
+ {{< /admonition >}}
 
 Arguments:
 - `trace-id` Trace ID as a hexadecimal string.

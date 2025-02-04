@@ -132,12 +132,12 @@ var (
 		Name:      "kafka_write_latency_seconds",
 		Help:      "The latency of writing to kafka",
 	})
-	metricKafkaWriteBytesTotal = promauto.NewCounter(prometheus.CounterOpts{
+	metricKafkaWriteBytesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Subsystem: "distributor",
 		Name:      "kafka_write_bytes_total",
 		Help:      "The total number of bytes written to kafka",
-	})
+	}, []string{"partition"})
 	metricKafkaAppends = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Subsystem: "distributor",
@@ -316,7 +316,7 @@ func New(
 	subservices = append(subservices, receivers)
 
 	if cfg.KafkaWritePathEnabled {
-		client, err := ingest.NewWriterClient(cfg.KafkaConfig, 10, logger, reg)
+		client, err := ingest.NewWriterClient(cfg.KafkaConfig, 10, logger, prometheus.WrapRegistererWithPrefix("tempo_distributor_", reg))
 		if err != nil {
 			return nil, fmt.Errorf("failed to create kafka writer client: %w", err)
 		}
@@ -439,7 +439,9 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		d.usage.Observe(userID, batches)
 	}
 
-	keys, rebatchedTraces, truncatedAttributeCount, err := requestsByTraceID(batches, userID, spanCount, d.cfg.MaxSpanAttrByte)
+	maxAttributeBytes := d.getMaxAttributeBytes(userID)
+
+	keys, rebatchedTraces, truncatedAttributeCount, err := requestsByTraceID(batches, userID, spanCount, maxAttributeBytes)
 	if err != nil {
 		logDiscardedResourceSpans(batches, userID, &d.cfg.LogDiscardedSpans, d.logger)
 		return nil, err
@@ -638,20 +640,21 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 
 		produceResults := d.kafkaProducer.ProduceSync(localCtx, records)
 
+		partitionLabel := fmt.Sprintf("partition_%d", partitionID)
 		if count, sizeBytes := successfulProduceRecordsStats(produceResults); count > 0 {
 			metricKafkaWriteLatency.Observe(time.Since(startTime).Seconds())
-			metricKafkaWriteBytesTotal.Add(float64(sizeBytes))
-			_ = level.Debug(d.logger).Log("msg", "kafka write success stats", "count", count, "size_bytes", sizeBytes)
+			metricKafkaWriteBytesTotal.WithLabelValues(partitionLabel).Add(float64(sizeBytes))
+			_ = level.Debug(d.logger).Log("msg", "kafka write success stats", "count", count, "size_bytes", sizeBytes, "partition", partitionLabel)
 		}
 
 		var finalErr error
 		for _, result := range produceResults {
 			if result.Err != nil {
 				_ = level.Error(d.logger).Log("msg", "failed to write to kafka", "err", result.Err)
-				metricKafkaAppends.WithLabelValues(fmt.Sprintf("partition_%d", partitionID), "fail").Inc()
+				metricKafkaAppends.WithLabelValues(partitionLabel, "fail").Inc()
 				finalErr = result.Err
 			} else {
-				metricKafkaAppends.WithLabelValues(fmt.Sprintf("partition_%d", partitionID), "success").Inc()
+				metricKafkaAppends.WithLabelValues(partitionLabel, "success").Inc()
 			}
 		}
 
@@ -679,18 +682,36 @@ func requestsByTraceID(batches []*v1.ResourceSpans, userID string, spanCount, ma
 
 	for _, b := range batches {
 		spansByILS := make(map[uint32]*v1.ScopeSpans)
-		// check for large resources for large attributes
+		// check resource for large attributes
 		if maxSpanAttrSize > 0 && b.Resource != nil {
 			resourceAttrTruncatedCount := processAttributes(b.Resource.Attributes, maxSpanAttrSize)
 			truncatedAttributeCount += resourceAttrTruncatedCount
 		}
 
 		for _, ils := range b.ScopeSpans {
+
+			// check instrumentation for large attributes
+			if maxSpanAttrSize > 0 && ils.Scope != nil {
+				scopeAttrTruncatedCount := processAttributes(ils.Scope.Attributes, maxSpanAttrSize)
+				truncatedAttributeCount += scopeAttrTruncatedCount
+			}
+
 			for _, span := range ils.Spans {
-				// check large spans for large attributes
+				// check spans for large attributes
 				if maxSpanAttrSize > 0 {
 					spanAttrTruncatedCount := processAttributes(span.Attributes, maxSpanAttrSize)
 					truncatedAttributeCount += spanAttrTruncatedCount
+
+					// check large attributes for events and links
+					for _, event := range span.Events {
+						eventAttrTruncatedCount := processAttributes(event.Attributes, maxSpanAttrSize)
+						truncatedAttributeCount += eventAttrTruncatedCount
+					}
+
+					for _, link := range span.Links {
+						linkAttrTruncatedCount := processAttributes(link.Attributes, maxSpanAttrSize)
+						truncatedAttributeCount += linkAttrTruncatedCount
+					}
 				}
 				traceID := span.TraceId
 				if !validation.ValidTraceID(traceID) {
@@ -985,4 +1006,12 @@ func logSpan(s *v1.Span, allAttributes bool, logger log.Logger) {
 // startEndFromSpan returns a unix epoch timestamp in seconds for the start and end of a span
 func startEndFromSpan(span *v1.Span) (uint32, uint32) {
 	return uint32(span.StartTimeUnixNano / uint64(time.Second)), uint32(span.EndTimeUnixNano / uint64(time.Second))
+}
+
+func (d *Distributor) getMaxAttributeBytes(userID string) int {
+	if tenantMaxAttrByte := d.overrides.IngestionMaxAttributeBytes(userID); tenantMaxAttrByte > 0 {
+		return tenantMaxAttrByte
+	}
+
+	return d.cfg.MaxAttributeBytes
 }

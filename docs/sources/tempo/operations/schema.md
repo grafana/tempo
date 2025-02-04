@@ -2,12 +2,17 @@
 title: Apache Parquet schema
 menuTitle: Parquet schema
 description: This document describes the schema used with the Parquet block format.
-weight: 75
+weight: 900
 aliases:
 - /docs/tempo/parquet/schema
 ---
 
 # Apache Parquet schema
+
+<!-- vale Grafana.GoogleSpacing = NO -->
+<!-- vale Grafana.We = NO -->
+<!-- vale Grafana.GooglePassive = NO -->
+<!-- vale Grafana.GoogleWill = NO -->
 
 Starting with Tempo 2.0, Apache Parquet is used as the default column-formatted block format.
 Refer to the [Parquet configuration options]({{< relref "../configuration/parquet.md" >}}) for more information.
@@ -50,6 +55,8 @@ The table below uses these abbreviations:
 
 - `rs` - resource spans
 - `ss` - scope spans
+
+<!-- vale Grafana.GoogleSpacing = NO -->
 
 | | | |
 |:----|:----|:----|
@@ -117,6 +124,8 @@ The table below uses these abbreviations:
 |rs.ss.Spans.DroppedLinksCount|int|The number of links that were dropped.|
 |rs.ss.Spans.Links|byte array|Protocol-buffer encoded span links if present, else null.|
 |rs.ss.Spans.TraceState|string|The span's TraceState value if present, else empty string.https://opentelemetry.io/docs/reference/specification/trace/api/#tracestate|
+
+<!-- vale Grafana.GoogleSpacing = YES -->
 
 To increase the readability table omits the groups `list.element` that are added for nested list types in Parquet.
 
@@ -261,7 +270,7 @@ For speed and ease-of-use, we are projecting several values to columns at the tr
 ## Well-known attributes
 
 Projecting attributes to their own columns has benefits for search speed and size.
-Therefore, we are taking an opinionated approach and store some well-known attributes to their own dedicated columns. 
+Therefore, we are taking an opinionated approach and store some well-known attributes to their own dedicated columns.
 All other attributes are stored in the generic key/value maps and are still searchable, but not as quickly.
 We chose these attributes based on the [OTEL semantic-conventions](https://github.com/open-telemetry/semantic-conventions/tree/main) and what we commonly use ourselves (scratching our own itch), but we think they will be useful to most workloads.
 
@@ -317,9 +326,14 @@ Parquet has robust support for many compression algorithms and data encodings. W
 
 1. Snappy Compression - Enable on all columns
 1. Dictionary encoding - Enable on all string columns (including byte array ParentSpanID). Most strings are very repetitive so this works well to optimize storage size. However we can greatly speed up search by inspecting the dictionary first and eliminating pages with no matches.
-1. Time and duration unix nanos - Delta encoding
+1. Time and duration UNIX nanos - Delta encoding
 1. Rarely used columns such as `DroppedAttributesCount` - These columns are usually all zeroes, RLE works well.
 
 ### Bloom filters
 
 Parquet has native support for bloom filters. However, Tempo does not use them at this time. Tempo already has sophisticated support for sharding and caching bloom filters.
+
+<!-- vale Grafana.GoogleSpacing = YES -->
+<!-- vale Grafana.We = YES -->
+<!-- vale Grafana.GooglePassive = YES -->
+<!-- vale Grafana.GoogleWill = YES -->

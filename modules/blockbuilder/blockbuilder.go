@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-kit/log"
@@ -20,7 +21,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/twmb/franz-go/pkg/kadm"
-	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
@@ -50,12 +50,6 @@ var (
 		Subsystem: "block_builder",
 		Name:      "fetch_records_total",
 		Help:      "Total number of records fetched from Kafka",
-	}, []string{"partition"})
-	metricPartitionLag = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "tempo",
-		Subsystem: "block_builder",
-		Name:      "partition_lag",
-		Help:      "Lag of a partition.",
 	}, []string{"partition"})
 	metricPartitionLagSeconds = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
@@ -167,7 +161,12 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 
 	b.kadm = kadm.NewClient(b.kafkaClient)
 
-	go b.metricLag(ctx)
+	ingest.ExportPartitionLagMetrics(
+		ctx,
+		b.kadm,
+		b.logger,
+		b.cfg.IngestStorageConfig,
+		b.getAssignedActivePartitions)
 
 	return nil
 }
@@ -196,8 +195,7 @@ func (b *BlockBuilder) consume(ctx context.Context) error {
 		end        = time.Now()
 		partitions = b.getAssignedActivePartitions()
 	)
-
-	level.Info(b.logger).Log("msg", "starting consume cycle", "cycle_end", end, "active_partitions", partitions)
+	level.Info(b.logger).Log("msg", "starting consume cycle", "cycle_end", end, "active_partitions", getActivePartitions(partitions))
 	defer func(t time.Time) { metricConsumeCycleDuration.Observe(time.Since(t).Seconds()) }(time.Now())
 
 	// Clear all previous remnants
@@ -224,6 +222,14 @@ func (b *BlockBuilder) consume(ctx context.Context) error {
 	return nil
 }
 
+func getActivePartitions(partitions []int32) string {
+	var strArr []string
+	for _, v := range partitions {
+		strArr = append(strArr, strconv.Itoa(int(v)))
+	}
+	return strings.Join(strArr, ",")
+}
+
 func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, overallEnd time.Time) (more bool, err error) {
 	defer func(t time.Time) {
 		metricProcessPartitionSectionDuration.WithLabelValues(strconv.Itoa(int(partition))).Observe(time.Since(t).Seconds())
@@ -246,6 +252,9 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, ov
 	if err != nil {
 		return false, err
 	}
+	if err := commits.Error(); err != nil {
+		return false, err
+	}
 
 	lastCommit, ok := commits.Lookup(topic, partition)
 	if ok && lastCommit.At >= 0 {
@@ -253,6 +262,15 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, ov
 	} else {
 		startOffset = kgo.NewOffset().AtStart()
 	}
+
+	ends, err := b.kadm.ListEndOffsets(ctx, topic)
+	if err != nil {
+		return false, err
+	}
+	if err := ends.Error(); err != nil {
+		return false, err
+	}
+	lastPossibleMessage, lastPossibleMessageFound := ends.Lookup(topic, partition)
 
 	level.Info(b.logger).Log(
 		"msg", "consuming partition",
@@ -311,7 +329,7 @@ outer:
 			if !init {
 				end = rec.Timestamp.Add(dur) // When block will be cut
 				metricPartitionLagSeconds.WithLabelValues(partLabel).Set(time.Since(rec.Timestamp).Seconds())
-				writer = newPartitionSectionWriter(b.logger, uint64(partition), uint64(rec.Offset), b.cfg.BlockConfig, b.overrides, b.wal, b.enc)
+				writer = newPartitionSectionWriter(b.logger, uint64(partition), uint64(rec.Offset), rec.Timestamp, dur, b.cfg.BlockConfig, b.overrides, b.wal, b.enc)
 				nextCut = rec.Timestamp.Add(cutTime)
 				init = true
 			}
@@ -343,6 +361,11 @@ outer:
 			}
 
 			lastRec = rec
+
+			if lastPossibleMessageFound && lastRec.Offset >= lastPossibleMessage.Offset-1 {
+				// We reached the end so break now and avoid another poll which is expected to be empty.
+				break outer
+			}
 		}
 	}
 
@@ -384,33 +407,6 @@ outer:
 	return more, nil
 }
 
-func (b *BlockBuilder) metricLag(ctx context.Context) {
-	var (
-		waitTime = time.Second * 15
-		topic    = b.cfg.IngestStorageConfig.Kafka.Topic
-		group    = b.cfg.IngestStorageConfig.Kafka.ConsumerGroup
-	)
-
-	for {
-		select {
-		case <-time.After(waitTime):
-			lag, err := getGroupLag(ctx, b.kadm, topic, group)
-			if err != nil {
-				level.Error(b.logger).Log("msg", "metric lag failed:", "err", err)
-				continue
-			}
-			for _, p := range b.getAssignedActivePartitions() {
-				l, ok := lag.Lookup(topic, p)
-				if ok {
-					metricPartitionLag.WithLabelValues(strconv.Itoa(int(p))).Set(float64(l.Lag))
-				}
-			}
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
 func (b *BlockBuilder) stopping(err error) error {
 	if b.kafkaClient != nil {
 		b.kafkaClient.Close()
@@ -438,40 +434,4 @@ func (b *BlockBuilder) getAssignedActivePartitions() []int32 {
 		assignedActivePartitions = append(assignedActivePartitions, partition)
 	}
 	return assignedActivePartitions
-}
-
-// getGroupLag is similar to `kadm.Client.Lag` but works when the group doesn't have live participants.
-// Similar to `kadm.CalculateGroupLagWithStartOffsets`, it takes into account that the group may not have any commits.
-//
-// The lag is the difference between the last produced offset (high watermark) and an offset in the "past".
-// If the block builder committed an offset for a given partition to the consumer group at least once, then
-// the lag is the difference between the last produced offset and the offset committed in the consumer group.
-// Otherwise, if the block builder didn't commit an offset for a given partition yet (e.g. block builder is
-// running for the first time), then the lag is the difference between the last produced offset and fallbackOffsetMillis.
-func getGroupLag(ctx context.Context, admClient *kadm.Client, topic, group string) (kadm.GroupLag, error) {
-	offsets, err := admClient.FetchOffsets(ctx, group)
-	if err != nil {
-		if !errors.Is(err, kerr.GroupIDNotFound) {
-			return nil, fmt.Errorf("fetch offsets: %w", err)
-		}
-	}
-	if err := offsets.Error(); err != nil {
-		return nil, fmt.Errorf("fetch offsets got error in response: %w", err)
-	}
-
-	startOffsets, err := admClient.ListStartOffsets(ctx, topic)
-	if err != nil {
-		return nil, err
-	}
-	endOffsets, err := admClient.ListEndOffsets(ctx, topic)
-	if err != nil {
-		return nil, err
-	}
-
-	descrGroup := kadm.DescribedGroup{
-		// "Empty" is the state that indicates that the group doesn't have active consumer members; this is always the case for block-builder,
-		// because we don't use group consumption.
-		State: "Empty",
-	}
-	return kadm.CalculateGroupLagWithStartOffsets(descrGroup, offsets, startOffsets, endOffsets), nil
 }

@@ -20,6 +20,7 @@ The Tempo configuration options include:
   - [Server](#server)
   - [Distributor](#distributor)
     - [Set max attribute size to help control out of memory errors](#set-max-attribute-size-to-help-control-out-of-memory-errors)
+    - [gRPC compression](#grpc-compression)
   - [Ingester](#ingester)
   - [Metrics-generator](#metrics-generator)
   - [Query-frontend](#query-frontend)
@@ -236,7 +237,7 @@ distributor:
     # Optional
     # Configures the max size an attribute can be. Any key or value that exceeds this limit will be truncated before storing
     # Setting this parameter to '0' would disable this check against attribute size
-    [max_span_attr_byte: <int> | default = '2048']
+    [max_attribute_bytes: <int> | default = '2048']
 
     # Optional.
     # Configures usage trackers in the distributor which expose metrics of ingested traffic grouped by configurable
@@ -259,13 +260,39 @@ This issue has been observed when trying to fetch a single trace using the [`tra
 While a trace might not have a lot of spans (roughly 500), it can have a larger size (approximately 250KB).
 Some of the spans in that trace had attributes whose values were very large in size.
 
-To avoid these out-of-memory crashes, use `max_span_attr_byte` to limit the maximum allowable size of any individual attribute.
+To avoid these out-of-memory crashes, use `max_attribute_bytes` to limit the maximum allowable size of any individual attribute.
 Any key or values that exceed the configured limit are truncated before storing.
 The default value is `2048`.
 
 Use the `tempo_distributor_attributes_truncated_total` metric to track how many attributes are truncated.
 
 For additional information, refer to [Troubleshoot out-of-memory errors](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/out-of-memory-errors/).
+
+### gRPC compression
+
+If you notice increased network traffic or issues, check the gRPC compression settings.
+
+Tempo 2.7 disabled gRPC compression in the querier and distributor for performance reasons. ([#4429](https://github.com/grafana/tempo/pull/4429))
+Benchmark testing suggested that without compression, queriers and distributors used less CPU and memory.
+
+However, you may notice an increase in ingester data and network traffic especially for larger clusters.
+This increased data can impact billing for Grafana Cloud.
+
+You can configure the gRPC compression in the `querier`, `ingester`, and `metrics_generator` clients of the distributor.
+To re-enable the compression, use `snappy` with the following settings:
+
+  ```yaml
+  ingester_client:
+      grpc_client_config:
+          grpc_compression: "snappy"
+  metrics_generator_client:
+      grpc_client_config:
+          grpc_compression: "snappy"
+  querier:
+      frontend_worker:
+          grpc_client_config:
+              grpc_compression: "snappy"
+```
 
 ## Ingester
 
@@ -494,7 +521,11 @@ metrics_generator:
             # If enabled, only parent spans or spans with the SpanKind of `server` will be retained
             [filter_server_spans: <bool> | default = true]
 
-            # Number of blocks that are allowed to be processed concurently
+            # Whether server spans should be flushed to storage.
+            # Setting `flush_to_storage` to `true` ensures that metrics blocks are flushed to storage so TraceQL metrics queries against historical data.
+            [flush_to_storage: <bool> | default = false]
+
+            # Number of blocks that are allowed to be processed concurrently.
             [concurrent_blocks: <uint> | default = 10]
 
             # A tuning factor that controls whether the trace-level timestamp columns are used in a metrics query.
@@ -804,42 +835,6 @@ querier:
     search:
         # Timeout for search requests
         [query_timeout: <duration> | default = 30s]
-
-        # NOTE: The Tempo serverless feature is now deprecated and will be removed in an upcoming release.
-        # A list of external endpoints that the querier will use to offload backend search requests. They must
-        # take and return the same value as /api/search endpoint on the querier. This is intended to be
-        # used with serverless technologies for massive parallelization of the search path.
-        # The default value of "" disables this feature.
-        [external_endpoints: <list of strings> | default = <empty list>]
-
-        # If search_external_endpoints is set then the querier will primarily act as a proxy for whatever serverless backend
-        # you have configured. This setting allows the operator to have the querier prefer itself for a configurable
-        # number of subqueries. In the default case of 2 the querier will process up to 2 search requests subqueries before starting
-        # to reach out to search_external_endpoints.
-        # Setting this to 0 will disable this feature and the querier will proxy all search subqueries to search_external_endpoints.
-        [prefer_self: <int> | default = 10 ]
-
-        # If set to a non-zero value a second request will be issued at the provided duration. Recommended to
-        # be set to p99 of external search requests to reduce long tail latency.
-        # (default: 8s)
-        [external_hedge_requests_at: <duration>]
-
-        # The maximum number of requests to execute when hedging. Requires hedge_requests_at to be set.
-        # (default: 2)
-        [external_hedge_requests_up_to: <int>]
-
-        # The serverless backend to use. If external_backend is set, then authorization credentials will be provided
-        # when querying the external endpoints. "google_cloud_run" is the only value supported at this time.
-        # The default value of "" omits credentials when querying the external backend.
-        [external_backend: <string> | default = ""]
-
-        # Google Cloud Run configuration. Will be used only if the value of external_backend is "google_cloud_run".
-        google_cloud_run:
-            # A list of external endpoints that the querier will use to offload backend search requests. They must
-            # take and return the same value as /api/search endpoint on the querier. This is intended to be
-            # used with serverless technologies for massive parallelization of the search path.
-            # The default value of "" disables this feature.
-            [external_endpoints: <list of strings> | default = <empty list>]
 
     # config of the worker that connects to the query frontend
     frontend_worker:
@@ -1630,6 +1625,9 @@ overrides:
       # Should not be lower than RF.
       [tenant_shard_size: <int> | default = 0]
 
+      # Maximum bytes any attribute can be for both keys and values.
+      [max_attribute_bytes: <int> | default = 0]
+
     # Read related overrides
     read:
       # Maximum size in bytes of a tag-values query. Tag-values query is used mainly
@@ -1894,7 +1892,7 @@ overrides:
 
 These tenant-specific overrides are stored in an object store and can be modified using API requests.
 User-configurable overrides have priority over runtime overrides.
-Refer to [user-configurable overrides]{{< relref "../operations/user-configurable-overrides" >}} for more details.
+Refer to [user-configurable overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/user-configurable-overrides/) for more details.
 
 #### Override strategies
 

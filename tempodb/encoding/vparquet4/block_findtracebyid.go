@@ -261,7 +261,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 
 	tr := new(Trace)
 	_, err = r.Read([]*Trace{tr})
-	if err != nil {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("error reading row from backend: %w", err)
 	}
 

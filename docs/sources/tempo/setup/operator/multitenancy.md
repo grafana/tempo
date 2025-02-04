@@ -4,13 +4,13 @@ description: Enable multi-tenancy
 menuTitle: Enable multi-tenancy
 weight: 250
 aliases:
-- /docs/tempo/operator/multitenancy
+- ../../operator/multitenancy # https://grafana.com/docs/tempo/operator/multitenancy/
 ---
 
 # Enable multi-tenancy
 
 Tempo is a multi-tenant distributed tracing backend. It supports multi-tenancy through the use of a header: `X-Scope-OrgID`.
-Refer to [multi-tenancy docs]({{< relref "../../operations/multitenancy" >}}) for more details.
+Refer to [multi-tenancy docs](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systenms/multitenancy/) for more details.
 This document outlines how to deploy and use multi-tenant Tempo with the Operator.
 
 ## Multi-tenancy without authentication
@@ -18,8 +18,8 @@ This document outlines how to deploy and use multi-tenant Tempo with the Operato
 The following Kubernetes Custom Resource (CR) deploys a multi-tenant Tempo instance.
 
 {{< admonition type="note" >}}
-Jaeger query is not tenant aware and therefore is not supported in this configuration.
-{{% /admonition %}}
+Jaeger query isn't tenant-aware and, therefore, isn't supported in this configuration.
+{{< /admonition >}}
 
 ```yaml
 apiVersion: tempo.grafana.com/v1alpha1

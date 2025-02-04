@@ -1,11 +1,37 @@
 ## main / unreleased
+* [CHANGE] **BREAKING CHANGE** Remove tempo serverless [#4599](https://github.com/grafana/tempo/pull/4599/) @electron0zero
+  Following config options are no longer valid, please remove them if you are using these in your tempo config:
+  ```
+  querier:
+      search:
+          prefer_self: <int>
+          external_hedge_requests_at: <duration>
+          external_hedge_requests_up_to:  <duration>
+          external_backend: <string>
+          google_cloud_run: <string>
+          external_endpoints: <array>
+  ```
+  Tempo serverless related metric `tempo_querier_external_endpoint_duration_seconds`,  `tempo_querier_external_endpoint_hedged_roundtrips_total` and `tempo_feature_enabled` are being removed.
 
 * [CHANGE] **BREAKING CHANGE** Removed `internal_error` as a reason from `tempo_discarded_spans_total`. [#4554](https://github.com/grafana/tempo/pull/4554) (@joe-elliott)
+* [CHANGE] **BREAKING CHANGE** Enforce max attribute size at event, link, and instrumentation scope. Make config per-tenant.
+  Renamed max_span_attr_byte to max_attribute_bytes
+  [#4633](https://github.com/grafana/tempo/pull/4633) (@ie-pham)
 * [FEATURE] Added most_recent=true query hint to TraceQL to return most recent results. [#4238](https://github.com/grafana/tempo/pull/4238) (@joe-elliott)
+* [ENHANCEMENT] Update minio to version [#4341](https://github.com/grafana/tempo/pull/4568) (@javiermolinar)
+* [ENHANCEMENT] Prevent queries in the ingester from blocking flushing traces to disk and memory spikes. [#4483](https://github.com/grafana/tempo/pull/4483) (@joe-elliott)
 * [ENHANCEMENT] Update tempo operational dashboard for new block-builder and v2 traces api [#4559](https://github.com/grafana/tempo/pull/4559) (@mdisibio)
-* [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. [#4546](https://github.com/grafana/tempo/pull/4546) (@joe-elliott)
-  Fix an issue where the tempo-cli was not correctly dumping exemplar results.
+* [ENHANCEMENT] Improve block-builder performance by flushing blocks concurrently [#4565](https://github.com/grafana/tempo/pull/4565) (@mdisibio)
+* [ENHANCEMENT] Improve block-builder performance [#4596](https://github.com/grafana/tempo/pull/4596) (@mdisibio)
+* [ENHANCEMENT] Export new `tempo_ingest_group_partition_lag` metric from block-builders and metrics-generators [#4571](https://github.com/grafana/tempo/pull/4571) (@mdisibio)
+* [ENHANCEMENT] Use distroless base container images for improved security [#4556](https://github.com/grafana/tempo/pull/4556) (@carles-grafana)
+* [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. [#4546](https://github.com/grafana/tempo/pull/4576) (@joe-elliott)
+  Correctly copy exemplars for metrics like `| rate()` when gRPC streaming.
 * [BUGFIX] Fix performance bottleneck and file cleanup in block builder [#4550](https://github.com/grafana/tempo/pull/4550) (@mdisibio)
+* [BUGFIX] TraceQL incorrect results for additional spanset filters after a select operation [#4600](https://github.com/grafana/tempo/pull/4600) (@mdisibio)
+* [BUGFIX] TraceQL results caching bug for floats ending in .0 [#4539](https://github.com/grafana/tempo/pull/4539) (@carles-grafana)
+* [BUGFIX] Fix metrics streaming for all non-trivial metrics [#4624](https://github.com/grafana/tempo/pull/4624) (@joe-elliott)
+* [BUGFIX] Fix starting consuming log [#4539](https://github.com/grafana/tempo/pull/46299) (@javiermolinar)
 
 # v2.7.0
 

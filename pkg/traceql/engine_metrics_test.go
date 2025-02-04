@@ -352,7 +352,7 @@ func TestQuantileOverTime(t *testing.T) {
 	// Output series with quantiles per foo
 	// Prom labels are sorted alphabetically, traceql labels maintain original order.
 	out := SeriesSet{
-		`{p="0", span.foo="bar"}`: TimeSeries{
+		`{p="0.0", span.foo="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: "p", Value: NewStaticFloat(0)},
@@ -374,14 +374,14 @@ func TestQuantileOverTime(t *testing.T) {
 				0,
 			},
 		},
-		`{p="1", span.foo="bar"}`: TimeSeries{
+		`{p="1.0", span.foo="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: "p", Value: NewStaticFloat(1)},
 			},
 			Values: []float64{_512ns, _256ns, 0},
 		},
-		`{p="0", span.foo="baz"}`: TimeSeries{
+		`{p="0.0", span.foo="baz"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 				{Name: "p", Value: NewStaticFloat(0)},
@@ -401,7 +401,7 @@ func TestQuantileOverTime(t *testing.T) {
 				percentileHelper(0.5, _512ns, _512ns, _512ns),
 			},
 		},
-		`{p="1", span.foo="baz"}`: TimeSeries{
+		`{p="1.0", span.foo="baz"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 				{Name: "p", Value: NewStaticFloat(1)},

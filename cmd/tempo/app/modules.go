@@ -91,8 +91,6 @@ func (t *App) initServer() (services.Service, error) {
 	t.cfg.Server.MetricsNamespace = metricsNamespace
 	t.cfg.Server.ExcludeRequestInLog = true
 
-	prometheus.MustRegister(&t.cfg)
-
 	if t.cfg.EnableGoRuntimeMetrics {
 		// unregister default Go collector
 		prometheus.Unregister(collectors.NewGoCollector())
@@ -308,11 +306,6 @@ func (t *App) initGenerator() (services.Service, error) {
 
 	t.cfg.Generator.Ingest = t.cfg.Ingest
 	t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
-
-	if t.cfg.Target == SingleBinary && len(t.cfg.Generator.AssignedPartitions) == 0 {
-		// In SingleBinary mode always use partition 0. This is for small installs or local/debugging setups.
-		t.cfg.Generator.AssignedPartitions = map[string][]int32{t.cfg.Generator.InstanceID: {0}}
-	}
 
 	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRing, t.store, log.Logger)
 	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator

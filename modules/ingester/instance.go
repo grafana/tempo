@@ -567,7 +567,7 @@ func (i *instance) writeTraceToHeadBlock(id common.ID, b []byte, start, end uint
 	defer i.headBlockMtx.Unlock()
 
 	i.tracesCreatedTotal.Inc()
-	err := i.headBlock.Append(id, b, start, end)
+	err := i.headBlock.Append(id, b, start, end, true)
 	if err != nil {
 		return err
 	}

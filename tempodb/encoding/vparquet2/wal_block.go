@@ -15,7 +15,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/multierror"
-	"github.com/grafana/tempo/pkg/dataquality"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/model/trace"
 	"github.com/grafana/tempo/pkg/parquetquery"
@@ -311,7 +310,7 @@ func (b *walBlock) BlockMeta() *backend.BlockMeta {
 	return b.meta
 }
 
-func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
+func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32, adjustIngestionSlack bool) error {
 	// if decoder = nil we were created with OpenWALBlock and will not accept writes
 	if b.decoder == nil {
 		return nil
@@ -322,14 +321,15 @@ func (b *walBlock) Append(id common.ID, buff []byte, start, end uint32) error {
 		return fmt.Errorf("error preparing trace for read: %w", err)
 	}
 
-	return b.AppendTrace(id, trace, start, end)
+	return b.AppendTrace(id, trace, start, end, adjustIngestionSlack)
 }
 
-func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end uint32) error {
+func (b *walBlock) AppendTrace(id common.ID, trace *tempopb.Trace, start, end uint32, adjustIngestionSlack bool) error {
 	b.buffer = traceToParquet(id, trace, b.buffer)
 
-	start, end = b.adjustTimeRangeForSlack(start, end)
-
+	if adjustIngestionSlack {
+		start, end = common.AdjustTimeRangeForSlack(b.meta.TenantID, b.ingestionSlack, start, end)
+	}
 	// add to current
 	_, err := b.writer.Write([]*Trace{b.buffer})
 	if err != nil {
@@ -348,26 +348,8 @@ func (b *walBlock) Validate(context.Context) error {
 	return common.ErrUnsupported
 }
 
-func (b *walBlock) adjustTimeRangeForSlack(start, end uint32) (uint32, uint32) {
-	now := time.Now()
-	startOfRange := uint32(now.Add(-b.ingestionSlack).Unix())
-	endOfRange := uint32(now.Add(b.ingestionSlack).Unix())
-
-	warn := false
-	if start < startOfRange {
-		warn = true
-		start = uint32(now.Unix())
-	}
-	if end > endOfRange || end < start {
-		warn = true
-		end = uint32(now.Unix())
-	}
-
-	if warn {
-		dataquality.WarnOutsideIngestionSlack(b.meta.TenantID)
-	}
-
-	return start, end
+func (b *walBlock) IngestionSlack() time.Duration {
+	return b.ingestionSlack
 }
 
 func (b *walBlock) filepathOf(page int) string {
@@ -761,7 +743,7 @@ func (i *rowIterator) Next(context.Context) (common.ID, parquet.Row, error) {
 
 	rows := []parquet.Row{completeBlockRowPool.Get()}
 	_, err = i.reader.ReadRows(rows)
-	if err != nil {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, nil, err
 	}
 

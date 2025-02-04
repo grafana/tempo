@@ -29,10 +29,10 @@ The metrics-generator processes traces and generates service graphs in the form 
 
 Service graphs work by inspecting traces and looking for spans with parent-children relationship that represent a request.
 The processor uses the [OpenTelemetry semantic conventions](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/general/trace.md) to detect a myriad of requests.
-It currently supports the following requests:
+It supports the following requests:
 - A direct request between two services where the outgoing and the incoming span must have [`span.kind`](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/api.md#spankind), `client`, and `server`, respectively.
 - A request across a messaging system where the outgoing and the incoming span must have `span.kind`, `producer`, and `consumer` respectively.
-- A database request; in this case the processor looks for spans containing attributes `span.kind`=`client` as well as one of `db.name` or `db.system`.  See below for how the name of the node is determined for a database request.
+- A database request; in this case the processor looks for spans containing attributes `span.kind`=`client` as well as one of `db.name` or `db.system`. See below for how the name of the node is determined for a database request.
 
 Every span that can be paired up to form a request is kept in an in-memory store, until its corresponding pair span is received or the maximum waiting time has passed.
 When either of these conditions are reached, the request is recorded and removed from the local store.
@@ -46,14 +46,15 @@ Each emitted metrics series have the `client` and `server` label corresponding w
 ### Virtual nodes
 
 Virtual nodes are nodes that form part of the lifecycle of a trace,
-but spans for them are not being collected because they're outside the user's reach (for example, an external service for payment processing) or are not instrumented (for example, a frontend application).
+but spans for them aren't collected because they're outside the user's reach or aren't instrumented.
+For example, you might not collect spans for an external service for payment processing that's outside user interaction.
 
 Virtual nodes can be detected in two different ways:
 
 - The root span has `span.kind` set to `server`. This indicates that the request has initiated by an external system that's not instrumented, like a frontend application or an engineer via `curl`.
-- A `client` span does not have its matching `server` span, but has a peer attribute present. In this case, we make the assumption that a call was made to an external service, for which Tempo won't receive spans.
+- A `client` span doesn't have its matching `server` span, but has a peer attribute present. In this case, assume that a call was made to an external service, for which Tempo won't receive spans.
    - The default peer attributes are `peer.service`, `db.name` and `db.system`.
-   - The order of the attributes is important, as the first one that is present will be used as the virtual node name.
+   - The order of the attributes is important, as the first one is used as the virtual node name.
 
 A database node is identified by the span having at least `db.name` or `db.system` attribute.
 
@@ -63,15 +64,19 @@ The name of a database node is determined using the following span attributes in
 
 The following metrics are exported:
 
+<!-- vale Grafana.Spelling = NO -->
+
 | Metric                                                | Type      | Labels                          | Description                                                                                                |
 | ----------------------------------------------------- | --------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| traces_service_graph_request_total                    | Counter   | client, server, connection_type | Total count of requests between two nodes                                                                  |
-| traces_service_graph_request_failed_total             | Counter   | client, server, connection_type | Total count of failed requests between two nodes                                                           |
-| traces_service_graph_request_server_seconds           | Histogram | client, server, connection_type | Time for a request between two nodes as seen from the server                                               |
-| traces_service_graph_request_client_seconds           | Histogram | client, server, connection_type | Time for a request between two nodes as seen from the client                                               |
-| traces_service_graph_request_messaging_system_seconds | Histogram | client, server, connection_type | (Off by default) Time between publisher and consumer for services communicating through a messaging system |
-| traces_service_graph_unpaired_spans_total             | Counter   | client, server, connection_type | Total count of unpaired spans                                                                              |
-| traces_service_graph_dropped_spans_total              | Counter   | client, server, connection_type | Total count of dropped spans                                                                               |
+| `traces_service_graph_request_total`                    | Counter   | client, server, connection_type | Total count of requests between two nodes                                                                  |
+| `traces_service_graph_request_failed_total`             | Counter   | client, server, connection_type | Total count of failed requests between two nodes                                                           |
+| `traces_service_graph_request_server_seconds`           | Histogram | client, server, connection_type | Time for a request between two nodes as seen from the server                                               |
+| `traces_service_graph_request_client_seconds`           | Histogram | client, server, connection_type | Time for a request between two nodes as seen from the client                                               |
+| `traces_service_graph_request_messaging_system_seconds` | Histogram | client, server, connection_type | (Off by default) Time between publisher and consumer for services communicating through a messaging system |
+| `traces_service_graph_unpaired_spans_total`             | Counter   | client, server, connection_type | Total count of unpaired spans                                                                              |
+| `traces_service_graph_dropped_spans_total`              | Counter   | client, server, connection_type | Total count of dropped spans                                                                               |
+
+<!-- vale Grafana.Spelling = YES -->
 
 Duration is measured both from the client and the server sides.
 
@@ -81,7 +86,7 @@ Additional labels can be included using the `dimensions` configuration option, o
 
 Since the service graph processor has to process both sides of an edge,
 it needs to process all spans of a trace to function properly.
-If spans of a trace are spread out over multiple instances, spans are not paired up reliably.
+If spans of a trace are spread out over multiple instances, spans aren't paired up reliably.
 
 #### Activate `enable_virtual_node_label`
 
@@ -89,4 +94,4 @@ Activating this feature adds the following label and corresponding values:
 
 | Label                   | Possible Values             | Description                                                              |
 |-------------------------|-----------------------------|--------------------------------------------------------------------------|
-| virtual_node            | `unset`, `client`, `server` | Explicitly indicates the side that is uninstrumented                     |
+| `virtual_node`            | `unset`, `client`, `server` | Explicitly indicates the uninstrumented side                     |

@@ -6,9 +6,10 @@ import (
 )
 
 const (
-	reasonOutsideIngestionSlack = "outside_ingestion_time_slack"
-	reasonDisconnectedTrace     = "disconnected_trace"
-	reasonRootlessTrace         = "rootless_trace"
+	reasonOutsideIngestionSlack             = "outside_ingestion_time_slack"
+	reasonBlockBuilderOutsideIngestionSlack = "blockbuilder_outside_ingestion_time_slack"
+	reasonDisconnectedTrace                 = "disconnected_trace"
+	reasonRootlessTrace                     = "rootless_trace"
 
 	PhaseTraceFlushedToWal     = "_flushed_to_wal"
 	PhaseTraceWalToComplete    = "_wal_to_complete"
@@ -23,6 +24,10 @@ var metric = promauto.NewCounterVec(prometheus.CounterOpts{
 
 func WarnOutsideIngestionSlack(tenant string) {
 	metric.WithLabelValues(tenant, reasonOutsideIngestionSlack).Inc()
+}
+
+func WarnBlockBuilderOutsideIngestionSlack(tenant string) {
+	metric.WithLabelValues(tenant, reasonBlockBuilderOutsideIngestionSlack).Inc()
 }
 
 func WarnDisconnectedTrace(tenant string, phase string) {

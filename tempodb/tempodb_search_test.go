@@ -239,6 +239,10 @@ func advancedTraceQLRunner(t *testing.T, wantTr *tempopb.Trace, wantMeta *tempop
 		// groupin' (.foo is a known attribute that is the same on both spans)
 		{Query: "{} | by(span.foo) | count() = 2"},
 		{Query: "{} | by(resource.service.name) | count() = 1"},
+		// Attribute == nil (current work-around version)
+		{Query: "{} | select(.missing) | { !(.missing != nil)}"},
+		{Query: "{} | select(span.missing) | { !(span.missing != nil)}"},
+		{Query: "{} | select(resource.missing) | { !(resource.missing != nil)}"},
 	}
 	searchesThatDontMatch := []*tempopb.SearchRequest{
 		// conditions
@@ -1646,7 +1650,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 
 		b2, err := dec.ToObject([][]byte{b1})
 		require.NoError(t, err)
-		err = head.Append(id, b2, start, end)
+		err = head.Append(id, b2, start, end, true)
 		require.NoError(t, err)
 	}
 
@@ -1762,7 +1766,7 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 
 		b2, err := dec.ToObject([][]byte{b1})
 		require.NoError(t, err)
-		err = head.Append(id, b2, start, end)
+		err = head.Append(id, b2, start, end, true)
 		require.NoError(t, err)
 	}
 
@@ -2231,7 +2235,7 @@ func TestWALBlockGetMetrics(t *testing.T) {
 				},
 			},
 		},
-	}, 0, 0)
+	}, 0, 0, true)
 	require.NoError(t, err)
 	require.NoError(t, head.Flush())
 

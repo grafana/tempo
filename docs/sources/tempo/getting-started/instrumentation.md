@@ -44,6 +44,10 @@ information from a client application with minimal manual instrumentation of the
 * [OpenTelemetry Python auto-instrumentation](https://github.com/open-telemetry/opentelemetry-python-contrib)
 * [OpenTelemetry Go auto-instrumentation](https://github.com/open-telemetry/opentelemetry-go-instrumentation) and [documentation](https://opentelemetry.io/docs/instrumentation/go/getting-started/)
 
+{{< admonition type="note" >}}
+Jaeger client libraries have been deprecated. For more information, refer to the [Deprecating Jaeger clients article](https://www.jaegertracing.io/docs/1.50/client-libraries/#deprecating-jaeger-clients). Jaeger now recommends using OpenTelemetry SDKs.
+{{< /admonition >}}
+
 ### Additional OTel resources
 
 - [Grafana Application Observability](/docs/grafana-cloud/monitor-applications/application-observability/)
@@ -55,14 +59,6 @@ information from a client application with minimal manual instrumentation of the
 ### Zipkin
 
 - [Zipkin Language Specific Instrumentation](https://zipkin.io/pages/tracers_instrumentation.html)
-
-### Jaeger
-
-{{< admonition type="note" >}}
-Jaeger client libraries have been deprecated. For more information, refer to the [Deprecating Jaeger clients article](https://www.jaegertracing.io/docs/1.50/client-libraries/#deprecating-jaeger-clients). Jaeger now recommends using OpenTelemetry SDKs.
-{{% /admonition %}}
-
-- [Jaeger Language Specific Instrumentation](https://www.jaegertracing.io/docs/latest/client-libraries/)
 
 ## Grafana Blog
 

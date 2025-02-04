@@ -77,7 +77,11 @@ type Ingester struct {
 	flushQueues     *flushqueues.ExclusiveQueues
 	flushQueuesDone sync.WaitGroup
 
-	limiter Limiter
+	// manages synchronous behavior with startCutToWal
+	cutToWalWg    sync.WaitGroup
+	cutToWalStop  chan struct{}
+	cutToWalStart chan struct{}
+	limiter       Limiter
 
 	// Used by ingest storage when enabled
 	ingestPartitionLifecycler *ring.PartitionInstanceLifecycler
@@ -97,13 +101,16 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 		flushQueues:  flushqueues.New(cfg.ConcurrentFlushes, metricFlushQueueLength),
 		replayJitter: true,
 		overrides:    overrides,
+
+		cutToWalStart: make(chan struct{}),
+		cutToWalStop:  make(chan struct{}),
 	}
 
 	i.pushErr.Store(ErrStarting)
 
 	i.local = store.WAL().LocalBackend()
 
-	lc, err := ring.NewLifecycler(cfg.LifecyclerConfig, i, "ingester", cfg.OverrideRingKey, true, log.Logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
+	lc, err := ring.NewLifecycler(cfg.LifecyclerConfig, nil, "ingester", cfg.OverrideRingKey, true, log.Logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
 	if err != nil {
 		return nil, fmt.Errorf("NewLifecycler failed: %w", err)
 	}
@@ -145,7 +152,7 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 	i.subservicesWatcher = services.NewFailureWatcher()
 	i.subservicesWatcher.WatchService(i.lifecycler)
 
-	i.Service = services.NewBasicService(i.starting, i.loop, i.stopping)
+	i.Service = services.NewBasicService(i.starting, i.running, i.stopping)
 	return i, nil
 }
 
@@ -183,39 +190,21 @@ func (i *Ingester) starting(ctx context.Context) error {
 		}
 	}
 
+	// accept traces
 	i.pushErr.Store(nil)
+
+	// start flushing traces to wal
+	close(i.cutToWalStart)
 
 	return nil
 }
 
-func (i *Ingester) loop(ctx context.Context) error {
-	flushTicker := time.NewTicker(i.cfg.FlushCheckPeriod)
-	defer flushTicker.Stop()
-
-	for {
-		select {
-		case <-flushTicker.C:
-			i.sweepAllInstances(false)
-
-		case <-ctx.Done():
-			return nil
-
-		case err := <-i.subservicesWatcher.Chan():
-			return fmt.Errorf("ingester subservice failed: %w", err)
-		}
-	}
-}
-
-// complete the flushing
-// ExclusiveQueues.activekeys keeps track of flush operations due for processing
-// ExclusiveQueues.IsEmpty check uses ExclusiveQueues.activeKeys to determine if flushQueues is empty or not
-// sweepAllInstances prepares remaining traces to be flushed by flushLoop routine, also updating ExclusiveQueues.activekeys with keys for new flush operations
-// ExclusiveQueues.activeKeys is cleared of a flush operation when a processing of flush operation is either successful or doesn't return retry signal
-// This ensures that i.flushQueues is empty only when all traces are flushed
-func (i *Ingester) flushRemaining() {
-	i.sweepAllInstances(true)
-	for !i.flushQueues.IsEmpty() {
-		time.Sleep(100 * time.Millisecond)
+func (i *Ingester) running(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-i.subservicesWatcher.Chan():
+		return fmt.Errorf("ingester subservice failed: %w", err)
 	}
 }
 
@@ -223,9 +212,16 @@ func (i *Ingester) flushRemaining() {
 func (i *Ingester) stopping(_ error) error {
 	i.markUnavailable()
 
-	// flush any remaining traces
+	// signal all cutting to wal to stop and wait for all goroutines to finish
+	close(i.cutToWalStop)
+	i.cutToWalWg.Wait()
+
 	if i.cfg.FlushAllOnShutdown {
+		// force all in memory traces to be flushed to disk AND fully flush them to the backend
 		i.flushRemaining()
+	} else {
+		// force all in memory traces to be flushed to disk
+		i.cutAllInstancesToWal()
 	}
 
 	if i.flushQueues != nil {
@@ -238,6 +234,19 @@ func (i *Ingester) stopping(_ error) error {
 	return nil
 }
 
+// complete the flushing
+// ExclusiveQueues.activekeys keeps track of flush operations due for processing
+// ExclusiveQueues.IsEmpty check uses ExclusiveQueues.activeKeys to determine if flushQueues is empty or not
+// sweepAllInstances prepares remaining traces to be flushed by flushLoop routine, also updating ExclusiveQueues.activekeys with keys for new flush operations
+// ExclusiveQueues.activeKeys is cleared of a flush operation when a processing of flush operation is either successful or doesn't return retry signal
+// This ensures that i.flushQueues is empty only when all traces are flushed
+func (i *Ingester) flushRemaining() {
+	i.cutAllInstancesToWal()
+	for !i.flushQueues.IsEmpty() {
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
 func (i *Ingester) markUnavailable() {
 	// Lifecycler can be nil if the ingester is for a flusher.
 	if i.lifecycler != nil {
@@ -248,7 +257,7 @@ func (i *Ingester) markUnavailable() {
 	}
 
 	// This will prevent us accepting any more samples
-	i.stopIncomingRequests()
+	i.pushErr.Store(ErrShuttingDown)
 }
 
 // PushBytes implements tempopb.Pusher.PushBytes. Traces pushed to this endpoint are expected to be in the formats
@@ -376,6 +385,8 @@ func (i *Ingester) getOrCreateInstance(instanceID string) (*instance, error) {
 			return nil, err
 		}
 		i.instances[instanceID] = inst
+
+		i.cutToWalLoop(inst)
 	}
 	return inst, nil
 }
@@ -397,19 +408,6 @@ func (i *Ingester) getInstances() []*instance {
 		instances = append(instances, instance)
 	}
 	return instances
-}
-
-// stopIncomingRequests implements ring.Lifecycler.
-func (i *Ingester) stopIncomingRequests() {
-	i.instancesMtx.Lock()
-	defer i.instancesMtx.Unlock()
-
-	i.pushErr.Store(ErrShuttingDown)
-}
-
-// TransferOut implements ring.Lifecycler.
-func (i *Ingester) TransferOut(context.Context) error {
-	return ring.ErrTransferDisabled
 }
 
 func (i *Ingester) replayWal() error {

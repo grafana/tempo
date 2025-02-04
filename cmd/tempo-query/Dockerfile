@@ -1,13 +1,17 @@
-FROM alpine:3.21 as certs
-RUN apk --update add ca-certificates
+FROM alpine:latest AS ca-certificates
+RUN apk add --update --no-cache ca-certificates
+
+FROM gcr.io/distroless/static-debian12:debug
+
+SHELL ["/busybox/sh", "-c"]
+
+RUN ["/busybox/addgroup", "-g", "10001", "-S", "tempo"]
+RUN ["/busybox/adduser", "-u", "10001", "-S", "tempo", "-G", "tempo"]
+
 ARG TARGETARCH
 COPY bin/linux/tempo-query-${TARGETARCH} /tempo-query
-
-RUN addgroup -g 10001 -S tempo && \
-    adduser -u 10001 -S tempo -G tempo
+COPY --from=ca-certificates /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 USER 10001:10001
-
-COPY bin/linux/tempo-query-${TARGETARCH} /tempo-query
 
 ENTRYPOINT ["/tempo-query"]

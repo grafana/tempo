@@ -44,7 +44,7 @@ otelcol.receiver.otlp "default" {
   output {
     traces = [
       otelcol.connector.servicegraph.default.input,
-      otelcol.exporter.otlp.default.input
+      otelcol.exporter.otlp.default.input,
     ]
   }
 }

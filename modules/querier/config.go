@@ -7,7 +7,6 @@ import (
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/grpcclient"
 
-	"github.com/grafana/tempo/modules/querier/external"
 	"github.com/grafana/tempo/modules/querier/worker"
 )
 
@@ -27,18 +26,7 @@ type Config struct {
 }
 
 type SearchConfig struct {
-	QueryTimeout      time.Duration `yaml:"query_timeout"`
-	PreferSelf        int           `yaml:"prefer_self"`
-	HedgeRequestsAt   time.Duration `yaml:"external_hedge_requests_at"`
-	HedgeRequestsUpTo int           `yaml:"external_hedge_requests_up_to"`
-
-	// backends
-	ExternalBackend string                   `yaml:"external_backend"`
-	CloudRun        *external.CloudRunConfig `yaml:"google_cloud_run"`
-
-	// Ideally this config should be under the external.HTTPConfig struct, but
-	// it will require a breaking change.
-	ExternalEndpoints []string `yaml:"external_endpoints"`
+	QueryTimeout time.Duration `yaml:"query_timeout"`
 }
 
 type TraceByIDConfig struct {
@@ -63,9 +51,6 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.QueryRelevantIngesters = false
 	cfg.ExtraQueryDelay = 0
 	cfg.MaxConcurrentQueries = 20
-	cfg.Search.PreferSelf = 10
-	cfg.Search.HedgeRequestsAt = 8 * time.Second
-	cfg.Search.HedgeRequestsUpTo = 2
 	cfg.Search.QueryTimeout = 30 * time.Second
 	cfg.Metrics.ConcurrentBlocks = 2
 	cfg.Metrics.TimeOverlapCutoff = 0.2

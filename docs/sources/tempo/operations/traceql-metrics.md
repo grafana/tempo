@@ -3,7 +3,7 @@ aliases: []
 title: Configure TraceQL metrics
 menuTitle: Configure TraceQL metrics
 description: Learn about configuring TraceQL metrics.
-weight: 550
+weight: 400
 keywords:
   - Prometheus
   - TraceQL
