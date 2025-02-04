@@ -71,6 +71,9 @@ func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeries int) (Combiner, err
 
 			return diff, nil
 		},
+		quit: func(resp *tempopb.QueryRangeResponse) bool {
+			return combiner.MaxSeriesReached()
+		},
 	}
 
 	initHTTPCombiner(c, api.HeaderAcceptJSON)
