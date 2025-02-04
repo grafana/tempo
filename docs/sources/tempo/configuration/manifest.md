@@ -203,7 +203,7 @@ distributor:
         max_consumer_lag_at_startup: 0s
     extend_writes: true
     retry_after_on_resource_exhausted: 0s
-    max_span_attr_byte: 2048
+    max_attribute_bytes: 2048
 ingester_client:
     pool_config:
         checkinterval: 15s
@@ -652,7 +652,6 @@ metrics_generator:
     metrics_ingestion_time_range_slack: 30s
     query_timeout: 30s
     override_ring_key: metrics-generator
-    assigned_partitions: {}
     instance_id: hostname
 ingest:
     enabled: false

@@ -20,6 +20,7 @@ The Tempo configuration options include:
   - [Server](#server)
   - [Distributor](#distributor)
     - [Set max attribute size to help control out of memory errors](#set-max-attribute-size-to-help-control-out-of-memory-errors)
+    - [gRPC compression](#grpc-compression)
   - [Ingester](#ingester)
   - [Metrics-generator](#metrics-generator)
   - [Query-frontend](#query-frontend)
@@ -236,7 +237,7 @@ distributor:
     # Optional
     # Configures the max size an attribute can be. Any key or value that exceeds this limit will be truncated before storing
     # Setting this parameter to '0' would disable this check against attribute size
-    [max_span_attr_byte: <int> | default = '2048']
+    [max_attribute_bytes: <int> | default = '2048']
 
     # Optional.
     # Configures usage trackers in the distributor which expose metrics of ingested traffic grouped by configurable
@@ -259,13 +260,39 @@ This issue has been observed when trying to fetch a single trace using the [`tra
 While a trace might not have a lot of spans (roughly 500), it can have a larger size (approximately 250KB).
 Some of the spans in that trace had attributes whose values were very large in size.
 
-To avoid these out-of-memory crashes, use `max_span_attr_byte` to limit the maximum allowable size of any individual attribute.
+To avoid these out-of-memory crashes, use `max_attribute_bytes` to limit the maximum allowable size of any individual attribute.
 Any key or values that exceed the configured limit are truncated before storing.
 The default value is `2048`.
 
 Use the `tempo_distributor_attributes_truncated_total` metric to track how many attributes are truncated.
 
 For additional information, refer to [Troubleshoot out-of-memory errors](https://grafana.com/docs/tempo/<TEMPO_VERSION>/troubleshooting/out-of-memory-errors/).
+
+### gRPC compression
+
+If you notice increased network traffic or issues, check the gRPC compression settings.
+
+Tempo 2.7 disabled gRPC compression in the querier and distributor for performance reasons. ([#4429](https://github.com/grafana/tempo/pull/4429))
+Benchmark testing suggested that without compression, queriers and distributors used less CPU and memory.
+
+However, you may notice an increase in ingester data and network traffic especially for larger clusters.
+This increased data can impact billing for Grafana Cloud.
+
+You can configure the gRPC compression in the `querier`, `ingester`, and `metrics_generator` clients of the distributor.
+To re-enable the compression, use `snappy` with the following settings:
+
+  ```yaml
+  ingester_client:
+      grpc_client_config:
+          grpc_compression: "snappy"
+  metrics_generator_client:
+      grpc_client_config:
+          grpc_compression: "snappy"
+  querier:
+      frontend_worker:
+          grpc_client_config:
+              grpc_compression: "snappy"
+```
 
 ## Ingester
 
@@ -494,7 +521,11 @@ metrics_generator:
             # If enabled, only parent spans or spans with the SpanKind of `server` will be retained
             [filter_server_spans: <bool> | default = true]
 
-            # Number of blocks that are allowed to be processed concurently
+            # Whether server spans should be flushed to storage.
+            # Setting `flush_to_storage` to `true` ensures that metrics blocks are flushed to storage so TraceQL metrics queries against historical data.
+            [flush_to_storage: <bool> | default = false]
+
+            # Number of blocks that are allowed to be processed concurrently.
             [concurrent_blocks: <uint> | default = 10]
 
             # A tuning factor that controls whether the trace-level timestamp columns are used in a metrics query.
@@ -1589,6 +1620,9 @@ overrides:
       # Shuffle sharding shards used for this user. A value of 0 uses all ingesters in the ring.
       # Should not be lower than RF.
       [tenant_shard_size: <int> | default = 0]
+
+      # Maximum bytes any attribute can be for both keys and values.
+      [max_attribute_bytes: <int> | default = 0]
 
     # Read related overrides
     read:

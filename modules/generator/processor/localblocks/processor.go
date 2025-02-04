@@ -663,7 +663,7 @@ func (p *Processor) writeHeadBlock(id common.ID, tr *tempopb.Trace) error {
 	startSeconds := uint32(start / uint64(time.Second))
 	endSeconds := uint32(end / uint64(time.Second))
 
-	err := p.headBlock.AppendTrace(id, tr, startSeconds, endSeconds)
+	err := p.headBlock.AppendTrace(id, tr, startSeconds, endSeconds, true)
 	if err != nil {
 		return err
 	}

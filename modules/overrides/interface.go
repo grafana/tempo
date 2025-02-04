@@ -40,6 +40,7 @@ type Interface interface {
 	IngestionRateLimitBytes(userID string) float64
 	IngestionBurstSizeBytes(userID string) int
 	IngestionTenantShardSize(userID string) int
+	IngestionMaxAttributeBytes(userID string) int
 	MetricsGeneratorIngestionSlack(userID string) time.Duration
 	MetricsGeneratorRingSize(userID string) int
 	MetricsGeneratorProcessors(userID string) map[string]struct{}

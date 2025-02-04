@@ -98,22 +98,16 @@ For Jaeger exporting, set `OTEL_TRACES_EXPORTER=jaeger`.For more information, re
 
 ### gRPC compression disabled
 
-Disable gRPC compression in the querier and distributor for performance reasons. ([#4429](https://github.com/grafana/tempo/pull/4429)) Check the gRPC compression settings if you see network issues.
-If you would like to re-enable it, we recommend 'snappy'.
-Use the following settings:
+This release disables gRPC compression in the querier and distributor for performance reasons. ([#4429](https://github.com/grafana/tempo/pull/4429))
+Our benchmark suggests that without compression, queriers and distributors use less CPU and memory.
 
-  ```
-  ingester_client:
-      grpc_client_config:
-          grpc_compression: "snappy"
-  metrics_generator_client:
-      grpc_client_config:
-          grpc_compression: "snappy"
-  querier:
-      frontend_worker:
-          grpc_client_config:
-              grpc_compression: "snappy"
-  ```
+{{< admonition type="note" >}}
+This change may increase data usage and network traffic, which can impact cloud billing.
+{{< /admonition >}}
+
+If you notice increased network traffic or issues, check the gRPC compression settings.
+
+For instructions how to enable gRPC compression, refer to [gRPC compression configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#grpc-compression) for more information.
 
 ### Added, updated, removed, or renamed configuration parameters
 
@@ -205,7 +199,7 @@ metrics_generator:
 
 **For historical data**
 
-To run metrics queries on historical data, you must configure the local-blocks processor to flush rf1 blocks to object storage:
+To run metrics queries on historical data, you must configure the local-blocks processor to flush RF1 blocks to object storage:
 
 ```yaml
 metrics_generator:

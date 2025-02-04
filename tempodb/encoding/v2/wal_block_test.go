@@ -201,7 +201,7 @@ func TestPartialBlock(t *testing.T) {
 		b2, err := enc.ToObject([][]byte{b1})
 		require.NoError(t, err)
 
-		err = block.Append(id, b2, 0, 0)
+		err = block.Append(id, b2, 0, 0, true)
 		require.NoError(t, err)
 	}
 

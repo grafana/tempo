@@ -29,10 +29,17 @@ func MakeAttribute(key, value string) *v1_common.KeyValue {
 }
 
 func MakeSpan(traceID []byte) *v1_trace.Span {
-	return MakeSpanWithAttributeCount(traceID, rand.Int()%10+1)
+	now := time.Now()
+	startTime := uint64(now.UnixNano())
+	endTime := uint64(now.Add(time.Second).UnixNano())
+	return makeSpanWithAttributeCount(traceID, rand.Int()%10+1, startTime, endTime)
 }
 
-func MakeSpanWithAttributeCount(traceID []byte, count int) *v1_trace.Span {
+func MakeSpanWithTimeWindow(traceID []byte, startTime uint64, endTime uint64) *v1_trace.Span {
+	return makeSpanWithAttributeCount(traceID, rand.Int()%10+1, startTime, endTime)
+}
+
+func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, endTime uint64) *v1_trace.Span {
 	attributes := make([]*v1_common.KeyValue, 0, count)
 	for i := 0; i < count; i++ {
 		attributes = append(attributes, &v1_common.KeyValue{
@@ -40,8 +47,6 @@ func MakeSpanWithAttributeCount(traceID []byte, count int) *v1_trace.Span {
 			Value: &v1_common.AnyValue{Value: &v1_common.AnyValue_StringValue{StringValue: RandomString()}},
 		})
 	}
-
-	now := time.Now()
 	s := &v1_trace.Span{
 		Name:         "test",
 		TraceId:      traceID,
@@ -52,8 +57,8 @@ func MakeSpanWithAttributeCount(traceID []byte, count int) *v1_trace.Span {
 			Code:    1,
 			Message: "OK",
 		},
-		StartTimeUnixNano:      uint64(now.UnixNano()),
-		EndTimeUnixNano:        uint64(now.Add(time.Second).UnixNano()),
+		StartTimeUnixNano:      startTime,
+		EndTimeUnixNano:        endTime,
 		Attributes:             attributes,
 		DroppedLinksCount:      rand.Uint32(),
 		DroppedAttributesCount: rand.Uint32(),
@@ -153,6 +158,43 @@ func MakeBatch(spans int, traceID []byte) *v1_trace.ResourceSpans {
 	return batch
 }
 
+func makeBatchWithTimeRange(spans int, traceID []byte, startTime, endTime uint64) *v1_trace.ResourceSpans {
+	traceID = ValidTraceID(traceID)
+
+	batch := &v1_trace.ResourceSpans{
+		Resource: &v1_resource.Resource{
+			Attributes: []*v1_common.KeyValue{
+				{
+					Key: "service.name",
+					Value: &v1_common.AnyValue{
+						Value: &v1_common.AnyValue_StringValue{
+							StringValue: "test-service",
+						},
+					},
+				},
+			},
+		},
+	}
+	var ss *v1_trace.ScopeSpans
+
+	for i := 0; i < spans; i++ {
+		// occasionally make a new ss
+		if ss == nil || rand.Int()%3 == 0 {
+			ss = &v1_trace.ScopeSpans{
+				Scope: &v1_common.InstrumentationScope{
+					Name:    "super library",
+					Version: "0.0.1",
+				},
+			}
+
+			batch.ScopeSpans = append(batch.ScopeSpans, ss)
+		}
+
+		ss.Spans = append(ss.Spans, MakeSpanWithTimeWindow(traceID, startTime, endTime))
+	}
+	return batch
+}
+
 func MakeTrace(requests int, traceID []byte) *tempopb.Trace {
 	traceID = ValidTraceID(traceID)
 
@@ -162,6 +204,20 @@ func MakeTrace(requests int, traceID []byte) *tempopb.Trace {
 
 	for i := 0; i < requests; i++ {
 		trace.ResourceSpans = append(trace.ResourceSpans, MakeBatch(rand.Int()%20+1, traceID))
+	}
+
+	return trace
+}
+
+func MakeTraceWithTimeRange(requests int, traceID []byte, startTime, endTime uint64) *tempopb.Trace {
+	traceID = ValidTraceID(traceID)
+
+	trace := &tempopb.Trace{
+		ResourceSpans: make([]*v1_trace.ResourceSpans, 0),
+	}
+
+	for i := 0; i < requests; i++ {
+		trace.ResourceSpans = append(trace.ResourceSpans, makeBatchWithTimeRange(rand.Int()%20+1, traceID, startTime, endTime))
 	}
 
 	return trace
@@ -366,8 +422,8 @@ func MakeTraceWithTags(traceID []byte, service string, intValue int64) *tempopb.
 	return trace
 }
 
-func MakePushBytesRequest(t testing.TB, requests int, traceID []byte) *tempopb.PushBytesRequest {
-	trace := MakeTrace(requests, traceID)
+func MakePushBytesRequest(t testing.TB, requests int, traceID []byte, startTime, endTime uint64) *tempopb.PushBytesRequest {
+	trace := MakeTraceWithTimeRange(requests, traceID, startTime, endTime)
 	b, err := proto.Marshal(trace)
 	require.NoError(t, err)
 

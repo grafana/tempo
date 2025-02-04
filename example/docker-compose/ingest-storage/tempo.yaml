@@ -8,6 +8,7 @@ distributor:
     otlp:
       protocols:
         grpc:
+          endpoint: "distributor:4317"
   log_received_spans:
     enabled: true
   log_discarded_spans:
@@ -47,9 +48,11 @@ metrics_generator:
         send_exemplars: true
   traces_storage:
     path: /var/tempo/generator/traces
-  assigned_partitions:
-    metrics-generator-0: [0,2]
-    metrics-generator-1: [1]
+  traces_query_storage:
+    path: /var/tempo/generator/query_traces
+  processor:
+    local_blocks:
+      flush_to_storage: true
 
 storage:
   trace:
@@ -68,7 +71,7 @@ storage:
 overrides:
   defaults:
     metrics_generator:
-      processors: ['local-blocks']
+      processors: ['local-blocks', 'span-metrics', 'service-graphs']
       generate_native_histograms: both
 
 ingest:
@@ -78,7 +81,6 @@ ingest:
     topic:   tempo-ingest
 
 block_builder:
-  lookback_on_no_commit: 2m
   consume_cycle_duration: 30s
   assigned_partitions:
     block-builder-0: [0,2]

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-kit/log"
@@ -198,8 +199,7 @@ func (b *BlockBuilder) consume(ctx context.Context) error {
 		end        = time.Now()
 		partitions = b.getAssignedActivePartitions()
 	)
-
-	level.Info(b.logger).Log("msg", "starting consume cycle", "cycle_end", end, "active_partitions", partitions)
+	level.Info(b.logger).Log("msg", "starting consume cycle", "cycle_end", end, "active_partitions", getActivePartitions(partitions))
 	defer func(t time.Time) { metricConsumeCycleDuration.Observe(time.Since(t).Seconds()) }(time.Now())
 
 	// Clear all previous remnants
@@ -224,6 +224,14 @@ func (b *BlockBuilder) consume(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func getActivePartitions(partitions []int32) string {
+	var strArr []string
+	for _, v := range partitions {
+		strArr = append(strArr, strconv.Itoa(int(v)))
+	}
+	return strings.Join(strArr, ",")
 }
 
 func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, overallEnd time.Time) (more bool, err error) {
@@ -324,7 +332,7 @@ outer:
 			if !init {
 				end = rec.Timestamp.Add(dur) // When block will be cut
 				metricPartitionLagSeconds.WithLabelValues(partLabel).Set(time.Since(rec.Timestamp).Seconds())
-				writer = newPartitionSectionWriter(b.logger, uint64(partition), uint64(rec.Offset), b.cfg.BlockConfig, b.overrides, b.wal, b.enc)
+				writer = newPartitionSectionWriter(b.logger, uint64(partition), uint64(rec.Offset), rec.Timestamp, dur, b.cfg.WAL.IngestionSlack, b.cfg.BlockConfig, b.overrides, b.wal, b.enc)
 				init = true
 			}
 

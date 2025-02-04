@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/blockbuilder/util"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/dataquality"
 	"github.com/grafana/tempo/pkg/livetraces"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb"
@@ -36,28 +37,33 @@ const (
 )
 
 type tenantStore struct {
-	tenantID    string
-	idGenerator util.IDGenerator
-
-	cfg       BlockConfig
-	logger    log.Logger
-	overrides Overrides
-	enc       encoding.VersionedEncoding
-	wal       *wal.WAL
+	tenantID      string
+	idGenerator   util.IDGenerator
+	cfg           BlockConfig
+	startTime     time.Time
+	cycleDuration time.Duration
+	slackDuration time.Duration
+	logger        log.Logger
+	overrides     Overrides
+	enc           encoding.VersionedEncoding
+	wal           *wal.WAL
 
 	liveTraces *livetraces.LiveTraces[[]byte]
 }
 
-func newTenantStore(tenantID string, partitionID, endTimestamp uint64, cfg BlockConfig, logger log.Logger, wal *wal.WAL, enc encoding.VersionedEncoding, o Overrides) (*tenantStore, error) {
+func newTenantStore(tenantID string, partitionID, startOffset uint64, startTime time.Time, cycleDuration, slackDuration time.Duration, cfg BlockConfig, logger log.Logger, wal *wal.WAL, enc encoding.VersionedEncoding, o Overrides) (*tenantStore, error) {
 	s := &tenantStore{
-		tenantID:    tenantID,
-		idGenerator: util.NewDeterministicIDGenerator(tenantID, partitionID, endTimestamp),
-		cfg:         cfg,
-		logger:      logger,
-		overrides:   o,
-		wal:         wal,
-		enc:         enc,
-		liveTraces:  livetraces.New[[]byte](func(b []byte) uint64 { return uint64(len(b)) }),
+		tenantID:      tenantID,
+		idGenerator:   util.NewDeterministicIDGenerator(tenantID, partitionID, startOffset),
+		startTime:     startTime,
+		cycleDuration: cycleDuration,
+		slackDuration: slackDuration,
+		cfg:           cfg,
+		logger:        logger,
+		overrides:     o,
+		wal:           wal,
+		enc:           enc,
+		liveTraces:    livetraces.New[[]byte](func(b []byte) uint64 { return uint64(len(b)) }),
 	}
 
 	return s, nil
@@ -121,8 +127,7 @@ func (s *tenantStore) Flush(ctx context.Context, store tempodb.Writer) error {
 
 	// Update meta timestamps which couldn't be known until we unmarshaled
 	// all of the traces.
-	newMeta.StartTime = time.Unix(int64(iter.start/uint64(time.Second)), 0)
-	newMeta.EndTime = time.Unix(int64(iter.end/uint64(time.Second)), 0)
+	newMeta.StartTime, newMeta.EndTime = s.adjustTimeRangeForSlack(time.Unix(0, int64(iter.start)), time.Unix(0, int64(iter.end)))
 
 	newBlock, err := s.enc.OpenBlock(newMeta, reader)
 	if err != nil {
@@ -148,6 +153,27 @@ func (s *tenantStore) Flush(ctx context.Context, store tempodb.Writer) error {
 	)
 
 	return nil
+}
+
+func (s *tenantStore) adjustTimeRangeForSlack(start, end time.Time) (time.Time, time.Time) {
+	startOfRange := s.startTime.Add(-s.slackDuration)
+	endOfRange := s.startTime.Add(s.slackDuration + s.cycleDuration)
+
+	warn := false
+	if start.Before(startOfRange) {
+		warn = true
+		start = s.startTime
+	}
+	if end.After(endOfRange) || end.Before(start) {
+		warn = true
+		end = s.startTime
+	}
+
+	if warn {
+		dataquality.WarnBlockBuilderOutsideIngestionSlack(s.tenantID)
+	}
+
+	return start, end
 }
 
 type entry struct {

@@ -1650,7 +1650,7 @@ func runCompleteBlockSearchTest(t *testing.T, blockVersion string, runners ...ru
 
 		b2, err := dec.ToObject([][]byte{b1})
 		require.NoError(t, err)
-		err = head.Append(id, b2, start, end)
+		err = head.Append(id, b2, start, end, true)
 		require.NoError(t, err)
 	}
 
@@ -1766,7 +1766,7 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 
 		b2, err := dec.ToObject([][]byte{b1})
 		require.NoError(t, err)
-		err = head.Append(id, b2, start, end)
+		err = head.Append(id, b2, start, end, true)
 		require.NoError(t, err)
 	}
 
@@ -2235,7 +2235,7 @@ func TestWALBlockGetMetrics(t *testing.T) {
 				},
 			},
 		},
-	}, 0, 0)
+	}, 0, 0, true)
 	require.NoError(t, err)
 	require.NoError(t, head.Flush())
 

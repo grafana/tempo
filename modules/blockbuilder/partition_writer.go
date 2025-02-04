@@ -24,8 +24,12 @@ type partitionSectionWriter interface {
 type writer struct {
 	logger log.Logger
 
-	blockCfg              BlockConfig
-	partition, cycleEndTs uint64
+	blockCfg      BlockConfig
+	partition     uint64
+	startOffset   uint64
+	startTime     time.Time
+	cycleDuration time.Duration
+	slackDuration time.Duration
 
 	overrides Overrides
 	wal       *wal.WAL
@@ -35,17 +39,20 @@ type writer struct {
 	m   map[string]*tenantStore
 }
 
-func newPartitionSectionWriter(logger log.Logger, partition, cycleEndTs uint64, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
+func newPartitionSectionWriter(logger log.Logger, partition, firstOffset uint64, startTime time.Time, cycleDuration, slackDuration time.Duration, blockCfg BlockConfig, overrides Overrides, wal *wal.WAL, enc encoding.VersionedEncoding) *writer {
 	return &writer{
-		logger:     logger,
-		partition:  partition,
-		cycleEndTs: cycleEndTs,
-		blockCfg:   blockCfg,
-		overrides:  overrides,
-		wal:        wal,
-		enc:        enc,
-		mtx:        sync.Mutex{},
-		m:          make(map[string]*tenantStore),
+		logger:        logger,
+		partition:     partition,
+		startOffset:   firstOffset,
+		startTime:     startTime,
+		cycleDuration: cycleDuration,
+		slackDuration: slackDuration,
+		blockCfg:      blockCfg,
+		overrides:     overrides,
+		wal:           wal,
+		enc:           enc,
+		mtx:           sync.Mutex{},
+		m:             make(map[string]*tenantStore),
 	}
 }
 
@@ -103,7 +110,7 @@ func (p *writer) instanceForTenant(tenant string) (*tenantStore, error) {
 		return i, nil
 	}
 
-	i, err := newTenantStore(tenant, p.partition, p.cycleEndTs, p.blockCfg, p.logger, p.wal, p.enc, p.overrides)
+	i, err := newTenantStore(tenant, p.partition, p.startOffset, p.startTime, p.cycleDuration, p.slackDuration, p.blockCfg, p.logger, p.wal, p.enc, p.overrides)
 	if err != nil {
 		return nil, err
 	}

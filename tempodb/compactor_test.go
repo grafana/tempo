@@ -313,7 +313,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 			id := allIds[j]
 
 			if i < len(req) {
-				err = head.Append(id, req[i], 0, 0)
+				err = head.Append(id, req[i], 0, 0, true)
 				require.NoError(t, err, "unexpected error writing req")
 			}
 		}
@@ -717,7 +717,7 @@ func testCompactionDropsTraces(t *testing.T, targetBlockVersion string) {
 		obj2, err := dec.ToObject([][]byte{obj})
 		require.NoError(t, err)
 
-		err = head.Append(id, obj2, 0, 0)
+		err = head.Append(id, obj2, 0, 0, true)
 		require.NoError(t, err, "unexpected error writing req")
 	}
 
