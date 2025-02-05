@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/go-kit/log"
@@ -127,7 +128,8 @@ func (s *tenantStore) Flush(ctx context.Context, store tempodb.Writer) error {
 
 	// Update meta timestamps which couldn't be known until we unmarshaled
 	// all of the traces.
-	newMeta.StartTime, newMeta.EndTime = s.adjustTimeRangeForSlack(time.Unix(0, int64(iter.start)), time.Unix(0, int64(iter.end)))
+	start, end := iter.MinMaxTimestamps()
+	newMeta.StartTime, newMeta.EndTime = s.adjustTimeRangeForSlack(time.Unix(0, int64(start)), time.Unix(0, int64(end)))
 
 	newBlock, err := s.enc.OpenBlock(newMeta, reader)
 	if err != nil {
@@ -188,12 +190,12 @@ type chEntry struct {
 }
 
 type liveTracesIter struct {
+	mtx        sync.Mutex
 	entries    []entry
 	liveTraces *livetraces.LiveTraces[[]byte]
 	ch         chan []chEntry
 	chBuf      []chEntry
 	cancel     func()
-
 	start, end uint64
 }
 
@@ -247,8 +249,20 @@ func (i *liveTracesIter) Next(ctx context.Context) (common.ID, *tempopb.Trace, e
 }
 
 func (i *liveTracesIter) iter(ctx context.Context) {
+	i.mtx.Lock()
+	defer i.mtx.Unlock()
 	defer close(i.ch)
 
+	// Get the list of all traces sorted by ID
+	tids := make([]entry, 0, len(i.liveTraces.Traces))
+	for hash, t := range i.liveTraces.Traces {
+		tids = append(tids, entry{t.ID, hash})
+	}
+	slices.SortFunc(tids, func(a, b entry) int {
+		return bytes.Compare(a.id, b.id)
+	})
+
+	// Begin sending to channel in chunks to reduce channel overhead.
 	seq := slices.Chunk(i.entries, 10)
 	for entries := range seq {
 		output := make([]chEntry, 0, len(entries))
@@ -299,6 +313,16 @@ func (i *liveTracesIter) iter(ctx context.Context) {
 			return
 		}
 	}
+}
+
+// MinMaxTimestamps returns the earliest start, and latest end span timestamps,
+// which can't be known until all contents are unmarshaled. The iterated must
+// be exhausted before this can be accessed.
+func (i *liveTracesIter) MinMaxTimestamps() (uint64, uint64) {
+	i.mtx.Lock()
+	defer i.mtx.Unlock()
+
+	return i.start, i.end
 }
 
 func (i *liveTracesIter) Close() {
