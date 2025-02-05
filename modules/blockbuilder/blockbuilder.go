@@ -172,31 +172,6 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 	return nil
 }
 
-func (b *BlockBuilder) running(ctx context.Context) error {
-	for {
-		startTime := time.Now()
-		more, err := b.consume(ctx)
-		if err != nil {
-			level.Error(b.logger).Log("msg", "consumeCycle failed", "err", err)
-		}
-		elapsed := time.Since(startTime)
-		waitTime := b.cfg.ConsumeCycleDuration
-
-		if more {
-			waitTime = time.Duration(float64(waitTime) * 0.5)
-		}
-
-		remainingWait := waitTime - elapsed
-		if remainingWait > 0 {
-			select {
-			case <-time.After(remainingWait):
-			case <-ctx.Done():
-				return nil
-			}
-		}
-	}
-}
-
 type PartitionStatus struct {
 	partition              int32
 	hasRecords             bool
@@ -212,6 +187,34 @@ func (p PartitionStatus) getStartOffset() kgo.Offset {
 		return kgo.NewOffset().At(p.startOffset)
 	}
 	return kgo.NewOffset().AtStart()
+}
+
+func (b *BlockBuilder) running(ctx context.Context) error {
+	consumeCycleBackoffFactor := 0.8
+
+	for {
+		startTime := time.Now()
+		more, err := b.consume(ctx)
+		if err != nil {
+			level.Error(b.logger).Log("msg", "consumeCycle failed", "err", err)
+		}
+		elapsed := time.Since(startTime)
+		waitTime := b.cfg.ConsumeCycleDuration
+
+		if more {
+			waitTime = time.Duration(float64(waitTime) * consumeCycleBackoffFactor)
+		}
+
+		remainingWait := waitTime - elapsed
+		if remainingWait > 0 {
+			level.Info(b.logger).Log("msg", "cycle completed", "elapsed", elapsed, "remaining_wait", waitTime, "more_records", more)
+			select {
+			case <-time.After(remainingWait):
+			case <-ctx.Done():
+				return nil
+			}
+		}
+	}
 }
 
 // It consumes a single cycle per partition, priorizing the ones with more lag
