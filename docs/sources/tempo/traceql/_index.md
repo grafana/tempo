@@ -128,6 +128,16 @@ It's a convenient request to identify misconfigurations and leaks across product
 { resource.deployment.environment = "production" } && { resource.deployment.environment = "staging" }
 ```
 
+### Find traces with arrays
+
+TraceQL automatically queries data contained in arrays. For example, if `span.foo` is an array and contains the value `bar`, then it will be found by this query.
+
+```
+{ span.foo = "bar" }
+```
+
+Support for arrays is available in vParquet4 and on.
+
 ### Use structural operators
 
 Find traces that include the `frontend` service, where either that service or a downstream service includes a span where an error is set.
