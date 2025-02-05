@@ -173,17 +173,16 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 }
 
 func (b *BlockBuilder) running(ctx context.Context) error {
-	// Initial delay
 	for {
 		startTime := time.Now()
-		hasLag, err := b.consume(ctx)
+		more, err := b.consume(ctx)
 		if err != nil {
 			level.Error(b.logger).Log("msg", "consumeCycle failed", "err", err)
 		}
 		elapsed := time.Since(startTime)
 		waitTime := b.cfg.ConsumeCycleDuration
 
-		if hasLag {
+		if more {
 			waitTime = time.Duration(float64(waitTime) * 0.5)
 		}
 
@@ -202,7 +201,6 @@ type PartitionStatus struct {
 	partition              int32
 	hasRecords             bool
 	startOffset, endOffset int64
-	lagRatio               float64
 }
 
 func (p PartitionStatus) lag() int64 {
@@ -216,16 +214,13 @@ func (p PartitionStatus) getStartOffset() kgo.Offset {
 	return kgo.NewOffset().AtStart()
 }
 
+// It consumes a single cycle per partition, priorizing the ones with more lag
 func (b *BlockBuilder) consume(ctx context.Context) (bool, error) {
 	var (
-		end              = time.Now()
-		partitions       = b.getAssignedActivePartitions()
-		group            = b.cfg.IngestStorageConfig.Kafka.ConsumerGroup
-		topic            = b.cfg.IngestStorageConfig.Kafka.Topic
-		processingCycles = 1   // Number of processing cycles
-		thresshold       = 0.2 // 20%
-		more             bool
-		hasLag           bool
+		end        = time.Now()
+		partitions = b.getAssignedActivePartitions()
+
+		more bool
 	)
 	level.Info(b.logger).Log("msg", "starting consume cycle", "cycle_end", end, "active_partitions", getActivePartitions(partitions))
 	defer func(t time.Time) { metricConsumeCycleDuration.Observe(time.Since(t).Seconds()) }(time.Now())
@@ -236,52 +231,25 @@ func (b *BlockBuilder) consume(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	commits, err := b.kadm.FetchOffsetsForTopics(ctx, group, topic)
+	sortedPartitions, err := b.getSortedPartitions(ctx, partitions)
 	if err != nil {
 		return false, err
 	}
-	if err := commits.Error(); err != nil {
-		return false, err
-	}
-
-	weightedPartitions, err := b.getWeightedPartitions(ctx, partitions, commits)
-	if err != nil {
-		return false, err
-	}
-
-	for _, partition := range weightedPartitions {
+	// Partitions with more lag are priorized
+	for _, partition := range sortedPartitions {
 		if !partition.hasRecords { // No records, we can skip the partition
 			continue
 		}
-
-		cycles := processingCycles
-		if partition.lagRatio > thresshold {
-			cycles *= 2
-			hasLag = true
+		moreRecords, err := b.consumePartition(ctx, partition)
+		if err != nil {
+			return false, err
+		}
+		if moreRecords {
+			more = true
 		}
 
-		for i := 0; i <= cycles; i++ {
-			more, err = b.consumePartition(ctx, partition)
-			if err != nil {
-				return false, err
-			}
-			if !more {
-				break
-			}
-			commits, err := b.kadm.FetchOffsetsForTopics(ctx, group, topic)
-			if err != nil {
-				return false, err
-			}
-			if err := commits.Error(); err != nil {
-				return false, err
-			}
-			partition, err = b.getPartitionStatus(ctx, partition.partition, commits)
-			if err != nil {
-				return false, err
-			}
-		}
 	}
-	return hasLag, nil
+	return more, nil
 }
 
 func getActivePartitions(partitions []int32) string {
@@ -292,21 +260,27 @@ func getActivePartitions(partitions []int32) string {
 	return strings.Join(strArr, ",")
 }
 
-func (b *BlockBuilder) getWeightedPartitions(ctx context.Context, partitions []int32, commits kadm.OffsetResponses) ([]PartitionStatus, error) {
+// It fetches all the offsets for the blockbuilder topic, for each owned partitions it calculates their last commited records and the
+// end record offset. Based on that it sort the partitions by lag
+func (b *BlockBuilder) getSortedPartitions(ctx context.Context, partitions []int32) ([]PartitionStatus, error) {
 	ps := make([]PartitionStatus, len(partitions))
-	var totalLag int64
+	group := b.cfg.IngestStorageConfig.Kafka.ConsumerGroup
+	topic := b.cfg.IngestStorageConfig.Kafka.Topic
+
+	commits, err := b.kadm.FetchOffsetsForTopics(ctx, group, topic)
+	if err != nil {
+		return nil, err
+	}
+	if err := commits.Error(); err != nil {
+		return nil, err
+	}
 
 	for _, partition := range partitions {
 		p, err := b.getPartitionStatus(ctx, partition, commits)
-		totalLag += p.lag()
 		if err != nil {
 			return nil, err
 		}
 		ps = append(ps, p)
-	}
-	// Calculate lag ratios
-	for i := range ps {
-		ps[i].lagRatio = float64(ps[i].lag()) / float64(totalLag)
 	}
 
 	sort.Slice(ps, func(i, j int) bool {
