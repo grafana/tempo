@@ -18,6 +18,13 @@
     node_selector: null,
     ingester_allow_multiple_replicas_on_same_node: false,
 
+    // Enable concurrent rollout of block-builder through the usage of the rollout operator.
+    // This feature modifies the block-builder StatefulSet which cannot be altered, so if it already exists it has to be deleted and re-applied again in order to be enabled.
+    block_builder_concurrent_rollout_enabled: false,
+    // Maximum number of unavailable replicas during a block-builder rollout when using block_builder_concurrent_rollout_enabled feature.
+    // Computed from block-builder replicas by default, but can also be specified as percentage, for example "25%".
+    block_builder_max_unavailable: $.tempo_block_builder_statefulset.spec.replicas,
+
     // disable tempo-query by default
     tempo_query: {
       enabled: false,
