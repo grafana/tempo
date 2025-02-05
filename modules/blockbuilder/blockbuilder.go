@@ -263,7 +263,7 @@ func getActivePartitions(partitions []int32) string {
 	return strings.Join(strArr, ",")
 }
 
-// It fetches all the offsets for the blockbuilder topic, for each owned partitions it calculates their last commited records and the
+// It fetches all the offsets for the blockbuilder topic, for each owned partitions it calculates their last committed records and the
 // end record offset. Based on that it sort the partitions by lag
 func (b *BlockBuilder) getSortedPartitions(ctx context.Context, partitions []int32) ([]PartitionStatus, error) {
 	ps := make([]PartitionStatus, len(partitions))
