@@ -130,13 +130,15 @@ It's a convenient request to identify misconfigurations and leaks across product
 
 ### Find traces with arrays
 
-TraceQL automatically queries data contained in arrays. For example, if `span.foo` is an array and contains the value `bar`, then it will be found by this query.
+TraceQL automatically queries data contained in arrays.
+Support for arrays is available in vParquet4 and on.
+
+If `span.foo` is an array and contains the value `bar`, then it will be found by this query.
 
 ```
 { span.foo = "bar" }
 ```
 
-Support for arrays is available in vParquet4 and on.
 
 ### Use structural operators
 
