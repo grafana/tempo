@@ -49,7 +49,7 @@ Querier:
 
 Query-Frontend:
 
-* 2 replicas, for HA
+* 2 replicas, for high availability
 * CPU: dependent on trace size and queries
 * Mem: 4-20GB, dependent on trace size and queries
 
