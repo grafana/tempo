@@ -54,7 +54,8 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	store := newStore(ctx, t)
 	cfg := blockbuilderConfig(t, address)
 
-	b := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
 	t.Cleanup(func() {
 		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
@@ -109,7 +110,8 @@ func TestBlockbuilder_startWithCommit(t *testing.T) {
 	admClient := kadm.NewClient(client)
 	require.NoError(t, admClient.CommitAllOffsets(ctx, cfg.IngestStorageConfig.Kafka.ConsumerGroup, offsets))
 
-	b := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
 	t.Cleanup(func() {
 		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
@@ -159,7 +161,8 @@ func TestBlockbuilder_flushingFails(t *testing.T) {
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
 	producedRecords := sendTracesFor(t, ctx, client, time.Second, 100*time.Millisecond) // Send for 1 second, <1 consumption cycles
 
-	b := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
+	b, err := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
 	t.Cleanup(func() {
 		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
@@ -194,7 +197,8 @@ func TestBlockbuilder_receivesOldRecords(t *testing.T) {
 	store := newStore(ctx, t)
 	cfg := blockbuilderConfig(t, address)
 
-	b := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
 	t.Cleanup(func() {
 		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
@@ -283,7 +287,8 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
 	producedRecords := sendTracesFor(t, ctx, client, time.Second, 100*time.Millisecond) // Send for 1 second, <1 consumption cycles
 
-	b := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
+	b, err := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
 	t.Cleanup(func() {
 		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
@@ -525,26 +530,27 @@ func BenchmarkBlockBuilder(b *testing.B) {
 
 	cfg.ConsumeCycleDuration = 1 * time.Hour
 
-	bb := New(cfg, logger, newPartitionRingReader(), o, store)
+	bb, err := New(cfg, logger, newPartitionRingReader(), o, store)
+	require.NoError(b, err)
 	defer func() { require.NoError(b, bb.stopping(nil)) }()
 
 	// Startup (without starting the background consume cycle)
-	err := bb.starting(ctx)
+	err = bb.starting(ctx)
 	require.NoError(b, err)
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 
-		var records []*kgo.Record
+		// Send more data
+		b.StopTimer()
+		size := 0
 		for i := 0; i < 1000; i++ {
-			records = append(records, sendReq(b, ctx, client)...)
+			for _, r := range sendReq(b, ctx, client) {
+				size += len(r.Value)
+			}
 		}
-
-		var size int
-		for _, r := range records {
-			size += len(r.Value)
-		}
+		b.StartTimer()
 
 		err = bb.consume(ctx)
 		require.NoError(b, err)

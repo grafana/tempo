@@ -341,7 +341,11 @@ func (t *App) initBlockBuilder() (services.Service, error) {
 		t.cfg.BlockBuilder.AssignedPartitions = map[string][]int32{t.cfg.BlockBuilder.InstanceID: {0}}
 	}
 
-	t.blockBuilder = blockbuilder.New(t.cfg.BlockBuilder, log.Logger, t.partitionRing, t.Overrides, t.store)
+	bb, err := blockbuilder.New(t.cfg.BlockBuilder, log.Logger, t.partitionRing, t.Overrides, t.store)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create block-builder: %w", err)
+	}
+	t.blockBuilder = bb
 
 	return t.blockBuilder, nil
 }
