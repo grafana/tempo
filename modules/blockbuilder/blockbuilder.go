@@ -103,7 +103,11 @@ func New(
 	partitionRing ring.PartitionRingReader,
 	overrides Overrides,
 	store storage.Store,
-) *BlockBuilder {
+) (*BlockBuilder, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
 	b := &BlockBuilder{
 		logger:        logger,
 		cfg:           cfg,
@@ -114,7 +118,7 @@ func New(
 	}
 
 	b.Service = services.NewBasicService(b.starting, b.running, b.stopping)
-	return b
+	return b, nil
 }
 
 func (b *BlockBuilder) starting(ctx context.Context) (err error) {
@@ -336,7 +340,6 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, ps PartitionStatus)
 		init             bool
 		writer           *writer
 		lastRec          *kgo.Record
-		nextCut          time.Time
 		end              time.Time
 		processedRecords int
 	)
@@ -401,18 +404,12 @@ outer:
 			if !init {
 				end = rec.Timestamp.Add(dur) // When block will be cut
 				metricPartitionLagSeconds.WithLabelValues(partLabel).Set(time.Since(rec.Timestamp).Seconds())
-				writer = newPartitionSectionWriter(b.logger, uint64(ps.partition), uint64(rec.Offset), rec.Timestamp, dur, b.cfg.BlockConfig, b.overrides, b.wal, b.enc)
-				nextCut = rec.Timestamp.Add(cutTime)
+				writer = newPartitionSectionWriter(b.logger, uint64(ps.partition), uint64(rec.Offset), rec.Timestamp, dur, b.cfg.WAL.IngestionSlack, b.cfg.BlockConfig, b.overrides, b.wal, b.enc)
 				init = true
 			}
 
-			if rec.Timestamp.After(nextCut) {
-				// Cut before appending this trace
-				err = writer.cutidle(rec.Timestamp.Add(-cutTime), false)
-				if err != nil {
-					return false, err
-				}
-				nextCut = rec.Timestamp.Add(cutTime)
+			if rec.Timestamp.After(end) {
+				break outer
 			}
 
 			err := b.pushTraces(rec.Timestamp, rec.Key, rec.Value, writer)
@@ -421,10 +418,6 @@ outer:
 			}
 			processedRecords++
 			lastRec = rec
-
-			if lastRec.Timestamp.After(end) {
-				break outer
-			}
 
 			if lastRec.Offset >= ps.endOffset-1 {
 				// We reached the end so break now and avoid another poll which is expected to be empty.
@@ -443,12 +436,6 @@ outer:
 			"start_offset", startOffset,
 		)
 		return false, nil
-	}
-
-	// Cut any remaining
-	err = writer.cutidle(time.Time{}, true)
-	if err != nil {
-		return false, err
 	}
 
 	err = writer.flush(ctx, b.writer)

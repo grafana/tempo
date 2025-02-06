@@ -23,16 +23,20 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/cristalhq/hedgedhttp"
+	gkLog "github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	google_http "google.golang.org/api/transport/http"
 
 	"github.com/grafana/tempo/pkg/blockboundary"
 	tempo_io "github.com/grafana/tempo/pkg/io"
+	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type readerWriter struct {
+	logger       gkLog.Logger
 	cfg          *Config
 	bucket       *storage.BucketHandle
 	hedgedBucket *storage.BucketHandle
@@ -100,6 +104,7 @@ func internalNew(cfg *Config, confirm bool) (*readerWriter, error) {
 	}
 
 	rw := &readerWriter{
+		logger:       log.Logger,
 		cfg:          cfg,
 		bucket:       bucket,
 		hedgedBucket: hedgedBucket,
@@ -118,14 +123,21 @@ func (rw *readerWriter) Write(ctx context.Context, name string, keypath backend.
 
 	w := rw.writer(derivedCtx, backend.ObjectFileName(keypath, name), nil)
 
-	_, err := io.Copy(w, data)
+	written, err := io.Copy(w, data)
 	if err != nil {
 		w.Close()
 		span.RecordError(err)
 		return fmt.Errorf("failed to write: %w", err)
 	}
 
-	return w.Close()
+	err = w.Close()
+	if err != nil {
+		return fmt.Errorf("failed to close: %w", err)
+	}
+
+	level.Debug(rw.logger).Log("msg", "object uploaded to gcs", "objectName", backend.ObjectFileName(keypath, name), "size", written)
+
+	return nil
 }
 
 // Append implements backend.Writer

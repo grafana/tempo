@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"runtime"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/dataquality"
 	tempo_io "github.com/grafana/tempo/pkg/io"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding/common"
@@ -37,49 +39,78 @@ func (b *backendWriter) Close() error {
 func CreateBlock(ctx context.Context, cfg *common.BlockConfig, meta *backend.BlockMeta, i common.Iterator, r backend.Reader, to backend.Writer) (*backend.BlockMeta, error) {
 	s := newStreamingBlock(ctx, cfg, meta, r, to, tempo_io.NewBufferedWriter)
 
-	var next func(context.Context) (common.ID, parquet.Row, error)
+	var next func(context.Context) error
 
 	if ii, ok := i.(*commonIterator); ok {
-		// Use interal iterator and avoid translation to/from proto
-		next = ii.NextRow
+		next = func(ctx context.Context) error {
+			// Use interal iterator and avoid translation to/from proto
+			id, row, err := ii.NextRow(ctx)
+			if err != nil {
+				return err
+			}
+			if row == nil {
+				return io.EOF
+			}
+			err = s.AddRaw(id, row, 0, 0) // start and end time of the wal meta are used.
+			if err != nil {
+				return err
+			}
+
+			completeBlockRowPool.Put(row)
+			return nil
+		}
 	} else {
 		// Need to convert from proto->parquet obj
-		trp := &Trace{}
-		sch := parquet.SchemaOf(trp)
-		next = func(context.Context) (common.ID, parquet.Row, error) {
+		var (
+			buffer      = &Trace{}
+			connected   bool
+			resMapping  = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource)
+			spanMapping = dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan)
+		)
+		next = func(context.Context) error {
 			id, tr, err := i.Next(ctx)
-			if errors.Is(err, io.EOF) || tr == nil {
-				return id, nil, err
+			if err != nil {
+				return err
+			}
+			if tr == nil {
+				return io.EOF
 			}
 
 			// Copy ID to allow it to escape the iterator.
 			id = append([]byte(nil), id...)
 
-			trp, _ = traceToParquet(meta, id, tr, trp) // this logic only executes when we are transitioning from one block version to another. just ignore connected here
+			buffer, connected = traceToParquetWithMapping(id, tr, buffer, resMapping, spanMapping)
+			if !connected {
+				dataquality.WarnDisconnectedTrace(meta.TenantID, dataquality.PhaseTraceWalToComplete)
+			}
+			if buffer.RootSpanName == "" {
+				dataquality.WarnRootlessTrace(meta.TenantID, dataquality.PhaseTraceWalToComplete)
+			}
 
-			row := sch.Deconstruct(completeBlockRowPool.Get(), trp)
+			err = s.Add(buffer, 0, 0) // start and end time are set outside
+			if err != nil {
+				return err
+			}
 
-			return id, row, nil
+			return nil
 		}
 	}
 
 	for {
-		id, row, err := next(ctx)
-		if errors.Is(err, io.EOF) || row == nil {
+		err := next(ctx)
+		if errors.Is(err, io.EOF) {
 			break
 		}
-
-		err = s.AddRaw(id, row, 0, 0) // start and end time of the wal meta are used.
 		if err != nil {
 			return nil, err
 		}
-		completeBlockRowPool.Put(row)
 
 		if s.EstimatedBufferedBytes() > cfg.RowGroupSizeBytes {
 			_, err = s.Flush()
 			if err != nil {
 				return nil, err
 			}
+			runtime.GC()
 		}
 	}
 

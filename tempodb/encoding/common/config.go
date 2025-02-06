@@ -57,7 +57,7 @@ func ValidateConfig(b *BlockConfig) error {
 		return fmt.Errorf("positive index page size required")
 	}
 
-	if b.BloomFP <= 0.0 {
+	if b.BloomFP <= 0.0 || b.BloomFP >= 1.0 {
 		return fmt.Errorf("invalid bloom filter fp rate %v", b.BloomFP)
 	}
 
