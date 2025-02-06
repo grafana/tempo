@@ -38,7 +38,10 @@
 
     rollout_operator_replica_template_access_enabled: true,
 
-    rollout_operator_enabled_groups: [],
+    // Automatically add groups based on enabled features
+    rollout_operator_enabled_groups+:: 
+      (if $._config.block_builder_concurrent_rollout_enabled then ['block-builder'] else []) +
+      (if $._config.multi_zone_ingester_enabled then ['ingester'] else []),
 
     assert !$._config.rollout_operator_enabled || std.length($._config.rollout_operator_enabled_groups) > 0 : 'rollout_operator_enabled_groups must be set if rollout_operator_enabled is true',
   },
@@ -65,8 +68,7 @@
     container.mixin.readinessProbe.httpGet.withPath('/ready') +
     container.mixin.readinessProbe.httpGet.withPort(8001) +
     container.mixin.readinessProbe.withInitialDelaySeconds(5) +
-    container.mixin.readinessProbe.withTimeoutSeconds(1) +
-    $.jaeger_mixin,
+    container.mixin.readinessProbe.withTimeoutSeconds(1),
 
   rollout_operator_deployment: if !$._config.rollout_operator_enabled then null else
     deployment.new('rollout-operator', 1, [$.rollout_operator_container]) +
