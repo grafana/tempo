@@ -102,7 +102,7 @@ This release disables gRPC compression in the querier and distributor for perfor
 Our benchmark suggests that without compression, queriers and distributors use less CPU and memory.
 
 {{< admonition type="note" >}}
-This change may increase data usage and network traffic, which can impact Grafana Cloud billing.
+This change may increase data usage and network traffic, which can impact cloud billing.
 {{< /admonition >}}
 
 If you notice increased network traffic or issues, check the gRPC compression settings.
