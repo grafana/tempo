@@ -51,10 +51,10 @@ func (l *LiveTraces[T]) Size() uint64 {
 }
 
 func (l *LiveTraces[T]) Push(traceID []byte, batch T, max uint64) bool {
-	return l.PushWithTimestamp(time.Now(), traceID, batch, max)
+	return l.PushWithTimestampAndLimits(time.Now(), traceID, batch, max, 0)
 }
 
-func (l *LiveTraces[T]) PushWithTimestamp(ts time.Time, traceID []byte, batch T, max uint64) bool {
+func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte, batch T, maxLiveTraces, maxTraceSize uint64) (exceededLimits bool) {
 	token := l.token(traceID)
 
 	tr := l.Traces[token]
@@ -62,7 +62,7 @@ func (l *LiveTraces[T]) PushWithTimestamp(ts time.Time, traceID []byte, batch T,
 
 		// Before adding this check against max
 		// Zero means no limit
-		if max > 0 && uint64(len(l.Traces)) >= max {
+		if maxLiveTraces > 0 && uint64(len(l.Traces)) >= maxLiveTraces {
 			return false
 		}
 
@@ -73,6 +73,12 @@ func (l *LiveTraces[T]) PushWithTimestamp(ts time.Time, traceID []byte, batch T,
 	}
 
 	sz := l.szFunc(batch)
+
+	// Before adding check against max trace size
+	if maxTraceSize > 0 && (tr.sz+sz > maxTraceSize) {
+		return false
+	}
+
 	tr.sz += sz
 	l.sz += sz
 

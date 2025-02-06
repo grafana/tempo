@@ -8,14 +8,18 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func getTenantStore(t *testing.T) (*tenantStore, error) {
-	logger := log.NewNopLogger()
-	blockCfg := BlockConfig{}
-	tmpDir := t.TempDir()
+func getTenantStore(t *testing.T, startTime time.Time, cycleDuration, slackDuration time.Duration) (*tenantStore, error) {
+	var (
+		logger      = log.NewNopLogger()
+		blockCfg    = BlockConfig{}
+		tmpDir      = t.TempDir()
+		partition   = uint64(1)
+		startOffset = uint64(1)
+	)
+
 	w, err := wal.New(&wal.Config{
 		Filepath:       tmpDir,
 		Encoding:       backend.EncNone,
@@ -23,58 +27,61 @@ func getTenantStore(t *testing.T) (*tenantStore, error) {
 		Version:        encoding.DefaultEncoding().Version(),
 	})
 	require.NoError(t, err)
-	return newTenantStore("test-tenant", 1, 1, blockCfg, logger, w, encoding.DefaultEncoding(), &mockOverrides{})
+	return newTenantStore("test-tenant", partition, startOffset, startTime, cycleDuration, slackDuration, blockCfg, logger, w, encoding.DefaultEncoding(), &mockOverrides{})
 }
 
 func TestAdjustTimeRangeForSlack(t *testing.T) {
-	store, err := getTenantStore(t)
-	require.NoError(t, err)
+	var (
+		startCycleTime = time.Now()
+		cycleDuration  = time.Minute
+		slackDuration  = 3 * time.Minute
+	)
 
-	startCycleTime := time.Now()
-	cycleDuration := 1 * time.Minute
+	store, err := getTenantStore(t, startCycleTime, cycleDuration, slackDuration)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name          string
-		start         uint32
-		end           uint32
-		expectedStart uint32
-		expectedEnd   uint32
+		start         time.Time
+		end           time.Time
+		expectedStart time.Time
+		expectedEnd   time.Time
 	}{
 		{
 			name:          "within slack range",
-			start:         uint32(startCycleTime.Add(-2 * time.Minute).Unix()),
-			end:           uint32(startCycleTime.Add(2 * time.Minute).Unix()),
-			expectedStart: uint32(startCycleTime.Add(-2 * time.Minute).Unix()),
-			expectedEnd:   uint32(startCycleTime.Add(2 * time.Minute).Unix()),
+			start:         startCycleTime.Add(-2 * time.Minute),
+			end:           startCycleTime.Add(2 * time.Minute),
+			expectedStart: startCycleTime.Add(-2 * time.Minute),
+			expectedEnd:   startCycleTime.Add(2 * time.Minute),
 		},
 		{
 			name:          "start before slack range",
-			start:         uint32(startCycleTime.Add(-10 * time.Minute).Unix()),
-			end:           uint32(startCycleTime.Add(2 * time.Minute).Unix()),
-			expectedStart: uint32(startCycleTime.Unix()),
-			expectedEnd:   uint32(startCycleTime.Add(2 * time.Minute).Unix()),
+			start:         startCycleTime.Add(-10 * time.Minute),
+			end:           startCycleTime.Add(2 * time.Minute),
+			expectedStart: startCycleTime,
+			expectedEnd:   startCycleTime.Add(2 * time.Minute),
 		},
 		{
 			name:          "end after slack range",
-			start:         uint32(startCycleTime.Add(-2 * time.Minute).Unix()),
-			end:           uint32(startCycleTime.Add(20 * time.Minute).Unix()),
-			expectedStart: uint32(startCycleTime.Add(-2 * time.Minute).Unix()),
-			expectedEnd:   uint32(startCycleTime.Unix()),
+			start:         startCycleTime.Add(-2 * time.Minute),
+			end:           startCycleTime.Add(20 * time.Minute),
+			expectedStart: startCycleTime.Add(-2 * time.Minute),
+			expectedEnd:   startCycleTime,
 		},
 		{
 			name:          "end before start",
-			start:         uint32(startCycleTime.Add(-2 * time.Minute).Unix()),
-			end:           uint32(startCycleTime.Add(-3 * time.Minute).Unix()),
-			expectedStart: uint32(startCycleTime.Add(-2 * time.Minute).Unix()),
-			expectedEnd:   uint32(startCycleTime.Unix()),
+			start:         startCycleTime.Add(-2 * time.Minute),
+			end:           startCycleTime.Add(-3 * time.Minute),
+			expectedStart: startCycleTime.Add(-2 * time.Minute),
+			expectedEnd:   startCycleTime,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			start, end := store.adjustTimeRangeForSlack(startCycleTime, cycleDuration, tt.start, tt.end)
-			assert.Equal(t, tt.expectedStart, start)
-			assert.Equal(t, tt.expectedEnd, end)
+			start, end := store.adjustTimeRangeForSlack(tt.start, tt.end)
+			require.Equal(t, tt.expectedStart, start)
+			require.Equal(t, tt.expectedEnd, end)
 		})
 	}
 }

@@ -13,11 +13,16 @@ import (
 )
 
 func getPartitionWriter(t *testing.T) *writer {
-	logger := log.NewNopLogger()
-	startTime := time.Now()
-	cycleDuration := 1 * time.Minute
-	blockCfg := BlockConfig{}
-	tmpDir := t.TempDir()
+	var (
+		logger        = log.NewNopLogger()
+		blockCfg      = BlockConfig{}
+		tmpDir        = t.TempDir()
+		partition     = uint64(1)
+		startOffset   = uint64(1)
+		startTime     = time.Now()
+		cycleDuration = time.Minute
+		slackDuration = time.Minute
+	)
 	w, err := wal.New(&wal.Config{
 		Filepath:       tmpDir,
 		Encoding:       backend.EncNone,
@@ -26,7 +31,7 @@ func getPartitionWriter(t *testing.T) *writer {
 	})
 	require.NoError(t, err)
 
-	return newPartitionSectionWriter(logger, 1, 1, startTime, cycleDuration, blockCfg, &mockOverrides{}, w, encoding.DefaultEncoding())
+	return newPartitionSectionWriter(logger, partition, startOffset, startTime, cycleDuration, slackDuration, blockCfg, &mockOverrides{}, w, encoding.DefaultEncoding())
 }
 
 func TestPushBytes(t *testing.T) {
