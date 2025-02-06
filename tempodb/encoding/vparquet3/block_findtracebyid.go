@@ -101,7 +101,7 @@ func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int,
 	return true, rowGroup, nil
 }
 
-func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opts common.SearchOptions) (_ *tempopb.Trace, err error) {
+func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opts common.SearchOptions) (_ *tempopb.TraceByIDResponse, err error) {
 	derivedCtx, span := tracer.Start(ctx, "parquet.backendBlock.FindTraceByID",
 		trace.WithAttributes(
 			attribute.String("blockID", b.meta.BlockID.String()),
@@ -137,7 +137,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	return findTraceByID(derivedCtx, traceID, b.meta, pf, rowGroup)
 }
 
-func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMeta, pf *parquet.File, rowGroup int) (*tempopb.Trace, error) {
+func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMeta, pf *parquet.File, rowGroup int) (*tempopb.TraceByIDResponse, error) {
 	// traceID column index
 	colIndex, _ := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
 	if colIndex == -1 {
@@ -265,7 +265,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 		return nil, fmt.Errorf("error reading row from backend: %w", err)
 	}
 	// convert to proto trace and return
-	return ParquetTraceToTempopbTrace(meta, tr), nil
+	return &tempopb.TraceByIDResponse{Trace: ParquetTraceToTempopbTrace(meta, tr), Metrics: &tempopb.TraceByIDMetrics{}}, nil
 }
 
 // binarySearch that finds exact matching entry. Returns non-zero index when found, or -1 when not found

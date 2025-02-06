@@ -336,7 +336,7 @@ type mockBlock struct {
 	meta *backend.BlockMeta
 }
 
-func (m *mockBlock) FindTraceByID(context.Context, common.ID, common.SearchOptions) (*tempopb.Trace, error) {
+func (m *mockBlock) FindTraceByID(context.Context, common.ID, common.SearchOptions) (*tempopb.TraceByIDResponse, error) {
 	return nil, nil
 }
 

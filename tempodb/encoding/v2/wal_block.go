@@ -250,7 +250,7 @@ func (a *walBlock) Clear() error {
 }
 
 // FindTraceByID Find implements common.Finder
-func (a *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
+func (a *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.SearchOptions) (*tempopb.TraceByIDResponse, error) {
 	_, span := tracer.Start(ctx, "v2WalBlock.FindTraceByID")
 	defer span.End()
 
@@ -286,7 +286,11 @@ func (a *walBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.Sea
 		return nil, err
 	}
 
-	return dec.PrepareForRead(bytes)
+	trace, err := dec.PrepareForRead(bytes)
+	return &tempopb.TraceByIDResponse{
+		Trace:   trace,
+		Metrics: &tempopb.TraceByIDMetrics{},
+	}, err
 }
 
 // Search implements common.Searcher
