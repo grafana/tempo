@@ -48,7 +48,7 @@ If you want something faster than typing these queries out in Explore's code mod
 
 ## Activate metrics summary
 
-To enable the (deprecated) metrics summary API, you must turn on the local blocks processor in the metrics generator.
+To enable the deprecated) metrics summary API, you must turn on the local blocks processor in the metrics generator.
 Be aware that the generator uses considerably more resources, including disk space, if it's enabled:
 
 ```yaml
@@ -121,7 +121,7 @@ message TraceQLStatic {
 The response is returned as JSON following [standard protobuf->JSON mapping rules](https://protobuf.dev/programming-guides/proto3/#json).
 
 {{< admonition type="note" >}}
-The `uint64` fields cannot be fully expressed by JSON numeric values so the fields are serialized as strings.
+The `uint64` fields can't be fully expressed by JSON numeric values so the fields are serialized as strings.
 {{< /admonition >}}
 
 Example:
@@ -152,8 +152,8 @@ Example:
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `summaries`       | The list of metrics per group.                                                                                                                                                                                                                                                                     |
 | `.spanCount`      | Number of spans in this group.                                                                                                                                                                                                                                                                     |
-| `.errorSpanCount` | Number of spans with `status`=`error`. (This field will not be present if the value is `0`.)                                                                                                                                                                                                        |
-| `.series`         | The unique values for this group. A key/value pair will be returned for each entry in `groupBy`.                                                                                                                                                                                                   |
+| `.errorSpanCount` | Number of spans with `status`=`error`. (This field isn't present if the value is `0`.)                                                                                                                                                                                                        |
+| `.series`         | The unique values for this group. A key/value pair is returned for each entry in `groupBy`.                                                                                                                                                                                                   |
 | `.key`            | Key name.                                                                                                                                                                                                                                                                                          |
 | `.value`          | Value with TraceQL underlying type.                                                                                                                                                                                                                                                                |
 | `.type`           | Data type `enum`` defined [here](https://github.com/grafana/tempo/blob/main/pkg/traceql/enum_statics.go#L8) (This field will not be present if the value is `0`.) <br/>0 = `nil`<br/>3 = `integer`<br/> 4 = `float` <br/> 5 = `string`<br/> 6 = `bool`<br/> 7 = `duration`<br/> 8 = span status<br/> 9 = span kind |
