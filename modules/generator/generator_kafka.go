@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/prometheus/client_golang/prometheus"
