@@ -194,7 +194,7 @@ func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, de
 }
 
 func (i *instance) updateProcessors() error {
-	desiredProcessors := i.overrides.MetricsGeneratorProcessors(i.instanceID)
+	desiredProcessors := i.filterDisabledProcessors(i.overrides.MetricsGeneratorProcessors(i.instanceID))
 	desiredCfg, err := i.cfg.Processor.copyWithOverrides(i.overrides, i.instanceID)
 	if err != nil {
 		return err
@@ -244,6 +244,22 @@ func (i *instance) updateProcessors() error {
 	i.updateProcessorMetrics()
 
 	return nil
+}
+
+// filterDisabledProcessors removes processors that should never be instantiated
+// according to the generator's configuration from the given set of processors.
+func (i *instance) filterDisabledProcessors(processors map[string]struct{}) map[string]struct{} {
+	// If we're joining the ring and serving queries we need all processors
+	// instantiated.
+	if i.cfg.JoinRing {
+		return processors
+	}
+
+	// Otherwise, we need to not instantiate the localblocks processor.
+	filteredProcessors := maps.Clone(processors)
+	delete(filteredProcessors, localblocks.Name)
+
+	return filteredProcessors
 }
 
 // diffProcessors compares the existing processors with the desired processors and config.
