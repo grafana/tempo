@@ -32,6 +32,10 @@ const (
 	// in the worst case scenario, which is expected to be way above the actual one.
 	maxProducerRecordDataBytesLimit = producerBatchMaxBytes - 16384
 	minProducerRecordDataBytesLimit = 1024 * 1024
+
+	// PartitionRingKey is the key under which we store the partitions ring used by the "ingest storage".
+	PartitionRingKey  = "ingester-partitions"
+	PartitionRingName = "ingester-partitions"
 )
 
 var (
@@ -44,12 +48,14 @@ var (
 )
 
 type Config struct {
-	Enabled bool        `yaml:"enabled"`
-	Kafka   KafkaConfig `yaml:"kafka"`
+	Enabled         bool        `yaml:"enabled"`
+	Kafka           KafkaConfig `yaml:"kafka"`
+	OverrideRingKey string      `yaml:"override_ring_key"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(_ string, f *flag.FlagSet) {
 	cfg.Kafka.RegisterFlags(f)
+	cfg.OverrideRingKey = PartitionRingKey
 }
 
 func (cfg *Config) Validate() error {

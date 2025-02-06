@@ -77,6 +77,7 @@ type Generator struct {
 	partitionRing      ring.PartitionRingReader
 	partitionMtx       sync.RWMutex
 	assignedPartitions []int32
+	codec              codec
 }
 
 // New makes a new Generator.
@@ -106,31 +107,42 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 		logger:        logger,
 	}
 
-	// Lifecycler and ring
-	ringStore, err := kv.NewClient(
-		cfg.Ring.KVStore,
-		ring.GetCodec(),
-		kv.RegistererWithKVName(prometheus.WrapRegistererWithPrefix("tempo_", reg), "metrics-generator"),
-		g.logger,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("create KV store client: %w", err)
+	if cfg.JoinRing {
+		// Lifecycler and ring
+		ringStore, err := kv.NewClient(
+			cfg.Ring.KVStore,
+			ring.GetCodec(),
+			kv.RegistererWithKVName(prometheus.WrapRegistererWithPrefix("tempo_", reg), "metrics-generator"),
+			g.logger,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("create KV store client: %w", err)
+		}
+
+		lifecyclerCfg, err := cfg.Ring.toLifecyclerConfig()
+		if err != nil {
+			return nil, fmt.Errorf("invalid ring lifecycler config: %w", err)
+		}
+
+		// Define lifecycler delegates in reverse order (last to be called defined first because they're
+		// chained via "next delegate").
+		delegate := ring.BasicLifecyclerDelegate(g)
+		delegate = ring.NewLeaveOnStoppingDelegate(delegate, g.logger)
+		delegate = ring.NewAutoForgetDelegate(ringAutoForgetUnhealthyPeriods*cfg.Ring.HeartbeatTimeout, delegate, g.logger)
+
+		g.ringLifecycler, err = ring.NewBasicLifecycler(lifecyclerCfg, ringNameForServer, cfg.OverrideRingKey, ringStore, delegate, g.logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
+		if err != nil {
+			return nil, fmt.Errorf("create ring lifecycler: %w", err)
+		}
 	}
 
-	lifecyclerCfg, err := cfg.Ring.toLifecyclerConfig()
-	if err != nil {
-		return nil, fmt.Errorf("invalid ring lifecycler config: %w", err)
-	}
-
-	// Define lifecycler delegates in reverse order (last to be called defined first because they're
-	// chained via "next delegate").
-	delegate := ring.BasicLifecyclerDelegate(g)
-	delegate = ring.NewLeaveOnStoppingDelegate(delegate, g.logger)
-	delegate = ring.NewAutoForgetDelegate(ringAutoForgetUnhealthyPeriods*cfg.Ring.HeartbeatTimeout, delegate, g.logger)
-
-	g.ringLifecycler, err = ring.NewBasicLifecycler(lifecyclerCfg, ringNameForServer, cfg.OverrideRingKey, ringStore, delegate, g.logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
-	if err != nil {
-		return nil, fmt.Errorf("create ring lifecycler: %w", err)
+	switch cfg.Codec {
+	case codecTempo:
+		g.codec = newTempoDecoder()
+	case codecOTLP:
+		g.codec = newOTLPDecoder()
+	default:
+		return nil, fmt.Errorf("invalid codec: %s", cfg.Codec)
 	}
 
 	g.Service = services.NewBasicService(g.starting, g.running, g.stopping)
@@ -151,16 +163,18 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 		}
 	}()
 
-	g.subservices, err = services.NewManager(g.ringLifecycler)
-	if err != nil {
-		return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
-	}
-	g.subservicesWatcher = services.NewFailureWatcher()
-	g.subservicesWatcher.WatchManager(g.subservices)
+	if g.cfg.JoinRing {
+		g.subservices, err = services.NewManager(g.ringLifecycler)
+		if err != nil {
+			return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
+		}
+		g.subservicesWatcher = services.NewFailureWatcher()
+		g.subservicesWatcher.WatchManager(g.subservices)
 
-	err = services.StartManagerAndAwaitHealthy(ctx, g.subservices)
-	if err != nil {
-		return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
+		err = services.StartManagerAndAwaitHealthy(ctx, g.subservices)
+		if err != nil {
+			return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
+		}
 	}
 
 	if g.cfg.Ingest.Enabled {
@@ -369,6 +383,10 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 }
 
 func (g *Generator) CheckReady(_ context.Context) error {
+	if !g.cfg.JoinRing {
+		return nil
+	}
+
 	if !g.ringLifecycler.IsRegistered() {
 		return fmt.Errorf("metrics-generator check ready failed: not registered in the ring")
 	}
