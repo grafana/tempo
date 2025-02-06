@@ -139,6 +139,11 @@ If `span.foo` is an array and contains the value `bar`, then it will be found by
 { span.foo = "bar" }
 ```
 
+You can use regular expressions to match multiple values of array `{span.http.request.header.Accept=~"application.*"}` and get all values of the array with `.*` regular expression.
+
+```
+{span.http.request.header.Accept=~".*"}
+```
 
 ### Use structural operators
 
