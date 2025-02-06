@@ -11,7 +11,7 @@ weight: 250
 
 # Size the cluster
 
-Resource requirements for your Grafana Tempo cluster depend on the amount and rate of data processed, retained, and queried.
+Resource requirements for your Grafana Tempo cluster depend on the amount and rate of data processed, retained, and queried. 
 
 This document provides basic configuration guidelines that you can use as a starting point to help size your own deployment.
 
