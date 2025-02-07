@@ -181,9 +181,11 @@ func (e *Engine) ExecuteTagValues(
 	// I.e. we are autocompleting resource.service.name and the query was {resource.service.name="foo"}
 	for _, c := range autocompleteReq.Conditions {
 		if c.Attribute == tag && c.Op == OpEqual {
-			// If the tag is already filtered in the query, then we can just return the operand
-			// as the only value.
-			cb(c.Operands[0])
+			// If the tag is already filtered in the query,
+			// then we can just return the operand as the only value.
+			if len(c.Operands) > 0 {
+				cb(c.Operands[0])
+			}
 			return nil
 		}
 	}
