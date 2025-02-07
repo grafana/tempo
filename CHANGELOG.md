@@ -32,7 +32,8 @@
 * [BUGFIX] TraceQL incorrect results for additional spanset filters after a select operation [#4600](https://github.com/grafana/tempo/pull/4600) (@mdisibio)
 * [BUGFIX] TraceQL results caching bug for floats ending in .0 [#4539](https://github.com/grafana/tempo/pull/4539) (@carles-grafana)
 * [BUGFIX] Fix metrics streaming for all non-trivial metrics [#4624](https://github.com/grafana/tempo/pull/4624) (@joe-elliott)
-* [BUGFIX] Fix starting consuming log [#4539](https://github.com/grafana/tempo/pull/46299) (@javiermolinar)
+* [BUGFIX] Fix starting consuming log [#4539](https://github.com/grafana/tempo/pull/4539) (@javiermolinar)
+* [BUGFIX] Return the operand as the only value if the tag is already filtered in the query [#4673](https://github.com/grafana/tempo/pull/4673) (@mapno)
 
 # v2.7.0
 

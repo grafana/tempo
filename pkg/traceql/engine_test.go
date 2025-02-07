@@ -670,7 +670,7 @@ func TestExecuteTagValues(t *testing.T) {
 			name:           "noop", // autocompleting an attribute already filtered by the query
 			attribute:      "name",
 			query:          `{ name = "foo" }`,
-			expectedValues: []tempopb.TagValue{},
+			expectedValues: []tempopb.TagValue{{Type: "string", Value: "foo"}},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
