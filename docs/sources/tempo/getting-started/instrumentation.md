@@ -3,7 +3,7 @@ title: Instrument for distributed tracing
 menuTitle: Instrument for tracing
 description: Client instrumentation is the first building block to a functioning distributed tracing visualization pipeline.
 aliases:
-../guides/instrumentation/ # /docs/tempo/latest/guides/instrumentation/
+- ../guides/instrumentation/ # /docs/tempo/latest/guides/instrumentation/
 weight: 200
 ---
 

@@ -13,4 +13,4 @@ Use the latest versions for best compatibility and stability.
 [//]: # 'Shared content for best practices for traces'
 [//]: # 'This content is located in /tempo/docs/sources/shared/tempo-in-grafana.md'
 
-{{< docs/shared source="tempo" lookup="tempo-in-grafana.md" version="<TEMPO_VERSION>" >}}
+{{< docs/shared source="tempo" lookup="tempo-in-grafana.md" version="latest" >}}
