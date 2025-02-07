@@ -3,7 +3,7 @@ title: Instrument for distributed tracing
 menuTitle: Instrument for tracing
 description: Client instrumentation is the first building block to a functioning distributed tracing visualization pipeline.
 aliases:
-- /docs/tempo/<TEMPO_VERSION>/guides/instrumentation/
+../guides/instrumentation/ # /docs/tempo/latest/guides/instrumentation/
 weight: 200
 ---
 
@@ -32,7 +32,7 @@ For more information refer to [OpenTelemetry overview](https://grafana.com/oss/o
 
 ### Auto-instrumentation frameworks
 
-OpenTelemetry provides auto-instrumentation agents and libraries of Java, dotNet, Python, Go, and JavaScript applications, among others.
+OpenTelemetry provides auto-instrumentation agents and libraries of Java, .NET, Python, Go, and JavaScript applications, among others.
 For more information, refer for the [OpenTelemetry Instrumentation documentation](https://opentelemetry.io/docs/instrumentation/).
 
 These libraries capture telemetry
