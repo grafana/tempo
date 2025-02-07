@@ -21,7 +21,7 @@ refs:
       destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/deployment/
     - pattern: /docs/enterprise-traces/
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/setup/hardware-requirements/
-  config-alloy:
+  configure-alloy:
     - pattern: /docs/tempo/
       destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/
     - pattern: /docs/enterprise-traces/
@@ -38,11 +38,11 @@ For more information about traces, refer to [Introduction to traces](https://gra
 
 Getting started with Tempo is follows these basic steps.
 
-First, check out the [examples][examples] for ideas on how to get started.
+First, check out the [examples](ref:examples) for ideas on how to get started.
 
-Next, review the [Setup documentation][setup] for step-by-step instructions.
+Next, review the [Setup documentation](ref:setup) for step-by-step instructions.
 
-Tempo offers different deployment options, depending on your needs. Refer to the [plan your deployment][deploy] section for more information.
+Tempo offers different deployment options, depending on your needs. Refer to the [plan your deployment](ref:deploy) section for more information.
 
 {{< admonition type="note" >}}
 Grafana Alloy is already set up to use Tempo.
@@ -79,13 +79,13 @@ offloads spans from your application, buffers them, and forwards them to a backe
 Tracing pipelines are optional since most clients can send directly to Tempo.
 The pipelines become more critical the larger and more robust your tracing system is.
 
-Grafana Alloy is a service that is deployed close to the application, either on the same node or
+Grafana Alloy is a service that's deployed close to the application, either on the same node or
 within the same cluster (in Kubernetes) to quickly offload traces from the application and forward them to
 a storage backend.
 Alloy also abstracts features like trace batching to a remote trace backend store, including retries on write failures.
 
 To learn more about Grafana Alloy and how to set it up for tracing with Tempo,
-refer to [Grafana Alloy configuration for tracing][configure-alloy].
+refer to [Grafana Alloy configuration for tracing](ref:configure-alloy).
 
 {{< admonition type="note" >}}
 The [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector) / [Jaeger Agent](https://www.jaegertracing.io/docs/latest/deployment/) can also be used at the agent layer.

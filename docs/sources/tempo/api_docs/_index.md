@@ -3,6 +3,12 @@ title: Tempo HTTP API
 description: Grafana Tempo exposes an API for pushing and querying traces, and operating the cluster itself.
 menuTitle: API
 weight: 800
+refs:
+  push-spans-http:
+    - pattern: /docs/tempo/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/pushing-spans-with-http/
+    - pattern: /docs/enterprise-traces/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/pushing-spans-with-http/
 ---
 
 # Tempo HTTP API
@@ -105,7 +111,7 @@ Agent, OpenTelemetry Collector, or Jaeger Agent.
 |  Jaeger | gRPC | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
 |  Zipkin | HTTP | [Link](https://zipkin.io/zipkin-api/) |
 
-For information on how to use the Zipkin endpoint with curl (for debugging purposes), refer to [Pushing spans with HTTP](./pushing-spans-with-http).
+For information on how to use the Zipkin endpoint with curl (for debugging purposes), refer to [Pushing spans with HTTP](ref:push-spans-http).
 
 ### Query
 
