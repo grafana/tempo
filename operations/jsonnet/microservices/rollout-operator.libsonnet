@@ -39,7 +39,7 @@
     rollout_operator_replica_template_access_enabled: true,
 
     // Automatically add groups based on enabled features
-    rollout_operator_enabled_groups+:: 
+    rollout_operator_enabled_groups+::
       (if $._config.block_builder_concurrent_rollout_enabled then ['block-builder'] else []) +
       (if $._config.multi_zone_ingester_enabled then ['ingester'] else []),
 
