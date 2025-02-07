@@ -13,6 +13,7 @@
       metrics_generator: 'metrics-generator',
       distributor: 'distributor',
       compactor: 'compactor',
+      block_builder: 'block-builder',
     },
     alerts: {
       compactions_per_hour_failed: 2,

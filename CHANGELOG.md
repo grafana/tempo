@@ -25,6 +25,7 @@
 * [ENHANCEMENT] Improve block-builder performance by not using WAL stage [#4647](https://github.com/grafana/tempo/pull/4647) [#4671](https://github.com/grafana/tempo/pull/4671) (@mdisibio)
 * [ENHANCEMENT] Export new `tempo_ingest_group_partition_lag` metric from block-builders and metrics-generators [#4571](https://github.com/grafana/tempo/pull/4571) (@mdisibio)
 * [ENHANCEMENT] Use distroless base container images for improved security [#4556](https://github.com/grafana/tempo/pull/4556) (@carles-grafana)
+* [ENHANCEMENT] rythm: add block builder to resources dashboard[#4556](https://github.com/grafana/tempo/pull/4669) (@javiermolinar)
 * [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. [#4546](https://github.com/grafana/tempo/pull/4576) (@joe-elliott)
   Correctly copy exemplars for metrics like `| rate()` when gRPC streaming.
 * [BUGFIX] Fix performance bottleneck and file cleanup in block builder [#4550](https://github.com/grafana/tempo/pull/4550) (@mdisibio)
