@@ -191,7 +191,6 @@ type chEntry struct {
 
 type liveTracesIter struct {
 	mtx        sync.Mutex
-	entries    []entry
 	liveTraces *livetraces.LiveTraces[[]byte]
 	ch         chan []chEntry
 	chBuf      []chEntry
@@ -200,20 +199,9 @@ type liveTracesIter struct {
 }
 
 func newLiveTracesIter(liveTraces *livetraces.LiveTraces[[]byte]) *liveTracesIter {
-	// Get the list of all traces sorted by ID
-	tids := make([]entry, 0, len(liveTraces.Traces))
-	for hash, t := range liveTraces.Traces {
-		tids = append(tids, entry{t.ID, hash})
-	}
-
-	slices.SortFunc(tids, func(a, b entry) int {
-		return bytes.Compare(a.id, b.id)
-	})
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	l := &liveTracesIter{
-		entries:    tids,
 		liveTraces: liveTraces,
 		ch:         make(chan []chEntry, 1),
 		cancel:     cancel,
@@ -254,16 +242,16 @@ func (i *liveTracesIter) iter(ctx context.Context) {
 	defer close(i.ch)
 
 	// Get the list of all traces sorted by ID
-	tids := make([]entry, 0, len(i.liveTraces.Traces))
+	entries := make([]entry, 0, len(i.liveTraces.Traces))
 	for hash, t := range i.liveTraces.Traces {
-		tids = append(tids, entry{t.ID, hash})
+		entries = append(entries, entry{t.ID, hash})
 	}
-	slices.SortFunc(tids, func(a, b entry) int {
+	slices.SortFunc(entries, func(a, b entry) int {
 		return bytes.Compare(a.id, b.id)
 	})
 
 	// Begin sending to channel in chunks to reduce channel overhead.
-	seq := slices.Chunk(i.entries, 10)
+	seq := slices.Chunk(entries, 10)
 	for entries := range seq {
 		output := make([]chEntry, 0, len(entries))
 
