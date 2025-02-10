@@ -2008,10 +2008,20 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 						return nil, fmt.Errorf("creating predicate: %w", err)
 					}
 					if pred != nil {
-						subIters = append(subIters, makeIter(columnPathResourceAttrDouble, pred, cond.Attribute.Name))
+						subIters = append(subIters,
+							parquetquery.NewJoinIterator(
+								DefinitionLevelResourceSpansILSSpanAttrs,
+								[]parquetquery.Iterator{
+									makeIter(columnPathSpanAttrKey, parquetquery.NewStringInPredicate([]string{cond.Attribute.Name}), "key"),
+									makeIter(columnPathSpanAttrDouble, pred, "float"),
+								},
+								&attributeCollector{},
+								parquetquery.WithPool(pqAttrPool),
+							),
+						)
 					}
 				}
-				if unionItr := unionIfNeeded(DefinitionLevelResourceSpansILSSpan, subIters, nil); unionItr != nil {
+				if unionItr := unionIfNeeded(DefinitionLevelResourceSpansILSSpanAttrs, subIters, nil); unionItr != nil {
 					iters = append(iters, unionItr)
 				}
 
