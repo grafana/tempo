@@ -42,6 +42,7 @@ linters:
     - copyloopvar
     - intrange
     - execinquery
+    - nakedret
 
 linters-settings:
   govet:

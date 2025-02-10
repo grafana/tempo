@@ -91,7 +91,7 @@ func New(grammar any, options ...Option) (*Kong, error) {
 		},
 	}
 
-	options = append(options, Bind(k))
+	options = append(options, Bind(k), Resolvers(EnvResolver()))
 
 	for _, option := range options {
 		if err := option.Apply(k); err != nil {
