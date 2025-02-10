@@ -20,8 +20,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const configQueryRange = "config-query-range.yaml"
-const configQueryRangeMaxSeries = "config-query-range-max-series.yaml"
+const (
+	configQueryRange          = "config-query-range.yaml"
+	configQueryRangeMaxSeries = "config-query-range-max-series.yaml"
+)
 
 // Set debugMode to true to print the response body
 var debugMode = false

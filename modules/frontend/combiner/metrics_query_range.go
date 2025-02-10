@@ -16,7 +16,7 @@ var _ GRPCCombiner[*tempopb.QueryRangeResponse] = (*genericCombiner[*tempopb.Que
 
 // NewQueryRange returns a query range combiner.
 func NewQueryRange(req *tempopb.QueryRangeRequest, maxSeries int) (Combiner, error) {
-	combiner, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeFinal)
+	combiner, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeFinal, maxSeries)
 	if err != nil {
 		return nil, err
 	}
