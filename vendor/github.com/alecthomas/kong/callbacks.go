@@ -81,57 +81,44 @@ func getMethod(value reflect.Value, name string) reflect.Value {
 // and any embedded fields.
 //
 // Returns a slice of bound methods that can be called directly.
-func getMethods(value reflect.Value, name string) []reflect.Value {
-	// Traverses embedded fields of the struct
-	// starting from the given value to collect all possible receivers
-	// for the given method name.
-	var traverse func(value reflect.Value, receivers []reflect.Value) []reflect.Value
-	traverse = func(value reflect.Value, receivers []reflect.Value) []reflect.Value {
-		// Always consider the current value for hooks.
-		receivers = append(receivers, value)
-
-		if value.Kind() == reflect.Ptr {
-			value = value.Elem()
-		}
-
-		// If the current value is a struct, also consider embedded fields.
-		// Two kinds of embedded fields are considered if they're exported:
-		//
-		//   - standard Go embedded fields
-		//   - fields tagged with `embed:""`
-		if value.Kind() == reflect.Struct {
-			t := value.Type()
-			for i := 0; i < value.NumField(); i++ {
-				fieldValue := value.Field(i)
-				field := t.Field(i)
-
-				if !field.IsExported() {
-					continue
-				}
-
-				// Consider a field embedded if it's actually embedded
-				// or if it's tagged with `embed:""`.
-				_, isEmbedded := field.Tag.Lookup("embed")
-				isEmbedded = isEmbedded || field.Anonymous
-				if isEmbedded {
-					receivers = traverse(fieldValue, receivers)
-				}
-			}
-		}
-
-		return receivers
+func getMethods(value reflect.Value, name string) (methods []reflect.Value) {
+	if value.Kind() == reflect.Ptr {
+		value = value.Elem()
+	}
+	if !value.IsValid() {
+		return
 	}
 
-	receivers := traverse(value, nil /* receivers */)
+	if method := getMethod(value, name); method.IsValid() {
+		methods = append(methods, method)
+	}
 
-	// Search all receivers for methods
-	var methods []reflect.Value
-	for _, receiver := range receivers {
-		if method := getMethod(receiver, name); method.IsValid() {
-			methods = append(methods, method)
+	if value.Kind() != reflect.Struct {
+		return
+	}
+	// If the current value is a struct, also consider embedded fields.
+	// Two kinds of embedded fields are considered if they're exported:
+	//
+	//   - standard Go embedded fields
+	//   - fields tagged with `embed:""`
+	t := value.Type()
+	for i := 0; i < value.NumField(); i++ {
+		fieldValue := value.Field(i)
+		field := t.Field(i)
+
+		if !field.IsExported() {
+			continue
+		}
+
+		// Consider a field embedded if it's actually embedded
+		// or if it's tagged with `embed:""`.
+		_, isEmbedded := field.Tag.Lookup("embed")
+		isEmbedded = isEmbedded || field.Anonymous
+		if isEmbedded {
+			methods = append(methods, getMethods(fieldValue, name)...)
 		}
 	}
-	return methods
+	return
 }
 
 func callFunction(f reflect.Value, bindings bindings) error {

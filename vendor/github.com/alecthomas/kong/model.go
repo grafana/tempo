@@ -3,7 +3,6 @@ package kong
 import (
 	"fmt"
 	"math"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -377,19 +376,6 @@ func (v *Value) ApplyDefault() error {
 // Does not include resolvers.
 func (v *Value) Reset() error {
 	v.Target.Set(reflect.Zero(v.Target.Type()))
-	if len(v.Tag.Envs) != 0 {
-		for _, env := range v.Tag.Envs {
-			envar, ok := os.LookupEnv(env)
-			// Parse the first non-empty ENV in the list
-			if ok {
-				err := v.Parse(ScanFromTokens(Token{Type: FlagValueToken, Value: envar}), v.Target)
-				if err != nil {
-					return fmt.Errorf("%s (from envar %s=%q)", err, env, envar)
-				}
-				return nil
-			}
-		}
-	}
 	if v.HasDefault {
 		return v.Parse(ScanFromTokens(Token{Type: FlagValueToken, Value: v.Default}), v.Target)
 	}
