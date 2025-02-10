@@ -3,7 +3,7 @@
     tempo: 'grafana/tempo:latest',
     tempo_query: 'grafana/tempo-query:latest',
     tempo_vulture: 'grafana/tempo-vulture:latest',
-    rollout_operator: 'grafana/rollout-operator:v0.1.1',
+    rollout_operator: 'grafana/rollout-operator:v0.23.0',
     memcached: 'memcached:1.6.32-alpine',
     memcachedExporter: 'prom/memcached-exporter:v0.14.3',
   },
@@ -17,6 +17,13 @@
     variables_expansion_env_mixin: null,
     node_selector: null,
     ingester_allow_multiple_replicas_on_same_node: false,
+
+    // Enable concurrent rollout of block-builder through the usage of the rollout operator.
+    // This feature modifies the block-builder StatefulSet which cannot be altered, so if it already exists it has to be deleted and re-applied again in order to be enabled.
+    block_builder_concurrent_rollout_enabled: false,
+    // Maximum number of unavailable replicas during a block-builder rollout when using block_builder_concurrent_rollout_enabled feature.
+    // Computed from block-builder replicas by default, but can also be specified as percentage, for example "25%".
+    block_builder_max_unavailable: $.tempo_block_builder_statefulset.spec.replicas,
 
     // disable tempo-query by default
     tempo_query: {
