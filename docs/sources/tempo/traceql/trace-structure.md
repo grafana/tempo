@@ -18,7 +18,7 @@ The differences being inherent to the very nature of searching spans and traces.
 [//]: # 'Shared content for best practices for traces'
 [//]: # 'This content is located in /tempo/docs/sources/shared/trace-structure.md'
 
-{{< docs/shared source="tempo" lookup="trace-structure.md" version="latest" >}}
+{{< docs/shared source="tempo" lookup="trace-structure.md" version="<TEMPO_VERSION>" >}}
 
 ## TraceQL queries
 
