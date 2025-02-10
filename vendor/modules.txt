@@ -4,8 +4,8 @@ cloud.google.com/go/internal
 cloud.google.com/go/internal/optional
 cloud.google.com/go/internal/trace
 cloud.google.com/go/internal/version
-# cloud.google.com/go/auth v0.14.0
-## explicit; go 1.22
+# cloud.google.com/go/auth v0.14.1
+## explicit; go 1.22.7
 cloud.google.com/go/auth
 cloud.google.com/go/auth/credentials
 cloud.google.com/go/auth/credentials/internal/externalaccount
@@ -2003,8 +2003,8 @@ gonum.org/v1/gonum/lapack
 gonum.org/v1/gonum/lapack/gonum
 gonum.org/v1/gonum/lapack/lapack64
 gonum.org/v1/gonum/mat
-# google.golang.org/api v0.219.0
-## explicit; go 1.22
+# google.golang.org/api v0.220.0
+## explicit; go 1.22.7
 google.golang.org/api/googleapi
 google.golang.org/api/googleapi/transport
 google.golang.org/api/iamcredentials/v1
@@ -2029,7 +2029,7 @@ google.golang.org/genproto/googleapis/type/expr
 google.golang.org/genproto/googleapis/api
 google.golang.org/genproto/googleapis/api/annotations
 google.golang.org/genproto/googleapis/api/httpbody
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20250124145028-65684f501c47
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20250127172529-29210b9bc287
 ## explicit; go 1.22
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails
