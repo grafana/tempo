@@ -336,16 +336,17 @@ type QueryRangeCombiner struct {
 	seriesUpdated map[string]tsRange
 }
 
-func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode) (*QueryRangeCombiner, error) {
+func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode, maxSeries int) (*QueryRangeCombiner, error) {
 	eval, err := NewEngine().CompileMetricsQueryRangeNonRaw(req, mode)
 	if err != nil {
 		return nil, err
 	}
 
 	return &QueryRangeCombiner{
-		req:     req,
-		eval:    eval,
-		metrics: &tempopb.SearchMetrics{},
+		req:       req,
+		eval:      eval,
+		maxSeries: maxSeries,
+		metrics:   &tempopb.SearchMetrics{},
 	}, nil
 }
 
