@@ -32,13 +32,16 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 		return nil, fmt.Errorf("error finding generators in Querier.queryRangeRecent: %w", err)
 	}
 
-	c, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeSum)
+	c, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeSum, q.cfg.Metrics.MaxResponseSeries)
 	if err != nil {
 		return nil, err
 	}
 
 	mtx := sync.Mutex{} // combiner doesn't lock, so take lock before calling Combine to make is safe
 	forEach := func(ctx context.Context, client tempopb.MetricsGeneratorClient) error {
+		if c.MaxSeriesReached() {
+			return nil
+		}
 		resp, err := client.QueryRange(ctx, req)
 		if err != nil {
 			return err

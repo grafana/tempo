@@ -43,6 +43,9 @@ type MetricsConfig struct {
 	// between 0.0 and 1.0.  If a block overlaps the time window by less than this value,
 	// then we skip the columns. A value of 1.0 will always load the columns, and 0.0 never.
 	TimeOverlapCutoff float64 `yaml:"time_overlap_cutoff,omitempty"`
+
+	// Max series in a response before bailing for a query range query
+	MaxResponseSeries int `yaml:"max_response_series,omitempty"`
 }
 
 // RegisterFlagsAndApplyDefaults register flags.
@@ -54,6 +57,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Search.QueryTimeout = 30 * time.Second
 	cfg.Metrics.ConcurrentBlocks = 2
 	cfg.Metrics.TimeOverlapCutoff = 0.2
+	cfg.Metrics.MaxResponseSeries = 1000
 	cfg.Worker = worker.Config{
 		MatchMaxConcurrency:   true,
 		MaxConcurrentRequests: cfg.MaxConcurrentQueries,
