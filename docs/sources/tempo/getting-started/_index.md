@@ -1,26 +1,48 @@
 ---
-title: Get started with Grafana Tempo
+title: Get started
 menuTitle: Get started
 description: Learn about Tempo architecture, concepts, and first steps.
 weight: 200
 aliases:
 - /docs/tempo/getting-started
+refs:
+  examples:
+    - pattern: /docs/tempo/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/getting-started/example-demo-app/
+    - pattern: /docs/enterprise-traces/
+      destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/setup/
+  setup:
+    - pattern: /docs/tempo/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/
+    - pattern: /docs/enterprise-traces/
+      destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/setup/
+  deploy:
+    - pattern: /docs/tempo/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/deployment/
+    - pattern: /docs/enterprise-traces/
+      destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/setup/hardware-requirements/
+  configure-alloy:
+    - pattern: /docs/tempo/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/
+    - pattern: /docs/enterprise-traces/
+      destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/setup/set-up-get-tenants/
 ---
 
-# Get started with Grafana Tempo
+# Get started
 
 Grafana Tempo is an open source, easy-to-use, and high-scale distributed tracing backend. Tempo lets you search for traces, generate metrics from spans, and link your tracing data with logs and metrics.
+Grafana Tempo also powers Grafana Cloud Traces and Grafana Enterprise Traces.
 
 Distributed tracing visualizes the lifecycle of a request as it passes through a set of applications.
 For more information about traces, refer to [Introduction to traces](https://grafana.com/docs/tempo/<TEMPO_VERSION>/introduction/).
 
 Getting started with Tempo is follows these basic steps.
 
-First, check out the [examples](https://grafana.com/docs/tempo/<TEMPO_VERSION>/getting-started/example-demo-app/) for ideas on how to get started with Tempo.
+First, check out the [examples](ref:examples) for ideas on how to get started.
 
-Next, review the [Setup documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/) for step-by-step instructions for setting up Tempo and creating a test application.
+Next, review the [Setup documentation](ref:setup) for step-by-step instructions.
 
-Tempo offers different deployment options, depending on your needs. Refer to the [plan your deployment](https://grafana.com/docs/tempo/<TEMPO_VERSION>/setup/deployment/) section for more information.
+Tempo offers different deployment options, depending on your needs. Refer to the [plan your deployment](ref:deploy) section for more information.
 
 {{< admonition type="note" >}}
 Grafana Alloy is already set up to use Tempo.
@@ -57,13 +79,13 @@ offloads spans from your application, buffers them, and forwards them to a backe
 Tracing pipelines are optional since most clients can send directly to Tempo.
 The pipelines become more critical the larger and more robust your tracing system is.
 
-Grafana Alloy is a service that is deployed close to the application, either on the same node or
+Grafana Alloy is a service that's deployed close to the application, either on the same node or
 within the same cluster (in Kubernetes) to quickly offload traces from the application and forward them to
 a storage backend.
 Alloy also abstracts features like trace batching to a remote trace backend store, including retries on write failures.
 
 To learn more about Grafana Alloy and how to set it up for tracing with Tempo,
-refer to [Grafana Alloy configuration for tracing](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/).
+refer to [Grafana Alloy configuration for tracing](ref:configure-alloy).
 
 {{< admonition type="note" >}}
 The [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector) / [Jaeger Agent](https://www.jaegertracing.io/docs/latest/deployment/) can also be used at the agent layer.

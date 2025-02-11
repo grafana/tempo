@@ -1,10 +1,10 @@
 ---
-title: Tempo in Grafana
+title: Tracing in Grafana
 description: Grafana has a built-in Tempo data source that can be used to query Tempo and visualize traces.
 weight: 400
 ---
 
-# Tempo in Grafana
+# Tracing in Grafana
 
 Grafana has a built-in Tempo data source that can be used to query Tempo and visualize traces.
 This page describes the high-level features and their availability.
