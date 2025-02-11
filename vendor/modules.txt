@@ -1041,7 +1041,7 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusrec
 ## explicit; go 1.22.7
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver/internal/metadata
-# github.com/opentracing-contrib/go-grpc v0.1.0
+# github.com/opentracing-contrib/go-grpc v0.1.1
 ## explicit; go 1.22.7
 github.com/opentracing-contrib/go-grpc
 # github.com/opentracing-contrib/go-stdlib v1.0.0
