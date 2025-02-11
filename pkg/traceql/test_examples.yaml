@@ -151,6 +151,9 @@ valid:
   - '{} | avg_over_time(duration) by (span.http.path)'
   - '{} | sum_over_time(duration) by (span.http.path)'
   - '{} | quantile_over_time(duration, 0, 0.9, 1) by (span.http.path)'
+  # second stage on metrics
+  - '{} | rate() by (span.client_ip) | topk(10)'
+  - '{} | rate() by (span.client_ip) | bottomk(10)'
   # undocumented - nested set
   - '{ nestedSetLeft > 3 }'
   - '{ } >> { kind = server } | select(nestedSetLeft, nestedSetRight, nestedSetParent)'
@@ -219,6 +222,10 @@ parse_fails:
   - '{ trace:name = "a" }'
   - '{ trace:rootServiceName = "a" }' # should be trace:rootService only 
   - '{ span:rootName = "bar" }'
+  # invalid metrics second stage functions
+  - '{} | topk(10)'
+  - '{} | bottomk(10)'
+
 
 # validate_fails parse correctly and return an error **besides unsupported** when calling .validate()
 validate_fails:
