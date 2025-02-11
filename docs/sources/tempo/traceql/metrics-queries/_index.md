@@ -33,8 +33,8 @@ Traces are a unique observability signal that contain causal relationships betwe
 TraceQL metrics can help answer questions like this:
 
 * How many database calls across all systems are downstream of your application?
-* What services beneath a given endpoint are currently failing?
-* What services beneath an endpoint are currently slow?
+* What services beneath a given endpoint are failing?
+* What services beneath an endpoint are slow?
 
 TraceQL metrics can help you answer these questions by parsing your traces in aggregate.
 
