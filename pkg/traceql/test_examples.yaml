@@ -152,8 +152,14 @@ valid:
   - '{} | sum_over_time(duration) by (span.http.path)'
   - '{} | quantile_over_time(duration, 0, 0.9, 1) by (span.http.path)'
   # second stage on metrics
+  - '{} | rate() | topk(10)'
   - '{} | rate() by (span.client_ip) | topk(10)'
+  - '{} | count_over_time() by (name) | topk(10) with(sample=0.1)'
+  - '{} | quantile_over_time(duration, 0, 0.9, 1) by (span.http.path) | topk(10)'
   - '{} | rate() by (span.client_ip) | bottomk(10)'
+  - '{} | rate() | bottomk(10)'
+  - '{} | count_over_time() by (name) | bottomk(10) with(sample=0.1)'
+  - '{} | quantile_over_time(duration, 0, 0.9, 1) by (span.http.path) | bottomk(10)'
   # undocumented - nested set
   - '{ nestedSetLeft > 3 }'
   - '{ } >> { kind = server } | select(nestedSetLeft, nestedSetRight, nestedSetParent)'

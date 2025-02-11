@@ -1442,3 +1442,78 @@ func TestMetrics(t *testing.T) {
 		})
 	}
 }
+
+func TestMetricsSecondStage(t *testing.T) {
+	tests := []struct {
+		in       string
+		expected *RootExpr
+	}{
+		{
+			in: `{ } | rate() | topk(10)`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsTopK(10),
+			),
+		},
+		{
+			in: `{ } | count_over_time() by(name, span.http.status_code) | topk(10)`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateCountOverTime, []Attribute{
+					NewIntrinsic(IntrinsicName),
+					NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
+				}),
+				newMetricsTopK(10),
+			),
+		},
+		{
+			in: `{ } | rate() | bottomk(10)`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsBottomK(10),
+			),
+		},
+		{
+			in: `{ } | count_over_time() by(name, span.http.status_code) | bottomk(10)`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateCountOverTime, []Attribute{
+					NewIntrinsic(IntrinsicName),
+					NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
+				}),
+				newMetricsBottomK(10),
+			),
+		},
+		{
+			in: `{ } | rate() | topk(10) with(foo="bar")`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsTopK(10),
+			).withHints(newHints([]*Hint{
+				newHint("foo", NewStaticString("bar")),
+			})),
+		},
+		{
+			in: `{ } | rate() | topk(10) with(foo="bar")`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsBottomK(10),
+			).withHints(newHints([]*Hint{
+				newHint("foo", NewStaticString("bar")),
+			})),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			actual, err := Parse(tc.in)
+
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
