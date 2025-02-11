@@ -784,6 +784,10 @@ storage:
             metadata: {}
             native_aws_auth_enabled: false
             list_blocks_concurrency: 3
+            sse:
+                type: ""
+                kms_key_id: ""
+                kms_encryption_context: ""
         azure:
             storage_account_name: ""
             storage_account_key: ""
@@ -868,6 +872,10 @@ overrides:
                 metadata: {}
                 native_aws_auth_enabled: false
                 list_blocks_concurrency: 3
+                sse:
+                    type: ""
+                    kms_key_id: ""
+                    kms_encryption_context: ""
             azure:
                 storage_account_name: ""
                 storage_account_key: ""
