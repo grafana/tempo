@@ -29,6 +29,10 @@ type metricsFirstStageElement interface {
 	result() SeriesSet
 }
 
+type metricsSecondStageElement interface {
+	Element
+}
+
 type pipelineElement interface {
 	Element
 	extractConditions(request *FetchSpansRequest)
@@ -57,6 +61,18 @@ func newRootExpr(e pipelineElement) *RootExpr {
 }
 
 func newRootExprWithMetrics(e pipelineElement, m metricsFirstStageElement) *RootExpr {
+	p, ok := e.(Pipeline)
+	if !ok {
+		p = newPipeline(e)
+	}
+
+	return &RootExpr{
+		Pipeline:        p,
+		MetricsPipeline: m,
+	}
+}
+
+func newRootExprWithMetricsTwoStage(e pipelineElement, m metricsFirstStageElement, f metricsSecondStageElement) *RootExpr {
 	p, ok := e.(Pipeline)
 	if !ok {
 		p = newPipeline(e)
@@ -1390,3 +1406,15 @@ func (a *MetricsAggregate) validate() error {
 }
 
 var _ metricsFirstStageElement = (*MetricsAggregate)(nil)
+
+// we need something like MetricsAggregate?? but for metrics second stage aggregations
+// TODO: placeholder for now?? figure out how to impl.??
+func newMetricsTopK(topN int) metricsSecondStageElement {
+	return nil
+}
+
+// we need something like MetricsAggregate?? but for metrics second stage aggregations
+// TODO: placeholder for now?? figure out how to impl.??
+func newMetricsBottomK(bottomN int) metricsSecondStageElement {
+	return nil
+}
