@@ -105,7 +105,7 @@ Agent, OpenTelemetry Collector, or Jaeger Agent.
 |  Jaeger | gRPC | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
 |  Zipkin | HTTP | [Link](https://zipkin.io/zipkin-api/) |
 
-For information on how to use the Zipkin endpoint with curl (for debugging purposes), refer to [Pushing spans with HTTP]({{< relref "./pushing-spans-with-http" >}}).
+For information on how to use the Zipkin endpoint with curl (for debugging purposes), refer to [Pushing spans with HTTP](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/pushing-spans-with-http/).
 
 ### Query
 
@@ -204,7 +204,7 @@ but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is
 ### Search
 
 The Tempo Search API finds traces based on span and process attributes (tags and values). Note that search functionality is **not** available on
-[v2 blocks]({{< relref "../configuration/parquet#choose-a-different-block-format" >}}).
+[v2 blocks](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/parquet/#choose-a-different-block-format).
 
 When performing a search, Tempo does a massively parallel search over the given time range, and takes the first N results. Even identical searches differs due to things like machine load and network latency. TraceQL follows the same behavior.
 
@@ -221,11 +221,11 @@ The URL query parameters support the following values:
 
 **Parameters for TraceQL Search**
 
-- `q = (TraceQL query)`: Url encoded [TraceQL query]({{< relref "../traceql" >}}).
+- `q = (TraceQL query)`: URL encoded [TraceQL query](../traceql).
 
 **Parameters for Tag Based Search**
 
-- `tags = (logfmt)`: logfmt encoding of any span-level or process-level attributes to filter on. The value is matched as a case-insensitive substring. Key-value pairs are separated by spaces. If a value contains a space, it should be enclosed within double quotes.
+- `tags = (logfmt)`: `logfmt` encoding of any span-level or process-level attributes to filter on. The value is matched as a case-insensitive substring. Key-value pairs are separated by spaces. If a value contains a space, it should be enclosed within double quotes.
 - `minDuration = (go duration value)`
   Optional. Find traces with at least this duration. Duration values are of the form `10s` for 10 seconds, `100ms`, `30m`, etc.
 - `maxDuration = (go duration value)`
@@ -234,7 +234,7 @@ The URL query parameters support the following values:
 **Parameters supported for all searches**
 
 - `limit = (integer)`
-  Optional. Limit the number of search results. Default is 20, but this is configurable in the querier. Refer to [Configuration]({{< relref "../configuration#querier" >}}).
+  Optional. Limit the number of search results. Default is 20, but this is configurable in the querier. Refer to [Configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#querier).
 - `start = (unix epoch seconds)`
   Optional. Along with `end` define a time range from which traces should be returned.
 - `end = (unix epoch seconds)`
@@ -544,7 +544,7 @@ Parameters:
 
 This endpoint retrieves all discovered values and their data types for the given TraceQL identifier.
 The endpoint is available in the query frontend service in a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. This endpoint is similar to `/api/search/tag/<tag>/values` but operates on TraceQL identifiers and types.
-Refer to [TraceQL]({{< relref "../traceql" >}}) documentation for more information.
+Refer to [TraceQL](../traceql) documentation for more information.
 
 #### Example
 
@@ -600,7 +600,7 @@ Parameters:
 #### Filtered tag values
 
 You can pass an optional URL query parameter, `q`, to your request.
-The `q` parameter is a URL-encoded [TraceQL query]({{< relref "../traceql" >}}).
+The `q` parameter is a URL-encoded [TraceQL query](../traceql).
 If provided, the tag values returned by the API are filtered to only return values seen on spans matching your filter parameters.
 
 Queries can be incomplete: for example, `{ resource.cluster = }`.
@@ -658,7 +658,8 @@ GET /api/metrics/query_range?q={resource.service.name="myservice"} | min_over_ti
 
 #### Instant
 
-The instant version of the metrics API is similar to the range version, but instead returns a single value for the query. This version is useful when you don't need the granularity of a full time-series, but instead want a total sum, or single value computed across the whole time range.
+The instant version of the metrics API is similar to the range version, but instead returns a single value for the query.
+This version is useful when you don't need the granularity of a full time-series, but instead want a total sum, or single value computed across the whole time range.
 
 The parameters are identical to the range version except there is no `step`.
 
@@ -732,14 +733,14 @@ This is usually used at the time of scaling down a cluster.
 ### Usage metrics
 
 {{< admonition type="note" >}}
-This endpoint is only available when one or more usage trackers are enabled in [the distributor]({{< relref "../configuration#distributor" >}}).
+This endpoint is only available when one or more usage trackers are enabled in [the distributor](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#distributor).
 {{< /admonition >}}
 
 ```
 GET /usage_metrics
 ```
 
-Special metrics scrape endpoint that provides per-tenant metrics on ingested data. Per-tenant grouping rules are configured in [the per-tenant overrides]({{< relref "../configuration#overrides" >}})
+Special metrics scrape endpoint that provides per-tenant metrics on ingested data. Per-tenant grouping rules are configured in [the per-tenant overrides](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#overrides)
 
 Example:
 ```
@@ -786,7 +787,7 @@ GET /metrics-generator/ring
 
 Displays a web page with the metrics-generator hash ring status, including the state, health, and last heartbeat time of each metrics-generator.
 
-This endpoint is only available when the metrics-generator is enabled. Refer to [metrics-generator]({{< relref "../configuration#metrics-generator" >}}).
+This endpoint is only available when the metrics-generator is enabled. Refer to [metrics-generator](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#metrics-generator).
 
 For more information, refer to [consistent hash ring](http://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/consistent_hash_ring/).
 
