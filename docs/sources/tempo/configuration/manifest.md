@@ -899,6 +899,7 @@ memberlist:
     abort_if_cluster_join_fails: false
     rejoin_interval: 0s
     left_ingesters_timeout: 5m0s
+    obsolete_entries_timeout: 30s
     leave_timeout: 20s
     broadcast_timeout_for_local_updates_on_shutdown: 10s
     message_history_buffer_bytes: 0

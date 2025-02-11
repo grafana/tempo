@@ -587,7 +587,7 @@ github.com/gorilla/handlers
 # github.com/gorilla/mux v1.8.1
 ## explicit; go 1.20
 github.com/gorilla/mux
-# github.com/grafana/dskit v0.0.0-20241115082728-f2a7eb3aa0e9
+# github.com/grafana/dskit v0.0.0-20250131191929-eab36484cec2
 ## explicit; go 1.21
 github.com/grafana/dskit/backoff
 github.com/grafana/dskit/cancellation
