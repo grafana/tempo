@@ -49,7 +49,7 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 		current:        &tempopb.SearchResponse{Metrics: &tempopb.SearchMetrics{}},
 		combine: func(partial *tempopb.SearchResponse, final *tempopb.SearchResponse, resp PipelineResponse) error {
 			requestIdx, ok := resp.RequestData().(int)
-			if ok {
+			if ok && keepMostRecent {
 				completedThroughTracker.addShardIdx(requestIdx)
 			}
 
@@ -74,7 +74,9 @@ func NewSearch(limit int, keepMostRecent bool) Combiner {
 				final.Metrics.TotalJobs += uint32(sj.TotalJobs)
 				final.Metrics.TotalBlockBytes += sj.TotalBytes
 
-				completedThroughTracker.addShards(sj.Shards)
+				if keepMostRecent {
+					completedThroughTracker.addShards(sj.Shards)
+				}
 			}
 
 			return nil
