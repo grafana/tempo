@@ -22,7 +22,7 @@ func BenchmarkOTLPDecoder(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		reqs, err := decoder.decode(traceBytes)
 		require.NoError(b, err)
-		for range reqs {
+		for range reqs { // nolint:revive // we want to run the side effects of ranging itself
 		}
 	}
 }
