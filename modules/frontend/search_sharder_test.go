@@ -1,13 +1,14 @@
 package frontend
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -224,9 +225,10 @@ func TestBuildBackendRequests(t *testing.T) {
 
 		ctx, cancelCause := context.WithCancelCause(context.Background())
 		reqCh := make(chan pipeline.Request)
+		iterFn := backendJobsFunc(tc.metas, tc.targetBytesPerRequest, defaultMostRecentShards, math.MaxUint32)
 
 		go func() {
-			buildBackendRequests(ctx, "test", pipeline.NewHTTPRequest(req), searchReq, tc.metas, tc.targetBytesPerRequest, reqCh, cancelCause)
+			buildBackendRequests(ctx, "test", pipeline.NewHTTPRequest(req), searchReq, iterFn, reqCh, cancelCause)
 		}()
 
 		actualURIs := []string{}
@@ -250,7 +252,9 @@ func TestBackendRequests(t *testing.T) {
 	bm.TotalRecords = 2
 
 	s := &asyncSearchSharder{
-		cfg:    SearchSharderConfig{},
+		cfg: SearchSharderConfig{
+			MostRecentShards: defaultMostRecentShards,
+		},
 		reader: &mockReader{metas: []*backend.BlockMeta{bm}},
 	}
 
@@ -317,10 +321,12 @@ func TestBackendRequests(t *testing.T) {
 
 			ctx, cancelCause := context.WithCancelCause(context.Background())
 			pipelineRequest := pipeline.NewHTTPRequest(r)
-			jobs, blocks, blockBytes := s.backendRequests(ctx, "test", pipelineRequest, searchReq, reqCh, cancelCause)
-			require.Equal(t, tc.expectedJobs, jobs)
-			require.Equal(t, tc.expectedBlocks, blocks)
-			require.Equal(t, tc.expectedBlockBytes, blockBytes)
+
+			searchJobResponse := &combiner.SearchJobResponse{}
+			s.backendRequests(ctx, "test", pipelineRequest, searchReq, searchJobResponse, reqCh, cancelCause)
+			require.Equal(t, tc.expectedJobs, searchJobResponse.TotalJobs)
+			require.Equal(t, tc.expectedBlocks, searchJobResponse.TotalBlocks)
+			require.Equal(t, tc.expectedBlockBytes, searchJobResponse.TotalBytes)
 
 			actualReqURIs := []string{}
 			for r := range reqCh {
@@ -494,13 +500,24 @@ func TestIngesterRequests(t *testing.T) {
 
 		pr := pipeline.NewHTTPRequest(req)
 		pr.SetWeight(2)
-		err = s.ingesterRequests("test", pr, *searchReq, reqChan)
+		actualSearchResponse, err := s.ingesterRequests("test", pr, *searchReq, reqChan)
 		if tc.expectedError != nil {
-			assert.Equal(t, tc.expectedError, err)
+			require.Equal(t, tc.expectedError, err)
 			continue
 		}
-		assert.NoError(t, err)
-		assert.Equal(t, len(tc.expectedURI), len(reqChan))
+		require.NoError(t, err)
+		require.Equal(t, len(tc.expectedURI), len(reqChan))
+		require.Equal(t, len(tc.expectedURI), actualSearchResponse.TotalJobs)
+		if len(tc.expectedURI) > 0 {
+			require.Equal(t, len(tc.expectedURI), int(actualSearchResponse.Shards[0].TotalJobs))
+			expectedCompletedThrough := math.MaxUint32      // normal ingester shard completes no time on purpose
+			if searchReq.Start == 0 && searchReq.End == 0 { // ingester only search completes all time on purpose
+				expectedCompletedThrough = 1
+			}
+			require.Equal(t, expectedCompletedThrough, int(actualSearchResponse.Shards[0].CompletedThroughSeconds))
+		} else {
+			require.Equal(t, 0, len(actualSearchResponse.Shards))
+		}
 
 		// drain the channel and check the URIs
 		for _, expectedURI := range tc.expectedURI {
@@ -667,6 +684,7 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 		QueryIngestersUntil:   15 * time.Minute,
 		ConcurrentRequests:    1, // 1 concurrent request to force order
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		MostRecentShards:      defaultMostRecentShards,
 		IngesterShards:        1,
 	}, log.NewNopLogger())
 	testRT := sharder.Wrap(next)
@@ -680,29 +698,24 @@ func TestTotalJobsIncludesIngester(t *testing.T) {
 	resps, err := testRT.RoundTrip(pipeline.NewHTTPRequest(req))
 	require.NoError(t, err)
 	// find a response with total jobs > . this is the metadata response
-	var resp *tempopb.SearchResponse
+
+	totalJobs := 0
 	for {
 		res, done, err := resps.Next(context.Background())
-		r := res.HTTPResponse()
-		require.NoError(t, err)
-		require.Equal(t, 200, r.StatusCode)
 
-		actualResp := &tempopb.SearchResponse{}
-		bytesResp, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
-		err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), actualResp)
-		require.NoError(t, err)
+		if res.IsMetadata() {
+			searchJobResponse := res.(*combiner.SearchJobResponse)
+			totalJobs += searchJobResponse.TotalJobs
 
-		if actualResp.Metrics.TotalJobs > 0 {
-			resp = actualResp
 			break
 		}
 
+		require.NoError(t, err)
 		require.False(t, done)
 	}
 
-	// 2 jobs for the meta + 1 for th ingester
-	assert.Equal(t, uint32(3), resp.Metrics.TotalJobs)
+	// 2 jobs for the meta + 1 for the ingester
+	assert.Equal(t, 3, totalJobs)
 }
 
 func TestSearchSharderRoundTripBadRequest(t *testing.T) {
@@ -716,6 +729,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	sharder := newAsyncSearchSharder(&mockReader{}, o, SearchSharderConfig{
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		MostRecentShards:      defaultMostRecentShards,
 		MaxDuration:           5 * time.Minute,
 		MaxSpansPerSpanSet:    100,
 	}, log.NewNopLogger())
@@ -756,6 +770,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	sharder = newAsyncSearchSharder(&mockReader{}, o, SearchSharderConfig{
 		ConcurrentRequests:    defaultConcurrentRequests,
 		TargetBytesPerRequest: defaultTargetBytesPerRequest,
+		MostRecentShards:      defaultMostRecentShards,
 		MaxDuration:           5 * time.Minute,
 	}, log.NewNopLogger())
 	testRT = sharder.Wrap(next)
@@ -868,6 +883,126 @@ func TestHashTraceQLQuery(t *testing.T) {
 	h1 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }", SpansPerSpanSet: 1})
 	h2 = hashForSearchRequest(&tempopb.SearchRequest{Query: "{ span.foo = `bar` }", SpansPerSpanSet: 2})
 	require.NotEqual(t, h1, h2)
+}
+
+func TestBackendShards(t *testing.T) {
+	tcs := []struct {
+		name      string
+		maxShards int
+		searchEnd uint32
+		expected  []combiner.SearchShards
+	}{
+		{
+			name:      "1 shard, puts all jobs in one shard",
+			maxShards: 1,
+			searchEnd: 50,
+			expected: []combiner.SearchShards{
+				{TotalJobs: 8, CompletedThroughSeconds: 1},
+			},
+		},
+		{
+			name:      "2 shards, split evenly between",
+			maxShards: 2,
+			searchEnd: 50,
+			expected: []combiner.SearchShards{
+				{TotalJobs: 4, CompletedThroughSeconds: 30},
+				{TotalJobs: 4, CompletedThroughSeconds: 1},
+			},
+		},
+		{
+			name:      "3 shards, one for each block",
+			maxShards: 3,
+			searchEnd: 50,
+			expected: []combiner.SearchShards{
+				{TotalJobs: 2, CompletedThroughSeconds: 40},
+				{TotalJobs: 2, CompletedThroughSeconds: 30},
+				{TotalJobs: 4, CompletedThroughSeconds: 1},
+			},
+		},
+		{
+			name:      "4 shards, one for each block",
+			maxShards: 4,
+			searchEnd: 50,
+			expected: []combiner.SearchShards{
+				{TotalJobs: 2, CompletedThroughSeconds: 40},
+				{TotalJobs: 2, CompletedThroughSeconds: 30},
+				{TotalJobs: 2, CompletedThroughSeconds: 20},
+				{TotalJobs: 2, CompletedThroughSeconds: 1},
+			},
+		},
+		{
+			name:      "5 shards, one for each block",
+			maxShards: 5,
+			searchEnd: 50,
+			expected: []combiner.SearchShards{
+				{TotalJobs: 2, CompletedThroughSeconds: 40},
+				{TotalJobs: 2, CompletedThroughSeconds: 30},
+				{TotalJobs: 2, CompletedThroughSeconds: 20},
+				{TotalJobs: 2, CompletedThroughSeconds: 10},
+			},
+		},
+		{
+			name:      "4 shards, search end forces 2 blocks in the first shard",
+			maxShards: 4,
+			searchEnd: 35,
+			expected: []combiner.SearchShards{
+				{TotalJobs: 4, CompletedThroughSeconds: 30},
+				{TotalJobs: 2, CompletedThroughSeconds: 20},
+				{TotalJobs: 2, CompletedThroughSeconds: 10},
+			},
+		},
+		{
+			name:      "4 shards, search end forces 3 blocks in the first shard",
+			maxShards: 4,
+			searchEnd: 25,
+			expected: []combiner.SearchShards{
+				{TotalJobs: 6, CompletedThroughSeconds: 20},
+				{TotalJobs: 2, CompletedThroughSeconds: 10},
+			},
+		},
+		{
+			name:      "2 shards, search end forces 2 blocks in the first shard",
+			maxShards: 2,
+			searchEnd: 35,
+			expected: []combiner.SearchShards{
+				{TotalJobs: 4, CompletedThroughSeconds: 30},
+				{TotalJobs: 4, CompletedThroughSeconds: 1},
+			},
+		},
+	}
+
+	// create 4 metas with 2 records each for all the above test cases to use. 8 jobs total
+	metas := make([]*backend.BlockMeta, 0, 4)
+	for i := 0; i < 4; i++ {
+		metas = append(metas, &backend.BlockMeta{
+			StartTime:    time.Unix(int64(i*10), 0),        // block 0 starts at 0
+			EndTime:      time.Unix(int64(i*10)+10, 0),     // block 0 ends a 10
+			Size_:        defaultTargetBytesPerRequest * 2, // 2 jobs per block
+			TotalRecords: 2,
+			BlockID:      backend.MustParse("00000000-0000-0000-0000-000000000000"),
+		})
+	}
+
+	// sort
+	sort.Slice(metas, func(i, j int) bool {
+		return metas[i].EndTime.After(metas[j].EndTime)
+	})
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			fn := backendJobsFunc(metas, defaultTargetBytesPerRequest, tc.maxShards, tc.searchEnd)
+			actualShards := []combiner.SearchShards{}
+
+			fn(func(jobs int, _ uint64, completedThroughTime uint32) {
+				actualShards = append(actualShards, combiner.SearchShards{
+					TotalJobs:               uint32(jobs),
+					CompletedThroughSeconds: completedThroughTime,
+				})
+			}, nil)
+
+			assert.Equal(t, tc.expected, actualShards)
+		})
+	}
 }
 
 func urisEqual(t *testing.T, expectedURIs, actualURIs []string) {

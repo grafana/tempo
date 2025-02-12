@@ -598,6 +598,15 @@ TraceQL can select arbitrary fields from spans. This is particularly performant 
 { status=error } | select(span.http.status_code, span.http.url)
 ```
 
+## Retrieving most recent results (experimental)
+
+The TraceQL query hint `most_recent=true` can be used with any TraceQL selection query to force Tempo to return the most recent results ordered by time. Examples:
+
+```
+{} with (most_recent=true)
+{ span.foo = "bar" } >> { status = error } with (most_recent=true)
+```
+
 ## Experimental TraceQL metrics
 
 TraceQL metrics are experimental, but easy to get started with. Refer to [the TraceQL metrics]({{< relref "../operations/traceql-metrics.md" >}}) documentation for more information.

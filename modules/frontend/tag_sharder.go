@@ -236,26 +236,9 @@ func (s searchTagSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline.
 	return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, reqCh, nil, s.next), nil
 }
 
-// blockMetas returns all relevant blockMetas given a start/end
-func (s searchTagSharder) blockMetas(start, end int64, tenantID string) []*backend.BlockMeta {
-	// reduce metas to those in the requested range
-	allMetas := s.reader.BlockMetas(tenantID)
-	metas := make([]*backend.BlockMeta, 0, len(allMetas)/50) // divide by 50 for luck
-	for _, m := range allMetas {
-		if m.StartTime.Unix() <= end &&
-			m.EndTime.Unix() >= start {
-			metas = append(metas, m)
-		}
-	}
-
-	return metas
-}
-
 // backendRequest builds backend requests to search backend blocks. backendRequest takes ownership of reqCh and closes it.
 // it returns 3 int values: totalBlocks, totalBlockBytes, and estimated jobs
 func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq tagSearchReq, reqCh chan<- pipeline.Request, errFn func(error)) {
-	var blocks []*backend.BlockMeta
-
 	// request without start or end, search only in ingester
 	if searchReq.start() == 0 || searchReq.end() == 0 {
 		close(reqCh)
@@ -272,7 +255,7 @@ func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, 
 	}
 
 	// get block metadata of blocks in start, end duration
-	blocks = s.blockMetas(int64(start), int64(end), tenantID)
+	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), start, end, backend.DefaultReplicationFactor)
 
 	targetBytesPerRequest := s.cfg.TargetBytesPerRequest
 

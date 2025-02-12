@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -31,7 +32,6 @@ import (
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb"
@@ -139,14 +139,14 @@ func TestFrontendSearch(t *testing.T) {
 
 func runnerBadRequestOnOrgID(t *testing.T, f *QueryFrontend) {
 	// http
-	httpReq := httptest.NewRequest("GET", "/api/search", nil)
+	httpReq := httptest.NewRequest("GET", "/api/search?q={}", nil)
 	httpResp := httptest.NewRecorder()
 	f.SearchHandler.ServeHTTP(httpResp, httpReq)
 	require.Equal(t, "no org id", httpResp.Body.String())
 	require.Equal(t, http.StatusBadRequest, httpResp.Code)
 
 	// grpc
-	grpcReq := &tempopb.SearchRequest{}
+	grpcReq := &tempopb.SearchRequest{Query: "{}"}
 	err := f.streamingSearch(grpcReq, newMockStreamingServer[*tempopb.SearchResponse]("", nil))
 	require.Equal(t, status.Error(codes.InvalidArgument, "no org id"), err)
 }
@@ -175,8 +175,9 @@ func runnerRequests(t *testing.T, f *QueryFrontend) {
 			expectedStatusCode: 200,
 			expectedResponse: &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{{
-					TraceID:         "1",
-					RootServiceName: search.RootSpanNotYetReceivedText,
+					TraceID:           "1",
+					RootServiceName:   search.RootSpanNotYetReceivedText,
+					StartTimeUnixNano: math.MaxUint64,
 				}},
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 4,
@@ -212,8 +213,9 @@ func runnerRequests(t *testing.T, f *QueryFrontend) {
 			expectedStatusCode: 200,
 			expectedResponse: &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{{
-					TraceID:         "1",
-					RootServiceName: search.RootSpanNotYetReceivedText,
+					TraceID:           "1",
+					RootServiceName:   search.RootSpanNotYetReceivedText,
+					StartTimeUnixNano: math.MaxUint64,
 				}},
 				Metrics: &tempopb.SearchMetrics{
 					InspectedTraces: 8,
@@ -270,7 +272,7 @@ func runnerRequests(t *testing.T, f *QueryFrontend) {
 
 func runnerClientCancelContext(t *testing.T, f *QueryFrontend) {
 	// http
-	httpReq := httptest.NewRequest("GET", "/api/search", nil)
+	httpReq := httptest.NewRequest("GET", "/api/search?q={}", nil)
 	httpResp := httptest.NewRecorder()
 
 	ctx, cancel := context.WithCancel(httpReq.Context())
@@ -293,7 +295,7 @@ func runnerClientCancelContext(t *testing.T, f *QueryFrontend) {
 		time.Sleep(50 * time.Millisecond)
 		cancel()
 	}()
-	grpcReq := &tempopb.SearchRequest{}
+	grpcReq := &tempopb.SearchRequest{Query: "{}"}
 	err := f.streamingSearch(grpcReq, srv)
 	require.Equal(t, status.Error(codes.Canceled, "context canceled"), err)
 }
@@ -304,7 +306,8 @@ func TestSearchLimitHonored(t *testing.T) {
 			return &tempopb.SearchResponse{
 				Traces: []*tempopb.TraceSearchMetadata{
 					{
-						TraceID: util.TraceIDToHexString(test.ValidTraceID(nil)),
+						TraceID:           util.TraceIDToHexString(test.ValidTraceID(nil)),
+						StartTimeUnixNano: math.MaxUint64, // forces GRPCDiff in the search combiner to return this trace b/c it's always after CompletedThroughSeconds
 					},
 				},
 				Metrics: &tempopb.SearchMetrics{
@@ -324,6 +327,7 @@ func TestSearchLimitHonored(t *testing.T) {
 			Sharder: SearchSharderConfig{
 				ConcurrentRequests:    defaultConcurrentRequests,
 				TargetBytesPerRequest: defaultTargetBytesPerRequest,
+				MostRecentShards:      defaultMostRecentShards,
 				DefaultLimit:          10,
 				MaxLimit:              15,
 			},
@@ -382,13 +386,12 @@ func TestSearchLimitHonored(t *testing.T) {
 			tenant := "1|2|3|4|5|6"
 
 			// due to the blocks we will have 4 trace ids normally
-			httpReq := httptest.NewRequest("GET", "/api/search", nil)
+			httpReq := httptest.NewRequest("GET", "/api/search?q={}", nil)
 			httpReq, err := api.BuildSearchRequest(httpReq, tc.request)
 			require.NoError(t, err)
 
 			ctx := user.InjectOrgID(httpReq.Context(), tenant)
 			httpReq = httpReq.WithContext(ctx)
-
 			httpResp := httptest.NewRecorder()
 
 			f.SearchHandler.ServeHTTP(httpResp, httpReq)
@@ -404,18 +407,18 @@ func TestSearchLimitHonored(t *testing.T) {
 			}
 
 			// grpc
-			combiner := traceql.NewMetadataCombiner()
+			distinctTraces := map[string]struct{}{}
 			err = f.streamingSearch(tc.request, newMockStreamingServer(tenant, func(i int, sr *tempopb.SearchResponse) {
 				// combine
 				for _, t := range sr.Traces {
-					combiner.AddMetadata(t)
+					distinctTraces[t.TraceID] = struct{}{}
 				}
 			}))
 			if tc.badRequest {
-				require.Equal(t, status.Error(codes.InvalidArgument, "adjust limit: limit 20 exceeds max limit 15"), err)
+				require.Equal(t, status.Error(codes.InvalidArgument, "limit 20 exceeds max limit 15"), err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, combiner.Count(), tc.expectedTraces)
+				require.Equal(t, tc.expectedTraces, len(distinctTraces))
 			}
 		})
 	}
@@ -478,8 +481,9 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 				}
 			},
 		}, nil, &Config{
-			MultiTenantQueriesEnabled: true,
-			MaxRetries:                0, // disable retries or it will try twice and get success. the querier response is designed to fail exactly once
+			MultiTenantQueriesEnabled:   true,
+			MaxQueryExpressionSizeBytes: 100000,
+			MaxRetries:                  0, // disable retries or it will try twice and get success. the querier response is designed to fail exactly once
 			TraceByID: TraceByIDConfig{
 				QueryShards: minQueryShards,
 				SLO:         testSLOcfg,
@@ -488,6 +492,7 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 				Sharder: SearchSharderConfig{
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					MostRecentShards:      defaultMostRecentShards,
 				},
 				SLO: testSLOcfg,
 			},
@@ -501,7 +506,7 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 			},
 		}, nil)
 
-		httpReq := httptest.NewRequest("GET", "/api/search?start=1&end=10000", nil)
+		httpReq := httptest.NewRequest("GET", "/api/search?start=1&end=10000&q={}", nil)
 		httpResp := httptest.NewRecorder()
 
 		ctx := user.InjectOrgID(httpReq.Context(), "foo")
@@ -523,8 +528,9 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 				}
 			},
 		}, nil, &Config{
-			MultiTenantQueriesEnabled: true,
-			MaxRetries:                0, // disable retries or it will try twice and get success
+			MultiTenantQueriesEnabled:   true,
+			MaxQueryExpressionSizeBytes: 100000,
+			MaxRetries:                  0, // disable retries or it will try twice and get success
 			TraceByID: TraceByIDConfig{
 				QueryShards: minQueryShards,
 				SLO:         testSLOcfg,
@@ -533,6 +539,7 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 				Sharder: SearchSharderConfig{
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					MostRecentShards:      defaultMostRecentShards,
 				},
 				SLO: testSLOcfg,
 			},
@@ -548,7 +555,7 @@ func TestSearchFailurePropagatesFromQueriers(t *testing.T) {
 
 		// grpc
 		srv := newMockStreamingServer[*tempopb.SearchResponse]("bar", nil)
-		grpcReq := &tempopb.SearchRequest{}
+		grpcReq := &tempopb.SearchRequest{Query: "{}"}
 		err := f.streamingSearch(grpcReq, srv)
 		require.Equal(t, tc.expectedErr, err)
 	}
@@ -719,7 +726,8 @@ func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr te
 				return &tempopb.SearchResponse{
 					Traces: []*tempopb.TraceSearchMetadata{
 						{
-							TraceID: "1",
+							TraceID:           "1",
+							StartTimeUnixNano: math.MaxUint64, // forces GRPCDiff in the search combiner to return this trace b/c it's always after CompletedThroughSeconds
 						},
 					},
 					Metrics: &tempopb.SearchMetrics{
@@ -779,6 +787,7 @@ func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr te
 				Sharder: SearchSharderConfig{
 					ConcurrentRequests:    defaultConcurrentRequests,
 					TargetBytesPerRequest: defaultTargetBytesPerRequest,
+					MostRecentShards:      defaultMostRecentShards,
 				},
 				SLO: testSLOcfg,
 			},

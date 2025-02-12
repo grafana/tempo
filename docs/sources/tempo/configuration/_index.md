@@ -697,11 +697,15 @@ query_frontend:
         # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
         [throughput_bytes_slo: <float> | default = 0 ]
 
+        # The number of time windows to break a search up into when doing a most recent TraceQL search. This only impacts TraceQL
+        # searches with (most_recent=true)
+        [most_recent_shards: <int> | default = 200]
+
         # The number of shards to break ingester queries into.
-        [ingester_shards]: <int> | default = 3]
+        [ingester_shards: <int> | default = 3]
 
         # The maximum allowed value of spans per span set. 0 disables this limit.
-        [max_spans_per_span_set]: <int> | default = 100]
+        [max_spans_per_span_set: <int> | default = 100]
 
         # SLO configuration for Metadata (tags and tag values) endpoints.
         metadata_slo:
