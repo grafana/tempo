@@ -366,7 +366,7 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 
 	step, err := step(vals, start, end)
 	if err != nil {
-		return nil, httpgrpc.Errorf(http.StatusBadRequest, "%s", err)
+		return nil, httpgrpc.Error(http.StatusBadRequest, err.Error())
 	}
 	req.Step = uint64(step.Nanoseconds())
 
