@@ -274,6 +274,7 @@ querier:
     metrics:
         concurrent_blocks: 2
         time_overlap_cutoff: 0.2
+        max_response_series: 1000
     max_concurrent_queries: 20
     frontend_worker:
         frontend_address: ""
@@ -332,6 +333,7 @@ query_frontend:
         query_backend_after: 30m0s
         interval: 5m0s
         max_exemplars: 100
+        max_response_series: 1000
     multi_tenant_queries_enabled: true
     response_consumers: 10
     weights:
