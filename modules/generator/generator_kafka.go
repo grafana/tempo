@@ -67,6 +67,9 @@ func (g *Generator) readKafka(ctx context.Context) error {
 		}
 
 		reqs, err := g.codec.decode(r.Value)
+		if err != nil {
+			return err
+		}
 		for req, err := range reqs {
 			if err != nil {
 				return err
