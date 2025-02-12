@@ -560,22 +560,27 @@ func TestTargetInfoEnabled(t *testing.T) {
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
 	batch := test.MakeBatch(10, nil)
 
-	// add instance
-	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
-		Key:   "service.instance.id",
-		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-def"}},
-	})
-
-	// add additional source attributes
-	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
-		Key:   "cluster",
-		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "eu-west-0"}},
-	})
-
-	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
-		Key:   "ip",
-		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "1.1.1.1"}},
-	})
+	batch.Resource.Attributes = []*common_v1.KeyValue{
+		// add service name
+		{
+			Key:   "service.name",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-service"}},
+		},
+		// add instance
+		{
+			Key:   "service.instance.id",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-def"}},
+		},
+		// add additional source attributes
+		{
+			Key:   "cluster",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "eu-west-0"}},
+		},
+		{
+			Key:   "ip",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "1.1.1.1"}},
+		},
+	}
 
 	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
 
@@ -608,22 +613,27 @@ func TestTargetInfoDisabled(t *testing.T) {
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
 	batch := test.MakeBatch(10, nil)
 
-	// add instance
-	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
-		Key:   "service.instance.id",
-		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-def"}},
-	})
-
-	// add additional source attributes
-	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
-		Key:   "cluster",
-		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "eu-west-0"}},
-	})
-
-	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
-		Key:   "ip",
-		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "1.1.1.1"}},
-	})
+	batch.Resource.Attributes = []*common_v1.KeyValue{
+		// add service name
+		{
+			Key:   "service.name",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-service"}},
+		},
+		// add instance
+		{
+			Key:   "service.instance.id",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-def"}},
+		},
+		// add additional source attributes
+		{
+			Key:   "cluster",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "eu-west-0"}},
+		},
+		{
+			Key:   "ip",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "1.1.1.1"}},
+		},
+	}
 
 	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
 
@@ -655,33 +665,36 @@ func TestTargetInfoWithExclusion(t *testing.T) {
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
 	batch := test.MakeBatch(10, nil)
 
-	// add instance
-	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
-		Key:   "service.instance.id",
-		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-def"}},
-	})
-
-	// add additional source attributes
-	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
-		Key:   "cluster",
-		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "eu-west-0"}},
-	})
-
-	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
-		Key:   "ip",
-		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "1.1.1.1"}},
-	})
-
-	// add attribute for labels that we want to drop
-	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
-		Key:   "container",
-		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-service"}},
-	})
-
-	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
-		Key:   "container.id",
-		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "xyz123"}},
-	})
+	batch.Resource.Attributes = []*common_v1.KeyValue{
+		// add service name
+		{
+			Key:   "service.name",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-service"}},
+		},
+		// add instance
+		{
+			Key:   "service.instance.id",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-def"}},
+		},
+		// add additional source attributes
+		{
+			Key:   "cluster",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "eu-west-0"}},
+		},
+		{
+			Key:   "ip",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "1.1.1.1"}},
+		},
+		// add attribute for labels that we want to drop
+		{
+			Key:   "container",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-service"}},
+		},
+		{
+			Key:   "container.id",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "xyz123"}},
+		},
+	}
 
 	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
 
@@ -716,22 +729,27 @@ func TestTargetInfoSanitizeLabelName(t *testing.T) {
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
 	batch := test.MakeBatch(10, nil)
 
-	// add instance
-	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
-		Key:   "service.instance.id",
-		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-def"}},
-	})
-
-	// add additional source attributes
-	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
-		Key:   "cluster-id",
-		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "eu-west-0"}},
-	})
-
-	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
-		Key:   "target.ip",
-		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "1.1.1.1"}},
-	})
+	batch.Resource.Attributes = []*common_v1.KeyValue{
+		// add service name
+		{
+			Key:   "service.name",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-service"}},
+		},
+		// add instance
+		{
+			Key:   "service.instance.id",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-def"}},
+		},
+		// add additional source attributes
+		{
+			Key:   "cluster-id",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "eu-west-0"}},
+		},
+		{
+			Key:   "target.ip",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "1.1.1.1"}},
+		},
+	}
 
 	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
 
@@ -766,11 +784,18 @@ func TestTargetInfoWithJobAndInstanceOnly(t *testing.T) {
 	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
 	batch := test.MakeBatch(10, nil)
 
-	// add instance
-	batch.Resource.Attributes = append(batch.Resource.Attributes, &common_v1.KeyValue{
-		Key:   "service.instance.id",
-		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-def"}},
-	})
+	batch.Resource.Attributes = []*common_v1.KeyValue{
+		// add service name
+		{
+			Key:   "service.name",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-service"}},
+		},
+		// add instance
+		{
+			Key:   "service.instance.id",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-def"}},
+		},
+	}
 
 	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
 
@@ -846,38 +871,56 @@ func TestTargetInfoWithDifferentBatches(t *testing.T) {
 	require.NoError(t, err)
 	defer p.Shutdown(context.Background())
 
-	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
-	batch := test.MakeBatch(10, nil)
-
 	// first batch will not have name-space nor instance id
 	// this will NOT create target_info metrics since it only has job but no other attributes
 
-	batch2 := test.MakeBatch(10, nil)
+	// TODO give these spans some duration so we can verify latencies are recorded correctly, in fact we should also test with various span names etc.
+	batch := test.MakeBatch(10, nil)
+	batch.Resource.Attributes = []*common_v1.KeyValue{
+		// add service name
+		{
+			Key:   "service.name",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-service"}},
+		},
+	}
 
 	// batch 2 will have instance id & cluster
 	// this will create a target_info metric with job, instance, and cluster
+	batch2 := test.MakeBatch(10, nil)
+	batch2.Resource.Attributes = []*common_v1.KeyValue{
+		// add service name
+		{
+			Key:   "service.name",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-service"}},
+		},
+		// add instance
+		{
+			Key:   "service.instance.id",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-def"}},
+		},
+		// add cluster
+		{
+			Key:   "cluster",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "eu-west-0"}},
+		},
+	}
 
-	// add instance
-	batch2.Resource.Attributes = append(batch2.Resource.Attributes, &common_v1.KeyValue{
-		Key:   "service.instance.id",
-		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "abc-instance-id-test-def"}},
-	})
-
-	// add additional source attributes
-	batch2.Resource.Attributes = append(batch2.Resource.Attributes, &common_v1.KeyValue{
-		Key:   "cluster",
-		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "eu-west-0"}},
-	})
-
-	batch3 := test.MakeBatch(10, nil)
 	// batch 3 will have  ip
 	// this will create a target_info metric with job and ip only // no cluster no instance
+	batch3 := test.MakeBatch(10, nil)
 
-	// add additional source attributes
-	batch3.Resource.Attributes = append(batch3.Resource.Attributes, &common_v1.KeyValue{
-		Key:   "ip",
-		Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "1.1.1.1"}},
-	})
+	batch3.Resource.Attributes = []*common_v1.KeyValue{
+		// add service name
+		{
+			Key:   "service.name",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test-service"}},
+		},
+		// add ip
+		{
+			Key:   "ip",
+			Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "1.1.1.1"}},
+		},
+	}
 
 	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch, batch2, batch3}})
 
