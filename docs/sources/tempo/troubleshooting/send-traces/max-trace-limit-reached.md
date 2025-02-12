@@ -53,13 +53,7 @@ msg="pusher failed to consume trace data" err="rpc error: code = FailedPrecondit
 msg="pusher failed to consume trace data" err="rpc error: code = ResourceExhausted desc = RATE_LIMITED: ingestion rate limit (15000000 bytes) exceeded while adding 10 bytes"
 ```
 
-You'll also see the following metric incremented. The `reason` label on this metric will contain information about the refused reason.
-
-```
-tempo_discarded_spans_total
-```
-
-In this case, use available configuration options to [increase limits](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#ingestion-limits).
+If indicated, you can use available configuration options to [increase limits](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#ingestion-limits).
 
 ## Client resets connection
 
