@@ -468,8 +468,8 @@ For instructions, refer to [Configure TLS with Helm](https://grafana.com/docs/te
 
 The `tempo-distributed` Helm chart provides a module for users to set global or per-tenant override settings:
 
-* Global overrides come under the `global_overrides` property, which pertain to the standard overrides
-* Per-tenant overrides come under the `overrides` property, and allow specific tenants to alter configuration associated with them as per tenant-specific runtime overrides. The Helm chart generates a `/runtime/overrides.yaml` configuration file for all per-tenant configuration.
+* Global overrides come under the `overrides` property, which pertain to the standard overrides
+* Per-tenant overrides come under the `per_tenant_overrides` property, and allow specific tenants to alter configuration associated with them as per tenant-specific runtime overrides. The Helm chart generates a `/runtime/overrides.yaml` configuration file for all per-tenant configuration.
 
 These overrides correlate to the standard (global) and tenant-specific (`per_tenant_overide_config`)overrides in Tempo and GET configuration.
 For more information about overrides, refer to the [Overrides configuration](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#overrides) documentation.
@@ -479,7 +479,7 @@ Overrides can be used with both GET and Tempo.
 The following example configuration sets some global configuration options, as well as a set of options for a specific tenant:
 
 ```yaml
-global_overrides:
+overrides:
     defaults:
         ingestion:
           rate_limit_bytes: 5 * 1000 * 1000
@@ -491,7 +491,7 @@ global_overrides:
         metrics_generator:
           processors: ['service-graphs', 'span-metrics']
 
-overrides:
+per_tenant_overrides:
     '1234':
         ingestion:
           rate_limit_bytes: 2 * 1000 * 1000
