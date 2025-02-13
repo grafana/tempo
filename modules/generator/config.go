@@ -55,6 +55,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.TracesWAL.Version = encoding.DefaultEncoding().Version()
 	cfg.TracesQueryWAL.RegisterFlags(f)
 	cfg.TracesQueryWAL.Version = encoding.DefaultEncoding().Version()
+	cfg.Ingest.RegisterFlagsAndApplyDefaults(prefix, f)
 
 	// setting default for max span age before discarding to 30s
 	cfg.MetricsIngestionSlack = 30 * time.Second
@@ -70,10 +71,12 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 }
 
 func (cfg *Config) Validate() error {
-	if cfg.Ingest.Enabled {
-		if err := cfg.Ingest.Kafka.Validate(); err != nil {
-			return err
-		}
+	if err := cfg.Ingest.Validate(); err != nil {
+		return err
+	}
+
+	if err := cfg.Processor.Validate(); err != nil {
+		return err
 	}
 
 	// Only validate if being used
@@ -101,6 +104,10 @@ func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag
 	cfg.ServiceGraphs.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.SpanMetrics.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.LocalBlocks.RegisterFlagsAndApplyDefaults(prefix, f)
+}
+
+func (cfg *ProcessorConfig) Validate() error {
+	return cfg.LocalBlocks.Validate()
 }
 
 // copyWithOverrides creates a copy of the config using values set in the overrides.
