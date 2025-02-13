@@ -3,9 +3,13 @@ package spanmetrics
 import (
 	"context"
 	"fmt"
+	"slices"
+	"sync"
 	"time"
 	"unicode/utf8"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/prometheus/util/strutil"
 	"go.opentelemetry.io/otel"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
@@ -13,10 +17,10 @@ import (
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/spanfilter"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/resource/v1"
 	v1_trace "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	tempo_util "github.com/grafana/tempo/pkg/util"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -67,11 +71,11 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 	}
 
 	for _, d := range cfg.Dimensions {
-		labels = append(labels, processor_util.SanitizeLabelNameWithCollisions(d, intrinsicLabels))
+		labels = append(labels, SanitizeLabelNameWithCollisions(d, intrinsicLabels))
 	}
 
 	for _, m := range cfg.DimensionMappings {
-		labels = append(labels, processor_util.SanitizeLabelNameWithCollisions(m.Name, intrinsicLabels))
+		labels = append(labels, SanitizeLabelNameWithCollisions(m.Name, intrinsicLabels))
 	}
 
 	err := validateLabelValues(labels)
@@ -131,7 +135,7 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 		jobName := processor_util.GetJobValue(rs.Resource.Attributes)
 		instanceID, _ := processor_util.FindInstanceID(rs.Resource.Attributes)
 		if p.Cfg.EnableTargetInfo {
-			processor_util.GetTargetInfoAttributesValues(&resourceLabels, &resourceValues, rs.Resource.Attributes, p.Cfg.TargetInfoExcludedDimensions, intrinsicLabels)
+			GetTargetInfoAttributesValues(&resourceLabels, &resourceValues, rs.Resource.Attributes, p.Cfg.TargetInfoExcludedDimensions, intrinsicLabels)
 		}
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
@@ -264,4 +268,58 @@ func validateLabelValues(v []string) error {
 		}
 	}
 	return nil
+}
+
+func GetTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_common.KeyValue, exclude, intrinsicLabels []string) {
+	// TODO allocate with known length, or take new params for existing buffers
+	*keys = (*keys)[:0]
+	*values = (*values)[:0]
+	for _, attrs := range attributes {
+		// ignoring job and instance
+		key := attrs.Key
+		if key != "service.name" && key != "service.namespace" && key != "service.instance.id" && !Contains(key, exclude) {
+			*keys = append(*keys, SanitizeLabelNameWithCollisions(key, intrinsicLabels))
+			value := tempo_util.StringifyAnyValue(attrs.Value)
+			*values = append(*values, value)
+		}
+	}
+}
+
+func SanitizeLabelNameWithCollisions(name string, dimensions []string) string {
+	sanitized := sanitizeLabelNameWithCache(name)
+
+	// check if same label as intrinsics
+	if slices.Contains(dimensions, sanitized) {
+		return "__" + sanitized
+	}
+
+	return sanitized
+}
+
+func Contains(key string, list []string) bool {
+	for _, exclude := range list {
+		if key == exclude {
+			return true
+		}
+	}
+	return false
+}
+
+var sanitizeCache = sync.Pool{
+	New: func() any {
+		return make(map[string]string)
+	},
+}
+
+func sanitizeLabelNameWithCache(name string) string {
+	m := sanitizeCache.Get().(map[string]string)
+	defer sanitizeCache.Put(m)
+
+	if s, ok := m[name]; ok {
+		return s
+	}
+
+	s := strutil.SanitizeLabelName(name)
+	m[name] = s
+	return s
 }
