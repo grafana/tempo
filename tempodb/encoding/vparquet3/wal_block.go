@@ -80,7 +80,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 	b := &walBlock{
 		meta:           meta,
 		path:           path,
-		ids:            common.NewIDMap[int64](),
+		ids:            common.NewIDMap[int64](0),
 		ingestionSlack: ingestionSlack,
 	}
 
@@ -107,7 +107,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 		}
 
 		path := filepath.Join(dir, f.Name())
-		page := newWalBlockFlush(path, common.NewIDMap[int64]())
+		page := newWalBlockFlush(path, common.NewIDMap[int64](0))
 
 		file, err := page.file(context.Background())
 		if err != nil {
@@ -159,7 +159,7 @@ func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, inge
 			ReplicationFactor: meta.ReplicationFactor,
 		},
 		path:           filepath,
-		ids:            common.NewIDMap[int64](),
+		ids:            common.NewIDMap[int64](0),
 		ingestionSlack: ingestionSlack,
 	}
 
@@ -456,7 +456,7 @@ func (b *walBlock) Flush() (err error) {
 	b.writeFlush(newWalBlockFlush(b.file.Name(), b.ids))
 	b.flushedSize += sz
 	b.unflushedSize = 0
-	b.ids = common.NewIDMap[int64]()
+	b.ids = common.NewIDMap[int64](0)
 
 	// Open next one
 	return b.openWriter()

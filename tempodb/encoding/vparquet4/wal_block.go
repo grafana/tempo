@@ -80,7 +80,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 	b := &walBlock{
 		meta:           meta,
 		path:           path,
-		ids:            common.NewIDMap[int64](),
+		ids:            common.NewIDMap[int64](0), // This ID map is used for new appends which aren't expected when opening a block for replay
 		ingestionSlack: ingestionSlack,
 		dedcolsRes:     dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource),
 		dedcolsSpan:    dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan),
@@ -109,7 +109,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 		}
 
 		path := filepath.Join(dir, f.Name())
-		page := newWalBlockFlush(path, common.NewIDMap[int64]())
+		page := newWalBlockFlush(path, nil)
 
 		file, err := page.file(context.Background())
 		if err != nil {
@@ -119,6 +119,9 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 
 		defer file.Close()
 		pf := file.parquetFile
+
+		// Now allocate the id map once the number of rows is known
+		page.ids = common.NewIDMap[int64](int(pf.NumRows()))
 
 		// iterate the parquet file and build the meta
 		iter := makeIterFunc(context.Background(), pf.RowGroups(), pf)(columnPathTraceID, nil, columnPathTraceID)
@@ -161,7 +164,7 @@ func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, inge
 			ReplicationFactor: meta.ReplicationFactor,
 		},
 		path:           filepath,
-		ids:            common.NewIDMap[int64](),
+		ids:            common.NewIDMap[int64](0),
 		ingestionSlack: ingestionSlack,
 		dedcolsRes:     dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource),
 		dedcolsSpan:    dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan),
@@ -441,7 +444,7 @@ func (b *walBlock) Flush() (err error) {
 	b.writeFlush(newWalBlockFlush(b.file.Name(), b.ids))
 	b.flushedSize += sz
 	b.unflushedSize = 0
-	b.ids = common.NewIDMap[int64]()
+	b.ids = common.NewIDMap[int64](b.ids.Len()) // Recreate new id map with same expected size
 
 	// Open next one
 	return b.openWriter()
