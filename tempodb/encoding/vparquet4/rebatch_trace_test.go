@@ -9,7 +9,6 @@ import (
 )
 
 func TestRebatchTrace(t *testing.T) {
-
 	var (
 		// setup distinct resources
 		r1 = Resource{

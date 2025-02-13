@@ -40,7 +40,7 @@ func TestProtoParquetRoundTrip(t *testing.T) {
 	require.True(t, connected)
 	actualTrace := parquetTraceToTempopbTrace(&meta, parquetTrace)
 
-	//assert.Equal(t, expectedTrace, actualTrace)
+	// assert.Equal(t, expectedTrace, actualTrace)
 	tempopbTraceEqual(t, expectedTrace, actualTrace)
 }
 
