@@ -547,6 +547,8 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 		}
 	}
 
+	// modify trace by rebatching spans and assigning nested set values
+	rebatchTrace(ot)
 	return ot, assignNestedSetModelBoundsAndServiceStats(ot)
 }
 
