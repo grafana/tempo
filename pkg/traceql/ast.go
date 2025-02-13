@@ -1062,6 +1062,8 @@ func (a Attribute) impliedType() StaticType {
 		return TypeString
 	case IntrinsicSpanID:
 		return TypeString
+	case IntrinsicParentID:
+		return TypeString
 	}
 
 	return TypeAttribute

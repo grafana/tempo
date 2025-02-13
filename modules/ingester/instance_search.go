@@ -429,7 +429,8 @@ func (i *instance) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTag
 	if tag == traceql.IntrinsicLinkTraceIDAttribute ||
 		tag == traceql.IntrinsicLinkSpanIDAttribute ||
 		tag == traceql.IntrinsicSpanIDAttribute ||
-		tag == traceql.IntrinsicTraceIDAttribute {
+		tag == traceql.IntrinsicTraceIDAttribute ||
+		tag == traceql.IntrinsicParentIDAttribute {
 		// do not return tag values for IDs
 		return &tempopb.SearchTagValuesV2Response{}, nil
 	}
