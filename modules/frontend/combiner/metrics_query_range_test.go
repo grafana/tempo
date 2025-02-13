@@ -615,7 +615,6 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 
 	queryRangeCombiner.AddResponse(toHTTPResponse(t, secondResp, 200))
 	require.True(t, queryRangeCombiner.ShouldQuit())
-
 }
 
 func BenchmarkDiffSeriesAndMarshal(b *testing.B) {
