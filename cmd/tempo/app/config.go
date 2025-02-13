@@ -118,9 +118,9 @@ func (c *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 
 	// Everything else
 	flagext.DefaultValues(&c.IngesterClient)
-	c.IngesterClient.GRPCClientConfig.GRPCCompression = ""
+	c.IngesterClient.GRPCClientConfig.GRPCCompression = "snappy"
 	flagext.DefaultValues(&c.GeneratorClient)
-	c.GeneratorClient.GRPCClientConfig.GRPCCompression = ""
+	c.GeneratorClient.GRPCClientConfig.GRPCCompression = "snappy"
 	c.Overrides.RegisterFlagsAndApplyDefaults(f)
 
 	c.Distributor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "distributor"), f)
