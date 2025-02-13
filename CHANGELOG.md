@@ -17,7 +17,6 @@
 * [CHANGE] **BREAKING CHANGE** Enforce max attribute size at event, link, and instrumentation scope. Make config per-tenant.
   Renamed max_span_attr_byte to max_attribute_bytes
   [#4633](https://github.com/grafana/tempo/pull/4633) (@ie-pham)
-* [CHANGE] Default to snappy compression for all gRPC communications internal to Tempo. For a discussion on alternatives see https://github.com/grafana/tempo/discussions/4683. [#4696](https://github.com/grafana/tempo/pull/4696) (@joe-elliott)
 * [FEATURE] Added most_recent=true query hint to TraceQL to return most recent results. [#4238](https://github.com/grafana/tempo/pull/4238) (@joe-elliott)
 * [ENHANCEMENT] Update minio to version [#4341](https://github.com/grafana/tempo/pull/4568) (@javiermolinar)
 * [ENHANCEMENT] Prevent queries in the ingester from blocking flushing traces to disk and memory spikes. [#4483](https://github.com/grafana/tempo/pull/4483) (@joe-elliott)
@@ -37,6 +36,10 @@
 * [BUGFIX] Fix metrics streaming for all non-trivial metrics [#4624](https://github.com/grafana/tempo/pull/4624) (@joe-elliott)
 * [BUGFIX] Fix starting consuming log [#4539](https://github.com/grafana/tempo/pull/4539) (@javiermolinar)
 * [BUGFIX] Return the operand as the only value if the tag is already filtered in the query [#4673](https://github.com/grafana/tempo/pull/4673) (@mapno)
+
+# v2.7.1
+
+* [CHANGE] Default to snappy compression for all gRPC communications internal to Tempo. We feel this is a nice balance of resource usage and network traffic. For a discussion on alternatives see https://github.com/grafana/tempo/discussions/4683. [#4696](https://github.com/grafana/tempo/pull/4696) (@joe-elliott)
 
 # v2.7.0
 
