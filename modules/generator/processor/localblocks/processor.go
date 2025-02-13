@@ -18,6 +18,8 @@ import (
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/pkg/tracesizes"
 	"github.com/grafana/tempo/tempodb"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
@@ -55,7 +57,8 @@ type Processor struct {
 	wal       *wal.WAL
 	walR      backend.Reader
 	walW      backend.Writer
-	closeCh   chan struct{}
+	ctx       context.Context
+	cancel    func()
 	wg        sync.WaitGroup
 	cacheMtx  sync.RWMutex
 	cache     *lru.Cache
@@ -92,6 +95,8 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 		}
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	p = &Processor{
 		tenant:         tenant,
 		logger:         log.WithUserID(tenant, log.Logger),
@@ -106,7 +111,8 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 		flushqueue:     flushqueues.NewPriorityQueue(metricFlushQueueSize.WithLabelValues(tenant)),
 		liveTraces:     livetraces.New[*v1.ResourceSpans](func(rs *v1.ResourceSpans) uint64 { return uint64(rs.Size()) }),
 		traceSizes:     tracesizes.New(),
-		closeCh:        make(chan struct{}),
+		ctx:            ctx,
+		cancel:         cancel,
 		wg:             sync.WaitGroup{},
 		cache:          lru.New(100),
 		writer:         writer,
@@ -117,9 +123,9 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 		return nil, fmt.Errorf("replaying blocks: %w", err)
 	}
 
-	p.wg.Add(4)
+	p.wg.Add(3)
 	go p.cutLoop()
-	go p.completeLoop()
+	// go p.completeLoop()
 	go p.deleteLoop()
 	go p.metricLoop()
 
@@ -127,6 +133,8 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 		p.wg.Add(1)
 		go p.flushLoop()
 	}
+
+	startCompleteQueue(p.Cfg.Concurrency)
 
 	return p, nil
 }
@@ -136,6 +144,75 @@ func (*Processor) Name() string {
 }
 
 func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) {
+	p.push(time.Now(), req)
+}
+
+func (p *Processor) DeterministicPush(ts time.Time, req *tempopb.PushSpansRequest) {
+	if time.Since(ts) > p.Cfg.CompleteBlockTimeout {
+		// Ignore data that is beyond retention
+		return
+	}
+
+	// Wait for room in pipeline if needed
+	for p.backpressure() {
+	}
+
+	p.push(ts, req)
+}
+
+var metricBackPressure = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "tempo",
+	Subsystem: "metrics_generator",
+	Name:      "back_pressure_seconds_total",
+	Help:      "asdf",
+}, []string{"reason"})
+
+const (
+	reasonWaitingForLiveTraces = "waiting_for_live_traces"
+	reasonWaitingForWAL        = "waiting_for_wal"
+)
+
+func (p *Processor) backpressure() bool {
+	if p.Cfg.MaxLiveTracesBytes > 0 {
+		// Check live traces
+		p.liveTracesMtx.Lock()
+		liveTracesSize := p.liveTraces.Size()
+		p.liveTracesMtx.Unlock()
+
+		if liveTracesSize >= p.Cfg.MaxLiveTracesBytes {
+			// Live traces exceeds the expected amount of data in
+			// per wal flush, so wait a bit.
+			select {
+			case <-p.ctx.Done():
+			case <-time.After(1 * time.Second):
+			}
+
+			metricBackPressure.WithLabelValues(reasonWaitingForLiveTraces).Inc()
+			return true
+		}
+	}
+
+	// Check outstanding wal blocks
+	p.blocksMtx.RLock()
+	count := len(p.walBlocks)
+	p.blocksMtx.RUnlock()
+
+	if count > 1 {
+		// There are multiple outstanding WAL blocks that need completion
+		// so wait a bit.
+		select {
+		case <-p.ctx.Done():
+		case <-time.After(1 * time.Second):
+		}
+
+		metricBackPressure.WithLabelValues(reasonWaitingForWAL).Inc()
+		return true
+	}
+
+	return false
+}
+
+func (p *Processor) push(ts time.Time, req *tempopb.PushSpansRequest) {
 	p.liveTracesMtx.Lock()
 	defer p.liveTracesMtx.Unlock()
 
@@ -171,11 +248,10 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 		}
 
 		// Live traces
-		if !p.liveTraces.Push(traceID, batch, p.Cfg.MaxLiveTraces) {
+		if !p.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, p.Cfg.MaxLiveTraces, 0) {
 			metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
 			continue
 		}
-
 	}
 
 	after := p.liveTraces.Len()
@@ -185,11 +261,11 @@ func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) 
 }
 
 func (p *Processor) Shutdown(context.Context) {
-	close(p.closeCh)
+	p.cancel()
 	p.wg.Wait()
 
 	// Immediately cut all traces from memory
-	err := p.cutIdleTraces(true)
+	err := p.cutIdleTraces(time.Time{}, true)
 	if err != nil {
 		level.Error(p.logger).Log("msg", "local blocks processor failed to cut remaining traces on shutdown", "err", err)
 	}
@@ -209,7 +285,7 @@ func (p *Processor) cutLoop() {
 	for {
 		select {
 		case <-flushTicker.C:
-			err := p.cutIdleTraces(false)
+			err := p.cutIdleTraces(time.Now().Add(-p.Cfg.TraceIdlePeriod), false)
 			if err != nil {
 				level.Error(p.logger).Log("msg", "local blocks processor failed to cut idle traces", "err", err)
 			}
@@ -219,7 +295,7 @@ func (p *Processor) cutLoop() {
 				level.Error(p.logger).Log("msg", "local blocks processor failed to cut head block", "err", err)
 			}
 
-		case <-p.closeCh:
+		case <-p.ctx.Done():
 			return
 		}
 	}
@@ -239,27 +315,7 @@ func (p *Processor) deleteLoop() {
 				level.Error(p.logger).Log("msg", "local blocks processor failed to delete old blocks", "err", err)
 			}
 
-		case <-p.closeCh:
-			return
-		}
-	}
-}
-
-func (p *Processor) completeLoop() {
-	defer p.wg.Done()
-
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			err := p.completeBlock()
-			if err != nil {
-				level.Error(p.logger).Log("msg", "local blocks processor failed to complete a block", "err", err)
-			}
-
-		case <-p.closeCh:
+		case <-p.ctx.Done():
 			return
 		}
 	}
@@ -269,7 +325,7 @@ func (p *Processor) flushLoop() {
 	defer p.wg.Done()
 
 	go func() {
-		<-p.closeCh
+		<-p.ctx.Done()
 		p.flushqueue.Close()
 	}()
 
@@ -327,33 +383,28 @@ func (p *Processor) metricLoop() {
 			// Instead of reacting to every block flush/update, just run on a timer.
 			p.recordBlockBytes()
 
-		case <-p.closeCh:
+		case <-p.ctx.Done():
 			return
 		}
 	}
 }
 
-func (p *Processor) completeBlock() error {
-	// Get a wal block
-	var firstWalBlock common.WALBlock
+func (p *Processor) completeBlock(id uuid.UUID) error {
 	p.blocksMtx.RLock()
-	for _, e := range p.walBlocks {
-		firstWalBlock = e
-		break
-	}
+	b := p.walBlocks[id]
 	p.blocksMtx.RUnlock()
 
-	if firstWalBlock == nil {
+	if b == nil {
+		_ = level.Warn(p.logger).Log("msg", "local blocks processor WAL block disappeared before being completed", "id", id)
 		return nil
 	}
 
 	// Now create a new block
 	var (
-		ctx    = context.Background()
+		ctx    = p.ctx
 		reader = backend.NewReader(p.wal.LocalBackend())
 		writer = backend.NewWriter(p.wal.LocalBackend())
 		cfg    = p.Cfg.Block
-		b      = firstWalBlock
 	)
 
 	ctx, span := tracer.Start(ctx, "Processor.CompleteBlock")
@@ -379,12 +430,25 @@ func (p *Processor) completeBlock() error {
 	p.blocksMtx.Lock()
 	defer p.blocksMtx.Unlock()
 
-	p.completeBlocks[(uuid.UUID)(newMeta.BlockID)] = ingester.NewLocalBlock(ctx, newBlock, p.wal.LocalBackend())
+	// Verify the WAL block still exists, it's possible that it went out of retention
+	// while it was being completed.
+	if _, ok := p.walBlocks[id]; !ok {
+		// WAL block is gone.
+		_ = level.Warn(p.logger).Log("msg", "local blocks processor WAL block disappeared while being completed, deleting complete block", "id", id)
+		err := p.wal.LocalBackend().ClearBlock(id, p.tenant)
+		if err != nil {
+			_ = level.Error(p.logger).Log("msg", "failed to clear complete block after WAL disappeared", "tenant", p.tenant, "block", id, "err", err)
+		}
+	}
+
+	p.completeBlocks[id] = ingester.NewLocalBlock(ctx, newBlock, p.wal.LocalBackend())
 	metricCompletedBlocks.WithLabelValues(p.tenant).Inc()
 
 	// Queue for flushing
-	if _, err := p.flushqueue.Enqueue(newFlushOp((uuid.UUID)(newMeta.BlockID))); err != nil {
-		_ = level.Error(p.logger).Log("msg", "local blocks processor failed to enqueue block for flushing", "err", err)
+	if p.Cfg.FlushToStorage {
+		if _, err := p.flushqueue.Enqueue(newFlushOp((uuid.UUID)(newMeta.BlockID))); err != nil {
+			_ = level.Error(p.logger).Log("msg", "local blocks processor failed to enqueue block for flushing", "err", err)
+		}
 	}
 
 	err = b.Clear()
@@ -405,8 +469,7 @@ func (p *Processor) flushBlock(id uuid.UUID) error {
 		return nil
 	}
 
-	ctx := context.Background()
-	err := p.writer.WriteBlock(ctx, completeBlock)
+	err := p.writer.WriteBlock(p.ctx, completeBlock)
 	if err != nil {
 		return err
 	}
@@ -560,6 +623,8 @@ func (p *Processor) deleteOldBlocks() (err error) {
 				return err
 			}
 			delete(p.walBlocks, id)
+
+			// Also clear
 		}
 	}
 
@@ -594,14 +659,14 @@ func (p *Processor) deleteOldBlocks() (err error) {
 	return
 }
 
-func (p *Processor) cutIdleTraces(immediate bool) error {
+func (p *Processor) cutIdleTraces(since time.Time, immediate bool) error {
 	p.liveTracesMtx.Lock()
 
 	// Record live traces before flushing so we know the high water mark
 	metricLiveTraces.WithLabelValues(p.tenant).Set(float64(p.liveTraces.Len()))
 	metricLiveTraceBytes.WithLabelValues(p.tenant).Set(float64(p.liveTraces.Size()))
 
-	since := time.Now().Add(-p.Cfg.TraceIdlePeriod)
+	// since :=
 	tracesToCut := p.liveTraces.CutIdle(since, immediate)
 
 	p.liveTracesMtx.Unlock()
@@ -663,7 +728,7 @@ func (p *Processor) writeHeadBlock(id common.ID, tr *tempopb.Trace) error {
 	startSeconds := uint32(start / uint64(time.Second))
 	endSeconds := uint32(end / uint64(time.Second))
 
-	err := p.headBlock.AppendTrace(id, tr, startSeconds, endSeconds, true)
+	err := p.headBlock.AppendTrace(id, tr, startSeconds, endSeconds, false)
 	if err != nil {
 		return err
 	}
@@ -708,7 +773,8 @@ func (p *Processor) cutBlocks(immediate bool) error {
 		return fmt.Errorf("failed to flush head block: %w", err)
 	}
 
-	p.walBlocks[(uuid.UUID)(p.headBlock.BlockMeta().BlockID)] = p.headBlock
+	id := (uuid.UUID)(p.headBlock.BlockMeta().BlockID)
+	p.walBlocks[id] = p.headBlock
 	metricCutBlocks.WithLabelValues(p.tenant).Inc()
 
 	err = p.resetHeadBlock()
@@ -716,12 +782,26 @@ func (p *Processor) cutBlocks(immediate bool) error {
 		return fmt.Errorf("failed to resetHeadBlock: %w", err)
 	}
 
+	// Enqueue complete Op for this block
+	op := completeOp{
+		ctx:     p.ctx,
+		tenant:  p.tenant,
+		blockID: id,
+		at:      time.Now(),
+		p:       p,
+		bo:      30 * time.Second,
+	}
+	level.Info(p.logger).Log("msg", "queueing wal block for completion", "block", id.String())
+	if _, err := completeQueue.Enqueue(&op); err != nil {
+		_ = level.Error(p.logger).Log("msg", "local blocks processor failed to enqueue block for completion", "err", err)
+	}
+
 	return nil
 }
 
 func (p *Processor) reloadBlocks() error {
 	var (
-		ctx = context.Background()
+		ctx = p.ctx
 		t   = p.tenant
 		l   = p.wal.LocalBackend()
 		r   = backend.NewReader(l)
@@ -739,7 +819,20 @@ func (p *Processor) reloadBlocks() error {
 		meta := blk.BlockMeta()
 		if meta.TenantID == p.tenant {
 			level.Info(p.logger).Log("msg", "reloading wal block", "block", meta.BlockID.String())
-			p.walBlocks[(uuid.UUID)(blk.BlockMeta().BlockID)] = blk
+			p.walBlocks[(uuid.UUID)(meta.BlockID)] = blk
+
+			op := completeOp{
+				ctx:     p.ctx,
+				tenant:  p.tenant,
+				blockID: uuid.UUID(meta.BlockID),
+				at:      time.Now(),
+				p:       p,
+				bo:      30 * time.Second,
+			}
+			level.Info(p.logger).Log("msg", "queueing replayed wal block for completion", "block", meta.BlockID.String())
+			if _, err := completeQueue.Enqueue(&op); err != nil {
+				_ = level.Error(p.logger).Log("msg", "local blocks processor failed to enqueue wal block for completion after replay", "err", err)
+			}
 		}
 	}
 	level.Info(p.logger).Log("msg", "reloaded wal blocks", "count", len(p.walBlocks))

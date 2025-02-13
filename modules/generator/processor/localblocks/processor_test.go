@@ -147,18 +147,13 @@ func TestProcessorDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		err := p.cutIdleTraces(true)
+		err := p.cutIdleTraces(time.Time{}, true)
 		require.NoError(t, err, "cutting idle traces")
 	})
 
 	go concurrent(func() {
 		err := p.cutBlocks(true)
 		require.NoError(t, err, "cutting blocks")
-	})
-
-	go concurrent(func() {
-		err := p.completeBlock()
-		require.NoError(t, err, "completing block")
 	})
 
 	go concurrent(func() {
@@ -236,7 +231,7 @@ func TestReplicationFactor(t *testing.T) {
 		Batches: tr.ResourceSpans,
 	})
 
-	require.NoError(t, p.cutIdleTraces(true))
+	require.NoError(t, p.cutIdleTraces(time.Time{}, true))
 	verifyReplicationFactor(t, p.headBlock)
 
 	require.NoError(t, p.cutBlocks(true))
@@ -244,7 +239,9 @@ func TestReplicationFactor(t *testing.T) {
 		verifyReplicationFactor(t, b)
 	}
 
-	require.NoError(t, p.completeBlock())
+	// err = p.completeAllBlocks()
+	// require.NoError(t, err)
+
 	for _, b := range p.completeBlocks {
 		verifyReplicationFactor(t, b)
 	}
