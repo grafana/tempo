@@ -923,6 +923,33 @@ func BenchmarkExtendReuseSlice(b *testing.B) {
 	}
 }
 
+var benchmarkTrace *Trace
+
+func BenchmarkTraceToParquet(b *testing.B) {
+	var (
+		traceID       = test.ValidTraceID(nil)
+		traces        = make([]*tempopb.Trace, 0, 1_000)
+		parquetTraces = make([]*Trace, 11)
+	)
+
+	for range 1_000 {
+		nb := 20 + rand.Intn(5)
+		id := test.ValidTraceID(nil)
+		traces = append(traces, test.AddDedicatedAttributes(test.MakeTrace(nb, test.ValidTraceID(id))))
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := range b.N {
+		t := traces[i%len(traces)]
+		pt := parquetTraces[i%len(parquetTraces)]
+
+		traceToParquet(&backend.BlockMeta{}, traceID, t, pt)
+		benchmarkTrace = pt // prevent the compiler from optimizing out the above call
+	}
+}
+
 func tempopbTraceEqual(t *testing.T, expected, actual *tempopb.Trace) {
 	sortAttributesTempopb(expected)
 	sortAttributesTempopb(actual)
