@@ -20,6 +20,7 @@ import (
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
+	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
@@ -154,6 +155,7 @@ func BenchmarkPushSpans(b *testing.B) {
 			processors: map[string]struct{}{
 				"span-metrics":   {},
 				"service-graphs": {},
+				"local-blocks":   {},
 			},
 			spanMetricsEnableTargetInfo:             false,
 			spanMetricsTargetInfoExcludedDimensions: []string{"excluded}"},
@@ -162,47 +164,58 @@ func BenchmarkPushSpans(b *testing.B) {
 
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 
-	wal, err := storage.New(walcfg, o, tenant, reg, log)
+	w, err := storage.New(walcfg, o, tenant, reg, log)
 	require.NoError(b, err)
 
-	inst, err := newInstance(cfg, tenant, o, wal, reg, log, nil, nil, nil)
+	tracesWal, err := wal.New(&wal.Config{
+		Filepath: b.TempDir(),
+	})
+	require.NoError(b, err)
+
+	inst, err := newInstance(cfg, tenant, o, w, reg, log, tracesWal, nil, nil)
 	require.NoError(b, err)
 	defer inst.shutdown()
-
-	req := &tempopb.PushSpansRequest{
-		Batches: []*trace_v1.ResourceSpans{
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
-			test.MakeBatch(100, nil),
-		},
-	}
-
-	// Add more resource attributes to get closer to real data
-	// Add integer to increase cardinality.
-	// Currently this is about 80 active series
-	// TODO - Get more series
-	for i, b := range req.Batches {
-		b.Resource.Attributes = append(b.Resource.Attributes, []*common_v1.KeyValue{
-			{Key: "k8s.cluster.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
-			{Key: "k8s.namespace.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
-			{Key: "k8s.node.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
-			{Key: "k8s.pod.ip", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
-			{Key: "k8s.pod.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
-			{Key: "service.instance.id", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
-			{Key: "excluded", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
-		}...)
-	}
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
+
+		b.StopTimer()
+		// Allocate a new request each push so that we can measure the effect
+		// of string uniqify.
+		req := &tempopb.PushSpansRequest{
+			Batches: []*trace_v1.ResourceSpans{
+				test.MakeBatch(100, nil),
+				test.MakeBatch(100, nil),
+				test.MakeBatch(100, nil),
+				test.MakeBatch(100, nil),
+				test.MakeBatch(100, nil),
+				test.MakeBatch(100, nil),
+				test.MakeBatch(100, nil),
+				test.MakeBatch(100, nil),
+				test.MakeBatch(100, nil),
+				test.MakeBatch(100, nil),
+			},
+		}
+
+		// Add more resource attributes to get closer to real data
+		// Add integer to increase cardinality.
+		// Currently this is about 80 active series
+		// TODO - Get more series
+		for i, b := range req.Batches {
+			b.Resource.Attributes = append(b.Resource.Attributes, []*common_v1.KeyValue{
+				{Key: "k8s.cluster.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+				{Key: "k8s.namespace.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+				{Key: "k8s.node.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+				{Key: "k8s.pod.ip", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+				{Key: "k8s.pod.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+				{Key: "service.instance.id", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+				{Key: "excluded", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+			}...)
+		}
+		b.StartTimer()
+
+		inst.uniqify = true
 		inst.pushSpans(ctx, req)
 	}
 
@@ -211,6 +224,7 @@ func BenchmarkPushSpans(b *testing.B) {
 	mem := runtime.MemStats{}
 	runtime.ReadMemStats(&mem)
 	b.ReportMetric(float64(mem.HeapInuse), "heap_in_use")
+	b.ReportMetric(float64(mem.HeapAlloc), "heap_alloc")
 }
 
 func BenchmarkCollect(b *testing.B) {

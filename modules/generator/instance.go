@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unique"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -22,6 +23,7 @@ import (
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/modules/generator/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -83,13 +85,17 @@ type instance struct {
 	processorsMtx sync.RWMutex
 	// processors is a map of processor name -> processor, only one instance of a processor can be
 	// active at any time
-	processors            map[string]processor.Processor
+	processors map[string]processor.Processor
+
+	// Special processing for queue-based data
 	queuebasedLocalBlocks *localblocks.Processor
 
 	shutdownCh chan struct{}
 
 	reg    prometheus.Registerer
 	logger log.Logger
+
+	uniqify bool
 }
 
 func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverrides, wal storage.Storage, reg prometheus.Registerer, logger log.Logger, traceWAL, rf1TraceWAL *wal.WAL, writer tempodb.Writer) (*instance, error) {
@@ -112,6 +118,8 @@ func newInstance(cfg *Config, instanceID string, overrides metricsGeneratorOverr
 
 		reg:    reg,
 		logger: logger,
+
+		uniqify: true,
 	}
 
 	err := i.updateProcessors()
@@ -377,7 +385,7 @@ func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest)
 	}
 }
 
-func (i *instance) pushSpansFromQueue(ctx context.Context, req *tempopb.PushSpansRequest) {
+func (i *instance) pushSpansFromQueue(ctx context.Context, ts time.Time, req *tempopb.PushSpansRequest) {
 	i.preprocessSpans(req)
 	i.processorsMtx.RLock()
 	defer i.processorsMtx.RUnlock()
@@ -392,7 +400,7 @@ func (i *instance) pushSpansFromQueue(ctx context.Context, req *tempopb.PushSpan
 
 	// Now we push to the non-flushing local blocks if present
 	if i.queuebasedLocalBlocks != nil {
-		i.queuebasedLocalBlocks.PushSpans(ctx, req)
+		i.queuebasedLocalBlocks.DeterministicPush(ts, req)
 	}
 }
 
@@ -427,6 +435,41 @@ func (i *instance) preprocessSpans(req *tempopb.PushSpansRequest) {
 		}
 	}
 	i.updatePushMetrics(size, spanCount, expiredSpanCount)
+
+	if i.uniqify {
+		uniqify(req)
+	}
+}
+
+func uniqify(req *tempopb.PushSpansRequest) {
+	for _, b := range req.Batches {
+		// Uniqify resource string attributes to reduce
+		// standing memory
+		for _, kv := range b.Resource.Attributes {
+			kv.Key = unique.Make(kv.Key).Value()
+			if s, ok := kv.Value.Value.(*v1_common.AnyValue_StringValue); ok {
+				s.StringValue = unique.Make(s.StringValue).Value()
+			}
+		}
+
+		for _, ss := range b.ScopeSpans {
+			if ss.Scope != nil {
+				ss.Scope.Name = unique.Make(ss.Scope.Name).Value()
+				ss.Scope.Version = unique.Make(ss.Scope.Version).Value()
+			}
+
+			for _, s := range ss.Spans {
+				s.Name = unique.Make(s.Name).Value()
+
+				for _, kv := range s.Attributes {
+					kv.Key = unique.Make(kv.Key).Value()
+					if s, ok := kv.Value.Value.(*v1_common.AnyValue_StringValue); ok {
+						s.StringValue = unique.Make(s.StringValue).Value()
+					}
+				}
+			}
+		}
+	}
 }
 
 func (i *instance) GetMetrics(ctx context.Context, req *tempopb.SpanMetricsRequest) (resp *tempopb.SpanMetricsResponse, err error) {
