@@ -50,7 +50,7 @@ ifeq ($(BUILD_DEBUG), 1)
 	GO_OPT+= -gcflags="all=-N -l"
 endif
 
-GOTEST_OPT?= -race -timeout 25m -count=1 -v
+GOTEST_OPT?= -race -timeout 25m -v
 GOTEST_OPT_WITH_COVERAGE = $(GOTEST_OPT) -cover
 GOTEST=gotestsum --format=testname --
 LINT=golangci-lint
@@ -126,7 +126,7 @@ test-with-cover-others: tools ## Run other tests with code coverage
 # runs e2e tests in the top level integration/e2e directory
 .PHONY: test-e2e
 test-e2e: tools docker-tempo docker-tempo-query  ## Run end to end tests
-	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/...
 
 # runs only deployment modes e2e tests
 .PHONY: test-e2e-deployments
