@@ -2,11 +2,12 @@ package hostinfo
 
 import (
 	"context"
+	"time"
+
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"go.opentelemetry.io/otel"
-	"time"
 )
 
 const (

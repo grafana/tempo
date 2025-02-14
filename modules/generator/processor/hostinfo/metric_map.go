@@ -1,8 +1,9 @@
 package hostinfo
 
 import (
-	"github.com/grafana/tempo/modules/generator/registry"
 	"sync"
+
+	"github.com/grafana/tempo/modules/generator/registry"
 )
 
 type metricMap struct {
