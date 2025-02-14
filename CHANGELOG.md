@@ -38,6 +38,10 @@
 * [BUGFIX] Return the operand as the only value if the tag is already filtered in the query [#4673](https://github.com/grafana/tempo/pull/4673) (@mapno)
 * [BUGFIX] Fix memcached settings for docker compose example [#4346](https://github.com/grafana/tempo/pull/4695) (@ruslan-mikhailov)
 
+# v2.7.1
+
+* [CHANGE] Default to snappy compression for all gRPC communications internal to Tempo. We feel this is a nice balance of resource usage and network traffic. For a discussion on alternatives see https://github.com/grafana/tempo/discussions/4683. [#4696](https://github.com/grafana/tempo/pull/4696) (@joe-elliott)
+
 # v2.7.0
 
 * [CHANGE] Disable gRPC compression in the querier and distributor for performance reasons [#4429](https://github.com/grafana/tempo/pull/4429) (@carles-grafana)
