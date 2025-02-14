@@ -10,8 +10,17 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
+
+var metricBackPressure = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "tempo",
+	Subsystem: "metrics_generator",
+	Name:      "enqueue_time",
+	Help:      "asdf",
+}, []string{"reason"})
 
 func (g *Generator) startKafka() {
 	g.kafkaCh = make(chan *kgo.Record, g.cfg.Ingest.Concurrency)
@@ -78,6 +87,8 @@ func (g *Generator) readKafka(ctx context.Context) error {
 		}
 	})
 
+	start := time.Now()
+
 	for iter := fetches.RecordIter(); !iter.Done(); {
 		select {
 		case g.kafkaCh <- iter.Next():
@@ -85,6 +96,8 @@ func (g *Generator) readKafka(ctx context.Context) error {
 			return ctx.Err()
 		}
 	}
+
+	metricBackPressure.WithLabelValues("waiting_for_queue").Add(time.Since(start).Seconds())
 
 	return nil
 }
