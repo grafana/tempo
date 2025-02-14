@@ -825,17 +825,21 @@ func (p *Processor) reloadBlocks() error {
 		r   = backend.NewReader(l)
 	)
 
-	p.blocksMtx.Lock()
-	defer p.blocksMtx.Unlock()
-
 	// ------------------------------------
 	// wal blocks
 	// ------------------------------------
+	level.Info(p.logger).Log("msg", "reloading wal blocks")
 	walBlocks, err := p.wal.RescanBlocks(0, log.Logger)
 	if err != nil {
 		return err
 	}
-	level.Info(p.logger).Log("msg", "reloading wal blocks", "count", len(walBlocks))
+
+	// Important - Must take the lock while adding to the block lists and enqueuing work,
+	// but don't take it until after the slowest RescanBlocks step above to prevent blocking
+	// other work for other tenants.  All of the below steps are fairly quick.
+	p.blocksMtx.Lock()
+	defer p.blocksMtx.Unlock()
+
 	for _, blk := range walBlocks {
 		meta := blk.BlockMeta()
 		if meta.TenantID == p.tenant {
