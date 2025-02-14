@@ -28,6 +28,8 @@ type Config struct {
 	FilterServerSpans    bool                  `yaml:"filter_server_spans"`
 	FlushToStorage       bool                  `yaml:"flush_to_storage"`
 	Metrics              MetricsConfig         `yaml:",inline"`
+
+	AssertMaxLiveTraces bool // Used internally for non-flushing instance
 }
 
 type MetricsConfig struct {

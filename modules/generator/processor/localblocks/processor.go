@@ -46,6 +46,7 @@ const (
 // ProcessorOverrides is just the set of overrides needed here.
 type ProcessorOverrides interface {
 	DedicatedColumns(string) backend.DedicatedColumns
+	MaxLocalTracesPerUser(userID string) int
 	MaxBytesPerTrace(string) int
 	UnsafeQueryHints(string) bool
 }
@@ -216,11 +217,13 @@ func (p *Processor) push(ts time.Time, req *tempopb.PushSpansRequest) {
 	p.liveTracesMtx.Lock()
 	defer p.liveTracesMtx.Unlock()
 
-	before := p.liveTraces.Len()
+	var (
+		before  = p.liveTraces.Len()
+		maxLen  = p.maxLiveTraces()
+		maxSz   = p.overrides.MaxBytesPerTrace(p.tenant)
+		batches = req.Batches
+	)
 
-	maxSz := p.overrides.MaxBytesPerTrace(p.tenant)
-
-	batches := req.Batches
 	if p.Cfg.FilterServerSpans {
 		batches = filterBatches(batches)
 	}
@@ -230,7 +233,7 @@ func (p *Processor) push(ts time.Time, req *tempopb.PushSpansRequest) {
 		// Spans in the batch are for the same trace.
 		// We use the first one.
 		if len(batch.ScopeSpans) == 0 || len(batch.ScopeSpans[0].Spans) == 0 {
-			return
+			continue
 		}
 		traceID := batch.ScopeSpans[0].Spans[0].TraceId
 
@@ -248,7 +251,9 @@ func (p *Processor) push(ts time.Time, req *tempopb.PushSpansRequest) {
 		}
 
 		// Live traces
-		if !p.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, p.Cfg.MaxLiveTraces, 0) {
+		// Doesn't assert trace size because that is done above using traceSizes
+		// which tracks it across flushes.
+		if !p.liveTraces.PushWithTimestampAndLimits(ts, traceID, batch, maxLen, 0) {
 			metricDroppedTraces.WithLabelValues(p.tenant, reasonLiveTracesExceeded).Inc()
 			continue
 		}
@@ -258,6 +263,19 @@ func (p *Processor) push(ts time.Time, req *tempopb.PushSpansRequest) {
 
 	// Number of new traces is the delta
 	metricTotalTraces.WithLabelValues(p.tenant).Add(float64(after - before))
+}
+
+// maxLiveTraces for the tenant, if enabled, and read from config in order of precedence.
+func (p *Processor) maxLiveTraces() uint64 {
+	if !p.Cfg.AssertMaxLiveTraces {
+		return 0
+	}
+
+	if max := p.overrides.MaxLocalTracesPerUser(p.tenant); max > 0 {
+		return uint64(max)
+	}
+
+	return p.Cfg.MaxLiveTraces
 }
 
 func (p *Processor) Shutdown(context.Context) {

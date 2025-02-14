@@ -54,7 +54,7 @@ func (l *LiveTraces[T]) Push(traceID []byte, batch T, max uint64) bool {
 	return l.PushWithTimestampAndLimits(time.Now(), traceID, batch, max, 0)
 }
 
-func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte, batch T, maxLiveTraces, maxTraceSize uint64) (exceededLimits bool) {
+func (l *LiveTraces[T]) PushWithTimestampAndLimits(ts time.Time, traceID []byte, batch T, maxLiveTraces, maxTraceSize uint64) (ok bool) {
 	token := l.token(traceID)
 
 	tr := l.Traces[token]
