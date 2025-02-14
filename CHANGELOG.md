@@ -1,5 +1,9 @@
 ## main / unreleased
 
+# v2.7.1
+
+* [CHANGE] Default to snappy compression for all gRPC communications internal to Tempo. We feel this is a nice balance of resource usage and network traffic. For a discussion on alternatives see https://github.com/grafana/tempo/discussions/4683. [#4696](https://github.com/grafana/tempo/pull/4696) (@joe-elliott)
+
 # v2.7.0
 
 * [CHANGE] Disable gRPC compression in the querier and distributor for performance reasons [#4429](https://github.com/grafana/tempo/pull/4429) (@carles-grafana)
