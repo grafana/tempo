@@ -714,6 +714,7 @@ query_frontend:
             # NOTE: Requires `duration_slo` AND `throughput_bytes_slo` to be configured.
             [duration_slo: <duration> | default = 0s ]
 
+
             # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
             # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
             [throughput_bytes_slo: <float> | default = 0 ]
@@ -1109,6 +1110,22 @@ storage:
             # A map of key value strings for user tags to store on the S3 objects. This helps set up filters in S3 lifecycles.
             # See the [S3 documentation on object tagging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) for more detail.
             [tags: <map[string]string>]
+
+
+            [sse: <map[string]string>]:
+              # Optional
+              # Example: type: SSE-S3
+              # Type of encryption to use with s3 bucket, either SSE-KMS or SSE-S3
+              [type: string]:
+
+              # Optional
+              # Example: kms_key_id: "1234abcd-12ab-34cd-56ef-1234567890ab"
+              # the kms key id is the identification of the key in an account or region
+              kms_key_id:
+              # Optional
+              # Example: kms_encryption_context: "encryptionContext": {"department": "10103.0"}
+              # KMS Encryption Context used for object encryption. It expects JSON formatted string
+              kms_encryption_context:
 
         # azure configuration. Will be used only if value of backend is "azure"
         # EXPERIMENTAL
