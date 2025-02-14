@@ -104,6 +104,7 @@ func TestLexerScopedIntrinsic(t *testing.T) {
 		{`span:status`, []int{SPAN_COLON, STATUS}},
 		{`span:statusMessage`, []int{SPAN_COLON, STATUS_MESSAGE}},
 		{`span:id`, []int{SPAN_COLON, ID}},
+		{`span:parentID`, []int{SPAN_COLON, PARENT_ID}},
 		// event scoped intrinsics
 		{`event:name`, []int{EVENT_COLON, NAME}},
 		{`event:timeSinceStart`, []int{EVENT_COLON, TIMESINCESTART}},

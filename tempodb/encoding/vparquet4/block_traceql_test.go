@@ -562,7 +562,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 								HttpMethod:             ptr("get"),
 								HttpUrl:                ptr("url/hello/world"),
 								HttpStatusCode:         ptr(int64(500)),
-								ParentSpanID:           []byte{},
+								ParentSpanID:           []byte("parentid"),
 								StatusCode:             int(v1.Status_STATUS_CODE_ERROR),
 								StatusMessage:          v1.Status_STATUS_CODE_ERROR.String(),
 								TraceState:             "tracestate",
@@ -655,6 +655,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 						Spans: []Span{
 							{
 								SpanID:                 []byte("spanid2"),
+								ParentSpanID:           []byte("parentid2"),
 								Name:                   "world",
 								StartTimeUnixNano:      uint64(200 * time.Second),
 								DurationNano:           uint64(200 * time.Second),
@@ -872,6 +873,8 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 				newS.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(s.Name))
 				newS.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(otlpStatusToTraceqlStatus(uint64(s.StatusCode))))
 				newS.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(s.StatusMessage))
+				newS.addSpanAttr(traceql.IntrinsicParentIDAttribute, traceql.NewStaticString(util.SpanIDToHexString(s.ParentSpanID)))
+
 				if s.HttpStatusCode != nil {
 					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPStatusCode), traceql.NewStaticInt(int(*s.HttpStatusCode)))
 				}

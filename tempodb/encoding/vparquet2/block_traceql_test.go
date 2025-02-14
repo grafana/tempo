@@ -419,7 +419,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 								HttpMethod:             strPtr("get"),
 								HttpUrl:                strPtr("url/hello/world"),
 								HttpStatusCode:         intPtr(500),
-								ParentSpanID:           []byte{},
+								ParentSpanID:           []byte("parentid"),
 								StatusCode:             int(v1.Status_STATUS_CODE_ERROR),
 								StatusMessage:          v1.Status_STATUS_CODE_ERROR.String(),
 								TraceState:             "tracestate",
