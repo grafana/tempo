@@ -61,9 +61,10 @@ overrides:
 	require.NoError(t, services.StartAndAwaitRunning(context.Background(), o))
 
 	generatorConfig := &Config{}
+	generatorConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	generatorConfig.Storage.Path = t.TempDir()
 	generatorConfig.Ring.KVStore.Store = "inmemory"
-	generatorConfig.Processor.SpanMetrics.RegisterFlagsAndApplyDefaults("", nil)
+	// generatorConfig.Processor.SpanMetrics.RegisterFlagsAndApplyDefaults("", nil)
 	g, err := New(generatorConfig, o, prometheus.NewRegistry(), nil, nil, newTestLogger(t))
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(context.Background(), g))
@@ -215,7 +216,6 @@ func BenchmarkPushSpans(b *testing.B) {
 		}
 		b.StartTimer()
 
-		inst.uniqify = true
 		inst.pushSpans(ctx, req)
 	}
 
