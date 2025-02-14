@@ -825,6 +825,9 @@ func (p *Processor) reloadBlocks() error {
 		r   = backend.NewReader(l)
 	)
 
+	p.blocksMtx.Lock()
+	defer p.blocksMtx.Unlock()
+
 	// ------------------------------------
 	// wal blocks
 	// ------------------------------------
