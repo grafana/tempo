@@ -253,7 +253,6 @@ func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 		if lagTime < b.cfg.ConsumeCycleDuration {
 			return time.Second, nil
 		}
-		level.Info(b.logger).Log("msg", "consuming laggiest partition", "partition", laggiestPartition.partition, "lag", lagTime)
 		lastRecordTs, lastRecordOffset, err := b.consumePartition(ctx, laggiestPartition)
 		if err != nil {
 			return 0, err
