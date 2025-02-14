@@ -51,7 +51,7 @@ type Config struct {
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.Kafka.RegisterFlagsWithPrefix(prefix, f)
-	cfg.Concurrency = 4
+	cfg.Concurrency = 16
 }
 
 func (cfg *Config) Validate() error {
