@@ -11,7 +11,7 @@ cache:
   - roles:
     - frontend-search  
     memcached: 
-      host: memcached:11211
+      addresses: dns+memcached:11211
 
 query_frontend:
   search:

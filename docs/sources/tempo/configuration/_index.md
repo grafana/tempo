@@ -2017,7 +2017,7 @@ cache:
             # Optional
             # Comma separated addresses list in DNS Service Discovery format. Refer - https://cortexmetrics.io/docs/configuration/arguments/#dns-service-discovery.
             # (default: "")
-            # Example: "addresses: memcached"
+            # Example: "addresses: dns+memcached:11211"
             [addresses: <comma separated strings>]
 
             # Optional
