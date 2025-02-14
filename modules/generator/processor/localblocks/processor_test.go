@@ -30,6 +30,10 @@ func (m *mockOverrides) DedicatedColumns(string) backend.DedicatedColumns {
 	return nil
 }
 
+func (m *mockOverrides) MaxLocalTracesPerUser(string) int {
+	return 0
+}
+
 func (m *mockOverrides) MaxBytesPerTrace(string) int {
 	return 0
 }
@@ -79,6 +83,7 @@ func TestProcessorDoesNotRace(t *testing.T) {
 		ctx    = context.Background()
 		tenant = "fake"
 		cfg    = Config{
+			Concurrency:          1,
 			FlushCheckPeriod:     10 * time.Millisecond,
 			TraceIdlePeriod:      time.Second,
 			CompleteBlockTimeout: time.Minute,
@@ -205,6 +210,7 @@ func TestReplicationFactor(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := Config{
+		Concurrency:          1,
 		FlushCheckPeriod:     time.Minute,
 		TraceIdlePeriod:      time.Minute,
 		CompleteBlockTimeout: time.Minute,
@@ -239,8 +245,9 @@ func TestReplicationFactor(t *testing.T) {
 		verifyReplicationFactor(t, b)
 	}
 
-	// err = p.completeAllBlocks()
-	// require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		return len(p.completeBlocks) > 0
+	}, 10*time.Second, 100*time.Millisecond)
 
 	for _, b := range p.completeBlocks {
 		verifyReplicationFactor(t, b)

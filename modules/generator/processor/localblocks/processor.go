@@ -800,17 +800,8 @@ func (p *Processor) cutBlocks(immediate bool) error {
 		return fmt.Errorf("failed to resetHeadBlock: %w", err)
 	}
 
-	// Enqueue complete Op for this block
-	op := completeOp{
-		ctx:     p.ctx,
-		tenant:  p.tenant,
-		blockID: id,
-		at:      time.Now(),
-		p:       p,
-		bo:      30 * time.Second,
-	}
 	level.Info(p.logger).Log("msg", "queueing wal block for completion", "block", id.String())
-	if _, err := completeQueue.Enqueue(&op); err != nil {
+	if err := enqueueCompleteOp(p.ctx, p, id); err != nil {
 		_ = level.Error(p.logger).Log("msg", "local blocks processor failed to enqueue block for completion", "err", err)
 	}
 
@@ -846,16 +837,8 @@ func (p *Processor) reloadBlocks() error {
 			level.Info(p.logger).Log("msg", "reloading wal block", "block", meta.BlockID.String())
 			p.walBlocks[(uuid.UUID)(meta.BlockID)] = blk
 
-			op := completeOp{
-				ctx:     p.ctx,
-				tenant:  p.tenant,
-				blockID: uuid.UUID(meta.BlockID),
-				at:      time.Now(),
-				p:       p,
-				bo:      30 * time.Second,
-			}
 			level.Info(p.logger).Log("msg", "queueing replayed wal block for completion", "block", meta.BlockID.String())
-			if _, err := completeQueue.Enqueue(&op); err != nil {
+			if err := enqueueCompleteOp(p.ctx, p, uuid.UUID(meta.BlockID)); err != nil {
 				_ = level.Error(p.logger).Log("msg", "local blocks processor failed to enqueue wal block for completion after replay", "err", err)
 			}
 		}

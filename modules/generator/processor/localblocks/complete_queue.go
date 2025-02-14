@@ -3,7 +3,6 @@ package localblocks
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -16,33 +15,29 @@ import (
 )
 
 var (
-	completeQueue          *flushqueues.PriorityQueue
-	startCompleteQueueOnce = &sync.Once{}
-
 	metricCompleteQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Subsystem: subsystem,
 		Name:      "complete_queue_length",
-		Help:      "asdf",
+		Help:      "Number of wal blocks waiting for completion",
 	})
+
+	completeQueue          = flushqueues.NewPriorityQueue(metricCompleteQueueLength)
+	startCompleteQueueOnce = &sync.Once{}
 )
 
 type completeOp struct {
-	at       time.Time
-	attempts int
+	key      string
 	p        *Processor
-	tenant   string
 	blockID  uuid.UUID
 	ctx      context.Context
+	at       time.Time
+	attempts int
 	bo       time.Duration
 }
 
 func (f *completeOp) Key() string {
-	// Address of processor is used in the key to ensure that
-	// different instantiations of processor for the same tenant
-	// are considered different.
-	key := fmt.Sprintf("%p", f.p) + "-" + f.tenant + "-" + f.blockID.String()
-	return key
+	return f.key
 }
 
 func (f *completeOp) Priority() int64 { return -f.at.Unix() }
@@ -56,10 +51,24 @@ func (f *completeOp) backoff() time.Duration {
 	return f.bo
 }
 
+func enqueueCompleteOp(ctx context.Context, p *Processor, blockID uuid.UUID) error {
+	_, err := completeQueue.Enqueue(&completeOp{
+		// Core fields
+		key:     uuid.NewString(), // Instead of relying on queue idempotency we handle duplicates within the processor
+		ctx:     ctx,
+		p:       p,
+		blockID: blockID,
+
+		// Initial priority and backoff
+		at: time.Now(),
+		bo: 30 * time.Second,
+	})
+	return err
+}
+
+// startCompleteQueue consume routines once.
 func startCompleteQueue(concurrency uint) {
 	startCompleteQueueOnce.Do(func() {
-		completeQueue = flushqueues.NewPriorityQueue(metricCompleteQueueLength)
-
 		for i := uint(0); i < concurrency; i++ {
 			go completeLoop()
 		}
