@@ -204,7 +204,7 @@ but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is
 ### Search
 
 The Tempo Search API finds traces based on span and process attributes (tags and values). Note that search functionality is **not** available on
-[v2 blocks](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/parquet/#choose-a-different-block-format).
+[v2 blocks](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/parquet/#choose-a-different-block-format). 
 
 When performing a search, Tempo does a massively parallel search over the given time range, and takes the first N results. Even identical searches differs due to things like machine load and network latency. TraceQL follows the same behavior.
 
