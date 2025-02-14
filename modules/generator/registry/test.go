@@ -73,6 +73,12 @@ func (t *TestRegistry) Query(name string, lbls labels.Labels) float64 {
 	return t.metrics[name+lbls.String()]
 }
 
+// QueryExists is like Query but checks for existence instead of returning zero value
+func (t *TestRegistry) QueryExists(name string, lbls labels.Labels) (float64, bool) {
+	val, exists := t.metrics[name+lbls.String()]
+	return val, exists
+}
+
 func (t *TestRegistry) String() string {
 	var metrics []string
 
