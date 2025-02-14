@@ -7,8 +7,8 @@ import (
 	"strconv"
 
 	"github.com/go-kit/log/level"
+
 	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 func (g *Generator) startKafka() {
@@ -49,8 +49,6 @@ func (g *Generator) listenKafka(ctx context.Context) {
 }
 
 func (g *Generator) readKafka(ctx context.Context) error {
-	d := ingest.NewDecoder()
-
 	fetches := g.kafkaClient.PollFetches(ctx)
 	fetches.EachError(func(_ string, _ int32, err error) {
 		if !errors.Is(err, context.Canceled) {
@@ -68,22 +66,15 @@ func (g *Generator) readKafka(ctx context.Context) error {
 			return err
 		}
 
-		d.Reset()
-		req, err := d.Decode(r.Value)
+		reqs, err := g.codec.decode(r.Value)
 		if err != nil {
 			return err
 		}
-
-		for _, tr := range req.Traces {
-			trace := &tempopb.Trace{}
-			err = trace.Unmarshal(tr.Slice)
+		for req, err := range reqs {
 			if err != nil {
 				return err
 			}
-
-			i.pushSpansFromQueue(ctx, &tempopb.PushSpansRequest{
-				Batches: trace.ResourceSpans,
-			})
+			i.pushSpansFromQueue(ctx, req)
 		}
 	}
 

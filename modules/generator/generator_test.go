@@ -60,6 +60,7 @@ overrides:
 	require.NoError(t, services.StartAndAwaitRunning(context.Background(), o))
 
 	generatorConfig := &Config{}
+	generatorConfig.RegisterFlagsAndApplyDefaults("", flag.NewFlagSet("", flag.ContinueOnError))
 	generatorConfig.Storage.Path = t.TempDir()
 	generatorConfig.Ring.KVStore.Store = "inmemory"
 	generatorConfig.Processor.SpanMetrics.RegisterFlagsAndApplyDefaults("", nil)

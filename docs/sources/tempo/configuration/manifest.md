@@ -653,6 +653,8 @@ metrics_generator:
     metrics_ingestion_time_range_slack: 30s
     query_timeout: 30s
     override_ring_key: metrics-generator
+    join_ring: true
+    codec: tempo
     instance_id: hostname
 ingest:
     enabled: false
@@ -673,6 +675,7 @@ ingest:
         producer_max_buffered_bytes: 1073741824
         target_consumer_lag_at_startup: 2s
         max_consumer_lag_at_startup: 15s
+    override_ring_key: ingester-partitions
 block_builder:
     instance_id: hostname
     assigned_partitions: {}

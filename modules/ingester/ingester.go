@@ -53,10 +53,6 @@ var tracer = otel.Tracer("modules/ingester")
 
 const (
 	ingesterRingKey = "ring"
-
-	// PartitionRingKey is the key under which we store the partitions ring used by the "ingest storage".
-	PartitionRingKey  = "ingester-partitions"
-	PartitionRingName = "ingester-partitions"
 )
 
 // Ingester builds blocks out of incoming traces
@@ -130,7 +126,7 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 
 		partitionRingKV := cfg.IngesterPartitionRing.KVStore.Mock
 		if partitionRingKV == nil {
-			partitionRingKV, err = kv.NewClient(cfg.IngesterPartitionRing.KVStore, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(reg, PartitionRingName+"-lifecycler"), log.Logger)
+			partitionRingKV, err = kv.NewClient(cfg.IngesterPartitionRing.KVStore, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(reg, ingest.PartitionRingName+"-lifecycler"), log.Logger)
 			if err != nil {
 				return nil, fmt.Errorf("creating KV store for ingester partition ring: %w", err)
 			}
@@ -138,8 +134,8 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reg pro
 
 		i.ingestPartitionLifecycler = ring.NewPartitionInstanceLifecycler(
 			i.cfg.IngesterPartitionRing.ToLifecyclerConfig(i.ingestPartitionID, cfg.LifecyclerConfig.ID),
-			PartitionRingName,
-			PartitionRingKey,
+			ingest.PartitionRingName,
+			ingest.PartitionRingKey,
 			partitionRingKV,
 			log.Logger,
 			prometheus.WrapRegistererWithPrefix("cortex_", reg))

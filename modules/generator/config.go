@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/grafana/tempo/modules/generator/processor/localblocks"
@@ -24,7 +25,14 @@ const (
 	ringNameForServer = "metrics-generator"
 
 	ConsumerGroup = "metrics-generator"
+
+	// codecTempo refers to the codec used for decoding tempopb.PushBytesRequest
+	codecTempo = "tempo"
+	// codecOTLP refers to the codec used for decoding ptrace.Traces
+	codecOTLP = "otlp"
 )
+
+var validCodecs = []string{codecTempo, codecOTLP}
 
 // Config for a generator.
 type Config struct {
@@ -39,6 +47,13 @@ type Config struct {
 	MetricsIngestionSlack time.Duration `yaml:"metrics_ingestion_time_range_slack"`
 	QueryTimeout          time.Duration `yaml:"query_timeout"`
 	OverrideRingKey       string        `yaml:"override_ring_key"`
+
+	// JoinRing controls whether to join the metrics-generator ring and become
+	// available to serve requests.
+	JoinRing bool `yaml:"join_ring"`
+	// Codec controls which decoder to use for data consumed from Kafka-compatible
+	// storage.
+	Codec string
 
 	// This config is dynamically injected because defined outside the generator config.
 	Ingest     ingest.Config `yaml:"-"`
@@ -60,6 +75,9 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MetricsIngestionSlack = 30 * time.Second
 	cfg.QueryTimeout = 30 * time.Second
 	cfg.OverrideRingKey = generatorRingKey
+
+	cfg.JoinRing = true
+	cfg.Codec = codecTempo
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -86,6 +104,10 @@ func (cfg *Config) Validate() error {
 		if err := cfg.TracesQueryWAL.Validate(); err != nil {
 			return err
 		}
+	}
+
+	if !slices.Contains(validCodecs, cfg.Codec) {
+		return fmt.Errorf("invalid codec: %s, valid choices are %s", cfg.Codec, validCodecs)
 	}
 
 	return nil
