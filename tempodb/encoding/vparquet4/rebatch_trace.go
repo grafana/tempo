@@ -10,53 +10,68 @@ import (
 
 // rebatchTrace removes redundant ResourceSpans and ScopeSpans from the trace through rebatching.
 func rebatchTrace(trace *Trace) {
-	if trace.ResourceSpans != nil {
-		rsHashes := map[uint64]int{}
-		uniqueRS := make([]ResourceSpans, 0, len(trace.ResourceSpans))
+	if len(trace.ResourceSpans) == 0 {
+		return
+	}
 
-		for _, rs := range trace.ResourceSpans {
-			hash := resourceSpanHash(&rs)
-			resIdx, ok := rsHashes[hash]
+	// preallocate a map and a slice to collect the indices of unique ResourceSpans and ScopeSpans
+	uniqueIndexes := make([]int, 0, max(len(trace.ResourceSpans), len(trace.ResourceSpans[0].ScopeSpans)))
+	hashToIndex := make(map[uint64]int, len(uniqueIndexes))
 
-			if !ok { // store the first of each resource span
-				rsHashes[hash] = len(uniqueRS)
-				uniqueRS = append(uniqueRS, rs)
+	// rebatch ResourceSpans
+	for i, rs := range trace.ResourceSpans {
+		hash := resourceSpanHash(&rs)
+		idx, ok := hashToIndex[hash]
+
+		if !ok { // if the hash is unique, store the index
+			hashToIndex[hash] = i
+			uniqueIndexes = append(uniqueIndexes, i)
+
+			continue
+		}
+
+		// else, merge the ScopeSpans with the existing identical ResourceSpan
+		rebatchRS := &trace.ResourceSpans[idx]
+		rebatchRS.ScopeSpans = append(rebatchRS.ScopeSpans, rs.ScopeSpans...)
+	}
+
+	// move unique ResourceSpans to the front and truncate the slice
+	for i, idx := range uniqueIndexes {
+		trace.ResourceSpans[i] = trace.ResourceSpans[idx]
+	}
+	trace.ResourceSpans = trace.ResourceSpans[:len(uniqueIndexes)]
+
+	// rebatch ScopeSpans
+	for i := range trace.ResourceSpans {
+		rs := &trace.ResourceSpans[i]
+		if len(rs.ScopeSpans) == 0 {
+			continue
+		}
+
+		uniqueIndexes = uniqueIndexes[:0]
+		clear(hashToIndex)
+
+		for j, ss := range rs.ScopeSpans {
+			hash := scopeSpanHash(&ss)
+			idx, ok := hashToIndex[hash]
+
+			if !ok { // if the hash is unique, store the index
+				hashToIndex[hash] = j
+				uniqueIndexes = append(uniqueIndexes, j)
 
 				continue
 			}
 
-			uniqueRS[resIdx].ScopeSpans = append(uniqueRS[resIdx].ScopeSpans, rs.ScopeSpans...)
+			// else, merge the Spans with the existing identical ScopeSpans
+			rebatchSS := &rs.ScopeSpans[idx]
+			rebatchSS.Spans = append(rebatchSS.Spans, ss.Spans...)
 		}
 
-		trace.ResourceSpans = uniqueRS
-	}
-
-	// now do the same for ScopeSpans
-	ssHashes := map[uint64]int{}
-	var uniqueSS []ScopeSpans
-
-	for idx, rs := range trace.ResourceSpans {
-		if rs.ScopeSpans != nil {
-			clear(ssHashes)
-			uniqueSS = make([]ScopeSpans, 0, len(rs.ScopeSpans))
-
-			for _, ss := range rs.ScopeSpans {
-				hash := scopeSpanHash(&ss)
-				scopeIdx, ok := ssHashes[hash]
-
-				if !ok { // store the first of each scope span
-					ssHashes[hash] = len(uniqueSS)
-					uniqueSS = append(uniqueSS, ss)
-
-					continue
-				}
-
-				// combine into existing
-				uniqueSS[scopeIdx].Spans = append(uniqueSS[scopeIdx].Spans, ss.Spans...)
-			}
-
-			trace.ResourceSpans[idx].ScopeSpans = uniqueSS
+		// move unique ScopeSpans to the front and truncate the slice
+		for j, idx := range uniqueIndexes {
+			rs.ScopeSpans[j] = rs.ScopeSpans[idx]
 		}
+		rs.ScopeSpans = rs.ScopeSpans[:len(uniqueIndexes)]
 	}
 }
 
