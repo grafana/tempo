@@ -292,6 +292,8 @@ func (p *Processor) Shutdown(context.Context) {
 	if err != nil {
 		level.Error(p.logger).Log("msg", "local blocks processor failed to cut head block on shutdown", "err", err)
 	}
+
+	stopCompleteQueue()
 }
 
 func (p *Processor) cutLoop() {

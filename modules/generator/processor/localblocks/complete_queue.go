@@ -22,8 +22,9 @@ var (
 		Help:      "Number of wal blocks waiting for completion",
 	})
 
-	completeQueue          = flushqueues.NewPriorityQueue(metricCompleteQueueLength)
-	startCompleteQueueOnce = &sync.Once{}
+	completeQueue     *flushqueues.PriorityQueue
+	completeQueueMtx  = sync.Mutex{}
+	completeQueueRefs = 0
 )
 
 type completeOp struct {
@@ -66,18 +67,42 @@ func enqueueCompleteOp(ctx context.Context, p *Processor, blockID uuid.UUID) err
 	return err
 }
 
-// startCompleteQueue consume routines once.
+// startCompleteQueue increments reference count of the queue and starts it
+// on the first call with the given concurrency.
 func startCompleteQueue(concurrency uint) {
-	startCompleteQueueOnce.Do(func() {
+	completeQueueMtx.Lock()
+	defer completeQueueMtx.Unlock()
+
+	completeQueueRefs++
+	if completeQueueRefs == 1 {
+		completeQueue = flushqueues.NewPriorityQueue(metricCompleteQueueLength)
 		for i := uint(0); i < concurrency; i++ {
 			go completeLoop()
 		}
-	})
+	}
+}
+
+// stopCompleteQueue decrements reference count of the queue and closes it
+// when it reaches zero.
+func stopCompleteQueue() {
+	completeQueueMtx.Lock()
+	defer completeQueueMtx.Unlock()
+
+	completeQueueRefs++
+	if completeQueueRefs == 1 {
+		completeQueue.DiscardAndClose()
+	}
 }
 
 func completeLoop() {
 	for {
-		op := completeQueue.Dequeue().(*completeOp)
+		o := completeQueue.Dequeue()
+		if o == nil {
+			// Queue is closed.
+			return
+		}
+
+		op := o.(*completeOp)
 
 		// The context is used to detect processors that have been shutdown.
 		if err := op.ctx.Err(); err != nil {
