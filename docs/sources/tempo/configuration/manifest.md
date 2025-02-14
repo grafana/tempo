@@ -196,7 +196,7 @@ ingester_client:
     grpc_client_config:
         max_recv_msg_size: 104857600
         max_send_msg_size: 104857600
-        grpc_compression: ""
+        grpc_compression: snappy
         rate_limit: 0
         rate_limit_burst: 0
         backoff_on_ratelimits: false
@@ -227,7 +227,7 @@ metrics_generator_client:
     grpc_client_config:
         max_recv_msg_size: 104857600
         max_send_msg_size: 104857600
-        grpc_compression: ""
+        grpc_compression: snappy
         rate_limit: 0
         rate_limit_burst: 0
         backoff_on_ratelimits: false
@@ -272,7 +272,7 @@ querier:
         grpc_client_config:
             max_recv_msg_size: 104857600
             max_send_msg_size: 16777216
-            grpc_compression: ""
+            grpc_compression: snappy
             rate_limit: 0
             rate_limit_burst: 0
             backoff_on_ratelimits: false
