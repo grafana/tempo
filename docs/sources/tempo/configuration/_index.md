@@ -270,15 +270,24 @@ For additional information, refer to [Troubleshoot out-of-memory errors](https:/
 
 ### gRPC compression
 
-If you notice increased network traffic or issues, check the gRPC compression settings.
+Starting with Tempo 2.7.1, gRPC compression between all components defaults to `snappy`.
+Using `snappy` provides a balanced approach to compression between components that will work for most installations.
 
-Tempo 2.7 disabled gRPC compression in the querier and distributor for performance reasons. ([#4429](https://github.com/grafana/tempo/pull/4429))
+If you prefer a different balance of CPU/Memory and bandwidth, consider disabling compression or using `zstd`.
+
+For a discussion on alternatives, refer to [this discussion thread](https://github.com/grafana/tempo/discussions/4683). ([#4696](https://github.com/grafana/tempo/pull/4696)).
+
+
+Disabling comrpession may provide some performance boosts.
 Benchmark testing suggested that without compression, queriers and distributors used less CPU and memory.
 
 However, you may notice an increase in ingester data and network traffic especially for larger clusters.
 This increased data can impact billing for Grafana Cloud.
 
 You can configure the gRPC compression in the `querier`, `ingester`, and `metrics_generator` clients of the distributor.
+
+To disable compression, remove `snappy` from the `grpc_compression` lines.
+
 To re-enable the compression, use `snappy` with the following settings:
 
   ```yaml
