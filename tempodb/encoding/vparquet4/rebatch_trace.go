@@ -19,8 +19,10 @@ func rebatchTrace(trace *Trace) {
 	hashToIndex := make(map[uint64]int, len(uniqueIndexes))
 
 	// rebatch ResourceSpans
-	for i, rs := range trace.ResourceSpans {
-		hash := resourceSpanHash(&rs)
+	for i := range trace.ResourceSpans {
+		rs := &trace.ResourceSpans[i]
+
+		hash := resourceSpanHash(rs)
 		idx, ok := hashToIndex[hash]
 
 		if !ok { // if the hash is unique, store the index
@@ -33,26 +35,36 @@ func rebatchTrace(trace *Trace) {
 		// else, merge the ScopeSpans with the existing identical ResourceSpan
 		rebatchRS := &trace.ResourceSpans[idx]
 		rebatchRS.ScopeSpans = append(rebatchRS.ScopeSpans, rs.ScopeSpans...)
+
+		// the append above created copies of ScopeSpans, we have to clear the originals
+		// otherwise we will have multiple copies of the same slices in different ScopeSpans
+		rs.ScopeSpans = clearScopeSpans(rs.ScopeSpans)
 	}
 
 	// move unique ResourceSpans to the front and truncate the slice
-	for i, idx := range uniqueIndexes {
-		trace.ResourceSpans[i] = trace.ResourceSpans[idx]
+	if len(uniqueIndexes) < len(trace.ResourceSpans) {
+		for i, idx := range uniqueIndexes {
+			if i != idx {
+				trace.ResourceSpans[i], trace.ResourceSpans[idx] = trace.ResourceSpans[idx], trace.ResourceSpans[i]
+			}
+		}
+		trace.ResourceSpans = trace.ResourceSpans[:len(uniqueIndexes)]
 	}
-	trace.ResourceSpans = trace.ResourceSpans[:len(uniqueIndexes)]
 
 	// rebatch ScopeSpans
 	for i := range trace.ResourceSpans {
 		rs := &trace.ResourceSpans[i]
-		if len(rs.ScopeSpans) == 0 {
+		if len(rs.ScopeSpans) < 2 {
 			continue
 		}
 
 		uniqueIndexes = uniqueIndexes[:0]
 		clear(hashToIndex)
 
-		for j, ss := range rs.ScopeSpans {
-			hash := scopeSpanHash(&ss)
+		for j := range rs.ScopeSpans {
+			ss := &rs.ScopeSpans[j]
+
+			hash := scopeSpanHash(ss)
 			idx, ok := hashToIndex[hash]
 
 			if !ok { // if the hash is unique, store the index
@@ -65,13 +77,21 @@ func rebatchTrace(trace *Trace) {
 			// else, merge the Spans with the existing identical ScopeSpans
 			rebatchSS := &rs.ScopeSpans[idx]
 			rebatchSS.Spans = append(rebatchSS.Spans, ss.Spans...)
+
+			// the append above creates copies of Spans, we have to clear the originals otherwise
+			// we will have multiple copies of the same slices in different Spans
+			ss.Spans = clearSpans(ss.Spans)
 		}
 
 		// move unique ScopeSpans to the front and truncate the slice
-		for j, idx := range uniqueIndexes {
-			rs.ScopeSpans[j] = rs.ScopeSpans[idx]
+		if len(uniqueIndexes) < len(rs.ScopeSpans) {
+			for j, idx := range uniqueIndexes {
+				if j != idx {
+					rs.ScopeSpans[j], rs.ScopeSpans[idx] = rs.ScopeSpans[idx], rs.ScopeSpans[j]
+				}
+			}
+			rs.ScopeSpans = rs.ScopeSpans[:len(uniqueIndexes)]
 		}
-		rs.ScopeSpans = rs.ScopeSpans[:len(uniqueIndexes)]
 	}
 }
 
@@ -157,4 +177,29 @@ func addHash(s *string, hash uint64) uint64 {
 		return hash
 	}
 	return fnv1a.AddString64(hash, *s)
+}
+
+// clearScopeSpans clears slices in ScopeSpans so avoid multiple copies of the same
+// slice in different ScopeSpans.
+func clearScopeSpans(sss []ScopeSpans) []ScopeSpans {
+	sss = sss[:cap(sss)]
+	for i := range sss {
+		ss := &sss[i]
+		ss.Scope.Attrs = nil
+		ss.Spans = nil
+	}
+	return sss[:0]
+}
+
+// clearSpans clears slices in spans to avoid multiple copies of the same
+// slice in different Spans.
+func clearSpans(spans []Span) []Span {
+	spans = spans[:cap(spans)]
+	for i := range spans {
+		s := &spans[i]
+		s.Attrs = nil
+		s.Events = nil
+		s.Links = nil
+	}
+	return spans[:0]
 }
