@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package config // import "go.opentelemetry.io/contrib/config"
+package config // import "go.opentelemetry.io/contrib/config/v0.2.0"
 
 import (
 	"context"
@@ -28,6 +28,7 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/sdk/instrumentation"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/resource"
 )
 
@@ -167,6 +168,18 @@ func otlpHTTPMetricExporter(ctx context.Context, otlpConfig *OTLPMetric) (sdkmet
 	if len(otlpConfig.Headers) > 0 {
 		opts = append(opts, otlpmetrichttp.WithHeaders(otlpConfig.Headers))
 	}
+	if otlpConfig.TemporalityPreference != nil {
+		switch *otlpConfig.TemporalityPreference {
+		case "delta":
+			opts = append(opts, otlpmetrichttp.WithTemporalitySelector(deltaTemporality))
+		case "cumulative":
+			opts = append(opts, otlpmetrichttp.WithTemporalitySelector(cumulativeTemporality))
+		case "lowmemory":
+			opts = append(opts, otlpmetrichttp.WithTemporalitySelector(lowMemory))
+		default:
+			return nil, fmt.Errorf("unsupported temporality preference %q", *otlpConfig.TemporalityPreference)
+		}
+	}
 
 	return otlpmetrichttp.New(ctx, opts...)
 }
@@ -210,17 +223,51 @@ func otlpGRPCMetricExporter(ctx context.Context, otlpConfig *OTLPMetric) (sdkmet
 	if len(otlpConfig.Headers) > 0 {
 		opts = append(opts, otlpmetricgrpc.WithHeaders(otlpConfig.Headers))
 	}
+	if otlpConfig.TemporalityPreference != nil {
+		switch *otlpConfig.TemporalityPreference {
+		case "delta":
+			opts = append(opts, otlpmetricgrpc.WithTemporalitySelector(deltaTemporality))
+		case "cumulative":
+			opts = append(opts, otlpmetricgrpc.WithTemporalitySelector(cumulativeTemporality))
+		case "lowmemory":
+			opts = append(opts, otlpmetricgrpc.WithTemporalitySelector(lowMemory))
+		default:
+			return nil, fmt.Errorf("unsupported temporality preference %q", *otlpConfig.TemporalityPreference)
+		}
+	}
 
 	return otlpmetricgrpc.New(ctx, opts...)
+}
+
+func cumulativeTemporality(sdkmetric.InstrumentKind) metricdata.Temporality {
+	return metricdata.CumulativeTemporality
+}
+
+func deltaTemporality(ik sdkmetric.InstrumentKind) metricdata.Temporality {
+	switch ik {
+	case sdkmetric.InstrumentKindCounter, sdkmetric.InstrumentKindHistogram, sdkmetric.InstrumentKindObservableCounter:
+		return metricdata.DeltaTemporality
+	default:
+		return metricdata.CumulativeTemporality
+	}
+}
+
+func lowMemory(ik sdkmetric.InstrumentKind) metricdata.Temporality {
+	switch ik {
+	case sdkmetric.InstrumentKindCounter, sdkmetric.InstrumentKindHistogram:
+		return metricdata.DeltaTemporality
+	default:
+		return metricdata.CumulativeTemporality
+	}
 }
 
 func prometheusReader(ctx context.Context, prometheusConfig *Prometheus) (sdkmetric.Reader, error) {
 	var opts []otelprom.Option
 	if prometheusConfig.Host == nil {
-		return nil, fmt.Errorf("host must be specified")
+		return nil, errors.New("host must be specified")
 	}
 	if prometheusConfig.Port == nil {
-		return nil, fmt.Errorf("port must be specified")
+		return nil, errors.New("port must be specified")
 	}
 	if prometheusConfig.WithoutScopeInfo != nil && *prometheusConfig.WithoutScopeInfo {
 		opts = append(opts, otelprom.WithoutScopeInfo())

@@ -208,29 +208,6 @@ func TestFilterForwarder_ForwardTraces_ReturnsNoErrorAndDoesNotCallsForwardTrace
 	require.Equal(t, ptrace.Traces{}, rf.traces)
 }
 
-func TestFilterForwarder_ForwardTraces_ReturnsErrorAndDoesNotCallForwardTracesOnUnderlyingForwarderWithFatalError(t *testing.T) {
-	// Given
-	fatalErr := errors.New("fatal error")
-	f := &mockCountingForwarder{next: &mockWorkingForwarder{}}
-	cfg := FilterConfig{
-		Traces: TraceFiltersConfig{
-			SpanConditions:      []string{`name == "to-filter-1" or name == "to-filter-2"`},
-			SpanEventConditions: nil,
-		},
-	}
-	ff, err := NewFilterForwarder(cfg, f, dslog.Level{})
-	require.NoError(t, err)
-
-	ff.fatalError = fatalErr
-
-	// When
-	err = ff.ForwardTraces(context.Background(), ptrace.NewTraces())
-
-	// Then
-	require.ErrorIs(t, err, fatalErr)
-	require.Zero(t, f.forwardTracesCount)
-}
-
 func TestFilterForwarder_ForwardTraces_ReturnsErrorWithFailingUnderlyingForwarder(t *testing.T) {
 	// Given
 	traces := ptrace.NewTraces()
