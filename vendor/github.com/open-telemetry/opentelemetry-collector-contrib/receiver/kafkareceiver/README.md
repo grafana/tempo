@@ -94,7 +94,7 @@ The following settings can be optionally configured:
   - `on_error`: (default = false) If false, only the successfully processed messages are marked
     **Note: this can block the entire partition in case a message processing returns a permanent error**
 - `header_extraction`:
-  - `extract_headers` (default = false): Allows user to attach header fields to resource attributes in otel piepline
+  - `extract_headers` (default = false): Allows user to attach header fields to resource attributes in otel pipeline
   - `headers` (default = []): List of headers they'd like to extract from kafka record. 
   **Note: Matching pattern will be `exact`. Regexes are not supported as of now.** 
 
