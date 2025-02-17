@@ -14,7 +14,7 @@ import (
 )
 
 func TestBackendBlockSearchFetchMetaData(t *testing.T) {
-	wantTr := fullyPopulatedTestTrace(nil)
+	wantTr := fullyPopulatedTestTraceWithOption(nil, true)
 	b := makeBackendBlockWithTraces(t, []*Trace{wantTr})
 	ctx := context.Background()
 
