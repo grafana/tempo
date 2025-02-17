@@ -1,20 +1,28 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package config // import "go.opentelemetry.io/contrib/config"
+package config // import "go.opentelemetry.io/contrib/config/v0.3.0"
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
+	"os"
+
+	"gopkg.in/yaml.v3"
 
 	"go.opentelemetry.io/otel/log"
+	nooplog "go.opentelemetry.io/otel/log/noop"
 	"go.opentelemetry.io/otel/metric"
+	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/trace"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 )
 
 const (
 	protocolProtobufHTTP = "http/protobuf"
-	protocolProtobufGRPC = "grpc/protobuf"
+	protocolProtobufGRPC = "grpc"
 
 	compressionGzip = "gzip"
 	compressionNone = "none"
@@ -60,33 +68,38 @@ func (s *SDK) Shutdown(ctx context.Context) error {
 	return s.shutdown(ctx)
 }
 
+var noopSDK = SDK{
+	loggerProvider: nooplog.LoggerProvider{},
+	meterProvider:  noopmetric.MeterProvider{},
+	tracerProvider: nooptrace.TracerProvider{},
+	shutdown:       func(ctx context.Context) error { return nil },
+}
+
 // NewSDK creates SDK providers based on the configuration model.
-//
-// Caution: The implementation only returns noop providers.
 func NewSDK(opts ...ConfigurationOption) (SDK, error) {
 	o := configOptions{}
 	for _, opt := range opts {
 		o = opt.apply(o)
 	}
-
-	r, err := newResource(o.opentelemetryConfig.Resource)
-	if err != nil {
-		return SDK{}, err
+	if o.opentelemetryConfig.Disabled != nil && *o.opentelemetryConfig.Disabled {
+		return noopSDK, nil
 	}
+
+	r := newResource(o.opentelemetryConfig.Resource)
 
 	mp, mpShutdown, err := meterProvider(o, r)
 	if err != nil {
-		return SDK{}, err
+		return noopSDK, err
 	}
 
 	tp, tpShutdown, err := tracerProvider(o, r)
 	if err != nil {
-		return SDK{}, err
+		return noopSDK, err
 	}
 
 	lp, lpShutdown, err := loggerProvider(o, r)
 	if err != nil {
-		return SDK{}, err
+		return noopSDK, err
 	}
 
 	return SDK{
@@ -127,6 +140,38 @@ func WithOpenTelemetryConfiguration(cfg OpenTelemetryConfiguration) Configuratio
 	})
 }
 
-// TODO: implement parsing functionality:
-// - https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4373
-// - https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4412
+// ParseYAML parses a YAML configuration file into an OpenTelemetryConfiguration.
+func ParseYAML(file []byte) (*OpenTelemetryConfiguration, error) {
+	var cfg OpenTelemetryConfiguration
+	err := yaml.Unmarshal(file, &cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
+}
+
+func toStringMap(pairs []NameStringValuePair) map[string]string {
+	output := make(map[string]string)
+	for _, v := range pairs {
+		output[v.Name] = *v.Value
+	}
+	return output
+}
+
+// createTLSConfig creates a tls.Config from a raw certificate bytes
+// to verify a server certificate.
+func createTLSConfig(certFile string) (*tls.Config, error) {
+	b, err := os.ReadFile(certFile)
+	if err != nil {
+		return nil, err
+	}
+	cp := x509.NewCertPool()
+	if ok := cp.AppendCertsFromPEM(b); !ok {
+		return nil, errors.New("failed to append certificate to the cert pool")
+	}
+
+	return &tls.Config{
+		RootCAs: cp,
+	}, nil
+}
