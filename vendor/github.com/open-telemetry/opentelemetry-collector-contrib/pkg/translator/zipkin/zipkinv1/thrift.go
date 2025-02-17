@@ -18,7 +18,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/idutils"
+	idutils "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils"
 )
 
 type thriftUnmarshaler struct{}
