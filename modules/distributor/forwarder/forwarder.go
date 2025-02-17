@@ -14,7 +14,6 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/processor"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
@@ -156,20 +155,8 @@ func (f *FilterForwarder) Shutdown(ctx context.Context) error {
 	return multierr.Combine(errs...)
 }
 
-// ReportFatalError implements component.Host
-func (f *FilterForwarder) ReportFatalError(err error) {
-	f.fatalErrorMu.Lock()
-	f.fatalError = err
-	f.fatalErrorMu.Unlock()
-}
-
-// GetFactory implements component.Host
-func (f *FilterForwarder) GetFactory(component.Kind, component.Type) component.Factory {
-	return nil
-}
-
 // GetExtensions implements component.Host
-func (f *FilterForwarder) GetExtensions() map[component.ID]extension.Extension {
+func (f *FilterForwarder) GetExtensions() map[component.ID]component.Component {
 	return nil
 }
 
