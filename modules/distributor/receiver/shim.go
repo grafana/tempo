@@ -123,8 +123,10 @@ type receiversShim struct {
 	fatal      chan error
 }
 
-var _ consumer.Traces = (*receiversShim)(nil)
-var _ component.Host = (*receiversShim)(nil)
+var (
+	_ consumer.Traces = (*receiversShim)(nil)
+	_ component.Host  = (*receiversShim)(nil)
+)
 
 func (r *receiversShim) Capabilities() consumer.Capabilities {
 	return consumer.Capabilities{MutatesData: false}
