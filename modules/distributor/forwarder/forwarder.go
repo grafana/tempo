@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/go-kit/log"
@@ -78,8 +77,6 @@ func New(cfg Config, logger log.Logger, logLevel dslog.Level) (Forwarder, error)
 type FilterForwarder struct {
 	filterProcessor processor.Traces
 	next            Forwarder
-	fatalError      error
-	fatalErrorMu    sync.RWMutex
 }
 
 func NewFilterForwarder(cfg FilterConfig, next Forwarder, logLevel dslog.Level) (*FilterForwarder, error) {
@@ -109,8 +106,6 @@ func NewFilterForwarder(cfg FilterConfig, next Forwarder, logLevel dslog.Level) 
 	f := &FilterForwarder{
 		filterProcessor: fp,
 		next:            next,
-		fatalError:      nil,
-		fatalErrorMu:    sync.RWMutex{},
 	}
 
 	if err := f.filterProcessor.Start(context.TODO(), f); err != nil {
@@ -121,14 +116,6 @@ func NewFilterForwarder(cfg FilterConfig, next Forwarder, logLevel dslog.Level) 
 }
 
 func (f *FilterForwarder) ForwardTraces(ctx context.Context, traces ptrace.Traces) error {
-	f.fatalErrorMu.RLock()
-	fatalErr := f.fatalError
-	f.fatalErrorMu.RUnlock()
-
-	if fatalErr != nil {
-		return fmt.Errorf("fatal error occurred in filter forwarder: %w", fatalErr)
-	}
-
 	// Copying the traces to avoid mutating the original.
 	tracesCopy := ptrace.NewTraces()
 	traces.CopyTo(tracesCopy)
