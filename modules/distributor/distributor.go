@@ -20,7 +20,6 @@ import (
 	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
-	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/util/strutil"
@@ -37,6 +36,7 @@ import (
 	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
+	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -195,6 +195,10 @@ type Distributor struct {
 	usage *usage.Tracker
 
 	logger log.Logger
+
+	// For testing functionality that relies on timing without having to sleep in unit tests.
+	sleep func(time.Duration)
+	now   func() time.Time
 }
 
 // New a distributor creates.
@@ -269,6 +273,8 @@ func New(
 		overrides:            o,
 		traceEncoder:         model.MustNewSegmentDecoder(model.CurrentEncoding),
 		logger:               logger,
+		sleep:                time.Sleep,
+		now:                  time.Now,
 	}
 
 	if cfg.Usage.CostAttribution.Enabled {
@@ -389,6 +395,8 @@ func (d *Distributor) extractBasicInfo(ctx context.Context, traces ptrace.Traces
 
 // PushTraces pushes a batch of traces
 func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*tempopb.PushResponse, error) {
+	reqStart := time.Now()
+
 	ctx, span := tracer.Start(ctx, "distributor.PushBytes")
 	defer span.End()
 
@@ -472,6 +480,8 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 			d.generatorForwarder.SendTraces(ctx, userID, keys, rebatchedTraces)
 		}
 	}
+
+	d.padWithArtificialDelay(reqStart, userID)
 
 	return nil, nil // PushRequest is ignored, so no reason to create one
 }
