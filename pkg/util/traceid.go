@@ -141,7 +141,7 @@ func hexStringToID(id string, isSpan bool) ([]byte, error) {
 		// if size < 8 {
 		// 	byteID = append(make([]byte, 8-size), byteID...)
 		// }
-		return byteID, nil
+		return bytes.TrimLeft(byteID, "\x00"), nil
 	}
 
 	if size > 16 {

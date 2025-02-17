@@ -1,7 +1,6 @@
 package vparquet2
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -1696,13 +1695,11 @@ func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan
 		return nil, fmt.Errorf("operand is not string: %s", s)
 	}
 
-	var id []byte
 	id, err := util.HexStringToTraceID(s)
+
 	if isSpan {
 		id, err = util.HexStringToSpanID(s)
 	}
-
-	id = bytes.TrimLeft(id, "\x00")
 
 	if err != nil {
 		return nil, nil
