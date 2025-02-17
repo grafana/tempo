@@ -17,6 +17,7 @@
 * [CHANGE] **BREAKING CHANGE** Enforce max attribute size at event, link, and instrumentation scope. Make config per-tenant.
   Renamed max_span_attr_byte to max_attribute_bytes
   [#4633](https://github.com/grafana/tempo/pull/4633) (@ie-pham)
+* [CHANGE] Update to go 1.24.0 [#4704](https://github.com/grafana/tempo/pull/4704) (@ruslan-mikhailov)
 * [FEATURE] Added most_recent=true query hint to TraceQL to return most recent results. [#4238](https://github.com/grafana/tempo/pull/4238) (@joe-elliott)
 * [FEATURE] Add ability to add artificial delay to push requests [#4716](https://github.com/grafana/tempo/pull/4716) (@yvrhdn)
 * [ENHANCEMENT] Update minio to version [#4341](https://github.com/grafana/tempo/pull/4568) (@javiermolinar)
