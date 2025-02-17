@@ -474,8 +474,16 @@ func parse(t *testing.T, q string) traceql.Condition {
 }
 
 func fullyPopulatedTestTrace(id common.ID) *Trace {
+	return fullyPopulatedTestTraceWithOption(id, false)
+}
+
+func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 	linkTraceID, _ := util.HexStringToTraceID("1234567890abcdef1234567890abcdef")
 	linkSpanID, _ := util.HexStringToSpanID("1234567890abcdef")
+	parentID := []byte{}
+	if parentIDTest {
+		parentID = []byte("parentid")
+	}
 
 	links := []Link{
 		{
@@ -562,7 +570,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 								HttpMethod:             ptr("get"),
 								HttpUrl:                ptr("url/hello/world"),
 								HttpStatusCode:         ptr(int64(500)),
-								ParentSpanID:           []byte("parentid"),
+								ParentSpanID:           parentID,
 								StatusCode:             int(v1.Status_STATUS_CODE_ERROR),
 								StatusMessage:          v1.Status_STATUS_CODE_ERROR.String(),
 								TraceState:             "tracestate",
@@ -655,7 +663,6 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 						Spans: []Span{
 							{
 								SpanID:                 []byte("spanid2"),
-								ParentSpanID:           []byte("parentid2"),
 								Name:                   "world",
 								StartTimeUnixNano:      uint64(200 * time.Second),
 								DurationNano:           uint64(200 * time.Second),
