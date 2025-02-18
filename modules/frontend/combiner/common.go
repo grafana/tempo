@@ -24,6 +24,8 @@ type TResponse interface {
 type PipelineResponse interface {
 	HTTPResponse() *http.Response
 	RequestData() any
+
+	IsMetadata() bool // todo: search and query range pass back metadata responses through a normal http response. update to use this instead.
 }
 
 type genericCombiner[T TResponse] struct {
@@ -33,6 +35,7 @@ type genericCombiner[T TResponse] struct {
 
 	new      func() T
 	combine  func(partial T, final T, resp PipelineResponse) error
+	metadata func(resp PipelineResponse, final T) error
 	finalize func(T) (T, error)
 	diff     func(T) (T, error) // currently only implemented by the search combiner. required for streaming
 	quit     func(T) bool
@@ -52,6 +55,16 @@ func initHTTPCombiner[T TResponse](c *genericCombiner[T], marshalingFormat strin
 
 // AddResponse is used to add a http response to the combiner.
 func (c *genericCombiner[T]) AddResponse(r PipelineResponse) error {
+	if r.IsMetadata() && c.metadata != nil {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+
+		if err := c.metadata(r, c.current); err != nil {
+			return fmt.Errorf("error processing metadata: %w", err)
+		}
+		return nil
+	}
+
 	res := r.HTTPResponse()
 	if res == nil {
 		return nil

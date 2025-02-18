@@ -366,7 +366,7 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 
 	step, err := step(vals, start, end)
 	if err != nil {
-		return nil, httpgrpc.Errorf(http.StatusBadRequest, err.Error())
+		return nil, httpgrpc.Error(http.StatusBadRequest, err.Error())
 	}
 	req.Step = uint64(step.Nanoseconds())
 
@@ -406,7 +406,7 @@ func ParseQueryRangeRequest(r *http.Request) (*tempopb.QueryRangeRequest, error)
 	if len(dedicatedColumns) > 0 {
 		err := json.Unmarshal([]byte(dedicatedColumns), &req.DedicatedColumns)
 		if err != nil {
-			return nil, httpgrpc.Errorf(http.StatusBadRequest, fmt.Errorf("failed to parse dedicated columns: %w", err).Error())
+			return nil, httpgrpc.Errorf(http.StatusBadRequest, "failed to parse dedicated columns: %s", err)
 		}
 	}
 

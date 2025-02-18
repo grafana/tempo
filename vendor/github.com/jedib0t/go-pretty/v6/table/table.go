@@ -36,6 +36,9 @@ type Table struct {
 	indexColumn int
 	// maxColumnLengths stores the length of the longest line in each column
 	maxColumnLengths []int
+	// maxMergedColumnLengths stores the longest lengths for merged columns
+	// endIndex -> startIndex -> maxMergedLength
+	maxMergedColumnLengths map[int]map[int]int
 	// maxRowLength stores the length of the longest row
 	maxRowLength int
 	// numColumns stores the (max.) number of columns seen
@@ -619,19 +622,19 @@ func (t *Table) getMergedColumnIndices(row rowStr, hint renderHint) mergedColumn
 
 	mci := make(mergedColumnIndices)
 	for colIdx := 0; colIdx < t.numColumns-1; colIdx++ {
-		// look backward
-		for otherColIdx := colIdx - 1; colIdx >= 0 && otherColIdx >= 0; otherColIdx-- {
-			if row[colIdx] != row[otherColIdx] {
+		for otherColIdx := colIdx + 1; otherColIdx < len(row); otherColIdx++ {
+			colsEqual := row[colIdx] == row[otherColIdx]
+			if !colsEqual {
+				lastEqual := otherColIdx - 1
+				if colIdx != lastEqual {
+					mci[colIdx] = lastEqual
+					colIdx = lastEqual
+				}
 				break
+			} else if colsEqual && otherColIdx == len(row)-1 {
+				mci[colIdx] = otherColIdx
+				colIdx = otherColIdx
 			}
-			mci.safeAppend(colIdx, otherColIdx)
-		}
-		// look forward
-		for otherColIdx := colIdx + 1; colIdx < len(row) && otherColIdx < len(row); otherColIdx++ {
-			if row[colIdx] != row[otherColIdx] {
-				break
-			}
-			mci.safeAppend(colIdx, otherColIdx)
 		}
 	}
 	return mci

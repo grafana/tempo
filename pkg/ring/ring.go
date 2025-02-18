@@ -98,3 +98,11 @@ func (s *EventuallyConsistentStrategy) ShouldExtendReplicaSet(ingester ring.Inst
 
 	return false
 }
+
+func (s *EventuallyConsistentStrategy) SupportsExpandedReplication() bool {
+	// defaultReplicationStrategy assumes that a single instance per zone is returned and that
+	// it can treat replication factor as equivalent to the number of zones. This doesn't work
+	// when a per-call replication factor increases it beyond the configured replication factor
+	// and the number of zones.
+	return false
+}

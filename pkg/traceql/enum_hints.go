@@ -12,11 +12,12 @@ const (
 	HintTimeOverlapCutoff = "time_overlap_cutoff"
 	HintConcurrentBlocks  = "concurrent_blocks"
 	HintExemplars         = "exemplars"
+	HintMostRecent        = "most_recent" // traceql search hint to return most recent results ordered by time
 )
 
 func isUnsafe(h string) bool {
 	switch h {
-	case HintSample, HintExemplars:
+	case HintSample, HintExemplars, HintMostRecent:
 		return false
 	default:
 		return true

@@ -17,6 +17,9 @@
 * [CHANGE] **BREAKING CHANGE** Enforce max attribute size at event, link, and instrumentation scope. Make config per-tenant.
   Renamed max_span_attr_byte to max_attribute_bytes
   [#4633](https://github.com/grafana/tempo/pull/4633) (@ie-pham)
+* [CHANGE] Update to go 1.24.0 [#4704](https://github.com/grafana/tempo/pull/4704) (@ruslan-mikhailov)
+* [FEATURE] Added most_recent=true query hint to TraceQL to return most recent results. [#4238](https://github.com/grafana/tempo/pull/4238) (@joe-elliott)
+* [FEATURE] Add ability to add artificial delay to push requests [#4716](https://github.com/grafana/tempo/pull/4716) (@yvrhdn)
 * [ENHANCEMENT] Update minio to version [#4341](https://github.com/grafana/tempo/pull/4568) (@javiermolinar)
 * [ENHANCEMENT] Prevent queries in the ingester from blocking flushing traces to disk and memory spikes. [#4483](https://github.com/grafana/tempo/pull/4483) (@joe-elliott)
 * [ENHANCEMENT] Update tempo operational dashboard for new block-builder and v2 traces api [#4559](https://github.com/grafana/tempo/pull/4559) (@mdisibio)
@@ -26,6 +29,8 @@
 * [ENHANCEMENT] Export new `tempo_ingest_group_partition_lag` metric from block-builders and metrics-generators [#4571](https://github.com/grafana/tempo/pull/4571) (@mdisibio)
 * [ENHANCEMENT] Use distroless base container images for improved security [#4556](https://github.com/grafana/tempo/pull/4556) (@carles-grafana)
 * [ENHANCEMENT] rythm: add block builder to resources dashboard[#4556](https://github.com/grafana/tempo/pull/4669) (@javiermolinar)
+* [ENHANCEMENT] update dskit to latest version[#4681](https://github.com/grafana/tempo/pull/4681) (@javiermolinar)
+* [ENHANCEMENT] Improve TraceQL perf by reverting EqualRowNumber to an inlineable function.[#4705](https://github.com/grafana/tempo/pull/4705) (@joe-elliott)
 * [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. [#4546](https://github.com/grafana/tempo/pull/4576) (@joe-elliott)
   Correctly copy exemplars for metrics like `| rate()` when gRPC streaming.
 * [BUGFIX] Fix performance bottleneck and file cleanup in block builder [#4550](https://github.com/grafana/tempo/pull/4550) (@mdisibio)
@@ -34,6 +39,11 @@
 * [BUGFIX] Fix metrics streaming for all non-trivial metrics [#4624](https://github.com/grafana/tempo/pull/4624) (@joe-elliott)
 * [BUGFIX] Fix starting consuming log [#4539](https://github.com/grafana/tempo/pull/4539) (@javiermolinar)
 * [BUGFIX] Return the operand as the only value if the tag is already filtered in the query [#4673](https://github.com/grafana/tempo/pull/4673) (@mapno)
+* [BUGFIX] Fix memcached settings for docker compose example [#4346](https://github.com/grafana/tempo/pull/4695) (@ruslan-mikhailov)
+
+# v2.7.1
+
+* [CHANGE] Default to snappy compression for all gRPC communications internal to Tempo. We feel this is a nice balance of resource usage and network traffic. For a discussion on alternatives see https://github.com/grafana/tempo/discussions/4683. [#4696](https://github.com/grafana/tempo/pull/4696) (@joe-elliott)
 
 # v2.7.0
 
@@ -57,7 +67,7 @@ querier:
 * [CHANGE] fix deprecation warning by switching to DoBatchWithOptions [#4343](https://github.com/grafana/tempo/pull/4343) (@dastrobu)
 * [CHANGE] **BREAKING CHANGE** The Tempo serverless is now deprecated and will be removed in an upcoming release [#4017](https://github.com/grafana/tempo/pull/4017/) @electron0zero
 * [CHANGE] tempo-cli: add support for /api/v2/traces endpoint [#4127](https://github.com/grafana/tempo/pull/4127) (@electron0zero)
-  **BREAKING CHANGE** The `tempo-cli` now uses the `/api/v2/traces` endpoint by default, 
+  **BREAKING CHANGE** The `tempo-cli` now uses the `/api/v2/traces` endpoint by default,
   please use `--v1` flag to use `/api/traces` endpoint, which was the default in previous versions.
 * [CHANGE] TraceByID: don't allow concurrent_shards greater than query_shards. [#4074](https://github.com/grafana/tempo/pull/4074) (@electron0zero)
 * [CHANGE] **BREAKING CHANGE** The dynamic injection of X-Scope-OrgID header for metrics generator remote-writes is changed. If the header is aleady set in per-tenant overrides or global tempo configuration, then it is honored and not overwritten. [#4021](https://github.com/grafana/tempo/pull/4021) (@mdisibio)
@@ -205,7 +215,7 @@ querier:
 * [ENHANCEMENT] Add vParquet4 support to the tempo-cli analyse blocks command [#3868](https://github.com/grafana/tempo/pull/3868) (@stoewer)
 * [ENHANCEMENT] Improve trace id lookup from Tempo Vulture by selecting a date range [#3874](https://github.com/grafana/tempo/pull/3874) (@javiermolinar)
 * [ENHANCEMENT] Add native histograms for internal metrics[#3870](https://github.com/grafana/tempo/pull/3870) (@zalegrala)
-* [ENHANCEMENT] Expose availability-zone as a cli flag in ingester [#3881](https://github.com/grafana/tempo/pull/3881)
+* [ENHANCEMENT] Expose availability-zone as a cli flag in ingester [#3881](https://github.com/grafana/tempo/pull/3881) (@KyriosGN0)
 * [ENHANCEMENT] Rename batches property of Trace to ResourceSpans to be OTEL compatible [#3895](https://github.com/grafana/tempo/pull/3895)
 * [ENHANCEMENT] Reduce memory consumption of query-frontend[#3888](https://github.com/grafana/tempo/pull/3888) (@joe-elliott)
 * [ENHANCEMENT] Reduce log level verbosity for e2e tests[#3900](https://github.com/grafana/tempo/pull/3900) (@javiermolinar)

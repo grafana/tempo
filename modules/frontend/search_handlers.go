@@ -20,6 +20,7 @@ import (
 
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 )
 
 // newSearchStreamingGRPCHandler returns a handler that streams results from the HTTP handler
@@ -46,14 +47,14 @@ func newSearchStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		tenant, _ := user.ExtractOrgID(ctx)
 		start := time.Now()
 
-		limit, err := adjustLimit(req.Limit, cfg.Search.Sharder.DefaultLimit, cfg.Search.Sharder.MaxLimit)
+		comb, err := newCombiner(req, cfg.Search.Sharder)
 		if err != nil {
-			level.Error(logger).Log("msg", "search streaming: adjust limit failed", "err", err)
-			return status.Errorf(codes.InvalidArgument, "adjust limit: %s", err.Error())
+			level.Error(logger).Log("msg", "search streaming: could not create combiner", "err", err)
+			return status.Error(codes.InvalidArgument, err.Error())
+
 		}
 
 		var finalResponse *tempopb.SearchResponse
-		comb := combiner.NewTypedSearch(int(limit))
 		collector := pipeline.NewGRPCCollector[*tempopb.SearchResponse](next, cfg.ResponseConsumers, comb, func(sr *tempopb.SearchResponse) error {
 			finalResponse = sr // sadly we can't srv.Send directly into the collector. we need bytesProcessed for the SLO calculations
 			return srv.Send(sr)
@@ -92,10 +93,9 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 			}, nil
 		}
 
-		// build combiner with limit
-		limit, err := adjustLimit(searchReq.Limit, cfg.Search.Sharder.DefaultLimit, cfg.Search.Sharder.MaxLimit)
+		comb, err := newCombiner(searchReq, cfg.Search.Sharder)
 		if err != nil {
-			level.Error(logger).Log("msg", "search: adjust limit failed", "err", err)
+			level.Error(logger).Log("msg", "search: could not create combiner", "err", err)
 			return &http.Response{
 				StatusCode: http.StatusBadRequest,
 				Status:     http.StatusText(http.StatusBadRequest),
@@ -106,7 +106,6 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		logRequest(logger, tenant, searchReq)
 
 		// build and use roundtripper
-		comb := combiner.NewTypedSearch(int(limit))
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 
 		resp, err := rt.RoundTrip(req)
@@ -123,6 +122,28 @@ func newSearchHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		logResult(logger, tenant, duration.Seconds(), searchReq, searchResp, resp, err)
 		return resp, err
 	})
+}
+
+func newCombiner(req *tempopb.SearchRequest, cfg SearchSharderConfig) (combiner.GRPCCombiner[*tempopb.SearchResponse], error) {
+	limit, err := adjustLimit(req.Limit, cfg.DefaultLimit, cfg.MaxLimit)
+	if err != nil {
+		return nil, err
+	}
+
+	mostRecent := false
+	if len(req.Query) > 0 {
+		query, err := traceql.Parse(req.Query)
+		if err != nil {
+			return nil, fmt.Errorf("invalid TraceQL query: %s", err)
+		}
+
+		ok := false
+		if mostRecent, ok = query.Hints.GetBool(traceql.HintMostRecent, false); !ok {
+			mostRecent = false
+		}
+	}
+
+	return combiner.NewTypedSearch(int(limit), mostRecent), nil
 }
 
 // adjusts the limit based on provided config

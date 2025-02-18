@@ -2,6 +2,7 @@ package table
 
 import (
 	"reflect"
+	"sort"
 )
 
 // AutoIndexColumnID returns a unique Column ID/Name for the given Column Number.
@@ -40,33 +41,7 @@ func isNumber(x interface{}) bool {
 	return false
 }
 
-type mergedColumnIndices map[int]map[int]bool
-
-func (m mergedColumnIndices) mergedLength(colIdx int, maxColumnLengths []int) int {
-	mergedLength := maxColumnLengths[colIdx]
-	for otherColIdx := range m[colIdx] {
-		mergedLength += maxColumnLengths[otherColIdx]
-	}
-	return mergedLength
-}
-
-func (m mergedColumnIndices) len(colIdx int) int {
-	return len(m[colIdx]) + 1
-}
-
-func (m mergedColumnIndices) safeAppend(colIdx, otherColIdx int) {
-	// map
-	if m[colIdx] == nil {
-		m[colIdx] = make(map[int]bool)
-	}
-	m[colIdx][otherColIdx] = true
-
-	// reverse map
-	if m[otherColIdx] == nil {
-		m[otherColIdx] = make(map[int]bool)
-	}
-	m[otherColIdx][colIdx] = true
-}
+type mergedColumnIndices map[int]int
 
 func objAsSlice(in interface{}) []interface{} {
 	var out []interface{}
@@ -109,4 +84,20 @@ func objIsSlice(in interface{}) bool {
 	}
 	k := reflect.TypeOf(in).Kind()
 	return k == reflect.Slice || k == reflect.Array
+}
+
+func getSortedKeys(input map[int]map[int]int) ([]int, map[int][]int) {
+	keys := make([]int, 0, len(input))
+	subkeysMap := make(map[int][]int)
+	for key, subMap := range input {
+		keys = append(keys, key)
+		subkeys := make([]int, 0, len(subMap))
+		for subkey := range subMap {
+			subkeys = append(subkeys, subkey)
+		}
+		sort.Ints(subkeys)
+		subkeysMap[key] = subkeys
+	}
+	sort.Ints(keys)
+	return keys, subkeysMap
 }

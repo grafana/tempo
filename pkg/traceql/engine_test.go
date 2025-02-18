@@ -253,9 +253,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 		},
 	}
 
-	e := NewEngine()
-
-	traceSearchMetadata := e.asTraceSearchMetadata(spanSet)
+	traceSearchMetadata := asTraceSearchMetadata(spanSet)
 
 	expectedSpanset := &tempopb.SpanSet{
 		Matched: 2,

@@ -214,7 +214,7 @@ ingester_client:
     grpc_client_config:
         max_recv_msg_size: 104857600
         max_send_msg_size: 104857600
-        grpc_compression: ""
+        grpc_compression: snappy
         rate_limit: 0
         rate_limit_burst: 0
         backoff_on_ratelimits: false
@@ -245,7 +245,7 @@ metrics_generator_client:
     grpc_client_config:
         max_recv_msg_size: 104857600
         max_send_msg_size: 104857600
-        grpc_compression: ""
+        grpc_compression: snappy
         rate_limit: 0
         rate_limit_burst: 0
         backoff_on_ratelimits: false
@@ -284,7 +284,7 @@ querier:
         grpc_client_config:
             max_recv_msg_size: 104857600
             max_send_msg_size: 16777216
-            grpc_compression: ""
+            grpc_compression: snappy
             rate_limit: 0
             rate_limit_burst: 0
             backoff_on_ratelimits: false
@@ -322,6 +322,7 @@ query_frontend:
         query_backend_after: 15m0s
         query_ingesters_until: 30m0s
         ingester_shards: 3
+        most_recent_shards: 200
         max_spans_per_span_set: 100
     trace_by_id:
         query_shards: 50
@@ -777,6 +778,10 @@ storage:
             metadata: {}
             native_aws_auth_enabled: false
             list_blocks_concurrency: 3
+            sse:
+                type: ""
+                kms_key_id: ""
+                kms_encryption_context: ""
         azure:
             storage_account_name: ""
             storage_account_key: ""
@@ -861,6 +866,10 @@ overrides:
                 metadata: {}
                 native_aws_auth_enabled: false
                 list_blocks_concurrency: 3
+                sse:
+                    type: ""
+                    kms_key_id: ""
+                    kms_encryption_context: ""
             azure:
                 storage_account_name: ""
                 storage_account_key: ""
@@ -899,6 +908,7 @@ memberlist:
     abort_if_cluster_join_fails: false
     rejoin_interval: 0s
     left_ingesters_timeout: 5m0s
+    obsolete_entries_timeout: 30s
     leave_timeout: 20s
     broadcast_timeout_for_local_updates_on_shutdown: 10s
     message_history_buffer_bytes: 0

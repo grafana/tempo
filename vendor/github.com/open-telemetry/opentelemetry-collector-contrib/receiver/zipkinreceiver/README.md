@@ -28,7 +28,7 @@ receivers:
 
 The following settings are configurable:
 
-- `endpoint` (default = localhost:9411): host:port on which the receiver is going to receive data.See our [security best practices doc](https://opentelemetry.io/docs/security/config-best-practices/#protect-against-denial-of-service-attacks) to understand how to set the endpoint in different environments.  For full list of `ServerConfig` refer [here](https://github.com/open-telemetry/opentelemetry-collector/tree/main/config/confighttp).
+- `endpoint` (default = localhost:9411): host:port on which the receiver is going to receive data.See our [security best practices doc](https://opentelemetry.io/docs/security/config-best-practices/#protect-against-denial-of-service-attacks) to understand how to set the endpoint in different environments.  You can review the [full list of `ServerConfig`](https://github.com/open-telemetry/opentelemetry-collector/tree/main/config/confighttp).
 - `parse_string_tags` (default = false): if enabled, the receiver will attempt to parse string tags/binary annotations into int/bool/float.
 
 ## Advanced Configuration

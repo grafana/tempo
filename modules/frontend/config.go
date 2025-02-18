@@ -81,6 +81,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 			MaxDuration:           168 * time.Hour, // 1 week
 			ConcurrentRequests:    defaultConcurrentRequests,
 			TargetBytesPerRequest: defaultTargetBytesPerRequest,
+			MostRecentShards:      defaultMostRecentShards,
 			IngesterShards:        3,
 			MaxSpansPerSpanSet:    100,
 		},

@@ -1828,6 +1828,19 @@ func (r mockRing) Get(key uint32, _ ring.Operation, buf []ring.InstanceDesc, _, 
 	return result, nil
 }
 
+func (r mockRing) GetWithOptions(key uint32, _ ring.Operation, _ ...ring.Option) (ring.ReplicationSet, error) {
+	buf := make([]ring.InstanceDesc, 0)
+	result := ring.ReplicationSet{
+		MaxErrors: 1,
+		Instances: buf,
+	}
+	for i := uint32(0); i < r.replicationFactor; i++ {
+		n := (key + i) % uint32(len(r.ingesters))
+		result.Instances = append(result.Instances, r.ingesters[n])
+	}
+	return result, nil
+}
+
 func (r mockRing) GetAllHealthy(ring.Operation) (ring.ReplicationSet, error) {
 	return ring.ReplicationSet{
 		Instances: r.ingesters,
