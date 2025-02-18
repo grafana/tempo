@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -15,6 +14,7 @@ import (
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
 	"github.com/grafana/tempo/modules/generator/registry"
+	"github.com/grafana/tempo/pkg/cache/reclaimable"
 	"github.com/grafana/tempo/pkg/spanfilter"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1_common "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -32,6 +32,8 @@ const (
 
 var tracer = otel.Tracer("modules/generator/processor/spanmetrics")
 
+type sanitizeFn func(string) string
+
 type Processor struct {
 	Cfg Config
 
@@ -46,6 +48,7 @@ type Processor struct {
 	filter               *spanfilter.SpanFilter
 	filteredSpansCounter prometheus.Counter
 	invalidUTF8Counter   prometheus.Counter
+	sanitizeCache        reclaimable.ReclaimableCache[string, string]
 
 	// for testing
 	now func() time.Time
@@ -70,12 +73,14 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 		labels = append(labels, dimStatusMessage)
 	}
 
+	c := reclaimable.New(strutil.SanitizeLabelName, 10000)
+
 	for _, d := range cfg.Dimensions {
-		labels = append(labels, SanitizeLabelNameWithCollisions(d, intrinsicLabels))
+		labels = append(labels, SanitizeLabelNameWithCollisions(d, intrinsicLabels, c.Get))
 	}
 
 	for _, m := range cfg.DimensionMappings {
-		labels = append(labels, SanitizeLabelNameWithCollisions(m.Name, intrinsicLabels))
+		labels = append(labels, SanitizeLabelNameWithCollisions(m.Name, intrinsicLabels, c.Get))
 	}
 
 	err := validateLabelValues(labels)
@@ -91,6 +96,7 @@ func New(cfg Config, reg registry.Registry, filteredSpansCounter, invalidUTF8Cou
 		labels:                labels,
 		filteredSpansCounter:  filteredSpansCounter,
 		invalidUTF8Counter:    invalidUTF8Counter,
+		sanitizeCache:         c,
 	}
 
 	if cfg.Subprocessors[Latency] {
@@ -135,7 +141,7 @@ func (p *Processor) aggregateMetrics(resourceSpans []*v1_trace.ResourceSpans) {
 		jobName := processor_util.GetJobValue(rs.Resource.Attributes)
 		instanceID, _ := processor_util.FindInstanceID(rs.Resource.Attributes)
 		if p.Cfg.EnableTargetInfo {
-			GetTargetInfoAttributesValues(&resourceLabels, &resourceValues, rs.Resource.Attributes, p.Cfg.TargetInfoExcludedDimensions, intrinsicLabels)
+			GetTargetInfoAttributesValues(&resourceLabels, &resourceValues, rs.Resource.Attributes, p.Cfg.TargetInfoExcludedDimensions, intrinsicLabels, p.sanitizeCache.Get)
 		}
 		for _, ils := range rs.ScopeSpans {
 			for _, span := range ils.Spans {
@@ -270,7 +276,7 @@ func validateLabelValues(v []string) error {
 	return nil
 }
 
-func GetTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_common.KeyValue, exclude, intrinsicLabels []string) {
+func GetTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_common.KeyValue, exclude, intrinsicLabels []string, sanitizeFn sanitizeFn) {
 	// TODO allocate with known length, or take new params for existing buffers
 	*keys = (*keys)[:0]
 	*values = (*values)[:0]
@@ -278,15 +284,16 @@ func GetTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_comm
 		// ignoring job and instance
 		key := attrs.Key
 		if key != "service.name" && key != "service.namespace" && key != "service.instance.id" && !Contains(key, exclude) {
-			*keys = append(*keys, SanitizeLabelNameWithCollisions(key, intrinsicLabels))
+			*keys = append(*keys, SanitizeLabelNameWithCollisions(key, intrinsicLabels, sanitizeFn))
 			value := tempo_util.StringifyAnyValue(attrs.Value)
 			*values = append(*values, value)
 		}
 	}
 }
 
-func SanitizeLabelNameWithCollisions(name string, dimensions []string) string {
-	sanitized := sanitizeLabelNameWithCache(name)
+func SanitizeLabelNameWithCollisions(name string, dimensions []string, sansanitizeFn sanitizeFn) string {
+	sanitized := sansanitizeFn(name)
+	// sanitized := strutil.SanitizeLabelName(name)
 
 	// check if same label as intrinsics
 	if slices.Contains(dimensions, sanitized) {
@@ -303,23 +310,4 @@ func Contains(key string, list []string) bool {
 		}
 	}
 	return false
-}
-
-var sanitizeCache = sync.Pool{
-	New: func() any {
-		return make(map[string]string)
-	},
-}
-
-func sanitizeLabelNameWithCache(name string) string {
-	m := sanitizeCache.Get().(map[string]string)
-	defer sanitizeCache.Put(m)
-
-	if s, ok := m[name]; ok {
-		return s
-	}
-
-	s := strutil.SanitizeLabelName(name)
-	m[name] = s
-	return s
 }

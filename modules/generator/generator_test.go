@@ -20,7 +20,6 @@ import (
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
 	trace_v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
@@ -156,9 +155,8 @@ func BenchmarkPushSpans(b *testing.B) {
 			processors: map[string]struct{}{
 				"span-metrics":   {},
 				"service-graphs": {},
-				"local-blocks":   {},
 			},
-			spanMetricsEnableTargetInfo:             false,
+			spanMetricsEnableTargetInfo:             true,
 			spanMetricsTargetInfoExcludedDimensions: []string{"excluded}"},
 		}
 	)
@@ -168,54 +166,46 @@ func BenchmarkPushSpans(b *testing.B) {
 	w, err := storage.New(walcfg, o, tenant, reg, log)
 	require.NoError(b, err)
 
-	tracesWal, err := wal.New(&wal.Config{
-		Filepath: b.TempDir(),
-	})
-	require.NoError(b, err)
-
-	inst, err := newInstance(cfg, tenant, o, w, reg, log, tracesWal, nil, nil)
+	inst, err := newInstance(cfg, tenant, o, w, reg, log, nil, nil, nil)
 	require.NoError(b, err)
 	defer inst.shutdown()
 
+	// Allocate a new request each push so that we can measure the effect
+	// of string uniqify.
+	req := &tempopb.PushSpansRequest{
+		Batches: []*trace_v1.ResourceSpans{
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+			test.MakeBatch(100, nil),
+		},
+	}
+
+	// Add more resource attributes to get closer to real data
+	// Add integer to increase cardinality.
+	// Currently this is about 80 active series
+	// TODO - Get more series
+	for i, b := range req.Batches {
+		b.Resource.Attributes = append(b.Resource.Attributes, []*common_v1.KeyValue{
+			{Key: "k8s.cluster.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+			{Key: "k8s.namespace.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+			{Key: "k8s.node.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+			{Key: "k8s.pod.ip", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+			{Key: "k8s.pod.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+			{Key: "service.instance.id", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+			{Key: "excluded", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
+		}...)
+	}
+
 	b.ResetTimer()
-	b.ReportAllocs()
+	// b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-
-		b.StopTimer()
-		// Allocate a new request each push so that we can measure the effect
-		// of string uniqify.
-		req := &tempopb.PushSpansRequest{
-			Batches: []*trace_v1.ResourceSpans{
-				test.MakeBatch(100, nil),
-				test.MakeBatch(100, nil),
-				test.MakeBatch(100, nil),
-				test.MakeBatch(100, nil),
-				test.MakeBatch(100, nil),
-				test.MakeBatch(100, nil),
-				test.MakeBatch(100, nil),
-				test.MakeBatch(100, nil),
-				test.MakeBatch(100, nil),
-				test.MakeBatch(100, nil),
-			},
-		}
-
-		// Add more resource attributes to get closer to real data
-		// Add integer to increase cardinality.
-		// Currently this is about 80 active series
-		// TODO - Get more series
-		for i, b := range req.Batches {
-			b.Resource.Attributes = append(b.Resource.Attributes, []*common_v1.KeyValue{
-				{Key: "k8s.cluster.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
-				{Key: "k8s.namespace.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
-				{Key: "k8s.node.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
-				{Key: "k8s.pod.ip", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
-				{Key: "k8s.pod.name", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
-				{Key: "service.instance.id", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
-				{Key: "excluded", Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "test" + strconv.Itoa(i)}}},
-			}...)
-		}
-		b.StartTimer()
-
 		inst.pushSpans(ctx, req)
 	}
 
