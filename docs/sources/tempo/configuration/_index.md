@@ -1644,6 +1644,10 @@ overrides:
 
       # Maximum bytes any attribute can be for both keys and values.
       [max_attribute_bytes: <int> | default = 0]
+      
+      # Pad push requests with an artificial delay, if set push requests will be delayed to ensure
+      # an average latency of at least artificial_delay.
+      [artificial_delay: <duration> | default = 0ms]
 
     # Read related overrides
     read:
