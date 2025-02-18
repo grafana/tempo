@@ -95,8 +95,12 @@ func stopCompleteQueue() {
 }
 
 func completeLoop() {
+	// Queue locks internally so get the shared var once on startup
+	// and avoid having to lock outside as well.
+	q := completeQueue
+
 	for {
-		o := completeQueue.Dequeue()
+		o := q.Dequeue()
 		if o == nil {
 			// Queue is closed.
 			return
@@ -121,7 +125,7 @@ func completeLoop() {
 
 			go func() {
 				time.Sleep(delay)
-				if _, err := completeQueue.Enqueue(op); err != nil {
+				if _, err := q.Enqueue(op); err != nil {
 					_ = level.Error(log.Logger).Log("msg", "failed to requeue block for flushing", "err", err)
 				}
 			}()
