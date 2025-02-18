@@ -31,7 +31,7 @@ func (g *Generator) startKafka() {
 
 	for i := uint(0); i < g.cfg.Ingest.Concurrency; i++ {
 		g.kafkaWG.Add(1)
-		go g.pushSpansFromChannel(ctx)
+		go g.readCh(ctx)
 	}
 
 	g.kafkaWG.Add(1)
@@ -102,10 +102,10 @@ func (g *Generator) readKafka(ctx context.Context) error {
 	return nil
 }
 
-// pushSpansFromChannel reads records from the internal channel.
+// readCh reads records from the internal channel.
 // This allows for offloading the expensive proto unmarshal
 // to multiple goroutines.
-func (g *Generator) pushSpansFromChannel(ctx context.Context) {
+func (g *Generator) readCh(ctx context.Context) {
 	defer g.kafkaWG.Done()
 	d := ingest.NewDecoder()
 

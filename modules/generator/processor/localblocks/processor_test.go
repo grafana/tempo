@@ -152,7 +152,7 @@ func TestProcessorDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		err := p.cutIdleTraces(time.Time{}, true)
+		err := p.cutIdleTraces(true)
 		require.NoError(t, err, "cutting idle traces")
 	})
 
@@ -237,21 +237,31 @@ func TestReplicationFactor(t *testing.T) {
 		Batches: tr.ResourceSpans,
 	})
 
-	require.NoError(t, p.cutIdleTraces(time.Time{}, true))
+	require.NoError(t, p.cutIdleTraces(true))
+
+	p.blocksMtx.Lock()
 	verifyReplicationFactor(t, p.headBlock)
+	p.blocksMtx.Unlock()
 
 	require.NoError(t, p.cutBlocks(true))
+
+	p.blocksMtx.Lock()
 	for _, b := range p.walBlocks {
 		verifyReplicationFactor(t, b)
 	}
+	p.blocksMtx.Unlock()
 
 	require.Eventually(t, func() bool {
+		p.blocksMtx.Lock()
+		defer p.blocksMtx.Unlock()
 		return len(p.completeBlocks) > 0
 	}, 10*time.Second, 100*time.Millisecond)
 
+	p.blocksMtx.Lock()
 	for _, b := range p.completeBlocks {
 		verifyReplicationFactor(t, b)
 	}
+	p.blocksMtx.Unlock()
 
 	require.Eventually(t, func() bool {
 		return len(mockWriter.metas()) == 1

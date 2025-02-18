@@ -63,6 +63,9 @@ func ExportPartitionLagMetrics(ctx context.Context, admClient *kadm.Client, log 
 	}()
 }
 
+// SetPartitionLagSeconds is similar to the auto exported lag, except it is in real clock seconds
+// which can only be known after the record is read from the queue, therefore it is set by the caller.
+// TODO - Need to reset this metric when partitions are revoked so that it doesn't continue to export stale data.
 func SetPartitionLagSeconds(group string, partition int, lag time.Duration) {
 	metricPartitionLagSeconds.WithLabelValues(group, strconv.Itoa(partition)).Set(lag.Seconds())
 }

@@ -63,7 +63,6 @@ overrides:
 	generatorConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	generatorConfig.Storage.Path = t.TempDir()
 	generatorConfig.Ring.KVStore.Store = "inmemory"
-	// generatorConfig.Processor.SpanMetrics.RegisterFlagsAndApplyDefaults("", nil)
 	g, err := New(generatorConfig, o, prometheus.NewRegistry(), nil, nil, newTestLogger(t))
 	require.NoError(t, err)
 	require.NoError(t, services.StartAndAwaitRunning(context.Background(), g))
@@ -163,15 +162,13 @@ func BenchmarkPushSpans(b *testing.B) {
 
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 
-	w, err := storage.New(walcfg, o, tenant, reg, log)
+	wal, err := storage.New(walcfg, o, tenant, reg, log)
 	require.NoError(b, err)
 
-	inst, err := newInstance(cfg, tenant, o, w, reg, log, nil, nil, nil)
+	inst, err := newInstance(cfg, tenant, o, wal, reg, log, nil, nil, nil)
 	require.NoError(b, err)
 	defer inst.shutdown()
 
-	// Allocate a new request each push so that we can measure the effect
-	// of string uniqify.
 	req := &tempopb.PushSpansRequest{
 		Batches: []*trace_v1.ResourceSpans{
 			test.MakeBatch(100, nil),
@@ -204,7 +201,7 @@ func BenchmarkPushSpans(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	// b.ReportAllocs()
+	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		inst.pushSpans(ctx, req)
 	}

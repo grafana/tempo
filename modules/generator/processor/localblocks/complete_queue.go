@@ -88,8 +88,8 @@ func stopCompleteQueue() {
 	completeQueueMtx.Lock()
 	defer completeQueueMtx.Unlock()
 
-	completeQueueRefs++
-	if completeQueueRefs == 1 {
+	completeQueueRefs--
+	if completeQueueRefs == 0 {
 		completeQueue.DiscardAndClose()
 	}
 }

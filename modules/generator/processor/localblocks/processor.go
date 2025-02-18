@@ -126,7 +126,6 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 
 	p.wg.Add(3)
 	go p.cutLoop()
-	// go p.completeLoop()
 	go p.deleteLoop()
 	go p.metricLoop()
 
@@ -283,7 +282,7 @@ func (p *Processor) Shutdown(context.Context) {
 	p.wg.Wait()
 
 	// Immediately cut all traces from memory
-	err := p.cutIdleTraces(time.Time{}, true)
+	err := p.cutIdleTraces(true)
 	if err != nil {
 		level.Error(p.logger).Log("msg", "local blocks processor failed to cut remaining traces on shutdown", "err", err)
 	}
@@ -305,7 +304,7 @@ func (p *Processor) cutLoop() {
 	for {
 		select {
 		case <-flushTicker.C:
-			err := p.cutIdleTraces(time.Now().Add(-p.Cfg.TraceIdlePeriod), false)
+			err := p.cutIdleTraces(false)
 			if err != nil {
 				level.Error(p.logger).Log("msg", "local blocks processor failed to cut idle traces", "err", err)
 			}
@@ -679,14 +678,14 @@ func (p *Processor) deleteOldBlocks() (err error) {
 	return
 }
 
-func (p *Processor) cutIdleTraces(since time.Time, immediate bool) error {
+func (p *Processor) cutIdleTraces(immediate bool) error {
 	p.liveTracesMtx.Lock()
 
 	// Record live traces before flushing so we know the high water mark
 	metricLiveTraces.WithLabelValues(p.tenant).Set(float64(p.liveTraces.Len()))
 	metricLiveTraceBytes.WithLabelValues(p.tenant).Set(float64(p.liveTraces.Size()))
 
-	// since :=
+	since := time.Now().Add(-p.Cfg.TraceIdlePeriod)
 	tracesToCut := p.liveTraces.CutIdle(since, immediate)
 
 	p.liveTracesMtx.Unlock()

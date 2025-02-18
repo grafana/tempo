@@ -83,9 +83,7 @@ type instance struct {
 	processorsMtx sync.RWMutex
 	// processors is a map of processor name -> processor, only one instance of a processor can be
 	// active at any time
-	processors map[string]processor.Processor
-
-	// Special processing for queue-based data
+	processors            map[string]processor.Processor
 	queuebasedLocalBlocks *localblocks.Processor
 
 	shutdownCh chan struct{}
