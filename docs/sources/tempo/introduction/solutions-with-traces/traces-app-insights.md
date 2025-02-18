@@ -15,7 +15,7 @@ refs:
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/metrics-generator/
     - pattern: /docs/grafana-cloud/
       destination: https://grafana.com/docs/grafana-cloud/send-data/traces/metrics-generator/
-span-metrics:
+  span-metrics:
     - pattern: /docs/tempo/
       destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/metrics-generator/span_metrics/
     - pattern: /docs/enterprise-traces/
