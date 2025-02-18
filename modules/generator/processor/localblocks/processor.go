@@ -256,8 +256,8 @@ func (p *Processor) maxLiveTraces() uint64 {
 		return 0
 	}
 
-	if max := p.overrides.MaxLocalTracesPerUser(p.tenant); max > 0 {
-		return uint64(max)
+	if m := p.overrides.MaxLocalTracesPerUser(p.tenant); m > 0 {
+		return uint64(m)
 	}
 
 	return p.Cfg.MaxLiveTraces
