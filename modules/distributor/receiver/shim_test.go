@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
@@ -30,12 +31,14 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 // These tests use the OpenTelemetry Collector Exporters to validate the different protocols
 func TestShim_integration(t *testing.T) {
 	randomTraces := testdata.GenerateTraces(5)
+	headers := map[string]configopaque.String{generator.NoGenerateMetricsContextKey: "true"}
 
 	testCases := []struct {
 		name              string
@@ -60,6 +63,7 @@ func TestShim_integration(t *testing.T) {
 					TLSSetting: configtls.ClientConfig{
 						Insecure: true,
 					},
+					Headers: headers,
 				},
 			},
 			expectedTransport: "grpc",
@@ -77,6 +81,7 @@ func TestShim_integration(t *testing.T) {
 			exporterCfg: &otlphttpexporter.Config{
 				ClientConfig: confighttp.ClientConfig{
 					Endpoint: "http://127.0.0.1:4318",
+					Headers:  headers,
 				},
 				Encoding: otlphttpexporter.EncodingJSON,
 			},
@@ -95,6 +100,7 @@ func TestShim_integration(t *testing.T) {
 			exporterCfg: &otlphttpexporter.Config{
 				ClientConfig: confighttp.ClientConfig{
 					Endpoint: "http://127.0.0.1:4318",
+					Headers:  headers,
 				},
 				Encoding: otlphttpexporter.EncodingProto,
 			},
@@ -103,7 +109,7 @@ func TestShim_integration(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			pusher := &capturingPusher{}
+			pusher := &capturingPusher{t: t}
 			reg := prometheus.NewPedanticRegistry()
 
 			stopShim := runReceiverShim(t, testCase.receiverCfg, pusher, reg)
@@ -198,6 +204,7 @@ func (m *mockHost) GetExtensions() map[component.ID]component.Component {
 
 type capturingPusher struct {
 	traces []ptrace.Traces
+	t      *testing.T
 }
 
 func (p *capturingPusher) GetAndClearTraces() []ptrace.Traces {
@@ -206,8 +213,12 @@ func (p *capturingPusher) GetAndClearTraces() []ptrace.Traces {
 	return traces
 }
 
-func (p *capturingPusher) PushTraces(_ context.Context, t ptrace.Traces) (*tempopb.PushResponse, error) {
+func (p *capturingPusher) PushTraces(ctx context.Context, t ptrace.Traces) (*tempopb.PushResponse, error) {
 	p.traces = append(p.traces, t)
+
+	// Ensure that headers from the exporter config are propagated.
+	assert.True(p.t, generator.ExtractNoGenerateMetrics(ctx))
+
 	return &tempopb.PushResponse{}, nil
 }
 

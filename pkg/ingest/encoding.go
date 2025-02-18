@@ -7,8 +7,18 @@ import (
 	math_bits "math/bits"
 	"sync"
 
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/plugin/kotel"
+
+	"github.com/grafana/tempo/pkg/tempopb"
+)
+
+const (
+	// noGenerateMetricsContextKey is used in request contexts/headers to signal to
+	// the metrics generator that it should not generate metrics for the spans
+	// contained in the requests. This is intended to be used by clients that send
+	// requests for which span-derived metrics have already been generated elsewhere.
+	noGenerateMetricsContextKey = "no-generate-metrics"
 )
 
 var encoderPool = sync.Pool{
@@ -35,12 +45,12 @@ func encoderPoolPut(req *tempopb.PushBytesRequest) {
 	encoderPool.Put(req)
 }
 
-func Encode(partitionID int32, tenantID string, req *tempopb.PushBytesRequest, maxSize int) ([]*kgo.Record, error) {
+func Encode(partitionID int32, tenantID string, req *tempopb.PushBytesRequest, maxSize int, generateMetrics bool) ([]*kgo.Record, error) {
 	reqSize := req.Size()
 
 	// Fast path for small requests
 	if reqSize <= maxSize {
-		rec, err := marshalWriteRequestToRecord(partitionID, tenantID, req)
+		rec, err := marshalWriteRequestToRecord(partitionID, tenantID, req, generateMetrics)
 		if err != nil {
 			return nil, err
 		}
@@ -66,7 +76,7 @@ func Encode(partitionID int32, tenantID string, req *tempopb.PushBytesRequest, m
 		if currentSize+entrySize > maxSize {
 			// Current req is full, create a record and start a new req
 			if len(batch.Traces) > 0 {
-				rec, err := marshalWriteRequestToRecord(partitionID, tenantID, batch)
+				rec, err := marshalWriteRequestToRecord(partitionID, tenantID, batch, generateMetrics)
 				if err != nil {
 					return nil, err
 				}
@@ -84,7 +94,7 @@ func Encode(partitionID int32, tenantID string, req *tempopb.PushBytesRequest, m
 
 	// Handle any remaining entries
 	if len(batch.Traces) > 0 {
-		rec, err := marshalWriteRequestToRecord(partitionID, tenantID, batch)
+		rec, err := marshalWriteRequestToRecord(partitionID, tenantID, batch, generateMetrics)
 		if err != nil {
 			return nil, err
 		}
@@ -99,17 +109,23 @@ func Encode(partitionID int32, tenantID string, req *tempopb.PushBytesRequest, m
 }
 
 // marshalWriteRequestToRecord converts a PushBytesRequest to a Kafka record.
-func marshalWriteRequestToRecord(partitionID int32, tenantID string, req *tempopb.PushBytesRequest) (*kgo.Record, error) {
+func marshalWriteRequestToRecord(partitionID int32, tenantID string, req *tempopb.PushBytesRequest, generateMetrics bool) (*kgo.Record, error) {
 	data, err := req.Marshal()
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal record: %w", err)
 	}
 
-	return &kgo.Record{
+	r := &kgo.Record{
 		Key:       []byte(tenantID),
 		Value:     data,
 		Partition: partitionID,
-	}, nil
+	}
+
+	if !generateMetrics {
+		injectNoGenerateMetrics(r)
+	}
+
+	return r, nil
 }
 
 // Decoder is responsible for decoding Kafka record data back into logproto.Stream format.
@@ -144,4 +160,16 @@ func (d *Decoder) Reset() {
 // in Protocol Buffers' variable-length integer format.
 func sovPush(x uint64) (n int) {
 	return (math_bits.Len64(x|1) + 6) / 7
+}
+
+// injectNoGenerateMetrics marks the record such that ExtractNoGenerateMetrics
+// will return true. This is used to signal to the metrics generator that spans
+// contained in this record should be skipped for metrics generation.
+func injectNoGenerateMetrics(r *kgo.Record) {
+	kotel.NewRecordCarrier(r).Set(noGenerateMetricsContextKey, "true")
+}
+
+// ExtractNoGenerateMetrics returns true if a record was marked by injectNoGenerateMetrics.
+func ExtractNoGenerateMetrics(r *kgo.Record) bool {
+	return kotel.NewRecordCarrier(r).Get(noGenerateMetricsContextKey) == "true"
 }

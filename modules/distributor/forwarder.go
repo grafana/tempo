@@ -34,12 +34,13 @@ var (
 	}, []string{"tenant"})
 )
 
-type forwardFunc func(ctx context.Context, tenantID string, keys []uint32, traces []*rebatchedTrace) error
+type forwardFunc func(ctx context.Context, tenantID string, keys []uint32, traces []*rebatchedTrace, noGenerateMetrics bool) error
 
 type request struct {
-	tenantID string
-	keys     []uint32
-	traces   []*rebatchedTrace
+	tenantID          string
+	keys              []uint32
+	traces            []*rebatchedTrace
+	noGenerateMetrics bool
 }
 
 // generatorForwarder queues up traces to be sent to the metrics-generators
@@ -83,8 +84,10 @@ func (f *generatorForwarder) SendTraces(ctx context.Context, tenantID string, ke
 	default:
 	}
 
+	noGenerateMetrics := !shouldGenerateSpanMetrics(ctx)
+
 	q := f.getOrCreateQueue(tenantID)
-	err := q.Push(ctx, &request{tenantID: tenantID, keys: keys, traces: traces})
+	err := q.Push(ctx, &request{tenantID: tenantID, keys: keys, traces: traces, noGenerateMetrics: noGenerateMetrics})
 	if err != nil {
 		_ = level.Error(f.logger).Log("msg", "failed to push traces to queue", "tenant", tenantID, "err", err)
 		metricForwarderPushesFailures.WithLabelValues(tenantID).Inc()
@@ -216,7 +219,7 @@ func (f *generatorForwarder) stop(_ error) error {
 }
 
 func (f *generatorForwarder) processFunc(ctx context.Context, data *request) {
-	if err := f.forwardFunc(ctx, data.tenantID, data.keys, data.traces); err != nil {
+	if err := f.forwardFunc(ctx, data.tenantID, data.keys, data.traces, data.noGenerateMetrics); err != nil {
 		_ = level.Warn(f.logger).Log("msg", "failed to forward request to metrics generator", "err", err)
 	}
 }
