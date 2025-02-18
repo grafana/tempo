@@ -15,11 +15,11 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-var metricBackPressure = promauto.NewCounterVec(prometheus.CounterOpts{
+var metricEnqueueTime = promauto.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "tempo",
 	Subsystem: "metrics_generator",
-	Name:      "enqueue_time",
-	Help:      "asdf",
+	Name:      "enqueue_time_seconds_total",
+	Help:      "The total amount of time spent waiting to enqueue for processing",
 }, []string{"reason"})
 
 func (g *Generator) startKafka() {
@@ -97,7 +97,7 @@ func (g *Generator) readKafka(ctx context.Context) error {
 		}
 	}
 
-	metricBackPressure.WithLabelValues("waiting_for_queue").Add(time.Since(start).Seconds())
+	metricEnqueueTime.WithLabelValues("waiting_for_queue").Add(time.Since(start).Seconds())
 
 	return nil
 }

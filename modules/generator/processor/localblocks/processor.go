@@ -18,8 +18,6 @@ import (
 	"github.com/grafana/tempo/pkg/flushqueues"
 	"github.com/grafana/tempo/pkg/tracesizes"
 	"github.com/grafana/tempo/tempodb"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
@@ -159,18 +157,6 @@ func (p *Processor) DeterministicPush(ts time.Time, req *tempopb.PushSpansReques
 
 	p.push(ts, req)
 }
-
-var metricBackPressure = promauto.NewCounterVec(prometheus.CounterOpts{
-	Namespace: "tempo",
-	Subsystem: "metrics_generator",
-	Name:      "back_pressure_seconds_total",
-	Help:      "asdf",
-}, []string{"reason"})
-
-const (
-	reasonWaitingForLiveTraces = "waiting_for_live_traces"
-	reasonWaitingForWAL        = "waiting_for_wal"
-)
 
 func (p *Processor) backpressure() bool {
 	if p.Cfg.MaxLiveTracesBytes > 0 {

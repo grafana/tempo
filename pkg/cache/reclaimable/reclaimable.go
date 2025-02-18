@@ -2,9 +2,9 @@ package reclaimable
 
 import "sync"
 
-// ReclaimableCache is an in-memory key/value cache that is best-effort. It does not
+// Cache is an in-memory key/value cache that is best-effort. It does not
 // reserve dedicated space for values and can be reclaimed by the garbage collector as needed.
-type ReclaimableCache[TKey comparable, TValue any] struct {
+type Cache[TKey comparable, TValue any] struct {
 	max  int
 	f    func(TKey) TValue
 	pool *sync.Pool
@@ -12,8 +12,8 @@ type ReclaimableCache[TKey comparable, TValue any] struct {
 
 // New reclaimable cache.  Must provide the function to populate values. The maximum number of values
 // can be optionally set (zero means unlimited).
-func New[TKey comparable, TValue any](f func(TKey) TValue, maxLen int) ReclaimableCache[TKey, TValue] {
-	return ReclaimableCache[TKey, TValue]{
+func New[TKey comparable, TValue any](f func(TKey) TValue, maxLen int) Cache[TKey, TValue] {
+	return Cache[TKey, TValue]{
 		max: maxLen,
 		f:   f,
 		pool: &sync.Pool{
@@ -24,7 +24,7 @@ func New[TKey comparable, TValue any](f func(TKey) TValue, maxLen int) Reclaimab
 	}
 }
 
-func (c ReclaimableCache[TKey, TValue]) Get(key TKey) TValue {
+func (c Cache[TKey, TValue]) Get(key TKey) TValue {
 	m := c.pool.Get().(map[TKey]TValue)
 	defer c.pool.Put(m)
 

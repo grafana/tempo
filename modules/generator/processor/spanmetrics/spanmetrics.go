@@ -48,7 +48,7 @@ type Processor struct {
 	filter               *spanfilter.SpanFilter
 	filteredSpansCounter prometheus.Counter
 	invalidUTF8Counter   prometheus.Counter
-	sanitizeCache        reclaimable.ReclaimableCache[string, string]
+	sanitizeCache        reclaimable.Cache[string, string]
 
 	// for testing
 	now func() time.Time
