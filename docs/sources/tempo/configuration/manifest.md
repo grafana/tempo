@@ -615,8 +615,10 @@ metrics_generator:
             trace_idle_period: 10s
             max_block_duration: 1m0s
             max_block_bytes: 500000000
+            concurrency: 4
             complete_block_timeout: 1h0m0s
             max_live_traces: 0
+            max_live_traces_bytes: 250000000
             filter_server_spans: true
             flush_to_storage: false
             concurrent_blocks: 10
@@ -656,6 +658,7 @@ metrics_generator:
     instance_id: hostname
 ingest:
     enabled: false
+    concurrency: 16
     kafka:
         address: localhost:9092
         topic: ""

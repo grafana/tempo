@@ -29,7 +29,7 @@ type Config struct {
 	FlushToStorage       bool                  `yaml:"flush_to_storage"`
 	Metrics              MetricsConfig         `yaml:",inline"`
 
-	AssertMaxLiveTraces bool // Used internally for non-flushing instance
+	AssertMaxLiveTraces bool `yaml:"-"` // Used internally for non-flushing instance
 }
 
 type MetricsConfig struct {
