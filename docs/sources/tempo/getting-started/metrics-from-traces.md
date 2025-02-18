@@ -45,10 +45,7 @@ The metrics-generator automatically generates exemplars as well which allows eas
 ## Linking traces and metrics
 
 Grafana can correlate different signals by adding the functionality to link between traces and metrics. The [trace to metrics feature](https://grafana.com/blog/2022/08/18/new-in-grafana-9.1-trace-to-metrics-allows-users-to-navigate-from-a-trace-span-to-a-selected-data-source/), a beta feature in Grafana 9.1, lets you quickly see trends or aggregated data related to each span.
-
-You can try it out by enabling the `traceToMetrics` feature toggle in your Grafana configuration file.
-Refer to [Configure feature toggles](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/setup-grafana/configure-grafana/feature-toggles/) for more information.
-
+ 
 For example, you can use span attributes to metric labels by using the `$__tags` keyword to convert span attributes to metrics labels.
 
 For more information, refer to the [Trace to metric configuration](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/datasources/tempo/configure-tempo-data-source/#trace-to-metrics) documentation.
