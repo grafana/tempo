@@ -36,7 +36,7 @@ func TestEncoderDecoder(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			decoder := NewDecoder()
 
-			records, err := Encode(0, "test-tenant", tt.req, tt.maxSize)
+			records, err := Encode(0, "test-tenant", tt.req, tt.maxSize, true)
 			require.NoError(t, err)
 
 			if tt.expectSplit {
@@ -68,7 +68,7 @@ func TestEncoderDecoder(t *testing.T) {
 func TestEncoderSingleEntryTooLarge(t *testing.T) {
 	stream := generateRequest(1, 1000)
 
-	_, err := Encode(0, "test-tenant", stream, 100)
+	_, err := Encode(0, "test-tenant", stream, 100, true)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "single entry size")
 }
@@ -85,7 +85,7 @@ func TestEncoderDecoderEmptyStream(t *testing.T) {
 
 	req := &tempopb.PushBytesRequest{}
 
-	records, err := Encode(0, "test-tenant", req, 10<<20)
+	records, err := Encode(0, "test-tenant", req, 10<<20, true)
 	require.NoError(t, err)
 	require.Len(t, records, 1)
 
@@ -94,13 +94,21 @@ func TestEncoderDecoderEmptyStream(t *testing.T) {
 	require.Equal(t, req.Traces, decodedReq.Traces)
 }
 
+func TestEncodeNoGenerateMetrics(t *testing.T) {
+	records, err := Encode(0, "test-tenant", generateRequest(20, 50), 200, false)
+	require.NoError(t, err)
+	for _, record := range records {
+		require.True(t, ExtractNoGenerateMetrics(record))
+	}
+}
+
 func BenchmarkEncodeDecode(b *testing.B) {
 	decoder := NewDecoder()
 	stream := generateRequest(1000, 200)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		records, err := Encode(0, "test-tenant", stream, 10<<20)
+		records, err := Encode(0, "test-tenant", stream, 10<<20, false)
 		if err != nil {
 			b.Fatal(err)
 		}
