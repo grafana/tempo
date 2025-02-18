@@ -273,7 +273,7 @@ For additional information, refer to [Troubleshoot out-of-memory errors](https:/
 Starting with Tempo 2.7.1, gRPC compression between all components defaults to `snappy`.
 Using `snappy` provides a balanced approach to compression between components that will work for most installations.
 
-If you prefer a different balance of CPU/Memory and bandwidth, consider disabling compression or using `zstd`.
+If you prefer a different balance of CPU/Memory and bandwidth, consider disabling compression or using `zstd`. 
 
 For a discussion on alternatives, refer to [this discussion thread](https://github.com/grafana/tempo/discussions/4683). ([#4696](https://github.com/grafana/tempo/pull/4696)).
 
