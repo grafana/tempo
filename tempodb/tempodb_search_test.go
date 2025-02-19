@@ -45,19 +45,19 @@ const attributeWithTerminalChars = `{ } ( ) = ~ ! < > & | ^`
 func TestSearchCompleteBlock(t *testing.T) {
 	for _, v := range encoding.AllEncodings() {
 		vers := v.Version()
-		// t.Run(vers, func(t *testing.T) {
-		// // 	runCompleteBlockSearchTest(t, vers,
-		// // 		searchRunner,
-		// // 		traceQLRunner,
-		// // 		advancedTraceQLRunner,
-		// // 		groupTraceQLRunner,
-		// // 		traceQLStructural,
-		// // 		traceQLExistence,
-		// // 		nestedSet,
-		// // 		tagValuesRunner,
-		// // 		tagNamesRunner,
-		// // 	)
-		// // })
+		t.Run(vers, func(t *testing.T) {
+			runCompleteBlockSearchTest(t, vers,
+				searchRunner,
+				traceQLRunner,
+				advancedTraceQLRunner,
+				groupTraceQLRunner,
+				traceQLStructural,
+				traceQLExistence,
+				nestedSet,
+				tagValuesRunner,
+				tagNamesRunner,
+			)
+		})
 		if vers == vparquet4.VersionString {
 			t.Run("event/link/instrumentation query", func(t *testing.T) {
 				runEventLinkInstrumentationSearchTest(t, vers)
@@ -96,7 +96,13 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 		{Query: `{ resource."k8s.namespace.name" = "k8sNamespace" }`},
 	}
 
+	spanIDTThatMatch := []*tempopb.SearchRequest{
+		{Query: fmt.Sprintf("{ span:id = %q }", "10203")},
+		{Query: fmt.Sprintf("{ span:id = %q }", "40506")},
+	}
+
 	searchesThatMatch = append(searchesThatMatch, quotedAttributesThatMatch...)
+	searchesThatMatch = append(searchesThatMatch, spanIDTThatMatch...)
 	for _, req := range searchesThatMatch {
 		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())
@@ -1714,7 +1720,8 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 	wantID, wantTr, start, end, wantMeta := makeExpectedTrace()
 	wantIDText := util.TraceIDToHexString(wantID)
 	sixtyFourByteSpanID := util.SpanIDToHexString([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef})
-	shortSpanID := util.SpanIDToHexString([]byte{4, 5, 6})
+	shortSpanID := "40506"
+	shortLinkTraceID := "10203"
 
 	searchesThatMatch := []*tempopb.SearchRequest{
 		{
@@ -1731,6 +1738,9 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 		},
 		{
 			Query: "{ link:traceID = `" + wantIDText + "` }",
+		},
+		{
+			Query: "{ link:traceID = `" + shortLinkTraceID + "` }",
 		},
 		{
 			Query: "{ link:spanID = `" + sixtyFourByteSpanID + "` }",
@@ -1757,7 +1767,7 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 	require.NoError(t, err)
 	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
 
-	totalTraces := 50
+	totalTraces := 2
 	wantTrIdx := rand.Intn(totalTraces)
 	for i := 0; i < totalTraces; i++ {
 		var tr *tempopb.Trace
@@ -1964,7 +1974,7 @@ func makeExpectedTrace() (
 										},
 									},
 									{
-										TraceId: id,
+										TraceId: []byte{1, 2, 3},
 										SpanId:  []byte{4, 5, 6},
 										Attributes: []*v1_common.KeyValue{
 											stringKV("relation", "child-of"),

@@ -10,7 +10,7 @@ import (
 )
 
 func HexStringToTraceID(id string) ([]byte, error) {
-	return hexStringToID(id, false)
+	return hexStringToID(id)
 }
 
 // TraceIDToHexString converts a trace ID to its string representation and removes any leading zeros.
@@ -38,9 +38,23 @@ func SpanIDToHexString(byteID []byte) string {
 	return fmt.Sprintf("%016s", id)
 }
 
-func HexStringToSpanID(id string) ([]byte, error) {
+func IDToTrimmedHexString(byteID []byte) string {
+	dst := make([]byte, hex.EncodedLen(len(byteID)))
+	hex.Encode(dst, byteID)
+	// fast conversion to string
+	p := unsafe.SliceData(dst)
+	id := unsafe.String(p, len(dst))
+	// remove and pad
+	return strings.TrimLeft(id, "0")
+}
+
+func HexStringToNonTraceID(id string) ([]byte, error) {
 	id = strings.TrimLeft(id, "0")
-	return hexStringToID(id, true)
+	byteId, err := hexStringToID(id)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.TrimLeft(byteId, "\x00"), nil
 }
 
 // spanKindFNVHashes contains pre-calculated FNV hashes for all span kind values (and two spares)
@@ -112,7 +126,7 @@ func PadTraceIDTo16Bytes(traceID []byte) []byte {
 	return padded
 }
 
-func hexStringToID(id string, isSpan bool) ([]byte, error) {
+func hexStringToID(id string) ([]byte, error) {
 	// The encoding/hex package does not handle non-hex characters.
 	// Ensure the ID has only the proper characters
 	for i, c := range id {
@@ -133,16 +147,6 @@ func hexStringToID(id string, isSpan bool) ([]byte, error) {
 	}
 
 	size := len(byteID)
-
-	if isSpan {
-		if size > 8 {
-			return nil, errors.New("span IDs can't be larger than 64 bits")
-		}
-		// if size < 8 {
-		// 	byteID = append(make([]byte, 8-size), byteID...)
-		// }
-		return bytes.TrimLeft(byteID, "\x00"), nil
-	}
 
 	if size > 16 {
 		return nil, errors.New("trace IDs can't be larger than 128 bits")

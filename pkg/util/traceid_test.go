@@ -307,7 +307,7 @@ func TestHexStringToSpanID(t *testing.T) {
 
 	for _, tt := range tc {
 		t.Run(tt.id, func(t *testing.T) {
-			actual, err := HexStringToSpanID(tt.id)
+			actual, err := hexStringToID(tt.id)
 
 			if tt.expectError != nil {
 				assert.Equal(t, tt.expectError, err)
