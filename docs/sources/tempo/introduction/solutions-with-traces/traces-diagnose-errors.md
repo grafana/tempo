@@ -13,6 +13,10 @@ refs:
       destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/
     - pattern: /docs/enterprise-traces/
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/traceql/
+    - pattern: /docs/grafana/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/
+    - pattern: /docs/grafana-cloud/
+      destination: https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/
 ---
 
 # Diagnose errors with traces

@@ -2,6 +2,7 @@
 aliases:
   - /docs/tempo/getting-started/traces
   - /docs/tempo/traces
+  - /docs/grafana-cloud/send-data/traces/what-are-traces
 description: "What are traces? Learn about traces and how you can use them."
 keywords:
   - Grafana
