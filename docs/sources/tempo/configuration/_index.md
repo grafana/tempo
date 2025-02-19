@@ -270,15 +270,24 @@ For additional information, refer to [Troubleshoot out-of-memory errors](https:/
 
 ### gRPC compression
 
-If you notice increased network traffic or issues, check the gRPC compression settings.
+Starting with Tempo 2.7.1, gRPC compression between all components defaults to `snappy`.
+Using `snappy` provides a balanced approach to compression between components that will work for most installations.
 
-Tempo 2.7 disabled gRPC compression in the querier and distributor for performance reasons. ([#4429](https://github.com/grafana/tempo/pull/4429))
+If you prefer a different balance of CPU/Memory and bandwidth, consider disabling compression or using `zstd`.
+
+For a discussion on alternatives, refer to [this discussion thread](https://github.com/grafana/tempo/discussions/4683). ([#4696](https://github.com/grafana/tempo/pull/4696)).
+
+
+Disabling comrpession may provide some performance boosts.
 Benchmark testing suggested that without compression, queriers and distributors used less CPU and memory.
 
 However, you may notice an increase in ingester data and network traffic especially for larger clusters.
 This increased data can impact billing for Grafana Cloud.
 
 You can configure the gRPC compression in the `querier`, `ingester`, and `metrics_generator` clients of the distributor.
+
+To disable compression, remove `snappy` from the `grpc_compression` lines.
+
 To re-enable the compression, use `snappy` with the following settings:
 
   ```yaml
@@ -714,6 +723,7 @@ query_frontend:
             # NOTE: Requires `duration_slo` AND `throughput_bytes_slo` to be configured.
             [duration_slo: <duration> | default = 0s ]
 
+
             # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
             # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
             [throughput_bytes_slo: <float> | default = 0 ]
@@ -1109,6 +1119,22 @@ storage:
             # A map of key value strings for user tags to store on the S3 objects. This helps set up filters in S3 lifecycles.
             # See the [S3 documentation on object tagging](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) for more detail.
             [tags: <map[string]string>]
+
+
+            [sse: <map[string]string>]:
+              # Optional
+              # Example: type: SSE-S3
+              # Type of encryption to use with s3 bucket, either SSE-KMS or SSE-S3
+              [type: string]:
+
+              # Optional
+              # Example: kms_key_id: "1234abcd-12ab-34cd-56ef-1234567890ab"
+              # the kms key id is the identification of the key in an account or region
+              kms_key_id:
+              # Optional
+              # Example: kms_encryption_context: "encryptionContext": {"department": "10103.0"}
+              # KMS Encryption Context used for object encryption. It expects JSON formatted string
+              kms_encryption_context:
 
         # azure configuration. Will be used only if value of backend is "azure"
         # EXPERIMENTAL
@@ -1627,6 +1653,10 @@ overrides:
 
       # Maximum bytes any attribute can be for both keys and values.
       [max_attribute_bytes: <int> | default = 0]
+      
+      # Pad push requests with an artificial delay, if set push requests will be delayed to ensure
+      # an average latency of at least artificial_delay.
+      [artificial_delay: <duration> | default = 0ms]
 
     # Read related overrides
     read:
@@ -2017,7 +2047,7 @@ cache:
             # Optional
             # Comma separated addresses list in DNS Service Discovery format. Refer - https://cortexmetrics.io/docs/configuration/arguments/#dns-service-discovery.
             # (default: "")
-            # Example: "addresses: memcached"
+            # Example: "addresses: dns+memcached:11211"
             [addresses: <comma separated strings>]
 
             # Optional
