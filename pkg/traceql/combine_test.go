@@ -1,10 +1,15 @@
 package traceql
 
 import (
+	"fmt"
+	"math/rand/v2"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -262,4 +267,53 @@ func TestCombineResults(t *testing.T) {
 			require.Equal(t, tc.expected, tc.existing)
 		})
 	}
+}
+
+func TestCombinerKeepsMostRecent(t *testing.T) {
+	totalTraces := 10
+	keepMostRecent := 5
+	combiner := NewMetadataCombiner(keepMostRecent, true).(*mostRecentCombiner)
+
+	// make traces
+	traces := make([]*Spanset, totalTraces)
+	for i := 0; i < totalTraces; i++ {
+		traceID, err := util.HexStringToTraceID(fmt.Sprintf("%d", i))
+		require.NoError(t, err)
+
+		traces[i] = &Spanset{
+			TraceID:            traceID,
+			StartTimeUnixNanos: uint64(i) * uint64(time.Second),
+		}
+	}
+
+	// save off the most recent and reverse b/c the combiner returns most recent first
+	expected := make([]*tempopb.TraceSearchMetadata, 0, keepMostRecent)
+	for i := totalTraces - keepMostRecent; i < totalTraces; i++ {
+		expected = append(expected, asTraceSearchMetadata(traces[i]))
+	}
+	slices.Reverse(expected)
+
+	rand.Shuffle(totalTraces, func(i, j int) {
+		traces[i], traces[j] = traces[j], traces[i]
+	})
+
+	// add to combiner
+	for i := 0; i < totalTraces; i++ {
+		combiner.addSpanset(traces[i])
+	}
+
+	// test that the most recent are kept
+	actual := combiner.Metadata()
+	require.Equal(t, expected, actual)
+	require.Equal(t, keepMostRecent, combiner.Count())
+	require.Equal(t, expected[len(expected)-1].StartTimeUnixNano, combiner.OldestTimestampNanos())
+	for _, tr := range expected {
+		require.True(t, combiner.Exists(tr.TraceID))
+	}
+
+	// test MetadataAfter. 10 traces are added with start times 0-9. We want to get all traces that started after 7
+	afterSeconds := uint32(7)
+	expectedTracesCount := totalTraces - int(afterSeconds+1)
+	actualTraces := combiner.MetadataAfter(afterSeconds)
+	require.Equal(t, expectedTracesCount, len(actualTraces))
 }

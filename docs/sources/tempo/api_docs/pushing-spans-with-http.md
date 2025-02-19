@@ -13,14 +13,13 @@ pushing spans with HTTP/JSON from a Bash script using the [OpenTelemetry](https:
 
 ## Before you begin
 
-This procedure uses an example Docker Compose setup to run Tempo, so you do not need an existing installation. The Docker image also includes a Grafana container which will allow us to visualize traces.
+This procedure uses an example Docker Compose setup to run Tempo, so you don't need an existing installation. The Docker image also includes a Grafana container which lets you visualize traces.
 
 To use this procedure, you need to have Docker and `docker compose` installed.
 
-
 ## Start Tempo using the quick start
 
-Use the instructions in the [Quick start for Tempo documentation]({{< relref "../getting-started/docker-example" >}}) to start a local instance of Tempo and Grafana.
+Use the instructions in the [Quick start for Tempo documentation](https://grafana.com/docs/tempo/<TEMPO_VERSION>/getting-started/docker-example/) to start a local instance of Tempo and Grafana.
 
 ## Push spans with OTLP
 
@@ -98,7 +97,7 @@ Multiple the milliseconds value by 1,000,000 to turn it into nanoseconds. You ca
 
 The easiest way to get the trace is to execute a simple curl command to Tempo. The returned format is [OTLP](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto).
 
-1. Replace the trace ID in the `curl` command with the trace ID that was generated from the push. This information is is in the data that's sent with the `curl`. You could use Grafana’s Explorer page to find this, as shown in the previous section.
+1. Replace the trace ID in the `curl` command with the trace ID that was generated from the push. This information is in the data that's sent with the `curl`. You could use Grafana’s Explorer page to find this, as shown in the previous section.
 
 	```bash
 	curl http://localhost:3200/api/v2/traces/5b8efff798038103d269b633813fc700
@@ -110,7 +109,7 @@ The easiest way to get the trace is to execute a simple curl command to Tempo. T
 
 ### Use TraceQL to search for a trace
 
-Alternatively, you can also use [TraceQL]({{< relref "../traceql" >}}) to search for the trace that was pushed.
+Alternatively, you can also use [TraceQL](../traceql) to search for the trace that was pushed.
 You can search by using the unique trace attributes that were set:
 
 ```bash
@@ -127,8 +126,9 @@ curl -G -s http://localhost:3200/api/search --data-urlencode 'q={ .service.name 
 
 ## Spans from everything
 
-Tracing is not limited to enterprise languages with complex frameworks. As you can see it's easy to store and track events from your js, python or bash scripts.
-You can use Tempo/distributed tracing today to trace CI pipelines, long running bash processes, python data processing flows, or anything else
+Tracing isn't limited to enterprise languages with complex frameworks.
+As you can see, it's easy to store and track events from your js, python or bash scripts.
+You can use Tempo and distributed tracing today to trace CI pipelines, long running bash processes, python data processing flows, or anything else
 you can think of.
 
 Happy tracing!

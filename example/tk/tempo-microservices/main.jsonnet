@@ -16,6 +16,7 @@ minio + metrics + load + tempo {
   _config+:: {
     cluster: 'k3d',
     namespace: 'default',
+    block_builder_concurrent_rollout_enabled: true,
     compactor+: {
     },
     querier+: {
@@ -41,7 +42,7 @@ minio + metrics + load + tempo {
       pvc_storage_class: 'local-path',
     },
     block_builder+:{
-      replicas: 1,
+      replicas: 2,
     },
     memcached+: {
       replicas: 1,

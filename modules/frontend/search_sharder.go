@@ -3,11 +3,11 @@ package frontend
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"time"
 
 	"github.com/go-kit/log" //nolint:all deprecated
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/grafana/dskit/user"
 	"github.com/segmentio/fasthash/fnv1a"
 
@@ -24,6 +24,7 @@ import (
 const (
 	defaultTargetBytesPerRequest = 100 * 1024 * 1024
 	defaultConcurrentRequests    = 1000
+	defaultMostRecentShards      = 200
 )
 
 type SearchSharderConfig struct {
@@ -35,6 +36,7 @@ type SearchSharderConfig struct {
 	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
 	QueryIngestersUntil   time.Duration `yaml:"query_ingesters_until,omitempty"`
 	IngesterShards        int           `yaml:"ingester_shards,omitempty"`
+	MostRecentShards      int           `yaml:"most_recent_shards,omitempty"`
 	MaxSpansPerSpanSet    uint32        `yaml:"max_spans_per_span_set,omitempty"`
 }
 
@@ -101,67 +103,24 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 
 	// build request to search ingesters based on query_ingesters_until config and time range
 	// pass subCtx in requests so we can cancel and exit early
-	err = s.ingesterRequests(tenantID, pipelineRequest, *searchReq, reqCh)
+	jobMetrics, err := s.ingesterRequests(tenantID, pipelineRequest, *searchReq, reqCh)
 	if err != nil {
 		return nil, err
 	}
 
-	// Check the number of requests that were were written to the request channel
-	// before we start reading them.
-	ingesterJobs := len(reqCh)
-
 	// pass subCtx in requests so we can cancel and exit early
-	totalJobs, totalBlocks, totalBlockBytes := s.backendRequests(ctx, tenantID, pipelineRequest, searchReq, reqCh, func(err error) {
+	s.backendRequests(ctx, tenantID, pipelineRequest, searchReq, jobMetrics, reqCh, func(err error) {
 		// todo: actually find a way to return this error to the user
 		s.logger.Log("msg", "search: failed to build backend requests", "err", err)
 	})
-	totalJobs += ingesterJobs
-
-	// send a job to communicate the search metrics. this is consumed by the combiner to calculate totalblocks/bytes/jobs
-	var jobMetricsResponse pipeline.Responses[combiner.PipelineResponse]
-	if totalJobs > 0 {
-		resp := &tempopb.SearchResponse{
-			Metrics: &tempopb.SearchMetrics{
-				TotalBlocks:     uint32(totalBlocks),
-				TotalBlockBytes: totalBlockBytes,
-				TotalJobs:       uint32(totalJobs),
-			},
-		}
-
-		m := jsonpb.Marshaler{}
-		body, err := m.MarshalToString(resp)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal search metrics: %w", err)
-		}
-
-		jobMetricsResponse = pipeline.NewSuccessfulResponse(body)
-	}
 
 	// execute requests
-	return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, reqCh, jobMetricsResponse, s.next), nil
-}
-
-// blockMetas returns all relevant blockMetas given a start/end
-func (s *asyncSearchSharder) blockMetas(start, end int64, tenantID string) []*backend.BlockMeta {
-	// reduce metas to those in the requested range
-	allMetas := s.reader.BlockMetas(tenantID)
-	metas := make([]*backend.BlockMeta, 0, len(allMetas)/50) // divide by 50 for luck
-	for _, m := range allMetas {
-		if m.StartTime.Unix() <= end &&
-			m.EndTime.Unix() >= start &&
-			m.ReplicationFactor == backend.DefaultReplicationFactor { // This check skips generator blocks (RF=1)
-			metas = append(metas, m)
-		}
-	}
-
-	return metas
+	return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, reqCh, pipeline.NewAsyncResponse(jobMetrics), s.next), nil
 }
 
 // backendRequest builds backend requests to search backend blocks. backendRequest takes ownership of reqCh and closes it.
 // it returns 3 int values: totalBlocks, totalBlockBytes, and estimated jobs
-func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, reqCh chan<- pipeline.Request, errFn func(error)) (totalJobs, totalBlocks int, totalBlockBytes uint64) {
-	var blocks []*backend.BlockMeta
-
+func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, resp *combiner.SearchJobResponse, reqCh chan<- pipeline.Request, errFn func(error)) {
 	// request without start or end, search only in ingester
 	if searchReq.Start == 0 || searchReq.End == 0 {
 		close(reqCh)
@@ -177,45 +136,53 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 		return
 	}
 
-	// get block metadata of blocks in start, end duration
-	blocks = s.blockMetas(int64(start), int64(end), tenantID)
-
-	targetBytesPerRequest := s.cfg.TargetBytesPerRequest
+	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), start, end, backend.DefaultReplicationFactor)
 
 	// calculate metrics to return to the caller
-	totalBlocks = len(blocks)
-	for _, b := range blocks {
-		p := pagesPerRequest(b, targetBytesPerRequest)
+	resp.TotalBlocks = len(blocks)
 
-		totalJobs += int(b.TotalRecords) / p
-		if int(b.TotalRecords)%p != 0 {
-			totalJobs++
-		}
-		totalBlockBytes += b.Size_
-	}
+	blockIter := backendJobsFunc(blocks, s.cfg.TargetBytesPerRequest, s.cfg.MostRecentShards, searchReq.End)
+	blockIter(func(jobs int, sz uint64, completedThroughTime uint32) {
+		resp.TotalJobs += jobs
+		resp.TotalBytes += sz
+
+		resp.Shards = append(resp.Shards, combiner.SearchShards{
+			TotalJobs:               uint32(jobs),
+			CompletedThroughSeconds: completedThroughTime,
+		})
+	}, nil)
 
 	go func() {
-		buildBackendRequests(ctx, tenantID, parent, searchReq, blocks, targetBytesPerRequest, reqCh, errFn)
+		buildBackendRequests(ctx, tenantID, parent, searchReq, blockIter, reqCh, errFn)
 	}()
-
-	return
 }
 
 // ingesterRequest returns a new start and end time range for the backend as well as an http request
 // that covers the ingesters. If nil is returned for the http.Request then there is no ingesters query.
 // since this function modifies searchReq.Start and End we are taking a value instead of a pointer to prevent it from
 // unexpectedly changing the passed searchReq.
-func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.Request, searchReq tempopb.SearchRequest, reqCh chan pipeline.Request) error {
+func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.Request, searchReq tempopb.SearchRequest, reqCh chan pipeline.Request) (*combiner.SearchJobResponse, error) {
+	resp := &combiner.SearchJobResponse{
+		Shards: make([]combiner.SearchShards, 0, s.cfg.MostRecentShards+1), // +1 for the ingester shard
+	}
+
 	// request without start or end, search only in ingester
 	if searchReq.Start == 0 || searchReq.End == 0 {
-		return buildIngesterRequest(tenantID, parent, &searchReq, reqCh)
+		// one shard that covers all time
+		resp.TotalJobs = 1
+		resp.Shards = append(resp.Shards, combiner.SearchShards{
+			TotalJobs:               1,
+			CompletedThroughSeconds: 1,
+		})
+
+		return resp, buildIngesterRequest(tenantID, parent, &searchReq, reqCh)
 	}
 
 	ingesterUntil := uint32(time.Now().Add(-s.cfg.QueryIngestersUntil).Unix())
 
 	// if there's no overlap between the query and ingester range just return nil
 	if searchReq.End < ingesterUntil {
-		return nil
+		return resp, nil
 	}
 
 	ingesterStart := searchReq.Start
@@ -228,7 +195,7 @@ func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.R
 
 	// if ingester start == ingester end then we don't need to query it
 	if ingesterStart == ingesterEnd {
-		return nil
+		return resp, nil
 	}
 
 	searchReq.Start = ingesterStart
@@ -265,11 +232,20 @@ func (s *asyncSearchSharder) ingesterRequests(tenantID string, parent pipeline.R
 
 		err := buildIngesterRequest(tenantID, parent, &subReq, reqCh)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	// add one shard that covers no time at all. this will force the combiner to wait
+	//  for ingester requests to complete before moving on to the backend requests
+	ingesterJobs := len(reqCh)
+	resp.TotalJobs = ingesterJobs
+	resp.Shards = append(resp.Shards, combiner.SearchShards{
+		TotalJobs:               uint32(ingesterJobs),
+		CompletedThroughSeconds: math.MaxUint32,
+	})
+
+	return resp, nil
 }
 
 // maxDuration returns the max search duration allowed for this tenant.
@@ -303,60 +279,54 @@ func backendRange(start, end uint32, queryBackendAfter time.Duration) (uint32, u
 
 // buildBackendRequests returns a slice of requests that cover all blocks in the store
 // that are covered by start/end.
-func buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, metas []*backend.BlockMeta, bytesPerRequest int, reqCh chan<- pipeline.Request, errFn func(error)) {
+func buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.Request, searchReq *tempopb.SearchRequest, blockIter func(shardIterFn, jobIterFn), reqCh chan<- pipeline.Request, errFn func(error)) {
 	defer close(reqCh)
 
 	queryHash := hashForSearchRequest(searchReq)
 	colsToJSON := api.NewDedicatedColumnsToJSON()
 
-	for _, m := range metas {
-		pages := pagesPerRequest(m, bytesPerRequest)
-		if pages == 0 {
-			continue
-		}
-
+	blockIter(nil, func(m *backend.BlockMeta, shard, startPage, pages int) {
 		blockID := m.BlockID.String()
 
 		dedColsJSON, err := colsToJSON.JSONForDedicatedColumns(m.DedicatedColumns)
 		if err != nil {
 			errFn(fmt.Errorf("failed to convert dedicated columns. block: %s tempopb: %w", blockID, err))
-			continue
+			return
 		}
 
-		for startPage := 0; startPage < int(m.TotalRecords); startPage += pages {
-			pipelineR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
-				r, err = api.BuildSearchBlockRequest(r, &tempopb.SearchBlockRequest{
-					BlockID:       blockID,
-					StartPage:     uint32(startPage),
-					PagesToSearch: uint32(pages),
-					Encoding:      m.Encoding.String(),
-					IndexPageSize: m.IndexPageSize,
-					TotalRecords:  m.TotalRecords,
-					DataEncoding:  m.DataEncoding,
-					Version:       m.Version,
-					Size_:         m.Size_,
-					FooterSize:    m.FooterSize,
-					// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
-				}, dedColsJSON)
+		pipelineR, err := cloneRequestforQueriers(parent, tenantID, func(r *http.Request) (*http.Request, error) {
+			r, err = api.BuildSearchBlockRequest(r, &tempopb.SearchBlockRequest{
+				BlockID:       blockID,
+				StartPage:     uint32(startPage),
+				PagesToSearch: uint32(pages),
+				Encoding:      m.Encoding.String(),
+				IndexPageSize: m.IndexPageSize,
+				TotalRecords:  m.TotalRecords,
+				DataEncoding:  m.DataEncoding,
+				Version:       m.Version,
+				Size_:         m.Size_,
+				FooterSize:    m.FooterSize,
+				// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
+			}, dedColsJSON)
 
-				return r, err
-			})
-			if err != nil {
-				errFn(fmt.Errorf("failed to build search block request. block: %s tempopb: %w", blockID, err))
-				continue
-			}
-
-			key := searchJobCacheKey(tenantID, queryHash, int64(searchReq.Start), int64(searchReq.End), m, startPage, pages)
-			pipelineR.SetCacheKey(key)
-
-			select {
-			case reqCh <- pipelineR:
-			case <-ctx.Done():
-				// ignore the error if there is one. it will be handled elsewhere
-				return
-			}
+			return r, err
+		})
+		if err != nil {
+			errFn(fmt.Errorf("failed to build search block request. block: %s tempopb: %w", blockID, err))
+			return
 		}
-	}
+
+		key := searchJobCacheKey(tenantID, queryHash, int64(searchReq.Start), int64(searchReq.End), m, startPage, pages)
+		pipelineR.SetCacheKey(key)
+		pipelineR.SetResponseData(shard)
+
+		select {
+		case reqCh <- pipelineR:
+		case <-ctx.Done():
+			// ignore the error if there is one. it will be handled elsewhere
+			return
+		}
+	})
 }
 
 // hashForSearchRequest returns a uint64 hash of the query. if the query is invalid it returns a 0 hash.
@@ -411,6 +381,78 @@ func buildIngesterRequest(tenantID string, parent pipeline.Request, searchReq *t
 		return err
 	}
 
+	subR.SetResponseData(0) // ingester requests are always shard 0
 	reqCh <- subR
+
 	return nil
+}
+
+type (
+	shardIterFn func(jobs int, sz uint64, completedThroughTime uint32)
+	jobIterFn   func(m *backend.BlockMeta, shard, startPage, pages int)
+)
+
+// backendJobsFunc provides an iter func with 2 callbacks designed to be used once to calculate job and shard metrics and a second time
+// to generate actual jobs.
+func backendJobsFunc(blocks []*backend.BlockMeta, targetBytesPerRequest int, maxShards int, end uint32) func(shardIterFn, jobIterFn) {
+	blocksPerShard := len(blocks) / maxShards
+
+	// if we have fewer blocks than shards then every shard is one block
+	if blocksPerShard == 0 {
+		blocksPerShard = 1
+	}
+
+	return func(shardIterCallback shardIterFn, jobIterCallback jobIterFn) {
+		currentShard := 0
+		jobsInShard := 0
+		bytesInShard := uint64(0)
+		blocksInShard := 0
+
+		for _, b := range blocks {
+			pages := pagesPerRequest(b, targetBytesPerRequest)
+			jobsInBlock := 0
+
+			if pages == 0 {
+				continue
+			}
+
+			// if jobIterCallBack is nil we can skip the loop and directly calc the jobsInBlock
+			if jobIterCallback == nil {
+				jobsInBlock = int(b.TotalRecords) / pages
+				if int(b.TotalRecords)%pages != 0 {
+					jobsInBlock++
+				}
+			} else {
+				for startPage := 0; startPage < int(b.TotalRecords); startPage += pages {
+					jobIterCallback(b, currentShard, startPage, pages)
+					jobsInBlock++
+				}
+			}
+
+			// do we need to roll to a new shard?
+			jobsInShard += jobsInBlock
+			bytesInShard += b.Size_
+			blocksInShard++
+
+			// -1 b/c we will likely add a final shard below
+			//  end comparison b/c there's no point in ending a shard that can't release any results
+			if blocksInShard >= blocksPerShard && currentShard < maxShards-1 && b.EndTime.Unix() < int64(end) {
+				if shardIterCallback != nil {
+					shardIterCallback(jobsInShard, bytesInShard, uint32(b.EndTime.Unix()))
+				}
+				currentShard++
+
+				jobsInShard = 0
+				bytesInShard = 0
+				blocksInShard = 0
+			}
+		}
+
+		// final shard - note that we are overpacking the final shard due to the integer math as well as the limit of 200 shards total. if the search
+		//  this is the least impactful shard to place extra jobs in as it is searched last. if we make it here the chances of this being an exhaustive search
+		//  are higher
+		if shardIterCallback != nil && jobsInShard > 0 {
+			shardIterCallback(jobsInShard, bytesInShard, 1) // final shard can cover all time. we don't need to be precise
+		}
+	}
 }

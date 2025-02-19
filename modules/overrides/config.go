@@ -76,9 +76,9 @@ type IngestionOverrides struct {
 	MaxLocalTracesPerUser  int `yaml:"max_traces_per_user,omitempty" json:"max_traces_per_user,omitempty"`
 	MaxGlobalTracesPerUser int `yaml:"max_global_traces_per_user,omitempty" json:"max_global_traces_per_user,omitempty"`
 
-	TenantShardSize int `yaml:"tenant_shard_size,omitempty" json:"tenant_shard_size,omitempty"`
-
-	MaxAttributeBytes int `yaml:"max_attribute_bytes,omitempty" json:"max_attribute_bytes,omitempty"`
+	TenantShardSize   int           `yaml:"tenant_shard_size,omitempty" json:"tenant_shard_size,omitempty"`
+	MaxAttributeBytes int           `yaml:"max_attribute_bytes,omitempty" json:"max_attribute_bytes,omitempty"`
+	ArtificialDelay   time.Duration `yaml:"artificial_delay,omitempty" json:"artificial_delay,omitempty"`
 }
 
 type ForwarderOverrides struct {

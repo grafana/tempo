@@ -36,7 +36,7 @@
     $.util.readinessProbe +
     (if $._config.variables_expansion then container.withArgsMixin(['-config.expand-env=true']) else {}),
 
-  tempo_block_builder_statefulset:
+  newBlockBuilderStatefulSet(concurrent_rollout_enabled=false, max_unavailable=1)::
     statefulset.new(target_name, $._config.block_builder.replicas, $.tempo_block_builder_container, [], { app: target_name }) +
     statefulset.mixin.spec.withServiceName(target_name) +
     statefulset.spec.template.spec.securityContext.withFsGroup(10001) +  // 10001 is the UID of the tempo user
@@ -47,7 +47,18 @@
       volume.fromConfigMap(tempo_config_volume, $.tempo_block_builder_configmap.metadata.name),
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
     ]) +
-    statefulset.mixin.spec.withPodManagementPolicy('Parallel'),
+    statefulset.mixin.spec.withPodManagementPolicy('Parallel') +
+    (
+      if !concurrent_rollout_enabled then {} else
+        statefulset.mixin.spec.selector.withMatchLabels({ name: 'block-builder', 'rollout-group': 'block-builder' }) +
+        statefulset.mixin.spec.updateStrategy.withType('OnDelete') +
+        statefulset.mixin.metadata.withLabelsMixin({ 'rollout-group': 'block-builder' }) +
+        statefulset.mixin.metadata.withAnnotationsMixin({ 'rollout-max-unavailable': std.toString(max_unavailable) }) +
+        statefulset.mixin.spec.template.metadata.withLabelsMixin({ 'rollout-group': 'block-builder' })
+    ),
+
+  tempo_block_builder_statefulset:
+    $.newBlockBuilderStatefulSet($._config.block_builder_concurrent_rollout_enabled, $._config.block_builder_max_unavailable),
 
   // Configmap
 

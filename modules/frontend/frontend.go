@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"path"
+	"sort"
 	"strings"
 
 	"github.com/go-kit/log"
@@ -21,6 +22,7 @@ import (
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/tempodb"
+	"github.com/grafana/tempo/tempodb/backend"
 )
 
 type RoundTripperFunc func(*http.Request) (*http.Response, error)
@@ -76,6 +78,10 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 
 	if cfg.Search.Sharder.QueryIngestersUntil < cfg.Search.Sharder.QueryBackendAfter {
 		return nil, fmt.Errorf("query backend after should be less than or equal to query ingester until")
+	}
+
+	if cfg.Search.Sharder.MostRecentShards <= 0 {
+		return nil, fmt.Errorf("most recent shards must be greater than 0")
 	}
 
 	if cfg.Metrics.Sharder.ConcurrentRequests <= 0 {
@@ -343,4 +349,24 @@ func multiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) pipeline.As
 	}
 
 	return pipeline.NewNoopMiddleware()
+}
+
+// blockMetasForSearch returns a list of blocks that are relevant to the search query.
+// start and end are unix timestamps in seconds. rf is the replication factor of the blocks to return.
+func blockMetasForSearch(allBlocks []*backend.BlockMeta, start, end uint32, rf uint32) []*backend.BlockMeta {
+	blocks := make([]*backend.BlockMeta, 0, len(allBlocks)/50) // divide by 50 for luck
+	for _, m := range allBlocks {
+		if m.StartTime.Unix() <= int64(end) &&
+			m.EndTime.Unix() >= int64(start) &&
+			m.ReplicationFactor == rf { // This check skips generator blocks (RF=1)
+			blocks = append(blocks, m)
+		}
+	}
+
+	// search backwards in time
+	sort.Slice(blocks, func(i, j int) bool {
+		return blocks[i].EndTime.After(blocks[j].EndTime)
+	})
+
+	return blocks
 }

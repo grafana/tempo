@@ -158,22 +158,6 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 	return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, reqCh, jobMetricsResponse, s.next), nil
 }
 
-// blockMetas returns all relevant blockMetas given a start/end
-func (s *queryRangeSharder) blockMetas(start, end int64, tenantID string) []*backend.BlockMeta {
-	// reduce metas to those in the requested range
-	allMetas := s.reader.BlockMetas(tenantID)
-	metas := make([]*backend.BlockMeta, 0, len(allMetas)/50) // divide by 50 for luck
-	for _, m := range allMetas {
-		if m.StartTime.UnixNano() <= end &&
-			m.EndTime.UnixNano() >= start &&
-			m.ReplicationFactor == 1 { // We always only query RF1 blocks
-			metas = append(metas, m)
-		}
-	}
-
-	return metas
-}
-
 func (s *queryRangeSharder) exemplarsPerShard(total uint32, exemplars uint32) uint32 {
 	if exemplars == 0 {
 		return 0
@@ -201,7 +185,9 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 
 	// Blocks within overall time range. This is just for instrumentation, more precise time
 	// range is checked for each window.
-	blocks := s.blockMetas(int64(backendReq.Start), int64(backendReq.End), tenantID)
+	startS := uint32(backendReq.Start / uint64(time.Second))
+	endS := uint32(backendReq.End / uint64(time.Second))
+	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), startS, endS, 1)
 	if len(blocks) == 0 {
 		// no need to search backend
 		close(reqCh)

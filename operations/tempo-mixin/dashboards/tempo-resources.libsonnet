@@ -89,6 +89,18 @@ dashboard_utils {
         .addPanel(
           $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.compactor)),
         )
+      )
+      .addRow(
+        g.row('Block builder')
+        .addPanel(
+          $.containerCPUUsagePanel('CPU', $._config.jobs.block_builder),
+        )
+        .addPanel(
+          $.containerMemoryWorkingSetPanel('Memory (workingset)', $._config.jobs.block_builder),
+        )
+        .addPanel(
+          $.goHeapInUsePanel('Memory (go heap inuse)', $.jobMatcher($._config.jobs.block_builder)),
+        )
       ),
   },
 }

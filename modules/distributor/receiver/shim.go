@@ -22,7 +22,6 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exportertest"
-	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/receiver"
@@ -123,6 +122,11 @@ type receiversShim struct {
 	logger     *log.RateLimitedLogger
 	fatal      chan error
 }
+
+var (
+	_ consumer.Traces = (*receiversShim)(nil)
+	_ component.Host  = (*receiversShim)(nil)
+)
 
 func (r *receiversShim) Capabilities() consumer.Capabilities {
 	return consumer.Capabilities{MutatesData: false}
@@ -334,7 +338,7 @@ func (r *receiversShim) stopping(_ error) error {
 	return nil
 }
 
-// ConsumeTraces implements consumer.Trace
+// ConsumeTraces implements consumer.Traces
 func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) error {
 	ctx, span := tracer.Start(ctx, "distributor.ConsumeTraces")
 	defer span.End()
@@ -352,19 +356,8 @@ func (r *receiversShim) ConsumeTraces(ctx context.Context, td ptrace.Traces) err
 	return err
 }
 
-// ReportFatalError implements component.Host
-func (r *receiversShim) ReportFatalError(err error) {
-	_ = level.Error(log.Logger).Log("msg", "fatal error reported", "err", err)
-	r.fatal <- err
-}
-
-// GetFactory implements component.Host
-func (r *receiversShim) GetFactory(component.Kind, component.Type) component.Factory {
-	return nil
-}
-
 // GetExtensions implements component.Host
-func (r *receiversShim) GetExtensions() map[component.ID]extension.Extension { return nil }
+func (r *receiversShim) GetExtensions() map[component.ID]component.Component { return nil }
 
 // observability shims
 func newLogger(level dslog.Level) *zap.Logger {

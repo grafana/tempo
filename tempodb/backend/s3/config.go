@@ -1,7 +1,10 @@
 package s3
 
 import (
+	"errors"
 	"flag"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/grafana/dskit/crypto/tls"
@@ -9,6 +12,31 @@ import (
 
 	"github.com/grafana/tempo/pkg/util"
 )
+
+const (
+	SignatureVersionV4 = "v4"
+	SignatureVersionV2 = "v2"
+
+	// SSEKMS config type constant to configure S3 server side encryption using KMS
+	// https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingKMSEncryption.html
+	SSEKMS = "SSE-KMS"
+
+	// SSES3 config type constant to configure S3 server side encryption with AES-256
+	// https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html
+	SSES3 = "SSE-S3"
+)
+
+var (
+	supportedSSETypes = []string{SSEKMS, SSES3}
+
+	errUnsupportedSSEType = errors.New("unsupported S3 SSE type")
+)
+
+type SSEConfig struct {
+	Type                 string `yaml:"type"`
+	KMSKeyID             string `yaml:"kms_key_id"`
+	KMSEncryptionContext string `yaml:"kms_encryption_context"`
+}
 
 type Config struct {
 	tls.ClientConfig `yaml:",inline"`
@@ -34,8 +62,9 @@ type Config struct {
 	Metadata         map[string]string `yaml:"metadata"`
 	// Deprecated
 	// See https://github.com/grafana/tempo/pull/3006 for more details
-	NativeAWSAuthEnabled  bool `yaml:"native_aws_auth_enabled"`
-	ListBlocksConcurrency int  `yaml:"list_blocks_concurrency"`
+	NativeAWSAuthEnabled  bool      `yaml:"native_aws_auth_enabled"`
+	ListBlocksConcurrency int       `yaml:"list_blocks_concurrency"`
+	SSE                   SSEConfig `yaml:"sse"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
@@ -47,6 +76,10 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.Var(&cfg.SecretKey, util.PrefixConfig(prefix, "s3.secret_key"), "s3 secret key.")
 	f.Var(&cfg.SessionToken, util.PrefixConfig(prefix, "s3.session_token"), "s3 session token.")
 	f.IntVar(&cfg.ListBlocksConcurrency, util.PrefixConfig(prefix, "s3.list_blocks_concurrency"), 3, "number of concurrent list calls to make to backend")
+
+	f.StringVar(&cfg.SSE.Type, util.PrefixConfig(prefix, "s3.sse.type"), "", fmt.Sprintf("Enable AWS Server Side Encryption. Supported values: %s.", strings.Join(supportedSSETypes, ", ")))
+	f.StringVar(&cfg.SSE.KMSKeyID, util.PrefixConfig(prefix, "s3.sse.kms-key-id"), "", "KMS Key ID used to encrypt objects in S3")
+	f.StringVar(&cfg.SSE.KMSEncryptionContext, util.PrefixConfig(prefix, "s3.sse.kms-encryption-context"), "", "KMS Encryption Context used for object encryption. It expects JSON formatted string.")
 	cfg.HedgeRequestsUpTo = 2
 }
 

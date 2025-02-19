@@ -55,6 +55,11 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		return nil, err
 	}
 
+	var mostRecent, ok bool
+	if mostRecent, ok = rootExpr.Hints.GetBool(HintMostRecent, false); !ok {
+		mostRecent = false
+	}
+
 	if rootExpr.IsNoop() {
 		return &tempopb.SearchResponse{
 			Traces:  nil,
@@ -118,7 +123,7 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		Traces:  nil,
 		Metrics: &tempopb.SearchMetrics{},
 	}
-	combiner := NewMetadataCombiner()
+	combiner := NewMetadataCombiner(int(searchReq.Limit), mostRecent)
 	for {
 		spanset, err := iterator.Next(ctx)
 		if err != nil && !errors.Is(err, io.EOF) {
@@ -128,9 +133,9 @@ func (e *Engine) ExecuteSearch(ctx context.Context, searchReq *tempopb.SearchReq
 		if spanset == nil {
 			break
 		}
-		combiner.AddMetadata(e.asTraceSearchMetadata(spanset))
 
-		if combiner.Count() >= int(searchReq.Limit) && searchReq.Limit > 0 {
+		combiner.addSpanset(spanset)
+		if combiner.IsCompleteFor(TimestampNever) {
 			break
 		}
 	}
@@ -181,6 +186,11 @@ func (e *Engine) ExecuteTagValues(
 	// I.e. we are autocompleting resource.service.name and the query was {resource.service.name="foo"}
 	for _, c := range autocompleteReq.Conditions {
 		if c.Attribute == tag && c.Op == OpEqual {
+			// If the tag is already filtered in the query,
+			// then we can just return the operand as the only value.
+			if len(c.Operands) > 0 {
+				cb(c.Operands[0])
+			}
 			return nil
 		}
 	}
@@ -251,7 +261,7 @@ func (e *Engine) createAutocompleteRequest(tag Attribute, pipeline Pipeline) Fet
 	return autocompleteReq
 }
 
-func (e *Engine) asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMetadata {
+func asTraceSearchMetadata(spanset *Spanset) *tempopb.TraceSearchMetadata {
 	metadata := &tempopb.TraceSearchMetadata{
 		TraceID:           util.TraceIDToHexString(spanset.TraceID),
 		RootServiceName:   spanset.RootServiceName,

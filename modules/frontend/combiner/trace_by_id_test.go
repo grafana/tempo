@@ -43,7 +43,7 @@ func TestTraceByIDShouldQuit(t *testing.T) {
 
 	// unparseable body should not quit, but should return an error
 	c = NewTraceByID(0, api.HeaderAcceptJSON)
-	err = c.AddResponse(&pipelineResponse{&http.Response{Body: io.NopCloser(strings.NewReader("foo")), StatusCode: 200}})
+	err = c.AddResponse(&testPipelineResponse{r: &http.Response{Body: io.NopCloser(strings.NewReader("foo")), StatusCode: 200}})
 	require.Error(t, err)
 	should = c.ShouldQuit()
 	require.False(t, should)
@@ -101,7 +101,7 @@ func toHTTPProtoResponse(t *testing.T, pb proto.Message, statusCode int) Pipelin
 		require.NoError(t, err)
 	}
 
-	return &pipelineResponse{&http.Response{
+	return &testPipelineResponse{r: &http.Response{
 		Body:       io.NopCloser(bytes.NewReader(body)),
 		StatusCode: statusCode,
 	}}

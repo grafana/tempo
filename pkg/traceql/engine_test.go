@@ -253,9 +253,7 @@ func TestEngine_asTraceSearchMetadata(t *testing.T) {
 		},
 	}
 
-	e := NewEngine()
-
-	traceSearchMetadata := e.asTraceSearchMetadata(spanSet)
+	traceSearchMetadata := asTraceSearchMetadata(spanSet)
 
 	expectedSpanset := &tempopb.SpanSet{
 		Matched: 2,
@@ -670,7 +668,7 @@ func TestExecuteTagValues(t *testing.T) {
 			name:           "noop", // autocompleting an attribute already filtered by the query
 			attribute:      "name",
 			query:          `{ name = "foo" }`,
-			expectedValues: []tempopb.TagValue{},
+			expectedValues: []tempopb.TagValue{{Type: "string", Value: "foo"}},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

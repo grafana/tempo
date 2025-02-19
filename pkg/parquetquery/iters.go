@@ -70,23 +70,12 @@ func CompareRowNumbers(upToDefinitionLevel int, a, b RowNumber) int {
 // EqualRowNumber compares the sequences of row numbers in a and b
 // for partial equality. A little faster than CompareRowNumbers(d,a,b)==0
 func EqualRowNumber(upToDefinitionLevel int, a, b RowNumber) bool {
-	/*for i := 0; i <= upToDefinitionLevel; i++ {
+	for i := 0; i <= upToDefinitionLevel; i++ {
 		if a[i] != b[i] {
 			return false
 		}
 	}
-	return true*/
-
-	// This is an unrolled version of the above loop, that is still
-	// small enough to be inlined and takes advantage of instruction pipelining.
-	return (a[0] == b[0]) &&
-		(a[1] == b[1] || upToDefinitionLevel < 1) &&
-		(a[2] == b[2] || upToDefinitionLevel < 2) &&
-		(a[3] == b[3] || upToDefinitionLevel < 3) &&
-		(a[4] == b[4] || upToDefinitionLevel < 4) &&
-		(a[5] == b[5] || upToDefinitionLevel < 5) &&
-		(a[6] == b[6] || upToDefinitionLevel < 6) &&
-		(a[7] == b[7] || upToDefinitionLevel < 7)
+	return true
 }
 
 func truncateRowNumberSlow(definitionLevelToKeep int, t RowNumber) RowNumber {
