@@ -114,7 +114,7 @@ func (p partitionState) getStartOffset() kgo.Offset {
 }
 
 func (p partitionState) hasRecords() bool {
-	return p.endOffset >= 0
+	return p.endOffset >= -1
 }
 
 func New(
@@ -409,7 +409,7 @@ func getActivePartitions(partitions []int32) string {
 // end record offset. Based on that it sort the partitions by lag
 func (b *BlockBuilder) fetchPartitions(ctx context.Context, partitions []int32) ([]partitionState, error) {
 	var (
-		ps    = make([]partitionState, len(partitions))
+		ps    = make([]partitionState, 0, len(partitions))
 		group = b.cfg.IngestStorageConfig.Kafka.ConsumerGroup
 		topic = b.cfg.IngestStorageConfig.Kafka.Topic
 	)
@@ -429,11 +429,7 @@ func (b *BlockBuilder) fetchPartitions(ctx context.Context, partitions []int32) 
 	if err := endsOffsets.Error(); err != nil {
 		return nil, err
 	}
-	t, err := b.kadm.ListOffsetsAfterMilli(ctx, 1, topic)
-	if err != nil {
-		return nil, fmt.Errorf("resolve fallback offsets: %w", err)
-	}
-	fmt.Println(t)
+
 	for _, partition := range partitions {
 		p := b.getPartitionState(partition, commits, endsOffsets)
 		ps = append(ps, p)
@@ -446,7 +442,7 @@ func (b *BlockBuilder) fetchPartitions(ctx context.Context, partitions []int32) 
 func (b *BlockBuilder) getPartitionState(partition int32, commits kadm.OffsetResponses, endsOffsets kadm.ListedOffsets) partitionState {
 	var (
 		topic = b.cfg.IngestStorageConfig.Kafka.Topic
-		ps    = partitionState{partition: partition, startOffset: -1, endOffset: -1}
+		ps    = partitionState{partition: partition, startOffset: -1, endOffset: -2}
 	)
 
 	lastCommit, found := commits.Lookup(topic, partition)
