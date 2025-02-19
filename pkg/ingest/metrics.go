@@ -34,6 +34,7 @@ var (
 // ExportPartitionLagMetrics in a background goroutine by periodically querying Kafka state
 // for the assigned and active partitions.  This exports the lag metric in number of records
 // which is different than the lag metric for age.
+// TODO - Need to reset this metric when partitions are revoked so that it doesn't continue to export stale data.
 func ExportPartitionLagMetrics(ctx context.Context, admClient *kadm.Client, log log.Logger, cfg Config, getAssignedActivePartitions func() []int32) {
 	go func() {
 		var (

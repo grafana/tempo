@@ -29,7 +29,8 @@ type Config struct {
 	FlushToStorage       bool                  `yaml:"flush_to_storage"`
 	Metrics              MetricsConfig         `yaml:",inline"`
 
-	AssertMaxLiveTraces bool `yaml:"-"` // Used internally for non-flushing instance
+	AssertMaxLiveTraces     bool `yaml:"-"` // Used internally for non-flushing instance
+	AdjustTimeRangeForSlack bool `yaml:"-"` // Used internally for non-flushing instance
 }
 
 type MetricsConfig struct {
@@ -63,6 +64,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 		ConcurrentBlocks:  10,
 		TimeOverlapCutoff: 0.2,
 	}
+
+	cfg.AdjustTimeRangeForSlack = true
 }
 
 func (cfg *Config) Validate() error {

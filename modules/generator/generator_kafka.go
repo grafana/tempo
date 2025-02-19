@@ -15,12 +15,12 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-var metricEnqueueTime = promauto.NewCounterVec(prometheus.CounterOpts{
+var metricEnqueueTime = promauto.NewCounter(prometheus.CounterOpts{
 	Namespace: "tempo",
 	Subsystem: "metrics_generator",
 	Name:      "enqueue_time_seconds_total",
 	Help:      "The total amount of time spent waiting to enqueue for processing",
-}, []string{"reason"})
+})
 
 func (g *Generator) startKafka() {
 	g.kafkaCh = make(chan *kgo.Record, g.cfg.Ingest.Concurrency)
@@ -97,7 +97,7 @@ func (g *Generator) readKafka(ctx context.Context) error {
 		}
 	}
 
-	metricEnqueueTime.WithLabelValues("waiting_for_queue").Add(time.Since(start).Seconds())
+	metricEnqueueTime.Add(time.Since(start).Seconds())
 
 	return nil
 }

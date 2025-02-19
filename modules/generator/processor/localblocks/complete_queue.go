@@ -97,7 +97,9 @@ func stopCompleteQueue() {
 func completeLoop() {
 	// Queue locks internally so get the shared var once on startup
 	// and avoid having to lock outside as well.
+	completeQueueMtx.Lock()
 	q := completeQueue
+	completeQueueMtx.Unlock()
 
 	for {
 		o := q.Dequeue()

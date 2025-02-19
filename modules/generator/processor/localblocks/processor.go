@@ -628,8 +628,6 @@ func (p *Processor) deleteOldBlocks() (err error) {
 				return err
 			}
 			delete(p.walBlocks, id)
-
-			// Also clear
 		}
 	}
 
@@ -733,7 +731,7 @@ func (p *Processor) writeHeadBlock(id common.ID, tr *tempopb.Trace) error {
 	startSeconds := uint32(start / uint64(time.Second))
 	endSeconds := uint32(end / uint64(time.Second))
 
-	err := p.headBlock.AppendTrace(id, tr, startSeconds, endSeconds, false)
+	err := p.headBlock.AppendTrace(id, tr, startSeconds, endSeconds, p.Cfg.AdjustTimeRangeForSlack)
 	if err != nil {
 		return err
 	}
