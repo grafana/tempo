@@ -19,11 +19,11 @@ The TraceQL engine connects the Tempo API handler with the storage layer. The Tr
 - Pulls spansets from the storage layer and revalidates that the query matches each span
 - Returns the search response
 
-The default Tempo search reviews the whole trace. TraceQL provides a method for formulating precise queries so you can zoom in to the data you need. Query results are returned faster because the queries limit what is searched.
+The default Tempo search reviews the whole trace. TraceQL provides a method for formulating precise queries so you can zoom in to the data you need. Query results are returned faster because the queries limit what's searched.
 
-For an indepth look at TraceQL, read the [TraceQL: A first-of-its-kind query language to accelerate trace analysis in Tempo 2.0"](/blog/2022/11/30/traceql-a-first-of-its-kind-query-language-to-accelerate-trace-analysis-in-tempo-2.0/) blog post by Trevor Jones.
+For a deeper look at TraceQL, read the [TraceQL: A first-of-its-kind query language to accelerate trace analysis in Tempo 2.0](/blog/2022/11/30/traceql-a-first-of-its-kind-query-language-to-accelerate-trace-analysis-in-tempo-2.0/) blog post.
 
-For examples of query syntax, refer to [Construct a TraceQL query]({{< relref "../traceql#construct-a-traceql-query" >}}).
+For examples of query syntax, refer to [Construct a TraceQL query](../traceql#construct-a-traceql-query).
 
 {{< vimeo 773194063 >}}
 
