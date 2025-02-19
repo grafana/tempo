@@ -617,5 +617,5 @@ The TraceQL query hint `most_recent=true` can be used with any TraceQL selection
 TraceQL metrics are experimental, but easy to get started with.
 Refer to [the TraceQL metrics](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/traceql-metrics/) documentation for more information.
 
-You can also use TraceQL metrics also power queries.
+You can also use TraceQL metrics queries.
 For details, refer to [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries/).
