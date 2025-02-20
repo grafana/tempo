@@ -44,7 +44,7 @@ The 50th, 90th, and 99th percentile latencies (for example, p99, p90, and p50) b
 { } | quantile_over_time(duration, .99, .9, .5) by (resource.cloud.region)
 ```
 
-If you want something faster than typing these queries out in Explore's code mode, use [Explore Traces](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/), a queryless experience for navigating your trace data stored in Tempo and powered by TraceQL metrics queries under the hood.
+If you want something faster than typing these queries out in Explore's code mode, use [Grafana Traces Drilldown](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/), a queryless experience for navigating your trace data stored in Tempo and powered by TraceQL metrics queries under the hood.
 
 ## Activate metrics summary
 
