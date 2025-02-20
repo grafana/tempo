@@ -655,10 +655,10 @@ metrics_generator:
     metrics_ingestion_time_range_slack: 30s
     query_timeout: 30s
     override_ring_key: metrics-generator
+    ingest_concurrency: 16
     instance_id: hostname
 ingest:
     enabled: false
-    concurrency: 16
     kafka:
         address: localhost:9092
         topic: ""
