@@ -213,11 +213,8 @@ func (b *BlockBuilder) running(ctx context.Context) error {
 // It consumes records for all the asigneed partitions, priorizing the ones with more lag. It keeps consuming until
 // all the partitions lag is less than the cycle duration. When that happen it returns time to wait before another consuming cycle, based on the last record timestamp
 func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
-	var (
-		end        = time.Now()
-		partitions = b.getAssignedActivePartitions()
-	)
-	level.Info(b.logger).Log("msg", "starting consume cycle", "cycle_end", end, "active_partitions", getActivePartitions(partitions))
+	partitions := b.getAssignedActivePartitions()
+	level.Info(b.logger).Log("msg", "starting consume cycle", "active_partitions", formatActivePartitions(partitions))
 	defer func(t time.Time) { metricConsumeCycleDuration.Observe(time.Since(t).Seconds()) }(time.Now())
 
 	// Clear all previous remnants
@@ -397,7 +394,7 @@ outer:
 	return lastRec.Timestamp, lastRec.Offset, nil
 }
 
-func getActivePartitions(partitions []int32) string {
+func formatActivePartitions(partitions []int32) string {
 	var strArr []string
 	for _, v := range partitions {
 		strArr = append(strArr, strconv.Itoa(int(v)))
