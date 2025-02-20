@@ -185,7 +185,7 @@ You could use a similar query to know what the 50th percentile and 95th percenti
 The `compare` function is used to split a set of spans into two groups: a selection and a baseline.
 It returns time-series for all attributes found on the spans to highlight the differences between the two groups.
 
-This is a powerful function that's best understood by using the [**Comparison** tab in Explore Traces](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/investigate/#comparison).
+This is a powerful function that's best understood by using the [**Comparison** tab in Traces Drilldown](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/investigate/#comparison).
 You can also under this function by looking at example outputs below.
 
 The function is used like other metrics functions: when it's placed after any trace query, it converts the query into a metrics query:
