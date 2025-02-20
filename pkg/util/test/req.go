@@ -122,48 +122,28 @@ func makeSpanWithAttributeCount(traceID []byte, count int, startTime uint64, end
 }
 
 func MakeBatch(spans int, traceID []byte) *v1_trace.ResourceSpans {
-	traceID = ValidTraceID(traceID)
-
-	batch := &v1_trace.ResourceSpans{
-		Resource: &v1_resource.Resource{
-			Attributes: []*v1_common.KeyValue{
-				{
-					Key: "service.name",
-					Value: &v1_common.AnyValue{
-						Value: &v1_common.AnyValue_StringValue{
-							StringValue: "test-service",
-						},
-					},
-				},
-			},
-		},
-	}
-	var ss *v1_trace.ScopeSpans
-
-	for i := 0; i < spans; i++ {
-		// occasionally make a new ss
-		if ss == nil || rand.Int()%3 == 0 {
-			ss = &v1_trace.ScopeSpans{
-				Scope: &v1_common.InstrumentationScope{
-					Name:    "super library",
-					Version: "0.0.1",
-				},
-			}
-
-			batch.ScopeSpans = append(batch.ScopeSpans, ss)
-		}
-
-		ss.Spans = append(ss.Spans, MakeSpan(traceID))
-	}
-	return batch
+	return makeBatchWithTimeRange(spans, traceID, nil)
 }
 
-func makeBatchWithTimeRange(spans int, traceID []byte, startTime, endTime uint64) *v1_trace.ResourceSpans {
+type batchTimeRange struct {
+	start uint64
+	end   uint64
+}
+
+func makeBatchWithTimeRange(spans int, traceID []byte, timeRange *batchTimeRange) *v1_trace.ResourceSpans {
 	traceID = ValidTraceID(traceID)
 
 	batch := &v1_trace.ResourceSpans{
 		Resource: &v1_resource.Resource{
 			Attributes: []*v1_common.KeyValue{
+				{
+					Key: "random.res.attr",
+					Value: &v1_common.AnyValue{
+						Value: &v1_common.AnyValue_StringValue{
+							StringValue: RandomString(),
+						},
+					},
+				},
 				{
 					Key: "service.name",
 					Value: &v1_common.AnyValue{
@@ -175,22 +155,31 @@ func makeBatchWithTimeRange(spans int, traceID []byte, startTime, endTime uint64
 			},
 		},
 	}
-	var ss *v1_trace.ScopeSpans
+
+	var (
+		ss      *v1_trace.ScopeSpans
+		ssCount int
+	)
 
 	for i := 0; i < spans; i++ {
 		// occasionally make a new ss
 		if ss == nil || rand.Int()%3 == 0 {
+			ssCount++
 			ss = &v1_trace.ScopeSpans{
 				Scope: &v1_common.InstrumentationScope{
 					Name:    "super library",
-					Version: "0.0.1",
+					Version: fmt.Sprintf("1.0.%d", ssCount),
 				},
 			}
 
 			batch.ScopeSpans = append(batch.ScopeSpans, ss)
 		}
 
-		ss.Spans = append(ss.Spans, MakeSpanWithTimeWindow(traceID, startTime, endTime))
+		if timeRange == nil {
+			ss.Spans = append(ss.Spans, MakeSpan(traceID))
+		} else {
+			ss.Spans = append(ss.Spans, MakeSpanWithTimeWindow(traceID, timeRange.start, timeRange.end))
+		}
 	}
 	return batch
 }
@@ -217,7 +206,8 @@ func MakeTraceWithTimeRange(requests int, traceID []byte, startTime, endTime uin
 	}
 
 	for i := 0; i < requests; i++ {
-		trace.ResourceSpans = append(trace.ResourceSpans, makeBatchWithTimeRange(rand.Int()%20+1, traceID, startTime, endTime))
+		timeRange := &batchTimeRange{start: startTime, end: endTime}
+		trace.ResourceSpans = append(trace.ResourceSpans, makeBatchWithTimeRange(rand.Int()%20+1, traceID, timeRange))
 	}
 
 	return trace

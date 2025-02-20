@@ -20,6 +20,7 @@
 * [CHANGE] Update to go 1.24.0 [#4704](https://github.com/grafana/tempo/pull/4704) (@ruslan-mikhailov)
 * [FEATURE] Added most_recent=true query hint to TraceQL to return most recent results. [#4238](https://github.com/grafana/tempo/pull/4238) (@joe-elliott)
 * [FEATURE] Add ability to add artificial delay to push requests [#4716](https://github.com/grafana/tempo/pull/4716) (@yvrhdn)
+* [ENHANCEMENT] Rewrite traces using rebatching [#4690](https://github.com/grafana/tempo/pull/4690) (@stoewer @joe-elliott)
 * [ENHANCEMENT] Update minio to version [#4341](https://github.com/grafana/tempo/pull/4568) (@javiermolinar)
 * [ENHANCEMENT] Prevent queries in the ingester from blocking flushing traces to disk and memory spikes. [#4483](https://github.com/grafana/tempo/pull/4483) (@joe-elliott)
 * [ENHANCEMENT] Update tempo operational dashboard for new block-builder and v2 traces api [#4559](https://github.com/grafana/tempo/pull/4559) (@mdisibio)

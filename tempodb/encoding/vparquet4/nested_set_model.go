@@ -2,6 +2,7 @@ package vparquet4
 
 import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+
 	"github.com/grafana/tempo/pkg/util"
 )
 
