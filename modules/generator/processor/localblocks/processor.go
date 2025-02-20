@@ -444,6 +444,7 @@ func (p *Processor) completeBlock(id uuid.UUID) error {
 		if err != nil {
 			_ = level.Error(p.logger).Log("msg", "failed to clear complete block after WAL disappeared", "tenant", p.tenant, "block", id, "err", err)
 		}
+		return nil
 	}
 
 	p.completeBlocks[id] = ingester.NewLocalBlock(ctx, newBlock, p.wal.LocalBackend())

@@ -44,23 +44,17 @@ var (
 )
 
 type Config struct {
-	Enabled     bool        `yaml:"enabled"`
-	Concurrency uint        `yaml:"concurrency"`
-	Kafka       KafkaConfig `yaml:"kafka"`
+	Enabled bool        `yaml:"enabled"`
+	Kafka   KafkaConfig `yaml:"kafka"`
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.Kafka.RegisterFlagsWithPrefix(prefix, f)
-	cfg.Concurrency = 16
 }
 
 func (cfg *Config) Validate() error {
 	if !cfg.Enabled {
 		return nil
-	}
-
-	if cfg.Concurrency == 0 {
-		return errors.New("ingest concurrency must be greater than zero")
 	}
 
 	return cfg.Kafka.Validate()

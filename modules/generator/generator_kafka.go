@@ -23,13 +23,13 @@ var metricEnqueueTime = promauto.NewCounter(prometheus.CounterOpts{
 })
 
 func (g *Generator) startKafka() {
-	g.kafkaCh = make(chan *kgo.Record, g.cfg.Ingest.Concurrency)
+	g.kafkaCh = make(chan *kgo.Record, g.cfg.IngestConcurrency)
 
 	// Create context that will be used to stop the goroutines.
 	var ctx context.Context
 	ctx, g.kafkaStop = context.WithCancel(context.Background())
 
-	for i := uint(0); i < g.cfg.Ingest.Concurrency; i++ {
+	for i := uint(0); i < g.cfg.IngestConcurrency; i++ {
 		g.kafkaWG.Add(1)
 		go g.readCh(ctx)
 	}

@@ -70,9 +70,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 func (cfg *Config) Validate() error {
 	if cfg.Concurrency == 0 {
-		if cfg.Concurrency == 0 {
-			return errors.New("local blocks concurrency must be greater than zero")
-		}
+		return errors.New("local blocks concurrency must be greater than zero")
 	}
 
 	return nil

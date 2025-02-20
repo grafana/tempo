@@ -293,7 +293,6 @@ func GetTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_comm
 
 func SanitizeLabelNameWithCollisions(name string, dimensions []string, sansanitizeFn sanitizeFn) string {
 	sanitized := sansanitizeFn(name)
-	// sanitized := strutil.SanitizeLabelName(name)
 
 	// check if same label as intrinsics
 	if slices.Contains(dimensions, sanitized) {

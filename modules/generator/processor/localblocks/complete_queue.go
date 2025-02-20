@@ -14,6 +14,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+const completeQueueMaxBackoff = 5 * time.Minute
+
 var (
 	metricCompleteQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: namespace,
@@ -22,6 +24,9 @@ var (
 		Help:      "Number of wal blocks waiting for completion",
 	})
 
+	// completeQueue is a shared priority queue that handles completing WAL blocks.
+	// The queue provides backoff and retry capabilities for failed operations
+	// The queue is shared across all processor instances to control concurrency.
 	completeQueue     *flushqueues.PriorityQueue
 	completeQueueMtx  = sync.Mutex{}
 	completeQueueRefs = 0
@@ -45,12 +50,14 @@ func (f *completeOp) Priority() int64 { return -f.at.Unix() }
 
 func (f *completeOp) backoff() time.Duration {
 	f.bo *= 2
-	if f.bo > maxBackoff {
-		f.bo = maxBackoff
+	if f.bo > completeQueueMaxBackoff {
+		f.bo = completeQueueMaxBackoff
 	}
 
 	return f.bo
 }
+
+var _ flushqueues.Op = (*completeOp)(nil)
 
 func enqueueCompleteOp(ctx context.Context, p *Processor, blockID uuid.UUID) error {
 	_, err := completeQueue.Enqueue(&completeOp{
@@ -77,7 +84,7 @@ func startCompleteQueue(concurrency uint) {
 	if completeQueueRefs == 1 {
 		completeQueue = flushqueues.NewPriorityQueue(metricCompleteQueueLength)
 		for i := uint(0); i < concurrency; i++ {
-			go completeLoop()
+			go completeLoop(completeQueue)
 		}
 	}
 }
@@ -94,13 +101,7 @@ func stopCompleteQueue() {
 	}
 }
 
-func completeLoop() {
-	// Queue locks internally so get the shared var once on startup
-	// and avoid having to lock outside as well.
-	completeQueueMtx.Lock()
-	q := completeQueue
-	completeQueueMtx.Unlock()
-
+func completeLoop(q *flushqueues.PriorityQueue) {
 	for {
 		o := q.Dequeue()
 		if o == nil {
@@ -109,6 +110,7 @@ func completeLoop() {
 		}
 
 		op := o.(*completeOp)
+		op.attempts++
 
 		// The context is used to detect processors that have been shutdown.
 		if err := op.ctx.Err(); err != nil {
