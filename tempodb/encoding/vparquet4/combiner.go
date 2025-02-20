@@ -136,7 +136,7 @@ func (c *Combiner) Result() (*Trace, int, bool) {
 	if c.result != nil && c.combined {
 		// Only if anything combined
 		SortTrace(c.result)
-		connected = assignNestedSetModelBoundsAndServiceStats(c.result)
+		c.result, connected = finalizeTrace(c.result)
 		spanCount = len(c.spans)
 	}
 
