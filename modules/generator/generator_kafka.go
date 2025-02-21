@@ -5,16 +5,34 @@ import (
 	"errors"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/twmb/franz-go/pkg/kgo"
 )
 
+var metricEnqueueTime = promauto.NewCounter(prometheus.CounterOpts{
+	Namespace: "tempo",
+	Subsystem: "metrics_generator",
+	Name:      "enqueue_time_seconds_total",
+	Help:      "The total amount of time spent waiting to enqueue for processing",
+})
+
 func (g *Generator) startKafka() {
+	g.kafkaCh = make(chan *kgo.Record, g.cfg.IngestConcurrency)
+
 	// Create context that will be used to stop the goroutines.
 	var ctx context.Context
 	ctx, g.kafkaStop = context.WithCancel(context.Background())
+
+	for i := uint(0); i < g.cfg.IngestConcurrency; i++ {
+		g.kafkaWG.Add(1)
+		go g.readCh(ctx)
+	}
 
 	g.kafkaWG.Add(1)
 	go g.listenKafka(ctx)
@@ -24,6 +42,7 @@ func (g *Generator) startKafka() {
 func (g *Generator) stopKafka() {
 	g.kafkaStop()
 	g.kafkaWG.Wait()
+	close(g.kafkaCh)
 }
 
 func (g *Generator) listenKafka(ctx context.Context) {
@@ -49,45 +68,85 @@ func (g *Generator) listenKafka(ctx context.Context) {
 }
 
 func (g *Generator) readKafka(ctx context.Context) error {
-	d := ingest.NewDecoder()
-
 	fetches := g.kafkaClient.PollFetches(ctx)
 	fetches.EachError(func(_ string, _ int32, err error) {
 		if !errors.Is(err, context.Canceled) {
 			level.Error(g.logger).Log("msg", "failed to fetch records", "err", err)
 		}
 	})
+	if err := fetches.Err(); err != nil && !errors.Is(err, context.Canceled) {
+		return err
+	}
+
+	// Metric lag based on first message in each partition.
+	// This balances overhead with granularity.
+	fetches.EachPartition(func(p kgo.FetchTopicPartition) {
+		if len(p.Records) > 0 {
+			lag := time.Since(p.Records[0].Timestamp)
+			ingest.SetPartitionLagSeconds(g.cfg.Ingest.Kafka.ConsumerGroup, int(p.Partition), lag)
+		}
+	})
+
+	start := time.Now()
 
 	for iter := fetches.RecordIter(); !iter.Done(); {
-		r := iter.Next()
+		select {
+		case g.kafkaCh <- iter.Next():
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	metricEnqueueTime.Add(time.Since(start).Seconds())
+
+	return nil
+}
+
+// readCh reads records from the internal channel.
+// This allows for offloading the expensive proto unmarshal
+// to multiple goroutines.
+func (g *Generator) readCh(ctx context.Context) {
+	defer g.kafkaWG.Done()
+	d := ingest.NewDecoder()
+
+	for {
+		var r *kgo.Record
+		select {
+		case r = <-g.kafkaCh:
+		case <-ctx.Done():
+			return
+		}
 
 		tenant := string(r.Key)
 
 		i, err := g.getOrCreateInstance(tenant)
 		if err != nil {
-			return err
+			level.Error(g.logger).Log("msg", "consumeKafkaChannel getOrCreateInstance", "err", err)
+			continue
 		}
 
 		d.Reset()
 		req, err := d.Decode(r.Value)
 		if err != nil {
-			return err
+			level.Error(g.logger).Log("msg", "consumeKafkaChannel decode", "err", err)
+			continue
 		}
 
 		for _, tr := range req.Traces {
 			trace := &tempopb.Trace{}
 			err = trace.Unmarshal(tr.Slice)
 			if err != nil {
-				return err
+				level.Error(g.logger).Log("msg", "consumeKafkaChannel unmarshal", "err", err)
+				continue
 			}
 
-			i.pushSpansFromQueue(ctx, &tempopb.PushSpansRequest{
+			i.pushSpansFromQueue(ctx, r.Timestamp, &tempopb.PushSpansRequest{
 				Batches: trace.ResourceSpans,
 			})
+
+			tempopb.ReuseByteSlices([][]byte{tr.Slice})
 		}
 	}
-
-	return nil
 }
 
 func (g *Generator) getAssignedActivePartitions() []int32 {

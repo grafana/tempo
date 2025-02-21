@@ -30,6 +30,10 @@ func (m *mockOverrides) DedicatedColumns(string) backend.DedicatedColumns {
 	return nil
 }
 
+func (m *mockOverrides) MaxLocalTracesPerUser(string) int {
+	return 0
+}
+
 func (m *mockOverrides) MaxBytesPerTrace(string) int {
 	return 0
 }
@@ -79,6 +83,7 @@ func TestProcessorDoesNotRace(t *testing.T) {
 		ctx    = context.Background()
 		tenant = "fake"
 		cfg    = Config{
+			Concurrency:          1,
 			FlushCheckPeriod:     10 * time.Millisecond,
 			TraceIdlePeriod:      time.Second,
 			CompleteBlockTimeout: time.Minute,
@@ -157,11 +162,6 @@ func TestProcessorDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
-		err := p.completeBlock()
-		require.NoError(t, err, "completing block")
-	})
-
-	go concurrent(func() {
 		err := p.flushBlock(uuid.New())
 		require.NoError(t, err, "flushing blocks")
 	})
@@ -210,6 +210,7 @@ func TestReplicationFactor(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := Config{
+		Concurrency:          1,
 		FlushCheckPeriod:     time.Minute,
 		TraceIdlePeriod:      time.Minute,
 		CompleteBlockTimeout: time.Minute,
@@ -237,17 +238,30 @@ func TestReplicationFactor(t *testing.T) {
 	})
 
 	require.NoError(t, p.cutIdleTraces(true))
+
+	p.blocksMtx.Lock()
 	verifyReplicationFactor(t, p.headBlock)
+	p.blocksMtx.Unlock()
 
 	require.NoError(t, p.cutBlocks(true))
+
+	p.blocksMtx.Lock()
 	for _, b := range p.walBlocks {
 		verifyReplicationFactor(t, b)
 	}
+	p.blocksMtx.Unlock()
 
-	require.NoError(t, p.completeBlock())
+	require.Eventually(t, func() bool {
+		p.blocksMtx.Lock()
+		defer p.blocksMtx.Unlock()
+		return len(p.completeBlocks) > 0
+	}, 10*time.Second, 100*time.Millisecond)
+
+	p.blocksMtx.Lock()
 	for _, b := range p.completeBlocks {
 		verifyReplicationFactor(t, b)
 	}
+	p.blocksMtx.Unlock()
 
 	require.Eventually(t, func() bool {
 		return len(mockWriter.metas()) == 1

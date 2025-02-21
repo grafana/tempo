@@ -313,6 +313,8 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 		if i.traceQueryWAL != nil {
 			nonFlushingConfig := cfg.LocalBlocks
 			nonFlushingConfig.FlushToStorage = false
+			nonFlushingConfig.AssertMaxLiveTraces = true
+			nonFlushingConfig.AdjustTimeRangeForSlack = false
 			i.queuebasedLocalBlocks, err = localblocks.New(nonFlushingConfig, i.instanceID, i.traceQueryWAL, i.writer, i.overrides)
 			if err != nil {
 				return err
@@ -377,7 +379,7 @@ func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest)
 	}
 }
 
-func (i *instance) pushSpansFromQueue(ctx context.Context, req *tempopb.PushSpansRequest) {
+func (i *instance) pushSpansFromQueue(ctx context.Context, ts time.Time, req *tempopb.PushSpansRequest) {
 	i.preprocessSpans(req)
 	i.processorsMtx.RLock()
 	defer i.processorsMtx.RUnlock()
@@ -392,7 +394,7 @@ func (i *instance) pushSpansFromQueue(ctx context.Context, req *tempopb.PushSpan
 
 	// Now we push to the non-flushing local blocks if present
 	if i.queuebasedLocalBlocks != nil {
-		i.queuebasedLocalBlocks.PushSpans(ctx, req)
+		i.queuebasedLocalBlocks.DeterministicPush(ts, req)
 	}
 }
 

@@ -11,6 +11,9 @@ const (
 
 	reasonLiveTracesExceeded = "live_traces_exceeded"
 	reasonTraceSizeExceeded  = "trace_too_large"
+
+	reasonWaitingForLiveTraces = "waiting_for_live_traces"
+	reasonWaitingForWAL        = "waiting_for_wal"
 )
 
 var (
@@ -86,4 +89,10 @@ var (
 		Name:      "failed_flushes_total",
 		Help:      "The total number of failed flushes",
 	})
+	metricBackPressure = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: namespace,
+		Subsystem: subsystem,
+		Name:      "back_pressure_seconds_total",
+		Help:      "The total amount of time spent waiting to process data from queue",
+	}, []string{"reason"})
 )

@@ -31,6 +31,7 @@ type mockOverrides struct {
 	localBlocksTraceIdlePeriod                         time.Duration
 	localBlocksCompleteBlockTimeout                    time.Duration
 	dedicatedColumns                                   backend.DedicatedColumns
+	maxLocalTraces                                     int
 	maxBytesPerTrace                                   int
 	unsafeQueryHints                                   bool
 	nativeHistograms                                   overrides.HistogramMethod
@@ -150,6 +151,10 @@ func (m *mockOverrides) MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDi
 
 func (m *mockOverrides) DedicatedColumns(string) backend.DedicatedColumns {
 	return m.dedicatedColumns
+}
+
+func (m *mockOverrides) MaxLocalTracesPerUser(string) int {
+	return m.maxLocalTraces
 }
 
 func (m *mockOverrides) MaxBytesPerTrace(string) int {

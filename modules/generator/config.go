@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -41,8 +42,9 @@ type Config struct {
 	OverrideRingKey       string        `yaml:"override_ring_key"`
 
 	// This config is dynamically injected because defined outside the generator config.
-	Ingest     ingest.Config `yaml:"-"`
-	InstanceID string        `yaml:"instance_id" doc:"default=<hostname>" category:"advanced"`
+	Ingest            ingest.Config `yaml:"-"`
+	IngestConcurrency uint          `yaml:"ingest_concurrency"`
+	InstanceID        string        `yaml:"instance_id" doc:"default=<hostname>" category:"advanced"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -55,6 +57,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.TracesWAL.Version = encoding.DefaultEncoding().Version()
 	cfg.TracesQueryWAL.RegisterFlags(f)
 	cfg.TracesQueryWAL.Version = encoding.DefaultEncoding().Version()
+	cfg.Ingest.RegisterFlagsAndApplyDefaults(prefix, f)
+	cfg.IngestConcurrency = 16
 
 	// setting default for max span age before discarding to 30s
 	cfg.MetricsIngestionSlack = 30 * time.Second
@@ -70,10 +74,16 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 }
 
 func (cfg *Config) Validate() error {
-	if cfg.Ingest.Enabled {
-		if err := cfg.Ingest.Kafka.Validate(); err != nil {
-			return err
-		}
+	if err := cfg.Ingest.Validate(); err != nil {
+		return err
+	}
+
+	if cfg.IngestConcurrency == 0 {
+		return errors.New("ingest concurrency must be greater than zero")
+	}
+
+	if err := cfg.Processor.Validate(); err != nil {
+		return err
 	}
 
 	// Only validate if being used
@@ -101,6 +111,10 @@ func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag
 	cfg.ServiceGraphs.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.SpanMetrics.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.LocalBlocks.RegisterFlagsAndApplyDefaults(prefix, f)
+}
+
+func (cfg *ProcessorConfig) Validate() error {
+	return cfg.LocalBlocks.Validate()
 }
 
 // copyWithOverrides creates a copy of the config using values set in the overrides.

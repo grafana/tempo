@@ -70,6 +70,7 @@ type Generator struct {
 	reg    prometheus.Registerer
 	logger log.Logger
 
+	kafkaCh            chan *kgo.Record
 	kafkaWG            sync.WaitGroup
 	kafkaStop          func()
 	kafkaClient        *ingest.Client
