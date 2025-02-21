@@ -223,7 +223,8 @@ func TestWalBlockFindTraceByID(t *testing.T) {
 			found, err := w.FindTraceByID(context.Background(), ids[i], common.DefaultSearchOptions())
 			require.NoError(t, err)
 			require.NotNil(t, found)
-			require.True(t, proto.Equal(trs[i], found))
+			require.True(t, proto.Equal(trs[i], found.Trace))
+			require.Greater(t, found.Metrics.InspectedBytes, uint64(40000)) // approximate value
 		}
 	})
 }

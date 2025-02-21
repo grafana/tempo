@@ -223,7 +223,7 @@ func TestWalBlockFindTraceByID(t *testing.T) {
 			found, err := w.FindTraceByID(context.Background(), ids[i], common.DefaultSearchOptions())
 			require.NoError(t, err)
 			require.NotNil(t, found)
-			require.True(t, proto.Equal(trs[i], found))
+			require.True(t, proto.Equal(&tempopb.TraceByIDResponse{Trace: trs[i], Metrics: &tempopb.TraceByIDMetrics{}}, found))
 		}
 	})
 }

@@ -54,7 +54,7 @@ func NewLocalBlock(ctx context.Context, existingBlock common.BackendBlock, l *lo
 	return c
 }
 
-func (c *LocalBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.Trace, error) {
+func (c *LocalBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.TraceByIDResponse, error) {
 	ctx, span := tracer.Start(ctx, "LocalBlock.FindTraceByID")
 	defer span.End()
 	return c.BackendBlock.FindTraceByID(ctx, id, opts)

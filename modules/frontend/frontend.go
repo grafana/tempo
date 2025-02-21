@@ -185,8 +185,8 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		[]pipeline.Middleware{cacheWare, statusCodeWare, retryWare},
 		next)
 
-	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTraceByID, logger)
-	tracesV2 := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTraceByIDV2, logger)
+	traces := newTraceIDHandler(cfg, tracePipeline, o, combiner.NewTypedTraceByID, logger)
+	tracesV2 := newTraceIDV2Handler(cfg, tracePipeline, o, combiner.NewTypedTraceByIDV2, logger)
 	search := newSearchHTTPHandler(cfg, searchPipeline, logger)
 	searchTags := newTagsHTTPHandler(cfg, searchTagsPipeline, o, logger)
 	searchTagsV2 := newTagsV2HTTPHandler(cfg, searchTagsPipeline, o, logger)

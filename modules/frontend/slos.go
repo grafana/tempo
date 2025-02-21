@@ -61,9 +61,10 @@ var (
 		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{"tenant", "op"})
 
-	searchThroughput   = queryThroughput.MustCurryWith(prometheus.Labels{"op": searchOp})
-	metadataThroughput = queryThroughput.MustCurryWith(prometheus.Labels{"op": metadataOp})
-	metricsThroughput  = queryThroughput.MustCurryWith(prometheus.Labels{"op": metricsOp})
+	traceByIDThroughput = queryThroughput.MustCurryWith(prometheus.Labels{"op": traceByIDOp})
+	searchThroughput    = queryThroughput.MustCurryWith(prometheus.Labels{"op": searchOp})
+	metadataThroughput  = queryThroughput.MustCurryWith(prometheus.Labels{"op": metadataOp})
+	metricsThroughput   = queryThroughput.MustCurryWith(prometheus.Labels{"op": metricsOp})
 )
 
 type (
@@ -72,7 +73,7 @@ type (
 
 // todo: remove post hooks and implement as a handler
 func traceByIDSLOPostHook(cfg SLOConfig) handlerPostHook {
-	return sloHook(traceByIDCounter, sloTraceByIDCounter, nil, cfg)
+	return sloHook(traceByIDCounter, sloTraceByIDCounter, traceByIDThroughput, cfg)
 }
 
 func searchSLOPostHook(cfg SLOConfig) handlerPostHook {

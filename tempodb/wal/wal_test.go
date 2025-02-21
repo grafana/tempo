@@ -151,7 +151,7 @@ func testFindByTraceID(t *testing.T, e encoding.VersionedEncoding) {
 		for i, id := range ids {
 			obj, err := block.FindTraceByID(ctx, id, common.DefaultSearchOptions())
 			require.NoError(t, err)
-			require.Equal(t, objs[i], obj)
+			require.Equal(t, objs[i], obj.Trace)
 		}
 	}
 

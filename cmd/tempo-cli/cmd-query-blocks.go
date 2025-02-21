@@ -163,17 +163,16 @@ func queryBlock(ctx context.Context, r backend.Reader, _ backend.Compactor, bloc
 	searchOpts := common.SearchOptions{}
 	tempodb.SearchConfig{}.ApplyToOptions(&searchOpts)
 
-	trace, err := block.FindTraceByID(ctx, traceID, searchOpts)
+	res, err := block.FindTraceByID(ctx, traceID, searchOpts)
 	if err != nil {
 		return nil, err
 	}
-
-	if trace == nil {
+	if res == nil || res.Trace == nil {
 		return nil, nil
 	}
 
 	return &queryResults{
 		blockID: id,
-		trace:   trace,
+		trace:   res.Trace,
 	}, nil
 }

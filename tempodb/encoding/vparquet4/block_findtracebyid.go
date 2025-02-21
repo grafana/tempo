@@ -101,7 +101,7 @@ func (b *backendBlock) checkIndex(ctx context.Context, id common.ID) (bool, int,
 	return true, rowGroup, nil
 }
 
-func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opts common.SearchOptions) (_ *tempopb.Trace, err error) {
+func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opts common.SearchOptions) (_ *tempopb.TraceByIDResponse, err error) {
 	derivedCtx, span := tracer.Start(ctx, "parquet.backendBlock.FindTraceByID",
 		trace.WithAttributes(
 			attribute.String("blockID", b.meta.BlockID.String()),
@@ -130,11 +130,18 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error opening parquet file: %w", err)
 	}
-	defer func() {
-		span.SetAttributes(attribute.Int64("inspectedBytes", int64(rr.BytesRead())))
-	}()
 
-	return findTraceByID(derivedCtx, traceID, b.meta, pf, rowGroup)
+	foundTrace, err := findTraceByID(derivedCtx, traceID, b.meta, pf, rowGroup)
+
+	result := &tempopb.TraceByIDResponse{
+		Trace:   foundTrace,
+		Metrics: &tempopb.TraceByIDMetrics{},
+	}
+	bytesRead := rr.BytesRead()
+	result.Metrics.InspectedBytes += bytesRead
+	span.SetAttributes(attribute.Int64("inspectedBytes", int64(bytesRead)))
+
+	return result, err
 }
 
 func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMeta, pf *parquet.File, rowGroup int) (*tempopb.Trace, error) {

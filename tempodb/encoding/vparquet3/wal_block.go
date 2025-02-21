@@ -522,7 +522,7 @@ func (b *walBlock) Clear() error {
 	return errs.Err()
 }
 
-func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.Trace, error) {
+func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.TraceByIDResponse, error) {
 	trs := make([]*tempopb.Trace, 0)
 
 	for _, page := range b.flushed {
@@ -564,7 +564,7 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.
 	}
 
 	tr, _ := combiner.Result()
-	return tr, nil
+	return &tempopb.TraceByIDResponse{Trace: tr, Metrics: &tempopb.TraceByIDMetrics{}}, nil
 }
 
 func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, _ common.SearchOptions) (*tempopb.SearchResponse, error) {

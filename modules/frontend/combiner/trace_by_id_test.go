@@ -64,7 +64,7 @@ func TestTraceByIDHonorsContentType(t *testing.T) {
 
 	// json
 	c := NewTraceByID(0, api.HeaderAcceptJSON)
-	err := c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{Trace: expected}, 200))
+	err := c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{Trace: expected, Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 100}}, 200))
 	require.NoError(t, err)
 
 	resp, err := c.HTTPFinal()
@@ -78,7 +78,7 @@ func TestTraceByIDHonorsContentType(t *testing.T) {
 
 	// proto
 	c = NewTraceByID(0, api.HeaderAcceptProtobuf)
-	err = c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{Trace: expected}, 200))
+	err = c.AddResponse(toHTTPProtoResponse(t, &tempopb.TraceByIDResponse{Trace: expected, Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: 100}}, 200))
 	require.NoError(t, err)
 
 	resp, err = c.HTTPFinal()

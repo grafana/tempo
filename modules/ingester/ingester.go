@@ -347,16 +347,12 @@ func (i *Ingester) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDRequ
 		return &tempopb.TraceByIDResponse{}, nil
 	}
 
-	trace, err := inst.FindTraceByID(ctx, req.TraceID, req.AllowPartialTrace)
+	res, err = inst.FindTraceByID(ctx, req.TraceID, req.AllowPartialTrace)
 	if err != nil {
 		return nil, err
 	}
 
-	span.AddEvent("trace found", oteltrace.WithAttributes(attribute.Bool("found", trace != nil)))
-
-	res = &tempopb.TraceByIDResponse{
-		Trace: trace,
-	}
+	span.AddEvent("trace found", oteltrace.WithAttributes(attribute.Bool("found", res != nil && res.Trace != nil)))
 
 	return res, nil
 }
