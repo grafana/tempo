@@ -617,7 +617,10 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 		marshalledTraces[i] = b
 	}
 
-	partitionRing := d.partitionRing.PartitionRing() // TODO - Use shuffle sharding
+	partitionRing, err := d.partitionRing.PartitionRing().ShuffleShard(userID, d.overrides.IngestionTenantShardSize(userID))
+	if err != nil {
+		return fmt.Errorf("failed to shuffle shard: %w", err)
+	}
 	return ring.DoBatchWithOptions(ctx, ring.Write, ring.NewActivePartitionBatchRing(partitionRing), keys, func(partition ring.InstanceDesc, indexes []int) error {
 		localCtx, cancel := context.WithTimeout(ctx, d.clientCfg.RemoteTimeout)
 		defer cancel()
