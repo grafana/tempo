@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
 	"os"
 	"path"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/parquet-go/parquet-go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
@@ -50,6 +52,220 @@ func TestOne(t *testing.T) {
 	fmt.Println(resp.Results.(*spansetIterator).iter)
 	fmt.Println("-----------")
 	fmt.Println(spanSet)
+}
+
+func TestCreateIntPredicateFromFloat(t *testing.T) {
+	f := func(query string, predicate string) {
+		req := traceql.MustExtractFetchSpansRequestWithMetadata(query)
+		require.Len(t, req.Conditions, 1)
+		p, err := createIntPredicateFromFloat(req.Conditions[0].Op, req.Conditions[0].Operands)
+		require.NoError(t, err)
+		np := "nil"
+		if p != nil {
+			r := strings.NewReplacer(
+				"IntEqualPredicate", "=",
+				"IntNotEqualPredicate", "!=",
+				"IntLessPredicate", "<",
+				"IntLessEqualPredicate", "<=",
+				"IntGreaterEqualPredicate", ">=",
+				"IntGreaterPredicate", ">",
+			)
+			np = r.Replace(p.String())
+			if np == "CallbackPredicate{}" {
+				if p.KeepValue(parquet.Value{}) {
+					np = "callback:true"
+				} else {
+					np = "callback:false"
+				}
+			}
+		}
+		require.Equal(t, predicate, np, "query:%s", query)
+	}
+	fe := func(query string, errorMessage string) {
+		req := traceql.MustExtractFetchSpansRequestWithMetadata(query)
+		require.Len(t, req.Conditions, 1)
+		_, err := createIntPredicateFromFloat(req.Conditions[0].Op, req.Conditions[0].Operands)
+		require.EqualError(t, err, errorMessage, "query:%s", query)
+	}
+
+	{
+		p, err := createIntPredicateFromFloat(traceql.OpNone, nil)
+		require.NoError(t, err)
+		require.Nil(t, p)
+	}
+	{
+		p, err := createIntPredicateFromFloat(traceql.OpEqual, traceql.Operands{traceql.NewStaticFloat(math.NaN())})
+		require.NoError(t, err)
+		require.Nil(t, p)
+	}
+
+	// Every float64 in range [math.MinInt64, math.MaxInt64) can be converted to int64 exactly,
+	// but you need to consider a fractional part of the float64 to adjust an operator.
+	// It's worth noting that float64 can have a fractional part
+	// in the range (-float64(1<<52)-0.5, float64(1<<52)+0.5)
+	f(`{.attr = -123.1}`, `nil`)
+	f(`{.attr != -123.1}`, `callback:true`)
+	f(`{.attr < -123.1}`, `<={-124}`)
+	f(`{.attr <= -123.1}`, `<={-124}`)
+	f(`{.attr > -123.1}`, `>={-123}`)
+	f(`{.attr >= -123.1}`, `>={-123}`)
+
+	f(`{.attr = -123.0}`, `={-123}`)
+	f(`{.attr != -123.0}`, `!={-123}`)
+	f(`{.attr < -123.0}`, `<{-123}`)
+	f(`{.attr <= -123.0}`, `<={-123}`)
+	f(`{.attr > -123.0}`, `>{-123}`)
+	f(`{.attr >= -123.0}`, `>={-123}`)
+
+	f(`{.attr = 123.0}`, `={123}`)
+	f(`{.attr != 123.0}`, `!={123}`)
+	f(`{.attr < 123.0}`, `<{123}`)
+	f(`{.attr <= 123.0}`, `<={123}`)
+	f(`{.attr > 123.0}`, `>{123}`)
+	f(`{.attr >= 123.0}`, `>={123}`)
+
+	f(`{.attr = 123.1}`, `nil`)
+	f(`{.attr != 123.1}`, `callback:true`)
+	f(`{.attr < 123.1}`, `<={123}`)
+	f(`{.attr <= 123.1}`, `<={123}`)
+	f(`{.attr > 123.1}`, `>={124}`)
+	f(`{.attr >= 123.1}`, `>={124}`)
+
+	// [MaxInt64, +Inf)
+	f(`{.attr = 9.223372036854776e+18}`, `nil`)
+	f(`{.attr != 9.223372036854776e+18}`, `callback:true`)
+	f(`{.attr > 9.223372036854776e+18}`, `nil`)
+	f(`{.attr >= 9.223372036854776e+18}`, `nil`)
+	f(`{.attr < 9.223372036854776e+18}`, `callback:true`)
+	f(`{.attr <= 9.223372036854776e+18}`, `callback:true`)
+
+	// (-Inf, MinInt64)
+	f(`{.attr = -9.223372036854777e+18}`, `nil`)
+	f(`{.attr != -9.223372036854777e+18}`, `callback:true`)
+	f(`{.attr > -9.223372036854777e+18}`, `callback:true`)
+	f(`{.attr >= -9.223372036854777e+18}`, `callback:true`)
+	f(`{.attr < -9.223372036854777e+18}`, `nil`)
+	f(`{.attr <= -9.223372036854777e+18}`, `nil`)
+
+	fe(`{.attr = 1}`, `operand is not float: 1`)
+	fe(`{.attr =~ -1.2}`, `operator not supported for integers: =~`)
+}
+
+func TestCreateFloatPredicateFromInt(t *testing.T) {
+	f := func(query string, predicate string) {
+		req := traceql.MustExtractFetchSpansRequestWithMetadata(query)
+		require.Len(t, req.Conditions, 1)
+		p, err := createFloatPredicateFromInt(req.Conditions[0].Op, req.Conditions[0].Operands)
+		require.NoError(t, err)
+		np := "nil"
+		if p != nil {
+			r := strings.NewReplacer(
+				"FloatEqualPredicate", "=",
+				"FloatNotEqualPredicate", "!=",
+				"FloatLessPredicate", "<",
+				"FloatLessEqualPredicate", "<=",
+				"FloatGreaterEqualPredicate", ">=",
+				"FloatGreaterPredicate", ">",
+			)
+			np = r.Replace(p.String())
+			if np == "CallbackPredicate{}" {
+				if p.KeepValue(parquet.Value{}) {
+					np = "callback:true"
+				} else {
+					np = "callback:false"
+				}
+			}
+		}
+		require.Equal(t, predicate, np, "query:%s", query)
+	}
+
+	// Small integers and basic checks
+	f(`{.attr = 0}`, "={0.000000}")   // exactly representable
+	f(`{.attr != 0}`, "!={0.000000}") // also exactly
+	f(`{.attr = 1}`, "={1.000000}")
+	f(`{.attr = -1}`, "={-1.000000}")
+
+	// Typical checks around 455..457
+	f(`{.attr > 455}`, ">{455.000000}")
+	f(`{.attr >= 455}`, ">={455.000000}")
+	f(`{.attr <= 456}`, "<={456.000000}")
+	f(`{.attr = 456}`, "={456.000000}")
+	f(`{.attr != 457}`, "!={457.000000}")
+	f(`{.attr >= 456}`, ">={456.000000}")
+	f(`{.attr <= 457}`, "<={457.000000}")
+	f(`{.attr < 457}`, "<{457.000000}")
+
+	// Around 2^53, 2^53 = 9007199254740992
+	f(`{.attr > 9007199254740991}`, ">{9007199254740991.000000}")   // exactly representable
+	f(`{.attr = 9007199254740992}`, "={9007199254740992.000000}")   // also exactly representable
+	f(`{.attr = 9007199254740993}`, "callback:false")               // not representable, hence no float matches
+	f(`{.attr != 9007199254740993}`, "nil")                         // not representable, hence always true
+	f(`{.attr = 9007199254740994}`, "={9007199254740994.000000}")   // exactly representable
+	f(`{.attr != 9007199254740994}`, "!={9007199254740994.000000}") // exactly representable
+
+	// Around -2^53, 2^53 = -9007199254740992
+	f(`{.attr = -9007199254740991}`, "={-9007199254740991.000000}")   // exactly representable
+	f(`{.attr = -9007199254740992}`, "={-9007199254740992.000000}")   // also exactly representable
+	f(`{.attr = -9007199254740993}`, "callback:false")                // not representable, hence no float matches
+	f(`{.attr != -9007199254740993}`, "nil")                          // not representable, hence always true
+	f(`{.attr = -9007199254740994}`, "={-9007199254740994.000000}")   // exactly representable
+	f(`{.attr != -9007199254740994}`, "!={-9007199254740994.000000}") // exactly representable
+
+	// Very large int boundaries (MinInt = -9223372036854775808, MaxInt = 9223372036854775807)
+	// math.MaxInt-1023 = 9223372036854774784
+	// math.MaxInt-1023 is the largest int that can be exactly represented as a float64
+	f(`{.attr != 9223372036854774784}`, "!={9223372036854774784.000000}")
+	f(`{.attr < 9223372036854774784}`, "<{9223372036854774784.000000}")
+	f(`{.attr <= 9223372036854774784}`, "<={9223372036854774784.000000}")
+	f(`{.attr = 9223372036854774784}`, "={9223372036854774784.000000}")
+	f(`{.attr >= 9223372036854774784}`, ">={9223372036854774784.000000}")
+	f(`{.attr > 9223372036854774784}`, ">{9223372036854774784.000000}")
+	// The numbers between `math.MaxInt-1023` and `math.MaxInt` aren't representable as float64
+	for i := math.MaxInt - 1023; i < math.MaxInt; i++ {
+		num := strconv.Itoa(i + 1)
+		f(`{.attr = `+num+`}`, "callback:false")
+		f(`{.attr != `+num+`}`, "nil")
+		f(`{.attr < `+num+`}`, "<={9223372036854774784.000000}")
+		f(`{.attr > `+num+`}`, ">={9223372036854775808.000000}")
+	}
+	// math.MinInt is the smallest int that can be exactly represented as a float64
+	// math.MinInt+1024 = -9223372036854774784
+	// The next number after math.MinInt representable as a float64 is math.MinInt+1024
+	// Parsing math.MinInt isn't supported yet due to https://github.com/grafana/tempo/issues/4623
+	// f(`{.attr != -9223372036854775808}`, "!={-9223372036854775808.000000}")
+	// f(`{.attr < -9223372036854775808}`, "<{-9223372036854775808.000000}")
+	// f(`{.attr <= -9223372036854775808}`, "<={-9223372036854775808.000000}")
+	// f(`{.attr = -9223372036854775808}`, "={-9223372036854775808.000000}")
+	// f(`{.attr >= -9223372036854775808}`, ">={-9223372036854775808.000000}")
+	// f(`{.attr > -9223372036854775808}`, ">{-9223372036854775808.000000}")
+	f(`{.attr = -9223372036854775807}`, "callback:false")
+	f(`{.attr != -9223372036854775807}`, "nil")
+	f(`{.attr < -9223372036854775807}`, "<={-9223372036854775808.000000}")
+	f(`{.attr > -9223372036854775807}`, ">={-9223372036854774784.000000}")
+	f(`{.attr != -9223372036854774784}`, "!={-9223372036854774784.000000}")
+	f(`{.attr < -9223372036854774784}`, "<{-9223372036854774784.000000}")
+	f(`{.attr <= -9223372036854774784}`, "<={-9223372036854774784.000000}")
+	f(`{.attr = -9223372036854774784}`, "={-9223372036854774784.000000}")
+	f(`{.attr >= -9223372036854774784}`, ">={-9223372036854774784.000000}")
+	f(`{.attr > -9223372036854774784}`, ">{-9223372036854774784.000000}")
+
+	{
+		p, err := createFloatPredicateFromInt(traceql.OpNone, nil)
+		require.NoError(t, err)
+		require.Nil(t, p)
+	}
+	{
+		req := traceql.MustExtractFetchSpansRequestWithMetadata(`{.attr =~ 1.0}`)
+		require.Len(t, req.Conditions, 1)
+		_, err := createFloatPredicateFromInt(req.Conditions[0].Op, req.Conditions[0].Operands)
+		require.EqualError(t, err, `operand is not int: 1.0`)
+	}
+	{
+		req := traceql.MustExtractFetchSpansRequestWithMetadata(`{.attr =~ -9223372036854774784}`)
+		require.Len(t, req.Conditions, 1)
+		_, err := createFloatPredicateFromInt(req.Conditions[0].Op, req.Conditions[0].Operands)
+		require.EqualError(t, err, `operator not supported for ints: =~`)
+	}
 }
 
 func TestBackendBlockSearchTraceQL(t *testing.T) {
