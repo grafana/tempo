@@ -356,6 +356,8 @@ func (cl *columnLoader) open(file *File, metadata *format.FileMetaData, columnIn
 		c.typ = &mapType{}
 	} else if lt != nil && lt.List != nil {
 		c.typ = &listType{}
+	} else if lt != nil && lt.Variant != nil {
+		c.typ = &variantType{}
 	}
 	c.columns = make([]*Column, numChildren)
 
