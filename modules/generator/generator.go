@@ -38,6 +38,12 @@ const (
 	// We use a safe default instead of exposing to config option to the user
 	// in order to simplify the config.
 	ringNumTokens = 256
+
+	// NoGenerateMetricsContextKey is used in request contexts/headers to signal to
+	// the metrics generator that it should not generate metrics for the spans
+	// contained in the requests. This is intended to be used by clients that send
+	// requests for which span metrics have already been generated elsewhere.
+	NoGenerateMetricsContextKey = ingest.NoGenerateMetricsContextKey
 )
 
 var tracer = otel.Tracer("modules/generator")
@@ -353,7 +359,7 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 		}
 	}
 
-	inst, err := newInstance(g.cfg, id, g.overrides, wal, reg, g.logger, tracesWAL, tracesQueryWAL, g.store)
+	inst, err := newInstance(g.cfg, id, g.overrides, wal, g.logger, tracesWAL, tracesQueryWAL, g.store)
 	if err != nil {
 		_ = wal.Close()
 		return nil, err

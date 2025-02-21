@@ -165,7 +165,7 @@ func BenchmarkPushSpans(b *testing.B) {
 	wal, err := storage.New(walcfg, o, tenant, reg, log)
 	require.NoError(b, err)
 
-	inst, err := newInstance(cfg, tenant, o, wal, reg, log, nil, nil, nil)
+	inst, err := newInstance(cfg, tenant, o, wal, log, nil, nil, nil)
 	require.NoError(b, err)
 	defer inst.shutdown()
 
@@ -242,7 +242,7 @@ func BenchmarkCollect(b *testing.B) {
 	wal, err := storage.New(walcfg, o, tenant, reg, log)
 	require.NoError(b, err)
 
-	inst, err := newInstance(cfg, tenant, o, wal, reg, log, nil, nil, nil)
+	inst, err := newInstance(cfg, tenant, o, wal, log, nil, nil, nil)
 	require.NoError(b, err)
 	defer inst.shutdown()
 

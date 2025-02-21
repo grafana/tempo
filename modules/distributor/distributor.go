@@ -29,10 +29,12 @@ import (
 	"go.opentelemetry.io/otel"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/grafana/tempo/modules/distributor/forwarder"
 	"github.com/grafana/tempo/modules/distributor/receiver"
 	"github.com/grafana/tempo/modules/distributor/usage"
+	"github.com/grafana/tempo/modules/generator"
 	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
@@ -58,6 +60,12 @@ const (
 	reasonUnknown = "unknown_error"
 
 	distributorRingKey = "distributor"
+
+	// NoGenerateMetricsContextKey is used in request contexts/headers to signal to
+	// the metrics generator that it should not generate metrics for the spans
+	// contained in the requests. This is intended to be used by clients that send
+	// requests for which span metrics have already been generated elsewhere.
+	NoGenerateMetricsContextKey = ingest.NoGenerateMetricsContextKey
 )
 
 var (
@@ -559,11 +567,15 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	return nil
 }
 
-func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) error {
+func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace, noGenerateMetrics bool) error {
 	// If an instance is unhealthy write to the next one (i.e. write extend is enabled)
 	op := ring.Write
 
 	readRing := d.generatorsRing.ShuffleShard(userID, d.overrides.MetricsGeneratorRingSize(userID))
+
+	if noGenerateMetrics {
+		ctx = metadata.AppendToOutgoingContext(ctx, generator.NoGenerateMetricsContextKey, "")
+	}
 
 	err := ring.DoBatchWithOptions(ctx, op, readRing, keys, func(generator ring.InstanceDesc, indexes []int) error {
 		localCtx, cancel := context.WithTimeout(ctx, d.generatorClientCfg.RemoteTimeout)
@@ -639,9 +651,11 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 			return err
 		}
 
+		generateMetrics := shouldGenerateSpanMetrics(ctx)
+
 		startTime := time.Now()
 
-		records, err := ingest.Encode(int32(partitionID), userID, req, d.cfg.KafkaConfig.ProducerMaxRecordSizeBytes)
+		records, err := ingest.Encode(int32(partitionID), userID, req, d.cfg.KafkaConfig.ProducerMaxRecordSizeBytes, generateMetrics)
 		if err != nil {
 			return fmt.Errorf("failed to encode PushSpansRequest: %w", err)
 		}
@@ -670,6 +684,12 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 
 		return finalErr
 	}, ring.DoBatchOptions{})
+}
+
+// shouldGenerateSpanMetrics determines whether a request's context indicates
+// that metrics should not be generated for the spans contained in the request.
+func shouldGenerateSpanMetrics(ctx context.Context) bool {
+	return len(metadata.ValueFromIncomingContext(ctx, NoGenerateMetricsContextKey)) == 0
 }
 
 func successfulProduceRecordsStats(results kgo.ProduceResults) (count, sizeBytes int) {
