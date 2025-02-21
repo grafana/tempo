@@ -1,7 +1,6 @@
 package vparquet2
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -1325,7 +1324,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicSpanID:
 
-			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
 			if err != nil {
 				return nil, err
 			}
@@ -1573,7 +1572,7 @@ func createTraceIterator(makeIter makeIterFn, resourceIter parquetquery.Iterator
 	for _, cond := range conds {
 		switch cond.Attribute.Intrinsic {
 		case traceql.IntrinsicTraceID:
-			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
 			if err != nil {
 				return nil, err
 			}
@@ -1686,7 +1685,7 @@ func createStringPredicate(op traceql.Operator, operands traceql.Operands) (parq
 	}
 }
 
-func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan bool) (parquetquery.Predicate, error) {
+func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isTraceID bool) (parquetquery.Predicate, error) {
 	if op == traceql.OpNone {
 		return nil, nil
 	}
@@ -1696,23 +1695,35 @@ func createBytesPredicate(op traceql.Operator, operands traceql.Operands, isSpan
 		return nil, fmt.Errorf("operand is not string: %s", s)
 	}
 
-	var id []byte
-	id, err := util.HexStringToTraceID(s)
-	if isSpan {
-		id, err = util.HexStringToSpanID(s)
+	// trace id is sanitized at ingestion to left pad to 16 bytes
+	// can benefit from ranged conditions
+	if isTraceID {
+		id, err := util.HexStringToTraceID(s)
+		if err != nil {
+			return nil, nil
+		}
+
+		switch op {
+		case traceql.OpEqual:
+			return parquetquery.NewByteEqualPredicate(id), nil
+		case traceql.OpNotEqual:
+			return parquetquery.NewByteNotEqualPredicate(id), nil
+		default:
+			return nil, fmt.Errorf("operator not supported for IDs: %+v", op)
+		}
 	}
 
-	id = bytes.TrimLeft(id, "\x00")
-
+	// every other IDs are not standardized and the range conditions do not work
+	id, err := util.HexStringToNonTraceID(s)
 	if err != nil {
 		return nil, nil
 	}
 
 	switch op {
 	case traceql.OpEqual:
-		return parquetquery.NewStringEqualPredicate(id), nil
+		return parquetquery.NewNoRangeByteEqualPredicate(id), nil
 	case traceql.OpNotEqual:
-		return parquetquery.NewStringNotEqualPredicate(id), nil
+		return parquetquery.NewNoRangeByteNotEqualPredicate(id), nil
 	default:
 		return nil, fmt.Errorf("operator not supported for IDs: %+v", op)
 	}
@@ -1944,7 +1955,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		switch kv.Key {
 		case columnPathSpanID:
 			sp.id = kv.Value.ByteArray()
-			sp.attributes[traceql.IntrinsicSpanIDAttribute] = traceql.NewStaticString(util.SpanIDToHexString(kv.Value.ByteArray()))
+			sp.attributes[traceql.IntrinsicSpanIDAttribute] = traceql.NewStaticString(util.IDToTrimmedHexString(kv.Value.ByteArray()))
 		case columnPathSpanStartTime:
 			sp.startTimeUnixNanos = kv.Value.Uint64()
 		case columnPathSpanDuration:

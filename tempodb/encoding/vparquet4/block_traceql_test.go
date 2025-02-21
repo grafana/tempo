@@ -475,7 +475,7 @@ func parse(t *testing.T, q string) traceql.Condition {
 
 func fullyPopulatedTestTrace(id common.ID) *Trace {
 	linkTraceID, _ := util.HexStringToTraceID("1234567890abcdef1234567890abcdef")
-	linkSpanID, _ := util.HexStringToSpanID("1234567890abcdef")
+	linkSpanID, _ := util.HexStringToNonTraceID("1234567890abcdef")
 
 	links := []Link{
 		{
