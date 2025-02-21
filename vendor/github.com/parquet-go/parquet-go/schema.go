@@ -89,7 +89,18 @@ func (v *onceValue[T]) load(f func() *T) *T {
 // Supported precisions are: nanosecond, millisecond and microsecond. Example:
 //
 //	type Message struct {
-//	  TimestrampMicros int64 `parquet:"timestamp_micros,timestamp(microsecond)"
+//	  TimestampMicros int64 `parquet:"timestamp_micros,timestamp(microsecond)"
+//	}
+//
+// Both the time and timestamp tags accept an optional second parameter
+// to set the `isAdjustedToUTC` annotation of the parquet logical type.
+// Valid values are "utc" or "local". If not specified, the default value
+// for this annotation will be "utc", which will set the `isAdjustedToUTC` annotation
+// value to true. Example:
+//
+//	type Message struct {
+//	  TimestampMicrosAdjusted int64 `parquet:"timestamp_micros_adjusted,timestamp(microsecond:utc)"
+//	  TimestampMicrosNotAdjusted int64 `parquet:"timestamp_micros_not_adjusted,timestamp(microsecond:local)"
 //	}
 //
 // The decimal tag must be followed by two integer parameters, the first integer
@@ -711,19 +722,41 @@ func parseIDArgs(args string) (int, error) {
 	return strconv.Atoi(args)
 }
 
-func parseTimestampArgs(args string) (TimeUnit, error) {
+func parseTimestampArgs(args string) (unit TimeUnit, isUTCNormalized bool, err error) {
 	if !strings.HasPrefix(args, "(") || !strings.HasSuffix(args, ")") {
-		return nil, fmt.Errorf("malformed timestamp args: %s", args)
+		return nil, false, fmt.Errorf("malformed timestamp args: %s", args)
 	}
 
 	args = strings.TrimPrefix(args, "(")
 	args = strings.TrimSuffix(args, ")")
 
 	if len(args) == 0 {
-		return Millisecond, nil
+		return Millisecond, true, nil
 	}
 
-	switch args {
+	parts := strings.Split(args, ":")
+	if len(parts) > 2 {
+		return nil, false, fmt.Errorf("malformed timestamp args: (%s)", args)
+	}
+
+	unit, err = parseTimeUnit(parts[0])
+	if err != nil {
+		return nil, false, err
+	}
+
+	adjusted := true
+	if len(parts) > 1 {
+		adjusted, err = parseUTCNormalization(parts[1])
+		if err != nil {
+			return nil, false, err
+		}
+	}
+
+	return unit, adjusted, nil
+}
+
+func parseTimeUnit(arg string) (TimeUnit, error) {
+	switch arg {
 	case "millisecond":
 		return Millisecond, nil
 	case "microsecond":
@@ -733,7 +766,18 @@ func parseTimestampArgs(args string) (TimeUnit, error) {
 	default:
 	}
 
-	return nil, fmt.Errorf("unknown time unit: %s", args)
+	return nil, fmt.Errorf("unknown time unit: %s", arg)
+}
+
+func parseUTCNormalization(arg string) (isUTCNormalized bool, err error) {
+	switch arg {
+	case "utc":
+		return true, nil
+	case "local":
+		return false, nil
+	default:
+		return false, fmt.Errorf("unknown utc normalization: %s", arg)
+	}
 }
 
 type goNode struct {
@@ -923,13 +967,13 @@ func makeNodeOf(t reflect.Type, name string, tag []string) Node {
 		case "time":
 			switch t.Kind() {
 			case reflect.Int32:
-				timeUnit, err := parseTimestampArgs(args)
+				timeUnit, adjusted, err := parseTimestampArgs(args)
 				if err != nil || timeUnit.Duration() < time.Millisecond {
 					throwInvalidTag(t, name, option+args)
 				}
-				setNode(Time(timeUnit))
+				setNode(TimeAdjusted(timeUnit, adjusted))
 			case reflect.Int64:
-				timeUnit, err := parseTimestampArgs(args)
+				timeUnit, adjusted, err := parseTimestampArgs(args)
 				if t == reflect.TypeOf(time.Duration(0)) {
 					if args == "()" {
 						timeUnit = Nanosecond
@@ -940,26 +984,26 @@ func makeNodeOf(t reflect.Type, name string, tag []string) Node {
 				if err != nil || timeUnit.Duration() == time.Millisecond {
 					throwInvalidTag(t, name, option+args)
 				}
-				setNode(Time(timeUnit))
+				setNode(TimeAdjusted(timeUnit, adjusted))
 			default:
 				throwInvalidTag(t, name, option)
 			}
 		case "timestamp":
 			switch t.Kind() {
 			case reflect.Int64:
-				timeUnit, err := parseTimestampArgs(args)
+				timeUnit, adjusted, err := parseTimestampArgs(args)
 				if err != nil {
 					throwInvalidTag(t, name, option+args)
 				}
-				setNode(Timestamp(timeUnit))
+				setNode(TimestampAdjusted(timeUnit, adjusted))
 			default:
 				switch t {
 				case reflect.TypeOf(time.Time{}):
-					timeUnit, err := parseTimestampArgs(args)
+					timeUnit, adjusted, err := parseTimestampArgs(args)
 					if err != nil {
 						throwInvalidTag(t, name, option+args)
 					}
-					setNode(Timestamp(timeUnit))
+					setNode(TimestampAdjusted(timeUnit, adjusted))
 				default:
 					throwInvalidTag(t, name, option)
 				}
