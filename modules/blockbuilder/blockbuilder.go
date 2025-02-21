@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -96,6 +97,26 @@ type BlockBuilder struct {
 	writer    tempodb.Writer
 }
 
+type partitionState struct {
+	// Partition number
+	partition int32
+	// Start and end offset
+	startOffset, endOffset int64
+	// Last committed record timestamp
+	lastRecordTs time.Time
+}
+
+func (p partitionState) getStartOffset() kgo.Offset {
+	if p.startOffset >= 0 {
+		return kgo.NewOffset().At(p.startOffset)
+	}
+	return kgo.NewOffset().AtStart()
+}
+
+func (p partitionState) hasRecords() bool {
+	return p.endOffset >= -1
+}
+
 func New(
 	cfg Config,
 	logger log.Logger,
@@ -176,109 +197,98 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 }
 
 func (b *BlockBuilder) running(ctx context.Context) error {
-	// Initial delay
-	waitTime := 0 * time.Second
 	for {
+		waitTime, err := b.consume(ctx)
+		if err != nil {
+			level.Error(b.logger).Log("msg", "consumeCycle failed", "err", err)
+		}
 		select {
 		case <-time.After(waitTime):
-			err := b.consume(ctx)
-			if err != nil {
-				level.Error(b.logger).Log("msg", "consumeCycle failed", "err", err)
-			}
-
-			// Real delay on subsequent
-			waitTime = b.cfg.ConsumeCycleDuration
 		case <-ctx.Done():
 			return nil
 		}
 	}
 }
 
-func (b *BlockBuilder) consume(ctx context.Context) error {
-	var (
-		end        = time.Now()
-		partitions = b.getAssignedActivePartitions()
-	)
-	level.Info(b.logger).Log("msg", "starting consume cycle", "cycle_end", end, "active_partitions", getActivePartitions(partitions))
+// It consumes records for all the asigneed partitions, priorizing the ones with more lag. It keeps consuming until
+// all the partitions lag is less than the cycle duration. When that happen it returns time to wait before another consuming cycle, based on the last record timestamp
+func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
+	partitions := b.getAssignedActivePartitions()
+	level.Info(b.logger).Log("msg", "starting consume cycle", "active_partitions", formatActivePartitions(partitions))
 	defer func(t time.Time) { metricConsumeCycleDuration.Observe(time.Since(t).Seconds()) }(time.Now())
 
 	// Clear all previous remnants
 	err := b.wal.Clear()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	for _, partition := range partitions {
-		// Consume partition while data remains.
-		// TODO - round-robin one consumption per partition instead to equalize catch-up time.
-		for {
-			more, err := b.consumePartition(ctx, partition, end)
-			if err != nil {
-				return err
-			}
+	ps, err := b.fetchPartitions(ctx, partitions)
+	if err != nil {
+		return 0, err
+	}
 
-			if !more {
-				break
-			}
+	// First iteration over all the assigned partitions to get their current lag in time
+	for i, p := range ps {
+		if !p.hasRecords() { // No records, we can skip the partition
+			continue
 		}
+		lastRecordTs, lastRecordOffset, err := b.consumePartition(ctx, p)
+		if err != nil {
+			return 0, err
+		}
+		ps[i].lastRecordTs = lastRecordTs
+		ps[i].startOffset = lastRecordOffset
 	}
 
-	return nil
-}
+	// Iterate over the laggiest partition until the lag is less than the cycle duration or none of the partitions has records
+	for {
+		sort.Slice(ps, func(i, j int) bool {
+			return ps[i].lastRecordTs.After(ps[j].lastRecordTs)
+		})
 
-func getActivePartitions(partitions []int32) string {
-	var strArr []string
-	for _, v := range partitions {
-		strArr = append(strArr, strconv.Itoa(int(v)))
+		laggiestPartition := ps[0]
+		if laggiestPartition.lastRecordTs.IsZero() {
+			return b.cfg.ConsumeCycleDuration, nil
+		}
+
+		lagTime := time.Since(laggiestPartition.lastRecordTs)
+		if lagTime < b.cfg.ConsumeCycleDuration {
+			return b.cfg.ConsumeCycleDuration - lagTime, nil
+		}
+		lastRecordTs, lastRecordOffset, err := b.consumePartition(ctx, laggiestPartition)
+		if err != nil {
+			return 0, err
+		}
+		ps[0].lastRecordTs = lastRecordTs
+		ps[0].startOffset = lastRecordOffset
 	}
-	return strings.Join(strArr, ",")
 }
 
-func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, overallEnd time.Time) (more bool, err error) {
+func (b *BlockBuilder) consumePartition(ctx context.Context, ps partitionState) (lastTs time.Time, lastOffset int64, err error) {
 	defer func(t time.Time) {
-		metricProcessPartitionSectionDuration.WithLabelValues(strconv.Itoa(int(partition))).Observe(time.Since(t).Seconds())
+		metricProcessPartitionSectionDuration.WithLabelValues(strconv.Itoa(int(ps.partition))).Observe(time.Since(t).Seconds())
 	}(time.Now())
 
 	var (
-		dur         = b.cfg.ConsumeCycleDuration
-		topic       = b.cfg.IngestStorageConfig.Kafka.Topic
-		group       = b.cfg.IngestStorageConfig.Kafka.ConsumerGroup
-		partLabel   = strconv.Itoa(int(partition))
-		startOffset kgo.Offset
-		init        bool
-		writer      *writer
-		lastRec     *kgo.Record
-		end         time.Time
+		dur              = b.cfg.ConsumeCycleDuration
+		topic            = b.cfg.IngestStorageConfig.Kafka.Topic
+		group            = b.cfg.IngestStorageConfig.Kafka.ConsumerGroup
+		partLabel        = strconv.Itoa(int(ps.partition))
+		startOffset      kgo.Offset
+		init             bool
+		writer           *writer
+		lastRec          *kgo.Record
+		end              time.Time
+		processedRecords int
 	)
 
-	commits, err := b.kadm.FetchOffsetsForTopics(ctx, group, topic)
-	if err != nil {
-		return false, err
-	}
-	if err := commits.Error(); err != nil {
-		return false, err
-	}
-
-	lastCommit, ok := commits.Lookup(topic, partition)
-	if ok && lastCommit.At >= 0 {
-		startOffset = kgo.NewOffset().At(lastCommit.At)
-	} else {
-		startOffset = kgo.NewOffset().AtStart()
-	}
-
-	ends, err := b.kadm.ListEndOffsets(ctx, topic)
-	if err != nil {
-		return false, err
-	}
-	if err := ends.Error(); err != nil {
-		return false, err
-	}
-	lastPossibleMessage, lastPossibleMessageFound := ends.Lookup(topic, partition)
+	startOffset = ps.getStartOffset()
 
 	level.Info(b.logger).Log(
 		"msg", "consuming partition",
-		"partition", partition,
-		"commit_offset", lastCommit.At,
+		"partition", ps.partition,
+		"commit_offset", ps.startOffset,
 		"start_offset", startOffset,
 	)
 
@@ -288,10 +298,10 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, partition int32, ov
 	// from one partition at a time. I.e. when this partition is consumed, we start consuming the next one.
 	b.kafkaClient.AddConsumePartitions(map[string]map[int32]kgo.Offset{
 		topic: {
-			partition: startOffset,
+			ps.partition: startOffset,
 		},
 	})
-	defer b.kafkaClient.RemoveConsumePartitions(map[string][]int32{topic: {partition}})
+	defer b.kafkaClient.RemoveConsumePartitions(map[string][]int32{topic: {ps.partition}})
 
 outer:
 	for {
@@ -308,7 +318,7 @@ outer:
 				break
 			}
 			metricFetchErrors.WithLabelValues(partLabel).Inc()
-			return false, err
+			return time.Time{}, -1, err
 		}
 
 		if fetches.Empty() {
@@ -332,33 +342,20 @@ outer:
 			if !init {
 				end = rec.Timestamp.Add(dur) // When block will be cut
 				metricPartitionLagSeconds.WithLabelValues(partLabel).Set(time.Since(rec.Timestamp).Seconds())
-				writer = newPartitionSectionWriter(b.logger, uint64(partition), uint64(rec.Offset), rec.Timestamp, dur, b.cfg.WAL.IngestionSlack, b.cfg.BlockConfig, b.overrides, b.wal, b.enc)
+				writer = newPartitionSectionWriter(b.logger, uint64(ps.partition), uint64(rec.Offset), rec.Timestamp, dur, b.cfg.WAL.IngestionSlack, b.cfg.BlockConfig, b.overrides, b.wal, b.enc)
 				init = true
 			}
 
 			if rec.Timestamp.After(end) {
-				// Cut this block but continue only if we have at least another full cycle
-				if overallEnd.Sub(rec.Timestamp) >= dur {
-					more = true
-				}
-				break outer
-			}
-
-			if rec.Timestamp.After(overallEnd) {
 				break outer
 			}
 
 			err := b.pushTraces(rec.Timestamp, rec.Key, rec.Value, writer)
 			if err != nil {
-				return false, err
+				return time.Time{}, -1, err
 			}
-
+			processedRecords++
 			lastRec = rec
-
-			if lastPossibleMessageFound && lastRec.Offset >= lastPossibleMessage.Offset-1 {
-				// We reached the end so break now and avoid another poll which is expected to be empty.
-				break outer
-			}
 		}
 	}
 
@@ -366,32 +363,96 @@ outer:
 		// Received no data
 		level.Info(b.logger).Log(
 			"msg", "no data",
-			"partition", partition,
+			"partition", ps.partition,
+			"commit_offset", ps.startOffset,
+			"start_offset", startOffset,
 		)
-		return false, nil
+		return time.Time{}, -1, nil
 	}
 
 	err = writer.flush(ctx, b.writer)
 	if err != nil {
-		return false, err
+		return time.Time{}, -1, err
 	}
 
 	// TODO - Retry commit
+
 	resp, err := b.kadm.CommitOffsets(ctx, group, kadm.OffsetsFromRecords(*lastRec))
 	if err != nil {
-		return false, err
+		return time.Time{}, -1, err
 	}
 	if err := resp.Error(); err != nil {
-		return false, err
+		return time.Time{}, -1, err
 	}
-
 	level.Info(b.logger).Log(
 		"msg", "successfully committed offset to kafka",
-		"partition", partition,
+		"partition", ps.partition,
 		"last_record", lastRec.Offset,
+		"processed_records", processedRecords,
 	)
 
-	return more, nil
+	return lastRec.Timestamp, lastRec.Offset, nil
+}
+
+func formatActivePartitions(partitions []int32) string {
+	var strArr []string
+	for _, v := range partitions {
+		strArr = append(strArr, strconv.Itoa(int(v)))
+	}
+	return strings.Join(strArr, ",")
+}
+
+// It fetches all the offsets for the blockbuilder topic, for each owned partitions it calculates their last committed records and the
+// end record offset. Based on that it sort the partitions by lag
+func (b *BlockBuilder) fetchPartitions(ctx context.Context, partitions []int32) ([]partitionState, error) {
+	var (
+		ps    = make([]partitionState, 0, len(partitions))
+		group = b.cfg.IngestStorageConfig.Kafka.ConsumerGroup
+		topic = b.cfg.IngestStorageConfig.Kafka.Topic
+	)
+
+	commits, err := b.kadm.FetchOffsetsForTopics(ctx, group, topic)
+	if err != nil {
+		return nil, err
+	}
+	if err := commits.Error(); err != nil {
+		return nil, err
+	}
+
+	endsOffsets, err := b.kadm.ListEndOffsets(ctx, topic)
+	if err != nil {
+		return nil, err
+	}
+	if err := endsOffsets.Error(); err != nil {
+		return nil, err
+	}
+
+	for _, partition := range partitions {
+		p := b.getPartitionState(partition, commits, endsOffsets)
+		ps = append(ps, p)
+	}
+
+	return ps, nil
+}
+
+// Returns the existing state of a partition. Including the last committed record and the last one
+func (b *BlockBuilder) getPartitionState(partition int32, commits kadm.OffsetResponses, endsOffsets kadm.ListedOffsets) partitionState {
+	var (
+		topic = b.cfg.IngestStorageConfig.Kafka.Topic
+		ps    = partitionState{partition: partition, startOffset: -1, endOffset: -2}
+	)
+
+	lastCommit, found := commits.Lookup(topic, partition)
+	if found {
+		ps.startOffset = lastCommit.At
+	}
+
+	lastRecord, found := endsOffsets.Lookup(topic, partition)
+	if found {
+		ps.endOffset = lastRecord.Offset
+	}
+
+	return ps
 }
 
 func (b *BlockBuilder) stopping(err error) error {
