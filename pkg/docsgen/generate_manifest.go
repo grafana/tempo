@@ -1,13 +1,15 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 
 	"github.com/grafana/tempo/cmd/tempo/app"
 	"gopkg.in/yaml.v3"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 const ManifestPath = "docs/sources/tempo/configuration/manifest.md"
@@ -44,22 +46,29 @@ func main() {
 	newConfig.Generator.InstanceID = hostname
 	newConfig.BlockBuilder.InstanceID = hostname
 
+	diff := flag.Bool("diff", false, "diff manifest")
+	flag.Parse()
+
 	newConfigBytes, err := yaml.Marshal(newConfig)
 	if err != nil {
 		panic(err)
 	}
 	newManifest := Manifest + "```yaml\n" + string(newConfigBytes) + "```\n"
 
-	err = os.WriteFile(ManifestPath, []byte(newManifest), 0o644)
-	if err != nil {
-		panic(err)
-	}
-
-	cmd := exec.Command("git", "diff", "--exit-code", ManifestPath)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Run()
-	if err != nil {
-		log.Fatalf("The manifest with the default Tempo configuration has changed. Please run '%s' and commit the changes.", Cmd)
+	if *diff {
+		b, err := os.ReadFile(ManifestPath)
+		if err != nil {
+			panic(err)
+		}
+		manifest := string(b)
+		diff := cmp.Diff(newManifest, manifest)
+		if diff != "" {
+			log.Fatalf(`The manifest with the default Tempo configuration has changed. Please run "make generate-manifest" and commit the changes. Diff:\n%s`, diff)
+		}
+	} else {
+		err = os.WriteFile(ManifestPath, []byte(newManifest), 0o644)
+		if err != nil {
+			panic(err)
+		}
 	}
 }
