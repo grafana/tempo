@@ -2259,6 +2259,14 @@ const (
 	// Stability: experimental
 	// Examples: 'readonly_user', 'reporting_user'
 	DBUserKey = attribute.Key("db.user")
+
+	// DBSystemNameKey is the attribute Key conforming to the "db.system.name" semantic
+	// conventions. It represents the name of the database management system (DBMS) product being used.
+	//
+	// Type: string
+	// RequirementLevel: Optional
+	// Stability: experimental
+	DBSystemNameKey = attribute.Key("db.system.name")
 )
 
 var (
