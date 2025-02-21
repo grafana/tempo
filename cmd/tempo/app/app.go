@@ -30,6 +30,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/grafana/tempo/cmd/tempo/build"
+	"github.com/grafana/tempo/modules/backendscheduler"
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/distributor/receiver"
@@ -80,6 +81,7 @@ type App struct {
 	usageReport          *usagestats.Reporter
 	cacheProvider        cache.Provider
 	MemberlistKV         *memberlist.KVInitService
+	backendScheduler     *backendscheduler.BackendScheduler
 
 	HTTPAuthMiddleware       middleware.Interface
 	TracesConsumerMiddleware receiver.Middleware
