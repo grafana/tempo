@@ -1335,6 +1335,16 @@ func TestHistogramOverTime(t *testing.T) {
 	require.Equal(t, out, result)
 }
 
+func TestSecondStageTopK(_ *testing.T) {
+	// TODO: implement this test??
+	// 	Query: "{ } | rate(duration) by (span.foo) | topk(10)",
+}
+
+func TestSecondStageBottomK(_ *testing.T) {
+	// TODO: implement this test??
+	// 	Query: "{ } | rate(duration) by (span.foo) | bottomk(10)",
+}
+
 func runTraceQLMetric(req *tempopb.QueryRangeRequest, inSpans ...[]Span) (SeriesSet, error) {
 	e := NewEngine()
 

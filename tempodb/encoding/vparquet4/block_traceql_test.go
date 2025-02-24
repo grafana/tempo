@@ -730,7 +730,7 @@ func TestBackendBlockSelectAll(t *testing.T) {
 
 	b := makeBackendBlockWithTraces(t, traces)
 
-	_, _, _, req, err := traceql.Compile("{}")
+	_, _, _, _, req, err := traceql.Compile("{}")
 	require.NoError(t, err)
 	req.SecondPass = func(inSS *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{inSS}, nil }
 	req.SecondPassSelectAll = true
