@@ -1456,6 +1456,16 @@ func TestMetricsSecondStage(t *testing.T) {
 			),
 		},
 		{
+			in: `{ } | rate() | topk(10) with(foo="bar")`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newMetricsTopK(10),
+			).withHints(newHints([]*Hint{
+				newHint("foo", NewStaticString("bar")),
+			})),
+		},
+		{
 			in: `{ } | rate() | bottomk(10)`,
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
@@ -1475,17 +1485,7 @@ func TestMetricsSecondStage(t *testing.T) {
 			),
 		},
 		{
-			in: `{ } | rate() | topk(10) with(foo="bar")`,
-			expected: newRootExprWithMetricsTwoStage(
-				newPipeline(newSpansetFilter(NewStaticBool(true))),
-				newMetricsAggregate(metricsAggregateRate, nil),
-				newMetricsTopK(10),
-			).withHints(newHints([]*Hint{
-				newHint("foo", NewStaticString("bar")),
-			})),
-		},
-		{
-			in: `{ } | rate() | topk(10) with(foo="bar")`,
+			in: `{ } | rate() | bottomk(10) with(foo="bar")`,
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
