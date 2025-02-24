@@ -57,7 +57,7 @@ func NewGroupReaderClient(kafkaCfg KafkaConfig, partitionRing ring.PartitionRing
 		kgo.SessionTimeout(3*time.Minute),
 		kgo.RebalanceTimeout(5*time.Minute),
 		kgo.Balancers(NewCooperativeActiveStickyBalancer(partitionRing)),
-		kgo.ConsumeResetOffset(kgo.NoResetOffset().AtEnd()),
+		kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()),
 	)
 
 	client, err := NewReaderClient(kafkaCfg, metrics, logger, opts...)

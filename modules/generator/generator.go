@@ -78,7 +78,6 @@ type Generator struct {
 	partitionRing      ring.PartitionRingReader
 	partitionMtx       sync.RWMutex
 	assignedPartitions []int32
-	codec              codec
 }
 
 // New makes a new Generator.
@@ -108,7 +107,7 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 		logger:        logger,
 	}
 
-	if cfg.JoinRing {
+	if cfg.shouldJoinRing() {
 		// Lifecycler and ring
 		ringStore, err := kv.NewClient(
 			cfg.Ring.KVStore,
@@ -137,15 +136,6 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 		}
 	}
 
-	switch cfg.Codec {
-	case codecTempo:
-		g.codec = newTempoDecoder()
-	case codecOTLP:
-		g.codec = newOTLPDecoder()
-	default:
-		return nil, fmt.Errorf("invalid codec: %s", cfg.Codec)
-	}
-
 	g.Service = services.NewBasicService(g.starting, g.running, g.stopping)
 	return g, nil
 }
@@ -164,18 +154,16 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 		}
 	}()
 
-	if g.cfg.JoinRing {
-		g.subservices, err = services.NewManager(g.ringLifecycler)
-		if err != nil {
-			return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
-		}
-		g.subservicesWatcher = services.NewFailureWatcher()
-		g.subservicesWatcher.WatchManager(g.subservices)
+	g.subservices, err = services.NewManager(g.ringLifecycler)
+	if err != nil {
+		return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
+	}
+	g.subservicesWatcher = services.NewFailureWatcher()
+	g.subservicesWatcher.WatchManager(g.subservices)
 
-		err = services.StartManagerAndAwaitHealthy(ctx, g.subservices)
-		if err != nil {
-			return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
-		}
+	err = services.StartManagerAndAwaitHealthy(ctx, g.subservices)
+	if err != nil {
+		return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
 	}
 
 	if g.cfg.Ingest.Enabled {
@@ -384,7 +372,9 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 }
 
 func (g *Generator) CheckReady(_ context.Context) error {
-	if !g.cfg.JoinRing {
+	// Always mark as ready when running without a ring, because the readiness logic
+	// below depends on the ring lifecycler.
+	if g.ringLifecycler == nil {
 		return nil
 	}
 

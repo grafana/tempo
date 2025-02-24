@@ -37,7 +37,6 @@ import (
 	"github.com/grafana/tempo/modules/querier"
 	tempo_storage "github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/api"
-	"github.com/grafana/tempo/pkg/ingest"
 	tempo_ring "github.com/grafana/tempo/pkg/ring"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/usagestats"
@@ -68,16 +67,16 @@ const (
 	SecondaryIngesterRing string = "secondary-ring"
 	MetricsGeneratorRing  string = "metrics-generator-ring"
 	PartitionRing         string = "partition-ring"
-	PartitionRingWatcher  string = "partition-ring-watcher"
 
 	// individual targets
-	Distributor      string = "distributor"
-	Ingester         string = "ingester"
-	MetricsGenerator string = "metrics-generator"
-	Querier          string = "querier"
-	QueryFrontend    string = "query-frontend"
-	Compactor        string = "compactor"
-	BlockBuilder     string = "block-builder"
+	Distributor                   string = "distributor"
+	Ingester                      string = "ingester"
+	MetricsGenerator              string = "metrics-generator"
+	MetricsGeneratorNoLocalBlocks string = "metrics-generator-no-local-blocks"
+	Querier                       string = "querier"
+	QueryFrontend                 string = "query-frontend"
+	Compactor                     string = "compactor"
+	BlockBuilder                  string = "block-builder"
 
 	// composite targets
 	SingleBinary         string = "all"
@@ -188,34 +187,16 @@ func (t *App) initPartitionRing() (services.Service, error) {
 		return nil, nil
 	}
 
-	kvClient, err := kv.NewClient(t.cfg.Ingester.IngesterPartitionRing.KVStore, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(prometheus.DefaultRegisterer, ingest.PartitionRingName+"-watcher"), util_log.Logger)
+	kvClient, err := kv.NewClient(t.cfg.Ingester.IngesterPartitionRing.KVStore, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(prometheus.DefaultRegisterer, ingester.PartitionRingName+"-watcher"), util_log.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("creating KV store for ingester partitions ring watcher: %w", err)
 	}
 
-	t.partitionRingWatcher = ring.NewPartitionRingWatcher(ingest.PartitionRingName, ingest.PartitionRingKey, kvClient, util_log.Logger, prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer))
+	t.partitionRingWatcher = ring.NewPartitionRingWatcher(ingester.PartitionRingName, ingester.PartitionRingKey, kvClient, util_log.Logger, prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer))
 	t.partitionRing = ring.NewPartitionInstanceRing(t.partitionRingWatcher, t.readRings[ringIngester], t.cfg.Ingester.LifecyclerConfig.RingConfig.HeartbeatTimeout)
 
 	// Expose a web page to view the partitions ring state.
-	t.Server.HTTPRouter().Path("/partition-ring").Methods("GET", "POST").Handler(ring.NewPartitionRingPageHandler(t.partitionRingWatcher, ring.NewPartitionRingEditor(ingest.PartitionRingKey, kvClient)))
-
-	return t.partitionRingWatcher, nil
-}
-
-func (t *App) initPartitionRingWatcher() (services.Service, error) {
-	if !t.cfg.Ingest.Enabled {
-		return services.NewIdleService(nil, nil), nil
-	}
-
-	kvClient, err := kv.NewClient(t.cfg.Generator.Ring.KVStore, ring.GetPartitionRingCodec(), kv.RegistererWithKVName(prometheus.DefaultRegisterer, t.cfg.Ingest.OverrideRingKey+"-watcher"), util_log.Logger)
-	if err != nil {
-		return nil, fmt.Errorf("creating KV store for partition ring watcher: %w", err)
-	}
-
-	t.partitionRingWatcher = ring.NewPartitionRingWatcher(t.cfg.Ingest.OverrideRingKey, t.cfg.Ingest.OverrideRingKey, kvClient, util_log.Logger, prometheus.WrapRegistererWithPrefix("tempo_", prometheus.DefaultRegisterer))
-
-	// Expose a web page to view the partitions ring state.
-	t.Server.HTTPRouter().Path("/partition-ring").Methods("GET", "POST").Handler(ring.NewPartitionRingPageHandler(t.partitionRingWatcher, ring.NewPartitionRingEditor(t.cfg.Ingest.OverrideRingKey, kvClient)))
+	t.Server.HTTPRouter().Path("/partition-ring").Methods("GET", "POST").Handler(ring.NewPartitionRingPageHandler(t.partitionRingWatcher, ring.NewPartitionRingEditor(ingester.PartitionRingKey, kvClient)))
 
 	return t.partitionRingWatcher, nil
 }
@@ -323,13 +304,11 @@ func (t *App) initGenerator() (services.Service, error) {
 	}
 
 	t.cfg.Generator.Ring.ListenPort = t.cfg.Server.GRPCListenPort
+
 	t.cfg.Generator.Ingest = t.cfg.Ingest
+	t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
 
-	if t.cfg.Generator.Ingest.Kafka.ConsumerGroup == "" {
-		t.cfg.Generator.Ingest.Kafka.ConsumerGroup = generator.ConsumerGroup
-	}
-
-	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRingWatcher, t.store, log.Logger)
+	genSvc, err := generator.New(&t.cfg.Generator, t.Overrides, prometheus.DefaultRegisterer, t.partitionRing, t.store, log.Logger)
 	if errors.Is(err, generator.ErrUnconfigured) && t.cfg.Target != MetricsGenerator { // just warn if we're not running the metrics-generator
 		level.Warn(log.Logger).Log("msg", "metrics-generator is not configured.", "err", err)
 		return services.NewIdleService(nil, nil), nil
@@ -339,15 +318,58 @@ func (t *App) initGenerator() (services.Service, error) {
 	}
 	t.generator = genSvc
 
-	if t.cfg.Generator.JoinRing {
-		spanStatsHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.generator.SpanMetricsHandler))
-		t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetrics)), spanStatsHandler)
+	spanStatsHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.generator.SpanMetricsHandler))
+	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathSpanMetrics)), spanStatsHandler)
 
-		queryRangeHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.generator.QueryRangeHandler))
-		t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange)), queryRangeHandler)
+	queryRangeHandler := t.HTTPAuthMiddleware.Wrap(http.HandlerFunc(t.generator.QueryRangeHandler))
+	t.Server.HTTPRouter().Handle(path.Join(api.PathPrefixGenerator, addHTTPAPIPrefix(&t.cfg, api.PathMetricsQueryRange)), queryRangeHandler)
 
-		tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC(), t.generator)
+	tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC(), t.generator)
+
+	return t.generator, nil
+}
+
+func (t *App) initGeneratorNoLocalBlocks() (services.Service, error) {
+	reg := prometheus.DefaultRegisterer
+
+	kvRegisterer := kv.RegistererWithKVName(reg, t.cfg.Generator.OverrideRingKey+"-watcher")
+	kvClient, err := kv.NewClient(t.cfg.Generator.Ring.KVStore, ring.GetPartitionRingCodec(), kvRegisterer, util_log.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("creating KV store for generator partition ring watcher: %w", err)
 	}
+
+	t.cfg.Generator.Ingest = t.cfg.Ingest
+
+	// In this mode, the generator runs as a stateless queue consumer that reads from
+	// Kafka and remote writes to a Prometheus-compatible metrics store.
+	if !t.cfg.Ingest.Enabled {
+		return nil, errors.New("ingest storage must be enabled to run metrics generator in this mode")
+	}
+	t.cfg.Generator.DisableLocalBlocks = true
+	// The store is used only by the localblocks processor. We don't need it when
+	// running with that processor disabled so we keep the default zero value.
+	var store tempo_storage.Store
+	// In this mode, the generator does not need to become available to serve
+	// queries, so we can skip setting up a gRPC server.
+	t.cfg.Generator.DisableGRPC = true
+
+	partitionRingWatcher := ring.NewPartitionRingWatcher(
+		t.cfg.Generator.OverrideRingKey,
+		t.cfg.Generator.OverrideRingKey,
+		kvClient,
+		util_log.Logger,
+		prometheus.WrapRegistererWithPrefix("tempo_", reg),
+	)
+
+	t.generator, err = generator.New(&t.cfg.Generator, t.Overrides, reg, partitionRingWatcher, store, log.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metrics-generator: %w", err)
+	}
+
+	// Expose a web page to view the partition ring state.
+	editor := ring.NewPartitionRingEditor(t.cfg.Generator.OverrideRingKey, kvClient)
+	t.Server.HTTPRouter().Path("/partition/ring").Methods("GET", "POST").
+		Handler(ring.NewPartitionRingPageHandler(partitionRingWatcher, editor))
 
 	return t.generator, nil
 }
@@ -664,7 +686,6 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
 	mm.RegisterModule(SecondaryIngesterRing, t.initSecondaryIngesterRing, modules.UserInvisibleModule)
 	mm.RegisterModule(PartitionRing, t.initPartitionRing, modules.UserInvisibleModule)
-	mm.RegisterModule(PartitionRingWatcher, t.initPartitionRingWatcher, modules.UserInvisibleModule)
 
 	mm.RegisterModule(Common, nil, modules.UserInvisibleModule)
 
@@ -674,6 +695,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(QueryFrontend, t.initQueryFrontend)
 	mm.RegisterModule(Compactor, t.initCompactor)
 	mm.RegisterModule(MetricsGenerator, t.initGenerator)
+	mm.RegisterModule(MetricsGeneratorNoLocalBlocks, t.initGeneratorNoLocalBlocks)
 	mm.RegisterModule(BlockBuilder, t.initBlockBuilder)
 
 	mm.RegisterModule(SingleBinary, nil)
@@ -692,18 +714,18 @@ func (t *App) setupModuleManager() error {
 		SecondaryIngesterRing: {Server, MemberlistKV},
 		MetricsGeneratorRing:  {Server, MemberlistKV},
 		PartitionRing:         {MemberlistKV, Server, IngesterRing},
-		PartitionRingWatcher:  {MemberlistKV, Server},
 
 		Common: {UsageReport, Server, Overrides},
 
 		// individual targets
-		QueryFrontend:    {Common, Store, OverridesAPI},
-		Distributor:      {Common, IngesterRing, MetricsGeneratorRing, PartitionRing},
-		Ingester:         {Common, Store, MemberlistKV, PartitionRing},
-		MetricsGenerator: {Common, OptionalStore, MemberlistKV, PartitionRingWatcher},
-		Querier:          {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
-		Compactor:        {Common, Store, MemberlistKV},
-		BlockBuilder:     {Common, Store, MemberlistKV, PartitionRing},
+		QueryFrontend:                 {Common, Store, OverridesAPI},
+		Distributor:                   {Common, IngesterRing, MetricsGeneratorRing, PartitionRing},
+		Ingester:                      {Common, Store, MemberlistKV, PartitionRing},
+		MetricsGenerator:              {Common, OptionalStore, MemberlistKV, PartitionRing},
+		MetricsGeneratorNoLocalBlocks: {Common, MemberlistKV},
+		Querier:                       {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
+		Compactor:                     {Common, Store, MemberlistKV},
+		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
 
 		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator, BlockBuilder},
