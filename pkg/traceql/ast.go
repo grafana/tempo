@@ -29,10 +29,6 @@ type metricsFirstStageElement interface {
 	result() SeriesSet
 }
 
-type metricsSecondStageElement interface {
-	Element
-}
-
 type pipelineElement interface {
 	Element
 	extractConditions(request *FetchSpansRequest)
@@ -44,9 +40,10 @@ type typedExpression interface {
 }
 
 type RootExpr struct {
-	Pipeline        Pipeline
-	MetricsPipeline metricsFirstStageElement
-	Hints           *Hints
+	Pipeline           Pipeline
+	MetricsPipeline    metricsFirstStageElement
+	MetricsSecondStage metricsSecondStageElement
+	Hints              *Hints
 }
 
 func newRootExpr(e pipelineElement) *RootExpr {
@@ -72,15 +69,16 @@ func newRootExprWithMetrics(e pipelineElement, m metricsFirstStageElement) *Root
 	}
 }
 
-func newRootExprWithMetricsTwoStage(e pipelineElement, m metricsFirstStageElement, f metricsSecondStageElement) *RootExpr {
+func newRootExprWithMetricsTwoStage(e pipelineElement, m metricsFirstStageElement, m2 metricsSecondStageElement) *RootExpr {
 	p, ok := e.(Pipeline)
 	if !ok {
 		p = newPipeline(e)
 	}
 
 	return &RootExpr{
-		Pipeline:        p,
-		MetricsPipeline: m,
+		Pipeline:           p,
+		MetricsPipeline:    m,
+		MetricsSecondStage: m2,
 	}
 }
 
@@ -89,7 +87,7 @@ func (r *RootExpr) withHints(h *Hints) *RootExpr {
 	return r
 }
 
-// IsNoop detects trival noop queries like {false} which never return
+// IsNoop detects trivial noop queries like {false} which never return
 // results and can be used to exit early.
 func (r *RootExpr) IsNoop() bool {
 	isNoopFilter := func(x any) bool {
@@ -1406,15 +1404,3 @@ func (a *MetricsAggregate) validate() error {
 }
 
 var _ metricsFirstStageElement = (*MetricsAggregate)(nil)
-
-// we need something like MetricsAggregate?? but for metrics second stage aggregations
-// TODO: placeholder for now?? figure out how to impl.??
-func newMetricsTopK(topN int) metricsSecondStageElement {
-	return nil
-}
-
-// we need something like MetricsAggregate?? but for metrics second stage aggregations
-// TODO: placeholder for now?? figure out how to impl.??
-func newMetricsBottomK(bottomN int) metricsSecondStageElement {
-	return nil
-}
