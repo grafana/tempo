@@ -1,7 +1,7 @@
 variable "version" {
   type        = string
   description = "Tempo version"
-  default     = "2.3.1"
+  default     = "2.7.1"
 }
 
 variable "prometheus_remote_write_url" {
@@ -35,10 +35,9 @@ job "tempo" {
     count = 1
 
     network {
-      port "http" {
-        to = 3200
-      }
+      port "http" { to = 3200 }
       port "grpc" {}
+      port "otlp" { to = 4317 }
     }
 
     service {
@@ -67,6 +66,12 @@ job "tempo" {
         grpc_use_tls = false
         tls_skip_verify = true
       }
+    }
+
+    service {
+      name = "tempo-otpl"
+      port = "otpl"
+      tags = []
     }
 
     task "tempo" {
@@ -99,7 +104,7 @@ job "tempo" {
             otlp:
               protocols:
                 http:
-                grpc:
+                grpc: 0.0.0.0:{{ env "NOMAD_PORT_otlp" }}
 
         metrics_generator:
           processor:
