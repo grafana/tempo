@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -330,6 +331,49 @@ func TestBadBlocks(t *testing.T) {
 	}
 
 	_, err = New(cfg, "test-tenant", wal, nil, &mockOverrides{})
+	require.NoError(t, err)
+}
+
+func TestProcessorWithNonEmptyWAL(t *testing.T) {
+	wal, err := wal.New(&wal.Config{
+		Filepath: t.TempDir(),
+		Version:  encoding.DefaultEncoding().Version(),
+	})
+	require.NoError(t, err)
+
+	// write to the wal
+	tenantID := "test-tenant"
+	traceID := test.ValidTraceID(nil)
+
+	meta := &backend.BlockMeta{BlockID: backend.NewUUID(), TenantID: tenantID}
+	head, err := wal.NewBlock(meta, model.CurrentEncoding)
+	require.NoError(t, err)
+
+	dec := model.MustNewSegmentDecoder(model.CurrentEncoding)
+
+	obj, err := dec.PrepareForWrite(test.MakeTrace(1, traceID), 0, 0)
+	require.NoError(t, err)
+
+	obj2, err := dec.ToObject([][]byte{obj})
+	require.NoError(t, err)
+
+	err = head.Append(traceID, obj2, 0, 0, true)
+	require.NoError(t, err)
+
+	err = head.Flush()
+	require.NoError(t, err)
+
+	// create a new processor
+	cfg := Config{
+		FlushCheckPeriod:     time.Minute,
+		TraceIdlePeriod:      time.Minute,
+		CompleteBlockTimeout: time.Second,
+		Block: &common.BlockConfig{
+			Version: encoding.DefaultEncoding().Version(),
+		},
+	}
+
+	_, err = New(cfg, tenantID, wal, nil, &mockOverrides{})
 	require.NoError(t, err)
 }
 
