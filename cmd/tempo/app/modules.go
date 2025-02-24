@@ -162,9 +162,9 @@ func (t *App) initGeneratorRing() (services.Service, error) {
 	return t.initReadRing(t.cfg.Generator.Ring.ToRingConfig(), ringMetricsGenerator, t.cfg.Generator.OverrideRingKey)
 }
 
-func (t *App) initBackendRing() (services.Service, error) {
-	return t.initReadRing(t.cfg.BackendScheduler.Ring.ToRingConfig(), ringBackendScheduler, t.cfg.BackendScheduler.OverrideRingKey)
-}
+// func (t *App) initBackendRing() (services.Service, error) {
+// 	return t.initReadRing(t.cfg.BackendScheduler.Ring.ToRingConfig(), ringBackendScheduler, t.cfg.BackendScheduler.OverrideRingKey)
+// }
 
 // initSecondaryIngesterRing is an optional ring for the queriers. This secondary ring is useful in edge cases and should
 // not be used generally. Use this if you need one set of queries to query 2 different sets of ingesters.
@@ -735,9 +735,6 @@ func (t *App) setupModuleManager() error {
 
 	mm.RegisterModule(SingleBinary, nil)
 	mm.RegisterModule(ScalableSingleBinary, nil)
-
-	// Register backend scheduler module
-	mm.RegisterModule(BackendScheduler, t.initBackendScheduler)
 
 	deps := map[string][]string{
 		// InternalServer: nil,
