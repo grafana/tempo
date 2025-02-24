@@ -300,6 +300,7 @@ func (a *MetricsAggregate) validate() error {
 
 var _ metricsFirstStageElement = (*MetricsAggregate)(nil)
 
+// TODO: can we just embed metricsFirstStageElement/MetricsAggregate in MetricsSecondStage???
 type metricsSecondStageElement interface {
 	Element
 	extractConditions(request *FetchSpansRequest)
@@ -363,7 +364,7 @@ func (m *MetricsSecondStage) extractConditions(*FetchSpansRequest) {
 
 func (m *MetricsSecondStage) init(*tempopb.QueryRangeRequest, AggregateMode) {
 	// todo: implement this?? assign input from last stage to m.input??
-	// also, do we need this if we are already initializing input in observeSeries??
+	// it's called in CompileMetricsQueryRangeNonRaw in engine_metrics.go
 	m.input = nil
 }
 
