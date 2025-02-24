@@ -123,34 +123,34 @@ func TestMetricsSecondStageValidation(t *testing.T) {
 			expectError: nil,
 		},
 		{
+			name:        "zero limit - topk",
+			limit:       0,
+			op:          OpTopK,
+			expectError: errInvalidLimit,
+		},
+		{
+			name:        "negative limit - topk",
+			limit:       -1,
+			op:          OpTopK,
+			expectError: errInvalidLimit,
+		},
+		{
 			name:        "valid limit - bottomk",
 			limit:       1,
 			op:          OpBottomK,
 			expectError: nil,
 		},
 		{
-			name:        "zero limit - topk",
-			limit:       0,
-			op:          OpTopK,
-			expectError: nil,
-		},
-		{
 			name:        "zero limit - bottomk",
 			limit:       0,
 			op:          OpBottomK,
-			expectError: nil,
-		},
-		{
-			name:        "negative limit - topk",
-			limit:       -1,
-			op:          OpTopK,
-			expectError: nil,
+			expectError: errInvalidLimit,
 		},
 		{
 			name:        "negative limit - bottomk",
 			limit:       -1,
 			op:          OpBottomK,
-			expectError: nil,
+			expectError: errInvalidLimit,
 		},
 	}
 
