@@ -32,6 +32,8 @@ const (
 	OpBottomK
 )
 
+var errInvalidLimit = fmt.Errorf("limit must be greater than 0")
+
 func (op SecondStageOp) String() string {
 	switch op {
 	case OpTopK:
@@ -56,15 +58,21 @@ func (m *MetricsSecondStage) String() string {
 }
 
 func (m *MetricsSecondStage) validate() error {
-	if m.limit < 0 {
-		return fmt.Errorf("limit must be greater than 0")
+	// TODO: should we also enforce a max limit for topk/bottomk?
+	if m.limit <= 0 {
+		return errInvalidLimit
 	}
 	return nil
 }
 
-func (m *MetricsSecondStage) extractConditions(*FetchSpansRequest) {}
+func (m *MetricsSecondStage) extractConditions(*FetchSpansRequest) {
+	// todo: implement this?? also do we need this??
+
+}
 
 func (m *MetricsSecondStage) init(*tempopb.QueryRangeRequest, AggregateMode) {
+	// todo: implement this?? assign input from last stage to m.input??
+	// also, do we need this if we are already initializing input in observeSeries??
 	m.input = nil
 }
 
@@ -120,28 +128,6 @@ func (m *MetricsSecondStage) result() []*tempopb.TimeSeries {
 		result[i] = m.input[indices[i]]
 	}
 	return result
-}
-
-func getValues(s *tempopb.TimeSeries) []float64 {
-	values := make([]float64, 0, len(s.Samples))
-	for _, sample := range s.Samples {
-		if !math.IsNaN(sample.Value) {
-			values = append(values, sample.Value)
-		}
-	}
-	return values
-}
-
-func getExemplars(s *tempopb.TimeSeries) []Exemplar {
-	exemplars := make([]Exemplar, 0, len(s.Exemplars))
-	for _, e := range s.Exemplars {
-		exemplars = append(exemplars, Exemplar{
-			Labels:      LabelsFromProto(e.Labels),
-			Value:       e.Value,
-			TimestampMs: uint64(e.TimestampMs),
-		})
-	}
-	return exemplars
 }
 
 // Helper function
