@@ -78,7 +78,7 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	requireLastCommitEquals(t, ctx, client, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
-func TestBlockbuilder_without_partitions_assigned(t *testing.T) {
+func TestBlockbuilder_without_partitions_assigned_returns_an_error(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
 
@@ -95,18 +95,8 @@ func TestBlockbuilder_without_partitions_assigned(t *testing.T) {
 
 	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
 	require.NoError(t, err)
-	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
-	t.Cleanup(func() {
-		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
-	})
-
-	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
-	sendReq(t, ctx, client)
-
-	// Wait for record to be consumed and committed.
-	require.Eventually(t, func() bool {
-		return kafkaCommits.Load() == 0
-	}, 5*time.Second, time.Second)
+	_, err = b.consume(ctx)
+	require.ErrorContains(t, err, "No partitions assigned")
 }
 
 // Starting with a pre-existing commit,

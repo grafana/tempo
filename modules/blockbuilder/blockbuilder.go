@@ -201,6 +201,7 @@ func (b *BlockBuilder) running(ctx context.Context) error {
 		waitTime, err := b.consume(ctx)
 		if err != nil {
 			level.Error(b.logger).Log("msg", "consumeCycle failed", "err", err)
+			waitTime = b.cfg.ConsumeCycleDuration
 		}
 		select {
 		case <-time.After(waitTime):
@@ -215,8 +216,7 @@ func (b *BlockBuilder) running(ctx context.Context) error {
 func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 	partitions := b.getAssignedActivePartitions()
 	if len(partitions) == 0 {
-		level.Info(b.logger).Log("msg", "No partitions assigned")
-		return b.cfg.ConsumeCycleDuration, nil
+		return 0, errors.New("No partitions assigned")
 	}
 
 	level.Info(b.logger).Log("msg", "starting consume cycle", "active_partitions", formatActivePartitions(partitions))
