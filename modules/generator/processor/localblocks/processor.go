@@ -117,6 +117,15 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 		writer:         writer,
 	}
 
+	startCompleteQueue(p.Cfg.Concurrency)
+	defer func() {
+		if err != nil {
+			// In case of failing startup stop the queue
+			// because Shutdown will not be called.
+			stopCompleteQueue()
+		}
+	}()
+
 	err = p.reloadBlocks()
 	if err != nil {
 		return nil, fmt.Errorf("replaying blocks: %w", err)
@@ -131,8 +140,6 @@ func New(cfg Config, tenant string, wal *wal.WAL, writer tempodb.Writer, overrid
 		p.wg.Add(1)
 		go p.flushLoop()
 	}
-
-	startCompleteQueue(p.Cfg.Concurrency)
 
 	return p, nil
 }
