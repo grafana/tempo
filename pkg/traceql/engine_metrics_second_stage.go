@@ -12,6 +12,7 @@ import (
 type metricsSecondStageElement interface {
 	Element
 	extractConditions(request *FetchSpansRequest)
+	// TODO: define the right init function signature
 	init(req *tempopb.QueryRangeRequest, mode AggregateMode)
 	observeSeries([]*tempopb.TimeSeries)
 	result() []*tempopb.TimeSeries
@@ -66,8 +67,7 @@ func (m *MetricsSecondStage) validate() error {
 }
 
 func (m *MetricsSecondStage) extractConditions(*FetchSpansRequest) {
-	// todo: implement this?? also do we need this??
-
+	// todo: implement this?? also do we need this???
 }
 
 func (m *MetricsSecondStage) init(*tempopb.QueryRangeRequest, AggregateMode) {
@@ -77,6 +77,7 @@ func (m *MetricsSecondStage) init(*tempopb.QueryRangeRequest, AggregateMode) {
 }
 
 func (m *MetricsSecondStage) observeSeries(series []*tempopb.TimeSeries) {
+	fmt.Println("observeSeries: series: ", series)
 	m.input = series
 }
 
