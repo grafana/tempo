@@ -214,6 +214,11 @@ func (b *BlockBuilder) running(ctx context.Context) error {
 // all the partitions lag is less than the cycle duration. When that happen it returns time to wait before another consuming cycle, based on the last record timestamp
 func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 	partitions := b.getAssignedActivePartitions()
+	if len(partitions) == 0 {
+		level.Info(b.logger).Log("msg", "No partitions assigned")
+		return b.cfg.ConsumeCycleDuration, nil
+	}
+
 	level.Info(b.logger).Log("msg", "starting consume cycle", "active_partitions", formatActivePartitions(partitions))
 	defer func(t time.Time) { metricConsumeCycleDuration.Observe(time.Since(t).Seconds()) }(time.Now())
 

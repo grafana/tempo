@@ -52,7 +52,7 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	})
 
 	store := newStore(ctx, t)
-	cfg := blockbuilderConfig(t, address)
+	cfg := blockbuilderConfig(t, address, []int32{0})
 
 	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
 	require.NoError(t, err)
@@ -78,6 +78,37 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	requireLastCommitEquals(t, ctx, client, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
+func TestBlockbuilder_without_partitions_assigned(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+
+	k, address := testkafka.CreateCluster(t, 1, testTopic)
+
+	kafkaCommits := atomic.NewInt32(0)
+	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Inc()
+		return nil, nil, false
+	})
+
+	store := newStore(ctx, t)
+	cfg := blockbuilderConfig(t, address, []int32{})
+
+	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	})
+
+	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
+	sendReq(t, ctx, client)
+
+	// Wait for record to be consumed and committed.
+	require.Eventually(t, func() bool {
+		return kafkaCommits.Load() == 0
+	}, 5*time.Second, time.Second)
+}
+
 // Starting with a pre-existing commit,
 // the block-builder resumes from the last known position, consuming new records,
 // and ensures all of them are properly committed and flushed into blocks.
@@ -94,7 +125,7 @@ func TestBlockbuilder_startWithCommit(t *testing.T) {
 	})
 
 	store := newStore(ctx, t)
-	cfg := blockbuilderConfig(t, address)
+	cfg := blockbuilderConfig(t, address, []int32{0})
 
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
 	producedRecords := sendTracesFor(t, ctx, client, 5*time.Second, 100*time.Millisecond) // Send for 5 seconds
@@ -155,7 +186,7 @@ func TestBlockbuilder_flushingFails(t *testing.T) {
 		}
 		return store.WriteBlock(ctx, block)
 	})
-	cfg := blockbuilderConfig(t, address)
+	cfg := blockbuilderConfig(t, address, []int32{0})
 	logger := test.NewTestingLogger(t)
 
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
@@ -195,7 +226,7 @@ func TestBlockbuilder_receivesOldRecords(t *testing.T) {
 	})
 
 	store := newStore(ctx, t)
-	cfg := blockbuilderConfig(t, address)
+	cfg := blockbuilderConfig(t, address, []int32{0})
 
 	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
 	require.NoError(t, err)
@@ -282,7 +313,7 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 	})
 
 	store := newStore(ctx, t)
-	cfg := blockbuilderConfig(t, address)
+	cfg := blockbuilderConfig(t, address, []int32{0})
 	logger := test.NewTestingLogger(t)
 
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
@@ -309,7 +340,7 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 	requireLastCommitEquals(t, ctx, client, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
-func blockbuilderConfig(t testing.TB, address string) Config {
+func blockbuilderConfig(t testing.TB, address string, assignedPartitions []int32) Config {
 	cfg := Config{}
 	flagext.DefaultValues(&cfg)
 
@@ -319,8 +350,8 @@ func blockbuilderConfig(t testing.TB, address string) Config {
 	cfg.IngestStorageConfig.Kafka.Address = address
 	cfg.IngestStorageConfig.Kafka.Topic = testTopic
 	cfg.IngestStorageConfig.Kafka.ConsumerGroup = testConsumerGroup
+	cfg.AssignedPartitions = map[string][]int32{cfg.InstanceID: assignedPartitions}
 
-	cfg.AssignedPartitions = map[string][]int32{cfg.InstanceID: {0}}
 	cfg.ConsumeCycleDuration = 5 * time.Second
 
 	cfg.WAL.Filepath = t.TempDir()
@@ -501,7 +532,7 @@ func BenchmarkBlockBuilder(b *testing.B) {
 		logger     = log.NewNopLogger()
 		_, address = testkafka.CreateCluster(b, 1, testTopic)
 		store      = newStoreWithLogger(ctx, b, logger)
-		cfg        = blockbuilderConfig(b, address)
+		cfg        = blockbuilderConfig(b, address, []int32{0})
 		client     = newKafkaClient(b, cfg.IngestStorageConfig.Kafka)
 		o          = &mockOverrides{
 			dc: backend.DedicatedColumns{
