@@ -1153,7 +1153,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 			var n int
 			var err error
 
-			if c.currNestedValues != nil {
+			if c.currNestedValues != nil && c.filter != nil { // jpe - everything is terrible. clean up
 				n, err = c.currNestedValues.ReadNestedValues(c.currBuf)
 			} else {
 				n, err = c.currValues.ReadValues(c.currBuf)
@@ -1177,8 +1177,11 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 			var v *pq.Value
 
 			// jpe - what about that one interaction where filter == nil, do we just do the old way?
-
-			if c.currNestedValues != nil { // jpe - better check
+			if c.filter == nil {
+				v = &c.currBuf[c.currBufN]
+				r = byte(v.RepetitionLevel())
+				d = byte(v.DefinitionLevel())
+			} else if c.currNestedValues != nil { // jpe - better check
 
 				// if currNestedValues is set advance c.curr AS LONG AS the the definition level DOES NOT equal c.definitionLevel. in this case the value is a NULL and we can skip it
 				r := c.currPage.RepetitionLevels()[c.currPageN]
