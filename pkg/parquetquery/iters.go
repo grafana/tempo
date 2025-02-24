@@ -1184,8 +1184,8 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 			} else if c.currNestedValues != nil { // jpe - better check
 
 				// if currNestedValues is set advance c.curr AS LONG AS the the definition level DOES NOT equal c.definitionLevel. in this case the value is a NULL and we can skip it
-				r := c.currPage.RepetitionLevels()[c.currPageN]
-				d := c.currPage.DefinitionLevels()[c.currPageN]
+				r = c.currPage.RepetitionLevels()[c.currPageN]
+				d = c.currPage.DefinitionLevels()[c.currPageN]
 				if d != c.defLvl {
 					// this is a null!
 					c.curr.Next(int(r), int(d))
