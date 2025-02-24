@@ -1,7 +1,6 @@
 package traceql
 
 import (
-	"math"
 	"testing"
 	"time"
 
@@ -180,17 +179,17 @@ func makeTimeSeries(values ...float64) *tempopb.TimeSeries {
 	}
 }
 
-var float64NaN = math.NaN()
-
-func makeTimeSeriesWithNaN(values ...float64) *tempopb.TimeSeries {
-	samples := make([]tempopb.Sample, len(values))
-	for i, v := range values {
-		samples[i] = tempopb.Sample{
-			TimestampMs: time.Now().UnixMilli(),
-			Value:       v,
-		}
-	}
-	return &tempopb.TimeSeries{
-		Samples: samples,
-	}
-}
+// var float64NaN = math.NaN()
+//
+// func makeTimeSeriesWithNaN(values ...float64) *tempopb.TimeSeries {
+// 	samples := make([]tempopb.Sample, len(values))
+// 	for i, v := range values {
+// 		samples[i] = tempopb.Sample{
+// 			TimestampMs: time.Now().UnixMilli(),
+// 			Value:       v,
+// 		}
+// 	}
+// 	return &tempopb.TimeSeries{
+// 		Samples: samples,
+// 	}
+// }
