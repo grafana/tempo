@@ -154,16 +154,18 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 		}
 	}()
 
-	g.subservices, err = services.NewManager(g.ringLifecycler)
-	if err != nil {
-		return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
-	}
-	g.subservicesWatcher = services.NewFailureWatcher()
-	g.subservicesWatcher.WatchManager(g.subservices)
+	if g.cfg.shouldJoinRing() {
+		g.subservices, err = services.NewManager(g.ringLifecycler)
+		if err != nil {
+			return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
+		}
+		g.subservicesWatcher = services.NewFailureWatcher()
+		g.subservicesWatcher.WatchManager(g.subservices)
 
-	err = services.StartManagerAndAwaitHealthy(ctx, g.subservices)
-	if err != nil {
-		return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
+		err = services.StartManagerAndAwaitHealthy(ctx, g.subservices)
+		if err != nil {
+			return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
+		}
 	}
 
 	if g.cfg.Ingest.Enabled {
