@@ -28,6 +28,10 @@ func (r RootExpr) validate() error {
 		return r.MetricsPipeline.validate()
 	}
 
+	if r.MetricsSecondStage != nil {
+		return r.MetricsSecondStage.validate()
+	}
+
 	return nil
 }
 
