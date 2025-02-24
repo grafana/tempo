@@ -152,7 +152,8 @@ func queryAll(t *testing.T, i *instance, ids [][]byte, traces []*tempopb.Trace) 
 	for j, id := range ids {
 		trace, err := i.FindTraceByID(context.Background(), id, false)
 		require.NoError(t, err)
-		require.Equal(t, traces[j], trace)
+		require.Equal(t, traces[j], trace.Trace)
+		require.Greater(t, trace.Metrics.InspectedBytes, uint64(10000))
 	}
 }
 
@@ -200,6 +201,9 @@ func TestInstanceDoesNotRace(t *testing.T) {
 	})
 
 	go concurrent(func() {
+		if i == nil {
+			require.FailNow(t, "instance is nil")
+		}
 		_, err := i.FindTraceByID(context.Background(), []byte{0x01}, false)
 		require.NoError(t, err, "error finding trace by id")
 	})
@@ -646,15 +650,20 @@ func TestInstancePartialSuccess(t *testing.T) {
 	result, err := i.FindTraceByID(ctx, ids[0], false)
 	require.NoError(t, err, "error finding trace by id")
 	require.NotNil(t, result)
-	require.Equal(t, 1, len(result.ResourceSpans))
+	require.Equal(t, 1, len(result.Trace.ResourceSpans))
 
 	result, err = i.FindTraceByID(ctx, ids[3], false)
 	require.NoError(t, err, "error finding trace by id")
 	require.NotNil(t, result)
-	require.Equal(t, 1, len(result.ResourceSpans))
+	require.Equal(t, 1, len(result.Trace.ResourceSpans))
 
 	// check that the three traces that had errors did not actually make it
-	var expected *tempopb.Trace
+	expected := &tempopb.TraceByIDResponse{
+		Trace: nil,
+		Metrics: &tempopb.TraceByIDMetrics{
+			InspectedBytes: 0,
+		},
+	}
 	result, err = i.FindTraceByID(ctx, ids[1], false)
 	require.NoError(t, err, "error finding trace by id")
 	require.Equal(t, expected, result)

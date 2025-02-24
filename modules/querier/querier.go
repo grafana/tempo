@@ -214,6 +214,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	maxBytes := q.limits.MaxBytesPerTrace(userID)
 	combiner := trace.NewCombiner(maxBytes, req.AllowPartialTrace)
+	mc := collector.NewMetricsCollector()
 
 	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
 		var getRSFn replicationSetFn
@@ -243,6 +244,9 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 				spanCountTotal.Add(int64(spanCount))
 				traceCountTotal.Inc()
 				found.Store(true)
+				if resp.Metrics != nil {
+					mc.Add(resp.Metrics.InspectedBytes)
+				}
 			}
 			return nil
 		}
@@ -279,9 +283,15 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			attribute.Int("foundPartialTraces", len(partialTraces))))
 
 		for _, partialTrace := range partialTraces {
-			_, err = combiner.Consume(partialTrace)
+			if partialTrace == nil {
+				continue
+			}
+			_, err = combiner.Consume(partialTrace.Trace)
 			if err != nil {
 				return nil, err
+			}
+			if partialTrace.Metrics != nil {
+				mc.Add(partialTrace.Metrics.InspectedBytes)
 			}
 		}
 	}
@@ -289,7 +299,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	completeTrace, _ := combiner.Result()
 	resp := &tempopb.TraceByIDResponse{
 		Trace:   completeTrace,
-		Metrics: &tempopb.TraceByIDMetrics{},
+		Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: mc.TotalValue()},
 	}
 
 	if combiner.IsPartialTrace() {
