@@ -70,11 +70,11 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsC
 		specialAttrIdxs := map[int]string{}
 
 		// standard attributes
-		resourceKeyIdx, _ := pq.GetColumnIndexByPath(pf, standardKeyPath)
+		resourceKeyIdx, _, _ := pq.GetColumnIndexByPath(pf, standardKeyPath)
 
 		// special attributes
 		for lbl, col := range specialMappings {
-			idx, _ := pq.GetColumnIndexByPath(pf, col)
+			idx, _, _ := pq.GetColumnIndexByPath(pf, col)
 			if idx == -1 {
 				continue
 			}
@@ -84,7 +84,7 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsC
 
 		// dedicated attributes
 		columnMapping.forEach(func(lbl string, c dedicatedColumn) {
-			idx, _ := pq.GetColumnIndexByPath(pf, c.ColumnPath)
+			idx, _, _ := pq.GetColumnIndexByPath(pf, c.ColumnPath)
 			if idx == -1 {
 				return
 			}

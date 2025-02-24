@@ -56,6 +56,10 @@ func (r *optionalPageValues) ReadValues(values []Value) (n int, err error) {
 	return n, err
 }
 
+func (r *optionalPageValues) ReadNestedValues(values []Value) (n int, err error) {
+	return r.values.ReadValues(values)
+}
+
 type repeatedPageValues struct {
 	page   *repeatedPage
 	values ValueReader
@@ -112,6 +116,10 @@ func (r *repeatedPageValues) ReadValues(values []Value) (n int, err error) {
 		err = io.EOF
 	}
 	return n, err
+}
+
+func (r *repeatedPageValues) ReadNestedValues(values []Value) (n int, err error) {
+	return r.values.ReadValues(values)
 }
 
 type booleanPageValues struct {

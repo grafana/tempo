@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
+	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -1044,6 +1045,83 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 				require.NotNil(b, r)
 			}
 		})
+	}
+}
+
+// BenchmarkIterators is a convenient method to run benchmarks on various iterator constructions directly when working on optimizations.
+// Replace the iterator at the beginning of the benchmark loop with any combination desired.
+func BenchmarkIterators(b *testing.B) {
+	ctx := context.TODO()
+	tenantID := "1"
+	blockID := uuid.MustParse("030c8c4f-9d47-4916-aadc-26b90b1d2bc4")
+
+	r, _, _, err := local.New(&local.Config{
+		Path: path.Join("/Users/joe/testblock"),
+	})
+	require.NoError(b, err)
+
+	rr := backend.NewReader(r)
+	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
+	require.NoError(b, err)
+
+	opts := common.DefaultSearchOptions()
+	opts.StartPage = 3
+	opts.TotalPages = 2
+
+	block := newBackendBlock(meta, rr)
+	pf, _, err := block.openForSearch(ctx, opts)
+	require.NoError(b, err)
+
+	rgs := pf.RowGroups()
+	rgs = rgs[3:5]
+
+	var instrPred *parquetquery.InstrumentedPredicate
+	makeIterInternal := makeIterFunc(ctx, rgs, pf)
+	makeIter := func(columnName string, predicate pq.Predicate, selectAs string) pq.Iterator {
+		instrPred = &parquetquery.InstrumentedPredicate{
+			Pred: predicate,
+		}
+
+		return makeIterInternal(columnName, predicate, selectAs)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err := error(nil)
+
+		iter := makeIter(columnPathSpanAttrKey, parquetquery.NewSubstringPredicate("e"), "foo")
+
+		//parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpanAttrs, []parquetquery.Iterator{
+		// makeIter(columnPathSpanHTTPStatusCode, parquetquery.NewIntEqualPredicate(500), "http_status"),
+		// makeIter(columnPathSpanName, parquetquery.NewStringEqualPredicate([]byte("foo")), "name"),
+		// makeIter(columnPathSpanStatusCode, parquetquery.NewIntEqualPredicate(2), "status"),
+		// makeIter(columnPathSpanAttrDouble, parquetquery.NewFloatEqualPredicate(500), "double"),
+		//makeIter(columnPathSpanAttrInt, parquetquery.NewIntEqualPredicate(500), "int"),
+		//}, nil)
+		require.NoError(b, err)
+		// fmt.Println(iter.String())
+
+		count := 0
+		for {
+			res, err := iter.Next()
+			if err != nil {
+				panic(err)
+			}
+			if res == nil {
+				break
+			}
+			count++
+		}
+		iter.Close()
+		if instrPred != nil {
+			b.ReportMetric(float64(count), "count")
+			b.ReportMetric(float64(instrPred.InspectedColumnChunks), "stats_cc")
+			b.ReportMetric(float64(instrPred.KeptColumnChunks), "stats_cc_kept")
+			b.ReportMetric(float64(instrPred.InspectedPages), "stats_ip")
+			b.ReportMetric(float64(instrPred.KeptPages), "stats_ip_kept")
+			b.ReportMetric(float64(instrPred.InspectedValues), "stats_v")
+			b.ReportMetric(float64(instrPred.KeptValues), "stats_v_kept")
+		}
 	}
 }
 

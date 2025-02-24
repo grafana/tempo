@@ -22,7 +22,7 @@ var iterTestCases = []struct {
 		return NewColumnIterator(context.TODO(), pf.RowGroups(), idx, selectAs, 1000, filter, selectAs)
 	}},
 	{"sync", func(pf *parquet.File, idx int, filter Predicate, selectAs string) Iterator {
-		return NewSyncIterator(context.TODO(), pf.RowGroups(), idx, selectAs, 1000, filter, selectAs)
+		return NewSyncIterator(context.TODO(), pf.RowGroups(), idx, selectAs, 1000, filter, selectAs, 0) // jpe - fix test?
 	}},
 }
 
@@ -158,7 +158,7 @@ func testColumnIterator(t *testing.T, makeIter makeTestIterFn) {
 	count := 100_000
 	pf := createTestFile(t, count)
 
-	idx, _ := GetColumnIndexByPath(pf, "A")
+	idx, _, _ := GetColumnIndexByPath(pf, "A")
 	iter := makeIter(pf, idx, nil, "A")
 	defer iter.Close()
 
@@ -187,7 +187,7 @@ func testColumnIteratorSeek(t *testing.T, makeIter makeTestIterFn) {
 	count := 10_000
 	pf := createTestFile(t, count)
 
-	idx, _ := GetColumnIndexByPath(pf, "A")
+	idx, _, _ := GetColumnIndexByPath(pf, "A")
 	iter := makeIter(pf, idx, nil, "A")
 	defer iter.Close()
 
@@ -224,7 +224,7 @@ func testColumnIteratorPredicate(t *testing.T, makeIter makeTestIterFn) {
 
 	pred := NewIntBetweenPredicate(7001, 7003)
 
-	idx, _ := GetColumnIndexByPath(pf, "A")
+	idx, _, _ := GetColumnIndexByPath(pf, "A")
 	iter := makeIter(pf, idx, pred, "A")
 	defer iter.Close()
 
@@ -253,7 +253,7 @@ func TestColumnIteratorExitEarly(t *testing.T) {
 	}
 
 	pf := createFileWith(t, rows)
-	idx, _ := GetColumnIndexByPath(pf, "A")
+	idx, _, _ := GetColumnIndexByPath(pf, "A")
 	readSize := 1000
 
 	readIter := func(iter Iterator) (int, error) {
@@ -335,7 +335,7 @@ func benchmarkColumnIterator(b *testing.B, makeIter makeTestIterFn) {
 	count := 100_000
 	pf := createTestFile(b, count)
 
-	idx, _ := GetColumnIndexByPath(pf, "A")
+	idx, _, _ := GetColumnIndexByPath(pf, "A")
 
 	b.ResetTimer()
 

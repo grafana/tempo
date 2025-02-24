@@ -249,7 +249,7 @@ func (w *walBlockFlush) rowIterator() (*rowIterator, error) {
 
 	pf := file.parquetFile
 
-	idx, _ := parquetquery.GetColumnIndexByPath(pf, TraceIDColumnName)
+	idx, _, _ := parquetquery.GetColumnIndexByPath(pf, TraceIDColumnName)
 	r := parquet.NewReader(pf)
 	return newRowIterator(r, file, w.ids.EntriesSortedByID(), idx), nil
 }

@@ -69,14 +69,14 @@ func searchTags(_ context.Context, scope traceql.AttributeScope, cb common.TagsC
 		specialAttrIdxs := map[int]string{}
 
 		// standard resource attributes
-		resourceKeyIdx, _ := pq.GetColumnIndexByPath(pf, standardKeyPath)
+		resourceKeyIdx, _, _ := pq.GetColumnIndexByPath(pf, standardKeyPath)
 		if resourceKeyIdx == -1 {
 			return fmt.Errorf("resource attributes col not found (%d)", resourceKeyIdx)
 		}
 
 		// special resource attributes
 		for lbl, col := range specialMappings {
-			idx, _ := pq.GetColumnIndexByPath(pf, col)
+			idx, _, _ := pq.GetColumnIndexByPath(pf, col)
 			if idx == -1 {
 				continue
 			}

@@ -237,7 +237,7 @@ func testPredicate(t *testing.T, tc predicateTestCase) {
 	r, err := parquet.OpenFile(file, int64(buf.Len()))
 	require.NoError(t, err)
 
-	p := InstrumentedPredicate{pred: tc.predicate}
+	p := InstrumentedPredicate{Pred: tc.predicate}
 
 	i := NewColumnIterator(context.TODO(), r.RowGroups(), 0, "test", 100, &p, "")
 	for {
