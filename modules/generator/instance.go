@@ -256,13 +256,12 @@ func (i *instance) updateProcessors() error {
 // filterDisabledProcessors removes processors that should never be instantiated
 // according to the generator's configuration from the given set of processors.
 func (i *instance) filterDisabledProcessors(processors map[string]struct{}) map[string]struct{} {
-	// If we're joining the ring and serving queries we need all processors
-	// instantiated.
-	if i.cfg.JoinRing {
+	// If no processors are disabled, do not apply any filtering.
+	if !i.cfg.DisableLocalBlocks {
 		return processors
 	}
 
-	// Otherwise, we need to not instantiate the localblocks processor.
+	// Otherwise, do not instantiate the localblocks processor.
 	filteredProcessors := maps.Clone(processors)
 	delete(filteredProcessors, localblocks.Name)
 

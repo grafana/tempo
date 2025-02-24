@@ -27,13 +27,13 @@ const (
 
 	ConsumerGroup = "metrics-generator"
 
-	// codecTempo refers to the codec used for decoding tempopb.PushBytesRequest
-	codecTempo = "tempo"
+	// codecPushBytes refers to the codec used for decoding tempopb.PushBytesRequest
+	codecPushBytes = "push-bytes"
 	// codecOTLP refers to the codec used for decoding ptrace.Traces
 	codecOTLP = "otlp"
 )
 
-var validCodecs = []string{codecTempo, codecOTLP}
+var validCodecs = []string{codecPushBytes, codecOTLP}
 
 // Config for a generator.
 type Config struct {
@@ -49,12 +49,13 @@ type Config struct {
 	QueryTimeout          time.Duration `yaml:"query_timeout"`
 	OverrideRingKey       string        `yaml:"override_ring_key"`
 
-	// JoinRing controls whether to join the metrics-generator ring and become
-	// available to serve requests.
-	JoinRing bool `yaml:"join_ring"`
-	// Codec controls which decoder to use for data consumed from Kafka-compatible
-	// storage.
-	Codec string
+	// Codec controls which decoder to use for data consumed from Kafka.
+	Codec string `yaml:"codec"`
+	// DisableLocalBlocks controls whether the local blocks processor should be run.
+	// When this flag is enabled, the processor is never instantiated.
+	DisableLocalBlocks bool `yaml:"disable_local_blocks"`
+	// DisableGRPC controls whether to run a gRPC server with the metrics generator endpoints.
+	DisableGRPC bool `yaml:"disable_grpc"`
 
 	// This config is dynamically injected because defined outside the generator config.
 	Ingest            ingest.Config `yaml:"-"`
@@ -79,9 +80,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.MetricsIngestionSlack = 30 * time.Second
 	cfg.QueryTimeout = 30 * time.Second
 	cfg.OverrideRingKey = generatorRingKey
-
-	cfg.JoinRing = true
-	cfg.Codec = codecTempo
+	cfg.Codec = codecPushBytes
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -121,6 +120,12 @@ func (cfg *Config) Validate() error {
 	}
 
 	return nil
+}
+
+func (cfg *Config) shouldJoinRing() bool {
+	// If both gRPC and the localblocks processor are disabled, generators don't need
+	// to join the ring.
+	return !(cfg.DisableLocalBlocks && cfg.DisableGRPC)
 }
 
 type ProcessorConfig struct {
