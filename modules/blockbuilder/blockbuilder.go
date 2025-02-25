@@ -249,11 +249,11 @@ func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 	// Iterate over the laggiest partition until the lag is less than the cycle duration or none of the partitions has records
 	for {
 		// The laggiest partition is always at index 0 after initial sort, or after we update and re-sort
-		laggiestPartition := ps[0]
-		if len(ps) == 0 || laggiestPartition.lastRecordTs.IsZero() {
+		if len(ps) == 0 || ps[0].lastRecordTs.IsZero() {
 			return b.cfg.ConsumeCycleDuration, nil
 		}
 
+		laggiestPartition := ps[0]
 		lagTime := time.Since(laggiestPartition.lastRecordTs)
 		if lagTime < b.cfg.ConsumeCycleDuration {
 			return b.cfg.ConsumeCycleDuration - lagTime, nil
