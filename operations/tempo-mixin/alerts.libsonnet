@@ -155,7 +155,7 @@
           {
             alert: 'TempoBlockListRisingQuickly',
             expr: |||
-              avg(tempodb_blocklist_length{namespace="%(namespace)s"}) / avg(tempodb_blocklist_length{namespace="%(namespace)s", job=~"$namespace/$component"} offset 7d) > 1.4
+              avg(tempodb_blocklist_length{namespace=~"%(namespace)s", container="compactor"}) / avg(tempodb_blocklist_length{namespace=~"%(namespace)s", container="compactor"} offset 7d) > 1.4
             ||| % { namespace: $._config.namespace },
             'for': '15m',
             labels: {
