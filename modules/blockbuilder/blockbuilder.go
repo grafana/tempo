@@ -270,9 +270,8 @@ func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 
 		// Re-sort only if needed - find the correct position for the updated partition
 		// This is more efficient than sorting the entire slice again
-		for i := 0; i < len(ps)-1 && ps[i].lastRecordTs.After(ps[i+1].lastRecordTs); {
+		for i := 0; i < len(ps)-1 && ps[i].lastRecordTs.After(ps[i+1].lastRecordTs); i++ {
 			ps[i], ps[i+1] = ps[i+1], ps[i]
-			i++
 		}
 	}
 }
