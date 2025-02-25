@@ -248,7 +248,7 @@ func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 
 	// Iterate over the laggiest partition until the lag is less than the cycle duration or none of the partitions has records
 	for {
-		// The laggiest partition is always at index 0 after initial sort or after we update and re-sort
+		// The laggiest partition is always at index 0 after initial sort, or after we update and re-sort
 		laggiestPartition := ps[0]
 		if len(ps) == 0 || laggiestPartition.lastRecordTs.IsZero() {
 			return b.cfg.ConsumeCycleDuration, nil
@@ -269,7 +269,6 @@ func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 		ps[0].commitOffset = commitOffset
 
 		// Re-sort only if needed - find the correct position for the updated partition
-		// This is more efficient than sorting the entire slice again
 		for i := 0; i < len(ps)-1 && ps[i].lastRecordTs.After(ps[i+1].lastRecordTs); i++ {
 			ps[i], ps[i+1] = ps[i+1], ps[i]
 		}
