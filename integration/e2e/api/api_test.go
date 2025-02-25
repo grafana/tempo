@@ -24,8 +24,8 @@ import (
 
 const (
 	configAllInOneLocal = "../deployments/config-all-in-one-local.yaml"
-	spanX     = "span.x"
-	resourceX = "resource.xx"
+	spanX               = "span.x"
+	resourceX           = "resource.xx"
 )
 
 func TestSearchTagsV2(t *testing.T) {

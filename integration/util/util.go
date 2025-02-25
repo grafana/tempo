@@ -44,10 +44,10 @@ import (
 )
 
 const (
-	image       = "tempo:latest"
-	debugImage  = "tempo-debug:latest"
-	queryImage  = "tempo-query:latest"
-	jaegerImage = "jaegertracing/jaeger-query:1.64.0"
+	image           = "tempo:latest"
+	debugImage      = "tempo-debug:latest"
+	queryImage      = "tempo-query:latest"
+	jaegerImage     = "jaegertracing/jaeger-query:1.64.0"
 	prometheusImage = "prom/prometheus:latest"
 )
 
