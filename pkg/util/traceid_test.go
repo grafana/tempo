@@ -285,7 +285,7 @@ func TestPadTraceIDTo16Bytes(t *testing.T) {
 	}
 }
 
-func TestHexStringToSpanID(t *testing.T) {
+func TestHexStringToNonTraceID(t *testing.T) {
 	tc := []struct {
 		id          string
 		expected    []byte
@@ -307,7 +307,7 @@ func TestHexStringToSpanID(t *testing.T) {
 
 	for _, tt := range tc {
 		t.Run(tt.id, func(t *testing.T) {
-			actual, err := HexStringToSpanID(tt.id)
+			actual, err := HexStringToNonTraceID(tt.id)
 
 			if tt.expectError != nil {
 				assert.Equal(t, tt.expectError, err)
