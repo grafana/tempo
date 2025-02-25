@@ -85,6 +85,16 @@ If this occurs access the [ring page](https://grafana.com/docs/tempo/latest/oper
 Use the "Forget" button to drop any unhealthy distributors. An unhealthy distributor or two has virtually no impact except to slightly
 increase the amount of memberlist traffic propagated by the cluster.
 
+## TempoIngesterUnhealthy
+
+If this occurs access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/ingester/ring`.
+Use the "Forget" button to drop any unhealthy ingesters.
+
+## TempoMetricsGeneratorUnhealthy
+
+If this occurs access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/metrics-generator/ring`.
+Use the "Forget" button to drop any unhealthy metrics-generators.
+
 ## TempoCompactionsFailing
 
 Check to determine the cause for the failures.  Intermittent failures require no immediate action, because the compactors will
