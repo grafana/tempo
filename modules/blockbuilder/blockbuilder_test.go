@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kerr"
@@ -97,6 +98,26 @@ func TestBlockbuilder_without_partitions_assigned_returns_an_error(t *testing.T)
 	require.NoError(t, err)
 	_, err = b.consume(ctx)
 	require.ErrorContains(t, err, "No partitions assigned")
+}
+
+func TestBlockbuilder_getAssignedPartitions(t *testing.T) {
+	ctx := context.Background()
+
+	store := newStore(ctx, t)
+	cfg := blockbuilderConfig(t, "localhost", []int32{0, 2, 4})
+	partitionRing := newPartitionRingReaderWithPartitions(map[int32]ring.PartitionDesc{
+		0: {Id: 0, State: ring.PartitionActive},
+		1: {Id: 1, State: ring.PartitionActive},
+		2: {Id: 2, State: ring.PartitionInactive},
+		3: {Id: 3, State: ring.PartitionActive},
+		4: {Id: 4, State: ring.PartitionPending},
+		5: {Id: 5, State: ring.PartitionDeleted},
+	})
+
+	b, err := New(cfg, test.NewTestingLogger(t), partitionRing, &mockOverrides{}, store)
+	require.NoError(t, err)
+	partitions := b.getAssignedPartitions()
+	assert.Equal(t, []int32{0, 2}, partitions)
 }
 
 // Starting with a pre-existing commit,
@@ -417,6 +438,14 @@ func newPartitionRingReader() *mockPartitionRingReader {
 			Partitions: map[int32]ring.PartitionDesc{
 				0: {State: ring.PartitionActive},
 			},
+		}),
+	}
+}
+
+func newPartitionRingReaderWithPartitions(partitions map[int32]ring.PartitionDesc) *mockPartitionRingReader {
+	return &mockPartitionRingReader{
+		r: ring.NewPartitionRing(ring.PartitionRingDesc{
+			Partitions: partitions,
 		}),
 	}
 }
