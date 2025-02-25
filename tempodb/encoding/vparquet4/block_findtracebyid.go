@@ -146,7 +146,7 @@ func (b *backendBlock) FindTraceByID(ctx context.Context, traceID common.ID, opt
 
 func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMeta, pf *parquet.File, rowGroup int) (*tempopb.Trace, error) {
 	// traceID column index
-	colIndex, _, _ := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
+	colIndex, _, maxDef := pq.GetColumnIndexByPath(pf, TraceIDColumnName)
 	if colIndex == -1 {
 		return nil, fmt.Errorf("unable to get index for column: %s", TraceIDColumnName)
 	}
@@ -237,7 +237,7 @@ func findTraceByID(ctx context.Context, traceID common.ID, meta *backend.BlockMe
 	}
 
 	// Now iterate the matching row group
-	iter := parquetquery.NewColumnIterator(ctx, pf.RowGroups()[rowGroup:rowGroup+1], colIndex, "", 1000, parquetquery.NewStringInPredicate([]string{string(traceID)}), "")
+	iter := parquetquery.NewColumnIterator(ctx, pf.RowGroups()[rowGroup:rowGroup+1], colIndex, "", 1000, parquetquery.NewStringInPredicate([]string{string(traceID)}), "", maxDef)
 	defer iter.Close()
 
 	res, err := iter.Next()
