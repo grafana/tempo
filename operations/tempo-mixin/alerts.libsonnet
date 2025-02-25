@@ -49,6 +49,34 @@
             },
           },
           {
+            alert: 'TempoIngesterUnhealthy',
+            'for': '15m',
+            expr: |||
+              max by (%s) (tempo_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
+            ||| % [$._config.group_by_cluster, $._config.jobs.ingester, $._config.namespace],
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'There are {{ printf "%f" $value }} unhealthy ingester(s).',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoIngesterUnhealthy',
+            },
+          },
+          {
+            alert: 'TempoMetricsGeneratorUnhealthy',
+            'for': '15m',
+            expr: |||
+              max by (%s) (tempo_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
+            ||| % [$._config.group_by_cluster, $._config.jobs.metrics_generator, $._config.namespace],
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              message: 'There are {{ printf "%f" $value }} unhealthy metric-generator(s).',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoMetricsGeneratorUnhealthy',
+            },
+          },
+          {
             alert: 'TempoCompactionsFailing',
             'for': '1h',
             expr: |||
