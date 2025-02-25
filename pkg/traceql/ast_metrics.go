@@ -1,10 +1,8 @@
 package traceql
 
 import (
-	"cmp"
 	"fmt"
 	"math"
-	"slices"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -378,65 +376,11 @@ func (m *MetricsSecondStage) result() []*tempopb.TimeSeries {
 		return nil
 	}
 
-	// Create a slice of indices to sort instead of sorting the series directly
-	indices := make([]int, len(m.input))
-	for i := range indices {
-		indices[i] = i
+	// TODO: correctly implement topk/bottomk, right now it's just returning the first n elements
+	if len(m.input) > m.limit {
+		return m.input[:m.limit]
 	}
-
-	// Sort indices based on series values
-	slices.SortStableFunc(indices, func(i, j int) int {
-		aVal := getAvgValue(m.input[i])
-		bVal := getAvgValue(m.input[j])
-
-		if m.op == OpTopK {
-			if math.IsNaN(aVal) && math.IsNaN(bVal) {
-				return 0
-			}
-			if math.IsNaN(aVal) {
-				return 1
-			}
-			if math.IsNaN(bVal) {
-				return -1
-			}
-			return -cmp.Compare(aVal, bVal)
-		}
-
-		if math.IsNaN(aVal) && math.IsNaN(bVal) {
-			return 0
-		}
-		if math.IsNaN(aVal) {
-			return 1
-		}
-		if math.IsNaN(bVal) {
-			return -1
-		}
-		return cmp.Compare(aVal, bVal)
-	})
-
-	// Create result using sorted indices
-	k := min(m.limit, len(m.input))
-	result := make([]*tempopb.TimeSeries, k)
-	for i := 0; i < k; i++ {
-		result[i] = m.input[indices[i]]
-	}
-	return result
-}
-
-// Helper function
-func getAvgValue(series *tempopb.TimeSeries) float64 {
-	var sum float64
-	count := 0
-	for _, s := range series.Samples {
-		if !math.IsNaN(s.Value) {
-			sum += s.Value
-			count++
-		}
-	}
-	if count == 0 {
-		return math.NaN() // Return NaN if all values are NaN
-	}
-	return sum / float64(count)
+	return m.input
 }
 
 var _ metricsSecondStageElement = (*MetricsSecondStage)(nil)
