@@ -1,5 +1,6 @@
 ## main / unreleased
 
+* [CHANGE] **BREAKING CHANGE** Convert SLO metric `query_frontend_bytes_processed_per_second` from a histogram to a counter as it's more performant. [#4748](https://github.com/grafana/tempo/pull/4748) (@carles-grafana)
 * [CHANGE] **BREAKING CHANGE** Remove tempo serverless [#4599](https://github.com/grafana/tempo/pull/4599/) @electron0zero
   Following config options are no longer valid, please remove them if you are using these in your tempo config:
   ```
