@@ -157,6 +157,8 @@ func (s *tenantStore) Flush(ctx context.Context, store tempodb.Writer) error {
 	return nil
 }
 
+// Adjust the time range based on when the record was added to the partition, factoring in slack and cycle duration.
+// Any span with a start or end time outside this range will be constrained to the valid limits.
 func (s *tenantStore) adjustTimeRangeForSlack(start, end time.Time) (time.Time, time.Time) {
 	startOfRange := s.startTime.Add(-s.slackDuration)
 	endOfRange := s.startTime.Add(s.slackDuration + s.cycleDuration)
@@ -164,11 +166,23 @@ func (s *tenantStore) adjustTimeRangeForSlack(start, end time.Time) (time.Time, 
 	warn := false
 	if start.Before(startOfRange) {
 		warn = true
-		start = s.startTime
+		start = startOfRange
 	}
-	if end.After(endOfRange) || end.Before(start) {
+	// clock skew, missconfiguration or simply data tampering
+	if start.After(endOfRange) {
 		warn = true
-		end = s.startTime
+		start = endOfRange
+	}
+	// this can happen with old spans added to Tempo
+	// setting it to start to not jump forward unexpectedly
+	if end.Before(start) {
+		warn = true
+		end = start
+	}
+
+	if end.After(endOfRange) {
+		warn = true
+		end = endOfRange
 	}
 
 	if warn {
