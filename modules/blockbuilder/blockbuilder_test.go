@@ -104,14 +104,15 @@ func TestBlockbuilder_getAssignedPartitions(t *testing.T) {
 	ctx := context.Background()
 
 	store := newStore(ctx, t)
-	cfg := blockbuilderConfig(t, "localhost", []int32{0, 2, 4})
+	cfg := blockbuilderConfig(t, "localhost", []int32{0, 2, 4, 6})
 	partitionRing := newPartitionRingReaderWithPartitions(map[int32]ring.PartitionDesc{
-		0: {Id: 0, State: ring.PartitionActive},
-		1: {Id: 1, State: ring.PartitionActive},
-		2: {Id: 2, State: ring.PartitionInactive},
-		3: {Id: 3, State: ring.PartitionActive},
-		4: {Id: 4, State: ring.PartitionPending},
-		5: {Id: 5, State: ring.PartitionDeleted},
+		0:  {Id: 0, State: ring.PartitionActive},
+		1:  {Id: 1, State: ring.PartitionActive},
+		2:  {Id: 2, State: ring.PartitionInactive},
+		3:  {Id: 3, State: ring.PartitionActive},
+		4:  {Id: 4, State: ring.PartitionPending},
+		5:  {Id: 5, State: ring.PartitionDeleted},
+		20: {Id: 20, State: ring.PartitionActive},
 	})
 
 	b, err := New(cfg, test.NewTestingLogger(t), partitionRing, &mockOverrides{}, store)
