@@ -3,7 +3,6 @@ package vparquet4
 import (
 	"context"
 	"math/rand"
-	"path"
 	"testing"
 	"time"
 
@@ -412,19 +411,7 @@ func BenchmarkBackendBlockSearchTraces(b *testing.B) {
 	}
 
 	ctx := context.TODO()
-	tenantID := "1"
-	blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
-
-	r, _, _, err := local.New(&local.Config{
-		Path: path.Join("/Users/marty/src/tmp/"),
-	})
-	require.NoError(b, err)
-
-	rr := backend.NewReader(r)
-	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
-	require.NoError(b, err)
-
-	block := newBackendBlock(meta, rr)
+	block := blockForBenchmarks(b)
 
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = 10

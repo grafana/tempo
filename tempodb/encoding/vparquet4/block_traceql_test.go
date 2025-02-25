@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -948,28 +947,13 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	}
 
 	ctx := context.TODO()
-	tenantID := "1"
-	// blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-	// blockID := uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
-	blockID := uuid.MustParse("030c8c4f-9d47-4916-aadc-26b90b1d2bc4")
-
-	r, _, _, err := local.New(&local.Config{
-		// Path: path.Join("/Users/marty/src/tmp"),
-		// Path: path.Join("/Users/mapno/workspace/testblock"),
-		Path: path.Join("/Users/joe/testblock"),
-	})
-	require.NoError(b, err)
-
-	rr := backend.NewReader(r)
-	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
-	require.NoError(b, err)
-
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = 3
 	opts.TotalPages = 2
 
-	block := newBackendBlock(meta, rr)
-	_, _, err = block.openForSearch(ctx, opts)
+	block := blockForBenchmarks(b)
+
+	_, _, err := block.openForSearch(ctx, opts)
 	require.NoError(b, err)
 
 	for _, tc := range testCases {
@@ -1007,27 +991,12 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 	}
 
 	ctx := context.TODO()
-	tenantID := "1"
-	// blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-	blockID := uuid.MustParse("257e3a56-224a-4ebe-9696-1b304f456ac2")
-
-	r, _, _, err := local.New(&local.Config{
-		// Path: path.Join("/Users/marty/src/tmp/"),
-		Path: path.Join("/Users/suraj/wd/grafana/testblock"),
-	})
-	require.NoError(b, err)
-
-	rr := backend.NewReader(r)
-	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
-	require.NoError(b, err)
-	require.Equal(b, VersionString, meta.Version)
-
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = 10
 	opts.TotalPages = 10
 
-	block := newBackendBlock(meta, rr)
-	_, _, err = block.openForSearch(ctx, opts)
+	block := blockForBenchmarks(b)
+	_, _, err := block.openForSearch(ctx, opts)
 	require.NoError(b, err)
 
 	for _, tc := range testCases {
@@ -1052,23 +1021,11 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 // Replace the iterator at the beginning of the benchmark loop with any combination desired.
 func BenchmarkIterators(b *testing.B) {
 	ctx := context.TODO()
-	tenantID := "1"
-	blockID := uuid.MustParse("030c8c4f-9d47-4916-aadc-26b90b1d2bc4")
-
-	r, _, _, err := local.New(&local.Config{
-		Path: path.Join("/Users/joe/testblock"),
-	})
-	require.NoError(b, err)
-
-	rr := backend.NewReader(r)
-	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
-	require.NoError(b, err)
-
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = 3
 	opts.TotalPages = 2
 
-	block := newBackendBlock(meta, rr)
+	block := blockForBenchmarks(b)
 	pf, _, err := block.openForSearch(ctx, opts)
 	require.NoError(b, err)
 
@@ -1135,32 +1092,13 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{status=error} | rate()",
 	}
 
-	var (
-		ctx      = context.TODO()
-		e        = traceql.NewEngine()
-		tenantID = "1"
-		// blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-		// blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
-		blockID = uuid.MustParse("257e3a56-224a-4ebe-9696-1b304f456ac2")
-		// path    = "/Users/marty/src/tmp/"
-		// path    = "/Users/mapno/workspace/testblock"
-		path = "/Users/suraj/wd/grafana/testblock"
-	)
-
-	r, _, _, err := local.New(&local.Config{
-		Path: path,
-	})
-	require.NoError(b, err)
-
-	rr := backend.NewReader(r)
-	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
-	require.NoError(b, err)
-	require.Equal(b, VersionString, meta.Version)
-
+	e := traceql.NewEngine()
+	ctx := context.TODO()
 	opts := common.DefaultSearchOptions()
 	opts.TotalPages = 10
-	block := newBackendBlock(meta, rr)
-	_, _, err = block.openForSearch(ctx, opts)
+
+	block := blockForBenchmarks(b)
+	_, _, err := block.openForSearch(ctx, opts)
 	require.NoError(b, err)
 
 	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
@@ -1171,10 +1109,10 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		b.Run(tc, func(b *testing.B) {
 			for _, minutes := range []int{5, 7} {
 				b.Run(strconv.Itoa(minutes), func(b *testing.B) {
-					st := meta.StartTime
+					st := block.meta.StartTime
 					end := st.Add(time.Duration(minutes) * time.Minute)
 
-					if end.After(meta.EndTime) {
+					if end.After(block.meta.EndTime) {
 						b.SkipNow()
 						return
 					}
@@ -1200,92 +1138,6 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 					b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
 					b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
 				})
-			}
-		})
-	}
-}
-
-// TestBackendBlockQueryRange is the `TestOne` of metric queries.
-// It's skipped because it depends on a local block, like benchmarks
-//
-// You also need to manually print the iterator in `backendBlock.Fetch`,
-// because there is no access to the iterator in the test. Sad.
-func TestBackendBlockQueryRange(t *testing.T) {
-	if os.Getenv("debug") != "1" {
-		t.Skip()
-	}
-
-	testCases := []string{
-		"{} | rate()",
-		"{} | rate() by (name)",
-		"{} | rate() by (resource.service.name)",
-		"{} | rate() by (span.http.url)", // High cardinality attribute
-		"{resource.service.name=`tempo-ingester`} | rate()",
-		"{status=unset} | rate()",
-	}
-
-	const (
-		tenantID  = "1"
-		queryHint = "with(exemplars=true)"
-	)
-
-	var (
-		ctx     = context.TODO()
-		e       = traceql.NewEngine()
-		opts    = common.DefaultSearchOptions()
-		blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
-		path    = path.Join("/Users/mapno/workspace/testblock")
-	)
-
-	r, _, _, err := local.New(&local.Config{
-		Path: path,
-	})
-	require.NoError(t, err)
-
-	rr := backend.NewReader(r)
-	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
-	require.NoError(t, err)
-	require.Equal(t, VersionString, meta.Version)
-
-	block := newBackendBlock(meta, rr)
-	opts.TotalPages = 10
-	_, _, err = block.openForSearch(ctx, opts)
-	require.NoError(t, err)
-
-	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		return block.Fetch(ctx, req, opts)
-	})
-
-	for _, tc := range testCases {
-		t.Run(tc, func(t *testing.T) {
-			st := meta.StartTime
-			end := st.Add(time.Duration(5) * time.Minute)
-
-			if end.After(meta.EndTime) {
-				t.SkipNow()
-				return
-			}
-
-			req := &tempopb.QueryRangeRequest{
-				Query: fmt.Sprintf("%s %s", tc, queryHint),
-				Step:  uint64(time.Minute),
-				Start: uint64(st.UnixNano()),
-				End:   uint64(end.UnixNano()),
-			}
-
-			eval, err := e.CompileMetricsQueryRange(req, 1, 0, false)
-			require.NoError(t, err)
-
-			require.NoError(t, eval.Do(ctx, f, uint64(block.meta.StartTime.UnixNano()), uint64(block.meta.EndTime.UnixNano())))
-
-			ss := eval.Results()
-			require.NotNil(t, ss)
-
-			for _, s := range ss {
-				if s.Exemplars != nil && len(s.Exemplars) > 0 {
-					fmt.Println("series", s.Labels)
-					fmt.Println("Exemplars", s.Exemplars)
-				}
 			}
 		})
 	}
@@ -2145,4 +1997,26 @@ func randomTree(N int) []traceql.Span {
 	generateNodes(1)
 
 	return nodes
+}
+
+func blockForBenchmarks(b *testing.B) *backendBlock {
+	id, _ := os.LookupEnv("BENCH_BLOCKID")
+	path, _ := os.LookupEnv("BENCH_PATH")
+	tenantID, ok := os.LookupEnv("BENCH_TENANTID")
+
+	if !ok {
+		tenantID = "1"
+	}
+
+	blockID := uuid.MustParse(id)
+	r, _, _, err := local.New(&local.Config{
+		Path: path,
+	})
+	require.NoError(b, err)
+
+	rr := backend.NewReader(r)
+	meta, err := rr.BlockMeta(context.Background(), blockID, tenantID)
+	require.NoError(b, err)
+
+	return newBackendBlock(meta, rr)
 }
