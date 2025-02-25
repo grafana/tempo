@@ -201,7 +201,6 @@ func (b *BlockBuilder) running(ctx context.Context) error {
 		waitTime, err := b.consume(ctx)
 		if err != nil {
 			level.Error(b.logger).Log("msg", "consumeCycle failed", "err", err)
-			waitTime = b.cfg.ConsumeCycleDuration
 		}
 		select {
 		case <-time.After(waitTime):
@@ -216,7 +215,7 @@ func (b *BlockBuilder) running(ctx context.Context) error {
 func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 	partitions := b.getAssignedPartitions()
 	if len(partitions) == 0 {
-		return 0, errors.New("No partitions assigned")
+		return b.cfg.ConsumeCycleDuration, errors.New("No partitions assigned")
 	}
 
 	level.Info(b.logger).Log("msg", "starting consume cycle", "active_partitions", formatActivePartitions(partitions))
@@ -486,7 +485,7 @@ func (b *BlockBuilder) getAssignedPartitions() []int32 {
 			ringAssignedPartitions[p.Id] = true
 		}
 	}
-	assignedActivePartitions := make([]int32, 0, len(ringAssignedPartitions))
+	assignedActivePartitions := make([]int32, 0, len(b.cfg.AssignedPartitions[b.cfg.InstanceID]))
 	for _, partition := range b.cfg.AssignedPartitions[b.cfg.InstanceID] {
 		if ringAssignedPartitions[partition] {
 			assignedActivePartitions = append(assignedActivePartitions, partition)
