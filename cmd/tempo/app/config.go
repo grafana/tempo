@@ -9,6 +9,7 @@ import (
 	"github.com/grafana/dskit/kv/memberlist"
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/tempo/modules/backendscheduler"
+	backendscheduler_client "github.com/grafana/tempo/modules/backendscheduler/client"
 	"github.com/grafana/tempo/modules/blockbuilder"
 	"github.com/grafana/tempo/modules/cache"
 	"github.com/grafana/tempo/modules/compactor"
@@ -40,24 +41,25 @@ type Config struct {
 	HTTPAPIPrefix          string        `yaml:"http_api_prefix"`
 	EnableGoRuntimeMetrics bool          `yaml:"enable_go_runtime_metrics,omitempty"`
 
-	Server           server.Config           `yaml:"server,omitempty"`
-	InternalServer   internalserver.Config   `yaml:"internal_server,omitempty"`
-	Distributor      distributor.Config      `yaml:"distributor,omitempty"`
-	IngesterClient   ingester_client.Config  `yaml:"ingester_client,omitempty"`
-	GeneratorClient  generator_client.Config `yaml:"metrics_generator_client,omitempty"`
-	Querier          querier.Config          `yaml:"querier,omitempty"`
-	Frontend         frontend.Config         `yaml:"query_frontend,omitempty"`
-	Compactor        compactor.Config        `yaml:"compactor,omitempty"`
-	Ingester         ingester.Config         `yaml:"ingester,omitempty"`
-	Generator        generator.Config        `yaml:"metrics_generator,omitempty"`
-	Ingest           ingest.Config           `yaml:"ingest,omitempty"`
-	BlockBuilder     blockbuilder.Config     `yaml:"block_builder,omitempty"`
-	StorageConfig    storage.Config          `yaml:"storage,omitempty"`
-	Overrides        overrides.Config        `yaml:"overrides,omitempty"`
-	MemberlistKV     memberlist.KVConfig     `yaml:"memberlist,omitempty"`
-	UsageReport      usagestats.Config       `yaml:"usage_report,omitempty"`
-	CacheProvider    cache.Config            `yaml:"cache,omitempty"`
-	BackendScheduler backendscheduler.Config `yaml:"backend_scheduler,omitempty"`
+	Server                server.Config                  `yaml:"server,omitempty"`
+	InternalServer        internalserver.Config          `yaml:"internal_server,omitempty"`
+	Distributor           distributor.Config             `yaml:"distributor,omitempty"`
+	IngesterClient        ingester_client.Config         `yaml:"ingester_client,omitempty"`
+	GeneratorClient       generator_client.Config        `yaml:"metrics_generator_client,omitempty"`
+	Querier               querier.Config                 `yaml:"querier,omitempty"`
+	Frontend              frontend.Config                `yaml:"query_frontend,omitempty"`
+	Compactor             compactor.Config               `yaml:"compactor,omitempty"`
+	Ingester              ingester.Config                `yaml:"ingester,omitempty"`
+	Generator             generator.Config               `yaml:"metrics_generator,omitempty"`
+	Ingest                ingest.Config                  `yaml:"ingest,omitempty"`
+	BlockBuilder          blockbuilder.Config            `yaml:"block_builder,omitempty"`
+	StorageConfig         storage.Config                 `yaml:"storage,omitempty"`
+	Overrides             overrides.Config               `yaml:"overrides,omitempty"`
+	MemberlistKV          memberlist.KVConfig            `yaml:"memberlist,omitempty"`
+	UsageReport           usagestats.Config              `yaml:"usage_report,omitempty"`
+	CacheProvider         cache.Config                   `yaml:"cache,omitempty"`
+	BackendScheduler      backendscheduler.Config        `yaml:"backend_scheduler,omitempty"`
+	BackenSchedulerClient backendscheduler_client.Config `yaml:"backend_scheduler_client,omitempty"`
 }
 
 func NewDefaultConfig() *Config {

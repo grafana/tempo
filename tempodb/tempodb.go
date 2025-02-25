@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/grafana/tempo/pkg/collector"
@@ -100,6 +101,8 @@ type Reader interface {
 
 type Compactor interface {
 	EnableCompaction(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) error
+	Compactions(ctx context.Context) []tempopb.JobDetail
+	Compact(ctx context.Context, metas []*backend.BlockMeta, tenant string) error
 }
 
 type CompactorSharder interface {
@@ -595,6 +598,72 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 	rw.pollBlocklist()
 
 	go rw.pollingLoop(ctx)
+}
+
+func (rw *readerWriter) Compactions(ctx context.Context) []tempopb.JobDetail {
+	var jobs []tempopb.JobDetail
+
+	tenants := rw.blocklist.Tenants()
+	if len(tenants) == 0 {
+		return jobs
+	}
+
+	sort.Slice(tenants, func(i, j int) bool { return tenants[i] < tenants[j] })
+	rw.compactorTenantOffset = (rw.compactorTenantOffset + 1) % uint(len(tenants))
+
+	for _, tenantID := range tenants {
+		if rw.compactorOverrides.CompactionDisabledForTenant(tenantID) {
+			continue
+		}
+
+		blocklist := rw.blocklist.Metas(tenantID)
+		window := rw.compactorOverrides.MaxCompactionRangeForTenant(tenantID)
+		if window == 0 {
+			window = rw.compactorCfg.MaxCompactionRange
+		}
+
+		// TODO: A new implementation of the blockSelector would be appropriate
+		// here.  Return a stripe of blocks matching eachother.  These can be
+		// broken into jobs by the caller.  Currently only 4 blocks are returned
+		// which leads to a single job per tenant.
+
+		blockSelector := newTimeWindowBlockSelector(blocklist,
+			window,
+			rw.compactorCfg.MaxCompactionObjects,
+			rw.compactorCfg.MaxBlockBytes,
+			defaultMinInputBlocks,
+			defaultMaxInputBlocks)
+
+		for {
+			if ctx.Err() != nil {
+				return jobs
+			}
+
+			toBeCompacted, _ := blockSelector.BlocksToCompact()
+			if len(toBeCompacted) == 0 {
+				measureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
+				break
+			}
+
+			input := make([]string, 0, len(toBeCompacted))
+			for _, b := range toBeCompacted {
+				input = append(input, b.BlockID.String())
+			}
+
+			compaction := &tempopb.CompactionDetail{
+				Input: input,
+			}
+
+			job := tempopb.JobDetail{
+				Tenant: tenantID,
+				Detail: &tempopb.JobDetail_Compaction{Compaction: compaction},
+			}
+
+			jobs = append(jobs, job)
+		}
+	}
+
+	return jobs
 }
 
 func (rw *readerWriter) pollingLoop(ctx context.Context) {
