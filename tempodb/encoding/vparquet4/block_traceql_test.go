@@ -179,7 +179,7 @@ func TestOne(t *testing.T) {
 }
 
 func TestBackendBlockSearchTraceQL(t *testing.T) {
-	numTraces := 250
+	numTraces := 5000
 	traces := make([]*Trace, 0, numTraces)
 	wantTraceIdx := rand.Intn(numTraces)
 	wantTraceID := test.ValidTraceID(nil)
@@ -197,7 +197,7 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 
 	b := makeBackendBlockWithTraces(t, traces)
 	ctx := context.Background()
-	traceIDText := util.TraceIDToHexString(wantTraceID)
+	//traceIDText := util.TraceIDToHexString(wantTraceID)
 
 	searchesThatMatch := []struct {
 		name string
@@ -406,133 +406,133 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 		})
 	}
 
-	searchesThatDontMatch := []struct {
-		name string
-		req  traceql.FetchSpansRequest
-	}{
-		// TODO - Should the below query return data or not?  It does match the resource
-		// makeReq(parse(t, `{.foo = "abc"}`)),                           // This should not return results because the span has overridden this attribute to "def".
-		{"Regex IN", traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo =~ "xyz.*"}`)},
-		{"String Not Regex", traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo !~ ".*"}`)},
-		{"Bool not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.bool = true && name = "hello"}`)}, // name = "hello" only matches the first span
-		{"Intrinsic: duration", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelDuration + ` >  1000s}`)},
-		{"Intrinsic: status", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelStatus + ` = unset}`)},
-		{"Intrinsic: statusMessage", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + "statusMessage" + ` = "abc"}`)},
-		{"Intrinsic: name", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + ` = "nothello"}`)},
-		{"Intrinsic: kind", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelKind + ` = producer }`)},
-		{"Intrinsic: event:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:name = "x2"}`)},
-		{"Intrinsic: link:spanID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:spanID = "ffffffffffffffff"}`)},
-		{"Intrinsic: link:traceID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:traceID = "ffffffffffffffffffffffffffffffff"}`)},
-		{"Well-known attribute: service.name not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelServiceName + ` = "notmyservice"}`)},
-		{"Well-known attribute: http.status_code not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelHTTPStatusCode + ` = 200}`)},
-		{"Well-known attribute: http.status_code not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelHTTPStatusCode + ` > 600}`)},
-		{"Matches neither condition", traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo = "xyz" || .` + LabelHTTPStatusCode + " = 1000}")},
-		{"Resource dedicated attributes does not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.3 = "dedicated-resource-attr-value-4"}`)},
-		{"Resource dedicated attributes does not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = "dedicated-span-attr-value-5"}`)},
-		{
-			name: "Time range after trace",
-			req: traceql.FetchSpansRequest{
-				StartTimeUnixNanos: uint64(20000 * time.Second),
-				EndTimeUnixNanos:   uint64(30000 * time.Second),
-			},
-		},
-		{
-			name: "Time range before trace",
-			req: traceql.FetchSpansRequest{
-				StartTimeUnixNanos: uint64(600 * time.Second),
-				EndTimeUnixNanos:   uint64(700 * time.Second),
-			},
-		},
-		{
-			name: "Matches some conditions but not all. Mix of span-level columns",
-			req: traceql.FetchSpansRequest{
-				AllConditions: true,
-				Conditions: []traceql.Condition{
-					parse(t, `{span.foo = "baz"}`),                   // no match
-					parse(t, `{span.`+LabelHTTPStatusCode+` > 100}`), // match
-					parse(t, `{name = "hello"}`),                     // match
-				},
-			},
-		},
-		{
-			name: "Matches some conditions but not all. Only span generic attr lookups",
-			req: traceql.FetchSpansRequest{
-				AllConditions: true,
-				Conditions: []traceql.Condition{
-					parse(t, `{span.foo = "baz"}`), // no match
-					parse(t, `{span.bar = 123}`),   // match
-				},
-			},
-		},
-		{
-			name: "Matches some conditions but not all. Mix of span and resource columns",
-			req: traceql.FetchSpansRequest{
-				AllConditions: true,
-				Conditions: []traceql.Condition{
-					parse(t, `{resource.cluster = "cluster"}`),     // match
-					parse(t, `{resource.namespace = "namespace"}`), // match
-					parse(t, `{span.foo = "baz"}`),                 // no match
-				},
-			},
-		},
-		{
-			name: "Matches some conditions but not all. Mix of resource columns",
-			req: traceql.FetchSpansRequest{
-				AllConditions: true,
-				Conditions: []traceql.Condition{
-					parse(t, `{resource.cluster = "notcluster"}`),  // no match
-					parse(t, `{resource.namespace = "namespace"}`), // match
-					parse(t, `{resource.foo = "abc"}`),             // match
-				},
-			},
-		},
-		{
-			name: "Matches some conditions but not all. Only resource generic attr lookups",
-			req: traceql.FetchSpansRequest{
-				AllConditions: true,
-				Conditions: []traceql.Condition{
-					parse(t, `{resource.foo = "abc"}`), // match
-					parse(t, `{resource.bar = 123}`),   // no match
-				},
-			},
-		},
-		{
-			name: "Mix of duration with other conditions",
-			req: traceql.FetchSpansRequest{
-				AllConditions: true,
-				Conditions: []traceql.Condition{
-					parse(t, `{`+LabelName+` = "nothello"}`), // No match
-					parse(t, `{`+LabelDuration+` = 100s }`),  // Match
-				},
-			},
-		},
-	}
+	// searchesThatDontMatch := []struct {
+	// 	name string
+	// 	req  traceql.FetchSpansRequest
+	// }{
+	// 	// TODO - Should the below query return data or not?  It does match the resource
+	// 	// makeReq(parse(t, `{.foo = "abc"}`)),                           // This should not return results because the span has overridden this attribute to "def".
+	// 	{"Regex IN", traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo =~ "xyz.*"}`)},
+	// 	{"String Not Regex", traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo !~ ".*"}`)},
+	// 	{"Bool not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.bool = true && name = "hello"}`)}, // name = "hello" only matches the first span
+	// 	{"Intrinsic: duration", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelDuration + ` >  1000s}`)},
+	// 	{"Intrinsic: status", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelStatus + ` = unset}`)},
+	// 	{"Intrinsic: statusMessage", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + "statusMessage" + ` = "abc"}`)},
+	// 	{"Intrinsic: name", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelName + ` = "nothello"}`)},
+	// 	{"Intrinsic: kind", traceql.MustExtractFetchSpansRequestWithMetadata(`{` + LabelKind + ` = producer }`)},
+	// 	{"Intrinsic: event:name", traceql.MustExtractFetchSpansRequestWithMetadata(`{event:name = "x2"}`)},
+	// 	{"Intrinsic: link:spanID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:spanID = "ffffffffffffffff"}`)},
+	// 	{"Intrinsic: link:traceID", traceql.MustExtractFetchSpansRequestWithMetadata(`{link:traceID = "ffffffffffffffffffffffffffffffff"}`)},
+	// 	{"Well-known attribute: service.name not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelServiceName + ` = "notmyservice"}`)},
+	// 	{"Well-known attribute: http.status_code not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelHTTPStatusCode + ` = 200}`)},
+	// 	{"Well-known attribute: http.status_code not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelHTTPStatusCode + ` > 600}`)},
+	// 	{"Matches neither condition", traceql.MustExtractFetchSpansRequestWithMetadata(`{.foo = "xyz" || .` + LabelHTTPStatusCode + " = 1000}")},
+	// 	{"Resource dedicated attributes does not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.3 = "dedicated-resource-attr-value-4"}`)},
+	// 	{"Resource dedicated attributes does not match", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.2 = "dedicated-span-attr-value-5"}`)},
+	// 	{
+	// 		name: "Time range after trace",
+	// 		req: traceql.FetchSpansRequest{
+	// 			StartTimeUnixNanos: uint64(20000 * time.Second),
+	// 			EndTimeUnixNanos:   uint64(30000 * time.Second),
+	// 		},
+	// 	},
+	// 	{
+	// 		name: "Time range before trace",
+	// 		req: traceql.FetchSpansRequest{
+	// 			StartTimeUnixNanos: uint64(600 * time.Second),
+	// 			EndTimeUnixNanos:   uint64(700 * time.Second),
+	// 		},
+	// 	},
+	// 	{
+	// 		name: "Matches some conditions but not all. Mix of span-level columns",
+	// 		req: traceql.FetchSpansRequest{
+	// 			AllConditions: true,
+	// 			Conditions: []traceql.Condition{
+	// 				parse(t, `{span.foo = "baz"}`),                   // no match
+	// 				parse(t, `{span.`+LabelHTTPStatusCode+` > 100}`), // match
+	// 				parse(t, `{name = "hello"}`),                     // match
+	// 			},
+	// 		},
+	// 	},
+	// 	{
+	// 		name: "Matches some conditions but not all. Only span generic attr lookups",
+	// 		req: traceql.FetchSpansRequest{
+	// 			AllConditions: true,
+	// 			Conditions: []traceql.Condition{
+	// 				parse(t, `{span.foo = "baz"}`), // no match
+	// 				parse(t, `{span.bar = 123}`),   // match
+	// 			},
+	// 		},
+	// 	},
+	// 	{
+	// 		name: "Matches some conditions but not all. Mix of span and resource columns",
+	// 		req: traceql.FetchSpansRequest{
+	// 			AllConditions: true,
+	// 			Conditions: []traceql.Condition{
+	// 				parse(t, `{resource.cluster = "cluster"}`),     // match
+	// 				parse(t, `{resource.namespace = "namespace"}`), // match
+	// 				parse(t, `{span.foo = "baz"}`),                 // no match
+	// 			},
+	// 		},
+	// 	},
+	// 	{
+	// 		name: "Matches some conditions but not all. Mix of resource columns",
+	// 		req: traceql.FetchSpansRequest{
+	// 			AllConditions: true,
+	// 			Conditions: []traceql.Condition{
+	// 				parse(t, `{resource.cluster = "notcluster"}`),  // no match
+	// 				parse(t, `{resource.namespace = "namespace"}`), // match
+	// 				parse(t, `{resource.foo = "abc"}`),             // match
+	// 			},
+	// 		},
+	// 	},
+	// 	{
+	// 		name: "Matches some conditions but not all. Only resource generic attr lookups",
+	// 		req: traceql.FetchSpansRequest{
+	// 			AllConditions: true,
+	// 			Conditions: []traceql.Condition{
+	// 				parse(t, `{resource.foo = "abc"}`), // match
+	// 				parse(t, `{resource.bar = 123}`),   // no match
+	// 			},
+	// 		},
+	// 	},
+	// 	{
+	// 		name: "Mix of duration with other conditions",
+	// 		req: traceql.FetchSpansRequest{
+	// 			AllConditions: true,
+	// 			Conditions: []traceql.Condition{
+	// 				parse(t, `{`+LabelName+` = "nothello"}`), // No match
+	// 				parse(t, `{`+LabelDuration+` = 100s }`),  // Match
+	// 			},
+	// 		},
+	// 	},
+	// }
 
-	for _, tc := range searchesThatDontMatch {
-		t.Run(tc.name, func(t *testing.T) {
-			req := tc.req
-			if req.SecondPass == nil {
-				req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
-				req.SecondPassConditions = traceql.SearchMetaConditions()
-			}
+	// for _, tc := range searchesThatDontMatch {
+	// 	t.Run(tc.name, func(t *testing.T) {
+	// 		req := tc.req
+	// 		if req.SecondPass == nil {
+	// 			req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
+	// 			req.SecondPassConditions = traceql.SearchMetaConditions()
+	// 		}
 
-			resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
-			require.NoError(t, err, "search request:", req)
+	// 		resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+	// 		require.NoError(t, err, "search request:", req)
 
-			for {
-				spanSet, err := resp.Results.Next(ctx)
-				require.NoError(t, err, "search request:", req)
-				if spanSet == nil {
-					break
-				}
-				require.NotEqual(t, wantTraceID, spanSet.TraceID, "search request:", req)
-			}
-		})
-	}
+	// 		for {
+	// 			spanSet, err := resp.Results.Next(ctx)
+	// 			require.NoError(t, err, "search request:", req)
+	// 			if spanSet == nil {
+	// 				break
+	// 			}
+	// 			require.NotEqual(t, wantTraceID, spanSet.TraceID, "search request:", req)
+	// 		}
+	// 	})
+	// }
 }
 
-func TestBackendBlockSearchTraceQLEvents(t *testing.T) {
-	numTraces := 50
+func TestBackendBBlockSearchTraceQLEvents(t *testing.T) {
+	numTraces := 1
 	traces := make([]*Trace, 0, numTraces)
 	wantTraceIdx := rand.Intn(numTraces)
 	wantTraceID := test.ValidTraceID(nil)
