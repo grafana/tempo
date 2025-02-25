@@ -244,7 +244,7 @@ func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 	// Iterate over the laggiest partition until the lag is less than the cycle duration or none of the partitions has records
 	for {
 		sort.Slice(ps, func(i, j int) bool {
-			return ps[i].lastRecordTs.After(ps[j].lastRecordTs)
+			return ps[i].lastRecordTs.Before(ps[j].lastRecordTs)
 		})
 
 		laggiestPartition := ps[0]
