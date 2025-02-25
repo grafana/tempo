@@ -1,4 +1,4 @@
-package e2e
+package api
 
 import (
 	"context"
@@ -23,6 +23,7 @@ import (
 )
 
 const (
+	configAllInOneLocal = "../deployments/config-all-in-one-local.yaml"
 	spanX     = "span.x"
 	resourceX = "resource.xx"
 )
