@@ -240,10 +240,10 @@ type attribute struct {
 }
 
 func aggregateAttributes(pf *parquet.File, keyPath string, valuePaths []string) (genericAttrSummary, error) {
-	keyIdx, _ := pq.GetColumnIndexByPath(pf, keyPath)
+	keyIdx, _, _ := pq.GetColumnIndexByPath(pf, keyPath)
 	valueIdxs := make([]int, 0, len(valuePaths))
 	for _, v := range valuePaths {
-		idx, _ := pq.GetColumnIndexByPath(pf, v)
+		idx, _, _ := pq.GetColumnIndexByPath(pf, v)
 		valueIdxs = append(valueIdxs, idx)
 	}
 
@@ -311,7 +311,7 @@ func aggregateDedicatedColumns(pf *parquet.File, scope backend.DedicatedColumnSc
 }
 
 func aggregateColumn(pf *parquet.File, colName string) (uint64, error) {
-	idx, _ := pq.GetColumnIndexByPath(pf, colName)
+	idx, _, _ := pq.GetColumnIndexByPath(pf, colName)
 	calc, err := inspect.NewRowStatCalculator(pf, inspect.RowStatOptions{
 		Columns: []int{idx},
 	})

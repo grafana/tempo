@@ -19,7 +19,7 @@ func GetColumnIndexByPath(pf *pq.File, s string) (index, depth, maxDef int) {
 		depth++
 	}
 
-	return n.Index(), depth, n.MaxDefinitionLevel() // jpe - this is correct?
+	return n.Index(), depth, n.MaxDefinitionLevel()
 }
 
 func HasColumn(pf *pq.File, s string) bool {

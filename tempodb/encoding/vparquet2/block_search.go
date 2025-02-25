@@ -371,7 +371,7 @@ func makeIterFunc(ctx context.Context, rgs []parquet.RowGroup, pf *parquet.File)
 			opts = append(opts, pq.SyncIteratorOptIntern())
 		}
 
-		return pq.NewSyncIterator(ctx, rgs, index, name, 1000, predicate, selectAs, maxDef, opts...) // jpe - bytecast ok?
+		return pq.NewSyncIterator(ctx, rgs, index, name, 1000, predicate, selectAs, maxDef, opts...)
 	}
 }
 

@@ -126,7 +126,7 @@ func getAllTraceIDs(t *testing.T, dir string, tenant string) []string {
 			err := r.Close()
 			require.NoError(t, err)
 		}()
-		traceIDIndex, _ := parquetquery.GetColumnIndexByPath(pf, vparquet4.TraceIDColumnName)
+		traceIDIndex, _, _ := parquetquery.GetColumnIndexByPath(pf, vparquet4.TraceIDColumnName)
 		require.GreaterOrEqual(t, traceIDIndex, 0)
 		defer func() {
 			err := r.Close()
