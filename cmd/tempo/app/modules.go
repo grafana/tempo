@@ -89,7 +89,7 @@ const (
 	ringIngester          string = "ingester"
 	ringMetricsGenerator  string = "metrics-generator"
 	ringSecondaryIngester string = "secondary-ingester"
-	ringBackendScheduler  string = "backend-scheduler"
+	// ringBackendScheduler  string = "backend-scheduler"
 )
 
 func (t *App) initServer() (services.Service, error) {
@@ -557,7 +557,9 @@ func (t *App) initCompactor() (services.Service, error) {
 		t.cfg.Compactor.ShardingRing.KVStore.Store = "memberlist"
 	}
 
-	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.Overrides, prometheus.DefaultRegisterer)
+	// TODO: pass a backendSchedulerClient to the New method.
+
+	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.Overrides, t.cfg.BackenSchedulerClient, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compactor: %w", err)
 	}
@@ -689,13 +691,22 @@ func (t *App) initBackendScheduler() (services.Service, error) {
 		return services.NewIdleService(nil, nil), nil
 	}
 
-	// Create the scheduler with config and logger
-	scheduler, err := backendscheduler.New(t.cfg.BackendScheduler, log.Logger, prometheus.DefaultRegisterer)
+	scheduler, err := backendscheduler.New(t.cfg.BackendScheduler, t.store, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create backend scheduler: %w", err)
 	}
 
-	t.backendScheduler = scheduler
+	// Register the GRPC service
+	tempopb.RegisterBackendSchedulerServer(t.Server.GRPC(), scheduler)
+
+	// TODO:
+	// Add HTTP endpoints if needed
+	// t.Server.HTTPRouter().Path("/scheduler/status").Handler(
+	// 	t.HTTPAuthMiddleware.Wrap(
+	// 		http.HandlerFunc(scheduler.StatusHandler),
+	// 	),
+	// )
+
 	return scheduler, nil
 }
 
@@ -762,6 +773,7 @@ func (t *App) setupModuleManager() error {
 		Querier:                       {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
 		Compactor:                     {Common, Store, MemberlistKV},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
+		BackendScheduler:              {Common, Store, MemberlistKV},
 
 		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator, BlockBuilder},

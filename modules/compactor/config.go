@@ -18,6 +18,11 @@ type Config struct {
 	ShardingRing    RingConfig              `yaml:"ring,omitempty"`
 	Compactor       tempodb.CompactorConfig `yaml:"compaction"`
 	OverrideRingKey string                  `yaml:"override_ring_key"`
+
+	// Shceduler config
+	UseScheduler         bool          `yaml:"use_scheduler"`
+	PollingInterval      time.Duration `yaml:"polling_interval"`
+	BackendSchedulerAddr string        `yaml:"backend_scheduler_addr"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
