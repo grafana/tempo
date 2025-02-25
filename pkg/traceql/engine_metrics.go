@@ -837,14 +837,6 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 	metricsPipeline.init(req, AggregateModeRaw)
 
 	me := &MetricsEvaluator{
-		storageReq:        storageReq,
-		metricsPipeline:   metricsPipeline,
-		timeOverlapCutoff: timeOverlapCutoff,
-		maxExemplars:      exemplars,
-		exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
-	}
-
-	me := &MetricsEvalulator{
 		storageReq:         storageReq,
 		metricsPipeline:    metricsPipeline,
 		metricsSecondStage: metricsSecondStage,
@@ -1106,10 +1098,10 @@ func (e *MetricsEvaluator) Metrics() (uint64, uint64, uint64) {
 }
 
 func (e *MetricsEvaluator) Results() SeriesSet {
-	if e.metricsSecondStage != nil {
-		// TODO: add a right func here so we capture results from first stage and pass
-		// them on to second stage and evaluate correctly??
-	}
+	// if e.metricsSecondStage != nil {
+	// TODO: add a right func here so we capture results from first stage and pass
+	// them on to second stage and evaluate correctly??
+	// }
 	// TODO: find a way to run second stage before we return results??
 	return e.metricsPipeline.result()
 }

@@ -233,6 +233,8 @@ parse_fails:
   - '{} | topk(10) with(sample=0.1)'
   - '{} | bottomk(10)'
   - '{} | bottomk(10) with(sample=0.1)'
+  - '{} | rate() | topk(-1)'
+  - '{} | rate() | bottomk(-1)'
 
 
 # validate_fails parse correctly and return an error **besides unsupported** when calling .validate()
@@ -296,6 +298,11 @@ validate_fails:
   - '{ nestedSetLeft = "foo" }'
   - '{ nestedSetRight = false }'
   - '{ nestedSetParent > "foo" }'
+  # invalid metrics second stage functions
+  - '{} | rate() | topk(0)'
+  - '{} | rate() | topk(0) with(sample=0.1)'
+  - '{} | rate() | bottomk(0)'
+  - '{} | rate() | bottomk(0) with(sample=0.1)'
 
 # unsupported parse correctly and return an unsupported error when calling .validate()
 unsupported:
