@@ -1087,10 +1087,10 @@ func (e *MetricsEvalulator) Metrics() (uint64, uint64, uint64) {
 }
 
 func (e *MetricsEvalulator) Results() SeriesSet {
-	if e.metricsSecondStage != nil {
-		// TODO: add a right func here so we capture results from first stage and pass
-		// them on to second stage and evaluate correctly??
-	}
+	// if e.metricsSecondStage != nil {
+	// TODO: add a right func here so we capture results from first stage and pass
+	// them on to second stage and evaluate correctly??
+	// }
 	// TODO: find a way to run second stage before we return results??
 	return e.metricsPipeline.result()
 }
