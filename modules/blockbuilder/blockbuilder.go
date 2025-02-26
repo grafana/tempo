@@ -191,7 +191,7 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 		b.kadm,
 		b.logger,
 		b.cfg.IngestStorageConfig,
-		b.getAssignedActivePartitions)
+		b.getAssignedPartitions)
 
 	return nil
 }
@@ -213,7 +213,11 @@ func (b *BlockBuilder) running(ctx context.Context) error {
 // It consumes records for all the asigneed partitions, priorizing the ones with more lag. It keeps consuming until
 // all the partitions lag is less than the cycle duration. When that happen it returns time to wait before another consuming cycle, based on the last record timestamp
 func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
-	partitions := b.getAssignedActivePartitions()
+	partitions := b.getAssignedPartitions()
+	if len(partitions) == 0 {
+		return b.cfg.ConsumeCycleDuration, errors.New("No partitions assigned")
+	}
+
 	level.Info(b.logger).Log("msg", "starting consume cycle", "active_partitions", formatActivePartitions(partitions))
 	defer func(t time.Time) { metricConsumeCycleDuration.Observe(time.Since(t).Seconds()) }(time.Now())
 
@@ -473,14 +477,20 @@ func (b *BlockBuilder) pushTraces(ts time.Time, tenantBytes, reqBytes []byte, p 
 	return p.pushBytes(ts, string(tenantBytes), req)
 }
 
-func (b *BlockBuilder) getAssignedActivePartitions() []int32 {
-	activePartitionsCount := b.partitionRing.PartitionRing().ActivePartitionsCount()
-	assignedActivePartitions := make([]int32, 0, activePartitionsCount)
-	for _, partition := range b.cfg.AssignedPartitions[b.cfg.InstanceID] {
-		if partition > int32(activePartitionsCount) {
-			break
+// Gets assigned partitions, these can be active or inactive. Pending partitions won't be included
+func (b *BlockBuilder) getAssignedPartitions() []int32 {
+	partitions := b.partitionRing.PartitionRing().Partitions()
+	ringAssignedPartitions := make(map[int32]bool, len(partitions))
+	for _, p := range partitions {
+		if p.IsActive() || p.IsInactive() {
+			ringAssignedPartitions[p.Id] = true
 		}
-		assignedActivePartitions = append(assignedActivePartitions, partition)
+	}
+	assignedActivePartitions := make([]int32, 0, len(b.cfg.AssignedPartitions[b.cfg.InstanceID]))
+	for _, partition := range b.cfg.AssignedPartitions[b.cfg.InstanceID] {
+		if ringAssignedPartitions[partition] {
+			assignedActivePartitions = append(assignedActivePartitions, partition)
+		}
 	}
 	return assignedActivePartitions
 }
