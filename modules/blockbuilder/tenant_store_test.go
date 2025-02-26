@@ -58,7 +58,7 @@ func TestAdjustTimeRangeForSlack(t *testing.T) {
 			name:          "start before slack range",
 			start:         startCycleTime.Add(-10 * time.Minute),
 			end:           startCycleTime.Add(2 * time.Minute),
-			expectedStart: startCycleTime,
+			expectedStart: startCycleTime.Add(-slackDuration),
 			expectedEnd:   startCycleTime.Add(2 * time.Minute),
 		},
 		{
@@ -66,14 +66,21 @@ func TestAdjustTimeRangeForSlack(t *testing.T) {
 			start:         startCycleTime.Add(-2 * time.Minute),
 			end:           startCycleTime.Add(20 * time.Minute),
 			expectedStart: startCycleTime.Add(-2 * time.Minute),
-			expectedEnd:   startCycleTime,
+			expectedEnd:   startCycleTime.Add(slackDuration + cycleDuration),
 		},
 		{
 			name:          "end before start",
-			start:         startCycleTime.Add(-2 * time.Minute),
-			end:           startCycleTime.Add(-3 * time.Minute),
-			expectedStart: startCycleTime.Add(-2 * time.Minute),
-			expectedEnd:   startCycleTime,
+			start:         startCycleTime.Add(-10 * time.Minute),
+			end:           startCycleTime.Add(-9 * time.Minute),
+			expectedStart: startCycleTime.Add(-slackDuration),
+			expectedEnd:   startCycleTime.Add(-slackDuration),
+		},
+		{
+			name:          "both start and end after slack range",
+			start:         startCycleTime.Add(5 * time.Minute),
+			end:           startCycleTime.Add(10 * time.Minute),
+			expectedStart: startCycleTime.Add(cycleDuration + slackDuration),
+			expectedEnd:   startCycleTime.Add(cycleDuration + slackDuration),
 		},
 	}
 

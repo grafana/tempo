@@ -49,6 +49,34 @@
             },
           },
           {
+            alert: 'TempoIngesterUnhealthy',
+            'for': '15m',
+            expr: |||
+              max by (%s) (tempo_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
+            ||| % [$._config.group_by_cluster, $._config.jobs.ingester, $._config.namespace],
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'There are {{ printf "%f" $value }} unhealthy ingester(s).',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoIngesterUnhealthy',
+            },
+          },
+          {
+            alert: 'TempoMetricsGeneratorUnhealthy',
+            'for': '15m',
+            expr: |||
+              max by (%s) (tempo_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
+            ||| % [$._config.group_by_cluster, $._config.jobs.metrics_generator, $._config.namespace],
+            labels: {
+              severity: 'critical',
+            },
+            annotations: {
+              message: 'There are {{ printf "%f" $value }} unhealthy metric-generator(s).',
+              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoMetricsGeneratorUnhealthy',
+            },
+          },
+          {
             alert: 'TempoCompactionsFailing',
             'for': '1h',
             expr: |||
@@ -155,7 +183,7 @@
           {
             alert: 'TempoBlockListRisingQuickly',
             expr: |||
-              avg(tempodb_blocklist_length{namespace="%(namespace)s"}) / avg(tempodb_blocklist_length{namespace="%(namespace)s", job=~"$namespace/$component"} offset 7d) > 1.4
+              avg(tempodb_blocklist_length{namespace=~"%(namespace)s", container="compactor"}) / avg(tempodb_blocklist_length{namespace=~"%(namespace)s", container="compactor"} offset 7d) > 1.4
             ||| % { namespace: $._config.namespace },
             'for': '15m',
             labels: {

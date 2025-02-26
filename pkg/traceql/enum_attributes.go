@@ -97,6 +97,7 @@ const (
 
 	IntrinsicTraceID
 	IntrinsicSpanID
+	IntrinsicParentID
 	ScopedIntrinsicSpanStatus
 	ScopedIntrinsicSpanStatusMessage
 	ScopedIntrinsicSpanDuration
@@ -122,6 +123,7 @@ var (
 	IntrinsicStatusMessageAttribute          = NewIntrinsic(IntrinsicStatusMessage)
 	IntrinsicKindAttribute                   = NewIntrinsic(IntrinsicKind)
 	IntrinsicSpanIDAttribute                 = NewIntrinsic(IntrinsicSpanID)
+	IntrinsicParentIDAttribute               = NewIntrinsic(IntrinsicParentID)
 	IntrinsicChildCountAttribute             = NewIntrinsic(IntrinsicChildCount)
 	IntrinsicTraceIDAttribute                = NewIntrinsic(IntrinsicTraceID)
 	IntrinsicTraceRootServiceAttribute       = NewIntrinsic(IntrinsicTraceRootService)
@@ -193,6 +195,8 @@ func (i Intrinsic) String() string {
 		return "trace:duration"
 	case IntrinsicSpanID:
 		return "span:id"
+	case IntrinsicParentID:
+		return "span:parentID"
 	case IntrinsicInstrumentationName:
 		return "instrumentation:name"
 	case IntrinsicInstrumentationVersion:
@@ -248,6 +252,8 @@ func intrinsicFromString(s string) Intrinsic {
 		return IntrinsicTraceStartTime
 	case "span:id":
 		return IntrinsicSpanID
+	case "span:parentID":
+		return IntrinsicParentID
 	case "span:status":
 		return IntrinsicStatus
 	case "span:statusMessage":
