@@ -64,7 +64,7 @@ func newTenantStore(tenantID string, partitionID, startOffset uint64, startTime 
 		overrides:     o,
 		wal:           wal,
 		enc:           enc,
-		liveTraces:    livetraces.New[[]byte](func(b []byte) uint64 { return uint64(len(b)) }),
+		liveTraces:    livetraces.New(func(b []byte) uint64 { return uint64(len(b)) }),
 	}
 
 	return s, nil
