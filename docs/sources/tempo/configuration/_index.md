@@ -738,10 +738,15 @@ query_frontend:
         # (default: 0)
         [concurrent_shards: <int>]
 
-        # If set to a non-zero value, it's value will be used to decide if query is within SLO or not.
-        # Query is within SLO if it returned 200 within duration_slo seconds.
+        # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
+        # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
+        # NOTE: Requires `duration_slo` AND `throughput_bytes_slo` to be configured.
         [duration_slo: <duration> | default = 0s ]
 
+        # If set to a non-zero value, it's value will be used to decide if metadata query is within SLO or not.
+        # Query is within SLO if it returned 200 within duration_slo seconds OR processed throughput_slo bytes/s data.
+        [throughput_bytes_slo: <float> | default = 0 ]
+        
     # Metrics query configuration
     metrics:
         # The number of concurrent jobs to execute when querying the backend.

@@ -81,6 +81,8 @@ func newTraceIDHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pipe
 			"tenant", tenant,
 			"path", req.URL.Path,
 			"duration_seconds", elapsed.Seconds(),
+			"inspected_bytes", bytesProcessed,
+			"request_throughput", float64(bytesProcessed)/elapsed.Seconds(),
 			"err", err)
 
 		return resp, err
