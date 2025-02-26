@@ -45,11 +45,14 @@ ALL_DOC := $(shell find . \( -name "*.md" -o -name "*.yaml" \) \
 # ALL_PKGS is used with 'go cover'
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 
-GO_OPT= -mod vendor -ldflags "-X main.Branch=$(GIT_BRANCH) -X main.Revision=$(GIT_REVISION) -X main.Version=$(VERSION)"
+LD_FLAGS=-X main.Branch=$(GIT_BRANCH) -X main.Revision=$(GIT_REVISION) -X main.Version=$(VERSION)
+ifeq ($(BUILD_DEBUG),)
+	LD_FLAGS+= -w
+endif
+
+GO_OPT= -mod vendor -ldflags "$(LD_FLAGS)"
 ifeq ($(BUILD_DEBUG), 1)
 	GO_OPT+= -gcflags="all=-N -l"
-else
-	GO_OPT+= -ldflags -w
 endif
 
 GO_ENV=CGO_ENABLED=0
