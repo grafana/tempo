@@ -35,6 +35,7 @@ type yySymType struct {
 	scalarPipeline                 Pipeline
 	aggregate                      Aggregate
 	metricsAggregation             metricsFirstStageElement
+	metricsSecondStage             metricsSecondStageElement
 
 	fieldExpression      FieldExpression
 	static               Static
@@ -126,37 +127,39 @@ const AVG_OVER_TIME = 57413
 const QUANTILE_OVER_TIME = 57414
 const HISTOGRAM_OVER_TIME = 57415
 const COMPARE = 57416
-const WITH = 57417
-const PIPE = 57418
-const AND = 57419
-const OR = 57420
-const EQ = 57421
-const NEQ = 57422
-const LT = 57423
-const LTE = 57424
-const GT = 57425
-const GTE = 57426
-const NRE = 57427
-const RE = 57428
-const DESC = 57429
-const ANCE = 57430
-const SIBL = 57431
-const NOT_CHILD = 57432
-const NOT_PARENT = 57433
-const NOT_DESC = 57434
-const NOT_ANCE = 57435
-const UNION_CHILD = 57436
-const UNION_PARENT = 57437
-const UNION_DESC = 57438
-const UNION_ANCE = 57439
-const UNION_SIBL = 57440
-const ADD = 57441
-const SUB = 57442
-const NOT = 57443
-const MUL = 57444
-const DIV = 57445
-const MOD = 57446
-const POW = 57447
+const TOPK = 57417
+const BOTTOMK = 57418
+const WITH = 57419
+const PIPE = 57420
+const AND = 57421
+const OR = 57422
+const EQ = 57423
+const NEQ = 57424
+const LT = 57425
+const LTE = 57426
+const GT = 57427
+const GTE = 57428
+const NRE = 57429
+const RE = 57430
+const DESC = 57431
+const ANCE = 57432
+const SIBL = 57433
+const NOT_CHILD = 57434
+const NOT_PARENT = 57435
+const NOT_DESC = 57436
+const NOT_ANCE = 57437
+const UNION_CHILD = 57438
+const UNION_PARENT = 57439
+const UNION_DESC = 57440
+const UNION_ANCE = 57441
+const UNION_SIBL = 57442
+const ADD = 57443
+const SUB = 57444
+const NOT = 57445
+const MUL = 57446
+const DIV = 57447
+const MOD = 57448
+const POW = 57449
 
 var yyToknames = [...]string{
 	"$end",
@@ -233,6 +236,8 @@ var yyToknames = [...]string{
 	"QUANTILE_OVER_TIME",
 	"HISTOGRAM_OVER_TIME",
 	"COMPARE",
+	"TOPK",
+	"BOTTOMK",
 	"WITH",
 	"PIPE",
 	"AND",
@@ -276,229 +281,235 @@ var yyExca = [...]int{
 	-1, 1,
 	1, -1,
 	-2, 0,
-	-1, 301,
-	13, 86,
-	-2, 94,
+	-1, 302,
+	13, 87,
+	-2, 95,
 }
 
 const yyPrivate = 57344
 
-const yyLast = 1000
+const yyLast = 1039
 
 var yyAct = [...]int{
 
 	101, 5, 6, 8, 7, 98, 100, 286, 18, 12,
-	248, 67, 90, 77, 339, 229, 206, 230, 29, 13,
-	299, 2, 94, 205, 99, 237, 238, 239, 248, 70,
-	66, 30, 153, 154, 157, 155, 352, 235, 236, 210,
-	237, 238, 239, 248, 87, 88, 89, 90, 205, 351,
+	248, 67, 300, 2, 90, 13, 94, 99, 237, 238,
+	239, 248, 66, 229, 77, 70, 340, 210, 230, 206,
+	288, 30, 153, 154, 157, 155, 235, 236, 29, 237,
+	238, 239, 248, 85, 86, 356, 87, 88, 89, 90,
 	186, 188, 189, 190, 191, 192, 193, 194, 195, 196,
-	197, 198, 199, 200, 201, 202, 203, 74, 75, 76,
-	77, 78, 79, 80, 81, 82, 83, 212, 85, 86,
-	332, 87, 88, 89, 90, 331, 349, 330, 327, 326,
-	325, 85, 86, 233, 87, 88, 89, 90, 324, 232,
-	391, 372, 368, 367, 220, 222, 223, 224, 225, 226,
-	227, 206, 366, 356, 228, 208, 355, 231, 251, 252,
-	253, 274, 399, 278, 360, 85, 86, 336, 87, 88,
-	89, 90, 102, 103, 104, 108, 131, 275, 93, 95,
-	279, 403, 107, 105, 106, 110, 109, 111, 112, 113,
-	114, 115, 116, 117, 118, 119, 120, 121, 122, 124,
-	123, 125, 126, 361, 127, 128, 129, 130, 296, 359,
-	281, 282, 283, 284, 134, 132, 133, 138, 139, 140,
-	135, 141, 136, 142, 137, 257, 297, 276, 277, 296,
-	358, 249, 250, 240, 241, 242, 243, 244, 245, 247,
-	246, 72, 73, 357, 74, 75, 76, 77, 153, 154,
-	157, 155, 348, 235, 236, 301, 237, 238, 239, 248,
-	72, 73, 341, 74, 75, 76, 77, 96, 97, 258,
-	259, 340, 48, 53, 303, 17, 50, 187, 49, 280,
-	57, 297, 51, 52, 54, 55, 56, 59, 58, 60,
-	61, 64, 63, 62, 402, 306, 398, 306, 307, 308,
-	309, 310, 311, 312, 313, 314, 315, 316, 317, 318,
-	319, 320, 321, 322, 19, 20, 21, 209, 17, 397,
-	166, 287, 396, 306, 395, 306, 394, 306, 385, 306,
-	381, 233, 233, 233, 233, 233, 378, 232, 232, 232,
-	232, 232, 67, 377, 67, 347, 376, 233, 342, 343,
-	344, 345, 346, 232, 365, 231, 231, 231, 231, 231,
-	70, 364, 70, 303, 350, 298, 23, 26, 24, 25,
-	27, 231, 384, 306, 295, 240, 241, 242, 243, 244,
-	245, 247, 246, 382, 383, 354, 353, 380, 379, 362,
-	363, 153, 154, 157, 155, 235, 236, 294, 237, 238,
-	239, 248, 337, 338, 293, 233, 233, 292, 22, 305,
-	306, 232, 232, 291, 290, 289, 288, 233, 233, 233,
-	374, 375, 233, 232, 232, 232, 213, 169, 232, 231,
-	231, 151, 386, 387, 388, 150, 149, 392, 233, 148,
-	147, 231, 231, 231, 232, 335, 231, 146, 92, 91,
-	17, 84, 401, 400, 102, 103, 104, 108, 131, 390,
-	389, 95, 231, 71, 107, 105, 106, 110, 109, 111,
-	112, 113, 114, 115, 116, 117, 118, 119, 120, 121,
-	122, 124, 123, 125, 126, 393, 127, 128, 129, 130,
-	334, 371, 370, 68, 11, 373, 134, 132, 133, 138,
-	139, 140, 135, 141, 136, 142, 137, 329, 328, 249,
-	250, 240, 241, 242, 243, 244, 245, 247, 246, 333,
-	78, 79, 80, 81, 82, 83, 143, 144, 145, 323,
-	262, 235, 236, 261, 237, 238, 239, 248, 260, 256,
-	72, 73, 255, 74, 75, 76, 77, 254, 28, 96,
-	97, 285, 369, 69, 249, 250, 240, 241, 242, 243,
-	244, 245, 247, 246, 304, 211, 214, 215, 216, 217,
-	218, 219, 234, 16, 4, 152, 235, 236, 10, 237,
-	238, 239, 248, 249, 250, 240, 241, 242, 243, 244,
-	245, 247, 246, 249, 250, 240, 241, 242, 243, 244,
-	245, 247, 246, 156, 1, 235, 236, 0, 237, 238,
-	239, 248, 210, 0, 0, 235, 236, 0, 237, 238,
-	239, 248, 0, 0, 0, 0, 0, 0, 249, 250,
-	240, 241, 242, 243, 244, 245, 247, 246, 249, 250,
-	240, 241, 242, 243, 244, 245, 247, 246, 0, 0,
-	235, 236, 0, 237, 238, 239, 248, 0, 0, 0,
-	235, 236, 0, 237, 238, 239, 248, 19, 20, 21,
-	0, 17, 207, 166, 0, 0, 0, 263, 78, 79,
-	80, 81, 82, 83, 264, 0, 265, 0, 0, 0,
-	0, 266, 0, 0, 204, 0, 0, 0, 85, 86,
-	0, 87, 88, 89, 90, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 23,
-	26, 24, 25, 27, 14, 167, 15, 0, 158, 159,
-	160, 161, 162, 163, 164, 165, 48, 53, 0, 0,
-	50, 0, 49, 0, 57, 0, 51, 52, 54, 55,
-	56, 59, 58, 60, 61, 64, 63, 62, 31, 36,
-	0, 22, 33, 0, 32, 0, 42, 0, 34, 35,
-	37, 38, 39, 40, 41, 43, 44, 45, 46, 47,
-	31, 36, 0, 0, 33, 0, 32, 0, 42, 0,
-	34, 35, 37, 38, 39, 40, 41, 43, 44, 45,
-	46, 47, 19, 20, 21, 0, 17, 0, 166, 0,
-	19, 20, 21, 0, 17, 0, 302, 0, 19, 20,
-	21, 50, 17, 49, 300, 57, 0, 51, 52, 54,
-	55, 56, 59, 58, 60, 61, 64, 63, 62, 0,
-	0, 0, 0, 0, 0, 0, 19, 20, 21, 0,
-	17, 0, 9, 0, 23, 26, 24, 25, 27, 14,
-	167, 15, 23, 26, 24, 25, 27, 14, 0, 15,
-	23, 26, 24, 25, 27, 14, 33, 15, 32, 0,
-	42, 0, 34, 35, 37, 38, 39, 40, 41, 43,
-	44, 45, 46, 47, 0, 0, 22, 0, 23, 26,
-	24, 25, 27, 14, 22, 15, 131, 19, 20, 21,
-	0, 0, 22, 221, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 118, 119, 120, 121, 122, 124,
-	123, 125, 126, 0, 127, 128, 129, 130, 65, 3,
-	22, 0, 0, 0, 134, 132, 133, 138, 139, 140,
-	135, 141, 136, 142, 137, 0, 0, 0, 0, 23,
-	26, 24, 25, 27, 0, 0, 0, 0, 0, 0,
-	168, 170, 171, 172, 173, 174, 175, 176, 177, 178,
-	179, 180, 181, 182, 183, 184, 185, 0, 267, 0,
-	268, 270, 271, 0, 269, 0, 102, 103, 104, 108,
-	0, 22, 272, 213, 0, 273, 107, 105, 106, 110,
-	109, 111, 112, 113, 114, 115, 116, 117, 102, 103,
-	104, 108, 0, 0, 0, 0, 0, 0, 107, 105,
-	106, 110, 109, 111, 112, 113, 114, 115, 116, 117,
+	197, 198, 199, 200, 201, 202, 203, 87, 88, 89,
+	90, 78, 79, 80, 81, 82, 83, 212, 72, 73,
+	401, 74, 75, 76, 77, 74, 75, 76, 77, 355,
+	333, 85, 86, 233, 87, 88, 89, 90, 205, 232,
+	220, 222, 223, 224, 225, 226, 227, 332, 228, 331,
+	231, 328, 251, 252, 253, 85, 86, 327, 87, 88,
+	89, 90, 205, 342, 343, 337, 326, 102, 103, 104,
+	108, 131, 325, 93, 95, 380, 376, 107, 105, 106,
+	110, 109, 111, 112, 113, 114, 115, 116, 117, 118,
+	119, 120, 121, 122, 124, 123, 125, 126, 375, 127,
+	128, 129, 130, 353, 281, 282, 283, 284, 297, 134,
+	132, 133, 138, 139, 140, 135, 141, 136, 142, 137,
+	208, 374, 298, 362, 361, 278, 257, 206, 274, 297,
+	409, 249, 250, 240, 241, 242, 243, 244, 245, 247,
+	246, 366, 279, 413, 275, 276, 277, 383, 153, 154,
+	157, 155, 382, 235, 236, 302, 237, 238, 239, 248,
+	412, 307, 408, 307, 96, 97, 304, 367, 48, 53,
+	258, 259, 50, 365, 49, 364, 57, 298, 51, 52,
+	54, 55, 56, 59, 58, 60, 61, 64, 63, 62,
+	406, 307, 308, 309, 310, 311, 312, 313, 314, 315,
+	316, 317, 318, 319, 320, 321, 322, 323, 72, 73,
+	363, 74, 75, 76, 77, 352, 19, 20, 21, 345,
+	17, 344, 166, 411, 405, 307, 280, 68, 11, 404,
+	307, 209, 233, 233, 233, 233, 233, 407, 232, 232,
+	232, 232, 232, 67, 391, 67, 351, 388, 233, 231,
+	231, 231, 231, 231, 232, 387, 304, 70, 386, 70,
+	346, 347, 348, 349, 350, 231, 395, 307, 23, 26,
+	24, 25, 27, 14, 167, 15, 354, 158, 159, 160,
+	161, 162, 163, 164, 165, 373, 358, 357, 394, 307,
+	392, 393, 390, 389, 372, 153, 154, 157, 155, 211,
+	214, 215, 216, 217, 218, 219, 368, 369, 263, 338,
+	339, 360, 22, 233, 233, 264, 17, 265, 187, 232,
+	232, 359, 266, 306, 307, 299, 296, 233, 233, 233,
+	231, 231, 233, 232, 232, 232, 384, 385, 232, 295,
+	294, 293, 292, 17, 231, 231, 231, 291, 233, 231,
+	396, 397, 398, 336, 232, 402, 290, 289, 267, 213,
+	268, 270, 271, 335, 269, 231, 102, 103, 104, 108,
+	131, 410, 272, 95, 169, 273, 107, 105, 106, 110,
+	109, 111, 112, 113, 114, 115, 116, 117, 118, 119,
+	120, 121, 122, 124, 123, 125, 126, 151, 127, 128,
+	129, 130, 334, 150, 149, 148, 147, 146, 134, 132,
+	133, 138, 139, 140, 135, 141, 136, 142, 137, 249,
+	250, 240, 241, 242, 243, 244, 245, 247, 246, 249,
+	250, 240, 241, 242, 243, 244, 245, 247, 246, 324,
+	92, 235, 236, 91, 237, 238, 239, 248, 84, 305,
+	403, 235, 236, 381, 237, 238, 239, 248, 400, 399,
+	71, 379, 378, 96, 97, 143, 144, 145, 249, 250,
+	240, 241, 242, 243, 244, 245, 247, 246, 234, 371,
+	370, 287, 330, 329, 262, 261, 260, 256, 255, 254,
+	235, 236, 28, 237, 238, 239, 248, 285, 377, 69,
+	16, 4, 341, 152, 10, 249, 250, 240, 241, 242,
+	243, 244, 245, 247, 246, 249, 250, 240, 241, 242,
+	243, 244, 245, 247, 246, 210, 156, 235, 236, 1,
+	237, 238, 239, 248, 0, 0, 0, 235, 236, 0,
+	237, 238, 239, 248, 0, 0, 249, 250, 240, 241,
+	242, 243, 244, 245, 247, 246, 240, 241, 242, 243,
+	244, 245, 247, 246, 207, 0, 0, 0, 235, 236,
+	0, 237, 238, 239, 248, 0, 235, 236, 0, 237,
+	238, 239, 248, 78, 79, 80, 81, 82, 83, 204,
+	0, 0, 0, 78, 79, 80, 81, 82, 83, 0,
+	0, 0, 0, 72, 73, 0, 74, 75, 76, 77,
+	0, 0, 0, 85, 86, 0, 87, 88, 89, 90,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	48, 53, 0, 0, 50, 0, 49, 0, 57, 0,
+	51, 52, 54, 55, 56, 59, 58, 60, 61, 64,
+	63, 62, 0, 0, 0, 31, 36, 0, 0, 33,
+	0, 32, 0, 42, 0, 34, 35, 37, 38, 39,
+	40, 41, 43, 44, 45, 46, 47, 31, 36, 0,
+	0, 33, 0, 32, 0, 42, 0, 34, 35, 37,
+	38, 39, 40, 41, 43, 44, 45, 46, 47, 19,
+	20, 21, 0, 17, 0, 166, 0, 19, 20, 21,
+	0, 17, 0, 303, 0, 19, 20, 21, 50, 17,
+	49, 301, 57, 0, 51, 52, 54, 55, 56, 59,
+	58, 60, 61, 64, 63, 62, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 23, 26, 24, 25, 27, 14, 167, 15, 23,
+	26, 24, 25, 27, 14, 0, 15, 23, 26, 24,
+	25, 27, 14, 33, 15, 32, 0, 42, 0, 34,
+	35, 37, 38, 39, 40, 41, 43, 44, 45, 46,
+	47, 0, 19, 20, 21, 22, 17, 0, 9, 0,
+	19, 20, 21, 22, 17, 0, 166, 19, 20, 21,
+	0, 22, 0, 221, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 65, 3, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 23, 26, 24, 25, 27, 14,
+	0, 15, 23, 26, 24, 25, 27, 0, 0, 23,
+	26, 24, 25, 27, 168, 170, 171, 172, 173, 174,
+	175, 176, 177, 178, 179, 180, 181, 182, 183, 184,
+	185, 0, 0, 0, 0, 0, 131, 0, 22, 0,
+	0, 0, 0, 0, 0, 0, 22, 0, 0, 0,
+	0, 0, 0, 22, 118, 119, 120, 121, 122, 124,
+	123, 125, 126, 0, 127, 128, 129, 130, 0, 0,
+	0, 0, 0, 0, 134, 132, 133, 138, 139, 140,
+	135, 141, 136, 142, 137, 102, 103, 104, 108, 0,
+	0, 0, 213, 0, 0, 107, 105, 106, 110, 109,
+	111, 112, 113, 114, 115, 116, 117, 102, 103, 104,
+	108, 0, 0, 0, 0, 0, 0, 107, 105, 106,
+	110, 109, 111, 112, 113, 114, 115, 116, 117,
 }
 var yyPact = [...]int{
 
-	800, -57, -45, 663, -1000, 155, -1000, -1000, -1000, 800,
-	-1000, 401, -1000, -8, 397, 396, -1000, 127, -1000, -1000,
-	-1000, -1000, 480, 395, 388, 387, 384, 383, -1000, 379,
-	621, 375, 375, 375, 375, 375, 375, 375, 375, 375,
-	375, 375, 375, 375, 375, 375, 375, 375, 225, 225,
-	225, 225, 225, 225, 225, 225, 225, 225, 225, 225,
-	225, 225, 225, 225, 225, 641, 35, 619, 102, 264,
-	559, 951, 374, 374, 374, 374, 374, 374, -1000, -1000,
+	846, -39, -47, 658, -1000, 149, -1000, -1000, -1000, 846,
+	-1000, 562, -1000, -10, 491, 488, -1000, 122, -1000, -1000,
+	-1000, -1000, 519, 455, 454, 453, 452, 451, -1000, 445,
+	270, 422, 422, 422, 422, 422, 422, 422, 422, 422,
+	422, 422, 422, 422, 422, 422, 422, 422, 366, 366,
+	366, 366, 366, 366, 366, 366, 366, 366, 366, 366,
+	366, 366, 366, 366, 366, 636, 109, 611, 167, 278,
+	572, 990, 407, 407, 407, 407, 407, 407, -1000, -1000,
 	-1000, -1000, -1000, -1000, 861, 861, 861, 861, 861, 861,
-	861, 409, 857, -1000, 521, 409, 409, 409, -1000, -1000,
+	861, 421, 937, -1000, 527, 421, 421, 421, -1000, -1000,
 	-1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
 	-1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
 	-1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
-	-1000, 503, 498, 495, 181, 494, 489, 486, 610, 921,
-	92, 145, 94, -1000, -1000, -1000, 226, 409, 409, 409,
-	409, 277, -1000, 155, -1000, -1000, -1000, -1000, 364, 363,
-	362, 361, 355, 352, 345, 322, 268, 313, 755, 772,
-	-1000, -1000, -1000, -1000, 755, -1000, -1000, -1000, -1000, -1000,
-	-1000, -1000, -1000, -1000, -1000, -1000, 700, 225, -1000, -1000,
-	-1000, -1000, 700, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
-	-1000, -1000, -1000, -1000, -1000, -1000, 756, -1000, -1000, -1000,
-	-1000, 121, -1000, 764, -35, -35, -92, -92, -92, -92,
-	-21, 861, -58, -58, -93, -93, -93, -93, 511, 356,
-	-1000, -1000, -1000, -1000, -1000, 409, 409, 409, 409, 409,
-	409, 409, 409, 409, 409, 409, 409, 409, 409, 409,
-	409, 476, -77, -77, 32, 24, 23, 22, 464, 463,
-	21, 19, 14, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
+	-1000, 545, 544, 543, 182, 542, 541, 540, 341, 391,
+	159, 163, 156, -1000, -1000, -1000, 273, 421, 421, 421,
+	421, 537, -48, 149, -1000, -1000, -1000, -1000, 405, 404,
+	395, 390, 389, 388, 387, 374, 854, 373, 750, 769,
+	-1000, -1000, -1000, -1000, 750, -1000, -1000, -1000, -1000, -1000,
+	-1000, -1000, -1000, -1000, -1000, -1000, 695, 366, -1000, -1000,
+	-1000, -1000, 695, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
+	-1000, -1000, -1000, -1000, -1000, -1000, 753, -1000, -1000, -1000,
+	-1000, -23, -1000, 761, -19, -19, -83, -83, -83, -83,
+	-58, 861, -37, -37, -93, -93, -93, -93, 496, 370,
+	-1000, -1000, -1000, -1000, -1000, 421, 421, 421, 421, 421,
+	421, 421, 421, 421, 421, 421, 421, 421, 421, 421,
+	421, 486, -86, -86, 66, 60, 51, 45, 539, 538,
+	43, 41, 24, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
 	-1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
-	-1000, 466, 437, 392, 114, 349, -1000, -65, 218, 209,
-	857, 857, 857, 857, 857, 400, 619, 26, 199, 10,
-	772, -1000, 764, -60, -1000, -1000, 857, -77, -77, -95,
-	-95, -95, -62, -62, -62, -62, -62, -62, -62, -62,
-	-95, 256, 256, -1000, -1000, -1000, -1000, -1000, -17, -30,
-	-1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, 277, 973,
-	53, 50, 190, 177, 156, 110, 150, 336, -1000, 756,
-	-1000, -1000, -1000, -1000, -1000, 309, 302, 49, 40, 39,
-	445, 38, -1000, 449, 857, 857, 294, 291, 284, 334,
-	-1000, -1000, 278, 330, 319, 275, 857, 857, 857, 413,
-	37, 857, -1000, 439, -1000, -1000, 273, 271, 269, -1000,
-	-1000, 267, 243, 108, -1000, -1000, -1000, 857, -1000, 406,
-	241, 128, -1000, -1000,
+	-1000, 449, 410, 400, 112, 356, -1000, -55, 48, 268,
+	266, 937, 937, 937, 937, 937, 393, 611, 14, 262,
+	85, 769, -1000, 761, -49, -1000, -1000, 937, -86, -86,
+	-97, -97, -97, -65, -65, -65, -65, -65, -65, -65,
+	-65, -97, 535, 535, -1000, -1000, -1000, -1000, -1000, 23,
+	-21, -1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000, 537,
+	1012, -1000, 369, 359, 121, 120, 257, 222, 220, 187,
+	214, 353, -1000, 753, -1000, -1000, -1000, -1000, -1000, 534,
+	533, 342, 333, 118, 95, 73, 515, 72, -1000, 507,
+	199, 194, 937, 937, 306, 303, 295, 339, -1000, -1000,
+	292, 337, -1000, -1000, 335, 313, 937, 937, 937, 512,
+	17, 937, -1000, 504, -1000, -1000, 276, 271, 237, -1000,
+	-1000, 285, 209, 176, -1000, -1000, -1000, 937, -1000, 277,
+	207, 190, -1000, -1000,
 }
 var yyPgo = [...]int{
 
-	0, 564, 4, 563, 3, 15, 1, 898, 538, 20,
-	9, 2, 411, 535, 534, 453, 19, 533, 513, 8,
-	22, 5, 24, 6, 0, 17, 512, 7, 511, 508,
+	0, 589, 4, 586, 3, 23, 1, 892, 564, 12,
+	9, 2, 508, 563, 562, 561, 287, 15, 560, 559,
+	8, 16, 5, 17, 6, 0, 28, 558, 7, 557,
+	552,
 }
 var yyR1 = [...]int{
 
-	0, 1, 1, 1, 1, 1, 7, 7, 7, 7,
+	0, 1, 1, 1, 1, 1, 1, 7, 7, 7,
 	7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-	7, 7, 7, 7, 7, 8, 9, 9, 9, 9,
-	9, 9, 9, 9, 9, 2, 3, 4, 25, 25,
-	25, 5, 5, 26, 26, 26, 26, 6, 6, 6,
+	7, 7, 7, 7, 7, 7, 8, 9, 9, 9,
+	9, 9, 9, 9, 9, 9, 2, 3, 4, 26,
+	26, 26, 5, 5, 27, 27, 27, 27, 6, 6,
 	6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-	6, 6, 6, 6, 6, 6, 10, 10, 11, 12,
-	12, 12, 12, 12, 12, 14, 14, 15, 15, 15,
-	15, 15, 15, 15, 15, 17, 18, 16, 16, 16,
-	16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
-	16, 19, 19, 19, 19, 19, 13, 13, 13, 13,
+	6, 6, 6, 6, 6, 6, 6, 10, 10, 11,
+	12, 12, 12, 12, 12, 12, 15, 15, 16, 16,
+	16, 16, 16, 16, 16, 16, 18, 19, 17, 17,
+	17, 17, 17, 17, 17, 17, 17, 17, 17, 17,
+	17, 17, 20, 20, 20, 20, 20, 13, 13, 13,
 	13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-	13, 13, 13, 27, 29, 28, 28, 20, 20, 20,
-	20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
-	20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
+	13, 13, 13, 13, 14, 14, 28, 30, 29, 29,
 	21, 21, 21, 21, 21, 21, 21, 21, 21, 21,
-	21, 21, 21, 21, 21, 21, 22, 22, 22, 22,
-	22, 22, 22, 22, 22, 22, 22, 22, 22, 24,
-	24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
-	24, 24, 24, 24, 24, 24, 23, 23, 23, 23,
-	23, 23, 23, 23, 23,
+	21, 21, 21, 21, 21, 21, 21, 21, 21, 21,
+	21, 21, 21, 22, 22, 22, 22, 22, 22, 22,
+	22, 22, 22, 22, 22, 22, 22, 22, 22, 23,
+	23, 23, 23, 23, 23, 23, 23, 23, 23, 23,
+	23, 23, 25, 25, 25, 25, 25, 25, 25, 25,
+	25, 25, 25, 25, 25, 25, 25, 25, 25, 24,
+	24, 24, 24, 24, 24, 24, 24, 24,
 }
 var yyR2 = [...]int{
 
-	0, 1, 1, 1, 3, 2, 3, 3, 3, 3,
+	0, 1, 1, 1, 3, 5, 2, 3, 3, 3,
 	3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-	3, 3, 3, 3, 1, 3, 1, 1, 1, 1,
-	3, 3, 3, 3, 3, 4, 3, 4, 1, 1,
-	1, 1, 3, 1, 1, 3, 3, 3, 3, 3,
+	3, 3, 3, 3, 3, 1, 3, 1, 1, 1,
+	1, 3, 3, 3, 3, 3, 4, 3, 4, 1,
+	1, 1, 1, 3, 1, 1, 3, 3, 3, 3,
 	3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-	3, 3, 3, 3, 3, 1, 2, 3, 3, 1,
-	1, 1, 1, 1, 1, 3, 3, 3, 3, 3,
-	3, 3, 3, 3, 1, 3, 3, 3, 3, 3,
-	3, 3, 3, 3, 1, 1, 1, 1, 2, 2,
-	2, 3, 4, 4, 4, 4, 3, 7, 3, 7,
-	4, 8, 4, 8, 4, 8, 6, 10, 4, 8,
-	4, 6, 10, 3, 4, 1, 3, 3, 3, 3,
+	3, 3, 3, 3, 3, 3, 1, 2, 3, 3,
+	1, 1, 1, 1, 1, 1, 3, 3, 3, 3,
+	3, 3, 3, 3, 3, 1, 3, 3, 3, 3,
+	3, 3, 3, 3, 3, 1, 1, 1, 1, 2,
+	2, 2, 3, 4, 4, 4, 4, 3, 7, 3,
+	7, 4, 8, 4, 8, 4, 8, 6, 10, 4,
+	8, 4, 6, 10, 4, 4, 3, 4, 1, 3,
 	3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-	3, 3, 3, 3, 2, 2, 1, 1, 1, 1,
+	3, 3, 3, 3, 3, 3, 3, 2, 2, 1,
 	1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 	1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
-	2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 3, 3, 3, 3,
-	4, 4, 3, 3, 3,
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 2, 2, 2, 2, 2, 2, 2, 2,
+	2, 2, 2, 2, 2, 2, 2, 2, 2, 3,
+	3, 3, 3, 4, 4, 3, 3, 3,
 }
 var yyChk = [...]int{
 
-	-1000, -1, -9, -7, -14, -6, -11, -2, -4, 12,
-	-8, -15, -10, -16, 63, 65, -17, 10, -19, 6,
-	7, 8, 100, 58, 60, 61, 59, 62, -29, 75,
-	76, 77, 83, 81, 87, 88, 78, 89, 90, 91,
-	92, 93, 85, 94, 95, 96, 97, 98, 77, 83,
-	81, 87, 88, 78, 89, 90, 91, 85, 93, 92,
-	94, 95, 98, 97, 96, -7, -9, -6, -15, -18,
-	-16, -12, 99, 100, 102, 103, 104, 105, 79, 80,
-	81, 82, 83, 84, -12, 99, 100, 102, 103, 104,
-	105, 12, 12, 11, -20, 12, 100, 101, -21, -22,
-	-23, -24, 5, 6, 7, 16, 17, 15, 8, 19,
+	-1000, -1, -9, -7, -15, -6, -11, -2, -4, 12,
+	-8, -16, -10, -17, 63, 65, -18, 10, -20, 6,
+	7, 8, 102, 58, 60, 61, 59, 62, -30, 77,
+	78, 79, 85, 83, 89, 90, 80, 91, 92, 93,
+	94, 95, 87, 96, 97, 98, 99, 100, 79, 85,
+	83, 89, 90, 80, 91, 92, 93, 87, 95, 94,
+	96, 97, 100, 99, 98, -7, -9, -6, -16, -19,
+	-17, -12, 101, 102, 104, 105, 106, 107, 81, 82,
+	83, 84, 85, 86, -12, 101, 102, 104, 105, 106,
+	107, 12, 12, 11, -21, 12, 102, 103, -22, -23,
+	-24, -25, 5, 6, 7, 16, 17, 15, 8, 19,
 	18, 20, 21, 22, 23, 24, 25, 26, 27, 28,
 	29, 30, 31, 33, 32, 34, 35, 37, 38, 39,
 	40, 9, 48, 49, 47, 53, 55, 57, 50, 51,
@@ -508,71 +519,73 @@ var yyChk = [...]int{
 	-7, -7, -7, -7, -7, -7, -7, -7, -7, -7,
 	-7, -7, -7, -7, -7, -7, -6, 12, -6, -6,
 	-6, -6, -6, -6, -6, -6, -6, -6, -6, -6,
-	-6, -6, -6, -6, 13, 13, 76, 13, 13, 13,
-	13, -15, -21, 12, -15, -15, -15, -15, -15, -15,
-	-16, 12, -16, -16, -16, -16, -16, -16, -20, -5,
-	-25, -22, -23, -24, 11, 99, 100, 102, 103, 104,
-	79, 80, 81, 82, 83, 84, 86, 85, 105, 77,
-	78, -20, -20, -20, 4, 4, 4, 4, 48, 49,
+	-6, -6, -6, -6, 13, 13, 78, 13, 13, 13,
+	13, -16, -22, 12, -16, -16, -16, -16, -16, -16,
+	-17, 12, -17, -17, -17, -17, -17, -17, -21, -5,
+	-26, -23, -24, -25, 11, 101, 102, 104, 105, 106,
+	81, 82, 83, 84, 85, 86, 88, 87, 107, 79,
+	80, -21, -21, -21, 4, 4, 4, 4, 48, 49,
 	4, 4, 4, 27, 34, 36, 41, 27, 29, 33,
 	30, 31, 41, 44, 29, 45, 42, 43, 29, 46,
-	13, -20, -20, -20, -20, -28, -27, 4, 12, 12,
-	12, 12, 12, 12, 12, 12, -6, -16, 12, -9,
-	12, -19, 12, -9, 13, 13, 14, -20, -20, -20,
-	-20, -20, -20, -20, -20, -20, -20, -20, -20, -20,
-	-20, -20, -20, 13, 66, 66, 66, 66, 4, 4,
-	66, 66, 66, 13, 13, 13, 13, 13, 14, 79,
-	13, 13, -25, -25, -25, -25, -25, -10, 13, 76,
-	-25, 66, 66, -27, -21, 63, 63, 13, 13, 13,
-	14, 13, 13, 14, 12, 12, 63, 63, 63, -26,
-	7, 6, 63, 6, -5, -5, 12, 12, 12, 14,
+	13, -21, -21, -21, -21, -29, -28, 4, 78, 12,
+	12, 12, 12, 12, 12, 12, 12, -6, -17, 12,
+	-9, 12, -20, 12, -9, 13, 13, 14, -21, -21,
+	-21, -21, -21, -21, -21, -21, -21, -21, -21, -21,
+	-21, -21, -21, -21, 13, 66, 66, 66, 66, 4,
+	4, 66, 66, 66, 13, 13, 13, 13, 13, 14,
+	81, -14, 75, 76, 13, 13, -26, -26, -26, -26,
+	-26, -10, 13, 78, -26, 66, 66, -28, -22, 12,
+	12, 63, 63, 13, 13, 13, 14, 13, 13, 14,
+	6, 6, 12, 12, 63, 63, 63, -27, 7, 6,
+	63, 6, 13, 13, -5, -5, 12, 12, 12, 14,
 	13, 12, 13, 14, 13, 13, -5, -5, -5, 7,
 	6, 63, -5, 6, 13, 13, 13, 12, 13, 14,
 	-5, 6, 13, 13,
 }
 var yyDef = [...]int{
 
-	0, -2, 1, 2, 3, 26, 27, 28, 29, 0,
-	24, 0, 65, 0, 0, 0, 84, 0, 94, 95,
-	96, 97, 0, 0, 0, 0, 0, 0, 5, 0,
+	0, -2, 1, 2, 3, 27, 28, 29, 30, 0,
+	25, 0, 66, 0, 0, 0, 85, 0, 95, 96,
+	97, 98, 0, 0, 0, 0, 0, 0, 6, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 26, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 69, 70,
-	71, 72, 73, 74, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 66, 0, 0, 0, 0, 146, 147,
-	148, 149, 150, 151, 152, 153, 154, 155, 156, 157,
-	158, 159, 160, 161, 162, 163, 164, 165, 166, 167,
-	168, 169, 170, 171, 172, 173, 174, 175, 176, 177,
-	178, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 98, 99, 100, 0, 0, 0, 0,
-	0, 0, 4, 30, 31, 32, 33, 34, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 7, 0,
-	8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
-	18, 19, 20, 21, 22, 23, 48, 0, 49, 50,
-	51, 52, 53, 54, 55, 56, 57, 58, 59, 60,
-	61, 62, 63, 64, 6, 25, 0, 47, 77, 85,
-	87, 75, 76, 0, 78, 79, 80, 81, 82, 83,
-	68, 0, 88, 89, 90, 91, 92, 93, 0, 0,
-	41, 38, 39, 40, 67, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 27, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 70, 71,
+	72, 73, 74, 75, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 67, 0, 0, 0, 0, 149, 150,
+	151, 152, 153, 154, 155, 156, 157, 158, 159, 160,
+	161, 162, 163, 164, 165, 166, 167, 168, 169, 170,
+	171, 172, 173, 174, 175, 176, 177, 178, 179, 180,
+	181, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 99, 100, 101, 0, 0, 0, 0,
+	0, 0, 4, 31, 32, 33, 34, 35, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 8, 0,
+	9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+	19, 20, 21, 22, 23, 24, 49, 0, 50, 51,
+	52, 53, 54, 55, 56, 57, 58, 59, 60, 61,
+	62, 63, 64, 65, 7, 26, 0, 48, 78, 86,
+	88, 76, 77, 0, 79, 80, 81, 82, 83, 84,
+	69, 0, 89, 90, 91, 92, 93, 94, 0, 0,
+	42, 39, 40, 41, 68, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 144, 145, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 179, 180, 181, 182, 183, 184, 185,
-	186, 187, 188, 189, 190, 191, 192, 193, 194, 195,
-	101, 0, 0, 0, 0, 0, 125, 0, 0, 0,
+	0, 0, 147, 148, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 182, 183, 184, 185, 186, 187, 188,
+	189, 190, 191, 192, 193, 194, 195, 196, 197, 198,
+	102, 0, 0, 0, 0, 0, 128, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, -2, 0, 0, 35, 37, 0, 128, 129, 130,
-	131, 132, 133, 134, 135, 136, 137, 138, 139, 140,
-	141, 142, 143, 127, 196, 197, 198, 199, 0, 0,
-	202, 203, 204, 102, 103, 104, 105, 124, 0, 0,
-	106, 108, 0, 0, 0, 0, 0, 0, 36, 0,
-	42, 200, 201, 126, 123, 0, 0, 110, 112, 114,
-	0, 118, 120, 0, 0, 0, 0, 0, 0, 0,
-	43, 44, 0, 0, 0, 0, 0, 0, 0, 0,
-	116, 0, 121, 0, 107, 109, 0, 0, 0, 45,
-	46, 0, 0, 0, 111, 113, 115, 0, 119, 0,
-	0, 0, 117, 122,
+	0, 0, -2, 0, 0, 36, 38, 0, 131, 132,
+	133, 134, 135, 136, 137, 138, 139, 140, 141, 142,
+	143, 144, 145, 146, 130, 199, 200, 201, 202, 0,
+	0, 205, 206, 207, 103, 104, 105, 106, 127, 0,
+	0, 5, 0, 0, 107, 109, 0, 0, 0, 0,
+	0, 0, 37, 0, 43, 203, 204, 129, 126, 0,
+	0, 0, 0, 111, 113, 115, 0, 119, 121, 0,
+	0, 0, 0, 0, 0, 0, 0, 0, 44, 45,
+	0, 0, 124, 125, 0, 0, 0, 0, 0, 0,
+	117, 0, 122, 0, 108, 110, 0, 0, 0, 46,
+	47, 0, 0, 0, 112, 114, 116, 0, 120, 0,
+	0, 0, 118, 123,
 }
 var yyTok1 = [...]int{
 
@@ -590,7 +603,7 @@ var yyTok2 = [...]int{
 	72, 73, 74, 75, 76, 77, 78, 79, 80, 81,
 	82, 83, 84, 85, 86, 87, 88, 89, 90, 91,
 	92, 93, 94, 95, 96, 97, 98, 99, 100, 101,
-	102, 103, 104, 105,
+	102, 103, 104, 105, 106, 107,
 }
 var yyTok3 = [...]int{
 	0,
@@ -935,1225 +948,1243 @@ yydefault:
 
 	case 1:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:120
+//line pkg/traceql/expr.y:123
 		{
 			yylex.(*lexer).expr = newRootExpr(yyDollar[1].spansetPipeline)
 		}
 	case 2:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:121
+//line pkg/traceql/expr.y:124
 		{
 			yylex.(*lexer).expr = newRootExpr(yyDollar[1].spansetPipelineExpression)
 		}
 	case 3:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:122
+//line pkg/traceql/expr.y:125
 		{
 			yylex.(*lexer).expr = newRootExpr(yyDollar[1].scalarPipelineExpressionFilter)
 		}
 	case 4:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:123
+//line pkg/traceql/expr.y:126
 		{
 			yylex.(*lexer).expr = newRootExprWithMetrics(yyDollar[1].spansetPipeline, yyDollar[3].metricsAggregation)
 		}
 	case 5:
+		yyDollar = yyS[yypt-5 : yypt+1]
+//line pkg/traceql/expr.y:128
+		{
+			yylex.(*lexer).expr = newRootExprWithMetricsTwoStage(yyDollar[1].spansetPipeline, yyDollar[3].metricsAggregation, yyDollar[5].metricsSecondStage)
+		}
+	case 6:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:124
+//line pkg/traceql/expr.y:129
 		{
 			yylex.(*lexer).expr.withHints(yyDollar[2].hints)
 		}
-	case 6:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:131
-		{
-			yyVAL.spansetPipelineExpression = yyDollar[2].spansetPipelineExpression
-		}
 	case 7:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:132
-		{
-			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetAnd, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
-		}
-	case 8:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:133
-		{
-			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetChild, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
-		}
-	case 9:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:134
-		{
-			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetParent, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
-		}
-	case 10:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:135
-		{
-			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetDescendant, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
-		}
-	case 11:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:136
 		{
-			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetAncestor, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
+			yyVAL.spansetPipelineExpression = yyDollar[2].spansetPipelineExpression
 		}
-	case 12:
+	case 8:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:137
 		{
-			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetUnion, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
+			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetAnd, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
 		}
-	case 13:
+	case 9:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:138
 		{
-			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetSibling, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
+			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetChild, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
 		}
-	case 14:
+	case 10:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:139
 		{
-			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetNotChild, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
+			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetParent, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
 		}
-	case 15:
+	case 11:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:140
 		{
-			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetNotParent, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
+			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetDescendant, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
 		}
-	case 16:
+	case 12:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:141
 		{
-			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetNotDescendant, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
+			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetAncestor, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
 		}
-	case 17:
+	case 13:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:142
 		{
-			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetNotAncestor, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
+			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetUnion, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
 		}
-	case 18:
+	case 14:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:143
 		{
-			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetNotSibling, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
+			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetSibling, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
 		}
-	case 19:
+	case 15:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:144
 		{
-			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetUnionChild, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
+			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetNotChild, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
 		}
-	case 20:
+	case 16:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:145
 		{
-			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetUnionParent, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
+			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetNotParent, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
 		}
-	case 21:
+	case 17:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:146
 		{
-			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetUnionDescendant, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
+			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetNotDescendant, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
 		}
-	case 22:
+	case 18:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:147
 		{
-			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetUnionAncestor, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
+			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetNotAncestor, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
 		}
-	case 23:
+	case 19:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:148
 		{
-			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetUnionSibling, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
+			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetNotSibling, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
 		}
-	case 24:
-		yyDollar = yyS[yypt-1 : yypt+1]
+	case 20:
+		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:149
 		{
-			yyVAL.spansetPipelineExpression = yyDollar[1].wrappedSpansetPipeline
+			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetUnionChild, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
 		}
-	case 25:
+	case 21:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:150
+		{
+			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetUnionParent, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
+		}
+	case 22:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:151
+		{
+			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetUnionDescendant, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
+		}
+	case 23:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:152
+		{
+			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetUnionAncestor, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
+		}
+	case 24:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:153
 		{
-			yyVAL.wrappedSpansetPipeline = yyDollar[2].spansetPipeline
+			yyVAL.spansetPipelineExpression = newSpansetOperation(OpSpansetUnionSibling, yyDollar[1].spansetPipelineExpression, yyDollar[3].spansetPipelineExpression)
+		}
+	case 25:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:154
+		{
+			yyVAL.spansetPipelineExpression = yyDollar[1].wrappedSpansetPipeline
 		}
 	case 26:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:156
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:158
 		{
-			yyVAL.spansetPipeline = newPipeline(yyDollar[1].spansetExpression)
+			yyVAL.wrappedSpansetPipeline = yyDollar[2].spansetPipeline
 		}
 	case 27:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:157
+//line pkg/traceql/expr.y:161
 		{
-			yyVAL.spansetPipeline = newPipeline(yyDollar[1].scalarFilter)
+			yyVAL.spansetPipeline = newPipeline(yyDollar[1].spansetExpression)
 		}
 	case 28:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:158
+//line pkg/traceql/expr.y:162
 		{
-			yyVAL.spansetPipeline = newPipeline(yyDollar[1].groupOperation)
+			yyVAL.spansetPipeline = newPipeline(yyDollar[1].scalarFilter)
 		}
 	case 29:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:159
+//line pkg/traceql/expr.y:163
+		{
+			yyVAL.spansetPipeline = newPipeline(yyDollar[1].groupOperation)
+		}
+	case 30:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:164
 		{
 			yyVAL.spansetPipeline = newPipeline(yyDollar[1].selectOperation)
 		}
-	case 30:
+	case 31:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:160
+//line pkg/traceql/expr.y:165
 		{
 			yyVAL.spansetPipeline = yyDollar[1].spansetPipeline.addItem(yyDollar[3].spansetExpression)
 		}
-	case 31:
+	case 32:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:161
+//line pkg/traceql/expr.y:166
 		{
 			yyVAL.spansetPipeline = yyDollar[1].spansetPipeline.addItem(yyDollar[3].scalarFilter)
 		}
-	case 32:
+	case 33:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:162
+//line pkg/traceql/expr.y:167
 		{
 			yyVAL.spansetPipeline = yyDollar[1].spansetPipeline.addItem(yyDollar[3].groupOperation)
 		}
-	case 33:
+	case 34:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:163
+//line pkg/traceql/expr.y:168
 		{
 			yyVAL.spansetPipeline = yyDollar[1].spansetPipeline.addItem(yyDollar[3].coalesceOperation)
 		}
-	case 34:
+	case 35:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:164
+//line pkg/traceql/expr.y:169
 		{
 			yyVAL.spansetPipeline = yyDollar[1].spansetPipeline.addItem(yyDollar[3].selectOperation)
 		}
-	case 35:
+	case 36:
 		yyDollar = yyS[yypt-4 : yypt+1]
-//line pkg/traceql/expr.y:168
+//line pkg/traceql/expr.y:173
 		{
 			yyVAL.groupOperation = newGroupOperation(yyDollar[3].fieldExpression)
 		}
-	case 36:
+	case 37:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:172
+//line pkg/traceql/expr.y:177
 		{
 			yyVAL.coalesceOperation = newCoalesceOperation()
 		}
-	case 37:
+	case 38:
 		yyDollar = yyS[yypt-4 : yypt+1]
-//line pkg/traceql/expr.y:176
+//line pkg/traceql/expr.y:181
 		{
 			yyVAL.selectOperation = newSelectOperation(yyDollar[3].attributeList)
 		}
-	case 38:
+	case 39:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:180
+//line pkg/traceql/expr.y:185
 		{
 			yyVAL.attribute = yyDollar[1].intrinsicField
 		}
-	case 39:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:181
-		{
-			yyVAL.attribute = yyDollar[1].attributeField
-		}
 	case 40:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:182
-		{
-			yyVAL.attribute = yyDollar[1].scopedIntrinsicField
-		}
-	case 41:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:186
 		{
-			yyVAL.attributeList = []Attribute{yyDollar[1].attribute}
+			yyVAL.attribute = yyDollar[1].attributeField
+		}
+	case 41:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:187
+		{
+			yyVAL.attribute = yyDollar[1].scopedIntrinsicField
 		}
 	case 42:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:191
+		{
+			yyVAL.attributeList = []Attribute{yyDollar[1].attribute}
+		}
+	case 43:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:187
+//line pkg/traceql/expr.y:192
 		{
 			yyVAL.attributeList = append(yyDollar[1].attributeList, yyDollar[3].attribute)
 		}
-	case 43:
+	case 44:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:192
+//line pkg/traceql/expr.y:197
 		{
 			yyVAL.numericList = []float64{yyDollar[1].staticFloat}
 		}
-	case 44:
+	case 45:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:193
+//line pkg/traceql/expr.y:198
 		{
 			yyVAL.numericList = []float64{float64(yyDollar[1].staticInt)}
 		}
-	case 45:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:194
-		{
-			yyVAL.numericList = append(yyDollar[1].numericList, yyDollar[3].staticFloat)
-		}
 	case 46:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:195
-		{
-			yyVAL.numericList = append(yyDollar[1].numericList, float64(yyDollar[3].staticInt))
-		}
-	case 47:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:199
 		{
-			yyVAL.spansetExpression = yyDollar[2].spansetExpression
+			yyVAL.numericList = append(yyDollar[1].numericList, yyDollar[3].staticFloat)
 		}
-	case 48:
+	case 47:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:200
 		{
-			yyVAL.spansetExpression = newSpansetOperation(OpSpansetAnd, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
+			yyVAL.numericList = append(yyDollar[1].numericList, float64(yyDollar[3].staticInt))
 		}
-	case 49:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:201
-		{
-			yyVAL.spansetExpression = newSpansetOperation(OpSpansetChild, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
-		}
-	case 50:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:202
-		{
-			yyVAL.spansetExpression = newSpansetOperation(OpSpansetParent, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
-		}
-	case 51:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:203
-		{
-			yyVAL.spansetExpression = newSpansetOperation(OpSpansetDescendant, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
-		}
-	case 52:
+	case 48:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:204
 		{
-			yyVAL.spansetExpression = newSpansetOperation(OpSpansetAncestor, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
+			yyVAL.spansetExpression = yyDollar[2].spansetExpression
 		}
-	case 53:
+	case 49:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:205
 		{
-			yyVAL.spansetExpression = newSpansetOperation(OpSpansetUnion, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
+			yyVAL.spansetExpression = newSpansetOperation(OpSpansetAnd, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
 		}
-	case 54:
+	case 50:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:206
 		{
-			yyVAL.spansetExpression = newSpansetOperation(OpSpansetSibling, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
+			yyVAL.spansetExpression = newSpansetOperation(OpSpansetChild, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
 		}
-	case 55:
+	case 51:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:207
+		{
+			yyVAL.spansetExpression = newSpansetOperation(OpSpansetParent, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
+		}
+	case 52:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:208
 		{
-			yyVAL.spansetExpression = newSpansetOperation(OpSpansetNotChild, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
+			yyVAL.spansetExpression = newSpansetOperation(OpSpansetDescendant, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
 		}
-	case 56:
+	case 53:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:209
 		{
-			yyVAL.spansetExpression = newSpansetOperation(OpSpansetNotParent, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
+			yyVAL.spansetExpression = newSpansetOperation(OpSpansetAncestor, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
 		}
-	case 57:
+	case 54:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:210
 		{
-			yyVAL.spansetExpression = newSpansetOperation(OpSpansetNotSibling, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
+			yyVAL.spansetExpression = newSpansetOperation(OpSpansetUnion, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
 		}
-	case 58:
+	case 55:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:211
 		{
-			yyVAL.spansetExpression = newSpansetOperation(OpSpansetNotAncestor, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
+			yyVAL.spansetExpression = newSpansetOperation(OpSpansetSibling, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
 		}
-	case 59:
+	case 56:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:212
+//line pkg/traceql/expr.y:213
 		{
-			yyVAL.spansetExpression = newSpansetOperation(OpSpansetNotDescendant, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
+			yyVAL.spansetExpression = newSpansetOperation(OpSpansetNotChild, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
 		}
-	case 60:
+	case 57:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:214
 		{
-			yyVAL.spansetExpression = newSpansetOperation(OpSpansetUnionChild, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
+			yyVAL.spansetExpression = newSpansetOperation(OpSpansetNotParent, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
 		}
-	case 61:
+	case 58:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:215
 		{
-			yyVAL.spansetExpression = newSpansetOperation(OpSpansetUnionParent, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
+			yyVAL.spansetExpression = newSpansetOperation(OpSpansetNotSibling, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
 		}
-	case 62:
+	case 59:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:216
 		{
-			yyVAL.spansetExpression = newSpansetOperation(OpSpansetUnionSibling, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
+			yyVAL.spansetExpression = newSpansetOperation(OpSpansetNotAncestor, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
 		}
-	case 63:
+	case 60:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:217
 		{
-			yyVAL.spansetExpression = newSpansetOperation(OpSpansetUnionAncestor, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
+			yyVAL.spansetExpression = newSpansetOperation(OpSpansetNotDescendant, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
+		}
+	case 61:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:219
+		{
+			yyVAL.spansetExpression = newSpansetOperation(OpSpansetUnionChild, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
+		}
+	case 62:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:220
+		{
+			yyVAL.spansetExpression = newSpansetOperation(OpSpansetUnionParent, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
+		}
+	case 63:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:221
+		{
+			yyVAL.spansetExpression = newSpansetOperation(OpSpansetUnionSibling, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
 		}
 	case 64:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:218
+//line pkg/traceql/expr.y:222
+		{
+			yyVAL.spansetExpression = newSpansetOperation(OpSpansetUnionAncestor, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
+		}
+	case 65:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:223
 		{
 			yyVAL.spansetExpression = newSpansetOperation(OpSpansetUnionDescendant, yyDollar[1].spansetExpression, yyDollar[3].spansetExpression)
 		}
-	case 65:
+	case 66:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:220
+//line pkg/traceql/expr.y:225
 		{
 			yyVAL.spansetExpression = yyDollar[1].spansetFilter
 		}
-	case 66:
+	case 67:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:224
+//line pkg/traceql/expr.y:229
 		{
 			yyVAL.spansetFilter = newSpansetFilter(NewStaticBool(true))
 		}
-	case 67:
+	case 68:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:225
+//line pkg/traceql/expr.y:230
 		{
 			yyVAL.spansetFilter = newSpansetFilter(yyDollar[2].fieldExpression)
 		}
-	case 68:
+	case 69:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:229
+//line pkg/traceql/expr.y:234
 		{
 			yyVAL.scalarFilter = newScalarFilter(yyDollar[2].scalarFilterOperation, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
 		}
-	case 69:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:233
-		{
-			yyVAL.scalarFilterOperation = OpEqual
-		}
 	case 70:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:234
-		{
-			yyVAL.scalarFilterOperation = OpNotEqual
-		}
-	case 71:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:235
-		{
-			yyVAL.scalarFilterOperation = OpLess
-		}
-	case 72:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:236
-		{
-			yyVAL.scalarFilterOperation = OpLessEqual
-		}
-	case 73:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:237
-		{
-			yyVAL.scalarFilterOperation = OpGreater
-		}
-	case 74:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:238
 		{
-			yyVAL.scalarFilterOperation = OpGreaterEqual
+			yyVAL.scalarFilterOperation = OpEqual
+		}
+	case 71:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:239
+		{
+			yyVAL.scalarFilterOperation = OpNotEqual
+		}
+	case 72:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:240
+		{
+			yyVAL.scalarFilterOperation = OpLess
+		}
+	case 73:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:241
+		{
+			yyVAL.scalarFilterOperation = OpLessEqual
+		}
+	case 74:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:242
+		{
+			yyVAL.scalarFilterOperation = OpGreater
 		}
 	case 75:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:245
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:243
 		{
-			yyVAL.scalarPipelineExpressionFilter = newScalarFilter(yyDollar[2].scalarFilterOperation, yyDollar[1].scalarPipelineExpression, yyDollar[3].scalarPipelineExpression)
+			yyVAL.scalarFilterOperation = OpGreaterEqual
 		}
 	case 76:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:246
+//line pkg/traceql/expr.y:250
 		{
-			yyVAL.scalarPipelineExpressionFilter = newScalarFilter(yyDollar[2].scalarFilterOperation, yyDollar[1].scalarPipelineExpression, yyDollar[3].static)
+			yyVAL.scalarPipelineExpressionFilter = newScalarFilter(yyDollar[2].scalarFilterOperation, yyDollar[1].scalarPipelineExpression, yyDollar[3].scalarPipelineExpression)
 		}
 	case 77:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:250
+//line pkg/traceql/expr.y:251
 		{
-			yyVAL.scalarPipelineExpression = yyDollar[2].scalarPipelineExpression
+			yyVAL.scalarPipelineExpressionFilter = newScalarFilter(yyDollar[2].scalarFilterOperation, yyDollar[1].scalarPipelineExpression, yyDollar[3].static)
 		}
 	case 78:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:251
+//line pkg/traceql/expr.y:255
 		{
-			yyVAL.scalarPipelineExpression = newScalarOperation(OpAdd, yyDollar[1].scalarPipelineExpression, yyDollar[3].scalarPipelineExpression)
+			yyVAL.scalarPipelineExpression = yyDollar[2].scalarPipelineExpression
 		}
 	case 79:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:252
+//line pkg/traceql/expr.y:256
 		{
-			yyVAL.scalarPipelineExpression = newScalarOperation(OpSub, yyDollar[1].scalarPipelineExpression, yyDollar[3].scalarPipelineExpression)
+			yyVAL.scalarPipelineExpression = newScalarOperation(OpAdd, yyDollar[1].scalarPipelineExpression, yyDollar[3].scalarPipelineExpression)
 		}
 	case 80:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:253
+//line pkg/traceql/expr.y:257
 		{
-			yyVAL.scalarPipelineExpression = newScalarOperation(OpMult, yyDollar[1].scalarPipelineExpression, yyDollar[3].scalarPipelineExpression)
+			yyVAL.scalarPipelineExpression = newScalarOperation(OpSub, yyDollar[1].scalarPipelineExpression, yyDollar[3].scalarPipelineExpression)
 		}
 	case 81:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:254
+//line pkg/traceql/expr.y:258
 		{
-			yyVAL.scalarPipelineExpression = newScalarOperation(OpDiv, yyDollar[1].scalarPipelineExpression, yyDollar[3].scalarPipelineExpression)
+			yyVAL.scalarPipelineExpression = newScalarOperation(OpMult, yyDollar[1].scalarPipelineExpression, yyDollar[3].scalarPipelineExpression)
 		}
 	case 82:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:255
+//line pkg/traceql/expr.y:259
 		{
-			yyVAL.scalarPipelineExpression = newScalarOperation(OpMod, yyDollar[1].scalarPipelineExpression, yyDollar[3].scalarPipelineExpression)
+			yyVAL.scalarPipelineExpression = newScalarOperation(OpDiv, yyDollar[1].scalarPipelineExpression, yyDollar[3].scalarPipelineExpression)
 		}
 	case 83:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:256
+//line pkg/traceql/expr.y:260
 		{
-			yyVAL.scalarPipelineExpression = newScalarOperation(OpPower, yyDollar[1].scalarPipelineExpression, yyDollar[3].scalarPipelineExpression)
+			yyVAL.scalarPipelineExpression = newScalarOperation(OpMod, yyDollar[1].scalarPipelineExpression, yyDollar[3].scalarPipelineExpression)
 		}
 	case 84:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:257
-		{
-			yyVAL.scalarPipelineExpression = yyDollar[1].wrappedScalarPipeline
-		}
-	case 85:
 		yyDollar = yyS[yypt-3 : yypt+1]
 //line pkg/traceql/expr.y:261
 		{
-			yyVAL.wrappedScalarPipeline = yyDollar[2].scalarPipeline
+			yyVAL.scalarPipelineExpression = newScalarOperation(OpPower, yyDollar[1].scalarPipelineExpression, yyDollar[3].scalarPipelineExpression)
+		}
+	case 85:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:262
+		{
+			yyVAL.scalarPipelineExpression = yyDollar[1].wrappedScalarPipeline
 		}
 	case 86:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:265
+//line pkg/traceql/expr.y:266
 		{
-			yyVAL.scalarPipeline = yyDollar[1].spansetPipeline.addItem(yyDollar[3].aggregate)
+			yyVAL.wrappedScalarPipeline = yyDollar[2].scalarPipeline
 		}
 	case 87:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:269
+//line pkg/traceql/expr.y:270
 		{
-			yyVAL.scalarExpression = yyDollar[2].scalarExpression
+			yyVAL.scalarPipeline = yyDollar[1].spansetPipeline.addItem(yyDollar[3].aggregate)
 		}
 	case 88:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:270
+//line pkg/traceql/expr.y:274
 		{
-			yyVAL.scalarExpression = newScalarOperation(OpAdd, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
+			yyVAL.scalarExpression = yyDollar[2].scalarExpression
 		}
 	case 89:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:271
+//line pkg/traceql/expr.y:275
 		{
-			yyVAL.scalarExpression = newScalarOperation(OpSub, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
+			yyVAL.scalarExpression = newScalarOperation(OpAdd, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
 		}
 	case 90:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:272
+//line pkg/traceql/expr.y:276
 		{
-			yyVAL.scalarExpression = newScalarOperation(OpMult, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
+			yyVAL.scalarExpression = newScalarOperation(OpSub, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
 		}
 	case 91:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:273
+//line pkg/traceql/expr.y:277
 		{
-			yyVAL.scalarExpression = newScalarOperation(OpDiv, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
+			yyVAL.scalarExpression = newScalarOperation(OpMult, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
 		}
 	case 92:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:274
+//line pkg/traceql/expr.y:278
 		{
-			yyVAL.scalarExpression = newScalarOperation(OpMod, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
+			yyVAL.scalarExpression = newScalarOperation(OpDiv, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
 		}
 	case 93:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:275
+//line pkg/traceql/expr.y:279
+		{
+			yyVAL.scalarExpression = newScalarOperation(OpMod, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
+		}
+	case 94:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:280
 		{
 			yyVAL.scalarExpression = newScalarOperation(OpPower, yyDollar[1].scalarExpression, yyDollar[3].scalarExpression)
 		}
-	case 94:
+	case 95:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:276
+//line pkg/traceql/expr.y:281
 		{
 			yyVAL.scalarExpression = yyDollar[1].aggregate
 		}
-	case 95:
+	case 96:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:277
+//line pkg/traceql/expr.y:282
 		{
 			yyVAL.scalarExpression = NewStaticInt(yyDollar[1].staticInt)
 		}
-	case 96:
+	case 97:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:278
+//line pkg/traceql/expr.y:283
 		{
 			yyVAL.scalarExpression = NewStaticFloat(yyDollar[1].staticFloat)
 		}
-	case 97:
+	case 98:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:279
+//line pkg/traceql/expr.y:284
 		{
 			yyVAL.scalarExpression = NewStaticDuration(yyDollar[1].staticDuration)
 		}
-	case 98:
+	case 99:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:280
+//line pkg/traceql/expr.y:285
 		{
 			yyVAL.scalarExpression = NewStaticInt(-yyDollar[2].staticInt)
 		}
-	case 99:
+	case 100:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:281
+//line pkg/traceql/expr.y:286
 		{
 			yyVAL.scalarExpression = NewStaticFloat(-yyDollar[2].staticFloat)
 		}
-	case 100:
+	case 101:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:282
+//line pkg/traceql/expr.y:287
 		{
 			yyVAL.scalarExpression = NewStaticDuration(-yyDollar[2].staticDuration)
 		}
-	case 101:
+	case 102:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:286
+//line pkg/traceql/expr.y:291
 		{
 			yyVAL.aggregate = newAggregate(aggregateCount, nil)
 		}
-	case 102:
+	case 103:
 		yyDollar = yyS[yypt-4 : yypt+1]
-//line pkg/traceql/expr.y:287
+//line pkg/traceql/expr.y:292
 		{
 			yyVAL.aggregate = newAggregate(aggregateMax, yyDollar[3].fieldExpression)
 		}
-	case 103:
+	case 104:
 		yyDollar = yyS[yypt-4 : yypt+1]
-//line pkg/traceql/expr.y:288
+//line pkg/traceql/expr.y:293
 		{
 			yyVAL.aggregate = newAggregate(aggregateMin, yyDollar[3].fieldExpression)
 		}
-	case 104:
+	case 105:
 		yyDollar = yyS[yypt-4 : yypt+1]
-//line pkg/traceql/expr.y:289
+//line pkg/traceql/expr.y:294
 		{
 			yyVAL.aggregate = newAggregate(aggregateAvg, yyDollar[3].fieldExpression)
 		}
-	case 105:
+	case 106:
 		yyDollar = yyS[yypt-4 : yypt+1]
-//line pkg/traceql/expr.y:290
+//line pkg/traceql/expr.y:295
 		{
 			yyVAL.aggregate = newAggregate(aggregateSum, yyDollar[3].fieldExpression)
 		}
-	case 106:
+	case 107:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:297
+//line pkg/traceql/expr.y:303
 		{
 			yyVAL.metricsAggregation = newMetricsAggregate(metricsAggregateRate, nil)
 		}
-	case 107:
+	case 108:
 		yyDollar = yyS[yypt-7 : yypt+1]
-//line pkg/traceql/expr.y:298
+//line pkg/traceql/expr.y:304
 		{
 			yyVAL.metricsAggregation = newMetricsAggregate(metricsAggregateRate, yyDollar[6].attributeList)
 		}
-	case 108:
+	case 109:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:299
+//line pkg/traceql/expr.y:305
 		{
 			yyVAL.metricsAggregation = newMetricsAggregate(metricsAggregateCountOverTime, nil)
 		}
-	case 109:
+	case 110:
 		yyDollar = yyS[yypt-7 : yypt+1]
-//line pkg/traceql/expr.y:300
+//line pkg/traceql/expr.y:306
 		{
 			yyVAL.metricsAggregation = newMetricsAggregate(metricsAggregateCountOverTime, yyDollar[6].attributeList)
 		}
-	case 110:
+	case 111:
 		yyDollar = yyS[yypt-4 : yypt+1]
-//line pkg/traceql/expr.y:301
+//line pkg/traceql/expr.y:307
 		{
 			yyVAL.metricsAggregation = newMetricsAggregateWithAttr(metricsAggregateMinOverTime, yyDollar[3].attribute, nil)
 		}
-	case 111:
+	case 112:
 		yyDollar = yyS[yypt-8 : yypt+1]
-//line pkg/traceql/expr.y:302
+//line pkg/traceql/expr.y:308
 		{
 			yyVAL.metricsAggregation = newMetricsAggregateWithAttr(metricsAggregateMinOverTime, yyDollar[3].attribute, yyDollar[7].attributeList)
 		}
-	case 112:
-		yyDollar = yyS[yypt-4 : yypt+1]
-//line pkg/traceql/expr.y:303
-		{
-			yyVAL.metricsAggregation = newMetricsAggregateWithAttr(metricsAggregateMaxOverTime, yyDollar[3].attribute, nil)
-		}
 	case 113:
-		yyDollar = yyS[yypt-8 : yypt+1]
-//line pkg/traceql/expr.y:304
-		{
-			yyVAL.metricsAggregation = newMetricsAggregateWithAttr(metricsAggregateMaxOverTime, yyDollar[3].attribute, yyDollar[7].attributeList)
-		}
-	case 114:
-		yyDollar = yyS[yypt-4 : yypt+1]
-//line pkg/traceql/expr.y:305
-		{
-			yyVAL.metricsAggregation = newAverageOverTimeMetricsAggregator(yyDollar[3].attribute, nil)
-		}
-	case 115:
-		yyDollar = yyS[yypt-8 : yypt+1]
-//line pkg/traceql/expr.y:306
-		{
-			yyVAL.metricsAggregation = newAverageOverTimeMetricsAggregator(yyDollar[3].attribute, yyDollar[7].attributeList)
-		}
-	case 116:
-		yyDollar = yyS[yypt-6 : yypt+1]
-//line pkg/traceql/expr.y:307
-		{
-			yyVAL.metricsAggregation = newMetricsAggregateQuantileOverTime(yyDollar[3].attribute, yyDollar[5].numericList, nil)
-		}
-	case 117:
-		yyDollar = yyS[yypt-10 : yypt+1]
-//line pkg/traceql/expr.y:308
-		{
-			yyVAL.metricsAggregation = newMetricsAggregateQuantileOverTime(yyDollar[3].attribute, yyDollar[5].numericList, yyDollar[9].attributeList)
-		}
-	case 118:
 		yyDollar = yyS[yypt-4 : yypt+1]
 //line pkg/traceql/expr.y:309
 		{
-			yyVAL.metricsAggregation = newMetricsAggregateWithAttr(metricsAggregateHistogramOverTime, yyDollar[3].attribute, nil)
+			yyVAL.metricsAggregation = newMetricsAggregateWithAttr(metricsAggregateMaxOverTime, yyDollar[3].attribute, nil)
 		}
-	case 119:
+	case 114:
 		yyDollar = yyS[yypt-8 : yypt+1]
 //line pkg/traceql/expr.y:310
 		{
-			yyVAL.metricsAggregation = newMetricsAggregateWithAttr(metricsAggregateHistogramOverTime, yyDollar[3].attribute, yyDollar[7].attributeList)
+			yyVAL.metricsAggregation = newMetricsAggregateWithAttr(metricsAggregateMaxOverTime, yyDollar[3].attribute, yyDollar[7].attributeList)
 		}
-	case 120:
+	case 115:
 		yyDollar = yyS[yypt-4 : yypt+1]
 //line pkg/traceql/expr.y:311
 		{
-			yyVAL.metricsAggregation = newMetricsCompare(yyDollar[3].spansetFilter, 10, 0, 0)
+			yyVAL.metricsAggregation = newAverageOverTimeMetricsAggregator(yyDollar[3].attribute, nil)
+		}
+	case 116:
+		yyDollar = yyS[yypt-8 : yypt+1]
+//line pkg/traceql/expr.y:312
+		{
+			yyVAL.metricsAggregation = newAverageOverTimeMetricsAggregator(yyDollar[3].attribute, yyDollar[7].attributeList)
+		}
+	case 117:
+		yyDollar = yyS[yypt-6 : yypt+1]
+//line pkg/traceql/expr.y:313
+		{
+			yyVAL.metricsAggregation = newMetricsAggregateQuantileOverTime(yyDollar[3].attribute, yyDollar[5].numericList, nil)
+		}
+	case 118:
+		yyDollar = yyS[yypt-10 : yypt+1]
+//line pkg/traceql/expr.y:314
+		{
+			yyVAL.metricsAggregation = newMetricsAggregateQuantileOverTime(yyDollar[3].attribute, yyDollar[5].numericList, yyDollar[9].attributeList)
+		}
+	case 119:
+		yyDollar = yyS[yypt-4 : yypt+1]
+//line pkg/traceql/expr.y:315
+		{
+			yyVAL.metricsAggregation = newMetricsAggregateWithAttr(metricsAggregateHistogramOverTime, yyDollar[3].attribute, nil)
+		}
+	case 120:
+		yyDollar = yyS[yypt-8 : yypt+1]
+//line pkg/traceql/expr.y:316
+		{
+			yyVAL.metricsAggregation = newMetricsAggregateWithAttr(metricsAggregateHistogramOverTime, yyDollar[3].attribute, yyDollar[7].attributeList)
 		}
 	case 121:
+		yyDollar = yyS[yypt-4 : yypt+1]
+//line pkg/traceql/expr.y:317
+		{
+			yyVAL.metricsAggregation = newMetricsCompare(yyDollar[3].spansetFilter, 10, 0, 0)
+		}
+	case 122:
 		yyDollar = yyS[yypt-6 : yypt+1]
-//line pkg/traceql/expr.y:312
+//line pkg/traceql/expr.y:318
 		{
 			yyVAL.metricsAggregation = newMetricsCompare(yyDollar[3].spansetFilter, yyDollar[5].staticInt, 0, 0)
 		}
-	case 122:
+	case 123:
 		yyDollar = yyS[yypt-10 : yypt+1]
-//line pkg/traceql/expr.y:313
+//line pkg/traceql/expr.y:319
 		{
 			yyVAL.metricsAggregation = newMetricsCompare(yyDollar[3].spansetFilter, yyDollar[5].staticInt, yyDollar[7].staticInt, yyDollar[9].staticInt)
 		}
-	case 123:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:320
-		{
-			yyVAL.hint = newHint(yyDollar[1].staticStr, yyDollar[3].static)
-		}
 	case 124:
 		yyDollar = yyS[yypt-4 : yypt+1]
-//line pkg/traceql/expr.y:324
+//line pkg/traceql/expr.y:326
 		{
-			yyVAL.hints = newHints(yyDollar[3].hintList)
+			yyVAL.metricsSecondStage = newMetricsTopK(yyDollar[3].staticInt)
 		}
 	case 125:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:328
+		yyDollar = yyS[yypt-4 : yypt+1]
+//line pkg/traceql/expr.y:327
 		{
-			yyVAL.hintList = []*Hint{yyDollar[1].hint}
+			yyVAL.metricsSecondStage = newMetricsBottomK(yyDollar[3].staticInt)
 		}
 	case 126:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:329
+//line pkg/traceql/expr.y:334
 		{
-			yyVAL.hintList = append(yyDollar[1].hintList, yyDollar[3].hint)
+			yyVAL.hint = newHint(yyDollar[1].staticStr, yyDollar[3].static)
 		}
 	case 127:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:337
-		{
-			yyVAL.fieldExpression = yyDollar[2].fieldExpression
-		}
-	case 128:
-		yyDollar = yyS[yypt-3 : yypt+1]
+		yyDollar = yyS[yypt-4 : yypt+1]
 //line pkg/traceql/expr.y:338
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpAdd, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.hints = newHints(yyDollar[3].hintList)
+		}
+	case 128:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:342
+		{
+			yyVAL.hintList = []*Hint{yyDollar[1].hint}
 		}
 	case 129:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:339
+//line pkg/traceql/expr.y:343
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpSub, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.hintList = append(yyDollar[1].hintList, yyDollar[3].hint)
 		}
 	case 130:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:340
+//line pkg/traceql/expr.y:351
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpMult, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = yyDollar[2].fieldExpression
 		}
 	case 131:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:341
+//line pkg/traceql/expr.y:352
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpDiv, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpAdd, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 132:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:342
+//line pkg/traceql/expr.y:353
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpMod, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpSub, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 133:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:343
+//line pkg/traceql/expr.y:354
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpMult, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 134:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:344
+//line pkg/traceql/expr.y:355
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpNotEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpDiv, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 135:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:345
+//line pkg/traceql/expr.y:356
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpLess, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpMod, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 136:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:346
+//line pkg/traceql/expr.y:357
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpLessEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 137:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:347
+//line pkg/traceql/expr.y:358
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpGreater, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpNotEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 138:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:348
+//line pkg/traceql/expr.y:359
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpGreaterEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpLess, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 139:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:349
+//line pkg/traceql/expr.y:360
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpRegex, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpLessEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 140:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:350
+//line pkg/traceql/expr.y:361
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpNotRegex, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpGreater, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 141:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:351
+//line pkg/traceql/expr.y:362
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpPower, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpGreaterEqual, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 142:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:352
+//line pkg/traceql/expr.y:363
 		{
-			yyVAL.fieldExpression = newBinaryOperation(OpAnd, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+			yyVAL.fieldExpression = newBinaryOperation(OpRegex, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
 	case 143:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:353
+//line pkg/traceql/expr.y:364
+		{
+			yyVAL.fieldExpression = newBinaryOperation(OpNotRegex, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+		}
+	case 144:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:365
+		{
+			yyVAL.fieldExpression = newBinaryOperation(OpPower, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+		}
+	case 145:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:366
+		{
+			yyVAL.fieldExpression = newBinaryOperation(OpAnd, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
+		}
+	case 146:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:367
 		{
 			yyVAL.fieldExpression = newBinaryOperation(OpOr, yyDollar[1].fieldExpression, yyDollar[3].fieldExpression)
 		}
-	case 144:
+	case 147:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:354
+//line pkg/traceql/expr.y:368
 		{
 			yyVAL.fieldExpression = newUnaryOperation(OpSub, yyDollar[2].fieldExpression)
 		}
-	case 145:
+	case 148:
 		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:355
+//line pkg/traceql/expr.y:369
 		{
 			yyVAL.fieldExpression = newUnaryOperation(OpNot, yyDollar[2].fieldExpression)
 		}
-	case 146:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:356
-		{
-			yyVAL.fieldExpression = yyDollar[1].static
-		}
-	case 147:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:357
-		{
-			yyVAL.fieldExpression = yyDollar[1].intrinsicField
-		}
-	case 148:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:358
-		{
-			yyVAL.fieldExpression = yyDollar[1].attributeField
-		}
 	case 149:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:359
-		{
-			yyVAL.fieldExpression = yyDollar[1].scopedIntrinsicField
-		}
-	case 150:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:366
-		{
-			yyVAL.static = NewStaticString(yyDollar[1].staticStr)
-		}
-	case 151:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:367
-		{
-			yyVAL.static = NewStaticInt(yyDollar[1].staticInt)
-		}
-	case 152:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:368
-		{
-			yyVAL.static = NewStaticFloat(yyDollar[1].staticFloat)
-		}
-	case 153:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:369
-		{
-			yyVAL.static = NewStaticBool(true)
-		}
-	case 154:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:370
 		{
-			yyVAL.static = NewStaticBool(false)
+			yyVAL.fieldExpression = yyDollar[1].static
 		}
-	case 155:
+	case 150:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:371
 		{
-			yyVAL.static = NewStaticNil()
+			yyVAL.fieldExpression = yyDollar[1].intrinsicField
 		}
-	case 156:
+	case 151:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:372
 		{
-			yyVAL.static = NewStaticDuration(yyDollar[1].staticDuration)
+			yyVAL.fieldExpression = yyDollar[1].attributeField
 		}
-	case 157:
+	case 152:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:373
 		{
-			yyVAL.static = NewStaticStatus(StatusOk)
+			yyVAL.fieldExpression = yyDollar[1].scopedIntrinsicField
 		}
-	case 158:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:374
-		{
-			yyVAL.static = NewStaticStatus(StatusError)
-		}
-	case 159:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:375
-		{
-			yyVAL.static = NewStaticStatus(StatusUnset)
-		}
-	case 160:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:376
-		{
-			yyVAL.static = NewStaticKind(KindUnspecified)
-		}
-	case 161:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:377
-		{
-			yyVAL.static = NewStaticKind(KindInternal)
-		}
-	case 162:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:378
-		{
-			yyVAL.static = NewStaticKind(KindServer)
-		}
-	case 163:
-		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:379
-		{
-			yyVAL.static = NewStaticKind(KindClient)
-		}
-	case 164:
+	case 153:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:380
 		{
-			yyVAL.static = NewStaticKind(KindProducer)
+			yyVAL.static = NewStaticString(yyDollar[1].staticStr)
 		}
-	case 165:
+	case 154:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:381
 		{
-			yyVAL.static = NewStaticKind(KindConsumer)
+			yyVAL.static = NewStaticInt(yyDollar[1].staticInt)
 		}
-	case 166:
+	case 155:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:382
+		{
+			yyVAL.static = NewStaticFloat(yyDollar[1].staticFloat)
+		}
+	case 156:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:383
+		{
+			yyVAL.static = NewStaticBool(true)
+		}
+	case 157:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:384
+		{
+			yyVAL.static = NewStaticBool(false)
+		}
+	case 158:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:385
+		{
+			yyVAL.static = NewStaticNil()
+		}
+	case 159:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:386
+		{
+			yyVAL.static = NewStaticDuration(yyDollar[1].staticDuration)
+		}
+	case 160:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:387
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicDuration)
+			yyVAL.static = NewStaticStatus(StatusOk)
 		}
-	case 167:
+	case 161:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:388
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicChildCount)
+			yyVAL.static = NewStaticStatus(StatusError)
 		}
-	case 168:
+	case 162:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:389
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicName)
+			yyVAL.static = NewStaticStatus(StatusUnset)
 		}
-	case 169:
+	case 163:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:390
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicStatus)
+			yyVAL.static = NewStaticKind(KindUnspecified)
 		}
-	case 170:
+	case 164:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:391
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicStatusMessage)
+			yyVAL.static = NewStaticKind(KindInternal)
 		}
-	case 171:
+	case 165:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:392
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicKind)
+			yyVAL.static = NewStaticKind(KindServer)
 		}
-	case 172:
+	case 166:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:393
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicParent)
+			yyVAL.static = NewStaticKind(KindClient)
 		}
-	case 173:
+	case 167:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:394
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceRootSpan)
+			yyVAL.static = NewStaticKind(KindProducer)
 		}
-	case 174:
+	case 168:
 		yyDollar = yyS[yypt-1 : yypt+1]
 //line pkg/traceql/expr.y:395
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceRootService)
+			yyVAL.static = NewStaticKind(KindConsumer)
+		}
+	case 169:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:401
+		{
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicDuration)
+		}
+	case 170:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:402
+		{
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicChildCount)
+		}
+	case 171:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:403
+		{
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicName)
+		}
+	case 172:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:404
+		{
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicStatus)
+		}
+	case 173:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:405
+		{
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicStatusMessage)
+		}
+	case 174:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:406
+		{
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicKind)
 		}
 	case 175:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:396
+//line pkg/traceql/expr.y:407
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceDuration)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicParent)
 		}
 	case 176:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:397
+//line pkg/traceql/expr.y:408
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicNestedSetLeft)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceRootSpan)
 		}
 	case 177:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:398
+//line pkg/traceql/expr.y:409
 		{
-			yyVAL.intrinsicField = NewIntrinsic(IntrinsicNestedSetRight)
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceRootService)
 		}
 	case 178:
 		yyDollar = yyS[yypt-1 : yypt+1]
-//line pkg/traceql/expr.y:399
+//line pkg/traceql/expr.y:410
+		{
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicTraceDuration)
+		}
+	case 179:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:411
+		{
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicNestedSetLeft)
+		}
+	case 180:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:412
+		{
+			yyVAL.intrinsicField = NewIntrinsic(IntrinsicNestedSetRight)
+		}
+	case 181:
+		yyDollar = yyS[yypt-1 : yypt+1]
+//line pkg/traceql/expr.y:413
 		{
 			yyVAL.intrinsicField = NewIntrinsic(IntrinsicNestedSetParent)
 		}
-	case 179:
-		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:404
-		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicTraceDuration)
-		}
-	case 180:
-		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:405
-		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicTraceRootSpan)
-		}
-	case 181:
-		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:406
-		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicTraceRootService)
-		}
 	case 182:
-		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:407
-		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicTraceID)
-		}
-	case 183:
-		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:409
-		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicDuration)
-		}
-	case 184:
-		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:410
-		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicName)
-		}
-	case 185:
-		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:411
-		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicKind)
-		}
-	case 186:
-		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:412
-		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicStatus)
-		}
-	case 187:
-		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:413
-		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicStatusMessage)
-		}
-	case 188:
-		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:414
-		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicSpanID)
-		}
-	case 189:
-		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:415
-		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicParentID)
-		}
-	case 190:
-		yyDollar = yyS[yypt-2 : yypt+1]
-//line pkg/traceql/expr.y:417
-		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicEventName)
-		}
-	case 191:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line pkg/traceql/expr.y:418
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicEventTimeSinceStart)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicTraceDuration)
 		}
-	case 192:
+	case 183:
+		yyDollar = yyS[yypt-2 : yypt+1]
+//line pkg/traceql/expr.y:419
+		{
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicTraceRootSpan)
+		}
+	case 184:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line pkg/traceql/expr.y:420
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicLinkTraceID)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicTraceRootService)
 		}
-	case 193:
+	case 185:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line pkg/traceql/expr.y:421
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicLinkSpanID)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicTraceID)
 		}
-	case 194:
+	case 186:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line pkg/traceql/expr.y:423
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicInstrumentationName)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicDuration)
 		}
-	case 195:
+	case 187:
 		yyDollar = yyS[yypt-2 : yypt+1]
 //line pkg/traceql/expr.y:424
 		{
-			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicInstrumentationVersion)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicName)
 		}
-	case 196:
-		yyDollar = yyS[yypt-3 : yypt+1]
+	case 188:
+		yyDollar = yyS[yypt-2 : yypt+1]
+//line pkg/traceql/expr.y:425
+		{
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicKind)
+		}
+	case 189:
+		yyDollar = yyS[yypt-2 : yypt+1]
+//line pkg/traceql/expr.y:426
+		{
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicStatus)
+		}
+	case 190:
+		yyDollar = yyS[yypt-2 : yypt+1]
+//line pkg/traceql/expr.y:427
+		{
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicStatusMessage)
+		}
+	case 191:
+		yyDollar = yyS[yypt-2 : yypt+1]
 //line pkg/traceql/expr.y:428
 		{
-			yyVAL.attributeField = NewAttribute(yyDollar[2].staticStr)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicSpanID)
 		}
-	case 197:
-		yyDollar = yyS[yypt-3 : yypt+1]
+	case 192:
+		yyDollar = yyS[yypt-2 : yypt+1]
 //line pkg/traceql/expr.y:429
 		{
-			yyVAL.attributeField = NewScopedAttribute(AttributeScopeResource, false, yyDollar[2].staticStr)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicParentID)
+		}
+	case 193:
+		yyDollar = yyS[yypt-2 : yypt+1]
+//line pkg/traceql/expr.y:431
+		{
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicEventName)
+		}
+	case 194:
+		yyDollar = yyS[yypt-2 : yypt+1]
+//line pkg/traceql/expr.y:432
+		{
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicEventTimeSinceStart)
+		}
+	case 195:
+		yyDollar = yyS[yypt-2 : yypt+1]
+//line pkg/traceql/expr.y:434
+		{
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicLinkTraceID)
+		}
+	case 196:
+		yyDollar = yyS[yypt-2 : yypt+1]
+//line pkg/traceql/expr.y:435
+		{
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicLinkSpanID)
+		}
+	case 197:
+		yyDollar = yyS[yypt-2 : yypt+1]
+//line pkg/traceql/expr.y:437
+		{
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicInstrumentationName)
 		}
 	case 198:
-		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:430
+		yyDollar = yyS[yypt-2 : yypt+1]
+//line pkg/traceql/expr.y:438
 		{
-			yyVAL.attributeField = NewScopedAttribute(AttributeScopeSpan, false, yyDollar[2].staticStr)
+			yyVAL.scopedIntrinsicField = NewIntrinsic(IntrinsicInstrumentationVersion)
 		}
 	case 199:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:431
+//line pkg/traceql/expr.y:442
 		{
-			yyVAL.attributeField = NewScopedAttribute(AttributeScopeNone, true, yyDollar[2].staticStr)
+			yyVAL.attributeField = NewAttribute(yyDollar[2].staticStr)
 		}
 	case 200:
-		yyDollar = yyS[yypt-4 : yypt+1]
-//line pkg/traceql/expr.y:432
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:443
 		{
-			yyVAL.attributeField = NewScopedAttribute(AttributeScopeResource, true, yyDollar[3].staticStr)
+			yyVAL.attributeField = NewScopedAttribute(AttributeScopeResource, false, yyDollar[2].staticStr)
 		}
 	case 201:
-		yyDollar = yyS[yypt-4 : yypt+1]
-//line pkg/traceql/expr.y:433
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:444
 		{
-			yyVAL.attributeField = NewScopedAttribute(AttributeScopeSpan, true, yyDollar[3].staticStr)
+			yyVAL.attributeField = NewScopedAttribute(AttributeScopeSpan, false, yyDollar[2].staticStr)
 		}
 	case 202:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:434
+//line pkg/traceql/expr.y:445
+		{
+			yyVAL.attributeField = NewScopedAttribute(AttributeScopeNone, true, yyDollar[2].staticStr)
+		}
+	case 203:
+		yyDollar = yyS[yypt-4 : yypt+1]
+//line pkg/traceql/expr.y:446
+		{
+			yyVAL.attributeField = NewScopedAttribute(AttributeScopeResource, true, yyDollar[3].staticStr)
+		}
+	case 204:
+		yyDollar = yyS[yypt-4 : yypt+1]
+//line pkg/traceql/expr.y:447
+		{
+			yyVAL.attributeField = NewScopedAttribute(AttributeScopeSpan, true, yyDollar[3].staticStr)
+		}
+	case 205:
+		yyDollar = yyS[yypt-3 : yypt+1]
+//line pkg/traceql/expr.y:448
 		{
 			yyVAL.attributeField = NewScopedAttribute(AttributeScopeEvent, false, yyDollar[2].staticStr)
 		}
-	case 203:
+	case 206:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:435
+//line pkg/traceql/expr.y:449
 		{
 			yyVAL.attributeField = NewScopedAttribute(AttributeScopeLink, false, yyDollar[2].staticStr)
 		}
-	case 204:
+	case 207:
 		yyDollar = yyS[yypt-3 : yypt+1]
-//line pkg/traceql/expr.y:436
+//line pkg/traceql/expr.y:450
 		{
 			yyVAL.attributeField = NewScopedAttribute(AttributeScopeInstrumentation, false, yyDollar[2].staticStr)
 		}

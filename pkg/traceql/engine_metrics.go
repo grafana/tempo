@@ -787,19 +787,26 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 		return nil, fmt.Errorf("step required")
 	}
 
-	_, _, metricsPipeline, _, err := Compile(req.Query)
+	_, _, metricsPipeline, metricsSecondStage, _, err := Compile(req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}
 
+	// for metrics queries, we need a metrics pipeline
 	if metricsPipeline == nil {
 		return nil, fmt.Errorf("not a metrics query")
 	}
 
 	metricsPipeline.init(req, mode)
 
+	// second stage is optional, so check if it's nil
+	if metricsSecondStage != nil {
+		metricsSecondStage.init(req, mode)
+	}
+
 	return &MetricsFrontendEvaluator{
-		metricsPipeline: metricsPipeline,
+		metricsPipeline:    metricsPipeline,
+		metricsSecondStage: metricsSecondStage,
 	}, nil
 }
 
@@ -821,7 +828,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		return nil, fmt.Errorf("step required")
 	}
 
-	expr, eval, metricsPipeline, storageReq, err := Compile(req.Query)
+	expr, eval, metricsPipeline, metricsSecondStage, storageReq, err := Compile(req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}
@@ -837,12 +844,18 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 	// This initializes all step buffers, counters, etc
 	metricsPipeline.init(req, AggregateModeRaw)
 
+	// second stage is optional, so check if it's nil
+	if metricsSecondStage != nil {
+		metricsSecondStage.init(req, AggregateModeRaw)
+	}
+
 	me := &MetricsEvalulator{
-		storageReq:        storageReq,
-		metricsPipeline:   metricsPipeline,
-		timeOverlapCutoff: timeOverlapCutoff,
-		maxExemplars:      exemplars,
-		exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
+		storageReq:         storageReq,
+		metricsPipeline:    metricsPipeline,
+		metricsSecondStage: metricsSecondStage,
+		timeOverlapCutoff:  timeOverlapCutoff,
+		maxExemplars:       exemplars,
+		exemplarMap:        make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 	}
 
 	// Span start time (always required)
@@ -965,6 +978,7 @@ func lookup(needles []Attribute, haystack Span) Static {
 	return NewStaticNil()
 }
 
+// TODO: implement second stage in the MetricsEvalulator
 type MetricsEvalulator struct {
 	start, end                      uint64
 	checkTime                       bool
@@ -973,6 +987,7 @@ type MetricsEvalulator struct {
 	timeOverlapCutoff               float64
 	storageReq                      *FetchSpansRequest
 	metricsPipeline                 metricsFirstStageElement
+	metricsSecondStage              metricsSecondStageElement
 	spansTotal, spansDeduped, bytes uint64
 	mtx                             sync.Mutex
 }
@@ -1072,6 +1087,11 @@ func (e *MetricsEvalulator) Metrics() (uint64, uint64, uint64) {
 }
 
 func (e *MetricsEvalulator) Results() SeriesSet {
+	// if e.metricsSecondStage != nil {
+	// TODO: add a right func here so we capture results from first stage and pass
+	// them on to second stage and evaluate correctly??
+	// }
+	// TODO: find a way to run second stage before we return results??
 	return e.metricsPipeline.result()
 }
 
@@ -1099,6 +1119,8 @@ func (e *MetricsEvalulator) sampleExemplar(id []byte) bool {
 type MetricsFrontendEvaluator struct {
 	mtx             sync.Mutex
 	metricsPipeline metricsFirstStageElement
+	// TODO: add second stage here
+	metricsSecondStage metricsSecondStageElement
 }
 
 func (m *MetricsFrontendEvaluator) ObserveSeries(in []*tempopb.TimeSeries) {
@@ -1106,15 +1128,21 @@ func (m *MetricsFrontendEvaluator) ObserveSeries(in []*tempopb.TimeSeries) {
 	defer m.mtx.Unlock()
 
 	m.metricsPipeline.observeSeries(in)
+	// TODO: handle second stage correctly here??
+	if m.metricsSecondStage != nil {
+		m.metricsSecondStage.observeSeries(in)
+	}
 }
 
 func (m *MetricsFrontendEvaluator) Results() SeriesSet {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
+	// TODO: handle second stage correctly here??
 	return m.metricsPipeline.result()
 }
 
+// TODO: reuse this for topk and bottok implimention
 type SeriesAggregator interface {
 	Combine([]*tempopb.TimeSeries)
 	Results() SeriesSet
