@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
 	"github.com/grafana/tempo/modules/generator/processor/localblocks"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
@@ -105,12 +106,14 @@ type ProcessorConfig struct {
 	ServiceGraphs servicegraphs.Config `yaml:"service_graphs"`
 	SpanMetrics   spanmetrics.Config   `yaml:"span_metrics"`
 	LocalBlocks   localblocks.Config   `yaml:"local_blocks"`
+	HostInfo      hostinfo.Config      `yaml:"host_info"`
 }
 
 func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.ServiceGraphs.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.SpanMetrics.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.LocalBlocks.RegisterFlagsAndApplyDefaults(prefix, f)
+	cfg.HostInfo.RegisterFlagsAndApplyDefaults(prefix, f)
 }
 
 func (cfg *ProcessorConfig) Validate() error {
