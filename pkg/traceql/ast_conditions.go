@@ -5,9 +5,6 @@ func (r RootExpr) extractConditions(request *FetchSpansRequest) {
 	if r.MetricsPipeline != nil {
 		r.MetricsPipeline.extractConditions(request)
 	}
-	if r.MetricsSecondStage != nil {
-		r.MetricsSecondStage.extractConditions(request)
-	}
 }
 
 func (f SpansetFilter) extractConditions(request *FetchSpansRequest) {

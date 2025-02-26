@@ -298,22 +298,17 @@ func (a *MetricsAggregate) validate() error {
 
 var _ metricsFirstStageElement = (*MetricsAggregate)(nil)
 
-// TODO: can we just embed metricsFirstStageElement/MetricsAggregate in MetricsSecondStage???
+// metricsSecondStageElement represents operations that can be performed
+// after the first stage metrics pipeline, such as topK/bottomK, etc.
 type metricsSecondStageElement interface {
 	Element
-	extractConditions(request *FetchSpansRequest)
-	// TODO: define the right init function signature
-	init(req *tempopb.QueryRangeRequest, mode AggregateMode)
-	observeSeries([]*tempopb.TimeSeries)
-	result() []*tempopb.TimeSeries
+	process(input SeriesSet) SeriesSet
 }
 
 // MetricsSecondStage handles second stage metrics operations (topK/bottomK)
-// it takes output of the first stage pipeline as input and applies the second stage operations like topk, bottomk on the first stage data.
 type MetricsSecondStage struct {
 	op    SecondStageOp
 	limit int
-	input []*tempopb.TimeSeries
 }
 
 type SecondStageOp int
@@ -343,44 +338,33 @@ func newMetricsBottomK(limit int) metricsSecondStageElement {
 	return &MetricsSecondStage{op: OpBottomK, limit: limit}
 }
 
-// Interface implementation
 func (m *MetricsSecondStage) String() string {
 	return fmt.Sprintf("%s(%d)", m.op.String(), m.limit)
 }
 
 func (m *MetricsSecondStage) validate() error {
-	// TODO: should we also enforce a max limit for topk/bottomk?
+	// TODO: put an upper limit on the value of m.limit
 	if m.limit <= 0 {
 		return errInvalidLimit
 	}
 	return nil
 }
 
-func (m *MetricsSecondStage) extractConditions(*FetchSpansRequest) {
-	// todo: implement this?? also do we need this???
-}
-
-func (m *MetricsSecondStage) init(*tempopb.QueryRangeRequest, AggregateMode) {
-	// todo: implement this?? assign input from last stage to m.input??
-	// it's called in CompileMetricsQueryRangeNonRaw in engine_metrics.go
-	m.input = nil
-}
-
-func (m *MetricsSecondStage) observeSeries(series []*tempopb.TimeSeries) {
-	fmt.Println("observeSeries: series: ", series)
-	m.input = series
-}
-
-func (m *MetricsSecondStage) result() []*tempopb.TimeSeries {
-	if len(m.input) == 0 {
-		return nil
+func (m *MetricsSecondStage) process(input SeriesSet) SeriesSet {
+	// input is less or same size as limit, just return it
+	if len(input) <= m.limit {
+		return input
 	}
 
-	// TODO: correctly implement topk/bottomk, right now it's just returning the first n elements
-	if len(m.input) > m.limit {
-		return m.input[:m.limit]
+	switch m.op {
+	case OpTopK:
+		return processTopK(input, m.limit)
+	case OpBottomK:
+		return processBottomK(input, m.limit)
 	}
-	return m.input
+
+	// we don't know what to do with it, so return as is.
+	return input
 }
 
 var _ metricsSecondStageElement = (*MetricsSecondStage)(nil)
