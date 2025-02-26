@@ -309,6 +309,92 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 	requireLastCommitEquals(t, ctx, client, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
+// TestBlockbuilder_stopsCycleCorrectlyWhenRecordsStop verifies that the block builder
+// correctly stops a consumption cycle when records stop coming in mid-cycle,
+// and doesn't consume the same record again in the next cycle
+func TestBlockbuilder_stopsCycleCorrectlyWhenRecordsStop(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+
+	k, address := testkafka.CreateCluster(t, 1, testTopic)
+
+	// Track commits
+	commitCount := atomic.NewInt32(0)
+	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
+		commitCount.Inc()
+		return nil, nil, false
+	})
+
+	// Create a store
+	store := newStore(ctx, t)
+
+	// Create a block builder with a longer cycle duration
+	cfg := blockbuilderConfig(t, address)
+	cfg.ConsumeCycleDuration = 5 * time.Second // Longer duration to simulate records stopping mid-cycle
+
+	// Create a logger that we can inspect
+	logger := test.NewTestingLogger(t)
+	bb, err := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
+
+	// Start the service
+	require.NoError(t, services.StartAndAwaitRunning(ctx, bb))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, bb))
+	})
+
+	// Create a client to send data
+	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
+
+	// Send a few records with timestamps that are within the cycle duration
+	// but stop sending before the cycle ends
+	now := time.Now()
+
+	// Create records with timestamps that are 2 seconds apart
+	// The cycle duration is 5 seconds, so these records will be within one cycle
+	records := make([]*kgo.Record, 0, 2)
+
+	// First record at current time
+	traceID1 := generateTraceID(t)
+	req1 := test.MakePushBytesRequest(t, 10, traceID1, uint64(now.UnixNano()), uint64(now.Add(time.Second).UnixNano()))
+	rec1, err := ingest.Encode(0, util.FakeTenantID, req1, 1_000_000)
+	require.NoError(t, err)
+	rec1[0].Timestamp = now
+
+	// Second record 2 seconds later
+	traceID2 := generateTraceID(t)
+	req2 := test.MakePushBytesRequest(t, 10, traceID2, uint64(now.Add(2*time.Second).UnixNano()), uint64(now.Add(3*time.Second).UnixNano()))
+	rec2, err := ingest.Encode(0, util.FakeTenantID, req2, 1_000_000)
+	require.NoError(t, err)
+	rec2[0].Timestamp = now.Add(2 * time.Second)
+
+	// Add records to the batch
+	records = append(records, rec1...)
+	records = append(records, rec2...)
+
+	// Send the records
+	res := client.ProduceSync(ctx, records...)
+	require.NoError(t, res.FirstErr())
+
+	// Wait for records to be consumed and committed
+	require.Eventually(t, func() bool {
+		return commitCount.Load() > 0
+	}, time.Minute, time.Second)
+
+	// Wait for the block to be flushed
+	require.Eventually(t, func() bool {
+		return len(store.BlockMetas(util.FakeTenantID)) > 0
+	}, time.Minute, time.Second)
+
+	// Now run another consumption cycle
+	// This should not consume the same records again
+	_, err = bb.consume(ctx)
+	require.NoError(t, err)
+
+	// Verify no new commits were made
+	require.Equal(t, commitCount.Load(), int32(1), "Only one commit should have been made")
+}
+
 func blockbuilderConfig(t testing.TB, address string) Config {
 	cfg := Config{}
 	flagext.DefaultValues(&cfg)
