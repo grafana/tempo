@@ -330,12 +330,8 @@ func (op SecondStageOp) String() string {
 	return "unknown"
 }
 
-func newMetricsTopK(limit int) metricsSecondStageElement {
-	return &MetricsSecondStage{op: OpTopK, limit: limit}
-}
-
-func newMetricsBottomK(limit int) metricsSecondStageElement {
-	return &MetricsSecondStage{op: OpBottomK, limit: limit}
+func newMetricsSecondStage(op SecondStageOp, limit int) *MetricsSecondStage {
+	return &MetricsSecondStage{op: op, limit: limit}
 }
 
 func (m *MetricsSecondStage) String() string {
