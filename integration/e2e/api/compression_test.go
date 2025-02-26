@@ -37,9 +37,9 @@ func TestCompression(t *testing.T) {
 	info := tempoUtil.NewTraceInfo(time.Now(), "")
 	require.NoError(t, info.EmitAllBatches(c))
 
-	apiClient := httpclient.New("http://"+tempo.Endpoint(3200), "")
+	apiClient := httpclient.New("http://"+tempo.Endpoint(tempoPort), "")
 
-	apiClientWithCompression := httpclient.NewWithCompression("http://"+tempo.Endpoint(3200), "")
+	apiClientWithCompression := httpclient.NewWithCompression("http://"+tempo.Endpoint(tempoPort), "")
 
 	util.QueryAndAssertTrace(t, apiClient, info)
 	queryAndAssertTraceCompression(t, apiClientWithCompression, info)

@@ -26,6 +26,11 @@ const (
 	configAllInOneLocal = "../deployments/config-all-in-one-local.yaml"
 	spanX               = "span.x"
 	resourceX           = "resource.xx"
+
+	tempoPort = 3200
+
+	queryableTimeout    = 5 * time.Second        // timeout for waiting for traces to be queryable
+	queryableCheckEvery = 100 * time.Millisecond // check every 100ms for traces to be queryable
 )
 
 func TestSearchTagsV2(t *testing.T) {
@@ -57,8 +62,14 @@ func TestSearchTagsV2(t *testing.T) {
 	batch = util.MakeThriftBatchWithSpanCountAttributeAndName(secondBatch.spanCount, secondBatch.name, secondBatch.resourceAttVal, secondBatch.spanAttVal, secondBatch.resourceAttr, secondBatch.SpanAttr)
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
-	// Wait for the traces to be written to the WAL
-	time.Sleep(time.Second * 3)
+	// Wait for the traces to be written to the WAL and searchable
+	require.Eventually(t, func() bool {
+		ok, err := isQueryable(tempo.Endpoint(tempoPort))
+		if err != nil {
+			return false
+		}
+		return ok
+	}, queryableTimeout, queryableCheckEvery, "traces were not queryable within timeout")
 
 	testCases := []struct {
 		name     string
@@ -299,8 +310,14 @@ func TestSearchTagValuesV2(t *testing.T) {
 	batch = util.MakeThriftBatchWithSpanCountAttributeAndName(secondBatch.spanCount, secondBatch.name, secondBatch.resourceAttVal, secondBatch.spanAttVal, "xx", "x")
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
-	// Wait for the traces to be written to the WAL
-	time.Sleep(time.Second * 3)
+	// Wait for the traces to be written to the WAL and searchable
+	require.Eventually(t, func() bool {
+		ok, err := isQueryable(tempo.Endpoint(tempoPort))
+		if err != nil {
+			return false
+		}
+		return ok
+	}, queryableTimeout, queryableCheckEvery, "traces were not queryable within timeout")
 
 	testCases := []struct {
 		name     string
@@ -544,7 +561,7 @@ func TestStreamingSearch_badRequest(t *testing.T) {
 	time.Sleep(time.Second * 3)
 
 	// Create gRPC client
-	c, err := util.NewSearchGRPCClient(context.Background(), tempo.Endpoint(3200))
+	c, err := util.NewSearchGRPCClient(context.Background(), tempo.Endpoint(tempoPort))
 	require.NoError(t, err)
 
 	res, err := c.Search(context.Background(), &tempopb.SearchRequest{
@@ -564,7 +581,7 @@ func callSearchTagValuesV2AndAssert(t *testing.T, svc *e2e.HTTPService, tagName,
 	urlPath := fmt.Sprintf(`/api/v2/search/tag/%s/values?q=%s`, tagName, url.QueryEscape(query))
 
 	// search for tag values
-	req, err := http.NewRequest(http.MethodGet, "http://"+svc.Endpoint(3200)+urlPath, nil)
+	req, err := http.NewRequest(http.MethodGet, "http://"+svc.Endpoint(tempoPort)+urlPath, nil)
 	require.NoError(t, err)
 
 	q := req.URL.Query()
@@ -603,7 +620,7 @@ func callSearchTagValuesV2AndAssert(t *testing.T, svc *e2e.HTTPService, tagName,
 		End:     uint32(end),
 	}
 
-	grpcClient, err := util.NewSearchGRPCClient(context.Background(), svc.Endpoint(3200))
+	grpcClient, err := util.NewSearchGRPCClient(context.Background(), svc.Endpoint(tempoPort))
 	require.NoError(t, err)
 
 	respTagsValuesV2, err := grpcClient.SearchTagValuesV2(context.Background(), grpcReq)
@@ -648,7 +665,7 @@ func callSearchTagsV2AndAssert(t *testing.T, svc *e2e.HTTPService, scope, query 
 	}
 
 	// search for tag values
-	req, err := http.NewRequest(http.MethodGet, "http://"+svc.Endpoint(3200)+urlPath, nil)
+	req, err := http.NewRequest(http.MethodGet, "http://"+svc.Endpoint(tempoPort)+urlPath, nil)
 	require.NoError(t, err)
 
 	q := req.URL.Query()
@@ -688,7 +705,7 @@ func callSearchTagsV2AndAssert(t *testing.T, svc *e2e.HTTPService, scope, query 
 		End:   uint32(end),
 	}
 
-	grpcClient, err := util.NewSearchGRPCClient(context.Background(), svc.Endpoint(3200))
+	grpcClient, err := util.NewSearchGRPCClient(context.Background(), svc.Endpoint(tempoPort))
 	require.NoError(t, err)
 
 	respTagsValuesV2, err := grpcClient.SearchTagsV2(context.Background(), grpcReq)
@@ -732,7 +749,7 @@ func prepTagsResponse(resp *searchTagsV2Response) {
 func callSearchTagsAndAssert(t *testing.T, svc *e2e.HTTPService, expected searchTagsResponse, start, end int64) {
 	urlPath := "/api/search/tags"
 	// search for tag values
-	req, err := http.NewRequest(http.MethodGet, "http://"+svc.Endpoint(3200)+urlPath, nil)
+	req, err := http.NewRequest(http.MethodGet, "http://"+svc.Endpoint(tempoPort)+urlPath, nil)
 	require.NoError(t, err)
 
 	q := req.URL.Query()
@@ -770,7 +787,7 @@ func callSearchTagsAndAssert(t *testing.T, svc *e2e.HTTPService, expected search
 		End:   uint32(end),
 	}
 
-	grpcClient, err := util.NewSearchGRPCClient(context.Background(), svc.Endpoint(3200))
+	grpcClient, err := util.NewSearchGRPCClient(context.Background(), svc.Endpoint(tempoPort))
 	require.NoError(t, err)
 
 	respTags, err := grpcClient.SearchTags(context.Background(), grpcReq)
@@ -802,7 +819,7 @@ func callSearchTagsAndAssert(t *testing.T, svc *e2e.HTTPService, expected search
 func callSearchTagValuesAndAssert(t *testing.T, svc *e2e.HTTPService, tagName string, expected searchTagValuesResponse, start, end int64) {
 	urlPath := fmt.Sprintf(`/api/search/tag/%s/values`, tagName)
 	// search for tag values
-	req, err := http.NewRequest(http.MethodGet, "http://"+svc.Endpoint(3200)+urlPath, nil)
+	req, err := http.NewRequest(http.MethodGet, "http://"+svc.Endpoint(tempoPort)+urlPath, nil)
 	require.NoError(t, err)
 
 	q := req.URL.Query()
@@ -866,6 +883,26 @@ func lenWithoutIntrinsic(resp searchTagsV2Response) int {
 		size += len(scope.Tags)
 	}
 	return size
+}
+
+// isQueryable returns true if the data is queryable and not empty
+func isQueryable(host string) (bool, error) {
+	resp, err := http.Get(fmt.Sprintf("http://%s/api/search/tag/service.name/values", host))
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("status code is not ok: %d", resp.StatusCode)
+	}
+
+	var searchResp searchTagValuesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&searchResp); err != nil {
+		return false, err
+	}
+
+	return len(searchResp.TagValues) > 0, nil
 }
 
 type ScopedTags struct {
