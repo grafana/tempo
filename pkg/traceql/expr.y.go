@@ -1688,13 +1688,13 @@ yydefault:
 		yyDollar = yyS[yypt-4 : yypt+1]
 //line pkg/traceql/expr.y:326
 		{
-			yyVAL.metricsSecondStage = newMetricsTopK(yyDollar[3].staticInt)
+			yyVAL.metricsSecondStage = newMetricsSecondStage(OpTopK, yyDollar[3].staticInt)
 		}
 	case 125:
 		yyDollar = yyS[yypt-4 : yypt+1]
 //line pkg/traceql/expr.y:327
 		{
-			yyVAL.metricsSecondStage = newMetricsBottomK(yyDollar[3].staticInt)
+			yyVAL.metricsSecondStage = newMetricsSecondStage(OpBottomK, yyDollar[3].staticInt)
 		}
 	case 126:
 		yyDollar = yyS[yypt-3 : yypt+1]

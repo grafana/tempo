@@ -1441,7 +1441,7 @@ func TestMetricsSecondStage(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
-				newMetricsTopK(10),
+				newMetricsSecondStage(OpTopK, 10),
 			),
 		},
 		{
@@ -1452,7 +1452,7 @@ func TestMetricsSecondStage(t *testing.T) {
 					NewIntrinsic(IntrinsicName),
 					NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
 				}),
-				newMetricsTopK(10),
+				newMetricsSecondStage(OpTopK, 10),
 			),
 		},
 		{
@@ -1460,7 +1460,7 @@ func TestMetricsSecondStage(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
-				newMetricsTopK(10),
+				newMetricsSecondStage(OpTopK, 10),
 			).withHints(newHints([]*Hint{
 				newHint("foo", NewStaticString("bar")),
 			})),
@@ -1470,7 +1470,7 @@ func TestMetricsSecondStage(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
-				newMetricsBottomK(10),
+				newMetricsSecondStage(OpBottomK, 10),
 			),
 		},
 		{
@@ -1481,7 +1481,7 @@ func TestMetricsSecondStage(t *testing.T) {
 					NewIntrinsic(IntrinsicName),
 					NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
 				}),
-				newMetricsBottomK(10),
+				newMetricsSecondStage(OpBottomK, 10),
 			),
 		},
 		{
@@ -1489,7 +1489,7 @@ func TestMetricsSecondStage(t *testing.T) {
 			expected: newRootExprWithMetricsTwoStage(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
 				newMetricsAggregate(metricsAggregateRate, nil),
-				newMetricsBottomK(10),
+				newMetricsSecondStage(OpBottomK, 10),
 			).withHints(newHints([]*Hint{
 				newHint("foo", NewStaticString("bar")),
 			})),
