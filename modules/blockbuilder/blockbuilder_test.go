@@ -363,7 +363,6 @@ func TestBlockbuilder_noDoubleConsumption(t *testing.T) {
 	// Verify that the new offset was committed correctly
 	requireLastCommitEquals(t, ctx, client, newRecordOffset+1)
 
-
 	require.Eventually(t, func() bool {
 		return len(store.BlockMetas(util.FakeTenantID)) == 2
 	}, 30*time.Second, time.Second)

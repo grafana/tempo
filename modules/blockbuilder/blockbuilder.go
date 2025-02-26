@@ -375,9 +375,10 @@ outer:
 		return time.Time{}, -1, err
 	}
 
-	// TODO - Retry commit
-
-	resp, err := b.kadm.CommitOffsets(ctx, group, kadm.OffsetsFromRecords(*lastRec))
+	offset := kadm.NewOffsetFromRecord(lastRec)
+	offsets := make(kadm.Offsets)
+	offsets.Add(offset)
+	resp, err := b.kadm.CommitOffsets(ctx, group, offsets) // TODO - Retry commit
 	if err != nil {
 		return time.Time{}, -1, err
 	}
@@ -387,11 +388,11 @@ outer:
 	level.Info(b.logger).Log(
 		"msg", "successfully committed offset to kafka",
 		"partition", ps.partition,
-		"commit_offset", lastRec.Offset+1,
+		"commit_offset", offset.At,
 		"processed_records", processedRecords,
 	)
 
-	return lastRec.Timestamp, lastRec.Offset + 1, nil
+	return lastRec.Timestamp, offset.At, nil
 }
 
 func formatActivePartitions(partitions []int32) string {
