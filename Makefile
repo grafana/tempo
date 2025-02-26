@@ -48,6 +48,8 @@ ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 GO_OPT= -mod vendor -ldflags "-X main.Branch=$(GIT_BRANCH) -X main.Revision=$(GIT_REVISION) -X main.Version=$(VERSION)"
 ifeq ($(BUILD_DEBUG), 1)
 	GO_OPT+= -gcflags="all=-N -l"
+else
+	GO_OPT+= -ldflags -w
 endif
 
 GO_ENV=GO111MODULE=on CGO_ENABLED=0
