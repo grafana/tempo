@@ -69,7 +69,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	}
 
 	cfg.Config.MaxOutstandingPerTenant = 2000
-	cfg.Config.MaxBatchSize = 5
+	cfg.Config.MaxBatchSize = 7
 	cfg.MaxRetries = 2
 	cfg.ResponseConsumers = 10
 	cfg.Search = SearchConfig{
