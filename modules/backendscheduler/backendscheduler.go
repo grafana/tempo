@@ -8,8 +8,6 @@ import (
 
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
-	"github.com/grafana/dskit/kv"
-	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -30,12 +28,12 @@ type BackendScheduler struct {
 	metrics *metrics
 
 	// Ring lifecycle management
-	ringLifecycler *ring.BasicLifecycler
-	ring           *ring.Ring
+	// ringLifecycler *ring.BasicLifecycler
+	// ring           *ring.Ring
 
 	// Subservices management
-	subservices        *services.Manager
-	subservicesWatcher *services.FailureWatcher
+	// subservices        *services.Manager
+	// subservicesWatcher *services.FailureWatcher
 
 	// track jobs
 	jobs    map[string]*Job
@@ -62,56 +60,56 @@ func New(cfg Config, store storage.Store, reg prometheus.Registerer) (*BackendSc
 
 	reg = prometheus.WrapRegistererWithPrefix("tempo_", reg)
 
-	lifecyclerStore, err := kv.NewClient(
-		cfg.Ring.KVStore,
-		ring.GetCodec(),
-		kv.RegistererWithKVName(reg, "backend-scheduler"),
-		log.Logger,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create lifecycler store: %w", err)
-	}
-
-	lifecyclerCfg, err := cfg.Ring.toLifecyclerConfig()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create lifecycler config: %w", err)
-	}
-
-	s.ringLifecycler, err = ring.NewBasicLifecycler(lifecyclerCfg, ringKey, ringKey, lifecyclerStore, nil, log.Logger, reg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ring lifecycler: %w", err)
-	}
-
-	ringCfg := cfg.Ring.ToRingConfig()
-	s.ring, err = ring.New(ringCfg, ringKey, ringKey, log.Logger, reg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ring: %w", err)
-	}
+	// lifecyclerStore, err := kv.NewClient(
+	// 	cfg.Ring.KVStore,
+	// 	ring.GetCodec(),
+	// 	kv.RegistererWithKVName(reg, "backend-scheduler"),
+	// 	log.Logger,
+	// )
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to create lifecycler store: %w", err)
+	// }
+	//
+	// lifecyclerCfg, err := cfg.Ring.toLifecyclerConfig()
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to create lifecycler config: %w", err)
+	// }
+	//
+	// s.ringLifecycler, err = ring.NewBasicLifecycler(lifecyclerCfg, ringKey, ringKey, lifecyclerStore, nil, log.Logger, reg)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to create ring lifecycler: %w", err)
+	// }
+	//
+	// ringCfg := cfg.Ring.ToRingConfig()
+	// s.ring, err = ring.New(ringCfg, ringKey, ringKey, log.Logger, reg)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to create ring: %w", err)
+	// }
 
 	s.Service = services.NewBasicService(s.starting, s.running, s.stopping)
 	return s, nil
 }
 
 func (s *BackendScheduler) starting(ctx context.Context) error {
-	var err error
-	s.subservices, err = services.NewManager(s.ringLifecycler, s.ring)
-	if err != nil {
-		return fmt.Errorf("failed to create subservices: %w", err)
-	}
+	// var err error
+	// s.subservices, err = services.NewManager(s.ringLifecycler, s.ring)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to create subservices: %w", err)
+	// }
 
-	s.subservicesWatcher = services.NewFailureWatcher()
-	s.subservicesWatcher.WatchManager(s.subservices)
+	// s.subservicesWatcher = services.NewFailureWatcher()
+	// s.subservicesWatcher.WatchManager(s.subservices)
 
-	if err := services.StartManagerAndAwaitHealthy(ctx, s.subservices); err != nil {
-		return fmt.Errorf("failed to start subservices: %w", err)
-	}
+	// if err := services.StartManagerAndAwaitHealthy(ctx, s.subservices); err != nil {
+	// 	return fmt.Errorf("failed to start subservices: %w", err)
+	// }
 
 	// Wait until this instance is ACTIVE in the ring
-	level.Info(log.Logger).Log("msg", "waiting until backend scheduler is ACTIVE in the ring")
-	if err := ring.WaitInstanceState(ctx, s.ring, s.ringLifecycler.GetInstanceID(), ring.ACTIVE); err != nil {
-		return err
-	}
-	level.Info(log.Logger).Log("msg", "backend scheduler is ACTIVE in the ring")
+	// level.Info(log.Logger).Log("msg", "waiting until backend scheduler is ACTIVE in the ring")
+	// if err := ring.WaitInstanceState(ctx, s.ring, s.ringLifecycler.GetInstanceID(), ring.ACTIVE); err != nil {
+	// 	return err
+	// }
+	// level.Info(log.Logger).Log("msg", "backend scheduler is ACTIVE in the ring")
 
 	return nil
 }
@@ -127,8 +125,8 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return nil
-		case err := <-s.subservicesWatcher.Chan():
-			return fmt.Errorf("backend scheduler subservice failed: %w", err)
+		// case err := <-s.subservicesWatcher.Chan():
+		// 	return fmt.Errorf("backend scheduler subservice failed: %w", err)
 		case <-ticker.C:
 			// if !s.isLeader() {
 			// 	s.metrics.schedulerIsLeader.Set(0)
@@ -150,38 +148,9 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 }
 
 func (s *BackendScheduler) stopping(_ error) error {
-	if s.subservices != nil {
-		if err := services.StopManagerAndAwaitStopped(context.Background(), s.subservices); err != nil {
-			level.Error(log.Logger).Log("msg", "failed to stop backend scheduler subservices", "err", err)
-		}
-	}
+	// TODO: consider flushing job state
 	return nil
 }
-
-// func (s *BackendScheduler) isLeader() bool {
-// 	// Get all healthy instances
-// 	rs, err := s.ring.GetAllHealthy(ring.Read)
-// 	if err != nil {
-// 		level.Error(log.Logger).Log("msg", "failed to get healthy instances", "err", err)
-// 		return false
-// 	}
-//
-// 	// If there are no instances, we're not the leader
-// 	if len(rs.Instances) == 0 {
-// 		return false
-// 	}
-//
-// 	// Find instance with oldest timestamp (longest-running instance)
-// 	oldestInstance := rs.Instances[0]
-// 	for _, instance := range rs.Instances {
-// 		if instance.Timestamp < oldestInstance.Timestamp {
-// 			oldestInstance = instance
-// 		}
-// 	}
-//
-// 	// We're the leader if we're the oldest instance
-// 	return oldestInstance.Addr == s.ringLifecycler.GetInstanceAddr()
-// }
 
 // scheduleCycle schedules jobs for compaction and performs cleanup.
 func (s *BackendScheduler) scheduleCycle(ctx context.Context) error {

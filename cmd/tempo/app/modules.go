@@ -557,8 +557,6 @@ func (t *App) initCompactor() (services.Service, error) {
 		t.cfg.Compactor.ShardingRing.KVStore.Store = "memberlist"
 	}
 
-	// TODO: pass a backendSchedulerClient to the New method.
-
 	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.Overrides, t.cfg.BackenSchedulerClient, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compactor: %w", err)
