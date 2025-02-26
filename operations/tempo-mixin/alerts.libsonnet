@@ -55,7 +55,7 @@
               max by (%s) (tempo_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
             ||| % [$._config.group_by_cluster, $._config.jobs.ingester, $._config.namespace],
             labels: {
-              severity: 'warning',
+              severity: 'critical',
             },
             annotations: {
               message: 'There are {{ printf "%f" $value }} unhealthy ingester(s).',
@@ -69,7 +69,7 @@
               max by (%s) (tempo_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
             ||| % [$._config.group_by_cluster, $._config.jobs.metrics_generator, $._config.namespace],
             labels: {
-              severity: 'warning',
+              severity: 'critical',
             },
             annotations: {
               message: 'There are {{ printf "%f" $value }} unhealthy metric-generator(s).',
