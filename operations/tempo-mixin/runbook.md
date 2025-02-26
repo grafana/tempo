@@ -75,25 +75,33 @@ Consider the following resolutions:
 
 ## TempoCompactorUnhealthy
 
+This can happen when we have unhealthy compactor sticking around in the ring.
+
 If this occurs access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/compactor/ring`.
-Use the "Forget" button to drop any unhealthy compactors. An unhealthy compactor or two has no immediate impact. Long term,
+Use the "Forget" button to forget and remove any unhealthy compactors from the ring. An unhealthy compactor or two has no immediate impact. Long term,
 however, it will cause the blocklist to grow unnecessarily long.
 
 ## TempoDistributorUnhealthy
 
+This can happen when we have unhealthy distributor sticking around in the ring.
+
 If this occurs access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/distributor/ring`.
-Use the "Forget" button to drop any unhealthy distributors. An unhealthy distributor or two has virtually no impact except to slightly
+Use the "Forget" button to forget and remove any unhealthy distributors from the ring. An unhealthy distributor or two has virtually no impact except to slightly
 increase the amount of memberlist traffic propagated by the cluster.
 
 ## TempoIngesterUnhealthy
 
-If this occurs access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/ingester/ring`.
-Use the "Forget" button to drop any unhealthy ingesters.
+This can happen when we have unhealthy ingesters sticking around in the ring.
+
+If this occurs, access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/ingester/ring`.
+Use the "Forget" button to forget and remove any unhealthy ingesters from the ring.
 
 ## TempoMetricsGeneratorUnhealthy
 
-If this occurs access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/metrics-generator/ring`.
-Use the "Forget" button to drop any unhealthy metrics-generators.
+This can happen when we have unhealthy metrics-generators sticking around in the ring.
+
+If this occurs, access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/metrics-generator/ring`.
+Use the "Forget" button to forget and remove any unhealthy metrics-generators from the ring.
 
 ## TempoCompactionsFailing
 
