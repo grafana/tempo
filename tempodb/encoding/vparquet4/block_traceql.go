@@ -2058,6 +2058,10 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 		}
 	}
 
+	for columnPath, predicates := range columnPredicates {
+		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath]))
+	}
+
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
 		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool, allConditions, selectAll)
 	if err != nil {
@@ -2065,10 +2069,6 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 	}
 	if attrIter != nil {
 		iters = append(iters, attrIter)
-	}
-
-	for columnPath, predicates := range columnPredicates {
-		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath]))
 	}
 
 	var required []parquetquery.Iterator
@@ -2096,7 +2096,7 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 	// This is an optimization for when all of the span conditions must be met.
 	// We simply move all iterators into the required list.
 	if allConditions {
-		required = append(required, iters...)
+		required = append(iters, required...)
 		iters = nil
 	}
 
