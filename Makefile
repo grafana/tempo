@@ -140,6 +140,11 @@ test-e2e-serverless: tools docker-tempo docker-serverless ## Run serverless end 
 test-e2e-deployments: tools docker-tempo docker-tempo-query ## Run end to end tests for deployments
 	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/deployments
 
+# runs only api e2e tests
+.PHONY: test-e2e-api
+test-e2e-api: tools docker-tempo docker-tempo-query ## Run end to end tests for api
+	$(GOTEST) -v $(GOTEST_OPT) ./integration/e2e/api
+
 # runs only poller integration tests
 .PHONY: test-integration-poller
 test-integration-poller: tools ## Run poller integration tests
@@ -147,7 +152,7 @@ test-integration-poller: tools ## Run poller integration tests
 
 # test-all/bench use a docker image so build it first to make sure we're up to date
 .PHONY: test-all ## Run all tests
-test-all: test-with-cover test-e2e test-e2e-serverless test-e2e-deployments test-integration-poller
+test-all: test-with-cover test-e2e test-e2e-serverless test-e2e-deployments test-e2e-api test-integration-poller
 
 .PHONY: test-bench
 test-bench: tools docker-tempo ## Run all benchmarks
