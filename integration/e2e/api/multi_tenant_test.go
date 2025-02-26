@@ -101,10 +101,10 @@ func testSearch(t *testing.T, tenant string, tenantSize int) {
 	time.Sleep(time.Second * 3)
 
 	// test echo
-	util.AssertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
+	util.AssertEcho(t, "http://"+tempo.Endpoint(tempoPort)+"/api/echo")
 
 	// client will have testcase tenant id
-	apiClient := httpclient.New("http://"+tempo.Endpoint(3200), tenant)
+	apiClient := httpclient.New("http://"+tempo.Endpoint(tempoPort), tenant)
 
 	// check trace by id
 	resp, err := apiClient.QueryTrace(info.HexID())
@@ -177,7 +177,7 @@ func testSearch(t *testing.T, tenant string, tenantSize int) {
 	grpcCtx, err = user.InjectIntoGRPCRequest(grpcCtx)
 	require.NoError(t, err)
 
-	grpcClient, err := util.NewSearchGRPCClient(grpcCtx, tempo.Endpoint(3200))
+	grpcClient, err := util.NewSearchGRPCClient(grpcCtx, tempo.Endpoint(tempoPort))
 	require.NoError(t, err)
 
 	time.Sleep(2 * time.Second) // ensure that blocklist poller has built the blocklist
