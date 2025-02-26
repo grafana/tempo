@@ -24,7 +24,6 @@ import (
 const (
 	configMetricsGenerator           = "config-metrics-generator.yaml"
 	configMetricsGeneratorTargetInfo = "config-metrics-generator-targetinfo.yaml"
-	prometheusImage                  = "prom/prometheus:latest"
 )
 
 func TestMetricsGenerator(t *testing.T) {
@@ -36,7 +35,7 @@ func TestMetricsGenerator(t *testing.T) {
 	tempoDistributor := util.NewTempoDistributor()
 	tempoIngester := util.NewTempoIngester(1)
 	tempoMetricsGenerator := util.NewTempoMetricsGenerator()
-	prometheus := newPrometheus()
+	prometheus := util.NewPrometheus()
 	require.NoError(t, s.StartAndWaitReady(tempoDistributor, tempoIngester, tempoMetricsGenerator, prometheus))
 
 	// Wait until ingester and metrics-generator are active
@@ -225,7 +224,7 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
 	tempoDistributor := util.NewTempoDistributor()
 	tempoIngester := util.NewTempoIngester(1)
 	tempoMetricsGenerator := util.NewTempoMetricsGenerator()
-	prometheus := newPrometheus()
+	prometheus := util.NewPrometheus()
 	require.NoError(t, s.StartAndWaitReady(tempoDistributor, tempoIngester, tempoMetricsGenerator, prometheus))
 
 	// Wait until ingester and metrics-generator are active
@@ -385,16 +384,6 @@ func TestMetricsGeneratorTargetInfoEnabled(t *testing.T) {
 	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_active_series"))
 	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(1000), "tempo_metrics_generator_registry_max_active_series"))
 	assert.NoError(t, tempoMetricsGenerator.WaitSumMetrics(e2e.Equals(25), "tempo_metrics_generator_registry_series_added_total"))
-}
-
-func newPrometheus() *e2e.HTTPService {
-	return e2e.NewHTTPService(
-		"prometheus",
-		prometheusImage,
-		e2e.NewCommandWithoutEntrypoint("/bin/prometheus", "--config.file=/etc/prometheus/prometheus.yml", "--web.enable-remote-write-receiver"),
-		e2e.NewHTTPReadinessProbe(9090, "/-/ready", 200, 299),
-		9090,
-	)
 }
 
 // extractMetricsFromPrometheus extracts metrics stored in Prometheus using the /federate endpoint.

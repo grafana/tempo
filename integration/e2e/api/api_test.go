@@ -1,4 +1,4 @@
-package e2e
+package api
 
 import (
 	"context"
@@ -23,8 +23,9 @@ import (
 )
 
 const (
-	spanX     = "span.x"
-	resourceX = "resource.xx"
+	configAllInOneLocal = "../deployments/config-all-in-one-local.yaml"
+	spanX               = "span.x"
+	resourceX           = "resource.xx"
 )
 
 func TestSearchTagsV2(t *testing.T) {

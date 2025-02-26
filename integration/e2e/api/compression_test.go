@@ -1,4 +1,4 @@
-package e2e
+package api
 
 import (
 	"compress/gzip"
@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	configCompression = "deployments/config-all-in-one-local.yaml"
+	configCompression = "../deployments/config-all-in-one-local.yaml"
 )
 
 func TestCompression(t *testing.T) {
