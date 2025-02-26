@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util/test"
 )
 
 func TestEncoderDecoder(t *testing.T) {
@@ -134,4 +136,51 @@ func generateRandomString(length int) []byte {
 		b[i] = charset[rand.Intn(len(charset))]
 	}
 	return b
+}
+
+func BenchmarkGeneratorDecoderOTLP(b *testing.B) {
+	traceBytes := marshalBatches(b, []*v1.ResourceSpans{
+		test.MakeBatch(15, []byte("test batch 1")),
+		test.MakeBatch(50, []byte("test batch 2")),
+		test.MakeBatch(42, []byte("test batch 3")),
+	})
+
+	b.ReportAllocs()
+	decoder := NewOTLPDecoder()
+
+	b.ResetTimer()
+	for b.Loop() {
+		iterator, err := decoder.Decode(traceBytes)
+		require.NoError(b, err)
+		for range iterator { // nolint:revive // we want to run the side effects of ranging itself
+		}
+	}
+}
+
+func marshalBatches(t testing.TB, batches []*v1.ResourceSpans) []byte {
+	t.Helper()
+
+	trace := tempopb.Trace{ResourceSpans: batches}
+
+	m, err := trace.Marshal()
+	require.NoError(t, err)
+
+	return m
+}
+
+func BenchmarkGeneratorDecoderPushBytes(b *testing.B) {
+	stream := generateRequest(1000, 200)
+	traceBytes, err := stream.Marshal()
+	require.NoError(b, err)
+
+	b.ReportAllocs()
+	decoder := NewPushBytesDecoder()
+
+	b.ResetTimer()
+	for b.Loop() {
+		iterator, err := decoder.Decode(traceBytes)
+		require.NoError(b, err)
+		for range iterator { // nolint:revive // we want to run the side effects of ranging itself
+		}
+	}
 }

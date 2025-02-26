@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/prometheus/client_golang/prometheus"
@@ -107,7 +108,14 @@ func (g *Generator) readKafka(ctx context.Context) error {
 // to multiple goroutines.
 func (g *Generator) readCh(ctx context.Context) {
 	defer g.kafkaWG.Done()
-	d := ingest.NewDecoder()
+
+	var c ingest.GeneratorCodec
+	switch g.cfg.Codec {
+	case codecPushBytes:
+		c = ingest.NewPushBytesDecoder()
+	case codecOTLP:
+		c = ingest.NewOTLPDecoder()
+	}
 
 	for {
 		var r *kgo.Record
@@ -125,26 +133,21 @@ func (g *Generator) readCh(ctx context.Context) {
 			continue
 		}
 
-		d.Reset()
-		req, err := d.Decode(r.Value)
+		iterator, err := c.Decode(r.Value)
 		if err != nil {
 			level.Error(g.logger).Log("msg", "consumeKafkaChannel decode", "err", err)
 			continue
 		}
 
-		for _, tr := range req.Traces {
-			trace := &tempopb.Trace{}
-			err = trace.Unmarshal(tr.Slice)
+		for resourceSpans, err := range iterator {
 			if err != nil {
 				level.Error(g.logger).Log("msg", "consumeKafkaChannel unmarshal", "err", err)
 				continue
 			}
 
 			i.pushSpansFromQueue(ctx, r.Timestamp, &tempopb.PushSpansRequest{
-				Batches: trace.ResourceSpans,
+				Batches: resourceSpans,
 			})
-
-			tempopb.ReuseByteSlices([][]byte{tr.Slice})
 		}
 	}
 }

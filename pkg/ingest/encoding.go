@@ -1,14 +1,17 @@
-// Package kafka provides encoding and decoding functionality for Tempo's Kafka integration.
+// Package ingest provides encoding and decoding functionality for Tempo's Kafka integration.
 package ingest
 
 import (
 	"errors"
 	"fmt"
+	"iter"
 	math_bits "math/bits"
 	"sync"
 
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/twmb/franz-go/pkg/kgo"
+
+	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
 var encoderPool = sync.Pool{
@@ -144,4 +147,62 @@ func (d *Decoder) Reset() {
 // in Protocol Buffers' variable-length integer format.
 func sovPush(x uint64) (n int) {
 	return (math_bits.Len64(x|1) + 6) / 7
+}
+
+// GeneratorCodec is the interface used to convert data from Kafka records to the
+// tempopb.PushSpansRequest expected by the generator processors.
+type GeneratorCodec interface {
+	Decode([]byte) (iter.Seq2[[]*v1.ResourceSpans, error], error)
+}
+
+// PushBytesDecoder unmarshals tempopb.PushBytesRequest.
+type PushBytesDecoder struct {
+	dec *Decoder
+}
+
+func NewPushBytesDecoder() *PushBytesDecoder {
+	return &PushBytesDecoder{dec: NewDecoder()}
+}
+
+// Decode implements GeneratorCodec.
+func (d *PushBytesDecoder) Decode(data []byte) (iter.Seq2[[]*v1.ResourceSpans, error], error) {
+	d.dec.Reset()
+	spanBytes, err := d.dec.Decode(data)
+	if err != nil {
+		return nil, err
+	}
+
+	trace := tempopb.Trace{}
+	return func(yield func([]*v1.ResourceSpans, error) bool) {
+		for _, tr := range spanBytes.Traces {
+			trace.Reset()
+			err = trace.Unmarshal(tr.Slice)
+
+			yield(trace.ResourceSpans, err)
+
+			tempopb.ReuseByteSlices([][]byte{tr.Slice})
+		}
+	}, nil
+}
+
+// OTLPDecoder unmarshals ptrace.Traces.
+type OTLPDecoder struct {
+	trace tempopb.Trace
+}
+
+func NewOTLPDecoder() *OTLPDecoder {
+	return &OTLPDecoder{trace: tempopb.Trace{}}
+}
+
+// Decode implements GeneratorCodec.
+func (d *OTLPDecoder) Decode(data []byte) (iter.Seq2[[]*v1.ResourceSpans, error], error) {
+	d.trace.ResourceSpans = d.trace.ResourceSpans[:0]
+	err := d.trace.Unmarshal(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return func(yield func([]*v1.ResourceSpans, error) bool) {
+		yield(d.trace.ResourceSpans, nil)
+	}, nil
 }
