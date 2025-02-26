@@ -1,0 +1,33 @@
+[tool.poetry]
+name = "consumption_forcasting_hl"
+version = "0.1.0"
+description = "Your project description"
+authors = ["Rudabeh Meskarian"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+numpy = "^1.21.0"
+pandas = "^1.3.0"
+scikit-learn = "^1.0.0"
+torch = "^1.9.0"
+matplotlib = "^3.4.0"
+pyyaml = "^6.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2.5"
+black = "^21.6b0"
+flake8 = "^3.9.0"
+ipykernel = "^6.16.0"
+jupyter = "^1.0.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black] 
+line-length = 120 
+extend-exclude = "notebooks/*"
+
+[tool.isort] 
+line_length = 120 
+multi_line_output = 5
