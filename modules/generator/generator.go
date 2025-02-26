@@ -461,28 +461,15 @@ func (g *Generator) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 // span-derived metrics should be generated for the request. If any such context
 // key is present, this will return true, otherwise it will return false.
 func ExtractNoGenerateMetrics(ctx context.Context) bool {
-	// check gRPC incoming context
+	// check gRPC context
 	if len(metadata.ValueFromIncomingContext(ctx, NoGenerateMetricsContextKey)) > 0 {
 		return true
 	}
 
-	// check http incoming context
+	// check http context
 	if len(client.FromContext(ctx).Metadata.Get(NoGenerateMetricsContextKey)) > 0 {
 		return true
 	}
 
-	// check gRPC outgoing context
-	outgoingMD, ok := metadata.FromOutgoingContext(ctx)
-	if ok {
-		return len(outgoingMD.Get(NoGenerateMetricsContextKey)) > 0
-	}
-
 	return false
-}
-
-// InjectNoGenerateMetrics marks this context such that ExtractNoGenerateMetrics
-// will return true for it.
-func InjectNoGenerateMetrics(ctx context.Context) context.Context {
-	ctx = metadata.AppendToOutgoingContext(ctx, NoGenerateMetricsContextKey, "true")
-	return ctx
 }

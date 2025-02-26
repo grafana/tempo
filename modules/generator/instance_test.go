@@ -117,8 +117,7 @@ tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total{tenant
 	})
 
 	t.Run("skip metrics-generating processors", func(t *testing.T) {
-		ctx := InjectNoGenerateMetrics(context.Background())
-		i.pushSpans(ctx, &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req}})
+		i.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req}, SkipMetricsGeneration: true})
 
 		expectMetrics := `
 # HELP tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total The total number of processor pushes skipped because the request indicated that metrics should not be generated.

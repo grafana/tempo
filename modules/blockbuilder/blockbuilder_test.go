@@ -560,7 +560,7 @@ func sendReq(t testing.TB, ctx context.Context, client *kgo.Client) []*kgo.Recor
 	startTime := uint64(now.UnixNano())
 	endTime := uint64(now.Add(time.Second).UnixNano())
 	req := test.MakePushBytesRequest(t, 10, traceID, startTime, endTime)
-	records, err := ingest.Encode(0, util.FakeTenantID, req, 1_000_000, false)
+	records, err := ingest.Encode(0, util.FakeTenantID, req, 1_000_000)
 	require.NoError(t, err)
 
 	res := client.ProduceSync(ctx, records...)

@@ -35,6 +35,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/grafana/tempo/modules/distributor/receiver"
 	generator_client "github.com/grafana/tempo/modules/generator/client"
@@ -1689,7 +1690,7 @@ func TestPushTracesSkipMetricsGenerationIngestStorage(t *testing.T) {
 		// Inject the header into the incoming context. In a real call this would be done
 		// by the gRPC server logic if the client sends that header in the outgoing
 		// context.
-		ctx := generator.InjectNoGenerateMetrics(ctx)
+		ctx := metadata.NewIncomingContext(ctx, metadata.Pairs(generator.NoGenerateMetricsContextKey, ""))
 		_, err = d.PushTraces(ctx, traces)
 		require.NoError(t, err)
 
@@ -1700,9 +1701,9 @@ func TestPushTracesSkipMetricsGenerationIngestStorage(t *testing.T) {
 		fetches := reader.PollFetches(ctx)
 		fetches.EachRecord(func(record *kgo.Record) {
 			recordProcessed = true
-			// Expect that record headers contain one that instructs metrics-generator to
-			// skip the contained spans for metrics generation.
-			require.True(t, ingest.ExtractNoGenerateMetrics(record))
+			req, err := ingest.NewDecoder().Decode(record.Value)
+			require.NoError(t, err)
+			require.True(t, req.SkipMetricsGeneration)
 		})
 		// Expect that we've fetched at least one record.
 		require.True(t, recordProcessed)
@@ -1719,11 +1720,9 @@ func TestPushTracesSkipMetricsGenerationIngestStorage(t *testing.T) {
 		fetches := reader.PollFetches(ctx)
 		fetches.EachRecord(func(record *kgo.Record) {
 			recordProcessed = true
-			// We expect that the record contains no headers that would make
-			// metrics-generator skip the contained spans for metrics generation.
-			for _, header := range record.Headers {
-				require.NotEqual(t, generator.NoGenerateMetricsContextKey, header.Key)
-			}
+			req, err := ingest.NewDecoder().Decode(record.Value)
+			require.NoError(t, err)
+			require.False(t, req.SkipMetricsGeneration)
 		})
 		// Expect that we've fetched at least one record.
 		require.True(t, recordProcessed)

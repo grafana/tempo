@@ -13,6 +13,7 @@ import (
 	"go.uber.org/multierr"
 
 	"github.com/grafana/tempo/modules/distributor/queue"
+	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/overrides"
 )
 
@@ -84,10 +85,8 @@ func (f *generatorForwarder) SendTraces(ctx context.Context, tenantID string, ke
 	default:
 	}
 
-	noGenerateMetrics := !shouldGenerateSpanMetrics(ctx)
-
 	q := f.getOrCreateQueue(tenantID)
-	err := q.Push(ctx, &request{tenantID: tenantID, keys: keys, traces: traces, noGenerateMetrics: noGenerateMetrics})
+	err := q.Push(ctx, &request{tenantID: tenantID, keys: keys, traces: traces, noGenerateMetrics: generator.ExtractNoGenerateMetrics(ctx)})
 	if err != nil {
 		_ = level.Error(f.logger).Log("msg", "failed to push traces to queue", "tenant", tenantID, "err", err)
 		metricForwarderPushesFailures.WithLabelValues(tenantID).Inc()

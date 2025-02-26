@@ -566,17 +566,14 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys 
 
 	readRing := d.generatorsRing.ShuffleShard(userID, d.overrides.MetricsGeneratorRingSize(userID))
 
-	if noGenerateMetrics {
-		ctx = generator.InjectNoGenerateMetrics(ctx)
-	}
-
 	err := ring.DoBatchWithOptions(ctx, op, readRing, keys, func(generator ring.InstanceDesc, indexes []int) error {
 		localCtx, cancel := context.WithTimeout(ctx, d.generatorClientCfg.RemoteTimeout)
 		defer cancel()
 		localCtx = user.InjectOrgID(localCtx, userID)
 
 		req := tempopb.PushSpansRequest{
-			Batches: nil,
+			Batches:               nil,
+			SkipMetricsGeneration: noGenerateMetrics,
 		}
 		for _, j := range indexes {
 			req.Batches = append(req.Batches, traces[j].trace.ResourceSpans...)
@@ -632,8 +629,9 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 		localCtx = user.InjectOrgID(localCtx, userID)
 
 		req := &tempopb.PushBytesRequest{
-			Traces: make([]tempopb.PreallocBytes, len(indexes)),
-			Ids:    make([][]byte, len(indexes)),
+			Traces:                make([]tempopb.PreallocBytes, len(indexes)),
+			Ids:                   make([][]byte, len(indexes)),
+			SkipMetricsGeneration: generator.ExtractNoGenerateMetrics(ctx),
 		}
 
 		for i, j := range indexes {
@@ -647,11 +645,9 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 			return err
 		}
 
-		generateMetrics := shouldGenerateSpanMetrics(ctx)
-
 		startTime := time.Now()
 
-		records, err := ingest.Encode(int32(partitionID), userID, req, d.cfg.KafkaConfig.ProducerMaxRecordSizeBytes, generateMetrics)
+		records, err := ingest.Encode(int32(partitionID), userID, req, d.cfg.KafkaConfig.ProducerMaxRecordSizeBytes)
 		if err != nil {
 			return fmt.Errorf("failed to encode PushSpansRequest: %w", err)
 		}
@@ -680,12 +676,6 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 
 		return finalErr
 	}, ring.DoBatchOptions{})
-}
-
-// shouldGenerateSpanMetrics determines whether a request's context indicates
-// that metrics should not be generated for the spans contained in the request.
-func shouldGenerateSpanMetrics(ctx context.Context) bool {
-	return !generator.ExtractNoGenerateMetrics(ctx)
 }
 
 func successfulProduceRecordsStats(results kgo.ProduceResults) (count, sizeBytes int) {

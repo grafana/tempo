@@ -405,7 +405,7 @@ func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest)
 		case localblocks.Name:
 			processor.PushSpans(ctx, req)
 		case spanmetrics.Name, servicegraphs.Name:
-			if ExtractNoGenerateMetrics(ctx) {
+			if req.SkipMetricsGeneration {
 				metricSkippedProcessorPushes.WithLabelValues(i.instanceID).Inc()
 				break
 			}
@@ -425,7 +425,7 @@ func (i *instance) pushSpansFromQueue(ctx context.Context, ts time.Time, req *te
 			// don't push to this processor as queue consumer, instead use queue based local
 			// blocks if configured.
 		case spanmetrics.Name, servicegraphs.Name:
-			if ExtractNoGenerateMetrics(ctx) {
+			if req.SkipMetricsGeneration {
 				metricSkippedProcessorPushes.WithLabelValues(i.instanceID).Inc()
 				break
 			}
