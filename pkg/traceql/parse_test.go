@@ -1517,3 +1517,43 @@ func TestMetricsSecondStage(t *testing.T) {
 		})
 	}
 }
+
+func TestMetricsSecondStageErrors(t *testing.T) {
+	tests := []struct {
+		in  string
+		err error
+	}{
+		{
+			in:  "{} | topk(10)",
+			err: newParseError("syntax error: unexpected topk", 1, 6),
+		},
+		{
+			in:  "{} | topk(10) with(sample=0.1)",
+			err: newParseError("syntax error: unexpected topk", 1, 6),
+		},
+		{
+			in:  "{} | rate() | topk(-1)",
+			err: newParseError("syntax error: unexpected -, expecting INTEGER", 1, 20),
+		},
+		{
+			in:  "{} | bottomk(10)",
+			err: newParseError("syntax error: unexpected bottomk", 1, 6),
+		},
+		{
+			in:  "{} | bottomk(10) with(sample=0.1)",
+			err: newParseError("syntax error: unexpected bottomk", 1, 6),
+		},
+		{
+			in:  "{} | rate() | bottomk(-1)",
+			err: newParseError("syntax error: unexpected -, expecting INTEGER", 1, 23),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			_, err := Parse(tc.in)
+
+			require.Equal(t, tc.err, err)
+		})
+	}
+}
