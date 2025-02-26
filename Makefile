@@ -79,7 +79,6 @@ FILES_TO_JSONNETFMT=$(shell find ./operations/jsonnet ./operations/tempo-mixin -
 ##@ Building
 .PHONY: tempo 	
 tempo: ## Build tempo
-	echo $(GOARCH)
 	$(GO_ENV) go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-$(GOARCH) $(BUILD_INFO) ./cmd/tempo
 
 .PHONY: tempo-query
