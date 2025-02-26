@@ -1,6 +1,7 @@
 package traceql
 
 import (
+	// "container/heap"
 	"context"
 	"errors"
 	"fmt"
@@ -796,13 +797,7 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 	if metricsPipeline == nil {
 		return nil, fmt.Errorf("not a metrics query")
 	}
-
 	metricsPipeline.init(req, mode)
-
-	// second stage is optional, so check if it's nil
-	if metricsSecondStage != nil {
-		metricsSecondStage.init(req, mode)
-	}
 
 	return &MetricsFrontendEvaluator{
 		metricsPipeline:    metricsPipeline,
@@ -843,11 +838,6 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 
 	// This initializes all step buffers, counters, etc
 	metricsPipeline.init(req, AggregateModeRaw)
-
-	// second stage is optional, so check if it's nil
-	if metricsSecondStage != nil {
-		metricsSecondStage.init(req, AggregateModeRaw)
-	}
 
 	me := &MetricsEvalulator{
 		storageReq:         storageReq,
@@ -1087,11 +1077,14 @@ func (e *MetricsEvalulator) Metrics() (uint64, uint64, uint64) {
 }
 
 func (e *MetricsEvalulator) Results() SeriesSet {
-	// if e.metricsSecondStage != nil {
-	// TODO: add a right func here so we capture results from first stage and pass
-	// them on to second stage and evaluate correctly??
-	// }
-	// TODO: find a way to run second stage before we return results??
+	if e.metricsSecondStage != nil {
+		// if we have metrics second stage, pass first stage results through
+		// second stage for further processing and return the results.
+		firstStageResults := e.metricsPipeline.result()
+		return e.metricsSecondStage.process(firstStageResults)
+	}
+
+	// No second stage, just return first stage results
 	return e.metricsPipeline.result()
 }
 
@@ -1117,9 +1110,8 @@ func (e *MetricsEvalulator) sampleExemplar(id []byte) bool {
 // MetricsFrontendEvaluator pipes the sharded job results back into the engine for the rest
 // of the pipeline.  i.e. This evaluator is for the query-frontend.
 type MetricsFrontendEvaluator struct {
-	mtx             sync.Mutex
-	metricsPipeline metricsFirstStageElement
-	// TODO: add second stage here
+	mtx                sync.Mutex
+	metricsPipeline    metricsFirstStageElement
 	metricsSecondStage metricsSecondStageElement
 }
 
@@ -1128,21 +1120,23 @@ func (m *MetricsFrontendEvaluator) ObserveSeries(in []*tempopb.TimeSeries) {
 	defer m.mtx.Unlock()
 
 	m.metricsPipeline.observeSeries(in)
-	// TODO: handle second stage correctly here??
-	if m.metricsSecondStage != nil {
-		m.metricsSecondStage.observeSeries(in)
-	}
 }
 
 func (m *MetricsFrontendEvaluator) Results() SeriesSet {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	// TODO: handle second stage correctly here??
+	if m.metricsSecondStage != nil {
+		// if we have metrics second stage, pass first stage results through
+		// second stage for further processing and return the results.
+		firstStageResults := m.metricsPipeline.result()
+		return m.metricsSecondStage.process(firstStageResults)
+	}
+
+	// No second stage, just return first stage results
 	return m.metricsPipeline.result()
 }
 
-// TODO: reuse this for topk and bottok implimention
 type SeriesAggregator interface {
 	Combine([]*tempopb.TimeSeries)
 	Results() SeriesSet
@@ -1525,4 +1519,32 @@ func FloatizeAttribute(s Span, a Attribute) (float64, StaticType) {
 		return 0, TypeNil
 	}
 	return f, v.Type
+}
+
+func processTopK(input SeriesSet, limit int) SeriesSet {
+	// FIXME: just return first K values from the input to add tests and make it work
+	result := make(SeriesSet)
+	count := 0
+	for key, series := range input {
+		if count >= limit {
+			break
+		}
+		result[key] = series
+		count++
+	}
+	return result
+}
+
+func processBottomK(input SeriesSet, limit int) SeriesSet {
+	// FIXME: just return first K values from the input to add tests and make it work
+	result := make(SeriesSet)
+	count := 0
+	for key, series := range input {
+		if count >= limit {
+			break
+		}
+		result[key] = series
+		count++
+	}
+	return result
 }
