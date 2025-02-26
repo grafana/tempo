@@ -57,8 +57,14 @@ func TestSearchTagsV2(t *testing.T) {
 	batch = util.MakeThriftBatchWithSpanCountAttributeAndName(secondBatch.spanCount, secondBatch.name, secondBatch.resourceAttVal, secondBatch.spanAttVal, secondBatch.resourceAttr, secondBatch.SpanAttr)
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
-	// Wait for the traces to be written to the WAL
-	time.Sleep(time.Second * 3)
+	// Wait for the traces to be written to the WAL and searchable
+	require.Eventually(t, func() bool {
+		ok, err := isQueryable(tempo.Endpoint(3200))
+		if err != nil {
+			return false
+		}
+		return ok
+	}, 5*time.Second, 100*time.Millisecond, "traces were not queryable within timeout")
 
 	testCases := []struct {
 		name     string
@@ -299,8 +305,14 @@ func TestSearchTagValuesV2(t *testing.T) {
 	batch = util.MakeThriftBatchWithSpanCountAttributeAndName(secondBatch.spanCount, secondBatch.name, secondBatch.resourceAttVal, secondBatch.spanAttVal, "xx", "x")
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
-	// Wait for the traces to be written to the WAL
-	time.Sleep(time.Second * 3)
+	// Wait for the traces to be written to the WAL and searchable
+	require.Eventually(t, func() bool {
+		ok, err := isQueryable(tempo.Endpoint(3200))
+		if err != nil {
+			return false
+		}
+		return ok
+	}, 5*time.Second, 100*time.Millisecond, "traces were not queryable within timeout")
 
 	testCases := []struct {
 		name     string
@@ -866,6 +878,26 @@ func lenWithoutIntrinsic(resp searchTagsV2Response) int {
 		size += len(scope.Tags)
 	}
 	return size
+}
+
+// isQueryable returns true if the data is queryable and not empty
+func isQueryable(host string) (bool, error) {
+	resp, err := http.Get(fmt.Sprintf("http://%s/api/search/tag/service.name/values", host))
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("status code is not ok: %d", resp.StatusCode)
+	}
+
+	var searchResp searchTagValuesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&searchResp); err != nil {
+		return false, err
+	}
+
+	return len(searchResp.TagValues) > 0, nil
 }
 
 type ScopedTags struct {
