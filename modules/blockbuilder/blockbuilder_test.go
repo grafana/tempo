@@ -309,6 +309,68 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 	requireLastCommitEquals(t, ctx, client, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
+// TestBlockbuilder_noDoubleConsumption verifies that records are not consumed twice when there are no more records in the partition.
+// This test ensures that the BlockBuilder correctly commits the offset as lastRec.Offset + 1 instead of just lastRec.Offset.
+func TestBlockbuilder_noDoubleConsumption(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+
+	k, address := testkafka.CreateCluster(t, 1, testTopic)
+
+	// Track commits
+	kafkaCommits := atomic.NewInt32(0)
+	k.ControlKey(kmsg.OffsetCommit, func(_ kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Inc()
+		return nil, nil, false
+	})
+
+	store := newStore(ctx, t)
+	cfg := blockbuilderConfig(t, address)
+	// Set a shorter consume cycle duration
+	cfg.ConsumeCycleDuration = 500 * time.Millisecond
+
+	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
+
+	// Send a single record
+	producedRecords := sendReq(t, ctx, client)
+	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
+
+	// Create the block builder
+	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	})
+
+	// Wait for the record to be consumed and committed
+	require.Eventually(t, func() bool {
+		return kafkaCommits.Load() > 0
+	}, 30*time.Second, time.Second)
+
+	// Check that the offset was committed correctly (lastRec.Offset + 1)
+	requireLastCommitEquals(t, ctx, client, lastRecordOffset+1)
+
+	// Send another record
+	newRecords := sendReq(t, ctx, client)
+	newRecordOffset := newRecords[len(newRecords)-1].Offset
+
+	// Wait for the new record to be consumed and committed
+	require.Eventually(t, func() bool {
+		return kafkaCommits.Load() > 1
+	}, 30*time.Second, time.Second)
+
+	// Verify that the new offset was committed correctly
+	requireLastCommitEquals(t, ctx, client, newRecordOffset+1)
+
+	require.Eventually(t, func() bool {
+		return len(store.BlockMetas(util.FakeTenantID)) == 2
+	}, 30*time.Second, time.Second)
+
+	// Verify the total number of traces is correct (1 from each batch)
+	require.Equal(t, 2, countFlushedTraces(store))
+}
+
 func blockbuilderConfig(t testing.TB, address string) Config {
 	cfg := Config{}
 	flagext.DefaultValues(&cfg)
