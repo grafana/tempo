@@ -128,429 +128,7 @@ func (t *RowNumber) Valid() bool {
 // null   | 1 | 1 | {  0,  1, -1, -1 }
 // gb     | 1 | 3 | {  0,  2,  0,  0 }
 // null   | 0 | 1 | {  1,  0, -1, -1 }
-func (t *RowNumber) Next(repetitionLevel, definitionLevel int) {
-	t[repetitionLevel]++
-
-	// the following is nextSlow() unrolled
-	switch repetitionLevel {
-	case 0:
-		switch definitionLevel {
-		case 0:
-			t[1] = -1
-			t[2] = -1
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 1:
-			t[1] = 0
-			t[2] = -1
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 2:
-			t[1] = 0
-			t[2] = 0
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 3:
-			t[1] = 0
-			t[2] = 0
-			t[3] = 0
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 4:
-			t[1] = 0
-			t[2] = 0
-			t[3] = 0
-			t[4] = 0
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 5:
-			t[1] = 0
-			t[2] = 0
-			t[3] = 0
-			t[4] = 0
-			t[5] = 0
-			t[6] = -1
-			t[7] = -1
-		case 6:
-			t[1] = 0
-			t[2] = 0
-			t[3] = 0
-			t[4] = 0
-			t[5] = 0
-			t[6] = 0
-			t[7] = -1
-		case 7:
-			t[1] = 0
-			t[2] = 0
-			t[3] = 0
-			t[4] = 0
-			t[5] = 0
-			t[6] = 0
-			t[7] = 0
-		default:
-			panicWhenInvalidDefinitionLevel(definitionLevel)
-		}
-	case 1:
-		switch definitionLevel {
-		case 0:
-			t[1] = -1
-			t[2] = -1
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 1:
-			t[2] = -1
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 2:
-			t[2] = 0
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 3:
-			t[2] = 0
-			t[3] = 0
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 4:
-			t[2] = 0
-			t[3] = 0
-			t[4] = 0
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 5:
-			t[2] = 0
-			t[3] = 0
-			t[4] = 0
-			t[5] = 0
-			t[6] = -1
-			t[7] = -1
-		case 6:
-			t[2] = 0
-			t[3] = 0
-			t[4] = 0
-			t[5] = 0
-			t[6] = 0
-			t[7] = -1
-		case 7:
-			t[2] = 0
-			t[3] = 0
-			t[4] = 0
-			t[5] = 0
-			t[6] = 0
-			t[7] = 0
-		default:
-			panicWhenInvalidDefinitionLevel(definitionLevel)
-		}
-	case 2:
-		switch definitionLevel {
-		case 0:
-			t[1] = -1
-			t[2] = -1
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 1:
-			t[2] = -1
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 2:
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 3:
-			t[3] = 0
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 4:
-			t[3] = 0
-			t[4] = 0
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 5:
-			t[3] = 0
-			t[4] = 0
-			t[5] = 0
-			t[6] = -1
-			t[7] = -1
-		case 6:
-			t[3] = 0
-			t[4] = 0
-			t[5] = 0
-			t[6] = 0
-			t[7] = -1
-		case 7:
-			t[3] = 0
-			t[4] = 0
-			t[5] = 0
-			t[6] = 0
-			t[7] = 0
-		default:
-			panicWhenInvalidDefinitionLevel(definitionLevel)
-		}
-	case 3:
-		switch definitionLevel {
-		case 0:
-			t[1] = -1
-			t[2] = -1
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 1:
-			t[2] = -1
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 2:
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 3:
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 4:
-			t[4] = 0
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 5:
-			t[4] = 0
-			t[5] = 0
-			t[6] = -1
-			t[7] = -1
-		case 6:
-			t[4] = 0
-			t[5] = 0
-			t[6] = 0
-			t[7] = -1
-		case 7:
-			t[4] = 0
-			t[5] = 0
-			t[6] = 0
-			t[7] = 0
-		default:
-			panicWhenInvalidDefinitionLevel(definitionLevel)
-		}
-	case 4:
-		switch definitionLevel {
-		case 0:
-			t[1] = -1
-			t[2] = -1
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 1:
-			t[2] = -1
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 2:
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 3:
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 4:
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 5:
-			t[5] = 0
-			t[6] = -1
-			t[7] = -1
-		case 6:
-			t[5] = 0
-			t[6] = 0
-			t[7] = -1
-		case 7:
-			t[5] = 0
-			t[6] = 0
-			t[7] = 0
-		default:
-			panicWhenInvalidDefinitionLevel(definitionLevel)
-		}
-	case 5:
-		switch definitionLevel {
-		case 0:
-			t[1] = -1
-			t[2] = -1
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 1:
-			t[2] = -1
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 2:
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 3:
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 4:
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 5:
-			t[6] = -1
-			t[7] = -1
-		case 6:
-			t[6] = 0
-			t[7] = -1
-		case 7:
-			t[6] = 0
-			t[7] = 0
-		default:
-			panicWhenInvalidDefinitionLevel(definitionLevel)
-		}
-	case 6:
-		switch definitionLevel {
-		case 0:
-			t[1] = -1
-			t[2] = -1
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 1:
-			t[2] = -1
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 2:
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 3:
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 4:
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 5:
-			t[6] = -1
-			t[7] = -1
-		case 6:
-			t[7] = -1
-		case 7:
-			t[7] = 0
-		default:
-			panicWhenInvalidDefinitionLevel(definitionLevel)
-		}
-	case 7:
-		switch definitionLevel {
-		case 0:
-			t[1] = -1
-			t[2] = -1
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 1:
-			t[2] = -1
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 2:
-			t[3] = -1
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 3:
-			t[4] = -1
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 4:
-			t[5] = -1
-			t[6] = -1
-			t[7] = -1
-		case 5:
-			t[6] = -1
-			t[7] = -1
-		case 6:
-			t[7] = -1
-		case 7:
-		default:
-			panicWhenInvalidDefinitionLevel(definitionLevel)
-		}
-	}
-}
-
-// nextSlow is the original implementation of next. it is kept to test against
-// the unrolled version above
-func (t *RowNumber) nextSlow(repetitionLevel, definitionLevel int) {
+func (t *RowNumber) Next(repetitionLevel, definitionLevel, maxDefinitionLevel int) {
 	t[repetitionLevel]++
 
 	// New children up through the definition level
@@ -559,7 +137,7 @@ func (t *RowNumber) nextSlow(repetitionLevel, definitionLevel int) {
 	}
 
 	// // Children past the definition level are undefined
-	for i := definitionLevel + 1; i < len(t); i++ {
+	for i := definitionLevel + 1; i < len(t) && i <= maxDefinitionLevel; i++ {
 		t[i] = -1
 	}
 }
@@ -803,13 +381,15 @@ type SyncIterator struct {
 	currPageN       int
 	at              IteratorResult // Current value pointed at by iterator. Returned by call Next and SeekTo, valid until next call.
 
+	maxDefinitionLevel int
+
 	intern   bool
 	interner *intern.Interner
 }
 
 var _ Iterator = (*SyncIterator)(nil)
 
-func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string, opts ...SyncIteratorOpt) *SyncIterator {
+func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string, maxDefinitionLevel int, opts ...SyncIteratorOpt) *SyncIterator {
 	// Assign row group bounds.
 	// Lower bound is inclusive
 	// Upper bound is exclusive, points at the first row of the next group
@@ -841,16 +421,17 @@ func NewSyncIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnN
 
 	// Create the iterator
 	i := &SyncIterator{
-		span:       span,
-		column:     column,
-		columnName: columnName,
-		rgs:        rgs,
-		readSize:   readSize,
-		rgsMin:     rgsMin,
-		rgsMax:     rgsMax,
-		filter:     filter,
-		curr:       EmptyRowNumber(),
-		at:         at,
+		span:               span,
+		column:             column,
+		columnName:         columnName,
+		rgs:                rgs,
+		readSize:           readSize,
+		rgsMin:             rgsMin,
+		rgsMax:             rgsMax,
+		filter:             filter,
+		curr:               EmptyRowNumber(),
+		at:                 at,
+		maxDefinitionLevel: maxDefinitionLevel,
 	}
 
 	// Apply options
@@ -1160,7 +741,7 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 
 			// Inspect all values to track the current row number,
 			// even if the value is filtered out next.
-			c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel())
+			c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.maxDefinitionLevel)
 			c.currBufN++
 			c.currPageN++
 
@@ -1260,11 +841,12 @@ func (c *SyncIterator) Close() {
 // the optional predicate to each chunk, page, and value.  Results are read by calling
 // Next() until it returns nil.
 type ColumnIterator struct {
-	rgs      []pq.RowGroup
-	col      int
-	colName  string
-	filter   *InstrumentedPredicate
-	selectAs string
+	rgs                []pq.RowGroup
+	col                int
+	colName            string
+	filter             *InstrumentedPredicate
+	selectAs           string
+	maxDefinitionLevel int
 
 	// Row number to seek to, protected by mutex.
 	// Less allocs than storing in atomic.Value
@@ -1288,16 +870,17 @@ type columnIteratorBuffer struct {
 	values     []pq.Value
 }
 
-func NewColumnIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string) *ColumnIterator {
+func NewColumnIterator(ctx context.Context, rgs []pq.RowGroup, column int, columnName string, readSize int, filter Predicate, selectAs string, maxDefinitionLevel int) *ColumnIterator {
 	c := &ColumnIterator{
-		rgs:      rgs,
-		col:      column,
-		colName:  columnName,
-		filter:   &InstrumentedPredicate{pred: filter},
-		selectAs: selectAs,
-		quit:     make(chan struct{}),
-		ch:       make(chan *columnIteratorBuffer, 1),
-		currN:    -1,
+		rgs:                rgs,
+		col:                column,
+		colName:            columnName,
+		filter:             &InstrumentedPredicate{Pred: filter},
+		selectAs:           selectAs,
+		quit:               make(chan struct{}),
+		ch:                 make(chan *columnIteratorBuffer, 1),
+		currN:              -1,
+		maxDefinitionLevel: maxDefinitionLevel,
 	}
 
 	c.iter = func() { c.iterate(ctx, readSize) }
@@ -1417,7 +1000,7 @@ func (c *ColumnIterator) iterate(ctx context.Context, readSize int) {
 
 								// We have to do this for all values (even if the
 								// value is excluded by the predicate)
-								rn.Next(v.RepetitionLevel(), v.DefinitionLevel())
+								rn.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.maxDefinitionLevel)
 
 								if c.filter != nil {
 									if !c.filter.KeepValue(v) {
@@ -2015,7 +1598,6 @@ func (u *UnionIterator) Next() (*IteratorResult, error) {
 			if err != nil {
 				return nil, fmt.Errorf("union iterator peek failed: %w", err)
 			}
-
 			// If this iterator is exhausted go to the next one
 			if rn == nil {
 				continue

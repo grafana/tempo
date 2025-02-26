@@ -34,7 +34,7 @@ func (b *backendBlock) rawIter(ctx context.Context, pool *rowPool) (*rawIterator
 		return nil, err
 	}
 
-	traceIDIndex, _ := parquetquery.GetColumnIndexByPath(pf, TraceIDColumnName)
+	traceIDIndex, _, _ := parquetquery.GetColumnIndexByPath(pf, TraceIDColumnName)
 	if traceIDIndex < 0 {
 		return nil, fmt.Errorf("cannot find trace ID column in '%s' in block '%s'", TraceIDColumnName, b.meta.BlockID.String())
 	}

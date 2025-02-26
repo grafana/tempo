@@ -38,7 +38,7 @@ func (cmd *listColumnCmd) Run(ctx *globalOptions) error {
 		return err
 	}
 
-	colIndex, _ := pq.GetColumnIndexByPath(pf, cmd.Column)
+	colIndex, _, _ := pq.GetColumnIndexByPath(pf, cmd.Column)
 
 	for i, rg := range pf.RowGroups() {
 

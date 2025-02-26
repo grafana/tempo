@@ -3,17 +3,13 @@ package vparquet4
 import (
 	"context"
 	"fmt"
-	"path"
 	"sort"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/collector"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/test"
-	"github.com/grafana/tempo/tempodb/backend"
-	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/stretchr/testify/require"
 )
@@ -701,21 +697,7 @@ func BenchmarkFetchTagValues(b *testing.B) {
 	}
 
 	ctx := context.TODO()
-	tenantID := "1"
-	// blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
-	blockID := uuid.MustParse("00145f38-6058-4e57-b1ba-334db8edce23")
-
-	r, _, _, err := local.New(&local.Config{
-		// Path: path.Join("/Users/marty/src/tmp/"),
-		Path: path.Join("/Users/joe/testblock"),
-	})
-	require.NoError(b, err)
-
-	rr := backend.NewReader(r)
-	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
-	require.NoError(b, err)
-
-	block := newBackendBlock(meta, rr)
+	block := blockForBenchmarks(b)
 	opts := common.DefaultSearchOptions()
 
 	for _, tc := range testCases {
@@ -782,21 +764,7 @@ func BenchmarkFetchTags(b *testing.B) {
 	}
 
 	ctx := context.TODO()
-	tenantID := "1"
-	// blockID := uuid.MustParse("3685ee3d-cbbf-4f36-bf28-93447a19dea6")
-	blockID := uuid.MustParse("00145f38-6058-4e57-b1ba-334db8edce23")
-
-	r, _, _, err := local.New(&local.Config{
-		// Path: path.Join("/Users/marty/src/tmp/"),
-		Path: path.Join("/Users/joe/testblock"),
-	})
-	require.NoError(b, err)
-
-	rr := backend.NewReader(r)
-	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
-	require.NoError(b, err)
-
-	block := newBackendBlock(meta, rr)
+	block := blockForBenchmarks(b)
 	opts := common.DefaultSearchOptions()
 
 	for _, tc := range testCases {
