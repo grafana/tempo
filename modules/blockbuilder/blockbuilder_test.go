@@ -319,7 +319,7 @@ func TestBlockbuilder_noDoubleConsumption(t *testing.T) {
 
 	// Track commits
 	kafkaCommits := atomic.NewInt32(0)
-	k.ControlKey(kmsg.OffsetCommit, func(req kmsg.Request) (kmsg.Response, error, bool) {
+	k.ControlKey(kmsg.OffsetCommit, func(_ kmsg.Request) (kmsg.Response, error, bool) {
 		kafkaCommits.Inc()
 		return nil, nil, false
 	})
