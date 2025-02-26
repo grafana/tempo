@@ -52,7 +52,7 @@ else
 	GO_OPT+= -ldflags -w
 endif
 
-GO_ENV=GO111MODULE=on CGO_ENABLED=0
+GO_ENV=CGO_ENABLED=0
 ifeq ($(GOARCH),amd64)
 	GO_ENV+= GOAMD64=v2
 endif
