@@ -216,6 +216,8 @@ func (c *Compactor) runWithScheduler(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
+
+			// TODO: backoff
 			if err := c.processCompactionJobs(ctx); err != nil {
 				level.Error(log.Logger).Log("msg", "error processing compaction jobs", "err", err)
 			}
