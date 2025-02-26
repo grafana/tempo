@@ -107,7 +107,7 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 		logger:        logger,
 	}
 
-	if cfg.shouldJoinRing() {
+	if !cfg.DisableGRPC {
 		// Lifecycler and ring
 		ringStore, err := kv.NewClient(
 			cfg.Ring.KVStore,
@@ -154,7 +154,7 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 		}
 	}()
 
-	if g.cfg.shouldJoinRing() {
+	if !g.cfg.DisableGRPC {
 		g.subservices, err = services.NewManager(g.ringLifecycler)
 		if err != nil {
 			return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)

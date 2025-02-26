@@ -340,7 +340,7 @@ func (t *App) initGeneratorNoLocalBlocks() (services.Service, error) {
 	if !t.cfg.Ingest.Enabled {
 		return nil, errors.New("ingest storage must be enabled to run metrics generator in this mode")
 	}
-	// The local blocks processor is disabled in this mode.
+	// The localblocks processor is disabled in this mode.
 	t.cfg.Generator.DisableLocalBlocks = true
 	// The store is used only by the localblocks processor. We don't need it when
 	// running with that processor disabled so we keep the default zero value.

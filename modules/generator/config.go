@@ -122,12 +122,6 @@ func (cfg *Config) Validate() error {
 	return nil
 }
 
-func (cfg *Config) shouldJoinRing() bool {
-	// If both gRPC and the localblocks processor are disabled, generators don't need
-	// to join the ring.
-	return !(cfg.DisableLocalBlocks && cfg.DisableGRPC)
-}
-
 type ProcessorConfig struct {
 	ServiceGraphs servicegraphs.Config `yaml:"service_graphs"`
 	SpanMetrics   spanmetrics.Config   `yaml:"span_metrics"`
