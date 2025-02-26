@@ -106,13 +106,11 @@ func marshalWriteRequestToRecord(partitionID int32, tenantID string, req *tempop
 		return nil, fmt.Errorf("failed to marshal record: %w", err)
 	}
 
-	r := &kgo.Record{
+	return &kgo.Record{
 		Key:       []byte(tenantID),
 		Value:     data,
 		Partition: partitionID,
-	}
-
-	return r, nil
+	}, nil
 }
 
 // Decoder is responsible for decoding Kafka record data back into logproto.Stream format.
