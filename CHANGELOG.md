@@ -1,4 +1,5 @@
 ## main / unreleased
+
 * [CHANGE] **BREAKING CHANGE** Remove tempo serverless [#4599](https://github.com/grafana/tempo/pull/4599/) @electron0zero
   Following config options are no longer valid, please remove them if you are using these in your tempo config:
   ```
@@ -18,6 +19,8 @@
   Renamed max_span_attr_byte to max_attribute_bytes
   [#4633](https://github.com/grafana/tempo/pull/4633) (@ie-pham)
 * [CHANGE] Update to go 1.24.0 [#4704](https://github.com/grafana/tempo/pull/4704) (@ruslan-mikhailov)
+* [FEATURE] Add throughput SLO and metrics for the TraceByID endpoint. [#4668](https://github.com/grafana/tempo/pull/4668) (@carles-grafana)
+configurable via the throughput_bytes_slo field, and it will populate op="traces" label in slo and throughput metrics.
 * [FEATURE] Added most_recent=true query hint to TraceQL to return most recent results. [#4238](https://github.com/grafana/tempo/pull/4238) (@joe-elliott)
 * [FEATURE] Add ability to add artificial delay to push requests [#4716](https://github.com/grafana/tempo/pull/4716) (@yvrhdn)
 * [ENHANCEMENT] Rewrite traces using rebatching [#4690](https://github.com/grafana/tempo/pull/4690) (@stoewer @joe-elliott)
