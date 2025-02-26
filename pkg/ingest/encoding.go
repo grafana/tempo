@@ -7,8 +7,9 @@ import (
 	math_bits "math/bits"
 	"sync"
 
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/twmb/franz-go/pkg/kgo"
+
+	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 var encoderPool = sync.Pool{

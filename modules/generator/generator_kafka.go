@@ -141,7 +141,8 @@ func (g *Generator) readCh(ctx context.Context) {
 			}
 
 			i.pushSpansFromQueue(ctx, r.Timestamp, &tempopb.PushSpansRequest{
-				Batches: trace.ResourceSpans,
+				Batches:               trace.ResourceSpans,
+				SkipMetricsGeneration: req.SkipMetricsGeneration,
 			})
 
 			tempopb.ReuseByteSlices([][]byte{tr.Slice})

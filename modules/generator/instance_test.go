@@ -5,17 +5,20 @@ import (
 	"flag"
 	"os"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/prometheus/model/exemplar"
 	"github.com/prometheus/prometheus/model/histogram"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/metadata"
 	prometheus_storage "github.com/prometheus/prometheus/storage"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
@@ -33,10 +36,10 @@ func Test_instance_concurrency(t *testing.T) {
 		servicegraphs.Name: {},
 	}
 
-	instance1, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, prometheus.DefaultRegisterer, log.NewNopLogger(), nil, nil, nil)
+	instance1, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
 	assert.NoError(t, err)
 
-	instance2, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, prometheus.DefaultRegisterer, log.NewNopLogger(), nil, nil, nil)
+	instance2, err := newInstance(&Config{}, "test", overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
 	assert.NoError(t, err)
 
 	end := make(chan struct{})
@@ -81,13 +84,62 @@ func Test_instance_concurrency(t *testing.T) {
 	close(end)
 }
 
+func TestInstancePushSpansSkipProcessors(t *testing.T) {
+	overrides := &mockOverrides{}
+	overrides.processors = map[string]struct{}{
+		spanmetrics.Name:   {},
+		servicegraphs.Name: {},
+	}
+	const tenantID = "skip-processors-test"
+
+	i, err := newInstance(&Config{}, tenantID, overrides, &noopStorage{}, log.NewNopLogger(), nil, nil, nil)
+	require.NoError(t, err)
+
+	req := test.MakeBatch(1, nil)
+
+	// Expose this series so it's present at the initial zero value even if not created/incremented by the test.
+	_ = metricSkippedProcessorPushes.WithLabelValues(tenantID)
+
+	t.Run("use metrics-generating processors", func(t *testing.T) {
+		i.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req}})
+
+		expectMetrics := `
+# HELP tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total The total number of processor pushes skipped because the request indicated that metrics should not be generated.
+# TYPE tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total counter
+tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total{tenant="skip-processors-test"} 0
+`
+		err := testutil.GatherAndCompare(
+			prometheus.DefaultGatherer,
+			strings.NewReader(expectMetrics),
+			"tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total",
+		)
+		require.NoError(t, err)
+	})
+
+	t.Run("skip metrics-generating processors", func(t *testing.T) {
+		i.pushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*v1.ResourceSpans{req}, SkipMetricsGeneration: true})
+
+		expectMetrics := `
+# HELP tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total The total number of processor pushes skipped because the request indicated that metrics should not be generated.
+# TYPE tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total counter
+tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total{tenant="skip-processors-test"} 2
+`
+		err := testutil.GatherAndCompare(
+			prometheus.DefaultGatherer,
+			strings.NewReader(expectMetrics),
+			"tempo_metrics_generator_metrics_generation_skipped_processor_pushes_total",
+		)
+		require.NoError(t, err)
+	})
+}
+
 func Test_instance_updateProcessors(t *testing.T) {
 	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
 	overrides := mockOverrides{}
 
-	instance, err := newInstance(&cfg, "test", &overrides, &noopStorage{}, prometheus.DefaultRegisterer, logger, nil, nil, nil)
+	instance, err := newInstance(&cfg, "test", &overrides, &noopStorage{}, logger, nil, nil, nil)
 	assert.NoError(t, err)
 
 	// stop the update goroutine
