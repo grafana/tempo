@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/overrides"
@@ -59,7 +60,7 @@ func TestForwarder(t *testing.T) {
 
 	wg.Add(1)
 	// Mark this request as "to-be-ignored" for metrics generation.
-	ctx := generator.InjectNoGenerateMetrics(context.Background())
+	ctx = metadata.NewIncomingContext(ctx, metadata.Pairs(generator.NoGenerateMetricsContextKey, ""))
 	f.SendTraces(ctx, tenantID, keys, rebatchedTraces)
 	wg.Wait()
 

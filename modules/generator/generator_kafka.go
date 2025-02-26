@@ -132,13 +132,6 @@ func (g *Generator) readCh(ctx context.Context) {
 			continue
 		}
 
-		pushCtx := ctx
-		// If spans in the record should be skipped, inject an equivalent value into the
-		// context used for the push to processors.
-		if ingest.ExtractNoGenerateMetrics(r) {
-			pushCtx = InjectNoGenerateMetrics(ctx)
-		}
-
 		for _, tr := range req.Traces {
 			trace := &tempopb.Trace{}
 			err = trace.Unmarshal(tr.Slice)
@@ -147,8 +140,9 @@ func (g *Generator) readCh(ctx context.Context) {
 				continue
 			}
 
-			i.pushSpansFromQueue(pushCtx, r.Timestamp, &tempopb.PushSpansRequest{
-				Batches: trace.ResourceSpans,
+			i.pushSpansFromQueue(ctx, r.Timestamp, &tempopb.PushSpansRequest{
+				Batches:               trace.ResourceSpans,
+				SkipMetricsGeneration: req.SkipMetricsGeneration,
 			})
 
 			tempopb.ReuseByteSlices([][]byte{tr.Slice})
