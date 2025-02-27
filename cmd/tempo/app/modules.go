@@ -67,15 +67,17 @@ const (
 	SecondaryIngesterRing string = "secondary-ring"
 	MetricsGeneratorRing  string = "metrics-generator-ring"
 	PartitionRing         string = "partition-ring"
+	GeneratorRingWatcher  string = "generator-ring-watcher"
 
 	// individual targets
-	Distributor      string = "distributor"
-	Ingester         string = "ingester"
-	MetricsGenerator string = "metrics-generator"
-	Querier          string = "querier"
-	QueryFrontend    string = "query-frontend"
-	Compactor        string = "compactor"
-	BlockBuilder     string = "block-builder"
+	Distributor                   string = "distributor"
+	Ingester                      string = "ingester"
+	MetricsGenerator              string = "metrics-generator"
+	MetricsGeneratorNoLocalBlocks string = "metrics-generator-no-local-blocks"
+	Querier                       string = "querier"
+	QueryFrontend                 string = "query-frontend"
+	Compactor                     string = "compactor"
+	BlockBuilder                  string = "block-builder"
 
 	// composite targets
 	SingleBinary         string = "all"
@@ -326,6 +328,59 @@ func (t *App) initGenerator() (services.Service, error) {
 	tempopb.RegisterMetricsGeneratorServer(t.Server.GRPC(), t.generator)
 
 	return t.generator, nil
+}
+
+func (t *App) initGeneratorNoLocalBlocks() (services.Service, error) {
+	reg := prometheus.DefaultRegisterer
+
+	t.cfg.Generator.Ingest = t.cfg.Ingest
+
+	// In this mode, the generator runs as a stateless queue consumer that reads from
+	// Kafka and remote writes to a Prometheus-compatible metrics store.
+	if !t.cfg.Ingest.Enabled {
+		return nil, errors.New("ingest storage must be enabled to run metrics generator in this mode")
+	}
+	// The localblocks processor is disabled in this mode.
+	t.cfg.Generator.DisableLocalBlocks = true
+	// The store is used only by the localblocks processor. We don't need it when
+	// running with that processor disabled so we keep the default zero value.
+	var store tempo_storage.Store
+	// In this mode, the generator does not need to become available to serve
+	// queries, so we can skip setting up a gRPC server.
+	t.cfg.Generator.DisableGRPC = true
+
+	var err error
+	t.generator, err = generator.New(&t.cfg.Generator, t.Overrides, reg, t.generatorRingWatcher, store, log.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metrics-generator: %w", err)
+	}
+
+	return t.generator, nil
+}
+
+func (t *App) initGeneratorRingWatcher() (services.Service, error) {
+	reg := prometheus.DefaultRegisterer
+
+	kvRegisterer := kv.RegistererWithKVName(reg, t.cfg.Generator.OverrideRingKey+"-watcher")
+	kvClient, err := kv.NewClient(t.cfg.Generator.Ring.KVStore, ring.GetPartitionRingCodec(), kvRegisterer, util_log.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("creating KV store for generator partition ring watcher: %w", err)
+	}
+
+	t.generatorRingWatcher = ring.NewPartitionRingWatcher(
+		t.cfg.Generator.OverrideRingKey,
+		t.cfg.Generator.OverrideRingKey,
+		kvClient,
+		util_log.Logger,
+		prometheus.WrapRegistererWithPrefix("tempo_", reg),
+	)
+
+	// Expose a web page to view the partition ring state.
+	editor := ring.NewPartitionRingEditor(t.cfg.Generator.OverrideRingKey, kvClient)
+	t.Server.HTTPRouter().Path("/partition/ring").Methods("GET", "POST").
+		Handler(ring.NewPartitionRingPageHandler(t.generatorRingWatcher, editor))
+
+	return t.generatorRingWatcher, nil
 }
 
 func (t *App) initBlockBuilder() (services.Service, error) {
@@ -638,6 +693,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(CacheProvider, t.initCacheProvider, modules.UserInvisibleModule)
 	mm.RegisterModule(IngesterRing, t.initIngesterRing, modules.UserInvisibleModule)
 	mm.RegisterModule(MetricsGeneratorRing, t.initGeneratorRing, modules.UserInvisibleModule)
+	mm.RegisterModule(GeneratorRingWatcher, t.initGeneratorRingWatcher, modules.UserInvisibleModule)
 	mm.RegisterModule(SecondaryIngesterRing, t.initSecondaryIngesterRing, modules.UserInvisibleModule)
 	mm.RegisterModule(PartitionRing, t.initPartitionRing, modules.UserInvisibleModule)
 
@@ -649,6 +705,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(QueryFrontend, t.initQueryFrontend)
 	mm.RegisterModule(Compactor, t.initCompactor)
 	mm.RegisterModule(MetricsGenerator, t.initGenerator)
+	mm.RegisterModule(MetricsGeneratorNoLocalBlocks, t.initGeneratorNoLocalBlocks)
 	mm.RegisterModule(BlockBuilder, t.initBlockBuilder)
 
 	mm.RegisterModule(SingleBinary, nil)
@@ -667,17 +724,19 @@ func (t *App) setupModuleManager() error {
 		SecondaryIngesterRing: {Server, MemberlistKV},
 		MetricsGeneratorRing:  {Server, MemberlistKV},
 		PartitionRing:         {MemberlistKV, Server, IngesterRing},
+		GeneratorRingWatcher:  {MemberlistKV},
 
 		Common: {UsageReport, Server, Overrides},
 
 		// individual targets
-		QueryFrontend:    {Common, Store, OverridesAPI},
-		Distributor:      {Common, IngesterRing, MetricsGeneratorRing, PartitionRing},
-		Ingester:         {Common, Store, MemberlistKV, PartitionRing},
-		MetricsGenerator: {Common, OptionalStore, MemberlistKV, PartitionRing},
-		Querier:          {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
-		Compactor:        {Common, Store, MemberlistKV},
-		BlockBuilder:     {Common, Store, MemberlistKV, PartitionRing},
+		QueryFrontend:                 {Common, Store, OverridesAPI},
+		Distributor:                   {Common, IngesterRing, MetricsGeneratorRing, PartitionRing},
+		Ingester:                      {Common, Store, MemberlistKV, PartitionRing},
+		MetricsGenerator:              {Common, OptionalStore, MemberlistKV, PartitionRing},
+		MetricsGeneratorNoLocalBlocks: {Common, GeneratorRingWatcher},
+		Querier:                       {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
+		Compactor:                     {Common, Store, MemberlistKV},
+		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
 
 		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator, BlockBuilder},

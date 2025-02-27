@@ -201,7 +201,7 @@ func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, de
 }
 
 func (i *instance) updateProcessors() error {
-	desiredProcessors := i.overrides.MetricsGeneratorProcessors(i.instanceID)
+	desiredProcessors := i.filterDisabledProcessors(i.overrides.MetricsGeneratorProcessors(i.instanceID))
 	desiredCfg, err := i.cfg.Processor.copyWithOverrides(i.overrides, i.instanceID)
 	if err != nil {
 		return err
@@ -251,6 +251,21 @@ func (i *instance) updateProcessors() error {
 	i.updateProcessorMetrics()
 
 	return nil
+}
+
+// filterDisabledProcessors removes processors that should never be instantiated
+// according to the generator's configuration from the given set of processors.
+func (i *instance) filterDisabledProcessors(processors map[string]struct{}) map[string]struct{} {
+	// If no processors are disabled, do not apply any filtering.
+	if !i.cfg.DisableLocalBlocks {
+		return processors
+	}
+
+	// Otherwise, do not instantiate the localblocks processor.
+	filteredProcessors := maps.Clone(processors)
+	delete(filteredProcessors, localblocks.Name)
+
+	return filteredProcessors
 }
 
 // diffProcessors compares the existing processors with the desired processors and config.
