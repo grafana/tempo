@@ -147,9 +147,10 @@ func TestTenantStoreEndToEndHistoricalData(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			meta := writeHistoricalData(t, count, startTime, tc.cycleDuration, tc.slackDuration, tc.traceStart, tc.traceEnd)
 
-			// NOTE - Truncate(0) drops the monotonic clock value and makes comparison work.
-			require.Equal(t, tc.expectedStartTime.Truncate(0), meta.StartTime)
-			require.Equal(t, tc.expectedEndTime.Truncate(0), meta.EndTime)
+			// NOTE - Roundtripped times from the meta json don't include the monotonic clock value,
+			//        therefore we do the same on the test values by calling Truncate(0).
+			require.Equal(t, tc.expectedStartTime.Truncate(0).UTC(), meta.StartTime.UTC())
+			require.Equal(t, tc.expectedEndTime.Truncate(0).UTC(), meta.EndTime.UTC())
 
 			// Verify other properties of the block
 			require.EqualValues(t, count, meta.TotalObjects)
