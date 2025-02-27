@@ -31,6 +31,10 @@ const (
 
 	queryableTimeout    = 5 * time.Second        // timeout for waiting for traces to be queryable
 	queryableCheckEvery = 100 * time.Millisecond // check every 100ms for traces to be queryable
+
+	// Wait to block flushed to backend, 20 seconds is the complete_block_timeout configuration on all in one, we add
+	// 2s for security.
+	blockFlushTimeout = 22 * time.Second
 )
 
 func TestSearchTagsV2(t *testing.T) {
@@ -249,10 +253,8 @@ func TestSearchTagsV2(t *testing.T) {
 		})
 	}
 
-	// Wait to block flushed to backend, 20 seconds is the complete_block_timeout configuration on all in one, we add
-	// 2s for security.
 	util.CallFlush(t, tempo)
-	time.Sleep(time.Second * 22)
+	time.Sleep(blockFlushTimeout)
 	util.CallFlush(t, tempo)
 
 	// test metrics
@@ -428,10 +430,8 @@ func TestSearchTagValuesV2(t *testing.T) {
 		})
 	}
 
-	// Wait to block flushed to backend, 20 seconds is the complete_block_timeout configuration on all in one, we add
-	// 2s for security.
 	util.CallFlush(t, tempo)
-	time.Sleep(time.Second * 22)
+	time.Sleep(blockFlushTimeout)
 	util.CallFlush(t, tempo)
 
 	// test metrics
@@ -482,7 +482,7 @@ func TestSearchTags(t *testing.T) {
 	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: []string{"service.name", "x", "xx"}}, 0, 0)
 
 	util.CallFlush(t, tempo)
-	time.Sleep(time.Second * 30)
+	time.Sleep(blockFlushTimeout)
 	util.CallFlush(t, tempo)
 
 	// test metrics
@@ -523,7 +523,7 @@ func TestSearchTagValues(t *testing.T) {
 	callSearchTagValuesAndAssert(t, tempo, "service.name", searchTagValuesResponse{TagValues: []string{"my-service"}}, 0, 0)
 
 	util.CallFlush(t, tempo)
-	time.Sleep(time.Second * 22)
+	time.Sleep(blockFlushTimeout)
 	util.CallFlush(t, tempo)
 
 	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_flushed_total"))
