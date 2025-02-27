@@ -131,6 +131,7 @@ func TestStreamingBlockAddObject(t *testing.T) {
 }
 
 func TestStreamingBlockAll(t *testing.T) {
+	t.Parallel()
 	for i := 0; i < 10; i++ {
 		indexDownsampleBytes := rng.Intn(5000) + 1000
 		bloomFP := float64(rng.Intn(99)+1) / 100.0

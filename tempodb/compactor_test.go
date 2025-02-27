@@ -73,6 +73,7 @@ func TestCompactionRoundtrip(t *testing.T) {
 	for _, enc := range encoding.AllEncodings() {
 		version := enc.Version()
 		t.Run(version, func(t *testing.T) {
+			t.Parallel()
 			testCompactionRoundtrip(t, version)
 		})
 	}

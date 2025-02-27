@@ -54,6 +54,7 @@ type ec2RoleCredRespBody struct {
 }
 
 func TestCredentials(t *testing.T) {
+	t.Parallel()
 	cwd, err := os.Getwd()
 	assert.NoError(t, err)
 
