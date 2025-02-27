@@ -45,9 +45,22 @@ ALL_DOC := $(shell find . \( -name "*.md" -o -name "*.yaml" \) \
 # ALL_PKGS is used with 'go cover'
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 
-GO_OPT= -mod vendor -ldflags "-X main.Branch=$(GIT_BRANCH) -X main.Revision=$(GIT_REVISION) -X main.Version=$(VERSION)"
+LD_FLAGS=-X main.Branch=$(GIT_BRANCH) -X main.Revision=$(GIT_REVISION) -X main.Version=$(VERSION)
+ifeq ($(BUILD_DEBUG),)
+	LD_FLAGS+= -w
+endif
+
+GO_OPT= -mod vendor -ldflags "$(LD_FLAGS)"
 ifeq ($(BUILD_DEBUG), 1)
 	GO_OPT+= -gcflags="all=-N -l"
+endif
+
+GO_ENV=CGO_ENABLED=0
+ifeq ($(GOARCH),amd64)
+	GO_ENV+= GOAMD64=v2
+endif
+ifeq ($(GOARCH),arm64)
+	GO_ENV+= GOARM64=v8
 endif
 
 GOTEST_OPT?= -race -timeout 25m -count=1 -v
@@ -66,19 +79,19 @@ FILES_TO_JSONNETFMT=$(shell find ./operations/jsonnet ./operations/tempo-mixin -
 ##@ Building
 .PHONY: tempo 	
 tempo: ## Build tempo
-	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-$(GOARCH) $(BUILD_INFO) ./cmd/tempo 
+	$(GO_ENV) go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-$(GOARCH) $(BUILD_INFO) ./cmd/tempo
 
 .PHONY: tempo-query
 tempo-query: ## Build tempo-query
-	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-query-$(GOARCH) $(BUILD_INFO) ./cmd/tempo-query
+	$(GO_ENV) go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-query-$(GOARCH) $(BUILD_INFO) ./cmd/tempo-query
 
 .PHONY: tempo-cli
 tempo-cli: ## Build tempo-cli
-	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-cli-$(GOARCH) $(BUILD_INFO) ./cmd/tempo-cli
+	$(GO_ENV) go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-cli-$(GOARCH) $(BUILD_INFO) ./cmd/tempo-cli
 
 .PHONY: tempo-vulture  ## Build tempo-vulture
 tempo-vulture:
-	GO111MODULE=on CGO_ENABLED=0 go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-vulture-$(GOARCH) $(BUILD_INFO) ./cmd/tempo-vulture
+	$(GO_ENV) go build $(GO_OPT) -o ./bin/$(GOOS)/tempo-vulture-$(GOARCH) $(BUILD_INFO) ./cmd/tempo-vulture
 
 .PHONY: exe  ## Build exe
 exe:
