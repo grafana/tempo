@@ -14,6 +14,7 @@ ingester:
       kvstore: {{ .KVStore }}
       replication_factor: 3
     heartbeat_period: 100ms
+    min_ready_duration: 1s
   trace_idle_period: 2s
   max_block_duration: 2s
   complete_block_timeout: 5s

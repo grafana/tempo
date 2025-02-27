@@ -24,6 +24,7 @@ ingester:
         store: inmemory
       replication_factor: 1
     final_sleep: 0s
+    min_ready_duration: 1s
   trace_idle_period: 1s
   max_block_duration: 5s
   complete_block_timeout: 5s

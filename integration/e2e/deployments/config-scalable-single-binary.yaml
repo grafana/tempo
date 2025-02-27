@@ -17,6 +17,7 @@ ingester:
         store: memberlist
       replication_factor: 3
     heartbeat_period: 100ms
+    min_ready_duration: 1s
   max_block_bytes: 1
   max_block_duration: 2s
   flush_check_period: 1s

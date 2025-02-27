@@ -12,6 +12,7 @@ distributor:
 
 ingester:
   lifecycler:
+    min_ready_duration: 1s
     ring:
       replication_factor: 1
 
