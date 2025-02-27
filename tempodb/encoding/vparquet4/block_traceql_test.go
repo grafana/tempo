@@ -2000,8 +2000,16 @@ func randomTree(N int) []traceql.Span {
 }
 
 func blockForBenchmarks(b *testing.B) *backendBlock {
-	id, _ := os.LookupEnv("BENCH_BLOCKID")
-	path, _ := os.LookupEnv("BENCH_PATH")
+	id, ok := os.LookupEnv("BENCH_BLOCKID")
+	if !ok {
+		b.Fatal("BENCH_BLOCKID is not set. These benchmarks are designed to run against a block on local disk. Set BENCH_BLOCKID to the guid of the block to run benchmarks against. e.g. `export BENCH_BLOCKID=030c8c4f-9d47-4916-aadc-26b90b1d2bc4`")
+	}
+
+	path, ok := os.LookupEnv("BENCH_PATH")
+	if !ok {
+		b.Fatal("BENCH_PATH is not set. These benchmarks are designed to run against a block on local disk. Set BENCH_PATH to the root of the backend such that the block to benchmark is at <BENCH_PATH>/<BENCH_TENANTID>/<BENCH_BLOCKID>.")
+	}
+
 	tenantID, ok := os.LookupEnv("BENCH_TENANTID")
 
 	if !ok {
