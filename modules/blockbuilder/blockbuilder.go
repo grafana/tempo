@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -247,11 +246,8 @@ func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 
 	// Iterate over the laggiest partition until the lag is less than the cycle duration or none of the partitions has records
 	for {
-		sort.Slice(ps, func(i, j int) bool {
-			return ps[i].lastRecordTs.Before(ps[j].lastRecordTs)
-		})
-
-		laggiestPartition := ps[0]
+		i := getLaggiestPartitionIndex(ps)
+		laggiestPartition := ps[i]
 		if laggiestPartition.lastRecordTs.IsZero() {
 			return b.cfg.ConsumeCycleDuration, nil
 		}
@@ -264,9 +260,22 @@ func (b *BlockBuilder) consume(ctx context.Context) (time.Duration, error) {
 		if err != nil {
 			return 0, err
 		}
-		ps[0].lastRecordTs = lastRecordTs
-		ps[0].commitOffset = lastRecordOffset
+		ps[i].lastRecordTs = lastRecordTs
+		ps[i].commitOffset = lastRecordOffset
 	}
+}
+
+func getLaggiestPartitionIndex(partitions []partitionState) int {
+	laggiest := 0
+	for i, p := range partitions {
+		if p.lastRecordTs.IsZero() {
+			continue
+		}
+		if partitions[laggiest].lastRecordTs.IsZero() || p.lastRecordTs.Before(partitions[laggiest].lastRecordTs) {
+			laggiest = i
+		}
+	}
+	return laggiest
 }
 
 func (b *BlockBuilder) consumePartition(ctx context.Context, ps partitionState) (lastTs time.Time, commitOffset int64, err error) {
