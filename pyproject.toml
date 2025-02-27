@@ -1,8 +1,11 @@
 [tool.poetry]
-name = "consumption_forcasting_hl"
+name = "mlt"
 version = "0.1.0"
 description = "Your project description"
 authors = ["Rudabeh Meskarian"]
+packages = [
+    { include = "mlt"},
+]
 
 [tool.poetry.dependencies]
 python = "^3.9"
