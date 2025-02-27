@@ -1704,6 +1704,13 @@ func TestPushTracesSkipMetricsGenerationIngestStorage(t *testing.T) {
 			req, err := ingest.NewDecoder().Decode(record.Value)
 			require.NoError(t, err)
 			require.True(t, req.SkipMetricsGeneration)
+
+			reqs, err := ingest.NewPushBytesDecoder().Decode(record.Value)
+			require.NoError(t, err)
+			for req, err := range reqs {
+				require.NoError(t, err)
+				require.True(t, req.SkipMetricsGeneration)
+			}
 		})
 		// Expect that we've fetched at least one record.
 		require.True(t, recordProcessed)
@@ -1723,6 +1730,13 @@ func TestPushTracesSkipMetricsGenerationIngestStorage(t *testing.T) {
 			req, err := ingest.NewDecoder().Decode(record.Value)
 			require.NoError(t, err)
 			require.False(t, req.SkipMetricsGeneration)
+
+			reqs, err := ingest.NewPushBytesDecoder().Decode(record.Value)
+			require.NoError(t, err)
+			for req, err := range reqs {
+				require.NoError(t, err)
+				require.False(t, req.SkipMetricsGeneration)
+			}
 		})
 		// Expect that we've fetched at least one record.
 		require.True(t, recordProcessed)
