@@ -32,9 +32,9 @@ const (
 	queryableTimeout    = 5 * time.Second        // timeout for waiting for traces to be queryable
 	queryableCheckEvery = 100 * time.Millisecond // check every 100ms for traces to be queryable
 
-	// Wait to block flushed to backend, 20 seconds is the complete_block_timeout configuration on all in one, we add
-	// 2s for security.
-	blockFlushTimeout = 22 * time.Second
+	// Wait to block flushed to backend, 5 seconds is the complete_block_timeout configuration on all in one, we add
+	// 100ms for security.
+	blockFlushTimeout = 5*time.Second + 100*time.Millisecond
 )
 
 func TestSearchTagsV2(t *testing.T) {
