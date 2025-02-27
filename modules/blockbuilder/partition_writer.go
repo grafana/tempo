@@ -16,6 +16,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const flushConcurrency = 4
+
 type partitionSectionWriter interface {
 	pushBytes(ts time.Time, tenant string, req *tempopb.PushBytesRequest) error
 	flush(ctx context.Context, store tempodb.Writer) error

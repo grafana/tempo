@@ -52,12 +52,6 @@ var (
 		Name:      "fetch_records_total",
 		Help:      "Total number of records fetched from Kafka",
 	}, []string{"partition"})
-	metricPartitionLagSeconds = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "tempo",
-		Subsystem: "block_builder",
-		Name:      "partition_lag_seconds",
-		Help:      "Lag of a partition in seconds.",
-	}, []string{"partition"})
 	metricConsumeCycleDuration = promauto.NewHistogram(prometheus.HistogramOpts{
 		Namespace:                   "tempo",
 		Subsystem:                   "block_builder",
@@ -345,8 +339,19 @@ outer:
 			// Initialize on first record
 			if !init {
 				end = rec.Timestamp.Add(dur) // When block will be cut
-				metricPartitionLagSeconds.WithLabelValues(partLabel).Set(time.Since(rec.Timestamp).Seconds())
-				writer = newPartitionSectionWriter(b.logger, uint64(ps.partition), uint64(rec.Offset), rec.Timestamp, dur, b.cfg.WAL.IngestionSlack, b.cfg.BlockConfig, b.overrides, b.wal, b.enc)
+				// Record lag at the start of the consumption
+				ingest.SetPartitionLagSeconds(group, ps.partition, time.Since(rec.Timestamp))
+				writer = newPartitionSectionWriter(
+					b.logger,
+					uint64(ps.partition),
+					uint64(rec.Offset),
+					rec.Timestamp,
+					dur,
+					b.cfg.WAL.IngestionSlack,
+					b.cfg.BlockConfig,
+					b.overrides,
+					b.wal,
+					b.enc)
 				init = true
 			}
 
@@ -371,8 +376,13 @@ outer:
 			"commit_offset", ps.commitOffset,
 			"start_offset", startOffset,
 		)
+		// No data means we are caught up
+		ingest.SetPartitionLagSeconds(group, ps.partition, 0)
 		return time.Time{}, -1, nil
 	}
+
+	// Record lag at the end of the consumption
+	ingest.SetPartitionLagSeconds(group, ps.partition, time.Since(lastRec.Timestamp))
 
 	err = writer.flush(ctx, b.writer)
 	if err != nil {

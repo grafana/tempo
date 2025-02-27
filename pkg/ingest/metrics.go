@@ -15,26 +15,33 @@ import (
 	"github.com/twmb/franz-go/pkg/kerr"
 )
 
+const (
+	labelGroup     = "group"
+	labelPartition = "partition"
+)
+
 var (
 	metricPartitionLag = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Subsystem: "ingest",
 		Name:      "group_partition_lag",
 		Help:      "Lag of a partition.",
-	}, []string{"group", "partition"})
+	}, []string{labelGroup, labelPartition})
 
 	metricPartitionLagSeconds = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
 		Subsystem: "ingest",
 		Name:      "group_partition_lag_seconds",
 		Help:      "Lag of a partition in seconds.",
-	}, []string{"group", "partition"})
+	}, []string{labelGroup, labelPartition})
 )
 
 // ExportPartitionLagMetrics in a background goroutine by periodically querying Kafka state
 // for the assigned and active partitions.  This exports the lag metric in number of records
 // which is different than the lag metric for age.
-// TODO - Need to reset this metric when partitions are revoked so that it doesn't continue to export stale data.
+// Call ResetLagMetricsForRevokedPartitions when partitions are revoked to prevent exporting
+// stale data. For efficiency this is not detected automatically from changes inthe assigned
+// partition callback.
 func ExportPartitionLagMetrics(ctx context.Context, admClient *kadm.Client, log log.Logger, cfg Config, getAssignedActivePartitions func() []int32) {
 	go func() {
 		var (
@@ -66,9 +73,19 @@ func ExportPartitionLagMetrics(ctx context.Context, admClient *kadm.Client, log 
 
 // SetPartitionLagSeconds is similar to the auto exported lag, except it is in real clock seconds
 // which can only be known after the record is read from the queue, therefore it is set by the caller.
-// TODO - Need to reset this metric when partitions are revoked so that it doesn't continue to export stale data.
-func SetPartitionLagSeconds(group string, partition int, lag time.Duration) {
-	metricPartitionLagSeconds.WithLabelValues(group, strconv.Itoa(partition)).Set(lag.Seconds())
+// Call ResetLagMetricsForRevokedPartitions when partitions are revoked to prevent exporting stale data.
+func SetPartitionLagSeconds(group string, partition int32, lag time.Duration) {
+	metricPartitionLagSeconds.WithLabelValues(group, strconv.Itoa(int(partition))).Set(lag.Seconds())
+}
+
+// ResetLagMetricsForRevokedPartitions should be called when a partition is revoked to prevent
+// exporting stale metrics for partitions that the application no longer owns.
+func ResetLagMetricsForRevokedPartitions(group string, partitions []int32) {
+	for _, p := range partitions {
+		l := strconv.Itoa(int(p))
+		metricPartitionLag.DeletePartialMatch(prometheus.Labels{labelGroup: group, labelPartition: l})
+		metricPartitionLagSeconds.DeletePartialMatch(prometheus.Labels{labelGroup: group, labelPartition: l})
+	}
 }
 
 // getGroupLag is similar to `kadm.Client.Lag` but works when the group doesn't have live participants.

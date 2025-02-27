@@ -1,12 +1,16 @@
 package blockbuilder
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/tempo/pkg/tempopb"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
+	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/require"
 )
@@ -14,10 +18,15 @@ import (
 func getTenantStore(t *testing.T, startTime time.Time, cycleDuration, slackDuration time.Duration) (*tenantStore, error) {
 	var (
 		logger      = log.NewNopLogger()
-		blockCfg    = BlockConfig{}
 		tmpDir      = t.TempDir()
 		partition   = uint64(1)
 		startOffset = uint64(1)
+		blockCfg    = BlockConfig{
+			BlockCfg: common.BlockConfig{
+				BloomFP:             0.01,
+				BloomShardSizeBytes: 100000,
+			},
+		}
 	)
 
 	w, err := wal.New(&wal.Config{
@@ -30,7 +39,7 @@ func getTenantStore(t *testing.T, startTime time.Time, cycleDuration, slackDurat
 	return newTenantStore("test-tenant", partition, startOffset, startTime, cycleDuration, slackDuration, blockCfg, logger, w, encoding.DefaultEncoding(), &mockOverrides{})
 }
 
-func TestAdjustTimeRangeForSlack(t *testing.T) {
+func TestTenantStoreAdjustTimeRangeForSlack(t *testing.T) {
 	var (
 		startCycleTime = time.Now()
 		cycleDuration  = time.Minute
@@ -91,4 +100,106 @@ func TestAdjustTimeRangeForSlack(t *testing.T) {
 			require.Equal(t, tt.expectedEnd, end)
 		})
 	}
+}
+
+func TestTenantStoreEndToEndHistoricalData(t *testing.T) {
+	startTime := time.Now().Add(-24 * time.Hour)
+
+	testCases := []struct {
+		name              string
+		traceStart        time.Time // All spans will start at this time
+		traceEnd          time.Time // All spans will end at this time
+		cycleDuration     time.Duration
+		slackDuration     time.Duration
+		expectedStartTime time.Time
+		expectedEndTime   time.Time
+	}{
+		{
+			name:              "all good",
+			traceStart:        startTime,
+			traceEnd:          startTime.Add(time.Minute),
+			cycleDuration:     5 * time.Minute,
+			slackDuration:     5 * time.Minute,
+			expectedStartTime: startTime,
+			expectedEndTime:   startTime.Add(time.Minute),
+		},
+		{
+			name:              "before start",
+			traceStart:        startTime.Add(-10 * time.Minute),
+			traceEnd:          startTime,
+			cycleDuration:     5 * time.Minute,
+			slackDuration:     5 * time.Minute,
+			expectedStartTime: startTime.Add(-5 * time.Minute), // Only goes as early as -slack
+			expectedEndTime:   startTime,
+		},
+		{
+			name:              "after end",
+			traceStart:        startTime,
+			traceEnd:          startTime.Add(20 * time.Minute),
+			cycleDuration:     5 * time.Minute,
+			slackDuration:     5 * time.Minute,
+			expectedStartTime: startTime,
+			expectedEndTime:   startTime.Add(10 * time.Minute), // Only goes as far as cycle + slack
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			meta := writeHistoricalData(t, startTime, tc.cycleDuration, tc.slackDuration, tc.traceStart, tc.traceEnd)
+
+			// NOTE - Truncate(0) drops the monotonic clock value and makes comparison work.
+			require.Equal(t, tc.expectedStartTime.Truncate(0), meta.StartTime)
+			require.Equal(t, tc.expectedEndTime.Truncate(0), meta.EndTime)
+		})
+	}
+}
+
+func writeHistoricalData(t *testing.T, startTime time.Time, cycleDuration, slackDuration time.Duration, traceStart, traceEnd time.Time) *backend.BlockMeta {
+	var (
+		count = 3
+		ctx   = context.Background()
+		log   = log.NewNopLogger()
+		store = newStoreWithLogger(ctx, t, log)
+	)
+
+	ts, err := getTenantStore(t, startTime, cycleDuration, slackDuration)
+	require.NoError(t, err)
+
+	for i := 0; i < count; i++ {
+		tid := []byte{byte(i)}
+		tr := &tempopb.Trace{
+			ResourceSpans: []*v1.ResourceSpans{
+				{
+					ScopeSpans: []*v1.ScopeSpans{
+						{
+							Spans: []*v1.Span{
+								{
+									TraceId:           tid,
+									StartTimeUnixNano: uint64(traceStart.UnixNano()),
+									EndTimeUnixNano:   uint64(traceEnd.UnixNano()),
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		b, err := tr.Marshal()
+		require.NoError(t, err)
+
+		ts.AppendTrace(tid, b, startTime)
+	}
+
+	err = ts.Flush(ctx, store)
+	require.NoError(t, err)
+
+	// This forces another immediate poll
+	store.EnablePolling(ctx, &ownEverythingSharder{})
+
+	metas := store.BlockMetas(ts.tenantID)
+	require.Equal(t, 1, len(metas))
+	require.EqualValues(t, count, metas[0].TotalObjects)
+
+	return metas[0]
 }

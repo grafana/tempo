@@ -84,7 +84,7 @@ func (g *Generator) readKafka(ctx context.Context) error {
 	fetches.EachPartition(func(p kgo.FetchTopicPartition) {
 		if len(p.Records) > 0 {
 			lag := time.Since(p.Records[0].Timestamp)
-			ingest.SetPartitionLagSeconds(g.cfg.Ingest.Kafka.ConsumerGroup, int(p.Partition), lag)
+			ingest.SetPartitionLagSeconds(g.cfg.Ingest.Kafka.ConsumerGroup, p.Partition, lag)
 		}
 	})
 
@@ -177,6 +177,8 @@ func (g *Generator) handlePartitionsRevoked(partitions map[string][]int32) {
 	sort.Slice(revoked, func(i, j int) bool { return revoked[i] < revoked[j] })
 	// Remove revoked partitions
 	g.assignedPartitions = revokePartitions(g.assignedPartitions, revoked)
+
+	ingest.ResetLagMetricsForRevokedPartitions(g.cfg.Ingest.Kafka.ConsumerGroup, revoked)
 }
 
 // Helper function to format []int32 slice
