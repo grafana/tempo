@@ -2,6 +2,7 @@ package blockbuilder
 
 import (
 	"context"
+	"flag"
 	"testing"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
-	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/require"
 )
@@ -21,13 +21,10 @@ func getTenantStore(t *testing.T, startTime time.Time, cycleDuration, slackDurat
 		tmpDir      = t.TempDir()
 		partition   = uint64(1)
 		startOffset = uint64(1)
-		blockCfg    = BlockConfig{
-			BlockCfg: common.BlockConfig{
-				BloomFP:             0.01,
-				BloomShardSizeBytes: 100000,
-			},
-		}
+		blockCfg    = BlockConfig{}
 	)
+
+	blockCfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 
 	w, err := wal.New(&wal.Config{
 		Filepath:       tmpDir,
@@ -103,7 +100,10 @@ func TestTenantStoreAdjustTimeRangeForSlack(t *testing.T) {
 }
 
 func TestTenantStoreEndToEndHistoricalData(t *testing.T) {
-	startTime := time.Now().Add(-24 * time.Hour)
+	var (
+		count     = 3
+		startTime = time.Now().Add(-24 * time.Hour)
+	)
 
 	testCases := []struct {
 		name              string
@@ -145,18 +145,22 @@ func TestTenantStoreEndToEndHistoricalData(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			meta := writeHistoricalData(t, startTime, tc.cycleDuration, tc.slackDuration, tc.traceStart, tc.traceEnd)
+			meta := writeHistoricalData(t, count, startTime, tc.cycleDuration, tc.slackDuration, tc.traceStart, tc.traceEnd)
 
 			// NOTE - Truncate(0) drops the monotonic clock value and makes comparison work.
 			require.Equal(t, tc.expectedStartTime.Truncate(0), meta.StartTime)
 			require.Equal(t, tc.expectedEndTime.Truncate(0), meta.EndTime)
+
+			// Verify other properties of the block
+			require.EqualValues(t, count, meta.TotalObjects)
+			require.EqualValues(t, 1, meta.TotalRecords)
+			require.Greater(t, meta.Size_, uint64(0))
 		})
 	}
 }
 
-func writeHistoricalData(t *testing.T, startTime time.Time, cycleDuration, slackDuration time.Duration, traceStart, traceEnd time.Time) *backend.BlockMeta {
+func writeHistoricalData(t *testing.T, count int, startTime time.Time, cycleDuration, slackDuration time.Duration, traceStart, traceEnd time.Time) *backend.BlockMeta {
 	var (
-		count = 3
 		ctx   = context.Background()
 		log   = log.NewNopLogger()
 		store = newStoreWithLogger(ctx, t, log)
@@ -188,7 +192,8 @@ func writeHistoricalData(t *testing.T, startTime time.Time, cycleDuration, slack
 		b, err := tr.Marshal()
 		require.NoError(t, err)
 
-		ts.AppendTrace(tid, b, startTime)
+		err = ts.AppendTrace(tid, b, startTime)
+		require.NoError(t, err)
 	}
 
 	err = ts.Flush(ctx, store)
@@ -199,7 +204,6 @@ func writeHistoricalData(t *testing.T, startTime time.Time, cycleDuration, slack
 
 	metas := store.BlockMetas(ts.tenantID)
 	require.Equal(t, 1, len(metas))
-	require.EqualValues(t, count, metas[0].TotalObjects)
 
 	return metas[0]
 }
