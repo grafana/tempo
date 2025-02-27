@@ -60,7 +60,7 @@ ifeq ($(GOARCH),amd64)
 	GO_ENV+= GOAMD64=v2
 endif
 ifeq ($(GOARCH),arm64)
-	GO_ENV+= GOARM64=v8
+	GO_ENV+= GOARM64=v8.0
 endif
 
 GOTEST_OPT?= -race -timeout 25m -count=1 -v
