@@ -372,7 +372,7 @@ func (p *OrPredicate) KeepValue(v pq.Value) bool {
 }
 
 type InstrumentedPredicate struct {
-	pred                  Predicate // Optional, if missing then just keeps metrics with no filtering
+	Pred                  Predicate // Optional, if missing then just keeps metrics with no filtering
 	InspectedColumnChunks int64
 	InspectedPages        int64
 	InspectedValues       int64
@@ -384,16 +384,16 @@ type InstrumentedPredicate struct {
 var _ Predicate = (*InstrumentedPredicate)(nil)
 
 func (p *InstrumentedPredicate) String() string {
-	if p.pred == nil {
+	if p.Pred == nil {
 		return fmt.Sprintf("InstrumentedPredicate{%d, nil}", p.InspectedValues)
 	}
-	return fmt.Sprintf("InstrumentedPredicate{%d, %s}", p.InspectedValues, p.pred)
+	return fmt.Sprintf("InstrumentedPredicate{%d, %s}", p.InspectedValues, p.Pred)
 }
 
 func (p *InstrumentedPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 	p.InspectedColumnChunks++
 
-	if p.pred == nil || p.pred.KeepColumnChunk(c) {
+	if p.Pred == nil || p.Pred.KeepColumnChunk(c) {
 		p.KeptColumnChunks++
 		return true
 	}
@@ -404,7 +404,7 @@ func (p *InstrumentedPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
 func (p *InstrumentedPredicate) KeepPage(page pq.Page) bool {
 	p.InspectedPages++
 
-	if p.pred == nil || p.pred.KeepPage(page) {
+	if p.Pred == nil || p.Pred.KeepPage(page) {
 		p.KeptPages++
 		return true
 	}
@@ -415,7 +415,7 @@ func (p *InstrumentedPredicate) KeepPage(page pq.Page) bool {
 func (p *InstrumentedPredicate) KeepValue(v pq.Value) bool {
 	p.InspectedValues++
 
-	if p.pred == nil || p.pred.KeepValue(v) {
+	if p.Pred == nil || p.Pred.KeepValue(v) {
 		p.KeptValues++
 		return true
 	}

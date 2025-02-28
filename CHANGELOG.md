@@ -34,6 +34,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [ENHANCEMENT] Improve block-builder performance [#4596](https://github.com/grafana/tempo/pull/4596) (@mdisibio)
 * [ENHANCEMENT] Improve block-builder performance by not using WAL stage [#4647](https://github.com/grafana/tempo/pull/4647) [#4671](https://github.com/grafana/tempo/pull/4671) (@mdisibio)
 * [ENHANCEMENT] Export new `tempo_ingest_group_partition_lag` metric from block-builders and metrics-generators [#4571](https://github.com/grafana/tempo/pull/4571) (@mdisibio)
+* [ENHANCEMENT] Overall iterator performance improvement by using max definition level to ignore parts of the RowNumber while nexting. [#4753](https://github.com/grafana/tempo/pull/4753) (@joe-elliott)
 * [ENHANCEMENT] Use distroless base container images for improved security [#4556](https://github.com/grafana/tempo/pull/4556) (@carles-grafana)
 * [ENHANCEMENT] rythm: add block builder to resources dashboard[#4556](https://github.com/grafana/tempo/pull/4669) (@javiermolinar)
 * [ENHANCEMENT] update dskit to latest version[#4681](https://github.com/grafana/tempo/pull/4681) (@javiermolinar)
