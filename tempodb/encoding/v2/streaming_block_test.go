@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -132,6 +133,7 @@ func TestStreamingBlockAddObject(t *testing.T) {
 
 func TestStreamingBlockAll(t *testing.T) {
 	t.Parallel()
+	mx := &sync.Mutex{}
 	for i := 0; i < 10; i++ {
 		indexDownsampleBytes := rng.Intn(5000) + 1000
 		bloomFP := float64(rng.Intn(99)+1) / 100.0
@@ -140,7 +142,8 @@ func TestStreamingBlockAll(t *testing.T) {
 
 		for _, enc := range backend.SupportedEncoding {
 			t.Run(enc.String(), func(t *testing.T) {
-				testStreamingBlockToBackendBlock(t,
+				t.Parallel()
+				testStreamingBlockToBackendBlock(t, mx,
 					&common.BlockConfig{
 						IndexDownsampleBytes: indexDownsampleBytes,
 						BloomFP:              bloomFP,
@@ -154,7 +157,7 @@ func TestStreamingBlockAll(t *testing.T) {
 	}
 }
 
-func testStreamingBlockToBackendBlock(t *testing.T, cfg *common.BlockConfig) {
+func testStreamingBlockToBackendBlock(t *testing.T, mx *sync.Mutex, cfg *common.BlockConfig) {
 	rawR, rawW, _, err := local.New(&local.Config{
 		Path: t.TempDir(),
 	})
@@ -162,7 +165,14 @@ func testStreamingBlockToBackendBlock(t *testing.T, cfg *common.BlockConfig) {
 	r := backend.NewReader(rawR)
 	w := backend.NewWriter(rawW)
 	require.NoError(t, err, "error creating backend")
-	_, ids, reqs := streamingBlock(t, cfg, w)
+
+	// to allow parallel test execution
+	var ids, reqs [][]byte
+	func() {
+		mx.Lock()
+		defer mx.Unlock()
+		_, ids, reqs = streamingBlock(t, cfg, w)
+	}()
 
 	// meta?
 	uuids, _, err := r.Blocks(context.Background(), testTenantID)
