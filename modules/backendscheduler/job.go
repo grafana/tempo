@@ -37,6 +37,7 @@ type Job struct {
 	Type      tempopb.JobType `json:"type"`
 	JobDetail tempopb.JobDetail
 
+	// TODO: use proto staus
 	status     JobStatus
 	statusLock sync.RWMutex
 	startTime  time.Time
