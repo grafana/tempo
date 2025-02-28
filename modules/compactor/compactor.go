@@ -211,6 +211,8 @@ func (c *Compactor) runWithScheduler(ctx context.Context) error {
 	ticker := time.NewTicker(c.cfg.PollingInterval)
 	defer ticker.Stop()
 
+	level.Info(log.Logger).Log("msg", "backend scheduler running")
+
 	for {
 		select {
 		case <-ctx.Done():
