@@ -46,6 +46,8 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	f.DurationVar(&cfg.Compactor.MaxCompactionRange, util.PrefixConfig(prefix, "compaction.compaction-window"), time.Hour, "Maximum time window across which to compact blocks.")
 	f.BoolVar(&cfg.Disabled, util.PrefixConfig(prefix, "disabled"), false, "Disable compaction.")
 	cfg.OverrideRingKey = compactorRingKey
+
+	f.DurationVar(&cfg.PollingInterval, util.PrefixConfig(prefix, "polling-interval"), 10*time.Second, "Interval to poll for new jobs.")
 }
 
 func toBasicLifecyclerConfig(cfg RingConfig, logger log.Logger) (ring.BasicLifecyclerConfig, error) {
