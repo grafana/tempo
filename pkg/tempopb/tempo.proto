@@ -104,6 +104,9 @@ message NextJobResponse {
   JobDetail detail = 3 [(gogoproto.nullable) = false];
 }
 
+// FIXME: the update for a compaction job success should be able to send the
+// new block ID.  This will allow the backendscheduler to update its blocklist
+// so that future jobs are not scheduled on the old block.
 message UpdateJobStatusRequest {
   string job_id = 1;
   JobStatus status = 2;
