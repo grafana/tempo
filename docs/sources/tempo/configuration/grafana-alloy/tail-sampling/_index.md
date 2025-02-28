@@ -16,7 +16,9 @@ There are a number of ways to lower trace volume, including varying sampling str
 
 Sampling is the process of determining which traces to store (in Tempo or Grafana Cloud Traces) and which to discard. Sampling comes in two different strategy types: head and tail sampling.
 
-Sampling functionality exists in both [Grafana Alloy](https://grafana.com/docs/alloy/) and the OpenTelemetry Collector. Alloy can collect, process, and export telemetry signals, with configuration files written in [Alloy configuration syntax](https://grafana.com/docs/alloy/latest/concepts/configuration-syntax/).
+Sampling functionality exists in both [Grafana Alloy](https://grafana.com/docs/alloy/) and the OpenTelemetry Collector. Alloy can collect, process, and export telemetry signals, with configuration files written in [Alloy configuration syntax](https://grafana.com/docs/alloy/<ALLOY_VERSION>/concepts/configuration-syntax/).
+
+Refer to [Enable tail sampling](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/enable-tail-sampling/) for instructions on how to enable tail sampling.
 
 ## Head and tail sampling
 
@@ -115,7 +117,7 @@ The first layer receives the telemetry data (in this case trace spans), and then
 
 ![Load balancing incoming traces using Alloy](/media/docs/tempo/sampling/tempo-alloy-sampling-loadbalancing.svg)
 
-Alloy includes a [load-balancing exporter](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.exporter.loadbalancing/) that can carry out routing to further collector targets based on a set number of keys (in the case of trace sampling, usually the `traceID` key).
+Alloy includes a [load-balancing exporter](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.exporter.loadbalancing/) that can carry out routing to further collector targets based on a set number of keys (in the case of trace sampling, usually the `traceID` key).
 Alloy uses the [OpenTelemetry load balancing exporter](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/loadbalancingexporter/README.md).
 
 The routing key ensures that a specific collector in the second layer always handles spans from the same trace ID, guaranteeing that sampling decisions are made correctly.
