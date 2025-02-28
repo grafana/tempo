@@ -7,7 +7,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/google/uuid"
-	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
@@ -127,58 +126,82 @@ func TestBackendScheduler(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, resp)
 		require.Equal(t, id2, resp.JobId)
-	})
+		require.Equal(t, tempopb.JobType_JOB_TYPE_COMPACTION, resp.Type)
 
-	t.Run("handles job lifecycle", func(t *testing.T) {
-		t.Skip()
-		bs, err := New(cfg, store)
-		require.NoError(t, err)
-		require.NoError(t, services.StartAndAwaitRunning(ctx, bs))
-		defer func() {
-			require.NoError(t, services.StopAndAwaitTerminated(ctx, bs))
-		}()
-
-		// Write test blocks
-		// tenant := "test-tenant"
-		// blockIDs := writeTestBlocks(t, ctx, store, tenant, 2)
-		// require.Len(t, blockIDs, 2)
-
-		// Get next job
-		nextResp, err := bs.Next(ctx, &tempopb.NextJobRequest{
+		// Does not hand out the same job again
+		resp, err = bs.Next(ctx, &tempopb.NextJobRequest{
 			WorkerId: "test-worker",
 			Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
 		})
 		require.NoError(t, err)
-		require.NotNil(t, nextResp)
-		// require.Equal(t, tenant, nextResp.Detail.Tenant)
-		// require.Equal(t, blockIDs, nextResp.Detail.GetCompaction().Input)
-
-		t.Logf("nextResp: %+v", nextResp)
-
-		// Update job status
-		updateReq := &tempopb.UpdateJobStatusRequest{
-			JobId:  nextResp.JobId,
-			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
-		}
-		_, err = bs.UpdateJob(ctx, updateReq)
-		require.NoError(t, err)
-
-		// Verify job is completed
-		nextResp, err = bs.Next(ctx, &tempopb.NextJobRequest{
-			WorkerId: "test-worker",
-		})
-		require.NoError(t, err)
-		require.Nil(t, nextResp, "should not return completed job")
+		require.Nil(t, resp)
 	})
 
 	t.Run("handles multiple workers", func(t *testing.T) {
-		t.Skip()
-		bs, err := New(cfg, store)
+		id1 := uuid.New().String()
+		id2 := uuid.New().String()
+		id3 := uuid.New().String()
+		id4 := uuid.New().String()
+		jobs := map[string]*Job{}
+
+		jobs[id1] = &Job{
+			ID:   id1,
+			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+			JobDetail: tempopb.JobDetail{
+				Tenant: "test-tenant",
+				Detail: &tempopb.JobDetail_Compaction{
+					Compaction: &tempopb.CompactionDetail{
+						Input: []string{uuid.New().String(), uuid.New().String()},
+					},
+				},
+			},
+		}
+
+		jobs[id2] = &Job{
+			ID:   id2,
+			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+			JobDetail: tempopb.JobDetail{
+				Tenant: "test-tenant",
+				Detail: &tempopb.JobDetail_Compaction{
+					Compaction: &tempopb.CompactionDetail{
+						Input: []string{uuid.New().String(), uuid.New().String()},
+					},
+				},
+			},
+		}
+
+		jobs[id3] = &Job{
+			ID:   id3,
+			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+			JobDetail: tempopb.JobDetail{
+				Tenant: "test-tenant",
+				Detail: &tempopb.JobDetail_Compaction{
+					Compaction: &tempopb.CompactionDetail{
+						Input: []string{uuid.New().String(), uuid.New().String()},
+					},
+				},
+			},
+		}
+
+		jobs[id4] = &Job{
+			ID:   id4,
+			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+			JobDetail: tempopb.JobDetail{
+				Tenant: "test-tenant",
+				Detail: &tempopb.JobDetail_Compaction{
+					Compaction: &tempopb.CompactionDetail{
+						Input: []string{uuid.New().String(), uuid.New().String()},
+					},
+				},
+			},
+		}
+
+		bs := &BackendScheduler{
+			jobs: jobs,
+		}
+
+		err := bs.ScheduleOnce(ctx)
 		require.NoError(t, err)
-		require.NoError(t, services.StartAndAwaitRunning(ctx, bs))
-		defer func() {
-			require.NoError(t, services.StopAndAwaitTerminated(ctx, bs))
-		}()
 
 		// Write test blocks for multiple jobs
 		// tenant := "test-tenant"
@@ -223,6 +246,34 @@ func TestBackendScheduler(t *testing.T) {
 			_, exists := worker2Jobs[id]
 			require.False(t, exists, "same job assigned to multiple workers")
 		}
+
+		for id := range worker2Jobs {
+			_, exists := worker1Jobs[id]
+			require.False(t, exists, "same job assigned to multiple workers")
+		}
+
+		// Mark jobs failed or complete
+		resp, err := bs.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+			JobId:  id1,
+			Status: tempopb.JobStatus_JOB_STATUS_FAILED,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+
+		resp, err = bs.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+			JobId:  id1,
+			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+
+		// unknown job id
+		resp, err = bs.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+			JobId:  uuid.New().String(),
+			Status: tempopb.JobStatus_JOB_STATUS_FAILED,
+		})
+		require.Error(t, err)
+		require.Nil(t, resp)
 	})
 }
 
