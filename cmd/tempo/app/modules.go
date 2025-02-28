@@ -89,7 +89,6 @@ const (
 	ringIngester          string = "ingester"
 	ringMetricsGenerator  string = "metrics-generator"
 	ringSecondaryIngester string = "secondary-ingester"
-	// ringBackendScheduler  string = "backend-scheduler"
 )
 
 func (t *App) initServer() (services.Service, error) {
@@ -161,10 +160,6 @@ func (t *App) initIngesterRing() (services.Service, error) {
 func (t *App) initGeneratorRing() (services.Service, error) {
 	return t.initReadRing(t.cfg.Generator.Ring.ToRingConfig(), ringMetricsGenerator, t.cfg.Generator.OverrideRingKey)
 }
-
-// func (t *App) initBackendRing() (services.Service, error) {
-// 	return t.initReadRing(t.cfg.BackendScheduler.Ring.ToRingConfig(), ringBackendScheduler, t.cfg.BackendScheduler.OverrideRingKey)
-// }
 
 // initSecondaryIngesterRing is an optional ring for the queriers. This secondary ring is useful in edge cases and should
 // not be used generally. Use this if you need one set of queries to query 2 different sets of ingesters.
@@ -728,7 +723,6 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(GeneratorRingWatcher, t.initGeneratorRingWatcher, modules.UserInvisibleModule)
 	mm.RegisterModule(SecondaryIngesterRing, t.initSecondaryIngesterRing, modules.UserInvisibleModule)
 	mm.RegisterModule(PartitionRing, t.initPartitionRing, modules.UserInvisibleModule)
-	// mm.RegisterModule(BackendRing, t.initBackendRing, modules.UserInvisibleModule)
 
 	mm.RegisterModule(Common, nil, modules.UserInvisibleModule)
 
@@ -771,7 +765,7 @@ func (t *App) setupModuleManager() error {
 		Querier:                       {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
 		Compactor:                     {Common, Store, MemberlistKV},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
-		BackendScheduler:              {Common, Store, MemberlistKV},
+		BackendScheduler:              {Common, Store},
 
 		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator, BlockBuilder},

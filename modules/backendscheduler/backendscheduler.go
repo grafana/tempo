@@ -25,21 +25,12 @@ type BackendScheduler struct {
 	cfg   Config
 	store storage.Store
 
-	// Ring lifecycle management
-	// ringLifecycler *ring.BasicLifecycler
-	// ring           *ring.Ring
-
-	// Subservices management
-	// subservices        *services.Manager
-	// subservicesWatcher *services.FailureWatcher
-
 	// track jobs, keyed by job ID
 	jobs    map[string]*Job
 	jobsMtx sync.RWMutex
 }
 
-// Interface that compactor implements
-// TODO: is this interface needed?  Currently proto is enforcing the interface at the API and we likely don't need this or its methods.
+// Interface that for future work to create and manage jobs.
 type JobProcessor interface {
 	GetJob(ctx context.Context) (*Job, error)
 	StartJob(ctx context.Context, jobID string) error
@@ -55,32 +46,6 @@ func New(cfg Config, store storage.Store) (*BackendScheduler, error) {
 		store: store,
 	}
 
-	// lifecyclerStore, err := kv.NewClient(
-	// 	cfg.Ring.KVStore,
-	// 	ring.GetCodec(),
-	// 	kv.RegistererWithKVName(reg, "backend-scheduler"),
-	// 	log.Logger,
-	// )
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to create lifecycler store: %w", err)
-	// }
-	//
-	// lifecyclerCfg, err := cfg.Ring.toLifecyclerConfig()
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to create lifecycler config: %w", err)
-	// }
-	//
-	// s.ringLifecycler, err = ring.NewBasicLifecycler(lifecyclerCfg, ringKey, ringKey, lifecyclerStore, nil, log.Logger, reg)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to create ring lifecycler: %w", err)
-	// }
-	//
-	// ringCfg := cfg.Ring.ToRingConfig()
-	// s.ring, err = ring.New(ringCfg, ringKey, ringKey, log.Logger, reg)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to create ring: %w", err)
-	// }
-
 	s.Service = services.NewBasicService(s.starting, s.running, s.stopping)
 	return s, nil
 }
@@ -88,26 +53,6 @@ func New(cfg Config, store storage.Store) (*BackendScheduler, error) {
 func (s *BackendScheduler) starting(ctx context.Context) error {
 	// TODO: the jobs are not populated on startup, either from what was
 	// persisted, or invented new.
-
-	// var err error
-	// s.subservices, err = services.NewManager(s.ringLifecycler, s.ring)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to create subservices: %w", err)
-	// }
-
-	// s.subservicesWatcher = services.NewFailureWatcher()
-	// s.subservicesWatcher.WatchManager(s.subservices)
-
-	// if err := services.StartManagerAndAwaitHealthy(ctx, s.subservices); err != nil {
-	// 	return fmt.Errorf("failed to start subservices: %w", err)
-	// }
-
-	// Wait until this instance is ACTIVE in the ring
-	// level.Info(log.Logger).Log("msg", "waiting until backend scheduler is ACTIVE in the ring")
-	// if err := ring.WaitInstanceState(ctx, s.ring, s.ringLifecycler.GetInstanceID(), ring.ACTIVE); err != nil {
-	// 	return err
-	// }
-	// level.Info(log.Logger).Log("msg", "backend scheduler is ACTIVE in the ring")
 
 	return nil
 }
@@ -128,14 +73,7 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return nil
-		// case err := <-s.subservicesWatcher.Chan():
-		// 	return fmt.Errorf("backend scheduler subservice failed: %w", err)
 		case <-ticker.C:
-			// if !s.isLeader() {
-			// 	s.metrics.schedulerIsLeader.Set(0)
-			// 	continue
-			// }
-			// s.metrics.schedulerIsLeader.Set(1)
 
 			if err := s.ScheduleOnce(ctx); err != nil {
 				level.Error(log.Logger).Log("msg", "scheduling cycle failed", "err", err)
@@ -143,8 +81,6 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 			} else {
 				schedulingCycles.WithLabelValues("success").Inc()
 			}
-
-			// TOOO: Impelment creating jobs.  Start with compaction jobs.
 		}
 	}
 }
@@ -195,10 +131,6 @@ func (s *BackendScheduler) CreateJob(ctx context.Context, job *Job) error {
 			activeCount++
 		}
 	}
-
-	// if activeCount >= s.cfg.MaxConcurrentJobs {
-	// 	return fmt.Errorf("max concurrent jobs (%d) reached for tenant %s", s.cfg.MaxConcurrentJobs, job.Job.Tenant)
-	// }
 
 	s.jobs[job.ID] = job
 	jobsCreated.WithLabelValues(job.JobDetail.Tenant, job.Type.String()).Inc()
