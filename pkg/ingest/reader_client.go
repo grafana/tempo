@@ -84,27 +84,27 @@ func (c *Client) monitorPartitions() {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
-	// Get initial partition count from the ring
-	lastPartitionCount := c.partitionRing.PartitionRing().PartitionsCount()
+	// Get initial partitions from the ring
+	lastPartitions := mergeSorted(c.partitionRing.PartitionRing().ActivePartitionIDs(), c.partitionRing.PartitionRing().InactivePartitionIDs())
 
 	for {
 		select {
 		case <-c.stopCh:
 			return
 		case <-ticker.C:
-			// Get current partition count from the ring
-			currentPartitionCount := c.partitionRing.PartitionRing().PartitionsCount()
-			if currentPartitionCount != lastPartitionCount {
+			// Get current partitions from the ring
+			currentPartitions := mergeSorted(c.partitionRing.PartitionRing().ActivePartitionIDs(), c.partitionRing.PartitionRing().InactivePartitionIDs())
+			if !compareSorted(currentPartitions, lastPartitions) {
 				level.Info(c.logger).Log(
-					"msg", "partition count changed, triggering rebalance",
-					"previous_count", lastPartitionCount,
-					"current_count", currentPartitionCount,
+					"msg", "partitions changed, triggering rebalance",
+					"previous_partitions", lastPartitions,
+					"current_partitions", currentPartitions,
 				)
 				// Trigger a rebalance to update partition assignments
 				// All consumers trigger the rebalance, but only the group leader will actually perform it
 				// For non-leader consumers, triggering the rebalance has no effect
 				c.ForceRebalance()
-				lastPartitionCount = currentPartitionCount
+				lastPartitions = currentPartitions
 			}
 		}
 	}
@@ -121,4 +121,50 @@ func NewReaderClientMetrics(component string, reg prometheus.Registerer) *kprom.
 		kprom.Registerer(prometheus.WrapRegistererWith(prometheus.Labels{"component": component}, reg)),
 		// Do not export the client ID, because we use it to specify options to the backend.
 		kprom.FetchAndProduceDetail(kprom.Batches, kprom.Records, kprom.CompressedBytes, kprom.UncompressedBytes))
+}
+
+func mergeSorted(a, b []int32) []int32 {
+	if len(a) == 0 {
+		return b
+	}
+	if len(b) == 0 {
+		return a
+	}
+
+	// Pre-allocate the result slice with the exact capacity needed
+	merged := make([]int32, 0, len(a)+len(b))
+
+	// Merge the two slices in sorted order
+	i, j := 0, 0
+	for i < len(a) && j < len(b) {
+		if a[i] <= b[j] {
+			merged = append(merged, a[i])
+			i++
+		} else {
+			merged = append(merged, b[j])
+			j++
+		}
+	}
+
+	// Append any remaining elements
+	if i < len(a) {
+		merged = append(merged, a[i:]...)
+	}
+	if j < len(b) {
+		merged = append(merged, b[j:]...)
+	}
+
+	return merged
+}
+
+func compareSorted(a, b []int32) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
