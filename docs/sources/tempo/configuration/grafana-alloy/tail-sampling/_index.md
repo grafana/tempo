@@ -31,7 +31,7 @@ Tail sampling is more complex to configure, implement, and maintain but is the r
 
 For more information about sampling, refer to the [OpenTelemetry Sampling](https://opentelemetry.io/docs/concepts/sampling/) documentation.
 
-<p align="center"><img src="../tempo-tail-based-sampling.svg" alt="Tail-based sampling overview"></p>
+![Tail sampling overview and components with Tempo, Alloy, and Grafana](/media/docs/tempo/sampling/tempo-tail-based-sampling.svg)
 
 ## How tail sampling works in the OpenTelemetry Tail Sampling Processor
 
@@ -54,7 +54,7 @@ This can result in some spans for a trace being sampled, while others are not.
 For example, consider a situation where the tail sampler decision period is 10 seconds, and a single policy exists to sample traces where an error is set on at least one span.
 One of the traces is 20 seconds in duration and a single span at time offset 15 seconds exhibits an error status.
 
-IMAGE - Trace Policy: Error when status exists
+![Trace Policy: Error when status exists](/media/docs/tempo/sampling/tempo-decision-point-sampling.svg)
 
 When the first span for the trace is observed, the decision period time of 10 seconds is initiated. Once the decision period has expired, the tail sampler won’t have observed any spans with an error status, and will therefore discard the trace spans.
 
@@ -76,7 +76,7 @@ The sampled cache keeps a list of all trace IDs where a prior decision to keep s
 The non-sampled cache keeps a list of all trace IDs where a prior decision to drop spans has been made.
 Both caches are configured by the maximum number of traces that should be stored in the cache, and can be enabled either independently or jointly.
 
-IMAGE -- Span and decision periods
+![Decision points and caches workflow](/media/docs/tempo/sampling/tempo-alloy-sampling-policies.svg)
 
 In the above diagram, should both caches be enabled, then a decision to drop samples for the trace is made after 10 seconds and the trace ID stored in the non-sampled cache.
 This means that even spans that have an error status for that trace are dropped after the initial decision period, as the non-sampled cache matches the trace ID and pre-emptively drops the span.
@@ -87,7 +87,7 @@ For example, you could use the sampled cache to short-circuit future decisions f
 This allows a decision to be made without having to buffer any other spans.
 
 Here are some general guidelines for using caches.
-Note that every installation is different.
+Every installation is different.
 Using the caches can impact the amount of data generated.
 
 | Cache type | Use case | Benefits/Considerations |
@@ -96,7 +96,7 @@ Using the caches can impact the amount of data generated.
 | Non-sampled | Drop any future spans from traces where a decision to not sample those traces has explicitly occurred. | Lowers chance of storing traces after the initial decision period. <br/> Will miss any trace whose spans exhibit future policy criteria matching. |
 | Both | Use an initial decision period that makes a decision once and uses that decision going forward.  | Guarantees capture of full traces. <br /> Lower chance of capturing useful traces with a long duration. <br /> Can lose spans if they are longer than the decision period. |
 
-{{< admonition type=”note” >}}
+{{< admonition type="note" >}}
 Enabling both sampled and non-sampled caches exhibits functionality similar to that of not enabling caches.
 However, it short-circuits any future decision making once an initial decision period has expired. Enabling both caches lowers memory requirements for buffering spans.
 {{< /admonition >}}
@@ -113,7 +113,7 @@ The load balancing maintains consistent hashing across all instances.
 Tail sampling load balancing is usually carried out by running two layers of collectors.
 The first layer receives the telemetry data (in this case trace spans), and then distributes these to the second layer that carries out the sampling policies.
 
-IMAGE - load balancing
+![Load balancing incoming traces using Alloy](/media/docs/tempo/sampling/tempo-alloy-sampling-loadbalancing.svg)
 
 Alloy includes a [load-balancing exporter](https://grafana.com/docs/alloy/latest/reference/components/otelcol/otelcol.exporter.loadbalancing/) that can carry out routing to further collector targets based on a set number of keys (in the case of trace sampling, usually the `traceID` key).
 Alloy uses the [OpenTelemetry load balancing exporter](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/loadbalancingexporter/README.md).
