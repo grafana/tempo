@@ -1,11 +1,9 @@
 ---
 title: Sampling
-menuTItle: Sampling
+menuTitle: Sampling
 description: Use sampling to optimize sampling decisions
-weight:
 aliases:
-- /docs/tempo/grafana-alloy/tail-based-sampling
-- ../tail-based-sampling/
+- ./tail-based-sampling/ # /docs/tempo/latest/configuration/grafana-alloy/tail-based-sampling/
 ---
 
 # Sampling
@@ -58,7 +56,8 @@ One of the traces is 20 seconds in duration and a single span at time offset 15 
 
 ![Trace Policy: Error when status exists](/media/docs/tempo/sampling/tempo-decision-point-sampling.svg)
 
-When the first span for the trace is observed, the decision period time of 10 seconds is initiated. Once the decision period has expired, the tail sampler won’t have observed any spans with an error status, and will therefore discard the trace spans.
+When the first span for the trace is observed, the decision period time of 10 seconds is initiated.
+After the decision period has expired, the tail sampler won't have observed any spans with an error status, and will therefore discard the trace spans.
 
 When the next span for the trace arrives, a new decision period of 10 seconds begins.
 In this period, one of the observed spans has an error set on it. When the decision period expires, all of the spans for the trace in that period will be sampled.
@@ -92,11 +91,11 @@ Here are some general guidelines for using caches.
 Every installation is different.
 Using the caches can impact the amount of data generated.
 
-| Cache type | Use case | Benefits/Considerations |
-|---|---|---|
-| Sample caches | Keep any future spans from traces that have been sampled.  | Cuts down span storage per trace to only those matching policies.  <br /> Can cause fragmented tracing. |
-| Non-sampled | Drop any future spans from traces where a decision to not sample those traces has explicitly occurred. | Lowers chance of storing traces after the initial decision period. <br/> Will miss any trace whose spans exhibit future policy criteria matching. |
-| Both | Use an initial decision period that makes a decision once and uses that decision going forward.  | Guarantees capture of full traces. <br /> Lower chance of capturing useful traces with a long duration. <br /> Can lose spans if they are longer than the decision period. |
+| Cache type    | Use case                                                                                               | Benefits/Considerations                                                                                                                                                                       |
+| ------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sample caches | Keep any future spans from traces that have been sampled.                                              | <ul><li>Cuts down span storage per trace to only those matching policies.</li><li> Can cause fragmented tracing.</li></ul>                                                                    |
+| Non-sampled   | Drop any future spans from traces where a decision to not sample those traces has explicitly occurred. | <ul><li>Lowers chance of storing traces after the initial decision period. </li><li>Misses any trace whose spans exhibit future policy criteria matching.</li></ul>                           |
+| Both          | Use an initial decision period that makes a decision once and uses that decision going forward.        | <ul><li>Guarantees capture of full traces.</li><li>Lower chance of capturing useful traces with a long duration.</li><li>Can lose spans if they are longer than the decision period.</li><ul> |
 
 {{< admonition type="note" >}}
 Enabling both sampled and non-sampled caches exhibits functionality similar to that of not enabling caches.
@@ -121,7 +120,7 @@ Alloy includes a [load-balancing exporter](https://grafana.com/docs/alloy/<ALLOY
 Alloy uses the [OpenTelemetry load balancing exporter](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/loadbalancingexporter/README.md).
 
 The routing key ensures that a specific collector in the second layer always handles spans from the same trace ID, guaranteeing that sampling decisions are made correctly.
-You can configure the exporter with targets using static IPs, multi-IP DNS A record entries, and a Kubernetes headless service resolver.
+You can configure the exporter with targets using static IP addresses, multi-IP DNS A record entries, and a Kubernetes headless service resolver.
 Using this configuration lets you scale up or down the number of layer two collectors.
 
 There are some important points to note with the load balancer exporter around scaling and resilience, mostly around its eventual consistency model. For more information, refer to [Resilience and scaling considerations](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/loadbalancingexporter/README.md#resilience-and-scaling-considerations).
