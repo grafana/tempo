@@ -287,7 +287,7 @@ func (c *Compactor) failJob(ctx context.Context, jobID string, errMsg string) er
 		return fmt.Errorf("failed marking job %q as failed: %w", jobID, err)
 	}
 
-	return fmt.Errorf(errMsg)
+	return fmt.Errorf("%s", errMsg)
 }
 
 // Called after compactor is asked to stop via StopAsync.

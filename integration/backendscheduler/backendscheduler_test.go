@@ -51,8 +51,8 @@ func TestBackendScheduler(t *testing.T) {
 	store := newStore(ctx, t, tmpDir)
 
 	scheduler, err := backendscheduler.New(backendscheduler.Config{
-		Enabled:      true,
-		PollInterval: 100 * time.Millisecond,
+		Enabled:          true,
+		ScheduleInterval: 100 * time.Millisecond,
 	}, store)
 	require.NoError(t, err)
 

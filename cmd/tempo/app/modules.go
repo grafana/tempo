@@ -689,7 +689,7 @@ func (t *App) initBackendScheduler() (services.Service, error) {
 		return services.NewIdleService(nil, nil), nil
 	}
 
-	scheduler, err := backendscheduler.New(t.cfg.BackendScheduler, t.store, prometheus.DefaultRegisterer)
+	scheduler, err := backendscheduler.New(t.cfg.BackendScheduler, t.store)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create backend scheduler: %w", err)
 	}

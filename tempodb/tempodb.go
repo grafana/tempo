@@ -632,7 +632,8 @@ func (rw *readerWriter) Compactions(ctx context.Context) []tempopb.JobDetail {
 			rw.compactorCfg.MaxCompactionObjects,
 			rw.compactorCfg.MaxBlockBytes,
 			defaultMinInputBlocks,
-			defaultMaxInputBlocks)
+			defaultMaxInputBlocks,
+		)
 
 		for {
 			if ctx.Err() != nil {

@@ -12,7 +12,6 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -23,9 +22,8 @@ const (
 type BackendScheduler struct {
 	services.Service
 
-	cfg     Config
-	store   storage.Store
-	metrics *metrics
+	cfg   Config
+	store storage.Store
 
 	// Ring lifecycle management
 	// ringLifecycler *ring.BasicLifecycler
@@ -35,7 +33,7 @@ type BackendScheduler struct {
 	// subservices        *services.Manager
 	// subservicesWatcher *services.FailureWatcher
 
-	// track jobs
+	// track jobs, keyed by job ID
 	jobs    map[string]*Job
 	jobsMtx sync.RWMutex
 }
@@ -50,15 +48,12 @@ type JobProcessor interface {
 }
 
 // New creates a new BackendScheduler
-func New(cfg Config, store storage.Store, reg prometheus.Registerer) (*BackendScheduler, error) {
+func New(cfg Config, store storage.Store) (*BackendScheduler, error) {
 	s := &BackendScheduler{
-		cfg:     cfg,
-		metrics: newMetrics(reg),
-		jobs:    make(map[string]*Job),
-		store:   store,
+		cfg:   cfg,
+		jobs:  make(map[string]*Job),
+		store: store,
 	}
-
-	reg = prometheus.WrapRegistererWithPrefix("tempo_", reg)
 
 	// lifecyclerStore, err := kv.NewClient(
 	// 	cfg.Ring.KVStore,
@@ -91,6 +86,9 @@ func New(cfg Config, store storage.Store, reg prometheus.Registerer) (*BackendSc
 }
 
 func (s *BackendScheduler) starting(ctx context.Context) error {
+	// TODO: the jobs are not populated on startup, either from what was
+	// persisted, or invented new.
+
 	// var err error
 	// s.subservices, err = services.NewManager(s.ringLifecycler, s.ring)
 	// if err != nil {
@@ -117,9 +115,14 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 func (s *BackendScheduler) running(ctx context.Context) error {
 	level.Info(log.Logger).Log("msg", "backend scheduler running")
 
-	// FIXME: PollInterval is not clear.  The ticker here is not for receiving jobs, but for scheduling jobs and cleaning up completed jobs.
-	ticker := time.NewTicker(s.cfg.PollInterval)
+	ticker := time.NewTicker(s.cfg.ScheduleInterval)
 	defer ticker.Stop()
+
+	if len(s.jobs) == 0 {
+		if err := s.ScheduleOnce(ctx); err != nil {
+			return fmt.Errorf("failed to schedule initial jobs: %w", err)
+		}
+	}
 
 	for {
 		select {
@@ -134,15 +137,14 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 			// }
 			// s.metrics.schedulerIsLeader.Set(1)
 
-			if err := s.scheduleCycle(ctx); err != nil {
+			if err := s.ScheduleOnce(ctx); err != nil {
 				level.Error(log.Logger).Log("msg", "scheduling cycle failed", "err", err)
-				s.metrics.schedulingCycles.WithLabelValues("failed").Inc()
+				schedulingCycles.WithLabelValues("failed").Inc()
 			} else {
-				s.metrics.schedulingCycles.WithLabelValues("success").Inc()
+				schedulingCycles.WithLabelValues("success").Inc()
 			}
 
 			// TOOO: Impelment creating jobs.  Start with compaction jobs.
-
 		}
 	}
 }
@@ -152,8 +154,8 @@ func (s *BackendScheduler) stopping(_ error) error {
 	return nil
 }
 
-// scheduleCycle schedules jobs for compaction and performs cleanup.
-func (s *BackendScheduler) scheduleCycle(ctx context.Context) error {
+// ScheduleOnce schedules jobs for compaction and performs cleanup.
+func (s *BackendScheduler) ScheduleOnce(ctx context.Context) error {
 	s.jobsMtx.Lock()
 	defer s.jobsMtx.Unlock()
 
@@ -168,9 +170,9 @@ func (s *BackendScheduler) scheduleCycle(ctx context.Context) error {
 		return nil
 	}
 
-	jobs := s.store.Compactions(ctx)
+	compactions := s.store.Compactions(ctx)
 
-	for _, job := range jobs {
+	for _, job := range compactions {
 		detail := job.Detail.(*tempopb.JobDetail_Compaction).Compaction
 
 		if err := s.createCompactionJob(ctx, job.Tenant, detail.Input); err != nil {
@@ -199,8 +201,8 @@ func (s *BackendScheduler) CreateJob(ctx context.Context, job *Job) error {
 	// }
 
 	s.jobs[job.ID] = job
-	s.metrics.jobsCreated.WithLabelValues(job.JobDetail.Tenant, job.Type.String()).Inc()
-	s.metrics.jobsActive.WithLabelValues(job.JobDetail.Tenant, job.Type.String()).Inc()
+	jobsCreated.WithLabelValues(job.JobDetail.Tenant, job.Type.String()).Inc()
+	jobsActive.WithLabelValues(job.JobDetail.Tenant, job.Type.String()).Inc()
 
 	level.Info(log.Logger).Log("msg", "created new job", "job_id", job.ID, "tenant", job.JobDetail.Tenant, "type", job.Type.String())
 	return nil
@@ -229,8 +231,8 @@ func (s *BackendScheduler) CompleteJob(ctx context.Context, id string) error {
 	}
 
 	job.Complete()
-	s.metrics.jobsCompleted.WithLabelValues(job.JobDetail.Tenant, job.Type.String()).Inc()
-	s.metrics.jobsActive.WithLabelValues(job.JobDetail.Tenant, job.Type.String()).Dec()
+	jobsCompleted.WithLabelValues(job.JobDetail.Tenant, job.Type.String()).Inc()
+	jobsActive.WithLabelValues(job.JobDetail.Tenant, job.Type.String()).Dec()
 
 	level.Info(log.Logger).Log("msg", "completed job", "job_id", id, "tenant", job.JobDetail.Tenant, "type", job.Type.String())
 	return nil
@@ -247,8 +249,8 @@ func (s *BackendScheduler) FailJob(ctx context.Context, id string) error {
 	}
 
 	job.Fail()
-	s.metrics.jobsFailed.WithLabelValues(job.JobDetail.Tenant, job.Type.String()).Inc()
-	s.metrics.jobsActive.WithLabelValues(job.JobDetail.Tenant, job.Type.String()).Dec()
+	jobsFailed.WithLabelValues(job.JobDetail.Tenant, job.Type.String()).Inc()
+	jobsActive.WithLabelValues(job.JobDetail.Tenant, job.Type.String()).Dec()
 
 	level.Info(log.Logger).Log("msg", "failed job", "job_id", id, "tenant", job.JobDetail.Tenant, "type", job.Type.String())
 	return nil
@@ -285,6 +287,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 	}
 
 	// No jobs available
+	// TODO: consider returning a status code to indicate no jobs available
 	return nil, nil
 }
 
@@ -301,12 +304,12 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 	switch req.Status {
 	case tempopb.JobStatus_JOB_STATUS_SUCCEEDED:
 		job.Complete()
-		s.metrics.jobsCompleted.WithLabelValues(job.JobDetail.Tenant).Inc()
+		jobsCompleted.WithLabelValues(job.JobDetail.Tenant, job.JobDetail.Tenant).Inc()
 		level.Info(log.Logger).Log("msg", "job completed", "job_id", req.JobId)
 
 	case tempopb.JobStatus_JOB_STATUS_FAILED:
 		job.Fail()
-		s.metrics.jobsFailed.WithLabelValues(job.JobDetail.Tenant).Inc()
+		jobsFailed.WithLabelValues(job.JobDetail.Tenant, job.JobDetail.Tenant).Inc()
 		level.Error(log.Logger).Log("msg", "job failed", "job_id", req.JobId, "error", req.Error)
 
 	default:
@@ -333,11 +336,9 @@ func (s *BackendScheduler) ListJobs(ctx context.Context, tenantID string) ([]*Jo
 	return jobs, nil
 }
 
-// CreateCompactionJob creates a new compaction job for the given tenant and blocks
+// CreateCompactionJob creates a new compaction job for the given tenant and blocks.
+// Must be called under jobsMtx lock.
 func (s *BackendScheduler) createCompactionJob(ctx context.Context, tenantID string, input []string) error {
-	s.jobsMtx.Lock()
-	defer s.jobsMtx.Unlock()
-
 	// Skip blocks which already have a job
 	for _, blockID := range input {
 		for _, j := range s.jobs {
@@ -374,8 +375,8 @@ func (s *BackendScheduler) createCompactionJob(ctx context.Context, tenantID str
 	s.jobs[jobID] = job
 
 	// Update metrics
-	s.metrics.jobsCreated.WithLabelValues(tenantID, job.Type.String()).Inc()
-	s.metrics.jobsActive.WithLabelValues(tenantID, job.Type.String()).Inc()
+	jobsCreated.WithLabelValues(tenantID, job.Type.String()).Inc()
+	jobsActive.WithLabelValues(tenantID, job.Type.String()).Inc()
 
 	return nil
 }
