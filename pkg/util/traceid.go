@@ -50,11 +50,11 @@ func IDToTrimmedHexString(byteID []byte) string {
 
 func HexStringToNonTraceID(id string) ([]byte, error) {
 	id = strings.TrimLeft(id, "0")
-	byteId, err := hexStringToID(id)
+	byteID, err := hexStringToID(id)
 	if err != nil {
 		return nil, err
 	}
-	return bytes.TrimLeft(byteId, "\x00"), nil
+	return bytes.TrimLeft(byteID, "\x00"), nil
 }
 
 // spanKindFNVHashes contains pre-calculated FNV hashes for all span kind values (and two spares)
