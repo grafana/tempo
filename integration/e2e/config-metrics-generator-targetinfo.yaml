@@ -14,6 +14,7 @@ ingester:
   lifecycler:
     ring:
       replication_factor: 1
+    min_ready_duration: 1s
 
 metrics_generator:
   processor:

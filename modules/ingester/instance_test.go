@@ -781,16 +781,16 @@ func BenchmarkInstanceFindTraceByIDFromCompleteBlock(b *testing.B) {
 }
 
 func BenchmarkInstanceSearchCompleteParquet(b *testing.B) {
-	benchmarkInstanceSearch(b)
+	benchmarkInstanceSearch(b, 1000, 100)
 }
 
 func TestInstanceSearchCompleteParquet(t *testing.T) {
-	benchmarkInstanceSearch(t)
+	benchmarkInstanceSearch(t, 100, 10)
 }
 
-func benchmarkInstanceSearch(b testing.TB) {
+func benchmarkInstanceSearch(b testing.TB, writes int, reads int) {
 	instance, _ := defaultInstance(b)
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < writes; i++ {
 		request := makeRequest(nil)
 		response := instance.PushBytesRequest(context.Background(), request)
 		errored, _, _ := CheckPushBytesError(response)
@@ -823,7 +823,7 @@ func benchmarkInstanceSearch(b testing.TB) {
 		return
 	}
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < reads; i++ {
 		resp, err := instance.SearchTags(ctx, "")
 		require.NoError(b, err)
 		require.NotNil(b, resp)

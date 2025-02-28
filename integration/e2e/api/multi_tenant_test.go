@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/integration/util"
@@ -35,23 +36,32 @@ type traceStringsMap struct {
 }
 
 func TestSingleTenantSearch(t *testing.T) {
+	t.Parallel()
 	testSearch(t, "test", 1)
 }
 
 func TestWildCardTenantSearch(t *testing.T) {
+	t.Parallel()
 	testSearch(t, "*", 1)
 }
 
 func TestTwoTenantsSearch(t *testing.T) {
+	t.Parallel()
 	testSearch(t, "test|test2", 2)
 }
 
 func TestThreeTenantsSearch(t *testing.T) {
+	t.Parallel()
 	testSearch(t, "test|test2|test3", 3)
 }
 
+func generateNetworkName() string {
+	uuid := uuid.New()
+	return uuid.String()
+}
+
 func testSearch(t *testing.T, tenant string, tenantSize int) {
-	s, err := e2e.NewScenario("tempo_e2e")
+	s, err := e2e.NewScenario(generateNetworkName())
 	require.NoError(t, err)
 	defer s.Close()
 

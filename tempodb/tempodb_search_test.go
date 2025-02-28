@@ -43,9 +43,11 @@ type runnerFn func(*testing.T, *tempopb.Trace, *tempopb.TraceSearchMetadata, []*
 const attributeWithTerminalChars = `{ } ( ) = ~ ! < > & | ^`
 
 func TestSearchCompleteBlock(t *testing.T) {
+	t.Parallel()
 	for _, v := range encoding.AllEncodings() {
 		vers := v.Version()
 		t.Run(vers, func(t *testing.T) {
+			t.Parallel()
 			runCompleteBlockSearchTest(t, vers,
 				searchRunner,
 				traceQLRunner,

@@ -484,6 +484,7 @@ func TestIncludeCompactedBlock(t *testing.T) {
 }
 
 func TestSearchCompactedBlocks(t *testing.T) {
+	t.Parallel()
 	r, w, c, _ := testConfig(t, backend.EncLZ4_256k, time.Hour)
 
 	err := c.EnableCompaction(context.Background(), &CompactorConfig{
@@ -566,6 +567,7 @@ func TestCompleteBlock(t *testing.T) {
 	for _, from := range encoding.AllEncodings() {
 		for _, to := range encoding.AllEncodings() {
 			t.Run(fmt.Sprintf("%s->%s", from.Version(), to.Version()), func(t *testing.T) {
+				t.Parallel()
 				testCompleteBlock(t, from.Version(), to.Version())
 			})
 		}
