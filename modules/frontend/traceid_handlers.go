@@ -157,6 +157,8 @@ func newTraceIDV2Handler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pi
 			"msg", "trace id response",
 			"tenant", tenant,
 			"path", req.URL.Path,
+			"inspected_bytes", bytesProcessed,
+			"request_throughput", float64(bytesProcessed)/elapsed.Seconds(),
 			"duration_seconds", elapsed.Seconds(),
 			"err", err)
 
