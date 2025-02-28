@@ -7,8 +7,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/tempo/pkg/tempopb"
-	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
+	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
@@ -171,30 +170,11 @@ func writeHistoricalData(t *testing.T, count int, startTime time.Time, cycleDura
 	require.NoError(t, err)
 
 	for i := 0; i < count; i++ {
-		tid := []byte{byte(i)}
-		tr := &tempopb.Trace{
-			ResourceSpans: []*v1.ResourceSpans{
-				{
-					ScopeSpans: []*v1.ScopeSpans{
-						{
-							Spans: []*v1.Span{
-								{
-									TraceId:           tid,
-									StartTimeUnixNano: uint64(traceStart.UnixNano()),
-									EndTimeUnixNano:   uint64(traceEnd.UnixNano()),
-								},
-							},
-						},
-					},
-				},
-			},
+		req := test.MakePushBytesRequest(t, 3, nil, uint64(traceStart.UnixNano()), uint64(traceEnd.UnixNano()))
+		for j := range req.Traces {
+			err = ts.AppendTrace(req.Ids[j], req.Traces[j].Slice, startTime)
+			require.NoError(t, err)
 		}
-
-		b, err := tr.Marshal()
-		require.NoError(t, err)
-
-		err = ts.AppendTrace(tid, b, startTime)
-		require.NoError(t, err)
 	}
 
 	err = ts.Flush(ctx, store)
