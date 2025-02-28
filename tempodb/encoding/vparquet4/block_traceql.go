@@ -1870,7 +1870,7 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 			continue
 
 		case traceql.IntrinsicParentID:
-			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
 			if err != nil {
 				return nil, err
 			}
@@ -3352,11 +3352,13 @@ func (c *linkCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	for _, e := range res.Entries {
 		switch e.Key {
 		case columnPathLinkTraceID:
+			fmt.Printf("trace id: %s\n", util.TraceIDToHexString(e.Value.Bytes()))
 			l.attrs = append(l.attrs, attrVal{
 				a: traceql.NewIntrinsic(traceql.IntrinsicLinkTraceID),
 				s: traceql.NewStaticString(util.TraceIDToHexString(e.Value.Bytes())),
 			})
 		case columnPathLinkSpanID:
+			fmt.Printf("span id: %s\n", util.SpanIDToHexString(e.Value.Bytes()))
 			l.attrs = append(l.attrs, attrVal{
 				a: traceql.NewIntrinsic(traceql.IntrinsicLinkSpanID),
 				s: traceql.NewStaticString(util.SpanIDToHexString(e.Value.Bytes())),

@@ -1335,7 +1335,7 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 			continue
 
 		case traceql.IntrinsicParentID:
-			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, false)
 			if err != nil {
 				return nil, err
 			}
