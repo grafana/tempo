@@ -5,22 +5,6 @@
         name: 'tempo_alerts',
         rules: [
           {
-            alert: 'TempoRequestLatency',
-            expr: |||
-              %s_route:tempo_request_duration_seconds:99quantile{route!~"%s"} > %s
-            ||| % [$._config.group_prefix_jobs, $._config.alerts.p99_request_exclude_regex, $._config.alerts.p99_request_threshold_seconds],
-            'for': '15m',
-            labels: {
-              severity: 'critical',
-            },
-            annotations: {
-              message: |||
-                {{ $labels.job }} {{ $labels.route }} is experiencing {{ printf "%.2f" $value }}s 99th percentile latency.
-              |||,
-              runbook_url: 'https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoRequestLatency',
-            },
-          },
-          {
             alert: 'TempoCompactorUnhealthy',
             expr: |||
               max by (%s) (tempo_ring_members{state="Unhealthy", name="%s", namespace=~"%s"}) > 0
