@@ -1,4 +1,4 @@
-package e2e
+package api
 
 import (
 	"context"
@@ -59,14 +59,14 @@ func TestHTTPS(t *testing.T) {
 	info := tempoUtil.NewTraceInfo(time.Now(), "")
 	require.NoError(t, info.EmitAllBatches(c))
 
-	apiClient := httpclient.New("https://"+tempo.Endpoint(3200), "")
+	apiClient := httpclient.New("https://"+tempo.Endpoint(tempoPort), "")
 
 	// trust bad certs
 	defaultTransport := http.DefaultTransport.(*http.Transport).Clone()
 	defaultTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	apiClient.WithTransport(defaultTransport)
 
-	echoReq, err := http.NewRequest("GET", "https://"+tempo.Endpoint(3200)+"/api/echo", nil)
+	echoReq, err := http.NewRequest("GET", "https://"+tempo.Endpoint(tempoPort)+"/api/echo", nil)
 	require.NoError(t, err)
 	resp, err := apiClient.Do(echoReq)
 	require.NoError(t, err)
@@ -78,7 +78,7 @@ func TestHTTPS(t *testing.T) {
 	util.SearchTraceQLAndAssertTrace(t, apiClient, info)
 
 	creds := credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})
-	grpcClient, err := util.NewSearchGRPCClientWithCredentials(context.Background(), tempo.Endpoint(3200), creds)
+	grpcClient, err := util.NewSearchGRPCClientWithCredentials(context.Background(), tempo.Endpoint(tempoPort), creds)
 	require.NoError(t, err)
 
 	now := time.Now()

@@ -252,6 +252,7 @@ The following table shows the current available scoped intrinsic fields:
 | `span:name`              | string      | operation or span name                                          | `{ span:name = "HTTP POST" }`           |
 | `span:kind`              | kind enum   | kind: server, client, producer, consumer, internal, unspecified | `{ span:kind = server }`                |
 | `span:id`                | string      | span id using hex string                                        | `{ span:id = "0000000000000001" }`      |
+| `span:parentID`          | string      | parent span id using hex string                                 | `{ span:parentID = "000000000000001" }` |
 | `trace:duration`         | duration    | max(end) - min(start) time of the spans in the trace            | `{ trace:duration > 100ms }`            |
 | `trace:rootName`         | string      | if it exists, the name of the root span in the trace            | `{ trace:rootName = "HTTP GET" }`       |
 | `trace:rootService`      | string      | if it exists, the service name of the root span in the trace    | `{ trace:rootService = "gateway" }`     |

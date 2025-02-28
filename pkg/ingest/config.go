@@ -48,8 +48,8 @@ type Config struct {
 	Kafka   KafkaConfig `yaml:"kafka"`
 }
 
-func (cfg *Config) RegisterFlagsAndApplyDefaults(_ string, f *flag.FlagSet) {
-	cfg.Kafka.RegisterFlags(f)
+func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+	cfg.Kafka.RegisterFlagsWithPrefix(prefix, f)
 }
 
 func (cfg *Config) Validate() error {

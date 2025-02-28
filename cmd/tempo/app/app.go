@@ -67,6 +67,7 @@ type App struct {
 	readRings            map[string]*ring.Ring
 	partitionRing        *ring.PartitionInstanceRing
 	partitionRingWatcher *ring.PartitionRingWatcher
+	generatorRingWatcher *ring.PartitionRingWatcher
 	Overrides            overrides.Service
 	distributor          *distributor.Distributor
 	querier              *querier.Querier

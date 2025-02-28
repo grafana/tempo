@@ -1,7 +1,7 @@
 variable "version" {
   type        = string
   description = "Tempo version"
-  default     = "2.3.1"
+  default     = "2.7.1"
 }
 
 variable "s3_access_key_id" {
@@ -25,6 +25,7 @@ job "tempo" {
     network {
       port "http" {}
       port "grpc" {}
+      port "otlp" { to = 4317 }
     }
 
     service {
@@ -103,6 +104,7 @@ job "tempo" {
     network {
       port "http" {}
       port "grpc" { static = 9095}
+      port "otlp" { to = 4317 }
     }
 
     service {
@@ -173,6 +175,7 @@ job "tempo" {
     network {
       port "http" {}
       port "grpc" {}
+      port "otlp" { to = 4317 }
     }
 
     service {
@@ -257,6 +260,7 @@ job "tempo" {
     network {
       port "http" {}
       port "grpc" {}
+      port "otlp" { to = 4317 }
     }
 
     service {
@@ -419,6 +423,7 @@ job "tempo" {
     network {
       port "http" {}
       port "grpc" {}
+      port "otlp" { to = 4317 }
     }
 
     service {

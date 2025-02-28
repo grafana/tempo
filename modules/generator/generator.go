@@ -70,6 +70,7 @@ type Generator struct {
 	reg    prometheus.Registerer
 	logger log.Logger
 
+	kafkaCh            chan *kgo.Record
 	kafkaWG            sync.WaitGroup
 	kafkaStop          func()
 	kafkaClient        *ingest.Client
@@ -106,31 +107,33 @@ func New(cfg *Config, overrides metricsGeneratorOverrides, reg prometheus.Regist
 		logger:        logger,
 	}
 
-	// Lifecycler and ring
-	ringStore, err := kv.NewClient(
-		cfg.Ring.KVStore,
-		ring.GetCodec(),
-		kv.RegistererWithKVName(prometheus.WrapRegistererWithPrefix("tempo_", reg), "metrics-generator"),
-		g.logger,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("create KV store client: %w", err)
-	}
+	if !cfg.DisableGRPC {
+		// Lifecycler and ring
+		ringStore, err := kv.NewClient(
+			cfg.Ring.KVStore,
+			ring.GetCodec(),
+			kv.RegistererWithKVName(prometheus.WrapRegistererWithPrefix("tempo_", reg), "metrics-generator"),
+			g.logger,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("create KV store client: %w", err)
+		}
 
-	lifecyclerCfg, err := cfg.Ring.toLifecyclerConfig()
-	if err != nil {
-		return nil, fmt.Errorf("invalid ring lifecycler config: %w", err)
-	}
+		lifecyclerCfg, err := cfg.Ring.toLifecyclerConfig()
+		if err != nil {
+			return nil, fmt.Errorf("invalid ring lifecycler config: %w", err)
+		}
 
-	// Define lifecycler delegates in reverse order (last to be called defined first because they're
-	// chained via "next delegate").
-	delegate := ring.BasicLifecyclerDelegate(g)
-	delegate = ring.NewLeaveOnStoppingDelegate(delegate, g.logger)
-	delegate = ring.NewAutoForgetDelegate(ringAutoForgetUnhealthyPeriods*cfg.Ring.HeartbeatTimeout, delegate, g.logger)
+		// Define lifecycler delegates in reverse order (last to be called defined first because they're
+		// chained via "next delegate").
+		delegate := ring.BasicLifecyclerDelegate(g)
+		delegate = ring.NewLeaveOnStoppingDelegate(delegate, g.logger)
+		delegate = ring.NewAutoForgetDelegate(ringAutoForgetUnhealthyPeriods*cfg.Ring.HeartbeatTimeout, delegate, g.logger)
 
-	g.ringLifecycler, err = ring.NewBasicLifecycler(lifecyclerCfg, ringNameForServer, cfg.OverrideRingKey, ringStore, delegate, g.logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
-	if err != nil {
-		return nil, fmt.Errorf("create ring lifecycler: %w", err)
+		g.ringLifecycler, err = ring.NewBasicLifecycler(lifecyclerCfg, ringNameForServer, cfg.OverrideRingKey, ringStore, delegate, g.logger, prometheus.WrapRegistererWithPrefix("tempo_", reg))
+		if err != nil {
+			return nil, fmt.Errorf("create ring lifecycler: %w", err)
+		}
 	}
 
 	g.Service = services.NewBasicService(g.starting, g.running, g.stopping)
@@ -151,16 +154,18 @@ func (g *Generator) starting(ctx context.Context) (err error) {
 		}
 	}()
 
-	g.subservices, err = services.NewManager(g.ringLifecycler)
-	if err != nil {
-		return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
-	}
-	g.subservicesWatcher = services.NewFailureWatcher()
-	g.subservicesWatcher.WatchManager(g.subservices)
+	if !g.cfg.DisableGRPC {
+		g.subservices, err = services.NewManager(g.ringLifecycler)
+		if err != nil {
+			return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
+		}
+		g.subservicesWatcher = services.NewFailureWatcher()
+		g.subservicesWatcher.WatchManager(g.subservices)
 
-	err = services.StartManagerAndAwaitHealthy(ctx, g.subservices)
-	if err != nil {
-		return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
+		err = services.StartManagerAndAwaitHealthy(ctx, g.subservices)
+		if err != nil {
+			return fmt.Errorf("unable to start metrics-generator dependencies: %w", err)
+		}
 	}
 
 	if g.cfg.Ingest.Enabled {
@@ -369,6 +374,12 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 }
 
 func (g *Generator) CheckReady(_ context.Context) error {
+	// Always mark as ready when running without a ring, because the readiness logic
+	// below depends on the ring lifecycler.
+	if g.ringLifecycler == nil {
+		return nil
+	}
+
 	if !g.ringLifecycler.IsRegistered() {
 		return fmt.Errorf("metrics-generator check ready failed: not registered in the ring")
 	}

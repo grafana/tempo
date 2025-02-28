@@ -1,4 +1,4 @@
-package e2e
+package api
 
 import (
 	"testing"
@@ -47,7 +47,7 @@ func TestCrossClusterReads(t *testing.T) {
 	require.NoError(t, tempoDistributorA.WaitSumMetrics(e2e.Equals(util.SpanCount(expected)), "tempo_distributor_spans_received_total"))
 
 	// read from cluster B
-	apiClient := httpclient.New("http://"+tempoQueryFrontendB.Endpoint(3200), "")
+	apiClient := httpclient.New("http://"+tempoQueryFrontendB.Endpoint(tempoPort), "")
 
 	// query an in-memory trace
 	util.QueryAndAssertTrace(t, apiClient, info)

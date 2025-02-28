@@ -99,7 +99,7 @@ func tagNamesForSpecialColumns(scope traceql.AttributeScope, pf *parquet.File, d
 	// - use rep/def levels to determine if a value exists at a row w/o actually testing values.
 	//   atm i believe this requires reading the pages themselves b/c the rep/def lvls come w/ the page
 	hasValues := func(path string, pf *parquet.File) bool {
-		idx, _ := parquetquery.GetColumnIndexByPath(pf, path)
+		idx, _, _ := parquetquery.GetColumnIndexByPath(pf, path)
 		md := pf.Metadata()
 		for _, rg := range md.RowGroups {
 			col := rg.Columns[idx]

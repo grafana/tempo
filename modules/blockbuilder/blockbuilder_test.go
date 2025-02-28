@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/wal"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kerr"
@@ -52,7 +53,7 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	})
 
 	store := newStore(ctx, t)
-	cfg := blockbuilderConfig(t, address)
+	cfg := blockbuilderConfig(t, address, []int32{0})
 
 	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
 	require.NoError(t, err)
@@ -78,6 +79,48 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	requireLastCommitEquals(t, ctx, client, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
+func TestBlockbuilder_without_partitions_assigned_returns_an_error(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+
+	k, address := testkafka.CreateCluster(t, 1, testTopic)
+
+	kafkaCommits := atomic.NewInt32(0)
+	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Inc()
+		return nil, nil, false
+	})
+
+	store := newStore(ctx, t)
+	cfg := blockbuilderConfig(t, address, []int32{})
+
+	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
+	_, err = b.consume(ctx)
+	require.ErrorContains(t, err, "No partitions assigned")
+}
+
+func TestBlockbuilder_getAssignedPartitions(t *testing.T) {
+	ctx := context.Background()
+
+	store := newStore(ctx, t)
+	cfg := blockbuilderConfig(t, "localhost", []int32{0, 2, 4, 6})
+	partitionRing := newPartitionRingReaderWithPartitions(map[int32]ring.PartitionDesc{
+		0:  {Id: 0, State: ring.PartitionActive},
+		1:  {Id: 1, State: ring.PartitionActive},
+		2:  {Id: 2, State: ring.PartitionInactive},
+		3:  {Id: 3, State: ring.PartitionActive},
+		4:  {Id: 4, State: ring.PartitionPending},
+		5:  {Id: 5, State: ring.PartitionDeleted},
+		20: {Id: 20, State: ring.PartitionActive},
+	})
+
+	b, err := New(cfg, test.NewTestingLogger(t), partitionRing, &mockOverrides{}, store)
+	require.NoError(t, err)
+	partitions := b.getAssignedPartitions()
+	assert.Equal(t, []int32{0, 2}, partitions)
+}
+
 // Starting with a pre-existing commit,
 // the block-builder resumes from the last known position, consuming new records,
 // and ensures all of them are properly committed and flushed into blocks.
@@ -94,7 +137,7 @@ func TestBlockbuilder_startWithCommit(t *testing.T) {
 	})
 
 	store := newStore(ctx, t)
-	cfg := blockbuilderConfig(t, address)
+	cfg := blockbuilderConfig(t, address, []int32{0})
 
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
 	producedRecords := sendTracesFor(t, ctx, client, 5*time.Second, 100*time.Millisecond) // Send for 5 seconds
@@ -155,7 +198,7 @@ func TestBlockbuilder_flushingFails(t *testing.T) {
 		}
 		return store.WriteBlock(ctx, block)
 	})
-	cfg := blockbuilderConfig(t, address)
+	cfg := blockbuilderConfig(t, address, []int32{0})
 	logger := test.NewTestingLogger(t)
 
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
@@ -195,7 +238,7 @@ func TestBlockbuilder_receivesOldRecords(t *testing.T) {
 	})
 
 	store := newStore(ctx, t)
-	cfg := blockbuilderConfig(t, address)
+	cfg := blockbuilderConfig(t, address, []int32{0})
 
 	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
 	require.NoError(t, err)
@@ -227,7 +270,8 @@ func TestBlockbuilder_receivesOldRecords(t *testing.T) {
 
 	// Wait for record to be consumed and committed.
 	require.Eventually(t, func() bool {
-		return kafkaCommits.Load() == 2
+		l := kafkaCommits.Load()
+		return l == 2
 	}, time.Minute, time.Second)
 
 	// Wait for the block to be flushed.
@@ -281,7 +325,7 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 	})
 
 	store := newStore(ctx, t)
-	cfg := blockbuilderConfig(t, address)
+	cfg := blockbuilderConfig(t, address, []int32{0})
 	logger := test.NewTestingLogger(t)
 
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
@@ -308,7 +352,69 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 	requireLastCommitEquals(t, ctx, client, producedRecords[len(producedRecords)-1].Offset+1)
 }
 
-func blockbuilderConfig(t testing.TB, address string) Config {
+// TestBlockbuilder_noDoubleConsumption verifies that records are not consumed twice when there are no more records in the partition.
+// This test ensures that the BlockBuilder correctly commits the offset as lastRec.Offset + 1 instead of just lastRec.Offset.
+func TestBlockbuilder_noDoubleConsumption(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+
+	k, address := testkafka.CreateCluster(t, 1, testTopic)
+
+	// Track commits
+	kafkaCommits := atomic.NewInt32(0)
+	k.ControlKey(kmsg.OffsetCommit, func(_ kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Inc()
+		return nil, nil, false
+	})
+
+	store := newStore(ctx, t)
+	cfg := blockbuilderConfig(t, address, []int32{0})
+	// Set a shorter consume cycle duration
+	cfg.ConsumeCycleDuration = 500 * time.Millisecond
+
+	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
+
+	// Send a single record
+	producedRecords := sendReq(t, ctx, client)
+	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
+
+	// Create the block builder
+	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	})
+
+	// Wait for the record to be consumed and committed
+	require.Eventually(t, func() bool {
+		return kafkaCommits.Load() > 0
+	}, 30*time.Second, time.Second)
+
+	// Check that the offset was committed correctly (lastRec.Offset + 1)
+	requireLastCommitEquals(t, ctx, client, lastRecordOffset+1)
+
+	// Send another record
+	newRecords := sendReq(t, ctx, client)
+	newRecordOffset := newRecords[len(newRecords)-1].Offset
+
+	// Wait for the new record to be consumed and committed
+	require.Eventually(t, func() bool {
+		return kafkaCommits.Load() > 1
+	}, 30*time.Second, time.Second)
+
+	// Verify that the new offset was committed correctly
+	requireLastCommitEquals(t, ctx, client, newRecordOffset+1)
+
+	require.Eventually(t, func() bool {
+		return len(store.BlockMetas(util.FakeTenantID)) == 2
+	}, 30*time.Second, time.Second)
+
+	// Verify the total number of traces is correct (1 from each batch)
+	require.Equal(t, 2, countFlushedTraces(store))
+}
+
+func blockbuilderConfig(t testing.TB, address string, assignedPartitions []int32) Config {
 	cfg := Config{}
 	flagext.DefaultValues(&cfg)
 
@@ -318,8 +424,8 @@ func blockbuilderConfig(t testing.TB, address string) Config {
 	cfg.IngestStorageConfig.Kafka.Address = address
 	cfg.IngestStorageConfig.Kafka.Topic = testTopic
 	cfg.IngestStorageConfig.Kafka.ConsumerGroup = testConsumerGroup
+	cfg.AssignedPartitions = map[string][]int32{cfg.InstanceID: assignedPartitions}
 
-	cfg.AssignedPartitions = map[string][]int32{cfg.InstanceID: {0}}
 	cfg.ConsumeCycleDuration = 5 * time.Second
 
 	cfg.WAL.Filepath = t.TempDir()
@@ -395,6 +501,14 @@ func newPartitionRingReader() *mockPartitionRingReader {
 			Partitions: map[int32]ring.PartitionDesc{
 				0: {State: ring.PartitionActive},
 			},
+		}),
+	}
+}
+
+func newPartitionRingReaderWithPartitions(partitions map[int32]ring.PartitionDesc) *mockPartitionRingReader {
+	return &mockPartitionRingReader{
+		r: ring.NewPartitionRing(ring.PartitionRingDesc{
+			Partitions: partitions,
 		}),
 	}
 }
@@ -500,7 +614,7 @@ func BenchmarkBlockBuilder(b *testing.B) {
 		logger     = log.NewNopLogger()
 		_, address = testkafka.CreateCluster(b, 1, testTopic)
 		store      = newStoreWithLogger(ctx, b, logger)
-		cfg        = blockbuilderConfig(b, address)
+		cfg        = blockbuilderConfig(b, address, []int32{0})
 		client     = newKafkaClient(b, cfg.IngestStorageConfig.Kafka)
 		o          = &mockOverrides{
 			dc: backend.DedicatedColumns{
@@ -552,7 +666,7 @@ func BenchmarkBlockBuilder(b *testing.B) {
 		}
 		b.StartTimer()
 
-		err = bb.consume(ctx)
+		_, err = bb.consume(ctx)
 		require.NoError(b, err)
 
 		b.SetBytes(int64(size))

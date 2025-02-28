@@ -391,11 +391,19 @@ func parse(t *testing.T, q string) traceql.Condition {
 }
 
 func fullyPopulatedTestTrace(id common.ID) *Trace {
+	return fullyPopulatedTestTraceWithOption(id, false)
+}
+
+func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 	// Helper functions to make pointers
 	strPtr := func(s string) *string { return &s }
 	intPtr := func(i int64) *int64 { return &i }
 	fltPtr := func(f float64) *float64 { return &f }
 	boolPtr := func(b bool) *bool { return &b }
+	parentID := []byte{}
+	if parentIDTest {
+		parentID = []byte("parentid")
+	}
 
 	links := tempopb.LinkSlice{
 		Links: []*v1.Span_Link{
@@ -463,7 +471,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 								HttpMethod:             strPtr("get"),
 								HttpUrl:                strPtr("url/hello/world"),
 								HttpStatusCode:         intPtr(500),
-								ParentSpanID:           []byte{},
+								ParentSpanID:           parentID,
 								StatusCode:             int(v1.Status_STATUS_CODE_ERROR),
 								StatusMessage:          v1.Status_STATUS_CODE_ERROR.String(),
 								TraceState:             "tracestate",

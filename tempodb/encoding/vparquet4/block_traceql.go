@@ -934,6 +934,7 @@ const (
 	columnPathSpanNestedSetLeft   = "rs.list.element.ss.list.element.Spans.list.element.NestedSetLeft"
 	columnPathSpanNestedSetRight  = "rs.list.element.ss.list.element.Spans.list.element.NestedSetRight"
 	columnPathSpanParentID        = "rs.list.element.ss.list.element.Spans.list.element.ParentID"
+	columnPathSpanParentSpanID    = "rs.list.element.ss.list.element.Spans.list.element.ParentSpanID"
 	columnPathEventName           = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.Name"
 	columnPathEventTimeSinceStart = "rs.list.element.ss.list.element.Spans.list.element.Events.list.element.TimeSinceStartNano"
 	columnPathLinkTraceID         = "rs.list.element.ss.list.element.Spans.list.element.Links.list.element.TraceID"
@@ -975,6 +976,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicDuration:             {intrinsicScopeSpan, traceql.TypeDuration, columnPathSpanDuration},
 	traceql.IntrinsicKind:                 {intrinsicScopeSpan, traceql.TypeKind, columnPathSpanKind},
 	traceql.IntrinsicSpanID:               {intrinsicScopeSpan, traceql.TypeString, columnPathSpanID},
+	traceql.IntrinsicParentID:             {intrinsicScopeSpan, traceql.TypeString, columnPathSpanParentSpanID},
 	traceql.IntrinsicSpanStartTime:        {intrinsicScopeSpan, traceql.TypeString, columnPathSpanStartTime},
 	traceql.IntrinsicStructuralDescendant: {intrinsicScopeSpan, traceql.TypeNil, ""}, // Not a real column, this entry is only used to assign default scope.
 	traceql.IntrinsicStructuralChild:      {intrinsicScopeSpan, traceql.TypeNil, ""}, // Not a real column, this entry is only used to assign default scope.
@@ -1868,6 +1870,15 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 			columnSelectAs[columnPathSpanID] = columnPathSpanID
 			continue
 
+		case traceql.IntrinsicParentID:
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanParentSpanID, pred)
+			columnSelectAs[columnPathSpanParentSpanID] = columnPathSpanParentSpanID
+			continue
+
 		case traceql.IntrinsicSpanStartTime:
 			pred, err := createIntPredicate(cond.Op, cond.Operands)
 			if err != nil {
@@ -2047,6 +2058,10 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 		}
 	}
 
+	for columnPath, predicates := range columnPredicates {
+		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath]))
+	}
+
 	attrIter, err := createAttributeIterator(makeIter, genericConditions, DefinitionLevelResourceSpansILSSpanAttrs,
 		columnPathSpanAttrKey, columnPathSpanAttrString, columnPathSpanAttrInt, columnPathSpanAttrDouble, columnPathSpanAttrBool, allConditions, selectAll)
 	if err != nil {
@@ -2054,10 +2069,6 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 	}
 	if attrIter != nil {
 		iters = append(iters, attrIter)
-	}
-
-	for columnPath, predicates := range columnPredicates {
-		iters = append(iters, makeIter(columnPath, orIfNeeded(predicates), columnSelectAs[columnPath]))
 	}
 
 	var required []parquetquery.Iterator
@@ -2085,7 +2096,7 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 	// This is an optimization for when all of the span conditions must be met.
 	// We simply move all iterators into the required list.
 	if allConditions {
-		required = append(required, iters...)
+		required = append(iters, required...)
 		iters = nil
 	}
 
@@ -2749,6 +2760,8 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case columnPathSpanID:
 			sp.id = kv.Value.ByteArray()
 			sp.addSpanAttr(traceql.IntrinsicSpanIDAttribute, traceql.NewStaticString(util.SpanIDToHexString(kv.Value.ByteArray())))
+		case columnPathSpanParentSpanID:
+			sp.addSpanAttr(traceql.IntrinsicParentIDAttribute, traceql.NewStaticString(util.SpanIDToHexString(kv.Value.ByteArray())))
 		case columnPathSpanStartTime:
 			sp.startTimeUnixNanos = kv.Value.Uint64()
 		case columnPathSpanDuration:

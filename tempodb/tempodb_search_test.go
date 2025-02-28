@@ -43,9 +43,11 @@ type runnerFn func(*testing.T, *tempopb.Trace, *tempopb.TraceSearchMetadata, []*
 const attributeWithTerminalChars = `{ } ( ) = ~ ! < > & | ^`
 
 func TestSearchCompleteBlock(t *testing.T) {
+	t.Parallel()
 	for _, v := range encoding.AllEncodings() {
 		vers := v.Version()
 		t.Run(vers, func(t *testing.T) {
+			t.Parallel()
 			runCompleteBlockSearchTest(t, vers,
 				searchRunner,
 				traceQLRunner,
@@ -95,8 +97,13 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 		{Query: `{ ."res-dedicated.02" = "res-2a" }`},
 		{Query: `{ resource."k8s.namespace.name" = "k8sNamespace" }`},
 	}
+	parentID := util.SpanIDToHexString([]byte{4, 5, 6})
+	parentIDQuery := &tempopb.SearchRequest{
+		Query: fmt.Sprintf("{ span:parentID = %q }", parentID),
+	}
 
 	searchesThatMatch = append(searchesThatMatch, quotedAttributesThatMatch...)
+	searchesThatMatch = append(searchesThatMatch, parentIDQuery)
 	for _, req := range searchesThatMatch {
 		fetcher := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
 			return r.Fetch(ctx, meta, req, common.DefaultSearchOptions())

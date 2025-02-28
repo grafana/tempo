@@ -82,7 +82,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 	b := &walBlock{
 		meta:           meta,
 		path:           path,
-		ids:            common.NewIDMap[int64](),
+		ids:            common.NewIDMap[int64](0),
 		ingestionSlack: ingestionSlack,
 	}
 
@@ -109,7 +109,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 		}
 
 		path := filepath.Join(dir, f.Name())
-		page := newWalBlockFlush(path, common.NewIDMap[int64]())
+		page := newWalBlockFlush(path, common.NewIDMap[int64](0))
 
 		file, err := page.file(context.Background())
 		if err != nil {
@@ -160,7 +160,7 @@ func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, inge
 			ReplicationFactor: meta.ReplicationFactor,
 		},
 		path:           filepath,
-		ids:            common.NewIDMap[int64](),
+		ids:            common.NewIDMap[int64](0),
 		ingestionSlack: ingestionSlack,
 	}
 
@@ -244,7 +244,7 @@ func (w *walBlockFlush) rowIterator() (*rowIterator, error) {
 
 	pf := file.parquetFile
 
-	idx, _ := parquetquery.GetColumnIndexByPath(pf, TraceIDColumnName)
+	idx, _, _ := parquetquery.GetColumnIndexByPath(pf, TraceIDColumnName)
 	r := parquet.NewReader(pf)
 	return newRowIterator(r, file, w.ids.EntriesSortedByID(), idx), nil
 }
@@ -421,7 +421,7 @@ func (b *walBlock) Flush() (err error) {
 	b.writeFlush(newWalBlockFlush(b.file.Name(), b.ids))
 	b.flushedSize += sz
 	b.unflushedSize = 0
-	b.ids = common.NewIDMap[int64]()
+	b.ids = common.NewIDMap[int64](0)
 
 	// Open next one
 	return b.openWriter()
@@ -484,7 +484,7 @@ func (b *walBlock) Clear() error {
 	return errs.Err()
 }
 
-func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.Trace, error) {
+func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.TraceByIDResponse, error) {
 	trs := make([]*tempopb.Trace, 0)
 
 	for _, page := range b.flushed {
@@ -526,7 +526,7 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.
 	}
 
 	tr, _ := combiner.Result()
-	return tr, nil
+	return &tempopb.TraceByIDResponse{Trace: tr, Metrics: &tempopb.TraceByIDMetrics{}}, nil
 }
 
 func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, _ common.SearchOptions) (*tempopb.SearchResponse, error) {

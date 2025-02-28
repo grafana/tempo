@@ -24,6 +24,7 @@ import (
 )
 
 func TestCredentials(t *testing.T) {
+	t.Parallel()
 	_, _, _, err := New(&Config{})
 	require.Error(t, err)
 

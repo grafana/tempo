@@ -32,6 +32,7 @@ import (
 // Verify basic functionality like sending metrics and exemplars, buffering and retrying failed
 // requests.
 func TestInstance(t *testing.T) {
+	t.Parallel()
 	var err error
 	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
 
@@ -104,6 +105,7 @@ func TestInstance(t *testing.T) {
 
 // Verify multiple instances function next to each other, don't trample over each other and are isolated.
 func TestInstance_multiTenancy(t *testing.T) {
+	t.Parallel()
 	var err error
 	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
 

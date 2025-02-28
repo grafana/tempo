@@ -21,11 +21,11 @@ labels:
 
 Using tracing data in Grafana and Grafana Cloud Traces, you can search for traces, generate metrics from spans, and link your tracing data with logs, metrics, and profiles.
 
-### Use Explore Traces to investigate tracing data
+### Use Traces Drilldown to investigate tracing data
 
-{{< docs/public-preview product="Explore Traces" >}}
+{{< docs/public-preview product="Traces Drilldown" >}}
 
-[Explore Traces](https://grafana.com/docs/grafana-cloud/visualizations/simplified-exploration/traces/) helps you visualize insights from your Tempo traces data.
+[Grafana Traces Drilldown](https://grafana.com/docs/grafana-cloud/visualizations/simplified-exploration/traces/) helps you visualize insights from your Tempo traces data.
 Using the app, you can:
 
 - Use *Rate*, *Errors*, and *Duration* (RED) metrics derived from traces to investigate issues
@@ -76,7 +76,7 @@ TraceQL language provides metrics queries as an experimental feature.
 Metric queries extend trace queries by applying an aggregate function to trace query results. For example: `{ span:name = "foo" } | rate() by (span:status)`
 This powerful feature creates metrics from traces, much in the same way that LogQL metric queries create metrics from logs.
 
-[Explore Traces](https://grafana.com/docs/grafana-cloud/visualizations/simplified-exploration/traces/) is powered by metrics queries.
+[Grafana Traces Drilldown](https://grafana.com/docs/grafana-cloud/visualizations/simplified-exploration/traces/) is powered by metrics queries.
 
 For more information about available queries, refer to [TraceQL metrics queries](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/metrics-queries).
 

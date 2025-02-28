@@ -13,7 +13,7 @@ import (
 )
 
 type Finder interface {
-	FindTraceByID(ctx context.Context, id ID, opts SearchOptions) (*tempopb.Trace, error)
+	FindTraceByID(ctx context.Context, id ID, opts SearchOptions) (*tempopb.TraceByIDResponse, error)
 }
 
 type (

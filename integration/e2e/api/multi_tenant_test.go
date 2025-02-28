@@ -1,4 +1,4 @@
-package e2e
+package api
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/integration/util"
@@ -35,23 +36,32 @@ type traceStringsMap struct {
 }
 
 func TestSingleTenantSearch(t *testing.T) {
+	t.Parallel()
 	testSearch(t, "test", 1)
 }
 
 func TestWildCardTenantSearch(t *testing.T) {
+	t.Parallel()
 	testSearch(t, "*", 1)
 }
 
 func TestTwoTenantsSearch(t *testing.T) {
+	t.Parallel()
 	testSearch(t, "test|test2", 2)
 }
 
 func TestThreeTenantsSearch(t *testing.T) {
+	t.Parallel()
 	testSearch(t, "test|test2|test3", 3)
 }
 
+func generateNetworkName() string {
+	uuid := uuid.New()
+	return uuid.String()
+}
+
 func testSearch(t *testing.T, tenant string, tenantSize int) {
-	s, err := e2e.NewScenario("tempo_e2e")
+	s, err := e2e.NewScenario(generateNetworkName())
 	require.NoError(t, err)
 	defer s.Close()
 
@@ -66,7 +76,8 @@ func testSearch(t *testing.T, tenant string, tenantSize int) {
 
 	require.NoError(t, util.CopyFileToSharedDir(s, configMultiTenant, "config.yaml"))
 	tempo := util.NewTempoAllInOne()
-	require.NoError(t, s.StartAndWaitReady(tempo, newPrometheus()))
+	prometheus := util.NewPrometheus()
+	require.NoError(t, s.StartAndWaitReady(tempo, prometheus))
 
 	// Get port for the Jaeger gRPC receiver endpoint
 	c, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
@@ -100,10 +111,10 @@ func testSearch(t *testing.T, tenant string, tenantSize int) {
 	time.Sleep(time.Second * 3)
 
 	// test echo
-	util.AssertEcho(t, "http://"+tempo.Endpoint(3200)+"/api/echo")
+	util.AssertEcho(t, "http://"+tempo.Endpoint(tempoPort)+"/api/echo")
 
 	// client will have testcase tenant id
-	apiClient := httpclient.New("http://"+tempo.Endpoint(3200), tenant)
+	apiClient := httpclient.New("http://"+tempo.Endpoint(tempoPort), tenant)
 
 	// check trace by id
 	resp, err := apiClient.QueryTrace(info.HexID())
@@ -176,7 +187,7 @@ func testSearch(t *testing.T, tenant string, tenantSize int) {
 	grpcCtx, err = user.InjectIntoGRPCRequest(grpcCtx)
 	require.NoError(t, err)
 
-	grpcClient, err := util.NewSearchGRPCClient(grpcCtx, tempo.Endpoint(3200))
+	grpcClient, err := util.NewSearchGRPCClient(grpcCtx, tempo.Endpoint(tempoPort))
 	require.NoError(t, err)
 
 	time.Sleep(2 * time.Second) // ensure that blocklist poller has built the blocklist

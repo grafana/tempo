@@ -2,52 +2,6 @@
 
 This document should help with remediation of operational issues in Tempo.
 
-## TempoRequestLatency
-
-Aside from obvious errors in the logs the only real lever you can pull here is scaling.  Use the Reads or Writes dashboard
-to identify the component that is struggling and scale it up.
-
-The Query path is instrumented with tracing (!) and this can be used to diagnose issues with higher latency. View the logs of
-the Query Frontend, where you can find an info level message for every request. Filter for requests with high latency and view traces.
-
-The Query Frontend allows for scaling the query path by sharding queries. There are a few knobs that can be tuned for optimum
-parallelism -
-- Number of shards each query is split into, configured via
-    ```
-    query_frontend:
-      trace_by_id:
-        query_shards: 10
-    ```
-- Number of Queriers (each of these process the sharded queries in parallel). This can be changed by modifying the size of the
-Querier deployment. More Queriers -> faster processing of shards in parallel -> lower request latency.
-
-- Querier parallelism, which is a combination of a few settings:
-
-    ```
-    querier:
-      max_concurrent_queries: 10
-      frontend_worker:
-          match_max_concurrent: true  // true by default
-          parallelism: 5              // parallelism per query-frontend. ignored if match_max_concurrent is set to true
-
-    storage:
-      trace:
-        pool:
-          max_workers: 100
-    ```
-
-MaxConcurrentQueries defines the total number of shards each Querier processes at a given time. By default, this number will
-be split between the query frontends, so if there are N query frontends, the Querier will process (Max Concurrent Queries/ N)
-queries per query frontend.
-
-Another way to increase parallelism is by increasing the size of the worker pool that queries the cache & backend blocks.
-
-A theoretically ideal value for this config to avoid _any_ queueing would be (Size of blocklist / Max Concurrent Queries).
-But also factor in the resources provided to the querier.
-
-Our [documentation](https://grafana.com/docs/tempo/latest/operations/backend_search/#query-frontend)
-includes [a solid guide](https://grafana.com/docs/tempo/latest/operations/backend_search/#guidelines-on-key-configuration-parameters) on the various parameters with suggestions.
-
 ### Trace Lookup Failures
 
 If trace lookups are fail with the error: `error querying store in Querier.FindTraceByID: queue doesn't have room for <xyz> jobs`, this 
@@ -75,15 +29,33 @@ Consider the following resolutions:
 
 ## TempoCompactorUnhealthy
 
+This can happen when we have unhealthy compactor sticking around in the ring.
+
 If this occurs access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/compactor/ring`.
-Use the "Forget" button to drop any unhealthy compactors. An unhealthy compactor or two has no immediate impact. Long term,
+Use the "Forget" button to forget and remove any unhealthy compactors from the ring. An unhealthy compactor or two has no immediate impact. Long term,
 however, it will cause the blocklist to grow unnecessarily long.
 
 ## TempoDistributorUnhealthy
 
+This can happen when we have unhealthy distributor sticking around in the ring.
+
 If this occurs access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/distributor/ring`.
-Use the "Forget" button to drop any unhealthy distributors. An unhealthy distributor or two has virtually no impact except to slightly
+Use the "Forget" button to forget and remove any unhealthy distributors from the ring. An unhealthy distributor or two has virtually no impact except to slightly
 increase the amount of memberlist traffic propagated by the cluster.
+
+## TempoIngesterUnhealthy
+
+This can happen when we have unhealthy ingesters sticking around in the ring.
+
+If this occurs, access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/ingester/ring`.
+Use the "Forget" button to forget and remove any unhealthy ingesters from the ring.
+
+## TempoMetricsGeneratorUnhealthy
+
+This can happen when we have unhealthy metrics-generators sticking around in the ring.
+
+If this occurs, access the [ring page](https://grafana.com/docs/tempo/latest/operations/consistent_hash_ring/) at `/metrics-generator/ring`.
+Use the "Forget" button to forget and remove any unhealthy metrics-generators from the ring.
 
 ## TempoCompactionsFailing
 
@@ -95,17 +67,6 @@ The most common cause for a failing compaction is an OOM from compacting an extr
 increased until it is enough to get past the trace, and must remain increased until the trace goes out of retention and is
 deleted, or else there is the risk of the trace causing OOMs later.  Ingester limits should be reviewed and possibly reduced.
 If a block continues to cause problems and cannot be resolved it can be deleted manually.
-
-There are several settings which can be tuned to reduce the amount of work done by compactors to help with stability or scaling:
-- compaction_window - The length of time that will be compacted together by a single pod.  Can be reduced to as little as 15 or
-  30 minutes.  It could be reduced even further in extremely high volume situations.
-- max_block_bytes - The maximum size of an output block, and controls which input blocks will be compacted. Can be reduced to as
-  little as a few GB to prevent really large compactions.
-- v2_in_buffer_bytes - The amount of (compressed) data buffered from each input block. Can be reduced to a few megabytes to buffer
-  less.  Will increase the amount of reads from the backend.
-- flush_size_bytes - The amount of data buffered of the output block. Can be reduced to flush more frequently to the backend.
-  There are platform-specific limits on how low this can go.  AWS S3 cannot be set lower than 5MB, or cause more than 10K flushes
-  per block.
 
 ## TempoIngesterFlushesFailing
 

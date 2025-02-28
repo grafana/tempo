@@ -402,17 +402,21 @@ func (i *instance) ClearFlushedBlocks(completeBlockTimeout time.Duration) error 
 	return err
 }
 
-func (i *instance) FindTraceByID(ctx context.Context, id []byte, allowPartialTrace bool) (*tempopb.Trace, error) {
+func (i *instance) FindTraceByID(ctx context.Context, id []byte, allowPartialTrace bool) (*tempopb.TraceByIDResponse, error) {
 	ctx, span := tracer.Start(ctx, "instance.FindTraceByID")
 	defer span.End()
 
 	var err error
 	var completeTrace *tempopb.Trace
+	metrics := tempopb.TraceByIDMetrics{}
 
 	// live traces
 	i.tracesMtx.Lock()
 	if liveTrace, ok := i.traces[i.tokenForTraceID(id)]; ok {
 		completeTrace, err = model.MustNewSegmentDecoder(model.CurrentEncoding).PrepareForRead(liveTrace.batches)
+		for _, b := range liveTrace.batches {
+			metrics.InspectedBytes += uint64(len(b))
+		}
 		if err != nil {
 			i.tracesMtx.Unlock()
 			return nil, fmt.Errorf("unable to unmarshal liveTrace: %w", err)
@@ -436,9 +440,12 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte, allowPartialTra
 	if err != nil {
 		return nil, fmt.Errorf("headBlock.FindTraceByID failed: %w", err)
 	}
-	_, err = combiner.Consume(tr)
-	if err != nil {
-		return nil, err
+	if tr != nil {
+		_, err = combiner.Consume(tr.Trace)
+		if err != nil {
+			return nil, err
+		}
+		metrics.InspectedBytes += tr.Metrics.InspectedBytes
 	}
 
 	i.blocksMtx.RLock()
@@ -450,9 +457,15 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte, allowPartialTra
 		if err != nil {
 			return nil, fmt.Errorf("completingBlock.FindTraceByID failed: %w", err)
 		}
-		_, err = combiner.Consume(tr)
+		if tr == nil {
+			continue
+		}
+		_, err = combiner.Consume(tr.Trace)
 		if err != nil {
 			return nil, err
+		}
+		if tr.Metrics != nil {
+			metrics.InspectedBytes += tr.Metrics.InspectedBytes
 		}
 	}
 
@@ -462,14 +475,24 @@ func (i *instance) FindTraceByID(ctx context.Context, id []byte, allowPartialTra
 		if err != nil {
 			return nil, fmt.Errorf("completeBlock.FindTraceByID failed: %w", err)
 		}
-		_, err = combiner.Consume(found)
+		if found == nil {
+			continue
+		}
+		_, err = combiner.Consume(found.Trace)
 		if err != nil {
 			return nil, err
+		}
+		if found.Metrics != nil {
+			metrics.InspectedBytes += found.Metrics.InspectedBytes
 		}
 	}
 
 	result, _ := combiner.Result()
-	return result, nil
+	response := &tempopb.TraceByIDResponse{
+		Trace:   result,
+		Metrics: &metrics,
+	}
+	return response, nil
 }
 
 // AddCompletingBlock adds an AppendBlock directly to the slice of completing blocks.

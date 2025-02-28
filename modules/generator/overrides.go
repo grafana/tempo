@@ -38,6 +38,7 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) bool
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string
 	DedicatedColumns(userID string) backend.DedicatedColumns
+	MaxLocalTracesPerUser(userID string) int
 	MaxBytesPerTrace(userID string) int
 	UnsafeQueryHints(userID string) bool
 }

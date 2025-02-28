@@ -180,10 +180,7 @@ func (pages *asyncPages) Close() (err error) {
 }
 
 func (pages *asyncPages) ReadPage() (Page, error) {
-	if pages.init != nil {
-		close(pages.init)
-		pages.init = nil
-	}
+	pages.start()
 	for {
 		p, ok := <-pages.read
 		if !ok {
@@ -219,7 +216,15 @@ func (pages *asyncPages) SeekToRow(rowIndex int64) error {
 	// If SeekToRow calls are performed faster than they can be handled by the
 	// goroutine reading pages, this path might become a contention point.
 	pages.seek <- asyncSeek{rowIndex: rowIndex, version: pages.version}
+	pages.start()
 	return nil
+}
+
+func (pages *asyncPages) start() {
+	if pages.init != nil {
+		close(pages.init)
+		pages.init = nil
+	}
 }
 
 func readPages(pages Pages, read chan<- asyncPage, seek <-chan asyncSeek, init, done <-chan struct{}) {

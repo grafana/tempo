@@ -135,7 +135,7 @@ func TestSLOHook(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{"tenant", "result"})
 			sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{"tenant", "result"})
-			throughputVec := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "throughput"}, []string{"tenant"})
+			throughputVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "throughput"}, []string{"tenant"})
 
 			hook := sloHook(allCounter, sloCounter, throughputVec, tc.cfg)
 
@@ -165,7 +165,7 @@ func TestSLOHook(t *testing.T) {
 func TestBadRequest(t *testing.T) {
 	allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{"tenant", "result"})
 	sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{"tenant", "result"})
-	throughputVec := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "throughput"}, []string{"tenant"})
+	throughputVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "throughput"}, []string{"tenant"})
 
 	hook := sloHook(allCounter, sloCounter, throughputVec, SLOConfig{
 		DurationSLO:        10 * time.Second,
@@ -360,7 +360,7 @@ func TestCanceledRequest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			allCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "all"}, []string{"tenant", "result"})
 			sloCounter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "slo"}, []string{"tenant", "result"})
-			throughputVec := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "throughput"}, []string{"tenant"})
+			throughputVec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "throughput"}, []string{"tenant"})
 
 			// anything over 10s is considered outside SLO
 			hook := sloHook(allCounter, sloCounter, throughputVec, SLOConfig{

@@ -99,7 +99,8 @@ func TestBackendBlockFindTraceByID(t *testing.T) {
 
 		gotProto, err := b.FindTraceByID(ctx, tr.TraceID, common.DefaultSearchOptions())
 		require.NoError(t, err)
-		require.Equal(t, wantProto, gotProto)
+		require.Equal(t, wantProto, gotProto.Trace)
+		require.Greater(t, gotProto.Metrics.InspectedBytes, uint64(60000)) // approximate value
 	}
 }
 
@@ -143,52 +144,10 @@ func TestBackendBlockFindTraceByID_TestData(t *testing.T) {
 	}
 }
 
-/*func genIndex(t require.TestingT, block *backendBlock) *index {
-	pf, _, err := block.openForSearch(context.TODO(), common.DefaultSearchOptions())
-	require.NoError(t, err)
-
-	i := &index{}
-
-	for j := range pf.RowGroups() {
-		iter := parquetquery.NewSyncIterator(context.TODO(), pf.RowGroups()[j:j+1], 0, "", 1000, nil, "TraceID")
-		defer iter.Close()
-
-		for {
-			v, err := iter.Next()
-			require.NoError(t, err)
-			if v == nil {
-				break
-			}
-
-			i.Add(v.Entries[0].Value.ByteArray())
-		}
-		i.Flush()
-	}
-
-	return i
-}*/
-
 func BenchmarkFindTraceByID(b *testing.B) {
-	var (
-		ctx      = context.TODO()
-		tenantID = "1"
-		blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-		path     = "/Users/marty/src/tmp/"
-	)
-
-	r, _, _, err := local.New(&local.Config{
-		Path: path,
-	})
-	require.NoError(b, err)
-
-	rr := backend.NewReader(r)
-	// ww := backend.NewWriter(w)
-
-	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
-	require.NoError(b, err)
-
+	ctx := context.TODO()
 	traceID := []byte{}
-	block := newBackendBlock(meta, rr)
+	block := blockForBenchmarks(b)
 
 	// index := genIndex(b, block)
 	// writeBlockMeta(ctx, ww, meta, &common.ShardedBloomFilter{}, index)

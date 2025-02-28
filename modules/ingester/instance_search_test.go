@@ -297,6 +297,7 @@ func testSearchTagsAndValues(t *testing.T, ctx context.Context, i *instance, tag
 }
 
 func TestInstanceSearchTagAndValuesV2(t *testing.T) {
+	t.Parallel()
 	i, _ := defaultInstance(t)
 
 	// add dummy search data
@@ -787,6 +788,7 @@ func TestWALBlockDeletedDuringSearch(t *testing.T) {
 }
 
 func TestInstanceSearchMetrics(t *testing.T) {
+	t.Parallel()
 	i, _ := defaultInstance(t)
 
 	// This matches the encoding for live traces, since

@@ -29,6 +29,7 @@ func (r *mockRequest) Weight() int {
 }
 
 func TestGetNextForQuerierOneUser(t *testing.T) {
+	t.Parallel()
 	messages := 10
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -58,6 +59,7 @@ func TestGetNextForQuerierOneUser(t *testing.T) {
 }
 
 func TestGetNextForQuerierRandomUsers(t *testing.T) {
+	t.Parallel()
 	messages := 100
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -86,6 +88,7 @@ func TestGetNextForQuerierRandomUsers(t *testing.T) {
 }
 
 func TestGetNextBatches(t *testing.T) {
+	t.Parallel()
 	messages := 10
 
 	ctx, cancel := context.WithCancel(context.Background())

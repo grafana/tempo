@@ -1,4 +1,4 @@
-package e2e
+package api
 
 import (
 	"context"
@@ -57,11 +57,11 @@ sendLoop:
 		"{} | compare({status=error})",
 	} {
 		t.Run(query, func(t *testing.T) {
-			callQueryRange(t, tempo.Endpoint(3200), query, debugMode)
+			callQueryRange(t, tempo.Endpoint(tempoPort), query, debugMode)
 		})
 	}
 
-	res := doRequest(t, tempo.Endpoint(3200), "{. a}")
+	res := doRequest(t, tempo.Endpoint(tempoPort), "{. a}")
 	require.Equal(t, 400, res.StatusCode)
 }
 

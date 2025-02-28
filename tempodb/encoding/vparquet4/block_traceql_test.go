@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -17,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/tempo/pkg/parquetquery"
+	pq "github.com/grafana/tempo/pkg/parquetquery"
 	"github.com/grafana/tempo/pkg/tempopb"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -474,8 +474,16 @@ func parse(t *testing.T, q string) traceql.Condition {
 }
 
 func fullyPopulatedTestTrace(id common.ID) *Trace {
+	return fullyPopulatedTestTraceWithOption(id, false)
+}
+
+func fullyPopulatedTestTraceWithOption(id common.ID, parentIDTest bool) *Trace {
 	linkTraceID, _ := util.HexStringToTraceID("1234567890abcdef1234567890abcdef")
 	linkSpanID, _ := util.HexStringToSpanID("1234567890abcdef")
+	parentID := []byte{}
+	if parentIDTest {
+		parentID = []byte("parentid")
+	}
 
 	links := []Link{
 		{
@@ -562,7 +570,7 @@ func fullyPopulatedTestTrace(id common.ID) *Trace {
 								HttpMethod:             ptr("get"),
 								HttpUrl:                ptr("url/hello/world"),
 								HttpStatusCode:         ptr(int64(500)),
-								ParentSpanID:           []byte{},
+								ParentSpanID:           parentID,
 								StatusCode:             int(v1.Status_STATUS_CODE_ERROR),
 								StatusMessage:          v1.Status_STATUS_CODE_ERROR.String(),
 								TraceState:             "tracestate",
@@ -872,6 +880,8 @@ func flattenForSelectAll(tr *Trace, dcm dedicatedColumnMapping) *traceql.Spanset
 				newS.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(s.Name))
 				newS.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(otlpStatusToTraceqlStatus(uint64(s.StatusCode))))
 				newS.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(s.StatusMessage))
+				newS.addSpanAttr(traceql.IntrinsicParentIDAttribute, traceql.NewStaticString(util.SpanIDToHexString(s.ParentSpanID)))
+
 				if s.HttpStatusCode != nil {
 					newS.addSpanAttr(traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, LabelHTTPStatusCode), traceql.NewStaticInt(int(*s.HttpStatusCode)))
 				}
@@ -947,28 +957,13 @@ func BenchmarkBackendBlockTraceQL(b *testing.B) {
 	}
 
 	ctx := context.TODO()
-	tenantID := "1"
-	// blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-	// blockID := uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
-	blockID := uuid.MustParse("030c8c4f-9d47-4916-aadc-26b90b1d2bc4")
-
-	r, _, _, err := local.New(&local.Config{
-		// Path: path.Join("/Users/marty/src/tmp"),
-		// Path: path.Join("/Users/mapno/workspace/testblock"),
-		Path: path.Join("/Users/joe/testblock"),
-	})
-	require.NoError(b, err)
-
-	rr := backend.NewReader(r)
-	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
-	require.NoError(b, err)
-
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = 3
 	opts.TotalPages = 2
 
-	block := newBackendBlock(meta, rr)
-	_, _, err = block.openForSearch(ctx, opts)
+	block := blockForBenchmarks(b)
+
+	_, _, err := block.openForSearch(ctx, opts)
 	require.NoError(b, err)
 
 	for _, tc := range testCases {
@@ -1006,27 +1001,12 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 	}
 
 	ctx := context.TODO()
-	tenantID := "1"
-	// blockID := uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-	blockID := uuid.MustParse("257e3a56-224a-4ebe-9696-1b304f456ac2")
-
-	r, _, _, err := local.New(&local.Config{
-		// Path: path.Join("/Users/marty/src/tmp/"),
-		Path: path.Join("/Users/suraj/wd/grafana/testblock"),
-	})
-	require.NoError(b, err)
-
-	rr := backend.NewReader(r)
-	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
-	require.NoError(b, err)
-	require.Equal(b, VersionString, meta.Version)
-
 	opts := common.DefaultSearchOptions()
 	opts.StartPage = 10
 	opts.TotalPages = 10
 
-	block := newBackendBlock(meta, rr)
-	_, _, err = block.openForSearch(ctx, opts)
+	block := blockForBenchmarks(b)
+	_, _, err := block.openForSearch(ctx, opts)
 	require.NoError(b, err)
 
 	for _, tc := range testCases {
@@ -1047,6 +1027,71 @@ func BenchmarkBackendBlockGetMetrics(b *testing.B) {
 	}
 }
 
+// BenchmarkIterators is a convenient method to run benchmarks on various iterator constructions directly when working on optimizations.
+// Replace the iterator at the beginning of the benchmark loop with any combination desired.
+func BenchmarkIterators(b *testing.B) {
+	ctx := context.TODO()
+	opts := common.DefaultSearchOptions()
+	opts.StartPage = 3
+	opts.TotalPages = 2
+
+	block := blockForBenchmarks(b)
+	pf, _, err := block.openForSearch(ctx, opts)
+	require.NoError(b, err)
+
+	rgs := pf.RowGroups()
+	rgs = rgs[3:5]
+
+	var instrPred *parquetquery.InstrumentedPredicate
+	makeIterInternal := makeIterFunc(ctx, rgs, pf)
+	makeIter := func(columnName string, predicate pq.Predicate, selectAs string) pq.Iterator {
+		instrPred = &parquetquery.InstrumentedPredicate{
+			Pred: predicate,
+		}
+
+		return makeIterInternal(columnName, predicate, selectAs)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err := error(nil)
+
+		iter := makeIter(columnPathSpanAttrKey, parquetquery.NewSubstringPredicate("e"), "foo")
+
+		//parquetquery.NewUnionIterator(DefinitionLevelResourceSpansILSSpanAttrs, []parquetquery.Iterator{
+		// makeIter(columnPathSpanHTTPStatusCode, parquetquery.NewIntEqualPredicate(500), "http_status"),
+		// makeIter(columnPathSpanName, parquetquery.NewStringEqualPredicate([]byte("foo")), "name"),
+		// makeIter(columnPathSpanStatusCode, parquetquery.NewIntEqualPredicate(2), "status"),
+		// makeIter(columnPathSpanAttrDouble, parquetquery.NewFloatEqualPredicate(500), "double"),
+		//makeIter(columnPathSpanAttrInt, parquetquery.NewIntEqualPredicate(500), "int"),
+		//}, nil)
+		require.NoError(b, err)
+		// fmt.Println(iter.String())
+
+		count := 0
+		for {
+			res, err := iter.Next()
+			if err != nil {
+				panic(err)
+			}
+			if res == nil {
+				break
+			}
+			count++
+		}
+		iter.Close()
+		if instrPred != nil {
+			b.ReportMetric(float64(count), "count")
+			b.ReportMetric(float64(instrPred.InspectedColumnChunks), "stats_cc")
+			b.ReportMetric(float64(instrPred.KeptColumnChunks), "stats_cc_kept")
+			b.ReportMetric(float64(instrPred.InspectedPages), "stats_ip")
+			b.ReportMetric(float64(instrPred.KeptPages), "stats_ip_kept")
+			b.ReportMetric(float64(instrPred.InspectedValues), "stats_v")
+			b.ReportMetric(float64(instrPred.KeptValues), "stats_v_kept")
+		}
+	}
+}
+
 func BenchmarkBackendBlockQueryRange(b *testing.B) {
 	testCases := []string{
 		"{} | rate()",
@@ -1057,32 +1102,13 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		"{status=error} | rate()",
 	}
 
-	var (
-		ctx      = context.TODO()
-		e        = traceql.NewEngine()
-		tenantID = "1"
-		// blockID  = uuid.MustParse("06ebd383-8d4e-4289-b0e9-cf2197d611d5")
-		// blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
-		blockID = uuid.MustParse("257e3a56-224a-4ebe-9696-1b304f456ac2")
-		// path    = "/Users/marty/src/tmp/"
-		// path    = "/Users/mapno/workspace/testblock"
-		path = "/Users/suraj/wd/grafana/testblock"
-	)
-
-	r, _, _, err := local.New(&local.Config{
-		Path: path,
-	})
-	require.NoError(b, err)
-
-	rr := backend.NewReader(r)
-	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
-	require.NoError(b, err)
-	require.Equal(b, VersionString, meta.Version)
-
+	e := traceql.NewEngine()
+	ctx := context.TODO()
 	opts := common.DefaultSearchOptions()
 	opts.TotalPages = 10
-	block := newBackendBlock(meta, rr)
-	_, _, err = block.openForSearch(ctx, opts)
+
+	block := blockForBenchmarks(b)
+	_, _, err := block.openForSearch(ctx, opts)
 	require.NoError(b, err)
 
 	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
@@ -1093,10 +1119,10 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 		b.Run(tc, func(b *testing.B) {
 			for _, minutes := range []int{5, 7} {
 				b.Run(strconv.Itoa(minutes), func(b *testing.B) {
-					st := meta.StartTime
+					st := block.meta.StartTime
 					end := st.Add(time.Duration(minutes) * time.Minute)
 
-					if end.After(meta.EndTime) {
+					if end.After(block.meta.EndTime) {
 						b.SkipNow()
 						return
 					}
@@ -1122,92 +1148,6 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 					b.ReportMetric(float64(spansTotal)/float64(b.N), "spans/op")
 					b.ReportMetric(float64(spansTotal)/b.Elapsed().Seconds(), "spans/s")
 				})
-			}
-		})
-	}
-}
-
-// TestBackendBlockQueryRange is the `TestOne` of metric queries.
-// It's skipped because it depends on a local block, like benchmarks
-//
-// You also need to manually print the iterator in `backendBlock.Fetch`,
-// because there is no access to the iterator in the test. Sad.
-func TestBackendBlockQueryRange(t *testing.T) {
-	if os.Getenv("debug") != "1" {
-		t.Skip()
-	}
-
-	testCases := []string{
-		"{} | rate()",
-		"{} | rate() by (name)",
-		"{} | rate() by (resource.service.name)",
-		"{} | rate() by (span.http.url)", // High cardinality attribute
-		"{resource.service.name=`tempo-ingester`} | rate()",
-		"{status=unset} | rate()",
-	}
-
-	const (
-		tenantID  = "1"
-		queryHint = "with(exemplars=true)"
-	)
-
-	var (
-		ctx     = context.TODO()
-		e       = traceql.NewEngine()
-		opts    = common.DefaultSearchOptions()
-		blockID = uuid.MustParse("0008e57d-069d-4510-a001-b9433b2da08c")
-		path    = path.Join("/Users/mapno/workspace/testblock")
-	)
-
-	r, _, _, err := local.New(&local.Config{
-		Path: path,
-	})
-	require.NoError(t, err)
-
-	rr := backend.NewReader(r)
-	meta, err := rr.BlockMeta(ctx, blockID, tenantID)
-	require.NoError(t, err)
-	require.Equal(t, VersionString, meta.Version)
-
-	block := newBackendBlock(meta, rr)
-	opts.TotalPages = 10
-	_, _, err = block.openForSearch(ctx, opts)
-	require.NoError(t, err)
-
-	f := traceql.NewSpansetFetcherWrapper(func(ctx context.Context, req traceql.FetchSpansRequest) (traceql.FetchSpansResponse, error) {
-		return block.Fetch(ctx, req, opts)
-	})
-
-	for _, tc := range testCases {
-		t.Run(tc, func(t *testing.T) {
-			st := meta.StartTime
-			end := st.Add(time.Duration(5) * time.Minute)
-
-			if end.After(meta.EndTime) {
-				t.SkipNow()
-				return
-			}
-
-			req := &tempopb.QueryRangeRequest{
-				Query: fmt.Sprintf("%s %s", tc, queryHint),
-				Step:  uint64(time.Minute),
-				Start: uint64(st.UnixNano()),
-				End:   uint64(end.UnixNano()),
-			}
-
-			eval, err := e.CompileMetricsQueryRange(req, 1, 0, false)
-			require.NoError(t, err)
-
-			require.NoError(t, eval.Do(ctx, f, uint64(block.meta.StartTime.UnixNano()), uint64(block.meta.EndTime.UnixNano())))
-
-			ss := eval.Results()
-			require.NotNil(t, ss)
-
-			for _, s := range ss {
-				if s.Exemplars != nil && len(s.Exemplars) > 0 {
-					fmt.Println("series", s.Labels)
-					fmt.Println("Exemplars", s.Exemplars)
-				}
 			}
 		})
 	}
@@ -2067,4 +2007,34 @@ func randomTree(N int) []traceql.Span {
 	generateNodes(1)
 
 	return nodes
+}
+
+func blockForBenchmarks(b *testing.B) *backendBlock {
+	id, ok := os.LookupEnv("BENCH_BLOCKID")
+	if !ok {
+		b.Fatal("BENCH_BLOCKID is not set. These benchmarks are designed to run against a block on local disk. Set BENCH_BLOCKID to the guid of the block to run benchmarks against. e.g. `export BENCH_BLOCKID=030c8c4f-9d47-4916-aadc-26b90b1d2bc4`")
+	}
+
+	path, ok := os.LookupEnv("BENCH_PATH")
+	if !ok {
+		b.Fatal("BENCH_PATH is not set. These benchmarks are designed to run against a block on local disk. Set BENCH_PATH to the root of the backend such that the block to benchmark is at <BENCH_PATH>/<BENCH_TENANTID>/<BENCH_BLOCKID>.")
+	}
+
+	tenantID, ok := os.LookupEnv("BENCH_TENANTID")
+
+	if !ok {
+		tenantID = "1"
+	}
+
+	blockID := uuid.MustParse(id)
+	r, _, _, err := local.New(&local.Config{
+		Path: path,
+	})
+	require.NoError(b, err)
+
+	rr := backend.NewReader(r)
+	meta, err := rr.BlockMeta(context.Background(), blockID, tenantID)
+	require.NoError(b, err)
+
+	return newBackendBlock(meta, rr)
 }

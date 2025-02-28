@@ -1,9 +1,11 @@
 package generator
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/grafana/tempo/modules/generator/processor/localblocks"
@@ -24,7 +26,14 @@ const (
 	ringNameForServer = "metrics-generator"
 
 	ConsumerGroup = "metrics-generator"
+
+	// codecPushBytes refers to the codec used for decoding tempopb.PushBytesRequest
+	codecPushBytes = "push-bytes"
+	// codecOTLP refers to the codec used for decoding ptrace.Traces
+	codecOTLP = "otlp"
 )
+
+var validCodecs = []string{codecPushBytes, codecOTLP}
 
 // Config for a generator.
 type Config struct {
@@ -40,9 +49,18 @@ type Config struct {
 	QueryTimeout          time.Duration `yaml:"query_timeout"`
 	OverrideRingKey       string        `yaml:"override_ring_key"`
 
+	// Codec controls which decoder to use for data consumed from Kafka.
+	Codec string `yaml:"codec"`
+	// DisableLocalBlocks controls whether the local blocks processor should be run.
+	// When this flag is enabled, the processor is never instantiated.
+	DisableLocalBlocks bool `yaml:"disable_local_blocks"`
+	// DisableGRPC controls whether to run a gRPC server with the metrics generator endpoints.
+	DisableGRPC bool `yaml:"disable_grpc"`
+
 	// This config is dynamically injected because defined outside the generator config.
-	Ingest     ingest.Config `yaml:"-"`
-	InstanceID string        `yaml:"instance_id" doc:"default=<hostname>" category:"advanced"`
+	Ingest            ingest.Config `yaml:"-"`
+	IngestConcurrency uint          `yaml:"ingest_concurrency"`
+	InstanceID        string        `yaml:"instance_id" doc:"default=<hostname>" category:"advanced"`
 }
 
 // RegisterFlagsAndApplyDefaults registers the flags.
@@ -55,11 +73,14 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.TracesWAL.Version = encoding.DefaultEncoding().Version()
 	cfg.TracesQueryWAL.RegisterFlags(f)
 	cfg.TracesQueryWAL.Version = encoding.DefaultEncoding().Version()
+	cfg.Ingest.RegisterFlagsAndApplyDefaults(prefix, f)
+	cfg.IngestConcurrency = 16
 
 	// setting default for max span age before discarding to 30s
 	cfg.MetricsIngestionSlack = 30 * time.Second
 	cfg.QueryTimeout = 30 * time.Second
 	cfg.OverrideRingKey = generatorRingKey
+	cfg.Codec = codecPushBytes
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -70,10 +91,16 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 }
 
 func (cfg *Config) Validate() error {
-	if cfg.Ingest.Enabled {
-		if err := cfg.Ingest.Kafka.Validate(); err != nil {
-			return err
-		}
+	if err := cfg.Ingest.Validate(); err != nil {
+		return err
+	}
+
+	if cfg.IngestConcurrency == 0 {
+		return errors.New("ingest concurrency must be greater than zero")
+	}
+
+	if err := cfg.Processor.Validate(); err != nil {
+		return err
 	}
 
 	// Only validate if being used
@@ -86,6 +113,10 @@ func (cfg *Config) Validate() error {
 		if err := cfg.TracesQueryWAL.Validate(); err != nil {
 			return err
 		}
+	}
+
+	if !slices.Contains(validCodecs, cfg.Codec) {
+		return fmt.Errorf("invalid codec: %s, valid choices are %s", cfg.Codec, validCodecs)
 	}
 
 	return nil
@@ -101,6 +132,10 @@ func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag
 	cfg.ServiceGraphs.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.SpanMetrics.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.LocalBlocks.RegisterFlagsAndApplyDefaults(prefix, f)
+}
+
+func (cfg *ProcessorConfig) Validate() error {
+	return cfg.LocalBlocks.Validate()
 }
 
 // copyWithOverrides creates a copy of the config using values set in the overrides.

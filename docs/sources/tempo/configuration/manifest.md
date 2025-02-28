@@ -615,8 +615,10 @@ metrics_generator:
             trace_idle_period: 10s
             max_block_duration: 1m0s
             max_block_bytes: 500000000
+            concurrency: 4
             complete_block_timeout: 1h0m0s
             max_live_traces: 0
+            max_live_traces_bytes: 250000000
             filter_server_spans: true
             flush_to_storage: false
             concurrent_blocks: 10
@@ -653,6 +655,10 @@ metrics_generator:
     metrics_ingestion_time_range_slack: 30s
     query_timeout: 30s
     override_ring_key: metrics-generator
+    codec: push-bytes
+    disable_local_blocks: false
+    disable_grpc: false
+    ingest_concurrency: 16
     instance_id: hostname
 ingest:
     enabled: false

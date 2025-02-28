@@ -16,6 +16,7 @@ distributor:
       protocols:
         http:
         grpc:
+          endpoint: 0.0.0.0:{{ env "NOMAD_PORT_otlp" }}
 
 ingester:
   max_block_duration: 5m

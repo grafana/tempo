@@ -1,16 +1,6 @@
 "groups":
 - "name": "tempo_alerts"
   "rules":
-  - "alert": "TempoRequestLatency"
-    "annotations":
-      "message": |
-        {{ $labels.job }} {{ $labels.route }} is experiencing {{ printf "%.2f" $value }}s 99th percentile latency.
-      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoRequestLatency"
-    "expr": |
-      cluster_namespace_job_route:tempo_request_duration_seconds:99quantile{route!~"metrics|/frontend.Frontend/Process|debug_pprof"} > 3
-    "for": "15m"
-    "labels":
-      "severity": "critical"
   - "alert": "TempoCompactorUnhealthy"
     "annotations":
       "message": "There are {{ printf \"%f\" $value }} unhealthy compactor(s)."
@@ -29,6 +19,24 @@
     "for": "15m"
     "labels":
       "severity": "warning"
+  - "alert": "TempoIngesterUnhealthy"
+    "annotations":
+      "message": "There are {{ printf \"%f\" $value }} unhealthy ingester(s)."
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoIngesterUnhealthy"
+    "expr": |
+      max by (cluster, namespace) (tempo_ring_members{state="Unhealthy", name="ingester", namespace=~".*"}) > 0
+    "for": "15m"
+    "labels":
+      "severity": "critical"
+  - "alert": "TempoMetricsGeneratorUnhealthy"
+    "annotations":
+      "message": "There are {{ printf \"%f\" $value }} unhealthy metric-generator(s)."
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoMetricsGeneratorUnhealthy"
+    "expr": |
+      max by (cluster, namespace) (tempo_ring_members{state="Unhealthy", name="metrics-generator", namespace=~".*"}) > 0
+    "for": "15m"
+    "labels":
+      "severity": "critical"
   - "alert": "TempoCompactionsFailing"
     "annotations":
       "message": "Greater than 2 compactions have failed in the past hour."
@@ -101,7 +109,7 @@
       "message": "Tempo block list length is up 40 percent over the last 7 days.  Consider scaling compactors."
       "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoBlockListRisingQuickly"
     "expr": |
-      avg(tempodb_blocklist_length{namespace=".*"}) / avg(tempodb_blocklist_length{namespace=".*", job=~"$namespace/$component"} offset 7d) > 1.4
+      avg(tempodb_blocklist_length{namespace=~".*", container="compactor"}) / avg(tempodb_blocklist_length{namespace=~".*", container="compactor"} offset 7d) > 1.4
     "for": "15m"
     "labels":
       "severity": "critical"

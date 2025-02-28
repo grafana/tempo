@@ -547,7 +547,15 @@ func traceToParquetWithMapping(id common.ID, tr *tempopb.Trace, ot *Trace, dedic
 		}
 	}
 
-	return ot, assignNestedSetModelBoundsAndServiceStats(ot)
+	return finalizeTrace(ot)
+}
+
+// finalizeTrace augments and optimized the trace by calculating service stats, nested set model bounds
+// and removing redundant scope spans and resource spans. The function returns the modified trace as well
+// as a boolean indicating whether the trace is a connected graph.
+func finalizeTrace(trace *Trace) (*Trace, bool) {
+	rebatchTrace(trace)
+	return trace, assignNestedSetModelBoundsAndServiceStats(trace)
 }
 
 func instrumentationScopeToParquet(s *v1.InstrumentationScope, ss *InstrumentationScope) {

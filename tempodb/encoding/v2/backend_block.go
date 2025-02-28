@@ -128,7 +128,7 @@ func (b *BackendBlock) BlockMeta() *backend.BlockMeta {
 	return b.meta
 }
 
-func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.SearchOptions) (*tempopb.Trace, error) {
+func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID, _ common.SearchOptions) (*tempopb.TraceByIDResponse, error) {
 	ctx, span := tracer.Start(ctx, "BackendBlock.FindTraceByID")
 	defer span.End()
 
@@ -145,7 +145,13 @@ func (b *BackendBlock) FindTraceByID(ctx context.Context, id common.ID, _ common
 	if err != nil {
 		return nil, err
 	}
-	return dec.PrepareForRead(obj)
+
+	trace, err := dec.PrepareForRead(obj)
+
+	return &tempopb.TraceByIDResponse{
+		Trace:   trace,
+		Metrics: &tempopb.TraceByIDMetrics{},
+	}, err
 }
 
 func (b *BackendBlock) Search(context.Context, *tempopb.SearchRequest, common.SearchOptions) (resp *tempopb.SearchResponse, err error) {

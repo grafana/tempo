@@ -30,7 +30,14 @@ import (
 )
 
 var (
-	SupportedProcessors = []string{servicegraphs.Name, spanmetrics.Name, localblocks.Name}
+	SupportedProcessors = []string{
+		servicegraphs.Name,
+		spanmetrics.Name,
+		localblocks.Name,
+		spanmetrics.Count.String(),
+		spanmetrics.Latency.String(),
+		spanmetrics.Size.String(),
+	}
 
 	metricActiveProcessors = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "tempo",
@@ -194,7 +201,7 @@ func (i *instance) updateSubprocessors(desiredProcessors map[string]struct{}, de
 }
 
 func (i *instance) updateProcessors() error {
-	desiredProcessors := i.overrides.MetricsGeneratorProcessors(i.instanceID)
+	desiredProcessors := i.filterDisabledProcessors(i.overrides.MetricsGeneratorProcessors(i.instanceID))
 	desiredCfg, err := i.cfg.Processor.copyWithOverrides(i.overrides, i.instanceID)
 	if err != nil {
 		return err
@@ -244,6 +251,21 @@ func (i *instance) updateProcessors() error {
 	i.updateProcessorMetrics()
 
 	return nil
+}
+
+// filterDisabledProcessors removes processors that should never be instantiated
+// according to the generator's configuration from the given set of processors.
+func (i *instance) filterDisabledProcessors(processors map[string]struct{}) map[string]struct{} {
+	// If no processors are disabled, do not apply any filtering.
+	if !i.cfg.DisableLocalBlocks {
+		return processors
+	}
+
+	// Otherwise, do not instantiate the localblocks processor.
+	filteredProcessors := maps.Clone(processors)
+	delete(filteredProcessors, localblocks.Name)
+
+	return filteredProcessors
 }
 
 // diffProcessors compares the existing processors with the desired processors and config.
@@ -313,6 +335,8 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 		if i.traceQueryWAL != nil {
 			nonFlushingConfig := cfg.LocalBlocks
 			nonFlushingConfig.FlushToStorage = false
+			nonFlushingConfig.AssertMaxLiveTraces = true
+			nonFlushingConfig.AdjustTimeRangeForSlack = false
 			i.queuebasedLocalBlocks, err = localblocks.New(nonFlushingConfig, i.instanceID, i.traceQueryWAL, i.writer, i.overrides)
 			if err != nil {
 				return err
@@ -377,7 +401,7 @@ func (i *instance) pushSpans(ctx context.Context, req *tempopb.PushSpansRequest)
 	}
 }
 
-func (i *instance) pushSpansFromQueue(ctx context.Context, req *tempopb.PushSpansRequest) {
+func (i *instance) pushSpansFromQueue(ctx context.Context, ts time.Time, req *tempopb.PushSpansRequest) {
 	i.preprocessSpans(req)
 	i.processorsMtx.RLock()
 	defer i.processorsMtx.RUnlock()
@@ -392,7 +416,7 @@ func (i *instance) pushSpansFromQueue(ctx context.Context, req *tempopb.PushSpan
 
 	// Now we push to the non-flushing local blocks if present
 	if i.queuebasedLocalBlocks != nil {
-		i.queuebasedLocalBlocks.PushSpans(ctx, req)
+		i.queuebasedLocalBlocks.DeterministicPush(ts, req)
 	}
 }
 

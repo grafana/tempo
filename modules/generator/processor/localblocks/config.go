@@ -1,6 +1,7 @@
 package localblocks
 
 import (
+	"errors"
 	"flag"
 	"time"
 
@@ -20,11 +21,16 @@ type Config struct {
 	TraceIdlePeriod      time.Duration         `yaml:"trace_idle_period"`
 	MaxBlockDuration     time.Duration         `yaml:"max_block_duration"`
 	MaxBlockBytes        uint64                `yaml:"max_block_bytes"`
+	Concurrency          uint                  `yaml:"concurrency"`
 	CompleteBlockTimeout time.Duration         `yaml:"complete_block_timeout"`
 	MaxLiveTraces        uint64                `yaml:"max_live_traces"`
+	MaxLiveTracesBytes   uint64                `yaml:"max_live_traces_bytes"`
 	FilterServerSpans    bool                  `yaml:"filter_server_spans"`
 	FlushToStorage       bool                  `yaml:"flush_to_storage"`
 	Metrics              MetricsConfig         `yaml:",inline"`
+
+	AssertMaxLiveTraces     bool `yaml:"-"` // Used internally for non-flushing instance
+	AdjustTimeRangeForSlack bool `yaml:"-"` // Used internally for non-flushing instance
 }
 
 type MetricsConfig struct {
@@ -46,14 +52,26 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.Search = &tempodb.SearchConfig{}
 	cfg.Search.RegisterFlagsAndApplyDefaults(prefix, f)
 
+	cfg.Concurrency = 4
 	cfg.FlushCheckPeriod = 10 * time.Second
 	cfg.TraceIdlePeriod = 10 * time.Second
 	cfg.MaxBlockDuration = 1 * time.Minute
 	cfg.MaxBlockBytes = 500_000_000
+	cfg.MaxLiveTracesBytes = 250_000_000
 	cfg.CompleteBlockTimeout = time.Hour
 	cfg.FilterServerSpans = true
 	cfg.Metrics = MetricsConfig{
 		ConcurrentBlocks:  10,
 		TimeOverlapCutoff: 0.2,
 	}
+
+	cfg.AdjustTimeRangeForSlack = true
+}
+
+func (cfg *Config) Validate() error {
+	if cfg.Concurrency == 0 {
+		return errors.New("local blocks concurrency must be greater than zero")
+	}
+
+	return nil
 }

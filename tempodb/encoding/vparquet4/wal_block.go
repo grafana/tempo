@@ -80,7 +80,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 	b := &walBlock{
 		meta:           meta,
 		path:           path,
-		ids:            common.NewIDMap[int64](),
+		ids:            common.NewIDMap[int64](0), // This ID map is used for new appends which aren't expected when opening a block for replay
 		ingestionSlack: ingestionSlack,
 		dedcolsRes:     dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource),
 		dedcolsSpan:    dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan),
@@ -109,7 +109,7 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 		}
 
 		path := filepath.Join(dir, f.Name())
-		page := newWalBlockFlush(path, common.NewIDMap[int64]())
+		page := newWalBlockFlush(path, nil)
 
 		file, err := page.file(context.Background())
 		if err != nil {
@@ -119,6 +119,9 @@ func openWALBlock(filename, path string, ingestionSlack, _ time.Duration) (commo
 
 		defer file.Close()
 		pf := file.parquetFile
+
+		// Now allocate the id map once the number of rows is known
+		page.ids = common.NewIDMap[int64](int(pf.NumRows()))
 
 		// iterate the parquet file and build the meta
 		iter := makeIterFunc(context.Background(), pf.RowGroups(), pf)(columnPathTraceID, nil, columnPathTraceID)
@@ -161,7 +164,7 @@ func createWALBlock(meta *backend.BlockMeta, filepath, dataEncoding string, inge
 			ReplicationFactor: meta.ReplicationFactor,
 		},
 		path:           filepath,
-		ids:            common.NewIDMap[int64](),
+		ids:            common.NewIDMap[int64](0),
 		ingestionSlack: ingestionSlack,
 		dedcolsRes:     dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeResource),
 		dedcolsSpan:    dedicatedColumnsToColumnMapping(meta.DedicatedColumns, backend.DedicatedColumnScopeSpan),
@@ -253,7 +256,7 @@ func (w *walBlockFlush) rowIterator() (*rowIterator, error) {
 
 	pf := file.parquetFile
 
-	idx, _ := parquetquery.GetColumnIndexByPath(pf, TraceIDColumnName)
+	idx, _, _ := parquetquery.GetColumnIndexByPath(pf, TraceIDColumnName)
 	r := parquet.NewReader(pf)
 	return newRowIterator(r, file, w.ids.EntriesSortedByID(), idx), nil
 }
@@ -441,7 +444,7 @@ func (b *walBlock) Flush() (err error) {
 	b.writeFlush(newWalBlockFlush(b.file.Name(), b.ids))
 	b.flushedSize += sz
 	b.unflushedSize = 0
-	b.ids = common.NewIDMap[int64]()
+	b.ids = common.NewIDMap[int64](b.ids.Len()) // Recreate new id map with same expected size
 
 	// Open next one
 	return b.openWriter()
@@ -507,10 +510,11 @@ func (b *walBlock) Clear() error {
 	return errs.Err()
 }
 
-func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.Trace, error) {
+func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.SearchOptions) (*tempopb.TraceByIDResponse, error) {
 	ctx, span := tracer.Start(ctx, "walBlock.FindTraceByID")
 	defer span.End()
 
+	metrics := &tempopb.TraceByIDMetrics{}
 	trs := make([]*tempopb.Trace, 0)
 
 	for _, page := range b.flushed {
@@ -540,6 +544,8 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.
 			trp := parquetTraceToTempopbTrace(b.meta, tr)
 
 			trs = append(trs, trp)
+
+			metrics.InspectedBytes += file.r.BytesRead()
 		}
 	}
 
@@ -552,7 +558,11 @@ func (b *walBlock) FindTraceByID(ctx context.Context, id common.ID, opts common.
 	}
 
 	tr, _ := combiner.Result()
-	return tr, nil
+	response := &tempopb.TraceByIDResponse{
+		Trace:   tr,
+		Metrics: metrics,
+	}
+	return response, nil
 }
 
 func (b *walBlock) Search(ctx context.Context, req *tempopb.SearchRequest, _ common.SearchOptions) (*tempopb.SearchResponse, error) {

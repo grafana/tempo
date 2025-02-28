@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/tempo/tempodb/encoding/vparquet4"
+
 	"github.com/go-kit/log"
 	"github.com/golang/protobuf/proto" //nolint:all
 	"github.com/google/uuid"
@@ -118,7 +120,8 @@ func TestDB(t *testing.T) {
 		bFound, failedBlocks, err := r.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax, 0, 0, common.DefaultSearchOptions())
 		assert.NoError(t, err)
 		assert.Nil(t, failedBlocks)
-		assert.True(t, proto.Equal(bFound[0], reqs[i]))
+		assert.True(t, proto.Equal(bFound[0].Trace, reqs[i]))
+		require.Greater(t, bFound[0].Metrics.InspectedBytes, uint64(100000))
 	}
 }
 
@@ -171,7 +174,8 @@ func TestBlockSharding(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, failedBlocks)
 	assert.Greater(t, len(bFound), 0)
-	assert.True(t, proto.Equal(bFound[0], req))
+	assert.True(t, proto.Equal(bFound[0].Trace, req))
+	require.Greater(t, bFound[0].Metrics.InspectedBytes, uint64(10000))
 
 	// check if it respects the blockstart/blockend params - case2: miss
 	blockStart = uuid.MustParse(BlockIDMin).String()
@@ -480,6 +484,7 @@ func TestIncludeCompactedBlock(t *testing.T) {
 }
 
 func TestSearchCompactedBlocks(t *testing.T) {
+	t.Parallel()
 	r, w, c, _ := testConfig(t, backend.EncLZ4_256k, time.Hour)
 
 	err := c.EnableCompaction(context.Background(), &CompactorConfig{
@@ -528,7 +533,8 @@ func TestSearchCompactedBlocks(t *testing.T) {
 		bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, blockID, blockID, 0, 0, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)
-		require.True(t, proto.Equal(bFound[0], reqs[i]))
+		require.True(t, proto.Equal(bFound[0].Trace, reqs[i]))
+		require.Greater(t, bFound[0].Metrics.InspectedBytes, uint64(100000))
 	}
 
 	// compact
@@ -552,7 +558,8 @@ func TestSearchCompactedBlocks(t *testing.T) {
 		bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, blockID, blockID, 0, 0, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.Nil(t, failedBlocks)
-		require.True(t, proto.Equal(bFound[0], reqs[i]))
+		require.True(t, proto.Equal(bFound[0].Trace, reqs[i]))
+		require.Greater(t, bFound[0].Metrics.InspectedBytes, uint64(100000))
 	}
 }
 
@@ -560,6 +567,7 @@ func TestCompleteBlock(t *testing.T) {
 	for _, from := range encoding.AllEncodings() {
 		for _, to := range encoding.AllEncodings() {
 			t.Run(fmt.Sprintf("%s->%s", from.Version(), to.Version()), func(t *testing.T) {
+				t.Parallel()
 				testCompleteBlock(t, from.Version(), to.Version())
 			})
 		}
@@ -609,8 +617,12 @@ func testCompleteBlock(t *testing.T, from, to string) {
 		found, err := complete.FindTraceByID(context.TODO(), id, common.DefaultSearchOptions())
 		require.NoError(t, err)
 		require.NotNil(t, found)
-		trace.SortTrace(found)
-		require.True(t, proto.Equal(found, reqs[i]))
+		trace.SortTrace(found.Trace)
+		require.True(t, proto.Equal(found.Trace, reqs[i]))
+		vparquet4 := vparquet4.Encoding{}.Version()
+		if to == vparquet4 {
+			require.Greater(t, found.Metrics.InspectedBytes, uint64(100000))
+		}
 	}
 }
 

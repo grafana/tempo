@@ -24,9 +24,9 @@ type IDMap[T any] struct {
 	h hash.Hash64
 }
 
-func NewIDMap[T any]() *IDMap[T] {
+func NewIDMap[T any](estimatedCount int) *IDMap[T] {
 	return &IDMap[T]{
-		m: map[uint64]IDMapEntry[T]{},
+		m: make(map[uint64]IDMapEntry[T], estimatedCount),
 		h: fnv.New64(),
 	}
 }

@@ -807,6 +807,7 @@ const (
 	columnPathSpanNestedSetLeft  = "rs.list.element.ss.list.element.Spans.list.element.NestedSetLeft"
 	columnPathSpanNestedSetRight = "rs.list.element.ss.list.element.Spans.list.element.NestedSetRight"
 	columnPathSpanParentID       = "rs.list.element.ss.list.element.Spans.list.element.ParentID"
+	columnPathSpanParentSpanID   = "rs.list.element.ss.list.element.Spans.list.element.ParentSpanID"
 
 	otherEntrySpansetKey = "spanset"
 	otherEntrySpanKey    = "span"
@@ -831,6 +832,7 @@ var intrinsicColumnLookups = map[traceql.Intrinsic]struct {
 	traceql.IntrinsicDuration:             {intrinsicScopeSpan, traceql.TypeDuration, columnPathSpanDuration},
 	traceql.IntrinsicKind:                 {intrinsicScopeSpan, traceql.TypeKind, columnPathSpanKind},
 	traceql.IntrinsicSpanID:               {intrinsicScopeSpan, traceql.TypeString, columnPathSpanID},
+	traceql.IntrinsicParentID:             {intrinsicScopeSpan, traceql.TypeString, columnPathSpanParentSpanID},
 	traceql.IntrinsicSpanStartTime:        {intrinsicScopeSpan, traceql.TypeString, columnPathSpanStartTime},
 	traceql.IntrinsicStructuralDescendant: {intrinsicScopeSpan, traceql.TypeNil, ""}, // Not a real column, this entry is only used to assign default scope.
 	traceql.IntrinsicStructuralChild:      {intrinsicScopeSpan, traceql.TypeNil, ""}, // Not a real column, this entry is only used to assign default scope.
@@ -1490,6 +1492,15 @@ func createSpanIterator(makeIter makeIterFn, primaryIter parquetquery.Iterator, 
 			}
 			addPredicate(columnPathSpanID, pred)
 			columnSelectAs[columnPathSpanID] = columnPathSpanID
+			continue
+
+		case traceql.IntrinsicParentID:
+			pred, err := createBytesPredicate(cond.Op, cond.Operands, true)
+			if err != nil {
+				return nil, err
+			}
+			addPredicate(columnPathSpanParentSpanID, pred)
+			columnSelectAs[columnPathSpanParentSpanID] = columnPathSpanParentSpanID
 			continue
 
 		case traceql.IntrinsicSpanStartTime:
@@ -2269,6 +2280,8 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		case columnPathSpanID:
 			sp.id = kv.Value.ByteArray()
 			sp.addSpanAttr(traceql.IntrinsicSpanIDAttribute, traceql.NewStaticString(util.SpanIDToHexString(kv.Value.ByteArray())))
+		case columnPathSpanParentSpanID:
+			sp.addSpanAttr(traceql.IntrinsicParentIDAttribute, traceql.NewStaticString(util.SpanIDToHexString(kv.Value.ByteArray())))
 		case columnPathSpanStartTime:
 			sp.startTimeUnixNanos = kv.Value.Uint64()
 		case columnPathSpanDuration:
