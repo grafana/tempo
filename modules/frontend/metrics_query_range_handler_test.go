@@ -200,7 +200,4 @@ func TestQueryRangeAccessesCache(t *testing.T) {
 	actualCache := &tempopb.QueryRangeResponse{}
 	err = jsonpb.Unmarshal(bytes.NewReader(bufs[0]), actualCache)
 	require.NoError(t, err)
-
-	// zeroing these out b/c they are set by the sharder and won't be in cache
-	//cacheResponsesEqual(t, actualCache, actualResp)
 }
