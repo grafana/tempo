@@ -144,11 +144,13 @@ func TestBackendScheduler(t *testing.T) {
 		id4 := uuid.New().String()
 		jobs := map[string]*Job{}
 
+		tenant := "test-tenant"
+
 		jobs[id1] = &Job{
 			ID:   id1,
 			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
 			JobDetail: tempopb.JobDetail{
-				Tenant: "test-tenant",
+				Tenant: tenant,
 				Detail: &tempopb.JobDetail_Compaction{
 					Compaction: &tempopb.CompactionDetail{
 						Input: []string{uuid.New().String(), uuid.New().String()},
@@ -161,7 +163,7 @@ func TestBackendScheduler(t *testing.T) {
 			ID:   id2,
 			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
 			JobDetail: tempopb.JobDetail{
-				Tenant: "test-tenant",
+				Tenant: tenant,
 				Detail: &tempopb.JobDetail_Compaction{
 					Compaction: &tempopb.CompactionDetail{
 						Input: []string{uuid.New().String(), uuid.New().String()},
@@ -174,7 +176,7 @@ func TestBackendScheduler(t *testing.T) {
 			ID:   id3,
 			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
 			JobDetail: tempopb.JobDetail{
-				Tenant: "test-tenant",
+				Tenant: tenant,
 				Detail: &tempopb.JobDetail_Compaction{
 					Compaction: &tempopb.CompactionDetail{
 						Input: []string{uuid.New().String(), uuid.New().String()},
@@ -187,7 +189,7 @@ func TestBackendScheduler(t *testing.T) {
 			ID:   id4,
 			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
 			JobDetail: tempopb.JobDetail{
-				Tenant: "test-tenant",
+				Tenant: tenant,
 				Detail: &tempopb.JobDetail_Compaction{
 					Compaction: &tempopb.CompactionDetail{
 						Input: []string{uuid.New().String(), uuid.New().String()},
@@ -274,6 +276,63 @@ func TestBackendScheduler(t *testing.T) {
 		})
 		require.Error(t, err)
 		require.Nil(t, resp)
+
+		// Completed and failed jobs are not cleaned up by this point.
+		currentJobs, err := bs.ListJobs(ctx, tenant)
+		require.NoError(t, err)
+		require.Len(t, currentJobs, 4)
+	})
+
+	t.Run("CRUD operation testing", func(t *testing.T) {
+		id1 := uuid.New().String()
+		tenant := "test-tenant"
+
+		bs, err := New(cfg, store)
+		require.NoError(t, err)
+
+		err = bs.CreateJob(ctx, &Job{
+			ID:   id1,
+			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+			JobDetail: tempopb.JobDetail{
+				Tenant: tenant,
+				Detail: &tempopb.JobDetail_Compaction{
+					Compaction: &tempopb.CompactionDetail{
+						Input: []string{uuid.New().String(), uuid.New().String()},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		currentJobs, err := bs.ListJobs(ctx, tenant)
+		require.NoError(t, err)
+		require.Len(t, currentJobs, 1)
+		require.Equal(t, id1, currentJobs[0].ID)
+		require.Equal(t, tempopb.JobType_JOB_TYPE_COMPACTION, currentJobs[0].Type)
+		require.Equal(t, tenant, currentJobs[0].JobDetail.Tenant)
+
+		resp, err := bs.GetJob(ctx, id1)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.Equal(t, id1, resp.ID)
+		require.Equal(t, tempopb.JobType_JOB_TYPE_COMPACTION, resp.Type)
+		require.Equal(t, tenant, resp.JobDetail.Tenant)
+
+		err = bs.CompleteJob(ctx, id1)
+		require.NoError(t, err)
+
+		resp, err = bs.GetJob(ctx, id1)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.Equal(t, JobStatusCompleted, resp.Status())
+
+		err = bs.FailJob(ctx, id1)
+		require.NoError(t, err)
+
+		resp, err = bs.GetJob(ctx, id1)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.Equal(t, JobStatusFailed, resp.Status())
 	})
 }
 
