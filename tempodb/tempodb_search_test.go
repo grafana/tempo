@@ -97,14 +97,13 @@ func traceQLRunner(t *testing.T, _ *tempopb.Trace, wantMeta *tempopb.TraceSearch
 		{Query: `{ ."res-dedicated.02" = "res-2a" }`},
 		{Query: `{ resource."k8s.namespace.name" = "k8sNamespace" }`},
 	}
-	parentID := util.SpanIDToHexString([]byte{4, 5, 6})
 	parentIDQuery := &tempopb.SearchRequest{
-		Query: fmt.Sprintf("{ span:parentID = %q }", parentID),
+		Query: fmt.Sprintf("{ span:parentID = %q }", "40506"),
 	}
 
 	spanIDTThatMatch := []*tempopb.SearchRequest{
-		{Query: fmt.Sprintf("{ span:id = %q }", util.SpanIDToHexString([]byte{1, 2, 3}))},
-		{Query: fmt.Sprintf("{ span:id = %q }", util.SpanIDToHexString([]byte{4, 5, 6}))},
+		{Query: fmt.Sprintf("{ span:id = %q }", "10203")},
+		{Query: fmt.Sprintf("{ span:id = %q }", "40506")},
 	}
 
 	searchesThatMatch = append(searchesThatMatch, quotedAttributesThatMatch...)
@@ -1830,7 +1829,7 @@ func runEventLinkInstrumentationSearchTest(t *testing.T, blockVersion string) {
 	wantID, wantTr, start, end, wantMeta := makeExpectedTrace()
 	wantIDText := util.TraceIDToHexString(wantID)
 	sixtyFourByteSpanID := util.SpanIDToHexString([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef})
-	shortSpanID := util.SpanIDToHexString([]byte{4, 5, 6})
+	shortSpanID := "40506"
 	shortLinkTraceID := util.TraceIDToHexString([]byte{1, 2, 3})
 
 	searchesThatMatch := []*tempopb.SearchRequest{

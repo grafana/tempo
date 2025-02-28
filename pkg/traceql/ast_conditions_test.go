@@ -110,12 +110,24 @@ func TestSpansetFilter_extractConditions(t *testing.T) {
 			conditions: []Condition{
 				newCondition(NewAttribute("foo"), OpNone),
 			},
+		},
+		{
+			query: `{ span:id = "123" }`,
+			conditions: []Condition{
+				newCondition(NewIntrinsic(IntrinsicSpanID), OpEqual, NewStaticString("0000000000000123")),
+			},
 			allConditions: true,
 		},
 		{
 			query: `{ true || .foo }`,
 			conditions: []Condition{
 				newCondition(NewAttribute("foo"), OpNone),
+			},
+		},
+		{
+			query: `{ link:spanID = "40506" }`,
+			conditions: []Condition{
+				newCondition(NewIntrinsic(IntrinsicLinkSpanID), OpEqual, NewStaticString("0000000000040506")),
 			},
 			allConditions: true,
 		},
