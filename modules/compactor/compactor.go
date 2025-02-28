@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 
 	backendscheduler_client "github.com/grafana/tempo/modules/backendscheduler/client"
@@ -179,12 +180,14 @@ func (c *Compactor) running(ctx context.Context) error {
 		level.Info(log.Logger).Log("msg", "enabling compaction")
 
 		if c.backendScheduler != nil {
+			level.Info(log.Logger).Log("msg", "running compaction with scheduler")
 			// New scheduler-based path
 			err := c.runWithScheduler(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to run with scheduler: %w", err)
 			}
 		} else {
+			level.Info(log.Logger).Log("msg", "running compaction without scheduler")
 			// Original direct compaction path
 			err := c.store.EnableCompaction(ctx, &c.cfg.Compactor, c, c)
 			if err != nil {
@@ -233,7 +236,8 @@ func (c *Compactor) processCompactionJobs(ctx context.Context) error {
 	}
 
 	// Request next job
-	resp, err := c.backendScheduler.Next(ctx, &tempopb.NextJobRequest{
+	// FIXME: the org ID is not used by the backend scheduler, but it is required by the request.
+	resp, err := c.backendScheduler.Next(user.InjectOrgID(ctx, c.workerID), &tempopb.NextJobRequest{
 		WorkerId: c.workerID,
 		Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
 	})
@@ -246,6 +250,8 @@ func (c *Compactor) processCompactionJobs(ctx context.Context) error {
 	if resp.Detail.Tenant == "" {
 		return c.failJob(ctx, resp.JobId, "received job with empty tenant")
 	}
+
+	level.Debug(log.Logger).Log("msg", "received job", "job_id", resp.JobId, "tenant", resp.Detail.Tenant)
 
 	blockMetas := c.store.BlockMetas(resp.Detail.Tenant)
 

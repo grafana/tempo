@@ -15,7 +15,9 @@
 
   // Statefulset
 
-  tempo_backend_scheduler_ports:: [containerPort.new('prom-metrics', $._config.port)],
+  tempo_backend_scheduler_ports:: [
+    containerPort.new('prom-metrics', $._config.port),
+  ],
 
   tempo_backend_scheduler_args:: {
     target: target_name,
@@ -62,7 +64,14 @@
 
   // Service
 
+  local service = k.core.v1.service,
+  local servicePort = k.core.v1.servicePort,
   tempo_backend_scheduler_service:
-    k.util.serviceFor($.tempo_backend_scheduler_statefulset),
+    k.util.serviceFor($.tempo_backend_scheduler_statefulset)
+    + service.mixin.spec.withPortsMixin([
+      servicePort.withName('grpc')
+      + servicePort.withPort(9095)
+      + servicePort.withTargetPort(9095),
+    ]),
 
 }

@@ -53,16 +53,15 @@ import (
 // The various modules that make up tempo.
 const (
 	// utilities
-	Server           string = "server"
-	InternalServer   string = "internal-server"
-	Store            string = "store"
-	OptionalStore    string = "optional-store"
-	MemberlistKV     string = "memberlist-kv"
-	UsageReport      string = "usage-report"
-	Overrides        string = "overrides"
-	OverridesAPI     string = "overrides-api"
-	CacheProvider    string = "cache-provider"
-	BackendScheduler string = "backend-scheduler"
+	Server         string = "server"
+	InternalServer string = "internal-server"
+	Store          string = "store"
+	OptionalStore  string = "optional-store"
+	MemberlistKV   string = "memberlist-kv"
+	UsageReport    string = "usage-report"
+	Overrides      string = "overrides"
+	OverridesAPI   string = "overrides-api"
+	CacheProvider  string = "cache-provider"
 
 	// rings
 	IngesterRing          string = "ring"
@@ -80,6 +79,7 @@ const (
 	QueryFrontend                 string = "query-frontend"
 	Compactor                     string = "compactor"
 	BlockBuilder                  string = "block-builder"
+	BackendScheduler              string = "backend-scheduler"
 
 	// composite targets
 	SingleBinary         string = "all"

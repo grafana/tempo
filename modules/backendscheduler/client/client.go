@@ -2,6 +2,7 @@ package client
 
 import (
 	"flag"
+	"fmt"
 	"io"
 
 	"github.com/grafana/dskit/grpcclient"
@@ -35,6 +36,10 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 
 // New returns a new backendscheduler client.
 func New(addr string, cfg Config) (*Client, error) {
+	if addr == "" {
+		return nil, fmt.Errorf("backend scheduler address is required")
+	}
+
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
