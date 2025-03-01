@@ -97,7 +97,7 @@ func AllEncodings() []VersionedEncoding {
 	}
 }
 
-// OpenBlock for reading in the backend. It automatically chooes the encoding for the given block.
+// OpenBlock for reading in the backend. It automatically chooses the encoding for the given block.
 func OpenBlock(meta *backend.BlockMeta, r backend.Reader) (common.BackendBlock, error) {
 	v, err := FromVersion(meta.Version)
 	if err != nil {
