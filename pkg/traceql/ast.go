@@ -1352,6 +1352,7 @@ func (a *MetricsAggregate) validate() error {
 	case metricsAggregateCountOverTime:
 	case metricsAggregateMinOverTime:
 	case metricsAggregateMaxOverTime:
+	case metricsAggregateSumOverTime:
 	case metricsAggregateRate:
 	case metricsAggregateHistogramOverTime:
 		if len(a.by) >= maxGroupBys {

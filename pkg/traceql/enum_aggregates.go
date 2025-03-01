@@ -57,6 +57,7 @@ const (
 	metricsAggregateMinOverTime
 	metricsAggregateMaxOverTime
 	metricsAggregateAvgOverTime
+	metricsAggregateSumOverTime
 	metricsAggregateQuantileOverTime
 	metricsAggregateHistogramOverTime
 )
@@ -73,6 +74,8 @@ func (a MetricsAggregateOp) String() string {
 		return "max_over_time"
 	case metricsAggregateAvgOverTime:
 		return "avg_over_time"
+	case metricsAggregateSumOverTime:
+		return "sum_over_time"
 	case metricsAggregateQuantileOverTime:
 		return "quantile_over_time"
 	case metricsAggregateHistogramOverTime:
