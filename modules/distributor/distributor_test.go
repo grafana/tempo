@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"maps"
 	"math/rand"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -23,13 +24,18 @@ import (
 	"github.com/grafana/dskit/ring"
 	ring_client "github.com/grafana/dskit/ring/client"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/modules/generator"
+	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/twmb/franz-go/pkg/kfake"
+	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/grafana/tempo/modules/distributor/receiver"
 	generator_client "github.com/grafana/tempo/modules/generator/client"
@@ -1641,6 +1647,102 @@ func TestIngesterPushBytes(t *testing.T) {
 	assert.Equal(t, maxLiveDiscardedCount, 35)
 }
 
+func TestPushTracesSkipMetricsGenerationIngestStorage(t *testing.T) {
+	const topic = "test-topic"
+
+	kafka, err := kfake.NewCluster(kfake.NumBrokers(1), kfake.AllowAutoTopicCreation())
+	require.NoError(t, err)
+	t.Cleanup(kafka.Close)
+
+	limitCfg := overrides.Config{}
+	limitCfg.RegisterFlagsAndApplyDefaults(&flag.FlagSet{})
+
+	distributorCfg, ingesterClientCfg, overridesSvc, _,
+		ingesterRing, limits, middleware := setupDependencies(t, limitCfg)
+
+	distributorCfg.KafkaWritePathEnabled = true
+	distributorCfg.KafkaConfig = ingest.KafkaConfig{}
+	distributorCfg.KafkaConfig.RegisterFlags(&flag.FlagSet{})
+	distributorCfg.KafkaConfig.Address = kafka.ListenAddrs()[0]
+	distributorCfg.KafkaConfig.Topic = topic
+
+	d, err := New(
+		distributorCfg,
+		ingesterClientCfg,
+		ingesterRing,
+		generator_client.Config{},
+		nil,
+		singlePartitionRingReader{},
+		overridesSvc,
+		middleware,
+		kitlog.NewLogfmtLogger(os.Stdout),
+		limits,
+		prometheus.NewRegistry(),
+	)
+	require.NoError(t, err)
+
+	traces := batchesToTraces(t, []*v1.ResourceSpans{test.MakeBatch(10, nil)})
+
+	reader, err := kgo.NewClient(kgo.SeedBrokers(kafka.ListenAddrs()...), kgo.ConsumeTopics(topic))
+	require.NoError(t, err)
+
+	t.Run("with no-generate-metrics header", func(t *testing.T) {
+		// Inject the header into the incoming context. In a real call this would be done
+		// by the gRPC server logic if the client sends that header in the outgoing
+		// context.
+		ctx := metadata.NewIncomingContext(ctx, metadata.Pairs(generator.NoGenerateMetricsContextKey, ""))
+		_, err = d.PushTraces(ctx, traces)
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		var recordProcessed bool
+		fetches := reader.PollFetches(ctx)
+		fetches.EachRecord(func(record *kgo.Record) {
+			recordProcessed = true
+			req, err := ingest.NewDecoder().Decode(record.Value)
+			require.NoError(t, err)
+			require.True(t, req.SkipMetricsGeneration)
+
+			reqs, err := ingest.NewPushBytesDecoder().Decode(record.Value)
+			require.NoError(t, err)
+			for req, err := range reqs {
+				require.NoError(t, err)
+				require.True(t, req.SkipMetricsGeneration)
+			}
+		})
+		// Expect that we've fetched at least one record.
+		require.True(t, recordProcessed)
+	})
+
+	t.Run("without no-generate-metrics header", func(t *testing.T) {
+		_, err = d.PushTraces(ctx, traces)
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		var recordProcessed bool
+		fetches := reader.PollFetches(ctx)
+		fetches.EachRecord(func(record *kgo.Record) {
+			recordProcessed = true
+			req, err := ingest.NewDecoder().Decode(record.Value)
+			require.NoError(t, err)
+			require.False(t, req.SkipMetricsGeneration)
+
+			reqs, err := ingest.NewPushBytesDecoder().Decode(record.Value)
+			require.NoError(t, err)
+			for req, err := range reqs {
+				require.NoError(t, err)
+				require.False(t, req.SkipMetricsGeneration)
+			}
+		})
+		// Expect that we've fetched at least one record.
+		require.True(t, recordProcessed)
+	})
+}
+
 type testLogSpan struct {
 	Msg                string `json:"msg"`
 	Level              string `json:"level"`
@@ -1726,6 +1828,16 @@ func prepare(t *testing.T, limits overrides.Config, logger kitlog.Logger) (*Dist
 		logger = kitlog.NewNopLogger()
 	}
 
+	distributorConfig, clientConfig, overrides, ingesters, ingestersRing, l, mw := setupDependencies(t, limits)
+	d, err := New(distributorConfig, clientConfig, ingestersRing, generator_client.Config{}, nil, nil, overrides, mw, logger, l, prometheus.NewPedanticRegistry())
+	require.NoError(t, err)
+
+	return d, ingesters
+}
+
+func setupDependencies(t *testing.T, limits overrides.Config) (Config, ingester_client.Config, overrides.Service, map[string]*mockIngester, *mockRing, dslog.Level, receiver.Middleware) {
+	t.Helper()
+
 	var (
 		distributorConfig Config
 		clientConfig      ingester_client.Config
@@ -1765,10 +1877,8 @@ func prepare(t *testing.T, limits overrides.Config, logger kitlog.Logger) (*Dist
 	l := dslog.Level{}
 	_ = l.Set("error")
 	mw := receiver.MultiTenancyMiddleware()
-	d, err := New(distributorConfig, clientConfig, ingestersRing, generator_client.Config{}, nil, nil, overrides, mw, logger, l, prometheus.NewPedanticRegistry())
-	require.NoError(t, err)
 
-	return d, ingesters
+	return distributorConfig, clientConfig, overrides, ingesters, ingestersRing, l, mw
 }
 
 type mockIngester struct {
@@ -1897,4 +2007,15 @@ func (r mockRing) InstancesWithTokensInZoneCount(_ string) int {
 
 func (r mockRing) ZonesCount() int {
 	return 0
+}
+
+type singlePartitionRingReader struct{}
+
+func (m singlePartitionRingReader) PartitionRing() *ring.PartitionRing {
+	desc := ring.PartitionRingDesc{
+		Partitions: map[int32]ring.PartitionDesc{
+			0: {Id: 0, Tokens: []uint32{0}, State: ring.PartitionActive},
+		},
+	}
+	return ring.NewPartitionRing(desc)
 }

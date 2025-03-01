@@ -19,9 +19,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"go.opentelemetry.io/collector/client"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/atomic"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/grafana/tempo/modules/generator/storage"
 	objStorage "github.com/grafana/tempo/modules/storage"
@@ -38,6 +40,12 @@ const (
 	// We use a safe default instead of exposing to config option to the user
 	// in order to simplify the config.
 	ringNumTokens = 256
+
+	// NoGenerateMetricsContextKey is used in request contexts/headers to signal to
+	// the metrics generator that it should not generate metrics for the spans
+	// contained in the requests. This is intended to be used by clients that send
+	// requests for which span-derived metrics have already been generated elsewhere.
+	NoGenerateMetricsContextKey = "no-generate-metrics"
 )
 
 var tracer = otel.Tracer("modules/generator")
@@ -358,7 +366,7 @@ func (g *Generator) createInstance(id string) (*instance, error) {
 		}
 	}
 
-	inst, err := newInstance(g.cfg, id, g.overrides, wal, reg, g.logger, tracesWAL, tracesQueryWAL, g.store)
+	inst, err := newInstance(g.cfg, id, g.overrides, wal, g.logger, tracesWAL, tracesQueryWAL, g.store)
 	if err != nil {
 		_ = wal.Close()
 		return nil, err
@@ -447,4 +455,21 @@ func (g *Generator) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	}
 
 	return instance.QueryRange(ctx, req)
+}
+
+// ExtractNoGenerateMetrics checks for presence of context keys that indicate no
+// span-derived metrics should be generated for the request. If any such context
+// key is present, this will return true, otherwise it will return false.
+func ExtractNoGenerateMetrics(ctx context.Context) bool {
+	// check gRPC context
+	if len(metadata.ValueFromIncomingContext(ctx, NoGenerateMetricsContextKey)) > 0 {
+		return true
+	}
+
+	// check http context
+	if len(client.FromContext(ctx).Metadata.Get(NoGenerateMetricsContextKey)) > 0 {
+		return true
+	}
+
+	return false
 }
