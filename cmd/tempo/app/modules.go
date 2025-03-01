@@ -23,6 +23,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
+	"github.com/grafana/tempo/modules/backendscheduler"
 	"github.com/grafana/tempo/modules/blockbuilder"
 	"github.com/grafana/tempo/modules/cache"
 	"github.com/grafana/tempo/modules/compactor"
@@ -78,6 +79,7 @@ const (
 	QueryFrontend                 string = "query-frontend"
 	Compactor                     string = "compactor"
 	BlockBuilder                  string = "block-builder"
+	BackendScheduler              string = "backend-scheduler"
 
 	// composite targets
 	SingleBinary         string = "all"
@@ -550,7 +552,7 @@ func (t *App) initCompactor() (services.Service, error) {
 		t.cfg.Compactor.ShardingRing.KVStore.Store = "memberlist"
 	}
 
-	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.Overrides, prometheus.DefaultRegisterer)
+	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.Overrides, t.cfg.BackenSchedulerClient, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compactor: %w", err)
 	}
@@ -676,6 +678,31 @@ func (t *App) initCacheProvider() (services.Service, error) {
 	return c, nil
 }
 
+func (t *App) initBackendScheduler() (services.Service, error) {
+	// If not enabled, return idle service
+	if !t.cfg.BackendScheduler.Enabled {
+		return services.NewIdleService(nil, nil), nil
+	}
+
+	scheduler, err := backendscheduler.New(t.cfg.BackendScheduler, t.store)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create backend scheduler: %w", err)
+	}
+
+	// Register the GRPC service
+	tempopb.RegisterBackendSchedulerServer(t.Server.GRPC(), scheduler)
+
+	// TODO:
+	// Add HTTP endpoints if needed
+	// t.Server.HTTPRouter().Path("/scheduler/status").Handler(
+	// 	t.HTTPAuthMiddleware.Wrap(
+	// 		http.HandlerFunc(scheduler.StatusHandler),
+	// 	),
+	// )
+
+	return scheduler, nil
+}
+
 func (t *App) setupModuleManager() error {
 	mm := modules.NewManager(log.Logger)
 
@@ -707,6 +734,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(MetricsGenerator, t.initGenerator)
 	mm.RegisterModule(MetricsGeneratorNoLocalBlocks, t.initGeneratorNoLocalBlocks)
 	mm.RegisterModule(BlockBuilder, t.initBlockBuilder)
+	mm.RegisterModule(BackendScheduler, t.initBackendScheduler)
 
 	mm.RegisterModule(SingleBinary, nil)
 	mm.RegisterModule(ScalableSingleBinary, nil)
@@ -737,6 +765,7 @@ func (t *App) setupModuleManager() error {
 		Querier:                       {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
 		Compactor:                     {Common, Store, MemberlistKV},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
+		BackendScheduler:              {Common, Store},
 
 		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator, BlockBuilder},
