@@ -360,28 +360,29 @@ func (c *CountOverTimeAggregator) Sample() float64 {
 // calculate the rate when given a multiplier.
 type OverTimeAggregator struct {
 	getSpanAttValue func(s Span) float64
-	agg             func(current, new float64) float64
+	agg             func(current, n float64) float64
 	val             float64
+	comp            float64 // Compensation. For operations that require adding floats
 }
 
 var _ VectorAggregator = (*OverTimeAggregator)(nil)
 
 func NewOverTimeAggregator(attr Attribute, op SimpleAggregationOp) *OverTimeAggregator {
 	var fn func(s Span) float64
-	var agg func(current, new float64) float64
+	var agg func(current, n float64) float64
 
 	switch op {
 	case maxAggregation:
-		agg = func(current, new float64) float64 {
-			if math.IsNaN(current) || new > current {
-				return new
+		agg = func(current, n float64) float64 {
+			if math.IsNaN(current) || n > current {
+				return n
 			}
 			return current
 		}
 	case minAggregation:
-		agg = func(current, new float64) float64 {
-			if math.IsNaN(current) || new < current {
-				return new
+		agg = func(current, n float64) float64 {
+			if math.IsNaN(current) || n < current {
+				return n
 			}
 			return current
 		}
@@ -807,7 +808,7 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 // Dedupe spans parameter is an indicator of whether to expect duplicates in the datasource. For
 // example if the datasource is replication factor=1 or only a single block then we know there
 // aren't duplicates, and we can make some optimizations.
-func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exemplars int, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvalulator, error) {
+func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exemplars int, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvaluator, error) {
 	if req.Start <= 0 {
 		return nil, fmt.Errorf("start required")
 	}
@@ -837,7 +838,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 	// This initializes all step buffers, counters, etc
 	metricsPipeline.init(req, AggregateModeRaw)
 
-	me := &MetricsEvalulator{
+	me := &MetricsEvaluator{
 		storageReq:        storageReq,
 		metricsPipeline:   metricsPipeline,
 		timeOverlapCutoff: timeOverlapCutoff,
@@ -965,7 +966,7 @@ func lookup(needles []Attribute, haystack Span) Static {
 	return NewStaticNil()
 }
 
-type MetricsEvalulator struct {
+type MetricsEvaluator struct {
 	start, end                      uint64
 	checkTime                       bool
 	maxExemplars, exemplarCount     int
@@ -990,7 +991,7 @@ func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
 
 // Do metrics on the given source of data and merge the results into the working set.  Optionally, if provided,
 // uses the known time range of the data for last-minute optimizations. Time range is unix nanos
-func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64) error {
+func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64) error {
 	// Make a copy of the request so we can modify it.
 	storageReq := *e.storageReq
 
@@ -1064,18 +1065,18 @@ func (e *MetricsEvalulator) Do(ctx context.Context, f SpansetFetcher, fetcherSta
 	return nil
 }
 
-func (e *MetricsEvalulator) Metrics() (uint64, uint64, uint64) {
+func (e *MetricsEvaluator) Metrics() (uint64, uint64, uint64) {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 
 	return e.bytes, e.spansTotal, e.spansDeduped
 }
 
-func (e *MetricsEvalulator) Results() SeriesSet {
+func (e *MetricsEvaluator) Results() SeriesSet {
 	return e.metricsPipeline.result()
 }
 
-func (e *MetricsEvalulator) sampleExemplar(id []byte) bool {
+func (e *MetricsEvaluator) sampleExemplar(id []byte) bool {
 	if len(e.exemplarMap) >= e.maxExemplars {
 		return false
 	}
