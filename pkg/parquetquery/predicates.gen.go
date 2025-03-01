@@ -1021,7 +1021,7 @@ func (p ByteEqualPredicate) KeepPage(page pq.Page) bool {
 
 func (p ByteEqualPredicate) KeepValue(v pq.Value) bool {
 	vv := v.ByteArray()
-	return bytes.Equal(bytes.TrimLeft(vv, "\x00"), p.value)
+	return bytes.Equal(vv, p.value)
 }
 
 var _ Predicate = (*ByteNotEqualPredicate)(nil)
@@ -1072,5 +1072,69 @@ func (p ByteNotEqualPredicate) KeepPage(page pq.Page) bool {
 
 func (p ByteNotEqualPredicate) KeepValue(v pq.Value) bool {
 	vv := v.ByteArray()
-	return !bytes.Equal(bytes.TrimLeft(vv, "\x00"), p.value)
+	return !bytes.Equal(vv, p.value)
+}
+
+var _ Predicate = (*NoRangeByteEqualPredicate)(nil)
+
+type NoRangeByteEqualPredicate struct {
+	value []byte
+}
+
+func NewNoRangeByteEqualPredicate(val []byte) NoRangeByteEqualPredicate {
+	return NoRangeByteEqualPredicate{value: val}
+}
+
+func (p NoRangeByteEqualPredicate) String() string {
+	return fmt.Sprintf("NoRangeByteEqualPredicate{%s}", p.value)
+}
+
+func (p NoRangeByteEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	if d := c.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+
+	return true
+}
+
+func (p NoRangeByteEqualPredicate) KeepPage(page pq.Page) bool {
+
+	return true
+}
+
+func (p NoRangeByteEqualPredicate) KeepValue(v pq.Value) bool {
+	vv := v.ByteArray()
+	return bytes.Equal(bytes.TrimLeft(vv, "\x00"), bytes.TrimLeft(p.value, "\x00"))
+}
+
+var _ Predicate = (*NoRangeByteNotEqualPredicate)(nil)
+
+type NoRangeByteNotEqualPredicate struct {
+	value []byte
+}
+
+func NewNoRangeByteNotEqualPredicate(val []byte) NoRangeByteNotEqualPredicate {
+	return NoRangeByteNotEqualPredicate{value: val}
+}
+
+func (p NoRangeByteNotEqualPredicate) String() string {
+	return fmt.Sprintf("NoRangeByteNotEqualPredicate{%s}", p.value)
+}
+
+func (p NoRangeByteNotEqualPredicate) KeepColumnChunk(c *ColumnChunkHelper) bool {
+	if d := c.Dictionary(); d != nil {
+		return keepDictionary(d, p.KeepValue)
+	}
+
+	return true
+}
+
+func (p NoRangeByteNotEqualPredicate) KeepPage(page pq.Page) bool {
+
+	return true
+}
+
+func (p NoRangeByteNotEqualPredicate) KeepValue(v pq.Value) bool {
+	vv := v.ByteArray()
+	return !bytes.Equal(bytes.TrimLeft(vv, "\x00"), bytes.TrimLeft(p.value, "\x00"))
 }
