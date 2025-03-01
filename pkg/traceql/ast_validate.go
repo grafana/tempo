@@ -25,7 +25,17 @@ func (r RootExpr) validate() error {
 	}
 
 	if r.MetricsPipeline != nil {
-		return r.MetricsPipeline.validate()
+		err := r.MetricsPipeline.validate()
+		if err != nil {
+			return err
+		}
+	}
+
+	if r.MetricsSecondStage != nil {
+		err := r.MetricsSecondStage.validate()
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
