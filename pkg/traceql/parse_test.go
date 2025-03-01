@@ -1410,7 +1410,7 @@ func TestMetrics(t *testing.T) {
 			in: `{ } | sum_over_time(duration) by(name, span.http.status_code)`,
 			expected: newRootExprWithMetrics(
 				newPipeline(newSpansetFilter(NewStaticBool(true))),
-				newAverageOverTimeMetricsAggregator(
+				newMetricsAggregateWithAttr(metricsAggregateSumOverTime,
 					NewIntrinsic(IntrinsicDuration),
 					[]Attribute{
 						NewIntrinsic(IntrinsicName),

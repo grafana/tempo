@@ -362,7 +362,6 @@ type OverTimeAggregator struct {
 	getSpanAttValue func(s Span) float64
 	agg             func(current, n float64) float64
 	val             float64
-	comp            float64 // Compensation. For operations that require adding floats
 }
 
 var _ VectorAggregator = (*OverTimeAggregator)(nil)
@@ -372,20 +371,12 @@ func NewOverTimeAggregator(attr Attribute, op SimpleAggregationOp) *OverTimeAggr
 	var agg func(current, n float64) float64
 
 	switch op {
-	case maxAggregation:
-		agg = func(current, n float64) float64 {
-			if math.IsNaN(current) || n > current {
-				return n
-			}
-			return current
-		}
-	case minAggregation:
-		agg = func(current, n float64) float64 {
-			if math.IsNaN(current) || n < current {
-				return n
-			}
-			return current
-		}
+	case maxOverTimeAggregation:
+		agg = maxOverTime()
+	case minOverTimeAggregation:
+		agg = minOverTime()
+	case sumOverTimeAggregation:
+		agg = sumOverTime()
 	}
 
 	switch attr {
@@ -1125,8 +1116,9 @@ type SimpleAggregationOp int
 
 const (
 	sumAggregation SimpleAggregationOp = iota
-	minAggregation
-	maxAggregation
+	minOverTimeAggregation
+	maxOverTimeAggregation
+	sumOverTimeAggregation
 )
 
 type SimpleAggregator struct {
@@ -1143,23 +1135,16 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *
 	var initWithNaN bool
 	var f func(existingValue float64, newValue float64) float64
 	switch op {
-	case minAggregation:
+	case minOverTimeAggregation:
 		// Simple min aggregator. It calculates the minimum between existing values and a new sample
-		f = func(existingValue float64, newValue float64) float64 {
-			if math.IsNaN(existingValue) || newValue < existingValue {
-				return newValue
-			}
-			return existingValue
-		}
+		f = minOverTime()
 		initWithNaN = true
-	case maxAggregation:
+	case maxOverTimeAggregation:
 		// Simple max aggregator. It calculates the maximum between existing values and a new sample
-		f = func(existingValue float64, newValue float64) float64 {
-			if math.IsNaN(existingValue) || newValue > existingValue {
-				return newValue
-			}
-			return existingValue
-		}
+		f = maxOverTime()
+		initWithNaN = true
+	case sumOverTimeAggregation:
+		f = sumOverTime()
 		initWithNaN = true
 	default:
 		// Simple addition aggregator. It adds existing values with the new sample.
