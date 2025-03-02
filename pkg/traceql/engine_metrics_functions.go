@@ -4,16 +4,14 @@ import "math"
 
 func sumOverTime() func(curr float64, n float64) (res float64) {
 	var comp float64 // Kahan compensation
-	return func(curr, n float64) (res float64) {
-		if math.IsNaN(curr) {
-			return n
+	return func(sum, inc float64) (res float64) {
+		if math.IsNaN(sum) {
+			return inc
 		}
-		sum, c := kahanSumInc(n, curr, comp)
+		y := inc - comp
+		sum, c := kahanSumInc(y, sum, 0) // Compensation is applied on every step, hence we pass 0 to reset it
 		comp = c
-		if math.IsInf(sum, 0) {
-			return sum
-		}
-		return sum + c
+		return sum
 	}
 }
 
