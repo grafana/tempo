@@ -71,7 +71,7 @@ Refer to [Solve problems using metrics queries](ref:solve-problems-mq) for some 
 
 ### Functions
 
-TraceQL metrics queries currently include the following functions for aggregating over groups of spans: `rate`, `count_over_time`, `max_over_time`, `min_over_time`, `avg_over_time`, `quantile_over_time`, `histogram_over_time`, and `compare`.
+TraceQL metrics queries currently include the following functions for aggregating over groups of spans: `rate`, `count_over_time`,`sum_over_time`, `max_over_time`, `min_over_time`, `avg_over_time`, `quantile_over_time`, `histogram_over_time`, and `compare`.
 These functions can be added as an operator at the end of any TraceQL query.
 
 For detailed information and example queries for each function, refer to [TraceQL metrics functions](ref:mq-functions).
