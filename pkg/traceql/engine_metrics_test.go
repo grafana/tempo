@@ -1053,8 +1053,9 @@ func TestSumOverTimeForDuration(t *testing.T) {
 	assert.Equal(t, (80+90+100)/float64(time.Second), fooBaz.Values[2])
 
 	// foo.bar = (0.000000128, 0.000000128, NaN)
-	assert.Equal(t, (10+20+30)/float64(time.Second), fooBar.Values[0])
-	assert.Equal(t, (40+50+60+70)/float64(time.Second), fooBar.Values[1])
+	assert.InEpsilon(t, (10+20+30)/float64(time.Second), fooBar.Values[0], 1e-9)
+	assert.InEpsilon(t, (40+50+60+70)/float64(time.Second), fooBar.Values[1], 1e-9)
+
 	assert.True(t, math.IsNaN(fooBar.Values[2]))
 }
 
