@@ -1,14 +1,14 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package queue // import "go.opentelemetry.io/collector/exporter/internal/queue"
+package batcher // import "go.opentelemetry.io/collector/exporter/exporterhelper/internal/batcher"
 
 import (
 	"context"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/exporter/exporterhelper/internal/request"
 	"go.opentelemetry.io/collector/exporter/exporterqueue"
-	"go.opentelemetry.io/collector/exporter/internal"
 )
 
 // disabledBatcher is a special-case of Batcher that has no size limit for sending. Any items read from the queue will
@@ -19,10 +19,10 @@ type disabledBatcher[T any] struct {
 	exportFunc func(context.Context, T) error
 }
 
-func (db *disabledBatcher[T]) Consume(ctx context.Context, req T, done exporterqueue.DoneCallback) {
-	done(db.exportFunc(ctx, req))
+func (db *disabledBatcher[T]) Consume(ctx context.Context, req T, done exporterqueue.Done) {
+	done.OnDone(db.exportFunc(ctx, req))
 }
 
-func newDisabledBatcher(exportFunc func(ctx context.Context, req internal.Request) error) Batcher {
-	return &disabledBatcher[internal.Request]{exportFunc: exportFunc}
+func newDisabledBatcher(exportFunc func(ctx context.Context, req request.Request) error) Batcher {
+	return &disabledBatcher[request.Request]{exportFunc: exportFunc}
 }
