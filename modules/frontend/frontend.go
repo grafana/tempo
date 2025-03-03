@@ -355,7 +355,6 @@ func multiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) pipeline.As
 // blockMetasForSearch returns a list of blocks that are relevant to the search query.
 // start and end are unix timestamps in seconds. rf is the replication factor of the blocks to return.
 func blockMetasForSearch(allBlocks []*backend.BlockMeta, start, end time.Time, rf uint32) []*backend.BlockMeta {
-
 	blocks := make([]*backend.BlockMeta, 0, len(allBlocks)/50) // divide by 50 for luck
 	for _, m := range allBlocks {
 		if m.StartTime.Compare(end) <= 0 && // start time is before or equal to end
