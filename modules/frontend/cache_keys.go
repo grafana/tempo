@@ -3,6 +3,7 @@ package frontend
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -15,16 +16,20 @@ const (
 )
 
 func searchJobCacheKey(tenant string, queryHash uint64, start int64, end int64, meta *backend.BlockMeta, startPage, pagesToSearch int) string {
-	return cacheKey(cacheKeyPrefixSearchJob, tenant, queryHash, start, end, meta, startPage, pagesToSearch)
+	startTime := time.Unix(start, 0)
+	endTime := time.Unix(end, 0)
+	return cacheKey(cacheKeyPrefixSearchJob, tenant, queryHash, startTime, endTime, meta, startPage, pagesToSearch)
 }
 
 func queryRangeCacheKey(tenant string, queryHash uint64, start int64, end int64, meta *backend.BlockMeta, startPage, pagesToSearch int) string {
-	return cacheKey(cacheKeyPrefixQueryRange, tenant, queryHash, start, end, meta, startPage, pagesToSearch)
+	startTime := time.Unix(0, start) // query range start/end are in nanoseconds
+	endTime := time.Unix(0, end)
+	return cacheKey(cacheKeyPrefixQueryRange, tenant, queryHash, startTime, endTime, meta, startPage, pagesToSearch)
 }
 
 // cacheKey returns a string that can be used as a cache key for a backend search job. if a valid key cannot be calculated
 // it returns an empty string.
-func cacheKey(prefix string, tenant string, queryHash uint64, start int64, end int64, meta *backend.BlockMeta, startPage, pagesToSearch int) string {
+func cacheKey(prefix string, tenant string, queryHash uint64, start, end time.Time, meta *backend.BlockMeta, startPage, pagesToSearch int) string {
 	// if the query hash is 0 we can't cache. this may occur if the user is using the old search api
 	if queryHash == 0 {
 		return ""
@@ -32,8 +37,8 @@ func cacheKey(prefix string, tenant string, queryHash uint64, start int64, end i
 
 	// unless the search range completely encapsulates the block range we can't cache. this is b/c different search ranges will return different results
 	// for a given block unless the search range covers the entire block
-	if !(meta.StartTime.Unix() > start &&
-		meta.EndTime.Unix() < end) {
+	if !(meta.StartTime.Before(start) &&
+		meta.EndTime.After(end)) {
 		return ""
 	}
 

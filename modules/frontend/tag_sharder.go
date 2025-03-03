@@ -290,7 +290,9 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 				continue
 			}
 
-			key := cacheKey(keyPrefix, tenantID, hash, int64(searchReq.start()), int64(searchReq.end()), m, startPage, pages)
+			startTime := time.Unix(int64(searchReq.start()), 0)
+			endTime := time.Unix(int64(searchReq.end()), 0)
+			key := cacheKey(keyPrefix, tenantID, hash, startTime, endTime, m, startPage, pages)
 			pipelineR.SetCacheKey(key)
 
 			select {
