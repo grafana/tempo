@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"google.golang.org/grpc/codes"
 )
@@ -52,6 +53,13 @@ func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[com
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
 		})
+
+		// Add intrinsics first so that they aren't dropped by the response size limit
+		if req.Scope == "" || req.Scope == api.ParamScopeIntrinsic {
+			comb.AddTypedResponse(&tempopb.SearchTagsResponse{
+				TagNames: search.GetVirtualIntrinsicValues(),
+			})
+		}
 
 		start := time.Now()
 		logTagsRequest(logger, tenant, "SearchTagsStreaming", req.Scope, req.End-req.Start)
@@ -85,6 +93,18 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
 		})
+
+		// Add intrinsics first so that they aren't dropped by the response size limit
+		if req.Scope == "" || req.Scope == api.ParamScopeIntrinsic {
+			comb.AddTypedResponse(&tempopb.SearchTagsV2Response{
+				Scopes: []*tempopb.SearchTagsV2Scope{
+					{
+						Name: api.ParamScopeIntrinsic,
+						Tags: search.GetVirtualIntrinsicValues(),
+					},
+				},
+			})
+		}
 
 		start := time.Now()
 		logTagsRequest(logger, tenant, "SearchTagsV2Streaming", req.Scope, req.End-req.Start)
@@ -190,6 +210,14 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 		scope, _, rangeDur, maxTagsPerScope, staleValueThreshold := parseParams(req)
 		// build and use round tripper
 		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope, staleValueThreshold)
+
+		// Add intrinsics first so that they aren't dropped by the response size limit
+		if scope == "" || scope == api.ParamScopeIntrinsic {
+			comb.AddTypedResponse(&tempopb.SearchTagsResponse{
+				TagNames: search.GetVirtualIntrinsicValues(),
+			})
+		}
+
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 		start := time.Now()
 		logTagsRequest(logger, tenant, "SearchTags", scope, rangeDur)
@@ -224,6 +252,19 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		scope, _, rangeDur, maxTagsPerScope, staleValueThreshold := parseParams(req)
 		// build and use round tripper
 		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope, staleValueThreshold)
+
+		// Add intrinsics first so that they aren't dropped by the response size limit
+		if scope == "" || scope == api.ParamScopeIntrinsic {
+			comb.AddTypedResponse(&tempopb.SearchTagsV2Response{
+				Scopes: []*tempopb.SearchTagsV2Scope{
+					{
+						Name: api.ParamScopeIntrinsic,
+						Tags: search.GetVirtualIntrinsicValues(),
+					},
+				},
+			})
+		}
+
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 		start := time.Now()
 		logTagsRequest(logger, tenant, "SearchTagsV2", scope, rangeDur)

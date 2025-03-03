@@ -18,7 +18,9 @@ import (
 	"github.com/gogo/status"
 	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/test"
 	"github.com/grafana/tempo/tempodb/backend"
@@ -165,6 +167,51 @@ func runnerTagValuesV2ClientCancelContext(t *testing.T, f *QueryFrontend) {
 	}
 	err := f.streamingTagValuesV2(grpcReq, srv)
 	require.Equal(t, status.Error(codes.Canceled, "context canceled"), err)
+}
+
+func TestSearchTagsV2AlwaysReturnsIntrinsics(t *testing.T) {
+	// Default response from the internal requests
+	mockScope := "span"
+	mockTags := []string{"foo", "bar"}
+
+	next := &mockRoundTripper{
+		responseFn: func() proto.Message {
+			return &tempopb.SearchTagsV2Response{
+				Scopes: []*tempopb.SearchTagsV2Scope{
+					{
+						Name: mockScope,
+						Tags: mockTags,
+					},
+				},
+			}
+		},
+	}
+
+	f := frontendWithSettings(t, next, nil, nil, nil)
+
+	// http
+	httpReq := httptest.NewRequest("GET", "/api/v2/search/tags", nil)
+	httpResp := httptest.NewRecorder()
+
+	ctx, cancel := context.WithCancel(httpReq.Context())
+	defer cancel()
+	ctx = user.InjectOrgID(ctx, "tenant")
+	httpReq = httpReq.WithContext(ctx)
+
+	f.SearchTagsV2Handler.ServeHTTP(httpResp, httpReq)
+	require.Equal(t, http.StatusOK, httpResp.Code)
+
+	resp := &tempopb.SearchTagsV2Response{}
+	bytesResp, err := io.ReadAll(httpResp.Body)
+	require.NoError(t, err)
+	err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), resp)
+
+	require.NoError(t, err)
+	require.Equal(t, 2, len(resp.Scopes))
+	require.Equal(t, api.ParamScopeIntrinsic, resp.Scopes[0].Name)
+	require.Equal(t, mockScope, resp.Scopes[1].Name)
+	require.ElementsMatch(t, search.GetVirtualIntrinsicValues(), resp.Scopes[0].Tags)
+	require.ElementsMatch(t, mockTags, resp.Scopes[1].Tags)
 }
 
 // todo: a lot of code is replicated between all of these "failure propagates from queriers" tests. we should refactor
