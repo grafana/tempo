@@ -56,9 +56,12 @@ func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[com
 
 		// Add intrinsics first so that they aren't dropped by the response size limit
 		if req.Scope == "" || req.Scope == api.ParamScopeIntrinsic {
-			comb.AddTypedResponse(&tempopb.SearchTagsResponse{
+			err := comb.AddTypedResponse(&tempopb.SearchTagsResponse{
 				TagNames: search.GetVirtualIntrinsicValues(),
 			})
+			if err != nil {
+				return err
+			}
 		}
 
 		start := time.Now()
@@ -96,7 +99,7 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 
 		// Add intrinsics first so that they aren't dropped by the response size limit
 		if req.Scope == "" || req.Scope == api.ParamScopeIntrinsic {
-			comb.AddTypedResponse(&tempopb.SearchTagsV2Response{
+			err := comb.AddTypedResponse(&tempopb.SearchTagsV2Response{
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: api.ParamScopeIntrinsic,
@@ -104,6 +107,9 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 					},
 				},
 			})
+			if err != nil {
+				return err
+			}
 		}
 
 		start := time.Now()
@@ -213,9 +219,12 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 
 		// Add intrinsics first so that they aren't dropped by the response size limit
 		if scope == "" || scope == api.ParamScopeIntrinsic {
-			comb.AddTypedResponse(&tempopb.SearchTagsResponse{
+			err := comb.AddTypedResponse(&tempopb.SearchTagsResponse{
 				TagNames: search.GetVirtualIntrinsicValues(),
 			})
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
@@ -255,7 +264,7 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 
 		// Add intrinsics first so that they aren't dropped by the response size limit
 		if scope == "" || scope == api.ParamScopeIntrinsic {
-			comb.AddTypedResponse(&tempopb.SearchTagsV2Response{
+			err := comb.AddTypedResponse(&tempopb.SearchTagsV2Response{
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
 						Name: api.ParamScopeIntrinsic,
@@ -263,6 +272,9 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 					},
 				},
 			})
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)

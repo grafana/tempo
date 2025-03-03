@@ -18,7 +18,7 @@ type Combiner interface {
 }
 
 type TypedCombiner[T TResponse] interface {
-	AddTypedResponse(r T)
+	AddTypedResponse(r T) error
 }
 
 type GRPCCombiner[T TResponse] interface {
