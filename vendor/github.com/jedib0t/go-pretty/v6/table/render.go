@@ -67,7 +67,7 @@ func (t *Table) renderColumn(out *strings.Builder, row rowStr, colIdx int, maxCo
 	}
 
 	// extract the text, convert-case if not-empty and align horizontally
-	mergeVertically := t.shouldMergeCellsVertically(colIdx, hint)
+	mergeVertically := t.shouldMergeCellsVerticallyAbove(colIdx, hint)
 	var colStr string
 	if mergeVertically {
 		// leave colStr empty; align will expand the column as necessary
