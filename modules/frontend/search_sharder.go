@@ -136,7 +136,9 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 		return
 	}
 
-	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), start, end, backend.DefaultReplicationFactor)
+	startT := time.Unix(int64(start), 0)
+	endT := time.Unix(int64(end), 0)
+	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), startT, endT, backend.DefaultReplicationFactor)
 
 	// calculate metrics to return to the caller
 	resp.TotalBlocks = len(blocks)

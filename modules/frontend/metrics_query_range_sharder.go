@@ -185,9 +185,9 @@ func (s *queryRangeSharder) backendRequests(ctx context.Context, tenantID string
 
 	// Blocks within overall time range. This is just for instrumentation, more precise time
 	// range is checked for each window.
-	startS := uint32(backendReq.Start / uint64(time.Second))
-	endS := uint32(backendReq.End / uint64(time.Second))
-	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), startS, endS, 1)
+	start := time.Unix(0, int64(backendReq.Start))
+	end := time.Unix(0, int64(backendReq.End))
+	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), start, end, 1)
 	if len(blocks) == 0 {
 		// no need to search backend
 		close(reqCh)
