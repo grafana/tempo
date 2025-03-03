@@ -1,14 +1,14 @@
 ---
 title: Sampling
 menuTitle: Sampling
-description: Use sampling to optimize sampling decisions
+description: Learn how to streamline tracing data by using sampling to determine which data to keep and which to drop.
 aliases:
 - ./tail-based-sampling/ # /docs/tempo/latest/configuration/grafana-alloy/tail-based-sampling/
 ---
 
 # Sampling
 
-Grafana Tempo provides an inexpensive solution that aims to ingest and store the traces that provide maximum observability across your application estate.
+Grafana Tempo is a cost-effective solution that ingests and stores traces that provide maximum observability across your application estate.
 However, sometimes constraints mean that storing all of your traces is not desirable, for example runtime or egress traffic related costs.
 There are a number of ways to lower trace volume, including varying sampling strategies.
 
@@ -35,7 +35,7 @@ For more information about sampling, refer to the [OpenTelemetry Sampling](https
 
 ## How tail sampling works in the OpenTelemetry Tail Sampling Processor
 
-In tail-based sampling, sampling decisions are made at the end of the workflow allowing for a more accurate sampling decision.
+In tail sampling, sampling decisions are made at the end of the workflow allowing for a more accurate sampling decision.
 Alloy uses the [OpenTelemetry Tail Sampling Processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/tailsamplingprocessor/README.md).
 
 Alloy organizes spans by trace ID and evaluates its data to see if it meets one of the defined policy types (for example, `latency` or `status_code`).

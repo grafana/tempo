@@ -1,23 +1,22 @@
 ---
 title: Enable tail-based sampling
 menuTitle: Enable tail sampling
-description: Use tail-based sampling to optimize sampling decisions.
+description: Configure tail sampling with Tempo and Grafana Alloy to optimize sampling decisions.
 ---
 
-# Enable tail-based sampling
+# Enable tail sampling
 
-Tempo provides an inexpensive solution that aims to reduce the amount of tail-based sampling required.
-However, sometimes constraints make a lower sampling percentage necessary or desirable,
+You can use tail sampling to use a lower sampling percentage when necessary or desirable,
 such as runtime or egress traffic related costs.
 Probabilistic sampling strategies are easy to implement,
 but also run the risk of discarding relevant data that you'll later want.
 
-Tail-based sampling works with Grafana Alloy.
+Tail sampling works with Grafana Alloy.
 Alloy configuration files are written in [Alloy configuration syntax](https://grafana.com/docs/alloy/<ALLOY_VERSION>/concepts/configuration-syntax/).
 
-## Configure tail-based sampling
+## Configure tail sampling
 
-To start using tail-based sampling, define a sampling policy in your configuration file.
+To start using tail sampling, define a sampling policy in your configuration file.
 
 If you're using a multi-instance deployment of Alloy,
 add load balancing and specify the resolving mechanism to find other Alloy instances in the setup.
@@ -26,7 +25,7 @@ To see all the available configuration options for load balancing, refer to the 
 
 ### Example for Alloy
 
-Alloy uses the [`otelcol.processor.tail_sampling component`](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol.processor.tail_sampling/) for tail-based sampling.
+Alloy uses the [`otelcol.processor.tail_sampling component`](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol.processor.tail_sampling/) for tail sampling.
 
 ```alloy
 otelcol.receiver.otlp "default" {
