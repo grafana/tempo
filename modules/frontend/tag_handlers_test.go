@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"sort"
 	"testing"
 	"time"
 
@@ -208,6 +209,12 @@ func TestSearchTagsV2AlwaysReturnsIntrinsics(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, 2, len(resp.Scopes))
+
+	// Sort scopes to give stable comparison
+	sort.Slice(resp.Scopes, func(i, j int) bool {
+		return resp.Scopes[i].Name < resp.Scopes[j].Name
+	})
+
 	require.Equal(t, api.ParamScopeIntrinsic, resp.Scopes[0].Name)
 	require.Equal(t, mockScope, resp.Scopes[1].Name)
 	require.ElementsMatch(t, search.GetVirtualIntrinsicValues(), resp.Scopes[0].Tags)
