@@ -681,7 +681,8 @@ func (rw *readerWriter) Compactions(ctx context.Context) []tempopb.JobDetail {
 
 			job := tempopb.JobDetail{
 				Tenant: tenantID,
-				Detail: &tempopb.JobDetail_Compaction{Compaction: compaction},
+				// Detail: &tempopb.JobDetail_Compaction{Compaction: compaction},
+				Compaction: compaction,
 			}
 
 			jobs = append(jobs, job)

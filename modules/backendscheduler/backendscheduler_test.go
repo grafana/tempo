@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	proto "github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -45,7 +46,8 @@ func TestBackendScheduler(t *testing.T) {
 			Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
 		})
 		require.NoError(t, err)
-		require.Nil(t, resp)
+		require.NotNil(t, resp)
+		require.Equal(t, "", resp.JobId)
 	})
 
 	t.Run("one tenant has a jobs", func(t *testing.T) {
@@ -57,10 +59,8 @@ func TestBackendScheduler(t *testing.T) {
 			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
 			JobDetail: tempopb.JobDetail{
 				Tenant: "test-tenant",
-				Detail: &tempopb.JobDetail_Compaction{
-					Compaction: &tempopb.CompactionDetail{
-						Input: []string{uuid.New().String(), uuid.New().String()},
-					},
+				Compaction: &tempopb.CompactionDetail{
+					Input: []string{uuid.New().String(), uuid.New().String()},
 				},
 			},
 		}
@@ -91,10 +91,8 @@ func TestBackendScheduler(t *testing.T) {
 			// Type: tempopb.JobType_JOB_TYPE_UNSPECIFIED,
 			JobDetail: tempopb.JobDetail{
 				Tenant: "test-tenant",
-				Detail: &tempopb.JobDetail_Compaction{
-					Compaction: &tempopb.CompactionDetail{
-						Input: []string{uuid.New().String(), uuid.New().String()},
-					},
+				Compaction: &tempopb.CompactionDetail{
+					Input: []string{uuid.New().String(), uuid.New().String()},
 				},
 			},
 		}
@@ -104,10 +102,8 @@ func TestBackendScheduler(t *testing.T) {
 			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
 			JobDetail: tempopb.JobDetail{
 				Tenant: "test-tenant",
-				Detail: &tempopb.JobDetail_Compaction{
-					Compaction: &tempopb.CompactionDetail{
-						Input: []string{uuid.New().String(), uuid.New().String()},
-					},
+				Compaction: &tempopb.CompactionDetail{
+					Input: []string{uuid.New().String(), uuid.New().String()},
 				},
 			},
 		}
@@ -134,7 +130,8 @@ func TestBackendScheduler(t *testing.T) {
 			Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
 		})
 		require.NoError(t, err)
-		require.Nil(t, resp)
+		require.NotNil(t, resp)
+		require.Equal(t, "", resp.JobId)
 	})
 
 	t.Run("handles multiple workers", func(t *testing.T) {
@@ -151,10 +148,8 @@ func TestBackendScheduler(t *testing.T) {
 			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
 			JobDetail: tempopb.JobDetail{
 				Tenant: tenant,
-				Detail: &tempopb.JobDetail_Compaction{
-					Compaction: &tempopb.CompactionDetail{
-						Input: []string{uuid.New().String(), uuid.New().String()},
-					},
+				Compaction: &tempopb.CompactionDetail{
+					Input: []string{uuid.New().String(), uuid.New().String()},
 				},
 			},
 		}
@@ -164,10 +159,8 @@ func TestBackendScheduler(t *testing.T) {
 			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
 			JobDetail: tempopb.JobDetail{
 				Tenant: tenant,
-				Detail: &tempopb.JobDetail_Compaction{
-					Compaction: &tempopb.CompactionDetail{
-						Input: []string{uuid.New().String(), uuid.New().String()},
-					},
+				Compaction: &tempopb.CompactionDetail{
+					Input: []string{uuid.New().String(), uuid.New().String()},
 				},
 			},
 		}
@@ -177,10 +170,8 @@ func TestBackendScheduler(t *testing.T) {
 			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
 			JobDetail: tempopb.JobDetail{
 				Tenant: tenant,
-				Detail: &tempopb.JobDetail_Compaction{
-					Compaction: &tempopb.CompactionDetail{
-						Input: []string{uuid.New().String(), uuid.New().String()},
-					},
+				Compaction: &tempopb.CompactionDetail{
+					Input: []string{uuid.New().String(), uuid.New().String()},
 				},
 			},
 		}
@@ -190,10 +181,8 @@ func TestBackendScheduler(t *testing.T) {
 			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
 			JobDetail: tempopb.JobDetail{
 				Tenant: tenant,
-				Detail: &tempopb.JobDetail_Compaction{
-					Compaction: &tempopb.CompactionDetail{
-						Input: []string{uuid.New().String(), uuid.New().String()},
-					},
+				Compaction: &tempopb.CompactionDetail{
+					Input: []string{uuid.New().String(), uuid.New().String()},
 				},
 			},
 		}
@@ -295,10 +284,8 @@ func TestBackendScheduler(t *testing.T) {
 			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
 			JobDetail: tempopb.JobDetail{
 				Tenant: tenant,
-				Detail: &tempopb.JobDetail_Compaction{
-					Compaction: &tempopb.CompactionDetail{
-						Input: []string{uuid.New().String(), uuid.New().String()},
-					},
+				Compaction: &tempopb.CompactionDetail{
+					Input: []string{uuid.New().String(), uuid.New().String()},
 				},
 			},
 		})
@@ -400,6 +387,29 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger) stora
 	// }, &ownsEverythingSharder{}, &mockOverrides{})
 	// require.NoError(t, err)
 	return s
+}
+
+func TestProtoMarshaler(t *testing.T) {
+	_, err := proto.Marshal(&tempopb.JobDetail{
+		Compaction: &tempopb.CompactionDetail{
+			Input: []string{"input1", "input2"},
+		},
+	})
+	require.NoError(t, err)
+
+	detail := tempopb.JobDetail{
+		Tenant: "test",
+		Compaction: &tempopb.CompactionDetail{
+			Input: []string{"input1", "input2"},
+		},
+	}
+
+	_, err = proto.Marshal(&tempopb.NextJobResponse{
+		JobId:  uuid.New().String(),
+		Type:   tempopb.JobType_JOB_TYPE_COMPACTION,
+		Detail: detail,
+	})
+	require.NoError(t, err)
 }
 
 // OwnsEverythingSharder owns everything.

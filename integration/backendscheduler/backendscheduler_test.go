@@ -107,6 +107,8 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, tmpDi
 
 	// NOTE: Call EnableCompaction to set the overrides, but pass a canceled
 	// context so we don't run the compaction and retention loops.
+
+	// TODO: find another way to do this.
 	canceldCtx, cancel := context.WithCancel(ctx)
 	cancel()
 

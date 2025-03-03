@@ -106,12 +106,8 @@ func (s *BackendScheduler) ScheduleOnce(ctx context.Context) error {
 		return nil
 	}
 
-	compactions := s.store.Compactions(ctx)
-
-	for _, job := range compactions {
-		detail := job.Detail.(*tempopb.JobDetail_Compaction).Compaction
-
-		if err := s.createCompactionJob(ctx, job.Tenant, detail.Input); err != nil {
+	for _, job := range s.store.Compactions(ctx) {
+		if err := s.createCompactionJob(ctx, job.Tenant, job.Compaction.Input); err != nil {
 			return fmt.Errorf("failed to create compaction job: %w", err)
 		}
 	}
@@ -220,7 +216,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 
 	// No jobs available
 	// TODO: consider returning a status code to indicate no jobs available
-	return nil, nil
+	return &tempopb.NextJobResponse{}, nil
 }
 
 // UpdateJob implements the BackendSchedulerServer interface
@@ -275,13 +271,16 @@ func (s *BackendScheduler) createCompactionJob(ctx context.Context, tenantID str
 	for _, blockID := range input {
 		for _, j := range s.jobs {
 			if j.JobDetail.Tenant == tenantID {
-				// TODO: switch on job type to skip non-compaction jobs
-
-				for _, b := range j.JobDetail.Detail.(*tempopb.JobDetail_Compaction).Compaction.Input {
-					if b == blockID {
-						// TODO: consider continue when we have a stripe of like-blocks.
-						return nil
+				switch j.Type {
+				case tempopb.JobType_JOB_TYPE_COMPACTION:
+					for _, b := range j.JobDetail.Compaction.Input {
+						if b == blockID {
+							// TODO: consider continue when we have a stripe of like-blocks.
+							return nil
+						}
 					}
+				default:
+					continue
 				}
 			}
 		}
@@ -290,15 +289,12 @@ func (s *BackendScheduler) createCompactionJob(ctx context.Context, tenantID str
 	jobID := uuid.New().String()
 
 	job := &Job{
-		ID: jobID,
-		// Type: JobTypeCompaction,
+		ID:   jobID,
 		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
 		JobDetail: tempopb.JobDetail{
 			Tenant: tenantID,
-			Detail: &tempopb.JobDetail_Compaction{
-				Compaction: &tempopb.CompactionDetail{
-					Input: input,
-				},
+			Compaction: &tempopb.CompactionDetail{
+				Input: input,
 			},
 		},
 	}
@@ -307,6 +303,7 @@ func (s *BackendScheduler) createCompactionJob(ctx context.Context, tenantID str
 	s.jobs[jobID] = job
 
 	// Update metrics
+	// TODO: two metrics for the same job smells
 	jobsCreated.WithLabelValues(tenantID, job.Type.String()).Inc()
 	jobsActive.WithLabelValues(tenantID, job.Type.String()).Inc()
 

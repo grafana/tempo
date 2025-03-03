@@ -179,10 +179,18 @@ func (c *Compactor) running(ctx context.Context) error {
 	if !c.cfg.Disabled {
 		level.Info(log.Logger).Log("msg", "enabling compaction")
 
-		if c.backendScheduler != nil {
+		if c.cfg.UseScheduler {
 			level.Info(log.Logger).Log("msg", "running compaction with scheduler")
+
+			canceledContext, cancel := context.WithCancel(ctx)
+			cancel()
+			err := c.store.EnableCompaction(canceledContext, &c.cfg.Compactor, c, c)
+			if err != nil {
+				return fmt.Errorf("failed to enable compaction: %w", err)
+			}
+
 			// New scheduler-based path
-			err := c.runWithScheduler(ctx)
+			err = c.runWithScheduler(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to run with scheduler: %w", err)
 			}
@@ -244,9 +252,11 @@ func (c *Compactor) processCompactionJobs(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error getting next job: %w", err)
 	}
-	if resp == nil {
+
+	if resp == nil || resp.JobId == "" {
 		return nil // No jobs available
 	}
+
 	if resp.Detail.Tenant == "" {
 		return c.failJob(ctx, resp.JobId, "received job with empty tenant")
 	}
@@ -258,7 +268,7 @@ func (c *Compactor) processCompactionJobs(ctx context.Context) error {
 	// Collect the metas which match the IDs in the job
 	var sourceMetas []*backend.BlockMeta
 	for _, blockMeta := range blockMetas {
-		for _, blockID := range resp.Detail.Detail.(*tempopb.JobDetail_Compaction).Compaction.Input {
+		for _, blockID := range resp.Detail.Compaction.Input {
 			if blockMeta.BlockID.String() == blockID {
 				sourceMetas = append(sourceMetas, blockMeta)
 			}
@@ -272,7 +282,7 @@ func (c *Compactor) processCompactionJobs(ctx context.Context) error {
 	}
 
 	// Mark job as complete
-	_, err = c.backendScheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+	_, err = c.backendScheduler.UpdateJob(user.InjectOrgID(ctx, c.workerID), &tempopb.UpdateJobStatusRequest{
 		JobId:  resp.JobId,
 		Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
 	})
@@ -286,7 +296,7 @@ func (c *Compactor) processCompactionJobs(ctx context.Context) error {
 func (c *Compactor) failJob(ctx context.Context, jobID string, errMsg string) error {
 	level.Error(log.Logger).Log("msg", "job failed", "job_id", jobID, "error", errMsg)
 
-	_, err := c.backendScheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+	_, err := c.backendScheduler.UpdateJob(user.InjectOrgID(ctx, c.workerID), &tempopb.UpdateJobStatusRequest{
 		JobId:  jobID,
 		Status: tempopb.JobStatus_JOB_STATUS_FAILED,
 		Error:  errMsg,

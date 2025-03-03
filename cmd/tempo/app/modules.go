@@ -552,6 +552,14 @@ func (t *App) initCompactor() (services.Service, error) {
 		t.cfg.Compactor.ShardingRing.KVStore.Store = "memberlist"
 	}
 
+	// When running as the BackendScheduler target, we want to avoid the
+	// compaction/retention loops as well as the job worker functinality.  The
+	// EnableCompaction method is used in the initBackendScheduler for the
+	// intended use case.
+	if t.cfg.Target == BackendScheduler {
+		t.cfg.Compactor.Disabled = true
+	}
+
 	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.Overrides, t.cfg.BackenSchedulerClient, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compactor: %w", err)
@@ -684,6 +692,20 @@ func (t *App) initBackendScheduler() (services.Service, error) {
 		return services.NewIdleService(nil, nil), nil
 	}
 
+	if t.cfg.Target == BackendScheduler {
+		// NOTE: Polling is enabled in the starting() call of the Compactor module.
+		// We still need to configure the Compactor through the EnableCompaction
+		// call, even though we don't want to run them.
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		err := t.store.EnableCompaction(ctx, &t.cfg.Compactor.Compactor, t.compactor, t.compactor)
+		if err != nil {
+			return nil, fmt.Errorf("failed to enable compaction: %w", err)
+		}
+	}
+
 	scheduler, err := backendscheduler.New(t.cfg.BackendScheduler, t.store)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create backend scheduler: %w", err)
@@ -765,7 +787,7 @@ func (t *App) setupModuleManager() error {
 		Querier:                       {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
 		Compactor:                     {Common, Store, MemberlistKV},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
-		BackendScheduler:              {Common, Store},
+		BackendScheduler:              {Common, Store, Compactor},
 
 		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator, BlockBuilder},
