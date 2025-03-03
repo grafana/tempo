@@ -164,18 +164,16 @@ func TestQueryRangeAccessesCache(t *testing.T) {
 	step := 1000000000
 	query := "{} | rate()"
 	hash := hashForQueryRangeRequest(&tempopb.QueryRangeRequest{Query: query, Step: uint64(step)})
-	start := uint32(10)
-	end := uint32(20)
-	cacheKey := queryRangeCacheKey(tenant, hash, int64(start), int64(end), meta, step, 1)
+	startNS := 10 * time.Second
+	endNS := 20 * time.Second
+	cacheKey := queryRangeCacheKey(tenant, hash, int64(startNS), int64(endNS), meta, step, 1)
 
 	// confirm cache key coesn't exist
 	_, bufs, _ := c.Fetch(context.Background(), []string{cacheKey})
 	require.Equal(t, 0, len(bufs))
 
 	// execute query
-	// startNS := start * uint32(time.Second)
-	// endNS := end * uint32(time.Second)
-	path := fmt.Sprintf("/?start=%d&end=%d&q=%s", start, end, url.QueryEscape(query)) // encapsulates block above
+	path := fmt.Sprintf("/?start=%d&end=%d&q=%s", startNS, endNS, url.QueryEscape(query)) // encapsulates block above
 	req := httptest.NewRequest("GET", path, nil)
 	ctx := req.Context()
 	ctx = user.InjectOrgID(ctx, tenant)

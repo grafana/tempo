@@ -280,11 +280,8 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 				continue
 			}
 
-			// query range is in ns, but the cache function compares it to the block meta which is in seconds. converting here
-			startS := int64(searchReq.Start / uint64(time.Second))
-			endS := int64(searchReq.End / uint64(time.Second))
 			// TODO: Handle sampling rate
-			key := queryRangeCacheKey(tenantID, queryHash, startS, endS, m, int(step), pages)
+			key := queryRangeCacheKey(tenantID, queryHash, int64(searchReq.Start), int64(searchReq.End), m, int(step), pages)
 			if len(key) > 0 {
 				pipelineR.SetCacheKey(key)
 			}

@@ -357,8 +357,10 @@ func multiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) pipeline.As
 func blockMetasForSearch(allBlocks []*backend.BlockMeta, start, end time.Time, rf uint32) []*backend.BlockMeta {
 	blocks := make([]*backend.BlockMeta, 0, len(allBlocks)/50) // divide by 50 for luck
 	for _, m := range allBlocks {
-		if m.StartTime.Compare(end) <= 0 && // start time is before or equal to end
-			m.EndTime.Compare(start) >= 0 && // end time is after or equal to start
+		// Block overlaps with search range if:
+		// block start is before or equal to search end AND block end is after or equal to search start
+		if !m.StartTime.After(end) && // block start <= search end
+			!m.EndTime.Before(start) && // block end >= search start
 			m.ReplicationFactor == rf { // This check skips generator blocks (RF=1)
 			blocks = append(blocks, m)
 		}

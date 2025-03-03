@@ -22,7 +22,7 @@ func searchJobCacheKey(tenant string, queryHash uint64, start int64, end int64, 
 }
 
 func queryRangeCacheKey(tenant string, queryHash uint64, start int64, end int64, meta *backend.BlockMeta, startPage, pagesToSearch int) string {
-	startTime := time.Unix(0, start) // query range start/end are in nanoseconds
+	startTime := time.Unix(0, start)
 	endTime := time.Unix(0, end)
 	return cacheKey(cacheKeyPrefixQueryRange, tenant, queryHash, startTime, endTime, meta, startPage, pagesToSearch)
 }
@@ -37,8 +37,8 @@ func cacheKey(prefix string, tenant string, queryHash uint64, start, end time.Ti
 
 	// unless the search range completely encapsulates the block range we can't cache. this is b/c different search ranges will return different results
 	// for a given block unless the search range covers the entire block
-	if !(meta.StartTime.Before(start) &&
-		meta.EndTime.After(end)) {
+	if !(start.Before(meta.StartTime) && // search start is before block start
+		end.After(meta.EndTime)) { // search end is after block end
 		return ""
 	}
 
