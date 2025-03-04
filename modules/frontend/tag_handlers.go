@@ -23,6 +23,7 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"google.golang.org/grpc/codes"
 )
 
@@ -100,7 +101,9 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 
 		// Add intrinsics first so that they aren't dropped by the response size limit
 		// NOTE - V2 tag lookup returns intrinsics for both unscoped and explicit scope requests.
-		if req.Scope == "" || req.Scope == api.ParamScopeIntrinsic {
+		if req.Scope == "" ||
+			req.Scope == api.ParamScopeIntrinsic ||
+			req.Scope == traceql.AttributeScopeNone.String() {
 			err := comb.AddTypedResponse(&tempopb.SearchTagsV2Response{
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{
@@ -267,7 +270,9 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 
 		// Add intrinsics first so that they aren't dropped by the response size limit
 		// NOTE - V2 tag lookup returns intrinsics for both unscoped and explicit scope requests.
-		if scope == "" || scope == api.ParamScopeIntrinsic {
+		if scope == "" ||
+			scope == api.ParamScopeIntrinsic ||
+			scope == traceql.AttributeScopeNone.String() {
 			err := comb.AddTypedResponse(&tempopb.SearchTagsV2Response{
 				Scopes: []*tempopb.SearchTagsV2Scope{
 					{

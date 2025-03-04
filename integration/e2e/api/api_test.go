@@ -86,7 +86,7 @@ func TestSearchTagsV2(t *testing.T) {
 		{
 			name:  "no filtering",
 			query: "",
-			scope: "",
+			scope: "none",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
 					{
@@ -168,7 +168,7 @@ func TestSearchTagsV2(t *testing.T) {
 		{
 			name:  "too restrictive query",
 			query: fmt.Sprintf(`{ resource.%s="%s" && resource.y="%s" }`, firstBatch.resourceAttr, firstBatch.resourceAttVal, secondBatch.resourceAttVal),
-			scope: "",
+			scope: "none",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
 					{
@@ -182,7 +182,7 @@ func TestSearchTagsV2(t *testing.T) {
 		{
 			name:  "unscoped span attribute",
 			query: fmt.Sprintf(`{ .x="%s" }`, firstBatch.spanAttVal),
-			scope: "",
+			scope: "none",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
 					{
@@ -199,7 +199,7 @@ func TestSearchTagsV2(t *testing.T) {
 		{
 			name:  "unscoped res attribute",
 			query: fmt.Sprintf(`{ .xx="%s" }`, firstBatch.resourceAttVal),
-			scope: "",
+			scope: "none",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
 					{
@@ -216,7 +216,7 @@ func TestSearchTagsV2(t *testing.T) {
 		{
 			name:  "both batches - name and resource attribute",
 			query: `{ resource.service.name="my-service"}`,
-			scope: "",
+			scope: "none",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
 					{
@@ -233,7 +233,7 @@ func TestSearchTagsV2(t *testing.T) {
 		{
 			name:  "bad query - unfiltered results",
 			query: fmt.Sprintf("%s = bar", spanX), // bad query, missing quotes
-			scope: "",
+			scope: "none",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
 					{
