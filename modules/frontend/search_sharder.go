@@ -318,7 +318,9 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.
 			return
 		}
 
-		key := searchJobCacheKey(tenantID, queryHash, int64(searchReq.Start), int64(searchReq.End), m, startPage, pages)
+		startTime := time.Unix(int64(searchReq.Start), 0)
+		endTime := time.Unix(int64(searchReq.End), 0)
+		key := searchJobCacheKey(tenantID, queryHash, startTime, endTime, m, startPage, pages)
 		pipelineR.SetCacheKey(key)
 		pipelineR.SetResponseData(shard)
 

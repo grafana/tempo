@@ -15,16 +15,12 @@ const (
 	cacheKeyPrefixQueryRange      = "qr:"
 )
 
-func searchJobCacheKey(tenant string, queryHash uint64, start int64, end int64, meta *backend.BlockMeta, startPage, pagesToSearch int) string {
-	startTime := time.Unix(start, 0)
-	endTime := time.Unix(end, 0)
-	return cacheKey(cacheKeyPrefixSearchJob, tenant, queryHash, startTime, endTime, meta, startPage, pagesToSearch)
+func searchJobCacheKey(tenant string, queryHash uint64, start, end time.Time, meta *backend.BlockMeta, startPage, pagesToSearch int) string {
+	return cacheKey(cacheKeyPrefixSearchJob, tenant, queryHash, start, end, meta, startPage, pagesToSearch)
 }
 
-func queryRangeCacheKey(tenant string, queryHash uint64, start int64, end int64, meta *backend.BlockMeta, startPage, pagesToSearch int) string {
-	startTime := time.Unix(0, start)
-	endTime := time.Unix(0, end)
-	return cacheKey(cacheKeyPrefixQueryRange, tenant, queryHash, startTime, endTime, meta, startPage, pagesToSearch)
+func queryRangeCacheKey(tenant string, queryHash uint64, start, end time.Time, meta *backend.BlockMeta, startPage, pagesToSearch int) string {
+	return cacheKey(cacheKeyPrefixQueryRange, tenant, queryHash, start, end, meta, startPage, pagesToSearch)
 }
 
 // cacheKey returns a string that can be used as a cache key for a backend search job. if a valid key cannot be calculated
