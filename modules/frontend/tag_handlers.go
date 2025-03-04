@@ -64,6 +64,8 @@ func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[com
 			if err != nil {
 				return err
 			}
+			// TODO: Exit early here, no need to issue more requests downstream, but some
+			//  work needed to ensure things are still logged/metriced correctly.
 		}
 
 		start := time.Now()
@@ -115,6 +117,8 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 			if err != nil {
 				return err
 			}
+			// TODO: For intrinsic scope only, exit early here, no need to issue more requests downstream, but some
+			//  work needed to ensure things are still logged/metriced correctly.
 		}
 
 		start := time.Now()
@@ -231,6 +235,8 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 			if err != nil {
 				return nil, err
 			}
+			// TODO: Exit early here, no need to issue more requests downstream, but some
+			//  work needed to ensure things are still logged/metriced correctly.
 		}
 
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
@@ -284,6 +290,8 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 			if err != nil {
 				return nil, err
 			}
+			// TODO: For intrinsic scope only, exit early here, no need to issue more requests downstream, but some
+			//  work needed to ensure things are still logged/metriced correctly.
 		}
 
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
