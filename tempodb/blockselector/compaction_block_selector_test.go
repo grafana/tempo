@@ -1,4 +1,4 @@
-package tempodb
+package blockselector
 
 import (
 	"fmt"
@@ -819,14 +819,14 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			min := defaultMinInputBlocks
+			minBlocks := DefaultMinInputBlocks
 			if tt.minInputBlocks > 0 {
-				min = tt.minInputBlocks
+				minBlocks = tt.minInputBlocks
 			}
 
-			max := defaultMaxInputBlocks
+			maxBlocks := DefaultMaxInputBlocks
 			if tt.maxInputBlocks > 0 {
-				max = tt.maxInputBlocks
+				maxBlocks = tt.maxInputBlocks
 			}
 
 			maxSize := uint64(1024 * 1024)
@@ -834,7 +834,7 @@ func TestTimeWindowBlockSelectorBlocksToCompact(t *testing.T) {
 				maxSize = tt.maxBlockBytes
 			}
 
-			selector := newTimeWindowBlockSelector(tt.blocklist, time.Second, 100, maxSize, min, max)
+			selector := NewTimeWindowBlockSelector(tt.blocklist, time.Second, 100, maxSize, minBlocks, maxBlocks)
 
 			actual, hash := selector.BlocksToCompact()
 			assert.Equal(t, tt.expected, actual)

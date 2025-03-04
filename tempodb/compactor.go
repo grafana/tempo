@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/tempo/pkg/dataquality"
 	"github.com/grafana/tempo/pkg/util/tracing"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/blockselector"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 )
@@ -130,12 +131,12 @@ func (rw *readerWriter) compactOneTenant(ctx context.Context) {
 	//   Favoring lower compaction levels, and compacting blocks only from the same tenant.
 	//  2. If blocks are outside the active window, they're grouped only by windows, ignoring compaction level.
 	//   It picks more recent windows first, and compacting blocks only from the same tenant.
-	blockSelector := newTimeWindowBlockSelector(blocklist,
+	blockSelector := blockselector.NewTimeWindowBlockSelector(blocklist,
 		window,
 		rw.compactorCfg.MaxCompactionObjects,
 		rw.compactorCfg.MaxBlockBytes,
-		defaultMinInputBlocks,
-		defaultMaxInputBlocks)
+		blockselector.DefaultMinInputBlocks,
+		blockselector.DefaultMaxInputBlocks)
 
 	start := time.Now()
 
@@ -385,7 +386,7 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks, newBlocks []*ba
 	return nil
 }
 
-func measureOutstandingBlocks(tenantID string, blockSelector CompactionBlockSelector, owned func(hash string) bool) {
+func measureOutstandingBlocks(tenantID string, blockSelector blockselector.CompactionBlockSelector, owned func(hash string) bool) {
 	// count number of per-tenant outstanding blocks before next maintenance cycle
 	var totalOutstandingBlocks int
 	for {

@@ -1,4 +1,4 @@
-package tempodb
+package blockselector
 
 import (
 	"fmt"
@@ -15,8 +15,8 @@ type CompactionBlockSelector interface {
 
 const (
 	activeWindowDuration  = 24 * time.Hour
-	defaultMinInputBlocks = 2
-	defaultMaxInputBlocks = 4
+	DefaultMinInputBlocks = 2
+	DefaultMaxInputBlocks = 4
 )
 
 /*************************** Time Window Block Selector **************************/
@@ -45,7 +45,7 @@ type timeWindowBlockEntry struct {
 
 var _ (CompactionBlockSelector) = (*timeWindowBlockSelector)(nil)
 
-func newTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange time.Duration, maxCompactionObjects int, maxBlockBytes uint64, minInputBlocks, maxInputBlocks int) CompactionBlockSelector {
+func NewTimeWindowBlockSelector(blocklist []*backend.BlockMeta, maxCompactionRange time.Duration, maxCompactionObjects int, maxBlockBytes uint64, minInputBlocks, maxInputBlocks int) CompactionBlockSelector {
 	twbs := &timeWindowBlockSelector{
 		MinInputBlocks:       minInputBlocks,
 		MaxInputBlocks:       maxInputBlocks,
@@ -126,6 +126,11 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 		for ; i < len(twbs.entries); i++ {
 			for j := i + 1; j < len(twbs.entries); j++ {
 				stripe := twbs.entries[i : j+1]
+
+				// spew.Dump("compare")
+				// spew.Dump(twbs.entries[i].group, twbs.entries[j].group)
+				// spew.Dump(twbs.entries[i].group == twbs.entries[j].group)
+
 				if twbs.entries[i].group == twbs.entries[j].group &&
 					twbs.entries[i].meta.DataEncoding == twbs.entries[j].meta.DataEncoding &&
 					twbs.entries[i].meta.Version == twbs.entries[j].meta.Version && // update after parquet: only compact blocks of the same version
