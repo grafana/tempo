@@ -213,7 +213,7 @@ func (rw *readerWriter) compactWhileOwns(ctx context.Context, blockMetas []*back
 		}
 	}()
 
-	err := rw.Compact(ownsCtx, blockMetas, tenantID)
+	err := rw.compactOneJob(ownsCtx, blockMetas, tenantID)
 	if errors.Is(err, context.Canceled) && errors.Is(context.Cause(ownsCtx), errCompactionJobNoLongerOwned) {
 		level.Warn(rw.logger).Log("msg", "lost ownership of this job. abandoning job and trying again on this block list", "err", err)
 		return nil
@@ -235,7 +235,7 @@ func (rw *readerWriter) compactWhileOwns(ctx context.Context, blockMetas []*back
 	return err
 }
 
-func (rw *readerWriter) Compact(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string) error {
+func (rw *readerWriter) compactOneJob(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string) error {
 	level.Debug(rw.logger).Log("msg", "beginning compaction", "num blocks compacting", len(blockMetas))
 
 	// todo - add timeout?
