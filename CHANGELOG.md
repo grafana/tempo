@@ -54,6 +54,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [BUGFIX] Rhythm - fix adjustment of the start and end range for livetraces blocks [#4746](https://github.com/grafana/tempo/pull/4746) (@javiermolinar)
 * [BUGFIX] Return the operand as the only value if the tag is already filtered in the query [#4673](https://github.com/grafana/tempo/pull/4673) (@mapno)
 * [BUGFIX] Fix flaky test [#4787](https://github.com/grafana/tempo/pull/4787) (@javiermolinar)
+* [BUGFIX] Fix rare panic that occurred when a querier modified results from ingesters/generators while they were being marshalled to proto. [#4790](https://github.com/grafana/tempo/pull/4790) (@joe-elliott)
 * [BUGFIX] Fix memcached settings for docker compose example [#4346](https://github.com/grafana/tempo/pull/4695) (@ruslan-mikhailov)
 * [BUGFIX] Fix setting processors in user configurations overrides via API [#4741](https://github.com/grafana/tempo/pull/4741) (@ruslan-mikhailov)
 * [BUGFIX] Fix panic on startup [#4744](https://github.com/grafana/tempo/pull/4744) (@ruslan-mikhailov)
