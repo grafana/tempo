@@ -476,12 +476,12 @@ func SearchAndAssertTraceBackend(t *testing.T, client *httpclient.Client, info *
 // by passing a time range and using a query_ingesters_until/backend_after of 0 we can force the queriers
 // to look in the backend blocks
 func SearchAndAsserTagsBackend(t *testing.T, client *httpclient.Client, start, end int64) {
+	// There are no tags in recent data
 	resp, err := client.SearchTags()
 	require.NoError(t, err)
-
 	require.Equal(t, len(resp.TagNames), 0)
 
-	// verify trace can be found using attribute and time range
+	// There are additional tags in the backend
 	resp, err = client.SearchTagsWithRange(start, end)
 	require.NoError(t, err)
 	require.True(t, len(resp.TagNames) > 0)

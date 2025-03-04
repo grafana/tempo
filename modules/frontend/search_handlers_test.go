@@ -718,7 +718,7 @@ func BenchmarkSearchPipeline(b *testing.B) {
 // frontendWithSettings returns a new frontend with the given settings. any nil options
 // are given "happy path" defaults
 func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr tempodb.Reader, cfg *Config, cacheProvider cache.Provider,
-	opts ...func(*Config),
+	opts ...func(*Config, *overrides.Config),
 ) *QueryFrontend {
 	if next == nil {
 		next = &mockRoundTripper{
@@ -802,11 +802,13 @@ func frontendWithSettings(t require.TestingT, next pipeline.RoundTripper, rdr te
 		}
 	}
 
+	overridesCfg := &overrides.Config{}
+
 	for _, o := range opts {
-		o(cfg)
+		o(cfg, overridesCfg)
 	}
 
-	o, err := overrides.NewOverrides(overrides.Config{}, nil, prometheus.DefaultRegisterer)
+	o, err := overrides.NewOverrides(*overridesCfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	f, err := New(*cfg, next, o, rdr, cacheProvider, "", log.NewNopLogger(), nil)

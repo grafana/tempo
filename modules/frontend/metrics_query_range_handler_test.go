@@ -13,6 +13,7 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -52,7 +53,7 @@ func TestQueryRangeHandlerSucceeds(t *testing.T) {
 		responseFn: func() proto.Message {
 			return resp
 		},
-	}, nil, nil, nil, func(c *Config) {
+	}, nil, nil, nil, func(c *Config, _ *overrides.Config) {
 		c.Metrics.Sharder.Interval = time.Hour
 	})
 

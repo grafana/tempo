@@ -17,8 +17,13 @@ type Combiner interface {
 	HTTPFinal() (*http.Response, error)
 }
 
+type TypedCombiner[T TResponse] interface {
+	AddTypedResponse(r T) error
+}
+
 type GRPCCombiner[T TResponse] interface {
 	Combiner
+	TypedCombiner[T]
 
 	GRPCFinal() (T, error)
 	GRPCDiff() (T, error)
