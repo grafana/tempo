@@ -459,7 +459,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		metricAttributesTruncated.WithLabelValues(userID).Add(float64(truncatedAttributeCount))
 	}
 
-	err = d.sendToIngestersViaBytes(ctx, userID, spanCount, rebatchedTraces, keys)
+	err = d.sendToIngestersViaBytes(ctx, userID, rebatchedTraces, keys)
 	if err != nil {
 		return nil, err
 	}
@@ -486,7 +486,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	return nil, nil // PushRequest is ignored, so no reason to create one
 }
 
-func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, totalSpanCount int, traces []*rebatchedTrace, keys []uint32) error {
+func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*rebatchedTrace, keys []uint32) error {
 	marshalledTraces := make([][]byte, len(traces))
 	for i, t := range traces {
 		b, err := d.traceEncoder.PrepareForWrite(t.trace, t.start, t.end)
