@@ -87,6 +87,23 @@ var queryRangeTestCases = []struct {
 			},
 		},
 	},
+	{
+		name: "count_over_time",
+		req:  requestWithDefaultRange(`{ } | count_over_time()`),
+		expected: []*tempopb.TimeSeries{
+			{
+				PromLabels: `{__name__="count_over_time"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "count_over_time")},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 14},      // Interval [1, 14], 14 spans
+					{TimestampMs: 15_000, Value: 15}, // Interval [15, 29], 15 spans
+					{TimestampMs: 30_000, Value: 15}, // Interval [30, 44], 15 spans
+					{TimestampMs: 45_000, Value: 5},  // Interval [45, 50), 5 spans
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+		},
+	},
 }
 
 func TestTempoDBQueryRange(t *testing.T) {
