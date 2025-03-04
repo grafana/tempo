@@ -2,11 +2,14 @@ package tempodb
 
 import (
 	"context"
+	"math"
 	"path"
+	"sort"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/google/go-cmp/cmp"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
 	common_v1 "github.com/grafana/tempo/pkg/tempopb/common/v1"
@@ -100,6 +103,67 @@ var queryRangeTestCases = []struct {
 					{TimestampMs: 30_000, Value: 15}, // Interval [30, 44], 15 spans
 					{TimestampMs: 45_000, Value: 5},  // Interval [45, 50), 5 spans
 					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+		},
+	},
+	{
+		name: "min_over_time",
+		req:  requestWithDefaultRange("{ } | min_over_time(duration)"),
+		expected: []*tempopb.TimeSeries{
+			{
+				PromLabels: `{__name__="min_over_time"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "min_over_time")},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 1},       // Interval [1, 14], min is 1
+					{TimestampMs: 15_000, Value: 15}, // Interval [15, 29], min is 15
+					{TimestampMs: 30_000, Value: 30}, // Interval [30, 44], min is 30
+					{TimestampMs: 45_000, Value: 45}, // Interval [45, 50), min is 45
+				},
+			},
+		},
+	},
+	{
+		name: "max_over_time",
+		req:  requestWithDefaultRange("{ } | max_over_time(duration)"),
+		expected: []*tempopb.TimeSeries{
+			{
+				PromLabels: `{__name__="max_over_time"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "max_over_time")},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 14},      // Interval [1, 14], max is 14
+					{TimestampMs: 15_000, Value: 29}, // Interval [15, 29], max is 29
+					{TimestampMs: 30_000, Value: 44}, // Interval [30, 44], max is 44
+					{TimestampMs: 45_000, Value: 49}, // Interval [45, 50), max is 49
+				},
+			},
+		},
+	},
+	{
+		name: "avg_over_time",
+		req:  requestWithDefaultRange("{ } | avg_over_time(duration)"),
+		expected: []*tempopb.TimeSeries{
+			{
+				PromLabels: `{__name__="avg_over_time"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "avg_over_time")},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 105 / 14.0},      // sum from 1 to 14 is 105
+					{TimestampMs: 15_000, Value: 330 / 15.0}, // sum from 15 to 29 is 330
+					{TimestampMs: 30_000, Value: 555 / 15.0}, // sum from 30 to 44 is 555
+					{TimestampMs: 45_000, Value: 235 / 5.0},  // sum from 45 to 49 is 235
+				},
+			},
+			{
+				PromLabels: `{__meta_type="__count", __name__="avg_over_time"}`,
+				Labels: []common_v1.KeyValue{
+					tempopb.MakeKeyValueString("__name__", "avg_over_time"),
+					tempopb.MakeKeyValueString("__meta_type", "__count"),
+				},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 14},
+					{TimestampMs: 15_000, Value: 15},
+					{TimestampMs: 30_000, Value: 15},
+					{TimestampMs: 45_000, Value: 5},
 				},
 			},
 		},
@@ -227,7 +291,21 @@ func TestTempoDBQueryRange(t *testing.T) {
 
 			actual := eval.Results().ToProto(tc.req)
 
-			require.Equal(t, tc.expected, actual, "Query: %v", tc.req.Query)
+			// Slice order is not deterministic, so we sort the slices before comparing
+			sort.Slice(tc.expected, func(i, j int) bool {
+				return tc.expected[i].PromLabels < tc.expected[j].PromLabels
+			})
+			sort.Slice(actual, func(i, j int) bool {
+				return actual[i].PromLabels < actual[j].PromLabels
+			})
+
+			if diff := cmp.Diff(tc.expected, actual, floatComparer); diff != "" {
+				t.Errorf("Query: %v\n Diff: %v", tc.req.Query, diff)
+			}
 		})
 	}
 }
+
+var floatComparer = cmp.Comparer(func(x, y float64) bool {
+	return math.Abs(x-y) < 1e-6
+})
