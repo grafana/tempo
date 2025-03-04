@@ -235,11 +235,16 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		}
 
 		var spanCountTotal, traceCountTotal int64
-		var found bool
+		found := false
 
 		for _, partialTrace := range partialTraces {
-			found = true
 			resp := partialTrace.(*tempopb.TraceByIDResponse)
+			if resp.Trace == nil {
+				continue
+			}
+
+			found = true
+
 			spanCount, err := combiner.Consume(resp.Trace)
 			if err != nil {
 				return nil, fmt.Errorf("error combining ingester results in Querier.FindTraceByID: %w", err)
