@@ -16,7 +16,6 @@ import (
 
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/integration/util"
-	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
@@ -493,7 +492,7 @@ func TestSearchTags(t *testing.T) {
 	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_cleared_total"))
 
 	// Assert no more on the ingester
-	callSearchTagsAndAssert(t, tempo, searchTagsResponse{}, 0, 0)
+	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: []string{}}, 0, 0)
 
 	// Wait to blocklist_poll to be completed
 	time.Sleep(time.Second * 2)
@@ -656,7 +655,7 @@ func callSearchTagsV2AndAssert(t *testing.T, svc *e2e.HTTPService, scope, query 
 
 	// Expected will not have the intrinsic results to make the tests simpler,
 	// they are added here based on the scope.
-	if scope == "" || scope == api.ParamScopeIntrinsic {
+	if scope == "none" || scope == "" || scope == "intrinsic" {
 		expected.Scopes = append(expected.Scopes, ScopedTags{
 			Name: "intrinsic",
 			Tags: search.GetVirtualIntrinsicValues(),
