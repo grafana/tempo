@@ -441,16 +441,14 @@ func (q *Querier) forGivenGenerators(ctx context.Context, replicationSet ring.Re
 func (q *Querier) SearchRecent(ctx context.Context, req *tempopb.SearchRequest) (*tempopb.SearchResponse, error) {
 	userID, err := user.ExtractOrgID(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error extracting org id in Querier.Search: %w", err)
+		return nil, fmt.Errorf("error extracting org id in Querier.SearchRecent: %w", err)
 	}
 
-	forEach := func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
+	results, err := q.forIngesterRings(ctx, userID, nil, func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
 		return client.SearchRecent(ctx, req)
-
-	}
-	results, err := q.forIngesterRings(ctx, userID, nil, forEach)
+	})
 	if err != nil {
-		return nil, fmt.Errorf("error querying ingesters in Querier.Search: %w", err)
+		return nil, fmt.Errorf("error querying ingesters in Querier.SearchRecent: %w", err)
 	}
 
 	return q.postProcessIngesterSearchResults(req, results), nil
@@ -507,17 +505,15 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 	distinctValues := collector.NewDistinctString(maxDataSize, req.MaxTagsPerScope, req.StaleValuesThreshold)
 	mc := collector.NewMetricsCollector()
 
-	forEach := func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
+	results, err := q.forIngesterRings(ctx, userID, nil, func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
 		return client.SearchTags(ctx, req)
-	}
-	results, err := q.forIngesterRings(ctx, userID, nil, forEach)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("error querying ingesters in Querier.SearchTags: %w", err)
 	}
 
 	for _, result := range results {
 		resp := result.(*tempopb.SearchTagsResponse)
-		// collect metrics first because we stop early with return
 		if resp.Metrics != nil {
 			mc.Add(resp.Metrics.InspectedBytes)
 		}
@@ -551,18 +547,15 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 	mc := collector.NewMetricsCollector()
 
 	// Get results from all ingesters
-	forEach := func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
+	results, err := q.forIngesterRings(ctx, orgID, nil, func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
 		return client.SearchTagsV2(ctx, req)
-	}
-
-	results, err := q.forIngesterRings(ctx, orgID, nil, forEach)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("error querying ingesters in Querier.SearchTags: %w", err)
 	}
 
 	for _, result := range results {
 		resp := result.(*tempopb.SearchTagsV2Response)
-		// collect metrics first because we stop early with return
 		if resp.Metrics != nil {
 			mc.Add(resp.Metrics.InspectedBytes)
 		}
@@ -611,18 +604,15 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 		distinctValues.Collect(v)
 	}
 
-	forEach := func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
+	results, err := q.forIngesterRings(ctx, userID, nil, func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
 		return client.SearchTagValues(ctx, req)
-	}
-
-	results, err := q.forIngesterRings(ctx, userID, nil, forEach)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("error querying ingesters in Querier.SearchTagValues: %w", err)
 	}
 
 	for _, result := range results {
 		resp := result.(*tempopb.SearchTagValuesResponse)
-		// collect metrics first because we stop early with return
 		if resp.Metrics != nil {
 			mc.Add(resp.Metrics.InspectedBytes)
 		}
@@ -669,17 +659,15 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 		return valuesToV2Response(distinctValues, 0), nil
 	}
 
-	forEach := func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
+	results, err := q.forIngesterRings(ctx, userID, nil, func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
 		return client.SearchTagValuesV2(ctx, req)
-	}
-	results, err := q.forIngesterRings(ctx, userID, nil, forEach)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("error querying ingesters in Querier.SearchTagValues: %w", err)
 	}
 
 	for _, result := range results {
 		resp := result.(*tempopb.SearchTagValuesV2Response)
-		// collect metrics first because we stop early with return
 		if resp.Metrics != nil {
 			mc.Add(resp.Metrics.InspectedBytes)
 		}
@@ -699,17 +687,7 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 	return valuesToV2Response(distinctValues, mc.TotalValue()), nil
 }
 
-func (q *Querier) SpanMetricsSummary(
-	ctx context.Context,
-	req *tempopb.SpanMetricsSummaryRequest,
-) (*tempopb.SpanMetricsSummaryResponse, error) {
-	// userID, err := user.ExtractOrgID(ctx)
-	// if err != nil {
-	// 	return nil, errors.Wrap(err, "error extracting org id in Querier.SpanMetricsSummary")
-	// }
-
-	// limit := q.limits.MaxBytesPerTagValuesQuery(userID)
-
+func (q *Querier) SpanMetricsSummary(ctx context.Context, req *tempopb.SpanMetricsSummaryRequest) (*tempopb.SpanMetricsSummaryResponse, error) {
 	genReq := &tempopb.SpanMetricsRequest{
 		Query:   req.Query,
 		GroupBy: req.GroupBy,
@@ -724,10 +702,9 @@ func (q *Querier) SpanMetricsSummary(
 		return nil, fmt.Errorf("error finding generators in Querier.SpanMetricsSummary: %w", err)
 	}
 
-	forEach := func(ctx context.Context, client tempopb.MetricsGeneratorClient) (any, error) {
+	results, err := q.forGivenGenerators(ctx, replicationSet, func(ctx context.Context, client tempopb.MetricsGeneratorClient) (any, error) {
 		return client.GetMetrics(ctx, genReq)
-	}
-	results, err := q.forGivenGenerators(ctx, replicationSet, forEach)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("error querying generators in Querier.SpanMetricsSummary: %w", err)
 	}

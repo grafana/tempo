@@ -25,7 +25,7 @@ func (q *Querier) QueryRange(ctx context.Context, req *tempopb.QueryRangeRequest
 }
 
 func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeRequest) (*tempopb.QueryRangeResponse, error) {
-	// // Get results from all generators
+	// Get results from all generators
 	replicationSet, err := q.generatorRing.GetReplicationSetForOperation(ring.Read)
 	if err != nil {
 		return nil, fmt.Errorf("error finding generators in Querier.queryRangeRecent: %w", err)
@@ -36,10 +36,9 @@ func (q *Querier) queryRangeRecent(ctx context.Context, req *tempopb.QueryRangeR
 		return nil, err
 	}
 
-	forEach := func(ctx context.Context, client tempopb.MetricsGeneratorClient) (any, error) {
+	results, err := q.forGivenGenerators(ctx, replicationSet, func(ctx context.Context, client tempopb.MetricsGeneratorClient) (any, error) {
 		return client.QueryRange(ctx, req)
-	}
-	results, err := q.forGivenGenerators(ctx, replicationSet, forEach)
+	})
 	if err != nil {
 		_ = level.Error(log.Logger).Log("msg", "error querying generators in Querier.queryRangeRecent", "err", err)
 		return nil, fmt.Errorf("error querying generators in Querier.queryRangeRecent: %w", err)
