@@ -24,6 +24,7 @@
 configurable via the throughput_bytes_slo field, and it will populate op="traces" label in slo and throughput metrics.
 * [FEATURE] Added most_recent=true query hint to TraceQL to return most recent results. [#4238](https://github.com/grafana/tempo/pull/4238) (@joe-elliott)
 * [FEATURE] Add ability to add artificial delay to push requests [#4716](https://github.com/grafana/tempo/pull/4716) (@yvrhdn)
+* [FEATURE] TraceQL metrics: sum_over_time [#4786](https://github.com/grafana/tempo/pull/4786) (@javiermolinar)
 * [ENHANCEMENT] Improve Tempo build options [#4755](https://github.com/grafana/tempo/pull/4755) (@stoewer)
 * [ENHANCEMENT] Rewrite traces using rebatching [#4690](https://github.com/grafana/tempo/pull/4690) (@stoewer @joe-elliott)
 * [ENHANCEMENT] Reorder span iterators [#4754](https://github.com/grafana/tempo/pull/4754) (@stoewer)
