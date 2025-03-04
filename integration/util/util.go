@@ -44,10 +44,11 @@ import (
 )
 
 const (
-	image       = "tempo:latest"
-	debugImage  = "tempo-debug:latest"
-	queryImage  = "tempo-query:latest"
-	jaegerImage = "jaegertracing/jaeger-query:1.64.0"
+	image           = "tempo:latest"
+	debugImage      = "tempo-debug:latest"
+	queryImage      = "tempo-query:latest"
+	jaegerImage     = "jaegertracing/jaeger-query:1.64.0"
+	prometheusImage = "prom/prometheus:latest"
 )
 
 // GetExtraArgs returns the extra args to pass to the Docker command used to run Tempo.
@@ -639,4 +640,14 @@ func SpanCount(a *tempopb.Trace) float64 {
 	}
 
 	return float64(count)
+}
+
+func NewPrometheus() *e2e.HTTPService {
+	return e2e.NewHTTPService(
+		"prometheus",
+		prometheusImage,
+		e2e.NewCommandWithoutEntrypoint("/bin/prometheus", "--config.file=/etc/prometheus/prometheus.yml", "--web.enable-remote-write-receiver"),
+		e2e.NewHTTPReadinessProbe(9090, "/-/ready", 200, 299),
+		9090,
+	)
 }

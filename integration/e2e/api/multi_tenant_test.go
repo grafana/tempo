@@ -1,4 +1,4 @@
-package e2e
+package api
 
 import (
 	"context"
@@ -66,7 +66,8 @@ func testSearch(t *testing.T, tenant string, tenantSize int) {
 
 	require.NoError(t, util.CopyFileToSharedDir(s, configMultiTenant, "config.yaml"))
 	tempo := util.NewTempoAllInOne()
-	require.NoError(t, s.StartAndWaitReady(tempo, newPrometheus()))
+	prometheus := util.NewPrometheus()
+	require.NoError(t, s.StartAndWaitReady(tempo, prometheus))
 
 	// Get port for the Jaeger gRPC receiver endpoint
 	c, err := util.NewJaegerGRPCClient(tempo.Endpoint(14250))
