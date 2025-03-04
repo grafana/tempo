@@ -7,6 +7,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level" //nolint:all //deprecated
@@ -353,11 +354,13 @@ func multiTenantUnsupportedMiddleware(cfg Config, logger log.Logger) pipeline.As
 
 // blockMetasForSearch returns a list of blocks that are relevant to the search query.
 // start and end are unix timestamps in seconds. rf is the replication factor of the blocks to return.
-func blockMetasForSearch(allBlocks []*backend.BlockMeta, start, end uint32, rf uint32) []*backend.BlockMeta {
+func blockMetasForSearch(allBlocks []*backend.BlockMeta, start, end time.Time, rf uint32) []*backend.BlockMeta {
 	blocks := make([]*backend.BlockMeta, 0, len(allBlocks)/50) // divide by 50 for luck
 	for _, m := range allBlocks {
-		if m.StartTime.Unix() <= int64(end) &&
-			m.EndTime.Unix() >= int64(start) &&
+		// Block overlaps with search range if:
+		// block start is before or equal to search end AND block end is after or equal to search start
+		if !m.StartTime.After(end) && // block start <= search end
+			!m.EndTime.Before(start) && // block end >= search start
 			m.ReplicationFactor == rf { // This check skips generator blocks (RF=1)
 			blocks = append(blocks, m)
 		}
