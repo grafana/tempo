@@ -512,6 +512,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 		return nil, fmt.Errorf("error querying ingesters in Querier.SearchTags: %w", err)
 	}
 
+outer:
 	for _, result := range results {
 		resp := result.(*tempopb.SearchTagsResponse)
 		if resp.Metrics != nil {
@@ -521,7 +522,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 		for _, tag := range resp.TagNames {
 			distinctValues.Collect(tag)
 			if distinctValues.Exceeded() {
-				break // jpe - doesn't perfectly break b/c of the double loop
+				break outer
 			}
 		}
 	}
@@ -554,6 +555,7 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 		return nil, fmt.Errorf("error querying ingesters in Querier.SearchTags: %w", err)
 	}
 
+outer:
 	for _, result := range results {
 		resp := result.(*tempopb.SearchTagsV2Response)
 		if resp.Metrics != nil {
@@ -563,7 +565,7 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 		for _, res := range resp.Scopes {
 			for _, tag := range res.Tags {
 				if distinctValues.Collect(res.Name, tag) {
-					break // jpe - doesn't perfectly break b/c of the triple loop
+					break outer
 				}
 			}
 		}
@@ -611,6 +613,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 		return nil, fmt.Errorf("error querying ingesters in Querier.SearchTagValues: %w", err)
 	}
 
+outer:
 	for _, result := range results {
 		resp := result.(*tempopb.SearchTagValuesResponse)
 		if resp.Metrics != nil {
@@ -620,7 +623,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 		for _, res := range resp.TagValues {
 			distinctValues.Collect(res)
 			if distinctValues.Exceeded() {
-				break // jpe - doesn't perfectly break b/c of the double loop
+				break outer
 			}
 		}
 	}
@@ -666,6 +669,7 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 		return nil, fmt.Errorf("error querying ingesters in Querier.SearchTagValues: %w", err)
 	}
 
+outer:
 	for _, result := range results {
 		resp := result.(*tempopb.SearchTagValuesV2Response)
 		if resp.Metrics != nil {
@@ -675,7 +679,7 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 		for _, res := range resp.TagValues {
 			distinctValues.Collect(*res)
 			if distinctValues.Exceeded() {
-				break // jpe - doesn't perfectly break b/c of the double loop
+				break outer
 			}
 		}
 	}
