@@ -22,6 +22,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func requestWithDefaultRange(q string) *tempopb.QueryRangeRequest {
+	return &tempopb.QueryRangeRequest{
+		Start: 1,
+		End:   50 * uint64(time.Second),
+		Step:  15 * uint64(time.Second),
+		Query: q,
+	}
+}
+
 var queryRangeTestCases = []struct {
 	name     string
 	req      *tempopb.QueryRangeRequest
@@ -29,12 +38,7 @@ var queryRangeTestCases = []struct {
 }{
 	{
 		name: "rate",
-		req: &tempopb.QueryRangeRequest{
-			Start: 1,
-			End:   50 * uint64(time.Second),
-			Step:  15 * uint64(time.Second),
-			Query: "{ } | rate()",
-		},
+		req:  requestWithDefaultRange("{ } | rate()"),
 		expected: []*tempopb.TimeSeries{
 			{
 				PromLabels: `{__name__="rate"}`,
@@ -51,12 +55,7 @@ var queryRangeTestCases = []struct {
 	},
 	{
 		name: "rate_with_filter",
-		req: &tempopb.QueryRangeRequest{
-			Start: 1,
-			End:   50 * uint64(time.Second),
-			Step:  15 * uint64(time.Second),
-			Query: `{ .service.name="even" } | rate()`,
-		},
+		req:  requestWithDefaultRange(`{ .service.name="even" } | rate()`),
 		expected: []*tempopb.TimeSeries{
 			{
 				PromLabels: `{__name__="rate"}`,
