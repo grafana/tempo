@@ -23,10 +23,12 @@ import (
 )
 
 var queryRangeTestCases = []struct {
+	name     string
 	req      *tempopb.QueryRangeRequest
 	expected []*tempopb.TimeSeries
 }{
 	{
+		name: "rate",
 		req: &tempopb.QueryRangeRequest{
 			Start: 1,
 			End:   50 * uint64(time.Second),
@@ -48,6 +50,7 @@ var queryRangeTestCases = []struct {
 		},
 	},
 	{
+		name: "rate_with_filter",
 		req: &tempopb.QueryRangeRequest{
 			Start: 1,
 			End:   50 * uint64(time.Second),
@@ -182,15 +185,16 @@ func TestTempoDBQueryRange(t *testing.T) {
 	})
 
 	for _, tc := range queryRangeTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			eval, err := traceql.NewEngine().CompileMetricsQueryRange(tc.req, 0, 0, false)
+			require.NoError(t, err)
 
-		eval, err := traceql.NewEngine().CompileMetricsQueryRange(tc.req, 0, 0, false)
-		require.NoError(t, err)
+			err = eval.Do(ctx, f, 0, 0)
+			require.NoError(t, err)
 
-		err = eval.Do(ctx, f, 0, 0)
-		require.NoError(t, err)
+			actual := eval.Results().ToProto(tc.req)
 
-		actual := eval.Results().ToProto(tc.req)
-
-		require.Equal(t, tc.expected, actual, "Query: %v", tc.req.Query)
+			require.Equal(t, tc.expected, actual, "Query: %v", tc.req.Query)
+		})
 	}
 }
