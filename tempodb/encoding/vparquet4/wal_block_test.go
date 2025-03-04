@@ -224,7 +224,7 @@ func TestWalBlockFindTraceByID(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, found)
 			require.True(t, proto.Equal(trs[i], found.Trace))
-			require.Greater(t, found.Metrics.InspectedBytes, 0)
+			require.Greater(t, found.Metrics.InspectedBytes, uint64(10))
 		}
 	})
 }
