@@ -255,7 +255,9 @@ func (s searchTagSharder) backendRequests(ctx context.Context, tenantID string, 
 	}
 
 	// get block metadata of blocks in start, end duration
-	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), start, end, backend.DefaultReplicationFactor)
+	startT := time.Unix(int64(start), 0)
+	endT := time.Unix(int64(end), 0)
+	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), startT, endT, backend.DefaultReplicationFactor)
 
 	targetBytesPerRequest := s.cfg.TargetBytesPerRequest
 
@@ -271,6 +273,8 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 
 	hash := searchReq.hash()
 	keyPrefix := searchReq.keyPrefix()
+	startTime := time.Unix(int64(searchReq.start()), 0)
+	endTime := time.Unix(int64(searchReq.end()), 0)
 
 	for _, m := range metas {
 		pages := pagesPerRequest(m, bytesPerRequest)
@@ -288,7 +292,7 @@ func (s searchTagSharder) buildBackendRequests(ctx context.Context, tenantID str
 				continue
 			}
 
-			key := cacheKey(keyPrefix, tenantID, hash, int64(searchReq.start()), int64(searchReq.end()), m, startPage, pages)
+			key := cacheKey(keyPrefix, tenantID, hash, startTime, endTime, m, startPage, pages)
 			pipelineR.SetCacheKey(key)
 
 			select {

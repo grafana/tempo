@@ -138,7 +138,10 @@ func TestCacheKeyForJob(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := searchJobCacheKey(tc.tenant, tc.queryHash, int64(tc.req.Start), int64(tc.req.End), tc.meta, tc.searchPage, tc.pagesToSearch)
+			startTime := time.Unix(int64(tc.req.Start), 0)
+			endTime := time.Unix(int64(tc.req.End), 0)
+
+			actual := searchJobCacheKey(tc.tenant, tc.queryHash, startTime, endTime, tc.meta, tc.searchPage, tc.pagesToSearch)
 			require.Equal(t, tc.expected, actual)
 		})
 	}
@@ -155,8 +158,11 @@ func BenchmarkCacheKeyForJob(b *testing.B) {
 		EndTime:   time.Unix(16, 0),
 	}
 
+	startTime := time.Unix(int64(req.Start), 0)
+	endTime := time.Unix(int64(req.End), 0)
+
 	for i := 0; i < b.N; i++ {
-		s := searchJobCacheKey("foo", 10, int64(req.Start), int64(req.End), meta, 1, 2)
+		s := searchJobCacheKey("foo", 10, startTime, endTime, meta, 1, 2)
 		if len(s) == 0 {
 			b.Fatalf("expected non-empty string")
 		}
