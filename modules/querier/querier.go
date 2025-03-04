@@ -213,7 +213,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 
 	maxBytes := q.limits.MaxBytesPerTrace(userID)
 	combiner := trace.NewCombiner(maxBytes, req.AllowPartialTrace)
-	mc := collector.NewMetricsCollector()
+	var inspectedBytes uint64
 
 	if req.QueryMode == QueryModeIngesters || req.QueryMode == QueryModeAll {
 		var getRSFn replicationSetFn
@@ -248,7 +248,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 			spanCountTotal += int64(spanCount)
 			traceCountTotal++
 			if resp.Metrics != nil {
-				mc.Add(resp.Metrics.InspectedBytes)
+				inspectedBytes += resp.Metrics.InspectedBytes
 			}
 		}
 
@@ -290,7 +290,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 				return nil, err
 			}
 			if partialTrace.Metrics != nil {
-				mc.Add(partialTrace.Metrics.InspectedBytes)
+				inspectedBytes += partialTrace.Metrics.InspectedBytes
 			}
 		}
 	}
@@ -298,7 +298,7 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 	completeTrace, _ := combiner.Result()
 	resp := &tempopb.TraceByIDResponse{
 		Trace:   completeTrace,
-		Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: mc.TotalValue()},
+		Metrics: &tempopb.TraceByIDMetrics{InspectedBytes: inspectedBytes},
 	}
 
 	if combiner.IsPartialTrace() {
@@ -503,7 +503,7 @@ func (q *Querier) SearchTags(ctx context.Context, req *tempopb.SearchTagsRequest
 
 	maxDataSize := q.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewDistinctString(maxDataSize, req.MaxTagsPerScope, req.StaleValuesThreshold)
-	mc := collector.NewMetricsCollector()
+	var inspectedBytes uint64
 
 	results, err := q.forIngesterRings(ctx, userID, nil, func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
 		return client.SearchTags(ctx, req)
@@ -516,7 +516,7 @@ outer:
 	for _, result := range results {
 		resp := result.(*tempopb.SearchTagsResponse)
 		if resp.Metrics != nil {
-			mc.Add(resp.Metrics.InspectedBytes)
+			inspectedBytes += resp.Metrics.InspectedBytes
 		}
 
 		for _, tag := range resp.TagNames {
@@ -533,7 +533,7 @@ outer:
 
 	return &tempopb.SearchTagsResponse{
 		TagNames: distinctValues.Strings(),
-		Metrics:  &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()},
+		Metrics:  &tempopb.MetadataMetrics{InspectedBytes: inspectedBytes},
 	}, nil
 }
 
@@ -545,7 +545,7 @@ func (q *Querier) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsReque
 
 	maxBytesPerTag := q.limits.MaxBytesPerTagValuesQuery(orgID)
 	distinctValues := collector.NewScopedDistinctString(maxBytesPerTag, req.MaxTagsPerScope, req.StaleValuesThreshold)
-	mc := collector.NewMetricsCollector()
+	var inspectedBytes uint64
 
 	// Get results from all ingesters
 	results, err := q.forIngesterRings(ctx, orgID, nil, func(ctx context.Context, client tempopb.QuerierClient) (any, error) {
@@ -559,7 +559,7 @@ outer:
 	for _, result := range results {
 		resp := result.(*tempopb.SearchTagsV2Response)
 		if resp.Metrics != nil {
-			mc.Add(resp.Metrics.InspectedBytes)
+			inspectedBytes += resp.Metrics.InspectedBytes
 		}
 
 		for _, res := range resp.Scopes {
@@ -578,7 +578,7 @@ outer:
 	collected := distinctValues.Strings()
 	resp := &tempopb.SearchTagsV2Response{
 		Scopes:  make([]*tempopb.SearchTagsV2Scope, 0, len(collected)),
-		Metrics: &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()}, // send metrics with response
+		Metrics: &tempopb.MetadataMetrics{InspectedBytes: inspectedBytes},
 	}
 	for scope, vals := range collected {
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
@@ -598,7 +598,7 @@ func (q *Querier) SearchTagValues(ctx context.Context, req *tempopb.SearchTagVal
 
 	maxDataSize := q.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewDistinctString(maxDataSize, req.MaxTagValues, req.StaleValueThreshold)
-	mc := collector.NewMetricsCollector()
+	var inspectedBytes uint64
 
 	// Virtual tags values. Get these first.
 	for _, v := range search.GetVirtualTagValues(req.TagName) {
@@ -617,7 +617,7 @@ outer:
 	for _, result := range results {
 		resp := result.(*tempopb.SearchTagValuesResponse)
 		if resp.Metrics != nil {
-			mc.Add(resp.Metrics.InspectedBytes)
+			inspectedBytes += resp.Metrics.InspectedBytes
 		}
 
 		for _, res := range resp.TagValues {
@@ -634,7 +634,7 @@ outer:
 
 	return &tempopb.SearchTagValuesResponse{
 		TagValues: distinctValues.Strings(),
-		Metrics:   &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()},
+		Metrics:   &tempopb.MetadataMetrics{InspectedBytes: inspectedBytes},
 	}, nil
 }
 
@@ -646,7 +646,7 @@ func (q *Querier) SearchTagValuesV2(ctx context.Context, req *tempopb.SearchTagV
 
 	maxDataSize := q.limits.MaxBytesPerTagValuesQuery(userID)
 	distinctValues := collector.NewDistinctValue(maxDataSize, req.MaxTagValues, req.StaleValueThreshold, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
-	mc := collector.NewMetricsCollector()
+	var inspectedBytes uint64
 
 	// Virtual tags values. Get these first.
 	virtualVals := search.GetVirtualTagValuesV2(req.TagName)
@@ -673,7 +673,7 @@ outer:
 	for _, result := range results {
 		resp := result.(*tempopb.SearchTagValuesV2Response)
 		if resp.Metrics != nil {
-			mc.Add(resp.Metrics.InspectedBytes)
+			inspectedBytes += resp.Metrics.InspectedBytes
 		}
 
 		for _, res := range resp.TagValues {
@@ -688,7 +688,7 @@ outer:
 		_ = level.Warn(log.Logger).Log("msg", "Search of tag values exceeded limit, reduce cardinality or size of tags", "tag", req.TagName, "orgID", userID, "stopReason", distinctValues.StopReason())
 	}
 
-	return valuesToV2Response(distinctValues, mc.TotalValue()), nil
+	return valuesToV2Response(distinctValues, inspectedBytes), nil
 }
 
 func (q *Querier) SpanMetricsSummary(ctx context.Context, req *tempopb.SpanMetricsSummaryRequest) (*tempopb.SpanMetricsSummaryResponse, error) {
@@ -899,10 +899,10 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 	}
 
 	valueCollector := collector.NewScopedDistinctString(q.limits.MaxBytesPerTagValuesQuery(tenantID), req.MaxTagsPerScope, req.StaleValueThreshold)
-	mc := collector.NewMetricsCollector()
+	var inspectedBytes uint64
 
 	fetcher := traceql.NewTagNamesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback) error {
-		return q.store.FetchTagNames(ctx, meta, req, cb, mc.Add, common.DefaultSearchOptions())
+		return q.store.FetchTagNames(ctx, meta, req, cb, func(bytesRead uint64) { inspectedBytes += bytesRead }, common.DefaultSearchOptions())
 	})
 
 	scope := traceql.AttributeScopeFromString(req.SearchReq.Scope)
@@ -924,7 +924,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 	scopedVals := valueCollector.Strings()
 	resp := &tempopb.SearchTagsV2Response{
 		Scopes:  make([]*tempopb.SearchTagsV2Scope, 0, len(scopedVals)),
-		Metrics: &tempopb.MetadataMetrics{InspectedBytes: mc.TotalValue()}, // send metrics with response
+		Metrics: &tempopb.MetadataMetrics{InspectedBytes: inspectedBytes},
 	}
 	for scope, vals := range scopedVals {
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
@@ -1034,10 +1034,10 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		req.SearchReq.MaxTagValues, req.SearchReq.StaleValueThreshold,
 		func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 
-	mc := collector.NewMetricsCollector()
+	var inspectedBytes uint64
 
 	fetcher := traceql.NewTagValuesFetcherWrapper(func(ctx context.Context, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback) error {
-		return q.store.FetchTagValues(ctx, meta, req, cb, mc.Add, opts)
+		return q.store.FetchTagValues(ctx, meta, req, cb, func(bytesRead uint64) { inspectedBytes += bytesRead }, opts)
 	})
 
 	err = q.engine.ExecuteTagValues(ctx, tag, query, traceql.MakeCollectTagValueFunc(valueCollector.Collect), fetcher)
@@ -1049,7 +1049,7 @@ func (q *Querier) internalTagValuesSearchBlockV2(ctx context.Context, req *tempo
 		level.Warn(log.Logger).Log("msg", "Search tags exceeded limit, reduce cardinality or size of tags", "orgID", tenantID, "stopReason", valueCollector.StopReason())
 	}
 
-	return valuesToV2Response(valueCollector, mc.TotalValue()), nil
+	return valuesToV2Response(valueCollector, inspectedBytes), nil
 }
 
 func (q *Querier) postProcessIngesterSearchResults(req *tempopb.SearchRequest, results []any) *tempopb.SearchResponse {
