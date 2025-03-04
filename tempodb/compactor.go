@@ -213,7 +213,7 @@ func (rw *readerWriter) compactWhileOwns(ctx context.Context, blockMetas []*back
 		}
 	}()
 
-	err := rw.Compact(ownsCtx, blockMetas, tenantID)
+	err := rw.compact(ownsCtx, blockMetas, tenantID)
 	if errors.Is(err, context.Canceled) && errors.Is(context.Cause(ownsCtx), errCompactionJobNoLongerOwned) {
 		level.Warn(rw.logger).Log("msg", "lost ownership of this job. abandoning job and trying again on this block list", "err", err)
 		return nil
@@ -235,7 +235,11 @@ func (rw *readerWriter) compactWhileOwns(ctx context.Context, blockMetas []*back
 	return err
 }
 
-func (rw *readerWriter) Compact(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string) error {
+func (rw *readerWriter) compact(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string) error {
+	return rw.CompactWithConfig(ctx, blockMetas, tenantID, rw.compactorCfg, rw.compactorSharder, rw.compactorOverrides)
+}
+
+func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string, compactorCfg *CompactorConfig, compactorSharder CompactorSharder, compactorOverrides CompactorOverrides) error {
 	level.Debug(rw.logger).Log("msg", "beginning compaction", "num blocks compacting", len(blockMetas))
 
 	// todo - add timeout?
@@ -286,23 +290,23 @@ func (rw *readerWriter) Compact(ctx context.Context, blockMetas []*backend.Block
 		return err
 	}
 
-	compactionLevel := compactionLevelForBlocks(blockMetas)
+	compactionLevel := CompactionLevelForBlocks(blockMetas)
 	compactionLevelLabel := strconv.Itoa(int(compactionLevel))
 
 	combiner := instrumentedObjectCombiner{
 		tenant:               tenantID,
-		inner:                rw.compactorSharder,
+		inner:                compactorSharder,
 		compactionLevelLabel: compactionLevelLabel,
 	}
 
 	opts := common.CompactionOptions{
 		BlockConfig:        *rw.cfg.Block,
-		ChunkSizeBytes:     rw.compactorCfg.ChunkSizeBytes,
-		FlushSizeBytes:     rw.compactorCfg.FlushSizeBytes,
-		IteratorBufferSize: rw.compactorCfg.IteratorBufferSize,
+		ChunkSizeBytes:     compactorCfg.ChunkSizeBytes,
+		FlushSizeBytes:     compactorCfg.FlushSizeBytes,
+		IteratorBufferSize: compactorCfg.IteratorBufferSize,
 		OutputBlocks:       outputBlocks,
 		Combiner:           combiner,
-		MaxBytesPerTrace:   rw.compactorOverrides.MaxBytesPerTraceForTenant(tenantID),
+		MaxBytesPerTrace:   compactorOverrides.MaxBytesPerTraceForTenant(tenantID),
 		BytesWritten: func(compactionLevel, bytes int) {
 			metricCompactionBytesWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(bytes))
 		},
@@ -313,7 +317,7 @@ func (rw *readerWriter) Compact(ctx context.Context, blockMetas []*backend.Block
 			metricCompactionObjectsWritten.WithLabelValues(strconv.Itoa(compactionLevel)).Add(float64(objs))
 		},
 		SpansDiscarded: func(traceId, rootSpanName, rootServiceName string, spans int) {
-			rw.compactorSharder.RecordDiscardedSpans(spans, tenantID, traceId, rootSpanName, rootServiceName)
+			compactorSharder.RecordDiscardedSpans(spans, tenantID, traceId, rootSpanName, rootServiceName)
 		},
 		DisconnectedTrace: func() {
 			dataquality.WarnDisconnectedTrace(tenantID, dataquality.PhaseTraceCompactorCombine)
@@ -403,7 +407,7 @@ func measureOutstandingBlocks(tenantID string, blockSelector blockselector.Compa
 	metricCompactionOutstandingBlocks.WithLabelValues(tenantID).Set(float64(totalOutstandingBlocks))
 }
 
-func compactionLevelForBlocks(blockMetas []*backend.BlockMeta) uint8 {
+func CompactionLevelForBlocks(blockMetas []*backend.BlockMeta) uint8 {
 	level := uint8(0)
 
 	for _, m := range blockMetas {

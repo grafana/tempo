@@ -113,6 +113,7 @@
   tempo_query_frontend_config:: $.tempo_config {},
   tempo_block_builder_config:: $.tempo_config {},
   tempo_backend_scheduler_config:: $.tempo_config {},
+  tempo_backend_worker_config:: $.tempo_config {},
 
   // This will be the single configmap that stores `overrides.yaml`.
   overrides_config:

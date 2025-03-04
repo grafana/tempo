@@ -56,6 +56,8 @@
         service.mixin.spec.withIpFamilies(['IPv6']),
       tempo_backend_scheduler_service+:
         service.mixin.spec.withIpFamilies(['IPv6']),
+      tempo_backend_worker_service+:
+        service.mixin.spec.withIpFamilies(['IPv6']),
       gossip_ring_service+:
         service.mixin.spec.withIpFamilies(['IPv6']),
       ingest_service+:

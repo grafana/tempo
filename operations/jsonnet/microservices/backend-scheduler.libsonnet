@@ -13,8 +13,6 @@
   local tempo_config_volume = 'tempo-conf',
   local tempo_overrides_config_volume = 'overrides',
 
-  // Statefulset
-
   tempo_backend_scheduler_ports:: [
     containerPort.new('prom-metrics', $._config.port),
   ],

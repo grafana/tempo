@@ -24,6 +24,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
 	"github.com/grafana/tempo/modules/backendscheduler"
+	"github.com/grafana/tempo/modules/backendworker"
 	"github.com/grafana/tempo/modules/blockbuilder"
 	"github.com/grafana/tempo/modules/cache"
 	"github.com/grafana/tempo/modules/compactor"
@@ -80,6 +81,7 @@ const (
 	Compactor                     string = "compactor"
 	BlockBuilder                  string = "block-builder"
 	BackendScheduler              string = "backend-scheduler"
+	BackendWorker                 string = "backend-worker"
 
 	// composite targets
 	SingleBinary         string = "all"
@@ -552,15 +554,7 @@ func (t *App) initCompactor() (services.Service, error) {
 		t.cfg.Compactor.ShardingRing.KVStore.Store = "memberlist"
 	}
 
-	// When running as the BackendScheduler target, we want to avoid the
-	// compaction/retention loops as well as the job worker functinality.  The
-	// EnableCompaction method is used in the initBackendScheduler for the
-	// intended use case.
-	if t.cfg.Target == BackendScheduler {
-		t.cfg.Compactor.Disabled = true
-	}
-
-	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.Overrides, t.cfg.BackenSchedulerClient, prometheus.DefaultRegisterer)
+	compactor, err := compactor.New(t.cfg.Compactor, t.store, t.Overrides, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compactor: %w", err)
 	}
@@ -687,26 +681,11 @@ func (t *App) initCacheProvider() (services.Service, error) {
 }
 
 func (t *App) initBackendScheduler() (services.Service, error) {
-	// If not enabled, return idle service
-	if !t.cfg.BackendScheduler.Enabled {
-		return services.NewIdleService(nil, nil), nil
-	}
-
 	if t.cfg.Target == BackendScheduler {
-		// NOTE: Polling is enabled in the starting() call of the Compactor module.
-		// We still need to configure the Compactor through the EnableCompaction
-		// call, even though we don't want to run them.
-
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-
-		err := t.store.EnableCompaction(ctx, &t.cfg.Compactor.Compactor, t.compactor, t.compactor)
-		if err != nil {
-			return nil, fmt.Errorf("failed to enable compaction: %w", err)
-		}
+		t.cfg.BackendScheduler.Poll = true
 	}
 
-	scheduler, err := backendscheduler.New(t.cfg.BackendScheduler, t.store)
+	scheduler, err := backendscheduler.New(t.cfg.BackendScheduler, t.store, t.Overrides)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create backend scheduler: %w", err)
 	}
@@ -714,15 +693,26 @@ func (t *App) initBackendScheduler() (services.Service, error) {
 	// Register the GRPC service
 	tempopb.RegisterBackendSchedulerServer(t.Server.GRPC(), scheduler)
 
-	// TODO:
-	// Add HTTP endpoints if needed
-	// t.Server.HTTPRouter().Path("/scheduler/status").Handler(
-	// 	t.HTTPAuthMiddleware.Wrap(
-	// 		http.HandlerFunc(scheduler.StatusHandler),
-	// 	),
-	// )
+	t.Server.HTTPRouter().Path("/scheduler/status").Handler(
+		t.HTTPAuthMiddleware.Wrap(
+			http.HandlerFunc(scheduler.StatusHandler),
+		),
+	)
 
 	return scheduler, nil
+}
+
+func (t *App) initBackendWorker() (services.Service, error) {
+	if t.cfg.Target == BackendWorker {
+		t.cfg.BackendWorker.Poll = true
+	}
+
+	worker, err := backendworker.New(t.cfg.BackendWorker, t.cfg.BackenSchedulerClient, t.store, t.Overrides)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create backend scheduler: %w", err)
+	}
+
+	return worker, nil
 }
 
 func (t *App) setupModuleManager() error {
@@ -757,6 +747,7 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(MetricsGeneratorNoLocalBlocks, t.initGeneratorNoLocalBlocks)
 	mm.RegisterModule(BlockBuilder, t.initBlockBuilder)
 	mm.RegisterModule(BackendScheduler, t.initBackendScheduler)
+	mm.RegisterModule(BackendWorker, t.initBackendWorker)
 
 	mm.RegisterModule(SingleBinary, nil)
 	mm.RegisterModule(ScalableSingleBinary, nil)
@@ -787,7 +778,8 @@ func (t *App) setupModuleManager() error {
 		Querier:                       {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
 		Compactor:                     {Common, Store, MemberlistKV},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
-		BackendScheduler:              {Common, Store, Compactor},
+		BackendScheduler:              {Common, Store},
+		BackendWorker:                 {Common, Store},
 
 		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator, BlockBuilder},

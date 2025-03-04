@@ -140,6 +140,19 @@
         },
       },
     },
+    backend_worker: {
+      replicas: 1,
+      resources: {
+        requests: {
+          cpu: '500m',
+          memory: '1Gi',
+        },
+        limits: {
+          cpu: '1',
+          memory: '2Gi',
+        },
+      },
+    },
     memcached: {
       replicas: 3,
       connection_limit: 4096,

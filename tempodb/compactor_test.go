@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/blocklist"
+	"github.com/grafana/tempo/tempodb/blockselector"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/pool"
@@ -162,7 +163,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	rw.pollBlocklist(ctx)
 
 	blocklist := rw.blocklist.Metas(testTenantID)
-	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, 2)
+	blockSelector := blockselector.NewTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, blockselector.DefaultMinInputBlocks, blockCount)
 
 	expectedCompactions := len(blocklist) / inputBlocks
 	compactions := 0
@@ -174,7 +175,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 		require.Len(t, blocks, inputBlocks)
 
 		compactions++
-		err := rw.Compact(context.Background(), blocks, testTenantID)
+		err := rw.compact(context.Background(), blocks, testTenantID)
 		require.NoError(t, err)
 
 		expectedBlockCount -= blocksPerCompaction
@@ -332,14 +333,14 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 
 	var blocks []*backend.BlockMeta
 	list := rw.blocklist.Metas(testTenantID)
-	blockSelector := newTimeWindowBlockSelector(list, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, blockCount)
+	blockSelector := blockselector.NewTimeWindowBlockSelector(list, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, blockselector.DefaultMinInputBlocks, blockCount)
 	blocks, _ = blockSelector.BlocksToCompact()
 	require.Len(t, blocks, blockCount)
 
 	combinedStart, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
 	require.NoError(t, err)
 
-	err = rw.Compact(ctx, blocks, testTenantID)
+	err = rw.compact(ctx, blocks, testTenantID)
 	require.NoError(t, err)
 
 	checkBlocklists(ctx, t, uuid.Nil, 1, blockCount, rw)
@@ -423,7 +424,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	rw.pollBlocklist(ctx)
 
 	// compact everything
-	err = rw.Compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
+	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
 	require.NoError(t, err)
 
 	// New blocklist contains 1 compacted block with everything
@@ -504,7 +505,7 @@ func TestCompactionMetrics(t *testing.T) {
 	assert.NoError(t, err)
 
 	// compact everything
-	err = rw.Compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
+	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
 	assert.NoError(t, err)
 
 	// Check metric
@@ -646,7 +647,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	rw.pollBlocklist(ctx)
 
 	// compact everything
-	err = rw.Compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
+	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
 	require.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond)
@@ -920,6 +921,6 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 
 	b.ResetTimer()
 
-	err = rw.Compact(ctx, metas, testTenantID)
+	err = rw.compact(ctx, metas, testTenantID)
 	require.NoError(b, err)
 }

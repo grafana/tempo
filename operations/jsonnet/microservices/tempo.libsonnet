@@ -9,6 +9,7 @@
 (import 'querier.libsonnet') +
 (import 'block-builder.libsonnet') +
 (import 'backend-scheduler.libsonnet') +
+(import 'backend-worker.libsonnet') +
 (import 'vulture.libsonnet') +
 (import 'memcached.libsonnet') +
 (import 'multi-zone.libsonnet') +

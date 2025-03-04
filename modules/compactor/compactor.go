@@ -7,21 +7,16 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
-	"github.com/google/uuid"
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/dskit/user"
 	"github.com/prometheus/client_golang/prometheus"
 
-	backendscheduler_client "github.com/grafana/tempo/modules/backendscheduler/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/model"
-	"github.com/grafana/tempo/pkg/tempopb"
 	tempoUtil "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/tempodb/backend"
 )
 
 const (
@@ -53,16 +48,10 @@ type Compactor struct {
 
 	subservices        *services.Manager
 	subservicesWatcher *services.FailureWatcher
-
-	backendScheduler tempopb.BackendSchedulerClient
-
-	// TODO: Consider stability of this worker ID across restarts.  Jobs could be
-	// resumed if we have a stable ID.
-	workerID string
 }
 
 // New makes a new Compactor.
-func New(cfg Config, store storage.Store, overrides overrides.Interface, schedulerClientCfg backendscheduler_client.Config, reg prometheus.Registerer) (*Compactor, error) {
+func New(cfg Config, store storage.Store, overrides overrides.Interface, reg prometheus.Registerer) (*Compactor, error) {
 	c := &Compactor{
 		cfg:       &cfg,
 		store:     store,
@@ -100,16 +89,6 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, schedul
 		if err != nil {
 			return nil, fmt.Errorf("unable to initialize compactor ring: %w", err)
 		}
-	}
-
-	if c.cfg.UseScheduler {
-		c.workerID = uuid.New().String() // Generate unique worker ID
-
-		schedulerClient, err := backendscheduler_client.New(cfg.BackendSchedulerAddr, schedulerClientCfg)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create backend scheduler client: %w", err)
-		}
-		c.backendScheduler = schedulerClient
 	}
 
 	c.Service = services.NewBasicService(c.starting, c.running, c.stopping)
@@ -179,28 +158,11 @@ func (c *Compactor) running(ctx context.Context) error {
 	if !c.cfg.Disabled {
 		level.Info(log.Logger).Log("msg", "enabling compaction")
 
-		if c.cfg.UseScheduler {
-			level.Info(log.Logger).Log("msg", "running compaction with scheduler")
-
-			canceledContext, cancel := context.WithCancel(ctx)
-			cancel()
-			err := c.store.EnableCompaction(canceledContext, &c.cfg.Compactor, c, c)
-			if err != nil {
-				return fmt.Errorf("failed to enable compaction: %w", err)
-			}
-
-			// New scheduler-based path
-			err = c.runWithScheduler(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to run with scheduler: %w", err)
-			}
-		} else {
-			level.Info(log.Logger).Log("msg", "running compaction without scheduler")
-			// Original direct compaction path
-			err := c.store.EnableCompaction(ctx, &c.cfg.Compactor, c, c)
-			if err != nil {
-				return fmt.Errorf("failed to enable compaction: %w", err)
-			}
+		level.Info(log.Logger).Log("msg", "running compaction without scheduler")
+		// Original direct compaction path
+		err := c.store.EnableCompaction(ctx, &c.cfg.Compactor, c, c)
+		if err != nil {
+			return fmt.Errorf("failed to enable compaction: %w", err)
 		}
 	}
 
@@ -216,96 +178,6 @@ func (c *Compactor) running(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func (c *Compactor) runWithScheduler(ctx context.Context) error {
-	ticker := time.NewTicker(c.cfg.PollingInterval)
-	defer ticker.Stop()
-
-	level.Info(log.Logger).Log("msg", "backend scheduler running")
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-
-			// TODO: backoff
-			if err := c.processCompactionJobs(ctx); err != nil {
-				level.Error(log.Logger).Log("msg", "error processing compaction jobs", "err", err)
-			}
-		}
-	}
-}
-
-func (c *Compactor) processCompactionJobs(ctx context.Context) error {
-	if c.backendScheduler == nil {
-		return nil
-	}
-
-	// Request next job
-	// FIXME: the org ID is not used by the backend scheduler, but it is required by the request.
-	resp, err := c.backendScheduler.Next(user.InjectOrgID(ctx, c.workerID), &tempopb.NextJobRequest{
-		WorkerId: c.workerID,
-		Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
-	})
-	if err != nil {
-		return fmt.Errorf("error getting next job: %w", err)
-	}
-
-	if resp == nil || resp.JobId == "" {
-		return nil // No jobs available
-	}
-
-	if resp.Detail.Tenant == "" {
-		return c.failJob(ctx, resp.JobId, "received job with empty tenant")
-	}
-
-	level.Debug(log.Logger).Log("msg", "received job", "job_id", resp.JobId, "tenant", resp.Detail.Tenant)
-
-	blockMetas := c.store.BlockMetas(resp.Detail.Tenant)
-
-	// Collect the metas which match the IDs in the job
-	var sourceMetas []*backend.BlockMeta
-	for _, blockMeta := range blockMetas {
-		for _, blockID := range resp.Detail.Compaction.Input {
-			if blockMeta.BlockID.String() == blockID {
-				sourceMetas = append(sourceMetas, blockMeta)
-			}
-		}
-	}
-
-	// Execute compaction using existing logic
-	err = c.store.Compact(ctx, sourceMetas, resp.Detail.Tenant)
-	if err != nil {
-		return c.failJob(ctx, resp.JobId, fmt.Sprintf("error compacting blocks: %v", err))
-	}
-
-	// Mark job as complete
-	_, err = c.backendScheduler.UpdateJob(user.InjectOrgID(ctx, c.workerID), &tempopb.UpdateJobStatusRequest{
-		JobId:  resp.JobId,
-		Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
-	})
-	if err != nil {
-		return fmt.Errorf("failed marking job %q as complete: %w", resp.JobId, err)
-	}
-
-	return nil
-}
-
-func (c *Compactor) failJob(ctx context.Context, jobID string, errMsg string) error {
-	level.Error(log.Logger).Log("msg", "job failed", "job_id", jobID, "error", errMsg)
-
-	_, err := c.backendScheduler.UpdateJob(user.InjectOrgID(ctx, c.workerID), &tempopb.UpdateJobStatusRequest{
-		JobId:  jobID,
-		Status: tempopb.JobStatus_JOB_STATUS_FAILED,
-		Error:  errMsg,
-	})
-	if err != nil {
-		return fmt.Errorf("failed marking job %q as failed: %w", jobID, err)
-	}
-
-	return fmt.Errorf("%s", errMsg)
 }
 
 // Called after compactor is asked to stop via StopAsync.

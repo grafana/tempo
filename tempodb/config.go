@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/grafana/tempo/modules/cache/memcached"
 	"github.com/grafana/tempo/modules/cache/redis"
 
 	"github.com/grafana/tempo/pkg/cache"
+	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb/backend/azure"
 	backend_cache "github.com/grafana/tempo/tempodb/backend/cache"
 	"github.com/grafana/tempo/tempodb/backend/gcs"
@@ -137,8 +139,36 @@ type CompactorConfig struct {
 	CompactionCycle         time.Duration `yaml:"compaction_cycle"`
 }
 
-func (compactorConfig CompactorConfig) validate() error {
-	if compactorConfig.MaxCompactionRange == 0 {
+func (cfg *CompactorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+	spew.Dump("pre", cfg)
+	// fill in default values
+	cfg.ChunkSizeBytes = DefaultChunkSizeBytes
+	cfg.FlushSizeBytes = DefaultFlushSizeBytes
+	cfg.IteratorBufferSize = DefaultIteratorBufferSize
+	cfg.MaxTimePerTenant = DefaultMaxTimePerTenant
+	cfg.CompactionCycle = DefaultCompactionCycle
+	cfg.CompactedBlockRetention = time.Hour
+	cfg.RetentionConcurrency = DefaultRetentionConcurrency
+
+	// cfg = &CompactorConfig{
+	// 	ChunkSizeBytes:          DefaultChunkSizeBytes, // 5 MiB
+	// 	FlushSizeBytes:          DefaultFlushSizeBytes,
+	// 	CompactedBlockRetention: time.Hour,
+	// 	RetentionConcurrency:    DefaultRetentionConcurrency,
+	// 	IteratorBufferSize:      DefaultIteratorBufferSize,
+	// 	MaxTimePerTenant:        DefaultMaxTimePerTenant,
+	// 	CompactionCycle:         DefaultCompactionCycle,
+	// }
+
+	f.DurationVar(&cfg.BlockRetention, util.PrefixConfig(prefix, "compaction.block-retention"), 14*24*time.Hour, "Duration to keep blocks/traces.")
+	f.IntVar(&cfg.MaxCompactionObjects, util.PrefixConfig(prefix, "compaction.max-objects-per-block"), 6000000, "Maximum number of traces in a compacted block.")
+	f.Uint64Var(&cfg.MaxBlockBytes, util.PrefixConfig(prefix, "compaction.max-block-bytes"), 100*1024*1024*1024 /* 100GB */, "Maximum size of a compacted block.")
+	f.DurationVar(&cfg.MaxCompactionRange, util.PrefixConfig(prefix, "compaction.compaction-window"), time.Hour, "Maximum time window across which to compact blocks.")
+	spew.Dump("post", cfg)
+}
+
+func (cfg *CompactorConfig) validate() error {
+	if cfg.MaxCompactionRange == 0 {
 		return errors.New("Compaction window can't be 0")
 	}
 
