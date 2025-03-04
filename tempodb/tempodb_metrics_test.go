@@ -70,6 +70,23 @@ var queryRangeTestCases = []struct {
 			},
 		},
 	},
+	{
+		name: "rate_no_spans",
+		req:  requestWithDefaultRange(`{ .service.name="does_not_exist" } | rate()`),
+		expected: []*tempopb.TimeSeries{
+			{
+				PromLabels: `{__name__="rate"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "rate")},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 0},
+					{TimestampMs: 15_000, Value: 0},
+					{TimestampMs: 30_000, Value: 0},
+					{TimestampMs: 45_000, Value: 0},
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+		},
+	},
 }
 
 func TestTempoDBQueryRange(t *testing.T) {
