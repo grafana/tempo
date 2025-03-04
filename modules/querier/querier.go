@@ -485,11 +485,6 @@ func (q *Querier) SearchTagsBlocks(ctx context.Context, req *tempopb.SearchTagsB
 
 	// flatten v2 response
 	for _, s := range v2Response.Scopes {
-		// SearchTags does not include intrinsics on an empty scope, but v2 does.
-		if req.SearchReq.Scope == "" && s.Name == api.ParamScopeIntrinsic {
-			continue
-		}
-
 		for _, t := range s.Tags {
 			distinctValues.Collect(t)
 			if distinctValues.Exceeded() {

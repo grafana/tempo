@@ -55,7 +55,8 @@ func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[com
 		})
 
 		// Add intrinsics first so that they aren't dropped by the response size limit
-		if req.Scope == "" || req.Scope == api.ParamScopeIntrinsic {
+		// NOTE - V1 tag lookup only returns intrinsics when scope is set explicitly.
+		if req.Scope == api.ParamScopeIntrinsic {
 			err := comb.AddTypedResponse(&tempopb.SearchTagsResponse{
 				TagNames: search.GetVirtualIntrinsicValues(),
 			})
@@ -98,6 +99,7 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 		})
 
 		// Add intrinsics first so that they aren't dropped by the response size limit
+		// NOTE - V2 tag lookup returns intrinsics for both unscoped and explicit scope requests.
 		if req.Scope == "" || req.Scope == api.ParamScopeIntrinsic {
 			err := comb.AddTypedResponse(&tempopb.SearchTagsV2Response{
 				Scopes: []*tempopb.SearchTagsV2Scope{
@@ -218,7 +220,8 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope, staleValueThreshold)
 
 		// Add intrinsics first so that they aren't dropped by the response size limit
-		if scope == "" || scope == api.ParamScopeIntrinsic {
+		// NOTE - V1 tag lookup only returns intrinsics when scope is set explicitly.
+		if scope == api.ParamScopeIntrinsic {
 			err := comb.AddTypedResponse(&tempopb.SearchTagsResponse{
 				TagNames: search.GetVirtualIntrinsicValues(),
 			})
@@ -263,6 +266,7 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope, staleValueThreshold)
 
 		// Add intrinsics first so that they aren't dropped by the response size limit
+		// NOTE - V2 tag lookup returns intrinsics for both unscoped and explicit scope requests.
 		if scope == "" || scope == api.ParamScopeIntrinsic {
 			err := comb.AddTypedResponse(&tempopb.SearchTagsV2Response{
 				Scopes: []*tempopb.SearchTagsV2Scope{

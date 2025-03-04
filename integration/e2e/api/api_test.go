@@ -495,11 +495,9 @@ func TestSearchTags(t *testing.T) {
 	batch := util.MakeThriftBatch()
 	require.NoError(t, jaegerClient.EmitBatch(context.Background(), batch))
 
-	intrinsicTags := search.GetVirtualIntrinsicValues()
-
 	// Wait for the traces to be written to the WAL
 	time.Sleep(time.Second * 3)
-	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: append(intrinsicTags, []string{"service.name", "x", "xx"}...)}, 0, 0, true)
+	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: []string{"service.name", "x", "xx"}}, 0, 0)
 
 	util.CallFlush(t, tempo)
 	time.Sleep(blockFlushTimeout)
@@ -511,8 +509,7 @@ func TestSearchTags(t *testing.T) {
 	require.NoError(t, tempo.WaitSumMetrics(e2e.Equals(1), "tempo_ingester_blocks_cleared_total"))
 
 	// Assert no more on the ingester
-	// except for intrinsic tags
-	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: intrinsicTags}, 0, 0, false)
+	callSearchTagsAndAssert(t, tempo, searchTagsResponse{}, 0, 0)
 
 	// Wait to blocklist_poll to be completed
 	time.Sleep(time.Second * 2)
@@ -520,7 +517,7 @@ func TestSearchTags(t *testing.T) {
 	now := time.Now()
 	start := now.Add(-2 * time.Hour)
 	end := now.Add(2 * time.Hour)
-	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: append(intrinsicTags, []string{"service.name", "x", "xx"}...)}, start.Unix(), end.Unix(), true)
+	callSearchTagsAndAssert(t, tempo, searchTagsResponse{TagNames: []string{"service.name", "x", "xx"}}, start.Unix(), end.Unix())
 }
 
 func TestSearchTagValues(t *testing.T) {
@@ -767,7 +764,7 @@ func prepTagsResponse(resp *searchTagsV2Response) {
 	}
 }
 
-func callSearchTagsAndAssert(t *testing.T, svc *e2e.HTTPService, expected searchTagsResponse, start, end int64, checkMetrics bool) {
+func callSearchTagsAndAssert(t *testing.T, svc *e2e.HTTPService, expected searchTagsResponse, start, end int64) {
 	urlPath := "/api/search/tags"
 	// search for tag values
 	req, err := http.NewRequest(http.MethodGet, "http://"+svc.Endpoint(tempoPort)+urlPath, nil)
@@ -798,9 +795,7 @@ func callSearchTagsAndAssert(t *testing.T, svc *e2e.HTTPService, expected search
 	var response searchTagsResponse
 	require.NoError(t, json.Unmarshal(body, &response))
 	require.ElementsMatch(t, expected.TagNames, response.TagNames)
-	if checkMetrics {
-		assertMetrics(t, response.Metrics, len(response.TagNames))
-	}
+	assertMetrics(t, response.Metrics, len(response.TagNames))
 
 	// streaming
 	grpcReq := &tempopb.SearchTagsRequest{
@@ -832,7 +827,7 @@ func callSearchTagsAndAssert(t *testing.T, svc *e2e.HTTPService, expected search
 
 	require.ElementsMatch(t, expected.TagNames, grpcResp.TagNames)
 	// assert metrics, and make sure it's non-zero when response is non-empty
-	if checkMetrics && len(grpcResp.TagNames) > 0 {
+	if len(grpcResp.TagNames) > 0 {
 		require.Greater(t, grpcResp.Metrics.InspectedBytes, uint64(100))
 	}
 }
