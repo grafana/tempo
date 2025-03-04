@@ -136,7 +136,9 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 		return
 	}
 
-	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), start, end, backend.DefaultReplicationFactor)
+	startT := time.Unix(int64(start), 0)
+	endT := time.Unix(int64(end), 0)
+	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), startT, endT, backend.DefaultReplicationFactor)
 
 	// calculate metrics to return to the caller
 	resp.TotalBlocks = len(blocks)
@@ -316,7 +318,9 @@ func buildBackendRequests(ctx context.Context, tenantID string, parent pipeline.
 			return
 		}
 
-		key := searchJobCacheKey(tenantID, queryHash, int64(searchReq.Start), int64(searchReq.End), m, startPage, pages)
+		startTime := time.Unix(int64(searchReq.Start), 0)
+		endTime := time.Unix(int64(searchReq.End), 0)
+		key := searchJobCacheKey(tenantID, queryHash, startTime, endTime, m, startPage, pages)
 		pipelineR.SetCacheKey(key)
 		pipelineR.SetResponseData(shard)
 

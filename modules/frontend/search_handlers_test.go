@@ -587,7 +587,7 @@ func TestSearchAccessesCache(t *testing.T) {
 	hash := hashForSearchRequest(&tempopb.SearchRequest{Query: query, Limit: 3, SpansPerSpanSet: 2})
 	start := uint32(10)
 	end := uint32(20)
-	cacheKey := searchJobCacheKey(tenant, hash, int64(start), int64(end), meta, 0, 1)
+	cacheKey := searchJobCacheKey(tenant, hash, time.Unix(int64(start), 0), time.Unix(int64(end), 0), meta, 0, 1)
 
 	// confirm cache key coesn't exist
 	_, bufs, _ := c.Fetch(context.Background(), []string{cacheKey})
