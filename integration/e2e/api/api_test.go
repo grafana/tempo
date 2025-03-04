@@ -77,11 +77,6 @@ func TestSearchTagsV2(t *testing.T) {
 		return ok
 	}, queryableTimeout, queryableCheckEvery, "traces were not queryable within timeout")
 
-	intrinsicResults := ScopedTags{
-		Name: api.ParamScopeIntrinsic,
-		Tags: search.GetVirtualIntrinsicValues(),
-	}
-
 	testCases := []struct {
 		name     string
 		query    string
@@ -94,7 +89,6 @@ func TestSearchTagsV2(t *testing.T) {
 			scope: "",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
-					intrinsicResults,
 					{
 						Name: "span",
 						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
@@ -177,7 +171,6 @@ func TestSearchTagsV2(t *testing.T) {
 			scope: "",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
-					intrinsicResults,
 					{
 						Name: "resource",
 						Tags: []string{"service.name"}, // well known column so included
@@ -192,7 +185,6 @@ func TestSearchTagsV2(t *testing.T) {
 			scope: "",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
-					intrinsicResults,
 					{
 						Name: "span",
 						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
@@ -210,7 +202,6 @@ func TestSearchTagsV2(t *testing.T) {
 			scope: "",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
-					intrinsicResults,
 					{
 						Name: "span",
 						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
@@ -228,7 +219,6 @@ func TestSearchTagsV2(t *testing.T) {
 			scope: "",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
-					intrinsicResults,
 					{
 						Name: "span",
 						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
@@ -246,7 +236,6 @@ func TestSearchTagsV2(t *testing.T) {
 			scope: "",
 			expected: searchTagsV2Response{
 				Scopes: []ScopedTags{
-					intrinsicResults,
 					{
 						Name: "span",
 						Tags: []string{firstBatch.SpanAttr, secondBatch.SpanAttr},
@@ -278,12 +267,7 @@ func TestSearchTagsV2(t *testing.T) {
 	// Assert no more on the ingester
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			expected := searchTagsV2Response{}
-			if tc.scope == "" {
-				// For any unscoped query, still expect intrinsic results
-				expected.Scopes = append(expected.Scopes, intrinsicResults)
-			}
-			callSearchTagsV2AndAssert(t, tempo, tc.scope, tc.query, expected, 0, 0)
+			callSearchTagsV2AndAssert(t, tempo, tc.scope, tc.query, searchTagsV2Response{}, 0, 0)
 		})
 	}
 
@@ -670,13 +654,14 @@ func callSearchTagValuesV2AndAssert(t *testing.T, svc *e2e.HTTPService, tagName,
 func callSearchTagsV2AndAssert(t *testing.T, svc *e2e.HTTPService, scope, query string, expected searchTagsV2Response, start, end int64) {
 	urlPath := fmt.Sprintf(`/api/v2/search/tags?scope=%s&q=%s`, scope, url.QueryEscape(query))
 
-	// expected will not have the intrinsic scope since it's the same every time, add it here.
-	/*if scope == "none" || scope == "" || scope == "intrinsic" {
+	// Expected will not have the intrinsic results to make the tests simpler,
+	// they are added here based on the scope.
+	if scope == "" || scope == api.ParamScopeIntrinsic {
 		expected.Scopes = append(expected.Scopes, ScopedTags{
 			Name: "intrinsic",
-			Tags: []string{"duration", "event:name", "event:timeSinceStart", "instrumentation:name", "instrumentation:version", "kind", "name", "rootName", "rootServiceName", "span:duration", "span:kind", "span:name", "span:status", "span:statusMessage", "status", "statusMessage", "trace:duration", "trace:rootName", "trace:rootService", "traceDuration"},
+			Tags: search.GetVirtualIntrinsicValues(),
 		})
-	}*/
+	}
 	sort.Slice(expected.Scopes, func(i, j int) bool { return expected.Scopes[i].Name < expected.Scopes[j].Name })
 	for _, scope := range expected.Scopes {
 		slices.Sort(scope.Tags)
