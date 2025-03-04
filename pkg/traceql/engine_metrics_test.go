@@ -1270,27 +1270,27 @@ func runTraceQLMetric(req *tempopb.QueryRangeRequest, inSpans ...[]Span) (Series
 	return layer3.Results(), nil
 }
 
-func randInt(min, max int) int {
-	return rand.IntN(max-min) + min
+func randInt(minimum, maximum int) int {
+	return rand.IntN(maximum-minimum) + minimum
 }
 
-func randFloat(min, max float64) float64 {
-	return rand.Float64()*(max-min) + min
+func randFloat(minimum, maximum float64) float64 {
+	return rand.Float64()*(maximum-minimum) + minimum
 }
 
 func BenchmarkSumOverTime(b *testing.B) {
 	totalSpans := 1_000_000
 	in := make([]Span, 0, totalSpans)
 	in2 := make([]Span, 0, totalSpans)
-	min := 1e10 // 10 billion
-	max := 1e20 // 100 quintillion
+	minimum := 1e10 // 10 billion
+	maximun := 1e20 // 100 quintillion
 
 	for range totalSpans {
 		s := time.Duration(randInt(1, 3)) * time.Second
-		v := randFloat(min, max)
+		v := randFloat(minimum, maximun)
 		in = append(in2, newMockSpan(nil).WithStartTime(uint64(s)).WithSpanString("foo", "bar").WithSpanFloat("kafka.lag", v).WithDuration(100))
 		s = time.Duration(randInt(1, 3)) * time.Second
-		v = randFloat(min, max)
+		v = randFloat(minimum, maximun)
 		in2 = append(in2, newMockSpan(nil).WithStartTime(uint64(s)).WithSpanString("foo", "bar").WithSpanFloat("kafka.lag", v).WithDuration(100))
 	}
 
