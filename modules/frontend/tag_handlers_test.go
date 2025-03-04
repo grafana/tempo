@@ -19,6 +19,7 @@ import (
 	"github.com/gogo/status"
 	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/user"
+	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/cache"
 	"github.com/grafana/tempo/pkg/search"
@@ -170,55 +171,98 @@ func runnerTagValuesV2ClientCancelContext(t *testing.T, f *QueryFrontend) {
 	require.Equal(t, status.Error(codes.Canceled, "context canceled"), err)
 }
 
-func TestSearchTagsV2AlwaysReturnsIntrinsics(t *testing.T) {
-	// Default response from the internal requests
+func TestSearchTagsV2Intrinsics(t *testing.T) {
 	mockScope := "span"
 	mockTags := []string{"foo", "bar"}
 
-	next := &mockRoundTripper{
-		responseFn: func() proto.Message {
-			return &tempopb.SearchTagsV2Response{
+	tcs := []struct {
+		name        string
+		maxTagBytes int
+		expected    *tempopb.SearchTagsV2Response
+	}{
+		{
+			name:        "unlimited",
+			maxTagBytes: 0,
+			expected: &tempopb.SearchTagsV2Response{
 				Scopes: []*tempopb.SearchTagsV2Scope{
+					{
+						Name: api.ParamScopeIntrinsic,
+						Tags: search.GetVirtualIntrinsicValues(),
+					},
 					{
 						Name: mockScope,
 						Tags: mockTags,
 					},
 				},
-			}
+			},
+		},
+		{
+			name:        "when_limited_intrinsics_first",
+			maxTagBytes: 100,
+			expected: &tempopb.SearchTagsV2Response{
+				Scopes: []*tempopb.SearchTagsV2Scope{
+					{
+						// Only a subset of intrinsic tags will fit
+						Name: api.ParamScopeIntrinsic,
+						Tags: search.GetVirtualIntrinsicValues()[0:10],
+					},
+				},
+			},
 		},
 	}
 
-	f := frontendWithSettings(t, next, nil, nil, nil)
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			// This is the mocked data returned by querier/ingester jobs downstream.
+			next := &mockRoundTripper{
+				responseFn: func() proto.Message {
+					return &tempopb.SearchTagsV2Response{
+						Scopes: []*tempopb.SearchTagsV2Scope{
+							{
+								Name: mockScope,
+								Tags: mockTags,
+							},
+						},
+					}
+				},
+			}
 
-	// http
-	httpReq := httptest.NewRequest("GET", "/api/v2/search/tags", nil)
-	httpResp := httptest.NewRecorder()
+			f := frontendWithSettings(t, next, nil, nil, nil, func(_ *Config, overridesCfg *overrides.Config) {
+				overridesCfg.Defaults.Read.MaxBytesPerTagValuesQuery = tc.maxTagBytes
+			})
 
-	ctx, cancel := context.WithCancel(httpReq.Context())
-	defer cancel()
-	ctx = user.InjectOrgID(ctx, "tenant")
-	httpReq = httpReq.WithContext(ctx)
+			// http
+			httpReq := httptest.NewRequest("GET", "/api/v2/search/tags", nil)
+			httpResp := httptest.NewRecorder()
 
-	f.SearchTagsV2Handler.ServeHTTP(httpResp, httpReq)
-	require.Equal(t, http.StatusOK, httpResp.Code)
+			ctx, cancel := context.WithCancel(httpReq.Context())
+			defer cancel()
+			ctx = user.InjectOrgID(ctx, "tenant")
+			httpReq = httpReq.WithContext(ctx)
 
-	resp := &tempopb.SearchTagsV2Response{}
-	bytesResp, err := io.ReadAll(httpResp.Body)
-	require.NoError(t, err)
-	err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), resp)
+			f.SearchTagsV2Handler.ServeHTTP(httpResp, httpReq)
+			require.Equal(t, http.StatusOK, httpResp.Code)
 
-	require.NoError(t, err)
-	require.Equal(t, 2, len(resp.Scopes))
+			resp := &tempopb.SearchTagsV2Response{}
+			bytesResp, err := io.ReadAll(httpResp.Body)
+			require.NoError(t, err)
+			err = jsonpb.Unmarshal(bytes.NewReader(bytesResp), resp)
 
-	// Sort scopes to give stable comparison
-	sort.Slice(resp.Scopes, func(i, j int) bool {
-		return resp.Scopes[i].Name < resp.Scopes[j].Name
-	})
+			require.NoError(t, err)
 
-	require.Equal(t, api.ParamScopeIntrinsic, resp.Scopes[0].Name)
-	require.Equal(t, mockScope, resp.Scopes[1].Name)
-	require.ElementsMatch(t, search.GetVirtualIntrinsicValues(), resp.Scopes[0].Tags)
-	require.ElementsMatch(t, mockTags, resp.Scopes[1].Tags)
+			// Sort scopes to give stable comparison
+			sort.Slice(tc.expected.Scopes, func(i, j int) bool {
+				return tc.expected.Scopes[i].Name < tc.expected.Scopes[j].Name
+			})
+			sort.Slice(resp.Scopes, func(i, j int) bool {
+				return resp.Scopes[i].Name < resp.Scopes[j].Name
+			})
+			require.Equal(t, len(tc.expected.Scopes), len(resp.Scopes))
+			for i := range tc.expected.Scopes {
+				require.ElementsMatch(t, tc.expected.Scopes[i].Tags, resp.Scopes[i].Tags)
+			}
+		})
+	}
 }
 
 // todo: a lot of code is replicated between all of these "failure propagates from queriers" tests. we should refactor
