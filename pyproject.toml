@@ -44,3 +44,7 @@ extend-exclude = "notebooks/*"
 [tool.isort] 
 line_length = 120 
 multi_line_output = 5
+
+[tool.poetry2conda]
+name = "mlt"
+deafult-channel = "pip"
