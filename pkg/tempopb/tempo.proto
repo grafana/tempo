@@ -37,7 +37,7 @@ service StreamingQuerier {
   rpc SearchTagsV2(SearchTagsRequest) returns (stream SearchTagsV2Response) {}
   rpc SearchTagValues(SearchTagValuesRequest) returns (stream SearchTagValuesResponse) {}
   rpc SearchTagValuesV2(SearchTagValuesRequest) returns (stream SearchTagValuesV2Response) {}
-  rpc MetricsQueryRange(QueryRangeRequest) returns (stream QueryRangeResponse) {} 
+  rpc MetricsQueryRange(QueryRangeRequest) returns (stream QueryRangeResponse) {}
   rpc MetricsQueryInstant(QueryInstantRequest) returns (stream QueryInstantResponse) {}
 }
 
@@ -162,11 +162,11 @@ message SearchMetrics {
 
 message SearchTagsRequest {
   string scope = 1;
-  string query = 2; 
+  string query = 2;
   uint32 start = 3;
   uint32 end = 4;
   uint32 maxTagsPerScope = 5;
-  uint32 staleValuesThreshold =6;
+  uint32 staleValuesThreshold = 6;
 }
 
 // SearchTagsBlockRequest takes SearchTagsRequest parameters as well as all information necessary
@@ -279,11 +279,19 @@ message PushBytesRequest {
   // trace ids. length must match traces
   repeated bytes ids = 3;
   // id 4 previously claimed by SearchData
+
+  // indicates whether metrics generation should be skipped
+  // for traces contained in this request.
+  bool skipMetricsGeneration = 5;
 }
 
 message PushSpansRequest {
   // just send entire OTel spans for now
   repeated tempopb.trace.v1.ResourceSpans batches = 1;
+
+  // indicates whether metrics generation should be skipped
+  // for traces contained in this request.
+  bool skipMetricsGeneration = 2;
 }
 
 message TraceBytes {
@@ -445,7 +453,7 @@ message Sample {
 message TimeSeries {
   // Series labels containing name and value. Data-type aware.
   repeated tempopb.common.v1.KeyValue labels = 1 [(gogoproto.nullable) = false];
-  
+
   // Sorted by time, oldest sample first.
   repeated Sample samples = 2 [(gogoproto.nullable) = false];
 
