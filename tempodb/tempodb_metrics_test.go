@@ -168,6 +168,172 @@ var queryRangeTestCases = []struct {
 			},
 		},
 	},
+	{
+		name: "quantile_over_time",
+		req:  requestWithDefaultRange("{ } | quantile_over_time(duration, .5)"),
+		expected: []*tempopb.TimeSeries{
+			{
+				PromLabels: `{__bucket="1.073741824"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueDouble("__bucket", 1.073741824)},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 1}, // 1 number (1) is less than 1.07
+					{TimestampMs: 15_000, Value: 0},
+					{TimestampMs: 30_000, Value: 0},
+					{TimestampMs: 45_000, Value: 0},
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+			{
+				PromLabels: `{__bucket="2.147483648"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueDouble("__bucket", 2.147483648)},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 1}, // 1 number (2) is between 1.07 and 2.15
+					{TimestampMs: 15_000, Value: 0},
+					{TimestampMs: 30_000, Value: 0},
+					{TimestampMs: 45_000, Value: 0},
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+			{
+				PromLabels: `{__bucket="4.294967296"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueDouble("__bucket", 4.294967296)},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 2}, // 2 numbers (3, 4) are between 2.15 and 4.29
+					{TimestampMs: 15_000, Value: 0},
+					{TimestampMs: 30_000, Value: 0},
+					{TimestampMs: 45_000, Value: 0},
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+			{
+				PromLabels: `{__bucket="8.589934592"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueDouble("__bucket", 8.589934592)},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 4}, // 5, 6, 7, 8
+					{TimestampMs: 15_000, Value: 0},
+					{TimestampMs: 30_000, Value: 0},
+					{TimestampMs: 45_000, Value: 0},
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+			{
+				PromLabels: `{__bucket="17.179869184"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueDouble("__bucket", 17.179869184)},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 6}, // 9, 10, 11, 12, 13, 14
+					{TimestampMs: 15_000, Value: 3},
+					{TimestampMs: 30_000, Value: 0},
+					{TimestampMs: 45_000, Value: 0},
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+			{
+				PromLabels: `{__bucket="34.359738368"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueDouble("__bucket", 34.359738368)},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 0},
+					{TimestampMs: 15_000, Value: 12}, // and so on
+					{TimestampMs: 30_000, Value: 5},
+					{TimestampMs: 45_000, Value: 0},
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+			{
+				PromLabels: `{__bucket="68.719476736"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueDouble("__bucket", 68.719476736)},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 0},
+					{TimestampMs: 15_000, Value: 0},
+					{TimestampMs: 30_000, Value: 10},
+					{TimestampMs: 45_000, Value: 5},
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+		},
+	},
+	{
+		name: "histogram_over_time",
+		req:  requestWithDefaultRange("{ } | histogram_over_time(duration)"),
+		expected: []*tempopb.TimeSeries{
+			{
+				PromLabels: `{__bucket="1.073741824"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueDouble("__bucket", 1.073741824)},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 1},
+					{TimestampMs: 15_000, Value: 0},
+					{TimestampMs: 30_000, Value: 0},
+					{TimestampMs: 45_000, Value: 0},
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+			{
+				PromLabels: `{__bucket="2.147483648"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueDouble("__bucket", 2.147483648)},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 1},
+					{TimestampMs: 15_000, Value: 0},
+					{TimestampMs: 30_000, Value: 0},
+					{TimestampMs: 45_000, Value: 0},
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+			{
+				PromLabels: `{__bucket="4.294967296"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueDouble("__bucket", 4.294967296)},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 2},
+					{TimestampMs: 15_000, Value: 0},
+					{TimestampMs: 30_000, Value: 0},
+					{TimestampMs: 45_000, Value: 0},
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+			{
+				PromLabels: `{__bucket="8.589934592"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueDouble("__bucket", 8.589934592)},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 4},
+					{TimestampMs: 15_000, Value: 0},
+					{TimestampMs: 30_000, Value: 0},
+					{TimestampMs: 45_000, Value: 0},
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+			{
+				PromLabels: `{__bucket="17.179869184"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueDouble("__bucket", 17.179869184)},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 6},
+					{TimestampMs: 15_000, Value: 3},
+					{TimestampMs: 30_000, Value: 0},
+					{TimestampMs: 45_000, Value: 0},
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+			{
+				PromLabels: `{__bucket="34.359738368"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueDouble("__bucket", 34.359738368)},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 0},
+					{TimestampMs: 15_000, Value: 12},
+					{TimestampMs: 30_000, Value: 5},
+					{TimestampMs: 45_000, Value: 0},
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+			{
+				PromLabels: `{__bucket="68.719476736"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueDouble("__bucket", 68.719476736)},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 0},
+					{TimestampMs: 15_000, Value: 0},
+					{TimestampMs: 30_000, Value: 10},
+					{TimestampMs: 45_000, Value: 5},
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+		},
+	},
 	// --- Non-standard range queries ---
 	{
 		name: "end<step",
