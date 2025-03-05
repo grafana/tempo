@@ -163,7 +163,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	rw.pollBlocklist(ctx)
 
 	blocklist := rw.blocklist.Metas(testTenantID)
-	blockSelector := blockselector.NewTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, blockselector.DefaultMinInputBlocks, blockCount)
+	blockSelector := blockselector.NewTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, blockselector.DefaultMinInputBlocks, 2)
 
 	expectedCompactions := len(blocklist) / inputBlocks
 	compactions := 0
