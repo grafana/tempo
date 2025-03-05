@@ -6,13 +6,12 @@ import (
 	"io"
 	"net/http"
 	"sort"
-	"sync"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/services"
+	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -37,17 +36,18 @@ type BackendScheduler struct {
 	store     storage.Store
 	overrides overrides.Interface
 
-	// track jobs, keyed by job ID
-	jobs    map[string]*Job
-	jobsMtx sync.RWMutex
+	work *work.Queue
 }
 
-// Interface that for future work to create and manage jobs.
+var _ JobProcessor = (*BackendScheduler)(nil)
+
+// Interface that for future API work to create and manage jobs.
 type JobProcessor interface {
-	GetJob(ctx context.Context) (*Job, error)
-	StartJob(ctx context.Context, jobID string) error
+	GetJob(ctx context.Context, jobID string) (*work.Job, error)
 	CompleteJob(ctx context.Context, jobID string) error
-	FailJob(ctx context.Context, jobID string, err error) error
+	FailJob(ctx context.Context, jobID string) error
+	CreateJob(ctx context.Context, job *work.Job) error
+	ListJobs(ctx context.Context, tenant string) []*work.Job
 }
 
 type enablePollingFunc func(context.Context, blocklist.JobSharder) error
@@ -56,9 +56,9 @@ type enablePollingFunc func(context.Context, blocklist.JobSharder) error
 func New(cfg Config, store storage.Store, overrides overrides.Interface) (*BackendScheduler, error) {
 	s := &BackendScheduler{
 		cfg:       cfg,
-		jobs:      make(map[string]*Job),
 		store:     store,
 		overrides: overrides,
+		work:      work.NewQueue(),
 	}
 
 	s.Service = services.NewBasicService(s.starting, s.running, s.stopping)
@@ -78,7 +78,7 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 	ticker := time.NewTicker(s.cfg.ScheduleInterval)
 	defer ticker.Stop()
 
-	if len(s.jobs) == 0 {
+	if len(s.work.Jobs()) == 0 {
 		if err := s.ScheduleOnce(ctx); err != nil {
 			return fmt.Errorf("failed to schedule initial jobs: %w", err)
 		}
@@ -92,9 +92,9 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 
 			if err := s.ScheduleOnce(ctx); err != nil {
 				level.Error(log.Logger).Log("msg", "scheduling cycle failed", "err", err)
-				schedulingCycles.WithLabelValues("failed").Inc()
+				metricSchedulingCycles.WithLabelValues("failed").Inc()
 			} else {
-				schedulingCycles.WithLabelValues("success").Inc()
+				metricSchedulingCycles.WithLabelValues("success").Inc()
 			}
 		}
 	}
@@ -107,19 +107,7 @@ func (s *BackendScheduler) stopping(_ error) error {
 
 // ScheduleOnce schedules jobs for compaction and performs cleanup.
 func (s *BackendScheduler) ScheduleOnce(ctx context.Context) error {
-	s.jobsMtx.Lock()
-	defer s.jobsMtx.Unlock()
-
-	// Clean up completed/failed jobs
-	for id, job := range s.jobs {
-		if job.IsComplete() || job.IsFailed() {
-			delete(s.jobs, id)
-		}
-	}
-
-	if len(s.jobs) > 0 {
-		return nil
-	}
+	s.work.Prune()
 
 	for _, job := range s.compactions(ctx) {
 		if err := s.createCompactionJob(ctx, job.Tenant, job.Compaction.Input); err != nil {
@@ -131,87 +119,77 @@ func (s *BackendScheduler) ScheduleOnce(ctx context.Context) error {
 }
 
 // CreateJob creates a new job
-func (s *BackendScheduler) CreateJob(ctx context.Context, job *Job) error {
-	s.jobsMtx.Lock()
-	defer s.jobsMtx.Unlock()
+func (s *BackendScheduler) CreateJob(ctx context.Context, j *work.Job) error {
+	err := s.work.AddJob(j)
+	if err != nil {
+		return fmt.Errorf("failed to create job: %w", err)
+	}
 
 	// Validate max concurrent jobs per tenant
 	activeCount := 0
-	for _, j := range s.jobs {
-		if j.JobDetail.Tenant == job.JobDetail.Tenant && !j.IsComplete() && !j.IsFailed() {
+	for _, jj := range s.work.Jobs() {
+		if jj.JobDetail.Tenant == jj.JobDetail.Tenant && !jj.IsComplete() && !jj.IsFailed() {
 			activeCount++
 		}
 	}
 
-	s.jobs[job.ID] = job
-	jobsCreated.WithLabelValues(job.JobDetail.Tenant, job.Type.String()).Inc()
-	jobsActive.WithLabelValues(job.JobDetail.Tenant, job.Type.String()).Inc()
+	metricJobsCreated.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Inc()
+	metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Inc()
 
-	level.Info(log.Logger).Log("msg", "created new job", "job_id", job.ID, "tenant", job.JobDetail.Tenant, "type", job.Type.String())
+	level.Info(log.Logger).Log("msg", "created new job", "job_id", j.ID, "tenant", j.JobDetail.Tenant, "type", j.Type.String())
 	return nil
 }
 
 // GetJob returns a job by ID
-func (s *BackendScheduler) GetJob(ctx context.Context, id string) (*Job, error) {
-	s.jobsMtx.RLock()
-	defer s.jobsMtx.RUnlock()
-
-	job, exists := s.jobs[id]
-	if !exists {
+func (s *BackendScheduler) GetJob(ctx context.Context, id string) (*work.Job, error) {
+	j := s.work.GetJob(id)
+	if j == nil {
 		return nil, fmt.Errorf("job not found: %s", id)
 	}
-	return job, nil
+
+	return j, nil
 }
 
 // CompleteJob marks a job as completed
 func (s *BackendScheduler) CompleteJob(ctx context.Context, id string) error {
-	s.jobsMtx.Lock()
-	defer s.jobsMtx.Unlock()
-
-	job, exists := s.jobs[id]
-	if !exists {
+	j := s.work.GetJob(id)
+	if j == nil {
 		return fmt.Errorf("job not found: %s", id)
 	}
 
-	job.Complete()
-	jobsCompleted.WithLabelValues(job.JobDetail.Tenant, job.Type.String()).Inc()
-	jobsActive.WithLabelValues(job.JobDetail.Tenant, job.Type.String()).Dec()
+	j.Complete()
+	metricJobsCompleted.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Inc()
+	metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Dec()
 
-	level.Info(log.Logger).Log("msg", "completed job", "job_id", id, "tenant", job.JobDetail.Tenant, "type", job.Type.String())
+	level.Info(log.Logger).Log("msg", "completed job", "job_id", id, "tenant", j.JobDetail.Tenant, "type", j.Type.String())
 	return nil
 }
 
 // FailJob marks a job as failed
 func (s *BackendScheduler) FailJob(ctx context.Context, id string) error {
-	s.jobsMtx.Lock()
-	defer s.jobsMtx.Unlock()
-
-	job, exists := s.jobs[id]
-	if !exists {
+	j := s.work.GetJob(id)
+	if j == nil {
 		return fmt.Errorf("job not found: %s", id)
 	}
 
-	job.Fail()
-	jobsFailed.WithLabelValues(job.JobDetail.Tenant, job.Type.String()).Inc()
-	jobsActive.WithLabelValues(job.JobDetail.Tenant, job.Type.String()).Dec()
+	j.Fail()
+	metricJobsFailed.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Inc()
+	metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Dec()
 
-	level.Info(log.Logger).Log("msg", "failed job", "job_id", id, "tenant", job.JobDetail.Tenant, "type", job.Type.String())
+	level.Info(log.Logger).Log("msg", "failed job", "job_id", id, "tenant", j.JobDetail.Tenant, "type", j.Type.String())
 	return nil
 }
 
 // Next implements the BackendSchedulerServer interface
 func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest) (*tempopb.NextJobResponse, error) {
-	s.jobsMtx.Lock()
-	defer s.jobsMtx.Unlock()
-
 	// Find jobs that already exist for this worker
-	for id, job := range s.jobs {
-		if job.Status() == JobStatusPending {
-			if job.workerID == req.WorkerId {
+	for id, j := range s.work.Jobs() {
+		if j.Status() == work.JobStatusPending {
+			if j.WorkerID() == req.WorkerId {
 				resp := &tempopb.NextJobResponse{
-					JobId:  id,
-					Type:   job.Type,
-					Detail: job.JobDetail,
+					JobId:  j.ID,
+					Type:   j.Type,
+					Detail: j.JobDetail,
 				}
 
 				level.Info(log.Logger).Log("msg", "assigned previous job to worker", "job_id", id, "worker", req.WorkerId)
@@ -221,24 +199,22 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 	}
 
 	// Find next available job
-	for id, job := range s.jobs {
-		// TODO: check if we have pending jobs for this workerID and hand those out first.
-
-		if job.Status() == JobStatusPending {
+	for id, j := range s.work.Jobs() {
+		if j.Status() == work.JobStatusPending {
 			// Honor the request job type if specified
-			if req.Type != tempopb.JobType_JOB_TYPE_UNSPECIFIED && job.Type != req.Type {
+			if req.Type != tempopb.JobType_JOB_TYPE_UNSPECIFIED && j.Type != req.Type {
 				continue
 			}
 
 			// Create response with job details
 			resp := &tempopb.NextJobResponse{
-				JobId:  id,
-				Type:   job.Type,
-				Detail: job.JobDetail,
+				JobId:  j.ID,
+				Type:   j.Type,
+				Detail: j.JobDetail,
 			}
 
 			// Mark job as running
-			job.Start(req.WorkerId)
+			j.Start(req.WorkerId)
 
 			level.Info(log.Logger).Log("msg", "assigned job to worker", "job_id", id, "worker", req.WorkerId)
 			return resp, nil
@@ -251,25 +227,22 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 
 // UpdateJob implements the BackendSchedulerServer interface
 func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJobStatusRequest) (*tempopb.UpdateJobStatusResponse, error) {
-	s.jobsMtx.Lock()
-	defer s.jobsMtx.Unlock()
-
-	job, exists := s.jobs[req.JobId]
-	if !exists {
+	j := s.work.GetJob(req.JobId)
+	if j == nil {
 		return nil, fmt.Errorf("job not found: %s", req.JobId)
 	}
 
 	switch req.Status {
 	case tempopb.JobStatus_JOB_STATUS_SUCCEEDED:
-		job.Complete()
-		jobsCompleted.WithLabelValues(job.JobDetail.Tenant, job.JobDetail.Tenant).Inc()
+		j.Complete()
+		metricJobsCompleted.WithLabelValues(j.JobDetail.Tenant, j.JobDetail.Tenant).Inc()
 		level.Info(log.Logger).Log("msg", "job completed", "job_id", req.JobId)
 
 		// TODO: update the blocklist?
 
 	case tempopb.JobStatus_JOB_STATUS_FAILED:
-		job.Fail()
-		jobsFailed.WithLabelValues(job.JobDetail.Tenant, job.JobDetail.Tenant).Inc()
+		j.Fail()
+		metricJobsFailed.WithLabelValues(j.JobDetail.Tenant, j.JobDetail.Tenant).Inc()
 		level.Error(log.Logger).Log("msg", "job failed", "job_id", req.JobId, "error", req.Error)
 
 	default:
@@ -282,18 +255,8 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 }
 
 // ListJobs returns all jobs for a given tenant
-func (s *BackendScheduler) ListJobs(ctx context.Context, tenantID string) ([]*Job, error) {
-	s.jobsMtx.RLock()
-	defer s.jobsMtx.RUnlock()
-
-	var jobs []*Job
-	for _, job := range s.jobs {
-		if job.JobDetail.Tenant == tenantID {
-			jobs = append(jobs, job)
-		}
-	}
-
-	return jobs, nil
+func (s *BackendScheduler) ListJobs(ctx context.Context, tenantID string) []*work.Job {
+	return s.work.Jobs()
 }
 
 // CreateCompactionJob creates a new compaction job for the given tenant and blocks.
@@ -301,7 +264,7 @@ func (s *BackendScheduler) ListJobs(ctx context.Context, tenantID string) ([]*Jo
 func (s *BackendScheduler) createCompactionJob(ctx context.Context, tenantID string, input []string) error {
 	// Skip blocks which already have a job
 	for _, blockID := range input {
-		for _, j := range s.jobs {
+		for _, j := range s.work.Jobs() {
 			if j.JobDetail.Tenant == tenantID {
 				switch j.Type {
 				case tempopb.JobType_JOB_TYPE_COMPACTION:
@@ -320,7 +283,7 @@ func (s *BackendScheduler) createCompactionJob(ctx context.Context, tenantID str
 
 	jobID := uuid.New().String()
 
-	job := &Job{
+	job := &work.Job{
 		ID:   jobID,
 		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
 		JobDetail: tempopb.JobDetail{
@@ -331,13 +294,14 @@ func (s *BackendScheduler) createCompactionJob(ctx context.Context, tenantID str
 		},
 	}
 
-	// Store the job
-	s.jobs[jobID] = job
+	err := s.work.AddJob(job)
+	if err != nil {
+		return fmt.Errorf("failed to create job: %w", err)
+	}
 
 	// Update metrics
-	// TODO: two metrics for the same job smells
-	jobsCreated.WithLabelValues(tenantID, job.Type.String()).Inc()
-	jobsActive.WithLabelValues(tenantID, job.Type.String()).Inc()
+	metricJobsCreated.WithLabelValues(tenantID, job.Type.String()).Inc()
+	metricJobsActive.WithLabelValues(tenantID, job.Type.String()).Inc()
 
 	return nil
 }
@@ -347,14 +311,12 @@ func (s *BackendScheduler) Owns(_ string) bool {
 }
 
 func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request) {
-	jobs := s.compactions(context.Background())
-
 	x := table.NewWriter()
-	x.AppendHeader(table.Row{"tenant", "blocks"})
+	x.AppendHeader(table.Row{"tenant", "blocks", "status", "worker", "created", "start", "end"})
 
-	for _, e := range jobs {
+	for _, j := range s.work.Jobs() {
 		x.AppendRows([]table.Row{
-			{e.Tenant, e.Compaction.Input},
+			{j.JobDetail.Tenant, j.JobDetail.Compaction.Input, j.Status(), j.WorkerID(), j.CreatedTime(), j.StartTime(), j.EndTime()},
 		})
 	}
 
@@ -387,15 +349,10 @@ func (w *BackendScheduler) compactions(ctx context.Context) []tempopb.JobDetail 
 			window = w.cfg.Compactor.MaxCompactionRange
 		}
 
-		spew.Dump("window minutes", window.Minutes())
-
 		// TODO: A new implementation of the blockSelector would be appropriate
 		// here.  Return a stripe of blocks matching eachother.  These can be
 		// broken into jobs by the caller.  Currently only 4 blocks are returned
 		// which leads to a single job per tenant.
-
-		spew.Dump("max block bytes", w.cfg.Compactor.MaxBlockBytes)
-		spew.Dump("max compction objects", w.cfg.Compactor.MaxCompactionObjects)
 
 		blockSelector := blockselector.NewTimeWindowBlockSelector(blocklist,
 			window,
@@ -410,13 +367,11 @@ func (w *BackendScheduler) compactions(ctx context.Context) []tempopb.JobDetail 
 
 		for {
 			if ctx.Err() != nil {
-				spew.Dump("context error", ctx.Err())
 				return jobs
 			}
 
 			toBeCompacted, _ := blockSelector.BlocksToCompact()
 			if len(toBeCompacted) == 0 {
-				spew.Dump("no blocks to compact", tenantID)
 				break
 			}
 
