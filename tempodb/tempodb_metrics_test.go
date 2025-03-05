@@ -168,6 +168,69 @@ var queryRangeTestCases = []struct {
 			},
 		},
 	},
+	// --- Non-standard range queries ---
+	{
+		name: "end<step",
+		req: &tempopb.QueryRangeRequest{
+			Start: 1,
+			End:   3 * uint64(time.Second),
+			Step:  5 * uint64(time.Second),
+			Query: `{ } | count_over_time()`,
+		},
+		expected: []*tempopb.TimeSeries{
+			{
+				PromLabels: `{__name__="count_over_time"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "count_over_time")},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 2}, // 1, 2
+					{TimestampMs: 5_000, Value: 0},
+				},
+			},
+		},
+	},
+	{
+		name: "end=step",
+		req: &tempopb.QueryRangeRequest{
+			Start: 1,
+			End:   5 * uint64(time.Second),
+			Step:  5 * uint64(time.Second),
+			Query: `{ } | count_over_time()`,
+		},
+		expected: []*tempopb.TimeSeries{
+			{
+				PromLabels: `{__name__="count_over_time"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "count_over_time")},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 4}, // 1, 2, 3, 4
+					{TimestampMs: 5_000, Value: 0},
+				},
+			},
+		},
+	},
+	{
+		name: "small step",
+		req: &tempopb.QueryRangeRequest{
+			Start: 1,
+			End:   3 * uint64(time.Second),
+			Step:  500 * uint64(time.Millisecond),
+			Query: `{ } | count_over_time()`,
+		},
+		expected: []*tempopb.TimeSeries{
+			{
+				PromLabels: `{__name__="count_over_time"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "count_over_time")},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 0},
+					{TimestampMs: 500, Value: 0},
+					{TimestampMs: 1000, Value: 1},
+					{TimestampMs: 1500, Value: 0},
+					{TimestampMs: 2000, Value: 1},
+					{TimestampMs: 2500, Value: 0},
+					{TimestampMs: 3000, Value: 0},
+				},
+			},
+		},
+	},
 }
 
 func TestTempoDBQueryRange(t *testing.T) {
