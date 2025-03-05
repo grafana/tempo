@@ -38,8 +38,8 @@ The editor and builder are available in the [Tempo data source](https://grafana.
 
 <p align="center"><img src="assets/query-editor-http-method.png" alt="Query editor showing request for http.method" /></p>
 
-In addition, you can use Explore Traces to investigate your tracing data without writing TraceQL queries.
-For more information, refer to the [Explore Traces](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/) documentation.
+In addition, you can use Traces Drilldown to investigate your tracing data without writing TraceQL queries.
+For more information, refer to the [Traces Drilldown](https://grafana.com/docs/grafana/<GRAFANA_VERSION>/explore/simplified-exploration/traces/) documentation.
 
 ### Stream query results
 
