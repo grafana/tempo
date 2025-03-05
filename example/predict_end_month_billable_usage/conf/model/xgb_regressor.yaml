@@ -1,0 +1,29 @@
+name: xgb_regressor
+object:
+  _target_: mlt.models.xgboost_models.regression.MLTXGBoostRegression
+  _convert_: none
+  _recursive_: False
+  model_name: ${model.name}
+
+  non_feature_columns: ${column_definitions.non_feature_columns}
+  model_type: ${model_type.name}
+  use_gpu: ${run_settings.use_gpu}
+  prediction_time_column_name: ${column_definitions.prediction_time_column_name}
+  true_label_name: ${column_definitions.true_label_name}
+  predicted_label_name: ${column_definitions.predicted_label_name}
+  importance_type: "gain"
+  model_parameter_grid:
+    estimator__n_estimators: [100, 200, 300]  # Try more trees for better convergence
+    estimator__max_depth: [3, 4]  # Reduce from 5 to prevent overfitting
+    estimator__learning_rate: [0.01, 0.03]  # Lower from 0.05 to make smaller steps
+    estimator__min_child_weight: [5, 7]  # Increase from 3 to be more conservative
+    estimator__subsample: [0.7, 0.8]  # Reduce from 0.9 to introduce more randomness
+    estimator__colsample_bytree: [0.7, 0.8]  # Reduce from 0.9 to use fewer features per tree
+    estimator__gamma: [0.3, 0.5]  # Increase from 0.1 for more conservative splitting
+    estimator__reg_alpha: [0.1, 1.0]  # Add L1 regularization
+    estimator__reg_lambda: [1.0, 10.0]  # Add L2 regularization
+    estimator__scale_pos_weight: [1.0]  # Balance positive/negative weights if applicable
+  
+
+
+

@@ -1,0 +1,9 @@
+name: PurgedWalkForwardCV
+object:
+  _target_: mlt.cross_validation_splitters.timeseries_cv.PurgedWalkForwardCV
+  n_splits: 4
+  n_test_splits: 1
+  min_train_splits: 2
+  split_by_time: True
+  pred_time_column_name: ${column_definitions.prediction_time_column_name}
+  eval_time_column_name: ${column_definitions.evaluation_time_column_name}

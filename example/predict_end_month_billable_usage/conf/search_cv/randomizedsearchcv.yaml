@@ -1,0 +1,11 @@
+name: RandomizedSearchCV
+object:
+  _target_: sklearn.model_selection.RandomizedSearchCV
+  _convert_: all
+  n_iter: ${inner_cv_settings.num_cv_iterations}
+  scoring: ${model_type.inner_cv_score}
+  n_jobs: ${inner_cv_settings.num_cv_jobs}
+  verbose: ${inner_cv_settings.search_cv_verbose}
+  param_distributions: ${model.object.model_parameter_grid}
+
+  

@@ -1,5 +1,5 @@
 try:
-    import xgboost_models
+    import xgboost
 except ImportError:
     raise ImportError("XGBoost is not installed. Please install it with `pip install xgboost`.")
 

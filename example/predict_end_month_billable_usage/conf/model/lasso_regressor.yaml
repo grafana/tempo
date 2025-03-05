@@ -1,0 +1,15 @@
+name: lasso_regressor
+object:
+  _target_: mlt.models.sklearn_models.regression.MLTLassoRegressionModel
+  _convert_: none
+  _recursive_: False
+  model_name: ${model.name}
+
+  non_feature_columns: ${column_definitions.non_feature_columns}
+  model_type: ${model_type.name}
+  use_gpu: ${run_settings.use_gpu}
+  prediction_time_column_name: ${column_definitions.prediction_time_column_name}
+  true_label_name: ${column_definitions.true_label_name}
+  predicted_label_name: ${column_definitions.predicted_label_name}
+  model_parameter_grid:
+    estimator__alpha: [ 0.03, 0.05, 0.1 ]

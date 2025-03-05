@@ -1,5 +1,5 @@
 import pandas as pd
-import xgboost_models as xgb
+import xgboost as xgb
 from sklearn.feature_selection import SelectKBest, f_regression
 from sklearn.pipeline import Pipeline
 
@@ -39,7 +39,7 @@ class MLTXGBoostRegression(MLTBaseRegression):
             ))
         ])
     
-    def feature_importance(self, training_data: pd.DataFrame) -> pd.DataFrame:
+    def feature_importances(self, training_data: pd.DataFrame) -> pd.DataFrame:
         """
         Calculate feature importance for the model.
         """
@@ -48,3 +48,21 @@ class MLTXGBoostRegression(MLTBaseRegression):
         
         return importance 
     
+    def get_shap_values(self, feature_data: pd.DataFrame, predictions: pd.Series) -> pd.DataFrame:
+        """
+        Get a dataframe of shap values for features and predictions.
+
+        Parameters
+        ----------
+        feature_data : pd.DataFrame
+            Raw feature data before any selection or transforms, and with metadata
+        predictions : pd.Series
+            Outputs from self.get_prediction_data
+
+        Returns
+        -------
+        pd.DataFrame
+            A dataframe of shap values for each prediction and feature
+        """
+        # Call the parent class implementation from MLTBaseRegression
+        return super().get_shap_values(feature_data, predictions)

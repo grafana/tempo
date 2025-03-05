@@ -1,0 +1,82 @@
+defaults:
+  - model_type: regression
+  - cv: PurgedWalkForwardCV
+  - search_cv : randomizedsearchcv
+  - model: xgb_regressor
+  - experiment_logger: regression_experiment_logger
+  - _self_
+
+run_settings:
+  run: True
+  smoke_test : False
+  experiment_name: predict_end_month_billable_usage
+  get_data_directly: True
+  code_directory: examples/predict_next_day_usage
+  script_name: ${run_settings.code_directory}/main.py
+  path_results: outputs
+  multi_org: False
+  use_local_features: True
+  compute: "local"
+  use_gpu: False
+  start_date: "2022-09-27"
+  end_date: "2099-12-31"
+
+column_definitions:
+  prediction_time_column_name: "prediction_date"
+  evaluation_time_column_name: "evaluation_date"
+  true_label_name: "monthly_target"
+  predicted_label_name: "predicted_target"
+  org_id_column_name: null
+  non_feature_columns: 
+    - ${column_definitions.prediction_time_column_name}
+    - ${column_definitions.evaluation_time_column_name}
+    - ${column_definitions.true_label_name}
+    - ${column_definitions.org_id_column_name}
+  time_column_name: ${column_definitions.prediction_time_column_name}
+  id_columns:
+    - ${column_definitions.org_id_column_name}
+    - ${column_definitions.prediction_time_column_name}
+    - ${column_definitions.evaluation_time_column_name}
+
+outer_cv_settings:
+  n_outer_jobs: 1
+  training_frequency: "daily"
+  min_shap_date: "2022-01-01"
+  num_recent_prediction_days: 21
+  train_test_gap: 2
+  initial_train_date_number: 100
+  number_of_dates_between_training: 100 #number of prediction days between training
+  number_of_training_periods_between_tuning: 3 #number of training periods between tuning
+  rolling_window_size: 
+
+
+inner_cv_settings:
+  num_cv_iterations: 2  #number of parameter setting sampled during tuning
+  num_cv_jobs: 16
+  search_cv_verbose: 3
+
+data_cleaning_config:
+  labeling_config:
+    target: 
+    forecast_window:   #number of business days
+
+data_acquisition_config:
+  data_path: example/predict_end_month_billable_usage/data/
+  joined_data_path: df_post_processed_662171.parquet #df_processed_662171.parquet  #sk_synthetic_data_window21_asset_1.parquet
+  debug_model_path: debug_model.pkl
+
+target: ${data_cleaning_config.labeling_config.target}_${model_type.name}
+experiment_name: ${run_settings.experiment_name}_${target}
+run_name: ${model.name}_${cv.name}_${search_cv.name}_${data_cleaning_config.labeling_config.forecast_window}D_${now:%Y_%h-%d}_${now:%H-%M-%S}
+experiment_path: ${run_settings.path_results}/${experiment_name}_${now:%Y_%h-%d}
+
+hydra:
+  searchpath:
+    - file://examples/predict_end_month_billable_usage/conf/
+  run:
+    dir: ${experiment_path}/${run_name}
+  sweep:
+    dir: ${experiment_path}
+    subdir: ${run_name}
+
+

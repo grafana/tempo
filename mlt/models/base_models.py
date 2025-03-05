@@ -4,6 +4,7 @@ from pathlib import Path
 from time import time
 from typing import Callable, List, Dict, Any, Tuple, Union
 
+import pickle
 import joblib
 import numpy as np
 import pandas as pd
@@ -12,7 +13,6 @@ import shap
 from sklearn.base import BaseEstimator
 from sklearn.pipeline import Pipeline
 
-from mlt.models.shap_utils import scale_all_shap_values, ShapValues
 from mlt.typing import SearchCV, CVSplitter
 
 
@@ -108,6 +108,21 @@ class MLTBaseModel(ABC):
         if fail:
             raise ValueError("The steps in pipeline from the file do not match the steps for this model")
         self.pipeline = new_pipeline
+
+    def to_pickle(self, model_path: Union[Path, str]):
+        """
+        Save model to the given path using pickle
+        """
+        with open(model_path, "wb") as pkl_out:
+            pickle.dump(self,pkl_out)
+    
+    @staticmethod
+    def from_pickle(model_path: Union[Path, str]):
+        """
+        Load model from the given path using pickle
+        """
+        with open(model_path, "rb") as pkl_in:
+            return pickle.load(pkl_in)
 
     def save(self, model_path: Union[Path, str]):
         """

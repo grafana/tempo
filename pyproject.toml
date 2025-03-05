@@ -15,6 +15,16 @@ scikit-learn = "^1.0.0"
 torch = "^1.9.0"
 matplotlib = "^3.4.0"
 pyyaml = "^6.0"
+hydra-core = "^1.3.2"
+omegaconf = "^2.3.0"
+shap = "^0.46.0"
+pyarrow = "^19.0.1"
+seaborn = "^0.13.2"
+xgboost = "^2.1.4"
+
+
+[tool.poetry.extras]
+xgboost = ["xgboost"]
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
