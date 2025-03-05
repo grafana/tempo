@@ -108,6 +108,34 @@ var queryRangeTestCases = []struct {
 		},
 	},
 	{
+		name: "count_over_time",
+		req:  requestWithDefaultRange(`{ } | count_over_time() by (.service.name)`),
+		expected: []*tempopb.TimeSeries{
+			{
+				PromLabels: `{.service.name="even"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString(".service.name", "even")},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 7},      // [2, 4, 6, 8, 10, 12, 14] - total: 7
+					{TimestampMs: 15_000, Value: 7}, // [16, 18, 20, 22, 24, 26, 28] - total: 7
+					{TimestampMs: 30_000, Value: 8}, // [30, 32, 34, 36, 38, 40, 42, 44] - total: 8
+					{TimestampMs: 45_000, Value: 2}, // [46, 48]
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+			{
+				PromLabels: `{.service.name="odd"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString(".service.name", "odd")},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 7},      // [1, 3, 5, 7, 9, 11, 13] - total: 7
+					{TimestampMs: 15_000, Value: 8}, // [15, 17, 19, 21, 23, 25, 27, 29] - total: 8
+					{TimestampMs: 30_000, Value: 7}, // [31, 33, 35, 37, 39, 41, 43] - total: 7
+					{TimestampMs: 45_000, Value: 3}, // [45, 47, 49] - total: 3
+					{TimestampMs: 60_000, Value: 0},
+				},
+			},
+		},
+	},
+	{
 		name: "min_over_time",
 		req:  requestWithDefaultRange("{ } | min_over_time(duration)"),
 		expected: []*tempopb.TimeSeries{
