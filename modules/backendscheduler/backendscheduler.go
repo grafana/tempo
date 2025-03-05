@@ -16,17 +16,11 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
-	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/blockselector"
 	"github.com/jedib0t/go-pretty/v6/table"
-	"go.opentelemetry.io/otel"
 )
 
-const (
-	ringKey = "backend-scheduler"
-)
-
-var tracer = otel.Tracer("modules/backendworker")
+// var tracer = otel.Tracer("modules/backendscheduler")
 
 // BackendScheduler manages scheduling and execution of backend jobs
 type BackendScheduler struct {
@@ -47,10 +41,8 @@ type JobProcessor interface {
 	CompleteJob(ctx context.Context, jobID string) error
 	FailJob(ctx context.Context, jobID string) error
 	CreateJob(ctx context.Context, job *work.Job) error
-	ListJobs(ctx context.Context, tenant string) []*work.Job
+	ListJobs(ctx context.Context) []*work.Job
 }
-
-type enablePollingFunc func(context.Context, blocklist.JobSharder) error
 
 // New creates a new BackendScheduler
 func New(cfg Config, store storage.Store, overrides overrides.Interface) (*BackendScheduler, error) {
@@ -119,16 +111,15 @@ func (s *BackendScheduler) ScheduleOnce(ctx context.Context) error {
 }
 
 // CreateJob creates a new job
-func (s *BackendScheduler) CreateJob(ctx context.Context, j *work.Job) error {
+func (s *BackendScheduler) CreateJob(_ context.Context, j *work.Job) error {
 	err := s.work.AddJob(j)
 	if err != nil {
 		return fmt.Errorf("failed to create job: %w", err)
 	}
 
-	// Validate max concurrent jobs per tenant
 	activeCount := 0
 	for _, jj := range s.work.Jobs() {
-		if jj.JobDetail.Tenant == jj.JobDetail.Tenant && !jj.IsComplete() && !jj.IsFailed() {
+		if !jj.IsComplete() && !jj.IsFailed() {
 			activeCount++
 		}
 	}
@@ -141,7 +132,7 @@ func (s *BackendScheduler) CreateJob(ctx context.Context, j *work.Job) error {
 }
 
 // GetJob returns a job by ID
-func (s *BackendScheduler) GetJob(ctx context.Context, id string) (*work.Job, error) {
+func (s *BackendScheduler) GetJob(_ context.Context, id string) (*work.Job, error) {
 	j := s.work.GetJob(id)
 	if j == nil {
 		return nil, fmt.Errorf("job not found: %s", id)
@@ -151,7 +142,7 @@ func (s *BackendScheduler) GetJob(ctx context.Context, id string) (*work.Job, er
 }
 
 // CompleteJob marks a job as completed
-func (s *BackendScheduler) CompleteJob(ctx context.Context, id string) error {
+func (s *BackendScheduler) CompleteJob(_ context.Context, id string) error {
 	j := s.work.GetJob(id)
 	if j == nil {
 		return fmt.Errorf("job not found: %s", id)
@@ -166,7 +157,7 @@ func (s *BackendScheduler) CompleteJob(ctx context.Context, id string) error {
 }
 
 // FailJob marks a job as failed
-func (s *BackendScheduler) FailJob(ctx context.Context, id string) error {
+func (s *BackendScheduler) FailJob(_ context.Context, id string) error {
 	j := s.work.GetJob(id)
 	if j == nil {
 		return fmt.Errorf("job not found: %s", id)
@@ -181,7 +172,7 @@ func (s *BackendScheduler) FailJob(ctx context.Context, id string) error {
 }
 
 // Next implements the BackendSchedulerServer interface
-func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest) (*tempopb.NextJobResponse, error) {
+func (s *BackendScheduler) Next(_ context.Context, req *tempopb.NextJobRequest) (*tempopb.NextJobResponse, error) {
 	// Find jobs that already exist for this worker
 	for id, j := range s.work.Jobs() {
 		if j.Status() == work.JobStatusPending || j.Status() == work.JobStatusRunning {
@@ -226,7 +217,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 }
 
 // UpdateJob implements the BackendSchedulerServer interface
-func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJobStatusRequest) (*tempopb.UpdateJobStatusResponse, error) {
+func (s *BackendScheduler) UpdateJob(_ context.Context, req *tempopb.UpdateJobStatusRequest) (*tempopb.UpdateJobStatusResponse, error) {
 	j := s.work.GetJob(req.JobId)
 	if j == nil {
 		return nil, fmt.Errorf("job not found: %s", req.JobId)
@@ -255,13 +246,13 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 }
 
 // ListJobs returns all jobs for a given tenant
-func (s *BackendScheduler) ListJobs(ctx context.Context, tenantID string) []*work.Job {
+func (s *BackendScheduler) ListJobs(_ context.Context) []*work.Job {
 	return s.work.Jobs()
 }
 
 // CreateCompactionJob creates a new compaction job for the given tenant and blocks.
 // Must be called under jobsMtx lock.
-func (s *BackendScheduler) createCompactionJob(ctx context.Context, tenantID string, input []string) error {
+func (s *BackendScheduler) createCompactionJob(_ context.Context, tenantID string, input []string) error {
 	// Skip blocks which already have a job
 	for _, blockID := range input {
 		for _, j := range s.work.Jobs() {
@@ -328,10 +319,10 @@ func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request)
 	_, _ = io.WriteString(w, x.Render())
 }
 
-func (w *BackendScheduler) compactions(ctx context.Context) []tempopb.JobDetail {
+func (s *BackendScheduler) compactions(ctx context.Context) []tempopb.JobDetail {
 	var jobs []tempopb.JobDetail
 
-	tenants := w.store.Tenants()
+	tenants := s.store.Tenants()
 	if len(tenants) == 0 {
 		return jobs
 	}
@@ -339,14 +330,14 @@ func (w *BackendScheduler) compactions(ctx context.Context) []tempopb.JobDetail 
 	sort.Slice(tenants, func(i, j int) bool { return tenants[i] < tenants[j] })
 
 	for _, tenantID := range tenants {
-		if w.overrides.CompactionDisabled(tenantID) {
+		if s.overrides.CompactionDisabled(tenantID) {
 			continue
 		}
 
-		blocklist := w.store.BlockMetas(tenantID)
-		window := w.overrides.MaxCompactionRange(tenantID)
+		blocklist := s.store.BlockMetas(tenantID)
+		window := s.overrides.MaxCompactionRange(tenantID)
 		if window == 0 {
-			window = w.cfg.Compactor.MaxCompactionRange
+			window = s.cfg.Compactor.MaxCompactionRange
 		}
 
 		// TODO: A new implementation of the blockSelector would be appropriate
@@ -356,8 +347,8 @@ func (w *BackendScheduler) compactions(ctx context.Context) []tempopb.JobDetail 
 
 		blockSelector := blockselector.NewTimeWindowBlockSelector(blocklist,
 			window,
-			w.cfg.Compactor.MaxCompactionObjects,
-			w.cfg.Compactor.MaxBlockBytes,
+			s.cfg.Compactor.MaxCompactionObjects,
+			s.cfg.Compactor.MaxBlockBytes,
 			blockselector.DefaultMinInputBlocks,
 			blockselector.DefaultMaxInputBlocks,
 		)

@@ -699,6 +699,8 @@ func (t *App) initBackendScheduler() (services.Service, error) {
 		),
 	)
 
+	t.backendScheduler = scheduler
+
 	return scheduler, nil
 }
 
@@ -711,6 +713,8 @@ func (t *App) initBackendWorker() (services.Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create backend scheduler: %w", err)
 	}
+
+	t.backendWorker = worker
 
 	return worker, nil
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/signals"
+	"github.com/grafana/tempo/modules/backendworker"
 	"github.com/grafana/tempo/modules/blockbuilder"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/prometheus/common/version"
@@ -82,6 +83,7 @@ type App struct {
 	cacheProvider        cache.Provider
 	MemberlistKV         *memberlist.KVInitService
 	backendScheduler     *backendscheduler.BackendScheduler
+	backendWorker        *backendworker.BackendWorker
 
 	HTTPAuthMiddleware       middleware.Interface
 	TracesConsumerMiddleware receiver.Middleware

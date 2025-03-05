@@ -286,7 +286,7 @@ func TestBackendScheduler(t *testing.T) {
 		require.Nil(t, resp)
 
 		// Completed and failed jobs are not cleaned up by this point.
-		currentJobs := bs.ListJobs(ctx, tenant)
+		currentJobs := bs.ListJobs(ctx)
 		require.Len(t, currentJobs, 4)
 	})
 
@@ -310,7 +310,7 @@ func TestBackendScheduler(t *testing.T) {
 		err = bs.CreateJob(ctx, j1)
 		require.NoError(t, err)
 
-		currentJobs := bs.ListJobs(ctx, tenant)
+		currentJobs := bs.ListJobs(ctx)
 		require.Len(t, currentJobs, 1)
 		require.Equal(t, j1.ID, currentJobs[0].ID)
 		require.Equal(t, tempopb.JobType_JOB_TYPE_COMPACTION, currentJobs[0].Type)

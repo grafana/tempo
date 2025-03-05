@@ -17,7 +17,6 @@ import (
 	tempo_util "github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
-	"go.opentelemetry.io/otel"
 )
 
 const (
@@ -35,7 +34,7 @@ type BackendWorker struct {
 	workerID string
 }
 
-var tracer = otel.Tracer("modules/backendworker")
+// var tracer = otel.Tracer("modules/backendworker")
 
 func New(cfg Config, schedulerClientCfg backendscheduler_client.Config, store storage.Store, overrides overrides.Interface) (*BackendWorker, error) {
 	s := &BackendWorker{
@@ -45,6 +44,9 @@ func New(cfg Config, schedulerClientCfg backendscheduler_client.Config, store st
 	}
 
 	workerID, err := os.Hostname()
+	if err != nil {
+		return nil, err
+	}
 	s.workerID = workerID
 
 	schedulerClient, err := backendscheduler_client.New(cfg.BackendSchedulerAddr, schedulerClientCfg)
