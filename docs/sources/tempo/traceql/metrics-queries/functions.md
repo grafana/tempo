@@ -103,7 +103,7 @@ This example counts the number of spans with name `"GET /:endpoint"` broken down
 ## The `sum_over_time`, `min_over_time`, `max_over_time`, and `avg_over_time`  functions
 
 The `sum_over_time()` lets you aggregate numerical values by computing the sum value of them.
-The time interval that the maximum is computed over is set by the `step` parameter.
+The time interval that the sum is computed over is set by the `step` parameter.
 
 The `min_over_time()` function lets you aggregate numerical attributes by calculating their minimum value.
 For example, you could choose to calculate the minimum duration of a group of spans, or you could choose to calculate the minimum value of a custom attribute you've attached to your spans, like `span.shopping.cart.entries`.
