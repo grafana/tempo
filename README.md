@@ -13,7 +13,8 @@ Grafana Tempo is an open source, easy-to-use, and high-scale distributed tracing
 
 ## Business value of distributed tracing
 
-Distributed tracing helps teams quickly pinpoint performance issues and understand the flow of requests across services. The Traces Drilldown UI simplifies this process by offering a user-friendly interface to view and analyze trace data, making it easier to identify and resolve issues without needing to write complex queries.
+Distributed tracing helps teams quickly pinpoint performance issues and understand the flow of requests across services.
+The Traces Drilldown UI simplifies this process by offering a user-friendly interface to view and analyze trace data, making it easier to identify and resolve issues without needing to write complex queries.
 
 Refer to [Use traces to find solutions](https://grafana.com/docs/tempo/latest/introduction/solutions-with-traces/) to learn more about how you can use distributed tracing to investigate and solve issues. 
 
