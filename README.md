@@ -13,12 +13,12 @@ Grafana Tempo is an open source, easy-to-use, and high-scale distributed tracing
 
 ## Business value of distributed tracing
 
-Distributed tracing helps teams quickly pinpoint performance issues and understand the flow of requests across services. The Explore Traces UI simplifies this process by offering a user-friendly interface to view and analyze trace data, making it easier to identify and resolve issues without needing to write complex queries.
+Distributed tracing helps teams quickly pinpoint performance issues and understand the flow of requests across services. The Traces Drilldown UI simplifies this process by offering a user-friendly interface to view and analyze trace data, making it easier to identify and resolve issues without needing to write complex queries.
 
 Refer to [Use traces to find solutions](https://grafana.com/docs/tempo/latest/introduction/solutions-with-traces/) to learn more about how you can use distributed tracing to investigate and solve issues. 
 
-## Explore Traces UI: A better way to get value from your tracing data
-We are excited to introduce the [Explore Traces app](https://github.com/grafana/explore-traces) as part of the Grafana Explore suite. This app provides a queryless and intuitive experience for analyzing tracing data, allowing teams to quickly identify performance issues, latency bottlenecks, and errors without needing to write complex queries or use TraceQL.
+## Traces Drilldown UI: A better way to get value from your tracing data
+We are excited to introduce the [Traces Drilldown](https://github.com/grafana/traces-drilldown) (formerly Explore Traces) app as part of the Grafana Explore suite. This app provides a queryless and intuitive experience for analyzing tracing data, allowing teams to quickly identify performance issues, latency bottlenecks, and errors without needing to write complex queries or use TraceQL.
 
 Key Features:
 - **Intuitive Trace Analysis**: Spot slow or error-prone traces with easy, point-and-click interactions.
@@ -29,9 +29,9 @@ Key Features:
 ![image](https://github.com/user-attachments/assets/991205df-1b27-489f-8ef0-1a05ee158996)
 
 To learn more see the following links:
-- [Explore Traces repo](https://github.com/grafana/explore-traces)
-- [Explore Traces documentation](https://grafana.com/docs/grafana/latest/explore/simplified-exploration/traces/)
-- [Demo video](https://github.com/user-attachments/assets/8103e173-6dcf-4659-b938-7614c8a5b52d
+- [Traces Drilldown repo](https://github.com/grafana/races-drilldown)
+- [Traces Drilldown documentation](https://grafana.com/docs/grafana/latest/explore/simplified-exploration/traces/)
+- [Demo video](https://www.youtube.com/watch?v=a3uB1C2oHA4
 )
 
 ## TraceQL
