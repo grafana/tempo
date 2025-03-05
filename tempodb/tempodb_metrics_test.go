@@ -197,6 +197,22 @@ var queryRangeTestCases = []struct {
 		},
 	},
 	{
+		name: "sum_over_time",
+		req:  requestWithDefaultRange("{ } | sum_over_time(duration)"),
+		expected: []*tempopb.TimeSeries{
+			{
+				PromLabels: `{__name__="sum_over_time"}`,
+				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString("__name__", "sum_over_time")},
+				Samples: []tempopb.Sample{
+					{TimestampMs: 0, Value: 105},      // sum from 1 to 14 is 105
+					{TimestampMs: 15_000, Value: 330}, // sum from 15 to 29 is 330
+					{TimestampMs: 30_000, Value: 555}, // sum from 30 to 44 is 555
+					{TimestampMs: 45_000, Value: 235}, // sum from 45 to 49 is 235
+				},
+			},
+		},
+	},
+	{
 		name: "quantile_over_time",
 		req:  requestWithDefaultRange("{ } | quantile_over_time(duration, .5)"),
 		expected: []*tempopb.TimeSeries{
