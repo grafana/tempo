@@ -13,7 +13,7 @@ venv/
 env/
 .env/
 .venv/
-.DS_Store
+
 
 # Poetry
 poetry.lock
@@ -29,3 +29,10 @@ output/
 !output/.gitkeep
 data/*
 !data/.gitkeep
+
+# macOS system files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
