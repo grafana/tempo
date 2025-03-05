@@ -4,7 +4,6 @@ import (
 	"flag"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/grafana/tempo/pkg/util"
 	"github.com/grafana/tempo/tempodb"
 )
@@ -21,6 +20,4 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	cfg.Compactor = tempodb.CompactorConfig{}
 	cfg.Compactor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "compaction"), f)
-
-	spew.Dump("scheduler after", cfg)
 }

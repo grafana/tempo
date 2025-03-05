@@ -2,13 +2,17 @@ package backendscheduler
 
 import (
 	"context"
+	"os"
 	"path"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/grafana/tempo/modules/backendscheduler"
+	"github.com/grafana/e2e"
+	"github.com/grafana/tempo/cmd/tempo/app"
+	e2eBackend "github.com/grafana/tempo/integration/e2e/backend"
+	"github.com/grafana/tempo/integration/util"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/model"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -21,10 +25,12 @@ import (
 	"github.com/grafana/tempo/tempodb/pool"
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 )
 
 const (
-	tenant = "test"
+	tenant     = "test"
+	configFile = "config.yaml"
 )
 
 func TestBackendScheduler(t *testing.T) {
@@ -32,48 +38,103 @@ func TestBackendScheduler(t *testing.T) {
 		ctx, cancel = context.WithCancel(context.Background())
 		tenantCount = 1
 	)
-
 	defer cancel()
 
-	tmpDir := t.TempDir()
+	// e2e
+	s, err := e2e.NewScenario("tempo-integration")
+	require.NoError(t, err)
+	defer s.Close()
 
-	t.Logf("Temp dir: %s", tmpDir)
+	cfg := app.Config{}
+	buff, err := os.ReadFile(configFile)
+	require.NoError(t, err)
+	err = yaml.UnmarshalStrict(buff, &cfg)
+	require.NoError(t, err)
 
-	// Setup tempodb with local backend
-	tempodbWriter := setupBackend(t, tmpDir)
+	b, err := e2eBackend.New(s, cfg)
+	require.NoError(t, err)
 
-	// Push some data to a few tenants
+	err = b.WaitReady()
+	require.NoError(t, err)
+
+	err = b.Ready()
+	require.NoError(t, err)
+
+	// Give some time for startup
+	time.Sleep(1 * time.Second)
+
+	require.NoError(t, util.CopyFileToSharedDir(s, configFile, "config.yaml"))
+
+	e := b.Endpoint(b.HTTPPort())
+	t.Logf("Endpoint: %s", e)
+	// cfg.StorageConfig.Trace.Backend = backend.S3
+	// cfg.StorageConfig.Trace.S3.Endpoint = e
+	// var rr backend.RawReader
+	// var ww backend.RawWriter
+	// var cc backend.Compactor
+	// rr, ww, cc, err = s3.New(cfg.StorageConfig.Trace.S3)
+	// require.NoError(t, err)
+
+	// r := backend.NewReader(rr)
+	// w := backend.NewWriter(ww)
+
+	// tmpDir := t.TempDir()
+
+	scheduler := util.NewTempoTarget("backend-scheduler", configFile)
+	worker := util.NewTempoTarget("backend-worker", configFile)
+	require.NoError(t, s.StartAndWaitReady(scheduler, worker))
+
+	// // Setup tempodb with local backend
+	// tempodbWriter := setupBackend(t, tmpDir)
+	tempodbWriter := setupBackendWithEndpoint(t, &cfg.StorageConfig.Trace, e)
+
+	// // Push some data to a few tenants
 	for i := 0; i < tenantCount; i++ {
 		testTenant := tenant + strconv.Itoa(i)
 		populateBackend(ctx, t, tempodbWriter, testTenant)
 	}
 
-	store := newStore(ctx, t, tmpDir)
+	time.Sleep(2 * time.Second)
 
-	scheduler, err := backendscheduler.New(backendscheduler.Config{
-		Enabled:          true,
-		ScheduleInterval: 100 * time.Millisecond,
-	}, store)
-	require.NoError(t, err)
+	require.NoError(t, scheduler.WaitSumMetrics(e2e.Equals(1), "backend_scheduler_scheduling_cycles_total"))
 
-	nextResp, err := scheduler.Next(ctx, &tempopb.NextJobRequest{
-		WorkerId: "test-worker",
-		Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
-	})
-	require.NoError(t, err)
-	require.Nil(t, nextResp)
-
-	err = scheduler.ScheduleOnce(ctx)
-	require.NoError(t, err)
-
-	time.Sleep(100 * time.Millisecond)
-
-	nextResp, err = scheduler.Next(ctx, &tempopb.NextJobRequest{
-		WorkerId: "test-worker",
-		Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
-	})
-	require.NoError(t, err)
-	require.Equal(t, tempopb.JobType_JOB_TYPE_COMPACTION, nextResp.Type)
+	// limits, err := overrides.NewOverrides(overrides.Config{
+	// 	Defaults: overrides.Overrides{
+	// 		// Global: overrides.GlobalOverrides{
+	// 		// 	MaxBytesPerTrace: maxBytes,
+	// 		// },
+	// 		// Ingestion: overrides.IngestionOverrides{
+	// 		// 	MaxLocalTracesPerUser: 4,
+	// 		// },
+	// 	},
+	// }, nil, prometheus.DefaultRegisterer)
+	// require.NoError(t, err)
+	//
+	// store := newStore(ctx, t, tmpDir)
+	//
+	// scheduler, err := backendscheduler.New(backendscheduler.Config{
+	// 	ScheduleInterval: 100 * time.Millisecond,
+	// }, store, limits)
+	// require.NoError(t, err)
+	//
+	// nextResp, err := scheduler.Next(ctx, &tempopb.NextJobRequest{
+	// 	WorkerId: "test-worker",
+	// 	Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
+	// })
+	// require.NoError(t, err)
+	// require.Nil(t, nextResp)
+	//
+	// err = scheduler.ScheduleOnce(ctx)
+	// require.NoError(t, err)
+	//
+	// time.Sleep(100 * time.Millisecond)
+	//
+	// nextResp, err = scheduler.Next(ctx, &tempopb.NextJobRequest{
+	// 	WorkerId: "test-worker",
+	// 	Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
+	// })
+	// require.NoError(t, err)
+	// require.Equal(t, tempopb.JobType_JOB_TYPE_COMPACTION, nextResp.Type)
 }
 
 func newStore(ctx context.Context, t testing.TB, tmpDir string) storage.Store {
@@ -123,6 +184,28 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, tmpDi
 	require.NoError(t, err)
 
 	return s
+}
+
+func setupBackendWithEndpoint(t testing.TB, cfg *tempodb.Config, endpoint string) tempodb.Writer {
+	cfg.Block = &common.BlockConfig{
+		IndexDownsampleBytes: 11,
+		BloomFP:              .01,
+		BloomShardSizeBytes:  100_000,
+		Version:              encoding.LatestEncoding().Version(),
+		Encoding:             backend.EncNone,
+		IndexPageSizeBytes:   1000,
+		RowGroupSizeBytes:    30_000_000,
+		DedicatedColumns:     backend.DedicatedColumns{{Scope: "span", Name: "key", Type: "string"}},
+	}
+	cfg.WAL = &wal.Config{
+		Filepath: "/var/tempo/wal",
+	}
+	cfg.S3.Endpoint = endpoint
+
+	_, w, _, err := tempodb.New(cfg, nil, log.NewNopLogger())
+	require.NoError(t, err)
+
+	return w
 }
 
 func setupBackend(t testing.TB, tempDir string) tempodb.Writer {

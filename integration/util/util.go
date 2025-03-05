@@ -266,6 +266,25 @@ func NewTempoQuery() *e2e.HTTPService {
 	return s
 }
 
+func NewTempoTarget(target string, configFile string) *e2e.HTTPService {
+	args := []string{
+		"-config.file=" + filepath.Join(e2e.ContainerSharedDir, configFile),
+		"-target=" + target,
+	}
+
+	s := e2e.NewHTTPService(
+		target,
+		image,
+		e2e.NewCommandWithoutEntrypoint("/tempo", args...),
+		e2e.NewHTTPReadinessProbe(3200, "/ready", 200, 299),
+		3200,
+	)
+
+	s.SetBackoff(TempoBackoff())
+
+	return s
+}
+
 func NewJaegerQuery() *e2e.HTTPService {
 	args := []string{
 		"--grpc-storage.server=tempo-query:7777",
