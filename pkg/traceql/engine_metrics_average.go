@@ -164,30 +164,15 @@ func (a *averageValue) add(inc float64) {
 	a.compensation = c
 }
 
-func kahanSumInc(inc, sum, c float64) (newSum, newC float64) {
-	t := sum + inc
-	switch {
-	case math.IsInf(t, 0):
-		c = 0
-
-	// Using Neumaier improvement, swap if next term larger than sum.
-	case math.Abs(sum) >= math.Abs(inc):
-		c += (sum - t) + inc
-	default:
-		c += (inc - t) + sum
-	}
-	return t, c
-}
-
 type averageSeries struct {
 	values    []averageValue
 	labels    Labels
 	Exemplars []Exemplar
 }
 
-func newAverageSeries(len int, lenExemplars int, labels Labels) averageSeries {
+func newAverageSeries(l int, lenExemplars int, labels Labels) averageSeries {
 	s := averageSeries{
-		values:    make([]averageValue, len),
+		values:    make([]averageValue, l),
 		labels:    labels,
 		Exemplars: make([]Exemplar, 0, lenExemplars),
 	}

@@ -12,7 +12,7 @@ keywords:
 
 <!-- If you add a new function to this page, make sure you also add it to the _index.md#functions section.-->
 
-TraceQL supports `rate`, `count_over_time`, `min_over_time`, `avg_over_time`, `quantile_over_time`, `histogram_over_time`, and `compare` functions.
+TraceQL supports `rate`, `count_over_time`, `sum_over_time`, `min_over_time`, `avg_over_time`, `quantile_over_time`, `histogram_over_time`, and `compare` functions.
 
 ## Available functions
 
@@ -23,6 +23,9 @@ These functions can be added as an operator at the end of any TraceQL query.
 
 `count_over_time`
 : Counts the number of matching spans per time interval (refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs)).
+
+`sum_over_time`
+: Sums the value for the specified attribute across all matching spans per time interval (refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs)).
 
 `min_over_time`
 : Returns the minimum value for the specified attribute across all matching spans per time interval (refer to the [`step` API parameter](https://grafana.com/docs/tempo/<TEMPO_VERSION>/api_docs/#traceql-metrics)).
@@ -96,13 +99,17 @@ This example counts the number of spans with name `"GET /:endpoint"` broken down
 
 ```
 
-## The `min_over_time`, `max_over_time`, and `avg_over_time`  functions
+
+## The `sum_over_time`, `min_over_time`, `max_over_time`, and `avg_over_time`  functions
+
+The `sum_over_time()` lets you aggregate numerical values by computing the sum value of them.
+The time interval that the sum is computed over is set by the `step` parameter.
 
 The `min_over_time()` function lets you aggregate numerical attributes by calculating their minimum value.
 For example, you could choose to calculate the minimum duration of a group of spans, or you could choose to calculate the minimum value of a custom attribute you've attached to your spans, like `span.shopping.cart.entries`.
 The time interval that the minimum is computed over is set by the `step` parameter.
 
-The `max_over_time()` let you aggregate numerical values by computing the maximum value of them, such as the all important span duration.
+The `max_over_time()` lets you aggregate numerical values by computing the maximum value of them, such as the all important span duration.
 The time interval that the maximum is computed over is set by the `step` parameter.
 
 The `avg_over_time()` function lets you aggregate numerical values by computing the maximum value of them, such as the all important span duration.

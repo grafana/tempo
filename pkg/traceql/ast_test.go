@@ -894,6 +894,11 @@ func (m *mockSpan) WithSpanInt(key string, value int) *mockSpan {
 	return m
 }
 
+func (m *mockSpan) WithSpanFloat(key string, value float64) *mockSpan {
+	m.attributes[NewScopedAttribute(AttributeScopeSpan, false, key)] = NewStaticFloat(value)
+	return m
+}
+
 func (m *mockSpan) WithAttrBool(key string, value bool) *mockSpan {
 	m.attributes[NewAttribute(key)] = NewStaticBool(value)
 	return m

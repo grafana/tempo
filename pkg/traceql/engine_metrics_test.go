@@ -3,6 +3,7 @@ package traceql
 import (
 	"fmt"
 	"math"
+	"math/rand/v2"
 	"testing"
 	"time"
 
@@ -410,7 +411,8 @@ func TestQuantileOverTime(t *testing.T) {
 		},
 	}
 
-	result := runTraceQLMetric(t, req, in)
+	result, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
 	require.Equal(t, out, result)
 }
 
@@ -465,7 +467,8 @@ func TestCountOverTime(t *testing.T) {
 		},
 	}
 
-	result := runTraceQLMetric(t, req, in)
+	result, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
 	require.Equal(t, out, result)
 }
 
@@ -493,7 +496,8 @@ func TestMinOverTimeForDuration(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
 	}
 
-	result := runTraceQLMetric(t, req, in)
+	result, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
 
 	fooBaz := result[`{span.foo="baz"}`]
 	fooBar := result[`{span.foo="bar"}`]
@@ -534,7 +538,8 @@ func TestMinOverTimeWithNoMatch(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 500).WithDuration(512),
 	}
 
-	result := runTraceQLMetric(t, req, in)
+	result, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
 
 	// Test that empty timeseries are not included
 	ts := result.ToProto(req)
@@ -582,7 +587,8 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 400).WithDuration(512),
 	}
 
-	result := runTraceQLMetric(t, req, in, in2)
+	result, err := runTraceQLMetric(req, in, in2)
+	require.NoError(t, err)
 
 	fooBaz := result[`{span.foo="baz"}`]
 	fooBar := result[`{span.foo="bar"}`]
@@ -636,7 +642,8 @@ func TestAvgOverTimeForDuration(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(300),
 	}
 
-	result := runTraceQLMetric(t, req, in)
+	result, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
 
 	fooBaz := result[`{span.foo="baz"}`]
 	fooBar := result[`{span.foo="bar"}`]
@@ -675,7 +682,9 @@ func TestAvgOverTimeForDurationWithoutAggregation(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "bar").WithDuration(300),
 	}
 
-	result := runTraceQLMetric(t, req, in)
+	result, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
+
 	avg := result[`{__name__="avg_over_time"}`]
 
 	assert.Equal(t, 100., avg.Values[0]*float64(time.Second))
@@ -722,7 +731,8 @@ func TestAvgOverTimeForSpanAttribute(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 200).WithDuration(512),
 	}
 
-	result := runTraceQLMetric(t, req, in, in2)
+	result, err := runTraceQLMetric(req, in, in2)
+	require.NoError(t, err)
 
 	fooBaz := result[`{span.foo="baz"}`]
 	fooBar := result[`{span.foo="bar"}`]
@@ -776,7 +786,8 @@ func TestAvgOverTimeWithNoMatch(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 500).WithDuration(512),
 	}
 
-	result := runTraceQLMetric(t, req, in)
+	result, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
 
 	// Test that empty timeseries are not included
 	ts := result.ToProto(req)
@@ -883,7 +894,8 @@ func TestMaxOverTimeForDuration(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(512),
 	}
 
-	result := runTraceQLMetric(t, req, in)
+	result, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
 
 	fooBaz := result[`{span.foo="baz"}`]
 	fooBar := result[`{span.foo="bar"}`]
@@ -924,7 +936,8 @@ func TestMaxOverTimeWithNoMatch(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 500).WithDuration(512),
 	}
 
-	result := runTraceQLMetric(t, req, in)
+	result, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
 
 	// Test that empty timeseries are not included
 	ts := result.ToProto(req)
@@ -972,7 +985,8 @@ func TestMaxOverTimeForSpanAttribute(t *testing.T) {
 		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 400).WithDuration(512),
 	}
 
-	result := runTraceQLMetric(t, req, in, in2)
+	result, err := runTraceQLMetric(req, in, in2)
+	require.NoError(t, err)
 
 	fooBaz := result[`{span.foo="baz"}`]
 	fooBar := result[`{span.foo="bar"}`]
@@ -1000,6 +1014,152 @@ func TestMaxOverTimeForSpanAttribute(t *testing.T) {
 			assert.Equal(t, fooBazSamples, s.Samples)
 		}
 	}
+}
+
+func TestSumOverTimeForDuration(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(1 * time.Second),
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | sum_over_time(duration) by (span.foo)",
+	}
+
+	// A variety of spans across times, durations, and series. All durations are powers of 2 for simplicity
+	in := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(10),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(20),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithDuration(30),
+
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(40),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(50),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(60),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithDuration(70),
+
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(80),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(90),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithDuration(100),
+	}
+
+	result, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
+
+	fooBaz := result[`{span.foo="baz"}`]
+	fooBar := result[`{span.foo="bar"}`]
+
+	// We cannot compare with require.Equal because NaN != NaN
+	// foo.baz = (NaN, NaN, 0.00000027)
+	assert.True(t, math.IsNaN(fooBaz.Values[0]))
+	assert.True(t, math.IsNaN(fooBaz.Values[1]))
+	assert.Equal(t, (80+90+100)/float64(time.Second), fooBaz.Values[2])
+
+	// foo.bar = (0.000000128, 0.000000128, NaN)
+	assert.InEpsilon(t, (10+20+30)/float64(time.Second), fooBar.Values[0], 1e-9)
+	assert.InEpsilon(t, (40+50+60+70)/float64(time.Second), fooBar.Values[1], 1e-9)
+
+	assert.True(t, math.IsNaN(fooBar.Values[2]))
+}
+
+func TestSumOverTimeForSpanAttribute(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(1 * time.Second),
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | sum_over_time(span.kafka.lag) by (span.foo)",
+	}
+
+	// A variety of spans across times, durations, and series.
+	in := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("kafka.lag", 100).WithDuration(100),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("kafka.lag", 200).WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("kafka.lag", 300).WithDuration(512),
+
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("kafka.lag", 200).WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("kafka.lag", 200).WithDuration(64),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("kafka.lag", 200).WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("kafka.lag", 200).WithDuration(8),
+
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("kafka.lag", 200).WithDuration(512),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("kafka.lag", 400).WithDuration(1024),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("kafka.lag", 200).WithDuration(512),
+	}
+
+	in2 := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("kafka.lag", 100).WithDuration(128),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("kafka.lag", 200).WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("kafka.lag", 300).WithDuration(512),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "baz").WithSpanInt("kafka.lag", 200).WithDuration(512),
+
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("kafka.lag", 400).WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("kafka.lag", 400).WithDuration(64),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("kafka.lag", 400).WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("kafka.lag", 400).WithDuration(8),
+
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("kafka.lag", 200).WithDuration(512),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("kafka.lag", 300).WithDuration(1024),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("kafka.lag", 400).WithDuration(512),
+	}
+
+	result, err := runTraceQLMetric(req, in, in2)
+	require.NoError(t, err)
+
+	fooBaz := result[`{span.foo="baz"}`]
+	fooBar := result[`{span.foo="bar"}`]
+
+	// Alas,we cannot compare with require.Equal because NaN != NaN
+	// foo.baz = (200, NaN, 1700)
+	assert.Equal(t, 200.0, fooBaz.Values[0])
+	assert.True(t, math.IsNaN(fooBaz.Values[1]))
+	assert.Equal(t, 1700.0, fooBaz.Values[2])
+
+	// foo.bar = (1200,2400, NaN)
+	assert.Equal(t, 1200.0, fooBar.Values[0])
+	assert.Equal(t, 2400.0, fooBar.Values[1])
+	assert.True(t, math.IsNaN(fooBar.Values[2]))
+
+	// Test that NaN values are not included in the samples after casting to proto
+	ts := result.ToProto(req)
+	fooBarSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 1200}, {TimestampMs: 2000, Value: 2400}}
+	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 200}, {TimestampMs: 3000, Value: 1700}}
+
+	for _, s := range ts {
+		if s.PromLabels == "{span.foo=\"bar\"}" {
+			assert.Equal(t, fooBarSamples, s.Samples)
+		} else {
+			assert.Equal(t, fooBazSamples, s.Samples)
+		}
+	}
+}
+
+func TestSumOverTimeWithNoMatch(t *testing.T) {
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(1 * time.Second),
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | sum_over_time(span.buu)",
+	}
+
+	// A variety of spans across times, durations, and series. All durations are powers of 2 for simplicity
+	in := []Span{
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200).WithDuration(128),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 404).WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(1*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200).WithDuration(512),
+
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200).WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200).WithDuration(64),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200).WithDuration(256),
+		newMockSpan(nil).WithStartTime(uint64(2*time.Second)).WithSpanString("foo", "bar").WithSpanInt("http.status_code", 200).WithDuration(8),
+
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 201).WithDuration(512),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 401).WithDuration(1024),
+		newMockSpan(nil).WithStartTime(uint64(3*time.Second)).WithSpanString("foo", "baz").WithSpanInt("http.status_code", 500).WithDuration(512),
+	}
+
+	result, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
+	// Test that empty timeseries are not included
+	ts := result.ToProto(req)
+
+	assert.True(t, len(ts) == 0)
 }
 
 func TestHistogramOverTime(t *testing.T) {
@@ -1069,22 +1229,29 @@ func TestHistogramOverTime(t *testing.T) {
 		},
 	}
 
-	result := runTraceQLMetric(t, req, in)
+	result, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
 	require.Equal(t, out, result)
 }
 
-func runTraceQLMetric(t *testing.T, req *tempopb.QueryRangeRequest, inSpans ...[]Span) SeriesSet {
+func runTraceQLMetric(req *tempopb.QueryRangeRequest, inSpans ...[]Span) (SeriesSet, error) {
 	e := NewEngine()
 
 	layer2, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeSum)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
 
 	layer3, err := e.CompileMetricsQueryRangeNonRaw(req, AggregateModeFinal)
-	require.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, spanSet := range inSpans {
 		layer1, err := e.CompileMetricsQueryRange(req, 0, 0, false)
-		require.NoError(t, err)
+		if err != nil {
+			return nil, err
+		}
 		for _, s := range spanSet {
 			layer1.metricsPipeline.observe(s)
 		}
@@ -1100,5 +1267,40 @@ func runTraceQLMetric(t *testing.T, req *tempopb.QueryRangeRequest, inSpans ...[
 	layer3.ObserveSeries(res.ToProto(req))
 	// Layer 3 final results
 
-	return layer3.Results()
+	return layer3.Results(), nil
+}
+
+func randInt(minimum, maximum int) int {
+	return rand.IntN(maximum-minimum) + minimum
+}
+
+func randFloat(minimum, maximum float64) float64 {
+	return rand.Float64()*(maximum-minimum) + minimum
+}
+
+func BenchmarkSumOverTime(b *testing.B) {
+	totalSpans := 1_000_000
+	in := make([]Span, 0, totalSpans)
+	in2 := make([]Span, 0, totalSpans)
+	minimum := 1e10 // 10 billion
+	maximun := 1e20 // 100 quintillion
+
+	for range totalSpans {
+		s := time.Duration(randInt(1, 3)) * time.Second
+		v := randFloat(minimum, maximun)
+		in = append(in2, newMockSpan(nil).WithStartTime(uint64(s)).WithSpanString("foo", "bar").WithSpanFloat("kafka.lag", v).WithDuration(100))
+		s = time.Duration(randInt(1, 3)) * time.Second
+		v = randFloat(minimum, maximun)
+		in2 = append(in2, newMockSpan(nil).WithStartTime(uint64(s)).WithSpanString("foo", "bar").WithSpanFloat("kafka.lag", v).WithDuration(100))
+	}
+
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(1 * time.Second),
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | sum_over_time(span.kafka.lag) by (span.foo)",
+	}
+	for b.Loop() {
+		_, _ = runTraceQLMetric(req, in, in2)
+	}
 }

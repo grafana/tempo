@@ -1184,13 +1184,18 @@ func (a *MetricsAggregate) init(q *tempopb.QueryRangeRequest, mode AggregateMode
 		a.exemplarFn = exemplarNaN
 
 	case metricsAggregateMinOverTime:
-		innerAgg = func() VectorAggregator { return NewOverTimeAggregator(a.attr, minAggregation) }
-		a.simpleAggregationOp = minAggregation
+		innerAgg = func() VectorAggregator { return NewOverTimeAggregator(a.attr, minOverTimeAggregation) }
+		a.simpleAggregationOp = minOverTimeAggregation
 		a.exemplarFn = exemplarFnFor(a.attr)
 
 	case metricsAggregateMaxOverTime:
-		innerAgg = func() VectorAggregator { return NewOverTimeAggregator(a.attr, maxAggregation) }
-		a.simpleAggregationOp = maxAggregation
+		innerAgg = func() VectorAggregator { return NewOverTimeAggregator(a.attr, maxOverTimeAggregation) }
+		a.simpleAggregationOp = maxOverTimeAggregation
+		a.exemplarFn = exemplarFnFor(a.attr)
+
+	case metricsAggregateSumOverTime:
+		innerAgg = func() VectorAggregator { return NewOverTimeAggregator(a.attr, sumOverTimeAggregation) }
+		a.simpleAggregationOp = sumOverTimeAggregation
 		a.exemplarFn = exemplarFnFor(a.attr)
 
 	case metricsAggregateRate:
@@ -1352,6 +1357,7 @@ func (a *MetricsAggregate) validate() error {
 	case metricsAggregateCountOverTime:
 	case metricsAggregateMinOverTime:
 	case metricsAggregateMaxOverTime:
+	case metricsAggregateSumOverTime:
 	case metricsAggregateRate:
 	case metricsAggregateHistogramOverTime:
 		if len(a.by) >= maxGroupBys {
