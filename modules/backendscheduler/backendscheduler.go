@@ -184,7 +184,7 @@ func (s *BackendScheduler) FailJob(ctx context.Context, id string) error {
 func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest) (*tempopb.NextJobResponse, error) {
 	// Find jobs that already exist for this worker
 	for id, j := range s.work.Jobs() {
-		if j.Status() == work.JobStatusPending {
+		if j.Status() == work.JobStatusPending || j.Status() == work.JobStatusRunning {
 			if j.WorkerID() == req.WorkerId {
 				resp := &tempopb.NextJobResponse{
 					JobId:  j.ID,
