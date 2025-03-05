@@ -12,7 +12,7 @@ keywords:
 
 <!-- If you add a new function to this page, make sure you also add it to the _index.md#functions section.-->
 
-TraceQL supports `rate`, `count_over_time`, `min_over_time`, `avg_over_time`, `quantile_over_time`, `histogram_over_time`, and `compare` functions.
+TraceQL supports `rate`, `count_over_time`, `sum_over_time`, `min_over_time`, `avg_over_time`, `quantile_over_time`, `histogram_over_time`, and `compare` functions.
 
 ## Available functions
 
