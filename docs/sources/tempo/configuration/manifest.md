@@ -415,9 +415,6 @@ compactor:
         max_time_per_tenant: 5m0s
         compaction_cycle: 30s
     override_ring_key: compactor
-    use_scheduler: false
-    polling_interval: 10s
-    backend_scheduler_addr: ""
 ingester:
     lifecycler:
         ring:
@@ -969,8 +966,19 @@ cache:
         writeback_buffer: 10000
     caches: []
 backend_scheduler:
-    enabled: false
     schedule_interval: 10s
+    compaction:
+        v2_in_buffer_bytes: 5242880
+        v2_out_buffer_bytes: 20971520
+        v2_prefetch_traces_count: 1000
+        compaction_window: 1h0m0s
+        max_compaction_objects: 6000000
+        max_block_bytes: 107374182400
+        block_retention: 336h0m0s
+        compacted_block_retention: 1h0m0s
+        retention_concurrency: 10
+        max_time_per_tenant: 5m0s
+        compaction_cycle: 30s
 backend_scheduler_client:
     grpc_client_config:
         max_recv_msg_size: 104857600
@@ -996,4 +1004,19 @@ backend_scheduler_client:
         connect_timeout: 5s
         connect_backoff_base_delay: 1s
         connect_backoff_max_delay: 5s
+backend_worker:
+    backend_scheduler_addr: ""
+    interval: 10s
+    compaction:
+        v2_in_buffer_bytes: 5242880
+        v2_out_buffer_bytes: 20971520
+        v2_prefetch_traces_count: 1000
+        compaction_window: 1h0m0s
+        max_compaction_objects: 6000000
+        max_block_bytes: 107374182400
+        block_retention: 336h0m0s
+        compacted_block_retention: 1h0m0s
+        retention_concurrency: 10
+        max_time_per_tenant: 5m0s
+        compaction_cycle: 30s
 ```
