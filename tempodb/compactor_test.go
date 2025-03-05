@@ -175,7 +175,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 		require.Len(t, blocks, inputBlocks)
 
 		compactions++
-		err := rw.compact(context.Background(), blocks, testTenantID)
+		err := rw.compactOneJob(context.Background(), blocks, testTenantID)
 		require.NoError(t, err)
 
 		expectedBlockCount -= blocksPerCompaction
@@ -340,7 +340,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	combinedStart, err := test.GetCounterVecValue(metricCompactionObjectsCombined, "0")
 	require.NoError(t, err)
 
-	err = rw.compact(ctx, blocks, testTenantID)
+	err = rw.compactOneJob(ctx, blocks, testTenantID)
 	require.NoError(t, err)
 
 	checkBlocklists(ctx, t, uuid.Nil, 1, blockCount, rw)
@@ -424,7 +424,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	rw.pollBlocklist(ctx)
 
 	// compact everything
-	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
+	err = rw.compactOneJob(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
 	require.NoError(t, err)
 
 	// New blocklist contains 1 compacted block with everything
@@ -505,7 +505,7 @@ func TestCompactionMetrics(t *testing.T) {
 	assert.NoError(t, err)
 
 	// compact everything
-	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
+	err = rw.compactOneJob(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
 	assert.NoError(t, err)
 
 	// Check metric
@@ -647,7 +647,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	rw.pollBlocklist(ctx)
 
 	// compact everything
-	err = rw.compact(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
+	err = rw.compactOneJob(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
 	require.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond)
@@ -921,6 +921,6 @@ func benchmarkCompaction(b *testing.B, targetBlockVersion string) {
 
 	b.ResetTimer()
 
-	err = rw.compact(ctx, metas, testTenantID)
+	err = rw.compactOneJob(ctx, metas, testTenantID)
 	require.NoError(b, err)
 }
