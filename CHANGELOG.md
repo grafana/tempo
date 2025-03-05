@@ -19,11 +19,12 @@
 * [CHANGE] **BREAKING CHANGE** Enforce max attribute size at event, link, and instrumentation scope. Make config per-tenant.
   Renamed max_span_attr_byte to max_attribute_bytes
   [#4633](https://github.com/grafana/tempo/pull/4633) (@ie-pham)
-* [CHANGE] Update to go 1.24.0 [#4704](https://github.com/grafana/tempo/pull/4704) (@ruslan-mikhailov)
+* [CHANGE] Update to go 1.24.1 [#4704](https://github.com/grafana/tempo/pull/4704) (@ruslan-mikhailov) [#4793](https://github.com/grafana/tempo/pull/4793) (@javiermolinar)
 * [FEATURE] Add throughput SLO and metrics for the TraceByID endpoint. [#4668](https://github.com/grafana/tempo/pull/4668) (@carles-grafana)
 configurable via the throughput_bytes_slo field, and it will populate op="traces" label in slo and throughput metrics.
 * [FEATURE] Added most_recent=true query hint to TraceQL to return most recent results. [#4238](https://github.com/grafana/tempo/pull/4238) (@joe-elliott)
 * [FEATURE] Add ability to add artificial delay to push requests [#4716](https://github.com/grafana/tempo/pull/4716) (@yvrhdn)
+* [FEATURE] TraceQL metrics: sum_over_time [#4786](https://github.com/grafana/tempo/pull/4786) (@javiermolinar)
 * [ENHANCEMENT] Improve Tempo build options [#4755](https://github.com/grafana/tempo/pull/4755) (@stoewer)
 * [ENHANCEMENT] Rewrite traces using rebatching [#4690](https://github.com/grafana/tempo/pull/4690) (@stoewer @joe-elliott)
 * [ENHANCEMENT] Reorder span iterators [#4754](https://github.com/grafana/tempo/pull/4754) (@stoewer)
@@ -53,9 +54,12 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [BUGFIX] Fix starting consuming log [#4539](https://github.com/grafana/tempo/pull/4539) (@javiermolinar)
 * [BUGFIX] Rhythm - fix adjustment of the start and end range for livetraces blocks [#4746](https://github.com/grafana/tempo/pull/4746) (@javiermolinar)
 * [BUGFIX] Return the operand as the only value if the tag is already filtered in the query [#4673](https://github.com/grafana/tempo/pull/4673) (@mapno)
+* [BUGFIX] Fix flaky test [#4787](https://github.com/grafana/tempo/pull/4787) (@javiermolinar)
 * [BUGFIX] Fix memcached settings for docker compose example [#4346](https://github.com/grafana/tempo/pull/4695) (@ruslan-mikhailov)
 * [BUGFIX] Fix setting processors in user configurations overrides via API [#4741](https://github.com/grafana/tempo/pull/4741) (@ruslan-mikhailov)
 * [BUGFIX] Fix panic on startup [#4744](https://github.com/grafana/tempo/pull/4744) (@ruslan-mikhailov)
+* [BUGFIX] Fix intrinsic tag lookups dropped when max tag lookup response size is exceeded [#4784](https://github.com/grafana/tempo/pull/4784) (@mdisibio)
+* [BUGFIX] Correctly cache frontend jobs for query range (TraceQL Metrics). [#4771](https://github.com/grafana/tempo/pull/4771) (@joe-elliott)
 
 # v2.7.1
 

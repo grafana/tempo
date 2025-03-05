@@ -16,6 +16,7 @@ import (
 
 	"github.com/grafana/e2e"
 	"github.com/grafana/tempo/integration/util"
+	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -652,11 +653,12 @@ func callSearchTagValuesV2AndAssert(t *testing.T, svc *e2e.HTTPService, tagName,
 func callSearchTagsV2AndAssert(t *testing.T, svc *e2e.HTTPService, scope, query string, expected searchTagsV2Response, start, end int64) {
 	urlPath := fmt.Sprintf(`/api/v2/search/tags?scope=%s&q=%s`, scope, url.QueryEscape(query))
 
-	// expected will not have the intrinsic scope since it's the same every time, add it here.
+	// Expected will not have the intrinsic results to make the tests simpler,
+	// they are added here based on the scope.
 	if scope == "none" || scope == "" || scope == "intrinsic" {
 		expected.Scopes = append(expected.Scopes, ScopedTags{
 			Name: "intrinsic",
-			Tags: []string{"duration", "event:name", "event:timeSinceStart", "instrumentation:name", "instrumentation:version", "kind", "name", "rootName", "rootServiceName", "span:duration", "span:kind", "span:name", "span:status", "span:statusMessage", "status", "statusMessage", "trace:duration", "trace:rootName", "trace:rootService", "traceDuration"},
+			Tags: search.GetVirtualIntrinsicValues(),
 		})
 	}
 	sort.Slice(expected.Scopes, func(i, j int) bool { return expected.Scopes[i].Name < expected.Scopes[j].Name })
@@ -776,9 +778,7 @@ func callSearchTagsAndAssert(t *testing.T, svc *e2e.HTTPService, expected search
 	// parse response
 	var response searchTagsResponse
 	require.NoError(t, json.Unmarshal(body, &response))
-	sort.Strings(response.TagNames)
-	sort.Strings(expected.TagNames)
-	require.Equal(t, expected.TagNames, response.TagNames)
+	require.ElementsMatch(t, expected.TagNames, response.TagNames)
 	assertMetrics(t, response.Metrics, len(response.TagNames))
 
 	// streaming
@@ -808,8 +808,8 @@ func callSearchTagsAndAssert(t *testing.T, svc *e2e.HTTPService, expected search
 	if grpcResp.TagNames == nil {
 		grpcResp.TagNames = []string{}
 	}
-	sort.Slice(grpcResp.TagNames, func(i, j int) bool { return grpcResp.TagNames[i] < grpcResp.TagNames[j] })
-	require.Equal(t, expected.TagNames, grpcResp.TagNames)
+
+	require.ElementsMatch(t, expected.TagNames, grpcResp.TagNames)
 	// assert metrics, and make sure it's non-zero when response is non-empty
 	if len(grpcResp.TagNames) > 0 {
 		require.Greater(t, grpcResp.Metrics.InspectedBytes, uint64(100))

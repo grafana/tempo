@@ -485,11 +485,6 @@ func (q *Querier) SearchTagsBlocks(ctx context.Context, req *tempopb.SearchTagsB
 
 	// flatten v2 response
 	for _, s := range v2Response.Scopes {
-		// SearchTags does not include intrinsics on an empty scope, but v2 does.
-		if req.SearchReq.Scope == "" && s.Name == api.ParamScopeIntrinsic {
-			continue
-		}
-
 		for _, t := range s.Tags {
 			distinctValues.Collect(t)
 			if distinctValues.Exceeded() {
@@ -876,19 +871,10 @@ func (q *Querier) SearchBlock(ctx context.Context, req *tempopb.SearchBlockReque
 }
 
 func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.SearchTagsBlockRequest) (*tempopb.SearchTagsV2Response, error) {
-	// check if it's the special intrinsic scope
-	// note that every block search passes the same values up. this could be handled in the frontend and be far more efficient
+	// For the intrinsic scope there is nothing to do in the querier,
+	// these are always added by the frontend.
 	if req.SearchReq.Scope == api.ParamScopeIntrinsic {
-		return &tempopb.SearchTagsV2Response{
-			Scopes: []*tempopb.SearchTagsV2Scope{
-				{
-					Name: api.ParamScopeIntrinsic,
-					Tags: search.GetVirtualIntrinsicValues(),
-				},
-			},
-			// no bytes were scanned to return the intrinsic values
-			Metrics: &tempopb.MetadataMetrics{InspectedBytes: 0},
-		}, nil
+		return &tempopb.SearchTagsV2Response{}, nil
 	}
 
 	tenantID, err := user.ExtractOrgID(ctx)
@@ -930,20 +916,7 @@ func (q *Querier) internalTagsSearchBlockV2(ctx context.Context, req *tempopb.Se
 
 	query := traceql.ExtractMatchers(req.SearchReq.Query)
 	if traceql.IsEmptyQuery(query) {
-		resp, err := q.store.SearchTags(ctx, meta, req, opts)
-		if err != nil {
-			return nil, err
-		}
-
-		// add intrinsic tags if scope is none
-		if req.SearchReq.Scope == "" {
-			resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
-				Name: api.ParamScopeIntrinsic,
-				Tags: search.GetVirtualIntrinsicValues(),
-			})
-		}
-
-		return resp, nil
+		return q.store.SearchTags(ctx, meta, req, opts)
 	}
 
 	valueCollector := collector.NewScopedDistinctString(q.limits.MaxBytesPerTagValuesQuery(tenantID), req.MaxTagsPerScope, req.StaleValueThreshold)

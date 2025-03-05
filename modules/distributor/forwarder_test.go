@@ -11,7 +11,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/metadata"
 
+	"github.com/grafana/tempo/modules/generator"
 	"github.com/grafana/tempo/modules/overrides"
 	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 	"github.com/grafana/tempo/pkg/util"
@@ -34,13 +36,18 @@ func TestForwarder(t *testing.T) {
 	o, err := overrides.NewOverrides(oCfg, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
+	noGenerateMetricsRequestCount := 0
+
 	wg := sync.WaitGroup{}
 	f := newGeneratorForwarder(
 		log.NewNopLogger(),
-		func(ctx context.Context, userID string, k []uint32, traces []*rebatchedTrace) error {
+		func(_ context.Context, userID string, k []uint32, traces []*rebatchedTrace, noGenerateMetrics bool) error {
 			assert.Equal(t, tenantID, userID)
 			assert.Equal(t, keys, k)
 			assert.Equal(t, rebatchedTraces, traces)
+			if noGenerateMetrics {
+				noGenerateMetricsRequestCount++
+			}
 			wg.Done()
 			return nil
 		},
@@ -52,12 +59,17 @@ func TestForwarder(t *testing.T) {
 	}()
 
 	wg.Add(1)
-	f.SendTraces(context.Background(), tenantID, keys, rebatchedTraces)
+	// Mark this request as "to-be-ignored" for metrics generation.
+	ctx = metadata.NewIncomingContext(ctx, metadata.Pairs(generator.NoGenerateMetricsContextKey, ""))
+	f.SendTraces(ctx, tenantID, keys, rebatchedTraces)
 	wg.Wait()
 
 	wg.Add(1)
 	f.SendTraces(context.Background(), tenantID, keys, rebatchedTraces)
 	wg.Wait()
+
+	// Expect to receive one request for which no metrics should be generated in metrics-generator.
+	require.Equal(t, 1, noGenerateMetricsRequestCount)
 }
 
 func TestForwarder_shutdown(t *testing.T) {
@@ -78,12 +90,13 @@ func TestForwarder_shutdown(t *testing.T) {
 	signalCh := make(chan struct{})
 	f := newGeneratorForwarder(
 		log.NewNopLogger(),
-		func(ctx context.Context, userID string, k []uint32, traces []*rebatchedTrace) error {
+		func(_ context.Context, userID string, k []uint32, traces []*rebatchedTrace, noGenerateMetrics bool) error {
 			<-signalCh
 
 			assert.Equal(t, tenantID, userID)
 			assert.Equal(t, keys, k)
 			assert.Equal(t, rebatchedTraces, traces)
+			assert.False(t, noGenerateMetrics)
 			return nil
 		},
 		o,

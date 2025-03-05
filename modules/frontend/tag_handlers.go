@@ -21,7 +21,9 @@ import (
 	"github.com/grafana/tempo/modules/frontend/pipeline"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/pkg/api"
+	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
+	"github.com/grafana/tempo/pkg/traceql"
 	"google.golang.org/grpc/codes"
 )
 
@@ -52,6 +54,19 @@ func newTagsStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[com
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
 		})
+
+		// Add intrinsics first so that they aren't dropped by the response size limit
+		// NOTE - V1 tag lookup only returns intrinsics when scope is set explicitly.
+		if req.Scope == api.ParamScopeIntrinsic {
+			err := comb.AddTypedResponse(&tempopb.SearchTagsResponse{
+				TagNames: search.GetVirtualIntrinsicValues(),
+			})
+			if err != nil {
+				return err
+			}
+			// TODO: Exit early here, no need to issue more requests downstream, but some
+			//  work needed to ensure things are still logged/metriced correctly.
+		}
 
 		start := time.Now()
 		logTagsRequest(logger, tenant, "SearchTagsStreaming", req.Scope, req.End-req.Start)
@@ -85,6 +100,26 @@ func newTagsV2StreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripper[c
 			finalResponse = res // to get the bytes processed for SLO calculations
 			return srv.Send(res)
 		})
+
+		// Add intrinsics first so that they aren't dropped by the response size limit
+		// NOTE - V2 tag lookup returns intrinsics for both unscoped and explicit scope requests.
+		if req.Scope == "" ||
+			req.Scope == api.ParamScopeIntrinsic ||
+			req.Scope == traceql.AttributeScopeNone.String() {
+			err := comb.AddTypedResponse(&tempopb.SearchTagsV2Response{
+				Scopes: []*tempopb.SearchTagsV2Scope{
+					{
+						Name: api.ParamScopeIntrinsic,
+						Tags: search.GetVirtualIntrinsicValues(),
+					},
+				},
+			})
+			if err != nil {
+				return err
+			}
+			// TODO: For intrinsic scope only, exit early here, no need to issue more requests downstream, but some
+			//  work needed to ensure things are still logged/metriced correctly.
+		}
 
 		start := time.Now()
 		logTagsRequest(logger, tenant, "SearchTagsV2Streaming", req.Scope, req.End-req.Start)
@@ -190,6 +225,20 @@ func newTagsHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.Pip
 		scope, _, rangeDur, maxTagsPerScope, staleValueThreshold := parseParams(req)
 		// build and use round tripper
 		comb := combiner.NewTypedSearchTags(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope, staleValueThreshold)
+
+		// Add intrinsics first so that they aren't dropped by the response size limit
+		// NOTE - V1 tag lookup only returns intrinsics when scope is set explicitly.
+		if scope == api.ParamScopeIntrinsic {
+			err := comb.AddTypedResponse(&tempopb.SearchTagsResponse{
+				TagNames: search.GetVirtualIntrinsicValues(),
+			})
+			if err != nil {
+				return nil, err
+			}
+			// TODO: Exit early here, no need to issue more requests downstream, but some
+			//  work needed to ensure things are still logged/metriced correctly.
+		}
+
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 		start := time.Now()
 		logTagsRequest(logger, tenant, "SearchTags", scope, rangeDur)
@@ -224,6 +273,27 @@ func newTagsV2HTTPHandler(cfg Config, next pipeline.AsyncRoundTripper[combiner.P
 		scope, _, rangeDur, maxTagsPerScope, staleValueThreshold := parseParams(req)
 		// build and use round tripper
 		comb := combiner.NewTypedSearchTagsV2(o.MaxBytesPerTagValuesQuery(tenant), maxTagsPerScope, staleValueThreshold)
+
+		// Add intrinsics first so that they aren't dropped by the response size limit
+		// NOTE - V2 tag lookup returns intrinsics for both unscoped and explicit scope requests.
+		if scope == "" ||
+			scope == api.ParamScopeIntrinsic ||
+			scope == traceql.AttributeScopeNone.String() {
+			err := comb.AddTypedResponse(&tempopb.SearchTagsV2Response{
+				Scopes: []*tempopb.SearchTagsV2Scope{
+					{
+						Name: api.ParamScopeIntrinsic,
+						Tags: search.GetVirtualIntrinsicValues(),
+					},
+				},
+			})
+			if err != nil {
+				return nil, err
+			}
+			// TODO: For intrinsic scope only, exit early here, no need to issue more requests downstream, but some
+			//  work needed to ensure things are still logged/metriced correctly.
+		}
+
 		rt := pipeline.NewHTTPCollector(next, cfg.ResponseConsumers, comb)
 		start := time.Now()
 		logTagsRequest(logger, tenant, "SearchTagsV2", scope, rangeDur)

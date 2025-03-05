@@ -17,7 +17,6 @@ import (
 	"github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/boundedwaitgroup"
 	"github.com/grafana/tempo/pkg/collector"
-	"github.com/grafana/tempo/pkg/search"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
 	"github.com/grafana/tempo/pkg/util/log"
@@ -192,11 +191,6 @@ func (i *instance) SearchTags(ctx context.Context, scope string) (*tempopb.Searc
 
 	// flatten v2 response
 	for _, s := range v2Response.Scopes {
-		// SearchTags does not include intrinsics on an empty scope, but v2 does.
-		if scope == "" && s.Name == api.ParamScopeIntrinsic {
-			continue
-		}
-
 		for _, t := range s.Tags {
 			distinctValues.Collect(t)
 		}
@@ -219,17 +213,11 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 	}
 
 	scope := req.Scope
-	// check if it's the special intrinsic scope
+
 	if scope == api.ParamScopeIntrinsic {
-		return &tempopb.SearchTagsV2Response{
-			Scopes: []*tempopb.SearchTagsV2Scope{
-				{
-					Name: api.ParamScopeIntrinsic,
-					Tags: search.GetVirtualIntrinsicValues(),
-				},
-			},
-			Metrics: &tempopb.MetadataMetrics{InspectedBytes: 0}, // no bytes read for intrinsics
-		}, nil
+		// For the intrinsic scope there is nothing to do in the ingester,
+		// these are always added by the frontend.
+		return &tempopb.SearchTagsV2Response{}, nil
 	}
 
 	// parse for normal scopes
@@ -316,14 +304,6 @@ func (i *instance) SearchTagsV2(ctx context.Context, req *tempopb.SearchTagsRequ
 		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
 			Name: scope,
 			Tags: vals,
-		})
-	}
-
-	// add intrinsic tags if scope is none
-	if attributeScope == traceql.AttributeScopeNone {
-		resp.Scopes = append(resp.Scopes, &tempopb.SearchTagsV2Scope{
-			Name: api.ParamScopeIntrinsic,
-			Tags: search.GetVirtualIntrinsicValues(),
 		})
 	}
 

@@ -33,6 +33,7 @@ import (
 	"github.com/grafana/tempo/modules/distributor/forwarder"
 	"github.com/grafana/tempo/modules/distributor/receiver"
 	"github.com/grafana/tempo/modules/distributor/usage"
+	"github.com/grafana/tempo/modules/generator"
 	generator_client "github.com/grafana/tempo/modules/generator/client"
 	ingester_client "github.com/grafana/tempo/modules/ingester/client"
 	"github.com/grafana/tempo/modules/overrides"
@@ -459,7 +460,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 		metricAttributesTruncated.WithLabelValues(userID).Add(float64(truncatedAttributeCount))
 	}
 
-	err = d.sendToIngestersViaBytes(ctx, userID, spanCount, rebatchedTraces, keys)
+	err = d.sendToIngestersViaBytes(ctx, userID, rebatchedTraces, keys)
 	if err != nil {
 		return nil, err
 	}
@@ -486,7 +487,7 @@ func (d *Distributor) PushTraces(ctx context.Context, traces ptrace.Traces) (*te
 	return nil, nil // PushRequest is ignored, so no reason to create one
 }
 
-func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, totalSpanCount int, traces []*rebatchedTrace, keys []uint32) error {
+func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string, traces []*rebatchedTrace, keys []uint32) error {
 	marshalledTraces := make([][]byte, len(traces))
 	for i, t := range traces {
 		b, err := d.traceEncoder.PrepareForWrite(t.trace, t.start, t.end)
@@ -559,7 +560,7 @@ func (d *Distributor) sendToIngestersViaBytes(ctx context.Context, userID string
 	return nil
 }
 
-func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace) error {
+func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys []uint32, traces []*rebatchedTrace, noGenerateMetrics bool) error {
 	// If an instance is unhealthy write to the next one (i.e. write extend is enabled)
 	op := ring.Write
 
@@ -571,7 +572,8 @@ func (d *Distributor) sendToGenerators(ctx context.Context, userID string, keys 
 		localCtx = user.InjectOrgID(localCtx, userID)
 
 		req := tempopb.PushSpansRequest{
-			Batches: nil,
+			Batches:               nil,
+			SkipMetricsGeneration: noGenerateMetrics,
 		}
 		for _, j := range indexes {
 			req.Batches = append(req.Batches, traces[j].trace.ResourceSpans...)
@@ -627,8 +629,9 @@ func (d *Distributor) sendToKafka(ctx context.Context, userID string, keys []uin
 		localCtx = user.InjectOrgID(localCtx, userID)
 
 		req := &tempopb.PushBytesRequest{
-			Traces: make([]tempopb.PreallocBytes, len(indexes)),
-			Ids:    make([][]byte, len(indexes)),
+			Traces:                make([]tempopb.PreallocBytes, len(indexes)),
+			Ids:                   make([][]byte, len(indexes)),
+			SkipMetricsGeneration: generator.ExtractNoGenerateMetrics(ctx),
 		}
 
 		for i, j := range indexes {

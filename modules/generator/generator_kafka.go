@@ -10,7 +10,6 @@ import (
 	"github.com/go-kit/log/level"
 
 	"github.com/grafana/tempo/pkg/ingest"
-	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -84,7 +83,7 @@ func (g *Generator) readKafka(ctx context.Context) error {
 	fetches.EachPartition(func(p kgo.FetchTopicPartition) {
 		if len(p.Records) > 0 {
 			lag := time.Since(p.Records[0].Timestamp)
-			ingest.SetPartitionLagSeconds(g.cfg.Ingest.Kafka.ConsumerGroup, int(p.Partition), lag)
+			ingest.SetPartitionLagSeconds(g.cfg.Ingest.Kafka.ConsumerGroup, p.Partition, lag)
 		}
 	})
 
@@ -145,9 +144,7 @@ func (g *Generator) readCh(ctx context.Context) {
 				continue
 			}
 
-			i.pushSpansFromQueue(ctx, r.Timestamp, &tempopb.PushSpansRequest{
-				Batches: resourceSpans,
-			})
+			i.pushSpansFromQueue(ctx, r.Timestamp, resourceSpans)
 		}
 	}
 }
@@ -177,6 +174,8 @@ func (g *Generator) handlePartitionsRevoked(partitions map[string][]int32) {
 	sort.Slice(revoked, func(i, j int) bool { return revoked[i] < revoked[j] })
 	// Remove revoked partitions
 	g.assignedPartitions = revokePartitions(g.assignedPartitions, revoked)
+
+	ingest.ResetLagMetricsForRevokedPartitions(g.cfg.Ingest.Kafka.ConsumerGroup, revoked)
 }
 
 // Helper function to format []int32 slice

@@ -1,6 +1,7 @@
 package traceql
 
 import (
+	"math"
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -140,4 +141,19 @@ func (b *branchOptimizer) OptimalBranch() int {
 		}
 	}
 	return mini
+}
+
+func kahanSumInc(inc, sum, c float64) (newSum, newC float64) {
+	t := sum + inc
+	switch {
+	case math.IsInf(t, 0):
+		c = 0
+
+	// Using Neumaier improvement, swap if next term larger than sum.
+	case math.Abs(sum) >= math.Abs(inc):
+		c += (sum - t) + inc
+	default:
+		c += (inc - t) + sum
+	}
+	return t, c
 }
