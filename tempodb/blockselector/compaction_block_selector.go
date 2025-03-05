@@ -127,10 +127,6 @@ func (twbs *timeWindowBlockSelector) BlocksToCompact() ([]*backend.BlockMeta, st
 			for j := i + 1; j < len(twbs.entries); j++ {
 				stripe := twbs.entries[i : j+1]
 
-				// spew.Dump("compare")
-				// spew.Dump(twbs.entries[i].group, twbs.entries[j].group)
-				// spew.Dump(twbs.entries[i].group == twbs.entries[j].group)
-
 				if twbs.entries[i].group == twbs.entries[j].group &&
 					twbs.entries[i].meta.DataEncoding == twbs.entries[j].meta.DataEncoding &&
 					twbs.entries[i].meta.Version == twbs.entries[j].meta.Version && // update after parquet: only compact blocks of the same version
