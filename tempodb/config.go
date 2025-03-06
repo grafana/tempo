@@ -148,16 +148,6 @@ func (cfg *CompactorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag
 	cfg.CompactedBlockRetention = time.Hour
 	cfg.RetentionConcurrency = DefaultRetentionConcurrency
 
-	// cfg = &CompactorConfig{
-	// 	ChunkSizeBytes:          DefaultChunkSizeBytes, // 5 MiB
-	// 	FlushSizeBytes:          DefaultFlushSizeBytes,
-	// 	CompactedBlockRetention: time.Hour,
-	// 	RetentionConcurrency:    DefaultRetentionConcurrency,
-	// 	IteratorBufferSize:      DefaultIteratorBufferSize,
-	// 	MaxTimePerTenant:        DefaultMaxTimePerTenant,
-	// 	CompactionCycle:         DefaultCompactionCycle,
-	// }
-
 	f.DurationVar(&cfg.BlockRetention, util.PrefixConfig(prefix, "compaction.block-retention"), 14*24*time.Hour, "Duration to keep blocks/traces.")
 	f.IntVar(&cfg.MaxCompactionObjects, util.PrefixConfig(prefix, "compaction.max-objects-per-block"), 6000000, "Maximum number of traces in a compacted block.")
 	f.Uint64Var(&cfg.MaxBlockBytes, util.PrefixConfig(prefix, "compaction.max-block-bytes"), 100*1024*1024*1024 /* 100GB */, "Maximum size of a compacted block.")
