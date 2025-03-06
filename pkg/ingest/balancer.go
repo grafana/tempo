@@ -95,6 +95,10 @@ func (s syncAssignments) IntoSyncAssignment() []kmsg.SyncGroupRequestGroupAssign
 }
 
 func (b *cooperativeActiveStickyBalancer) Balance(balancer *kgo.ConsumerBalancer, topics map[string]int32) kgo.IntoSyncAssignment {
+	// TODO: This function assumes that the active partitions are always the lowest numbered partitions.
+	//  This is true most of the time, but not guaranteed. It should be changed to find the active/inactive partitions,
+	//  instead of assuming the first N partitions are active.
+
 	// Get active partition count
 	actives := b.partitionRing.PartitionRing().PartitionsCount()
 

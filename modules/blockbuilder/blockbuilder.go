@@ -186,6 +186,9 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 			b.onRevoked(m)
 		}),
 	)
+	if err != nil {
+		return fmt.Errorf("failed to create kafka group reader client: %w", err)
+	}
 
 	boff := backoff.New(ctx, backoff.Config{
 		MinBackoff: 100 * time.Millisecond,
