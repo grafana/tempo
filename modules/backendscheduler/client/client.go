@@ -16,7 +16,6 @@ import (
 
 // Config for a backendscheduler client.
 type Config struct {
-	// RemoteTimeout    time.Duration     `yaml:"remote_timeout,omitempty"`
 	GRPCClientConfig grpcclient.Config `yaml:"grpc_client_config"`
 }
 
@@ -29,8 +28,6 @@ type Client struct {
 // RegisterFlags registers flags.
 func (cfg *Config) RegisterFlags(f *flag.FlagSet) {
 	cfg.GRPCClientConfig.RegisterFlagsWithPrefix("backendscheduler.client", f)
-
-	// f.DurationVar(&cfg.RemoteTimeout, "backendscheduler.client.timeout", 5*time.Second, "Timeout for backendscheduler client RPCs.")
 }
 
 // New returns a new backendscheduler client.
