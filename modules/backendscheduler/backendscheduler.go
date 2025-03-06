@@ -342,8 +342,7 @@ func (s *BackendScheduler) compactions(ctx context.Context) []tempopb.JobDetail 
 
 		// TODO: A new implementation of the blockSelector would be appropriate
 		// here.  Return a stripe of blocks matching eachother.  These can be
-		// broken into jobs by the caller.  Currently only 4 blocks are returned
-		// which leads to a single job per tenant.
+		// broken into jobs by the caller.
 
 		blockSelector := blockselector.NewTimeWindowBlockSelector(blocklist,
 			window,
