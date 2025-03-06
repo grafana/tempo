@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/user"
 	backendscheduler_client "github.com/grafana/tempo/modules/backendscheduler/client"
@@ -68,10 +69,13 @@ func (w *BackendWorker) starting(ctx context.Context) error {
 }
 
 func (w *BackendWorker) running(ctx context.Context) error {
+	// TODO: consider dropping the ticker and rely only on the backoff.
 	ticker := time.NewTicker(w.cfg.Interval)
 	defer ticker.Stop()
 
 	level.Info(log.Logger).Log("msg", "backend scheduler running")
+
+	b := backoff.New(ctx, w.cfg.Backoff)
 
 	for {
 		select {
@@ -79,9 +83,12 @@ func (w *BackendWorker) running(ctx context.Context) error {
 			return nil
 		case <-ticker.C:
 			if err := w.processCompactionJobs(ctx); err != nil {
-				// TODO: backoff
-				level.Error(log.Logger).Log("msg", "error processing compaction jobs", "err", err)
+				level.Error(log.Logger).Log("msg", "error processing compaction jobs", "err", err, "backoff", b.NextDelay())
+				b.Wait()
+				continue
 			}
+
+			b.Reset()
 		}
 	}
 }
@@ -100,7 +107,7 @@ func (w *BackendWorker) processCompactionJobs(ctx context.Context) error {
 	}
 
 	if resp == nil || resp.JobId == "" {
-		return nil // No jobs available
+		return fmt.Errorf("no jobs available")
 	}
 
 	if resp.Detail.Tenant == "" {
