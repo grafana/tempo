@@ -36,7 +36,6 @@ func TestBackendScheduler(t *testing.T) {
 	)
 	defer cancel()
 
-	// e2e
 	s, err := e2e.NewScenario("tempo-integration")
 	require.NoError(t, err)
 	defer s.Close()
@@ -63,18 +62,6 @@ func TestBackendScheduler(t *testing.T) {
 
 	e := b.Endpoint(b.HTTPPort())
 	t.Logf("Endpoint: %s", e)
-	// cfg.StorageConfig.Trace.Backend = backend.S3
-	// cfg.StorageConfig.Trace.S3.Endpoint = e
-	// var rr backend.RawReader
-	// var ww backend.RawWriter
-	// var cc backend.Compactor
-	// rr, ww, cc, err = s3.New(cfg.StorageConfig.Trace.S3)
-	// require.NoError(t, err)
-
-	// r := backend.NewReader(rr)
-	// w := backend.NewWriter(ww)
-
-	// tmpDir := t.TempDir()
 
 	scheduler := util.NewTempoTarget("backend-scheduler", configFile)
 	worker := util.NewTempoTarget("backend-worker", configFile)
@@ -90,51 +77,13 @@ func TestBackendScheduler(t *testing.T) {
 		populateBackend(ctx, t, tempodbWriter, testTenant)
 	}
 
+	// Allow time for polling
 	time.Sleep(1 * time.Second)
-
 	require.NoError(t, scheduler.WaitSumMetrics(e2e.Greater(0), "tempo_backend_scheduler_scheduling_cycles_total"))
 
+	// Allow time for job processing
 	time.Sleep(2 * time.Second)
-
 	require.NoError(t, scheduler.WaitSumMetrics(e2e.Greater(0), "tempo_backend_scheduler_jobs_completed_total"))
-
-	// limits, err := overrides.NewOverrides(overrides.Config{
-	// 	Defaults: overrides.Overrides{
-	// 		// Global: overrides.GlobalOverrides{
-	// 		// 	MaxBytesPerTrace: maxBytes,
-	// 		// },
-	// 		// Ingestion: overrides.IngestionOverrides{
-	// 		// 	MaxLocalTracesPerUser: 4,
-	// 		// },
-	// 	},
-	// }, nil, prometheus.DefaultRegisterer)
-	// require.NoError(t, err)
-	//
-	// store := newStore(ctx, t, tmpDir)
-	//
-	// scheduler, err := backendscheduler.New(backendscheduler.Config{
-	// 	ScheduleInterval: 100 * time.Millisecond,
-	// }, store, limits)
-	// require.NoError(t, err)
-	//
-	// nextResp, err := scheduler.Next(ctx, &tempopb.NextJobRequest{
-	// 	WorkerId: "test-worker",
-	// 	Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
-	// })
-	// require.NoError(t, err)
-	// require.Nil(t, nextResp)
-	//
-	// err = scheduler.ScheduleOnce(ctx)
-	// require.NoError(t, err)
-	//
-	// time.Sleep(100 * time.Millisecond)
-	//
-	// nextResp, err = scheduler.Next(ctx, &tempopb.NextJobRequest{
-	// 	WorkerId: "test-worker",
-	// 	Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
-	// })
-	// require.NoError(t, err)
-	// require.Equal(t, tempopb.JobType_JOB_TYPE_COMPACTION, nextResp.Type)
 }
 
 func setupBackendWithEndpoint(t testing.TB, cfg *tempodb.Config, endpoint string) tempodb.Writer {
