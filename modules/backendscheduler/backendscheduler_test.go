@@ -28,12 +28,12 @@ func TestBackendScheduler(t *testing.T) {
 		ScheduleInterval: 100 * time.Millisecond,
 	}
 
-	// tmpDir := t.TempDir()
+	tmpDir := t.TempDir()
 	// writer := setupBackend(t, tmpDir)
 
 	var (
 		ctx   = context.Background()
-		store = newStore(ctx, t)
+		store = newStore(ctx, t, tmpDir)
 	)
 
 	limits, err := overrides.NewOverrides(overrides.Config{
@@ -341,13 +341,11 @@ func TestBackendScheduler(t *testing.T) {
 	})
 }
 
-func newStore(ctx context.Context, t testing.TB) storage.Store {
-	return newStoreWithLogger(ctx, t, test.NewTestingLogger(t))
+func newStore(ctx context.Context, t testing.TB, tmpDir string) storage.Store {
+	return newStoreWithLogger(ctx, t, test.NewTestingLogger(t), tmpDir)
 }
 
-func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger) storage.Store {
-	tmpDir := t.TempDir()
-
+func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, tmpDir string) storage.Store {
 	_, _, _, err := local.New(&local.Config{
 		Path: tmpDir,
 	})
