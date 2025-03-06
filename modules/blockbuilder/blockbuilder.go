@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-kit/log"
@@ -72,6 +73,12 @@ var (
 		Name:      "fetch_errors_total",
 		Help:      "Total number of errors while fetching by the consumer.",
 	}, []string{"partition"})
+	assignedPartitions = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tempo",
+		Subsystem: "block_builder",
+		Name:      "assigned_partitions",
+		Help:      "Assigned partitions to the block builder",
+	}, []string{"partition", "state"})
 )
 
 type BlockBuilder struct {
@@ -80,10 +87,14 @@ type BlockBuilder struct {
 	logger log.Logger
 	cfg    Config
 
-	kafkaClient   *kgo.Client
-	kadm          *kadm.Client
-	decoder       *ingest.Decoder
-	partitionRing ring.PartitionRingReader
+	kafkaClient      *kgo.Client
+	kafkaGroupClient *ingest.Client
+	kadm             *kadm.Client
+	decoder          *ingest.Decoder
+	partitionRing    ring.PartitionRingReader
+
+	partititionsMtx    sync.RWMutex
+	assignedPartitions []int32
 
 	overrides Overrides
 	enc       encoding.VersionedEncoding
@@ -159,6 +170,22 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to create kafka reader client: %w", err)
 	}
+
+	kafkaGroupCfg := b.cfg.IngestStorageConfig.Kafka
+	kafkaGroupCfg.ConsumerGroup = ConsumerGroup + "-idle"
+	b.kafkaGroupClient, err = ingest.NewGroupReaderClient(
+		kafkaGroupCfg,
+		b.partitionRing,
+		ingest.NewReaderClientMetrics(blockBuilderServiceName+"-group", prometheus.DefaultRegisterer),
+		b.logger,
+		kgo.InstanceID(b.cfg.InstanceID),
+		kgo.OnPartitionsAssigned(func(_ context.Context, _ *kgo.Client, m map[string][]int32) {
+			b.onAssigned(m)
+		}),
+		kgo.OnPartitionsRevoked(func(_ context.Context, _ *kgo.Client, m map[string][]int32) {
+			b.onRevoked(m)
+		}),
+	)
 
 	boff := backoff.New(ctx, backoff.Config{
 		MinBackoff: 100 * time.Millisecond,
@@ -497,10 +524,111 @@ func (b *BlockBuilder) getAssignedPartitions() []int32 {
 		}
 	}
 	assignedActivePartitions := make([]int32, 0, len(b.cfg.AssignedPartitions[b.cfg.InstanceID]))
-	for _, partition := range b.cfg.AssignedPartitions[b.cfg.InstanceID] {
+	b.partititionsMtx.RLock()
+	defer b.partititionsMtx.RUnlock()
+	for _, partition := range b.assignedPartitions {
 		if ringAssignedPartitions[partition] {
 			assignedActivePartitions = append(assignedActivePartitions, partition)
 		}
 	}
+
+	b.processPartitionsState(b.assignedPartitions)
 	return assignedActivePartitions
+}
+
+func (b *BlockBuilder) onAssigned(m map[string][]int32) {
+	assigned := m[b.cfg.IngestStorageConfig.Kafka.Topic]
+	level.Info(b.logger).Log("msg", "partitions assigned", "partitions", formatInt32Slice(assigned))
+	b.partititionsMtx.Lock()
+	defer b.partititionsMtx.Unlock()
+
+	b.assignedPartitions = append(b.assignedPartitions, assigned...)
+	sort.Slice(b.assignedPartitions, func(i, j int) bool { return b.assignedPartitions[i] < b.assignedPartitions[j] })
+
+	b.processPartitionsState(b.assignedPartitions)
+}
+
+func (b *BlockBuilder) onRevoked(m map[string][]int32) {
+	revoked := m[b.cfg.IngestStorageConfig.Kafka.Topic]
+	level.Info(b.logger).Log("msg", "partitions revoked", "partitions", formatInt32Slice(revoked))
+	b.partititionsMtx.Lock()
+	defer b.partititionsMtx.Unlock()
+
+	sort.Slice(revoked, func(i, j int) bool { return revoked[i] < revoked[j] })
+	// Remove revoked partitions
+	b.assignedPartitions = revokePartitions(b.assignedPartitions, revoked)
+	b.processPartitionsState(b.assignedPartitions)
+}
+
+func (b *BlockBuilder) processPartitionsState(assigned []int32) {
+	assignedPartitions.Reset()
+	ringPartitions := b.partitionRing.PartitionRing().Partitions()
+	ringPartitionsMap := make(map[int32]ring.PartitionState, len(ringPartitions))
+	for _, p := range ringPartitions {
+		ringPartitionsMap[p.Id] = p.State
+	}
+	for _, partition := range assigned {
+		switch state := ringPartitionsMap[partition]; state {
+		case ring.PartitionUnknown:
+			assignedPartitions.WithLabelValues(strconv.Itoa(int(partition)), "unknown").Set(1)
+		case ring.PartitionPending:
+			assignedPartitions.WithLabelValues(strconv.Itoa(int(partition)), "pending").Set(1)
+		case ring.PartitionActive:
+			assignedPartitions.WithLabelValues(strconv.Itoa(int(partition)), "active").Set(1)
+		case ring.PartitionInactive:
+			assignedPartitions.WithLabelValues(strconv.Itoa(int(partition)), "inactive").Set(1)
+		case ring.PartitionDeleted:
+			assignedPartitions.WithLabelValues(strconv.Itoa(int(partition)), "deleted").Set(1)
+		}
+	}
+}
+
+// Helper function to format []int32 slice
+func formatInt32Slice(slice []int32) string {
+	if len(slice) == 0 {
+		return "[]"
+	}
+	result := "["
+	for i, v := range slice {
+		if i > 0 {
+			result += ","
+		}
+		result += strconv.Itoa(int(v))
+	}
+	result += "]"
+	return result
+}
+
+// Helper function to revoke partitions
+// Assumes both slices are sorted
+func revokePartitions(assigned, revoked []int32) []int32 {
+	i, j := 0, 0
+	// k is used to track the position where we will overwrite elements in assigned
+	k := 0
+
+	// Traverse both slices
+	for i < len(assigned) && j < len(revoked) {
+		if assigned[i] < revoked[j] {
+			// If element in assigned is smaller, it's not in revoked, retain it
+			assigned[k] = assigned[i]
+			k++
+			i++
+		} else if assigned[i] > revoked[j] {
+			// If element in revoked is smaller, move the pointer j
+			j++
+		} else {
+			// If both elements are equal, skip the element from assigned
+			i++
+		}
+	}
+
+	// If there are leftover elements in assigned, retain them
+	for i < len(assigned) {
+		assigned[k] = assigned[i]
+		k++
+		i++
+	}
+
+	// Resize assigned to only include retained elements
+	return assigned[:k]
 }

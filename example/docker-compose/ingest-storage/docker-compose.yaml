@@ -70,6 +70,21 @@ services:
   #    environment:
   #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
 
+  ingester-3:
+    image: *tempoImage
+    depends_on:
+      - kafka
+    command: "-target=ingester -config.file=/etc/tempo.yaml"
+    restart: always
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200"   # tempo
+    hostname: ingester-3
+  # Uncomment the following lines to enable tracing
+  #    environment:
+  #      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+
   query-frontend:
     image: *tempoImage
     command: "-target=query-frontend -config.file=/etc/tempo.yaml -log.level=debug"
