@@ -144,18 +144,3 @@ func writeTraceToWal(t require.TestingT, b common.WALBlock, dec model.SegmentDec
 	err = b.Append(id, b2, start, end, true)
 	require.NoError(t, err, "unexpected error writing req")
 }
-
-// OwnsEverythingSharder owns everything.
-var OwnsEverythingSharder = ownsEverythingSharder{}
-
-type ownsEverythingSharder struct{}
-
-func (ownsEverythingSharder) Owns(_ string) bool {
-	return true
-}
-
-func (m *ownsEverythingSharder) Combine(dataEncoding string, _ string, objs ...[]byte) ([]byte, bool, error) {
-	return model.StaticCombiner.Combine(dataEncoding, objs...)
-}
-
-func (m *ownsEverythingSharder) RecordDiscardedSpans(int, string, string, string, string) {}
