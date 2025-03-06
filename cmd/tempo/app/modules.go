@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"path"
 
+	"github.com/davecgh/go-spew/spew"
 	kitlog "github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/dns"
@@ -693,11 +694,11 @@ func (t *App) initBackendScheduler() (services.Service, error) {
 	// Register the GRPC service
 	tempopb.RegisterBackendSchedulerServer(t.Server.GRPC(), scheduler)
 
-	t.Server.HTTPRouter().Path("/scheduler/status").Handler(
-		t.HTTPAuthMiddleware.Wrap(
-			http.HandlerFunc(scheduler.StatusHandler),
-		),
-	)
+	spew.Dump(t.Server.GRPC().GetServiceInfo())
+
+	spew.Dump(t.cfg.Server.GRPCMiddleware)
+
+	t.Server.HTTPRouter().Path("/status/backendscheduler").HandlerFunc(scheduler.StatusHandler)
 
 	t.backendScheduler = scheduler
 

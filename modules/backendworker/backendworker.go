@@ -88,8 +88,7 @@ func (w *BackendWorker) running(ctx context.Context) error {
 
 func (w *BackendWorker) processCompactionJobs(ctx context.Context) error {
 	// Request next job
-	// FIXME: the org ID is not used by the backend scheduler, but it is required by the request.
-	resp, err := w.backendScheduler.Next(user.InjectOrgID(ctx, w.workerID), &tempopb.NextJobRequest{
+	resp, err := w.backendScheduler.Next(ctx, &tempopb.NextJobRequest{
 		WorkerId: w.workerID,
 		Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
 	})

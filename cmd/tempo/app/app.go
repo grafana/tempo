@@ -11,6 +11,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/go-kit/log/level"
 	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/grpcutil"
@@ -129,17 +130,23 @@ func (t *App) setupAuthMiddleware() {
 		noGRPCAuthOn := []string{
 			"/frontend.Frontend/Process",
 			"/frontend.Frontend/NotifyClientShutdown",
+			"/tempopb.BackendScheduler/Next",
+			"/tempopb.BackendScheduler/UpdateJob",
 		}
 		ignoredMethods := map[string]bool{}
 		for _, m := range noGRPCAuthOn {
 			ignoredMethods[m] = true
 		}
+		spew.Dump("ignoredMethods", ignoredMethods)
 
 		t.cfg.Server.GRPCMiddleware = []grpc.UnaryServerInterceptor{
 			func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+				spew.Dump("unary server interceptor", info.FullMethod)
 				if ignoredMethods[info.FullMethod] {
+					spew.Dump("unary server interceptor ignored", info.FullMethod)
 					return handler(ctx, req)
 				}
+				spew.Dump("unary server interceptor not ignored", info.FullMethod)
 				return middleware.ServerUserHeaderInterceptor(ctx, req, info, handler)
 			},
 		}
