@@ -1,0 +1,57 @@
+server:
+  http_listen_port: 3200
+  # grpc_server_max_recv_msg_size: 134217728
+  # grpc_server_max_send_msg_size: 134217728
+distributor:
+  receivers:
+    jaeger:
+      protocols:
+        grpc:
+          endpoint: "distributor:14250"
+ingester:
+  lifecycler:
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 3
+    heartbeat_period: 100ms
+    min_ready_duration: 1s
+  trace_idle_period: 2s
+  max_block_duration: 2s
+  complete_block_timeout: 5s
+  flush_check_period: 1s
+storage:
+  trace:
+    blocklist_poll: 2s
+    blocklist_poll_stale_tenant_index: 1s # force components to always fall back to polling
+    backend: s3
+    s3:
+      bucket: tempo
+      endpoint: tempo-integration-minio-9000:9000 # TODO: this is brittle, fix this eventually
+      access_key: Cheescake # TODO: use cortex_e2e.MinioAccessKey
+      secret_key: supersecret # TODO: use cortex_e2e.MinioSecretKey
+      insecure: true
+    pool:
+      max_workers: 10
+      queue_depth: 100
+backend_scheduler:
+  schedule_interval: 1s
+backend_worker:
+  interval: 1s
+  backend_scheduler_addr: tempo-integration-backend-scheduler:9095
+backend_scheduler_client:
+  grpc_client_config:
+    max_send_msg_size: 134217728
+#   max_recv_msg_size: 134217728
+memberlist:
+  abort_if_cluster_join_fails: false
+  bind_port: 7946
+  join_members: []
+  # - tempo_e2e-distributor:7946
+  # - tempo_e2e-ingester-1:7946
+  # - tempo_e2e-ingester-2:7946
+  # - tempo_e2e-ingester-3:7946
+  # - tempo_e2e-querier:7946
+querier:
+  frontend_worker:
+    frontend_address: tempo_e2e-query-frontend:9095

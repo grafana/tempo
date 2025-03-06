@@ -90,9 +90,13 @@ func TestBackendScheduler(t *testing.T) {
 		populateBackend(ctx, t, tempodbWriter, testTenant)
 	}
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(1 * time.Second)
 
-	require.NoError(t, scheduler.WaitSumMetrics(e2e.Equals(1), "backend_scheduler_scheduling_cycles_total"))
+	require.NoError(t, scheduler.WaitSumMetrics(e2e.Greater(0), "tempo_backend_scheduler_scheduling_cycles_total"))
+
+	time.Sleep(1 * time.Second)
+
+	require.NoError(t, scheduler.WaitSumMetrics(e2e.Greater(0), "tempo_backend_scheduler_jobs_completed_total"))
 
 	// limits, err := overrides.NewOverrides(overrides.Config{
 	// 	Defaults: overrides.Overrides{
