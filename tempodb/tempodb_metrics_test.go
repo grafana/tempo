@@ -757,6 +757,26 @@ var queryRangeTestCases = []struct {
 	},
 }
 
+// TestTempoDBQueryRange tests the metrics query functionality of TempoDB by verifying various types of
+// time-series queries on trace data. The test:
+//
+// 1. Sets up a test environment
+//
+// 2. Generates test data:
+//   - 100 test spans distributed across 1-100 seconds
+//   - Each span's duration equals its start time (e.g. span at 2s has duration 2s)
+//   - Spans are tagged with service names "even" or "odd" based on their start time
+//
+// 3. Tests various query types:
+//   - Rate queries (rate(), rate() with filters)
+//   - Count queries (count_over_time(), count_over_time() by service)
+//   - Statistical queries (min, max, avg, sum, quantile, histogram)
+//   - Edge cases with different time ranges and step sizes
+//
+// 4. Validates results at three processing levels covering the whole query pipeline:
+//   - Level 1: Initial query results
+//   - Level 2: Results after first aggregation simulating multiple sources
+//   - Level 3: Final aggregation results
 func TestTempoDBQueryRange(t *testing.T) {
 	var (
 		tempDir      = t.TempDir()
