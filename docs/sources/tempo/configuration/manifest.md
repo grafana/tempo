@@ -1019,4 +1019,8 @@ backend_worker:
         retention_concurrency: 10
         max_time_per_tenant: 5m0s
         compaction_cycle: 30s
+    backoff:
+        min_period: 100ms
+        max_period: 10s
+        max_retries: 0
 ```
