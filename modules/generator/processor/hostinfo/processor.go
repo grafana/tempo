@@ -2,6 +2,7 @@ package hostinfo
 
 import (
 	"context"
+
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"

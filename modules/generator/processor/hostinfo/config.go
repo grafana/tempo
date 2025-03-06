@@ -14,7 +14,7 @@ type Config struct {
 	MetricName string `yaml:"metric_name"`
 }
 
-func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
+func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.HostIdentifiers = []string{"host.id"}
 	cfg.StaleDuration = 2 * time.Minute
 	cfg.MetricName = hostInfoMetric
