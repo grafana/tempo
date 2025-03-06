@@ -87,8 +87,11 @@ func (w *BackendWorker) running(ctx context.Context) error {
 }
 
 func (w *BackendWorker) processCompactionJobs(ctx context.Context) error {
+	// TODO: the org ID is not used by the backend scheduler, but it is required
+	// by the request.  Figure out how to disable this requirement.
+
 	// Request next job
-	resp, err := w.backendScheduler.Next(ctx, &tempopb.NextJobRequest{
+	resp, err := w.backendScheduler.Next(user.InjectOrgID(ctx, w.workerID), &tempopb.NextJobRequest{
 		WorkerId: w.workerID,
 		Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
 	})

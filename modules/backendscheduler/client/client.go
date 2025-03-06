@@ -6,7 +6,6 @@ import (
 	"io"
 
 	"github.com/grafana/dskit/grpcclient"
-	"github.com/grafana/dskit/middleware"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -45,7 +44,7 @@ func New(addr string, cfg Config) (*Client, error) {
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 	}
 
-	instrumentationOpts, err := cfg.GRPCClientConfig.DialOption(instrumentation())
+	instrumentationOpts, err := cfg.GRPCClientConfig.DialOption(nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -60,12 +59,4 @@ func New(addr string, cfg Config) (*Client, error) {
 		HealthClient:           grpc_health_v1.NewHealthClient(conn),
 		Closer:                 conn,
 	}, nil
-}
-
-func instrumentation() ([]grpc.UnaryClientInterceptor, []grpc.StreamClientInterceptor) {
-	return []grpc.UnaryClientInterceptor{
-			middleware.ClientUserHeaderInterceptor,
-		}, []grpc.StreamClientInterceptor{
-			middleware.StreamClientUserHeaderInterceptor,
-		}
 }

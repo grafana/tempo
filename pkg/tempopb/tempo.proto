@@ -98,21 +98,11 @@ message NextJobRequest {
   JobType type = 2;
 }
 
-// FIXME: the request should contain the tenant.  This will shift the logic for
-// job creation to be somewhat split between the backend scheduler and the
-// compactors.  Compactos will loop over the tenaants, and request jobs those.
-// This is required because the Server requires the tenant to be set on the
-// request.
-
 message NextJobResponse {
   string job_id = 1;
   JobType type = 2;
   JobDetail detail = 3 [(gogoproto.nullable) = false];
 }
-
-// FIXME: the update for a compaction job success should be able to send the
-// new block ID.  This will allow the backendscheduler to update its blocklist
-// so that future jobs are not scheduled on the old block.
 
 message UpdateJobStatusRequest {
   string job_id = 1;
