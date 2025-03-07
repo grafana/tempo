@@ -81,6 +81,7 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
+			s.work.Prune()
 			// Only schedule work when the queue is empty
 			if len(s.work.Jobs()) == 0 {
 				if err := s.ScheduleOnce(ctx); err != nil {
@@ -101,8 +102,6 @@ func (s *BackendScheduler) stopping(_ error) error {
 
 // ScheduleOnce schedules jobs for compaction and performs cleanup.
 func (s *BackendScheduler) ScheduleOnce(ctx context.Context) error {
-	s.work.Prune()
-
 	for _, job := range s.compactions(ctx) {
 		if err := s.createCompactionJob(ctx, job.Tenant, job.Compaction.Input); err != nil {
 			return fmt.Errorf("failed to create compaction job: %w", err)
