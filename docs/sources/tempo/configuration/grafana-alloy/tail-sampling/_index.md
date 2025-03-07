@@ -33,6 +33,14 @@ For more information about sampling, refer to the [OpenTelemetry Sampling](https
 
 ![Tail sampling overview and components with Tempo, Alloy, and Grafana](/media/docs/tempo/sampling/tempo-tail-based-sampling.svg)
 
+## A note on telemetry correlation
+Sampling is a decision on whether or not to keep (and then store) a trace, or whether to discard (drop) it, and this has implications when it comes to correlating trace data with other signals.
+
+For example, many services that are instrumented also produce logs, metrics or profiles. These signals can reference each other, and in the case of a trace this may be via a trace ID embedded into a [log line](https://grafana.com/docs/grafana/latest/datasources/tempo/traces-in-grafana/link-trace-id/), an [exemplar](https://grafana.com/docs/grafana/latest/fundamentals/exemplars/) embedded into a metric value, or a profile ID embedded into a trace (https://grafana.com/docs/grafana-cloud/monitor-applications/profiles/traces-to-profiles/). 
+
+By choosing to not sample a trace, there may be instances where a particular signal references the dropped trace's ID. This can lead to a situation in Grafana where following a link to a trace ID from a log line, or an exemplar from a metric value, results in a query for that trace ID failing because the trace has not been sampled. This also means that profiles may not show up without specifically querying for them, because a trace that would have included the profile's flame graph has not been stored.
+
+This isn't usually a huge issue, because sampling policies tend to be chosen that show non-normative behaviour (errors being thrown, long latencies on requests, etc.), and an observer is more likely to be choosing traces that show these issues rather than the required behaviour (which tend to not be as useful to keep traces for). It is well worth understanding how signals can correlate between each other to determine how to choose these policies.
 ## How tail sampling works in the OpenTelemetry Tail Sampling Processor
 
 In tail sampling, sampling decisions are made at the end of the workflow allowing for a more accurate sampling decision.
