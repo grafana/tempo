@@ -1,5 +1,7 @@
 package registry
 
+import "time"
+
 // Registry is a metrics store.
 type Registry interface {
 	NewLabelValueCombo(labels []string, values []string) *LabelValueCombo
@@ -35,6 +37,7 @@ type Gauge interface {
 	Set(labelValueCombo *LabelValueCombo, value float64)
 	Inc(labelValueCombo *LabelValueCombo, value float64)
 	SetForTargetInfo(labelValueCombo *LabelValueCombo, value float64)
+	SetExpiration(time time.Duration)
 }
 
 type HistogramMode int

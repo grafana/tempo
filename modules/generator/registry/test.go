@@ -5,6 +5,7 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
@@ -73,6 +74,12 @@ func (t *TestRegistry) Query(name string, lbls labels.Labels) float64 {
 	return t.metrics[name+lbls.String()]
 }
 
+// QueryExists is like Query but checks for existence instead of returning zero value
+func (t *TestRegistry) QueryExists(name string, lbls labels.Labels) (float64, bool) {
+	val, exists := t.metrics[name+lbls.String()]
+	return val, exists
+}
+
 func (t *TestRegistry) String() string {
 	var metrics []string
 
@@ -118,8 +125,9 @@ func (t *testCounter) removeStaleSeries(int64) {
 }
 
 type testGauge struct {
-	n        string
-	registry *TestRegistry
+	n                  string
+	registry           *TestRegistry
+	expirationDuration time.Duration
 }
 
 var _ Gauge = (*testGauge)(nil)
@@ -150,6 +158,10 @@ func (t *testGauge) Set(labelValueCombo *LabelValueCombo, value float64) {
 
 func (t *testGauge) SetForTargetInfo(labelValueCombo *LabelValueCombo, value float64) {
 	t.Set(labelValueCombo, value)
+}
+
+func (t *testGauge) SetExpiration(d time.Duration) {
+	t.expirationDuration = d
 }
 
 func (t *testGauge) name() string {
