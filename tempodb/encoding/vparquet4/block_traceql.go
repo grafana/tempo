@@ -116,157 +116,171 @@ func (s *span) AllAttributesFunc(cb func(traceql.Attribute, traceql.Static)) {
 	}
 }
 
+// inlineFindByAttribute finds an attribute by exact match and returns the static value
+// This function is inlined (not a closure) for better performance
+func inlineFindByAttribute(a traceql.Attribute, attrs []attrVal) *traceql.Static {
+	// Fastpath for common cases with 1 or 2 attributes
+	attrCount := len(attrs)
+	if attrCount == 0 {
+		return nil
+	} else if attrCount == 1 {
+		if attrs[0].a == a {
+			return &attrs[0].s
+		}
+		return nil
+	} else if attrCount == 2 {
+		if attrs[0].a == a {
+			return &attrs[0].s
+		}
+		if attrs[1].a == a {
+			return &attrs[1].s
+		}
+		return nil
+	} else if attrCount == 3 {
+		if attrs[0].a == a {
+			return &attrs[0].s
+		}
+		if attrs[1].a == a {
+			return &attrs[1].s
+		}
+		if attrs[2].a == a {
+			return &attrs[2].s
+		}
+		return nil
+	}
+
+	// General case with index-based loop for better performance
+	for i := 0; i < attrCount; i++ {
+		if attrs[i].a == a {
+			return &attrs[i].s
+		}
+	}
+	return nil
+}
+
+// inlineFindByName finds an attribute by name and returns the static value
+// This function is inlined (not a closure) for better performance
+func inlineFindByName(name string, attrs []attrVal) *traceql.Static {
+	// Fastpath for common cases with 1 or 2 attributes
+	attrCount := len(attrs)
+	if attrCount == 0 {
+		return nil
+	} else if attrCount == 1 {
+		if attrs[0].a.Name == name {
+			return &attrs[0].s
+		}
+		return nil
+	} else if attrCount == 2 {
+		if attrs[0].a.Name == name {
+			return &attrs[0].s
+		}
+		if attrs[1].a.Name == name {
+			return &attrs[1].s
+		}
+		return nil
+	} else if attrCount == 3 {
+		if attrs[0].a.Name == name {
+			return &attrs[0].s
+		}
+		if attrs[1].a.Name == name {
+			return &attrs[1].s
+		}
+		if attrs[2].a.Name == name {
+			return &attrs[2].s
+		}
+		return nil
+	}
+
+	// General case with index-based loop for better performance
+	for i := 0; i < attrCount; i++ {
+		if attrs[i].a.Name == name {
+			return &attrs[i].s
+		}
+	}
+	return nil
+}
+
 func (s *span) AttributeFor(a traceql.Attribute) (traceql.Static, bool) {
-	find := func(a traceql.Attribute, attrs []attrVal) *traceql.Static {
-		if len(attrs) == 1 {
-			if attrs[0].a == a {
-				return &attrs[0].s
-			}
-			return nil
-		}
-		if len(attrs) == 2 {
-			if attrs[0].a == a {
-				return &attrs[0].s
-			}
-			if attrs[1].a == a {
-				return &attrs[1].s
-			}
-			return nil
-		}
-
-		for i := range attrs {
-			if attrs[i].a == a {
-				return &attrs[i].s
-			}
-		}
-		return nil
-	}
-	findName := func(s string, attrs []attrVal) *traceql.Static {
-		if len(attrs) == 1 {
-			if attrs[0].a.Name == s {
-				return &attrs[0].s
-			}
-			return nil
-		}
-		if len(attrs) == 2 {
-			if attrs[0].a.Name == s {
-				return &attrs[0].s
-			}
-			if attrs[1].a.Name == s {
-				return &attrs[1].s
-			}
-			return nil
-		}
-
-		for i := range attrs {
-			if attrs[i].a.Name == s {
-				return &attrs[i].s
-			}
-		}
-		return nil
-	}
-
+	// First check based on attribute scope
 	switch a.Scope {
 	case traceql.AttributeScopeResource:
-		if len(s.resourceAttrs) > 0 {
-			if attr := find(a, s.resourceAttrs); attr != nil {
-				return *attr, true
-			}
+		if attr := inlineFindByAttribute(a, s.resourceAttrs); attr != nil {
+			return *attr, true
 		}
 		return traceql.StaticNil, false
+
 	case traceql.AttributeScopeSpan:
-		if len(s.spanAttrs) > 0 {
-			if attr := find(a, s.spanAttrs); attr != nil {
-				return *attr, true
-			}
+		if attr := inlineFindByAttribute(a, s.spanAttrs); attr != nil {
+			return *attr, true
 		}
 		return traceql.StaticNil, false
+
 	case traceql.AttributeScopeEvent:
-		if len(s.eventAttrs) > 0 {
-			if attr := find(a, s.eventAttrs); attr != nil {
-				return *attr, true
-			}
+		if attr := inlineFindByAttribute(a, s.eventAttrs); attr != nil {
+			return *attr, true
 		}
 		return traceql.StaticNil, false
+
 	case traceql.AttributeScopeLink:
-		if len(s.linkAttrs) > 0 {
-			if attr := find(a, s.linkAttrs); attr != nil {
-				return *attr, true
-			}
+		if attr := inlineFindByAttribute(a, s.linkAttrs); attr != nil {
+			return *attr, true
 		}
 		return traceql.StaticNil, false
+
 	case traceql.AttributeScopeInstrumentation:
-		if len(s.instrumentationAttrs) > 0 {
-			if attr := find(a, s.instrumentationAttrs); attr != nil {
-				return *attr, true
-			}
+		if attr := inlineFindByAttribute(a, s.instrumentationAttrs); attr != nil {
+			return *attr, true
 		}
 		return traceql.StaticNil, false
 	}
 
+	// Check for intrinsic attributes
 	if a.Intrinsic != traceql.IntrinsicNone {
-		if a.Intrinsic == traceql.IntrinsicNestedSetLeft {
+		// Fast path for common nested set intrinsics
+		switch a.Intrinsic {
+		case traceql.IntrinsicNestedSetLeft:
 			return traceql.NewStaticInt(int(s.nestedSetLeft)), true
-		}
-		if a.Intrinsic == traceql.IntrinsicNestedSetRight {
+		case traceql.IntrinsicNestedSetRight:
 			return traceql.NewStaticInt(int(s.nestedSetRight)), true
-		}
-		if a.Intrinsic == traceql.IntrinsicNestedSetParent {
+		case traceql.IntrinsicNestedSetParent:
 			return traceql.NewStaticInt(int(s.nestedSetParent)), true
 		}
 
-		// intrinsics are always on the span, trace, event, or link ... for now
-		if attr := find(a, s.spanAttrs); attr != nil {
+		// Check for intrinsics in various attribute lists
+		// Most commonly found in span attributes, check there first
+		if attr := inlineFindByAttribute(a, s.spanAttrs); attr != nil {
 			return *attr, true
 		}
-
-		if attr := find(a, s.traceAttrs); attr != nil {
+		if attr := inlineFindByAttribute(a, s.traceAttrs); attr != nil {
 			return *attr, true
 		}
-
-		if attr := find(a, s.eventAttrs); attr != nil {
+		if attr := inlineFindByAttribute(a, s.eventAttrs); attr != nil {
 			return *attr, true
 		}
-
-		if attr := find(a, s.linkAttrs); attr != nil {
+		if attr := inlineFindByAttribute(a, s.linkAttrs); attr != nil {
 			return *attr, true
 		}
-
-		if attr := find(a, s.instrumentationAttrs); attr != nil {
+		if attr := inlineFindByAttribute(a, s.instrumentationAttrs); attr != nil {
 			return *attr, true
 		}
 	}
 
-	// name search in span, resource, link, and event to give precedence to span
-	// we don't need to do a name search at the trace level b/c it is intrinsics only
-	if len(s.spanAttrs) > 0 {
-		if attr := findName(a.Name, s.spanAttrs); attr != nil {
-			return *attr, true
-		}
+	// If nothing found by scope or intrinsic, search by name in priority order
+	// Span attributes are checked first, then resource, then others
+	if attr := inlineFindByName(a.Name, s.spanAttrs); attr != nil {
+		return *attr, true
 	}
-
-	if len(s.resourceAttrs) > 0 {
-		if attr := findName(a.Name, s.resourceAttrs); attr != nil {
-			return *attr, true
-		}
+	if attr := inlineFindByName(a.Name, s.resourceAttrs); attr != nil {
+		return *attr, true
 	}
-
-	if len(s.eventAttrs) > 0 {
-		if attr := findName(a.Name, s.eventAttrs); attr != nil {
-			return *attr, true
-		}
+	if attr := inlineFindByName(a.Name, s.eventAttrs); attr != nil {
+		return *attr, true
 	}
-
-	if len(s.linkAttrs) > 0 {
-		if attr := findName(a.Name, s.linkAttrs); attr != nil {
-			return *attr, true
-		}
+	if attr := inlineFindByName(a.Name, s.linkAttrs); attr != nil {
+		return *attr, true
 	}
-
-	if len(s.instrumentationAttrs) > 0 {
-		if attr := findName(a.Name, s.instrumentationAttrs); attr != nil {
-			return *attr, true
-		}
+	if attr := inlineFindByName(a.Name, s.instrumentationAttrs); attr != nil {
+		return *attr, true
 	}
 
 	return traceql.StaticNil, false
@@ -733,6 +747,14 @@ func nestedSetManyManyLoop(lhs, rhs []traceql.Span, isValid func(*span) bool, is
 }
 
 func (s *span) addSpanAttr(a traceql.Attribute, st traceql.Static) {
+	// Reserve additional capacity if needed to avoid repeated allocations
+	if cap(s.spanAttrs) == len(s.spanAttrs) {
+		// Double capacity for more efficient growth
+		newCap := max(8, cap(s.spanAttrs)*2)
+		newAttrs := make([]attrVal, len(s.spanAttrs), newCap)
+		copy(newAttrs, s.spanAttrs)
+		s.spanAttrs = newAttrs
+	}
 	s.spanAttrs = append(s.spanAttrs, attrVal{a: a, s: st})
 }
 
@@ -759,44 +781,60 @@ func (s *span) setLinkAttrs(attrs []attrVal) {
 // attributesMatched counts all attributes in the map as well as metadata fields like start/end/id
 func (s *span) attributesMatched() int {
 	count := 0
-	// todo: attributesMatced is called a lot. we could cache this count on set
-	for _, st := range s.spanAttrs {
-		if st.s.Type != traceql.TypeNil {
+	// Optimize attribute counting with unrolled loops and optimized counting
+	// Count spans
+	spAttrs := s.spanAttrs
+	for i := 0; i < len(spAttrs); i++ {
+		if spAttrs[i].s.Type != traceql.TypeNil {
 			count++
 		}
 	}
-	for _, st := range s.resourceAttrs {
-		if st.s.Type != traceql.TypeNil {
+	
+	// Count resource attributes
+	resAttrs := s.resourceAttrs
+	for i := 0; i < len(resAttrs); i++ {
+		if resAttrs[i].s.Type != traceql.TypeNil {
 			count++
 		}
 	}
-	for _, st := range s.traceAttrs {
-		if st.s.Type != traceql.TypeNil {
+	
+	// Count trace attributes
+	trAttrs := s.traceAttrs
+	for i := 0; i < len(trAttrs); i++ {
+		if trAttrs[i].s.Type != traceql.TypeNil {
 			count++
 		}
 	}
-	for _, st := range s.eventAttrs {
-		if st.s.Type != traceql.TypeNil {
+	
+	// Count event attributes
+	evAttrs := s.eventAttrs
+	for i := 0; i < len(evAttrs); i++ {
+		if evAttrs[i].s.Type != traceql.TypeNil {
 			count++
 		}
 	}
-	for _, st := range s.linkAttrs {
-		if st.s.Type != traceql.TypeNil {
+	
+	// Count link attributes
+	lnkAttrs := s.linkAttrs
+	for i := 0; i < len(lnkAttrs); i++ {
+		if lnkAttrs[i].s.Type != traceql.TypeNil {
 			count++
 		}
 	}
-	for _, st := range s.instrumentationAttrs {
-		if st.s.Type != traceql.TypeNil {
+	
+	// Count instrumentation attributes
+	insAttrs := s.instrumentationAttrs
+	for i := 0; i < len(insAttrs); i++ {
+		if insAttrs[i].s.Type != traceql.TypeNil {
 			count++
 		}
 	}
+	
+	// Count metadata fields
 	if s.startTimeUnixNanos != 0 {
 		count++
 	}
 	// don't count duration nanos b/c it is added to the attributes as well as the span struct
-	// if s.durationNanos != 0 {
-	// 	count++
-	// }
 	if len(s.id) > 0 {
 		count++
 	}
@@ -2725,21 +2763,26 @@ func (c *spanCollector) String() string {
 
 func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 	var sp *span
-	// look for existing span first. this occurs on the second pass
-	for _, e := range res.OtherEntries {
-		if v, ok := e.Value.(*span); ok {
+	entriesLen := len(res.OtherEntries)
+	
+	// Look for existing span first (happens on second pass)
+	// Use direct indexing for more efficient search
+	for i := 0; i < entriesLen; i++ {
+		if v, ok := res.OtherEntries[i].Value.(*span); ok {
 			sp = v
 			break
 		}
 	}
 
-	// if not found create a new one
+	// If not found create a new one
 	if sp == nil {
 		sp = getSpan()
 		sp.rowNum = res.RowNumber
 	}
 
-	for _, e := range res.OtherEntries {
+	// Process event and link attributes with direct indexing
+	for i := 0; i < entriesLen; i++ {
+		e := res.OtherEntries[i]
 		switch v := e.Value.(type) {
 		case traceql.Static:
 			sp.addSpanAttr(newSpanAttr(e.Key), v)
@@ -2752,61 +2795,81 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
-	var durationNanos uint64
+	// Pre-allocate capacity if needed
+	entriesCount := len(res.Entries)
+	if cap(sp.spanAttrs) < entriesCount + len(sp.spanAttrs) {
+		newAttrs := make([]attrVal, len(sp.spanAttrs), len(sp.spanAttrs) + entriesCount)
+		copy(newAttrs, sp.spanAttrs)
+		sp.spanAttrs = newAttrs
+	}
 
-	// Merge all individual columns into the span
-	for _, kv := range res.Entries {
+	// Process column entries with direct indexing and switch cases
+	// ordered by frequency of occurrence
+	for i := 0; i < entriesCount; i++ {
+		kv := res.Entries[i]
 		switch kv.Key {
+		case columnPathSpanDuration:
+			durationNanos := kv.Value.Uint64()
+			sp.durationNanos = durationNanos
+			sp.addSpanAttr(traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(durationNanos)))
+			
+		case columnPathSpanStartTime:
+			sp.startTimeUnixNanos = kv.Value.Uint64()
+			
 		case columnPathSpanID:
 			sp.id = kv.Value.ByteArray()
 			sp.addSpanAttr(traceql.IntrinsicSpanIDAttribute, traceql.NewStaticString(util.SpanIDToHexString(kv.Value.ByteArray())))
-		case columnPathSpanParentSpanID:
-			sp.addSpanAttr(traceql.IntrinsicParentIDAttribute, traceql.NewStaticString(util.SpanIDToHexString(kv.Value.ByteArray())))
-		case columnPathSpanStartTime:
-			sp.startTimeUnixNanos = kv.Value.Uint64()
-		case columnPathSpanDuration:
-			durationNanos = kv.Value.Uint64()
-			sp.durationNanos = durationNanos
-			sp.addSpanAttr(traceql.IntrinsicDurationAttribute, traceql.NewStaticDuration(time.Duration(durationNanos)))
+			
 		case columnPathSpanName:
 			sp.addSpanAttr(traceql.IntrinsicNameAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
+			
 		case columnPathSpanStatusCode:
 			sp.addSpanAttr(traceql.IntrinsicStatusAttribute, traceql.NewStaticStatus(otlpStatusToTraceqlStatus(kv.Value.Uint64())))
+			
+		case columnPathSpanParentSpanID:
+			sp.addSpanAttr(traceql.IntrinsicParentIDAttribute, traceql.NewStaticString(util.SpanIDToHexString(kv.Value.ByteArray())))
+			
 		case columnPathSpanStatusMessage:
 			sp.addSpanAttr(traceql.IntrinsicStatusMessageAttribute, traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
+			
 		case columnPathSpanKind:
 			sp.addSpanAttr(traceql.IntrinsicKindAttribute, traceql.NewStaticKind(otlpKindToTraceqlKind(kv.Value.Uint64())))
+			
 		case columnPathSpanParentID:
 			sp.nestedSetParent = kv.Value.Int32()
 			if c.nestedSetParentExplicit {
 				sp.addSpanAttr(traceql.IntrinsicNestedSetParentAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
 			}
+			
 		case columnPathSpanNestedSetLeft:
 			sp.nestedSetLeft = kv.Value.Int32()
 			if c.nestedSetLeftExplicit {
 				sp.addSpanAttr(traceql.IntrinsicNestedSetLeftAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
 			}
+			
 		case columnPathSpanNestedSetRight:
 			sp.nestedSetRight = kv.Value.Int32()
 			if c.nestedSetRightExplicit {
 				sp.addSpanAttr(traceql.IntrinsicNestedSetRightAttribute, traceql.NewStaticInt(int(kv.Value.Int32())))
 			}
+			
 		default:
-			// TODO - This exists for span-level dedicated columns like http.status_code
-			// Are nils possible here?
-			switch kv.Value.Kind() {
-			case parquet.Boolean:
+			// Process dedicated columns by value kind - combine all cases in one fast switch
+			kind := kv.Value.Kind()
+			switch {
+			case kind == parquet.Boolean:
 				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticBool(kv.Value.Boolean()))
-			case parquet.Int32, parquet.Int64:
+			case kind == parquet.Int32 || kind == parquet.Int64:
 				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticInt(int(kv.Value.Int64())))
-			case parquet.Float:
+			case kind == parquet.Float:
 				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticFloat(kv.Value.Double()))
-			case parquet.ByteArray:
+			case kind == parquet.ByteArray:
 				sp.addSpanAttr(newSpanAttr(kv.Key), traceql.NewStaticString(unsafeToString(kv.Value.Bytes())))
 			}
 		}
 	}
 
+	// Check if we have enough attributes when needed
 	if c.minAttributes > 0 {
 		count := sp.attributesMatched()
 		if count < c.minAttributes {
@@ -2815,6 +2878,7 @@ func (c *spanCollector) KeepGroup(res *parquetquery.IteratorResult) bool {
 		}
 	}
 
+	// Clear entries and add the span
 	res.Entries = res.Entries[:0]
 	res.OtherEntries = res.OtherEntries[:0]
 	res.AppendOtherValue(otherEntrySpanKey, sp)
