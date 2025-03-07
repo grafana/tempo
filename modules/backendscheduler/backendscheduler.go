@@ -375,8 +375,7 @@ func (s *BackendScheduler) compactions(ctx context.Context) []tempopb.JobDetail 
 			}
 
 			job := tempopb.JobDetail{
-				Tenant: tenantID,
-				// Detail: &tempopb.JobDetail_Compaction{Compaction: compaction},
+				Tenant:     tenantID,
 				Compaction: compaction,
 			}
 
