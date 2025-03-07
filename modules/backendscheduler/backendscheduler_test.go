@@ -35,6 +35,7 @@ func TestBackendScheduler(t *testing.T) {
 		ctx   = context.Background()
 		store = newStore(ctx, t, tmpDir)
 	)
+	defer store.Shutdown()
 
 	limits, err := overrides.NewOverrides(overrides.Config{
 		Defaults: overrides.Overrides{
@@ -427,9 +428,6 @@ func TestProtoMarshaler(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
-
-// OwnsEverythingSharder owns everything.
-var OwnsEverythingSharder = ownsEverythingSharder{}
 
 type ownsEverythingSharder struct{}
 
