@@ -81,12 +81,14 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-
-			if err := s.ScheduleOnce(ctx); err != nil {
-				level.Error(log.Logger).Log("msg", "scheduling cycle failed", "err", err)
-				metricSchedulingCycles.WithLabelValues("failed").Inc()
-			} else {
-				metricSchedulingCycles.WithLabelValues("success").Inc()
+			// Only schedule work when the queue is empty
+			if len(s.work.Jobs()) == 0 {
+				if err := s.ScheduleOnce(ctx); err != nil {
+					level.Error(log.Logger).Log("msg", "scheduling cycle failed", "err", err)
+					metricSchedulingCycles.WithLabelValues("failed").Inc()
+				} else {
+					metricSchedulingCycles.WithLabelValues("success").Inc()
+				}
 			}
 		}
 	}
