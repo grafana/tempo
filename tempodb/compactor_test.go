@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/blocklist"
+	"github.com/grafana/tempo/tempodb/blockselector"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/pool"
@@ -162,7 +163,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	rw.pollBlocklist()
 
 	blocklist := rw.blocklist.Metas(testTenantID)
-	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, 2)
+	blockSelector := blockselector.NewTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, blockselector.DefaultMinInputBlocks, 2)
 
 	expectedCompactions := len(blocklist) / inputBlocks
 	compactions := 0
@@ -332,7 +333,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 
 	var blocks []*backend.BlockMeta
 	list := rw.blocklist.Metas(testTenantID)
-	blockSelector := newTimeWindowBlockSelector(list, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, blockCount)
+	blockSelector := blockselector.NewTimeWindowBlockSelector(list, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, blockselector.DefaultMinInputBlocks, blockCount)
 	blocks, _ = blockSelector.BlocksToCompact()
 	require.Len(t, blocks, blockCount)
 
