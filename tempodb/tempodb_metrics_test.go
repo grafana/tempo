@@ -5,6 +5,7 @@ import (
 	"math"
 	"path"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -657,6 +658,16 @@ var queryRangeTestCases = []struct {
 			},
 		},
 	},
+	{
+		name:       "compare_no_spans",
+		req:        requestWithDefaultRange(`{ .service.name="does_not_exist" } | compare({ })`),
+		expectedL1: []*tempopb.TimeSeries{},
+	},
+	{
+		name:       "compare_no_spans",
+		req:        requestWithDefaultRange(`{ .service.name="does_not_exist" } | compare({ .service.name="does_not_exist_for_sure" })`),
+		expectedL1: []*tempopb.TimeSeries{},
+	},
 	// --- Non-standard range queries ---
 	{
 		name: "end<step",
@@ -753,6 +764,65 @@ var queryRangeTestCases = []struct {
 					{TimestampMs: 3000, Value: 0},
 				},
 			},
+		},
+	},
+}
+
+var expectedCompareTs = []*tempopb.TimeSeries{
+	{
+		PromLabels: `{__meta_type="baseline", resource.service.name="odd"}`,
+		Labels: []common_v1.KeyValue{
+			tempopb.MakeKeyValueString("__meta_type", "baseline"),
+			tempopb.MakeKeyValueString("resource.service.name", "odd"),
+		},
+		Samples: []tempopb.Sample{
+			{TimestampMs: 0, Value: 7},
+			{TimestampMs: 15_000, Value: 8},
+			{TimestampMs: 30_000, Value: 7},
+			{TimestampMs: 45_000, Value: 3},
+			{TimestampMs: 60_000, Value: 0},
+		},
+	},
+	{
+		PromLabels: `{__meta_type="baseline_total", resource.service.name="<nil>"}`,
+		Labels: []common_v1.KeyValue{
+			tempopb.MakeKeyValueString("__meta_type", "baseline_total"),
+			tempopb.MakeKeyValueString("resource.service.name", "nil"),
+		},
+		Samples: []tempopb.Sample{
+			{TimestampMs: 0, Value: 7},
+			{TimestampMs: 15_000, Value: 8},
+			{TimestampMs: 30_000, Value: 7},
+			{TimestampMs: 45_000, Value: 3},
+			{TimestampMs: 60_000, Value: 0},
+		},
+	},
+	{
+		PromLabels: `{__meta_type="selection", resource.service.name="even"}`,
+		Labels: []common_v1.KeyValue{
+			tempopb.MakeKeyValueString("__meta_type", "selection"),
+			tempopb.MakeKeyValueString("resource.service.name", "even"),
+		},
+		Samples: []tempopb.Sample{
+			{TimestampMs: 0, Value: 7},
+			{TimestampMs: 15_000, Value: 7},
+			{TimestampMs: 30_000, Value: 8},
+			{TimestampMs: 45_000, Value: 2},
+			{TimestampMs: 60_000, Value: 0},
+		},
+	},
+	{
+		PromLabels: `{__meta_type="selection_total", resource.service.name="<nil>"}`,
+		Labels: []common_v1.KeyValue{
+			tempopb.MakeKeyValueString("__meta_type", "selection_total"),
+			tempopb.MakeKeyValueString("resource.service.name", "nil"),
+		},
+		Samples: []tempopb.Sample{
+			{TimestampMs: 0, Value: 7},
+			{TimestampMs: 15_000, Value: 7},
+			{TimestampMs: 30_000, Value: 8},
+			{TimestampMs: 45_000, Value: 2},
+			{TimestampMs: 60_000, Value: 0},
 		},
 	},
 }
@@ -940,6 +1010,47 @@ func TestTempoDBQueryRange(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("compare", func(t *testing.T) {
+		// compare operation generates enormous amount of time series,
+		// so we filter by service.name to test at least part of the results
+		req := requestWithDefaultRange(`{} | compare({ .service.name="even" })`)
+		e := traceql.NewEngine()
+
+		// Level 1
+		eval, err := e.CompileMetricsQueryRange(req, 0, 0, false)
+		require.NoError(t, err)
+
+		err = eval.Do(ctx, f, 0, 0)
+		require.NoError(t, err)
+
+		actual := eval.Results().ToProto(req)
+
+		const pattern = "resource.service.name="
+		targetTs := filterTimeSeriesByPromLabel(actual, pattern)
+		sortTimeSeries(targetTs)
+		require.Equal(t, expectedCompareTs, targetTs)
+
+		// Level 2
+		evalLevel2, err := e.CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeSum)
+		require.NoError(t, err)
+		evalLevel2.ObserveSeries(actual)
+		actual = evalLevel2.Results().ToProto(req)
+
+		targetTs = filterTimeSeriesByPromLabel(actual, pattern)
+		sortTimeSeries(targetTs)
+		require.Equal(t, expectedCompareTs, targetTs)
+
+		// Level 3
+		evalLevel3, err := e.CompileMetricsQueryRangeNonRaw(req, traceql.AggregateModeFinal)
+		require.NoError(t, err)
+		evalLevel3.ObserveSeries(actual)
+		actual = evalLevel3.Results().ToProto(req)
+
+		targetTs = filterTimeSeriesByPromLabel(actual, pattern)
+		sortTimeSeries(targetTs)
+		require.Equal(t, expectedCompareTs, targetTs)
+	})
 }
 
 func sortTimeSeries(ts []*tempopb.TimeSeries) {
@@ -951,3 +1062,14 @@ func sortTimeSeries(ts []*tempopb.TimeSeries) {
 var floatComparer = cmp.Comparer(func(x, y float64) bool {
 	return math.Abs(x-y) < 1e-6
 })
+
+// filterTimeSeries filters the time series by the pattern in the PromLabels
+func filterTimeSeriesByPromLabel(ts []*tempopb.TimeSeries, pattern string) []*tempopb.TimeSeries {
+	var targetTs []*tempopb.TimeSeries
+	for _, ts := range ts {
+		if strings.Contains(ts.PromLabels, pattern) {
+			targetTs = append(targetTs, ts)
+		}
+	}
+	return targetTs
+}
