@@ -7,7 +7,7 @@ aliases:
 ---
 
 # Sampling
-
+ 
 Grafana Tempo is a cost-effective solution that ingests and stores traces that provide maximum observability across your application estate.
 However, sometimes constraints mean that storing all of your traces is not desirable, for example runtime or egress traffic related costs.
 There are a number of ways to lower trace volume, including varying sampling strategies.
