@@ -1006,7 +1006,6 @@ backend_scheduler_client:
         connect_backoff_max_delay: 5s
 backend_worker:
     backend_scheduler_addr: ""
-    interval: 10s
     compaction:
         v2_in_buffer_bytes: 5242880
         v2_out_buffer_bytes: 20971520
@@ -1021,6 +1020,6 @@ backend_worker:
         compaction_cycle: 30s
     backoff:
         min_period: 100ms
-        max_period: 10s
+        max_period: 1m0s
         max_retries: 0
 ```

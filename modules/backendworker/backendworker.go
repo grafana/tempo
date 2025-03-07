@@ -69,10 +69,6 @@ func (w *BackendWorker) starting(ctx context.Context) error {
 }
 
 func (w *BackendWorker) running(ctx context.Context) error {
-	// TODO: consider dropping the ticker and rely only on the backoff.
-	ticker := time.NewTicker(w.cfg.Interval)
-	defer ticker.Stop()
-
 	level.Info(log.Logger).Log("msg", "backend scheduler running")
 
 	b := backoff.New(ctx, w.cfg.Backoff)
@@ -81,7 +77,7 @@ func (w *BackendWorker) running(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-ticker.C:
+		default:
 			if err := w.processCompactionJobs(ctx); err != nil {
 				level.Error(log.Logger).Log("msg", "error processing compaction jobs", "err", err, "backoff", b.NextDelay())
 				b.Wait()
@@ -148,6 +144,7 @@ func (w *BackendWorker) processCompactionJobs(ctx context.Context) error {
 }
 
 func (w *BackendWorker) stopping(_ error) error {
+	// TODO: consider waiting for any jobs to finish
 	return nil
 }
 
