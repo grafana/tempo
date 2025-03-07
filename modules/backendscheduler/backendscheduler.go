@@ -228,7 +228,7 @@ func (s *BackendScheduler) UpdateJob(_ context.Context, req *tempopb.UpdateJobSt
 
 	case tempopb.JobStatus_JOB_STATUS_FAILED:
 		j.Fail()
-		metricJobsFailed.WithLabelValues(j.JobDetail.Tenant, j.JobDetail.Tenant).Inc()
+		metricJobsFailed.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Inc()
 		level.Error(log.Logger).Log("msg", "job failed", "job_id", req.JobId, "error", req.Error)
 
 	default:
