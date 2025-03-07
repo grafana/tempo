@@ -32,9 +32,10 @@ func TestBackendScheduler(t *testing.T) {
 	// writer := setupBackend(t, tmpDir)
 
 	var (
-		ctx   = context.Background()
-		store = newStore(ctx, t, tmpDir)
+		ctx, cancel = context.WithCancel(context.Background())
+		store       = newStore(ctx, t, tmpDir)
 	)
+	defer cancel()
 	defer store.Shutdown()
 
 	limits, err := overrides.NewOverrides(overrides.Config{
