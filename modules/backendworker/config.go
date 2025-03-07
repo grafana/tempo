@@ -20,8 +20,9 @@ type Config struct {
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	f.DurationVar(&cfg.Interval, util.PrefixConfig(prefix, "backend-worker.interval"), 10*time.Second, "Interval at which to request the next job from the backend scheduler")
 
-	cfg.Backoff.RegisterFlagsWithPrefix(util.PrefixConfig(prefix, "backoff"), f)
-	cfg.Backoff.MaxRetries = 0
+	f.DurationVar(&cfg.Backoff.MinBackoff, prefix+".backoff-min-period", 100*time.Millisecond, "Minimum delay when backing off.")
+	f.DurationVar(&cfg.Backoff.MaxBackoff, prefix+".backoff-max-period", 30*time.Second, "Maximum delay when backing off.")
+	f.IntVar(&cfg.Backoff.MaxRetries, prefix+".backoff-retries", 0, "Number of times to backoff and retry before failing.")
 
 	cfg.Compactor = tempodb.CompactorConfig{}
 	cfg.Compactor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "compaction"), f)
