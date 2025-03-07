@@ -298,10 +298,10 @@ func (buf *Buffer) NumRows() int64 { return int64(buf.Len()) }
 // ColumnChunks returns the buffer columns.
 func (buf *Buffer) ColumnChunks() []ColumnChunk { return buf.chunks }
 
-// ColumnBuffer returns the buffer columns.
+// ColumnBuffers returns the buffer columns.
 //
 // This method is similar to ColumnChunks, but returns a list of ColumnBuffer
-// instead of a ColumnChunk values (the latter being read-only); calling
+// instead of a list of ColumnChunk (the latter being read-only); calling
 // ColumnBuffers or ColumnChunks with the same index returns the same underlying
 // objects, but with different types, which removes the need for making a type
 // assertion if the program needed to write directly to the column buffers.
