@@ -117,13 +117,6 @@ func (s *BackendScheduler) CreateJob(_ context.Context, j *work.Job) error {
 		return fmt.Errorf("failed to create job: %w", err)
 	}
 
-	activeCount := 0
-	for _, jj := range s.work.Jobs() {
-		if !jj.IsComplete() && !jj.IsFailed() {
-			activeCount++
-		}
-	}
-
 	metricJobsCreated.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Inc()
 	metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Inc()
 
@@ -340,7 +333,7 @@ func (s *BackendScheduler) compactions(ctx context.Context) []tempopb.JobDetail 
 			window = s.cfg.Compactor.MaxCompactionRange
 		}
 
-		// TODO: A new implementation of the blockSelector would be appropriate
+		// TODO: A new implementation of the blockSelector could be appropriate
 		// here.  Return a stripe of blocks matching eachother.  These can be
 		// broken into jobs by the caller.
 
@@ -351,9 +344,6 @@ func (s *BackendScheduler) compactions(ctx context.Context) []tempopb.JobDetail 
 			blockselector.DefaultMinInputBlocks,
 			blockselector.DefaultMaxInputBlocks,
 		)
-
-		// TODO:
-		// measureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
 
 		for {
 			if ctx.Err() != nil {
@@ -381,9 +371,6 @@ func (s *BackendScheduler) compactions(ctx context.Context) []tempopb.JobDetail 
 
 			jobs = append(jobs, job)
 		}
-
-		// TODO:
-		// measureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
 	}
 
 	return jobs

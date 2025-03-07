@@ -76,7 +76,8 @@ func (q *Queue) Prune() {
 	defer q.jobsMtx.Unlock()
 
 	for id, j := range q.jobs {
-		if j.Status() == JobStatusCompleted || j.Status() == JobStatusFailed {
+		switch j.Status() {
+		case JobStatusCompleted, JobStatusFailed:
 			delete(q.jobs, id)
 		}
 	}
