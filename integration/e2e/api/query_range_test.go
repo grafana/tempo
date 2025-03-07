@@ -55,6 +55,14 @@ sendLoop:
 	for _, query := range []string{
 		"{} | rate()",
 		"{} | compare({status=error})",
+		"{} | count_over_time()",
+		"{} | min_over_time(duration)",
+		"{} | max_over_time(duration)",
+		"{} | avg_over_time(duration)",
+		"{} | sum_over_time(duration)",
+		"{} | quantile_over_time(duration, .5)",
+		"{} | quantile_over_time(duration, .5, 0.9, 0.99)",
+		"{} | histogram_over_time(duration)",
 	} {
 		t.Run(query, func(t *testing.T) {
 			callQueryRange(t, tempo.Endpoint(tempoPort), query, debugMode)
