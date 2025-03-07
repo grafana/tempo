@@ -221,7 +221,7 @@ func (s *BackendScheduler) UpdateJob(_ context.Context, req *tempopb.UpdateJobSt
 	switch req.Status {
 	case tempopb.JobStatus_JOB_STATUS_SUCCEEDED:
 		j.Complete()
-		metricJobsCompleted.WithLabelValues(j.JobDetail.Tenant, j.JobDetail.Tenant).Inc()
+		metricJobsCompleted.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Inc()
 		level.Info(log.Logger).Log("msg", "job completed", "job_id", req.JobId)
 
 		// TODO: update the blocklist?
