@@ -1195,7 +1195,7 @@ func TestHistogramOverTime(t *testing.T) {
 	// Output series with buckets per foo
 	// Prom labels are sorted alphabetically, traceql labels maintain original order.
 	out := SeriesSet{
-		`{` + internalLabelBucket + `="` + _128ns.EncodeToString(true) + `", span.foo="bar"}`: TimeSeries{
+		`{` + internalLabelBucket + `="` + _128ns.EncodeToString(true) + `", "span.foo"="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: internalLabelBucket, Value: _128ns},
@@ -1203,7 +1203,7 @@ func TestHistogramOverTime(t *testing.T) {
 			Values:    []float64{1, 0, 0},
 			Exemplars: make([]Exemplar, 0),
 		},
-		`{` + internalLabelBucket + `="` + _256ns.EncodeToString(true) + `", span.foo="bar"}`: TimeSeries{
+		`{` + internalLabelBucket + `="` + _256ns.EncodeToString(true) + `", "span.foo"="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: internalLabelBucket, Value: _256ns},
@@ -1211,7 +1211,7 @@ func TestHistogramOverTime(t *testing.T) {
 			Values:    []float64{1, 4, 0},
 			Exemplars: make([]Exemplar, 0),
 		},
-		`{` + internalLabelBucket + `="` + _512ns.EncodeToString(true) + `", span.foo="bar"}`: TimeSeries{
+		`{` + internalLabelBucket + `="` + _512ns.EncodeToString(true) + `", "span.foo"="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: internalLabelBucket, Value: _512ns},
@@ -1219,7 +1219,7 @@ func TestHistogramOverTime(t *testing.T) {
 			Values:    []float64{1, 0, 0},
 			Exemplars: make([]Exemplar, 0),
 		},
-		`{` + internalLabelBucket + `="` + _512ns.EncodeToString(true) + `", span.foo="baz"}`: TimeSeries{
+		`{` + internalLabelBucket + `="` + _512ns.EncodeToString(true) + `", "span.foo"="baz"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 				{Name: internalLabelBucket, Value: _512ns},
