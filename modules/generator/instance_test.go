@@ -423,12 +423,17 @@ func (n noopAppender) AppendHistogram(prometheus_storage.SeriesRef, labels.Label
 
 func (n noopAppender) Commit() error { return nil }
 
-func (n noopAppender) Rollback() error { return nil }
+func (n noopAppender) Rollback() error                                   { return nil }
+func (n noopAppender) SetOptions(opts *prometheus_storage.AppendOptions) {}
 
 func (n noopAppender) UpdateMetadata(prometheus_storage.SeriesRef, labels.Labels, metadata.Metadata) (prometheus_storage.SeriesRef, error) {
 	return 0, nil
 }
 
 func (n noopAppender) AppendCTZeroSample(_ prometheus_storage.SeriesRef, _ labels.Labels, _, _ int64) (prometheus_storage.SeriesRef, error) {
+	return 0, nil
+}
+
+func (c *noopAppender) AppendHistogramCTZeroSample(_ prometheus_storage.SeriesRef, l labels.Labels, t, ct int64, h *histogram.Histogram, fh *histogram.FloatHistogram) (prometheus_storage.SeriesRef, error) {
 	return 0, nil
 }

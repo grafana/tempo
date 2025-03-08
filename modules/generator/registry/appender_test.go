@@ -37,11 +37,17 @@ func (n noopAppender) Commit() error { return nil }
 
 func (n noopAppender) Rollback() error { return nil }
 
+func (n noopAppender) SetOptions(_ *storage.AppendOptions) {}
+
 func (n noopAppender) UpdateMetadata(storage.SeriesRef, labels.Labels, metadata.Metadata) (storage.SeriesRef, error) {
 	return 0, nil
 }
 
 func (n noopAppender) AppendCTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64) (storage.SeriesRef, error) {
+	return 0, nil
+}
+
+func (n noopAppender) AppendHistogramCTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64, _ *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
 	return 0, nil
 }
 
@@ -118,11 +124,15 @@ func (c *capturingAppender) Rollback() error {
 	c.isRolledback = true
 	return nil
 }
-
+func (c *capturingAppender) SetOptions(_ *storage.AppendOptions) {}
 func (c *capturingAppender) UpdateMetadata(storage.SeriesRef, labels.Labels, metadata.Metadata) (storage.SeriesRef, error) {
 	return 0, nil
 }
 
 func (c *capturingAppender) AppendCTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64) (storage.SeriesRef, error) {
+	return 0, nil
+}
+
+func (c *capturingAppender) AppendHistogramCTZeroSample(_ storage.SeriesRef, _ labels.Labels, _, _ int64, _ *prom_histogram.Histogram, _ *prom_histogram.FloatHistogram) (storage.SeriesRef, error) {
 	return 0, nil
 }

@@ -1,11 +1,11 @@
 package storage
 
 import (
+	"log/slog"
 	"net/url"
 	"os"
 	"testing"
 
-	"github.com/go-kit/log"
 	prometheus_common_config "github.com/prometheus/common/config"
 	prometheus_config "github.com/prometheus/prometheus/config"
 	"github.com/stretchr/testify/assert"
@@ -14,7 +14,7 @@ import (
 )
 
 func Test_generateTenantRemoteWriteConfigs(t *testing.T) {
-	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	original := []prometheus_config.RemoteWriteConfig{
 		{
@@ -47,7 +47,7 @@ func Test_generateTenantRemoteWriteConfigs(t *testing.T) {
 }
 
 func Test_generateTenantRemoteWriteConfigs_singleTenant(t *testing.T) {
-	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	original := []prometheus_config.RemoteWriteConfig{
 		{
@@ -80,7 +80,7 @@ func Test_generateTenantRemoteWriteConfigs_singleTenant(t *testing.T) {
 }
 
 func Test_generateTenantRemoteWriteConfigs_addOrgIDHeader(t *testing.T) {
-	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	original := []prometheus_config.RemoteWriteConfig{
 		{
@@ -108,7 +108,7 @@ func Test_generateTenantRemoteWriteConfigs_addOrgIDHeader(t *testing.T) {
 }
 
 func Test_generateTenantRemoteWriteConfigs_sendNativeHistograms(t *testing.T) {
-	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	original := []prometheus_config.RemoteWriteConfig{
 		{

@@ -1,4 +1,4 @@
-// Copyright 2019 The Prometheus Authors
+// Copyright 2024 The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -10,30 +10,28 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+package prometheusremotewrite
 
-package logging
+import "context"
 
-import (
-	"github.com/go-kit/log"
-	"golang.org/x/time/rate"
-)
-
-type ratelimiter struct {
-	limiter *rate.Limiter
-	next    log.Logger
+// everyNTimes supports checking for context error every n times.
+type everyNTimes struct {
+	n   int
+	i   int
+	err error
 }
 
-// RateLimit write to a logger.
-func RateLimit(next log.Logger, limit rate.Limit) log.Logger {
-	return &ratelimiter{
-		limiter: rate.NewLimiter(limit, int(limit)),
-		next:    next,
+// checkContext calls ctx.Err() every e.n times and returns an eventual error.
+func (e *everyNTimes) checkContext(ctx context.Context) error {
+	if e.err != nil {
+		return e.err
 	}
-}
 
-func (r *ratelimiter) Log(keyvals ...interface{}) error {
-	if r.limiter.Allow() {
-		return r.next.Log(keyvals...)
+	e.i++
+	if e.i >= e.n {
+		e.i = 0
+		e.err = ctx.Err()
 	}
-	return nil
+
+	return e.err
 }
