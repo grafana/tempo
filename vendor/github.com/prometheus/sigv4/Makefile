@@ -11,12 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-include ../Makefile.common
+include Makefile.common
 
 .PHONY: test
-	@echo ">> Running sigv4 tests"
-	test:: deps check_license unused common-test
-
-ifeq (,$(shell echo $(GO_VERSION_NUMBER) | grep -E 'go1\.(7|8|9|10)\.'))
-test:: lint
-endif
+test:: deps check_license unused common-test lint

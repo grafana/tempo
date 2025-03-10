@@ -1,10 +1,9 @@
 package storage
 
 import (
+	"log/slog"
 	"strings"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/grafana/dskit/user"
 	prometheus_config "github.com/prometheus/prometheus/config"
 
@@ -13,7 +12,7 @@ import (
 
 // generateTenantRemoteWriteConfigs creates a copy of the remote write configurations with the
 // X-Scope-OrgID header present for the given tenant, unless Tempo is run in single tenant mode or instructed not to add X-Scope-OrgID header.
-func generateTenantRemoteWriteConfigs(inputs []prometheus_config.RemoteWriteConfig, tenant string, headers map[string]string, addOrgIDHeader bool, logger log.Logger, sendNativeHistograms bool) []*prometheus_config.RemoteWriteConfig {
+func generateTenantRemoteWriteConfigs(inputs []prometheus_config.RemoteWriteConfig, tenant string, headers map[string]string, addOrgIDHeader bool, logger *slog.Logger, sendNativeHistograms bool) []*prometheus_config.RemoteWriteConfig {
 	var outputs []*prometheus_config.RemoteWriteConfig
 
 	for _, input := range inputs {
@@ -42,9 +41,9 @@ func generateTenantRemoteWriteConfigs(inputs []prometheus_config.RemoteWriteConf
 				output.Headers[user.OrgIDHeaderName] = tenant
 			} else {
 				// Remote write config already contains the header, so we don't overwrite it.
-				level.Warn(logger).Log("msg", "underlying remote write already contains X-Scope-OrgId header, not applying new value",
+				logger.Info("underlying remote write already contains X-Scope-OrgId header, not applying new value",
 					"remoteWriteName", input.Name,
-					"remoteWriteURL", input.URL,
+					"remoteWriteURL", input.URL.String(),
 					"existing", existing,
 					"new", tenant)
 			}

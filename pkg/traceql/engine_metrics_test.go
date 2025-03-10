@@ -353,7 +353,7 @@ func TestQuantileOverTime(t *testing.T) {
 	// Output series with quantiles per foo
 	// Prom labels are sorted alphabetically, traceql labels maintain original order.
 	out := SeriesSet{
-		`{p="0.0", span.foo="bar"}`: TimeSeries{
+		`{p="0.0", "span.foo"="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: "p", Value: NewStaticFloat(0)},
@@ -364,7 +364,7 @@ func TestQuantileOverTime(t *testing.T) {
 				0,
 			},
 		},
-		`{p="0.5", span.foo="bar"}`: TimeSeries{
+		`{p="0.5", "span.foo"="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: "p", Value: NewStaticFloat(0.5)},
@@ -375,14 +375,14 @@ func TestQuantileOverTime(t *testing.T) {
 				0,
 			},
 		},
-		`{p="1.0", span.foo="bar"}`: TimeSeries{
+		`{p="1.0", "span.foo"="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: "p", Value: NewStaticFloat(1)},
 			},
 			Values: []float64{_512ns, _256ns, 0},
 		},
-		`{p="0.0", span.foo="baz"}`: TimeSeries{
+		`{p="0.0", "span.foo"="baz"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 				{Name: "p", Value: NewStaticFloat(0)},
@@ -392,7 +392,7 @@ func TestQuantileOverTime(t *testing.T) {
 				percentileHelper(0, _512ns, _512ns, _512ns),
 			},
 		},
-		`{p="0.5", span.foo="baz"}`: TimeSeries{
+		`{p="0.5", "span.foo"="baz"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 				{Name: "p", Value: NewStaticFloat(0.5)},
@@ -402,7 +402,7 @@ func TestQuantileOverTime(t *testing.T) {
 				percentileHelper(0.5, _512ns, _512ns, _512ns),
 			},
 		},
-		`{p="1.0", span.foo="baz"}`: TimeSeries{
+		`{p="1.0", "span.foo"="baz"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 				{Name: "p", Value: NewStaticFloat(1)},
@@ -451,14 +451,14 @@ func TestCountOverTime(t *testing.T) {
 	// Output series with quantiles per foo
 	// Prom labels are sorted alphabetically, traceql labels maintain original order.
 	out := SeriesSet{
-		`{span.foo="baz"}`: TimeSeries{
+		`{"span.foo"="baz"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 			},
 			Values:    []float64{0, 0, 3},
 			Exemplars: make([]Exemplar, 0),
 		},
-		`{span.foo="bar"}`: TimeSeries{
+		`{"span.foo"="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 			},
@@ -499,8 +499,8 @@ func TestMinOverTimeForDuration(t *testing.T) {
 	result, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
 
-	fooBaz := result[`{span.foo="baz"}`]
-	fooBar := result[`{span.foo="bar"}`]
+	fooBaz := result[`{"span.foo"="baz"}`]
+	fooBar := result[`{"span.foo"="bar"}`]
 
 	// We cannot compare with require.Equal because NaN != NaN
 	// foo.baz = (NaN, NaN, 0.000000512)
@@ -590,8 +590,8 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 	result, err := runTraceQLMetric(req, in, in2)
 	require.NoError(t, err)
 
-	fooBaz := result[`{span.foo="baz"}`]
-	fooBar := result[`{span.foo="bar"}`]
+	fooBaz := result[`{"span.foo"="baz"}`]
+	fooBar := result[`{"span.foo"="bar"}`]
 
 	// Alas,we cannot compare with require.Equal because NaN != NaN
 	// foo.baz = (204, NaN, 200)
@@ -610,7 +610,7 @@ func TestMinOverTimeForSpanAttribute(t *testing.T) {
 	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 204}, {TimestampMs: 3000, Value: 200}}
 
 	for _, s := range ts {
-		if s.PromLabels == "{span.foo=\"bar\"}" {
+		if s.PromLabels == "{\"span.foo\"=\"bar\"}" {
 			assert.Equal(t, fooBarSamples, s.Samples)
 		} else {
 			assert.Equal(t, fooBazSamples, s.Samples)
@@ -645,8 +645,8 @@ func TestAvgOverTimeForDuration(t *testing.T) {
 	result, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
 
-	fooBaz := result[`{span.foo="baz"}`]
-	fooBar := result[`{span.foo="bar"}`]
+	fooBaz := result[`{"span.foo"="baz"}`]
+	fooBar := result[`{"span.foo"="bar"}`]
 
 	// We cannot compare with require.Equal because NaN != NaN
 	assert.True(t, math.IsNaN(fooBaz.Values[0]))
@@ -734,8 +734,8 @@ func TestAvgOverTimeForSpanAttribute(t *testing.T) {
 	result, err := runTraceQLMetric(req, in, in2)
 	require.NoError(t, err)
 
-	fooBaz := result[`{span.foo="baz"}`]
-	fooBar := result[`{span.foo="bar"}`]
+	fooBaz := result[`{"span.foo"="baz"}`]
+	fooBar := result[`{"span.foo"="bar"}`]
 
 	// Alas,we cannot compare with require.Equal because NaN != NaN
 	// foo.baz = (NaN, NaN, 250)
@@ -754,7 +754,7 @@ func TestAvgOverTimeForSpanAttribute(t *testing.T) {
 	fooBazSamples := []tempopb.Sample{{TimestampMs: 3000, Value: 250}}
 
 	for _, s := range ts {
-		if s.PromLabels == "{span.foo=\"bar\"}" {
+		if s.PromLabels == "{\"span.foo\"=\"bar\"}" {
 			assert.Equal(t, fooBarSamples, s.Samples)
 		} else {
 			assert.Equal(t, fooBazSamples, s.Samples)
@@ -854,8 +854,8 @@ func TestObserveSeriesAverageOverTimeForSpanAttribute(t *testing.T) {
 
 	result := layer3.Results()
 
-	fooBaz := result[`{span.foo="baz"}`]
-	fooBar := result[`{span.foo="bar"}`]
+	fooBaz := result[`{"span.foo"="baz"}`]
+	fooBar := result[`{"span.foo"="bar"}`]
 
 	// Alas,we cannot compare with require.Equal because NaN != NaN
 	// foo.baz = (NaN, NaN, 300)
@@ -897,8 +897,8 @@ func TestMaxOverTimeForDuration(t *testing.T) {
 	result, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
 
-	fooBaz := result[`{span.foo="baz"}`]
-	fooBar := result[`{span.foo="bar"}`]
+	fooBaz := result[`{"span.foo"="baz"}`]
+	fooBar := result[`{"span.foo"="bar"}`]
 
 	// We cannot compare with require.Equal because NaN != NaN
 	// foo.baz = (NaN, NaN, 0.000000512)
@@ -988,8 +988,8 @@ func TestMaxOverTimeForSpanAttribute(t *testing.T) {
 	result, err := runTraceQLMetric(req, in, in2)
 	require.NoError(t, err)
 
-	fooBaz := result[`{span.foo="baz"}`]
-	fooBar := result[`{span.foo="bar"}`]
+	fooBaz := result[`{"span.foo"="baz"}`]
+	fooBar := result[`{"span.foo"="bar"}`]
 
 	// Alas,we cannot compare with require.Equal because NaN != NaN
 	// foo.baz = (204, NaN, 500)
@@ -1008,7 +1008,7 @@ func TestMaxOverTimeForSpanAttribute(t *testing.T) {
 	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 204}, {TimestampMs: 3000, Value: 500}}
 
 	for _, s := range ts {
-		if s.PromLabels == "{span.foo=\"bar\"}" {
+		if s.PromLabels == "{\"span.foo\"=\"bar\"}" {
 			assert.Equal(t, fooBarSamples, s.Samples)
 		} else {
 			assert.Equal(t, fooBazSamples, s.Samples)
@@ -1043,8 +1043,8 @@ func TestSumOverTimeForDuration(t *testing.T) {
 	result, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
 
-	fooBaz := result[`{span.foo="baz"}`]
-	fooBar := result[`{span.foo="bar"}`]
+	fooBaz := result[`{"span.foo"="baz"}`]
+	fooBar := result[`{"span.foo"="bar"}`]
 
 	// We cannot compare with require.Equal because NaN != NaN
 	// foo.baz = (NaN, NaN, 0.00000027)
@@ -1102,8 +1102,8 @@ func TestSumOverTimeForSpanAttribute(t *testing.T) {
 	result, err := runTraceQLMetric(req, in, in2)
 	require.NoError(t, err)
 
-	fooBaz := result[`{span.foo="baz"}`]
-	fooBar := result[`{span.foo="bar"}`]
+	fooBaz := result[`{"span.foo"="baz"}`]
+	fooBar := result[`{"span.foo"="bar"}`]
 
 	// Alas,we cannot compare with require.Equal because NaN != NaN
 	// foo.baz = (200, NaN, 1700)
@@ -1122,7 +1122,7 @@ func TestSumOverTimeForSpanAttribute(t *testing.T) {
 	fooBazSamples := []tempopb.Sample{{TimestampMs: 1000, Value: 200}, {TimestampMs: 3000, Value: 1700}}
 
 	for _, s := range ts {
-		if s.PromLabels == "{span.foo=\"bar\"}" {
+		if s.PromLabels == "{\"span.foo\"=\"bar\"}" {
 			assert.Equal(t, fooBarSamples, s.Samples)
 		} else {
 			assert.Equal(t, fooBazSamples, s.Samples)
@@ -1195,7 +1195,7 @@ func TestHistogramOverTime(t *testing.T) {
 	// Output series with buckets per foo
 	// Prom labels are sorted alphabetically, traceql labels maintain original order.
 	out := SeriesSet{
-		`{` + internalLabelBucket + `="` + _128ns.EncodeToString(true) + `", span.foo="bar"}`: TimeSeries{
+		`{` + internalLabelBucket + `="` + _128ns.EncodeToString(true) + `", "span.foo"="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: internalLabelBucket, Value: _128ns},
@@ -1203,7 +1203,7 @@ func TestHistogramOverTime(t *testing.T) {
 			Values:    []float64{1, 0, 0},
 			Exemplars: make([]Exemplar, 0),
 		},
-		`{` + internalLabelBucket + `="` + _256ns.EncodeToString(true) + `", span.foo="bar"}`: TimeSeries{
+		`{` + internalLabelBucket + `="` + _256ns.EncodeToString(true) + `", "span.foo"="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: internalLabelBucket, Value: _256ns},
@@ -1211,7 +1211,7 @@ func TestHistogramOverTime(t *testing.T) {
 			Values:    []float64{1, 4, 0},
 			Exemplars: make([]Exemplar, 0),
 		},
-		`{` + internalLabelBucket + `="` + _512ns.EncodeToString(true) + `", span.foo="bar"}`: TimeSeries{
+		`{` + internalLabelBucket + `="` + _512ns.EncodeToString(true) + `", "span.foo"="bar"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("bar")},
 				{Name: internalLabelBucket, Value: _512ns},
@@ -1219,7 +1219,7 @@ func TestHistogramOverTime(t *testing.T) {
 			Values:    []float64{1, 0, 0},
 			Exemplars: make([]Exemplar, 0),
 		},
-		`{` + internalLabelBucket + `="` + _512ns.EncodeToString(true) + `", span.foo="baz"}`: TimeSeries{
+		`{` + internalLabelBucket + `="` + _512ns.EncodeToString(true) + `", "span.foo"="baz"}`: TimeSeries{
 			Labels: []Label{
 				{Name: "span.foo", Value: NewStaticString("baz")},
 				{Name: internalLabelBucket, Value: _512ns},
