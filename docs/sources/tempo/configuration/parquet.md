@@ -8,7 +8,7 @@ weight: 300
 # Apache Parquet block format
 
 Tempo has a default columnar block format based on Apache Parquet.
-This format is required for tags-based search as well as [TraceQL]({{< relref "../traceql" >}}), the query language for traces.
+This format is required for tags-based search as well as [TraceQL](../../traceql/), the query language for traces.
 The columnar block format improves search performance and enables an ecosystem of tools, including [Tempo CLI](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/tempo_cli/#analyse-blocks), to access the underlying trace data.
 
 For more information, refer to the [Parquet design document](https://github.com/grafana/tempo/blob/main/docs/design-proposals/2022-04%20Parquet.md) and [Issue 1480](https://github.com/grafana/tempo/issues/1480).
@@ -53,7 +53,7 @@ To re-enable the default `vParquet4` format, remove the block version option fro
 ## Parquet configuration parameters
 
 Some parameters in the Tempo configuration are specific to Parquet.
-For more information, refer to the [storage configuration documentation]({{< relref "../configuration#storage" >}}).
+For more information, refer to the [storage configuration documentation](../#storage).
 
 ### Trace search parameters
 

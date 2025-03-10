@@ -10,8 +10,8 @@ weight: 10
 
 # Tempo architecture
 
-This topic provides an overview of the major components of Tempo. Refer to the [example setups]({{< relref "../getting-started/example-demo-app" >}})
-or [deployment options]({{< relref "../setup/deployment" >}}) for help deploying.
+This topic provides an overview of the major components of Tempo. Refer to the [example setups](../../getting-started/example-demo-app/)
+or [deployment options](../../setup/deployment/) for help deploying.
 
 <p align="center"><img src="../tempo_arch.png" alt="Tempo Architecture"></p>
 
@@ -20,14 +20,14 @@ Tempo comprises of the following top-level components.
 
 ## Distributor
 
-The distributor accepts spans in multiple formats including Jaeger, OpenTelemetry, Zipkin. It routes spans to ingesters by hashing the `traceID` and using a [distributed consistent hash ring]({{< relref "./consistent_hash_ring" >}}).
+The distributor accepts spans in multiple formats including Jaeger, OpenTelemetry, Zipkin. It routes spans to ingesters by hashing the `traceID` and using a [distributed consistent hash ring](../consistent_hash_ring/).
 The distributor uses the receiver layer from the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector).
 For best performance, it is recommended to ingest [OTel Proto](https://github.com/open-telemetry/opentelemetry-proto). For this reason
 the [Grafana Agent](https://github.com/grafana/agent) uses the otlp exporter/receiver to send spans to Tempo.
 
 ## Ingester
 
-The [Ingester]({{< relref "../configuration#ingester" >}}) batches trace into blocks, creates bloom filters and indexes, and then flushes it all to the backend.
+The [Ingester](../../configuration/#ingester) batches trace into blocks, creates bloom filters and indexes, and then flushes it all to the backend.
 Blocks in the backend are generated in the following layout:
 
 ```
@@ -52,11 +52,12 @@ Queriers connect to the Query Frontend via a streaming gRPC connection to proces
 
 ## Querier
 
-The querier finds the requested trace ID in either the ingesters or the backend storage. Depending on
-parameters, the querier queries the ingesters for recently ingested traces and pulls the bloom filters and indexes from the backend storage to efficiently locate the traces within object storage blocks.
+The querier is responsible for finding the requested trace id in either the ingesters or the backend storage. Depending on
+parameters it will query both the ingesters and pull bloom/indexes from the backend to search blocks in object
+storage.
 
 The querier exposes an HTTP endpoint at:
-`GET /querier/api/traces/<traceID>`, but it's not intended for direct use.
+`GET /querier/api/traces/<traceID>`, but its not expected to be used directly.
 
 Queries should be sent to the Query Frontend.
 
@@ -66,4 +67,4 @@ The Compactors stream blocks to and from the backend storage to reduce the total
 
 ## Metrics generator
 
-This is an **optional** component that derives metrics from ingested traces and writes them to a metrics storage. Refer to the [metrics-generator documentation]({{< relref "../metrics-generator" >}}) to learn more.
+This is an **optional** component that derives metrics from ingested traces and writes them to a metrics storage. Refer to the [metrics-generator documentation](../../metrics-generator/) to learn more.

@@ -95,7 +95,7 @@ Agent, OpenTelemetry Collector, or Jaeger Agent.
 |  Jaeger | GRPC | [Link](https://www.jaegertracing.io/docs/latest/apis/#span-reporting-apis) |
 |  Zipkin | HTTP | [Link](https://zipkin.io/zipkin-api/) |
 
-For information on how to use the Zipkin endpoint with curl (for debugging purposes), refer to [Pushing spans with HTTP]({{< relref "./pushing-spans-with-http" >}}).
+For information on how to use the Zipkin endpoint with curl (for debugging purposes), refer to [Pushing spans with HTTP](pushing-spans-with-http/). 
 
 ### Query
 
@@ -194,7 +194,7 @@ but if it can also send OpenTelemetry proto if `Accept: application/protobuf` is
 ### Search
 
 The Tempo Search API finds traces based on span and process attributes (tags and values). Note that search functionality is **not** available on
-[v2 blocks]({{< relref "../configuration/parquet#choose-a-different-block-format" >}}).
+[v2 blocks](../configuration/parquet/#choose-a-different-block-format).
 
 When performing a search, Tempo does a massively parallel search over the given time range, and takes the first N results. Even identical searches differs due to things like machine load and network latency. TraceQL follows the same behavior.
 
@@ -211,7 +211,7 @@ The URL query parameters support the following values:
 
 **Parameters for TraceQL Search**
 
-- `q = (TraceQL query)`: Url encoded [TraceQL query]({{< relref "../traceql" >}}).
+- `q = (TraceQL query)`: Url encoded [TraceQL query](../traceql/).
 
 **Parameters for Tag Based Search**
 
@@ -224,7 +224,7 @@ The URL query parameters support the following values:
 **Parameters supported for all searches**
 
 - `limit = (integer)`
-  Optional. Limit the number of search results. Default is 20, but this is configurable in the querier. Refer to [Configuration]({{< relref "../configuration#querier" >}}).
+  Optional. Limit the number of search results. Default is 20, but this is configurable in the querier. Refer to [Configuration](../configuration/#querier).
 - `start = (unix epoch seconds)`
   Optional. Along with `end` define a time range from which traces should be returned.
 - `end = (unix epoch seconds)`
@@ -468,7 +468,7 @@ Parameters:
 
 This endpoint retrieves all discovered values and their data types for the given TraceQL identifier.
 The endpoint is available in the query frontend service in a microservices deployment, or the Tempo endpoint in a monolithic mode deployment. This endpoint is similar to `/api/search/tag/<tag>/values` but operates on TraceQL identifiers and types.
-See [TraceQL]({{< relref "../traceql" >}}) documentation for more information.
+See [TraceQL](../traceql/) documentation for more information.
 
 #### Example
 
@@ -506,7 +506,7 @@ This endpoint can also receive `start` and `end` optional parameters. These para
 #### Filtered tag values
 
 You can pass an optional URL query parameter, `q`, to your request.
-The `q` parameter is a URL-encoded [TraceQL query]({{< relref "../traceql" >}}).
+The `q` parameter is a URL-encoded [TraceQL query](../traceql/).
 If provided, the tag values returned by the API are filtered to only return values seen on spans matching your filter parameters.
 
 Queries can be incomplete: for example, `{ resource.cluster = }`.
@@ -606,7 +606,7 @@ Meant to be used in a Query Visualization UI like Grafana to test that the Tempo
 
 ### Overrides API
 
-For more information about user-configurable overrides API, refer to the [user-configurable overrides]{{< relref "../operations/user-configurable-overrides#api" >}} documentation.
+For more information about user-configurable overrides API, refer to the [user-configurable overrides]../operations/user-configurable-overrides/#api documentation.
 
 ### Flush
 
@@ -638,7 +638,7 @@ This is usually used at the time of scaling down a cluster.
 ### Distributor ring status
 
 {{< admonition type="note" >}}
-This endpoint is only available when Tempo is configured with [the global override strategy]({{< relref "../configuration#overrides" >}}).
+This endpoint is only available when Tempo is configured with [the global override strategy](../configuration/#overrides).
 {{% /admonition %}}
 
 ```
@@ -648,7 +648,7 @@ GET /distributor/ring
 Displays a web page with the distributor hash ring status, including the state, healthy, and last heartbeat time of each
 distributor.
 
-_For more information, check the page on [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}})._
+_For more information, check the page on [consistent hash ring](../operations/consistent_hash_ring/)._
 
 ### Ingesters ring status
 
@@ -658,7 +658,7 @@ GET /ingester/ring
 
 Displays a web page with the ingesters hash ring status, including the state, healthy, and last heartbeat time of each ingester.
 
-_For more information, check the page on [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}}).
+_For more information, check the page on [consistent hash ring](../operations/consistent_hash_ring/).
 
 ### Metrics-generator ring status
 
@@ -668,9 +668,9 @@ GET /metrics-generator/ring
 
 Displays a web page with the metrics-generator hash ring status, including the state, health, and last heartbeat time of each metrics-generator.
 
-This endpoint is only available when the metrics-generator is enabled. Refer to [metrics-generator]({{< relref "../configuration#metrics-generator" >}}).
+This endpoint is only available when the metrics-generator is enabled. Refer to [metrics-generator](../configuration/#metrics-generator).
 
-For more information, refer to [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}}).
+For more information, refer to [consistent hash ring](../operations/consistent_hash_ring/).
 
 ### Compactor ring status
 
@@ -680,7 +680,7 @@ GET /compactor/ring
 
 Displays a web page with the compactor hash ring status, including the state, healthy and last heartbeat time of each compactor.
 
-For more information, refer to [consistent hash ring]({{< relref "../operations/consistent_hash_ring" >}}).
+For more information, refer to [consistent hash ring](../operations/consistent_hash_ring/).
 
 ### Status
 

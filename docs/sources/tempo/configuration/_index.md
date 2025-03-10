@@ -47,7 +47,7 @@ The Tempo configuration options include:
   - [Usage-report](#usage-report)
   - [Cache](#cache)
 
-Additionally, you can review [TLS]({{< relref "./network/tls" >}}) to configure the cluster components to communicate over TLS, or receive traces over TLS.
+Additionally, you can review [TLS](network/tls/) to configure the cluster components to communicate over TLS, or receive traces over TLS.
 
 ## Use environment variables in the configuration
 
@@ -283,7 +283,7 @@ ingester:
 For more information on configuration options, refer to [this file](https://github.com/grafana/tempo/blob/main/modules/generator/config.go).
 
 The metrics-generator processes spans and write metrics using the Prometheus remote write protocol.
-For more information on the metrics-generator, refer to the [Metrics-generator documentation]({{< relref "../metrics-generator" >}}).
+For more information on the metrics-generator, refer to the [Metrics-generator documentation](../metrics-generator/).
 
 Metrics-generator processors are disabled by default. To enable it for a specific tenant, set `metrics_generator.processors` in the [overrides](#overrides) section.
 
@@ -835,10 +835,10 @@ The storage block configures TempoDB.
 The following example shows common options.
 For further platform-specific information, refer to the following:
 
-* [GCS]({{< relref "./hosted-storage/gcs" >}})
-* [S3]({{< relref "./hosted-storage/s3" >}})
-* [Azure]({{< relref "./hosted-storage/azure" >}})
-* [Parquet]({{< relref "./parquet" >}})
+* [GCS](hosted-storage/gcs/)
+* [S3](hosted-storage/s3/)
+* [Azure](hosted-storage/azure/)
+* [Parquet](parquet/)
 
 ```yaml
 # Storage configuration for traces
@@ -1788,7 +1788,7 @@ overrides:
 
 These tenant-specific overrides are stored in an object store and can be modified using API requests.
 User-configurable overrides have priority over runtime overrides.
-Refer to [user-configurable overrides]{{< relref "../operations/user-configurable-overrides" >}} for more details.
+Refer to [user-configurable overrides]../operations/user-configurable-overrides/ for more details.
 
 #### Override strategies
 

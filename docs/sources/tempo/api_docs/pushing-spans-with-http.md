@@ -20,7 +20,7 @@ To use this procedure, you need to have Docker and `docker compose` installed.
 
 ## Start Tempo using the quick start
 
-Use the instructions in the [Quick start for Tempo documentation]({{< relref "../getting-started/docker-example" >}}) to start a local instance of Tempo and Grafana.
+Use the instructions in the [Quick start for Tempo documentation](../../getting-started/docker-example/) to start a local instance of Tempo and Grafana.
 
 ## Push spans with OTLP
 
@@ -110,7 +110,7 @@ The easiest way to get the trace is to execute a simple curl command to Tempo. T
 
 ### Use TraceQL to search for a trace
 
-Alternatively, you can also use [TraceQL]({{< relref "../traceql" >}}) to search for the trace that was pushed.
+Alternatively, you can also use [TraceQL](../../traceql/) to search for the trace that was pushed.
 You can search by using the unique trace attributes that were set:
 
 ```bash
