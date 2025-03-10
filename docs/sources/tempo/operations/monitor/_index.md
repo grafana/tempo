@@ -44,7 +44,7 @@ The OpenTelemetry SDK uses OTLP/HTTP by default, which can be configured with `O
 Tempo maintains knowledge of the state of the backend by polling it on regular intervals.
 There are currently only two components that need this knowledge and, consequently, only two that poll the backend: compactors and queriers.
 
-Refer to [Use polling to monitor the backend status]({{< relref "./polling" >}}) for Tempo.
+Refer to [Use polling to monitor the backend status](polling/) for Tempo.
 
 ## Dashboards
 

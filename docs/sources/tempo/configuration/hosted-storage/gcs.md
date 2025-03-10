@@ -7,7 +7,7 @@ aliases:
 
 # Google Cloud Storage
 
-For configuration options, check the storage section on the [configuration]({{< relref "../../configuration#storage" >}}) page.
+For configuration options, check the storage section on the [configuration](../../#storage) page.
 
 ## Permissions
 
