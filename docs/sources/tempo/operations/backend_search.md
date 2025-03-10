@@ -20,10 +20,10 @@ The general advice is to scale your compactors and queriers. Additional queriers
 while additional compactors more aggressively reduce the length of your blocklist and copies of data (if using `RF=3`).
 
 {{< admonition type="note" >}}
-All forms of search (TraceQL and tags based) are only supported on the `vParquet` and forward blocks. [v2 blocks]({{< relref "../configuration/parquet#choose-a-different-block-format" >}})
+All forms of search (TraceQL and tags based) are only supported on the `vParquet` and forward blocks. [v2 blocks](../../configuration/parquet/#choose-a-different-block-format)
 can only be used for trace by id lookup.
 
-Tempo 2.3 and higher support [Dedicated attribute columns]({{< relref "./dedicated_columns" >}}), another great method to improve search performance.
+Tempo 2.3 and higher support [Dedicated attribute columns](../dedicated_columns/), another great method to improve search performance.
 {{< /admonition>}}
 
 ## Before you begin
@@ -116,7 +116,7 @@ querier:
 
 ### Query-frontend
 
-[Query frontend]({{< relref "../configuration#query-frontend" >}}) lists all configuration
+[Query frontend](../../configuration/#query-frontend) lists all configuration
 options.
 
 These suggestions help deal with scaling issues.

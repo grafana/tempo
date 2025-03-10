@@ -9,7 +9,7 @@ aliases:
 
 # Monolithic deployment
 
-The `TempoMonolithic` Custom Resource (CR) creates a Tempo deployment in [Monolithic mode]({{< relref "../../setup/deployment#monolithic-mode" >}}).
+The `TempoMonolithic` Custom Resource (CR) creates a Tempo deployment in [Monolithic mode](../../deployment/#monolithic-mode).
 In this mode, a single container has all components of the Tempo deployment, including the compactor, distributor, ingester, querier, and query-frontend.
 
 This type of deployment is ideal for small deployments, demo, and test setups, and supports storing traces in memory, in a Persistent Volume and in object storage.

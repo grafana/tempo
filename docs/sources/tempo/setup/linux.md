@@ -11,7 +11,7 @@ This guide provides a step-by-step process for installing Tempo on Linux.
 It assumes you have access to a Linux system and the permissions required to deploy a service with network and file system access.
 At the end of this guide, you will have deployed a single Tempo instance on a single node.
 
-These instructions focus on a [monolithic installation]({{< relref "./deployment" >}}). You can also run Tempo in distributed mode by deploying multiple binaries and using a distributed configuration.
+These instructions focus on a [monolithic installation](../deployment/). You can also run Tempo in distributed mode by deploying multiple binaries and using a distributed configuration.
 
 ## Before you begin
 
@@ -71,7 +71,7 @@ Copy the following YAML configuration to a file called `tempo.yaml`.
 
 Paste in your S3 credentials for `admin_client` and the storage backend. If you wish to give your cluster a unique name, add a cluster property with the appropriate name.
 
-Refer to the [Tempo configuration documentation]({{< relref "../configuration" >}}) for explanations of the available options.
+Refer to the [Tempo configuration documentation](../../configuration/) for explanations of the available options.
 
 In the following configuration, Tempo options are altered to only listen to the OTLP gRPC and HTTP protocols.
 By default, Tempo listens for all compatible protocols.

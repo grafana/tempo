@@ -34,7 +34,7 @@ This service graphs processor builds a map of services by analyzing traces, with
 Edges are spans with a parent-child relationship, that represent a jump (e.g. a request) between two services.
 The amount of request and their duration are recorded as metrics, which are used to represent the graph.
 
-To learn more about this processor, refer to the [service graph]({{< relref "./service_graphs" >}}) documentation.
+To learn more about this processor, refer to the [service graph](service_graphs/) documentation.
 
 ### Span metrics
 
@@ -44,7 +44,7 @@ The span metrics processor computes the total count and the duration of spans fo
 Dimensions can be the service name, the operation, the span kind, the status code and any tag or attribute present in the span.
 The more dimensions are enabled, the higher the cardinality of the generated metrics.
 
-To learn more about this processor, refer to the [span metrics]({{< relref "./span_metrics" >}}) documentation.
+To learn more about this processor, refer to the [span metrics](span_metrics/) documentation.
 
 ### Local blocks
 
@@ -56,7 +56,7 @@ enabled for certain metrics APIs to function.
 
 The metrics-generator runs a Prometheus Agent that periodically sends metrics to a `remote_write` endpoint.
 The `remote_write` endpoint is configurable and can be any [Prometheus-compatible endpoint](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write).
-To learn more about the endpoint configuration, refer to the [Metrics-generator]({{< relref "../configuration#metrics-generator" >}}) section of the Tempo Configuration documentation.
+To learn more about the endpoint configuration, refer to the [Metrics-generator](../configuration/#metrics-generator) section of the Tempo Configuration documentation.
 Writing interval can be controlled via `metrics_generator.registry.collection_interval`.
 
 When multi-tenancy is enabled, the metrics-generator forwards the `X-Scope-OrgID` header of the original request to the `remote_write` endpoint. This feature can be disabled by setting `remote_write_add_org_id_header` to false.
@@ -70,7 +70,7 @@ The metrics-generator supports the ability to produce native histograms for
 high-resolution data. Users must [update the receiving endpoint](https://grafana.com/docs/mimir/<MIMIR_VERSION>/configure/configure-native-histograms-ingestion/) to ingest native
 histograms, and [update histogram queries](https://grafana.com/docs/mimir/<MIMIR_VERSION>/visualize/native-histograms/) in their dashboards.
 
-To learn more about the configuration, refer to the [Metrics-generator]({{< relref "../configuration#metrics-generator" >}}) section of the Tempo Configuration documentation.
+To learn more about the configuration, refer to the [Metrics-generator](../configuration/#metrics-generator) section of the Tempo Configuration documentation.
 
 ## Use metrics-generator in Grafana Cloud
 
@@ -82,4 +82,4 @@ For more information on billing, refer to [Billing and usage](/docs/grafana-clou
 ## Multitenancy
 
 Tempo supports multitenancy in the metrics-generator through the use of environment variables and per-tenant overrides.
-Refer to the [Multitenant Support for Metrics-Generator]({{< relref "multitenancy" >}}) documentation for more information.
+Refer to the [Multitenant Support for Metrics-Generator](multitenancy/) documentation for more information.
