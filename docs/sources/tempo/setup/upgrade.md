@@ -22,7 +22,7 @@ This upgrade guide applies to on-premise installations and not for Grafana Cloud
 For detailed information about any release, refer to the [Release notes](../release-notes/).
 
 {{< admonition type="tip" >}}
-You can check your configuration options using the [`status` API endpoint]({{< relref "../api_docs#status" >}}) in your Tempo installation.
+You can check your configuration options using the [`status` API endpoint](../../api_docs/#status) in your Tempo installation.
 {{< /admonition >}}
 
 ## Upgrade to Tempo 2.7
@@ -378,7 +378,7 @@ For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo
 
 ### Transition to vParquet3 as default block format
 
-vParquet3 format is now the default block format. It is production ready and we highly recommend switching to it for improved query performance and [dedicated attribute columns]({{< relref "../operations/dedicated_columns" >}}).
+vParquet3 format is now the default block format. It is production ready and we highly recommend switching to it for improved query performance and [dedicated attribute columns](../../operations/dedicated_columns/).
 
 Upgrading to Tempo 2.4 modifies the Parquet block format. Although you can use Tempo 2.3 with vParquet2 or vParquet3, you can only use Tempo 2.4 with vParquet3.
 
@@ -396,7 +396,7 @@ This change resulted in several fields being deprecated (refer to the old config
 
 These fields have all been migrated to a top level `cache:` field.
 
-For more information about the configuration, refer to the [Cache]({{< relref "../configuration#cache" >}}) section.
+For more information about the configuration, refer to the [Cache](../../configuration/#cache) section.
 
 The old configuration block looked like this:
 
@@ -467,7 +467,7 @@ For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo
 
 ### Production-ready vParquet3 block format
 
-vParquet3 provides improved query performance and [dedicated attribute columns]({{< relref "../operations/dedicated_columns" >}}).
+vParquet3 provides improved query performance and [dedicated attribute columns](../../operations/dedicated_columns/).
 
 This block format is required for using dedicated attribute columns.
 
@@ -484,7 +484,7 @@ Recommended update process:
 
 1. Upgrade your Tempo installation to version 2.3, remaining on vParquet2.
 2. Verify the upgrade is stable and performs as expected. If you notice any issues, you can downgrade to version 2.2, and data remains readable.
-3. [Change the block format to vParquet3]({{< relref "../configuration/parquet" >}}).
+3. [Change the block format to vParquet3](../../configuration/parquet/).
 
 If you notice any issues on step 3 using the new block format, you can downgrade to vParquet2.
 All your data remains readable in Tempo 2.3.
@@ -495,15 +495,15 @@ However, if you have vParquet3 blocks and have to downgrade to Tempo 2.2, you wi
 If you are using Azure storage, we recommend using the v2 SDK, [azure-sdk-for-go](https://github.com/Azure/azure-sdk-for-go).
 You can use the `use_v2_sdk` configure option for switching.
 
-For more information, refer to the [Storage block configuration example documentation]({{< relref "../configuration#storage-block-configuration-example" >}}).
+For more information, refer to the [Storage block configuration example documentation](../../configuration/#storage-block-configuration-example).
 
 ### New `defaults` block in Overrides module configuration
 
 The Overrides module has a new `defaults` block for configuring global or per-tenant settings.
 The Overrides format now includes changes to indented syntax.
-For more information, read the [Overrides configuration documentation]({{< relref "../configuration#overrides" >}}).
+For more information, read the [Overrides configuration documentation](../../configuration/#overrides).
 
-You can also use the Tempo CLI to migrate configurations. Refer to the [tempo-cli documentation]({{< relref "../operations/tempo_cli#migrate-overrides-config-command" >}}).
+You can also use the Tempo CLI to migrate configurations. Refer to the [tempo-cli documentation](../../operations/tempo_cli/#migrate-overrides-config-command).
 
 The old configuration block looked like this:
 
@@ -571,7 +571,7 @@ For a complete list of changes, enhancements, and bug fixes, refer to the [Tempo
 
 While not a breaking change, upgrading to Tempo 2.2 by default changes Tempo's block format to vParquet2.
 
-To stay on a previous block format, read the [Parquet configuration documentation]({{< relref "../configuration/parquet#choose-a-different-block-format" >}}).
+To stay on a previous block format, read the [Parquet configuration documentation](../../configuration/parquet/#choose-a-different-block-format).
 We strongly encourage upgrading to vParquet2 as soon as possible as this is required for using structural operators in your TraceQL queries and provides query performance improvements, in particular on queries using the `duration` intrinsic.
 
 ### Updated JSonnet supports `statefulset` for the metrics-generator
@@ -604,7 +604,7 @@ Tempo 2.1 has two major considerations for any upgrade:
 * Support for search on v2 block is removed
 * Breaking changes to metric names
 
-For more information on other enhancements, read the [Tempo 2.1 release notes]({{< relref "../release-notes/v2-1" >}}).
+For more information on other enhancements, read the [Tempo 2.1 release notes](../../release-notes/v2-1/).
 
 ### Remove support for Search on v2 blocks
 
@@ -660,7 +660,7 @@ There is a potential issue loading experimental Parquet storage blocks. You may 
 
 Parquet provides faster search and is required to enable TraceQL. However, the Tempo installation requires additional CPU and memory resources to use Parquet efficiently. Parquet is more costly due to the extra work of building the columnar blocks, and operators should expect at least 1.5x increase in required resources to run a Tempo 2.0 cluster. Most users find these extra resources are negligible compared to the benefits that come from the additional features of TraceQL and from storing traces in an open format.
 
-You can continue using the previous `v2` block format using the instructions provided in the [Parquet configuration documentation]({{< relref "../configuration/parquet" >}}).
+You can continue using the previous `v2` block format using the instructions provided in the [Parquet configuration documentation](../../configuration/parquet/).
 Tempo continues to support trace by id lookup on the `v2` format for the foreseeable future.
 
 ### Enable TraceQL in Grafana

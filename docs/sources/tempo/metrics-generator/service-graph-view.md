@@ -80,7 +80,7 @@ Span metrics generate two metrics:
 * A counter that computes requests
 * A histogram that tracks the distribution of durations of all requests
 
-For information about span metrics and how they are calculated, refer to the [Span metrics documentation]({{< relref "../metrics-generator/span_metrics.md" >}}).
+For information about span metrics and how they are calculated, refer to the [Span metrics documentation](../span_metrics/).
 
 ### Table contents
 
@@ -111,7 +111,7 @@ If you are using the metrics-generator, then it processes traces and generates s
 traces_service_graph_request_total{client="app", server="db"} 20
 ```
 
-For information about service graphs and how they are calculated, refer to the [Service Graphs documentation]({{< relref "../metrics-generator/service_graphs" >}}).
+For information about service graphs and how they are calculated, refer to the [Service Graphs documentation](../service_graphs/).
 
 ## Use filters to reveal details
 

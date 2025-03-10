@@ -18,7 +18,7 @@ For information about search performance, refer to [Tune search performance](htt
 
 Memcached is one of the cache implementations supported by Tempo.
 It's used by default in the Tanka and Helm examples.
-Refer to [Deploying Tempo]({{< relref "../setup/deployment" >}}).
+Refer to [Deploying Tempo](../../setup/deployment/).
 
 ### Connection limit
 
@@ -36,7 +36,7 @@ sum by (status_code) (
 )
 ```
 
-This metric is also shown in [the monitoring dashboards]({{< relref "./monitor" >}}) (the left panel):
+This metric is also shown in [the monitoring dashboards](../monitor/) (the left panel):
 
 <p align="center"><img src="../caching_memcached_connection_limit.png" alt="QPS and latency of requests to memcached"></p>
 
@@ -75,7 +75,7 @@ Tempo provides two configuration parameters to filter down on the items stored i
 Using a combination of these configuration options, you can narrow down on which bloom filters are cached, thereby reducing the
 cache eviction rate, and increasing the cache hit rate.
 
-In order to decide the values of these configuration parameters, you can use a cache summary command in the [tempo-cli]({{< relref "./tempo_cli" >}}) that
+In order to decide the values of these configuration parameters, you can use a cache summary command in the [tempo-cli](../tempo_cli/) that
 prints a summary of bloom filter shards per day and per compaction level. The result looks something like this:
 
 <p align="center"><img src="../cache-summary.png" alt="Cache summary"></p>

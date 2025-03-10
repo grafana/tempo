@@ -119,14 +119,14 @@ Refer to the `scrape_configs` block in the [configuration reference](/docs/agent
 
 Automatic logging writes well formatted log lines to help with trace discovery.
 
-For a closer look into the feature, visit [Automatic logging]({{< relref "./automatic-logging" >}}).
+For a closer look into the feature, visit [Automatic logging](automatic-logging/).
 
 #### Tail-based sampling
 
 The Agent implements tail-based sampling for distributed tracing systems and multi-instance Agent deployments.
 With this feature, sampling decisions can be made based on data from a trace, rather than exclusively with probabilistic methods.
 
-For a detailed description, go to [Tail-based sampling]({{< relref "./tail-based-sampling" >}}).
+For a detailed description, go to [Tail-based sampling](tail-based-sampling/).
 
 For additional information, refer to the blog post, [An introduction to trace sampling with Grafana Tempo and Grafana Agent](/blog/2022/05/11/an-introduction-to-trace-sampling-with-grafana-tempo-and-grafana-agent).
 
@@ -134,7 +134,7 @@ For additional information, refer to the blog post, [An introduction to trace sa
 
 The Agent can take advantage of the span data flowing through the pipeline to generate Prometheus metrics.
 
-Go to [Span metrics]({{< relref "./span-metrics" >}}) for a more detailed explanation of the feature.
+Go to [Span metrics](span-metrics/) for a more detailed explanation of the feature.
 
 #### Service graph metrics
 
@@ -144,7 +144,7 @@ This service graphs processor builds a map of services by analyzing traces, with
 Edges are spans with a parent-child relationship, that represent a jump, such as a request, between two services.
 The amount of requests and their duration are recorded as metrics, which are used to represent the graph.
 
-To read more about this processor, go to its [section]({{< relref "./service-graphs" >}}).
+To read more about this processor, go to its [section](service-graphs/).
 
 ### Exporting spans
 
