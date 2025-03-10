@@ -59,6 +59,7 @@ require (
 	go.opentelemetry.io/collector/consumer v1.25.0
 	go.opentelemetry.io/collector/pdata v1.25.0
 	go.opentelemetry.io/collector/semconv v0.119.0 // indirect
+	go.opentelemetry.io/otel/semconv v1.30.0
 	go.opentelemetry.io/otel v1.34.0
 	go.opentelemetry.io/otel/bridge/opencensus v1.34.0
 	go.opentelemetry.io/otel/bridge/opentracing v1.34.0
