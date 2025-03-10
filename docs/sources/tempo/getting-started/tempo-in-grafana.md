@@ -16,9 +16,9 @@ Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting
 
 The default Tempo search reviews the whole trace. TraceQL provides a method for formulating precise queries so you can quickly identify the traces and spans that you need. Query results are returned faster because the queries limit what is searched.
 
-You can run a TraceQL query either by issuing it to Tempo’s `q` parameter of the [`search` API endpoint]({{< relref "../api_docs#search" >}}), or, for those using Tempo in conjunction with Grafana, by using Grafana’s [TraceQL query editor]({{< relref "../traceql/query-editor" >}}).
+You can run a TraceQL query either by issuing it to Tempo’s `q` parameter of the [`search` API endpoint](../../api_docs/#search), or, for those using Tempo in conjunction with Grafana, by using Grafana’s [TraceQL query editor](../../traceql/query-editor/).
 
-For details about how queries are constructed, read the [TraceQL documentation]({{< relref "../traceql" >}}).
+For details about how queries are constructed, read the [TraceQL documentation](../../traceql/).
 
 <p align="center"><img src="../../traceql/assets/query-editor-results-span.png" alt="Query editor showing span results" /></p>
 
@@ -49,7 +49,7 @@ Grafana provides a built-in service graph view available in Grafana Cloud and Gr
 The service graph view visualizes the span metrics (traces data for rates, error rates, and durations (RED)) and service graphs.
 Once the requirements are set up, this pre-configured view is immediately available in **Explore > Service Graphs**.
 
-For more information, refer to the [service graph view]({{< relref "../metrics-generator/service-graph-view" >}}).
+For more information, refer to the [service graph view](../../metrics-generator/service-graph-view/).
 
 <p align="center"><img src="../assets/apm-overview.png" alt="Service graph view overview"></p>
 

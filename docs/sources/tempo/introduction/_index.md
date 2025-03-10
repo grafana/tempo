@@ -72,6 +72,6 @@ This data helps you locate problem areas, often in places you never would have a
 
 For more information about traces, refer to:
 
-* [Traces and telemetry]({{< relref "./telemetry" >}})
-* [User journeys: How tracing can help you]({{< relref "./solutions-with-traces" >}})
-* [Glossary]({{< relref "./glossary" >}})
+* [Traces and telemetry](telemetry/)
+* [User journeys: How tracing can help you](solutions-with-traces/)
+* [Glossary](glossary/)

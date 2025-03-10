@@ -35,7 +35,7 @@ exemplars can be automatically added, providing additional value to these metric
 
 ## How to run
 
-To enable span metrics in Tempo/GET, enable the metrics generator and add an overrides section which enables the `span-metrics` generator. Refer to the [configuration documentation]({{< relref "../configuration#metrics-generator" >}}).
+To enable span metrics in Tempo/GET, enable the metrics generator and add an overrides section which enables the `span-metrics` generator. Refer to the [configuration documentation](../../configuration/#metrics-generator).
 
 ## How it works
 
@@ -46,7 +46,7 @@ This processor mirrored the implementation from the OpenTelemetry Collector of t
 The OTel `spanmetricsprocessor` has since been [deprecated](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/processor/spanmetricsprocessor/v0.95.0/processor/spanmetricsprocessor/README.md) and replaced with the [span metric connector](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/processor/spanmetricsprocessor/v0.95.0/connector/spanmetricsconnector/README.md). 
 
 {{< admonition type="note" >}}
-To learn more about cardinality and how to perform a dry run of the metrics generator, see the [Cardinality documentation]({{< relref "./cardinality" >}}).
+To learn more about cardinality and how to perform a dry run of the metrics generator, see the [Cardinality documentation](../cardinality/).
 {{% /admonition %}}
 
 ### Metrics
@@ -81,12 +81,12 @@ By default, the metrics processor adds the following labels to each metric: `ser
 - `job` - The name of the job, a combination of namespace and service; only added if `metrics_generator.processor.span_metrics.enable_target_info: true`
 - `instance` - The instance ID; only added if `metrics_generator.processor.span_metrics.enable_target_info: true`
 
-Additional user defined labels can be created using the [`dimensions` configuration option]({{< relref "../configuration#metrics-generator" >}}).
+Additional user defined labels can be created using the [`dimensions` configuration option](../../configuration/#metrics-generator).
 When a configured dimension collides with one of the default labels (e.g. `status_code`), the label for the respective dimension is prefixed with double underscore (i.e. `__status_code`).
 
-Custom labeling of dimensions is also supported using the [`dimension_mapping` configuration option]({{< relref "../configuration#metrics-generator" >}}).
+Custom labeling of dimensions is also supported using the [`dimension_mapping` configuration option](../../configuration/#metrics-generator).
 
-An optional metric called `traces_target_info` using all resource level attributes as dimensions can be enabled in the [`enable_target_info` configuration option]({{< relref "../configuration#metrics-generator" >}}).
+An optional metric called `traces_target_info` using all resource level attributes as dimensions can be enabled in the [`enable_target_info` configuration option](../../configuration/#metrics-generator).
 
 If you use a ratio-based sampler, you can use the custom sampler below to not lose metric information. However, you also need to set `metrics_generator.processor.span_metrics.span_multiplier_key` to `"X-SampleRatio"`.
 

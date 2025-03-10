@@ -22,20 +22,20 @@ Read the blog post, [Get to know TraceQL](/blog/2023/02/07/get-to-know-traceql-a
 
 {{< vimeo 796408188 >}}
 
-For information on where the language is headed, see [future work]({{< relref "./architecture#future-work" >}}).
+For information on where the language is headed, see [future work](architecture/#future-work).
 The TraceQL language uses similar syntax and semantics as [PromQL](/blog/2020/02/04/introduction-to-promql-the-prometheus-query-language/) and [LogQL](/docs/loki/latest/logql/), where possible.
 
-Check the [release notes]({{< relref "../release-notes" >}}) for the latest updates to TraceQL.
+Check the [release notes](../release-notes/) for the latest updates to TraceQL.
 
 ## Requirements
 
-TraceQL requires Tempo’s Parquet columnar format, which is enabled by default. For information on Parquet, refer to the [Apache Parquet backend]({{< relref "..//configuration/parquet" >}}) Tempo documentation.
+TraceQL requires Tempo’s Parquet columnar format, which is enabled by default. For information on Parquet, refer to the [Apache Parquet backend](../configuration/parquet/) Tempo documentation.
 
 ## TraceQL queries in Grafana Explore
 
 You can use the TraceQL query editor and query builder in the Tempo data source to build queries and drill-down into result sets.
 The editor and builder are available in Grafana’s Explore interface.
-For more information, refer to [Write TraceQL queries in Grafana]({{< relref "./query-editor" >}}).
+For more information, refer to [Write TraceQL queries in Grafana](query-editor/).
 
 <p align="center"><img src="assets/query-editor-http-method.png" alt="Query editor showing request for http.method" /></p>
 
@@ -43,9 +43,9 @@ For more information, refer to [Write TraceQL queries in Grafana]({{< relref "./
 
 By streaming results to the client, you can start to look at traces matching your query before the entire query completes.
 
-The [GRPC streaming API endpoint]({{< relref "../api_docs#tempo-grpc-api" >}}) in Tempo’s query frontend allows a client to stream search results from Tempo.
+The [GRPC streaming API endpoint](../api_docs/#tempo-grpc-api) in Tempo’s query frontend allows a client to stream search results from Tempo.
 The `tempo-cli` also uses this streaming endpoint.
-For more information, refer to the [Tempo CLI documentation]({{< relref "../operations/tempo_cli#query-api-command" >}}).
+For more information, refer to the [Tempo CLI documentation](../operations/tempo_cli/#query-api-command).
 
 To use streaming in Grafana, you must first enable the `traceQLStreaming` feature toggle.
 
@@ -327,7 +327,7 @@ So far, all of the example queries expressions have been about individual spans.
 - `min` - The min value of a given numeric attribute or intrinsic for a spanset.
 - `sum` - The sum value of a given numeric attribute or intrinsic for a spanset.
 
-Aggregate functions allow you to carry out operations on matching results to further refine the traces returned. For more information on planned future work, refer to [How TraceQL works]({{< relref "./architecture" >}}).
+Aggregate functions allow you to carry out operations on matching results to further refine the traces returned. For more information on planned future work, refer to [How TraceQL works](architecture/).
 
 For example, to find traces where the total number of spans is greater than `10`:
 
@@ -377,7 +377,7 @@ TraceQL can select arbitrary fields from spans. This is particularly performant 
 
 ## Experimental TraceQL metrics
 
-TraceQL metrics are experimental, but easy to get started with. Refer to [the TraceQL metrics]({{< relref "../operations/traceql-metrics.md" >}}) documentation for more information.
+TraceQL metrics are experimental, but easy to get started with. Refer to [the TraceQL metrics](../operations/traceql-metrics/) documentation for more information.
 
 ## Examples
 
