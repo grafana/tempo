@@ -12,7 +12,7 @@ Probabilistic sampling strategies are easy to implement,
 but also run the risk of discarding relevant data that you'll later want.
 
 Tail sampling works with Grafana Alloy.
-Alloy configuration files are written in [Alloy configuration syntax](https://grafana.com/docs/alloy/<ALLOY_VERSION>/concepts/configuration-syntax/).
+Alloy configuration files are written in [Alloy configuration syntax](https://grafana.com/docs/alloy/<ALLOY_VERSION>/get-started/configuration-syntax/).
 
 ## Configure tail sampling
 
@@ -25,7 +25,7 @@ To see all the available configuration options for load balancing, refer to the 
 
 ### Example for Alloy
 
-Alloy uses the [`otelcol.processor.tail_sampling component`](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol.processor.tail_sampling/) for tail sampling.
+Alloy uses the [`otelcol.processor.tail_sampling component`](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.tail_sampling/) for tail sampling.
 
 ```alloy
 otelcol.receiver.otlp "default" {

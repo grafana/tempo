@@ -8,14 +8,14 @@
   <a href="https://goreportcard.com/report/github.com/grafana/tempo"><img src="https://goreportcard.com/badge/github.com/grafana/tempo" alt="Go Report Card" /></a>
 </p>
 
-Grafana Tempo is an open source, easy-to-use, and high-scale distributed tracing backend. Tempo is cost-efficient, requiring only object storage to operate, and is deeply integrated with Grafana, Prometheus, and Loki. 
+Grafana Tempo is an open source, easy-to-use, and high-scale distributed tracing backend. Tempo is cost-efficient, requiring only object storage to operate, and is deeply integrated with Grafana, Prometheus, and Loki.
 
 
 ## Business value of distributed tracing
 
 Distributed tracing helps teams quickly pinpoint performance issues and understand the flow of requests across services. The Traces Drilldown UI simplifies this process by offering a user-friendly interface to view and analyze trace data, making it easier to identify and resolve issues without needing to write complex queries.
 
-Refer to [Use traces to find solutions](https://grafana.com/docs/tempo/latest/introduction/solutions-with-traces/) to learn more about how you can use distributed tracing to investigate and solve issues. 
+Refer to [Use traces to find solutions](https://grafana.com/docs/tempo/latest/introduction/solutions-with-traces/) to learn more about how you can use distributed tracing to investigate and solve issues.
 
 ## Traces Drilldown UI: A better way to get value from your tracing data
 We are excited to introduce the [Traces Drilldown](https://github.com/grafana/traces-drilldown) (formerly Explore Traces) app as part of the Grafana Explore suite. This app provides a queryless and intuitive experience for analyzing tracing data, allowing teams to quickly identify performance issues, latency bottlenecks, and errors without needing to write complex queries or use TraceQL.
@@ -29,18 +29,17 @@ Key Features:
 ![image](https://github.com/user-attachments/assets/991205df-1b27-489f-8ef0-1a05ee158996)
 
 To learn more see the following links:
-- [Traces Drilldown repo](https://github.com/grafana/races-drilldown)
+- [Traces Drilldown repo](https://github.com/grafana/traces-drilldown)
 - [Traces Drilldown documentation](https://grafana.com/docs/grafana/latest/explore/simplified-exploration/traces/)
-- [Demo video](https://www.youtube.com/watch?v=a3uB1C2oHA4
-)
+- [Demo video](https://www.youtube.com/watch?v=a3uB1C2oHA4)
 
 ## TraceQL
 
-Tempo implements [TraceQL](https://grafana.com/docs/tempo/latest/traceql/), a traces-first query language inspired by LogQL and PromQL, which enables targeted queries or rich UI-driven analyses. 
+Tempo implements [TraceQL](https://grafana.com/docs/tempo/latest/traceql/), a traces-first query language inspired by LogQL and PromQL, which enables targeted queries or rich UI-driven analyses.
 
-### TraceQL metrics 
+### TraceQL metrics
 
-[TraceQL metrics](https://grafana.com/docs/tempo/latest/traceql/metrics-queries/) is an experimental feature in Grafana Tempo that creates metrics from traces. Metric queries extend trace queries by applying a function to trace query results. This powerful feature allows for ad hoc aggregation of any existing TraceQL query by any dimension available in your traces, much in the same way that LogQL metric queries create metrics from logs. 
+[TraceQL metrics](https://grafana.com/docs/tempo/latest/traceql/metrics-queries/) is an experimental feature in Grafana Tempo that creates metrics from traces. Metric queries extend trace queries by applying a function to trace query results. This powerful feature allows for ad hoc aggregation of any existing TraceQL query by any dimension available in your traces, much in the same way that LogQL metric queries create metrics from logs.
 
 Tempo is Jaeger, Zipkin, Kafka, OpenCensus, and OpenTelemetry compatible. It ingests batches in any of the mentioned formats, buffers them, and then writes them to Azure, GCS, S3, or local disk. As such, it is robust, cheap, and easy to operate!
 
@@ -56,6 +55,8 @@ Tempo is Jaeger, Zipkin, Kafka, OpenCensus, and OpenTelemetry compatible. It ing
 
 To learn more about Tempo, consult the following documents & talks:
 
+- [How to get started with Tmepo with Joe Elliot (video)](https://www.youtube.com/watch?v=zDrA7Ly3ovU)
+- [Grafana blog posts about Tempo](https://grafana.com/tags/tempo/)
 - [New in Grafana Tempo 2.0: Apache Parquet as the default storage format, support for TraceQL][tempo_20_announce]
 - [Get to know TraceQL: A powerful new query language for distributed tracing][traceql-post]
 

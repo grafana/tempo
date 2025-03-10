@@ -10,7 +10,7 @@ aliases:
 # Enable multi-tenancy
 
 Tempo is a multi-tenant distributed tracing backend. It supports multi-tenancy through the use of a header: `X-Scope-OrgID`.
-Refer to [multi-tenancy docs](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systenms/multitenancy/) for more details.
+Refer to [multi-tenancy docs](https://grafana.com/docs/tempo/<TEMPO_VERSION>/operations/manage-advanced-systems/multitenancy/) for more details.
 This document outlines how to deploy and use multi-tenant Tempo with the Operator.
 
 ## Multi-tenancy without authentication

@@ -109,7 +109,7 @@ The easiest way to get the trace is to execute a simple curl command to Tempo. T
 
 ### Use TraceQL to search for a trace
 
-Alternatively, you can also use [TraceQL](../traceql) to search for the trace that was pushed.
+Alternatively, you can also use [TraceQL](https://grafana.com/docs/tempo/<TEMPO_VERSION>/traceql/) to search for the trace that was pushed.
 You can search by using the unique trace attributes that were set:
 
 ```bash
