@@ -18,7 +18,7 @@ Alloy is flexible, and you can easily configure it to fit your needs in on-prem,
 It's commonly used as a tracing pipeline, offloading traces from the
 application and forwarding them to a storage backend.
 
-Grafana Alloy configuration files are written in the [Alloy configuration syntax](https://grafana.com/docs/alloy/latest/concepts/configuration-syntax/).
+Grafana Alloy configuration files are written in the [Alloy configuration syntax](https://grafana.com/docs/alloy/<ALLOY_VERSION>/get-started/configuration-syntax/).
 
 For more information, refer to the [Introduction to Grafana Alloy](https://grafana.com/docs/alloy/latest/introduction).
 
@@ -52,13 +52,13 @@ Grafana Alloy processes tracing data as it flows through the pipeline to make th
 
 Alloy supports batching of traces.
 Batching helps better compress the data, reduces the number of outgoing connections, and is a recommended best practice.
-To configure it, refer to the `otelcol.processor.batch` block in the [components reference](https://grafana.com/docs/alloy/latest/reference/components/otelcol.processor.batch/).
+To configure it, refer to the `otelcol.processor.batch` block in the [components reference](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.batch/).
 
 #### Attributes manipulation
 
 Grafana Alloy allows for general manipulation of attributes on spans that pass through it.
 A common use may be to add an environment or cluster variable.
-There are several processors that can manipulate attributes, some examples include: the `otelcol.processor.attributes` block in the [component reference](https://grafana.com/docs/alloy/latest/reference/components/otelcol.processor.attributes/) and the `otelcol.processor.transform` block [component reference](https://grafana.com/docs/alloy/latest/reference/components/otelcol.processor.transform/)
+There are several processors that can manipulate attributes, some examples include: the `otelcol.processor.attributes` block in the [component reference](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.attributes/) and the `otelcol.processor.transform` block [component reference](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.transform/)
 
 #### Attaching metadata with Prometheus Service Discovery
 
@@ -97,7 +97,7 @@ otelcol.exporter.otlp "default" {
 }
 ```
 
-Refer to the `otelcol.processor.k8sattributes` block in the [components reference](https://grafana.com/docs/alloy/latest/reference/components/otelcol.processor.k8sattributes/).
+Refer to the `otelcol.processor.k8sattributes` block in the [components reference](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.processor.k8sattributes/).
 
 #### Trace discovery through automatic logging
 
@@ -138,4 +138,4 @@ Aside from endpoint and authentication, the exporter also provides mechanisms fo
 and implements a queue buffering mechanism for transient failures, such as networking issues.
 
 To see all available options,
-refer to the `otelcol.exporter.otlp` block in the [Alloy configuration reference](https://grafana.com/docs/alloy/latest/reference/components/otelcol.exporter.otlp/) and the `otelcol.exporter.otlphttp` block in the [Alloy configuration reference](https://grafana.com/docs/alloy/latest/reference/components/otelcol.exporter.otlphttp/).
+refer to the `otelcol.exporter.otlp` block in the [Alloy configuration reference](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.exporter.otlp/) and the `otelcol.exporter.otlphttp` block in the [Alloy configuration reference](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.exporter.otlphttp/).

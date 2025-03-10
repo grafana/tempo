@@ -25,7 +25,7 @@ pipeline. This allows for automatically building a mechanism for trace discovery
 On top of that, you can also get metrics from traces using a logs source, and
 allow quickly jumping from a log message to the trace view in Grafana.
 
-While this approach is useful, it isn't as powerful as TraceQL. 
+While this approach is useful, it isn't as powerful as TraceQL.
 If you are here because you know you want to log the
 trace ID, to enable jumping from logs to traces, then read on.
 
@@ -47,7 +47,7 @@ This allows searching by those key-value pairs in Loki.
 To configure automatic logging, you need to configure the `otelcol.connector.spanlogs` connector with
 appropriate options.
 
-To see all the available configuration options, refer to the `otelcol.connector.spanlogs` [components reference](https://grafana.com/docs/alloy/latest/reference/components/otelcol.connector.spanlogs/).
+To see all the available configuration options, refer to the `otelcol.connector.spanlogs` [components reference](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.connector.spanlogs/).
 
 This simple example logs trace roots before exporting them to the Grafana OTLP gateway,
 and is a good way to get started using automatic logging:
