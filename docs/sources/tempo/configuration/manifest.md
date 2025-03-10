@@ -943,4 +943,61 @@ cache:
         writeback_goroutines: 10
         writeback_buffer: 10000
     caches: []
+backend_scheduler:
+    schedule_interval: 10s
+    compaction:
+        v2_in_buffer_bytes: 5242880
+        v2_out_buffer_bytes: 20971520
+        v2_prefetch_traces_count: 1000
+        compaction_window: 1h0m0s
+        max_compaction_objects: 6000000
+        max_block_bytes: 107374182400
+        block_retention: 336h0m0s
+        compacted_block_retention: 1h0m0s
+        retention_concurrency: 10
+        max_time_per_tenant: 5m0s
+        compaction_cycle: 30s
+backend_scheduler_client:
+    grpc_client_config:
+        max_recv_msg_size: 104857600
+        max_send_msg_size: 104857600
+        grpc_compression: snappy
+        rate_limit: 0
+        rate_limit_burst: 0
+        backoff_on_ratelimits: false
+        backoff_config:
+            min_period: 100ms
+            max_period: 10s
+            max_retries: 10
+        initial_stream_window_size: 63KiB1023B
+        initial_connection_window_size: 63KiB1023B
+        tls_enabled: false
+        tls_cert_path: ""
+        tls_key_path: ""
+        tls_ca_path: ""
+        tls_server_name: ""
+        tls_insecure_skip_verify: false
+        tls_cipher_suites: ""
+        tls_min_version: ""
+        connect_timeout: 5s
+        connect_backoff_base_delay: 1s
+        connect_backoff_max_delay: 5s
+backend_worker:
+    backend_scheduler_addr: ""
+    compaction:
+        v2_in_buffer_bytes: 5242880
+        v2_out_buffer_bytes: 20971520
+        v2_prefetch_traces_count: 1000
+        compaction_window: 1h0m0s
+        max_compaction_objects: 6000000
+        max_block_bytes: 107374182400
+        block_retention: 336h0m0s
+        compacted_block_retention: 1h0m0s
+        retention_concurrency: 10
+        max_time_per_tenant: 5m0s
+        compaction_cycle: 30s
+    backoff:
+        min_period: 100ms
+        max_period: 1m0s
+        max_retries: 0
 ```
