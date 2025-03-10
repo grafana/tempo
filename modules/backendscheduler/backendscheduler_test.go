@@ -54,7 +54,7 @@ func TestBackendScheduler(t *testing.T) {
 		bs, err := New(cfg, store, limits)
 		require.NoError(t, err)
 
-		err = bs.ScheduleOnce(ctx)
+		err = bs.scheduleOnce(ctx)
 		require.NoError(t, err)
 
 		resp, err := bs.Next(ctx, &tempopb.NextJobRequest{
@@ -84,7 +84,7 @@ func TestBackendScheduler(t *testing.T) {
 		err = bs.CreateJob(ctx, j)
 		require.NoError(t, err)
 
-		err = bs.ScheduleOnce(ctx)
+		err = bs.scheduleOnce(ctx)
 		require.NoError(t, err)
 
 		resp, err := bs.Next(ctx, &tempopb.NextJobRequest{
@@ -128,7 +128,7 @@ func TestBackendScheduler(t *testing.T) {
 		err = bs.CreateJob(ctx, j2)
 		require.NoError(t, err)
 
-		err = bs.ScheduleOnce(ctx)
+		err = bs.scheduleOnce(ctx)
 		require.NoError(t, err)
 
 		resp, err := bs.Next(ctx, &tempopb.NextJobRequest{
@@ -212,7 +212,7 @@ func TestBackendScheduler(t *testing.T) {
 		err = bs.CreateJob(ctx, j4)
 		require.NoError(t, err)
 
-		err = bs.ScheduleOnce(ctx)
+		err = bs.scheduleOnce(ctx)
 		require.NoError(t, err)
 
 		// Write test blocks for multiple jobs

@@ -685,7 +685,28 @@ func (t *App) initBackendScheduler() (services.Service, error) {
 		t.cfg.BackendScheduler.Poll = true
 	}
 
-	scheduler, err := backendscheduler.New(t.cfg.BackendScheduler, t.store, t.Overrides)
+	var err error
+	var reader backend.RawReader
+	var writer backend.RawWriter
+
+	switch t.cfg.StorageConfig.Trace.Backend {
+	case backend.Local:
+		reader, writer, _, err = local.New(t.cfg.StorageConfig.Trace.Local)
+	case backend.GCS:
+		reader, writer, _, err = gcs.New(t.cfg.StorageConfig.Trace.GCS)
+	case backend.S3:
+		reader, writer, _, err = s3.New(t.cfg.StorageConfig.Trace.S3)
+	case backend.Azure:
+		reader, writer, _, err = azure.New(t.cfg.StorageConfig.Trace.Azure)
+	default:
+		err = fmt.Errorf("unknown backend %s", t.cfg.StorageConfig.Trace.Backend)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize backendscheduler reader/writer: %w", err)
+	}
+
+	scheduler, err := backendscheduler.New(t.cfg.BackendScheduler, t.store, t.Overrides, reader, writer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create backend scheduler: %w", err)
 	}
