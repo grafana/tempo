@@ -55,17 +55,55 @@ sendLoop:
 	for _, query := range []string{
 		"{} | rate()",
 		"{} | compare({status=error})",
+		"{} | count_over_time()",
+		"{} | min_over_time(duration)",
+		"{} | max_over_time(duration)",
+		"{} | avg_over_time(duration)",
+		"{} | sum_over_time(duration)",
+		"{} | quantile_over_time(duration, .5)",
+		"{} | quantile_over_time(duration, .5, 0.9, 0.99)",
+		"{} | histogram_over_time(duration)",
+		"{} | count_over_time() by (status)",
+		"{status != error} | count_over_time() by (status)",
 	} {
 		t.Run(query, func(t *testing.T) {
-			callQueryRange(t, tempo.Endpoint(tempoPort), query, debugMode)
+			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), query, debugMode)
+			require.NotNil(t, queryRangeRes)
+			require.GreaterOrEqual(t, len(queryRangeRes.GetSeries()), 1)
+			exemplarCount := 0
+			for _, series := range queryRangeRes.GetSeries() {
+				exemplarCount += len(series.GetExemplars())
+			}
+			require.GreaterOrEqual(t, exemplarCount, 1)
 		})
 	}
 
+	// invalid query
 	res := doRequest(t, tempo.Endpoint(tempoPort), "{. a}")
 	require.Equal(t, 400, res.StatusCode)
+
+	// query with empty results
+	for _, query := range []string{
+		// existing attribute, no traces
+		"{status=error} | count_over_time()",
+		// non-existing attribute, no traces
+		`{span.randomattr = "doesnotexist"} | count_over_time()`,
+	} {
+		t.Run(query, func(t *testing.T) {
+			queryRangeRes := callQueryRange(t, tempo.Endpoint(tempoPort), query, debugMode)
+			require.NotNil(t, queryRangeRes)
+			// it has time series but they are empty and has no exemplars
+			require.GreaterOrEqual(t, len(queryRangeRes.GetSeries()), 1)
+			exemplarCount := 0
+			for _, series := range queryRangeRes.GetSeries() {
+				exemplarCount += len(series.GetExemplars())
+			}
+			require.Equal(t, 0, exemplarCount)
+		})
+	}
 }
 
-func callQueryRange(t *testing.T, endpoint, query string, printBody bool) {
+func callQueryRange(t *testing.T, endpoint, query string, printBody bool) tempopb.QueryRangeResponse {
 	res := doRequest(t, endpoint, query)
 	require.Equal(t, http.StatusOK, res.StatusCode)
 
@@ -78,13 +116,7 @@ func callQueryRange(t *testing.T, endpoint, query string, printBody bool) {
 
 	queryRangeRes := tempopb.QueryRangeResponse{}
 	require.NoError(t, json.Unmarshal(body, &queryRangeRes))
-	require.NotNil(t, queryRangeRes)
-	require.GreaterOrEqual(t, len(queryRangeRes.GetSeries()), 1)
-	exemplarCount := 0
-	for _, series := range queryRangeRes.GetSeries() {
-		exemplarCount += len(series.GetExemplars())
-	}
-	require.GreaterOrEqual(t, exemplarCount, 1)
+	return queryRangeRes
 }
 
 func doRequest(t *testing.T, endpoint, query string) *http.Response {
