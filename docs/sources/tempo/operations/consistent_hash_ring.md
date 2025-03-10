@@ -87,4 +87,4 @@ Unhealthy compactors will allow the blocklist to grow significantly. If the comp
 
 ## Configuring the rings
 
-Ring/Lifecycler configuration control how a component interacts with the ring. Refer to the [configuration]({{< relref "../configuration" >}}) topic for more details.
+Ring/Lifecycler configuration control how a component interacts with the ring. Refer to the [configuration](../../configuration/) topic for more details.

@@ -12,7 +12,7 @@ aliases:
 If you are concerned with data quality issues in the metrics-generator, we'd first recommend:
 
 - Reviewing your telemetry pipeline to determine the number of dropped spans. We are only looking for major issues here.
-- Reviewing the [service graph documentation]({{< relref "../metrics-generator/service_graphs" >}}) to understand how they are built.
+- Reviewing the [service graph documentation](../../metrics-generator/service_graphs/) to understand how they are built.
 
 If everything seems ok from these two perspectives, consider the following topics to help resolve general issues with all metrics and span metrics specifically.
 

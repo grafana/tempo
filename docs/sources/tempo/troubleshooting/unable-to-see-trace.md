@@ -106,7 +106,7 @@ If the pipeline isn't reporting any dropped spans, check whether application spa
 - If you require a higher ingest volume, increase the configuration for the rate limiting by adjusting the `max_traces_per_user` property in the [configured override limits](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/#standard-overrides).
 
 {{< admonition type="note" >}}
-Check the [ingestion limits page]({{< relref "../configuration#ingestion-limits" >}}) for further information on limits.
+Check the [ingestion limits page](../../configuration/#ingestion-limits) for further information on limits.
 {{% /admonition %}}
 
 ## Section 3: Diagnose and fix issues with querying traces
