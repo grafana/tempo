@@ -151,7 +151,7 @@ func (rw *readerWriter) compactOneTenant(ctx context.Context) {
 		// Pick up to defaultMaxInputBlocks (4) blocks to compact into a single one
 		toBeCompacted, hashString := blockSelector.BlocksToCompact()
 		if len(toBeCompacted) == 0 {
-			measureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
+			MeasureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
 
 			level.Info(rw.logger).Log("msg", "compaction cycle complete. No more blocks to compact", "tenantID", tenantID)
 			return
@@ -177,7 +177,7 @@ func (rw *readerWriter) compactOneTenant(ctx context.Context) {
 
 		// after a maintenance cycle bail out
 		if start.Add(rw.compactorCfg.MaxTimePerTenant).Before(time.Now()) {
-			measureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
+			MeasureOutstandingBlocks(tenantID, blockSelector, rw.compactorSharder.Owns)
 
 			level.Info(rw.logger).Log("msg", "compacted blocks for a maintenance cycle, bailing out", "tenantID", tenantID)
 			return
@@ -390,7 +390,7 @@ func markCompacted(rw *readerWriter, tenantID string, oldBlocks, newBlocks []*ba
 	return nil
 }
 
-func measureOutstandingBlocks(tenantID string, blockSelector blockselector.CompactionBlockSelector, owned func(hash string) bool) {
+func MeasureOutstandingBlocks(tenantID string, blockSelector blockselector.CompactionBlockSelector, owned func(hash string) bool) {
 	// count number of per-tenant outstanding blocks before next maintenance cycle
 	var totalOutstandingBlocks int
 	for {
