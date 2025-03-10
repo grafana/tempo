@@ -484,7 +484,7 @@ defaults:
 * [ENHANCEMENT] Add histogram buckets to metrics-generator config in user-configurable overrides [#2928](https://github.com/grafana/tempo/pull/2928) (@mar4uk)
 * [ENHANCEMENT] Adds websocket support for search streaming. [#2971](https://github.com/grafana/tempo/pull/2840) (@joe-elliott)
 * [ENHANCEMENT] Add new config block to distributors to produce debug metrics. [#3008](https://github.com/grafana/tempo/pull/3008) (@joe-elliott)
-  **Breaking Change** Removed deprecated config option: distributor.log_received_spans
+  **Breaking Change** Removed deprecated config option: distributor.log_received_traces
 * [ENHANCEMENT] added a metrics generator config option to enable/disable X-Scope-OrgID headers on remote write. [#2974](https://github.com/grafana/tempo/pull/2974) (@vineetjp)
 * [ENHANCEMENT] Correctly return RetryInfo to Otel Collector/Grafana Agent on ResourceExhausted. This allows the agents to honor their own retry
   settings. [#3019](https://github.com/grafana/tempo/pull/3019) (@joe-elliott)
