@@ -1,27 +1,24 @@
 package work
 
 import (
-	"errors"
 	"sort"
 	"sync"
 	"time"
 )
 
-var ErrJobAlreadyExists = errors.New("job already exists")
-
-type Queue struct {
+type Work struct {
 	jobs    map[string]*Job
 	jobsMtx sync.RWMutex
 }
 
-func NewQueue() *Queue {
-	return &Queue{
+func New() *Work {
+	return &Work{
 		// track jobs, keyed by job ID
 		jobs: make(map[string]*Job),
 	}
 }
 
-func (q *Queue) AddJob(j *Job) error {
+func (q *Work) AddJob(j *Job) error {
 	q.jobsMtx.Lock()
 	defer q.jobsMtx.Unlock()
 
@@ -36,7 +33,7 @@ func (q *Queue) AddJob(j *Job) error {
 	return nil
 }
 
-func (q *Queue) GetJob(id string) *Job {
+func (q *Work) GetJob(id string) *Job {
 	q.jobsMtx.RLock()
 	defer q.jobsMtx.RUnlock()
 
@@ -47,14 +44,14 @@ func (q *Queue) GetJob(id string) *Job {
 	return nil
 }
 
-func (q *Queue) RemoveJob(id string) {
+func (q *Work) RemoveJob(id string) {
 	q.jobsMtx.Lock()
 	defer q.jobsMtx.Unlock()
 
 	delete(q.jobs, id)
 }
 
-func (q *Queue) Jobs() []*Job {
+func (q *Work) Jobs() []*Job {
 	q.jobsMtx.RLock()
 	defer q.jobsMtx.RUnlock()
 
@@ -71,14 +68,33 @@ func (q *Queue) Jobs() []*Job {
 	return jobs
 }
 
-func (q *Queue) Prune() {
+func (q *Work) Prune() {
 	q.jobsMtx.Lock()
 	defer q.jobsMtx.Unlock()
 
 	for id, j := range q.jobs {
 		switch j.Status() {
 		case JobStatusCompleted, JobStatusFailed:
-			delete(q.jobs, id)
+			// Keep the completed jobs around a while so as not to recreate them
+			// before the blocklist has been updated.
+			if time.Since(j.EndTime()) > time.Hour {
+				delete(q.jobs, id)
+			}
 		}
 	}
+}
+
+func (q *Work) Len() int {
+	q.jobsMtx.RLock()
+	defer q.jobsMtx.RUnlock()
+
+	var count int
+	for _, j := range q.jobs {
+		if j.Status() == JobStatusCompleted || j.Status() == JobStatusFailed {
+			continue
+		}
+		count++
+	}
+
+	return len(q.jobs)
 }
