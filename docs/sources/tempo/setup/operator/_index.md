@@ -47,4 +47,4 @@ The operator Kubernetes manifest installation files use cert-manger `v1` custom 
 ## Community
 
 * Reach out to us on [#tempo-operator](https://grafana.slack.com/archives/C0414EUU39A) Grafana Slack channel.
-* Participate on [Tempo community call]({{< relref "../../community" >}}).
+* Participate on [Tempo community call](../../community/).

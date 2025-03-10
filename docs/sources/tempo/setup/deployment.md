@@ -26,7 +26,7 @@ _Monolithic mode_ was previously called _single binary mode_. Similarly _scalabl
 Monolithic mode deployment runs all top-level components in a single
 process, forming an instance of Tempo. The monolithic mode is the simplest
 to deploy, but can not horizontally scale out by increasing the quantity of
-components. Refer to [Architecture]({{< relref "../operations/architecture" >}}) for
+components. Refer to [Architecture](../../operations/architecture/) for
 descriptions of the components.
 
 To enable this mode, `-target=all` is used, which is the default.
@@ -60,8 +60,7 @@ deployment, but it is also the most complex.
 The configuration associated with each component's deployment specifies a
 `target`. For example, to deploy a `querier`, the configuration would contain
 `target: querier`. A command-line deployment may specify the `-target=querier`
-flag. Each of the components referenced in [Architecture]({{< relref
-"../operations/architecture" >}}) must be deployed in order to get a working Tempo
+flag. Each of the components referenced in [Architecture](../../operations/architecture/) must be deployed in order to get a working Tempo
 instance.
 
 Find a docker-compose deployment example at:
@@ -91,7 +90,7 @@ In addition, several Helm chart examples are available in the Tempo repository.
 The operator is available in [grafana/tempo-operator](https://github.com/grafana/tempo-operator) repository.
 The operator reconciles `TempoStack` resource to deploy and manage Tempo microservices installation.
 
-Refer to the [operator documentation]({{< relref "./operator" >}}) for more details.
+Refer to the [operator documentation](../operator/) for more details.
 
 ### Tanka/Jsonnet
 

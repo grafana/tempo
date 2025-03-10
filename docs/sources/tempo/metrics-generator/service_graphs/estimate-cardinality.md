@@ -11,7 +11,7 @@ Cardinality can pose a problem when you have lots of services.
 There isn't a direct formula or solution to this issue.
 The following guide should help estimate the cardinality that the feature will generate.
 
-For more information on cardinality, refer to the [Cardinality]({{< relref "../cardinality" >}}) documentation.
+For more information on cardinality, refer to the [Cardinality](../../cardinality/) documentation.
 
 ### How to estimate the cardinality
 
@@ -27,7 +27,7 @@ We can’t calculate the amount of hops automatically based upon the nodes,
 but it should be a value between `#services - 1` and `#services!`.
 
 If we know the amount of hops in a system, we can calculate the cardinality of the generated
-[service graphs]({{< relref "../service_graphs" >}}) (assuming `#hb` is the number of histogram buckets):
+[service graphs](../) (assuming `#hb` is the number of histogram buckets):
 
 ```
   traces_service_graph_request_total: #hops
@@ -60,5 +60,5 @@ In that case, the estimation formula would be:
 {{< /admonition >}}
 
 {{< admonition type="note" >}}
-To estimate the number of metrics, refer to the [Dry run metrics generator]({{< relref "../cardinality" >}}) documentation.
+To estimate the number of metrics, refer to the [Dry run metrics generator](../../cardinality/) documentation.
 {{< /admonition >}}

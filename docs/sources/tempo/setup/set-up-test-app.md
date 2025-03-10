@@ -9,7 +9,7 @@ weight: 600
 
 Once you've set up a Grafana Tempo cluster, you need to write some traces to it and then query the traces from within Grafana.
 This procedure uses Tempo in microservices mode.
-For example, if you [set up Tempo using the Kubernetes with Tanka procedure]({{< relref "./tanka" >}}), then you can use this procedure to test your set up.
+For example, if you [set up Tempo using the Kubernetes with Tanka procedure](../tanka/), then you can use this procedure to test your set up.
 
 ## Before you begin
 
@@ -109,7 +109,7 @@ You should see a message that says `Data source is working`.
 ## Visualize your data
 
 After you have created a data source, you can visualize your traces in the **Grafana Explore** page.
-For more information, refer to [Tempo in Grafana]({{< relref "../getting-started/tempo-in-grafana" >}}).
+For more information, refer to [Tempo in Grafana](../../getting-started/tempo-in-grafana/).
 
 ### Use OpenTelemetry `telemetrygen` to generate tracing data
 
