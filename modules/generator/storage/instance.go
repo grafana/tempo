@@ -59,7 +59,10 @@ var _ Storage = (*storageImpl)(nil)
 // TODO the passed logger does not include any other context attribute
 // Should we standarize slog and deprecate go-kit/log too?
 func New(cfg *Config, o Overrides, tenant string, reg prometheus.Registerer, _ log.Logger) (Storage, error) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil)).With("tenant", tenant)
+	// TODO move this to the generator.go
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource: true,
+	})).With("tenant", tenant)
 	reg = prometheus.WrapRegistererWith(prometheus.Labels{"tenant": tenant}, reg)
 
 	walDir := filepath.Join(cfg.Path, tenant)
