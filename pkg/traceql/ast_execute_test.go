@@ -1951,6 +1951,34 @@ func TestSpansetExistence(t *testing.T) {
 			},
 			matches: true,
 		},
+		// .foo exists but flip the query - test symmetric
+		{
+			query: `{ nil != .duration }`,
+			span: &mockSpan{
+				attributes: map[Attribute]Static{
+					NewAttribute("duration"): NewStaticDuration(time.Minute),
+				},
+			},
+			matches: true,
+		},
+		{
+			query: `{ nil != .bar }`,
+			span: &mockSpan{
+				attributes: map[Attribute]Static{
+					NewAttribute("bar"): NewStaticString("bzz"),
+				},
+			},
+			matches: true,
+		},
+		{
+			query: `{ nil != .float }`,
+			span: &mockSpan{
+				attributes: map[Attribute]Static{
+					NewAttribute("float"): NewStaticFloat(2.0),
+				},
+			},
+			matches: true,
+		},
 	}
 	for _, tt := range tests {
 		// create a evalTC and use testEvaluator
