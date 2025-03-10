@@ -221,6 +221,10 @@ func (w *GenericWriter[T]) Schema() *Schema {
 	return w.base.Schema()
 }
 
+func (w *GenericWriter[T]) ColumnWriters() []ValueWriter {
+	return w.base.ColumnWriters()
+}
+
 func (w *GenericWriter[T]) writeRows(rows []T) (int, error) {
 	if cap(w.base.rowbuf) < len(rows) {
 		w.base.rowbuf = make([]Row, len(rows))
@@ -484,6 +488,11 @@ func (w *Writer) SetKeyValueMetadata(key, value string) {
 	})
 }
 
+// ColumnWriters returns writers for each column. This allows applications to
+// write values directly to each column instead of having to first assemble
+// values into rows to use WriteRows.
+func (w *Writer) ColumnWriters() []ValueWriter { return w.writer.valueWriters }
+
 type writerFileView struct {
 	writer *writer
 	schema *Schema
@@ -563,10 +572,11 @@ type writer struct {
 	createdBy string
 	metadata  []format.KeyValue
 
-	columns     []*writerColumn
-	columnChunk []format.ColumnChunk
-	columnIndex []format.ColumnIndex
-	offsetIndex []format.OffsetIndex
+	columns      []*writerColumn
+	valueWriters []ValueWriter
+	columnChunk  []format.ColumnChunk
+	columnIndex  []format.ColumnIndex
+	offsetIndex  []format.OffsetIndex
 
 	columnOrders   []format.ColumnOrder
 	schemaElements []format.SchemaElement
@@ -753,6 +763,10 @@ func newWriter(output io.Writer, config *WriterConfig) *writer {
 
 	for i, c := range w.columns {
 		w.columnOrders[i] = *c.columnType.ColumnOrder()
+	}
+	w.valueWriters = make([]ValueWriter, len(w.columns))
+	for i, c := range w.columns {
+		w.valueWriters[i] = c
 	}
 
 	return w
