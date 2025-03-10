@@ -9,7 +9,7 @@ weight: 15
 
 Server-side metrics is a feature that derive metrics from ingested traces.
 
-To generate metrics, it uses an additional component: the [metrics-generator]({{< relref "../metrics-generator" >}}).
+To generate metrics, it uses an additional component: the [metrics-generator](../../metrics-generator/).
 If present, the distributor will write received spans to both the ingester and the metrics-generator.
 The metrics-generator processes spans and writes metrics to a Prometheus datasource using the Prometheus remote write protocol.
 
@@ -54,4 +54,4 @@ This results in a clean division of responsibility and limits the blast radius f
 
 ## Configuration
 
-For a detailed view of all the config options for the metrics generator, visit [its config page]({{< relref "../configuration#metrics-generator" >}}).
+For a detailed view of all the config options for the metrics generator, visit [its config page](../../configuration/#metrics-generator).

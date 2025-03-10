@@ -15,15 +15,15 @@ You will need those components to fully use service graphs.
 
 {{< admonition type="note" >}}
 Cardinality can pose a problem when you have lots of services.
-To learn more about cardinality and how to perform a dry run of the metrics generator, see the [Cardinality documentation]({{< relref "../cardinality" >}}).
+To learn more about cardinality and how to perform a dry run of the metrics generator, see the [Cardinality documentation](../../cardinality/).
 {{% /admonition %}}
 
 ### Enable service graphs in Tempo/GET
 
 To enable service graphs in Tempo/GET, enable the metrics generator and add an overrides section which enables the `service-graphs` generator.
-For more information, refer to the [configuration details]({{< relref "../../configuration#metrics-generator" >}}).
+For more information, refer to the [configuration details](../../../configuration/#metrics-generator).
 
-To enable service graphs when using Grafana Agent, refer to the [Grafana Agent and service graphs documentation]({{< relref "../../configuration/grafana-agent/service-graphs" >}}).
+To enable service graphs when using Grafana Agent, refer to the [Grafana Agent and service graphs documentation](../../../configuration/grafana-agent/service-graphs/).
 
 ### Enable service graphs in Grafana
 

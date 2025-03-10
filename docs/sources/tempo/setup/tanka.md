@@ -328,7 +328,7 @@ Install the `k.libsonnet`, Jsonnet, and Memcachd libraries.
 
 ### Optional: Enable metrics-generator
 
-In the preceding configuration, [metrics generation]({{< relref "../configuration#metrics-generator" >}}) is enabled. However, you still need to specify where to send the generated metrics data.
+In the preceding configuration, [metrics generation](../../configuration/#metrics-generator) is enabled. However, you still need to specify where to send the generated metrics data.
 If you'd like to remote write these metrics onto a Prometheus compatible instance (such as Grafana Cloud metrics or a Mimir instance), you'll need to include the configuration block below in the `metrics_generator` section of the `tempo_config` block above (this assumes basic auth is required, if not then remove the `basic_auth` section).
 You can find the details for your Grafana Cloud metrics instance for your Grafana Cloud account by using the [Cloud Portal](/docs/grafana-cloud/account-management/cloud-portal/).
 
@@ -347,7 +347,7 @@ storage+: {
 },
 ```
 
->**Note**: Enabling metrics generation and remote writing them to Grafana Cloud Metrics will produce extra active series that could potentially impact your billing. For more information on billing, refer to [Billing and usage](/docs/grafana-cloud/billing-and-usage/). For more information on metrics generation, refer [Metrics-generator]({{< relref "../metrics-generator" >}}) in the Tempo documentation.
+>**Note**: Enabling metrics generation and remote writing them to Grafana Cloud Metrics will produce extra active series that could potentially impact your billing. For more information on billing, refer to [Billing and usage](/docs/grafana-cloud/billing-and-usage/). For more information on metrics generation, refer [Metrics-generator](../../metrics-generator/) in the Tempo documentation.
 
 
 ### Optional: Reduce component system requirements
@@ -404,4 +404,4 @@ The Tempo instance will now accept the two configured trace protocols (OTLP gRPC
 
 You can query Tempo using the `query-frontend.tempo.svc.cluster.local` service on port `3200` for Tempo queries or port `16686` or `16687` for Jaeger type queries.
 
-Now that you've configured a Tempo cluster, you'll need to get data into it. Read the [Set up a test app]({{< relref "./set-up-test-app" >}}) for instructions.
+Now that you've configured a Tempo cluster, you'll need to get data into it. Read the [Set up a test app](../set-up-test-app/) for instructions.

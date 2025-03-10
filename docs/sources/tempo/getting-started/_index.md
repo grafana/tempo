@@ -10,7 +10,7 @@ aliases:
 # Get started with Grafana Tempo
 
 Distributed tracing visualizes the lifecycle of a request as it passes through a set of applications.
-For more information about traces, refer to [Introduction to traces]({{< relref "../introduction" >}}). 
+For more information about traces, refer to [Introduction to traces](../introduction/). 
 
 Grafana Tempo is an open source, easy-to-use, and high-scale distributed tracing backend. Tempo lets you search for traces, generate metrics from spans, and link your tracing data with logs and metrics.
 
@@ -31,7 +31,7 @@ Client instrumentation is the process of adding instrumentation points in the ap
 create and offload spans.
 
 {{< admonition type="note" >}}
-To learn more about instrumentation, read the [Instrument for tracing]({{< relref "./instrumentation" >}}) documentation to learn how to instrument your favorite language for distributed tracing.
+To learn more about instrumentation, read the [Instrument for tracing](instrumentation/) documentation to learn how to instrument your favorite language for distributed tracing.
 {{% /admonition %}}
 
 ## Pipeline (Grafana Alloy)
@@ -48,7 +48,7 @@ a storage backend.
 Alloy also abstracts features like trace batching to a remote trace backend store, including retries on write failures.
 
 To learn more about Grafana Alloy and how to set it up for tracing with Tempo,
-refer to [Grafana Alloy configuration for tracing]({{< relref "../configuration/grafana-alloy" >}}).
+refer to [Grafana Alloy configuration for tracing](../configuration/grafana-alloy/).
 
 {{< admonition type="note" >}}
 The [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector) / [Jaeger Agent](https://www.jaegertracing.io/docs/latest/deployment/) can also be used at the agent layer.
@@ -63,11 +63,11 @@ The tracing backend stores and retrieves traces on demand.
 
 Getting started with Tempo is easy.
 
-First, check out the [examples]({{< relref "./example-demo-app" >}}) for ideas on how to get started with Tempo.
+First, check out the [examples](example-demo-app/) for ideas on how to get started with Tempo.
 
-Next, review the [Setup documentation]({{< relref "../setup" >}}) for step-by-step instructions for setting up Tempo and creating a test application.
+Next, review the [Setup documentation](../setup/) for step-by-step instructions for setting up Tempo and creating a test application.
 
-Tempo offers different deployment options, depending upon your needs. Refer to the [plan your deployment]({{< relref "../setup/deployment" >}}) section for more information
+Tempo offers different deployment options, depending upon your needs. Refer to the [plan your deployment](../setup/deployment/) section for more information
 
 {{< admonition type="note" >}}
 Grafana Alloy is already set up to use Tempo.
@@ -77,4 +77,4 @@ Refer to [Grafana Alloy configuration for tracing](https://grafana.com/docs/temp
 ## Visualization (Grafana)
 
 Grafana has a built-in Tempo data source that can be used to query Tempo and visualize traces.
-For more information, refer to the [Tempo data source](/docs/grafana/latest/datasources/tempo) and the [Tempo in Grafana]({{< relref "./tempo-in-grafana" >}}) topics.
+For more information, refer to the [Tempo data source](/docs/grafana/latest/datasources/tempo) and the [Tempo in Grafana](tempo-in-grafana/) topics.

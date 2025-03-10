@@ -8,7 +8,7 @@ weight: 300
 # Apache Parquet block format
 
 
-Tempo has a default columnar block format based on Apache Parquet. This format is required for tags-based search as well as [TraceQL]({{< relref "../traceql" >}}), the query language for traces. The columnar block format improves search performance and enables a large ecosystem of tools to access the underlying trace data.
+Tempo has a default columnar block format based on Apache Parquet. This format is required for tags-based search as well as [TraceQL](../../traceql/), the query language for traces. The columnar block format improves search performance and enables a large ecosystem of tools to access the underlying trace data.
 
 For more information, refer to the [Parquet design document](https://github.com/grafana/tempo/blob/main/docs/design-proposals/2022-04%20Parquet.md) and [Issue 1480](https://github.com/grafana/tempo/issues/1480).
 Additionally, there is now a [Parquet v3 design document](https://github.com/grafana/tempo/blob/main/docs/design-proposals/2023-05%20vParquet3.md).
@@ -26,7 +26,7 @@ Block formats based on Parquet require more CPU and memory resources than the pr
 The default block format is `vParquet3`, which is the latest iteration of the Parquet-based columnar block format in Tempo.
 It introduces dedicated attribute columns, which improve query performance by storing attributes in own columns,
 rather than in the generic attribute key-value list.
-For more information, see [Dedicated attribute columns]({{< relref "../operations/tempo_cli" >}}).
+For more information, see [Dedicated attribute columns](../../operations/tempo_cli/).
 
 You can also use the latest more experimental version `vParquet4`.
 To enable it, set the block version option to `vParquet4` in the Storage section of the configuration file.
@@ -48,7 +48,7 @@ To re-enable the default `vParquet3` format, remove the block version option fro
 ## Parquet configuration parameters
 
 Some parameters in the Tempo configuration are specific to Parquet.
-For more information, refer to the [storage configuration documentation]({{< relref "../configuration#storage" >}}).
+For more information, refer to the [storage configuration documentation](../#storage).
 
 ### Trace search parameters
 
@@ -73,4 +73,4 @@ The `cache_control` section contains the follow parameters for Parquet metadata 
 
 If you have used an earlier version of the Parquet format, you can use `tempo-cli` to convert a Parquet file from its existing schema to the one used in Tempo 2.0.
 
-For instructions, refer to the [Parquet convert command documentation]({{< relref "../operations/tempo_cli#parquet-convert-command" >}}).
+For instructions, refer to the [Parquet convert command documentation](../../operations/tempo_cli/#parquet-convert-command).

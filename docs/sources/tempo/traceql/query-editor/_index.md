@@ -24,7 +24,7 @@ To learn more about Grafana dashboards, refer to the [Use dashboards documentati
 
 The TraceQL query builder, located on the **Explore** > **Query type** > **Search** in Grafana, provides drop-downs and text fields to help you write a query.
 
-Refer to the [Search using the TraceQL query builder documentation]({{< relref "./traceql-search" >}}) to learn more about creating queries using convenient drop-down menus.
+Refer to the [Search using the TraceQL query builder documentation](traceql-search/) to learn more about creating queries using convenient drop-down menus.
 
 ![The TraceQL query builder](/static/img/docs/tempo/screenshot-traceql-query-type-search-v10.png)
 
@@ -33,6 +33,6 @@ Refer to the [Search using the TraceQL query builder documentation]({{< relref "
 
 The TraceQL query editor, located on the **Explore** > **TraceQL** tab in Grafana, lets you search by trace ID and write TraceQL queries using autocomplete.
 
-Refer to the [TraceQL query editor documentation]({{< relref "./traceql-editor" >}}) to learn more about constructing queries using a code-editor-like experience.
+Refer to the [TraceQL query editor documentation](traceql-editor/) to learn more about constructing queries using a code-editor-like experience.
 
 ![The TraceQL query editor](/static/img/docs/tempo/screenshot-traceql-query-editor-v10.png)

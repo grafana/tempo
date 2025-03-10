@@ -16,17 +16,17 @@ In addition, the [Tempo runbook](https://github.com/grafana/tempo/blob/main/oper
 
 ## Sending traces
 
-- [Spans are being refused with "pusher failed to consume trace data"]({{< relref "./max-trace-limit-reached" >}})
-- [Is the Grafana Agent sending to the backend?]({{< relref "./agent" >}})
+- [Spans are being refused with "pusher failed to consume trace data"](max-trace-limit-reached/)
+- [Is the Grafana Agent sending to the backend?](agent/)
 
 ## Querying
 
-- [Unable to find my traces in Tempo]({{< relref "./unable-to-see-trace" >}})
-- [Error message "Too many jobs in the queue"]({{< relref "./too-many-jobs-in-queue" >}})
-- [Queries fail with 500 and "error using pageFinder"]({{< relref "./bad-blocks" >}})
-- [I can search traces, but there are no service name or span name values available]({{< relref "./search-tag" >}})
-- [Error message `response larger than the max (<number> vs <limit>)`]({{< relref "./response-too-large" >}})
+- [Unable to find my traces in Tempo](unable-to-see-trace/)
+- [Error message "Too many jobs in the queue"](too-many-jobs-in-queue/)
+- [Queries fail with 500 and "error using pageFinder"](bad-blocks/)
+- [I can search traces, but there are no service name or span name values available](search-tag/)
+- [Error message `response larger than the max (<number> vs <limit>)`](response-too-large/)
 
 ## Metrics Generator
 
-- [Metrics or service graphs seem incomplete]({{< relref "./metrics-generator" >}})
+- [Metrics or service graphs seem incomplete](metrics-generator/)

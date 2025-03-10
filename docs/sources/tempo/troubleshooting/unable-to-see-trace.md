@@ -108,7 +108,7 @@ If the pipeline isn't reporting any dropped spans, check whether application spa
 - If more ingestion volume is needed, increase the configuration for the rate limiting, by adding this CLI flag to Tempo at startup - https://github.com/grafana/tempo/blob/78f3554ca30bd5a4dec01629b8b7b2b0b2b489be/modules/overrides/limits.go#L42
 
 {{< admonition type="note" >}}
-Check the [ingestion limits page]({{< relref "../configuration#ingestion-limits" >}}) for further information on limits.
+Check the [ingestion limits page](../../configuration/#ingestion-limits) for further information on limits.
 {{% /admonition %}}
 
 ## Section 3: Diagnose and fix issues with querying traces

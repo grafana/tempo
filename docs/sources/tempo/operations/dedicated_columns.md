@@ -75,4 +75,4 @@ top N attributes by size for a given block or all blocks in a tenant.
 tempo-cli analyse blocks --backend=local --bucket=./cmd/tempo-cli/test-data/ single-tenant
 ```
 
-Refer to the [tempo-cli documentation]({{< relref "./tempo_cli" >}}) for more information.
+Refer to the [tempo-cli documentation](../tempo_cli/) for more information.

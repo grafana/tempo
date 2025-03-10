@@ -18,7 +18,7 @@ TraceQL language provides metrics queries as an experimental feature.
 Metric queries extend trace queries by applying a function to trace query results.
 This powerful feature creates metrics from traces, much in the same way that LogQL metric queries create metrics from logs.
 
-For more information about available queries, refer to [TraceQL metrics queries]({{< relref "../traceql/metrics-queries" >}}).
+For more information about available queries, refer to [TraceQL metrics queries](../../traceql/metrics-queries/).
 
 ## Before you begin
 
@@ -40,7 +40,7 @@ overrides:
 
 To configure the processor per tenant, use the `metrics_generator.processor` override. 
 
-For more information about overrides, refer to [Standard overrides]({{< relref "../configuration#standard-overrides" >}}).
+For more information about overrides, refer to [Standard overrides](../../configuration/#standard-overrides).
 
 ### Configure the processor
 
@@ -61,7 +61,7 @@ Here is an example configuration:
 If you configured Tempo using the `tempo-distributed` Helm chart, you can also set `traces_storage` using your `values.yaml` file. Refer to the [Helm chart for an example](https://github.com/grafana/helm-charts/blob/559ecf4a9c9eefac4521454e7a8066778e4eeff7/charts/tempo-distributed/values.yaml#L362).
 
 
-Refer to the [metrics-generator configuration]({{< relref "../configuration#metrics-generator" >}}) documentation for more information.
+Refer to the [metrics-generator configuration](../../configuration/#metrics-generator) documentation for more information.
 
 ## Evaluate query timeouts
 
