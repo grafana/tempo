@@ -277,6 +277,7 @@ func (c *Compactor) finishBlock(ctx context.Context, block *streamingBlock, l lo
 		"bloomShardCount", block.meta.BloomShardCount,
 		"footerSize", block.meta.FooterSize,
 		"replicationFactor", block.meta.ReplicationFactor,
+		"dedicatedColumns", fmt.Sprintf("%+v", block.meta.DedicatedColumns),
 	)
 
 	span.AddEvent("wrote compacted block")
