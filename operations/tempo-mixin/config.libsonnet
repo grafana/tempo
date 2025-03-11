@@ -28,6 +28,8 @@
       // Partition lag thresholds in seconds
       partition_lag_warning_seconds: 300,  // 5 minutes
       partition_lag_critical_seconds: 900,  // 15 minutes
+      // Filter for consumer groups to monitor for partition lag
+      partition_lag_group_filter: 'metrics-generator|block-builder',
     },
 
     per_cluster_label: 'cluster',
