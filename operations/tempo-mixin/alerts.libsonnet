@@ -268,7 +268,7 @@
           {
             alert: 'TempoPartitionLagWarning',
             expr: |||
-              max by (%s, group, partition) (tempo_ingest_group_partition_lag_seconds{namespace=~"%s", group=~"metrics-generator|block-builder"}) > %d
+              max by (%s, group, partition) (tempo_ingest_group_partition_lag_seconds{namespace=~"%s"}) > %d
             ||| % [$._config.group_by_cluster, $._config.namespace, $._config.alerts.partition_lag_warning_seconds],
             'for': '5m',
             labels: {
@@ -282,7 +282,7 @@
           {
             alert: 'TempoPartitionLagCritical',
             expr: |||
-              max by (%s, group, partition) (tempo_ingest_group_partition_lag_seconds{namespace=~"%s", group=~"metrics-generator|block-builder"}) > %d
+              max by (%s, group, partition) (tempo_ingest_group_partition_lag_seconds{namespace=~"%s"}) > %d
             ||| % [$._config.group_by_cluster, $._config.namespace, $._config.alerts.partition_lag_critical_seconds],
             'for': '5m',
             labels: {
