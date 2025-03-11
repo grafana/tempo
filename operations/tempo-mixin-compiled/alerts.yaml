@@ -167,3 +167,21 @@
     "for": "5m"
     "labels":
       "severity": "critical"
+  - "alert": "TempoPartitionLagWarning"
+    "annotations":
+      "message": "Tempo partition {{ $labels.partition }} in consumer group {{ $labels.group }} is lagging by more than 300 seconds in {{ $labels.cluster }}/{{ $labels.namespace }}."
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag"
+    "expr": |
+      max by (cluster, namespace, group, partition) (tempo_ingest_group_partition_lag_seconds{namespace=~".*"}) > 300
+    "for": "5m"
+    "labels":
+      "severity": "warning"
+  - "alert": "TempoPartitionLagCritical"
+    "annotations":
+      "message": "Tempo partition {{ $labels.partition }} in consumer group {{ $labels.group }} is lagging by more than 900 seconds in {{ $labels.cluster }}/{{ $labels.namespace }}."
+      "runbook_url": "https://github.com/grafana/tempo/tree/main/operations/tempo-mixin/runbook.md#TempoPartitionLag"
+    "expr": |
+      max by (cluster, namespace, group, partition) (tempo_ingest_group_partition_lag_seconds{namespace=~".*"}) > 900
+    "for": "5m"
+    "labels":
+      "severity": "critical"

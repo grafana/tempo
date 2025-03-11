@@ -27,7 +27,7 @@
       outstanding_blocks_critical: 250,
       // Partition lag thresholds in seconds
       partition_lag_warning_seconds: 300,  // 5 minutes
-      partition_lag_critical_seconds: 900, // 15 minutes
+      partition_lag_critical_seconds: 900,  // 15 minutes
     },
 
     per_cluster_label: 'cluster',
