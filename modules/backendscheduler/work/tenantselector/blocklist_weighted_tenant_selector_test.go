@@ -64,12 +64,25 @@ func Test_BlockListWeightedTenantSelector_PriorityForTenant_single(t *testing.T)
 				{
 					ID:                         "tenant2",
 					BlocklistLength:            1,
-					OutstanidngBlocklistLength: 0,
+					OutstanidngBlocklistLength: 1,
 					LastWork:                   time.Now().Add(-1 * time.Minute),
 				},
 			},
 			expectedTenant:   "tenant2",
 			expectedPriority: 1,
+		},
+		{
+			name: "A tenant with 0 blocks has zero priority",
+			tenants: []Tenant{
+				{
+					ID:                         "tenant1",
+					BlocklistLength:            0,
+					OutstanidngBlocklistLength: 0,
+					LastWork:                   time.Now().Add(-1 * time.Minute),
+				},
+			},
+			expectedTenant:   "tenant1",
+			expectedPriority: 0,
 		},
 	}
 	for _, tt := range tests {
@@ -81,7 +94,7 @@ func Test_BlockListWeightedTenantSelector_PriorityForTenant_single(t *testing.T)
 			for _, tenant := range tt.tenants {
 
 				got := s.PriorityForTenant(tenant.ID)
-				if got > maxPriority {
+				if got == 0 || got > maxPriority {
 					maxPriority = got
 					priorityTenant = tenant.ID
 				}

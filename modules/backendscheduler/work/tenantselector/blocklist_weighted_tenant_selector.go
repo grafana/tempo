@@ -34,7 +34,7 @@ func (s *BlockListWeightedTenantSelector) PriorityForTenant(tenantID string) int
 		since       = float64(time.Since(s.tenants[tenantID].LastWork).Minutes()) * LastWorkWeight
 	)
 
-	if length == 0 {
+	if length == 0 || outstanding == 0 {
 		return 0
 	}
 
