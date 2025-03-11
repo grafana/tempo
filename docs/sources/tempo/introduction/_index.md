@@ -11,6 +11,7 @@ keywords:
 title: Introduction
 weight: 120
 ---
+<!-- Introduction pages are mounted in Grafana Drilldown, Cloud Traces, and in GET. Refer to params.yaml in the website repo. -->
 
 # Introduction
 

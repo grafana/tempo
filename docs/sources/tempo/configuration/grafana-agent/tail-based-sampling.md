@@ -18,9 +18,9 @@ Probabilistic sampling strategies are easy to implement,
 but also run the risk of discarding relevant data that you'll later want.
 
 Tail-based sampling works with Grafana Agent in Flow or static modes.
-Flow mode configuration files are [written in River](/docs/agent/latest/flow/concepts/config-language).
-Static mode configuration files are [written in YAML](/docs/agent/latest/static/configuration).
-Examples in this document are for Flow mode. You can also use the [Static mode Kubernetes operator](/docs/agent/latest/operator).
+Flow mode configuration files are [written in River](/docs/agent/<AGENT_VERSION>/flow/concepts/config-language).
+Static mode configuration files are [written in YAML](/docs/agent/<AGENT_VERSION>/static/configuration).
+Examples in this document are for Flow mode. You can also use the [Static mode Kubernetes operator](/docs/agent/<AGENT_VERSION>/operator).
 
 ## How tail-based sampling works
 
@@ -57,7 +57,7 @@ This overhead increases with the number of Agent instances that share the same t
 To start using tail-based sampling, define a sampling policy.
 If you're using a multi-instance deployment of the agent,
 add load balancing and specify the resolving mechanism to find other Agents in the setup.
-To see all the available configuration options, refer to the [configuration reference](/docs/agent/latest/configuration/traces-config/).
+To see all the available configuration options, refer to the [configuration reference](/docs/agent/<AGENT_VERSION>/configuration/traces-config/).
 
 {{< admonition type="note">}}
 Grafana Alloy provides tooling to convert your Agent Static or Flow configuration files into a format that can be used by Alloy.
@@ -67,10 +67,10 @@ For more information, refer to [Migrate to Alloy](https://grafana.com/docs/tempo
 
 ### Example for Grafana Agent Flow
 
-[Grafana Agent Flow](/docs/agent/latest/flow/) is a component-based revision of Grafana Agent with a focus on ease-of-use, debuggability, and ability to adapt to the needs of power users.
+[Grafana Agent Flow](/docs/agent/<AGENT_VERSION>/flow/) is a component-based revision of Grafana Agent with a focus on ease-of-use, debuggability, and ability to adapt to the needs of power users.
 Flow configuration files are written in River instead of YAML.
 
-Grafana Agent Flow uses the [`otelcol.processor.tail_sampling component`](/docs/agent/latest/flow/reference/components/otelcol.processor.tail_sampling/)` for tail-based sampling.
+Grafana Agent Flow uses the [`otelcol.processor.tail_sampling component`](/docs/agent/<ALLOY_VERSION>/flow/reference/components/otelcol/otelcol.processor.tail_sampling/)` for tail-based sampling.
 
 ```river
 otelcol.receiver.otlp "otlp_receiver" {

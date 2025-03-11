@@ -13,6 +13,7 @@ killercoda:
     backend:
     imageid: ubuntu
 ---
+<!-- Page is excluded from mounting in GET docs. Refer to params.yaml in the website repo. -->
 
 <!-- INTERACTIVE page intro.md START -->
 

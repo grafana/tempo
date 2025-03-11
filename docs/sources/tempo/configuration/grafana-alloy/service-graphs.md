@@ -63,7 +63,7 @@ otelcol.exporter.otlp "default" {
 }
 ```
 
-To see all the available configuration options, refer to the [component reference](https://grafana.com/docs/alloy/latest/reference/components/otelcol.connector.servicegraph/).
+To see all the available configuration options, refer to the [component reference](https://grafana.com/docs/alloy/<ALLOY_VERSION>/reference/components/otelcol/otelcol.connector.servicegraph/).
 
 ### Grafana
 

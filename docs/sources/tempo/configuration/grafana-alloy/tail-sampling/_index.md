@@ -14,9 +14,9 @@ There are a number of ways to lower trace volume, including varying sampling str
 
 Sampling is the process of determining which traces to store (in Tempo or Grafana Cloud Traces) and which to discard. Sampling comes in two different strategy types: head and tail sampling.
 
-Sampling functionality exists in both [Grafana Alloy](https://grafana.com/docs/alloy/) and the OpenTelemetry Collector. Alloy can collect, process, and export telemetry signals, with configuration files written in [Alloy configuration syntax](https://grafana.com/docs/alloy/<ALLOY_VERSION>/concepts/configuration-syntax/).
+Sampling functionality exists in both [Grafana Alloy](https://grafana.com/docs/alloy/) and the OpenTelemetry Collector. Alloy can collect, process, and export telemetry signals, with configuration files written in [Alloy configuration syntax](https://grafana.com/docs/alloy/<ALLOY_VERSION>/get-started/configuration-syntax/).
 
-Refer to [Enable tail sampling](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/enable-tail-sampling/) for instructions on how to enable tail sampling.
+Refer to [Enable tail sampling](https://grafana.com/docs/tempo/<TEMPO_VERSION>/configuration/grafana-alloy/tail-sampling/enable-tail-sampling/) for instructions.
 
 ## Head and tail sampling
 
