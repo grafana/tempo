@@ -51,7 +51,7 @@ For more information, refer to [Migrate to Alloy](https://grafana.com/docs/tempo
 
 To configure automatic logging, you need to select your preferred backend and the trace data to log.
 
-To see all the available configuration options, refer to the [configuration reference](https://grafana.com/docs/agent/latest/configuration/traces-config).
+To see all the available configuration options, refer to the [configuration reference](https://grafana.com/docs/agent/<AGENT_VERSION>/configuration/traces-config).
 
 This simple example logs trace roots to `stdout` and is a good way to get started using automatic logging:
 ```yaml

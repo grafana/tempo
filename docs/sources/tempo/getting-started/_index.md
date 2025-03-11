@@ -27,6 +27,7 @@ refs:
     - pattern: /docs/enterprise-traces/
       destination: https://grafana.com/docs/enterprise-traces/<ENTERPRISE_TRACES_VERSION>/setup/set-up-get-tenants/
 ---
+<!-- Get started pages are mounted in Grafana Drilldown and in GET. Refer to params.yaml in the website repo. -->
 
 # Get started
 

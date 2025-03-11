@@ -11,6 +11,8 @@ keywords:
   - TraceQL
 ---
 
+<!-- TraceQL pages are mounted in GET. Refer to params.yaml in the website repo. -->
+
 # TraceQL
 
 Inspired by PromQL and LogQL, TraceQL is a query language designed for selecting traces in Tempo. Currently, TraceQL query can select traces based on the following:

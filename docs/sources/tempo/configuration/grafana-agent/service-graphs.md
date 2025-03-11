@@ -47,7 +47,7 @@ traces:
         enabled: true
 ```
 
-To see all the available configuration options, refer to the [configuration reference](/docs/agent/latest/configuration/traces-config).
+To see all the available configuration options, refer to the [configuration reference](/docs/agent/<AGENT_VERSION>/configuration/traces-config).
 
 Metrics are registered in the Agent's default registerer.
 Therefore, they are exposed at `/metrics` in the Agent's server port (default `12345`).

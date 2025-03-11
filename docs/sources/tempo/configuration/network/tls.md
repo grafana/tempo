@@ -77,7 +77,8 @@ memberlist:
 
 ### Receiver TLS
 
-Additional receiver configuration can be added to support TLS communication for traces being sent to Tempo. The receiver configuration is pulled in from the Open Telemetry collector, and is [documented upstream here](https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/otlpreceiver/config.md#configtls-tlsserversetting). Addition TLS configuration of OTEL components can be found [here](https://github.com/open-telemetry/opentelemetry-collector/tree/main/config/configtls).
+Additional receiver configuration can be added to support TLS communication for traces being sent to Tempo. The receiver configuration is pulled in from the Open Telemetry collector, and is [documented upstream here](https://github.com/open-telemetry/opentelemetry-collector/blob/main/receiver/otlpreceiver/config.md#configtls-tlsserversetting).
+Addition TLS configuration of OTEL components can be found [here](https://github.com/open-telemetry/opentelemetry-collector/tree/main/config/configtls).
 
 An example `tls` block might look like the following:
 

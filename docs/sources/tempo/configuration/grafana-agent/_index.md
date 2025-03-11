@@ -3,7 +3,8 @@ title: Grafana Agent
 description: Configure the Grafana Agent to work with Tempo
 weight: 600
 aliases:
-- /docs/tempo/grafana-agent
+  - /docs/tempo/grafana-agent
+  - ../../grafana-agent # /docs/tempo/latest/grafana-agent
 ---
 
 # Grafana Agent
@@ -35,14 +36,14 @@ leverages all the data that's processed in the pipeline.
 
 Grafana Agent is available in two different variants:
 
-* [Static mode](/docs/agent/latest/static): The original Grafana Agent.
-* [Flow mode](/docs/agent/latest/flow): The new, component-based Grafana Agent.
+* [Static mode](/docs/agent/<AGENT_VERSION>/static): The original Grafana Agent.
+* [Flow mode](/docs/agent/<AGENT_VERSION>/flow): The new, component-based Grafana Agent.
 
-Grafana Agent Flow configuration files are [written in River](/docs/agent/latest/flow/concepts/config-language/).
-Static configuration files are [written in YAML](/docs/agent/latest/static/configuration/).
+Grafana Agent Flow configuration files are [written in River](/docs/agent/<AGENT_VERSION>/flow/concepts/config-language/).
+Static configuration files are [written in YAML](/docs/agent/<AGENT_VERSION>/static/configuration/).
 Examples in this document are for Flow mode.
 
-For more information, refer to the [Introduction to Grafana Agent](/docs/agent/latest/about/).
+For more information, refer to the [Introduction to Grafana Agent](/docs/agent/<AGENT_VERSION>/about/).
 
 ## Architecture
 
@@ -50,7 +51,7 @@ The Grafana Agent can be configured to run a set of tracing pipelines to collect
 Pipelines are built using OpenTelemetry,
 and consist of `receivers`, `processors`, and `exporters`.
 The architecture mirrors that of the OTel Collector's [design](https://github.com/open-telemetry/opentelemetry-collector/blob/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/design.md).
-See the [configuration reference](/agent/latest/static/configuration/traces-config/) for all available configuration options.
+See the [configuration reference](/agent/<AGENT_VERSION>/static/configuration/traces-config/) for all available configuration options.
 
 <p align="center"><img src="https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector/846b971758c92b833a9efaf742ec5b3e2fbd0c89/docs/images/design-pipelines.png" alt="Tracing pipeline architecture"></p>
 
@@ -75,13 +76,13 @@ The Grafana Agent processes tracing data as it flows through the pipeline to mak
 
 The Agent supports batching of traces.
 Batching helps better compress the data, reduces the number of outgoing connections, and is a recommended best practice.
-To configure it, refer to the `batch` block in the [configuration reference](/docs/agent/latest/configuration/traces-config).
+To configure it, refer to the `batch` block in the [configuration reference](/docs/agent/<AGENT_VERSION>/configuration/traces-config).
 
 #### Attributes manipulation
 
 The Grafana Agent allows for general manipulation of attributes on spans that pass through this agent.
 A common use may be to add an environment or cluster variable.
-To configure it, refer to the `attributes` block in the [configuration reference](/docs/agent/latest/configuration/traces-config).
+To configure it, refer to the `attributes` block in the [configuration reference](/docs/agent/<AGENT_VERSION>/configuration/traces-config).
 
 #### Attaching metadata with Prometheus Service Discovery
 
@@ -113,7 +114,7 @@ All of Prometheus' [various service discovery mechanisms](https://prometheus.io/
 This means you can use the same `scrape_configs` between your metrics, logs, and traces to get the same set of labels,
 and easily transition between your observability data when moving from your metrics, logs, and traces.
 
-Refer to the `scrape_configs` block in the [configuration reference](/docs/agent/latest/configuration/traces-config).
+Refer to the `scrape_configs` block in the [configuration reference](/docs/agent/<AGENT_VERSION>/configuration/traces-config).
 
 #### Trace discovery through automatic logging
 
@@ -156,4 +157,4 @@ Aside from endpoint and authentication, the exporter also provides mechanisms fo
 and implements a queue buffering mechanism for transient failures, such as networking issues.
 
 To see all available options,
-refer to the `remote_write` block in the [Agent configuration reference](/docs/agent/latest/configuration/traces-config).
+refer to the `remote_write` block in the [Agent configuration reference](/docs/agent/<AGENT_VERSION>/configuration/traces-config).
