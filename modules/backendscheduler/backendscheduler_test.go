@@ -25,7 +25,7 @@ import (
 
 func TestBackendScheduler(t *testing.T) {
 	cfg := Config{
-		ScheduleInterval: 100 * time.Millisecond,
+		// Schedulernterval: 100 * time.Millisecond,
 	}
 
 	tmpDir := t.TempDir()

@@ -35,8 +35,8 @@ message CompactionDetail {
   option (gogoproto.equal) = true;
   option (gogoproto.compare) = true;
 
-  repeated string input = 1 [(gogoproto.nullable) = false];  // block IDs for compaction
-  // string output = 2;         // target block ID for compaction
+  repeated string input = 1;  // block IDs for compaction
+  repeated string output = 2;  // block IDs resulting from compaction
 }
 
 // JobDetail contains the specific details for each job type
@@ -67,7 +67,7 @@ message UpdateJobStatusRequest {
   string job_id = 1;
   JobStatus status = 2;
   string error = 3;  // populated if status is FAILED
-  string blockID = 4;  // populated at RUNNING status
+  CompactionDetail compaction = 4;
 }
 
 message UpdateJobStatusResponse {

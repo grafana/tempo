@@ -105,7 +105,9 @@ type Compactor interface {
 	MarkBlockCompacted(tenantID string, blockID backend.UUID) error
 	Compactions(ctx context.Context) []tempopb.JobDetail
 	Compact(ctx context.Context, metas []*backend.BlockMeta, tenant string) error
-	CompactWithConfig(ctx context.Context, metas []*backend.BlockMeta, tenant string, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) error
+	CompactWithConfig(ctx context.Context, metas []*backend.BlockMeta, tenantID string, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) ([]*backend.BlockMeta, error)
+	LastCompacted(tenantID string) *time.Time
+	MarkBlocklistCompacted(tenantID string, outputIDs, inputIDs []*backend.BlockMeta) error
 }
 
 type CompactorSharder interface {

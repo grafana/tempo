@@ -1,6 +1,9 @@
 package tenantselector
 
-import "container/heap"
+import (
+	"container/heap"
+	"sort"
+)
 
 type Item struct {
 	value    string // tenantID
@@ -38,6 +41,11 @@ func (pq PriorityQueue) Items() []Item {
 	for i, item := range pq {
 		items[i] = *item
 	}
+
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].priority > items[j].priority
+	})
+
 	return items
 }
 
@@ -72,8 +80,20 @@ func (pq *PriorityQueue) Pop() any {
 }
 
 // update modifies the priority and value of an Item in the queue.
-func (pq *PriorityQueue) update(item *Item, value string, priority int) {
+func (pq *PriorityQueue) Update(item *Item, value string, priority int) {
 	item.value = value
 	item.priority = priority
 	heap.Fix(pq, item.index)
+}
+
+func (pq *PriorityQueue) UpdatePriority(selector TenantSelector) map[string]struct{} {
+	values := make(map[string]struct{}, len(*pq))
+
+	for _, item := range *pq {
+		item.priority = selector.PriorityForTenant(item.value)
+		pq.Update(item, item.value, item.priority)
+		values[item.value] = struct{}{}
+	}
+
+	return values
 }

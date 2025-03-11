@@ -3,6 +3,7 @@ package blocklist
 import (
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/grafana/tempo/tempodb/backend"
 )
@@ -12,6 +13,9 @@ type PerTenant map[string][]*backend.BlockMeta
 
 // PerTenantCompacted is a map of tenant ids to backend.CompactedBlockMetas
 type PerTenantCompacted map[string][]*backend.CompactedBlockMeta
+
+// PerTenantLastCompacted is a map of tenant ids to the last time a tenant was compacted
+type PerTenantLastCompacted map[string]time.Time
 
 // List controls access to a per tenant blocklist and compacted blocklist
 type List struct {
@@ -24,6 +28,9 @@ type List struct {
 	removed          PerTenant
 	compactedAdded   PerTenantCompacted
 	compactedRemoved PerTenantCompacted
+
+	// used to track the last time a tenant was compacted
+	lastCompacted PerTenantLastCompacted
 }
 
 func New() *List {
@@ -35,6 +42,8 @@ func New() *List {
 		removed:          make(PerTenant),
 		compactedAdded:   make(PerTenantCompacted),
 		compactedRemoved: make(PerTenantCompacted),
+
+		lastCompacted: make(PerTenantLastCompacted),
 	}
 }
 
@@ -76,6 +85,21 @@ func (l *List) CompactedMetas(tenantID string) []*backend.CompactedBlockMeta {
 	copiedBlocklist = append(copiedBlocklist, l.compactedMetas[tenantID]...)
 
 	return copiedBlocklist
+}
+
+func (l *List) LastCompacted(tenantID string) *time.Time {
+	if tenantID == "" {
+		return nil
+	}
+
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+
+	if t, ok := l.lastCompacted[tenantID]; ok {
+		return &t
+	}
+
+	return nil
 }
 
 // ApplyPollResults applies the PerTenant and PerTenantCompacted maps to this blocklist
@@ -172,6 +196,7 @@ func (l *List) updateInternal(tenantID string, add []*backend.BlockMeta, remove 
 			existing = l.compactedMetas[tenantID]
 			final    = make([]*backend.CompactedBlockMeta, 0, max(0, len(existing)+len(compactedAdd)-len(compactedRemove)))
 		)
+		l.lastCompacted[tenantID] = time.Now()
 
 		// rebuild dropping all removals
 		for _, b := range existing {

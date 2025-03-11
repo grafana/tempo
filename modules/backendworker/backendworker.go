@@ -89,6 +89,10 @@ func (w *BackendWorker) running(ctx context.Context) error {
 	}
 }
 
+// TODO: implement processRetentionJobs
+// func (w *BackendWorker) processRetentionJobs(ctx context.Context) error {
+// }
+
 func (w *BackendWorker) processCompactionJobs(ctx context.Context) error {
 	// TODO: the org ID is not used by the backend scheduler, but it is required
 	// by the request.  Figure out how to disable this requirement.
@@ -107,6 +111,7 @@ func (w *BackendWorker) processCompactionJobs(ctx context.Context) error {
 	}
 
 	if resp.Detail.Tenant == "" {
+		// TODO: metric on this worker-side
 		return w.failJob(ctx, resp.JobId, "received job with empty tenant")
 	}
 
@@ -124,17 +129,33 @@ func (w *BackendWorker) processCompactionJobs(ctx context.Context) error {
 		}
 	}
 
+	_, err = w.backendScheduler.UpdateJob(user.InjectOrgID(ctx, w.workerID), &tempopb.UpdateJobStatusRequest{
+		JobId:  resp.JobId,
+		Status: tempopb.JobStatus_JOB_STATUS_RUNNING,
+	})
+	if err != nil {
+		return fmt.Errorf("failed marking job %q as complete: %w", resp.JobId, err)
+	}
+
 	// Execute compaction using existing logic
 	// err = w.store.Compact(ctx, sourceMetas, resp.Detail.Tenant)
-	err = w.compact(ctx, sourceMetas, resp.Detail.Tenant)
+	newCompacted, err := w.compact(ctx, sourceMetas, resp.Detail.Tenant)
 	if err != nil {
 		return w.failJob(ctx, resp.JobId, fmt.Sprintf("error compacting blocks: %v", err))
+	}
+
+	var newIDs []string
+	for _, blockMeta := range newCompacted {
+		newIDs = append(newIDs, blockMeta.BlockID.String())
 	}
 
 	// Mark job as complete
 	_, err = w.backendScheduler.UpdateJob(user.InjectOrgID(ctx, w.workerID), &tempopb.UpdateJobStatusRequest{
 		JobId:  resp.JobId,
 		Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
+		Compaction: &tempopb.CompactionDetail{
+			Output: newIDs,
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("failed marking job %q as complete: %w", resp.JobId, err)
@@ -163,7 +184,7 @@ func (w *BackendWorker) failJob(ctx context.Context, jobID string, errMsg string
 	return fmt.Errorf("%s", errMsg)
 }
 
-func (w *BackendWorker) compact(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string) error {
+func (w *BackendWorker) compact(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string) ([]*backend.BlockMeta, error) {
 	return w.store.CompactWithConfig(ctx, blockMetas, tenantID, &w.cfg.Compactor, w, w)
 }
 

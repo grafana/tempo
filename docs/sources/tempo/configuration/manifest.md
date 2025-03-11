@@ -966,7 +966,6 @@ cache:
         writeback_buffer: 10000
     caches: []
 backend_scheduler:
-    schedule_interval: 10s
     compaction:
         v2_in_buffer_bytes: 5242880
         v2_out_buffer_bytes: 20971520
@@ -979,6 +978,8 @@ backend_scheduler:
         retention_concurrency: 10
         max_time_per_tenant: 5m0s
         compaction_cycle: 30s
+    max_pending_work_queue: 100
+    min_pending_work_queue: 10
 backend_scheduler_client:
     grpc_client_config:
         max_recv_msg_size: 104857600

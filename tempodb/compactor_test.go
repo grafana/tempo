@@ -849,7 +849,7 @@ func testCompactWithConfig(t *testing.T, targetBlockVersion string) {
 		metas = append(metas, b.BlockMeta())
 	}
 
-	err = c.CompactWithConfig(
+	_, err = c.CompactWithConfig(
 		ctx,
 		metas,
 		testTenantID,

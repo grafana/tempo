@@ -236,10 +236,11 @@ func (rw *readerWriter) compactWhileOwns(ctx context.Context, blockMetas []*back
 }
 
 func (rw *readerWriter) compactOneJob(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string) error {
-	return rw.CompactWithConfig(ctx, blockMetas, tenantID, rw.compactorCfg, rw.compactorSharder, rw.compactorOverrides)
+	_, err := rw.CompactWithConfig(ctx, blockMetas, tenantID, rw.compactorCfg, rw.compactorSharder, rw.compactorOverrides)
+	return err
 }
 
-func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string, compactorCfg *CompactorConfig, compactorSharder CompactorSharder, compactorOverrides CompactorOverrides) error {
+func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*backend.BlockMeta, tenantID string, compactorCfg *CompactorConfig, compactorSharder CompactorSharder, compactorOverrides CompactorOverrides) ([]*backend.BlockMeta, error) {
 	level.Debug(rw.logger).Log("msg", "beginning compaction", "num blocks compacting", len(blockMetas))
 
 	// todo - add timeout?
@@ -252,7 +253,7 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 	}
 
 	if len(blockMetas) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	var err error
@@ -281,13 +282,13 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 		// Make sure block still exists
 		_, err = rw.r.BlockMeta(ctx, (uuid.UUID)(blockMeta.BlockID), tenantID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	enc, err := encoding.FromVersion(blockMetas[0].Version)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	compactionLevel := CompactionLevelForBlocks(blockMetas)
@@ -335,12 +336,12 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 	// Compact selected blocks into a larger one
 	newCompactedBlocks, err := compactor.Compact(ctx, rw.logger, rw.r, rw.w, blockMetas)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// mark old blocks compacted, so they don't show up in polling
 	if err := markCompacted(rw, tenantID, blockMetas, newCompactedBlocks); err != nil {
-		return err
+		return nil, err
 	}
 
 	metricCompactionBlocks.WithLabelValues(compactionLevelLabel).Add(float64(len(blockMetas)))
@@ -355,6 +356,26 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 		logArgs = append(logArgs, "blockID", meta.BlockID.String())
 	}
 	level.Info(rw.logger).Log(logArgs...)
+
+	return newCompactedBlocks, nil
+}
+
+func (rw *readerWriter) LastCompacted(tenantID string) *time.Time {
+	return rw.blocklist.LastCompacted(tenantID)
+}
+
+// MarkCompacted marks the old blocks as compacted and adds the new blocks to the blocklist.  No backend changes are made.
+func (rw *readerWriter) MarkBlocklistCompacted(tenantID string, oldBlocks, newBlocks []*backend.BlockMeta) error {
+	// Converted outgoing blocks into compacted entries.
+	newCompactions := make([]*backend.CompactedBlockMeta, 0, len(oldBlocks))
+	for _, newBlock := range oldBlocks {
+		newCompactions = append(newCompactions, &backend.CompactedBlockMeta{
+			BlockMeta:     *newBlock,
+			CompactedTime: time.Now(),
+		})
+	}
+
+	rw.blocklist.Update(tenantID, newBlocks, oldBlocks, newCompactions, nil)
 
 	return nil
 }
