@@ -27,7 +27,7 @@ Due to this behavior, a given compactor or querier often have an out-of-date blo
 During normal operation, it will stale by at most twice the configured `blocklist_poll`.
 
 {{< admonition type="note" >}}
-For details about configuring polling, refer to [polling configuration]({{< relref "../../configuration/polling" >}}).
+For details about configuring polling, refer to [polling configuration](../../../configuration/polling/).
 {{< /admonition >}}
 
 ## Monitor polling with dashboards and alerts

@@ -15,7 +15,7 @@ aliases:
 <!-- vale Grafana.GoogleWill = NO -->
 
 Starting with Tempo 2.0, Apache Parquet is used as the default column-formatted block format.
-Refer to the [Parquet configuration options]({{< relref "../configuration/parquet.md" >}}) for more information.
+Refer to the [Parquet configuration options](../../configuration/parquet/) for more information.
 
 This document describes the schema used with the Parquet block format.
 
