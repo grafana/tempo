@@ -162,7 +162,7 @@ var queryRangeTestCases = []struct {
 		req:  requestWithDefaultRange(`{ } | count_over_time() by (.service.name)`),
 		expectedL1: []*tempopb.TimeSeries{
 			{
-				PromLabels: `{.service.name="even"}`,
+				PromLabels: `{".service.name"="even"}`,
 				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString(".service.name", "even")},
 				Samples: []tempopb.Sample{
 					{TimestampMs: 0, Value: 7},      // [2, 4, 6, 8, 10, 12, 14] - total: 7
@@ -173,7 +173,7 @@ var queryRangeTestCases = []struct {
 				},
 			},
 			{
-				PromLabels: `{.service.name="odd"}`,
+				PromLabels: `{".service.name"="odd"}`,
 				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString(".service.name", "odd")},
 				Samples: []tempopb.Sample{
 					{TimestampMs: 0, Value: 7},      // [1, 3, 5, 7, 9, 11, 13] - total: 7
@@ -186,7 +186,7 @@ var queryRangeTestCases = []struct {
 		},
 		expectedL2: []*tempopb.TimeSeries{
 			{
-				PromLabels: `{.service.name="even"}`,
+				PromLabels: `{".service.name"="even"}`,
 				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString(".service.name", "even")},
 				Samples: []tempopb.Sample{
 					{TimestampMs: 0, Value: 2 * 7},
@@ -197,7 +197,7 @@ var queryRangeTestCases = []struct {
 				},
 			},
 			{
-				PromLabels: `{.service.name="odd"}`,
+				PromLabels: `{".service.name"="odd"}`,
 				Labels:     []common_v1.KeyValue{tempopb.MakeKeyValueString(".service.name", "odd")},
 				Samples: []tempopb.Sample{
 					{TimestampMs: 0, Value: 2 * 7},
@@ -770,7 +770,7 @@ var queryRangeTestCases = []struct {
 
 var expectedCompareTs = []*tempopb.TimeSeries{
 	{
-		PromLabels: `{__meta_type="baseline", resource.service.name="odd"}`,
+		PromLabels: `{__meta_type="baseline", "resource.service.name"="odd"}`,
 		Labels: []common_v1.KeyValue{
 			tempopb.MakeKeyValueString("__meta_type", "baseline"),
 			tempopb.MakeKeyValueString("resource.service.name", "odd"),
@@ -784,7 +784,7 @@ var expectedCompareTs = []*tempopb.TimeSeries{
 		},
 	},
 	{
-		PromLabels: `{__meta_type="baseline_total", resource.service.name="<nil>"}`,
+		PromLabels: `{__meta_type="baseline_total", "resource.service.name"="<nil>"}`,
 		Labels: []common_v1.KeyValue{
 			tempopb.MakeKeyValueString("__meta_type", "baseline_total"),
 			tempopb.MakeKeyValueString("resource.service.name", "nil"),
@@ -798,7 +798,7 @@ var expectedCompareTs = []*tempopb.TimeSeries{
 		},
 	},
 	{
-		PromLabels: `{__meta_type="selection", resource.service.name="even"}`,
+		PromLabels: `{__meta_type="selection", "resource.service.name"="even"}`,
 		Labels: []common_v1.KeyValue{
 			tempopb.MakeKeyValueString("__meta_type", "selection"),
 			tempopb.MakeKeyValueString("resource.service.name", "even"),
@@ -812,7 +812,7 @@ var expectedCompareTs = []*tempopb.TimeSeries{
 		},
 	},
 	{
-		PromLabels: `{__meta_type="selection_total", resource.service.name="<nil>"}`,
+		PromLabels: `{__meta_type="selection_total", "resource.service.name"="<nil>"}`,
 		Labels: []common_v1.KeyValue{
 			tempopb.MakeKeyValueString("__meta_type", "selection_total"),
 			tempopb.MakeKeyValueString("resource.service.name", "nil"),
@@ -1026,7 +1026,7 @@ func TestTempoDBQueryRange(t *testing.T) {
 
 		actual := eval.Results().ToProto(req)
 
-		const pattern = "resource.service.name="
+		const pattern = `"resource.service.name"=`
 		targetTs := filterTimeSeriesByPromLabel(actual, pattern)
 		sortTimeSeries(targetTs)
 		require.Equal(t, expectedCompareTs, targetTs)
