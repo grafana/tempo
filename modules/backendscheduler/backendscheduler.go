@@ -87,10 +87,10 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 func (s *BackendScheduler) running(ctx context.Context) error {
 	level.Info(log.Logger).Log("msg", "backend scheduler running")
 
-	scheduleTicker := time.NewTicker(time.Second)
+	scheduleTicker := time.NewTicker(s.cfg.ScheduleInterval)
 	defer scheduleTicker.Stop()
 
-	prioritizeTenantsTicker := time.NewTicker(time.Minute)
+	prioritizeTenantsTicker := time.NewTicker(s.cfg.TenantPriorityInterval)
 	defer prioritizeTenantsTicker.Stop()
 
 	s.prioritizeTenants()
@@ -310,6 +310,11 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 
 	// Find next available job
 	for id, j := range s.work.ListJobs() {
+
+		if j.GetWorkerID() != "" {
+			continue
+		}
+
 		if j.IsPending() {
 			// Honor the request job type if specified
 			if req.Type != tempopb.JobType_JOB_TYPE_UNSPECIFIED && j.Type != req.Type {
@@ -359,7 +364,9 @@ func (s *BackendScheduler) UpdateJob(_ context.Context, req *tempopb.UpdateJobSt
 		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Dec()
 		level.Info(log.Logger).Log("msg", "job completed", "job_id", req.JobId)
 
-		j.JobDetail.Compaction.Output = req.Compaction.Output
+		if req.Compaction != nil && req.Compaction.Output != nil {
+			j.JobDetail.Compaction.Output = req.Compaction.Output
+		}
 
 		var (
 			metas     = s.store.BlockMetas(j.JobDetail.Tenant)
@@ -374,7 +381,10 @@ func (s *BackendScheduler) UpdateJob(_ context.Context, req *tempopb.UpdateJobSt
 			}
 		}
 
-		s.store.MarkBlocklistCompacted(j.JobDetail.Tenant, oldBlocks, nil)
+		err := s.store.MarkBlocklistCompacted(j.JobDetail.Tenant, oldBlocks, nil)
+		if err != nil {
+			return &tempopb.UpdateJobStatusResponse{}, fmt.Errorf("failed to mark blocklist blocks as compacted: %w", err)
+		}
 
 	case tempopb.JobStatus_JOB_STATUS_FAILED:
 		j.Fail()
@@ -478,7 +488,7 @@ func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request)
 	_, _ = io.WriteString(w, x.Render())
 }
 
-func (s *BackendScheduler) nextTenant(ctx context.Context) *tenantselector.Item {
+func (s *BackendScheduler) nextTenant(_ context.Context) *tenantselector.Item {
 	s.tenantMtx.RLock()
 	defer s.tenantMtx.RUnlock()
 
@@ -495,8 +505,15 @@ func (s *BackendScheduler) nextTenant(ctx context.Context) *tenantselector.Item 
 
 func (s *BackendScheduler) compactions(ctx context.Context, want int) []tempopb.JobDetail {
 	var (
-		jobs      []tempopb.JobDetail
-		tenant    = s.nextTenant(ctx)
+		jobs   []tempopb.JobDetail
+		tenant = s.nextTenant(ctx)
+	)
+
+	if tenant == nil {
+		return jobs
+	}
+
+	var (
 		tenantID  = tenant.Value()
 		blocklist = s.store.BlockMetas(tenantID)
 		window    = s.overrides.MaxCompactionRange(tenantID)

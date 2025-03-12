@@ -25,36 +25,27 @@ import (
 
 func TestBackendScheduler(t *testing.T) {
 	cfg := Config{
-		// Schedulernterval: 100 * time.Millisecond,
+		ScheduleInterval:       100 * time.Millisecond,
+		TenantPriorityInterval: 100 * time.Millisecond,
 	}
 
 	tmpDir := t.TempDir()
-	// writer := setupBackend(t, tmpDir)
 
 	var (
-		ctx, cancel = context.WithCancel(context.Background())
-		store       = newStore(ctx, t, tmpDir)
+		ctx, cancel   = context.WithCancel(context.Background())
+		store, rr, ww = newStore(ctx, t, tmpDir)
 	)
 	defer cancel()
 	defer store.Shutdown()
 
-	limits, err := overrides.NewOverrides(overrides.Config{
-		Defaults: overrides.Overrides{
-			// Global: overrides.GlobalOverrides{
-			// 	MaxBytesPerTrace: maxBytes,
-			// },
-			// Ingestion: overrides.IngestionOverrides{
-			// 	MaxLocalTracesPerUser: 4,
-			// },
-		},
-	}, nil, prometheus.DefaultRegisterer)
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
 	t.Run("no tenants and no jobs", func(t *testing.T) {
-		bs, err := New(cfg, store, limits)
+		bs, err := New(cfg, store, limits, rr, ww)
 		require.NoError(t, err)
 
-		err = bs.scheduleOnce(ctx)
+		err = bs.scheduleOnce(ctx, 10)
 		require.NoError(t, err)
 
 		resp, err := bs.Next(ctx, &tempopb.NextJobRequest{
@@ -67,7 +58,7 @@ func TestBackendScheduler(t *testing.T) {
 	})
 
 	t.Run("one tenant has a jobs", func(t *testing.T) {
-		bs, err := New(cfg, store, limits)
+		bs, err := New(cfg, store, limits, rr, ww)
 		require.NoError(t, err)
 
 		j := &work.Job{
@@ -84,7 +75,7 @@ func TestBackendScheduler(t *testing.T) {
 		err = bs.CreateJob(ctx, j)
 		require.NoError(t, err)
 
-		err = bs.scheduleOnce(ctx)
+		err = bs.scheduleOnce(ctx, 10)
 		require.NoError(t, err)
 
 		resp, err := bs.Next(ctx, &tempopb.NextJobRequest{
@@ -97,12 +88,11 @@ func TestBackendScheduler(t *testing.T) {
 	})
 
 	t.Run("a request for a compaction job returns only a compaction job type", func(t *testing.T) {
-		bs, err := New(cfg, store, limits)
+		bs, err := New(cfg, store, limits, rr, ww)
 		require.NoError(t, err)
 
 		j1 := &work.Job{
 			ID: uuid.New().String(),
-			// Type: tempopb.JobType_JOB_TYPE_UNSPECIFIED,
 			JobDetail: tempopb.JobDetail{
 				Tenant: "test-tenant",
 				Compaction: &tempopb.CompactionDetail{
@@ -128,7 +118,7 @@ func TestBackendScheduler(t *testing.T) {
 		err = bs.CreateJob(ctx, j2)
 		require.NoError(t, err)
 
-		err = bs.scheduleOnce(ctx)
+		err = bs.scheduleOnce(ctx, 10)
 		require.NoError(t, err)
 
 		resp, err := bs.Next(ctx, &tempopb.NextJobRequest{
@@ -151,7 +141,7 @@ func TestBackendScheduler(t *testing.T) {
 	})
 
 	t.Run("handles multiple workers", func(t *testing.T) {
-		bs, err := New(cfg, store, limits)
+		bs, err := New(cfg, store, limits, rr, ww)
 		require.NoError(t, err)
 
 		tenant := "test-tenant"
@@ -212,20 +202,8 @@ func TestBackendScheduler(t *testing.T) {
 		err = bs.CreateJob(ctx, j4)
 		require.NoError(t, err)
 
-		err = bs.scheduleOnce(ctx)
+		err = bs.scheduleOnce(ctx, 10)
 		require.NoError(t, err)
-
-		// Write test blocks for multiple jobs
-		// tenant := "test-tenant"
-		// blockIDs := writeTestBlocks(t, ctx, store, tenant, 6) // 3 jobs with 2 blocks each
-		// require.Len(t, blockIDs, 6)
-
-		// Create multiple jobs
-		// for i := 0; i < 3; i++ {
-		// 	jobBlocks := blockIDs[i*2 : (i+1)*2]
-		// 	err := bs.CreateCompactionJob(ctx, tenant, jobBlocks, fmt.Sprintf("output-block-%d", i))
-		// 	require.NoError(t, err)
-		// }
 
 		// Different workers should get different jobs
 		worker1Jobs := make(map[string]*tempopb.NextJobResponse)
@@ -295,7 +273,7 @@ func TestBackendScheduler(t *testing.T) {
 	t.Run("CRUD operation testing", func(t *testing.T) {
 		tenant := "test-tenant"
 
-		bs, err := New(cfg, store, limits)
+		bs, err := New(cfg, store, limits, rr, ww)
 		require.NoError(t, err)
 
 		j1 := &work.Job{
@@ -331,7 +309,7 @@ func TestBackendScheduler(t *testing.T) {
 		resp, err = bs.GetJob(ctx, j1.ID)
 		require.NoError(t, err)
 		require.NotNil(t, resp)
-		require.Equal(t, work.JobStatusCompleted, resp.Status())
+		require.Equal(t, tempopb.JobStatus_JOB_STATUS_SUCCEEDED, resp.GetStatus())
 
 		err = bs.FailJob(ctx, j1.ID)
 		require.NoError(t, err)
@@ -339,12 +317,17 @@ func TestBackendScheduler(t *testing.T) {
 		resp, err = bs.GetJob(ctx, j1.ID)
 		require.NoError(t, err)
 		require.NotNil(t, resp)
-		require.Equal(t, work.JobStatusFailed, resp.Status())
+		require.Equal(t, tempopb.JobStatus_JOB_STATUS_FAILED, resp.GetStatus())
 	})
 }
 
-func newStore(ctx context.Context, t testing.TB, tmpDir string) storage.Store {
-	return newStoreWithLogger(ctx, t, test.NewTestingLogger(t), tmpDir)
+func newStore(ctx context.Context, t testing.TB, tmpDir string) (storage.Store, backend.RawReader, backend.RawWriter) {
+	rr, ww, _, err := local.New(&local.Config{
+		Path: tmpDir,
+	})
+	require.NoError(t, err)
+
+	return newStoreWithLogger(ctx, t, test.NewTestingLogger(t), tmpDir), rr, ww
 }
 
 func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, tmpDir string) storage.Store {
@@ -353,19 +336,6 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, tmpDi
 	})
 	require.NoError(t, err)
 
-	// w := backend.NewWriter(ww)
-	//
-	// w.WriteBlockMeta(ctx, &backend.BlockMeta{
-	// 	BlockID:           backend.NewUUID(),
-	// 	TenantID:          "test-tenant",
-	// 	StartTime:         time.Now().Add(-time.Hour),
-	// 	EndTime:           time.Now(),
-	// 	TotalObjects:      1,
-	// 	ReplicationFactor: 1,
-	// 	Version:           encoding.LatestEncoding().Version(),
-	// 	Encoding:          backend.EncNone,
-	// })
-	//
 	s, err := storage.NewStore(storage.Config{
 		Trace: tempodb.Config{
 			Backend: backend.Local,
@@ -390,20 +360,6 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, tmpDi
 
 	s.EnablePolling(ctx, &ownsEverythingSharder{})
 
-	// NOTE: Call EnableCompaction to set the overrides, but pass a canceled
-	// context so we don't run the compaction and retention loops.
-	// canceldCtx, cancel := context.WithCancel(ctx)
-	// cancel()
-
-	// err = s.EnableCompaction(canceldCtx, &tempodb.CompactorConfig{
-	// 	ChunkSizeBytes:          10,
-	// 	MaxCompactionRange:      24 * time.Hour,
-	// 	BlockRetention:          0,
-	// 	CompactedBlockRetention: 0,
-	// 	MaxCompactionObjects:    1000,
-	// 	MaxBlockBytes:           100_000_000, // Needs to be sized appropriately for the test data or no jobs will get scheduled.
-	// }, &ownsEverythingSharder{}, &mockOverrides{})
-	// require.NoError(t, err)
 	return s
 }
 
