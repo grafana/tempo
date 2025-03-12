@@ -966,6 +966,8 @@ cache:
         writeback_buffer: 10000
     caches: []
 backend_scheduler:
+    schedule_interval: 10s
+    tenant_priority_interval: 1m0s
     compaction:
         v2_in_buffer_bytes: 5242880
         v2_out_buffer_bytes: 20971520

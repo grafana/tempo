@@ -22,7 +22,7 @@ type Config struct {
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	// f.BoolVar(&cfg.Enabled, prefix+"backend-scheduler.enabled", false, "Enable backend scheduler")
 	f.DurationVar(&cfg.ScheduleInterval, prefix+"backend-scheduler.schedule-interval", 10*time.Second, "Interval to add maintenance work to the work queue")
-	f.DurationVar(&cfg.ScheduleInterval, prefix+"backend-scheduler.tenant-priority-interval", time.Minute, "Interval at which to reprioritize tenants")
+	f.DurationVar(&cfg.TenantPriorityInterval, prefix+"backend-scheduler.tenant-priority-interval", time.Minute, "Interval at which to reprioritize tenants")
 	f.IntVar(&cfg.MaxPendingWorkQueue, util.PrefixConfig(prefix, "max_pending_work_queue"), 100, "Maximum number of pending work items in the scheduler")
 	f.IntVar(&cfg.MinPendingWorkQueue, util.PrefixConfig(prefix, "min_pending_work_queue"), 10, "Maximum number of pending work items in the scheduler")
 
