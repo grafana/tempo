@@ -491,8 +491,6 @@ func (b *BlockBuilder) stopping(err error) error {
 
 func (b *BlockBuilder) pushTraces(ts time.Time, tenantBytes, reqBytes []byte, p partitionSectionWriter) error {
 	req, err := b.decoder.Decode(reqBytes)
-	size := req.Size()
-	fmt.Println(size)
 	if err != nil {
 		return fmt.Errorf("failed to decode trace: %w", err)
 	}
