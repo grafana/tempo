@@ -6,9 +6,6 @@ import "common/v1/common.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "trace/v1/trace.proto";
 
-option (gogoproto.marshaler_all) = true;
-option (gogoproto.unmarshaler_all) = true;
-
 service Pusher {
   // different versions of PushBytes expect the trace data to be pushed in
   // different formats
