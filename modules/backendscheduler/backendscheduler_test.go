@@ -2,6 +2,7 @@ package backendscheduler
 
 import (
 	"context"
+	"flag"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ func TestBackendScheduler(t *testing.T) {
 		ScheduleInterval:       100 * time.Millisecond,
 		TenantPriorityInterval: 100 * time.Millisecond,
 	}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 
 	tmpDir := t.TempDir()
 

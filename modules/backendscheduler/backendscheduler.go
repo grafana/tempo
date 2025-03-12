@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
+	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/blockselector"
 	"github.com/jedib0t/go-pretty/v6/table"
 )
@@ -78,7 +79,7 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reader 
 
 func (s *BackendScheduler) starting(ctx context.Context) error {
 	if s.cfg.Poll {
-		s.store.EnablePolling(ctx, s)
+		s.store.EnablePolling(ctx, blocklist.OwnsNothingSharder)
 	}
 
 	err := s.loadWorkCache(ctx)
@@ -455,10 +456,6 @@ func (s *BackendScheduler) createCompactionJob(ctx context.Context, tenantID str
 	metricJobsActive.WithLabelValues(tenantID, job.Type.String()).Inc()
 
 	return s.flushWorkCache(ctx)
-}
-
-func (s *BackendScheduler) Owns(_ string) bool {
-	return true
 }
 
 func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request) {

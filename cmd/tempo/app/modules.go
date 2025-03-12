@@ -619,6 +619,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.Generator.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.cfg.BackendWorker.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 
 	// Only the memberlist endpoint uses static files currently
 	t.Server.HTTPRouter().PathPrefix("/static/").HandlerFunc(http.FileServer(http.FS(staticFiles)).ServeHTTP).Methods("GET")
@@ -726,12 +727,15 @@ func (t *App) initBackendWorker() (services.Service, error) {
 		t.cfg.BackendWorker.Poll = true
 	}
 
-	worker, err := backendworker.New(t.cfg.BackendWorker, t.cfg.BackenSchedulerClient, t.store, t.Overrides)
+	worker, err := backendworker.New(t.cfg.BackendWorker, t.cfg.BackenSchedulerClient, t.store, t.Overrides, prometheus.DefaultRegisterer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create backend scheduler: %w", err)
 	}
-
 	t.backendWorker = worker
+
+	if t.backendWorker.Ring != nil {
+		t.Server.HTTPRouter().Handle("/backend-worker/ring", t.backendWorker.Ring)
+	}
 
 	return worker, nil
 }
@@ -800,7 +804,7 @@ func (t *App) setupModuleManager() error {
 		Compactor:                     {Common, Store, MemberlistKV},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
 		BackendScheduler:              {Common, Store},
-		BackendWorker:                 {Common, Store},
+		BackendWorker:                 {Common, Store, MemberlistKV},
 
 		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator, BlockBuilder},

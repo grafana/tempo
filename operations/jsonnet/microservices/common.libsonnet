@@ -84,6 +84,11 @@
             enable_inet6: true,
           },
         },
+        backend_worker+: {
+          ring+: {
+            enable_inet6: true,
+          },
+        },
         metrics_generator+: {
           ring+: {
             enable_inet6: true,
