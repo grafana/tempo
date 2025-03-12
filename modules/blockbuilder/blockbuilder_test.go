@@ -419,8 +419,8 @@ func TestBlockBuilder_honor_maxBytesPerCycle(t *testing.T) {
 		expectedWrites   int32
 	}{
 		{
-			name:             "Limited to 40_000 bytes per cycle",
-			maxBytesPerCycle: 40_000,
+			name:             "Limited to 50_000 bytes per cycle",
+			maxBytesPerCycle: 35_000,
 			expectedCommits:  2,
 			expectedWrites:   2,
 		},
