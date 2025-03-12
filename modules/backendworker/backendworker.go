@@ -134,12 +134,18 @@ func (w *BackendWorker) processCompactionJobs(ctx context.Context) error {
 		}
 	}
 
-	_, err = w.backendScheduler.UpdateJob(user.InjectOrgID(ctx, w.workerID), &tempopb.UpdateJobStatusRequest{
-		JobId:  resp.JobId,
-		Status: tempopb.JobStatus_JOB_STATUS_RUNNING,
+	err = w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
+		_, err = w.backendScheduler.UpdateJob(user.InjectOrgID(ctx, w.workerID), &tempopb.UpdateJobStatusRequest{
+			JobId:  resp.JobId,
+			Status: tempopb.JobStatus_JOB_STATUS_RUNNING,
+		})
+		if err != nil {
+			return fmt.Errorf("failed marking job %q as complete: %w", resp.JobId, err)
+		}
+		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("failed marking job %q as complete: %w", resp.JobId, err)
+		return w.failJob(ctx, resp.JobId, fmt.Sprintf("error marking job %q complete: %v", resp.JobId, err))
 	}
 
 	// Execute compaction using existing logic
@@ -155,15 +161,22 @@ func (w *BackendWorker) processCompactionJobs(ctx context.Context) error {
 	}
 
 	// Mark job as complete
-	_, err = w.backendScheduler.UpdateJob(user.InjectOrgID(ctx, w.workerID), &tempopb.UpdateJobStatusRequest{
-		JobId:  resp.JobId,
-		Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
-		Compaction: &tempopb.CompactionDetail{
-			Output: newIDs,
-		},
+	err = w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
+		_, err = w.backendScheduler.UpdateJob(user.InjectOrgID(ctx, w.workerID), &tempopb.UpdateJobStatusRequest{
+			JobId:  resp.JobId,
+			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
+			Compaction: &tempopb.CompactionDetail{
+				Output: newIDs,
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("failed marking job %q as complete: %w", resp.JobId, err)
+		}
+
+		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("failed marking job %q as complete: %w", resp.JobId, err)
+		return w.failJob(ctx, resp.JobId, fmt.Sprintf("error marking job as complete: %v", err))
 	}
 
 	return nil
@@ -177,13 +190,20 @@ func (w *BackendWorker) stopping(_ error) error {
 func (w *BackendWorker) failJob(ctx context.Context, jobID string, errMsg string) error {
 	level.Error(log.Logger).Log("msg", "job failed", "job_id", jobID, "error", errMsg)
 
-	_, err := w.backendScheduler.UpdateJob(user.InjectOrgID(ctx, w.workerID), &tempopb.UpdateJobStatusRequest{
-		JobId:  jobID,
-		Status: tempopb.JobStatus_JOB_STATUS_FAILED,
-		Error:  errMsg,
+	err := w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
+		_, err := w.backendScheduler.UpdateJob(user.InjectOrgID(ctx, w.workerID), &tempopb.UpdateJobStatusRequest{
+			JobId:  jobID,
+			Status: tempopb.JobStatus_JOB_STATUS_FAILED,
+			Error:  errMsg,
+		})
+		if err != nil {
+			return fmt.Errorf("failed marking job %q as failed: %w", jobID, err)
+		}
+
+		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("failed marking job %q as failed: %w", jobID, err)
+		return fmt.Errorf("error marking job %q as failed: %w", jobID, err)
 	}
 
 	return fmt.Errorf("%s", errMsg)
@@ -274,4 +294,29 @@ func (w *BackendWorker) MaxBytesPerTraceForTenant(tenantID string) int {
 
 func (w *BackendWorker) MaxCompactionRangeForTenant(tenantID string) time.Duration {
 	return w.overrides.MaxCompactionRange(tenantID)
+}
+
+func (w *BackendWorker) callSchedulerWithBackoff(ctx context.Context, f func(context.Context) error) error {
+	var (
+		b   = backoff.New(ctx, w.cfg.Backoff)
+		err error
+	)
+
+	for b.Ongoing() {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			if err = f(ctx); err != nil {
+				level.Error(log.Logger).Log("msg", "error calling scheduler", "err", err, "backoff", b.NextDelay())
+				b.Wait()
+				continue
+			}
+
+			b.Reset()
+			return nil
+		}
+	}
+
+	return fmt.Errorf("backoff terminated: %w, %w", b.Err(), err)
 }
