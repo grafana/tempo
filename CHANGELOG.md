@@ -45,6 +45,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [ENHANCEMENT] TraceQL: add support for querying by parent span id [#4692](https://github.com/grafana/tempo/pull/4692) (@ie-pham)
 * [ENHANCEMENT] metrics-generator: allow skipping localblocks and consuming from a different source of data [#4686](https://github.com/grafana/tempo/pull/4686) (@flxbk)
 * [ENHANCEMENT] compactor: restore dedicated columns logging for completed blocks
+* [ENHANCEMENT] distributor: add IPv6 support [#4840](https://github.com/grafana/tempo/pull/4840) (@gjacquet)
 * [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. [#4546](https://github.com/grafana/tempo/pull/4576) (@joe-elliott)
   Correctly copy exemplars for metrics like `| rate()` when gRPC streaming.
 * [BUGFIX] Fix performance bottleneck and file cleanup in block builder [#4550](https://github.com/grafana/tempo/pull/4550) (@mdisibio)
