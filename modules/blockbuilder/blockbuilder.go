@@ -272,7 +272,9 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, ps partitionState) 
 		dur              = b.cfg.ConsumeCycleDuration
 		topic            = b.cfg.IngestStorageConfig.Kafka.Topic
 		group            = b.cfg.IngestStorageConfig.Kafka.ConsumerGroup
+		maxBytesPerCycle = b.cfg.MaxBytesPerCycle
 		partLabel        = strconv.Itoa(int(ps.partition))
+		consumedBytes    uint64
 		startOffset      kgo.Offset
 		init             bool
 		writer           *writer
@@ -289,7 +291,6 @@ func (b *BlockBuilder) consumePartition(ctx context.Context, ps partitionState) 
 		"commit_offset", ps.commitOffset,
 		"start_offset", startOffset,
 	)
-
 	// We always rewind the partition's offset to the commit offset by reassigning the partition to the client (this triggers partition assignment).
 	// This is so the cycle started exactly at the commit offset, and not at what was (potentially over-) consumed previously.
 	// In the end, we remove the partition from the client (refer to the defer below) to guarantee the client always consumes
@@ -327,13 +328,14 @@ outer:
 			rec := iter.Next()
 			metricFetchBytesTotal.WithLabelValues(partLabel).Add(float64(len(rec.Value)))
 			metricFetchRecordsTotal.WithLabelValues(partLabel).Inc()
+			recordSizeBytes := uint64(len(rec.Value))
 
 			level.Debug(b.logger).Log(
 				"msg", "processing record",
 				"partition", rec.Partition,
 				"offset", rec.Offset,
 				"timestamp", rec.Timestamp,
-				"len", len(rec.Value),
+				"len", recordSizeBytes,
 			)
 
 			// Initialize on first record
@@ -359,12 +361,22 @@ outer:
 				break outer
 			}
 
+			if maxBytesPerCycle > 0 && consumedBytes+recordSizeBytes >= maxBytesPerCycle {
+				level.Debug(b.logger).Log(
+					"msg", "max bytes per cycle reached",
+					"partition", ps.partition,
+					"timestamp", rec.Timestamp,
+				)
+				break outer
+			}
+
 			err := b.pushTraces(rec.Timestamp, rec.Key, rec.Value, writer)
 			if err != nil {
 				return time.Time{}, -1, err
 			}
 			processedRecords++
 			lastRec = rec
+			consumedBytes += recordSizeBytes
 		}
 	}
 
@@ -479,6 +491,8 @@ func (b *BlockBuilder) stopping(err error) error {
 
 func (b *BlockBuilder) pushTraces(ts time.Time, tenantBytes, reqBytes []byte, p partitionSectionWriter) error {
 	req, err := b.decoder.Decode(reqBytes)
+	size := req.Size()
+	fmt.Println(size)
 	if err != nil {
 		return fmt.Errorf("failed to decode trace: %w", err)
 	}
