@@ -36,8 +36,8 @@ storage:
       queue_depth: 100
 backend_scheduler:
   schedule_interval: 1s
+  tenant_priority_interval: 1s
 backend_worker:
-  interval: 1s
   backend_scheduler_addr: tempo-integration-backend-scheduler:9095
 backend_scheduler_client:
   grpc_client_config:

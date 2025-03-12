@@ -82,7 +82,7 @@ func TestBackendScheduler(t *testing.T) {
 	require.NoError(t, scheduler.WaitSumMetrics(e2e.Greater(0), "tempo_backend_scheduler_scheduling_cycles_total"))
 
 	// Allow time for job processing
-	time.Sleep(2 * time.Second)
+	time.Sleep(10 * time.Second)
 	require.NoError(t, scheduler.WaitSumMetrics(e2e.Greater(0), "tempo_backend_scheduler_jobs_completed_total"))
 }
 
