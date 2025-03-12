@@ -2,12 +2,13 @@ package work
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestQueue(t *testing.T) {
-	w := New()
+	w := New(Config{PruneAge: 100 * time.Millisecond})
 	require.NotNil(t, w)
 
 	err := w.AddJob(&Job{ID: "1"})
@@ -28,25 +29,27 @@ func TestQueue(t *testing.T) {
 	jj = w.GetJob("2")
 	require.NotNil(t, jj)
 
-	require.Len(t, w.Jobs(), 2)
+	require.Len(t, w.ListJobs(), 2)
 
-	jobs := w.Jobs()
+	jobs := w.ListJobs()
 	require.Equal(t, "1", jobs[0].ID)
 	require.Equal(t, "2", jobs[1].ID)
 
 	j.Complete()
+	time.Sleep(200 * time.Millisecond)
 	w.Prune()
-	require.Len(t, w.Jobs(), 1)
+	require.Len(t, w.ListJobs(), 1)
 
 	jj.Fail()
+	time.Sleep(200 * time.Millisecond)
 	w.Prune()
-	require.Len(t, w.Jobs(), 0)
+	require.Len(t, w.ListJobs(), 0)
 
 	err = w.AddJob(&Job{ID: "3"})
 	require.NoError(t, err)
 
 	j = w.GetJob("3")
 	require.NotNil(t, j)
-	require.Len(t, w.Jobs(), 1)
+	require.Len(t, w.ListJobs(), 1)
 	w.RemoveJob(j.ID)
 }

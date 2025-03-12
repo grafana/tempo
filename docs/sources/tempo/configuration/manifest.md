@@ -978,6 +978,8 @@ backend_scheduler:
         retention_concurrency: 10
         max_time_per_tenant: 5m0s
         compaction_cycle: 30s
+    work:
+        prune_age: 1h0m0s
     max_pending_work_queue: 100
     min_pending_work_queue: 10
 backend_scheduler_client:

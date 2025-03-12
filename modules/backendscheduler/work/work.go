@@ -11,12 +11,14 @@ import (
 type Work struct {
 	Jobs    map[string]*Job `json:"jobs"`
 	jobsMtx sync.RWMutex
+	cfg     Config
 }
 
-func New() *Work {
+func New(cfg Config) *Work {
 	return &Work{
 		// track jobs, keyed by job ID
 		Jobs: make(map[string]*Job),
+		cfg:  cfg,
 	}
 }
 
@@ -79,7 +81,7 @@ func (q *Work) Prune() {
 		case tempopb.JobStatus_JOB_STATUS_FAILED, tempopb.JobStatus_JOB_STATUS_SUCCEEDED:
 			// Keep the completed jobs around a while so as not to recreate them
 			// before the blocklist has been updated.
-			if time.Since(j.GetEndTime()) > time.Hour {
+			if time.Since(j.GetEndTime()) > q.cfg.PruneAge {
 				delete(q.Jobs, id)
 			}
 		}

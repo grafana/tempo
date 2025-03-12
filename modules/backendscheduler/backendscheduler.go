@@ -61,7 +61,7 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reader 
 		cfg:            cfg,
 		store:          store,
 		overrides:      overrides,
-		work:           work.New(),
+		work:           work.New(cfg.Work),
 		reader:         reader,
 		writer:         writer,
 		tenantPriority: tenantselector.NewPriorityQueue(),
