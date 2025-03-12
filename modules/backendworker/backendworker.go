@@ -38,6 +38,11 @@ type BackendWorker struct {
 // var tracer = otel.Tracer("modules/backendworker")
 
 func New(cfg Config, schedulerClientCfg backendscheduler_client.Config, store storage.Store, overrides overrides.Interface) (*BackendWorker, error) {
+	err := ValidateConfig(&cfg)
+	if err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+
 	s := &BackendWorker{
 		cfg:       cfg,
 		store:     store,

@@ -2,6 +2,7 @@ package backendworker
 
 import (
 	"flag"
+	"fmt"
 	"time"
 
 	"github.com/grafana/dskit/backoff"
@@ -23,4 +24,24 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	cfg.Compactor = tempodb.CompactorConfig{}
 	cfg.Compactor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "compaction"), f)
+}
+
+func ValidateConfig(cfg *Config) error {
+	if cfg.BackendSchedulerAddr == "" {
+		return fmt.Errorf("backend scheduler address is required")
+	}
+
+	if cfg.Backoff.MinBackoff <= 0 {
+		return fmt.Errorf("positive backoff min period required")
+	}
+
+	if cfg.Backoff.MaxBackoff <= 0 {
+		return fmt.Errorf("positive backoff max period required")
+	}
+
+	if cfg.Backoff.MaxRetries < 0 {
+		return fmt.Errorf("positive backoff retries required")
+	}
+
+	return nil
 }
