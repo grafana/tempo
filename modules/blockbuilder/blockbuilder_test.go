@@ -101,9 +101,6 @@ func TestBlockbuilder_without_partitions_assigned_returns_an_error(t *testing.T)
 }
 
 func TestBlockbuilder_getAssignedPartitions(t *testing.T) {
-	ctx := context.Background()
-
-	store := newStore(ctx, t)
 	cfg := blockbuilderConfig(t, "localhost", []int32{0, 2, 4, 6})
 	partitionRing := newPartitionRingReaderWithPartitions(map[int32]ring.PartitionDesc{
 		0:  {Id: 0, State: ring.PartitionActive},
@@ -115,7 +112,7 @@ func TestBlockbuilder_getAssignedPartitions(t *testing.T) {
 		20: {Id: 20, State: ring.PartitionActive},
 	})
 
-	b, err := New(cfg, test.NewTestingLogger(t), partitionRing, &mockOverrides{}, store)
+	b, err := New(cfg, test.NewTestingLogger(t), partitionRing, &mockOverrides{}, nil)
 	require.NoError(t, err)
 	partitions := b.getAssignedPartitions()
 	assert.Equal(t, []int32{0, 2}, partitions)
