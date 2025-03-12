@@ -2,6 +2,7 @@ package backendscheduler
 
 import (
 	"flag"
+	"fmt"
 	"time"
 
 	"github.com/grafana/tempo/modules/backendscheduler/work"
@@ -30,4 +31,32 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 
 	cfg.Compactor = tempodb.CompactorConfig{}
 	cfg.Compactor.RegisterFlagsAndApplyDefaults(util.PrefixConfig(prefix, "compaction"), f)
+}
+
+func ValidateConfig(cfg *Config) error {
+	if cfg.ScheduleInterval <= 0 {
+		return fmt.Errorf("positive schedule interval required")
+	}
+
+	if cfg.TenantPriorityInterval <= 0 {
+		return fmt.Errorf("positive tenant priority interval required")
+	}
+
+	if cfg.MaxPendingWorkQueue <= 0 {
+		return fmt.Errorf("positive max pending work queue required")
+	}
+
+	if cfg.MinPendingWorkQueue <= 0 {
+		return fmt.Errorf("positive min pending work queue required")
+	}
+
+	if err := work.ValidateConfig(&cfg.Work); err != nil {
+		return err
+	}
+
+	if cfg.MinPendingWorkQueue > cfg.MaxPendingWorkQueue {
+		return fmt.Errorf("min pending work queue must be less than or equal to max pending work queue")
+	}
+
+	return nil
 }

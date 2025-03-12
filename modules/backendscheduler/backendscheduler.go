@@ -57,6 +57,11 @@ type JobProcessor interface {
 
 // New creates a new BackendScheduler
 func New(cfg Config, store storage.Store, overrides overrides.Interface, reader backend.RawReader, writer backend.RawWriter) (*BackendScheduler, error) {
+	err := ValidateConfig(&cfg)
+	if err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+
 	s := &BackendScheduler{
 		cfg:            cfg,
 		store:          store,
