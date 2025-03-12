@@ -683,6 +683,7 @@ block_builder:
     instance_id: hostname
     assigned_partitions: {}
     consume_cycle_duration: 5m0s
+    max_consuming_bytes: 50000000
     block:
         max_block_bytes: 20971520
         bloom_filter_false_positive: 0.01
