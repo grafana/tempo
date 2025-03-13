@@ -16,4 +16,9 @@ var (
 		Name:      "backend_worker_bad_jobs_received_total",
 		Help:      "Total number of bad jobs received",
 	}, []string{"status"})
+	metricWorkerCallRetries = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "backend_worker_call_retries_total",
+		Help:      "Total number of retries for calls",
+	}, []string{})
 )

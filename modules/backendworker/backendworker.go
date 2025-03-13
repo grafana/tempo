@@ -464,6 +464,7 @@ func (w *BackendWorker) callSchedulerWithBackoff(ctx context.Context, f func(con
 		default:
 			if err = f(ctx); err != nil {
 				level.Error(log.Logger).Log("msg", "error calling scheduler", "err", err, "backoff", b.NextDelay())
+				metricWorkerCallRetries.WithLabelValues().Inc()
 				b.Wait()
 				continue
 			}
