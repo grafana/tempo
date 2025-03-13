@@ -114,7 +114,7 @@ func TestBackendScheduler_gRPC(t *testing.T) {
 	// Push some data to a few tenants
 	for i := 0; i < tenantCount; i++ {
 		testTenant := tenant + strconv.Itoa(i)
-		writeTenantBlocks(t, ctx, w, testTenant, 10)
+		writeTenantBlocks(ctx, t, w, testTenant, 10)
 	}
 
 	time.Sleep(500 * time.Millisecond)
@@ -239,7 +239,7 @@ func TestProtoMarshaler(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func writeTenantBlocks(t *testing.T, ctx context.Context, w backend.Writer, tenant string, count int) {
+func writeTenantBlocks(ctx context.Context, t *testing.T, w backend.Writer, tenant string, count int) {
 	var err error
 	for i := 0; i < count; i++ {
 		meta := &backend.BlockMeta{
