@@ -175,7 +175,7 @@ For a complete list of changes, refer to the [Tempo 2.6 CHANGELOG](https://githu
 
 We've changed to an RF1 (Replication Factor 1) pattern for TraceQL metrics as we were unable to hit performance goals for RF3 deduplication. This requires some operational changes to query TraceQL metrics.
 
-TraceQL metrics are still considered experimental, but we hope to mark them GA soon when we productionize a complete RF1 write-read path. [PRs [3628](https://github.com/grafana/tempo/pull/3628), [3691]([https://github.com/grafana/tempo/pull/3691), [3723]([https://github.com/grafana/tempo/pull/3723), [3995]([https://github.com/grafana/tempo/pull/3995)]
+TraceQL metrics are still considered experimental, but we hope to mark them GA soon when we productionize a complete RF1 write-read path. [PRs [3628](https://github.com/grafana/tempo/pull/3628), [3691](https://github.com/grafana/tempo/pull/3691), [3723](https://github.com/grafana/tempo/pull/3723), [3995](https://github.com/grafana/tempo/pull/3995)]
 
 **For recent data**
 
