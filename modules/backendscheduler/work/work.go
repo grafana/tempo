@@ -102,3 +102,38 @@ func (q *Work) Len() int {
 
 	return count
 }
+
+func (q *Work) GetJobForWorker(workerID string) *Job {
+	q.jobsMtx.RLock()
+	defer q.jobsMtx.RUnlock()
+
+	for _, j := range q.Jobs {
+		if j.WorkerID == workerID {
+			return j
+		}
+	}
+
+	return nil
+}
+
+func (q *Work) GetJobForType(jobType tempopb.JobType) *Job {
+	q.jobsMtx.RLock()
+	defer q.jobsMtx.RUnlock()
+
+	for _, j := range q.Jobs {
+		if j.WorkerID != "" {
+			continue
+		}
+
+		if j.IsPending() {
+			// Honor the request job type if specified
+			if jobType != tempopb.JobType_JOB_TYPE_UNSPECIFIED && j.Type != jobType {
+				continue
+			}
+
+			return j
+		}
+	}
+
+	return nil
+}

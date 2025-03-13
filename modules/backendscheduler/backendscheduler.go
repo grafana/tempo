@@ -38,6 +38,8 @@ type BackendScheduler struct {
 	work    *work.Work
 	workMtx sync.RWMutex
 
+	rpcMtx sync.RWMutex
+
 	reader backend.RawReader
 	writer backend.RawWriter
 
@@ -297,55 +299,43 @@ func (s *BackendScheduler) FailJob(_ context.Context, jobID string) error {
 
 // Next implements the BackendSchedulerServer interface.  It returns the next queued job for a worker.
 func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest) (*tempopb.NextJobResponse, error) {
+	s.rpcMtx.Lock()
+	defer s.rpcMtx.Unlock()
+
 	// Find jobs that already exist for this worker
-	for id, j := range s.work.ListJobs() {
-		if j.IsPending() || j.IsRunning() {
-			if j.GetWorkerID() == req.WorkerId {
-				resp := &tempopb.NextJobResponse{
-					JobId:  j.ID,
-					Type:   j.Type,
-					Detail: j.JobDetail,
-				}
-
-				level.Info(log.Logger).Log("msg", "assigned previous job to worker", "job_id", id, "worker", req.WorkerId)
-
-				return resp, nil
-			}
+	j := s.work.GetJobForWorker(req.WorkerId)
+	if j != nil {
+		resp := &tempopb.NextJobResponse{
+			JobId:  j.ID,
+			Type:   j.Type,
+			Detail: j.JobDetail,
 		}
+
+		level.Info(log.Logger).Log("msg", "assigned previous job to worker", "job_id", j.ID, "worker", req.WorkerId)
+
+		return resp, nil
 	}
 
 	// Find next available job
-	for id, j := range s.work.ListJobs() {
-
-		if j.GetWorkerID() != "" {
-			continue
+	j = s.work.GetJobForType(req.Type)
+	if j != nil {
+		resp := &tempopb.NextJobResponse{
+			JobId:  j.ID,
+			Type:   j.Type,
+			Detail: j.JobDetail,
 		}
 
-		if j.IsPending() {
-			// Honor the request job type if specified
-			if req.Type != tempopb.JobType_JOB_TYPE_UNSPECIFIED && j.Type != req.Type {
-				continue
-			}
+		j.SetWorkerID(req.WorkerId)
 
-			// Create response with job details
-			resp := &tempopb.NextJobResponse{
-				JobId:  j.ID,
-				Type:   j.Type,
-				Detail: j.JobDetail,
-			}
-
-			j.SetWorkerID(req.WorkerId)
-
-			err := s.flushWorkCache(ctx)
-			if err != nil {
-				// Fail without returning the job if we can't update the job cache
-				return &tempopb.NextJobResponse{}, fmt.Errorf("failed to flush work cache: %w", err)
-			}
-
-			level.Info(log.Logger).Log("msg", "assigned job to worker", "job_id", id, "worker", req.WorkerId)
-
-			return resp, nil
+		err := s.flushWorkCache(ctx)
+		if err != nil {
+			// Fail without returning the job if we can't update the job cache
+			return &tempopb.NextJobResponse{}, fmt.Errorf("failed to flush work cache: %w", err)
 		}
+
+		level.Info(log.Logger).Log("msg", "assigned job to worker", "job_id", j.ID, "worker", req.WorkerId)
+
+		return resp, nil
 	}
 
 	// No jobs available
@@ -354,6 +344,9 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 
 // UpdateJob implements the BackendSchedulerServer interface
 func (s *BackendScheduler) UpdateJob(_ context.Context, req *tempopb.UpdateJobStatusRequest) (*tempopb.UpdateJobStatusResponse, error) {
+	s.rpcMtx.Lock()
+	defer s.rpcMtx.Unlock()
+
 	j := s.work.GetJob(req.JobId)
 	if j == nil {
 		return nil, fmt.Errorf("%w: %s", work.ErrJobNotFound, req.JobId)
@@ -463,11 +456,11 @@ func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request)
 	defer s.tenantMtx.RUnlock()
 
 	x := table.NewWriter()
-	x.AppendHeader(table.Row{"tenant", "input", "output", "status", "worker", "created", "start", "end"})
+	x.AppendHeader(table.Row{"tenant", "jobID", "input", "output", "status", "worker", "created", "start", "end"})
 
 	for _, j := range s.work.ListJobs() {
 		x.AppendRows([]table.Row{
-			{j.JobDetail.Tenant, j.JobDetail.Compaction.Input, j.JobDetail.Compaction.Output, j.GetStatus().String(), j.GetWorkerID(), j.GetCreatedTime(), j.GetStartTime(), j.GetEndTime()},
+			{j.JobDetail.Tenant, j.ID, j.JobDetail.Compaction.Input, j.JobDetail.Compaction.Output, j.GetStatus().String(), j.GetWorkerID(), j.GetCreatedTime(), j.GetStartTime(), j.GetEndTime()},
 		})
 	}
 
