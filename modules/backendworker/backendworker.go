@@ -77,6 +77,8 @@ func New(cfg Config, schedulerClientCfg backendscheduler_client.Config, store st
 	}
 	w.workerID = workerID
 
+	level.Info(log.Logger).Log("msg", "backend worker starting", "worker_id", w.workerID)
+
 	schedulerClient, err := backendscheduler_client.New(cfg.BackendSchedulerAddr, schedulerClientCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create backend scheduler client: %w", err)
