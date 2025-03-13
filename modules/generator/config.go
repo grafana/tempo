@@ -8,6 +8,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
 	"github.com/grafana/tempo/modules/generator/processor/localblocks"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
@@ -16,6 +17,7 @@ import (
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
+	"go.uber.org/multierr"
 )
 
 const (
@@ -126,16 +128,29 @@ type ProcessorConfig struct {
 	ServiceGraphs servicegraphs.Config `yaml:"service_graphs"`
 	SpanMetrics   spanmetrics.Config   `yaml:"span_metrics"`
 	LocalBlocks   localblocks.Config   `yaml:"local_blocks"`
+	HostInfo      hostinfo.Config      `yaml:"host_info"`
 }
 
 func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
 	cfg.ServiceGraphs.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.SpanMetrics.RegisterFlagsAndApplyDefaults(prefix, f)
 	cfg.LocalBlocks.RegisterFlagsAndApplyDefaults(prefix, f)
+	cfg.HostInfo.RegisterFlagsAndApplyDefaults(prefix, f)
 }
 
 func (cfg *ProcessorConfig) Validate() error {
-	return cfg.LocalBlocks.Validate()
+	var errs []error
+	if err := cfg.LocalBlocks.Validate(); err != nil {
+		errs = append(errs, err)
+	}
+	if err := cfg.HostInfo.Validate(); err != nil {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return multierr.Combine(errs...)
+	}
+	return nil
 }
 
 // copyWithOverrides creates a copy of the config using values set in the overrides.

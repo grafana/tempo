@@ -624,6 +624,11 @@ metrics_generator:
             flush_to_storage: false
             concurrent_blocks: 10
             time_overlap_cutoff: 0.2
+        host_info:
+            host_identifiers:
+                - k8s.node.name
+                - host.id
+            metric_name: traces_host_info
     registry:
         collection_interval: 15s
         stale_duration: 15m0s
