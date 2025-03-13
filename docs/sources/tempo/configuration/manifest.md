@@ -625,6 +625,7 @@ metrics_generator:
             time_overlap_cutoff: 0.2
         host_info:
             host_identifiers:
+                - k8s.node.name
                 - host.id
             stale_duration: 2m0s
             metric_name: traces_host_info
