@@ -12,7 +12,6 @@ import (
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
 	"github.com/grafana/dskit/services"
-	"github.com/grafana/dskit/user"
 	backendscheduler_client "github.com/grafana/tempo/modules/backendscheduler/client"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
@@ -225,11 +224,8 @@ func (w *BackendWorker) running(ctx context.Context) error {
 // }
 
 func (w *BackendWorker) processCompactionJobs(ctx context.Context) error {
-	// TODO: the org ID is not used by the backend scheduler, but it is required
-	// by the request.  Figure out how to disable this requirement.
-
 	// Request next job
-	resp, err := w.backendScheduler.Next(user.InjectOrgID(ctx, w.workerID), &tempopb.NextJobRequest{
+	resp, err := w.backendScheduler.Next(ctx, &tempopb.NextJobRequest{
 		WorkerId: w.workerID,
 		Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
 	})
@@ -263,7 +259,7 @@ func (w *BackendWorker) processCompactionJobs(ctx context.Context) error {
 	}
 
 	err = w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
-		_, err = w.backendScheduler.UpdateJob(user.InjectOrgID(ctx, w.workerID), &tempopb.UpdateJobStatusRequest{
+		_, err = w.backendScheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
 			JobId:  resp.JobId,
 			Status: tempopb.JobStatus_JOB_STATUS_RUNNING,
 		})
@@ -290,7 +286,7 @@ func (w *BackendWorker) processCompactionJobs(ctx context.Context) error {
 
 	// Mark job as complete
 	err = w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
-		_, err = w.backendScheduler.UpdateJob(user.InjectOrgID(ctx, w.workerID), &tempopb.UpdateJobStatusRequest{
+		_, err = w.backendScheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
 			JobId:  resp.JobId,
 			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
 			Compaction: &tempopb.CompactionDetail{
@@ -323,7 +319,7 @@ func (w *BackendWorker) failJob(ctx context.Context, jobID string, errMsg string
 	level.Error(log.Logger).Log("msg", "job failed", "job_id", jobID, "error", errMsg)
 
 	err := w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
-		_, err := w.backendScheduler.UpdateJob(user.InjectOrgID(ctx, w.workerID), &tempopb.UpdateJobStatusRequest{
+		_, err := w.backendScheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
 			JobId:  jobID,
 			Status: tempopb.JobStatus_JOB_STATUS_FAILED,
 			Error:  errMsg,
