@@ -31,6 +31,7 @@ func (q *Work) AddJob(j *Job) error {
 	}
 
 	j.CreatedTime = time.Now()
+	j.Status = tempopb.JobStatus_JOB_STATUS_UNSPECIFIED
 
 	q.Jobs[j.ID] = j
 
@@ -88,6 +89,7 @@ func (q *Work) Prune() {
 	}
 }
 
+// Len returns the jobs which are not complete or failed.
 func (q *Work) Len() int {
 	q.jobsMtx.RLock()
 	defer q.jobsMtx.RUnlock()
@@ -108,7 +110,7 @@ func (q *Work) GetJobForWorker(workerID string) *Job {
 	defer q.jobsMtx.RUnlock()
 
 	for _, j := range q.Jobs {
-		if j.WorkerID == workerID {
+		if j.IsRunning() && j.WorkerID == workerID {
 			return j
 		}
 	}
