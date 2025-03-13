@@ -1063,7 +1063,7 @@ backend_worker:
         heartbeat_timeout: 1m0s
         wait_stability_min_duration: 1m0s
         wait_stability_max_duration: 5m0s
-        instance_id: twentyfour
+        instance_id: hostname
         instance_interface_names:
             - eth0
             - en0
