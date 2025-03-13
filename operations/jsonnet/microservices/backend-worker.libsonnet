@@ -38,19 +38,21 @@
 
   newBackendWorkerStatefulSet(max_unavailable=1)::
     statefulset.new(target_name, $._config.backend_worker.replicas, $.tempo_backend_worker_container, [], { app: target_name }) +
-    statefulset.mixin.spec.withServiceName(target_name) +
+    statefulset.spec.withServiceName(target_name) +
     statefulset.spec.template.spec.securityContext.withFsGroup(10001) +  // 10001 is the UID of the tempo user
-    statefulset.mixin.spec.template.metadata.withAnnotations({
+    statefulset.spec.template.metadata.withAnnotations({
       config_hash: std.md5(std.toString($.tempo_backend_worker_configmap.data['tempo.yaml'])),
     }) +
-    statefulset.mixin.spec.template.spec.withVolumes([
+    statefulset.spec.template.spec.withVolumes([
       volume.fromConfigMap(tempo_config_volume, $.tempo_backend_worker_configmap.metadata.name),
       volume.fromConfigMap(tempo_overrides_config_volume, $._config.overrides_configmap_name),
     ]) +
-    statefulset.mixin.spec.withPodManagementPolicy('Parallel'),
+    statefulset.spec.withPodManagementPolicy('Parallel') +
+    statefulset.spec.updateStrategy.withType('RollingUpdate') +
+    statefulset.spec.updateStrategy.rollingUpdate.withMaxUnavailable(max_unavailable),
 
-  tempo_backend_worker_statefulset:
-    $.newBackendWorkerStatefulSet(),
+  tempo_backend_worker_statefulset+:
+    $.newBackendWorkerStatefulSet('100%'),
 
   // Configmap
 

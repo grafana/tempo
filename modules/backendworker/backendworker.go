@@ -241,8 +241,10 @@ func (w *BackendWorker) processCompactionJobs(ctx context.Context) error {
 		return fmt.Errorf("no jobs available")
 	}
 
+	metricWorkerJobsTotal.WithLabelValues().Inc()
+
 	if resp.Detail.Tenant == "" {
-		// TODO: metric on this worker-side
+		metricWorkerBadJobsRecieved.WithLabelValues("no_tenant").Inc()
 		return w.failJob(ctx, resp.JobId, "received job with empty tenant")
 	}
 
