@@ -110,7 +110,7 @@ func (q *Work) GetJobForWorker(workerID string) *Job {
 	defer q.jobsMtx.RUnlock()
 
 	for _, j := range q.Jobs {
-		if j.IsRunning() && j.WorkerID == workerID {
+		if (j.IsRunning() || j.IsPending()) && j.WorkerID == workerID {
 			return j
 		}
 	}
