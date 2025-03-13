@@ -136,7 +136,13 @@ func TestHasBlocks(t *testing.T) {
 	require.NotNil(t, w)
 
 	j := &Job{ID: "1", JobDetail: tempopb.JobDetail{Compaction: &tempopb.CompactionDetail{Input: []string{"1"}}}}
-	w.AddJob(j)
+	err := w.AddJob(j)
+	require.NoError(t, err)
 	require.True(t, w.HasBlocks([]string{"1"}))
 	require.False(t, w.HasBlocks([]string{"2"}))
+
+	j = &Job{ID: "2", JobDetail: tempopb.JobDetail{Compaction: &tempopb.CompactionDetail{Input: []string{"2"}, Output: []string{"3"}}}}
+	err = w.AddJob(j)
+	require.NoError(t, err)
+	require.True(t, w.HasBlocks([]string{"3"}))
 }
