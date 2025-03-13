@@ -110,6 +110,12 @@ func (j *Job) GetEndTime() time.Time {
 	return j.EndTime
 }
 
+func (j *Job) GetType() tempopb.JobType {
+	j.mtx.RLock()
+	defer j.mtx.RUnlock()
+	return j.Type
+}
+
 func (j *Job) SetWorkerID(id string) {
 	j.mtx.Lock()
 	defer j.mtx.Unlock()
@@ -137,4 +143,32 @@ func (j *Job) OnBlock(id string) bool {
 	}
 
 	return false
+}
+
+func (j *Job) Tenant() string {
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
+
+	return j.JobDetail.Tenant
+}
+
+func (j *Job) GetCompactionInput() []string {
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
+
+	return j.JobDetail.Compaction.Input
+}
+
+func (j *Job) GetCompactionOutput() []string {
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
+
+	return j.JobDetail.Compaction.Output
+}
+
+func (j *Job) SetCompactionOutput(blocks []string) {
+	j.mtx.Lock()
+	defer j.mtx.Unlock()
+
+	j.JobDetail.Compaction.Output = blocks
 }

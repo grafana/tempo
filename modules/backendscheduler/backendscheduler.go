@@ -49,17 +49,6 @@ type BackendScheduler struct {
 	tenantMtx      sync.RWMutex
 }
 
-var _ JobProcessor = (*BackendScheduler)(nil)
-
-// Interface that for future API work to create and manage jobs.
-type JobProcessor interface {
-	GetJob(ctx context.Context, jobID string) (*work.Job, error)
-	CompleteJob(ctx context.Context, jobID string) error
-	FailJob(ctx context.Context, jobID string) error
-	CreateJob(ctx context.Context, job *work.Job) error
-	ListJobs(ctx context.Context) []*work.Job
-}
-
 // New creates a new BackendScheduler
 func New(cfg Config, store storage.Store, overrides overrides.Interface, reader backend.RawReader, writer backend.RawWriter) (*BackendScheduler, error) {
 	err := ValidateConfig(&cfg)
@@ -238,67 +227,6 @@ func (s *BackendScheduler) scheduleOnce(ctx context.Context, toAdd int) error {
 	return nil
 }
 
-// CreateJob creates a new job
-func (s *BackendScheduler) CreateJob(_ context.Context, j *work.Job) error {
-	err := s.work.AddJob(j)
-	if err != nil {
-		return fmt.Errorf("failed to create job: %w", err)
-	}
-
-	// TODO: flush the cache here
-
-	metricJobsCreated.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Inc()
-	metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Inc()
-
-	level.Info(log.Logger).Log("msg", "created new job", "job_id", j.ID, "tenant", j.JobDetail.Tenant, "type", j.Type.String())
-
-	return nil
-}
-
-// GetJob returns a job by ID
-func (s *BackendScheduler) GetJob(_ context.Context, jobID string) (*work.Job, error) {
-	j := s.work.GetJob(jobID)
-	if j == nil {
-		return nil, fmt.Errorf("%w: %s", work.ErrJobNotFound, jobID)
-	}
-
-	return j, nil
-}
-
-// CompleteJob marks a job as completed
-func (s *BackendScheduler) CompleteJob(_ context.Context, jobID string) error {
-	j := s.work.GetJob(jobID)
-	if j == nil {
-		return fmt.Errorf("job not found: %s", jobID)
-	}
-
-	// TODO: flush the cache here
-
-	j.Complete()
-	metricJobsCompleted.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Inc()
-	metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Dec()
-
-	level.Info(log.Logger).Log("msg", "completed job", "job_id", jobID, "type", j.Type.String())
-	return nil
-}
-
-// FailJob marks a job as failed
-func (s *BackendScheduler) FailJob(_ context.Context, jobID string) error {
-	j := s.work.GetJob(jobID)
-	if j == nil {
-		return fmt.Errorf("job not found: %s", jobID)
-	}
-
-	// TODO: flush the cache here
-
-	j.Fail()
-	metricJobsFailed.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Inc()
-	metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Dec()
-
-	level.Info(log.Logger).Log("msg", "failed job", "job_id", jobID, "tenant", j.JobDetail.Tenant, "type", j.Type.String())
-	return nil
-}
-
 // Next implements the BackendSchedulerServer interface.  It returns the next queued job for a worker.
 func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest) (*tempopb.NextJobResponse, error) {
 	s.rpcMtx.Lock()
@@ -311,6 +239,13 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 			JobId:  j.ID,
 			Type:   j.Type,
 			Detail: j.JobDetail,
+		}
+
+		// The job exists in memory, but may not have been persisted to the backend.
+		err := s.flushWorkCache(ctx)
+		if err != nil {
+			// Fail without returning the job if we can't update the job cache.
+			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
 		}
 
 		level.Info(log.Logger).Log("msg", "assigned previous job to worker", "job_id", j.ID, "worker", req.WorkerId)
@@ -332,7 +267,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 		err := s.flushWorkCache(ctx)
 		if err != nil {
 			// Fail without returning the job if we can't update the job cache
-			return &tempopb.NextJobResponse{}, fmt.Errorf("failed to flush work cache: %w", err)
+			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
 		}
 
 		level.Info(log.Logger).Log("msg", "assigned job to worker", "job_id", j.ID, "worker", req.WorkerId)
@@ -340,41 +275,46 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 		return resp, nil
 	}
 
-	// No jobs available
-	return &tempopb.NextJobResponse{}, nil
+	return &tempopb.NextJobResponse{}, status.Error(codes.NotFound, ErrNoJobsFound.Error())
 }
 
 // UpdateJob implements the BackendSchedulerServer interface
-func (s *BackendScheduler) UpdateJob(_ context.Context, req *tempopb.UpdateJobStatusRequest) (*tempopb.UpdateJobStatusResponse, error) {
+func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJobStatusRequest) (*tempopb.UpdateJobStatusResponse, error) {
 	s.rpcMtx.Lock()
 	defer s.rpcMtx.Unlock()
 
 	j := s.work.GetJob(req.JobId)
 	if j == nil {
-		return nil, fmt.Errorf("%w: %s", work.ErrJobNotFound, req.JobId)
+		return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.NotFound, work.ErrJobNotFound.Error())
 	}
 
 	switch req.Status {
 	case tempopb.JobStatus_JOB_STATUS_RUNNING:
 		j.Start()
-		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Inc()
+		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()
 		level.Info(log.Logger).Log("msg", "job started", "job_id", req.JobId, "worker_id", j.GetWorkerID())
 	case tempopb.JobStatus_JOB_STATUS_SUCCEEDED:
 		j.Complete()
-		metricJobsCompleted.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Inc()
-		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Dec()
+		metricJobsCompleted.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()
+		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Dec()
 		level.Info(log.Logger).Log("msg", "job completed", "job_id", req.JobId)
 
 		if req.Compaction != nil && req.Compaction.Output != nil {
-			j.JobDetail.Compaction.Output = req.Compaction.Output
+			j.SetCompactionOutput(req.Compaction.Output)
+		}
+
+		err := s.flushWorkCache(ctx)
+		if err != nil {
+			// Fail without returning the job if we can't update the job cache.
+			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
 		}
 
 		var (
-			metas     = s.store.BlockMetas(j.JobDetail.Tenant)
+			metas     = s.store.BlockMetas(j.Tenant())
 			oldBlocks []*backend.BlockMeta
 		)
 
-		for _, b := range j.JobDetail.Compaction.Input {
+		for _, b := range j.GetCompactionInput() {
 			for _, m := range metas {
 				if m.BlockID.String() == b {
 					oldBlocks = append(oldBlocks, m)
@@ -382,15 +322,15 @@ func (s *BackendScheduler) UpdateJob(_ context.Context, req *tempopb.UpdateJobSt
 			}
 		}
 
-		err := s.store.MarkBlocklistCompacted(j.JobDetail.Tenant, oldBlocks, nil)
+		err = s.store.MarkBlocklistCompacted(j.Tenant(), oldBlocks, nil)
 		if err != nil {
-			return &tempopb.UpdateJobStatusResponse{}, fmt.Errorf("failed to mark blocklist blocks as compacted: %w", err)
+			return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.Internal, "failed to mark compacted blocks on in-memory blocklist")
 		}
 
 	case tempopb.JobStatus_JOB_STATUS_FAILED:
 		j.Fail()
-		metricJobsFailed.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Inc()
-		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.Type.String()).Dec()
+		metricJobsFailed.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
+		metricJobsActive.WithLabelValues(j.Tenant(), j.GetType().String()).Dec()
 		level.Error(log.Logger).Log("msg", "job failed", "job_id", req.JobId, "error", req.Error)
 
 	default:
@@ -400,11 +340,6 @@ func (s *BackendScheduler) UpdateJob(_ context.Context, req *tempopb.UpdateJobSt
 	return &tempopb.UpdateJobStatusResponse{
 		Success: true,
 	}, nil
-}
-
-// ListJobs returns all jobs for a given tenant
-func (s *BackendScheduler) ListJobs(_ context.Context) []*work.Job {
-	return s.work.ListJobs()
 }
 
 // CreateCompactionJob creates a new compaction job for the given tenant and blocks.

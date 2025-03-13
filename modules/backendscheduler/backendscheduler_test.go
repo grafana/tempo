@@ -3,13 +3,13 @@ package backendscheduler
 import (
 	"context"
 	"flag"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/go-kit/log"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
-	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -22,9 +22,52 @@ import (
 	"github.com/grafana/tempo/tempodb/wal"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestBackendScheduler(t *testing.T) {
+	cfg := Config{
+		ScheduleInterval:       100 * time.Millisecond,
+		TenantPriorityInterval: 100 * time.Millisecond,
+	}
+	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+
+	tmpDir := t.TempDir()
+
+	var (
+		ctx, cancel   = context.WithCancel(context.Background())
+		store, rr, ww = newStore(ctx, t, tmpDir)
+	)
+	defer func() {
+		cancel()
+		store.Shutdown()
+	}()
+
+	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
+	require.NoError(t, err)
+
+	t.Run("no tenants and no jobs", func(t *testing.T) {
+		t.Skip()
+		bs, err := New(cfg, store, limits, rr, ww)
+		require.NoError(t, err)
+
+		err = bs.scheduleOnce(ctx, 10)
+		require.NoError(t, err)
+
+		resp, err := bs.Next(ctx, &tempopb.NextJobRequest{
+			WorkerId: "test-worker",
+			Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.Equal(t, "", resp.JobId)
+	})
+}
+
+var tenant = "test-tenant"
+
+func TestBackendScheduler_gRPC(t *testing.T) {
 	cfg := Config{
 		ScheduleInterval:       100 * time.Millisecond,
 		TenantPriorityInterval: 100 * time.Millisecond,
@@ -43,289 +86,102 @@ func TestBackendScheduler(t *testing.T) {
 	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
 	require.NoError(t, err)
 
-	t.Run("no tenants and no jobs", func(t *testing.T) {
-		bs, err := New(cfg, store, limits, rr, ww)
+	t.Run("next with no jobs returns correct errors", func(t *testing.T) {
+		s, err := New(cfg, store, limits, rr, ww)
 		require.NoError(t, err)
 
-		err = bs.scheduleOnce(ctx, 10)
+		err = s.scheduleOnce(ctx, 10)
 		require.NoError(t, err)
 
-		resp, err := bs.Next(ctx, &tempopb.NextJobRequest{
+		resp, err := s.Next(ctx, &tempopb.NextJobRequest{
 			WorkerId: "test-worker",
 			Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
 		})
-		require.NoError(t, err)
+		require.Error(t, err)
+		errStatus, ok := status.FromError(err)
+		require.True(t, ok)
+		require.Equal(t, errStatus.Code(), codes.NotFound)
+
 		require.NotNil(t, resp)
 		require.Equal(t, "", resp.JobId)
 	})
 
-	t.Run("one tenant has a jobs", func(t *testing.T) {
-		bs, err := New(cfg, store, limits, rr, ww)
+	_ = backend.NewReader(rr)
+	w := backend.NewWriter(ww)
+
+	tenantCount := 5
+
+	// Push some data to a few tenants
+	for i := 0; i < tenantCount; i++ {
+		testTenant := tenant + strconv.Itoa(i)
+		writeTenantBlocks(t, ctx, w, testTenant, 10)
+	}
+
+	time.Sleep(500 * time.Millisecond)
+
+	t.Run("jobs need doing", func(t *testing.T) {
+		s, err := New(cfg, store, limits, rr, ww)
 		require.NoError(t, err)
 
-		j := &work.Job{
-			ID:   uuid.New().String(),
-			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
-			JobDetail: tempopb.JobDetail{
-				Tenant: "test-tenant",
-				Compaction: &tempopb.CompactionDetail{
-					Input: []string{uuid.New().String(), uuid.New().String()},
-				},
-			},
-		}
-
-		err = bs.CreateJob(ctx, j)
+		s.prioritizeTenants()
+		err = s.scheduleOnce(ctx, 10)
 		require.NoError(t, err)
 
-		err = bs.scheduleOnce(ctx, 10)
-		require.NoError(t, err)
+		s.prioritizeTenants()
 
-		resp, err := bs.Next(ctx, &tempopb.NextJobRequest{
+		resp, err := s.Next(ctx, &tempopb.NextJobRequest{
 			WorkerId: "test-worker",
 			Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, resp)
-		require.Equal(t, j.ID, resp.JobId)
-	})
+		require.NotEqual(t, "", resp.JobId)
+		require.NotEqual(t, "", resp.Detail.Tenant)
+		tenant := resp.Detail.Tenant
 
-	t.Run("a request for a compaction job returns only a compaction job type", func(t *testing.T) {
-		bs, err := New(cfg, store, limits, rr, ww)
-		require.NoError(t, err)
-
-		j1 := &work.Job{
-			ID: uuid.New().String(),
-			JobDetail: tempopb.JobDetail{
-				Tenant: "test-tenant",
-				Compaction: &tempopb.CompactionDetail{
-					Input: []string{uuid.New().String(), uuid.New().String()},
-				},
-			},
-		}
-
-		j2 := &work.Job{
-			ID:   uuid.New().String(),
-			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
-			JobDetail: tempopb.JobDetail{
-				Tenant: "test-tenant",
-				Compaction: &tempopb.CompactionDetail{
-					Input: []string{uuid.New().String(), uuid.New().String()},
-				},
-			},
-		}
-
-		err = bs.CreateJob(ctx, j1)
-		require.NoError(t, err)
-
-		err = bs.CreateJob(ctx, j2)
-		require.NoError(t, err)
-
-		err = bs.scheduleOnce(ctx, 10)
-		require.NoError(t, err)
-
-		resp, err := bs.Next(ctx, &tempopb.NextJobRequest{
-			WorkerId: "test-worker",
-			Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
+		updateResp, err := s.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+			JobId:  resp.JobId,
+			Status: tempopb.JobStatus_JOB_STATUS_RUNNING,
 		})
 		require.NoError(t, err)
-		require.NotNil(t, resp)
-		require.Equal(t, j2.ID, resp.JobId)
-		require.Equal(t, tempopb.JobType_JOB_TYPE_COMPACTION, resp.Type)
+		require.NotNil(t, updateResp)
 
-		// Returns the same job if called again with the same worker ID
-		resp, err = bs.Next(ctx, &tempopb.NextJobRequest{
-			WorkerId: "test-worker",
-			Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
-		})
-		require.NoError(t, err)
-		require.NotNil(t, resp)
-		require.Equal(t, j2.ID, resp.JobId)
-	})
-
-	t.Run("handles multiple workers", func(t *testing.T) {
-		bs, err := New(cfg, store, limits, rr, ww)
-		require.NoError(t, err)
-
-		tenant := "test-tenant"
-
-		j1 := &work.Job{
-			ID:   uuid.New().String(),
-			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
-			JobDetail: tempopb.JobDetail{
-				Tenant: tenant,
-				Compaction: &tempopb.CompactionDetail{
-					Input: []string{uuid.New().String(), uuid.New().String()},
-				},
-			},
-		}
-
-		err = bs.CreateJob(ctx, j1)
-		require.NoError(t, err)
-
-		j2 := &work.Job{
-			ID:   uuid.New().String(),
-			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
-			JobDetail: tempopb.JobDetail{
-				Tenant: tenant,
-				Compaction: &tempopb.CompactionDetail{
-					Input: []string{uuid.New().String(), uuid.New().String()},
-				},
-			},
-		}
-
-		err = bs.CreateJob(ctx, j2)
-		require.NoError(t, err)
-
-		j3 := &work.Job{
-			ID:   uuid.New().String(),
-			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
-			JobDetail: tempopb.JobDetail{
-				Tenant: tenant,
-				Compaction: &tempopb.CompactionDetail{
-					Input: []string{uuid.New().String(), uuid.New().String()},
-				},
-			},
-		}
-
-		err = bs.CreateJob(ctx, j3)
-		require.NoError(t, err)
-
-		j4 := &work.Job{
-			ID:   uuid.New().String(),
-			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
-			JobDetail: tempopb.JobDetail{
-				Tenant: tenant,
-				Compaction: &tempopb.CompactionDetail{
-					Input: []string{uuid.New().String(), uuid.New().String()},
-				},
-			},
-		}
-
-		err = bs.CreateJob(ctx, j4)
-		require.NoError(t, err)
-
-		err = bs.scheduleOnce(ctx, 10)
-		require.NoError(t, err)
-
-		// Different workers should get different jobs
-		worker1Jobs := make(map[string]*tempopb.NextJobResponse)
-		worker2Jobs := make(map[string]*tempopb.NextJobResponse)
-
-		for i := 0; i < 2; i++ {
-			resp, err := bs.Next(ctx, &tempopb.NextJobRequest{
-				WorkerId: "worker1",
-				Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
-			})
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			worker1Jobs[resp.JobId] = resp
-
-			resp, err = bs.Next(ctx, &tempopb.NextJobRequest{
-				WorkerId: "worker2",
-				Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
-			})
-			require.NoError(t, err)
-			if resp != nil {
-				worker2Jobs[resp.JobId] = resp
-			}
-		}
-
-		require.NotEmpty(t, worker1Jobs)
-		require.NotEmpty(t, worker2Jobs)
-
-		// Verify jobs were distributed
-		for id := range worker1Jobs {
-			_, exists := worker2Jobs[id]
-			require.False(t, exists, "same job assigned to multiple workers")
-		}
-
-		for id := range worker2Jobs {
-			_, exists := worker1Jobs[id]
-			require.False(t, exists, "same job assigned to multiple workers")
-		}
-
-		// Mark jobs failed or complete
-		resp, err := bs.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
-			JobId:  j1.ID,
-			Status: tempopb.JobStatus_JOB_STATUS_FAILED,
-		})
-		require.NoError(t, err)
-		require.NotNil(t, resp)
-
-		resp, err = bs.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
-			JobId:  j1.ID,
+		updateResp, err = s.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+			JobId:  resp.JobId,
 			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
-		})
-		require.NoError(t, err)
-		require.NotNil(t, resp)
-
-		// unknown job id
-		resp, err = bs.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
-			JobId:  uuid.New().String(),
-			Status: tempopb.JobStatus_JOB_STATUS_FAILED,
-		})
-		require.Error(t, err)
-		require.Nil(t, resp)
-
-		// Completed and failed jobs are not cleaned up by this point.
-		currentJobs := bs.ListJobs(ctx)
-		require.Len(t, currentJobs, 4)
-	})
-
-	t.Run("CRUD operation testing", func(t *testing.T) {
-		tenant := "test-tenant"
-
-		bs, err := New(cfg, store, limits, rr, ww)
-		require.NoError(t, err)
-
-		j1 := &work.Job{
-			ID:   uuid.New().String(),
-			Type: tempopb.JobType_JOB_TYPE_COMPACTION,
-			JobDetail: tempopb.JobDetail{
-				Tenant: tenant,
-				Compaction: &tempopb.CompactionDetail{
-					Input: []string{uuid.New().String(), uuid.New().String()},
-				},
+			Compaction: &tempopb.CompactionDetail{
+				Output: []string{uuid.New().String()},
 			},
-		}
-
-		err = bs.CreateJob(ctx, j1)
+		})
 		require.NoError(t, err)
+		require.NotNil(t, updateResp)
 
-		currentJobs := bs.ListJobs(ctx)
-		require.Len(t, currentJobs, 1)
-		require.Equal(t, j1.ID, currentJobs[0].ID)
-		require.Equal(t, tempopb.JobType_JOB_TYPE_COMPACTION, currentJobs[0].Type)
-		require.Equal(t, tenant, currentJobs[0].JobDetail.Tenant)
-
-		resp, err := bs.GetJob(ctx, j1.ID)
+		resp, err = s.Next(ctx, &tempopb.NextJobRequest{
+			WorkerId: "test-worker",
+			Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
+		})
 		require.NoError(t, err)
 		require.NotNil(t, resp)
-		require.Equal(t, j1.ID, resp.ID)
-		require.Equal(t, tempopb.JobType_JOB_TYPE_COMPACTION, resp.Type)
-		require.Equal(t, tenant, resp.JobDetail.Tenant)
+		require.NotEqual(t, "", resp.JobId)
 
-		err = bs.CompleteJob(ctx, j1.ID)
+		updateResp, err = s.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+			JobId:  resp.JobId,
+			Status: tempopb.JobStatus_JOB_STATUS_FAILED,
+			Compaction: &tempopb.CompactionDetail{
+				Output: []string{uuid.New().String()},
+			},
+		})
 		require.NoError(t, err)
+		require.NotNil(t, updateResp)
 
-		resp, err = bs.GetJob(ctx, j1.ID)
-		require.NoError(t, err)
-		require.NotNil(t, resp)
-		require.Equal(t, tempopb.JobStatus_JOB_STATUS_SUCCEEDED, resp.GetStatus())
-
-		err = bs.FailJob(ctx, j1.ID)
-		require.NoError(t, err)
-
-		resp, err = bs.GetJob(ctx, j1.ID)
-		require.NoError(t, err)
-		require.NotNil(t, resp)
-		require.Equal(t, tempopb.JobStatus_JOB_STATUS_FAILED, resp.GetStatus())
+		since := time.Since(s.lastWorkForTenant(tenant))
+		require.True(t, since < 2*time.Second)
 	})
 }
 
 func newStore(ctx context.Context, t testing.TB, tmpDir string) (storage.Store, backend.RawReader, backend.RawWriter) {
 	rr, ww, _, err := local.New(&local.Config{
-		Path: tmpDir,
+		Path: tmpDir + "/traces",
 	})
 	require.NoError(t, err)
 
@@ -333,16 +189,11 @@ func newStore(ctx context.Context, t testing.TB, tmpDir string) (storage.Store, 
 }
 
 func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, tmpDir string) storage.Store {
-	_, _, _, err := local.New(&local.Config{
-		Path: tmpDir,
-	})
-	require.NoError(t, err)
-
 	s, err := storage.NewStore(storage.Config{
 		Trace: tempodb.Config{
 			Backend: backend.Local,
 			Local: &local.Config{
-				Path: tmpDir,
+				Path: tmpDir + "/traces",
 			},
 			Block: &common.BlockConfig{
 				IndexDownsampleBytes: 2,
@@ -353,7 +204,7 @@ func newStoreWithLogger(ctx context.Context, t testing.TB, log log.Logger, tmpDi
 				IndexPageSizeBytes:   1000,
 			},
 			WAL: &wal.Config{
-				Filepath: tmpDir,
+				Filepath: tmpDir + "/wal",
 			},
 			BlocklistPoll: 100 * time.Millisecond,
 		},
@@ -386,6 +237,19 @@ func TestProtoMarshaler(t *testing.T) {
 		Detail: detail,
 	})
 	require.NoError(t, err)
+}
+
+func writeTenantBlocks(t *testing.T, ctx context.Context, w backend.Writer, tenant string, count int) {
+	var err error
+	for i := 0; i < count; i++ {
+		meta := &backend.BlockMeta{
+			BlockID:  backend.NewUUID(),
+			TenantID: tenant,
+		}
+
+		err = w.WriteBlockMeta(ctx, meta)
+		require.NoError(t, err)
+	}
 }
 
 type ownsEverythingSharder struct{}

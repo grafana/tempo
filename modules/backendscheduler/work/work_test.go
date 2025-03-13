@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWork(t *testing.T) {
+func TestWorkLifecycle(t *testing.T) {
 	w := New(Config{PruneAge: 100 * time.Millisecond})
 	require.NotNil(t, w)
 
@@ -37,6 +37,8 @@ func TestWork(t *testing.T) {
 	require.Equal(t, "1", jobs[0].ID)
 	require.Equal(t, "2", jobs[1].ID)
 
+	require.Equal(t, j.GetType(), tempopb.JobType_JOB_TYPE_UNSPECIFIED)
+
 	j.Complete()
 	time.Sleep(200 * time.Millisecond)
 	w.Prune()
@@ -59,6 +61,18 @@ func TestWork(t *testing.T) {
 
 	require.Len(t, w.ListJobs(), 0)
 	require.Equal(t, w.Len(), 0)
+}
+
+func TestTenant(t *testing.T) {
+	w := New(Config{PruneAge: 100 * time.Millisecond})
+	require.NotNil(t, w)
+	require.Equal(t, w.Len(), 0)
+
+	j := &Job{ID: "1", JobDetail: tempopb.JobDetail{Tenant: "1"}}
+	err := w.AddJob(j)
+	require.NoError(t, err)
+	require.Equal(t, w.Len(), 1)
+	require.Equal(t, j.Tenant(), "1")
 }
 
 func TestLen(t *testing.T) {
@@ -91,6 +105,7 @@ func TestGetJobForWorker(t *testing.T) {
 	err := w.AddJob(j1)
 	require.NoError(t, err)
 	j1.SetWorkerID("one")
+	require.Equal(t, j1.GetWorkerID(), "one")
 	j1.Start()
 
 	j2 := &Job{ID: "2"}
@@ -131,7 +146,7 @@ func TestGetJobForType(t *testing.T) {
 	require.Nil(t, j)
 }
 
-func TestHasBlocks(t *testing.T) {
+func TestBlocks(t *testing.T) {
 	w := New(Config{PruneAge: 100 * time.Millisecond})
 	require.NotNil(t, w)
 
@@ -145,4 +160,13 @@ func TestHasBlocks(t *testing.T) {
 	err = w.AddJob(j)
 	require.NoError(t, err)
 	require.True(t, w.HasBlocks([]string{"3"}))
+
+	// test CompactionInput
+	j = &Job{ID: "3", JobDetail: tempopb.JobDetail{Compaction: &tempopb.CompactionDetail{Input: []string{"4"}}}}
+	err = w.AddJob(j)
+	require.NoError(t, err)
+	require.Equal(t, j.GetCompactionInput(), []string{"4"})
+
+	j.SetCompactionOutput([]string{"5"})
+	require.Equal(t, j.GetCompactionOutput(), []string{"5"})
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+	"github.com/gogo/status"
 	"github.com/grafana/dskit/backoff"
 	"github.com/grafana/dskit/kv"
 	"github.com/grafana/dskit/ring"
@@ -21,6 +22,7 @@ import (
 	"github.com/grafana/tempo/pkg/util/log"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -232,6 +234,13 @@ func (w *BackendWorker) processCompactionJobs(ctx context.Context) error {
 		Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
 	})
 	if err != nil {
+
+		if errStatus, ok := status.FromError(err); ok {
+			if errStatus.Code() == codes.NotFound {
+				return nil
+			}
+		}
+
 		return fmt.Errorf("error getting next job: %w", err)
 	}
 
