@@ -27,6 +27,7 @@ type RingConfig struct {
 	InstanceInterfaceNames []string `yaml:"instance_interface_names"`
 	InstancePort           int      `yaml:"instance_port" doc:"hidden"`
 	InstanceAddr           string   `yaml:"instance_addr" doc:"hidden"`
+	EnableInet6            bool     `yaml:"enable_inet6"`
 
 	// Injected internally
 	ListenPort int `yaml:"-"`
@@ -74,6 +75,7 @@ func (cfg *RingConfig) ToLifecyclerConfig() ring.LifecyclerConfig {
 	lc.ListenPort = cfg.ListenPort
 	lc.Addr = cfg.InstanceAddr
 	lc.Port = cfg.InstancePort
+	lc.EnableInet6 = cfg.EnableInet6
 	lc.ID = cfg.InstanceID
 	lc.InfNames = cfg.InstanceInterfaceNames
 	lc.UnregisterOnShutdown = true

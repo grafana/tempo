@@ -176,6 +176,7 @@ distributor:
             - en0
         instance_port: 0
         instance_addr: ""
+        enable_inet6: false
     receivers: {}
     override_ring_key: distributor
     forwarders: []
