@@ -7,6 +7,10 @@ import (
 	"github.com/prometheus/common/model"
 )
 
+const (
+	defaultHostInfoMetric = "traces_host_info"
+)
+
 type Config struct {
 	// HostIdentifiers defines the list of resource attributes used to derive
 	// a unique `grafana.host.id` value. In most cases, this should be [ "host.id" ]
@@ -17,7 +21,7 @@ type Config struct {
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(string, *flag.FlagSet) {
 	cfg.HostIdentifiers = []string{"k8s.node.name", "host.id"}
-	cfg.MetricName = hostInfoMetric
+	cfg.MetricName = defaultHostInfoMetric
 }
 
 func (cfg *Config) Validate() error {

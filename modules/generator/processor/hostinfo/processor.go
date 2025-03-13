@@ -6,7 +6,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/grafana/tempo/modules/generator/registry"
 	"github.com/grafana/tempo/pkg/tempopb"
-	"go.opentelemetry.io/otel"
+	v1 "github.com/grafana/tempo/pkg/tempopb/trace/v1"
 )
 
 const (
@@ -15,8 +15,6 @@ const (
 	hostInfoMetric     = "traces_host_info"
 	hostIdentifierAttr = "grafana.host.id"
 )
-
-var tracer = otel.Tracer("modules/generator/processor/hostinfo")
 
 type Processor struct {
 	Cfg    Config
@@ -32,33 +30,33 @@ func (p *Processor) Name() string {
 	return Name
 }
 
-func (p *Processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
-	_, span := tracer.Start(ctx, "hostinfo.PushSpans")
-	defer span.End()
-
-	values := make([]string, 1)
-
-outer:
-	for i := range req.Batches {
-		resourceSpan := req.Batches[i]
-		attrs := resourceSpan.GetResource().GetAttributes()
-
-		for _, idAttr := range p.Cfg.HostIdentifiers {
-			for _, attr := range attrs {
-				if attr.GetKey() == idAttr {
-					if val := attr.GetValue(); val != nil {
-						if strVal := val.GetStringValue(); strVal != "" {
-							values[0] = strVal
-							labelValues := p.registry.NewLabelValueCombo(
-								p.labels,
-								values,
-							)
-							p.gauge.Set(labelValues, 1)
-							continue outer
-						}
+func (p *Processor) findHostIdentifier(resourceSpans *v1.ResourceSpans) string {
+	attrs := resourceSpans.GetResource().GetAttributes()
+	for _, idAttr := range p.Cfg.HostIdentifiers {
+		for _, attr := range attrs {
+			if attr.GetKey() == idAttr {
+				if val := attr.GetValue(); val != nil {
+					if strVal := val.GetStringValue(); strVal != "" {
+						return strVal
 					}
 				}
 			}
+		}
+	}
+	return ""
+}
+
+func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) {
+	values := make([]string, 1)
+	for i := range req.Batches {
+		resourceSpans := req.Batches[i]
+		if hostID := p.findHostIdentifier(resourceSpans); hostID != "" {
+			values[0] = hostID
+			labelValues := p.registry.NewLabelValueCombo(
+				p.labels,
+				values,
+			)
+			p.gauge.Set(labelValues, 1)
 		}
 	}
 }
