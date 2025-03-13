@@ -1011,6 +1011,10 @@ backend_scheduler_client:
         connect_backoff_max_delay: 5s
 backend_worker:
     backend_scheduler_addr: ""
+    backoff:
+        min_period: 100ms
+        max_period: 1m0s
+        max_retries: 0
     compaction:
         v2_in_buffer_bytes: 5242880
         v2_out_buffer_bytes: 20971520
@@ -1023,8 +1027,48 @@ backend_worker:
         retention_concurrency: 10
         max_time_per_tenant: 5m0s
         compaction_cycle: 30s
-    backoff:
-        min_period: 100ms
-        max_period: 1m0s
-        max_retries: 0
+    override_ring_key: backend-worker
+    ring:
+        kvstore:
+            store: ""
+            prefix: collectors/
+            consul:
+                host: localhost:8500
+                acl_token: ""
+                http_client_timeout: 20s
+                consistent_reads: false
+                watch_rate_limit: 1
+                watch_burst_size: 1
+                cas_retry_delay: 1s
+            etcd:
+                endpoints: []
+                dial_timeout: 10s
+                max_retries: 10
+                tls_enabled: false
+                tls_cert_path: ""
+                tls_key_path: ""
+                tls_ca_path: ""
+                tls_server_name: ""
+                tls_insecure_skip_verify: false
+                tls_cipher_suites: ""
+                tls_min_version: ""
+                username: ""
+                password: ""
+            multi:
+                primary: ""
+                secondary: ""
+                mirror_enabled: false
+                mirror_timeout: 2s
+        heartbeat_period: 5s
+        heartbeat_timeout: 1m0s
+        wait_stability_min_duration: 1m0s
+        wait_stability_max_duration: 5m0s
+        instance_id: twentyfour
+        instance_interface_names:
+            - eth0
+            - en0
+        instance_port: 0
+        instance_addr: ""
+        enable_inet6: false
+        wait_active_instance_timeout: 10m0s
 ```
