@@ -592,7 +592,7 @@ func (rw *readerWriter) EnablePolling(ctx context.Context, sharder blocklist.Job
 
 	// do the first poll cycle synchronously. this will allow the caller to know
 	// that when this method returns the block list is updated
-	rw.pollBlocklist()
+	rw.pollBlocklist(ctx)
 
 	go rw.pollingLoop(ctx)
 }
@@ -605,13 +605,13 @@ func (rw *readerWriter) pollingLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			rw.pollBlocklist()
+			rw.pollBlocklist(ctx)
 		}
 	}
 }
 
-func (rw *readerWriter) pollBlocklist() {
-	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do(rw.blocklist)
+func (rw *readerWriter) pollBlocklist(ctx context.Context) {
+	blocklist, compactedBlocklist, err := rw.blocklistPoller.Do(ctx, rw.blocklist)
 	if err != nil {
 		level.Error(rw.logger).Log("msg", "failed to poll blocklist", "err", err)
 		return

@@ -136,7 +136,7 @@ func NewPoller(cfg *PollerConfig, sharder JobSharder, reader backend.Reader, com
 }
 
 // Do does the doing of getting a blocklist
-func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
+func (p *Poller) Do(ctx context.Context, previous *List) (PerTenant, PerTenantCompacted, error) {
 	start := time.Now()
 	defer func() {
 		diff := time.Since(start).Seconds()
@@ -145,7 +145,7 @@ func (p *Poller) Do(previous *List) (PerTenant, PerTenantCompacted, error) {
 		backend.ClearDedicatedColumns()
 	}()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	ctx, span := tracer.Start(ctx, "Poller.Do")
