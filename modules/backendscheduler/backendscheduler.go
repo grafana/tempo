@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log/level"
+	"github.com/gogo/status"
 	"github.com/google/uuid"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/tempo/modules/backendscheduler/work"
@@ -23,6 +24,7 @@ import (
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/blockselector"
 	"github.com/jedib0t/go-pretty/v6/table"
+	"google.golang.org/grpc/codes"
 )
 
 // var tracer = otel.Tracer("modules/backendscheduler")
@@ -392,7 +394,7 @@ func (s *BackendScheduler) UpdateJob(_ context.Context, req *tempopb.UpdateJobSt
 		level.Error(log.Logger).Log("msg", "job failed", "job_id", req.JobId, "error", req.Error)
 
 	default:
-		return nil, fmt.Errorf("invalid job status: %v", req.Status)
+		return &tempopb.UpdateJobStatusResponse{}, status.Error(codes.InvalidArgument, "invalid job status")
 	}
 
 	return &tempopb.UpdateJobStatusResponse{
