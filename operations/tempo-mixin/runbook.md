@@ -233,3 +233,25 @@ meta.json.  Repair the meta.json and then restart the ingester to successfully r
 it is not able to be repaired then the block files can be simply deleted as the ingester has already started
 without it.  As long as the replication factor is 2 or higher, then there will be no data loss as the
 same data was also written to another ingester.
+
+## TempoPartitionLag
+
+This alert fires when a Kafka partition in a consumer group is lagging behind the latest offset by a significant amount of time.
+
+### Troubleshooting
+
+1. Check the general health of the affected component (block-builder or metrics-generator):
+   - Review logs for errors or warnings related to Kafka consumption
+   - Check if the component is experiencing high CPU or memory usage
+   - Look for any unusual patterns in processing time or error rates
+
+2. Check the health of the Kafka cluster:
+   - Verify broker health and connectivity
+   - Check if there are any network issues between Tempo and Kafka
+   - Examine Kafka metrics for unusual patterns (high produce rate, throttling, etc.)
+
+3. Possible resolutions:
+   - Scale up the consumer group by adding more instances
+   - Increase resources (CPU/memory) for the consumer instances
+   - Check for and fix any bottlenecks in the processing pipeline
+   - If the lag is temporary due to a spike in traffic, monitor to see if it recovers

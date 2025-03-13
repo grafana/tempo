@@ -15,8 +15,8 @@ docker compose ps
 ```
 NAME                 IMAGE                                       COMMAND                  SERVICE      CREATED          STATUS         PORTS
 alloy-alloy-1        grafana/alloy:v1.3.1                        "/bin/alloy run /etc…"   alloy        48 seconds ago   Up 5 seconds   0.0.0.0:4319->4319/tcp, 0.0.0.0:12345->12345/tcp
-alloy-grafana-1      grafana/grafana:11.2.0                      "/run.sh"                grafana      48 seconds ago   Up 5 seconds   0.0.0.0:3000->3000/tcp
-alloy-k6-tracing-1   ghcr.io/grafana/xk6-client-tracing:v0.0.5   "/k6-tracing run /ex…"   k6-tracing   48 seconds ago   Up 4 seconds   
+alloy-grafana-1      grafana/grafana:11.5.2                      "/run.sh"                grafana      48 seconds ago   Up 5 seconds   0.0.0.0:3000->3000/tcp
+alloy-k6-tracing-1   ghcr.io/grafana/xk6-client-tracing:v0.0.7   "/k6-tracing run /ex…"   k6-tracing   48 seconds ago   Up 4 seconds   
 alloy-prometheus-1   prom/prometheus:latest                      "/bin/prometheus --c…"   prometheus   48 seconds ago   Up 5 seconds   0.0.0.0:9090->9090/tcp
 alloy-tempo-1        grafana/tempo:latest                        "/tempo -config.file…"   tempo        48 seconds ago   Up 5 seconds   0.0.0.0:57508->3200/tcp, 0.0.0.0:57509->4317/tcp, 0.0.0.0:57505->4318/tcp, 0.0.0.0:57506->9411/tcp, 0.0.0.0:57507->14268/tcp
 ```

@@ -153,7 +153,10 @@ func commonKafkaClientOptions(cfg KafkaConfig, metrics *kprom.Metrics, logger lo
 	}
 
 	tracer := kotel.NewTracer(
-		kotel.TracerPropagator(propagation.NewCompositeTextMapPropagator(onlySampledTraces{propagation.TraceContext{}})),
+		kotel.TracerPropagator(propagation.NewCompositeTextMapPropagator(
+			onlySampledTraces{propagation.Baggage{}},
+			onlySampledTraces{propagation.TraceContext{}},
+		)),
 	)
 	opts = append(opts, kgo.WithHooks(kotel.NewKotel(kotel.WithTracer(tracer)).Hooks()...))
 

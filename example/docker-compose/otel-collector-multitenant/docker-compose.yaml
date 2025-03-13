@@ -26,7 +26,7 @@ services:
 
   # Generate fake traces...
   k6-tracing:
-    image: ghcr.io/grafana/xk6-client-tracing:v0.0.5
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.7
     environment:
       - ENDPOINT=otel-collector:4317
     restart: always
@@ -53,7 +53,7 @@ services:
       - "9090:9090"
 
   grafana:
-    image: grafana/grafana:11.2.0
+    image: grafana/grafana:11.5.2
     volumes:
       - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     environment:

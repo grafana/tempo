@@ -26,7 +26,7 @@ services:
 
   # Generate fake traces...
   k6-tracing:
-    image: ghcr.io/grafana/xk6-client-tracing:v0.0.5
+    image: ghcr.io/grafana/xk6-client-tracing:v0.0.7
     environment:
       - ENDPOINT=otel-collector:4317
     restart: always

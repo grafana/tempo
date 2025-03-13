@@ -29,6 +29,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [ENHANCEMENT] Rewrite traces using rebatching [#4690](https://github.com/grafana/tempo/pull/4690) (@stoewer @joe-elliott)
 * [ENHANCEMENT] Reorder span iterators [#4754](https://github.com/grafana/tempo/pull/4754) (@stoewer)
 * [ENHANCEMENT] Update minio to version [#4341](https://github.com/grafana/tempo/pull/4568) (@javiermolinar)
+* [ENHANCEMENT] Fix flaky ingester test [#4846](https://github.com/grafana/tempo/pull/4846) (@javiermolinar)
 * [ENHANCEMENT] Prevent queries in the ingester from blocking flushing traces to disk and memory spikes. [#4483](https://github.com/grafana/tempo/pull/4483) (@joe-elliott)
 * [ENHANCEMENT] Update tempo operational dashboard for new block-builder and v2 traces api [#4559](https://github.com/grafana/tempo/pull/4559) (@mdisibio)
 * [ENHANCEMENT] Improve metrics-generator performance and stability by applying queue back pressure and concurrency [#4721](https://github.com/grafana/tempo/pull/4721) (@mdisibio)
@@ -43,8 +44,11 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [ENHANCEMENT] Update dskit to latest version [#4681](https://github.com/grafana/tempo/pull/4681) (@javiermolinar)
 * [ENHANCEMENT] Improve TraceQL perf by reverting EqualRowNumber to an inlineable function.[#4705](https://github.com/grafana/tempo/pull/4705) (@joe-elliott)
 * [ENHANCEMENT] Rhythm: fair partition consumption in blockbuilders [#4655](https://github.com/grafana/tempo/pull/4655) (@javiermolinar)
+* [ENHANCEMENT] Skip creating one span-traces for every pushed spans in metrics generator [#4844](https://github.com/grafana/tempo/pull/4844) (@javiermolinar)
 * [ENHANCEMENT] TraceQL: add support for querying by parent span id [#4692](https://github.com/grafana/tempo/pull/4692) (@ie-pham)
 * [ENHANCEMENT] metrics-generator: allow skipping localblocks and consuming from a different source of data [#4686](https://github.com/grafana/tempo/pull/4686) (@flxbk)
+* [ENHANCEMENT] compactor: restore dedicated columns logging for completed blocks
+* [ENHANCEMENT] distributor: add IPv6 support [#4840](https://github.com/grafana/tempo/pull/4840) (@gjacquet)
 * [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. [#4546](https://github.com/grafana/tempo/pull/4576) (@joe-elliott)
   Correctly copy exemplars for metrics like `| rate()` when gRPC streaming.
 * [BUGFIX] Fix performance bottleneck and file cleanup in block builder [#4550](https://github.com/grafana/tempo/pull/4550) (@mdisibio)

@@ -9,7 +9,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/util/strutil"
-	"go.opentelemetry.io/otel"
 
 	gen "github.com/grafana/tempo/modules/generator/processor"
 	processor_util "github.com/grafana/tempo/modules/generator/processor/util"
@@ -29,8 +28,6 @@ const (
 	metricSizeTotal       = "traces_spanmetrics_size_total"
 	targetInfo            = "traces_target_info"
 )
-
-var tracer = otel.Tracer("modules/generator/processor/spanmetrics")
 
 type sanitizeFn func(string) string
 
@@ -122,10 +119,7 @@ func (p *Processor) Name() string {
 	return Name
 }
 
-func (p *Processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest) {
-	_, span := tracer.Start(ctx, "spanmetrics.PushSpans")
-	defer span.End()
-
+func (p *Processor) PushSpans(_ context.Context, req *tempopb.PushSpansRequest) {
 	p.aggregateMetrics(req.Batches)
 }
 
@@ -283,7 +277,7 @@ func GetTargetInfoAttributesValues(keys, values *[]string, attributes []*v1_comm
 	for _, attrs := range attributes {
 		// ignoring job and instance
 		key := attrs.Key
-		if key != "service.name" && key != "service.namespace" && key != "service.instance.id" && !Contains(key, exclude) {
+		if key != "service.name" && key != "service.namespace" && key != "service.instance.id" && !slices.Contains(exclude, key) {
 			*keys = append(*keys, SanitizeLabelNameWithCollisions(key, intrinsicLabels, sanitizeFn))
 			value := tempo_util.StringifyAnyValue(attrs.Value)
 			*values = append(*values, value)
@@ -300,13 +294,4 @@ func SanitizeLabelNameWithCollisions(name string, dimensions []string, sansaniti
 	}
 
 	return sanitized
-}
-
-func Contains(key string, list []string) bool {
-	for _, exclude := range list {
-		if key == exclude {
-			return true
-		}
-	}
-	return false
 }
