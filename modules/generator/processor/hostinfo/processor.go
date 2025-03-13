@@ -36,7 +36,7 @@ func (p *Processor) PushSpans(ctx context.Context, req *tempopb.PushSpansRequest
 	_, span := tracer.Start(ctx, "hostinfo.PushSpans")
 	defer span.End()
 
-	values := make([]string, 1, 1)
+	values := make([]string, 1)
 
 outer:
 	for i := range req.Batches {
@@ -66,7 +66,7 @@ outer:
 func (p *Processor) Shutdown(_ context.Context) {}
 
 func New(cfg Config, reg registry.Registry, logger log.Logger) (*Processor, error) {
-	labels := make([]string, 1, 1)
+	labels := make([]string, 1)
 	labels[0] = hostIdentifierAttr
 	myGauge := reg.NewGauge(cfg.MetricName)
 	myGauge.SetExpiration(cfg.StaleDuration)
