@@ -29,6 +29,7 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [ENHANCEMENT] Rewrite traces using rebatching [#4690](https://github.com/grafana/tempo/pull/4690) (@stoewer @joe-elliott)
 * [ENHANCEMENT] Reorder span iterators [#4754](https://github.com/grafana/tempo/pull/4754) (@stoewer)
 * [ENHANCEMENT] Update minio to version [#4341](https://github.com/grafana/tempo/pull/4568) (@javiermolinar)
+* [ENHANCEMENT] Fix flaky ingester test [#4846](https://github.com/grafana/tempo/pull/4846) (@javiermolinar)
 * [ENHANCEMENT] Prevent queries in the ingester from blocking flushing traces to disk and memory spikes. [#4483](https://github.com/grafana/tempo/pull/4483) (@joe-elliott)
 * [ENHANCEMENT] Update tempo operational dashboard for new block-builder and v2 traces api [#4559](https://github.com/grafana/tempo/pull/4559) (@mdisibio)
 * [ENHANCEMENT] Improve metrics-generator performance and stability by applying queue back pressure and concurrency [#4721](https://github.com/grafana/tempo/pull/4721) (@mdisibio)
