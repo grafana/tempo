@@ -25,8 +25,7 @@ type gauge struct {
 	onAddSeries    func(count uint32) bool
 	onRemoveSeries func(count uint32)
 
-	externalLabels     map[string]string
-	expirationDuration time.Duration
+	externalLabels map[string]string
 }
 
 type gaugeSeries struct {
@@ -165,20 +164,10 @@ func (g *gauge) removeStaleSeries(staleTimeMs int64) {
 	g.seriesMtx.Lock()
 	defer g.seriesMtx.Unlock()
 
-	expTimeMs := staleTimeMs
-	if g.expirationDuration > 0 {
-		expTimeMs = time.Now().Add(-1 * g.expirationDuration).UnixMilli()
-	}
-
 	for hash, s := range g.series {
-		lastUpdated := s.lastUpdated.Load()
-		if lastUpdated < expTimeMs {
+		if s.lastUpdated.Load() < staleTimeMs {
 			delete(g.series, hash)
 			g.onRemoveSeries(1)
 		}
 	}
-}
-
-func (g *gauge) SetExpiration(expDuration time.Duration) {
-	g.expirationDuration = expDuration
 }

@@ -68,8 +68,6 @@ func (p *Processor) Shutdown(_ context.Context) {}
 func New(cfg Config, reg registry.Registry, logger log.Logger) (*Processor, error) {
 	labels := make([]string, 1)
 	labels[0] = hostIdentifierAttr
-	myGauge := reg.NewGauge(cfg.MetricName)
-	myGauge.SetExpiration(cfg.StaleDuration)
 	p := &Processor{
 		Cfg:        cfg,
 		logger:     logger,
