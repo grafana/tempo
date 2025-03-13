@@ -627,7 +627,6 @@ metrics_generator:
             host_identifiers:
                 - k8s.node.name
                 - host.id
-            stale_duration: 2m0s
             metric_name: traces_host_info
     registry:
         collection_interval: 15s

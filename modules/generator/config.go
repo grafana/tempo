@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/tempo/pkg/ingest"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/wal"
+	"go.uber.org/multierr"
 )
 
 const (
@@ -138,7 +139,18 @@ func (cfg *ProcessorConfig) RegisterFlagsAndApplyDefaults(prefix string, f *flag
 }
 
 func (cfg *ProcessorConfig) Validate() error {
-	return cfg.LocalBlocks.Validate()
+	var errs []error
+	if err := cfg.LocalBlocks.Validate(); err != nil {
+		errs = append(errs, err)
+	}
+	if err := cfg.HostInfo.Validate(); err != nil {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return multierr.Combine(errs...)
+	}
+	return nil
 }
 
 // copyWithOverrides creates a copy of the config using values set in the overrides.
