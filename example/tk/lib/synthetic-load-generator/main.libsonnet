@@ -4,7 +4,7 @@
   local deployment = k.apps.v1.deployment,
 
   synthetic_load_generator_container::
-    container.new('synthetic-load-gen', 'ghcr.io/grafana/xk6-client-tracing:v0.0.5') +
+    container.new('synthetic-load-gen', 'ghcr.io/grafana/xk6-client-tracing:v0.0.7') +
     container.withEnvMap({
       ENDPOINT: 'http://tempo:4317',
     }),
