@@ -121,3 +121,20 @@ func (j *Job) GetWorkerID() string {
 	defer j.mtx.RUnlock()
 	return j.WorkerID
 }
+
+// OnBlock returns true if the job is operating on a block.
+func (j *Job) OnBlock(id string) bool {
+	for _, b := range j.JobDetail.Compaction.Input {
+		if b == id {
+			return true
+		}
+	}
+
+	for _, b := range j.JobDetail.Compaction.Output {
+		if b == id {
+			return true
+		}
+	}
+
+	return false
+}

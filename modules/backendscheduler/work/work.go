@@ -137,3 +137,19 @@ func (q *Work) GetJobForType(jobType tempopb.JobType) *Job {
 
 	return nil
 }
+
+// HasBlocks returns true if the worker is currently working on any of the provided block IDs.
+func (q *Work) HasBlocks(ids []string) bool {
+	q.jobsMtx.RLock()
+	defer q.jobsMtx.RUnlock()
+
+	for _, j := range q.Jobs {
+		for _, id := range ids {
+			if j.OnBlock(id) {
+				return true
+			}
+		}
+	}
+
+	return false
+}

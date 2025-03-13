@@ -409,21 +409,8 @@ func (s *BackendScheduler) ListJobs(_ context.Context) []*work.Job {
 // Must be called under jobsMtx lock.
 func (s *BackendScheduler) createCompactionJob(ctx context.Context, tenantID string, input []string) error {
 	// Skip blocks which already have a job
-	for _, blockID := range input {
-		for _, j := range s.work.ListJobs() {
-			if j.JobDetail.Tenant == tenantID {
-				switch j.Type {
-				case tempopb.JobType_JOB_TYPE_COMPACTION:
-					for _, b := range j.JobDetail.Compaction.Input {
-						if b == blockID {
-							return nil
-						}
-					}
-				default:
-					continue
-				}
-			}
-		}
+	if s.work.HasBlocks(input) {
+		return nil
 	}
 
 	jobID := uuid.New().String()
