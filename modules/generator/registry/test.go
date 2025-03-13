@@ -5,6 +5,7 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/storage"
@@ -118,8 +119,9 @@ func (t *testCounter) removeStaleSeries(int64) {
 }
 
 type testGauge struct {
-	n        string
-	registry *TestRegistry
+	n                  string
+	registry           *TestRegistry
+	expirationDuration time.Duration
 }
 
 var _ Gauge = (*testGauge)(nil)
@@ -150,6 +152,10 @@ func (t *testGauge) Set(labelValueCombo *LabelValueCombo, value float64) {
 
 func (t *testGauge) SetForTargetInfo(labelValueCombo *LabelValueCombo, value float64) {
 	t.Set(labelValueCombo, value)
+}
+
+func (t *testGauge) SetExpiration(d time.Duration) {
+	t.expirationDuration = d
 }
 
 func (t *testGauge) name() string {
