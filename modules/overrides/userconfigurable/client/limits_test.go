@@ -9,6 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func strPtr(s string) *string {
+	return &s
+}
+
 func TestLimits_parseJson(t *testing.T) {
 	testCases := []struct {
 		name     string
@@ -34,6 +38,10 @@ func TestLimits_parseJson(t *testing.T) {
       "span_metrics": {
         "dimensions": ["cluster"],
         "histogram_buckets": [0.1, 0.2, 0.5]
+      },
+      "host_info": {
+         "host_identifiers": ["k8s.node.name", "host.id"],
+         "metric_name": "traces_host_info"
       }
     }
   }
@@ -50,6 +58,10 @@ func TestLimits_parseJson(t *testing.T) {
 						SpanMetrics: LimitsMetricsGeneratorProcessorSpanMetrics{
 							Dimensions:       &[]string{"cluster"},
 							HistogramBuckets: &[]float64{0.1, 0.2, 0.5},
+						},
+						HostInfo: LimitsMetricGeneratorProcessorHostInfo{
+							HostIdentifiers: &[]string{"k8s.node.name", "host.id"},
+							MetricName:      strPtr("traces_host_info"),
 						},
 					},
 				},
