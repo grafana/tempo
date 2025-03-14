@@ -7,22 +7,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-// type JobType int
-//
-// const (
-// 	JobTypeUnknown JobType = iota
-// 	JobTypeCompaction
-// )
-//
-// func (t JobType) String() string {
-// 	switch t {
-// 	case JobTypeCompaction:
-// 		return "compaction"
-// 	default:
-// 		return "unknown"
-// 	}
-// }
-
 type Job struct {
 	ID          string            `json:"id"`
 	Type        tempopb.JobType   `json:"type"`
@@ -33,9 +17,7 @@ type Job struct {
 	StartTime   time.Time `json:"start_time"`
 	EndTime     time.Time `json:"end_time"`
 	WorkerID    string    `json:"worker_id"`
-
-	// TODO: implement retries with max
-	Retries int `json:"retries"`
+	Retries     int       `json:"retries"`
 }
 
 func (j *Job) Start() {
