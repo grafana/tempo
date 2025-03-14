@@ -56,26 +56,115 @@ func MaxRowNumber() RowNumber {
 // at two levels of nesting, the top-level and 1 level of nesting
 // below.
 func CompareRowNumbers(upToDefinitionLevel int, a, b RowNumber) int {
-	for i := 0; i <= upToDefinitionLevel; i++ {
-		if a[i] < b[i] {
+	// Unrolled loop for better performance - common definition levels first
+	switch upToDefinitionLevel {
+	case 0:
+		if a[0] < b[0] {
 			return -1
 		}
-		if a[i] > b[i] {
+		if a[0] > b[0] {
 			return 1
 		}
+		return 0
+	case 1:
+		if a[0] < b[0] {
+			return -1
+		}
+		if a[0] > b[0] {
+			return 1
+		}
+		if a[1] < b[1] {
+			return -1
+		}
+		if a[1] > b[1] {
+			return 1
+		}
+		return 0
+	case 2:
+		if a[0] < b[0] {
+			return -1
+		}
+		if a[0] > b[0] {
+			return 1
+		}
+		if a[1] < b[1] {
+			return -1
+		}
+		if a[1] > b[1] {
+			return 1
+		}
+		if a[2] < b[2] {
+			return -1
+		}
+		if a[2] > b[2] {
+			return 1
+		}
+		return 0
+	case 3:
+		if a[0] < b[0] {
+			return -1
+		}
+		if a[0] > b[0] {
+			return 1
+		}
+		if a[1] < b[1] {
+			return -1
+		}
+		if a[1] > b[1] {
+			return 1
+		}
+		if a[2] < b[2] {
+			return -1
+		}
+		if a[2] > b[2] {
+			return 1
+		}
+		if a[3] < b[3] {
+			return -1
+		}
+		if a[3] > b[3] {
+			return 1
+		}
+		return 0
+	default:
+		// Fall back to loop for less common cases
+		for i := 0; i <= upToDefinitionLevel; i++ {
+			if a[i] < b[i] {
+				return -1
+			}
+			if a[i] > b[i] {
+				return 1
+			}
+		}
+		return 0
 	}
-	return 0
 }
 
 // EqualRowNumber compares the sequences of row numbers in a and b
 // for partial equality. A little faster than CompareRowNumbers(d,a,b)==0
 func EqualRowNumber(upToDefinitionLevel int, a, b RowNumber) bool {
-	for i := 0; i <= upToDefinitionLevel; i++ {
-		if a[i] != b[i] {
-			return false
-		}
+	// Unrolled loop for better performance
+	switch upToDefinitionLevel {
+	case 0:
+		return a[0] == b[0]
+	case 1:
+		return a[0] == b[0] && a[1] == b[1]
+	case 2:
+		return a[0] == b[0] && a[1] == b[1] && a[2] == b[2]
+	case 3:
+		return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3]
+	case 4:
+		return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3] && a[4] == b[4]
+	case 5:
+		return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3] && a[4] == b[4] && a[5] == b[5]
+	case 6:
+		return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3] && a[4] == b[4] && a[5] == b[5] && a[6] == b[6]
+	case 7:
+		return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3] && a[4] == b[4] && a[5] == b[5] && a[6] == b[6] && a[7] == b[7]
+	default:
+		panicWhenInvalidDefinitionLevel(upToDefinitionLevel)
+		return false
 	}
-	return true
 }
 
 func truncateRowNumberSlow(definitionLevelToKeep int, t RowNumber) RowNumber {
@@ -145,9 +234,14 @@ func (t *RowNumber) Next(repetitionLevel, definitionLevel, maxDefinitionLevel in
 // Skip rows at the root-level.
 func (t *RowNumber) Skip(numRows int64) {
 	t[0] += int32(numRows)
-	for i := 1; i < len(t); i++ {
-		t[i] = -1
-	}
+	// Faster than a loop for a fixed size array
+	t[1] = -1
+	t[2] = -1
+	t[3] = -1
+	t[4] = -1
+	t[5] = -1
+	t[6] = -1
+	t[7] = -1
 }
 
 // Preceding returns the largest representable row number that is immediately prior to this
@@ -210,9 +304,12 @@ func (r *IteratorResult) AppendOtherValue(k string, v interface{}) {
 }
 
 func (r *IteratorResult) OtherValueFromKey(k string) interface{} {
-	for _, e := range r.OtherEntries {
-		if e.Key == k {
-			return e.Value
+	// Most cases have very few entries, so a direct loop is faster than a map
+	// Linear search with early return is more efficient for small collections
+	n := len(r.OtherEntries)
+	for i := 0; i < n; i++ {
+		if r.OtherEntries[i].Key == k {
+			return r.OtherEntries[i].Value
 		}
 	}
 	return nil
@@ -232,6 +329,7 @@ func (r *IteratorResult) ToMap() map[string][]pq.Value {
 // Columns gets the values for each named column. The order of returned values
 // matches the order of names given. This is more efficient than converting to a map.
 func (r *IteratorResult) Columns(buffer [][]pq.Value, names ...string) [][]pq.Value {
+	// Setup buffer
 	if cap(buffer) < len(names) {
 		buffer = make([][]pq.Value, len(names))
 	} else {
@@ -241,7 +339,32 @@ func (r *IteratorResult) Columns(buffer [][]pq.Value, names ...string) [][]pq.Va
 		buffer[i] = buffer[i][:0]
 	}
 
-	for _, e := range r.Entries {
+	// Fast path for common case of single column
+	if len(names) == 1 {
+		for _, e := range r.Entries {
+			if e.Key == names[0] {
+				buffer[0] = append(buffer[0], e.Value)
+			}
+		}
+		return buffer
+	}
+
+	// Fast path for common case of two columns
+	if len(names) == 2 {
+		for _, e := range r.Entries {
+			if e.Key == names[0] {
+				buffer[0] = append(buffer[0], e.Value)
+			} else if e.Key == names[1] {
+				buffer[1] = append(buffer[1], e.Value)
+			}
+		}
+		return buffer
+	}
+
+	// General case for more columns
+	entriesLen := len(r.Entries)
+	for j := 0; j < entriesLen; j++ {
+		e := r.Entries[j]
 		for i := range names {
 			if e.Key == names[i] {
 				buffer[i] = append(buffer[i], e.Value)
@@ -249,6 +372,7 @@ func (r *IteratorResult) Columns(buffer [][]pq.Value, names ...string) [][]pq.Va
 			}
 		}
 	}
+	
 	return buffer
 }
 
@@ -682,22 +806,46 @@ func (c *SyncIterator) seekWithinPage(to RowNumber, definitionLevel int) {
 // when being called multiple times and throwing away the results like in SeekTo().
 func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 	for {
-		if c.currRowGroup == nil {
-			rg, min, max := c.popRowGroup()
-			if rg == nil {
-				return EmptyRowNumber(), nil, nil
-			}
+		// Fast path: If we have values in the current buffer, process them first
+		if c.currBuf != nil && c.currBufN < len(c.currBuf) {
+			// Process the current buffer - hot loop optimized for speed
+			bufLen := len(c.currBuf)
+			for ; c.currBufN < bufLen; c.currBufN++ {
+				v := &c.currBuf[c.currBufN]
 
-			cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
-			if c.filter != nil && !c.filter.KeepColumnChunk(cc) {
-				cc.Close()
-				continue
-			}
+				// Inspect all values to track the current row number,
+				// even if the value is filtered out next.
+				c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.maxDefinitionLevel)
+				c.currPageN++
 
-			c.setRowGroup(rg, min, max, cc)
+				// Skip filtered values
+				if c.filter == nil || c.filter.KeepValue(*v) {
+					c.currBufN++ // Increment for next iteration
+					return c.curr, v, nil
+				}
+			}
 		}
 
+		// If we're here, either currBuf is nil or we've consumed all values in it
+		// First check if we need to load a new page
 		if c.currPage == nil {
+			// If currPage is nil, check if we need to load a new row group
+			if c.currRowGroup == nil {
+				rg, min, max := c.popRowGroup()
+				if rg == nil {
+					return EmptyRowNumber(), nil, nil // No more row groups
+				}
+
+				cc := &ColumnChunkHelper{ColumnChunk: rg.ColumnChunks()[c.column]}
+				if c.filter != nil && !c.filter.KeepColumnChunk(cc) {
+					cc.Close()
+					continue
+				}
+
+				c.setRowGroup(rg, min, max, cc)
+			}
+
+			// Now load a new page
 			pg, err := c.currChunk.NextPage()
 			if pg == nil || errors.Is(err, io.EOF) {
 				// This row group is exhausted
@@ -716,40 +864,24 @@ func (c *SyncIterator) next() (RowNumber, *pq.Value, error) {
 			c.setPage(pg)
 		}
 
-		// Read next batch of values if needed
+		// Read next batch of values
 		if c.currBuf == nil {
 			c.currBuf = syncIteratorPoolGet(c.readSize, 0)
 		}
-		if c.currBufN >= len(c.currBuf) || len(c.currBuf) == 0 {
-			c.currBuf = c.currBuf[:cap(c.currBuf)]
-			n, err := c.currValues.ReadValues(c.currBuf)
-			if err != nil && !errors.Is(err, io.EOF) {
-				return EmptyRowNumber(), nil, err
-			}
-			c.currBuf = c.currBuf[:n]
-			c.currBufN = 0
-			if n == 0 {
-				// This value reader and page are exhausted.
-				c.setPage(nil)
-				continue
-			}
+		
+		// Reset buffer and read new values
+		c.currBuf = c.currBuf[:cap(c.currBuf)]
+		n, err := c.currValues.ReadValues(c.currBuf)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return EmptyRowNumber(), nil, err
 		}
-
-		// Consume current buffer until empty
-		for c.currBufN < len(c.currBuf) {
-			v := &c.currBuf[c.currBufN]
-
-			// Inspect all values to track the current row number,
-			// even if the value is filtered out next.
-			c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel(), c.maxDefinitionLevel)
-			c.currBufN++
-			c.currPageN++
-
-			if c.filter != nil && !c.filter.KeepValue(*v) {
-				continue
-			}
-
-			return c.curr, v, nil
+		c.currBuf = c.currBuf[:n]
+		c.currBufN = 0
+		
+		if n == 0 {
+			// This value reader and page are exhausted.
+			c.setPage(nil)
+			continue
 		}
 	}
 }
@@ -812,10 +944,7 @@ func (c *SyncIterator) makeResult(t RowNumber, v *pq.Value) *IteratorResult {
 	// Use same static result instead of pooling
 	c.at.RowNumber = t
 
-	// The length of the Entries slice indicates if we should return the
-	// value or just the row number. This has already been checked during
-	// creation. SyncIterator reads a single column so the slice will
-	// always have length 0 or 1.
+	// Fast path: Check if we need to add the value
 	if len(c.at.Entries) == 1 {
 		if c.intern {
 			c.at.Entries[0].Value = c.interner.UnsafeClone(v)
@@ -1738,29 +1867,39 @@ func (a *KeyValueGroupPredicate) String() string {
 // KeepGroup checks if the given group contains all of the requested
 // key/value pairs.
 func (a *KeyValueGroupPredicate) KeepGroup(group *IteratorResult) bool {
-	// printGroup(group)
+	// Get columns using the optimized path we just improved
 	a.buffer = group.Columns(a.buffer, "keys", "values")
 
 	keys, vals := a.buffer[0], a.buffer[1]
 
+	// Quick check for impossible matches
 	if len(keys) < len(a.keys) || len(keys) != len(vals) {
-		// Missing data or unsatisfiable condition
 		return false
 	}
 
-	/*fmt.Println("Inspecting group:")
-	for i := 0; i < len(keys); i++ {
-		fmt.Printf("%d: %s = %s \n", i, keys[i].String(), vals[i].String())
-	}*/
+	// Special case for single key/value pair which is common
+	if len(a.keys) == 1 {
+		k := a.keys[0]
+		v := a.vals[0]
+		
+		// Search for matching key/value pair
+		for j := 0; j < len(keys); j++ {
+			if bytes.Equal(k, keys[j].ByteArray()) && bytes.Equal(v, vals[j].ByteArray()) {
+				return true
+			}
+		}
+		return false
+	}
 
+	// General case for multiple key/value pairs
 	for i := 0; i < len(a.keys); i++ {
 		k := a.keys[i]
 		v := a.vals[i]
-
-		// Make sure k and v exist somewhere
 		found := false
 
-		for j := 0; j < len(keys) && j < len(vals); j++ {
+		// Unrolled main search loop for better performance
+		keysLen := len(keys)
+		for j := 0; j < keysLen; j++ {
 			if bytes.Equal(k, keys[j].ByteArray()) && bytes.Equal(v, vals[j].ByteArray()) {
 				found = true
 				break
