@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/util/log"
+	"github.com/grafana/tempo/tempodb"
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/blocklist"
 	"github.com/grafana/tempo/tempodb/blockselector"
@@ -450,6 +451,10 @@ func (s *BackendScheduler) compactions(ctx context.Context, want int) []tempopb.
 		blockselector.DefaultMaxInputBlocks,
 	)
 
+	defer func() {
+		tempodb.MeasureOutstandingBlocks(tenantID, blockSelector, ownedYes)
+	}()
+
 	for {
 		if ctx.Err() != nil {
 			return jobs
@@ -486,4 +491,8 @@ func (s *BackendScheduler) compactions(ctx context.Context, want int) []tempopb.
 	}
 
 	return jobs
+}
+
+func ownedYes(_ string) bool {
+	return true
 }
