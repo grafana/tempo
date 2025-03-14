@@ -62,7 +62,7 @@ func Test_UserConfigOverridesAPI_overridesHandlers(t *testing.T) {
 			name:           "GET",
 			handler:        overridesAPI.GetHandler,
 			req:            prepareRequest(tenant, "GET", nil),
-			expResp:        `{"forwarders":["my-other-forwarder"],"cost_attribution":{},"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`,
+			expResp:        `{"forwarders":["my-other-forwarder"],"cost_attribution":{},"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{},"host_info":{}}}}`,
 			expContentType: api.HeaderAcceptJSON,
 			expStatusCode:  200,
 		},
@@ -149,7 +149,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 			name:           "PATCH - no values stored yet",
 			patch:          `{"forwarders":["my-other-forwarder"]}`,
 			current:        ``,
-			expResp:        `{"forwarders":["my-other-forwarder"],"cost_attribution":{},"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`,
+			expResp:        `{"forwarders":["my-other-forwarder"],"cost_attribution":{},"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{},"host_info":{}}}}`,
 			expContentType: api.HeaderAcceptJSON,
 			expStatusCode:  200,
 		},
@@ -157,7 +157,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 			name:           "PATCH - empty overrides are merged",
 			patch:          `{"forwarders":["my-other-forwarder"]}`,
 			current:        `{}`,
-			expResp:        `{"forwarders":["my-other-forwarder"],"cost_attribution":{},"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`,
+			expResp:        `{"forwarders":["my-other-forwarder"],"cost_attribution":{},"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{},"host_info":{}}}}`,
 			expContentType: api.HeaderAcceptJSON,
 			expStatusCode:  200,
 		},
@@ -165,7 +165,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 			name:           "PATCH - overwrite",
 			patch:          `{"forwarders":["my-other-forwarder"]}`,
 			current:        `{"forwarders":["previous-forwarder"]}`,
-			expResp:        `{"forwarders":["my-other-forwarder"],"cost_attribution":{},"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`,
+			expResp:        `{"forwarders":["my-other-forwarder"],"cost_attribution":{},"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{},"host_info":{}}}}`,
 			expContentType: api.HeaderAcceptJSON,
 			expStatusCode:  200,
 		},
@@ -173,7 +173,7 @@ func Test_UserConfigOverridesAPI_patchOverridesHandlers(t *testing.T) {
 			name:          "PATCH - invalid patch",
 			patch:         `{"newField":true}`,
 			current:       `{"forwarders":["prior-forwarder"]}`,
-			expResp:       "client.Limits.ReadObject: found unknown field: newField, error found in #10 byte of ...|\"newField\":true}|..., bigger context ...|\"service_graphs\":{},\"span_metrics\":{}}},\"newField\":true}|...\n",
+			expResp:       "client.Limits.ReadObject: found unknown field: newField, error found in #10 byte of ...|\"newField\":true}|..., bigger context ...|\":{},\"span_metrics\":{},\"host_info\":{}}},\"newField\":true}|...\n",
 			expStatusCode: 400,
 		},
 	}
@@ -247,7 +247,7 @@ func TestUserConfigOverridesAPI_patchOverridesHandler_noVersionConflict(t *testi
 	overridesAPI.PatchHandler(w, r)
 
 	data := w.Body.String()
-	assert.Equal(t, `{"forwarders":["f"],"cost_attribution":{},"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{}}}}`, data)
+	assert.Equal(t, `{"forwarders":["f"],"cost_attribution":{},"metrics_generator":{"processor":{"service_graphs":{},"span_metrics":{},"host_info":{}}}}`, data)
 
 	res := w.Result()
 	assert.Equal(t, "2", res.Header.Get(headerEtag))

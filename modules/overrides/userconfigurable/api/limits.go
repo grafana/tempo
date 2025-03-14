@@ -30,6 +30,10 @@ func limitsFromOverrides(overrides overrides.Interface, userID string) *client.L
 					HistogramBuckets:             floatArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsHistogramBuckets(userID)),
 					TargetInfoExcludedDimensions: strArrPtr(overrides.MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID)),
 				},
+				HostInfo: client.LimitsMetricGeneratorProcessorHostInfo{
+					HostIdentifiers: strArrPtr(overrides.MetricsGeneratorProcessorHostInfoHostIdentifiers(userID)),
+					MetricName:      strPtr(overrides.MetricsGeneratorProcessorHostInfoMetricName(userID)),
+				},
 			},
 		},
 	}
@@ -41,6 +45,10 @@ func boolPtr(b bool) *bool {
 
 func timePtr(t time.Duration) *client.Duration {
 	return &client.Duration{Duration: t}
+}
+
+func strPtr(s string) *string {
+	return &s
 }
 
 func strArrPtr(s []string) *[]string {
