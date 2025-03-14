@@ -632,6 +632,7 @@ metrics_generator:
     registry:
         collection_interval: 15s
         stale_duration: 15m0s
+        enable_stale_markers: false
         max_label_name_length: 1024
         max_label_value_length: 2048
     storage:
