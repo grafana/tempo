@@ -16,6 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/tempo/modules/generator/processor"
+	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
 	"github.com/grafana/tempo/modules/generator/processor/localblocks"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
@@ -37,6 +38,7 @@ var (
 		spanmetrics.Count.String(),
 		spanmetrics.Latency.String(),
 		spanmetrics.Size.String(),
+		hostinfo.Name,
 	}
 
 	metricActiveProcessors = promauto.NewGaugeVec(prometheus.GaugeOpts{

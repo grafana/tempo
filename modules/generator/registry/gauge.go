@@ -22,8 +22,9 @@ type gauge struct {
 	seriesMtx sync.RWMutex
 	series    map[uint64]*gaugeSeries
 
-	onAddSeries    func(count uint32) bool
-	onRemoveSeries func(count uint32)
+	onAddSeries        func(count uint32) bool
+	onRemoveSeries     func(count uint32)
+	enableStaleMarkers bool
 
 	externalLabels map[string]string
 }
@@ -32,6 +33,7 @@ type gaugeSeries struct {
 	labels      labels.Labels
 	value       *atomic.Float64
 	lastUpdated *atomic.Int64
+	stale       bool
 }
 
 var (
@@ -44,7 +46,7 @@ const (
 	set = "set"
 )
 
-func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string) *gauge {
+func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(count uint32), externalLabels map[string]string, enableStaleMarkers bool) *gauge {
 	if onAddSeries == nil {
 		onAddSeries = func(uint32) bool {
 			return true
@@ -55,11 +57,12 @@ func newGauge(name string, onAddSeries func(uint32) bool, onRemoveSeries func(co
 	}
 
 	return &gauge{
-		metricName:     name,
-		series:         make(map[uint64]*gaugeSeries),
-		onAddSeries:    onAddSeries,
-		onRemoveSeries: onRemoveSeries,
-		externalLabels: externalLabels,
+		metricName:         name,
+		series:             make(map[uint64]*gaugeSeries),
+		onAddSeries:        onAddSeries,
+		onRemoveSeries:     onRemoveSeries,
+		externalLabels:     externalLabels,
+		enableStaleMarkers: enableStaleMarkers,
 	}
 }
 
@@ -148,8 +151,19 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) (activeS
 
 	activeSeries = len(g.series)
 
-	for _, s := range g.series {
+	for hash, s := range g.series {
 		t := time.UnixMilli(timeMs)
+
+		if g.enableStaleMarkers && s.stale {
+			_, err = appender.Append(0, s.labels, t.UnixMilli(), staleMarker())
+			if err != nil {
+				return
+			}
+			delete(g.series, hash)
+			g.onRemoveSeries(1)
+			continue
+		}
+
 		_, err = appender.Append(0, s.labels, t.UnixMilli(), s.value.Load())
 		if err != nil {
 			return
@@ -166,8 +180,12 @@ func (g *gauge) removeStaleSeries(staleTimeMs int64) {
 
 	for hash, s := range g.series {
 		if s.lastUpdated.Load() < staleTimeMs {
-			delete(g.series, hash)
-			g.onRemoveSeries(1)
+			if g.enableStaleMarkers {
+				s.stale = true
+			} else {
+				delete(g.series, hash)
+				g.onRemoveSeries(1)
+			}
 		}
 	}
 }

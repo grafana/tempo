@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"math"
 	"math/rand"
 	"sync"
 	"testing"
@@ -17,7 +18,7 @@ func Test_gaugeInc(t *testing.T) {
 		return true
 	}
 
-	c := newGauge("my_gauge", onAdd, nil, nil)
+	c := newGauge("my_gauge", onAdd, nil, nil, false)
 
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
@@ -52,7 +53,7 @@ func TestGaugeDifferentLabels(t *testing.T) {
 		return true
 	}
 
-	c := newGauge("my_gauge", onAdd, nil, nil)
+	c := newGauge("my_gauge", onAdd, nil, nil, false)
 
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(newLabelValueCombo([]string{"another_label"}, []string{"another_value"}), 2.0)
@@ -74,7 +75,7 @@ func Test_gaugeSet(t *testing.T) {
 		return true
 	}
 
-	c := newGauge("my_gauge", onAdd, nil, nil)
+	c := newGauge("my_gauge", onAdd, nil, nil, false)
 
 	c.Set(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Set(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
@@ -109,7 +110,7 @@ func Test_gauge_cantAdd(t *testing.T) {
 		return canAdd
 	}
 
-	c := newGauge("my_gauge", onAdd, nil, nil)
+	c := newGauge("my_gauge", onAdd, nil, nil, false)
 
 	// allow adding new series
 	canAdd = true
@@ -145,7 +146,7 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 		removedSeries++
 	}
 
-	c := newGauge("my_gauge", nil, onRemove, nil)
+	c := newGauge("my_gauge", nil, onRemove, nil, false)
 
 	timeMs := time.Now().UnixMilli()
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
@@ -180,7 +181,7 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 }
 
 func Test_gauge_externalLabels(t *testing.T) {
-	c := newGauge("my_gauge", nil, nil, map[string]string{"external_label": "external_value"})
+	c := newGauge("my_gauge", nil, nil, map[string]string{"external_label": "external_value"}, false)
 
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-1"}), 1.0)
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
@@ -194,7 +195,7 @@ func Test_gauge_externalLabels(t *testing.T) {
 }
 
 func Test_gauge_concurrencyDataRace(t *testing.T) {
-	c := newGauge("my_gauge", nil, nil, nil)
+	c := newGauge("my_gauge", nil, nil, nil, false)
 
 	end := make(chan struct{})
 
@@ -240,7 +241,7 @@ func Test_gauge_concurrencyDataRace(t *testing.T) {
 }
 
 func Test_gauge_concurrencyCorrectness(t *testing.T) {
-	c := newGauge("my_gauge", nil, nil, nil)
+	c := newGauge("my_gauge", nil, nil, nil, false)
 
 	var wg sync.WaitGroup
 	end := make(chan struct{})
@@ -273,4 +274,29 @@ func Test_gauge_concurrencyCorrectness(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, float64(totalCount.Load())),
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, 1, expectedSamples, nil)
+}
+
+func Test_gauge_sendStaleMarkers(t *testing.T) {
+	c := newGauge("my_gauge", nil, nil, nil, true)
+
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value"}), 1.0)
+
+	staleTimeMs := time.Now().Add(1 * time.Minute).UnixMilli()
+	c.removeStaleSeries(staleTimeMs)
+
+	collectionTimeMs := time.Now().UnixMilli()
+	expectedSamples := []sample{
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value"}, collectionTimeMs, staleMarker()),
+	}
+	assert.True(t, math.IsNaN(expectedSamples[0].v))
+
+	appender := &capturingAppender{}
+
+	activeSeries, err := c.collectMetrics(appender, collectionTimeMs)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, activeSeries)
+	assert.False(t, appender.isCommitted)
+	assert.False(t, appender.isRolledback)
+	assert.Equal(t, expectedSamples[0].String(), appender.samples[0].String())
+	assert.True(t, math.IsNaN(appender.samples[0].v))
 }
