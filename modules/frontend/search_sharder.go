@@ -119,37 +119,13 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, reqCh, pipeline.NewAsyncResponse(jobMetrics), s.next), nil
 }
 
-// blockMetas returns all relevant blockMetas given a start/end
-func (s *asyncSearchSharder) blockMetas(start, end int64, tenantID string) []*backend.BlockMeta {
-	var rfCheck func(m *backend.BlockMeta) bool
-	if s.cfg.RF1After.IsZero() {
-		rfCheck = func(m *backend.BlockMeta) bool {
-			return m.ReplicationFactor == backend.DefaultReplicationFactor
-		}
-	} else {
-		rfCheck = func(m *backend.BlockMeta) bool {
-			return (m.ReplicationFactor == backend.DefaultReplicationFactor && m.StartTime.Before(s.cfg.RF1After)) ||
-				(m.ReplicationFactor == 1 && m.StartTime.After(s.cfg.RF1After))
-		}
-	}
-
-	// reduce metas to those in the requested range
-	allMetas := s.reader.BlockMetas(tenantID)
-	metas := make([]*backend.BlockMeta, 0, len(allMetas)/50) // divide by 50 for luck
-	for _, m := range allMetas {
-		if m.StartTime.Unix() <= end &&
-			m.EndTime.Unix() >= start &&
-			rfCheck(m) {
-			metas = append(metas, m)
-		}
-	}
-
-	return metas
-}
-
 func (s *asyncSearchSharder) filterFn(m *backend.BlockMeta) bool {
+	if s.cfg.RF1After.IsZero() {
+		return m.ReplicationFactor == backend.DefaultReplicationFactor
+	}
+
 	return (m.ReplicationFactor == backend.DefaultReplicationFactor && m.StartTime.Before(s.cfg.RF1After)) ||
-		(m.ReplicationFactor == 1 && m.StartTime.After(s.cfg.RF1After))
+		(m.ReplicationFactor == backend.MetricsGeneratorReplicationFactor && m.StartTime.After(s.cfg.RF1After))
 }
 
 // backendRequest builds backend requests to search backend blocks. backendRequest takes ownership of reqCh and closes it.
