@@ -184,7 +184,7 @@ func (w *BackendWorker) starting(ctx context.Context) (err error) {
 }
 
 func (w *BackendWorker) running(ctx context.Context) error {
-	level.Info(log.Logger).Log("msg", "backend scheduler running")
+	level.Info(log.Logger).Log("msg", "backend worker running")
 
 	b := backoff.New(ctx, w.cfg.Backoff)
 
@@ -228,21 +228,27 @@ func (w *BackendWorker) running(ctx context.Context) error {
 // }
 
 func (w *BackendWorker) processCompactionJobs(ctx context.Context) error {
-	// Request next job
-	resp, err := w.backendScheduler.Next(ctx, &tempopb.NextJobRequest{
-		WorkerId: w.workerID,
-		Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
-	})
-	if err != nil {
+	var resp *tempopb.NextJobResponse
+	var err error
 
-		if errStatus, ok := status.FromError(err); ok {
-			if errStatus.Code() == codes.NotFound {
-				return nil
+	// Request next job
+	err = w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
+		resp, err = w.backendScheduler.Next(ctx, &tempopb.NextJobRequest{
+			WorkerId: w.workerID,
+			Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
+		})
+		if err != nil {
+			if errStatus, ok := status.FromError(err); ok {
+				if errStatus.Code() == codes.NotFound {
+					return errStatus.Err()
+				}
 			}
+
+			return fmt.Errorf("error getting next job: %w", err)
 		}
 
-		return fmt.Errorf("error getting next job: %w", err)
-	}
+		return nil
+	})
 
 	if resp == nil || resp.JobId == "" {
 		return fmt.Errorf("no jobs available")
