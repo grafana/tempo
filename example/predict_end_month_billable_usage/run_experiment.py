@@ -16,7 +16,6 @@ from mlt.cross_validation_splitters.prediction_window_manager import PredictionW
 from mlt.experiment_pipeline import TrainingPipeline
 
 
-
 def get_data(hydra_config) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
     Generate a new labeled data set with a new featurizer

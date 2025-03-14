@@ -10,6 +10,7 @@ from joblib import Parallel, delayed
 from mlt.models.base_models import MLTBaseModel
 from mlt.typing import CVSplitter
 
+
 @dataclass
 class PredictionResults:
     """
@@ -318,7 +319,7 @@ class TrainingPipeline:
         if task.is_last_task:
             results.model = model
         return results
-    # changed the name to generate_predictions_for_prediction_period
+
     def generate_predictions_for_prediction_period(self, data_for_training: pd.DataFrame) -> PredictionResults:
         """
         Generate predictions for a given prediction period using the configured model.

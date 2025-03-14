@@ -1,4 +1,3 @@
-import math
 import numpy as np
 import pandas as pd
 import numbers
@@ -35,24 +34,21 @@ class BaseTimeSeriesCV(CVSplitter):
     - _split(): Core splitting logic for the specific CV strategy
     """
 
-
-
     def __init__(
         self,
-        n_splits: 10,
-        pred_time_column_name: None,
-        eval_time_column_name: None, 
+        n_splits: int = 10,
+        pred_time_column_name: str = None,
+        eval_time_column_name: str = None,
         embargo_td: pd.Timedelta = pd.Timedelta(minutes=0),
         split_by_time: bool = False,
     ):
-        
-        
+
         if not isinstance(n_splits, numbers.Integral):
             raise ValueError(f"n_splits must be an integer, got {type(n_splits)}")
         n_splits = int(n_splits)
         if n_splits <= 1:
             raise ValueError(f"n_splits must be greater than 1, got {n_splits}")
-        
+
         self.n_splits = n_splits
         self.pred_time_column_name = pred_time_column_name
         self.eval_time_column_name = eval_time_column_name
@@ -60,20 +56,26 @@ class BaseTimeSeriesCV(CVSplitter):
         self.split_by_time = split_by_time
 
     def _check_split_arguments(self, X: pd.DataFrame, y: pd.Series = None):
+
         if not X[self.pred_time_column_name].is_monotonic_increasing:
-            raise ValueError(f"pred_time_column_name must be monotonic increasing, got {X[self.pred_time_column_name].head()}")
+            non_monotonic_indices = np.where(np.diff(X[self.pred_time_column_name]) < 0)[0]
+            if len(non_monotonic_indices) > 0:
+                first_violation = non_monotonic_indices[0]
+                error_msg = (f"pred_time_column_name must be monotonic increasing. First violation at index {first_violation}:\n"
+                            f"Value at index {first_violation}: {X[self.pred_time_column_name].iloc[first_violation]}\n"
+                            f"Value at index {first_violation+1}: {X[self.pred_time_column_name].iloc[first_violation+1]}")
+                raise ValueError(error_msg)
         if not isinstance(X, pd.DataFrame) and not isinstance(X, pd.Series):
             raise ValueError(f"X must be a pandas DataFrame or Series, got {type(X)}")
         if not isinstance(y, pd.Series) and y is not None:
             raise ValueError(f"y must be a pandas Series, got {type(y)}")
         if y is not None and (X.index ==y.index).sum() != len(X):
-            raise ValueError(f"X and y must have the same index")
-        
+            raise ValueError("X and y must have the same index")
+
     @abstractmethod
     def get_n_splits(self) -> int:
         ...
 
-   
     def split(self, X: pd.DataFrame, y: pd.Series = None) -> Iterable[Tuple[np.ndarray, np.ndarray]]:
         """
         Split data into training and test sets.
@@ -112,7 +114,6 @@ class BaseTimeSeriesCV(CVSplitter):
             pred_times: pd.Series,
             eval_times: pd.Series,
     ) -> np.ndarray:
-        
 
         """
         Embargo the test indices based on the embargo time delta.
@@ -134,21 +135,20 @@ class BaseTimeSeriesCV(CVSplitter):
         The embargo period helps prevent using training data that is too close in time
         to the test samples, which could lead to data leakage in financial applications.
         """
-        ...
-        
+
         last_test_eval_time = eval_times.iloc[test_indices[test_indices <= test_fold_end].max()]
         min_train_index = len(pred_times[pred_times <= last_test_eval_time + self.embargo_td])
         if min_train_index < all_indices.shape[0]:
             allowed_indices = np.concatenate([all_indices[:test_fold_end], all_indices[min_train_index:]])
             train_indices = np.intersect1d(train_indices, allowed_indices)
         return train_indices
-    
+
     @staticmethod
     def purge(
-        all_indices : np.ndarray,
-        train_indices : np.ndarray,
-        test_fold_start : int,
-        test_fold_end : int,
+        all_indices: np.ndarray,
+        train_indices: np.ndarray,
+        test_fold_start: int,
+        test_fold_end: int,
         pred_times: pd.Series,
         eval_times: pd.Series,
     ) -> np.ndarray:
@@ -181,7 +181,6 @@ class BaseTimeSeriesCV(CVSplitter):
             eval_time_test_end = eval_times.iloc[test_fold_end]
             train_indices_2 = np.intersect1d(train_indices_2, all_indices[pred_times >= eval_time_test_end])
         return np.concatenate([train_indices_1, train_indices_2])
-    
 
 
 class PurgedWalkForwardCV(BaseTimeSeriesCV):
@@ -261,7 +260,7 @@ class PurgedWalkForwardCV(BaseTimeSeriesCV):
 
     def get_n_splits(self) -> int:
         return self.n_splits - self.n_test_splits - self.min_train_splits +1 
-        
+
     def _split(
             self, X: pd.DataFrame, y: pd.Series = None, pred_times: pd.Series = None, eval_times: pd.Series = None
     ) -> Iterable[Tuple[np.ndarray, np.ndarray]]:
@@ -308,37 +307,20 @@ class PurgedWalkForwardCV(BaseTimeSeriesCV):
                 indices, train_indices, test_indices.min(), test_indices.max(), pred_times, eval_times
             )
             yield purged_train_indices, test_indices
-    
+
     def _compute_fold_bounds(self, X: pd.DataFrame) -> List[int]:
         """
         Compute the bounds of each fold in the dataset.
 
         This method calculates the indices where each fold starts and ends based on the
-        prediction and evaluation timestamps. It ensures that each fold is properly
-            
+        prediction and evaluation timestamps. It ensures that each fold is properly  
         """
         if self.split_by_time:
             pred_times  = X[self.pred_time_column_name]
             full_time_span = pred_times.max() - pred_times.min()
-            
+
             fold_time_span = full_time_span / self.n_splits
             fold_bounds_times = [pred_times.iloc[0] + fold_time_span * n for n in range(self.n_splits)]
             return pred_times.searchsorted(fold_bounds_times)
         else:
             return [fold[0] for fold in np.array_split(np.arange(X.shape[0]), self.n_splits)]
-        
-# add purged and embargoed combinatorial cross validation in the future 
-
-            
-            
-
-           
-           
-           
-           
-
-           
-    
-    
-        
-

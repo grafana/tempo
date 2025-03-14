@@ -5,6 +5,7 @@ from sklearn.pipeline import Pipeline
 
 from mlt.models.base_models import MLTBaseRegression
 
+
 class MLTXGBoostRegression(MLTBaseRegression):
     """
     XGBoost regression model implementation for MLT.
@@ -38,16 +39,16 @@ class MLTXGBoostRegression(MLTBaseRegression):
                 tree_method=tree_method
             ))
         ])
-    
+
     def feature_importances(self, training_data: pd.DataFrame) -> pd.DataFrame:
         """
         Calculate feature importance for the model.
         """
         raw_importance = self.get_booster_if_needed().get_score(importance_type=self.importance_type)
         importance = pd.DataFrame(list(raw_importance.items()), columns=["feature", "score"])
-        
-        return importance 
-    
+
+        return importance
+
     def get_shap_values(self, feature_data: pd.DataFrame, predictions: pd.Series) -> pd.DataFrame:
         """
         Get a dataframe of shap values for features and predictions.

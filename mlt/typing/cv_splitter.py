@@ -7,6 +7,7 @@ import pandas as pd
 
 ArrayLike = Union[pd.DataFrame, np.ndarray, pd.Series]
 
+
 class CVSplitter(Protocol):
     """
     A protocol for cross-validation splitters.
@@ -17,7 +18,7 @@ class CVSplitter(Protocol):
         Split the data into training and validation sets.
         """
         ...
-        
+
     @abstractmethod
     def get_n_splits(self) -> int:
         """

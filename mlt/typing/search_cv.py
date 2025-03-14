@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Protocol, Tuple, Dict, Any, Callable
+from typing import Protocol, Dict, Any, Callable
 from sklearn.base import BaseEstimator
 
 
@@ -17,7 +17,6 @@ class SearchCV(Protocol):
     n_splits_: int
     refit_time_: float
     n_features_in_: int
-    
 
     @abstractmethod
     def score(self, X, y):
@@ -54,7 +53,7 @@ class SearchCV(Protocol):
     @abstractmethod
     def fit(self, X, y):
         pass
-    
+
     @abstractmethod
     def set_params(self, **kwargs):
         pass
@@ -62,5 +61,3 @@ class SearchCV(Protocol):
     @abstractmethod
     def get_params(self) -> Dict[str, Any]:
         pass
-    
-    

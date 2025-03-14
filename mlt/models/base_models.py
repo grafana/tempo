@@ -8,7 +8,6 @@ import pickle
 import joblib
 import numpy as np
 import pandas as pd
-from scipy.special import softmax
 import shap
 from sklearn.base import BaseEstimator
 from sklearn.pipeline import Pipeline
@@ -35,13 +34,15 @@ class MLTBaseModel(ABC):
         extra_pipeline_kwargs: Dict = None,
     ):
         """
-        Base class for MLT models that provides common functionality for training, prediction, and evaluation.
+        Base class for MLT models that provides common functionality for
+        training, prediction, and evaluation.
 
         Parameters
         ----------
         search_cv_factory : Callable[[BaseEstimator], SearchCV]
-            Factory function that creates a SearchCV object for hyperparameter tuning
-        cv_splitter : CVSplitter 
+            Factory function that creates a SearchCV object for hyperparameter
+            tuning
+        cv_splitter : CVSplitter
             Cross validation splitter object that defines train/test splits
         non_feature_columns : List[str]
             Column names that should be excluded from feature data
@@ -115,7 +116,7 @@ class MLTBaseModel(ABC):
         """
         with open(model_path, "wb") as pkl_out:
             pickle.dump(self,pkl_out)
-    
+
     @staticmethod
     def from_pickle(model_path: Union[Path, str]):
         """
@@ -310,7 +311,6 @@ class MLTBaseModel(ABC):
         return {key: value for key, value in self.pipeline.get_params().items() if key in self.model_parameter_grid}
 
 
-
 class MLTBaseRegression(MLTBaseModel, ABC):
     def get_fold_from_index(self, data: pd.DataFrame, indices: np.ndarray) -> pd.DataFrame:
         return super().get_fold_from_index(data, indices)
@@ -337,21 +337,35 @@ class MLTBaseRegression(MLTBaseModel, ABC):
     @abstractmethod
     def get_shap_values(self, feature_data: pd.DataFrame, predictions: pd.Series) -> pd.DataFrame:
         """
-        Get a dataframe of shap values for features and predictions. This currently works for lightgbm and xgboost but
-        you may need to implement your own
+        Get a dataframe of SHAP values for features and predictions. This currently works for LightGBM and XGBoost,
+        but may require adjustments for other models.
 
-        :param feature_data: Raw feature data before any selection or transforms, and with metadata
-        :param predictions: Outputs from self.get_prediction_data
-        :return: A dataframe of shap values for each prediction and feature
+        :param feature_data: Raw feature data before any selection or transformations, including metadata.
+        :param predictions: Outputs from self.get_prediction_data.
+        :return: A dataframe of SHAP values for each prediction and feature.
         """
+        
         feature_names = [col for col in feature_data.columns if col not in self.non_feature_columns]
         booster = self.get_booster_if_needed()
-        shap_explainer = shap.Explainer(booster)
-        shap_values = shap_explainer.shap_values(
-            self.pipeline.named_steps.feature_selection.transform(feature_data[feature_names]), check_additivity=False
-        )
+
+        # More explicit approach for selecting the SHAP explainer
+        if hasattr(booster, 'get_booster'):  # XGBoost
+            shap_explainer = shap.TreeExplainer(booster)
+        elif hasattr(booster, 'booster_'):  # LightGBM
+            shap_explainer = shap.TreeExplainer(booster)
+        else:
+            shap_explainer = shap.Explainer(booster)  # Fallback for other models
+
+        # Compute SHAP values
+        transformed_features = self.pipeline.named_steps.feature_selection.transform(feature_data[feature_names])
+        shap_values = shap_explainer.shap_values(transformed_features, check_additivity=False)
+
+        # Retrieve feature names after selection
         used_names = self.pipeline.named_steps.feature_selection.get_feature_names_out(feature_names)
+
+        # Assign SHAP values to the original dataframe
         feature_data[used_names] = shap_values
-        feature_data[[x for x in feature_names if x not in used_names]] = 0
+        feature_data[[x for x in feature_names if x not in used_names]] = 0  # Set SHAP values to 0 for unused features
         feature_data[self.predicted_label_name] = predictions.iloc[:, 0]
+
         return feature_data

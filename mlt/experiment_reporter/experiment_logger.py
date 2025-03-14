@@ -21,6 +21,7 @@ from mlt.experiment_pipeline.training_pipeline import PredictionResults
 
 ScoringFunction = Callable[[pd.Series, pd.Series], float]
 
+
 class ExperimentLogger(ABC):
     def __init__(
         self,
@@ -84,7 +85,7 @@ class ExperimentLogger(ABC):
                 prediction_model.importance_type,
                 "_aggregate",
             )
-            
+
             all_results.feature_importances.to_csv(self.experiment_path / "historical_feature_importance.csv", index=False)
 
         self.perform_model_checks(predictions)
@@ -92,9 +93,7 @@ class ExperimentLogger(ABC):
         predictions[self.prediction_columns_to_save].to_pickle(self.experiment_path / "historicalpredictions.pkl")
         all_results.in_sample_predictions.to_pickle(self.experiment_path / "in_sample_predictions.pkl")
         all_results.model_params.to_csv(self.experiment_path / "model_params_history.csv", index=False)
-        
-        #all_results.model_params.to_csv(self.experiment_path / "historical_model_params.csv", index=False)
-        #prediction_model.save(self.experiment_path / f"{model_name}.pkl")
+
         model_folder = self.experiment_path / model_name
         model_folder.mkdir()
         prediction_model.to_pickle(model_folder / f"{model_name}.pkl")
@@ -104,7 +103,7 @@ class ExperimentLogger(ABC):
 
         if all_results.shaps is not None:
             all_results.shaps.to_parquet(self.experiment_path / "all_shaps.parquet")
-            
+
     def save_unlabelled_prediction_artifacts_to_disk(
             self, unlabelled_predictions: pd.DataFrame, unlabelled_shaps: Optional[pd.DataFrame] = None
     ):
@@ -160,7 +159,7 @@ class ExperimentLogger(ABC):
             the metric functions defined in self.metric_functions
         """
         return {name: metric(true_label, predicted_label) for name, metric in self.metric_functions.items()}
-    
+
     def save_feature_importances(self, feature_importances: pd.DataFrame, importance_type: str = "", file_name_suffix: str = ""):
         """
         Save feature importance scores and visualizations.
@@ -194,7 +193,7 @@ class ExperimentLogger(ABC):
         except ValueError:
             logging.warning(f"Feature importances are probably empty:\n{feature_importances}")
             plt.close()
-    
+
     def find_metrics_by_period(
         self, label_data: pd.DataFrame, metric: ScoringFunction, resampling_code: str
     ) -> Union[pd.Series, pd.DataFrame]:
@@ -220,8 +219,7 @@ class ExperimentLogger(ABC):
         )
         metric_by_period = metric_by_period.dropna(how="all")
         return metric_by_period
-    
-    
+
     def save_cv_split(self, cv_set: List[Tuple[pd.Series, pd.Series]]):
         """
         Save visualization of cross-validation splits.
@@ -274,7 +272,6 @@ class ExperimentLogger(ABC):
         fig.savefig(self.metrics_save_path / "Last CV Split.png", bbox_inches="tight")
         plt.close(fig)
 
-    
     @property
     @abstractmethod
     def metric_functions(self) -> Dict[str, ScoringFunction]:
@@ -316,11 +313,10 @@ class RegressionExperimentLogger(ExperimentLogger):
             "hit_rate": lambda x, y: (np.sign(x) == np.sign(y)).mean(),
             "r2": lambda x, y: r2_score(x, y),
         }
-    
+
     def generate_and_save_ml_artifacts(self, true_label: pd.Series, predicted_label: pd.Series):
         overall_metric_df = pd.Series(self.get_ml_metrics(true_label, predicted_label))
         overall_metric_df.to_csv(self.metrics_save_path / "overall_metrics.csv")
-
 
     def save_residual_kde_plot(self, data: pd.DataFrame):
         """
@@ -342,7 +338,6 @@ class RegressionExperimentLogger(ExperimentLogger):
         plt.title("Residual Histogram", fontsize=15)
         plt.savefig(self.metrics_save_path / "residuals_kde.png")
         plt.close()
-
 
     def save_fit_plot(self, data: pd.DataFrame):
         """
@@ -368,7 +363,6 @@ class RegressionExperimentLogger(ExperimentLogger):
         plt.title("True vs Predicted Values", fontsize=15)
         plt.savefig(self.metrics_save_path / "fit_plot.png")
         plt.close()
-
 
     def save_predicted_true_scatter_plot(self, data: pd.DataFrame, ols_line: bool = True):
         """
@@ -399,18 +393,17 @@ class RegressionExperimentLogger(ExperimentLogger):
         """
         # Rename columns for clarity
         data = data.rename(columns={self.predicted_label_name: "predicted_value", self.true_label_name: "actual_value"})
-        
+
         # Create figure and axis
         fig, ax = plt.subplots(figsize=(10, 8))
-        
         # Create scatter plot
         ax.scatter(data["predicted_value"], data["actual_value"], s=0.1, alpha=0.7)
-        
+
         # Add labels and title
         ax.set_xlabel("Predicted Value")
         ax.set_ylabel("Actual Value")
         ax.set_title("Actual vs Predicted")
-        
+
         # Add regression line if requested
         if ols_line:
             from sklearn.linear_model import LinearRegression
@@ -424,30 +417,25 @@ class RegressionExperimentLogger(ExperimentLogger):
             y_pred = model.predict(x_range)
             # Plot regression line
             ax.plot(x_range, y_pred, color='red', linewidth=2)
-        
+
         # Add y=x reference line
         min_val = min(data["predicted_value"].min(), data["actual_value"].min())
         max_val = max(data["predicted_value"].max(), data["actual_value"].max())
         ax.plot([min_val, max_val], [min_val, max_val], 'k--', alpha=0.5)
-        
+
         # Save figure
         plt.savefig(self.metrics_save_path / "actual_vs_predicted.png", bbox_inches="tight")
-        
+
         # Close figure to prevent display in notebooks
         plt.close(fig)
 
-
-
-
-        
     def perform_model_checks(self, data: pd.DataFrame):
         self.save_metrics_over_time_plot(data)
         self.save_fit_plot(data)
         self.save_predicted_true_scatter_plot(data)
         self.save_residual_kde_plot(data)
         self.generate_and_save_ml_artifacts(data[self.true_label_name], data[self.predicted_label_name])
-            
-    
+
 
 class TickFormatter:
     def __init__(self, all_dates: np.ndarray):
@@ -458,4 +446,3 @@ class TickFormatter:
             return np.datetime_as_string(self.data[int(value)], unit="D")
         else:
             return ""
-
