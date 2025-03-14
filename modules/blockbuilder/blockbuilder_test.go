@@ -414,6 +414,65 @@ func TestBlockbuilder_noDoubleConsumption(t *testing.T) {
 	require.Equal(t, 2, countFlushedTraces(store))
 }
 
+func TestGetLaggiestPartitionIndex(t *testing.T) {
+	tests := []struct {
+		name       string
+		partitions []partitionState
+		expected   int
+	}{
+		{
+			name: "single partition",
+			partitions: []partitionState{
+				{lastRecordTs: time.Now()},
+			},
+			expected: 0,
+		},
+		{
+			name: "multiple partitions with different timestamps",
+			partitions: []partitionState{
+				{lastRecordTs: time.Now().Add(-10 * time.Minute)},
+				{lastRecordTs: time.Now().Add(-5 * time.Minute)},
+				{lastRecordTs: time.Now().Add(-15 * time.Minute)},
+			},
+			expected: 2,
+		},
+		{
+			name: "multiple partitions with zero timestamps",
+			partitions: []partitionState{
+				{lastRecordTs: time.Time{}},
+				{lastRecordTs: time.Time{}},
+				{lastRecordTs: time.Now().Add(-15 * time.Minute)},
+			},
+			expected: 2,
+		},
+		{
+			name: "all partitions with zero timestamps",
+			partitions: []partitionState{
+				{lastRecordTs: time.Time{}},
+				{lastRecordTs: time.Time{}},
+				{lastRecordTs: time.Time{}},
+			},
+			expected: 0,
+		},
+		{
+			name: "partitions with mixed zero and non-zero timestamps",
+			partitions: []partitionState{
+				{lastRecordTs: time.Time{}},
+				{lastRecordTs: time.Now().Add(-5 * time.Minute)},
+				{lastRecordTs: time.Now().Add(-10 * time.Minute)},
+			},
+			expected: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getLaggiestPartitionIndex(tt.partitions)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func blockbuilderConfig(t testing.TB, address string, assignedPartitions []int32) Config {
 	cfg := Config{}
 	flagext.DefaultValues(&cfg)
