@@ -415,6 +415,7 @@ func (s *BackendScheduler) nextTenant(_ context.Context) *tenantselector.Item {
 	if s.tenantPriority.Len() > 0 {
 		for tenant := heap.Pop(s.tenantPriority).(*tenantselector.Item); !s.overrides.CompactionDisabled(tenant.Value()); {
 			heap.Push(s.tenantPriority, tenant)
+			// TODO: consider recording Now() as the last work time
 			s.tenantPriority.Update(tenant, tenant.Value(), 0)
 			return tenant
 		}
