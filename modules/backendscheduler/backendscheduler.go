@@ -109,15 +109,25 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 			s.measureTenants()
 		case <-scheduleTicker.C:
 			s.work.Prune()
+			var (
+				tenantCount = len(s.store.Tenants())
+				toAdd       = 0
+				iterations  = 0
+			)
 			if workLen := s.work.Len(); workLen < s.cfg.MinPendingWorkQueue {
-				toAdd := s.cfg.MaxPendingWorkQueue - workLen
-				if err := s.scheduleOnce(ctx, toAdd); err != nil {
-					level.Error(log.Logger).Log("msg", "scheduling cycle failed", "err", err)
-					metricSchedulingCycles.WithLabelValues("failed").Inc()
-				} else {
-					metricSchedulingCycles.WithLabelValues("success").Inc()
+				for workLen = s.work.Len(); workLen < s.cfg.MaxPendingWorkQueue; toAdd = s.cfg.MaxPendingWorkQueue - workLen {
+					if err := s.scheduleOnce(ctx, toAdd); err != nil {
+						level.Error(log.Logger).Log("msg", "scheduling cycle failed", "err", err)
+						metricSchedulingCycles.WithLabelValues("failed").Inc()
+					} else {
+						metricSchedulingCycles.WithLabelValues("success").Inc()
+					}
+					if iterations++; iterations >= tenantCount {
+						break
+					}
 				}
 			}
+
 		}
 	}
 }
@@ -399,6 +409,7 @@ func (s *BackendScheduler) createCompactionJob(ctx context.Context, tenantID str
 	metricJobsCreated.WithLabelValues(tenantID, job.Type.String()).Inc()
 	metricJobsActive.WithLabelValues(tenantID, job.Type.String()).Inc()
 
+	// TODO: is it necessary to flush here?  We flush before we return the job to the worker, so if the in-memeory jobs are lost, what is the impact?
 	return s.flushWorkCache(ctx)
 }
 
@@ -461,16 +472,16 @@ func (s *BackendScheduler) compactions(ctx context.Context, want int) []tempopb.
 	}
 
 	var (
-		tenantID  = tenant.Value()
-		blocklist = s.store.BlockMetas(tenantID)
-		window    = s.overrides.MaxCompactionRange(tenantID)
+		tenantID = tenant.Value()
+		window   = s.overrides.MaxCompactionRange(tenantID)
 	)
 
 	if window == 0 {
 		window = s.cfg.Compactor.MaxCompactionRange
 	}
 
-	blockSelector := blockselector.NewTimeWindowBlockSelector(blocklist,
+	blockSelector := blockselector.NewTimeWindowBlockSelector(
+		s.store.BlockMetas(tenantID),
 		window,
 		s.cfg.Compactor.MaxCompactionObjects,
 		s.cfg.Compactor.MaxBlockBytes,
@@ -507,10 +518,6 @@ func (s *BackendScheduler) compactions(ctx context.Context, want int) []tempopb.
 		}
 
 		jobs = append(jobs, job)
-	}
-
-	if len(jobs) > 0 {
-		level.Info(log.Logger).Log("msg", "compaction jobs scheduled", "jobs", len(jobs), "tenant", tenantID)
 	}
 
 	return jobs

@@ -89,14 +89,14 @@ func (q *Work) Prune() {
 	}
 }
 
-// Len returns the jobs which are not complete or failed.
+// Len returns the jobs which are pending execution.
 func (q *Work) Len() int {
 	q.jobsMtx.RLock()
 	defer q.jobsMtx.RUnlock()
 
 	var count int
 	for _, j := range q.Jobs {
-		if j.IsComplete() || j.IsFailed() {
+		if !j.IsPending() {
 			continue
 		}
 		count++
