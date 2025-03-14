@@ -483,13 +483,15 @@ func (i *Ingester) rediscoverLocalBlocks() error {
 		}
 
 		// Requeue needed flushes
-		for _, b := range newBlocks {
-			if b.FlushedTime().IsZero() {
-				i.enqueue(&flushOp{
-					kind:    opKindFlush,
-					userID:  t,
-					blockID: (uuid.UUID)(b.BlockMeta().BlockID),
-				}, i.replayJitter)
+		if i.cfg.FlushObjectStorage {
+			for _, b := range newBlocks {
+				if b.FlushedTime().IsZero() {
+					i.enqueue(&flushOp{
+						kind:    opKindFlush,
+						userID:  t,
+						blockID: (uuid.UUID)(b.BlockMeta().BlockID),
+					}, i.replayJitter)
+				}
 			}
 		}
 	}
