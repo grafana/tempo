@@ -24,6 +24,7 @@ import (
 	"github.com/grafana/tempo/tempodb/backend"
 	"github.com/grafana/tempo/tempodb/backend/local"
 	"github.com/grafana/tempo/tempodb/blocklist"
+	"github.com/grafana/tempo/tempodb/blockselector"
 	"github.com/grafana/tempo/tempodb/encoding"
 	"github.com/grafana/tempo/tempodb/encoding/common"
 	"github.com/grafana/tempo/tempodb/pool"
@@ -162,7 +163,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 	rw.pollBlocklist(ctx)
 
 	blocklist := rw.blocklist.Metas(testTenantID)
-	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, 2)
+	blockSelector := blockselector.NewTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, blockselector.DefaultMinInputBlocks, 2)
 
 	expectedCompactions := len(blocklist) / inputBlocks
 	compactions := 0
@@ -332,7 +333,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 
 	var blocks []*backend.BlockMeta
 	list := rw.blocklist.Metas(testTenantID)
-	blockSelector := newTimeWindowBlockSelector(list, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, blockCount)
+	blockSelector := blockselector.NewTimeWindowBlockSelector(list, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, blockselector.DefaultMinInputBlocks, blockCount)
 	blocks, _ = blockSelector.BlocksToCompact()
 	require.Len(t, blocks, blockCount)
 
@@ -802,6 +803,68 @@ func TestDoForAtLeast(t *testing.T) {
 	}()
 	doForAtLeast(ctx, 2*time.Second, func() {})
 	require.WithinDuration(t, time.Now(), start.Add(time.Second), 100*time.Millisecond)
+}
+
+func TestCompactWithConfig(t *testing.T) {
+	for _, enc := range encoding.AllEncodings() {
+		version := enc.Version()
+		t.Run(version, func(t *testing.T) {
+			testCompactWithConfig(t, version)
+		})
+	}
+}
+
+func testCompactWithConfig(t *testing.T, targetBlockVersion string) {
+	tempDir := t.TempDir()
+
+	_, w, c, err := New(&Config{
+		Backend: backend.Local,
+		Pool: &pool.Config{
+			MaxWorkers: 10,
+			QueueDepth: 100,
+		},
+		Local: &local.Config{
+			Path: path.Join(tempDir, "traces"),
+		},
+		Block: &common.BlockConfig{
+			IndexDownsampleBytes: 11,
+			BloomFP:              .01,
+			BloomShardSizeBytes:  100_000,
+			Version:              targetBlockVersion,
+			Encoding:             backend.EncNone,
+			IndexPageSizeBytes:   1000,
+		},
+		WAL: &wal.Config{
+			Filepath: path.Join(tempDir, "wal"),
+		},
+		BlocklistPoll: 0,
+	}, nil, log.NewNopLogger())
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	blocks := cutTestBlocks(t, w, testTenantID, 10, 10)
+	metas := make([]*backend.BlockMeta, 0)
+	for _, b := range blocks {
+		metas = append(metas, b.BlockMeta())
+	}
+
+	_, err = c.CompactWithConfig(
+		ctx,
+		metas,
+		testTenantID,
+		&CompactorConfig{
+			ChunkSizeBytes:          10,
+			MaxCompactionRange:      24 * time.Hour,
+			BlockRetention:          0,
+			CompactedBlockRetention: 0,
+			MaxCompactionObjects:    1000,
+			MaxBlockBytes:           100_000_000, // Needs to be sized appropriately for the test data
+		},
+		&mockSharder{},
+		&mockOverrides{},
+	)
+	require.NoError(t, err)
 }
 
 type testData struct {

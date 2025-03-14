@@ -23,6 +23,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
+	"github.com/grafana/tempo/modules/backendscheduler"
+	"github.com/grafana/tempo/modules/backendworker"
 	"github.com/grafana/tempo/modules/blockbuilder"
 	"github.com/grafana/tempo/modules/cache"
 	"github.com/grafana/tempo/modules/compactor"
@@ -78,6 +80,8 @@ const (
 	QueryFrontend                 string = "query-frontend"
 	Compactor                     string = "compactor"
 	BlockBuilder                  string = "block-builder"
+	BackendScheduler              string = "backend-scheduler"
+	BackendWorker                 string = "backend-worker"
 
 	// composite targets
 	SingleBinary         string = "all"
@@ -615,6 +619,7 @@ func (t *App) initMemberlistKV() (services.Service, error) {
 	t.cfg.Generator.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Distributor.DistributorRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 	t.cfg.Compactor.ShardingRing.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
+	t.cfg.BackendWorker.Ring.KVStore.MemberlistKV = t.MemberlistKV.GetMemberlistKV
 
 	// Only the memberlist endpoint uses static files currently
 	t.Server.HTTPRouter().PathPrefix("/static/").HandlerFunc(http.FileServer(http.FS(staticFiles)).ServeHTTP).Methods("GET")
@@ -676,6 +681,65 @@ func (t *App) initCacheProvider() (services.Service, error) {
 	return c, nil
 }
 
+func (t *App) initBackendScheduler() (services.Service, error) {
+	if t.cfg.Target == BackendScheduler {
+		t.cfg.BackendScheduler.Poll = true
+	}
+
+	var err error
+	var reader backend.RawReader
+	var writer backend.RawWriter
+
+	switch t.cfg.StorageConfig.Trace.Backend {
+	case backend.Local:
+		reader, writer, _, err = local.New(t.cfg.StorageConfig.Trace.Local)
+	case backend.GCS:
+		reader, writer, _, err = gcs.New(t.cfg.StorageConfig.Trace.GCS)
+	case backend.S3:
+		reader, writer, _, err = s3.New(t.cfg.StorageConfig.Trace.S3)
+	case backend.Azure:
+		reader, writer, _, err = azure.New(t.cfg.StorageConfig.Trace.Azure)
+	default:
+		err = fmt.Errorf("unknown backend %s", t.cfg.StorageConfig.Trace.Backend)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize backendscheduler reader/writer: %w", err)
+	}
+
+	scheduler, err := backendscheduler.New(t.cfg.BackendScheduler, t.store, t.Overrides, reader, writer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create backend scheduler: %w", err)
+	}
+
+	// Register the GRPC service
+	tempopb.RegisterBackendSchedulerServer(t.Server.GRPC(), scheduler)
+
+	t.Server.HTTPRouter().Path("/status/backendscheduler").HandlerFunc(scheduler.StatusHandler)
+
+	t.backendScheduler = scheduler
+
+	return scheduler, nil
+}
+
+func (t *App) initBackendWorker() (services.Service, error) {
+	if t.cfg.Target == BackendWorker {
+		t.cfg.BackendWorker.Poll = true
+	}
+
+	worker, err := backendworker.New(t.cfg.BackendWorker, t.cfg.BackenSchedulerClient, t.store, t.Overrides, prometheus.DefaultRegisterer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create backend scheduler: %w", err)
+	}
+	t.backendWorker = worker
+
+	if t.backendWorker.Ring != nil {
+		t.Server.HTTPRouter().Handle("/backend-worker/ring", t.backendWorker.Ring)
+	}
+
+	return worker, nil
+}
+
 func (t *App) setupModuleManager() error {
 	mm := modules.NewManager(log.Logger)
 
@@ -707,6 +771,8 @@ func (t *App) setupModuleManager() error {
 	mm.RegisterModule(MetricsGenerator, t.initGenerator)
 	mm.RegisterModule(MetricsGeneratorNoLocalBlocks, t.initGeneratorNoLocalBlocks)
 	mm.RegisterModule(BlockBuilder, t.initBlockBuilder)
+	mm.RegisterModule(BackendScheduler, t.initBackendScheduler)
+	mm.RegisterModule(BackendWorker, t.initBackendWorker)
 
 	mm.RegisterModule(SingleBinary, nil)
 	mm.RegisterModule(ScalableSingleBinary, nil)
@@ -737,6 +803,8 @@ func (t *App) setupModuleManager() error {
 		Querier:                       {Common, Store, IngesterRing, MetricsGeneratorRing, SecondaryIngesterRing},
 		Compactor:                     {Common, Store, MemberlistKV},
 		BlockBuilder:                  {Common, Store, MemberlistKV, PartitionRing},
+		BackendScheduler:              {Common, Store},
+		BackendWorker:                 {Common, Store, MemberlistKV},
 
 		// composite targets
 		SingleBinary:         {Compactor, QueryFrontend, Querier, Ingester, Distributor, MetricsGenerator, BlockBuilder},

@@ -26,6 +26,9 @@ const (
 
 	// File name for the cluster seed file.
 	ClusterSeedFileName = "tempo_cluster_seed.json"
+
+	// File name for the work cache
+	WorkFileName = "work.json"
 )
 
 // KeyPath is an ordered set of strings that govern where data is read/written
@@ -206,7 +209,7 @@ func (r *reader) Tenants(ctx context.Context) ([]string, error) {
 	// this filter is added to fix a GCS usage stats issue that would result in ""
 	var filteredList []string
 	for _, tenant := range list {
-		if tenant != "" && tenant != ClusterSeedFileName {
+		if tenant != "" && tenant != ClusterSeedFileName && tenant != WorkFileName {
 			filteredList = append(filteredList, tenant)
 		}
 	}

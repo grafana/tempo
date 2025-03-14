@@ -39,7 +39,8 @@ var _ tempodb.Reader = (*mockReader)(nil)
 
 // implements tempodb.Reader interface
 type mockReader struct {
-	metas []*backend.BlockMeta
+	metas   []*backend.BlockMeta
+	tenants []string
 }
 
 func (m *mockReader) SearchTags(context.Context, *backend.BlockMeta, *tempopb.SearchTagsBlockRequest, common.SearchOptions) (*tempopb.SearchTagsV2Response, error) {
@@ -64,6 +65,10 @@ func (m *mockReader) Find(context.Context, string, common.ID, string, string, in
 
 func (m *mockReader) BlockMetas(string) []*backend.BlockMeta {
 	return m.metas
+}
+
+func (m *mockReader) Tenants() []string {
+	return m.tenants
 }
 
 func (m *mockReader) Search(context.Context, *backend.BlockMeta, *tempopb.SearchRequest, common.SearchOptions) (*tempopb.SearchResponse, error) {
