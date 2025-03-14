@@ -23,11 +23,12 @@ import (
 // AWS's SigV4 verification process. Empty values will be retrieved using the
 // AWS default credentials chain.
 type SigV4Config struct {
-	Region    string        `yaml:"region,omitempty"`
-	AccessKey string        `yaml:"access_key,omitempty"`
-	SecretKey config.Secret `yaml:"secret_key,omitempty"`
-	Profile   string        `yaml:"profile,omitempty"`
-	RoleARN   string        `yaml:"role_arn,omitempty"`
+	Region             string        `yaml:"region,omitempty"`
+	AccessKey          string        `yaml:"access_key,omitempty"`
+	SecretKey          config.Secret `yaml:"secret_key,omitempty"`
+	Profile            string        `yaml:"profile,omitempty"`
+	RoleARN            string        `yaml:"role_arn,omitempty"`
+	UseFIPSSTSEndpoint bool          `yaml:"use_fips_sts_endpoint,omitempty"`
 }
 
 func (c *SigV4Config) Validate() error {

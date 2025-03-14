@@ -630,7 +630,7 @@ query_frontend:
 
     # The number of jobs to batch together in one http request to the querier. Set to 1 to
     # disable.
-    # (default: 5)
+    # (default: 7)
     [max_batch_size: <int>]
 
     # Enable multi-tenant queries.

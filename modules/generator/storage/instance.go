@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -50,26 +50,32 @@ type storageImpl struct {
 	overrides Overrides
 	closeCh   chan struct{}
 
-	logger log.Logger
+	logger *slog.Logger
 }
 
 var _ Storage = (*storageImpl)(nil)
 
 // New creates a metrics WAL that remote writes its data.
-func New(cfg *Config, o Overrides, tenant string, reg prometheus.Registerer, logger log.Logger) (Storage, error) {
-	logger = log.With(logger, "tenant", tenant)
+// TODO the passed logger does not include any other context attribute
+// Should we standarize slog and deprecate go-kit/log too?
+func New(cfg *Config, o Overrides, tenant string, reg prometheus.Registerer, _ log.Logger) (Storage, error) {
+	// TODO move this to the generator.go
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource: true,
+	})).With("tenant", tenant)
 	reg = prometheus.WrapRegistererWith(prometheus.Labels{"tenant": tenant}, reg)
 
 	walDir := filepath.Join(cfg.Path, tenant)
 
 	// clean the wal before everything
-	level.Info(logger).Log("msg", "clearing old WAL on start up", "dir", walDir)
+	logger.Info("clearing old WAL on start up", "dir", walDir)
+
 	err := os.RemoveAll(walDir)
 	if err != nil {
-		level.Warn(logger).Log("msg", "failed to remove wal on start up: %s", err.Error())
+		logger.Warn(fmt.Sprintf("failed to remove wal on start up: %s", err.Error()))
 	}
 
-	level.Info(logger).Log("msg", "creating WAL", "dir", walDir)
+	logger.Info("creating WAL", "dir", walDir)
 
 	// Create WAL directory with necessary permissions
 	// This creates both <walDir>/<tenant>/ and <walDir>/<tenant>/wal/. If we don't create the wal
@@ -83,7 +89,7 @@ func New(cfg *Config, o Overrides, tenant string, reg prometheus.Registerer, log
 	startTimeCallback := func() (int64, error) {
 		return int64(model.Latest), nil
 	}
-	remoteStorage := remote.NewStorage(log.With(logger, "component", "remote"), reg, startTimeCallback, walDir, cfg.RemoteWriteFlushDeadline, &noopScrapeManager{}, false)
+	remoteStorage := remote.NewStorage(logger.With("component", "remote"), reg, startTimeCallback, walDir, cfg.RemoteWriteFlushDeadline, &noopScrapeManager{}, false)
 
 	headers := o.MetricsGeneratorRemoteWriteHeaders(tenant)
 	generateNativeHistograms := o.MetricsGeneratorGenerateNativeHistograms(tenant)
@@ -99,7 +105,7 @@ func New(cfg *Config, o Overrides, tenant string, reg prometheus.Registerer, log
 	}
 
 	// Set up WAL
-	wal, err := agent.Open(log.With(logger, "component", "wal"), reg, remoteStorage, walDir, cfg.Wal.toPrometheusAgentOptions())
+	wal, err := agent.Open(logger.With("component", "wal"), reg, remoteStorage, walDir, cfg.Wal.toPrometheusAgentOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +136,7 @@ func (s *storageImpl) Appender(ctx context.Context) storage.Appender {
 }
 
 func (s *storageImpl) Close() error {
-	level.Info(s.logger).Log("msg", "closing WAL", "dir", s.walDir)
+	s.logger.Info("closing WAL", "dir", s.walDir)
 	close(s.closeCh)
 
 	return tsdb_errors.NewMulti(
@@ -155,7 +161,7 @@ func (s *storageImpl) watchOverrides() {
 			newSendNativeHistograms := overrides.HasNativeHistograms(newGenerateNativeHistograms)
 
 			if !headersEqual(s.currentHeaders, newHeaders) || s.sendNativeHistograms != newSendNativeHistograms {
-				level.Info(s.logger).Log("msg", "updating remote write configuration")
+				s.logger.Info("updating remote write configuration")
 				s.currentHeaders = newHeaders
 				s.sendNativeHistograms = newSendNativeHistograms
 				err := s.remote.ApplyConfig(&prometheus_config.Config{
@@ -163,7 +169,7 @@ func (s *storageImpl) watchOverrides() {
 				})
 				if err != nil {
 					metricStorageRemoteWriteUpdateFailed.WithLabelValues(s.tenantID).Inc()
-					level.Error(s.logger).Log("msg", "Failed to update remote write configuration. Remote write will continue with configuration", "err", err)
+					s.logger.Info("Failed to update remote write configuration. Remote write will continue with configuration", "err", err.Error())
 				}
 			}
 		case <-s.closeCh:

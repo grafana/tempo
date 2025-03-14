@@ -176,6 +176,7 @@ distributor:
             - en0
         instance_port: 0
         instance_addr: ""
+        enable_inet6: false
     receivers: {}
     override_ring_key: distributor
     forwarders: []
@@ -310,7 +311,7 @@ querier:
     query_relevant_ingesters: false
 query_frontend:
     max_outstanding_per_tenant: 2000
-    max_batch_size: 5
+    max_batch_size: 7
     log_query_request_headers: ""
     max_retries: 2
     search:
@@ -623,6 +624,11 @@ metrics_generator:
             flush_to_storage: false
             concurrent_blocks: 10
             time_overlap_cutoff: 0.2
+        host_info:
+            host_identifiers:
+                - k8s.node.name
+                - host.id
+            metric_name: traces_host_info
     registry:
         collection_interval: 15s
         stale_duration: 15m0s

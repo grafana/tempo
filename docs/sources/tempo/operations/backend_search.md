@@ -208,8 +208,8 @@ Batching pushes jobs faster to the queriers, and reduce the time spent waiting a
 
 #### Guidelines
 
-* Default value of `max_batch_size` is set to `5`.
-* We DO NOT recommend changing the batch size from the default value of `5`. Based on testing at Grafana Labs, `5` is a good default.
+* Default value of `max_batch_size` is set to `7`.
+* We DO NOT recommend changing the batch size from the default value of `7`. Based on testing at Grafana Labs, `7` is a good default.
 * If the batch size is big, you push more jobs at once but it takes longer for the querier to process the batch and return the results back.
 * Big batch size will increase the latency of the querier requests, and they might start hitting timeouts of 5xx, which will increase the rate of retries.
 * Bigger `max_batch_size` results in pushing too many jobs to the queriers. The jobs then have to be canceled if a query is exited early.

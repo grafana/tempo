@@ -109,60 +109,125 @@ func TestSpanMetricsTargetInfoEnabled(t *testing.T) {
 }
 
 func TestSpanMetrics_dimensions(t *testing.T) {
-	testRegistry := registry.NewTestRegistry()
-
-	filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
-	invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
-
-	cfg := Config{}
-	cfg.RegisterFlagsAndApplyDefaults("", nil)
-	cfg.HistogramBuckets = []float64{0.5, 1}
-	cfg.IntrinsicDimensions.SpanKind = false
-	cfg.IntrinsicDimensions.StatusMessage = true
-	cfg.Dimensions = []string{"foo", "bar", "does-not-exist"}
-
-	p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
-	require.NoError(t, err)
-	defer p.Shutdown(context.Background())
-
-	// TODO create some spans that are missing the custom dimensions/tags
-	batch := test.MakeBatch(10, nil)
-
-	// Add some attributes
-	for _, rs := range batch.ScopeSpans {
-		for _, s := range rs.Spans {
-			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
-				Key:   "foo",
-				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "foo-value"}},
-			})
-			s.Attributes = append(s.Attributes, &common_v1.KeyValue{
-				Key:   "bar",
-				Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "bar-value"}},
-			})
-		}
+	testCases := []struct {
+		name            string
+		dimensions      []string
+		expectedCount   float64
+		expectedBuckets map[float64]float64
+		labels          map[string]string
+	}{
+		{
+			name:          "All dimensions present",
+			dimensions:    []string{"foo", "bar", "does-not-exist"},
+			expectedCount: 10.0,
+			expectedBuckets: map[float64]float64{
+				0.5:         0.0,
+				1.0:         10.0,
+				math.Inf(1): 10.0,
+			},
+			labels: map[string]string{
+				"service":        "test-service",
+				"span_name":      "test",
+				"status_code":    "STATUS_CODE_OK",
+				"status_message": "OK",
+				"foo":            "foo-value",
+				"bar":            "bar-value",
+				"does_not_exist": "",
+			},
+		},
+		{
+			name: "Valid labels",
+			dimensions: []string{
+				"valid_label_123", // underscores
+				"12345",           // numeric only
+				"_underscore_first",
+			},
+			expectedCount: 10.0,
+			expectedBuckets: map[float64]float64{
+				0.5:         0.0,
+				1.0:         10.0,
+				math.Inf(1): 10.0,
+			},
+			labels: map[string]string{
+				"service":           "test-service",
+				"span_name":         "test",
+				"status_code":       "STATUS_CODE_OK",
+				"status_message":    "OK",
+				"valid_label_123":   "",
+				"12345":             "",
+				"_underscore_first": "",
+			},
+		},
+		{
+			name: "Invalid labels are sanitized",
+			dimensions: []string{
+				"label-name",
+				"foo.name",
+				"foo bar",
+			},
+			expectedCount: 10.0,
+			expectedBuckets: map[float64]float64{
+				0.5:         0.0,
+				1.0:         10.0,
+				math.Inf(1): 10.0,
+			},
+			labels: map[string]string{
+				"service":        "test-service",
+				"span_name":      "test",
+				"status_code":    "STATUS_CODE_OK",
+				"status_message": "OK",
+				"label_name":     "",
+				"foo_name":       "",
+				"foo_bar":        "",
+			},
+		},
 	}
 
-	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			testRegistry := registry.NewTestRegistry()
 
-	fmt.Println(testRegistry)
+			filteredSpansCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "filtered")
+			invalidSpanLabelsCounter := metricSpansDiscarded.WithLabelValues("test-tenant", "invalid")
 
-	lbls := labels.FromMap(map[string]string{
-		"service":        "test-service",
-		"span_name":      "test",
-		"status_code":    "STATUS_CODE_OK",
-		"status_message": "OK",
-		"foo":            "foo-value",
-		"bar":            "bar-value",
-		"does_not_exist": "",
-	})
+			cfg := Config{}
+			cfg.RegisterFlagsAndApplyDefaults("", nil)
+			cfg.HistogramBuckets = []float64{0.5, 1}
+			cfg.IntrinsicDimensions.SpanKind = false
+			cfg.IntrinsicDimensions.StatusMessage = true
+			cfg.Dimensions = tc.dimensions
 
-	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+			p, err := New(cfg, testRegistry, filteredSpansCounter, invalidSpanLabelsCounter)
+			require.NoError(t, err)
+			defer p.Shutdown(context.Background())
 
-	assert.Equal(t, 0.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 0.5)))
-	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, 1)))
-	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, math.Inf(1))))
-	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
-	assert.Equal(t, 10.0, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
+			batch := test.MakeBatch(10, nil)
+			for _, rs := range batch.ScopeSpans {
+				for _, s := range rs.Spans {
+					s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+						Key:   "foo",
+						Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "foo-value"}},
+					})
+					s.Attributes = append(s.Attributes, &common_v1.KeyValue{
+						Key:   "bar",
+						Value: &common_v1.AnyValue{Value: &common_v1.AnyValue_StringValue{StringValue: "bar-value"}},
+					})
+				}
+			}
+
+			p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
+			lbls := labels.FromMap(tc.labels)
+			fmt.Println(lbls.String())
+
+			assert.Equal(t, tc.expectedCount, testRegistry.Query("traces_spanmetrics_calls_total", lbls))
+			assert.Equal(t, tc.expectedCount, testRegistry.Query("traces_spanmetrics_latency_count", lbls))
+			assert.Equal(t, tc.expectedCount, testRegistry.Query("traces_spanmetrics_latency_sum", lbls))
+
+			for le, expected := range tc.expectedBuckets {
+				assert.Equal(t, expected, testRegistry.Query("traces_spanmetrics_latency_bucket", withLe(lbls, le)))
+			}
+		})
+	}
 }
 
 func TestSpanMetrics_collisions(t *testing.T) {
@@ -196,8 +261,6 @@ func TestSpanMetrics_collisions(t *testing.T) {
 	}
 
 	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
-
-	fmt.Println(testRegistry)
 
 	lbls := labels.FromMap(map[string]string{
 		"service":     "test-service",
@@ -246,8 +309,6 @@ func TestJobLabelWithNamespaceAndInstanceID(t *testing.T) {
 	})
 
 	p.PushSpans(context.Background(), &tempopb.PushSpansRequest{Batches: []*trace_v1.ResourceSpans{batch}})
-
-	fmt.Println(testRegistry)
 
 	lbls := labels.FromMap(map[string]string{
 		"service":     "test-service",
