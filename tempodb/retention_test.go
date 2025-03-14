@@ -68,17 +68,17 @@ func TestRetention(t *testing.T) {
 
 	rw := r.(*readerWriter)
 	// poll
-	checkBlocklists(t, (uuid.UUID)(blockID), 1, 0, rw)
+	checkBlocklists(ctx, t, (uuid.UUID)(blockID), 1, 0, rw)
 
 	// retention should mark it compacted
 	rw.compactorCfg.BlockRetention = 0
 	r.(*readerWriter).doRetention(ctx)
-	checkBlocklists(t, (uuid.UUID)(blockID), 0, 1, rw)
+	checkBlocklists(ctx, t, (uuid.UUID)(blockID), 0, 1, rw)
 
 	// retention again should clear it
 	rw.compactorCfg.CompactedBlockRetention = 0
 	r.(*readerWriter).doRetention(ctx)
-	checkBlocklists(t, (uuid.UUID)(blockID), 0, 0, rw)
+	checkBlocklists(ctx, t, (uuid.UUID)(blockID), 0, 0, rw)
 }
 
 func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
@@ -134,7 +134,7 @@ func TestRetentionUpdatesBlocklistImmediately(t *testing.T) {
 
 	// We have a block
 	rw := r.(*readerWriter)
-	rw.pollBlocklist()
+	rw.pollBlocklist(ctx)
 	require.Equal(t, blockID, rw.blocklist.Metas(testTenantID)[0].BlockID)
 
 	// Mark it compacted
@@ -198,24 +198,24 @@ func TestBlockRetentionOverride(t *testing.T) {
 	time.Sleep(time.Second)
 
 	rw := r.(*readerWriter)
-	rw.pollBlocklist()
+	rw.pollBlocklist(ctx)
 	require.Equal(t, 10, len(rw.blocklist.Metas(testTenantID)))
 
 	// Retention = 1 hour, does nothing
 	overrides.blockRetention = time.Hour
 	r.(*readerWriter).doRetention(ctx)
-	rw.pollBlocklist()
+	rw.pollBlocklist(ctx)
 	require.Equal(t, 10, len(rw.blocklist.Metas(testTenantID)))
 
 	// Retention = 1 minute, still does nothing
 	overrides.blockRetention = time.Minute
 	r.(*readerWriter).doRetention(ctx)
-	rw.pollBlocklist()
+	rw.pollBlocklist(ctx)
 	require.Equal(t, 10, len(rw.blocklist.Metas(testTenantID)))
 
 	// Retention = 1ns, deletes everything
 	overrides.blockRetention = time.Nanosecond
 	r.(*readerWriter).doRetention(ctx)
-	rw.pollBlocklist()
+	rw.pollBlocklist(ctx)
 	require.Equal(t, 0, len(rw.blocklist.Metas(testTenantID)))
 }
