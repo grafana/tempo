@@ -672,7 +672,7 @@ func TestExecuteTagValues(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			distinctValues := collector.NewDistinctValue[tempopb.TagValue](100_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
+			distinctValues := collector.NewDistinctValue(100_000, 0, 0, func(v tempopb.TagValue) int { return len(v.Type) + len(v.Value) })
 
 			// Ugly hack to make the mock fetcher work with a bad query
 			fetcherQuery := tc.query
