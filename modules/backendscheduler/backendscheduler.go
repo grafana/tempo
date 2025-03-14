@@ -94,6 +94,7 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 	defer prioritizeTenantsTicker.Stop()
 
 	s.prioritizeTenants()
+	s.measureTenants()
 
 	if err := s.scheduleOnce(ctx, s.cfg.MaxPendingWorkQueue); err != nil {
 		return fmt.Errorf("failed to schedule initial jobs: %w", err)
@@ -105,6 +106,7 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 			return nil
 		case <-prioritizeTenantsTicker.C:
 			s.prioritizeTenants()
+			s.measureTenants()
 		case <-scheduleTicker.C:
 			s.work.Prune()
 			if workLen := s.work.Len(); workLen < s.cfg.MinPendingWorkQueue {
@@ -122,6 +124,30 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 
 func (s *BackendScheduler) stopping(_ error) error {
 	return s.flushWorkCache(context.Background())
+}
+
+func (s *BackendScheduler) measureTenants() {
+	s.tenantMtx.RLock()
+	defer s.tenantMtx.RUnlock()
+
+	for _, tenant := range s.store.Tenants() {
+		window := s.overrides.MaxCompactionRange(tenant)
+
+		if window == 0 {
+			window = s.cfg.Compactor.MaxCompactionRange
+		}
+
+		blockSelector := blockselector.NewTimeWindowBlockSelector(
+			s.store.BlockMetas(tenant),
+			window,
+			s.cfg.Compactor.MaxCompactionObjects,
+			s.cfg.Compactor.MaxBlockBytes,
+			blockselector.DefaultMinInputBlocks,
+			blockselector.DefaultMaxInputBlocks,
+		)
+
+		tempodb.MeasureOutstandingBlocks(tenant, blockSelector, ownedYes)
+	}
 }
 
 func (s *BackendScheduler) prioritizeTenants() {
@@ -451,10 +477,6 @@ func (s *BackendScheduler) compactions(ctx context.Context, want int) []tempopb.
 		blockselector.DefaultMinInputBlocks,
 		blockselector.DefaultMaxInputBlocks,
 	)
-
-	defer func() {
-		tempodb.MeasureOutstandingBlocks(tenantID, blockSelector, ownedYes)
-	}()
 
 	for {
 		if ctx.Err() != nil {
