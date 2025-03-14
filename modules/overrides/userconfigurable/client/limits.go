@@ -73,6 +73,7 @@ func (l *LimitsMetricsGenerator) GetCollectionInterval() (time.Duration, bool) {
 type LimitsMetricsGeneratorProcessor struct {
 	ServiceGraphs LimitsMetricsGeneratorProcessorServiceGraphs `yaml:"service_graphs,omitempty" json:"service_graphs,omitempty"`
 	SpanMetrics   LimitsMetricsGeneratorProcessorSpanMetrics   `yaml:"span_metrics,omitempty" json:"span_metrics,omitempty"`
+	HostInfo      LimitsMetricGeneratorProcessorHostInfo       `yaml:"host_info,omitempty" json:"host_info,omitempty"`
 }
 
 func (l *LimitsMetricsGeneratorProcessor) GetServiceGraphs() *LimitsMetricsGeneratorProcessorServiceGraphs {
@@ -174,6 +175,25 @@ func (l *LimitsMetricsGeneratorProcessorSpanMetrics) GetTargetInfoExcludedDimens
 		return *l.TargetInfoExcludedDimensions, true
 	}
 	return nil, false
+}
+
+type LimitsMetricGeneratorProcessorHostInfo struct {
+	HostIdentifiers *[]string `yaml:"host_identifiers,omitempty" json:"host_identifiers,omitempty"`
+	MetricName      *string   `yaml:"metric_name,omitempty" json:"metric_name,omitempty"`
+}
+
+func (l *LimitsMetricGeneratorProcessorHostInfo) GetHostIdentifiers() ([]string, bool) {
+	if l != nil && l.HostIdentifiers != nil {
+		return *l.HostIdentifiers, true
+	}
+	return nil, false
+}
+
+func (l *LimitsMetricGeneratorProcessorHostInfo) GetMetricName() (string, bool) {
+	if l != nil && l.MetricName != nil {
+		return *l.MetricName, true
+	}
+	return "", false
 }
 
 type CostAttribution struct {

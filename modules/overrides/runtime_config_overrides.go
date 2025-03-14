@@ -528,6 +528,14 @@ func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorSpanMetricsTarg
 	return o.getOverridesForUser(userID).MetricsGenerator.Processor.SpanMetrics.TargetInfoExcludedDimensions
 }
 
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string {
+	return o.getOverridesForUser(userID).MetricsGenerator.Processor.HostInfo.HostIdentifiers
+}
+
+func (o *runtimeConfigOverridesManager) MetricsGeneratorProcessorHostInfoMetricName(userID string) string {
+	return o.getOverridesForUser(userID).MetricsGenerator.Processor.HostInfo.MetricName
+}
+
 // BlockRetention is the duration of the block retention for this tenant.
 func (o *runtimeConfigOverridesManager) BlockRetention(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).Compaction.BlockRetention)
