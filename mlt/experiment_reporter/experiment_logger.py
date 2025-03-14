@@ -13,6 +13,7 @@ import seaborn as sns
 from sklearn.metrics import (
     mean_absolute_error,
     root_mean_squared_error,
+    r2_score,
 )
 
 from mlt.models.base_models import MLTBaseModel
@@ -312,8 +313,9 @@ class RegressionExperimentLogger(ExperimentLogger):
             "rmse": lambda x, y: root_mean_squared_error(x, y),
             "mae": mean_absolute_error,
             "correlation": lambda x, y: np.corrcoef(x, y)[0, 1],
+            "hit_rate": lambda x, y: (np.sign(x) == np.sign(y)).mean(),
+            "r2": lambda x, y: r2_score(x, y),
         }
-        #df_post_processed_2025-03-07.parquet
     
     def generate_and_save_ml_artifacts(self, true_label: pd.Series, predicted_label: pd.Series):
         overall_metric_df = pd.Series(self.get_ml_metrics(true_label, predicted_label))

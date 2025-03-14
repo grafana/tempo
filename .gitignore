@@ -27,6 +27,8 @@ poetry.lock
 # Project specific
 output/
 !output/.gitkeep
+outputs/
+!outputs/.gitkeep
 data/*
 !data/.gitkeep
 
@@ -35,4 +37,5 @@ data/*
 .DS_Store?
 ._*
 .Spotlight-V100
-.Trashes
+.Trashes.DS_Store
+.DS_Store?

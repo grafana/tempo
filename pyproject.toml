@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "mlt"
 version = "0.1.0"
-description = "Your project description"
+description = "ml tool for modelling"
 authors = ["Rudabeh Meskarian"]
 packages = [
     { include = "mlt"},
@@ -47,4 +47,4 @@ multi_line_output = 5
 
 [tool.poetry2conda]
 name = "mlt"
-deafult-channel = "pip"
+default-channel = "pip"
