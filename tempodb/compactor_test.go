@@ -155,11 +155,11 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 
 	expectedBlockCount := blockCount
 	expectedCompactedCount := 0
-	checkBlocklists(t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
+	checkBlocklists(ctx, t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
 
 	blocksPerCompaction := (inputBlocks - outputBlocks)
 
-	rw.pollBlocklist()
+	rw.pollBlocklist(ctx)
 
 	blocklist := rw.blocklist.Metas(testTenantID)
 	blockSelector := newTimeWindowBlockSelector(blocklist, rw.compactorCfg.MaxCompactionRange, 10000, 1024*1024*1024, defaultMinInputBlocks, 2)
@@ -179,7 +179,7 @@ func testCompactionRoundtrip(t *testing.T, targetBlockVersion string) {
 
 		expectedBlockCount -= blocksPerCompaction
 		expectedCompactedCount += inputBlocks
-		checkBlocklists(t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
+		checkBlocklists(ctx, t, uuid.Nil, expectedBlockCount, expectedCompactedCount, rw)
 	}
 
 	require.Equal(t, expectedCompactions, compactions)
@@ -328,7 +328,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	rw := r.(*readerWriter)
 
 	// check blocklists, force compaction and check again
-	checkBlocklists(t, uuid.Nil, blockCount, 0, rw)
+	checkBlocklists(ctx, t, uuid.Nil, blockCount, 0, rw)
 
 	var blocks []*backend.BlockMeta
 	list := rw.blocklist.Metas(testTenantID)
@@ -342,7 +342,7 @@ func testSameIDCompaction(t *testing.T, targetBlockVersion string) {
 	err = rw.compactOneJob(ctx, blocks, testTenantID)
 	require.NoError(t, err)
 
-	checkBlocklists(t, uuid.Nil, 1, blockCount, rw)
+	checkBlocklists(ctx, t, uuid.Nil, 1, blockCount, rw)
 
 	// force clear compacted blocks to guarantee that we're only querying the new blocks that went through the combiner
 	metas := rw.blocklist.Metas(testTenantID)
@@ -420,7 +420,7 @@ func TestCompactionUpdatesBlocklist(t *testing.T) {
 	cutTestBlocks(t, w, testTenantID, blockCount, recordCount)
 
 	rw := r.(*readerWriter)
-	rw.pollBlocklist()
+	rw.pollBlocklist(ctx)
 
 	// compact everything
 	err = rw.compactOneJob(ctx, rw.blocklist.Metas(testTenantID), testTenantID)
@@ -491,7 +491,7 @@ func TestCompactionMetrics(t *testing.T) {
 	cutTestBlocks(t, w, testTenantID, blockCount, recordCount)
 
 	rw := r.(*readerWriter)
-	rw.pollBlocklist()
+	rw.pollBlocklist(ctx)
 
 	// Get starting metrics
 	processedStart, err := test.GetCounterVecValue(metricCompactionObjectsWritten, "0")
@@ -566,7 +566,7 @@ func TestCompactionIteratesThroughTenants(t *testing.T) {
 	cutTestBlocks(t, w, testTenantID2, 2, 2)
 
 	rw := r.(*readerWriter)
-	rw.pollBlocklist()
+	rw.pollBlocklist(ctx)
 
 	assert.Equal(t, 2, len(rw.blocklist.Metas(testTenantID)))
 	assert.Equal(t, 2, len(rw.blocklist.Metas(testTenantID2)))
@@ -643,7 +643,7 @@ func testCompactionHonorsBlockStartEndTimes(t *testing.T, targetBlockVersion str
 	})
 
 	rw := r.(*readerWriter)
-	rw.pollBlocklist()
+	rw.pollBlocklist(ctx)
 
 	// compact everything
 	err = rw.compactOneJob(ctx, rw.blocklist.Metas(testTenantID), testTenantID)

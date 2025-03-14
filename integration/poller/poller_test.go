@@ -177,8 +177,11 @@ func TestPollerOwnership(t *testing.T) {
 					require.Equal(t, 0, len(cmResults))
 				}
 
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+
 				l := blocklist.New()
-				mm, cm, err := blocklistPoller.Do(l)
+				mm, cm, err := blocklistPoller.Do(ctx, l)
 				require.NoError(t, err)
 				// t.Logf("mm: %v", mm)
 				// t.Logf("cm: %v", cm)
@@ -285,7 +288,8 @@ func TestTenantDeletion(t *testing.T) {
 				var cc backend.Compactor
 
 				listBlockConcurrency := 3
-				ctx := context.Background()
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
 
 				e := hhh.Endpoint(hhh.HTTPPort())
 				switch tc.name {
@@ -321,7 +325,7 @@ func TestTenantDeletion(t *testing.T) {
 				}, OwnsEverythingSharder, r, cc, w, logger)
 
 				l := blocklist.New()
-				mm, cm, err := blocklistPoller.Do(l)
+				mm, cm, err := blocklistPoller.Do(ctx, l)
 				require.NoError(t, err)
 				t.Logf("mm: %v", mm)
 				t.Logf("cm: %v", cm)
@@ -339,7 +343,7 @@ func TestTenantDeletion(t *testing.T) {
 
 				time.Sleep(500 * time.Millisecond)
 
-				_, _, err = blocklistPoller.Do(l)
+				_, _, err = blocklistPoller.Do(ctx, l)
 				require.NoError(t, err)
 
 				tennants, err = r.Tenants(ctx)
@@ -357,7 +361,7 @@ func TestTenantDeletion(t *testing.T) {
 				}, OwnsEverythingSharder, r, cc, w, logger)
 
 				// Again
-				_, _, err = blocklistPoller.Do(l)
+				_, _, err = blocklistPoller.Do(ctx, l)
 				require.NoError(t, err)
 
 				tennants, err = r.Tenants(ctx)

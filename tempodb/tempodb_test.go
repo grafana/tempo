@@ -79,7 +79,10 @@ func testConfig(t *testing.T, enc backend.Encoding, blocklistPoll time.Duration,
 func TestDB(t *testing.T) {
 	r, w, c, _ := testConfig(t, backend.EncGZIP, 0)
 
-	err := c.EnableCompaction(context.Background(), &CompactorConfig{
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := c.EnableCompaction(ctx, &CompactorConfig{
 		ChunkSizeBytes:          10,
 		MaxCompactionRange:      time.Hour,
 		BlockRetention:          0,
@@ -87,7 +90,7 @@ func TestDB(t *testing.T) {
 	}, &mockSharder{}, &mockOverrides{})
 	require.NoError(t, err)
 
-	r.EnablePolling(context.Background(), &mockJobSharder{})
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	blockID := backend.NewUUID()
 
@@ -109,15 +112,15 @@ func TestDB(t *testing.T) {
 		writeTraceToWal(t, head, dec, ids[i], reqs[i], 0, 0)
 	}
 
-	_, err = w.CompleteBlock(context.Background(), head)
+	_, err = w.CompleteBlock(ctx, head)
 	assert.NoError(t, err)
 
 	// poll
-	r.(*readerWriter).pollBlocklist()
+	r.(*readerWriter).pollBlocklist(ctx)
 
 	// read
 	for i, id := range ids {
-		bFound, failedBlocks, err := r.Find(context.Background(), testTenantID, id, BlockIDMin, BlockIDMax, 0, 0, common.DefaultSearchOptions())
+		bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, BlockIDMin, BlockIDMax, 0, 0, common.DefaultSearchOptions())
 		assert.NoError(t, err)
 		assert.Nil(t, failedBlocks)
 		assert.True(t, proto.Equal(bFound[0].Trace, reqs[i]))
@@ -140,7 +143,10 @@ func TestBlockSharding(t *testing.T) {
 	// search with different shards and check if its respecting the params
 	r, w, _, _ := testConfig(t, backend.EncLZ4_256k, 0)
 
-	r.EnablePolling(context.Background(), &mockJobSharder{})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	r.EnablePolling(ctx, &mockJobSharder{})
 
 	// create block with known ID
 	blockID := backend.NewUUID()
@@ -157,11 +163,11 @@ func TestBlockSharding(t *testing.T) {
 	writeTraceToWal(t, head, dec, id, req, 0, 0)
 
 	// write block to backend
-	_, err = w.CompleteBlock(context.Background(), head)
+	_, err = w.CompleteBlock(ctx, head)
 	assert.NoError(t, err)
 
 	// poll
-	r.(*readerWriter).pollBlocklist()
+	r.(*readerWriter).pollBlocklist(ctx)
 
 	// get blockID
 	blocks := r.(*readerWriter).blocklist.Metas(testTenantID)
@@ -170,7 +176,7 @@ func TestBlockSharding(t *testing.T) {
 	// check if it respects the blockstart/blockend params - case1: hit
 	blockStart := uuid.MustParse(BlockIDMin).String()
 	blockEnd := uuid.MustParse(BlockIDMax).String()
-	bFound, failedBlocks, err := r.Find(context.Background(), testTenantID, id, blockStart, blockEnd, 0, 0, common.DefaultSearchOptions())
+	bFound, failedBlocks, err := r.Find(ctx, testTenantID, id, blockStart, blockEnd, 0, 0, common.DefaultSearchOptions())
 	assert.NoError(t, err)
 	assert.Nil(t, failedBlocks)
 	assert.Greater(t, len(bFound), 0)
@@ -180,7 +186,7 @@ func TestBlockSharding(t *testing.T) {
 	// check if it respects the blockstart/blockend params - case2: miss
 	blockStart = uuid.MustParse(BlockIDMin).String()
 	blockEnd = uuid.MustParse(BlockIDMin).String()
-	bFound, failedBlocks, err = r.Find(context.Background(), testTenantID, id, blockStart, blockEnd, 0, 0, common.DefaultSearchOptions())
+	bFound, failedBlocks, err = r.Find(ctx, testTenantID, id, blockStart, blockEnd, 0, 0, common.DefaultSearchOptions())
 	assert.NoError(t, err)
 	assert.Nil(t, failedBlocks)
 	assert.Len(t, bFound, 0)
@@ -208,6 +214,9 @@ func TestBlockCleanup(t *testing.T) {
 
 	r.EnablePolling(context.Background(), &mockJobSharder{})
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	blockID := backend.NewUUID()
 
 	wal := w.WAL()
@@ -222,21 +231,21 @@ func TestBlockCleanup(t *testing.T) {
 	rw := r.(*readerWriter)
 
 	// poll
-	rw.pollBlocklist()
+	rw.pollBlocklist(ctx)
 
 	assert.Len(t, rw.blocklist.Metas(testTenantID), 1)
 
 	os.RemoveAll(tempDir + "/traces/" + testTenantID)
 
 	// poll
-	rw.pollBlocklist()
+	rw.pollBlocklist(ctx)
 
 	m := rw.blocklist.Metas(testTenantID)
 	assert.Equal(t, 0, len(m))
 }
 
-func checkBlocklists(t *testing.T, expectedID uuid.UUID, expectedB int, expectedCB int, rw *readerWriter) {
-	rw.pollBlocklist()
+func checkBlocklists(ctx context.Context, t *testing.T, expectedID uuid.UUID, expectedB int, expectedCB int, rw *readerWriter) {
+	rw.pollBlocklist(ctx)
 
 	blocklist := rw.blocklist.Metas(testTenantID)
 	require.Len(t, blocklist, expectedB)
@@ -526,7 +535,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	rw := r.(*readerWriter)
 
 	// poll
-	rw.pollBlocklist()
+	rw.pollBlocklist(ctx)
 
 	// read
 	for i, id := range ids {
@@ -543,7 +552,7 @@ func TestSearchCompactedBlocks(t *testing.T) {
 	require.NoError(t, rw.compactOneJob(ctx, blockMetas, testTenantID))
 
 	// poll
-	rw.pollBlocklist()
+	rw.pollBlocklist(ctx)
 
 	// make sure the block is compacted
 	compactedBlocks := rw.blocklist.CompactedMetas(testTenantID)
