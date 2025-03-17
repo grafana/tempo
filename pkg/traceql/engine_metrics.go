@@ -1609,14 +1609,11 @@ func processTopK(input SeriesSet, limit int) SeriesSet {
 
 // processBottomK implements MetricsSecondStage bottomk method
 func processBottomK(input SeriesSet, limit int) SeriesSet {
-	// Find the length of time series values
+	// Find the length of time series values from the first key
 	var valueLength int
 	for _, series := range input {
 		valueLength = len(series.Values)
 		break
-	}
-	if valueLength == 0 {
-		return SeriesSet{}
 	}
 
 	// Create result map to store bottom-k series for each timestamp
@@ -1722,7 +1719,7 @@ type reverseSeriesHeap []seriesValue
 
 func (h reverseSeriesHeap) Len() int { return len(h) }
 
-func (h reverseSeriesHeap) Less(i, j int) bool { return h[i].value > h[j].value } // Reversed comparison
+func (h reverseSeriesHeap) Less(i, j int) bool { return h[i].value > h[j].value }
 
 func (h reverseSeriesHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 

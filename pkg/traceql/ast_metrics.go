@@ -363,15 +363,17 @@ func (m *MetricsSecondStage) process(input SeriesSet) SeriesSet {
 		return SeriesSet{}
 	}
 
+	fmt.Printf("=== input: %v\n", input)
+
 	switch m.op {
 	case OpTopK:
 		return processTopK(input, m.limit)
 	case OpBottomK:
 		return processBottomK(input, m.limit)
+	default:
+		fmt.Printf("=== unknown op: %v\n", m.op)
+		return SeriesSet{}
 	}
-
-	// fallback to returning input as is
-	return input
 }
 
 var _ metricsSecondStageElement = (*MetricsSecondStage)(nil)

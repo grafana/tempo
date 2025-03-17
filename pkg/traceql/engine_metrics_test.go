@@ -1566,9 +1566,9 @@ func TestProcessBottomK(t *testing.T) {
 		{
 			name: "select single lowest value at specific timestamp",
 			input: createSeriesSet("label", map[string][]float64{
-				"a": {3, 1, 5}, // Lowest at timestamp 1
-				"b": {1, 2, 3}, // Lowest at timestamp 0
-				"c": {4, 5, 1}, // Lowest at timestamp 2
+				"a": {3, 1, 5},
+				"b": {1, 2, 3},
+				"c": {4, 5, 1},
 			}),
 			limit: 1,
 			expect: createSeriesSet("label", map[string][]float64{
@@ -1650,7 +1650,9 @@ func TestProcessBottomK(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			fmt.Printf("== input seriesSet: %v\n", tt.input)
 			result := processBottomK(tt.input, tt.limit)
+			fmt.Printf("== result seriesSet: %v\n", result)
 			expectSeriesSet(t, tt.expect, result)
 		})
 	}
@@ -1740,14 +1742,14 @@ func generateSpans(count int, startTimes []int, key, value string, duration uint
 
 // createSeriesSet to create a SeriesSet from a map of values
 func createSeriesSet(labelName string, data map[string][]float64) SeriesSet {
-	result := SeriesSet{}
+	seriesSet := SeriesSet{}
 	for key, values := range data {
-		result[fmt.Sprintf(`{%s="%s"}`, labelName, key)] = TimeSeries{
+		seriesSet[fmt.Sprintf(`{%s="%s"}`, labelName, key)] = TimeSeries{
 			Values: values,
 			Labels: Labels{Label{Name: labelName, Value: NewStaticString(key)}},
 		}
 	}
-	return result
+	return seriesSet
 }
 
 // expectSeriesSet validates SeriesSet equality, and also considers NaN values
