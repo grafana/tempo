@@ -520,10 +520,10 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 	step := traceql.DefaultQueryRangeStep(start, end)
 
 	req := &tempopb.QueryRangeRequest{
-		Query: "{} | rate()",
-		Start: start,
-		End:   end,
-		Step:  step,
+		Query:     "{} | rate()",
+		Start:     start,
+		End:       end,
+		Step:      step,
 		MaxSeries: 4,
 	}
 

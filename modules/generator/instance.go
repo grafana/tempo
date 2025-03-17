@@ -558,7 +558,7 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	fmt.Println("INSTANCE QUERY RANGE***")
 	// Combine the raw results into the job results
 	walResults := rawEval.Results().ToProto(req)
-	fmt.Printf("raw results series: %v\n",len(walResults))
+	fmt.Printf("raw results series: %v\n", len(walResults))
 	jobEval.ObserveSeries(walResults)
 
 	r := jobEval.Results()
