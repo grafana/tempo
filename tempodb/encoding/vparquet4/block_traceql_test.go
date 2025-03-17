@@ -406,7 +406,7 @@ func TestBackendBlockSearchTraceQLNilSpecialColumns(t *testing.T) {
 	wantTraceIdx := rand.Intn(numTraces)
 	wantTraceID := test.ValidTraceID(nil)
 
-	for i := 0; i < numTraces; i++ {
+	for i := range numTraces {
 		if i == wantTraceIdx {
 			trace := fullyPopulatedTestTrace(wantTraceID)
 
