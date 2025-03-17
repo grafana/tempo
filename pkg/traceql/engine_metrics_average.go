@@ -50,8 +50,9 @@ func (a *averageOverTimeAggregator) init(q *tempopb.QueryRangeRequest, mode Aggr
 	a.exemplarFn = exemplarFnFor(a.attr)
 }
 
-func (a *averageOverTimeAggregator) observe(span Span) {
+func (a *averageOverTimeAggregator) observe(span Span) int {
 	a.agg.Observe(span)
+	return len(a.agg.Series())
 }
 
 func (a *averageOverTimeAggregator) observeExemplar(span Span) {
@@ -59,8 +60,8 @@ func (a *averageOverTimeAggregator) observeExemplar(span Span) {
 	a.agg.ObserveExemplar(span, v, ts)
 }
 
-func (a *averageOverTimeAggregator) observeSeries(ss []*tempopb.TimeSeries) {
-	a.seriesAgg.Combine(ss)
+func (a *averageOverTimeAggregator) observeSeries(ss []*tempopb.TimeSeries) int {
+	return a.seriesAgg.Combine(ss)
 }
 
 func (a *averageOverTimeAggregator) result() SeriesSet {
@@ -244,7 +245,7 @@ var (
 	nan                  = math.Float64frombits(normalNaN)
 )
 
-func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
+func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) int {
 	// We traverse the TimeSeries to initialize new TimeSeries and map the counter series with the position in the `in` array
 	countPosMapper := make(map[string]int, len(in)/2)
 	for i, ts := range in {
@@ -278,6 +279,7 @@ func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) {
 			b.aggregateExemplars(ts, b.weightedAverageSeries[ts.PromLabels])
 		}
 	}
+	return len( b.weightedAverageSeries)
 }
 
 func (b *averageOverTimeSeriesAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *averageSeries) {
@@ -420,19 +422,20 @@ func newAvgAggregator[F FastStatic, S StaticVals](attr Attribute, by []Attribute
 	}
 }
 
-func (g *avgOverTimeSpanAggregator[F, S]) Observe(span Span) {
+func (g *avgOverTimeSpanAggregator[F, S]) Observe(span Span) int {
 	interval := IntervalOf(span.StartTimeUnixNanos(), g.start, g.end, g.step)
 	if interval == -1 {
-		return
+		return 0
 	}
 
 	inc := g.getSpanAttValue(span)
 	if math.IsNaN(inc) {
-		return
+		return 0
 	}
 
 	s := g.getSeries(span)
 	s.average.addIncrementMean(interval, inc)
+	return len(g.series)
 }
 
 func (g *avgOverTimeSpanAggregator[F, S]) ObserveExemplar(span Span, value float64, ts uint64) {

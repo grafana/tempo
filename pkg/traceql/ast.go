@@ -18,6 +18,19 @@ type Element interface {
 	validate() error
 }
 
+<<<<<<< HEAD
+=======
+type metricsFirstStageElement interface {
+	Element
+	extractConditions(request *FetchSpansRequest)
+	init(req *tempopb.QueryRangeRequest, mode AggregateMode)
+	observe(Span) int // TODO - batching?
+	observeExemplar(Span)
+	observeSeries([]*tempopb.TimeSeries) int // Re-entrant metrics on the query-frontend.  Using proto version for efficiency
+	result() SeriesSet
+}
+
+>>>>>>> e263698da (enforce limit at metrics evaluator)
 type pipelineElement interface {
 	Element
 	extractConditions(request *FetchSpansRequest)

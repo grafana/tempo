@@ -105,7 +105,7 @@ func (m *MetricsCompare) isSelection(span Span) Static {
 	return isSelection
 }
 
-func (m *MetricsCompare) observe(span Span) {
+func (m *MetricsCompare) observe(span Span) int {
 	// For performance, MetricsCompare doesn't use the Range/StepAggregator abstractions.
 	// This lets us:
 	// * Include the same attribute value in multiple series. This doesn't fit within
@@ -167,6 +167,7 @@ func (m *MetricsCompare) observe(span Span) {
 		}
 		totals[i]++
 	})
+	return len(m.seriesAgg.Results())
 }
 
 func (m *MetricsCompare) observeExemplar(span Span) {
@@ -194,8 +195,9 @@ func (m *MetricsCompare) observeExemplar(span Span) {
 	}
 }
 
-func (m *MetricsCompare) observeSeries(ss []*tempopb.TimeSeries) {
+func (m *MetricsCompare) observeSeries(ss []*tempopb.TimeSeries) int {
 	m.seriesAgg.Combine(ss)
+	return len(m.seriesAgg.Results())
 }
 
 func (m *MetricsCompare) result() SeriesSet {
@@ -352,7 +354,7 @@ func NewBaselineAggregator(req *tempopb.QueryRangeRequest, topN int) *BaselineAg
 	}
 }
 
-func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
+func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) int {
 	for _, s := range ss {
 		var metaType string
 		var err string
@@ -447,6 +449,7 @@ func (b *BaselineAggregator) Combine(ss []*tempopb.TimeSeries) {
 		}
 		attr[vk] = ts
 	}
+	return len(b.baseline) + len(b.selection) + len(b.baselineTotals) + len(b.selectionTotals)
 }
 
 func (b *BaselineAggregator) Results() SeriesSet {

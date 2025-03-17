@@ -449,6 +449,7 @@ message QueryRangeRequest {
   repeated DedicatedColumn dedicatedColumns = 15;
   // Exemplars are optional and can be empty.
   uint32 exemplars = 16;
+  uint32 maxSeries = 17; // max response serie before bailing early
 }
 
 enum PartialStatus {
