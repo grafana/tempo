@@ -400,6 +400,75 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 	}
 }
 
+func TestBackendBlockSearchTraceQLNilSpecialColumns(t *testing.T) {
+	numTraces := 250
+	traces := make([]*Trace, 0, numTraces)
+	wantTraceIdx := rand.Intn(numTraces)
+	wantTraceID := test.ValidTraceID(nil)
+
+	for i := 0; i < numTraces; i++ {
+		if i == wantTraceIdx {
+			trace := fullyPopulatedTestTrace(wantTraceID)
+
+			// remove values from special columns and make sure attributes with the same name but
+			// different type exist in generic attributes
+			for _, s := range iterSpans(trace) {
+				s.HttpStatusCode = nil
+				s.DedicatedAttributes.String04 = nil
+				s.Attrs = append(s.Attrs, Attribute{
+					Key:      "dedicated.span.4",
+					ValueInt: []int64{200},
+				})
+			}
+
+			traces = append(traces, trace)
+			continue
+		}
+
+		id := test.ValidTraceID(nil)
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+	}
+
+	b := makeBackendBlockWithTraces(t, traces)
+	ctx := context.Background()
+
+	searches := []struct {
+		name string
+		req  traceql.FetchSpansRequest
+	}{
+		{"span.http.status_code != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.` + LabelHTTPStatusCode + ` != nil}`)},
+		{"span.dedicated.span.4 != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 != nil}`)},
+	}
+
+	for _, tc := range searches {
+		t.Run(tc.name, func(t *testing.T) {
+			req := tc.req
+			if req.SecondPass == nil {
+				req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
+				req.SecondPassConditions = traceql.SearchMetaConditions()
+			}
+
+			resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+			require.NoError(t, err, "search request:%v", req)
+
+			found := false
+			for {
+				spanSet, err := resp.Results.Next(ctx)
+				require.NoError(t, err, "search request:%v", req)
+				if spanSet == nil {
+					break
+				}
+				found = bytes.Equal(spanSet.TraceID, wantTraceID)
+				if found {
+					break
+				}
+			}
+			require.True(t, found, "search request:%v", req)
+		})
+	}
+}
+
 func TestBackendBlockSearchTraceQLEvents(t *testing.T) {
 	numTraces := 50
 	traces := make([]*Trace, 0, numTraces)
@@ -2039,4 +2108,22 @@ func blockForBenchmarks(b *testing.B) *backendBlock {
 	require.NoError(b, err)
 
 	return newBackendBlock(meta, rr)
+}
+
+func iterSpans(traces ...*Trace) func(yield func(i int, s *Span) bool) {
+	count := 0
+	return func(yield func(i int, s *Span) bool) {
+		for _, t := range traces {
+			for _, rs := range t.ResourceSpans {
+				for _, ss := range rs.ScopeSpans {
+					for i := range len(ss.Spans) {
+						if !yield(count, &ss.Spans[i]) {
+							return
+						}
+						count++
+					}
+				}
+			}
+		}
+	}
 }
