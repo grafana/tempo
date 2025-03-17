@@ -27,7 +27,7 @@ func NewEngine() *Engine {
 	return &Engine{}
 }
 
-func Compile(query string) (*RootExpr, SpansetFilterFunc, metricsFirstStageElement, metricsSecondStageElement, *FetchSpansRequest, error) {
+func Compile(query string) (*RootExpr, SpansetFilterFunc, firstStageElement, secondStageElement, *FetchSpansRequest, error) {
 	expr, err := Parse(query)
 	if err != nil {
 		return nil, nil, nil, nil, nil, err

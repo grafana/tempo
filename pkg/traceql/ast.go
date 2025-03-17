@@ -30,8 +30,8 @@ type typedExpression interface {
 
 type RootExpr struct {
 	Pipeline           Pipeline
-	MetricsPipeline    metricsFirstStageElement
-	MetricsSecondStage metricsSecondStageElement
+	MetricsPipeline    firstStageElement
+	MetricsSecondStage secondStageElement
 	Hints              *Hints
 }
 
@@ -46,7 +46,7 @@ func newRootExpr(e pipelineElement) *RootExpr {
 	}
 }
 
-func newRootExprWithMetrics(e pipelineElement, m metricsFirstStageElement) *RootExpr {
+func newRootExprWithMetrics(e pipelineElement, m firstStageElement) *RootExpr {
 	p, ok := e.(Pipeline)
 	if !ok {
 		p = newPipeline(e)
@@ -58,7 +58,7 @@ func newRootExprWithMetrics(e pipelineElement, m metricsFirstStageElement) *Root
 	}
 }
 
-func newRootExprWithMetricsTwoStage(e pipelineElement, m1 metricsFirstStageElement, m2 metricsSecondStageElement) *RootExpr {
+func newRootExprWithMetricsTwoStage(e pipelineElement, m1 firstStageElement, m2 secondStageElement) *RootExpr {
 	p, ok := e.(Pipeline)
 	if !ok {
 		p = newPipeline(e)
