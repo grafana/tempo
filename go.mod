@@ -1,10 +1,9 @@
 module github.com/grafana/tempo
 
 go 1.24.1
-
 require (
 	cloud.google.com/go/storage v1.41.0
-	github.com/alecthomas/kong v1.8.1
+	github.com/alecthomas/kong v1.9.0
 	github.com/alicebob/miniredis/v2 v2.34.0
 	github.com/aws/aws-sdk-go v1.55.6
 	github.com/cespare/xxhash/v2 v2.3.0
