@@ -1527,29 +1527,21 @@ func FloatizeAttribute(s Span, a Attribute) (float64, StaticType) {
 
 // processTopK implements TopKBottomK topk method
 func processTopK(input SeriesSet, limit int) SeriesSet {
-	// Find the length of time series values from the first key
 	var valueLength int
 	for _, series := range input {
 		valueLength = len(series.Values)
 		break
 	}
 
-	// result SeriesSet for top-k series for each timestamp
 	result := make(SeriesSet)
 
-	// Create a map to track which series are selected at each timestamp
-	seriesAtTimestamp := make(map[int]map[string]bool)
-
-	// Process each timestamp
+	// process each timestamp
 	for i := 0; i < valueLength; i++ {
 		// Min heap for top-k (smallest values at top for easy replacement)
 		h := &seriesHeap{}
 		heap.Init(h)
 
-		// Track selected series at this timestamp
-		seriesAtTimestamp[i] = make(map[string]bool)
-
-		// Process each series for this timestamp
+		// process each series for this timestamp
 		for key, series := range input {
 			if i >= len(series.Values) {
 				continue
@@ -1580,25 +1572,11 @@ func processTopK(input SeriesSet, limit int) SeriesSet {
 			}
 		}
 
-		// Record which series were selected at this timestamp
+		// we have iterated over all series for this timestamp
+		// empty the heap and record these series in result set
 		for h.Len() > 0 {
 			sv := heap.Pop(h).(seriesValue)
-			seriesAtTimestamp[i][sv.key] = true
-		}
-	}
-
-	// Build final result containing only series that were selected at any timestamp
-	for key, series := range input {
-		included := false
-		for i := range seriesAtTimestamp {
-			if seriesAtTimestamp[i][key] {
-				included = true
-				break
-			}
-		}
-
-		if included {
-			result[key] = series
+			result[sv.key] = input[sv.key]
 		}
 	}
 
@@ -1607,27 +1585,19 @@ func processTopK(input SeriesSet, limit int) SeriesSet {
 
 // processBottomK implements TopKBottomK bottomk method
 func processBottomK(input SeriesSet, limit int) SeriesSet {
-	// Find the length of time series values from the first key
 	var valueLength int
 	for _, series := range input {
 		valueLength = len(series.Values)
 		break
 	}
 
-	// Create result map to store bottom-k series for each timestamp
 	result := make(SeriesSet)
-
-	// Create a map to track which series are selected at each timestamp
-	seriesAtTimestamp := make(map[int]map[string]bool)
 
 	// Process each timestamp
 	for i := 0; i < valueLength; i++ {
 		// Max heap for bottom-k (largest values at top for easy replacement)
 		h := &reverseSeriesHeap{}
 		heap.Init(h)
-
-		// Track selected series at this timestamp
-		seriesAtTimestamp[i] = make(map[string]bool)
 
 		// Process each series for this timestamp
 		for key, series := range input {
@@ -1660,75 +1630,13 @@ func processBottomK(input SeriesSet, limit int) SeriesSet {
 			}
 		}
 
-		// Record which series were selected at this timestamp
+		// we have iterated over all series for this timestamp
+		// empty the heap and record these series in result set
 		for h.Len() > 0 {
 			sv := heap.Pop(h).(seriesValue)
-			seriesAtTimestamp[i][sv.key] = true
-		}
-	}
-
-	// Build final result containing only series that were selected at any timestamp
-	for key, series := range input {
-		included := false
-		for i := range seriesAtTimestamp {
-			if seriesAtTimestamp[i][key] {
-				included = true
-				break
-			}
-		}
-
-		if included {
-			result[key] = series
+			result[sv.key] = input[sv.key]
 		}
 	}
 
 	return result
-}
-
-// seriesValue represents a value from a time series with its key
-type seriesValue struct {
-	key   string
-	value float64
-}
-
-// seriesHeap implements a min-heap of seriesValue
-type seriesHeap []seriesValue
-
-func (h seriesHeap) Len() int { return len(h) }
-
-func (h seriesHeap) Less(i, j int) bool { return h[i].value < h[j].value }
-
-func (h seriesHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
-
-func (h *seriesHeap) Push(x interface{}) {
-	*h = append(*h, x.(seriesValue))
-}
-
-func (h *seriesHeap) Pop() interface{} {
-	old := *h
-	n := len(old)
-	x := old[n-1]
-	*h = old[0 : n-1]
-	return x
-}
-
-// reverseSeriesHeap implements a max-heap of seriesValue
-type reverseSeriesHeap []seriesValue
-
-func (h reverseSeriesHeap) Len() int { return len(h) }
-
-func (h reverseSeriesHeap) Less(i, j int) bool { return h[i].value > h[j].value }
-
-func (h reverseSeriesHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
-
-func (h *reverseSeriesHeap) Push(x interface{}) {
-	*h = append(*h, x.(seriesValue))
-}
-
-func (h *reverseSeriesHeap) Pop() interface{} {
-	old := *h
-	n := len(old)
-	x := old[n-1]
-	*h = old[0 : n-1]
-	return x
 }
