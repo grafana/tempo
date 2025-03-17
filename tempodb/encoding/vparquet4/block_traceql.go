@@ -1981,6 +1981,10 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 			if cond.Op == traceql.OpNone {
 				addPredicate(entry.columnPath, nil) // No filtering
 				columnSelectAs[entry.columnPath] = cond.Attribute.Name
+
+				// also look up generic columns as there might also be an attribute with the
+				// same name but different type
+				genericConditions = append(genericConditions, cond)
 				continue
 			}
 
@@ -2001,6 +2005,10 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 			if cond.Op == traceql.OpNone {
 				addPredicate(c.ColumnPath, nil) // No filtering
 				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
+
+				// also look up generic columns as there might also be an attribute with the
+				// same name but different type
+				genericConditions = append(genericConditions, cond)
 				continue
 			}
 
