@@ -210,15 +210,33 @@ func BindTo(impl, iface any) Option {
 
 // BindToProvider binds an injected value to a provider function.
 //
-// The provider function must have the signature:
+// The provider function must have one of the following signatures:
 //
-//	func() (any, error)
+//	func(...) (T, error)
+//	func(...) T
+//
+// Where arguments to the function are injected by Kong.
 //
 // This is useful when the Run() function of different commands require different values that may
 // not all be initialisable from the main() function.
 func BindToProvider(provider any) Option {
 	return OptionFunc(func(k *Kong) error {
-		return k.bindings.addProvider(provider)
+		return k.bindings.addProvider(provider, false /* singleton */)
+	})
+}
+
+// BindSingletonProvider binds an injected value to a provider function.
+// The provider function must have the signature:
+//
+//	func(...) (T, error)
+//	func(...) T
+//
+// Unlike [BindToProvider], the provider function will only be called
+// at most once, and the result will be cached and reused
+// across multiple recipients of the injected value.
+func BindSingletonProvider(provider any) Option {
+	return OptionFunc(func(k *Kong) error {
+		return k.bindings.addProvider(provider, true /* singleton */)
 	})
 }
 

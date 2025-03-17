@@ -12,7 +12,6 @@ linters:
     - wsl
     - funlen
     - gocognit
-    - gomnd
     - goprintffuncname
     - paralleltest
     - nlreturn
@@ -36,13 +35,14 @@ linters:
     - nilnil
     - depguard    # nothing to guard against yet
     - tagalign    # hurts readability of kong tags
+    - tenv        # deprecated since v1.64, but not removed yet
     - mnd
     - perfsprint
     - err113
     - copyloopvar
     - intrange
-    - execinquery
     - nakedret
+    - recvcheck   # value receivers are intentionally used for copies
 
 linters-settings:
   govet:

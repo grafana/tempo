@@ -1,10 +1,9 @@
 module github.com/grafana/tempo
 
 go 1.24.1
-
 require (
 	cloud.google.com/go/storage v1.41.0
-	github.com/alecthomas/kong v1.8.1
+	github.com/alecthomas/kong v1.9.0
 	github.com/alicebob/miniredis/v2 v2.34.0
 	github.com/aws/aws-sdk-go v1.55.6
 	github.com/cespare/xxhash/v2 v2.3.0
@@ -96,7 +95,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/opencensusreceiver v0.119.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.119.0
 	github.com/parquet-go/parquet-go v0.25.0
-	github.com/stoewer/parquet-cli v0.0.9
+	github.com/stoewer/parquet-cli v0.0.10
 	github.com/twmb/franz-go v1.18.1
 	github.com/twmb/franz-go/pkg/kadm v1.15.0
 	github.com/twmb/franz-go/pkg/kfake v0.0.0-20241202133023-293b7c4c56bb

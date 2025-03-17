@@ -14,9 +14,11 @@ const (
 )
 
 // Help flag.
-type helpValue bool
+type helpFlag bool
 
-func (h helpValue) BeforeReset(ctx *Context) error {
+func (h helpFlag) IgnoreDefault() {}
+
+func (h helpFlag) BeforeReset(ctx *Context) error {
 	options := ctx.Kong.helpOptions
 	options.Summary = false
 	err := ctx.Kong.help(options, ctx)
@@ -415,7 +417,7 @@ func (h *helpWriter) Write(w io.Writer) error {
 
 func (h *helpWriter) Wrap(text string) {
 	w := bytes.NewBuffer(nil)
-	doc.ToText(w, strings.TrimSpace(text), "", "    ", h.width)
+	doc.ToText(w, strings.TrimSpace(text), "", "    ", h.width) //nolint:staticcheck // cross-package links not possible
 	for _, line := range strings.Split(strings.TrimSpace(w.String()), "\n") {
 		h.Print(line)
 	}
@@ -470,7 +472,7 @@ func writeTwoColumns(w *helpWriter, rows [][2]string) {
 
 	for _, row := range rows {
 		buf := bytes.NewBuffer(nil)
-		doc.ToText(buf, row[1], "", strings.Repeat(" ", defaultIndent), w.width-leftSize-defaultColumnPadding)
+		doc.ToText(buf, row[1], "", strings.Repeat(" ", defaultIndent), w.width-leftSize-defaultColumnPadding) //nolint:staticcheck // cross-package links not possible
 		lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
 
 		line := fmt.Sprintf("%-*s", leftSize, row[0])
