@@ -412,8 +412,20 @@ func TestBackendBlockSearchTraceQLNilSpecialColumns(t *testing.T) {
 
 			// remove values from special columns and make sure attributes with the same name but
 			// different type exist in generic attributes
+			for _, r := range iterRes(trace) {
+				r.Namespace = nil
+				r.Attrs = append(r.Attrs, Attribute{
+					Key:      "namespace",
+					ValueInt: []int64{123},
+				})
+				r.DedicatedAttributes.String04 = nil
+				r.Attrs = append(r.Attrs, Attribute{
+					Key:      "dedicated.resource.4",
+					ValueInt: []int64{200},
+				})
+			}
 			for _, s := range iterSpans(trace) {
-				s.HttpStatusCode = nil
+				s.HttpStatusCode = nil // fullyPopulatedTestTrace already adds a non int http.status_code attr
 				s.DedicatedAttributes.String04 = nil
 				s.Attrs = append(s.Attrs, Attribute{
 					Key:      "dedicated.span.4",
@@ -437,6 +449,8 @@ func TestBackendBlockSearchTraceQLNilSpecialColumns(t *testing.T) {
 		name string
 		req  traceql.FetchSpansRequest
 	}{
+		{"resource.namespace != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelNamespace + ` != nil}`)},
+		{"resource.dedicated.resource.4 != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.4 != nil}`)},
 		{"span.http.status_code != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.` + LabelHTTPStatusCode + ` != nil}`)},
 		{"span.dedicated.span.4 != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 != nil}`)},
 	}
@@ -2110,9 +2124,23 @@ func blockForBenchmarks(b *testing.B) *backendBlock {
 	return newBackendBlock(meta, rr)
 }
 
+func iterRes(traces ...*Trace) func(yield func(i int, r *Resource) bool) {
+	return func(yield func(i int, r *Resource) bool) {
+		count := 0
+		for _, t := range traces {
+			for i := range len(t.ResourceSpans) {
+				if !yield(count, &t.ResourceSpans[i].Resource) {
+					return
+				}
+				count++
+			}
+		}
+	}
+}
+
 func iterSpans(traces ...*Trace) func(yield func(i int, s *Span) bool) {
-	count := 0
 	return func(yield func(i int, s *Span) bool) {
+		count := 0
 		for _, t := range traces {
 			for _, rs := range t.ResourceSpans {
 				for _, ss := range rs.ScopeSpans {
