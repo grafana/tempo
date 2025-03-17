@@ -1490,6 +1490,19 @@ func TestProcessTopK(t *testing.T) {
 			}),
 		},
 		{
+			name: "limit larger than series count",
+			input: createSeriesSet(map[string][]float64{
+				"a": {1, 5, 3, 5, 6, 1, 9},
+				"b": {2, 6, 2},
+				"c": {1.1, 5.1, 3.1, 5.1, 6.1, 7.1},
+			}),
+			limit: 1,
+			expected: createSeriesSet(map[string][]float64{
+				"b": {2, 6, 2},
+				"c": {1.1, 5.1, 3.1, 5.1, 6.1, 7.1},
+			}),
+		},
+		{
 			name: "test ties at a timestamp",
 			input: createSeriesSet(map[string][]float64{
 				"a": {10, 5, 3},
@@ -1528,10 +1541,10 @@ func TestProcessTopK(t *testing.T) {
 
 func TestProcessBottomK(t *testing.T) {
 	tests := []struct {
-		name   string
-		input  SeriesSet
-		limit  int
-		expect SeriesSet
+		name     string
+		input    SeriesSet
+		limit    int
+		expected SeriesSet
 	}{
 		{
 			name: "bottomk selection",
@@ -1542,7 +1555,7 @@ func TestProcessBottomK(t *testing.T) {
 				"d": {4, 2, 4},
 			}),
 			limit: 2,
-			expect: createSeriesSet(map[string][]float64{
+			expected: createSeriesSet(map[string][]float64{
 				"a": {1, 5, 3}, // Bottom-2 at timestamp 0
 				"b": {2, 6, 2}, // Bottom-2 at timestamps 0, 2
 				"c": {3, 1, 1}, // Bottom-2 at timestamps 1, 2
@@ -1559,7 +1572,7 @@ func TestProcessBottomK(t *testing.T) {
 				"e": {4, 2, 2},
 			}),
 			limit: 2,
-			expect: createSeriesSet(map[string][]float64{
+			expected: createSeriesSet(map[string][]float64{
 				"c": {7, 6, 1}, // bottom 2 at timestamp 2
 				"d": {3, 3, 3}, // bottom 2 at timestamp 0, 1
 				"e": {4, 2, 2}, // bottom 2 at timestamp 0, 1, 2
@@ -1573,7 +1586,7 @@ func TestProcessBottomK(t *testing.T) {
 				"c": {4, 5, 1},
 			}),
 			limit: 1,
-			expect: createSeriesSet(map[string][]float64{
+			expected: createSeriesSet(map[string][]float64{
 				"a": {3, 1, 5}, // Lowest at timestamp 1
 				"b": {1, 2, 3}, // Lowest at timestamp 0
 				"c": {4, 5, 1}, // Lowest at timestamp 2
@@ -1587,7 +1600,7 @@ func TestProcessBottomK(t *testing.T) {
 				"c": {5, 1, 1},
 			}),
 			limit: 2,
-			expect: createSeriesSet(map[string][]float64{
+			expected: createSeriesSet(map[string][]float64{
 				"a": {1, math.NaN(), 3}, // Bottom-2 at timestamp 0
 				"b": {4, 6, math.NaN()}, // NaN values are skipped in comparison
 				"c": {5, 1, 1},          // Bottom-2 at timestamps 1, 2
@@ -1601,7 +1614,7 @@ func TestProcessBottomK(t *testing.T) {
 				"c": {10, 3, 1},
 			}),
 			limit: 2,
-			expect: createSeriesSet(map[string][]float64{
+			expected: createSeriesSet(map[string][]float64{
 				"b": {10, 4, 2},
 				"c": {10, 3, 1},
 			}),
@@ -1613,14 +1626,14 @@ func TestProcessBottomK(t *testing.T) {
 				"b": {math.NaN(), math.NaN(), math.NaN()},
 				"c": {math.NaN(), math.NaN(), math.NaN()},
 			}),
-			limit:  2,
-			expect: SeriesSet{},
+			limit:    2,
+			expected: SeriesSet{},
 		},
 		{
-			name:   "empty input",
-			input:  SeriesSet{},
-			limit:  2,
-			expect: SeriesSet{},
+			name:     "empty input",
+			input:    SeriesSet{},
+			limit:    2,
+			expected: SeriesSet{},
 		},
 		{
 			name: "limit larger than series count",
@@ -1629,8 +1642,21 @@ func TestProcessBottomK(t *testing.T) {
 				"b": {2, 6, 2},
 			}),
 			limit: 5,
-			expect: createSeriesSet(map[string][]float64{
+			expected: createSeriesSet(map[string][]float64{
 				"a": {1, 5, 3},
+				"b": {2, 6, 2},
+			}),
+		},
+		{
+			name: "limit larger than series count",
+			input: createSeriesSet(map[string][]float64{
+				"a": {1, 5, 3, 5, 6, 1, 9},
+				"b": {2, 6, 2},
+				"c": {1.1, 5.1, 3.1, 5.1, 6.1, 7.1},
+			}),
+			limit: 1,
+			expected: createSeriesSet(map[string][]float64{
+				"a": {1, 5, 3, 5, 6, 1, 9},
 				"b": {2, 6, 2},
 			}),
 		},
@@ -1642,7 +1668,7 @@ func TestProcessBottomK(t *testing.T) {
 				"c": {-3, 7, 1},
 			}),
 			limit: 2,
-			expect: createSeriesSet(map[string][]float64{
+			expected: createSeriesSet(map[string][]float64{
 				"a": {-1, 5, math.Inf(-1)}, // Bottom-2 at timestamp 2
 				"b": {-2, 6, math.Inf(1)},  // Bottom-2 at timestamp 0
 				"c": {-3, 7, 1},            // Bottom-2 at timestamps 0, 2
@@ -1655,7 +1681,7 @@ func TestProcessBottomK(t *testing.T) {
 			fmt.Printf("== input seriesSet: %v\n", tt.input)
 			result := processBottomK(tt.input, tt.limit)
 			fmt.Printf("== result seriesSet: %v\n", result)
-			expectSeriesSet(t, tt.expect, result)
+			expectSeriesSet(t, tt.expected, result)
 		})
 	}
 }
