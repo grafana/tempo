@@ -450,8 +450,10 @@ func TestBackendBlockSearchTraceQLNilSpecialColumns(t *testing.T) {
 		req  traceql.FetchSpansRequest
 	}{
 		{"resource.namespace != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelNamespace + ` != nil}`)},
+		{".namespace != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelNamespace + ` != nil}`)},
 		{"resource.dedicated.resource.4 != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.4 != nil}`)},
 		{"span.http.status_code != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.` + LabelHTTPStatusCode + ` != nil}`)},
+		{".http.status_code != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelHTTPStatusCode + ` != nil}`)},
 		{"span.dedicated.span.4 != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 != nil}`)},
 	}
 
