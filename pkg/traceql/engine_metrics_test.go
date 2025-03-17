@@ -1345,9 +1345,9 @@ func TestSecondStageTopK(t *testing.T) {
 
 	in := make([]Span, 0)
 	// 15 spans, at different start times across 3 series
-	in = append(in, generateSpans(7, []int{1, 2, 3, 4, 5, 6, 7, 8}, "bar", 128)...)
-	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "baz", 128)...)
-	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "quax", 128)...)
+	in = append(in, generateSpans(7, []int{1, 2, 3, 4, 5, 6, 7, 8}, "bar")...)
+	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "baz")...)
+	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "quax")...)
 
 	result, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
@@ -1369,9 +1369,9 @@ func TestSecondStageBottomK(t *testing.T) {
 
 	in := make([]Span, 0)
 	// 15 spans, at different start times across 3 series
-	in = append(in, generateSpans(7, []int{1, 2, 3, 4, 5, 6, 7, 8}, "bar", 128)...)
-	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "baz", 128)...)
-	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "quax", 128)...)
+	in = append(in, generateSpans(7, []int{1, 2, 3, 4, 5, 6, 7, 8}, "bar")...)
+	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "baz")...)
+	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "quax")...)
 
 	result, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
@@ -1730,12 +1730,12 @@ func randFloat(minimum, maximum float64) float64 {
 	return rand.Float64()*(maximum-minimum) + minimum
 }
 
-func generateSpans(count int, startTimes []int, value string, duration uint64) []Span {
+func generateSpans(count int, startTimes []int, value string) []Span {
 	spans := make([]Span, 0)
 	for i := 0; i < count; i++ {
 		for _, t := range startTimes {
 			sTime := uint64(time.Duration(t) * time.Second)
-			spans = append(spans, newMockSpan(nil).WithStartTime(sTime).WithSpanString("foo", value).WithDuration(duration*uint64(i+1)))
+			spans = append(spans, newMockSpan(nil).WithStartTime(sTime).WithSpanString("foo", value).WithDuration(128*uint64(i+1)))
 		}
 	}
 	return spans
