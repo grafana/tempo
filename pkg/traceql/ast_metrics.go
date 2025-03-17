@@ -18,7 +18,6 @@ type metricsFirstStageElement interface {
 	result() SeriesSet
 }
 
-// TODO: move the first stage pipeline into a separate file??
 type getExemplar func(Span) (float64, uint64)
 
 // MetricsAggregate is a placeholder in the AST for a metrics aggregation
@@ -310,12 +309,6 @@ type metricsSecondStageElement interface {
 	process(input SeriesSet) SeriesSet
 }
 
-// MetricsSecondStage handles second stage metrics operations (topK/bottomK)
-type MetricsSecondStage struct {
-	op    SecondStageOp
-	limit int
-}
-
 type SecondStageOp int
 
 const (
@@ -335,34 +328,38 @@ func (op SecondStageOp) String() string {
 	return "unknown"
 }
 
-func newMetricsSecondStage(op SecondStageOp, limit int) *MetricsSecondStage {
-	return &MetricsSecondStage{op: op, limit: limit}
+// TopKBottomK handles second stage topK/bottomK operations
+type TopKBottomK struct {
+	op    SecondStageOp
+	limit int
 }
 
-func (m *MetricsSecondStage) String() string {
+func newTopKBottomK(op SecondStageOp, limit int) *TopKBottomK {
+	return &TopKBottomK{op: op, limit: limit}
+}
+
+func (m *TopKBottomK) String() string {
 	return fmt.Sprintf("%s(%d)", m.op.String(), m.limit)
 }
 
-func (m *MetricsSecondStage) validate() error {
+func (m *TopKBottomK) validate() error {
 	if m.limit <= 0 {
 		return errInvalidLimit
 	}
 	return nil
 }
 
-func (m *MetricsSecondStage) process(input SeriesSet) SeriesSet {
-	// if input len is less than limit, return the input as is without processing
+func (m *TopKBottomK) process(input SeriesSet) SeriesSet {
+	// if input size is less than limit, return input as is
 	if len(input) <= m.limit {
 		return input
 	}
 
-	// if limit is zero or input is empty, return empty SeriesSet
-	// topk(0) or bottomk(0) are not allowed and will fail query validation
-	if m.limit <= 0 || len(input) == 0 {
+	// limit can't be zero or negative and will fail query validation
+	// if input is empty, return empty SeriesSet
+	if len(input) == 0 {
 		return SeriesSet{}
 	}
-
-	fmt.Printf("=== input: %v\n", input)
 
 	switch m.op {
 	case OpTopK:
@@ -370,9 +367,9 @@ func (m *MetricsSecondStage) process(input SeriesSet) SeriesSet {
 	case OpBottomK:
 		return processBottomK(input, m.limit)
 	default:
-		fmt.Printf("=== unknown op: %v\n", m.op)
+		// unknown operation, return empty SeriesSet, we shouldn't reach here
 		return SeriesSet{}
 	}
 }
 
-var _ metricsSecondStageElement = (*MetricsSecondStage)(nil)
+var _ metricsSecondStageElement = (*TopKBottomK)(nil)

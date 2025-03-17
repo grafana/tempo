@@ -1089,15 +1089,14 @@ func (e *MetricsEvaluator) Metrics() (uint64, uint64, uint64) {
 }
 
 func (e *MetricsEvaluator) Results() SeriesSet {
+	results := e.metricsPipeline.result()
 	if e.metricsSecondStage != nil {
 		// if we have metrics second stage, pass first stage results through
-		// second stage for further processing and return the results.
-		firstStageResults := e.metricsPipeline.result()
-		return e.metricsSecondStage.process(firstStageResults)
+		// second stage for further processing.
+		results = e.metricsSecondStage.process(results)
 	}
 
-	// No second stage, just return first stage results
-	return e.metricsPipeline.result()
+	return results
 }
 
 func (e *MetricsEvaluator) sampleExemplar(id []byte) bool {
@@ -1138,15 +1137,15 @@ func (m *MetricsFrontendEvaluator) Results() SeriesSet {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
+	results := m.metricsPipeline.result()
+
 	if m.metricsSecondStage != nil {
 		// if we have metrics second stage, pass first stage results through
-		// second stage for further processing and return the results.
-		firstStageResults := m.metricsPipeline.result()
-		return m.metricsSecondStage.process(firstStageResults)
+		// second stage for further processing.
+		results = m.metricsSecondStage.process(results)
 	}
 
-	// No second stage, just return first stage results
-	return m.metricsPipeline.result()
+	return results
 }
 
 type SeriesAggregator interface {
@@ -1527,7 +1526,7 @@ func FloatizeAttribute(s Span, a Attribute) (float64, StaticType) {
 	return f, v.Type
 }
 
-// processTopK implements MetricsSecondStage topk method
+// processTopK implements TopKBottomK topk method
 func processTopK(input SeriesSet, limit int) SeriesSet {
 	// Find the length of time series values from the first key
 	var valueLength int
@@ -1607,7 +1606,7 @@ func processTopK(input SeriesSet, limit int) SeriesSet {
 	return result
 }
 
-// processBottomK implements MetricsSecondStage bottomk method
+// processBottomK implements TopKBottomK bottomk method
 func processBottomK(input SeriesSet, limit int) SeriesSet {
 	// Find the length of time series values from the first key
 	var valueLength int
