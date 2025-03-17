@@ -119,13 +119,19 @@ func (s asyncSearchSharder) RoundTrip(pipelineRequest pipeline.Request) (pipelin
 	return pipeline.NewAsyncSharderChan(ctx, s.cfg.ConcurrentRequests, reqCh, pipeline.NewAsyncResponse(jobMetrics), s.next), nil
 }
 
-func (s *asyncSearchSharder) filterFn(m *backend.BlockMeta) bool {
-	if s.cfg.RF1After.IsZero() {
-		return m.ReplicationFactor == backend.DefaultReplicationFactor
+func (s *asyncSearchSharder) filterFn(rf1After time.Time) func(m *backend.BlockMeta) bool {
+	if rf1After.IsZero() {
+		rf1After = s.cfg.RF1After
 	}
 
-	return (m.ReplicationFactor == backend.DefaultReplicationFactor && m.StartTime.Before(s.cfg.RF1After)) ||
-		(m.ReplicationFactor == backend.MetricsGeneratorReplicationFactor && m.StartTime.After(s.cfg.RF1After))
+	return func(m *backend.BlockMeta) bool {
+		if rf1After.IsZero() {
+			return true
+		}
+
+		return (m.ReplicationFactor == backend.DefaultReplicationFactor && m.StartTime.Before(rf1After)) ||
+			(m.ReplicationFactor == 1 && m.StartTime.After(rf1After))
+	}
 }
 
 // backendRequest builds backend requests to search backend blocks. backendRequest takes ownership of reqCh and closes it.
@@ -148,7 +154,14 @@ func (s *asyncSearchSharder) backendRequests(ctx context.Context, tenantID strin
 
 	startT := time.Unix(int64(start), 0)
 	endT := time.Unix(int64(end), 0)
-	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), startT, endT, s.filterFn)
+
+	// Use RF1After from the request if it's not zero, otherwise use the config value
+	rf1After := searchReq.RF1After
+	if rf1After.IsZero() {
+		rf1After = s.cfg.RF1After
+	}
+
+	blocks := blockMetasForSearch(s.reader.BlockMetas(tenantID), startT, endT, s.filterFn(rf1After))
 
 	// calculate metrics to return to the caller
 	resp.TotalBlocks = len(blocks)

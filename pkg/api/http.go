@@ -15,9 +15,8 @@ import (
 	"github.com/go-logfmt/logfmt"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/prometheus/common/model"
-
 	"github.com/grafana/dskit/httpgrpc"
+	"github.com/prometheus/common/model"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -39,6 +38,7 @@ const (
 	urlParamStep            = "step"
 	urlParamSince           = "since"
 	urlParamExemplars       = "exemplars"
+	urlParamRF1After        = "rf1After"
 
 	// backend search querier
 	urlParamStartPage        = "startPage"
@@ -231,6 +231,14 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 			return nil, errors.New("invalid spss: must be a positive number")
 		}
 		req.SpansPerSpanSet = uint32(spansPerSpanSet)
+	}
+
+	if s, ok := extractQueryParam(vals, urlParamRF1After); ok {
+		t, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			return nil, fmt.Errorf("invalid rf1After: %w", err)
+		}
+		req.RF1After = t
 	}
 
 	// start and end == 0 is fine
@@ -635,6 +643,10 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 		}
 
 		qb.addParam(urlParamTags, builder.String())
+	}
+
+	if !searchReq.RF1After.IsZero() {
+		qb.addParam(urlParamRF1After, searchReq.RF1After.Format(time.RFC3339))
 	}
 
 	req.URL.RawQuery = qb.query()

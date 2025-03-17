@@ -5,6 +5,7 @@ package tempopb;
 import "common/v1/common.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "trace/v1/trace.proto";
+import 'google/protobuf/timestamp.proto';
 
 service Pusher {
   // different versions of PushBytes expect the trace data to be pushed in
@@ -82,6 +83,11 @@ message SearchRequest {
   // TraceQL query
   string Query = 8;
   uint32 SpansPerSpanSet = 9;
+  // Rhythm fields
+  google.protobuf.Timestamp RF1After = 10 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
 }
 
 // SearchBlockRequest takes SearchRequest parameters as well as all information
