@@ -187,6 +187,17 @@ This is unlikely to tell you anything useful (what does a median status code of 
 As a further example, imagine a custom attribute like `span.temperature`.
 You could use a similar query to know what the 50th percentile and 95th percentile temperatures were across all your spans.
 
+## `topk` and `bottomk` functions
+
+We support the `topk` and `bottomk` aggregation functions that allows you to aggregate the TraceQL metrics and further
+process the metrics produced by TraceQL Metrics.
+
+TraceQL Metrics topk and bottomk functions behave similar to PromQL topk and bottomk functions. example usage:
+
+- `{ } | rate() by(resource.service.name) | bottomk(5)`
+- `{ } | rate() by(resource.service.name) | topk(5)`
+
+
 ## The `compare` function
 
 The `compare` function is used to split a set of spans into two groups: a selection and a baseline.
