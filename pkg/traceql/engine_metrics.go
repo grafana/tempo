@@ -961,7 +961,6 @@ func lookup(needles []Attribute, haystack Span) Static {
 	return NewStaticNil()
 }
 
-// TODO: implement second stage in the MetricsEvaluator
 type MetricsEvaluator struct {
 	start, end                      uint64
 	checkTime                       bool
@@ -1533,9 +1532,9 @@ func processTopK(input SeriesSet, limit int) SeriesSet {
 
 		// Process each series for this timestamp
 		for key, series := range input {
-			// if i >= len(series.Values) {
-			// 	continue
-			// }
+			if i >= len(series.Values) {
+				continue
+			}
 
 			value := series.Values[i]
 			if math.IsNaN(value) {
