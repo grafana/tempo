@@ -41,14 +41,14 @@ configurable via the throughput_bytes_slo field, and it will populate op="traces
 * [ENHANCEMENT] Use distroless base container images for improved security [#4556](https://github.com/grafana/tempo/pull/4556) (@carles-grafana)
 * [ENHANCEMENT] Rhythm: add block builder to resources dashboard [#4556](https://github.com/grafana/tempo/pull/4669) (@javiermolinar)
 * [ENHANCEMENT] Upgrade prometheus to version 3.1.0 [#4805](https://github.com/grafana/tempo/pull/4805) (@javiermolinar)
-* [ENHANCEMENT] Update dskit to latest version [#4681](https://github.com/grafana/tempo/pull/4681) (@javiermolinar)
-* [ENHANCEMENT] Increase query-frontend default batch size [#4844](https://github.com/grafana/tempo/pull/4844) (@javiermolinar)
+* [ENHANCEMENT] Update dskit to latest version [#4681](https://github.com/grafana/tempo/pull/4681) (@javiermolinar) [#4865](https://github.com/grafana/tempo/pull/4865) (@javiermolinar)
+* [ENHANCEMENT] Increase query-frontend default batch size [#4844](https://github.com/grafana/tempo/pull/4844) (@javiermolinar) 
 * [ENHANCEMENT] Improve TraceQL perf by reverting EqualRowNumber to an inlineable function.[#4705](https://github.com/grafana/tempo/pull/4705) (@joe-elliott)
 * [ENHANCEMENT] Rhythm: fair partition consumption in blockbuilders [#4655](https://github.com/grafana/tempo/pull/4655) (@javiermolinar)
 * [ENHANCEMENT] Skip creating one span-traces for every pushed spans in metrics generator [#4844](https://github.com/grafana/tempo/pull/4844) (@javiermolinar)
 * [ENHANCEMENT] TraceQL: add support for querying by parent span id [#4692](https://github.com/grafana/tempo/pull/4692) (@ie-pham)
 * [ENHANCEMENT] metrics-generator: allow skipping localblocks and consuming from a different source of data [#4686](https://github.com/grafana/tempo/pull/4686) (@flxbk)
-* [ENHANCEMENT] compactor: restore dedicated columns logging for completed blocks
+* [ENHANCEMENT] compactor: restore dedicated columns logging for completed blocks [#4832](https://github.com/grafana/tempo/pull/4832) (@edgarkz)
 * [ENHANCEMENT] distributor: add IPv6 support [#4840](https://github.com/grafana/tempo/pull/4840) (@gjacquet)
 * [BUGFIX] Choose a default step for a gRPC streaming query range request if none is provided. [#4546](https://github.com/grafana/tempo/pull/4576) (@joe-elliott)
   Correctly copy exemplars for metrics like `| rate()` when gRPC streaming.

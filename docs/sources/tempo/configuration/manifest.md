@@ -76,6 +76,11 @@ server:
     log_request_at_info_level_enabled: false
     log_request_exclude_headers_list: ""
     http_path_prefix: ""
+    cluster_validation:
+        label: ""
+        grpc:
+            enabled: false
+            soft_validation: false
 internal_server:
     http_listen_network: tcp
     http_listen_address: ""
@@ -135,6 +140,11 @@ internal_server:
     log_request_at_info_level_enabled: false
     log_request_exclude_headers_list: ""
     http_path_prefix: ""
+    cluster_validation:
+        label: ""
+        grpc:
+            enabled: false
+            soft_validation: false
     enable: false
 distributor:
     ring:
@@ -236,6 +246,8 @@ ingester_client:
         connect_timeout: 5s
         connect_backoff_base_delay: 1s
         connect_backoff_max_delay: 5s
+        cluster_validation:
+            label: ""
 metrics_generator_client:
     pool_config:
         checkinterval: 15s
@@ -267,6 +279,8 @@ metrics_generator_client:
         connect_timeout: 5s
         connect_backoff_base_delay: 1s
         connect_backoff_max_delay: 5s
+        cluster_validation:
+            label: ""
 querier:
     search:
         query_timeout: 30s
@@ -306,6 +320,8 @@ querier:
             connect_timeout: 0s
             connect_backoff_base_delay: 0s
             connect_backoff_max_delay: 0s
+            cluster_validation:
+                label: ""
     shuffle_sharding_ingesters_enabled: false
     shuffle_sharding_ingesters_lookback_period: 1h0m0s
     query_relevant_ingesters: false
