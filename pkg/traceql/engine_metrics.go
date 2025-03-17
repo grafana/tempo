@@ -988,8 +988,8 @@ type MetricsEvaluator struct {
 	exemplarMap                     map[string]struct{}
 	timeOverlapCutoff               float64
 	storageReq                      *FetchSpansRequest
-	metricsPipeline                 metricsFirstStageElement
-	metricsSecondStage              metricsSecondStageElement
+	metricsPipeline                 firstStageElement
+	metricsSecondStage              secondStageElement
 	spansTotal, spansDeduped, bytes uint64
 	mtx                             sync.Mutex
 }
@@ -1122,8 +1122,8 @@ func (e *MetricsEvaluator) sampleExemplar(id []byte) bool {
 // of the pipeline.  i.e. This evaluator is for the query-frontend.
 type MetricsFrontendEvaluator struct {
 	mtx                sync.Mutex
-	metricsPipeline    metricsFirstStageElement
-	metricsSecondStage metricsSecondStageElement
+	metricsPipeline    firstStageElement
+	metricsSecondStage secondStageElement
 }
 
 func (m *MetricsFrontendEvaluator) ObserveSeries(in []*tempopb.TimeSeries) {

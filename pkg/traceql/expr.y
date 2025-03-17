@@ -29,8 +29,8 @@ import (
     wrappedScalarPipeline Pipeline
     scalarPipeline Pipeline
     aggregate Aggregate
-    metricsAggregation metricsFirstStageElement
-    metricsSecondStage metricsSecondStageElement
+    metricsAggregation firstStageElement
+    metricsSecondStage secondStageElement
 
     fieldExpression FieldExpression
     static Static
