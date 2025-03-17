@@ -1136,10 +1136,10 @@ func BenchmarkBackendBlockQueryRange(b *testing.B) {
 					}
 
 					req := &tempopb.QueryRangeRequest{
-						Query: tc,
-						Step:  uint64(time.Minute),
-						Start: uint64(st.UnixNano()),
-						End:   uint64(end.UnixNano()),
+						Query:     tc,
+						Step:      uint64(time.Minute),
+						Start:     uint64(st.UnixNano()),
+						End:       uint64(end.UnixNano()),
 						MaxSeries: 100,
 					}
 

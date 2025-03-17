@@ -279,7 +279,7 @@ func (b *averageOverTimeSeriesAggregator) Combine(in []*tempopb.TimeSeries) int 
 			b.aggregateExemplars(ts, b.weightedAverageSeries[ts.PromLabels])
 		}
 	}
-	return len( b.weightedAverageSeries)
+	return len(b.weightedAverageSeries)
 }
 
 func (b *averageOverTimeSeriesAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *averageSeries) {
