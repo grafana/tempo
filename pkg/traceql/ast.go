@@ -11,7 +11,6 @@ import (
 	"unsafe"
 
 	"github.com/grafana/tempo/pkg/regexp"
-	"github.com/grafana/tempo/pkg/tempopb"
 )
 
 type Element interface {

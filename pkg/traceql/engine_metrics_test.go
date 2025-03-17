@@ -1349,7 +1349,8 @@ func TestSecondStageTopK(t *testing.T) {
 	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "foo", "baz", 128)...)
 	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "foo", "quax", 128)...)
 
-	result := runTraceQLMetric(t, req, in)
+	result, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
 
 	// bar and baz have more spans so they should be the top 2
 	resultBar := result[`{span.foo="bar"}`]
@@ -1372,7 +1373,8 @@ func TestSecondStageBottomK(t *testing.T) {
 	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "foo", "baz", 128)...)
 	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "foo", "quax", 128)...)
 
-	result := runTraceQLMetric(t, req, in)
+	result, err := runTraceQLMetric(req, in)
+	require.NoError(t, err)
 
 	// quax and baz have the lowest spans so they should be the bottom 2
 	resultBar := result[`{span.foo="quax"}`]
