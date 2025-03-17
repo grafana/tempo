@@ -219,7 +219,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "foo"), traceql.NewStaticString("def")},
 							{newSpanAttr("float"), traceql.NewStaticFloat(456.78)},
 							{newSpanAttr("bool"), traceql.NewStaticBool(false)},
-							{newSpanAttr(LabelHTTPStatusCode), traceql.NewStaticInt(500)}, // This is the only attribute that matched anything
+							{newSpanAttr(LabelHTTPStatusCode), traceql.NewStaticString("500ouch")}, // There is another attribute http.status_code with string value
+							{newSpanAttr(LabelHTTPStatusCode), traceql.NewStaticInt(500)},          // This is the only attribute that matched anything
 							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(100 * time.Second)},
 							{traceql.NewIntrinsic(traceql.IntrinsicSpanID), traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[0].ScopeSpans[0].Spans[0].SpanID))},
 						},
@@ -241,7 +242,8 @@ func TestBackendBlockSearchFetchMetaData(t *testing.T) {
 							{traceql.NewScopedAttribute(traceql.AttributeScopeSpan, false, "foo"), traceql.NewStaticString("ghi")},
 							{newSpanAttr("float"), traceql.NewStaticFloat(456.789)},
 							{newSpanAttr("bool"), traceql.NewStaticBool(true)},
-							{newSpanAttr(LabelHTTPStatusCode), traceql.NewStaticInt(501)}, // This is the only attribute that matched anything
+							{newSpanAttr(LabelHTTPStatusCode), traceql.NewStaticString("500ouch2")}, // There is another attribute http.status_code with string value
+							{newSpanAttr(LabelHTTPStatusCode), traceql.NewStaticInt(501)},           // This is the only attribute that matched anything
 							{traceql.NewIntrinsic(traceql.IntrinsicDuration), traceql.NewStaticDuration(200 * time.Second)},
 							{traceql.NewIntrinsic(traceql.IntrinsicSpanID), traceql.NewStaticString(util.SpanIDToHexString(wantTr.ResourceSpans[1].ScopeSpans[0].Spans[0].SpanID))},
 						},
