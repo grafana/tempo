@@ -329,6 +329,7 @@ type QueryRangeCombiner struct {
 
 	maxSeries        int
 	maxSeriesReached bool
+	seriesCount      int
 
 	// used to track which series were updated since the previous diff
 	// todo: it may not be worth it to track the diffs per series. it would be simpler (and possibly nearly as effective) to just calculate a global
@@ -336,7 +337,7 @@ type QueryRangeCombiner struct {
 	seriesUpdated map[string]tsRange
 }
 
-func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode, maxSeries int) (*QueryRangeCombiner, error) {
+func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode) (*QueryRangeCombiner, error) {
 	eval, err := NewEngine().CompileMetricsQueryRangeNonRaw(req, mode)
 	if err != nil {
 		return nil, err
@@ -345,7 +346,7 @@ func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode, m
 	return &QueryRangeCombiner{
 		req:       req,
 		eval:      eval,
-		maxSeries: maxSeries,
+		maxSeries: int(req.MaxSeries),
 		metrics:   &tempopb.SearchMetrics{},
 	}, nil
 }
@@ -356,9 +357,9 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 	}
 
 	// Here is where the job results are reentered into the pipeline
-	q.eval.ObserveSeries(resp.Series)
+	q.seriesCount = q.eval.ObserveSeries(resp.Series)
 
-	if q.maxSeries > 0 && len(q.eval.Results()) >= q.maxSeries {
+	if q.maxSeries > 0 && q.seriesCount >= q.maxSeries {
 		q.maxSeriesReached = true
 	}
 
