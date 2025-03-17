@@ -325,8 +325,8 @@ metricsAggregation:
 // Metrics Second Stage Functions
 // **********************
 metricsSecondStage:
-    TOPK OPEN_PARENS INTEGER CLOSE_PARENS                        { $$ = newMetricsSecondStage(OpTopK, $3) }
-    | BOTTOMK OPEN_PARENS INTEGER CLOSE_PARENS                   { $$ = newMetricsSecondStage(OpBottomK,$3) }
+    TOPK OPEN_PARENS INTEGER CLOSE_PARENS                        { $$ = newTopKBottomK(OpTopK, $3) }
+    | BOTTOMK OPEN_PARENS INTEGER CLOSE_PARENS                   { $$ = newTopKBottomK(OpBottomK, $3) }
   ;
 
 // **********************
