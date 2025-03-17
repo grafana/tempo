@@ -1,7 +1,7 @@
 package traceql
 
 import (
-	// "container/heap"
+	"container/heap"
 	"context"
 	"errors"
 	"fmt"
@@ -799,7 +799,7 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 }
 
 // CompileMetricsQueryRange returns an evaluator that can be reused across multiple data sources.
-// Dedupe spans parameter is an indicator of whether to expect duplicates in the datasource. For
+// Dedupe spans parameter is an indicator of whether to expected duplicates in the datasource. For
 // example if the datasource is replication factor=1 or only a single block then we know there
 // aren't duplicates, and we can make some optimizations.
 func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exemplars int, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvaluator, error) {
@@ -1527,30 +1527,213 @@ func FloatizeAttribute(s Span, a Attribute) (float64, StaticType) {
 	return f, v.Type
 }
 
+// processTopK implements MetricsSecondStage topk method
 func processTopK(input SeriesSet, limit int) SeriesSet {
-	// FIXME: just return first K values from the input to add tests and make it work
-	result := make(SeriesSet)
-	count := 0
-	for key, series := range input {
-		if count >= limit {
-			break
-		}
-		result[key] = series
-		count++
+	// Find the length of time series values from the first key
+	var valueLength int
+	for _, series := range input {
+		valueLength = len(series.Values)
+		break
 	}
+
+	// result SeriesSet for top-k series for each timestamp
+	result := make(SeriesSet)
+
+	// Create a map to track which series are selected at each timestamp
+	seriesAtTimestamp := make(map[int]map[string]bool)
+
+	// Process each timestamp
+	for i := 0; i < valueLength; i++ {
+		// Min heap for top-k (smallest values at top for easy replacement)
+		h := &seriesHeap{}
+		heap.Init(h)
+
+		// Track selected series at this timestamp
+		seriesAtTimestamp[i] = make(map[string]bool)
+
+		// Process each series for this timestamp
+		for key, series := range input {
+			// if i >= len(series.Values) {
+			// 	continue
+			// }
+
+			value := series.Values[i]
+			if math.IsNaN(value) {
+				continue // Skip NaN values
+			}
+
+			// If heap not full yet, add the value
+			if h.Len() < limit {
+				heap.Push(h, seriesValue{
+					key:   key,
+					value: value,
+				})
+				continue
+			}
+
+			// If new value is greater than smallest in heap, replace it
+			smallest := (*h)[0]
+			if value > smallest.value {
+				heap.Pop(h)
+				heap.Push(h, seriesValue{
+					key:   key,
+					value: value,
+				})
+			}
+		}
+
+		// Record which series were selected at this timestamp
+		for h.Len() > 0 {
+			sv := heap.Pop(h).(seriesValue)
+			seriesAtTimestamp[i][sv.key] = true
+		}
+	}
+
+	// Build final result containing only series that were selected at any timestamp
+	for key, series := range input {
+		included := false
+		for i := range seriesAtTimestamp {
+			if seriesAtTimestamp[i][key] {
+				included = true
+				break
+			}
+		}
+
+		if included {
+			result[key] = series
+		}
+	}
+
 	return result
 }
 
+// processBottomK implements MetricsSecondStage bottomk method
 func processBottomK(input SeriesSet, limit int) SeriesSet {
-	// FIXME: just return first K values from the input to add tests and make it work
-	result := make(SeriesSet)
-	count := 0
-	for key, series := range input {
-		if count >= limit {
-			break
-		}
-		result[key] = series
-		count++
+	// Find the length of time series values
+	var valueLength int
+	for _, series := range input {
+		valueLength = len(series.Values)
+		break
 	}
+	if valueLength == 0 {
+		return SeriesSet{}
+	}
+
+	// Create result map to store bottom-k series for each timestamp
+	result := make(SeriesSet)
+
+	// Create a map to track which series are selected at each timestamp
+	seriesAtTimestamp := make(map[int]map[string]bool)
+
+	// Process each timestamp
+	for i := 0; i < valueLength; i++ {
+		// Max heap for bottom-k (largest values at top for easy replacement)
+		h := &reverseSeriesHeap{}
+		heap.Init(h)
+
+		// Track selected series at this timestamp
+		seriesAtTimestamp[i] = make(map[string]bool)
+
+		// Process each series for this timestamp
+		for key, series := range input {
+			if i >= len(series.Values) {
+				continue
+			}
+
+			value := series.Values[i]
+			if math.IsNaN(value) {
+				continue // Skip NaN values
+			}
+
+			// If heap not full yet, add the value
+			if h.Len() < limit {
+				heap.Push(h, seriesValue{
+					key:   key,
+					value: value,
+				})
+				continue
+			}
+
+			// If new value is less than largest in heap, replace it
+			largest := (*h)[0]
+			if value < largest.value {
+				heap.Pop(h)
+				heap.Push(h, seriesValue{
+					key:   key,
+					value: value,
+				})
+			}
+		}
+
+		// Record which series were selected at this timestamp
+		for h.Len() > 0 {
+			sv := heap.Pop(h).(seriesValue)
+			seriesAtTimestamp[i][sv.key] = true
+		}
+	}
+
+	// Build final result containing only series that were selected at any timestamp
+	for key, series := range input {
+		included := false
+		for i := range seriesAtTimestamp {
+			if seriesAtTimestamp[i][key] {
+				included = true
+				break
+			}
+		}
+
+		if included {
+			result[key] = series
+		}
+	}
+
 	return result
+}
+
+// seriesValue represents a value from a time series with its key
+type seriesValue struct {
+	key   string
+	value float64
+}
+
+// seriesHeap implements a min-heap of seriesValue
+type seriesHeap []seriesValue
+
+func (h seriesHeap) Len() int { return len(h) }
+
+func (h seriesHeap) Less(i, j int) bool { return h[i].value < h[j].value }
+
+func (h seriesHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+
+func (h *seriesHeap) Push(x interface{}) {
+	*h = append(*h, x.(seriesValue))
+}
+
+func (h *seriesHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[0 : n-1]
+	return x
+}
+
+// reverseSeriesHeap implements a max-heap of seriesValue
+type reverseSeriesHeap []seriesValue
+
+func (h reverseSeriesHeap) Len() int { return len(h) }
+
+func (h reverseSeriesHeap) Less(i, j int) bool { return h[i].value > h[j].value } // Reversed comparison
+
+func (h reverseSeriesHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+
+func (h *reverseSeriesHeap) Push(x interface{}) {
+	*h = append(*h, x.(seriesValue))
+}
+
+func (h *reverseSeriesHeap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[0 : n-1]
+	return x
 }
