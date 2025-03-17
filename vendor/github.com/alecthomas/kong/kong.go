@@ -283,7 +283,7 @@ func (k *Kong) extraFlags() []*Flag {
 	if k.noDefaultHelp {
 		return nil
 	}
-	var helpTarget helpValue
+	var helpTarget helpFlag
 	value := reflect.ValueOf(&helpTarget).Elem()
 	helpFlag := &Flag{
 		Short: 'h',
@@ -311,11 +311,11 @@ func (k *Kong) extraFlags() []*Flag {
 // invalid one, which will report a normal error).
 func (k *Kong) Parse(args []string) (ctx *Context, err error) {
 	ctx, err = Trace(k, args)
-	if err != nil {
-		return nil, err
+	if err != nil { // Trace is not expected to return an err
+		return nil, &ParseError{error: err, Context: ctx, exitCode: exitUsageError}
 	}
 	if ctx.Error != nil {
-		return nil, &ParseError{error: ctx.Error, Context: ctx}
+		return nil, &ParseError{error: ctx.Error, Context: ctx, exitCode: exitUsageError}
 	}
 	if err = k.applyHook(ctx, "BeforeReset"); err != nil {
 		return nil, &ParseError{error: err, Context: ctx}
@@ -332,11 +332,11 @@ func (k *Kong) Parse(args []string) (ctx *Context, err error) {
 	if err = k.applyHook(ctx, "BeforeApply"); err != nil {
 		return nil, &ParseError{error: err, Context: ctx}
 	}
-	if _, err = ctx.Apply(); err != nil {
+	if _, err = ctx.Apply(); err != nil { // Apply is not expected to return an err
 		return nil, &ParseError{error: err, Context: ctx}
 	}
 	if err = ctx.Validate(); err != nil {
-		return nil, &ParseError{error: err, Context: ctx}
+		return nil, &ParseError{error: err, Context: ctx, exitCode: exitUsageError}
 	}
 	if err = k.applyHook(ctx, "AfterApply"); err != nil {
 		return nil, &ParseError{error: err, Context: ctx}
@@ -428,13 +428,15 @@ func (k *Kong) Errorf(format string, args ...any) *Kong {
 	return k
 }
 
-// Fatalf writes a message to Kong.Stderr with the application name prefixed then exits with a non-zero status.
+// Fatalf writes a message to Kong.Stderr with the application name prefixed then exits with status 1.
 func (k *Kong) Fatalf(format string, args ...any) {
 	k.Errorf(format, args...)
 	k.Exit(1)
 }
 
 // FatalIfErrorf terminates with an error message if err != nil.
+// If the error implements the ExitCoder interface, the ExitCode() method is called and
+// the application exits with that status. Otherwise, the application exits with status 1.
 func (k *Kong) FatalIfErrorf(err error, args ...any) {
 	if err == nil {
 		return
@@ -455,7 +457,8 @@ func (k *Kong) FatalIfErrorf(err error, args ...any) {
 			fmt.Fprintln(k.Stdout)
 		}
 	}
-	k.Fatalf("%s", msg)
+	k.Errorf("%s", msg)
+	k.Exit(exitCodeFromError(err))
 }
 
 // LoadConfig from path using the loader configured via Configuration(loader).

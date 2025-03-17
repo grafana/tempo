@@ -167,6 +167,9 @@ func (n *Node) Summary() string {
 		allFlags = append(allFlags, n.Parent.Flags...)
 	}
 	for _, flag := range allFlags {
+		if _, ok := flag.Target.Interface().(helpFlag); ok {
+			continue
+		}
 		if !flag.Required {
 			summary += " [flags]"
 			break
