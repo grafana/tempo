@@ -272,6 +272,7 @@ querier:
         query_timeout: 30s
     trace_by_id:
         query_timeout: 10s
+        rf1_after: 0001-01-01T00:00:00Z
     metrics:
         concurrent_blocks: 2
         time_overlap_cutoff: 0.2
@@ -325,6 +326,7 @@ query_frontend:
         ingester_shards: 3
         most_recent_shards: 200
         max_spans_per_span_set: 100
+        rf1_after: 0001-01-01T00:00:00Z
     trace_by_id:
         query_shards: 50
     metrics:
@@ -496,6 +498,7 @@ ingester:
     complete_block_timeout: 15m0s
     override_ring_key: ring
     flush_all_on_shutdown: false
+    flush_object_storage: true
 metrics_generator:
     ring:
         kvstore:
