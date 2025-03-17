@@ -51,6 +51,7 @@ type TempoHTTPClient interface {
 	SearchTraceQLWithRange(query string, start int64, end int64) (*tempopb.SearchResponse, error)
 	SearchTraceQLWithRangeAndLimit(query string, start int64, end int64, limit int64, spss int64) (*tempopb.SearchResponse, error)
 	MetricsSummary(query string, groupBy string, start int64, end int64) (*tempopb.SpanMetricsSummaryResponse, error)
+	MetricsQueryRange(query string, start, end int, step string, exemplars int) (*tempopb.QueryRangeResponse, error)
 	GetOverrides() (*userconfigurableoverrides.Limits, string, error)
 	SetOverrides(limits *userconfigurableoverrides.Limits, version string) (string, error)
 	PatchOverrides(limits *userconfigurableoverrides.Limits) (*userconfigurableoverrides.Limits, string, error)
@@ -380,6 +381,31 @@ func (c *Client) buildSearchQueryURL(queryType string, query string, start int64
 	joinURL.RawQuery = q.Encode()
 
 	return fmt.Sprint(joinURL)
+}
+
+func (c *Client) MetricsQueryRange(query string, start, end int, step string, exemplars int) (*tempopb.QueryRangeResponse, error) {
+	joinURL, _ := url.Parse(c.BaseURL + api.PathMetricsQueryRange + "?")
+	q := joinURL.Query()
+	if exemplars != 0 {
+		q.Set("exemplars", strconv.Itoa(exemplars))
+	}
+	if start != 0 && end != 0 {
+		q.Set("start", strconv.Itoa(start))
+		q.Set("end", strconv.Itoa(end))
+	}
+	if step != "" {
+		q.Set("step", step)
+	}
+	q.Set("q", query)
+	joinURL.RawQuery = q.Encode()
+
+	m := &tempopb.QueryRangeResponse{}
+	_, err := c.getFor(fmt.Sprint(joinURL), m)
+	if err != nil {
+		return m, err
+	}
+
+	return m, nil
 }
 
 func (c *Client) buildTagsQueryURL(start int64, end int64) string {
