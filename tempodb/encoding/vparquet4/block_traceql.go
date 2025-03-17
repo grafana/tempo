@@ -1982,8 +1982,7 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 				addPredicate(entry.columnPath, nil) // No filtering
 				columnSelectAs[entry.columnPath] = cond.Attribute.Name
 
-				// also look up generic columns as there might also be an attribute with the
-				// same name but different type
+				// Look up generic columns as there may be attributes with the same name but of different types
 				genericConditions = append(genericConditions, cond)
 				continue
 			}
@@ -2006,8 +2005,7 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 				addPredicate(c.ColumnPath, nil) // No filtering
 				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
 
-				// also look up generic columns as there might also be an attribute with the
-				// same name but different type
+				// Look up generic columns as there may be attributes with the same name but of different types
 				genericConditions = append(genericConditions, cond)
 				continue
 			}
@@ -2228,8 +2226,7 @@ func createResourceIterator(makeIter makeIterFn, instrumentationIterator parquet
 				addPredicate(entry.columnPath, nil) // No filtering
 				columnSelectAs[entry.columnPath] = cond.Attribute.Name
 
-				// also look up generic columns as there might also be an attribute with the
-				// same name but different type
+				// Look up generic columns as there may be attributes with the same name but of different types
 				genericConditions = append(genericConditions, cond)
 				continue
 			}
@@ -2251,8 +2248,7 @@ func createResourceIterator(makeIter makeIterFn, instrumentationIterator parquet
 				addPredicate(c.ColumnPath, nil) // No filtering
 				columnSelectAs[c.ColumnPath] = cond.Attribute.Name
 
-				// also look up generic columns as there might also be an attribute with the
-				// same name but different type
+				// Look up generic columns as there may be attributes with the same name but of different types
 				genericConditions = append(genericConditions, cond)
 				continue
 			}
