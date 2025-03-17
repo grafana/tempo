@@ -8,7 +8,6 @@ import (
 	"github.com/grafana/tempo/pkg/tempopb"
 )
 
-// TODO: see if it would be better to merge first and second stage??
 type metricsFirstStageElement interface {
 	Element
 	extractConditions(request *FetchSpansRequest)

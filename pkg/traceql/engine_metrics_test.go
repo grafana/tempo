@@ -1353,9 +1353,9 @@ func TestSecondStageTopK(t *testing.T) {
 	require.NoError(t, err)
 
 	// bar and baz have more spans so they should be the top 2
-	resultBar := result[`{span.foo="bar"}`]
+	resultBar := result[`{"span.foo"="bar"}`]
 	require.Equal(t, []float64{7, 7, 7, 7, 7, 7, 7, 7}, resultBar.Values)
-	resultBaz := result[`{span.foo="baz"}`]
+	resultBaz := result[`{"span.foo"="baz"}`]
 	require.Equal(t, []float64{5, 5, 5, 5, 5, 5, 5, 5}, resultBaz.Values)
 }
 
@@ -1377,9 +1377,9 @@ func TestSecondStageBottomK(t *testing.T) {
 	require.NoError(t, err)
 
 	// quax and baz have the lowest spans so they should be the bottom 2
-	resultBar := result[`{span.foo="quax"}`]
+	resultBar := result[`{"span.foo"="quax"}`]
 	require.Equal(t, []float64{3, 3, 3, 3, 3, 3, 3, 3}, resultBar.Values)
-	resultBaz := result[`{span.foo="baz"}`]
+	resultBaz := result[`{"span.foo"="baz"}`]
 	require.Equal(t, []float64{5, 5, 5, 5, 5, 5, 5, 5}, resultBaz.Values)
 }
 
@@ -1704,33 +1704,6 @@ func randFloat(minimum, maximum float64) float64 {
 	return rand.Float64()*(maximum-minimum) + minimum
 }
 
-func BenchmarkSumOverTime(b *testing.B) {
-	totalSpans := 1_000_000
-	in := make([]Span, 0, totalSpans)
-	in2 := make([]Span, 0, totalSpans)
-	minimum := 1e10 // 10 billion
-	maximun := 1e20 // 100 quintillion
-
-	for range totalSpans {
-		s := time.Duration(randInt(1, 3)) * time.Second
-		v := randFloat(minimum, maximun)
-		in = append(in2, newMockSpan(nil).WithStartTime(uint64(s)).WithSpanString("foo", "bar").WithSpanFloat("kafka.lag", v).WithDuration(100))
-		s = time.Duration(randInt(1, 3)) * time.Second
-		v = randFloat(minimum, maximun)
-		in2 = append(in2, newMockSpan(nil).WithStartTime(uint64(s)).WithSpanString("foo", "bar").WithSpanFloat("kafka.lag", v).WithDuration(100))
-	}
-
-	req := &tempopb.QueryRangeRequest{
-		Start: uint64(1 * time.Second),
-		End:   uint64(3 * time.Second),
-		Step:  uint64(1 * time.Second),
-		Query: "{ } | sum_over_time(span.kafka.lag) by (span.foo)",
-	}
-	for b.Loop() {
-		_, _ = runTraceQLMetric(req, in, in2)
-	}
-}
-
 func generateSpans(count int, startTimes []int, key, value string, duration uint64) []Span {
 	spans := make([]Span, 0)
 	for i := 0; i < count; i++ {
@@ -1770,5 +1743,32 @@ func expectSeriesSet(t *testing.T, expected, result SeriesSet) {
 				require.Equal(t, expectedValue, resultSeries.Values[i])
 			}
 		}
+	}
+}
+
+func BenchmarkSumOverTime(b *testing.B) {
+	totalSpans := 1_000_000
+	in := make([]Span, 0, totalSpans)
+	in2 := make([]Span, 0, totalSpans)
+	minimum := 1e10 // 10 billion
+	maximun := 1e20 // 100 quintillion
+
+	for range totalSpans {
+		s := time.Duration(randInt(1, 3)) * time.Second
+		v := randFloat(minimum, maximun)
+		in = append(in2, newMockSpan(nil).WithStartTime(uint64(s)).WithSpanString("foo", "bar").WithSpanFloat("kafka.lag", v).WithDuration(100))
+		s = time.Duration(randInt(1, 3)) * time.Second
+		v = randFloat(minimum, maximun)
+		in2 = append(in2, newMockSpan(nil).WithStartTime(uint64(s)).WithSpanString("foo", "bar").WithSpanFloat("kafka.lag", v).WithDuration(100))
+	}
+
+	req := &tempopb.QueryRangeRequest{
+		Start: uint64(1 * time.Second),
+		End:   uint64(3 * time.Second),
+		Step:  uint64(1 * time.Second),
+		Query: "{ } | sum_over_time(span.kafka.lag) by (span.foo)",
+	}
+	for b.Loop() {
+		_, _ = runTraceQLMetric(req, in, in2)
 	}
 }
