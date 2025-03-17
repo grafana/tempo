@@ -1345,9 +1345,9 @@ func TestSecondStageTopK(t *testing.T) {
 
 	in := make([]Span, 0)
 	// 15 spans, at different start times across 3 series
-	in = append(in, generateSpans(7, []int{1, 2, 3, 4, 5, 6, 7, 8}, "foo", "bar", 128)...)
-	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "foo", "baz", 128)...)
-	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "foo", "quax", 128)...)
+	in = append(in, generateSpans(7, []int{1, 2, 3, 4, 5, 6, 7, 8}, "bar", 128)...)
+	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "baz", 128)...)
+	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "quax", 128)...)
 
 	result, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
@@ -1369,9 +1369,9 @@ func TestSecondStageBottomK(t *testing.T) {
 
 	in := make([]Span, 0)
 	// 15 spans, at different start times across 3 series
-	in = append(in, generateSpans(7, []int{1, 2, 3, 4, 5, 6, 7, 8}, "foo", "bar", 128)...)
-	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "foo", "baz", 128)...)
-	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "foo", "quax", 128)...)
+	in = append(in, generateSpans(7, []int{1, 2, 3, 4, 5, 6, 7, 8}, "bar", 128)...)
+	in = append(in, generateSpans(5, []int{1, 2, 3, 4, 5, 6, 7, 8}, "baz", 128)...)
+	in = append(in, generateSpans(3, []int{1, 2, 3, 4, 5, 6, 7, 8}, "quax", 128)...)
 
 	result, err := runTraceQLMetric(req, in)
 	require.NoError(t, err)
@@ -1392,14 +1392,14 @@ func TestProcessTopK(t *testing.T) {
 	}{
 		{
 			name: "topk selection",
-			input: createSeriesSet("label", map[string][]float64{
+			input: createSeriesSet(map[string][]float64{
 				"a": {1, 5, 3},
 				"b": {2, 6, 2},
 				"c": {3, 1, 1},
 				"d": {4, 2, 4},
 			}),
 			limit: 2,
-			expected: createSeriesSet("label", map[string][]float64{
+			expected: createSeriesSet(map[string][]float64{
 				"a": {1, 5, 3}, // Top-2 at timestamp 1, 2
 				"b": {2, 6, 2}, // Top-2 at timestamp 1
 				"c": {3, 1, 1}, // Top-2 at timestamp 0
@@ -1408,7 +1408,7 @@ func TestProcessTopK(t *testing.T) {
 		},
 		{
 			name: "topk selection at each timestamp",
-			input: createSeriesSet("label", map[string][]float64{
+			input: createSeriesSet(map[string][]float64{
 				"a": {1, 2, 3},
 				"b": {2, 3, 4},
 				"c": {3, 4, 5},
@@ -1416,20 +1416,20 @@ func TestProcessTopK(t *testing.T) {
 				"e": {0.5, 2, 1},
 			}),
 			limit: 2,
-			expected: createSeriesSet("label", map[string][]float64{
+			expected: createSeriesSet(map[string][]float64{
 				"b": {2, 3, 4}, // Top-2 at all timestamps
 				"c": {3, 4, 5}, // Top-2 at all timestamps
 			}),
 		},
 		{
 			name: "select single highest value at specific timestamp",
-			input: createSeriesSet("label", map[string][]float64{
+			input: createSeriesSet(map[string][]float64{
 				"a": {1, 6, 3},
 				"b": {4, 5, 1},
 				"c": {2, 3, 7},
 			}),
 			limit: 1,
-			expected: createSeriesSet("label", map[string][]float64{
+			expected: createSeriesSet(map[string][]float64{
 				"a": {1, 6, 3}, // top at timestamp 1
 				"b": {4, 5, 1}, // top at timestamp 0
 				"c": {2, 3, 7}, // top at timestamp 2
@@ -1437,13 +1437,13 @@ func TestProcessTopK(t *testing.T) {
 		},
 		{
 			name: "with NaN values",
-			input: createSeriesSet("label", map[string][]float64{
+			input: createSeriesSet(map[string][]float64{
 				"a": {1, math.NaN(), 3},
 				"b": {2, 6, math.NaN()},
 				"c": {3, 1, 1},
 			}),
 			limit: 2,
-			expected: createSeriesSet("label", map[string][]float64{
+			expected: createSeriesSet(map[string][]float64{
 				"a": {1, math.NaN(), 3}, // Top-2 at timestamp 2
 				"b": {2, 6, math.NaN()}, // Top-2 at timestamp 0, 1
 				"c": {3, 1, 1},          // Top-2 at timestamp 0, 2
@@ -1451,20 +1451,20 @@ func TestProcessTopK(t *testing.T) {
 		},
 		{
 			name: "series with all NaN values is skipped",
-			input: createSeriesSet("label", map[string][]float64{
+			input: createSeriesSet(map[string][]float64{
 				"a": {math.NaN(), math.NaN(), math.NaN()},
 				"b": {2, 6, math.NaN()},
 				"c": {3, 1, 1},
 			}),
 			limit: 2,
-			expected: createSeriesSet("label", map[string][]float64{
+			expected: createSeriesSet(map[string][]float64{
 				"b": {2, 6, math.NaN()},
 				"c": {3, 1, 1},
 			}),
 		},
 		{
 			name: "all series with all NaN values",
-			input: createSeriesSet("label", map[string][]float64{
+			input: createSeriesSet(map[string][]float64{
 				"a": {math.NaN(), math.NaN(), math.NaN()},
 				"b": {math.NaN(), math.NaN(), math.NaN()},
 			}),
@@ -1479,38 +1479,38 @@ func TestProcessTopK(t *testing.T) {
 		},
 		{
 			name: "limit larger than series count",
-			input: createSeriesSet("label", map[string][]float64{
+			input: createSeriesSet(map[string][]float64{
 				"a": {1, 5, 3},
 				"b": {2, 6, 2},
 			}),
 			limit: 5,
-			expected: createSeriesSet("label", map[string][]float64{
+			expected: createSeriesSet(map[string][]float64{
 				"a": {1, 5, 3},
 				"b": {2, 6, 2},
 			}),
 		},
 		{
 			name: "test ties at a timestamp",
-			input: createSeriesSet("label", map[string][]float64{
+			input: createSeriesSet(map[string][]float64{
 				"a": {10, 5, 3},
 				"b": {10, 4, 2},
 				"c": {10, 3, 1},
 			}),
 			limit: 5,
-			expected: createSeriesSet("label", map[string][]float64{
+			expected: createSeriesSet(map[string][]float64{
 				"a": {10, 5, 3}, // tie at timestamp 0, top 2 at timestamp 1, 2
 				"b": {10, 4, 2}, // tie at timestamp 0, top 2 at timestamp 1, 2
 			}),
 		},
 		{
 			name: "negative and infinity values",
-			input: createSeriesSet("label", map[string][]float64{
+			input: createSeriesSet(map[string][]float64{
 				"a": {-1, 5, math.Inf(-1)},
 				"b": {-2, 6, math.Inf(1)},
 				"c": {-3, 7, 1},
 			}),
 			limit: 2,
-			expected: createSeriesSet("label", map[string][]float64{
+			expected: createSeriesSet(map[string][]float64{
 				"a": {-1, 5, math.Inf(-1)}, // Top-2 at timestamp 0
 				"b": {-2, 6, math.Inf(1)},  // Top-2 at timestamps 1, 2
 				"c": {-3, 7, 1},            // Top-2 at timestamp 1
@@ -1535,14 +1535,14 @@ func TestProcessBottomK(t *testing.T) {
 	}{
 		{
 			name: "bottomk selection",
-			input: createSeriesSet("label", map[string][]float64{
+			input: createSeriesSet(map[string][]float64{
 				"a": {1, 5, 3},
 				"b": {2, 6, 2},
 				"c": {3, 1, 1},
 				"d": {4, 2, 4},
 			}),
 			limit: 2,
-			expect: createSeriesSet("label", map[string][]float64{
+			expect: createSeriesSet(map[string][]float64{
 				"a": {1, 5, 3}, // Bottom-2 at timestamp 0
 				"b": {2, 6, 2}, // Bottom-2 at timestamps 0, 2
 				"c": {3, 1, 1}, // Bottom-2 at timestamps 1, 2
@@ -1551,7 +1551,7 @@ func TestProcessBottomK(t *testing.T) {
 		},
 		{
 			name: "bottomk selection at each timestamp",
-			input: createSeriesSet("label", map[string][]float64{
+			input: createSeriesSet(map[string][]float64{
 				"a": {5, 4, 3},
 				"b": {6, 5, 4},
 				"c": {7, 6, 1},
@@ -1559,7 +1559,7 @@ func TestProcessBottomK(t *testing.T) {
 				"e": {4, 2, 2},
 			}),
 			limit: 2,
-			expect: createSeriesSet("label", map[string][]float64{
+			expect: createSeriesSet(map[string][]float64{
 				"c": {7, 6, 1}, // bottom 2 at timestamp 2
 				"d": {3, 3, 3}, // bottom 2 at timestamp 0, 1
 				"e": {4, 2, 2}, // bottom 2 at timestamp 0, 1, 2
@@ -1567,13 +1567,13 @@ func TestProcessBottomK(t *testing.T) {
 		},
 		{
 			name: "select single lowest value at specific timestamp",
-			input: createSeriesSet("label", map[string][]float64{
+			input: createSeriesSet(map[string][]float64{
 				"a": {3, 1, 5},
 				"b": {1, 2, 3},
 				"c": {4, 5, 1},
 			}),
 			limit: 1,
-			expect: createSeriesSet("label", map[string][]float64{
+			expect: createSeriesSet(map[string][]float64{
 				"a": {3, 1, 5}, // Lowest at timestamp 1
 				"b": {1, 2, 3}, // Lowest at timestamp 0
 				"c": {4, 5, 1}, // Lowest at timestamp 2
@@ -1581,13 +1581,13 @@ func TestProcessBottomK(t *testing.T) {
 		},
 		{
 			name: "with NaN values",
-			input: createSeriesSet("label", map[string][]float64{
+			input: createSeriesSet(map[string][]float64{
 				"a": {1, math.NaN(), 3},
 				"b": {4, 6, math.NaN()},
 				"c": {5, 1, 1},
 			}),
 			limit: 2,
-			expect: createSeriesSet("label", map[string][]float64{
+			expect: createSeriesSet(map[string][]float64{
 				"a": {1, math.NaN(), 3}, // Bottom-2 at timestamp 0
 				"b": {4, 6, math.NaN()}, // NaN values are skipped in comparison
 				"c": {5, 1, 1},          // Bottom-2 at timestamps 1, 2
@@ -1595,20 +1595,20 @@ func TestProcessBottomK(t *testing.T) {
 		},
 		{
 			name: "test ties at a timestamp",
-			input: createSeriesSet("label", map[string][]float64{
+			input: createSeriesSet(map[string][]float64{
 				"a": {10, 5, 3},
 				"b": {10, 4, 2},
 				"c": {10, 3, 1},
 			}),
 			limit: 2,
-			expect: createSeriesSet("label", map[string][]float64{
+			expect: createSeriesSet(map[string][]float64{
 				"b": {10, 4, 2},
 				"c": {10, 3, 1},
 			}),
 		},
 		{
 			name: "all series with NaN values",
-			input: createSeriesSet("label", map[string][]float64{
+			input: createSeriesSet(map[string][]float64{
 				"a": {math.NaN(), math.NaN(), math.NaN()},
 				"b": {math.NaN(), math.NaN(), math.NaN()},
 				"c": {math.NaN(), math.NaN(), math.NaN()},
@@ -1624,25 +1624,25 @@ func TestProcessBottomK(t *testing.T) {
 		},
 		{
 			name: "limit larger than series count",
-			input: createSeriesSet("label", map[string][]float64{
+			input: createSeriesSet(map[string][]float64{
 				"a": {1, 5, 3},
 				"b": {2, 6, 2},
 			}),
 			limit: 5,
-			expect: createSeriesSet("label", map[string][]float64{
+			expect: createSeriesSet(map[string][]float64{
 				"a": {1, 5, 3},
 				"b": {2, 6, 2},
 			}),
 		},
 		{
 			name: "negative and infinity values",
-			input: createSeriesSet("label", map[string][]float64{
+			input: createSeriesSet(map[string][]float64{
 				"a": {-1, 5, math.Inf(-1)},
 				"b": {-2, 6, math.Inf(1)},
 				"c": {-3, 7, 1},
 			}),
 			limit: 2,
-			expect: createSeriesSet("label", map[string][]float64{
+			expect: createSeriesSet(map[string][]float64{
 				"a": {-1, 5, math.Inf(-1)}, // Bottom-2 at timestamp 2
 				"b": {-2, 6, math.Inf(1)},  // Bottom-2 at timestamp 0
 				"c": {-3, 7, 1},            // Bottom-2 at timestamps 0, 2
@@ -1704,20 +1704,21 @@ func randFloat(minimum, maximum float64) float64 {
 	return rand.Float64()*(maximum-minimum) + minimum
 }
 
-func generateSpans(count int, startTimes []int, key, value string, duration uint64) []Span {
+func generateSpans(count int, startTimes []int, value string, duration uint64) []Span {
 	spans := make([]Span, 0)
 	for i := 0; i < count; i++ {
 		for _, t := range startTimes {
 			sTime := uint64(time.Duration(t) * time.Second)
-			spans = append(spans, newMockSpan(nil).WithStartTime(sTime).WithSpanString(key, value).WithDuration(duration*uint64(i+1)))
+			spans = append(spans, newMockSpan(nil).WithStartTime(sTime).WithSpanString("foo", value).WithDuration(duration*uint64(i+1)))
 		}
 	}
 	return spans
 }
 
 // createSeriesSet to create a SeriesSet from a map of values
-func createSeriesSet(labelName string, data map[string][]float64) SeriesSet {
+func createSeriesSet(data map[string][]float64) SeriesSet {
 	seriesSet := SeriesSet{}
+	labelName := "label"
 	for key, values := range data {
 		seriesSet[fmt.Sprintf(`{%s="%s"}`, labelName, key)] = TimeSeries{
 			Values: values,
