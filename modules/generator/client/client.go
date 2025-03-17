@@ -63,10 +63,11 @@ func New(addr string, cfg Config) (*Client, error) {
 	}, nil
 }
 
-func instrumentation() ([]grpc.UnaryClientInterceptor, []grpc.StreamClientInterceptor) {
+func instrumentation() ([]grpc.UnaryClientInterceptor, []grpc.StreamClientInterceptor, middleware.InvalidClusterValidationReporter) {
 	return []grpc.UnaryClientInterceptor{
 			middleware.ClientUserHeaderInterceptor,
 		}, []grpc.StreamClientInterceptor{
 			middleware.StreamClientUserHeaderInterceptor,
-		}
+		},
+		middleware.NoOpInvalidClusterValidationReporter
 }
