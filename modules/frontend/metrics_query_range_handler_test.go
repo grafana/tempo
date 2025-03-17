@@ -250,7 +250,7 @@ func TestQueryRangeHandlerV2MaxSeries(t *testing.T) {
 		responseFn: func() proto.Message {
 			return resp
 		},
-	}, nil, nil, nil, func(c *Config) {
+		}, nil, nil, nil, func(c *Config, _ *overrides.Config) {
 		c.Metrics.Sharder.Interval = time.Hour
 		c.Metrics.Sharder.MaxResponseSeries = maxSeries
 	})
