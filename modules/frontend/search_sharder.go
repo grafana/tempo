@@ -126,11 +126,11 @@ func (s *asyncSearchSharder) filterFn(rf1After time.Time) func(m *backend.BlockM
 
 	return func(m *backend.BlockMeta) bool {
 		if rf1After.IsZero() {
-			return true
+			return m.ReplicationFactor == backend.DefaultReplicationFactor
 		}
 
 		return (m.ReplicationFactor == backend.DefaultReplicationFactor && m.StartTime.Before(rf1After)) ||
-			(m.ReplicationFactor == 1 && m.StartTime.After(rf1After))
+			(m.ReplicationFactor == backend.MetricsGeneratorReplicationFactor && m.StartTime.After(rf1After))
 	}
 }
 
