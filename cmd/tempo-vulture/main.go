@@ -124,7 +124,7 @@ func main() {
 	}
 	httpClient := httpclient.New(vultureConfig.tempoQueryURL, vultureConfig.tempoOrgID)
 
-	tickerWrite, tickerRead, tickerSearch, _, err := initTickers(
+	tickerWrite, tickerRead, tickerSearch, tickerMetrics, err := initTickers(
 		vultureConfig.tempoWriteBackoffDuration,
 		vultureConfig.tempoReadBackoffDuration,
 		vultureConfig.tempoSearchBackoffDuration,
@@ -140,6 +140,7 @@ func main() {
 	doWrite(jaegerClient, tickerWrite, interval, vultureConfig, logger)
 	doRead(httpClient, tickerRead, startTime, interval, r, vultureConfig, logger)
 	doSearch(httpClient, tickerSearch, startTime, interval, r, vultureConfig, logger)
+	doMetrics(httpClient, tickerMetrics, startTime, interval, r, vultureConfig, logger)
 
 	http.Handle(prometheusPath, promhttp.Handler())
 	log.Fatal(http.ListenAndServe(prometheusListenAddress, nil))
@@ -332,6 +333,34 @@ func doSearch(httpClient httpclient.TempoHTTPClient, tickerSearch *time.Ticker, 
 			}
 		}()
 	}
+}
+
+func doMetrics(httpClient httpclient.TempoHTTPClient, ticker *time.Ticker, startTime time.Time, interval time.Duration, r *rand.Rand, config vultureConfiguration, l *zap.Logger) {
+	if ticker == nil {
+		return
+	}
+	go func() {
+		for now := range ticker.C {
+			_, seed := selectPastTimestamp(startTime, now, interval, config.tempoRetentionDuration, r)
+			logger := l.With(
+				zap.String("org_id", config.tempoOrgID),
+				zap.Int64("seed", seed.Unix()),
+			)
+
+			info := util.NewTraceInfo(seed, config.tempoOrgID)
+
+			if !traceIsReady(info, now, startTime,
+				config.tempoWriteBackoffDuration, config.tempoLongWriteBackoffDuration) {
+				continue
+			}
+
+			m, err := queryMetrics(httpClient, seed, config, l)
+			if err != nil {
+				logger.Error("query metrics failed", zap.Error(err))
+			}
+			pushMetrics(m)
+		}
+	}()
 }
 
 func pushMetrics(metrics traceMetrics) {
@@ -576,6 +605,82 @@ func queryTrace(client httpclient.TempoHTTPClient, info *util.TraceInfo, l *zap.
 		return tm, nil
 	}
 
+	return tm, nil
+}
+
+// queryMetrics performs a TraceQL metrics query and verifies the results.
+// It is a basic smoke test to ensure that the traceql query is working.
+// It randomly selects an attribute from an expected trace and queries for its presence
+// in the metrics API within a time window around the seed time.
+func queryMetrics(client httpclient.TempoHTTPClient, seed time.Time, config vultureConfiguration, l *zap.Logger) (traceMetrics, error) {
+	tm := traceMetrics{
+		requested: 1,
+	}
+
+	info := util.NewTraceInfo(seed, config.tempoOrgID)
+	hexID := info.HexID()
+
+	// Get the expected
+	expected, err := info.ConstructTraceFromEpoch()
+	if err != nil {
+		err = fmt.Errorf("unable to construct trace from epoch: %w", err)
+		return traceMetrics{}, err
+	}
+
+	attr := util.RandomAttrFromTrace(expected)
+	if attr == nil {
+		tm.notFoundSearchAttribute++
+		return tm, fmt.Errorf("no search attr selected from trace")
+	}
+
+	logger := l.With(
+		zap.Int64("seed", seed.Unix()),
+		zap.String("hexID", hexID),
+		zap.Duration("ago", time.Since(seed)),
+		zap.String("key", attr.Key),
+		zap.String("value", util.StringifyAnyValue(attr.Value)),
+	)
+	logger.Info("searching Tempo via metrics")
+
+	// Use the search API to find details about the expected trace. give an hour range
+	//  around the seed.
+	start := seed.Add(-30 * time.Minute).Unix()
+	end := seed.Add(30 * time.Minute).Unix()
+
+	resp, err := client.MetricsQueryRange(
+		fmt.Sprintf(`{.%s = "%s"} | count_over_time()`, attr.Key, util.StringifyAnyValue(attr.Value)),
+		int(start), int(end), "1m", 0,
+	)
+	if err != nil {
+		logger.Error("failed to query metrics", zap.Error(err))
+		tm.requestFailed++
+		return tm, err
+	}
+
+	if len(resp.Series) == 0 {
+		tm.notFoundByMetrics++
+		return tm, fmt.Errorf("expected trace %s not found in metrics", hexID)
+	}
+
+	if len(resp.Series) > 1 {
+		tm.incorrectResult++
+		return tm, fmt.Errorf("expected exactly 1 series, got %d", len(resp.Series))
+	}
+	timeSeries := resp.Series[0]
+	if timeSeries == nil {
+		tm.incorrectResult++
+		return tm, errors.New("expected time series, got nil")
+	}
+
+	var sum float64
+	for _, sample := range timeSeries.Samples {
+		sum += sample.Value
+	}
+
+	if sum < 1 {
+		tm.notFoundByMetrics++
+		return tm, fmt.Errorf("expected trace %s not found in metrics", hexID)
+	}
 	return tm, nil
 }
 
