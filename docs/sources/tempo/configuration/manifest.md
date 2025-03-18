@@ -982,8 +982,7 @@ backend_scheduler:
         compaction_cycle: 30s
     work:
         prune_age: 1h0m0s
-    max_pending_work_queue: 100
-    min_pending_work_queue: 10
+        dead_job_timeout: 24h0m0s
 backend_scheduler_client:
     grpc_client_config:
         max_recv_msg_size: 104857600
