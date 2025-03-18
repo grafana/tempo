@@ -459,7 +459,7 @@ func searchTag(client httpclient.TempoHTTPClient, seed time.Time, config vulture
 	// Get the expected
 	expected, err := info.ConstructTraceFromEpoch()
 	if err != nil {
-		logger.Error("unable to construct trace from epoch", zap.Error(err))
+		l.Error("unable to construct trace from epoch", zap.Error(err))
 		return traceMetrics{}, err
 	}
 
