@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math/rand"
 	"os"
 	"testing"
@@ -692,4 +693,179 @@ func TestNewJaegerGRPCClient(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, client)
+}
+
+func TestQueryMetrics(t *testing.T) {
+	seed := time.Date(2008, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	config := vultureConfiguration{
+		tempoOrgID:                "orgID",
+		tempoWriteBackoffDuration: time.Second,
+	}
+
+	info := util.NewTraceInfo(seed, config.tempoOrgID)
+	hexID := info.HexID()
+
+	tests := []struct {
+		name            string
+		response        *tempopb.QueryRangeResponse
+		err             error
+		expectedMetrics traceMetrics
+		expectedError   string
+	}{
+		{
+			name: "successful metrics query",
+			response: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{
+					{
+						Samples: []tempopb.Sample{
+							{
+								TimestampMs: seed.UnixMilli(),
+								Value:       1.0,
+							},
+						},
+					},
+				},
+			},
+			expectedMetrics: traceMetrics{
+				requested: 1,
+			},
+		},
+		{
+			name: "no series in response",
+			response: &tempopb.QueryRangeResponse{
+				Series: []*tempopb.TimeSeries{},
+			},
+			expectedMetrics: traceMetrics{
+				requested:         1,
+				notFoundByMetrics: 1,
+			},
+			expectedError: fmt.Sprintf("expected trace %s not found in metrics", hexID),
+		},
+		{
+			name: "no series in response (nil)",
+			response: &tempopb.QueryRangeResponse{
+				Series: nil,
+			},
+			expectedMetrics: traceMetrics{
+				requested:         1,
+				notFoundByMetrics: 1,
+			},
+			expectedError: fmt.Sprintf("expected trace %s not found in metrics", hexID),
+		},
+		{
+			name: "invalid series data",
+			response: &tempopb.QueryRangeResponse{
+				Series: make([]*tempopb.TimeSeries, 1),
+			},
+			expectedMetrics: traceMetrics{
+				requested:       1,
+				incorrectResult: 1,
+			},
+			expectedError: "expected time series, got nil",
+		},
+		{
+			name: "too many series",
+			response: &tempopb.QueryRangeResponse{
+				Series: make([]*tempopb.TimeSeries, 2),
+			},
+			expectedMetrics: traceMetrics{
+				requested:       1,
+				incorrectResult: 1,
+			},
+			expectedError: "expected exactly 1 series, got 2",
+		},
+		{
+			name:     "query error",
+			response: nil,
+			err:      errors.New("metrics query failed"),
+			expectedMetrics: traceMetrics{
+				requested:     1,
+				requestFailed: 1,
+			},
+			expectedError: "metrics query failed",
+		},
+	}
+
+	logger = zap.NewNop()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockHTTPClient := &MockHTTPClient{
+				err:         tt.err,
+				metricsResp: tt.response,
+			}
+
+			metrics, err := queryMetrics(mockHTTPClient, seed, config, logger)
+			assert.Equal(t, tt.expectedMetrics, metrics)
+
+			if tt.expectedError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestDoMetrics(t *testing.T) {
+	seed := time.Date(2008, 1, 1, 12, 0, 0, 0, time.UTC)
+	startTime := time.Date(2007, 1, 1, 12, 0, 0, 0, time.UTC)
+	interval := time.Second
+
+	config := vultureConfiguration{
+		tempoOrgID: "orgID",
+		// This is a hack to ensure the trace is "ready"
+		tempoWriteBackoffDuration: -time.Hour * 10000,
+		tempoRetentionDuration:    time.Second * 10,
+	}
+
+	logger = zap.NewNop()
+	r := rand.New(rand.NewSource(startTime.Unix()))
+
+	tests := []struct {
+		name          string
+		ticker        *time.Ticker
+		expectedCalls int
+	}{
+		{
+			name:          "nil ticker",
+			ticker:        nil,
+			expectedCalls: 0,
+		},
+		{
+			name:          "active ticker",
+			ticker:        time.NewTicker(10 * time.Millisecond),
+			expectedCalls: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockHTTPClient := &MockHTTPClient{
+				err: nil,
+				metricsResp: &tempopb.QueryRangeResponse{
+					Series: []*tempopb.TimeSeries{
+						{
+							Samples: []tempopb.Sample{
+								{
+									TimestampMs: seed.UnixMilli(),
+									Value:       1.0,
+								},
+							},
+						},
+					},
+				},
+			}
+
+			doMetrics(mockHTTPClient, tt.ticker, startTime, interval, r, config, logger)
+
+			if tt.ticker != nil {
+				time.Sleep(20 * time.Millisecond)
+				tt.ticker.Stop()
+			}
+			assert.Equal(t, mockHTTPClient.GetMetricsCount(), tt.expectedCalls)
+		})
+	}
 }
