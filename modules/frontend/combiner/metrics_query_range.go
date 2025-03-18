@@ -18,6 +18,7 @@ var _ GRPCCombiner[*tempopb.QueryRangeResponse] = (*genericCombiner[*tempopb.Que
 func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 	combiner, err := traceql.QueryRangeCombinerFor(req, traceql.AggregateModeFinal)
 	maxSeries := int(req.MaxSeries)
+	totalSeries := 0
 	if err != nil {
 		return nil, err
 	}
@@ -71,6 +72,16 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 			diff := diffResponse(prevResp, resp)
 			// store resp for next diff
 			prevResp = resp
+			prevTotalSeries := totalSeries
+			totalSeries += len(diff.Series)
+
+			if maxSeries > 0 && totalSeries >= maxSeries {
+				// Truncating the final response because even if we bail as soon as len(resp.Series) >= maxSeries
+				// it's possible that the last response pushed us over the max series limit.
+				diff.Series = diff.Series[:maxSeries-prevTotalSeries]
+				diff.Status = tempopb.PartialStatus_PARTIAL
+				diff.Message = fmt.Sprintf("Response exceeds maximum series of %d, a partial response is returned", maxSeries)
+			}
 
 			return diff, nil
 		},

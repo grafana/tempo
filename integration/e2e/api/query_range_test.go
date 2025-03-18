@@ -45,8 +45,9 @@ func TestQueryRangeExemplars(t *testing.T) {
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
-	timer := time.NewTimer(5 * time.Second)
+	timer := time.NewTimer(10 * time.Second)
 	defer timer.Stop()
+	// send one batch every 500ms for 10 seconds
 sendLoop:
 	for {
 		select {
