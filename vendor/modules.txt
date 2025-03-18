@@ -900,13 +900,13 @@ github.com/mdlayher/vsock
 # github.com/miekg/dns v1.1.63
 ## explicit; go 1.19
 github.com/miekg/dns
-# github.com/minio/crc64nvme v1.0.0
+# github.com/minio/crc64nvme v1.0.1
 ## explicit; go 1.22
 github.com/minio/crc64nvme
 # github.com/minio/md5-simd v1.1.2
 ## explicit; go 1.14
 github.com/minio/md5-simd
-# github.com/minio/minio-go/v7 v7.0.86
+# github.com/minio/minio-go/v7 v7.0.88
 ## explicit; go 1.22
 github.com/minio/minio-go/v7
 github.com/minio/minio-go/v7/pkg/cors
