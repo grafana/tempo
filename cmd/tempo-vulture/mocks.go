@@ -46,6 +46,8 @@ type MockHTTPClient struct {
 	requestsCount  int
 	searchResponse []*tempopb.TraceSearchMetadata
 	searchesCount  int
+	metricsResp    *tempopb.QueryRangeResponse
+	metricsCount   int
 	// We need the lock to control concurrent accesses to shared variables in the tests
 	m sync.Mutex
 }
@@ -72,7 +74,13 @@ func (m *MockHTTPClient) MetricsSummary(query string, groupBy string, start int6
 
 //nolint:all
 func (m *MockHTTPClient) MetricsQueryRange(query string, start, end int, step string, exemplars int) (*tempopb.QueryRangeResponse, error) {
-	panic("unimplemented")
+	if m.err != nil {
+		return nil, m.err
+	}
+	m.m.Lock()
+	defer m.m.Unlock()
+	m.metricsCount++
+	return m.metricsResp, nil
 }
 
 //nolint:all
@@ -202,4 +210,10 @@ func (m *MockHTTPClient) SetOverrides(limits *userconfigurableoverrides.Limits, 
 //nolint:all
 func (m *MockHTTPClient) WithTransport(t http.RoundTripper) {
 	panic("unimplemented")
+}
+
+func (m *MockHTTPClient) GetMetricsCount() int {
+	m.m.Lock()
+	defer m.m.Unlock()
+	return m.metricsCount
 }
