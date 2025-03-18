@@ -9,9 +9,9 @@ import (
 )
 
 type Work struct {
-	Jobs    map[string]*Job `json:"jobs"`
-	jobsMtx sync.RWMutex
-	cfg     Config
+	Jobs map[string]*Job `json:"jobs"`
+	mtx  sync.RWMutex
+	cfg  Config
 }
 
 func New(cfg Config) *Work {
@@ -23,8 +23,8 @@ func New(cfg Config) *Work {
 }
 
 func (q *Work) AddJob(j *Job) error {
-	q.jobsMtx.Lock()
-	defer q.jobsMtx.Unlock()
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
 
 	if _, ok := q.Jobs[j.ID]; ok {
 		return ErrJobAlreadyExists
@@ -39,8 +39,8 @@ func (q *Work) AddJob(j *Job) error {
 }
 
 func (q *Work) GetJob(id string) *Job {
-	q.jobsMtx.RLock()
-	defer q.jobsMtx.RUnlock()
+	q.mtx.RLock()
+	defer q.mtx.RUnlock()
 
 	if v, ok := q.Jobs[id]; ok {
 		return v
@@ -50,15 +50,15 @@ func (q *Work) GetJob(id string) *Job {
 }
 
 func (q *Work) RemoveJob(id string) {
-	q.jobsMtx.Lock()
-	defer q.jobsMtx.Unlock()
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
 
 	delete(q.Jobs, id)
 }
 
 func (q *Work) ListJobs() []*Job {
-	q.jobsMtx.RLock()
-	defer q.jobsMtx.RUnlock()
+	q.mtx.RLock()
+	defer q.mtx.RUnlock()
 
 	jobs := make([]*Job, 0, len(q.Jobs))
 	for _, j := range q.Jobs {
@@ -74,8 +74,8 @@ func (q *Work) ListJobs() []*Job {
 }
 
 func (q *Work) Prune() {
-	q.jobsMtx.Lock()
-	defer q.jobsMtx.Unlock()
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
 
 	for id, j := range q.Jobs {
 		switch j.GetStatus() {
@@ -96,8 +96,8 @@ func (q *Work) Prune() {
 
 // Len returns the jobs which are pending execution.
 func (q *Work) Len() int {
-	q.jobsMtx.RLock()
-	defer q.jobsMtx.RUnlock()
+	q.mtx.RLock()
+	defer q.mtx.RUnlock()
 
 	var count int
 	for _, j := range q.Jobs {
@@ -111,8 +111,8 @@ func (q *Work) Len() int {
 }
 
 func (q *Work) GetJobForWorker(workerID string) *Job {
-	q.jobsMtx.RLock()
-	defer q.jobsMtx.RUnlock()
+	q.mtx.RLock()
+	defer q.mtx.RUnlock()
 
 	for _, j := range q.Jobs {
 		if (j.IsRunning() || j.IsPending()) && j.WorkerID == workerID {
@@ -124,8 +124,8 @@ func (q *Work) GetJobForWorker(workerID string) *Job {
 }
 
 func (q *Work) GetJobForType(jobType tempopb.JobType) *Job {
-	q.jobsMtx.RLock()
-	defer q.jobsMtx.RUnlock()
+	q.mtx.RLock()
+	defer q.mtx.RUnlock()
 
 	for _, j := range q.Jobs {
 		if j.WorkerID != "" {
@@ -147,8 +147,8 @@ func (q *Work) GetJobForType(jobType tempopb.JobType) *Job {
 
 // HasBlocks returns true if the worker is currently working on any of the provided block IDs.
 func (q *Work) HasBlocks(ids []string) bool {
-	q.jobsMtx.RLock()
-	defer q.jobsMtx.RUnlock()
+	q.mtx.RLock()
+	defer q.mtx.RUnlock()
 
 	for _, j := range q.Jobs {
 		for _, id := range ids {

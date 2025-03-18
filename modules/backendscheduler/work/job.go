@@ -112,13 +112,13 @@ func (j *Job) GetWorkerID() string {
 
 // OnBlock returns true if the job is operating on a block.
 func (j *Job) OnBlock(id string) bool {
-	for _, b := range j.JobDetail.Compaction.Input {
+	for _, b := range j.GetCompactionInput() {
 		if b == id {
 			return true
 		}
 	}
 
-	for _, b := range j.JobDetail.Compaction.Output {
+	for _, b := range j.GetCompactionOutput() {
 		if b == id {
 			return true
 		}
@@ -128,15 +128,15 @@ func (j *Job) OnBlock(id string) bool {
 }
 
 func (j *Job) Tenant() string {
-	j.mtx.Lock()
-	defer j.mtx.Unlock()
+	j.mtx.RLock()
+	defer j.mtx.RUnlock()
 
 	return j.JobDetail.Tenant
 }
 
 func (j *Job) GetCompactionInput() []string {
-	j.mtx.Lock()
-	defer j.mtx.Unlock()
+	j.mtx.RLock()
+	defer j.mtx.RUnlock()
 
 	return j.JobDetail.Compaction.Input
 }
