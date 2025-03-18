@@ -90,46 +90,17 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 func (s *BackendScheduler) running(ctx context.Context) error {
 	level.Info(log.Logger).Log("msg", "backend scheduler running")
 
-	// scheduleTicker := time.NewTicker(s.cfg.ScheduleInterval)
-	// defer scheduleTicker.Stop()
-
 	prioritizeTenantsTicker := time.NewTicker(s.cfg.TenantPriorityInterval) // rename to measure Interval or something?
 	defer prioritizeTenantsTicker.Stop()
 
-	//	s.prioritizeTenants()
 	s.measureTenants()
-
-	// if err := s.scheduleOnce(ctx, s.cfg.MaxPendingWorkQueue); err != nil {
-	// 	return fmt.Errorf("failed to schedule initial jobs: %w", err)
-	// }
 
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-prioritizeTenantsTicker.C:
-			//			s.prioritizeTenants()
 			s.measureTenants()
-			// case <-scheduleTicker.C:
-			// 	s.work.Prune()
-			// 	var (
-			// 		tenantCount = len(s.store.Tenants())
-			// 		toAdd       = 0
-			// 		iterations  = 0
-			// 	)
-			// 	if workLen := s.work.Len(); workLen < s.cfg.MinPendingWorkQueue {
-			// 		for workLen = s.work.Len(); workLen < s.cfg.MaxPendingWorkQueue; toAdd = s.cfg.MaxPendingWorkQueue - workLen {
-			// 			if err := s.scheduleOnce(ctx, toAdd); err != nil {
-			// 				level.Error(log.Logger).Log("msg", "scheduling cycle failed", "err", err)
-			// 				metricSchedulingCycles.WithLabelValues("failed").Inc()
-			// 			} else {
-			// 				metricSchedulingCycles.WithLabelValues("success").Inc()
-			// 			}
-			// 			if iterations++; iterations >= tenantCount {
-			// 				break
-			// 			}
-			// 		}
-			// 	}
 		}
 	}
 }
@@ -205,22 +176,10 @@ func (s *BackendScheduler) prioritizeTenants() {
 			outstandingBlocks += len(toBeCompacted)
 		}
 
-		// Measure the last time this tenant was worked
-		lastCompactedTime := time.Time{}
-		t := s.store.LastCompacted(tenantID)
-		if t != nil {
-			lastCompactedTime = *t
-		}
-
-		if !lastCompactedTime.IsZero() {
-			lastCompactedTime = s.lastWorkForTenant(tenantID)
-		}
-
 		tenants = append(tenants, tenantselector.Tenant{
 			ID:                         tenantID,
 			BlocklistLength:            len(blocklist),
 			OutstanidngBlocklistLength: outstandingBlocks,
-			LastWork:                   lastCompactedTime,
 		})
 	}
 
@@ -238,25 +197,6 @@ func (s *BackendScheduler) prioritizeTenants() {
 		heap.Push(s.curPriority, item)
 		//		}
 	}
-}
-
-// i think we should remove this to simplify the prioirity queue. if we intend to round robin the full heap of tenants then it
-// would be better to have a simpler/less perfect priority queue
-func (s *BackendScheduler) lastWorkForTenant(tenantID string) time.Time {
-	s.workMtx.RLock()
-	defer s.workMtx.RUnlock()
-
-	// Get the most recent time
-	var lastWork time.Time
-	for _, j := range s.work.ListJobs() {
-		if j.JobDetail.Tenant == tenantID {
-			if j.GetEndTime().After(lastWork) {
-				lastWork = j.GetEndTime()
-			}
-		}
-	}
-
-	return lastWork
 }
 
 // ScheduleOnce schedules jobs for compaction
@@ -439,10 +379,10 @@ func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request)
 	_, _ = io.WriteString(w, x.Render())
 
 	x = table.NewWriter()
-	x.AppendHeader(table.Row{"tenant", "priority", "last_work", "blocks"})
+	x.AppendHeader(table.Row{"tenant", "priority", "blocks"})
 
 	for _, item := range s.curPriority.Items() {
-		x.AppendRow([]interface{}{item.Value(), item.Priority(), s.store.LastCompacted(item.Value()), len(s.store.BlockMetas(item.Value()))})
+		x.AppendRow([]interface{}{item.Value(), item.Priority(), len(s.store.BlockMetas(item.Value()))})
 	}
 
 	x.AppendSeparator()

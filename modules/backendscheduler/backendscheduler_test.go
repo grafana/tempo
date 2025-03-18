@@ -52,9 +52,6 @@ func TestBackendScheduler(t *testing.T) {
 		bs, err := New(cfg, store, limits, rr, ww)
 		require.NoError(t, err)
 
-		err = bs.scheduleOnce(ctx, 10)
-		require.NoError(t, err)
-
 		resp, err := bs.Next(ctx, &tempopb.NextJobRequest{
 			WorkerId: "test-worker",
 			Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
@@ -90,9 +87,6 @@ func TestBackendScheduler_gRPC(t *testing.T) {
 		s, err := New(cfg, store, limits, rr, ww)
 		require.NoError(t, err)
 
-		err = s.scheduleOnce(ctx, 10)
-		require.NoError(t, err)
-
 		resp, err := s.Next(ctx, &tempopb.NextJobRequest{
 			WorkerId: "test-worker",
 			Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
@@ -124,10 +118,6 @@ func TestBackendScheduler_gRPC(t *testing.T) {
 		require.NoError(t, err)
 
 		s.prioritizeTenants()
-		err = s.scheduleOnce(ctx, 10)
-		require.NoError(t, err)
-
-		s.prioritizeTenants()
 
 		resp, err := s.Next(ctx, &tempopb.NextJobRequest{
 			WorkerId: "test-worker",
@@ -137,7 +127,6 @@ func TestBackendScheduler_gRPC(t *testing.T) {
 		require.NotNil(t, resp)
 		require.NotEqual(t, "", resp.JobId)
 		require.NotEqual(t, "", resp.Detail.Tenant)
-		tenant := resp.Detail.Tenant
 
 		updateResp, err := s.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
 			JobId:  resp.JobId,
@@ -173,9 +162,6 @@ func TestBackendScheduler_gRPC(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotNil(t, updateResp)
-
-		since := time.Since(s.lastWorkForTenant(tenant))
-		require.True(t, since < 2*time.Second)
 	})
 }
 
