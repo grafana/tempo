@@ -326,40 +326,6 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 	}, nil
 }
 
-// CreateCompactionJob creates a new compaction job for the given tenant and blocks.
-// Must be called under jobsMtx lock.
-// func (s *BackendScheduler) createCompactionJob(ctx context.Context, tenantID string, input []string) error {
-// 	// Skip blocks which already have a job
-// 	if s.work.HasBlocks(input) {
-// 		return nil
-// 	}
-
-// 	jobID := uuid.New().String()
-
-// 	job := &work.Job{
-// 		ID:   jobID,
-// 		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
-// 		JobDetail: tempopb.JobDetail{
-// 			Tenant: tenantID,
-// 			Compaction: &tempopb.CompactionDetail{
-// 				Input: input,
-// 			},
-// 		},
-// 	}
-
-// 	err := s.work.AddJob(job)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to create job: %w", err)
-// 	}
-
-// 	// Update metrics
-// 	metricJobsCreated.WithLabelValues(tenantID, job.Type.String()).Inc()
-// 	metricJobsActive.WithLabelValues(tenantID, job.Type.String()).Inc()
-
-// 	// TODO: is it necessary to flush here?  We flush before we return the job to the worker, so if the in-memeory jobs are lost, what is the impact?
-// 	return s.flushWorkCache(ctx)
-// }
-
 func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request) {
 	// s.tenantMtx.RLock()
 	// defer s.tenantMtx.RUnlock()
