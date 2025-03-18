@@ -90,7 +90,7 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 func (s *BackendScheduler) running(ctx context.Context) error {
 	level.Info(log.Logger).Log("msg", "backend scheduler running")
 
-	prioritizeTenantsTicker := time.NewTicker(s.cfg.TenantPriorityInterval) // rename to measure Interval or something?
+	prioritizeTenantsTicker := time.NewTicker(s.cfg.TenantMeasurementInterval) // rename to measure Interval or something?
 	defer prioritizeTenantsTicker.Stop()
 
 	s.measureTenants()

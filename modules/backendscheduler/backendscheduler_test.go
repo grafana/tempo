@@ -27,10 +27,7 @@ import (
 )
 
 func TestBackendScheduler(t *testing.T) {
-	cfg := Config{
-		ScheduleInterval:       100 * time.Millisecond,
-		TenantPriorityInterval: 100 * time.Millisecond,
-	}
+	cfg := Config{}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 
 	tmpDir := t.TempDir()
@@ -66,8 +63,7 @@ var tenant = "test-tenant"
 
 func TestBackendScheduler_gRPC(t *testing.T) {
 	cfg := Config{
-		ScheduleInterval:       100 * time.Millisecond,
-		TenantPriorityInterval: 100 * time.Millisecond,
+		TenantMeasurementInterval: 100 * time.Millisecond,
 	}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 
