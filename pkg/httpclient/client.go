@@ -62,10 +62,11 @@ var ErrNotFound = errors.New("resource not found")
 
 // Client is client to the Tempo API.
 type Client struct {
-	BaseURL string
-	OrgID   string
-	client  *http.Client
-	headers map[string]string
+	BaseURL     string
+	OrgID       string
+	client      *http.Client
+	headers     map[string]string
+	queryParams map[string]string
 }
 
 func New(baseURL, orgID string) *Client {
@@ -87,6 +88,13 @@ func (c *Client) SetHeader(key string, value string) {
 		c.headers = make(map[string]string)
 	}
 	c.headers[key] = value
+}
+
+func (c *Client) SetQueryParam(key, value string) {
+	if c.queryParams == nil {
+		c.queryParams = make(map[string]string)
+	}
+	c.queryParams[key] = value
 }
 
 func (c *Client) WithTransport(t http.RoundTripper) {
@@ -240,7 +248,7 @@ func (c *Client) SearchTagValuesV2WithRange(tag string, start int64, end int64) 
 // Search Tempo. tags must be in logfmt format, that is "key1=value1 key2=value2"
 func (c *Client) Search(tags string) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.buildSearchQueryURL("tags", tags, 0, 0, 0, 0), m)
+	_, err := c.getFor(c.buildSearchQueryURL("tags", tags, 0, 0, 0, 0, c.queryParams), m)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +260,7 @@ func (c *Client) Search(tags string) (*tempopb.SearchResponse, error) {
 // epoch timestamps in seconds.
 func (c *Client) SearchWithRange(tags string, start int64, end int64) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.buildSearchQueryURL("tags", tags, start, end, 0, 0), m)
+	_, err := c.getFor(c.buildSearchQueryURL("tags", tags, start, end, 0, 0, c.queryParams), m)
 	if err != nil {
 		return nil, err
 	}
@@ -289,10 +297,11 @@ func (c *Client) QueryTraceWithRange(id string, start int64, end int64) (*tempop
 	if start > end {
 		return nil, errors.New("start time can not be greater than end time")
 	}
-	url := c.getURLWithQueryParams(QueryTraceEndpoint+"/"+id, map[string]string{
+	queryParams := mergeMaps(c.queryParams, map[string]string{
 		"start": strconv.FormatInt(start, 10),
 		"end":   strconv.FormatInt(end, 10),
 	})
+	url := c.getURLWithQueryParams(QueryTraceEndpoint+"/"+id, queryParams)
 	resp, err := c.getFor(url, m)
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
@@ -306,7 +315,7 @@ func (c *Client) QueryTraceWithRange(id string, start int64, end int64) (*tempop
 
 func (c *Client) SearchTraceQL(query string) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.buildSearchQueryURL("q", query, 0, 0, 0, 0), m)
+	_, err := c.getFor(c.buildSearchQueryURL("q", query, 0, 0, 0, 0, c.queryParams), m)
 	if err != nil {
 		return nil, err
 	}
@@ -316,7 +325,7 @@ func (c *Client) SearchTraceQL(query string) (*tempopb.SearchResponse, error) {
 
 func (c *Client) SearchTraceQLWithRange(query string, start int64, end int64) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.buildSearchQueryURL("q", query, start, end, 0, 0), m)
+	_, err := c.getFor(c.buildSearchQueryURL("q", query, start, end, 0, 0, c.queryParams), m)
 	if err != nil {
 		return nil, err
 	}
@@ -326,7 +335,7 @@ func (c *Client) SearchTraceQLWithRange(query string, start int64, end int64) (*
 
 func (c *Client) SearchTraceQLWithRangeAndLimit(query string, start int64, end int64, limit int64, spss int64) (*tempopb.SearchResponse, error) {
 	m := &tempopb.SearchResponse{}
-	_, err := c.getFor(c.buildSearchQueryURL("q", query, start, end, limit, spss), m)
+	_, err := c.getFor(c.buildSearchQueryURL("q", query, start, end, limit, spss, c.queryParams), m)
 	if err != nil {
 		return nil, err
 	}
@@ -354,7 +363,7 @@ func (c *Client) MetricsSummary(query string, groupBy string, start int64, end i
 	return m, nil
 }
 
-func (c *Client) buildSearchQueryURL(queryType string, query string, start int64, end int64, limit int64, spss int64) string {
+func (c *Client) buildSearchQueryURL(queryType string, query string, start int64, end int64, limit int64, spss int64, params map[string]string) string {
 	joinURL, _ := url.Parse(c.BaseURL + "/api/search?")
 	q := joinURL.Query()
 	if start != 0 && end != 0 {
@@ -368,6 +377,9 @@ func (c *Client) buildSearchQueryURL(queryType string, query string, start int64
 		q.Set("spss", strconv.FormatInt(spss, 10))
 	}
 	q.Set(queryType, query)
+	for k, v := range params {
+		q.Set(k, v)
+	}
 	joinURL.RawQuery = q.Encode()
 
 	return fmt.Sprint(joinURL)
@@ -492,4 +504,17 @@ func (c *Client) getURLWithQueryParams(endpoint string, queryParams map[string]s
 	joinURL.RawQuery = q.Encode()
 
 	return fmt.Sprint(joinURL)
+}
+
+// merge combines two maps of the same key and value types into a new map.
+// Values from the second map overwrite duplicates.
+func mergeMaps[K comparable, V any](a, b map[K]V) map[K]V {
+	newMap := make(map[K]V, len(a)+len(b))
+	for k, v := range a {
+		newMap[k] = v
+	}
+	for k, v := range b {
+		newMap[k] = v
+	}
+	return newMap
 }
