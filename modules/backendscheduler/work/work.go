@@ -85,6 +85,11 @@ func (q *Work) Prune() {
 			if time.Since(j.GetEndTime()) > q.cfg.PruneAge {
 				delete(q.Jobs, id)
 			}
+		case tempopb.JobStatus_JOB_STATUS_RUNNING:
+			// Fail jobs which have been running for too long
+			if time.Since(j.GetStartTime()) > q.cfg.DeadJobTimeout {
+				j.Fail()
+			}
 		}
 	}
 }

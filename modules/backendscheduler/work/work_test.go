@@ -170,3 +170,18 @@ func TestBlocks(t *testing.T) {
 	j.SetCompactionOutput([]string{"5"})
 	require.Equal(t, j.GetCompactionOutput(), []string{"5"})
 }
+
+func TestDeadJobTimeout(t *testing.T) {
+	w := New(Config{PruneAge: time.Hour, DeadJobTimeout: 100 * time.Millisecond})
+	require.NotNil(t, w)
+
+	j := &Job{ID: "1", JobDetail: tempopb.JobDetail{Compaction: &tempopb.CompactionDetail{Input: []string{"1"}}}}
+	err := w.AddJob(j)
+	require.NoError(t, err)
+	j.Start()
+
+	time.Sleep(200 * time.Millisecond)
+	w.Prune()
+	require.Equal(t, w.Len(), 0)
+	require.Equal(t, j.GetStatus(), tempopb.JobStatus_JOB_STATUS_FAILED)
+}
