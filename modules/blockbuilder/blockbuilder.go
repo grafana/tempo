@@ -88,7 +88,10 @@ type BlockBuilder struct {
 	overrides Overrides
 	enc       encoding.VersionedEncoding
 	wal       *wal.WAL // TODO - Shared between tenants, should be per tenant?
+
+	reader    tempodb.Reader
 	writer    tempodb.Writer
+	compactor tempodb.Compactor
 }
 
 type partitionState struct {
@@ -128,7 +131,9 @@ func New(
 		partitionRing: partitionRing,
 		decoder:       ingest.NewDecoder(),
 		overrides:     overrides,
+		reader:        store,
 		writer:        store,
+		compactor:     store,
 	}
 
 	b.Service = services.NewBasicService(b.starting, b.running, b.stopping)
@@ -384,7 +389,7 @@ outer:
 	// Record lag at the end of the consumption
 	ingest.SetPartitionLagSeconds(group, ps.partition, time.Since(lastRec.Timestamp))
 
-	err = writer.flush(ctx, b.writer)
+	err = writer.flush(ctx, b.reader, b.writer, b.compactor)
 	if err != nil {
 		return time.Time{}, -1, err
 	}

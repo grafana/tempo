@@ -92,6 +92,7 @@ type Reader interface {
 	FetchTagValues(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagValuesRequest, cb traceql.FetchTagValuesCallback, mcb common.MetricsCallback, opts common.SearchOptions) error
 	FetchTagNames(ctx context.Context, meta *backend.BlockMeta, req traceql.FetchTagsRequest, cb traceql.FetchTagsCallback, mcb common.MetricsCallback, opts common.SearchOptions) error
 
+	BlockMeta(ctx context.Context, tenantID string, blockID backend.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error)
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
 
@@ -100,6 +101,8 @@ type Reader interface {
 
 type Compactor interface {
 	EnableCompaction(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) error
+
+	MarkBlockCompacted(tenantID string, blockID backend.UUID) error
 }
 
 type CompactorSharder interface {
@@ -272,6 +275,20 @@ func (rw *readerWriter) CompleteBlockWithBackend(ctx context.Context, block comm
 
 func (rw *readerWriter) WAL() *wal.WAL {
 	return rw.wal
+}
+
+func (rw *readerWriter) BlockMeta(ctx context.Context, tenantID string, blockID backend.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error) {
+	meta, err := rw.r.BlockMeta(ctx, (uuid.UUID)(blockID), tenantID)
+	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
+		return nil, nil, err
+	}
+
+	compactedMeta, err := rw.c.CompactedBlockMeta((uuid.UUID)(blockID), tenantID)
+	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
+		return nil, nil, err
+	}
+
+	return meta, compactedMeta, nil
 }
 
 func (rw *readerWriter) BlockMetas(tenantID string) []*backend.BlockMeta {
@@ -543,6 +560,10 @@ func (rw *readerWriter) EnableCompaction(ctx context.Context, cfg *CompactorConf
 	}
 
 	return nil
+}
+
+func (rw *readerWriter) MarkBlockCompacted(tenantID string, blockID backend.UUID) error {
+	return rw.c.MarkBlockCompacted((uuid.UUID)(blockID), tenantID)
 }
 
 // EnablePolling activates the polling loop. Pass nil if this component

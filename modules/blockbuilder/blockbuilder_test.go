@@ -63,7 +63,7 @@ func TestBlockbuilder_lookbackOnNoCommit(t *testing.T) {
 	})
 
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
-	producedRecords := sendReq(t, ctx, client)
+	producedRecords := sendReq(t, ctx, client, util.FakeTenantID)
 
 	// Wait for record to be consumed and committed.
 	require.Eventually(t, func() bool {
@@ -248,7 +248,7 @@ func TestBlockbuilder_receivesOldRecords(t *testing.T) {
 	})
 
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
-	producedRecords := sendReq(t, ctx, client)
+	producedRecords := sendReq(t, ctx, client, util.FakeTenantID)
 
 	// Wait for record to be consumed and committed.
 	require.Eventually(t, func() bool {
@@ -375,7 +375,7 @@ func TestBlockbuilder_noDoubleConsumption(t *testing.T) {
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
 
 	// Send a single record
-	producedRecords := sendReq(t, ctx, client)
+	producedRecords := sendReq(t, ctx, client, util.FakeTenantID)
 	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
 
 	// Create the block builder
@@ -395,7 +395,7 @@ func TestBlockbuilder_noDoubleConsumption(t *testing.T) {
 	requireLastCommitEquals(t, ctx, client, lastRecordOffset+1)
 
 	// Send another record
-	newRecords := sendReq(t, ctx, client)
+	newRecords := sendReq(t, ctx, client, util.FakeTenantID)
 	newRecordOffset := newRecords[len(newRecords)-1].Offset
 
 	// Wait for the new record to be consumed and committed
@@ -412,6 +412,98 @@ func TestBlockbuilder_noDoubleConsumption(t *testing.T) {
 
 	// Verify the total number of traces is correct (1 from each batch)
 	require.Equal(t, 2, countFlushedTraces(store))
+}
+
+func TestBlockbuilder_marksOldBlocksCompacted(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+
+	k, address := testkafka.CreateCluster(t, 1, testTopic)
+
+	// Track commits
+	kafkaCommits := atomic.NewInt32(0)
+	k.ControlKey(kmsg.OffsetCommit, func(_ kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Inc()
+		return nil, nil, false
+	})
+
+	var (
+		cfg    = blockbuilderConfig(t, address, []int32{0})
+		client = newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
+	)
+
+	// Send data for each tenant
+	var (
+		goodTenantID    = "1"
+		badTenantID     = "2"
+		producedRecords []*kgo.Record
+	)
+	producedRecords = append(producedRecords, sendReq(t, ctx, client, goodTenantID)...)
+	producedRecords = append(producedRecords, sendReq(t, ctx, client, badTenantID)...)
+	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
+
+	// Simulate failures on the first cycle
+	badWrites := atomic.NewInt32(0)
+	goodWrites := atomic.NewInt32(0)
+	goodBlockIDs := []backend.UUID{}
+	store := newStoreWrapper(newStore(ctx, t), func(ctx context.Context, block tempodb.WriteableBlock, store storage.Store) error {
+		switch block.BlockMeta().TenantID {
+		case badTenantID:
+			// First flush on tenant 2 fails
+			if badWrites.Inc() == 1 {
+				// Wait until flush on good tenant is complete
+				// and then return the error. Tenants are flushed in parallel
+				// so this is required to ensure we get a block flushed on the first cycle.
+				require.Eventually(t, func() bool {
+					return goodWrites.Load() > 0
+				}, 30*time.Second, 50*time.Millisecond)
+				return errors.New("failed to write block")
+			}
+		case goodTenantID:
+			// Save all blocks flushed for good tenant
+			defer goodWrites.Inc()
+			goodBlockIDs = append(goodBlockIDs, block.BlockMeta().BlockID)
+		}
+		return store.WriteBlock(ctx, block)
+	})
+
+	// Create the block builder
+	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	})
+
+	// Wait for the records to be consumed and committed
+	require.Eventually(t, func() bool {
+		return kafkaCommits.Load() > 0
+	}, 30*time.Second, 50*time.Millisecond)
+
+	// Check that the offset was committed correctly (lastRec.Offset + 1)
+	requireLastCommitEquals(t, ctx, client, lastRecordOffset+1)
+
+	// Enable polling to trigger another immediate poll
+	store.EnablePolling(ctx, &ownEverythingSharder{})
+
+	// Verify that each tenant only has 1 active block
+	require.Equal(t, 1, len(store.BlockMetas(goodTenantID)))
+	require.Equal(t, 1, len(store.BlockMetas(badTenantID)))
+
+	// Verify the good tenant flushed 2 attempts
+	require.Equal(t, 2, len(goodBlockIDs))
+
+	// Verify the first block is compacted
+	m, cm, err := store.BlockMeta(ctx, goodTenantID, goodBlockIDs[0])
+	require.NoError(t, err)
+	require.Nil(t, m)
+	require.NotNil(t, cm)
+
+	// Verify the second block is not compacted
+	m, cm, err = store.BlockMeta(ctx, goodTenantID, goodBlockIDs[1])
+	require.NoError(t, err)
+	require.NotNil(t, m)
+	require.Nil(t, cm)
 }
 
 func blockbuilderConfig(t testing.TB, address string, assignedPartitions []int32) Config {
@@ -553,14 +645,14 @@ func countFlushedTraces(store storage.Store) int {
 }
 
 // nolint: revive
-func sendReq(t testing.TB, ctx context.Context, client *kgo.Client) []*kgo.Record {
+func sendReq(t testing.TB, ctx context.Context, client *kgo.Client, tenantID string) []*kgo.Record {
 	traceID := generateTraceID(t)
 
 	now := time.Now()
 	startTime := uint64(now.UnixNano())
 	endTime := uint64(now.Add(time.Second).UnixNano())
 	req := test.MakePushBytesRequest(t, 10, traceID, startTime, endTime)
-	records, err := ingest.Encode(0, util.FakeTenantID, req, 1_000_000)
+	records, err := ingest.Encode(0, tenantID, req, 1_000_000)
 	require.NoError(t, err)
 
 	res := client.ProduceSync(ctx, records...)
@@ -586,7 +678,7 @@ func sendTracesFor(t *testing.T, ctx context.Context, client *kgo.Client, dur, i
 		case <-timer.C: // Exit the function when the timer is done
 			return producedRecords
 		case <-ticker.C:
-			records := sendReq(t, ctx, client)
+			records := sendReq(t, ctx, client, util.FakeTenantID)
 			producedRecords = append(producedRecords, records...)
 		}
 	}
@@ -660,7 +752,7 @@ func BenchmarkBlockBuilder(b *testing.B) {
 		b.StopTimer()
 		size := 0
 		for i := 0; i < 1000; i++ {
-			for _, r := range sendReq(b, ctx, client) {
+			for _, r := range sendReq(b, ctx, client, util.FakeTenantID) {
 				size += len(r.Value)
 			}
 		}
