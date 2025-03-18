@@ -60,9 +60,6 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		collector := pipeline.NewGRPCCollector(next, cfg.ResponseConsumers, c, func(qrr *tempopb.QueryRangeResponse) error {
 			// Translate each diff into the instant version and send it
 			resp := translateQueryRangeToInstant(*qrr)
-			// series already limited by the query range combiner just need to copy the status and message
-			resp.Status = qrr.Status
-			resp.Message = qrr.Message
 			finalResponse = &resp // Save last response for bytesProcessed for the SLO calculations
 			return srv.Send(&resp)
 		})
@@ -178,6 +175,8 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 func translateQueryRangeToInstant(input tempopb.QueryRangeResponse) tempopb.QueryInstantResponse {
 	output := tempopb.QueryInstantResponse{
 		Metrics: input.Metrics,
+		Status:  input.Status,
+		Message: input.Message,
 	}
 	for _, series := range input.Series {
 		if len(series.Samples) == 0 {
