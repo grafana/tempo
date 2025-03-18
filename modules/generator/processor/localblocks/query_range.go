@@ -68,6 +68,7 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	maxSeriesReached := false
 	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for count := range seriesCountCh {
 			seriesCount += count
 			if seriesCount >= maxSeries {
