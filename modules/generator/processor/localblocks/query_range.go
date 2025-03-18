@@ -78,7 +78,6 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 				return
 			}
 		}
-		return
 	}()
 
 	if p.headBlock != nil && withinRange(p.headBlock.BlockMeta()) {

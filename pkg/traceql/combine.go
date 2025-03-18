@@ -330,11 +330,6 @@ type QueryRangeCombiner struct {
 	maxSeries        int
 	maxSeriesReached bool
 	seriesCount      int
-
-	// used to track which series were updated since the previous diff
-	// todo: it may not be worth it to track the diffs per series. it would be simpler (and possibly nearly as effective) to just calculate a global
-	//  max/min for all series
-	seriesUpdated map[string]tsRange
 }
 
 func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode) (*QueryRangeCombiner, error) {

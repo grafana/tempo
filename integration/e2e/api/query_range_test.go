@@ -208,6 +208,7 @@ sendLoop:
 	queryRangeRes := &tempopb.QueryRangeResponse{}
 	readBody := strings.NewReader(string(body))
 	err = new(jsonpb.Unmarshaler).Unmarshal(readBody, queryRangeRes)
+	require.NoError(t, err)
 	require.NotNil(t, queryRangeRes)
 
 	// max series is 3 so we should get a partial response with 3 series
