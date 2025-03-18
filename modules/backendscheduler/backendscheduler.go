@@ -46,8 +46,11 @@ type BackendScheduler struct {
 	reader backend.RawReader
 	writer backend.RawWriter
 
-	tenantPriority *tenantselector.PriorityQueue
-	tenantMtx      sync.RWMutex
+	tenantMtx sync.RWMutex
+
+	curPriority *tenantselector.PriorityQueue
+	curTenant   *tenantselector.Item
+	curSelector blockselector.CompactionBlockSelector
 }
 
 // New creates a new BackendScheduler
@@ -58,13 +61,13 @@ func New(cfg Config, store storage.Store, overrides overrides.Interface, reader 
 	}
 
 	s := &BackendScheduler{
-		cfg:            cfg,
-		store:          store,
-		overrides:      overrides,
-		work:           work.New(cfg.Work),
-		reader:         reader,
-		writer:         writer,
-		tenantPriority: tenantselector.NewPriorityQueue(),
+		cfg:         cfg,
+		store:       store,
+		overrides:   overrides,
+		work:        work.New(cfg.Work),
+		reader:      reader,
+		writer:      writer,
+		curPriority: tenantselector.NewPriorityQueue(),
 	}
 
 	s.Service = services.NewBasicService(s.starting, s.running, s.stopping)
@@ -87,47 +90,46 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 func (s *BackendScheduler) running(ctx context.Context) error {
 	level.Info(log.Logger).Log("msg", "backend scheduler running")
 
-	scheduleTicker := time.NewTicker(s.cfg.ScheduleInterval)
-	defer scheduleTicker.Stop()
+	// scheduleTicker := time.NewTicker(s.cfg.ScheduleInterval)
+	// defer scheduleTicker.Stop()
 
-	prioritizeTenantsTicker := time.NewTicker(s.cfg.TenantPriorityInterval)
+	prioritizeTenantsTicker := time.NewTicker(s.cfg.TenantPriorityInterval) // rename to measure Interval or something?
 	defer prioritizeTenantsTicker.Stop()
 
-	s.prioritizeTenants()
+	//	s.prioritizeTenants()
 	s.measureTenants()
 
-	if err := s.scheduleOnce(ctx, s.cfg.MaxPendingWorkQueue); err != nil {
-		return fmt.Errorf("failed to schedule initial jobs: %w", err)
-	}
+	// if err := s.scheduleOnce(ctx, s.cfg.MaxPendingWorkQueue); err != nil {
+	// 	return fmt.Errorf("failed to schedule initial jobs: %w", err)
+	// }
 
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-prioritizeTenantsTicker.C:
-			s.prioritizeTenants()
+			//			s.prioritizeTenants()
 			s.measureTenants()
-		case <-scheduleTicker.C:
-			s.work.Prune()
-			var (
-				tenantCount = len(s.store.Tenants())
-				toAdd       = 0
-				iterations  = 0
-			)
-			if workLen := s.work.Len(); workLen < s.cfg.MinPendingWorkQueue {
-				for workLen = s.work.Len(); workLen < s.cfg.MaxPendingWorkQueue; toAdd = s.cfg.MaxPendingWorkQueue - workLen {
-					if err := s.scheduleOnce(ctx, toAdd); err != nil {
-						level.Error(log.Logger).Log("msg", "scheduling cycle failed", "err", err)
-						metricSchedulingCycles.WithLabelValues("failed").Inc()
-					} else {
-						metricSchedulingCycles.WithLabelValues("success").Inc()
-					}
-					if iterations++; iterations >= tenantCount {
-						break
-					}
-				}
-			}
-
+			// case <-scheduleTicker.C:
+			// 	s.work.Prune()
+			// 	var (
+			// 		tenantCount = len(s.store.Tenants())
+			// 		toAdd       = 0
+			// 		iterations  = 0
+			// 	)
+			// 	if workLen := s.work.Len(); workLen < s.cfg.MinPendingWorkQueue {
+			// 		for workLen = s.work.Len(); workLen < s.cfg.MaxPendingWorkQueue; toAdd = s.cfg.MaxPendingWorkQueue - workLen {
+			// 			if err := s.scheduleOnce(ctx, toAdd); err != nil {
+			// 				level.Error(log.Logger).Log("msg", "scheduling cycle failed", "err", err)
+			// 				metricSchedulingCycles.WithLabelValues("failed").Inc()
+			// 			} else {
+			// 				metricSchedulingCycles.WithLabelValues("success").Inc()
+			// 			}
+			// 			if iterations++; iterations >= tenantCount {
+			// 				break
+			// 			}
+			// 		}
+			// 	}
 		}
 	}
 }
@@ -137,8 +139,8 @@ func (s *BackendScheduler) stopping(_ error) error {
 }
 
 func (s *BackendScheduler) measureTenants() {
-	s.tenantMtx.RLock()
-	defer s.tenantMtx.RUnlock()
+	// s.tenantMtx.RLock() only access overrides and store which are concurrent safe
+	// defer s.tenantMtx.RUnlock()
 
 	for _, tenant := range s.store.Tenants() {
 		window := s.overrides.MaxCompactionRange(tenant)
@@ -161,10 +163,12 @@ func (s *BackendScheduler) measureTenants() {
 }
 
 func (s *BackendScheduler) prioritizeTenants() {
-	s.tenantMtx.Lock()
-	defer s.tenantMtx.Unlock()
+	// s.tenantMtx.Lock() - called under lock
+	// defer s.tenantMtx.Unlock()
 
 	tenants := []tenantselector.Tenant{}
+
+	s.curPriority = tenantselector.NewPriorityQueue() // wipe and restart
 
 	for _, tenantID := range s.store.Tenants() {
 		if s.overrides.CompactionDisabled(tenantID) {
@@ -221,21 +225,23 @@ func (s *BackendScheduler) prioritizeTenants() {
 	}
 
 	var (
-		ts       = tenantselector.NewBlockListWeightedTenantSelector(tenants)
-		items    = s.tenantPriority.UpdatePriority(ts)
+		ts = tenantselector.NewBlockListWeightedTenantSelector(tenants)
+		//		items    = s.curPriority.UpdatePriority(ts)
 		item     *tenantselector.Item
 		priority int
 	)
 
 	for _, tenant := range tenants {
-		if _, ok := items[tenant.ID]; !ok {
-			priority = ts.PriorityForTenant(tenant.ID)
-			item = tenantselector.NewItem(tenant.ID, priority)
-			heap.Push(s.tenantPriority, item)
-		}
+		//		if _, ok := items[tenant.ID]; !ok {
+		priority = ts.PriorityForTenant(tenant.ID)
+		item = tenantselector.NewItem(tenant.ID, priority)
+		heap.Push(s.curPriority, item)
+		//		}
 	}
 }
 
+// i think we should remove this to simplify the prioirity queue. if we intend to round robin the full heap of tenants then it
+// would be better to have a simpler/less perfect priority queue
 func (s *BackendScheduler) lastWorkForTenant(tenantID string) time.Time {
 	s.workMtx.RLock()
 	defer s.workMtx.RUnlock()
@@ -254,15 +260,15 @@ func (s *BackendScheduler) lastWorkForTenant(tenantID string) time.Time {
 }
 
 // ScheduleOnce schedules jobs for compaction
-func (s *BackendScheduler) scheduleOnce(ctx context.Context, toAdd int) error {
-	for _, job := range s.compactions(ctx, toAdd) {
-		if err := s.createCompactionJob(ctx, job.Tenant, job.Compaction.Input); err != nil {
-			return fmt.Errorf("failed to create compaction job: %w", err)
-		}
-	}
+// func (s *BackendScheduler) scheduleOnce(ctx context.Context, toAdd int) error {
+// 	for _, job := range s.compactions(ctx, toAdd) {
+// 		if err := s.createCompactionJob(ctx, job.Tenant, job.Compaction.Input); err != nil {
+// 			return fmt.Errorf("failed to create compaction job: %w", err)
+// 		}
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 // Next implements the BackendSchedulerServer interface.  It returns the next queued job for a worker.
 func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest) (*tempopb.NextJobResponse, error) {
@@ -290,8 +296,8 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 		return resp, nil
 	}
 
-	// Find next available job
-	j = s.work.GetJobForType(req.Type)
+	// only one job type right now, just grab the next comapction job. later we can add code to grab the next whatever type of job
+	j = s.nextCompactionJob(ctx)
 	if j != nil {
 		resp := &tempopb.NextJobResponse{
 			JobId:  j.ID,
@@ -300,6 +306,7 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 		}
 
 		j.SetWorkerID(req.WorkerId)
+		s.work.AddJob(j)
 
 		err := s.flushWorkCache(ctx)
 		if err != nil {
@@ -381,41 +388,41 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 
 // CreateCompactionJob creates a new compaction job for the given tenant and blocks.
 // Must be called under jobsMtx lock.
-func (s *BackendScheduler) createCompactionJob(ctx context.Context, tenantID string, input []string) error {
-	// Skip blocks which already have a job
-	if s.work.HasBlocks(input) {
-		return nil
-	}
+// func (s *BackendScheduler) createCompactionJob(ctx context.Context, tenantID string, input []string) error {
+// 	// Skip blocks which already have a job
+// 	if s.work.HasBlocks(input) {
+// 		return nil
+// 	}
 
-	jobID := uuid.New().String()
+// 	jobID := uuid.New().String()
 
-	job := &work.Job{
-		ID:   jobID,
-		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
-		JobDetail: tempopb.JobDetail{
-			Tenant: tenantID,
-			Compaction: &tempopb.CompactionDetail{
-				Input: input,
-			},
-		},
-	}
+// 	job := &work.Job{
+// 		ID:   jobID,
+// 		Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+// 		JobDetail: tempopb.JobDetail{
+// 			Tenant: tenantID,
+// 			Compaction: &tempopb.CompactionDetail{
+// 				Input: input,
+// 			},
+// 		},
+// 	}
 
-	err := s.work.AddJob(job)
-	if err != nil {
-		return fmt.Errorf("failed to create job: %w", err)
-	}
+// 	err := s.work.AddJob(job)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to create job: %w", err)
+// 	}
 
-	// Update metrics
-	metricJobsCreated.WithLabelValues(tenantID, job.Type.String()).Inc()
-	metricJobsActive.WithLabelValues(tenantID, job.Type.String()).Inc()
+// 	// Update metrics
+// 	metricJobsCreated.WithLabelValues(tenantID, job.Type.String()).Inc()
+// 	metricJobsActive.WithLabelValues(tenantID, job.Type.String()).Inc()
 
-	// TODO: is it necessary to flush here?  We flush before we return the job to the worker, so if the in-memeory jobs are lost, what is the impact?
-	return s.flushWorkCache(ctx)
-}
+// 	// TODO: is it necessary to flush here?  We flush before we return the job to the worker, so if the in-memeory jobs are lost, what is the impact?
+// 	return s.flushWorkCache(ctx)
+// }
 
 func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request) {
-	s.tenantMtx.RLock()
-	defer s.tenantMtx.RUnlock()
+	// s.tenantMtx.RLock()
+	// defer s.tenantMtx.RUnlock()
 
 	x := table.NewWriter()
 	x.AppendHeader(table.Row{"tenant", "jobID", "input", "output", "status", "worker", "created", "start", "end"})
@@ -434,7 +441,7 @@ func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request)
 	x = table.NewWriter()
 	x.AppendHeader(table.Row{"tenant", "priority", "last_work", "blocks"})
 
-	for _, item := range s.tenantPriority.Items() {
+	for _, item := range s.curPriority.Items() {
 		x.AppendRow([]interface{}{item.Value(), item.Priority(), s.store.LastCompacted(item.Value()), len(s.store.BlockMetas(item.Value()))})
 	}
 
@@ -445,83 +452,142 @@ func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request)
 	_, _ = io.WriteString(w, x.Render())
 }
 
-func (s *BackendScheduler) nextTenant(_ context.Context) *tenantselector.Item {
+// returns the next compaction job. this could probably be rewritten cleverly to use yields
+// and fewer struct vars
+func (s *BackendScheduler) nextCompactionJob(_ context.Context) *work.Job {
 	s.tenantMtx.RLock()
 	defer s.tenantMtx.RUnlock()
 
-	if s.tenantPriority.Len() > 0 {
-		for tenant := heap.Pop(s.tenantPriority).(*tenantselector.Item); !s.overrides.CompactionDisabled(tenant.Value()); {
-			heap.Push(s.tenantPriority, tenant)
-			// TODO: consider recording Now() as the last work time
-			s.tenantPriority.Update(tenant, tenant.Value(), 0)
-			return tenant
-		}
-	}
-
-	return nil
-}
-
-func (s *BackendScheduler) compactions(ctx context.Context, want int) []tempopb.JobDetail {
-	var (
-		jobs   []tempopb.JobDetail
-		tenant = s.nextTenant(ctx)
-	)
-
-	if tenant == nil {
-		return jobs
-	}
-
-	var (
-		tenantID = tenant.Value()
-		window   = s.overrides.MaxCompactionRange(tenantID)
-	)
-
-	if window == 0 {
-		window = s.cfg.Compactor.MaxCompactionRange
-	}
-
-	blockSelector := blockselector.NewTimeWindowBlockSelector(
-		s.store.BlockMetas(tenantID),
-		window,
-		s.cfg.Compactor.MaxCompactionObjects,
-		s.cfg.Compactor.MaxBlockBytes,
-		blockselector.DefaultMinInputBlocks,
-		blockselector.DefaultMaxInputBlocks,
-	)
-
 	for {
-		if ctx.Err() != nil {
-			return jobs
+		// do we have an current tenant?
+		if s.curSelector != nil {
+			toBeCompacted, _ := s.curSelector.BlocksToCompact()
+			if len(toBeCompacted) == 0 {
+				// we have drained this selector to the next tenant!
+				s.curSelector = nil
+				s.curTenant = nil
+				continue
+			}
+
+			// TODO: as written this will drain all jobs for a tenant. we should have a max number of jobs per tenant
+			// if the tenant hits that number we should set curSelector and curTenant to nil and continue to the top
+			// this would be equivalent to our current MaxTimePerTenant in the compactor
+
+			input := make([]string, 0, len(toBeCompacted))
+			for _, b := range toBeCompacted {
+				input = append(input, b.BlockID.String())
+			}
+
+			compaction := &tempopb.CompactionDetail{
+				Input: input,
+			}
+
+			return &work.Job{
+				ID:   uuid.New().String(),
+				Type: tempopb.JobType_JOB_TYPE_COMPACTION,
+				JobDetail: tempopb.JobDetail{
+					Tenant:     s.curTenant.Value(),
+					Compaction: compaction,
+				},
+			}
 		}
 
-		if len(jobs) >= want {
-			break
+		// we don't have a current tenant, get the next one
+		if s.curPriority.Len() == 0 {
+			// TODO: if we have tenants, but no jobs b/c they are all perfectly compacted this loop will go forever. we could bail out here if we've already
+			// prioritized tenants once before in this loop. that would mean we've been through through all tenants at least once
+			s.prioritizeTenants()
 		}
 
-		toBeCompacted, _ := blockSelector.BlocksToCompact()
-		if len(toBeCompacted) == 0 {
-			break
+		if s.curPriority.Len() == 0 {
+			// no tenants = no jobs
+			return nil
 		}
 
-		input := make([]string, 0, len(toBeCompacted))
-		for _, b := range toBeCompacted {
-			input = append(input, b.BlockID.String())
+		s.curTenant = heap.Pop(s.curPriority).(*tenantselector.Item)
+		if s.curTenant == nil {
+			return nil
 		}
 
-		compaction := &tempopb.CompactionDetail{
-			Input: input,
+		if s.overrides.CompactionDisabled(s.curTenant.Value()) {
+			s.curTenant = nil
+			// this tenant has been configured to not compact. skip
+			continue
 		}
 
-		job := tempopb.JobDetail{
-			Tenant:     tenantID,
-			Compaction: compaction,
-		}
-
-		jobs = append(jobs, job)
+		// set the block selector and go to the top to find a job for this tenant
+		s.curSelector = blockselector.NewTimeWindowBlockSelector(
+			s.store.BlockMetas(s.curTenant.Value()),
+			s.cfg.Compactor.MaxCompactionRange,
+			s.cfg.Compactor.MaxCompactionObjects,
+			s.cfg.Compactor.MaxBlockBytes,
+			blockselector.DefaultMinInputBlocks,
+			blockselector.DefaultMaxInputBlocks,
+		)
 	}
-
-	return jobs
 }
+
+// func (s *BackendScheduler) compactions(ctx context.Context, want int) []tempopb.JobDetail {
+// 	var (
+// 		jobs   []tempopb.JobDetail
+// 		tenant = s.nextTenant(ctx)
+// 	)
+
+// 	if tenant == nil {
+// 		return jobs
+// 	}
+
+// 	var (
+// 		tenantID = tenant.Value()
+// 		window   = s.overrides.MaxCompactionRange(tenantID)
+// 	)
+
+// 	if window == 0 {
+// 		window = s.cfg.Compactor.MaxCompactionRange
+// 	}
+
+// 	blockSelector := blockselector.NewTimeWindowBlockSelector(
+// 		s.store.BlockMetas(tenantID),
+// 		window,
+// 		s.cfg.Compactor.MaxCompactionObjects,
+// 		s.cfg.Compactor.MaxBlockBytes,
+// 		blockselector.DefaultMinInputBlocks,
+// 		blockselector.DefaultMaxInputBlocks,
+// 	)
+
+// 	for {
+// 		if ctx.Err() != nil {
+// 			return jobs
+// 		}
+
+// 		if len(jobs) >= want {
+// 			break
+// 		}
+
+// 		toBeCompacted, _ := blockSelector.BlocksToCompact()
+// 		if len(toBeCompacted) == 0 {
+// 			break
+// 		}
+
+// 		input := make([]string, 0, len(toBeCompacted))
+// 		for _, b := range toBeCompacted {
+// 			input = append(input, b.BlockID.String())
+// 		}
+
+// 		compaction := &tempopb.CompactionDetail{
+// 			Input: input,
+// 		}
+
+// 		job := tempopb.JobDetail{
+// 			Tenant:     tenantID,
+// 			Compaction: compaction,
+// 		}
+
+// 		jobs = append(jobs, job)
+// 	}
+
+// 	return jobs
+// }
 
 func ownedYes(_ string) bool {
 	return true

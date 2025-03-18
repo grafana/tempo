@@ -86,14 +86,15 @@ func (pq *PriorityQueue) Update(item *Item, value string, priority int) {
 	heap.Fix(pq, item.index)
 }
 
-func (pq *PriorityQueue) UpdatePriority(selector TenantSelector) map[string]struct{} {
-	values := make(map[string]struct{}, len(*pq))
+// we are wiping and recreating every time
+// func (pq *PriorityQueue) UpdatePriority(selector TenantSelector) map[string]struct{} {
+// 	values := make(map[string]struct{}, len(*pq))
 
-	for _, item := range *pq {
-		item.priority = selector.PriorityForTenant(item.value)
-		pq.Update(item, item.value, item.priority)
-		values[item.value] = struct{}{}
-	}
+// 	for _, item := range *pq {
+// 		item.priority = selector.PriorityForTenant(item.value)
+// 		pq.Update(item, item.value, item.priority)
+// 		values[item.value] = struct{}{}
+// 	}
 
-	return values
-}
+// 	return values
+// }
