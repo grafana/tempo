@@ -6,11 +6,6 @@ import (
 )
 
 var (
-	metricSchedulingCycles = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "tempo",
-		Name:      "backend_scheduler_scheduling_cycles_total",
-		Help:      "Total number of scheduling cycles run",
-	}, []string{"status"})
 	metricJobsCreated = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "backend_scheduler_jobs_created_total",

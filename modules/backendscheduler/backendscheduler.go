@@ -238,6 +238,8 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
 		}
 
+		metricJobsCreated.WithLabelValues(j.Tenant(), j.GetType().String()).Inc()
+
 		level.Info(log.Logger).Log("msg", "assigned job to worker", "job_id", j.ID, "worker", req.WorkerId)
 
 		return resp, nil
