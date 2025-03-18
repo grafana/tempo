@@ -576,7 +576,8 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 		},
 	}
 
-	queryRangeCombiner.AddResponse(toHTTPResponse(t, resp, 200))
+	err = queryRangeCombiner.AddResponse(toHTTPResponse(t, resp, 200))
+	require.NoError(t, err)
 	require.False(t, queryRangeCombiner.ShouldQuit())
 
 	// add 4th & 5th series, should quit
@@ -613,7 +614,8 @@ func TestQueryRangemaxSeriesShouldQuit(t *testing.T) {
 		},
 	}
 
-	queryRangeCombiner.AddResponse(toHTTPResponse(t, secondResp, 200))
+	err = queryRangeCombiner.AddResponse(toHTTPResponse(t, secondResp, 200))
+	require.NoError(t, err)
 	require.True(t, queryRangeCombiner.ShouldQuit())
 }
 

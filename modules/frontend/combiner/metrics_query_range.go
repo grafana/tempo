@@ -74,7 +74,7 @@ func NewQueryRange(req *tempopb.QueryRangeRequest) (Combiner, error) {
 
 			return diff, nil
 		},
-		quit: func(resp *tempopb.QueryRangeResponse) bool {
+		quit: func(_ *tempopb.QueryRangeResponse) bool {
 			return combiner.MaxSeriesReached()
 		},
 	}

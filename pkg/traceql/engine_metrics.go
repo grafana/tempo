@@ -968,7 +968,6 @@ type MetricsEvaluator struct {
 	timeOverlapCutoff               float64
 	storageReq                      *FetchSpansRequest
 	metricsPipeline                 metricsFirstStageElement
-	seriesCount                     int
 	spansTotal, spansDeduped, bytes uint64
 	mtx                             sync.Mutex
 }
