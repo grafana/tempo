@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	syncAtomic "sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -63,33 +64,41 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 	)
 
 	maxSeries := int(req.MaxSeries)
-	seriesCount := 0
+	seriesCount := int32(0)
 	seriesCountCh := make(chan int)
-	maxSeriesReached := false
+	seriesCtx, seriesCancel := context.WithCancel(ctx) // Use context for cancellation
+	defer seriesCancel()
 
+	// listens for series counts and updates the total series count.
 	go func() {
-		defer wg.Done()
 		for count := range seriesCountCh {
-			seriesCount += count
-			if seriesCount >= maxSeries {
-				maxSeriesReached = true
+			syncAtomic.AddInt32(&seriesCount, int32(count))
+			if syncAtomic.LoadInt32(&seriesCount) >= int32(maxSeries) {
+				seriesCancel()
+				return
 			}
 		}
+		return
 	}()
 
 	if p.headBlock != nil && withinRange(p.headBlock.BlockMeta()) {
 		wg.Add(1)
 		go func(w common.WALBlock) {
-			if maxSeriesReached {
-				return
-			}
 			defer wg.Done()
-			err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
-			if err != nil {
-				jobErr.Store(err)
+			select {
+			case <-seriesCtx.Done():
+				return
+			default:
+				err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
+				if err != nil {
+					jobErr.Store(err)
+				}
+				numSeries := len(rawEval.Results())
+				select {
+				case seriesCountCh <- numSeries:
+				case <-seriesCtx.Done():
+				}
 			}
-			numSeries := len(rawEval.Results())
-			seriesCountCh <- numSeries
 		}(p.headBlock)
 	}
 
@@ -104,16 +113,21 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 
 		wg.Add(1)
 		go func(w common.WALBlock) {
-			if maxSeriesReached {
-				return
-			}
 			defer wg.Done()
-			err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
-			if err != nil {
-				jobErr.Store(err)
+			select {
+			case <-seriesCtx.Done():
+				return
+			default:
+				err := p.queryRangeWALBlock(ctx, w, rawEval, maxSeries)
+				if err != nil {
+					jobErr.Store(err)
+				}
+				numSeries := len(rawEval.Results())
+				select {
+				case seriesCountCh <- numSeries:
+				case <-seriesCtx.Done():
+				}
 			}
-			numSeries := len(rawEval.Results())
-			seriesCountCh <- numSeries
 		}(w)
 	}
 
@@ -128,20 +142,22 @@ func (p *Processor) QueryRange(ctx context.Context, req *tempopb.QueryRangeReque
 
 		wg.Add(1)
 		go func(b *ingester.LocalBlock) {
-			if maxSeriesReached {
-				return
-			}
 			defer wg.Done()
-			resp, err := p.queryRangeCompleteBlock(ctx, b, *req, timeOverlapCutoff, unsafe, int(req.Exemplars))
-			if err != nil {
-				jobErr.Store(err)
+			select {
+			case <-seriesCtx.Done():
 				return
-			}
+			default:
+				resp, err := p.queryRangeCompleteBlock(ctx, b, *req, timeOverlapCutoff, unsafe, int(req.Exemplars))
+				if err != nil {
+					jobErr.Store(err)
+					return
+				}
 
-			seriesCount := jobEval.ObserveSeries(resp)
-			seriesCountCh <- seriesCount
-			if maxSeriesReached {
-				return
+				seriesCount := jobEval.ObserveSeries(resp)
+				select {
+				case seriesCountCh <- seriesCount:
+				case <-seriesCtx.Done():
+				}
 			}
 		}(b)
 	}
