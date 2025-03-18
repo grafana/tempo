@@ -360,10 +360,6 @@ func (rw *readerWriter) CompactWithConfig(ctx context.Context, blockMetas []*bac
 	return newCompactedBlocks, nil
 }
 
-func (rw *readerWriter) LastCompacted(tenantID string) *time.Time {
-	return rw.blocklist.LastCompacted(tenantID)
-}
-
 // MarkCompacted marks the old blocks as compacted and adds the new blocks to the blocklist.  No backend changes are made.
 func (rw *readerWriter) MarkBlocklistCompacted(tenantID string, oldBlocks, newBlocks []*backend.BlockMeta) error {
 	// Converted outgoing blocks into compacted entries.
