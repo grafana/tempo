@@ -110,9 +110,6 @@ func (s *BackendScheduler) stopping(_ error) error {
 }
 
 func (s *BackendScheduler) measureTenants() {
-	// s.tenantMtx.RLock() only access overrides and store which are concurrent safe
-	// defer s.tenantMtx.RUnlock()
-
 	for _, tenant := range s.store.Tenants() {
 		window := s.overrides.MaxCompactionRange(tenant)
 
@@ -133,10 +130,8 @@ func (s *BackendScheduler) measureTenants() {
 	}
 }
 
+// prioritizeTenants prioritizes tenants based on the number of outstanding blocks.  Called under tenantMtx lock.
 func (s *BackendScheduler) prioritizeTenants() {
-	// s.tenantMtx.Lock() - called under lock
-	// defer s.tenantMtx.Unlock()
-
 	tenants := []tenantselector.Tenant{}
 
 	s.curPriority = tenantselector.NewPriorityQueue() // wipe and restart
@@ -184,31 +179,17 @@ func (s *BackendScheduler) prioritizeTenants() {
 	}
 
 	var (
-		ts = tenantselector.NewBlockListWeightedTenantSelector(tenants)
-		//		items    = s.curPriority.UpdatePriority(ts)
+		ts       = tenantselector.NewBlockListWeightedTenantSelector(tenants)
 		item     *tenantselector.Item
 		priority int
 	)
 
 	for _, tenant := range tenants {
-		//		if _, ok := items[tenant.ID]; !ok {
 		priority = ts.PriorityForTenant(tenant.ID)
 		item = tenantselector.NewItem(tenant.ID, priority)
 		heap.Push(s.curPriority, item)
-		//		}
 	}
 }
-
-// ScheduleOnce schedules jobs for compaction
-// func (s *BackendScheduler) scheduleOnce(ctx context.Context, toAdd int) error {
-// 	for _, job := range s.compactions(ctx, toAdd) {
-// 		if err := s.createCompactionJob(ctx, job.Tenant, job.Compaction.Input); err != nil {
-// 			return fmt.Errorf("failed to create compaction job: %w", err)
-// 		}
-// 	}
-
-// 	return nil
-// }
 
 // Next implements the BackendSchedulerServer interface.  It returns the next queued job for a worker.
 func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest) (*tempopb.NextJobResponse, error) {
@@ -246,9 +227,12 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 		}
 
 		j.SetWorkerID(req.WorkerId)
-		s.work.AddJob(j)
+		err := s.work.AddJob(j)
+		if err != nil {
+			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, err.Error())
+		}
 
-		err := s.flushWorkCache(ctx)
+		err = s.flushWorkCache(ctx)
 		if err != nil {
 			// Fail without returning the job if we can't update the job cache
 			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
@@ -343,41 +327,39 @@ func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request)
 
 	w.WriteHeader(http.StatusOK)
 	_, _ = io.WriteString(w, x.Render())
-
-	x = table.NewWriter()
-	x.AppendHeader(table.Row{"tenant", "priority", "blocks"})
-
-	for _, item := range s.curPriority.Items() {
-		x.AppendRow([]interface{}{item.Value(), item.Priority(), len(s.store.BlockMetas(item.Value()))})
-	}
-
-	x.AppendSeparator()
-
-	// x.SetOutputMirror(w)
-	// w.Header().Set("Content-Type", "plain/text")
-	_, _ = io.WriteString(w, x.Render())
 }
 
-// returns the next compaction job. this could probably be rewritten cleverly to use yields
+// returns the next compabeingBackendScheduler-0290053e1ction job. this could probably be rewritten cleverly to use yields
 // and fewer struct vars
 func (s *BackendScheduler) nextCompactionJob(_ context.Context) *work.Job {
-	s.tenantMtx.RLock()
-	defer s.tenantMtx.RUnlock()
+	s.tenantMtx.Lock()
+	defer s.tenantMtx.Unlock()
+
+	var (
+		prioritized          bool
+		singleTenantJobCount int
+	)
+
+	reset := func() {
+		s.curSelector = nil
+		s.curTenant = nil
+		singleTenantJobCount = 0
+	}
 
 	for {
 		// do we have an current tenant?
 		if s.curSelector != nil {
-			toBeCompacted, _ := s.curSelector.BlocksToCompact()
-			if len(toBeCompacted) == 0 {
-				// we have drained this selector to the next tenant!
-				s.curSelector = nil
-				s.curTenant = nil
+			if singleTenantJobCount >= s.cfg.MaxJobsPerTenant {
+				reset()
 				continue
 			}
 
-			// TODO: as written this will drain all jobs for a tenant. we should have a max number of jobs per tenant
-			// if the tenant hits that number we should set curSelector and curTenant to nil and continue to the top
-			// this would be equivalent to our current MaxTimePerTenant in the compactor
+			toBeCompacted, _ := s.curSelector.BlocksToCompact()
+			if len(toBeCompacted) == 0 {
+				// we have drained this selector to the next tenant!
+				reset()
+				continue
+			}
 
 			input := make([]string, 0, len(toBeCompacted))
 			for _, b := range toBeCompacted {
@@ -387,6 +369,8 @@ func (s *BackendScheduler) nextCompactionJob(_ context.Context) *work.Job {
 			compaction := &tempopb.CompactionDetail{
 				Input: input,
 			}
+
+			singleTenantJobCount++
 
 			return &work.Job{
 				ID:   uuid.New().String(),
@@ -399,10 +383,14 @@ func (s *BackendScheduler) nextCompactionJob(_ context.Context) *work.Job {
 		}
 
 		// we don't have a current tenant, get the next one
+
 		if s.curPriority.Len() == 0 {
-			// TODO: if we have tenants, but no jobs b/c they are all perfectly compacted this loop will go forever. we could bail out here if we've already
-			// prioritized tenants once before in this loop. that would mean we've been through through all tenants at least once
+			if prioritized {
+				// no compactions are needed and we've already prioritized once
+				return nil
+			}
 			s.prioritizeTenants()
+			prioritized = true
 		}
 
 		if s.curPriority.Len() == 0 {
@@ -413,12 +401,6 @@ func (s *BackendScheduler) nextCompactionJob(_ context.Context) *work.Job {
 		s.curTenant = heap.Pop(s.curPriority).(*tenantselector.Item)
 		if s.curTenant == nil {
 			return nil
-		}
-
-		if s.overrides.CompactionDisabled(s.curTenant.Value()) {
-			s.curTenant = nil
-			// this tenant has been configured to not compact. skip
-			continue
 		}
 
 		// set the block selector and go to the top to find a job for this tenant
@@ -432,68 +414,6 @@ func (s *BackendScheduler) nextCompactionJob(_ context.Context) *work.Job {
 		)
 	}
 }
-
-// func (s *BackendScheduler) compactions(ctx context.Context, want int) []tempopb.JobDetail {
-// 	var (
-// 		jobs   []tempopb.JobDetail
-// 		tenant = s.nextTenant(ctx)
-// 	)
-
-// 	if tenant == nil {
-// 		return jobs
-// 	}
-
-// 	var (
-// 		tenantID = tenant.Value()
-// 		window   = s.overrides.MaxCompactionRange(tenantID)
-// 	)
-
-// 	if window == 0 {
-// 		window = s.cfg.Compactor.MaxCompactionRange
-// 	}
-
-// 	blockSelector := blockselector.NewTimeWindowBlockSelector(
-// 		s.store.BlockMetas(tenantID),
-// 		window,
-// 		s.cfg.Compactor.MaxCompactionObjects,
-// 		s.cfg.Compactor.MaxBlockBytes,
-// 		blockselector.DefaultMinInputBlocks,
-// 		blockselector.DefaultMaxInputBlocks,
-// 	)
-
-// 	for {
-// 		if ctx.Err() != nil {
-// 			return jobs
-// 		}
-
-// 		if len(jobs) >= want {
-// 			break
-// 		}
-
-// 		toBeCompacted, _ := blockSelector.BlocksToCompact()
-// 		if len(toBeCompacted) == 0 {
-// 			break
-// 		}
-
-// 		input := make([]string, 0, len(toBeCompacted))
-// 		for _, b := range toBeCompacted {
-// 			input = append(input, b.BlockID.String())
-// 		}
-
-// 		compaction := &tempopb.CompactionDetail{
-// 			Input: input,
-// 		}
-
-// 		job := tempopb.JobDetail{
-// 			Tenant:     tenantID,
-// 			Compaction: compaction,
-// 		}
-
-// 		jobs = append(jobs, job)
-// 	}
-
-// 	return jobs
-// }
 
 func ownedYes(_ string) bool {
 	return true

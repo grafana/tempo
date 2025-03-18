@@ -26,42 +26,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestBackendScheduler(t *testing.T) {
-	cfg := Config{}
-	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
-
-	tmpDir := t.TempDir()
-
-	var (
-		ctx, cancel   = context.WithCancel(context.Background())
-		store, rr, ww = newStore(ctx, t, tmpDir)
-	)
-	defer func() {
-		cancel()
-		store.Shutdown()
-	}()
-
-	limits, err := overrides.NewOverrides(overrides.Config{Defaults: overrides.Overrides{}}, nil, prometheus.DefaultRegisterer)
-	require.NoError(t, err)
-
-	t.Run("no tenants and no jobs", func(t *testing.T) {
-		t.Skip()
-		bs, err := New(cfg, store, limits, rr, ww)
-		require.NoError(t, err)
-
-		resp, err := bs.Next(ctx, &tempopb.NextJobRequest{
-			WorkerId: "test-worker",
-			Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
-		})
-		require.NoError(t, err)
-		require.NotNil(t, resp)
-		require.Equal(t, "", resp.JobId)
-	})
-}
-
 var tenant = "test-tenant"
 
-func TestBackendScheduler_gRPC(t *testing.T) {
+func TestBackendScheduler(t *testing.T) {
 	cfg := Config{
 		TenantMeasurementInterval: 100 * time.Millisecond,
 	}
@@ -124,6 +91,16 @@ func TestBackendScheduler_gRPC(t *testing.T) {
 		require.NotEqual(t, "", resp.JobId)
 		require.NotEqual(t, "", resp.Detail.Tenant)
 
+		t.Run("requesting the next job with the same worker returns the same job", func(t *testing.T) {
+			resp2, err := s.Next(ctx, &tempopb.NextJobRequest{
+				WorkerId: "test-worker",
+				Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, resp2)
+			require.Equal(t, resp.JobId, resp2.JobId)
+		})
+
 		updateResp, err := s.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
 			JobId:  resp.JobId,
 			Status: tempopb.JobStatus_JOB_STATUS_RUNNING,
@@ -158,6 +135,34 @@ func TestBackendScheduler_gRPC(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotNil(t, updateResp)
+
+		// Drain all the jobs
+
+		for i := 0; i < tenantCount*15; i++ {
+			resp, err = s.Next(ctx, &tempopb.NextJobRequest{
+				WorkerId: "test-worker",
+				Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
+			})
+			if err != nil {
+				statusErr, ok := status.FromError(err)
+				require.True(t, ok)
+				require.Equal(t, codes.NotFound, statusErr.Code())
+				break
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			updateResp, err = s.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
+				JobId:  resp.JobId,
+				Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
+				Compaction: &tempopb.CompactionDetail{
+					Output: []string{uuid.New().String()},
+				},
+			})
+			require.NoError(t, err)
+			require.NotNil(t, updateResp)
+		}
 	})
 }
 
