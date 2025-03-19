@@ -22,6 +22,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/twmb/franz-go/pkg/kadm"
+	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
@@ -390,15 +391,11 @@ outer:
 	}
 
 	offset := kadm.NewOffsetFromRecord(lastRec)
-	offsets := make(kadm.Offsets)
-	offsets.Add(offset)
-	resp, err := b.kadm.CommitOffsets(ctx, group, offsets) // TODO - Retry commit
+	err = b.commitOffset(ctx, offset, group, ps.partition)
 	if err != nil {
 		return time.Time{}, -1, err
 	}
-	if err := resp.Error(); err != nil {
-		return time.Time{}, -1, err
-	}
+
 	level.Info(b.logger).Log(
 		"msg", "successfully committed offset to kafka",
 		"partition", ps.partition,
@@ -407,6 +404,39 @@ outer:
 	)
 
 	return lastRec.Timestamp, offset.At, nil
+}
+
+func (b *BlockBuilder) commitOffset(ctx context.Context, offset kadm.Offset, group string, partition int32) error {
+	offsets := make(kadm.Offsets)
+	offsets.Add(offset)
+
+	boff := backoff.New(ctx, backoff.Config{
+		MinBackoff: 100 * time.Millisecond,
+		MaxBackoff: time.Minute,
+		MaxRetries: 10,
+	})
+	for boff.Ongoing() {
+		resp, err := b.kadm.CommitOffsets(ctx, group, offsets)
+		commitOffsetErr := resp.Error()
+		if err == nil && commitOffsetErr == nil {
+			break
+		}
+		if !kerr.IsRetriable(commitOffsetErr) {
+			return commitOffsetErr
+		}
+
+		level.Warn(b.logger).Log(
+			"msg", "failed to commit offset, retrying",
+			"err", err,
+			"partition", partition,
+			"commit_offset", offset.At,
+		)
+		boff.Wait()
+	}
+	if err := boff.ErrCause(); err != nil {
+		return fmt.Errorf("error committing offset %d for partition %d, it won't be retried: %w", offset.At, partition, err)
+	}
+	return nil
 }
 
 func formatActivePartitions(partitions []int32) string {
