@@ -194,6 +194,7 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 }
 
 func (b *BlockBuilder) running(ctx context.Context) error {
+	defer close(b.consumeStopped)
 	for {
 		// Create a detached context for consume
 		consumeCtx, cancel := context.WithCancel(context.Background())
@@ -208,7 +209,6 @@ func (b *BlockBuilder) running(ctx context.Context) error {
 		select {
 		case <-time.After(waitTime): // Continue with next cycle
 		case <-ctx.Done():
-			close(b.consumeStopped)
 			// Parent context canceled, return
 			return nil
 		}
@@ -484,8 +484,8 @@ func (b *BlockBuilder) getPartitionState(partition int32, commits kadm.OffsetRes
 func (b *BlockBuilder) stopping(err error) error {
 	select {
 	case <-b.consumeStopped:
-	case <-time.After(2 * b.cfg.ConsumeCycleDuration):
-		// Wait two cycle durations for the current cycle to gracefully finish
+	case <-time.After(60 * time.Second):
+		// 60s is the default terminationGracePeriod for the BlockBuilder's statefulSet
 		level.Error(b.logger).Log("msg", "failed to gracefully stop", "err", err)
 	}
 	if b.kafkaClient != nil {
