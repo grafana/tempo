@@ -62,6 +62,10 @@ func (m *mockReader) Find(context.Context, string, common.ID, string, string, in
 	return nil, nil, nil
 }
 
+func (m *mockReader) BlockMeta(context.Context, string, backend.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error) {
+	return nil, nil, nil
+}
+
 func (m *mockReader) BlockMetas(string) []*backend.BlockMeta {
 	return m.metas
 }

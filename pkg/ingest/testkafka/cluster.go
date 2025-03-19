@@ -52,6 +52,8 @@ func (c *Cluster) ControlKey(key kmsg.Key, fn controlFn) {
 	case kmsg.OffsetCommit:
 		// These are called by us for deterministic order
 		c.controlFuncs[key] = fn
+	case kmsg.OffsetFetch:
+		c.controlFuncs[key] = fn
 	default:
 		// These are passed through
 		c.fake.ControlKey(int16(key), fn)
@@ -107,6 +109,14 @@ func (c *Cluster) offsetCommit(request kmsg.Request) (kmsg.Response, error, bool
 // nolint: revive
 func (c *Cluster) offsetFetch(kreq kmsg.Request) (kmsg.Response, error, bool) {
 	c.fake.KeepControl()
+
+	if fn := c.controlFuncs[kmsg.OffsetFetch]; fn != nil {
+		res, err, handled := fn(kreq)
+		if handled {
+			return res, err, handled
+		}
+	}
+
 	req := kreq.(*kmsg.OffsetFetchRequest)
 	require.Len(c.t, req.Groups, 1, "test only has support for one consumer group per request")
 	consumerGroup := req.Groups[0].Group
