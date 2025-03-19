@@ -361,7 +361,16 @@ outer:
 				break outer
 			}
 
-			if maxBytesPerCycle > 0 && consumedBytes+recordSizeBytes >= maxBytesPerCycle {
+			err := b.pushTraces(rec.Timestamp, rec.Key, rec.Value, writer)
+			if err != nil {
+				return time.Time{}, -1, err
+			}
+
+			processedRecords++
+			lastRec = rec
+			consumedBytes += recordSizeBytes
+
+			if maxBytesPerCycle > 0 && consumedBytes >= maxBytesPerCycle {
 				level.Debug(b.logger).Log(
 					"msg", "max bytes per cycle reached",
 					"partition", ps.partition,
@@ -369,14 +378,6 @@ outer:
 				)
 				break outer
 			}
-
-			err := b.pushTraces(rec.Timestamp, rec.Key, rec.Value, writer)
-			if err != nil {
-				return time.Time{}, -1, err
-			}
-			processedRecords++
-			lastRec = rec
-			consumedBytes += recordSizeBytes
 		}
 	}
 
