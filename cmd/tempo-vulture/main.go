@@ -42,6 +42,7 @@ var (
 	tempoLongWriteBackoffDuration time.Duration
 	tempoReadBackoffDuration      time.Duration
 	tempoSearchBackoffDuration    time.Duration
+	tempoMetricsBackoffDuration   time.Duration
 	tempoRetentionDuration        time.Duration
 	tempoPushTLS                  bool
 
@@ -74,6 +75,7 @@ type vultureConfiguration struct {
 	tempoLongWriteBackoffDuration time.Duration
 	tempoReadBackoffDuration      time.Duration
 	tempoSearchBackoffDuration    time.Duration
+	tempoMetricsBackoffDuration   time.Duration
 	tempoRetentionDuration        time.Duration
 	tempoPushTLS                  bool
 }
@@ -116,6 +118,7 @@ func init() {
 	flag.DurationVar(&tempoLongWriteBackoffDuration, "tempo-long-write-backoff-duration", 1*time.Minute, "The amount of time to pause between long write Tempo calls")
 	flag.DurationVar(&tempoReadBackoffDuration, "tempo-read-backoff-duration", 30*time.Second, "The amount of time to pause between read Tempo calls")
 	flag.DurationVar(&tempoSearchBackoffDuration, "tempo-search-backoff-duration", 60*time.Second, "The amount of time to pause between search Tempo calls.  Set to 0s to disable search.")
+	flag.DurationVar(&tempoMetricsBackoffDuration, "tempo-metrics-backoff-duration", 60*time.Second, "The amount of time to pause between TraceQL Metrics Tempo calls.  Set to 0s to disable.")
 	flag.DurationVar(&tempoRetentionDuration, "tempo-retention-duration", 336*time.Hour, "The block retention that Tempo is using")
 
 	flag.Var(newTimeVar(&rf1After), "rhythm-rf1-after", "Timestamp (RFC3339) after which only blocks with RF==1 are included in search and ID lookups")
@@ -141,6 +144,7 @@ func main() {
 		tempoLongWriteBackoffDuration: tempoLongWriteBackoffDuration,
 		tempoReadBackoffDuration:      tempoReadBackoffDuration,
 		tempoSearchBackoffDuration:    tempoSearchBackoffDuration,
+		tempoMetricsBackoffDuration:   tempoMetricsBackoffDuration,
 		tempoRetentionDuration:        tempoRetentionDuration,
 		tempoPushTLS:                  tempoPushTLS,
 	}
@@ -155,7 +159,12 @@ func main() {
 		httpClient.SetQueryParam(api.URLParamRF1After, rf1After.Format(time.RFC3339))
 	}
 
-	tickerWrite, tickerRead, tickerSearch, err := initTickers(vultureConfig.tempoWriteBackoffDuration, vultureConfig.tempoReadBackoffDuration, vultureConfig.tempoSearchBackoffDuration)
+	tickerWrite, tickerRead, tickerSearch, _, err := initTickers(
+		vultureConfig.tempoWriteBackoffDuration,
+		vultureConfig.tempoReadBackoffDuration,
+		vultureConfig.tempoSearchBackoffDuration,
+		vultureConfig.tempoMetricsBackoffDuration,
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -184,9 +193,20 @@ func getGRPCEndpoint(endpoint string) (string, error) {
 	return dialAddress, nil
 }
 
-func initTickers(tempoWriteBackoffDuration time.Duration, tempoReadBackoffDuration time.Duration, tempoSearchBackoffDuration time.Duration) (tickerWrite *time.Ticker, tickerRead *time.Ticker, tickerSearch *time.Ticker, err error) {
+func initTickers(
+	tempoWriteBackoffDuration time.Duration,
+	tempoReadBackoffDuration time.Duration,
+	tempoSearchBackoffDuration time.Duration,
+	tempoMetricsBackoffDuration time.Duration,
+) (
+	tickerWrite *time.Ticker,
+	tickerRead *time.Ticker,
+	tickerSearch *time.Ticker,
+	tickerMetrics *time.Ticker,
+	err error,
+) {
 	if tempoWriteBackoffDuration <= 0 {
-		return nil, nil, nil, errors.New("tempo-write-backoff-duration must be greater than 0")
+		return nil, nil, nil, nil, errors.New("tempo-write-backoff-duration must be greater than 0")
 	}
 	tickerWrite = time.NewTicker(tempoWriteBackoffDuration)
 	if tempoReadBackoffDuration > 0 {
@@ -195,10 +215,13 @@ func initTickers(tempoWriteBackoffDuration time.Duration, tempoReadBackoffDurati
 	if tempoSearchBackoffDuration > 0 {
 		tickerSearch = time.NewTicker(tempoSearchBackoffDuration)
 	}
-	if tickerRead == nil && tickerSearch == nil {
-		return nil, nil, nil, errors.New("at least one of tempo-search-backoff-duration or tempo-read-backoff-duration must be set")
+	if tempoMetricsBackoffDuration > 0 {
+		tickerMetrics = time.NewTicker(tempoMetricsBackoffDuration)
 	}
-	return tickerWrite, tickerRead, tickerSearch, nil
+	if tickerRead == nil && tickerSearch == nil && tickerMetrics == nil {
+		return nil, nil, nil, nil, errors.New("at least one of tempo-search-backoff-duration, tempo-read-backoff-duration or tempo-metrics-backoff-duration must be set")
+	}
+	return tickerWrite, tickerRead, tickerSearch, tickerMetrics, nil
 }
 
 // Don't attempt to read on the first iteration if we can't reasonably
