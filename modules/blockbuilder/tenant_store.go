@@ -104,7 +104,7 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 
 	if len(existingBlocksToBeCompacted) > 0 {
 		for _, blockID := range existingBlocksToBeCompacted {
-			level.Info(s.logger).Log(
+			level.Warn(s.logger).Log(
 				"msg", "Marking existing block compacted",
 				"tenant", s.tenantID,
 				"blockid", blockID,
