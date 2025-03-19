@@ -12,7 +12,6 @@ import (
 const (
 	Name = "host-info"
 
-	hostInfoMetric     = "traces_host_info"
 	hostIdentifierAttr = "grafana.host.id"
 )
 

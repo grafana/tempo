@@ -32,6 +32,7 @@ type gaugeSeries struct {
 	labels      labels.Labels
 	value       *atomic.Float64
 	lastUpdated *atomic.Int64
+	stale       bool
 }
 
 var (
@@ -78,11 +79,16 @@ func (g *gauge) SetForTargetInfo(labelValueCombo *LabelValueCombo, value float64
 func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, operation string, updateIfAlreadyExist bool) {
 	hash := labelValueCombo.getHash()
 
-	g.seriesMtx.RLock()
+	g.seriesMtx.Lock()
+	defer g.seriesMtx.Unlock()
+
 	s, ok := g.series[hash]
-	g.seriesMtx.RUnlock()
 
 	if ok {
+
+		// update to existing series removes staleness
+		s.stale = false
+
 		// target_info will always be 1 so if the series exists, we don't need to go through this loop
 		if !updateIfAlreadyExist {
 			return
@@ -96,15 +102,6 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 	}
 
 	newSeries := g.newSeries(labelValueCombo, value)
-
-	g.seriesMtx.Lock()
-	defer g.seriesMtx.Unlock()
-
-	s, ok = g.series[hash]
-	if ok {
-		g.updateSeriesValue(s, value, operation)
-		return
-	}
 	g.series[hash] = newSeries
 }
 
@@ -148,8 +145,20 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) (activeS
 
 	activeSeries = len(g.series)
 
-	for _, s := range g.series {
+	for hash, s := range g.series {
 		t := time.UnixMilli(timeMs)
+
+		if s.stale {
+			_, err = appender.Append(0, s.labels, t.UnixMilli(), staleMarker())
+			if err != nil {
+				return
+			}
+			delete(g.series, hash)
+			g.onRemoveSeries(1)
+			activeSeries--
+			continue
+		}
+
 		_, err = appender.Append(0, s.labels, t.UnixMilli(), s.value.Load())
 		if err != nil {
 			return
@@ -164,10 +173,9 @@ func (g *gauge) removeStaleSeries(staleTimeMs int64) {
 	g.seriesMtx.Lock()
 	defer g.seriesMtx.Unlock()
 
-	for hash, s := range g.series {
+	for _, s := range g.series {
 		if s.lastUpdated.Load() < staleTimeMs {
-			delete(g.series, hash)
-			g.onRemoveSeries(1)
+			s.stale = true
 		}
 	}
 }

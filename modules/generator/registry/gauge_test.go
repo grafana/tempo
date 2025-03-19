@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"math"
 	"math/rand"
 	"sync"
 	"testing"
@@ -169,7 +170,9 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
 
 	c.removeStaleSeries(timeMs)
-
+	activeSeries, err := c.collectMetrics(&capturingAppender{}, timeMs)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, activeSeries)
 	assert.Equal(t, 1, removedSeries)
 
 	collectionTimeMs = time.Now().UnixMilli()
@@ -273,4 +276,29 @@ func Test_gauge_concurrencyCorrectness(t *testing.T) {
 		newSample(map[string]string{"__name__": "my_gauge", "label": "value-1"}, collectionTimeMs, float64(totalCount.Load())),
 	}
 	collectMetricAndAssert(t, c, collectionTimeMs, 1, expectedSamples, nil)
+}
+
+func Test_gauge_sendStaleMarkers(t *testing.T) {
+	c := newGauge("my_gauge", nil, nil, nil)
+
+	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value"}), 1.0)
+
+	staleTimeMs := time.Now().Add(1 * time.Minute).UnixMilli()
+	c.removeStaleSeries(staleTimeMs)
+
+	collectionTimeMs := time.Now().UnixMilli()
+	expectedSamples := []sample{
+		newSample(map[string]string{"__name__": "my_gauge", "label": "value"}, collectionTimeMs, staleMarker()),
+	}
+	assert.True(t, math.IsNaN(expectedSamples[0].v))
+
+	appender := &capturingAppender{}
+
+	activeSeries, err := c.collectMetrics(appender, collectionTimeMs)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, activeSeries)
+	assert.False(t, appender.isCommitted)
+	assert.False(t, appender.isRolledback)
+	assert.Equal(t, expectedSamples[0].String(), appender.samples[0].String())
+	assert.True(t, math.IsNaN(appender.samples[0].v))
 }
