@@ -41,7 +41,7 @@ func New(addr string, cfg Config) (*Client, error) {
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 	}
 
-	instrumentationOpts, err := cfg.GRPCClientConfig.DialOption(nil, nil)
+	instrumentationOpts, err := cfg.GRPCClientConfig.DialOption(nil, nil, nil)
 	if err != nil {
 		return nil, err
 	}
