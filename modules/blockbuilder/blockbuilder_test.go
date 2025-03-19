@@ -390,7 +390,7 @@ func TestBlockbuilder_retries_on_retriable_commit_error(t *testing.T) {
 	logger := test.NewTestingLogger(t)
 
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
-	producedRecords := sendReq(t, ctx, client)
+	producedRecords := sendReq(t, ctx, client, util.FakeTenantID)
 	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
 
 	b, err := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
@@ -448,7 +448,7 @@ func TestBlockbuilder_retries_on_commit_error(t *testing.T) {
 	logger := test.NewTestingLogger(t)
 
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
-	producedRecords := sendReq(t, ctx, client)
+	producedRecords := sendReq(t, ctx, client, util.FakeTenantID)
 	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
 
 	b, err := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
@@ -472,7 +472,7 @@ func TestBlockbuilder_retries_on_commit_error(t *testing.T) {
 	requireLastCommitEquals(t, ctx, client, lastRecordOffset+1)
 }
 
-func TestBlockbuilder_do_not_retry_on_on_retriable_commit_error(t *testing.T) {
+func TestBlockbuilder_do_not_retry_on_retriable_commit_error(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	t.Cleanup(func() { cancel(errors.New("test done")) })
 
@@ -502,7 +502,7 @@ func TestBlockbuilder_do_not_retry_on_on_retriable_commit_error(t *testing.T) {
 	logger := test.NewTestingLogger(t)
 
 	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
-	sendReq(t, ctx, client) // Send broken record
+	sendReq(t, ctx, client, util.FakeTenantID) // Send broken record
 
 	b, err := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
 	require.NoError(t, err)
