@@ -323,7 +323,7 @@ func doRead(httpClient httpclient.TempoHTTPClient, tickerRead *time.Ticker, star
 						zap.Error(err),
 					)
 				}
-				pushMetrics(queryMetrics)
+				pushVultureMetrics(queryMetrics)
 			}
 		}()
 	}
@@ -354,7 +354,7 @@ func doSearch(httpClient httpclient.TempoHTTPClient, tickerSearch *time.Ticker, 
 						zap.Error(err),
 					)
 				}
-				pushMetrics(searchMetrics)
+				pushVultureMetrics(searchMetrics)
 
 				// traceql query
 				traceqlSearchMetrics, err := searchTraceql(httpClient, seed, config, l)
@@ -364,7 +364,7 @@ func doSearch(httpClient httpclient.TempoHTTPClient, tickerSearch *time.Ticker, 
 						zap.Error(err),
 					)
 				}
-				pushMetrics(traceqlSearchMetrics)
+				pushVultureMetrics(traceqlSearchMetrics)
 			}
 		}()
 	}
@@ -393,12 +393,12 @@ func doMetrics(httpClient httpclient.TempoHTTPClient, ticker *time.Ticker, start
 			if err != nil {
 				logger.Error("query metrics failed", zap.Error(err))
 			}
-			pushMetrics(m)
+			pushVultureMetrics(m)
 		}
 	}()
 }
 
-func pushMetrics(metrics traceMetrics) {
+func pushVultureMetrics(metrics traceMetrics) {
 	metricTracesInspected.Add(float64(metrics.requested))
 	metricTracesErrors.WithLabelValues("incorrectresult").Add(float64(metrics.incorrectResult))
 	metricTracesErrors.WithLabelValues("missingspans").Add(float64(metrics.missingSpans))
