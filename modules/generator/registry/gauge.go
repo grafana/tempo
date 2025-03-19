@@ -79,23 +79,41 @@ func (g *gauge) SetForTargetInfo(labelValueCombo *LabelValueCombo, value float64
 func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, operation string, updateIfAlreadyExist bool) {
 	hash := labelValueCombo.getHash()
 
-	g.seriesMtx.Lock()
-	defer g.seriesMtx.Unlock()
+	// check if the series exists under read lock
+	g.seriesMtx.RLock()
+	s, ok := g.series[hash]
+	g.seriesMtx.RUnlock()
 
-	if s, ok := g.series[hash]; ok {
+	if ok {
 		// update to existing series removes staleness
 		s.stale = false
 
-		// target_info will always be 1 so if the series exists, we don't need to go through this loop
+		// if update is needed, modify the value
 		if updateIfAlreadyExist {
 			g.updateSeriesValue(s, value, operation)
 		}
 		return
 	}
 
+	// if it doesn't exist, call onAddSeries
 	if !g.onAddSeries(1) {
 		return
 	}
+
+	// acquire full lock and recheck before adding
+	g.seriesMtx.Lock()
+	defer g.seriesMtx.Unlock()
+
+	// check again in case another goroutine already added the series
+	if s, ok := g.series[hash]; ok {
+		s.stale = false
+		if updateIfAlreadyExist {
+			g.updateSeriesValue(s, value, operation)
+		}
+		return
+	}
+
+	// create and add new series
 	g.series[hash] = g.newSeries(labelValueCombo, value)
 }
 
@@ -164,8 +182,8 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) (activeS
 }
 
 func (g *gauge) removeStaleSeries(staleTimeMs int64) {
-	g.seriesMtx.Lock()
-	defer g.seriesMtx.Unlock()
+	g.seriesMtx.RLock()
+	defer g.seriesMtx.RUnlock()
 
 	for _, s := range g.series {
 		if s.lastUpdated.Load() < staleTimeMs {
