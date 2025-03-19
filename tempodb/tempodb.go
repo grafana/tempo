@@ -283,12 +283,16 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, tenantID string, blockID 
 		return nil, nil, err
 	}
 
+	if meta != nil {
+		return meta, nil, nil
+	}
+
 	compactedMeta, err := rw.c.CompactedBlockMeta((uuid.UUID)(blockID), tenantID)
 	if err != nil && !errors.Is(err, backend.ErrDoesNotExist) {
 		return nil, nil, err
 	}
 
-	return meta, compactedMeta, nil
+	return nil, compactedMeta, nil
 }
 
 func (rw *readerWriter) BlockMetas(tenantID string) []*backend.BlockMeta {

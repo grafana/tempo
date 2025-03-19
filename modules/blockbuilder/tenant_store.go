@@ -103,12 +103,6 @@ func (s *tenantStore) Flush(ctx context.Context, r tempodb.Reader, w tempodb.Wri
 	// TODO - Check if the existing block can be reused and exit early
 
 	if len(existingBlocksToBeCompacted) > 0 {
-		level.Info(s.logger).Log(
-			"msg", "Found existing blocks, marking them compacted",
-			"tenant", s.tenantID,
-			"existing_blocks", existingBlocksToBeCompacted,
-		)
-
 		for _, blockID := range existingBlocksToBeCompacted {
 			level.Info(s.logger).Log(
 				"msg", "Marking existing block compacted",
@@ -213,12 +207,7 @@ func (s *tenantStore) adjustTimeRangeForSlack(start, end time.Time) (time.Time, 
 	return start, end
 }
 
-func (s *tenantStore) determineBlockIDs(ctx context.Context, r tempodb.Reader) (backend.UUID, []backend.UUID, error) {
-	var (
-		nextID                      backend.UUID
-		existingBlocksToBeCompacted []backend.UUID
-	)
-
+func (s *tenantStore) determineBlockIDs(ctx context.Context, r tempodb.Reader) (nextID backend.UUID, existingBlocksToBeCompacted []backend.UUID, err error) {
 	for {
 		nextID = s.idGenerator.NewID()
 
