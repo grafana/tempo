@@ -20,7 +20,7 @@ const flushConcurrency = 4
 
 type partitionSectionWriter interface {
 	pushBytes(ts time.Time, tenant string, req *tempopb.PushBytesRequest) error
-	flush(ctx context.Context, store tempodb.Writer) error
+	flush(ctx context.Context, r tempodb.Reader, w tempodb.Writer, c tempodb.Compactor) error
 }
 
 type writer struct {
@@ -80,7 +80,7 @@ func (p *writer) pushBytes(ts time.Time, tenant string, req *tempopb.PushBytesRe
 	return nil
 }
 
-func (p *writer) flush(ctx context.Context, store tempodb.Writer) error {
+func (p *writer) flush(ctx context.Context, r tempodb.Reader, w tempodb.Writer, c tempodb.Compactor) error {
 	// TODO - Retry with backoff?
 
 	// Flush tenants concurrently
@@ -93,7 +93,7 @@ func (p *writer) flush(ctx context.Context, store tempodb.Writer) error {
 			st := time.Now()
 
 			level.Info(p.logger).Log("msg", "flushing tenant", "tenant", i.tenantID)
-			err := i.Flush(ctx, store)
+			err := i.Flush(ctx, r, w, c)
 			if err != nil {
 				return err
 			}
