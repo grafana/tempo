@@ -116,62 +116,81 @@ func TestEqualTraces(t *testing.T) {
 
 func TestInitTickers(t *testing.T) {
 	tests := []struct {
-		name                                        string
-		writeDuration, readDuration, searchDuration time.Duration
-		expectedWriteTicker                         bool
-		expectedReadTicker                          bool
-		expectedSearchTicker                        bool
-		expectedError                               string
+		name                            string
+		writeDuration, readDuration     time.Duration
+		searchDuration, metricsDuration time.Duration
+		expectedWriteTicker             bool
+		expectedReadTicker              bool
+		expectedSearchTicker            bool
+		expectedMetricsTicker           bool
+		expectedError                   string
 	}{
 		{
-			name:                 "Valid write and read durations",
-			writeDuration:        1 * time.Second,
-			readDuration:         2 * time.Second,
-			searchDuration:       0,
-			expectedWriteTicker:  true,
-			expectedReadTicker:   true,
-			expectedSearchTicker: false,
-			expectedError:        "",
+			name:                  "Valid write and read durations",
+			writeDuration:         1 * time.Second,
+			readDuration:          2 * time.Second,
+			searchDuration:        0,
+			expectedWriteTicker:   true,
+			expectedReadTicker:    true,
+			expectedSearchTicker:  false,
+			expectedMetricsTicker: false,
+			expectedError:         "",
 		},
 		{
-			name:                 "Invalid write duration (zero)",
-			writeDuration:        0,
-			readDuration:         0,
-			searchDuration:       0,
-			expectedWriteTicker:  false,
-			expectedReadTicker:   false,
-			expectedSearchTicker: false,
-			expectedError:        "tempo-write-backoff-duration must be greater than 0",
+			name:                  "Invalid write duration (zero)",
+			writeDuration:         0,
+			readDuration:          0,
+			searchDuration:        0,
+			expectedWriteTicker:   false,
+			expectedReadTicker:    false,
+			expectedSearchTicker:  false,
+			expectedMetricsTicker: false,
+			expectedError:         "tempo-write-backoff-duration must be greater than 0",
 		},
 		{
-			name:                 "No read durations set",
-			writeDuration:        1 * time.Second,
-			readDuration:         0,
-			searchDuration:       1 * time.Second,
-			expectedWriteTicker:  true,
-			expectedReadTicker:   false,
-			expectedSearchTicker: true,
-			expectedError:        "",
+			name:                  "No read durations set",
+			writeDuration:         1 * time.Second,
+			readDuration:          0,
+			searchDuration:        1 * time.Second,
+			expectedWriteTicker:   true,
+			expectedReadTicker:    false,
+			expectedSearchTicker:  true,
+			expectedMetricsTicker: false,
+			expectedError:         "",
 		},
 		{
-			name:                 "No read or search durations set",
-			writeDuration:        1 * time.Second,
-			readDuration:         0,
-			searchDuration:       0,
-			expectedWriteTicker:  false,
-			expectedReadTicker:   false,
-			expectedSearchTicker: false,
-			expectedError:        "at least one of tempo-search-backoff-duration or tempo-read-backoff-duration must be set",
+			name:                  "Valid metrics duration",
+			writeDuration:         1 * time.Second,
+			readDuration:          0,
+			searchDuration:        0,
+			metricsDuration:       1 * time.Second,
+			expectedWriteTicker:   true,
+			expectedReadTicker:    false,
+			expectedSearchTicker:  false,
+			expectedMetricsTicker: true,
+			expectedError:         "",
+		},
+		{
+			name:                  "No read or search durations set",
+			writeDuration:         1 * time.Second,
+			readDuration:          0,
+			searchDuration:        0,
+			expectedWriteTicker:   false,
+			expectedReadTicker:    false,
+			expectedSearchTicker:  false,
+			expectedMetricsTicker: false,
+			expectedError:         "at least one of tempo-search-backoff-duration, tempo-read-backoff-duration or tempo-metrics-backoff-duration must be set",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tickerWrite, tickerRead, tickerSearch, err := initTickers(tt.writeDuration, tt.readDuration, tt.searchDuration)
+			tickerWrite, tickerRead, tickerSearch, tickerMetrics, err := initTickers(tt.writeDuration, tt.readDuration, tt.searchDuration, tt.metricsDuration)
 
 			assert.Equal(t, tt.expectedWriteTicker, tickerWrite != nil, "TickerWrite")
 			assert.Equal(t, tt.expectedReadTicker, tickerRead != nil, "TickerRead")
 			assert.Equal(t, tt.expectedSearchTicker, tickerSearch != nil, "TickerSearch")
+			assert.Equal(t, tt.expectedMetricsTicker, tickerMetrics != nil, "TickerMetrics")
 
 			if tt.expectedError != "" {
 				assert.NotNil(t, err, "Expected error but got nil")
