@@ -2,6 +2,7 @@ package backendscheduler
 
 import (
 	"flag"
+	"fmt"
 	"time"
 
 	"github.com/grafana/tempo/modules/backendscheduler/work"
@@ -18,7 +19,6 @@ type Config struct {
 }
 
 func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet) {
-	// f.BoolVar(&cfg.Enabled, prefix+"backend-scheduler.enabled", false, "Enable backend scheduler")
 	f.DurationVar(&cfg.TenantMeasurementInterval, prefix+"backend-scheduler.tenant-measurement-interval", time.Minute, "Interval at which to measure outstanding blocks")
 	f.IntVar(&cfg.MaxJobsPerTenant, prefix+"backend-scheduler.max-jobs-per-tenant", 1000, "Maximum number of jobs to run per tenant before moving on to the next tenant")
 
@@ -29,6 +29,14 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 }
 
 func ValidateConfig(cfg *Config) error {
+	if cfg.TenantMeasurementInterval <= 0 {
+		return fmt.Errorf("tenant_measurement_interval must be greater than 0")
+	}
+
+	if cfg.MaxJobsPerTenant <= 0 {
+		return fmt.Errorf("max_jobs_per_tenant must be greater than 0")
+	}
+
 	if err := work.ValidateConfig(&cfg.Work); err != nil {
 		return err
 	}
