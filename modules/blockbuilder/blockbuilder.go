@@ -22,7 +22,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/twmb/franz-go/pkg/kadm"
-	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
@@ -432,15 +431,10 @@ func (b *BlockBuilder) commitOffset(ctx context.Context, offset kadm.Offset, gro
 		MaxRetries: 10,
 	})
 	for boff.Ongoing() {
-		resp, err := b.kadm.CommitOffsets(ctx, group, offsets)
-		commitOffsetErr := resp.Error()
-		if err == nil && commitOffsetErr == nil {
+		err := b.kadm.CommitAllOffsets(ctx, group, offsets)
+		if err == nil {
 			break
 		}
-		if !kerr.IsRetriable(commitOffsetErr) {
-			return commitOffsetErr
-		}
-
 		level.Warn(b.logger).Log(
 			"msg", "failed to commit offset, retrying",
 			"err", err,

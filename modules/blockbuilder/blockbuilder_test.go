@@ -472,51 +472,6 @@ func TestBlockbuilder_retries_on_commit_error(t *testing.T) {
 	requireLastCommitEquals(t, ctx, client, lastRecordOffset+1)
 }
 
-func TestBlockbuilder_do_not_retry_on_retriable_commit_error(t *testing.T) {
-	ctx, cancel := context.WithCancelCause(context.Background())
-	t.Cleanup(func() { cancel(errors.New("test done")) })
-
-	k, address := testkafka.CreateCluster(t, 1, "test-topic")
-
-	kafkaCommits := atomic.NewInt32(0)
-	k.ControlKey(kmsg.OffsetCommit, func(req kmsg.Request) (kmsg.Response, error, bool) {
-		kafkaCommits.Inc()
-		res := kmsg.NewOffsetCommitResponse()
-		res.Version = req.GetVersion()
-		res.Topics = []kmsg.OffsetCommitResponseTopic{
-			{
-				Topic: testTopic,
-				Partitions: []kmsg.OffsetCommitResponseTopicPartition{
-					{
-						Partition: 0,
-						ErrorCode: kerr.BrokerIDNotRegistered.Code,
-					},
-				},
-			},
-		}
-		return &res, nil, true
-	})
-
-	store := newStore(ctx, t)
-	cfg := blockbuilderConfig(t, address, []int32{0})
-	logger := test.NewTestingLogger(t)
-
-	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
-	sendReq(t, ctx, client, util.FakeTenantID) // Send broken record
-
-	b, err := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
-	require.NoError(t, err)
-	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
-
-	// Wait for record to be consumed and committed.
-	require.Eventually(t, func() bool {
-		return kafkaCommits.Load() == 2
-	}, time.Minute, time.Second)
-	require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
-
-	requireLastCommitEquals(t, ctx, client, -1) // This record will never be committed ...
-}
-
 // TestBlockbuilder_noDoubleConsumption verifies that records are not consumed twice when there are no more records in the partition.
 // This test ensures that the BlockBuilder correctly commits the offset as lastRec.Offset + 1 instead of just lastRec.Offset.
 func TestBlockbuilder_noDoubleConsumption(t *testing.T) {
