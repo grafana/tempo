@@ -966,8 +966,7 @@ cache:
         writeback_buffer: 10000
     caches: []
 backend_scheduler:
-    schedule_interval: 10s
-    tenant_priority_interval: 1m0s
+    tenant_measurement_interval: 1m0s
     compaction:
         v2_in_buffer_bytes: 5242880
         v2_out_buffer_bytes: 20971520
@@ -983,6 +982,7 @@ backend_scheduler:
     work:
         prune_age: 1h0m0s
         dead_job_timeout: 24h0m0s
+    max_jobs_per_tenant: 1000
 backend_scheduler_client:
     grpc_client_config:
         max_recv_msg_size: 104857600
@@ -1008,6 +1008,8 @@ backend_scheduler_client:
         connect_timeout: 5s
         connect_backoff_base_delay: 1s
         connect_backoff_max_delay: 5s
+        cluster_validation:
+            label: ""
 backend_worker:
     backend_scheduler_addr: ""
     backoff:
