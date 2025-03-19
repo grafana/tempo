@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -504,6 +505,77 @@ func TestBlockbuilder_marksOldBlocksCompacted(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, m)
 	require.Nil(t, cm)
+}
+
+func TestBlockbuilder_gracefulShutdown(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+
+	k, address := testkafka.CreateCluster(t, 1, testTopic)
+
+	var cycleState atomic.Bool
+	var consumeCycle sync.WaitGroup
+
+	k.ControlKey(kmsg.OffsetCommit, func(kmsg.Request) (kmsg.Response, error, bool) {
+		cycleState.Store(false)
+		consumeCycle.Done()
+		return nil, nil, false
+	})
+
+	k.ControlKey(kmsg.OffsetFetch, func(kmsg.Request) (kmsg.Response, error, bool) {
+		cycleState.Store(true)
+		consumeCycle.Add(1)
+		return nil, nil, false
+	})
+
+	store := newStore(ctx, t)
+	cfg := blockbuilderConfig(t, address, []int32{0}) // Fix: Properly specify partition
+
+	// Start sending traces in the background
+	go func() {
+		sendTracesFor(t, ctx, newKafkaClient(t, cfg.IngestStorageConfig.Kafka), 60*time.Second, time.Second)
+	}()
+
+	b, err := New(cfg, test.NewTestingLogger(t), newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+
+	// Wait for cycle to be ongoing
+	require.Eventually(t, func() bool { return cycleState.Load() }, cfg.ConsumeCycleDuration*2, time.Second)
+
+	// Start the shutdown process
+	stopDone := make(chan struct{})
+	go func() {
+		defer close(stopDone)
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	}()
+
+	// Wait until cycle is complete
+	cycleDone := make(chan struct{})
+	go func() {
+		defer close(cycleDone)
+		consumeCycle.Wait()
+	}()
+
+	// Check if shutdown waits for consume cycle to finish
+	select {
+	case <-cycleDone:
+	case <-stopDone:
+		t.Fatal("Shutdown completed before consume cycle finished - not graceful!")
+	case <-time.After(10 * time.Second):
+		t.Fatal("Timed out waiting for consume cycle to finish")
+	}
+
+	// Now wait for the shutdown to complete after we've verified it's graceful
+	select {
+	case <-stopDone:
+		// Good, shutdown completed after we checked
+	case <-time.After(5 * time.Second):
+		t.Fatal("Shutdown didn't complete after consume cycle finished")
+	}
+
+	// Verify blocks were written
+	require.Eventually(t, func() bool { return len(store.BlockMetas(util.FakeTenantID)) > 0 }, 30*time.Second, time.Second)
 }
 
 func blockbuilderConfig(t testing.TB, address string, assignedPartitions []int32) Config {

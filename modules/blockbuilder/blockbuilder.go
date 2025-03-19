@@ -92,6 +92,8 @@ type BlockBuilder struct {
 	reader    tempodb.Reader
 	writer    tempodb.Writer
 	compactor tempodb.Compactor
+
+	consumeStopped chan struct{}
 }
 
 type partitionState struct {
@@ -126,14 +128,15 @@ func New(
 	}
 
 	b := &BlockBuilder{
-		logger:        logger,
-		cfg:           cfg,
-		partitionRing: partitionRing,
-		decoder:       ingest.NewDecoder(),
-		overrides:     overrides,
-		reader:        store,
-		writer:        store,
-		compactor:     store,
+		logger:         logger,
+		cfg:            cfg,
+		partitionRing:  partitionRing,
+		decoder:        ingest.NewDecoder(),
+		overrides:      overrides,
+		reader:         store,
+		writer:         store,
+		compactor:      store,
+		consumeStopped: make(chan struct{}),
 	}
 
 	b.Service = services.NewBasicService(b.starting, b.running, b.stopping)
@@ -196,14 +199,22 @@ func (b *BlockBuilder) starting(ctx context.Context) (err error) {
 }
 
 func (b *BlockBuilder) running(ctx context.Context) error {
+	defer close(b.consumeStopped)
 	for {
-		waitTime, err := b.consume(ctx)
+		// Create a detached context for consume
+		consumeCtx, cancel := context.WithCancel(context.Background())
+
+		waitTime, err := b.consume(consumeCtx)
+		cancel() // Always cancel the context after consume completes
+
 		if err != nil {
 			level.Error(b.logger).Log("msg", "consumeCycle failed", "err", err)
 		}
+
 		select {
-		case <-time.After(waitTime):
+		case <-time.After(waitTime): // Continue with next cycle
 		case <-ctx.Done():
+			// Parent context canceled, return
 			return nil
 		}
 	}
@@ -476,6 +487,12 @@ func (b *BlockBuilder) getPartitionState(partition int32, commits kadm.OffsetRes
 }
 
 func (b *BlockBuilder) stopping(err error) error {
+	select {
+	case <-b.consumeStopped:
+	case <-time.After(60 * time.Second):
+		// 60s is the default terminationGracePeriod for the BlockBuilder's statefulSet
+		level.Error(b.logger).Log("msg", "failed to gracefully stop", "err", err)
+	}
 	if b.kafkaClient != nil {
 		b.kafkaClient.Close()
 	}
