@@ -102,7 +102,8 @@ func TestBlockbuilder_without_partitions_assigned_returns_an_error(t *testing.T)
 }
 
 func TestBlockbuilder_getAssignedPartitions(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
 
 	store := newStore(ctx, t)
 	cfg := blockbuilderConfig(t, "localhost", []int32{0, 2, 4, 6})
