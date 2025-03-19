@@ -185,7 +185,6 @@ func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) (activeS
 		for _, hash := range staleSeries {
 			if s, ok := g.series[hash]; ok && s.stale.Load() {
 				delete(g.series, hash)
-				activeSeries--
 			}
 		}
 

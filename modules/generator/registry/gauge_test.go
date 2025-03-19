@@ -172,7 +172,7 @@ func Test_gauge_removeStaleSeries(t *testing.T) {
 	c.removeStaleSeries(timeMs)
 	activeSeries, err := c.collectMetrics(&capturingAppender{}, timeMs)
 	assert.NoError(t, err)
-	assert.Equal(t, 1, activeSeries)
+	assert.Equal(t, 2, activeSeries)
 	assert.Equal(t, 1, removedSeries)
 
 	collectionTimeMs = time.Now().UnixMilli()
@@ -296,7 +296,7 @@ func Test_gauge_sendStaleMarkers(t *testing.T) {
 
 	activeSeries, err := c.collectMetrics(appender, collectionTimeMs)
 	assert.NoError(t, err)
-	assert.Equal(t, 0, activeSeries)
+	assert.Equal(t, 1, activeSeries)
 	assert.False(t, appender.isCommitted)
 	assert.False(t, appender.isRolledback)
 	assert.Equal(t, expectedSamples[0].String(), appender.samples[0].String())
