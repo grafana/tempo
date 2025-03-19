@@ -82,27 +82,21 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 	g.seriesMtx.Lock()
 	defer g.seriesMtx.Unlock()
 
-	s, ok := g.series[hash]
-
-	if ok {
-
+	if s, ok := g.series[hash]; ok {
 		// update to existing series removes staleness
 		s.stale = false
 
 		// target_info will always be 1 so if the series exists, we don't need to go through this loop
-		if !updateIfAlreadyExist {
-			return
+		if updateIfAlreadyExist {
+			g.updateSeriesValue(s, value, operation)
 		}
-		g.updateSeriesValue(s, value, operation)
 		return
 	}
 
 	if !g.onAddSeries(1) {
 		return
 	}
-
-	newSeries := g.newSeries(labelValueCombo, value)
-	g.series[hash] = newSeries
+	g.series[hash] = g.newSeries(labelValueCombo, value)
 }
 
 func (g *gauge) newSeries(labelValueCombo *LabelValueCombo, value float64) *gaugeSeries {
@@ -140,8 +134,8 @@ func (g *gauge) name() string {
 }
 
 func (g *gauge) collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error) {
-	g.seriesMtx.RLock()
-	defer g.seriesMtx.RUnlock()
+	g.seriesMtx.Lock()
+	defer g.seriesMtx.Unlock()
 
 	activeSeries = len(g.series)
 
