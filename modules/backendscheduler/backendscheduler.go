@@ -48,9 +48,10 @@ type BackendScheduler struct {
 
 	tenantMtx sync.RWMutex
 
-	curPriority *tenantselector.PriorityQueue
-	curTenant   *tenantselector.Item
-	curSelector blockselector.CompactionBlockSelector
+	curPriority       *tenantselector.PriorityQueue
+	curTenant         *tenantselector.Item
+	curSelector       blockselector.CompactionBlockSelector
+	curTenantJobCount int
 }
 
 // New creates a new BackendScheduler
@@ -337,21 +338,19 @@ func (s *BackendScheduler) nextCompactionJob(_ context.Context) *work.Job {
 	s.tenantMtx.Lock()
 	defer s.tenantMtx.Unlock()
 
-	var (
-		prioritized          bool
-		singleTenantJobCount int
-	)
+	var prioritized bool
 
 	reset := func() {
 		s.curSelector = nil
 		s.curTenant = nil
-		singleTenantJobCount = 0
+		s.curTenantJobCount = 0
 	}
 
 	for {
 		// do we have an current tenant?
 		if s.curSelector != nil {
-			if singleTenantJobCount >= s.cfg.MaxJobsPerTenant {
+
+			if s.curTenantJobCount >= s.cfg.MaxJobsPerTenant {
 				reset()
 				continue
 			}
@@ -372,7 +371,7 @@ func (s *BackendScheduler) nextCompactionJob(_ context.Context) *work.Job {
 				Input: input,
 			}
 
-			singleTenantJobCount++
+			s.curTenantJobCount++
 
 			return &work.Job{
 				ID:   uuid.New().String(),

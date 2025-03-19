@@ -33,6 +33,7 @@ func TestBackendScheduler(t *testing.T) {
 		TenantMeasurementInterval: 100 * time.Millisecond,
 	}
 	cfg.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
+	cfg.MaxJobsPerTenant = 2
 
 	tmpDir := t.TempDir()
 
@@ -137,7 +138,6 @@ func TestBackendScheduler(t *testing.T) {
 		require.NotNil(t, updateResp)
 
 		// Drain all the jobs
-
 		for i := 0; i < tenantCount*15; i++ {
 			resp, err = s.Next(ctx, &tempopb.NextJobRequest{
 				WorkerId: "test-worker",
