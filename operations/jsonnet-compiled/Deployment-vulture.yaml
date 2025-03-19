@@ -26,6 +26,7 @@ spec:
         - -tempo-retention-duration=336h
         - -tempo-search-backoff-duration=5s
         - -tempo-read-backoff-duration=10s
+        - -tempo-metrics-backoff-duration=5s
         - -tempo-write-backoff-duration=10s
         image: grafana/tempo-vulture:latest
         imagePullPolicy: IfNotPresent
