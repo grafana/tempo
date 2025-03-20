@@ -37,6 +37,8 @@ type metricsGeneratorOverrides interface {
 	MetricsGeneratorProcessorServiceGraphsEnableMessagingSystemLatencyHistogram(userID string) bool
 	MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID string) bool
 	MetricsGeneratorProcessorSpanMetricsTargetInfoExcludedDimensions(userID string) []string
+	MetricsGeneratorProcessorHostInfoHostIdentifiers(userID string) []string
+	MetricsGeneratorProcessorHostInfoMetricName(userID string) string
 	DedicatedColumns(userID string) backend.DedicatedColumns
 	MaxLocalTracesPerUser(userID string) int
 	MaxBytesPerTrace(userID string) int

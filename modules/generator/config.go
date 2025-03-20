@@ -223,6 +223,10 @@ func (cfg *ProcessorConfig) copyWithOverrides(o metricsGeneratorOverrides, userI
 
 	copyCfg.ServiceGraphs.EnableVirtualNodeLabel = o.MetricsGeneratorProcessorServiceGraphsEnableVirtualNodeLabel(userID)
 
+	copyCfg.HostInfo.HostIdentifiers = o.MetricsGeneratorProcessorHostInfoHostIdentifiers(userID)
+
+	copyCfg.HostInfo.MetricName = o.MetricsGeneratorProcessorHostInfoMetricName(userID)
+
 	copySubprocessors := make(map[spanmetrics.Subprocessor]bool)
 	for sp, enabled := range cfg.SpanMetrics.Subprocessors {
 		copySubprocessors[sp] = enabled
