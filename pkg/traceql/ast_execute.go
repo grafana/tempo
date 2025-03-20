@@ -250,7 +250,7 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 			count := 0
 			for _, s := range ss.Spans {
 				val, err := a.e.execute(s)
-				if err != nil {
+				if err != nil || val.Equals(&StaticNil) {
 					return nil, err
 				}
 
