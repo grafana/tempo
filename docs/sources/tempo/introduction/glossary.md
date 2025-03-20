@@ -1,5 +1,5 @@
 ---
-description: "Glossary for traces"
+description: 'Glossary for traces'
 keywords:
   - Grafana
   - traces
@@ -12,28 +12,26 @@ weight: 500
 
 The following terms are often used when discussing traces.
 
-{{< glossary.inline >}}{{ (index (where site.Data.glossary "keys" "intersect" (slice (.Get 0))) 0).value | markdownify }}{{< /glossary.inline >}}
-
 Active series
-: {{< glossary.inline "active series" />}}
+: {{< docs/glossary "active series" >}}
 
 Cardinality
-: {{< glossary.inline "cardinality" />}}
+: {{< docs/glossary "cardinality" >}}
 
 Data source
-: {{< glossary.inline "data source" />}}
+: {{< docs/glossary "data source" >}}
 
 Exemplar
-: {{< glossary.inline "exemplar" />}}
+: {{< docs/glossary "exemplar" >}}
 
 Log
-: {{< glossary.inline "log" />}}
+: {{< docs/glossary "log" >}}
 
 Metric
-: {{< glossary.inline "metric" />}}
+: {{< docs/glossary "metric" >}}
 
 Span
-: {{< glossary.inline "span" />}}
+: {{< docs/glossary "span" >}}
 
 Trace
-: {{< glossary.inline "trace" />}}
+: {{< docs/glossary "trace" >}}
