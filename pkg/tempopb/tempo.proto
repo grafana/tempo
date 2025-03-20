@@ -54,6 +54,11 @@ message TraceByIDRequest {
   string blockEnd = 3;
   string queryMode = 5;
   bool allowPartialTrace = 6;
+  // Rhythm fields
+  google.protobuf.Timestamp RF1After = 7 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
 }
 
 message TraceByIDResponse {

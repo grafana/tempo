@@ -31,7 +31,6 @@ type SearchConfig struct {
 
 type TraceByIDConfig struct {
 	QueryTimeout time.Duration `yaml:"query_timeout"`
-	RF1After     time.Time     `yaml:"rf1_after"`
 }
 
 type MetricsConfig struct {

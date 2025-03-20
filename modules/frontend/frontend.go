@@ -97,6 +97,10 @@ func New(cfg Config, next pipeline.RoundTripper, o overrides.Interface, reader t
 		return nil, fmt.Errorf("frontend metrics interval should be greater than 0")
 	}
 
+	// Propagate RF1After to search and traceByID sharders
+	cfg.Search.Sharder.RF1After = cfg.RF1After
+	cfg.TraceByID.RF1After = cfg.RF1After
+
 	retryWare := pipeline.NewRetryWare(cfg.MaxRetries, cfg.Weights.RetryWithWeights, registerer)
 	cacheWare := pipeline.NewCachingWare(cacheProvider, cache.RoleFrontendSearch, logger)
 	statusCodeWare := pipeline.NewStatusCodeAdjustWare()

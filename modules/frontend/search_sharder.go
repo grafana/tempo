@@ -38,7 +38,10 @@ type SearchSharderConfig struct {
 	IngesterShards        int           `yaml:"ingester_shards,omitempty"`
 	MostRecentShards      int           `yaml:"most_recent_shards,omitempty"`
 	MaxSpansPerSpanSet    uint32        `yaml:"max_spans_per_span_set,omitempty"`
-	RF1After              time.Time     `yaml:"rf1_after"`
+
+	// RF1After specifies the time after which RF1 logic is applied, injected by the configuration
+	// or determined at runtime based on search request parameters.
+	RF1After time.Time `yaml:"_"`
 }
 
 type asyncSearchSharder struct {
