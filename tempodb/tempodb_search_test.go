@@ -1242,7 +1242,19 @@ func traceQLExistence(t *testing.T, _ *tempopb.Trace, _ *tempopb.TraceSearchMeta
 			},
 		},
 		{
+			req: &tempopb.SearchRequest{Query: "{ nil != duration }", Limit: 10},
+			expected: expected{
+				key: "duration",
+			},
+		},
+		{
 			req: &tempopb.SearchRequest{Query: "{ resource.service.name != nil }", Limit: 10},
+			expected: expected{
+				key: "resource.service.name",
+			},
+		},
+		{
+			req: &tempopb.SearchRequest{Query: "{ nil != resource.service.name }", Limit: 10},
 			expected: expected{
 				key: "resource.service.name",
 			},
