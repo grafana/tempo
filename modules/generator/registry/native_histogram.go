@@ -26,11 +26,11 @@ type nativeHistogram struct {
 	//  Might break processors that have variable amount of labels...
 	//  promHistogram prometheus.HistogramVec
 
-	seriesMtx sync.Mutex
+	seriesMtx sync.RWMutex
 	series    map[uint64]*nativeHistogramSeries
 
-	onAddSerie    func(count uint32) bool
-	onRemoveSerie func(count uint32)
+	onAddSeries    func(count uint32) bool
+	onRemoveSeries func(count uint32)
 
 	buckets []float64
 
@@ -67,6 +67,7 @@ type nativeHistogramSeries struct {
 	countLabels labels.Labels
 	sumLabels   labels.Labels
 	// bucketLabels []labels.Labels
+	stale *atomic.Bool
 }
 
 func (hs *nativeHistogramSeries) isNew() bool {
@@ -99,8 +100,8 @@ func newNativeHistogram(name string, buckets []float64, onAddSeries func(uint32)
 	return &nativeHistogram{
 		metricName:        name,
 		series:            make(map[uint64]*nativeHistogramSeries),
-		onAddSerie:        onAddSeries,
-		onRemoveSerie:     onRemoveSeries,
+		onAddSeries:       onAddSeries,
+		onRemoveSeries:    onRemoveSeries,
 		traceIDLabelName:  traceIDLabelName,
 		buckets:           buckets,
 		histogramOverride: histogramOverride,
@@ -125,7 +126,7 @@ func (h *nativeHistogram) ObserveWithExemplar(labelValueCombo *LabelValueCombo, 
 		return
 	}
 
-	if !h.onAddSerie(h.activeSeriesPerHistogramSerie()) {
+	if !h.onAddSeries(h.activeSeriesPerHistogramSeries()) {
 		return
 	}
 
@@ -146,6 +147,7 @@ func (h *nativeHistogram) newSeries(labelValueCombo *LabelValueCombo, value floa
 		}),
 		lastUpdated: 0,
 		firstSeries: atomic.NewBool(true),
+		stale:       atomic.NewBool(false),
 	}
 
 	h.updateSeries(newSeries, value, traceID, multiplier)
@@ -186,6 +188,7 @@ func (h *nativeHistogram) updateSeries(s *nativeHistogramSeries, value float64, 
 		)
 	}
 	s.lastUpdated = time.Now().UnixMilli()
+	s.stale.Store(false)
 }
 
 func (h *nativeHistogram) name() string {
@@ -193,8 +196,7 @@ func (h *nativeHistogram) name() string {
 }
 
 func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64) (activeSeries int, err error) {
-	h.seriesMtx.Lock()
-	defer h.seriesMtx.Unlock()
+	h.seriesMtx.RLock()
 
 	activeSeries = 0
 
@@ -205,6 +207,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		// Encode to protobuf representation
 		err = s.promHistogram.Write(encodedMetric)
 		if err != nil {
+			h.seriesMtx.RUnlock()
 			return activeSeries, err
 		}
 
@@ -218,6 +221,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		if hasClassicHistograms(h.histogramOverride) {
 			classicSeries, classicErr := h.classicHistograms(appender, timeMs, s)
 			if classicErr != nil {
+				h.seriesMtx.RUnlock()
 				return activeSeries, classicErr
 			}
 			activeSeries += classicSeries
@@ -227,6 +231,7 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 		if hasNativeHistograms(h.histogramOverride) {
 			nativeErr := h.nativeHistograms(appender, s.labels, timeMs, s)
 			if nativeErr != nil {
+				h.seriesMtx.RUnlock()
 				return activeSeries, nativeErr
 			}
 		}
@@ -246,27 +251,28 @@ func (h *nativeHistogram) collectMetrics(appender storage.Appender, timeMs int64
 				}
 				_, err = appender.AppendExemplar(0, s.labels, e)
 				if err != nil {
+					h.seriesMtx.RUnlock()
 					return activeSeries, err
 				}
 			}
 		}
 	}
+	h.seriesMtx.RUnlock()
 
 	return
 }
 
 func (h *nativeHistogram) removeStaleSeries(staleTimeMs int64) {
-	h.seriesMtx.Lock()
-	defer h.seriesMtx.Unlock()
-	for hash, s := range h.series {
+	h.seriesMtx.RLock()
+	defer h.seriesMtx.RUnlock()
+	for _, s := range h.series {
 		if s.lastUpdated < staleTimeMs {
-			delete(h.series, hash)
-			h.onRemoveSerie(h.activeSeriesPerHistogramSerie())
+			s.stale.Store(true)
 		}
 	}
 }
 
-func (h *nativeHistogram) activeSeriesPerHistogramSerie() uint32 {
+func (h *nativeHistogram) activeSeriesPerHistogramSeries() uint32 {
 	// TODO can we estimate this?
 	return 1
 }

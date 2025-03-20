@@ -150,7 +150,9 @@ func Test_counter_removeStaleSeries(t *testing.T) {
 	c.Inc(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.0)
 
 	c.removeStaleSeries(timeMs)
-
+	activeSeries, err := c.collectMetrics(&capturingAppender{}, timeMs)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, activeSeries)
 	assert.Equal(t, 1, removedSeries)
 
 	collectionTimeMs = time.Now().UnixMilli()

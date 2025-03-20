@@ -100,6 +100,8 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 		return
 	}
 
+	newSeries := g.newSeries(labelValueCombo, value)
+
 	// acquire full lock and recheck before adding
 	g.seriesMtx.Lock()
 	defer g.seriesMtx.Unlock()
@@ -114,7 +116,7 @@ func (g *gauge) updateSeries(labelValueCombo *LabelValueCombo, value float64, op
 	}
 
 	// create and add new series
-	g.series[hash] = g.newSeries(labelValueCombo, value)
+	g.series[hash] = newSeries
 }
 
 func (g *gauge) newSeries(labelValueCombo *LabelValueCombo, value float64) *gaugeSeries {

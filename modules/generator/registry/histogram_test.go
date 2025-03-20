@@ -258,7 +258,9 @@ func Test_histogram_removeStaleSeries(t *testing.T) {
 	h.ObserveWithExemplar(newLabelValueCombo([]string{"label"}, []string{"value-2"}), 2.5, "", 1.0)
 
 	h.removeStaleSeries(timeMs)
-
+	activeSeries, err := h.collectMetrics(&capturingAppender{}, timeMs)
+	assert.NoError(t, err)
+	assert.Equal(t, 10, activeSeries)
 	assert.Equal(t, 1, removedSeries)
 
 	collectionTimeMs = time.Now().UnixMilli()
