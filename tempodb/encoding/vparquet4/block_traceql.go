@@ -1984,6 +1984,7 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 
 				// Look up generic columns as there may be attributes with the same name but of different types
 				genericConditions = append(genericConditions, cond)
+				allConditions = false
 				continue
 			}
 
@@ -2007,6 +2008,7 @@ func createSpanIterator(makeIter makeIterFn, innerIterators []parquetquery.Itera
 
 				// Look up generic columns as there may be attributes with the same name but of different types
 				genericConditions = append(genericConditions, cond)
+				allConditions = false
 				continue
 			}
 
@@ -2228,6 +2230,7 @@ func createResourceIterator(makeIter makeIterFn, instrumentationIterator parquet
 
 				// Look up generic columns as there may be attributes with the same name but of different types
 				genericConditions = append(genericConditions, cond)
+				allConditions = false
 				continue
 			}
 
@@ -2250,6 +2253,7 @@ func createResourceIterator(makeIter makeIterFn, instrumentationIterator parquet
 
 				// Look up generic columns as there may be attributes with the same name but of different types
 				genericConditions = append(genericConditions, cond)
+				allConditions = false
 				continue
 			}
 
