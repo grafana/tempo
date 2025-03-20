@@ -41,7 +41,7 @@ type SearchSharderConfig struct {
 
 	// RF1After specifies the time after which RF1 logic is applied, injected by the configuration
 	// or determined at runtime based on search request parameters.
-	RF1After time.Time `yaml:"_"`
+	RF1After time.Time `yaml:"-"`
 }
 
 type asyncSearchSharder struct {

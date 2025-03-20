@@ -272,7 +272,6 @@ querier:
         query_timeout: 30s
     trace_by_id:
         query_timeout: 10s
-        rf1_after: 0001-01-01T00:00:00Z
     metrics:
         concurrent_blocks: 2
         time_overlap_cutoff: 0.2
@@ -326,7 +325,6 @@ query_frontend:
         ingester_shards: 3
         most_recent_shards: 200
         max_spans_per_span_set: 100
-        rf1_after: 0001-01-01T00:00:00Z
     trace_by_id:
         query_shards: 50
     metrics:
@@ -344,6 +342,7 @@ query_frontend:
         max_traceql_conditions: 4
         max_regex_conditions: 1
     max_query_expression_size_bytes: 131072
+    rf1_after: 0001-01-01T00:00:00Z
 compactor:
     ring:
         kvstore:
