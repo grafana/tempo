@@ -55,6 +55,7 @@ type traceMetrics struct {
 	notFoundSearch          int
 	notFoundTraceQL         int
 	notFoundByMetrics       int
+	inaccurateMetrics       int
 	requested               int
 	requestFailed           int
 	notFoundSearchAttribute int
@@ -371,6 +372,7 @@ func pushVultureMetrics(metrics traceMetrics) {
 	metricTracesErrors.WithLabelValues("notfound_traceql").Add(float64(metrics.notFoundTraceQL))
 	metricTracesErrors.WithLabelValues("notfound_byid").Add(float64(metrics.notFoundByID))
 	metricTracesErrors.WithLabelValues("notfound_metrics").Add(float64(metrics.notFoundByMetrics))
+	metricTracesErrors.WithLabelValues("inaccurate_metrics").Add(float64(metrics.inaccurateMetrics))
 	metricTracesErrors.WithLabelValues("requestfailed").Add(float64(metrics.requestFailed))
 	metricTracesErrors.WithLabelValues("notfound_search_attribute").Add(float64(metrics.notFoundSearchAttribute))
 }
