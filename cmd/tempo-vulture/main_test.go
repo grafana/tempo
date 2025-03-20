@@ -704,30 +704,43 @@ func TestQueryMetrics(t *testing.T) {
 	seed := time.Date(2008, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	config := vultureConfiguration{
-		tempoOrgID:                "orgID",
-		tempoWriteBackoffDuration: time.Second,
+		tempoOrgID:                 "orgID",
+		tempoWriteBackoffDuration:  time.Second,
+		tempoSearchBackoffDuration: time.Second,
 	}
 
 	info := util.NewTraceInfo(seed, config.tempoOrgID)
 	hexID := info.HexID()
 
+	successMetricsResponse := &tempopb.QueryRangeResponse{
+		Series: []*tempopb.TimeSeries{
+			{
+				Samples: []tempopb.Sample{
+					{
+						TimestampMs: seed.UnixMilli(),
+						Value:       2.0,
+					},
+				},
+			},
+		},
+	}
+
 	tests := []struct {
 		name            string
 		response        *tempopb.QueryRangeResponse
+		searchResponse  []*tempopb.TraceSearchMetadata
 		err             error
 		expectedMetrics traceMetrics
 		expectedError   string
 	}{
 		{
-			name: "successful metrics query",
-			response: &tempopb.QueryRangeResponse{
-				Series: []*tempopb.TimeSeries{
-					{
-						Samples: []tempopb.Sample{
-							{
-								TimestampMs: seed.UnixMilli(),
-								Value:       1.0,
-							},
+			name:     "successful metrics query: 1 trace, 2 spans",
+			response: successMetricsResponse,
+			searchResponse: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Matched: 2,
 						},
 					},
 				},
@@ -735,6 +748,57 @@ func TestQueryMetrics(t *testing.T) {
 			expectedMetrics: traceMetrics{
 				requested: 1,
 			},
+		},
+		{
+			name:     "successful metrics query: 2 traces, 1 span each",
+			response: successMetricsResponse,
+			searchResponse: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Matched: 1,
+						},
+					},
+				},
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Matched: 1,
+						},
+					},
+				},
+			},
+			expectedMetrics: traceMetrics{
+				requested: 1,
+			},
+		},
+		{
+			name:     "Less than expected",
+			response: successMetricsResponse,
+			searchResponse: []*tempopb.TraceSearchMetadata{
+				{
+					SpanSets: []*tempopb.SpanSet{
+						{
+							Matched: 4,
+						},
+					},
+				},
+			},
+			expectedMetrics: traceMetrics{
+				inaccurateMetrics: 1,
+				requested:         1,
+			},
+			expectedError: "TraceQL Metrics results are inaccurate: metric count sum=2.000000, actual span count=4",
+		},
+		{
+			name:           "No traces",
+			response:       successMetricsResponse,
+			searchResponse: make([]*tempopb.TraceSearchMetadata, 0),
+			expectedMetrics: traceMetrics{
+				inaccurateMetrics: 1,
+				requested:         1,
+			},
+			expectedError: "TraceQL Metrics results are inaccurate: metric count sum=2.000000, actual span count=0",
 		},
 		{
 			name: "no series in response",
@@ -797,8 +861,9 @@ func TestQueryMetrics(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockHTTPClient := &MockHTTPClient{
-				err:         tt.err,
-				metricsResp: tt.response,
+				err:            tt.err,
+				metricsResp:    tt.response,
+				searchResponse: tt.searchResponse,
 			}
 
 			metrics, err := queryMetrics(mockHTTPClient, seed, config, logger)
