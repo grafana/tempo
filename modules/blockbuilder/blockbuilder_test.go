@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -352,6 +353,123 @@ func TestBlockbuilder_committingFails(t *testing.T) {
 
 	// Check committed offset
 	requireLastCommitEquals(t, ctx, client, producedRecords[len(producedRecords)-1].Offset+1)
+}
+
+func TestBlockbuilder_retries_on_retriable_commit_error(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+
+	k, address := testkafka.CreateCluster(t, 1, "test-topic")
+
+	kafkaCommits := atomic.NewInt32(0)
+	k.ControlKey(kmsg.OffsetCommit, func(req kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Inc()
+
+		if kafkaCommits.Load() == 1 {
+			res := kmsg.NewOffsetCommitResponse()
+			res.Version = req.GetVersion()
+			res.Topics = []kmsg.OffsetCommitResponseTopic{
+				{
+					Topic: testTopic,
+					Partitions: []kmsg.OffsetCommitResponseTopicPartition{
+						{
+							Partition: 0,
+							ErrorCode: kerr.NotEnoughReplicas.Code, // Retryable error code
+						},
+					},
+				},
+			}
+			return &res, nil, true
+		}
+
+		return nil, nil, false
+	})
+
+	store := newStore(ctx, t)
+	cfg := blockbuilderConfig(t, address, []int32{0})
+	logger := test.NewTestingLogger(t)
+
+	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
+	producedRecords := sendReq(t, ctx, client, util.FakeTenantID)
+	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
+
+	b, err := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
+
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	})
+
+	// Wait for record to be consumed and committed.
+	require.Eventually(t, func() bool {
+		return kafkaCommits.Load() == 2
+	}, time.Minute, time.Second)
+
+	// Wait for the block to be flushed.
+	require.Eventually(t, func() bool {
+		return len(store.BlockMetas(util.FakeTenantID)) == 1 // Only one block should have been written
+	}, time.Minute, time.Second)
+
+	requireLastCommitEquals(t, ctx, client, lastRecordOffset+1)
+}
+
+func TestBlockbuilder_retries_on_commit_error(t *testing.T) {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	t.Cleanup(func() { cancel(errors.New("test done")) })
+
+	k, address := testkafka.CreateCluster(t, 1, "test-topic")
+
+	kafkaCommits := atomic.NewInt32(0)
+	k.ControlKey(kmsg.OffsetCommit, func(req kmsg.Request) (kmsg.Response, error, bool) {
+		kafkaCommits.Inc()
+
+		if kafkaCommits.Load() == 1 {
+			res := kmsg.NewOffsetCommitResponse()
+			res.Version = req.GetVersion()
+			res.Topics = []kmsg.OffsetCommitResponseTopic{
+				{
+					Topic: testTopic,
+					Partitions: []kmsg.OffsetCommitResponseTopicPartition{
+						{
+							Partition: 0,
+						},
+					},
+				},
+			}
+			return &res, fmt.Errorf("error committing offset"), true
+		}
+
+		return nil, nil, false
+	})
+
+	store := newStore(ctx, t)
+	cfg := blockbuilderConfig(t, address, []int32{0})
+	logger := test.NewTestingLogger(t)
+
+	client := newKafkaClient(t, cfg.IngestStorageConfig.Kafka)
+	producedRecords := sendReq(t, ctx, client, util.FakeTenantID)
+	lastRecordOffset := producedRecords[len(producedRecords)-1].Offset
+
+	b, err := New(cfg, logger, newPartitionRingReader(), &mockOverrides{}, store)
+	require.NoError(t, err)
+
+	require.NoError(t, services.StartAndAwaitRunning(ctx, b))
+	t.Cleanup(func() {
+		require.NoError(t, services.StopAndAwaitTerminated(ctx, b))
+	})
+
+	// Wait for record to be consumed and committed.
+	require.Eventually(t, func() bool {
+		return kafkaCommits.Load() == 2
+	}, time.Minute, time.Second)
+
+	// Wait for the block to be flushed.
+	require.Eventually(t, func() bool {
+		return len(store.BlockMetas(util.FakeTenantID)) == 1 // Only one block should have been written
+	}, time.Minute, time.Second)
+
+	requireLastCommitEquals(t, ctx, client, lastRecordOffset+1)
 }
 
 // TestBlockbuilder_noDoubleConsumption verifies that records are not consumed twice when there are no more records in the partition.
