@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -683,6 +684,48 @@ func queryMetrics(client httpclient.TempoHTTPClient, seed time.Time, config vult
 		tm.notFoundByMetrics++
 		return tm, fmt.Errorf("expected trace %s not found in metrics", hexID)
 	}
+
+	// Advanced check: ensure metric results are accurate
+	// by checking actual number of spans
+	// skip if search check is disabled
+	if config.tempoSearchBackoffDuration == 0 {
+		return tm, nil
+	}
+	searchResp, err := client.SearchTraceQLWithRange(fmt.Sprintf(`{.%s = "%s"}`, attr.Key, util.StringifyAnyValue(attr.Value)), start, end)
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to search traces with traceql %s: %s", attr.Key, err.Error()))
+		tm.requestFailed++
+		return tm, err
+	}
+
+	var spansCount int
+	var traces []*tempopb.TraceSearchMetadata
+	if searchResp != nil {
+		traces = searchResp.Traces
+	}
+	for _, trace := range traces {
+		if trace == nil {
+			continue
+		}
+		for _, spanSet := range trace.SpanSets {
+			if spanSet == nil {
+				continue
+			}
+			spansCount += int(spanSet.Matched)
+		}
+	}
+
+	const delta = 1e-6
+	// if number of traces is not equal to the sum of metric values
+	if math.Abs(float64(spansCount)-sum) > delta {
+		tm.inaccurateMetrics++
+		err = fmt.Errorf(
+			"TraceQL Metrics results are inaccurate: metric count sum=%f, actual span count=%d",
+			sum, spansCount,
+		)
+		return tm, err
+	}
+
 	return tm, nil
 }
 
