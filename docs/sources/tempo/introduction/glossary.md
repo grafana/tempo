@@ -1,5 +1,5 @@
 ---
-description: 'Glossary for traces'
+description: 'Glossary for traces' 
 keywords:
   - Grafana
   - traces
