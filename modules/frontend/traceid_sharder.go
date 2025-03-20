@@ -88,7 +88,7 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request) ([]pip
 	}
 
 	rf1After := s.cfg.RF1After.Format(time.RFC3339)
-	if val := extractParam(parent, api.URLParamRF1After); val != "" {
+	if val := parent.HTTPRequest().URL.Query().Get(api.URLParamRF1After); val != "" {
 		rf1After = val
 	}
 
@@ -109,8 +109,4 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request) ([]pip
 	}
 
 	return reqs, nil
-}
-
-func extractParam(r pipeline.Request, key string) string {
-	return r.HTTPRequest().URL.Query().Get(key)
 }
