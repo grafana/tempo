@@ -87,9 +87,11 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request) ([]pip
 		return nil, err
 	}
 
-	rf1After := s.cfg.RF1After.Format(time.RFC3339)
+	var rf1After string
 	if val := parent.HTTPRequest().URL.Query().Get(api.URLParamRF1After); val != "" {
 		rf1After = val
+	} else if !s.cfg.RF1After.IsZero() {
+		rf1After = s.cfg.RF1After.Format(time.RFC3339)
 	}
 
 	// build sharded block queries

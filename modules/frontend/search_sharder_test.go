@@ -761,7 +761,7 @@ func TestSearchSharderRoundTripBadRequest(t *testing.T) {
 	o, err = overrides.NewOverrides(overrides.Config{
 		Defaults: overrides.Overrides{
 			Read: overrides.ReadOverrides{
-				MaxSearchDuration: model.Duration(10 * time.Minute),
+				MaxSearchDuration: model.Duration(time.Minute),
 			},
 		},
 	}, nil, prometheus.DefaultRegisterer)

@@ -178,6 +178,11 @@ message SearchTagsRequest {
   uint32 end = 4;
   uint32 maxTagsPerScope = 5;
   uint32 staleValuesThreshold = 6;
+  // Rhythm fields
+  google.protobuf.Timestamp RF1After = 7 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
 }
 
 // SearchTagsBlockRequest takes SearchTagsRequest parameters as well as all information necessary
@@ -237,6 +242,11 @@ message SearchTagValuesRequest {
   uint32 end = 5;
   uint32 maxTagValues = 6;
   uint32 staleValueThreshold = 7; // Limit of stale values
+  // Rhythm fields
+  google.protobuf.Timestamp RF1After = 8 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
 }
 
 message SearchTagValuesResponse {

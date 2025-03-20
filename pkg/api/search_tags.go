@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -424,6 +425,14 @@ func parseSearchTagValuesRequest(r *http.Request, enforceTraceQL bool) (*tempopb
 		req.End = uint32(end)
 	}
 
+	if s, ok := extractQueryParam(vals, URLParamRF1After); ok {
+		t, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			return nil, fmt.Errorf("invalid rf1After: %w", err)
+		}
+		req.RF1After = t
+	}
+
 	return req, nil
 }
 
@@ -457,6 +466,15 @@ func ParseSearchTagsRequest(r *http.Request) (*tempopb.SearchTagsRequest, error)
 		}
 		req.End = uint32(end)
 	}
+
+	if s, ok := extractQueryParam(vals, URLParamRF1After); ok {
+		t, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			return nil, fmt.Errorf("invalid rf1After: %w", err)
+		}
+		req.RF1After = t
+	}
+
 	return req, nil
 }
 
