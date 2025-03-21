@@ -10,6 +10,7 @@ import (
 	"github.com/go-kit/log"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/grafana/tempo/modules/backendscheduler/work"
 	"github.com/grafana/tempo/modules/overrides"
 	"github.com/grafana/tempo/modules/storage"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -124,6 +125,27 @@ func TestBackendScheduler(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, updateResp)
 
+		t.Run("jobs are reloaded from cache", func(t *testing.T) {
+			s2, err := New(cfg, store, limits, rr, ww)
+			require.NoError(t, err)
+
+			err = s2.starting(ctx)
+			require.NoError(t, err)
+
+			// Ensure that the jobs are the same
+			for _, job := range s.work.ListJobs() {
+				j := s2.work.GetJob(job.ID)
+				require.NotNil(t, j)
+				equalJobs(t, job, j)
+			}
+
+			for _, job := range s2.work.ListJobs() {
+				j := s.work.GetJob(job.ID)
+				require.NotNil(t, j)
+				equalJobs(t, job, j)
+			}
+		})
+
 		// Drain all the jobs
 		for i := 0; i < tenantCount*15; i++ {
 			resp, err = s.Next(ctx, &tempopb.NextJobRequest{
@@ -150,6 +172,18 @@ func TestBackendScheduler(t *testing.T) {
 			require.NotNil(t, updateResp)
 		}
 	})
+}
+
+func equalJobs(t *testing.T, expected, actual *work.Job) {
+	require.Equal(t, expected.ID, actual.ID)
+	require.Equal(t, expected.CreatedTime.Unix(), actual.CreatedTime.Unix())
+	require.Equal(t, expected.StartTime.Unix(), actual.StartTime.Unix())
+	require.Equal(t, expected.EndTime.Unix(), actual.EndTime.Unix())
+	require.Equal(t, expected.WorkerID, actual.WorkerID)
+	require.Equal(t, expected.Retries, actual.Retries)
+	require.Equal(t, expected.Status, actual.Status)
+	require.Equal(t, expected.Type, actual.Type)
+	require.Equal(t, expected.JobDetail, actual.JobDetail)
 }
 
 func newStore(ctx context.Context, t testing.TB, tmpDir string) (storage.Store, backend.RawReader, backend.RawWriter) {
