@@ -40,12 +40,10 @@ type BackendScheduler struct {
 
 	work *work.Work
 
-	rpcMtx sync.RWMutex
+	mtx sync.Mutex
 
 	reader backend.RawReader
 	writer backend.RawWriter
-
-	tenantMtx sync.RWMutex
 
 	curPriority       *tenantselector.PriorityQueue
 	curTenant         *tenantselector.Item
@@ -135,7 +133,7 @@ func (s *BackendScheduler) measureTenants() {
 	}
 }
 
-// prioritizeTenants prioritizes tenants based on the number of outstanding blocks.  Called under tenantMtx lock.
+// prioritizeTenants prioritizes tenants based on the number of outstanding blocks.
 func (s *BackendScheduler) prioritizeTenants() {
 	tenants := []tenantselector.Tenant{}
 
@@ -198,8 +196,8 @@ func (s *BackendScheduler) prioritizeTenants() {
 
 // Next implements the BackendSchedulerServer interface.  It returns the next queued job for a worker.
 func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest) (*tempopb.NextJobResponse, error) {
-	s.rpcMtx.Lock()
-	defer s.rpcMtx.Unlock()
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
 
 	// Find jobs that already exist for this worker
 	j := s.work.GetJobForWorker(req.WorkerId)
@@ -260,8 +258,8 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 
 // UpdateJob implements the BackendSchedulerServer interface
 func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJobStatusRequest) (*tempopb.UpdateJobStatusResponse, error) {
-	s.rpcMtx.Lock()
-	defer s.rpcMtx.Unlock()
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
 
 	j := s.work.GetJob(req.JobId)
 	if j == nil {
@@ -320,15 +318,22 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 }
 
 func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request) {
-	// s.tenantMtx.RLock()
-	// defer s.tenantMtx.RUnlock()
-
 	x := table.NewWriter()
 	x.AppendHeader(table.Row{"tenant", "jobID", "input", "output", "status", "worker", "created", "start", "end"})
 
 	for _, j := range s.work.ListJobs() {
 		x.AppendRows([]table.Row{
-			{j.JobDetail.Tenant, j.ID, j.JobDetail.Compaction.Input, j.JobDetail.Compaction.Output, j.GetStatus().String(), j.GetWorkerID(), j.GetCreatedTime(), j.GetStartTime(), j.GetEndTime()},
+			{
+				j.Tenant(),
+				j.GetID(),
+				j.GetCompactionInput(),
+				j.GetCompactionOutput(),
+				j.GetStatus().String(),
+				j.GetWorkerID(),
+				j.GetCreatedTime(),
+				j.GetStartTime(),
+				j.GetEndTime(),
+			},
 		})
 	}
 
@@ -341,9 +346,6 @@ func (s *BackendScheduler) StatusHandler(w http.ResponseWriter, _ *http.Request)
 // returns the next compabeingBackendScheduler-0290053e1ction job. this could probably be rewritten cleverly to use yields
 // and fewer struct vars
 func (s *BackendScheduler) nextCompactionJob(_ context.Context) *work.Job {
-	s.tenantMtx.Lock()
-	defer s.tenantMtx.Unlock()
-
 	var prioritized bool
 
 	reset := func() {

@@ -68,6 +68,12 @@ func (j *Job) IsRunning() bool {
 	return j.Status == tempopb.JobStatus_JOB_STATUS_RUNNING
 }
 
+func (j *Job) GetID() string {
+	j.mtx.RLock()
+	defer j.mtx.RUnlock()
+	return j.ID
+}
+
 func (j *Job) GetStatus() tempopb.JobStatus {
 	j.mtx.RLock()
 	defer j.mtx.RUnlock()
