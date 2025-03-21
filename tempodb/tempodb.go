@@ -103,8 +103,6 @@ type Reader interface {
 type Compactor interface {
 	EnableCompaction(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) error
 	MarkBlockCompacted(tenantID string, blockID backend.UUID) error
-	Compactions(ctx context.Context) []tempopb.JobDetail
-	Compact(ctx context.Context, metas []*backend.BlockMeta, tenant string) error
 	CompactWithConfig(ctx context.Context, metas []*backend.BlockMeta, tenantID string, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) ([]*backend.BlockMeta, error)
 	MarkBlocklistCompacted(tenantID string, outputIDs, inputIDs []*backend.BlockMeta) error
 }
