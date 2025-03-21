@@ -983,6 +983,7 @@ backend_scheduler:
         prune_age: 1h0m0s
         dead_job_timeout: 24h0m0s
     max_jobs_per_tenant: 1000
+    maintenance_interval: 1m0s
 backend_scheduler_client:
     grpc_client_config:
         max_recv_msg_size: 104857600
