@@ -175,7 +175,7 @@ func (s *BackendScheduler) prioritizeTenants() {
 		tenants = append(tenants, tenantselector.Tenant{
 			ID:                         tenantID,
 			BlocklistLength:            len(blocklist),
-			OutstanidngBlocklistLength: outstandingBlocks,
+			OutstandingBlocklistLength: outstandingBlocks,
 		})
 	}
 

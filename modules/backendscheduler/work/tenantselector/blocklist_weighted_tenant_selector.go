@@ -21,7 +21,7 @@ func NewBlockListWeightedTenantSelector(tenants []Tenant) *BlockListWeightedTena
 func (s *BlockListWeightedTenantSelector) PriorityForTenant(tenantID string) int {
 	var (
 		length      = s.tenants[tenantID].BlocklistLength
-		outstanding = s.tenants[tenantID].OutstanidngBlocklistLength
+		outstanding = s.tenants[tenantID].OutstandingBlocklistLength
 	)
 
 	if length == 0 || outstanding == 0 {

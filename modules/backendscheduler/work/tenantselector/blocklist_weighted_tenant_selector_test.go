@@ -19,12 +19,12 @@ func Test_BlockListWeightedTenantSelector_PriorityForTenant_single(t *testing.T)
 				{
 					ID:                         "tenant1",
 					BlocklistLength:            1000000,
-					OutstanidngBlocklistLength: 10000,
+					OutstandingBlocklistLength: 10000,
 				},
 				{
 					ID:                         "tenant2",
 					BlocklistLength:            1000,
-					OutstanidngBlocklistLength: 10,
+					OutstandingBlocklistLength: 10,
 				},
 			},
 			expectedTenant:   "tenant1",
@@ -36,7 +36,7 @@ func Test_BlockListWeightedTenantSelector_PriorityForTenant_single(t *testing.T)
 				{
 					ID:                         "tenant1",
 					BlocklistLength:            0,
-					OutstanidngBlocklistLength: 0,
+					OutstandingBlocklistLength: 0,
 				},
 			},
 			expectedTenant:   "tenant1",

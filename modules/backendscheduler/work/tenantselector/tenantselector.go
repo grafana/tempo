@@ -8,5 +8,5 @@ type TenantSelector interface {
 type Tenant struct {
 	ID                         string
 	BlocklistLength            int
-	OutstanidngBlocklistLength int
+	OutstandingBlocklistLength int
 }

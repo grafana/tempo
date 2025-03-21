@@ -11,7 +11,7 @@ var (
 		Name:      "backend_worker_jobs_total",
 		Help:      "Total number of jobs processed",
 	}, []string{})
-	metricWorkerBadJobsRecieved = promauto.NewCounterVec(prometheus.CounterOpts{
+	metricWorkerBadJobsReceived = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "tempo",
 		Name:      "backend_worker_bad_jobs_received_total",
 		Help:      "Total number of bad jobs received",

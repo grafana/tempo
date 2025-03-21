@@ -257,7 +257,7 @@ func (w *BackendWorker) processCompactionJobs(ctx context.Context) error {
 	metricWorkerJobsTotal.WithLabelValues().Inc()
 
 	if resp.Detail.Tenant == "" {
-		metricWorkerBadJobsRecieved.WithLabelValues("no_tenant").Inc()
+		metricWorkerBadJobsReceived.WithLabelValues("no_tenant").Inc()
 		return w.failJob(ctx, resp.JobId, "received job with empty tenant")
 	}
 
