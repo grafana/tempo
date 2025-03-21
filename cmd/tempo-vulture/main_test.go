@@ -112,6 +112,11 @@ func TestEqualTraces(t *testing.T) {
 	require.NoError(t, err)
 
 	require.True(t, equalTraces(a, b))
+
+	// Subsequent calls also reconstruct identical traces
+	c, err := info1.ConstructTraceFromEpoch()
+	require.NoError(t, err)
+	require.True(t, equalTraces(b, c))
 }
 
 func TestInitTickers(t *testing.T) {

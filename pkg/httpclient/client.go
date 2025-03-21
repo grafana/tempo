@@ -17,7 +17,6 @@ import (
 
 	userconfigurableoverrides "github.com/grafana/tempo/modules/overrides/userconfigurable/client"
 	"github.com/grafana/tempo/pkg/api"
-	tempo_api "github.com/grafana/tempo/pkg/api"
 	"github.com/grafana/tempo/pkg/tempopb"
 
 	"github.com/grafana/tempo/pkg/util"
@@ -133,7 +132,7 @@ func (c *Client) getFor(url string, m proto.Message) (*http.Response, error) {
 		}
 	default:
 		if err = proto.Unmarshal(body, m); err != nil {
-			return nil, fmt.Errorf("error decoding %T proto, err: %w body: %s", m, err, string(body))
+			return resp, fmt.Errorf("error decoding %T proto, err: %w body: %s", m, err, string(body))
 		}
 	}
 
@@ -152,13 +151,11 @@ func (c *Client) doRequest(req *http.Request) (*http.Response, []byte, error) {
 		}
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error querying Tempo %v", err)
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 && resp.StatusCode <= 599 {
 		body, _ := io.ReadAll(resp.Body)
@@ -175,7 +172,7 @@ func (c *Client) doRequest(req *http.Request) (*http.Response, []byte, error) {
 
 func (c *Client) SearchTags() (*tempopb.SearchTagsResponse, error) {
 	m := &tempopb.SearchTagsResponse{}
-	_, err := c.getFor(c.BaseURL+tempo_api.PathSearchTags, m)
+	_, err := c.getFor(c.BaseURL+api.PathSearchTags, m)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +182,7 @@ func (c *Client) SearchTags() (*tempopb.SearchTagsResponse, error) {
 
 func (c *Client) SearchTagsV2() (*tempopb.SearchTagsV2Response, error) {
 	m := &tempopb.SearchTagsV2Response{}
-	_, err := c.getFor(c.BaseURL+tempo_api.PathSearchTagsV2, m)
+	_, err := c.getFor(c.BaseURL+api.PathSearchTagsV2, m)
 	if err != nil {
 		return nil, err
 	}
@@ -344,7 +341,7 @@ func (c *Client) SearchTraceQLWithRangeAndLimit(query string, start int64, end i
 }
 
 func (c *Client) MetricsSummary(query string, groupBy string, start int64, end int64) (*tempopb.SpanMetricsSummaryResponse, error) {
-	joinURL, _ := url.Parse(c.BaseURL + tempo_api.PathSpanMetricsSummary + "?")
+	joinURL, _ := url.Parse(c.BaseURL + api.PathSpanMetricsSummary + "?")
 	q := joinURL.Query()
 	if start != 0 && end != 0 {
 		q.Set("start", strconv.FormatInt(start, 10))
@@ -423,7 +420,7 @@ func (c *Client) buildTagValuesV2QueryURL(key string, start int64, end int64) st
 }
 
 func (c *Client) GetOverrides() (*userconfigurableoverrides.Limits, string, error) {
-	req, err := http.NewRequest("GET", c.BaseURL+tempo_api.PathOverrides, nil)
+	req, err := http.NewRequest("GET", c.BaseURL+api.PathOverrides, nil)
 	if err != nil {
 		return nil, "", err
 	}
@@ -450,7 +447,7 @@ func (c *Client) SetOverrides(limits *userconfigurableoverrides.Limits, version 
 		return "", err
 	}
 
-	req, err := http.NewRequest("POST", c.BaseURL+tempo_api.PathOverrides, bytes.NewBuffer(b))
+	req, err := http.NewRequest("POST", c.BaseURL+api.PathOverrides, bytes.NewBuffer(b))
 	if err != nil {
 		return "", err
 	}
@@ -466,7 +463,7 @@ func (c *Client) PatchOverrides(limits *userconfigurableoverrides.Limits) (*user
 		return nil, "", err
 	}
 
-	req, err := http.NewRequest("PATCH", c.BaseURL+tempo_api.PathOverrides, bytes.NewBuffer(b))
+	req, err := http.NewRequest("PATCH", c.BaseURL+api.PathOverrides, bytes.NewBuffer(b))
 	if err != nil {
 		return nil, "", err
 	}
@@ -484,7 +481,7 @@ func (c *Client) PatchOverrides(limits *userconfigurableoverrides.Limits) (*user
 }
 
 func (c *Client) DeleteOverrides(version string) error {
-	req, err := http.NewRequest("DELETE", c.BaseURL+tempo_api.PathOverrides, nil)
+	req, err := http.NewRequest("DELETE", c.BaseURL+api.PathOverrides, nil)
 	if err != nil {
 		return err
 	}

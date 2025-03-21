@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/go-test/deep"
+	"github.com/grafana/tempo/pkg/api"
 	jaeger_grpc "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -150,7 +151,7 @@ func main() {
 	httpClient := httpclient.New(vultureConfig.tempoQueryURL, vultureConfig.tempoOrgID)
 
 	if !rf1After.IsZero() {
-		httpClient.SetQueryParam("rf1_after", rf1After.Format(time.RFC3339))
+		httpClient.SetQueryParam(api.URLParamRF1After, rf1After.Format(time.RFC3339))
 	}
 
 	tickerWrite, tickerRead, tickerSearch, err := initTickers(vultureConfig.tempoWriteBackoffDuration, vultureConfig.tempoReadBackoffDuration, vultureConfig.tempoSearchBackoffDuration)
