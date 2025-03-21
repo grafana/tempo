@@ -95,14 +95,16 @@ type Reader interface {
 	BlockMeta(ctx context.Context, tenantID string, blockID backend.UUID) (*backend.BlockMeta, *backend.CompactedBlockMeta, error)
 	BlockMetas(tenantID string) []*backend.BlockMeta
 	EnablePolling(ctx context.Context, sharder blocklist.JobSharder)
+	Tenants() []string
 
 	Shutdown()
 }
 
 type Compactor interface {
 	EnableCompaction(ctx context.Context, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) error
-
 	MarkBlockCompacted(tenantID string, blockID backend.UUID) error
+	CompactWithConfig(ctx context.Context, metas []*backend.BlockMeta, tenantID string, cfg *CompactorConfig, sharder CompactorSharder, overrides CompactorOverrides) ([]*backend.BlockMeta, error)
+	MarkBlocklistCompacted(tenantID string, outputIDs, inputIDs []*backend.BlockMeta) error
 }
 
 type CompactorSharder interface {
@@ -297,6 +299,10 @@ func (rw *readerWriter) BlockMeta(ctx context.Context, tenantID string, blockID 
 
 func (rw *readerWriter) BlockMetas(tenantID string) []*backend.BlockMeta {
 	return rw.blocklist.Metas(tenantID)
+}
+
+func (rw *readerWriter) Tenants() []string {
+	return rw.blocklist.Tenants()
 }
 
 func (rw *readerWriter) Find(ctx context.Context, tenantID string, id common.ID, blockStart string, blockEnd string, timeStart int64, timeEnd int64, opts common.SearchOptions) ([]*tempopb.TraceByIDResponse, []error, error) {

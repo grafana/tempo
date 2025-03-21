@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/dskit/server"
 	"github.com/grafana/dskit/services"
 	"github.com/grafana/dskit/signals"
+	"github.com/grafana/tempo/modules/backendworker"
 	"github.com/grafana/tempo/modules/blockbuilder"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/prometheus/common/version"
@@ -30,6 +31,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/grafana/tempo/cmd/tempo/build"
+	"github.com/grafana/tempo/modules/backendscheduler"
 	"github.com/grafana/tempo/modules/compactor"
 	"github.com/grafana/tempo/modules/distributor"
 	"github.com/grafana/tempo/modules/distributor/receiver"
@@ -80,6 +82,8 @@ type App struct {
 	usageReport          *usagestats.Reporter
 	cacheProvider        cache.Provider
 	MemberlistKV         *memberlist.KVInitService
+	backendScheduler     *backendscheduler.BackendScheduler
+	backendWorker        *backendworker.BackendWorker
 
 	HTTPAuthMiddleware       middleware.Interface
 	TracesConsumerMiddleware receiver.Middleware
@@ -125,6 +129,8 @@ func (t *App) setupAuthMiddleware() {
 		noGRPCAuthOn := []string{
 			"/frontend.Frontend/Process",
 			"/frontend.Frontend/NotifyClientShutdown",
+			"/tempopb.BackendScheduler/Next",
+			"/tempopb.BackendScheduler/UpdateJob",
 		}
 		ignoredMethods := map[string]bool{}
 		for _, m := range noGRPCAuthOn {
