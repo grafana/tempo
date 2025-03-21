@@ -551,24 +551,21 @@ func (i *instance) QueryRange(ctx context.Context, req *tempopb.QueryRangeReques
 	for _, p := range processors {
 		err = p.QueryRange(ctx, req, rawEval, jobEval)
 		if err != nil {
-			fmt.Printf("error in query range: %v\n", err)
 			return nil, err
 		}
 	}
-	fmt.Println("INSTANCE QUERY RANGE***")
 	// Combine the raw results into the job results
 	walResults := rawEval.Results().ToProto(req)
-	fmt.Printf("raw results series: %v\n", len(walResults))
 	jobEval.ObserveSeries(walResults)
 
 	r := jobEval.Results()
 	rr := r.ToProto(req)
 
-	fmt.Println("**length of rr before", len(rr))
-	if len(rr) > 1000 {
-		rr = rr[:1000]
+	maxSeries := int(req.MaxSeries)
+	if maxSeries > 0 && len(rr) > maxSeries {
+		rr = rr[:maxSeries]
 	}
-	fmt.Println("**length of rr after", len(rr))
+
 	return &tempopb.QueryRangeResponse{
 		Series: rr,
 	}, nil

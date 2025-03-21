@@ -860,10 +860,6 @@ querier:
         # the address of the query frontend to connect to, and process queries
         # Example: "frontend_address: query-frontend-discovery.default.svc.cluster.local:9095"
         [frontend_address: <string>]
-
-    metrics:
-        # Maximum number of time series returned for a metrics query.
-        [max_response_series: <int> | default = 1000]
 ```
 
 It also queries compacted blocks that fall within the (2 * BlocklistPoll) range where the value of Blocklist poll duration
