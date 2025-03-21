@@ -208,6 +208,13 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 				parse(t, `{`+LabelDuration+` < 100s }`), // No match
 			),
 		},
+		// Check for existence
+		{".foo != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo != nil}`)},
+		{"resource.foo != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.foo != nil}`)}, // Resource-level only
+		{"span.foo != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo != nil}`)},
+		{"resource.namespace != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelNamespace + ` != nil}`)},
+		{"resource.dedicated.resource.4 != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.4 != nil}`)},
+		{"span.dedicated.span.4 != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 != nil}`)},
 		// Edge cases
 		{"Almost conflicts with intrinsic but still works", traceql.MustExtractFetchSpansRequestWithMetadata(`{.name = "Bob"}`)},
 		{"service.name doesn't match type of dedicated column", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelServiceName + ` = 123}`)},
