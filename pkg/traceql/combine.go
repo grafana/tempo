@@ -326,6 +326,10 @@ type QueryRangeCombiner struct {
 	req     *tempopb.QueryRangeRequest
 	eval    *MetricsFrontendEvaluator
 	metrics *tempopb.SearchMetrics
+
+	maxSeries        int
+	maxSeriesReached bool
+	seriesCount      int
 }
 
 func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode) (*QueryRangeCombiner, error) {
@@ -335,19 +339,24 @@ func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode) (
 	}
 
 	return &QueryRangeCombiner{
-		req:     req,
-		eval:    eval,
-		metrics: &tempopb.SearchMetrics{},
+		req:       req,
+		eval:      eval,
+		maxSeries: int(req.MaxSeries),
+		metrics:   &tempopb.SearchMetrics{},
 	}, nil
 }
 
 func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
-	if resp == nil {
+	if resp == nil || q.maxSeriesReached {
 		return
 	}
 
 	// Here is where the job results are reentered into the pipeline
-	q.eval.ObserveSeries(resp.Series)
+	q.seriesCount = q.eval.ObserveSeries(resp.Series)
+
+	if q.maxSeries > 0 && q.seriesCount >= q.maxSeries {
+		q.maxSeriesReached = true
+	}
 
 	if resp.Metrics != nil {
 		q.metrics.TotalJobs += resp.Metrics.TotalJobs
@@ -365,4 +374,8 @@ func (q *QueryRangeCombiner) Response() *tempopb.QueryRangeResponse {
 		Series:  q.eval.Results().ToProto(q.req),
 		Metrics: q.metrics,
 	}
+}
+
+func (q *QueryRangeCombiner) MaxSeriesReached() bool {
+	return q.maxSeriesReached
 }

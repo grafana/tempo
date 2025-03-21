@@ -42,6 +42,7 @@ type QueryRangeSharderConfig struct {
 	QueryBackendAfter     time.Duration `yaml:"query_backend_after,omitempty"`
 	Interval              time.Duration `yaml:"interval,omitempty"`
 	MaxExemplars          int           `yaml:"max_exemplars,omitempty"`
+	MaxResponseSeries     int           `yaml:"max_response_series,omitempty"`
 }
 
 // newAsyncQueryRangeSharder creates a sharding middleware for search
@@ -115,6 +116,7 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		}
 	}
 	req.Exemplars = maxExemplars
+	req.MaxSeries = uint32(s.cfg.MaxResponseSeries)
 
 	var (
 		allowUnsafe           = s.overrides.UnsafeQueryHints(tenantID)
@@ -271,6 +273,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 					FooterSize:    m.FooterSize,
 					// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
 					Exemplars: exemplars,
+					MaxSeries: uint32(s.cfg.MaxResponseSeries),
 				}
 
 				return api.BuildQueryRangeRequest(r, queryRangeReq, dedColsJSON), nil

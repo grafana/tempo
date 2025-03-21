@@ -34,6 +34,7 @@ func newQueryRangeStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTripp
 		if req.Step == 0 {
 			req.Step = traceql.DefaultQueryRangeStep(req.Start, req.End)
 		}
+		req.MaxSeries = uint32(cfg.Metrics.Sharder.MaxResponseSeries)
 
 		httpReq := api.BuildQueryRangeRequest(&http.Request{
 			URL:    &url.URL{Path: downstreamPath},
@@ -80,6 +81,7 @@ func newMetricsQueryRangeHTTPHandler(cfg Config, next pipeline.AsyncRoundTripper
 
 		// parse request
 		queryRangeReq, err := api.ParseQueryRangeRequest(req)
+		queryRangeReq.MaxSeries = uint32(cfg.Metrics.Sharder.MaxResponseSeries)
 		if err != nil {
 			level.Error(logger).Log("msg", "query range: parse search request failed", "err", err)
 			return &http.Response{

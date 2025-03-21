@@ -313,7 +313,7 @@ type VectorAggregator interface {
 // RangeAggregator sorts spans into time slots
 // TODO - for efficiency we probably combine this with VectorAggregator (see todo about CountOverTimeAggregator)
 type RangeAggregator interface {
-	Observe(s Span)
+	Observe(s Span) int
 	ObserveExemplar(float64, uint64, Labels)
 	Samples() []float64
 	Exemplars() []Exemplar
@@ -321,7 +321,7 @@ type RangeAggregator interface {
 
 // SpanAggregator sorts spans into series
 type SpanAggregator interface {
-	Observe(Span)
+	Observe(Span) int
 	ObserveExemplar(Span, float64, uint64)
 	Series() SeriesSet
 }
@@ -440,12 +440,13 @@ func NewStepAggregator(start, end, step uint64, innerAgg func() VectorAggregator
 	}
 }
 
-func (s *StepAggregator) Observe(span Span) {
+func (s *StepAggregator) Observe(span Span) int {
 	interval := IntervalOf(span.StartTimeUnixNanos(), s.start, s.end, s.step)
 	if interval == -1 {
-		return
+		return 0
 	}
 	s.vectors[interval].Observe(span)
+	return 0
 }
 
 func (s *StepAggregator) ObserveExemplar(value float64, ts uint64, lbls Labels) {
@@ -639,13 +640,14 @@ func (g *GroupingAggregator[F, S]) getSeries() aggregatorWitValues[S] {
 
 // Observe the span by looking up its group-by attributes, mapping to the series,
 // and passing to the inner aggregate.  This is a critical hot path.
-func (g *GroupingAggregator[F, S]) Observe(span Span) {
+func (g *GroupingAggregator[F, S]) Observe(span Span) int {
 	if !g.getGroupingValues(span) {
-		return
+		return 0
 	}
 
 	s := g.getSeries()
 	s.agg.Observe(span)
+	return len(g.series)
 }
 
 func (g *GroupingAggregator[F, S]) ObserveExemplar(span Span, value float64, ts uint64) {
@@ -737,8 +739,9 @@ type UngroupedAggregator struct {
 
 var _ SpanAggregator = (*UngroupedAggregator)(nil)
 
-func (u *UngroupedAggregator) Observe(span Span) {
+func (u *UngroupedAggregator) Observe(span Span) int {
 	u.innerAgg.Observe(span)
+	return 0
 }
 
 func (u *UngroupedAggregator) ObserveExemplar(span Span, value float64, ts uint64) {
@@ -982,7 +985,8 @@ func timeRangeOverlap(reqStart, reqEnd, dataStart, dataEnd uint64) float64 {
 
 // Do metrics on the given source of data and merge the results into the working set.  Optionally, if provided,
 // uses the known time range of the data for last-minute optimizations. Time range is unix nanos
-func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64) error {
+
+func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStart, fetcherEnd uint64, maxSeries int) error {
 	// Make a copy of the request so we can modify it.
 	storageReq := *e.storageReq
 
@@ -1017,6 +1021,8 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 	defer fetch.Results.Close()
 
+	seriesCount := 0
+
 	for {
 		ss, err := fetch.Results.Next(ctx)
 		if err != nil {
@@ -1038,7 +1044,7 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 			e.spansTotal++
 
-			e.metricsPipeline.observe(s)
+			seriesCount = e.metricsPipeline.observe(s)
 		}
 
 		if len(ss.Spans) > 0 && e.sampleExemplar(ss.TraceID) {
@@ -1047,6 +1053,9 @@ func (e *MetricsEvaluator) Do(ctx context.Context, f SpansetFetcher, fetcherStar
 
 		e.mtx.Unlock()
 		ss.Release()
+		if maxSeries > 0 && seriesCount >= maxSeries {
+			break
+		}
 	}
 
 	e.mtx.Lock()
@@ -1093,11 +1102,11 @@ type MetricsFrontendEvaluator struct {
 	metricsPipeline metricsFirstStageElement
 }
 
-func (m *MetricsFrontendEvaluator) ObserveSeries(in []*tempopb.TimeSeries) {
+func (m *MetricsFrontendEvaluator) ObserveSeries(in []*tempopb.TimeSeries) int {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	m.metricsPipeline.observeSeries(in)
+	return m.metricsPipeline.observeSeries(in)
 }
 
 func (m *MetricsFrontendEvaluator) Results() SeriesSet {
@@ -1108,7 +1117,7 @@ func (m *MetricsFrontendEvaluator) Results() SeriesSet {
 }
 
 type SeriesAggregator interface {
-	Combine([]*tempopb.TimeSeries)
+	Combine([]*tempopb.TimeSeries) int
 	Results() SeriesSet
 }
 
@@ -1164,7 +1173,7 @@ func NewSimpleCombiner(req *tempopb.QueryRangeRequest, op SimpleAggregationOp) *
 	}
 }
 
-func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
+func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) int {
 	nan := math.Float64frombits(normalNaN)
 
 	for _, ts := range in {
@@ -1204,6 +1213,8 @@ func (b *SimpleAggregator) Combine(in []*tempopb.TimeSeries) {
 
 		b.ss[ts.PromLabels] = existing
 	}
+
+	return len(b.ss)
 }
 
 func (b *SimpleAggregator) aggregateExemplars(ts *tempopb.TimeSeries, existing *TimeSeries) {
@@ -1284,7 +1295,7 @@ func NewHistogramAggregator(req *tempopb.QueryRangeRequest, qs []float64) *Histo
 	}
 }
 
-func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
+func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) int {
 	// var min, max time.Time
 
 	for _, ts := range in {
@@ -1355,6 +1366,7 @@ func (h *HistogramAggregator) Combine(in []*tempopb.TimeSeries) {
 			})
 		}
 	}
+	return len(h.ss)
 }
 
 func (h *HistogramAggregator) Results() SeriesSet {

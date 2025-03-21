@@ -38,10 +38,11 @@ func newQueryInstantStreamingGRPCHandler(cfg Config, next pipeline.AsyncRoundTri
 		// Rewrite into a query_range request.
 		// --------------------------------------------------
 		qr := &tempopb.QueryRangeRequest{
-			Query: req.Query,
-			Start: req.Start,
-			End:   req.End,
-			Step:  req.End - req.Start,
+			Query:     req.Query,
+			Start:     req.Start,
+			End:       req.End,
+			Step:      req.End - req.Start,
+			MaxSeries: uint32(cfg.Metrics.Sharder.MaxResponseSeries),
 		}
 		httpReq := api.BuildQueryRangeRequest(&http.Request{
 			URL:    &url.URL{Path: downstreamPath},
@@ -103,10 +104,11 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 		// Rewrite into a query_range request.
 		// --------------------------------------------------
 		qr := &tempopb.QueryRangeRequest{
-			Query: i.Query,
-			Start: i.Start,
-			End:   i.End,
-			Step:  i.End - i.Start,
+			Query:     i.Query,
+			Start:     i.Start,
+			End:       i.End,
+			Step:      i.End - i.Start,
+			MaxSeries: uint32(cfg.Metrics.Sharder.MaxResponseSeries),
 		}
 
 		// Clone existing to keep it unaltered.
@@ -173,6 +175,8 @@ func newMetricsQueryInstantHTTPHandler(cfg Config, next pipeline.AsyncRoundTripp
 func translateQueryRangeToInstant(input tempopb.QueryRangeResponse) tempopb.QueryInstantResponse {
 	output := tempopb.QueryInstantResponse{
 		Metrics: input.Metrics,
+		Status:  input.Status,
+		Message: input.Message,
 	}
 	for _, series := range input.Series {
 		if len(series.Samples) == 0 {
