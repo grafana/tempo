@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	jsoniter "github.com/json-iterator/go"
 )
 
 type Work struct {
@@ -159,4 +160,18 @@ func (q *Work) HasBlocks(ids []string) bool {
 	}
 
 	return false
+}
+
+func (q *Work) Marshal() ([]byte, error) {
+	q.mtx.RLock()
+	defer q.mtx.RUnlock()
+
+	return jsoniter.Marshal(q)
+}
+
+func (q *Work) Unmarshal(data []byte) error {
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
+
+	return jsoniter.Unmarshal(data, q)
 }

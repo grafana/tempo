@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/grafana/tempo/pkg/tempopb"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -184,4 +185,46 @@ func TestDeadJobTimeout(t *testing.T) {
 	w.Prune()
 	require.Equal(t, w.Len(), 0)
 	require.Equal(t, j.GetStatus(), tempopb.JobStatus_JOB_STATUS_FAILED)
+}
+
+func TestMarshal(t *testing.T) {
+	w := New(Config{PruneAge: 100 * time.Millisecond})
+	require.NotNil(t, w)
+
+	j := &Job{ID: "1", JobDetail: tempopb.JobDetail{Compaction: &tempopb.CompactionDetail{Input: []string{"1"}}}}
+	err := w.AddJob(j)
+	require.NoError(t, err)
+
+	b, err := w.Marshal()
+	require.NoError(t, err)
+	require.NotEmpty(t, b)
+
+	w2 := New(Config{PruneAge: 100 * time.Millisecond})
+	require.NotNil(t, w2)
+
+	err = w2.Unmarshal(b)
+	require.NoError(t, err)
+
+	require.Equal(t, w.Len(), w2.Len())
+	require.Equal(t, w.GetJob("1").ID, w2.GetJob("1").ID)
+}
+
+func TestJsonMarshal(t *testing.T) {
+	w := New(Config{PruneAge: 100 * time.Millisecond})
+	require.NotNil(t, w)
+
+	j := &Job{ID: "1", JobDetail: tempopb.JobDetail{Compaction: &tempopb.CompactionDetail{Input: []string{"1"}}}}
+	err := w.AddJob(j)
+	require.NoError(t, err)
+
+	b, err := jsoniter.Marshal(w)
+	require.NoError(t, err)
+	require.NotEmpty(t, b)
+
+	var w2 Work
+	err = jsoniter.Unmarshal(b, &w2)
+	require.NoError(t, err)
+	require.Equal(t, w.Len(), w2.Len())
+	require.Equal(t, w.GetJob("1").ID, w2.GetJob("1").ID)
+	require.Equal(t, w.GetJob("1").GetCompactionInput(), w2.GetJob("1").GetCompactionInput())
 }

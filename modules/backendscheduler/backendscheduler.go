@@ -38,8 +38,7 @@ type BackendScheduler struct {
 	store     storage.Store
 	overrides overrides.Interface
 
-	work    *work.Work
-	workMtx sync.RWMutex
+	work *work.Work
 
 	rpcMtx sync.RWMutex
 
