@@ -116,7 +116,6 @@ func (s queryRangeSharder) RoundTrip(pipelineRequest pipeline.Request) (pipeline
 		}
 	}
 	req.Exemplars = maxExemplars
-	req.MaxSeries = uint32(s.cfg.MaxResponseSeries)
 
 	var (
 		allowUnsafe           = s.overrides.UnsafeQueryHints(tenantID)
@@ -275,7 +274,7 @@ func (s *queryRangeSharder) buildBackendRequests(ctx context.Context, tenantID s
 					FooterSize:    m.FooterSize,
 					// DedicatedColumns: dc, for perf reason we pass dedicated columns json in directly to not have to realloc object -> proto -> json
 					Exemplars: exemplars,
-					MaxSeries: uint32(s.cfg.MaxResponseSeries),
+					MaxSeries: searchReq.MaxSeries,
 				}
 
 				return api.BuildQueryRangeRequest(r, queryRangeReq, dedColsJSON), nil

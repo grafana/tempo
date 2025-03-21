@@ -329,7 +329,6 @@ type QueryRangeCombiner struct {
 
 	maxSeries        int
 	maxSeriesReached bool
-	seriesCount      int
 }
 
 func QueryRangeCombinerFor(req *tempopb.QueryRangeRequest, mode AggregateMode) (*QueryRangeCombiner, error) {
@@ -352,9 +351,9 @@ func (q *QueryRangeCombiner) Combine(resp *tempopb.QueryRangeResponse) {
 	}
 
 	// Here is where the job results are reentered into the pipeline
-	q.seriesCount = q.eval.ObserveSeries(resp.Series)
+	seriesCount := q.eval.ObserveSeries(resp.Series)
 
-	if q.maxSeries > 0 && q.seriesCount >= q.maxSeries {
+	if q.maxSeries > 0 && seriesCount >= q.maxSeries {
 		q.maxSeriesReached = true
 	}
 
