@@ -226,15 +226,15 @@ func Test_instance_updateProcessors(t *testing.T) {
 			hostinfo.Name:      {},
 		}
 		overrides.hostInfoHostIdentifiers = []string{"host.id"}
-		overrides.hostInfoMetricName = "traces_host_info"
 
+		overrides.hostInfoMetricName = "sample_traces_host_info"
 		err := instance.updateProcessors()
 		assert.NoError(t, err)
 
 		var expectedConfig hostinfo.Config
 		expectedConfig.RegisterFlagsAndApplyDefaults("", &flag.FlagSet{})
 		expectedConfig.HostIdentifiers = []string{"host.id"}
-		expectedConfig.MetricName = "traces_host_info"
+		expectedConfig.MetricName = "sample_traces_host_info"
 
 		assert.Equal(t, expectedConfig, instance.processors[hostinfo.Name].(*hostinfo.Processor).Cfg)
 	})
