@@ -236,7 +236,9 @@ func (f ScalarFilter) evaluate(input []*Spanset) (output []*Spanset, err error) 
 	return output, nil
 }
 
-func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
+func (a Aggregate) evaluate(input []*Spanset) ([]*Spanset, error) {
+	var output []*Spanset
+
 	for _, ss := range input {
 		switch a.op {
 		case aggregateCount:
@@ -253,6 +255,9 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				if err != nil {
 					return nil, err
 				}
+				if val.IsNil() {
+					continue
+				}
 
 				if sum == nil {
 					sum = &val
@@ -260,6 +265,9 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 					sum.sumInto(&val)
 				}
 				count++
+			}
+			if sum == nil {
+				continue
 			}
 
 			cpy := ss.clone()
@@ -274,10 +282,18 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				if err != nil {
 					return nil, err
 				}
+				if val.IsNil() {
+					continue
+				}
+
 				if maxS == nil || val.compare(maxS) > 0 {
 					maxS = &val
 				}
 			}
+			if maxS == nil {
+				continue
+			}
+
 			cpy := ss.clone()
 			cpy.Scalar = *maxS
 			cpy.AddAttribute(a.String(), cpy.Scalar)
@@ -290,10 +306,18 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				if err != nil {
 					return nil, err
 				}
+				if val.IsNil() {
+					continue
+				}
+
 				if minS == nil || val.compare(minS) == -1 {
 					minS = &val
 				}
 			}
+			if minS == nil {
+				continue
+			}
+
 			cpy := ss.clone()
 			cpy.Scalar = *minS
 			cpy.AddAttribute(a.String(), cpy.Scalar)
@@ -306,12 +330,20 @@ func (a Aggregate) evaluate(input []*Spanset) (output []*Spanset, err error) {
 				if err != nil {
 					return nil, err
 				}
+				if val.IsNil() {
+					continue
+				}
+
 				if sum == nil {
 					sum = &val
 				} else {
 					sum.sumInto(&val)
 				}
 			}
+			if sum == nil {
+				continue
+			}
+
 			cpy := ss.clone()
 			cpy.Scalar = *sum
 			cpy.AddAttribute(a.String(), cpy.Scalar)

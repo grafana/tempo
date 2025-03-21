@@ -777,6 +777,10 @@ func (s Static) StrictEquals(o *Static) bool {
 	}
 }
 
+func (s Static) IsNil() bool {
+	return s.Type == TypeNil
+}
+
 func (s Static) compare(o *Static) int {
 	if s.Type != o.Type {
 		if s.isNumeric() && o.isNumeric() {
