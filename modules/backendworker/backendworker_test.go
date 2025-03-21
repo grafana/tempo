@@ -45,7 +45,7 @@ func TestWorker(t *testing.T) {
 
 	w.backendScheduler = scheduler
 
-	err = w.processCompactionJobs(ctx)
+	err = w.processJobs(ctx)
 	require.Error(t, err, "no jobs found")
 
 	w.backendScheduler = &mockScheduler{
@@ -53,7 +53,7 @@ func TestWorker(t *testing.T) {
 		updateJob: updateJobNoop,
 	}
 
-	err = w.processCompactionJobs(ctx)
+	err = w.processJobs(ctx)
 	require.NoError(t, err)
 }
 

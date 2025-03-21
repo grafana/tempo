@@ -53,7 +53,6 @@ func TestBackendScheduler(t *testing.T) {
 
 		resp, err := s.Next(ctx, &tempopb.NextJobRequest{
 			WorkerId: "test-worker",
-			Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
 		})
 		require.Error(t, err)
 		errStatus, ok := status.FromError(err)
@@ -81,11 +80,8 @@ func TestBackendScheduler(t *testing.T) {
 		s, err := New(cfg, store, limits, rr, ww)
 		require.NoError(t, err)
 
-		s.prioritizeTenants()
-
 		resp, err := s.Next(ctx, &tempopb.NextJobRequest{
 			WorkerId: "test-worker",
-			Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, resp)
@@ -95,7 +91,6 @@ func TestBackendScheduler(t *testing.T) {
 		t.Run("requesting the next job with the same worker returns the same job", func(t *testing.T) {
 			resp2, err := s.Next(ctx, &tempopb.NextJobRequest{
 				WorkerId: "test-worker",
-				Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
 			})
 			require.NoError(t, err)
 			require.NotNil(t, resp2)
@@ -103,13 +98,6 @@ func TestBackendScheduler(t *testing.T) {
 		})
 
 		updateResp, err := s.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
-			JobId:  resp.JobId,
-			Status: tempopb.JobStatus_JOB_STATUS_RUNNING,
-		})
-		require.NoError(t, err)
-		require.NotNil(t, updateResp)
-
-		updateResp, err = s.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
 			JobId:  resp.JobId,
 			Status: tempopb.JobStatus_JOB_STATUS_SUCCEEDED,
 			Compaction: &tempopb.CompactionDetail{
@@ -121,7 +109,6 @@ func TestBackendScheduler(t *testing.T) {
 
 		resp, err = s.Next(ctx, &tempopb.NextJobRequest{
 			WorkerId: "test-worker",
-			Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, resp)
@@ -141,7 +128,6 @@ func TestBackendScheduler(t *testing.T) {
 		for i := 0; i < tenantCount*15; i++ {
 			resp, err = s.Next(ctx, &tempopb.NextJobRequest{
 				WorkerId: "test-worker",
-				Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
 			})
 			if err != nil {
 				statusErr, ok := status.FromError(err)

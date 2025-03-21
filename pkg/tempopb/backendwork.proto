@@ -54,7 +54,6 @@ message JobDetail {
 
 message NextJobRequest {
   string worker_id = 1;
-  JobType type = 2;
 }
 
 message NextJobResponse {

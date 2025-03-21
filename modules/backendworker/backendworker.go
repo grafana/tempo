@@ -196,7 +196,7 @@ func (w *BackendWorker) running(ctx context.Context) error {
 			case err := <-w.subservicesWatcher.Chan():
 				return fmt.Errorf("worker subservices failed: %w", err)
 			default:
-				if err := w.processCompactionJobs(ctx); err != nil {
+				if err := w.processJobs(ctx); err != nil {
 					level.Error(log.Logger).Log("msg", "error processing compaction jobs", "err", err, "backoff", b.NextDelay())
 					b.Wait()
 					continue
@@ -211,7 +211,7 @@ func (w *BackendWorker) running(ctx context.Context) error {
 			case <-ctx.Done():
 				return nil
 			default:
-				if err := w.processCompactionJobs(ctx); err != nil {
+				if err := w.processJobs(ctx); err != nil {
 					level.Error(log.Logger).Log("msg", "error processing compaction jobs", "err", err, "backoff", b.NextDelay())
 					b.Wait()
 					continue
@@ -227,7 +227,7 @@ func (w *BackendWorker) running(ctx context.Context) error {
 // func (w *BackendWorker) processRetentionJobs(ctx context.Context) error {
 // }
 
-func (w *BackendWorker) processCompactionJobs(ctx context.Context) error {
+func (w *BackendWorker) processJobs(ctx context.Context) error {
 	var resp *tempopb.NextJobResponse
 	var err error
 
@@ -235,7 +235,6 @@ func (w *BackendWorker) processCompactionJobs(ctx context.Context) error {
 	err = w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
 		resp, err = w.backendScheduler.Next(ctx, &tempopb.NextJobRequest{
 			WorkerId: w.workerID,
-			Type:     tempopb.JobType_JOB_TYPE_COMPACTION,
 		})
 		if err != nil {
 			if errStatus, ok := status.FromError(err); ok {
@@ -273,20 +272,6 @@ func (w *BackendWorker) processCompactionJobs(ctx context.Context) error {
 				sourceMetas = append(sourceMetas, blockMeta)
 			}
 		}
-	}
-
-	err = w.callSchedulerWithBackoff(ctx, func(ctx context.Context) error {
-		_, err = w.backendScheduler.UpdateJob(ctx, &tempopb.UpdateJobStatusRequest{
-			JobId:  resp.JobId,
-			Status: tempopb.JobStatus_JOB_STATUS_RUNNING,
-		})
-		if err != nil {
-			return fmt.Errorf("failed marking job %q as complete: %w", resp.JobId, err)
-		}
-		return nil
-	})
-	if err != nil {
-		return w.failJob(ctx, resp.JobId, fmt.Sprintf("error marking job %q complete: %v", resp.JobId, err))
 	}
 
 	// Execute compaction using existing logic
