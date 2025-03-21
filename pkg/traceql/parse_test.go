@@ -1442,3 +1442,118 @@ func TestMetrics(t *testing.T) {
 		})
 	}
 }
+
+func TestMetricsSecondStage(t *testing.T) {
+	tests := []struct {
+		in       string
+		expected *RootExpr
+	}{
+		{
+			in: `{ } | rate() | topk(10)`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newTopKBottomK(OpTopK, 10),
+			),
+		},
+		{
+			in: `{ } | count_over_time() by(name, span.http.status_code) | topk(10)`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateCountOverTime, []Attribute{
+					NewIntrinsic(IntrinsicName),
+					NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
+				}),
+				newTopKBottomK(OpTopK, 10),
+			),
+		},
+		{
+			in: `{ } | rate() | topk(10) with(foo="bar")`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newTopKBottomK(OpTopK, 10),
+			).withHints(newHints([]*Hint{
+				newHint("foo", NewStaticString("bar")),
+			})),
+		},
+		{
+			in: `{ } | rate() | bottomk(10)`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newTopKBottomK(OpBottomK, 10),
+			),
+		},
+		{
+			in: `{ } | count_over_time() by(name, span.http.status_code) | bottomk(10)`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateCountOverTime, []Attribute{
+					NewIntrinsic(IntrinsicName),
+					NewScopedAttribute(AttributeScopeSpan, false, "http.status_code"),
+				}),
+				newTopKBottomK(OpBottomK, 10),
+			),
+		},
+		{
+			in: `{ } | rate() | bottomk(10) with(foo="bar")`,
+			expected: newRootExprWithMetricsTwoStage(
+				newPipeline(newSpansetFilter(NewStaticBool(true))),
+				newMetricsAggregate(metricsAggregateRate, nil),
+				newTopKBottomK(OpBottomK, 10),
+			).withHints(newHints([]*Hint{
+				newHint("foo", NewStaticString("bar")),
+			})),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			actual, err := Parse(tc.in)
+
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestMetricsSecondStageErrors(t *testing.T) {
+	tests := []struct {
+		in  string
+		err error
+	}{
+		{
+			in:  "{} | topk(10)",
+			err: newParseError("syntax error: unexpected topk", 1, 6),
+		},
+		{
+			in:  "{} | topk(10) with(sample=0.1)",
+			err: newParseError("syntax error: unexpected topk", 1, 6),
+		},
+		{
+			in:  "{} | rate() | topk(-1)",
+			err: newParseError("syntax error: unexpected -, expecting INTEGER", 1, 20),
+		},
+		{
+			in:  "{} | bottomk(10)",
+			err: newParseError("syntax error: unexpected bottomk", 1, 6),
+		},
+		{
+			in:  "{} | bottomk(10) with(sample=0.1)",
+			err: newParseError("syntax error: unexpected bottomk", 1, 6),
+		},
+		{
+			in:  "{} | rate() | bottomk(-1)",
+			err: newParseError("syntax error: unexpected -, expecting INTEGER", 1, 23),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			_, err := Parse(tc.in)
+
+			require.Equal(t, tc.err, err)
+		})
+	}
+}

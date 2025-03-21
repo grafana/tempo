@@ -1,6 +1,7 @@
 package traceql
 
 import (
+	"container/heap"
 	"context"
 	"errors"
 	"fmt"
@@ -779,11 +780,12 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 		return nil, fmt.Errorf("step required")
 	}
 
-	_, _, metricsPipeline, _, err := Compile(req.Query)
+	_, _, metricsPipeline, metricsSecondStage, _, err := Compile(req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}
 
+	// for metrics queries, we need a metrics pipeline
 	if metricsPipeline == nil {
 		return nil, fmt.Errorf("not a metrics query")
 	}
@@ -791,12 +793,13 @@ func (e *Engine) CompileMetricsQueryRangeNonRaw(req *tempopb.QueryRangeRequest, 
 	metricsPipeline.init(req, mode)
 
 	return &MetricsFrontendEvaluator{
-		metricsPipeline: metricsPipeline,
+		metricsPipeline:    metricsPipeline,
+		metricsSecondStage: metricsSecondStage,
 	}, nil
 }
 
 // CompileMetricsQueryRange returns an evaluator that can be reused across multiple data sources.
-// Dedupe spans parameter is an indicator of whether to expect duplicates in the datasource. For
+// Dedupe spans parameter is an indicator of whether to expected duplicates in the datasource. For
 // example if the datasource is replication factor=1 or only a single block then we know there
 // aren't duplicates, and we can make some optimizations.
 func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exemplars int, timeOverlapCutoff float64, allowUnsafeQueryHints bool) (*MetricsEvaluator, error) {
@@ -813,7 +816,7 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 		return nil, fmt.Errorf("step required")
 	}
 
-	expr, eval, metricsPipeline, storageReq, err := Compile(req.Query)
+	expr, eval, metricsPipeline, metricsSecondStage, storageReq, err := Compile(req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("compiling query: %w", err)
 	}
@@ -830,11 +833,12 @@ func (e *Engine) CompileMetricsQueryRange(req *tempopb.QueryRangeRequest, exempl
 	metricsPipeline.init(req, AggregateModeRaw)
 
 	me := &MetricsEvaluator{
-		storageReq:        storageReq,
-		metricsPipeline:   metricsPipeline,
-		timeOverlapCutoff: timeOverlapCutoff,
-		maxExemplars:      exemplars,
-		exemplarMap:       make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
+		storageReq:         storageReq,
+		metricsPipeline:    metricsPipeline,
+		metricsSecondStage: metricsSecondStage,
+		timeOverlapCutoff:  timeOverlapCutoff,
+		maxExemplars:       exemplars,
+		exemplarMap:        make(map[string]struct{}, exemplars), // TODO: Lazy, use bloom filter, CM sketch or something
 	}
 
 	// Span start time (always required)
@@ -964,7 +968,8 @@ type MetricsEvaluator struct {
 	exemplarMap                     map[string]struct{}
 	timeOverlapCutoff               float64
 	storageReq                      *FetchSpansRequest
-	metricsPipeline                 metricsFirstStageElement
+	metricsPipeline                 firstStageElement
+	metricsSecondStage              secondStageElement
 	spansTotal, spansDeduped, bytes uint64
 	mtx                             sync.Mutex
 }
@@ -1064,7 +1069,14 @@ func (e *MetricsEvaluator) Metrics() (uint64, uint64, uint64) {
 }
 
 func (e *MetricsEvaluator) Results() SeriesSet {
-	return e.metricsPipeline.result()
+	results := e.metricsPipeline.result()
+	if e.metricsSecondStage != nil {
+		// if we have metrics second stage, pass first stage results through
+		// second stage for further processing.
+		results = e.metricsSecondStage.process(results)
+	}
+
+	return results
 }
 
 func (e *MetricsEvaluator) sampleExemplar(id []byte) bool {
@@ -1089,8 +1101,9 @@ func (e *MetricsEvaluator) sampleExemplar(id []byte) bool {
 // MetricsFrontendEvaluator pipes the sharded job results back into the engine for the rest
 // of the pipeline.  i.e. This evaluator is for the query-frontend.
 type MetricsFrontendEvaluator struct {
-	mtx             sync.Mutex
-	metricsPipeline metricsFirstStageElement
+	mtx                sync.Mutex
+	metricsPipeline    firstStageElement
+	metricsSecondStage secondStageElement
 }
 
 func (m *MetricsFrontendEvaluator) ObserveSeries(in []*tempopb.TimeSeries) {
@@ -1104,7 +1117,15 @@ func (m *MetricsFrontendEvaluator) Results() SeriesSet {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	return m.metricsPipeline.result()
+	results := m.metricsPipeline.result()
+
+	if m.metricsSecondStage != nil {
+		// if we have metrics second stage, pass first stage results through
+		// second stage for further processing.
+		results = m.metricsSecondStage.process(results)
+	}
+
+	return results
 }
 
 type SeriesAggregator interface {
@@ -1483,4 +1504,120 @@ func FloatizeAttribute(s Span, a Attribute) (float64, StaticType) {
 		return 0, TypeNil
 	}
 	return f, v.Type
+}
+
+// processTopK implements TopKBottomK topk method
+func processTopK(input SeriesSet, limit int) SeriesSet {
+	var valueLength int
+	for _, series := range input {
+		valueLength = len(series.Values)
+		break
+	}
+
+	result := make(SeriesSet)
+
+	// process each timestamp
+	for i := 0; i < valueLength; i++ {
+		// Min heap for top-k (smallest values at top for easy replacement)
+		h := &seriesHeap{}
+		heap.Init(h)
+
+		// process each series for this timestamp
+		for key, series := range input {
+			if i >= len(series.Values) {
+				continue
+			}
+
+			value := series.Values[i]
+			if math.IsNaN(value) {
+				continue // Skip NaN values
+			}
+
+			// If heap not full yet, add the value
+			if h.Len() < limit {
+				heap.Push(h, seriesValue{
+					key:   key,
+					value: value,
+				})
+				continue
+			}
+
+			// If new value is greater than smallest in heap, replace it
+			smallest := (*h)[0]
+			if value > smallest.value {
+				heap.Pop(h)
+				heap.Push(h, seriesValue{
+					key:   key,
+					value: value,
+				})
+			}
+		}
+
+		// we have iterated over all series for this timestamp
+		// empty the heap and record these series in result set
+		for h.Len() > 0 {
+			sv := heap.Pop(h).(seriesValue)
+			result[sv.key] = input[sv.key]
+		}
+	}
+
+	return result
+}
+
+// processBottomK implements TopKBottomK bottomk method
+func processBottomK(input SeriesSet, limit int) SeriesSet {
+	var valueLength int
+	for _, series := range input {
+		valueLength = len(series.Values)
+		break
+	}
+
+	result := make(SeriesSet)
+
+	// Process each timestamp
+	for i := 0; i < valueLength; i++ {
+		// Max heap for bottom-k (largest values at top for easy replacement)
+		h := &reverseSeriesHeap{}
+		heap.Init(h)
+
+		// Process each series for this timestamp
+		for key, series := range input {
+			if i >= len(series.Values) {
+				continue
+			}
+
+			value := series.Values[i]
+			if math.IsNaN(value) {
+				continue // Skip NaN values
+			}
+
+			// If heap not full yet, add the value
+			if h.Len() < limit {
+				heap.Push(h, seriesValue{
+					key:   key,
+					value: value,
+				})
+				continue
+			}
+
+			// If new value is less than largest in heap, replace it
+			largest := (*h)[0]
+			if value < largest.value {
+				heap.Pop(h)
+				heap.Push(h, seriesValue{
+					key:   key,
+					value: value,
+				})
+			}
+		}
+
+		// we have iterated over all series for this timestamp
+		// empty the heap and record these series in result set
+		for h.Len() > 0 {
+			sv := heap.Pop(h).(seriesValue)
+			result[sv.key] = input[sv.key]
+		}
+	}
+
+	return result
 }
