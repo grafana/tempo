@@ -3,9 +3,9 @@ package frontend
 import (
 	"encoding/hex"
 	"net/http"
+	"time"
 
 	"github.com/go-kit/log" //nolint:all //deprecated
-
 	"github.com/grafana/dskit/user"
 	"github.com/grafana/tempo/modules/frontend/combiner"
 	"github.com/grafana/tempo/modules/frontend/pipeline"
@@ -87,6 +87,13 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request) ([]pip
 		return nil, err
 	}
 
+	var rf1After string
+	if val := parent.HTTPRequest().URL.Query().Get(api.URLParamRF1After); val != "" {
+		rf1After = val
+	} else if !s.cfg.RF1After.IsZero() {
+		rf1After = s.cfg.RF1After.Format(time.RFC3339)
+	}
+
 	// build sharded block queries
 	for i := 1; i < len(s.blockBoundaries); i++ {
 		i := i // save the loop variable locally to make sure the closure grabs the correct var.
@@ -95,6 +102,7 @@ func (s *asyncTraceSharder) buildShardedRequests(parent pipeline.Request) ([]pip
 			params[querier.BlockStartKey] = hex.EncodeToString(s.blockBoundaries[i-1])
 			params[querier.BlockEndKey] = hex.EncodeToString(s.blockBoundaries[i])
 			params[querier.QueryModeKey] = querier.QueryModeBlocks
+			params[api.URLParamRF1After] = rf1After
 
 			return api.BuildQueryRequest(r, params), nil
 		})

@@ -45,7 +45,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// validate request
-	blockStart, blockEnd, queryMode, timeStart, timeEnd, err := api.ValidateAndSanitizeRequest(r)
+	blockStart, blockEnd, queryMode, timeStart, timeEnd, rf1After, err := api.ValidateAndSanitizeRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -57,6 +57,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		attribute.String("timeStart", fmt.Sprint(timeStart)),
 		attribute.String("timeEnd", fmt.Sprint(timeEnd)),
 		attribute.String("apiVersion", "v1"),
+		attribute.String("rf1After", rf1After.Format(time.RFC3339)),
 	))
 
 	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
@@ -64,6 +65,7 @@ func (q *Querier) TraceByIDHandler(w http.ResponseWriter, r *http.Request) {
 		BlockStart: blockStart,
 		BlockEnd:   blockEnd,
 		QueryMode:  queryMode,
+		RF1After:   rf1After,
 	}, timeStart, timeEnd)
 	if err != nil {
 		handleError(w, err)
@@ -94,7 +96,7 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// validate request
-	blockStart, blockEnd, queryMode, timeStart, timeEnd, err := api.ValidateAndSanitizeRequest(r)
+	blockStart, blockEnd, queryMode, timeStart, timeEnd, rf1After, err := api.ValidateAndSanitizeRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -106,6 +108,7 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 		attribute.String("timeStart", fmt.Sprint(timeStart)),
 		attribute.String("timeEnd", fmt.Sprint(timeEnd)),
 		attribute.String("apiVersion", "v2"),
+		attribute.String("rf1After", rf1After.Format(time.RFC3339)),
 	))
 
 	resp, err := q.FindTraceByID(ctx, &tempopb.TraceByIDRequest{
@@ -114,6 +117,7 @@ func (q *Querier) TraceByIDHandlerV2(w http.ResponseWriter, r *http.Request) {
 		BlockEnd:          blockEnd,
 		QueryMode:         queryMode,
 		AllowPartialTrace: true,
+		RF1After:          rf1After,
 	}, timeStart, timeEnd)
 	if err != nil {
 		handleError(w, err)

@@ -37,6 +37,9 @@ type Config struct {
 
 	// A list of headers allowed through the HTTP pipeline. Everything else will be stripped.
 	AllowedHeaders []string `yaml:"-"`
+
+	// RF1After specifies the time after which RF1 logic is applied.
+	RF1After time.Time `yaml:"rf1_after" category:"advanced"`
 }
 
 type SearchConfig struct {
@@ -50,6 +53,10 @@ type TraceByIDConfig struct {
 	QueryShards      int       `yaml:"query_shards,omitempty"`
 	ConcurrentShards int       `yaml:"concurrent_shards,omitempty"`
 	SLO              SLOConfig `yaml:",inline"`
+
+	// RF1After specifies the time after which RF1 logic is applied, injected by the configuration
+	// or determined at runtime based on search request parameters.
+	RF1After time.Time `yaml:"-"`
 }
 
 type MetricsConfig struct {

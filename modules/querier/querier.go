@@ -271,7 +271,8 @@ func (q *Querier) FindTraceByID(ctx context.Context, req *tempopb.TraceByIDReque
 		))
 
 		opts := common.DefaultSearchOptionsWithMaxBytes(maxBytes)
-		opts.BlockReplicationFactor = backend.DefaultReplicationFactor
+		opts.RF1After = req.RF1After
+
 		partialTraces, blockErrs, err := q.store.Find(ctx, userID, req.TraceID, req.BlockStart, req.BlockEnd, timeStart, timeEnd, opts)
 		if err != nil {
 			retErr := fmt.Errorf("error querying store in Querier.FindTraceByID: %w", err)

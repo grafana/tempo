@@ -15,9 +15,8 @@ import (
 	"github.com/go-logfmt/logfmt"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/prometheus/common/model"
-
 	"github.com/grafana/dskit/httpgrpc"
+	"github.com/prometheus/common/model"
 
 	"github.com/grafana/tempo/pkg/tempopb"
 	"github.com/grafana/tempo/pkg/traceql"
@@ -26,7 +25,7 @@ import (
 )
 
 const (
-	URLParamTraceID = "traceID"
+	urlParamTraceID = "traceID"
 	// search
 	urlParamQuery           = "q"
 	urlParamTags            = "tags"
@@ -39,6 +38,7 @@ const (
 	urlParamStep            = "step"
 	urlParamSince           = "since"
 	urlParamExemplars       = "exemplars"
+	URLParamRF1After        = "rf1After"
 
 	// backend search querier
 	urlParamStartPage        = "startPage"
@@ -101,7 +101,7 @@ const (
 
 func ParseTraceID(r *http.Request) ([]byte, error) {
 	vars := mux.Vars(r)
-	traceID, ok := vars[URLParamTraceID]
+	traceID, ok := vars[urlParamTraceID]
 	if !ok {
 		return nil, fmt.Errorf("please provide a traceID")
 	}
@@ -231,6 +231,14 @@ func ParseSearchRequest(r *http.Request) (*tempopb.SearchRequest, error) {
 			return nil, errors.New("invalid spss: must be a positive number")
 		}
 		req.SpansPerSpanSet = uint32(spansPerSpanSet)
+	}
+
+	if s, ok := extractQueryParam(vals, URLParamRF1After); ok {
+		t, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			return nil, fmt.Errorf("invalid rf1After: %w", err)
+		}
+		req.RF1After = t
 	}
 
 	// start and end == 0 is fine
@@ -493,6 +501,9 @@ func BuildQueryRequest(req *http.Request, queryParams map[string]string) *http.R
 	}
 	qb := newQueryBuilder(req.URL.RawQuery)
 	for k, v := range queryParams {
+		if v == "" {
+			continue
+		}
 		qb.addParam(k, v)
 	}
 	req.URL.RawQuery = qb.query()
@@ -637,6 +648,10 @@ func BuildSearchRequest(req *http.Request, searchReq *tempopb.SearchRequest) (*h
 		qb.addParam(urlParamTags, builder.String())
 	}
 
+	if !searchReq.RF1After.IsZero() {
+		qb.addParam(URLParamRF1After, searchReq.RF1After.Format(time.RFC3339))
+	}
+
 	req.URL.RawQuery = qb.query()
 
 	return req, nil
@@ -684,8 +699,8 @@ func extractQueryParam(v url.Values, param string) (string, bool) {
 }
 
 // ValidateAndSanitizeRequest validates params for trace by id api
-// return values are (blockStart, blockEnd, queryMode, start, end, error)
-func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64, int64, error) {
+// return values are (blockStart, blockEnd, queryMode, start, end, rf1After, error)
+func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64, int64, time.Time, error) {
 	vals := r.URL.Query()
 
 	q, _ := extractQueryParam(vals, QueryModeKey)
@@ -696,6 +711,8 @@ func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64,
 	var endTime int64
 	var blockStart string
 	var blockEnd string
+	var rf1After time.Time
+
 	if len(q) == 0 || q == QueryModeAll {
 		queryMode = QueryModeAll
 	} else if q == QueryModeIngesters {
@@ -703,18 +720,18 @@ func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64,
 	} else if q == QueryModeBlocks {
 		queryMode = QueryModeBlocks
 	} else {
-		return "", "", "", 0, 0, fmt.Errorf("invalid value for mode %s", q)
+		return "", "", "", 0, 0, time.Time{}, fmt.Errorf("invalid value for mode %s", q)
 	}
 
 	// no need to validate/sanitize other parameters if queryMode == QueryModeIngesters
 	if queryMode == QueryModeIngesters {
-		return "", "", queryMode, 0, 0, nil
+		return "", "", queryMode, 0, 0, time.Time{}, nil
 	}
 
 	if start, ok := extractQueryParam(vals, BlockStartKey); ok {
 		_, err := uuid.Parse(start)
 		if err != nil {
-			return "", "", "", 0, 0, fmt.Errorf("invalid value for blockstart: %w", err)
+			return "", "", "", 0, 0, time.Time{}, fmt.Errorf("invalid value for blockstart: %w", err)
 		}
 		blockStart = start
 	} else {
@@ -724,7 +741,7 @@ func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64,
 	if end, ok := extractQueryParam(vals, BlockEndKey); ok {
 		_, err := uuid.Parse(end)
 		if err != nil {
-			return "", "", "", 0, 0, fmt.Errorf("invalid value for blockEnd: %w", err)
+			return "", "", "", 0, 0, time.Time{}, fmt.Errorf("invalid value for blockEnd: %w", err)
 		}
 		blockEnd = end
 	} else {
@@ -735,7 +752,7 @@ func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64,
 		var err error
 		startTime, err = strconv.ParseInt(s, 10, 64)
 		if err != nil {
-			return "", "", "", 0, 0, fmt.Errorf("invalid start: %w", err)
+			return "", "", "", 0, 0, time.Time{}, fmt.Errorf("invalid start: %w", err)
 		}
 	} else {
 		startTime = 0
@@ -745,16 +762,25 @@ func ValidateAndSanitizeRequest(r *http.Request) (string, string, string, int64,
 		var err error
 		endTime, err = strconv.ParseInt(s, 10, 64)
 		if err != nil {
-			return "", "", "", 0, 0, fmt.Errorf("invalid end: %w", err)
+			return "", "", "", 0, 0, time.Time{}, fmt.Errorf("invalid end: %w", err)
 		}
 	} else {
 		endTime = 0
 	}
 
 	if startTime != 0 && endTime != 0 && endTime <= startTime {
-		return "", "", "", 0, 0, fmt.Errorf("http parameter start must be before end. received start=%d end=%d", startTime, endTime)
+		return "", "", "", 0, 0, time.Time{}, fmt.Errorf("http parameter start must be before end. received start=%d end=%d", startTime, endTime)
 	}
-	return blockStart, blockEnd, queryMode, startTime, endTime, nil
+
+	if rf1AfterStr, ok := extractQueryParam(vals, URLParamRF1After); ok {
+		var err error
+		rf1After, err = time.Parse(time.RFC3339, rf1AfterStr)
+		if err != nil {
+			return "", "", "", 0, 0, time.Time{}, fmt.Errorf("invalid rf1After: %w", err)
+		}
+	}
+
+	return blockStart, blockEnd, queryMode, startTime, endTime, rf1After, nil
 }
 
 func ReadBodyToBuffer(resp *http.Response) (*bytes.Buffer, error) {
