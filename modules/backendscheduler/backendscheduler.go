@@ -218,6 +218,8 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, ErrFlushFailed.Error())
 		}
 
+		metricJobsRetry.WithLabelValues(j.JobDetail.Tenant, j.GetType().String(), j.GetWorkerID()).Inc()
+
 		level.Info(log.Logger).Log("msg", "assigned previous job to worker", "job_id", j.ID, "worker", req.WorkerId)
 
 		return resp, nil
@@ -237,6 +239,9 @@ func (s *BackendScheduler) Next(ctx context.Context, req *tempopb.NextJobRequest
 		if err != nil {
 			return &tempopb.NextJobResponse{}, status.Error(codes.Internal, err.Error())
 		}
+
+		j.Start()
+		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()
 
 		err = s.flushWorkCache(ctx)
 		if err != nil {
@@ -266,9 +271,6 @@ func (s *BackendScheduler) UpdateJob(ctx context.Context, req *tempopb.UpdateJob
 
 	switch req.Status {
 	case tempopb.JobStatus_JOB_STATUS_RUNNING:
-		j.Start()
-		metricJobsActive.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()
-		level.Info(log.Logger).Log("msg", "job started", "job_id", req.JobId, "worker_id", j.GetWorkerID())
 	case tempopb.JobStatus_JOB_STATUS_SUCCEEDED:
 		j.Complete()
 		metricJobsCompleted.WithLabelValues(j.JobDetail.Tenant, j.GetType().String()).Inc()

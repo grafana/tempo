@@ -26,4 +26,9 @@ var (
 		Name:      "backend_scheduler_jobs_active",
 		Help:      "Number of currently active jobs",
 	}, []string{"tenant", "job_type"})
+	metricJobsRetry = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tempo",
+		Name:      "backend_scheduler_jobs_retry",
+		Help:      "The number of jobs which have been retried",
+	}, []string{"tenant", "job_type", "worker_id"})
 )
