@@ -91,8 +91,11 @@ func (s *BackendScheduler) starting(ctx context.Context) error {
 func (s *BackendScheduler) running(ctx context.Context) error {
 	level.Info(log.Logger).Log("msg", "backend scheduler running")
 
-	prioritizeTenantsTicker := time.NewTicker(s.cfg.TenantMeasurementInterval) // rename to measure Interval or something?
+	prioritizeTenantsTicker := time.NewTicker(s.cfg.TenantMeasurementInterval)
 	defer prioritizeTenantsTicker.Stop()
+
+	maintenanceTicker := time.NewTicker(s.cfg.MaintenanceInterval)
+	defer maintenanceTicker.Stop()
 
 	s.measureTenants()
 
@@ -100,6 +103,8 @@ func (s *BackendScheduler) running(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return nil
+		case <-maintenanceTicker.C:
+			s.work.Prune()
 		case <-prioritizeTenantsTicker.C:
 			s.measureTenants()
 		}
