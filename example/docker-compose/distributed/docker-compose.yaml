@@ -75,7 +75,8 @@ services:
   compactor:
     image: *tempoImage
     command: "-target=compactor -config.file=/etc/tempo.yaml"
-    restart: always
+    #remove restart if you want to run compactor as a job
+    #restart: always
     volumes:
       - ./tempo-distributed.yaml:/etc/tempo.yaml
     ports:

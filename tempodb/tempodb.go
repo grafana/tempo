@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/grafana/tempo/pkg/collector"
@@ -533,6 +534,13 @@ func (rw *readerWriter) Shutdown() {
 	// todo: stop blocklist poll
 	rw.pool.Shutdown()
 	rw.r.Shutdown()
+}
+
+func (rw *readerWriter) ShutdownAndExit() {
+	// todo: stop blocklist poll
+	rw.pool.Shutdown()
+	rw.r.Shutdown()
+	os.Exit(0)
 }
 
 // EnableCompaction activates the compaction/retention loops

@@ -24,6 +24,7 @@ memberlist:
 compactor:
   compaction:
     block_retention: 1h               # overall Tempo trace retention. set for demo purposes
+    run_as_job: true                  # run the compactor as a job instead of a deployment
 
 querier:
   frontend_worker:

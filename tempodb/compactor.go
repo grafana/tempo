@@ -31,6 +31,8 @@ const (
 	DefaultChunkSizeBytes            = 5 * 1024 * 1024  // 5 MiB
 	DefaultFlushSizeBytes     uint32 = 20 * 1024 * 1024 // 20 MiB
 	DefaultIteratorBufferSize        = 1000
+
+	DefaultRunAsJob = false
 )
 
 var tracer = otel.Tracer("tempodb/compactor")
@@ -89,6 +91,11 @@ func (rw *readerWriter) compactionLoop(ctx context.Context) {
 
 		doForAtLeast(ctx, compactionCycle, func() {
 			rw.compactOneTenant(ctx)
+
+			if rw.compactorCfg.RunAsJob {
+				level.Info(rw.logger).Log("msg", "compaction cycle complete. exiting as job")
+				rw.ShutdownAndExit()
+			}
 		})
 	}
 }
