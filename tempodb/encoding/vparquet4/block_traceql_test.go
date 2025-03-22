@@ -208,6 +208,13 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 				parse(t, `{`+LabelDuration+` < 100s }`), // No match
 			),
 		},
+		// Check for existence
+		{".foo != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo != nil}`)},
+		{"resource.foo != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.foo != nil}`)}, // Resource-level only
+		{"span.foo != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.foo != nil}`)},
+		{"resource.namespace != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelNamespace + ` != nil}`)},
+		{"resource.dedicated.resource.4 != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.4 != nil}`)},
+		{"span.dedicated.span.4 != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 != nil}`)},
 		// Edge cases
 		{"Almost conflicts with intrinsic but still works", traceql.MustExtractFetchSpansRequestWithMetadata(`{.name = "Bob"}`)},
 		{"service.name doesn't match type of dedicated column", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelServiceName + ` = 123}`)},
@@ -396,6 +403,91 @@ func TestBackendBlockSearchTraceQL(t *testing.T) {
 				}
 				require.NotEqual(t, wantTraceID, spanSet.TraceID, "search request:", req)
 			}
+		})
+	}
+}
+
+func TestBackendBlockSearchTraceQLNilSpecialColumns(t *testing.T) {
+	numTraces := 250
+	traces := make([]*Trace, 0, numTraces)
+	wantTraceIdx := rand.Intn(numTraces)
+	wantTraceID := test.ValidTraceID(nil)
+
+	for i := range numTraces {
+		if i == wantTraceIdx {
+			trace := fullyPopulatedTestTrace(wantTraceID)
+
+			// remove values from special columns and make sure attributes with the same name but
+			// different type exist in generic attributes
+			for _, r := range iterRes(trace) {
+				r.Namespace = nil
+				r.Attrs = append(r.Attrs, Attribute{
+					Key:      "namespace",
+					ValueInt: []int64{123},
+				})
+				r.DedicatedAttributes.String04 = nil
+				r.Attrs = append(r.Attrs, Attribute{
+					Key:      "dedicated.resource.4",
+					ValueInt: []int64{200},
+				})
+			}
+			for _, s := range iterSpans(trace) {
+				s.HttpStatusCode = nil // fullyPopulatedTestTrace already adds a non int http.status_code attr
+				s.DedicatedAttributes.String04 = nil
+				s.Attrs = append(s.Attrs, Attribute{
+					Key:      "dedicated.span.4",
+					ValueInt: []int64{200},
+				})
+			}
+
+			traces = append(traces, trace)
+			continue
+		}
+
+		id := test.ValidTraceID(nil)
+		tr, _ := traceToParquet(&backend.BlockMeta{}, id, test.MakeTrace(1, id), nil)
+		traces = append(traces, tr)
+	}
+
+	b := makeBackendBlockWithTraces(t, traces)
+	ctx := context.Background()
+
+	searches := []struct {
+		name string
+		req  traceql.FetchSpansRequest
+	}{
+		{"resource.namespace != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.` + LabelNamespace + ` != nil}`)},
+		{".namespace != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelNamespace + ` != nil}`)},
+		{"resource.dedicated.resource.4 != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{resource.dedicated.resource.4 != nil}`)},
+		{"span.http.status_code != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.` + LabelHTTPStatusCode + ` != nil}`)},
+		{".http.status_code != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{.` + LabelHTTPStatusCode + ` != nil}`)},
+		{"span.dedicated.span.4 != nil", traceql.MustExtractFetchSpansRequestWithMetadata(`{span.dedicated.span.4 != nil}`)},
+	}
+
+	for _, tc := range searches {
+		t.Run(tc.name, func(t *testing.T) {
+			req := tc.req
+			if req.SecondPass == nil {
+				req.SecondPass = func(s *traceql.Spanset) ([]*traceql.Spanset, error) { return []*traceql.Spanset{s}, nil }
+				req.SecondPassConditions = traceql.SearchMetaConditions()
+			}
+
+			resp, err := b.Fetch(ctx, req, common.DefaultSearchOptions())
+			require.NoError(t, err, "search request:%v", req)
+
+			found := false
+			for {
+				spanSet, err := resp.Results.Next(ctx)
+				require.NoError(t, err, "search request:%v", req)
+				if spanSet == nil {
+					break
+				}
+				found = bytes.Equal(spanSet.TraceID, wantTraceID)
+				if found {
+					break
+				}
+			}
+			require.True(t, found, "search request:%v", req)
 		})
 	}
 }
@@ -2039,4 +2131,36 @@ func blockForBenchmarks(b *testing.B) *backendBlock {
 	require.NoError(b, err)
 
 	return newBackendBlock(meta, rr)
+}
+
+func iterRes(traces ...*Trace) func(yield func(i int, r *Resource) bool) {
+	return func(yield func(i int, r *Resource) bool) {
+		count := 0
+		for _, t := range traces {
+			for i := range len(t.ResourceSpans) {
+				if !yield(count, &t.ResourceSpans[i].Resource) {
+					return
+				}
+				count++
+			}
+		}
+	}
+}
+
+func iterSpans(traces ...*Trace) func(yield func(i int, s *Span) bool) {
+	return func(yield func(i int, s *Span) bool) {
+		count := 0
+		for _, t := range traces {
+			for _, rs := range t.ResourceSpans {
+				for _, ss := range rs.ScopeSpans {
+					for i := range len(ss.Spans) {
+						if !yield(count, &ss.Spans[i]) {
+							return
+						}
+						count++
+					}
+				}
+			}
+		}
+	}
 }
