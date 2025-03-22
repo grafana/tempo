@@ -35,6 +35,8 @@ type mockOverrides struct {
 	maxBytesPerTrace                                   int
 	unsafeQueryHints                                   bool
 	nativeHistograms                                   overrides.HistogramMethod
+	hostInfoHostIdentifiers                            []string
+	hostInfoMetricName                                 string
 }
 
 var _ metricsGeneratorOverrides = (*mockOverrides)(nil)
@@ -163,4 +165,12 @@ func (m *mockOverrides) MaxBytesPerTrace(string) int {
 
 func (m *mockOverrides) UnsafeQueryHints(string) bool {
 	return m.unsafeQueryHints
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorHostInfoHostIdentifiers(string) []string {
+	return m.hostInfoHostIdentifiers
+}
+
+func (m *mockOverrides) MetricsGeneratorProcessorHostInfoMetricName(string) string {
+	return m.hostInfoMetricName
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/grafana/tempo/modules/generator/processor"
+	"github.com/grafana/tempo/modules/generator/processor/hostinfo"
 	"github.com/grafana/tempo/modules/generator/processor/localblocks"
 	"github.com/grafana/tempo/modules/generator/processor/servicegraphs"
 	"github.com/grafana/tempo/modules/generator/processor/spanmetrics"
@@ -299,6 +300,10 @@ func (i *instance) diffProcessors(desiredProcessors map[string]struct{}, desired
 			if !reflect.DeepEqual(p.Cfg, desiredCfg.LocalBlocks) {
 				toReplace = append(toReplace, processorName)
 			}
+		case *hostinfo.Processor:
+			if !reflect.DeepEqual(p.Cfg, desiredCfg.HostInfo) {
+				toReplace = append(toReplace, processorName)
+			}
 		default:
 			level.Error(i.logger).Log(
 				"msg", fmt.Sprintf("processor does not exist, supported processors: [%s]", strings.Join(SupportedProcessors, ", ")),
@@ -345,6 +350,11 @@ func (i *instance) addProcessor(processorName string, cfg ProcessorConfig) error
 			if err != nil {
 				return err
 			}
+		}
+	case hostinfo.Name:
+		newProcessor, err = hostinfo.New(cfg.HostInfo, i.registry, i.logger)
+		if err != nil {
+			return err
 		}
 	default:
 		level.Error(i.logger).Log(
