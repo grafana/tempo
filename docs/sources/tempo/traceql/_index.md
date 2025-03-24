@@ -171,7 +171,8 @@ Find if `productcatalogservice` and `frontend` are siblings.
 { resource.service.name = "productcatalogservice" } ~ { resource.service.name="frontend" }
 ```
 
-You can use nested set intrinsics to request structural details about spans: `nestedSetLeft`, `nestedSetRight`, and `nestedSetParent` columns.
+You can use nested set intrinsics to request structural details about spans.
+These intrinsics include `nestedSetLeft`, `nestedSetRight`, and `nestedSetParent.
 For incomplete traces, all values are set to `0`.
 
 Find root spans for complete traces:
