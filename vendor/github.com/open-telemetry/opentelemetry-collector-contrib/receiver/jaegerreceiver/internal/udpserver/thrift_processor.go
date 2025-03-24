@@ -1,8 +1,9 @@
+// Copyright The OpenTelemetry Authors
 // Copyright (c) 2019 The Jaeger Authors.
 // Copyright (c) 2017 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package processors
+package udpserver // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/udpserver"
 
 import (
 	"context"
@@ -11,27 +12,16 @@ import (
 
 	"github.com/apache/thrift/lib/go/thrift"
 	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/cmd/agent/app/customtransport"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
-	"github.com/jaegertracing/jaeger/pkg/metrics"
 )
 
 // ThriftProcessor is a server that processes spans using a TBuffered Server
 type ThriftProcessor struct {
-	server        servers.Server
+	server        *UDPServer
 	handler       AgentProcessor
 	protocolPool  *sync.Pool
 	numProcessors int
 	processing    sync.WaitGroup
 	logger        *zap.Logger
-	metrics       struct {
-		// Amount of time taken for processor to close
-		ProcessorCloseTimer metrics.Timer `metric:"thrift.udp.t-processor.close-time"`
-
-		// Number of failed buffer process operations
-		HandlerProcessError metrics.Counter `metric:"thrift.udp.t-processor.handler-errors"`
-	}
 }
 
 // AgentProcessor handler used by the processor to process thrift and call the reporter
@@ -44,9 +34,8 @@ type AgentProcessor interface {
 
 // NewThriftProcessor creates a TBufferedServer backed ThriftProcessor
 func NewThriftProcessor(
-	server servers.Server,
+	server *UDPServer,
 	numProcessors int,
-	mFactory metrics.Factory,
 	factory thrift.TProtocolFactory,
 	handler AgentProcessor,
 	logger *zap.Logger,
@@ -57,7 +46,7 @@ func NewThriftProcessor(
 	}
 	protocolPool := &sync.Pool{
 		New: func() any {
-			trans := &customtransport.TBufferedReadTransport{}
+			trans := &TBufferedReadTransport{}
 			return factory.GetProtocol(trans)
 		},
 	}
@@ -69,7 +58,6 @@ func NewThriftProcessor(
 		logger:        logger,
 		numProcessors: numProcessors,
 	}
-	metrics.Init(&res.metrics, mFactory, nil)
 	res.processing.Add(res.numProcessors)
 	for i := 0; i < res.numProcessors; i++ {
 		go func() {
@@ -93,28 +81,24 @@ func (s *ThriftProcessor) IsServing() bool {
 // Stop stops the serving of traffic and waits until the queue is
 // emptied by the readers
 func (s *ThriftProcessor) Stop() {
-	stopwatch := metrics.StartStopwatch(s.metrics.ProcessorCloseTimer)
 	s.server.Stop()
 	s.processing.Wait()
-	stopwatch.Stop()
 }
 
 // processBuffer reads data off the channel and puts it into a custom transport for
 // the processor to process
 func (s *ThriftProcessor) processBuffer() {
-	for readBuf := range s.server.DataChan() {
+	for buf := range s.server.DataChan() {
 		protocol := s.protocolPool.Get().(thrift.TProtocol)
-		payload := readBuf.GetBytes()
-		protocol.Transport().Write(payload)
-		s.logger.Debug("Span(s) received by the agent", zap.Int("bytes-received", len(payload)))
+		_, _ = buf.WriteTo(protocol.Transport()) // writes to memory transport don't fail
+		s.logger.Debug("Span(s) received by the agent", zap.Int("bytes-received", buf.Len()))
 
 		// NB: oddly, thrift-gen/agent/agent.go:L156 does this: `return true, thrift.WrapTException(err2)`
 		// So we check for both OK and error.
 		if ok, err := s.handler.Process(context.Background(), protocol, protocol); !ok || err != nil {
 			s.logger.Error("Processor failed", zap.Error(err))
-			s.metrics.HandlerProcessError.Inc(1)
 		}
 		s.protocolPool.Put(protocol)
-		s.server.DataRecd(readBuf) // acknowledge receipt and release the buffer
+		s.server.DataRecd(buf) // acknowledge receipt and release the buffer
 	}
 }

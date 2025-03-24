@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grafana/dskit/user"
+	jaeger "github.com/jaegertracing/jaeger-idl/thrift-gen/jaeger"
 	thrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	zipkincore "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 	jaegerTrans "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
@@ -174,6 +175,33 @@ func (t *TraceInfo) makeThriftBatch(TraceIDHigh, TraceIDLow int64) *thrift.Batch
 	return &thrift.Batch{Process: process, Spans: spans}
 }
 
+func (t *TraceInfo) makeJaegerBatch(TraceIDHigh, TraceIDLow int64) *jaeger.Batch {
+	var spans []*jaeger.Span
+	count := t.generateRandomInt(1, 5)
+	for i := int64(0); i < count; i++ {
+		spans = append(spans, &jaeger.Span{
+			TraceIdLow:    TraceIDLow,
+			TraceIdHigh:   TraceIDHigh,
+			SpanId:        t.r.Int63(),
+			ParentSpanId:  0,
+			OperationName: fmt.Sprintf("vulture-%d", t.generateRandomInt(0, 100)),
+			References:    nil,
+			Flags:         0,
+			StartTime:     t.timestamp.UnixMicro(),
+			Duration:      t.generateRandomInt(0, 100),
+			Tags:          t.generateRandomJaegerTags(),
+			Logs:          t.generateRandomJaegerLogs(),
+		})
+	}
+
+	process := &jaeger.Process{
+		ServiceName: "tempo-vulture",
+		Tags:        t.generateRandomJaegerTagsWithPrefix("vulture-process"),
+	}
+
+	return &jaeger.Batch{Process: process, Spans: spans}
+}
+
 func (t *TraceInfo) generateRandomString() string {
 	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
@@ -188,12 +216,29 @@ func (t *TraceInfo) generateRandomTags() []*thrift.Tag {
 	return t.generateRandomTagsWithPrefix("vulture")
 }
 
+func (t *TraceInfo) generateRandomJaegerTags() []*jaeger.Tag {
+	return t.generateRandomJaegerTagsWithPrefix("vulture")
+}
+
 func (t *TraceInfo) generateRandomTagsWithPrefix(prefix string) []*thrift.Tag {
 	var tags []*thrift.Tag
 	count := t.generateRandomInt(1, 5)
 	for i := int64(0); i < count; i++ {
 		value := t.generateRandomString()
 		tags = append(tags, &thrift.Tag{
+			Key:  fmt.Sprintf("%s-%d", prefix, i),
+			VStr: &value,
+		})
+	}
+	return tags
+}
+
+func (t *TraceInfo) generateRandomJaegerTagsWithPrefix(prefix string) []*jaeger.Tag {
+	var tags []*jaeger.Tag
+	count := t.generateRandomInt(1, 5)
+	for i := int64(0); i < count; i++ {
+		value := t.generateRandomString()
+		tags = append(tags, &jaeger.Tag{
 			Key:  fmt.Sprintf("%s-%d", prefix, i),
 			VStr: &value,
 		})
@@ -214,6 +259,19 @@ func (t *TraceInfo) generateRandomLogs() []*thrift.Log {
 	return logs
 }
 
+func (t *TraceInfo) generateRandomJaegerLogs() []*jaeger.Log {
+	var logs []*jaeger.Log
+	count := t.generateRandomInt(1, 5)
+	for i := int64(0); i < count; i++ {
+		logs = append(logs, &jaeger.Log{
+			Timestamp: t.timestamp.UnixMicro(),
+			Fields:    t.generateRandomJaegerTags(),
+		})
+	}
+
+	return logs
+}
+
 func (t *TraceInfo) ConstructTraceFromEpoch() (*tempopb.Trace, error) {
 	trace := &tempopb.Trace{}
 
@@ -222,7 +280,7 @@ func (t *TraceInfo) ConstructTraceFromEpoch() (*tempopb.Trace, error) {
 
 	addBatches := func(t *TraceInfo, trace *tempopb.Trace) error {
 		for i := int64(0); i < t.generateRandomInt(1, maxBatchesPerWrite); i++ {
-			batch := t.makeThriftBatch(t.traceIDHigh, t.traceIDLow)
+			batch := t.makeJaegerBatch(t.traceIDHigh, t.traceIDLow)
 			internalTrace, err := jaegerTrans.ThriftToTraces(batch)
 			if err != nil {
 				return err

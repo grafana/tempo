@@ -9,7 +9,7 @@ import (
 	_ "github.com/gogo/googleapis/google/api"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
-	model "github.com/jaegertracing/jaeger/model"
+	v1 "github.com/jaegertracing/jaeger-idl/model/v1"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -30,10 +30,10 @@ var _ = math.Inf
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 type PostSpansRequest struct {
-	Batch                model.Batch `protobuf:"bytes,1,opt,name=batch,proto3" json:"batch"`
-	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
-	XXX_unrecognized     []byte      `json:"-"`
-	XXX_sizecache        int32       `json:"-"`
+	Batch                v1.Batch `protobuf:"bytes,1,opt,name=batch,proto3" json:"batch"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *PostSpansRequest) Reset()         { *m = PostSpansRequest{} }
@@ -69,11 +69,11 @@ func (m *PostSpansRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_PostSpansRequest proto.InternalMessageInfo
 
-func (m *PostSpansRequest) GetBatch() model.Batch {
+func (m *PostSpansRequest) GetBatch() v1.Batch {
 	if m != nil {
 		return m.Batch
 	}
-	return model.Batch{}
+	return v1.Batch{}
 }
 
 type PostSpansResponse struct {

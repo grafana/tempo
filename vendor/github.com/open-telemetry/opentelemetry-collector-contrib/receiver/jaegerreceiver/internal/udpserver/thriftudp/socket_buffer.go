@@ -1,10 +1,10 @@
+// Copyright The OpenTelemetry Authors
 // Copyright (c) 2020 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build !windows
-// +build !windows
 
-package thriftudp
+package thriftudp // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/udpserver/thriftudp"
 
 import (
 	"fmt"

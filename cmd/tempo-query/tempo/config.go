@@ -2,9 +2,11 @@ package tempo
 
 import (
 	"github.com/grafana/dskit/crypto/tls"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/spf13/viper"
 )
+
+// BearerTokenKey is the key name for the bearer token context value.
+const bearerTokenKey = "bearer.token"
 
 // Config holds the configuration for redbull.
 type Config struct {
@@ -46,7 +48,7 @@ func (c *Config) InitFromViper(v *viper.Viper) {
 	}
 	tenantHeader := v.GetString("tenant_header_key")
 	if tenantHeader == "" {
-		tenantHeader = shared.BearerTokenKey
+		tenantHeader = bearerTokenKey
 	}
 	c.TenantHeaderKey = tenantHeader
 }
