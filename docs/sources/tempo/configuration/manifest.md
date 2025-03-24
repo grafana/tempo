@@ -358,6 +358,7 @@ query_frontend:
         max_traceql_conditions: 4
         max_regex_conditions: 1
     max_query_expression_size_bytes: 131072
+    rf1_after: 0001-01-01T00:00:00Z
 compactor:
     ring:
         kvstore:
@@ -512,6 +513,7 @@ ingester:
     complete_block_timeout: 15m0s
     override_ring_key: ring
     flush_all_on_shutdown: false
+    flush_object_storage: true
 metrics_generator:
     ring:
         kvstore:

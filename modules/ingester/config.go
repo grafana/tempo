@@ -29,6 +29,7 @@ type Config struct {
 	CompleteBlockTimeout time.Duration `yaml:"complete_block_timeout"`
 	OverrideRingKey      string        `yaml:"override_ring_key"`
 	FlushAllOnShutdown   bool          `yaml:"flush_all_on_shutdown"`
+	FlushObjectStorage   bool          `yaml:"flush_object_storage"`
 
 	// This config is dynamically injected because defined outside the ingester config.
 	DedicatedColumns    backend.DedicatedColumns `yaml:"-"`
@@ -49,6 +50,7 @@ func (cfg *Config) RegisterFlagsAndApplyDefaults(prefix string, f *flag.FlagSet)
 	cfg.FlushCheckPeriod = 10 * time.Second
 	cfg.FlushOpTimeout = 5 * time.Minute
 	cfg.FlushAllOnShutdown = false
+	cfg.FlushObjectStorage = true
 
 	f.DurationVar(&cfg.MaxTraceIdle, prefix+".trace-idle-period", 10*time.Second, "Duration after which to consider a trace complete if no spans have been received")
 	f.DurationVar(&cfg.MaxBlockDuration, prefix+".max-block-duration", 30*time.Minute, "Maximum duration which the head block can be appended to before cutting it.")
