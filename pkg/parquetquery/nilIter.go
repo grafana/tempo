@@ -354,6 +354,7 @@ func (c *NilAttributeIterator) seekWithinPage(to RowNumber, definitionLevel int)
 // Next() is because it doesn't wrap the results in an IteratorResult, which is more efficient
 // when being called multiple times and throwing away the results like in SeekTo().
 func (c *NilAttributeIterator) next() (RowNumber, *pq.Value, error) {
+	attrFound := false
 	for {
 		if c.currRowGroup == nil {
 			rg, min, max := c.popRowGroup()
@@ -393,11 +394,16 @@ func (c *NilAttributeIterator) next() (RowNumber, *pq.Value, error) {
 		if c.currBuf == nil {
 			c.currBuf = nilAttributeIteratorPoolGet(c.readSize, 0)
 		}
+
+		lastBuff := false
 		if c.currBufN >= len(c.currBuf) || len(c.currBuf) == 0 {
 			c.currBuf = c.currBuf[:cap(c.currBuf)]
 			n, err := c.currValues.ReadValues(c.currBuf)
 			if err != nil && !errors.Is(err, io.EOF) {
 				return EmptyRowNumber(), nil, err
+			}
+			if errors.Is(err, io.EOF) {
+				lastBuff = true
 			}
 			c.currBuf = c.currBuf[:n]
 			c.currBufN = 0
@@ -417,12 +423,34 @@ func (c *NilAttributeIterator) next() (RowNumber, *pq.Value, error) {
 			c.curr.Next(v.RepetitionLevel(), v.DefinitionLevel())
 			c.currBufN++
 			c.currPageN++
-			fmt.Printf("sync iterator rn: %v, value %s\n", c.curr, *v)
-			if c.filter != nil && !c.filter.KeepValue(*v) {
-				continue
+
+			fmt.Printf("nil iterator rn: %v, value %s\n", c.curr, *v)
+			if c.filter != nil && c.filter.KeepValue(*v) {
+				attrFound = true
 			}
 
-			return c.curr, v, nil
+			// check the next value if we've moved on to a new span
+			if c.currBufN < len(c.currBuf) {
+				nextV := &c.currBuf[c.currBufN]
+				if nextV.RepetitionLevel() < nextV.DefinitionLevel() {
+					// we've gone to the next span, if we still haven't seen the attr then it doesn't exist
+					// meaning we found the span without the attribute
+					if !attrFound {
+						fmt.Printf("this one does not have the attribute! %v\n", c.curr)
+						return c.curr, v, nil
+					}
+					// reset the attrFound flag for the next span
+					attrFound = false
+				}
+			}
+
+
+			// if this is the last value then check here
+			if lastBuff && c.currBufN+1 == len(c.currBuf) && !attrFound {
+				fmt.Printf("this one does not have the attribute! %v\n", c.curr)
+				return c.curr, v, nil
+			}
+			continue
 		}
 	}
 }
