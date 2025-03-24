@@ -162,7 +162,7 @@ func New(receiverCfg map[string]interface{}, pusher TracesPusher, middleware Mid
 	zapLogger := newLogger(logLevel)
 
 	// load config
-	receiverFactories, err := receiver.MakeFactoryMap(
+	receiverFactories, err := otelcol.MakeFactoryMap(
 		jaegerreceiver.NewFactory(),
 		zipkinreceiver.NewFactory(),
 		opencensusreceiver.NewFactory(),
